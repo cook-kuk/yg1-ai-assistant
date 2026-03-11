@@ -66,6 +66,8 @@ isComplete가 true일 때:
 
 중요: JSON 외 다른 텍스트 없이 오직 JSON만 반환하세요.`
 
+export const maxDuration = 60
+
 export interface ChatMessage {
   role: "user" | "ai" | "system"
   text: string
