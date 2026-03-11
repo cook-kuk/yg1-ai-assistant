@@ -90,12 +90,14 @@ export async function POST(req: NextRequest) {
     const { messages, mode } = await req.json() as { messages: ChatMessage[]; mode: string }
 
     // Convert to Claude API format (only user/assistant messages)
+    // Anthropic requires conversation to start with a user message
     const apiMessages = messages
       .filter(m => m.role === "user" || m.role === "ai")
       .map(m => ({
         role: m.role === "user" ? "user" as const : "assistant" as const,
         content: m.text,
       }))
+      .filter((_, i, arr) => !(i === 0 && arr[0].role === "assistant"))
 
     // Add mode context to system prompt
     const modeNote = mode === "simple"
