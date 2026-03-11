@@ -1,0 +1,256 @@
+"use client"
+
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import {
+  LayoutDashboard,
+  Inbox,
+  Search,
+  FileText,
+  Users,
+  BookOpen,
+  Settings,
+  ChevronDown,
+  Sparkles,
+  Play,
+  MessageSquare,
+  Shield,
+  ShieldCheck
+} from "lucide-react"
+import { cn } from "@/lib/utils"
+import { useApp } from "@/lib/store"
+import { wowScenarios } from "@/lib/demo-data"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel
+} from "@/components/ui/dropdown-menu"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+
+const navItems = [
+  {
+    title: "데모 시나리오",
+    titleEn: "Demo Launcher",
+    href: "/executive-demo",
+    icon: Sparkles,
+    roles: ["sales", "rnd", "admin"]
+  },
+  {
+    title: "AI 추천 대화",
+    titleEn: "Assistant",
+    href: "/assistant/new",
+    icon: MessageSquare,
+    roles: ["sales", "rnd", "admin"]
+  },
+  {
+    title: "대시보드",
+    titleEn: "Dashboard",
+    href: "/",
+    icon: LayoutDashboard,
+    roles: ["sales", "rnd", "admin"]
+  },
+  {
+    title: "문의함",
+    titleEn: "Inbox",
+    href: "/inbox",
+    icon: Inbox,
+    roles: ["sales", "rnd", "admin"],
+    badge: 3
+  },
+  {
+    title: "제품 탐색",
+    titleEn: "Product Finder",
+    href: "/products",
+    icon: Search,
+    roles: ["sales", "rnd", "admin"]
+  },
+  {
+    title: "특주 티켓",
+    titleEn: "Special Tickets",
+    href: "/tickets/special",
+    icon: Shield,
+    roles: ["sales", "rnd", "admin"],
+    badge: 3
+  },
+  {
+    title: "견적 초안",
+    titleEn: "Quote Draft",
+    href: "/quotes",
+    icon: FileText,
+    roles: ["sales", "admin"]
+  },
+  {
+    title: "전문가 검토",
+    titleEn: "Specialist Review",
+    href: "/escalation",
+    icon: Users,
+    roles: ["rnd", "admin"],
+    badge: 2
+  },
+  {
+    title: "정책 시뮬레이터",
+    titleEn: "Policy Simulator",
+    href: "/admin/policy-simulator",
+    icon: ShieldCheck,
+    roles: ["admin"]
+  },
+  {
+    title: "지식 베이스",
+    titleEn: "Knowledge",
+    href: "/admin/knowledge",
+    icon: BookOpen,
+    roles: ["admin"]
+  },
+  {
+    title: "관리",
+    titleEn: "Admin",
+    href: "/admin",
+    icon: Settings,
+    roles: ["admin"]
+  }
+]
+
+const roleLabels = {
+  sales: { kr: "영업", en: "Sales" },
+  rnd: { kr: "연구/기술지원", en: "R&D" },
+  admin: { kr: "관리자", en: "Admin" }
+}
+
+export function AppSidebar() {
+  const pathname = usePathname()
+  const { currentUser, setUserRole, demoScenario, setDemoScenario } = useApp()
+
+  const filteredNavItems = navItems.filter(item =>
+    item.roles.includes(currentUser.role)
+  )
+
+  return (
+    <aside className="flex h-screen w-64 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
+      {/* Logo */}
+      <div className="flex h-16 items-center gap-2 px-4 border-b border-sidebar-border">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary">
+          <Sparkles className="h-4 w-4 text-sidebar-primary-foreground" />
+        </div>
+        <div>
+          <h1 className="font-semibold text-sm">YG-1 AI Assistant</h1>
+          <p className="text-xs text-sidebar-foreground/60">Sales Support System</p>
+        </div>
+      </div>
+
+      {/* Demo Mode Selector */}
+      <div className="px-3 py-3 border-b border-sidebar-border">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              className={cn(
+                "w-full justify-between text-xs h-9 bg-sidebar-accent border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent/80",
+                demoScenario && "border-sidebar-primary"
+              )}
+            >
+              <span className="flex items-center gap-2">
+                <Play className="h-3 w-3" />
+                {demoScenario ? `Demo: ${wowScenarios.find(s => s.id === demoScenario)?.title || demoScenario}` : "Demo Mode"}
+              </span>
+              <ChevronDown className="h-3 w-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-72">
+            <DropdownMenuLabel>데모 시나리오 선택</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+{wowScenarios.map(scenario => (
+  <DropdownMenuItem
+  key={scenario.id}
+  onClick={() => setDemoScenario(scenario.id)}
+  className="flex flex-col items-start py-2"
+  >
+  <span className="font-medium">{scenario.title}</span>
+  <span className="text-xs text-muted-foreground">{scenario.subtitle}</span>
+  </DropdownMenuItem>
+  ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setDemoScenario(null)}>
+              <span className="text-muted-foreground">Demo Mode 종료</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
+        <ul className="space-y-1">
+          {filteredNavItems.map(item => {
+            const isActive = pathname === item.href
+            return (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+                    isActive
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                  )}
+                >
+                  <item.icon className="h-4 w-4" />
+                  <span className="flex-1">{item.title}</span>
+                  {item.badge && (
+                    <Badge variant="secondary" className="h-5 min-w-5 text-xs bg-sidebar-primary text-sidebar-primary-foreground">
+                      {item.badge}
+                    </Badge>
+                  )}
+                </Link>
+                {!isActive && (
+                  <span className="ml-10 text-[10px] text-sidebar-foreground/40">{item.titleEn}</span>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      </nav>
+
+      {/* User Role Selector */}
+      <div className="border-t border-sidebar-border p-3">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              className="w-full justify-between text-sidebar-foreground hover:bg-sidebar-accent"
+            >
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-accent text-xs font-medium">
+                  {currentUser.nameKr.charAt(0)}
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-medium">{currentUser.nameKr}</p>
+                  <p className="text-xs text-sidebar-foreground/60">
+                    {roleLabels[currentUser.role].kr}
+                  </p>
+                </div>
+              </div>
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuLabel>역할 변경 (Demo)</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {(Object.keys(roleLabels) as Array<keyof typeof roleLabels>).map(role => (
+              <DropdownMenuItem
+                key={role}
+                onClick={() => setUserRole(role)}
+                className={cn(currentUser.role === role && "bg-accent")}
+              >
+                <span>{roleLabels[role].kr}</span>
+                <span className="ml-2 text-xs text-muted-foreground">({roleLabels[role].en})</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </aside>
+  )
+}

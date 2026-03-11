@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/kuksh/Downloads/**)",
+      "Bash(unzip -l \"C:\\\\Users\\\\kuksh\\\\Downloads\\\\UI.zip\")",
+      "Bash(unzip -o \"C:\\\\Users\\\\kuksh\\\\Downloads\\\\UI.zip\" -d .)",
+      "Bash(unzip -o \"UI/yg-1-ai-assistant-prototype.zip\" -d .)",
+      "Bash(npm install @anthropic-ai/sdk)",
+      "Bash(cmd /c \"npm --version\")",
+      "Bash(cmd /c \"node --version\")",
+      "Bash(powershell -Command \"npm --version; node --version\")",
+      "Bash(export PATH=\"/c/Program Files/nodejs:$PATH\")",
+      "Bash(npx vercel --version)"
+    ]
+  }
+}
