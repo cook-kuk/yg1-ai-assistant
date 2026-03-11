@@ -10,7 +10,10 @@
       "Bash(cmd /c \"node --version\")",
       "Bash(powershell -Command \"npm --version; node --version\")",
       "Bash(export PATH=\"/c/Program Files/nodejs:$PATH\")",
-      "Bash(npx vercel --version)"
+      "Bash(npx vercel --version)",
+      "Bash(npx vercel --token vcp_2FgRt1eWGDH494ME9Qxaf2xwy6zLCd90zBi2PnTMqjTVyPdIJ70RGcK6 --yes)",
+      "Bash(npx vercel --token vcp_2FgRt1eWGDH494ME9Qxaf2xwy6zLCd90zBi2PnTMqjTVyPdIJ70RGcK6 --yes --scope kukshomr-5918s-projects)",
+      "Bash(npx vercel --token vcp_2FgRt1eWGDH494ME9Qxaf2xwy6zLCd90zBi2PnTMqjTVyPdIJ70RGcK6 --yes --scope kukshomr-5918s-projects --name yg1-ai-assistant)"
     ]
   }
 }
