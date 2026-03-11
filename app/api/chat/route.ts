@@ -134,9 +134,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(parsed)
   } catch (error) {
-    console.error("Chat API error:", error)
+    const msg = error instanceof Error ? error.message : String(error)
+    console.error("Chat API error:", msg)
     return NextResponse.json(
-      { error: "AI 응답을 가져오는데 실패했습니다" },
+      { error: "AI 응답을 가져오는데 실패했습니다", detail: msg },
       { status: 500 }
     )
   }
