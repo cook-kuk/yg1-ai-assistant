@@ -1,0 +1,492 @@
+[
+  {
+    "productCode": "GNX98 001S",
+    "normalizedCode": "GNX98001S",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "S suffix variant.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 001",
+    "normalizedCode": "GNX98001",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "Diameter inferred from block header.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 0015S",
+    "normalizedCode": "GNX980015S",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "S suffix variant.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 0015",
+    "normalizedCode": "GNX980015",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": null,
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 002S",
+    "normalizedCode": "GNX98002S",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "S suffix variant.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 002",
+    "normalizedCode": "GNX98002",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": null,
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 003S",
+    "normalizedCode": "GNX98003S",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "S suffix variant.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 003",
+    "normalizedCode": "GNX98003",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": null,
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 004S",
+    "normalizedCode": "GNX98004S",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "S suffix variant.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 004",
+    "normalizedCode": "GNX98004",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": null,
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 005S",
+    "normalizedCode": "GNX98005S",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "S suffix variant.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 005",
+    "normalizedCode": "GNX98005",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": null,
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 006S",
+    "normalizedCode": "GNX98006S",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "S suffix variant.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 006",
+    "normalizedCode": "GNX98006",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": null,
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 007S",
+    "normalizedCode": "GNX98007S",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "S suffix variant.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 007",
+    "normalizedCode": "GNX98007",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": null,
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 008S",
+    "normalizedCode": "GNX98008S",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "S suffix variant.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 008",
+    "normalizedCode": "GNX98008",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": null,
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 009S",
+    "normalizedCode": "GNX98009S",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "S suffix variant.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 009",
+    "normalizedCode": "GNX98009",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": null,
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 010 040 4S",
+    "normalizedCode": "GNX980100404S",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "4mm Shank variant.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 010 040",
+    "normalizedCode": "GNX98010040",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "Diameter inferred from block header.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 010 3S",
+    "normalizedCode": "GNX980103S",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "3mm Shank variant.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 010 4S",
+    "normalizedCode": "GNX980104S",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "4mm Shank variant.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 010",
+    "normalizedCode": "GNX98010",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "Diameter inferred from block header.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 012 040 4S",
+    "normalizedCode": "GNX980120404S",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "4mm Shank variant.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 012 040",
+    "normalizedCode": "GNX98012040",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "Diameter inferred from block header.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 012 3S",
+    "normalizedCode": "GNX980123S",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "3mm Shank variant.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 012 4S",
+    "normalizedCode": "GNX980124S",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "4mm Shank variant.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 012",
+    "normalizedCode": "GNX98012",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "Diameter inferred from block header.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 015 040 4S",
+    "normalizedCode": "GNX980150404S",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "4mm Shank variant.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 015 040",
+    "normalizedCode": "GNX98015040",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "Diameter inferred from block header.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 015 3S",
+    "normalizedCode": "GNX980153S",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "3mm Shank variant.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 015 4S",
+    "normalizedCode": "GNX980154S",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "4mm Shank variant.",
+    "confidence": 0.95
+  },
+  {
+    "productCode": "GNX98 015",
+    "normalizedCode": "GNX98015",
+    "pdfFile": "YG-1 국내 종합 카탈로그 (웹용).pdf",
+    "referencePages": [
+      "1.2131415161718192e+25"
+    ],
+    "dataPage": "28",
+    "pageTitle": null,
+    "imagePath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_png/yg_1/page_0028.png",
+    "markdownPath": "/Users/jeongsuchan/Desktop/코너스톤/와이지원 2026/Before_PoC/Data/catalog/extracted/llm_results/yg_1/page_0028.md",
+    "notes": "Diameter inferred from block header.",
+    "confidence": 0.95
+  }
+]
