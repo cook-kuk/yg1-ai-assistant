@@ -4,18 +4,23 @@ import type { NextRequest } from "next/server"
 /**
  * Basic Auth 미들웨어
  *
- * Vercel 환경변수에 BASIC_AUTH_PASSWORD가 설정되어 있으면 인증 요구.
- * 설정 안 되어 있으면 (로컬 개발) 그냥 통과.
+ * production 배포에서만 인증 요구.
+ * preview / 로컬 개발은 그냥 통과.
  *
- * Vercel 대시보드에서 설정:
+ * Vercel 대시보드에서 설정 (production 전용):
  *   BASIC_AUTH_USER     = yg1        (optional, default: yg1)
  *   BASIC_AUTH_PASSWORD = yourpassword
  */
 export function middleware(request: NextRequest) {
+  // Vercel이 자동 주입: production | preview | development
+  // production 이 아니면 (preview URL, 로컬) 인증 스킵
+  const vercelEnv = process.env.VERCEL_ENV
+  if (vercelEnv !== "production") return NextResponse.next()
+
   const password = process.env.BASIC_AUTH_PASSWORD
   const user = process.env.BASIC_AUTH_USER || "yg1"
 
-  // 환경변수 미설정 → 로컬 개발 모드, 인증 스킵
+  // production 인데 비밀번호 미설정이면 통과 (fallback)
   if (!password) return NextResponse.next()
 
   const authHeader = request.headers.get("authorization")
