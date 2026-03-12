@@ -399,6 +399,10 @@ export default function ProductFinderPage() {
   const [showSpecial, setShowSpecial] = useState(false)
   const [rightCollapsed, setRightCollapsed] = useState(false)
 
+  // LLM state
+  const [chatHistory, setChatHistory] = useState<Array<{role: "user"|"ai", text: string}>>([])
+  const [answeredMsgIds, setAnsweredMsgIds] = useState<Set<string>>(new Set())
+
   useEffect(() => { chatRef.current?.scrollTo(0, chatRef.current.scrollHeight) }, [msgs, typing])
 
   // Auto-start when demo scenario selected from sidebar
@@ -425,6 +429,7 @@ export default function ProductFinderPage() {
     setMsgs([]); setInp(""); setTyping(false); setPhase("idle")
     setCurrentStep(0); setAnswers({}); setRecs([]); setFunnel([])
     setUncertainty("high"); setShowSpecial(false)
+    setChatHistory([]); setAnsweredMsgIds(new Set())
   }
 
   const handleProfileComplete = (p: CustomerProfile) => {
@@ -432,159 +437,129 @@ export default function ProductFinderPage() {
     setPhase("idle")
   }
 
-  // Push next question - skip already answered steps
-  const askNext = (step: number, currentAnswers: Record<string, string>) => {
-    const maxSteps = preciseMode ? 5 : 3
-    // Skip steps that are already answered (non-consecutive pre-answers)
-    let nextStep = step
-    while (nextStep < maxSteps && currentAnswers[questionSteps[nextStep]?.key]) {
-      nextStep++
+  // Map LLM extractedField label to answers key
+  const mapFieldLabel = (label: string): string => {
+    const m: Record<string, string> = {
+      "material": "material", "소재": "material",
+      "diameter": "diameter", "직경": "diameter",
+      "operation": "goal", "가공 종류": "goal", "mode": "goal", "모드": "goal",
+      "process": "process", "가공 공정": "process",
+      "priority": "priority", "우선순위": "priority",
+      "intent": "intent", "machine": "machine", "hardness": "hardness", "depth": "depth",
     }
-    if (nextStep >= maxSteps) { finalize(currentAnswers); return }
-    const q = questionSteps[nextStep]
-    setCurrentStep(nextStep)
-    setTyping(true)
-    setTimeout(() => {
-      setTyping(false)
-      setMsgs(p => [...p, { id: `q${nextStep}`, type: "ai", text: q.q, chips: q.opts, special: q.reason }])
-    }, 600)
+    return m[label] || label
   }
 
-  const handleChip = (answer: string, step: number) => {
-    const cleanAnswer = answer.split(" (")[0]
-    setMsgs(p => [...p, { id: `a${step}`, type: "user", text: cleanAnswer }])
-    const newAnswers = { ...answers, [questionSteps[step].key]: cleanAnswer }
-    setAnswers(newAnswers)
-
-    const answeredCount = Object.values(newAnswers).filter(v => v && !v.includes("모르")).length
-    const newFunnel = [...funnel]
-    // More dramatic narrowing: 120 → 54 → 18 → 6 → 3
-    const funnelStages = [54, 18, 6, 3, 3]
-    const unknownCount = Object.values(newAnswers).filter(v => v && v.includes("모르")).length
-    const penalty = unknownCount * 5
-    const stageVal = funnelStages[Math.min(answeredCount, funnelStages.length - 1)] + penalty
-    newFunnel.push(Math.max(3, stageVal))
-    setFunnel(newFunnel)
-
-    const unknowns = Object.values(newAnswers).filter(v => v.includes("모르")).length
-    const total = Object.keys(newAnswers).length
-    if (unknowns > total / 2) setUncertainty("high")
-    else if (unknowns > 0) setUncertainty("medium")
-    else setUncertainty("low")
-
-    askNext(step + 1, newAnswers)
+  const finalizeWithAnswers = (finalAnswers: Record<string, string>) => {
+    const dia = finalAnswers.diameter || "6mm"
+    const goal = finalAnswers.goal || "황삭"
+    const diaKey = dia.includes("모르") ? "6mm" : (dia.includes("mm") ? dia : `${dia}mm`) as keyof typeof endmillData.roughing
+    let goalKey: keyof typeof endmillData = "roughing"
+    if (goal.includes("정삭")) goalKey = "finishing"
+    else if (goal.includes("고이송")) goalKey = "highfeed"
+    const results = endmillData[goalKey]?.[diaKey] || endmillData.roughing["6mm"]
+    setRecs(results)
+    setFunnel(p => [...p, 3])
+    const hasUnknowns = Object.values(finalAnswers).some(v => v && v.includes("모르"))
+    setUncertainty(hasUnknowns ? "high" : "low")
+    setShowSpecial(hasUnknowns)
+    setPhase("complete")
   }
 
-  const finalize = (finalAnswers: Record<string, string>) => {
+  const callLLM = async (history: Array<{role: "user"|"ai", text: string}>, currentAnswers: Record<string, string>) => {
     setTyping(true)
-    setTimeout(() => {
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: history, mode: preciseMode ? "precise" : "simple" }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.detail || data.error)
+
+      const msgId = `ai_${Date.now()}`
+      const newAiHistory = { role: "ai" as const, text: data.text }
+      setChatHistory(p => [...p, newAiHistory])
+
+      // Check for cross-reference in first user message
+      const firstUserText = history.find(h => h.role === "user")?.text || ""
+      const crossRef = findCrossRef(firstUserText)
+
+      if (crossRef && history.length === 1) {
+        setMsgs(p => [...p, {
+          id: `xref_${Date.now()}`, type: "ai",
+          text: "경쟁사 품번이 감지되었습니다. 크로스레퍼런스 매핑 결과를 확인하세요.",
+          crossRef, special: "크로스레퍼런스 매핑 완료"
+        }])
+      }
+
+      setMsgs(p => [...p, { id: msgId, type: "ai", text: data.text, chips: data.chips, special: data.purpose }])
+
+      // Update answers from extractedField
+      const newAnswers = { ...currentAnswers }
+      if (data.extractedField) {
+        const key = mapFieldLabel(data.extractedField.label)
+        newAnswers[key] = data.extractedField.value
+        setAnswers(newAnswers)
+        if (data.extractedField.step !== undefined) setCurrentStep(data.extractedField.step)
+
+        // Update funnel
+        const answeredCount = Object.values(newAnswers).filter(v => v && !v.includes("모르")).length
+        const funnelStages = [54, 18, 6, 3, 3]
+        const unknownCount = Object.values(newAnswers).filter(v => v && v.includes("모르")).length
+        const stageVal = funnelStages[Math.min(answeredCount, funnelStages.length - 1)] + unknownCount * 5
+        setFunnel(p => [...p, Math.max(3, stageVal)])
+
+        // Update uncertainty
+        const conf = data.extractedField.confidence
+        if (conf === "low") setUncertainty("high")
+        else if (conf === "medium") setUncertainty("medium")
+        else setUncertainty("low")
+      }
+
+      if (data.isComplete) {
+        finalizeWithAnswers(newAnswers)
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setMsgs(p => [...p, { id: `err_${Date.now()}`, type: "ai", text: `오류가 발생했습니다: ${msg}` }])
+    } finally {
       setTyping(false)
-      const dia = finalAnswers.diameter || "6mm"
-      const goal = finalAnswers.goal || "황삭"
-      const diaKey = dia.includes("모르") ? "6mm" : dia as keyof typeof endmillData.roughing
-      let goalKey: keyof typeof endmillData = "roughing"
-      if (goal.includes("정삭")) goalKey = "finishing"
-      else if (goal.includes("고이송")) goalKey = "highfeed"
-      const results = endmillData[goalKey]?.[diaKey] || endmillData.roughing["6mm"]
-      setRecs(results)
-      setFunnel(p => [...p, 3])
-      const hasUnknowns = Object.values(finalAnswers).some(v => v.includes("모르"))
-      setUncertainty(hasUnknowns ? "high" : "low")
-      setShowSpecial(hasUnknowns)
-      setPhase("complete")
-      setMsgs(p => [...p, {
-        id: "result", type: "ai",
-        text: hasUnknowns ? "일부 정보가 부족하여 가정 기반 추천입니다. Top-3 제품을 오른쪽 패널에서 확인하세요." : "조건이 확보되었습니다. Top-3 최적 제품을 추천드립니다.",
-        special: hasUnknowns ? "assumed" : "complete"
-      }])
-    }, 800)
+    }
+  }
+
+  const handleChipLLM = (chip: string, msgId: string) => {
+    setAnsweredMsgIds(p => new Set([...p, msgId]))
+    const userMsg: Msg = { id: `u_${Date.now()}`, type: "user", text: chip }
+    setMsgs(p => [...p, userMsg])
+    const newHistory = [...chatHistory, { role: "user" as const, text: chip }]
+    setChatHistory(newHistory)
+    callLLM(newHistory, answers)
   }
 
   const startFlow = (text: string) => {
     reset()
     setPhase("chatting")
+    const initHistory = [{ role: "user" as const, text }]
+    setChatHistory(initHistory)
     setMsgs([{ id: "u0", type: "user", text }])
-
-    // Check for competitor cross-reference
-    const crossRef = findCrossRef(text)
-
-    const lower = text.toLowerCase()
-    const preAnswers: Record<string, string> = {}
-    if (lower.includes("sus") || lower.includes("스테인리스")) preAnswers.material = "SUS304/316"
-    if (lower.includes("알루미늄") || lower.includes("al6")) preAnswers.material = "AL6061/7075"
-    if (lower.includes("황삭")) preAnswers.goal = "황삭"
-    if (lower.includes("정삭")) preAnswers.goal = "정삭"
-    if (lower.includes("밀링") || lower.includes("엔드밀")) preAnswers.process = "밀링"
-    const diaMatch = text.match(/(\d+)\s*(mm|파이|phi)/i)
-    if (diaMatch) preAnswers.diameter = `${diaMatch[1]}mm`
-
-    // Use profile target material as pre-answer
-    if (profile?.targetMaterial && !preAnswers.material) {
-      const tm = profile.targetMaterial.toLowerCase()
-      if (tm.includes("sus")) preAnswers.material = "SUS304/316"
-      else if (tm.includes("al")) preAnswers.material = "AL6061/7075"
-      else if (tm.includes("skd")) preAnswers.material = "SKD11/61"
-    }
-    // Use profile existing brand for cross-ref
-    if (profile?.existingBrand && !crossRef) {
-      const brand = profile.existingBrand.toLowerCase()
-      const profileCrossRef = findCrossRef(brand)
-      if (profileCrossRef) {
-        // will be used later
-      }
-    }
-
-    setAnswers(preAnswers)
-    const preCount = Object.keys(preAnswers).length
-    if (preCount > 0) setFunnel([120, 120 - preCount * 30])
-
-    setTyping(true)
-    setTimeout(() => {
-      setTyping(false)
-      const found = Object.entries(preAnswers).map(([k, v]) => {
-        const label = questionSteps.find(s => s.key === k)?.label || k
-        return `${label}: ${v}`
-      })
-
-      // If cross-ref detected, show mapping first
-      if (crossRef) {
-        setMsgs(p => [...p, {
-          id: "xref", type: "ai",
-          text: `경쟁사 품번이 감지되었습니다. 크로스레퍼런스 매핑 결과를 확인하세요.`,
-          crossRef, special: "크로스레퍼런스 매핑 완료"
-        }])
-      }
-
-      const hint = profile ? getAdaptiveHint(profile) : ""
-      setMsgs(p => [...p, {
-        id: "ack", type: "ai",
-        text: (found.length > 0
-          ? `확인된 조건: ${found.join(", ")}\n`
-          : "") +
-          (hint ? `[${hint}]\n\n` : "\n") +
-          "추가 정보를 확인하여 최적 제품을 찾겠습니다."
-      }])
-
-      // Find the first unanswered question step
-      let startStep = 0
-      for (let i = 0; i < questionSteps.length; i++) {
-        if (preAnswers[questionSteps[i].key]) {
-          startStep = i + 1
-        } else {
-          break
-        }
-      }
-      const maxSteps = preciseMode ? 5 : 3
-      if (startStep >= maxSteps) finalize(preAnswers)
-      else { setCurrentStep(startStep); askNext(startStep, preAnswers) }
-    }, 700)
+    setFunnel([120])
+    callLLM(initHistory, {})
   }
 
   const handleSend = () => {
     const text = inp.trim()
     if (!text) return
     setInp("")
-    if (phase === "idle" || phase === "chatting") startFlow(text)
+    if (phase === "idle") {
+      startFlow(text)
+    } else if (phase === "chatting") {
+      const userMsg: Msg = { id: `u_${Date.now()}`, type: "user", text }
+      setMsgs(p => [...p, userMsg])
+      const newHistory = [...chatHistory, { role: "user" as const, text }]
+      setChatHistory(newHistory)
+      callLLM(newHistory, answers)
+    }
   }
 
   const scenarios = [
@@ -827,24 +802,16 @@ export default function ProductFinderPage() {
 
                     {/* Chips */}
                     {m.chips && (() => {
-                      // Store the step index directly from message id (q0, q1, q2...)
-                      const stepFromId = parseInt(m.id.replace("q",""), 10)
-                      const stepForChip = !isNaN(stepFromId) ? stepFromId : questionSteps.findIndex(s => s.q === m.text)
-                      const qKey = questionSteps[stepForChip]?.key
-                      const isAnswered = qKey ? !!answers[qKey] : false
+                      const isAnswered = answeredMsgIds.has(m.id)
                       return (
                         <div className="flex flex-wrap gap-1.5 pl-1">
-                          {m.chips.map(chip => {
-                            const cleanChip = chip.split(" (")[0]
-                            const isSelected = isAnswered && qKey ? answers[qKey] === cleanChip : false
-                            return (
-                              <Button key={chip} variant={isSelected ? "default" : "outline"} size="sm" disabled={isAnswered}
-                                onClick={() => { if (!isAnswered && stepForChip >= 0) handleChip(chip, stepForChip) }}
-                                className={cn("text-xs h-7 bg-transparent", isSelected && "bg-[#ed1c24] hover:bg-[#ed1c24] text-white", chip.includes("모르겠음") && !isAnswered && "border-dashed")}>
-                                {chip}
-                              </Button>
-                            )
-                          })}
+                          {m.chips.map(chip => (
+                            <Button key={chip} variant="outline" size="sm" disabled={isAnswered || phase === "complete"}
+                              onClick={() => { if (!isAnswered) handleChipLLM(chip, m.id) }}
+                              className={cn("text-xs h-7 bg-transparent", chip.includes("모르겠음") && !isAnswered && "border-dashed")}>
+                              {chip}
+                            </Button>
+                          ))}
                         </div>
                       )
                     })()}
