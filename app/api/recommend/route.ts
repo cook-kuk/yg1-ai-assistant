@@ -559,16 +559,78 @@ async function extractParamsFromMessage(
   const lastHistory = prevState.narrowingHistory
   const askedFields = new Set(lastHistory.flatMap(h => h.extractedFilters.map(f => f.field)))
 
-  // Try to parse known patterns
-  // Flute count
+  // ── Multi-condition extraction: detect when user provides multiple params at once ──
+  // e.g. "탄소강 가공에 4mm 스퀘어 엔드밀 추천해줘"
+  const materialKeywordMap: Record<string, string> = {
+    "탄소강": "탄소강", "합금강": "합금강", "공구강": "공구강",
+    "스테인리스": "스테인리스", "sus": "스테인리스", "스텐": "스테인리스",
+    "알루미늄": "알루미늄", "알루": "알루미늄", "alu": "알루미늄",
+    "주철": "주철", "cast iron": "주철",
+    "티타늄": "티타늄", "titanium": "티타늄",
+    "인코넬": "인코넬", "inconel": "인코넬", "내열합금": "내열합금",
+    "고경도": "고경도강", "고경도강": "고경도강", "hrc": "고경도강",
+    "구리": "구리", "copper": "구리", "비철": "비철금속",
+  }
+  const detectedMaterial = Object.keys(materialKeywordMap).find(k => clean.includes(k))
+  const diamMatch = clean.match(/([\d.]+)\s*mm/)
   const fluteMatch = clean.match(/(\d+)\s*날/)
+  const subtypeKeywords = ["flat", "플랫", "ball", "볼", "chamfer", "챔퍼", "radius", "래디우스", "corner", "square", "스퀘어", "스퀘어형", "라핑", "roughing"]
+  const foundSubtype = subtypeKeywords.find(k => clean.includes(k))
+
+  // Count how many params detected in this single message
+  const paramCount = [detectedMaterial, diamMatch, fluteMatch, foundSubtype].filter(Boolean).length
+
+  // If message contains 2+ params, treat as a "re-specification" — apply ALL filters
+  if (paramCount >= 2) {
+    console.log(`[recommend] Multi-param detected (${paramCount}): material=${detectedMaterial}, diam=${diamMatch?.[1]}, flute=${fluteMatch?.[1]}, subtype=${foundSubtype}`)
+
+    // Return a compound filter by picking the most impactful one (material > diameter > subtype > flute)
+    // and flag that we need to re-run with updated input
+    if (detectedMaterial) {
+      const matVal = materialKeywordMap[detectedMaterial]
+      const filter = parseAnswerToFilter("material", matVal)
+      if (filter) {
+        // Enrich filter with side-effects: also update diameter and subtype if present
+        const sideFilters: AppliedFilter[] = []
+        if (diamMatch) {
+          const df = parseAnswerToFilter("diameterRefine", `${diamMatch[1]}mm`)
+          if (df) sideFilters.push(df)
+        }
+        if (foundSubtype) {
+          const sf = parseAnswerToFilter("toolSubtype", foundSubtype)
+          if (sf) sideFilters.push(sf)
+        }
+        if (fluteMatch) {
+          const ff = parseAnswerToFilter("fluteCount", `${fluteMatch[1]}날`)
+          if (ff) sideFilters.push(ff)
+        }
+        // Store side filters in the main filter's metadata for batch processing
+        ;(filter as unknown as Record<string, unknown>)._sideFilters = sideFilters
+        return { isComplete: false, newFilter: filter, skippedField: null }
+      }
+    }
+  }
+
+  // ── Single-param extraction ──
+
+  // Material change (even alone, should override current material)
+  if (detectedMaterial) {
+    const matVal = materialKeywordMap[detectedMaterial]
+    const currentMaterial = (currentInput.material || "").toLowerCase()
+    const isNewMaterial = !currentMaterial.includes(matVal)
+    if (isNewMaterial) {
+      const filter = parseAnswerToFilter("material", matVal)
+      return { isComplete: false, newFilter: filter, skippedField: null }
+    }
+  }
+
+  // Flute count
   if (fluteMatch && !currentInput.flutePreference) {
     const filter = parseAnswerToFilter("fluteCount", message)
     return { isComplete: false, newFilter: filter, skippedField: null }
   }
 
   // Diameter
-  const diamMatch = clean.match(/([\d.]+)\s*mm/)
   if (diamMatch) {
     const filter = parseAnswerToFilter("diameterRefine", message)
     return { isComplete: false, newFilter: filter, skippedField: null }
@@ -601,9 +663,7 @@ async function extractParamsFromMessage(
     return { isComplete: false, newFilter: filter, skippedField: null }
   }
 
-  // Tool subtype keywords
-  const subtypeKeywords = ["flat", "플랫", "ball", "볼", "chamfer", "radius", "corner", "square", "스퀘어", "스퀘어형"]
-  const foundSubtype = subtypeKeywords.find(k => clean.includes(k))
+  // Tool subtype keywords (single-param)
   if (foundSubtype && !askedFields.has("toolSubtype")) {
     const filter = parseAnswerToFilter("toolSubtype", message.trim())
     return { isComplete: false, newFilter: filter, skippedField: null }
@@ -694,6 +754,21 @@ function inferCurrentQuestionField(
 
 // ── Apply filter to RecommendationInput ──────────────────────
 function applyFilterToInput(input: RecommendationInput, filter: AppliedFilter): RecommendationInput {
+  let updated = { ...input }
+  updated = applySingleFilter(updated, filter)
+
+  // Apply side filters if present (from multi-param extraction)
+  const sideFilters = (filter as unknown as Record<string, unknown>)._sideFilters as AppliedFilter[] | undefined
+  if (sideFilters && Array.isArray(sideFilters)) {
+    for (const sf of sideFilters) {
+      updated = applySingleFilter(updated, sf)
+    }
+  }
+
+  return updated
+}
+
+function applySingleFilter(input: RecommendationInput, filter: AppliedFilter): RecommendationInput {
   const updated = { ...input }
   switch (filter.field) {
     case "fluteCount":
@@ -703,7 +778,11 @@ function applyFilterToInput(input: RecommendationInput, filter: AppliedFilter): 
       updated.coatingPreference = String(filter.rawValue)
       break
     case "diameterMm":
+    case "diameterRefine":
       updated.diameterMm = typeof filter.rawValue === "number" ? filter.rawValue : parseFloat(String(filter.rawValue))
+      break
+    case "material":
+      updated.material = String(filter.rawValue)
       break
     case "toolSubtype":
       updated.toolSubtype = String(filter.rawValue)

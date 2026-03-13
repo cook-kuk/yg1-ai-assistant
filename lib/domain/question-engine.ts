@@ -342,6 +342,15 @@ export function parseAnswerToFilter(
         appliedAt: 0,
       }
     }
+    case "material": {
+      return {
+        field: "material",
+        op: "eq",
+        value: clean,
+        rawValue: clean,
+        appliedAt: 0,
+      }
+    }
   }
 
   return null
