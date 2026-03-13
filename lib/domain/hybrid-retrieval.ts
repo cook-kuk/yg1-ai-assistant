@@ -43,7 +43,7 @@ const WEIGHTS = {
 export function runHybridRetrieval(
   input: RecommendationInput,
   filters: AppliedFilter[],
-  topN = 10
+  topN = 50
 ): HybridResult {
   // ── Stage 1: Structured Filter ─────────────────────────────
   let candidates = ProductRepo.getAll()

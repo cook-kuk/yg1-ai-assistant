@@ -97,7 +97,7 @@ async function handleExploration(
     ? { ...baseInput, ...prevState.resolvedInput }
     : baseInput
 
-  const hybridResult = runHybridRetrieval(resolvedInput, filters, 15)
+  const hybridResult = runHybridRetrieval(resolvedInput, filters, 50)
   const candidates = hybridResult.candidates
   const evidenceMap = hybridResult.evidenceMap
 
@@ -205,7 +205,7 @@ async function handleExploration(
           currentInput = applyFilterToInput(currentInput, filter)
 
           // Re-run hybrid retrieval with new filter
-          const newResult = runHybridRetrieval(currentInput, filters, 15)
+          const newResult = runHybridRetrieval(currentInput, filters, 50)
           const newCandidates = newResult.candidates
 
           narrowingHistory.push({
@@ -789,7 +789,7 @@ function inferCurrentQuestionField(
   const currentInput = prevState?.resolvedInput
     ? { ...input, ...prevState.resolvedInput }
     : input
-  const hybridResult = runHybridRetrieval(currentInput, filters, 15)
+  const hybridResult = runHybridRetrieval(currentInput, filters, 50)
   const question = selectNextQuestion(currentInput, hybridResult.candidates, prevState.narrowingHistory ?? [])
   if (question) return question.field
 
