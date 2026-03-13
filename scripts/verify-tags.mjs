@@ -1,0 +1,11 @@
+import fs from 'fs';
+const p = JSON.parse(fs.readFileSync('./data/normalized/products.json', 'utf-8'));
+const withTags = p.filter(x => x.materialTags && x.materialTags.length > 0);
+console.log('materialTags 있음:', withTags.length, '/ 135');
+const byTag = {};
+p.forEach(x => (x.materialTags || []).forEach(t => { byTag[t] = (byTag[t] || 0) + 1; }));
+console.log('태그별:', JSON.stringify(byTag));
+console.log('\n=== 시리즈별 소재 태그 ===');
+const bySeries = {};
+p.forEach(x => { if (!bySeries[x.seriesName]) bySeries[x.seriesName] = x.materialTags; });
+Object.entries(bySeries).forEach(([s, t]) => console.log(' -', s, ':', JSON.stringify(t)));

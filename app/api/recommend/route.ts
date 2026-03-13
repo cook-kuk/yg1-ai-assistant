@@ -133,12 +133,21 @@ async function handleExploration(
       // Try to extract parameters from user message
       const extracted = await extractParamsFromMessage(provider, lastUserMsg.text, currentInput, prevState)
 
-      // Irrelevant input (null) — re-ask same question with a gentle nudge
+      // Non-product input — handle as general conversation
       if (extracted === null) {
+        const generalReply = await handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates.length)
+        if (generalReply) {
+          return buildQuestionResponse(
+            form, candidates, evidenceMap, currentInput,
+            narrowingHistory, filters, turnCount, messages, provider,
+            generalReply
+          )
+        }
+        // Fallback: re-ask
         return buildQuestionResponse(
           form, candidates, evidenceMap, currentInput,
           narrowingHistory, filters, turnCount, messages, provider,
-          `죄송합니다, "${lastUserMsg.text}"을(를) 이해하지 못했어요. 절삭공구 관련 조건을 알려주시거나, 아래 버튼을 선택해주세요.`
+          `절삭공구 관련 조건을 알려주시거나, 아래 버튼을 선택해주세요.`
         )
       }
 
@@ -500,6 +509,51 @@ async function buildRecommendationResponse(
     altExplanations,
     altFactChecked: altFactChecked.map(fc => serializeFactChecked(fc)),
   })
+}
+
+// ── General Chat Handler (non-product questions) ──────────────
+async function handleGeneralChat(
+  provider: ReturnType<typeof getProvider>,
+  userMessage: string,
+  _currentInput: RecommendationInput,
+  candidateCount: number
+): Promise<string | null> {
+  const clean = userMessage.trim()
+
+  // Simple greetings
+  if (/^(안녕|하이|헬로|hi|hello|반갑|좋은\s*(아침|오후|저녁))/i.test(clean)) {
+    return `안녕하세요! YG-1 절삭공구 추천 시스템입니다. 현재 ${candidateCount}개 후보 제품이 있어요. 추가 조건을 알려주시면 더 정확한 추천이 가능합니다.`
+  }
+
+  // Thanks
+  if (/^(감사|고마|ㄱㅅ|thank|thx)/i.test(clean)) {
+    return `천만에요! 추가로 궁금한 점이나 다른 조건이 있으면 말씀해주세요.`
+  }
+
+  // Questions about the system
+  if (/뭐\s*(할|하는)|어떤.*시스템|어떻게.*사용|도움|help/i.test(clean)) {
+    return `저는 YG-1 엔드밀 추천 시스템이에요. 가공 소재, 직경, 날수, 코팅 등의 조건을 알려주시면 최적의 엔드밀을 추천해드립니다. 현재 약 9,800개 제품 데이터를 기반으로 추천합니다.`
+  }
+
+  // Cutting tool / machining general knowledge questions or any other chat
+  if (/란\s*\?|뭐야|뭔가요|무엇|차이|설명|알려줘|궁금|왜.*쓰|언제.*쓰|어떤|좋은|추천.*방법|팁/i.test(clean) || clean.length > 3) {
+    try {
+      const systemPrompt = `당신은 YG-1 절삭공구 전문가입니다. 사용자의 질문에 간결하고 친절하게 답변하세요.
+- 절삭공구, 가공, 소재, 코팅 관련 질문에 전문적으로 답변
+- 그 외 일반 질문에도 짧고 친절하게 답변
+- 답변은 2-3문장으로 짧게
+- 답변 끝에 "추가 조건이 있으시면 알려주세요!" 같은 안내 추가
+- 한국어로 답변`
+      const raw = await provider.complete(systemPrompt, [
+        { role: "user", content: clean }
+      ], 300)
+      if (raw && raw.trim()) return raw.trim()
+    } catch {
+      return null
+    }
+  }
+
+  return null
 }
 
 // ── Extract Parameters from User Message ─────────────────────

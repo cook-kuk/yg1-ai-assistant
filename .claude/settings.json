@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls .env*)",
+      "WebFetch(domain:yg1-ai-assistant.vercel.app)"
+    ]
+  }
+}
