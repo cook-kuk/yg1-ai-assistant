@@ -511,48 +511,48 @@ async function extractParamsFromMessage(
 ): Promise<{ isComplete: boolean; newFilter: AppliedFilter | null; skippedField: string | null } | null> {
   const clean = message.trim().toLowerCase()
 
-  // Deterministic: check for reset signals — return "complete" to end conversation
+  // ── Use lastAskedField from session state (reliable) ──
+  const lastAskedField = prevState.lastAskedField ?? inferCurrentQuestionField(currentInput, prevState)
+
+  // 1. Reset signals
   if (["처음부터 다시", "처음부터", "다시 시작", "리셋"].some(s => clean.includes(s))) {
     return { isComplete: true, newFilter: null, skippedField: null }
   }
 
-  // Deterministic: check for completion signals
-  if (["추천해주세요", "바로 보여주세요", "결과 보기", "추천 받기", "추가 조건 없음"].some(s => clean.includes(s))) {
+  // 2. Completion signals
+  if (["추천해주세요", "바로 보여주세요", "결과 보기", "추천 받기", "추가 조건 없음", "그냥 추천", "바로 추천"].some(s => clean.includes(s))) {
     return { isComplete: true, newFilter: null, skippedField: null }
   }
 
-  // Deterministic: detect irrelevant/gibberish/off-topic input — re-ask same question
-  // Step 1: Check if the message contains ANY cutting-tool-related keyword
-  const toolRelatedKeywords = [
-    // flute/coating/material/operation terms
-    "날", "mm", "코팅", "tialn", "alcrn", "tin", "dlc", "y-코팅", "ticn", "무코팅", "uncoated", "블루",
-    // material terms
-    "알루미늄", "스테인리스", "탄소강", "주철", "티타늄", "고경도", "sus", "인코넬", "구리",
-    // operation terms
-    "황삭", "정삭", "중삭", "슬롯", "측면", "프로파일", "페이싱", "고이송",
-    // tool terms
-    "엔드밀", "드릴", "볼", "플랫", "스퀘어", "챔퍼", "radius", "ball", "flat", "square",
-    // series patterns
-    "ce5", "ce7", "gnx", "sem", "alu",
-    // skip/complete
-    "상관없음", "상관 없음", "모름", "skip", "추천", "결과",
+  // 3. Skip / don't-care / don't-know — BEFORE tool keyword check
+  const skipPatterns = [
+    "상관없", "상관 없", "아무거나", "아무 거나", "다 괜찮", "괜찮아", "뭐든",
+    "모름", "몰라", "모르겠", "잘 모르", "잘모르", "글쎄",
+    "패스", "넘어가", "넘겨", "다음", "스킵", "skip", "pass", "next",
   ]
-  const hasToolKeyword = toolRelatedKeywords.some(k => clean.includes(k))
-    || /\d+\s*날/.test(clean)           // "2날", "4날" etc
-    || /\d+(\.\d+)?\s*mm/.test(clean)   // "10mm", "4.5mm" etc
-    || /^[a-z]{2,}\d+/i.test(clean)     // series codes like "CE5G60"
-
-  if (!hasToolKeyword) {
-    // No cutting-tool keyword found — this is off-topic
-    return null  // null = unrecognized, caller will re-ask the same question
+  if (skipPatterns.some(s => clean.includes(s))) {
+    return { isComplete: false, newFilter: null, skippedField: lastAskedField !== "unknown" ? lastAskedField : null }
   }
 
-  // ── Use lastAskedField from session state (reliable) ──
-  const lastAskedField = prevState.lastAskedField ?? inferCurrentQuestionField(currentInput, prevState)
+  // 4. Detect irrelevant/off-topic input via tool keyword whitelist
+  const toolRelatedKeywords = [
+    "날", "mm", "코팅", "tialn", "alcrn", "tin", "dlc", "y-코팅", "ticn", "무코팅", "uncoated", "블루",
+    "알루미늄", "스테인리스", "탄소강", "주철", "티타늄", "고경도", "sus", "인코넬", "구리",
+    "비철", "합금강", "공구강", "내열합금", "카바이드", "carbide", "cbn", "hss", "초경",
+    "황삭", "정삭", "중삭", "슬롯", "측면", "프로파일", "페이싱", "고이송",
+    "엔드밀", "드릴", "볼", "플랫", "스퀘어", "챔퍼", "radius", "ball", "flat", "square",
+    "샤프엣지", "터치", "테이퍼", "taper", "corner", "wave", "롱넥", "modular",
+    "ce5", "ce7", "gnx", "sem", "alu",
+    "추천", "결과", "비교", "대체", "납기", "재고", "직경", "파이", "지름",
+  ]
+  const hasToolKeyword = toolRelatedKeywords.some(k => clean.includes(k))
+    || /\d+\s*날/.test(clean)
+    || /\d+(\.\d+)?\s*mm/.test(clean)
+    || /^[a-z]{2,}\d+/i.test(clean)
+    || /^\d+(\.\d+)?$/.test(clean)      // bare numbers like "10", "4.5" (likely diameter)
 
-  // Deterministic: check for "상관없음" / "모름" — use lastAskedField directly
-  if (["상관없음", "상관 없음", "모름", "skip"].some(s => clean.includes(s))) {
-    return { isComplete: false, newFilter: null, skippedField: lastAskedField !== "unknown" ? lastAskedField : null }
+  if (!hasToolKeyword) {
+    return null
   }
 
   // Determine current question field from history
