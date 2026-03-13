@@ -79,6 +79,25 @@ export function runHybridRetrieval(
   }
   const materialTag = materialTags.length > 0 ? materialTags[0] : null  // primary tag for backward compat
 
+  // Hard filter: material — only keep products that support at least one requested material
+  if (materialTags.length > 0) {
+    const before = candidates.length
+    const matFiltered = candidates.filter(p =>
+      materialTags.some(tag => p.materialTags.includes(tag))
+    )
+    if (matFiltered.length > 0) {
+      candidates = matFiltered
+      appliedFilters.push({
+        field: "materialTag",
+        op: "in",
+        value: materialTags.join(",") + "군",
+        rawValue: materialTags.join(","),
+        appliedAt: 0,
+      })
+    }
+    // If no products match the material, keep all but scoring will penalize
+  }
+
   // Apply narrowing filters from conversation
   for (const filter of filters) {
     const before = candidates.length
@@ -201,6 +220,8 @@ export function runHybridRetrieval(
           ? `${matchedMats.join(",")}군 모두 적합`
           : `${matchedMats.join(",")}군 적합 (${materialTags.length}개 중 ${matchedMats.length}개)`
       } else {
+        // Penalty for explicit material mismatch: -10 points instead of 0
+        matScore = -10
         matDetail = `${materialTags.join(",")}군 미지원 (지원: ${product.materialTags.join(", ") || "없음"})`
       }
     }
@@ -290,10 +311,25 @@ export function runHybridRetrieval(
     return b.product.dataCompletenessScore - a.product.dataCompletenessScore
   })
 
-  // Take top-N with positive score
+  // Take top-N with minimum quality threshold
+  const maxScore = Object.values(WEIGHTS).reduce((a, b) => a + b, 0)
+  const minScoreThreshold = Math.round(maxScore * 0.25) // At least 25% match required
+  const qualifiedCandidates = scored.filter(s => s.score >= minScoreThreshold)
+
+  // ── Diversity: limit per-series to prevent 300 identical products ──
+  const MAX_PER_SERIES = 3
+  const seriesCount = new Map<string, number>()
+  const diverseCandidates = qualifiedCandidates.filter(c => {
+    const series = c.product.seriesName ?? c.product.displayCode
+    const count = seriesCount.get(series) ?? 0
+    if (count >= MAX_PER_SERIES) return false
+    seriesCount.set(series, count + 1)
+    return true
+  })
+
   const topCandidates = topN > 0
-    ? scored.filter(s => s.score > 0).slice(0, topN)
-    : scored.filter(s => s.score > 0)
+    ? diverseCandidates.slice(0, topN)
+    : diverseCandidates
 
   // Enrich top candidates with inventory + lead time (deferred for performance)
   for (const c of topCandidates.slice(0, 100)) {

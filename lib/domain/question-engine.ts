@@ -34,15 +34,16 @@ export function checkResolution(
     if (gap >= 15) return "resolved_exact"
   }
 
-  // If we've asked too many questions
-  if (history.length >= 4) {
+  // If we've asked too many questions — reduced from 4 to 2 for less friction
+  if (history.length >= 2) {
     if (top.matchStatus === "exact") return "resolved_exact"
     if (top.matchStatus === "approximate") return "resolved_approximate"
-    return "resolved_none"
+    // Even with "none" status, show what we have after 2 questions
+    return "resolved_approximate"
   }
 
-  // 3 or fewer candidates → resolved
-  if (candidates.length <= 3) {
+  // 10 or fewer candidates → resolved (was 3, now more aggressive)
+  if (candidates.length <= 10) {
     if (top.matchStatus === "exact") return "resolved_exact"
     return "resolved_approximate"
   }

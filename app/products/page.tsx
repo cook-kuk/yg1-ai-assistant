@@ -62,6 +62,8 @@ const STOCK_CONFIG = {
   unknown: { label: "재고 미확인", cls: "bg-gray-100 text-gray-600", dot: "bg-gray-400" },
 }
 
+const MAX_DISPLAY_CANDIDATES = 5
+
 const RESOLUTION_CONFIG: Record<string, { label: string; cls: string }> = {
   broad: { label: "탐색 중", cls: "bg-blue-100 text-blue-700" },
   narrowing: { label: "축소 중", cls: "bg-amber-100 text-amber-700" },
@@ -279,14 +281,14 @@ function ProductCard({ scored, rank, isAlternative = false }: {
       {open && (
         <CardContent className="px-4 pb-4 pt-0 space-y-3">
           <div className="bg-gray-50 rounded-lg p-3">
-            <SpecRow label="직경" value={p.diameterMm != null ? `\u03C6${p.diameterMm}mm` : null} />
+            <SpecRow label="직경" value={p.diameterMm != null ? `φ${p.diameterMm}mm` : null} />
             <SpecRow label="날 수" value={p.fluteCount != null ? `${p.fluteCount}날` : null} />
             <SpecRow label="코팅" value={p.coating} />
             <SpecRow label="공구 소재" value={p.toolMaterial} />
             <SpecRow label="섕크 직경" value={p.shankDiameterMm != null ? `${p.shankDiameterMm}mm` : null} />
             <SpecRow label="절삭 길이" value={p.lengthOfCutMm != null ? `${p.lengthOfCutMm}mm` : null} />
             <SpecRow label="전체 길이" value={p.overallLengthMm != null ? `${p.overallLengthMm}mm` : null} />
-            <SpecRow label="나선각" value={p.helixAngleDeg != null ? `${p.helixAngleDeg}\u00B0` : null} />
+            <SpecRow label="나선각" value={p.helixAngleDeg != null ? `${p.helixAngleDeg}°` : null} />
           </div>
           {p.materialTags.length > 0 && (
             <div>
@@ -336,7 +338,7 @@ function CandidateCard({ c }: { c: CandidateSnapshot }) {
         </div>
       </div>
       <div className="flex flex-wrap gap-1.5 text-xs text-gray-600">
-        {c.diameterMm != null && <span>{"\u03C6"}{c.diameterMm}mm</span>}
+        {c.diameterMm != null && <span>{"φ"}{c.diameterMm}mm</span>}
         {c.fluteCount != null && <span>{c.fluteCount}날</span>}
         {c.coating && <span>{c.coating}</span>}
       </div>
@@ -796,7 +798,7 @@ function IntakeFieldSection({
             <span className="text-sm font-semibold text-gray-900">{config.label}</span>
             {state.status !== "unanswered" && (
               <span className={`text-xs px-1.5 py-0.5 rounded-full ${state.status === "unknown" ? "bg-gray-100 text-gray-500" : "bg-green-100 text-green-700"}`}>
-                {state.status === "unknown" ? "모름" : config.multiSelect && selectedCount > 1 ? `\u2713 ${selectedCount}개 선택` : "\u2713 선택됨"}
+                {state.status === "unknown" ? "모름" : config.multiSelect && selectedCount > 1 ? `✓ ${selectedCount}개 선택` : "✓ 선택됨"}
               </span>
             )}
           </div>
@@ -955,7 +957,7 @@ function IntakeGate({
           <span className="text-sm text-gray-600">
             {allDone
               ? <span className="text-green-700 font-medium flex items-center gap-1"><CheckCircle2 size={14} />모두 완료되었습니다</span>
-              : <span>{answered}/6 항목 완료 \u00B7 {6 - answered}개 남음</span>
+              : <span>{answered}/6 항목 완료 · {6 - answered}개 남음</span>
             }
           </span>
           <Button onClick={onNext} disabled={!allDone} className="gap-2">
@@ -1131,8 +1133,12 @@ function ExplorationScreen({
               {RESOLUTION_CONFIG[sessionState.resolutionStatus]?.label ?? sessionState.resolutionStatus}
             </span>
           )}
-          {sessionState && (
-            <span className="text-xs text-gray-500">{sessionState.candidateCount}개 후보</span>
+          {sessionState && sessionState.candidateCount > 0 && sessionState.resolutionStatus !== "broad" && (
+            <span className="text-xs text-gray-500">
+              {sessionState.candidateCount > 50
+                ? "후보군 넓음"
+                : `${Math.min(sessionState.candidateCount, MAX_DISPLAY_CANDIDATES)}개 추천`}
+            </span>
           )}
         </div>
         <div className="flex items-center gap-1.5">
@@ -1260,7 +1266,7 @@ function ExplorationSidebar({
             {RESOLUTION_CONFIG[sessionState.resolutionStatus]?.label ?? sessionState.resolutionStatus}
           </span>
           <div className="text-[10px] text-gray-400 mt-1">
-            후보 {sessionState.candidateCount}개 \u00B7 Turn {sessionState.turnCount}
+            후보 {sessionState.candidateCount}개 · Turn {sessionState.turnCount}
           </div>
         </div>
       )}
@@ -1381,7 +1387,7 @@ function NarrowingChat({
                 handleSend()
               }
             }}
-            placeholder="추가 질문이나 조건을 입력하세요\u2026"
+            placeholder="추가 질문이나 조건을 입력하세요..."
             rows={1}
             disabled={isSending}
             className="flex-1 px-3 py-2.5 rounded-xl border-2 border-gray-200 text-sm focus:outline-none focus:border-blue-400 resize-none min-h-[42px] max-h-[120px]"
@@ -1392,7 +1398,7 @@ function NarrowingChat({
           </Button>
         </div>
         <p className="text-[10px] text-gray-400 mt-1.5 text-center">
-          YG-1 제품 DB 기반 \u00B7 추정/생성 없음 \u00B7 절삭조건 카탈로그 근거
+          YG-1 제품 DB 기반 · 추정/생성 없음 · 절삭조건 카탈로그 근거
         </p>
       </div>
     </div>
@@ -1400,6 +1406,7 @@ function NarrowingChat({
 }
 
 // ── Right: Candidate Panel ───────────────────────────────────
+
 function CandidatePanel({
   candidates, messages,
 }: {
@@ -1409,24 +1416,37 @@ function CandidatePanel({
   // Find the last recommendation in messages
   const lastRec = [...messages].reverse().find(m => m.recommendation)?.recommendation
 
+  // Cap displayed candidates to 5
+  const displayCandidates = candidates?.slice(0, MAX_DISPLAY_CANDIDATES) ?? null
+  const totalCount = candidates?.length ?? 0
+  const hasMore = totalCount > MAX_DISPLAY_CANDIDATES
+
   return (
     <div className="p-3 space-y-3">
       <div className="text-xs font-semibold text-gray-700 flex items-center gap-1">
         <Activity size={11} />
-        실시간 후보 목록
-        {candidates && <span className="text-gray-400 font-normal">({candidates.length}개)</span>}
+        {totalCount > 0 ? (
+          <>상위 추천 후보 {displayCandidates?.length ?? 0}개{hasMore && <span className="text-gray-400 font-normal">(전체 {totalCount}개 중)</span>}</>
+        ) : (
+          <>추천 후보</>
+        )}
       </div>
 
-      {candidates && candidates.length > 0 ? (
+      {displayCandidates && displayCandidates.length > 0 ? (
         <div className="space-y-2">
-          {candidates.map(c => (
+          {displayCandidates.map(c => (
             <CandidateCard key={c.productCode} c={c} />
           ))}
+          {hasMore && (
+            <div className="text-center text-[10px] text-gray-400 py-1">
+              +{totalCount - MAX_DISPLAY_CANDIDATES}개 추가 후보 있음
+            </div>
+          )}
         </div>
       ) : (
         <div className="text-center py-8 text-gray-400">
           <Database size={24} className="mx-auto mb-2 opacity-50" />
-          <div className="text-xs">후보를 검색하는 중...</div>
+          <div className="text-xs">조건을 입력하면 후보를 검색합니다</div>
         </div>
       )}
 
