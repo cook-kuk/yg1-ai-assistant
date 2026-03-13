@@ -109,6 +109,25 @@ const SMALLTALK_PATTERNS = [
   /뭐\s*할\s*수\s*있/, /누구/, /이름이\s*뭐/,
 ]
 
+// App/UI-related question patterns — questions about the system itself
+const APP_QUESTION_PATTERNS = [
+  /매칭.*뭐|매칭.*무엇|매칭.*뜻|매칭.*의미/,
+  /점수.*뭐|점수.*무엇|점수.*뜻|점수.*의미|점수.*어떻게/,
+  /후보.*뭐|후보.*무엇|후보.*뜻/,
+  /팩트.*체크|fact.*check|검증.*뭐/,
+  /근거.*뭐|근거.*무엇|근거.*뜻/,
+  /절삭.*조건.*뭐|절삭.*조건.*무엇/,
+  /스코어|score|배점|가중치|weight/i,
+  /어떻게.*작동|어떻게.*동작|원리|메커니즘/,
+  /이\s*시스템|이\s*앱|이\s*사이트|이\s*프로그램/,
+  /뭐야\??$|뭔가요\??$|뭔데\??$|뭐에요\??$/,  // ends with "뭐야?"
+  /무슨.*뜻|무슨.*의미/,
+  /왜.*이렇게|왜.*이런|왜.*나와|왜.*나오/,
+  /어떻게.*봐|어떻게.*읽|어떻게.*해석/,
+  /정확.*매칭|근사.*매칭|근사.*후보/,
+  /없음.*뭐|없음.*뜻|없음.*의미/,
+]
+
 // ── Main Analysis Function ───────────────────────────────────
 
 export function analyzeInquiry(message: string): InquiryAnalysis {
@@ -139,6 +158,12 @@ export function analyzeInquiry(message: string): InquiryAnalysis {
   if (GREETING_PATTERNS.some(p => p.test(lower))) {
     return buildResult("weak", "off_domain", "smalltalk", "not_recoverable", "soft_redirect",
       "인사/잡담 패턴", { ambiguityLevel: "low", seriousness: "genuine" })
+  }
+
+  // Check for app/UI questions (before smalltalk/off-domain so they don't get blocked)
+  if (APP_QUESTION_PATTERNS.some(p => p.test(lower))) {
+    return buildResult("moderate", "adjacent", "question", "immediate", "proceed_retrieval",
+      "앱/UI 관련 질문", { ambiguityLevel: "low", seriousness: "genuine", extractedKeywordCount: 0 })
   }
 
   // Check for smalltalk
