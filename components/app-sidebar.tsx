@@ -139,7 +139,7 @@ const roleLabels = {
   admin: { kr: "관리자", en: "Admin" }
 }
 
-export function AppSidebar() {
+export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
   const pathname = usePathname()
   const router = useRouter()
   const { currentUser, setUserRole, demoScenario, setDemoScenario } = useApp()
@@ -149,7 +149,17 @@ export function AppSidebar() {
   )
 
   return (
-    <aside className="flex h-screen w-64 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
+    <>
+      {/* Mobile overlay */}
+      {open && (
+        <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={onClose} />
+      )}
+      <aside className={cn(
+        "flex h-screen w-64 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border",
+        "fixed z-50 lg:relative lg:z-auto",
+        "transition-transform duration-200",
+        open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+      )}>
       {/* Logo */}
       <div className="flex h-16 items-center gap-2 px-4 border-b border-sidebar-border">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary">
@@ -238,6 +248,7 @@ export function AppSidebar() {
                       e.preventDefault()
                       router.push(`/products?reset=${Date.now()}`)
                     }
+                    onClose?.()
                   }}
                   className={cn(
                     "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
@@ -302,5 +313,6 @@ export function AppSidebar() {
         </DropdownMenu>
       </div>
     </aside>
+    </>
   )
 }
