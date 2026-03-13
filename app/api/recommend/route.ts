@@ -521,18 +521,29 @@ async function extractParamsFromMessage(
     return { isComplete: true, newFilter: null, skippedField: null }
   }
 
-  // Deterministic: detect irrelevant/gibberish input — do NOT skip field, ask again
-  const irrelevantPatterns = [
-    /^[ㄱ-ㅎㅏ-ㅣ]{1,10}$/,                    // random consonants/vowels
-    /^(안녕|하이|hello|hi|hey|ㅎㅇ|ㅎㅎ|ㅋㅋ|ㅎ|ㅋ|ㅇㅇ|ㅎㅎㅎ|ㅋㅋㅋ)/i,  // greetings/laughter
-    /^(아야|아이고|에이|아|야|오|음|흠|뭐|뭘|왜|어)/,   // exclamations
-    /^[a-z]{1,5}$/i,                             // short random letters
-    /^.{0,2}$/,                                   // too short (1-2 chars)
+  // Deterministic: detect irrelevant/gibberish/off-topic input — re-ask same question
+  // Step 1: Check if the message contains ANY cutting-tool-related keyword
+  const toolRelatedKeywords = [
+    // flute/coating/material/operation terms
+    "날", "mm", "코팅", "tialn", "alcrn", "tin", "dlc", "y-코팅", "ticn", "무코팅", "uncoated", "블루",
+    // material terms
+    "알루미늄", "스테인리스", "탄소강", "주철", "티타늄", "고경도", "sus", "인코넬", "구리",
+    // operation terms
+    "황삭", "정삭", "중삭", "슬롯", "측면", "프로파일", "페이싱", "고이송",
+    // tool terms
+    "엔드밀", "드릴", "볼", "플랫", "스퀘어", "챔퍼", "radius", "ball", "flat", "square",
+    // series patterns
+    "ce5", "ce7", "gnx", "sem", "alu",
+    // skip/complete
+    "상관없음", "상관 없음", "모름", "skip", "추천", "결과",
   ]
-  const isIrrelevant = irrelevantPatterns.some(p => p.test(clean))
-    && !["2날", "3날", "4날", "6날"].some(s => clean.includes(s))  // don't block valid short inputs
-    && !/\d+\s*mm/.test(clean)  // don't block diameter inputs
-  if (isIrrelevant) {
+  const hasToolKeyword = toolRelatedKeywords.some(k => clean.includes(k))
+    || /\d+\s*날/.test(clean)           // "2날", "4날" etc
+    || /\d+(\.\d+)?\s*mm/.test(clean)   // "10mm", "4.5mm" etc
+    || /^[a-z]{2,}\d+/i.test(clean)     // series codes like "CE5G60"
+
+  if (!hasToolKeyword) {
+    // No cutting-tool keyword found — this is off-topic
     return null  // null = unrecognized, caller will re-ask the same question
   }
 
