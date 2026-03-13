@@ -13,7 +13,8 @@
  * All data from normalized JSON — no hallucination.
  */
 
-import { useState, useRef, useEffect, useMemo } from "react"
+import { useState, useRef, useEffect, useMemo, useCallback } from "react"
+import { useSearchParams } from "next/navigation"
 import {
   ChevronDown, ChevronUp, CheckCircle2, AlertTriangle,
   AlertCircle, Package, Clock, Database, Zap, Info,
@@ -1137,8 +1138,8 @@ function ExplorationScreen({
           <Button variant="outline" size="sm" onClick={onEdit} className="gap-1 text-xs h-7 px-2">
             <Edit2 size={11} />조건 수정
           </Button>
-          <Button variant="ghost" size="sm" onClick={onReset} className="gap-1 text-xs h-7 px-2">
-            <RotateCcw size={11} />처음부터
+          <Button variant="outline" size="sm" onClick={onReset} className="gap-1 text-xs h-7 px-2 border-orange-300 text-orange-700 hover:bg-orange-50">
+            <RotateCcw size={11} />새 검색
           </Button>
         </div>
       </div>
@@ -1676,6 +1677,9 @@ function FeedbackWidget({
 // ════════════════════════════════════════════════════════════════
 
 export default function ProductRecommendPage() {
+  const searchParams = useSearchParams()
+  const resetKey = searchParams.get("reset")
+
   const [phase, setPhase] = useState<Phase>("intake")
   const [form, setForm] = useState<ProductIntakeForm>(INITIAL_INTAKE_FORM)
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([])
@@ -1683,6 +1687,19 @@ export default function ProductRecommendPage() {
   const [error, setError] = useState<string | null>(null)
   const [sessionState, setSessionState] = useState<ExplorationSessionState | null>(null)
   const [candidateSnapshot, setCandidateSnapshot] = useState<CandidateSnapshot[] | null>(null)
+
+  // Reset all state when ?reset param changes (e.g. clicking "제품 탐색" again)
+  useEffect(() => {
+    if (resetKey) {
+      setForm(INITIAL_INTAKE_FORM)
+      setChatMessages([])
+      setIsChatSending(false)
+      setError(null)
+      setSessionState(null)
+      setCandidateSnapshot(null)
+      setPhase("intake")
+    }
+  }, [resetKey])
 
   const handleFieldChange = (key: keyof ProductIntakeForm, val: AnswerState<string>) => {
     setForm(f => ({ ...f, [key]: val }))
