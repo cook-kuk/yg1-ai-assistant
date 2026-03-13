@@ -77,6 +77,7 @@ export interface CandidateSnapshot {
   productCode: string
   displayCode: string
   seriesName: string | null
+  seriesIconUrl: string | null
   diameterMm: number | null
   fluteCount: number | null
   coating: string | null

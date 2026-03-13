@@ -853,13 +853,14 @@ function buildCandidateSnapshot(
   candidates: ScoredProduct[],
   evidenceMap: Map<string, EvidenceSummary>
 ): CandidateSnapshot[] {
-  return candidates.slice(0, 10).map((c, i) => {
+  return candidates.slice(0, 30).map((c, i) => {
     const ev = evidenceMap.get(c.product.normalizedCode)
     return {
       rank: i + 1,
       productCode: c.product.normalizedCode,
       displayCode: c.product.displayCode,
       seriesName: c.product.seriesName,
+      seriesIconUrl: c.product.seriesIconUrl ?? null,
       diameterMm: c.product.diameterMm,
       fluteCount: c.product.fluteCount,
       coating: c.product.coating,

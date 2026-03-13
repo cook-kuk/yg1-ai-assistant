@@ -259,6 +259,9 @@ function ProductCard({ scored, rank, isAlternative = false }: {
     <Card className={`border ${isAlternative ? "border-gray-200" : "border-blue-200 shadow-sm"}`}>
       <CardHeader className="pb-2 pt-3 px-4">
         <div className="flex items-start justify-between gap-2">
+          {p.seriesIconUrl && (
+            <img src={p.seriesIconUrl} alt={p.seriesName ?? ""} className="w-16 h-16 object-contain rounded border border-gray-100 shrink-0 bg-gray-50" />
+          )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span className="text-xs text-gray-400 font-mono">#{rank}</span>
@@ -318,13 +321,20 @@ function CandidateCard({ c }: { c: CandidateSnapshot }) {
   const bd = c.scoreBreakdown
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-1.5">
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-gray-400 font-mono">#{c.rank}</span>
-        <MatchBadge status={c.matchStatus} />
-        <StockBadge status={c.stockStatus} total={c.totalStock} />
+      <div className="flex gap-2">
+        {c.seriesIconUrl && (
+          <img src={c.seriesIconUrl} alt={c.seriesName ?? ""} className="w-12 h-12 object-contain rounded border border-gray-100 shrink-0 bg-gray-50" />
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-gray-400 font-mono">#{c.rank}</span>
+            <MatchBadge status={c.matchStatus} />
+            <StockBadge status={c.stockStatus} total={c.totalStock} />
+          </div>
+          <div className="font-mono text-sm font-bold text-gray-900">{c.displayCode}</div>
+          {c.seriesName && <div className="text-xs text-blue-700 font-medium">{c.seriesName}</div>}
+        </div>
       </div>
-      <div className="font-mono text-sm font-bold text-gray-900">{c.displayCode}</div>
-      {c.seriesName && <div className="text-xs text-blue-700 font-medium">{c.seriesName}</div>}
       <div className="flex flex-wrap gap-1.5 text-xs text-gray-600">
         {c.diameterMm != null && <span>{"\u03C6"}{c.diameterMm}mm</span>}
         {c.fluteCount != null && <span>{c.fluteCount}날</span>}
