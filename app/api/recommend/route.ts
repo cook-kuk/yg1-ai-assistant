@@ -97,7 +97,7 @@ async function handleExploration(
     ? { ...baseInput, ...prevState.resolvedInput }
     : baseInput
 
-  const hybridResult = runHybridRetrieval(resolvedInput, filters, 50)
+  const hybridResult = runHybridRetrieval(resolvedInput, filters)
   const candidates = hybridResult.candidates
   const evidenceMap = hybridResult.evidenceMap
 
@@ -205,7 +205,7 @@ async function handleExploration(
           currentInput = applyFilterToInput(currentInput, filter)
 
           // Re-run hybrid retrieval with new filter
-          const newResult = runHybridRetrieval(currentInput, filters, 50)
+          const newResult = runHybridRetrieval(currentInput, filters)
           const newCandidates = newResult.candidates
 
           narrowingHistory.push({
@@ -789,7 +789,7 @@ function inferCurrentQuestionField(
   const currentInput = prevState?.resolvedInput
     ? { ...input, ...prevState.resolvedInput }
     : input
-  const hybridResult = runHybridRetrieval(currentInput, filters, 50)
+  const hybridResult = runHybridRetrieval(currentInput, filters)
   const question = selectNextQuestion(currentInput, hybridResult.candidates, prevState.narrowingHistory ?? [])
   if (question) return question.field
 
@@ -853,7 +853,7 @@ function buildCandidateSnapshot(
   candidates: ScoredProduct[],
   evidenceMap: Map<string, EvidenceSummary>
 ): CandidateSnapshot[] {
-  return candidates.slice(0, 30).map((c, i) => {
+  return candidates.map((c, i) => {
     const ev = evidenceMap.get(c.product.normalizedCode)
     return {
       rank: i + 1,

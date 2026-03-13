@@ -43,7 +43,7 @@ const WEIGHTS = {
 export function runHybridRetrieval(
   input: RecommendationInput,
   filters: AppliedFilter[],
-  topN = 50
+  topN = 0
 ): HybridResult {
   // ── Stage 1: Structured Filter ─────────────────────────────
   let candidates = ProductRepo.getAll()
@@ -288,7 +288,9 @@ export function runHybridRetrieval(
   })
 
   // Take top-N with positive score
-  const topCandidates = scored.filter(s => s.score > 0).slice(0, topN)
+  const topCandidates = topN > 0
+    ? scored.filter(s => s.score > 0).slice(0, topN)
+    : scored.filter(s => s.score > 0)
 
   // ── Stage 3: Evidence Retrieval ────────────────────────────
   const evidenceMap = new Map<string, EvidenceSummary>()
