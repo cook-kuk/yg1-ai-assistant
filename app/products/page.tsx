@@ -861,6 +861,36 @@ function IntakeGate({
     ((form.inquiryPurpose as { status: "known"; value: InquiryPurpose }).value === "substitute" ||
       (form.inquiryPurpose as { status: "known"; value: InquiryPurpose }).value === "inventory_substitute")
 
+  const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+
+  const scrollToNextUnanswered = (justAnsweredKey: string) => {
+    const idx = FIELD_CONFIGS.findIndex(c => c.key === justAnsweredKey)
+    for (let offset = 1; offset <= FIELD_CONFIGS.length; offset++) {
+      const nextIdx = (idx + offset) % FIELD_CONFIGS.length
+      const nextKey = FIELD_CONFIGS[nextIdx].key
+      const nextState = form[nextKey as keyof ProductIntakeForm] as AnswerState<string>
+      if (nextState.status === "unanswered") {
+        const el = fieldRefs.current[nextKey]
+        if (el && scrollContainerRef.current) {
+          setTimeout(() => {
+            el.scrollIntoView({ behavior: "smooth", block: "center" })
+            el.classList.add("ring-2", "ring-blue-400", "ring-offset-2")
+            setTimeout(() => el.classList.remove("ring-2", "ring-blue-400", "ring-offset-2"), 1500)
+          }, 200)
+        }
+        return
+      }
+    }
+  }
+
+  const handleFieldChange = (key: keyof ProductIntakeForm, val: AnswerState<string>) => {
+    onChange(key, val)
+    if (val.status !== "unanswered") {
+      scrollToNextUnanswered(key as string)
+    }
+  }
+
   return (
     <div className="flex flex-col h-full">
       <div className="shrink-0 px-4 pt-5 pb-4 border-b bg-white">
@@ -873,17 +903,24 @@ function IntakeGate({
             const fieldState = form[FIELD_CONFIGS[i].key as keyof ProductIntakeForm] as AnswerState<string>
             const done = fieldState.status !== "unanswered"
             return (
-              <div key={i} className={`h-1.5 flex-1 rounded-full transition-colors ${done ? "bg-blue-500" : "bg-gray-200"}`} />
+              <button key={i}
+                className={`h-1.5 flex-1 rounded-full transition-colors cursor-pointer hover:opacity-80 ${done ? "bg-blue-500" : "bg-gray-200"}`}
+                onClick={() => {
+                  const el = fieldRefs.current[FIELD_CONFIGS[i].key]
+                  if (el) el.scrollIntoView({ behavior: "smooth", block: "center" })
+                }}
+                title={FIELD_CONFIGS[i].label}
+              />
             )
           })}
           <span className="text-xs text-gray-500 whitespace-nowrap">{answered}/6</span>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {FIELD_CONFIGS.map((cfg, i) => {
           const highlight = purposeIsSubstitute && cfg.key === "toolTypeOrCurrentProduct"
           return (
-            <div key={cfg.key}>
+            <div key={cfg.key} ref={el => { fieldRefs.current[cfg.key] = el }} className="rounded-xl transition-all duration-300">
               {highlight && (
                 <div className="flex items-center gap-1.5 mb-2 px-2">
                   <Info size={11} className="text-blue-500" />
@@ -895,7 +932,7 @@ function IntakeGate({
               <IntakeFieldSection
                 config={cfg} index={i}
                 state={form[cfg.key as keyof ProductIntakeForm] as AnswerState<string>}
-                onChange={(val) => onChange(cfg.key as keyof ProductIntakeForm, val)}
+                onChange={(val) => handleFieldChange(cfg.key as keyof ProductIntakeForm, val)}
               />
             </div>
           )
