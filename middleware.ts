@@ -11,7 +11,12 @@ import type { NextRequest } from "next/server"
  *   BASIC_AUTH_USER     = yg1        (optional, default: yg1)
  *   BASIC_AUTH_PASSWORD = yourpassword
  */
-export function middleware(request: NextRequest) {
+export function middleware(_request: NextRequest) {
+  // ── 테스트 기간: 인증 비활성화 ──
+  // 나중에 로그인 다시 활성화하려면 아래 주석 해제
+  return NextResponse.next()
+
+  /*
   // Vercel이 자동 주입: production | preview | development
   // production 이 아니면 (preview URL, 로컬) 인증 스킵
   const vercelEnv = process.env.VERCEL_ENV
@@ -43,6 +48,7 @@ export function middleware(request: NextRequest) {
       "WWW-Authenticate": 'Basic realm="YG-1 AI Assistant"',
     },
   })
+  */
 }
 
 export const config = {

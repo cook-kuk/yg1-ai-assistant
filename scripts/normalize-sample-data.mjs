@@ -32,6 +32,67 @@ function normalizeCode(code) {
   if (!code) return '';
   return String(code).replace(/[\s\-]/g, '').toUpperCase();
 }
+
+/**
+ * Fallback: infer ISO material tags from series name + description + feature text.
+ * Used when work_piece_idx is null in prod_series.
+ */
+function inferMaterialTagsFromText(seriesName, description, feature) {
+  const combined = [seriesName, description, feature]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  const tags = new Set();
+
+  // Aluminum / Non-ferrous (N)
+  if (/alu[- ]?(plus|cut|hpc|care)?|알루미늄|알루|non.ferrous|비철|copper|구리|graphite|그라파이트|cfrp|acrylic|아크릴|plastic|플라스틱/i.test(combined)) {
+    tags.add('N');
+  }
+
+  // Stainless (M)
+  if (/sus.?(plus|cut)?|stainless|스테인|inox/i.test(combined)) {
+    tags.add('M');
+  }
+
+  // Titanium / Super alloys (S)
+  if (/titan(ium|oxide)?(?!ox)|티타늄|inconel|인코넬|super.?alloy|내열합금/i.test(combined)) {
+    tags.add('S');
+  }
+
+  // Hardened steel (H)
+  if (/hardened|고경도|hrc\s*\d|hard.?steel|경화강|담금질/i.test(combined)) {
+    tags.add('H');
+  }
+
+  // TITANOX is a coating brand (not a material) — if present with HSS/carbide
+  // and no specific material, treat as general P, M, K
+  const isGeneral = tags.size === 0;
+  if (isGeneral) {
+    // Pre-hardened steel specialty
+    if (/ph.?mill|preharden|프리하든/i.test(combined)) {
+      tags.add('H');
+    }
+    // Cast iron specialty
+    else if (/cast.?iron|주철/i.test(combined)) {
+      tags.add('K');
+    }
+    // 3S PLUS = Steel / Stainless / Super-alloys
+    else if (/3s.?plus/i.test(combined)) {
+      tags.add('P'); tags.add('M'); tags.add('S');
+    }
+    // General HSS or Carbide with no specific material mentioned
+    else if (/hss|m42|carbide|초경|titanox|general/i.test(combined)) {
+      tags.add('P'); tags.add('M'); tags.add('K');
+    }
+    // Completely unknown → general purpose
+    else {
+      tags.add('P'); tags.add('M'); tags.add('K'); tags.add('N');
+    }
+  }
+
+  return [...tags];
+}
 function stripHtml(html) {
   if (!html) return null;
   return String(html).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || null;
@@ -174,6 +235,15 @@ for (let i = 1; i < edpRows.length; i++) {
       if (tag) matTags.push(tag);
     });
   }
+  // Fallback: infer from series name/description/feature when work_piece_idx is missing
+  if (matTags.length === 0) {
+    const inferred = inferMaterialTagsFromText(
+      String(obj.series_name || series.series_name || ''),
+      stripHtml(series.description),
+      stripHtml(series.feature)
+    );
+    matTags.push(...inferred);
+  }
 
   // Application shapes from series.application_shape
   const appShapes = series.application_shape
@@ -294,7 +364,9 @@ for (const row of yg1Csv) {
       taperAngleDeg: null,
       coolantHole: row.coolant_type ? String(row.coolant_type).toLowerCase().includes('coolant') : null,
       applicationShapes: row.application_type ? [row.application_type] : [],
-      materialTags: row.iso_group ? String(row.iso_group).split(',').map(s => s.trim()).filter(Boolean) : [],
+      materialTags: row.iso_group
+        ? String(row.iso_group).split(',').map(s => s.trim()).filter(Boolean)
+        : inferMaterialTagsFromText(row.series_name || '', row.product_name || '', row.notes || ''),
       region: null,
       description: row.product_name || null,
       featureText: row.notes || null,

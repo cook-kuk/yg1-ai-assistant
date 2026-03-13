@@ -15,7 +15,9 @@ import {
   Play,
   MessageSquare,
   Shield,
-  ShieldCheck
+  ShieldCheck,
+  Lock,
+  MessageCircle,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/lib/store"
@@ -37,21 +39,24 @@ const navItems = [
     titleEn: "Demo Launcher",
     href: "/executive-demo",
     icon: Sparkles,
-    roles: ["sales", "rnd", "admin"]
+    roles: ["sales", "rnd", "admin"],
+    disabled: true,
   },
   {
     title: "AI 추천 대화",
     titleEn: "Assistant",
     href: "/assistant/new",
     icon: MessageSquare,
-    roles: ["sales", "rnd", "admin"]
+    roles: ["sales", "rnd", "admin"],
+    disabled: true,
   },
   {
     title: "대시보드",
     titleEn: "Dashboard",
     href: "/",
     icon: LayoutDashboard,
-    roles: ["sales", "rnd", "admin"]
+    roles: ["sales", "rnd", "admin"],
+    disabled: true,
   },
   {
     title: "문의함",
@@ -59,14 +64,15 @@ const navItems = [
     href: "/inbox",
     icon: Inbox,
     roles: ["sales", "rnd", "admin"],
-    badge: 3
+    badge: 3,
+    disabled: true,
   },
   {
     title: "제품 탐색",
     titleEn: "Product Finder",
     href: "/products",
     icon: Search,
-    roles: ["sales", "rnd", "admin"]
+    roles: ["sales", "rnd", "admin"],
   },
   {
     title: "특주 티켓",
@@ -74,14 +80,16 @@ const navItems = [
     href: "/tickets/special",
     icon: Shield,
     roles: ["sales", "rnd", "admin"],
-    badge: 3
+    badge: 3,
+    disabled: true,
   },
   {
     title: "견적 초안",
     titleEn: "Quote Draft",
     href: "/quotes",
     icon: FileText,
-    roles: ["sales", "admin"]
+    roles: ["sales", "admin"],
+    disabled: true,
   },
   {
     title: "전문가 검토",
@@ -89,29 +97,40 @@ const navItems = [
     href: "/escalation",
     icon: Users,
     roles: ["rnd", "admin"],
-    badge: 2
+    badge: 2,
+    disabled: true,
   },
   {
     title: "정책 시뮬레이터",
     titleEn: "Policy Simulator",
     href: "/admin/policy-simulator",
     icon: ShieldCheck,
-    roles: ["admin"]
+    roles: ["admin"],
+    disabled: true,
   },
   {
     title: "지식 베이스",
     titleEn: "Knowledge",
     href: "/admin/knowledge",
     icon: BookOpen,
-    roles: ["admin"]
+    roles: ["admin"],
+    disabled: true,
   },
   {
     title: "관리",
     titleEn: "Admin",
     href: "/admin",
     icon: Settings,
-    roles: ["admin"]
-  }
+    roles: ["admin"],
+    disabled: true,
+  },
+  {
+    title: "피드백",
+    titleEn: "Feedback",
+    href: "/feedback",
+    icon: MessageCircle,
+    roles: ["sales", "rnd", "admin"],
+  },
 ]
 
 const roleLabels = {
@@ -185,6 +204,29 @@ export function AppSidebar() {
         <ul className="space-y-1">
           {filteredNavItems.map(item => {
             const isActive = pathname === item.href
+
+            // Disabled items: shown but not clickable
+            if (item.disabled) {
+              return (
+                <li key={item.href}>
+                  <div
+                    className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground/35 cursor-not-allowed select-none"
+                    title="준비 중"
+                  >
+                    <item.icon className="h-4 w-4" />
+                    <span className="flex-1">{item.title}</span>
+                    {item.badge && (
+                      <Badge variant="secondary" className="h-5 min-w-5 text-xs opacity-40">
+                        {item.badge}
+                      </Badge>
+                    )}
+                    <Lock className="h-3 w-3 opacity-40" />
+                  </div>
+                  <span className="ml-10 text-[10px] text-sidebar-foreground/20">{item.titleEn}</span>
+                </li>
+              )
+            }
+
             return (
               <li key={item.href}>
                 <Link

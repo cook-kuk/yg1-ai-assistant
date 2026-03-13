@@ -129,10 +129,25 @@ export const RecommendationInputSchema = z.object({
 })
 export type RecommendationInput = z.infer<typeof RecommendationInputSchema>
 
+// ── Score Breakdown (Explainable AI) ─────────────────────────
+export interface ScoreBreakdown {
+  diameter: { score: number; max: number; detail: string }
+  flutes: { score: number; max: number; detail: string }
+  materialTag: { score: number; max: number; detail: string }
+  operation: { score: number; max: number; detail: string }
+  coating: { score: number; max: number; detail: string }
+  completeness: { score: number; max: number; detail: string }
+  evidence: { score: number; max: number; detail: string }
+  total: number
+  maxTotal: number
+  matchPct: number  // 0-100
+}
+
 // ── Scored Product ───────────────────────────────────────────
 export interface ScoredProduct {
   product: CanonicalProduct
   score: number
+  scoreBreakdown: ScoreBreakdown | null
   matchedFields: string[]
   matchStatus: MatchStatus
   inventory: InventorySnapshot[]

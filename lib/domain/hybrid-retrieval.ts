@@ -1,0 +1,391 @@
+/**
+ * Hybrid Retrieval Engine
+ *
+ * 4-stage pipeline:
+ *   1. Structured Filter — ProductRepo filters (diameter, material, flutes, operation)
+ *   2. Score & Rank — existing match engine weighted scoring
+ *   3. Evidence Retrieval — attach cutting conditions from EvidenceRepo
+ *   4. Enrichment — compute evidence scores, build summaries
+ *
+ * Never generates data. All values from normalized JSON.
+ */
+
+import type { RecommendationInput, ScoredProduct, MatchStatus, ScoreBreakdown } from "@/lib/types/canonical"
+import type { EvidenceChunk, EvidenceSummary } from "@/lib/types/evidence"
+import type { AppliedFilter } from "@/lib/types/exploration"
+import { ProductRepo } from "@/lib/data/repos/product-repo"
+import { InventoryRepo } from "@/lib/data/repos/inventory-repo"
+import { LeadTimeRepo } from "@/lib/data/repos/lead-time-repo"
+import { EvidenceRepo } from "@/lib/data/repos/evidence-repo"
+import { resolveMaterialTag } from "@/lib/domain/material-resolver"
+import { getAppShapesForOperation } from "@/lib/domain/operation-resolver"
+
+// ── Result type ──────────────────────────────────────────────
+export interface HybridResult {
+  candidates: ScoredProduct[]
+  evidenceMap: Map<string, EvidenceSummary>
+  totalConsidered: number
+  filtersApplied: AppliedFilter[]
+}
+
+// ── Scoring weights (same as match-engine.ts) ────────────────
+const WEIGHTS = {
+  diameter: 40,
+  flutes: 15,
+  materialTag: 20,
+  operation: 15,
+  coating: 5,
+  completeness: 5,
+  evidence: 10,  // bonus for having cutting condition evidence
+}
+
+// ── Main Entry Point ─────────────────────────────────────────
+export function runHybridRetrieval(
+  input: RecommendationInput,
+  filters: AppliedFilter[],
+  topN = 10
+): HybridResult {
+  // ── Stage 1: Structured Filter ─────────────────────────────
+  let candidates = ProductRepo.getAll()
+  const appliedFilters: AppliedFilter[] = []
+  const totalConsidered = candidates.length
+
+  // Hard filter: diameter ±2mm if specified
+  if (input.diameterMm) {
+    const before = candidates.length
+    const strict = candidates.filter(p =>
+      p.diameterMm !== null && Math.abs(p.diameterMm - input.diameterMm!) <= 2
+    )
+    if (strict.length > 0) {
+      candidates = strict
+      appliedFilters.push({
+        field: "diameterMm",
+        op: "range",
+        value: `${input.diameterMm}mm ±2mm`,
+        rawValue: input.diameterMm,
+        appliedAt: 0,
+      })
+    }
+  }
+
+  // Soft filter: material tag(s) — supports comma-separated multi-select (e.g. "알루미늄,스테인리스")
+  const materialTags: string[] = []
+  if (input.material) {
+    const parts = input.material.split(",").map(s => s.trim()).filter(Boolean)
+    for (const part of parts) {
+      const tag = resolveMaterialTag(part)
+      if (tag && !materialTags.includes(tag)) materialTags.push(tag)
+    }
+  }
+  const materialTag = materialTags.length > 0 ? materialTags[0] : null  // primary tag for backward compat
+
+  // Apply narrowing filters from conversation
+  for (const filter of filters) {
+    const before = candidates.length
+    switch (filter.field) {
+      case "fluteCount": {
+        const n = typeof filter.rawValue === "number" ? filter.rawValue : parseInt(String(filter.rawValue))
+        if (!isNaN(n)) {
+          const filtered = candidates.filter(p => p.fluteCount === n)
+          if (filtered.length > 0) {
+            candidates = filtered
+            appliedFilters.push(filter)
+          }
+        }
+        break
+      }
+      case "coating": {
+        const q = String(filter.rawValue).toLowerCase()
+        const filtered = candidates.filter(p =>
+          p.coating?.toLowerCase().includes(q)
+        )
+        if (filtered.length > 0) {
+          candidates = filtered
+          appliedFilters.push(filter)
+        }
+        break
+      }
+      case "materialTag": {
+        const tag = String(filter.rawValue).toUpperCase()
+        const filtered = candidates.filter(p => p.materialTags.includes(tag))
+        if (filtered.length > 0) {
+          candidates = filtered
+          appliedFilters.push(filter)
+        }
+        break
+      }
+      case "toolSubtype": {
+        const q = String(filter.rawValue).toLowerCase()
+        const filtered = candidates.filter(p =>
+          p.toolSubtype?.toLowerCase().includes(q)
+        )
+        if (filtered.length > 0) {
+          candidates = filtered
+          appliedFilters.push(filter)
+        }
+        break
+      }
+      case "seriesName": {
+        const q = String(filter.rawValue).toLowerCase()
+        const filtered = candidates.filter(p =>
+          p.seriesName?.toLowerCase().includes(q)
+        )
+        if (filtered.length > 0) {
+          candidates = filtered
+          appliedFilters.push(filter)
+        }
+        break
+      }
+      default:
+        appliedFilters.push(filter)
+        break
+    }
+  }
+
+  // ── Stage 2: Score & Rank ──────────────────────────────────
+  const appShapes = input.operationType ? getAppShapesForOperation(input.operationType) : []
+
+  const scored: ScoredProduct[] = candidates.map(product => {
+    // ── Compute each scoring dimension with explanations ────
+    let diamScore = 0
+    let diamDetail = ""
+    if (!input.diameterMm) {
+      diamScore = 10
+      diamDetail = "직경 미지정 (기본 10pt)"
+    } else if (product.diameterMm !== null) {
+      const diff = Math.abs(product.diameterMm - input.diameterMm)
+      if (diff === 0) { diamScore = WEIGHTS.diameter; diamDetail = `φ${product.diameterMm}mm 정확 일치` }
+      else if (diff <= 0.1) { diamScore = Math.round(WEIGHTS.diameter * 0.9); diamDetail = `φ${product.diameterMm}mm (오차 ${diff.toFixed(1)}mm)` }
+      else if (diff <= 0.5) { diamScore = Math.round(WEIGHTS.diameter * 0.6); diamDetail = `φ${product.diameterMm}mm (오차 ${diff.toFixed(1)}mm)` }
+      else if (diff <= 1.0) { diamScore = Math.round(WEIGHTS.diameter * 0.3); diamDetail = `φ${product.diameterMm}mm (오차 ${diff.toFixed(1)}mm, 근사)` }
+      else { diamDetail = `φ${product.diameterMm}mm (오차 ${diff.toFixed(1)}mm, 범위 초과)` }
+    } else {
+      diamDetail = "직경 정보 없음"
+    }
+
+    let fluteScore = 0
+    let fluteDetail = ""
+    if (!input.flutePreference) {
+      fluteScore = Math.round(WEIGHTS.flutes * 0.5)
+      fluteDetail = "날 수 미지정 (기본 50%)"
+    } else if (product.fluteCount === input.flutePreference) {
+      fluteScore = WEIGHTS.flutes
+      fluteDetail = `${product.fluteCount}날 일치`
+    } else {
+      fluteDetail = product.fluteCount != null ? `${product.fluteCount}날 (요청: ${input.flutePreference}날)` : "날 수 정보 없음"
+    }
+
+    let matScore = 0
+    let matDetail = ""
+    if (materialTags.length === 0) {
+      matScore = Math.round(WEIGHTS.materialTag * 0.5)
+      matDetail = "소재 미지정 (기본 50%)"
+    } else {
+      // Check if product supports ANY of the requested material tags
+      const matchedMats = materialTags.filter(tag => product.materialTags.includes(tag))
+      if (matchedMats.length > 0) {
+        // Score proportional to how many requested materials are matched
+        const ratio = matchedMats.length / materialTags.length
+        matScore = Math.round(WEIGHTS.materialTag * Math.max(ratio, 0.7)) // at least 70% if any match
+        matDetail = matchedMats.length === materialTags.length
+          ? `${matchedMats.join(",")}군 모두 적합`
+          : `${matchedMats.join(",")}군 적합 (${materialTags.length}개 중 ${matchedMats.length}개)`
+      } else {
+        matDetail = `${materialTags.join(",")}군 미지원 (지원: ${product.materialTags.join(", ") || "없음"})`
+      }
+    }
+
+    let opScore = 0
+    let opDetail = ""
+    if (!appShapes.length) {
+      opScore = Math.round(WEIGHTS.operation * 0.5)
+      opDetail = "가공방식 미지정 (기본 50%)"
+    } else {
+      const matches = product.applicationShapes.filter(s => appShapes.includes(s))
+      if (matches.length > 0) {
+        const r = matches.length / appShapes.length
+        opScore = Math.round(WEIGHTS.operation * Math.min(r, 1))
+        opDetail = `가공 적합 (${matches.join(", ")})`
+      } else {
+        opDetail = `가공방식 불일치 (제품: ${product.applicationShapes.join(", ") || "없음"})`
+      }
+    }
+
+    let coatScore = 0
+    let coatDetail = ""
+    if (!input.coatingPreference) {
+      coatScore = Math.round(WEIGHTS.coating * 0.5)
+      coatDetail = "코팅 미지정 (기본 50%)"
+    } else if (product.coating?.toLowerCase().includes(input.coatingPreference.toLowerCase())) {
+      coatScore = WEIGHTS.coating
+      coatDetail = `${product.coating} 일치`
+    } else {
+      coatDetail = product.coating ? `${product.coating} (요청: ${input.coatingPreference})` : "코팅 정보 없음"
+    }
+
+    const compScore = Math.round(product.dataCompletenessScore * WEIGHTS.completeness)
+    const compDetail = `데이터 완성도 ${Math.round(product.dataCompletenessScore * 100)}%`
+
+    const score = diamScore + fluteScore + matScore + opScore + coatScore + compScore
+    const maxScore = Object.values(WEIGHTS).reduce((a, b) => a + b, 0)
+    const ratio = score / maxScore
+    const matchStatus: MatchStatus = ratio >= 0.75 ? "exact" : ratio >= 0.45 ? "approximate" : "none"
+
+    const scoreBreakdown: ScoreBreakdown = {
+      diameter: { score: diamScore, max: WEIGHTS.diameter, detail: diamDetail },
+      flutes: { score: fluteScore, max: WEIGHTS.flutes, detail: fluteDetail },
+      materialTag: { score: matScore, max: WEIGHTS.materialTag, detail: matDetail },
+      operation: { score: opScore, max: WEIGHTS.operation, detail: opDetail },
+      coating: { score: coatScore, max: WEIGHTS.coating, detail: coatDetail },
+      completeness: { score: compScore, max: WEIGHTS.completeness, detail: compDetail },
+      evidence: { score: 0, max: WEIGHTS.evidence, detail: "증거 미매칭" },
+      total: score,
+      maxTotal: maxScore,
+      matchPct: Math.round(ratio * 100),
+    }
+
+    // Matched fields
+    const matchedFields: string[] = []
+    if (input.diameterMm && product.diameterMm !== null && Math.abs(product.diameterMm - input.diameterMm) <= 0.1)
+      matchedFields.push(`직경 ${product.diameterMm}mm 일치`)
+    if (input.flutePreference && product.fluteCount === input.flutePreference)
+      matchedFields.push(`${product.fluteCount}날 일치`)
+    if (materialTags.length > 0 && materialTags.some(tag => product.materialTags.includes(tag)))
+      matchedFields.push(`소재 ${materialTags.filter(t => product.materialTags.includes(t)).join(",")}군 적합`)
+    if (appShapes.length && product.applicationShapes.some(s => appShapes.includes(s)))
+      matchedFields.push(`가공 방식 적합`)
+    if (input.coatingPreference && product.coating?.toLowerCase().includes(input.coatingPreference.toLowerCase()))
+      matchedFields.push(`코팅 ${product.coating} 일치`)
+
+    // Enrichment: inventory + lead time
+    const inventory = InventoryRepo.getByEdp(product.normalizedCode)
+    const leadTimes = LeadTimeRepo.getByEdp(product.normalizedCode)
+    const totalStock = InventoryRepo.totalStock(product.normalizedCode)
+    const stockStatus = InventoryRepo.stockStatus(product.normalizedCode)
+    const minLeadTimeDays = LeadTimeRepo.minLeadTime(product.normalizedCode)
+
+    return {
+      product,
+      score,
+      scoreBreakdown,
+      matchedFields,
+      matchStatus,
+      inventory,
+      leadTimes,
+      evidence: [],
+      stockStatus,
+      totalStock,
+      minLeadTimeDays,
+    } satisfies ScoredProduct
+  })
+
+  // Sort: score desc → priority asc → completeness desc
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score
+    if (a.product.sourcePriority !== b.product.sourcePriority)
+      return a.product.sourcePriority - b.product.sourcePriority
+    return b.product.dataCompletenessScore - a.product.dataCompletenessScore
+  })
+
+  // Take top-N with positive score
+  const topCandidates = scored.filter(s => s.score > 0).slice(0, topN)
+
+  // ── Stage 3: Evidence Retrieval ────────────────────────────
+  const evidenceMap = new Map<string, EvidenceSummary>()
+
+  for (const candidate of topCandidates) {
+    const summary = EvidenceRepo.buildSummary(
+      candidate.product.normalizedCode,
+      {
+        isoGroup: materialTag,
+        cuttingType: input.operationType ? mapOperationToCuttingType(input.operationType) : null,
+        diameterMm: input.diameterMm,
+      }
+    )
+
+    // Also try series-level search if no direct product match
+    if (summary.chunks.length === 0 && candidate.product.seriesName) {
+      const seriesChunks = EvidenceRepo.findBySeriesName(candidate.product.seriesName)
+      // Filter by diameter if available
+      const relevant = input.diameterMm
+        ? seriesChunks.filter(c => c.diameterMm != null && Math.abs(c.diameterMm - input.diameterMm!) <= 0.5)
+        : seriesChunks.slice(0, 5)
+
+      if (relevant.length > 0) {
+        summary.chunks = relevant.sort((a, b) => b.confidence - a.confidence)
+        summary.bestCondition = relevant[0].conditions
+        summary.bestConfidence = relevant[0].confidence
+        summary.sourceCount = relevant.length
+      }
+    }
+
+    if (summary.chunks.length > 0) {
+      evidenceMap.set(candidate.product.normalizedCode, summary)
+    }
+  }
+
+  // ── Stage 4: Evidence Score Boost ──────────────────────────
+  for (const candidate of topCandidates) {
+    if (evidenceMap.has(candidate.product.normalizedCode)) {
+      const summary = evidenceMap.get(candidate.product.normalizedCode)!
+      const evBoost = Math.round(WEIGHTS.evidence * summary.bestConfidence)
+      candidate.score += evBoost
+      candidate.matchedFields.push(`절삭조건 ${summary.sourceCount}건 보유`)
+      // Update breakdown
+      if (candidate.scoreBreakdown) {
+        candidate.scoreBreakdown.evidence = {
+          score: evBoost,
+          max: WEIGHTS.evidence,
+          detail: `절삭조건 ${summary.sourceCount}건 (신뢰도 ${Math.round(summary.bestConfidence * 100)}%)`,
+        }
+        candidate.scoreBreakdown.total = candidate.score
+        candidate.scoreBreakdown.matchPct = Math.round((candidate.score / candidate.scoreBreakdown.maxTotal) * 100)
+      }
+    }
+  }
+
+  // Re-sort after evidence boost
+  topCandidates.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score
+    if (a.product.sourcePriority !== b.product.sourcePriority)
+      return a.product.sourcePriority - b.product.sourcePriority
+    return b.product.dataCompletenessScore - a.product.dataCompletenessScore
+  })
+
+  return {
+    candidates: topCandidates,
+    evidenceMap,
+    totalConsidered,
+    filtersApplied: appliedFilters,
+  }
+}
+
+// ── Helper: Map Korean operation to cutting type in evidence ──
+function mapOperationToCuttingType(operation: string): string | null {
+  const lower = operation.toLowerCase()
+  if (lower.includes("슬롯") || lower.includes("slot")) return "Slotting"
+  if (lower.includes("측면") || lower.includes("side")) return "Side Cutting"
+  if (lower.includes("정삭") || lower.includes("finish")) return "Finishing"
+  if (lower.includes("황삭") || lower.includes("rough")) return "Roughing"
+  if (lower.includes("고이송") || lower.includes("high feed")) return "High Feed"
+  return null
+}
+
+// ── Classify results (like match-engine but for hybrid) ──────
+export function classifyHybridResults(result: HybridResult): {
+  primary: ScoredProduct | null
+  alternatives: ScoredProduct[]
+  status: MatchStatus
+} {
+  const { candidates } = result
+  if (!candidates.length) return { primary: null, alternatives: [], status: "none" }
+
+  const primary = candidates[0]
+  const alternatives = candidates.slice(1, 4)
+
+  return {
+    primary,
+    alternatives,
+    status: primary.matchStatus,
+  }
+}

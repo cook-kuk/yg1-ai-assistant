@@ -2,7 +2,8 @@ import Anthropic from "@anthropic-ai/sdk"
 import { NextRequest, NextResponse } from "next/server"
 import { candidateProducts, crossReferences } from "@/lib/demo-data"
 
-const client = new Anthropic()
+const anthropicApiKey = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_KEY || ""
+const client = anthropicApiKey ? new Anthropic({ apiKey: anthropicApiKey }) : null
 
 const SYSTEM_PROMPT = `당신은 YG-1의 AI 절삭공구 추천 어시스턴트입니다. YG-1은 한국의 선도적인 절삭공구 제조사입니다.
 
@@ -87,9 +88,46 @@ export interface LLMResponse {
   recommendationIds?: string[] | null
 }
 
+function mockChatResponse(messages: ChatMessage[], mode: string) {
+  const lastUserInput = [...messages].reverse().find(m => m.role === "user")?.text || ""
+
+  const material = /스테인리스|SUS304|SUS316|알루미늄|탄소강/i.exec(lastUserInput)?.[0] || null
+  const operationType = /황삭|정삭|중삭|슬롯|측면/i.exec(lastUserInput)?.[0] || null
+  const diameterMatch = /([0-9]+(?:\.[0-9]+)?)\s*mm/i.exec(lastUserInput)
+  const diameterMm = diameterMatch ? Number(diameterMatch[1]) : null
+
+  const isComplete = Boolean(material && (diameterMm || operationType))
+
+  const extractedField = {
+    label: material ? "소재" : "요구정보",
+    value: material ?? "추가 정보 필요",
+    confidence: material ? "high" : "low",
+    step: material ? 2 : 0,
+  }
+
+  const response: LLMResponse = {
+    text: isComplete
+      ? `추천 조건을 파악했습니다: ${material}${operationType ? `, ${operationType}` : ""}${diameterMm ? `, ${diameterMm}mm` : ""}.
+최적 후보를 제안합니다.`
+      : "추가 정보가 필요합니다. 소재, 가공 조건 또는 직경을 알려주세요.",
+    purpose: isComplete ? "recommendation" : "question",
+    chips: isComplete ? ["견적 요청", "유사 제품 확인", "상세 정보 추가"] : ["스테인리스", "황삭", "10mm", "SUS304"] ,
+    extractedField,
+    isComplete,
+    recommendationIds: isComplete ? candidateProducts.slice(0, 3).map(p => p.id) : null,
+  }
+
+  return NextResponse.json(response)
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { messages, mode } = await req.json() as { messages: ChatMessage[]; mode: string }
+
+    if (!client) {
+      console.warn("Anthropic API key not set. Using mock chat response.")
+      return mockChatResponse(messages, mode)
+    }
 
     // Convert to Claude API format (only user/assistant messages)
     // Anthropic requires conversation to start with a user message
