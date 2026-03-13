@@ -1547,7 +1547,7 @@ function FeedbackWidget({
       {/* Floating button */}
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-5 right-5 z-50 flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all hover:scale-105"
+        className="fixed bottom-20 right-5 z-50 flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all hover:scale-105"
       >
         <MessageCircle size={16} />
         <span className="text-sm font-medium">의견 남기기</span>

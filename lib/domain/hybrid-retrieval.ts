@@ -145,6 +145,16 @@ export function runHybridRetrieval(
   // ── Stage 2: Score & Rank ──────────────────────────────────
   const appShapes = input.operationType ? getAppShapesForOperation(input.operationType) : []
 
+  // Performance: limit scoring to 500 candidates max after filtering
+  if (candidates.length > 500) {
+    // Pre-sort by data completeness + source priority to keep best candidates
+    candidates.sort((a, b) => {
+      if (a.sourcePriority !== b.sourcePriority) return a.sourcePriority - b.sourcePriority
+      return b.dataCompletenessScore - a.dataCompletenessScore
+    })
+    candidates = candidates.slice(0, 500)
+  }
+
   const scored: ScoredProduct[] = candidates.map(product => {
     // ── Compute each scoring dimension with explanations ────
     let diamScore = 0
@@ -257,25 +267,18 @@ export function runHybridRetrieval(
     if (input.coatingPreference && product.coating?.toLowerCase().includes(input.coatingPreference.toLowerCase()))
       matchedFields.push(`코팅 ${product.coating} 일치`)
 
-    // Enrichment: inventory + lead time
-    const inventory = InventoryRepo.getByEdp(product.normalizedCode)
-    const leadTimes = LeadTimeRepo.getByEdp(product.normalizedCode)
-    const totalStock = InventoryRepo.totalStock(product.normalizedCode)
-    const stockStatus = InventoryRepo.stockStatus(product.normalizedCode)
-    const minLeadTimeDays = LeadTimeRepo.minLeadTime(product.normalizedCode)
-
     return {
       product,
       score,
       scoreBreakdown,
       matchedFields,
       matchStatus,
-      inventory,
-      leadTimes,
+      inventory: [],
+      leadTimes: [],
       evidence: [],
-      stockStatus,
-      totalStock,
-      minLeadTimeDays,
+      stockStatus: "unknown",
+      totalStock: null,
+      minLeadTimeDays: null,
     } satisfies ScoredProduct
   })
 
@@ -291,6 +294,15 @@ export function runHybridRetrieval(
   const topCandidates = topN > 0
     ? scored.filter(s => s.score > 0).slice(0, topN)
     : scored.filter(s => s.score > 0)
+
+  // Enrich top candidates with inventory + lead time (deferred for performance)
+  for (const c of topCandidates.slice(0, 100)) {
+    c.inventory = InventoryRepo.getByEdp(c.product.normalizedCode)
+    c.leadTimes = LeadTimeRepo.getByEdp(c.product.normalizedCode)
+    c.totalStock = InventoryRepo.totalStock(c.product.normalizedCode)
+    c.stockStatus = InventoryRepo.stockStatus(c.product.normalizedCode)
+    c.minLeadTimeDays = LeadTimeRepo.minLeadTime(c.product.normalizedCode)
+  }
 
   // ── Stage 3: Evidence Retrieval ────────────────────────────
   const evidenceMap = new Map<string, EvidenceSummary>()
