@@ -133,6 +133,15 @@ async function handleExploration(
       // Try to extract parameters from user message
       const extracted = await extractParamsFromMessage(provider, lastUserMsg.text, currentInput, prevState)
 
+      // Irrelevant input (null) — re-ask same question with a gentle nudge
+      if (extracted === null) {
+        return buildQuestionResponse(
+          form, candidates, evidenceMap, currentInput,
+          narrowingHistory, filters, turnCount, messages, provider,
+          `죄송합니다, "${lastUserMsg.text}"을(를) 이해하지 못했어요. 절삭공구 관련 조건을 알려주시거나, 아래 버튼을 선택해주세요.`
+        )
+      }
+
       if (extracted) {
         // Check for skip or complete signals
         if (extracted.isComplete) {
@@ -249,7 +258,8 @@ async function buildQuestionResponse(
   filters: AppliedFilter[],
   turnCount: number,
   messages: ChatMessage[],
-  provider: ReturnType<typeof getProvider>
+  provider: ReturnType<typeof getProvider>,
+  overrideText?: string
 ): Promise<Response> {
   const question = selectNextQuestion(input, candidates, history)
 
@@ -277,10 +287,12 @@ async function buildQuestionResponse(
   const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
 
   // LLM-polish the question text (or use deterministic)
-  let responseText = question.questionText
+  let responseText = overrideText ?? question.questionText
   let chips = question.chips
 
-  if (provider.available() && messages.length === 0) {
+  if (overrideText) {
+    // Skip LLM polish when we have an override (e.g. irrelevant input nudge)
+  } else if (provider.available() && messages.length === 0) {
     // First call: generate greeting
     try {
       const systemPrompt = buildSystemPrompt()
@@ -509,6 +521,21 @@ async function extractParamsFromMessage(
     return { isComplete: true, newFilter: null, skippedField: null }
   }
 
+  // Deterministic: detect irrelevant/gibberish input — do NOT skip field, ask again
+  const irrelevantPatterns = [
+    /^[ㄱ-ㅎㅏ-ㅣ]{1,10}$/,                    // random consonants/vowels
+    /^(안녕|하이|hello|hi|hey|ㅎㅇ|ㅎㅎ|ㅋㅋ|ㅎ|ㅋ|ㅇㅇ|ㅎㅎㅎ|ㅋㅋㅋ)/i,  // greetings/laughter
+    /^(아야|아이고|에이|아|야|오|음|흠|뭐|뭘|왜|어)/,   // exclamations
+    /^[a-z]{1,5}$/i,                             // short random letters
+    /^.{0,2}$/,                                   // too short (1-2 chars)
+  ]
+  const isIrrelevant = irrelevantPatterns.some(p => p.test(clean))
+    && !["2날", "3날", "4날", "6날"].some(s => clean.includes(s))  // don't block valid short inputs
+    && !/\d+\s*mm/.test(clean)  // don't block diameter inputs
+  if (isIrrelevant) {
+    return null  // null = unrecognized, caller will re-ask the same question
+  }
+
   // ── Use lastAskedField from session state (reliable) ──
   const lastAskedField = prevState.lastAskedField ?? inferCurrentQuestionField(currentInput, prevState)
 
@@ -618,12 +645,12 @@ async function extractParamsFromMessage(
     if (filter) {
       return { isComplete: false, newFilter: filter, skippedField: null }
     }
-    // If parseAnswerToFilter returns null (e.g., unrecognized value), skip the field
-    return { isComplete: false, newFilter: null, skippedField: targetField }
+    // If parseAnswerToFilter returns null (e.g., unrecognized value), re-ask instead of skipping
+    return null
   }
 
-  // Truly unrecognizable — skip current field to avoid loop
-  return { isComplete: false, newFilter: null, skippedField: targetField !== "unknown" ? targetField : null }
+  // Truly unrecognizable — re-ask instead of skipping
+  return null
 }
 
 // ── Infer which field the question engine was asking about ────
