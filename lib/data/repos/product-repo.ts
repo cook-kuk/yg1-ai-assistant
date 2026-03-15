@@ -1,99 +1,45 @@
 /**
  * Product Repository
- * Loads normalized products.json at startup, provides query interface.
- * Never generates data — only serves what normalization script produced.
+ * Reads products directly from PostgreSQL at request time.
+ * No preload cache; recommendation queries fetch filtered candidates from DB.
  */
 
-import type { CanonicalProduct } from "@/lib/types/canonical"
-import path from "path"
-import fs from "fs"
+import "server-only"
 
-let _cache: CanonicalProduct[] | null = null
+import type { RecommendationInput, CanonicalProduct } from "@/lib/types/canonical"
+import type { AppliedFilter } from "@/lib/types/exploration"
+import {
+  getProductByCodeFromDatabase,
+  getSeriesOverviewFromDatabase,
+  queryProductsFromDatabase,
+  shouldUseDatabaseSource,
+  type ProductSeriesOverview,
+} from "@/lib/data/repos/product-db-source"
 
-function loadProducts(): CanonicalProduct[] {
-  if (_cache) return _cache
-  const filePath = path.join(process.cwd(), "data", "normalized", "products.json")
-  if (!fs.existsSync(filePath)) {
-    console.warn("[ProductRepo] products.json not found — run: node scripts/normalize-sample-data.mjs")
-    return []
+function assertDatabaseSource(): void {
+  if (!shouldUseDatabaseSource()) {
+    throw new Error("ProductRepo is configured for PostgreSQL, but DB connection settings are missing")
   }
-  _cache = JSON.parse(fs.readFileSync(filePath, "utf-8")) as CanonicalProduct[]
-  return _cache
 }
 
 export const ProductRepo = {
-  /** All YG-1 products (priority 1 + 2) */
-  getAll(): CanonicalProduct[] {
-    return loadProducts().filter(p => p.manufacturer === "YG-1")
+  async search(input: RecommendationInput, filters: AppliedFilter[] = [], limit?: number): Promise<CanonicalProduct[]> {
+    assertDatabaseSource()
+    return queryProductsFromDatabase({ input, filters, limit })
   },
 
-  /** Primary Smart Catalog products only (priority 1) */
-  getPrimary(): CanonicalProduct[] {
-    return loadProducts().filter(p => p.sourcePriority === 1)
+  async findByCode(code: string): Promise<CanonicalProduct | null> {
+    assertDatabaseSource()
+    return getProductByCodeFromDatabase(code)
   },
 
-  /** Find by exact normalized EDP code */
-  findByCode(code: string): CanonicalProduct | null {
-    const norm = code.replace(/[\s-]/g, "").toUpperCase()
-    return loadProducts().find(p => p.normalizedCode === norm) ?? null
+  async findBySeries(seriesName: string, limit = 200): Promise<CanonicalProduct[]> {
+    assertDatabaseSource()
+    return queryProductsFromDatabase({ seriesName, limit })
   },
 
-  /** Find by series name */
-  findBySeries(seriesName: string): CanonicalProduct[] {
-    const q = seriesName.toLowerCase()
-    return loadProducts().filter(p => p.seriesName?.toLowerCase().includes(q))
-  },
-
-  /** Filter by diameter range (±tolerance mm) */
-  filterByDiameter(targetMm: number, toleranceMm = 0.5): CanonicalProduct[] {
-    return loadProducts().filter(p => {
-      if (p.diameterMm === null) return false
-      return Math.abs(p.diameterMm - targetMm) <= toleranceMm
-    })
-  },
-
-  /** Filter by flute count */
-  filterByFlutes(count: number): CanonicalProduct[] {
-    return loadProducts().filter(p => p.fluteCount === count)
-  },
-
-  /** Filter by material tag (ISO group: P, M, K, N, S, H) */
-  filterByMaterialTag(tag: string): CanonicalProduct[] {
-    return loadProducts().filter(p => p.materialTags.includes(tag))
-  },
-
-  /** Filter by application shape keyword */
-  filterByOperation(keyword: string): CanonicalProduct[] {
-    const q = keyword.toLowerCase()
-    return loadProducts().filter(p =>
-      p.applicationShapes.some(s => s.toLowerCase().includes(q))
-    )
-  },
-
-  /** Get unique series names */
-  getSeriesNames(): string[] {
-    const names = new Set(loadProducts().map(p => p.seriesName).filter(Boolean) as string[])
-    return [...names].sort()
-  },
-
-  /** Get unique diameter values */
-  getDiameters(): number[] {
-    const diams = new Set(
-      loadProducts()
-        .map(p => p.diameterMm)
-        .filter((d): d is number => d !== null)
-    )
-    return [...diams].sort((a, b) => a - b)
-  },
-
-  /** Stats */
-  stats() {
-    const all = loadProducts()
-    return {
-      total: all.length,
-      smartCatalog: all.filter(p => p.sourcePriority === 1).length,
-      csv: all.filter(p => p.sourcePriority === 2).length,
-      withInventory: 0, // enriched at query time
-    }
+  async getSeriesOverview(limit = 120): Promise<ProductSeriesOverview[]> {
+    assertDatabaseSource()
+    return getSeriesOverviewFromDatabase(limit)
   },
 }

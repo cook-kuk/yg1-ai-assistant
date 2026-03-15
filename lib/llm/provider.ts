@@ -102,11 +102,8 @@ export function getProvider(): LLMProvider {
   const claude = createClaudeProvider()
   if (claude.available()) return claude
 
-  const azure = createAzureProvider()
-  if (azure.available()) return azure
-
-  const openai = createOpenAIProvider()
-  if (openai.available()) return openai
+  // OpenAI/Azure providers are still placeholders.
+  // Do not select them until real implementations exist.
 
   // Deterministic fallback (no LLM, always works)
   return {

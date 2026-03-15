@@ -87,8 +87,8 @@ function matchedFields(product: CanonicalProduct, input: RecommendationInput): s
   return fields
 }
 
-export function runMatchEngine(input: RecommendationInput, topN = 5): ScoredProduct[] {
-  const products = ProductRepo.getAll()
+export async function runMatchEngine(input: RecommendationInput, topN = 5): Promise<ScoredProduct[]> {
+  const products = await ProductRepo.search(input, [], Math.max(topN * 20, 500))
 
   // ── Pre-filter: hard constraints ─────────────────────────────
   let candidates = products
@@ -127,6 +127,7 @@ export function runMatchEngine(input: RecommendationInput, topN = 5): ScoredProd
     return {
       product,
       score,
+      scoreBreakdown: null,
       matchedFields: fields,
       matchStatus: status,
       inventory,

@@ -9,7 +9,7 @@
  *   5. Cross-reference (경쟁사 대체품)
  *   6. General conversation (인사, 잡담 등)
  *
- * Data is loaded from normalized JSON — no hallucination.
+ * Product data is read from PostgreSQL and evidence is read from normalized JSON.
  */
 
 import Anthropic from "@anthropic-ai/sdk"
@@ -21,40 +21,15 @@ const anthropicApiKey = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_K
 const client = anthropicApiKey ? new Anthropic({ apiKey: anthropicApiKey }) : null
 
 // ── Build context from real data ────────────────────────────
-function buildProductContext(): string {
-  const products = ProductRepo.getAll()
-  const seriesMap = new Map<string, { count: number; diameters: number[]; materialTags: string[]; coating: string | null; featureText: string | null; brand: string }>()
-
-  for (const p of products) {
-    const key = p.seriesName ?? p.displayCode
-    const existing = seriesMap.get(key)
-    if (existing) {
-      existing.count++
-      if (p.diameterMm !== null && !existing.diameters.includes(p.diameterMm)) {
-        existing.diameters.push(p.diameterMm)
-      }
-      for (const tag of p.materialTags) {
-        if (!existing.materialTags.includes(tag)) existing.materialTags.push(tag)
-      }
-    } else {
-      seriesMap.set(key, {
-        count: 1,
-        diameters: p.diameterMm !== null ? [p.diameterMm] : [],
-        materialTags: [...p.materialTags],
-        coating: p.coating,
-        featureText: p.featureText,
-        brand: p.brand ?? "YG-1",
-      })
-    }
-  }
-
+async function buildProductContext(): Promise<string> {
+  const seriesRows = await ProductRepo.getSeriesOverview(120)
   const lines: string[] = []
-  for (const [series, info] of seriesMap) {
-    const diaRange = info.diameters.length > 0
-      ? `직경 ${Math.min(...info.diameters)}~${Math.max(...info.diameters)}mm`
+  for (const info of seriesRows) {
+    const diaRange = info.minDiameterMm != null && info.maxDiameterMm != null
+      ? `직경 ${info.minDiameterMm}~${info.maxDiameterMm}mm`
       : "직경 정보 없음"
     const matTags = info.materialTags.length > 0 ? info.materialTags.join(",") : "미분류"
-    lines.push(`- ${series} (${info.brand}): ${info.count}개 EDP, ${diaRange}, 소재그룹=[${matTags}], 코팅=${info.coating ?? "정보없음"}${info.featureText ? ` | ${info.featureText.slice(0, 80)}` : ""}`)
+    lines.push(`- ${info.seriesName} (${info.brand}): ${info.count}개 EDP, ${diaRange}, 소재그룹=[${matTags}], 코팅=${info.coating ?? "정보없음"}${info.featureText ? ` | ${info.featureText.slice(0, 80)}` : ""}`)
   }
 
   return lines.join("\n")
@@ -65,6 +40,7 @@ function buildEvidenceContext(): string {
   const seriesConditions = new Map<string, { isoGroup: string | null; toolType: string | null; condSample: string }>()
 
   for (const c of chunks) {
+    if (!c.seriesName) continue
     if (seriesConditions.has(c.seriesName)) continue
     const conds = c.conditions
     const parts: string[] = []
@@ -121,8 +97,8 @@ const MACHINING_KNOWLEDGE = `
 `
 
 // ── System Prompt ────────────────────────────────────────────
-function buildSystemPrompt(): string {
-  const productCtx = buildProductContext()
+async function buildSystemPrompt(): Promise<string> {
+  const productCtx = await buildProductContext()
   const evidenceCtx = buildEvidenceContext()
 
   return `당신은 YG-1의 AI 어시스턴트입니다. YG-1은 한국의 세계적인 절삭공구 제조사입니다.
@@ -279,7 +255,7 @@ export async function POST(req: NextRequest) {
       }))
       .filter((_, i, arr) => !(i === 0 && arr[0].role === "assistant"))
 
-    const systemPrompt = buildSystemPrompt()
+    const systemPrompt = await buildSystemPrompt()
 
     const response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",

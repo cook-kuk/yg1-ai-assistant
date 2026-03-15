@@ -100,7 +100,7 @@ async function handleExploration(
     ? { ...baseInput, ...prevState.resolvedInput }
     : baseInput
 
-  const hybridResult = runHybridRetrieval(resolvedInput, filters)
+  const hybridResult = await runHybridRetrieval(resolvedInput, filters)
   const candidates = hybridResult.candidates
   const evidenceMap = hybridResult.evidenceMap
 
@@ -253,7 +253,7 @@ async function handleExploration(
           currentInput = applyFilterToInput(currentInput, filter)
 
           // Re-run hybrid retrieval with new filter
-          const newResult = runHybridRetrieval(currentInput, filters)
+          const newResult = await runHybridRetrieval(currentInput, filters)
           const newCandidates = newResult.candidates
 
           // Use previous session's candidate count for "before" (not current re-filtered count)
@@ -363,7 +363,7 @@ async function buildQuestionResponse(
       ], 800)
 
       const parsed = safeParseJSON(raw)
-      if (parsed?.responseText) {
+      if (typeof parsed?.responseText === "string") {
         responseText = parsed.responseText
       }
     } catch (e) {
@@ -379,7 +379,7 @@ async function buildQuestionResponse(
       ], 300)
 
       const parsed = safeParseJSON(raw)
-      if (parsed?.responseText) {
+      if (typeof parsed?.responseText === "string") {
         responseText = parsed.responseText
       }
     } catch (e) {
@@ -461,14 +461,14 @@ async function buildRecommendationResponse(
   if (primary) {
     const primaryEvidence = evidenceMap.get(primary.product.normalizedCode) ?? null
     primaryExplanation = buildExplanation(primary, input, primaryEvidence)
-    primaryFactChecked = runFactCheck(primary, input, primaryEvidence, primaryExplanation)
+    primaryFactChecked = await runFactCheck(primary, input, primaryEvidence, primaryExplanation)
 
     // Build explanations for alternatives too
     for (const alt of alternatives) {
       const altEvidence = evidenceMap.get(alt.product.normalizedCode) ?? null
       const altExpl = buildExplanation(alt, input, altEvidence)
       altExplanations.push(altExpl)
-      altFactChecked.push(runFactCheck(alt, input, altEvidence, altExpl))
+      altFactChecked.push(await runFactCheck(alt, input, altEvidence, altExpl))
     }
   }
 
@@ -508,12 +508,14 @@ async function buildRecommendationResponse(
         alternatives.map(a => {
           const altEvidence = evidenceMap.get(a.product.normalizedCode)
           return {
-            displayCode: a.product.displayCode,
-            matchStatus: a.matchStatus,
-            score: a.score,
-            bestCondition: altEvidence?.bestCondition ?? null,
-            sourceCount: altEvidence?.sourceCount ?? 0,
-          }
+              displayCode: a.product.displayCode,
+              matchStatus: a.matchStatus,
+              score: a.score,
+              bestCondition: altEvidence?.bestCondition
+                ? { ...altEvidence.bestCondition } as Record<string, string | null>
+                : null,
+              sourceCount: altEvidence?.sourceCount ?? 0,
+            }
         }),
         warnings
       )
@@ -691,7 +693,7 @@ async function extractParamsFromMessage(
   const clean = message.trim().toLowerCase()
 
   // ── Use lastAskedField from session state (reliable) ──
-  const lastAskedField = prevState.lastAskedField ?? inferCurrentQuestionField(currentInput, prevState)
+  const lastAskedField = prevState.lastAskedField ?? await inferCurrentQuestionField(currentInput, prevState)
 
   // ── Fast-path: deterministic signals (no LLM needed) ──
 
@@ -905,17 +907,17 @@ ${currentState}
 }
 
 // ── Infer which field the question engine was asking about ────
-function inferCurrentQuestionField(
+async function inferCurrentQuestionField(
   input: RecommendationInput,
   prevState: ExplorationSessionState
-): string {
+): Promise<string> {
   // Use the actual question engine to determine what's being asked
   // This ensures perfect sync between what was asked and what we infer
   const filters: AppliedFilter[] = prevState?.appliedFilters ?? []
   const currentInput = prevState?.resolvedInput
     ? { ...input, ...prevState.resolvedInput }
     : input
-  const hybridResult = runHybridRetrieval(currentInput, filters)
+  const hybridResult = await runHybridRetrieval(currentInput, filters)
   const question = selectNextQuestion(currentInput, hybridResult.candidates, prevState.narrowingHistory ?? [])
   if (question) return question.field
 
@@ -1019,7 +1021,7 @@ async function handleSimpleChat(messages: ChatMessage[], mode: string): Promise<
   const hasEnough = !!(baseInput.diameterMm || (baseInput.material && baseInput.operationType))
 
   if (hasEnough) {
-    const result = runHybridRetrieval(baseInput, [], 5)
+    const result = await runHybridRetrieval(baseInput, [], 5)
     const { primary, alternatives, status } = classifyHybridResults(result)
     const warnings = primary ? buildWarnings(primary, baseInput) : []
     const rationale = primary ? buildRationale(primary, baseInput) : []
