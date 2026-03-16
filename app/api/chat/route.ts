@@ -8,10 +8,14 @@
 import Anthropic from "@anthropic-ai/sdk"
 import { NextRequest, NextResponse } from "next/server"
 <<<<<<< HEAD
+<<<<<<< HEAD
 import { notifyChatResponse, notifyError, notifyLlmCall } from "@/lib/slack-notifier"
 =======
 import { notifyChatResponse, notifyError } from "@/lib/slack-notifier"
 >>>>>>> 6a98a4f (feat: Slack 알림 연동 — 추천/채팅/피드백/에러 이벤트 전송)
+=======
+import { notifyChatResponse, notifyError, notifyLlmCall } from "@/lib/slack-notifier"
+>>>>>>> 3b4ec06 (feat: Slack 알림 확장 — DB 쿼리, LLM 요청/응답 추가)
 import { ProductRepo } from "@/lib/data/repos/product-repo"
 import { EvidenceRepo } from "@/lib/data/repos/evidence-repo"
 import { CompetitorRepo } from "@/lib/data/repos/competitor-repo"
@@ -1182,6 +1186,9 @@ export async function POST(req: NextRequest) {
     }).catch(() => {})
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 3b4ec06 (feat: Slack 알림 확장 — DB 쿼리, LLM 요청/응답 추가)
     // LLM 호출 알림
     notifyLlmCall({
       model: anthropicChatModel,
@@ -1193,8 +1200,11 @@ export async function POST(req: NextRequest) {
       outputTokens: llmResponse.usage?.output_tokens,
     }).catch(() => {})
 
+<<<<<<< HEAD
 =======
 >>>>>>> 6a98a4f (feat: Slack 알림 연동 — 추천/채팅/피드백/에러 이벤트 전송)
+=======
+>>>>>>> 3b4ec06 (feat: Slack 알림 확장 — DB 쿼리, LLM 요청/응답 추가)
     return NextResponse.json(result)
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)

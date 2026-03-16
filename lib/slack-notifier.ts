@@ -110,6 +110,9 @@ export async function notifyFeedback(params: {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 3b4ec06 (feat: Slack 알림 확장 — DB 쿼리, LLM 요청/응답 추가)
 /** DB 쿼리 알림 */
 export async function notifyDbQuery(params: {
   source: string
@@ -183,8 +186,11 @@ export async function notifyLlmCall(params: {
   })
 }
 
+<<<<<<< HEAD
 =======
 >>>>>>> 6a98a4f (feat: Slack 알림 연동 — 추천/채팅/피드백/에러 이벤트 전송)
+=======
+>>>>>>> 3b4ec06 (feat: Slack 알림 확장 — DB 쿼리, LLM 요청/응답 추가)
 /** 에러 알림 */
 export async function notifyError(params: {
   route: string
