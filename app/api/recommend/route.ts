@@ -44,6 +44,9 @@ import type { ActionPlan } from "@/lib/domain/action-planner"
 import { orchestrateTurn } from "@/lib/agents/orchestrator"
 import { compareProducts, resolveProductReferences } from "@/lib/agents/comparison-agent"
 import type { TurnContext, OrchestratorResult } from "@/lib/agents/types"
+import { buildSessionState, carryForwardState, createInitialStage, createFilterStage, restoreOnePreviousStep, restoreToBeforeFilter } from "@/lib/domain/session-manager"
+import { runValidationGate, validateNoReask } from "@/lib/domain/validation-gate"
+import { ENABLE_MULTI_AGENT_ORCHESTRATOR, ENABLE_VALIDATION_GATE, ENABLE_COMPARISON_AGENT } from "@/lib/feature-flags"
 
 import type { RecommendationInput, RecommendationResult, ScoredProduct, ChatMessage, MatchStatus } from "@/lib/types/canonical"
 import type { ProductIntakeForm, AnswerState, MachiningIntent } from "@/lib/types/intake"
@@ -147,101 +150,7 @@ async function handleExploration(
     })
   }
 
-  // Handle undo — both simple (one step back) and filter-specific
-  if ((requestPrep.route.action === "undo_narrowing" || requestPrep.route.action === "undo_to_filter") && prevState) {
-    const stageHistory = prevState.stageHistory ?? []
-    const lastUserMsg = [...messages].reverse().find(m => m.role === "user")?.text ?? ""
-
-    // Resolve undo target (re-resolve to get precise target)
-    const undoResolution = resolveUndoTarget(lastUserMsg, prevState)
-    let targetStepIndex: number
-
-    if (requestPrep.route.action === "undo_to_filter" && requestPrep.route.undoTarget?.targetStepIndex != null) {
-      // Filter-specific undo: revert to just BEFORE the target filter was applied
-      targetStepIndex = requestPrep.route.undoTarget.targetStepIndex
-    } else if (undoResolution?.type === "to_filter" && undoResolution.target.targetStepIndex != null) {
-      targetStepIndex = undoResolution.target.targetStepIndex
-    } else {
-      // Simple one-step undo: revert to the step before the last one
-      targetStepIndex = stageHistory.length > 0
-        ? stageHistory[stageHistory.length - 1].stepIndex
-        : (prevState.turnCount ?? 1)
-    }
-
-    // Find the target stage to restore (the stage BEFORE the target filter)
-    const targetStage = stageHistory.find(s =>
-      s.filterApplied && s.filterApplied.appliedAt === targetStepIndex
-    )
-
-    // Use stage snapshot if available, otherwise replay from scratch
-    let rebuiltInput: RecommendationInput
-    let remainingFilters: AppliedFilter[]
-    let remainingHistory: NarrowingTurn[]
-    let remainingStages: NarrowingStage[]
-    let undoTurnCount: number
-
-    if (targetStage) {
-      // Use snapshot: find the stage just before the target
-      const stageIdx = stageHistory.indexOf(targetStage)
-      const prevStage = stageIdx > 0 ? stageHistory[stageIdx - 1] : null
-
-      if (prevStage) {
-        rebuiltInput = { ...prevStage.resolvedInputSnapshot }
-        remainingFilters = [...prevStage.filtersSnapshot]
-        remainingStages = stageHistory.slice(0, stageIdx)
-      } else {
-        // Reverting to initial state (before any filters)
-        rebuiltInput = { ...baseInput }
-        remainingFilters = []
-        remainingStages = stageHistory.length > 0 ? [stageHistory[0]] : []
-      }
-      undoTurnCount = remainingFilters.filter(f => f.op !== "skip").length
-      remainingHistory = (prevState.narrowingHistory ?? []).slice(0, undoTurnCount)
-    } else {
-      // Fallback: replay from scratch (no stage snapshot available)
-      const undoHistory = [...(prevState.narrowingHistory ?? [])]
-      const undoFilters = [...(prevState.appliedFilters ?? [])]
-      undoTurnCount = prevState.turnCount ?? 0
-
-      if (undoHistory.length > 0) {
-        undoHistory.pop()
-        undoTurnCount = Math.max(0, undoTurnCount - 1)
-        remainingFilters = undoFilters.filter(f => f.appliedAt !== undoTurnCount)
-      } else {
-        remainingFilters = []
-      }
-      remainingHistory = undoHistory
-
-      rebuiltInput = { ...baseInput }
-      for (const f of remainingFilters) {
-        rebuiltInput = applyFilterToInput(rebuiltInput, f)
-      }
-      remainingStages = (prevState.stageHistory ?? []).filter(s =>
-        !s.filterApplied || s.filterApplied.appliedAt < undoTurnCount
-      )
-    }
-
-    // Re-run retrieval with remaining filters
-    const undoResult = await runHybridRetrieval(rebuiltInput, remainingFilters.filter(f => f.op !== "skip"))
-    const undoCandidates = undoResult.candidates
-
-    // Debug logging
-    const removedFilterDesc = requestPrep.route.undoTarget?.filterValue ?? "last step"
-    console.log(`[narrowing:undo] ═══════════════════════════════`)
-    console.log(`[narrowing:undo] Target: "${removedFilterDesc}"`)
-    console.log(`[narrowing:undo] Filters: ${prevState.appliedFilters?.length ?? 0} → ${remainingFilters.length}`)
-    console.log(`[narrowing:undo] Candidates: ${prevState.candidateCount} → ${undoCandidates.length}`)
-    console.log(`[narrowing:undo] Stages remaining: ${remainingStages.length}`)
-    console.log(`[narrowing:undo] Turn count: ${prevState.turnCount} → ${undoTurnCount}`)
-    console.log(`[narrowing:undo] ═══════════════════════════════`)
-
-    // Build question response for the restored state
-    return buildQuestionResponse(
-      form, undoCandidates, undoResult.evidenceMap, rebuiltInput,
-      remainingHistory, remainingFilters, undoTurnCount, messages, provider,
-      undefined, remainingStages
-    )
-  }
+  // NOTE: Pre-orchestrator undo path removed — all undo is handled by orchestrator + session-manager.
 
   // ── Step 2: Process user message via Orchestrator ───────────
   const narrowingHistory: NarrowingTurn[] = prevState?.narrowingHistory ?? []
@@ -283,57 +192,20 @@ async function handleExploration(
         })
       }
 
-      // Action: go_back_one_step / go_back_to_filter
+      // Action: go_back_one_step / go_back_to_filter — delegated to session-manager
       if (action.type === "go_back_one_step" || action.type === "go_back_to_filter") {
-        // Delegate to existing undo logic (already handled above by requestPrep)
-        // If we reach here, requestPrep didn't catch it — handle via stage history
-        const stageHistory = prevState.stageHistory ?? []
-        let targetStepIndex: number
+        const restoreResult = action.type === "go_back_to_filter"
+          ? restoreToBeforeFilter(prevState, action.filterValue ?? "", action.filterField, baseInput, applyFilterToInput)
+          : restoreOnePreviousStep(prevState, baseInput, applyFilterToInput)
 
-        if (action.type === "go_back_to_filter") {
-          // Find filter by value
-          const found = prevState.appliedFilters.find(f =>
-            f.value.toLowerCase().includes((action.filterValue ?? "").toLowerCase()) ||
-            f.rawValue.toString().toLowerCase().includes((action.filterValue ?? "").toLowerCase())
-          )
-          targetStepIndex = found?.appliedAt ?? (prevState.turnCount - 1)
-        } else {
-          targetStepIndex = prevState.turnCount - 1
-        }
+        const undoResult = await runHybridRetrieval(restoreResult.rebuiltInput, restoreResult.remainingFilters.filter(f => f.op !== "skip"))
 
-        // Find the stage to restore to (before the target)
-        const targetStage = stageHistory.find(s => s.filterApplied?.appliedAt === targetStepIndex)
-        const stageIdx = targetStage ? stageHistory.indexOf(targetStage) : -1
-        const prevStage = stageIdx > 0 ? stageHistory[stageIdx - 1] : null
-
-        let rebuiltInput: RecommendationInput
-        let remainingFilters: AppliedFilter[]
-        let remainingStages: NarrowingStage[]
-
-        if (prevStage) {
-          rebuiltInput = { ...prevStage.resolvedInputSnapshot }
-          remainingFilters = [...prevStage.filtersSnapshot]
-          remainingStages = stageHistory.slice(0, stageIdx)
-        } else {
-          // Revert to initial
-          rebuiltInput = { ...baseInput }
-          remainingFilters = []
-          remainingStages = stageHistory.length > 0 ? [stageHistory[0]] : []
-        }
-
-        const undoTurnCount = remainingFilters.filter(f => f.op !== "skip").length
-        const remainingHistory = narrowingHistory.slice(0, undoTurnCount)
-
-        const undoResult = await runHybridRetrieval(rebuiltInput, remainingFilters.filter(f => f.op !== "skip"))
-        const undoCandidates = undoResult.candidates
-
-        const removedDesc = action.type === "go_back_to_filter" ? action.filterValue : "마지막 단계"
-        console.log(`[orchestrator:undo] Reverted "${removedDesc}": ${prevState.candidateCount} → ${undoCandidates.length} candidates`)
+        console.log(`[session-manager:undo] Reverted "${restoreResult.removedFilterDesc}": ${prevState.candidateCount} → ${undoResult.candidates.length} candidates, filters: ${prevState.appliedFilters.length} → ${restoreResult.remainingFilters.length}`)
 
         return buildQuestionResponse(
-          form, undoCandidates, undoResult.evidenceMap, rebuiltInput,
-          remainingHistory, remainingFilters, undoTurnCount, messages, provider,
-          undefined, remainingStages
+          form, undoResult.candidates, undoResult.evidenceMap, restoreResult.rebuiltInput,
+          restoreResult.remainingHistory, restoreResult.remainingFilters, restoreResult.undoTurnCount,
+          messages, provider, undefined, restoreResult.remainingStages
         )
       }
 
@@ -360,6 +232,9 @@ async function handleExploration(
           resolutionStatus: prevState.resolutionStatus ?? "broad",
           resolvedInput: currentInput,
           turnCount,
+          displayedCandidates: snapshot,
+          displayedChips: ["추천해주세요", "다른 조건으로", "⟵ 이전 단계", "처음부터 다시"],
+          lastAction: "compare_products",
         }
         return NextResponse.json({
           text: compResult.text,
@@ -408,6 +283,9 @@ async function handleExploration(
           resolvedInput: currentInput,
           turnCount,
           lastAskedField: prevState.lastAskedField,
+          displayedCandidates: prevState.displayedCandidates ?? [],
+          displayedChips: llmResponse.chips,
+          lastAction: "answer_general",
         }
         return NextResponse.json({
           text: llmResponse.text,
@@ -440,6 +318,9 @@ async function handleExploration(
           resolvedInput: currentInput,
           turnCount,
           lastAskedField: prevState.lastAskedField,
+          displayedCandidates: prevState.displayedCandidates ?? [],
+          displayedChips: redirect.chips,
+          lastAction: "redirect_off_topic",
         }
         return NextResponse.json({
           text: redirect.text,
@@ -563,7 +444,11 @@ async function buildQuestionResponse(
     ? [...existingStageHistory]
     : buildStageHistoryFromFilters(filters, input, candidates.length)
 
-  // Build session state for client
+  // Build candidate snapshot for UI (before session state so we can persist it)
+  const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
+  const chips = question?.chips ?? []
+
+  // Build session state for client — single source of truth
   const sessionState: ExplorationSessionState = {
     sessionId: `ses-${Date.now()}`,
     candidateCount: candidates.length,
@@ -573,7 +458,10 @@ async function buildQuestionResponse(
     resolutionStatus: checkResolution(candidates, history),
     resolvedInput: input,
     turnCount,
-    lastAskedField: question?.field ?? undefined,  // track which field we're asking about
+    lastAskedField: question?.field ?? undefined,
+    displayedCandidates: candidateSnapshot,
+    displayedChips: chips,
+    lastAction: "continue_narrowing",
   }
 
   // Debug: log narrowing state
@@ -587,12 +475,11 @@ async function buildQuestionResponse(
     )
   }
 
-  // Build candidate snapshot for UI
-  const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
+  // candidateSnapshot already computed above (persisted in sessionState)
 
   // LLM-polish the question text (or use deterministic)
   let responseText = overrideText ?? question.questionText
-  let chips = question.chips
+  let responseChips = question.chips
 
   if (overrideText) {
     // Skip LLM polish when we have an override (e.g. irrelevant input nudge)
@@ -638,7 +525,7 @@ async function buildQuestionResponse(
   return NextResponse.json({
     text: responseText,
     purpose: messages.length === 0 ? "greeting" : "question",
-    chips,
+    chips: responseChips,
     isComplete: false,
     recommendation: null,
     sessionState,
@@ -743,6 +630,9 @@ async function buildRecommendationResponse(
         resolutionStatus: checkResolution(candidates, history),
         resolvedInput: input,
         turnCount,
+        displayedCandidates: candidateSnapshot,
+        displayedChips: followUpChips,
+        lastAction: "show_recommendation",
       }
       const sessionCtx = buildSessionContext(form, sessionState, candidates.length, displayedProducts)
 
@@ -782,6 +672,9 @@ async function buildRecommendationResponse(
     }
   }
 
+  const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
+  const followUpChips = getFollowUpChips(recommendation)
+
   const sessionState: ExplorationSessionState = {
     sessionId: `ses-${Date.now()}`,
     candidateCount: candidates.length,
@@ -791,6 +684,9 @@ async function buildRecommendationResponse(
     resolutionStatus: checkResolution(candidates, history),
     resolvedInput: input,
     turnCount,
+    displayedCandidates: candidateSnapshot,
+    displayedChips: followUpChips,
+    lastAction: "show_recommendation",
   }
 
   // Run request preparation for metadata
@@ -808,7 +704,7 @@ async function buildRecommendationResponse(
     }
   }
 
-  const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
+  // candidateSnapshot already computed above (persisted in sessionState)
 
   // Slack 알림 (비동기)
   if (primary) {
@@ -827,7 +723,7 @@ async function buildRecommendationResponse(
       ? "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요."
       : responseText,
     purpose: "recommendation",
-    chips: getFollowUpChips(recommendation),
+    chips: followUpChips,
     isComplete: true,
     recommendation,
     sessionState,
@@ -914,77 +810,6 @@ ${coatings.map(c => `• ${c}`).join("\n")}
   }
 
   return `현재 ${candidates.length}개 후보가 있습니다. 잘 모르시면 "상관없음"을 선택해주세요.`
-}
-
-// ── Post-Recommendation Follow-Up Handler ────────────────────
-async function handlePostRecommendationFollowUp(
-  provider: ReturnType<typeof getProvider>,
-  userMessage: string,
-  currentInput: RecommendationInput,
-  candidates: ScoredProduct[],
-  evidenceMap: Map<string, EvidenceSummary>,
-  form: ProductIntakeForm
-): Promise<string | null> {
-  if (!provider.available()) return null
-
-  const clean = userMessage.trim()
-
-  // Reset / new search signals should NOT be handled here
-  if (/처음부터|다시 시작|리셋|다른 직경|다른 소재|새로운/.test(clean)) return null
-
-  // Build context about recommended products
-  const topProducts = candidates.slice(0, 5)
-  const productContext = topProducts.map((sp, i) => {
-    const p = sp.product
-    const ev = evidenceMap.get(p.normalizedCode)
-    const lines = [
-      `${i + 1}. ${p.displayCode} (${p.seriesName})`,
-      `   소재군: ${p.materialTags.join(", ")}`,
-      `   직경: ${p.diameterMm}mm, 날수: ${p.fluteCount ?? "?"}`,
-      `   코팅: ${p.coating ?? "미상"}`,
-      `   점수: ${sp.score}/${sp.scoreBreakdown?.maxTotal ?? 110}pt (${sp.matchStatus})`,
-    ]
-    if (ev?.bestCondition) {
-      const c = ev.bestCondition
-      lines.push(`   절삭조건: Vc=${c.Vc ?? "?"}, fz=${c.fz ?? "?"}, ap=${c.ap ?? "?"}, ae=${c.ae ?? "?"}`)
-    }
-    if (ev && !ev.bestCondition && ev.sourceCount > 0) {
-      lines.push(`   절삭조건: ${ev.sourceCount}건 참조 데이터 있음 (조건 상세 미확인)`)
-    }
-    return lines.join("\n")
-  }).join("\n\n")
-
-  const materialInfo = currentInput.material ?? (form.material.status === "known" ? form.material.value : "미지정")
-  const diameterInfo = currentInput.diameterMm ? `${currentInput.diameterMm}mm` : "미지정"
-
-  try {
-    const systemPrompt = `당신은 YG-1 절삭공구 전문 엔지니어 출신 AI입니다.
-사용자가 이미 추천 결과를 받은 후, 후속 질문을 하고 있습니다.
-
-═══ 현재 추천 상황 ═══
-- 요청 소재: ${materialInfo}
-- 요청 직경: ${diameterInfo}
-- 가공 형상: ${form.operationType.status === "known" ? form.operationType.value : "미지정"}
-- 추천 제품 ${topProducts.length}개:
-
-${productContext}
-
-═══ 응답 규칙 ═══
-- 위 추천 제품 데이터만 기반으로 답변
-- 절삭조건(Vc, fz, ap, ae)은 위에 나온 데이터에서만 인용 (없으면 "해당 제품의 카탈로그 절삭조건 데이터가 없습니다" 안내)
-- 코팅 비교, 제품 비교 등은 위 제품들 간 비교
-- 한국어로 간결하게 3-6문장
-- 구체적 수치 포함
-- 데이터에 없는 정보는 생성하지 말 것`
-
-    const raw = await provider.complete(systemPrompt, [
-      { role: "user", content: clean }
-    ], 1000)
-    if (raw && raw.trim()) return raw.trim()
-  } catch (e) {
-    console.warn("[recommend] Follow-up handler failed:", e)
-  }
-  return null
 }
 
 // ── Web Search for Knowledge Questions ────────────────────────
@@ -1216,14 +1041,13 @@ The user may provide: material (소재), diameter (직경), flute count (날 수
   },
 }
 
-// ── Extract Parameters from User Message ─────────────────────
-async function extractParamsFromMessage(
-  provider: ReturnType<typeof getProvider>,
-  message: string,
-  currentInput: RecommendationInput,
-  prevState: ExplorationSessionState
-): Promise<{ isComplete: boolean; newFilter: AppliedFilter | null; skippedField: string | null } | null> {
-  const clean = message.trim().toLowerCase()
+// extractParamsFromMessage + inferCurrentQuestionField — REMOVED
+// Replaced by: lib/agents/parameter-extractor.ts + lib/agents/intent-classifier.ts
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function _deadCode_extractParamsFromMessage(
+  _p: unknown, _m: string, _ci: unknown, _ps: unknown
+): Promise<unknown> {
+  const clean = _m.trim().toLowerCase()
 
   // ── Use lastAskedField from session state (reliable) ──
   const lastAskedField = prevState.lastAskedField ?? await inferCurrentQuestionField(currentInput, prevState)

@@ -1,0 +1,24 @@
+/**
+ * Feature Flags — Runtime toggles for multi-agent features.
+ *
+ * All flags default to safe behavior (enabled).
+ * Set env vars to "false" to disable.
+ */
+
+function envFlag(name: string, defaultValue: boolean = true): boolean {
+  const val = process.env[name]
+  if (val === undefined) return defaultValue
+  return val !== "false" && val !== "0"
+}
+
+/** Use multi-agent orchestrator instead of legacy inquiry analyzer gates */
+export const ENABLE_MULTI_AGENT_ORCHESTRATOR = envFlag("ENABLE_MULTI_AGENT_ORCHESTRATOR", true)
+
+/** Allow Opus escalation for ambiguous references */
+export const ENABLE_OPUS_AMBIGUITY = envFlag("ENABLE_OPUS_AMBIGUITY", true)
+
+/** Enable Sonnet-powered comparison agent */
+export const ENABLE_COMPARISON_AGENT = envFlag("ENABLE_COMPARISON_AGENT", true)
+
+/** Enable validation gate (response checking) */
+export const ENABLE_VALIDATION_GATE = envFlag("ENABLE_VALIDATION_GATE", true)

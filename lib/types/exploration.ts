@@ -45,6 +45,20 @@ export interface NarrowingStage {
   filtersSnapshot: AppliedFilter[]     // all filters up to this point
 }
 
+// ── Last Action Record ────────────────────────────────────────
+export type LastActionType =
+  | "start_exploration"
+  | "continue_narrowing"
+  | "skip_field"
+  | "show_recommendation"
+  | "go_back_one_step"
+  | "go_back_to_filter"
+  | "compare_products"
+  | "explain_product"
+  | "answer_general"
+  | "redirect_off_topic"
+  | "reset_session"
+
 // ── Session State (serializable, sent between client ↔ server) ──
 export interface ExplorationSessionState {
   sessionId: string
@@ -56,6 +70,11 @@ export interface ExplorationSessionState {
   resolvedInput: RecommendationInput   // accumulated from intake + narrowing
   turnCount: number
   lastAskedField?: string              // which field the question engine just asked about
+
+  // ── Durable UI context (single source of truth) ──
+  displayedCandidates: CandidateSnapshot[]  // what the user currently sees
+  displayedChips: string[]                  // chips shown with the last question
+  lastAction?: LastActionType               // what the system did last turn
 }
 
 // ── Full Exploration Session (server-side, includes heavy data) ──

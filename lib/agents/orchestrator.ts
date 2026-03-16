@@ -32,6 +32,7 @@ import { extractParameters } from "./parameter-extractor"
 import { needsOpusResolution, resolveAmbiguity } from "./ambiguity-resolver"
 import { resolveProductReferences } from "./comparison-agent"
 import { parseAnswerToFilter } from "@/lib/domain/question-engine"
+import { ENABLE_OPUS_AMBIGUITY, ENABLE_COMPARISON_AGENT } from "@/lib/feature-flags"
 
 // ════════════════════════════════════════════════════════════════
 // MAIN ORCHESTRATOR
@@ -57,7 +58,7 @@ export async function orchestrateTurn(
   let escalatedToOpus = false
   let escalationReason: string | undefined
 
-  if (needsOpusResolution(ctx.userMessage, intentResult.confidence, ctx.sessionState) && ctx.sessionState) {
+  if (ENABLE_OPUS_AMBIGUITY && needsOpusResolution(ctx.userMessage, intentResult.confidence, ctx.sessionState) && ctx.sessionState) {
     escalatedToOpus = true
     escalationReason = intentResult.confidence < 0.5
       ? `low_confidence (${intentResult.confidence.toFixed(2)})`
