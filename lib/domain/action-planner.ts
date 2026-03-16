@@ -82,6 +82,10 @@ const COMPLETION_PATTERNS = [
   "처음부터 다시", "다시 시작", "리셋",
 ]
 
+const UNDO_PATTERNS = [
+  "이전으로", "되돌리기", "이전 단계", "뒤로", "한 단계 전", "되돌려",
+]
+
 // ── Main Planning Function ───────────────────────────────────
 
 export function planAction(
@@ -107,6 +111,28 @@ export function planAction(
       factCheckRequired: false,
       skipNarrowing: false,
       reason: "세션 리셋 요청",
+    }
+  }
+
+  // ── Gate 0.5: Undo Narrowing ──
+  if (
+    UNDO_PATTERNS.some(p => lower.includes(p)) &&
+    !lower.includes("처음부터") &&
+    sessionState?.appliedFilters && sessionState.appliedFilters.length > 0
+  ) {
+    return {
+      intent: "product_recommendation",
+      intentConfidence: 1.0,
+      retrievalStrategy: "hybrid",
+      responseFormat: "clarification",
+      maxCandidatesToRetrieve: 50,
+      maxCandidatesToDisplay: 0,
+      shouldShowCandidateList: false,
+      shouldShowConditionChips: true,
+      shouldShowCandidateCount: true,
+      factCheckRequired: false,
+      skipNarrowing: false,
+      reason: "이전 단계로 되돌리기 요청",
     }
   }
 

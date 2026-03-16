@@ -1341,6 +1341,7 @@ function NarrowingChat({
                   {msg.chips.map((chip, ci) => {
                     // Special action chips — handle client-side instead of sending as message
                     const isResetChip = chip === "처음부터 다시" || chip === "처음부터"
+                    const isUndoChip = chip === "⟵ 이전 단계"
                     return (
                       <button key={ci}
                         onClick={() => {
@@ -1354,6 +1355,8 @@ function NarrowingChat({
                         className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
                           isResetChip
                             ? "bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+                            : isUndoChip
+                            ? "bg-amber-50 border border-amber-300 text-amber-700 hover:bg-amber-100 hover:border-amber-400"
                             : "bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300"
                         }`}
                       >

@@ -81,9 +81,11 @@ export function buildSessionContext(
   // 현재 UI에 표시된 추천 제품 목록
   let displayedSection = ""
   if (displayedProducts && displayedProducts.length > 0) {
-    const lines = displayedProducts.map(p =>
-      `  #${p.rank} ${p.code} | ${p.brand ?? "?"} | ${p.series ?? "?"} | φ${p.diameter ?? "?"}mm | ${p.flute ?? "?"}F | ${p.coating ?? "?"} | ${p.materialTags.join("/") || "?"} | ${p.matchStatus} ${p.score}점`
-    )
+    const lines = displayedProducts.map(p => {
+      const label = (p as { displayLabel?: string }).displayLabel
+      const labelStr = label ? ` [${label}]` : ""
+      return `  #${p.rank} ${p.code}${labelStr} | ${p.brand ?? "?"} | ${p.series ?? "?"} | φ${p.diameter ?? "?"}mm | ${p.flute ?? "?"}F | ${p.coating ?? "?"} | ${p.materialTags.join("/") || "?"} | ${p.matchStatus} ${p.score}점`
+    })
     displayedSection = `
 [현재 표시된 추천 제품] — 사용자가 "이 중", "위 제품", "상위 3개", "1번/2번" 등으로 참조할 때 반드시 이 목록에서 답하라
 ${lines.join("\n")}

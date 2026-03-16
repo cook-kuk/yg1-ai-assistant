@@ -9,6 +9,7 @@
 
 import type { RecommendationInput, ScoredProduct } from "@/lib/types/canonical"
 import type { NarrowingTurn, AppliedFilter, ResolutionStatus } from "@/lib/types/exploration"
+import { buildProductLabel } from "@/lib/domain/product-label"
 
 // ── Return type ──────────────────────────────────────────────
 export interface NextQuestion {
@@ -73,10 +74,16 @@ export function selectNextQuestion(
   const best = fields[0]
   if (!best || best.infoGain < 0.1) return null
 
+  // Add undo chip if there's narrowing history
+  const chips = [...best.chips]
+  if (history.length > 0) {
+    chips.push("⟵ 이전 단계")
+  }
+
   return {
     field: best.field,
     questionText: best.questionText,
-    chips: best.chips,
+    chips,
     expectedInfoGain: best.infoGain,
   }
 }
@@ -150,9 +157,14 @@ function analyzeFields(
   // ── Series ─────────────────────────────────────────────────
   if (!askedFields.has("seriesName")) {
     const series = new Map<string, number>()
+    const seriesRepProduct = new Map<string, ScoredProduct>()
     for (const c of candidates) {
       const s = c.product.seriesName || "미확인"
       series.set(s, (series.get(s) || 0) + 1)
+      // Keep highest-scored product per series as representative
+      if (!seriesRepProduct.has(s) || c.score > (seriesRepProduct.get(s)!.score)) {
+        seriesRepProduct.set(s, c)
+      }
     }
     if (series.size > 1 && series.size <= 8) {
       const gain = computeEntropy(series, candidates.length)
@@ -160,7 +172,11 @@ function analyzeFields(
         .filter(([k]) => k !== "미확인")
         .sort((a, b) => b[1] - a[1])
         .slice(0, 4)
-        .map(([k, count]) => `${k} (${count}개)`)
+        .map(([k, count]) => {
+          const rep = seriesRepProduct.get(k)
+          const label = rep ? buildProductLabel(rep.product) : null
+          return label ? `${k} — ${label} (${count}개)` : `${k} (${count}개)`
+        })
       if (chips.length > 1) {
         chips.push("상관없음")
         results.push({
@@ -263,8 +279,8 @@ export function parseAnswerToFilter(
   field: string,
   answer: string
 ): AppliedFilter | null {
-  // "(15개)" 같은 후보 개수 표기 제거
-  const clean = answer.trim().replace(/\s*\(\d+개\)\s*$/, "").trim()
+  // "(15개)" 같은 후보 개수 표기 제거, "— 라벨" 부분도 제거
+  const clean = answer.trim().replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
 
   // "상관없음" / "모름" → no filter
   if (["상관없음", "모름", "skip", "상관 없음"].includes(clean.toLowerCase())) {

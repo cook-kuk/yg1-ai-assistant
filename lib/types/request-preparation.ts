@@ -42,6 +42,7 @@ export type RouteAction =
   | "skip_to_result"          // user requested immediate result
   | "handle_refinement"       // post-recommendation refinement
   | "reset_session"           // user wants to start over
+  | "undo_narrowing"          // revert last narrowing step
 
 export interface RoutePlan {
   action: RouteAction

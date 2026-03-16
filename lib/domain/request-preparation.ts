@@ -42,6 +42,15 @@ export function classifyIntent(
 
   const clean = message.trim().toLowerCase()
 
+  // Undo signals (must be before reset to avoid "처음부터" capturing undo)
+  if (
+    ["이전으로", "되돌리기", "이전 단계", "뒤로", "한 단계 전", "되돌려"].some(s => clean.includes(s)) &&
+    !["처음부터"].some(s => clean.includes(s)) &&
+    sessionState?.appliedFilters && sessionState.appliedFilters.length > 0
+  ) {
+    return { intent: "narrowing_answer", confidence: "high" }
+  }
+
   // Reset signals
   if (["처음부터 다시", "처음부터", "다시 시작", "리셋"].some(s => clean.includes(s))) {
     return { intent: "general_question", confidence: "high" }
@@ -283,6 +292,15 @@ export function planRoute(
     const clean = message.trim().toLowerCase()
     if (["처음부터 다시", "다시 시작", "리셋"].some(s => clean.includes(s))) {
       return { action: "reset_session", reason: "사용자가 초기화를 요청했습니다", needsLLM: false, riskFlags }
+    }
+
+    // Undo signal
+    if (
+      ["이전으로", "되돌리기", "이전 단계", "뒤로", "한 단계 전", "되돌려"].some(s => clean.includes(s)) &&
+      !["처음부터"].some(s => clean.includes(s)) &&
+      sessionState?.appliedFilters && sessionState.appliedFilters.length > 0
+    ) {
+      return { action: "undo_narrowing", reason: "사용자가 이전 단계로 되돌리기를 요청했습니다", needsLLM: false, riskFlags }
     }
   }
 

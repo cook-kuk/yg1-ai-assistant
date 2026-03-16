@@ -76,6 +76,7 @@ export interface CandidateSnapshot {
   rank: number
   productCode: string
   displayCode: string
+  displayLabel: string | null  // e.g. "4날 롱 스퀘어 엔드밀"
   brand: string | null
   seriesName: string | null
   seriesIconUrl: string | null

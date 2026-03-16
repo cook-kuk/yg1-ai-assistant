@@ -35,6 +35,7 @@ import {
 } from "@/lib/llm/prompt-builder"
 import { resolveMaterialTag } from "@/lib/domain/material-resolver"
 import { prepareRequest } from "@/lib/domain/request-preparation"
+import { buildProductLabel } from "@/lib/domain/product-label"
 import { buildExplanation } from "@/lib/domain/explanation-builder"
 import { runFactCheck } from "@/lib/domain/fact-checker"
 import { analyzeInquiry, getRedirectResponse } from "@/lib/domain/inquiry-analyzer"
@@ -141,6 +142,41 @@ async function handleExploration(
       extractedField: null,
       requestPreparation: requestPrep,
     })
+  }
+
+  // Handle undo narrowing
+  if (requestPrep.route.action === "undo_narrowing" && prevState) {
+    const undoHistory = [...(prevState.narrowingHistory ?? [])]
+    const undoFilters = [...(prevState.appliedFilters ?? [])]
+    let undoTurnCount = prevState.turnCount ?? 0
+
+    if (undoHistory.length > 0) {
+      // Pop last narrowing turn
+      undoHistory.pop()
+      undoTurnCount = Math.max(0, undoTurnCount - 1)
+
+      // Remove filters applied at the last turn
+      const lastTurnIndex = undoTurnCount
+      const remainingFilters = undoFilters.filter(f => f.appliedAt !== lastTurnIndex)
+
+      // Rebuild input from base + remaining filters
+      let rebuiltInput = { ...baseInput }
+      for (const f of remainingFilters) {
+        rebuiltInput = applyFilterToInput(rebuiltInput, f)
+      }
+
+      // Re-run retrieval with remaining filters
+      const undoResult = await runHybridRetrieval(rebuiltInput, remainingFilters.filter(f => f.op !== "skip"))
+      const undoCandidates = undoResult.candidates
+
+      console.log(`[recommend] Undo: removed turn ${lastTurnIndex}, filters ${undoFilters.length}→${remainingFilters.length}, candidates ${prevState.candidateCount}→${undoCandidates.length}`)
+
+      // Build question response for the restored state
+      return buildQuestionResponse(
+        form, undoCandidates, undoResult.evidenceMap, rebuiltInput,
+        undoHistory, remainingFilters, undoTurnCount, messages, provider
+      )
+    }
   }
 
   // ── Step 2: Process user message (if any) ──────────────────
@@ -1408,6 +1444,7 @@ function buildCandidateSnapshot(
       rank: i + 1,
       productCode: c.product.normalizedCode,
       displayCode: c.product.displayCode,
+      displayLabel: buildProductLabel(c.product),
       brand: c.product.brand ?? null,
       seriesName: c.product.seriesName,
       seriesIconUrl: c.product.seriesIconUrl ?? null,
