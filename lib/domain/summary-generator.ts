@@ -61,7 +61,7 @@ export function buildDeterministicSummary(result: RecommendationResult): string 
   if (specs.length) parts.push(specs.join(", "))
 
   // Brand & Series info
-  if (p.brand) parts.push(`브랜드: ${p.brand}`)
+  if (p.brand) parts.push(`브랜드명: ${p.brand}`)
   if (p.seriesName) parts.push(`시리즈: ${p.seriesName}`)
 
   // Material compatibility
