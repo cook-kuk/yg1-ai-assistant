@@ -161,6 +161,7 @@ export function buildResultPrompt(
 
 === 추천 결과 (데이터 전용) ===
 [1순위] ${primary.product.displayCode} (${primary.product.seriesName ?? "?"})
+  - 브랜드: ${primary.product.brand ?? "YG-1"}
   - 직경: ${primary.product.diameterMm ?? "?"}mm
   - 날 수: ${primary.product.fluteCount ?? "?"}
   - 코팅: ${primary.product.coating ?? "?"}
@@ -182,8 +183,10 @@ ${warnings.length > 0 ? warnings.map(w => `  - ${w}`).join("\n") : "  없음"}
 
 위 데이터를 기반으로 자연스러운 한국어 추천 요약을 작성하세요.
 - 제품 코드, 스펙은 반드시 위 데이터에서만 인용
+- 브랜드명을 반드시 포함 (예: "YG-1의 ALU-POWER HPC")
 - 절삭조건이 있으면 반드시 포함하고 출처를 언급
 - 데이터가 없는 항목은 "정보 없음"으로 표시
+- 응답 마지막에 "📋 Reference: YG-1 내부 DB" 출처 표기
 - isComplete: true로 설정하세요`
 }
 
@@ -267,13 +270,17 @@ ${warnings.length > 0 ? warnings.map(w => `  - ${w}`).join("\n") : "  없음"}
 위 Fact-Checked 데이터를 기반으로 전문가 수준의 추천 요약을 작성하세요.
 
 ═══ 추천 요약 작성 규칙 ═══
-1. 첫 문장: "~용으로 [제품코드]를 추천드립니다." (바로 핵심)
+1. 첫 문장: "~용으로 [브랜드] [제품코드]를 추천드립니다." (바로 핵심, 브랜드명 필수 포함)
 2. 왜 이 제품인지 2-3가지 근거 (매칭된 항목 기반, 데이터에서만 인용)
 3. 주의사항이 있으면 솔직하게 언급 (소재 불일치, 낮은 매칭률 등)
 4. 대안이 있으면 1순위와 비교하여 차별화 포인트 설명
 5. 절삭조건이 있으면 반드시 포함 (Vc, fz 등 + 출처 신뢰도)
 6. 데이터 없는 항목은 "정보 없음" — 절대 추정하지 마라
-7. isComplete: true로 설정
+7. 응답 마지막에 반드시 "📋 Reference:" 섹션을 추가하라. 데이터 출처를 명시:
+   - 내부 DB 데이터인 경우: "YG-1 내부 DB"
+   - 웹 검색 결과인 경우: "웹 검색 (외부 소스)"
+   - AI 일반 지식인 경우: "AI 일반 지식 (카탈로그 확인 필요)"
+8. isComplete: true로 설정
 
 ═══ 톤 ═══
 - 현장 엔지니어와 대화하듯 전문적이면서 간결하게

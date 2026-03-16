@@ -61,8 +61,8 @@ export function buildDeterministicSummary(result: RecommendationResult): string 
   if (specs.length) parts.push(specs.join(", "))
 
   // Brand & Series info
-  const brandSeries = [p.brand, p.seriesName].filter(Boolean).join(" / ")
-  if (brandSeries) parts.push(`시리즈: ${brandSeries}`)
+  if (p.brand) parts.push(`브랜드: ${p.brand}`)
+  if (p.seriesName) parts.push(`시리즈: ${p.seriesName}`)
 
   // Material compatibility
   if (p.materialTags.length > 0) {

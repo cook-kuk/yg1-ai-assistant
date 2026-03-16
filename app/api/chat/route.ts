@@ -77,6 +77,12 @@ YG-1은 한국의 세계적인 절삭공구 제조사입니다.
 4. 한국어로 자연스럽게 대화. 간결하고 전문적으로.
 5. 추천할 때 각 제품마다 왜 추천하는지 1줄 근거를 붙여라
 6. "그냥", "빨리" 같은 요청에는 즉시 추천 (도구 호출 후 바로 답변)
+7. 제품을 설명할 때 반드시 브랜드명(brand)을 포함하라. 예: "YG-1의 ALU-POWER HPC 시리즈" 형식
+8. 응답 마지막에 반드시 📋 Reference 섹션을 추가하라:
+   - 내부 DB 조회 결과이면: "📋 Reference: YG-1 내부 DB (search_products/get_product_detail/get_cutting_conditions)"
+   - 웹 검색 결과이면: "📋 Reference: 웹 검색 (외부 소스 — 공식 카탈로그 확인 필요)"
+   - AI 일반 지식이면: "📋 Reference: AI 일반 지식 (절삭공구 전문 학습 데이터 기반, 실제 수치는 카탈로그 확인 필요)"
+   - 복합 소스이면 모든 출처를 나열
 
 시스템 정보 (사용자가 물어볼 때):
 - 이 시스템은 YG-1 영업 지원 AI 어시스턴트입니다
@@ -284,6 +290,7 @@ function slimProduct(p: CanonicalProduct) {
   return {
     displayCode: p.displayCode,
     seriesName: p.seriesName,
+    brand: p.brand,
     diameterMm: p.diameterMm,
     fluteCount: p.fluteCount,
     coating: p.coating,
