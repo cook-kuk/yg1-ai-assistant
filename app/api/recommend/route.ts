@@ -19,6 +19,7 @@
 import { NextResponse } from "next/server"
 import { notifyRecommendation } from "@/lib/slack-notifier"
 import { normalizeInput, mergeInputs } from "@/lib/domain/input-normalizer"
+import { canonicalizeIntakeSearchText } from "@/lib/domain/intake-localization"
 import { runHybridRetrieval, classifyHybridResults } from "@/lib/domain/hybrid-retrieval"
 import { selectNextQuestion, checkResolution, parseAnswerToFilter } from "@/lib/domain/question-engine"
 import { buildDeterministicSummary, buildRationale, buildWarnings } from "@/lib/domain/summary-generator"
@@ -1509,20 +1510,22 @@ function parseIntakeDiameter(text: string): number | null {
 function mapIntakeToInput(form: ProductIntakeForm): RecommendationInput {
   const input: Partial<RecommendationInput> = {
     manufacturerScope: "yg1-only",
-    locale: "ko",
+    locale: "en",
   }
   // Material: may be comma-separated for multi-select (e.g. "알루미늄,스테인리스")
   const material = getKnown(form.material)
-  if (material) input.material = material  // keeps comma-separated string; hybrid-retrieval resolves each
+  if (material) input.material = canonicalizeIntakeSearchText(material)
   const opParts: string[] = []
   const intent = getKnown(form.machiningIntent as AnswerState<MachiningIntent>)
-  const intentMap: Record<MachiningIntent, string> = { roughing: "황삭", semi: "중삭", finishing: "정삭" }
+  const intentMap: Record<MachiningIntent, string> = { roughing: "Roughing", semi: "Semi-finishing", finishing: "Finishing" }
   if (intent) opParts.push(intentMap[intent])
   // OperationType: may be comma-separated for multi-select (e.g. "측면가공,슬롯")
   const opType = getKnown(form.operationType)
   if (opType) {
-    // Split comma-separated and add each part
-    const ops = opType.split(",").map(s => s.trim()).filter(Boolean)
+    const ops = opType
+      .split(",")
+      .map(s => canonicalizeIntakeSearchText(s.trim()))
+      .filter(Boolean)
     opParts.push(...ops)
   }
   if (opParts.length > 0) input.operationType = opParts.join(" ")
@@ -1532,7 +1535,7 @@ function mapIntakeToInput(form: ProductIntakeForm): RecommendationInput {
     if (diam !== null) input.diameterMm = diam
   }
   const toolType = getKnown(form.toolTypeOrCurrentProduct)
-  if (toolType) input.toolType = toolType
+  if (toolType) input.toolType = canonicalizeIntakeSearchText(toolType)
   return input as RecommendationInput
 }
 

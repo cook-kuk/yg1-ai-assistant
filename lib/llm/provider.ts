@@ -4,6 +4,9 @@
  * Falls back to deterministic summary if no key available.
  */
 
+import { createAnthropicMessageWithLogging } from "@/lib/llm/anthropic-tracer"
+import { logRuntimeError } from "@/lib/runtime-logger"
+
 export interface LLMMessage { role: "user" | "assistant"; content: string }
 
 export interface LLMTool {
@@ -42,58 +45,97 @@ export function createClaudeProvider(): LLMProvider {
       const { default: Anthropic } = await import("@anthropic-ai/sdk")
       const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
       const startMs = Date.now()
-      const resp = await client.messages.create({
-        model: anthropicMainModel(),
-        max_tokens: maxTokens,
-        system: systemPrompt,
-        messages,
-      })
-      const content = resp.content[0]
-      if (content.type !== "text") throw new Error("Unexpected content type")
-
-      // Slack LLM 알림 (비동기)
-      import("@/lib/slack-notifier").then(({ notifyLlmCall }) =>
-        notifyLlmCall({
-          model: anthropicMainModel(),
+      try {
+        const resp = await createAnthropicMessageWithLogging({
+          client,
           route: "/api/recommend",
-          promptPreview: messages[messages.length - 1]?.content ?? "",
-          responsePreview: content.text,
-          durationMs: Date.now() - startMs,
-          inputTokens: resp.usage?.input_tokens,
-          outputTokens: resp.usage?.output_tokens,
-        }).catch(() => {})
-      )
+          operation: "provider.complete",
+          request: {
+            model: anthropicMainModel(),
+            max_tokens: maxTokens,
+            system: systemPrompt,
+            messages,
+          },
+        })
+        const content = resp.content[0]
+        if (content.type !== "text") throw new Error("Unexpected content type")
 
-      return content.text
+        // Slack LLM 알림 (비동기)
+        import("@/lib/slack-notifier").then(({ notifyLlmCall }) =>
+          notifyLlmCall({
+            model: anthropicMainModel(),
+            route: "/api/recommend",
+            promptPreview: messages[messages.length - 1]?.content ?? "",
+            responsePreview: content.text,
+            durationMs: Date.now() - startMs,
+            inputTokens: resp.usage?.input_tokens,
+            outputTokens: resp.usage?.output_tokens,
+          }).catch(() => {})
+        )
+
+        return content.text
+      } catch (error) {
+        await logRuntimeError({
+          category: "llm",
+          event: "provider.complete.error",
+          error,
+          context: {
+            route: "/api/recommend",
+            model: anthropicMainModel(),
+            maxTokens,
+          },
+        })
+        throw error
+      }
     },
 
     async completeWithTools(systemPrompt, messages, tools, maxTokens = 1024) {
       if (!this.available()) throw new Error("No ANTHROPIC_API_KEY")
       const { default: Anthropic } = await import("@anthropic-ai/sdk")
       const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
-      const resp = await client.messages.create({
-        model: anthropicMainModel(),
-        max_tokens: maxTokens,
-        system: systemPrompt,
-        messages,
-        tools: tools as Parameters<typeof client.messages.create>[0]["tools"],
-        tool_choice: { type: "auto" },
-      })
+      try {
+        const resp = await createAnthropicMessageWithLogging({
+          client,
+          route: "/api/recommend",
+          operation: "provider.completeWithTools",
+          request: {
+            model: anthropicMainModel(),
+            max_tokens: maxTokens,
+            system: systemPrompt,
+            messages,
+            tools: tools as Parameters<typeof client.messages.create>[0]["tools"],
+            tool_choice: { type: "auto" },
+          },
+        })
 
-      let text: string | null = null
-      let toolUse: LLMToolResult | null = null
+        let text: string | null = null
+        let toolUse: LLMToolResult | null = null
 
-      for (const block of resp.content) {
-        if (block.type === "text") text = block.text
-        if (block.type === "tool_use") {
-          toolUse = {
-            toolName: block.name,
-            input: block.input as Record<string, unknown>,
+        for (const block of resp.content) {
+          if (block.type === "text") text = block.text
+          if (block.type === "tool_use") {
+            toolUse = {
+              toolName: block.name,
+              input: block.input as Record<string, unknown>,
+            }
           }
         }
-      }
 
-      return { text, toolUse }
+        return { text, toolUse }
+      } catch (error) {
+        await logRuntimeError({
+          category: "llm",
+          event: "provider.completeWithTools.error",
+          error,
+          context: {
+            route: "/api/recommend",
+            model: anthropicMainModel(),
+            maxTokens,
+            toolCount: tools.length,
+          },
+        })
+        throw error
+      }
     },
   }
 }

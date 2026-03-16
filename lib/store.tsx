@@ -27,6 +27,7 @@ interface AppState {
   demoScenario: DemoScenario
   compareProducts: Product[]
   notifications: Notification[]
+  language: 'ko' | 'en'
 }
 
 interface Notification {
@@ -39,6 +40,7 @@ interface Notification {
 interface AppContextType extends AppState {
   setDemoScenario: (scenario: DemoScenario) => void
   setUserRole: (role: 'sales' | 'rnd' | 'admin') => void
+  setLanguage: (lang: 'ko' | 'en') => void
   updateInquiryStatus: (id: string, status: InquiryStatus) => void
   addMessageToInquiry: (inquiryId: string, message: { sender: 'customer' | 'sales' | 'ai' | 'system'; content: string }) => void
   addToCompare: (product: Product) => void
@@ -69,7 +71,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     currentUser: userRoles.sales,
     demoScenario: null,
     compareProducts: [],
-    notifications: []
+    notifications: [],
+    language: 'ko'
   })
 
   const setDemoScenario = useCallback((scenario: DemoScenario) => {
@@ -78,6 +81,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setUserRole = useCallback((role: 'sales' | 'rnd' | 'admin') => {
     setState(prev => ({ ...prev, currentUser: userRoles[role] }))
+  }, [])
+
+  const setLanguage = useCallback((lang: 'ko' | 'en') => {
+    setState(prev => ({ ...prev, language: lang }))
   }, [])
 
   const updateInquiryStatus = useCallback((id: string, status: InquiryStatus) => {
@@ -208,6 +215,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ...state,
         setDemoScenario,
         setUserRole,
+        setLanguage,
         updateInquiryStatus,
         addMessageToInquiry,
         addToCompare,
@@ -232,4 +240,9 @@ export function useApp() {
     throw new Error('useApp must be used within AppProvider')
   }
   return context
+}
+
+export function useT() {
+  const { language } = useApp()
+  return (ko: string, en: string) => language === 'ko' ? ko : en
 }

@@ -7,11 +7,13 @@
 
 import Anthropic from "@anthropic-ai/sdk"
 import { NextRequest, NextResponse } from "next/server"
+import { createAnthropicMessageWithLogging } from "@/lib/llm/anthropic-tracer"
 import { notifyChatResponse, notifyError, notifyLlmCall } from "@/lib/slack-notifier"
 import { ProductRepo } from "@/lib/data/repos/product-repo"
 import { EvidenceRepo } from "@/lib/data/repos/evidence-repo"
 import { CompetitorRepo } from "@/lib/data/repos/competitor-repo"
 import { resolveMaterialTag } from "@/lib/domain/material-resolver"
+import { appendRuntimeLog, logRuntimeError } from "@/lib/runtime-logger"
 import type { AppliedFilter } from "@/lib/types/exploration"
 import type { CanonicalProduct, RecommendationInput } from "@/lib/types/canonical"
 
@@ -366,14 +368,19 @@ async function executeWebSearch(params: {
       ? `YG-1 절삭공구 ${params.query} catalog specification`
       : params.query
 
-    const resp = await client.messages.create({
-      model: "claude-sonnet-4-20250514" as Parameters<typeof client.messages.create>["0"]["model"],
-      max_tokens: 1024,
-      tools: [{ type: "web_search_20250305" as const, name: "web_search", max_uses: 3 }],
-      messages: [{
-        role: "user",
-        content: `다음 질문에 대해 웹 검색으로 정보를 찾아주세요. 검색 결과를 한국어로 정리해주세요.\n\n질문: ${searchQuery}\n\n중요: 찾은 정보의 출처 URL을 반드시 포함해주세요.`,
-      }],
+    const resp = await createAnthropicMessageWithLogging({
+      client,
+      route: "/api/chat",
+      operation: "web_search",
+      request: {
+        model: "claude-sonnet-4-20250514" as Parameters<typeof client.messages.create>[0]["model"],
+        max_tokens: 1024,
+        tools: [{ type: "web_search_20250305" as const, name: "web_search", max_uses: 3 }],
+        messages: [{
+          role: "user",
+          content: `다음 질문에 대해 웹 검색으로 정보를 찾아주세요. 검색 결과를 한국어로 정리해주세요.\n\n질문: ${searchQuery}\n\n중요: 찾은 정보의 출처 URL을 반드시 포함해주세요.`,
+        }],
+      },
     })
 
     // Extract text and citations from response
@@ -405,6 +412,15 @@ async function executeWebSearch(params: {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error("Web search error:", msg)
+    await logRuntimeError({
+      category: "error",
+      event: "chat.web_search.error",
+      error: err,
+      context: {
+        route: "/api/chat",
+        params,
+      },
+    })
     return JSON.stringify({
       found: false,
       source: "web_search",
@@ -907,6 +923,16 @@ async function executeTool(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error(`Tool ${toolName} error:`, msg)
+    await logRuntimeError({
+      category: "error",
+      event: "chat.tool.error",
+      error: err,
+      context: {
+        route: "/api/chat",
+        toolName,
+        toolInput,
+      },
+    })
     return JSON.stringify({ error: msg })
   }
 }
@@ -1079,6 +1105,15 @@ export async function POST(req: NextRequest) {
 
     if (!client) {
       console.warn("Anthropic API key not set. Using mock chat response.")
+      await appendRuntimeLog({
+        level: "warn",
+        category: "llm",
+        event: "chat.mock_response",
+        context: {
+          route: "/api/chat",
+          reason: "Anthropic API key not set",
+        },
+      })
       return NextResponse.json(mockChatResponse(messages))
     }
 
@@ -1109,12 +1144,17 @@ export async function POST(req: NextRequest) {
     const MAX_TOOL_ROUNDS = 5
 
     const chatLlmStart = Date.now()
-    let llmResponse = await client.messages.create({
-      model: anthropicChatModel as Parameters<typeof client.messages.create>[0]["model"],
-      max_tokens: 2048,
-      system: systemPrompt,
-      tools: TOOLS,
-      messages: currentMessages,
+    let llmResponse = await createAnthropicMessageWithLogging({
+      client,
+      route: "/api/chat",
+      operation: "chat.initial",
+      request: {
+        model: anthropicChatModel as Parameters<typeof client.messages.create>[0]["model"],
+        max_tokens: 2048,
+        system: systemPrompt,
+        tools: TOOLS,
+        messages: currentMessages,
+      },
     })
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -1150,12 +1190,17 @@ export async function POST(req: NextRequest) {
         { role: "user" as const, content: toolResultMessages },
       ]
 
-      llmResponse = await client.messages.create({
-        model: anthropicChatModel as Parameters<typeof client.messages.create>[0]["model"],
-        max_tokens: 2048,
-        system: systemPrompt,
-        tools: TOOLS,
-        messages: currentMessages,
+      llmResponse = await createAnthropicMessageWithLogging({
+        client,
+        route: "/api/chat",
+        operation: `chat.tool_round.${round + 1}`,
+        request: {
+          model: anthropicChatModel as Parameters<typeof client.messages.create>[0]["model"],
+          max_tokens: 2048,
+          system: systemPrompt,
+          tools: TOOLS,
+          messages: currentMessages,
+        },
       })
 
       // If stop_reason is "end_turn", we're done
@@ -1240,10 +1285,31 @@ export async function POST(req: NextRequest) {
       outputTokens: llmResponse.usage?.output_tokens,
     }).catch(() => {})
 
+    await appendRuntimeLog({
+      category: "llm",
+      event: "chat.final_response",
+      context: {
+        route: "/api/chat",
+        intent,
+        toolsUsed,
+        references,
+        durationMs: Date.now() - chatLlmStart,
+        response: result,
+      },
+    })
+
     return NextResponse.json(result)
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
     console.error("Chat API error:", msg)
+    await logRuntimeError({
+      category: "error",
+      event: "chat.api.error",
+      error,
+      context: {
+        route: "/api/chat",
+      },
+    })
     notifyError({ route: "/api/chat", error: msg }).catch(() => {})
     return NextResponse.json(
       { error: "AI 응답을 가져오는데 실패했습니다", detail: msg },

@@ -33,7 +33,7 @@ export default function ProductDetailPage() {
   const params = useParams()
   const id = params.id as string
   const router = useRouter()
-  const { products, addToCompare, compareProducts, addNotification } = useApp()
+  const { products, addToCompare, compareProducts, addNotification, language } = useApp()
   
   const product = products.find(p => p.id === id)
   const [expertComment, setExpertComment] = useState("")
@@ -42,10 +42,10 @@ export default function ProductDetailPage() {
   if (!product) {
     return (
       <div className="p-6 text-center">
-        <p className="text-muted-foreground">제품을 찾을 수 없습니다.</p>
+        <p className="text-muted-foreground">{language === 'ko' ? '제품을 찾을 수 없습니다.' : 'Product not found.'}</p>
         <Button variant="outline" className="mt-4 bg-transparent" onClick={() => router.back()}>
           <ArrowLeft className="h-4 w-4 mr-2" />
-          돌아가기
+          {language === 'ko' ? '돌아가기' : 'Go Back'}
         </Button>
       </div>
     )
@@ -70,16 +70,16 @@ export default function ProductDetailPage() {
     if (compareProducts.length >= 3) {
       addNotification({
         type: "warning",
-        title: "비교함 초과",
-        message: "최대 3개 제품만 비교할 수 있습니다."
+        title: language === 'ko' ? "비교함 초과" : "Compare Limit Reached",
+        message: language === 'ko' ? "최대 3개 제품만 비교할 수 있습니다." : "You can compare up to 3 products."
       })
       return
     }
     addToCompare(product)
     addNotification({
       type: "success",
-      title: "비교함 추가",
-      message: `${product.name}이(가) 비교함에 추가되었습니다.`
+      title: language === 'ko' ? "비교함 추가" : "Added to Compare",
+      message: language === 'ko' ? `${product.name}이(가) 비교함에 추가되었습니다.` : `${product.name} has been added to compare.`
     })
   }
   
@@ -87,8 +87,8 @@ export default function ProductDetailPage() {
     setCommentRequested(true)
     addNotification({
       type: "info",
-      title: "전문가 코멘트 요청됨",
-      message: "R&D 전문가에게 검토 요청이 전송되었습니다."
+      title: language === 'ko' ? "전문가 코멘트 요청됨" : "Expert Comment Requested",
+      message: language === 'ko' ? "R&D 전문가에게 검토 요청이 전송되었습니다." : "A review request has been sent to the R&D specialist."
     })
     // Simulate expert response
     setTimeout(() => {
@@ -102,7 +102,7 @@ export default function ProductDetailPage() {
         {/* Back Button */}
       <Button variant="ghost" onClick={() => router.back()}>
         <ArrowLeft className="h-4 w-4 mr-2" />
-        제품 탐색으로 돌아가기
+        {language === 'ko' ? '제품 탐색으로 돌아가기' : 'Back to Product Search'}
       </Button>
 
       {/* Hero Section */}
@@ -121,7 +121,7 @@ export default function ProductDetailPage() {
               <div className="flex items-center gap-2 mb-2">
                 <Badge variant="outline">{product.toolType}</Badge>
                 <Badge variant={product.priceType === "confirmed" ? "default" : "secondary"}>
-                  {product.priceType === "confirmed" ? "가격 확정" : "가격 추정"}
+                  {product.priceType === "confirmed" ? (language === 'ko' ? "가격 확정" : "Confirmed Price") : (language === 'ko' ? "가격 추정" : "Estimated Price")}
                 </Badge>
               </div>
               <h1 className="text-2xl font-bold text-foreground">{product.name}</h1>
@@ -132,41 +132,41 @@ export default function ProductDetailPage() {
           {/* Quick Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="p-3 bg-muted rounded-lg">
-              <p className="text-xs text-muted-foreground">직경</p>
+              <p className="text-xs text-muted-foreground">{language === 'ko' ? '직경' : 'Diameter'}</p>
               <p className="text-lg font-semibold">{product.diameter}mm</p>
             </div>
             <div className="p-3 bg-muted rounded-lg">
-              <p className="text-xs text-muted-foreground">날수</p>
-              <p className="text-lg font-semibold">{product.flute}날</p>
+              <p className="text-xs text-muted-foreground">{language === 'ko' ? '날수' : 'Flutes'}</p>
+              <p className="text-lg font-semibold">{product.flute}{language === 'ko' ? '날' : 'FL'}</p>
             </div>
             <div className="p-3 bg-muted rounded-lg">
-              <p className="text-xs text-muted-foreground">코팅</p>
+              <p className="text-xs text-muted-foreground">{language === 'ko' ? '코팅' : 'Coating'}</p>
               <p className="text-lg font-semibold">{product.coating}</p>
             </div>
             <div className="p-3 bg-muted rounded-lg">
               <p className="text-xs text-muted-foreground">MOQ</p>
-              <p className="text-lg font-semibold">{product.moq}개</p>
+              <p className="text-lg font-semibold">{product.moq}{language === 'ko' ? '개' : ' pcs'}</p>
             </div>
           </div>
 
           {/* Price & Availability */}
           <div className="flex items-center gap-6 p-4 bg-primary/5 rounded-lg">
             <div>
-              <p className="text-xs text-muted-foreground mb-1">단가</p>
-              <p className="text-2xl font-bold text-primary">{product.unitPrice.toLocaleString()}원</p>
+              <p className="text-xs text-muted-foreground mb-1">{language === 'ko' ? '단가' : 'Unit Price'}</p>
+              <p className="text-2xl font-bold text-primary">{product.unitPrice.toLocaleString()}{language === 'ko' ? '원' : ' KRW'}</p>
               <Badge variant={product.priceType === "confirmed" ? "default" : "outline"} className="mt-1">
-                {product.priceType === "confirmed" ? "확정" : "추정"}
+                {product.priceType === "confirmed" ? (language === 'ko' ? "확정" : "Confirmed") : (language === 'ko' ? "추정" : "Estimated")}
               </Badge>
             </div>
             <Separator orientation="vertical" className="h-16" />
             <div>
-              <p className="text-xs text-muted-foreground mb-1">납기</p>
+              <p className="text-xs text-muted-foreground mb-1">{language === 'ko' ? '납기' : 'Lead Time'}</p>
               <p className="text-xl font-semibold flex items-center gap-2">
                 <Clock className="h-5 w-5" />
                 {product.leadTime}
               </p>
               <Badge variant={product.leadTimeType === "confirmed" ? "default" : "outline"} className="mt-1">
-                {product.leadTimeType === "confirmed" ? "확정" : "추정"}
+                {product.leadTimeType === "confirmed" ? (language === 'ko' ? "확정" : "Confirmed") : (language === 'ko' ? "추정" : "Estimated")}
               </Badge>
             </div>
           </div>
@@ -181,22 +181,22 @@ export default function ProductDetailPage() {
               {isInCompare ? (
                 <>
                   <Check className="h-4 w-4 mr-2" />
-                  비교함에 추가됨
+                  {language === 'ko' ? '비교함에 추가됨' : 'Added to Compare'}
                 </>
               ) : (
                 <>
                   <Scale className="h-4 w-4 mr-2" />
-                  비교함 담기
+                  {language === 'ko' ? '비교함 담기' : 'Add to Compare'}
                 </>
               )}
             </Button>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
-              견적 준비로 보내기
+              {language === 'ko' ? '견적 준비로 보내기' : 'Send to Quote Draft'}
             </Button>
             <Button variant="outline" onClick={handleRequestExpertComment} disabled={commentRequested}>
               <MessageSquare className="h-4 w-4 mr-2" />
-              전문가 코멘트 요청 {commentRequested && "(요청됨)"}
+              {language === 'ko' ? `전문가 코멘트 요청 ${commentRequested ? "(요청됨)" : ""}` : `Request Expert Comment ${commentRequested ? "(Requested)" : ""}`}
             </Button>
           </div>
         </div>
@@ -208,9 +208,9 @@ export default function ProductDetailPage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-primary" />
-              전문가 코멘트
+              {language === 'ko' ? '전문가 코멘트' : 'Expert Comment'}
             </CardTitle>
-            <CardDescription>R&D 기술팀</CardDescription>
+            <CardDescription>{language === 'ko' ? 'R&D 기술팀' : 'R&D Technical Team'}</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-sm leading-relaxed">{expertComment}</p>
@@ -221,10 +221,10 @@ export default function ProductDetailPage() {
       {/* Detailed Tabs */}
       <Tabs defaultValue="specs" className="w-full">
         <TabsList className="grid w-full max-w-lg grid-cols-4">
-          <TabsTrigger value="specs">스펙</TabsTrigger>
-          <TabsTrigger value="materials">적용 소재</TabsTrigger>
-          <TabsTrigger value="conditions">추천 조건</TabsTrigger>
-          <TabsTrigger value="alternatives">유사/대체품</TabsTrigger>
+          <TabsTrigger value="specs">{language === 'ko' ? '스펙' : 'Specs'}</TabsTrigger>
+          <TabsTrigger value="materials">{language === 'ko' ? '적용 소재' : 'Materials'}</TabsTrigger>
+          <TabsTrigger value="conditions">{language === 'ko' ? '추천 조건' : 'Conditions'}</TabsTrigger>
+          <TabsTrigger value="alternatives">{language === 'ko' ? '유사/대체품' : 'Alternatives'}</TabsTrigger>
         </TabsList>
 
         {/* Specs Tab */}
@@ -233,44 +233,44 @@ export default function ProductDetailPage() {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <Wrench className="h-4 w-4" />
-                상세 스펙
+                {language === 'ko' ? '상세 스펙' : 'Detailed Specs'}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-3">
                   <div className="flex justify-between py-2 border-b">
-                    <span className="text-muted-foreground">공구 종류</span>
+                    <span className="text-muted-foreground">{language === 'ko' ? '공구 종류' : 'Tool Type'}</span>
                     <span className="font-medium">{product.toolType}</span>
                   </div>
                   <div className="flex justify-between py-2 border-b">
-                    <span className="text-muted-foreground">직경</span>
+                    <span className="text-muted-foreground">{language === 'ko' ? '직경' : 'Diameter'}</span>
                     <span className="font-medium">{product.diameter}mm</span>
                   </div>
                   <div className="flex justify-between py-2 border-b">
-                    <span className="text-muted-foreground">날수</span>
+                    <span className="text-muted-foreground">{language === 'ko' ? '날수' : 'Flutes'}</span>
                     <span className="font-medium">{product.flute}</span>
                   </div>
                   <div className="flex justify-between py-2 border-b">
-                    <span className="text-muted-foreground">코팅</span>
+                    <span className="text-muted-foreground">{language === 'ko' ? '코팅' : 'Coating'}</span>
                     <span className="font-medium">{product.coating}</span>
                   </div>
                 </div>
                 <div className="space-y-3">
                   <div className="flex justify-between py-2 border-b">
-                    <span className="text-muted-foreground">용도</span>
+                    <span className="text-muted-foreground">{language === 'ko' ? '용도' : 'Application'}</span>
                     <span className="font-medium">{product.application}</span>
                   </div>
                   <div className="flex justify-between py-2 border-b">
-                    <span className="text-muted-foreground">최소 주문량</span>
-                    <span className="font-medium">{product.moq}개</span>
+                    <span className="text-muted-foreground">{language === 'ko' ? '최소 주문량' : 'MOQ'}</span>
+                    <span className="font-medium">{product.moq}{language === 'ko' ? '개' : ' pcs'}</span>
                   </div>
                   <div className="flex justify-between py-2 border-b">
-                    <span className="text-muted-foreground">단가</span>
-                    <span className="font-medium">{product.unitPrice.toLocaleString()}원</span>
+                    <span className="text-muted-foreground">{language === 'ko' ? '단가' : 'Unit Price'}</span>
+                    <span className="font-medium">{product.unitPrice.toLocaleString()}{language === 'ko' ? '원' : ' KRW'}</span>
                   </div>
                   <div className="flex justify-between py-2 border-b">
-                    <span className="text-muted-foreground">납기</span>
+                    <span className="text-muted-foreground">{language === 'ko' ? '납기' : 'Lead Time'}</span>
                     <span className="font-medium">{product.leadTime}</span>
                   </div>
                 </div>
@@ -280,7 +280,7 @@ export default function ProductDetailPage() {
               <div className="mt-6">
                 <h4 className="font-medium mb-3 flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-primary" />
-                  주요 특장점
+                  {language === 'ko' ? '주요 특장점' : 'Key Selling Points'}
                 </h4>
                 <ul className="space-y-2">
                   {product.keySellingPoints.map((point, i) => (
@@ -301,13 +301,13 @@ export default function ProductDetailPage() {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <Tag className="h-4 w-4" />
-                적용 가능 소재 / 가공
+                {language === 'ko' ? '적용 가능 소재 / 가공' : 'Applicable Materials / Operations'}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div>
-                  <h4 className="font-medium mb-3">호환 소재</h4>
+                  <h4 className="font-medium mb-3">{language === 'ko' ? '호환 소재' : 'Compatible Materials'}</h4>
                   <div className="flex flex-wrap gap-2">
                     {product.compatibleMaterials.map(mat => (
                       <Badge key={mat} variant="secondary" className="px-3 py-1">
@@ -320,7 +320,7 @@ export default function ProductDetailPage() {
                 <Separator />
                 
                 <div>
-                  <h4 className="font-medium mb-3">권장 가공</h4>
+                  <h4 className="font-medium mb-3">{language === 'ko' ? '권장 가공' : 'Recommended Operation'}</h4>
                   <Badge variant="outline" className="px-3 py-1">
                     {product.application}
                   </Badge>
@@ -330,7 +330,7 @@ export default function ProductDetailPage() {
                   <>
                     <Separator />
                     <div>
-                      <h4 className="font-medium mb-3">경쟁사 동등품</h4>
+                      <h4 className="font-medium mb-3">{language === 'ko' ? '경쟁사 동등품' : 'Competitor Equivalents'}</h4>
                       <div className="flex flex-wrap gap-2">
                         {product.competitorEquivalents.map(eq => (
                           <Badge key={eq} variant="outline" className="px-3 py-1 font-mono text-xs">
@@ -352,17 +352,17 @@ export default function ProductDetailPage() {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <FileText className="h-4 w-4" />
-                추천 가공 조건 (예시)
+                {language === 'ko' ? '추천 가공 조건 (예시)' : 'Recommended Cutting Conditions (Example)'}
               </CardTitle>
               <CardDescription>
-                실제 조건은 기계 및 환경에 따라 달라질 수 있습니다
+                {language === 'ko' ? '실제 조건은 기계 및 환경에 따라 달라질 수 있습니다' : 'Actual conditions may vary depending on machine and environment'}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="p-4 bg-warning/10 rounded-lg mb-4 flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 text-warning-foreground mt-0.5" />
                 <p className="text-sm text-warning-foreground">
-                  아래 조건은 참고용 예시입니다. 실제 적용 시 전문가 검토를 권장합니다.
+                  {language === 'ko' ? '아래 조건은 참고용 예시입니다. 실제 적용 시 전문가 검토를 권장합니다.' : 'The conditions below are reference examples. Expert review is recommended for actual application.'}
                 </p>
               </div>
               
@@ -421,8 +421,8 @@ export default function ProductDetailPage() {
             {/* Similar Products */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">유사 제품</CardTitle>
-                <CardDescription>비슷한 사양의 다른 제품들</CardDescription>
+                <CardTitle className="text-base">{language === 'ko' ? '유사 제품' : 'Similar Products'}</CardTitle>
+                <CardDescription>{language === 'ko' ? '비슷한 사양의 다른 제품들' : 'Products with similar specifications'}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid md:grid-cols-2 gap-4">
@@ -441,11 +441,11 @@ export default function ProductDetailPage() {
                       </div>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <span>D{p.diameter}</span>
-                        <span>{p.flute}날</span>
+                        <span>{p.flute}{language === 'ko' ? '날' : 'FL'}</span>
                         <span>{p.coating}</span>
                       </div>
                       <div className="flex items-center justify-between mt-3">
-                        <span className="font-medium">{p.unitPrice.toLocaleString()}원</span>
+                        <span className="font-medium">{p.unitPrice.toLocaleString()}{language === 'ko' ? '원' : ' KRW'}</span>
                         <ChevronRight className="h-4 w-4" />
                       </div>
                     </Link>
@@ -457,8 +457,8 @@ export default function ProductDetailPage() {
             {/* Direct Alternatives */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">대체품</CardTitle>
-                <CardDescription>동일 용도의 대체 가능한 제품</CardDescription>
+                <CardTitle className="text-base">{language === 'ko' ? '대체품' : 'Alternatives'}</CardTitle>
+                <CardDescription>{language === 'ko' ? '동일 용도의 대체 가능한 제품' : 'Alternative products for the same use'}</CardDescription>
               </CardHeader>
               <CardContent>
                 {alternatives.length > 0 ? (
@@ -477,7 +477,7 @@ export default function ProductDetailPage() {
                         </div>
                         <div className="flex items-center gap-4">
                           <div className="text-right">
-                            <p className="font-medium">{p.unitPrice.toLocaleString()}원</p>
+                            <p className="font-medium">{p.unitPrice.toLocaleString()}{language === 'ko' ? '원' : ' KRW'}</p>
                             <p className="text-xs text-muted-foreground">{p.leadTime}</p>
                           </div>
                           <ChevronRight className="h-4 w-4" />
@@ -486,7 +486,7 @@ export default function ProductDetailPage() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-muted-foreground text-center py-4">대체 가능한 제품이 없습니다.</p>
+                  <p className="text-muted-foreground text-center py-4">{language === 'ko' ? '대체 가능한 제품이 없습니다.' : 'No alternative products available.'}</p>
                 )}
               </CardContent>
             </Card>
