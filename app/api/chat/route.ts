@@ -7,6 +7,7 @@
 
 import Anthropic from "@anthropic-ai/sdk"
 import { NextRequest, NextResponse } from "next/server"
+import { notifyChatResponse, notifyError } from "@/lib/slack-notifier"
 import { ProductRepo } from "@/lib/data/repos/product-repo"
 import { EvidenceRepo } from "@/lib/data/repos/evidence-repo"
 import { CompetitorRepo } from "@/lib/data/repos/competitor-repo"
@@ -1093,10 +1094,20 @@ export async function POST(req: NextRequest) {
       references,
     }
 
+    // Slack 알림 (비동기, 응답 차단 안 함)
+    const lastUserMsg = [...messages].reverse().find(m => m.role === "user")?.text ?? ""
+    notifyChatResponse({
+      userMessage: lastUserMsg,
+      intent,
+      toolsUsed,
+      productCount: references?.length ?? 0,
+    }).catch(() => {})
+
     return NextResponse.json(result)
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
     console.error("Chat API error:", msg)
+    notifyError({ route: "/api/chat", error: msg }).catch(() => {})
     return NextResponse.json(
       { error: "AI 응답을 가져오는데 실패했습니다", detail: msg },
       { status: 500 }
