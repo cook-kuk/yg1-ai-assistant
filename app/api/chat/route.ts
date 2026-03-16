@@ -170,6 +170,16 @@ conversation_state:
 - 경쟁사 대체품 → get_competitor_mapping
 - 내부 DB에 없을 때 → web_search (출처: "📌 웹 검색 결과 (내부 DB 외부)")
 
+═══ 점진적 축소 (Progressive Narrowing) — 매우 중요 ═══
+
+검색은 항상 이전 조건 위에 새 조건을 추가하는 방식으로 동작한다.
+- 1턴: 소재=알루미늄 → 120개
+- 2턴: 소재=알루미늄 + 직경=4mm → 25개 (120개에서 좁힘)
+- 3턴: 소재=알루미늄 + 직경=4mm + 2날 → 8개 (25개에서 좁힘)
+
+반드시 이전 조건을 포함하여 검색하라. 새 조건만 보내지 마라.
+응답에 축소 과정을 보여줘라: "120개 → 25개 → 8개로 좁혀졌습니다"
+
 ═══ 검색 결과 표시 규칙 ═══
 
 - 검색 결과는 기본 10개만 보여준다
@@ -1138,9 +1148,24 @@ export async function POST(req: NextRequest) {
       const toolResultMessages: Anthropic.ToolResultBlockParam[] = []
 
       for (const toolBlock of toolUseBlocks) {
+        let toolInput = toolBlock.input as Record<string, unknown>
+
+        // ── Progressive Narrowing: 누적 파라미터 강제 병합 ──
+        if (toolBlock.name === "search_products" && convState.topicStatus !== "new") {
+          const merged = { ...toolInput }
+          // LLM이 안 넘긴 파라미터를 대화 상태에서 보충
+          if (!merged.material && convState.params.material) merged.material = convState.params.material
+          if (merged.diameter_mm == null && convState.params.diameterMm != null) merged.diameter_mm = convState.params.diameterMm
+          if (merged.flute_count == null && convState.params.fluteCount != null) merged.flute_count = convState.params.fluteCount
+          if (!merged.operation_type && convState.params.operation) merged.operation_type = convState.params.operation
+          if (!merged.coating && convState.params.coating) merged.coating = convState.params.coating
+          console.log(`[chat] progressive-narrow: LLM sent [${Object.keys(toolInput).join(",")}] → merged [${Object.keys(merged).filter(k => merged[k] != null).join(",")}]`)
+          toolInput = merged
+        }
+
         const result = await executeTool(
           toolBlock.name,
-          toolBlock.input as Record<string, unknown>
+          toolInput
         )
         toolsUsed.push(toolBlock.name)
         toolResults.push({ name: toolBlock.name, result })
