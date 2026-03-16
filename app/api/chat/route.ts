@@ -7,7 +7,11 @@
 
 import Anthropic from "@anthropic-ai/sdk"
 import { NextRequest, NextResponse } from "next/server"
+<<<<<<< HEAD
 import { notifyChatResponse, notifyError, notifyLlmCall } from "@/lib/slack-notifier"
+=======
+import { notifyChatResponse, notifyError } from "@/lib/slack-notifier"
+>>>>>>> 6a98a4f (feat: Slack 알림 연동 — 추천/채팅/피드백/에러 이벤트 전송)
 import { ProductRepo } from "@/lib/data/repos/product-repo"
 import { EvidenceRepo } from "@/lib/data/repos/evidence-repo"
 import { CompetitorRepo } from "@/lib/data/repos/competitor-repo"
@@ -1177,6 +1181,7 @@ export async function POST(req: NextRequest) {
       productCount: references?.length ?? 0,
     }).catch(() => {})
 
+<<<<<<< HEAD
     // LLM 호출 알림
     notifyLlmCall({
       model: anthropicChatModel,
@@ -1188,6 +1193,8 @@ export async function POST(req: NextRequest) {
       outputTokens: llmResponse.usage?.output_tokens,
     }).catch(() => {})
 
+=======
+>>>>>>> 6a98a4f (feat: Slack 알림 연동 — 추천/채팅/피드백/에러 이벤트 전송)
     return NextResponse.json(result)
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
