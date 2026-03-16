@@ -16,8 +16,9 @@ YG-1 영업 담당자를 위한 AI 기반 절삭공구 추천 어시스턴트입
 - xAI 설명: 각 추천 제품에 대해 점수 근거를 항목별로 시각화
 
 ### 2. 챗봇 — Tool Use 아키텍처 (`/api/chat`)
-- Claude Sonnet 4 + Anthropic Tool Use (5개 도구)
+- Claude Sonnet 4 + Anthropic Tool Use (6개 도구)
 - `search_products` — 소재/직경/날수/가공방식/코팅/키워드 검색 (최대 10개)
+- `search_product_by_edp` — EDP 제품 코드 정확 조회 + 같은 시리즈 변형 조회
 - `get_product_detail` — 시리즈 상세 + EDP 변형 조회
 - `get_cutting_conditions` — 카탈로그 기반 절삭조건 (Vc, fz, ap, ae)
 - `get_competitor_mapping` — 경쟁사 제품 → YG-1 대체품 매핑
@@ -41,7 +42,7 @@ YG-1 영업 담당자를 위한 AI 기반 절삭공구 추천 어시스턴트입
 | 프레임워크 | Next.js (App Router) | 16.0.10 |
 | UI | React + Tailwind CSS + Radix UI | React 19 / TW 4 |
 | AI 모델 | Claude Sonnet 4 (Anthropic API) | claude-sonnet-4-20250514 |
-| LLM 통합 | Anthropic Tool Use (5개 도구 + 웹검색) | SDK 0.78.0 |
+| LLM 통합 | Anthropic Tool Use (6개 도구 + 웹검색) | SDK 0.78.0 |
 | 데이터베이스 | PostgreSQL (선택) / JSON (기본) | pg 8.20.0 |
 | 테스트 | Playwright E2E | 1.58.2 |
 | 배포 | Vercel Serverless / Docker | Alpine Node 22 |
@@ -264,7 +265,7 @@ docker-compose up -d
 
 ## 최근 업데이트 (2025-03-16)
 
-- **Chat Tool Use 아키텍처**: Sonnet 4 + 5개 도구 (search, detail, conditions, competitor, web_search)
+- **Chat Tool Use 아키텍처**: Sonnet 4 + 6개 도구 (search, edp, detail, conditions, competitor, web_search)
 - **웹 검색 통합**: 내부 DB 부족 시 카탈로그/기술자료 자동 검색 + 출처 명시
 - **브랜드명 자동 주입**: LLM이 빠뜨려도 도구 결과에서 brand 추출 → 응답에 강제 삽입
 - **대화 맥락 판단**: 연결 질문 vs 새 질문 스마트 분기
