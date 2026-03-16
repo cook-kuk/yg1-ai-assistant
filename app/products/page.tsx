@@ -384,6 +384,11 @@ function CandidateCard({ c }: { c: CandidateSnapshot }) {
           )}
         </div>
       </div>
+      <div className="flex flex-wrap gap-1.5 text-xs text-gray-600">
+        {c.diameterMm != null && <span>{"φ"}{c.diameterMm}mm</span>}
+        {c.fluteCount != null && <span>{language === "ko" ? `${c.fluteCount}날` : `${c.fluteCount} FL`}</span>}
+        {c.coating && <span>{c.coating}</span>}
+      </div>
       <div className="flex items-center gap-2">
         {c.hasEvidence && c.bestCondition && (
           <EvidenceBadge conditions={c.bestCondition} />

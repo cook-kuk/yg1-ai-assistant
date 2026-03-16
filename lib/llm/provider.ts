@@ -193,9 +193,6 @@ export function getProvider(): LLMProvider {
   const claude = createClaudeProvider()
   if (claude.available()) return claude
 
-  // OpenAI/Azure providers are still placeholders.
-  // Do not select them until real implementations exist.
-
   // Deterministic fallback (no LLM, always works)
   return {
     available() { return true },
