@@ -18,6 +18,7 @@ import { ProductRepo } from "@/lib/data/repos/product-repo"
 import { EvidenceRepo } from "@/lib/data/repos/evidence-repo"
 
 const anthropicApiKey = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_KEY || ""
+const anthropicChatModel = process.env.ANTHROPIC_FAST_MODEL || process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514"
 const client = anthropicApiKey ? new Anthropic({ apiKey: anthropicApiKey }) : null
 
 // ── Build context from real data ────────────────────────────
@@ -258,7 +259,7 @@ export async function POST(req: NextRequest) {
     const systemPrompt = await buildSystemPrompt()
 
     const response = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: anthropicChatModel,
       max_tokens: 1500,
       system: systemPrompt,
       messages: apiMessages,

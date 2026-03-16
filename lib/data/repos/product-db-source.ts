@@ -98,6 +98,8 @@ interface ProductSearchOptions {
 declare global {
   // eslint-disable-next-line no-var
   var __yg1ProductDbPool: Pool | undefined
+  // eslint-disable-next-line no-var
+  var __yg1ProductDbConfigLogged: boolean | undefined
 }
 
 const PRODUCT_BASE_QUERY = `
@@ -185,6 +187,26 @@ function dbConnectionString(): string | null {
   return `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}/${database}`
 }
 
+function redactConnectionString(connectionString: string): string {
+  try {
+    const parsed = new URL(connectionString)
+    const username = parsed.username ? decodeURIComponent(parsed.username) : ""
+    const password = parsed.password ? ":****" : ""
+    const auth = username ? `${username}${password}@` : ""
+    return `${parsed.protocol}//${auth}${parsed.host}${parsed.pathname}`
+  } catch {
+    return "<invalid-connection-string>"
+  }
+}
+
+function logDatabaseConfigOnce(connectionString: string): void {
+  if (globalThis.__yg1ProductDbConfigLogged) return
+  globalThis.__yg1ProductDbConfigLogged = true
+  console.log(
+    `[product-db] source=postgres enabled=true repo_source=${process.env.PRODUCT_REPO_SOURCE ?? ""} connection=${redactConnectionString(connectionString)}`
+  )
+}
+
 function parsePositiveInt(value: string | undefined, fallback: number): number {
   if (!value) return fallback
   const parsed = Number.parseInt(value, 10)
@@ -201,7 +223,10 @@ function getPool(): Pool {
     throw new Error("Database source requested but connection settings are missing")
   }
 
+  logDatabaseConfigOnce(connectionString)
+
   if (!globalThis.__yg1ProductDbPool) {
+    console.log("[product-db] creating pg pool")
     globalThis.__yg1ProductDbPool = new Pool({
       connectionString,
       max: parsePositiveInt(process.env.PRODUCT_DB_POOL_MAX, 10),
@@ -214,7 +239,13 @@ function getPool(): Pool {
 }
 
 export function shouldUseDatabaseSource(): boolean {
-  return process.env.PRODUCT_REPO_SOURCE?.toLowerCase() !== "json" && !!dbConnectionString()
+  const enabled = process.env.PRODUCT_REPO_SOURCE?.toLowerCase() !== "json" && !!dbConnectionString()
+  if (!enabled) {
+    console.warn(
+      `[product-db] source=postgres enabled=false repo_source=${process.env.PRODUCT_REPO_SOURCE ?? ""} has_connection=${!!dbConnectionString()}`
+    )
+  }
+  return enabled
 }
 
 function firstNonEmpty(...values: Array<string | null | undefined>): string | null {
@@ -544,6 +575,9 @@ export async function queryProductsFromDatabase(options: ProductSearchOptions = 
   `
 
   const startedAt = Date.now()
+  console.log(
+    `[product-db] query:start where=${where.length} values=${values.length} limit=${limit} code=${options.normalizedCode ?? "-"} series=${options.seriesName ?? "-"}`
+  )
   const result = await getPool().query<RawProductRow>(query, values)
   const mapped = result.rows
     .map(mapRowToProduct)
@@ -587,6 +621,7 @@ export async function getSeriesOverviewFromDatabase(limit = 120): Promise<Produc
   `
 
   const startedAt = Date.now()
+  console.log(`[product-db] series-overview:start limit=${limit}`)
   const result = await getPool().query<{
     series_name: string
     count: string

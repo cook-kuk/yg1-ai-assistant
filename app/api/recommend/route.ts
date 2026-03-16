@@ -91,6 +91,9 @@ async function handleExploration(
   messages: ChatMessage[],
   prevState: ExplorationSessionState | null
 ): Promise<Response> {
+  console.log(
+    `[recommend] request start hasPrevState=${!!prevState} messages=${messages.length} productSource=${process.env.PRODUCT_REPO_SOURCE ?? ""} hasDatabaseUrl=${!!process.env.DATABASE_URL} pgHost=${process.env.PGHOST || process.env.POSTGRES_HOST || ""}`
+  )
   const provider = getProvider()
   const baseInput = mapIntakeToInput(form)
 
