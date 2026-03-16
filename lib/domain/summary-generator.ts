@@ -60,8 +60,9 @@ export function buildDeterministicSummary(result: RecommendationResult): string 
   if (p.toolMaterial) specs.push(p.toolMaterial)
   if (specs.length) parts.push(specs.join(", "))
 
-  // Series info
-  if (p.seriesName) parts.push(`시리즈: ${p.seriesName}`)
+  // Brand & Series info
+  const brandSeries = [p.brand, p.seriesName].filter(Boolean).join(" / ")
+  if (brandSeries) parts.push(`시리즈: ${brandSeries}`)
 
   // Material compatibility
   if (p.materialTags.length > 0) {

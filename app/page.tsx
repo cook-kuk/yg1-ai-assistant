@@ -182,8 +182,8 @@ export default function DashboardPage() {
                 </div>
               </div>
               <Button variant="outline" className="w-full bg-transparent" asChild>
-                <Link href="/admin">
-                  상세 분석 보기
+                <Link href="/products">
+                  제품 추천 시작
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Link>
               </Button>

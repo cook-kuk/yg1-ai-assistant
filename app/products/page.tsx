@@ -271,7 +271,10 @@ function ProductCard({ scored, rank, isAlternative = false }: {
               <StockBadge status={scored.stockStatus} total={scored.totalStock} />
             </div>
             <div className="font-mono text-sm font-bold text-gray-900">{p.displayCode}</div>
-            {p.seriesName && <div className="text-xs text-blue-700 font-medium">{p.seriesName}</div>}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {p.brand && <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">{p.brand}</span>}
+              {p.seriesName && <span className="text-xs text-blue-700 font-medium">{p.seriesName}</span>}
+            </div>
           </div>
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0" onClick={() => setOpen(o => !o)}>
             {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -334,7 +337,10 @@ function CandidateCard({ c }: { c: CandidateSnapshot }) {
             <StockBadge status={c.stockStatus} total={c.totalStock} />
           </div>
           <div className="font-mono text-sm font-bold text-gray-900">{c.displayCode}</div>
-          {c.seriesName && <div className="text-xs text-blue-700 font-medium">{c.seriesName}</div>}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {c.brand && <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">{c.brand}</span>}
+            {c.seriesName && <span className="text-xs text-blue-700 font-medium">{c.seriesName}</span>}
+          </div>
         </div>
       </div>
       <div className="flex flex-wrap gap-1.5 text-xs text-gray-600">

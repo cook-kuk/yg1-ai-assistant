@@ -38,7 +38,7 @@ export function createClaudeProvider(): LLMProvider {
       const { default: Anthropic } = await import("@anthropic-ai/sdk")
       const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
       const resp = await client.messages.create({
-        model: "claude-sonnet-4-5-20250514",
+        model: "claude-sonnet-4-20250514",
         max_tokens: maxTokens,
         system: systemPrompt,
         messages,
@@ -53,7 +53,7 @@ export function createClaudeProvider(): LLMProvider {
       const { default: Anthropic } = await import("@anthropic-ai/sdk")
       const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
       const resp = await client.messages.create({
-        model: "claude-sonnet-4-5-20250514",
+        model: "claude-sonnet-4-20250514",
         max_tokens: maxTokens,
         system: systemPrompt,
         messages,

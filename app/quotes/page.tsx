@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, Suspense } from "react"
+import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -42,9 +43,26 @@ const toneConfig = {
   friendly: { label: "친근체", description: "친근하고 부드러운 표현" }
 }
 
-export default function QuotesPage() {
+export default function QuotesPageWrapper() {
+  return (
+    <Suspense fallback={<div className="p-6 text-center text-gray-500">로딩 중...</div>}>
+      <QuotesPage />
+    </Suspense>
+  )
+}
+
+function QuotesPage() {
   const { quotes, inquiries, products, updateQuoteStatus, addNotification } = useApp()
+  const searchParams = useSearchParams()
   const [selectedInquiry, setSelectedInquiry] = useState<string>("")
+
+  // Auto-select inquiry from query param (e.g., /quotes?inquiry=INQ-001)
+  useEffect(() => {
+    const inquiryParam = searchParams.get("inquiry")
+    if (inquiryParam && inquiries.some(inq => inq.id === inquiryParam)) {
+      setSelectedInquiry(inquiryParam)
+    }
+  }, [searchParams, inquiries])
   const [selectedTone, setSelectedTone] = useState<"formal" | "concise" | "friendly">("formal")
   const [customNotes, setCustomNotes] = useState("")
 

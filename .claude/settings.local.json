@@ -100,7 +100,17 @@
       "Bash(pip3 install:*)",
       "Bash(npm ls:*)",
       "Bash(cmd.exe /c \"where node\")",
-      "Bash(cmd.exe /c \"where npm\")"
+      "Bash(cmd.exe /c \"where npm\")",
+      "Bash(npm run:*)",
+      "Bash(sleep:*)",
+      "Bash(curl:*)",
+      "Bash(netstat:*)",
+      "Bash(find:*)",
+      "Bash(npx tsc:*)",
+      "Bash(echo:*)",
+      "Bash(node:*)",
+      "Bash(source:*)",
+      "Bash(git status:*)"
     ]
   }
 }
