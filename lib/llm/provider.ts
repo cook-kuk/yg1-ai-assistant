@@ -41,6 +41,7 @@ export function createClaudeProvider(): LLMProvider {
       if (!this.available()) throw new Error("No ANTHROPIC_API_KEY")
       const { default: Anthropic } = await import("@anthropic-ai/sdk")
       const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+      const startMs = Date.now()
       const resp = await client.messages.create({
         model: anthropicMainModel(),
         max_tokens: maxTokens,
@@ -49,6 +50,20 @@ export function createClaudeProvider(): LLMProvider {
       })
       const content = resp.content[0]
       if (content.type !== "text") throw new Error("Unexpected content type")
+
+      // Slack LLM 알림 (비동기)
+      import("@/lib/slack-notifier").then(({ notifyLlmCall }) =>
+        notifyLlmCall({
+          model: anthropicMainModel(),
+          route: "/api/recommend",
+          promptPreview: messages[messages.length - 1]?.content ?? "",
+          responsePreview: content.text,
+          durationMs: Date.now() - startMs,
+          inputTokens: resp.usage?.input_tokens,
+          outputTokens: resp.usage?.output_tokens,
+        }).catch(() => {})
+      )
+
       return content.text
     },
 

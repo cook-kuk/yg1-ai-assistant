@@ -109,6 +109,79 @@ export async function notifyFeedback(params: {
   })
 }
 
+/** DB 쿼리 알림 */
+export async function notifyDbQuery(params: {
+  source: string
+  filterCount: number
+  resultCount: number
+  durationMs: number
+  query: string
+}): Promise<void> {
+  await sendSlack({
+    blocks: [
+      {
+        type: "header",
+        text: { type: "plain_text", text: "🗄️ DB 쿼리" },
+      },
+      {
+        type: "section",
+        fields: [
+          { type: "mrkdwn", text: `*소스:*\n${params.source}` },
+          { type: "mrkdwn", text: `*필터:*\n${params.filterCount}개` },
+          { type: "mrkdwn", text: `*결과:*\n${params.resultCount}건` },
+          { type: "mrkdwn", text: `*소요:*\n${params.durationMs}ms` },
+        ],
+      },
+      {
+        type: "context",
+        elements: [
+          { type: "mrkdwn", text: `🔍 ${params.query.slice(0, 200)}` },
+        ],
+      },
+    ],
+  })
+}
+
+/** LLM 요청/응답 알림 */
+export async function notifyLlmCall(params: {
+  model: string
+  route: string
+  promptPreview: string
+  responsePreview: string
+  durationMs: number
+  inputTokens?: number
+  outputTokens?: number
+}): Promise<void> {
+  const tokenInfo = params.inputTokens
+    ? `입력: ${params.inputTokens} / 출력: ${params.outputTokens ?? "?"}`
+    : "토큰 정보 없음"
+  await sendSlack({
+    blocks: [
+      {
+        type: "header",
+        text: { type: "plain_text", text: "🤖 LLM 호출" },
+      },
+      {
+        type: "section",
+        fields: [
+          { type: "mrkdwn", text: `*모델:*\n${params.model}` },
+          { type: "mrkdwn", text: `*경로:*\n${params.route}` },
+          { type: "mrkdwn", text: `*소요:*\n${params.durationMs}ms` },
+          { type: "mrkdwn", text: `*토큰:*\n${tokenInfo}` },
+        ],
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `*요청 (프롬프트 미리보기):*\n\`\`\`${params.promptPreview.slice(0, 300)}\`\`\`` },
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `*응답:*\n\`\`\`${params.responsePreview.slice(0, 500)}\`\`\`` },
+      },
+    ],
+  })
+}
+
 /** 에러 알림 */
 export async function notifyError(params: {
   route: string

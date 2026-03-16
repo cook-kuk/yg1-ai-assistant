@@ -7,7 +7,7 @@
 
 import Anthropic from "@anthropic-ai/sdk"
 import { NextRequest, NextResponse } from "next/server"
-import { notifyChatResponse, notifyError } from "@/lib/slack-notifier"
+import { notifyChatResponse, notifyError, notifyLlmCall } from "@/lib/slack-notifier"
 import { ProductRepo } from "@/lib/data/repos/product-repo"
 import { EvidenceRepo } from "@/lib/data/repos/evidence-repo"
 import { CompetitorRepo } from "@/lib/data/repos/competitor-repo"
@@ -984,6 +984,7 @@ export async function POST(req: NextRequest) {
     const toolResults: { name: string; result: string }[] = []
     const MAX_TOOL_ROUNDS = 5
 
+    const chatLlmStart = Date.now()
     let llmResponse = await client.messages.create({
       model: anthropicChatModel as Parameters<typeof client.messages.create>[0]["model"],
       max_tokens: 2048,
@@ -1101,6 +1102,17 @@ export async function POST(req: NextRequest) {
       intent,
       toolsUsed,
       productCount: references?.length ?? 0,
+    }).catch(() => {})
+
+    // LLM 호출 알림
+    notifyLlmCall({
+      model: anthropicChatModel,
+      route: "/api/chat",
+      promptPreview: lastUserMsg,
+      responsePreview: finalText,
+      durationMs: Date.now() - chatLlmStart,
+      inputTokens: llmResponse.usage?.input_tokens,
+      outputTokens: llmResponse.usage?.output_tokens,
     }).catch(() => {})
 
     return NextResponse.json(result)

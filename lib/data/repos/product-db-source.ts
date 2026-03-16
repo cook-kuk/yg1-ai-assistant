@@ -1,6 +1,7 @@
 import "server-only"
 
 import { Pool } from "pg"
+import { notifyDbQuery } from "@/lib/slack-notifier"
 import type { AppliedFilter } from "@/lib/types/exploration"
 import type { CanonicalProduct, RecommendationInput, SourcePriority, SourceType } from "@/lib/types/canonical"
 import { resolveMaterialTag } from "@/lib/domain/material-resolver"
@@ -583,11 +584,21 @@ export async function queryProductsFromDatabase(options: ProductSearchOptions = 
     .map(mapRowToProduct)
     .filter(product => !!product.normalizedCode)
 
+  const durationMs = Date.now() - startedAt
   if (shouldLogTimings()) {
     console.log(
-      `[product-db] query=${Date.now() - startedAt}ms rows=${result.rowCount ?? mapped.length} mapped=${mapped.length} filters=${where.length} limit=${limit}`
+      `[product-db] query=${durationMs}ms rows=${result.rowCount ?? mapped.length} mapped=${mapped.length} filters=${where.length} limit=${limit}`
     )
   }
+
+  // Slack DB 쿼리 알림 (비동기)
+  notifyDbQuery({
+    source: "PostgreSQL",
+    filterCount: where.length,
+    resultCount: mapped.length,
+    durationMs,
+    query: `code=${options.normalizedCode ?? "-"} series=${options.seriesName ?? "-"} filters=${where.length} limit=${limit}`,
+  }).catch(() => {})
 
   return mapped
 }
