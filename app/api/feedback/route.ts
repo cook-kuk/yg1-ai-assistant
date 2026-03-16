@@ -100,6 +100,16 @@ export async function POST(req: Request) {
 
     saveFeedback(entry)
 
+    // Slack 알림
+    import("@/lib/slack-notifier").then(({ notifyFeedback }) =>
+      notifyFeedback({
+        rating: entry.rating,
+        comment: entry.comment,
+        tags: entry.tags,
+        authorType: entry.authorType,
+      }).catch(() => {})
+    )
+
     return NextResponse.json({ success: true, id: entry.id })
   } catch (err) {
     console.error("[feedback] POST error:", err)

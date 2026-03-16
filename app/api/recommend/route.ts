@@ -17,6 +17,7 @@
  */
 
 import { NextResponse } from "next/server"
+import { notifyRecommendation } from "@/lib/slack-notifier"
 import { normalizeInput, mergeInputs } from "@/lib/domain/input-normalizer"
 import { runHybridRetrieval, classifyHybridResults } from "@/lib/domain/hybrid-retrieval"
 import { selectNextQuestion, checkResolution, parseAnswerToFilter } from "@/lib/domain/question-engine"
@@ -646,6 +647,18 @@ async function buildRecommendationResponse(
   }
 
   const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
+
+  // Slack 알림 (비동기)
+  if (primary) {
+    notifyRecommendation({
+      productCode: primary.product.displayCode,
+      brand: primary.product.brand,
+      seriesName: primary.product.seriesName,
+      matchStatus: status,
+      score: primary.score,
+      query: `직경:${input.diameterMm ?? "?"}mm 소재:${input.material ?? "?"} 가공:${input.operationType ?? "?"}`,
+    }).catch(() => {})
+  }
 
   return NextResponse.json({
     text: status === "none"
