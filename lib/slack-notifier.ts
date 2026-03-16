@@ -84,9 +84,11 @@ export async function notifyFeedback(params: {
   comment: string
   tags: string[]
   authorType: string
+  authorName: string
 }): Promise<void> {
   const stars = params.rating ? "⭐".repeat(params.rating) : "평가 없음"
   const tagStr = params.tags.length > 0 ? params.tags.join(", ") : "없음"
+  const author = params.authorName || params.authorType
   await sendSlack({
     blocks: [
       {
@@ -97,7 +99,7 @@ export async function notifyFeedback(params: {
         type: "section",
         fields: [
           { type: "mrkdwn", text: `*평점:*\n${stars}` },
-          { type: "mrkdwn", text: `*작성자:*\n${params.authorType}` },
+          { type: "mrkdwn", text: `*작성자:*\n${author} (${params.authorType})` },
           { type: "mrkdwn", text: `*태그:*\n${tagStr}` },
         ],
       },

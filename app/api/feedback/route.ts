@@ -107,6 +107,7 @@ export async function POST(req: Request) {
         comment: entry.comment,
         tags: entry.tags,
         authorType: entry.authorType,
+        authorName: entry.authorName,
       }).catch(() => {})
     )
 
