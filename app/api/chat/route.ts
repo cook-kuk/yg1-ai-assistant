@@ -161,6 +161,7 @@ async function buildSystemPrompt(): Promise<string> {
 ${MATERIAL_KNOWLEDGE}
 ${COATING_KNOWLEDGE}
 ${MACHINING_KNOWLEDGE}`
+}
 
 // ── Tool Definitions ────────────────────────────────────────
 
@@ -882,20 +883,6 @@ export async function POST(req: NextRequest) {
       }))
       .filter((_, i, arr) => !(i === 0 && arr[0].role === "assistant"))
 
-    const systemPrompt = await buildSystemPrompt()
-
-    const response = await client.messages.create({
-      model: anthropicChatModel,
-      max_tokens: 1500,
-      system: systemPrompt,
-      messages: apiMessages,
-    })
-
-    const content = response.content[0]
-    if (content.type !== "text") {
-      throw new Error("Unexpected response type")
-    }
-
     if (apiMessages.length === 0) {
       return NextResponse.json({
         intent: "general",
@@ -905,23 +892,25 @@ export async function POST(req: NextRequest) {
       } as LLMResponse)
     }
 
+    const systemPrompt = await buildSystemPrompt()
+
     // ── Tool Use Loop ──────────────────────────────────────
     let currentMessages = [...apiMessages]
     const toolsUsed: string[] = []
     const toolResults: { name: string; result: string }[] = []
     const MAX_TOOL_ROUNDS = 5
 
-    let response = await client.messages.create({
-      model: "claude-sonnet-4-20250514" as Parameters<typeof client.messages.create>[0]["model"],
+    let llmResponse = await client.messages.create({
+      model: anthropicChatModel as Parameters<typeof client.messages.create>[0]["model"],
       max_tokens: 2048,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       tools: TOOLS,
       messages: currentMessages,
     })
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       // Check if there are tool_use blocks
-      const toolUseBlocks = response.content.filter(
+      const toolUseBlocks = llmResponse.content.filter(
         (block): block is Anthropic.ContentBlock & { type: "tool_use" } =>
           block.type === "tool_use"
       )
@@ -948,24 +937,24 @@ export async function POST(req: NextRequest) {
       // Send tool results back to LLM
       currentMessages = [
         ...currentMessages,
-        { role: "assistant" as const, content: response.content },
+        { role: "assistant" as const, content: llmResponse.content },
         { role: "user" as const, content: toolResultMessages },
       ]
 
-      response = await client.messages.create({
-        model: "claude-sonnet-4-20250514" as Parameters<typeof client.messages.create>[0]["model"],
+      llmResponse = await client.messages.create({
+        model: anthropicChatModel as Parameters<typeof client.messages.create>[0]["model"],
         max_tokens: 2048,
-        system: SYSTEM_PROMPT,
+        system: systemPrompt,
         tools: TOOLS,
         messages: currentMessages,
       })
 
       // If stop_reason is "end_turn", we're done
-      if (response.stop_reason === "end_turn") break
+      if (llmResponse.stop_reason === "end_turn") break
     }
 
     // ── Extract Final Text Response ────────────────────────
-    const textBlocks = response.content.filter(
+    const textBlocks = llmResponse.content.filter(
       (block): block is Anthropic.TextBlock => block.type === "text"
     )
     const responseText =
