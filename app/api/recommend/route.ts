@@ -41,6 +41,9 @@ import { runFactCheck } from "@/lib/domain/fact-checker"
 import { analyzeInquiry, getRedirectResponse } from "@/lib/domain/inquiry-analyzer"
 import { planAction } from "@/lib/domain/action-planner"
 import type { ActionPlan } from "@/lib/domain/action-planner"
+import { orchestrateTurn } from "@/lib/agents/orchestrator"
+import { compareProducts, resolveProductReferences } from "@/lib/agents/comparison-agent"
+import type { TurnContext, OrchestratorResult } from "@/lib/agents/types"
 
 import type { RecommendationInput, RecommendationResult, ScoredProduct, ChatMessage, MatchStatus } from "@/lib/types/canonical"
 import type { ProductIntakeForm, AnswerState, MachiningIntent } from "@/lib/types/intake"
@@ -240,61 +243,166 @@ async function handleExploration(
     )
   }
 
-  // ── Step 2: Process user message (if any) ──────────────────
+  // ── Step 2: Process user message via Orchestrator ───────────
   const narrowingHistory: NarrowingTurn[] = prevState?.narrowingHistory ?? []
   let currentInput = { ...resolvedInput }
   let turnCount = prevState?.turnCount ?? 0
 
-  // If there are messages and this isn't the first call
   if (messages.length > 0 && prevState) {
     const lastUserMsg = [...messages].reverse().find(m => m.role === "user")
     if (lastUserMsg) {
-      // ── NEW: Inquiry Analysis Gate ──
-      const inquiry = analyzeInquiry(lastUserMsg.text)
-      const actionPlan = planAction(inquiry, lastUserMsg.text, form, prevState)
-      console.log(`[recommend] Inquiry: signal=${inquiry.signalStrength}, domain=${inquiry.domainRelevance}, action=${actionPlan.intent} (${actionPlan.reason})`)
+      // ═══ Multi-Agent Orchestration ═══
+      const turnCtx: TurnContext = {
+        userMessage: lastUserMsg.text,
+        intakeForm: form,
+        sessionState: prevState,
+        resolvedInput: currentInput,
+        candidateCount: candidates.length,
+        displayedProducts: buildCandidateSnapshot(candidates, evidenceMap),
+        currentCandidates: candidates,
+      }
 
-      // Gate: true nonsense → static redirect
-      if (actionPlan.retrievalStrategy === "none" && actionPlan.responseFormat === "redirect") {
-        const redirect = getRedirectResponse(inquiry)
+      const orchResult = await orchestrateTurn(turnCtx, provider)
+      const action = orchResult.action
+
+      // ── Dispatch orchestrator action ──────────────────────
+
+      // Action: reset_session
+      if (action.type === "reset_session") {
+        return NextResponse.json({
+          text: "처음부터 다시 시작합니다. 새로운 조건을 입력해주세요.",
+          purpose: "greeting",
+          chips: ["처음부터 다시"],
+          isComplete: true,
+          recommendation: null,
+          sessionState: null,
+          evidenceSummaries: null,
+          candidateSnapshot: null,
+          extractedField: null,
+          requestPreparation: requestPrep,
+        })
+      }
+
+      // Action: go_back_one_step / go_back_to_filter
+      if (action.type === "go_back_one_step" || action.type === "go_back_to_filter") {
+        // Delegate to existing undo logic (already handled above by requestPrep)
+        // If we reach here, requestPrep didn't catch it — handle via stage history
+        const stageHistory = prevState.stageHistory ?? []
+        let targetStepIndex: number
+
+        if (action.type === "go_back_to_filter") {
+          // Find filter by value
+          const found = prevState.appliedFilters.find(f =>
+            f.value.toLowerCase().includes((action.filterValue ?? "").toLowerCase()) ||
+            f.rawValue.toString().toLowerCase().includes((action.filterValue ?? "").toLowerCase())
+          )
+          targetStepIndex = found?.appliedAt ?? (prevState.turnCount - 1)
+        } else {
+          targetStepIndex = prevState.turnCount - 1
+        }
+
+        // Find the stage to restore to (before the target)
+        const targetStage = stageHistory.find(s => s.filterApplied?.appliedAt === targetStepIndex)
+        const stageIdx = targetStage ? stageHistory.indexOf(targetStage) : -1
+        const prevStage = stageIdx > 0 ? stageHistory[stageIdx - 1] : null
+
+        let rebuiltInput: RecommendationInput
+        let remainingFilters: AppliedFilter[]
+        let remainingStages: NarrowingStage[]
+
+        if (prevStage) {
+          rebuiltInput = { ...prevStage.resolvedInputSnapshot }
+          remainingFilters = [...prevStage.filtersSnapshot]
+          remainingStages = stageHistory.slice(0, stageIdx)
+        } else {
+          // Revert to initial
+          rebuiltInput = { ...baseInput }
+          remainingFilters = []
+          remainingStages = stageHistory.length > 0 ? [stageHistory[0]] : []
+        }
+
+        const undoTurnCount = remainingFilters.filter(f => f.op !== "skip").length
+        const remainingHistory = narrowingHistory.slice(0, undoTurnCount)
+
+        const undoResult = await runHybridRetrieval(rebuiltInput, remainingFilters.filter(f => f.op !== "skip"))
+        const undoCandidates = undoResult.candidates
+
+        const removedDesc = action.type === "go_back_to_filter" ? action.filterValue : "마지막 단계"
+        console.log(`[orchestrator:undo] Reverted "${removedDesc}": ${prevState.candidateCount} → ${undoCandidates.length} candidates`)
+
+        return buildQuestionResponse(
+          form, undoCandidates, undoResult.evidenceMap, rebuiltInput,
+          remainingHistory, remainingFilters, undoTurnCount, messages, provider,
+          undefined, remainingStages
+        )
+      }
+
+      // Action: show_recommendation
+      if (action.type === "show_recommendation") {
+        return buildRecommendationResponse(
+          form, candidates, evidenceMap, currentInput, narrowingHistory,
+          filters, turnCount, messages, provider
+        )
+      }
+
+      // Action: compare_products
+      if (action.type === "compare_products") {
+        const snapshot = buildCandidateSnapshot(candidates, evidenceMap)
+        const targets = resolveProductReferences(action.targets, snapshot)
+        const compResult = await compareProducts(targets, evidenceMap, provider)
+
         const sessionState: ExplorationSessionState = {
           sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
-          candidateCount: prevState.candidateCount,
+          candidateCount: candidates.length,
           appliedFilters: filters,
-          narrowingHistory: narrowingHistory,
+          narrowingHistory,
           stageHistory: prevState.stageHistory ?? [],
           resolutionStatus: prevState.resolutionStatus ?? "broad",
           resolvedInput: currentInput,
           turnCount,
-          lastAskedField: prevState.lastAskedField,
         }
         return NextResponse.json({
-          text: redirect.text,
-          purpose: "question",
-          chips: redirect.chips,
+          text: compResult.text,
+          purpose: "comparison",
+          chips: ["추천해주세요", "다른 조건으로", "⟵ 이전 단계", "처음부터 다시"],
           isComplete: false,
           recommendation: null,
           sessionState,
           evidenceSummaries: null,
-          candidateSnapshot: redirect.showCandidates ? buildCandidateSnapshot(candidates, evidenceMap) : null,
+          candidateSnapshot: snapshot,
           extractedField: null,
           requestPreparation: null,
           primaryExplanation: null,
           primaryFactChecked: null,
           altExplanations: [],
           altFactChecked: [],
-          actionPlan: { intent: actionPlan.intent, reason: actionPlan.reason },
+          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
         })
       }
 
-      // Gate: general_chat → use LLM to answer freely (greetings, general questions, off-domain)
-      if (actionPlan.responseFormat === "general_chat") {
+      // Action: explain_product / answer_general
+      if (action.type === "explain_product" || action.type === "answer_general") {
+        // Use existing LLM handlers
+        if (action.type === "explain_product") {
+          const contextReply = await handleContextualNarrowingQuestion(
+            provider, lastUserMsg.text, currentInput, candidates, prevState
+          )
+          if (contextReply) {
+            return buildQuestionResponse(
+              form, candidates, evidenceMap, currentInput,
+              narrowingHistory, filters, turnCount, messages, provider,
+              contextReply
+            )
+          }
+        }
+
+        // General chat fallback
         const llmResponse = await handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form)
         const sessionState: ExplorationSessionState = {
           sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
           candidateCount: prevState.candidateCount ?? candidates.length,
           appliedFilters: filters,
-          narrowingHistory: narrowingHistory,
+          narrowingHistory,
           stageHistory: prevState.stageHistory ?? [],
           resolutionStatus: prevState.resolutionStatus ?? "broad",
           resolvedInput: currentInput,
@@ -312,208 +420,106 @@ async function handleExploration(
           candidateSnapshot: candidates.length > 0 ? buildCandidateSnapshot(candidates, evidenceMap) : null,
           extractedField: null,
           requestPreparation: null,
-          primaryExplanation: null,
-          primaryFactChecked: null,
-          altExplanations: [],
-          altFactChecked: [],
-          actionPlan: { intent: actionPlan.intent, reason: actionPlan.reason },
+          primaryExplanation: null, primaryFactChecked: null,
+          altExplanations: [], altFactChecked: [],
+          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
         })
       }
 
-      // Gate: post-recommendation follow-up — user asking about already-recommended products
-      if (prevState.resolutionStatus?.startsWith("resolved") && !actionPlan.skipNarrowing) {
-        const followUpReply = await handlePostRecommendationFollowUp(
-          provider, lastUserMsg.text, currentInput, candidates, evidenceMap, form
-        )
-        if (followUpReply) {
-          const sessionState: ExplorationSessionState = {
-            sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
-            candidateCount: candidates.length,
-            appliedFilters: filters,
-            narrowingHistory: narrowingHistory,
-            stageHistory: prevState.stageHistory ?? [],
-            resolutionStatus: prevState.resolutionStatus,
-            resolvedInput: currentInput,
-            turnCount,
-          }
-          return NextResponse.json({
-            text: followUpReply,
-            purpose: "follow_up",
-            chips: ["절삭조건 알려줘", "코팅 비교", "다른 직경 검색", "처음부터 다시"],
-            isComplete: true,
-            recommendation: null,
-            sessionState,
-            evidenceSummaries: null,
-            candidateSnapshot: buildCandidateSnapshot(candidates, evidenceMap),
-            extractedField: null,
-            requestPreparation: null,
-            primaryExplanation: null,
-            primaryFactChecked: null,
-            altExplanations: [],
-            altFactChecked: [],
-          })
+      // Action: redirect_off_topic
+      if (action.type === "redirect_off_topic") {
+        const inquiry = analyzeInquiry(lastUserMsg.text)
+        const redirect = getRedirectResponse(inquiry)
+        const sessionState: ExplorationSessionState = {
+          sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+          candidateCount: prevState.candidateCount,
+          appliedFilters: filters,
+          narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
+          resolutionStatus: prevState.resolutionStatus ?? "broad",
+          resolvedInput: currentInput,
+          turnCount,
+          lastAskedField: prevState.lastAskedField,
         }
+        return NextResponse.json({
+          text: redirect.text,
+          purpose: "question",
+          chips: redirect.chips,
+          isComplete: false,
+          recommendation: null,
+          sessionState,
+          evidenceSummaries: null,
+          candidateSnapshot: redirect.showCandidates ? buildCandidateSnapshot(candidates, evidenceMap) : null,
+          extractedField: null, requestPreparation: null,
+          primaryExplanation: null, primaryFactChecked: null,
+          altExplanations: [], altFactChecked: [],
+        })
       }
 
-      // Gate: forced recommendation → skip narrowing, go straight to results
-      if (actionPlan.skipNarrowing) {
-        return buildRecommendationResponse(
-          form, candidates, evidenceMap, currentInput, narrowingHistory,
-          filters, turnCount, messages, provider
-        )
+      // Action: skip_field
+      if (action.type === "skip_field") {
+        const skipField = prevState.lastAskedField ?? "unknown"
+        const skipFilter: AppliedFilter = {
+          field: skipField, op: "skip", value: "상관없음", rawValue: "skip", appliedAt: turnCount,
+        }
+        filters.push(skipFilter)
+        currentInput = applyFilterToInput(currentInput, skipFilter)
+
+        const newResult = await runHybridRetrieval(currentInput, filters.filter(f => f.op !== "skip"))
+        narrowingHistory.push({
+          question: "follow-up", answer: lastUserMsg.text,
+          extractedFilters: [skipFilter],
+          candidateCountBefore: candidates.length, candidateCountAfter: newResult.candidates.length,
+        })
+        turnCount++
+
+        const statusAfterSkip = checkResolution(newResult.candidates, narrowingHistory)
+        if (statusAfterSkip.startsWith("resolved")) {
+          return buildRecommendationResponse(form, newResult.candidates, newResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider)
+        }
+        return buildQuestionResponse(form, newResult.candidates, newResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider)
       }
 
-      // ── Contextual question about current narrowing field ──
-      const contextualQuestionPattern = /그게\s*뭐|그건\s*뭐|이게\s*뭐|뭐야\s*그|그거\s*뭐|차이.*뭐|뭐가\s*다|뭐가\s*좋|어떤\s*게\s*좋/i
-      const alreadySaidPattern = /이미.*했|이미.*말했|이미.*입력|아까.*했|아까.*말했|했잖아|했잔아|말했잖아|말했잔아|입력했/i
-      if (contextualQuestionPattern.test(lastUserMsg.text)) {
-        const contextReply = await handleContextualNarrowingQuestion(
-          provider, lastUserMsg.text, currentInput, candidates, prevState
-        )
-        if (contextReply) {
-          return buildQuestionResponse(
-            form, candidates, evidenceMap, currentInput,
-            narrowingHistory, filters, turnCount, messages, provider,
-            contextReply
-          )
+      // Action: continue_narrowing (apply filter from orchestrator)
+      if (action.type === "continue_narrowing") {
+        const filter = { ...action.filter, appliedAt: turnCount }
+        filters.push(filter)
+        currentInput = applyFilterToInput(currentInput, filter)
+
+        const newResult = await runHybridRetrieval(currentInput, filters)
+        const newCandidates = newResult.candidates
+        const prevCandidateCount = prevState.candidateCount ?? candidates.length
+
+        narrowingHistory.push({
+          question: prevState.narrowingHistory?.length ? "follow-up" : "initial",
+          answer: lastUserMsg.text,
+          extractedFilters: [filter],
+          candidateCountBefore: prevCandidateCount,
+          candidateCountAfter: newCandidates.length,
+        })
+
+        // Stage snapshot
+        const existingStages = prevState.stageHistory ?? []
+        const newStage: NarrowingStage = {
+          stepIndex: turnCount,
+          stageName: `${filter.field}_${filter.value}`,
+          filterApplied: filter,
+          candidateCount: newCandidates.length,
+          resolvedInputSnapshot: { ...currentInput },
+          filtersSnapshot: [...filters],
         }
-      }
-      // User frustrated that system re-asks already provided info → skip to results
-      if (alreadySaidPattern.test(lastUserMsg.text)) {
-        return buildRecommendationResponse(
-          form, candidates, evidenceMap, currentInput, narrowingHistory,
-          filters, turnCount, messages, provider
-        )
-      }
+        const updatedStages = [...existingStages, newStage]
 
-      // ── Standard extraction path (inquiry passed the gate) ──
-      const extracted = await extractParamsFromMessage(provider, lastUserMsg.text, currentInput, prevState)
+        console.log(`[orchestrator:filter] ${filter.field}=${filter.value} | ${prevCandidateCount}→${newCandidates.length} candidates | stages: ${updatedStages.map(s => s.stageName).join(" → ")}`)
 
-      // Non-product input — handle as general conversation
-      if (extracted === null) {
-        const generalResult = await handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form)
-        return buildQuestionResponse(
-          form, candidates, evidenceMap, currentInput,
-          narrowingHistory, filters, turnCount, messages, provider,
-          generalResult.text || `절삭공구 관련 조건을 알려주시거나, 아래 버튼을 선택해주세요.`
-        )
-      }
+        turnCount++
 
-      if (extracted) {
-        // Check for skip or complete signals
-        if (extracted.isComplete) {
-          // User wants results now — skip to recommendation
-          return buildRecommendationResponse(
-            form, candidates, evidenceMap, currentInput, narrowingHistory,
-            filters, turnCount, messages, provider
-          )
+        const newStatus = checkResolution(newCandidates, narrowingHistory)
+        if (newStatus.startsWith("resolved")) {
+          return buildRecommendationResponse(form, newCandidates, newResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider)
         }
 
-        // Handle skipped field ("상관없음") — record in history so we don't re-ask
-        if (extracted.skippedField) {
-          const skipFilter: AppliedFilter = {
-            field: extracted.skippedField,
-            op: "skip",
-            value: "상관없음",
-            rawValue: "skip",
-            appliedAt: turnCount,
-          }
-          filters.push(skipFilter)
-
-          // Clear the skipped field from currentInput
-          currentInput = applyFilterToInput(currentInput, skipFilter)
-
-          // Re-run retrieval with cleared field
-          const newResult = await runHybridRetrieval(currentInput, filters.filter(f => f.op !== "skip"))
-          const newCandidates = newResult.candidates
-
-          narrowingHistory.push({
-            question: "follow-up",
-            answer: lastUserMsg.text,
-            extractedFilters: [skipFilter],
-            candidateCountBefore: candidates.length,
-            candidateCountAfter: newCandidates.length,
-          })
-          turnCount++
-
-          // Check if we're resolved after skip
-          const statusAfterSkip = checkResolution(newCandidates, narrowingHistory)
-          if (statusAfterSkip.startsWith("resolved")) {
-            return buildRecommendationResponse(
-              form, newCandidates, newResult.evidenceMap, currentInput, narrowingHistory,
-              filters, turnCount, messages, provider
-            )
-          }
-
-          // Ask next question (which will be different since the field is now in history)
-          return buildQuestionResponse(
-            form, newCandidates, newResult.evidenceMap, currentInput,
-            narrowingHistory, filters, turnCount, messages, provider
-          )
-        }
-
-        // Apply extracted filters
-        if (extracted.newFilter) {
-          const filter = { ...extracted.newFilter, appliedAt: turnCount }
-          filters.push(filter)
-
-          // Update input based on filter
-          currentInput = applyFilterToInput(currentInput, filter)
-
-          // Re-run hybrid retrieval with new filter
-          const newResult = await runHybridRetrieval(currentInput, filters)
-          const newCandidates = newResult.candidates
-
-          // Use previous session's candidate count for "before" (not current re-filtered count)
-          const prevCandidateCount = prevState.candidateCount ?? candidates.length
-          narrowingHistory.push({
-            question: prevState.narrowingHistory?.length
-              ? "follow-up"
-              : "initial",
-            answer: lastUserMsg.text,
-            extractedFilters: [filter],
-            candidateCountBefore: prevCandidateCount,
-            candidateCountAfter: newCandidates.length,
-          })
-
-          // ── Stage snapshot: record this narrowing step ──
-          const existingStages = prevState.stageHistory ?? []
-          const newStage: NarrowingStage = {
-            stepIndex: turnCount,
-            stageName: `${filter.field}_${filter.value}`,
-            filterApplied: filter,
-            candidateCount: newCandidates.length,
-            resolvedInputSnapshot: { ...currentInput },
-            filtersSnapshot: [...filters],
-          }
-          const updatedStages = [...existingStages, newStage]
-
-          // Debug logging
-          console.log(`[narrowing:filter] ═══════════════════════════════`)
-          console.log(`[narrowing:filter] Applied: ${filter.field}=${filter.value}`)
-          console.log(`[narrowing:filter] Candidates: ${prevCandidateCount} → ${newCandidates.length}`)
-          console.log(`[narrowing:filter] Total filters: ${filters.length}`)
-          console.log(`[narrowing:filter] Stage history: ${updatedStages.map(s => s.stageName).join(" → ")}`)
-          console.log(`[narrowing:filter] ═══════════════════════════════`)
-
-          turnCount++
-
-          // Check if we're resolved after applying the filter
-          const newStatus = checkResolution(newCandidates, narrowingHistory)
-          if (newStatus.startsWith("resolved")) {
-            return buildRecommendationResponse(
-              form, newCandidates, newResult.evidenceMap, currentInput,
-              narrowingHistory, filters, turnCount, messages, provider
-            )
-          }
-
-          // Ask next question based on new candidate pool
-          return buildQuestionResponse(
-            form, newCandidates, newResult.evidenceMap, currentInput,
-            narrowingHistory, filters, turnCount, messages, provider,
-            undefined, updatedStages
-          )
-        }
+        return buildQuestionResponse(form, newCandidates, newResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, undefined, updatedStages)
       }
     }
   }

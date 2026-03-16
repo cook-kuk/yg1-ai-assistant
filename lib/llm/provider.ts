@@ -17,13 +17,17 @@ export interface LLMToolResult {
   input: Record<string, unknown>
 }
 
+/** Model tier for multi-agent routing */
+export type ModelTier = "haiku" | "sonnet" | "opus"
+
 export interface LLMProvider {
-  complete(systemPrompt: string, messages: LLMMessage[], maxTokens?: number): Promise<string>
+  complete(systemPrompt: string, messages: LLMMessage[], maxTokens?: number, modelTier?: ModelTier): Promise<string>
   completeWithTools(
     systemPrompt: string,
     messages: LLMMessage[],
     tools: LLMTool[],
-    maxTokens?: number
+    maxTokens?: number,
+    modelTier?: ModelTier
   ): Promise<{ text: string | null; toolUse: LLMToolResult | null }>
   available(): boolean
 }
@@ -32,18 +36,29 @@ function anthropicMainModel(): string {
   return process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514"
 }
 
+/** Resolve model ID from tier */
+function resolveModel(tier?: ModelTier): string {
+  if (!tier) return anthropicMainModel()
+  switch (tier) {
+    case "haiku":  return process.env.ANTHROPIC_HAIKU_MODEL  || "claude-haiku-4-5-20251001"
+    case "sonnet": return process.env.ANTHROPIC_SONNET_MODEL || anthropicMainModel()
+    case "opus":   return process.env.ANTHROPIC_OPUS_MODEL   || "claude-opus-4-0-20250415"
+  }
+}
+
 // ── Claude Provider ───────────────────────────────────────────
 export function createClaudeProvider(): LLMProvider {
   return {
     available() { return !!process.env.ANTHROPIC_API_KEY },
 
-    async complete(systemPrompt, messages, maxTokens = 1024) {
+    async complete(systemPrompt, messages, maxTokens = 1024, modelTier?) {
       if (!this.available()) throw new Error("No ANTHROPIC_API_KEY")
       const { default: Anthropic } = await import("@anthropic-ai/sdk")
       const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+      const model = resolveModel(modelTier)
       const startMs = Date.now()
       const resp = await client.messages.create({
-        model: anthropicMainModel(),
+        model: model as Parameters<typeof client.messages.create>[0]["model"],
         max_tokens: maxTokens,
         system: systemPrompt,
         messages,
@@ -54,7 +69,7 @@ export function createClaudeProvider(): LLMProvider {
       // Slack LLM 알림 (비동기)
       import("@/lib/slack-notifier").then(({ notifyLlmCall }) =>
         notifyLlmCall({
-          model: anthropicMainModel(),
+          model,
           route: "/api/recommend",
           promptPreview: messages[messages.length - 1]?.content ?? "",
           responsePreview: content.text,
@@ -67,12 +82,13 @@ export function createClaudeProvider(): LLMProvider {
       return content.text
     },
 
-    async completeWithTools(systemPrompt, messages, tools, maxTokens = 1024) {
+    async completeWithTools(systemPrompt, messages, tools, maxTokens = 1024, modelTier?) {
       if (!this.available()) throw new Error("No ANTHROPIC_API_KEY")
       const { default: Anthropic } = await import("@anthropic-ai/sdk")
       const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+      const model = resolveModel(modelTier)
       const resp = await client.messages.create({
-        model: anthropicMainModel(),
+        model: model as Parameters<typeof client.messages.create>[0]["model"],
         max_tokens: maxTokens,
         system: systemPrompt,
         messages,
