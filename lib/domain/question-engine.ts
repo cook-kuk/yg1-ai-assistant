@@ -110,7 +110,7 @@ function analyzeFields(
       const chips = [...fluteCounts.entries()]
         .sort((a, b) => b[1] - a[1])
         .slice(0, 4)
-        .map(([k]) => `${k}날`)
+        .map(([k, count]) => `${k}날 (${count}개)`)
       chips.push("상관없음")
 
       results.push({
@@ -135,7 +135,7 @@ function analyzeFields(
         .filter(([k]) => k !== "미확인")
         .sort((a, b) => b[1] - a[1])
         .slice(0, 4)
-        .map(([k]) => k)
+        .map(([k, count]) => `${k} (${count}개)`)
       chips.push("상관없음")
 
       results.push({
@@ -160,7 +160,7 @@ function analyzeFields(
         .filter(([k]) => k !== "미확인")
         .sort((a, b) => b[1] - a[1])
         .slice(0, 4)
-        .map(([k]) => k)
+        .map(([k, count]) => `${k} (${count}개)`)
       if (chips.length > 1) {
         chips.push("상관없음")
         results.push({
@@ -186,7 +186,7 @@ function analyzeFields(
         .filter(([k]) => k !== "미확인")
         .sort((a, b) => b[1] - a[1])
         .slice(0, 4)
-        .map(([k]) => k)
+        .map(([k, count]) => `${k} (${count}개)`)
       if (chips.length > 1) {
         chips.push("상관없음")
         results.push({
@@ -263,7 +263,8 @@ export function parseAnswerToFilter(
   field: string,
   answer: string
 ): AppliedFilter | null {
-  const clean = answer.trim()
+  // "(15개)" 같은 후보 개수 표기 제거
+  const clean = answer.trim().replace(/\s*\(\d+개\)\s*$/, "").trim()
 
   // "상관없음" / "모름" → no filter
   if (["상관없음", "모름", "skip", "상관 없음"].includes(clean.toLowerCase())) {
