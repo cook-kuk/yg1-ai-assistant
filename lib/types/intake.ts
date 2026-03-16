@@ -192,9 +192,7 @@ export const FIELD_CONFIGS: IntakeFieldConfig[] = [
     emoji: "🔧",
     description: "원하는 공구 타입 또는 현재 사용 중인 EDP를 알려주세요",
     options: [
-      { value: "엔드밀", label: "엔드밀 (Square)" },
-      { value: "볼엔드밀", label: "볼엔드밀 (Ball)", disabled: true },
-      { value: "라디우스엔드밀", label: "라디우스엔드밀 (CR)", disabled: true },
+      { value: "엔드밀", label: "엔드밀 (Square / Ball / CR)" },
       { value: "드릴", label: "드릴 (Drill)", disabled: true },
       { value: "탭", label: "탭 (Tap)", disabled: true },
     ],
