@@ -169,6 +169,13 @@ conversation_state:
 - 경쟁사 대체품 → get_competitor_mapping
 - 내부 DB에 없을 때 → web_search (출처: "📌 웹 검색 결과 (내부 DB 외부)")
 
+═══ 검색 결과 표시 규칙 ═══
+
+- 검색 결과는 기본 10개만 보여준다
+- 응답에 반드시 전체 개수를 알려줘라: "총 X개 중 10개를 보여드립니다"
+- 사용자가 "더 보여줘", "전체 보기", "나머지도 보여줘" 요청 시 → show_all=true로 재검색
+- 절대 자발적으로 "더 보시겠습니까?" 같은 제안을 하지 마라. 사용자가 원할 때만 보여줘라
+
 ═══ 브랜드명 표기 (필수) ═══
 
 - 형식: **브랜드명:** [도구 결과의 brand 필드 그대로] | **제품코드:** [displayCode]
@@ -200,7 +207,7 @@ const TOOLS: Anthropic.Tool[] = [
   {
     name: "search_products",
     description:
-      "YG-1 절삭공구 제품을 검색합니다. 소재(ISO 태그), 직경, 날수, 가공방식, 코팅, 키워드 등으로 필터링. 최대 10개 결과 반환.",
+      "YG-1 절삭공구 제품을 검색합니다. 기본 10개 반환. 사용자가 '더 보여줘', '전체 보기' 요청하면 show_all=true로 전체 반환.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -230,6 +237,14 @@ const TOOLS: Anthropic.Tool[] = [
           type: "string",
           description:
             "일반 키워드 검색 (시리즈명, 특성 등). 예: 'ALU-POWER', 'V7', '고이송'",
+        },
+        show_all: {
+          type: "boolean",
+          description: "true면 전체 결과 반환 (사용자가 '더 보여줘', '전체 보기', '나머지도' 요청 시). 기본 false.",
+        },
+        offset: {
+          type: "number",
+          description: "결과 시작 위치 (페이징용). 기본 0.",
         },
       },
       required: [],
@@ -498,6 +513,8 @@ async function executeSearchProducts(params: {
   operation_type?: string
   coating?: string
   keyword?: string
+  show_all?: boolean
+  offset?: number
 }): Promise<string> {
   const { input, filters } = buildProductSearchOptions(params)
   let results = await ProductRepo.search(input, filters, 200)
@@ -517,22 +534,29 @@ async function executeSearchProducts(params: {
   }
 
   const deduped = dedupeProductsBySeries(results)
+  const totalDeduped = deduped.length
 
-  // Return top 10
-  const top = deduped.slice(0, 10)
-
-  if (top.length === 0) {
+  if (deduped.length === 0) {
     return JSON.stringify({
       count: 0,
+      totalMatched: 0,
       products: [],
       message: "내부 DB에서 검색 조건에 맞는 제품을 찾지 못했습니다. web_search 도구로 웹에서 카탈로그를 검색해보세요.",
     })
   }
 
+  // show_all이면 전체, 아니면 10개만
+  const pageSize = params.show_all ? 100 : 10
+  const offset = params.offset ?? 0
+  const page = deduped.slice(offset, offset + pageSize)
+
   return JSON.stringify({
-    count: top.length,
-    totalMatched: results.length,
-    products: top.map(slimProduct),
+    count: page.length,
+    totalMatched: totalDeduped,
+    showing: `${offset + 1}~${offset + page.length}/${totalDeduped}`,
+    hasMore: offset + page.length < totalDeduped,
+    remainingCount: Math.max(0, totalDeduped - offset - page.length),
+    products: page.map(slimProduct),
   })
 }
 
