@@ -628,7 +628,18 @@ async function buildRecommendationResponse(
   // Run request preparation for metadata
   const requestPrep = prepareRequest(form, messages, sessionState, input, candidates.length)
 
-  const responseText = recommendation.llmSummary ?? deterministicSummary
+  let responseText = recommendation.llmSummary ?? deterministicSummary
+
+  // ── Inject brand name if LLM forgot ────────────────────────
+  if (primary && primary.product.brand) {
+    const brandName = primary.product.brand
+    const hasBrand = responseText.includes(brandName) || /브랜드명/.test(responseText)
+    if (!hasBrand) {
+      const brandHeader = `**브랜드명:** ${brandName} | **제품코드:** ${primary.product.displayCode}`
+      responseText = `${brandHeader}\n\n${responseText}`
+    }
+  }
+
   const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
 
   return NextResponse.json({
@@ -1382,8 +1393,18 @@ async function handleSimpleChat(messages: ChatMessage[], mode: string): Promise<
       totalCandidatesConsidered: result.totalConsidered,
     }
 
+    // Inject brand if missing
+    let quickText = deterministicSummary
+    if (primary && primary.product.brand) {
+      const brandName = primary.product.brand
+      const hasBrand = quickText.includes(brandName) || /브랜드명/.test(quickText)
+      if (!hasBrand) {
+        quickText = `**브랜드명:** ${brandName} | **제품코드:** ${primary.product.displayCode}\n\n${quickText}`
+      }
+    }
+
     return NextResponse.json({
-      text: deterministicSummary,
+      text: quickText,
       purpose: "recommendation",
       chips: getFollowUpChips(recommendation),
       isComplete: true,
