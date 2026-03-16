@@ -8,6 +8,7 @@
 import type { InquiryAnalysis } from "./inquiry-analyzer"
 import type { ExplorationSessionState } from "@/lib/types/exploration"
 import type { ProductIntakeForm } from "@/lib/types/intake"
+import { resolveUndoTarget } from "@/lib/domain/request-preparation"
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -96,6 +97,30 @@ export function planAction(
 ): ActionPlan {
   const lower = message.trim().toLowerCase()
 
+  // ── Gate -1: Undo / Back Navigation (MUST be before everything else) ──
+  // Inside an active session, navigation commands are NEVER noise.
+  if (sessionState?.appliedFilters && sessionState.appliedFilters.length > 0) {
+    const undoResolution = resolveUndoTarget(message, sessionState)
+    if (undoResolution) {
+      return {
+        intent: "product_recommendation",
+        intentConfidence: 1.0,
+        retrievalStrategy: "hybrid",
+        responseFormat: "clarification",
+        maxCandidatesToRetrieve: 50,
+        maxCandidatesToDisplay: 0,
+        shouldShowCandidateList: false,
+        shouldShowConditionChips: true,
+        shouldShowCandidateCount: true,
+        factCheckRequired: false,
+        skipNarrowing: false,
+        reason: undoResolution.type === "to_filter"
+          ? `"${undoResolution.target.filterValue ?? "?"}" 선택 전으로 되돌리기`
+          : "이전 단계로 되돌리기 요청",
+      }
+    }
+  }
+
   // ── Gate 0: Reset ──
   if (COMPLETION_PATTERNS.some(p => lower.includes(p))) {
     return {
@@ -111,28 +136,6 @@ export function planAction(
       factCheckRequired: false,
       skipNarrowing: false,
       reason: "세션 리셋 요청",
-    }
-  }
-
-  // ── Gate 0.5: Undo Narrowing ──
-  if (
-    UNDO_PATTERNS.some(p => lower.includes(p)) &&
-    !lower.includes("처음부터") &&
-    sessionState?.appliedFilters && sessionState.appliedFilters.length > 0
-  ) {
-    return {
-      intent: "product_recommendation",
-      intentConfidence: 1.0,
-      retrievalStrategy: "hybrid",
-      responseFormat: "clarification",
-      maxCandidatesToRetrieve: 50,
-      maxCandidatesToDisplay: 0,
-      shouldShowCandidateList: false,
-      shouldShowConditionChips: true,
-      shouldShowCandidateCount: true,
-      factCheckRequired: false,
-      skipNarrowing: false,
-      reason: "이전 단계로 되돌리기 요청",
     }
   }
 

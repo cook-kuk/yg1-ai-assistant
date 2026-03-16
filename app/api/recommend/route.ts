@@ -34,7 +34,7 @@ import {
   buildIntentContext,
 } from "@/lib/llm/prompt-builder"
 import { resolveMaterialTag } from "@/lib/domain/material-resolver"
-import { prepareRequest } from "@/lib/domain/request-preparation"
+import { prepareRequest, resolveUndoTarget } from "@/lib/domain/request-preparation"
 import { buildProductLabel } from "@/lib/domain/product-label"
 import { buildExplanation } from "@/lib/domain/explanation-builder"
 import { runFactCheck } from "@/lib/domain/fact-checker"
@@ -44,7 +44,7 @@ import type { ActionPlan } from "@/lib/domain/action-planner"
 
 import type { RecommendationInput, RecommendationResult, ScoredProduct, ChatMessage, MatchStatus } from "@/lib/types/canonical"
 import type { ProductIntakeForm, AnswerState, MachiningIntent } from "@/lib/types/intake"
-import type { ExplorationSessionState, AppliedFilter, NarrowingTurn, CandidateSnapshot } from "@/lib/types/exploration"
+import type { ExplorationSessionState, AppliedFilter, NarrowingTurn, NarrowingStage, CandidateSnapshot } from "@/lib/types/exploration"
 import type { EvidenceSummary } from "@/lib/types/evidence"
 import type { FactCheckedRecommendation } from "@/lib/types/fact-check"
 import type { RecommendationExplanation } from "@/lib/types/explanation"
@@ -144,39 +144,100 @@ async function handleExploration(
     })
   }
 
-  // Handle undo narrowing
-  if (requestPrep.route.action === "undo_narrowing" && prevState) {
-    const undoHistory = [...(prevState.narrowingHistory ?? [])]
-    const undoFilters = [...(prevState.appliedFilters ?? [])]
-    let undoTurnCount = prevState.turnCount ?? 0
+  // Handle undo — both simple (one step back) and filter-specific
+  if ((requestPrep.route.action === "undo_narrowing" || requestPrep.route.action === "undo_to_filter") && prevState) {
+    const stageHistory = prevState.stageHistory ?? []
+    const lastUserMsg = [...messages].reverse().find(m => m.role === "user")?.text ?? ""
 
-    if (undoHistory.length > 0) {
-      // Pop last narrowing turn
-      undoHistory.pop()
-      undoTurnCount = Math.max(0, undoTurnCount - 1)
+    // Resolve undo target (re-resolve to get precise target)
+    const undoResolution = resolveUndoTarget(lastUserMsg, prevState)
+    let targetStepIndex: number
 
-      // Remove filters applied at the last turn
-      const lastTurnIndex = undoTurnCount
-      const remainingFilters = undoFilters.filter(f => f.appliedAt !== lastTurnIndex)
+    if (requestPrep.route.action === "undo_to_filter" && requestPrep.route.undoTarget?.targetStepIndex != null) {
+      // Filter-specific undo: revert to just BEFORE the target filter was applied
+      targetStepIndex = requestPrep.route.undoTarget.targetStepIndex
+    } else if (undoResolution?.type === "to_filter" && undoResolution.target.targetStepIndex != null) {
+      targetStepIndex = undoResolution.target.targetStepIndex
+    } else {
+      // Simple one-step undo: revert to the step before the last one
+      targetStepIndex = stageHistory.length > 0
+        ? stageHistory[stageHistory.length - 1].stepIndex
+        : (prevState.turnCount ?? 1)
+    }
 
-      // Rebuild input from base + remaining filters
-      let rebuiltInput = { ...baseInput }
+    // Find the target stage to restore (the stage BEFORE the target filter)
+    const targetStage = stageHistory.find(s =>
+      s.filterApplied && s.filterApplied.appliedAt === targetStepIndex
+    )
+
+    // Use stage snapshot if available, otherwise replay from scratch
+    let rebuiltInput: RecommendationInput
+    let remainingFilters: AppliedFilter[]
+    let remainingHistory: NarrowingTurn[]
+    let remainingStages: NarrowingStage[]
+    let undoTurnCount: number
+
+    if (targetStage) {
+      // Use snapshot: find the stage just before the target
+      const stageIdx = stageHistory.indexOf(targetStage)
+      const prevStage = stageIdx > 0 ? stageHistory[stageIdx - 1] : null
+
+      if (prevStage) {
+        rebuiltInput = { ...prevStage.resolvedInputSnapshot }
+        remainingFilters = [...prevStage.filtersSnapshot]
+        remainingStages = stageHistory.slice(0, stageIdx)
+      } else {
+        // Reverting to initial state (before any filters)
+        rebuiltInput = { ...baseInput }
+        remainingFilters = []
+        remainingStages = stageHistory.length > 0 ? [stageHistory[0]] : []
+      }
+      undoTurnCount = remainingFilters.filter(f => f.op !== "skip").length
+      remainingHistory = (prevState.narrowingHistory ?? []).slice(0, undoTurnCount)
+    } else {
+      // Fallback: replay from scratch (no stage snapshot available)
+      const undoHistory = [...(prevState.narrowingHistory ?? [])]
+      const undoFilters = [...(prevState.appliedFilters ?? [])]
+      undoTurnCount = prevState.turnCount ?? 0
+
+      if (undoHistory.length > 0) {
+        undoHistory.pop()
+        undoTurnCount = Math.max(0, undoTurnCount - 1)
+        remainingFilters = undoFilters.filter(f => f.appliedAt !== undoTurnCount)
+      } else {
+        remainingFilters = []
+      }
+      remainingHistory = undoHistory
+
+      rebuiltInput = { ...baseInput }
       for (const f of remainingFilters) {
         rebuiltInput = applyFilterToInput(rebuiltInput, f)
       }
-
-      // Re-run retrieval with remaining filters
-      const undoResult = await runHybridRetrieval(rebuiltInput, remainingFilters.filter(f => f.op !== "skip"))
-      const undoCandidates = undoResult.candidates
-
-      console.log(`[recommend] Undo: removed turn ${lastTurnIndex}, filters ${undoFilters.length}→${remainingFilters.length}, candidates ${prevState.candidateCount}→${undoCandidates.length}`)
-
-      // Build question response for the restored state
-      return buildQuestionResponse(
-        form, undoCandidates, undoResult.evidenceMap, rebuiltInput,
-        undoHistory, remainingFilters, undoTurnCount, messages, provider
+      remainingStages = (prevState.stageHistory ?? []).filter(s =>
+        !s.filterApplied || s.filterApplied.appliedAt < undoTurnCount
       )
     }
+
+    // Re-run retrieval with remaining filters
+    const undoResult = await runHybridRetrieval(rebuiltInput, remainingFilters.filter(f => f.op !== "skip"))
+    const undoCandidates = undoResult.candidates
+
+    // Debug logging
+    const removedFilterDesc = requestPrep.route.undoTarget?.filterValue ?? "last step"
+    console.log(`[narrowing:undo] ═══════════════════════════════`)
+    console.log(`[narrowing:undo] Target: "${removedFilterDesc}"`)
+    console.log(`[narrowing:undo] Filters: ${prevState.appliedFilters?.length ?? 0} → ${remainingFilters.length}`)
+    console.log(`[narrowing:undo] Candidates: ${prevState.candidateCount} → ${undoCandidates.length}`)
+    console.log(`[narrowing:undo] Stages remaining: ${remainingStages.length}`)
+    console.log(`[narrowing:undo] Turn count: ${prevState.turnCount} → ${undoTurnCount}`)
+    console.log(`[narrowing:undo] ═══════════════════════════════`)
+
+    // Build question response for the restored state
+    return buildQuestionResponse(
+      form, undoCandidates, undoResult.evidenceMap, rebuiltInput,
+      remainingHistory, remainingFilters, undoTurnCount, messages, provider,
+      undefined, remainingStages
+    )
   }
 
   // ── Step 2: Process user message (if any) ──────────────────
@@ -201,6 +262,7 @@ async function handleExploration(
           candidateCount: prevState.candidateCount,
           appliedFilters: filters,
           narrowingHistory: narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
           resolutionStatus: prevState.resolutionStatus ?? "broad",
           resolvedInput: currentInput,
           turnCount,
@@ -233,6 +295,7 @@ async function handleExploration(
           candidateCount: prevState.candidateCount ?? candidates.length,
           appliedFilters: filters,
           narrowingHistory: narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
           resolutionStatus: prevState.resolutionStatus ?? "broad",
           resolvedInput: currentInput,
           turnCount,
@@ -268,6 +331,7 @@ async function handleExploration(
             candidateCount: candidates.length,
             appliedFilters: filters,
             narrowingHistory: narrowingHistory,
+            stageHistory: prevState.stageHistory ?? [],
             resolutionStatus: prevState.resolutionStatus,
             resolvedInput: currentInput,
             turnCount,
@@ -412,6 +476,26 @@ async function handleExploration(
             candidateCountAfter: newCandidates.length,
           })
 
+          // ── Stage snapshot: record this narrowing step ──
+          const existingStages = prevState.stageHistory ?? []
+          const newStage: NarrowingStage = {
+            stepIndex: turnCount,
+            stageName: `${filter.field}_${filter.value}`,
+            filterApplied: filter,
+            candidateCount: newCandidates.length,
+            resolvedInputSnapshot: { ...currentInput },
+            filtersSnapshot: [...filters],
+          }
+          const updatedStages = [...existingStages, newStage]
+
+          // Debug logging
+          console.log(`[narrowing:filter] ═══════════════════════════════`)
+          console.log(`[narrowing:filter] Applied: ${filter.field}=${filter.value}`)
+          console.log(`[narrowing:filter] Candidates: ${prevCandidateCount} → ${newCandidates.length}`)
+          console.log(`[narrowing:filter] Total filters: ${filters.length}`)
+          console.log(`[narrowing:filter] Stage history: ${updatedStages.map(s => s.stageName).join(" → ")}`)
+          console.log(`[narrowing:filter] ═══════════════════════════════`)
+
           turnCount++
 
           // Check if we're resolved after applying the filter
@@ -426,7 +510,8 @@ async function handleExploration(
           // Ask next question based on new candidate pool
           return buildQuestionResponse(
             form, newCandidates, newResult.evidenceMap, currentInput,
-            narrowingHistory, filters, turnCount, messages, provider
+            narrowingHistory, filters, turnCount, messages, provider,
+            undefined, updatedStages
           )
         }
       }
@@ -462,9 +547,15 @@ async function buildQuestionResponse(
   turnCount: number,
   messages: ChatMessage[],
   provider: ReturnType<typeof getProvider>,
-  overrideText?: string
+  overrideText?: string,
+  existingStageHistory?: NarrowingStage[]
 ): Promise<Response> {
   const question = selectNextQuestion(input, candidates, history)
+
+  // Build stage history — snapshot current state if we don't have one yet
+  const stageHistory: NarrowingStage[] = existingStageHistory
+    ? [...existingStageHistory]
+    : buildStageHistoryFromFilters(filters, input, candidates.length)
 
   // Build session state for client
   const sessionState: ExplorationSessionState = {
@@ -472,11 +563,15 @@ async function buildQuestionResponse(
     candidateCount: candidates.length,
     appliedFilters: filters,
     narrowingHistory: history,
+    stageHistory,
     resolutionStatus: checkResolution(candidates, history),
     resolvedInput: input,
     turnCount,
     lastAskedField: question?.field ?? undefined,  // track which field we're asking about
   }
+
+  // Debug: log narrowing state
+  logNarrowingState("question", sessionState, question?.field ?? null)
 
   // If no question (resolved or out of questions), go to recommendation
   if (!question) {
@@ -638,6 +733,7 @@ async function buildRecommendationResponse(
         candidateCount: candidates.length,
         appliedFilters: filters,
         narrowingHistory: history,
+        stageHistory: buildStageHistoryFromFilters(filters, input, candidates.length),
         resolutionStatus: checkResolution(candidates, history),
         resolvedInput: input,
         turnCount,
@@ -685,6 +781,7 @@ async function buildRecommendationResponse(
     candidateCount: candidates.length,
     appliedFilters: filters,
     narrowingHistory: history,
+    stageHistory: buildStageHistoryFromFilters(filters, input, candidates.length),
     resolutionStatus: checkResolution(candidates, history),
     resolvedInput: input,
     turnCount,
@@ -1431,6 +1528,58 @@ function applySingleFilter(input: RecommendationInput, filter: AppliedFilter): R
       break
   }
   return updated
+}
+
+// ── Build Stage History from Filters (bootstrap when no history exists) ──
+function buildStageHistoryFromFilters(
+  filters: AppliedFilter[],
+  currentInput: RecommendationInput,
+  currentCandidateCount: number
+): NarrowingStage[] {
+  // Build initial stage
+  const stages: NarrowingStage[] = [{
+    stepIndex: -1,
+    stageName: "initial_search",
+    filterApplied: null,
+    candidateCount: currentCandidateCount,
+    resolvedInputSnapshot: { ...currentInput },
+    filtersSnapshot: [],
+  }]
+
+  // Build a stage for each applied filter
+  let accumulatedFilters: AppliedFilter[] = []
+  for (const f of filters) {
+    accumulatedFilters = [...accumulatedFilters, f]
+    stages.push({
+      stepIndex: f.appliedAt,
+      stageName: `${f.field}_${f.value}`,
+      filterApplied: f,
+      candidateCount: currentCandidateCount, // approximate — we don't have historical counts here
+      resolvedInputSnapshot: { ...currentInput },
+      filtersSnapshot: [...accumulatedFilters],
+    })
+  }
+
+  return stages
+}
+
+// ── Debug: Log Narrowing State ──────────────────────────────
+function logNarrowingState(
+  phase: string,
+  state: ExplorationSessionState,
+  currentField: string | null
+): void {
+  console.log(`[narrowing:${phase}] ───────────────────────────`)
+  console.log(`[narrowing:${phase}] Session: ${state.sessionId}`)
+  console.log(`[narrowing:${phase}] Candidates: ${state.candidateCount}`)
+  console.log(`[narrowing:${phase}] Status: ${state.resolutionStatus}`)
+  console.log(`[narrowing:${phase}] Turn: ${state.turnCount}`)
+  console.log(`[narrowing:${phase}] Filters: ${state.appliedFilters.map(f => `${f.field}=${f.value}`).join(", ") || "(none)"}`)
+  console.log(`[narrowing:${phase}] Stages: ${state.stageHistory?.map(s => s.stageName).join(" → ") || "(none)"}`)
+  if (currentField) {
+    console.log(`[narrowing:${phase}] Next question field: ${currentField}`)
+  }
+  console.log(`[narrowing:${phase}] ───────────────────────────`)
 }
 
 // ── Build Candidate Snapshot (lightweight for UI) ────────────

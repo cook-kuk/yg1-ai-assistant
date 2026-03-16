@@ -34,12 +34,24 @@ export interface NarrowingTurn {
   candidateCountAfter: number
 }
 
+// ── Stage Snapshot (for back-navigation) ─────────────────────
+/** Immutable snapshot of the narrowing state at each step */
+export interface NarrowingStage {
+  stepIndex: number
+  stageName: string                    // e.g. "initial_search", "toolSubtype_Square", "fluteCount_4"
+  filterApplied: AppliedFilter | null  // null for initial stage
+  candidateCount: number
+  resolvedInputSnapshot: RecommendationInput  // full input state at this stage
+  filtersSnapshot: AppliedFilter[]     // all filters up to this point
+}
+
 // ── Session State (serializable, sent between client ↔ server) ──
 export interface ExplorationSessionState {
   sessionId: string
   candidateCount: number
   appliedFilters: AppliedFilter[]
   narrowingHistory: NarrowingTurn[]
+  stageHistory: NarrowingStage[]       // ordered stage snapshots for back-navigation
   resolutionStatus: ResolutionStatus
   resolvedInput: RecommendationInput   // accumulated from intake + narrowing
   turnCount: number
