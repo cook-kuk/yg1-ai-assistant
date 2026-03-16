@@ -2,7 +2,7 @@
  * /api/chat — YG-1 AI Chat with Tool Use Architecture
  *
  * Uses Sonnet 4.5 + Anthropic Tool Use instead of dumping all products into context.
- * Tools: search_products, get_product_detail, get_cutting_conditions, get_competitor_mapping
+ * Tools: search_products, get_product_detail, get_cutting_conditions, get_competitor_mapping, web_search
  */
 
 import Anthropic from "@anthropic-ai/sdk"
@@ -66,7 +66,9 @@ YG-1은 한국의 세계적인 절삭공구 제조사입니다.
 - 특정 제품 상세 정보가 필요하면 get_product_detail 도구를 사용
 - 절삭조건이 필요하면 get_cutting_conditions 도구를 사용
 - 경쟁사 대체품 문의면 get_competitor_mapping 도구를 사용
-- 일반 대화/기술 상담은 도구 없이 직접 답변
+- 위 도구로 데이터를 찾지 못했을 때 → web_search 도구로 웹에서 카탈로그/기술자료 검색
+- 절삭공구 관련 일반 전문지식 질문 (원리, 비교, 가이드 등) → web_search 도구로 최신 정보 검색
+- 웹 검색 결과를 인용할 때는 반드시 "📌 웹 검색 결과 (내부 DB 외부)" 라고 출처를 명시
 
 절대 규칙:
 1. 제품 코드, 스펙은 도구로 조회한 데이터에서만 인용 — 절대 생성하지 마라
@@ -190,7 +192,91 @@ const TOOLS: Anthropic.Tool[] = [
       required: [],
     },
   },
+  {
+    name: "web_search",
+    description:
+      "웹 검색을 수행합니다. 내부 DB에서 제품/절삭조건을 찾지 못했을 때 카탈로그나 기술 자료를 검색하거나, 절삭공구 관련 일반 전문지식 질문에 답하기 위해 사용합니다. 검색 결과는 내부 DB 데이터가 아님을 반드시 명시해야 합니다.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        query: {
+          type: "string",
+          description:
+            "검색어. 예: 'YG-1 ALU-POWER HPC catalog', '엔드밀 황삭 절삭조건 가이드', 'TiAlN vs AlCrN 코팅 비교'",
+        },
+        search_purpose: {
+          type: "string",
+          enum: ["product_catalog", "cutting_knowledge", "general_knowledge"],
+          description:
+            "검색 목적. product_catalog=내부 DB에 없는 제품/카탈로그 검색, cutting_knowledge=절삭공구 전문지식, general_knowledge=일반 기술 지식",
+        },
+      },
+      required: ["query", "search_purpose"],
+    },
+  },
 ]
+
+// ── Web Search Implementation ───────────────────────────────
+
+async function executeWebSearch(params: {
+  query: string
+  search_purpose: string
+}): Promise<string> {
+  if (!client) {
+    return JSON.stringify({ found: false, message: "API 키가 설정되지 않았습니다." })
+  }
+
+  try {
+    const searchQuery = params.search_purpose === "product_catalog"
+      ? `YG-1 절삭공구 ${params.query} catalog specification`
+      : params.query
+
+    const resp = await client.messages.create({
+      model: "claude-sonnet-4-20250514" as Parameters<typeof client.messages.create>["0"]["model"],
+      max_tokens: 1024,
+      tools: [{ type: "web_search_20250305" as const, name: "web_search", max_uses: 3 }],
+      messages: [{
+        role: "user",
+        content: `다음 질문에 대해 웹 검색으로 정보를 찾아주세요. 검색 결과를 한국어로 정리해주세요.\n\n질문: ${searchQuery}\n\n중요: 찾은 정보의 출처 URL을 반드시 포함해주세요.`,
+      }],
+    })
+
+    // Extract text and citations from response
+    const textBlocks = resp.content.filter(
+      (b): b is Anthropic.TextBlock => b.type === "text"
+    )
+    const searchText = textBlocks.map((b) => b.text).join("\n")
+
+    // Extract citations if available
+    const citations: string[] = []
+    for (const block of resp.content) {
+      if (block.type === "text" && block.citations) {
+        for (const cite of block.citations) {
+          if ("url" in cite && cite.url) {
+            citations.push(cite.url)
+          }
+        }
+      }
+    }
+
+    return JSON.stringify({
+      found: true,
+      source: "web_search",
+      search_purpose: params.search_purpose,
+      content: searchText,
+      citations: [...new Set(citations)].slice(0, 5),
+      disclaimer: "⚠️ 이 정보는 내부 DB가 아닌 웹 검색 결과입니다. 정확한 수치는 공식 카탈로그를 확인하세요.",
+    })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error("Web search error:", msg)
+    return JSON.stringify({
+      found: false,
+      source: "web_search",
+      message: `웹 검색 중 오류: ${msg}`,
+    })
+  }
+}
 
 // ── Tool Implementation ─────────────────────────────────────
 
@@ -294,7 +380,7 @@ function executeSearchProducts(params: {
     return JSON.stringify({
       count: 0,
       products: [],
-      message: "검색 조건에 맞는 제품을 찾지 못했습니다.",
+      message: "내부 DB에서 검색 조건에 맞는 제품을 찾지 못했습니다. web_search 도구로 웹에서 카탈로그를 검색해보세요.",
     })
   }
 
@@ -330,7 +416,7 @@ function executeGetProductDetail(params: {
   if (products.length === 0) {
     return JSON.stringify({
       found: false,
-      message: "해당 제품을 찾지 못했습니다.",
+      message: "내부 DB에서 해당 제품을 찾지 못했습니다. web_search 도구로 웹에서 검색해보세요.",
     })
   }
 
@@ -458,7 +544,7 @@ function executeGetCuttingConditions(params: {
 
   return JSON.stringify({
     found: false,
-    message: "해당 조건의 절삭조건 데이터를 찾지 못했습니다.",
+    message: "내부 DB에서 해당 조건의 절삭조건 데이터를 찾지 못했습니다. web_search 도구로 웹에서 카탈로그 절삭조건을 검색해보세요.",
   })
 }
 
@@ -545,17 +631,17 @@ function executeGetCompetitorMapping(params: {
 
   return JSON.stringify({
     found: false,
-    message: "해당 경쟁사 제품 정보를 찾지 못했습니다.",
+    message: "내부 DB에서 해당 경쟁사 제품 정보를 찾지 못했습니다. web_search 도구로 웹에서 검색해보세요.",
     availableCompetitors: [
       ...new Set(competitors.map((p) => p.manufacturer).filter(Boolean)),
     ].slice(0, 10),
   })
 }
 
-function executeTool(
+async function executeTool(
   toolName: string,
   toolInput: Record<string, unknown>
-): string {
+): Promise<string> {
   try {
     switch (toolName) {
       case "search_products":
@@ -573,6 +659,10 @@ function executeTool(
       case "get_competitor_mapping":
         return executeGetCompetitorMapping(
           toolInput as Parameters<typeof executeGetCompetitorMapping>[0]
+        )
+      case "web_search":
+        return await executeWebSearch(
+          toolInput as Parameters<typeof executeWebSearch>[0]
         )
       default:
         return JSON.stringify({ error: `Unknown tool: ${toolName}` })
@@ -592,6 +682,7 @@ type ChatIntent =
   | "cutting_condition"
   | "coating_material_qa"
   | "cross_reference"
+  | "web_search"
   | "general"
 
 function inferIntent(toolsUsed: string[]): ChatIntent {
@@ -599,6 +690,7 @@ function inferIntent(toolsUsed: string[]): ChatIntent {
   if (toolsUsed.includes("get_cutting_conditions")) return "cutting_condition"
   if (toolsUsed.includes("get_product_detail")) return "product_lookup"
   if (toolsUsed.includes("search_products")) return "product_recommendation"
+  if (toolsUsed.includes("web_search")) return "web_search"
   return "general"
 }
 
@@ -756,7 +848,7 @@ export async function POST(req: NextRequest) {
       const toolResultMessages: Anthropic.ToolResultBlockParam[] = []
 
       for (const toolBlock of toolUseBlocks) {
-        const result = executeTool(
+        const result = await executeTool(
           toolBlock.name,
           toolBlock.input as Record<string, unknown>
         )
@@ -820,6 +912,9 @@ export async function POST(req: NextRequest) {
           break
         case "cross_reference":
           chips = ["상세 스펙 비교", "절삭조건 보기", "다른 대체품"]
+          break
+        case "web_search":
+          chips = ["내부 DB에서 검색", "더 자세히 알려줘", "관련 제품 추천"]
           break
         default:
           chips = ["제품 추천", "절삭조건 문의", "코팅 비교"]

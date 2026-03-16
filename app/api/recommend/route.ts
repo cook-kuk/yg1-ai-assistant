@@ -796,6 +796,39 @@ ${productContext}
   return null
 }
 
+// ── Web Search for Knowledge Questions ────────────────────────
+
+const CUTTING_KNOWLEDGE_PATTERNS = /절삭|공구|엔드밀|드릴|인서트|코팅|소재|가공|선반|밀링|CNC|초경|CBN|세라믹|황삭|정삭|면취|보링|리머|탭|나사|칩|인선|마모|수명|이송|회전|절입|쿨란트|치핑|버|진동|채터|tialn|alcrn|dlc|hss|carbide|endmill|milling|turning|drilling/i
+
+async function searchWebForKnowledge(query: string, purpose: "cutting_knowledge" | "general_knowledge"): Promise<string | null> {
+  const apiKey = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_KEY || ""
+  if (!apiKey) return null
+
+  try {
+    const Anthropic = (await import("@anthropic-ai/sdk")).default
+    const searchClient = new Anthropic({ apiKey })
+
+    const resp = await searchClient.messages.create({
+      model: "claude-sonnet-4-20250514" as Parameters<typeof searchClient.messages.create>["0"]["model"],
+      max_tokens: 1024,
+      tools: [{ type: "web_search_20250305" as const, name: "web_search", max_uses: 3 }],
+      messages: [{
+        role: "user",
+        content: `다음 질문에 대해 웹 검색으로 전문적인 정보를 찾아 한국어로 정리해주세요.\n\n질문: ${query}\n\n규칙:\n- 구체적 수치와 비교 포함\n- 3~5문장으로 핵심만\n- 출처가 있으면 간단히 언급`,
+      }],
+    })
+
+    const textBlocks = resp.content.filter(
+      (b): b is { type: "text"; text: string; citations?: unknown[] } => b.type === "text"
+    )
+    const text = textBlocks.map((b) => b.text).join("\n").trim()
+    return text || null
+  } catch (e) {
+    console.warn("[recommend] Web search failed:", e)
+    return null
+  }
+}
+
 // ── General Chat Handler (non-product questions) ──────────────
 // Unified handler: greetings, general knowledge, off-domain, system questions
 async function handleGeneralChat(
@@ -816,6 +849,16 @@ async function handleGeneralChat(
     }
   }
 
+  // Detect if this is a cutting tool knowledge question → web search
+  const isCuttingKnowledge = CUTTING_KNOWLEDGE_PATTERNS.test(clean)
+  const isKnowledgeQuestion = /차이|비교|뭐야|알려|설명|원리|방법|팁|주의|장단점|특징|어떤|언제|왜|어떻게|추천|좋은/i.test(clean)
+  const needsWebSearch = isCuttingKnowledge && isKnowledgeQuestion
+
+  let webSearchResult: string | null = null
+  if (needsWebSearch) {
+    webSearchResult = await searchWebForKnowledge(clean, "cutting_knowledge")
+  }
+
   // Build context about current session for richer answers
   const sessionContext = candidateCount > 0
     ? `현재 ${candidateCount}개 후보 제품이 검색되어 있습니다.`
@@ -823,6 +866,10 @@ async function handleGeneralChat(
 
   const formContext = form.material.status === "known" || form.operationType.status === "known"
     ? `사용자 입력 조건: 소재=${form.material.status === "known" ? form.material.value : "미지정"}, 가공=${form.operationType.status === "known" ? form.operationType.value : "미지정"}`
+    : ""
+
+  const webContext = webSearchResult
+    ? `\n═══ 웹 검색 참고 자료 (내부 DB 외부) ═══\n${webSearchResult}\n위 웹 검색 결과를 참고하여 답변하되, "📌 웹 검색 참고 (내부 DB 외부 정보)" 라고 출처를 밝혀주세요.`
     : ""
 
   try {
@@ -866,12 +913,14 @@ YG-1은 한국의 세계적인 절삭공구 제조사입니다.
 
 ${sessionContext}
 ${formContext}
+${webContext}
 
 ═══ 응답 규칙 ═══
 - 한국어로 자연스럽게 대화
 - 간결하게 (2-5문장)
 - 절삭공구 무관한 질문: 짧게 답변 후 "절삭공구 관련 질문도 도와드릴 수 있어요" 정도만
 - 기술 질문: 구체적 수치와 비교 포함
+- 웹 검색 결과를 인용할 경우 반드시 "📌 웹 검색 참고 (내부 DB 외부 정보)" 출처 표시
 - "추가 조건을 알려주시면~" 같은 빈 말 금지
 - 응답 끝에 JSON이나 특수 포맷 쓰지 말고 순수 자연어로만`
 
