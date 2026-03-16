@@ -621,7 +621,7 @@ async function buildRecommendationResponse(
   if (provider.available() && primary && primaryFactChecked && primaryExplanation) {
     try {
       const systemPrompt = buildSystemPrompt()
-      const sessionState: ExplorationSessionState = {
+      const llmSessionState: ExplorationSessionState = {
         sessionId: `ses-${Date.now()}`,
         candidateCount: candidates.length,
         appliedFilters: filters,
@@ -630,11 +630,11 @@ async function buildRecommendationResponse(
         resolutionStatus: checkResolution(candidates, history),
         resolvedInput: input,
         turnCount,
-        displayedCandidates: candidateSnapshot,
-        displayedChips: followUpChips,
+        displayedCandidates: [],  // not yet built at this point
+        displayedChips: [],
         lastAction: "show_recommendation",
       }
-      const sessionCtx = buildSessionContext(form, sessionState, candidates.length, displayedProducts)
+      const sessionCtx = buildSessionContext(form, llmSessionState, candidates.length, displayedProducts)
 
       // Use new explanation-aware prompt — include per-product evidence
       const resultPrompt = buildExplanationResultPrompt(
