@@ -2,7 +2,19 @@
   "permissions": {
     "allow": [
       "Bash(ls .env*)",
-      "WebFetch(domain:yg1-ai-assistant.vercel.app)"
+      "WebFetch(domain:yg1-ai-assistant.vercel.app)",
+      "Bash(node -e \":*)",
+      "Bash(ls -lh /c/Users/kuksh/Downloads/YG1_test/data/normalized/*.json)",
+      "Bash(npx vercel:*)",
+      "Read(//c/Users/kuksh/**)",
+      "Bash(find c:/Users/kuksh/Downloads/YG1_test -type f \\\\\\(-name .env* -o -name *.env \\\\\\))",
+      "Bash(grep -r provider.complete /c/Users/kuksh/Downloads/YG1_test --include=*.ts --include=*.js)",
+      "Bash(git fetch:*)",
+      "Bash(git commit:*)",
+      "Bash(node -e \"const d=require\\(''./data/normalized/products.json''\\); const brands=[...new Set\\(d.map\\(p=>p.brand\\)\\)].sort\\(\\); console.log\\(''총 제품:'', d.length\\); console.log\\(''브랜드 수:'', brands.length\\); console.log\\(''브랜드 목록:''\\); brands.forEach\\(b=>console.log\\('' -'', b, ''\\(''+d.filter\\(p=>p.brand===b\\).length+''개\\)''\\)\\)\")",
+      "Bash(ls package.json playwright.config.*)",
+      "Bash(npx playwright:*)",
+      "Bash(vercel --prod)"
     ]
   }
 }

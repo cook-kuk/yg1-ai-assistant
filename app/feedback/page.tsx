@@ -70,12 +70,19 @@ export default function FeedbackViewerPage() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch("/api/feedback")
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 10000)
+      const res = await fetch("/api/feedback", { signal: controller.signal })
+      clearTimeout(timeout)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       setEntries(data.entries ?? [])
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load")
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setError("요청 시간이 초과되었습니다. 새로고침을 시도해주세요.")
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to load")
+      }
     } finally {
       setLoading(false)
     }
@@ -110,11 +117,9 @@ export default function FeedbackViewerPage() {
       <div className="bg-white border-b px-6 py-4">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/products">
-              <Button variant="ghost" size="sm" className="gap-1">
-                <ArrowLeft size={14} />돌아가기
-              </Button>
-            </Link>
+            <Button variant="ghost" size="sm" className="gap-1" onClick={() => window.history.back()}>
+              <ArrowLeft size={14} />돌아가기
+            </Button>
             <div>
               <h1 className="text-lg font-bold text-gray-900">피드백 관리</h1>
               <p className="text-xs text-gray-500">챗봇 결과에 대한 내부/고객 의견</p>

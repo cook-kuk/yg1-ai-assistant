@@ -76,6 +76,7 @@ export interface CandidateSnapshot {
   rank: number
   productCode: string
   displayCode: string
+  brand: string | null
   seriesName: string | null
   seriesIconUrl: string | null
   diameterMm: number | null

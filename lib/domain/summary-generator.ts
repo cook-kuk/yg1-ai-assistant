@@ -60,7 +60,8 @@ export function buildDeterministicSummary(result: RecommendationResult): string 
   if (p.toolMaterial) specs.push(p.toolMaterial)
   if (specs.length) parts.push(specs.join(", "))
 
-  // Series info
+  // Brand & Series info
+  if (p.brand && p.brand !== "YG-1") parts.push(`브랜드명: ${p.brand}`)
   if (p.seriesName) parts.push(`시리즈: ${p.seriesName}`)
 
   // Material compatibility

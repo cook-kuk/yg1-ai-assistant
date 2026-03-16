@@ -165,7 +165,7 @@ export default function InquiryDetailPage() {
               전문가 이관
             </Button>
             <Button asChild>
-              <Link href={`/quotes/new?inquiry=${inquiry.id}`}>
+              <Link href={`/quotes?inquiry=${inquiry.id}`}>
                 <FileText className="h-4 w-4 mr-2" />
                 견적 초안
               </Link>

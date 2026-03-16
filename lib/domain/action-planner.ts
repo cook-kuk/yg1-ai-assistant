@@ -24,6 +24,7 @@ export type ActionIntent =
   | "nonsensical_or_low_signal"
   | "out_of_scope"
   | "forced_recommendation"  // user said "빨리", "그냥 줘" etc.
+  | "general_answer"         // LLM should answer freely (general/off-domain/knowledge questions)
 
 export type RetrievalStrategy =
   | "none"                    // no retrieval (greeting, nonsense)
@@ -40,6 +41,7 @@ export type ResponseFormat =
   | "comparison"     // side-by-side comparison
   | "condition"      // cutting condition answer
   | "chat"           // general conversation
+  | "general_chat"   // LLM answers freely (no retrieval needed)
 
 export interface ActionPlan {
   intent: ActionIntent
@@ -111,12 +113,50 @@ export function planAction(
   // ── Gate 1: Noise / Off-domain ──
   if (inquiry.signalStrength === "noise" || inquiry.domainRelevance === "off_domain") {
     const isGreeting = inquiry.inputForm === "smalltalk" && inquiry.seriousness !== "nonsense"
+    const isGeneralQuestion = inquiry.suggestedAction === "answer_general"
 
+    // True nonsense (ㅋㅋㅋ, etc.) → static redirect
+    if (inquiry.seriousness === "nonsense" && !isGeneralQuestion) {
+      return {
+        intent: "nonsensical_or_low_signal",
+        intentConfidence: 0.95,
+        retrievalStrategy: "none",
+        responseFormat: "redirect",
+        maxCandidatesToRetrieve: 0,
+        maxCandidatesToDisplay: 0,
+        shouldShowCandidateList: false,
+        shouldShowConditionChips: false,
+        shouldShowCandidateCount: false,
+        factCheckRequired: false,
+        skipNarrowing: false,
+        reason: inquiry.reason,
+      }
+    }
+
+    // Greetings, off-domain questions, general questions → let LLM answer
     return {
-      intent: isGreeting ? "greeting_or_smalltalk" : "nonsensical_or_low_signal",
-      intentConfidence: 0.95,
+      intent: isGreeting ? "greeting_or_smalltalk" : "general_answer",
+      intentConfidence: 0.9,
       retrievalStrategy: "none",
-      responseFormat: "redirect",
+      responseFormat: "general_chat",
+      maxCandidatesToRetrieve: 0,
+      maxCandidatesToDisplay: 0,
+      shouldShowCandidateList: false,
+      shouldShowConditionChips: false,
+      shouldShowCandidateCount: false,
+      factCheckRequired: false,
+      skipNarrowing: false,
+      reason: inquiry.reason,
+    }
+  }
+
+  // ── Gate 1.5: General knowledge questions (on-domain/adjacent but no product retrieval needed) ──
+  if (inquiry.suggestedAction === "answer_general") {
+    return {
+      intent: "general_answer",
+      intentConfidence: 0.85,
+      retrievalStrategy: "none",
+      responseFormat: "general_chat",
       maxCandidatesToRetrieve: 0,
       maxCandidatesToDisplay: 0,
       shouldShowCandidateList: false,

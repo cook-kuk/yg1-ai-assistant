@@ -31,7 +31,7 @@ export interface InquiryAnalysis {
 
   // Recovery
   recoverability: Recoverability
-  suggestedAction: "proceed_retrieval" | "ask_clarification" | "soft_redirect" | "hard_redirect"
+  suggestedAction: "proceed_retrieval" | "ask_clarification" | "soft_redirect" | "hard_redirect" | "answer_general"
 
   // Debug
   reason: string
@@ -81,6 +81,13 @@ const COATING_KEYWORDS = new Set([
   "코팅", "tialn", "alcrn", "ticn", "tin", "dlc", "무코팅", "y-코팅", "블루",
 ])
 
+// General knowledge keywords — when combined with any domain keyword, treat as on-domain question
+const GENERAL_KNOWLEDGE_KEYWORDS = new Set([
+  "가공", "주의", "주의사항", "차이", "비교", "장단점", "특징", "원리", "팁", "방법",
+  "선택", "기준", "어떻게", "언제", "왜", "장점", "단점", "수명", "마모",
+  "속도", "이송", "회전", "절입", "절삭", "냉각", "쿨란트", "칩",
+])
+
 const RECOMMENDATION_SIGNALS = new Set([
   "추천", "추천해", "골라", "찾아", "뭐", "어떤", "좋은", "적합",
   "무난", "인기", "베스트", "대체", "대안", "비교",
@@ -94,9 +101,8 @@ const GREETING_PATTERNS = [
 const NONSENSE_PATTERNS = [
   /^[ㅋㅎㅠㅜㄷ]+$/,          // ㅋㅋㅋ, ㅎㅎ, ㅠㅠ
   /^[!?.,;:]+$/,              // ???, !!!
-  /^[a-z]{1,3}$/i,            // "hi", "ok" (too short)
   /^(ㅇㅇ|ㄴㄴ|ㄱㄱ|ㅇㅋ)$/,
-  /^(뭐|왜|음|어|헐|흠|아)$/,
+  /^(음|헐|흠)$/,             // truly meaningless — "뭐", "왜", "어", "아" can be valid
 ]
 
 const OFF_DOMAIN_KEYWORDS = new Set([
@@ -107,6 +113,40 @@ const OFF_DOMAIN_KEYWORDS = new Set([
 const SMALLTALK_PATTERNS = [
   /나랑\s*놀/, /심심/, /뭐\s*해/, /배고/, /졸려/, /놀자/,
   /뭐\s*할\s*수\s*있/, /누구/, /이름이\s*뭐/,
+]
+
+// Narrowing response patterns — valid session responses that should NOT be redirected
+const NARROWING_RESPONSE_PATTERNS = [
+  /^상관\s*없/, /^아무\s*거나/, /^아무거나/, /^뭐든/, /^다\s*괜찮/, /^괜찮/,
+  /^모름/, /^몰라/, /^모르겠/, /^모른다/, /^잘\s*모르/, /^글쎄/,
+  /모른다고/, /모르겠다고/, /몰라요/, /모릅니다/,
+  /^패스/, /^넘어/, /^넘겨/, /^다음/, /^스킵/, /^skip/i, /^pass/i, /^next/i,
+  /^추천해/, /^보여/, /^결과/, /^바로/,
+  /^\d+\s*(mm|밀리|파이)/, /^\d+날/, /^\d+\s*날/,
+  // Contextual questions about current narrowing question
+  /^그게\s*뭐/, /^그건\s*뭐/, /^이게\s*뭐/, /^뭐야\s*그/, /^그거\s*뭐/,
+  /^차이.*뭐/, /^뭐가\s*다/, /^뭐가\s*좋/, /^어떤\s*게\s*좋/,
+  /이미.*했/, /이미.*말했/, /이미.*입력/, /아까.*했/, /아까.*말했/,
+  /했잖아/, /했잔아/, /말했잖아/, /말했잔아/, /입력했/,
+]
+
+// App/UI-related question patterns — questions about the system itself
+const APP_QUESTION_PATTERNS = [
+  /매칭.*뭐|매칭.*무엇|매칭.*뜻|매칭.*의미/,
+  /점수.*뭐|점수.*무엇|점수.*뜻|점수.*의미|점수.*어떻게/,
+  /후보.*뭐|후보.*무엇|후보.*뜻/,
+  /팩트.*체크|fact.*check|검증.*뭐/,
+  /근거.*뭐|근거.*무엇|근거.*뜻/,
+  /절삭.*조건.*뭐|절삭.*조건.*무엇/,
+  /스코어|score|배점|가중치|weight/i,
+  /어떻게.*작동|어떻게.*동작|원리|메커니즘/,
+  /이\s*시스템|이\s*앱|이\s*사이트|이\s*프로그램/,
+  /뭐야\??$|뭔가요\??$|뭔데\??$|뭐에요\??$/,  // ends with "뭐야?"
+  /무슨.*뜻|무슨.*의미/,
+  /왜.*이렇게|왜.*이런|왜.*나와|왜.*나오/,
+  /어떻게.*봐|어떻게.*읽|어떻게.*해석/,
+  /정확.*매칭|근사.*매칭|근사.*후보/,
+  /없음.*뭐|없음.*뜻|없음.*의미/,
 ]
 
 // ── Main Analysis Function ───────────────────────────────────
@@ -135,23 +175,61 @@ export function analyzeInquiry(message: string): InquiryAnalysis {
       "무의미 패턴 매칭", { ambiguityLevel: "high", seriousness: "nonsense" })
   }
 
-  // Check for greeting
+  // Check for greeting — let LLM respond naturally
   if (GREETING_PATTERNS.some(p => p.test(lower))) {
-    return buildResult("weak", "off_domain", "smalltalk", "not_recoverable", "soft_redirect",
+    return buildResult("weak", "adjacent", "smalltalk", "not_recoverable", "answer_general",
       "인사/잡담 패턴", { ambiguityLevel: "low", seriousness: "genuine" })
   }
 
-  // Check for smalltalk
-  if (SMALLTALK_PATTERNS.some(p => p.test(lower))) {
-    return buildResult("noise", "off_domain", "smalltalk", "not_recoverable", "soft_redirect",
-      "잡담 패턴", { ambiguityLevel: "low", seriousness: "nonsense" })
+  // Check for narrowing responses (skip, don't-care, parameter values) — always pass through
+  if (NARROWING_RESPONSE_PATTERNS.some(p => p.test(lower))) {
+    return buildResult("moderate", "on_domain", "command", "immediate", "proceed_retrieval",
+      "축소 대화 응답 (skip/값 입력)", { ambiguityLevel: "low", seriousness: "genuine", extractedKeywordCount: 0 })
   }
 
-  // Check for off-domain
+  // Check for app/UI questions (before smalltalk/off-domain so they don't get blocked)
+  if (APP_QUESTION_PATTERNS.some(p => p.test(lower))) {
+    return buildResult("moderate", "adjacent", "question", "immediate", "answer_general",
+      "앱/UI 관련 질문", { ambiguityLevel: "low", seriousness: "genuine", extractedKeywordCount: 0 })
+  }
+
+  // Check for domain knowledge questions — "차이가 뭐야", "비교해줘", "주의사항" etc.
+  // These have domain keywords but are asking for knowledge, not product search
+  const KNOWLEDGE_QUESTION_PATTERNS = [
+    /차이.*뭐|차이점|비교.*해|비교.*줘|뭐가.*다른/,
+    /주의.*사항|주의.*점|주의.*해야/,
+    /장단점|장점.*단점|좋은.*점|나쁜.*점/,
+    /뭐야\??$|뭔가요\??$|뭔데\??$|뭐에요\??$|뭐임\??$/,
+    /알려.*줘|설명.*해|가르쳐/,
+    /어떤.*좋|뭐가.*좋|뭘.*써야|언제.*쓰|왜.*쓰/,
+    /특징|원리|방법|팁|노하우/,
+  ]
+  const isKnowledgeQuestion = KNOWLEDGE_QUESTION_PATTERNS.some(p => p.test(lower))
+  const hasCoatingOrMaterialKw = [...COATING_KEYWORDS].some(k => lower.includes(k)) || [...MATERIAL_KEYWORDS].some(k => lower.includes(k))
+  if (isKnowledgeQuestion && hasCoatingOrMaterialKw) {
+    return buildResult("moderate", "on_domain", "question", "immediate", "answer_general",
+      "도메인 지식 질문 (코팅/소재)", { ambiguityLevel: "low", seriousness: "genuine", extractedKeywordCount: 0 })
+  }
+
+  // Check for smalltalk — let LLM answer naturally instead of static redirect
+  if (SMALLTALK_PATTERNS.some(p => p.test(lower))) {
+    return buildResult("weak", "off_domain", "smalltalk", "not_recoverable", "answer_general",
+      "잡담 패턴", { ambiguityLevel: "low", seriousness: "genuine" })
+  }
+
+  // Check for off-domain — let LLM respond briefly then redirect
   const hasOffDomain = [...OFF_DOMAIN_KEYWORDS].some(k => lower.includes(k))
   if (hasOffDomain && !hasDomainKeywords(lower)) {
-    return buildResult("noise", "off_domain", "nonsense", "not_recoverable", "hard_redirect",
-      "범위 밖 키워드", { ambiguityLevel: "low", seriousness: "genuine" })
+    return buildResult("weak", "off_domain", "question", "not_recoverable", "answer_general",
+      "범위 밖 질문 — LLM이 유연하게 대응", { ambiguityLevel: "low", seriousness: "genuine" })
+  }
+
+  // Check for general knowledge questions (e.g., "주철 가공 주의사항", "코팅 비교")
+  const hasGeneralKw = [...GENERAL_KNOWLEDGE_KEYWORDS].some(k => lower.includes(k))
+  const hasAnyDomainKw = hasDomainKeywords(lower)
+  if (hasGeneralKw && (hasAnyDomainKw || lower.length >= 8)) {
+    return buildResult("moderate", "on_domain", "question", "immediate", "answer_general",
+      "일반 기술 지식 질문", { ambiguityLevel: "low", seriousness: "genuine", extractedKeywordCount: 0 })
   }
 
   // ── Domain keyword extraction ──
@@ -211,9 +289,9 @@ export function analyzeInquiry(message: string): InquiryAnalysis {
       })
   }
 
-  // Nothing domain-related detected
-  return buildResult("weak", "off_domain", inputForm, "not_recoverable", "soft_redirect",
-    "도메인 관련 키워드 미감지", { ambiguityLevel: "high", seriousness: "testing" })
+  // Nothing domain-related detected — still let LLM try to answer
+  return buildResult("weak", "off_domain", inputForm, "not_recoverable", "answer_general",
+    "도메인 관련 키워드 미감지 — LLM 대응", { ambiguityLevel: "high", seriousness: "genuine" })
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -292,6 +370,13 @@ export function getRedirectResponse(analysis: InquiryAnalysis): {
       return {
         text: "추천해드리려면 조건이 좀 더 필요합니다. 가공할 재질이 무엇인가요?",
         chips: ["탄소강", "스테인리스", "알루미늄", "티타늄", "주철"],
+        showCandidates: false,
+      }
+    case "answer_general":
+      // Empty — route handler should use LLM to generate a natural response
+      return {
+        text: "",
+        chips: [],
         showCandidates: false,
       }
     default:
