@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Markdown } from "@/components/ui/markdown"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
@@ -269,7 +270,11 @@ export default function AssistantNewPage() {
                   msg.role === "system" ? "bg-amber-50 border border-amber-200 text-amber-800" :
                   "bg-muted"
                 )}>
-                  <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+                  {msg.role === "ai" ? (
+                    <div className="text-sm"><Markdown>{msg.text}</Markdown></div>
+                  ) : (
+                    <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+                  )}
 
                   {/* Purpose tooltip */}
                   {msg.purpose && (

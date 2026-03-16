@@ -23,6 +23,7 @@ import {
   MessageCircle, Star, X,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Markdown } from "@/components/ui/markdown"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import type { RecommendationResult, ScoredProduct, ScoreBreakdown } from "@/lib/types/canonical"
@@ -1319,12 +1320,12 @@ function NarrowingChat({
 
             <div className="max-w-[82%] space-y-2">
               {msg.text && !msg.isLoading && (
-                <div className={`px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+                <div className={`px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${
                   msg.role === "user"
-                    ? "bg-blue-600 text-white rounded-br-sm"
+                    ? "bg-blue-600 text-white rounded-br-sm whitespace-pre-wrap"
                     : "bg-gray-100 text-gray-800 rounded-bl-sm"
                 }`}>
-                  {msg.text}
+                  {msg.role === "ai" ? <Markdown>{msg.text}</Markdown> : msg.text}
                 </div>
               )}
 
