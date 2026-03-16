@@ -9,6 +9,7 @@ import Anthropic from "@anthropic-ai/sdk"
 import { NextRequest, NextResponse } from "next/server"
 import { createAnthropicMessageWithLogging } from "@/lib/llm/anthropic-tracer"
 import { notifyChatResponse, notifyError, notifyLlmCall } from "@/lib/slack-notifier"
+import { buildStateFromHistory, buildRetrievalMemory, buildStructuredContext, logConversationState, type RetrievalMemory } from "@/lib/domain/conversation-state"
 import { ProductRepo } from "@/lib/data/repos/product-repo"
 import { EvidenceRepo } from "@/lib/data/repos/evidence-repo"
 import { CompetitorRepo } from "@/lib/data/repos/competitor-repo"
@@ -1135,7 +1136,14 @@ export async function POST(req: NextRequest) {
       } as LLMResponse)
     }
 
-    const systemPrompt = await buildSystemPrompt()
+    // ── Build Conversation State from History ──────────────
+    const convState = buildStateFromHistory(messages)
+    logConversationState(convState, null)
+
+    // ── Build Structured System Prompt with Context ──────
+    const baseSystemPrompt = await buildSystemPrompt()
+    const structuredCtx = buildStructuredContext(convState, null)
+    const systemPrompt = `${baseSystemPrompt}\n\n${structuredCtx}`
 
     // ── Tool Use Loop ──────────────────────────────────────
     let currentMessages = [...apiMessages]
@@ -1215,6 +1223,13 @@ export async function POST(req: NextRequest) {
       textBlocks.map((b) => b.text).join("\n") ||
       "죄송합니다, 응답을 생성하지 못했습니다."
 
+    // ── Build Retrieval Memory from Tool Results ───────────
+    const retrievalMem = buildRetrievalMemory(toolResults, convState)
+    if (retrievalMem) {
+      convState.retrievalMemory = retrievalMem
+      logConversationState(convState, retrievalMem)
+    }
+
     // ── Build Response ─────────────────────────────────────
     const intent = inferIntent(toolsUsed)
     const references = extractReferences(toolResults)
@@ -1266,7 +1281,8 @@ export async function POST(req: NextRequest) {
 
     // Slack 알림 (비동기, 응답 차단 안 함)
     const lastUserMsg = [...messages].reverse().find(m => m.role === "user")?.text ?? ""
-    console.log(`[chat] state: user="${lastUserMsg.slice(0, 80)}" intent=${intent} tools=[${toolsUsed.join(",")}] products=${references?.length ?? 0}`)
+    const knownParams = Object.entries(convState.params).filter(([, v]) => v != null).map(([k, v]) => `${k}=${v}`).join(",")
+    console.log(`[chat] topic=${convState.topicStatus} intent=${intent} known=[${knownParams}] missing=[${convState.missingParams.join(",")}] memory=${retrievalMem?.totalMatched ?? 0}products tools=[${toolsUsed.join(",")}]`)
     notifyChatResponse({
       userMessage: lastUserMsg,
       intent,
