@@ -11,13 +11,57 @@ import { ProductRepo } from "@/lib/data/repos/product-repo"
 import { EvidenceRepo } from "@/lib/data/repos/evidence-repo"
 import { CompetitorRepo } from "@/lib/data/repos/competitor-repo"
 import { resolveMaterialTag } from "@/lib/domain/material-resolver"
-import type { CanonicalProduct } from "@/lib/types/canonical"
+import type { AppliedFilter } from "@/lib/types/exploration"
+import type { CanonicalProduct, RecommendationInput } from "@/lib/types/canonical"
 
 const anthropicApiKey = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_KEY || ""
+const anthropicChatModel = process.env.ANTHROPIC_FAST_MODEL || process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514"
 const client = anthropicApiKey ? new Anthropic({ apiKey: anthropicApiKey }) : null
 
-// ── Knowledge Constants (small, kept in system prompt) ──────
+// ── Build context from real data ────────────────────────────
+async function buildProductContext(): Promise<string> {
+  const seriesRows = await ProductRepo.getSeriesOverview(120)
+  const lines: string[] = []
+  for (const info of seriesRows) {
+    const diaRange = info.minDiameterMm != null && info.maxDiameterMm != null
+      ? `직경 ${info.minDiameterMm}~${info.maxDiameterMm}mm`
+      : "직경 정보 없음"
+    const matTags = info.materialTags.length > 0 ? info.materialTags.join(",") : "미분류"
+    lines.push(`- ${info.seriesName} (${info.brand}): ${info.count}개 EDP, ${diaRange}, 소재그룹=[${matTags}], 코팅=${info.coating ?? "정보없음"}${info.featureText ? ` | ${info.featureText.slice(0, 80)}` : ""}`)
+  }
 
+  return lines.join("\n")
+}
+
+function buildEvidenceContext(): string {
+  const chunks = EvidenceRepo.getAll()
+  const seriesConditions = new Map<string, { isoGroup: string | null; toolType: string | null; condSample: string }>()
+
+  for (const c of chunks) {
+    if (!c.seriesName) continue
+    if (seriesConditions.has(c.seriesName)) continue
+    const conds = c.conditions
+    const parts: string[] = []
+    if (conds.Vc) parts.push(`Vc=${conds.Vc}`)
+    if (conds.fz) parts.push(`fz=${conds.fz}`)
+    if (conds.ap) parts.push(`ap=${conds.ap}`)
+    if (conds.ae) parts.push(`ae=${conds.ae}`)
+    seriesConditions.set(c.seriesName, {
+      isoGroup: c.isoGroup,
+      toolType: c.toolType,
+      condSample: parts.join(", "),
+    })
+  }
+
+  const lines: string[] = []
+  for (const [series, info] of seriesConditions) {
+    lines.push(`- ${series}: ISO=${info.isoGroup ?? "?"}, ${info.toolType ?? "?"}, ${info.condSample}`)
+  }
+
+  return lines.slice(0, 50).join("\n") // limit to 50 series for context
+}
+
+// ── ISO Material Group Knowledge ────────────────────────────
 const MATERIAL_KNOWLEDGE = `
 ## ISO 소재 분류 (절삭공구용)
 - P (파란색): 탄소강, 합금강, 공구강 — 일반 가공, 가장 넓은 범위
@@ -50,10 +94,12 @@ const MACHINING_KNOWLEDGE = `
 - 페이싱 (Facing): 평면 가공, 고이송 가능
 `
 
-// ── System Prompt (LEAN — no product data) ──────────────────
+// ── System Prompt ────────────────────────────────────────────
+async function buildSystemPrompt(): Promise<string> {
+  const productCtx = await buildProductContext()
+  const evidenceCtx = buildEvidenceContext()
 
-const SYSTEM_PROMPT = `당신은 YG-1의 절삭공구 전문 AI 어시스턴트입니다.
-YG-1은 한국의 세계적인 절삭공구 제조사입니다.
+  return `당신은 YG-1의 AI 어시스턴트입니다. YG-1은 한국의 세계적인 절삭공구 제조사입니다.
 
 역할:
 - 절삭공구 제품 추천, 절삭조건 안내, 기술 상담
@@ -117,6 +163,7 @@ YG-1은 한국의 세계적인 절삭공구 제조사입니다.
 ${MATERIAL_KNOWLEDGE}
 ${COATING_KNOWLEDGE}
 ${MACHINING_KNOWLEDGE}`
+}
 
 // ── Tool Definitions ────────────────────────────────────────
 
@@ -325,83 +372,102 @@ function slimProduct(p: CanonicalProduct) {
   }
 }
 
-function executeSearchProducts(params: {
+function matchesKeyword(product: CanonicalProduct, keyword: string): boolean {
+  const q = keyword.toLowerCase()
+  return (
+    (product.seriesName?.toLowerCase().includes(q) ?? false) ||
+    (product.featureText?.toLowerCase().includes(q) ?? false) ||
+    (product.description?.toLowerCase().includes(q) ?? false) ||
+    product.displayCode.toLowerCase().includes(q) ||
+    (product.brand?.toLowerCase().includes(q) ?? false)
+  )
+}
+
+function dedupeProductsBySeries(products: CanonicalProduct[]): CanonicalProduct[] {
+  const seriesSeen = new Map<string, CanonicalProduct>()
+  for (const product of products) {
+    const key = product.seriesName ?? product.displayCode
+    if (!seriesSeen.has(key)) {
+      seriesSeen.set(key, product)
+    }
+  }
+  return [...seriesSeen.values()]
+}
+
+function buildProductSearchOptions(params: {
   material?: string
   diameter_mm?: number
   flute_count?: number
   operation_type?: string
   coating?: string
   keyword?: string
-}): string {
-  let results = ProductRepo.getAll()
+}): { input: RecommendationInput; filters: AppliedFilter[] } {
+  const input: RecommendationInput = {
+    manufacturerScope: "yg1-only",
+    locale: "ko",
+  }
 
-  // Filter by material tag
+  if (params.material) input.material = params.material
+  if (params.diameter_mm != null) input.diameterMm = params.diameter_mm
+  if (params.operation_type) input.operationType = params.operation_type
+
+  const filters: AppliedFilter[] = []
+  if (params.flute_count != null) {
+    filters.push({
+      field: "fluteCount",
+      op: "eq",
+      value: `${params.flute_count}날`,
+      rawValue: params.flute_count,
+      appliedAt: 0,
+    })
+  }
+  if (params.coating) {
+    filters.push({
+      field: "coating",
+      op: "includes",
+      value: params.coating,
+      rawValue: params.coating,
+      appliedAt: 0,
+    })
+  }
+  if (params.keyword) {
+    filters.push({
+      field: "seriesName",
+      op: "includes",
+      value: params.keyword,
+      rawValue: params.keyword,
+      appliedAt: 0,
+    })
+  }
+
+  return { input, filters }
+}
+
+async function executeSearchProducts(params: {
+  material?: string
+  diameter_mm?: number
+  flute_count?: number
+  operation_type?: string
+  coating?: string
+  keyword?: string
+}): Promise<string> {
+  const { input, filters } = buildProductSearchOptions(params)
+  let results = await ProductRepo.search(input, filters, 200)
+
   if (params.material) {
     const tag = resolveMaterialTag(params.material)
     if (tag) {
-      const filtered = results.filter((p) => p.materialTags.includes(tag))
+      const filtered = results.filter((product) => product.materialTags.includes(tag))
       if (filtered.length > 0) results = filtered
     }
   }
 
-  // Filter by diameter
-  if (params.diameter_mm != null) {
-    const tol = params.diameter_mm <= 3 ? 0.2 : params.diameter_mm <= 10 ? 0.5 : 1.0
-    const filtered = results.filter(
-      (p) =>
-        p.diameterMm !== null &&
-        Math.abs(p.diameterMm - params.diameter_mm!) <= tol
-    )
-    if (filtered.length > 0) results = filtered
-  }
-
-  // Filter by flute count
-  if (params.flute_count != null) {
-    const filtered = results.filter((p) => p.fluteCount === params.flute_count)
-    if (filtered.length > 0) results = filtered
-  }
-
-  // Filter by operation type
-  if (params.operation_type) {
-    const q = params.operation_type.toLowerCase()
-    const filtered = results.filter((p) =>
-      p.applicationShapes.some((s) => s.toLowerCase().includes(q)) ||
-      (p.featureText?.toLowerCase().includes(q) ?? false)
-    )
-    if (filtered.length > 0) results = filtered
-  }
-
-  // Filter by coating
-  if (params.coating) {
-    const q = params.coating.toLowerCase()
-    const filtered = results.filter(
-      (p) => p.coating?.toLowerCase().includes(q) ?? false
-    )
-    if (filtered.length > 0) results = filtered
-  }
-
-  // Filter by keyword (series name, feature text, display code)
   if (params.keyword) {
-    const q = params.keyword.toLowerCase()
-    const filtered = results.filter(
-      (p) =>
-        (p.seriesName?.toLowerCase().includes(q) ?? false) ||
-        (p.featureText?.toLowerCase().includes(q) ?? false) ||
-        p.displayCode.toLowerCase().includes(q) ||
-        (p.description?.toLowerCase().includes(q) ?? false)
-    )
+    const filtered = results.filter((product) => matchesKeyword(product, params.keyword))
     if (filtered.length > 0) results = filtered
   }
 
-  // Deduplicate by series (pick one representative per series)
-  const seriesSeen = new Map<string, CanonicalProduct>()
-  for (const p of results) {
-    const key = p.seriesName ?? p.displayCode
-    if (!seriesSeen.has(key)) {
-      seriesSeen.set(key, p)
-    }
-  }
-  const deduped = [...seriesSeen.values()]
+  const deduped = dedupeProductsBySeries(results)
 
   // Return top 10
   const top = deduped.slice(0, 10)
@@ -421,18 +487,18 @@ function executeSearchProducts(params: {
   })
 }
 
-function executeGetProductDetail(params: {
+async function executeGetProductDetail(params: {
   product_code?: string
   series_name?: string
-}): string {
+}): Promise<string> {
   let products: CanonicalProduct[] = []
 
   if (params.product_code) {
-    const found = ProductRepo.findByCode(params.product_code)
+    const found = await ProductRepo.findByCode(params.product_code)
     if (found) {
       // Also get all variants in the same series
       if (found.seriesName) {
-        products = ProductRepo.findBySeries(found.seriesName)
+        products = await ProductRepo.findBySeries(found.seriesName)
       } else {
         products = [found]
       }
@@ -440,7 +506,7 @@ function executeGetProductDetail(params: {
   }
 
   if (products.length === 0 && params.series_name) {
-    products = ProductRepo.findBySeries(params.series_name)
+    products = await ProductRepo.findBySeries(params.series_name)
   }
 
   if (products.length === 0) {
@@ -578,18 +644,45 @@ function executeGetCuttingConditions(params: {
   })
 }
 
-function executeGetCompetitorMapping(params: {
+async function executeGetCompetitorMapping(params: {
   competitor_name?: string
   competitor_product?: string
-}): string {
-  let competitors = CompetitorRepo.getAll()
+}): Promise<string> {
+  const competitors = CompetitorRepo.getAll()
 
   if (params.competitor_product) {
     // Try exact code match first
     const found = CompetitorRepo.findByCode(params.competitor_product)
     if (found) {
       // Find YG-1 alternatives with similar specs
-      const alternatives = ProductRepo.getAll().filter((p) => {
+      const alternativeInput: RecommendationInput = {
+        manufacturerScope: "yg1-only",
+        locale: "ko",
+      }
+      if (found.diameterMm != null) alternativeInput.diameterMm = found.diameterMm
+
+      const alternativeFilters: AppliedFilter[] = []
+      if (found.fluteCount != null) {
+        alternativeFilters.push({
+          field: "fluteCount",
+          op: "eq",
+          value: `${found.fluteCount}날`,
+          rawValue: found.fluteCount,
+          appliedAt: 0,
+        })
+      }
+      if (found.coating) {
+        alternativeFilters.push({
+          field: "coating",
+          op: "includes",
+          value: found.coating,
+          rawValue: found.coating,
+          appliedAt: 0,
+        })
+      }
+
+      let alternatives = await ProductRepo.search(alternativeInput, alternativeFilters, 100)
+      alternatives = alternatives.filter((p) => {
         let match = true
         if (found.diameterMm !== null && p.diameterMm !== null) {
           match = match && Math.abs(p.diameterMm - found.diameterMm) <= 1
@@ -600,14 +693,7 @@ function executeGetCompetitorMapping(params: {
         return match
       })
 
-      // Deduplicate by series
-      const seriesSeen = new Set<string>()
-      const deduped = alternatives.filter((p) => {
-        const key = p.seriesName ?? p.displayCode
-        if (seriesSeen.has(key)) return false
-        seriesSeen.add(key)
-        return true
-      })
+      const deduped = dedupeProductsBySeries(alternatives)
 
       return JSON.stringify({
         found: true,
@@ -675,11 +761,11 @@ async function executeTool(
   try {
     switch (toolName) {
       case "search_products":
-        return executeSearchProducts(
+        return await executeSearchProducts(
           toolInput as Parameters<typeof executeSearchProducts>[0]
         )
       case "get_product_detail":
-        return executeGetProductDetail(
+        return await executeGetProductDetail(
           toolInput as Parameters<typeof executeGetProductDetail>[0]
         )
       case "get_cutting_conditions":
@@ -687,7 +773,7 @@ async function executeTool(
           toolInput as Parameters<typeof executeGetCuttingConditions>[0]
         )
       case "get_competitor_mapping":
-        return executeGetCompetitorMapping(
+        return await executeGetCompetitorMapping(
           toolInput as Parameters<typeof executeGetCompetitorMapping>[0]
         )
       case "web_search":
@@ -878,11 +964,7 @@ export async function POST(req: NextRequest) {
         role: (m.role === "user" ? "user" : "assistant") as "user" | "assistant",
         content: m.text,
       }))
-
-    // Ensure first message is from user
-    while (apiMessages.length > 0 && apiMessages[0].role === "assistant") {
-      apiMessages.shift()
-    }
+      .filter((_, i, arr) => !(i === 0 && arr[0].role === "assistant"))
 
     if (apiMessages.length === 0) {
       return NextResponse.json({
@@ -893,23 +975,25 @@ export async function POST(req: NextRequest) {
       } as LLMResponse)
     }
 
+    const systemPrompt = await buildSystemPrompt()
+
     // ── Tool Use Loop ──────────────────────────────────────
     let currentMessages = [...apiMessages]
     const toolsUsed: string[] = []
     const toolResults: { name: string; result: string }[] = []
     const MAX_TOOL_ROUNDS = 5
 
-    let response = await client.messages.create({
-      model: "claude-sonnet-4-20250514" as Parameters<typeof client.messages.create>[0]["model"],
+    let llmResponse = await client.messages.create({
+      model: anthropicChatModel as Parameters<typeof client.messages.create>[0]["model"],
       max_tokens: 2048,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       tools: TOOLS,
       messages: currentMessages,
     })
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       // Check if there are tool_use blocks
-      const toolUseBlocks = response.content.filter(
+      const toolUseBlocks = llmResponse.content.filter(
         (block): block is Anthropic.ContentBlock & { type: "tool_use" } =>
           block.type === "tool_use"
       )
@@ -936,24 +1020,24 @@ export async function POST(req: NextRequest) {
       // Send tool results back to LLM
       currentMessages = [
         ...currentMessages,
-        { role: "assistant" as const, content: response.content },
+        { role: "assistant" as const, content: llmResponse.content },
         { role: "user" as const, content: toolResultMessages },
       ]
 
-      response = await client.messages.create({
-        model: "claude-sonnet-4-20250514" as Parameters<typeof client.messages.create>[0]["model"],
+      llmResponse = await client.messages.create({
+        model: anthropicChatModel as Parameters<typeof client.messages.create>[0]["model"],
         max_tokens: 2048,
-        system: SYSTEM_PROMPT,
+        system: systemPrompt,
         tools: TOOLS,
         messages: currentMessages,
       })
 
       // If stop_reason is "end_turn", we're done
-      if (response.stop_reason === "end_turn") break
+      if (llmResponse.stop_reason === "end_turn") break
     }
 
     // ── Extract Final Text Response ────────────────────────
-    const textBlocks = response.content.filter(
+    const textBlocks = llmResponse.content.filter(
       (block): block is Anthropic.TextBlock => block.type === "text"
     )
     const responseText =

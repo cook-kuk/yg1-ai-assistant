@@ -40,13 +40,17 @@ const WEIGHTS = {
 }
 
 // ── Main Entry Point ─────────────────────────────────────────
-export function runHybridRetrieval(
+export async function runHybridRetrieval(
   input: RecommendationInput,
   filters: AppliedFilter[],
   topN = 0
-): HybridResult {
+): Promise<HybridResult> {
+  const startedAt = Date.now()
+
   // ── Stage 1: Structured Filter ─────────────────────────────
-  let candidates = ProductRepo.getAll()
+  const fetchStartedAt = Date.now()
+  let candidates = await ProductRepo.search(input, filters, topN > 0 ? Math.max(topN * 20, 500) : undefined)
+  const fetchMs = Date.now() - fetchStartedAt
   const appliedFilters: AppliedFilter[] = []
   const totalConsidered = candidates.length
 
@@ -160,8 +164,10 @@ export function runHybridRetrieval(
         break
     }
   }
+  const filterMs = Date.now() - startedAt - fetchMs
 
   // ── Stage 2: Score & Rank ──────────────────────────────────
+  const scoreStartedAt = Date.now()
   const appShapes = input.operationType ? getAppShapesForOperation(input.operationType) : []
 
   // Performance: limit scoring to 500 candidates max after filtering
@@ -401,6 +407,12 @@ export function runHybridRetrieval(
       return a.product.sourcePriority - b.product.sourcePriority
     return b.product.dataCompletenessScore - a.product.dataCompletenessScore
   })
+
+  const scoreAndEvidenceMs = Date.now() - scoreStartedAt
+
+  console.log(
+    `[recommend] hybrid timings: total=${Date.now() - startedAt}ms fetch=${fetchMs}ms filter=${filterMs}ms score_evidence=${scoreAndEvidenceMs}ms considered=${totalConsidered} final=${topCandidates.length}`
+  )
 
   return {
     candidates: topCandidates,

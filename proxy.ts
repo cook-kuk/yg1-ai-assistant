@@ -16,7 +16,7 @@ import type { NextRequest } from "next/server"
 // 내부 전용 경로 — 공개 데모에서 차단
 const INTERNAL_ROUTES = ["/admin", "/admin/knowledge", "/admin/policy-simulator"]
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // ── 내부 전용 경로: 인증 필요 ──

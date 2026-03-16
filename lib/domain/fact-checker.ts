@@ -52,16 +52,16 @@ function conflict<T>(value: T, source: string, step: string): VerifiedField<T> {
 // MAIN ENTRY: Run Full Fact Check
 // ════════════════════════════════════════════════════════════════
 
-export function runFactCheck(
+export async function runFactCheck(
   scored: ScoredProduct,
   input: RecommendationInput,
   evidenceSummary: EvidenceSummary | null,
   explanation: RecommendationExplanation
-): FactCheckedRecommendation {
+): Promise<FactCheckedRecommendation> {
   const steps: FactCheckStep[] = []
 
   // Step 1: Product Identity
-  const step1 = checkProductIdentity(scored)
+  const step1 = await checkProductIdentity(scored)
   steps.push(step1)
 
   // Step 2: Spec Check
@@ -115,14 +115,14 @@ export function runFactCheck(
 // STEP 1: Product Identity
 // ════════════════════════════════════════════════════════════════
 
-function checkProductIdentity(scored: ScoredProduct): FactCheckStep {
+async function checkProductIdentity(scored: ScoredProduct): Promise<FactCheckStep> {
   const issues: string[] = []
   let fieldsChecked = 4
   let fieldsVerified = 0
 
   // Check product code exists in repo
   const p = scored.product
-  const fromRepo = ProductRepo.findByCode(p.normalizedCode)
+  const fromRepo = await ProductRepo.findByCode(p.normalizedCode)
 
   if (fromRepo) {
     fieldsVerified++
