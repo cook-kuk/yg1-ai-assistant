@@ -2,7 +2,7 @@
  * /api/chat — YG-1 AI Chat with Tool Use Architecture
  *
  * Uses Sonnet 4.5 + Anthropic Tool Use instead of dumping all products into context.
- * Tools: search_products, get_product_detail, get_cutting_conditions, get_competitor_mapping, web_search
+ * Tools: search_products, search_product_by_edp, get_product_detail, get_cutting_conditions, get_competitor_mapping, web_search
  */
 
 import Anthropic from "@anthropic-ai/sdk"
@@ -110,6 +110,7 @@ async function buildSystemPrompt(): Promise<string> {
 
 도구 사용 규칙:
 - 제품 추천/검색이 필요하면 search_products 도구를 사용
+- 사용자가 EDP 코드(제품 코드)를 직접 주면 search_product_by_edp 도구를 우선 사용
 - 특정 제품 상세 정보가 필요하면 get_product_detail 도구를 사용
 - 절삭조건이 필요하면 get_cutting_conditions 도구를 사용
 - 경쟁사 대체품 문의면 get_competitor_mapping 도구를 사용
@@ -131,7 +132,7 @@ async function buildSystemPrompt(): Promise<string> {
    - ❌ 금지: brand를 추측하거나 다른 값으로 바꾸는 것. 반드시 도구가 반환한 brand 값만 사용
    - 도구 결과에 brand가 없으면 "브랜드명 정보 없음"으로 표기
 8. 응답 마지막에 반드시 📋 Reference 섹션을 추가하라:
-   - 내부 DB 조회 결과이면: "📋 Reference: YG-1 내부 DB (search_products/get_product_detail/get_cutting_conditions)"
+   - 내부 DB 조회 결과이면: "📋 Reference: YG-1 내부 DB (search_products/search_product_by_edp/get_product_detail/get_cutting_conditions)"
    - 웹 검색 결과이면: "📋 Reference: 웹 검색 (외부 소스 — 공식 카탈로그 확인 필요)"
    - AI 일반 지식이면: "📋 Reference: AI 일반 지식 (절삭공구 전문 학습 데이터 기반, 실제 수치는 카탈로그 확인 필요)"
    - 복합 소스이면 모든 출처를 나열
@@ -205,6 +206,21 @@ const TOOLS: Anthropic.Tool[] = [
         },
       },
       required: [],
+    },
+  },
+  {
+    name: "search_product_by_edp",
+    description:
+      "EDP 제품 코드로 YG-1 절삭공구를 정확 조회합니다. 정확한 제품 1건과 같은 시리즈의 EDP 변형들을 함께 반환합니다.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        edp_code: {
+          type: "string",
+          description: "EDP 제품 코드. 공백/하이픈이 있어도 됨. 예: 'CE5G60100', 'AG52340'",
+        },
+      },
+      required: ["edp_code"],
     },
   },
   {
@@ -384,6 +400,10 @@ function matchesKeyword(product: CanonicalProduct, keyword: string): boolean {
   )
 }
 
+function normalizeProductCode(code: string | null | undefined): string {
+  return (code ?? "").replace(/[\s-]/g, "").toUpperCase()
+}
+
 function dedupeProductsBySeries(products: CanonicalProduct[]): CanonicalProduct[] {
   const seriesSeen = new Map<string, CanonicalProduct>()
   for (const product of products) {
@@ -463,8 +483,9 @@ async function executeSearchProducts(params: {
     }
   }
 
-  if (params.keyword) {
-    const filtered = results.filter((product) => matchesKeyword(product, params.keyword))
+  const keyword = params.keyword
+  if (keyword) {
+    const filtered = results.filter((product) => matchesKeyword(product, keyword))
     if (filtered.length > 0) results = filtered
   }
 
@@ -486,6 +507,71 @@ async function executeSearchProducts(params: {
     totalMatched: results.length,
     products: top.map(slimProduct),
   })
+}
+
+function buildProductDetailPayload(products: CanonicalProduct[], representative: CanonicalProduct, matchedProduct?: CanonicalProduct): string {
+  const variants = products.map((p) => ({
+    displayCode: p.displayCode,
+    diameterMm: p.diameterMm,
+    fluteCount: p.fluteCount,
+    coating: p.coating,
+    lengthOfCutMm: p.lengthOfCutMm,
+    overallLengthMm: p.overallLengthMm,
+    shankDiameterMm: p.shankDiameterMm,
+  }))
+
+  return JSON.stringify({
+    found: true,
+    displayCode: matchedProduct?.displayCode ?? representative.displayCode,
+    seriesName: representative.seriesName,
+    brand: representative.brand,
+    toolType: representative.toolType,
+    toolSubtype: representative.toolSubtype,
+    materialTags: representative.materialTags,
+    applicationShapes: representative.applicationShapes,
+    featureText: representative.featureText,
+    coating: representative.coating,
+    coolantHole: representative.coolantHole,
+    matchedProduct: matchedProduct
+      ? {
+          displayCode: matchedProduct.displayCode,
+          diameterMm: matchedProduct.diameterMm,
+          fluteCount: matchedProduct.fluteCount,
+          coating: matchedProduct.coating,
+          lengthOfCutMm: matchedProduct.lengthOfCutMm,
+          overallLengthMm: matchedProduct.overallLengthMm,
+          shankDiameterMm: matchedProduct.shankDiameterMm,
+        }
+      : null,
+    variantCount: variants.length,
+    variants: variants.slice(0, 20),
+  })
+}
+
+async function executeSearchProductByEdp(params: {
+  edp_code?: string
+}): Promise<string> {
+  if (!params.edp_code?.trim()) {
+    return JSON.stringify({
+      found: false,
+      message: "edp_code가 필요합니다.",
+    })
+  }
+
+  const found = await ProductRepo.findByCode(params.edp_code)
+  if (!found) {
+    return JSON.stringify({
+      found: false,
+      edpCode: params.edp_code,
+      message: "내부 DB에서 해당 EDP 제품 코드를 찾지 못했습니다. 코드 오타를 확인하거나 web_search 도구로 웹 카탈로그를 검색해보세요.",
+    })
+  }
+
+  const products = found.seriesName
+    ? await ProductRepo.findBySeries(found.seriesName)
+    : [found]
+
+  return buildProductDetailPayload(products, products[0] ?? found, found)
 }
 
 async function executeGetProductDetail(params: {
@@ -517,32 +603,11 @@ async function executeGetProductDetail(params: {
     })
   }
 
-  // Return full details for the series, with EDP variants
-  const representative = products[0]
-  const variants = products.map((p) => ({
-    displayCode: p.displayCode,
-    diameterMm: p.diameterMm,
-    fluteCount: p.fluteCount,
-    coating: p.coating,
-    lengthOfCutMm: p.lengthOfCutMm,
-    overallLengthMm: p.overallLengthMm,
-    shankDiameterMm: p.shankDiameterMm,
-  }))
-
-  return JSON.stringify({
-    found: true,
-    seriesName: representative.seriesName,
-    brand: representative.brand,
-    toolType: representative.toolType,
-    toolSubtype: representative.toolSubtype,
-    materialTags: representative.materialTags,
-    applicationShapes: representative.applicationShapes,
-    featureText: representative.featureText,
-    coating: representative.coating,
-    coolantHole: representative.coolantHole,
-    variantCount: variants.length,
-    variants: variants.slice(0, 20), // limit to 20 variants
-  })
+  return buildProductDetailPayload(
+    products,
+    products[0],
+    products.find((product) => normalizeProductCode(product.displayCode) === normalizeProductCode(params.product_code))
+  )
 }
 
 function executeGetCuttingConditions(params: {
@@ -765,6 +830,10 @@ async function executeTool(
         return await executeSearchProducts(
           toolInput as Parameters<typeof executeSearchProducts>[0]
         )
+      case "search_product_by_edp":
+        return await executeSearchProductByEdp(
+          toolInput as Parameters<typeof executeSearchProductByEdp>[0]
+        )
       case "get_product_detail":
         return await executeGetProductDetail(
           toolInput as Parameters<typeof executeGetProductDetail>[0]
@@ -805,6 +874,7 @@ type ChatIntent =
 function inferIntent(toolsUsed: string[]): ChatIntent {
   if (toolsUsed.includes("get_competitor_mapping")) return "cross_reference"
   if (toolsUsed.includes("get_cutting_conditions")) return "cutting_condition"
+  if (toolsUsed.includes("search_product_by_edp")) return "product_lookup"
   if (toolsUsed.includes("get_product_detail")) return "product_lookup"
   if (toolsUsed.includes("search_products")) return "product_recommendation"
   if (toolsUsed.includes("web_search")) return "web_search"
@@ -827,6 +897,7 @@ function extractBrandInfo(toolResults: { name: string; result: string }[]): { br
       }
       if (data.products) data.products.forEach(addProduct)
       if (data.yg1Alternatives) data.yg1Alternatives.forEach(addProduct)
+      if (data.matchedProduct) addProduct({ ...data.matchedProduct, brand: data.brand, seriesName: data.seriesName })
       if (data.brand && data.seriesName) addProduct(data)
     } catch {
       // ignore parse errors
@@ -866,6 +937,8 @@ function extractReferences(toolResults: { name: string; result: string }[]): str
           else if (p.displayCode) refs.add(p.displayCode)
         }
       }
+      if (data.displayCode) refs.add(data.displayCode)
+      if (data.matchedProduct?.displayCode) refs.add(data.matchedProduct.displayCode)
       if (data.seriesName) refs.add(data.seriesName)
       if (data.yg1Alternatives) {
         for (const p of data.yg1Alternatives) {

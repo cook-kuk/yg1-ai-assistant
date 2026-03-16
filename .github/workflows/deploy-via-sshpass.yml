@@ -1,0 +1,53 @@
+name: Deploy Via SSH Password
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install sshpass
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sshpass
+
+      - name: Validate deploy secrets
+        env:
+          DEPLOY_HOST: ${{ secrets.MAIN_HOST }}
+          DEPLOY_PORT: ${{ secrets.MAIN_PORT }}
+          DEPLOY_USER: ${{ secrets.MAIN_USER }}
+          DEPLOY_PASSWORD: ${{ secrets.MAIN_PASSWORD }}
+          DEPLOY_PATH: ${{ secrets.MAIN_PATH }}
+        run: |
+          test -n "$DEPLOY_HOST"
+          test -n "$DEPLOY_USER"
+          test -n "$DEPLOY_PASSWORD"
+          test -n "$DEPLOY_PATH"
+
+      - name: Deploy with sshpass
+        env:
+          DEPLOY_HOST: ${{ secrets.MAIN_HOST }}
+          DEPLOY_PORT: ${{ secrets.MAIN_PORT }}
+          DEPLOY_USER: ${{ secrets.MAIN_USER }}
+          DEPLOY_PASSWORD: ${{ secrets.MAIN_PASSWORD }}
+          DEPLOY_PATH: ${{ secrets.MAIN_PATH }}
+        run: |
+          sshpass -p "$DEPLOY_PASSWORD" ssh \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -p "${DEPLOY_PORT:-22}" \
+            "$DEPLOY_USER@$DEPLOY_HOST" <<EOF
+          set -eu
+          cd "$DEPLOY_PATH"
+          git checkout main || git checkout -b main origin/main
+          git pull origin main
+          sudo docker compose up --build -d
+          EOF
