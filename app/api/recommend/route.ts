@@ -1043,254 +1043,31 @@ The user may provide: material (소재), diameter (직경), flute count (날 수
 
 // extractParamsFromMessage + inferCurrentQuestionField — REMOVED
 // Replaced by: lib/agents/parameter-extractor.ts + lib/agents/intent-classifier.ts
+
+// ── Apply filter to RecommendationInput ──────────────────────
+// (moved here after dead code removal)
+function _placeholder_dead_code_removed() { return null }
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function _deadCode_extractParamsFromMessage(
-  _p: unknown, _m: string, _ci: unknown, _ps: unknown
-): Promise<unknown> {
-  const clean = _m.trim().toLowerCase()
+function __dead_extractParamsFromMessage() { return null }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function __dead_inferCurrentQuestionField() { return null }
 
-  // ── Use lastAskedField from session state (reliable) ──
-  const lastAskedField = prevState.lastAskedField ?? await inferCurrentQuestionField(currentInput, prevState)
+/* DEAD CODE BLOCK REMOVED — ~250 lines of extractParamsFromMessage + inferCurrentQuestionField
+   These functions are now replaced by:
+   - lib/agents/intent-classifier.ts (Haiku-powered intent classification)
+   - lib/agents/parameter-extractor.ts (Haiku-powered parameter extraction)
+   - lib/agents/orchestrator.ts (turn flow control)
+*/
 
-  // ── Fast-path: deterministic signals (no LLM needed) ──
+// Keeping a marker so we know where the gap is:
+const _DEAD_CODE_REMOVED_MARKER = true // eslint-disable-line @typescript-eslint/no-unused-vars
 
-  // 1. Reset signals
-  if (["처음부터 다시", "처음부터", "다시 시작", "리셋"].some(s => clean.includes(s))) {
-    return { isComplete: true, newFilter: null, skippedField: null }
-  }
+// ── Apply filter to RecommendationInput ──────────────────────
+// NOTE: ~250 lines of dead code (extractParamsFromMessage + inferCurrentQuestionField) removed here.
+// See git history for original code if needed.
 
-  // 2. Completion signals — expanded to catch vague/impatient requests
-  const completionSignals = [
-    "추천해주세요", "바로 보여주세요", "결과 보기", "추천 받기", "추가 조건 없음", "그냥 추천", "바로 추천",
-    "그냥 좋은 거", "좋은 거", "좋은거", "니가 알아서", "알아서 골라", "알아서 추천",
-    "그냥 줘", "빨리", "빨리 줘", "빨리빨리", "걍 줘", "걍", "그냥",
-    "무난한 거", "무난한거", "무난하게", "대충", "대충 추천",
-    "많이 쓰는 거", "많이 쓰는거", "인기 있는", "인기있는", "베스트",
-    "3개만", "3개 줘", "세개만", "세 개만", "몇 개만", "몇개만",
-    "왜 자꾸 물어", "질문 그만", "그만 물어", "더 이상 질문",
-    "결과", "보여줘", "바로 보여", "바로보여", "빨리 보여",
-    "대체 후보", "후보 보기", "개 보기",
-    "다 보여", "전부 보여", "다보여",
-  ]
-  if (completionSignals.some(s => clean.includes(s))) {
-    return { isComplete: true, newFilter: null, skippedField: null }
-  }
-
-  // 3. Skip / don't-care / don't-know — BEFORE LLM call
-  const skipPatterns = [
-    "상관없", "상관 없", "아무거나", "아무 거나", "다 괜찮", "괜찮아", "뭐든",
-    "모름", "몰라", "모르겠", "모른다", "모릅니다", "잘 모르", "잘모르", "글쎄",
-    "패스", "넘어가", "넘겨", "다음", "스킵", "skip", "pass", "next",
-    "넘어", "다음으로",
-  ]
-  if (skipPatterns.some(s => clean.includes(s))) {
-    return { isComplete: false, newFilter: null, skippedField: lastAskedField !== "unknown" ? lastAskedField : null }
-  }
-
-  // ── PRIMARY: LLM-powered extraction via tool_use ──
-  if (provider.available()) {
-    try {
-      const currentState = [
-        `현재 질문 필드: ${lastAskedField}`,
-        `현재 입력 상태: material=${currentInput.material ?? "미지정"}, diameter=${currentInput.diameterMm ?? "미지정"}mm, flute=${currentInput.flutePreference ?? "미지정"}, coating=${currentInput.coatingPreference ?? "미지정"}, operation=${currentInput.operationType ?? "미지정"}`,
-        `이전 대화 턴 수: ${prevState.turnCount}`,
-        `현재 후보 수: ${prevState.candidateCount}개`,
-      ].join("\n")
-
-      const extractionPrompt = `절삭공구 추천 대화 중입니다.
-
-${currentState}
-
-사용자 메시지: "${message}"
-
-위 메시지를 분석하여 절삭공구 관련 파라미터를 추출하세요. 절삭공구와 관련 없는 메시지라면 intent를 "off_topic"으로 설정하세요.`
-
-      const result = await provider.completeWithTools(
-        "당신은 YG-1 절삭공구 파라미터 추출 엔진입니다. 사용자 메시지에서 가공 조건을 정확히 추출하세요.",
-        [{ role: "user", content: extractionPrompt }],
-        [EXTRACTION_TOOL],
-        512
-      )
-
-      if (result.toolUse && result.toolUse.toolName === "extract_cutting_tool_params") {
-        const params = result.toolUse.input
-        console.log(`[recommend] LLM extraction: intent=${params.intent}, reasoning=${params.reasoning}`)
-
-        // Map LLM intent to action
-        if (params.intent === "reset") return { isComplete: true, newFilter: null, skippedField: null }
-        if (params.intent === "show_results") return { isComplete: true, newFilter: null, skippedField: null }
-        if (params.intent === "skip_question") {
-          return { isComplete: false, newFilter: null, skippedField: lastAskedField !== "unknown" ? lastAskedField : null }
-        }
-        if (params.intent === "off_topic") return null
-
-        // Extract parameters — build filters from what was extracted
-        const filters: AppliedFilter[] = []
-
-        if (params.material && typeof params.material === "string") {
-          const currentMat = (currentInput.material || "").toLowerCase()
-          if (!currentMat.includes(params.material.toLowerCase())) {
-            const f = parseAnswerToFilter("material", params.material as string)
-            if (f) filters.push(f)
-          }
-        }
-
-        if (params.diameterMm != null && typeof params.diameterMm === "number") {
-          const f = parseAnswerToFilter("diameterRefine", `${params.diameterMm}mm`)
-          if (f) filters.push(f)
-        }
-
-        if (params.fluteCount != null && typeof params.fluteCount === "number" && !currentInput.flutePreference) {
-          const f = parseAnswerToFilter("fluteCount", `${params.fluteCount}날`)
-          if (f) filters.push(f)
-        }
-
-        if (params.coating && typeof params.coating === "string" && !currentInput.coatingPreference) {
-          const f = parseAnswerToFilter("coating", params.coating as string)
-          if (f) filters.push(f)
-        }
-
-        if (params.operationType && typeof params.operationType === "string" && !currentInput.operationType) {
-          const f = parseAnswerToFilter("cuttingType", params.operationType as string)
-          if (f) filters.push(f)
-        }
-
-        if (params.toolSubtype && typeof params.toolSubtype === "string") {
-          const f = parseAnswerToFilter("toolSubtype", params.toolSubtype as string)
-          if (f) filters.push(f)
-        }
-
-        if (params.seriesName && typeof params.seriesName === "string") {
-          const f = parseAnswerToFilter("seriesName", params.seriesName as string)
-          if (f) filters.push(f)
-        }
-
-        // Return the most impactful filter, attach rest as side filters
-        if (filters.length > 0) {
-          const primary = filters[0]
-          if (filters.length > 1) {
-            ;(primary as unknown as Record<string, unknown>)._sideFilters = filters.slice(1)
-          }
-          return { isComplete: false, newFilter: primary, skippedField: null }
-        }
-
-        // LLM detected provide_param but couldn't extract anything specific
-        // Fall through to keyword matching
-      }
-    } catch (e) {
-      console.warn("[recommend] LLM tool_use extraction failed, falling back to keywords:", e)
-    }
-  }
-
-  // ── FALLBACK: Keyword-based extraction ──
-  const materialKeywordMap: Record<string, string> = {
-    "탄소강": "탄소강", "합금강": "합금강", "공구강": "공구강",
-    "스테인리스": "스테인리스", "sus": "스테인리스", "스텐": "스테인리스",
-    "알루미늄": "알루미늄", "알루": "알루미늄", "alu": "알루미늄",
-    "주철": "주철", "cast iron": "주철",
-    "티타늄": "티타늄", "titanium": "티타늄",
-    "인코넬": "인코넬", "inconel": "인코넬", "내열합금": "내열합금",
-    "고경도": "고경도강", "고경도강": "고경도강", "hrc": "고경도강",
-    "구리": "구리", "copper": "구리", "비철": "비철금속",
-  }
-  const detectedMaterial = Object.keys(materialKeywordMap).find(k => clean.includes(k))
-  const diamMatch = clean.match(/([\d.]+)\s*mm/)
-  const fluteMatch = clean.match(/(\d+)\s*날/)
-  const subtypeKeywords = ["flat", "플랫", "ball", "볼", "chamfer", "챔퍼", "radius", "래디우스", "corner", "square", "스퀘어"]
-  const foundSubtype = subtypeKeywords.find(k => clean.includes(k))
-
-  // Multi-param
-  const paramCount = [detectedMaterial, diamMatch, fluteMatch, foundSubtype].filter(Boolean).length
-  if (paramCount >= 2 && detectedMaterial) {
-    const matVal = materialKeywordMap[detectedMaterial]
-    const filter = parseAnswerToFilter("material", matVal)
-    if (filter) {
-      const sideFilters: AppliedFilter[] = []
-      if (diamMatch) { const df = parseAnswerToFilter("diameterRefine", `${diamMatch[1]}mm`); if (df) sideFilters.push(df) }
-      if (foundSubtype) { const sf = parseAnswerToFilter("toolSubtype", foundSubtype); if (sf) sideFilters.push(sf) }
-      if (fluteMatch) { const ff = parseAnswerToFilter("fluteCount", `${fluteMatch[1]}날`); if (ff) sideFilters.push(ff) }
-      ;(filter as unknown as Record<string, unknown>)._sideFilters = sideFilters
-      return { isComplete: false, newFilter: filter, skippedField: null }
-    }
-  }
-
-  // Single-param fallbacks
-  if (detectedMaterial) {
-    const matVal = materialKeywordMap[detectedMaterial]
-    const currentMaterial = (currentInput.material || "").toLowerCase()
-    if (!currentMaterial.includes(matVal)) {
-      const filter = parseAnswerToFilter("material", matVal)
-      return { isComplete: false, newFilter: filter, skippedField: null }
-    }
-  }
-  if (fluteMatch && !currentInput.flutePreference) {
-    return { isComplete: false, newFilter: parseAnswerToFilter("fluteCount", message), skippedField: null }
-  }
-  if (diamMatch) {
-    return { isComplete: false, newFilter: parseAnswerToFilter("diameterRefine", message), skippedField: null }
-  }
-
-  const coatingKeywords = ["altin", "tialn", "dlc", "무코팅", "y-코팅", "y코팅", "ticn", "blue", "블루", "블루코팅", "uncoated", "코팅 없", "노코팅"]
-  const foundCoating = coatingKeywords.find(k => clean.includes(k))
-  if (foundCoating && !currentInput.coatingPreference) {
-    let coatingVal = foundCoating.toUpperCase()
-    if (["blue", "블루", "블루코팅"].includes(foundCoating)) coatingVal = "Blue Coating"
-    else if (["무코팅", "uncoated", "코팅 없", "노코팅"].includes(foundCoating)) coatingVal = "Uncoated"
-    return { isComplete: false, newFilter: parseAnswerToFilter("coating", coatingVal), skippedField: null }
-  }
-
-  const seriesPatterns = [/^(ce\d+[a-z]*\d*)/i, /^(gnx\d+)/i, /^(sem[a-z]*\d+)/i, /^(e\d+[a-z]\d+)/i]
-  if (seriesPatterns.find(p => p.test(clean))) {
-    return { isComplete: false, newFilter: parseAnswerToFilter("seriesName", message.trim()), skippedField: null }
-  }
-
-  if (foundSubtype) {
-    return { isComplete: false, newFilter: parseAnswerToFilter("toolSubtype", message.trim()), skippedField: null }
-  }
-
-  const cuttingKeywords = ["슬롯", "측면", "프로파일", "황삭", "정삭"]
-  const foundCutting = cuttingKeywords.find(k => clean.includes(k))
-  if (foundCutting) {
-    return { isComplete: false, newFilter: parseAnswerToFilter("cuttingType", message), skippedField: null }
-  }
-
-  // Bare number → likely diameter
-  if (/^\d+(\.\d+)?$/.test(clean)) {
-    return { isComplete: false, newFilter: parseAnswerToFilter("diameterRefine", `${clean}mm`), skippedField: null }
-  }
-
-  // Truly unrecognizable
-  return null
-}
-
-// ── Infer which field the question engine was asking about ────
-async function inferCurrentQuestionField(
-  input: RecommendationInput,
-  prevState: ExplorationSessionState
-): Promise<string> {
-  // Use the actual question engine to determine what's being asked
-  // This ensures perfect sync between what was asked and what we infer
-  const filters: AppliedFilter[] = prevState?.appliedFilters ?? []
-  const currentInput = prevState?.resolvedInput
-    ? { ...input, ...prevState.resolvedInput }
-    : input
-  const hybridResult = await runHybridRetrieval(currentInput, filters)
-  const question = selectNextQuestion(currentInput, hybridResult.candidates, prevState.narrowingHistory ?? [])
-  if (question) return question.field
-
-  // Fallback: check by priority if question engine returns null
-  const askedFields = new Set(
-    prevState.narrowingHistory.flatMap(h => h.extractedFilters.map(f => f.field))
-  )
-  if (!input.flutePreference && !askedFields.has("fluteCount")) return "fluteCount"
-  if (!input.coatingPreference && !askedFields.has("coating")) return "coating"
-  if (!askedFields.has("seriesName")) return "seriesName"
-  if (!input.toolSubtype && !askedFields.has("toolSubtype")) return "toolSubtype"
-  if (!askedFields.has("cuttingType")) return "cuttingType"
-  if (!askedFields.has("diameterRefine")) return "diameterRefine"
-  return "unknown"
-}
-
+function __PLACEHOLDER_END_OF_DEAD_CODE_BLOCK() { /* see above */ }
 // ── Apply filter to RecommendationInput ──────────────────────
 function applyFilterToInput(input: RecommendationInput, filter: AppliedFilter): RecommendationInput {
   let updated = { ...input }
