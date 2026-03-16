@@ -724,6 +724,48 @@ function inferIntent(toolsUsed: string[]): ChatIntent {
   return "general"
 }
 
+// ── Extract Product Brand Info from Tool Results ─────────────
+
+function extractBrandInfo(toolResults: { name: string; result: string }[]): { brand: string; displayCode: string; seriesName: string | null }[] {
+  const products: { brand: string; displayCode: string; seriesName: string | null }[] = []
+  const seen = new Set<string>()
+  for (const tr of toolResults) {
+    try {
+      const data = JSON.parse(tr.result)
+      const addProduct = (p: { brand?: string; displayCode?: string; seriesName?: string | null }) => {
+        if (p.brand && p.displayCode && !seen.has(p.displayCode)) {
+          seen.add(p.displayCode)
+          products.push({ brand: p.brand, displayCode: p.displayCode, seriesName: p.seriesName ?? null })
+        }
+      }
+      if (data.products) data.products.forEach(addProduct)
+      if (data.yg1Alternatives) data.yg1Alternatives.forEach(addProduct)
+      if (data.brand && data.seriesName) addProduct(data)
+    } catch {
+      // ignore parse errors
+    }
+  }
+  return products
+}
+
+// ── Inject Brand Header into Response ────────────────────────
+
+function injectBrandHeader(responseText: string, brandProducts: { brand: string; displayCode: string; seriesName: string | null }[]): string {
+  if (brandProducts.length === 0) return responseText
+
+  // Check if brand info is already in the response
+  const hasBrandLabel = /\*\*브랜드명[::]\*\*/.test(responseText) || /브랜드명[::]\s*\S+/.test(responseText)
+  if (hasBrandLabel) return responseText
+
+  // Build brand header from tool results
+  const brandLines = brandProducts.slice(0, 3).map(p =>
+    `**브랜드명:** ${p.brand} | **제품코드:** ${p.displayCode}`
+  )
+  const header = brandLines.join("\n")
+
+  return `${header}\n\n${responseText}`
+}
+
 // ── Extract Product References from Tool Results ────────────
 
 function extractReferences(toolResults: { name: string; result: string }[]): string[] | null {
@@ -921,6 +963,12 @@ export async function POST(req: NextRequest) {
     // ── Build Response ─────────────────────────────────────
     const intent = inferIntent(toolsUsed)
     const references = extractReferences(toolResults)
+    const brandProducts = extractBrandInfo(toolResults)
+
+    // Inject brand header if LLM forgot to include it
+    const finalText = (intent === "product_recommendation" || intent === "product_lookup" || intent === "cross_reference")
+      ? injectBrandHeader(responseText, brandProducts)
+      : responseText
 
     // Try to extract chips from the response (look for suggested actions)
     let chips: string[] | null = null
@@ -953,7 +1001,7 @@ export async function POST(req: NextRequest) {
 
     const result: LLMResponse = {
       intent,
-      text: responseText,
+      text: finalText,
       chips,
       extractedField: null,
       isComplete: intent === "general" ? false : true,
