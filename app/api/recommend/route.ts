@@ -303,28 +303,36 @@ async function handleExploration(
             rawValue: "skip",
             appliedAt: turnCount,
           }
+          filters.push(skipFilter)
+
+          // Clear the skipped field from currentInput
+          currentInput = applyFilterToInput(currentInput, skipFilter)
+
+          // Re-run retrieval with cleared field
+          const newResult = await runHybridRetrieval(currentInput, filters.filter(f => f.op !== "skip"))
+          const newCandidates = newResult.candidates
 
           narrowingHistory.push({
             question: "follow-up",
             answer: lastUserMsg.text,
             extractedFilters: [skipFilter],
             candidateCountBefore: candidates.length,
-            candidateCountAfter: candidates.length, // no change
+            candidateCountAfter: newCandidates.length,
           })
           turnCount++
 
           // Check if we're resolved after skip
-          const statusAfterSkip = checkResolution(candidates, narrowingHistory)
+          const statusAfterSkip = checkResolution(newCandidates, narrowingHistory)
           if (statusAfterSkip.startsWith("resolved")) {
             return buildRecommendationResponse(
-              form, candidates, evidenceMap, currentInput, narrowingHistory,
+              form, newCandidates, newResult.evidenceMap, currentInput, narrowingHistory,
               filters, turnCount, messages, provider
             )
           }
 
           // Ask next question (which will be different since the field is now in history)
           return buildQuestionResponse(
-            form, candidates, evidenceMap, currentInput,
+            form, newCandidates, newResult.evidenceMap, currentInput,
             narrowingHistory, filters, turnCount, messages, provider
           )
         }
@@ -1323,6 +1331,33 @@ function applyFilterToInput(input: RecommendationInput, filter: AppliedFilter): 
 
 function applySingleFilter(input: RecommendationInput, filter: AppliedFilter): RecommendationInput {
   const updated = { ...input }
+
+  // "상관없음" / skip → 해당 필드 클리어
+  if (filter.op === "skip" || filter.rawValue === "skip") {
+    switch (filter.field) {
+      case "diameterMm":
+      case "diameterRefine":
+        updated.diameterMm = undefined
+        break
+      case "fluteCount":
+        updated.flutePreference = undefined
+        break
+      case "coating":
+        updated.coatingPreference = undefined
+        break
+      case "cuttingType":
+        updated.operationType = undefined
+        break
+      case "material":
+        updated.material = undefined
+        break
+      case "toolSubtype":
+        updated.toolSubtype = undefined
+        break
+    }
+    return updated
+  }
+
   switch (filter.field) {
     case "fluteCount":
       updated.flutePreference = typeof filter.rawValue === "number" ? filter.rawValue : parseInt(String(filter.rawValue))
