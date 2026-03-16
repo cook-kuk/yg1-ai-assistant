@@ -60,7 +60,8 @@ export async function POST(req: Request) {
       return handleExploration(
         body.intakeForm as ProductIntakeForm,
         body.messages ?? [],
-        body.sessionState ?? null
+        body.sessionState ?? null,
+        body.displayedProducts ?? null
       )
     }
 
@@ -87,13 +88,27 @@ export async function POST(req: Request) {
 // EXPLORATION HANDLER (session-aware hybrid retrieval + narrowing)
 // ════════════════════════════════════════════════════════════════
 
+interface DisplayedProduct {
+  rank: number
+  code: string
+  brand: string | null
+  series: string | null
+  diameter: number | null
+  flute: number | null
+  coating: string | null
+  materialTags: string[]
+  score: number
+  matchStatus: string
+}
+
 async function handleExploration(
   form: ProductIntakeForm,
   messages: ChatMessage[],
-  prevState: ExplorationSessionState | null
+  prevState: ExplorationSessionState | null,
+  displayedProducts: DisplayedProduct[] | null = null
 ): Promise<Response> {
   console.log(
-    `[recommend] request start hasPrevState=${!!prevState} messages=${messages.length} productSource=${process.env.PRODUCT_REPO_SOURCE ?? ""} hasDatabaseUrl=${!!process.env.DATABASE_URL} pgHost=${process.env.PGHOST || process.env.POSTGRES_HOST || ""}`
+    `[recommend] request start hasPrevState=${!!prevState} messages=${messages.length} displayedProducts=${displayedProducts?.length ?? 0}`
   )
   const provider = getProvider()
   const baseInput = mapIntakeToInput(form)
@@ -448,7 +463,7 @@ async function buildQuestionResponse(
     // First call: generate greeting
     try {
       const systemPrompt = buildSystemPrompt()
-      const sessionCtx = buildSessionContext(form, sessionState, candidates.length)
+      const sessionCtx = buildSessionContext(form, sessionState, candidates.length, displayedProducts)
       const greetingPrompt = buildGreetingPrompt(sessionCtx, question, candidates.length)
 
       const raw = await provider.complete(systemPrompt, [
@@ -466,7 +481,7 @@ async function buildQuestionResponse(
     // Follow-up: polish the question
     try {
       const systemPrompt = buildSystemPrompt()
-      const sessionCtx = buildSessionContext(form, sessionState, candidates.length)
+      const sessionCtx = buildSessionContext(form, sessionState, candidates.length, displayedProducts)
       const raw = await provider.complete(systemPrompt, [
         { role: "user", content: `${sessionCtx}\n\n다음 질문을 자연스러운 한국어로 다듬어주세요: "${question.questionText}"\n현재 후보 ${candidates.length}개.\nJSON으로 응답: { "responseText": "...", "extractedParams": {}, "isComplete": false, "skipQuestion": false }` }
       ], 300)
@@ -591,7 +606,7 @@ async function buildRecommendationResponse(
         resolvedInput: input,
         turnCount,
       }
-      const sessionCtx = buildSessionContext(form, sessionState, candidates.length)
+      const sessionCtx = buildSessionContext(form, sessionState, candidates.length, displayedProducts)
 
       // Use new explanation-aware prompt — include per-product evidence
       const resultPrompt = buildExplanationResultPrompt(

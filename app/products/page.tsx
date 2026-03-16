@@ -342,19 +342,16 @@ function CandidateCard({ c }: { c: CandidateSnapshot }) {
             {c.brand && <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">{c.brand}</span>}
             {c.seriesName && <span className="text-xs text-blue-700 font-medium">{c.seriesName}</span>}
           </div>
+          {/* ── Key Specs: 한눈에 보이는 주요 스펙 ── */}
+          <div className="flex items-center gap-1 mt-0.5 text-[11px] text-gray-700 font-medium">
+            {c.diameterMm != null && <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">φ{c.diameterMm}mm</span>}
+            {c.fluteCount != null && <span className="bg-green-50 text-green-700 px-1.5 py-0.5 rounded">{c.fluteCount}F</span>}
+            {c.coating && <span className="bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">{c.coating}</span>}
+            {c.materialTags.length > 0 && <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{c.materialTags.join("/")}</span>}
+          </div>
         </div>
       </div>
-      <div className="flex flex-wrap gap-1.5 text-xs text-gray-600">
-        {c.diameterMm != null && <span>{"φ"}{c.diameterMm}mm</span>}
-        {c.fluteCount != null && <span>{c.fluteCount}날</span>}
-        {c.coating && <span>{c.coating}</span>}
-      </div>
       <div className="flex items-center gap-2">
-        {c.materialTags.length > 0 && (
-          <div className="flex flex-wrap gap-0.5">
-            {c.materialTags.map(t => <Badge key={t} variant="secondary" className="text-[10px] px-1 py-0">{t}</Badge>)}
-          </div>
-        )}
         {c.hasEvidence && c.bestCondition && (
           <EvidenceBadge conditions={c.bestCondition} />
         )}
@@ -1796,6 +1793,20 @@ export default function ProductRecommendPage() {
       const history = chatMessages.map(m => ({ role: m.role, text: m.text }))
       history.push({ role: "user", text })
 
+      // 현재 표시된 추천 제품 목록을 같이 전송 → LLM이 후속 질문에 활용
+      const displayedProducts = candidateSnapshot?.slice(0, 10).map(c => ({
+        rank: c.rank,
+        code: c.displayCode,
+        brand: c.brand,
+        series: c.seriesName,
+        diameter: c.diameterMm,
+        flute: c.fluteCount,
+        coating: c.coating,
+        materialTags: c.materialTags,
+        score: c.score,
+        matchStatus: c.matchStatus,
+      })) ?? null
+
       const res = await fetch("/api/recommend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1803,6 +1814,7 @@ export default function ProductRecommendPage() {
           intakeForm: form,
           messages: history,
           sessionState,
+          displayedProducts,
         }),
       })
       const data = await res.json()
