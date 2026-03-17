@@ -174,7 +174,9 @@ function analyzeFields(
         .slice(0, 4)
         .map(([k, count]) => {
           const rep = seriesRepProduct.get(k)
-          const label = rep ? buildProductLabel(rep.product) : null
+          const rawLabel = rep ? buildProductLabel(rep.product) : null
+          // Strip HTML tags (e.g. <br/>) from label to keep chip text clean
+          const label = rawLabel ? rawLabel.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim() : null
           return label ? `${k} — ${label} (${count}개)` : `${k} (${count}개)`
         })
       if (chips.length > 1) {
