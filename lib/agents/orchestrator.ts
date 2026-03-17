@@ -340,7 +340,8 @@ ${candidatesDesc}
 8. 초기화 → reset_session
 9. 잡담, 수학, 감정 공감, 시스템 질문 → tool 호출 없이 직접 텍스트 답변
 10. 제품 데이터(코드, 스펙, 재고)를 절대 생성하지 마세요
-11. 한국어로 답변하세요`
+11. 한국어로 답변하세요
+12. 답변 끝에 출처 표기: [Reference: YG-1 내부 DB] 또는 [Reference: AI 지식 추론] 또는 [Reference: 웹 검색]`
 }
 
 function mapToolUseToAction(

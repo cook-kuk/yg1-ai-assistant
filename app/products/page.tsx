@@ -299,6 +299,12 @@ function ProductCard({ scored, rank, isAlternative = false }: {
             {p.materialTags.length > 0 && (
               <div className="text-[10px] text-gray-400 mt-0.5">{p.materialTags.join("/")}군</div>
             )}
+            {p.description && (
+              <div className="text-[10px] text-gray-500 mt-1 italic leading-relaxed">{p.description.replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, "")}</div>
+            )}
+            {p.featureText && (
+              <div className="text-[10px] text-teal-600 mt-0.5 leading-relaxed whitespace-pre-line">{p.featureText.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "")}</div>
+            )}
           </div>
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0" onClick={() => setOpen(o => !o)}>
             {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -365,6 +371,7 @@ function CandidateCard({ c }: { c: CandidateSnapshot }) {
           <div className="flex items-center gap-1.5 flex-wrap">
             {c.brand && <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">{c.brand}</span>}
             {c.seriesName && <span className="text-xs text-blue-700 font-medium">{c.seriesName}</span>}
+            {c.description && <span className="text-[10px] text-gray-400 italic truncate max-w-[200px]">{c.description.replace(/<br\s*\/?>/gi, " ")}</span>}
           </div>
           {/* ── Inline spec: φ4mm · 2F · Diamond · Carbide · Shank 4mm · CL 10mm · OAL 80mm · 30° ── */}
           <div className="text-[11px] text-gray-600 mt-1 leading-relaxed font-medium">
@@ -382,12 +389,8 @@ function CandidateCard({ c }: { c: CandidateSnapshot }) {
           {c.materialTags.length > 0 && (
             <div className="text-[10px] text-gray-400 mt-0.5">{c.materialTags.join("/")}군</div>
           )}
-          {c.description && (
-            <div className="text-[10px] text-gray-500 mt-1 italic leading-relaxed">{c.description}</div>
-          )}
-          {c.featureText && (
-            <div className="text-[10px] text-teal-600 mt-0.5 leading-relaxed">{c.featureText}</div>
-          )}
+          {/* description is now inline with brand/series above */}
+          {/* featureText is shown inside the toggle below */}
         </div>
       </div>
       <div className="flex flex-wrap gap-1.5 text-xs text-gray-600">
@@ -416,7 +419,14 @@ function CandidateCard({ c }: { c: CandidateSnapshot }) {
             <span className="font-mono shrink-0">{bd.matchPct}%</span>
             <Info size={9} />
           </button>
-          {showXai && <div className="mt-2"><ScoreBreakdownPanel breakdown={bd} /></div>}
+          {showXai && (
+            <div className="mt-2 space-y-2">
+              {c.featureText && (
+                <div className="text-[10px] text-teal-700 bg-teal-50 rounded px-2 py-1.5 leading-relaxed">{c.featureText.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "")}</div>
+              )}
+              <ScoreBreakdownPanel breakdown={bd} />
+            </div>
+          )}
         </div>
       )}
     </div>

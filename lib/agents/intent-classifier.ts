@@ -62,6 +62,32 @@ export async function classifyIntent(
     }
   }
 
+  // ── 3.5. CHIP TEXT MATCHING (safety net for when tool-use fails) ──
+  if (sessionState) {
+    const chipClean = clean.replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
+    const metaChips = ["상관없음", "⟵ 이전 단계", "처음부터 다시", "추천해주세요", "추천 이어서", "비교해줘", "절삭조건 문의"]
+    if (!metaChips.includes(chipClean)) {
+      if (sessionState.displayedOptions?.length > 0) {
+        for (const opt of sessionState.displayedOptions) {
+          const optVal = opt.value.toLowerCase()
+          const optLabel = opt.label.toLowerCase().replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
+          if (chipClean === optVal || chipClean === optLabel || clean.startsWith(optVal) || clean.startsWith(optLabel)) {
+            return { intent: "SELECT_OPTION", confidence: 0.98, extractedValue: opt.value, reasoning: `Chip match: ${opt.label}`, modelUsed: "haiku" }
+          }
+        }
+      }
+      if (sessionState.displayedChips?.length > 0) {
+        for (const chip of sessionState.displayedChips) {
+          if (metaChips.includes(chip)) continue
+          const cv = chip.toLowerCase().replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
+          if (chipClean === cv || clean === chip.toLowerCase()) {
+            return { intent: "SELECT_OPTION", confidence: 0.95, extractedValue: chip.replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim(), modelUsed: "haiku" }
+          }
+        }
+      }
+    }
+  }
+
   // ── 4. Comparison requests ──
   for (const p of COMPARE_PATTERNS) {
     if (p instanceof RegExp ? p.test(clean) : clean.includes(p)) {
@@ -257,7 +283,7 @@ function tryDeterministicExtraction(clean: string): string | null {
   if (diamMatch) return `${diamMatch[1]}mm`
 
   // Known coating keywords
-  const coatings = ["altin", "tialn", "dlc", "무코팅", "y-코팅", "ticn"]
+  const coatings = ["altin", "tialn", "dlc", "무코팅", "y-코팅", "ticn", "bright finish", "diamond", "x-coating", "t-coating", "uncoated", "alcrn"]
   for (const c of coatings) {
     if (clean.includes(c)) return c
   }

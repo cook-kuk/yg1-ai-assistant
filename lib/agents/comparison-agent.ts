@@ -101,7 +101,8 @@ export async function compareProducts(
 - 데이터에 있는 정보만 사용 (추정 금지)
 - 표 아래에 각 제품의 강점/약점을 1-2줄로
 - 어떤 상황에서 어떤 제품이 더 적합한지 결론
-- 없는 정보는 "-"으로 표시`
+- 없는 정보는 "-"으로 표시
+- 답변 마지막에 반드시: [Reference: YG-1 내부 DB]`
 
   try {
     const raw = await provider.complete(
