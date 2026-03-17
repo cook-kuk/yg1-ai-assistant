@@ -105,7 +105,7 @@ export async function runMatchEngine(input: RecommendationInput, topN = 5): Prom
   // ── Score all candidates ─────────────────────────────────────
   const maxScore = Object.values(WEIGHTS).reduce((a, b) => a + b, 0) + 10 // +10 for diameter neutral
 
-  const scored = candidates.map(product => {
+  const scored = await Promise.all(candidates.map(async (product) => {
     const score =
       scoreDiameter(product, input.diameterMm) +
       scoreFlutes(product, input.flutePreference) +
@@ -118,10 +118,10 @@ export async function runMatchEngine(input: RecommendationInput, topN = 5): Prom
     const fields = matchedFields(product, input)
 
     // Enrichment
-    const inventory = InventoryRepo.getByEdp(product.normalizedCode)
+    const inventory = await InventoryRepo.getByEdpAsync(product.normalizedCode)
     const leadTimes = LeadTimeRepo.getByEdp(product.normalizedCode)
-    const totalStock = InventoryRepo.totalStock(product.normalizedCode)
-    const stockStatus = InventoryRepo.stockStatus(product.normalizedCode)
+    const totalStock = await InventoryRepo.totalStockAsync(product.normalizedCode)
+    const stockStatus = await InventoryRepo.stockStatusAsync(product.normalizedCode)
     const minLeadTimeDays = LeadTimeRepo.minLeadTime(product.normalizedCode)
 
     return {
@@ -137,7 +137,7 @@ export async function runMatchEngine(input: RecommendationInput, topN = 5): Prom
       totalStock,
       minLeadTimeDays,
     } satisfies ScoredProduct
-  })
+  }))
 
   // Sort: by score desc, then by source priority asc, then completeness desc
   scored.sort((a, b) => {

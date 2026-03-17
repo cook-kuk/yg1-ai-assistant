@@ -538,6 +538,8 @@ ${candidatesDesc}
 - "1+1이 뭐야?" → tool 없이 직접 텍스트 답변 (수학)
 - "지금 Square 결과 맞아?" → tool 없이 직접 텍스트로 현재 상태 확인 답변
 - 소재 언급이 설명인지 새 검색인지 불명확 → ask_clarification
+- "직경 잘못 입력했네", "공구직경 틀렸어" → ask_clarification (질문: "올바른 직경을 알려주세요", 옵션: 자주 쓰는 직경 + "직접 입력")
+- "잘못 선택했어", "다시 할래" → undo_step (target="last")
 
 의도가 모호할 때:
 15. 추측하지 말고 ask_clarification으로 선택지 제시 (2-4개 옵션 + "직접 입력" 항상 포함)`

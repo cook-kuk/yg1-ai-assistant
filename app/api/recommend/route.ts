@@ -49,6 +49,7 @@ import { buildSessionState, carryForwardState, createInitialStage, createFilterS
 import { runValidationGate, validateNoReask } from "@/lib/domain/validation-gate"
 import { ENABLE_MULTI_AGENT_ORCHESTRATOR, ENABLE_VALIDATION_GATE, ENABLE_COMPARISON_AGENT, ENABLE_TOOL_USE_ROUTING } from "@/lib/feature-flags"
 import { ProductRepo } from "@/lib/data/repos/product-repo"
+import { InventoryRepo } from "@/lib/data/repos/inventory-repo"
 
 import type { RecommendationInput, RecommendationResult, ScoredProduct, ChatMessage, MatchStatus } from "@/lib/types/canonical"
 import type { ProductIntakeForm, AnswerState, MachiningIntent } from "@/lib/types/intake"
@@ -441,6 +442,42 @@ async function handleExploration(
 
       // Action: explain_product / answer_general
       if (action.type === "explain_product" || action.type === "answer_general") {
+        const inventoryReply = await handleDirectInventoryQuestion(
+          lastUserMsg.text,
+          prevState
+        )
+        if (inventoryReply) {
+          const sessionState: ExplorationSessionState = {
+            sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+            candidateCount: prevState.candidateCount ?? candidates.length,
+            appliedFilters: filters,
+            narrowingHistory,
+            stageHistory: prevState.stageHistory ?? [],
+            resolutionStatus: prevState.resolutionStatus ?? "broad",
+            resolvedInput: currentInput,
+            turnCount,
+            lastAskedField: prevState.lastAskedField,
+            displayedCandidates: prevState.displayedCandidates ?? [],
+            displayedChips: inventoryReply.chips,
+            displayedOptions: prevState.displayedOptions ?? [],
+            lastAction: "answer_general",
+          }
+          return NextResponse.json({
+            text: inventoryReply.text,
+            purpose: "general_chat",
+            chips: inventoryReply.chips,
+            isComplete: false,
+            recommendation: null,
+            sessionState,
+            evidenceSummaries: null,
+            candidateSnapshot: prevState.displayedCandidates ?? null,
+            extractedField: null, requestPreparation: null,
+            primaryExplanation: null, primaryFactChecked: null,
+            altExplanations: [], altFactChecked: [],
+            orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+          })
+        }
+
         const cuttingConditionReply = await handleDirectCuttingConditionQuestion(
           lastUserMsg.text,
           currentInput,
@@ -1443,9 +1480,143 @@ ${coatings.map(c => `• ${c}`).join("\n")}
 const DIRECT_PRODUCT_CODE_PATTERN = /\b([A-Z][A-Z0-9-]{4,})\b/i
 const DIRECT_SERIES_CODE_PATTERN = /\b([A-Z]\d[A-Z]\d{2,}[A-Z]?)\b/i
 const CUTTING_CONDITION_QUERY_PATTERN = /절삭조건|가공조건|vc|fz|이송|회전수|rpm|feed/i
+const INVENTORY_QUERY_PATTERN = /재고|stock|inventory|available|availability|수량|남았/i
 
 function normalizeLookupCode(value: string): string {
   return value.toUpperCase().replace(/[\s-]/g, "").trim()
+}
+
+function escapeMarkdownTableCell(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "-"
+  return String(value).replace(/\|/g, "/").replace(/\n/g, " ").trim() || "-"
+}
+
+function buildMarkdownTable(headers: string[], rows: Array<Array<string | number | null | undefined>>): string {
+  const headerRow = `| ${headers.map(escapeMarkdownTableCell).join(" | ")} |`
+  const dividerRow = `| ${headers.map(() => "---").join(" | ")} |`
+  const bodyRows = rows.map(row => `| ${row.map(escapeMarkdownTableCell).join(" | ")} |`)
+  return [headerRow, dividerRow, ...bodyRows].join("\n")
+}
+
+function formatStockStatusLabel(stockStatus: "instock" | "limited" | "outofstock" | "unknown"): string {
+  if (stockStatus === "instock") return "재고 있음"
+  if (stockStatus === "limited") return "소량 재고"
+  if (stockStatus === "outofstock") return "재고 없음"
+  return "재고 미확인"
+}
+
+function summarizeInventoryRowsByWarehouse(rows: Array<{ warehouseOrRegion: string; quantity: number | null }>): Array<{ warehouseOrRegion: string; quantity: number }> {
+  return Array.from(
+    rows.reduce((acc, row) => {
+      if (row.quantity === null) return acc
+      const key = row.warehouseOrRegion?.trim()
+      if (!key) return acc
+      acc.set(key, (acc.get(key) ?? 0) + row.quantity)
+      return acc
+    }, new Map<string, number>())
+  )
+    .map(([warehouseOrRegion, quantity]) => ({ warehouseOrRegion, quantity }))
+    .sort((a, b) => b.quantity - a.quantity || a.warehouseOrRegion.localeCompare(b.warehouseOrRegion))
+}
+
+function getLatestInventorySnapshotDateFromRows(rows: Array<{ snapshotDate: string | null }>): string | null {
+  const dates = rows
+    .map(row => row.snapshotDate)
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .sort()
+  return dates.length > 0 ? dates[dates.length - 1] : null
+}
+
+async function handleDirectInventoryQuestion(
+  userMessage: string,
+  prevState: ExplorationSessionState
+): Promise<{ text: string; chips: string[] } | null> {
+  if (!INVENTORY_QUERY_PATTERN.test(userMessage)) return null
+
+  const productCodeMatch = userMessage.match(DIRECT_PRODUCT_CODE_PATTERN)
+  const lookupCode = normalizeLookupCode(productCodeMatch?.[1] ?? "")
+  if (!lookupCode) return null
+
+  const product = await ProductRepo.findByCode(lookupCode).catch(() => null)
+  const inventoryRows = await InventoryRepo.getByEdpAsync(lookupCode)
+  const totalStock = await InventoryRepo.totalStockAsync(lookupCode)
+  const stockStatus = await InventoryRepo.stockStatusAsync(lookupCode)
+  const warehouseSummary = summarizeInventoryRowsByWarehouse(inventoryRows)
+  const latestSnapshotDate = getLatestInventorySnapshotDateFromRows(inventoryRows)
+
+  if (totalStock !== null || warehouseSummary.length > 0) {
+    const summaryTable = buildMarkdownTable(
+      ["항목", "값"],
+      [
+        ["제품코드", lookupCode],
+        ["시리즈", product?.seriesName ?? "-"],
+        ["직경", product?.diameterMm != null ? `φ${product.diameterMm}mm` : "-"],
+        ["전체 지역 합산 재고", totalStock != null ? `${totalStock}개` : "-"],
+        ["재고 상태", formatStockStatusLabel(stockStatus)],
+        ["기준일", latestSnapshotDate ?? "-"],
+      ]
+    )
+    const inventoryTable = buildMarkdownTable(
+      ["지역", "수량"],
+      warehouseSummary.length > 0
+        ? warehouseSummary.slice(0, 8).map(row => [row.warehouseOrRegion, `${row.quantity}개`])
+        : [["지역별 재고", "없음"]]
+    )
+
+    return {
+      text: [
+        `${lookupCode}의 재고 데이터를 내부 데이터에서 조회했습니다.`,
+        "",
+        summaryTable,
+        "",
+        inventoryTable,
+        "",
+        "[Reference: YG-1 내부 재고 데이터]",
+      ].join("\n"),
+      chips: ["다른 제품 재고", "추천 제품 보기", "처음부터 다시"],
+    }
+  }
+
+  if (product) {
+    return {
+      text: [
+        `${lookupCode} 제품은 찾았지만, 매칭되는 재고 데이터는 없습니다.`,
+        "",
+        buildMarkdownTable(
+          ["항목", "값"],
+          [
+            ["제품코드", lookupCode],
+            ["시리즈", product.seriesName ?? "-"],
+            ["직경", product.diameterMm != null ? `φ${product.diameterMm}mm` : "-"],
+            ["재고", "매칭 데이터 없음"],
+          ]
+        ),
+        "",
+        "[Reference: YG-1 내부 재고 데이터]",
+      ].join("\n"),
+      chips: ["다른 제품 재고", "추천 제품 보기", "처음부터 다시"],
+    }
+  }
+
+  if (prevState.displayedCandidates?.length > 0) {
+    return {
+      text: [
+        `${lookupCode}에 대한 재고 데이터를 내부 데이터에서 찾지 못했습니다.`,
+        "현재 표시된 후보의 제품코드로 다시 물어보시면 내부 재고 기준으로 조회해드릴 수 있습니다.",
+        "[Reference: YG-1 내부 재고 데이터]",
+      ].join("\n"),
+      chips: ["후보 제품 보기", "추천 제품 보기", "처음부터 다시"],
+    }
+  }
+
+  return {
+    text: [
+      `${lookupCode}에 대한 재고 데이터를 내부 데이터에서 찾지 못했습니다.`,
+      "제품코드를 다시 확인해주세요.",
+      "[Reference: YG-1 내부 재고 데이터]",
+    ].join("\n"),
+    chips: ["제품 추천", "다른 제품 재고", "처음부터 다시"],
+  }
 }
 
 function formatConditionLabel(condition: {
@@ -1494,18 +1665,36 @@ async function handleDirectCuttingConditionQuestion(
     })
 
     if (chunks.length > 0) {
-      const conditionLines = chunks.slice(0, 5).map(chunk => formatConditionLabel({
-        isoGroup: chunk.isoGroup,
-        cuttingType: chunk.cuttingType,
-        diameterMm: chunk.diameterMm,
-        conditions: chunk.conditions,
-      }))
+      const summaryTable = buildMarkdownTable(
+        ["항목", "값"],
+        [
+          ["제품코드", lookupCode],
+          ["시리즈", product.seriesName ?? "-"],
+          ["직경", product.diameterMm != null ? `φ${product.diameterMm}mm` : "-"],
+          ["ISO 소재", isoGroup ? `ISO ${isoGroup}` : "-"],
+        ]
+      )
+      const conditionTable = buildMarkdownTable(
+        ["ISO", "가공", "직경", "Vc", "fz", "ap", "ae", "n", "vf"],
+        chunks.slice(0, 5).map(chunk => [
+          chunk.isoGroup ? `ISO ${chunk.isoGroup}` : "-",
+          chunk.cuttingType,
+          chunk.diameterMm != null ? `φ${chunk.diameterMm}mm` : "-",
+          chunk.conditions.Vc,
+          chunk.conditions.fz,
+          chunk.conditions.ap,
+          chunk.conditions.ae,
+          chunk.conditions.n,
+          chunk.conditions.vf,
+        ])
+      )
 
       const text = [
         `${lookupCode}의 절삭조건을 내부 DB에서 조회했습니다.`,
-        `시리즈: ${product.seriesName ?? "-"} / 직경: ${product.diameterMm != null ? `φ${product.diameterMm}mm` : "-"}`,
         "",
-        ...conditionLines,
+        summaryTable,
+        "",
+        conditionTable,
         "",
         "[Reference: YG-1 내부 DB]",
       ].join("\n")
@@ -1519,7 +1708,17 @@ async function handleDirectCuttingConditionQuestion(
     return {
       text: [
         `${lookupCode} 제품은 내부 DB에서 찾았지만, 매칭되는 절삭조건 데이터는 찾지 못했습니다.`,
-        `시리즈: ${product.seriesName ?? "-"} / 직경: ${product.diameterMm != null ? `φ${product.diameterMm}mm` : "-"}`,
+        "",
+        buildMarkdownTable(
+          ["항목", "값"],
+          [
+            ["제품코드", lookupCode],
+            ["시리즈", product.seriesName ?? "-"],
+            ["직경", product.diameterMm != null ? `φ${product.diameterMm}mm` : "-"],
+            ["절삭조건", "매칭 데이터 없음"],
+          ]
+        ),
+        "",
         "[Reference: YG-1 내부 DB]",
       ].join("\n"),
       chips: ["시리즈 기준으로 다시 보기", "추천 제품 보기", "처음부터 다시"],
@@ -1531,17 +1730,35 @@ async function handleDirectCuttingConditionQuestion(
     diameterMm: currentInput.diameterMm,
   })
   if (seriesChunks.length > 0) {
-    const lines = seriesChunks.slice(0, 5).map(chunk => formatConditionLabel({
-      isoGroup: chunk.isoGroup,
-      cuttingType: chunk.cuttingType,
-      diameterMm: chunk.diameterMm,
-      conditions: chunk.conditions,
-    }))
+    const summaryTable = buildMarkdownTable(
+      ["항목", "값"],
+      [
+        ["시리즈", lookupCode],
+        ["ISO 소재", isoGroup ? `ISO ${isoGroup}` : "-"],
+        ["직경 필터", currentInput.diameterMm != null ? `φ${currentInput.diameterMm}mm` : "-"],
+      ]
+    )
+    const seriesTable = buildMarkdownTable(
+      ["ISO", "가공", "직경", "Vc", "fz", "ap", "ae", "n", "vf"],
+      seriesChunks.slice(0, 5).map(chunk => [
+        chunk.isoGroup ? `ISO ${chunk.isoGroup}` : "-",
+        chunk.cuttingType,
+        chunk.diameterMm != null ? `φ${chunk.diameterMm}mm` : "-",
+        chunk.conditions.Vc,
+        chunk.conditions.fz,
+        chunk.conditions.ap,
+        chunk.conditions.ae,
+        chunk.conditions.n,
+        chunk.conditions.vf,
+      ])
+    )
     return {
       text: [
         `${lookupCode} 시리즈 기준 절삭조건을 내부 DB에서 조회했습니다.`,
         "",
-        ...lines,
+        summaryTable,
+        "",
+        seriesTable,
         "",
         "[Reference: YG-1 내부 DB]",
       ].join("\n"),
@@ -1974,6 +2191,23 @@ function buildCandidateSnapshot(
 ): CandidateSnapshot[] {
   return candidates.map((c, i) => {
     const ev = evidenceMap.get(c.product.normalizedCode)
+    const inventoryLocations = Array.from(
+      c.inventory.reduce((acc, row) => {
+        if (row.quantity === null || row.quantity <= 0) return acc
+        const key = row.warehouseOrRegion?.trim()
+        if (!key) return acc
+        acc.set(key, (acc.get(key) ?? 0) + row.quantity)
+        return acc
+      }, new Map<string, number>())
+    )
+      .map(([warehouseOrRegion, quantity]) => ({ warehouseOrRegion, quantity }))
+      .sort((a, b) => b.quantity - a.quantity || a.warehouseOrRegion.localeCompare(b.warehouseOrRegion))
+    const inventorySnapshotDate = c.inventory
+      .map(row => row.snapshotDate)
+      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      .sort()
+      .at(-1) ?? null
+
     return {
       rank: i + 1,
       productCode: c.product.normalizedCode,
@@ -1998,6 +2232,8 @@ function buildCandidateSnapshot(
       matchStatus: c.matchStatus,
       stockStatus: c.stockStatus,
       totalStock: c.totalStock,
+      inventorySnapshotDate,
+      inventoryLocations,
       hasEvidence: !!ev && ev.chunks.length > 0,
       bestCondition: ev?.bestCondition ?? null,
     }

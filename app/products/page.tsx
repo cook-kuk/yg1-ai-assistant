@@ -26,7 +26,7 @@ import { Badge } from "@/components/ui/badge"
 import { Markdown } from "@/components/ui/markdown"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import type { RecommendationResult, ScoredProduct, ScoreBreakdown } from "@/lib/types/canonical"
+import type { InventorySnapshot, RecommendationResult, ScoredProduct, ScoreBreakdown } from "@/lib/types/canonical"
 import type { CandidateSnapshot, ExplorationSessionState } from "@/lib/types/exploration"
 import type { EvidenceSummary, CuttingConditions } from "@/lib/types/evidence"
 import type { RecommendationExplanation, MatchedFact, UnmatchedFact, SupportingEvidence } from "@/lib/types/explanation"
@@ -101,6 +101,101 @@ function SpecRow({ label, value }: { label: string; value: string | null | undef
     <div className="flex justify-between items-center py-1 border-b border-gray-100 last:border-0">
       <span className="text-xs text-gray-500">{label}</span>
       <span className="text-xs font-medium text-gray-900">{value}</span>
+    </div>
+  )
+}
+
+type InventoryLocationSummary = {
+  warehouseOrRegion: string
+  quantity: number
+}
+
+function summarizeInventoryLocations(rows: Pick<InventorySnapshot, "warehouseOrRegion" | "quantity">[]): InventoryLocationSummary[] {
+  const grouped = new Map<string, number>()
+  for (const row of rows) {
+    if (row.quantity === null || row.quantity <= 0) continue
+    const key = row.warehouseOrRegion?.trim()
+    if (!key) continue
+    grouped.set(key, (grouped.get(key) ?? 0) + row.quantity)
+  }
+  return Array.from(grouped.entries())
+    .map(([warehouseOrRegion, quantity]) => ({ warehouseOrRegion, quantity }))
+    .sort((a, b) => b.quantity - a.quantity || a.warehouseOrRegion.localeCompare(b.warehouseOrRegion))
+}
+
+function summarizeInventorySnapshotDate(rows: Pick<InventorySnapshot, "snapshotDate">[]): string | null {
+  const dates = rows
+    .map(row => row.snapshotDate)
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .sort()
+  return dates.length > 0 ? dates[dates.length - 1] : null
+}
+
+function InventoryBlock({
+  totalStock,
+  snapshotDate,
+  locations,
+}: {
+  totalStock: number | null
+  snapshotDate?: string | null
+  locations?: InventoryLocationSummary[]
+}) {
+  const { language } = useApp()
+  const safeLocations = locations ?? []
+
+  if (totalStock === null && safeLocations.length === 0) {
+    return (
+      <div>
+        <div className="text-xs text-gray-500 mb-1">{language === "ko" ? "재고 정보" : "Inventory"}</div>
+      <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3">
+        <div className="text-[11px] text-gray-600">
+          {language === "ko" ? "재고 데이터 미확인" : "Inventory data unavailable"}
+        </div>
+        {snapshotDate && (
+          <div className="text-[10px] text-gray-500 mt-1">
+            {language === "ko" ? `기준일 ${snapshotDate}` : `As of ${snapshotDate}`}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+  }
+
+  const visibleLocations = safeLocations.slice(0, 3)
+  const remainingCount = safeLocations.length - visibleLocations.length
+
+  return (
+    <div>
+      <div className="text-xs text-gray-500 mb-1">{language === "ko" ? "재고 정보" : "Inventory"}</div>
+      <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 space-y-2">
+        <div className="text-[11px] font-medium text-emerald-800">
+          {totalStock !== null
+            ? (language === "ko" ? `전체 지역 합산 재고 ${totalStock}개` : `Total stock across all regions: ${totalStock}`)
+            : (language === "ko" ? "총재고 미확인" : "Total stock unavailable")}
+        </div>
+        {snapshotDate && (
+          <div className="text-[10px] text-emerald-700">
+            {language === "ko" ? `기준일 ${snapshotDate}` : `As of ${snapshotDate}`}
+          </div>
+        )}
+        {visibleLocations.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {visibleLocations.map(location => (
+              <span
+                key={location.warehouseOrRegion}
+                className="text-[10px] px-2 py-0.5 rounded-full bg-white text-emerald-700 border border-emerald-200"
+              >
+                {location.warehouseOrRegion} {language === "ko" ? `${location.quantity}개` : `${location.quantity}`}
+              </span>
+            ))}
+            {remainingCount > 0 && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white text-gray-500 border border-gray-200">
+                {language === "ko" ? `외 ${remainingCount}개 지역` : `+${remainingCount} more`}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -266,6 +361,8 @@ function ProductCard({ scored, rank, isAlternative = false, evidenceSummary = nu
   const [open, setOpen] = useState(!isAlternative)
   const p = scored.product
   const bestCondition = evidenceSummary?.bestCondition ?? null
+  const inventoryLocations = useMemo(() => summarizeInventoryLocations(scored.inventory), [scored.inventory])
+  const inventorySnapshotDate = useMemo(() => summarizeInventorySnapshotDate(scored.inventory), [scored.inventory])
   return (
     <Card className={`border ${isAlternative ? "border-gray-200" : "border-blue-200 shadow-sm"}`}>
       <CardHeader className="pb-2 pt-3 px-4">
@@ -335,6 +432,7 @@ function ProductCard({ scored, rank, isAlternative = false, evidenceSummary = nu
               </div>
             </div>
           )}
+          <InventoryBlock totalStock={scored.totalStock} snapshotDate={inventorySnapshotDate} locations={inventoryLocations} />
           {bestCondition && (
             <div>
               <div className="text-xs text-gray-500 mb-1">{language === 'ko' ? '절삭조건' : 'Cutting Conditions'}</div>
@@ -427,6 +525,7 @@ function CandidateCard({ c }: { c: CandidateSnapshot }) {
           <EvidenceBadge conditions={c.bestCondition} />
         )}
       </div>
+      <InventoryBlock totalStock={c.totalStock} snapshotDate={c.inventorySnapshotDate} locations={c.inventoryLocations} />
       {/* Compact score bar + xAI toggle */}
       {bd && (
         <div className="pt-1">
