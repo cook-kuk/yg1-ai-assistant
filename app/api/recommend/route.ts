@@ -43,12 +43,12 @@ import { analyzeInquiry, getRedirectResponse } from "@/lib/domain/inquiry-analyz
 import { planAction } from "@/lib/domain/action-planner"
 import type { ActionPlan } from "@/lib/domain/action-planner"
 import { orchestrateTurn, orchestrateTurnWithTools } from "@/lib/agents/orchestrator"
-import { ENABLE_TOOL_USE_ROUTING } from "@/lib/feature-flags"
 import { compareProducts, resolveProductReferences } from "@/lib/agents/comparison-agent"
 import type { TurnContext, OrchestratorResult } from "@/lib/agents/types"
-import { buildSessionState, carryForwardState, createInitialStage, createFilterStage, restoreOnePreviousStep, restoreToBeforeFilter } from "@/lib/domain/session-manager"
-import { runValidationGate, validateNoReask } from "@/lib/domain/validation-gate"
-import { ENABLE_MULTI_AGENT_ORCHESTRATOR, ENABLE_VALIDATION_GATE, ENABLE_COMPARISON_AGENT } from "@/lib/feature-flags"
+import { buildSessionState, carryForwardState, createInitialStage, createFilterStage, restoreOnePreviousStep, restoreToBeforeFilter, replaceSlot } from "@/lib/domain/session-manager"
+import { runValidationGate, validateNoReask, validateSlotReplacement } from "@/lib/domain/validation-gate"
+import type { ConversationOverlay, ComparisonArtifact } from "@/lib/types/exploration"
+import { ENABLE_MULTI_AGENT_ORCHESTRATOR, ENABLE_VALIDATION_GATE, ENABLE_COMPARISON_AGENT, ENABLE_TOOL_USE_ROUTING } from "@/lib/feature-flags"
 import { ProductRepo } from "@/lib/data/repos/product-repo"
 
 import type { RecommendationInput, RecommendationResult, ScoredProduct, ChatMessage, MatchStatus } from "@/lib/types/canonical"
@@ -176,9 +176,17 @@ async function handleExploration(
         currentCandidates: candidates,
       }
 
-      const orchResult = ENABLE_TOOL_USE_ROUTING
-        ? await orchestrateTurnWithTools(turnCtx, provider)
-        : await orchestrateTurn(turnCtx, provider)
+      let orchResult: OrchestratorResult
+      if (ENABLE_TOOL_USE_ROUTING) {
+        try {
+          orchResult = await orchestrateTurnWithTools(turnCtx, provider)
+        } catch (toolUseError) {
+          console.warn(`[recommend] Tool-use routing failed, falling back to legacy:`, toolUseError)
+          orchResult = await orchestrateTurn(turnCtx, provider)
+        }
+      } else {
+        orchResult = await orchestrateTurn(turnCtx, provider)
+      }
       const action = orchResult.action
 
       // ── Dispatch orchestrator action ──────────────────────
@@ -304,6 +312,457 @@ async function handleExploration(
           })
         }
 
+        // Resolve targets from displayed products
+        const resolved = resolveProductReferences(action.targets, snapshot)
+        const productLines = resolved.map(p =>
+          `**#${p.rank} ${p.displayCode}**${p.displayLabel ? ` [${p.displayLabel}]` : ""}\n` +
+          `${p.brand ?? "?"} | ${p.seriesName ?? "?"}\n` +
+          `φ${p.diameterMm ?? "?"}mm · ${p.fluteCount ?? "?"}날 · ${p.coating ?? "?"} · ${p.toolMaterial ?? "?"}\n` +
+          `Shank ${p.shankDiameterMm ?? "?"}mm · CL ${p.lengthOfCutMm ?? "?"}mm · OAL ${p.overallLengthMm ?? "?"}mm\n` +
+          `매칭: ${p.matchStatus} (${p.score}점) | 재고: ${p.stockStatus}`
+        ).join("\n\n")
+
+        const responseText = `요청하신 제품 ${resolved.length}개입니다:\n\n${productLines}`
+
+        const sessionState: ExplorationSessionState = {
+          sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+          candidateCount: prevState.candidateCount,
+          appliedFilters: filters,
+          narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
+          resolutionStatus: prevState.resolutionStatus ?? "broad",
+          resolvedInput: currentInput,
+          turnCount,
+          lastAskedField: prevState.lastAskedField,
+          displayedCandidates: snapshot,
+          displayedChips: ["비교해줘", "추천해주세요", "⟵ 이전 단계"],
+          displayedOptions: prevState.displayedOptions ?? [],
+          lastAction: "show_displayed_products",
+          conversationOverlay: prevState.conversationOverlay,
+          lastComparisonArtifact: prevState.lastComparisonArtifact,
+        }
+        return NextResponse.json({
+          text: responseText,
+          purpose: "recommendation",
+          chips: ["비교해줘", "추천해주세요", "⟵ 이전 단계"],
+          isComplete: false,
+          recommendation: null,
+          sessionState,
+          evidenceSummaries: null,
+          candidateSnapshot: resolved,
+          extractedField: null, requestPreparation: null,
+          primaryExplanation: null, primaryFactChecked: null,
+          altExplanations: [], altFactChecked: [],
+          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+        })
+      }
+
+      // Action: replace_slot — remove old filter, add new one, recompute
+      if (action.type === "replace_slot") {
+        const slotResult = replaceSlot(
+          prevState, action.oldField, action.newFilter, baseInput, applyFilterToInput
+        )
+
+        // Recompute candidates with new filters
+        const newResult = await runHybridRetrieval(
+          slotResult.rebuiltInput,
+          slotResult.updatedFilters.filter(f => f.op !== "skip")
+        )
+
+        // Update the last history entry with actual count
+        if (slotResult.updatedHistory.length > 0) {
+          slotResult.updatedHistory[slotResult.updatedHistory.length - 1].candidateCountAfter = newResult.candidates.length
+        }
+
+        // Build new stage
+        const newStage = createFilterStage(
+          action.newFilter, slotResult.rebuiltInput,
+          slotResult.updatedFilters, newResult.candidates.length
+        )
+        const updatedStages = [...slotResult.updatedStages, newStage]
+
+        console.log(`[orchestrator:slot-replace] ${action.oldField}: ${slotResult.oldValue} → ${slotResult.newValue} | ${prevState.candidateCount} → ${newResult.candidates.length} candidates`)
+
+        const replaceText = `${action.oldField}를 ${slotResult.oldValue}에서 **${slotResult.newValue}**로 변경했습니다.\n후보가 ${newResult.candidates.length}개로 업데이트되었습니다.`
+
+        const status = checkResolution(newResult.candidates, slotResult.updatedHistory)
+        if (status.startsWith("resolved")) {
+          return buildRecommendationResponse(
+            form, newResult.candidates, newResult.evidenceMap, slotResult.rebuiltInput,
+            slotResult.updatedHistory, slotResult.updatedFilters, slotResult.turnCount,
+            messages, provider, language, displayedProducts
+          )
+        }
+
+        return buildQuestionResponse(
+          form, newResult.candidates, newResult.evidenceMap, slotResult.rebuiltInput,
+          slotResult.updatedHistory, slotResult.updatedFilters, slotResult.turnCount,
+          messages, provider, language, replaceText, updatedStages
+        )
+      }
+
+      // Action: filter_displayed — in-display 필터링
+      if (action.type === "filter_displayed") {
+        const snapshot = prevState.displayedCandidates?.length > 0
+          ? prevState.displayedCandidates
+          : buildCandidateSnapshot(candidates, evidenceMap)
+
+        // Reset filter → restore fullDisplayedCandidates
+        if (action.field === "reset" || action.operator === "reset") {
+          const restored = prevState.fullDisplayedCandidates?.length
+            ? prevState.fullDisplayedCandidates
+            : snapshot
+          const sessionState: ExplorationSessionState = {
+            sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+            candidateCount: prevState.candidateCount ?? candidates.length,
+            appliedFilters: filters,
+            narrowingHistory,
+            stageHistory: prevState.stageHistory ?? [],
+            resolutionStatus: prevState.resolutionStatus ?? "broad",
+            resolvedInput: currentInput,
+            turnCount,
+            lastAskedField: prevState.lastAskedField,
+            displayedCandidates: restored,
+            fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+            displayedSetFilter: null,
+            displayedChips: prevState.displayedChips ?? [],
+            displayedOptions: prevState.displayedOptions ?? [],
+            lastAction: "filter_displayed",
+          }
+          return NextResponse.json({
+            text: `전체 ${restored.length}개 제품을 다시 표시합니다.`,
+            purpose: "question",
+            chips: prevState.displayedChips ?? ["추천해주세요", "처음부터 다시"],
+            isComplete: false,
+            recommendation: null,
+            sessionState,
+            evidenceSummaries: null,
+            candidateSnapshot: restored,
+            extractedField: null, requestPreparation: null,
+            primaryExplanation: null, primaryFactChecked: null,
+            altExplanations: [], altFactChecked: [],
+            orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+          })
+        }
+
+        // Save full list (first time only)
+        const fullList = prevState.fullDisplayedCandidates?.length
+          ? prevState.fullDisplayedCandidates
+          : snapshot
+
+        // Apply filter or keep_indices
+        let filtered: CandidateSnapshot[]
+        if (action.keepIndices?.length) {
+          filtered = snapshot.filter(c => action.keepIndices!.includes(c.rank))
+        } else {
+          filtered = snapshot.filter(c => {
+            const fieldVal = (c as unknown as Record<string, unknown>)[action.field]
+            if (fieldVal == null) return false
+            const numVal = typeof fieldVal === "number" ? fieldVal : parseFloat(String(fieldVal))
+            const cmpVal = parseFloat(action.value)
+            const strVal = String(fieldVal).toLowerCase()
+            const targetStr = action.value.toLowerCase()
+
+            switch (action.operator) {
+              case "eq": return !isNaN(numVal) && !isNaN(cmpVal) ? numVal === cmpVal : strVal === targetStr
+              case "gt": return !isNaN(numVal) && !isNaN(cmpVal) && numVal > cmpVal
+              case "gte": return !isNaN(numVal) && !isNaN(cmpVal) && numVal >= cmpVal
+              case "lt": return !isNaN(numVal) && !isNaN(cmpVal) && numVal < cmpVal
+              case "lte": return !isNaN(numVal) && !isNaN(cmpVal) && numVal <= cmpVal
+              case "neq": return !isNaN(numVal) && !isNaN(cmpVal) ? numVal !== cmpVal : strVal !== targetStr
+              case "contains": return strVal.includes(targetStr)
+              default: return strVal === targetStr
+            }
+          })
+        }
+
+        // Re-rank filtered results
+        filtered = filtered.map((c, i) => ({ ...c, rank: i + 1 }))
+
+        const resultText = filtered.length > 0
+          ? `${fullList.length}개 중 ${filtered.length}개가 조건에 맞습니다:\n${filtered.slice(0, 5).map(c => `#${c.rank} ${c.displayCode} (${c.seriesName ?? "-"})`).join("\n")}`
+          : `${fullList.length}개 제품 중 조건에 맞는 것이 없습니다. "전체 보기"로 복원할 수 있습니다.`
+
+        const sessionState: ExplorationSessionState = {
+          sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+          candidateCount: prevState.candidateCount ?? candidates.length,
+          appliedFilters: filters,
+          narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
+          resolutionStatus: prevState.resolutionStatus ?? "broad",
+          resolvedInput: currentInput,
+          turnCount,
+          lastAskedField: prevState.lastAskedField,
+          displayedCandidates: filtered.length > 0 ? filtered : snapshot,
+          fullDisplayedCandidates: fullList,
+          displayedSetFilter: filtered.length > 0 ? { field: action.field, operator: action.operator, value: action.value } : null,
+          displayedChips: ["전체 보기", "추천해주세요", "처음부터 다시"],
+          displayedOptions: prevState.displayedOptions ?? [],
+          lastAction: "filter_displayed",
+        }
+        return NextResponse.json({
+          text: resultText,
+          purpose: "question",
+          chips: ["전체 보기", "추천해주세요", "처음부터 다시"],
+          isComplete: false,
+          recommendation: null,
+          sessionState,
+          evidenceSummaries: null,
+          candidateSnapshot: filtered.length > 0 ? filtered : snapshot,
+          extractedField: null, requestPreparation: null,
+          primaryExplanation: null, primaryFactChecked: null,
+          altExplanations: [], altFactChecked: [],
+          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+        })
+      }
+
+      // Action: query_displayed — 표시된 제품 데이터 질의
+      if (action.type === "query_displayed") {
+        const snapshot = prevState.displayedCandidates?.length > 0
+          ? prevState.displayedCandidates
+          : buildCandidateSnapshot(candidates, evidenceMap)
+
+        let resultText = ""
+        const field = action.field
+
+        const withValues = snapshot.map(c => ({
+          candidate: c,
+          value: (c as unknown as Record<string, unknown>)[field],
+          numValue: (() => {
+            const v = (c as unknown as Record<string, unknown>)[field]
+            return typeof v === "number" ? v : (v != null ? parseFloat(String(v)) : NaN)
+          })(),
+        }))
+
+        switch (action.queryType) {
+          case "max": {
+            const valid = withValues.filter(v => !isNaN(v.numValue))
+            if (valid.length === 0) {
+              resultText = `표시된 제품에서 ${field} 값을 찾을 수 없습니다.`
+            } else {
+              const best = valid.reduce((a, b) => a.numValue > b.numValue ? a : b)
+              resultText = `${field} 최대: #${best.candidate.rank} ${best.candidate.displayCode} (${best.numValue})\n[Reference: YG-1 내부 DB]`
+            }
+            break
+          }
+          case "min": {
+            const valid = withValues.filter(v => !isNaN(v.numValue))
+            if (valid.length === 0) {
+              resultText = `표시된 제품에서 ${field} 값을 찾을 수 없습니다.`
+            } else {
+              const best = valid.reduce((a, b) => a.numValue < b.numValue ? a : b)
+              resultText = `${field} 최소: #${best.candidate.rank} ${best.candidate.displayCode} (${best.numValue})\n[Reference: YG-1 내부 DB]`
+            }
+            break
+          }
+          case "count": {
+            if (action.condition) {
+              const cmpVal = parseFloat(action.condition.value)
+              const targetStr = action.condition.value.toLowerCase()
+              const matching = withValues.filter(v => {
+                if (v.value == null) return false
+                const strVal = String(v.value).toLowerCase()
+                switch (action.condition!.operator) {
+                  case "eq": return !isNaN(v.numValue) && !isNaN(cmpVal) ? v.numValue === cmpVal : strVal === targetStr
+                  case "gt": return !isNaN(v.numValue) && !isNaN(cmpVal) && v.numValue > cmpVal
+                  case "gte": return !isNaN(v.numValue) && !isNaN(cmpVal) && v.numValue >= cmpVal
+                  case "lt": return !isNaN(v.numValue) && !isNaN(cmpVal) && v.numValue < cmpVal
+                  case "lte": return !isNaN(v.numValue) && !isNaN(cmpVal) && v.numValue <= cmpVal
+                  case "contains": return strVal.includes(targetStr)
+                  default: return strVal === targetStr
+                }
+              })
+              resultText = `${field}${action.condition.operator === "eq" ? "=" : action.condition.operator}${action.condition.value} 인 제품: ${matching.length}개\n[Reference: YG-1 내부 DB]`
+            } else {
+              const nonNull = withValues.filter(v => v.value != null)
+              resultText = `${field} 값이 있는 제품: ${nonNull.length}개 / 전체 ${snapshot.length}개\n[Reference: YG-1 내부 DB]`
+            }
+            break
+          }
+          case "list": {
+            const values = [...new Set(withValues.map(v => v.value != null ? String(v.value) : null).filter(Boolean))]
+            resultText = `표시된 제품의 ${field} 목록:\n${values.map(v => `• ${v}`).join("\n")}\n[Reference: YG-1 내부 DB]`
+            break
+          }
+          case "find": {
+            if (action.condition) {
+              const cmpVal = parseFloat(action.condition.value)
+              const targetStr = action.condition.value.toLowerCase()
+              const matching = withValues.filter(v => {
+                if (v.value == null) return false
+                const strVal = String(v.value).toLowerCase()
+                switch (action.condition!.operator) {
+                  case "eq": return !isNaN(v.numValue) && !isNaN(cmpVal) ? v.numValue === cmpVal : strVal === targetStr
+                  case "gt": return !isNaN(v.numValue) && !isNaN(cmpVal) && v.numValue > cmpVal
+                  case "gte": return !isNaN(v.numValue) && !isNaN(cmpVal) && v.numValue >= cmpVal
+                  case "contains": return strVal.includes(targetStr)
+                  default: return strVal === targetStr
+                }
+              })
+              resultText = matching.length > 0
+                ? `조건에 맞는 제품:\n${matching.slice(0, 5).map(v => `#${v.candidate.rank} ${v.candidate.displayCode} (${field}=${v.value})`).join("\n")}\n[Reference: YG-1 내부 DB]`
+                : `조건에 맞는 제품이 없습니다.\n[Reference: YG-1 내부 DB]`
+            } else {
+              resultText = `조건을 지정해주세요. 예: "코팅이 Diamond인 건?"\n[Reference: YG-1 내부 DB]`
+            }
+            break
+          }
+          default:
+            resultText = `지원하지 않는 질의 종류입니다.\n[Reference: YG-1 내부 DB]`
+        }
+
+        const sessionState: ExplorationSessionState = {
+          sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+          candidateCount: prevState.candidateCount ?? candidates.length,
+          appliedFilters: filters,
+          narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
+          resolutionStatus: prevState.resolutionStatus ?? "broad",
+          resolvedInput: currentInput,
+          turnCount,
+          lastAskedField: prevState.lastAskedField,
+          displayedCandidates: snapshot,
+          fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+          displayedSetFilter: prevState.displayedSetFilter,
+          displayedChips: prevState.displayedChips ?? [],
+          displayedOptions: prevState.displayedOptions ?? [],
+          lastAction: "query_displayed",
+        }
+        return NextResponse.json({
+          text: resultText,
+          purpose: "general_chat",
+          chips: prevState.displayedChips ?? ["추천해주세요", "처음부터 다시"],
+          isComplete: false,
+          recommendation: null,
+          sessionState,
+          evidenceSummaries: null,
+          candidateSnapshot: snapshot,
+          extractedField: null, requestPreparation: null,
+          primaryExplanation: null, primaryFactChecked: null,
+          altExplanations: [], altFactChecked: [],
+          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+        })
+      }
+
+      // Action: side_conversation — handle without destroying session
+      if (action.type === "side_conversation") {
+        const sideResponse = await handleSideConversation(provider, lastUserMsg.text)
+
+        const sessionState: ExplorationSessionState = {
+          sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+          candidateCount: prevState.candidateCount,
+          appliedFilters: filters,
+          narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
+          resolutionStatus: prevState.resolutionStatus ?? "broad",
+          resolvedInput: currentInput,
+          turnCount,
+          lastAskedField: prevState.lastAskedField,
+          displayedCandidates: prevState.displayedCandidates ?? [],
+          displayedChips: ["추천 이어서", "처음부터 다시"],
+          displayedOptions: prevState.displayedOptions ?? [],
+          lastAction: "side_conversation",
+          conversationOverlay: {
+            mode: "side_conversation",
+            overlayType: detectOverlayType(lastUserMsg.text),
+            preservedSessionActive: true,
+          },
+          lastComparisonArtifact: prevState.lastComparisonArtifact,
+        }
+        return NextResponse.json({
+          text: sideResponse,
+          purpose: "general_chat",
+          chips: ["추천 이어서", "처음부터 다시"],
+          isComplete: false,
+          recommendation: null,
+          sessionState,
+          evidenceSummaries: null,
+          candidateSnapshot: prevState.displayedCandidates ?? null,
+          extractedField: null, requestPreparation: null,
+          primaryExplanation: null, primaryFactChecked: null,
+          altExplanations: [], altFactChecked: [],
+          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+        })
+      }
+
+      // Action: meta_conversation — honest answer about system behavior
+      if (action.type === "meta_conversation") {
+        const metaResponse = await handleMetaConversation(provider, lastUserMsg.text, prevState)
+
+        const sessionState: ExplorationSessionState = {
+          sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+          candidateCount: prevState.candidateCount,
+          appliedFilters: filters,
+          narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
+          resolutionStatus: prevState.resolutionStatus ?? "broad",
+          resolvedInput: currentInput,
+          turnCount,
+          lastAskedField: prevState.lastAskedField,
+          displayedCandidates: prevState.displayedCandidates ?? [],
+          displayedChips: prevState.displayedChips?.length ? prevState.displayedChips : ["⟵ 이전 단계", "추천해주세요", "처음부터 다시"],
+          displayedOptions: prevState.displayedOptions ?? [],
+          lastAction: "meta_conversation",
+          conversationOverlay: prevState.conversationOverlay,
+          lastComparisonArtifact: prevState.lastComparisonArtifact,
+        }
+        return NextResponse.json({
+          text: metaResponse,
+          purpose: "general_chat",
+          chips: prevState.displayedChips ?? ["추천 이어서", "처음부터 다시"],
+          isComplete: false,
+          recommendation: null,
+          sessionState,
+          evidenceSummaries: null,
+          candidateSnapshot: prevState.displayedCandidates ?? null,
+          extractedField: null, requestPreparation: null,
+          primaryExplanation: null, primaryFactChecked: null,
+          altExplanations: [], altFactChecked: [],
+          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+        })
+      }
+
+      // Action: return_to_recommendation — resume from preserved session
+      if (action.type === "return_to_recommendation") {
+        // Clear overlay, resume from current state
+        const sessionState: ExplorationSessionState = {
+          sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+          candidateCount: candidates.length,
+          appliedFilters: filters,
+          narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
+          resolutionStatus: prevState.resolutionStatus ?? "broad",
+          resolvedInput: currentInput,
+          turnCount,
+          lastAskedField: prevState.lastAskedField,
+          displayedCandidates: prevState.displayedCandidates ?? [],
+          displayedChips: prevState.displayedChips ?? [],
+          displayedOptions: prevState.displayedOptions ?? [],
+          lastAction: "return_to_recommendation",
+          conversationOverlay: { mode: "none", overlayType: null, preservedSessionActive: true },
+          lastComparisonArtifact: prevState.lastComparisonArtifact,
+        }
+
+        const status = checkResolution(candidates, narrowingHistory)
+        if (status.startsWith("resolved")) {
+          return buildRecommendationResponse(
+            form, candidates, evidenceMap, currentInput, narrowingHistory,
+            filters, turnCount, messages, provider, language, displayedProducts
+          )
+        }
+
+        // Resume narrowing — show where we left off
+        const filterSummary = filters.filter(f => f.op !== "skip").map(f => `${f.field}=${f.value}`).join(", ")
+        const resumeText = `추천을 이어갑니다.\n현재 조건: ${filterSummary || "없음"}\n후보: ${candidates.length}개`
+
+        return buildQuestionResponse(
+          form, candidates, evidenceMap, currentInput, narrowingHistory,
+          filters, turnCount, messages, provider, language, resumeText
+        )
+      }
+
+      // Action: explain_product / answer_general
+      if (action.type === "explain_product" || action.type === "answer_general") {
         // Use existing LLM handlers
         if (action.type === "explain_product") {
           const contextReply = await handleContextualNarrowingQuestion(

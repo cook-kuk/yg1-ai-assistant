@@ -71,6 +71,8 @@ export type OrchestratorAction =
   | { type: "compare_products"; targets: string[] }
   | { type: "explain_product"; target?: string }
   | { type: "answer_general"; message: string; preGenerated?: boolean }
+  | { type: "filter_displayed"; field: string; operator: string; value: string; keepIndices?: number[] }
+  | { type: "query_displayed"; queryType: string; field: string; condition?: { operator: string; value: string } }
   | { type: "redirect_off_topic" }
 
 export interface OrchestratorResult {

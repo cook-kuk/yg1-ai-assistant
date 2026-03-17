@@ -548,3 +548,343 @@ function buildFilterFromParams(
 
   return null
 }
+
+// ════════════════════════════════════════════════════════════════
+// TOOL-USE ROUTING (alternative to regex intent classification)
+// Claude chooses which tool to call = intent classification
+// ════════════════════════════════════════════════════════════════
+
+const NARROWING_TOOLS: LLMTool[] = [
+  {
+    name: "apply_filter",
+    description: "사용자가 필터 조건을 선택했을 때 호출. 코팅, 날수, 공구 형상, 시리즈 등. '상관없음/모름/패스' 입력 시 value를 'skip'으로 설정.",
+    input_schema: {
+      type: "object",
+      properties: {
+        field: {
+          type: "string",
+          enum: ["fluteCount", "coating", "toolSubtype", "seriesName", "diameterMm", "diameterRefine", "cuttingType", "material"],
+          description: "필터 대상 필드. 현재 질문(lastAskedField)에 해당하는 필드 사용."
+        },
+        value: {
+          type: "string",
+          description: "선택한 값. 예: '4', 'Diamond', 'Square', 'skip'. 칩에서 선택한 경우 칩의 값 그대로 사용 (개수 제외)."
+        },
+        display_value: {
+          type: "string",
+          description: "UI 표시용 값. 예: '4날', 'Diamond', 'Square'. 없으면 value 사용."
+        }
+      },
+      required: ["field", "value"]
+    }
+  },
+  {
+    name: "show_recommendation",
+    description: "사용자가 추천 결과를 보고 싶어할 때 호출. '추천해줘', '결과 보여줘', '바로 보여줘' 등.",
+    input_schema: { type: "object", properties: {} }
+  },
+  {
+    name: "compare_products",
+    description: "사용자가 제품 비교를 요청할 때 호출. '1번이랑 2번 비교', '상위 3개 비교' 등.",
+    input_schema: {
+      type: "object",
+      properties: {
+        targets: { type: "array", items: { type: "string" }, description: "비교 대상. 예: ['1번', '2번']" }
+      },
+      required: ["targets"]
+    }
+  },
+  {
+    name: "undo_step",
+    description: "사용자가 이전 단계로 돌아가고 싶을 때 호출. '이전으로', '되돌려' 등.",
+    input_schema: {
+      type: "object",
+      properties: {
+        target: { type: "string", description: "'last' = 한 단계 뒤로, 또는 특정 필터 값" }
+      },
+      required: ["target"]
+    }
+  },
+  {
+    name: "explain_concept",
+    description: "사용자가 기술 용어, 옵션, 가공 개념 등을 물어볼 때 호출. 'Square가 뭐야?', '코팅 차이 알려줘' 등.",
+    input_schema: {
+      type: "object",
+      properties: {
+        topic: { type: "string", description: "설명할 주제" }
+      },
+      required: ["topic"]
+    }
+  },
+  {
+    name: "reset_session",
+    description: "사용자가 처음부터 다시 시작하고 싶을 때 호출.",
+    input_schema: { type: "object", properties: {} }
+  },
+  {
+    name: "filter_displayed_products",
+    description: "표시된 제품 목록 내에서 특정 조건으로 필터링. 'OAL 50mm인 것만', '코팅 Diamond인 것만', '전체 보기/필터 해제'",
+    input_schema: {
+      type: "object",
+      properties: {
+        field: { type: "string", description: "필터 대상: diameterMm, fluteCount, coating, toolMaterial, shankDiameterMm, lengthOfCutMm, overallLengthMm, helixAngleDeg, seriesName, brand, materialTags. '전체 보기' 시 'reset'" },
+        operator: { type: "string", enum: ["eq","gt","gte","lt","lte","neq","contains","reset"], description: "비교 연산자" },
+        value: { type: "string", description: "비교 값" },
+        keep_indices: { type: "array", items: { type: "number" }, description: "유지할 rank 번호 (대안)" },
+      },
+      required: ["field"]
+    }
+  },
+  {
+    name: "query_displayed_products",
+    description: "표시된 제품 데이터에 대한 질문. '절삭 길이 제일 긴 건?', 'Diamond 코팅 몇 개?', '나선각 30도인 건?'",
+    input_schema: {
+      type: "object",
+      properties: {
+        query_type: { type: "string", enum: ["max","min","count","list","find"], description: "질의 종류" },
+        field: { type: "string", description: "대상 필드" },
+        condition: {
+          type: "object",
+          properties: { operator: { type: "string" }, value: { type: "string" } },
+          description: "조건 (선택)"
+        },
+      },
+      required: ["query_type", "field"]
+    }
+  },
+]
+
+/** Normalize Korean/English field aliases to canonical field names */
+function normalizeFieldName(input: string): string | null {
+  const map: Record<string, string> = {
+    "직경": "diameterMm", "diameter": "diameterMm", "dia": "diameterMm", "지름": "diameterMm", "φ": "diameterMm",
+    "날수": "fluteCount", "날": "fluteCount", "flute": "fluteCount", "f": "fluteCount",
+    "코팅": "coating", "coating": "coating",
+    "공구소재": "toolMaterial", "toolmaterial": "toolMaterial", "소재": "toolMaterial",
+    "섕크": "shankDiameterMm", "shank": "shankDiameterMm", "생크": "shankDiameterMm",
+    "절삭길이": "lengthOfCutMm", "cl": "lengthOfCutMm", "loc": "lengthOfCutMm", "절삭장": "lengthOfCutMm",
+    "전체길이": "overallLengthMm", "oal": "overallLengthMm", "전장": "overallLengthMm",
+    "나선각": "helixAngleDeg", "helix": "helixAngleDeg", "helixangle": "helixAngleDeg",
+    "시리즈": "seriesName", "series": "seriesName",
+    "브랜드": "brand", "brand": "brand",
+  }
+  return map[input.toLowerCase().replace(/\s+/g, "")] ?? null
+}
+
+function buildToolUseSystemPrompt(ctx: TurnContext): string {
+  const state = ctx.sessionState
+  const filterDesc = state?.appliedFilters
+    .filter(f => f.op !== "skip")
+    .map(f => `${f.field}=${f.value}`)
+    .join(", ") || "없음"
+
+  const optionsDesc = state?.displayedOptions?.length
+    ? state.displayedOptions.map(o => `${o.index}. ${o.label} [field=${o.field}, value=${o.value}]`).join("\n")
+    : "없음"
+
+  const chipsDesc = state?.displayedChips?.length
+    ? state.displayedChips.join(", ")
+    : "없음"
+
+  const candidatesDesc = state?.displayedCandidates?.slice(0, 10).map(c =>
+    `#${c.rank} ${c.displayCode} | ${c.brand ?? "?"} | ${c.seriesName ?? "?"} | φ${c.diameterMm ?? "?"}mm | ${c.fluteCount ?? "?"}F | ${c.coating ?? "?"} | ${c.toolMaterial ?? "?"} | shank:${c.shankDiameterMm ?? "?"}mm | CL:${c.lengthOfCutMm ?? "?"}mm | OAL:${c.overallLengthMm ?? "?"}mm | helix:${c.helixAngleDeg ?? "?"}° | ${c.materialTags?.join("/") ?? "?"} | ${c.matchStatus} ${c.score}점`
+  ).join("\n") || "없음"
+
+  return `당신은 YG-1 절삭공구 추천 시스템의 대화 라우터입니다.
+
+═══ 역할 ═══
+사용자 메시지를 분석하여:
+1. 적절한 tool을 호출하여 시스템 액션을 실행하거나
+2. tool 없이 직접 텍스트로 답변 (잡담, 수학, 감정 공감, 메타 질문 등)
+
+═══ 현재 세션 상태 ═══
+- 적용된 필터: [${filterDesc}]
+- 후보 수: ${state?.candidateCount ?? "?"}개
+- 상태: ${state?.resolutionStatus ?? "초기"}
+- 턴 수: ${state?.turnCount ?? 0}
+- 마지막 질문 필드: ${state?.lastAskedField ?? "없음"}
+- 마지막 액션: ${state?.lastAction ?? "없음"}
+
+═══ 현재 표시된 옵션 (칩) ═══
+${optionsDesc}
+
+═══ 표시된 칩 목록 ═══
+${chipsDesc}
+
+═══ 표시된 제품 (상위 10개, 전체 스펙) ═══
+${candidatesDesc}
+
+═══ 필드명 정규화 ═══
+직경/diameter/dia/φ → diameterMm
+날수/flute/F → fluteCount
+코팅/coating → coating
+공구소재/tool material → toolMaterial
+섕크/shank/생크 → shankDiameterMm
+절삭길이/CL/LOC → lengthOfCutMm
+전체길이/OAL/전장 → overallLengthMm
+나선각/helix → helixAngleDeg
+시리즈/series → seriesName
+브랜드/brand → brand
+
+═══ 규칙 ═══
+1. 사용자가 칩/옵션을 선택하면 → apply_filter 호출 (field는 lastAskedField 또는 옵션의 field 사용)
+2. "N번" 입력 → 해당 번호의 옵션 값으로 apply_filter 호출
+3. "상관없음/모름/패스/스킵" → apply_filter에 value="skip" 설정
+4. 사용자가 추천 결과를 원하면 → show_recommendation
+5. 비교 요청 → compare_products (targets 필수)
+6. 되돌리기 → undo_step
+7. 용어/개념 질문 → explain_concept
+8. 초기화 → reset_session
+9. 잡담, 수학, 감정 공감, 시스템 질문 → tool 호출 없이 직접 텍스트 답변
+10. 제품 데이터(코드, 스펙, 재고)를 절대 생성하지 마세요
+11. 한국어로 답변하세요
+12. 답변 끝에 출처 표기: [Reference: YG-1 내부 DB] 또는 [Reference: AI 지식 추론] 또는 [Reference: 웹 검색]
+13. "OAL 50mm인 것만", "코팅 Diamond인 것만" → filter_displayed_products (표시된 목록 내 필터링)
+14. "전체 보기", "필터 해제" → filter_displayed_products (field="reset", operator="reset")
+15. "절삭길이 제일 긴 건?", "Diamond 코팅 몇 개?" → query_displayed_products (표시된 제품 질의)
+16. 필드명은 정규화 표 참고 (한/영/별칭 모두 인식)`
+}
+
+function mapToolUseToAction(
+  toolUse: LLMToolResult,
+  ctx: TurnContext
+): OrchestratorAction {
+  const input = toolUse.input as Record<string, unknown>
+
+  switch (toolUse.toolName) {
+    case "apply_filter": {
+      const field = String(input.field ?? ctx.sessionState?.lastAskedField ?? "unknown")
+      const value = String(input.value ?? "")
+      const displayValue = String(input.display_value ?? value)
+
+      if (["skip", "상관없음", "모름", "패스", "스킵"].includes(value.toLowerCase())) {
+        return { type: "skip_field" }
+      }
+
+      const filter = parseAnswerToFilter(field, value)
+      if (filter) {
+        filter.appliedAt = ctx.sessionState?.turnCount ?? 0
+        if (displayValue && displayValue !== value) {
+          filter.value = displayValue
+        }
+        return { type: "continue_narrowing", filter }
+      }
+
+      const isNumeric = !isNaN(Number(value))
+      return {
+        type: "continue_narrowing",
+        filter: {
+          field,
+          op: isNumeric ? "eq" : "includes",
+          value: displayValue || value,
+          rawValue: isNumeric ? Number(value) : value,
+          appliedAt: ctx.sessionState?.turnCount ?? 0,
+        }
+      }
+    }
+
+    case "show_recommendation":
+      return { type: "show_recommendation" }
+
+    case "compare_products": {
+      const targets = (input.targets as string[]) ?? []
+      return { type: "compare_products", targets }
+    }
+
+    case "undo_step": {
+      const target = String(input.target ?? "last")
+      if (target === "last") {
+        return { type: "go_back_one_step" }
+      }
+      return {
+        type: "go_back_to_filter",
+        filterValue: target,
+        filterField: findFilterField(target, ctx.sessionState),
+      }
+    }
+
+    case "explain_concept":
+      return { type: "explain_product", target: String(input.topic ?? "") }
+
+    case "reset_session":
+      return { type: "reset_session" }
+
+    case "filter_displayed_products": {
+      const rawField = String(input.field ?? "")
+      const field = normalizeFieldName(rawField) ?? rawField
+      const operator = String(input.operator ?? "eq")
+      const value = String(input.value ?? "")
+      const keepIndices = (input.keep_indices as number[]) ?? undefined
+
+      if (field === "reset" || operator === "reset") {
+        return { type: "filter_displayed", field: "reset", operator: "reset", value: "" }
+      }
+      return { type: "filter_displayed", field, operator, value, keepIndices }
+    }
+
+    case "query_displayed_products": {
+      const rawField = String(input.field ?? "")
+      const field = normalizeFieldName(rawField) ?? rawField
+      const queryType = String(input.query_type ?? "list")
+      const condition = input.condition as { operator: string; value: string } | undefined
+
+      return { type: "query_displayed", queryType, field, condition }
+    }
+
+    default:
+      return { type: "answer_general", message: ctx.userMessage }
+  }
+}
+
+/**
+ * Tool-use based orchestration — single Sonnet call replaces
+ * intent classifier (Haiku) + parameter extractor (Haiku) + ambiguity resolver (Opus).
+ */
+export async function orchestrateTurnWithTools(
+  ctx: TurnContext,
+  provider: LLMProvider
+): Promise<OrchestratorResult> {
+  const startMs = Date.now()
+
+  const systemPrompt = buildToolUseSystemPrompt(ctx)
+  const messages = [{ role: "user" as const, content: ctx.userMessage }]
+
+  try {
+    const { text, toolUse } = await provider.completeWithTools(
+      systemPrompt, messages, NARROWING_TOOLS, 1024, "sonnet"
+    )
+
+    const durationMs = Date.now() - startMs
+
+    if (toolUse) {
+      const action = mapToolUseToAction(toolUse, ctx)
+      console.log(`[orchestrator:tool-use] Tool: ${toolUse.toolName} → ${action.type} (${durationMs}ms)`)
+      console.log(`[orchestrator:tool-use] Input: ${JSON.stringify(toolUse.input)}`)
+
+      return {
+        action,
+        reasoning: `tool_use:${toolUse.toolName} → ${action.type}`,
+        agentsInvoked: [{ agent: "tool-use-router", model: "sonnet", durationMs }],
+        escalatedToOpus: false,
+      }
+    }
+
+    const responseText = text ?? "죄송합니다, 다시 말씀해주세요."
+    console.log(`[orchestrator:tool-use] No tool called — text response (${durationMs}ms): ${responseText.slice(0, 100)}...`)
+
+    return {
+      action: { type: "answer_general", message: responseText, preGenerated: true },
+      reasoning: "no_tool:text_response",
+      agentsInvoked: [{ agent: "tool-use-router", model: "sonnet", durationMs }],
+      escalatedToOpus: false,
+    }
+  } catch (error) {
+    console.error(`[orchestrator:tool-use] Error:`, error)
+    return {
+      action: { type: "answer_general", message: ctx.userMessage },
+      reasoning: "tool_use_error:fallback",
+      agentsInvoked: [{ agent: "tool-use-router", model: "sonnet", durationMs: Date.now() - startMs }],
+      escalatedToOpus: false,
+    }
+  }
+}
