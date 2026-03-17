@@ -2071,6 +2071,7 @@ export default function ProductRecommendPage() {
       const text = await res.text()
       if (!text) throw new Error("서버 응답이 비어있습니다. 다시 시도해주세요.")
       const data = JSON.parse(text)
+      if (data.error) throw new Error(data.detail ?? data.text ?? data.error)
 
       // Update session state and candidates
       if (data.sessionState) setSessionState(data.sessionState)

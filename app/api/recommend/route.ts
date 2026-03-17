@@ -80,14 +80,14 @@ export async function POST(req: Request) {
     return handleSimpleChat(body.messages ?? [], body.mode ?? "simple")
 
   } catch (err) {
-    console.error("[recommend] Error:", err)
+    console.error("[recommend] TOP-LEVEL Error:", err)
     const errMsg = err instanceof Error ? err.message : "Unknown error"
-    const errStack = err instanceof Error ? err.stack?.split("\n").slice(0, 5).join(" | ") : ""
+    const errStack = err instanceof Error ? err.stack?.split("\n").slice(0, 8).join(" | ") : ""
     return NextResponse.json({
       error: "internal_error",
       detail: errMsg,
       debugStack: errStack,
-      text: "죄송합니다, 처리 중 오류가 발생했습니다. 다시 시도해주세요.",
+      text: `오류가 발생했습니다: ${errMsg}`,
       chips: ["처음부터 다시", "소재 입력", "직경 입력"],
       isComplete: false,
       recommendation: null,
