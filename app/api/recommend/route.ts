@@ -384,7 +384,7 @@ async function handleExploration(
         filters.push(filter)
         currentInput = testInput
         const newCandidates = testResult.candidates
-        const prevCandidateCount = prevState.candidateCount ?? candidates.length
+        const prevCandidateCount = candidates.length  // always use current pool count, not stale session state
 
         narrowingHistory.push({
           question: prevState.narrowingHistory?.length ? "follow-up" : "initial",
@@ -502,7 +502,7 @@ async function buildQuestionResponse(
     // First call: generate greeting
     try {
       const systemPrompt = buildSystemPrompt()
-      const sessionCtx = buildSessionContext(form, sessionState, candidates.length, displayedProducts)
+      const sessionCtx = buildSessionContext(form, sessionState, candidates.length, snapshotToDisplayed(candidateSnapshot))
       const greetingPrompt = buildGreetingPrompt(sessionCtx, question, candidates.length)
 
       const raw = await provider.complete(systemPrompt, [
@@ -520,7 +520,7 @@ async function buildQuestionResponse(
     // Follow-up: polish the question
     try {
       const systemPrompt = buildSystemPrompt()
-      const sessionCtx = buildSessionContext(form, sessionState, candidates.length, displayedProducts)
+      const sessionCtx = buildSessionContext(form, sessionState, candidates.length, snapshotToDisplayed(candidateSnapshot))
       const raw = await provider.complete(systemPrompt, [
         { role: "user", content: `${sessionCtx}\n\n다음 질문을 자연스러운 한국어로 다듬어주세요: "${question.questionText}"\n현재 후보 ${candidates.length}개.\nJSON으로 응답: { "responseText": "...", "extractedParams": {}, "isComplete": false, "skipQuestion": false }` }
       ], 300)
@@ -1197,6 +1197,22 @@ function logNarrowingState(
     console.log(`[narrowing:${phase}] Next question field: ${currentField}`)
   }
   console.log(`[narrowing:${phase}] ───────────────────────────`)
+}
+
+// ── Map CandidateSnapshot to displayedProducts format for LLM prompts ──
+function snapshotToDisplayed(snapshot: CandidateSnapshot[]): DisplayedProduct[] {
+  return snapshot.slice(0, 10).map(c => ({
+    rank: c.rank,
+    code: c.displayCode,
+    brand: c.brand,
+    series: c.seriesName,
+    diameter: c.diameterMm,
+    flute: c.fluteCount,
+    coating: c.coating,
+    materialTags: c.materialTags,
+    score: c.score,
+    matchStatus: c.matchStatus,
+  }))
 }
 
 // ── Build Candidate Snapshot (lightweight for UI) ────────────
