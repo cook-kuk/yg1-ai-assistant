@@ -41,53 +41,57 @@ import {
   allRequiredAnswered,
   countAnswered,
   countUnknowns,
-  INQUIRY_PURPOSE_LABELS,
-  MACHINING_INTENT_LABELS,
-  type InquiryPurpose,
-  type MachiningIntent,
 } from "@/lib/types/intake"
+import {
+  getIntakeDisplayValue,
+  getIntakeFieldLabel,
+  localizeIntakeText,
+} from "@/lib/domain/intake-localization"
+import { useApp } from "@/lib/store"
 
 // ── Phase ─────────────────────────────────────────────────────
 type Phase = "intake" | "summary" | "loading" | "explore"
 
 // ── Badge helpers ─────────────────────────────────────────────
 const STATUS_CONFIG = {
-  exact: { label: "정확 매칭", cls: "bg-green-100 text-green-800 border-green-300", Icon: CheckCircle2, iconCls: "text-green-600" },
-  approximate: { label: "근사 후보", cls: "bg-amber-100 text-amber-800 border-amber-300", Icon: AlertTriangle, iconCls: "text-amber-600" },
-  none: { label: "매칭 없음", cls: "bg-red-100 text-red-800 border-red-300", Icon: AlertCircle, iconCls: "text-red-600" },
+  exact: { ko: "정확 매칭", en: "Exact Match", cls: "bg-green-100 text-green-800 border-green-300", Icon: CheckCircle2, iconCls: "text-green-600" },
+  approximate: { ko: "근사 후보", en: "Approximate", cls: "bg-amber-100 text-amber-800 border-amber-300", Icon: AlertTriangle, iconCls: "text-amber-600" },
+  none: { ko: "매칭 없음", en: "No Match", cls: "bg-red-100 text-red-800 border-red-300", Icon: AlertCircle, iconCls: "text-red-600" },
 }
 const STOCK_CONFIG = {
-  instock: { label: "재고 있음", cls: "bg-green-100 text-green-700", dot: "bg-green-500" },
-  limited: { label: "소량 재고", cls: "bg-amber-100 text-amber-700", dot: "bg-amber-500" },
-  outofstock: { label: "재고 없음", cls: "bg-red-100 text-red-700", dot: "bg-red-500" },
-  unknown: { label: "재고 미확인", cls: "bg-gray-100 text-gray-600", dot: "bg-gray-400" },
+  instock: { ko: "재고 있음", en: "In Stock", cls: "bg-green-100 text-green-700", dot: "bg-green-500" },
+  limited: { ko: "소량 재고", en: "Limited Stock", cls: "bg-amber-100 text-amber-700", dot: "bg-amber-500" },
+  outofstock: { ko: "재고 없음", en: "Out of Stock", cls: "bg-red-100 text-red-700", dot: "bg-red-500" },
+  unknown: { ko: "재고 미확인", en: "Stock Unknown", cls: "bg-gray-100 text-gray-600", dot: "bg-gray-400" },
 }
 
 const MAX_DISPLAY_CANDIDATES = 5
 
-const RESOLUTION_CONFIG: Record<string, { label: string; cls: string }> = {
-  broad: { label: "탐색 중", cls: "bg-blue-100 text-blue-700" },
-  narrowing: { label: "축소 중", cls: "bg-amber-100 text-amber-700" },
-  resolved_exact: { label: "정확 매칭", cls: "bg-green-100 text-green-700" },
-  resolved_approximate: { label: "근사 매칭", cls: "bg-amber-100 text-amber-700" },
-  resolved_none: { label: "매칭 없음", cls: "bg-red-100 text-red-700" },
+const RESOLUTION_CONFIG: Record<string, { ko: string; en: string; cls: string }> = {
+  broad: { ko: "탐색 중", en: "Exploring", cls: "bg-blue-100 text-blue-700" },
+  narrowing: { ko: "축소 중", en: "Narrowing", cls: "bg-amber-100 text-amber-700" },
+  resolved_exact: { ko: "정확 매칭", en: "Exact Match", cls: "bg-green-100 text-green-700" },
+  resolved_approximate: { ko: "근사 매칭", en: "Approximate", cls: "bg-amber-100 text-amber-700" },
+  resolved_none: { ko: "매칭 없음", en: "No Match", cls: "bg-red-100 text-red-700" },
 }
 
 function MatchBadge({ status }: { status: "exact" | "approximate" | "none" }) {
+  const { language } = useApp()
   const cfg = STATUS_CONFIG[status]
   const Icon = cfg.Icon
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-semibold ${cfg.cls}`}>
-      <Icon size={11} className={cfg.iconCls} />{cfg.label}
+      <Icon size={11} className={cfg.iconCls} />{cfg[language]}
     </span>
   )
 }
 function StockBadge({ status, total }: { status: string; total: number | null }) {
+  const { language } = useApp()
   const cfg = STOCK_CONFIG[status as keyof typeof STOCK_CONFIG] ?? STOCK_CONFIG.unknown
   return (
     <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.cls}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-      {cfg.label}{total !== null && total > 0 && <span>({total})</span>}
+      {cfg[language]}{total !== null && total > 0 && <span>({total})</span>}
     </span>
   )
 }
@@ -103,6 +107,7 @@ function SpecRow({ label, value }: { label: string; value: string | null | undef
 
 // ── Evidence Badge ───────────────────────────────────────────
 function EvidenceBadge({ conditions, confidence }: { conditions: CuttingConditions | null; confidence?: number }) {
+  const { language } = useApp()
   const [open, setOpen] = useState(false)
   if (!conditions) return null
 
@@ -112,22 +117,22 @@ function EvidenceBadge({ conditions, confidence }: { conditions: CuttingConditio
         onClick={() => setOpen(o => !o)}
         className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700 border border-purple-200 hover:bg-purple-200 transition-colors"
       >
-        <FileText size={10} />절삭조건
+        <FileText size={10} />{language === 'ko' ? '절삭조건' : 'Cutting Cond.'}
         {confidence != null && <span className="text-purple-500">({Math.round(confidence * 100)}%)</span>}
       </button>
       {open && (
         <div className="absolute z-20 mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-64">
-          <div className="text-xs font-semibold text-gray-700 mb-2">절삭조건 (카탈로그 데이터)</div>
+          <div className="text-xs font-semibold text-gray-700 mb-2">{language === 'ko' ? '절삭조건 (카탈로그 데이터)' : 'Cutting Conditions (Catalog Data)'}</div>
           <div className="space-y-1">
-            {conditions.Vc && <SpecRow label="Vc (절삭속도)" value={conditions.Vc} />}
-            {conditions.n && <SpecRow label="n (회전수)" value={conditions.n} />}
-            {conditions.fz && <SpecRow label="fz (이송)" value={conditions.fz} />}
-            {conditions.vf && <SpecRow label="vf (테이블이송)" value={conditions.vf} />}
-            {conditions.ap && <SpecRow label="ap (절삭깊이)" value={conditions.ap} />}
-            {conditions.ae && <SpecRow label="ae (절삭폭)" value={conditions.ae} />}
+            {conditions.Vc && <SpecRow label={language === 'ko' ? 'Vc (절삭속도)' : 'Vc (Cutting Speed)'} value={conditions.Vc} />}
+            {conditions.n && <SpecRow label={language === 'ko' ? 'n (회전수)' : 'n (RPM)'} value={conditions.n} />}
+            {conditions.fz && <SpecRow label={language === 'ko' ? 'fz (이송)' : 'fz (Feed/Tooth)'} value={conditions.fz} />}
+            {conditions.vf && <SpecRow label={language === 'ko' ? 'vf (테이블이송)' : 'vf (Table Feed)'} value={conditions.vf} />}
+            {conditions.ap && <SpecRow label={language === 'ko' ? 'ap (절삭깊이)' : 'ap (Depth of Cut)'} value={conditions.ap} />}
+            {conditions.ae && <SpecRow label={language === 'ko' ? 'ae (절삭폭)' : 'ae (Width of Cut)'} value={conditions.ae} />}
           </div>
           <div className="text-[10px] text-gray-400 mt-2 border-t pt-1">
-            카탈로그 추출 데이터 · 실제 가공 시 조정 필요
+            {language === 'ko' ? '카탈로그 추출 데이터 · 실제 가공 시 조정 필요' : 'Catalog extracted data · Adjust for actual machining'}
           </div>
         </div>
       )}
@@ -193,14 +198,15 @@ function buildXaiNarrative(breakdown: ScoreBreakdown): string {
 
 // ── Score Breakdown (xAI — Explainable AI) ────────────────────
 function ScoreBreakdownPanel({ breakdown }: { breakdown: ScoreBreakdown }) {
+  const { language } = useApp()
   const dimensions = [
-    { key: "diameter", label: "직경", emoji: "📐" },
-    { key: "flutes", label: "날 수", emoji: "🔧" },
-    { key: "materialTag", label: "소재", emoji: "🧱" },
-    { key: "operation", label: "가공", emoji: "⚙️" },
-    { key: "coating", label: "코팅", emoji: "🛡️" },
-    { key: "completeness", label: "완성도", emoji: "📊" },
-    { key: "evidence", label: "절삭조건", emoji: "📄" },
+    { key: "diameter", ko: "직경", en: "Diameter", emoji: "📐" },
+    { key: "flutes", ko: "날 수", en: "Flutes", emoji: "🔧" },
+    { key: "materialTag", ko: "소재", en: "Material", emoji: "🧱" },
+    { key: "operation", ko: "가공", en: "Operation", emoji: "⚙️" },
+    { key: "coating", ko: "코팅", en: "Coating", emoji: "🛡️" },
+    { key: "completeness", ko: "완성도", en: "Completeness", emoji: "📊" },
+    { key: "evidence", ko: "절삭조건", en: "Cutting Cond.", emoji: "📄" },
   ] as const
 
   const narrative = buildXaiNarrative(breakdown)
@@ -209,7 +215,7 @@ function ScoreBreakdownPanel({ breakdown }: { breakdown: ScoreBreakdown }) {
     <div className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-lg border border-blue-100 p-3 space-y-2">
       <div className="flex items-center justify-between">
         <div className="text-xs font-semibold text-slate-700 flex items-center gap-1">
-          <Info size={11} className="text-blue-600" />추천 근거 (xAI)
+          <Info size={11} className="text-blue-600" />{language === 'ko' ? '추천 근거 (xAI)' : 'Recommendation Basis (xAI)'}
         </div>
         <div className="text-xs font-bold text-blue-700">
           {breakdown.total}/{breakdown.maxTotal}pt ({breakdown.matchPct}%)
@@ -224,7 +230,7 @@ function ScoreBreakdownPanel({ breakdown }: { breakdown: ScoreBreakdown }) {
             <div key={dim.key}>
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-slate-600 flex items-center gap-1">
-                  <span>{dim.emoji}</span>{dim.label}
+                  <span>{dim.emoji}</span>{dim[language]}
                 </span>
                 <span className="font-mono text-slate-500">{d.score}/{d.max}</span>
               </div>
@@ -246,7 +252,7 @@ function ScoreBreakdownPanel({ breakdown }: { breakdown: ScoreBreakdown }) {
         </div>
       </div>
       <div className="text-[10px] text-slate-400 border-t border-slate-200 pt-1.5 mt-1">
-        YG-1 제품 DB 기반 자동 평가 · 추정값 없음
+        {language === 'ko' ? 'YG-1 제품 DB 기반 자동 평가 · 추정값 없음' : 'Auto-evaluated from YG-1 product DB · No estimated values'}
       </div>
     </div>
   )
@@ -256,6 +262,7 @@ function ScoreBreakdownPanel({ breakdown }: { breakdown: ScoreBreakdown }) {
 function ProductCard({ scored, rank, isAlternative = false }: {
   scored: ScoredProduct; rank: number; isAlternative?: boolean
 }) {
+  const { language } = useApp()
   const [open, setOpen] = useState(!isAlternative)
   const p = scored.product
   return (
@@ -285,26 +292,26 @@ function ProductCard({ scored, rank, isAlternative = false }: {
       {open && (
         <CardContent className="px-4 pb-4 pt-0 space-y-3">
           <div className="bg-gray-50 rounded-lg p-3">
-            <SpecRow label="직경" value={p.diameterMm != null ? `φ${p.diameterMm}mm` : null} />
-            <SpecRow label="날 수" value={p.fluteCount != null ? `${p.fluteCount}날` : null} />
-            <SpecRow label="코팅" value={p.coating} />
-            <SpecRow label="공구 소재" value={p.toolMaterial} />
-            <SpecRow label="섕크 직경" value={p.shankDiameterMm != null ? `${p.shankDiameterMm}mm` : null} />
-            <SpecRow label="절삭 길이" value={p.lengthOfCutMm != null ? `${p.lengthOfCutMm}mm` : null} />
-            <SpecRow label="전체 길이" value={p.overallLengthMm != null ? `${p.overallLengthMm}mm` : null} />
-            <SpecRow label="나선각" value={p.helixAngleDeg != null ? `${p.helixAngleDeg}°` : null} />
+            <SpecRow label={language === 'ko' ? '직경' : 'Diameter'} value={p.diameterMm != null ? `φ${p.diameterMm}mm` : null} />
+            <SpecRow label={language === 'ko' ? '날 수' : 'Flutes'} value={p.fluteCount != null ? `${p.fluteCount}${language === 'ko' ? '날' : 'FL'}` : null} />
+            <SpecRow label={language === 'ko' ? '코팅' : 'Coating'} value={p.coating} />
+            <SpecRow label={language === 'ko' ? '공구 소재' : 'Tool Material'} value={p.toolMaterial} />
+            <SpecRow label={language === 'ko' ? '섕크 직경' : 'Shank Dia.'} value={p.shankDiameterMm != null ? `${p.shankDiameterMm}mm` : null} />
+            <SpecRow label={language === 'ko' ? '절삭 길이' : 'LOC'} value={p.lengthOfCutMm != null ? `${p.lengthOfCutMm}mm` : null} />
+            <SpecRow label={language === 'ko' ? '전체 길이' : 'OAL'} value={p.overallLengthMm != null ? `${p.overallLengthMm}mm` : null} />
+            <SpecRow label={language === 'ko' ? '나선각' : 'Helix Angle'} value={p.helixAngleDeg != null ? `${p.helixAngleDeg}°` : null} />
           </div>
           {p.materialTags.length > 0 && (
             <div>
-              <div className="text-xs text-gray-500 mb-1">적용 소재</div>
+              <div className="text-xs text-gray-500 mb-1">{language === 'ko' ? '적용 소재' : 'Materials'}</div>
               <div className="flex flex-wrap gap-1">
-                {p.materialTags.map(t => <Badge key={t} variant="secondary" className="text-xs">{t}군</Badge>)}
+                {p.materialTags.map(t => <Badge key={t} variant="secondary" className="text-xs">{language === "ko" ? `${t}군` : `${t} Group`}</Badge>)}
               </div>
             </div>
           )}
           {scored.matchedFields.length > 0 && (
             <div>
-              <div className="text-xs text-gray-500 mb-1">매칭 근거</div>
+              <div className="text-xs text-gray-500 mb-1">{language === 'ko' ? '매칭 근거' : 'Match Basis'}</div>
               <div className="flex flex-wrap gap-1">
                 {scored.matchedFields.map((f, i) => (
                   <span key={i} className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{f}</span>
@@ -323,6 +330,7 @@ function ProductCard({ scored, rank, isAlternative = false }: {
 
 // ── Candidate Card (lightweight, for sidebar) ────────────────
 function CandidateCard({ c }: { c: CandidateSnapshot }) {
+  const { language } = useApp()
   const [showXai, setShowXai] = useState(false)
   const bd = c.scoreBreakdown
   return (
@@ -388,49 +396,51 @@ function CandidateCard({ c }: { c: CandidateSnapshot }) {
 
 // ── Verification Status Badge ─────────────────────────────────
 function VerificationBadge({ status }: { status: VerificationStatus }) {
+  const { language } = useApp()
   const cfg = {
-    verified: { label: "확인됨", cls: "bg-green-100 text-green-700 border-green-200" },
-    partial: { label: "부분확인", cls: "bg-amber-100 text-amber-700 border-amber-200" },
-    conflict: { label: "충돌", cls: "bg-red-100 text-red-700 border-red-200" },
-    unverified: { label: "미확인", cls: "bg-gray-100 text-gray-500 border-gray-200" },
+    verified: { ko: "확인됨", en: "Verified", cls: "bg-green-100 text-green-700 border-green-200" },
+    partial: { ko: "부분확인", en: "Partial", cls: "bg-amber-100 text-amber-700 border-amber-200" },
+    conflict: { ko: "충돌", en: "Conflict", cls: "bg-red-100 text-red-700 border-red-200" },
+    unverified: { ko: "미확인", en: "Unverified", cls: "bg-gray-100 text-gray-500 border-gray-200" },
   }[status]
-  return <span className={`inline-flex items-center px-1.5 py-0 rounded text-[10px] font-medium border ${cfg.cls}`}>{cfg.label}</span>
+  return <span className={`inline-flex items-center px-1.5 py-0 rounded text-[10px] font-medium border ${cfg.cls}`}>{cfg[language]}</span>
 }
 
 // ── Intent Summary Card ───────────────────────────────────────
 function IntentSummaryCard({ prep }: { prep: RequestPreparationResult }) {
-  const intentLabels: Record<string, string> = {
-    product_recommendation: "제품 추천",
-    substitute_search: "대체품 검색",
-    cutting_condition_query: "절삭조건 문의",
-    product_lookup: "제품 정보 조회",
-    narrowing_answer: "축소 응답",
-    refinement: "조건 변경",
-    general_question: "일반 문의",
+  const { language } = useApp()
+  const intentLabels: Record<string, { ko: string; en: string }> = {
+    product_recommendation: { ko: "제품 추천", en: "Product Recommendation" },
+    substitute_search: { ko: "대체품 검색", en: "Substitute Search" },
+    cutting_condition_query: { ko: "절삭조건 문의", en: "Cutting Condition Query" },
+    product_lookup: { ko: "제품 정보 조회", en: "Product Lookup" },
+    narrowing_answer: { ko: "축소 응답", en: "Narrowing Answer" },
+    refinement: { ko: "조건 변경", en: "Refinement" },
+    general_question: { ko: "일반 문의", en: "General Question" },
   }
 
   return (
     <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
       <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-800">
-        <Zap size={11} />의도 분석
+        <Zap size={11} />{language === 'ko' ? '의도 분석' : 'Intent Analysis'}
       </div>
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
-          {intentLabels[prep.intent] ?? prep.intent}
+          {intentLabels[prep.intent]?.[language] ?? prep.intent}
         </span>
         <span className={`text-[10px] px-1.5 py-0 rounded ${
           prep.intentConfidence === "high" ? "bg-green-100 text-green-700"
           : prep.intentConfidence === "medium" ? "bg-amber-100 text-amber-700"
           : "bg-gray-100 text-gray-500"
         }`}>
-          신뢰도: {prep.intentConfidence}
+          {language === 'ko' ? '신뢰도' : 'Confidence'}: {prep.intentConfidence}
         </span>
       </div>
       <div className="flex items-center gap-2 text-[10px] text-blue-600">
-        <span>슬롯 {prep.slots.length}개</span>
-        <span>완성도 {prep.completeness.completionPct}%</span>
+        <span>{language === 'ko' ? `슬롯 ${prep.slots.length}개` : `${prep.slots.length} slots`}</span>
+        <span>{language === 'ko' ? `완성도 ${prep.completeness.completionPct}%` : `${prep.completeness.completionPct}% complete`}</span>
         {prep.route.riskFlags.length > 0 && (
-          <span className="text-amber-600">위험: {prep.route.riskFlags.join(", ")}</span>
+          <span className="text-amber-600">{language === 'ko' ? '위험' : 'Risk'}: {prep.route.riskFlags.join(", ")}</span>
         )}
       </div>
     </div>
@@ -439,6 +449,7 @@ function IntentSummaryCard({ prep }: { prep: RequestPreparationResult }) {
 
 // ── Why Recommended Card ──────────────────────────────────────
 function WhyRecommendedCard({ explanation }: { explanation: RecommendationExplanation }) {
+  const { language } = useApp()
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -446,8 +457,8 @@ function WhyRecommendedCard({ explanation }: { explanation: RecommendationExplan
       <button onClick={() => setExpanded(o => !o)}
         className="flex items-center justify-between w-full text-xs font-semibold text-green-800">
         <div className="flex items-center gap-1.5">
-          <CheckCircle2 size={11} />왜 이 제품인가?
-          <span className="text-green-600 font-mono">({explanation.matchPct}% 일치)</span>
+          <CheckCircle2 size={11} />{language === 'ko' ? '왜 이 제품인가?' : 'Why This Product?'}
+          <span className="text-green-600 font-mono">({explanation.matchPct}% {language === 'ko' ? '일치' : 'match'})</span>
         </div>
         {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
       </button>
@@ -460,7 +471,7 @@ function WhyRecommendedCard({ explanation }: { explanation: RecommendationExplan
           {/* Matched facts */}
           {explanation.matchedFacts.length > 0 && (
             <div>
-              <div className="text-[10px] font-semibold text-green-700 mb-1">일치 항목</div>
+              <div className="text-[10px] font-semibold text-green-700 mb-1">{language === 'ko' ? '일치 항목' : 'Matched'}</div>
               {explanation.matchedFacts.map((f, i) => (
                 <div key={i} className="flex items-center gap-2 text-[11px] py-0.5">
                   <Check size={10} className="text-green-600 shrink-0" />
@@ -470,7 +481,11 @@ function WhyRecommendedCard({ explanation }: { explanation: RecommendationExplan
                     : f.matchType === "close" ? "bg-blue-100 text-blue-700"
                     : "bg-amber-100 text-amber-700"
                   }`}>
-                    {f.matchType === "exact" ? "정확" : f.matchType === "close" ? "근사" : "부분"}
+                    {f.matchType === "exact"
+                      ? (language === 'ko' ? "정확" : "Exact")
+                      : f.matchType === "close"
+                      ? (language === 'ko' ? "근사" : "Close")
+                      : (language === 'ko' ? "부분" : "Partial")}
                   </span>
                   <span className="text-gray-400 font-mono text-[10px] ml-auto">{f.score}/{f.maxScore}</span>
                 </div>
@@ -481,7 +496,7 @@ function WhyRecommendedCard({ explanation }: { explanation: RecommendationExplan
           {/* Unmatched facts */}
           {explanation.unmatchedFacts.length > 0 && (
             <div>
-              <div className="text-[10px] font-semibold text-amber-700 mb-1">불일치 항목</div>
+              <div className="text-[10px] font-semibold text-amber-700 mb-1">{language === 'ko' ? '불일치 항목' : 'Unmatched'}</div>
               {explanation.unmatchedFacts.map((f, i) => (
                 <div key={i} className="flex items-start gap-2 text-[11px] py-0.5">
                   <AlertTriangle size={10} className={`shrink-0 mt-0.5 ${
@@ -494,7 +509,11 @@ function WhyRecommendedCard({ explanation }: { explanation: RecommendationExplan
                       : f.impact === "moderate" ? "bg-amber-100 text-amber-600"
                       : "bg-gray-100 text-gray-500"
                     }`}>
-                      {f.impact === "critical" ? "중요" : f.impact === "moderate" ? "보통" : "경미"}
+                      {f.impact === "critical"
+                        ? (language === 'ko' ? "중요" : "Critical")
+                        : f.impact === "moderate"
+                        ? (language === 'ko' ? "보통" : "Moderate")
+                        : (language === 'ko' ? "경미" : "Minor")}
                     </span>
                   </div>
                 </div>
@@ -509,6 +528,7 @@ function WhyRecommendedCard({ explanation }: { explanation: RecommendationExplan
 
 // ── Fact Check Card ───────────────────────────────────────────
 function FactCheckCard({ factCheck }: { factCheck: Record<string, unknown> }) {
+  const { language } = useApp()
   const [expanded, setExpanded] = useState(false)
   const report = factCheck.factCheckReport as {
     steps: { step: number; label: string; passed: boolean; fieldsChecked: number; fieldsVerified: number; issues: string[] }[]
@@ -558,7 +578,7 @@ function FactCheckCard({ factCheck }: { factCheck: Record<string, unknown> }) {
           ))}
           {report.criticalIssues.length > 0 && (
             <div className="mt-1 pt-1 border-t border-slate-200">
-              <div className="text-[10px] font-semibold text-red-600 mb-0.5">주의사항</div>
+              <div className="text-[10px] font-semibold text-red-600 mb-0.5">{language === 'ko' ? '주의사항' : 'Critical Issues'}</div>
               {report.criticalIssues.map((issue, i) => (
                 <div key={i} className="text-[10px] text-red-500">{issue}</div>
               ))}
@@ -572,12 +592,13 @@ function FactCheckCard({ factCheck }: { factCheck: Record<string, unknown> }) {
 
 // ── Evidence Source Card ───────────────────────────────────────
 function EvidenceSourceCard({ evidence }: { evidence: SupportingEvidence[] }) {
+  const { language } = useApp()
   if (evidence.length === 0) return null
 
   return (
     <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 space-y-2">
       <div className="flex items-center gap-1.5 text-xs font-semibold text-purple-800">
-        <FileText size={11} />근거 자료
+        <FileText size={11} />{language === 'ko' ? '근거 자료' : 'Evidence Sources'}
       </div>
       {evidence.map((e, i) => (
         <div key={i} className="flex items-start gap-2 text-[11px]">
@@ -587,10 +608,10 @@ function EvidenceSourceCard({ evidence }: { evidence: SupportingEvidence[] }) {
             : e.type === "inventory" ? "bg-green-100 text-green-700"
             : "bg-gray-100 text-gray-600"
           }`}>
-            {e.type === "cutting_condition" ? "절삭조건"
-            : e.type === "catalog_spec" ? "카탈로그"
-            : e.type === "inventory" ? "재고"
-            : "납기"}
+            {e.type === "cutting_condition" ? (language === 'ko' ? "절삭조건" : "Cutting Cond.")
+            : e.type === "catalog_spec" ? (language === 'ko' ? "카탈로그" : "Catalog")
+            : e.type === "inventory" ? (language === 'ko' ? "재고" : "Inventory")
+            : (language === 'ko' ? "납기" : "Lead Time")}
           </span>
           <span className="text-gray-700">{e.summary}</span>
         </div>
@@ -606,12 +627,13 @@ function RecommendationPanel({ result, resultText, evidenceSummaries, explanatio
   explanation?: RecommendationExplanation | null
   factChecked?: Record<string, unknown> | null
 }) {
+  const { language } = useApp()
   const { status, primaryProduct, alternatives, warnings, totalCandidatesConsidered } = result
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
         <MatchBadge status={status} />
-        <span className="text-xs text-gray-500">{totalCandidatesConsidered}개 후보 검색</span>
+        <span className="text-xs text-gray-500">{totalCandidatesConsidered}{language === 'ko' ? '개 후보 검색' : ' candidates searched'}</span>
       </div>
       {warnings.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
@@ -667,14 +689,14 @@ function RecommendationPanel({ result, resultText, evidenceSummaries, explanatio
       {primaryProduct && (
         <div>
           <div className="flex items-center gap-1 text-xs font-semibold text-gray-700 mb-2">
-            <Zap size={12} className="text-blue-600" />추천 제품
+            <Zap size={12} className="text-blue-600" />{language === 'ko' ? '추천 제품' : 'Recommended Product'}
           </div>
           <ProductCard scored={primaryProduct} rank={1} />
         </div>
       )}
       {alternatives.length > 0 && (
         <div>
-          <div className="text-xs font-semibold text-gray-500 mb-2">대체 후보 ({alternatives.length})</div>
+          <div className="text-xs font-semibold text-gray-500 mb-2">{language === 'ko' ? `대체 후보 (${alternatives.length})` : `Alternatives (${alternatives.length})`}</div>
           <div className="space-y-2">
             {alternatives.map((alt, i) => (
               <ProductCard key={alt.product.id} scored={alt} rank={i + 2} isAlternative />
@@ -685,8 +707,8 @@ function RecommendationPanel({ result, resultText, evidenceSummaries, explanatio
       {status === "none" && (
         <div className="text-center py-8">
           <AlertCircle size={32} className="text-gray-200 mx-auto mb-2" />
-          <div className="text-sm text-gray-500">조건에 맞는 제품 없음</div>
-          <div className="text-xs text-gray-400 mt-1">직경이나 소재 조건을 조정해보세요</div>
+          <div className="text-sm text-gray-500">{language === 'ko' ? '조건에 맞는 제품 없음' : 'No matching products found'}</div>
+          <div className="text-xs text-gray-400 mt-1">{language === 'ko' ? '직경이나 소재 조건을 조정해보세요' : 'Try adjusting diameter or material conditions'}</div>
         </div>
       )}
     </div>
@@ -699,15 +721,16 @@ function OptionBtn({
 }: {
   label: string; selected: boolean; isUnknown?: boolean; tag?: string; onClick: () => void; disabled?: boolean
 }) {
+  const { language } = useApp()
   if (disabled) {
     return (
       <div
         className="relative flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-medium text-left min-h-[44px] bg-gray-50 text-gray-400 border-2 border-gray-100 cursor-not-allowed select-none"
-        title="준비 중"
+        title={language === "ko" ? "준비 중" : "Coming Soon"}
       >
         <span className="flex-1">{label}</span>
         {tag && <span className="text-xs px-1.5 py-0.5 rounded font-mono bg-gray-100 text-gray-300">{tag}</span>}
-        <span className="text-[10px] text-gray-300 whitespace-nowrap">준비 중</span>
+        <span className="text-[10px] text-gray-300 whitespace-nowrap">{language === "ko" ? "준비 중" : "Coming Soon"}</span>
       </div>
     )
   }
@@ -747,6 +770,7 @@ function IntakeFieldSection({
   state: AnswerState<string>
   onChange: (s: AnswerState<string>) => void
 }) {
+  const { language } = useApp()
   const [showCustom, setShowCustom] = useState(false)
   const [customVal, setCustomVal] = useState(
     state.status === "known" &&
@@ -806,21 +830,25 @@ function IntakeFieldSection({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <span className="text-base">{config.emoji}</span>
-            <span className="text-sm font-semibold text-gray-900">{config.label}</span>
+            <span className="text-sm font-semibold text-gray-900">{getIntakeFieldLabel(config.key as keyof ProductIntakeForm, language)}</span>
             {state.status !== "unanswered" && (
               <span className={`text-xs px-1.5 py-0.5 rounded-full ${state.status === "unknown" ? "bg-gray-100 text-gray-500" : "bg-green-100 text-green-700"}`}>
-                {state.status === "unknown" ? "모름" : config.multiSelect && selectedCount > 1 ? `✓ ${selectedCount}개 선택` : "✓ 선택됨"}
+                {state.status === "unknown"
+                  ? (language === 'ko' ? "모름" : "Unknown")
+                  : config.multiSelect && selectedCount > 1
+                  ? `✓ ${selectedCount}${language === 'ko' ? '개 선택' : ' selected'}`
+                  : (language === 'ko' ? "✓ 선택됨" : "✓ Selected")}
               </span>
             )}
           </div>
-          <p className="text-xs text-gray-500 mt-0.5">{config.description}</p>
+          <p className="text-xs text-gray-500 mt-0.5">{localizeIntakeText(config.description, language)}</p>
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
         {config.options.map(opt => (
           <OptionBtn
             key={opt.value}
-            label={opt.label}
+            label={localizeIntakeText(opt.label, language)}
             tag={opt.tag}
             disabled={opt.disabled}
             selected={config.multiSelect
@@ -839,7 +867,7 @@ function IntakeFieldSection({
         ))}
         {config.hasCustomInput && (
           <OptionBtn
-            label={config.customInputLabel ?? "직접입력"}
+            label={localizeIntakeText(config.customInputLabel ?? "직접입력", language)}
             selected={isCustom || (showCustom && state.status !== "unknown")}
             onClick={handleCustomClick}
           />
@@ -850,13 +878,13 @@ function IntakeFieldSection({
           ref={inputRef}
           value={customVal}
           onChange={e => handleCustomChange(e.target.value)}
-          placeholder={config.customInputPlaceholder ?? "직접 입력"}
+          placeholder={localizeIntakeText(config.customInputPlaceholder ?? "직접 입력", language)}
           className="w-full px-3 py-2.5 rounded-xl border-2 border-blue-300 text-sm focus:outline-none focus:border-blue-500"
         />
       )}
       <div className="pt-1 border-t border-gray-100">
         <OptionBtn
-          label={config.unknownLabel}
+          label={localizeIntakeText(config.unknownLabel, language)}
           isUnknown
           selected={state.status === "unknown"}
           onClick={() => {
@@ -878,6 +906,7 @@ function IntakeGate({
   onChange: (key: keyof ProductIntakeForm, val: AnswerState<string>) => void
   onNext: () => void
 }) {
+  const { language } = useApp()
   const answered = countAnswered(form)
   const allDone = allRequiredAnswered(form)
   const purposeIsSubstitute =
@@ -918,9 +947,12 @@ function IntakeGate({
   return (
     <div className="flex flex-col h-full">
       <div className="shrink-0 px-4 pt-5 pb-4 border-b bg-white">
-        <h2 className="text-base font-bold text-gray-900">추천 전 기본 정보 확인</h2>
+        <h2 className="text-base font-bold text-gray-900">{language === 'ko' ? '추천 전 기본 정보 확인' : 'Basic Info Before Recommendation'}</h2>
         <p className="text-xs text-gray-500 mt-0.5">
-          모르는 항목은 비워두지 말고 <strong>&apos;모름&apos;</strong>을 선택해주세요. 추정하지 않습니다.
+          {language === 'ko'
+            ? <span>모르는 항목은 비워두지 말고 <strong>&apos;모름&apos;</strong>을 선택해주세요. 추정하지 않습니다.</span>
+            : <span>For unknown fields, select <strong>&apos;Unknown&apos;</strong> instead of leaving blank. No guessing.</span>
+          }
         </p>
         <div className="flex items-center gap-2 mt-3">
           {FIELD_CONFIGS.map((_, i) => {
@@ -933,7 +965,7 @@ function IntakeGate({
                   const el = fieldRefs.current[FIELD_CONFIGS[i].key]
                   if (el) el.scrollIntoView({ behavior: "smooth", block: "center" })
                 }}
-                title={FIELD_CONFIGS[i].label}
+                title={getIntakeFieldLabel(FIELD_CONFIGS[i].key as keyof ProductIntakeForm, language)}
               />
             )
           })}
@@ -949,7 +981,7 @@ function IntakeGate({
                 <div className="flex items-center gap-1.5 mb-2 px-2">
                   <Info size={11} className="text-blue-500" />
                   <span className="text-xs text-blue-600 font-medium">
-                    대체품 찾기 → 현재 사용 중인 EDP/품번을 입력하면 더 정확합니다
+                    {localizeIntakeText("대체품 찾기 → 현재 사용 중인 EDP/품번을 입력하면 더 정확합니다", language)}
                   </span>
                 </div>
               )}
@@ -967,12 +999,12 @@ function IntakeGate({
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <span className="text-sm text-gray-600">
             {allDone
-              ? <span className="text-green-700 font-medium flex items-center gap-1"><CheckCircle2 size={14} />모두 완료되었습니다</span>
-              : <span>{answered}/6 항목 완료 · {6 - answered}개 남음</span>
+              ? <span className="text-green-700 font-medium flex items-center gap-1"><CheckCircle2 size={14} />{language === 'ko' ? '모두 완료되었습니다' : 'All fields complete'}</span>
+              : <span>{answered}/6 {language === 'ko' ? `항목 완료 · ${6 - answered}개 남음` : `complete · ${6 - answered} remaining`}</span>
             }
           </span>
           <Button onClick={onNext} disabled={!allDone} className="gap-2">
-            조건 요약 확인 <ArrowRight size={14} />
+            {language === 'ko' ? '조건 요약 확인' : 'Review Conditions'} <ArrowRight size={14} />
           </Button>
         </div>
       </div>
@@ -981,15 +1013,6 @@ function IntakeGate({
 }
 
 // ── Step 2: Intake Summary ─────────────────────────────────────
-function getDisplayValue(key: keyof ProductIntakeForm, state: AnswerState<string>): string {
-  if (state.status === "unknown") return "모름"
-  if (state.status === "unanswered") return "미입력"
-  const val = (state as { status: "known"; value: string }).value
-  if (key === "inquiryPurpose") return INQUIRY_PURPOSE_LABELS[val as InquiryPurpose] ?? val
-  if (key === "machiningIntent") return MACHINING_INTENT_LABELS[val as MachiningIntent] ?? val
-  return val
-}
-
 function IntakeSummaryScreen({
   form, onEdit, onStart,
 }: {
@@ -997,17 +1020,18 @@ function IntakeSummaryScreen({
   onEdit: () => void
   onStart: () => void
 }) {
+  const { language } = useApp()
   const unknownCount = countUnknowns(form)
   return (
     <div className="flex flex-col h-full">
       <div className="shrink-0 px-4 pt-5 pb-4 border-b bg-white">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-gray-900">입력 조건 요약</h2>
-            <p className="text-xs text-gray-500 mt-0.5">아래 조건으로 탐색합니다. 모르는 정보는 추정하지 않습니다.</p>
+            <h2 className="text-base font-bold text-gray-900">{language === 'ko' ? '입력 조건 요약' : 'Condition Summary'}</h2>
+            <p className="text-xs text-gray-500 mt-0.5">{language === 'ko' ? '아래 조건으로 탐색합니다. 모르는 정보는 추정하지 않습니다.' : 'Will search with these conditions. Unknown fields are not guessed.'}</p>
           </div>
           <Button variant="outline" size="sm" onClick={onEdit} className="gap-1 text-xs">
-            <Edit2 size={12} />수정
+            <Edit2 size={12} />{language === 'ko' ? '수정' : 'Edit'}
           </Button>
         </div>
       </div>
@@ -1015,7 +1039,7 @@ function IntakeSummaryScreen({
         {FIELD_CONFIGS.map(cfg => {
           const state = form[cfg.key as keyof ProductIntakeForm] as AnswerState<string>
           const isUnknown = state.status === "unknown"
-          const displayVal = getDisplayValue(cfg.key as keyof ProductIntakeForm, state)
+          const displayVal = getIntakeDisplayValue(cfg.key as keyof ProductIntakeForm, state, language)
           return (
             <div key={cfg.key}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${isUnknown ? "bg-gray-50 border-gray-200" : "bg-white border-gray-200"}`}
@@ -1024,12 +1048,12 @@ function IntakeSummaryScreen({
                 {isUnknown ? <HelpCircle size={14} className="text-gray-400" /> : <Check size={14} className="text-green-600" />}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-xs text-gray-500">{cfg.emoji} {cfg.label}</div>
+                <div className="text-xs text-gray-500">{cfg.emoji} {getIntakeFieldLabel(cfg.key as keyof ProductIntakeForm, language)}</div>
                 <div className={`text-sm font-medium mt-0.5 ${isUnknown ? "text-gray-400 italic" : "text-gray-900"}`}>
                   {displayVal}
                 </div>
               </div>
-              <button onClick={onEdit} className="text-xs text-blue-500 hover:text-blue-700 shrink-0">수정</button>
+              <button onClick={onEdit} className="text-xs text-blue-500 hover:text-blue-700 shrink-0">{language === 'ko' ? '수정' : 'Edit'}</button>
             </div>
           )
         })}
@@ -1037,18 +1061,26 @@ function IntakeSummaryScreen({
           <div className="flex items-start gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
             <AlertTriangle size={14} className="text-amber-600 mt-0.5 shrink-0" />
             <div className="text-xs text-amber-800 leading-relaxed">
-              <strong>{unknownCount}개 항목이 &quot;모름&quot;</strong>으로 설정되어 있습니다.
-              {unknownCount >= 3
-                ? " 많은 조건이 없어 정확 추천 대신 근사 후보로 제공됩니다."
-                : " 해당 조건은 필터에서 제외되고, 알려진 조건 기준으로만 추천됩니다."
-              }
+              {language === 'ko' ? (
+                <><strong>{unknownCount}개 항목이 &quot;모름&quot;</strong>으로 설정되어 있습니다.
+                {unknownCount >= 3
+                  ? " 많은 조건이 없어 정확 추천 대신 근사 후보로 제공됩니다."
+                  : " 해당 조건은 필터에서 제외되고, 알려진 조건 기준으로만 추천됩니다."
+                }</>
+              ) : (
+                <><strong>{unknownCount} field(s) set to &quot;Unknown&quot;</strong>.
+                {unknownCount >= 3
+                  ? " Many conditions unknown — approximate candidates will be provided instead of exact matches."
+                  : " Unknown fields will be excluded from filters; recommendation based on known conditions only."
+                }</>
+              )}
             </div>
           </div>
         )}
         {unknownCount === 0 && (
           <div className="flex items-center gap-2 px-4 py-3 bg-green-50 border border-green-200 rounded-xl">
             <CheckCircle2 size={14} className="text-green-600" />
-            <span className="text-xs text-green-800">모든 조건이 입력되었습니다. 정확한 추천이 가능합니다.</span>
+            <span className="text-xs text-green-800">{language === 'ko' ? '모든 조건이 입력되었습니다. 정확한 추천이 가능합니다.' : 'All conditions entered. Exact recommendations are possible.'}</span>
           </div>
         )}
         <div className="h-4" />
@@ -1056,10 +1088,10 @@ function IntakeSummaryScreen({
       <div className="shrink-0 px-4 py-3 bg-white border-t shadow-md space-y-2">
         <div className="max-w-lg mx-auto">
           <Button onClick={onStart} className="w-full gap-2">
-            이 조건으로 추천 시작 <ArrowRight size={14} />
+            {language === 'ko' ? '이 조건으로 추천 시작' : 'Start Recommendation'} <ArrowRight size={14} />
           </Button>
           <Button variant="ghost" onClick={onEdit} className="w-full mt-1 text-xs text-gray-500 gap-1">
-            <Edit2 size={11} />추가 조건 수정하기
+            <Edit2 size={11} />{language === 'ko' ? '추가 조건 수정하기' : 'Edit Conditions'}
           </Button>
         </div>
       </div>
@@ -1069,6 +1101,7 @@ function IntakeSummaryScreen({
 
 // ── Loading screen ─────────────────────────────────────────────
 function LoadingScreen() {
+  const { language } = useApp()
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-4 py-16 text-center">
       <div className="flex gap-1.5 mb-4">
@@ -1077,8 +1110,8 @@ function LoadingScreen() {
             style={{ animationDelay: `${i * 0.15}s` }} />
         ))}
       </div>
-      <div className="text-sm font-medium text-gray-700">실제 데이터에서 제품 검색 중...</div>
-      <div className="text-xs text-gray-400 mt-1">없는 제품은 생성하지 않습니다</div>
+      <div className="text-sm font-medium text-gray-700">{language === 'ko' ? '실제 데이터에서 제품 검색 중...' : 'Searching products from real data...'}</div>
+      <div className="text-xs text-gray-400 mt-1">{language === 'ko' ? '없는 제품은 생성하지 않습니다' : 'Only real products — no hallucination'}</div>
     </div>
   )
 }
@@ -1099,14 +1132,17 @@ interface ChatMsg {
 }
 
 // ── Build intake prompt text ────────────────────────────────────
-function buildIntakePromptText(form: ProductIntakeForm): string {
+function buildIntakePromptText(form: ProductIntakeForm, language: "ko" | "en"): string {
   const parts: string[] = []
   FIELD_CONFIGS.forEach(cfg => {
     const state = form[cfg.key as keyof ProductIntakeForm] as AnswerState<string>
-    const val = getDisplayValue(cfg.key as keyof ProductIntakeForm, state)
-    parts.push(`${cfg.emoji} ${cfg.label}: ${val}`)
+    const val = getIntakeDisplayValue(cfg.key as keyof ProductIntakeForm, state, language)
+    const label = getIntakeFieldLabel(cfg.key as keyof ProductIntakeForm, language)
+    parts.push(`${cfg.emoji} ${label}: ${val}`)
   })
-  parts.push("\n위 조건으로 적합한 YG-1 제품을 추천해주세요.")
+  parts.push(language === "ko"
+    ? "\n위 조건으로 적합한 YG-1 제품을 추천해주세요."
+    : "\nPlease recommend suitable YG-1 products based on the conditions above.")
   return parts.join("\n")
 }
 
@@ -1130,6 +1166,7 @@ function ExplorationScreen({
   onReset: () => void
   onEdit: () => void
 }) {
+  const { language } = useApp()
   const [showSidebar, setShowSidebar] = useState(false)
   const [showCandidates, setShowCandidates] = useState(false)
 
@@ -1138,17 +1175,19 @@ function ExplorationScreen({
       {/* Top bar */}
       <div className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b bg-white">
         <div className="flex items-center gap-2">
-          <h2 className="text-sm font-bold text-gray-900">AI 제품 탐색</h2>
+          <h2 className="text-sm font-bold text-gray-900">{language === 'ko' ? 'AI 제품 탐색' : 'AI Product Search'}</h2>
           {sessionState && (
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${RESOLUTION_CONFIG[sessionState.resolutionStatus]?.cls ?? "bg-gray-100 text-gray-600"}`}>
-              {RESOLUTION_CONFIG[sessionState.resolutionStatus]?.label ?? sessionState.resolutionStatus}
+              {RESOLUTION_CONFIG[sessionState.resolutionStatus]?.[language] ?? sessionState.resolutionStatus}
             </span>
           )}
           {sessionState && sessionState.candidateCount > 0 && sessionState.resolutionStatus !== "broad" && (
             <span className="text-xs text-gray-500">
               {sessionState.candidateCount > 50
-                ? "후보군 넓음"
-                : `${Math.min(sessionState.candidateCount, MAX_DISPLAY_CANDIDATES)}개 추천`}
+                ? (language === 'ko' ? '후보군 넓음' : 'Wide candidate pool')
+                : language === 'ko'
+                  ? `${Math.min(sessionState.candidateCount, MAX_DISPLAY_CANDIDATES)}개 추천`
+                  : `${Math.min(sessionState.candidateCount, MAX_DISPLAY_CANDIDATES)} recommended`}
             </span>
           )}
         </div>
@@ -1156,17 +1195,17 @@ function ExplorationScreen({
           {/* Mobile toggles */}
           <Button variant="outline" size="sm" onClick={() => setShowSidebar(o => !o)}
             className="gap-1 text-xs h-7 px-2 lg:hidden">
-            <Filter size={11} />조건
+            <Filter size={11} />{language === 'ko' ? '조건' : 'Filters'}
           </Button>
           <Button variant="outline" size="sm" onClick={() => setShowCandidates(o => !o)}
             className="gap-1 text-xs h-7 px-2 lg:hidden">
-            <Activity size={11} />후보
+            <Activity size={11} />{language === 'ko' ? '후보' : 'Results'}
           </Button>
           <Button variant="outline" size="sm" onClick={onEdit} className="gap-1 text-xs h-7 px-2">
-            <Edit2 size={11} />조건 수정
+            <Edit2 size={11} />{language === 'ko' ? '조건 수정' : 'Edit Conditions'}
           </Button>
           <Button variant="outline" size="sm" onClick={onReset} className="gap-1 text-xs h-7 px-2 border-orange-300 text-orange-700 hover:bg-orange-50">
-            <RotateCcw size={11} />새 검색
+            <RotateCcw size={11} />{language === 'ko' ? '새 검색' : 'New Search'}
           </Button>
         </div>
       </div>
@@ -1206,6 +1245,7 @@ function ExplorationSidebar({
   onEdit: () => void
   messages: ChatMsg[]
 }) {
+  const { language } = useApp()
   // Find the latest requestPreparation from messages
   const latestPrep = [...messages].reverse().find(m => m.requestPreparation)?.requestPreparation ?? null
 
@@ -1217,8 +1257,8 @@ function ExplorationSidebar({
       {/* Intake summary */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-semibold text-gray-700">입력 조건</span>
-          <button onClick={onEdit} className="text-[10px] text-blue-500 hover:text-blue-700">수정</button>
+          <span className="text-xs font-semibold text-gray-700">{language === 'ko' ? '입력 조건' : 'Input Conditions'}</span>
+          <button onClick={onEdit} className="text-[10px] text-blue-500 hover:text-blue-700">{language === 'ko' ? '수정' : 'Edit'}</button>
         </div>
         <div className="space-y-1">
           {FIELD_CONFIGS.map(cfg => {
@@ -1230,7 +1270,7 @@ function ExplorationSidebar({
               <div key={cfg.key} className="flex justify-between items-center text-xs bg-white rounded-lg px-2.5 py-1.5 border border-gray-100">
                 <span className="text-gray-500">{cfg.emoji}</span>
                 <span className={`flex-1 ml-1.5 truncate ${isUnknown ? "text-gray-400 italic" : "text-gray-800 font-medium"}`}>
-                  {getDisplayValue(cfg.key as keyof ProductIntakeForm, state)}
+                  {getIntakeDisplayValue(cfg.key as keyof ProductIntakeForm, state, language)}
                 </span>
               </div>
             )
@@ -1242,17 +1282,30 @@ function ExplorationSidebar({
       {sessionState && sessionState.appliedFilters.length > 0 && (
         <div>
           <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
-            <Filter size={10} />축소 경로
+            <Filter size={10} />{language === 'ko' ? '적용 필터' : 'Applied Filters'}
           </div>
           <div className="space-y-0.5">
             {sessionState.appliedFilters.filter(f => f.op !== "skip").map((f, i) => (
               <div key={i} className="flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1 border border-blue-100 bg-blue-50">
                 <ArrowRight size={8} className="text-blue-400 shrink-0" />
-                <span className="text-blue-600 font-medium truncate">{f.field === "fluteCount" ? "날수" : f.field === "toolSubtype" ? "형상" : f.field === "coating" ? "코팅" : f.field === "seriesName" ? "시리즈" : f.field}: {f.value}</span>
+                <span className="text-blue-600 font-medium truncate">
+                  {f.field === "fluteCount"
+                    ? (language === "ko" ? "날수" : "Flutes")
+                    : f.field === "toolSubtype"
+                      ? (language === "ko" ? "형상" : "Shape")
+                      : f.field === "coating"
+                        ? (language === "ko" ? "코팅" : "Coating")
+                        : f.field === "seriesName"
+                          ? (language === "ko" ? "시리즈" : "Series")
+                          : localizeIntakeText(f.field, language)}
+                  : {localizeIntakeText(f.value, language)}
+                </span>
               </div>
             ))}
             <div className="text-[10px] text-gray-500 px-2.5 pt-1 font-medium">
-              → 현재 후보: {sessionState.candidateCount}개
+              {language === "ko"
+                ? `→ 현재 후보: ${sessionState.candidateCount}개`
+                : `-> Current candidates: ${sessionState.candidateCount}`}
             </div>
           </div>
         </div>
@@ -1261,12 +1314,12 @@ function ExplorationSidebar({
       {/* Narrowing history */}
       {sessionState && sessionState.narrowingHistory.length > 0 && (
         <div>
-          <div className="text-xs font-semibold text-gray-700 mb-2">축소 이력</div>
+          <div className="text-xs font-semibold text-gray-700 mb-2">{language === 'ko' ? '축소 이력' : 'Narrowing History'}</div>
           <div className="space-y-1">
             {sessionState.narrowingHistory.map((h, i) => (
               <div key={i} className="text-[10px] text-gray-600 bg-white rounded-lg px-2.5 py-1.5 border border-gray-100">
-                <div className="font-medium">Turn {i + 1}: &quot;{h.answer}&quot;</div>
-                <div className="text-gray-400">{h.candidateCountBefore} → {h.candidateCountAfter}개</div>
+                <div className="font-medium">Turn {i + 1}: &quot;{localizeIntakeText(h.answer, language)}&quot;</div>
+                <div className="text-gray-400">{h.candidateCountBefore} → {h.candidateCountAfter}{language === 'ko' ? '개' : ''}</div>
               </div>
             ))}
           </div>
@@ -1276,12 +1329,12 @@ function ExplorationSidebar({
       {/* Resolution status */}
       {sessionState && (
         <div className="bg-white rounded-lg border border-gray-100 p-2.5">
-          <div className="text-[10px] text-gray-500 mb-1">해결 상태</div>
+          <div className="text-[10px] text-gray-500 mb-1">{language === 'ko' ? '해결 상태' : 'Resolution Status'}</div>
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${RESOLUTION_CONFIG[sessionState.resolutionStatus]?.cls ?? "bg-gray-100 text-gray-600"}`}>
-            {RESOLUTION_CONFIG[sessionState.resolutionStatus]?.label ?? sessionState.resolutionStatus}
+            {RESOLUTION_CONFIG[sessionState.resolutionStatus]?.[language] ?? sessionState.resolutionStatus}
           </span>
           <div className="text-[10px] text-gray-400 mt-1">
-            후보 {sessionState.candidateCount}개 · Turn {sessionState.turnCount}
+            {language === 'ko' ? `후보 ${sessionState.candidateCount}개` : `${sessionState.candidateCount} candidates`} · Turn {sessionState.turnCount}
           </div>
         </div>
       )}
@@ -1298,6 +1351,7 @@ function NarrowingChat({
   onSend: (text: string) => void
   onReset?: () => void
 }) {
+  const { language } = useApp()
   const [input, setInput] = useState("")
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -1323,7 +1377,7 @@ function NarrowingChat({
             <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
               msg.role === "ai" ? "bg-blue-100 text-blue-700" : "bg-gray-200 text-gray-600"
             }`}>
-              {msg.role === "ai" ? <Sparkles size={13} /> : "나"}
+              {msg.role === "ai" ? <Sparkles size={13} /> : (language === 'ko' ? "나" : "Me")}
             </div>
 
             <div className="max-w-[82%] space-y-2">
@@ -1405,7 +1459,7 @@ function NarrowingChat({
                 handleSend()
               }
             }}
-            placeholder="추가 질문이나 조건을 입력하세요..."
+            placeholder={language === 'ko' ? "추가 질문이나 조건을 입력하세요..." : "Enter additional questions or conditions..."}
             rows={1}
             disabled={isSending}
             className="flex-1 px-3 py-2.5 rounded-xl border-2 border-gray-200 text-sm focus:outline-none focus:border-blue-400 resize-none min-h-[42px] max-h-[120px]"
@@ -1416,7 +1470,7 @@ function NarrowingChat({
           </Button>
         </div>
         <p className="text-[10px] text-gray-400 mt-1.5 text-center">
-          YG-1 제품 DB 기반 · 추정/생성 없음 · 절삭조건 카탈로그 근거
+          {language === 'ko' ? 'YG-1 제품 DB 기반 · 추정/생성 없음 · 절삭조건 카탈로그 근거' : 'Based on YG-1 product DB · No estimation · Catalog-grounded cutting conditions'}
         </p>
       </div>
     </div>
@@ -1431,6 +1485,7 @@ function CandidatePanel({
   candidates: CandidateSnapshot[] | null
   messages: ChatMsg[]
 }) {
+  const { language } = useApp()
   // Find the last recommendation in messages
   const lastRec = [...messages].reverse().find(m => m.recommendation)?.recommendation
 
@@ -1444,9 +1499,11 @@ function CandidatePanel({
       <div className="text-xs font-semibold text-gray-700 flex items-center gap-1">
         <Activity size={11} />
         {totalCount > 0 ? (
-          <>상위 추천 후보 {displayCandidates?.length ?? 0}개{hasMore && <span className="text-gray-400 font-normal">(전체 {totalCount}개 중)</span>}</>
+          language === 'ko'
+            ? <>상위 추천 후보 {displayCandidates?.length ?? 0}개{hasMore && <span className="text-gray-400 font-normal">(전체 {totalCount}개 중)</span>}</>
+            : <>Top {displayCandidates?.length ?? 0} Candidates{hasMore && <span className="text-gray-400 font-normal"> (of {totalCount})</span>}</>
         ) : (
-          <>추천 후보</>
+          <>{language === 'ko' ? '추천 후보' : 'Candidates'}</>
         )}
       </div>
 
@@ -1457,14 +1514,14 @@ function CandidatePanel({
           ))}
           {hasMore && (
             <div className="text-center text-[10px] text-gray-400 py-1">
-              +{totalCount - MAX_DISPLAY_CANDIDATES}개 추가 후보 있음
+              +{totalCount - MAX_DISPLAY_CANDIDATES}{language === 'ko' ? '개 추가 후보 있음' : ' more candidates'}
             </div>
           )}
         </div>
       ) : (
         <div className="text-center py-8 text-gray-400">
           <Database size={24} className="mx-auto mb-2 opacity-50" />
-          <div className="text-xs">조건을 입력하면 후보를 검색합니다</div>
+          <div className="text-xs">{language === 'ko' ? '조건을 입력하면 후보를 검색합니다' : 'Enter conditions to search candidates'}</div>
         </div>
       )}
 
@@ -1472,12 +1529,12 @@ function CandidatePanel({
       {lastRec && (
         <div className="border-t pt-3">
           <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
-            <Zap size={11} className="text-blue-600" />최종 추천
+            <Zap size={11} className="text-blue-600" />{language === 'ko' ? '최종 추천' : 'Final Recommendation'}
           </div>
           <div className="text-xs text-gray-600 bg-blue-50 rounded-lg p-2.5 border border-blue-100">
             {lastRec.primaryProduct
-              ? `${lastRec.primaryProduct.product.displayCode} (${lastRec.status === "exact" ? "정확 매칭" : "근사 후보"})`
-              : "매칭 없음"
+              ? `${lastRec.primaryProduct.product.displayCode} (${lastRec.status === "exact" ? (language === 'ko' ? "정확 매칭" : "Exact Match") : (language === 'ko' ? "근사 후보" : "Approximate")})`
+              : (language === 'ko' ? "매칭 없음" : "No Match")
             }
           </div>
         </div>
@@ -1491,14 +1548,16 @@ function CandidatePanel({
 // ════════════════════════════════════════════════════════════════
 
 const FEEDBACK_TAGS = [
-  { value: "wrong-product", label: "잘못된 제품" },
-  { value: "good-result", label: "좋은 결과" },
-  { value: "slow-response", label: "느린 응답" },
-  { value: "missing-evidence", label: "근거 부족" },
-  { value: "ui-issue", label: "UI 문제" },
-  { value: "wrong-condition", label: "절삭조건 오류" },
-  { value: "good-evidence", label: "좋은 근거" },
+  { value: "wrong-product", ko: "잘못된 제품", en: "Wrong Product" },
+  { value: "good-result", ko: "좋은 결과", en: "Good Result" },
+  { value: "slow-response", ko: "느린 응답", en: "Slow Response" },
+  { value: "missing-evidence", ko: "근거 부족", en: "Missing Evidence" },
+  { value: "ui-issue", ko: "UI 문제", en: "UI Issue" },
+  { value: "wrong-condition", ko: "절삭조건 오류", en: "Wrong Cutting Condition" },
+  { value: "good-evidence", ko: "좋은 근거", en: "Good Evidence" },
 ]
+
+type FeedbackAuthorType = "internal" | "customer" | "anonymous"
 
 function FeedbackWidget({
   form,
@@ -1509,14 +1568,18 @@ function FeedbackWidget({
   messages: ChatMsg[]
   sessionState: ExplorationSessionState | null
 }) {
+  const { language } = useApp()
   const [open, setOpen] = useState(false)
-  const [authorType, setAuthorType] = useState<"internal" | "customer" | "anonymous">("internal")
+  const [authorType, setAuthorType] = useState<FeedbackAuthorType>("internal")
   const [authorName, setAuthorName] = useState("")
   const [rating, setRating] = useState<number>(0)
   const [comment, setComment] = useState("")
   const [tags, setTags] = useState<string[]>([])
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
+  const authorTypeOptions: ReadonlyArray<readonly [FeedbackAuthorType, string]> = language === "ko"
+    ? [["internal", "내부 개발팀"], ["customer", "고객사"], ["anonymous", "익명"]]
+    : [["internal", "Internal Team"], ["customer", "Customer"], ["anonymous", "Anonymous"]]
 
   const toggleTag = (tag: string) => {
     setTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag])
@@ -1526,8 +1589,9 @@ function FeedbackWidget({
     return FIELD_CONFIGS.map(cfg => {
       const state = form[cfg.key as keyof ProductIntakeForm] as AnswerState<string>
       if (state.status === "unanswered") return null
-      if (state.status === "unknown") return `${cfg.label}: 모름`
-      return `${cfg.label}: ${(state as { status: "known"; value: string }).value}`
+      const label = getIntakeFieldLabel(cfg.key as keyof ProductIntakeForm, language)
+      const value = getIntakeDisplayValue(cfg.key as keyof ProductIntakeForm, state, language)
+      return `${label}: ${value}`
     }).filter(Boolean).join("\n")
   }
 
@@ -1588,7 +1652,7 @@ function FeedbackWidget({
         className="fixed bottom-20 right-5 z-50 flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all hover:scale-105"
       >
         <MessageCircle size={16} />
-        <span className="text-sm font-medium">의견 남기기</span>
+        <span className="text-sm font-medium">{language === 'ko' ? '의견 남기기' : 'Leave Feedback'}</span>
       </button>
 
       {/* Modal overlay */}
@@ -1600,23 +1664,23 @@ function FeedbackWidget({
           >
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-3.5 border-b">
-              <h3 className="font-bold text-gray-900">의견 남기기</h3>
+              <h3 className="font-bold text-gray-900">{language === 'ko' ? '의견 남기기' : 'Leave Feedback'}</h3>
               <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
             </div>
 
             {sent ? (
               <div className="p-8 text-center">
                 <CheckCircle2 size={40} className="mx-auto text-green-500 mb-3" />
-                <div className="text-lg font-bold text-gray-900">감사합니다!</div>
-                <div className="text-sm text-gray-500 mt-1">소중한 의견이 저장되었습니다</div>
+                <div className="text-lg font-bold text-gray-900">{language === 'ko' ? '감사합니다!' : 'Thank you!'}</div>
+                <div className="text-sm text-gray-500 mt-1">{language === 'ko' ? '소중한 의견이 저장되었습니다' : 'Your feedback has been saved'}</div>
               </div>
             ) : (
               <div className="p-5 space-y-4">
                 {/* Author type */}
                 <div>
-                  <label className="text-xs font-semibold text-gray-700 mb-1.5 block">작성자 유형</label>
+                  <label className="text-xs font-semibold text-gray-700 mb-1.5 block">{language === 'ko' ? '작성자 유형' : 'Author Type'}</label>
                   <div className="flex gap-2">
-                    {([["internal", "내부 개발팀"], ["customer", "고객사"], ["anonymous", "익명"]] as const).map(([val, label]) => (
+                    {authorTypeOptions.map(([val, label]) => (
                       <button
                         key={val}
                         onClick={() => setAuthorType(val)}
@@ -1635,12 +1699,12 @@ function FeedbackWidget({
                 {/* Author name */}
                 {authorType !== "anonymous" && (
                   <div>
-                    <label className="text-xs font-semibold text-gray-700 mb-1.5 block">이름 (선택)</label>
+                    <label className="text-xs font-semibold text-gray-700 mb-1.5 block">{language === 'ko' ? '이름 (선택)' : 'Name (optional)'}</label>
                     <input
                       type="text"
                       value={authorName}
                       onChange={e => setAuthorName(e.target.value)}
-                      placeholder="이름을 입력하세요"
+                      placeholder={language === 'ko' ? "이름을 입력하세요" : "Enter your name"}
                       className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                     />
                   </div>
@@ -1648,7 +1712,7 @@ function FeedbackWidget({
 
                 {/* Rating */}
                 <div>
-                  <label className="text-xs font-semibold text-gray-700 mb-1.5 block">평점</label>
+                  <label className="text-xs font-semibold text-gray-700 mb-1.5 block">{language === 'ko' ? '평점' : 'Rating'}</label>
                   <div className="flex gap-1">
                     {[1, 2, 3, 4, 5].map(i => (
                       <button key={i} onClick={() => setRating(i)} className="p-0.5">
@@ -1661,14 +1725,14 @@ function FeedbackWidget({
                       </button>
                     ))}
                     {rating > 0 && (
-                      <button onClick={() => setRating(0)} className="ml-2 text-xs text-gray-400 hover:text-gray-600">초기화</button>
+                      <button onClick={() => setRating(0)} className="ml-2 text-xs text-gray-400 hover:text-gray-600">{language === 'ko' ? '초기화' : 'Clear'}</button>
                     )}
                   </div>
                 </div>
 
                 {/* Tags */}
                 <div>
-                  <label className="text-xs font-semibold text-gray-700 mb-1.5 block">태그 (선택)</label>
+                  <label className="text-xs font-semibold text-gray-700 mb-1.5 block">{language === 'ko' ? '태그 (선택)' : 'Tags (optional)'}</label>
                   <div className="flex flex-wrap gap-1.5">
                     {FEEDBACK_TAGS.map(t => (
                       <button
@@ -1680,7 +1744,7 @@ function FeedbackWidget({
                             : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"
                         }`}
                       >
-                        {t.label}
+                        {t[language]}
                       </button>
                     ))}
                   </div>
@@ -1688,11 +1752,11 @@ function FeedbackWidget({
 
                 {/* Comment */}
                 <div>
-                  <label className="text-xs font-semibold text-gray-700 mb-1.5 block">의견</label>
+                  <label className="text-xs font-semibold text-gray-700 mb-1.5 block">{language === 'ko' ? '의견' : 'Comment'}</label>
                   <textarea
                     value={comment}
                     onChange={e => setComment(e.target.value)}
-                    placeholder="추천 결과에 대한 의견을 남겨주세요. 잘못된 점, 개선사항 등 자유롭게 작성해주세요."
+                    placeholder={language === 'ko' ? "추천 결과에 대한 의견을 남겨주세요. 잘못된 점, 개선사항 등 자유롭게 작성해주세요." : "Leave feedback on the recommendation. Feel free to share issues, improvements, or suggestions."}
                     rows={4}
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-300"
                   />
@@ -1700,7 +1764,7 @@ function FeedbackWidget({
 
                 {/* Context info */}
                 <div className="text-[10px] text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
-                  현재 세션 정보가 자동으로 첨부됩니다 (입력 조건, 대화 내역, 추천 결과)
+                  {language === 'ko' ? '현재 세션 정보가 자동으로 첨부됩니다 (입력 조건, 대화 내역, 추천 결과)' : 'Session info will be automatically attached (conditions, chat history, recommendation result)'}
                 </div>
 
                 {/* Submit */}
@@ -1709,7 +1773,7 @@ function FeedbackWidget({
                   disabled={sending || (!comment.trim() && rating === 0)}
                   className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {sending ? "저장 중..." : "의견 제출"}
+                  {sending ? (language === 'ko' ? "저장 중..." : "Saving...") : (language === 'ko' ? "의견 제출" : "Submit Feedback")}
                 </button>
               </div>
             )}
@@ -1726,6 +1790,7 @@ function FeedbackWidget({
 
 export default function ProductRecommendPage() {
   const searchParams = useSearchParams()
+  const { language } = useApp()
   const resetKey = searchParams.get("reset")
 
   const [phase, setPhase] = useState<Phase>("intake")
@@ -1757,12 +1822,12 @@ export default function ProductRecommendPage() {
     setPhase("loading")
     setError(null)
     try {
-      const intakeText = buildIntakePromptText(form)
+      const intakeText = buildIntakePromptText(form, language)
 
       const res = await fetch("/api/recommend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ intakeForm: form, messages: [], sessionState: null }),
+        body: JSON.stringify({ intakeForm: form, messages: [], sessionState: null, language }),
       })
       const data = await res.json()
       if (data.error) throw new Error(data.detail ?? data.error)
@@ -1829,6 +1894,7 @@ export default function ProductRecommendPage() {
           messages: history,
           sessionState,
           displayedProducts,
+          language,
         }),
       })
       const data = await res.json()
@@ -1888,13 +1954,17 @@ export default function ProductRecommendPage() {
         <div className="shrink-0 flex items-center gap-3 px-4 py-2.5 border-b bg-white max-w-2xl mx-auto w-full">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-gray-900">YG-1 제품 탐색</span>
+              <span className="text-sm font-bold text-gray-900">{localizeIntakeText("YG-1 제품 탐색", language)}</span>
               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                 phase === "intake" ? "bg-blue-100 text-blue-700"
                 : phase === "summary" ? "bg-amber-100 text-amber-700"
                 : "bg-gray-100 text-gray-600"
               }`}>
-                {phase === "intake" ? "조건 입력" : phase === "summary" ? "조건 확인" : "검색 중"}
+                {phase === "intake"
+                  ? localizeIntakeText("조건 입력", language)
+                  : phase === "summary"
+                    ? localizeIntakeText("조건 확인", language)
+                    : localizeIntakeText("검색 중", language)}
               </span>
             </div>
           </div>

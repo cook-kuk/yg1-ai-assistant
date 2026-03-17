@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
+import { useApp } from "@/lib/store"
 
 // Mock knowledge data
 const knowledgeNotes = [
@@ -217,6 +218,7 @@ const productGuides = [
 const categories = ["전체", "가공 가이드", "제품 선택", "경쟁사 비교", "납기/재고"]
 
 export default function KnowledgePage() {
+  const { language } = useApp()
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("전체")
   const [selectedNote, setSelectedNote] = useState<typeof knowledgeNotes[0] | null>(null)
@@ -241,37 +243,37 @@ export default function KnowledgePage() {
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <BookOpen className="h-6 w-6 text-primary" />
-              지식/가이드
+              {language === 'ko' ? '지식/가이드' : 'Knowledge / Guide'}
             </h1>
             <p className="text-muted-foreground mt-1">
-              제품 선택 가이드, 가공 노하우, 자주 묻는 질문
+              {language === 'ko' ? '제품 선택 가이드, 가공 노하우, 자주 묻는 질문' : 'Product selection guides, machining know-how, FAQs'}
             </p>
           </div>
           <Dialog open={isAddNoteOpen} onOpenChange={setIsAddNoteOpen}>
             <DialogTrigger asChild>
               <Button className="gap-2">
                 <Plus className="h-4 w-4" />
-                지식 노트 추가
+                {language === 'ko' ? '지식 노트 추가' : 'Add Knowledge Note'}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <DialogTitle>새 지식 노트 작성</DialogTitle>
+                <DialogTitle>{language === 'ko' ? '새 지식 노트 작성' : 'Create New Knowledge Note'}</DialogTitle>
                 <DialogDescription>
-                  가공 노하우, 제품 선택 기준, 고객 대응 팁 등을 기록하세요.
+                  {language === 'ko' ? '가공 노하우, 제품 선택 기준, 고객 대응 팁 등을 기록하세요.' : 'Record machining know-how, product selection criteria, customer handling tips, etc.'}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">제목</label>
-                  <Input placeholder="예: SUS304 황삭 시 채터링 방지 방법" />
+                  <label className="text-sm font-medium">{language === 'ko' ? '제목' : 'Title'}</label>
+                  <Input placeholder={language === 'ko' ? "예: SUS304 황삭 시 채터링 방지 방법" : "e.g. SUS304 roughing chatter prevention"} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">카테고리</label>
+                    <label className="text-sm font-medium">{language === 'ko' ? '카테고리' : 'Category'}</label>
                     <Select>
                       <SelectTrigger>
-                        <SelectValue placeholder="선택" />
+                        <SelectValue placeholder={language === 'ko' ? "선택" : "Select"} />
                       </SelectTrigger>
                       <SelectContent>
                         {categories.filter(c => c !== "전체").map(cat => (
@@ -281,28 +283,28 @@ export default function KnowledgePage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">태그</label>
-                    <Input placeholder="쉼표로 구분 (예: 스테인리스, 엔드밀)" />
+                    <label className="text-sm font-medium">{language === 'ko' ? '태그' : 'Tags'}</label>
+                    <Input placeholder={language === 'ko' ? "쉼표로 구분 (예: 스테인리스, 엔드밀)" : "Comma-separated (e.g. stainless, endmill)"} />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">내용</label>
-                  <Textarea 
-                    placeholder="상세 내용을 작성하세요..."
+                  <label className="text-sm font-medium">{language === 'ko' ? '내용' : 'Content'}</label>
+                  <Textarea
+                    placeholder={language === 'ko' ? "상세 내용을 작성하세요..." : "Write detailed content..."}
                     className="min-h-[200px]"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">관련 문의 연결 (선택)</label>
-                  <Input placeholder="문의 번호 입력 (예: INQ-001, INQ-002)" />
+                  <label className="text-sm font-medium">{language === 'ko' ? '관련 문의 연결 (선택)' : 'Link Related Inquiries (optional)'}</label>
+                  <Input placeholder={language === 'ko' ? "문의 번호 입력 (예: INQ-001, INQ-002)" : "Enter inquiry numbers (e.g. INQ-001, INQ-002)"} />
                 </div>
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setIsAddNoteOpen(false)}>
-                  취소
+                  {language === 'ko' ? '취소' : 'Cancel'}
                 </Button>
                 <Button onClick={() => setIsAddNoteOpen(false)}>
-                  저장
+                  {language === 'ko' ? '저장' : 'Save'}
                 </Button>
               </div>
             </DialogContent>
@@ -313,8 +315,8 @@ export default function KnowledgePage() {
         <div className="flex gap-4">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="키워드로 검색 (예: 스테인리스, 채터링, OSG)"
+            <Input
+              placeholder={language === 'ko' ? "키워드로 검색 (예: 스테인리스, 채터링, OSG)" : "Search by keyword (e.g. stainless, chatter, OSG)"}
               className="pl-10"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -341,17 +343,17 @@ export default function KnowledgePage() {
             <TabsList className="h-12">
               <TabsTrigger value="notes" className="gap-2">
                 <FileText className="h-4 w-4" />
-                지식 노트
+                {language === 'ko' ? '지식 노트' : 'Knowledge Notes'}
                 <Badge variant="secondary" className="ml-1">{filteredNotes.length}</Badge>
               </TabsTrigger>
               <TabsTrigger value="faq" className="gap-2">
                 <MessageSquare className="h-4 w-4" />
-                자주 묻는 질문
+                {language === 'ko' ? '자주 묻는 질문' : 'FAQ'}
                 <Badge variant="secondary" className="ml-1">{faqItems.length}</Badge>
               </TabsTrigger>
               <TabsTrigger value="guides" className="gap-2">
                 <Lightbulb className="h-4 w-4" />
-                제품 선택 가이드
+                {language === 'ko' ? '제품 선택 가이드' : 'Product Selection Guide'}
               </TabsTrigger>
             </TabsList>
           </div>
@@ -420,7 +422,7 @@ export default function KnowledgePage() {
                       </div>
                       <Button variant="outline" size="sm" className="gap-1 bg-transparent">
                         <ThumbsUp className="h-4 w-4" />
-                        도움됨 ({selectedNote.likes})
+                        {language === 'ko' ? `도움됨 (${selectedNote.likes})` : `Helpful (${selectedNote.likes})`}
                       </Button>
                     </div>
 
@@ -431,11 +433,11 @@ export default function KnowledgePage() {
                       </span>
                       <span className="flex items-center gap-1">
                         <Calendar className="h-4 w-4" />
-                        {selectedNote.updatedAt} 수정
+                        {selectedNote.updatedAt} {language === 'ko' ? '수정' : 'updated'}
                       </span>
                       <span className="flex items-center gap-1">
                         <Eye className="h-4 w-4" />
-                        {selectedNote.views}회 조회
+                        {selectedNote.views}{language === 'ko' ? '회 조회' : ' views'}
                       </span>
                     </div>
 
@@ -458,7 +460,7 @@ export default function KnowledgePage() {
                       <div className="border-t pt-4">
                         <h4 className="font-medium mb-2 flex items-center gap-2">
                           <ExternalLink className="h-4 w-4" />
-                          연결된 문의
+                          {language === 'ko' ? '연결된 문의' : 'Linked Inquiries'}
                         </h4>
                         <div className="flex gap-2">
                           {selectedNote.linkedInquiries.map(inq => (
@@ -474,7 +476,7 @@ export default function KnowledgePage() {
                   <div className="flex items-center justify-center h-full text-muted-foreground">
                     <div className="text-center">
                       <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                      <p>노트를 선택하세요</p>
+                      <p>{language === 'ko' ? '노트를 선택하세요' : 'Select a note'}</p>
                     </div>
                   </div>
                 )}
@@ -503,11 +505,11 @@ export default function KnowledgePage() {
                     <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <Eye className="h-3 w-3" />
-                        {faq.views}회 조회
+                        {faq.views}{language === 'ko' ? '회 조회' : ' views'}
                       </span>
                       <Button variant="ghost" size="sm" className="h-7 text-xs gap-1">
                         <ThumbsUp className="h-3 w-3" />
-                        도움됨
+                        {language === 'ko' ? '도움됨' : 'Helpful'}
                       </Button>
                     </div>
                   </CardContent>
@@ -548,7 +550,7 @@ export default function KnowledgePage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Star className="h-5 w-5 text-yellow-500" />
-                    빠른 참조 - 소재별 추천 공구
+                    {language === 'ko' ? '빠른 참조 - 소재별 추천 공구' : 'Quick Reference - Recommended Tools by Material'}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -556,10 +558,10 @@ export default function KnowledgePage() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b">
-                          <th className="text-left py-2 px-3 font-medium">소재</th>
-                          <th className="text-left py-2 px-3 font-medium">추천 엔드밀</th>
-                          <th className="text-left py-2 px-3 font-medium">추천 코팅</th>
-                          <th className="text-left py-2 px-3 font-medium">절삭속도 (Vc)</th>
+                          <th className="text-left py-2 px-3 font-medium">{language === 'ko' ? '소재' : 'Material'}</th>
+                          <th className="text-left py-2 px-3 font-medium">{language === 'ko' ? '추천 엔드밀' : 'Recommended Endmill'}</th>
+                          <th className="text-left py-2 px-3 font-medium">{language === 'ko' ? '추천 코팅' : 'Recommended Coating'}</th>
+                          <th className="text-left py-2 px-3 font-medium">{language === 'ko' ? '절삭속도 (Vc)' : 'Cutting Speed (Vc)'}</th>
                         </tr>
                       </thead>
                       <tbody>

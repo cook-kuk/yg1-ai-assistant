@@ -19,6 +19,7 @@
 import { NextResponse } from "next/server"
 import { notifyRecommendation } from "@/lib/slack-notifier"
 import { normalizeInput, mergeInputs } from "@/lib/domain/input-normalizer"
+import { canonicalizeIntakeSearchText, type AppLanguage } from "@/lib/domain/intake-localization"
 import { runHybridRetrieval, classifyHybridResults } from "@/lib/domain/hybrid-retrieval"
 import { selectNextQuestion, checkResolution, parseAnswerToFilter } from "@/lib/domain/question-engine"
 import { buildDeterministicSummary, buildRationale, buildWarnings } from "@/lib/domain/summary-generator"
@@ -68,7 +69,8 @@ export async function POST(req: Request) {
         body.intakeForm as ProductIntakeForm,
         body.messages ?? [],
         body.sessionState ?? null,
-        body.displayedProducts ?? null
+        body.displayedProducts ?? null,
+        body.language === "en" ? "en" : "ko"
       )
     }
 
@@ -112,7 +114,8 @@ async function handleExploration(
   form: ProductIntakeForm,
   messages: ChatMessage[],
   prevState: ExplorationSessionState | null,
-  displayedProducts: DisplayedProduct[] | null = null
+  displayedProducts: DisplayedProduct[] | null = null,
+  language: AppLanguage = "ko"
 ): Promise<Response> {
   console.log(
     `[recommend] request start hasPrevState=${!!prevState} messages=${messages.length} displayedProducts=${displayedProducts?.length ?? 0}`
@@ -205,7 +208,7 @@ async function handleExploration(
         return buildQuestionResponse(
           form, undoResult.candidates, undoResult.evidenceMap, restoreResult.rebuiltInput,
           restoreResult.remainingHistory, restoreResult.remainingFilters, restoreResult.undoTurnCount,
-          messages, provider, undefined, restoreResult.remainingStages
+          messages, provider, language, undefined, restoreResult.remainingStages
         )
       }
 
@@ -213,7 +216,7 @@ async function handleExploration(
       if (action.type === "show_recommendation") {
         return buildRecommendationResponse(
           form, candidates, evidenceMap, currentInput, narrowingHistory,
-          filters, turnCount, messages, provider
+          filters, turnCount, messages, provider, language, displayedProducts
         )
       }
 
@@ -268,7 +271,7 @@ async function handleExploration(
           if (contextReply) {
             return buildQuestionResponse(
               form, candidates, evidenceMap, currentInput,
-              narrowingHistory, filters, turnCount, messages, provider,
+              narrowingHistory, filters, turnCount, messages, provider, language,
               contextReply
             )
           }
@@ -361,9 +364,9 @@ async function handleExploration(
 
         const statusAfterSkip = checkResolution(newResult.candidates, narrowingHistory)
         if (statusAfterSkip.startsWith("resolved")) {
-          return buildRecommendationResponse(form, newResult.candidates, newResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider)
+          return buildRecommendationResponse(form, newResult.candidates, newResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts)
         }
-        return buildQuestionResponse(form, newResult.candidates, newResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider)
+        return buildQuestionResponse(form, newResult.candidates, newResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language)
       }
 
       // Action: continue_narrowing (apply filter from orchestrator)
@@ -380,7 +383,7 @@ async function handleExploration(
           console.log(`[orchestrator:guard] Filter ${filter.field}=${filter.value} would result in 0 candidates — BLOCKED`)
           return buildQuestionResponse(
             form, candidates, evidenceMap, currentInput,
-            narrowingHistory, filters, turnCount, messages, provider,
+            narrowingHistory, filters, turnCount, messages, provider, language,
             `"${filter.value}" 조건을 적용하면 후보가 없습니다. 현재 ${candidates.length}개 후보에서 다른 조건을 선택해주세요.`
           )
         }
@@ -417,10 +420,10 @@ async function handleExploration(
 
         const newStatus = checkResolution(newCandidates, narrowingHistory)
         if (newStatus.startsWith("resolved")) {
-          return buildRecommendationResponse(form, newCandidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider)
+          return buildRecommendationResponse(form, newCandidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts)
         }
 
-        return buildQuestionResponse(form, newCandidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, undefined, updatedStages)
+        return buildQuestionResponse(form, newCandidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, undefined, updatedStages)
       }
     }
   }
@@ -432,14 +435,14 @@ async function handleExploration(
     // Already resolved — show results
     return buildRecommendationResponse(
       form, candidates, evidenceMap, currentInput, narrowingHistory,
-      filters, turnCount, messages, provider
+      filters, turnCount, messages, provider, language, displayedProducts
     )
   }
 
   // Not resolved (or first call) — ask a question
   return buildQuestionResponse(
     form, candidates, evidenceMap, currentInput, narrowingHistory,
-    filters, turnCount, messages, provider
+    filters, turnCount, messages, provider, language
   )
 }
 
@@ -454,6 +457,7 @@ async function buildQuestionResponse(
   turnCount: number,
   messages: ChatMessage[],
   provider: ReturnType<typeof getProvider>,
+  language: AppLanguage,
   overrideText?: string,
   existingStageHistory?: NarrowingStage[]
 ): Promise<Response> {
@@ -495,7 +499,7 @@ async function buildQuestionResponse(
   if (!question) {
     return buildRecommendationResponse(
       form, candidates, evidenceMap, input, history,
-      filters, turnCount, messages, provider
+      filters, turnCount, messages, provider, language, snapshotToDisplayed(candidateSnapshot)
     )
   }
 
@@ -510,9 +514,9 @@ async function buildQuestionResponse(
   } else if (provider.available() && messages.length === 0) {
     // First call: generate greeting
     try {
-      const systemPrompt = buildSystemPrompt()
+      const systemPrompt = buildSystemPrompt(language)
       const sessionCtx = buildSessionContext(form, sessionState, candidates.length, snapshotToDisplayed(candidateSnapshot))
-      const greetingPrompt = buildGreetingPrompt(sessionCtx, question, candidates.length)
+      const greetingPrompt = buildGreetingPrompt(sessionCtx, question, candidates.length, language)
 
       const raw = await provider.complete(systemPrompt, [
         { role: "user", content: greetingPrompt }
@@ -528,10 +532,10 @@ async function buildQuestionResponse(
   } else if (provider.available() && messages.length > 0) {
     // Follow-up: polish the question
     try {
-      const systemPrompt = buildSystemPrompt()
+      const systemPrompt = buildSystemPrompt(language)
       const sessionCtx = buildSessionContext(form, sessionState, candidates.length, snapshotToDisplayed(candidateSnapshot))
       const raw = await provider.complete(systemPrompt, [
-        { role: "user", content: `${sessionCtx}\n\n다음 질문을 자연스러운 한국어로 다듬어주세요: "${question.questionText}"\n현재 후보 ${candidates.length}개.\nJSON으로 응답: { "responseText": "...", "extractedParams": {}, "isComplete": false, "skipQuestion": false }` }
+        { role: "user", content: `${sessionCtx}\n\n다음 질문을 자연스럽고 간결한 ${language === "ko" ? "한국어" : "영어"}로 다듬어주세요: "${question.questionText}"\n현재 후보 ${candidates.length}개.\nJSON으로 응답: { "responseText": "...", "extractedParams": {}, "isComplete": false, "skipQuestion": false }` }
       ], 300)
 
       const parsed = safeParseJSON(raw)
@@ -574,7 +578,9 @@ async function buildRecommendationResponse(
   filters: AppliedFilter[],
   turnCount: number,
   messages: ChatMessage[],
-  provider: ReturnType<typeof getProvider>
+  provider: ReturnType<typeof getProvider>,
+  language: AppLanguage,
+  displayedProducts: DisplayedProduct[] | null = null
 ): Promise<Response> {
   const { primary, alternatives, status } = classifyHybridResults({ candidates, evidenceMap, totalConsidered: candidates.length, filtersApplied: filters })
   const warnings = primary ? buildWarnings(primary, input) : ["조건에 맞는 제품을 찾지 못했습니다"]
@@ -644,7 +650,7 @@ async function buildRecommendationResponse(
   // LLM summary with explanation-aware prompt
   if (provider.available() && primary && primaryFactChecked && primaryExplanation) {
     try {
-      const systemPrompt = buildSystemPrompt()
+      const systemPrompt = buildSystemPrompt(language)
       const llmSessionState: ExplorationSessionState = {
         sessionId: `ses-${Date.now()}`,
         candidateCount: candidates.length,
@@ -678,7 +684,8 @@ async function buildRecommendationResponse(
               sourceCount: altEvidence?.sourceCount ?? 0,
             }
         }),
-        warnings
+        warnings,
+        language
       )
 
       const raw = await provider.complete(systemPrompt, [
@@ -1365,20 +1372,22 @@ function parseIntakeDiameter(text: string): number | null {
 function mapIntakeToInput(form: ProductIntakeForm): RecommendationInput {
   const input: Partial<RecommendationInput> = {
     manufacturerScope: "yg1-only",
-    locale: "ko",
+    locale: "en",
   }
   // Material: may be comma-separated for multi-select (e.g. "알루미늄,스테인리스")
   const material = getKnown(form.material)
-  if (material) input.material = material  // keeps comma-separated string; hybrid-retrieval resolves each
+  if (material) input.material = canonicalizeIntakeSearchText(material)
   const opParts: string[] = []
   const intent = getKnown(form.machiningIntent as AnswerState<MachiningIntent>)
-  const intentMap: Record<MachiningIntent, string> = { roughing: "황삭", semi: "중삭", finishing: "정삭" }
+  const intentMap: Record<MachiningIntent, string> = { roughing: "Roughing", semi: "Semi-finishing", finishing: "Finishing" }
   if (intent) opParts.push(intentMap[intent])
   // OperationType: may be comma-separated for multi-select (e.g. "측면가공,슬롯")
   const opType = getKnown(form.operationType)
   if (opType) {
-    // Split comma-separated and add each part
-    const ops = opType.split(",").map(s => s.trim()).filter(Boolean)
+    const ops = opType
+      .split(",")
+      .map(s => canonicalizeIntakeSearchText(s.trim()))
+      .filter(Boolean)
     opParts.push(...ops)
   }
   if (opParts.length > 0) input.operationType = opParts.join(" ")
@@ -1388,7 +1397,7 @@ function mapIntakeToInput(form: ProductIntakeForm): RecommendationInput {
     if (diam !== null) input.diameterMm = diam
   }
   const toolType = getKnown(form.toolTypeOrCurrentProduct)
-  if (toolType) input.toolType = toolType
+  if (toolType) input.toolType = canonicalizeIntakeSearchText(toolType)
   return input as RecommendationInput
 }
 

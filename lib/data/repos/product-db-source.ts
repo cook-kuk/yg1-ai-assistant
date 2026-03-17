@@ -1,7 +1,8 @@
 import "server-only"
 
-import { Pool } from "pg"
+import { Pool, type QueryResult, type QueryResultRow } from "pg"
 import { notifyDbQuery } from "@/lib/slack-notifier"
+import { appendRuntimeLog, logRuntimeError } from "@/lib/runtime-logger"
 import type { AppliedFilter } from "@/lib/types/exploration"
 import type { CanonicalProduct, RecommendationInput, SourcePriority, SourceType } from "@/lib/types/canonical"
 import { resolveMaterialTag } from "@/lib/domain/material-resolver"
@@ -92,6 +93,14 @@ interface ProductSearchOptions {
   input?: RecommendationInput
   filters?: AppliedFilter[]
   limit?: number
+  normalizedCode?: string
+  seriesName?: string
+}
+
+interface DbQueryContext {
+  operation: string
+  limit?: number
+  whereCount?: number
   normalizedCode?: string
   seriesName?: string
 }
@@ -237,6 +246,56 @@ function getPool(): Pool {
   }
 
   return globalThis.__yg1ProductDbPool
+}
+
+async function executeLoggedQuery<T extends QueryResultRow>(
+  query: string,
+  values: unknown[],
+  context: DbQueryContext
+): Promise<QueryResult<T>> {
+  const startedAt = Date.now()
+  const normalizedQuery = query.trim()
+
+  await appendRuntimeLog({
+    category: "db",
+    event: "query.start",
+    context: {
+      ...context,
+      sql: normalizedQuery,
+      values,
+    },
+  })
+
+  try {
+    const result = await getPool().query<T>(query, values)
+
+    await appendRuntimeLog({
+      category: "db",
+      event: "query.success",
+      context: {
+        ...context,
+        sql: normalizedQuery,
+        values,
+        durationMs: Date.now() - startedAt,
+        rowCount: result.rowCount ?? result.rows.length,
+      },
+    })
+
+    return result
+  } catch (error) {
+    await logRuntimeError({
+      category: "db",
+      event: "query.error",
+      error,
+      context: {
+        ...context,
+        sql: normalizedQuery,
+        values,
+        durationMs: Date.now() - startedAt,
+      },
+    })
+    throw error
+  }
 }
 
 export function shouldUseDatabaseSource(): boolean {
@@ -537,7 +596,13 @@ export async function queryProductsFromDatabase(options: ProductSearchOptions = 
   console.log(
     `[product-db] query:start where=${where.length} values=${values.length} limit=${limit} code=${options.normalizedCode ?? "-"} series=${options.seriesName ?? "-"}`
   )
-  const result = await getPool().query<RawProductRow>(query, values)
+  const result = await executeLoggedQuery<RawProductRow>(query, values, {
+    operation: "queryProductsFromDatabase",
+    whereCount: where.length,
+    limit,
+    normalizedCode: options.normalizedCode,
+    seriesName: options.seriesName,
+  })
   const mapped = result.rows
     .map(mapRowToProduct)
     .filter(product => !!product.normalizedCode)
@@ -591,7 +656,7 @@ export async function getSeriesOverviewFromDatabase(limit = 120): Promise<Produc
 
   const startedAt = Date.now()
   console.log(`[product-db] series-overview:start limit=${limit}`)
-  const result = await getPool().query<{
+  const result = await executeLoggedQuery<{
     series_name: string
     count: string
     min_diameter_mm: number | null
@@ -600,7 +665,10 @@ export async function getSeriesOverviewFromDatabase(limit = 120): Promise<Produc
     coating: string | null
     feature_text: string | null
     brand: string | null
-  }>(query, [limit])
+  }>(query, [limit], {
+    operation: "getSeriesOverviewFromDatabase",
+    limit,
+  })
 
   if (shouldLogTimings()) {
     console.log(`[product-db] series-overview=${Date.now() - startedAt}ms rows=${result.rowCount ?? 0} limit=${limit}`)

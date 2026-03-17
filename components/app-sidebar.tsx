@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Lock,
   MessageCircle,
+  Globe,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/lib/store"
@@ -142,7 +143,7 @@ const roleLabels = {
 export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
   const pathname = usePathname()
   const router = useRouter()
-  const { currentUser, setUserRole, demoScenario, setDemoScenario } = useApp()
+  const { currentUser, setUserRole, demoScenario, setDemoScenario, language, setLanguage } = useApp()
 
   const filteredNavItems = navItems.filter(item =>
     item.roles.includes(currentUser.role)
@@ -190,7 +191,7 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-72">
-            <DropdownMenuLabel>데모 시나리오 선택</DropdownMenuLabel>
+            <DropdownMenuLabel>{language === 'ko' ? '데모 시나리오 선택' : 'Select Demo Scenario'}</DropdownMenuLabel>
             <DropdownMenuSeparator />
 {wowScenarios.map(scenario => (
   <DropdownMenuItem
@@ -204,7 +205,7 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
   ))}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setDemoScenario(null)}>
-              <span className="text-muted-foreground">Demo Mode 종료</span>
+              <span className="text-muted-foreground">{language === 'ko' ? 'Demo Mode 종료' : 'Exit Demo Mode'}</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -222,10 +223,10 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
                 <li key={item.href}>
                   <div
                     className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground/35 cursor-not-allowed select-none"
-                    title="준비 중"
+                    title={language === 'ko' ? '준비 중' : 'Coming Soon'}
                   >
                     <item.icon className="h-4 w-4" />
-                    <span className="flex-1">{item.title}</span>
+                    <span className="flex-1">{language === 'ko' ? item.title : item.titleEn}</span>
                     {item.badge && (
                       <Badge variant="secondary" className="h-5 min-w-5 text-xs opacity-40">
                         {item.badge}
@@ -233,7 +234,7 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
                     )}
                     <Lock className="h-3 w-3 opacity-40" />
                   </div>
-                  <span className="ml-10 text-[10px] text-sidebar-foreground/20">{item.titleEn}</span>
+                  <span className="ml-10 text-[10px] text-sidebar-foreground/20">{language === 'ko' ? item.titleEn : item.title}</span>
                 </li>
               )
             }
@@ -258,7 +259,7 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
                   )}
                 >
                   <item.icon className="h-4 w-4" />
-                  <span className="flex-1">{item.title}</span>
+                  <span className="flex-1">{language === 'ko' ? item.title : item.titleEn}</span>
                   {item.badge && (
                     <Badge variant="secondary" className="h-5 min-w-5 text-xs bg-sidebar-primary text-sidebar-primary-foreground">
                       {item.badge}
@@ -266,7 +267,7 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
                   )}
                 </Link>
                 {!isActive && (
-                  <span className="ml-10 text-[10px] text-sidebar-foreground/40">{item.titleEn}</span>
+                  <span className="ml-10 text-[10px] text-sidebar-foreground/40">{language === 'ko' ? item.titleEn : item.title}</span>
                 )}
               </li>
             )
@@ -274,8 +275,41 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
         </ul>
       </nav>
 
-      {/* User Role Selector */}
-      <div className="border-t border-sidebar-border p-3">
+      {/* User Role Selector + Language Toggle */}
+      <div className="border-t border-sidebar-border p-3 space-y-2">
+        {/* Language Toggle */}
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-1.5 text-xs text-sidebar-foreground/60">
+            <Globe className="h-3.5 w-3.5" />
+            <span>{language === 'ko' ? '언어' : 'Language'}</span>
+          </div>
+          <div className="flex rounded-md overflow-hidden border border-sidebar-border">
+            <button
+              onClick={() => setLanguage('ko')}
+              className={cn(
+                "px-2.5 py-1 text-xs font-medium transition-colors",
+                language === 'ko'
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                  : "text-sidebar-foreground/60 hover:bg-sidebar-accent"
+              )}
+            >
+              한국어
+            </button>
+            <button
+              onClick={() => setLanguage('en')}
+              className={cn(
+                "px-2.5 py-1 text-xs font-medium transition-colors",
+                language === 'en'
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                  : "text-sidebar-foreground/60 hover:bg-sidebar-accent"
+              )}
+            >
+              English
+            </button>
+          </div>
+        </div>
+
+        {/* User Role Selector */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -287,9 +321,9 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
                   {currentUser.nameKr.charAt(0)}
                 </div>
                 <div className="text-left">
-                  <p className="text-sm font-medium">{currentUser.nameKr}</p>
+                  <p className="text-sm font-medium">{language === 'ko' ? currentUser.nameKr : currentUser.name}</p>
                   <p className="text-xs text-sidebar-foreground/60">
-                    {roleLabels[currentUser.role].kr}
+                    {language === 'ko' ? roleLabels[currentUser.role].kr : roleLabels[currentUser.role].en}
                   </p>
                 </div>
               </div>
@@ -297,7 +331,7 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuLabel>역할 변경 (Demo)</DropdownMenuLabel>
+            <DropdownMenuLabel>{language === 'ko' ? '역할 변경 (Demo)' : 'Switch Role (Demo)'}</DropdownMenuLabel>
             <DropdownMenuSeparator />
             {(Object.keys(roleLabels) as Array<keyof typeof roleLabels>).map(role => (
               <DropdownMenuItem
@@ -305,8 +339,8 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
                 onClick={() => setUserRole(role)}
                 className={cn(currentUser.role === role && "bg-accent")}
               >
-                <span>{roleLabels[role].kr}</span>
-                <span className="ml-2 text-xs text-muted-foreground">({roleLabels[role].en})</span>
+                <span>{language === 'ko' ? roleLabels[role].kr : roleLabels[role].en}</span>
+                <span className="ml-2 text-xs text-muted-foreground">({language === 'ko' ? roleLabels[role].en : roleLabels[role].kr})</span>
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
