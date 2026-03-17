@@ -134,7 +134,32 @@ async function handleExploration(
     ? { ...baseInput, ...prevState.resolvedInput }
     : baseInput
 
-  const hybridResult = await runHybridRetrieval(resolvedInput, filters)
+  let hybridResult: Awaited<ReturnType<typeof runHybridRetrieval>>
+  try {
+    hybridResult = await runHybridRetrieval(resolvedInput, filters)
+  } catch (retrievalError) {
+    console.error(`[recommend] runHybridRetrieval FAILED:`, retrievalError)
+    // Try without unitSystem/region filters
+    const fallbackInput = { ...resolvedInput, unitSystem: undefined, region: undefined }
+    try {
+      hybridResult = await runHybridRetrieval(fallbackInput, filters)
+      console.log(`[recommend] Fallback retrieval succeeded (without unitSystem/region)`)
+    } catch (fallbackError) {
+      console.error(`[recommend] Fallback retrieval also failed:`, fallbackError)
+      const errMsg = retrievalError instanceof Error ? retrievalError.message : "DB 검색 실패"
+      return NextResponse.json({
+        error: "retrieval_error",
+        detail: errMsg,
+        text: `DB 검색 중 오류: ${errMsg}`,
+        chips: ["처음부터 다시"],
+        isComplete: false,
+        recommendation: null,
+        sessionState: prevState,
+        evidenceSummaries: null,
+        candidateSnapshot: null,
+      }, { status: 500 })
+    }
+  }
   const candidates = hybridResult.candidates
   const evidenceMap = hybridResult.evidenceMap
 
