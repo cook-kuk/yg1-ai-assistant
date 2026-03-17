@@ -91,6 +91,18 @@ export async function runHybridRetrieval(
     }
   }
 
+  // Unit system filter (METRIC / INCH) — in-memory for safety (DB view may lack edp_unit)
+  if (input.unitSystem && input.unitSystem !== "ALL") {
+    const before = candidates.length
+    if (input.unitSystem === "INCH") {
+      candidates = candidates.filter(p => p.diameterInch != null)
+    } else {
+      // METRIC: keep products without inch diameter (or with mm diameter)
+      candidates = candidates.filter(p => p.diameterInch == null)
+    }
+    console.log(`[hybrid:filter] unitSystem=${input.unitSystem}: ${before} → ${candidates.length} candidates`)
+  }
+
   // Soft filter: material tag(s) — supports comma-separated multi-select (e.g. "알루미늄,스테인리스")
   const materialTags: string[] = []
   if (input.material) {

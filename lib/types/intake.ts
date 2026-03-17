@@ -147,19 +147,18 @@ export const FIELD_CONFIGS: IntakeFieldConfig[] = [
   //   ],
   //   unknownLabel: "상관없음",
   // },
-  // NOTE: unitSystem 필드는 edp_unit WHERE 절 검증 후 활성화
-  // {
-  //   key: "unitSystem",
-  //   label: "단위 계열",
-  //   emoji: "📐",
-  //   description: "제품 규격 단위를 선택하세요",
-  //   options: [
-  //     { value: "METRIC", label: "미터법 (mm)" },
-  //     { value: "INCH", label: "인치 (inch)" },
-  //     { value: "ALL", label: "전체 (mm+inch)" },
-  //   ],
-  //   unknownLabel: "상관없음",
-  // },
+  {
+    key: "unitSystem",
+    label: "단위 계열",
+    emoji: "📐",
+    description: "제품 규격 단위를 선택하세요",
+    options: [
+      { value: "METRIC", label: "미터법 (mm)" },
+      { value: "INCH", label: "인치 (inch)" },
+      { value: "ALL", label: "전체 (mm+inch)" },
+    ],
+    unknownLabel: "상관없음",
+  },
   {
     key: "inquiryPurpose",
     label: "문의 목적",
