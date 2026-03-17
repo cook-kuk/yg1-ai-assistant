@@ -6,6 +6,7 @@
 
 import { createAnthropicMessageWithLogging } from "@/lib/llm/anthropic-tracer"
 import { logRuntimeError } from "@/lib/runtime-logger"
+import Anthropic from "@anthropic-ai/sdk"
 
 export interface LLMMessage { role: "user" | "assistant"; content: string }
 
@@ -85,16 +86,22 @@ export function createClaudeProvider(): LLMProvider {
       const model = resolveModel(modelTier, agentName)
       const startMs = Date.now()
       try {
-        const content = await createAnthropicMessageWithLogging({
-          model,
-          system: systemPrompt,
-          messages,
-          maxTokens,
+        const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+        const response = await createAnthropicMessageWithLogging({
+          client,
           route: "/api/recommend",
-          metadata: {
-            providerMethod: "complete",
+          operation: "provider.complete",
+          request: {
+            model: model as Parameters<typeof client.messages.create>[0]["model"],
+            max_tokens: maxTokens,
+            system: systemPrompt,
+            messages: messages as Parameters<typeof client.messages.create>[0]["messages"],
           },
         })
+        const content = response.content
+          .filter((block): block is Anthropic.TextBlock => block.type === "text")
+          .map(block => block.text)
+          .join("\n")
 
         // Slack LLM 알림 (비동기)
         import("@/lib/slack-notifier").then(({ notifyLlmCall }) =>
@@ -127,7 +134,6 @@ export function createClaudeProvider(): LLMProvider {
       if (!this.available()) throw new Error("No ANTHROPIC_API_KEY")
       const model = resolveModel(modelTier, agentName)
       try {
-        const { default: Anthropic } = await import("@anthropic-ai/sdk")
         const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
         const resp = await client.messages.create({
           model: model as Parameters<typeof client.messages.create>[0]["model"],
