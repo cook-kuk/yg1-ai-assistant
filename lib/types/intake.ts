@@ -134,18 +134,19 @@ export interface IntakeFieldConfig {
 }
 
 export const FIELD_CONFIGS: IntakeFieldConfig[] = [
-  {
-    key: "country",
-    label: "시장 / 국가",
-    emoji: "🌏",
-    description: "어느 시장의 제품을 찾으시나요?",
-    options: [
-      { value: "KOREA", label: "한국 (국내 시장)" },
-      { value: "GLOBAL", label: "글로벌 (해외 시장)" },
-      { value: "ALL", label: "전체 (국내+해외)" },
-    ],
-    unknownLabel: "상관없음",
-  },
+  // NOTE: country 필드는 DB 뷰에 region 컬럼 추가 후 활성화
+  // {
+  //   key: "country",
+  //   label: "시장 / 국가",
+  //   emoji: "🌏",
+  //   description: "어느 시장의 제품을 찾으시나요?",
+  //   options: [
+  //     { value: "KOREA", label: "한국 (국내 시장)" },
+  //     { value: "GLOBAL", label: "글로벌 (해외 시장)" },
+  //     { value: "ALL", label: "전체 (국내+해외)" },
+  //   ],
+  //   unknownLabel: "상관없음",
+  // },
   {
     key: "unitSystem",
     label: "단위 계열",

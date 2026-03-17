@@ -617,11 +617,11 @@ function buildQueryOptions(options: ProductSearchOptions): { where: string[]; va
     where.push(`COALESCE(material_tags, ARRAY[]::text[]) && ${param}::text[]`)
   }
 
-  // Region filter (KOREA / GLOBAL) — applied only when region column exists in DB view
-  if (input?.region && input.region !== "ALL") {
-    const param = next(input.region)
-    where.push(`COALESCE(region, '') = ${param}`)
-  }
+  // Region filter — DISABLED until DB view has region column
+  // if (input?.region && input.region !== "ALL") {
+  //   const param = next(input.region)
+  //   where.push(`COALESCE(region, '') = ${param}`)
+  // }
 
   // Unit system filter (METRIC / INCH)
   if (input?.unitSystem && input.unitSystem !== "ALL") {
