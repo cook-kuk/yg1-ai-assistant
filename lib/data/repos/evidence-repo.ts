@@ -9,6 +9,7 @@ import path from "path"
 import fs from "fs"
 import crypto from "crypto"
 import { Pool, type QueryResultRow } from "pg"
+import { ProductRepo } from "@/lib/data/repos/product-repo"
 
 interface RawEvidenceRow extends QueryResultRow {
   _row_num: string | null
@@ -260,6 +261,34 @@ function applyEvidenceFilters(
   return results.sort((a, b) => b.confidence - a.confidence)
 }
 
+async function resolveProductEvidenceContext(
+  productCode: string,
+  opts?: {
+    seriesName?: string | null
+    isoGroup?: string | null
+    cuttingType?: string | null
+    diameterMm?: number | null
+    toleranceMm?: number
+  }
+): Promise<{
+  seriesName?: string | null
+  isoGroup?: string | null
+  cuttingType?: string | null
+  diameterMm?: number | null
+  toleranceMm?: number
+}> {
+  if (opts?.seriesName && opts?.diameterMm != null) return opts
+
+  const product = await ProductRepo.findByCode(productCode)
+  if (!product) return opts ?? {}
+
+  return {
+    ...opts,
+    seriesName: opts?.seriesName ?? product.seriesName,
+    diameterMm: opts?.diameterMm ?? product.diameterMm,
+  }
+}
+
 export const EvidenceRepo = {
   async getAll(): Promise<EvidenceChunk[]> {
     return await loadChunks()
@@ -299,12 +328,22 @@ export const EvidenceRepo = {
       toleranceMm?: number
     }
   ): Promise<EvidenceChunk[]> {
-    if (opts?.seriesName) {
-      return await this.findBySeriesName(opts.seriesName, opts)
+    const resolvedOpts = await resolveProductEvidenceContext(productCode, opts)
+
+    if (resolvedOpts.seriesName) {
+      const bySeries = await this.findBySeriesName(resolvedOpts.seriesName, resolvedOpts)
+      console.log(
+        `[evidence-db] product_lookup code=${productCode} series=${resolvedOpts.seriesName ?? "-"} diameter=${resolvedOpts.diameterMm ?? "-"} matched=${bySeries.length}`
+      )
+      return bySeries
     }
 
     const direct = await this.findByProductCode(productCode)
-    return applyEvidenceFilters(direct, opts)
+    const filtered = applyEvidenceFilters(direct, resolvedOpts)
+    console.log(
+      `[evidence-db] product_lookup code=${productCode} series=- diameter=${resolvedOpts.diameterMm ?? "-"} matched=${filtered.length}`
+    )
+    return filtered
   },
 
   async searchText(query: string, limit = 50): Promise<EvidenceChunk[]> {
