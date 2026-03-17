@@ -179,14 +179,34 @@ Respond: {"intent":"...", "confidence": 0.0-1.0, "extractedValue": "..." or null
 
 // ── Helpers ──────────────────────────────────────────────────
 
+const KOREAN_NUMBERS: Record<string, number> = {
+  "한": 1, "하나": 1, "두": 2, "둘": 2, "세": 3, "셋": 3,
+  "네": 4, "넷": 4, "다섯": 5, "여섯": 6, "일곱": 7, "여덟": 8,
+}
+
+function parseKoreanNumber(s: string): number | null {
+  const digit = parseInt(s)
+  if (!isNaN(digit)) return digit
+  return KOREAN_NUMBERS[s] ?? null
+}
+
 function extractComparisonTargets(clean: string): string[] {
   const targets: string[] = []
   // "1번이랑 2번" / "1번 2번"
   const numMatch = clean.matchAll(/(\d+)\s*번/g)
   for (const m of numMatch) targets.push(`${m[1]}번`)
-  // "상위 3개"
-  const topMatch = clean.match(/상위\s*(\d+)/)
-  if (topMatch) targets.push(`상위${topMatch[1]}`)
+  // "상위 3개" / "상위 두개" / "상위 세개"
+  const topMatch = clean.match(/상위\s*(\d+|한|하나|두|둘|세|셋|네|넷|다섯)\s*개?/)
+  if (topMatch) {
+    const n = parseKoreanNumber(topMatch[1])
+    if (n) targets.push(`상위${n}`)
+  }
+  // "위에 2개" / "위 두개"
+  const aboveMatch = clean.match(/위[에]?\s*(\d+|두|세|네)\s*개/)
+  if (aboveMatch && targets.length === 0) {
+    const n = parseKoreanNumber(aboveMatch[1])
+    if (n) targets.push(`상위${n}`)
+  }
   return targets
 }
 

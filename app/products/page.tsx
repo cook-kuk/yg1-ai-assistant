@@ -342,12 +342,15 @@ function CandidateCard({ c }: { c: CandidateSnapshot }) {
             {c.brand && <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">{c.brand}</span>}
             {c.seriesName && <span className="text-xs text-blue-700 font-medium">{c.seriesName}</span>}
           </div>
-          {/* ── Key Specs: 한눈에 보이는 주요 스펙 ── */}
-          <div className="flex items-center gap-1 mt-0.5 text-[11px] text-gray-700 font-medium">
-            {c.diameterMm != null && <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">φ{c.diameterMm}mm</span>}
-            {c.fluteCount != null && <span className="bg-green-50 text-green-700 px-1.5 py-0.5 rounded">{c.fluteCount}F</span>}
-            {c.coating && <span className="bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">{c.coating}</span>}
-            {c.materialTags.length > 0 && <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{c.materialTags.join("/")}</span>}
+          {/* ── Inline spec summary: D-POWER GRAPHITE | EIB04 → Ø2mm · 2F · TiAlN · N군 · 7mm ── */}
+          <div className="text-[11px] text-gray-500 mt-0.5">
+            {[
+              c.diameterMm != null ? `Ø${c.diameterMm}mm` : null,
+              c.fluteCount != null ? `${c.fluteCount}F` : null,
+              c.coating ?? null,
+              c.materialTags.length > 0 ? `${c.materialTags.join("/")}군` : null,
+              c.displayLabel ?? null,
+            ].filter(Boolean).join(" · ")}
           </div>
         </div>
       </div>

@@ -217,9 +217,11 @@ async function handleExploration(
         )
       }
 
-      // Action: compare_products
+      // Action: compare_products — use PERSISTED displayed candidates (not re-computed)
       if (action.type === "compare_products") {
-        const snapshot = buildCandidateSnapshot(candidates, evidenceMap)
+        const snapshot = prevState.displayedCandidates?.length > 0
+          ? prevState.displayedCandidates
+          : buildCandidateSnapshot(candidates, evidenceMap)
         const targets = resolveProductReferences(action.targets, snapshot)
         const compResult = await compareProducts(targets, evidenceMap, provider)
 
@@ -271,8 +273,8 @@ async function handleExploration(
           }
         }
 
-        // General chat fallback
-        const llmResponse = await handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form)
+        // General chat fallback — include displayed products for grounded answers
+        const llmResponse = await handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form, prevState.displayedCandidates)
         const sessionState: ExplorationSessionState = {
           sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
           candidateCount: prevState.candidateCount ?? candidates.length,
@@ -868,6 +870,7 @@ async function handleGeneralChat(
   _currentInput: RecommendationInput,
   candidates: ScoredProduct[],
   form: ProductIntakeForm,
+  displayedCandidatesContext?: CandidateSnapshot[],
 ): Promise<{ text: string; chips: string[] }> {
   const clean = userMessage.trim()
   const candidateCount = candidates.length
@@ -897,6 +900,13 @@ async function handleGeneralChat(
 
   const formContext = form.material.status === "known" || form.operationType.status === "known"
     ? `사용자 입력 조건: 소재=${form.material.status === "known" ? form.material.value : "미지정"}, 가공=${form.operationType.status === "known" ? form.operationType.value : "미지정"}`
+    : ""
+
+  // Build displayed products context for grounded answers
+  const displayedContext = displayedCandidatesContext && displayedCandidatesContext.length > 0
+    ? `\n═══ 현재 표시된 추천 제품 (사용자가 "이 중", "위 제품", "상위 N개" 등으로 참조 시 반드시 이 목록에서 답하라) ═══\n${displayedCandidatesContext.slice(0, 10).map(c =>
+      `#${c.rank} ${c.displayCode}${c.displayLabel ? ` [${c.displayLabel}]` : ""} | ${c.brand ?? "?"} | ${c.seriesName ?? "?"} | φ${c.diameterMm ?? "?"}mm | ${c.fluteCount ?? "?"}F | ${c.coating ?? "?"} | ${c.materialTags.join("/") || "?"} | ${c.matchStatus} ${c.score}점`
+    ).join("\n")}`
     : ""
 
   const webContext = webSearchResult
@@ -955,8 +965,10 @@ ${webContext}
 - "추가 조건을 알려주시면~" 같은 빈 말 금지
 - 응답 끝에 JSON이나 특수 포맷 쓰지 말고 순수 자연어로만`
 
+    const userPrompt = `${sessionContext}\n${formContext}${displayedContext}${webContext}\n\n사용자: "${clean}"`
+
     const raw = await provider.complete(systemPrompt, [
-      { role: "user", content: clean }
+      { role: "user", content: userPrompt }
     ], 800)
 
     if (raw && raw.trim()) {
