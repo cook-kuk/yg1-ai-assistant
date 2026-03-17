@@ -49,6 +49,7 @@ import type { TurnContext, OrchestratorResult } from "@/lib/agents/types"
 import { buildSessionState, carryForwardState, createInitialStage, createFilterStage, restoreOnePreviousStep, restoreToBeforeFilter } from "@/lib/domain/session-manager"
 import { runValidationGate, validateNoReask } from "@/lib/domain/validation-gate"
 import { ENABLE_MULTI_AGENT_ORCHESTRATOR, ENABLE_VALIDATION_GATE, ENABLE_COMPARISON_AGENT } from "@/lib/feature-flags"
+import { ProductRepo } from "@/lib/data/repos/product-repo"
 
 import type { RecommendationInput, RecommendationResult, ScoredProduct, ChatMessage, MatchStatus } from "@/lib/types/canonical"
 import type { ProductIntakeForm, AnswerState, MachiningIntent } from "@/lib/types/intake"
@@ -266,6 +267,43 @@ async function handleExploration(
 
       // Action: explain_product / answer_general
       if (action.type === "explain_product" || action.type === "answer_general") {
+        const cuttingConditionReply = await handleDirectCuttingConditionQuestion(
+          lastUserMsg.text,
+          currentInput,
+          prevState
+        )
+        if (cuttingConditionReply) {
+          const sessionState: ExplorationSessionState = {
+            sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+            candidateCount: prevState.candidateCount ?? candidates.length,
+            appliedFilters: filters,
+            narrowingHistory,
+            stageHistory: prevState.stageHistory ?? [],
+            resolutionStatus: prevState.resolutionStatus ?? "broad",
+            resolvedInput: currentInput,
+            turnCount,
+            lastAskedField: prevState.lastAskedField,
+            displayedCandidates: prevState.displayedCandidates ?? [],
+            displayedChips: cuttingConditionReply.chips,
+            displayedOptions: prevState.displayedOptions ?? [],
+            lastAction: "answer_general",
+          }
+          return NextResponse.json({
+            text: cuttingConditionReply.text,
+            purpose: "general_chat",
+            chips: cuttingConditionReply.chips,
+            isComplete: false,
+            recommendation: null,
+            sessionState,
+            evidenceSummaries: null,
+            candidateSnapshot: prevState.displayedCandidates ?? null,
+            extractedField: null, requestPreparation: null,
+            primaryExplanation: null, primaryFactChecked: null,
+            altExplanations: [], altFactChecked: [],
+            orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+          })
+        }
+
         // Use existing LLM handlers
         if (action.type === "explain_product") {
           const contextReply = await handleContextualNarrowingQuestion(
@@ -882,6 +920,136 @@ ${coatings.map(c => `• ${c}`).join("\n")}
   }
 
   return `현재 ${candidates.length}개 후보가 있습니다. 잘 모르시면 "상관없음"을 선택해주세요.`
+}
+
+const DIRECT_PRODUCT_CODE_PATTERN = /\b([A-Z][A-Z0-9-]{4,})\b/i
+const DIRECT_SERIES_CODE_PATTERN = /\b([A-Z]\d[A-Z]\d{2,}[A-Z]?)\b/i
+const CUTTING_CONDITION_QUERY_PATTERN = /절삭조건|가공조건|vc|fz|이송|회전수|rpm|feed/i
+
+function normalizeLookupCode(value: string): string {
+  return value.toUpperCase().replace(/[\s-]/g, "").trim()
+}
+
+function formatConditionLabel(condition: {
+  isoGroup: string | null
+  cuttingType: string | null
+  diameterMm: number | null
+  conditions: { Vc: string | null; fz: string | null; ap: string | null; ae: string | null; n: string | null; vf: string | null }
+}): string {
+  const scope: string[] = []
+  if (condition.isoGroup) scope.push(`ISO ${condition.isoGroup}`)
+  if (condition.cuttingType) scope.push(condition.cuttingType)
+  if (condition.diameterMm != null) scope.push(`φ${condition.diameterMm}mm`)
+
+  const values = [
+    condition.conditions.Vc ? `Vc ${condition.conditions.Vc}` : null,
+    condition.conditions.fz ? `fz ${condition.conditions.fz}` : null,
+    condition.conditions.ap ? `ap ${condition.conditions.ap}` : null,
+    condition.conditions.ae ? `ae ${condition.conditions.ae}` : null,
+    condition.conditions.n ? `n ${condition.conditions.n}` : null,
+    condition.conditions.vf ? `vf ${condition.conditions.vf}` : null,
+  ].filter(Boolean)
+
+  return `- ${scope.join(" | ")}: ${values.join(", ")}`
+}
+
+async function handleDirectCuttingConditionQuestion(
+  userMessage: string,
+  currentInput: RecommendationInput,
+  prevState: ExplorationSessionState
+): Promise<{ text: string; chips: string[] } | null> {
+  if (!CUTTING_CONDITION_QUERY_PATTERN.test(userMessage)) return null
+
+  const productCodeMatch = userMessage.match(DIRECT_PRODUCT_CODE_PATTERN)
+  const seriesCodeMatch = userMessage.match(DIRECT_SERIES_CODE_PATTERN)
+  const lookupCode = normalizeLookupCode(productCodeMatch?.[1] ?? seriesCodeMatch?.[1] ?? "")
+  if (!lookupCode) return null
+
+  const product = await ProductRepo.findByCode(lookupCode)
+  const isoGroup = currentInput.material ? resolveMaterialTag(currentInput.material) : null
+
+  if (product) {
+    const chunks = await EvidenceRepo.findForProduct(lookupCode, {
+      seriesName: product.seriesName,
+      diameterMm: product.diameterMm,
+      isoGroup,
+    })
+
+    if (chunks.length > 0) {
+      const conditionLines = chunks.slice(0, 5).map(chunk => formatConditionLabel({
+        isoGroup: chunk.isoGroup,
+        cuttingType: chunk.cuttingType,
+        diameterMm: chunk.diameterMm,
+        conditions: chunk.conditions,
+      }))
+
+      const text = [
+        `${lookupCode}의 절삭조건을 내부 DB에서 조회했습니다.`,
+        `시리즈: ${product.seriesName ?? "-"} / 직경: ${product.diameterMm != null ? `φ${product.diameterMm}mm` : "-"}`,
+        "",
+        ...conditionLines,
+        "",
+        "[Reference: YG-1 내부 DB]",
+      ].join("\n")
+
+      return {
+        text,
+        chips: ["다른 소재 조건도 보여줘", "추천 제품 보기", "처음부터 다시"],
+      }
+    }
+
+    return {
+      text: [
+        `${lookupCode} 제품은 내부 DB에서 찾았지만, 매칭되는 절삭조건 데이터는 찾지 못했습니다.`,
+        `시리즈: ${product.seriesName ?? "-"} / 직경: ${product.diameterMm != null ? `φ${product.diameterMm}mm` : "-"}`,
+        "[Reference: YG-1 내부 DB]",
+      ].join("\n"),
+      chips: ["시리즈 기준으로 다시 보기", "추천 제품 보기", "처음부터 다시"],
+    }
+  }
+
+  const seriesChunks = await EvidenceRepo.findBySeriesName(lookupCode, {
+    isoGroup,
+    diameterMm: currentInput.diameterMm,
+  })
+  if (seriesChunks.length > 0) {
+    const lines = seriesChunks.slice(0, 5).map(chunk => formatConditionLabel({
+      isoGroup: chunk.isoGroup,
+      cuttingType: chunk.cuttingType,
+      diameterMm: chunk.diameterMm,
+      conditions: chunk.conditions,
+    }))
+    return {
+      text: [
+        `${lookupCode} 시리즈 기준 절삭조건을 내부 DB에서 조회했습니다.`,
+        "",
+        ...lines,
+        "",
+        "[Reference: YG-1 내부 DB]",
+      ].join("\n"),
+      chips: ["추천 제품 보기", "다른 소재 조건도 보여줘", "처음부터 다시"],
+    }
+  }
+
+  if (prevState.displayedCandidates?.length > 0) {
+    return {
+      text: [
+        `${lookupCode}에 대한 절삭조건은 내부 DB에서 찾지 못했습니다.`,
+        "현재 추천 결과의 제품코드/시리즈로 다시 물어보시면 내부 DB 기준으로 조회해드릴 수 있습니다.",
+        "[Reference: YG-1 내부 DB]",
+      ].join("\n"),
+      chips: ["후보 제품 보기", "추천 제품 보기", "처음부터 다시"],
+    }
+  }
+
+  return {
+    text: [
+      `${lookupCode}에 대한 절삭조건은 내부 DB에서 찾지 못했습니다.`,
+      "제품코드 또는 시리즈명을 다시 확인해주세요.",
+      "[Reference: YG-1 내부 DB]",
+    ].join("\n"),
+    chips: ["제품 추천", "시리즈 검색", "처음부터 다시"],
+  }
 }
 
 // ── Web Search for Knowledge Questions ────────────────────────
