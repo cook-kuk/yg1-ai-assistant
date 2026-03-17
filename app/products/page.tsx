@@ -299,6 +299,12 @@ function ProductCard({ scored, rank, isAlternative = false }: {
             {p.materialTags.length > 0 && (
               <div className="text-[10px] text-gray-400 mt-0.5">{p.materialTags.join("/")}군</div>
             )}
+            {p.description && (
+              <div className="text-[10px] text-gray-500 mt-1 italic leading-relaxed">{p.description}</div>
+            )}
+            {p.featureText && (
+              <div className="text-[10px] text-teal-600 mt-0.5 leading-relaxed">{p.featureText}</div>
+            )}
           </div>
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0" onClick={() => setOpen(o => !o)}>
             {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
