@@ -20,6 +20,7 @@ import type {
   CompletenessCheck,
   RoutePlan,
   RouteAction,
+  UndoTarget,
   RequestPreparationResult,
   SessionContext,
 } from "@/lib/types/request-preparation"
@@ -41,6 +42,13 @@ export function classifyIntent(
   }
 
   const clean = message.trim().toLowerCase()
+
+  // ── Navigation commands (undo/back) — MUST be checked first ──
+  // These are state-machine commands, not chat. Never let them fall to noise/general.
+  const undoClassification = classifyUndoIntent(clean, sessionState)
+  if (undoClassification) {
+    return undoClassification
+  }
 
   // Reset signals
   if (["처음부터 다시", "처음부터", "다시 시작", "리셋"].some(s => clean.includes(s))) {
@@ -103,6 +111,135 @@ function classifyIntakeIntent(form: ProductIntakeForm): { intent: UserIntent; co
     }
   }
   return { intent: "product_recommendation", confidence: "medium" }
+}
+
+// ── Undo Intent Classifier ────────────────────────────────────
+
+/** Simple undo patterns — "이전으로", "뒤로", "되돌리기" */
+const SIMPLE_UNDO_PATTERNS = [
+  "이전으로", "되돌리기", "이전 단계", "뒤로", "한 단계 전", "되돌려",
+  "방금 단계로", "그 전으로", "전 단계", "이전 후보", "그 전 후보로",
+  "⟵ 이전 단계",
+]
+
+/** Filter-specific undo patterns — "{value} 선택전으로", "{value} 전으로" */
+const FILTER_UNDO_PATTERNS = [
+  /(.+?)\s*선택\s*전으로/,        // "Square 선택전으로", "Square 선택 전으로"
+  /(.+?)\s*선택\s*전/,            // "Square 선택 전"
+  /(.+?)\s*전으로/,               // "Square 전으로"
+  /(.+?)\s*적용\s*전으로/,        // "Square 적용전으로"
+  /(.+?)\s*고르기\s*전으로/,      // "Square 고르기 전으로"
+  /(.+?)\s*고르기\s*전/,
+]
+
+function classifyUndoIntent(
+  clean: string,
+  sessionState: ExplorationSessionState | null
+): { intent: UserIntent; confidence: "high" | "medium" | "low" } | null {
+  // Must be in an active session with filters to undo
+  if (!sessionState?.appliedFilters || sessionState.appliedFilters.length === 0) {
+    return null
+  }
+
+  // Don't capture reset signals
+  if (["처음부터"].some(s => clean.includes(s))) {
+    return null
+  }
+
+  // Check filter-specific undo first (more specific pattern)
+  for (const pattern of FILTER_UNDO_PATTERNS) {
+    const match = clean.match(pattern)
+    if (match) {
+      return { intent: "narrowing_answer", confidence: "high" }
+    }
+  }
+
+  // Check simple undo
+  if (SIMPLE_UNDO_PATTERNS.some(s => clean.includes(s))) {
+    return { intent: "narrowing_answer", confidence: "high" }
+  }
+
+  return null
+}
+
+/**
+ * Resolve undo target from user message against session state.
+ * Returns UndoTarget with the specific filter/stage to revert to.
+ */
+export function resolveUndoTarget(
+  message: string,
+  sessionState: ExplorationSessionState
+): { type: "one_step" | "to_filter"; target: UndoTarget } | null {
+  const clean = message.trim().toLowerCase()
+
+  // Don't process reset signals
+  if (["처음부터"].some(s => clean.includes(s))) return null
+  if (!sessionState.appliedFilters || sessionState.appliedFilters.length === 0) return null
+
+  // Check filter-specific undo first
+  for (const pattern of FILTER_UNDO_PATTERNS) {
+    const match = clean.match(pattern)
+    if (match) {
+      const targetValue = match[1].trim()
+      // Search applied filters for this value
+      const found = findFilterByValue(targetValue, sessionState)
+      if (found) {
+        return {
+          type: "to_filter",
+          target: {
+            filterField: found.field,
+            filterValue: found.value,
+            targetStepIndex: found.appliedAt,
+          },
+        }
+      }
+      // Also search stage history
+      if (sessionState.stageHistory) {
+        const stage = sessionState.stageHistory.find(s =>
+          s.filterApplied?.value.toLowerCase().includes(targetValue) ||
+          s.filterApplied?.rawValue?.toString().toLowerCase().includes(targetValue) ||
+          s.stageName.toLowerCase().includes(targetValue)
+        )
+        if (stage) {
+          return {
+            type: "to_filter",
+            target: {
+              filterField: stage.filterApplied?.field,
+              filterValue: stage.filterApplied?.value,
+              targetStepIndex: stage.stepIndex,
+            },
+          }
+        }
+      }
+    }
+  }
+
+  // Check simple undo
+  if (SIMPLE_UNDO_PATTERNS.some(s => clean.includes(s))) {
+    return { type: "one_step", target: {} }
+  }
+
+  return null
+}
+
+function findFilterByValue(
+  targetValue: string,
+  sessionState: ExplorationSessionState
+): AppliedFilter | null {
+  const lower = targetValue.toLowerCase()
+  // Exact match first
+  for (const f of sessionState.appliedFilters) {
+    if (f.value.toLowerCase() === lower || f.rawValue.toString().toLowerCase() === lower) {
+      return f
+    }
+  }
+  // Partial match
+  for (const f of sessionState.appliedFilters) {
+    if (f.value.toLowerCase().includes(lower) || f.rawValue.toString().toLowerCase().includes(lower)) {
+      return f
+    }
+  }
+  return null
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -278,8 +415,31 @@ export function planRoute(
   if (!completeness.isComplete) riskFlags.push("incomplete_input")
   if (completeness.unknownSlots.length >= 3) riskFlags.push("many_unknowns")
 
-  // Reset signal
-  if (message) {
+  // Navigation commands — resolve BEFORE any other classification
+  if (message && sessionState) {
+    const clean = message.trim().toLowerCase()
+
+    // Reset signal
+    if (["처음부터 다시", "다시 시작", "리셋"].some(s => clean.includes(s))) {
+      return { action: "reset_session", reason: "사용자가 초기화를 요청했습니다", needsLLM: false, riskFlags }
+    }
+
+    // Undo signals — resolve target from message + session state
+    const undoResolution = resolveUndoTarget(message, sessionState)
+    if (undoResolution) {
+      if (undoResolution.type === "to_filter") {
+        const val = undoResolution.target.filterValue ?? "?"
+        return {
+          action: "undo_to_filter",
+          reason: `"${val}" 선택 전 단계로 되돌리기 요청`,
+          needsLLM: false,
+          riskFlags,
+          undoTarget: undoResolution.target,
+        }
+      }
+      return { action: "undo_narrowing", reason: "사용자가 이전 단계로 되돌리기를 요청했습니다", needsLLM: false, riskFlags }
+    }
+  } else if (message) {
     const clean = message.trim().toLowerCase()
     if (["처음부터 다시", "다시 시작", "리셋"].some(s => clean.includes(s))) {
       return { action: "reset_session", reason: "사용자가 초기화를 요청했습니다", needsLLM: false, riskFlags }

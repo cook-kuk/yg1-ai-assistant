@@ -568,52 +568,10 @@ function buildQueryOptions(options: ProductSearchOptions): { where: string[]; va
     where.push(`(${clauses.join(" OR ")})`)
   }
 
-  for (const filter of options.filters ?? []) {
-    switch (filter.field) {
-      case "fluteCount": {
-        const desired = typeof filter.rawValue === "number" ? filter.rawValue : Number.parseInt(String(filter.rawValue), 10)
-        if (!Number.isNaN(desired)) {
-          const param = next(desired)
-          where.push(`
-            COALESCE(
-              NULLIF(substring(COALESCE(milling_number_of_flute, '') from '(-?[0-9]+(?:\\.[0-9]+)?)'), '')::numeric,
-              NULLIF(substring(COALESCE(holemaking_number_of_flute, '') from '(-?[0-9]+(?:\\.[0-9]+)?)'), '')::numeric,
-              NULLIF(substring(COALESCE(threading_number_of_flute, '') from '(-?[0-9]+(?:\\.[0-9]+)?)'), '')::numeric,
-              NULLIF(substring(COALESCE(option_numberofflute, '') from '(-?[0-9]+(?:\\.[0-9]+)?)'), '')::numeric,
-              NULLIF(substring(COALESCE(option_z, '') from '(-?[0-9]+(?:\\.[0-9]+)?)'), '')::numeric
-            ) = ${param}
-          `)
-        }
-        break
-      }
-      case "coating": {
-        const q = String(filter.rawValue).trim().toLowerCase()
-        if (q) {
-          const param = next(`%${q}%`)
-          where.push(`LOWER(COALESCE(search_coating, '')) LIKE ${param}`)
-        }
-        break
-      }
-      case "toolSubtype": {
-        const q = String(filter.rawValue).trim().toLowerCase()
-        if (q) {
-          const param = next(`%${q}%`)
-          where.push(`LOWER(COALESCE(search_subtype, '')) LIKE ${param}`)
-        }
-        break
-      }
-      case "seriesName": {
-        const q = String(filter.rawValue).trim().toLowerCase()
-        if (q) {
-          const param = next(`%${q}%`)
-          where.push(`LOWER(COALESCE(edp_series_name, '')) LIKE ${param}`)
-        }
-        break
-      }
-      default:
-        break
-    }
-  }
+  // ── Narrowing filters (fluteCount, coating, toolSubtype, seriesName) ──
+  // NOT applied in DB WHERE clause. Applied in-memory by runHybridRetrieval.
+  // This ensures candidate counts match exactly what the question engine shows.
+  // See: hybrid-retrieval.ts lines 106-166 for in-memory filter application.
 
   const hasStructuredFilters = where.length > 0
   const filteredLimit = parsePositiveInt(process.env.PRODUCT_QUERY_LIMIT_FILTERED, 2000)

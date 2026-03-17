@@ -350,19 +350,19 @@ function CandidateCard({ c }: { c: CandidateSnapshot }) {
             {c.brand && <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">{c.brand}</span>}
             {c.seriesName && <span className="text-xs text-blue-700 font-medium">{c.seriesName}</span>}
           </div>
+          {/* ── Inline spec summary: D-POWER GRAPHITE | EIB04 → Ø2mm · 2F · TiAlN · N군 · 7mm ── */}
+          <div className="text-[11px] text-gray-500 mt-0.5">
+            {[
+              c.diameterMm != null ? `Ø${c.diameterMm}mm` : null,
+              c.fluteCount != null ? `${c.fluteCount}F` : null,
+              c.coating ?? null,
+              c.materialTags.length > 0 ? `${c.materialTags.join("/")}군` : null,
+              c.displayLabel ?? null,
+            ].filter(Boolean).join(" · ")}
+          </div>
         </div>
       </div>
-      <div className="flex flex-wrap gap-1.5 text-xs text-gray-600">
-        {c.diameterMm != null && <span>{"φ"}{c.diameterMm}mm</span>}
-        {c.fluteCount != null && <span>{language === "ko" ? `${c.fluteCount}날` : `${c.fluteCount} FL`}</span>}
-        {c.coating && <span>{c.coating}</span>}
-      </div>
       <div className="flex items-center gap-2">
-        {c.materialTags.length > 0 && (
-          <div className="flex flex-wrap gap-0.5">
-            {c.materialTags.map(t => <Badge key={t} variant="secondary" className="text-[10px] px-1 py-0">{t}</Badge>)}
-          </div>
-        )}
         {c.hasEvidence && c.bestCondition && (
           <EvidenceBadge conditions={c.bestCondition} />
         )}
@@ -1385,6 +1385,7 @@ function NarrowingChat({
                   {msg.chips.map((chip, ci) => {
                     // Special action chips — handle client-side instead of sending as message
                     const isResetChip = chip === "처음부터 다시" || chip === "처음부터"
+                    const isUndoChip = chip === "⟵ 이전 단계"
                     return (
                       <button key={ci}
                         onClick={() => {
@@ -1398,6 +1399,8 @@ function NarrowingChat({
                         className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
                           isResetChip
                             ? "bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+                            : isUndoChip
+                            ? "bg-amber-50 border border-amber-300 text-amber-700 hover:bg-amber-100 hover:border-amber-400"
                             : "bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300"
                         }`}
                       >
@@ -1848,6 +1851,20 @@ export default function ProductRecommendPage() {
       const history = chatMessages.map(m => ({ role: m.role, text: m.text }))
       history.push({ role: "user", text })
 
+      // 현재 표시된 추천 제품 목록을 같이 전송 → LLM이 후속 질문에 활용
+      const displayedProducts = candidateSnapshot?.slice(0, 10).map(c => ({
+        rank: c.rank,
+        code: c.displayCode,
+        brand: c.brand,
+        series: c.seriesName,
+        diameter: c.diameterMm,
+        flute: c.fluteCount,
+        coating: c.coating,
+        materialTags: c.materialTags,
+        score: c.score,
+        matchStatus: c.matchStatus,
+      })) ?? null
+
       const res = await fetch("/api/recommend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1855,6 +1872,7 @@ export default function ProductRecommendPage() {
           intakeForm: form,
           messages: history,
           sessionState,
+          displayedProducts,
         }),
       })
       const data = await res.json()

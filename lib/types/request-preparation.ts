@@ -42,12 +42,22 @@ export type RouteAction =
   | "skip_to_result"          // user requested immediate result
   | "handle_refinement"       // post-recommendation refinement
   | "reset_session"           // user wants to start over
+  | "undo_narrowing"          // revert last narrowing step
+  | "undo_to_filter"          // revert to before a specific filter (e.g. "Square 선택전으로")
+
+/** Specifies which filter/stage to undo back to */
+export interface UndoTarget {
+  filterField?: string        // e.g. "toolSubtype"
+  filterValue?: string        // e.g. "Square"
+  targetStepIndex?: number    // resolved stage index to revert to
+}
 
 export interface RoutePlan {
   action: RouteAction
   reason: string              // human-readable explanation
   needsLLM: boolean           // whether this route needs LLM call
   riskFlags: string[]         // e.g. "low_candidates", "no_evidence", "incomplete_input"
+  undoTarget?: UndoTarget     // populated for undo_to_filter actions
 }
 
 // ── Full Request Preparation Result ─────────────────────────

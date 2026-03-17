@@ -34,16 +34,47 @@ export interface NarrowingTurn {
   candidateCountAfter: number
 }
 
+// ── Stage Snapshot (for back-navigation) ─────────────────────
+/** Immutable snapshot of the narrowing state at each step */
+export interface NarrowingStage {
+  stepIndex: number
+  stageName: string                    // e.g. "initial_search", "toolSubtype_Square", "fluteCount_4"
+  filterApplied: AppliedFilter | null  // null for initial stage
+  candidateCount: number
+  resolvedInputSnapshot: RecommendationInput  // full input state at this stage
+  filtersSnapshot: AppliedFilter[]     // all filters up to this point
+}
+
+// ── Last Action Record ────────────────────────────────────────
+export type LastActionType =
+  | "start_exploration"
+  | "continue_narrowing"
+  | "skip_field"
+  | "show_recommendation"
+  | "go_back_one_step"
+  | "go_back_to_filter"
+  | "compare_products"
+  | "explain_product"
+  | "answer_general"
+  | "redirect_off_topic"
+  | "reset_session"
+
 // ── Session State (serializable, sent between client ↔ server) ──
 export interface ExplorationSessionState {
   sessionId: string
   candidateCount: number
   appliedFilters: AppliedFilter[]
   narrowingHistory: NarrowingTurn[]
+  stageHistory: NarrowingStage[]       // ordered stage snapshots for back-navigation
   resolutionStatus: ResolutionStatus
   resolvedInput: RecommendationInput   // accumulated from intake + narrowing
   turnCount: number
   lastAskedField?: string              // which field the question engine just asked about
+
+  // ── Durable UI context (single source of truth) ──
+  displayedCandidates: CandidateSnapshot[]  // what the user currently sees
+  displayedChips: string[]                  // chips shown with the last question
+  lastAction?: LastActionType               // what the system did last turn
 }
 
 // ── Full Exploration Session (server-side, includes heavy data) ──
@@ -76,6 +107,7 @@ export interface CandidateSnapshot {
   rank: number
   productCode: string
   displayCode: string
+  displayLabel: string | null  // e.g. "4날 롱 스퀘어 엔드밀"
   brand: string | null
   seriesName: string | null
   seriesIconUrl: string | null

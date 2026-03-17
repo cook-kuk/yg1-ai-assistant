@@ -64,7 +64,8 @@ export function buildSystemPrompt(): string {
 export function buildSessionContext(
   intakeForm: ProductIntakeForm,
   sessionState: ExplorationSessionState | null,
-  candidateCount: number
+  candidateCount: number,
+  displayedProducts?: { rank: number; code: string; brand: string | null; series: string | null; diameter: number | null; flute: number | null; coating: string | null; materialTags: string[]; score: number; matchStatus: string }[] | null
 ): string {
   const intakeSummary = buildIntakeSummaryText(intakeForm)
   const filterSummary = sessionState
@@ -76,6 +77,20 @@ export function buildSessionContext(
       `  Turn ${i + 1}: Q="${h.question}" → A="${h.answer}" (${h.candidateCountBefore}→${h.candidateCountAfter}개)`
     ).join("\n")
     : "(대화 시작)"
+
+  // 현재 UI에 표시된 추천 제품 목록
+  let displayedSection = ""
+  if (displayedProducts && displayedProducts.length > 0) {
+    const lines = displayedProducts.map(p => {
+      const label = (p as { displayLabel?: string }).displayLabel
+      const labelStr = label ? ` [${label}]` : ""
+      return `  #${p.rank} ${p.code}${labelStr} | ${p.brand ?? "?"} | ${p.series ?? "?"} | φ${p.diameter ?? "?"}mm | ${p.flute ?? "?"}F | ${p.coating ?? "?"} | ${p.materialTags.join("/") || "?"} | ${p.matchStatus} ${p.score}점`
+    })
+    displayedSection = `
+[현재 표시된 추천 제품] — 사용자가 "이 중", "위 제품", "상위 3개", "1번/2번" 등으로 참조할 때 반드시 이 목록에서 답하라
+${lines.join("\n")}
+`
+  }
 
   return `
 === 현재 세션 컨텍스트 ===
@@ -91,7 +106,7 @@ ${histSummary}
 [현재 후보 수] ${candidateCount}개
 [해결 상태] ${sessionState?.resolutionStatus ?? "broad"}
 [턴 수] ${sessionState?.turnCount ?? 0}
-`
+${displayedSection}`
 }
 
 // ── Narrowing Prompt ─────────────────────────────────────────

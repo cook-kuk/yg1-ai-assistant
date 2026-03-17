@@ -35,16 +35,23 @@ import {
   buildIntentContext,
 } from "@/lib/llm/prompt-builder"
 import { resolveMaterialTag } from "@/lib/domain/material-resolver"
-import { prepareRequest } from "@/lib/domain/request-preparation"
+import { prepareRequest, resolveUndoTarget } from "@/lib/domain/request-preparation"
+import { buildProductLabel } from "@/lib/domain/product-label"
 import { buildExplanation } from "@/lib/domain/explanation-builder"
 import { runFactCheck } from "@/lib/domain/fact-checker"
 import { analyzeInquiry, getRedirectResponse } from "@/lib/domain/inquiry-analyzer"
 import { planAction } from "@/lib/domain/action-planner"
 import type { ActionPlan } from "@/lib/domain/action-planner"
+import { orchestrateTurn } from "@/lib/agents/orchestrator"
+import { compareProducts, resolveProductReferences } from "@/lib/agents/comparison-agent"
+import type { TurnContext, OrchestratorResult } from "@/lib/agents/types"
+import { buildSessionState, carryForwardState, createInitialStage, createFilterStage, restoreOnePreviousStep, restoreToBeforeFilter } from "@/lib/domain/session-manager"
+import { runValidationGate, validateNoReask } from "@/lib/domain/validation-gate"
+import { ENABLE_MULTI_AGENT_ORCHESTRATOR, ENABLE_VALIDATION_GATE, ENABLE_COMPARISON_AGENT } from "@/lib/feature-flags"
 
 import type { RecommendationInput, RecommendationResult, ScoredProduct, ChatMessage, MatchStatus } from "@/lib/types/canonical"
 import type { ProductIntakeForm, AnswerState, MachiningIntent } from "@/lib/types/intake"
-import type { ExplorationSessionState, AppliedFilter, NarrowingTurn, CandidateSnapshot } from "@/lib/types/exploration"
+import type { ExplorationSessionState, AppliedFilter, NarrowingTurn, NarrowingStage, CandidateSnapshot } from "@/lib/types/exploration"
 import type { EvidenceSummary } from "@/lib/types/evidence"
 import type { FactCheckedRecommendation } from "@/lib/types/fact-check"
 import type { RecommendationExplanation } from "@/lib/types/explanation"
@@ -61,7 +68,8 @@ export async function POST(req: Request) {
       return handleExploration(
         body.intakeForm as ProductIntakeForm,
         body.messages ?? [],
-        body.sessionState ?? null
+        body.sessionState ?? null,
+        body.displayedProducts ?? null
       )
     }
 
@@ -88,13 +96,27 @@ export async function POST(req: Request) {
 // EXPLORATION HANDLER (session-aware hybrid retrieval + narrowing)
 // ════════════════════════════════════════════════════════════════
 
+interface DisplayedProduct {
+  rank: number
+  code: string
+  brand: string | null
+  series: string | null
+  diameter: number | null
+  flute: number | null
+  coating: string | null
+  materialTags: string[]
+  score: number
+  matchStatus: string
+}
+
 async function handleExploration(
   form: ProductIntakeForm,
   messages: ChatMessage[],
-  prevState: ExplorationSessionState | null
+  prevState: ExplorationSessionState | null,
+  displayedProducts: DisplayedProduct[] | null = null
 ): Promise<Response> {
   console.log(
-    `[recommend] request start hasPrevState=${!!prevState} messages=${messages.length} productSource=${process.env.PRODUCT_REPO_SOURCE ?? ""} hasDatabaseUrl=${!!process.env.DATABASE_URL} pgHost=${process.env.PGHOST || process.env.POSTGRES_HOST || ""}`
+    `[recommend] request start hasPrevState=${!!prevState} messages=${messages.length} displayedProducts=${displayedProducts?.length ?? 0}`
   )
   const provider = getProvider()
   const baseInput = mapIntakeToInput(form)
@@ -129,64 +151,144 @@ async function handleExploration(
     })
   }
 
-  // ── Step 2: Process user message (if any) ──────────────────
+  // NOTE: Pre-orchestrator undo path removed — all undo is handled by orchestrator + session-manager.
+
+  // ── Step 2: Process user message via Orchestrator ───────────
   const narrowingHistory: NarrowingTurn[] = prevState?.narrowingHistory ?? []
   let currentInput = { ...resolvedInput }
   let turnCount = prevState?.turnCount ?? 0
 
-  // If there are messages and this isn't the first call
   if (messages.length > 0 && prevState) {
     const lastUserMsg = [...messages].reverse().find(m => m.role === "user")
     if (lastUserMsg) {
-      // ── NEW: Inquiry Analysis Gate ──
-      const inquiry = analyzeInquiry(lastUserMsg.text)
-      const actionPlan = planAction(inquiry, lastUserMsg.text, form, prevState)
-      console.log(`[recommend] Inquiry: signal=${inquiry.signalStrength}, domain=${inquiry.domainRelevance}, action=${actionPlan.intent} (${actionPlan.reason})`)
+      // ═══ Multi-Agent Orchestration ═══
+      const turnCtx: TurnContext = {
+        userMessage: lastUserMsg.text,
+        intakeForm: form,
+        sessionState: prevState,
+        resolvedInput: currentInput,
+        candidateCount: candidates.length,
+        displayedProducts: buildCandidateSnapshot(candidates, evidenceMap),
+        currentCandidates: candidates,
+      }
 
-      // Gate: true nonsense → static redirect
-      if (actionPlan.retrievalStrategy === "none" && actionPlan.responseFormat === "redirect") {
-        const redirect = getRedirectResponse(inquiry)
+      const orchResult = await orchestrateTurn(turnCtx, provider)
+      const action = orchResult.action
+
+      // ── Dispatch orchestrator action ──────────────────────
+
+      // Action: reset_session
+      if (action.type === "reset_session") {
+        return NextResponse.json({
+          text: "처음부터 다시 시작합니다. 새로운 조건을 입력해주세요.",
+          purpose: "greeting",
+          chips: ["처음부터 다시"],
+          isComplete: true,
+          recommendation: null,
+          sessionState: null,
+          evidenceSummaries: null,
+          candidateSnapshot: null,
+          extractedField: null,
+          requestPreparation: requestPrep,
+        })
+      }
+
+      // Action: go_back_one_step / go_back_to_filter — delegated to session-manager
+      if (action.type === "go_back_one_step" || action.type === "go_back_to_filter") {
+        const restoreResult = action.type === "go_back_to_filter"
+          ? restoreToBeforeFilter(prevState, action.filterValue ?? "", action.filterField, baseInput, applyFilterToInput)
+          : restoreOnePreviousStep(prevState, baseInput, applyFilterToInput)
+
+        const undoResult = await runHybridRetrieval(restoreResult.rebuiltInput, restoreResult.remainingFilters.filter(f => f.op !== "skip"))
+
+        console.log(`[session-manager:undo] Reverted "${restoreResult.removedFilterDesc}": ${prevState.candidateCount} → ${undoResult.candidates.length} candidates, filters: ${prevState.appliedFilters.length} → ${restoreResult.remainingFilters.length}`)
+
+        return buildQuestionResponse(
+          form, undoResult.candidates, undoResult.evidenceMap, restoreResult.rebuiltInput,
+          restoreResult.remainingHistory, restoreResult.remainingFilters, restoreResult.undoTurnCount,
+          messages, provider, undefined, restoreResult.remainingStages
+        )
+      }
+
+      // Action: show_recommendation
+      if (action.type === "show_recommendation") {
+        return buildRecommendationResponse(
+          form, candidates, evidenceMap, currentInput, narrowingHistory,
+          filters, turnCount, messages, provider
+        )
+      }
+
+      // Action: compare_products — use PERSISTED displayed candidates (not re-computed)
+      if (action.type === "compare_products") {
+        const snapshot = prevState.displayedCandidates?.length > 0
+          ? prevState.displayedCandidates
+          : buildCandidateSnapshot(candidates, evidenceMap)
+        const targets = resolveProductReferences(action.targets, snapshot)
+        const compResult = await compareProducts(targets, evidenceMap, provider)
+
         const sessionState: ExplorationSessionState = {
           sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
-          candidateCount: prevState.candidateCount,
+          candidateCount: candidates.length,
           appliedFilters: filters,
-          narrowingHistory: narrowingHistory,
+          narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
           resolutionStatus: prevState.resolutionStatus ?? "broad",
           resolvedInput: currentInput,
           turnCount,
-          lastAskedField: prevState.lastAskedField,
+          displayedCandidates: snapshot,
+          displayedChips: ["추천해주세요", "다른 조건으로", "⟵ 이전 단계", "처음부터 다시"],
+          lastAction: "compare_products",
         }
         return NextResponse.json({
-          text: redirect.text,
-          purpose: "question",
-          chips: redirect.chips,
+          text: compResult.text,
+          purpose: "comparison",
+          chips: ["추천해주세요", "다른 조건으로", "⟵ 이전 단계", "처음부터 다시"],
           isComplete: false,
           recommendation: null,
           sessionState,
           evidenceSummaries: null,
-          candidateSnapshot: redirect.showCandidates ? buildCandidateSnapshot(candidates, evidenceMap) : null,
+          candidateSnapshot: snapshot,
           extractedField: null,
           requestPreparation: null,
           primaryExplanation: null,
           primaryFactChecked: null,
           altExplanations: [],
           altFactChecked: [],
-          actionPlan: { intent: actionPlan.intent, reason: actionPlan.reason },
+          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
         })
       }
 
-      // Gate: general_chat → use LLM to answer freely (greetings, general questions, off-domain)
-      if (actionPlan.responseFormat === "general_chat") {
-        const llmResponse = await handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form)
+      // Action: explain_product / answer_general
+      if (action.type === "explain_product" || action.type === "answer_general") {
+        // Use existing LLM handlers
+        if (action.type === "explain_product") {
+          const contextReply = await handleContextualNarrowingQuestion(
+            provider, lastUserMsg.text, currentInput, candidates, prevState
+          )
+          if (contextReply) {
+            return buildQuestionResponse(
+              form, candidates, evidenceMap, currentInput,
+              narrowingHistory, filters, turnCount, messages, provider,
+              contextReply
+            )
+          }
+        }
+
+        // General chat fallback — include displayed products for grounded answers
+        const llmResponse = await handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form, prevState.displayedCandidates)
         const sessionState: ExplorationSessionState = {
           sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
           candidateCount: prevState.candidateCount ?? candidates.length,
           appliedFilters: filters,
-          narrowingHistory: narrowingHistory,
+          narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
           resolutionStatus: prevState.resolutionStatus ?? "broad",
           resolvedInput: currentInput,
           turnCount,
           lastAskedField: prevState.lastAskedField,
+          displayedCandidates: prevState.displayedCandidates ?? [],
+          displayedChips: llmResponse.chips,
+          lastAction: "answer_general",
         }
         return NextResponse.json({
           text: llmResponse.text,
@@ -199,186 +301,124 @@ async function handleExploration(
           candidateSnapshot: candidates.length > 0 ? buildCandidateSnapshot(candidates, evidenceMap) : null,
           extractedField: null,
           requestPreparation: null,
-          primaryExplanation: null,
-          primaryFactChecked: null,
-          altExplanations: [],
-          altFactChecked: [],
-          actionPlan: { intent: actionPlan.intent, reason: actionPlan.reason },
+          primaryExplanation: null, primaryFactChecked: null,
+          altExplanations: [], altFactChecked: [],
+          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
         })
       }
 
-      // Gate: post-recommendation follow-up — user asking about already-recommended products
-      if (prevState.resolutionStatus?.startsWith("resolved") && !actionPlan.skipNarrowing) {
-        const followUpReply = await handlePostRecommendationFollowUp(
-          provider, lastUserMsg.text, currentInput, candidates, evidenceMap, form
-        )
-        if (followUpReply) {
-          const sessionState: ExplorationSessionState = {
-            sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
-            candidateCount: candidates.length,
-            appliedFilters: filters,
-            narrowingHistory: narrowingHistory,
-            resolutionStatus: prevState.resolutionStatus,
-            resolvedInput: currentInput,
-            turnCount,
-          }
-          return NextResponse.json({
-            text: followUpReply,
-            purpose: "follow_up",
-            chips: ["절삭조건 알려줘", "코팅 비교", "다른 직경 검색", "처음부터 다시"],
-            isComplete: true,
-            recommendation: null,
-            sessionState,
-            evidenceSummaries: null,
-            candidateSnapshot: buildCandidateSnapshot(candidates, evidenceMap),
-            extractedField: null,
-            requestPreparation: null,
-            primaryExplanation: null,
-            primaryFactChecked: null,
-            altExplanations: [],
-            altFactChecked: [],
-          })
+      // Action: redirect_off_topic
+      if (action.type === "redirect_off_topic") {
+        const inquiry = analyzeInquiry(lastUserMsg.text)
+        const redirect = getRedirectResponse(inquiry)
+        const sessionState: ExplorationSessionState = {
+          sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+          candidateCount: prevState.candidateCount,
+          appliedFilters: filters,
+          narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
+          resolutionStatus: prevState.resolutionStatus ?? "broad",
+          resolvedInput: currentInput,
+          turnCount,
+          lastAskedField: prevState.lastAskedField,
+          displayedCandidates: prevState.displayedCandidates ?? [],
+          displayedChips: redirect.chips,
+          lastAction: "redirect_off_topic",
         }
+        return NextResponse.json({
+          text: redirect.text,
+          purpose: "question",
+          chips: redirect.chips,
+          isComplete: false,
+          recommendation: null,
+          sessionState,
+          evidenceSummaries: null,
+          candidateSnapshot: redirect.showCandidates ? buildCandidateSnapshot(candidates, evidenceMap) : null,
+          extractedField: null, requestPreparation: null,
+          primaryExplanation: null, primaryFactChecked: null,
+          altExplanations: [], altFactChecked: [],
+        })
       }
 
-      // Gate: forced recommendation → skip narrowing, go straight to results
-      if (actionPlan.skipNarrowing) {
-        return buildRecommendationResponse(
-          form, candidates, evidenceMap, currentInput, narrowingHistory,
-          filters, turnCount, messages, provider
-        )
+      // Action: skip_field
+      if (action.type === "skip_field") {
+        const skipField = prevState.lastAskedField ?? "unknown"
+        const skipFilter: AppliedFilter = {
+          field: skipField, op: "skip", value: "상관없음", rawValue: "skip", appliedAt: turnCount,
+        }
+        filters.push(skipFilter)
+        currentInput = applyFilterToInput(currentInput, skipFilter)
+
+        const newResult = await runHybridRetrieval(currentInput, filters.filter(f => f.op !== "skip"))
+        narrowingHistory.push({
+          question: "follow-up", answer: lastUserMsg.text,
+          extractedFilters: [skipFilter],
+          candidateCountBefore: candidates.length, candidateCountAfter: newResult.candidates.length,
+        })
+        turnCount++
+
+        const statusAfterSkip = checkResolution(newResult.candidates, narrowingHistory)
+        if (statusAfterSkip.startsWith("resolved")) {
+          return buildRecommendationResponse(form, newResult.candidates, newResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider)
+        }
+        return buildQuestionResponse(form, newResult.candidates, newResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider)
       }
 
-      // ── Contextual question about current narrowing field ──
-      const contextualQuestionPattern = /그게\s*뭐|그건\s*뭐|이게\s*뭐|뭐야\s*그|그거\s*뭐|차이.*뭐|뭐가\s*다|뭐가\s*좋|어떤\s*게\s*좋/i
-      const alreadySaidPattern = /이미.*했|이미.*말했|이미.*입력|아까.*했|아까.*말했|했잖아|했잔아|말했잖아|말했잔아|입력했/i
-      if (contextualQuestionPattern.test(lastUserMsg.text)) {
-        const contextReply = await handleContextualNarrowingQuestion(
-          provider, lastUserMsg.text, currentInput, candidates, prevState
-        )
-        if (contextReply) {
+      // Action: continue_narrowing (apply filter from orchestrator)
+      if (action.type === "continue_narrowing") {
+        const filter = { ...action.filter, appliedAt: turnCount }
+
+        // ── Zero-candidate guard: test filter before committing ──
+        const testInput = applyFilterToInput(currentInput, filter)
+        const testFilters = [...filters, filter]
+        const testResult = await runHybridRetrieval(testInput, testFilters)
+
+        if (testResult.candidates.length === 0) {
+          // Filter would eliminate all candidates — DON'T apply it
+          console.log(`[orchestrator:guard] Filter ${filter.field}=${filter.value} would result in 0 candidates — BLOCKED`)
           return buildQuestionResponse(
             form, candidates, evidenceMap, currentInput,
             narrowingHistory, filters, turnCount, messages, provider,
-            contextReply
-          )
-        }
-      }
-      // User frustrated that system re-asks already provided info → skip to results
-      if (alreadySaidPattern.test(lastUserMsg.text)) {
-        return buildRecommendationResponse(
-          form, candidates, evidenceMap, currentInput, narrowingHistory,
-          filters, turnCount, messages, provider
-        )
-      }
-
-      // ── Standard extraction path (inquiry passed the gate) ──
-      const extracted = await extractParamsFromMessage(provider, lastUserMsg.text, currentInput, prevState)
-
-      // Non-product input — handle as general conversation
-      if (extracted === null) {
-        const generalResult = await handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form)
-        return buildQuestionResponse(
-          form, candidates, evidenceMap, currentInput,
-          narrowingHistory, filters, turnCount, messages, provider,
-          generalResult.text || `절삭공구 관련 조건을 알려주시거나, 아래 버튼을 선택해주세요.`
-        )
-      }
-
-      if (extracted) {
-        // Check for skip or complete signals
-        if (extracted.isComplete) {
-          // User wants results now — skip to recommendation
-          return buildRecommendationResponse(
-            form, candidates, evidenceMap, currentInput, narrowingHistory,
-            filters, turnCount, messages, provider
+            `"${filter.value}" 조건을 적용하면 후보가 없습니다. 현재 ${candidates.length}개 후보에서 다른 조건을 선택해주세요.`
           )
         }
 
-        // Handle skipped field ("상관없음") — record in history so we don't re-ask
-        if (extracted.skippedField) {
-          const skipFilter: AppliedFilter = {
-            field: extracted.skippedField,
-            op: "skip",
-            value: "상관없음",
-            rawValue: "skip",
-            appliedAt: turnCount,
-          }
-          filters.push(skipFilter)
+        // Safe to apply
+        filters.push(filter)
+        currentInput = testInput
+        const newCandidates = testResult.candidates
+        const prevCandidateCount = candidates.length  // always use current pool count, not stale session state
 
-          // Clear the skipped field from currentInput
-          currentInput = applyFilterToInput(currentInput, skipFilter)
+        narrowingHistory.push({
+          question: prevState.narrowingHistory?.length ? "follow-up" : "initial",
+          answer: lastUserMsg.text,
+          extractedFilters: [filter],
+          candidateCountBefore: prevCandidateCount,
+          candidateCountAfter: newCandidates.length,
+        })
 
-          // Re-run retrieval with cleared field
-          const newResult = await runHybridRetrieval(currentInput, filters.filter(f => f.op !== "skip"))
-          const newCandidates = newResult.candidates
+        // Stage snapshot
+        const existingStages = prevState.stageHistory ?? []
+        const newStage: NarrowingStage = {
+          stepIndex: turnCount,
+          stageName: `${filter.field}_${filter.value}`,
+          filterApplied: filter,
+          candidateCount: newCandidates.length,
+          resolvedInputSnapshot: { ...currentInput },
+          filtersSnapshot: [...filters],
+        }
+        const updatedStages = [...existingStages, newStage]
 
-          narrowingHistory.push({
-            question: "follow-up",
-            answer: lastUserMsg.text,
-            extractedFilters: [skipFilter],
-            candidateCountBefore: candidates.length,
-            candidateCountAfter: newCandidates.length,
-          })
-          turnCount++
+        console.log(`[orchestrator:filter] ${filter.field}=${filter.value} | ${prevCandidateCount}→${newCandidates.length} candidates | stages: ${updatedStages.map(s => s.stageName).join(" → ")}`)
 
-          // Check if we're resolved after skip
-          const statusAfterSkip = checkResolution(newCandidates, narrowingHistory)
-          if (statusAfterSkip.startsWith("resolved")) {
-            return buildRecommendationResponse(
-              form, newCandidates, newResult.evidenceMap, currentInput, narrowingHistory,
-              filters, turnCount, messages, provider
-            )
-          }
+        turnCount++
 
-          // Ask next question (which will be different since the field is now in history)
-          return buildQuestionResponse(
-            form, newCandidates, newResult.evidenceMap, currentInput,
-            narrowingHistory, filters, turnCount, messages, provider
-          )
+        const newStatus = checkResolution(newCandidates, narrowingHistory)
+        if (newStatus.startsWith("resolved")) {
+          return buildRecommendationResponse(form, newCandidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider)
         }
 
-        // Apply extracted filters
-        if (extracted.newFilter) {
-          const filter = { ...extracted.newFilter, appliedAt: turnCount }
-          filters.push(filter)
-
-          // Update input based on filter
-          currentInput = applyFilterToInput(currentInput, filter)
-
-          // Re-run hybrid retrieval with new filter
-          const newResult = await runHybridRetrieval(currentInput, filters)
-          const newCandidates = newResult.candidates
-
-          // Use previous session's candidate count for "before" (not current re-filtered count)
-          const prevCandidateCount = prevState.candidateCount ?? candidates.length
-          narrowingHistory.push({
-            question: prevState.narrowingHistory?.length
-              ? "follow-up"
-              : "initial",
-            answer: lastUserMsg.text,
-            extractedFilters: [filter],
-            candidateCountBefore: prevCandidateCount,
-            candidateCountAfter: newCandidates.length,
-          })
-
-          turnCount++
-
-          // Check if we're resolved after applying the filter
-          const newStatus = checkResolution(newCandidates, narrowingHistory)
-          if (newStatus.startsWith("resolved")) {
-            return buildRecommendationResponse(
-              form, newCandidates, newResult.evidenceMap, currentInput,
-              narrowingHistory, filters, turnCount, messages, provider
-            )
-          }
-
-          // Ask next question based on new candidate pool
-          return buildQuestionResponse(
-            form, newCandidates, newResult.evidenceMap, currentInput,
-            narrowingHistory, filters, turnCount, messages, provider
-          )
-        }
+        return buildQuestionResponse(form, newCandidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, undefined, updatedStages)
       }
     }
   }
@@ -412,21 +452,38 @@ async function buildQuestionResponse(
   turnCount: number,
   messages: ChatMessage[],
   provider: ReturnType<typeof getProvider>,
-  overrideText?: string
+  overrideText?: string,
+  existingStageHistory?: NarrowingStage[]
 ): Promise<Response> {
   const question = selectNextQuestion(input, candidates, history)
 
-  // Build session state for client
+  // Build stage history — snapshot current state if we don't have one yet
+  const stageHistory: NarrowingStage[] = existingStageHistory
+    ? [...existingStageHistory]
+    : buildStageHistoryFromFilters(filters, input, candidates.length)
+
+  // Build candidate snapshot for UI (before session state so we can persist it)
+  const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
+  const chips = question?.chips ?? []
+
+  // Build session state for client — single source of truth
   const sessionState: ExplorationSessionState = {
     sessionId: `ses-${Date.now()}`,
     candidateCount: candidates.length,
     appliedFilters: filters,
     narrowingHistory: history,
+    stageHistory,
     resolutionStatus: checkResolution(candidates, history),
     resolvedInput: input,
     turnCount,
-    lastAskedField: question?.field ?? undefined,  // track which field we're asking about
+    lastAskedField: question?.field ?? undefined,
+    displayedCandidates: candidateSnapshot,
+    displayedChips: chips,
+    lastAction: "continue_narrowing",
   }
+
+  // Debug: log narrowing state
+  logNarrowingState("question", sessionState, question?.field ?? null)
 
   // If no question (resolved or out of questions), go to recommendation
   if (!question) {
@@ -436,12 +493,11 @@ async function buildQuestionResponse(
     )
   }
 
-  // Build candidate snapshot for UI
-  const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
+  // candidateSnapshot already computed above (persisted in sessionState)
 
   // LLM-polish the question text (or use deterministic)
   let responseText = overrideText ?? question.questionText
-  let chips = question.chips
+  let responseChips = question.chips
 
   if (overrideText) {
     // Skip LLM polish when we have an override (e.g. irrelevant input nudge)
@@ -449,7 +505,7 @@ async function buildQuestionResponse(
     // First call: generate greeting
     try {
       const systemPrompt = buildSystemPrompt()
-      const sessionCtx = buildSessionContext(form, sessionState, candidates.length)
+      const sessionCtx = buildSessionContext(form, sessionState, candidates.length, snapshotToDisplayed(candidateSnapshot))
       const greetingPrompt = buildGreetingPrompt(sessionCtx, question, candidates.length)
 
       const raw = await provider.complete(systemPrompt, [
@@ -467,7 +523,7 @@ async function buildQuestionResponse(
     // Follow-up: polish the question
     try {
       const systemPrompt = buildSystemPrompt()
-      const sessionCtx = buildSessionContext(form, sessionState, candidates.length)
+      const sessionCtx = buildSessionContext(form, sessionState, candidates.length, snapshotToDisplayed(candidateSnapshot))
       const raw = await provider.complete(systemPrompt, [
         { role: "user", content: `${sessionCtx}\n\n다음 질문을 자연스러운 한국어로 다듬어주세요: "${question.questionText}"\n현재 후보 ${candidates.length}개.\nJSON으로 응답: { "responseText": "...", "extractedParams": {}, "isComplete": false, "skipQuestion": false }` }
       ], 300)
@@ -487,7 +543,7 @@ async function buildQuestionResponse(
   return NextResponse.json({
     text: responseText,
     purpose: messages.length === 0 ? "greeting" : "question",
-    chips,
+    chips: responseChips,
     isComplete: false,
     recommendation: null,
     sessionState,
@@ -583,16 +639,20 @@ async function buildRecommendationResponse(
   if (provider.available() && primary && primaryFactChecked && primaryExplanation) {
     try {
       const systemPrompt = buildSystemPrompt()
-      const sessionState: ExplorationSessionState = {
+      const llmSessionState: ExplorationSessionState = {
         sessionId: `ses-${Date.now()}`,
         candidateCount: candidates.length,
         appliedFilters: filters,
         narrowingHistory: history,
+        stageHistory: buildStageHistoryFromFilters(filters, input, candidates.length),
         resolutionStatus: checkResolution(candidates, history),
         resolvedInput: input,
         turnCount,
+        displayedCandidates: [],  // not yet built at this point
+        displayedChips: [],
+        lastAction: "show_recommendation",
       }
-      const sessionCtx = buildSessionContext(form, sessionState, candidates.length)
+      const sessionCtx = buildSessionContext(form, llmSessionState, candidates.length, displayedProducts)
 
       // Use new explanation-aware prompt — include per-product evidence
       const resultPrompt = buildExplanationResultPrompt(
@@ -630,14 +690,21 @@ async function buildRecommendationResponse(
     }
   }
 
+  const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
+  const followUpChips = getFollowUpChips(recommendation)
+
   const sessionState: ExplorationSessionState = {
     sessionId: `ses-${Date.now()}`,
     candidateCount: candidates.length,
     appliedFilters: filters,
     narrowingHistory: history,
+    stageHistory: buildStageHistoryFromFilters(filters, input, candidates.length),
     resolutionStatus: checkResolution(candidates, history),
     resolvedInput: input,
     turnCount,
+    displayedCandidates: candidateSnapshot,
+    displayedChips: followUpChips,
+    lastAction: "show_recommendation",
   }
 
   // Run request preparation for metadata
@@ -655,7 +722,7 @@ async function buildRecommendationResponse(
     }
   }
 
-  const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
+  // candidateSnapshot already computed above (persisted in sessionState)
 
   // Slack 알림 (비동기)
   if (primary) {
@@ -674,7 +741,7 @@ async function buildRecommendationResponse(
       ? "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요."
       : responseText,
     purpose: "recommendation",
-    chips: getFollowUpChips(recommendation),
+    chips: followUpChips,
     isComplete: true,
     recommendation,
     sessionState,
@@ -763,77 +830,6 @@ ${coatings.map(c => `• ${c}`).join("\n")}
   return `현재 ${candidates.length}개 후보가 있습니다. 잘 모르시면 "상관없음"을 선택해주세요.`
 }
 
-// ── Post-Recommendation Follow-Up Handler ────────────────────
-async function handlePostRecommendationFollowUp(
-  provider: ReturnType<typeof getProvider>,
-  userMessage: string,
-  currentInput: RecommendationInput,
-  candidates: ScoredProduct[],
-  evidenceMap: Map<string, EvidenceSummary>,
-  form: ProductIntakeForm
-): Promise<string | null> {
-  if (!provider.available()) return null
-
-  const clean = userMessage.trim()
-
-  // Reset / new search signals should NOT be handled here
-  if (/처음부터|다시 시작|리셋|다른 직경|다른 소재|새로운/.test(clean)) return null
-
-  // Build context about recommended products
-  const topProducts = candidates.slice(0, 5)
-  const productContext = topProducts.map((sp, i) => {
-    const p = sp.product
-    const ev = evidenceMap.get(p.normalizedCode)
-    const lines = [
-      `${i + 1}. ${p.displayCode} (${p.seriesName})`,
-      `   소재군: ${p.materialTags.join(", ")}`,
-      `   직경: ${p.diameterMm}mm, 날수: ${p.fluteCount ?? "?"}`,
-      `   코팅: ${p.coating ?? "미상"}`,
-      `   점수: ${sp.score}/${sp.scoreBreakdown?.maxTotal ?? 110}pt (${sp.matchStatus})`,
-    ]
-    if (ev?.bestCondition) {
-      const c = ev.bestCondition
-      lines.push(`   절삭조건: Vc=${c.Vc ?? "?"}, fz=${c.fz ?? "?"}, ap=${c.ap ?? "?"}, ae=${c.ae ?? "?"}`)
-    }
-    if (ev && !ev.bestCondition && ev.sourceCount > 0) {
-      lines.push(`   절삭조건: ${ev.sourceCount}건 참조 데이터 있음 (조건 상세 미확인)`)
-    }
-    return lines.join("\n")
-  }).join("\n\n")
-
-  const materialInfo = currentInput.material ?? (form.material.status === "known" ? form.material.value : "미지정")
-  const diameterInfo = currentInput.diameterMm ? `${currentInput.diameterMm}mm` : "미지정"
-
-  try {
-    const systemPrompt = `당신은 YG-1 절삭공구 전문 엔지니어 출신 AI입니다.
-사용자가 이미 추천 결과를 받은 후, 후속 질문을 하고 있습니다.
-
-═══ 현재 추천 상황 ═══
-- 요청 소재: ${materialInfo}
-- 요청 직경: ${diameterInfo}
-- 가공 형상: ${form.operationType.status === "known" ? form.operationType.value : "미지정"}
-- 추천 제품 ${topProducts.length}개:
-
-${productContext}
-
-═══ 응답 규칙 ═══
-- 위 추천 제품 데이터만 기반으로 답변
-- 절삭조건(Vc, fz, ap, ae)은 위에 나온 데이터에서만 인용 (없으면 "해당 제품의 카탈로그 절삭조건 데이터가 없습니다" 안내)
-- 코팅 비교, 제품 비교 등은 위 제품들 간 비교
-- 한국어로 간결하게 3-6문장
-- 구체적 수치 포함
-- 데이터에 없는 정보는 생성하지 말 것`
-
-    const raw = await provider.complete(systemPrompt, [
-      { role: "user", content: clean }
-    ], 1000)
-    if (raw && raw.trim()) return raw.trim()
-  } catch (e) {
-    console.warn("[recommend] Follow-up handler failed:", e)
-  }
-  return null
-}
-
 // ── Web Search for Knowledge Questions ────────────────────────
 
 const CUTTING_KNOWLEDGE_PATTERNS = /절삭|공구|엔드밀|드릴|인서트|코팅|소재|가공|선반|밀링|CNC|초경|CBN|세라믹|황삭|정삭|면취|보링|리머|탭|나사|칩|인선|마모|수명|이송|회전|절입|쿨란트|치핑|버|진동|채터|tialn|alcrn|dlc|hss|carbide|endmill|milling|turning|drilling/i
@@ -875,6 +871,7 @@ async function handleGeneralChat(
   _currentInput: RecommendationInput,
   candidates: ScoredProduct[],
   form: ProductIntakeForm,
+  displayedCandidatesContext?: CandidateSnapshot[],
 ): Promise<{ text: string; chips: string[] }> {
   const clean = userMessage.trim()
   const candidateCount = candidates.length
@@ -904,6 +901,13 @@ async function handleGeneralChat(
 
   const formContext = form.material.status === "known" || form.operationType.status === "known"
     ? `사용자 입력 조건: 소재=${form.material.status === "known" ? form.material.value : "미지정"}, 가공=${form.operationType.status === "known" ? form.operationType.value : "미지정"}`
+    : ""
+
+  // Build displayed products context for grounded answers
+  const displayedContext = displayedCandidatesContext && displayedCandidatesContext.length > 0
+    ? `\n═══ 현재 표시된 추천 제품 (사용자가 "이 중", "위 제품", "상위 N개" 등으로 참조 시 반드시 이 목록에서 답하라) ═══\n${displayedCandidatesContext.slice(0, 10).map(c =>
+      `#${c.rank} ${c.displayCode}${c.displayLabel ? ` [${c.displayLabel}]` : ""} | ${c.brand ?? "?"} | ${c.seriesName ?? "?"} | φ${c.diameterMm ?? "?"}mm | ${c.fluteCount ?? "?"}F | ${c.coating ?? "?"} | ${c.materialTags.join("/") || "?"} | ${c.matchStatus} ${c.score}점`
+    ).join("\n")}`
     : ""
 
   const webContext = webSearchResult
@@ -962,8 +966,10 @@ ${webContext}
 - "추가 조건을 알려주시면~" 같은 빈 말 금지
 - 응답 끝에 JSON이나 특수 포맷 쓰지 말고 순수 자연어로만`
 
+    const userPrompt = `${sessionContext}\n${formContext}${displayedContext}${webContext}\n\n사용자: "${clean}"`
+
     const raw = await provider.complete(systemPrompt, [
-      { role: "user", content: clean }
+      { role: "user", content: userPrompt }
     ], 800)
 
     if (raw && raw.trim()) {
@@ -1063,257 +1069,33 @@ The user may provide: material (소재), diameter (직경), flute count (날 수
   },
 }
 
-// ── Extract Parameters from User Message ─────────────────────
-async function extractParamsFromMessage(
-  provider: ReturnType<typeof getProvider>,
-  message: string,
-  currentInput: RecommendationInput,
-  prevState: ExplorationSessionState
-): Promise<{ isComplete: boolean; newFilter: AppliedFilter | null; skippedField: string | null } | null> {
-  const clean = message.trim().toLowerCase()
+// extractParamsFromMessage + inferCurrentQuestionField — REMOVED
+// Replaced by: lib/agents/parameter-extractor.ts + lib/agents/intent-classifier.ts
 
-  // ── Use lastAskedField from session state (reliable) ──
-  const lastAskedField = prevState.lastAskedField ?? await inferCurrentQuestionField(currentInput, prevState)
+// ── Apply filter to RecommendationInput ──────────────────────
+// (moved here after dead code removal)
+function _placeholder_dead_code_removed() { return null }
 
-  // ── Fast-path: deterministic signals (no LLM needed) ──
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function __dead_extractParamsFromMessage() { return null }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function __dead_inferCurrentQuestionField() { return null }
 
-  // 1. Reset signals
-  if (["처음부터 다시", "처음부터", "다시 시작", "리셋"].some(s => clean.includes(s))) {
-    return { isComplete: true, newFilter: null, skippedField: null }
-  }
+/* DEAD CODE BLOCK REMOVED — ~250 lines of extractParamsFromMessage + inferCurrentQuestionField
+   These functions are now replaced by:
+   - lib/agents/intent-classifier.ts (Haiku-powered intent classification)
+   - lib/agents/parameter-extractor.ts (Haiku-powered parameter extraction)
+   - lib/agents/orchestrator.ts (turn flow control)
+*/
 
-  // 2. Completion signals — expanded to catch vague/impatient requests
-  const completionSignals = [
-    "추천해주세요", "바로 보여주세요", "결과 보기", "추천 받기", "추가 조건 없음", "그냥 추천", "바로 추천",
-    "그냥 좋은 거", "좋은 거", "좋은거", "니가 알아서", "알아서 골라", "알아서 추천",
-    "그냥 줘", "빨리", "빨리 줘", "빨리빨리", "걍 줘", "걍", "그냥",
-    "무난한 거", "무난한거", "무난하게", "대충", "대충 추천",
-    "많이 쓰는 거", "많이 쓰는거", "인기 있는", "인기있는", "베스트",
-    "3개만", "3개 줘", "세개만", "세 개만", "몇 개만", "몇개만",
-    "왜 자꾸 물어", "질문 그만", "그만 물어", "더 이상 질문",
-    "결과", "보여줘", "바로 보여", "바로보여", "빨리 보여",
-    "대체 후보", "후보 보기", "개 보기",
-    "다 보여", "전부 보여", "다보여",
-  ]
-  if (completionSignals.some(s => clean.includes(s))) {
-    return { isComplete: true, newFilter: null, skippedField: null }
-  }
+// Keeping a marker so we know where the gap is:
+const _DEAD_CODE_REMOVED_MARKER = true // eslint-disable-line @typescript-eslint/no-unused-vars
 
-  // 3. Skip / don't-care / don't-know — BEFORE LLM call
-  const skipPatterns = [
-    "상관없", "상관 없", "아무거나", "아무 거나", "다 괜찮", "괜찮아", "뭐든",
-    "모름", "몰라", "모르겠", "모른다", "모릅니다", "잘 모르", "잘모르", "글쎄",
-    "패스", "넘어가", "넘겨", "다음", "스킵", "skip", "pass", "next",
-    "넘어", "다음으로",
-  ]
-  if (skipPatterns.some(s => clean.includes(s))) {
-    return { isComplete: false, newFilter: null, skippedField: lastAskedField !== "unknown" ? lastAskedField : null }
-  }
+// ── Apply filter to RecommendationInput ──────────────────────
+// NOTE: ~250 lines of dead code (extractParamsFromMessage + inferCurrentQuestionField) removed here.
+// See git history for original code if needed.
 
-  // ── PRIMARY: LLM-powered extraction via tool_use ──
-  if (provider.available()) {
-    try {
-      const currentState = [
-        `현재 질문 필드: ${lastAskedField}`,
-        `현재 입력 상태: material=${currentInput.material ?? "미지정"}, diameter=${currentInput.diameterMm ?? "미지정"}mm, flute=${currentInput.flutePreference ?? "미지정"}, coating=${currentInput.coatingPreference ?? "미지정"}, operation=${currentInput.operationType ?? "미지정"}`,
-        `이전 대화 턴 수: ${prevState.turnCount}`,
-        `현재 후보 수: ${prevState.candidateCount}개`,
-      ].join("\n")
-
-      const extractionPrompt = `절삭공구 추천 대화 중입니다.
-
-${currentState}
-
-사용자 메시지: "${message}"
-
-위 메시지를 분석하여 절삭공구 관련 파라미터를 추출하세요. 절삭공구와 관련 없는 메시지라면 intent를 "off_topic"으로 설정하세요.`
-
-      const result = await provider.completeWithTools(
-        "당신은 YG-1 절삭공구 파라미터 추출 엔진입니다. 사용자 메시지에서 가공 조건을 정확히 추출하세요.",
-        [{ role: "user", content: extractionPrompt }],
-        [EXTRACTION_TOOL],
-        512
-      )
-
-      if (result.toolUse && result.toolUse.toolName === "extract_cutting_tool_params") {
-        const params = result.toolUse.input
-        console.log(`[recommend] LLM extraction: intent=${params.intent}, reasoning=${params.reasoning}`)
-
-        // Map LLM intent to action
-        if (params.intent === "reset") return { isComplete: true, newFilter: null, skippedField: null }
-        if (params.intent === "show_results") return { isComplete: true, newFilter: null, skippedField: null }
-        if (params.intent === "skip_question") {
-          return { isComplete: false, newFilter: null, skippedField: lastAskedField !== "unknown" ? lastAskedField : null }
-        }
-        if (params.intent === "off_topic") return null
-
-        // Extract parameters — build filters from what was extracted
-        const filters: AppliedFilter[] = []
-
-        if (params.material && typeof params.material === "string") {
-          const currentMat = (currentInput.material || "").toLowerCase()
-          if (!currentMat.includes(params.material.toLowerCase())) {
-            const f = parseAnswerToFilter("material", params.material as string)
-            if (f) filters.push(f)
-          }
-        }
-
-        if (params.diameterMm != null && typeof params.diameterMm === "number") {
-          const f = parseAnswerToFilter("diameterRefine", `${params.diameterMm}mm`)
-          if (f) filters.push(f)
-        }
-
-        if (params.fluteCount != null && typeof params.fluteCount === "number" && !currentInput.flutePreference) {
-          const f = parseAnswerToFilter("fluteCount", `${params.fluteCount}날`)
-          if (f) filters.push(f)
-        }
-
-        if (params.coating && typeof params.coating === "string" && !currentInput.coatingPreference) {
-          const f = parseAnswerToFilter("coating", params.coating as string)
-          if (f) filters.push(f)
-        }
-
-        if (params.operationType && typeof params.operationType === "string" && !currentInput.operationType) {
-          const f = parseAnswerToFilter("cuttingType", params.operationType as string)
-          if (f) filters.push(f)
-        }
-
-        if (params.toolSubtype && typeof params.toolSubtype === "string") {
-          const f = parseAnswerToFilter("toolSubtype", params.toolSubtype as string)
-          if (f) filters.push(f)
-        }
-
-        if (params.seriesName && typeof params.seriesName === "string") {
-          const f = parseAnswerToFilter("seriesName", params.seriesName as string)
-          if (f) filters.push(f)
-        }
-
-        // Return the most impactful filter, attach rest as side filters
-        if (filters.length > 0) {
-          const primary = filters[0]
-          if (filters.length > 1) {
-            ;(primary as unknown as Record<string, unknown>)._sideFilters = filters.slice(1)
-          }
-          return { isComplete: false, newFilter: primary, skippedField: null }
-        }
-
-        // LLM detected provide_param but couldn't extract anything specific
-        // Fall through to keyword matching
-      }
-    } catch (e) {
-      console.warn("[recommend] LLM tool_use extraction failed, falling back to keywords:", e)
-    }
-  }
-
-  // ── FALLBACK: Keyword-based extraction ──
-  const materialKeywordMap: Record<string, string> = {
-    "탄소강": "탄소강", "합금강": "합금강", "공구강": "공구강",
-    "스테인리스": "스테인리스", "sus": "스테인리스", "스텐": "스테인리스",
-    "알루미늄": "알루미늄", "알루": "알루미늄", "alu": "알루미늄",
-    "주철": "주철", "cast iron": "주철",
-    "티타늄": "티타늄", "titanium": "티타늄",
-    "인코넬": "인코넬", "inconel": "인코넬", "내열합금": "내열합금",
-    "고경도": "고경도강", "고경도강": "고경도강", "hrc": "고경도강",
-    "구리": "구리", "copper": "구리", "비철": "비철금속",
-  }
-  const detectedMaterial = Object.keys(materialKeywordMap).find(k => clean.includes(k))
-  const diamMatch = clean.match(/([\d.]+)\s*mm/)
-  const fluteMatch = clean.match(/(\d+)\s*날/)
-  const subtypeKeywords = ["flat", "플랫", "ball", "볼", "chamfer", "챔퍼", "radius", "래디우스", "corner", "square", "스퀘어"]
-  const foundSubtype = subtypeKeywords.find(k => clean.includes(k))
-
-  // Multi-param
-  const paramCount = [detectedMaterial, diamMatch, fluteMatch, foundSubtype].filter(Boolean).length
-  if (paramCount >= 2 && detectedMaterial) {
-    const matVal = materialKeywordMap[detectedMaterial]
-    const filter = parseAnswerToFilter("material", matVal)
-    if (filter) {
-      const sideFilters: AppliedFilter[] = []
-      if (diamMatch) { const df = parseAnswerToFilter("diameterRefine", `${diamMatch[1]}mm`); if (df) sideFilters.push(df) }
-      if (foundSubtype) { const sf = parseAnswerToFilter("toolSubtype", foundSubtype); if (sf) sideFilters.push(sf) }
-      if (fluteMatch) { const ff = parseAnswerToFilter("fluteCount", `${fluteMatch[1]}날`); if (ff) sideFilters.push(ff) }
-      ;(filter as unknown as Record<string, unknown>)._sideFilters = sideFilters
-      return { isComplete: false, newFilter: filter, skippedField: null }
-    }
-  }
-
-  // Single-param fallbacks
-  if (detectedMaterial) {
-    const matVal = materialKeywordMap[detectedMaterial]
-    const currentMaterial = (currentInput.material || "").toLowerCase()
-    if (!currentMaterial.includes(matVal)) {
-      const filter = parseAnswerToFilter("material", matVal)
-      return { isComplete: false, newFilter: filter, skippedField: null }
-    }
-  }
-  if (fluteMatch && !currentInput.flutePreference) {
-    return { isComplete: false, newFilter: parseAnswerToFilter("fluteCount", message), skippedField: null }
-  }
-  if (diamMatch) {
-    return { isComplete: false, newFilter: parseAnswerToFilter("diameterRefine", message), skippedField: null }
-  }
-
-  const coatingKeywords = ["altin", "tialn", "dlc", "무코팅", "y-코팅", "y코팅", "ticn", "blue", "블루", "블루코팅", "uncoated", "코팅 없", "노코팅"]
-  const foundCoating = coatingKeywords.find(k => clean.includes(k))
-  if (foundCoating && !currentInput.coatingPreference) {
-    let coatingVal = foundCoating.toUpperCase()
-    if (["blue", "블루", "블루코팅"].includes(foundCoating)) coatingVal = "Blue Coating"
-    else if (["무코팅", "uncoated", "코팅 없", "노코팅"].includes(foundCoating)) coatingVal = "Uncoated"
-    return { isComplete: false, newFilter: parseAnswerToFilter("coating", coatingVal), skippedField: null }
-  }
-
-  const seriesPatterns = [/^(ce\d+[a-z]*\d*)/i, /^(gnx\d+)/i, /^(sem[a-z]*\d+)/i, /^(e\d+[a-z]\d+)/i]
-  if (seriesPatterns.find(p => p.test(clean))) {
-    return { isComplete: false, newFilter: parseAnswerToFilter("seriesName", message.trim()), skippedField: null }
-  }
-
-  if (foundSubtype) {
-    return { isComplete: false, newFilter: parseAnswerToFilter("toolSubtype", message.trim()), skippedField: null }
-  }
-
-  const cuttingKeywords = ["슬롯", "측면", "프로파일", "황삭", "정삭"]
-  const foundCutting = cuttingKeywords.find(k => clean.includes(k))
-  if (foundCutting) {
-    return { isComplete: false, newFilter: parseAnswerToFilter("cuttingType", message), skippedField: null }
-  }
-
-  // Bare number → likely diameter
-  if (/^\d+(\.\d+)?$/.test(clean)) {
-    return { isComplete: false, newFilter: parseAnswerToFilter("diameterRefine", `${clean}mm`), skippedField: null }
-  }
-
-  // Truly unrecognizable
-  return null
-}
-
-// ── Infer which field the question engine was asking about ────
-async function inferCurrentQuestionField(
-  input: RecommendationInput,
-  prevState: ExplorationSessionState
-): Promise<string> {
-  // Use the actual question engine to determine what's being asked
-  // This ensures perfect sync between what was asked and what we infer
-  const filters: AppliedFilter[] = prevState?.appliedFilters ?? []
-  const currentInput = prevState?.resolvedInput
-    ? { ...input, ...prevState.resolvedInput }
-    : input
-  const hybridResult = await runHybridRetrieval(currentInput, filters)
-  const question = selectNextQuestion(currentInput, hybridResult.candidates, prevState.narrowingHistory ?? [])
-  if (question) return question.field
-
-  // Fallback: check by priority if question engine returns null
-  const askedFields = new Set(
-    prevState.narrowingHistory.flatMap(h => h.extractedFilters.map(f => f.field))
-  )
-  if (!input.flutePreference && !askedFields.has("fluteCount")) return "fluteCount"
-  if (!input.coatingPreference && !askedFields.has("coating")) return "coating"
-  if (!askedFields.has("seriesName")) return "seriesName"
-  if (!input.toolSubtype && !askedFields.has("toolSubtype")) return "toolSubtype"
-  if (!askedFields.has("cuttingType")) return "cuttingType"
-  if (!askedFields.has("diameterRefine")) return "diameterRefine"
-  return "unknown"
-}
-
+function __PLACEHOLDER_END_OF_DEAD_CODE_BLOCK() { /* see above */ }
 // ── Apply filter to RecommendationInput ──────────────────────
 function applyFilterToInput(input: RecommendationInput, filter: AppliedFilter): RecommendationInput {
   let updated = { ...input }
@@ -1359,13 +1141,12 @@ function applySingleFilter(input: RecommendationInput, filter: AppliedFilter): R
     return updated
   }
 
+  // ── IMPORTANT: narrowing filters (fluteCount, coating, toolSubtype, seriesName, cuttingType)
+  // are applied IN-MEMORY by runHybridRetrieval, NOT here.
+  // Only diameter and material affect DB query input, because they are base conditions.
+  // Setting narrowing fields on input causes DB to re-query with different results
+  // than what the question engine counted from the current pool.
   switch (filter.field) {
-    case "fluteCount":
-      updated.flutePreference = typeof filter.rawValue === "number" ? filter.rawValue : parseInt(String(filter.rawValue))
-      break
-    case "coating":
-      updated.coatingPreference = String(filter.rawValue)
-      break
     case "diameterMm":
     case "diameterRefine":
       updated.diameterMm = typeof filter.rawValue === "number" ? filter.rawValue : parseFloat(String(filter.rawValue))
@@ -1373,14 +1154,78 @@ function applySingleFilter(input: RecommendationInput, filter: AppliedFilter): R
     case "material":
       updated.material = String(filter.rawValue)
       break
-    case "toolSubtype":
-      updated.toolSubtype = String(filter.rawValue)
-      break
-    case "cuttingType":
-      if (!updated.operationType) updated.operationType = String(filter.rawValue)
-      break
+    // fluteCount, coating, toolSubtype, seriesName, cuttingType
+    // → handled by in-memory filters in runHybridRetrieval, NOT on input
   }
   return updated
+}
+
+// ── Build Stage History from Filters (bootstrap when no history exists) ──
+function buildStageHistoryFromFilters(
+  filters: AppliedFilter[],
+  currentInput: RecommendationInput,
+  currentCandidateCount: number
+): NarrowingStage[] {
+  // Build initial stage
+  const stages: NarrowingStage[] = [{
+    stepIndex: -1,
+    stageName: "initial_search",
+    filterApplied: null,
+    candidateCount: currentCandidateCount,
+    resolvedInputSnapshot: { ...currentInput },
+    filtersSnapshot: [],
+  }]
+
+  // Build a stage for each applied filter
+  let accumulatedFilters: AppliedFilter[] = []
+  for (const f of filters) {
+    accumulatedFilters = [...accumulatedFilters, f]
+    stages.push({
+      stepIndex: f.appliedAt,
+      stageName: `${f.field}_${f.value}`,
+      filterApplied: f,
+      candidateCount: currentCandidateCount, // approximate — we don't have historical counts here
+      resolvedInputSnapshot: { ...currentInput },
+      filtersSnapshot: [...accumulatedFilters],
+    })
+  }
+
+  return stages
+}
+
+// ── Debug: Log Narrowing State ──────────────────────────────
+function logNarrowingState(
+  phase: string,
+  state: ExplorationSessionState,
+  currentField: string | null
+): void {
+  console.log(`[narrowing:${phase}] ───────────────────────────`)
+  console.log(`[narrowing:${phase}] Session: ${state.sessionId}`)
+  console.log(`[narrowing:${phase}] Candidates: ${state.candidateCount}`)
+  console.log(`[narrowing:${phase}] Status: ${state.resolutionStatus}`)
+  console.log(`[narrowing:${phase}] Turn: ${state.turnCount}`)
+  console.log(`[narrowing:${phase}] Filters: ${state.appliedFilters.map(f => `${f.field}=${f.value}`).join(", ") || "(none)"}`)
+  console.log(`[narrowing:${phase}] Stages: ${state.stageHistory?.map(s => s.stageName).join(" → ") || "(none)"}`)
+  if (currentField) {
+    console.log(`[narrowing:${phase}] Next question field: ${currentField}`)
+  }
+  console.log(`[narrowing:${phase}] ───────────────────────────`)
+}
+
+// ── Map CandidateSnapshot to displayedProducts format for LLM prompts ──
+function snapshotToDisplayed(snapshot: CandidateSnapshot[]): DisplayedProduct[] {
+  return snapshot.slice(0, 10).map(c => ({
+    rank: c.rank,
+    code: c.displayCode,
+    brand: c.brand,
+    series: c.seriesName,
+    diameter: c.diameterMm,
+    flute: c.fluteCount,
+    coating: c.coating,
+    materialTags: c.materialTags,
+    score: c.score,
+    matchStatus: c.matchStatus,
+  }))
 }
 
 // ── Build Candidate Snapshot (lightweight for UI) ────────────
@@ -1394,6 +1239,7 @@ function buildCandidateSnapshot(
       rank: i + 1,
       productCode: c.product.normalizedCode,
       displayCode: c.product.displayCode,
+      displayLabel: buildProductLabel(c.product),
       brand: c.product.brand ?? null,
       seriesName: c.product.seriesName,
       seriesIconUrl: c.product.seriesIconUrl ?? null,
