@@ -282,7 +282,7 @@ function buildFilterFromParams(
 const NARROWING_TOOLS: LLMTool[] = [
   {
     name: "apply_filter",
-    description: "사용자가 필터 조건을 선택했을 때 호출. 코팅, 날수, 공구 형상, 시리즈 등. '상관없음/모름/패스' 입력 시 value를 'skip'으로 설정.",
+    description: "좁히기 질문에 답할 때만 호출 (lastAction이 continue_narrowing일 때). 코팅, 날수, 공구 형상, 시리즈 등. '상관없음/모름/패스' 입력 시 value를 'skip'으로 설정. ⚠️ 추천 결과가 이미 표시된 상태(lastAction=show_recommendation)에서 OAL/CL/코팅 등으로 필터링하려면 filter_displayed_products를 사용하세요.",
     input_schema: {
       type: "object",
       properties: {
@@ -348,7 +348,7 @@ const NARROWING_TOOLS: LLMTool[] = [
   },
   {
     name: "filter_displayed_products",
-    description: "표시된 제품 목록 내에서 특정 조건으로 필터링. 'OAL 50mm인 것만', '코팅 Diamond인 것만', '전체 보기/필터 해제'",
+    description: "⭐ 추천 결과가 표시된 후(lastAction=show_recommendation) 사용자가 표시된 제품을 조건으로 줄이고 싶을 때 호출. 'OAL 60mm 이하', 'OAL 50~80mm', '코팅 Diamond인 것만', '전체 보기'. apply_filter와 다름 — 이 도구는 이미 표시된 제품 목록을 필터링함.",
     input_schema: {
       type: "object",
       properties: {
@@ -362,7 +362,7 @@ const NARROWING_TOOLS: LLMTool[] = [
   },
   {
     name: "query_displayed_products",
-    description: "표시된 제품 데이터에 대한 질문. '절삭 길이 제일 긴 건?', 'Diamond 코팅 몇 개?', '나선각 30도인 건?'",
+    description: "⭐ 표시된 제품에 대한 질문/조회. '절삭 길이 제일 긴 건?', 'Diamond 코팅 몇 개?', '나선각 30도인 건?', 'OAL 목록 보여줘', '제품군과 OAL 표로 줘'. 표시된 제품의 스펙을 조회/비교/집계할 때 사용.",
     input_schema: {
       type: "object",
       properties: {
@@ -380,7 +380,7 @@ const NARROWING_TOOLS: LLMTool[] = [
 ]
 
 /** Normalize Korean/English field aliases to canonical field names */
-function normalizeFieldName(input: string): string | null {
+export function normalizeFieldName(input: string): string | null {
   const map: Record<string, string> = {
     "직경": "diameterMm", "diameter": "diameterMm", "dia": "diameterMm", "지름": "diameterMm", "φ": "diameterMm",
     "날수": "fluteCount", "날": "fluteCount", "flute": "fluteCount", "f": "fluteCount",
@@ -451,11 +451,21 @@ ${candidatesDesc}
 시리즈/series → seriesName
 브랜드/brand → brand
 
-═══ 규칙 ═══
-1. 사용자가 칩/옵션을 선택하면 → apply_filter 호출 (field는 lastAskedField 또는 옵션의 field 사용)
+═══ 핵심 라우팅 규칙 ═══
+
+⭐⭐ 최우선: 마지막 액션이 show_recommendation이면 (추천 결과가 표시된 상태):
+- OAL/CL/코팅/나선각 등 스펙 기준 필터링 → filter_displayed_products (절대 apply_filter 사용 금지!)
+- "OAL 60mm 이하", "코팅 Diamond인 것만", "CL 10mm인 것" → filter_displayed_products
+- "OAL 목록 줘", "제품별 OAL 표로", "제일 긴 건?", "몇 개?" → query_displayed_products
+- "전체 보기", "필터 해제" → filter_displayed_products (field="reset", operator="reset")
+
+좁히기 질문 응답 (lastAction이 continue_narrowing일 때만):
+1. 사용자가 칩/옵션을 선택하면 → apply_filter 호출
 2. "N번" 입력 → 해당 번호의 옵션 값으로 apply_filter 호출
 3. "상관없음/모름/패스/스킵" → apply_filter에 value="skip" 설정
-4. 사용자가 추천 결과를 원하면 → show_recommendation
+
+일반:
+4. 추천 결과를 원하면 → show_recommendation
 5. 비교 요청 → compare_products (targets 필수)
 6. 되돌리기 → undo_step
 7. 용어/개념 질문 → explain_concept
@@ -463,11 +473,8 @@ ${candidatesDesc}
 9. 잡담, 수학, 감정 공감, 시스템 질문 → tool 호출 없이 직접 텍스트 답변
 10. 제품 데이터(코드, 스펙, 재고)를 절대 생성하지 마세요
 11. 한국어로 답변하세요
-12. 답변 끝에 출처 표기: [Reference: YG-1 내부 DB] 또는 [Reference: AI 지식 추론] 또는 [Reference: 웹 검색]
-13. "OAL 50mm인 것만", "코팅 Diamond인 것만" → filter_displayed_products (표시된 목록 내 필터링)
-14. "전체 보기", "필터 해제" → filter_displayed_products (field="reset", operator="reset")
-15. "절삭길이 제일 긴 건?", "Diamond 코팅 몇 개?" → query_displayed_products (표시된 제품 질의)
-16. 필드명은 정규화 표 참고 (한/영/별칭 모두 인식)`
+12. 답변 끝에 출처 표기
+13. 필드명은 정규화 표 참고 (한/영/별칭 모두 인식)`
 }
 
 function mapToolUseToAction(

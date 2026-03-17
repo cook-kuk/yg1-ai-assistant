@@ -42,7 +42,7 @@ import { runFactCheck } from "@/lib/domain/fact-checker"
 import { analyzeInquiry, getRedirectResponse } from "@/lib/domain/inquiry-analyzer"
 import { planAction } from "@/lib/domain/action-planner"
 import type { ActionPlan } from "@/lib/domain/action-planner"
-import { orchestrateTurn, orchestrateTurnWithTools } from "@/lib/agents/orchestrator"
+import { orchestrateTurn, orchestrateTurnWithTools, normalizeFieldName } from "@/lib/agents/orchestrator"
 import { compareProducts, resolveProductReferences } from "@/lib/agents/comparison-agent"
 import type { TurnContext, OrchestratorResult } from "@/lib/agents/types"
 import { buildSessionState, carryForwardState, createInitialStage, createFilterStage, restoreOnePreviousStep, restoreToBeforeFilter } from "@/lib/domain/session-manager"
@@ -186,7 +186,24 @@ async function handleExploration(
       } else {
         orchResult = await orchestrateTurn(turnCtx, provider)
       }
-      const action = orchResult.action
+      let action = orchResult.action
+
+      // ── Guard: apply_filter on display-only fields → redirect to filter_displayed ──
+      const DISPLAY_ONLY_FIELDS = new Set(["overallLengthMm", "lengthOfCutMm", "shankDiameterMm", "helixAngleDeg", "toolMaterial", "brand"])
+      if (action.type === "continue_narrowing" && prevState.lastAction === "show_recommendation") {
+        const filterField = action.filter.field
+        const normalized = normalizeFieldName(filterField)
+        if (normalized && DISPLAY_ONLY_FIELDS.has(normalized)) {
+          console.log(`[orchestrator:guard] apply_filter(${filterField}) redirected to filter_displayed in post-recommendation state`)
+          action = {
+            type: "filter_displayed",
+            field: normalized,
+            operator: action.filter.op === "eq" ? "eq" : action.filter.op === "includes" ? "contains" : "eq",
+            value: String(action.filter.rawValue),
+          }
+          orchResult = { ...orchResult, action }
+        }
+      }
 
       // ── Dispatch orchestrator action ──────────────────────
 
@@ -533,8 +550,11 @@ async function handleExploration(
             break
           }
           case "list": {
-            const values = [...new Set(withValues.map(v => v.value != null ? String(v.value) : null).filter(Boolean))]
-            resultText = `표시된 제품의 ${field} 목록:\n${values.map(v => `• ${v}`).join("\n")}\n[Reference: YG-1 내부 DB]`
+            // Show table: product code + field value for each displayed product
+            const tableRows = withValues
+              .filter(v => v.value != null)
+              .map(v => `| #${v.candidate.rank} | ${v.candidate.displayCode} | ${v.candidate.seriesName ?? "-"} | ${v.value} |`)
+            resultText = `표시된 제품의 ${field}:\n\n| # | 제품코드 | 시리즈 | ${field} |\n|---|---|---|---|\n${tableRows.join("\n")}\n\n[Reference: YG-1 내부 DB]`
             break
           }
           case "find": {
