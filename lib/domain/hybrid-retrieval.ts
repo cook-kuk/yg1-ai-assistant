@@ -359,30 +359,15 @@ export async function runHybridRetrieval(
   const evidenceMap = new Map<string, EvidenceSummary>()
 
   for (const candidate of topCandidates) {
-    const summary = EvidenceRepo.buildSummary(
+    const summary = await EvidenceRepo.buildSummary(
       candidate.product.normalizedCode,
       {
+        seriesName: candidate.product.seriesName,
         isoGroup: materialTag,
         cuttingType: input.operationType ? mapOperationToCuttingType(input.operationType) : null,
-        diameterMm: input.diameterMm,
+        diameterMm: candidate.product.diameterMm ?? input.diameterMm,
       }
     )
-
-    // Also try series-level search if no direct product match
-    if (summary.chunks.length === 0 && candidate.product.seriesName) {
-      const seriesChunks = EvidenceRepo.findBySeriesName(candidate.product.seriesName)
-      // Filter by diameter if available
-      const relevant = input.diameterMm
-        ? seriesChunks.filter(c => c.diameterMm != null && Math.abs(c.diameterMm - input.diameterMm!) <= 0.5)
-        : seriesChunks.slice(0, 5)
-
-      if (relevant.length > 0) {
-        summary.chunks = relevant.sort((a, b) => b.confidence - a.confidence)
-        summary.bestCondition = relevant[0].conditions
-        summary.bestConfidence = relevant[0].confidence
-        summary.sourceCount = relevant.length
-      }
-    }
 
     if (summary.chunks.length > 0) {
       evidenceMap.set(candidate.product.normalizedCode, summary)

@@ -10,7 +10,7 @@
  *
  * Data priority:
  *   1. Canonical Product Master (products.json)
- *   2. Evidence Corpus (evidence-chunks.json)
+ *   2. Evidence Corpus / cutting_condition_table DB (JSON fallback)
  *   3. Inventory/Lead Time repos
  *   4. Benchmark (if available)
  */
