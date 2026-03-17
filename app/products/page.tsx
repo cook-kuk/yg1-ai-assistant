@@ -1806,7 +1806,7 @@ export default function ProductRecommendPage() {
       const res = await fetch("/api/recommend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ intakeForm: form, messages: [], sessionState: null }),
+        body: JSON.stringify({ intakeForm: form, messages: [], sessionState: null, language }),
       })
       const data = await res.json()
       if (data.error) throw new Error(data.detail ?? data.error)
@@ -1873,6 +1873,7 @@ export default function ProductRecommendPage() {
           messages: history,
           sessionState,
           displayedProducts,
+          language,
         }),
       })
       const data = await res.json()
