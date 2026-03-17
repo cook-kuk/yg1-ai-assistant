@@ -1301,6 +1301,8 @@ function buildCandidateSnapshot(
       lengthOfCutMm: c.product.lengthOfCutMm ?? null,
       overallLengthMm: c.product.overallLengthMm ?? null,
       helixAngleDeg: c.product.helixAngleDeg ?? null,
+      description: c.product.description ?? null,
+      featureText: c.product.featureText ?? null,
       materialTags: c.product.materialTags,
       score: c.score,
       scoreBreakdown: c.scoreBreakdown,

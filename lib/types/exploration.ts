@@ -120,6 +120,8 @@ export interface CandidateSnapshot {
   lengthOfCutMm: number | null
   overallLengthMm: number | null
   helixAngleDeg: number | null
+  description: string | null       // series_description
+  featureText: string | null        // series_feature
   materialTags: string[]
   score: number
   scoreBreakdown: import("./canonical").ScoreBreakdown | null

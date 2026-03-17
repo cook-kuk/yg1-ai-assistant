@@ -331,19 +331,11 @@ export async function runHybridRetrieval(
   const minScoreThreshold = Math.round(maxScore * 0.25) // At least 25% match required
   const qualifiedCandidates = scored.filter(s => s.score >= minScoreThreshold)
 
-  // ── Diversity: dedupe by product code + limit per-series ──
-  const MAX_PER_SERIES = 3
-  const seriesCount = new Map<string, number>()
+  // ── Dedupe by product code (no series cap — show all matched products) ──
   const productCodesSeen = new Set<string>()
   const diverseCandidates = qualifiedCandidates.filter(c => {
-    // 같은 제품코드(normalizedCode) 중복 제거
     if (productCodesSeen.has(c.product.normalizedCode)) return false
     productCodesSeen.add(c.product.normalizedCode)
-    // 같은 시리즈 내 최대 3개까지만
-    const series = c.product.seriesName ?? c.product.displayCode
-    const count = seriesCount.get(series) ?? 0
-    if (count >= MAX_PER_SERIES) return false
-    seriesCount.set(series, count + 1)
     return true
   })
 

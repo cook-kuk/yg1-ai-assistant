@@ -382,6 +382,12 @@ function CandidateCard({ c }: { c: CandidateSnapshot }) {
           {c.materialTags.length > 0 && (
             <div className="text-[10px] text-gray-400 mt-0.5">{c.materialTags.join("/")}군</div>
           )}
+          {c.description && (
+            <div className="text-[10px] text-gray-500 mt-1 italic leading-relaxed">{c.description}</div>
+          )}
+          {c.featureText && (
+            <div className="text-[10px] text-teal-600 mt-0.5 leading-relaxed">{c.featureText}</div>
+          )}
         </div>
       </div>
       <div className="flex flex-wrap gap-1.5 text-xs text-gray-600">
