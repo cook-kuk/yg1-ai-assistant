@@ -31,7 +31,7 @@ export interface ProductIntakeForm {
   machiningIntent: AnswerState<MachiningIntent>
   toolTypeOrCurrentProduct: AnswerState<string>
   diameterInfo: AnswerState<string>
-  country?: AnswerState<MarketRegion>
+  country: AnswerState<MarketRegion>
   advanced?: {
     fluteCount?: AnswerState<number>
     coating?: AnswerState<string>
@@ -132,7 +132,7 @@ export interface IntakeFieldConfig {
 
 export const FIELD_CONFIGS: IntakeFieldConfig[] = [
   {
-    key: "country" as keyof ProductIntakeForm,
+    key: "country",
     label: "시장 / 국가",
     emoji: "🌏",
     description: "어느 시장의 제품을 찾으시나요?",
