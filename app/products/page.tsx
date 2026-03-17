@@ -259,12 +259,13 @@ function ScoreBreakdownPanel({ breakdown }: { breakdown: ScoreBreakdown }) {
 }
 
 // ── ProductCard ────────────────────────────────────────────────
-function ProductCard({ scored, rank, isAlternative = false }: {
-  scored: ScoredProduct; rank: number; isAlternative?: boolean
+function ProductCard({ scored, rank, isAlternative = false, evidenceSummary = null }: {
+  scored: ScoredProduct; rank: number; isAlternative?: boolean; evidenceSummary?: EvidenceSummary | null
 }) {
   const { language } = useApp()
   const [open, setOpen] = useState(!isAlternative)
   const p = scored.product
+  const bestCondition = evidenceSummary?.bestCondition ?? null
   return (
     <Card className={`border ${isAlternative ? "border-gray-200" : "border-blue-200 shadow-sm"}`}>
       <CardHeader className="pb-2 pt-3 px-4">
@@ -331,6 +332,26 @@ function ProductCard({ scored, rank, isAlternative = false }: {
               <div className="text-xs text-gray-500 mb-1">{language === 'ko' ? '적용 소재' : 'Materials'}</div>
               <div className="flex flex-wrap gap-1">
                 {p.materialTags.map(t => <Badge key={t} variant="secondary" className="text-xs">{language === "ko" ? `${t}군` : `${t} Group`}</Badge>)}
+              </div>
+            </div>
+          )}
+          {bestCondition && (
+            <div>
+              <div className="text-xs text-gray-500 mb-1">{language === 'ko' ? '절삭조건' : 'Cutting Conditions'}</div>
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+                  {bestCondition.Vc && <span className="text-gray-700">Vc: {bestCondition.Vc}</span>}
+                  {bestCondition.fz && <span className="text-gray-700">fz: {bestCondition.fz}</span>}
+                  {bestCondition.ap && <span className="text-gray-700">ap: {bestCondition.ap}</span>}
+                  {bestCondition.ae && <span className="text-gray-700">ae: {bestCondition.ae}</span>}
+                  {bestCondition.n && <span className="text-gray-700">n: {bestCondition.n}</span>}
+                  {bestCondition.vf && <span className="text-gray-700">vf: {bestCondition.vf}</span>}
+                </div>
+                <div className="text-[10px] text-purple-600 mt-2">
+                  {language === 'ko'
+                    ? `카탈로그/DB 근거 · 신뢰도 ${Math.round((evidenceSummary?.bestConfidence ?? 0) * 100)}% · ${evidenceSummary?.sourceCount ?? 0}건`
+                    : `Catalog/DB grounded · Confidence ${Math.round((evidenceSummary?.bestConfidence ?? 0) * 100)}% · ${evidenceSummary?.sourceCount ?? 0} sources`}
+                </div>
               </div>
             </div>
           )}
@@ -730,7 +751,11 @@ function RecommendationPanel({ result, resultText, evidenceSummaries, explanatio
           <div className="flex items-center gap-1 text-xs font-semibold text-gray-700 mb-2">
             <Zap size={12} className="text-blue-600" />{language === 'ko' ? '추천 제품' : 'Recommended Product'}
           </div>
-          <ProductCard scored={primaryProduct} rank={1} />
+          <ProductCard
+            scored={primaryProduct}
+            rank={1}
+            evidenceSummary={evidenceSummaries?.find(es => es.productCode === primaryProduct.product.normalizedCode) ?? null}
+          />
         </div>
       )}
       {alternatives.length > 0 && (
@@ -738,7 +763,13 @@ function RecommendationPanel({ result, resultText, evidenceSummaries, explanatio
           <div className="text-xs font-semibold text-gray-500 mb-2">{language === 'ko' ? `대체 후보 (${alternatives.length})` : `Alternatives (${alternatives.length})`}</div>
           <div className="space-y-2">
             {alternatives.map((alt, i) => (
-              <ProductCard key={alt.product.id} scored={alt} rank={i + 2} isAlternative />
+              <ProductCard
+                key={alt.product.id}
+                scored={alt}
+                rank={i + 2}
+                isAlternative
+                evidenceSummary={evidenceSummaries?.find(es => es.productCode === alt.product.normalizedCode) ?? null}
+              />
             ))}
           </div>
         </div>
