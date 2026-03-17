@@ -177,7 +177,8 @@ Respond: {"intent":"...", "confidence": 0.0-1.0, "extractedValue": "..." or null
     systemPrompt,
     [{ role: "user", content: message }],
     200,
-    "haiku"
+    "haiku",
+    "intent-classifier"
   )
 
   try {

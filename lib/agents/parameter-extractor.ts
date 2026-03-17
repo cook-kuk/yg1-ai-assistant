@@ -104,7 +104,8 @@ Extract any relevant values. Respond with JSON only.
     systemPrompt,
     [{ role: "user", content: message }],
     200,
-    "haiku"
+    "haiku",
+    "parameter-extractor"
   )
 
   try {

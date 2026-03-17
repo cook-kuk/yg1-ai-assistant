@@ -71,7 +71,8 @@ JSON 응답: {"responseText": "..."}`
       systemPrompt,
       [{ role: "user", content: questionText }],
       300,
-      "sonnet"
+      "sonnet",
+      "response-composer"
     )
     const parsed = JSON.parse(raw.trim().replace(/```json\n?|\n?```/g, ""))
     return {

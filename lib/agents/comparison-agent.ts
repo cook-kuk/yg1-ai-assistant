@@ -106,7 +106,8 @@ export async function compareProducts(
       systemPrompt,
       [{ role: "user", content: `다음 제품들을 비교해주세요:\n\n${productLines}` }],
       800,
-      "sonnet"
+      "sonnet",
+      "comparison"
     )
 
     return {
