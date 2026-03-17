@@ -227,6 +227,19 @@ function shouldLogTimings(): boolean {
   return process.env.LOG_RECOMMEND_TIMINGS?.toLowerCase() !== "false"
 }
 
+function formatSqlForLog(query: string): string {
+  return query.replace(/\s+/g, " ").trim()
+}
+
+function formatQueryValuesForLog(values: unknown[]): string {
+  return JSON.stringify(values, (_key, value) => {
+    if (typeof value === "bigint") return value.toString()
+    if (value instanceof Date) return value.toISOString()
+    if (value === undefined) return null
+    return value
+  })
+}
+
 function getPool(): Pool {
   const connectionString = dbConnectionString()
   if (!connectionString) {
@@ -255,6 +268,12 @@ async function executeLoggedQuery<T extends QueryResultRow>(
 ): Promise<QueryResult<T>> {
   const startedAt = Date.now()
   const normalizedQuery = query.trim()
+  const compactQuery = formatSqlForLog(normalizedQuery)
+  const loggedValues = formatQueryValuesForLog(values)
+
+  console.log(
+    `[product-db] sql operation=${context.operation} query="${compactQuery}" values=${loggedValues}`
+  )
 
   await appendRuntimeLog({
     category: "db",
@@ -268,6 +287,11 @@ async function executeLoggedQuery<T extends QueryResultRow>(
 
   try {
     const result = await getPool().query<T>(query, values)
+    const durationMs = Date.now() - startedAt
+
+    console.log(
+      `[product-db] sql:done operation=${context.operation} duration=${durationMs}ms rows=${result.rowCount ?? result.rows.length}`
+    )
 
     await appendRuntimeLog({
       category: "db",
@@ -276,13 +300,16 @@ async function executeLoggedQuery<T extends QueryResultRow>(
         ...context,
         sql: normalizedQuery,
         values,
-        durationMs: Date.now() - startedAt,
+        durationMs,
         rowCount: result.rowCount ?? result.rows.length,
       },
     })
 
     return result
   } catch (error) {
+    console.error(
+      `[product-db] sql:error operation=${context.operation} duration=${Date.now() - startedAt}ms message=${error instanceof Error ? error.message : String(error)}`
+    )
     await logRuntimeError({
       category: "db",
       event: "query.error",
