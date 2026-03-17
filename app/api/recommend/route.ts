@@ -218,12 +218,34 @@ async function handleExploration(
         }
       } catch (orchError) {
         console.error(`[recommend] All orchestration failed:`, orchError)
-        // Fallback: answer_general with error context
-        orchResult = {
-          action: { type: "answer_general", message: `현재 ${candidates.length}개 후보가 있습니다. 질문을 다시 말씀해주세요.`, preGenerated: true },
-          reasoning: "orchestration_error:fallback",
-          agentsInvoked: [],
-          escalatedToOpus: false,
+        // Smart fallback: try to parse chip selection directly
+        const chipClean = lastUserMsg.text.replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
+        const lastField = prevState.lastAskedField
+        if (lastField && chipClean) {
+          const directFilter = parseAnswerToFilter(lastField, chipClean)
+          if (directFilter) {
+            console.log(`[recommend] Fallback: direct chip parse → ${lastField}=${chipClean}`)
+            orchResult = {
+              action: { type: "continue_narrowing", filter: { ...directFilter, appliedAt: turnCount } },
+              reasoning: "orchestration_error:direct_chip_fallback",
+              agentsInvoked: [],
+              escalatedToOpus: false,
+            }
+          } else {
+            orchResult = {
+              action: { type: "answer_general", message: `현재 ${candidates.length}개 후보가 있습니다. 질문을 다시 말씀해주세요.`, preGenerated: true },
+              reasoning: "orchestration_error:fallback",
+              agentsInvoked: [],
+              escalatedToOpus: false,
+            }
+          }
+        } else {
+          orchResult = {
+            action: { type: "answer_general", message: `현재 ${candidates.length}개 후보가 있습니다. 질문을 다시 말씀해주세요.`, preGenerated: true },
+            reasoning: "orchestration_error:fallback",
+            agentsInvoked: [],
+            escalatedToOpus: false,
+          }
         }
       }
       let action = orchResult.action
