@@ -22,3 +22,6 @@ export const ENABLE_COMPARISON_AGENT = envFlag("ENABLE_COMPARISON_AGENT", true)
 
 /** Enable validation gate (response checking) */
 export const ENABLE_VALIDATION_GATE = envFlag("ENABLE_VALIDATION_GATE", true)
+
+/** Use Claude tool_use for intent routing instead of regex patterns (default: false for safe rollout) */
+export const ENABLE_TOOL_USE_ROUTING = envFlag("ENABLE_TOOL_USE_ROUTING", false)

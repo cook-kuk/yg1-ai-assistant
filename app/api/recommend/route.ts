@@ -42,7 +42,8 @@ import { runFactCheck } from "@/lib/domain/fact-checker"
 import { analyzeInquiry, getRedirectResponse } from "@/lib/domain/inquiry-analyzer"
 import { planAction } from "@/lib/domain/action-planner"
 import type { ActionPlan } from "@/lib/domain/action-planner"
-import { orchestrateTurn } from "@/lib/agents/orchestrator"
+import { orchestrateTurn, orchestrateTurnWithTools } from "@/lib/agents/orchestrator"
+import { ENABLE_TOOL_USE_ROUTING } from "@/lib/feature-flags"
 import { compareProducts, resolveProductReferences } from "@/lib/agents/comparison-agent"
 import type { TurnContext, OrchestratorResult } from "@/lib/agents/types"
 import { buildSessionState, carryForwardState, createInitialStage, createFilterStage, restoreOnePreviousStep, restoreToBeforeFilter } from "@/lib/domain/session-manager"
@@ -174,7 +175,9 @@ async function handleExploration(
         currentCandidates: candidates,
       }
 
-      const orchResult = await orchestrateTurn(turnCtx, provider)
+      const orchResult = ENABLE_TOOL_USE_ROUTING
+        ? await orchestrateTurnWithTools(turnCtx, provider)
+        : await orchestrateTurn(turnCtx, provider)
       const action = orchResult.action
 
       // ── Dispatch orchestrator action ──────────────────────
@@ -309,8 +312,11 @@ async function handleExploration(
           }
         }
 
-        // General chat fallback — include displayed products for grounded answers
-        const llmResponse = await handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form, prevState.displayedCandidates)
+        // General chat — use preGenerated text if available (from tool-use path), otherwise call LLM
+        const preGenerated = action.type === "answer_general" && action.preGenerated && action.message
+        const llmResponse = preGenerated
+          ? { text: action.message, chips: generateFollowUpChips(lastUserMsg.text, candidates.length) }
+          : await handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form, prevState.displayedCandidates)
         const sessionState: ExplorationSessionState = {
           sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
           candidateCount: prevState.candidateCount ?? candidates.length,
@@ -568,7 +574,7 @@ async function buildQuestionResponse(
       const systemPrompt = buildSystemPrompt(language)
       const sessionCtx = buildSessionContext(form, sessionState, candidates.length, snapshotToDisplayed(candidateSnapshot))
       const raw = await provider.complete(systemPrompt, [
-        { role: "user", content: `${sessionCtx}\n\n다음 질문을 자연스럽고 간결한 ${language === "ko" ? "한국어" : "영어"}로 다듬어주세요: "${question.questionText}"\n현재 후보 ${candidates.length}개.\nJSON으로 응답: { "responseText": "...", "extractedParams": {}, "isComplete": false, "skipQuestion": false }` }
+        { role: "user", content: `${sessionCtx}\n\n다음 질문을 자연스럽고 간결한 ${language === "ko" ? "한국어" : "영어"}로 다듬어주세요: "${question?.questionText ?? ""}"\n현재 후보 ${candidates.length}개.\nJSON으로 응답: { "responseText": "...", "extractedParams": {}, "isComplete": false, "skipQuestion": false }` }
       ], 300)
 
       const parsed = safeParseJSON(raw)
