@@ -302,9 +302,7 @@ function ProductCard({ scored, rank, isAlternative = false }: {
             {p.description && (
               <div className="text-[10px] text-gray-500 mt-1 italic leading-relaxed">{p.description.replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, "")}</div>
             )}
-            {p.featureText && (
-              <div className="text-[10px] text-teal-600 mt-0.5 leading-relaxed whitespace-pre-line">{p.featureText.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "")}</div>
-            )}
+            {/* featureText is inside the spec toggle below */}
           </div>
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0" onClick={() => setOpen(o => !o)}>
             {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -323,6 +321,11 @@ function ProductCard({ scored, rank, isAlternative = false }: {
             <SpecRow label={language === 'ko' ? '전체 길이' : 'OAL'} value={p.overallLengthMm != null ? `${p.overallLengthMm}mm` : null} />
             <SpecRow label={language === 'ko' ? '나선각' : 'Helix Angle'} value={p.helixAngleDeg != null ? `${p.helixAngleDeg}°` : null} />
           </div>
+          {p.featureText && (
+            <div className="text-[11px] text-teal-700 bg-teal-50 rounded-lg p-2.5 leading-relaxed whitespace-pre-line">
+              {p.featureText.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "")}
+            </div>
+          )}
           {p.materialTags.length > 0 && (
             <div>
               <div className="text-xs text-gray-500 mb-1">{language === 'ko' ? '적용 소재' : 'Materials'}</div>
@@ -420,10 +423,7 @@ function CandidateCard({ c }: { c: CandidateSnapshot }) {
             <Info size={9} />
           </button>
           {showXai && (
-            <div className="mt-2 space-y-2">
-              {c.featureText && (
-                <div className="text-[10px] text-teal-700 bg-teal-50 rounded px-2 py-1.5 leading-relaxed">{c.featureText.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "")}</div>
-              )}
+            <div className="mt-2">
               <ScoreBreakdownPanel breakdown={bd} />
             </div>
           )}
