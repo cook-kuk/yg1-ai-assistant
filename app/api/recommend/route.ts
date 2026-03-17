@@ -582,6 +582,18 @@ async function handleExploration(
         let filtered: CandidateSnapshot[]
         if (action.keepIndices?.length) {
           filtered = snapshot.filter(c => action.keepIndices!.includes(c.rank))
+        } else if (action.field === "materialTags") {
+          // Special handling for array fields (materialTags)
+          filtered = snapshot.filter(c => {
+            const tags = c.materialTags ?? []
+            const targetStr = action.value.toLowerCase()
+            switch (action.operator) {
+              case "contains": return tags.some(t => t.toLowerCase().includes(targetStr))
+              case "eq": return tags.some(t => t.toLowerCase() === targetStr)
+              case "neq": return !tags.some(t => t.toLowerCase() === targetStr)
+              default: return tags.some(t => t.toLowerCase() === targetStr)
+            }
+          })
         } else {
           filtered = snapshot.filter(c => {
             const fieldVal = (c as unknown as Record<string, unknown>)[action.field]
@@ -602,6 +614,12 @@ async function handleExploration(
               default: return strVal === targetStr
             }
           })
+        }
+
+        // Check if field exists on any candidate
+        const fieldExists = snapshot.some(c => (c as unknown as Record<string, unknown>)[action.field] != null)
+        if (!fieldExists && !action.keepIndices?.length) {
+          console.log(`[filter_displayed] Warning: field "${action.field}" not found on any candidate`)
         }
 
         // Keep original ranks (do NOT re-rank) so "전체 보기" restore works correctly
@@ -708,21 +726,18 @@ async function handleExploration(
           }
           case "list": {
             // For string-type fields, show unique value counts; for numeric fields, show table
-            const STRING_FIELDS = new Set(["coating", "seriesName", "brand", "toolMaterial"])
+            const STRING_FIELDS = new Set(["coating", "seriesName", "brand", "toolMaterial", "matchStatus", "stockStatus"])
             if (STRING_FIELDS.has(field)) {
-              // Show unique value counts
+              // Show unique values with counts
               const valueCounts = new Map<string, number>()
               for (const v of withValues) {
-                if (v.value != null) {
-                  const strVal = String(v.value)
-                  valueCounts.set(strVal, (valueCounts.get(strVal) ?? 0) + 1)
-                }
+                const key = v.value != null ? String(v.value) : "(없음)"
+                valueCounts.set(key, (valueCounts.get(key) ?? 0) + 1)
               }
-              const sorted = [...valueCounts.entries()].sort((a, b) => b[1] - a[1])
-              const lines = sorted.map(([val, count]) => `• ${val} (${count}개)`)
-              resultText = `표시된 제품의 ${field} 종류 (${sorted.length}가지):\n\n${lines.join("\n")}\n\n[Reference: YG-1 내부 DB]`
+              const lines = [...valueCounts.entries()].map(([val, count]) => `• ${val}: ${count}개`)
+              resultText = `표시된 제품의 ${field} 분포:\n${lines.join("\n")}\n\n총 ${snapshot.length}개 제품\n[Reference: YG-1 내부 DB]`
             } else {
-              // Show table: product code + field value for each displayed product
+              // Show table for numeric fields
               const tableRows = withValues
                 .filter(v => v.value != null)
                 .map(v => `| #${v.candidate.rank} | ${v.candidate.displayCode} | ${v.candidate.seriesName ?? "-"} | ${v.value} |`)
@@ -844,7 +859,7 @@ async function handleExploration(
         }
 
         // General chat — use preGenerated text if available (from tool-use path), otherwise call LLM
-        const preGenerated = action.type === "answer_general" && action.preGenerated && action.message
+        const preGenerated = action.type === "answer_general" && action.preGenerated === true && action.message != null
         const llmResponse = preGenerated
           ? { text: action.message, chips: generateFollowUpChips(lastUserMsg.text, candidates.length) }
           : await handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form, prevState.displayedCandidates)
