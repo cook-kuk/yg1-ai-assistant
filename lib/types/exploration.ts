@@ -74,6 +74,7 @@ export interface ExplorationSessionState {
   // ── Durable UI context (single source of truth) ──
   displayedCandidates: CandidateSnapshot[]  // what the user currently sees
   displayedChips: string[]                  // chips shown with the last question
+  displayedOptions: DisplayedOption[]       // structured narrowing options for numbered selection
   lastAction?: LastActionType               // what the system did last turn
 }
 
@@ -114,6 +115,11 @@ export interface CandidateSnapshot {
   diameterMm: number | null
   fluteCount: number | null
   coating: string | null
+  toolMaterial: string | null
+  shankDiameterMm: number | null
+  lengthOfCutMm: number | null
+  overallLengthMm: number | null
+  helixAngleDeg: number | null
   materialTags: string[]
   score: number
   scoreBreakdown: import("./canonical").ScoreBreakdown | null
@@ -122,4 +128,13 @@ export interface CandidateSnapshot {
   totalStock: number | null
   hasEvidence: boolean
   bestCondition: import("./evidence").CuttingConditions | null
+}
+
+/** Structured narrowing option (persisted for numbered selection) */
+export interface DisplayedOption {
+  index: number          // 1-based display position
+  label: string          // e.g. "Diamond (32개)"
+  field: string          // e.g. "coating"
+  value: string          // e.g. "Diamond"
+  count: number          // candidate count for this option
 }

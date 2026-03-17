@@ -90,7 +90,24 @@ export async function classifyIntent(
     return { intent: "SELECT_OPTION", confidence: 0.9, extractedValue: "상관없음", modelUsed: "haiku" }
   }
 
-  // ── 7.5. Meta-questions about the process (NOT parameters) ──
+  // ── 7.5. Numbered option selection ("2번", "2번으로", "두번째로") ──
+  if (sessionState) {
+    const optionIndex = parseNumberedOption(clean)
+    if (optionIndex !== null && sessionState.displayedOptions?.length > 0) {
+      const option = sessionState.displayedOptions.find(o => o.index === optionIndex)
+      if (option) {
+        return {
+          intent: "SELECT_OPTION",
+          confidence: 0.95,
+          extractedValue: option.value,
+          reasoning: `Numbered option #${optionIndex}: ${option.label}`,
+          modelUsed: "haiku",
+        }
+      }
+    }
+  }
+
+  // ── 7.6. Meta-questions about the process (NOT parameters) ──
   if (META_QUESTION_PATTERNS.some(p => p.test(clean))) {
     return { intent: "ASK_EXPLANATION", confidence: 0.85, modelUsed: "haiku" }
   }
@@ -119,8 +136,10 @@ export async function classifyIntent(
   }
 
   // ── 10. Final fallback ──
-  if (sessionState && !sessionState.resolutionStatus?.startsWith("resolved")) {
-    return { intent: "SET_PARAMETER", confidence: 0.5, extractedValue: clean, modelUsed: "haiku" }
+  if (sessionState) {
+    // In any active session (narrowing OR resolved), route to general answer
+    // This prevents "dead" responses after comparison or recommendation
+    return { intent: "START_NEW_TOPIC", confidence: 0.5, extractedValue: clean, modelUsed: "haiku" }
   }
   return { intent: "OUT_OF_SCOPE", confidence: 0.3, modelUsed: "haiku" }
 }
@@ -160,7 +179,8 @@ Respond: {"intent":"...", "confidence": 0.0-1.0, "extractedValue": "..." or null
     systemPrompt,
     [{ role: "user", content: message }],
     200,
-    "haiku"
+    "haiku",
+    "intent-classifier"
   )
 
   try {
@@ -178,6 +198,23 @@ Respond: {"intent":"...", "confidence": 0.0-1.0, "extractedValue": "..." or null
 }
 
 // ── Helpers ──────────────────────────────────────────────────
+
+/** Parse "2번", "2번으로", "두번째", "두번째로 가자" etc. */
+function parseNumberedOption(clean: string): number | null {
+  // "N번" pattern
+  const numMatch = clean.match(/^(\d+)\s*번/)
+  if (numMatch) return parseInt(numMatch[1])
+  // "N번으로" / "N번 선택"
+  const numActionMatch = clean.match(/(\d+)\s*번\s*(으로|선택|으로\s*(가|줄여|나가|좁혀))/)
+  if (numActionMatch) return parseInt(numActionMatch[1])
+  // Korean: "두번째로", "세번째"
+  const korMatch = clean.match(/(한|두|세|네|다섯|여섯)\s*번째/)
+  if (korMatch) {
+    const map: Record<string, number> = { "한": 1, "두": 2, "세": 3, "네": 4, "다섯": 5, "여섯": 6 }
+    return map[korMatch[1]] ?? null
+  }
+  return null
+}
 
 const KOREAN_NUMBERS: Record<string, number> = {
   "한": 1, "하나": 1, "두": 2, "둘": 2, "세": 3, "셋": 3,

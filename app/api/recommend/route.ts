@@ -42,7 +42,8 @@ import { runFactCheck } from "@/lib/domain/fact-checker"
 import { analyzeInquiry, getRedirectResponse } from "@/lib/domain/inquiry-analyzer"
 import { planAction } from "@/lib/domain/action-planner"
 import type { ActionPlan } from "@/lib/domain/action-planner"
-import { orchestrateTurn } from "@/lib/agents/orchestrator"
+import { orchestrateTurn, orchestrateTurnWithTools } from "@/lib/agents/orchestrator"
+import { ENABLE_TOOL_USE_ROUTING } from "@/lib/feature-flags"
 import { compareProducts, resolveProductReferences } from "@/lib/agents/comparison-agent"
 import type { TurnContext, OrchestratorResult } from "@/lib/agents/types"
 import { buildSessionState, carryForwardState, createInitialStage, createFilterStage, restoreOnePreviousStep, restoreToBeforeFilter } from "@/lib/domain/session-manager"
@@ -174,7 +175,9 @@ async function handleExploration(
         currentCandidates: candidates,
       }
 
-      const orchResult = await orchestrateTurn(turnCtx, provider)
+      const orchResult = ENABLE_TOOL_USE_ROUTING
+        ? await orchestrateTurnWithTools(turnCtx, provider)
+        : await orchestrateTurn(turnCtx, provider)
       const action = orchResult.action
 
       // ── Dispatch orchestrator action ──────────────────────
@@ -239,6 +242,7 @@ async function handleExploration(
           turnCount,
           displayedCandidates: snapshot,
           displayedChips: ["추천해주세요", "다른 조건으로", "⟵ 이전 단계", "처음부터 다시"],
+          displayedOptions: [],
           lastAction: "compare_products",
         }
         return NextResponse.json({
@@ -268,6 +272,38 @@ async function handleExploration(
             provider, lastUserMsg.text, currentInput, candidates, prevState
           )
           if (contextReply) {
+            // If already resolved, return answer directly (don't re-trigger recommendation)
+            if (prevState.resolutionStatus?.startsWith("resolved")) {
+              const sessionState: ExplorationSessionState = {
+                sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+                candidateCount: prevState.candidateCount ?? candidates.length,
+                appliedFilters: filters,
+                narrowingHistory,
+                stageHistory: prevState.stageHistory ?? [],
+                resolutionStatus: prevState.resolutionStatus,
+                resolvedInput: currentInput,
+                turnCount,
+                lastAskedField: prevState.lastAskedField,
+                displayedCandidates: prevState.displayedCandidates ?? [],
+                displayedChips: prevState.displayedChips ?? ["대체 후보 보기", "절삭조건 알려줘", "처음부터 다시"],
+                displayedOptions: prevState.displayedOptions ?? [],
+                lastAction: "explain_product",
+              }
+              return NextResponse.json({
+                text: contextReply,
+                purpose: "general_chat",
+                chips: prevState.displayedChips ?? ["대체 후보 보기", "절삭조건 알려줘", "처음부터 다시"],
+                isComplete: false,
+                recommendation: null,
+                sessionState,
+                evidenceSummaries: null,
+                candidateSnapshot: prevState.displayedCandidates ?? null,
+                extractedField: null, requestPreparation: null,
+                primaryExplanation: null, primaryFactChecked: null,
+                altExplanations: [], altFactChecked: [],
+                orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+              })
+            }
             return buildQuestionResponse(
               form, candidates, evidenceMap, currentInput,
               narrowingHistory, filters, turnCount, messages, provider, language,
@@ -276,8 +312,11 @@ async function handleExploration(
           }
         }
 
-        // General chat fallback — include displayed products for grounded answers
-        const llmResponse = await handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form, prevState.displayedCandidates)
+        // General chat — use preGenerated text if available (from tool-use path), otherwise call LLM
+        const preGenerated = action.type === "answer_general" && action.preGenerated && action.message
+        const llmResponse = preGenerated
+          ? { text: action.message, chips: generateFollowUpChips(lastUserMsg.text, candidates.length) }
+          : await handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form, prevState.displayedCandidates)
         const sessionState: ExplorationSessionState = {
           sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
           candidateCount: prevState.candidateCount ?? candidates.length,
@@ -290,6 +329,7 @@ async function handleExploration(
           lastAskedField: prevState.lastAskedField,
           displayedCandidates: prevState.displayedCandidates ?? [],
           displayedChips: llmResponse.chips,
+          displayedOptions: prevState.displayedOptions ?? [],
           lastAction: "answer_general",
         }
         return NextResponse.json({
@@ -325,6 +365,7 @@ async function handleExploration(
           lastAskedField: prevState.lastAskedField,
           displayedCandidates: prevState.displayedCandidates ?? [],
           displayedChips: redirect.chips,
+          displayedOptions: prevState.displayedOptions ?? [],
           lastAction: "redirect_off_topic",
         }
         return NextResponse.json({
@@ -469,6 +510,9 @@ async function buildQuestionResponse(
   const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
   const chips = question?.chips ?? []
 
+  // Build structured displayedOptions from chips for numbered selection
+  const displayedOptions = buildDisplayedOptions(chips, question?.field ?? "unknown")
+
   // Build session state for client — single source of truth
   const sessionState: ExplorationSessionState = {
     sessionId: `ses-${Date.now()}`,
@@ -482,6 +526,7 @@ async function buildQuestionResponse(
     lastAskedField: question?.field ?? undefined,
     displayedCandidates: candidateSnapshot,
     displayedChips: chips,
+    displayedOptions,
     lastAction: "continue_narrowing",
   }
 
@@ -489,7 +534,8 @@ async function buildQuestionResponse(
   logNarrowingState("question", sessionState, question?.field ?? null)
 
   // If no question (resolved or out of questions), go to recommendation
-  if (!question) {
+  // BUT: if we have overrideText (explanation/undo feedback), show it instead of re-recommending
+  if (!question && !overrideText) {
     return buildRecommendationResponse(
       form, candidates, evidenceMap, input, history,
       filters, turnCount, messages, provider, language, snapshotToDisplayed(candidateSnapshot)
@@ -499,8 +545,8 @@ async function buildQuestionResponse(
   // candidateSnapshot already computed above (persisted in sessionState)
 
   // LLM-polish the question text (or use deterministic)
-  let responseText = overrideText ?? question.questionText
-  let responseChips = question.chips
+  let responseText = overrideText ?? question?.questionText ?? ""
+  let responseChips = question?.chips ?? chips
 
   if (overrideText) {
     // Skip LLM polish when we have an override (e.g. irrelevant input nudge)
@@ -528,7 +574,7 @@ async function buildQuestionResponse(
       const systemPrompt = buildSystemPrompt(language)
       const sessionCtx = buildSessionContext(form, sessionState, candidates.length, snapshotToDisplayed(candidateSnapshot))
       const raw = await provider.complete(systemPrompt, [
-        { role: "user", content: `${sessionCtx}\n\n다음 질문을 자연스럽고 간결한 ${language === "ko" ? "한국어" : "영어"}로 다듬어주세요: "${question.questionText}"\n현재 후보 ${candidates.length}개.\nJSON으로 응답: { "responseText": "...", "extractedParams": {}, "isComplete": false, "skipQuestion": false }` }
+        { role: "user", content: `${sessionCtx}\n\n다음 질문을 자연스럽고 간결한 ${language === "ko" ? "한국어" : "영어"}로 다듬어주세요: "${question?.questionText ?? ""}"\n현재 후보 ${candidates.length}개.\nJSON으로 응답: { "responseText": "...", "extractedParams": {}, "isComplete": false, "skipQuestion": false }` }
       ], 300)
 
       const parsed = safeParseJSON(raw)
@@ -655,6 +701,7 @@ async function buildRecommendationResponse(
         turnCount,
         displayedCandidates: buildCandidateSnapshot(candidates, evidenceMap),
         displayedChips: [],
+        displayedOptions: [],
         lastAction: "show_recommendation",
       }
       const sessionCtx = buildSessionContext(form, llmSessionState, candidates.length, snapshotToDisplayed(llmSessionState.displayedCandidates))
@@ -710,6 +757,7 @@ async function buildRecommendationResponse(
     turnCount,
     displayedCandidates: candidateSnapshot,
     displayedChips: followUpChips,
+    displayedOptions: [],
     lastAction: "show_recommendation",
   }
 
@@ -1195,6 +1243,25 @@ function logNarrowingState(
   console.log(`[narrowing:${phase}] ───────────────────────────`)
 }
 
+// ── Build structured displayedOptions from question chips ────
+function buildDisplayedOptions(chips: string[], field: string): import("@/lib/types/exploration").DisplayedOption[] {
+  const options: import("@/lib/types/exploration").DisplayedOption[] = []
+  let index = 1
+  for (const chip of chips) {
+    // Skip meta chips
+    if (["상관없음", "⟵ 이전 단계", "처음부터 다시", "추천해주세요"].includes(chip)) continue
+    // Parse "Square (26개)" or "Diamond — 4날 스퀘어 엔드밀 (32개)"
+    const countMatch = chip.match(/\((\d+)개\)/)
+    const count = countMatch ? parseInt(countMatch[1]) : 0
+    const value = chip.replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
+    if (value) {
+      options.push({ index, label: chip, field, value, count })
+      index++
+    }
+  }
+  return options
+}
+
 // ── Map CandidateSnapshot to displayedProducts format for LLM prompts ──
 function snapshotToDisplayed(snapshot: CandidateSnapshot[]): DisplayedProduct[] {
   return snapshot.slice(0, 10).map(c => ({
@@ -1229,6 +1296,11 @@ function buildCandidateSnapshot(
       diameterMm: c.product.diameterMm,
       fluteCount: c.product.fluteCount,
       coating: c.product.coating,
+      toolMaterial: c.product.toolMaterial ?? null,
+      shankDiameterMm: c.product.shankDiameterMm ?? null,
+      lengthOfCutMm: c.product.lengthOfCutMm ?? null,
+      overallLengthMm: c.product.overallLengthMm ?? null,
+      helixAngleDeg: c.product.helixAngleDeg ?? null,
       materialTags: c.product.materialTags,
       score: c.score,
       scoreBreakdown: c.scoreBreakdown,

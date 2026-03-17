@@ -23,14 +23,23 @@ export interface LLMToolResult {
 /** Model tier for multi-agent routing */
 export type ModelTier = "haiku" | "sonnet" | "opus"
 
+/** Agent name for per-agent model override */
+export type AgentName =
+  | "intent-classifier"
+  | "parameter-extractor"
+  | "comparison"
+  | "response-composer"
+  | "ambiguity-resolver"
+
 export interface LLMProvider {
-  complete(systemPrompt: string, messages: LLMMessage[], maxTokens?: number, modelTier?: ModelTier): Promise<string>
+  complete(systemPrompt: string, messages: LLMMessage[], maxTokens?: number, modelTier?: ModelTier, agentName?: AgentName): Promise<string>
   completeWithTools(
     systemPrompt: string,
     messages: LLMMessage[],
     tools: LLMTool[],
     maxTokens?: number,
-    modelTier?: ModelTier
+    modelTier?: ModelTier,
+    agentName?: AgentName
   ): Promise<{ text: string | null; toolUse: LLMToolResult | null }>
   available(): boolean
 }
@@ -39,8 +48,25 @@ function anthropicMainModel(): string {
   return process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514"
 }
 
-/** Resolve model ID from tier */
-function resolveModel(tier?: ModelTier): string {
+/** Agent-specific env var mapping */
+const AGENT_MODEL_ENV: Record<AgentName, string> = {
+  "intent-classifier":    "AGENT_INTENT_CLASSIFIER_MODEL",
+  "parameter-extractor":  "AGENT_PARAMETER_EXTRACTOR_MODEL",
+  "comparison":           "AGENT_COMPARISON_MODEL",
+  "response-composer":    "AGENT_RESPONSE_COMPOSER_MODEL",
+  "ambiguity-resolver":   "AGENT_AMBIGUITY_RESOLVER_MODEL",
+}
+
+/** Resolve model ID from tier, with optional agent-level override */
+export function resolveModel(tier?: ModelTier, agentName?: AgentName): string {
+  // 1. Agent-specific override (highest priority)
+  if (agentName) {
+    const envKey = AGENT_MODEL_ENV[agentName]
+    const agentModel = envKey ? process.env[envKey] : undefined
+    if (agentModel) return agentModel
+  }
+
+  // 2. Tier-level default
   if (!tier) return anthropicMainModel()
   switch (tier) {
     case "haiku":  return process.env.ANTHROPIC_HAIKU_MODEL  || "claude-haiku-4-5-20251001"
@@ -54,9 +80,9 @@ export function createClaudeProvider(): LLMProvider {
   return {
     available() { return !!process.env.ANTHROPIC_API_KEY },
 
-    async complete(systemPrompt, messages, maxTokens = 1024, modelTier?) {
+    async complete(systemPrompt, messages, maxTokens = 1024, modelTier?, agentName?) {
       if (!this.available()) throw new Error("No ANTHROPIC_API_KEY")
-      const model = resolveModel(modelTier)
+      const model = resolveModel(modelTier, agentName)
       const startMs = Date.now()
       try {
         const content = await createAnthropicMessageWithLogging({
@@ -97,9 +123,9 @@ export function createClaudeProvider(): LLMProvider {
       }
     },
 
-    async completeWithTools(systemPrompt, messages, tools, maxTokens = 1024, modelTier?) {
+    async completeWithTools(systemPrompt, messages, tools, maxTokens = 1024, modelTier?, agentName?) {
       if (!this.available()) throw new Error("No ANTHROPIC_API_KEY")
-      const model = resolveModel(modelTier)
+      const model = resolveModel(modelTier, agentName)
       try {
         const { default: Anthropic } = await import("@anthropic-ai/sdk")
         const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
@@ -166,9 +192,6 @@ export function createAzureProvider(): LLMProvider {
 export function getProvider(): LLMProvider {
   const claude = createClaudeProvider()
   if (claude.available()) return claude
-
-  // OpenAI/Azure providers are still placeholders.
-  // Do not select them until real implementations exist.
 
   // Deterministic fallback (no LLM, always works)
   return {

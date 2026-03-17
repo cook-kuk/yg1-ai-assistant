@@ -70,7 +70,7 @@ export type OrchestratorAction =
   | { type: "reset_session" }
   | { type: "compare_products"; targets: string[] }
   | { type: "explain_product"; target?: string }
-  | { type: "answer_general"; message: string }
+  | { type: "answer_general"; message: string; preGenerated?: boolean }
   | { type: "redirect_off_topic" }
 
 export interface OrchestratorResult {

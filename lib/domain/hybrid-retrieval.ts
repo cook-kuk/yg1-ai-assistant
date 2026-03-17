@@ -102,66 +102,50 @@ export async function runHybridRetrieval(
     // If no products match the material, keep all but scoring will penalize
   }
 
-  // Apply narrowing filters from conversation
+  // Apply narrowing filters from conversation — STRICT mode
+  // Once a filter is selected, it MUST be enforced. No silent skipping.
+  // The zero-candidate guard is in route.ts BEFORE the filter reaches here.
   for (const filter of filters) {
     const before = candidates.length
+    let filtered: typeof candidates | null = null
+
     switch (filter.field) {
       case "fluteCount": {
         const n = typeof filter.rawValue === "number" ? filter.rawValue : parseInt(String(filter.rawValue))
         if (!isNaN(n)) {
-          const filtered = candidates.filter(p => p.fluteCount === n)
-          if (filtered.length > 0) {
-            candidates = filtered
-            appliedFilters.push(filter)
-          }
+          filtered = candidates.filter(p => p.fluteCount === n)
         }
         break
       }
       case "coating": {
         const q = String(filter.rawValue).toLowerCase()
-        const filtered = candidates.filter(p =>
-          p.coating?.toLowerCase().includes(q)
-        )
-        if (filtered.length > 0) {
-          candidates = filtered
-          appliedFilters.push(filter)
-        }
+        filtered = candidates.filter(p => p.coating?.toLowerCase().includes(q))
         break
       }
       case "materialTag": {
         const tag = String(filter.rawValue).toUpperCase()
-        const filtered = candidates.filter(p => p.materialTags.includes(tag))
-        if (filtered.length > 0) {
-          candidates = filtered
-          appliedFilters.push(filter)
-        }
+        filtered = candidates.filter(p => p.materialTags.includes(tag))
         break
       }
       case "toolSubtype": {
         const q = String(filter.rawValue).toLowerCase()
-        const filtered = candidates.filter(p =>
-          p.toolSubtype?.toLowerCase().includes(q)
-        )
-        if (filtered.length > 0) {
-          candidates = filtered
-          appliedFilters.push(filter)
-        }
+        filtered = candidates.filter(p => p.toolSubtype?.toLowerCase().includes(q))
         break
       }
       case "seriesName": {
         const q = String(filter.rawValue).toLowerCase()
-        const filtered = candidates.filter(p =>
-          p.seriesName?.toLowerCase().includes(q)
-        )
-        if (filtered.length > 0) {
-          candidates = filtered
-          appliedFilters.push(filter)
-        }
+        filtered = candidates.filter(p => p.seriesName?.toLowerCase().includes(q))
         break
       }
-      default:
-        appliedFilters.push(filter)
-        break
+    }
+
+    if (filtered !== null) {
+      // STRICT: always apply the filter. If 0 results, keep 0 — route.ts guards this upstream.
+      candidates = filtered
+      appliedFilters.push(filter)
+      console.log(`[hybrid:filter] ${filter.field}=${filter.value}: ${before} → ${filtered.length} candidates`)
+    } else {
+      appliedFilters.push(filter)
     }
   }
   const filterMs = Date.now() - startedAt - fetchMs

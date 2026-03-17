@@ -283,6 +283,22 @@ function ProductCard({ scored, rank, isAlternative = false }: {
               {p.brand && <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">{p.brand}</span>}
               {p.seriesName && <span className="text-xs text-blue-700 font-medium">{p.seriesName}</span>}
             </div>
+            {/* ── Key spec summary — always visible in header ── */}
+            <div className="text-[11px] text-gray-600 mt-1 leading-relaxed font-medium">
+              {[
+                p.diameterMm != null ? `φ${p.diameterMm}mm` : null,
+                p.fluteCount != null ? `${p.fluteCount}날` : null,
+                p.coating ?? null,
+                p.toolMaterial ?? null,
+                p.shankDiameterMm != null ? `Shank ${p.shankDiameterMm}mm` : null,
+                p.lengthOfCutMm != null ? `CL ${p.lengthOfCutMm}mm` : null,
+                p.overallLengthMm != null ? `OAL ${p.overallLengthMm}mm` : null,
+                p.helixAngleDeg != null ? `${p.helixAngleDeg}°` : null,
+              ].filter(Boolean).join(" · ")}
+            </div>
+            {p.materialTags.length > 0 && (
+              <div className="text-[10px] text-gray-400 mt-0.5">{p.materialTags.join("/")}군</div>
+            )}
           </div>
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0" onClick={() => setOpen(o => !o)}>
             {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -350,17 +366,28 @@ function CandidateCard({ c }: { c: CandidateSnapshot }) {
             {c.brand && <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">{c.brand}</span>}
             {c.seriesName && <span className="text-xs text-blue-700 font-medium">{c.seriesName}</span>}
           </div>
-          {/* ── Inline spec summary: D-POWER GRAPHITE | EIB04 → Ø2mm · 2F · TiAlN · N군 · 7mm ── */}
-          <div className="text-[11px] text-gray-500 mt-0.5">
+          {/* ── Inline spec: φ4mm · 2F · Diamond · Carbide · Shank 4mm · CL 10mm · OAL 80mm · 30° ── */}
+          <div className="text-[11px] text-gray-600 mt-1 leading-relaxed font-medium">
             {[
-              c.diameterMm != null ? `Ø${c.diameterMm}mm` : null,
-              c.fluteCount != null ? `${c.fluteCount}F` : null,
+              c.diameterMm != null ? `φ${c.diameterMm}mm` : null,
+              c.fluteCount != null ? `${c.fluteCount}날` : null,
               c.coating ?? null,
-              c.materialTags.length > 0 ? `${c.materialTags.join("/")}군` : null,
-              c.displayLabel ?? null,
+              c.toolMaterial ?? null,
+              c.shankDiameterMm != null ? `Shank ${c.shankDiameterMm}mm` : null,
+              c.lengthOfCutMm != null ? `CL ${c.lengthOfCutMm}mm` : null,
+              c.overallLengthMm != null ? `OAL ${c.overallLengthMm}mm` : null,
+              c.helixAngleDeg != null ? `${c.helixAngleDeg}°` : null,
             ].filter(Boolean).join(" · ")}
           </div>
+          {c.materialTags.length > 0 && (
+            <div className="text-[10px] text-gray-400 mt-0.5">{c.materialTags.join("/")}군</div>
+          )}
         </div>
+      </div>
+      <div className="flex flex-wrap gap-1.5 text-xs text-gray-600">
+        {c.diameterMm != null && <span>{"φ"}{c.diameterMm}mm</span>}
+        {c.fluteCount != null && <span>{language === "ko" ? `${c.fluteCount}날` : `${c.fluteCount} FL`}</span>}
+        {c.coating && <span>{c.coating}</span>}
       </div>
       <div className="flex items-center gap-2">
         {c.hasEvidence && c.bestCondition && (

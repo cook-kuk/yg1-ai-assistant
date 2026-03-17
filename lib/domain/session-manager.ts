@@ -39,6 +39,7 @@ interface BuildSessionStateParams {
   lastAskedField?: string
   displayedCandidates: CandidateSnapshot[]
   displayedChips: string[]
+  displayedOptions: import("@/lib/types/exploration").DisplayedOption[]
   lastAction?: LastActionType
 }
 
@@ -55,6 +56,7 @@ export function buildSessionState(params: BuildSessionStateParams): ExplorationS
     lastAskedField: params.lastAskedField,
     displayedCandidates: params.displayedCandidates,
     displayedChips: params.displayedChips,
+    displayedOptions: params.displayedOptions,
     lastAction: params.lastAction,
   }
 }
@@ -76,6 +78,7 @@ export function carryForwardState(
     lastAskedField: overrides.lastAskedField ?? prev.lastAskedField,
     displayedCandidates: overrides.displayedCandidates ?? prev.displayedCandidates,
     displayedChips: overrides.displayedChips ?? prev.displayedChips,
+    displayedOptions: overrides.displayedOptions ?? prev.displayedOptions ?? [],
     lastAction: overrides.lastAction ?? prev.lastAction,
   })
 }
