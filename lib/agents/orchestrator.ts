@@ -310,11 +310,12 @@ const NARROWING_TOOLS: LLMTool[] = [
   },
   {
     name: "compare_products",
-    description: "사용자가 제품 비교를 요청할 때 호출. '1번이랑 2번 비교', '상위 3개 비교' 등.",
+    description: "사용자가 제품 비교를 요청할 때 호출. '1번이랑 2번 비교', '상위 3개 비교', 'OAL 기준으로 비교' 등. 특정 필드 기준 비교 시 compare_field 포함.",
     input_schema: {
       type: "object",
       properties: {
-        targets: { type: "array", items: { type: "string" }, description: "비교 대상. 예: ['1번', '2번']" }
+        targets: { type: "array", items: { type: "string" }, description: "비교 대상. 예: ['1번', '2번']" },
+        compare_field: { type: "string", description: "비교 기준 필드 (선택). 예: 'overallLengthMm', 'coating'. 특정 스펙 기준 비교 시 사용." }
       },
       required: ["targets"]
     }
@@ -332,7 +333,7 @@ const NARROWING_TOOLS: LLMTool[] = [
   },
   {
     name: "explain_concept",
-    description: "사용자가 기술 용어, 옵션, 가공 개념 등을 물어볼 때 호출. 'Square가 뭐야?', '코팅 차이 알려줘' 등.",
+    description: "사용자가 기술 용어, 옵션, 가공 개념 등을 물어볼 때 호출. 'Square가 뭐야?', '코팅 차이 알려줘' 등. 표시된 제품이 있으면 해당 제품 데이터를 참조하여 설명.",
     input_schema: {
       type: "object",
       properties: {
@@ -500,11 +501,15 @@ ${candidatesDesc}
 
 ═══ 핵심 라우팅 규칙 ═══
 
-⭐⭐ 최우선: 마지막 액션이 show_recommendation이면 (추천 결과가 표시된 상태):
+⭐⭐ 최우선: 마지막 액션이 show_recommendation/filter_displayed/query_displayed이면 (추천 결과가 표시된 상태):
 - OAL/CL/코팅/나선각 등 스펙 기준 필터링 → filter_displayed_products (절대 apply_filter 사용 금지!)
 - "OAL 60mm 이하", "코팅 Diamond인 것만", "CL 10mm인 것" → filter_displayed_products
 - "OAL 목록 줘", "제품별 OAL 표로", "제일 긴 건?", "몇 개?" → query_displayed_products
 - "전체 보기", "필터 해제" → filter_displayed_products (field="reset", operator="reset")
+- 비교, 설명 요청도 가능 (compare_products, explain_concept)
+
+⭐ 마지막 액션이 replace_slot이면: continue_narrowing 흐름으로 복귀 (좁히기 질문 응답 가능)
+⭐ 마지막 액션이 ask_clarification이면: 사용자가 선택지 중 하나를 선택 → apply_filter로 처리
 
 좁히기 질문 응답 (lastAction이 continue_narrowing일 때만):
 1. 사용자가 칩/옵션을 선택하면 → apply_filter 호출
@@ -581,7 +586,9 @@ function mapToolUseToAction(
 
     case "compare_products": {
       const targets = (input.targets as string[]) ?? []
-      return { type: "compare_products", targets }
+      const compareField = input.compare_field ? String(input.compare_field) : undefined
+      const normalizedCompareField = compareField ? (normalizeFieldName(compareField) ?? compareField) : undefined
+      return { type: "compare_products", targets, compareField: normalizedCompareField }
     }
 
     case "undo_step": {

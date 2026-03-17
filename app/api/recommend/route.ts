@@ -202,21 +202,19 @@ async function handleExploration(
       }
       let action = orchResult.action
 
-      // ── Guard: apply_filter on display-only fields → redirect to filter_displayed ──
-      const DISPLAY_ONLY_FIELDS = new Set(["overallLengthMm", "lengthOfCutMm", "shankDiameterMm", "helixAngleDeg", "toolMaterial", "brand"])
-      if (action.type === "continue_narrowing" && prevState.lastAction === "show_recommendation") {
+      // ── Guard: apply_filter in post-recommendation state → redirect ALL to filter_displayed ──
+      const POST_RECOMMENDATION_ACTIONS = new Set(["show_recommendation", "filter_displayed", "query_displayed"])
+      if (action.type === "continue_narrowing" && POST_RECOMMENDATION_ACTIONS.has(prevState.lastAction ?? "")) {
         const filterField = action.filter.field
-        const normalized = normalizeFieldName(filterField)
-        if (normalized && DISPLAY_ONLY_FIELDS.has(normalized)) {
-          console.log(`[orchestrator:guard] apply_filter(${filterField}) redirected to filter_displayed in post-recommendation state`)
-          action = {
-            type: "filter_displayed",
-            field: normalized,
-            operator: action.filter.op === "eq" ? "eq" : action.filter.op === "includes" ? "contains" : "eq",
-            value: String(action.filter.rawValue),
-          }
-          orchResult = { ...orchResult, action }
+        const normalized = normalizeFieldName(filterField) ?? filterField
+        console.log(`[orchestrator:guard] apply_filter(${filterField}) redirected to filter_displayed in post-recommendation state`)
+        action = {
+          type: "filter_displayed",
+          field: normalized,
+          operator: action.filter.op === "eq" ? "eq" : action.filter.op === "includes" ? "contains" : action.filter.op,
+          value: String(action.filter.rawValue),
         }
+        orchResult = { ...orchResult, action }
       }
 
       // ── Dispatch orchestrator action ──────────────────────
@@ -281,10 +279,12 @@ async function handleExploration(
         const field = action.field
         const existingIdx = filters.findIndex(f => f.field === field && f.op !== "skip")
 
-        // Remove old filter
+        // Save old filter before removing (needed for zero-candidate revert)
         let oldValue = "(없음)"
+        let savedOldFilter: AppliedFilter | null = null
         if (existingIdx >= 0) {
           oldValue = filters[existingIdx].value
+          savedOldFilter = { ...filters[existingIdx] }
           filters.splice(existingIdx, 1)
         }
 
@@ -308,6 +308,29 @@ async function handleExploration(
 
         // Re-run retrieval
         const newResult = await runHybridRetrieval(currentInput, filters.filter(f => f.op !== "skip"))
+
+        // ── Zero-candidate guard: if new value results in 0 candidates, revert ──
+        if (newResult.candidates.length === 0) {
+          // Revert: remove new filter, restore old filter
+          filters.pop()
+          if (existingIdx >= 0 && savedOldFilter) {
+            filters.push(savedOldFilter)
+          }
+          // Rebuild input from base + all filters
+          let revertInput = { ...baseInput }
+          for (const f of filters) {
+            revertInput = applyFilterToInput(revertInput, f)
+          }
+          currentInput = revertInput
+
+          console.log(`[orchestrator:guard] replace_slot ${field}=${action.newValue} would result in 0 candidates — BLOCKED`)
+          return buildQuestionResponse(
+            form, candidates, evidenceMap, currentInput,
+            narrowingHistory, filters, turnCount, messages, provider, language,
+            `"${action.displayValue ?? action.newValue}" 조건을 적용하면 후보가 없습니다. 현재 ${candidates.length}개 후보에서 다른 값을 선택해주세요.`
+          )
+        }
+
         narrowingHistory.push({
           question: "slot-replace",
           answer: `${field}: ${oldValue} → ${action.displayValue ?? action.newValue}`,
@@ -391,6 +414,8 @@ async function handleExploration(
           resolvedInput: currentInput,
           turnCount,
           displayedCandidates: snapshot,
+          fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+          displayedSetFilter: prevState.displayedSetFilter ?? null,
           displayedChips: ["추천해주세요", "다른 조건으로", "⟵ 이전 단계", "처음부터 다시"],
           displayedOptions: [],
           lastAction: "compare_products",
@@ -433,6 +458,8 @@ async function handleExploration(
             turnCount,
             lastAskedField: prevState.lastAskedField,
             displayedCandidates: prevState.displayedCandidates ?? [],
+            fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+            displayedSetFilter: prevState.displayedSetFilter ?? null,
             displayedChips: cuttingConditionReply.chips,
             displayedOptions: prevState.displayedOptions ?? [],
             lastAction: "answer_general",
@@ -454,7 +481,11 @@ async function handleExploration(
         }
 
         // Resolve targets from displayed products
-        const resolved = resolveProductReferences(action.targets, snapshot)
+        const explainSnapshot = prevState.displayedCandidates?.length > 0
+          ? prevState.displayedCandidates
+          : buildCandidateSnapshot(candidates, evidenceMap)
+        const explainTargets = action.type === "explain_product" && action.target ? [action.target] : []
+        const resolved = resolveProductReferences(explainTargets, explainSnapshot)
         const productLines = resolved.map(p =>
           `**#${p.rank} ${p.displayCode}**${p.displayLabel ? ` [${p.displayLabel}]` : ""}\n` +
           `${p.brand ?? "?"} | ${p.seriesName ?? "?"}\n` +
@@ -475,7 +506,9 @@ async function handleExploration(
           resolvedInput: currentInput,
           turnCount,
           lastAskedField: prevState.lastAskedField,
-          displayedCandidates: snapshot,
+          displayedCandidates: explainSnapshot,
+          fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+          displayedSetFilter: prevState.displayedSetFilter ?? null,
           displayedChips: ["비교해줘", "추천해주세요", "⟵ 이전 단계"],
           displayedOptions: prevState.displayedOptions ?? [],
           lastAction: "answer_general",
@@ -488,7 +521,7 @@ async function handleExploration(
           recommendation: null,
           sessionState,
           evidenceSummaries: null,
-          candidateSnapshot: resolved,
+          candidateSnapshot: resolved.length > 0 ? resolved : explainSnapshot,
           extractedField: null, requestPreparation: null,
           primaryExplanation: null, primaryFactChecked: null,
           altExplanations: [], altFactChecked: [],
@@ -571,8 +604,7 @@ async function handleExploration(
           })
         }
 
-        // Re-rank filtered results
-        filtered = filtered.map((c, i) => ({ ...c, rank: i + 1 }))
+        // Keep original ranks (do NOT re-rank) so "전체 보기" restore works correctly
 
         const resultText = filtered.length > 0
           ? `${fullList.length}개 중 ${filtered.length}개가 조건에 맞습니다:\n${filtered.slice(0, 5).map(c => `#${c.rank} ${c.displayCode} (${c.seriesName ?? "-"})`).join("\n")}`
@@ -588,9 +620,9 @@ async function handleExploration(
           resolvedInput: currentInput,
           turnCount,
           lastAskedField: prevState.lastAskedField,
-          displayedCandidates: filtered.length > 0 ? filtered : snapshot,
+          displayedCandidates: filtered,
           fullDisplayedCandidates: fullList,
-          displayedSetFilter: filtered.length > 0 ? { field: action.field, operator: action.operator, value: action.value } : null,
+          displayedSetFilter: { field: action.field, operator: action.operator, value: action.value },
           displayedChips: ["전체 보기", "추천해주세요", "처음부터 다시"],
           displayedOptions: prevState.displayedOptions ?? [],
           lastAction: "filter_displayed",
@@ -603,7 +635,7 @@ async function handleExploration(
           recommendation: null,
           sessionState,
           evidenceSummaries: null,
-          candidateSnapshot: filtered.length > 0 ? filtered : snapshot,
+          candidateSnapshot: filtered,
           extractedField: null, requestPreparation: null,
           primaryExplanation: null, primaryFactChecked: null,
           altExplanations: [], altFactChecked: [],
@@ -675,11 +707,27 @@ async function handleExploration(
             break
           }
           case "list": {
-            // Show table: product code + field value for each displayed product
-            const tableRows = withValues
-              .filter(v => v.value != null)
-              .map(v => `| #${v.candidate.rank} | ${v.candidate.displayCode} | ${v.candidate.seriesName ?? "-"} | ${v.value} |`)
-            resultText = `표시된 제품의 ${field}:\n\n| # | 제품코드 | 시리즈 | ${field} |\n|---|---|---|---|\n${tableRows.join("\n")}\n\n[Reference: YG-1 내부 DB]`
+            // For string-type fields, show unique value counts; for numeric fields, show table
+            const STRING_FIELDS = new Set(["coating", "seriesName", "brand", "toolMaterial"])
+            if (STRING_FIELDS.has(field)) {
+              // Show unique value counts
+              const valueCounts = new Map<string, number>()
+              for (const v of withValues) {
+                if (v.value != null) {
+                  const strVal = String(v.value)
+                  valueCounts.set(strVal, (valueCounts.get(strVal) ?? 0) + 1)
+                }
+              }
+              const sorted = [...valueCounts.entries()].sort((a, b) => b[1] - a[1])
+              const lines = sorted.map(([val, count]) => `• ${val} (${count}개)`)
+              resultText = `표시된 제품의 ${field} 종류 (${sorted.length}가지):\n\n${lines.join("\n")}\n\n[Reference: YG-1 내부 DB]`
+            } else {
+              // Show table: product code + field value for each displayed product
+              const tableRows = withValues
+                .filter(v => v.value != null)
+                .map(v => `| #${v.candidate.rank} | ${v.candidate.displayCode} | ${v.candidate.seriesName ?? "-"} | ${v.value} |`)
+              resultText = `표시된 제품의 ${field}:\n\n| # | 제품코드 | 시리즈 | ${field} |\n|---|---|---|---|\n${tableRows.join("\n")}\n\n[Reference: YG-1 내부 DB]`
+            }
             break
           }
           case "find": {
@@ -693,6 +741,9 @@ async function handleExploration(
                   case "eq": return !isNaN(v.numValue) && !isNaN(cmpVal) ? v.numValue === cmpVal : strVal === targetStr
                   case "gt": return !isNaN(v.numValue) && !isNaN(cmpVal) && v.numValue > cmpVal
                   case "gte": return !isNaN(v.numValue) && !isNaN(cmpVal) && v.numValue >= cmpVal
+                  case "lt": return !isNaN(v.numValue) && !isNaN(cmpVal) && v.numValue < cmpVal
+                  case "lte": return !isNaN(v.numValue) && !isNaN(cmpVal) && v.numValue <= cmpVal
+                  case "neq": return !isNaN(v.numValue) && !isNaN(cmpVal) ? v.numValue !== cmpVal : strVal !== targetStr
                   case "contains": return strVal.includes(targetStr)
                   default: return strVal === targetStr
                 }
@@ -763,6 +814,8 @@ async function handleExploration(
                 turnCount,
                 lastAskedField: prevState.lastAskedField,
                 displayedCandidates: prevState.displayedCandidates ?? [],
+                fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+                displayedSetFilter: prevState.displayedSetFilter ?? null,
                 displayedChips: prevState.displayedChips ?? ["대체 후보 보기", "절삭조건 알려줘", "처음부터 다시"],
                 displayedOptions: prevState.displayedOptions ?? [],
                 lastAction: "explain_product",
@@ -806,6 +859,8 @@ async function handleExploration(
           turnCount,
           lastAskedField: prevState.lastAskedField,
           displayedCandidates: prevState.displayedCandidates ?? [],
+          fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+          displayedSetFilter: prevState.displayedSetFilter ?? null,
           displayedChips: llmResponse.chips,
           displayedOptions: prevState.displayedOptions ?? [],
           lastAction: "answer_general",
@@ -842,6 +897,8 @@ async function handleExploration(
           turnCount,
           lastAskedField: prevState.lastAskedField,
           displayedCandidates: prevState.displayedCandidates ?? [],
+          fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+          displayedSetFilter: prevState.displayedSetFilter ?? null,
           displayedChips: redirect.chips,
           displayedOptions: prevState.displayedOptions ?? [],
           lastAction: "redirect_off_topic",
@@ -1003,6 +1060,8 @@ async function buildQuestionResponse(
     turnCount,
     lastAskedField: question?.field ?? undefined,
     displayedCandidates: candidateSnapshot,
+    fullDisplayedCandidates: undefined,
+    displayedSetFilter: null,
     displayedChips: chips,
     displayedOptions,
     lastAction: "continue_narrowing",
@@ -1178,6 +1237,8 @@ async function buildRecommendationResponse(
         resolvedInput: input,
         turnCount,
         displayedCandidates: buildCandidateSnapshot(candidates, evidenceMap),
+        fullDisplayedCandidates: undefined,
+        displayedSetFilter: null,
         displayedChips: [],
         displayedOptions: [],
         lastAction: "show_recommendation",
@@ -1234,6 +1295,8 @@ async function buildRecommendationResponse(
     resolvedInput: input,
     turnCount,
     displayedCandidates: candidateSnapshot,
+    fullDisplayedCandidates: candidateSnapshot,
+    displayedSetFilter: null,
     displayedChips: followUpChips,
     displayedOptions: [],
     lastAction: "show_recommendation",
