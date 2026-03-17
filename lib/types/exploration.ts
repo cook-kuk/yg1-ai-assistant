@@ -128,8 +128,15 @@ export interface CandidateSnapshot {
   matchStatus: "exact" | "approximate" | "none"
   stockStatus: string
   totalStock: number | null
+  inventorySnapshotDate: string | null
+  inventoryLocations: InventoryLocationSnapshot[]
   hasEvidence: boolean
   bestCondition: import("./evidence").CuttingConditions | null
+}
+
+export interface InventoryLocationSnapshot {
+  warehouseOrRegion: string
+  quantity: number
 }
 
 /** Structured narrowing option (persisted for numbered selection) */

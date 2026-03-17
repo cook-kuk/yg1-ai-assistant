@@ -347,13 +347,15 @@ export async function runHybridRetrieval(
   )
 
   // Enrich top candidates with inventory + lead time (deferred for performance)
-  for (const c of topCandidates.slice(0, 100)) {
-    c.inventory = InventoryRepo.getByEdp(c.product.normalizedCode)
-    c.leadTimes = LeadTimeRepo.getByEdp(c.product.normalizedCode)
-    c.totalStock = InventoryRepo.totalStock(c.product.normalizedCode)
-    c.stockStatus = InventoryRepo.stockStatus(c.product.normalizedCode)
-    c.minLeadTimeDays = LeadTimeRepo.minLeadTime(c.product.normalizedCode)
-  }
+  await Promise.all(
+    topCandidates.slice(0, 100).map(async (c) => {
+      c.inventory = await InventoryRepo.getByEdpAsync(c.product.normalizedCode)
+      c.leadTimes = LeadTimeRepo.getByEdp(c.product.normalizedCode)
+      c.totalStock = await InventoryRepo.totalStockAsync(c.product.normalizedCode)
+      c.stockStatus = await InventoryRepo.stockStatusAsync(c.product.normalizedCode)
+      c.minLeadTimeDays = LeadTimeRepo.minLeadTime(c.product.normalizedCode)
+    })
+  )
 
   // ── Stage 3: Evidence Retrieval ────────────────────────────
   const evidenceMap = new Map<string, EvidenceSummary>()
