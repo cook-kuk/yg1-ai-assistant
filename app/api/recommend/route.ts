@@ -1128,13 +1128,12 @@ function applySingleFilter(input: RecommendationInput, filter: AppliedFilter): R
     return updated
   }
 
+  // ── IMPORTANT: narrowing filters (fluteCount, coating, toolSubtype, seriesName, cuttingType)
+  // are applied IN-MEMORY by runHybridRetrieval, NOT here.
+  // Only diameter and material affect DB query input, because they are base conditions.
+  // Setting narrowing fields on input causes DB to re-query with different results
+  // than what the question engine counted from the current pool.
   switch (filter.field) {
-    case "fluteCount":
-      updated.flutePreference = typeof filter.rawValue === "number" ? filter.rawValue : parseInt(String(filter.rawValue))
-      break
-    case "coating":
-      updated.coatingPreference = String(filter.rawValue)
-      break
     case "diameterMm":
     case "diameterRefine":
       updated.diameterMm = typeof filter.rawValue === "number" ? filter.rawValue : parseFloat(String(filter.rawValue))
@@ -1142,12 +1141,8 @@ function applySingleFilter(input: RecommendationInput, filter: AppliedFilter): R
     case "material":
       updated.material = String(filter.rawValue)
       break
-    case "toolSubtype":
-      updated.toolSubtype = String(filter.rawValue)
-      break
-    case "cuttingType":
-      if (!updated.operationType) updated.operationType = String(filter.rawValue)
-      break
+    // fluteCount, coating, toolSubtype, seriesName, cuttingType
+    // → handled by in-memory filters in runHybridRetrieval, NOT on input
   }
   return updated
 }
