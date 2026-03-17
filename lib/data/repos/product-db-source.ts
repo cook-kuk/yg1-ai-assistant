@@ -259,6 +259,15 @@ function formatQueryValuesForLog(values: unknown[]): string {
   })
 }
 
+function formatEdpListForLog(products: Array<{ displayCode: string; normalizedCode?: string }>, maxItems = 50): string {
+  const codes = products
+    .map(product => product.displayCode || product.normalizedCode || "")
+    .filter(Boolean)
+  const visible = codes.slice(0, maxItems)
+  const remainder = codes.length - visible.length
+  return remainder > 0 ? `${visible.join(",")},...(+${remainder})` : visible.join(",")
+}
+
 function getPool(): Pool {
   const connectionString = dbConnectionString()
   if (!connectionString) {
@@ -661,6 +670,9 @@ export async function queryProductsFromDatabase(options: ProductSearchOptions = 
   if (shouldLogTimings()) {
     console.log(
       `[product-db] query=${durationMs}ms rows=${result.rowCount ?? mapped.length} mapped=${mapped.length} filters=${where.length} limit=${limit}`
+    )
+    console.log(
+      `[product-db] stage=db_fetch count=${mapped.length} edps=${formatEdpListForLog(mapped)}`
     )
   }
 
