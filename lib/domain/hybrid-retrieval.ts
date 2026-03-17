@@ -39,6 +39,25 @@ const WEIGHTS = {
   evidence: 10,  // bonus for having cutting condition evidence
 }
 
+function formatProductEdpList(products: Array<{ displayCode: string; normalizedCode: string }>, maxItems = 50): string {
+  const codes = products
+    .map(product => product.displayCode || product.normalizedCode)
+    .filter(Boolean)
+  const visible = codes.slice(0, maxItems)
+  const remainder = codes.length - visible.length
+  return remainder > 0 ? `${visible.join(",")},...(+${remainder})` : visible.join(",")
+}
+
+function formatScoredEdpList(candidates: ScoredProduct[], maxItems = 50): string {
+  return formatProductEdpList(
+    candidates.map(candidate => ({
+      displayCode: candidate.product.displayCode,
+      normalizedCode: candidate.product.normalizedCode,
+    })),
+    maxItems
+  )
+}
+
 // ── Main Entry Point ─────────────────────────────────────────
 export async function runHybridRetrieval(
   input: RecommendationInput,
@@ -149,6 +168,9 @@ export async function runHybridRetrieval(
     }
   }
   const filterMs = Date.now() - startedAt - fetchMs
+  console.log(
+    `[hybrid:stage] stage=post_filter count=${candidates.length} edps=${formatProductEdpList(candidates)}`
+  )
 
   // ── Stage 2: Score & Rank ──────────────────────────────────
   const scoreStartedAt = Date.now()
@@ -300,6 +322,9 @@ export async function runHybridRetrieval(
       return a.product.sourcePriority - b.product.sourcePriority
     return b.product.dataCompletenessScore - a.product.dataCompletenessScore
   })
+  console.log(
+    `[hybrid:stage] stage=ranked count=${scored.length} edps=${formatScoredEdpList(scored)}`
+  )
 
   // Take top-N with minimum quality threshold
   const maxScore = Object.values(WEIGHTS).reduce((a, b) => a + b, 0)
@@ -317,6 +342,9 @@ export async function runHybridRetrieval(
   const topCandidates = topN > 0
     ? diverseCandidates.slice(0, topN)
     : diverseCandidates
+  console.log(
+    `[hybrid:stage] stage=final count=${topCandidates.length} edps=${formatScoredEdpList(topCandidates)}`
+  )
 
   // Enrich top candidates with inventory + lead time (deferred for performance)
   for (const c of topCandidates.slice(0, 100)) {
@@ -331,30 +359,15 @@ export async function runHybridRetrieval(
   const evidenceMap = new Map<string, EvidenceSummary>()
 
   for (const candidate of topCandidates) {
-    const summary = EvidenceRepo.buildSummary(
+    const summary = await EvidenceRepo.buildSummary(
       candidate.product.normalizedCode,
       {
+        seriesName: candidate.product.seriesName,
         isoGroup: materialTag,
         cuttingType: input.operationType ? mapOperationToCuttingType(input.operationType) : null,
-        diameterMm: input.diameterMm,
+        diameterMm: candidate.product.diameterMm ?? input.diameterMm,
       }
     )
-
-    // Also try series-level search if no direct product match
-    if (summary.chunks.length === 0 && candidate.product.seriesName) {
-      const seriesChunks = EvidenceRepo.findBySeriesName(candidate.product.seriesName)
-      // Filter by diameter if available
-      const relevant = input.diameterMm
-        ? seriesChunks.filter(c => c.diameterMm != null && Math.abs(c.diameterMm - input.diameterMm!) <= 0.5)
-        : seriesChunks.slice(0, 5)
-
-      if (relevant.length > 0) {
-        summary.chunks = relevant.sort((a, b) => b.confidence - a.confidence)
-        summary.bestCondition = relevant[0].conditions
-        summary.bestConfidence = relevant[0].confidence
-        summary.sourceCount = relevant.length
-      }
-    }
 
     if (summary.chunks.length > 0) {
       evidenceMap.set(candidate.product.normalizedCode, summary)

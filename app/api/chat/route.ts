@@ -37,8 +37,8 @@ async function buildProductContext(): Promise<string> {
   return lines.join("\n")
 }
 
-function buildEvidenceContext(): string {
-  const chunks = EvidenceRepo.getAll()
+async function buildEvidenceContext(): Promise<string> {
+  const chunks = await EvidenceRepo.getAll()
   const seriesConditions = new Map<string, { isoGroup: string | null; toolType: string | null; condSample: string }>()
 
   for (const c of chunks) {
@@ -101,7 +101,7 @@ const MACHINING_KNOWLEDGE = `
 // ── System Prompt ────────────────────────────────────────────
 async function buildSystemPrompt(): Promise<string> {
   const productCtx = await buildProductContext()
-  const evidenceCtx = buildEvidenceContext()
+  const evidenceCtx = await buildEvidenceContext()
 
   return `당신은 YG-1의 절삭공구 추천 어시스턴트입니다. 파라미터 기반 축소 추천 엔진처럼 동작하라.
 
@@ -688,23 +688,28 @@ async function executeGetProductDetail(params: {
   )
 }
 
-function executeGetCuttingConditions(params: {
+async function executeGetCuttingConditions(params: {
   series_name?: string
   product_code?: string
   material?: string
-}): string {
+}): Promise<string> {
   const isoGroup = params.material ? resolveMaterialTag(params.material) : null
 
   // Try by product code first
   if (params.product_code) {
-    const chunks = EvidenceRepo.findForProduct(params.product_code, {
+    const product = await ProductRepo.findByCode(params.product_code)
+    const chunks = await EvidenceRepo.findForProduct(params.product_code, {
+      seriesName: product?.seriesName,
       isoGroup,
+      diameterMm: product?.diameterMm,
     })
     if (chunks.length > 0) {
       return JSON.stringify({
         found: true,
         source: "product_code",
         productCode: params.product_code,
+        matchedSeriesName: product?.seriesName ?? null,
+        matchedDiameterMm: product?.diameterMm ?? null,
         conditions: chunks.slice(0, 5).map((c) => ({
           isoGroup: c.isoGroup,
           cuttingType: c.cuttingType,
@@ -724,7 +729,7 @@ function executeGetCuttingConditions(params: {
 
   // Try by series name
   if (params.series_name) {
-    const chunks = EvidenceRepo.findBySeriesName(params.series_name)
+    const chunks = await EvidenceRepo.findBySeriesName(params.series_name, { isoGroup })
     let filtered = chunks
     if (isoGroup) {
       const isoFiltered = chunks.filter(
@@ -758,7 +763,7 @@ function executeGetCuttingConditions(params: {
 
   // Fallback: search by material ISO group if nothing else matched
   if (isoGroup) {
-    const chunks = EvidenceRepo.filterByConditions({ isoGroup })
+    const chunks = await EvidenceRepo.filterByConditions({ isoGroup })
     if (chunks.length > 0) {
       chunks.sort((a, b) => b.confidence - a.confidence)
       return JSON.stringify({

@@ -227,6 +227,47 @@ function shouldLogTimings(): boolean {
   return process.env.LOG_RECOMMEND_TIMINGS?.toLowerCase() !== "false"
 }
 
+function formatSqlForLog(query: string): string {
+  return query.replace(/\s+/g, " ").trim()
+}
+
+function formatSqlLiteral(value: unknown): string {
+  if (value === null || value === undefined) return "NULL"
+  if (typeof value === "string") return `'${value.replace(/'/g, "''")}'`
+  if (typeof value === "number") return Number.isFinite(value) ? String(value) : "NULL"
+  if (typeof value === "bigint") return value.toString()
+  if (typeof value === "boolean") return value ? "TRUE" : "FALSE"
+  if (value instanceof Date) return `'${value.toISOString().replace(/'/g, "''")}'`
+  if (Buffer.isBuffer(value)) return `'<buffer:${value.length}>'`
+  if (Array.isArray(value)) return `ARRAY[${value.map(item => formatSqlLiteral(item)).join(", ")}]`
+  return `'${JSON.stringify(value).replace(/'/g, "''")}'`
+}
+
+function interpolateSqlForLog(query: string, values: unknown[]): string {
+  return query.replace(/\$(\d+)\b/g, (token, rawIndex: string) => {
+    const index = Number.parseInt(rawIndex, 10) - 1
+    return index >= 0 && index < values.length ? formatSqlLiteral(values[index]) : token
+  })
+}
+
+function formatQueryValuesForLog(values: unknown[]): string {
+  return JSON.stringify(values, (_key, value) => {
+    if (typeof value === "bigint") return value.toString()
+    if (value instanceof Date) return value.toISOString()
+    if (value === undefined) return null
+    return value
+  })
+}
+
+function formatEdpListForLog(products: Array<{ displayCode: string; normalizedCode?: string }>, maxItems = 50): string {
+  const codes = products
+    .map(product => product.displayCode || product.normalizedCode || "")
+    .filter(Boolean)
+  const visible = codes.slice(0, maxItems)
+  const remainder = codes.length - visible.length
+  return remainder > 0 ? `${visible.join(",")},...(+${remainder})` : visible.join(",")
+}
+
 function getPool(): Pool {
   const connectionString = dbConnectionString()
   if (!connectionString) {
@@ -255,6 +296,13 @@ async function executeLoggedQuery<T extends QueryResultRow>(
 ): Promise<QueryResult<T>> {
   const startedAt = Date.now()
   const normalizedQuery = query.trim()
+  const compactQuery = formatSqlForLog(normalizedQuery)
+  const interpolatedQuery = interpolateSqlForLog(compactQuery, values)
+  const loggedValues = formatQueryValuesForLog(values)
+
+  console.log(
+    `[product-db] sql operation=${context.operation} query="${interpolatedQuery}" params=${loggedValues}`
+  )
 
   await appendRuntimeLog({
     category: "db",
@@ -262,12 +310,18 @@ async function executeLoggedQuery<T extends QueryResultRow>(
     context: {
       ...context,
       sql: normalizedQuery,
+      sqlInterpolated: interpolatedQuery,
       values,
     },
   })
 
   try {
     const result = await getPool().query<T>(query, values)
+    const durationMs = Date.now() - startedAt
+
+    console.log(
+      `[product-db] sql:done operation=${context.operation} duration=${durationMs}ms rows=${result.rowCount ?? result.rows.length}`
+    )
 
     await appendRuntimeLog({
       category: "db",
@@ -275,14 +329,18 @@ async function executeLoggedQuery<T extends QueryResultRow>(
       context: {
         ...context,
         sql: normalizedQuery,
+        sqlInterpolated: interpolatedQuery,
         values,
-        durationMs: Date.now() - startedAt,
+        durationMs,
         rowCount: result.rowCount ?? result.rows.length,
       },
     })
 
     return result
   } catch (error) {
+    console.error(
+      `[product-db] sql:error operation=${context.operation} duration=${Date.now() - startedAt}ms message=${error instanceof Error ? error.message : String(error)}`
+    )
     await logRuntimeError({
       category: "db",
       event: "query.error",
@@ -290,6 +348,7 @@ async function executeLoggedQuery<T extends QueryResultRow>(
       context: {
         ...context,
         sql: normalizedQuery,
+        sqlInterpolated: interpolatedQuery,
         values,
         durationMs: Date.now() - startedAt,
       },
@@ -611,6 +670,9 @@ export async function queryProductsFromDatabase(options: ProductSearchOptions = 
   if (shouldLogTimings()) {
     console.log(
       `[product-db] query=${durationMs}ms rows=${result.rowCount ?? mapped.length} mapped=${mapped.length} filters=${where.length} limit=${limit}`
+    )
+    console.log(
+      `[product-db] stage=db_fetch count=${mapped.length} edps=${formatEdpListForLog(mapped)}`
     )
   }
 
