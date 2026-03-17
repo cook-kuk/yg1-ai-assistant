@@ -49,6 +49,8 @@ export interface NarrowingStage {
 export type LastActionType =
   | "start_exploration"
   | "continue_narrowing"
+  | "replace_slot"
+  | "ask_clarification"
   | "skip_field"
   | "show_recommendation"
   | "go_back_one_step"

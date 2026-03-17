@@ -342,6 +342,31 @@ const NARROWING_TOOLS: LLMTool[] = [
     }
   },
   {
+    name: "replace_slot",
+    description: "이미 적용된 필터 값을 변경할 때 호출. '직경 4mm로 바꿔줘', '코팅 DLC로 변경', '날수 2날로'. 기존 필터를 제거하고 새 값으로 교체.",
+    input_schema: {
+      type: "object",
+      properties: {
+        field: { type: "string", description: "변경할 필드: diameterMm, fluteCount, coating, toolSubtype, seriesName, material, cuttingType" },
+        new_value: { type: "string", description: "새 값. 예: '4', 'DLC', '2'" },
+        display_value: { type: "string", description: "UI 표시용. 예: '4mm', 'DLC', '2날'" }
+      },
+      required: ["field", "new_value"]
+    }
+  },
+  {
+    name: "ask_clarification",
+    description: "사용자 의도가 모호할 때 선택지를 제시. 예: 소재 언급이 설명 vs 새 검색인지 불명확, 슬롯 교체 vs 필터 추가 불명확 등.",
+    input_schema: {
+      type: "object",
+      properties: {
+        question: { type: "string", description: "명확화 질문" },
+        options: { type: "array", items: { type: "string" }, description: "선택지 (2-4개)" }
+      },
+      required: ["question", "options"]
+    }
+  },
+  {
     name: "reset_session",
     description: "사용자가 처음부터 다시 시작하고 싶을 때 호출.",
     input_schema: { type: "object", properties: {} }
@@ -382,16 +407,38 @@ const NARROWING_TOOLS: LLMTool[] = [
 /** Normalize Korean/English field aliases to canonical field names */
 export function normalizeFieldName(input: string): string | null {
   const map: Record<string, string> = {
-    "직경": "diameterMm", "diameter": "diameterMm", "dia": "diameterMm", "지름": "diameterMm", "φ": "diameterMm",
-    "날수": "fluteCount", "날": "fluteCount", "flute": "fluteCount", "f": "fluteCount",
-    "코팅": "coating", "coating": "coating",
+    // 직경
+    "직경": "diameterMm", "diameter": "diameterMm", "dia": "diameterMm", "지름": "diameterMm",
+    "φ": "diameterMm", "ø": "diameterMm",
+    // 날수
+    "날수": "fluteCount", "날": "fluteCount", "flute": "fluteCount", "flutecount": "fluteCount",
+    "f": "fluteCount", "플루트": "fluteCount",
+    // 코팅
+    "코팅": "coating", "coating": "coating", "coat": "coating", "표면처리": "coating",
+    // 공구소재
     "공구소재": "toolMaterial", "toolmaterial": "toolMaterial", "소재": "toolMaterial",
+    "material": "toolMaterial", "초경": "toolMaterial", "carbide": "toolMaterial", "hss": "toolMaterial",
+    // 섕크
     "섕크": "shankDiameterMm", "shank": "shankDiameterMm", "생크": "shankDiameterMm",
-    "절삭길이": "lengthOfCutMm", "cl": "lengthOfCutMm", "loc": "lengthOfCutMm", "절삭장": "lengthOfCutMm",
+    "shankdiameter": "shankDiameterMm", "자루": "shankDiameterMm",
+    // 절삭길이
+    "절삭길이": "lengthOfCutMm", "cl": "lengthOfCutMm", "loc": "lengthOfCutMm",
+    "절삭장": "lengthOfCutMm", "유효장": "lengthOfCutMm", "cuttinglength": "lengthOfCutMm",
+    // 전체길이
     "전체길이": "overallLengthMm", "oal": "overallLengthMm", "전장": "overallLengthMm",
+    "overalllength": "overallLengthMm", "totallength": "overallLengthMm",
+    // 나선각
     "나선각": "helixAngleDeg", "helix": "helixAngleDeg", "helixangle": "helixAngleDeg",
-    "시리즈": "seriesName", "series": "seriesName",
-    "브랜드": "brand", "brand": "brand",
+    "나선": "helixAngleDeg", "비틀림각": "helixAngleDeg",
+    // 시리즈
+    "시리즈": "seriesName", "series": "seriesName", "시리즈명": "seriesName", "productline": "seriesName",
+    // 브랜드
+    "브랜드": "brand", "brand": "brand", "브랜드명": "brand", "brandname": "brand",
+    // 코너R
+    "코너r": "cornerRadius", "cornerradius": "cornerRadius", "cr": "cornerRadius", "코너반경": "cornerRadius",
+    // 적용소재
+    "적용소재": "materialTags", "applicationmaterial": "materialTags", "isogroup": "materialTags",
+    "피삭재": "materialTags", "workmaterial": "materialTags",
   }
   return map[input.toLowerCase().replace(/\s+/g, "")] ?? null
 }
@@ -464,17 +511,31 @@ ${candidatesDesc}
 2. "N번" 입력 → 해당 번호의 옵션 값으로 apply_filter 호출
 3. "상관없음/모름/패스/스킵" → apply_filter에 value="skip" 설정
 
+슬롯 교체 (이미 적용된 필터 값 변경):
+4. "직경 4mm로 바꿔줘", "코팅 DLC로 변경" → replace_slot (기존 필터 제거 + 새 값 적용)
+5. 이미 적용된 필드에 새 값 → replace_slot (apply_filter가 아님!)
+
 일반:
-4. 추천 결과를 원하면 → show_recommendation
-5. 비교 요청 → compare_products (targets 필수)
-6. 되돌리기 → undo_step
-7. 용어/개념 질문 → explain_concept
-8. 초기화 → reset_session
-9. 잡담, 수학, 감정 공감, 시스템 질문 → tool 호출 없이 직접 텍스트 답변
-10. 제품 데이터(코드, 스펙, 재고)를 절대 생성하지 마세요
-11. 한국어로 답변하세요
-12. 답변 끝에 출처 표기
-13. 필드명은 정규화 표 참고 (한/영/별칭 모두 인식)`
+6. 추천 결과를 원하면 → show_recommendation
+7. 비교 요청 → compare_products (targets 필수, 필드 비교 시 compareField 포함)
+8. 되돌리기 → undo_step
+9. 용어/개념 질문 → explain_concept (표시된 제품 데이터를 참조하여 답변)
+10. 초기화 → reset_session
+11. 제품 데이터(코드, 스펙, 재고)를 절대 생성하지 마세요
+12. 한국어로 답변하세요
+13. 답변 끝에 출처 표기
+14. 필드명은 정규화 표 참고 (한/영/별칭 모두 인식)
+
+⚠️ 오분류 방지:
+- "코팅 종류별 특징 알려줘" → explain_concept (필터 아님!)
+- "스테인리스 가공할 때 뭐가 좋아?" → explain_concept (새 검색 아님!)
+- "왜 갑자기 추천한 거야?" → tool 없이 직접 텍스트 답변 (시스템 동작 설명)
+- "1+1이 뭐야?" → tool 없이 직접 텍스트 답변 (수학)
+- "지금 Square 결과 맞아?" → tool 없이 직접 텍스트로 현재 상태 확인 답변
+- 소재 언급이 설명인지 새 검색인지 불명확 → ask_clarification
+
+의도가 모호할 때:
+15. 추측하지 말고 ask_clarification으로 선택지 제시 (2-4개 옵션 + "직접 입력" 항상 포함)`
 }
 
 function mapToolUseToAction(
@@ -537,6 +598,20 @@ function mapToolUseToAction(
 
     case "explain_concept":
       return { type: "explain_product", target: String(input.topic ?? "") }
+
+    case "replace_slot": {
+      const rawField = String(input.field ?? "")
+      const field = normalizeFieldName(rawField) ?? rawField
+      const newValue = String(input.new_value ?? "")
+      const displayValue = input.display_value ? String(input.display_value) : undefined
+      return { type: "replace_slot", field, newValue, displayValue }
+    }
+
+    case "ask_clarification": {
+      const question = String(input.question ?? "어떤 것을 원하시나요?")
+      const options = (input.options as string[]) ?? []
+      return { type: "ask_clarification", question, options, allowDirectInput: true }
+    }
 
     case "reset_session":
       return { type: "reset_session" }

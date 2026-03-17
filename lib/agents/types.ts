@@ -63,14 +63,16 @@ export interface AmbiguityResolution {
 // ── Orchestrator Decision ────────────────────────────────────
 export type OrchestratorAction =
   | { type: "continue_narrowing"; filter: AppliedFilter }
+  | { type: "replace_slot"; field: string; newValue: string; displayValue?: string }
   | { type: "skip_field" }
   | { type: "show_recommendation" }
   | { type: "go_back_one_step" }
   | { type: "go_back_to_filter"; filterValue: string; filterField?: string }
   | { type: "reset_session" }
-  | { type: "compare_products"; targets: string[] }
+  | { type: "compare_products"; targets: string[]; compareField?: string }
   | { type: "explain_product"; target?: string }
   | { type: "answer_general"; message: string; preGenerated?: boolean }
+  | { type: "ask_clarification"; question: string; options: string[]; allowDirectInput?: boolean }
   | { type: "filter_displayed"; field: string; operator: string; value: string; keepIndices?: number[] }
   | { type: "query_displayed"; queryType: string; field: string; condition?: { operator: string; value: string } }
   | { type: "redirect_off_topic" }

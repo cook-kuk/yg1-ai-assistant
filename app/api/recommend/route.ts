@@ -276,6 +276,103 @@ async function handleExploration(
         )
       }
 
+      // Action: replace_slot — remove old filter value, apply new value
+      if (action.type === "replace_slot") {
+        const field = action.field
+        const existingIdx = filters.findIndex(f => f.field === field && f.op !== "skip")
+
+        // Remove old filter
+        let oldValue = "(없음)"
+        if (existingIdx >= 0) {
+          oldValue = filters[existingIdx].value
+          filters.splice(existingIdx, 1)
+        }
+
+        // Build new filter
+        const isNumeric = !isNaN(Number(action.newValue))
+        const newFilter: AppliedFilter = {
+          field,
+          op: isNumeric ? "eq" : "includes",
+          value: action.displayValue ?? action.newValue,
+          rawValue: isNumeric ? Number(action.newValue) : action.newValue,
+          appliedAt: turnCount,
+        }
+        filters.push(newFilter)
+
+        // Rebuild input from base + all filters
+        let rebuiltInput = { ...baseInput }
+        for (const f of filters) {
+          rebuiltInput = applyFilterToInput(rebuiltInput, f)
+        }
+        currentInput = rebuiltInput
+
+        // Re-run retrieval
+        const newResult = await runHybridRetrieval(currentInput, filters.filter(f => f.op !== "skip"))
+        narrowingHistory.push({
+          question: "slot-replace",
+          answer: `${field}: ${oldValue} → ${action.displayValue ?? action.newValue}`,
+          extractedFilters: [newFilter],
+          candidateCountBefore: candidates.length,
+          candidateCountAfter: newResult.candidates.length,
+        })
+        turnCount++
+
+        console.log(`[orchestrator:slot-replace] ${field}: ${oldValue} → ${action.newValue} | ${candidates.length} → ${newResult.candidates.length} candidates`)
+
+        const replaceText = `${field}를 ${oldValue}에서 **${action.displayValue ?? action.newValue}**로 변경했습니다.\n후보가 ${newResult.candidates.length}개로 업데이트되었습니다.`
+
+        const status = checkResolution(newResult.candidates, narrowingHistory)
+        if (status.startsWith("resolved")) {
+          return buildRecommendationResponse(
+            form, newResult.candidates, newResult.evidenceMap, currentInput,
+            narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts
+          )
+        }
+
+        return buildQuestionResponse(
+          form, newResult.candidates, newResult.evidenceMap, currentInput,
+          narrowingHistory, filters, turnCount, messages, provider, language, replaceText
+        )
+      }
+
+      // Action: ask_clarification — present options to user
+      if (action.type === "ask_clarification") {
+        const clarifyChips = [...action.options]
+        if (action.allowDirectInput) clarifyChips.push("직접 입력")
+
+        const sessionState: ExplorationSessionState = {
+          sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+          candidateCount: prevState.candidateCount ?? candidates.length,
+          appliedFilters: filters,
+          narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
+          resolutionStatus: prevState.resolutionStatus ?? "broad",
+          resolvedInput: currentInput,
+          turnCount,
+          lastAskedField: prevState.lastAskedField,
+          displayedCandidates: prevState.displayedCandidates ?? [],
+          fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+          displayedSetFilter: prevState.displayedSetFilter,
+          displayedChips: clarifyChips,
+          displayedOptions: prevState.displayedOptions ?? [],
+          lastAction: "ask_clarification",
+        }
+        return NextResponse.json({
+          text: action.question,
+          purpose: "question",
+          chips: clarifyChips,
+          isComplete: false,
+          recommendation: null,
+          sessionState,
+          evidenceSummaries: null,
+          candidateSnapshot: prevState.displayedCandidates ?? null,
+          extractedField: null, requestPreparation: null,
+          primaryExplanation: null, primaryFactChecked: null,
+          altExplanations: [], altFactChecked: [],
+          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+        })
+      }
+
       // Action: compare_products — use PERSISTED displayed candidates (not re-computed)
       if (action.type === "compare_products") {
         const snapshot = prevState.displayedCandidates?.length > 0
