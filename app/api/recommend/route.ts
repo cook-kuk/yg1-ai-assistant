@@ -236,6 +236,7 @@ async function handleExploration(
           turnCount,
           displayedCandidates: snapshot,
           displayedChips: ["추천해주세요", "다른 조건으로", "⟵ 이전 단계", "처음부터 다시"],
+          displayedOptions: [],
           lastAction: "compare_products",
         }
         return NextResponse.json({
@@ -287,6 +288,7 @@ async function handleExploration(
           lastAskedField: prevState.lastAskedField,
           displayedCandidates: prevState.displayedCandidates ?? [],
           displayedChips: llmResponse.chips,
+          displayedOptions: prevState.displayedOptions ?? [],
           lastAction: "answer_general",
         }
         return NextResponse.json({
@@ -322,6 +324,7 @@ async function handleExploration(
           lastAskedField: prevState.lastAskedField,
           displayedCandidates: prevState.displayedCandidates ?? [],
           displayedChips: redirect.chips,
+          displayedOptions: prevState.displayedOptions ?? [],
           lastAction: "redirect_off_topic",
         }
         return NextResponse.json({
@@ -465,6 +468,9 @@ async function buildQuestionResponse(
   const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
   const chips = question?.chips ?? []
 
+  // Build structured displayedOptions from chips for numbered selection
+  const displayedOptions = buildDisplayedOptions(chips, question?.field ?? "unknown")
+
   // Build session state for client — single source of truth
   const sessionState: ExplorationSessionState = {
     sessionId: `ses-${Date.now()}`,
@@ -478,6 +484,7 @@ async function buildQuestionResponse(
     lastAskedField: question?.field ?? undefined,
     displayedCandidates: candidateSnapshot,
     displayedChips: chips,
+    displayedOptions,
     lastAction: "continue_narrowing",
   }
 
@@ -649,6 +656,7 @@ async function buildRecommendationResponse(
         turnCount,
         displayedCandidates: buildCandidateSnapshot(candidates, evidenceMap),
         displayedChips: [],
+        displayedOptions: [],
         lastAction: "show_recommendation",
       }
       const sessionCtx = buildSessionContext(form, llmSessionState, candidates.length, snapshotToDisplayed(llmSessionState.displayedCandidates))
@@ -703,6 +711,7 @@ async function buildRecommendationResponse(
     turnCount,
     displayedCandidates: candidateSnapshot,
     displayedChips: followUpChips,
+    displayedOptions: [],
     lastAction: "show_recommendation",
   }
 
@@ -1188,6 +1197,25 @@ function logNarrowingState(
   console.log(`[narrowing:${phase}] ───────────────────────────`)
 }
 
+// ── Build structured displayedOptions from question chips ────
+function buildDisplayedOptions(chips: string[], field: string): import("@/lib/types/exploration").DisplayedOption[] {
+  const options: import("@/lib/types/exploration").DisplayedOption[] = []
+  let index = 1
+  for (const chip of chips) {
+    // Skip meta chips
+    if (["상관없음", "⟵ 이전 단계", "처음부터 다시", "추천해주세요"].includes(chip)) continue
+    // Parse "Square (26개)" or "Diamond — 4날 스퀘어 엔드밀 (32개)"
+    const countMatch = chip.match(/\((\d+)개\)/)
+    const count = countMatch ? parseInt(countMatch[1]) : 0
+    const value = chip.replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
+    if (value) {
+      options.push({ index, label: chip, field, value, count })
+      index++
+    }
+  }
+  return options
+}
+
 // ── Map CandidateSnapshot to displayedProducts format for LLM prompts ──
 function snapshotToDisplayed(snapshot: CandidateSnapshot[]): DisplayedProduct[] {
   return snapshot.slice(0, 10).map(c => ({
@@ -1222,6 +1250,11 @@ function buildCandidateSnapshot(
       diameterMm: c.product.diameterMm,
       fluteCount: c.product.fluteCount,
       coating: c.product.coating,
+      toolMaterial: c.product.toolMaterial ?? null,
+      shankDiameterMm: c.product.shankDiameterMm ?? null,
+      lengthOfCutMm: c.product.lengthOfCutMm ?? null,
+      overallLengthMm: c.product.overallLengthMm ?? null,
+      helixAngleDeg: c.product.helixAngleDeg ?? null,
       materialTags: c.product.materialTags,
       score: c.score,
       scoreBreakdown: c.scoreBreakdown,
