@@ -653,11 +653,11 @@ async function buildRecommendationResponse(
         resolutionStatus: checkResolution(candidates, history),
         resolvedInput: input,
         turnCount,
-        displayedCandidates: [],  // not yet built at this point
+        displayedCandidates: buildCandidateSnapshot(candidates, evidenceMap),
         displayedChips: [],
         lastAction: "show_recommendation",
       }
-      const sessionCtx = buildSessionContext(form, llmSessionState, candidates.length, displayedProducts)
+      const sessionCtx = buildSessionContext(form, llmSessionState, candidates.length, snapshotToDisplayed(llmSessionState.displayedCandidates))
 
       // Use new explanation-aware prompt — include per-product evidence
       const resultPrompt = buildExplanationResultPrompt(
@@ -1076,32 +1076,9 @@ The user may provide: material (소재), diameter (직경), flute count (날 수
 }
 
 // extractParamsFromMessage + inferCurrentQuestionField — REMOVED
-// Replaced by: lib/agents/parameter-extractor.ts + lib/agents/intent-classifier.ts
+// extractParamsFromMessage + inferCurrentQuestionField removed.
+// Replaced by: lib/agents/{intent-classifier,parameter-extractor,orchestrator}.ts
 
-// ── Apply filter to RecommendationInput ──────────────────────
-// (moved here after dead code removal)
-function _placeholder_dead_code_removed() { return null }
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function __dead_extractParamsFromMessage() { return null }
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function __dead_inferCurrentQuestionField() { return null }
-
-/* DEAD CODE BLOCK REMOVED — ~250 lines of extractParamsFromMessage + inferCurrentQuestionField
-   These functions are now replaced by:
-   - lib/agents/intent-classifier.ts (Haiku-powered intent classification)
-   - lib/agents/parameter-extractor.ts (Haiku-powered parameter extraction)
-   - lib/agents/orchestrator.ts (turn flow control)
-*/
-
-// Keeping a marker so we know where the gap is:
-const _DEAD_CODE_REMOVED_MARKER = true // eslint-disable-line @typescript-eslint/no-unused-vars
-
-// ── Apply filter to RecommendationInput ──────────────────────
-// NOTE: ~250 lines of dead code (extractParamsFromMessage + inferCurrentQuestionField) removed here.
-// See git history for original code if needed.
-
-function __PLACEHOLDER_END_OF_DEAD_CODE_BLOCK() { /* see above */ }
 // ── Apply filter to RecommendationInput ──────────────────────
 function applyFilterToInput(input: RecommendationInput, filter: AppliedFilter): RecommendationInput {
   let updated = { ...input }

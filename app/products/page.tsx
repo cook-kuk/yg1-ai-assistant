@@ -1274,18 +1274,35 @@ function ExplorationSidebar({
         </div>
       </div>
 
-      {/* Applied filters */}
+      {/* Narrowing path — 축소 경로 */}
       {sessionState && sessionState.appliedFilters.length > 0 && (
         <div>
           <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
             <Filter size={10} />{language === 'ko' ? '적용 필터' : 'Applied Filters'}
           </div>
-          <div className="space-y-1">
-            {sessionState.appliedFilters.map((f, i) => (
-              <div key={i} className="flex items-center gap-1.5 text-xs bg-blue-50 text-blue-700 rounded-lg px-2.5 py-1.5 border border-blue-100">
-                <span className="font-medium">{localizeIntakeText(f.value, language)}</span>
+          <div className="space-y-0.5">
+            {sessionState.appliedFilters.filter(f => f.op !== "skip").map((f, i) => (
+              <div key={i} className="flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1 border border-blue-100 bg-blue-50">
+                <ArrowRight size={8} className="text-blue-400 shrink-0" />
+                <span className="text-blue-600 font-medium truncate">
+                  {f.field === "fluteCount"
+                    ? (language === "ko" ? "날수" : "Flutes")
+                    : f.field === "toolSubtype"
+                      ? (language === "ko" ? "형상" : "Shape")
+                      : f.field === "coating"
+                        ? (language === "ko" ? "코팅" : "Coating")
+                        : f.field === "seriesName"
+                          ? (language === "ko" ? "시리즈" : "Series")
+                          : localizeIntakeText(f.field, language)}
+                  : {localizeIntakeText(f.value, language)}
+                </span>
               </div>
             ))}
+            <div className="text-[10px] text-gray-500 px-2.5 pt-1 font-medium">
+              {language === "ko"
+                ? `→ 현재 후보: ${sessionState.candidateCount}개`
+                : `-> Current candidates: ${sessionState.candidateCount}`}
+            </div>
           </div>
         </div>
       )}
