@@ -2367,6 +2367,10 @@ function mapIntakeToInput(form: ProductIntakeForm): RecommendationInput {
   }
   const toolType = getKnown(form.toolTypeOrCurrentProduct)
   if (toolType) input.toolType = canonicalizeIntakeSearchText(toolType)
+  // Country/Region mapping
+  if (form.country?.status === "known") {
+    input.region = form.country.value as "KOREA" | "GLOBAL" | "ALL"
+  }
   return input as RecommendationInput
 }
 

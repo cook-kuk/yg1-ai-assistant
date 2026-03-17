@@ -558,7 +558,7 @@ function mapRowToProduct(row: RawProductRow): CanonicalProduct {
     coolantHole: parseBoolean(firstNonEmpty(row.milling_coolant_hole, row.holemaking_coolant_hole, row.threading_coolant_hole, row.option_coolanthole)),
     applicationShapes: normalizeApplicationShapes(row.series_application_shape),
     materialTags: normalizeMaterialTags(row.material_tags),
-    region: null,
+    region: firstNonEmpty(row.region) ?? null,
     description: firstNonEmpty(row.series_description),
     featureText: firstNonEmpty(row.series_feature),
     seriesIconUrl: null,
@@ -615,6 +615,12 @@ function buildQueryOptions(options: ProductSearchOptions): { where: string[]; va
   if (materialTags.size > 0) {
     const param = next([...materialTags])
     where.push(`COALESCE(material_tags, ARRAY[]::text[]) && ${param}::text[]`)
+  }
+
+  // Region filter (KOREA / GLOBAL) — applied only when region column exists in DB view
+  if (input?.region && input.region !== "ALL") {
+    const param = next(input.region)
+    where.push(`COALESCE(region, '') = ${param}`)
   }
 
   const appShapes = input?.operationType ? getAppShapesForOperation(input.operationType) : []

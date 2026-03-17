@@ -22,6 +22,8 @@ export type InquiryPurpose =
 
 export type MachiningIntent = "roughing" | "semi" | "finishing"
 
+export type MarketRegion = "KOREA" | "GLOBAL" | "ALL"
+
 export interface ProductIntakeForm {
   inquiryPurpose: AnswerState<InquiryPurpose>
   material: AnswerState<string>
@@ -29,6 +31,7 @@ export interface ProductIntakeForm {
   machiningIntent: AnswerState<MachiningIntent>
   toolTypeOrCurrentProduct: AnswerState<string>
   diameterInfo: AnswerState<string>
+  country?: AnswerState<MarketRegion>
   advanced?: {
     fluteCount?: AnswerState<number>
     coating?: AnswerState<string>
@@ -43,6 +46,7 @@ export const INITIAL_INTAKE_FORM: ProductIntakeForm = {
   machiningIntent: { status: "unanswered" },
   toolTypeOrCurrentProduct: { status: "unanswered" },
   diameterInfo: { status: "unanswered" },
+  country: { status: "unanswered" },
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -127,6 +131,18 @@ export interface IntakeFieldConfig {
 }
 
 export const FIELD_CONFIGS: IntakeFieldConfig[] = [
+  {
+    key: "country" as keyof ProductIntakeForm,
+    label: "시장 / 국가",
+    emoji: "🌏",
+    description: "어느 시장의 제품을 찾으시나요?",
+    options: [
+      { value: "KOREA", label: "한국 (국내 시장)" },
+      { value: "GLOBAL", label: "글로벌 (해외 시장)" },
+      { value: "ALL", label: "전체 (국내+해외)" },
+    ],
+    unknownLabel: "상관없음",
+  },
   {
     key: "inquiryPurpose",
     label: "문의 목적",
