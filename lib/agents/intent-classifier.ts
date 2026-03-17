@@ -136,8 +136,10 @@ export async function classifyIntent(
   }
 
   // ── 10. Final fallback ──
-  if (sessionState && !sessionState.resolutionStatus?.startsWith("resolved")) {
-    return { intent: "SET_PARAMETER", confidence: 0.5, extractedValue: clean, modelUsed: "haiku" }
+  if (sessionState) {
+    // In any active session (narrowing OR resolved), route to general answer
+    // This prevents "dead" responses after comparison or recommendation
+    return { intent: "START_NEW_TOPIC", confidence: 0.5, extractedValue: clean, modelUsed: "haiku" }
   }
   return { intent: "OUT_OF_SCOPE", confidence: 0.3, modelUsed: "haiku" }
 }
