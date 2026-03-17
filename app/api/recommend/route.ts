@@ -80,9 +80,12 @@ export async function POST(req: Request) {
 
   } catch (err) {
     console.error("[recommend] Error:", err)
+    const errMsg = err instanceof Error ? err.message : "Unknown error"
+    const errStack = err instanceof Error ? err.stack?.split("\n").slice(0, 5).join(" | ") : ""
     return NextResponse.json({
       error: "internal_error",
-      detail: err instanceof Error ? err.message : "Unknown error",
+      detail: errMsg,
+      debugStack: errStack,
       text: "죄송합니다, 처리 중 오류가 발생했습니다. 다시 시도해주세요.",
       chips: ["처음부터 다시", "소재 입력", "직경 입력"],
       isComplete: false,
@@ -176,15 +179,26 @@ async function handleExploration(
       }
 
       let orchResult: OrchestratorResult
-      if (ENABLE_TOOL_USE_ROUTING) {
-        try {
-          orchResult = await orchestrateTurnWithTools(turnCtx, provider)
-        } catch (toolUseError) {
-          console.warn(`[recommend] Tool-use routing failed, falling back to legacy:`, toolUseError)
+      try {
+        if (ENABLE_TOOL_USE_ROUTING) {
+          try {
+            orchResult = await orchestrateTurnWithTools(turnCtx, provider)
+          } catch (toolUseError) {
+            console.warn(`[recommend] Tool-use routing failed, falling back to legacy:`, toolUseError)
+            orchResult = await orchestrateTurn(turnCtx, provider)
+          }
+        } else {
           orchResult = await orchestrateTurn(turnCtx, provider)
         }
-      } else {
-        orchResult = await orchestrateTurn(turnCtx, provider)
+      } catch (orchError) {
+        console.error(`[recommend] All orchestration failed:`, orchError)
+        // Fallback: answer_general with error context
+        orchResult = {
+          action: { type: "answer_general", message: `현재 ${candidates.length}개 후보가 있습니다. 질문을 다시 말씀해주세요.`, preGenerated: true },
+          reasoning: "orchestration_error:fallback",
+          agentsInvoked: [],
+          escalatedToOpus: false,
+        }
       }
       let action = orchResult.action
 
