@@ -103,7 +103,7 @@ ${displayedSummary}
 "${message}"`
 
   try {
-    const raw = await provider.complete(systemPrompt, [{ role: "user", content: userPrompt }], 500, "opus")
+    const raw = await provider.complete(systemPrompt, [{ role: "user", content: userPrompt }], 500, "opus", "ambiguity-resolver")
     const parsed = JSON.parse(raw.trim().replace(/```json\n?|\n?```/g, ""))
 
     const durationMs = Date.now() - startMs
