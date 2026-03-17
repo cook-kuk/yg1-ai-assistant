@@ -18,12 +18,21 @@ const COMPARE_PATTERNS = [/비교/, /차이/, /(\d+)번.*(\d+)번/, /상위.*비
 const EXPLAIN_PATTERNS = [/그게\s*뭐/, /그건\s*뭐/, /이게\s*뭐/, /뭐야/, /차이.*뭐/, /뭐가\s*다/, /설명/, /왜\s*이/, /이유/]
 const META_QUESTION_PATTERNS = [
   /아니야\s*\?*$/, /아닌가\s*\?*$/, /않아\s*\?*$/, /잖아/,
-  /해야\s*(하|되)/, /맞아\s*\?*$/, /맞지\s*\?*$/, /아닌데/,
+  /해야\s*(하|되)/, /맞지\s*\?*$/, /아닌데/,
   /이상하/, /왜.*그/, /왜.*이렇/, /어떻게.*된/, /뭐가.*잘못/,
   /내에서/, /중에서/, /안에서/,
 ]
 const SKIP_PATTERNS = ["상관없음", "모름", "패스", "넘어", "넘겨", "스킵", "아무거나"]
 const NONSENSE_PATTERNS = [/^[ㅋㅎㅠㅜ]+$/, /^[?!.]+$/, /^\s*$/]
+
+// ── New intent patterns ──────────────────────────────────────
+const SLOT_REPLACE_PATTERNS = [/바꿔/, /변경/, /교체/, /대신/, /말고/]
+const SIDE_CONVERSATION_PATTERNS = [/힘들어/, /피곤/, /감사합니다/, /고마워/, /수고/, /잘\s*지내/, /나랑\s*얘기/, /심심/, /외로/, /기분/]
+const SIMPLE_MATH_PATTERNS = [/\d+\s*[\+\-\*\/x×÷]\s*\d+/]
+const BOT_META_PATTERNS = [/넌\s*뭐/, /너\s*누구/, /AI야/, /봇이야/, /갑자기\s*왜/, /왜\s*추천/, /왜\s*갑자기/]
+const RETURN_TO_RECOMMENDATION_PATTERNS = [/다시.*추천/, /이어서/, /돌아가/, /원래.*하던/, /추천.*이어/, /아까.*이어/]
+const SCOPE_CONFIRMATION_PATTERNS = [/맞아\?/, /맞아요\?/, /보여주.*맞/, /지금.*만\s*보/, /현재.*맞/, /개\)?\s*만/, /해당하는.*맞/, /그\s*조건/]
+const COMPARISON_FOLLOWUP_PATTERNS = [/그\s*중/, /뭐가\s*나/, /어떤\s*게\s*나/, /둘\s*중/, /셋\s*중/, /어느.*나/]
 
 /**
  * Classify user intent — deterministic first, Haiku fallback for ambiguity.
@@ -59,6 +68,44 @@ export async function classifyIntent(
         }
       }
       return { intent: "GO_BACK_ONE_STEP", confidence: 0.95, modelUsed: "haiku" }
+    }
+  }
+
+  // ── 3.5. Simple math (must be before comparison — "1+1" shouldn't match number patterns) ──
+  if (SIMPLE_MATH_PATTERNS.some(p => p.test(clean))) {
+    return { intent: "SIMPLE_MATH", confidence: 0.95, modelUsed: "haiku" }
+  }
+
+  // ── 3.6. Scope confirmation ("지금 Square만 맞아?", "이거 26개 맞아?") ──
+  if (sessionState && SCOPE_CONFIRMATION_PATTERNS.some(p => p.test(clean))) {
+    return { intent: "ASK_SCOPE_CONFIRMATION", confidence: 0.9, modelUsed: "haiku" }
+  }
+
+  // ── 3.7. Return to active recommendation (only when overlay is active) ──
+  if (sessionState && sessionState.overlayMode === "side_conversation" &&
+      RETURN_TO_RECOMMENDATION_PATTERNS.some(p => p.test(clean))) {
+    return { intent: "RETURN_TO_ACTIVE_RECOMMENDATION", confidence: 0.95, modelUsed: "haiku" }
+  }
+
+  // ── 3.8. Bot meta questions ("넌 뭐야?", "갑자기 왜 추천해?") ──
+  if (BOT_META_PATTERNS.some(p => p.test(clean))) {
+    return { intent: "META_CONVERSATION", confidence: 0.9, modelUsed: "haiku" }
+  }
+
+  // ── 3.9. Side conversation / emotional chat ──
+  if (SIDE_CONVERSATION_PATTERNS.some(p => p.test(clean))) {
+    return { intent: "SIDE_CONVERSATION", confidence: 0.9, modelUsed: "haiku" }
+  }
+
+  // ── 3.10. Comparison follow-up with persisted scope ──
+  if (sessionState?.lastComparedProductCodes?.length &&
+      COMPARISON_FOLLOWUP_PATTERNS.some(p => p.test(clean))) {
+    return {
+      intent: "ASK_COMPARISON",
+      confidence: 0.9,
+      extractedValue: sessionState.lastComparedProductCodes.join(","),
+      reasoning: "Comparison follow-up using persisted comparison scope",
+      modelUsed: "haiku",
     }
   }
 
@@ -107,7 +154,42 @@ export async function classifyIntent(
     }
   }
 
-  // ── 7.6. Meta-questions about the process (NOT parameters) ──
+  // ── 7.6. Slot replacement detection ("4mm로 바꿔줘", "직경 변경") ──
+  if (sessionState && sessionState.appliedFilters.length > 0 &&
+      SLOT_REPLACE_PATTERNS.some(p => p.test(clean))) {
+    // Extract what value they want to change to
+    const paramResult = tryDeterministicExtraction(clean)
+    return {
+      intent: "CHANGE_SINGLE_VALUED_SLOT",
+      confidence: 0.9,
+      extractedValue: paramResult ?? clean,
+      modelUsed: "haiku",
+    }
+  }
+
+  // ── 7.7. Implicit slot replacement: "Nmm로" when diameterMm filter already exists ──
+  if (sessionState) {
+    const diamMatch = clean.match(/([\d.]+)\s*mm/)
+    if (diamMatch && sessionState.appliedFilters.some(f => f.field === "diameterMm" || f.field === "diameterRefine")) {
+      return {
+        intent: "CHANGE_SINGLE_VALUED_SLOT",
+        confidence: 0.9,
+        extractedValue: `${diamMatch[1]}mm`,
+        modelUsed: "haiku",
+      }
+    }
+    const fluteMatch = clean.match(/(\d+)\s*날/)
+    if (fluteMatch && sessionState.appliedFilters.some(f => f.field === "fluteCount")) {
+      return {
+        intent: "CHANGE_SINGLE_VALUED_SLOT",
+        confidence: 0.9,
+        extractedValue: `${fluteMatch[1]}날`,
+        modelUsed: "haiku",
+      }
+    }
+  }
+
+  // ── 7.8. Meta-questions about the process (NOT parameters) ──
   if (META_QUESTION_PATTERNS.some(p => p.test(clean))) {
     return { intent: "ASK_EXPLANATION", confidence: 0.85, modelUsed: "haiku" }
   }
@@ -161,13 +243,19 @@ Active session context: ${sessionSummary}
 Intents:
 - SET_PARAMETER: user provides a specific value (diameter, material, etc.)
 - SELECT_OPTION: user picks from presented options (e.g., "4날", "Square", "AlTiN")
+- CHANGE_SINGLE_VALUED_SLOT: user replaces a previously set value ("4mm로 바꿔줘", "직경 변경해줘")
 - ASK_RECOMMENDATION: user wants to see results now
 - ASK_COMPARISON: user wants to compare products
 - ASK_REASON: user asks why something was recommended
+- ASK_SCOPE_CONFIRMATION: user asks if current scope/count is correct ("지금 26개 맞아?")
 - ASK_EXPLANATION: user asks about a concept or term
 - GO_BACK_ONE_STEP: user wants to go back one step
 - GO_BACK_TO_SPECIFIC_STAGE: user wants to go back to a specific stage
 - RESET_SESSION: user wants to restart
+- SIDE_CONVERSATION: emotional/social chat ("힘들어", "감사합니다")
+- SIMPLE_MATH: arithmetic question ("1+1은?")
+- META_CONVERSATION: questions about the bot itself ("넌 뭐야?", "왜 갑자기 추천해?")
+- RETURN_TO_ACTIVE_RECOMMENDATION: user wants to resume recommendation ("다시 추천 이어가자")
 - START_NEW_TOPIC: unrelated topic change
 - OUT_OF_SCOPE: nonsense or off-domain
 

@@ -25,6 +25,8 @@ import type { RecommendationInput } from "@/lib/types/canonical"
 // ── Helpers ──────────────────────────────────────────────────
 
 const baseInput: RecommendationInput = {
+  locale: "en",
+  manufacturerScope: "yg1-only",
   material: "알루미늄",
   operationType: "측면가공",
   diameterMm: 10,
@@ -67,6 +69,7 @@ function buildTestState(filters: AppliedFilter[]): ExplorationSessionState {
     turnCount: filters.length,
     displayedCandidates: [],
     displayedChips: [],
+    displayedOptions: [],
   })
 }
 
@@ -86,6 +89,7 @@ describe("Session State Construction", () => {
       turnCount: 0,
       displayedCandidates: [],
       displayedChips: [],
+      displayedOptions: [],
     })
 
     expect(state.sessionId).toMatch(/^ses-/)

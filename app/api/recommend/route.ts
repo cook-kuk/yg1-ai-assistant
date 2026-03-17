@@ -208,7 +208,7 @@ async function handleExploration(
         return buildQuestionResponse(
           form, undoResult.candidates, undoResult.evidenceMap, restoreResult.rebuiltInput,
           restoreResult.remainingHistory, restoreResult.remainingFilters, restoreResult.undoTurnCount,
-          messages, provider, language, undefined, restoreResult.remainingStages
+          messages, provider, language, undefined, restoreResult.remainingStages, prevState.sessionId
         )
       }
 
@@ -216,7 +216,7 @@ async function handleExploration(
       if (action.type === "show_recommendation") {
         return buildRecommendationResponse(
           form, candidates, evidenceMap, currentInput, narrowingHistory,
-          filters, turnCount, messages, provider, language, displayedProducts
+          filters, turnCount, messages, provider, language, displayedProducts, prevState.sessionId
         )
       }
 
@@ -225,9 +225,18 @@ async function handleExploration(
         const snapshot = prevState.displayedCandidates?.length > 0
           ? prevState.displayedCandidates
           : buildCandidateSnapshot(candidates, evidenceMap)
-        const targets = resolveProductReferences(action.targets, snapshot)
+        // Use persisted comparison scope as fallback when targets are empty
+        const resolvedTargets = action.targets.length > 0
+          ? action.targets
+          : (prevState.lastComparedProductCodes ?? [])
+        const targets = resolveProductReferences(
+          resolvedTargets.length > 0 ? resolvedTargets : action.targets,
+          snapshot
+        )
         const compResult = await compareProducts(targets, evidenceMap, provider)
 
+        // Persist comparison scope for follow-up questions
+        const comparedCodes = targets.map(t => t.productCode)
         const sessionState: ExplorationSessionState = {
           sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
           candidateCount: candidates.length,
@@ -241,6 +250,8 @@ async function handleExploration(
           displayedChips: ["추천해주세요", "다른 조건으로", "⟵ 이전 단계", "처음부터 다시"],
           displayedOptions: [],
           lastAction: "compare_products",
+          lastComparedProductCodes: comparedCodes,
+          lastComparisonSummary: compResult.text.slice(0, 500),
         }
         return NextResponse.json({
           text: compResult.text,
@@ -272,7 +283,7 @@ async function handleExploration(
             return buildQuestionResponse(
               form, candidates, evidenceMap, currentInput,
               narrowingHistory, filters, turnCount, messages, provider, language,
-              contextReply
+              contextReply, undefined, prevState.sessionId
             )
           }
         }
@@ -345,6 +356,132 @@ async function handleExploration(
         })
       }
 
+      // Action: replace_slot — deterministic slot replacement (2mm→4mm)
+      if (action.type === "replace_slot") {
+        const { oldFilter, newFilter } = action
+        const replacedFilter = { ...newFilter, appliedAt: oldFilter.appliedAt }
+
+        // 1. Remove old filter, insert new at same position
+        const newFilters = filters.map(f =>
+          f.field === oldFilter.field && f.appliedAt === oldFilter.appliedAt ? replacedFilter : f
+        )
+
+        // 2. Rebuild input from base by replaying all filters
+        let rebuiltInput = { ...baseInput }
+        for (const f of newFilters.filter(f => f.op !== "skip")) {
+          rebuiltInput = applyFilterToInput(rebuiltInput, f)
+        }
+
+        // 3. Run retrieval with updated filters
+        const replaceResult = await runHybridRetrieval(rebuiltInput, newFilters.filter(f => f.op !== "skip"))
+
+        // 4. Zero-candidate guard
+        if (replaceResult.candidates.length === 0) {
+          console.log(`[orchestrator:replace_slot] ${oldFilter.field}: ${oldFilter.value}→${newFilter.value} would result in 0 candidates — BLOCKED`)
+          return buildQuestionResponse(
+            form, candidates, evidenceMap, currentInput,
+            narrowingHistory, filters, turnCount, messages, provider, language,
+            `"${newFilter.value}"로 변경하면 후보가 없습니다. 현재 "${oldFilter.value}" 조건을 유지합니다.`,
+            undefined, prevState.sessionId
+          )
+        }
+
+        // 5. Rebuild stage history
+        const existingStages = (prevState.stageHistory ?? []).filter(
+          s => !s.filterApplied || s.filterApplied.field !== oldFilter.field
+        )
+        const replacementStage: NarrowingStage = {
+          stepIndex: replacedFilter.appliedAt,
+          stageName: `${replacedFilter.field}_${replacedFilter.value}`,
+          filterApplied: replacedFilter,
+          candidateCount: replaceResult.candidates.length,
+          resolvedInputSnapshot: { ...rebuiltInput },
+          filtersSnapshot: [...newFilters],
+        }
+        const updatedStages = [...existingStages, replacementStage].sort((a, b) => a.stepIndex - b.stepIndex)
+
+        // 6. Update narrowing history
+        const updatedHistory = [...narrowingHistory, {
+          question: "slot_replacement",
+          answer: lastUserMsg.text,
+          extractedFilters: [replacedFilter],
+          candidateCountBefore: candidates.length,
+          candidateCountAfter: replaceResult.candidates.length,
+        }]
+
+        console.log(`[orchestrator:replace_slot] ${oldFilter.field}: ${oldFilter.value}→${replacedFilter.value} | ${candidates.length}→${replaceResult.candidates.length} candidates`)
+
+        turnCount++
+        const newStatus = checkResolution(replaceResult.candidates, updatedHistory)
+        if (newStatus.startsWith("resolved")) {
+          return buildRecommendationResponse(form, replaceResult.candidates, replaceResult.evidenceMap, rebuiltInput, updatedHistory, newFilters, turnCount, messages, provider, language, displayedProducts, prevState.sessionId)
+        }
+        return buildQuestionResponse(form, replaceResult.candidates, replaceResult.evidenceMap, rebuiltInput, updatedHistory, newFilters, turnCount, messages, provider, language, undefined, updatedStages, prevState.sessionId)
+      }
+
+      // Action: confirm_scope — answer "지금 26개 맞아?" directly from state
+      if (action.type === "confirm_scope") {
+        const filterDesc = prevState.appliedFilters.length > 0
+          ? prevState.appliedFilters.filter(f => f.op !== "skip").map(f => `${f.value}`).join(", ")
+          : "없음"
+        const scopeText = `네, 현재 조건: [${filterDesc}]\n후보 제품 수: ${candidates.length}개\n상태: ${prevState.resolutionStatus === "narrowing" ? "좁히는 중" : prevState.resolutionStatus}`
+        const sessionState: ExplorationSessionState = {
+          ...prevState,
+          sessionId: prevState.sessionId,
+          candidateCount: candidates.length,
+          displayedCandidates: prevState.displayedCandidates ?? [],
+          lastAction: "confirm_scope",
+        }
+        return NextResponse.json({
+          text: scopeText,
+          purpose: "question",
+          chips: prevState.displayedChips.length > 0 ? prevState.displayedChips : ["추천해주세요", "다른 조건으로", "처음부터 다시"],
+          isComplete: false,
+          recommendation: null,
+          sessionState,
+          evidenceSummaries: null,
+          candidateSnapshot: prevState.displayedCandidates,
+          extractedField: null,
+          requestPreparation: null,
+          primaryExplanation: null, primaryFactChecked: null,
+          altExplanations: [], altFactChecked: [],
+          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+        })
+      }
+
+      // Action: side_conversation — respond but preserve recommendation session
+      if (action.type === "side_conversation") {
+        const llmResponse = await handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form, prevState.displayedCandidates)
+        const preservedChips = [...llmResponse.chips]
+        // Add a return-to-recommendation chip if session is active
+        if (prevState.appliedFilters.length > 0 || prevState.candidateCount > 0) {
+          preservedChips.push("이어서 추천받기")
+        }
+        const sessionState: ExplorationSessionState = {
+          ...prevState,
+          sessionId: prevState.sessionId,
+          candidateCount: prevState.candidateCount ?? candidates.length,
+          displayedChips: preservedChips,
+          lastAction: "side_conversation",
+          overlayMode: "side_conversation",
+        }
+        return NextResponse.json({
+          text: llmResponse.text,
+          purpose: "general_chat",
+          chips: preservedChips,
+          isComplete: false,
+          recommendation: null,
+          sessionState,
+          evidenceSummaries: null,
+          candidateSnapshot: null,
+          extractedField: null,
+          requestPreparation: null,
+          primaryExplanation: null, primaryFactChecked: null,
+          altExplanations: [], altFactChecked: [],
+          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+        })
+      }
+
       // Action: skip_field
       if (action.type === "skip_field") {
         const skipField = prevState.lastAskedField ?? "unknown"
@@ -364,9 +501,9 @@ async function handleExploration(
 
         const statusAfterSkip = checkResolution(newResult.candidates, narrowingHistory)
         if (statusAfterSkip.startsWith("resolved")) {
-          return buildRecommendationResponse(form, newResult.candidates, newResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts)
+          return buildRecommendationResponse(form, newResult.candidates, newResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts, prevState.sessionId)
         }
-        return buildQuestionResponse(form, newResult.candidates, newResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language)
+        return buildQuestionResponse(form, newResult.candidates, newResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, undefined, undefined, prevState.sessionId)
       }
 
       // Action: continue_narrowing (apply filter from orchestrator)
@@ -384,7 +521,8 @@ async function handleExploration(
           return buildQuestionResponse(
             form, candidates, evidenceMap, currentInput,
             narrowingHistory, filters, turnCount, messages, provider, language,
-            `"${filter.value}" 조건을 적용하면 후보가 없습니다. 현재 ${candidates.length}개 후보에서 다른 조건을 선택해주세요.`
+            `"${filter.value}" 조건을 적용하면 후보가 없습니다. 현재 ${candidates.length}개 후보에서 다른 조건을 선택해주세요.`,
+            undefined, prevState.sessionId
           )
         }
 
@@ -420,10 +558,10 @@ async function handleExploration(
 
         const newStatus = checkResolution(newCandidates, narrowingHistory)
         if (newStatus.startsWith("resolved")) {
-          return buildRecommendationResponse(form, newCandidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts)
+          return buildRecommendationResponse(form, newCandidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts, prevState.sessionId)
         }
 
-        return buildQuestionResponse(form, newCandidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, undefined, updatedStages)
+        return buildQuestionResponse(form, newCandidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, undefined, updatedStages, prevState.sessionId)
       }
     }
   }
@@ -459,7 +597,8 @@ async function buildQuestionResponse(
   provider: ReturnType<typeof getProvider>,
   language: AppLanguage,
   overrideText?: string,
-  existingStageHistory?: NarrowingStage[]
+  existingStageHistory?: NarrowingStage[],
+  prevSessionId?: string
 ): Promise<Response> {
   const question = selectNextQuestion(input, candidates, history)
 
@@ -477,7 +616,7 @@ async function buildQuestionResponse(
 
   // Build session state for client — single source of truth
   const sessionState: ExplorationSessionState = {
-    sessionId: `ses-${Date.now()}`,
+    sessionId: prevSessionId ?? `ses-${Date.now()}`,
     candidateCount: candidates.length,
     appliedFilters: filters,
     narrowingHistory: history,
@@ -580,7 +719,8 @@ async function buildRecommendationResponse(
   messages: ChatMessage[],
   provider: ReturnType<typeof getProvider>,
   language: AppLanguage,
-  displayedProducts: DisplayedProduct[] | null = null
+  displayedProducts: DisplayedProduct[] | null = null,
+  prevSessionId?: string
 ): Promise<Response> {
   const { primary, alternatives, status } = classifyHybridResults({ candidates, evidenceMap, totalConsidered: candidates.length, filtersApplied: filters })
   const warnings = primary ? buildWarnings(primary, input) : ["조건에 맞는 제품을 찾지 못했습니다"]
@@ -652,7 +792,7 @@ async function buildRecommendationResponse(
     try {
       const systemPrompt = buildSystemPrompt(language)
       const llmSessionState: ExplorationSessionState = {
-        sessionId: `ses-${Date.now()}`,
+        sessionId: prevSessionId ?? `ses-${Date.now()}`,
         candidateCount: candidates.length,
         appliedFilters: filters,
         narrowingHistory: history,
@@ -708,7 +848,7 @@ async function buildRecommendationResponse(
   const followUpChips = getFollowUpChips(recommendation)
 
   const sessionState: ExplorationSessionState = {
-    sessionId: `ses-${Date.now()}`,
+    sessionId: prevSessionId ?? `ses-${Date.now()}`,
     candidateCount: candidates.length,
     appliedFilters: filters,
     narrowingHistory: history,

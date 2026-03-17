@@ -16,12 +16,18 @@ import type { ProductIntakeForm } from "@/lib/types/intake"
 export type NarrowingIntent =
   | "SET_PARAMETER"               // user provides a value (e.g., "4날", "Square")
   | "SELECT_OPTION"               // user picks from presented options
+  | "CHANGE_SINGLE_VALUED_SLOT"   // user replaces a previously set value ("4mm로 바꿔줘")
   | "ASK_RECOMMENDATION"          // user wants results now ("추천해줘")
   | "ASK_COMPARISON"              // user wants to compare products ("1번이랑 2번 차이?")
   | "ASK_REASON"                  // user asks why something was recommended
+  | "ASK_SCOPE_CONFIRMATION"      // user asks "지금 26개 맞아?" — confirm current state
   | "GO_BACK_ONE_STEP"            // "이전으로"
   | "GO_BACK_TO_SPECIFIC_STAGE"   // "Square 선택전으로"
   | "RESET_SESSION"               // "처음부터 다시"
+  | "SIDE_CONVERSATION"           // social/emotional chat ("힘들어", "감사합니다")
+  | "SIMPLE_MATH"                 // arithmetic ("1+1이 뭐야?")
+  | "META_CONVERSATION"           // questions about the bot ("넌 뭐야?", "갑자기 왜 추천해?")
+  | "RETURN_TO_ACTIVE_RECOMMENDATION" // resume after side chat ("다시 추천 이어가자")
   | "START_NEW_TOPIC"             // unrelated question during session
   | "ASK_EXPLANATION"             // "그게 뭐야?", "차이가 뭐야?"
   | "OUT_OF_SCOPE"                // nonsense, off-domain
@@ -63,6 +69,7 @@ export interface AmbiguityResolution {
 // ── Orchestrator Decision ────────────────────────────────────
 export type OrchestratorAction =
   | { type: "continue_narrowing"; filter: AppliedFilter }
+  | { type: "replace_slot"; oldFilter: AppliedFilter; newFilter: AppliedFilter }
   | { type: "skip_field" }
   | { type: "show_recommendation" }
   | { type: "go_back_one_step" }
@@ -70,6 +77,8 @@ export type OrchestratorAction =
   | { type: "reset_session" }
   | { type: "compare_products"; targets: string[] }
   | { type: "explain_product"; target?: string }
+  | { type: "confirm_scope" }
+  | { type: "side_conversation"; message: string }
   | { type: "answer_general"; message: string }
   | { type: "redirect_off_topic" }
 

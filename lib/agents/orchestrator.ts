@@ -82,9 +82,9 @@ export async function orchestrateTurn(
     }
   }
 
-  // ═══ Step 3: Parameter Extraction (Haiku) — for SET_PARAMETER/SELECT_OPTION ═══
+  // ═══ Step 3: Parameter Extraction (Haiku) — for SET_PARAMETER/SELECT_OPTION/CHANGE_SINGLE_VALUED_SLOT ═══
   let extractedParams: ExtractedParameters | null = null
-  if (finalIntent === "SET_PARAMETER" || finalIntent === "SELECT_OPTION") {
+  if (finalIntent === "SET_PARAMETER" || finalIntent === "SELECT_OPTION" || finalIntent === "CHANGE_SINGLE_VALUED_SLOT") {
     const paramStart = Date.now()
     extractedParams = await extractParameters(ctx.userMessage, ctx.sessionState, provider)
     agents.push({ agent: "parameter-extractor", model: "haiku", durationMs: Date.now() - paramStart })
@@ -119,7 +119,7 @@ export async function orchestrateTurn(
 // ACTION ROUTING
 // ════════════════════════════════════════════════════════════════
 
-function routeToAction(
+export function routeToAction(
   intent: NarrowingIntent,
   value: string | undefined,
   params: ExtractedParameters | null,
@@ -151,6 +151,39 @@ function routeToAction(
     case "ASK_REASON":
       return { type: "explain_product", target: value }
 
+    case "ASK_SCOPE_CONFIRMATION":
+      return { type: "confirm_scope" }
+
+    case "SIDE_CONVERSATION":
+    case "SIMPLE_MATH":
+    case "META_CONVERSATION":
+      return { type: "side_conversation", message: ctx.userMessage }
+
+    case "RETURN_TO_ACTIVE_RECOMMENDATION": {
+      // Resume after side conversation — check if already resolved
+      if (ctx.sessionState?.resolutionStatus?.startsWith("resolved")) {
+        return { type: "show_recommendation" }
+      }
+      // Not resolved — re-ask the current question (continue with no new filter)
+      return { type: "skip_field" }
+    }
+
+    case "CHANGE_SINGLE_VALUED_SLOT": {
+      const newFilter = buildFilterFromParams(params, value, ctx)
+      if (!newFilter || newFilter.op === "skip") {
+        return { type: "answer_general", message: ctx.userMessage }
+      }
+      // Find existing filter for the same field
+      const existingFilter = ctx.sessionState?.appliedFilters.find(
+        f => f.field === newFilter.field && f.op !== "skip"
+      )
+      if (existingFilter) {
+        return { type: "replace_slot", oldFilter: existingFilter, newFilter }
+      }
+      // No existing filter — treat as normal narrowing
+      return { type: "continue_narrowing", filter: newFilter }
+    }
+
     case "SELECT_OPTION":
     case "SET_PARAMETER": {
       // Try to build a filter from extracted params
@@ -159,6 +192,13 @@ function routeToAction(
         // Check if it's a skip
         if (filter.op === "skip") {
           return { type: "skip_field" }
+        }
+        // Auto-detect slot replacement: same field already has a filter
+        const existingFilter = ctx.sessionState?.appliedFilters.find(
+          f => f.field === filter.field && f.op !== "skip"
+        )
+        if (existingFilter) {
+          return { type: "replace_slot", oldFilter: existingFilter, newFilter: filter }
         }
         return { type: "continue_narrowing", filter }
       }

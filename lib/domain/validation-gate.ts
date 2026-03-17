@@ -13,6 +13,7 @@
  */
 
 import type { ExplorationSessionState, AppliedFilter, CandidateSnapshot } from "@/lib/types/exploration"
+// ExplorationSessionState is used by validateOverlayIntegrity and runValidationGate
 import type { NextQuestion } from "@/lib/domain/question-engine"
 
 export interface ValidationIssue {
@@ -118,6 +119,65 @@ export function validateUndoEffect(
 }
 
 /**
+ * Validate that no duplicate filters exist for the same field (slot consistency).
+ * After a replace_slot action, there should be exactly one filter per field.
+ */
+export function validateSlotConsistency(
+  appliedFilters: AppliedFilter[]
+): ValidationIssue | null {
+  const fieldCounts = new Map<string, number>()
+  for (const f of appliedFilters) {
+    if (f.op === "skip") continue
+    fieldCounts.set(f.field, (fieldCounts.get(f.field) ?? 0) + 1)
+  }
+  for (const [field, count] of fieldCounts) {
+    if (count > 1) {
+      return {
+        code: "DUPLICATE_SLOT_FILTER",
+        severity: "error",
+        message: `필드 "${field}"에 ${count}개의 필터가 중복 적용되어 있습니다. 슬롯 교체가 올바르게 처리되지 않았습니다.`,
+        autoFixed: false,
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * Validate that a side_conversation action didn't alter recommendation state.
+ * Filters, candidates, and displayed products must be identical before/after.
+ */
+export function validateOverlayIntegrity(
+  prevState: ExplorationSessionState,
+  nextState: ExplorationSessionState,
+  actionType: string
+): ValidationIssue | null {
+  if (actionType !== "side_conversation") return null
+
+  // Check filters unchanged
+  if (prevState.appliedFilters.length !== nextState.appliedFilters.length) {
+    return {
+      code: "OVERLAY_FILTERS_CHANGED",
+      severity: "error",
+      message: `사이드 대화 중 필터가 변경되었습니다 (${prevState.appliedFilters.length}→${nextState.appliedFilters.length}).`,
+      autoFixed: false,
+    }
+  }
+
+  // Check candidate count unchanged
+  if (prevState.candidateCount !== nextState.candidateCount) {
+    return {
+      code: "OVERLAY_CANDIDATES_CHANGED",
+      severity: "warning",
+      message: `사이드 대화 중 후보 수가 변경되었습니다 (${prevState.candidateCount}→${nextState.candidateCount}).`,
+      autoFixed: false,
+    }
+  }
+
+  return null
+}
+
+/**
  * Run all validations and return combined result.
  */
 export function runValidationGate(params: {
@@ -129,6 +189,8 @@ export function runValidationGate(params: {
   comparisonTargets?: string[]
   actionType?: string
   prevFilterCount?: number
+  prevState?: ExplorationSessionState
+  nextState?: ExplorationSessionState
 }): ValidationResult {
   const issues: ValidationIssue[] = []
 
@@ -154,6 +216,16 @@ export function runValidationGate(params: {
       params.actionType
     )
     if (undoIssue) issues.push(undoIssue)
+  }
+
+  // Check slot consistency (no duplicate filters on same field)
+  const slotIssue = validateSlotConsistency(params.appliedFilters)
+  if (slotIssue) issues.push(slotIssue)
+
+  // Check overlay integrity (side_conversation must not change state)
+  if (params.actionType && params.prevState && params.nextState) {
+    const overlayIssue = validateOverlayIntegrity(params.prevState, params.nextState, params.actionType)
+    if (overlayIssue) issues.push(overlayIssue)
   }
 
   // Log all issues

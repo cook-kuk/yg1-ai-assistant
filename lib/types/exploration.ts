@@ -49,12 +49,15 @@ export interface NarrowingStage {
 export type LastActionType =
   | "start_exploration"
   | "continue_narrowing"
+  | "replace_slot"
   | "skip_field"
   | "show_recommendation"
   | "go_back_one_step"
   | "go_back_to_filter"
   | "compare_products"
   | "explain_product"
+  | "confirm_scope"
+  | "side_conversation"
   | "answer_general"
   | "redirect_off_topic"
   | "reset_session"
@@ -76,6 +79,13 @@ export interface ExplorationSessionState {
   displayedChips: string[]                  // chips shown with the last question
   displayedOptions: DisplayedOption[]       // structured narrowing options for numbered selection
   lastAction?: LastActionType               // what the system did last turn
+
+  // ── Comparison persistence (GPT-style task-scoped memory) ──
+  lastComparedProductCodes?: string[]       // product codes from last comparison
+  lastComparisonSummary?: string            // brief text summary of last comparison
+
+  // ── Conversation overlay (Gemini ADK-style session/state separation) ──
+  overlayMode?: "side_conversation" | null  // tracks when side chat is active
 }
 
 // ── Full Exploration Session (server-side, includes heavy data) ──
