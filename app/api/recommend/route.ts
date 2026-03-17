@@ -2371,6 +2371,10 @@ function mapIntakeToInput(form: ProductIntakeForm): RecommendationInput {
   if (form.country?.status === "known") {
     input.region = form.country.value as "KOREA" | "GLOBAL" | "ALL"
   }
+  // Unit system mapping
+  if (form.unitSystem?.status === "known") {
+    input.unitSystem = form.unitSystem.value as "METRIC" | "INCH" | "ALL"
+  }
   return input as RecommendationInput
 }
 

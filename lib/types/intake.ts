@@ -23,6 +23,7 @@ export type InquiryPurpose =
 export type MachiningIntent = "roughing" | "semi" | "finishing"
 
 export type MarketRegion = "KOREA" | "GLOBAL" | "ALL"
+export type UnitSystem = "METRIC" | "INCH" | "ALL"
 
 export interface ProductIntakeForm {
   inquiryPurpose: AnswerState<InquiryPurpose>
@@ -32,6 +33,7 @@ export interface ProductIntakeForm {
   toolTypeOrCurrentProduct: AnswerState<string>
   diameterInfo: AnswerState<string>
   country: AnswerState<MarketRegion>
+  unitSystem: AnswerState<UnitSystem>
   advanced?: {
     fluteCount?: AnswerState<number>
     coating?: AnswerState<string>
@@ -47,6 +49,7 @@ export const INITIAL_INTAKE_FORM: ProductIntakeForm = {
   toolTypeOrCurrentProduct: { status: "unanswered" },
   diameterInfo: { status: "unanswered" },
   country: { status: "unanswered" },
+  unitSystem: { status: "unanswered" },
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -140,6 +143,18 @@ export const FIELD_CONFIGS: IntakeFieldConfig[] = [
       { value: "KOREA", label: "한국 (국내 시장)" },
       { value: "GLOBAL", label: "글로벌 (해외 시장)" },
       { value: "ALL", label: "전체 (국내+해외)" },
+    ],
+    unknownLabel: "상관없음",
+  },
+  {
+    key: "unitSystem",
+    label: "단위 계열",
+    emoji: "📐",
+    description: "제품 규격 단위를 선택하세요",
+    options: [
+      { value: "METRIC", label: "미터법 (mm)" },
+      { value: "INCH", label: "인치 (inch)" },
+      { value: "ALL", label: "전체 (mm+inch)" },
     ],
     unknownLabel: "상관없음",
   },

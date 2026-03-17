@@ -16,6 +16,7 @@ const FIELD_LABELS: Record<LocalizedIntakeFieldKey, { ko: string; en: string }> 
   toolTypeOrCurrentProduct: { ko: "공구 타입 / 현재 제품", en: "Tool Type / Current Product" },
   diameterInfo: { ko: "공구 직경", en: "Tool Diameter" },
   country: { ko: "시장 / 국가", en: "Market / Region" },
+  unitSystem: { ko: "단위 계열", en: "Unit System" },
 }
 
 const INQUIRY_PURPOSE_LABELS_LOCALIZED: Record<InquiryPurpose, { ko: string; en: string }> = {
@@ -170,6 +171,14 @@ export function getIntakeDisplayValue(
       ALL: { ko: "전체", en: "All Markets" },
     }
     return regionLabels[value]?.[language] ?? value
+  }
+  if (key === "unitSystem") {
+    const unitLabels: Record<string, { ko: string; en: string }> = {
+      METRIC: { ko: "미터법 (mm)", en: "Metric (mm)" },
+      INCH: { ko: "인치 (inch)", en: "Inch" },
+      ALL: { ko: "전체", en: "All Units" },
+    }
+    return unitLabels[value]?.[language] ?? value
   }
 
   return localizeIntakeText(value, language)

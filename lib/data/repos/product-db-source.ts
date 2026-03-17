@@ -623,6 +623,16 @@ function buildQueryOptions(options: ProductSearchOptions): { where: string[]; va
     where.push(`COALESCE(region, '') = ${param}`)
   }
 
+  // Unit system filter (METRIC / INCH)
+  if (input?.unitSystem && input.unitSystem !== "ALL") {
+    if (input.unitSystem === "INCH") {
+      where.push(`UPPER(COALESCE(edp_unit, '')) LIKE '%INCH%'`)
+    } else {
+      // METRIC: exclude INCH products
+      where.push(`UPPER(COALESCE(edp_unit, '')) NOT LIKE '%INCH%'`)
+    }
+  }
+
   const appShapes = input?.operationType ? getAppShapesForOperation(input.operationType) : []
   if (appShapes.length > 0) {
     const clauses: string[] = []

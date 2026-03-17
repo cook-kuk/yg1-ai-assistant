@@ -127,6 +127,7 @@ export const RecommendationInputSchema = z.object({
   manufacturerScope: z.enum(["yg1-only", "include-competitor"]).default("yg1-only"),
   locale: z.string().default("ko"),
   region: z.enum(["KOREA", "GLOBAL", "ALL"]).optional(),
+  unitSystem: z.enum(["METRIC", "INCH", "ALL"]).optional(),
 })
 export type RecommendationInput = z.infer<typeof RecommendationInputSchema>
 
