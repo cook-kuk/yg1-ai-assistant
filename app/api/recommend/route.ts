@@ -45,9 +45,8 @@ import type { ActionPlan } from "@/lib/domain/action-planner"
 import { orchestrateTurn, orchestrateTurnWithTools } from "@/lib/agents/orchestrator"
 import { compareProducts, resolveProductReferences } from "@/lib/agents/comparison-agent"
 import type { TurnContext, OrchestratorResult } from "@/lib/agents/types"
-import { buildSessionState, carryForwardState, createInitialStage, createFilterStage, restoreOnePreviousStep, restoreToBeforeFilter, replaceSlot } from "@/lib/domain/session-manager"
-import { runValidationGate, validateNoReask, validateSlotReplacement } from "@/lib/domain/validation-gate"
-import type { ConversationOverlay, ComparisonArtifact } from "@/lib/types/exploration"
+import { buildSessionState, carryForwardState, createInitialStage, createFilterStage, restoreOnePreviousStep, restoreToBeforeFilter } from "@/lib/domain/session-manager"
+import { runValidationGate, validateNoReask } from "@/lib/domain/validation-gate"
 import { ENABLE_MULTI_AGENT_ORCHESTRATOR, ENABLE_VALIDATION_GATE, ENABLE_COMPARISON_AGENT, ENABLE_TOOL_USE_ROUTING } from "@/lib/feature-flags"
 import { ProductRepo } from "@/lib/data/repos/product-repo"
 
@@ -337,9 +336,7 @@ async function handleExploration(
           displayedCandidates: snapshot,
           displayedChips: ["비교해줘", "추천해주세요", "⟵ 이전 단계"],
           displayedOptions: prevState.displayedOptions ?? [],
-          lastAction: "show_displayed_products",
-          conversationOverlay: prevState.conversationOverlay,
-          lastComparisonArtifact: prevState.lastComparisonArtifact,
+          lastAction: "answer_general",
         }
         return NextResponse.json({
           text: responseText,
@@ -355,50 +352,6 @@ async function handleExploration(
           altExplanations: [], altFactChecked: [],
           orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
         })
-      }
-
-      // Action: replace_slot — remove old filter, add new one, recompute
-      if (action.type === "replace_slot") {
-        const slotResult = replaceSlot(
-          prevState, action.oldField, action.newFilter, baseInput, applyFilterToInput
-        )
-
-        // Recompute candidates with new filters
-        const newResult = await runHybridRetrieval(
-          slotResult.rebuiltInput,
-          slotResult.updatedFilters.filter(f => f.op !== "skip")
-        )
-
-        // Update the last history entry with actual count
-        if (slotResult.updatedHistory.length > 0) {
-          slotResult.updatedHistory[slotResult.updatedHistory.length - 1].candidateCountAfter = newResult.candidates.length
-        }
-
-        // Build new stage
-        const newStage = createFilterStage(
-          action.newFilter, slotResult.rebuiltInput,
-          slotResult.updatedFilters, newResult.candidates.length
-        )
-        const updatedStages = [...slotResult.updatedStages, newStage]
-
-        console.log(`[orchestrator:slot-replace] ${action.oldField}: ${slotResult.oldValue} → ${slotResult.newValue} | ${prevState.candidateCount} → ${newResult.candidates.length} candidates`)
-
-        const replaceText = `${action.oldField}를 ${slotResult.oldValue}에서 **${slotResult.newValue}**로 변경했습니다.\n후보가 ${newResult.candidates.length}개로 업데이트되었습니다.`
-
-        const status = checkResolution(newResult.candidates, slotResult.updatedHistory)
-        if (status.startsWith("resolved")) {
-          return buildRecommendationResponse(
-            form, newResult.candidates, newResult.evidenceMap, slotResult.rebuiltInput,
-            slotResult.updatedHistory, slotResult.updatedFilters, slotResult.turnCount,
-            messages, provider, language, displayedProducts
-          )
-        }
-
-        return buildQuestionResponse(
-          form, newResult.candidates, newResult.evidenceMap, slotResult.rebuiltInput,
-          slotResult.updatedHistory, slotResult.updatedFilters, slotResult.turnCount,
-          messages, provider, language, replaceText, updatedStages
-        )
       }
 
       // Action: filter_displayed — in-display 필터링
@@ -642,123 +595,6 @@ async function handleExploration(
           altExplanations: [], altFactChecked: [],
           orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
         })
-      }
-
-      // Action: side_conversation — handle without destroying session
-      if (action.type === "side_conversation") {
-        const sideResponse = await handleSideConversation(provider, lastUserMsg.text)
-
-        const sessionState: ExplorationSessionState = {
-          sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
-          candidateCount: prevState.candidateCount,
-          appliedFilters: filters,
-          narrowingHistory,
-          stageHistory: prevState.stageHistory ?? [],
-          resolutionStatus: prevState.resolutionStatus ?? "broad",
-          resolvedInput: currentInput,
-          turnCount,
-          lastAskedField: prevState.lastAskedField,
-          displayedCandidates: prevState.displayedCandidates ?? [],
-          displayedChips: ["추천 이어서", "처음부터 다시"],
-          displayedOptions: prevState.displayedOptions ?? [],
-          lastAction: "side_conversation",
-          conversationOverlay: {
-            mode: "side_conversation",
-            overlayType: detectOverlayType(lastUserMsg.text),
-            preservedSessionActive: true,
-          },
-          lastComparisonArtifact: prevState.lastComparisonArtifact,
-        }
-        return NextResponse.json({
-          text: sideResponse,
-          purpose: "general_chat",
-          chips: ["추천 이어서", "처음부터 다시"],
-          isComplete: false,
-          recommendation: null,
-          sessionState,
-          evidenceSummaries: null,
-          candidateSnapshot: prevState.displayedCandidates ?? null,
-          extractedField: null, requestPreparation: null,
-          primaryExplanation: null, primaryFactChecked: null,
-          altExplanations: [], altFactChecked: [],
-          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
-        })
-      }
-
-      // Action: meta_conversation — honest answer about system behavior
-      if (action.type === "meta_conversation") {
-        const metaResponse = await handleMetaConversation(provider, lastUserMsg.text, prevState)
-
-        const sessionState: ExplorationSessionState = {
-          sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
-          candidateCount: prevState.candidateCount,
-          appliedFilters: filters,
-          narrowingHistory,
-          stageHistory: prevState.stageHistory ?? [],
-          resolutionStatus: prevState.resolutionStatus ?? "broad",
-          resolvedInput: currentInput,
-          turnCount,
-          lastAskedField: prevState.lastAskedField,
-          displayedCandidates: prevState.displayedCandidates ?? [],
-          displayedChips: prevState.displayedChips?.length ? prevState.displayedChips : ["⟵ 이전 단계", "추천해주세요", "처음부터 다시"],
-          displayedOptions: prevState.displayedOptions ?? [],
-          lastAction: "meta_conversation",
-          conversationOverlay: prevState.conversationOverlay,
-          lastComparisonArtifact: prevState.lastComparisonArtifact,
-        }
-        return NextResponse.json({
-          text: metaResponse,
-          purpose: "general_chat",
-          chips: prevState.displayedChips ?? ["추천 이어서", "처음부터 다시"],
-          isComplete: false,
-          recommendation: null,
-          sessionState,
-          evidenceSummaries: null,
-          candidateSnapshot: prevState.displayedCandidates ?? null,
-          extractedField: null, requestPreparation: null,
-          primaryExplanation: null, primaryFactChecked: null,
-          altExplanations: [], altFactChecked: [],
-          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
-        })
-      }
-
-      // Action: return_to_recommendation — resume from preserved session
-      if (action.type === "return_to_recommendation") {
-        // Clear overlay, resume from current state
-        const sessionState: ExplorationSessionState = {
-          sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
-          candidateCount: candidates.length,
-          appliedFilters: filters,
-          narrowingHistory,
-          stageHistory: prevState.stageHistory ?? [],
-          resolutionStatus: prevState.resolutionStatus ?? "broad",
-          resolvedInput: currentInput,
-          turnCount,
-          lastAskedField: prevState.lastAskedField,
-          displayedCandidates: prevState.displayedCandidates ?? [],
-          displayedChips: prevState.displayedChips ?? [],
-          displayedOptions: prevState.displayedOptions ?? [],
-          lastAction: "return_to_recommendation",
-          conversationOverlay: { mode: "none", overlayType: null, preservedSessionActive: true },
-          lastComparisonArtifact: prevState.lastComparisonArtifact,
-        }
-
-        const status = checkResolution(candidates, narrowingHistory)
-        if (status.startsWith("resolved")) {
-          return buildRecommendationResponse(
-            form, candidates, evidenceMap, currentInput, narrowingHistory,
-            filters, turnCount, messages, provider, language, displayedProducts
-          )
-        }
-
-        // Resume narrowing — show where we left off
-        const filterSummary = filters.filter(f => f.op !== "skip").map(f => `${f.field}=${f.value}`).join(", ")
-        const resumeText = `추천을 이어갑니다.\n현재 조건: ${filterSummary || "없음"}\n후보: ${candidates.length}개`
-
-        return buildQuestionResponse(
-          form, candidates, evidenceMap, currentInput, narrowingHistory,
-          filters, turnCount, messages, provider, language, resumeText
-        )
       }
 
       // Action: explain_product / answer_general
