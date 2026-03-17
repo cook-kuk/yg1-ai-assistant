@@ -551,6 +551,8 @@ ${candidatesDesc}
 - 소재 언급이 설명인지 새 검색인지 불명확 → ask_clarification
 - "직경 잘못 입력했네", "공구직경 틀렸어" → ask_clarification (질문: "올바른 직경을 알려주세요", 옵션: 자주 쓰는 직경 + "직접 입력")
 - "잘못 선택했어", "다시 할래" → undo_step (target="last")
+- "더 줄이고 싶어", "후보 줄여줘", "더 좁혀줘" → ask_clarification (질문: "어떤 기준으로 줄일까요?", 옵션: 표시된 제품의 주요 스펙 차이 기준)
+- "두 상품 OAL 알려줘", "상위 2개 절삭조건" → query_displayed_products (compare_products가 아님! 비교가 아니라 조회임)
 
 의도가 모호할 때:
 15. 추측하지 말고 ask_clarification으로 선택지 제시 (2-4개 옵션 + "직접 입력" 항상 포함)`
