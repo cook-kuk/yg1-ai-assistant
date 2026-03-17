@@ -350,14 +350,18 @@ function CandidateCard({ c }: { c: CandidateSnapshot }) {
             {c.brand && <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">{c.brand}</span>}
             {c.seriesName && <span className="text-xs text-blue-700 font-medium">{c.seriesName}</span>}
           </div>
-          {/* ── Inline spec summary: D-POWER GRAPHITE | EIB04 → Ø2mm · 2F · TiAlN · N군 · 7mm ── */}
-          <div className="text-[11px] text-gray-500 mt-0.5">
+          {/* ── Inline spec summary: Ø2mm · 3F · Bright Finish · Carbide · Shank 6mm · CL 10mm · OAL 80mm · 45° ── */}
+          <div className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">
             {[
               c.diameterMm != null ? `Ø${c.diameterMm}mm` : null,
               c.fluteCount != null ? `${c.fluteCount}F` : null,
               c.coating ?? null,
+              (c as Record<string, unknown>).toolMaterial ? String((c as Record<string, unknown>).toolMaterial) : null,
               c.materialTags.length > 0 ? `${c.materialTags.join("/")}군` : null,
-              c.displayLabel ?? null,
+              (c as Record<string, unknown>).shankDiameterMm != null ? `Shank ${(c as Record<string, unknown>).shankDiameterMm}mm` : null,
+              (c as Record<string, unknown>).lengthOfCutMm != null ? `CL ${(c as Record<string, unknown>).lengthOfCutMm}mm` : null,
+              (c as Record<string, unknown>).overallLengthMm != null ? `OAL ${(c as Record<string, unknown>).overallLengthMm}mm` : null,
+              (c as Record<string, unknown>).helixAngleDeg != null ? `${(c as Record<string, unknown>).helixAngleDeg}°` : null,
             ].filter(Boolean).join(" · ")}
           </div>
         </div>

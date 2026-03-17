@@ -110,7 +110,14 @@
       "Bash(echo:*)",
       "Bash(node:*)",
       "Bash(source:*)",
-      "Bash(git status:*)"
+      "Bash(git status:*)",
+      "WebFetch(domain:yg1-ai-assistant-6loalimqd-kukshomr-5918s-projects.vercel.app)",
+      "WebFetch(domain:vercel.com)",
+      "Bash(grep:*)",
+      "Bash(git merge:*)",
+      "Bash(npm install:*)",
+      "WebFetch(domain:yg1-ai-catalog.vercel.app)",
+      "Bash(git config:*)"
     ]
   }
 }
