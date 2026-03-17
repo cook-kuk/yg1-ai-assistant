@@ -364,11 +364,26 @@ async function handleExploration(
       // Action: continue_narrowing (apply filter from orchestrator)
       if (action.type === "continue_narrowing") {
         const filter = { ...action.filter, appliedAt: turnCount }
-        filters.push(filter)
-        currentInput = applyFilterToInput(currentInput, filter)
 
-        const newResult = await runHybridRetrieval(currentInput, filters)
-        const newCandidates = newResult.candidates
+        // ── Zero-candidate guard: test filter before committing ──
+        const testInput = applyFilterToInput(currentInput, filter)
+        const testFilters = [...filters, filter]
+        const testResult = await runHybridRetrieval(testInput, testFilters)
+
+        if (testResult.candidates.length === 0) {
+          // Filter would eliminate all candidates — DON'T apply it
+          console.log(`[orchestrator:guard] Filter ${filter.field}=${filter.value} would result in 0 candidates — BLOCKED`)
+          return buildQuestionResponse(
+            form, candidates, evidenceMap, currentInput,
+            narrowingHistory, filters, turnCount, messages, provider,
+            `"${filter.value}" 조건을 적용하면 후보가 없습니다. 현재 ${candidates.length}개 후보에서 다른 조건을 선택해주세요.`
+          )
+        }
+
+        // Safe to apply
+        filters.push(filter)
+        currentInput = testInput
+        const newCandidates = testResult.candidates
         const prevCandidateCount = prevState.candidateCount ?? candidates.length
 
         narrowingHistory.push({
@@ -397,10 +412,10 @@ async function handleExploration(
 
         const newStatus = checkResolution(newCandidates, narrowingHistory)
         if (newStatus.startsWith("resolved")) {
-          return buildRecommendationResponse(form, newCandidates, newResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider)
+          return buildRecommendationResponse(form, newCandidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider)
         }
 
-        return buildQuestionResponse(form, newCandidates, newResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, undefined, updatedStages)
+        return buildQuestionResponse(form, newCandidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, undefined, updatedStages)
       }
     }
   }
