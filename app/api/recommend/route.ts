@@ -269,6 +269,38 @@ async function handleExploration(
             provider, lastUserMsg.text, currentInput, candidates, prevState
           )
           if (contextReply) {
+            // If already resolved, return answer directly (don't re-trigger recommendation)
+            if (prevState.resolutionStatus?.startsWith("resolved")) {
+              const sessionState: ExplorationSessionState = {
+                sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+                candidateCount: prevState.candidateCount ?? candidates.length,
+                appliedFilters: filters,
+                narrowingHistory,
+                stageHistory: prevState.stageHistory ?? [],
+                resolutionStatus: prevState.resolutionStatus,
+                resolvedInput: currentInput,
+                turnCount,
+                lastAskedField: prevState.lastAskedField,
+                displayedCandidates: prevState.displayedCandidates ?? [],
+                displayedChips: prevState.displayedChips ?? ["대체 후보 보기", "절삭조건 알려줘", "처음부터 다시"],
+                displayedOptions: prevState.displayedOptions ?? [],
+                lastAction: "explain_product",
+              }
+              return NextResponse.json({
+                text: contextReply,
+                purpose: "general_chat",
+                chips: prevState.displayedChips ?? ["대체 후보 보기", "절삭조건 알려줘", "처음부터 다시"],
+                isComplete: false,
+                recommendation: null,
+                sessionState,
+                evidenceSummaries: null,
+                candidateSnapshot: prevState.displayedCandidates ?? null,
+                extractedField: null, requestPreparation: null,
+                primaryExplanation: null, primaryFactChecked: null,
+                altExplanations: [], altFactChecked: [],
+                orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+              })
+            }
             return buildQuestionResponse(
               form, candidates, evidenceMap, currentInput,
               narrowingHistory, filters, turnCount, messages, provider, language,
@@ -496,7 +528,8 @@ async function buildQuestionResponse(
   logNarrowingState("question", sessionState, question?.field ?? null)
 
   // If no question (resolved or out of questions), go to recommendation
-  if (!question) {
+  // BUT: if we have overrideText (explanation/undo feedback), show it instead of re-recommending
+  if (!question && !overrideText) {
     return buildRecommendationResponse(
       form, candidates, evidenceMap, input, history,
       filters, turnCount, messages, provider, language, snapshotToDisplayed(candidateSnapshot)
@@ -506,8 +539,8 @@ async function buildQuestionResponse(
   // candidateSnapshot already computed above (persisted in sessionState)
 
   // LLM-polish the question text (or use deterministic)
-  let responseText = overrideText ?? question.questionText
-  let responseChips = question.chips
+  let responseText = overrideText ?? question?.questionText ?? ""
+  let responseChips = question?.chips ?? chips
 
   if (overrideText) {
     // Skip LLM polish when we have an override (e.g. irrelevant input nudge)
