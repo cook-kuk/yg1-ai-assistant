@@ -700,9 +700,12 @@ async function handleExploration(
 
       // Action: query_displayed — 표시된 제품 데이터 질의
       if (action.type === "query_displayed") {
-        const snapshot = prevState.displayedCandidates?.length > 0
+        const fullSnapshot = prevState.displayedCandidates?.length > 0
           ? prevState.displayedCandidates
           : buildCandidateSnapshot(candidates, evidenceMap)
+
+        // Apply topN limit if specified
+        const snapshot = action.topN ? fullSnapshot.slice(0, action.topN) : fullSnapshot
 
         let resultText = ""
         const field = action.field

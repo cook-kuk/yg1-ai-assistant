@@ -74,7 +74,7 @@ export type OrchestratorAction =
   | { type: "answer_general"; message: string; preGenerated?: boolean }
   | { type: "ask_clarification"; question: string; options: string[]; allowDirectInput?: boolean }
   | { type: "filter_displayed"; field: string; operator: string; value: string; keepIndices?: number[] }
-  | { type: "query_displayed"; queryType: string; field: string; condition?: { operator: string; value: string } }
+  | { type: "query_displayed"; queryType: string; field: string; condition?: { operator: string; value: string }; topN?: number }
   | { type: "redirect_off_topic" }
 
 export interface OrchestratorResult {

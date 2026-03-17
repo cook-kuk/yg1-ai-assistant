@@ -374,21 +374,21 @@ const NARROWING_TOOLS: LLMTool[] = [
   },
   {
     name: "filter_displayed_products",
-    description: "⭐ 추천 결과가 표시된 후(lastAction=show_recommendation) 사용자가 표시된 제품을 조건으로 줄이고 싶을 때 호출. 'OAL 60mm 이하', 'OAL 50~80mm', '코팅 Diamond인 것만', '전체 보기'. apply_filter와 다름 — 이 도구는 이미 표시된 제품 목록을 필터링함.",
+    description: "⭐ 표시된 제품을 조건으로 줄일 때 호출. 'OAL 69mm인 것만', '코팅 Diamond만', '그것만 보여줘', '#8, #9만 보여줘', '전체 보기'. 직전 대화에서 특정 값을 언급했으면 해당 필드+값으로 필터링. 특정 번호 제품만 보려면 keep_indices 사용.",
     input_schema: {
       type: "object",
       properties: {
-        field: { type: "string", description: "필터 대상: diameterMm, fluteCount, coating, toolMaterial, shankDiameterMm, lengthOfCutMm, overallLengthMm, helixAngleDeg, seriesName, brand, materialTags. '전체 보기' 시 'reset'" },
-        operator: { type: "string", enum: ["eq","gt","gte","lt","lte","neq","contains","reset"], description: "비교 연산자" },
+        field: { type: "string", description: "필터 대상: diameterMm, fluteCount, coating, toolMaterial, shankDiameterMm, lengthOfCutMm, overallLengthMm, helixAngleDeg, seriesName, brand, materialTags. '전체 보기' 시 'reset'. 특정 번호만 보려면 아무 값." },
+        operator: { type: "string", enum: ["eq","gt","gte","lt","lte","neq","contains","reset"], description: "비교 연산자. 번호 지정 시 불필요." },
         value: { type: "string", description: "비교 값" },
-        keep_indices: { type: "array", items: { type: "number" }, description: "유지할 rank 번호 (대안)" },
+        keep_indices: { type: "array", items: { type: "number" }, description: "유지할 rank 번호. '#8, #9만' → [8, 9]. '상위 2개만' → [1, 2]. '그것만' → 직전 필터 결과의 번호들." },
       },
       required: ["field"]
     }
   },
   {
     name: "query_displayed_products",
-    description: "⭐ 표시된 제품에 대한 질문/조회. '절삭 길이 제일 긴 건?', 'Diamond 코팅 몇 개?', '나선각 30도인 건?', 'OAL 목록 보여줘', '제품군과 OAL 표로 줘'. 표시된 제품의 스펙을 조회/비교/집계할 때 사용.",
+    description: "⭐ 표시된 제품에 대한 질문/조회. '절삭 길이 제일 긴 건?', 'Diamond 코팅 몇 개?', '나선각 30도인 건?', 'OAL 목록 보여줘', '상위 2개 OAL 알려줘'. 표시된 제품의 스펙을 조회/비교/집계할 때 사용. top_n으로 상위 N개만 표시 가능.",
     input_schema: {
       type: "object",
       properties: {
@@ -399,6 +399,7 @@ const NARROWING_TOOLS: LLMTool[] = [
           properties: { operator: { type: "string" }, value: { type: "string" } },
           description: "조건 (선택)"
         },
+        top_n: { type: "number", description: "상위 N개만 표시 (선택). '상위 2개만' → 2, '1번만' → 1" },
       },
       required: ["query_type", "field"]
     }
@@ -502,10 +503,20 @@ ${candidatesDesc}
 ═══ 핵심 라우팅 규칙 ═══
 
 ⭐⭐ 최우선: 마지막 액션이 show_recommendation/filter_displayed/query_displayed이면 (추천 결과가 표시된 상태):
-- OAL/CL/코팅/나선각 등 스펙 기준 필터링 → filter_displayed_products (절대 apply_filter 사용 금지!)
-- "OAL 60mm 이하", "코팅 Diamond인 것만", "CL 10mm인 것" → filter_displayed_products
-- "OAL 목록 줘", "제품별 OAL 표로", "제일 긴 건?", "몇 개?" → query_displayed_products
-- "전체 보기", "필터 해제" → filter_displayed_products (field="reset", operator="reset")
+- 스펙 기준 필터링 → filter_displayed_products (절대 apply_filter 사용 금지!)
+  예: "OAL 69mm인 것만" → filter_displayed(overallLengthMm, eq, 69)
+  예: "코팅 Diamond인 것만" → filter_displayed(coating, eq, Diamond)
+  예: "CL 10mm 이상만" → filter_displayed(lengthOfCutMm, gte, 10)
+- 특정 번호만 보기 → filter_displayed(keep_indices)
+  예: "#8, #9만 보여줘" → filter_displayed(field="rank", keep_indices=[8, 9])
+  예: "상위 2개만" → filter_displayed(field="rank", keep_indices=[1, 2])
+  예: "그것만 보여줘" (직전 필터 결과 참조) → filter_displayed(keep_indices=[직전 결과 번호들])
+- 스펙 조회/표 → query_displayed_products
+  예: "OAL 목록 줘" → query_displayed(list, overallLengthMm)
+  예: "상위 2개 OAL만" → query_displayed(list, overallLengthMm, top_n=2)
+  예: "제일 긴 건?" → query_displayed(max, overallLengthMm)
+- 문맥 추론: 직전에 OAL을 언급했고 "69인거로 가져와줘"라고 하면 → filter_displayed(overallLengthMm, eq, 69)
+- "전체 보기", "필터 해제" → filter_displayed(field="reset", operator="reset")
 - 비교, 설명 요청도 가능 (compare_products, explain_concept)
 
 ⭐ 마지막 액션이 replace_slot이면: continue_narrowing 흐름으로 복귀 (좁히기 질문 응답 가능)
@@ -643,8 +654,9 @@ function mapToolUseToAction(
       const field = normalizeFieldName(rawField) ?? rawField
       const queryType = String(input.query_type ?? "list")
       const condition = input.condition as { operator: string; value: string } | undefined
+      const topN = input.top_n ? Number(input.top_n) : undefined
 
-      return { type: "query_displayed", queryType, field, condition }
+      return { type: "query_displayed", queryType, field, condition, topN }
     }
 
     default:
