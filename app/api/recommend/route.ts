@@ -256,6 +256,20 @@ async function handleExploration(
 
       // Action: show_recommendation
       if (action.type === "show_recommendation") {
+        // If in-display filter is active, recommend only from filtered set
+        if (prevState.displayedSetFilter && prevState.displayedCandidates?.length > 0) {
+          const filteredCodes = new Set(prevState.displayedCandidates.map(c => c.productCode))
+          const filteredCandidates = candidates.filter(c => filteredCodes.has(c.product.normalizedCode))
+
+          if (filteredCandidates.length > 0) {
+            console.log(`[recommend] show_recommendation with in-display filter: ${candidates.length} → ${filteredCandidates.length} candidates`)
+            return buildRecommendationResponse(
+              form, filteredCandidates, evidenceMap, currentInput, narrowingHistory,
+              filters, turnCount, messages, provider, language, displayedProducts
+            )
+          }
+        }
+
         return buildRecommendationResponse(
           form, candidates, evidenceMap, currentInput, narrowingHistory,
           filters, turnCount, messages, provider, language, displayedProducts
