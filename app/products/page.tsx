@@ -858,7 +858,7 @@ function RecommendationPanel({ result, resultText, evidenceSummaries, explanatio
         </div>
       )}
       {alternatives.length > 0 && (
-        <div>
+        <div data-section="alternatives">
           <div className="text-xs font-semibold text-gray-500 mb-2">{language === 'ko' ? `대체 후보 (${alternatives.length})` : `Alternatives (${alternatives.length})`}</div>
           <div className="space-y-2">
             {alternatives.map((alt, i) => (
@@ -1576,11 +1576,18 @@ function NarrowingChat({
                     // Special action chips — handle client-side instead of sending as message
                     const isResetChip = chip === "처음부터 다시" || chip === "처음부터"
                     const isUndoChip = chip === "⟵ 이전 단계"
+                    const isAltChip = /^대체 후보\s*\d*개?\s*보기$/.test(chip)
                     return (
                       <button key={ci}
                         onClick={() => {
                           if (isResetChip && onReset) {
                             onReset()
+                          } else if (isAltChip) {
+                            // 대체 후보 데이터는 이미 UI에 표시됨 — 스크롤만 수행
+                            const altSection = document.querySelector('[data-section="alternatives"]')
+                            if (altSection) {
+                              altSection.scrollIntoView({ behavior: "smooth", block: "start" })
+                            }
                           } else {
                             setInput("")
                             onSend(chip)
@@ -2093,12 +2100,13 @@ export default function ProductRecommendPage() {
         }
         return updated
       })
-    } catch {
+    } catch (err) {
+      console.error("[handleChatSend] Error:", err)
       setChatMessages(prev => {
         const updated = [...prev]
         updated[updated.length - 1] = {
           role: "ai",
-          text: "오류가 발생했습니다. 다시 시도해주세요.",
+          text: `오류가 발생했습니다. 다시 시도해주세요.${err instanceof Error ? ` (${err.message})` : ""}`,
           isLoading: false,
         }
         return updated

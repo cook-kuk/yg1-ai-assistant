@@ -358,9 +358,10 @@ export async function runHybridRetrieval(
     `[hybrid:stage] stage=final count=${topCandidates.length} edps=${formatScoredEdpList(topCandidates)}`
   )
 
-  // Enrich top candidates with inventory + lead time (deferred for performance)
+  // Enrich top candidates with inventory + lead time (limit to top 10 for Vercel timeout safety)
+  const INVENTORY_LIMIT = parseInt(process.env.INVENTORY_ENRICH_LIMIT ?? "10", 10)
   await Promise.all(
-    topCandidates.slice(0, 100).map(async (c) => {
+    topCandidates.slice(0, INVENTORY_LIMIT).map(async (c) => {
       c.inventory = await InventoryRepo.getByEdpAsync(c.product.normalizedCode)
       c.leadTimes = LeadTimeRepo.getByEdp(c.product.normalizedCode)
       c.totalStock = await InventoryRepo.totalStockAsync(c.product.normalizedCode)
