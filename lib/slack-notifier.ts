@@ -231,6 +231,67 @@ export async function notifyTurnFeedback(params: {
   })
 }
 
+/** 성공 사례 알림 (SUCCESS_CASE) */
+export async function notifySuccessCase(params: {
+  sessionId: string | null
+  mode: string | null
+  conditions: string
+  candidateCounts: string
+  topProducts: string
+  narrowingPath: string
+  userComment: string
+  lastUserMessage: string
+  lastAiResponse: string
+  conversationLength: number
+  comparisonArtifact: string | null
+}): Promise<void> {
+  await sendSlack({
+    blocks: [
+      {
+        type: "header",
+        text: { type: "plain_text", text: "✅ SUCCESS_CASE" },
+      },
+      {
+        type: "section",
+        fields: [
+          { type: "mrkdwn", text: `*세션:*\n${params.sessionId ?? "unknown"}` },
+          { type: "mrkdwn", text: `*모드:*\n${params.mode ?? "narrowing"}` },
+          { type: "mrkdwn", text: `*후보수:*\n${params.candidateCounts}` },
+          { type: "mrkdwn", text: `*대화 길이:*\n${params.conversationLength}턴` },
+        ],
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `*현재 조건:*\n${params.conditions}` },
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `*좁히기 경로:*\n${params.narrowingPath}` },
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `*표시 상위 제품:*\n${params.topProducts}` },
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `*마지막 사용자:*\n${params.lastUserMessage.slice(0, 200)}` },
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `*마지막 AI:*\n${params.lastAiResponse.slice(0, 300)}` },
+      },
+      ...(params.userComment ? [{
+        type: "section" as const,
+        text: { type: "mrkdwn" as const, text: `*유저 코멘트:*\n💬 "${params.userComment}"` },
+      }] : []),
+      ...(params.comparisonArtifact ? [{
+        type: "context" as const,
+        elements: [{ type: "mrkdwn" as const, text: `📊 비교 artifact: ${params.comparisonArtifact.slice(0, 200)}` }],
+      }] : []),
+    ],
+  })
+}
+
 /** 에러 알림 */
 export async function notifyError(params: {
   route: string

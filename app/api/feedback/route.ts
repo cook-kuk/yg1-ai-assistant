@@ -88,6 +88,58 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
 
+    // ── Success case capture (full state snapshot) ──
+    if (body.type === "success_case") {
+      const successEntry = {
+        id: `sc-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
+        timestamp: new Date().toISOString(),
+        type: "success_case",
+        sessionId: body.sessionId ?? null,
+        userComment: body.userComment ?? "",
+        mode: body.mode ?? null,
+        lastAction: body.lastAction ?? null,
+        lastUserMessage: body.lastUserMessage ?? "",
+        lastAiResponse: body.lastAiResponse ?? "",
+        conditions: body.conditions ?? "",
+        narrowingPath: body.narrowingPath ?? "",
+        candidateCounts: body.candidateCounts ?? "",
+        topProducts: body.topProducts ?? "",
+        conversationLength: body.conversationLength ?? 0,
+        // Full state snapshot for eval/training
+        sessionStateSnapshot: body.sessionStateSnapshot ?? null,
+        displayedProducts: body.displayedProducts ?? null,
+        displayedOptions: body.displayedOptions ?? null,
+        displayedSeriesGroups: body.displayedSeriesGroups ?? null,
+        uiNarrowingPath: body.uiNarrowingPath ?? null,
+        lastRecommendationArtifact: body.lastRecommendationArtifact ?? null,
+        lastComparisonArtifact: body.lastComparisonArtifact ?? null,
+        appliedFilters: body.appliedFilters ?? [],
+        chatHistory: body.chatHistory ?? null,
+      }
+      saveTurnFeedback(successEntry)
+
+      // Slack
+      import("@/lib/slack-notifier").then(({ notifySuccessCase }) =>
+        notifySuccessCase({
+          sessionId: successEntry.sessionId,
+          mode: successEntry.mode,
+          conditions: successEntry.conditions,
+          candidateCounts: successEntry.candidateCounts,
+          topProducts: successEntry.topProducts,
+          narrowingPath: successEntry.narrowingPath,
+          userComment: successEntry.userComment,
+          lastUserMessage: successEntry.lastUserMessage,
+          lastAiResponse: successEntry.lastAiResponse,
+          conversationLength: successEntry.conversationLength,
+          comparisonArtifact: successEntry.lastComparisonArtifact
+            ? JSON.stringify(successEntry.lastComparisonArtifact).slice(0, 200)
+            : null,
+        }).catch(() => {})
+      )
+
+      return NextResponse.json({ success: true, id: successEntry.id })
+    }
+
     // ── Turn-level feedback (per AI response) ──
     if (body.type === "turn_feedback") {
       const turnEntry = {

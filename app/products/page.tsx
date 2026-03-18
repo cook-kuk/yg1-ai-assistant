@@ -1344,9 +1344,60 @@ function buildIntakePromptText(form: ProductIntakeForm, language: "ko" | "en"): 
 // Right: Candidate cards
 // ════════════════════════════════════════════════════════════════
 
+// ── Success Capture Modal ──────────────────────────────────────
+function SuccessCaptureModal({
+  open, onClose, onSubmit,
+}: {
+  open: boolean
+  onClose: () => void
+  onSubmit: (comment: string) => void
+}) {
+  const [comment, setComment] = useState("")
+  const [sent, setSent] = useState(false)
+
+  if (!open) return null
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-5 space-y-3" onClick={e => e.stopPropagation()}>
+        {sent ? (
+          <div className="text-center py-4">
+            <div className="text-3xl mb-2">✅</div>
+            <div className="text-sm font-semibold text-gray-800">좋은 사례로 저장했고 개발자에게 공유했어요.</div>
+            <Button size="sm" className="mt-3" onClick={onClose}>닫기</Button>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-2">
+              <Star size={18} className="text-yellow-500" />
+              <h3 className="text-sm font-bold text-gray-900">이 상태 저장해서 개발자에게 보내기</h3>
+            </div>
+            <p className="text-xs text-gray-500">현재 대화 상태와 추천 결과를 좋은 사례로 저장합니다. 개선에 큰 도움이 됩니다.</p>
+            <textarea
+              value={comment}
+              onChange={e => setComment(e.target.value)}
+              placeholder="어떤 점이 좋았나요? (선택 사항)"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none h-20 focus:outline-none focus:border-blue-400"
+            />
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" size="sm" onClick={onClose}>취소</Button>
+              <Button size="sm" className="bg-yellow-500 hover:bg-yellow-600 text-white" onClick={() => {
+                onSubmit(comment)
+                setSent(true)
+              }}>
+                <Star size={13} className="mr-1" /> 저장 & 공유
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function ExplorationScreen({
   form, messages, isSending, sessionState, candidateSnapshot,
-  onSend, onReset, onEdit, onFeedback,
+  onSend, onReset, onEdit, onFeedback, onSuccessCapture,
 }: {
   form: ProductIntakeForm
   messages: ChatMsg[]
@@ -1357,10 +1408,12 @@ function ExplorationScreen({
   onReset: () => void
   onEdit: () => void
   onFeedback: (messageIndex: number, feedback: TurnFeedback) => void
+  onSuccessCapture: (comment: string) => void
 }) {
   const { language } = useApp()
   const [showSidebar, setShowSidebar] = useState(false)
   const [showCandidates, setShowCandidates] = useState(false)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
   const persistedCandidates = sessionState
     ? (sessionState.displayedProducts ?? sessionState.displayedCandidates ?? null)
     : candidateSnapshot
@@ -1402,8 +1455,19 @@ function ExplorationScreen({
           <Button variant="outline" size="sm" onClick={onReset} className="gap-1 text-xs h-7 px-2 border-orange-300 text-orange-700 hover:bg-orange-50">
             <RotateCcw size={11} />{language === 'ko' ? '새 검색' : 'New Search'}
           </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowSuccessModal(true)}
+            className="gap-1 text-xs h-7 px-2 border-yellow-300 text-yellow-700 hover:bg-yellow-50">
+            <Star size={11} />{language === 'ko' ? '좋은 사례 저장' : 'Save Success'}
+          </Button>
         </div>
       </div>
+
+      {/* Success capture modal */}
+      <SuccessCaptureModal
+        open={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        onSubmit={(comment) => onSuccessCapture(comment)}
+      />
 
       {/* 3-panel body */}
       <div className="flex-1 min-h-0 flex overflow-hidden">
@@ -2423,6 +2487,70 @@ export default function ProductRecommendPage() {
     })
   }
 
+  // Success case capture — full state snapshot
+  const handleSuccessCapture = (comment: string) => {
+    const ss = sessionState
+    const lastAiMsg = [...chatMessages].reverse().find(m => m.role === "ai" && !m.isLoading)
+    const lastUserMsg = [...chatMessages].reverse().find(m => m.role === "user")
+    const filters = ss?.appliedFilters?.filter(f => f.op !== "skip") ?? []
+    const conditions = filters.map(f => `${f.field}=${f.value}`).join(" / ") || "(없음)"
+    const counts = ss?.candidateCounts
+      ? `db=${ss.candidateCounts.dbMatchCount} / filtered=${ss.candidateCounts.filteredCount} / displayed=${ss.candidateCounts.displayedCount}`
+      : `total=${ss?.candidateCount ?? "?"}`
+    const displayed = (ss?.displayedProducts ?? ss?.displayedCandidates ?? candidateSnapshot ?? [])
+    const topProducts = displayed.slice(0, 3).map(c =>
+      `#${c.rank} ${c.displayCode} (${c.brand ?? ""} ${c.seriesName ?? ""}) ${c.score}점`
+    ).join("\n") || "(없음)"
+    const narrowingPath = (ss?.uiNarrowingPath ?? []).map(e => `${e.label}`).join(" → ")
+      || filters.map(f => `${f.field}=${f.value}`).join(" → ")
+      || "(없음)"
+
+    fetch("/api/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "success_case",
+        sessionId: ss?.sessionId ?? null,
+        userComment: comment,
+        mode: ss?.currentMode ?? ss?.lastAction ?? null,
+        lastAction: ss?.lastAction ?? null,
+        lastUserMessage: lastUserMsg?.text ?? "",
+        lastAiResponse: lastAiMsg?.text?.slice(0, 500) ?? "",
+        conditions,
+        narrowingPath,
+        candidateCounts: counts,
+        topProducts,
+        conversationLength: chatMessages.length,
+        // Full snapshot for eval/training
+        sessionStateSnapshot: ss ? {
+          sessionId: ss.sessionId,
+          candidateCount: ss.candidateCount,
+          resolutionStatus: ss.resolutionStatus,
+          turnCount: ss.turnCount,
+          lastAskedField: ss.lastAskedField,
+          lastAction: ss.lastAction,
+          underlyingAction: ss.underlyingAction,
+          candidateCounts: ss.candidateCounts,
+        } : null,
+        displayedProducts: displayed.slice(0, 10).map(c => ({
+          rank: c.rank, code: c.displayCode, brand: c.brand,
+          series: c.seriesName, score: c.score, matchStatus: c.matchStatus,
+        })),
+        displayedOptions: ss?.displayedOptions ?? null,
+        displayedSeriesGroups: ss?.displayedGroups?.map(g => ({
+          name: g.seriesName, count: g.candidateCount, topScore: g.topScore,
+        })) ?? null,
+        uiNarrowingPath: ss?.uiNarrowingPath ?? null,
+        lastRecommendationArtifact: ss?.lastRecommendationArtifact?.slice(0, 5).map(c => ({
+          rank: c.rank, code: c.displayCode, score: c.score,
+        })) ?? null,
+        lastComparisonArtifact: ss?.lastComparisonArtifact ?? null,
+        appliedFilters: filters.map(f => `${f.field}=${f.value}`),
+        chatHistory: chatMessages.map(m => ({ role: m.role, text: m.text.slice(0, 200) })),
+      }),
+    }).catch(() => {})
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       {/* Feedback widget — always visible */}
@@ -2481,6 +2609,7 @@ export default function ProductRecommendPage() {
             onReset={handleReset}
             onEdit={() => setPhase("intake")}
             onFeedback={handleFeedback}
+            onSuccessCapture={handleSuccessCapture}
           />
         )}
       </div>
