@@ -1314,7 +1314,9 @@ interface ChatMsg {
   evidenceSummaries?: EvidenceSummary[] | null
   candidateSnapshot?: CandidateSnapshot[] | null
   isLoading?: boolean
-  feedback?: TurnFeedback
+  feedback?: TurnFeedback          // 응답 텍스트 평가
+  chipFeedback?: TurnFeedback      // 선택지(칩) 평가
+  retryCount?: number              // 재생성 횟수
   // New: explanation + fact check data
   requestPreparation?: RequestPreparationResult | null
   primaryExplanation?: RecommendationExplanation | null
@@ -1397,7 +1399,7 @@ function SuccessCaptureModal({
 
 function ExplorationScreen({
   form, messages, isSending, sessionState, candidateSnapshot,
-  onSend, onReset, onEdit, onFeedback, onSuccessCapture,
+  onSend, onReset, onEdit, onFeedback, onChipFeedback, onRetry, onSuccessCapture,
 }: {
   form: ProductIntakeForm
   messages: ChatMsg[]
@@ -1408,6 +1410,8 @@ function ExplorationScreen({
   onReset: () => void
   onEdit: () => void
   onFeedback: (messageIndex: number, feedback: TurnFeedback) => void
+  onChipFeedback: (messageIndex: number, feedback: TurnFeedback) => void
+  onRetry: (messageIndex: number) => void
   onSuccessCapture: (comment: string) => void
 }) {
   const { language } = useApp()
@@ -1484,6 +1488,8 @@ function ExplorationScreen({
             onSend={onSend}
             onReset={onReset}
             onFeedback={onFeedback}
+            onChipFeedback={onChipFeedback}
+            onRetry={onRetry}
           />
         </div>
 
@@ -1644,20 +1650,26 @@ function ExplorationSidebar({
 
 // ── Center: Narrowing Chat ───────────────────────────────────
 function NarrowingChat({
-  messages, isSending, onSend, onReset, onFeedback,
+  messages, isSending, onSend, onReset, onFeedback, onChipFeedback, onRetry,
 }: {
   messages: ChatMsg[]
   isSending: boolean
   onSend: (text: string) => void
   onReset?: () => void
   onFeedback?: (messageIndex: number, feedback: TurnFeedback) => void
+  onChipFeedback?: (messageIndex: number, feedback: TurnFeedback) => void
+  onRetry?: (messageIndex: number) => void
 }) {
   const { language } = useApp()
   const [input, setInput] = useState("")
 
-  // Block input if the last AI message hasn't been rated yet
+  // Block input if the last AI message hasn't been rated on BOTH response and chips
   const lastAiMsg = [...messages].reverse().find(m => m.role === "ai" && !m.isLoading)
-  const needsFeedback = lastAiMsg && lastAiMsg.feedback === undefined && !isSending
+  const lastAiHasChips = lastAiMsg?.chips && lastAiMsg.chips.length > 0
+  const needsFeedback = lastAiMsg && !isSending && (
+    lastAiMsg.feedback === undefined ||
+    (lastAiHasChips && lastAiMsg.chipFeedback === undefined)
+  )
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -1744,29 +1756,52 @@ function NarrowingChat({
                 </div>
               )}
 
-              {/* Feedback buttons — every AI message (response + options) */}
+              {/* Feedback: Response rating */}
               {msg.role === "ai" && !msg.isLoading && onFeedback && (
                 <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                   {msg.feedback ? (
                     <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
-                      {msg.feedback === "good" ? "👍 좋았어요" : msg.feedback === "bad" ? "👎 별로예요" : "😐 보통이에요"}
+                      {language === 'ko' ? '응답' : 'Response'}: {msg.feedback === "good" ? "👍" : msg.feedback === "bad" ? "👎" : "😐"}
+                      {msg.feedback === "bad" && msg.retryCount === undefined && onRetry && (
+                        <button onClick={() => onRetry(i)} className="ml-1 text-blue-600 hover:underline">다시 답변</button>
+                      )}
                     </span>
                   ) : (
                     <>
-                      <span className="text-[10px] text-gray-500 font-medium">
-                        {language === 'ko'
-                          ? (msg.chips?.length ? '응답과 선택지 평가:' : '이 응답은?')
-                          : 'Rate:'}
-                      </span>
+                      <span className="text-[10px] text-gray-500 font-medium">{language === 'ko' ? '응답:' : 'Response:'}</span>
                       {([
-                        { value: "good" as TurnFeedback, icon: "👍", label: "좋아요", cls: "hover:bg-green-100" },
-                        { value: "neutral" as TurnFeedback, icon: "😐", label: "보통", cls: "hover:bg-gray-200" },
-                        { value: "bad" as TurnFeedback, icon: "👎", label: "별로", cls: "hover:bg-red-100" },
+                        { value: "good" as TurnFeedback, icon: "👍", cls: "hover:bg-green-100" },
+                        { value: "neutral" as TurnFeedback, icon: "😐", cls: "hover:bg-gray-200" },
+                        { value: "bad" as TurnFeedback, icon: "👎", cls: "hover:bg-red-100" },
                       ]).map(fb => (
                         <button key={fb.value}
                           onClick={() => onFeedback(i, fb.value)}
                           className={`px-2 py-0.5 text-sm rounded-full border border-gray-200 ${fb.cls} transition-colors`}
-                          title={fb.label}
+                        >{fb.icon}</button>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Feedback: Chip/options rating (only when chips exist) */}
+              {msg.role === "ai" && !msg.isLoading && msg.chips && msg.chips.length > 0 && onChipFeedback && (
+                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                  {msg.chipFeedback ? (
+                    <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
+                      {language === 'ko' ? '선택지' : 'Options'}: {msg.chipFeedback === "good" ? "👍" : msg.chipFeedback === "bad" ? "👎" : "😐"}
+                    </span>
+                  ) : (
+                    <>
+                      <span className="text-[10px] text-gray-500 font-medium">{language === 'ko' ? '선택지:' : 'Options:'}</span>
+                      {([
+                        { value: "good" as TurnFeedback, icon: "👍", cls: "hover:bg-green-100" },
+                        { value: "neutral" as TurnFeedback, icon: "😐", cls: "hover:bg-gray-200" },
+                        { value: "bad" as TurnFeedback, icon: "👎", cls: "hover:bg-red-100" },
+                      ]).map(fb => (
+                        <button key={fb.value}
+                          onClick={() => onChipFeedback(i, fb.value)}
+                          className={`px-2 py-0.5 text-sm rounded-full border border-gray-200 ${fb.cls} transition-colors`}
                         >{fb.icon}</button>
                       ))}
                     </>
@@ -1794,7 +1829,9 @@ function NarrowingChat({
       <div className="shrink-0 px-4 py-3 border-t bg-white">
         {needsFeedback && (
           <div className="text-center text-xs text-amber-600 bg-amber-50 rounded-lg py-1.5 mb-2">
-            {language === 'ko' ? '위 응답을 평가해주세요 (👍/😐/👎)' : 'Please rate the response above'}
+            {language === 'ko'
+              ? (lastAiMsg?.feedback === undefined ? '위 응답을 평가해주세요 (👍/😐/👎)' : '선택지도 평가해주세요 (👍/😐/👎)')
+              : 'Please rate the response above'}
           </div>
         )}
         <div className="flex items-end gap-2">
@@ -2487,6 +2524,129 @@ export default function ProductRecommendPage() {
     })
   }
 
+  // Chip feedback handler — separate from response feedback
+  const handleChipFeedback = (messageIndex: number, feedback: TurnFeedback) => {
+    setChatMessages(prev => {
+      const updated = [...prev]
+      if (updated[messageIndex]) {
+        updated[messageIndex] = { ...updated[messageIndex], chipFeedback: feedback }
+      }
+
+      const aiMsg = updated[messageIndex]
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "turn_feedback",
+          turnNumber: Math.floor(messageIndex / 2) + 1,
+          feedback,
+          feedbackEmoji: feedback === "good" ? "👍" : feedback === "bad" ? "👎" : "😐",
+          feedbackTarget: "chips",
+          userMessage: "(선택지 평가)",
+          aiResponse: `칩: ${(aiMsg?.chips ?? []).join(", ")}`,
+          chips: aiMsg?.chips ?? [],
+          sessionId: sessionState?.sessionId ?? null,
+          candidateCount: sessionState?.candidateCount ?? null,
+          appliedFilters: sessionState?.appliedFilters?.filter(f => f.op !== "skip").map(f => `${f.field}=${f.value}`) ?? [],
+          conversationLength: updated.length,
+        }),
+      }).catch(() => {})
+
+      return updated
+    })
+  }
+
+  // Retry handler — when user dislikes a response, regenerate it
+  const handleRetry = async (messageIndex: number) => {
+    // Find the user message that triggered this AI response
+    const userMsgIndex = messageIndex - 1
+    if (userMsgIndex < 0 || chatMessages[userMsgIndex]?.role !== "user") return
+
+    const userText = chatMessages[userMsgIndex].text
+    const retryCount = (chatMessages[messageIndex]?.retryCount ?? 0) + 1
+
+    // Mark as loading
+    setChatMessages(prev => {
+      const updated = [...prev]
+      updated[messageIndex] = { ...updated[messageIndex], isLoading: true, feedback: "bad", retryCount }
+      return updated
+    })
+    setIsChatSending(true)
+
+    try {
+      const history = chatMessages.slice(0, userMsgIndex).map(m => ({ role: m.role, text: m.text }))
+      history.push({ role: "user", text: `(이전 응답이 적절하지 않았습니다. 다른 방식으로 답변해주세요) ${userText}` })
+
+      const persistedCandidates = sessionState
+        ? (sessionState.displayedProducts ?? sessionState.displayedCandidates ?? null)
+        : candidateSnapshot
+      const displayedProducts = persistedCandidates?.slice(0, 10).map(c => ({
+        rank: c.rank, code: c.displayCode, brand: c.brand, series: c.seriesName,
+        diameter: c.diameterMm, flute: c.fluteCount, coating: c.coating,
+        materialTags: c.materialTags, score: c.score, matchStatus: c.matchStatus,
+      })) ?? null
+
+      const formWithRegion: ProductIntakeForm = {
+        ...form,
+        country: country && country !== "ALL"
+          ? { status: "known" as const, value: country }
+          : { status: "known" as const, value: "ALL" },
+      }
+      const res = await fetch("/api/recommend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          intakeForm: formWithRegion,
+          messages: history,
+          sessionState,
+          displayedProducts,
+          language,
+        }),
+      })
+      const data = JSON.parse(await res.text())
+
+      const nextSessionState = data.sessionState ?? null
+      const nextCandidateSnapshot = nextSessionState
+        ? (nextSessionState.displayedProducts ?? nextSessionState.displayedCandidates ?? null)
+        : (data.candidateSnapshot ?? null)
+      setSessionState(nextSessionState)
+      setCandidateSnapshot(nextCandidateSnapshot)
+
+      setChatMessages(prev => {
+        const updated = [...prev]
+        updated[messageIndex] = {
+          role: "ai",
+          text: data.text ?? "",
+          recommendation: data.recommendation ?? null,
+          chips: data.chips ?? [],
+          evidenceSummaries: data.evidenceSummaries ?? null,
+          candidateSnapshot: nextCandidateSnapshot,
+          requestPreparation: data.requestPreparation ?? null,
+          primaryExplanation: data.primaryExplanation ?? null,
+          primaryFactChecked: data.primaryFactChecked ?? null,
+          altExplanations: data.altExplanations ?? [],
+          isLoading: false,
+          feedback: "bad",
+          retryCount,
+        }
+        return updated
+      })
+    } catch (err) {
+      setChatMessages(prev => {
+        const updated = [...prev]
+        updated[messageIndex] = {
+          ...updated[messageIndex],
+          text: `재생성 실패. ${err instanceof Error ? err.message : ""}`,
+          isLoading: false,
+          retryCount,
+        }
+        return updated
+      })
+    } finally {
+      setIsChatSending(false)
+    }
+  }
+
   // Success case capture — full state snapshot
   const handleSuccessCapture = (comment: string) => {
     const ss = sessionState
@@ -2609,6 +2769,8 @@ export default function ProductRecommendPage() {
             onReset={handleReset}
             onEdit={() => setPhase("intake")}
             onFeedback={handleFeedback}
+            onChipFeedback={handleChipFeedback}
+            onRetry={handleRetry}
             onSuccessCapture={handleSuccessCapture}
           />
         )}
