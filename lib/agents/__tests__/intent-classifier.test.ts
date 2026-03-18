@@ -107,6 +107,9 @@ describe("Deterministic Intent Classification (no LLM)", () => {
       "DLC랑 Diamond 차이 설명해줘",
       "각각 설명해줘",
       "TiAlN이랑 AlCrN 장단점 알려줘",
+      "나 이거 코팅이 뭔지 몰라요",
+      "코팅이 뭔지 모르겠어요",
+      "이게 뭔지 몰라서요",
     ]
     for (const input of cases) {
       it(`"${input}" → ASK_EXPLANATION (not filter!)`, async () => {

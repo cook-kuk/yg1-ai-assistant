@@ -828,6 +828,18 @@ export async function orchestrateTurnWithTools(
     }
   }
 
+  // ═══ Step 0.5: Deterministic pre-filter — bypass Sonnet for obvious intents ═══
+  const preFilterResult = deterministicPreFilter(ctx.userMessage, ctx.sessionState)
+  if (preFilterResult) {
+    console.log(`[orchestrator:pre-filter] Deterministic: "${ctx.userMessage.slice(0, 40)}" → ${preFilterResult.type}`)
+    return {
+      action: preFilterResult,
+      reasoning: `deterministic_pre_filter → ${preFilterResult.type}`,
+      agentsInvoked: [{ agent: "pre-filter", model: "haiku", durationMs: 0 }],
+      escalatedToOpus: false,
+    }
+  }
+
   // ═══ Step 1: Decompose Request (Haiku, ~200ms) ═══
   let decomposition: DecompositionResult | null = null
   const decomposeStart = Date.now()
@@ -959,4 +971,53 @@ async function routeChunkThroughTools(
       escalatedToOpus: false,
     }
   }
+}
+
+// ════════════════════════════════════════════════════════════════
+// DETERMINISTIC PRE-FILTER
+// Catches obvious intents BEFORE Sonnet tool-use to prevent misrouting.
+// Only fires when confidence is very high — ambiguous cases still go to Sonnet.
+// ════════════════════════════════════════════════════════════════
+
+const EXPLAIN_PRE_PATTERNS = [
+  /에\s*대해(서)?\s*(설명|알려)/, // "~에 대해 설명해줘"
+  /설명\s*(해|좀|해\s*줘|해\s*주세요)/, // "설명해줘", "설명 좀"
+  /(뭔지|뭔가|뭐야|뭐에요|뭐죠)\s*(몰라|모르|잘\s*몰|모르겠)/, // "뭔지 몰라요"
+  /몰라(요|서)?/, // "몰라요", "몰라서"
+  /모르겠/, // "모르겠어요"
+  /.+[,\s].+[,\s].+(설명|알려|뭐야)/, // "A, B, C 설명해줘"
+  /각각\s*(설명|알려)/, // "각각 설명해줘"
+  /종류.*알려/, /종류.*설명/, // "종류 알려줘"
+  /장단점/, // "장단점 알려줘"
+  /뭐가\s*좋(아|은|을)/, // "뭐가 좋아?"
+  /어떤\s*게\s*좋/, // "어떤 게 좋아?"
+  /차이(가|점|를)?\s*(뭐|알려|설명)/, // "차이가 뭐야", "차이점 알려줘"
+]
+
+const SIDE_CHAT_PRE_PATTERNS = [
+  /^안녕/, /^ㅎㅇ/, /^하이/, /^hello/i, /^hi\b/i,
+  /고마워/, /감사합니다/, /ㄳ/,
+  /^ㅋㅋ/, /^ㅎㅎ/,
+]
+
+function deterministicPreFilter(
+  message: string,
+  sessionState: ExplorationSessionState | null,
+): OrchestratorAction | null {
+  const clean = message.trim().toLowerCase()
+
+  // Explanation requests — highest priority pre-filter
+  if (EXPLAIN_PRE_PATTERNS.some(p => p.test(clean))) {
+    // Extract topic from the message
+    const topicMatch = clean.match(/(.+?)\s*(에\s*대해|설명|알려|뭔지|몰라)/)
+    const topic = topicMatch?.[1]?.replace(/^(나\s*이거\s*|이\s*|저\s*|그\s*)/, "").trim() ?? clean
+    return { type: "explain_product", target: topic }
+  }
+
+  // Side conversation — greetings, thanks (don't break rec state)
+  if (SIDE_CHAT_PRE_PATTERNS.some(p => p.test(clean))) {
+    return { type: "answer_general", message: clean, preGenerated: false }
+  }
+
+  return null
 }
