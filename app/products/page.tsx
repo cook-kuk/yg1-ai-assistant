@@ -65,7 +65,8 @@ const STOCK_CONFIG = {
   unknown: { ko: "재고 미확인", en: "Stock Unknown", cls: "bg-gray-100 text-gray-600", dot: "bg-gray-400" },
 }
 
-const MAX_DISPLAY_CANDIDATES = 5
+const MAX_DISPLAY_CANDIDATES = 10
+const PAGE_SIZE = 10
 
 const RESOLUTION_CONFIG: Record<string, { ko: string; en: string; cls: string }> = {
   broad: { ko: "탐색 중", en: "Exploring", cls: "bg-blue-100 text-blue-700" },
@@ -1821,16 +1822,24 @@ function CandidatePanel({
 }) {
   const { language } = useApp()
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set())
+  const [page, setPage] = useState(0) // 0-indexed page
   // Find the last recommendation in messages
   const lastRec = [...messages].reverse().find(m => m.recommendation)?.recommendation
 
   const groups = sessionState?.displayedSeriesGroups ?? sessionState?.displayedGroups ?? null
   const useAccordion = groups != null && groups.length >= 2
 
-  // Cap displayed candidates to 5
-  const displayCandidates = candidates?.slice(0, MAX_DISPLAY_CANDIDATES) ?? null
+  // Paginated display
   const totalCount = candidates?.length ?? 0
-  const hasMore = totalCount > MAX_DISPLAY_CANDIDATES
+  const pageStart = page * PAGE_SIZE
+  const pageEnd = pageStart + PAGE_SIZE
+  const displayCandidates = candidates?.slice(pageStart, pageEnd) ?? null
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE)
+  const hasMore = pageEnd < totalCount
+  const hasPrev = page > 0
+
+  // Reset page when candidates change
+  useEffect(() => { setPage(0) }, [candidates?.length])
 
   const toggleGroup = (key: string) => {
     setOpenGroups(prev => {
@@ -1847,8 +1856,8 @@ function CandidatePanel({
         <Activity size={11} />
         {totalCount > 0 ? (
           language === 'ko'
-            ? <>상위 추천 후보 {useAccordion ? `${groups.length}개 시리즈` : `${displayCandidates?.length ?? 0}개`}{hasMore && !useAccordion && <span className="text-gray-400 font-normal">(전체 {totalCount}개 중)</span>}</>
-            : <>Top {useAccordion ? `${groups.length} Series` : `${displayCandidates?.length ?? 0} Candidates`}{hasMore && !useAccordion && <span className="text-gray-400 font-normal"> (of {totalCount})</span>}</>
+            ? <>추천 후보 {useAccordion ? `${groups.length}개 시리즈` : `${pageStart + 1}~${Math.min(pageEnd, totalCount)}위`}<span className="text-gray-400 font-normal ml-1">(전체 {totalCount}개)</span></>
+            : <>Candidates {useAccordion ? `${groups.length} Series` : `#${pageStart + 1}-${Math.min(pageEnd, totalCount)}`}<span className="text-gray-400 font-normal ml-1"> (of {totalCount})</span></>
         ) : (
           <>{language === 'ko' ? '추천 후보' : 'Candidates'}</>
         )}
@@ -1871,9 +1880,24 @@ function CandidatePanel({
           {displayCandidates.map(c => (
             <CandidateCard key={c.productCode} c={c} />
           ))}
-          {hasMore && (
-            <div className="text-center text-[10px] text-gray-400 py-1">
-              +{totalCount - MAX_DISPLAY_CANDIDATES}{language === 'ko' ? '개 추가 후보 있음' : ' more candidates'}
+          {/* Pagination controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 py-2">
+              {hasPrev && (
+                <button onClick={() => setPage(p => p - 1)}
+                  className="px-3 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">
+                  {language === 'ko' ? `← 이전 ${PAGE_SIZE}개` : `← Prev ${PAGE_SIZE}`}
+                </button>
+              )}
+              <span className="text-[10px] text-gray-400">
+                {page + 1} / {totalPages}
+              </span>
+              {hasMore && (
+                <button onClick={() => setPage(p => p + 1)}
+                  className="px-3 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors">
+                  {language === 'ko' ? `대체 후보 ${PAGE_SIZE}개 →` : `Next ${PAGE_SIZE} →`}
+                </button>
+              )}
             </div>
           )}
         </div>
