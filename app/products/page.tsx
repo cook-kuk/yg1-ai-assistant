@@ -492,16 +492,17 @@ function CandidateCard({ c }: { c: CandidateSnapshot }) {
           <img src={c.seriesIconUrl} alt={c.seriesName ?? ""} className="w-12 h-12 object-contain rounded border border-gray-100 shrink-0 bg-gray-50" />
         )}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
+          {/* brand + description at top */}
+          {c.brand && <div className="text-xs font-bold text-purple-800 truncate">{c.brand}</div>}
+          {c.description && <div className="text-[10px] text-gray-500 truncate">{c.description.replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, "")}</div>}
+          <div className="flex items-center gap-2 flex-wrap mt-0.5">
             <span className="text-xs text-gray-400 font-mono">#{c.rank}</span>
             <MatchBadge status={c.matchStatus} />
             <StockBadge status={c.stockStatus} total={c.totalStock} />
           </div>
           <div className="font-mono text-sm font-bold text-gray-900">{c.displayCode}</div>
           <div className="flex items-center gap-1.5 flex-wrap">
-            {c.brand && <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">{c.brand}</span>}
             {c.seriesName && <span className="text-xs text-blue-700 font-medium">{c.seriesName}</span>}
-            {c.description && <span className="text-[10px] text-gray-400 italic truncate max-w-[200px]">{c.description.replace(/<br\s*\/?>/gi, " ")}</span>}
           </div>
           {/* ── Inline spec: φ4mm · 2F · Diamond · Carbide · Shank 4mm · CL 10mm · OAL 80mm · 30° ── */}
           <div className="text-[11px] text-gray-600 mt-1 leading-relaxed font-medium">
@@ -1733,9 +1734,15 @@ function SeriesAccordionItem({
           <img src={group.seriesIconUrl} alt={group.seriesName} className="w-8 h-8 object-contain rounded border border-gray-100 shrink-0 bg-white" />
         )}
         <div className="flex-1 min-w-0">
-          <div className="text-xs font-semibold text-gray-800 truncate">{group.seriesName}</div>
+          {/* brand + description first, seriesName as secondary */}
+          {group.members[0]?.brand && (
+            <div className="text-xs font-bold text-purple-800 truncate">{group.members[0].brand}</div>
+          )}
+          {group.members[0]?.description && (
+            <div className="text-[10px] text-gray-600 truncate">{group.members[0].description.replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, "")}</div>
+          )}
           <div className="text-[10px] text-gray-500">
-            {group.candidateCount}{language === 'ko' ? '개' : ''} · {language === 'ko' ? '최고' : 'Top'} {group.topScore}{language === 'ko' ? '점' : 'pt'}
+            {group.seriesName} · {group.candidateCount}{language === 'ko' ? '개' : ''} · {language === 'ko' ? '최고' : 'Top'} {group.topScore}{language === 'ko' ? '점' : 'pt'}
           </div>
         </div>
         {isOpen ? <ChevronUp size={14} className="text-gray-400 shrink-0" /> : <ChevronDown size={14} className="text-gray-400 shrink-0" />}
