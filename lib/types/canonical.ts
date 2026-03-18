@@ -74,7 +74,7 @@ export const CanonicalProductSchema = z.object({
   materialTags: z.array(z.string()),        // ISO tags: P, M, K, N, S, H
 
   // Meta
-  region: z.string().nullable(),
+  country: z.string().nullable(),
   description: z.string().nullable(),
   featureText: z.string().nullable(),       // HTML stripped to plain text
   seriesIconUrl: z.string().nullable(),
@@ -126,7 +126,7 @@ export const RecommendationInputSchema = z.object({
   coatingPreference: z.string().optional(),
   manufacturerScope: z.enum(["yg1-only", "include-competitor"]).default("yg1-only"),
   locale: z.string().default("ko"),
-  region: z.string().optional(),  // DB region codes: "KOR", "ENG", "CHN", ... or "ALL"
+  country: z.string().optional(),  // DB country codes from prod_edp_option_* tables, or "ALL"
   unitSystem: z.enum(["METRIC", "INCH", "ALL"]).optional(),
 })
 export type RecommendationInput = z.infer<typeof RecommendationInputSchema>
