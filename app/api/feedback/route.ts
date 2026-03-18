@@ -140,6 +140,36 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, id: successEntry.id })
     }
 
+    // ── Failure case capture ──
+    if (body.type === "failure_case") {
+      const failureEntry = {
+        id: `fc-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
+        timestamp: new Date().toISOString(),
+        type: "failure_case",
+        sessionId: body.sessionId ?? null,
+        userComment: body.userComment ?? "",
+        mode: body.mode ?? null,
+        lastAction: body.lastAction ?? null,
+        lastUserMessage: body.lastUserMessage ?? "",
+        lastAiResponse: body.lastAiResponse ?? "",
+        conditions: body.conditions ?? "",
+        candidateCounts: body.candidateCounts ?? "",
+        topProducts: body.topProducts ?? "",
+        conversationLength: body.conversationLength ?? 0,
+        appliedFilters: body.appliedFilters ?? [],
+        chatHistory: body.chatHistory ?? null,
+        feedbackHistory: body.feedbackHistory ?? null,
+      }
+      saveTurnFeedback(failureEntry)
+
+      // Slack — failure case alert
+      import("@/lib/slack-notifier").then(({ notifyFailureCase }) =>
+        notifyFailureCase(failureEntry).catch(() => {})
+      )
+
+      return NextResponse.json({ success: true, id: failureEntry.id })
+    }
+
     // ── Turn-level feedback (per AI response) ──
     if (body.type === "turn_feedback") {
       const turnEntry = {

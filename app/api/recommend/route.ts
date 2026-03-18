@@ -2261,6 +2261,14 @@ async function handleContextualNarrowingQuestion(
 ): Promise<string | null> {
   const lastField = prevState.lastAskedField ?? "unknown"
 
+  // If the user is asking about a specific product/series/brand by name, don't use field-based explanation
+  // Let it fall through to the LLM handler which has product context
+  const msgLower = userMessage.toLowerCase()
+  const mentionsSpecificProduct = /alu[_-]?cut|alu[_-]?power|d[_-]?power|g[_-]?cut|i[_-]?steel|x[_-]?power|ce\d|ei\d|ge\d|e5/i.test(msgLower)
+  if (mentionsSpecificProduct) {
+    return null // fall through to LLM with full product context
+  }
+
   // Build context about what options exist in candidates for this field
   const fieldExplanations: Record<string, () => string> = {
     coating: () => {

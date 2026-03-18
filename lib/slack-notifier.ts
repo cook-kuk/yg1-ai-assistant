@@ -306,6 +306,61 @@ export async function notifySuccessCase(params: {
   })
 }
 
+/** 실패 사례 알림 (FAILURE_CASE) */
+export async function notifyFailureCase(params: {
+  sessionId: string | null
+  userComment: string
+  mode: string | null
+  lastUserMessage: string
+  lastAiResponse: string
+  conditions: string
+  candidateCounts: string
+  topProducts: string
+  conversationLength: number
+  appliedFilters: string[]
+  feedbackHistory?: Array<{ text: string; feedback: string | null; chipFeedback: string | null }> | null
+}): Promise<void> {
+  const filterStr = params.appliedFilters.length > 0 ? params.appliedFilters.join(", ") : "없음"
+  const badTurns = params.feedbackHistory?.filter(f => f.feedback === "bad" || f.chipFeedback === "bad").length ?? 0
+  await sendSlack({
+    blocks: [
+      {
+        type: "header",
+        text: { type: "plain_text", text: "🚨 FAILURE_CASE" },
+      },
+      {
+        type: "section",
+        fields: [
+          { type: "mrkdwn", text: `*세션:*\n${params.sessionId ?? "unknown"}` },
+          { type: "mrkdwn", text: `*모드:*\n${params.mode ?? "unknown"}` },
+          { type: "mrkdwn", text: `*후보수:*\n${params.candidateCounts}` },
+          { type: "mrkdwn", text: `*👎 받은 턴:*\n${badTurns}개 / ${params.conversationLength}턴` },
+        ],
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `*현재 조건:*\n${params.conditions}` },
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `*유저 불만:*\n💢 "${params.userComment || "(코멘트 없음)"}"` },
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `*마지막 사용자:*\n${params.lastUserMessage.slice(0, 200)}` },
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `*마지막 AI:*\n${params.lastAiResponse.slice(0, 300)}` },
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `*표시 상위 제품:*\n${params.topProducts.slice(0, 300)}` },
+      },
+    ],
+  })
+}
+
 /** 에러 알림 */
 export async function notifyError(params: {
   route: string
