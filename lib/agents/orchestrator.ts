@@ -924,18 +924,32 @@ async function routeChunkThroughTools(
   const systemPrompt = buildToolUseSystemPrompt(ctx)
   const messages = [{ role: "user" as const, content: message }]
 
+  // ═══ Phase 1: State-aware tool scoping ═══
+  // Only give Sonnet the tools that are valid in the current state.
+  // Fewer tools = fewer misrouting opportunities.
+  const scopedTools = scopeToolsForState(ctx.sessionState)
+  console.log(`[orchestrator:scope] ${scopedTools.length}/${NARROWING_TOOLS.length} tools for state=${ctx.sessionState?.lastAction ?? "none"}`)
+
   try {
     const toolStart = Date.now()
     const { text, toolUse } = await provider.completeWithTools(
-      systemPrompt, messages, NARROWING_TOOLS, 1024, "sonnet"
+      systemPrompt, messages, scopedTools, 1024, "sonnet"
     )
     const durationMs = Date.now() - toolStart
     agents.push({ agent: "tool-use-router", model: "sonnet", durationMs })
 
     if (toolUse) {
-      const action = mapToolUseToAction(toolUse, ctx)
+      let action = mapToolUseToAction(toolUse, ctx)
       console.log(`[orchestrator:tool-use] Tool: ${toolUse.toolName} → ${action.type} (${durationMs}ms)`)
       console.log(`[orchestrator:tool-use] Input: ${JSON.stringify(toolUse.input)}`)
+
+      // ═══ Phase 2: Post-tool validation gate ═══
+      // Catch remaining misroutes that scoping didn't prevent.
+      const repaired = validateAndRepairToolChoice(action, ctx, message)
+      if (repaired) {
+        console.log(`[orchestrator:repair] ${action.type} → ${repaired.type} (misroute corrected)`)
+        action = repaired
+      }
 
       const reasoning = reasoningPrefix
         ? `${reasoningPrefix} → tool_use:${toolUse.toolName} → ${action.type}`
@@ -974,6 +988,105 @@ async function routeChunkThroughTools(
 }
 
 // ════════════════════════════════════════════════════════════════
+// PHASE 1: STATE-AWARE TOOL SCOPING
+// Only give Sonnet tools valid for the current session state.
+// Fewer tools = dramatically lower misrouting rate.
+// ════════════════════════════════════════════════════════════════
+
+const TOOL_SCOPES: Record<string, string[]> = {
+  // During narrowing questions — user is answering filter questions
+  narrowing: [
+    "apply_filter", "explain_concept", "undo_step", "replace_slot",
+    "ask_clarification", "reset_session", "show_recommendation",
+    "confirm_current_scope", "summarize_current_task",
+  ],
+  // After recommendation displayed — user is browsing results
+  post_recommendation: [
+    "filter_displayed_products", "query_displayed_products", "compare_products",
+    "explain_concept", "undo_step", "reset_session",
+    "start_new_recommendation_task", "show_group_menu", "restore_previous_group",
+    "confirm_current_scope", "summarize_current_task",
+  ],
+  // After comparison — user is reviewing comparison
+  post_comparison: [
+    "explain_concept", "filter_displayed_products", "show_recommendation",
+    "compare_products", "undo_step", "reset_session",
+    "confirm_current_scope", "summarize_current_task",
+  ],
+  // After clarification question — user is responding to options
+  clarification: [
+    "apply_filter", "explain_concept", "undo_step", "reset_session",
+    "ask_clarification",
+  ],
+}
+
+// States that map to post_recommendation scope
+const POST_REC_STATES = new Set([
+  "show_recommendation", "filter_displayed", "query_displayed",
+])
+
+function scopeToolsForState(sessionState: ExplorationSessionState | null): LLMTool[] {
+  if (!sessionState) return NARROWING_TOOLS
+
+  const effectiveAction = sessionState.underlyingAction ?? sessionState.lastAction ?? ""
+
+  let scopeKey: string
+  if (sessionState.lastAction === "ask_clarification" || sessionState.lastAction === "confirm_multi_intent") {
+    scopeKey = "clarification"
+  } else if (POST_REC_STATES.has(effectiveAction) || sessionState.lastAction === "compare_products") {
+    scopeKey = sessionState.lastAction === "compare_products" ? "post_comparison" : "post_recommendation"
+  } else {
+    scopeKey = "narrowing"
+  }
+
+  const allowedNames = new Set(TOOL_SCOPES[scopeKey] ?? TOOL_SCOPES.narrowing)
+  return NARROWING_TOOLS.filter(t => allowedNames.has(t.name))
+}
+
+// ════════════════════════════════════════════════════════════════
+// PHASE 2: POST-TOOL VALIDATION & REPAIR
+// After Sonnet picks a tool, validate it makes sense.
+// If not, replace with a safer action.
+// ════════════════════════════════════════════════════════════════
+
+const EXPLAIN_SIGNAL = /설명|알려|뭔지|몰라|모르겠|에\s*대해|장단점|특징|차이.*뭐|뭐가\s*다/
+
+function validateAndRepairToolChoice(
+  action: OrchestratorAction,
+  ctx: TurnContext,
+  userMessage: string,
+): OrchestratorAction | null {
+  const clean = userMessage.trim().toLowerCase()
+  const lastAction = ctx.sessionState?.underlyingAction ?? ctx.sessionState?.lastAction ?? ""
+
+  // Rule 1: Message contains explanation signals but action is filter/recommendation → repair to explain
+  if (EXPLAIN_SIGNAL.test(clean) && (
+    action.type === "continue_narrowing" ||
+    action.type === "show_recommendation" ||
+    action.type === "filter_displayed"
+  )) {
+    const topicMatch = clean.match(/(.+?)\s*(에\s*대해|설명|알려|뭔지|몰라)/)
+    const topic = topicMatch?.[1]?.replace(/^(나\s*이거\s*|이\s*|저\s*|그\s*|나\s*)/, "").trim() ?? clean
+    return { type: "explain_product", target: topic }
+  }
+
+  // Rule 2: In narrowing state, Sonnet calls show_recommendation but user didn't ask for it
+  if (action.type === "show_recommendation" &&
+    lastAction === "continue_narrowing" &&
+    !/추천|결과|보여|바로/.test(clean)) {
+    return null // let it pass, but could add more rules
+  }
+
+  // Rule 3: User greeting/thanks routed to anything other than answer_general
+  if (/^(안녕|ㅎㅇ|하이|hello|hi\b|고마워|감사|ㄳ)/i.test(clean) &&
+    action.type !== "answer_general") {
+    return { type: "answer_general", message: clean, preGenerated: false }
+  }
+
+  return null // no repair needed
+}
+
+// ════════════════════════════════════════════════════════════════
 // DETERMINISTIC PRE-FILTER
 // Catches obvious intents BEFORE Sonnet tool-use to prevent misrouting.
 // Only fires when confidence is very high — ambiguous cases still go to Sonnet.
@@ -1000,24 +1113,74 @@ const SIDE_CHAT_PRE_PATTERNS = [
   /^ㅋㅋ/, /^ㅎㅎ/,
 ]
 
+const RESET_PRE_PATTERNS = [/처음부터\s*다시/, /다시\s*시작/, /리셋/, /초기화/, /^reset$/i]
+const RECOMMEND_PRE_PATTERNS = [/추천해\s*(줘|주세요)/, /결과\s*(보기|보여|줘)/, /바로\s*보여/, /추천\s*받/]
+const SKIP_PRE_PATTERNS = [/^상관없음$/, /^모름$/, /^패스$/, /^스킵$/, /^아무거나$/]
+const UNDO_PRE_PATTERNS = [/이전\s*(으로|단계)/, /되돌/, /돌아가/]
+const SCOPE_PRE_PATTERNS = [/지금.*상태/, /현재.*상태/, /뭐.*적용/, /어디까지/, /몇\s*개.*남/]
+const SUMMARY_PRE_PATTERNS = [/정리\s*(해|좀)/, /요약/, /지금까지/, /어디까지.*했/]
+
 function deterministicPreFilter(
   message: string,
   sessionState: ExplorationSessionState | null,
 ): OrchestratorAction | null {
   const clean = message.trim().toLowerCase()
 
-  // Explanation requests — highest priority pre-filter
+  // 1. Explanation requests — highest priority
   if (EXPLAIN_PRE_PATTERNS.some(p => p.test(clean))) {
-    // Extract topic from the message
     const topicMatch = clean.match(/(.+?)\s*(에\s*대해|설명|알려|뭔지|몰라)/)
-    const topic = topicMatch?.[1]?.replace(/^(나\s*이거\s*|이\s*|저\s*|그\s*)/, "").trim() ?? clean
+    const topic = topicMatch?.[1]?.replace(/^(나\s*이거\s*|이\s*|저\s*|그\s*|나\s*)/, "").trim() ?? clean
     return { type: "explain_product", target: topic }
   }
 
-  // Side conversation — greetings, thanks (don't break rec state)
+  // 2. Reset
+  if (RESET_PRE_PATTERNS.some(p => p.test(clean))) {
+    return { type: "reset_session" }
+  }
+
+  // 3. Undo
+  if (UNDO_PRE_PATTERNS.some(p => p.test(clean))) {
+    return { type: "go_back_one_step" }
+  }
+
+  // 4. Skip / don't care (only during narrowing)
+  if (sessionState?.lastAction === "continue_narrowing" && SKIP_PRE_PATTERNS.some(p => p.test(clean))) {
+    return { type: "skip_field" }
+  }
+
+  // 5. Scope confirmation
+  if (SCOPE_PRE_PATTERNS.some(p => p.test(clean))) {
+    return { type: "confirm_scope" }
+  }
+
+  // 6. Task summary
+  if (SUMMARY_PRE_PATTERNS.some(p => p.test(clean))) {
+    return { type: "summarize_task" }
+  }
+
+  // 7. Recommendation request
+  if (RECOMMEND_PRE_PATTERNS.some(p => p.test(clean))) {
+    return { type: "show_recommendation" }
+  }
+
+  // 8. Side conversation — greetings, thanks (don't break rec state)
   if (SIDE_CHAT_PRE_PATTERNS.some(p => p.test(clean))) {
     return { type: "answer_general", message: clean, preGenerated: false }
   }
 
-  return null
+  // 9. Chip/option exact match (during narrowing)
+  if (sessionState?.lastAction === "continue_narrowing" && sessionState.displayedOptions?.length) {
+    const chipClean = clean.replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
+    for (const opt of sessionState.displayedOptions) {
+      const optLabel = opt.label.toLowerCase().replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
+      if (chipClean === opt.value.toLowerCase() || chipClean === optLabel) {
+        return {
+          type: "continue_narrowing",
+          filter: { field: opt.field, op: "includes", value: opt.value, rawValue: opt.value, appliedAt: sessionState.turnCount ?? 0 }
+        }
+      }
+    }
+  }
+
+  return null // → Sonnet handles it (with scoped tools + post-validation)
 }
