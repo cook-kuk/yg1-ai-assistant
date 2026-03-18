@@ -26,26 +26,18 @@ export async function GET() {
     const pool = getPool()
     const result = await pool.query<{ country: string }>(
       `SELECT DISTINCT country
-       FROM (
-         SELECT NULLIF(BTRIM(country), '') AS country
-         FROM raw_catalog.prod_edp_option_milling
-         UNION
-         SELECT NULLIF(BTRIM(country), '') AS country
-         FROM raw_catalog.prod_edp_option_holemaking
-         UNION
-         SELECT NULLIF(BTRIM(country), '') AS country
-         FROM raw_catalog.prod_edp_option_threading
-       ) countries
+       FROM catalog_app.product_recommendation_mv,
+            LATERAL unnest(country_codes) AS country_row(country)
        WHERE country IS NOT NULL
+         AND BTRIM(country) <> ''
        ORDER BY country`
     )
-    const regions = result.rows.map((r) => r.country)
-    return NextResponse.json({ regions })
+    const countries = result.rows.map((row) => row.country)
+    return NextResponse.json({ countries })
   } catch (error) {
-    console.error("[regions] Failed to fetch regions:", error)
-    // Fallback: return common country codes if DB query fails
+    console.error("[countries] Failed to fetch countries:", error)
     return NextResponse.json({
-      regions: ["KOR", "ENG", "CHN", "JPN"],
+      countries: ["KOR", "ENG", "CHN", "JPN"],
       fallback: true,
     })
   }

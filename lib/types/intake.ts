@@ -22,7 +22,7 @@ export type InquiryPurpose =
 
 export type MachiningIntent = "roughing" | "semi" | "finishing"
 
-export type MarketRegion = string  // DB country codes from prod_edp_option_* tables, or "ALL"
+export type MarketCountry = string  // DB country codes from prod_edp_option_* tables, or "ALL"
 export type UnitSystem = "METRIC" | "INCH" | "ALL"
 
 export interface ProductIntakeForm {
@@ -32,7 +32,7 @@ export interface ProductIntakeForm {
   machiningIntent: AnswerState<MachiningIntent>
   toolTypeOrCurrentProduct: AnswerState<string>
   diameterInfo: AnswerState<string>
-  country: AnswerState<MarketRegion>
+  country: AnswerState<MarketCountry>
   unitSystem: AnswerState<UnitSystem>
   advanced?: {
     fluteCount?: AnswerState<number>
@@ -237,7 +237,7 @@ export const FIELD_CONFIGS: IntakeFieldConfig[] = [
   //   ],
   //   unknownLabel: "상관없음",
   // },
-  // NOTE: country 필드는 DB 뷰에 region 컬럼 추가 후 활성화
+  // NOTE: country 필드는 사이드바 국가 선택값 주입에 사용된다.
   // {
   //   key: "country",
   //   label: "시장 / 국가",

@@ -2124,7 +2124,7 @@ function FeedbackWidget({
 
 export default function ProductRecommendPage() {
   const searchParams = useSearchParams()
-  const { language, region } = useApp()
+  const { language, country } = useApp()
   const resetKey = searchParams.get("reset")
 
   const [phase, setPhase] = useState<Phase>("intake")
@@ -2159,8 +2159,8 @@ export default function ProductRecommendPage() {
       // Inject sidebar country selection into the form's country field
       const formWithRegion: ProductIntakeForm = {
         ...form,
-        country: region && region !== "ALL"
-          ? { status: "known" as const, value: region }
+        country: country && country !== "ALL"
+          ? { status: "known" as const, value: country }
           : { status: "known" as const, value: "ALL" },
       }
       const intakeText = buildIntakePromptText(formWithRegion, language)
@@ -2241,8 +2241,8 @@ export default function ProductRecommendPage() {
       // Inject sidebar country into form for narrowing requests too
       const formWithRegion: ProductIntakeForm = {
         ...form,
-        country: region && region !== "ALL"
-          ? { status: "known" as const, value: region }
+        country: country && country !== "ALL"
+          ? { status: "known" as const, value: country }
           : { status: "known" as const, value: "ALL" },
       }
       const res = await fetch("/api/recommend", {

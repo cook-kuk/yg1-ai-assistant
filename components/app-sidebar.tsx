@@ -155,7 +155,7 @@ const COUNTRY_LABELS: Record<string, { ko: string; en: string }> = {
   CZE: { ko: "체코", en: "Czech Republic" },
 }
 
-function regionLabel(code: string, lang: string): string {
+function countryLabel(code: string, lang: string): string {
   const entry = COUNTRY_LABELS[code]
   if (!entry) return code
   return lang === "ko" ? `${entry.ko} (${code})` : `${entry.en} (${code})`
@@ -170,21 +170,21 @@ const roleLabels = {
 export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
   const pathname = usePathname()
   const router = useRouter()
-  const { currentUser, setUserRole, demoScenario, setDemoScenario, language, setLanguage, region, setRegion } = useApp()
+  const { currentUser, setUserRole, demoScenario, setDemoScenario, language, setLanguage, country, setCountry } = useApp()
 
   // Fetch available countries from DB option tables
-  const [regionList, setRegionList] = useState<string[]>([])
+  const [countryList, setCountryList] = useState<string[]>([])
   useEffect(() => {
-    fetch("/api/regions")
+    fetch("/api/countries")
       .then(res => res.json())
       .then(data => {
-        if (data.regions && data.regions.length > 0) {
-          setRegionList(data.regions)
+        if (data.countries && data.countries.length > 0) {
+          setCountryList(data.countries)
         }
       })
       .catch(() => {
         // fallback if API fails
-        setRegionList(["KOR", "ENG", "CHN", "JPN"])
+        setCountryList(["KOR", "ENG", "CHN", "JPN"])
       })
   }, [])
 
@@ -327,13 +327,13 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
             <span>{language === 'ko' ? '국가' : 'Country'}</span>
           </div>
           <select
-            value={region}
-            onChange={(e) => setRegion(e.target.value)}
+            value={country}
+            onChange={(e) => setCountry(e.target.value)}
             className="h-7 rounded-md border border-sidebar-border bg-sidebar-accent px-2 text-xs font-medium text-sidebar-foreground focus:outline-none focus:ring-1 focus:ring-sidebar-primary"
           >
             <option value="ALL">{language === 'ko' ? '전체 국가' : 'All Countries'}</option>
-            {regionList.map((r) => (
-              <option key={r} value={r}>{regionLabel(r, language)}</option>
+            {countryList.map((r) => (
+              <option key={r} value={r}>{countryLabel(r, language)}</option>
             ))}
           </select>
         </div>
