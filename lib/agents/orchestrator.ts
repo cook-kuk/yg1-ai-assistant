@@ -36,6 +36,11 @@ import type { DecompositionResult, IntentChunk, ExecutionPlan } from "./query-de
 import { parseAnswerToFilter } from "@/lib/domain/question-engine"
 import { ENABLE_OPUS_AMBIGUITY, ENABLE_COMPARISON_AGENT, ENABLE_TASK_SYSTEM } from "@/lib/feature-flags"
 import type { LLMTool, LLMToolResult } from "@/lib/llm/provider"
+import {
+  getDisplayedSeriesGroupsFromState,
+  getFullDisplayedProductsFromState,
+  hasActiveRecommendationSession,
+} from "@/lib/recommendation/session-kernel"
 
 // ════════════════════════════════════════════════════════════════
 // MAIN ORCHESTRATOR
@@ -829,6 +834,17 @@ export async function orchestrateTurnWithTools(
   }
 
   // ═══ Step 0.5: Deterministic pre-filter — bypass Sonnet for obvious intents ═══
+  const protectedAction = routeProtectedRecommendationIntent(ctx.userMessage, ctx.sessionState)
+  if (protectedAction) {
+    console.log(`[orchestrator:protected] "${ctx.userMessage.slice(0, 40)}" -> ${protectedAction.type}`)
+    return {
+      action: protectedAction,
+      reasoning: `protected_recommendation_router:${protectedAction.type}`,
+      agentsInvoked: [{ agent: "protected-router", model: "haiku", durationMs: 0 }],
+      escalatedToOpus: false,
+    }
+  }
+
   const preFilterResult = deterministicPreFilter(ctx.userMessage, ctx.sessionState)
   if (preFilterResult) {
     console.log(`[orchestrator:pre-filter] Deterministic: "${ctx.userMessage.slice(0, 40)}" → ${preFilterResult.type}`)
@@ -1091,6 +1107,62 @@ function validateAndRepairToolChoice(
 // Catches obvious intents BEFORE Sonnet tool-use to prevent misrouting.
 // Only fires when confidence is very high — ambiguous cases still go to Sonnet.
 // ════════════════════════════════════════════════════════════════
+
+function normalizeArtifactLabel(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/\(\d+\s*[^\)]*\)/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+export function routeProtectedRecommendationIntent(
+  message: string,
+  sessionState: ExplorationSessionState | null,
+): OrchestratorAction | null {
+  if (!hasActiveRecommendationSession(sessionState)) return null
+
+  const clean = message.trim()
+
+  if (/^(전체\s*보기|all\s*products?|show\s*all|full\s*view)$/i.test(clean)) {
+    return { type: "filter_displayed", field: "reset", operator: "reset", value: "__all__" }
+  }
+
+  if (/^(다른\s*시리즈\s*보기|시리즈\s*(검색|목록)|series\s*(search|list)|show\s*series|another\s*series)$/i.test(clean)) {
+    return { type: "show_group_menu" }
+  }
+
+  if (/^(추천(해줘|해주세요|해\s*줘)?|recommend(\s*again)?|show\s*recommendation|결과\s*보기)$/i.test(clean)) {
+    return { type: "show_recommendation" }
+  }
+
+  if (/^(이전\s*단계|뒤로|back)$/i.test(clean)) {
+    return { type: "go_back_one_step" }
+  }
+
+  const groupMap = new Map<string, string>()
+  const seriesGroups = getDisplayedSeriesGroupsFromState(sessionState) ?? []
+  for (const group of seriesGroups) {
+    const key = group.seriesKey || group.seriesName
+    const label = group.seriesName || group.seriesKey
+    if (!key || !label) continue
+    groupMap.set(normalizeArtifactLabel(label), key)
+    groupMap.set(normalizeArtifactLabel(key), key)
+  }
+
+  const fullSnapshot = getFullDisplayedProductsFromState(sessionState) ?? []
+  for (const candidate of fullSnapshot) {
+    if (!candidate.seriesName) continue
+    groupMap.set(normalizeArtifactLabel(candidate.seriesName), candidate.seriesName)
+  }
+
+  const matchedGroupKey = groupMap.get(normalizeArtifactLabel(clean))
+  if (matchedGroupKey) {
+    return { type: "restore_previous_group", groupKey: matchedGroupKey }
+  }
+
+  return null
+}
 
 const EXPLAIN_PRE_PATTERNS = [
   /에\s*대해(서)?\s*(설명|알려)/, // "~에 대해 설명해줘"

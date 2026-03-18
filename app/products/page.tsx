@@ -2182,10 +2182,9 @@ export default function ProductRecommendPage() {
 
       // Store session state and candidates
       const nextSessionState = data.sessionState ?? null
-      const nextCandidateSnapshot = nextSessionState?.displayedProducts
-        ?? nextSessionState?.displayedCandidates
-        ?? data.candidateSnapshot
-        ?? null
+      const nextCandidateSnapshot = nextSessionState
+        ? (nextSessionState.displayedProducts ?? nextSessionState.displayedCandidates ?? null)
+        : (data.candidateSnapshot ?? null)
       setSessionState(nextSessionState)
       setCandidateSnapshot(nextCandidateSnapshot)
 
@@ -2268,10 +2267,9 @@ export default function ProductRecommendPage() {
 
       // Update session state and candidates
       const nextSessionState = data.sessionState ?? null
-      const nextCandidateSnapshot = nextSessionState?.displayedProducts
-        ?? nextSessionState?.displayedCandidates
-        ?? data.candidateSnapshot
-        ?? null
+      const nextCandidateSnapshot = nextSessionState
+        ? (nextSessionState.displayedProducts ?? nextSessionState.displayedCandidates ?? null)
+        : (data.candidateSnapshot ?? null)
       setSessionState(nextSessionState)
       setCandidateSnapshot(nextCandidateSnapshot)
 
