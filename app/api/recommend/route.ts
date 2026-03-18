@@ -205,12 +205,15 @@ async function handleExploration(
       }
 
       let orchResult: OrchestratorResult
+      console.log(`[recommend] Step 2: orchestrator start | msg="${lastUserMsg.text.slice(0, 50)}" | candidates=${candidates.length} | lastAction=${prevState.lastAction} | lastField=${prevState.lastAskedField}`)
       try {
         if (ENABLE_TOOL_USE_ROUTING) {
           try {
+            const toolStart = Date.now()
             orchResult = await orchestrateTurnWithTools(turnCtx, provider)
+            console.log(`[recommend] Tool-use succeeded in ${Date.now() - toolStart}ms | action=${orchResult.action.type}`)
           } catch (toolUseError) {
-            console.warn(`[recommend] Tool-use routing failed, falling back to legacy:`, toolUseError)
+            console.warn(`[recommend] Tool-use routing failed (${toolUseError instanceof Error ? toolUseError.message : toolUseError}), falling back to legacy`)
             orchResult = await orchestrateTurn(turnCtx, provider)
           }
         } else {
