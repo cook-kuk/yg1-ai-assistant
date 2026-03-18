@@ -1737,8 +1737,8 @@ function NarrowingChat({
                 </div>
               )}
 
-              {/* Chips — only for last AI message */}
-              {msg.role === "ai" && msg.chips && msg.chips.length > 0 && !msg.isLoading && !isSending && i === messages.length - 1 && (
+              {/* Chips — only for last AI message, blocked if feedback not given */}
+              {msg.role === "ai" && msg.chips && msg.chips.length > 0 && !msg.isLoading && !isSending && i === messages.length - 1 && !needsFeedback && (
                 <div className="flex flex-wrap gap-1.5 mt-1">
                   {msg.chips.map((chip, ci) => {
                     // Special action chips — handle client-side instead of sending as message
