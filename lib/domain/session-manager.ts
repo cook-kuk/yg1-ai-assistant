@@ -21,6 +21,12 @@ import type {
   ResolutionStatus,
   LastActionType,
   SeriesGroup,
+  ComparisonArtifact,
+  CandidateCounts,
+  ClarificationRecord,
+  DisplayedOption,
+  SessionMode,
+  UINarrowingPathEntry,
   RecommendationTask,
   ArchivedTask,
 } from "@/lib/types/exploration"
@@ -40,16 +46,115 @@ interface BuildSessionStateParams {
   resolvedInput: RecommendationInput
   turnCount: number
   lastAskedField?: string
+  displayedProducts?: CandidateSnapshot[]
+  fullDisplayedProducts?: CandidateSnapshot[] | null
   displayedCandidates: CandidateSnapshot[]
   displayedChips: string[]
-  displayedOptions: import("@/lib/types/exploration").DisplayedOption[]
+  displayedOptions: DisplayedOption[]
+  displayedSeriesGroups?: SeriesGroup[]
+  uiNarrowingPath?: UINarrowingPathEntry[]
+  currentMode?: SessionMode
+  restoreTarget?: string | null
   lastAction?: LastActionType
+  underlyingAction?: LastActionType
+  lastComparisonArtifact?: ComparisonArtifact | null
+  lastRecommendationArtifact?: CandidateSnapshot[] | null
+  candidateCounts?: CandidateCounts
+  lastClarification?: ClarificationRecord | null
   // Series grouping (Phase 1)
   displayedGroups?: SeriesGroup[]
   activeGroupKey?: string | null
   // Task system (Phase 3)
   currentTask?: RecommendationTask | null
   taskHistory?: ArchivedTask[]
+  pendingIntents?: Array<{ text: string; category: string }>
+}
+
+function buildDefaultUINarrowingPath(
+  state: Pick<
+    ExplorationSessionState,
+    "appliedFilters" | "displayedSetFilter" | "activeGroupKey" | "candidateCount" | "restoreTarget"
+  >,
+  previousPath?: UINarrowingPathEntry[]
+): UINarrowingPathEntry[] {
+  const path: UINarrowingPathEntry[] = state.appliedFilters
+    .filter(filter => filter.op !== "skip")
+    .map(filter => ({
+      kind: "filter",
+      label: `${filter.field}: ${filter.value}`,
+      field: filter.field,
+      value: String(filter.rawValue),
+      candidateCount: state.candidateCount,
+    }))
+
+  if (state.displayedSetFilter) {
+    path.push({
+      kind: "display_filter",
+      label: `${state.displayedSetFilter.field}: ${state.displayedSetFilter.value}`,
+      field: state.displayedSetFilter.field,
+      value: state.displayedSetFilter.value,
+      candidateCount: state.candidateCount,
+    })
+  }
+
+  if (state.activeGroupKey) {
+    path.push({
+      kind: "series_group",
+      label: state.activeGroupKey,
+      value: state.activeGroupKey,
+      candidateCount: state.candidateCount,
+    })
+  }
+
+  if (state.restoreTarget) {
+    path.push({
+      kind: "restore",
+      label: state.restoreTarget,
+      value: state.restoreTarget,
+      candidateCount: state.candidateCount,
+    })
+  }
+
+  return path.length > 0 ? path : (previousPath ?? [])
+}
+
+export function logSessionSnapshot(
+  tag: string,
+  state: ExplorationSessionState,
+  extras?: { restoreTarget?: string | null }
+) {
+  const displayedProducts = state.displayedProducts ?? state.displayedCandidates ?? []
+  const displayedGroups = state.displayedSeriesGroups ?? state.displayedGroups ?? []
+  const slots = {
+    material: state.resolvedInput.material ?? null,
+    operationType: state.resolvedInput.operationType ?? null,
+    toolType: state.resolvedInput.toolType ?? null,
+    toolSubtype: state.resolvedInput.toolSubtype ?? null,
+    diameterMm: state.resolvedInput.diameterMm ?? null,
+    seriesName: state.resolvedInput.seriesName ?? null,
+    flutePreference: state.resolvedInput.flutePreference ?? null,
+    coatingPreference: state.resolvedInput.coatingPreference ?? null,
+  }
+  const snapshot = {
+    slots,
+    candidateCount: state.candidateCount,
+    displayedArtifactCounts: {
+      displayedProducts: displayedProducts.length,
+      displayedOptions: state.displayedOptions?.length ?? 0,
+      displayedSeriesGroups: displayedGroups.length,
+      lastRecommendationArtifact: state.lastRecommendationArtifact?.length ?? 0,
+      lastComparisonArtifact: state.lastComparisonArtifact?.comparedProductCodes?.length ?? 0,
+    },
+    displayedArtifactIds: {
+      displayedProducts: displayedProducts.slice(0, 10).map(product => product.productCode),
+      displayedSeriesGroups: displayedGroups.slice(0, 10).map(group => group.seriesKey),
+    },
+    activeSeriesGroup: state.activeGroupKey ?? null,
+    currentMode: state.currentMode ?? null,
+    lastAction: state.lastAction ?? null,
+    restoreTarget: extras?.restoreTarget ?? state.restoreTarget ?? null,
+  }
+  console.log(`[session-snapshot:${tag}] ${JSON.stringify(snapshot)}`)
 }
 
 export function buildSessionState(params: BuildSessionStateParams): ExplorationSessionState {
@@ -68,11 +173,29 @@ export function buildSessionState(params: BuildSessionStateParams): ExplorationS
     displayedOptions: params.displayedOptions,
     lastAction: params.lastAction,
   }
+  state.displayedProducts = params.displayedProducts ?? params.displayedCandidates
+  state.displayedCandidates = state.displayedProducts
+  state.fullDisplayedProducts = params.fullDisplayedProducts
+    ?? params.displayedProducts
+    ?? params.displayedCandidates
+  state.fullDisplayedCandidates = state.fullDisplayedProducts ?? undefined
+  state.displayedSeriesGroups = params.displayedSeriesGroups ?? params.displayedGroups
+  state.currentMode = params.currentMode
+  state.restoreTarget = params.restoreTarget ?? null
+  state.underlyingAction = params.underlyingAction
+  state.lastComparisonArtifact = params.lastComparisonArtifact ?? null
+  state.lastRecommendationArtifact = params.lastRecommendationArtifact ?? null
+  state.candidateCounts = params.candidateCounts
+  state.lastClarification = params.lastClarification ?? null
+  state.pendingIntents = params.pendingIntents
+  state.uiNarrowingPath = params.uiNarrowingPath
   // Optional fields — only set if provided
   if (params.displayedGroups) state.displayedGroups = params.displayedGroups
+  if (state.displayedSeriesGroups) state.displayedGroups = state.displayedSeriesGroups
   if (params.activeGroupKey !== undefined) state.activeGroupKey = params.activeGroupKey
   if (params.currentTask !== undefined) state.currentTask = params.currentTask
   if (params.taskHistory) state.taskHistory = params.taskHistory
+  state.uiNarrowingPath = buildDefaultUINarrowingPath(state, params.uiNarrowingPath)
   return state
 }
 
@@ -91,14 +214,36 @@ export function carryForwardState(
     resolvedInput: overrides.resolvedInput ?? prev.resolvedInput,
     turnCount: overrides.turnCount ?? prev.turnCount,
     lastAskedField: overrides.lastAskedField ?? prev.lastAskedField,
-    displayedCandidates: overrides.displayedCandidates ?? prev.displayedCandidates,
+    displayedProducts: overrides.displayedProducts ?? prev.displayedProducts ?? prev.displayedCandidates,
+    fullDisplayedProducts: overrides.fullDisplayedProducts
+      ?? prev.fullDisplayedProducts
+      ?? prev.fullDisplayedCandidates
+      ?? prev.displayedProducts
+      ?? prev.displayedCandidates,
+    displayedCandidates: overrides.displayedCandidates ?? overrides.displayedProducts ?? prev.displayedProducts ?? prev.displayedCandidates,
     displayedChips: overrides.displayedChips ?? prev.displayedChips,
     displayedOptions: overrides.displayedOptions ?? prev.displayedOptions ?? [],
+    displayedSeriesGroups: overrides.displayedSeriesGroups ?? prev.displayedSeriesGroups ?? prev.displayedGroups,
+    uiNarrowingPath: overrides.uiNarrowingPath ?? prev.uiNarrowingPath,
+    currentMode: overrides.currentMode ?? prev.currentMode,
+    restoreTarget: overrides.restoreTarget !== undefined ? overrides.restoreTarget : prev.restoreTarget,
     lastAction: overrides.lastAction ?? prev.lastAction,
-    displayedGroups: overrides.displayedGroups ?? prev.displayedGroups,
+    underlyingAction: overrides.underlyingAction ?? prev.underlyingAction,
+    lastComparisonArtifact: overrides.lastComparisonArtifact !== undefined
+      ? overrides.lastComparisonArtifact
+      : prev.lastComparisonArtifact,
+    lastRecommendationArtifact: overrides.lastRecommendationArtifact !== undefined
+      ? overrides.lastRecommendationArtifact
+      : prev.lastRecommendationArtifact,
+    candidateCounts: overrides.candidateCounts ?? prev.candidateCounts,
+    lastClarification: overrides.lastClarification !== undefined
+      ? overrides.lastClarification
+      : prev.lastClarification,
+    displayedGroups: overrides.displayedGroups ?? overrides.displayedSeriesGroups ?? prev.displayedSeriesGroups ?? prev.displayedGroups,
     activeGroupKey: overrides.activeGroupKey !== undefined ? overrides.activeGroupKey : prev.activeGroupKey,
     currentTask: overrides.currentTask !== undefined ? overrides.currentTask : prev.currentTask,
     taskHistory: overrides.taskHistory ?? prev.taskHistory,
+    pendingIntents: overrides.pendingIntents ?? prev.pendingIntents,
   })
 }
 

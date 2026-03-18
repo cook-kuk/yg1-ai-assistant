@@ -88,6 +88,25 @@ export interface CandidateCounts {
   hiddenBySeriesCapCount: number   // hidden by series grouping cap
 }
 
+export type SessionMode =
+  | "narrowing"
+  | "question"
+  | "recommendation"
+  | "comparison"
+  | "general_chat"
+  | "group_menu"
+  | "group_focus"
+  | "restore"
+  | "task"
+
+export interface UINarrowingPathEntry {
+  kind: "filter" | "display_filter" | "series_group" | "restore" | "meta"
+  label: string
+  field?: string
+  value?: string
+  candidateCount: number
+}
+
 // ── Clarification Record (tracks what was asked & resolved) ──
 export interface ClarificationRecord {
   question: string
@@ -108,6 +127,12 @@ export interface ExplorationSessionState {
   resolvedInput: RecommendationInput   // accumulated from intake + narrowing
   turnCount: number
   lastAskedField?: string              // which field the question engine just asked about
+  displayedProducts?: CandidateSnapshot[]      // canonical UI list for cards/tables
+  fullDisplayedProducts?: CandidateSnapshot[] | null
+  displayedSeriesGroups?: SeriesGroup[]
+  uiNarrowingPath?: UINarrowingPathEntry[]
+  currentMode?: SessionMode
+  restoreTarget?: string | null
 
   // ── Durable UI context (single source of truth) ──
   displayedCandidates: CandidateSnapshot[]  // what the user currently sees

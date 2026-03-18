@@ -1350,6 +1350,9 @@ function ExplorationScreen({
   const { language } = useApp()
   const [showSidebar, setShowSidebar] = useState(false)
   const [showCandidates, setShowCandidates] = useState(false)
+  const persistedCandidates = sessionState
+    ? (sessionState.displayedProducts ?? sessionState.displayedCandidates ?? null)
+    : candidateSnapshot
 
   return (
     <div className="flex flex-col h-full">
@@ -1410,7 +1413,7 @@ function ExplorationScreen({
 
         {/* Right candidate panel */}
         <div className={`w-80 border-l bg-white flex-shrink-0 overflow-y-auto transition-all ${showCandidates ? "block" : "hidden"} lg:block`}>
-          <CandidatePanel candidates={candidateSnapshot} messages={messages} sessionState={sessionState} onSend={onSend} />
+          <CandidatePanel candidates={persistedCandidates} messages={messages} sessionState={sessionState} onSend={onSend} />
         </div>
       </div>
     </div>
@@ -1429,6 +1432,8 @@ function ExplorationSidebar({
   const { language } = useApp()
   // Find the latest requestPreparation from messages
   const latestPrep = [...messages].reverse().find(m => m.requestPreparation)?.requestPreparation ?? null
+  const uiNarrowingPath = sessionState?.uiNarrowingPath ?? []
+  const displayedGroups = sessionState?.displayedSeriesGroups ?? sessionState?.displayedGroups ?? []
 
   return (
     <div className="p-3 space-y-3">
@@ -1460,26 +1465,26 @@ function ExplorationSidebar({
       </div>
 
       {/* Narrowing path — 축소 경로 */}
-      {sessionState && sessionState.appliedFilters.length > 0 && (
+      {sessionState && uiNarrowingPath.length > 0 && (
         <div>
           <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
             <Filter size={10} />{language === 'ko' ? '적용 필터' : 'Applied Filters'}
           </div>
           <div className="space-y-0.5">
-            {sessionState.appliedFilters.filter(f => f.op !== "skip").map((f, i) => (
+            {uiNarrowingPath.map((entry, i) => (
               <div key={i} className="flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1 border border-blue-100 bg-blue-50">
                 <ArrowRight size={8} className="text-blue-400 shrink-0" />
                 <span className="text-blue-600 font-medium truncate">
-                  {f.field === "fluteCount"
+                  {entry.field === "fluteCount"
                     ? (language === "ko" ? "날수" : "Flutes")
-                    : f.field === "toolSubtype"
+                    : entry.field === "toolSubtype"
                       ? (language === "ko" ? "형상" : "Shape")
-                      : f.field === "coating"
+                      : entry.field === "coating"
                         ? (language === "ko" ? "코팅" : "Coating")
-                        : f.field === "seriesName"
+                        : entry.field === "seriesName"
                           ? (language === "ko" ? "시리즈" : "Series")
-                          : localizeIntakeText(f.field, language)}
-                  : {localizeIntakeText(f.value, language)}
+                          : localizeIntakeText(entry.field ?? entry.label, language)}
+                  : {localizeIntakeText(entry.value ?? entry.label, language)}
                 </span>
               </div>
             ))}
@@ -1508,21 +1513,21 @@ function ExplorationSidebar({
       )}
 
       {/* Series groups summary */}
-      {sessionState?.displayedGroups && sessionState.displayedGroups.length >= 2 && (
+      {displayedGroups.length >= 2 && (
         <div>
           <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
             <Package size={10} />{language === 'ko' ? '시리즈 그룹' : 'Series Groups'}
           </div>
           <div className="space-y-0.5">
-            {sessionState.displayedGroups.slice(0, 5).map(g => (
+            {displayedGroups.slice(0, 5).map(g => (
               <div key={g.seriesKey} className="flex items-center justify-between text-[10px] bg-white rounded-lg px-2.5 py-1 border border-gray-100">
                 <span className="text-gray-700 font-medium truncate">{g.seriesName}</span>
                 <span className="text-gray-400 shrink-0 ml-1">{g.candidateCount}{language === 'ko' ? '개' : ''}</span>
               </div>
             ))}
-            {sessionState.displayedGroups.length > 5 && (
+            {displayedGroups.length > 5 && (
               <div className="text-[10px] text-gray-400 px-2.5">
-                +{sessionState.displayedGroups.length - 5}{language === 'ko' ? '개 더' : ' more'}
+                +{displayedGroups.length - 5}{language === 'ko' ? '개 더' : ' more'}
               </div>
             )}
           </div>
@@ -1764,7 +1769,7 @@ function CandidatePanel({
   // Find the last recommendation in messages
   const lastRec = [...messages].reverse().find(m => m.recommendation)?.recommendation
 
-  const groups = sessionState?.displayedGroups ?? null
+  const groups = sessionState?.displayedSeriesGroups ?? sessionState?.displayedGroups ?? null
   const useAccordion = groups != null && groups.length >= 2
 
   // Cap displayed candidates to 5
@@ -2157,8 +2162,13 @@ export default function ProductRecommendPage() {
       if (data.error) throw new Error(data.detail ?? data.error)
 
       // Store session state and candidates
-      setSessionState(data.sessionState ?? null)
-      setCandidateSnapshot(data.candidateSnapshot ?? null)
+      const nextSessionState = data.sessionState ?? null
+      const nextCandidateSnapshot = nextSessionState?.displayedProducts
+        ?? nextSessionState?.displayedCandidates
+        ?? data.candidateSnapshot
+        ?? null
+      setSessionState(nextSessionState)
+      setCandidateSnapshot(nextCandidateSnapshot)
 
       // Seed chat
       setChatMessages([
@@ -2169,7 +2179,7 @@ export default function ProductRecommendPage() {
           chips: data.chips ?? [],
           recommendation: data.recommendation ?? null,
           evidenceSummaries: data.evidenceSummaries ?? null,
-          candidateSnapshot: data.candidateSnapshot ?? null,
+          candidateSnapshot: nextCandidateSnapshot,
           requestPreparation: data.requestPreparation ?? null,
           primaryExplanation: data.primaryExplanation ?? null,
           primaryFactChecked: data.primaryFactChecked ?? null,
@@ -2198,7 +2208,10 @@ export default function ProductRecommendPage() {
       history.push({ role: "user", text })
 
       // 현재 표시된 추천 제품 목록을 같이 전송 → LLM이 후속 질문에 활용
-      const displayedProducts = candidateSnapshot?.slice(0, 10).map(c => ({
+      const persistedCandidates = sessionState
+        ? (sessionState.displayedProducts ?? sessionState.displayedCandidates ?? null)
+        : candidateSnapshot
+      const displayedProducts = persistedCandidates?.slice(0, 10).map(c => ({
         rank: c.rank,
         code: c.displayCode,
         brand: c.brand,
@@ -2228,8 +2241,13 @@ export default function ProductRecommendPage() {
       if (data.error) throw new Error(data.detail ?? data.text ?? data.error)
 
       // Update session state and candidates
-      if (data.sessionState) setSessionState(data.sessionState)
-      if (data.candidateSnapshot) setCandidateSnapshot(data.candidateSnapshot)
+      const nextSessionState = data.sessionState ?? null
+      const nextCandidateSnapshot = nextSessionState?.displayedProducts
+        ?? nextSessionState?.displayedCandidates
+        ?? data.candidateSnapshot
+        ?? null
+      setSessionState(nextSessionState)
+      setCandidateSnapshot(nextCandidateSnapshot)
 
       setChatMessages(prev => {
         const updated = [...prev]
@@ -2239,7 +2257,7 @@ export default function ProductRecommendPage() {
           recommendation: data.recommendation ?? null,
           chips: data.chips ?? [],
           evidenceSummaries: data.evidenceSummaries ?? null,
-          candidateSnapshot: data.candidateSnapshot ?? null,
+          candidateSnapshot: nextCandidateSnapshot,
           requestPreparation: data.requestPreparation ?? null,
           primaryExplanation: data.primaryExplanation ?? null,
           primaryFactChecked: data.primaryFactChecked ?? null,

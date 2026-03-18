@@ -45,7 +45,7 @@ import type { ActionPlan } from "@/lib/domain/action-planner"
 import { orchestrateTurn, orchestrateTurnWithTools, normalizeFieldName } from "@/lib/agents/orchestrator"
 import { compareProducts, resolveProductReferences } from "@/lib/agents/comparison-agent"
 import type { TurnContext, OrchestratorResult } from "@/lib/agents/types"
-import { buildSessionState, carryForwardState, createInitialStage, createFilterStage, restoreOnePreviousStep, restoreToBeforeFilter } from "@/lib/domain/session-manager"
+import { buildSessionState, carryForwardState, createInitialStage, createFilterStage, restoreOnePreviousStep, restoreToBeforeFilter, logSessionSnapshot } from "@/lib/domain/session-manager"
 import { runValidationGate, validateNoReask } from "@/lib/domain/validation-gate"
 import { ENABLE_MULTI_AGENT_ORCHESTRATOR, ENABLE_VALIDATION_GATE, ENABLE_COMPARISON_AGENT, ENABLE_TOOL_USE_ROUTING, ENABLE_SERIES_GROUPING, ENABLE_TASK_SYSTEM } from "@/lib/feature-flags"
 import { groupCandidatesBySeries, buildGroupSummaries, filterBySeriesGroup } from "@/lib/domain/series-grouper"
@@ -57,7 +57,7 @@ import { InventoryRepo } from "@/lib/data/repos/inventory-repo"
 
 import type { RecommendationInput, RecommendationResult, ScoredProduct, ChatMessage, MatchStatus } from "@/lib/types/canonical"
 import type { ProductIntakeForm, AnswerState, MachiningIntent } from "@/lib/types/intake"
-import type { ExplorationSessionState, AppliedFilter, NarrowingTurn, NarrowingStage, CandidateSnapshot, SeriesGroup } from "@/lib/types/exploration"
+import type { ExplorationSessionState, AppliedFilter, NarrowingTurn, NarrowingStage, CandidateSnapshot, SeriesGroup, DisplayedOption, RecommendationCheckpoint } from "@/lib/types/exploration"
 import type { EvidenceSummary } from "@/lib/types/evidence"
 import type { FactCheckedRecommendation } from "@/lib/types/fact-check"
 import type { RecommendationExplanation } from "@/lib/types/explanation"
@@ -117,6 +117,331 @@ interface DisplayedProduct {
   materialTags: string[]
   score: number
   matchStatus: string
+}
+
+function getDisplayedProductsFromState(state: ExplorationSessionState | null | undefined): CandidateSnapshot[] {
+  return state?.displayedProducts ?? state?.displayedCandidates ?? []
+}
+
+function getFullDisplayedProductsFromState(state: ExplorationSessionState | null | undefined): CandidateSnapshot[] | null {
+  return state?.fullDisplayedProducts
+    ?? state?.fullDisplayedCandidates
+    ?? state?.lastRecommendationArtifact
+    ?? getDisplayedProductsFromState(state)
+}
+
+function getDisplayedSeriesGroupsFromState(state: ExplorationSessionState | null | undefined): SeriesGroup[] | undefined {
+  return state?.displayedSeriesGroups ?? state?.displayedGroups
+}
+
+function deriveSessionMode(lastAction?: string): ExplorationSessionState["currentMode"] {
+  switch (lastAction) {
+    case "show_recommendation":
+    case "filter_displayed":
+    case "query_displayed":
+      return "recommendation"
+    case "compare_products":
+      return "comparison"
+    case "restore_previous_group":
+      return "group_focus"
+    case "show_group_menu":
+      return "group_menu"
+    case "answer_general":
+    case "explain_product":
+    case "confirm_scope":
+    case "summarize_task":
+      return "general_chat"
+    case "start_new_task":
+    case "resume_previous_task":
+      return "task"
+    default:
+      return "question"
+  }
+}
+
+const PROTECTED_RECOMMENDATION_ACTIONS = new Set<NonNullable<ExplorationSessionState["lastAction"]>>([
+  "show_recommendation",
+  "filter_displayed",
+  "query_displayed",
+  "compare_products",
+  "restore_previous_group",
+  "show_group_menu",
+  "answer_general",
+  "explain_product",
+  "confirm_scope",
+  "summarize_task",
+])
+
+function hasActiveRecommendationSession(state: ExplorationSessionState | null | undefined): boolean {
+  if (!state) return false
+  if (state.currentMode && ["recommendation", "comparison", "general_chat", "group_menu", "group_focus", "restore"].includes(state.currentMode)) {
+    return true
+  }
+  return PROTECTED_RECOMMENDATION_ACTIONS.has(state.lastAction ?? null)
+    || PROTECTED_RECOMMENDATION_ACTIONS.has(state.underlyingAction ?? null)
+}
+
+function getPersistedDisplayedOptions(
+  state: ExplorationSessionState,
+  prevState: ExplorationSessionState | null,
+): DisplayedOption[] {
+  return state.displayedOptions?.length
+    ? state.displayedOptions
+    : (prevState?.displayedOptions ?? [])
+}
+
+function getLatestCheckpoint(state: ExplorationSessionState | null | undefined): RecommendationCheckpoint | null {
+  if (!state) return null
+  const currentCheckpoint = state.currentTask?.checkpoints?.[state.currentTask.checkpoints.length - 1]
+  if (currentCheckpoint) return currentCheckpoint
+  const archivedCheckpoint = state.taskHistory?.[state.taskHistory.length - 1]?.finalCheckpoint
+  return archivedCheckpoint ?? null
+}
+
+function getRecommendationSourceSnapshot(state: ExplorationSessionState | null | undefined): CandidateSnapshot[] {
+  if (!state) return []
+  const displayed = getDisplayedProductsFromState(state)
+  const fullDisplayed = getFullDisplayedProductsFromState(state) ?? []
+  if (displayed.length > 0 && (state.activeGroupKey || state.displayedSetFilter || state.currentMode === "group_focus")) {
+    return displayed
+  }
+  if (displayed.length > 0 && fullDisplayed.length === 0) {
+    return displayed
+  }
+  if (fullDisplayed.length > 0) {
+    return fullDisplayed
+  }
+  return state.lastRecommendationArtifact ?? displayed
+}
+
+function buildRestoreQuestionState(
+  prevState: ExplorationSessionState,
+  chips: string[],
+): ExplorationSessionState {
+  return finalizeSessionState({
+    sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+    candidateCount: prevState.candidateCount,
+    appliedFilters: prevState.appliedFilters,
+    narrowingHistory: prevState.narrowingHistory,
+    stageHistory: prevState.stageHistory ?? [],
+    resolutionStatus: prevState.resolutionStatus ?? "broad",
+    resolvedInput: prevState.resolvedInput,
+    turnCount: prevState.turnCount,
+    lastAskedField: prevState.lastAskedField,
+    displayedProducts: getDisplayedProductsFromState(prevState),
+    displayedCandidates: getDisplayedProductsFromState(prevState),
+    fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+    fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
+    displayedSetFilter: prevState.displayedSetFilter ?? null,
+    displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+    displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
+    displayedChips: chips,
+    displayedOptions: prevState.displayedOptions ?? [],
+    lastAction: "answer_general",
+    currentMode: "restore",
+    restoreTarget: "last_checkpoint",
+    underlyingAction: prevState.underlyingAction ?? prevState.lastAction ?? "show_recommendation",
+    lastComparisonArtifact: prevState.lastComparisonArtifact ?? null,
+    lastRecommendationArtifact: prevState.lastRecommendationArtifact ?? getFullDisplayedProductsFromState(prevState),
+    candidateCounts: prevState.candidateCounts,
+    lastClarification: prevState.lastClarification ?? null,
+    activeGroupKey: prevState.activeGroupKey ?? null,
+    currentTask: prevState.currentTask,
+    taskHistory: prevState.taskHistory,
+    pendingIntents: prevState.pendingIntents,
+  }, prevState, {
+    currentMode: "restore",
+    restoreTarget: "last_checkpoint",
+    preserveUnderlyingRecommendation: true,
+  })
+}
+
+async function rehydrateCandidatesFromSnapshot(
+  snapshot: CandidateSnapshot[],
+  input: RecommendationInput,
+): Promise<{ candidates: ScoredProduct[]; evidenceMap: Map<string, EvidenceSummary> }> {
+  const evidenceMap = new Map<string, EvidenceSummary>()
+  const isoGroup = input.material ? resolveMaterialTag(input.material) : null
+
+  const restored = await Promise.all(snapshot.map(async (candidate) => {
+    const lookupCode = candidate.productCode || candidate.displayCode
+    if (!lookupCode) return null
+
+    const product = await ProductRepo.findByCode(lookupCode).catch(() => null)
+    if (!product) return null
+
+    const [inventoryRows, evidenceSummary] = await Promise.all([
+      InventoryRepo.getByEdpAsync(lookupCode),
+      EvidenceRepo.buildSummary(lookupCode, {
+        seriesName: product.seriesName ?? candidate.seriesName ?? null,
+        isoGroup,
+        cuttingType: input.operationType ?? null,
+        diameterMm: input.diameterMm ?? product.diameterMm ?? candidate.diameterMm ?? null,
+        toleranceMm: input.diameterMm != null ? 0.5 : undefined,
+      }),
+    ])
+
+    evidenceMap.set(product.normalizedCode, evidenceSummary)
+
+    const totalStock = inventoryRows.some(row => row.quantity !== null)
+      ? inventoryRows.reduce((sum, row) => sum + (row.quantity ?? 0), 0)
+      : null
+    const stockStatus = totalStock === null
+      ? "unknown"
+      : totalStock > 10
+        ? "instock"
+        : totalStock > 0
+          ? "limited"
+          : "outofstock"
+
+    const restoredCandidate: ScoredProduct = {
+      product,
+      score: candidate.score,
+      scoreBreakdown: candidate.scoreBreakdown,
+      matchedFields: ["restored_artifact"],
+      matchStatus: candidate.matchStatus,
+      inventory: inventoryRows,
+      leadTimes: [],
+      evidence: [],
+      stockStatus,
+      totalStock,
+      minLeadTimeDays: null,
+    }
+    return restoredCandidate
+  }))
+
+  return {
+    candidates: restored.filter((candidate): candidate is ScoredProduct => Boolean(candidate)),
+    evidenceMap,
+  }
+}
+
+function buildPersistedUINarrowingPath(state: ExplorationSessionState, prevState: ExplorationSessionState | null): NonNullable<ExplorationSessionState["uiNarrowingPath"]> {
+  const path = state.appliedFilters
+    .filter(filter => filter.op !== "skip")
+    .map(filter => ({
+      kind: "filter" as const,
+      label: `${filter.field}: ${filter.value}`,
+      field: filter.field,
+      value: String(filter.rawValue),
+      candidateCount: state.candidateCount,
+    }))
+
+  if (state.displayedSetFilter) {
+    path.push({
+      kind: "display_filter",
+      label: `${state.displayedSetFilter.field}: ${state.displayedSetFilter.value}`,
+      field: state.displayedSetFilter.field,
+      value: state.displayedSetFilter.value,
+      candidateCount: state.candidateCount,
+    })
+  }
+
+  if (state.activeGroupKey) {
+    path.push({
+      kind: "series_group",
+      label: state.activeGroupKey,
+      value: state.activeGroupKey,
+      candidateCount: state.candidateCount,
+    })
+  }
+
+  if (state.restoreTarget) {
+    path.push({
+      kind: "restore",
+      label: state.restoreTarget,
+      value: state.restoreTarget,
+      candidateCount: state.candidateCount,
+    })
+  }
+
+  return path.length > 0 ? path : (prevState?.uiNarrowingPath ?? [])
+}
+
+function finalizeSessionState(
+  sessionState: ExplorationSessionState,
+  prevState: ExplorationSessionState | null,
+  options?: {
+    currentMode?: ExplorationSessionState["currentMode"]
+    restoreTarget?: string | null
+    activeGroupKey?: string | null
+    preserveUnderlyingRecommendation?: boolean
+  }
+): ExplorationSessionState {
+  const displayedProducts = sessionState.displayedProducts
+    ?? sessionState.displayedCandidates
+    ?? getDisplayedProductsFromState(prevState)
+  const fullDisplayedProducts = sessionState.fullDisplayedProducts
+    ?? sessionState.fullDisplayedCandidates
+    ?? getFullDisplayedProductsFromState(prevState)
+    ?? displayedProducts
+  const displayedSeriesGroups = sessionState.displayedSeriesGroups
+    ?? sessionState.displayedGroups
+    ?? getDisplayedSeriesGroupsFromState(prevState)
+    ?? (ENABLE_SERIES_GROUPING && fullDisplayedProducts && fullDisplayedProducts.length > 0
+      ? groupCandidatesBySeries(fullDisplayedProducts)
+      : undefined)
+  const displayedOptions = getPersistedDisplayedOptions(sessionState, prevState)
+  const recommendationContextActive = hasActiveRecommendationSession(sessionState) || hasActiveRecommendationSession(prevState)
+  const artifactCandidatePoolCount = fullDisplayedProducts?.length ?? displayedProducts.length
+  const repairedCandidateCount = recommendationContextActive
+    && sessionState.candidateCount <= 0
+    && artifactCandidatePoolCount > 0
+      ? Math.max(prevState?.candidateCount ?? 0, artifactCandidatePoolCount)
+      : sessionState.candidateCount
+
+  if (recommendationContextActive && sessionState.candidateCount <= 0 && artifactCandidatePoolCount > 0) {
+    console.warn(`[state-guard] repaired candidateCount reset 0 -> ${repairedCandidateCount}`)
+  }
+
+  const repairedResolutionStatus = recommendationContextActive
+    && sessionState.resolutionStatus === "resolved_none"
+    && artifactCandidatePoolCount > 0
+      ? (prevState?.resolutionStatus && prevState.resolutionStatus !== "resolved_none"
+          ? prevState.resolutionStatus
+          : "resolved_approximate")
+      : sessionState.resolutionStatus
+
+  const finalized: ExplorationSessionState = {
+    ...sessionState,
+    candidateCount: repairedCandidateCount,
+    resolutionStatus: repairedResolutionStatus,
+    displayedProducts,
+    displayedCandidates: displayedProducts,
+    fullDisplayedProducts,
+    fullDisplayedCandidates: fullDisplayedProducts ?? undefined,
+    displayedOptions,
+    displayedSeriesGroups,
+    displayedGroups: displayedSeriesGroups,
+    currentMode: options?.currentMode ?? sessionState.currentMode ?? deriveSessionMode(sessionState.lastAction),
+    activeGroupKey: options?.activeGroupKey !== undefined
+      ? options.activeGroupKey
+      : (sessionState.activeGroupKey ?? prevState?.activeGroupKey ?? null),
+    restoreTarget: options?.restoreTarget !== undefined
+      ? options.restoreTarget
+      : (sessionState.restoreTarget ?? prevState?.restoreTarget ?? null),
+    underlyingAction: options?.preserveUnderlyingRecommendation
+      ? (prevState?.underlyingAction ?? prevState?.lastAction ?? "show_recommendation")
+      : (sessionState.underlyingAction ?? prevState?.underlyingAction ?? prevState?.lastAction),
+    lastComparisonArtifact: sessionState.lastComparisonArtifact !== undefined
+      ? sessionState.lastComparisonArtifact
+      : (prevState?.lastComparisonArtifact ?? null),
+    lastRecommendationArtifact: sessionState.lastRecommendationArtifact !== undefined
+      ? sessionState.lastRecommendationArtifact
+      : (prevState?.lastRecommendationArtifact ?? fullDisplayedProducts ?? null),
+    candidateCounts: sessionState.candidateCounts ?? prevState?.candidateCounts,
+    lastClarification: sessionState.lastClarification !== undefined
+      ? sessionState.lastClarification
+      : (prevState?.lastClarification ?? null),
+    pendingIntents: sessionState.pendingIntents ?? prevState?.pendingIntents,
+  }
+  if (recommendationContextActive && finalized.displayedProducts.length === 0 && artifactCandidatePoolCount > 0) {
+    console.warn(`[state-guard] restored empty displayedProducts from persisted artifact (${artifactCandidatePoolCount})`)
+    finalized.displayedProducts = fullDisplayedProducts ?? displayedProducts
+    finalized.displayedCandidates = finalized.displayedProducts
+  }
+  finalized.uiNarrowingPath = buildPersistedUINarrowingPath(finalized, prevState)
+  return finalized
 }
 
 async function handleExploration(
@@ -260,7 +585,14 @@ async function handleExploration(
 
       // ── Guard: apply_filter in post-recommendation state → redirect ALL to filter_displayed ──
       // Use underlyingAction to survive side conversations (explain/chat don't change the underlying mode)
-      const POST_RECOMMENDATION_ACTIONS = new Set(["show_recommendation", "filter_displayed", "query_displayed"])
+      const POST_RECOMMENDATION_ACTIONS = new Set([
+        "show_recommendation",
+        "filter_displayed",
+        "query_displayed",
+        "restore_previous_group",
+        "show_group_menu",
+        "compare_products",
+      ])
       const effectiveLastAction = prevState.underlyingAction ?? prevState.lastAction ?? ""
       if (action.type === "continue_narrowing" && POST_RECOMMENDATION_ACTIONS.has(effectiveLastAction)) {
         const filterField = action.filter.field
@@ -291,7 +623,7 @@ async function handleExploration(
             }
           } else if (se.category === "side_conversation") {
             try {
-              const chatReply = await handleGeneralChat(provider, se.text, currentInput, candidates, form, prevState.displayedCandidates)
+              const chatReply = await handleGeneralChat(provider, se.text, currentInput, candidates, form, getDisplayedProductsFromState(prevState))
               if (chatReply.text) sideTexts.push(chatReply.text)
             } catch (e) {
               console.warn(`[multi-intent:side-effect] Side conversation failed:`, e)
@@ -378,10 +710,95 @@ async function handleExploration(
       }
 
       // Action: show_recommendation
+      if (action.type === "show_recommendation" && hasActiveRecommendationSession(prevState)) {
+        const persistedSnapshot = getRecommendationSourceSnapshot(prevState)
+        if (persistedSnapshot.length > 0) {
+          const restoredRecommendation = await rehydrateCandidatesFromSnapshot(persistedSnapshot, currentInput)
+          if (restoredRecommendation.candidates.length > 0) {
+            console.log(`[recommend] show_recommendation restored persisted artifact count=${restoredRecommendation.candidates.length}`)
+            return buildRecommendationResponse(
+              form,
+              restoredRecommendation.candidates,
+              restoredRecommendation.evidenceMap,
+              currentInput,
+              narrowingHistory,
+              filters,
+              turnCount,
+              messages,
+              provider,
+              language,
+              snapshotToDisplayed(persistedSnapshot)
+            )
+          }
+        }
+
+        const latestCheckpoint = getLatestCheckpoint(prevState)
+        if (candidates.length === 0 && latestCheckpoint) {
+          const checkpointResult = await runHybridRetrieval(
+            latestCheckpoint.resolvedInputSnapshot,
+            latestCheckpoint.filtersSnapshot.filter(filter => filter.op !== "skip")
+          )
+
+          if (checkpointResult.candidates.length > 0) {
+            console.log(`[recommend] show_recommendation restored checkpoint=${latestCheckpoint.checkpointId} count=${checkpointResult.candidates.length}`)
+            return buildRecommendationResponse(
+              form,
+              checkpointResult.candidates,
+              checkpointResult.evidenceMap,
+              latestCheckpoint.resolvedInputSnapshot,
+              narrowingHistory,
+              latestCheckpoint.filtersSnapshot,
+              turnCount,
+              messages,
+              provider,
+              language,
+              displayedProducts,
+              "\n\n이전 추천 체크포인트에서 결과를 복원했습니다."
+            )
+          }
+        }
+
+        if (candidates.length === 0) {
+          const chips = ["이전 추천 복원", "새 추천 다시 찾기", "직접 입력"]
+          const restoreState = buildRestoreQuestionState(prevState, chips)
+          logSessionSnapshot("show_recommendation_restore_needed", restoreState, { restoreTarget: "last_checkpoint" })
+          let finalizedShowAllState = restoreState
+          /*
+            restoreTarget: "전체 보기",
+            activeGroupKey: null,
+            preserveUnderlyingRecommendation: true,
+          */
+          logSessionSnapshot("show_all", finalizedShowAllState, { restoreTarget: "전체 보기" })
+          finalizedShowAllState = finalizeSessionState(restoreState, prevState, {
+            currentMode: "recommendation",
+            restoreTarget: "전체 보기",
+            activeGroupKey: null,
+            preserveUnderlyingRecommendation: true,
+          })
+          logSessionSnapshot("show_all", finalizedShowAllState, { restoreTarget: "전체 보기" })
+          return NextResponse.json({
+            text: "이전 추천 상태를 복원할 수 있습니다. 마지막 추천 결과를 복원할까요, 아니면 새 조건으로 다시 찾을까요?",
+            purpose: "question",
+            chips,
+            isComplete: false,
+            recommendation: null,
+            sessionState: restoreState,
+            evidenceSummaries: null,
+            candidateSnapshot: getDisplayedProductsFromState(restoreState),
+            extractedField: null,
+            requestPreparation: null,
+            primaryExplanation: null,
+            primaryFactChecked: null,
+            altExplanations: [],
+            altFactChecked: [],
+            orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+          })
+        }
+      }
       if (action.type === "show_recommendation") {
         // If in-display filter is active, recommend only from filtered set
-        if (prevState.displayedSetFilter && prevState.displayedCandidates?.length > 0) {
-          const filteredCodes = new Set(prevState.displayedCandidates.map(c => c.productCode))
+        if (prevState.displayedSetFilter && getDisplayedProductsFromState(prevState).length > 0) {
+          const filteredCodes = new Set(getDisplayedProductsFromState(prevState).map(c => c.productCode))
           const filteredCandidates = candidates.filter(c => filteredCodes.has(c.product.normalizedCode))
 
           if (filteredCandidates.length > 0) {
@@ -477,12 +894,18 @@ async function handleExploration(
           resolvedInput: currentInput,
           turnCount,
           lastAskedField: prevState.lastAskedField,
-          displayedCandidates: prevState.displayedCandidates ?? [],
-          fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+          displayedProducts: getDisplayedProductsFromState(prevState),
+          displayedCandidates: getDisplayedProductsFromState(prevState),
+          fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+          fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
           displayedSetFilter: prevState.displayedSetFilter,
+          displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+          displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
           displayedChips: clarifyChips,
           displayedOptions: prevState.displayedOptions ?? [],
           lastAction: lastActionType,
+          currentMode: "question",
+          underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
           lastClarification: !isMultiIntentConfirm ? {
             question: action.question,
             options: action.options,
@@ -493,15 +916,20 @@ async function handleExploration(
             ? orchResult.pendingIntents!.map(c => ({ text: c.text, category: c.category }))
             : undefined,
         }
+        const finalizedClarificationState = finalizeSessionState(sessionState, prevState, {
+          currentMode: "question",
+          preserveUnderlyingRecommendation: true,
+        })
+        logSessionSnapshot("ask_clarification", finalizedClarificationState)
         return NextResponse.json({
           text: action.question,
           purpose: "question",
           chips: clarifyChips,
           isComplete: false,
           recommendation: null,
-          sessionState,
+          sessionState: finalizedClarificationState,
           evidenceSummaries: null,
-          candidateSnapshot: prevState.displayedCandidates ?? null,
+          candidateSnapshot: getDisplayedProductsFromState(finalizedClarificationState),
           extractedField: null, requestPreparation: null,
           primaryExplanation: null, primaryFactChecked: null,
           altExplanations: [], altFactChecked: [],
@@ -516,8 +944,8 @@ async function handleExploration(
 
       // Action: compare_products — use PERSISTED displayed candidates (not re-computed)
       if (action.type === "compare_products") {
-        const snapshot = prevState.displayedCandidates?.length > 0
-          ? prevState.displayedCandidates
+        const snapshot = getFullDisplayedProductsFromState(prevState)?.length > 0
+          ? getFullDisplayedProductsFromState(prevState)!
           : buildCandidateSnapshot(candidates, evidenceMap)
         const targets = resolveProductReferences(action.targets, snapshot)
         const compResult = await compareProducts(targets, evidenceMap, provider)
@@ -540,8 +968,10 @@ async function handleExploration(
           resolutionStatus: prevState.resolutionStatus ?? "broad",
           resolvedInput: currentInput,
           turnCount,
+          displayedProducts: snapshot,
           displayedCandidates: snapshot,
-          fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+          fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+          fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
           displayedSetFilter: prevState.displayedSetFilter ?? null,
           displayedChips: ["추천해주세요", "다른 조건으로", "⟵ 이전 단계", "처음부터 다시"],
           displayedOptions: [],
@@ -550,15 +980,20 @@ async function handleExploration(
           lastComparisonArtifact: comparisonArtifact,
           pendingIntents: pendingIntentsForSession,
         }
+        const finalizedComparisonState = finalizeSessionState(sessionState, prevState, {
+          currentMode: "comparison",
+          preserveUnderlyingRecommendation: true,
+        })
+        logSessionSnapshot("compare_products", finalizedComparisonState)
         return NextResponse.json({
           text: compResult.text + sideEffectText,
           purpose: "comparison",
           chips: ["추천해주세요", "다른 조건으로", "⟵ 이전 단계", "처음부터 다시"],
           isComplete: false,
           recommendation: null,
-          sessionState,
+          sessionState: finalizedComparisonState,
           evidenceSummaries: null,
-          candidateSnapshot: snapshot,
+          candidateSnapshot: getDisplayedProductsFromState(finalizedComparisonState),
           extractedField: null,
           requestPreparation: null,
           primaryExplanation: null,
@@ -586,21 +1021,30 @@ async function handleExploration(
             resolvedInput: currentInput,
             turnCount,
             lastAskedField: prevState.lastAskedField,
-            displayedCandidates: prevState.displayedCandidates ?? [],
+            displayedProducts: getDisplayedProductsFromState(prevState),
+            displayedCandidates: getDisplayedProductsFromState(prevState),
+            displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+            displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
             displayedChips: inventoryReply.chips,
             displayedOptions: prevState.displayedOptions ?? [],
             lastAction: "answer_general",
             underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
           }
+          const finalizedInventoryState = finalizeSessionState(sessionState, prevState, {
+            currentMode: "general_chat",
+            restoreTarget: "전체 보기",
+            preserveUnderlyingRecommendation: true,
+          })
+          logSessionSnapshot("inventory_answer", finalizedInventoryState)
           return NextResponse.json({
             text: inventoryReply.text,
             purpose: "general_chat",
             chips: inventoryReply.chips,
             isComplete: false,
             recommendation: null,
-            sessionState,
+            sessionState: finalizedInventoryState,
             evidenceSummaries: null,
-            candidateSnapshot: prevState.displayedCandidates ?? null,
+            candidateSnapshot: getDisplayedProductsFromState(finalizedInventoryState),
             extractedField: null, requestPreparation: null,
             primaryExplanation: null, primaryFactChecked: null,
             altExplanations: [], altFactChecked: [],
@@ -624,23 +1068,32 @@ async function handleExploration(
             resolvedInput: currentInput,
             turnCount,
             lastAskedField: prevState.lastAskedField,
-            displayedCandidates: prevState.displayedCandidates ?? [],
-            fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+            displayedProducts: getDisplayedProductsFromState(prevState),
+            displayedCandidates: getDisplayedProductsFromState(prevState),
+            fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+            fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
             displayedSetFilter: prevState.displayedSetFilter ?? null,
+            displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+            displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
             displayedChips: cuttingConditionReply.chips,
             displayedOptions: prevState.displayedOptions ?? [],
             lastAction: "answer_general",
             underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
           }
+          const finalizedCuttingConditionState = finalizeSessionState(sessionState, prevState, {
+            currentMode: "general_chat",
+            preserveUnderlyingRecommendation: true,
+          })
+          logSessionSnapshot("cutting_condition_answer", finalizedCuttingConditionState)
           return NextResponse.json({
             text: cuttingConditionReply.text,
             purpose: "general_chat",
             chips: cuttingConditionReply.chips,
             isComplete: false,
             recommendation: null,
-            sessionState,
+            sessionState: finalizedCuttingConditionState,
             evidenceSummaries: null,
-            candidateSnapshot: prevState.displayedCandidates ?? null,
+            candidateSnapshot: getDisplayedProductsFromState(finalizedCuttingConditionState),
             extractedField: null, requestPreparation: null,
             primaryExplanation: null, primaryFactChecked: null,
             altExplanations: [], altFactChecked: [],
@@ -651,8 +1104,8 @@ async function handleExploration(
         // Only show product detail listings when explain_product has an explicit target
         // (e.g. "1번 제품 보여줘", "#3 상세"). Otherwise fall through to LLM handler below.
         if (action.type === "explain_product" && action.target) {
-          const explainSnapshot = prevState.displayedCandidates?.length > 0
-            ? prevState.displayedCandidates
+          const explainSnapshot = getDisplayedProductsFromState(prevState).length > 0
+            ? getDisplayedProductsFromState(prevState)
             : buildCandidateSnapshot(candidates, evidenceMap)
           const explainTargets = [action.target]
           const resolved = resolveProductReferences(explainTargets, explainSnapshot)
@@ -678,23 +1131,32 @@ async function handleExploration(
               resolvedInput: currentInput,
               turnCount,
               lastAskedField: prevState.lastAskedField,
+              displayedProducts: explainSnapshot,
               displayedCandidates: explainSnapshot,
-              fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+              fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+              fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
               displayedSetFilter: prevState.displayedSetFilter ?? null,
+              displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+              displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
               displayedChips: ["비교해줘", "추천해주세요", "⟵ 이전 단계"],
               displayedOptions: prevState.displayedOptions ?? [],
               lastAction: "answer_general",
               underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
             }
+            const finalizedExplainDetailState = finalizeSessionState(sessionState, prevState, {
+              currentMode: "general_chat",
+              preserveUnderlyingRecommendation: true,
+            })
+            logSessionSnapshot("explain_product_detail", finalizedExplainDetailState)
             return NextResponse.json({
               text: responseText,
               purpose: "recommendation",
               chips: ["비교해줘", "추천해주세요", "⟵ 이전 단계"],
               isComplete: false,
               recommendation: null,
-              sessionState,
+              sessionState: finalizedExplainDetailState,
               evidenceSummaries: null,
-              candidateSnapshot: resolved,
+              candidateSnapshot: getDisplayedProductsFromState(finalizedExplainDetailState),
               extractedField: null, requestPreparation: null,
               primaryExplanation: null, primaryFactChecked: null,
               altExplanations: [], altFactChecked: [],
@@ -707,14 +1169,14 @@ async function handleExploration(
 
       // Action: filter_displayed — in-display 필터링
       if (action.type === "filter_displayed") {
-        const snapshot = prevState.displayedCandidates?.length > 0
-          ? prevState.displayedCandidates
+        const snapshot = getFullDisplayedProductsFromState(prevState)?.length > 0
+          ? getFullDisplayedProductsFromState(prevState)!
           : buildCandidateSnapshot(candidates, evidenceMap)
 
         // Reset filter → restore fullDisplayedCandidates
         if (action.field === "reset" || action.operator === "reset") {
-          const restored = prevState.fullDisplayedCandidates?.length
-            ? prevState.fullDisplayedCandidates
+          const restored = getFullDisplayedProductsFromState(prevState)?.length
+            ? getFullDisplayedProductsFromState(prevState)!
             : snapshot
           const sessionState: ExplorationSessionState = {
             sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
@@ -726,12 +1188,18 @@ async function handleExploration(
             resolvedInput: currentInput,
             turnCount,
             lastAskedField: prevState.lastAskedField,
+            displayedProducts: restored,
             displayedCandidates: restored,
-            fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+            fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+            fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
             displayedSetFilter: null,
             displayedChips: prevState.displayedChips ?? [],
             displayedOptions: prevState.displayedOptions ?? [],
             lastAction: "filter_displayed",
+            underlyingAction: prevState.underlyingAction ?? prevState.lastAction ?? "show_recommendation",
+            displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+            displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
+            restoreTarget: "전체 보기",
           }
           return NextResponse.json({
             text: `전체 ${restored.length}개 제품을 다시 표시합니다.`,
@@ -739,7 +1207,12 @@ async function handleExploration(
             chips: prevState.displayedChips ?? ["추천해주세요", "처음부터 다시"],
             isComplete: false,
             recommendation: null,
-            sessionState,
+            sessionState: finalizeSessionState(sessionState, prevState, {
+              currentMode: "recommendation",
+              restoreTarget: "전체 보기",
+              activeGroupKey: null,
+              preserveUnderlyingRecommendation: true,
+            }),
             evidenceSummaries: null,
             candidateSnapshot: restored,
             extractedField: null, requestPreparation: null,
@@ -750,8 +1223,8 @@ async function handleExploration(
         }
 
         // Save full list (first time only)
-        const fullList = prevState.fullDisplayedCandidates?.length
-          ? prevState.fullDisplayedCandidates
+        const fullList = getFullDisplayedProductsFromState(prevState)?.length
+          ? getFullDisplayedProductsFromState(prevState)!
           : snapshot
 
         // Apply filter or keep_indices
@@ -814,20 +1287,30 @@ async function handleExploration(
           resolvedInput: currentInput,
           turnCount,
           lastAskedField: prevState.lastAskedField,
+          displayedProducts: filtered,
           displayedCandidates: filtered,
+          fullDisplayedProducts: fullList,
           fullDisplayedCandidates: fullList,
           displayedSetFilter: { field: action.field, operator: action.operator, value: action.value },
           displayedChips: ["전체 보기", "추천해주세요", "처음부터 다시"],
           displayedOptions: prevState.displayedOptions ?? [],
           lastAction: "filter_displayed",
+          underlyingAction: prevState.underlyingAction ?? prevState.lastAction ?? "show_recommendation",
+          displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+          displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
         }
+        const finalizedFilterDisplayedState = finalizeSessionState(sessionState, prevState, {
+          currentMode: "recommendation",
+          preserveUnderlyingRecommendation: true,
+        })
+        logSessionSnapshot("filter_displayed", finalizedFilterDisplayedState)
         return NextResponse.json({
           text: resultText,
           purpose: "question",
           chips: ["전체 보기", "추천해주세요", "처음부터 다시"],
           isComplete: false,
           recommendation: null,
-          sessionState,
+          sessionState: finalizedFilterDisplayedState,
           evidenceSummaries: null,
           candidateSnapshot: filtered,
           extractedField: null, requestPreparation: null,
@@ -839,8 +1322,8 @@ async function handleExploration(
 
       // Action: query_displayed — 표시된 제품 데이터 질의
       if (action.type === "query_displayed") {
-        const fullSnapshot = prevState.displayedCandidates?.length > 0
-          ? prevState.displayedCandidates
+        const fullSnapshot = getDisplayedProductsFromState(prevState).length > 0
+          ? getDisplayedProductsFromState(prevState)
           : buildCandidateSnapshot(candidates, evidenceMap)
 
         // Apply topN limit if specified
@@ -964,20 +1447,30 @@ async function handleExploration(
           resolvedInput: currentInput,
           turnCount,
           lastAskedField: prevState.lastAskedField,
+          displayedProducts: snapshot,
           displayedCandidates: snapshot,
-          fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+          fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+          fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
           displayedSetFilter: prevState.displayedSetFilter,
           displayedChips: prevState.displayedChips ?? [],
           displayedOptions: prevState.displayedOptions ?? [],
           lastAction: "query_displayed",
+          underlyingAction: prevState.underlyingAction ?? prevState.lastAction ?? "show_recommendation",
+          displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+          displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
         }
+        const finalizedQueryDisplayedState = finalizeSessionState(sessionState, prevState, {
+          currentMode: "recommendation",
+          preserveUnderlyingRecommendation: true,
+        })
+        logSessionSnapshot("query_displayed", finalizedQueryDisplayedState)
         return NextResponse.json({
           text: resultText,
           purpose: "general_chat",
           chips: prevState.displayedChips ?? ["추천해주세요", "처음부터 다시"],
           isComplete: false,
           recommendation: null,
-          sessionState,
+          sessionState: finalizedQueryDisplayedState,
           evidenceSummaries: null,
           candidateSnapshot: snapshot,
           extractedField: null, requestPreparation: null,
@@ -1009,23 +1502,32 @@ async function handleExploration(
                 resolvedInput: currentInput,
                 turnCount,
                 lastAskedField: prevState.lastAskedField,
-                displayedCandidates: prevState.displayedCandidates ?? [],
-                fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+                displayedProducts: getDisplayedProductsFromState(prevState),
+                displayedCandidates: getDisplayedProductsFromState(prevState),
+                fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+                fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
                 displayedSetFilter: prevState.displayedSetFilter ?? null,
+                displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+                displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
                 displayedChips: prevState.displayedChips ?? ["대체 후보 보기", "절삭조건 알려줘", "처음부터 다시"],
                 displayedOptions: prevState.displayedOptions ?? [],
                 lastAction: "explain_product",
                 underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
               }
+              const finalizedExplainState = finalizeSessionState(sessionState, prevState, {
+                currentMode: "general_chat",
+                preserveUnderlyingRecommendation: true,
+              })
+              logSessionSnapshot("explain_product", finalizedExplainState)
               return NextResponse.json({
                 text: contextReply,
                 purpose: "general_chat",
                 chips: prevState.displayedChips ?? ["대체 후보 보기", "절삭조건 알려줘", "처음부터 다시"],
                 isComplete: false,
                 recommendation: null,
-                sessionState,
+                sessionState: finalizedExplainState,
                 evidenceSummaries: null,
-                candidateSnapshot: prevState.displayedCandidates ?? null,
+                candidateSnapshot: getDisplayedProductsFromState(finalizedExplainState),
                 extractedField: null, requestPreparation: null,
                 primaryExplanation: null, primaryFactChecked: null,
                 altExplanations: [], altFactChecked: [],
@@ -1044,7 +1546,7 @@ async function handleExploration(
         const preGenerated = action.type === "answer_general" && action.preGenerated === true
         const llmResponse = preGenerated
           ? { text: (action as { message: string }).message, chips: generateFollowUpChips(lastUserMsg.text, candidates.length) }
-          : await handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form, prevState.displayedCandidates)
+          : await handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form, getDisplayedProductsFromState(prevState))
         const sessionState: ExplorationSessionState = {
           sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
           candidateCount: prevState.candidateCount ?? candidates.length,
@@ -1055,23 +1557,32 @@ async function handleExploration(
           resolvedInput: currentInput,
           turnCount,
           lastAskedField: prevState.lastAskedField,
-          displayedCandidates: prevState.displayedCandidates ?? [],
-          fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+          displayedProducts: getDisplayedProductsFromState(prevState),
+          displayedCandidates: getDisplayedProductsFromState(prevState),
+          fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+          fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
           displayedSetFilter: prevState.displayedSetFilter ?? null,
+          displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+          displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
           displayedChips: llmResponse.chips,
           displayedOptions: prevState.displayedOptions ?? [],
           lastAction: "answer_general",
           underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
         }
+        const finalizedGeneralChatState = finalizeSessionState(sessionState, prevState, {
+          currentMode: "general_chat",
+          preserveUnderlyingRecommendation: true,
+        })
+        logSessionSnapshot("answer_general", finalizedGeneralChatState)
         return NextResponse.json({
           text: llmResponse.text,
           purpose: "general_chat",
           chips: llmResponse.chips,
           isComplete: false,
           recommendation: null,
-          sessionState,
+          sessionState: finalizedGeneralChatState,
           evidenceSummaries: null,
-          candidateSnapshot: candidates.length > 0 ? buildCandidateSnapshot(candidates, evidenceMap) : null,
+          candidateSnapshot: getDisplayedProductsFromState(finalizedGeneralChatState),
           extractedField: null,
           requestPreparation: null,
           primaryExplanation: null, primaryFactChecked: null,
@@ -1094,22 +1605,33 @@ async function handleExploration(
           resolvedInput: currentInput,
           turnCount,
           lastAskedField: prevState.lastAskedField,
-          displayedCandidates: prevState.displayedCandidates ?? [],
-          fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+          displayedProducts: getDisplayedProductsFromState(prevState),
+          displayedCandidates: getDisplayedProductsFromState(prevState),
+          fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+          fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
           displayedSetFilter: prevState.displayedSetFilter ?? null,
+          displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+          displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
           displayedChips: redirect.chips,
           displayedOptions: prevState.displayedOptions ?? [],
           lastAction: "redirect_off_topic",
+          currentMode: "general_chat",
+          underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
         }
+        const finalizedRedirectState = finalizeSessionState(sessionState, prevState, {
+          currentMode: "general_chat",
+          preserveUnderlyingRecommendation: true,
+        })
+        logSessionSnapshot("redirect_off_topic", finalizedRedirectState)
         return NextResponse.json({
           text: redirect.text,
           purpose: "question",
           chips: redirect.chips,
           isComplete: false,
           recommendation: null,
-          sessionState,
+          sessionState: finalizedRedirectState,
           evidenceSummaries: null,
-          candidateSnapshot: redirect.showCandidates ? buildCandidateSnapshot(candidates, evidenceMap) : null,
+          candidateSnapshot: redirect.showCandidates ? getDisplayedProductsFromState(finalizedRedirectState) : null,
           extractedField: null, requestPreparation: null,
           primaryExplanation: null, primaryFactChecked: null,
           altExplanations: [], altFactChecked: [],
@@ -1171,8 +1693,8 @@ async function handleExploration(
 
       // Action: restore_previous_group — filter to specific series
       if (action.type === "restore_previous_group") {
-        const snapshot = prevState.displayedCandidates?.length > 0
-          ? prevState.displayedCandidates
+        const snapshot = getFullDisplayedProductsFromState(prevState)?.length > 0
+          ? getFullDisplayedProductsFromState(prevState)!
           : buildCandidateSnapshot(candidates, evidenceMap)
         const filtered = filterBySeriesGroup(snapshot, action.groupKey)
 
@@ -1190,24 +1712,36 @@ async function handleExploration(
           resolvedInput: currentInput,
           turnCount,
           lastAskedField: prevState.lastAskedField,
+          displayedProducts: filtered,
           displayedCandidates: filtered,
-          fullDisplayedCandidates: prevState.fullDisplayedCandidates ?? snapshot,
+          fullDisplayedProducts: getFullDisplayedProductsFromState(prevState) ?? snapshot,
+          fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? snapshot,
           displayedSetFilter: null,
           displayedChips: ["전체 보기", "추천해주세요", "다른 시리즈 보기"],
           displayedOptions: prevState.displayedOptions ?? [],
           lastAction: "restore_previous_group",
-          displayedGroups: prevState.displayedGroups,
+          underlyingAction: prevState.underlyingAction ?? prevState.lastAction ?? "show_recommendation",
+          displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+          displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
           activeGroupKey: action.groupKey,
+          restoreTarget: action.groupKey,
           currentTask: prevState.currentTask,
           taskHistory: prevState.taskHistory,
         }
+        const finalizedRestoreGroupState = finalizeSessionState(sessionState, prevState, {
+          currentMode: "group_focus",
+          activeGroupKey: action.groupKey,
+          restoreTarget: action.groupKey,
+          preserveUnderlyingRecommendation: true,
+        })
+        logSessionSnapshot("restore_previous_group", finalizedRestoreGroupState, { restoreTarget: action.groupKey })
         return NextResponse.json({
           text: `${groupName} 시리즈 ${filtered.length}개 제품을 표시합니다.`,
           purpose: "question",
           chips: ["전체 보기", "추천해주세요", "다른 시리즈 보기"],
           isComplete: false,
           recommendation: null,
-          sessionState,
+          sessionState: finalizedRestoreGroupState,
           evidenceSummaries: null,
           candidateSnapshot: filtered,
           extractedField: null, requestPreparation: null,
@@ -1219,8 +1753,8 @@ async function handleExploration(
 
       // Action: show_group_menu — display series groups as chips
       if (action.type === "show_group_menu") {
-        const snapshot = prevState.displayedCandidates?.length > 0
-          ? prevState.displayedCandidates
+        const snapshot = getFullDisplayedProductsFromState(prevState)?.length > 0
+          ? getFullDisplayedProductsFromState(prevState)!
           : buildCandidateSnapshot(candidates, evidenceMap)
         const groups = groupCandidatesBySeries(snapshot)
         const groupChips = groups.map(g => `${g.seriesName} (${g.candidateCount}개)`)
@@ -1235,12 +1769,16 @@ async function handleExploration(
           resolvedInput: currentInput,
           turnCount,
           lastAskedField: prevState.lastAskedField,
+          displayedProducts: snapshot,
           displayedCandidates: snapshot,
-          fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+          fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+          fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
           displayedSetFilter: prevState.displayedSetFilter,
           displayedChips: [...groupChips, "전체 보기"],
           displayedOptions: prevState.displayedOptions ?? [],
           lastAction: "show_group_menu",
+          underlyingAction: prevState.underlyingAction ?? prevState.lastAction ?? "show_recommendation",
+          displayedSeriesGroups: groups,
           displayedGroups: groups,
           currentTask: prevState.currentTask,
           taskHistory: prevState.taskHistory,
@@ -1252,7 +1790,10 @@ async function handleExploration(
           chips: [...groupChips, "전체 보기"],
           isComplete: false,
           recommendation: null,
-          sessionState,
+          sessionState: finalizeSessionState(sessionState, prevState, {
+            currentMode: "group_menu",
+            preserveUnderlyingRecommendation: true,
+          }),
           evidenceSummaries: null,
           candidateSnapshot: snapshot,
           extractedField: null, requestPreparation: null,
@@ -1290,23 +1831,32 @@ async function handleExploration(
           resolvedInput: currentInput,
           turnCount,
           lastAskedField: prevState.lastAskedField,
-          displayedCandidates: prevState.displayedCandidates ?? [],
-          fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+          displayedProducts: getDisplayedProductsFromState(prevState),
+          displayedCandidates: getDisplayedProductsFromState(prevState),
+          fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+          fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
           displayedSetFilter: prevState.displayedSetFilter ?? null,
+          displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+          displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
           displayedChips: prevState.displayedChips ?? [],
           displayedOptions: prevState.displayedOptions ?? [],
           lastAction: "confirm_scope",
           underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
         }
+        const finalizedConfirmScopeState = finalizeSessionState(sessionState, prevState, {
+          currentMode: "general_chat",
+          preserveUnderlyingRecommendation: true,
+        })
+        logSessionSnapshot("confirm_scope", finalizedConfirmScopeState)
         return NextResponse.json({
           text: scopeText,
           purpose: "general_chat",
           chips: prevState.displayedChips ?? ["추천해주세요", "처음부터 다시"],
           isComplete: false,
           recommendation: null,
-          sessionState,
+          sessionState: finalizedConfirmScopeState,
           evidenceSummaries: null,
-          candidateSnapshot: prevState.displayedCandidates ?? null,
+          candidateSnapshot: getDisplayedProductsFromState(finalizedConfirmScopeState),
           extractedField: null, requestPreparation: null,
           primaryExplanation: null, primaryFactChecked: null,
           altExplanations: [], altFactChecked: [],
@@ -1334,23 +1884,32 @@ async function handleExploration(
           resolvedInput: currentInput,
           turnCount,
           lastAskedField: prevState.lastAskedField,
-          displayedCandidates: prevState.displayedCandidates ?? [],
-          fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+          displayedProducts: getDisplayedProductsFromState(prevState),
+          displayedCandidates: getDisplayedProductsFromState(prevState),
+          fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+          fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
           displayedSetFilter: prevState.displayedSetFilter ?? null,
+          displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+          displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
           displayedChips: prevState.displayedChips ?? [],
           displayedOptions: prevState.displayedOptions ?? [],
           lastAction: "summarize_task",
           underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
         }
+        const finalizedSummarizeTaskState = finalizeSessionState(sessionState, prevState, {
+          currentMode: "general_chat",
+          preserveUnderlyingRecommendation: true,
+        })
+        logSessionSnapshot("summarize_task", finalizedSummarizeTaskState)
         return NextResponse.json({
           text: summaryText,
           purpose: "general_chat",
           chips: prevState.displayedChips ?? ["추천해주세요", "처음부터 다시"],
           isComplete: false,
           recommendation: null,
-          sessionState,
+          sessionState: finalizedSummarizeTaskState,
           evidenceSummaries: null,
-          candidateSnapshot: prevState.displayedCandidates ?? null,
+          candidateSnapshot: getDisplayedProductsFromState(finalizedSummarizeTaskState),
           extractedField: null, requestPreparation: null,
           primaryExplanation: null, primaryFactChecked: null,
           altExplanations: [], altFactChecked: [],
@@ -1524,11 +2083,15 @@ async function buildQuestionResponse(
     resolvedInput: input,
     turnCount,
     lastAskedField: question?.field ?? undefined,
+    displayedProducts: candidateSnapshot,
     displayedCandidates: candidateSnapshot,
+    fullDisplayedProducts: null,
     fullDisplayedCandidates: undefined,
     displayedSetFilter: null,
     displayedChips: chips,
     displayedOptions,
+    displayedSeriesGroups: displayedGroups,
+    currentMode: messages.length === 0 ? "question" : "narrowing",
     lastAction: "continue_narrowing",
     displayedGroups,
     candidateCounts: {
@@ -1545,6 +2108,7 @@ async function buildQuestionResponse(
 
   // Non-blocking validation
   runConsistencyValidation(sessionState, candidates.length, displayedGroups, candidateSnapshot)
+  logSessionSnapshot("question", sessionState)
 
   // Validation gate with auto-repair for re-ask prevention
   const vgResult = runValidationGate({
@@ -1797,11 +2361,15 @@ async function buildRecommendationResponse(
     resolutionStatus: checkResolution(candidates, history),
     resolvedInput: input,
     turnCount,
+    displayedProducts: candidateSnapshot,
     displayedCandidates: candidateSnapshot,
+    fullDisplayedProducts: candidateSnapshot,
     fullDisplayedCandidates: candidateSnapshot,
     displayedSetFilter: null,
     displayedChips: followUpChips,
     displayedOptions: [],
+    displayedSeriesGroups: recDisplayedGroups,
+    currentMode: "recommendation",
     lastAction: "show_recommendation",
     lastRecommendationArtifact: candidateSnapshot,
     displayedGroups: recDisplayedGroups,
@@ -1819,6 +2387,7 @@ async function buildRecommendationResponse(
 
   // Non-blocking validation
   runConsistencyValidation(sessionState, candidates.length, recDisplayedGroups, candidateSnapshot)
+  logSessionSnapshot("recommendation", sessionState)
 
   // Run request preparation for metadata
   const requestPrep = prepareRequest(form, messages, sessionState, input, candidates.length)
@@ -1966,7 +2535,7 @@ function resolveLookupCodeFromMessageOrContext(
   const explicitCode = normalizeLookupCode(productCodeMatch?.[1] ?? seriesCodeMatch?.[1] ?? "")
   if (explicitCode) return explicitCode
 
-  const topDisplayed = prevState.displayedCandidates?.[0]?.productCode
+  const topDisplayed = getDisplayedProductsFromState(prevState)[0]?.productCode
   if (topDisplayed) return normalizeLookupCode(topDisplayed)
 
   return null
@@ -2083,7 +2652,7 @@ async function handleDirectInventoryQuestion(
     }
   }
 
-  if (prevState.displayedCandidates?.length > 0) {
+  if (getDisplayedProductsFromState(prevState).length > 0) {
     return {
       text: [
         `${lookupCode}에 대한 재고 데이터를 내부 데이터에서 찾지 못했습니다.`,
@@ -2249,7 +2818,7 @@ async function handleDirectCuttingConditionQuestion(
     }
   }
 
-  if (prevState.displayedCandidates?.length > 0) {
+  if (getDisplayedProductsFromState(prevState).length > 0) {
     return {
       text: [
         `${lookupCode}에 대한 절삭조건은 내부 DB에서 찾지 못했습니다.`,
