@@ -64,8 +64,7 @@ export function allRequiredAnswered(form: ProductIntakeForm): boolean {
     isAnswered(form.material) &&
     isAnswered(form.operationType) &&
     isAnswered(form.toolTypeOrCurrentProduct) &&
-    isAnswered(form.diameterInfo) &&
-    isAnswered(form.unitSystem)
+    isAnswered(form.diameterInfo)
   )
 }
 
@@ -76,7 +75,6 @@ export function countAnswered(form: ProductIntakeForm): number {
     form.operationType,
     form.toolTypeOrCurrentProduct,
     form.diameterInfo,
-    form.unitSystem,
   ].filter((f) => f.status !== "unanswered").length
 }
 
@@ -86,7 +84,6 @@ export function countUnknowns(form: ProductIntakeForm): number {
     form.operationType,
     form.toolTypeOrCurrentProduct,
     form.diameterInfo,
-    form.unitSystem,
   ].filter((f) => f.status === "unknown").length
 }
 
@@ -227,18 +224,19 @@ export const FIELD_CONFIGS: IntakeFieldConfig[] = [
     customInputLabel: "직접입력",
     customInputPlaceholder: "예: 3.5mm, 1/4인치, 6.35",
   },
-  {
-    key: "unitSystem",
-    label: "단위 계열",
-    emoji: "📐",
-    description: "제품 규격 단위를 선택하세요",
-    options: [
-      { value: "METRIC", label: "미터법 (mm)" },
-      { value: "INCH", label: "인치 (inch)" },
-      { value: "ALL", label: "전체 (mm+inch)" },
-    ],
-    unknownLabel: "상관없음",
-  },
+  // unitSystem 필드 제거 — 초기 화면에서 불필요
+  // {
+  //   key: "unitSystem",
+  //   label: "단위 계열",
+  //   emoji: "📐",
+  //   description: "제품 규격 단위를 선택하세요",
+  //   options: [
+  //     { value: "METRIC", label: "미터법 (mm)" },
+  //     { value: "INCH", label: "인치 (inch)" },
+  //     { value: "ALL", label: "전체 (mm+inch)" },
+  //   ],
+  //   unknownLabel: "상관없음",
+  // },
   // NOTE: country 필드는 DB 뷰에 region 컬럼 추가 후 활성화
   // {
   //   key: "country",
