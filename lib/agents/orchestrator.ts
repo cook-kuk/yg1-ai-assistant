@@ -31,6 +31,8 @@ import { classifyIntent } from "./intent-classifier"
 import { extractParameters } from "./parameter-extractor"
 import { needsOpusResolution, resolveAmbiguity } from "./ambiguity-resolver"
 import { resolveProductReferences } from "./comparison-agent"
+import { decomposeQuery, buildExecutionPlanText, orderChunksForExecution } from "./query-decomposer"
+import type { DecompositionResult } from "./query-decomposer"
 import { parseAnswerToFilter } from "@/lib/domain/question-engine"
 import { ENABLE_OPUS_AMBIGUITY, ENABLE_COMPARISON_AGENT, ENABLE_TASK_SYSTEM } from "@/lib/feature-flags"
 import type { LLMTool, LLMToolResult } from "@/lib/llm/provider"
@@ -730,6 +732,10 @@ function mapToolUseToAction(
 /**
  * Tool-use based orchestration — single Sonnet call replaces
  * intent classifier (Haiku) + parameter extractor (Haiku) + ambiguity resolver (Opus).
+ *
+ * Includes query decomposition: if a message contains multiple distinct intents
+ * (e.g. restore + filter, or comparison + task change), the decomposer splits
+ * them and either asks for confirmation or executes the primary action.
  */
 export async function orchestrateTurnWithTools(
   ctx: TurnContext,
@@ -737,8 +743,49 @@ export async function orchestrateTurnWithTools(
 ): Promise<OrchestratorResult> {
   const startMs = Date.now()
 
+  // ═══ Step 0: Query Decomposition (Haiku, ~200ms) ═══
+  let decomposition: DecompositionResult | null = null
+  try {
+    decomposition = await decomposeQuery(ctx.userMessage, ctx.sessionState, provider)
+    if (decomposition.isMultiIntent) {
+      console.log(`[orchestrator:decompose] Multi-intent detected: ${decomposition.chunks.map(c => c.category).join(" + ")} | ${decomposition.reasoning}`)
+    }
+  } catch (e) {
+    console.warn("[orchestrator:decompose] Failed, proceeding as single intent:", e)
+  }
+
+  // If multi-intent with multiple state-changing actions → ask confirmation
+  if (decomposition?.isMultiIntent && decomposition.requiresConfirmation) {
+    const ordered = orderChunksForExecution(decomposition.chunks)
+    const planText = buildExecutionPlanText(ordered)
+    const options = [
+      "순서대로 실행",
+      ...ordered.map((c, i) => `${i + 1}번만 실행`),
+      "취소",
+    ]
+    console.log(`[orchestrator:decompose] Requires confirmation — ${ordered.length} chunks, ${decomposition.reasoning}`)
+
+    return {
+      action: {
+        type: "ask_clarification",
+        question: planText,
+        options,
+        allowDirectInput: true,
+      },
+      reasoning: `multi_intent:confirmation_required (${decomposition.chunks.map(c => c.category).join("+")})`,
+      agentsInvoked: [{ agent: "query-decomposer", model: "haiku", durationMs: Date.now() - startMs }],
+      escalatedToOpus: false,
+    }
+  }
+
+  // If multi-intent but no confirmation needed (one state change + read-only),
+  // route the state-changing chunk first, note the rest
+  const effectiveMessage = decomposition?.isMultiIntent && !decomposition.requiresConfirmation
+    ? selectPrimaryChunk(decomposition.chunks)
+    : ctx.userMessage
+
   const systemPrompt = buildToolUseSystemPrompt(ctx)
-  const messages = [{ role: "user" as const, content: ctx.userMessage }]
+  const messages = [{ role: "user" as const, content: effectiveMessage }]
 
   try {
     const { text, toolUse } = await provider.completeWithTools(
@@ -752,10 +799,21 @@ export async function orchestrateTurnWithTools(
       console.log(`[orchestrator:tool-use] Tool: ${toolUse.toolName} → ${action.type} (${durationMs}ms)`)
       console.log(`[orchestrator:tool-use] Input: ${JSON.stringify(toolUse.input)}`)
 
+      const agents: OrchestratorResult["agentsInvoked"] = [
+        { agent: "tool-use-router", model: "sonnet", durationMs },
+      ]
+      if (decomposition?.isMultiIntent) {
+        agents.unshift({ agent: "query-decomposer", model: "haiku", durationMs: 0 })
+      }
+
+      const multiNote = decomposition?.isMultiIntent
+        ? ` [multi-intent: ${decomposition.chunks.map(c => c.category).join("+")}]`
+        : ""
+
       return {
         action,
-        reasoning: `tool_use:${toolUse.toolName} → ${action.type}`,
-        agentsInvoked: [{ agent: "tool-use-router", model: "sonnet", durationMs }],
+        reasoning: `tool_use:${toolUse.toolName} → ${action.type}${multiNote}`,
+        agentsInvoked: agents,
         escalatedToOpus: false,
       }
     }
@@ -778,4 +836,17 @@ export async function orchestrateTurnWithTools(
       escalatedToOpus: false,
     }
   }
+}
+
+/**
+ * Select the primary chunk to route when multi-intent doesn't require confirmation.
+ * Prioritizes state-changing chunks over read-only ones.
+ * Falls back to the full original message if no clear primary.
+ */
+function selectPrimaryChunk(chunks: import("./query-decomposer").IntentChunk[]): string {
+  const STATE_CHANGING_CATS = new Set(["task_change", "filtering", "restore"])
+  const stateChanging = chunks.filter(c => STATE_CHANGING_CATS.has(c.category))
+  if (stateChanging.length === 1) return stateChanging[0].text
+  // If no state-changing or ambiguous, send the full message
+  return chunks.map(c => c.text).join(" ")
 }
