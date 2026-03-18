@@ -29,6 +29,7 @@ export interface ProductIntakeForm {
   machiningIntent: AnswerState<MachiningIntent>
   toolTypeOrCurrentProduct: AnswerState<string>
   diameterInfo: AnswerState<string>
+  country?: AnswerState<string>
   advanced?: {
     fluteCount?: AnswerState<number>
     coating?: AnswerState<string>
@@ -43,6 +44,7 @@ export const INITIAL_INTAKE_FORM: ProductIntakeForm = {
   machiningIntent: { status: "unanswered" },
   toolTypeOrCurrentProduct: { status: "unanswered" },
   diameterInfo: { status: "unanswered" },
+  country: { status: "unanswered" },
 }
 
 // ── Helpers ──────────────────────────────────────────────────

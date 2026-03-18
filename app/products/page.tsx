@@ -1959,7 +1959,7 @@ function FeedbackWidget({
 
 export default function ProductRecommendPage() {
   const searchParams = useSearchParams()
-  const { language } = useApp()
+  const { language, country } = useApp()
   const resetKey = searchParams.get("reset")
 
   const [phase, setPhase] = useState<Phase>("intake")
@@ -1991,12 +1991,18 @@ export default function ProductRecommendPage() {
     setPhase("loading")
     setError(null)
     try {
-      const intakeText = buildIntakePromptText(form, language)
+      const formWithCountry: ProductIntakeForm = {
+        ...form,
+        country: country && country !== "ALL"
+          ? { status: "known" as const, value: country }
+          : { status: "known" as const, value: "ALL" },
+      }
+      const intakeText = buildIntakePromptText(formWithCountry, language)
 
       const res = await fetch("/api/recommend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ intakeForm: form, messages: [], sessionState: null, language }),
+        body: JSON.stringify({ intakeForm: formWithCountry, messages: [], sessionState: null, language }),
       })
       const data = await res.json()
       if (data.error) throw new Error(data.detail ?? data.error)
@@ -2055,11 +2061,18 @@ export default function ProductRecommendPage() {
         matchStatus: c.matchStatus,
       })) ?? null
 
+      const formWithCountry: ProductIntakeForm = {
+        ...form,
+        country: country && country !== "ALL"
+          ? { status: "known" as const, value: country }
+          : { status: "known" as const, value: "ALL" },
+      }
+
       const res = await fetch("/api/recommend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          intakeForm: form,
+          intakeForm: formWithCountry,
           messages: history,
           sessionState,
           displayedProducts,

@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
@@ -19,6 +20,7 @@ import {
   Lock,
   MessageCircle,
   Globe,
+  MapPin,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/lib/store"
@@ -134,6 +136,20 @@ const navItems = [
   },
 ]
 
+const countryLabels: Record<string, { ko: string; en: string }> = {
+  KOREA: { ko: "한국", en: "Korea" },
+  ASIA: { ko: "아시아", en: "Asia" },
+  AMERICA: { ko: "미주", en: "America" },
+  EUROPE: { ko: "유럽", en: "Europe" },
+}
+
+function countryLabel(code: string, lang: "ko" | "en"): string {
+  const normalized = code.trim().toUpperCase()
+  const entry = countryLabels[normalized]
+  if (!entry) return normalized
+  return lang === "ko" ? `${entry.ko} (${normalized})` : `${entry.en} (${normalized})`
+}
+
 const roleLabels = {
   sales: { kr: "영업", en: "Sales" },
   rnd: { kr: "연구/기술지원", en: "R&D" },
@@ -143,7 +159,21 @@ const roleLabels = {
 export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
   const pathname = usePathname()
   const router = useRouter()
-  const { currentUser, setUserRole, demoScenario, setDemoScenario, language, setLanguage } = useApp()
+  const { currentUser, setUserRole, demoScenario, setDemoScenario, language, setLanguage, country, setCountry } = useApp()
+  const [countryList, setCountryList] = useState<string[]>([])
+
+  useEffect(() => {
+    fetch("/api/countries")
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data.countries) && data.countries.length > 0) {
+          setCountryList(data.countries)
+        }
+      })
+      .catch(() => {
+        setCountryList(["KOREA", "ASIA", "AMERICA", "EUROPE"])
+      })
+  }, [])
 
   const filteredNavItems = navItems.filter(item =>
     item.roles.includes(currentUser.role)
@@ -275,8 +305,25 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
         </ul>
       </nav>
 
-      {/* User Role Selector + Language Toggle */}
+      {/* User Role Selector + Country + Language Toggle */}
       <div className="border-t border-sidebar-border p-3 space-y-2">
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-1.5 text-xs text-sidebar-foreground/60">
+            <MapPin className="h-3.5 w-3.5" />
+            <span>{language === 'ko' ? '국가' : 'Country'}</span>
+          </div>
+          <select
+            value={country}
+            onChange={(e) => setCountry(e.target.value)}
+            className="h-7 rounded-md border border-sidebar-border bg-sidebar-accent px-2 text-xs font-medium text-sidebar-foreground focus:outline-none focus:ring-1 focus:ring-sidebar-primary"
+          >
+            <option value="ALL">{language === 'ko' ? '전체 국가' : 'All Countries'}</option>
+            {countryList.map((entry) => (
+              <option key={entry} value={entry}>{countryLabel(entry, language)}</option>
+            ))}
+          </select>
+        </div>
+
         {/* Language Toggle */}
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-1.5 text-xs text-sidebar-foreground/60">

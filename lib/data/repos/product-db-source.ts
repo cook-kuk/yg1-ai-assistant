@@ -40,6 +40,7 @@ interface RawProductRow {
   series_product_type: string | null
   series_application_shape: string | null
   series_cutting_edge_shape: string | null
+  country_codes: string[] | null
   material_tags: string[] | null
   milling_outside_dia: string | null
   milling_number_of_flute: string | null
@@ -145,6 +146,7 @@ SELECT
   series_product_type,
   series_application_shape,
   series_cutting_edge_shape,
+  country_codes,
   material_tags,
   milling_outside_dia,
   milling_number_of_flute,
@@ -615,6 +617,17 @@ function buildQueryOptions(options: ProductSearchOptions): { where: string[]; va
   if (materialTags.size > 0) {
     const param = next([...materialTags])
     where.push(`COALESCE(material_tags, ARRAY[]::text[]) && ${param}::text[]`)
+  }
+
+  if (input?.country && input.country !== "ALL") {
+    const param = next(input.country)
+    where.push(`
+      EXISTS (
+        SELECT 1
+        FROM unnest(COALESCE(country_codes, ARRAY[]::text[])) AS country_row(country_code)
+        WHERE UPPER(BTRIM(country_row.country_code)) = UPPER(BTRIM(${param}))
+      )
+    `)
   }
 
   const appShapes = input?.operationType ? getAppShapesForOperation(input.operationType) : []

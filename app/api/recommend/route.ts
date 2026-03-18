@@ -1796,8 +1796,8 @@ async function handleSimpleChat(messages: ChatMessage[], mode: string): Promise<
 // HELPERS
 // ════════════════════════════════════════════════════════════════
 
-function getKnown<T>(state: AnswerState<T>): T | undefined {
-  return state.status === "known" ? (state as { status: "known"; value: T }).value : undefined
+function getKnown<T>(state?: AnswerState<T>): T | undefined {
+  return state?.status === "known" ? (state as { status: "known"; value: T }).value : undefined
 }
 
 function parseIntakeDiameter(text: string): number | null {
@@ -1846,6 +1846,8 @@ function mapIntakeToInput(form: ProductIntakeForm): RecommendationInput {
   }
   const toolType = getKnown(form.toolTypeOrCurrentProduct)
   if (toolType) input.toolType = canonicalizeIntakeSearchText(toolType)
+  const country = getKnown(form.country)
+  if (country) input.country = country.trim().toUpperCase()
   return input as RecommendationInput
 }
 
