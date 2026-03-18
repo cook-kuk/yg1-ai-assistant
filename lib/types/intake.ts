@@ -22,7 +22,7 @@ export type InquiryPurpose =
 
 export type MachiningIntent = "roughing" | "semi" | "finishing"
 
-export type MarketRegion = string  // DB region codes: "KOR", "ENG", "CHN", ... or "ALL"
+export type MarketRegion = string  // DB country codes from prod_edp_option_* tables, or "ALL"
 export type UnitSystem = "METRIC" | "INCH" | "ALL"
 
 export interface ProductIntakeForm {

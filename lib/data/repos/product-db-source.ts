@@ -619,10 +619,26 @@ function buildQueryOptions(options: ProductSearchOptions): { where: string[]; va
     where.push(`COALESCE(material_tags, ARRAY[]::text[]) && ${param}::text[]`)
   }
 
-  // Region filter — region column is comma-separated (e.g. "KOR,ENG,CHN")
+  // Country filter — match the option-table country source used by the sidebar selector.
   if (input?.region && input.region !== "ALL") {
     const param = next(input.region)
-    where.push(`',' || COALESCE(region, '') || ',' LIKE '%,' || ${param} || ',%'`)
+    where.push(`EXISTS (
+      SELECT 1
+      FROM (
+        SELECT NULLIF(BTRIM(country), '') AS country
+        FROM raw_catalog.prod_edp_option_milling
+        WHERE edp_no = product_source.edp_no
+        UNION
+        SELECT NULLIF(BTRIM(country), '') AS country
+        FROM raw_catalog.prod_edp_option_holemaking
+        WHERE edp_no = product_source.edp_no
+        UNION
+        SELECT NULLIF(BTRIM(country), '') AS country
+        FROM raw_catalog.prod_edp_option_threading
+        WHERE edp_no = product_source.edp_no
+      ) option_countries
+      WHERE option_countries.country = ${param}
+    )`)
   }
 
   // Unit system filter — applied in-memory by hybrid-retrieval.ts (not DB WHERE)
