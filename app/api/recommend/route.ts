@@ -54,6 +54,17 @@ import { runConsistencyValidation } from "@/lib/domain/validation-consistency"
 import { executeSlotReplacement } from "@/lib/domain/slot-replacement"
 import { ProductRepo } from "@/lib/data/repos/product-repo"
 import { InventoryRepo } from "@/lib/data/repos/inventory-repo"
+import {
+  buildPersistedSessionState,
+  buildRestoreQuestionState,
+  finalizeSessionState,
+  getDisplayedProductsFromState,
+  getDisplayedSeriesGroupsFromState,
+  getFullDisplayedProductsFromState,
+  getLatestCheckpoint,
+  getRecommendationSourceSnapshot,
+  hasActiveRecommendationSession,
+} from "@/lib/recommendation/session-kernel"
 
 import type { RecommendationInput, RecommendationResult, ScoredProduct, ChatMessage, MatchStatus } from "@/lib/types/canonical"
 import type { ProductIntakeForm, AnswerState, MachiningIntent } from "@/lib/types/intake"
@@ -119,143 +130,6 @@ interface DisplayedProduct {
   matchStatus: string
 }
 
-function getDisplayedProductsFromState(state: ExplorationSessionState | null | undefined): CandidateSnapshot[] {
-  return state?.displayedProducts ?? state?.displayedCandidates ?? []
-}
-
-function getFullDisplayedProductsFromState(state: ExplorationSessionState | null | undefined): CandidateSnapshot[] | null {
-  return state?.fullDisplayedProducts
-    ?? state?.fullDisplayedCandidates
-    ?? state?.lastRecommendationArtifact
-    ?? getDisplayedProductsFromState(state)
-}
-
-function getDisplayedSeriesGroupsFromState(state: ExplorationSessionState | null | undefined): SeriesGroup[] | undefined {
-  return state?.displayedSeriesGroups ?? state?.displayedGroups
-}
-
-function deriveSessionMode(lastAction?: string): ExplorationSessionState["currentMode"] {
-  switch (lastAction) {
-    case "show_recommendation":
-    case "filter_displayed":
-    case "query_displayed":
-      return "recommendation"
-    case "compare_products":
-      return "comparison"
-    case "restore_previous_group":
-      return "group_focus"
-    case "show_group_menu":
-      return "group_menu"
-    case "answer_general":
-    case "explain_product":
-    case "confirm_scope":
-    case "summarize_task":
-      return "general_chat"
-    case "start_new_task":
-    case "resume_previous_task":
-      return "task"
-    default:
-      return "question"
-  }
-}
-
-const PROTECTED_RECOMMENDATION_ACTIONS = new Set<NonNullable<ExplorationSessionState["lastAction"]>>([
-  "show_recommendation",
-  "filter_displayed",
-  "query_displayed",
-  "compare_products",
-  "restore_previous_group",
-  "show_group_menu",
-  "answer_general",
-  "explain_product",
-  "confirm_scope",
-  "summarize_task",
-])
-
-function hasActiveRecommendationSession(state: ExplorationSessionState | null | undefined): boolean {
-  if (!state) return false
-  if (state.currentMode && ["recommendation", "comparison", "general_chat", "group_menu", "group_focus", "restore"].includes(state.currentMode)) {
-    return true
-  }
-  return PROTECTED_RECOMMENDATION_ACTIONS.has(state.lastAction ?? null)
-    || PROTECTED_RECOMMENDATION_ACTIONS.has(state.underlyingAction ?? null)
-}
-
-function getPersistedDisplayedOptions(
-  state: ExplorationSessionState,
-  prevState: ExplorationSessionState | null,
-): DisplayedOption[] {
-  return state.displayedOptions?.length
-    ? state.displayedOptions
-    : (prevState?.displayedOptions ?? [])
-}
-
-function getLatestCheckpoint(state: ExplorationSessionState | null | undefined): RecommendationCheckpoint | null {
-  if (!state) return null
-  const currentCheckpoint = state.currentTask?.checkpoints?.[state.currentTask.checkpoints.length - 1]
-  if (currentCheckpoint) return currentCheckpoint
-  const archivedCheckpoint = state.taskHistory?.[state.taskHistory.length - 1]?.finalCheckpoint
-  return archivedCheckpoint ?? null
-}
-
-function getRecommendationSourceSnapshot(state: ExplorationSessionState | null | undefined): CandidateSnapshot[] {
-  if (!state) return []
-  const displayed = getDisplayedProductsFromState(state)
-  const fullDisplayed = getFullDisplayedProductsFromState(state) ?? []
-  if (displayed.length > 0 && (state.activeGroupKey || state.displayedSetFilter || state.currentMode === "group_focus")) {
-    return displayed
-  }
-  if (displayed.length > 0 && fullDisplayed.length === 0) {
-    return displayed
-  }
-  if (fullDisplayed.length > 0) {
-    return fullDisplayed
-  }
-  return state.lastRecommendationArtifact ?? displayed
-}
-
-function buildRestoreQuestionState(
-  prevState: ExplorationSessionState,
-  chips: string[],
-): ExplorationSessionState {
-  return finalizeSessionState({
-    sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
-    candidateCount: prevState.candidateCount,
-    appliedFilters: prevState.appliedFilters,
-    narrowingHistory: prevState.narrowingHistory,
-    stageHistory: prevState.stageHistory ?? [],
-    resolutionStatus: prevState.resolutionStatus ?? "broad",
-    resolvedInput: prevState.resolvedInput,
-    turnCount: prevState.turnCount,
-    lastAskedField: prevState.lastAskedField,
-    displayedProducts: getDisplayedProductsFromState(prevState),
-    displayedCandidates: getDisplayedProductsFromState(prevState),
-    fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
-    fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
-    displayedSetFilter: prevState.displayedSetFilter ?? null,
-    displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
-    displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
-    displayedChips: chips,
-    displayedOptions: prevState.displayedOptions ?? [],
-    lastAction: "answer_general",
-    currentMode: "restore",
-    restoreTarget: "last_checkpoint",
-    underlyingAction: prevState.underlyingAction ?? prevState.lastAction ?? "show_recommendation",
-    lastComparisonArtifact: prevState.lastComparisonArtifact ?? null,
-    lastRecommendationArtifact: prevState.lastRecommendationArtifact ?? getFullDisplayedProductsFromState(prevState),
-    candidateCounts: prevState.candidateCounts,
-    lastClarification: prevState.lastClarification ?? null,
-    activeGroupKey: prevState.activeGroupKey ?? null,
-    currentTask: prevState.currentTask,
-    taskHistory: prevState.taskHistory,
-    pendingIntents: prevState.pendingIntents,
-  }, prevState, {
-    currentMode: "restore",
-    restoreTarget: "last_checkpoint",
-    preserveUnderlyingRecommendation: true,
-  })
-}
-
 async function rehydrateCandidatesFromSnapshot(
   snapshot: CandidateSnapshot[],
   input: RecommendationInput,
@@ -316,133 +190,6 @@ async function rehydrateCandidatesFromSnapshot(
   }
 }
 
-function buildPersistedUINarrowingPath(state: ExplorationSessionState, prevState: ExplorationSessionState | null): NonNullable<ExplorationSessionState["uiNarrowingPath"]> {
-  const path = state.appliedFilters
-    .filter(filter => filter.op !== "skip")
-    .map(filter => ({
-      kind: "filter" as const,
-      label: `${filter.field}: ${filter.value}`,
-      field: filter.field,
-      value: String(filter.rawValue),
-      candidateCount: state.candidateCount,
-    }))
-
-  if (state.displayedSetFilter) {
-    path.push({
-      kind: "display_filter",
-      label: `${state.displayedSetFilter.field}: ${state.displayedSetFilter.value}`,
-      field: state.displayedSetFilter.field,
-      value: state.displayedSetFilter.value,
-      candidateCount: state.candidateCount,
-    })
-  }
-
-  if (state.activeGroupKey) {
-    path.push({
-      kind: "series_group",
-      label: state.activeGroupKey,
-      value: state.activeGroupKey,
-      candidateCount: state.candidateCount,
-    })
-  }
-
-  if (state.restoreTarget) {
-    path.push({
-      kind: "restore",
-      label: state.restoreTarget,
-      value: state.restoreTarget,
-      candidateCount: state.candidateCount,
-    })
-  }
-
-  return path.length > 0 ? path : (prevState?.uiNarrowingPath ?? [])
-}
-
-function finalizeSessionState(
-  sessionState: ExplorationSessionState,
-  prevState: ExplorationSessionState | null,
-  options?: {
-    currentMode?: ExplorationSessionState["currentMode"]
-    restoreTarget?: string | null
-    activeGroupKey?: string | null
-    preserveUnderlyingRecommendation?: boolean
-  }
-): ExplorationSessionState {
-  const displayedProducts = sessionState.displayedProducts
-    ?? sessionState.displayedCandidates
-    ?? getDisplayedProductsFromState(prevState)
-  const fullDisplayedProducts = sessionState.fullDisplayedProducts
-    ?? sessionState.fullDisplayedCandidates
-    ?? getFullDisplayedProductsFromState(prevState)
-    ?? displayedProducts
-  const displayedSeriesGroups = sessionState.displayedSeriesGroups
-    ?? sessionState.displayedGroups
-    ?? getDisplayedSeriesGroupsFromState(prevState)
-    ?? (ENABLE_SERIES_GROUPING && fullDisplayedProducts && fullDisplayedProducts.length > 0
-      ? groupCandidatesBySeries(fullDisplayedProducts)
-      : undefined)
-  const displayedOptions = getPersistedDisplayedOptions(sessionState, prevState)
-  const recommendationContextActive = hasActiveRecommendationSession(sessionState) || hasActiveRecommendationSession(prevState)
-  const artifactCandidatePoolCount = fullDisplayedProducts?.length ?? displayedProducts.length
-  const repairedCandidateCount = recommendationContextActive
-    && sessionState.candidateCount <= 0
-    && artifactCandidatePoolCount > 0
-      ? Math.max(prevState?.candidateCount ?? 0, artifactCandidatePoolCount)
-      : sessionState.candidateCount
-
-  if (recommendationContextActive && sessionState.candidateCount <= 0 && artifactCandidatePoolCount > 0) {
-    console.warn(`[state-guard] repaired candidateCount reset 0 -> ${repairedCandidateCount}`)
-  }
-
-  const repairedResolutionStatus = recommendationContextActive
-    && sessionState.resolutionStatus === "resolved_none"
-    && artifactCandidatePoolCount > 0
-      ? (prevState?.resolutionStatus && prevState.resolutionStatus !== "resolved_none"
-          ? prevState.resolutionStatus
-          : "resolved_approximate")
-      : sessionState.resolutionStatus
-
-  const finalized: ExplorationSessionState = {
-    ...sessionState,
-    candidateCount: repairedCandidateCount,
-    resolutionStatus: repairedResolutionStatus,
-    displayedProducts,
-    displayedCandidates: displayedProducts,
-    fullDisplayedProducts,
-    fullDisplayedCandidates: fullDisplayedProducts ?? undefined,
-    displayedOptions,
-    displayedSeriesGroups,
-    displayedGroups: displayedSeriesGroups,
-    currentMode: options?.currentMode ?? sessionState.currentMode ?? deriveSessionMode(sessionState.lastAction),
-    activeGroupKey: options?.activeGroupKey !== undefined
-      ? options.activeGroupKey
-      : (sessionState.activeGroupKey ?? prevState?.activeGroupKey ?? null),
-    restoreTarget: options?.restoreTarget !== undefined
-      ? options.restoreTarget
-      : (sessionState.restoreTarget ?? prevState?.restoreTarget ?? null),
-    underlyingAction: options?.preserveUnderlyingRecommendation
-      ? (prevState?.underlyingAction ?? prevState?.lastAction ?? "show_recommendation")
-      : (sessionState.underlyingAction ?? prevState?.underlyingAction ?? prevState?.lastAction),
-    lastComparisonArtifact: sessionState.lastComparisonArtifact !== undefined
-      ? sessionState.lastComparisonArtifact
-      : (prevState?.lastComparisonArtifact ?? null),
-    lastRecommendationArtifact: sessionState.lastRecommendationArtifact !== undefined
-      ? sessionState.lastRecommendationArtifact
-      : (prevState?.lastRecommendationArtifact ?? fullDisplayedProducts ?? null),
-    candidateCounts: sessionState.candidateCounts ?? prevState?.candidateCounts,
-    lastClarification: sessionState.lastClarification !== undefined
-      ? sessionState.lastClarification
-      : (prevState?.lastClarification ?? null),
-    pendingIntents: sessionState.pendingIntents ?? prevState?.pendingIntents,
-  }
-  if (recommendationContextActive && finalized.displayedProducts.length === 0 && artifactCandidatePoolCount > 0) {
-    console.warn(`[state-guard] restored empty displayedProducts from persisted artifact (${artifactCandidatePoolCount})`)
-    finalized.displayedProducts = fullDisplayedProducts ?? displayedProducts
-    finalized.displayedCandidates = finalized.displayedProducts
-  }
-  finalized.uiNarrowingPath = buildPersistedUINarrowingPath(finalized, prevState)
-  return finalized
-}
 
 async function handleExploration(
   form: ProductIntakeForm,
@@ -705,7 +452,7 @@ async function handleExploration(
           form, undoResult.candidates, undoResult.evidenceMap, restoreResult.rebuiltInput,
           restoreResult.remainingHistory, restoreResult.remainingFilters, restoreResult.undoTurnCount,
           messages, provider, language, sideEffectText ? sideEffectText.replace(/^\n\n---\n\n/, "") : undefined, restoreResult.remainingStages,
-          pendingIntentsForSession
+          pendingIntentsForSession, prevState
         )
       }
 
@@ -727,7 +474,10 @@ async function handleExploration(
               messages,
               provider,
               language,
-              snapshotToDisplayed(persistedSnapshot)
+              snapshotToDisplayed(persistedSnapshot),
+              undefined,
+              undefined,
+              prevState
             )
           }
         }
@@ -782,9 +532,9 @@ async function handleExploration(
             chips,
             isComplete: false,
             recommendation: null,
-            sessionState: restoreState,
+            sessionState: finalizedShowAllState,
             evidenceSummaries: null,
-            candidateSnapshot: getDisplayedProductsFromState(restoreState),
+            candidateSnapshot: getDisplayedProductsFromState(finalizedShowAllState),
             extractedField: null,
             requestPreparation: null,
             primaryExplanation: null,
@@ -805,14 +555,16 @@ async function handleExploration(
             console.log(`[recommend] show_recommendation with in-display filter: ${candidates.length} → ${filteredCandidates.length} candidates`)
             return buildRecommendationResponse(
               form, filteredCandidates, evidenceMap, currentInput, narrowingHistory,
-              filters, turnCount, messages, provider, language, displayedProducts
+              filters, turnCount, messages, provider, language, displayedProducts,
+              undefined, undefined, prevState
             )
           }
         }
 
         return buildRecommendationResponse(
           form, candidates, evidenceMap, currentInput, narrowingHistory,
-          filters, turnCount, messages, provider, language, displayedProducts
+          filters, turnCount, messages, provider, language, displayedProducts,
+          undefined, undefined, prevState
         )
       }
 
@@ -838,7 +590,7 @@ async function handleExploration(
           return buildQuestionResponse(
             form, candidates, evidenceMap, currentInput,
             narrowingHistory, filters, turnCount, messages, provider, language,
-            slotResult.message
+            slotResult.message, undefined, undefined, prevState
           )
         }
 
@@ -865,13 +617,15 @@ async function handleExploration(
         if (status.startsWith("resolved")) {
           return buildRecommendationResponse(
             form, slotResult.candidates, slotResult.evidenceMap, currentInput,
-            narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts
+            narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts,
+            undefined, undefined, prevState
           )
         }
 
         return buildQuestionResponse(
           form, slotResult.candidates, slotResult.evidenceMap, currentInput,
-          narrowingHistory, filters, turnCount, messages, provider, language, slotResult.message
+          narrowingHistory, filters, turnCount, messages, provider, language, slotResult.message,
+          undefined, undefined, prevState
         )
       }
 
@@ -1563,7 +1317,7 @@ async function handleExploration(
             return buildQuestionResponse(
               form, candidates, evidenceMap, currentInput,
               narrowingHistory, filters, turnCount, messages, provider, language,
-              contextReply
+              contextReply, undefined, undefined, prevState
             )
           }
         }
@@ -1943,28 +1697,33 @@ async function handleExploration(
         })
       }
 
-      // Action: skip_field
+      // Action: skip_field — NO DB re-query (skip doesn't change filter criteria)
       if (action.type === "skip_field") {
         const skipField = prevState.lastAskedField ?? "unknown"
         const skipFilter: AppliedFilter = {
           field: skipField, op: "skip", value: "상관없음", rawValue: "skip", appliedAt: turnCount,
         }
         filters.push(skipFilter)
-        currentInput = applyFilterToInput(currentInput, skipFilter)
 
-        const newResult = await runHybridRetrieval(currentInput, filters.filter(f => f.op !== "skip"))
         narrowingHistory.push({
           question: "follow-up", answer: lastUserMsg.text,
           extractedFilters: [skipFilter],
-          candidateCountBefore: candidates.length, candidateCountAfter: newResult.candidates.length,
+          candidateCountBefore: candidates.length, candidateCountAfter: candidates.length,
         })
         turnCount++
 
-        const statusAfterSkip = checkResolution(newResult.candidates, narrowingHistory)
+        const statusAfterSkip = checkResolution(candidates, narrowingHistory)
         if (statusAfterSkip.startsWith("resolved")) {
-          return buildRecommendationResponse(form, newResult.candidates, newResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts)
+          return buildRecommendationResponse(
+            form, candidates, evidenceMap, currentInput, narrowingHistory,
+            filters, turnCount, messages, provider, language, displayedProducts,
+            undefined, undefined, prevState
+          )
         }
-        return buildQuestionResponse(form, newResult.candidates, newResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language)
+        return buildQuestionResponse(
+          form, candidates, evidenceMap, currentInput, narrowingHistory,
+          filters, turnCount, messages, provider, language, undefined, undefined, undefined, prevState
+        )
       }
 
       // Action: continue_narrowing (apply filter from orchestrator)
@@ -2035,12 +1794,19 @@ async function handleExploration(
 
         const newStatus = checkResolution(newCandidates, narrowingHistory)
         if (newStatus.startsWith("resolved")) {
-          return buildRecommendationResponse(form, newCandidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts, sideEffectText || undefined, pendingIntentsForSession)
+          return buildRecommendationResponse(
+            form, newCandidates, testResult.evidenceMap, currentInput, narrowingHistory,
+            filters, turnCount, messages, provider, language, displayedProducts,
+            sideEffectText || undefined, pendingIntentsForSession, prevState
+          )
         }
 
         // If there's side-effect text from multi-intent, pass it as override prefix
         const filterOverride = sideEffectText ? sideEffectText.replace(/^\n\n---\n\n/, "") : undefined
-        return buildQuestionResponse(form, newCandidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, filterOverride, updatedStages, pendingIntentsForSession)
+        return buildQuestionResponse(
+          form, newCandidates, testResult.evidenceMap, currentInput, narrowingHistory,
+          filters, turnCount, messages, provider, language, filterOverride, updatedStages, pendingIntentsForSession, prevState
+        )
       }
     }
   }
@@ -2052,14 +1818,15 @@ async function handleExploration(
     // Already resolved — show results
     return buildRecommendationResponse(
       form, candidates, evidenceMap, currentInput, narrowingHistory,
-      filters, turnCount, messages, provider, language, displayedProducts
+      filters, turnCount, messages, provider, language, displayedProducts,
+      undefined, undefined, prevState
     )
   }
 
   // Not resolved (or first call) — ask a question
   return buildQuestionResponse(
     form, candidates, evidenceMap, currentInput, narrowingHistory,
-    filters, turnCount, messages, provider, language
+    filters, turnCount, messages, provider, language, undefined, undefined, undefined, prevState
   )
 }
 
@@ -2078,6 +1845,7 @@ async function buildQuestionResponse(
   overrideText?: string,
   existingStageHistory?: NarrowingStage[],
   pendingIntents?: Array<{ text: string; category: string }>,
+  prevState: ExplorationSessionState | null = null,
 ): Promise<Response> {
   let question = selectNextQuestion(input, candidates, history)
 
@@ -2097,10 +1865,19 @@ async function buildQuestionResponse(
 
   // Build structured displayedOptions from chips for numbered selection
   const displayedOptions = buildDisplayedOptions(chips, question?.field ?? "unknown")
+  const candidateCounts = {
+    dbMatchCount: prevState?.candidateCounts?.dbMatchCount ?? candidates.length,
+    filteredCount: candidates.length,
+    rankedCount: candidates.length,
+    displayedCount: candidateSnapshot.length,
+    hiddenBySeriesCapCount: displayedGroups
+      ? displayedGroups.reduce((sum, g) => sum + g.candidateCount, 0) - candidateSnapshot.length
+      : 0,
+  }
 
   // Build session state for client — single source of truth
-  const sessionState: ExplorationSessionState = {
-    sessionId: `ses-${Date.now()}`,
+  const sessionState = buildPersistedSessionState({
+    prevState,
     candidateCount: candidates.length,
     appliedFilters: filters,
     narrowingHistory: history,
@@ -2110,27 +1887,23 @@ async function buildQuestionResponse(
     turnCount,
     lastAskedField: question?.field ?? undefined,
     displayedProducts: candidateSnapshot,
-    displayedCandidates: candidateSnapshot,
-    fullDisplayedProducts: null,
-    fullDisplayedCandidates: undefined,
-    displayedSetFilter: null,
+    fullDisplayedProducts: prevState
+      ? (getFullDisplayedProductsFromState(prevState) ?? candidateSnapshot)
+      : null,
+    displayedSetFilter: prevState?.displayedSetFilter ?? null,
     displayedChips: chips,
     displayedOptions,
     displayedSeriesGroups: displayedGroups,
     currentMode: messages.length === 0 ? "question" : "narrowing",
     lastAction: "continue_narrowing",
-    displayedGroups,
-    candidateCounts: {
-      dbMatchCount: candidates.length,  // best available at this point
-      filteredCount: candidates.length,
-      rankedCount: candidates.length,
-      displayedCount: candidateSnapshot.length,
-      hiddenBySeriesCapCount: displayedGroups
-        ? displayedGroups.reduce((sum, g) => sum + g.candidateCount, 0) - candidateSnapshot.length
-        : 0,
-    },
+    lastComparisonArtifact: prevState?.lastComparisonArtifact ?? null,
+    lastRecommendationArtifact: prevState?.lastRecommendationArtifact ?? null,
+    candidateCounts,
+    currentTask: prevState?.currentTask,
+    taskHistory: prevState?.taskHistory,
     pendingIntents: pendingIntents ?? undefined,
-  }
+    preserveUnderlyingRecommendation: hasActiveRecommendationSession(prevState),
+  })
 
   // Non-blocking validation
   runConsistencyValidation(sessionState, candidates.length, displayedGroups, candidateSnapshot)
@@ -2166,7 +1939,8 @@ async function buildQuestionResponse(
   if (!question && !overrideText) {
     return buildRecommendationResponse(
       form, candidates, evidenceMap, input, history,
-      filters, turnCount, messages, provider, language, snapshotToDisplayed(candidateSnapshot)
+      filters, turnCount, messages, provider, language, snapshotToDisplayed(candidateSnapshot),
+      undefined, pendingIntents, sessionState
     )
   }
 
@@ -2250,6 +2024,7 @@ async function buildRecommendationResponse(
   displayedProducts: DisplayedProduct[] | null = null,
   appendText?: string,
   pendingIntents?: Array<{ text: string; category: string }>,
+  prevState: ExplorationSessionState | null = null,
 ): Promise<Response> {
   const { primary, alternatives, status } = classifyHybridResults({ candidates, evidenceMap, totalConsidered: candidates.length, filtersApplied: filters })
   const warnings = primary ? buildWarnings(primary, input) : ["조건에 맞는 제품을 찾지 못했습니다"]
@@ -2383,8 +2158,8 @@ async function buildRecommendationResponse(
     ? groupCandidatesBySeries(candidateSnapshot)
     : undefined
 
-  const sessionState: ExplorationSessionState = {
-    sessionId: `ses-${Date.now()}`,
+  const sessionState = buildPersistedSessionState({
+    prevState,
     candidateCount: candidates.length,
     appliedFilters: filters,
     narrowingHistory: history,
@@ -2393,19 +2168,17 @@ async function buildRecommendationResponse(
     resolvedInput: input,
     turnCount,
     displayedProducts: candidateSnapshot,
-    displayedCandidates: candidateSnapshot,
     fullDisplayedProducts: candidateSnapshot,
-    fullDisplayedCandidates: candidateSnapshot,
     displayedSetFilter: null,
     displayedChips: followUpChips,
     displayedOptions: [],
     displayedSeriesGroups: recDisplayedGroups,
     currentMode: "recommendation",
     lastAction: "show_recommendation",
+    lastComparisonArtifact: prevState?.lastComparisonArtifact ?? null,
     lastRecommendationArtifact: candidateSnapshot,
-    displayedGroups: recDisplayedGroups,
     candidateCounts: {
-      dbMatchCount: candidates.length,
+      dbMatchCount: prevState?.candidateCounts?.dbMatchCount ?? candidates.length,
       filteredCount: candidates.length,
       rankedCount: candidates.length,
       displayedCount: candidateSnapshot.length,
@@ -2413,8 +2186,11 @@ async function buildRecommendationResponse(
         ? recDisplayedGroups.reduce((sum, g) => sum + g.candidateCount, 0) - candidateSnapshot.length
         : 0,
     },
+    currentTask: prevState?.currentTask,
+    taskHistory: prevState?.taskHistory,
     pendingIntents: pendingIntents ?? undefined,
-  }
+    preserveUnderlyingRecommendation: hasActiveRecommendationSession(prevState),
+  })
 
   // Non-blocking validation
   runConsistencyValidation(sessionState, candidates.length, recDisplayedGroups, candidateSnapshot)
