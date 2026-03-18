@@ -548,6 +548,17 @@ ${state?.lastComparisonArtifact ? `비교 대상: ${state.lastComparisonArtifact
 ═══ 마지막 명확화 질문 ═══
 ${state?.lastClarification ? `질문: "${state.lastClarification.question}"\n옵션: ${state.lastClarification.options.join(", ")}${state.lastClarification.resolvedWith ? `\n해결: "${state.lastClarification.resolvedWith}"` : "\n(미해결)"}` : "없음"}
 
+═══ 좁히기 대화 이력 (최근 8턴) ═══
+${state?.narrowingHistory?.slice(-8).map((h, i) => {
+    const filterSummary = h.extractedFilters.map(f => `${f.field}=${f.value}`).join(", ") || "없음"
+    return `턴${i + 1}: Q="${h.question}" → A="${h.answer}" | 필터: ${filterSummary} | ${h.candidateCountBefore}→${h.candidateCountAfter}개`
+  }).join("\n") || "없음"}
+
+═══ 추천 결과 이력 ═══
+${state?.lastRecommendationArtifact?.slice(0, 5).map(c =>
+    `#${c.rank} ${c.displayCode} | ${c.brand ?? "?"} ${c.seriesName ?? "?"} | φ${c.diameterMm ?? "?"}mm ${c.fluteCount ?? "?"}F ${c.coating ?? "?"} | ${c.matchStatus} ${c.score}점`
+  ).join("\n") || "추천 결과 없음"}
+
 ═══ 작업 이력 ═══
 ${state?.taskHistory?.map(t => `• [${t.taskId}] ${t.intakeSummary} (체크포인트 ${t.checkpointCount}개)`).join("\n") || "없음"}
 
@@ -938,7 +949,10 @@ async function routeChunkThroughTools(
   reasoningPrefix?: string,
 ): Promise<OrchestratorResult> {
   const systemPrompt = buildToolUseSystemPrompt(ctx)
-  const messages = [{ role: "user" as const, content: message }]
+
+  // Build conversation context: include recent narrowing history as assistant/user turns
+  // so Sonnet understands what has been discussed, not just the current message.
+  const conversationMessages = buildConversationContext(ctx.sessionState, message)
 
   // ═══ Phase 1: State-aware tool scoping ═══
   // Only give Sonnet the tools that are valid in the current state.
@@ -949,7 +963,7 @@ async function routeChunkThroughTools(
   try {
     const toolStart = Date.now()
     const { text, toolUse } = await provider.completeWithTools(
-      systemPrompt, messages, scopedTools, 1024, "sonnet"
+      systemPrompt, conversationMessages, scopedTools, 1024, "sonnet"
     )
     const durationMs = Date.now() - toolStart
     agents.push({ agent: "tool-use-router", model: "sonnet", durationMs })
@@ -1001,6 +1015,63 @@ async function routeChunkThroughTools(
       escalatedToOpus: false,
     }
   }
+}
+
+// ════════════════════════════════════════════════════════════════
+// CONVERSATION CONTEXT BUILDER
+// Builds multi-turn messages array so Sonnet has full conversation context.
+// Token-rich but accurate — prevents misrouting from lack of context.
+// ════════════════════════════════════════════════════════════════
+
+function buildConversationContext(
+  sessionState: ExplorationSessionState | null,
+  currentMessage: string,
+): Array<{ role: "user" | "assistant"; content: string }> {
+  const messages: Array<{ role: "user" | "assistant"; content: string }> = []
+
+  if (sessionState?.narrowingHistory?.length) {
+    // Compress narrowing history into conversation turns (last 6 turns max)
+    const recent = sessionState.narrowingHistory.slice(-6)
+    for (const turn of recent) {
+      // System question as assistant message
+      const filterInfo = turn.extractedFilters.length > 0
+        ? ` [필터 적용: ${turn.extractedFilters.map(f => `${f.field}=${f.value}`).join(", ")}]`
+        : ""
+      messages.push({
+        role: "assistant",
+        content: `[질문: ${turn.question}] 후보 ${turn.candidateCountBefore}개 → ${turn.candidateCountAfter}개${filterInfo}`,
+      })
+      // User answer
+      messages.push({
+        role: "user",
+        content: turn.answer,
+      })
+    }
+  }
+
+  // If there's a recommendation artifact, summarize it as assistant context
+  if (sessionState?.lastRecommendationArtifact?.length) {
+    const topProducts = sessionState.lastRecommendationArtifact.slice(0, 5)
+      .map(c => `#${c.rank} ${c.displayCode} (${c.brand ?? ""} ${c.seriesName ?? ""}, ${c.coating ?? ""}, ${c.score}점)`)
+      .join(", ")
+    messages.push({
+      role: "assistant",
+      content: `[추천 결과 표시됨: ${topProducts}]`,
+    })
+  }
+
+  // If there's a comparison artifact, include it
+  if (sessionState?.lastComparisonArtifact) {
+    messages.push({
+      role: "assistant",
+      content: `[비교 결과: ${sessionState.lastComparisonArtifact.comparedProductCodes.join(" vs ")}]`,
+    })
+  }
+
+  // Current user message
+  messages.push({ role: "user", content: currentMessage })
+
+  return messages
 }
 
 // ════════════════════════════════════════════════════════════════
