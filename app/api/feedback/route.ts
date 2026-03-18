@@ -167,7 +167,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, id: turnEntry.id })
     }
 
-    // ── General feedback (existing) ──
+    // ── General feedback (with screenshots) ──
+    const screenshots: Array<{ name: string; dataUrl: string; size: number }> = body.screenshots ?? []
+
     const entry: FeedbackEntry = {
       id: `fb-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
       timestamp: new Date().toISOString(),
@@ -186,9 +188,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Comment or rating required" }, { status: 400 })
     }
 
-    saveFeedback(entry)
+    // Save screenshots as separate files
+    const screenshotPaths: string[] = []
+    if (screenshots.length > 0) {
+      const dir = getFeedbackDir()
+      for (const ss of screenshots) {
+        try {
+          const base64Data = ss.dataUrl.replace(/^data:image\/\w+;base64,/, "")
+          const ext = ss.name.split(".").pop() ?? "png"
+          const ssFilename = `${entry.id}-ss-${screenshotPaths.length}.${ext}`
+          fs.writeFileSync(path.join(dir, ssFilename), Buffer.from(base64Data, "base64"))
+          screenshotPaths.push(ssFilename)
+        } catch (e) {
+          console.warn("[feedback] Failed to save screenshot:", e)
+        }
+      }
+    }
 
-    // Slack 알림
+    // Save feedback entry (without base64 data, just paths)
+    saveTurnFeedback({ ...entry, screenshotCount: screenshots.length, screenshotPaths })
+
+    // Slack 알림 — enhanced with screenshot info + full context
     import("@/lib/slack-notifier").then(({ notifyFeedback }) =>
       notifyFeedback({
         rating: entry.rating,
@@ -196,10 +216,14 @@ export async function POST(req: Request) {
         tags: entry.tags,
         authorType: entry.authorType,
         authorName: entry.authorName,
+        screenshotCount: screenshots.length,
+        intakeSummary: entry.intakeSummary,
+        recommendationSummary: entry.recommendationSummary,
+        chatHistoryLength: entry.chatHistory?.length ?? 0,
       }).catch(() => {})
     )
 
-    return NextResponse.json({ success: true, id: entry.id })
+    return NextResponse.json({ success: true, id: entry.id, screenshotCount: screenshots.length })
   } catch (err) {
     console.error("[feedback] POST error:", err)
     return NextResponse.json(

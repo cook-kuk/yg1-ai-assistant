@@ -2152,6 +2152,31 @@ function FeedbackWidget({
   const [tags, setTags] = useState<string[]>([])
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
+  const [screenshots, setScreenshots] = useState<Array<{ name: string; dataUrl: string; size: number }>>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFileSelect = (files: FileList | null) => {
+    if (!files) return
+    Array.from(files).forEach(file => {
+      if (!file.type.startsWith("image/")) return
+      if (file.size > 5 * 1024 * 1024) { alert("5MB 이하 이미지만 업로드 가능합니다."); return }
+      const reader = new FileReader()
+      reader.onload = () => {
+        setScreenshots(prev => [...prev, { name: file.name, dataUrl: reader.result as string, size: file.size }])
+      }
+      reader.readAsDataURL(file)
+    })
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    handleFileSelect(e.dataTransfer.files)
+  }
+
+  const removeScreenshot = (index: number) => {
+    setScreenshots(prev => prev.filter((_, i) => i !== index))
+  }
   const authorTypeOptions: ReadonlyArray<readonly [FeedbackAuthorType, string]> = language === "ko"
     ? [["internal", "내부 개발팀"], ["customer", "고객사"], ["anonymous", "익명"]]
     : [["internal", "Internal Team"], ["customer", "Customer"], ["anonymous", "Anonymous"]]
@@ -2201,6 +2226,7 @@ function FeedbackWidget({
           rating: rating > 0 ? rating : null,
           comment,
           tags,
+          screenshots: screenshots.map(s => ({ name: s.name, dataUrl: s.dataUrl, size: s.size })),
         }),
       })
 
@@ -2211,6 +2237,7 @@ function FeedbackWidget({
         setComment("")
         setRating(0)
         setTags([])
+        setScreenshots([])
       }, 1500)
     } catch {
       alert("피드백 저장에 실패했습니다.")
@@ -2335,6 +2362,46 @@ function FeedbackWidget({
                     rows={4}
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-300"
                   />
+                </div>
+
+                {/* Screenshot upload — drag & drop + button */}
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 mb-1.5 block">{language === 'ko' ? '스크린샷 (선택)' : 'Screenshots (optional)'}</label>
+                  <div
+                    onDragOver={e => { e.preventDefault(); e.stopPropagation() }}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-colors"
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={e => handleFileSelect(e.target.files)}
+                    />
+                    <div className="text-xs text-gray-500">
+                      {language === 'ko'
+                        ? '📷 클릭하거나 이미지를 드래그해서 놓으세요'
+                        : '📷 Click or drag & drop images here'}
+                    </div>
+                    <div className="text-[10px] text-gray-400 mt-0.5">PNG, JPG · 5MB 이하</div>
+                  </div>
+                  {screenshots.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {screenshots.map((s, i) => (
+                        <div key={i} className="relative group">
+                          <img src={s.dataUrl} alt={s.name} className="w-16 h-16 object-cover rounded-lg border border-gray-200" />
+                          <button
+                            onClick={e => { e.stopPropagation(); removeScreenshot(i) }}
+                            className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full text-[8px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          >×</button>
+                          <div className="text-[8px] text-gray-400 text-center truncate w-16 mt-0.5">{s.name}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Context info */}

@@ -78,22 +78,27 @@ export async function notifyChatResponse(params: {
   })
 }
 
-/** 피드백 등록 알림 */
+/** 피드백 등록 알림 (스크린샷 + 세션 컨텍스트 포함) */
 export async function notifyFeedback(params: {
   rating: number | null
   comment: string
   tags: string[]
   authorType: string
   authorName: string
+  screenshotCount?: number
+  intakeSummary?: string | null
+  recommendationSummary?: string | null
+  chatHistoryLength?: number
 }): Promise<void> {
   const stars = params.rating ? "⭐".repeat(params.rating) : "평가 없음"
   const tagStr = params.tags.length > 0 ? params.tags.join(", ") : "없음"
   const author = params.authorName || params.authorType
+  const ssInfo = params.screenshotCount ? `📷 스크린샷 ${params.screenshotCount}장 첨부` : ""
   await sendSlack({
     blocks: [
       {
         type: "header",
-        text: { type: "plain_text", text: "📋 피드백 등록" },
+        text: { type: "plain_text", text: `📋 의견 등록 ${ssInfo}` },
       },
       {
         type: "section",
@@ -101,12 +106,21 @@ export async function notifyFeedback(params: {
           { type: "mrkdwn", text: `*평점:*\n${stars}` },
           { type: "mrkdwn", text: `*작성자:*\n${author} (${params.authorType})` },
           { type: "mrkdwn", text: `*태그:*\n${tagStr}` },
+          { type: "mrkdwn", text: `*대화 길이:*\n${params.chatHistoryLength ?? "?"}턴` },
         ],
       },
       {
         type: "section",
-        text: { type: "mrkdwn", text: `*코멘트:*\n${params.comment.slice(0, 300)}` },
+        text: { type: "mrkdwn", text: `*의견:*\n${params.comment.slice(0, 500)}` },
       },
+      ...(params.intakeSummary ? [{
+        type: "section" as const,
+        text: { type: "mrkdwn" as const, text: `*입력 조건:*\n${params.intakeSummary.slice(0, 300)}` },
+      }] : []),
+      ...(params.recommendationSummary ? [{
+        type: "context" as const,
+        elements: [{ type: "mrkdwn" as const, text: `🔧 추천 결과: ${params.recommendationSummary}` }],
+      }] : []),
     ],
   })
 }
