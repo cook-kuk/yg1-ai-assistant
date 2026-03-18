@@ -565,7 +565,9 @@ function mapRowToProduct(row: RawProductRow): CanonicalProduct {
     country: firstNonEmpty(row.country) ?? null,
     description: firstNonEmpty(row.series_description),
     featureText: firstNonEmpty(row.series_feature),
-    seriesIconUrl: null,
+    seriesIconUrl: row.edp_series_idx
+      ? `https://www.yg1.kr/upload/series/${row.edp_series_idx}/main.jpg`
+      : null,
     sourceConfidence: "medium",
     evidenceRefs: [],
   }

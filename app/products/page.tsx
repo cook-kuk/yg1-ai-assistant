@@ -377,7 +377,7 @@ function ProductCard({ scored, rank, isAlternative = false, evidenceSummary = nu
       <CardHeader className="pb-2 pt-3 px-4">
         <div className="flex items-start justify-between gap-2">
           {p.seriesIconUrl && (
-            <img src={p.seriesIconUrl} alt={p.seriesName ?? ""} className="w-16 h-16 object-contain rounded border border-gray-100 shrink-0 bg-gray-50" />
+            <img src={p.seriesIconUrl} alt={p.seriesName ?? ""} className="w-16 h-16 object-contain rounded border border-gray-100 shrink-0 bg-gray-50" onError={e => { (e.target as HTMLElement).style.display = "none" }} />
           )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -492,7 +492,7 @@ function CandidateCard({ c }: { c: CandidateSnapshot }) {
     <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-1.5">
       <div className="flex gap-2">
         {c.seriesIconUrl && (
-          <img src={c.seriesIconUrl} alt={c.seriesName ?? ""} className="w-12 h-12 object-contain rounded border border-gray-100 shrink-0 bg-gray-50" />
+          <img src={c.seriesIconUrl} alt={c.seriesName ?? ""} className="w-12 h-12 object-contain rounded border border-gray-100 shrink-0 bg-gray-50" onError={e => { (e.target as HTMLElement).style.display = "none" }} />
         )}
         <div className="flex-1 min-w-0">
           {/* brand + description at top */}
@@ -1680,24 +1680,28 @@ function NarrowingChat({
                 </div>
               )}
 
-              {/* Feedback buttons — every AI message */}
+              {/* Feedback buttons — every AI message (response + options) */}
               {msg.role === "ai" && !msg.isLoading && onFeedback && (
-                <div className="flex items-center gap-1 mt-1">
+                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                   {msg.feedback ? (
-                    <span className="text-[10px] text-gray-400">
-                      {msg.feedback === "good" ? "👍" : msg.feedback === "bad" ? "👎" : "😐"} 평가 완료
+                    <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
+                      {msg.feedback === "good" ? "👍 좋았어요" : msg.feedback === "bad" ? "👎 별로예요" : "😐 보통이에요"}
                     </span>
                   ) : (
                     <>
-                      <span className="text-[10px] text-gray-400 mr-1">{language === 'ko' ? '이 응답은?' : 'Rate:'}</span>
+                      <span className="text-[10px] text-gray-500 font-medium">
+                        {language === 'ko'
+                          ? (msg.chips?.length ? '응답과 선택지 평가:' : '이 응답은?')
+                          : 'Rate:'}
+                      </span>
                       {([
-                        { value: "good" as TurnFeedback, icon: "👍", label: "좋아요" },
-                        { value: "neutral" as TurnFeedback, icon: "😐", label: "보통" },
-                        { value: "bad" as TurnFeedback, icon: "👎", label: "별로" },
+                        { value: "good" as TurnFeedback, icon: "👍", label: "좋아요", cls: "hover:bg-green-100" },
+                        { value: "neutral" as TurnFeedback, icon: "😐", label: "보통", cls: "hover:bg-gray-200" },
+                        { value: "bad" as TurnFeedback, icon: "👎", label: "별로", cls: "hover:bg-red-100" },
                       ]).map(fb => (
                         <button key={fb.value}
                           onClick={() => onFeedback(i, fb.value)}
-                          className="px-1.5 py-0.5 text-sm hover:bg-gray-200 rounded transition-colors"
+                          className={`px-2 py-0.5 text-sm rounded-full border border-gray-200 ${fb.cls} transition-colors`}
                           title={fb.label}
                         >{fb.icon}</button>
                       ))}
@@ -1780,7 +1784,7 @@ function SeriesAccordionItem({
         className="w-full flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
       >
         {group.seriesIconUrl && (
-          <img src={group.seriesIconUrl} alt={group.seriesName} className="w-8 h-8 object-contain rounded border border-gray-100 shrink-0 bg-white" />
+          <img src={group.seriesIconUrl} alt={group.seriesName} className="w-8 h-8 object-contain rounded border border-gray-100 shrink-0 bg-white" onError={e => { (e.target as HTMLElement).style.display = "none" }} />
         )}
         <div className="flex-1 min-w-0">
           {/* brand + description first, seriesName as secondary */}
