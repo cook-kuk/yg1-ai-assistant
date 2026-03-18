@@ -1,12 +1,10 @@
 /**
  * Evidence Repository
- * Loads cutting conditions from PostgreSQL raw_catalog.cutting_condition_table
- * and falls back to evidence-chunks.json when DB is unavailable.
+ * Loads cutting conditions from PostgreSQL raw_catalog.cutting_condition_table.
+ * Local JSON fallback is intentionally disabled at runtime.
  */
 
 import type { EvidenceChunk, EvidenceSummary } from "@/lib/types/evidence"
-import path from "path"
-import fs from "fs"
 import crypto from "crypto"
 import { Pool, type QueryResultRow } from "pg"
 import { ProductRepo } from "@/lib/data/repos/product-repo"
@@ -36,8 +34,6 @@ declare global {
   // eslint-disable-next-line no-var
   var __yg1EvidenceChunksPromise: Promise<EvidenceChunk[]> | undefined
 }
-
-let _jsonCache: EvidenceChunk[] | null = null
 
 function cleanText(value: string | null | undefined): string | null {
   if (!value) return null
@@ -169,20 +165,15 @@ function getPool(): Pool {
   return globalThis.__yg1EvidenceDbPool
 }
 
-function loadChunksFromJson(): EvidenceChunk[] {
-  if (_jsonCache) return _jsonCache
-  const filePath = path.join(process.cwd(), "data", "normalized", "evidence-chunks.json")
-  if (!fs.existsSync(filePath)) {
-    console.warn("[EvidenceRepo] evidence-chunks.json not found — run: node scripts/build-evidence-corpus.mjs")
-    _jsonCache = []
-    return _jsonCache
-  }
-  _jsonCache = JSON.parse(fs.readFileSync(filePath, "utf-8")) as EvidenceChunk[]
-  return _jsonCache
+function logDatabaseUnavailable(): void {
+  console.warn("[evidence-repo] load skipped: runtime JSON fallback disabled and DB source unavailable")
 }
 
 async function loadChunks(): Promise<EvidenceChunk[]> {
-  if (!shouldUseDatabaseSource()) return loadChunksFromJson()
+  if (!shouldUseDatabaseSource()) {
+    logDatabaseUnavailable()
+    return []
+  }
 
   if (!globalThis.__yg1EvidenceChunksPromise) {
     globalThis.__yg1EvidenceChunksPromise = (async () => {
@@ -210,10 +201,8 @@ async function loadChunks(): Promise<EvidenceChunk[]> {
         console.log(`[evidence-db] loaded rows=${mapped.length}`)
         return mapped
       } catch (error) {
-        console.warn(
-          `[evidence-db] query failed, falling back to JSON evidence: ${error instanceof Error ? error.message : String(error)}`
-        )
-        return loadChunksFromJson()
+        console.warn(`[evidence-db] query failed: ${error instanceof Error ? error.message : String(error)}`)
+        return []
       }
     })()
   }

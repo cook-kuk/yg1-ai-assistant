@@ -40,6 +40,7 @@ interface RawProductRow {
   series_product_type: string | null
   series_application_shape: string | null
   series_cutting_edge_shape: string | null
+  region: string | null
   material_tags: string[] | null
   milling_outside_dia: string | null
   milling_number_of_flute: string | null
@@ -145,6 +146,7 @@ SELECT
   series_product_type,
   series_application_shape,
   series_cutting_edge_shape,
+  region,
   material_tags,
   milling_outside_dia,
   milling_number_of_flute,

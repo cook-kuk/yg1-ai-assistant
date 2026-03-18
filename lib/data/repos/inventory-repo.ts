@@ -1,34 +1,11 @@
 import "server-only"
 
 import type { InventorySnapshot, StockStatus } from "@/lib/types/canonical"
-import path from "path"
-import fs from "fs"
 import { Pool } from "pg"
-
-let _cache: InventorySnapshot[] | null = null
-let _byEdp: Map<string, InventorySnapshot[]> | null = null
 
 declare global {
   // eslint-disable-next-line no-var
   var __yg1InventoryDbPool: Pool | undefined
-}
-
-function loadJson() {
-  if (_cache) return { cache: _cache, byEdp: _byEdp! }
-  const fp = path.join(process.cwd(), "data", "normalized", "inventory.json")
-  if (!fs.existsSync(fp)) {
-    _cache = []
-    _byEdp = new Map()
-    return { cache: _cache, byEdp: _byEdp }
-  }
-  _cache = JSON.parse(fs.readFileSync(fp, "utf-8")) as InventorySnapshot[]
-  _byEdp = new Map()
-  for (const snap of _cache) {
-    const key = normalizeCode(snap.normalizedEdp || snap.edp)
-    if (!_byEdp.has(key)) _byEdp.set(key, [])
-    _byEdp.get(key)!.push(snap)
-  }
-  return { cache: _cache, byEdp: _byEdp }
 }
 
 function normalizeCode(value: string | null | undefined): string {
@@ -50,6 +27,10 @@ function dbConnectionString(): string | null {
 
 function shouldUseDatabaseSource(): boolean {
   return !!dbConnectionString()
+}
+
+function logDatabaseUnavailable(operation: string): void {
+  console.warn(`[inventory-repo] ${operation} skipped: runtime JSON fallback disabled and DB source unavailable`)
 }
 
 function getPool(): Pool | null {
@@ -135,57 +116,49 @@ function statusFromSnapshots(snaps: InventorySnapshot[]): StockStatus {
 }
 
 export const InventoryRepo = {
-  /** Get all inventory snapshots for a normalized EDP code from local JSON fallback */
   getByEdp(normalizedCode: string): InventorySnapshot[] {
-    const { byEdp } = loadJson()
-    return byEdp.get(normalizeCode(normalizedCode)) ?? []
+    logDatabaseUnavailable(`getByEdp code=${normalizedCode}`)
+    return []
   },
 
-  /** Get all inventory snapshots, preferring DB and falling back to local JSON */
   async getByEdpAsync(normalizedCode: string): Promise<InventorySnapshot[]> {
     const normalized = normalizeCode(normalizedCode)
-    if (shouldUseDatabaseSource()) {
-      const dbRows = await getByEdpFromDatabase(normalized)
-      if (dbRows.length > 0) return dbRows
+    if (!shouldUseDatabaseSource()) {
+      logDatabaseUnavailable(`getByEdpAsync code=${normalized}`)
+      return []
     }
-    return this.getByEdp(normalized)
+    return getByEdpFromDatabase(normalized)
   },
 
-  /** Total stock across all warehouses (JSON fallback path) */
   totalStock(normalizedCode: string): number | null {
-    return totalFromSnapshots(this.getByEdp(normalizedCode))
+    logDatabaseUnavailable(`totalStock code=${normalizedCode}`)
+    return null
   },
 
-  /** Total stock across all warehouses, preferring DB */
   async totalStockAsync(normalizedCode: string): Promise<number | null> {
     return totalFromSnapshots(await this.getByEdpAsync(normalizedCode))
   },
 
-  /** Stock status based on total quantity (JSON fallback path) */
   stockStatus(normalizedCode: string): StockStatus {
-    return statusFromSnapshots(this.getByEdp(normalizedCode))
+    logDatabaseUnavailable(`stockStatus code=${normalizedCode}`)
+    return "unknown"
   },
 
-  /** Stock status based on total quantity, preferring DB */
   async stockStatusAsync(normalizedCode: string): Promise<StockStatus> {
     return statusFromSnapshots(await this.getByEdpAsync(normalizedCode))
   },
 
-  /** Warehouses with positive stock (JSON fallback path) */
   availableWarehouses(normalizedCode: string): InventorySnapshot[] {
-    return this.getByEdp(normalizedCode).filter(s => s.quantity !== null && s.quantity > 0)
+    logDatabaseUnavailable(`availableWarehouses code=${normalizedCode}`)
+    return []
   },
 
-  /** Warehouses with positive stock, preferring DB */
   async availableWarehousesAsync(normalizedCode: string): Promise<InventorySnapshot[]> {
     return (await this.getByEdpAsync(normalizedCode)).filter(s => s.quantity !== null && s.quantity > 0)
   },
 
-  /** Price from any snapshot (first non-null, JSON fallback path) */
   price(normalizedCode: string): { price: number; currency: string } | null {
-    const snaps = this.getByEdp(normalizedCode)
-    const withPrice = snaps.find(s => s.price !== null && s.price > 0)
-    if (!withPrice) return null
-    return { price: withPrice.price!, currency: withPrice.currency ?? "KRW" }
+    logDatabaseUnavailable(`price code=${normalizedCode}`)
+    return null
   },
 }

@@ -9,8 +9,8 @@
  *   Step 5: Render-Safe — all fields wrapped in VerifiedField<T>
  *
  * Data priority:
- *   1. Canonical Product Master (products.json)
- *   2. Evidence Corpus / cutting_condition_table DB (JSON fallback)
+ *   1. Canonical Product Master
+ *   2. Evidence Corpus / cutting_condition_table DB
  *   3. Inventory/Lead Time repos
  *   4. Benchmark (if available)
  */
