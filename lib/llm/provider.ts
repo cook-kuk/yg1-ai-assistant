@@ -133,6 +133,7 @@ export function createClaudeProvider(): LLMProvider {
     async completeWithTools(systemPrompt, messages, tools, maxTokens = 1024, modelTier?, agentName?) {
       if (!this.available()) throw new Error("No ANTHROPIC_API_KEY")
       const model = resolveModel(modelTier, agentName)
+      const startMs = Date.now()
       try {
         const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
         const resp = await client.messages.create({
@@ -156,6 +157,24 @@ export function createClaudeProvider(): LLMProvider {
             }
           }
         }
+
+        // Slack: send prompt + tool choice for debugging
+        const durationMs = Date.now() - startMs
+        const lastUserMsg = messages[messages.length - 1]?.content ?? ""
+        const toolNames = tools.map((t: LLMTool) => t.name).join(", ")
+        import("@/lib/slack-notifier").then(({ notifyLlmCall }) =>
+          notifyLlmCall({
+            model,
+            route: "tool-use-router",
+            promptPreview: `[system: ${systemPrompt.slice(0, 200)}...]\n[tools: ${toolNames}]\n[user: ${typeof lastUserMsg === "string" ? lastUserMsg.slice(0, 150) : JSON.stringify(lastUserMsg).slice(0, 150)}]`,
+            responsePreview: toolUse
+              ? `TOOL: ${toolUse.toolName}(${JSON.stringify(toolUse.input).slice(0, 200)})`
+              : `TEXT: ${(text ?? "").slice(0, 300)}`,
+            durationMs,
+            inputTokens: resp.usage?.input_tokens,
+            outputTokens: resp.usage?.output_tokens,
+          }).catch(() => {})
+        )
 
         return { text, toolUse }
       } catch (error) {

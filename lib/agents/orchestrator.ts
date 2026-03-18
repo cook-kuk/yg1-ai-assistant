@@ -520,6 +520,12 @@ function buildToolUseSystemPrompt(ctx: TurnContext): string {
 1. 적절한 tool을 호출하여 시스템 액션을 실행하거나
 2. tool 없이 직접 텍스트로 답변 (잡담, 수학, 감정 공감, 메타 질문 등)
 
+═══ 사용자 최초 요청 (intake) ═══
+- 소재: ${ctx.resolvedInput.material ?? "미지정"}
+- 가공: ${ctx.resolvedInput.operationType ?? "미지정"}
+- 직경: ${ctx.resolvedInput.diameterMm != null ? `${ctx.resolvedInput.diameterMm}mm` : "미지정"}
+- 공구타입: ${ctx.resolvedInput.toolType ?? "미지정"}
+
 ═══ 현재 세션 상태 ═══
 - 적용된 필터: [${filterDesc}]
 - 후보 수: ${state?.candidateCount ?? "?"}개
@@ -548,8 +554,8 @@ ${state?.lastComparisonArtifact ? `비교 대상: ${state.lastComparisonArtifact
 ═══ 마지막 명확화 질문 ═══
 ${state?.lastClarification ? `질문: "${state.lastClarification.question}"\n옵션: ${state.lastClarification.options.join(", ")}${state.lastClarification.resolvedWith ? `\n해결: "${state.lastClarification.resolvedWith}"` : "\n(미해결)"}` : "없음"}
 
-═══ 좁히기 대화 이력 (최근 8턴) ═══
-${state?.narrowingHistory?.slice(-8).map((h, i) => {
+═══ 좁히기 대화 이력 (최근 12턴 — 전체 기억) ═══
+${state?.narrowingHistory?.slice(-12).map((h, i) => {
     const filterSummary = h.extractedFilters.map(f => `${f.field}=${f.value}`).join(", ") || "없음"
     return `턴${i + 1}: Q="${h.question}" → A="${h.answer}" | 필터: ${filterSummary} | ${h.candidateCountBefore}→${h.candidateCountAfter}개`
   }).join("\n") || "없음"}
@@ -1030,8 +1036,8 @@ function buildConversationContext(
   const messages: Array<{ role: "user" | "assistant"; content: string }> = []
 
   if (sessionState?.narrowingHistory?.length) {
-    // Compress narrowing history into conversation turns (last 6 turns max)
-    const recent = sessionState.narrowingHistory.slice(-6)
+    // Include full narrowing history (up to 12 turns) for maximum context
+    const recent = sessionState.narrowingHistory.slice(-12)
     for (const turn of recent) {
       // System question as assistant message
       const filterInfo = turn.extractedFilters.length > 0
@@ -1263,6 +1269,15 @@ const UNDO_PRE_PATTERNS = [/이전\s*(으로|단계)/, /되돌/, /돌아가/]
 const SCOPE_PRE_PATTERNS = [/지금.*상태/, /현재.*상태/, /뭐.*적용/, /어디까지/, /몇\s*개.*남/]
 const SUMMARY_PRE_PATTERNS = [/정리\s*(해|좀)/, /요약/, /지금까지/, /어디까지.*했/]
 
+// Slot replacement patterns — "직경 2mm로 변경", "직경만 2mm로"
+const REPLACE_SLOT_PATTERNS: Array<{ pattern: RegExp; field: string; valueGroup: number }> = [
+  { pattern: /직경\s*([\d.]+)\s*mm\s*(로|으로)?\s*(변경|바꿔|교체)?/, field: "diameterMm", valueGroup: 1 },
+  { pattern: /직경만\s*([\d.]+)\s*mm/, field: "diameterMm", valueGroup: 1 },
+  { pattern: /([\d.]+)\s*mm\s*(로|으로)\s*(변경|바꿔|교체|검색)/, field: "diameterMm", valueGroup: 1 },
+  { pattern: /날수?\s*(\d+)\s*날\s*(로|으로)?\s*(변경|바꿔)?/, field: "fluteCount", valueGroup: 1 },
+  { pattern: /코팅\s*(.+?)\s*(로|으로)\s*(변경|바꿔)?/, field: "coating", valueGroup: 1 },
+]
+
 function deterministicPreFilter(
   message: string,
   sessionState: ExplorationSessionState | null,
@@ -1284,6 +1299,15 @@ function deterministicPreFilter(
   // 3. Undo
   if (UNDO_PRE_PATTERNS.some(p => p.test(clean))) {
     return { type: "go_back_one_step" }
+  }
+
+  // 3.5. Slot replacement ("직경 2mm로 변경", "코팅 DLC로 바꿔")
+  for (const { pattern, field, valueGroup } of REPLACE_SLOT_PATTERNS) {
+    const match = clean.match(pattern)
+    if (match && match[valueGroup]) {
+      const newValue = match[valueGroup].trim()
+      return { type: "replace_slot", field, newValue, displayValue: field === "diameterMm" ? `${newValue}mm` : newValue }
+    }
   }
 
   // 4. Skip / don't care (only during narrowing)
