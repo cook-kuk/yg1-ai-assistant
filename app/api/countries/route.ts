@@ -25,12 +25,12 @@ export async function GET() {
   try {
     const pool = getPool()
     const result = await pool.query<{ country: string }>(
-      `SELECT DISTINCT country
+      `SELECT DISTINCT country_row.country_code AS country
        FROM catalog_app.product_recommendation_mv,
-            LATERAL unnest(country_codes) AS country_row(country)
-       WHERE country IS NOT NULL
-         AND BTRIM(country) <> ''
-       ORDER BY country`
+            LATERAL unnest(country_codes) AS country_row(country_code)
+       WHERE country_row.country_code IS NOT NULL
+         AND BTRIM(country_row.country_code) <> ''
+       ORDER BY country_row.country_code`
     )
     const countries = result.rows.map((row) => row.country)
     return NextResponse.json({ countries })
