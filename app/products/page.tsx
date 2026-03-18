@@ -1737,8 +1737,8 @@ function NarrowingChat({
                 </div>
               )}
 
-              {/* Chips — only for last AI message, blocked if feedback not given */}
-              {msg.role === "ai" && msg.chips && msg.chips.length > 0 && !msg.isLoading && !isSending && i === messages.length - 1 && !needsFeedback && (
+              {/* Chips — always visible, but clicks disabled until feedback given */}
+              {msg.role === "ai" && msg.chips && msg.chips.length > 0 && !msg.isLoading && !isSending && i === messages.length - 1 && (
                 <div className="flex flex-wrap gap-1.5 mt-1">
                   {msg.chips.map((chip, ci) => {
                     // Special action chips — handle client-side instead of sending as message
@@ -1747,11 +1747,12 @@ function NarrowingChat({
                     const isAltChip = /^대체 후보\s*\d*개?\s*보기$/.test(chip)
                     return (
                       <button key={ci}
+                        disabled={!!needsFeedback}
                         onClick={() => {
+                          if (needsFeedback) return
                           if (isResetChip && onReset) {
                             onReset()
                           } else if (isAltChip) {
-                            // 대체 후보 데이터는 이미 UI에 표시됨 — 스크롤만 수행
                             const altSection = document.querySelector('[data-section="alternatives"]')
                             if (altSection) {
                               altSection.scrollIntoView({ behavior: "smooth", block: "start" })
@@ -1762,7 +1763,9 @@ function NarrowingChat({
                           }
                         }}
                         className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-                          isResetChip
+                          needsFeedback
+                            ? "bg-gray-50 border border-gray-200 text-gray-400 cursor-not-allowed opacity-60"
+                            : isResetChip
                             ? "bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
                             : isUndoChip
                             ? "bg-amber-50 border border-amber-300 text-amber-700 hover:bg-amber-100 hover:border-amber-400"
