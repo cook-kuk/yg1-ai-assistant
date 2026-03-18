@@ -51,6 +51,14 @@ function getFeedbackDir(): string {
   }
 }
 
+function saveTurnFeedback(entry: Record<string, unknown>): void {
+  const dir = getFeedbackDir()
+  const filename = `${entry.id}.json`
+  const filepath = path.join(dir, filename)
+  fs.writeFileSync(filepath, JSON.stringify(entry, null, 2), "utf-8")
+  console.log("[TURN_FEEDBACK]", JSON.stringify(entry))
+}
+
 function saveFeedback(entry: FeedbackEntry): void {
   const dir = getFeedbackDir()
   const filename = `${entry.id}.json`
@@ -80,6 +88,34 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
 
+    // ── Turn-level feedback (per AI response) ──
+    if (body.type === "turn_feedback") {
+      const turnEntry = {
+        id: `tf-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
+        timestamp: new Date().toISOString(),
+        type: "turn_feedback",
+        turnNumber: body.turnNumber ?? 0,
+        feedback: body.feedback ?? "neutral",
+        feedbackEmoji: body.feedbackEmoji ?? "😐",
+        userMessage: body.userMessage ?? "",
+        aiResponse: body.aiResponse ?? "",
+        chips: body.chips ?? [],
+        sessionId: body.sessionId ?? null,
+        candidateCount: body.candidateCount ?? null,
+        appliedFilters: body.appliedFilters ?? [],
+        conversationLength: body.conversationLength ?? 0,
+      }
+      saveTurnFeedback(turnEntry)
+
+      // Slack 알림 — 턴별 피드백
+      import("@/lib/slack-notifier").then(({ notifyTurnFeedback }) =>
+        notifyTurnFeedback(turnEntry).catch(() => {})
+      )
+
+      return NextResponse.json({ success: true, id: turnEntry.id })
+    }
+
+    // ── General feedback (existing) ──
     const entry: FeedbackEntry = {
       id: `fb-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
       timestamp: new Date().toISOString(),

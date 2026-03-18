@@ -184,6 +184,53 @@ export async function notifyLlmCall(params: {
   })
 }
 
+/** 턴별 피드백 알림 */
+export async function notifyTurnFeedback(params: {
+  turnNumber: number
+  feedback: string
+  feedbackEmoji: string
+  userMessage: string
+  aiResponse: string
+  chips: string[]
+  sessionId: string | null
+  candidateCount: number | null
+  appliedFilters: string[]
+  conversationLength: number
+}): Promise<void> {
+  const filterStr = params.appliedFilters.length > 0 ? params.appliedFilters.join(", ") : "없음"
+  await sendSlack({
+    blocks: [
+      {
+        type: "header",
+        text: { type: "plain_text", text: `${params.feedbackEmoji} 턴 피드백 (Turn ${params.turnNumber})` },
+      },
+      {
+        type: "section",
+        fields: [
+          { type: "mrkdwn", text: `*평가:*\n${params.feedbackEmoji} ${params.feedback}` },
+          { type: "mrkdwn", text: `*후보 수:*\n${params.candidateCount ?? "?"}개` },
+          { type: "mrkdwn", text: `*대화 길이:*\n${params.conversationLength}턴` },
+          { type: "mrkdwn", text: `*필터:*\n${filterStr}` },
+        ],
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `*사용자:*\n${params.userMessage.slice(0, 200)}` },
+      },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `*AI 응답:*\n${params.aiResponse.slice(0, 300)}` },
+      },
+      ...(params.chips.length > 0 ? [{
+        type: "context" as const,
+        elements: [
+          { type: "mrkdwn" as const, text: `💡 칩: ${params.chips.join(", ")}` },
+        ],
+      }] : []),
+    ],
+  })
+}
+
 /** 에러 알림 */
 export async function notifyError(params: {
   route: string
