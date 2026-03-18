@@ -2075,9 +2075,9 @@ export default function ProductRecommendPage() {
           language,
         }),
       })
-      const text = await res.text()
-      if (!text) throw new Error("서버 응답이 비어있습니다. 다시 시도해주세요.")
-      const data = JSON.parse(text)
+      const resText = await res.text()
+      if (!resText) throw new Error("서버 응답이 비어있습니다. 다시 시도해주세요.")
+      const data = JSON.parse(resText)
       if (data.error) throw new Error(data.detail ?? data.text ?? data.error)
 
       // Update session state and candidates
