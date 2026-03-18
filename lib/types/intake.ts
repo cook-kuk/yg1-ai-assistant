@@ -63,9 +63,9 @@ export function allRequiredAnswered(form: ProductIntakeForm): boolean {
     isAnswered(form.inquiryPurpose) &&
     isAnswered(form.material) &&
     isAnswered(form.operationType) &&
-    isAnswered(form.machiningIntent) &&
     isAnswered(form.toolTypeOrCurrentProduct) &&
-    isAnswered(form.diameterInfo)
+    isAnswered(form.diameterInfo) &&
+    isAnswered(form.unitSystem)
   )
 }
 
@@ -74,9 +74,9 @@ export function countAnswered(form: ProductIntakeForm): number {
     form.inquiryPurpose,
     form.material,
     form.operationType,
-    form.machiningIntent,
     form.toolTypeOrCurrentProduct,
     form.diameterInfo,
+    form.unitSystem,
   ].filter((f) => f.status !== "unanswered").length
 }
 
@@ -84,9 +84,9 @@ export function countUnknowns(form: ProductIntakeForm): number {
   return [
     form.material,
     form.operationType,
-    form.machiningIntent,
     form.toolTypeOrCurrentProduct,
     form.diameterInfo,
+    form.unitSystem,
   ].filter((f) => f.status === "unknown").length
 }
 
