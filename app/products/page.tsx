@@ -385,10 +385,11 @@ function ProductCard({ scored, rank, isAlternative = false, evidenceSummary = nu
               <StockBadge status={stockStatus} total={totalStock} />
             </div>
             <div className="font-mono text-sm font-bold text-gray-900">{p.displayCode}</div>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {p.brand && <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">{p.brand}</span>}
-              {p.seriesName && <span className="text-xs text-blue-700 font-medium">{p.seriesName}</span>}
-            </div>
+            {p.brand && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">{p.brand}</span>
+              </div>
+            )}
             {/* ── Key spec summary — always visible in header ── */}
             <div className="text-[11px] text-gray-600 mt-1 leading-relaxed font-medium">
               {[
@@ -418,6 +419,7 @@ function ProductCard({ scored, rank, isAlternative = false, evidenceSummary = nu
       {open && (
         <CardContent className="px-4 pb-4 pt-0 space-y-3">
           <div className="bg-gray-50 rounded-lg p-3">
+            {p.seriesName && <SpecRow label={language === 'ko' ? '시리즈' : 'Series'} value={p.seriesName} />}
             <SpecRow label={language === 'ko' ? '직경' : 'Diameter'} value={p.diameterMm != null ? `φ${p.diameterMm}mm` : null} />
             <SpecRow label={language === 'ko' ? '날 수' : 'Flutes'} value={p.fluteCount != null ? `${p.fluteCount}${language === 'ko' ? '날' : 'FL'}` : null} />
             <SpecRow label={language === 'ko' ? '코팅' : 'Coating'} value={p.coating} />
@@ -501,9 +503,7 @@ function CandidateCard({ c }: { c: CandidateSnapshot }) {
             <StockBadge status={c.stockStatus} total={c.totalStock} />
           </div>
           <div className="font-mono text-sm font-bold text-gray-900">{c.displayCode}</div>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {c.seriesName && <span className="text-xs text-blue-700 font-medium">{c.seriesName}</span>}
-          </div>
+          {/* seriesName is inside the XAI toggle below */}
           {/* ── Inline spec: φ4mm · 2F · Diamond · Carbide · Shank 4mm · CL 10mm · OAL 80mm · 30° ── */}
           <div className="text-[11px] text-gray-600 mt-1 leading-relaxed font-medium">
             {[
@@ -552,7 +552,12 @@ function CandidateCard({ c }: { c: CandidateSnapshot }) {
             <Info size={9} />
           </button>
           {showXai && (
-            <div className="mt-2">
+            <div className="mt-2 space-y-2">
+              {c.seriesName && (
+                <div className="text-[10px] text-blue-700 font-medium">
+                  {language === 'ko' ? '시리즈' : 'Series'}: {c.seriesName}
+                </div>
+              )}
               <ScoreBreakdownPanel breakdown={bd} />
             </div>
           )}
