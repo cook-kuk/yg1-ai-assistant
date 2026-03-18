@@ -65,7 +65,8 @@ const STOCK_CONFIG = {
   unknown: { ko: "재고 미확인", en: "Stock Unknown", cls: "bg-gray-100 text-gray-600", dot: "bg-gray-400" },
 }
 
-const MAX_DISPLAY_CANDIDATES = 5
+const MAX_DISPLAY_CANDIDATES = 10
+const PAGE_SIZE = 10
 
 const RESOLUTION_CONFIG: Record<string, { ko: string; en: string; cls: string }> = {
   broad: { ko: "탐색 중", en: "Exploring", cls: "bg-blue-100 text-blue-700" },
@@ -1303,6 +1304,8 @@ function LoadingScreen() {
 }
 
 // ── Chat message type ──────────────────────────────────────────
+type TurnFeedback = "good" | "bad" | "neutral" | null
+
 interface ChatMsg {
   role: "user" | "ai"
   text: string
@@ -1311,6 +1314,7 @@ interface ChatMsg {
   evidenceSummaries?: EvidenceSummary[] | null
   candidateSnapshot?: CandidateSnapshot[] | null
   isLoading?: boolean
+  feedback?: TurnFeedback
   // New: explanation + fact check data
   requestPreparation?: RequestPreparationResult | null
   primaryExplanation?: RecommendationExplanation | null
@@ -1342,7 +1346,7 @@ function buildIntakePromptText(form: ProductIntakeForm, language: "ko" | "en"): 
 
 function ExplorationScreen({
   form, messages, isSending, sessionState, candidateSnapshot,
-  onSend, onReset, onEdit,
+  onSend, onReset, onEdit, onFeedback,
 }: {
   form: ProductIntakeForm
   messages: ChatMsg[]
@@ -1352,6 +1356,7 @@ function ExplorationScreen({
   onSend: (text: string) => void
   onReset: () => void
   onEdit: () => void
+  onFeedback: (messageIndex: number, feedback: TurnFeedback) => void
 }) {
   const { language } = useApp()
   const [showSidebar, setShowSidebar] = useState(false)
@@ -1414,6 +1419,7 @@ function ExplorationScreen({
             isSending={isSending}
             onSend={onSend}
             onReset={onReset}
+            onFeedback={onFeedback}
           />
         </div>
 
@@ -1574,15 +1580,20 @@ function ExplorationSidebar({
 
 // ── Center: Narrowing Chat ───────────────────────────────────
 function NarrowingChat({
-  messages, isSending, onSend, onReset,
+  messages, isSending, onSend, onReset, onFeedback,
 }: {
   messages: ChatMsg[]
   isSending: boolean
   onSend: (text: string) => void
   onReset?: () => void
+  onFeedback?: (messageIndex: number, feedback: TurnFeedback) => void
 }) {
   const { language } = useApp()
   const [input, setInput] = useState("")
+
+  // Block input if the last AI message hasn't been rated yet
+  const lastAiMsg = [...messages].reverse().find(m => m.role === "ai" && !m.isLoading)
+  const needsFeedback = lastAiMsg && lastAiMsg.feedback === undefined && !isSending
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -1669,6 +1680,32 @@ function NarrowingChat({
                 </div>
               )}
 
+              {/* Feedback buttons — every AI message */}
+              {msg.role === "ai" && !msg.isLoading && onFeedback && (
+                <div className="flex items-center gap-1 mt-1">
+                  {msg.feedback ? (
+                    <span className="text-[10px] text-gray-400">
+                      {msg.feedback === "good" ? "👍" : msg.feedback === "bad" ? "👎" : "😐"} 평가 완료
+                    </span>
+                  ) : (
+                    <>
+                      <span className="text-[10px] text-gray-400 mr-1">{language === 'ko' ? '이 응답은?' : 'Rate:'}</span>
+                      {([
+                        { value: "good" as TurnFeedback, icon: "👍", label: "좋아요" },
+                        { value: "neutral" as TurnFeedback, icon: "😐", label: "보통" },
+                        { value: "bad" as TurnFeedback, icon: "👎", label: "별로" },
+                      ]).map(fb => (
+                        <button key={fb.value}
+                          onClick={() => onFeedback(i, fb.value)}
+                          className="px-1.5 py-0.5 text-sm hover:bg-gray-200 rounded transition-colors"
+                          title={fb.label}
+                        >{fb.icon}</button>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
+
               {/* Recommendation result with evidence */}
               {msg.recommendation && !msg.isLoading && (
                 <RecommendationPanel
@@ -1687,6 +1724,11 @@ function NarrowingChat({
 
       {/* Input bar */}
       <div className="shrink-0 px-4 py-3 border-t bg-white">
+        {needsFeedback && (
+          <div className="text-center text-xs text-amber-600 bg-amber-50 rounded-lg py-1.5 mb-2">
+            {language === 'ko' ? '위 응답을 평가해주세요 (👍/😐/👎)' : 'Please rate the response above'}
+          </div>
+        )}
         <div className="flex items-end gap-2">
           <textarea
             value={input}
@@ -1694,15 +1736,17 @@ function NarrowingChat({
             onKeyDown={e => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault()
-                handleSend()
+                if (!needsFeedback) handleSend()
               }
             }}
-            placeholder={language === 'ko' ? "추가 질문이나 조건을 입력하세요..." : "Enter additional questions or conditions..."}
+            placeholder={needsFeedback
+              ? (language === 'ko' ? "응답을 먼저 평가해주세요..." : "Please rate the response first...")
+              : (language === 'ko' ? "추가 질문이나 조건을 입력하세요..." : "Enter additional questions or conditions...")}
             rows={1}
-            disabled={isSending}
+            disabled={isSending || !!needsFeedback}
             className="flex-1 px-3 py-2.5 rounded-xl border-2 border-gray-200 text-sm focus:outline-none focus:border-blue-400 resize-none min-h-[42px] max-h-[120px]"
           />
-          <Button onClick={handleSend} disabled={!input.trim() || isSending}
+          <Button onClick={handleSend} disabled={!input.trim() || isSending || !!needsFeedback}
             size="sm" className="h-[42px] w-[42px] p-0 shrink-0 rounded-xl">
             <Send size={15} />
           </Button>
@@ -1778,16 +1822,24 @@ function CandidatePanel({
 }) {
   const { language } = useApp()
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set())
+  const [page, setPage] = useState(0) // 0-indexed page
   // Find the last recommendation in messages
   const lastRec = [...messages].reverse().find(m => m.recommendation)?.recommendation
 
   const groups = sessionState?.displayedSeriesGroups ?? sessionState?.displayedGroups ?? null
   const useAccordion = groups != null && groups.length >= 2
 
-  // Cap displayed candidates to 5
-  const displayCandidates = candidates?.slice(0, MAX_DISPLAY_CANDIDATES) ?? null
+  // Paginated display
   const totalCount = candidates?.length ?? 0
-  const hasMore = totalCount > MAX_DISPLAY_CANDIDATES
+  const pageStart = page * PAGE_SIZE
+  const pageEnd = pageStart + PAGE_SIZE
+  const displayCandidates = candidates?.slice(pageStart, pageEnd) ?? null
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE)
+  const hasMore = pageEnd < totalCount
+  const hasPrev = page > 0
+
+  // Reset page when candidates change
+  useEffect(() => { setPage(0) }, [candidates?.length])
 
   const toggleGroup = (key: string) => {
     setOpenGroups(prev => {
@@ -1804,8 +1856,8 @@ function CandidatePanel({
         <Activity size={11} />
         {totalCount > 0 ? (
           language === 'ko'
-            ? <>상위 추천 후보 {useAccordion ? `${groups.length}개 시리즈` : `${displayCandidates?.length ?? 0}개`}{hasMore && !useAccordion && <span className="text-gray-400 font-normal">(전체 {totalCount}개 중)</span>}</>
-            : <>Top {useAccordion ? `${groups.length} Series` : `${displayCandidates?.length ?? 0} Candidates`}{hasMore && !useAccordion && <span className="text-gray-400 font-normal"> (of {totalCount})</span>}</>
+            ? <>추천 후보 {useAccordion ? `${groups.length}개 시리즈` : `${pageStart + 1}~${Math.min(pageEnd, totalCount)}위`}<span className="text-gray-400 font-normal ml-1">(전체 {totalCount}개)</span></>
+            : <>Candidates {useAccordion ? `${groups.length} Series` : `#${pageStart + 1}-${Math.min(pageEnd, totalCount)}`}<span className="text-gray-400 font-normal ml-1"> (of {totalCount})</span></>
         ) : (
           <>{language === 'ko' ? '추천 후보' : 'Candidates'}</>
         )}
@@ -1828,9 +1880,24 @@ function CandidatePanel({
           {displayCandidates.map(c => (
             <CandidateCard key={c.productCode} c={c} />
           ))}
-          {hasMore && (
-            <div className="text-center text-[10px] text-gray-400 py-1">
-              +{totalCount - MAX_DISPLAY_CANDIDATES}{language === 'ko' ? '개 추가 후보 있음' : ' more candidates'}
+          {/* Pagination controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 py-2">
+              {hasPrev && (
+                <button onClick={() => setPage(p => p - 1)}
+                  className="px-3 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">
+                  {language === 'ko' ? `← 이전 ${PAGE_SIZE}개` : `← Prev ${PAGE_SIZE}`}
+                </button>
+              )}
+              <span className="text-[10px] text-gray-400">
+                {page + 1} / {totalPages}
+              </span>
+              {hasMore && (
+                <button onClick={() => setPage(p => p + 1)}
+                  className="px-3 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors">
+                  {language === 'ko' ? `대체 후보 ${PAGE_SIZE}개 →` : `Next ${PAGE_SIZE} →`}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -2316,6 +2383,42 @@ export default function ProductRecommendPage() {
     setPhase("intake")
   }
 
+  // Feedback handler — updates message + sends to Slack
+  const handleFeedback = (messageIndex: number, feedback: TurnFeedback) => {
+    setChatMessages(prev => {
+      const updated = [...prev]
+      if (updated[messageIndex]) {
+        updated[messageIndex] = { ...updated[messageIndex], feedback }
+      }
+
+      // Send feedback + conversation context to Slack (async, non-blocking)
+      const aiMsg = updated[messageIndex]
+      const userMsg = messageIndex > 0 ? updated[messageIndex - 1] : null
+      const feedbackEmoji = feedback === "good" ? "👍" : feedback === "bad" ? "👎" : "😐"
+      const turnNumber = Math.floor(messageIndex / 2) + 1
+
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "turn_feedback",
+          turnNumber,
+          feedback,
+          feedbackEmoji,
+          userMessage: userMsg?.text ?? "(intake)",
+          aiResponse: aiMsg?.text?.slice(0, 300) ?? "",
+          chips: aiMsg?.chips ?? [],
+          sessionId: sessionState?.sessionId ?? null,
+          candidateCount: sessionState?.candidateCount ?? null,
+          appliedFilters: sessionState?.appliedFilters?.filter(f => f.op !== "skip").map(f => `${f.field}=${f.value}`) ?? [],
+          conversationLength: updated.length,
+        }),
+      }).catch(() => {}) // non-blocking
+
+      return updated
+    })
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       {/* Feedback widget — always visible */}
@@ -2373,6 +2476,7 @@ export default function ProductRecommendPage() {
             onSend={handleChatSend}
             onReset={handleReset}
             onEdit={() => setPhase("intake")}
+            onFeedback={handleFeedback}
           />
         )}
       </div>
