@@ -1134,7 +1134,7 @@ async function handleExploration(
             ? getDisplayedProductsFromState(prevState)
             : buildCandidateSnapshot(candidates, evidenceMap)
           const explainTargets = [action.target]
-          const resolved = resolveProductReferences(explainTargets, explainSnapshot)
+          const resolved = resolveProductReferences(explainTargets, explainSnapshot, { fallbackToTop2: false })
 
           if (resolved.length > 0) {
             const productLines = resolved.map(p =>

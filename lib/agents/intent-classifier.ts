@@ -25,6 +25,12 @@ const EXPLAIN_PATTERNS = [
   /알려\s*줘/, /알려줘/, /어떤\s*거/, /뭐\s*좋/, /좋은\s*거/,
   /코팅.*종류/, /종류.*알려/, /특징/, /장단점/,
   /뭐야\s*\?*$/, /뭔가요/, /뭐에요/, /뭐죠/,
+  /에\s*대해(서)?\s*(설명|알려)/, /대해\s*설명/, /대해서\s*알려/,
+  /.+[,\s].+[,\s].+(설명|알려|뭐야|차이)/, // "A, B, C 설명해줘" — 복수 옵션 나열 + 설명 요청
+  /각각.*설명/, /하나씩.*설명/, /비교.*설명/,
+  /뭔지\s*(몰라|모르|잘\s*몰|모르겠)/, // "뭔지 몰라요", "뭔지 모르겠어요"
+  /몰라(요|서)?$/, /모르겠(어요|습니다|네)?/, // "몰라요", "모르겠어요"
+  /설명\s*(해\s*줄\s*수|좀|해\s*줘|해\s*주세요|해줘)/, // "설명해줄수 있어?"
 ]
 const SCOPE_CONFIRM_PATTERNS = [
   /지금.*상태/, /현재.*상태/, /지금.*어떤/, /뭐.*적용/, /어디까지/, /몇\s*개.*남/,
@@ -111,7 +117,12 @@ export async function classifyIntent(
     }
   }
 
-  // ── 4. Comparison requests ──
+  // ── 4. Explanation requests (BEFORE comparison — "차이 설명해줘" is explanation, not comparison) ──
+  if (EXPLAIN_PATTERNS.some(p => p.test(clean))) {
+    return { intent: "ASK_EXPLANATION", confidence: 0.9, modelUsed: "haiku" }
+  }
+
+  // ── 5. Comparison requests ──
   for (const p of COMPARE_PATTERNS) {
     if (p instanceof RegExp ? p.test(clean) : clean.includes(p)) {
       const targets = extractComparisonTargets(clean)
@@ -122,11 +133,6 @@ export async function classifyIntent(
         modelUsed: "haiku",
       }
     }
-  }
-
-  // ── 5. Explanation requests ──
-  if (EXPLAIN_PATTERNS.some(p => p.test(clean))) {
-    return { intent: "ASK_EXPLANATION", confidence: 0.85, modelUsed: "haiku" }
   }
 
   // ── 6. Immediate recommendation ──

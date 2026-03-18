@@ -71,7 +71,6 @@ describe("Deterministic Intent Classification (no LLM)", () => {
       "1번이랑 2번 비교해줘",
       "상위 3개 비교",
       "비교해줘",
-      "차이가 뭐야",
       "1번 하고 3번 비교",
     ]
     for (const input of cases) {
@@ -94,6 +93,27 @@ describe("Deterministic Intent Classification (no LLM)", () => {
     for (const input of cases) {
       it(`"${input}" → ASK_EXPLANATION`, async () => {
         const r = await classifyIntent(input, null, mockProvider)
+        expect(r.intent).toBe("ASK_EXPLANATION")
+      })
+    }
+  })
+
+  // ── Explanation with option values (MUST NOT become filter/recommendation) ──
+  describe("Explanation with option values (critical regression)", () => {
+    const cases = [
+      "Bright(무코팅), Diamond, DLC 에 대해서 설명해줘",
+      "Bright, Diamond, DLC에 대해 설명해줘",
+      "코팅 종류에 대해 설명해줘",
+      "DLC랑 Diamond 차이 설명해줘",
+      "각각 설명해줘",
+      "TiAlN이랑 AlCrN 장단점 알려줘",
+      "나 이거 코팅이 뭔지 몰라요",
+      "코팅이 뭔지 모르겠어요",
+      "이게 뭔지 몰라서요",
+    ]
+    for (const input of cases) {
+      it(`"${input}" → ASK_EXPLANATION (not filter!)`, async () => {
+        const r = await classifyIntent(input, activeSession, mockProvider)
         expect(r.intent).toBe("ASK_EXPLANATION")
       })
     }
