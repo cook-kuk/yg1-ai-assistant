@@ -42,19 +42,22 @@ import { runFactCheck } from "@/lib/domain/fact-checker"
 import { analyzeInquiry, getRedirectResponse } from "@/lib/domain/inquiry-analyzer"
 import { planAction } from "@/lib/domain/action-planner"
 import type { ActionPlan } from "@/lib/domain/action-planner"
-import { orchestrateTurn, orchestrateTurnWithTools } from "@/lib/agents/orchestrator"
-import { ENABLE_TOOL_USE_ROUTING } from "@/lib/feature-flags"
+import { orchestrateTurn, orchestrateTurnWithTools, normalizeFieldName } from "@/lib/agents/orchestrator"
 import { compareProducts, resolveProductReferences } from "@/lib/agents/comparison-agent"
 import type { TurnContext, OrchestratorResult } from "@/lib/agents/types"
-import { buildSessionState, carryForwardState, createInitialStage, createFilterStage, restoreOnePreviousStep, restoreToBeforeFilter } from "@/lib/domain/session-manager"
+import { buildSessionState, carryForwardState, createInitialStage, createFilterStage, restoreOnePreviousStep, restoreToBeforeFilter, logSessionSnapshot } from "@/lib/domain/session-manager"
 import { runValidationGate, validateNoReask } from "@/lib/domain/validation-gate"
-import { ENABLE_MULTI_AGENT_ORCHESTRATOR, ENABLE_VALIDATION_GATE, ENABLE_COMPARISON_AGENT } from "@/lib/feature-flags"
+import { ENABLE_MULTI_AGENT_ORCHESTRATOR, ENABLE_VALIDATION_GATE, ENABLE_COMPARISON_AGENT, ENABLE_TOOL_USE_ROUTING, ENABLE_SERIES_GROUPING, ENABLE_TASK_SYSTEM } from "@/lib/feature-flags"
+import { groupCandidatesBySeries, buildGroupSummaries, filterBySeriesGroup } from "@/lib/domain/series-grouper"
+import { createCheckpoint, createTask, archiveTask, restoreFromArchivedTask, addCheckpointToTask, buildTaskIntakeSummary } from "@/lib/domain/task-manager"
+import { runConsistencyValidation } from "@/lib/domain/validation-consistency"
+import { executeSlotReplacement } from "@/lib/domain/slot-replacement"
 import { ProductRepo } from "@/lib/data/repos/product-repo"
 import { InventoryRepo } from "@/lib/data/repos/inventory-repo"
 
 import type { RecommendationInput, RecommendationResult, ScoredProduct, ChatMessage, MatchStatus } from "@/lib/types/canonical"
 import type { ProductIntakeForm, AnswerState, MachiningIntent } from "@/lib/types/intake"
-import type { ExplorationSessionState, AppliedFilter, NarrowingTurn, NarrowingStage, CandidateSnapshot } from "@/lib/types/exploration"
+import type { ExplorationSessionState, AppliedFilter, NarrowingTurn, NarrowingStage, CandidateSnapshot, SeriesGroup, DisplayedOption, RecommendationCheckpoint } from "@/lib/types/exploration"
 import type { EvidenceSummary } from "@/lib/types/evidence"
 import type { FactCheckedRecommendation } from "@/lib/types/fact-check"
 import type { RecommendationExplanation } from "@/lib/types/explanation"
@@ -81,11 +84,14 @@ export async function POST(req: Request) {
     return handleSimpleChat(body.messages ?? [], body.mode ?? "simple")
 
   } catch (err) {
-    console.error("[recommend] Error:", err)
+    console.error("[recommend] TOP-LEVEL Error:", err)
+    const errMsg = err instanceof Error ? err.message : "Unknown error"
+    const errStack = err instanceof Error ? err.stack?.split("\n").slice(0, 8).join(" | ") : ""
     return NextResponse.json({
       error: "internal_error",
-      detail: err instanceof Error ? err.message : "Unknown error",
-      text: "죄송합니다, 처리 중 오류가 발생했습니다. 다시 시도해주세요.",
+      detail: errMsg,
+      debugStack: errStack,
+      text: `오류가 발생했습니다: ${errMsg}`,
       chips: ["처음부터 다시", "소재 입력", "직경 입력"],
       isComplete: false,
       recommendation: null,
@@ -113,6 +119,331 @@ interface DisplayedProduct {
   matchStatus: string
 }
 
+function getDisplayedProductsFromState(state: ExplorationSessionState | null | undefined): CandidateSnapshot[] {
+  return state?.displayedProducts ?? state?.displayedCandidates ?? []
+}
+
+function getFullDisplayedProductsFromState(state: ExplorationSessionState | null | undefined): CandidateSnapshot[] | null {
+  return state?.fullDisplayedProducts
+    ?? state?.fullDisplayedCandidates
+    ?? state?.lastRecommendationArtifact
+    ?? getDisplayedProductsFromState(state)
+}
+
+function getDisplayedSeriesGroupsFromState(state: ExplorationSessionState | null | undefined): SeriesGroup[] | undefined {
+  return state?.displayedSeriesGroups ?? state?.displayedGroups
+}
+
+function deriveSessionMode(lastAction?: string): ExplorationSessionState["currentMode"] {
+  switch (lastAction) {
+    case "show_recommendation":
+    case "filter_displayed":
+    case "query_displayed":
+      return "recommendation"
+    case "compare_products":
+      return "comparison"
+    case "restore_previous_group":
+      return "group_focus"
+    case "show_group_menu":
+      return "group_menu"
+    case "answer_general":
+    case "explain_product":
+    case "confirm_scope":
+    case "summarize_task":
+      return "general_chat"
+    case "start_new_task":
+    case "resume_previous_task":
+      return "task"
+    default:
+      return "question"
+  }
+}
+
+const PROTECTED_RECOMMENDATION_ACTIONS = new Set<NonNullable<ExplorationSessionState["lastAction"]>>([
+  "show_recommendation",
+  "filter_displayed",
+  "query_displayed",
+  "compare_products",
+  "restore_previous_group",
+  "show_group_menu",
+  "answer_general",
+  "explain_product",
+  "confirm_scope",
+  "summarize_task",
+])
+
+function hasActiveRecommendationSession(state: ExplorationSessionState | null | undefined): boolean {
+  if (!state) return false
+  if (state.currentMode && ["recommendation", "comparison", "general_chat", "group_menu", "group_focus", "restore"].includes(state.currentMode)) {
+    return true
+  }
+  return PROTECTED_RECOMMENDATION_ACTIONS.has(state.lastAction ?? null)
+    || PROTECTED_RECOMMENDATION_ACTIONS.has(state.underlyingAction ?? null)
+}
+
+function getPersistedDisplayedOptions(
+  state: ExplorationSessionState,
+  prevState: ExplorationSessionState | null,
+): DisplayedOption[] {
+  return state.displayedOptions?.length
+    ? state.displayedOptions
+    : (prevState?.displayedOptions ?? [])
+}
+
+function getLatestCheckpoint(state: ExplorationSessionState | null | undefined): RecommendationCheckpoint | null {
+  if (!state) return null
+  const currentCheckpoint = state.currentTask?.checkpoints?.[state.currentTask.checkpoints.length - 1]
+  if (currentCheckpoint) return currentCheckpoint
+  const archivedCheckpoint = state.taskHistory?.[state.taskHistory.length - 1]?.finalCheckpoint
+  return archivedCheckpoint ?? null
+}
+
+function getRecommendationSourceSnapshot(state: ExplorationSessionState | null | undefined): CandidateSnapshot[] {
+  if (!state) return []
+  const displayed = getDisplayedProductsFromState(state)
+  const fullDisplayed = getFullDisplayedProductsFromState(state) ?? []
+  if (displayed.length > 0 && (state.activeGroupKey || state.displayedSetFilter || state.currentMode === "group_focus")) {
+    return displayed
+  }
+  if (displayed.length > 0 && fullDisplayed.length === 0) {
+    return displayed
+  }
+  if (fullDisplayed.length > 0) {
+    return fullDisplayed
+  }
+  return state.lastRecommendationArtifact ?? displayed
+}
+
+function buildRestoreQuestionState(
+  prevState: ExplorationSessionState,
+  chips: string[],
+): ExplorationSessionState {
+  return finalizeSessionState({
+    sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+    candidateCount: prevState.candidateCount,
+    appliedFilters: prevState.appliedFilters,
+    narrowingHistory: prevState.narrowingHistory,
+    stageHistory: prevState.stageHistory ?? [],
+    resolutionStatus: prevState.resolutionStatus ?? "broad",
+    resolvedInput: prevState.resolvedInput,
+    turnCount: prevState.turnCount,
+    lastAskedField: prevState.lastAskedField,
+    displayedProducts: getDisplayedProductsFromState(prevState),
+    displayedCandidates: getDisplayedProductsFromState(prevState),
+    fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+    fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
+    displayedSetFilter: prevState.displayedSetFilter ?? null,
+    displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+    displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
+    displayedChips: chips,
+    displayedOptions: prevState.displayedOptions ?? [],
+    lastAction: "answer_general",
+    currentMode: "restore",
+    restoreTarget: "last_checkpoint",
+    underlyingAction: prevState.underlyingAction ?? prevState.lastAction ?? "show_recommendation",
+    lastComparisonArtifact: prevState.lastComparisonArtifact ?? null,
+    lastRecommendationArtifact: prevState.lastRecommendationArtifact ?? getFullDisplayedProductsFromState(prevState),
+    candidateCounts: prevState.candidateCounts,
+    lastClarification: prevState.lastClarification ?? null,
+    activeGroupKey: prevState.activeGroupKey ?? null,
+    currentTask: prevState.currentTask,
+    taskHistory: prevState.taskHistory,
+    pendingIntents: prevState.pendingIntents,
+  }, prevState, {
+    currentMode: "restore",
+    restoreTarget: "last_checkpoint",
+    preserveUnderlyingRecommendation: true,
+  })
+}
+
+async function rehydrateCandidatesFromSnapshot(
+  snapshot: CandidateSnapshot[],
+  input: RecommendationInput,
+): Promise<{ candidates: ScoredProduct[]; evidenceMap: Map<string, EvidenceSummary> }> {
+  const evidenceMap = new Map<string, EvidenceSummary>()
+  const isoGroup = input.material ? resolveMaterialTag(input.material) : null
+
+  const restored = await Promise.all(snapshot.map(async (candidate) => {
+    const lookupCode = candidate.productCode || candidate.displayCode
+    if (!lookupCode) return null
+
+    const product = await ProductRepo.findByCode(lookupCode).catch(() => null)
+    if (!product) return null
+
+    const [inventoryRows, evidenceSummary] = await Promise.all([
+      InventoryRepo.getByEdpAsync(lookupCode),
+      EvidenceRepo.buildSummary(lookupCode, {
+        seriesName: product.seriesName ?? candidate.seriesName ?? null,
+        isoGroup,
+        cuttingType: input.operationType ?? null,
+        diameterMm: input.diameterMm ?? product.diameterMm ?? candidate.diameterMm ?? null,
+        toleranceMm: input.diameterMm != null ? 0.5 : undefined,
+      }),
+    ])
+
+    evidenceMap.set(product.normalizedCode, evidenceSummary)
+
+    const totalStock = inventoryRows.some(row => row.quantity !== null)
+      ? inventoryRows.reduce((sum, row) => sum + (row.quantity ?? 0), 0)
+      : null
+    const stockStatus = totalStock === null
+      ? "unknown"
+      : totalStock > 10
+        ? "instock"
+        : totalStock > 0
+          ? "limited"
+          : "outofstock"
+
+    const restoredCandidate: ScoredProduct = {
+      product,
+      score: candidate.score,
+      scoreBreakdown: candidate.scoreBreakdown,
+      matchedFields: ["restored_artifact"],
+      matchStatus: candidate.matchStatus,
+      inventory: inventoryRows,
+      leadTimes: [],
+      evidence: [],
+      stockStatus,
+      totalStock,
+      minLeadTimeDays: null,
+    }
+    return restoredCandidate
+  }))
+
+  return {
+    candidates: restored.filter((candidate): candidate is ScoredProduct => Boolean(candidate)),
+    evidenceMap,
+  }
+}
+
+function buildPersistedUINarrowingPath(state: ExplorationSessionState, prevState: ExplorationSessionState | null): NonNullable<ExplorationSessionState["uiNarrowingPath"]> {
+  const path = state.appliedFilters
+    .filter(filter => filter.op !== "skip")
+    .map(filter => ({
+      kind: "filter" as const,
+      label: `${filter.field}: ${filter.value}`,
+      field: filter.field,
+      value: String(filter.rawValue),
+      candidateCount: state.candidateCount,
+    }))
+
+  if (state.displayedSetFilter) {
+    path.push({
+      kind: "display_filter",
+      label: `${state.displayedSetFilter.field}: ${state.displayedSetFilter.value}`,
+      field: state.displayedSetFilter.field,
+      value: state.displayedSetFilter.value,
+      candidateCount: state.candidateCount,
+    })
+  }
+
+  if (state.activeGroupKey) {
+    path.push({
+      kind: "series_group",
+      label: state.activeGroupKey,
+      value: state.activeGroupKey,
+      candidateCount: state.candidateCount,
+    })
+  }
+
+  if (state.restoreTarget) {
+    path.push({
+      kind: "restore",
+      label: state.restoreTarget,
+      value: state.restoreTarget,
+      candidateCount: state.candidateCount,
+    })
+  }
+
+  return path.length > 0 ? path : (prevState?.uiNarrowingPath ?? [])
+}
+
+function finalizeSessionState(
+  sessionState: ExplorationSessionState,
+  prevState: ExplorationSessionState | null,
+  options?: {
+    currentMode?: ExplorationSessionState["currentMode"]
+    restoreTarget?: string | null
+    activeGroupKey?: string | null
+    preserveUnderlyingRecommendation?: boolean
+  }
+): ExplorationSessionState {
+  const displayedProducts = sessionState.displayedProducts
+    ?? sessionState.displayedCandidates
+    ?? getDisplayedProductsFromState(prevState)
+  const fullDisplayedProducts = sessionState.fullDisplayedProducts
+    ?? sessionState.fullDisplayedCandidates
+    ?? getFullDisplayedProductsFromState(prevState)
+    ?? displayedProducts
+  const displayedSeriesGroups = sessionState.displayedSeriesGroups
+    ?? sessionState.displayedGroups
+    ?? getDisplayedSeriesGroupsFromState(prevState)
+    ?? (ENABLE_SERIES_GROUPING && fullDisplayedProducts && fullDisplayedProducts.length > 0
+      ? groupCandidatesBySeries(fullDisplayedProducts)
+      : undefined)
+  const displayedOptions = getPersistedDisplayedOptions(sessionState, prevState)
+  const recommendationContextActive = hasActiveRecommendationSession(sessionState) || hasActiveRecommendationSession(prevState)
+  const artifactCandidatePoolCount = fullDisplayedProducts?.length ?? displayedProducts.length
+  const repairedCandidateCount = recommendationContextActive
+    && sessionState.candidateCount <= 0
+    && artifactCandidatePoolCount > 0
+      ? Math.max(prevState?.candidateCount ?? 0, artifactCandidatePoolCount)
+      : sessionState.candidateCount
+
+  if (recommendationContextActive && sessionState.candidateCount <= 0 && artifactCandidatePoolCount > 0) {
+    console.warn(`[state-guard] repaired candidateCount reset 0 -> ${repairedCandidateCount}`)
+  }
+
+  const repairedResolutionStatus = recommendationContextActive
+    && sessionState.resolutionStatus === "resolved_none"
+    && artifactCandidatePoolCount > 0
+      ? (prevState?.resolutionStatus && prevState.resolutionStatus !== "resolved_none"
+          ? prevState.resolutionStatus
+          : "resolved_approximate")
+      : sessionState.resolutionStatus
+
+  const finalized: ExplorationSessionState = {
+    ...sessionState,
+    candidateCount: repairedCandidateCount,
+    resolutionStatus: repairedResolutionStatus,
+    displayedProducts,
+    displayedCandidates: displayedProducts,
+    fullDisplayedProducts,
+    fullDisplayedCandidates: fullDisplayedProducts ?? undefined,
+    displayedOptions,
+    displayedSeriesGroups,
+    displayedGroups: displayedSeriesGroups,
+    currentMode: options?.currentMode ?? sessionState.currentMode ?? deriveSessionMode(sessionState.lastAction),
+    activeGroupKey: options?.activeGroupKey !== undefined
+      ? options.activeGroupKey
+      : (sessionState.activeGroupKey ?? prevState?.activeGroupKey ?? null),
+    restoreTarget: options?.restoreTarget !== undefined
+      ? options.restoreTarget
+      : (sessionState.restoreTarget ?? prevState?.restoreTarget ?? null),
+    underlyingAction: options?.preserveUnderlyingRecommendation
+      ? (prevState?.underlyingAction ?? prevState?.lastAction ?? "show_recommendation")
+      : (sessionState.underlyingAction ?? prevState?.underlyingAction ?? prevState?.lastAction),
+    lastComparisonArtifact: sessionState.lastComparisonArtifact !== undefined
+      ? sessionState.lastComparisonArtifact
+      : (prevState?.lastComparisonArtifact ?? null),
+    lastRecommendationArtifact: sessionState.lastRecommendationArtifact !== undefined
+      ? sessionState.lastRecommendationArtifact
+      : (prevState?.lastRecommendationArtifact ?? fullDisplayedProducts ?? null),
+    candidateCounts: sessionState.candidateCounts ?? prevState?.candidateCounts,
+    lastClarification: sessionState.lastClarification !== undefined
+      ? sessionState.lastClarification
+      : (prevState?.lastClarification ?? null),
+    pendingIntents: sessionState.pendingIntents ?? prevState?.pendingIntents,
+  }
+  if (recommendationContextActive && finalized.displayedProducts.length === 0 && artifactCandidatePoolCount > 0) {
+    console.warn(`[state-guard] restored empty displayedProducts from persisted artifact (${artifactCandidatePoolCount})`)
+    finalized.displayedProducts = fullDisplayedProducts ?? displayedProducts
+    finalized.displayedCandidates = finalized.displayedProducts
+  }
+  finalized.uiNarrowingPath = buildPersistedUINarrowingPath(finalized, prevState)
+  return finalized
+}
+
 async function handleExploration(
   form: ProductIntakeForm,
   messages: ChatMessage[],
@@ -132,9 +463,35 @@ async function handleExploration(
     ? { ...baseInput, ...prevState.resolvedInput }
     : baseInput
 
-  const hybridResult = await runHybridRetrieval(resolvedInput, filters)
+  let hybridResult: Awaited<ReturnType<typeof runHybridRetrieval>>
+  try {
+    hybridResult = await runHybridRetrieval(resolvedInput, filters)
+  } catch (retrievalError) {
+    console.error(`[recommend] runHybridRetrieval FAILED:`, retrievalError)
+    // Try without unitSystem/region filters
+    const fallbackInput = { ...resolvedInput, unitSystem: undefined, region: undefined }
+    try {
+      hybridResult = await runHybridRetrieval(fallbackInput, filters)
+      console.log(`[recommend] Fallback retrieval succeeded (without unitSystem/region)`)
+    } catch (fallbackError) {
+      console.error(`[recommend] Fallback retrieval also failed:`, fallbackError)
+      const errMsg = retrievalError instanceof Error ? retrievalError.message : "DB 검색 실패"
+      return NextResponse.json({
+        error: "retrieval_error",
+        detail: errMsg,
+        text: `DB 검색 중 오류: ${errMsg}`,
+        chips: ["처음부터 다시"],
+        isComplete: false,
+        recommendation: null,
+        sessionState: prevState,
+        evidenceSummaries: null,
+        candidateSnapshot: null,
+      }, { status: 500 })
+    }
+  }
   const candidates = hybridResult.candidates
   const evidenceMap = hybridResult.evidenceMap
+  const dbMatchCount = hybridResult.totalConsidered
 
   // Run request preparation engine
   const requestPrep = prepareRequest(form, messages, prevState, resolvedInput, candidates.length)
@@ -177,10 +534,144 @@ async function handleExploration(
         currentCandidates: candidates,
       }
 
-      const orchResult = ENABLE_TOOL_USE_ROUTING
-        ? await orchestrateTurnWithTools(turnCtx, provider)
-        : await orchestrateTurn(turnCtx, provider)
-      const action = orchResult.action
+      let orchResult: OrchestratorResult
+      console.log(`[recommend] Step 2: orchestrator start | msg="${lastUserMsg.text.slice(0, 50)}" | candidates=${candidates.length} | lastAction=${prevState.lastAction} | lastField=${prevState.lastAskedField}`)
+      try {
+        if (ENABLE_TOOL_USE_ROUTING) {
+          try {
+            const toolStart = Date.now()
+            orchResult = await orchestrateTurnWithTools(turnCtx, provider)
+            console.log(`[recommend] Tool-use succeeded in ${Date.now() - toolStart}ms | action=${orchResult.action.type}`)
+          } catch (toolUseError) {
+            console.warn(`[recommend] Tool-use routing failed (${toolUseError instanceof Error ? toolUseError.message : toolUseError}), falling back to legacy`)
+            orchResult = await orchestrateTurn(turnCtx, provider)
+          }
+        } else {
+          orchResult = await orchestrateTurn(turnCtx, provider)
+        }
+      } catch (orchError) {
+        console.error(`[recommend] All orchestration failed:`, orchError)
+        // Smart fallback: try to parse chip selection directly
+        const chipClean = lastUserMsg.text.replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
+        const lastField = prevState.lastAskedField
+        if (lastField && chipClean) {
+          const directFilter = parseAnswerToFilter(lastField, chipClean)
+          if (directFilter) {
+            console.log(`[recommend] Fallback: direct chip parse → ${lastField}=${chipClean}`)
+            orchResult = {
+              action: { type: "continue_narrowing", filter: { ...directFilter, appliedAt: turnCount } },
+              reasoning: "orchestration_error:direct_chip_fallback",
+              agentsInvoked: [],
+              escalatedToOpus: false,
+            }
+          } else {
+            orchResult = {
+              action: { type: "answer_general", message: `현재 ${candidates.length}개 후보가 있습니다. 질문을 다시 말씀해주세요.`, preGenerated: true },
+              reasoning: "orchestration_error:fallback",
+              agentsInvoked: [],
+              escalatedToOpus: false,
+            }
+          }
+        } else {
+          orchResult = {
+            action: { type: "answer_general", message: `현재 ${candidates.length}개 후보가 있습니다. 질문을 다시 말씀해주세요.`, preGenerated: true },
+            reasoning: "orchestration_error:fallback",
+            agentsInvoked: [],
+            escalatedToOpus: false,
+          }
+        }
+      }
+      let action = orchResult.action
+
+      // ── Guard: apply_filter in post-recommendation state → redirect ALL to filter_displayed ──
+      // Use underlyingAction to survive side conversations (explain/chat don't change the underlying mode)
+      const POST_RECOMMENDATION_ACTIONS = new Set([
+        "show_recommendation",
+        "filter_displayed",
+        "query_displayed",
+        "restore_previous_group",
+        "show_group_menu",
+        "compare_products",
+      ])
+      const effectiveLastAction = prevState.underlyingAction ?? prevState.lastAction ?? ""
+      if (action.type === "continue_narrowing" && POST_RECOMMENDATION_ACTIONS.has(effectiveLastAction)) {
+        const filterField = action.filter.field
+        const normalized = normalizeFieldName(filterField) ?? filterField
+        console.log(`[orchestrator:guard] apply_filter(${filterField}) redirected to filter_displayed in post-recommendation state`)
+        action = {
+          type: "filter_displayed",
+          field: normalized,
+          operator: action.filter.op === "eq" ? "eq" : action.filter.op === "includes" ? "contains" : action.filter.op,
+          value: String(action.filter.rawValue),
+        }
+        orchResult = { ...orchResult, action }
+      }
+
+      // ── Multi-intent: generate side-effect text (explanation/side_conversation) ──
+      let sideEffectText = ""
+      if (orchResult.sideEffectIntents?.length) {
+        const sideTexts: string[] = []
+        for (const se of orchResult.sideEffectIntents) {
+          if (se.category === "explanation") {
+            try {
+              const seReply = await handleContextualNarrowingQuestion(
+                provider, se.text, currentInput, candidates, prevState
+              )
+              if (seReply) sideTexts.push(seReply)
+            } catch (e) {
+              console.warn(`[multi-intent:side-effect] Explanation failed:`, e)
+            }
+          } else if (se.category === "side_conversation") {
+            try {
+              const chatReply = await handleGeneralChat(provider, se.text, currentInput, candidates, form, getDisplayedProductsFromState(prevState))
+              if (chatReply.text) sideTexts.push(chatReply.text)
+            } catch (e) {
+              console.warn(`[multi-intent:side-effect] Side conversation failed:`, e)
+            }
+          }
+        }
+        if (sideTexts.length > 0) {
+          sideEffectText = "\n\n---\n\n" + sideTexts.join("\n\n")
+          console.log(`[multi-intent:side-effect] Generated ${sideTexts.length} side-effect responses`)
+        }
+      }
+
+      // ── Multi-intent: propagate pending intents to session state helper ──
+      const pendingIntentsForSession = orchResult.pendingIntents?.length
+        ? orchResult.pendingIntents.map(c => ({ text: c.text, category: c.category }))
+        : undefined
+
+      /**
+       * Multi-intent response helper:
+       * Modifies response JSON to include side-effect text and pending intent queue.
+       */
+      function applyMultiIntentToJson(json: Record<string, unknown>): Record<string, unknown> {
+        if (!sideEffectText && !pendingIntentsForSession?.length) return json
+
+        // Append side-effect text
+        if (sideEffectText && typeof json.text === "string") {
+          json.text = json.text + sideEffectText
+        }
+
+        // Add pending intents to session state
+        if (pendingIntentsForSession?.length && json.sessionState && typeof json.sessionState === "object") {
+          const ss = json.sessionState as Record<string, unknown>
+          ss.pendingIntents = pendingIntentsForSession
+
+          // Add visual note about queued actions
+          const CATEGORY_LABELS: Record<string, string> = {
+            task_change: "작업 변경", filtering: "필터 적용",
+            comparison: "제품 비교", restore: "상태 복원",
+            explanation: "설명", side_conversation: "일반 대화",
+          }
+          const nextLabel = CATEGORY_LABELS[pendingIntentsForSession[0].category] ?? pendingIntentsForSession[0].category
+          if (typeof json.text === "string") {
+            json.text += `\n\n> 다음 작업 대기 중: **${nextLabel}** (${pendingIntentsForSession.length}개)`
+          }
+        }
+
+        return json
+      }
 
       // ── Dispatch orchestrator action ──────────────────────
 
@@ -213,25 +704,260 @@ async function handleExploration(
         return buildQuestionResponse(
           form, undoResult.candidates, undoResult.evidenceMap, restoreResult.rebuiltInput,
           restoreResult.remainingHistory, restoreResult.remainingFilters, restoreResult.undoTurnCount,
-          messages, provider, language, undefined, restoreResult.remainingStages
+          messages, provider, language, sideEffectText ? sideEffectText.replace(/^\n\n---\n\n/, "") : undefined, restoreResult.remainingStages,
+          pendingIntentsForSession
         )
       }
 
       // Action: show_recommendation
+      if (action.type === "show_recommendation" && hasActiveRecommendationSession(prevState)) {
+        const persistedSnapshot = getRecommendationSourceSnapshot(prevState)
+        if (persistedSnapshot.length > 0) {
+          const restoredRecommendation = await rehydrateCandidatesFromSnapshot(persistedSnapshot, currentInput)
+          if (restoredRecommendation.candidates.length > 0) {
+            console.log(`[recommend] show_recommendation restored persisted artifact count=${restoredRecommendation.candidates.length}`)
+            return buildRecommendationResponse(
+              form,
+              restoredRecommendation.candidates,
+              restoredRecommendation.evidenceMap,
+              currentInput,
+              narrowingHistory,
+              filters,
+              turnCount,
+              messages,
+              provider,
+              language,
+              snapshotToDisplayed(persistedSnapshot)
+            )
+          }
+        }
+
+        const latestCheckpoint = getLatestCheckpoint(prevState)
+        if (candidates.length === 0 && latestCheckpoint) {
+          const checkpointResult = await runHybridRetrieval(
+            latestCheckpoint.resolvedInputSnapshot,
+            latestCheckpoint.filtersSnapshot.filter(filter => filter.op !== "skip")
+          )
+
+          if (checkpointResult.candidates.length > 0) {
+            console.log(`[recommend] show_recommendation restored checkpoint=${latestCheckpoint.checkpointId} count=${checkpointResult.candidates.length}`)
+            return buildRecommendationResponse(
+              form,
+              checkpointResult.candidates,
+              checkpointResult.evidenceMap,
+              latestCheckpoint.resolvedInputSnapshot,
+              narrowingHistory,
+              latestCheckpoint.filtersSnapshot,
+              turnCount,
+              messages,
+              provider,
+              language,
+              displayedProducts,
+              "\n\n이전 추천 체크포인트에서 결과를 복원했습니다."
+            )
+          }
+        }
+
+        if (candidates.length === 0) {
+          const chips = ["이전 추천 복원", "새 추천 다시 찾기", "직접 입력"]
+          const restoreState = buildRestoreQuestionState(prevState, chips)
+          logSessionSnapshot("show_recommendation_restore_needed", restoreState, { restoreTarget: "last_checkpoint" })
+          let finalizedShowAllState = restoreState
+          /*
+            restoreTarget: "전체 보기",
+            activeGroupKey: null,
+            preserveUnderlyingRecommendation: true,
+          */
+          logSessionSnapshot("show_all", finalizedShowAllState, { restoreTarget: "전체 보기" })
+          finalizedShowAllState = finalizeSessionState(restoreState, prevState, {
+            currentMode: "recommendation",
+            restoreTarget: "전체 보기",
+            activeGroupKey: null,
+            preserveUnderlyingRecommendation: true,
+          })
+          logSessionSnapshot("show_all", finalizedShowAllState, { restoreTarget: "전체 보기" })
+          return NextResponse.json({
+            text: "이전 추천 상태를 복원할 수 있습니다. 마지막 추천 결과를 복원할까요, 아니면 새 조건으로 다시 찾을까요?",
+            purpose: "question",
+            chips,
+            isComplete: false,
+            recommendation: null,
+            sessionState: restoreState,
+            evidenceSummaries: null,
+            candidateSnapshot: getDisplayedProductsFromState(restoreState),
+            extractedField: null,
+            requestPreparation: null,
+            primaryExplanation: null,
+            primaryFactChecked: null,
+            altExplanations: [],
+            altFactChecked: [],
+            orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+          })
+        }
+      }
       if (action.type === "show_recommendation") {
+        // If in-display filter is active, recommend only from filtered set
+        if (prevState.displayedSetFilter && getDisplayedProductsFromState(prevState).length > 0) {
+          const filteredCodes = new Set(getDisplayedProductsFromState(prevState).map(c => c.productCode))
+          const filteredCandidates = candidates.filter(c => filteredCodes.has(c.product.normalizedCode))
+
+          if (filteredCandidates.length > 0) {
+            console.log(`[recommend] show_recommendation with in-display filter: ${candidates.length} → ${filteredCandidates.length} candidates`)
+            return buildRecommendationResponse(
+              form, filteredCandidates, evidenceMap, currentInput, narrowingHistory,
+              filters, turnCount, messages, provider, language, displayedProducts
+            )
+          }
+        }
+
         return buildRecommendationResponse(
           form, candidates, evidenceMap, currentInput, narrowingHistory,
           filters, turnCount, messages, provider, language, displayedProducts
         )
       }
 
+      // Action: replace_slot — delegated to SlotReplacementEngine
+      if (action.type === "replace_slot") {
+        const slotResult = await executeSlotReplacement({
+          field: action.field,
+          newValue: action.newValue,
+          displayValue: action.displayValue,
+          currentFilters: filters,
+          baseInput,
+          currentInput,
+          turnCount,
+          prevCandidateCount: candidates.length,
+          applyFilterToInput,
+        })
+
+        if (!slotResult.success) {
+          // Revert applied — restore filters and input
+          filters.length = 0
+          filters.push(...slotResult.revertedFilters)
+          currentInput = slotResult.revertedInput
+          return buildQuestionResponse(
+            form, candidates, evidenceMap, currentInput,
+            narrowingHistory, filters, turnCount, messages, provider, language,
+            slotResult.message
+          )
+        }
+
+        // Commit: update filters, input, history
+        filters.length = 0
+        filters.push(...slotResult.newFilters)
+        currentInput = slotResult.rebuiltInput
+        narrowingHistory.push(slotResult.narrowingEntry)
+        turnCount++
+
+        // Create checkpoint if task system enabled
+        if (ENABLE_TASK_SYSTEM && prevState.currentTask) {
+          const cpSnapshot = buildCandidateSnapshot(slotResult.candidates, slotResult.evidenceMap)
+          const cpGroups = ENABLE_SERIES_GROUPING ? buildGroupSummaries(groupCandidatesBySeries(cpSnapshot)) : []
+          const cp = createCheckpoint(
+            { ...prevState, candidateCount: slotResult.candidates.length, appliedFilters: filters },
+            cpGroups,
+            slotResult.newFilter
+          )
+          addCheckpointToTask(prevState.currentTask, cp)
+        }
+
+        const status = checkResolution(slotResult.candidates, narrowingHistory)
+        if (status.startsWith("resolved")) {
+          return buildRecommendationResponse(
+            form, slotResult.candidates, slotResult.evidenceMap, currentInput,
+            narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts
+          )
+        }
+
+        return buildQuestionResponse(
+          form, slotResult.candidates, slotResult.evidenceMap, currentInput,
+          narrowingHistory, filters, turnCount, messages, provider, language, slotResult.message
+        )
+      }
+
+      // Action: ask_clarification — present options to user
+      if (action.type === "ask_clarification") {
+        const clarifyChips = [...action.options]
+        if (action.allowDirectInput) clarifyChips.push("직접 입력")
+
+        // Multi-intent confirmation: store pending intents in session state
+        const isMultiIntentConfirm = orchResult.pendingIntents && orchResult.pendingIntents.length > 0
+        const lastActionType = isMultiIntentConfirm ? "confirm_multi_intent" as const : "ask_clarification" as const
+
+        const sessionState: ExplorationSessionState = {
+          sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+          candidateCount: prevState.candidateCount ?? candidates.length,
+          appliedFilters: filters,
+          narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
+          resolutionStatus: prevState.resolutionStatus ?? "broad",
+          resolvedInput: currentInput,
+          turnCount,
+          lastAskedField: prevState.lastAskedField,
+          displayedProducts: getDisplayedProductsFromState(prevState),
+          displayedCandidates: getDisplayedProductsFromState(prevState),
+          fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+          fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
+          displayedSetFilter: prevState.displayedSetFilter,
+          displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+          displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
+          displayedChips: clarifyChips,
+          displayedOptions: prevState.displayedOptions ?? [],
+          lastAction: lastActionType,
+          currentMode: "question",
+          underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
+          lastClarification: !isMultiIntentConfirm ? {
+            question: action.question,
+            options: action.options,
+            turnAsked: turnCount,
+            context: orchResult.reasoning,
+          } : prevState.lastClarification,
+          pendingIntents: isMultiIntentConfirm
+            ? orchResult.pendingIntents!.map(c => ({ text: c.text, category: c.category }))
+            : undefined,
+        }
+        const finalizedClarificationState = finalizeSessionState(sessionState, prevState, {
+          currentMode: "question",
+          preserveUnderlyingRecommendation: true,
+        })
+        logSessionSnapshot("ask_clarification", finalizedClarificationState)
+        return NextResponse.json({
+          text: action.question,
+          purpose: "question",
+          chips: clarifyChips,
+          isComplete: false,
+          recommendation: null,
+          sessionState: finalizedClarificationState,
+          evidenceSummaries: null,
+          candidateSnapshot: getDisplayedProductsFromState(finalizedClarificationState),
+          extractedField: null, requestPreparation: null,
+          primaryExplanation: null, primaryFactChecked: null,
+          altExplanations: [], altFactChecked: [],
+          orchestratorResult: {
+            action: action.type,
+            agents: orchResult.agentsInvoked,
+            opus: orchResult.escalatedToOpus,
+            ...(orchResult.executionPlanText ? { executionPlan: orchResult.executionPlanText } : {}),
+          },
+        })
+      }
+
       // Action: compare_products — use PERSISTED displayed candidates (not re-computed)
       if (action.type === "compare_products") {
-        const snapshot = prevState.displayedCandidates?.length > 0
-          ? prevState.displayedCandidates
+        const snapshot = getFullDisplayedProductsFromState(prevState)?.length > 0
+          ? getFullDisplayedProductsFromState(prevState)!
           : buildCandidateSnapshot(candidates, evidenceMap)
         const targets = resolveProductReferences(action.targets, snapshot)
         const compResult = await compareProducts(targets, evidenceMap, provider)
+
+        // Persist comparison as artifact for follow-up
+        const comparisonArtifact: import("@/lib/types/exploration").ComparisonArtifact = {
+          comparedProductCodes: targets.map(t => t.productCode),
+          comparedRanks: targets.map(t => t.rank),
+          compareField: action.compareField,
+          text: compResult.text,
+          timestamp: Date.now(),
+        }
 
         const sessionState: ExplorationSessionState = {
           sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
@@ -242,20 +968,32 @@ async function handleExploration(
           resolutionStatus: prevState.resolutionStatus ?? "broad",
           resolvedInput: currentInput,
           turnCount,
+          displayedProducts: snapshot,
           displayedCandidates: snapshot,
+          fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+          fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
+          displayedSetFilter: prevState.displayedSetFilter ?? null,
           displayedChips: ["추천해주세요", "다른 조건으로", "⟵ 이전 단계", "처음부터 다시"],
           displayedOptions: [],
           lastAction: "compare_products",
+          underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
+          lastComparisonArtifact: comparisonArtifact,
+          pendingIntents: pendingIntentsForSession,
         }
+        const finalizedComparisonState = finalizeSessionState(sessionState, prevState, {
+          currentMode: "comparison",
+          preserveUnderlyingRecommendation: true,
+        })
+        logSessionSnapshot("compare_products", finalizedComparisonState)
         return NextResponse.json({
-          text: compResult.text,
+          text: compResult.text + sideEffectText,
           purpose: "comparison",
           chips: ["추천해주세요", "다른 조건으로", "⟵ 이전 단계", "처음부터 다시"],
           isComplete: false,
           recommendation: null,
-          sessionState,
+          sessionState: finalizedComparisonState,
           evidenceSummaries: null,
-          candidateSnapshot: snapshot,
+          candidateSnapshot: getDisplayedProductsFromState(finalizedComparisonState),
           extractedField: null,
           requestPreparation: null,
           primaryExplanation: null,
@@ -283,20 +1021,30 @@ async function handleExploration(
             resolvedInput: currentInput,
             turnCount,
             lastAskedField: prevState.lastAskedField,
-            displayedCandidates: prevState.displayedCandidates ?? [],
+            displayedProducts: getDisplayedProductsFromState(prevState),
+            displayedCandidates: getDisplayedProductsFromState(prevState),
+            displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+            displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
             displayedChips: inventoryReply.chips,
             displayedOptions: prevState.displayedOptions ?? [],
             lastAction: "answer_general",
+            underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
           }
+          const finalizedInventoryState = finalizeSessionState(sessionState, prevState, {
+            currentMode: "general_chat",
+            restoreTarget: "전체 보기",
+            preserveUnderlyingRecommendation: true,
+          })
+          logSessionSnapshot("inventory_answer", finalizedInventoryState)
           return NextResponse.json({
             text: inventoryReply.text,
             purpose: "general_chat",
             chips: inventoryReply.chips,
             isComplete: false,
             recommendation: null,
-            sessionState,
+            sessionState: finalizedInventoryState,
             evidenceSummaries: null,
-            candidateSnapshot: prevState.displayedCandidates ?? null,
+            candidateSnapshot: getDisplayedProductsFromState(finalizedInventoryState),
             extractedField: null, requestPreparation: null,
             primaryExplanation: null, primaryFactChecked: null,
             altExplanations: [], altFactChecked: [],
@@ -320,20 +1068,32 @@ async function handleExploration(
             resolvedInput: currentInput,
             turnCount,
             lastAskedField: prevState.lastAskedField,
-            displayedCandidates: prevState.displayedCandidates ?? [],
+            displayedProducts: getDisplayedProductsFromState(prevState),
+            displayedCandidates: getDisplayedProductsFromState(prevState),
+            fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+            fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
+            displayedSetFilter: prevState.displayedSetFilter ?? null,
+            displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+            displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
             displayedChips: cuttingConditionReply.chips,
             displayedOptions: prevState.displayedOptions ?? [],
             lastAction: "answer_general",
+            underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
           }
+          const finalizedCuttingConditionState = finalizeSessionState(sessionState, prevState, {
+            currentMode: "general_chat",
+            preserveUnderlyingRecommendation: true,
+          })
+          logSessionSnapshot("cutting_condition_answer", finalizedCuttingConditionState)
           return NextResponse.json({
             text: cuttingConditionReply.text,
             purpose: "general_chat",
             chips: cuttingConditionReply.chips,
             isComplete: false,
             recommendation: null,
-            sessionState,
+            sessionState: finalizedCuttingConditionState,
             evidenceSummaries: null,
-            candidateSnapshot: prevState.displayedCandidates ?? null,
+            candidateSnapshot: getDisplayedProductsFromState(finalizedCuttingConditionState),
             extractedField: null, requestPreparation: null,
             primaryExplanation: null, primaryFactChecked: null,
             altExplanations: [], altFactChecked: [],
@@ -341,6 +1101,389 @@ async function handleExploration(
           })
         }
 
+        // Only show product detail listings when explain_product has an explicit target
+        // (e.g. "1번 제품 보여줘", "#3 상세"). Otherwise fall through to LLM handler below.
+        if (action.type === "explain_product" && action.target) {
+          const explainSnapshot = getDisplayedProductsFromState(prevState).length > 0
+            ? getDisplayedProductsFromState(prevState)
+            : buildCandidateSnapshot(candidates, evidenceMap)
+          const explainTargets = [action.target]
+          const resolved = resolveProductReferences(explainTargets, explainSnapshot)
+
+          if (resolved.length > 0) {
+            const productLines = resolved.map(p =>
+              `**#${p.rank} ${p.displayCode}**${p.displayLabel ? ` [${p.displayLabel}]` : ""}\n` +
+              `${p.brand ?? "?"} | ${p.seriesName ?? "?"}\n` +
+              `φ${p.diameterMm ?? "?"}mm · ${p.fluteCount ?? "?"}날 · ${p.coating ?? "?"} · ${p.toolMaterial ?? "?"}\n` +
+              `Shank ${p.shankDiameterMm ?? "?"}mm · CL ${p.lengthOfCutMm ?? "?"}mm · OAL ${p.overallLengthMm ?? "?"}mm\n` +
+              `매칭: ${p.matchStatus} (${p.score}점) | 재고: ${p.stockStatus}`
+            ).join("\n\n")
+
+            const responseText = `요청하신 제품 ${resolved.length}개입니다:\n\n${productLines}`
+
+            const sessionState: ExplorationSessionState = {
+              sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+              candidateCount: prevState.candidateCount,
+              appliedFilters: filters,
+              narrowingHistory,
+              stageHistory: prevState.stageHistory ?? [],
+              resolutionStatus: prevState.resolutionStatus ?? "broad",
+              resolvedInput: currentInput,
+              turnCount,
+              lastAskedField: prevState.lastAskedField,
+              displayedProducts: explainSnapshot,
+              displayedCandidates: explainSnapshot,
+              fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+              fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
+              displayedSetFilter: prevState.displayedSetFilter ?? null,
+              displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+              displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
+              displayedChips: ["비교해줘", "추천해주세요", "⟵ 이전 단계"],
+              displayedOptions: prevState.displayedOptions ?? [],
+              lastAction: "answer_general",
+              underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
+            }
+            const finalizedExplainDetailState = finalizeSessionState(sessionState, prevState, {
+              currentMode: "general_chat",
+              preserveUnderlyingRecommendation: true,
+            })
+            logSessionSnapshot("explain_product_detail", finalizedExplainDetailState)
+            return NextResponse.json({
+              text: responseText,
+              purpose: "recommendation",
+              chips: ["비교해줘", "추천해주세요", "⟵ 이전 단계"],
+              isComplete: false,
+              recommendation: null,
+              sessionState: finalizedExplainDetailState,
+              evidenceSummaries: null,
+              candidateSnapshot: getDisplayedProductsFromState(finalizedExplainDetailState),
+              extractedField: null, requestPreparation: null,
+              primaryExplanation: null, primaryFactChecked: null,
+              altExplanations: [], altFactChecked: [],
+              orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+            })
+          }
+        }
+        // No explicit target or no resolved products → fall through to LLM handler below
+      }
+
+      // Action: filter_displayed — in-display 필터링
+      if (action.type === "filter_displayed") {
+        const snapshot = getFullDisplayedProductsFromState(prevState)?.length > 0
+          ? getFullDisplayedProductsFromState(prevState)!
+          : buildCandidateSnapshot(candidates, evidenceMap)
+
+        // Reset filter → restore fullDisplayedCandidates
+        if (action.field === "reset" || action.operator === "reset") {
+          const restored = getFullDisplayedProductsFromState(prevState)?.length
+            ? getFullDisplayedProductsFromState(prevState)!
+            : snapshot
+          const sessionState: ExplorationSessionState = {
+            sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+            candidateCount: prevState.candidateCount ?? candidates.length,
+            appliedFilters: filters,
+            narrowingHistory,
+            stageHistory: prevState.stageHistory ?? [],
+            resolutionStatus: prevState.resolutionStatus ?? "broad",
+            resolvedInput: currentInput,
+            turnCount,
+            lastAskedField: prevState.lastAskedField,
+            displayedProducts: restored,
+            displayedCandidates: restored,
+            fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+            fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
+            displayedSetFilter: null,
+            displayedChips: prevState.displayedChips ?? [],
+            displayedOptions: prevState.displayedOptions ?? [],
+            lastAction: "filter_displayed",
+            underlyingAction: prevState.underlyingAction ?? prevState.lastAction ?? "show_recommendation",
+            displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+            displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
+            restoreTarget: "전체 보기",
+          }
+          return NextResponse.json({
+            text: `전체 ${restored.length}개 제품을 다시 표시합니다.`,
+            purpose: "question",
+            chips: prevState.displayedChips ?? ["추천해주세요", "처음부터 다시"],
+            isComplete: false,
+            recommendation: null,
+            sessionState: finalizeSessionState(sessionState, prevState, {
+              currentMode: "recommendation",
+              restoreTarget: "전체 보기",
+              activeGroupKey: null,
+              preserveUnderlyingRecommendation: true,
+            }),
+            evidenceSummaries: null,
+            candidateSnapshot: restored,
+            extractedField: null, requestPreparation: null,
+            primaryExplanation: null, primaryFactChecked: null,
+            altExplanations: [], altFactChecked: [],
+            orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+          })
+        }
+
+        // Save full list (first time only)
+        const fullList = getFullDisplayedProductsFromState(prevState)?.length
+          ? getFullDisplayedProductsFromState(prevState)!
+          : snapshot
+
+        // Apply filter or keep_indices
+        let filtered: CandidateSnapshot[]
+        if (action.keepIndices?.length) {
+          filtered = snapshot.filter(c => action.keepIndices!.includes(c.rank))
+        } else if (action.field === "materialTags") {
+          // Special handling for array fields (materialTags)
+          filtered = snapshot.filter(c => {
+            const tags = c.materialTags ?? []
+            const targetStr = action.value.toLowerCase()
+            switch (action.operator) {
+              case "contains": return tags.some(t => t.toLowerCase().includes(targetStr))
+              case "eq": return tags.some(t => t.toLowerCase() === targetStr)
+              case "neq": return !tags.some(t => t.toLowerCase() === targetStr)
+              default: return tags.some(t => t.toLowerCase() === targetStr)
+            }
+          })
+        } else {
+          filtered = snapshot.filter(c => {
+            const fieldVal = (c as unknown as Record<string, unknown>)[action.field]
+            if (fieldVal == null) return false
+            const numVal = typeof fieldVal === "number" ? fieldVal : parseFloat(String(fieldVal))
+            const cmpVal = parseFloat(action.value)
+            const strVal = String(fieldVal).toLowerCase()
+            const targetStr = action.value.toLowerCase()
+
+            switch (action.operator) {
+              case "eq": return !isNaN(numVal) && !isNaN(cmpVal) ? numVal === cmpVal : strVal === targetStr
+              case "gt": return !isNaN(numVal) && !isNaN(cmpVal) && numVal > cmpVal
+              case "gte": return !isNaN(numVal) && !isNaN(cmpVal) && numVal >= cmpVal
+              case "lt": return !isNaN(numVal) && !isNaN(cmpVal) && numVal < cmpVal
+              case "lte": return !isNaN(numVal) && !isNaN(cmpVal) && numVal <= cmpVal
+              case "neq": return !isNaN(numVal) && !isNaN(cmpVal) ? numVal !== cmpVal : strVal !== targetStr
+              case "contains": return strVal.includes(targetStr)
+              default: return strVal === targetStr
+            }
+          })
+        }
+
+        // Check if field exists on any candidate
+        const fieldExists = snapshot.some(c => (c as unknown as Record<string, unknown>)[action.field] != null)
+        if (!fieldExists && !action.keepIndices?.length) {
+          console.log(`[filter_displayed] Warning: field "${action.field}" not found on any candidate`)
+        }
+
+        // Keep original ranks (do NOT re-rank) so "전체 보기" restore works correctly
+
+        const resultText = filtered.length > 0
+          ? `${fullList.length}개 중 ${filtered.length}개가 조건에 맞습니다:\n${filtered.slice(0, 5).map(c => `#${c.rank} ${c.displayCode} (${c.seriesName ?? "-"})`).join("\n")}`
+          : `${fullList.length}개 제품 중 조건에 맞는 것이 없습니다. "전체 보기"로 복원할 수 있습니다.`
+
+        const sessionState: ExplorationSessionState = {
+          sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+          candidateCount: prevState.candidateCount ?? candidates.length,
+          appliedFilters: filters,
+          narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
+          resolutionStatus: prevState.resolutionStatus ?? "broad",
+          resolvedInput: currentInput,
+          turnCount,
+          lastAskedField: prevState.lastAskedField,
+          displayedProducts: filtered,
+          displayedCandidates: filtered,
+          fullDisplayedProducts: fullList,
+          fullDisplayedCandidates: fullList,
+          displayedSetFilter: { field: action.field, operator: action.operator, value: action.value },
+          displayedChips: ["전체 보기", "추천해주세요", "처음부터 다시"],
+          displayedOptions: prevState.displayedOptions ?? [],
+          lastAction: "filter_displayed",
+          underlyingAction: prevState.underlyingAction ?? prevState.lastAction ?? "show_recommendation",
+          displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+          displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
+        }
+        const finalizedFilterDisplayedState = finalizeSessionState(sessionState, prevState, {
+          currentMode: "recommendation",
+          preserveUnderlyingRecommendation: true,
+        })
+        logSessionSnapshot("filter_displayed", finalizedFilterDisplayedState)
+        return NextResponse.json({
+          text: resultText,
+          purpose: "question",
+          chips: ["전체 보기", "추천해주세요", "처음부터 다시"],
+          isComplete: false,
+          recommendation: null,
+          sessionState: finalizedFilterDisplayedState,
+          evidenceSummaries: null,
+          candidateSnapshot: filtered,
+          extractedField: null, requestPreparation: null,
+          primaryExplanation: null, primaryFactChecked: null,
+          altExplanations: [], altFactChecked: [],
+          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+        })
+      }
+
+      // Action: query_displayed — 표시된 제품 데이터 질의
+      if (action.type === "query_displayed") {
+        const fullSnapshot = getDisplayedProductsFromState(prevState).length > 0
+          ? getDisplayedProductsFromState(prevState)
+          : buildCandidateSnapshot(candidates, evidenceMap)
+
+        // Apply topN limit if specified
+        const snapshot = action.topN ? fullSnapshot.slice(0, action.topN) : fullSnapshot
+
+        let resultText = ""
+        const field = action.field
+
+        const withValues = snapshot.map(c => ({
+          candidate: c,
+          value: (c as unknown as Record<string, unknown>)[field],
+          numValue: (() => {
+            const v = (c as unknown as Record<string, unknown>)[field]
+            return typeof v === "number" ? v : (v != null ? parseFloat(String(v)) : NaN)
+          })(),
+        }))
+
+        switch (action.queryType) {
+          case "max": {
+            const valid = withValues.filter(v => !isNaN(v.numValue))
+            if (valid.length === 0) {
+              resultText = `표시된 제품에서 ${field} 값을 찾을 수 없습니다.`
+            } else {
+              const best = valid.reduce((a, b) => a.numValue > b.numValue ? a : b)
+              resultText = `${field} 최대: #${best.candidate.rank} ${best.candidate.displayCode} (${best.numValue})\n[Reference: YG-1 내부 DB]`
+            }
+            break
+          }
+          case "min": {
+            const valid = withValues.filter(v => !isNaN(v.numValue))
+            if (valid.length === 0) {
+              resultText = `표시된 제품에서 ${field} 값을 찾을 수 없습니다.`
+            } else {
+              const best = valid.reduce((a, b) => a.numValue < b.numValue ? a : b)
+              resultText = `${field} 최소: #${best.candidate.rank} ${best.candidate.displayCode} (${best.numValue})\n[Reference: YG-1 내부 DB]`
+            }
+            break
+          }
+          case "count": {
+            if (action.condition) {
+              const cmpVal = parseFloat(action.condition.value)
+              const targetStr = action.condition.value.toLowerCase()
+              const matching = withValues.filter(v => {
+                if (v.value == null) return false
+                const strVal = String(v.value).toLowerCase()
+                switch (action.condition!.operator) {
+                  case "eq": return !isNaN(v.numValue) && !isNaN(cmpVal) ? v.numValue === cmpVal : strVal === targetStr
+                  case "gt": return !isNaN(v.numValue) && !isNaN(cmpVal) && v.numValue > cmpVal
+                  case "gte": return !isNaN(v.numValue) && !isNaN(cmpVal) && v.numValue >= cmpVal
+                  case "lt": return !isNaN(v.numValue) && !isNaN(cmpVal) && v.numValue < cmpVal
+                  case "lte": return !isNaN(v.numValue) && !isNaN(cmpVal) && v.numValue <= cmpVal
+                  case "contains": return strVal.includes(targetStr)
+                  default: return strVal === targetStr
+                }
+              })
+              resultText = `${field}${action.condition.operator === "eq" ? "=" : action.condition.operator}${action.condition.value} 인 제품: ${matching.length}개\n[Reference: YG-1 내부 DB]`
+            } else {
+              const nonNull = withValues.filter(v => v.value != null)
+              resultText = `${field} 값이 있는 제품: ${nonNull.length}개 / 전체 ${snapshot.length}개\n[Reference: YG-1 내부 DB]`
+            }
+            break
+          }
+          case "list": {
+            // For string-type fields, show unique value counts; for numeric fields, show table
+            const STRING_FIELDS = new Set(["coating", "seriesName", "brand", "toolMaterial", "matchStatus", "stockStatus"])
+            if (STRING_FIELDS.has(field)) {
+              // Show unique values with counts
+              const valueCounts = new Map<string, number>()
+              for (const v of withValues) {
+                const key = v.value != null ? String(v.value) : "(없음)"
+                valueCounts.set(key, (valueCounts.get(key) ?? 0) + 1)
+              }
+              const lines = [...valueCounts.entries()].map(([val, count]) => `• ${val}: ${count}개`)
+              resultText = `표시된 제품의 ${field} 분포:\n${lines.join("\n")}\n\n총 ${snapshot.length}개 제품\n[Reference: YG-1 내부 DB]`
+            } else {
+              // Show table for numeric fields
+              const tableRows = withValues
+                .filter(v => v.value != null)
+                .map(v => `| #${v.candidate.rank} | ${v.candidate.displayCode} | ${v.candidate.seriesName ?? "-"} | ${v.value} |`)
+              resultText = `표시된 제품의 ${field}:\n\n| # | 제품코드 | 시리즈 | ${field} |\n|---|---|---|---|\n${tableRows.join("\n")}\n\n[Reference: YG-1 내부 DB]`
+            }
+            break
+          }
+          case "find": {
+            if (action.condition) {
+              const cmpVal = parseFloat(action.condition.value)
+              const targetStr = action.condition.value.toLowerCase()
+              const matching = withValues.filter(v => {
+                if (v.value == null) return false
+                const strVal = String(v.value).toLowerCase()
+                switch (action.condition!.operator) {
+                  case "eq": return !isNaN(v.numValue) && !isNaN(cmpVal) ? v.numValue === cmpVal : strVal === targetStr
+                  case "gt": return !isNaN(v.numValue) && !isNaN(cmpVal) && v.numValue > cmpVal
+                  case "gte": return !isNaN(v.numValue) && !isNaN(cmpVal) && v.numValue >= cmpVal
+                  case "lt": return !isNaN(v.numValue) && !isNaN(cmpVal) && v.numValue < cmpVal
+                  case "lte": return !isNaN(v.numValue) && !isNaN(cmpVal) && v.numValue <= cmpVal
+                  case "neq": return !isNaN(v.numValue) && !isNaN(cmpVal) ? v.numValue !== cmpVal : strVal !== targetStr
+                  case "contains": return strVal.includes(targetStr)
+                  default: return strVal === targetStr
+                }
+              })
+              resultText = matching.length > 0
+                ? `조건에 맞는 제품:\n${matching.slice(0, 5).map(v => `#${v.candidate.rank} ${v.candidate.displayCode} (${field}=${v.value})`).join("\n")}\n[Reference: YG-1 내부 DB]`
+                : `조건에 맞는 제품이 없습니다.\n[Reference: YG-1 내부 DB]`
+            } else {
+              resultText = `조건을 지정해주세요. 예: "코팅이 Diamond인 건?"\n[Reference: YG-1 내부 DB]`
+            }
+            break
+          }
+          default:
+            resultText = `지원하지 않는 질의 종류입니다.\n[Reference: YG-1 내부 DB]`
+        }
+
+        const sessionState: ExplorationSessionState = {
+          sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+          candidateCount: prevState.candidateCount ?? candidates.length,
+          appliedFilters: filters,
+          narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
+          resolutionStatus: prevState.resolutionStatus ?? "broad",
+          resolvedInput: currentInput,
+          turnCount,
+          lastAskedField: prevState.lastAskedField,
+          displayedProducts: snapshot,
+          displayedCandidates: snapshot,
+          fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+          fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
+          displayedSetFilter: prevState.displayedSetFilter,
+          displayedChips: prevState.displayedChips ?? [],
+          displayedOptions: prevState.displayedOptions ?? [],
+          lastAction: "query_displayed",
+          underlyingAction: prevState.underlyingAction ?? prevState.lastAction ?? "show_recommendation",
+          displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+          displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
+        }
+        const finalizedQueryDisplayedState = finalizeSessionState(sessionState, prevState, {
+          currentMode: "recommendation",
+          preserveUnderlyingRecommendation: true,
+        })
+        logSessionSnapshot("query_displayed", finalizedQueryDisplayedState)
+        return NextResponse.json({
+          text: resultText,
+          purpose: "general_chat",
+          chips: prevState.displayedChips ?? ["추천해주세요", "처음부터 다시"],
+          isComplete: false,
+          recommendation: null,
+          sessionState: finalizedQueryDisplayedState,
+          evidenceSummaries: null,
+          candidateSnapshot: snapshot,
+          extractedField: null, requestPreparation: null,
+          primaryExplanation: null, primaryFactChecked: null,
+          altExplanations: [], altFactChecked: [],
+          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+        })
+      }
+
+      // Action: explain_product / answer_general (LLM handlers)
+      // Handles: contextual narrowing questions, general chat, explanations
+      // The block above handles inventory/cutting/product-detail queries and falls through here otherwise.
+      if (action.type === "explain_product" || action.type === "answer_general") {
         // Use existing LLM handlers
         if (action.type === "explain_product") {
           const contextReply = await handleContextualNarrowingQuestion(
@@ -359,20 +1502,32 @@ async function handleExploration(
                 resolvedInput: currentInput,
                 turnCount,
                 lastAskedField: prevState.lastAskedField,
-                displayedCandidates: prevState.displayedCandidates ?? [],
+                displayedProducts: getDisplayedProductsFromState(prevState),
+                displayedCandidates: getDisplayedProductsFromState(prevState),
+                fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+                fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
+                displayedSetFilter: prevState.displayedSetFilter ?? null,
+                displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+                displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
                 displayedChips: prevState.displayedChips ?? ["대체 후보 보기", "절삭조건 알려줘", "처음부터 다시"],
                 displayedOptions: prevState.displayedOptions ?? [],
                 lastAction: "explain_product",
+                underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
               }
+              const finalizedExplainState = finalizeSessionState(sessionState, prevState, {
+                currentMode: "general_chat",
+                preserveUnderlyingRecommendation: true,
+              })
+              logSessionSnapshot("explain_product", finalizedExplainState)
               return NextResponse.json({
                 text: contextReply,
                 purpose: "general_chat",
                 chips: prevState.displayedChips ?? ["대체 후보 보기", "절삭조건 알려줘", "처음부터 다시"],
                 isComplete: false,
                 recommendation: null,
-                sessionState,
+                sessionState: finalizedExplainState,
                 evidenceSummaries: null,
-                candidateSnapshot: prevState.displayedCandidates ?? null,
+                candidateSnapshot: getDisplayedProductsFromState(finalizedExplainState),
                 extractedField: null, requestPreparation: null,
                 primaryExplanation: null, primaryFactChecked: null,
                 altExplanations: [], altFactChecked: [],
@@ -388,10 +1543,10 @@ async function handleExploration(
         }
 
         // General chat — use preGenerated text if available (from tool-use path), otherwise call LLM
-        const preGenerated = action.type === "answer_general" && action.preGenerated && action.message
+        const preGenerated = action.type === "answer_general" && action.preGenerated === true
         const llmResponse = preGenerated
-          ? { text: action.message, chips: generateFollowUpChips(lastUserMsg.text, candidates.length) }
-          : await handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form, prevState.displayedCandidates)
+          ? { text: (action as { message: string }).message, chips: generateFollowUpChips(lastUserMsg.text, candidates.length) }
+          : await handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form, getDisplayedProductsFromState(prevState))
         const sessionState: ExplorationSessionState = {
           sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
           candidateCount: prevState.candidateCount ?? candidates.length,
@@ -402,20 +1557,32 @@ async function handleExploration(
           resolvedInput: currentInput,
           turnCount,
           lastAskedField: prevState.lastAskedField,
-          displayedCandidates: prevState.displayedCandidates ?? [],
+          displayedProducts: getDisplayedProductsFromState(prevState),
+          displayedCandidates: getDisplayedProductsFromState(prevState),
+          fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+          fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
+          displayedSetFilter: prevState.displayedSetFilter ?? null,
+          displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+          displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
           displayedChips: llmResponse.chips,
           displayedOptions: prevState.displayedOptions ?? [],
           lastAction: "answer_general",
+          underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
         }
+        const finalizedGeneralChatState = finalizeSessionState(sessionState, prevState, {
+          currentMode: "general_chat",
+          preserveUnderlyingRecommendation: true,
+        })
+        logSessionSnapshot("answer_general", finalizedGeneralChatState)
         return NextResponse.json({
           text: llmResponse.text,
           purpose: "general_chat",
           chips: llmResponse.chips,
           isComplete: false,
           recommendation: null,
-          sessionState,
+          sessionState: finalizedGeneralChatState,
           evidenceSummaries: null,
-          candidateSnapshot: candidates.length > 0 ? buildCandidateSnapshot(candidates, evidenceMap) : null,
+          candidateSnapshot: getDisplayedProductsFromState(finalizedGeneralChatState),
           extractedField: null,
           requestPreparation: null,
           primaryExplanation: null, primaryFactChecked: null,
@@ -438,23 +1605,315 @@ async function handleExploration(
           resolvedInput: currentInput,
           turnCount,
           lastAskedField: prevState.lastAskedField,
-          displayedCandidates: prevState.displayedCandidates ?? [],
+          displayedProducts: getDisplayedProductsFromState(prevState),
+          displayedCandidates: getDisplayedProductsFromState(prevState),
+          fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+          fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
+          displayedSetFilter: prevState.displayedSetFilter ?? null,
+          displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+          displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
           displayedChips: redirect.chips,
           displayedOptions: prevState.displayedOptions ?? [],
           lastAction: "redirect_off_topic",
+          currentMode: "general_chat",
+          underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
         }
+        const finalizedRedirectState = finalizeSessionState(sessionState, prevState, {
+          currentMode: "general_chat",
+          preserveUnderlyingRecommendation: true,
+        })
+        logSessionSnapshot("redirect_off_topic", finalizedRedirectState)
         return NextResponse.json({
           text: redirect.text,
           purpose: "question",
           chips: redirect.chips,
           isComplete: false,
           recommendation: null,
-          sessionState,
+          sessionState: finalizedRedirectState,
           evidenceSummaries: null,
-          candidateSnapshot: redirect.showCandidates ? buildCandidateSnapshot(candidates, evidenceMap) : null,
+          candidateSnapshot: redirect.showCandidates ? getDisplayedProductsFromState(finalizedRedirectState) : null,
           extractedField: null, requestPreparation: null,
           primaryExplanation: null, primaryFactChecked: null,
           altExplanations: [], altFactChecked: [],
+        })
+      }
+
+      // Action: start_new_task — archive current + start fresh
+      if (action.type === "start_new_task" && ENABLE_TASK_SYSTEM) {
+        const taskHistory = [...(prevState.taskHistory ?? [])]
+        if (prevState.currentTask) {
+          try {
+            // Add final checkpoint before archiving
+            const snapshot = buildCandidateSnapshot(candidates, evidenceMap)
+            const groups = ENABLE_SERIES_GROUPING ? groupCandidatesBySeries(snapshot) : []
+            const cp = createCheckpoint(prevState, buildGroupSummaries(groups), null)
+            addCheckpointToTask(prevState.currentTask, cp)
+            const archived = archiveTask(prevState.currentTask)
+            taskHistory.push(archived)
+            console.log(`[task-manager] Archived task ${archived.taskId}: ${archived.intakeSummary}`)
+          } catch (e) {
+            console.warn(`[task-manager] Failed to archive current task:`, e)
+          }
+        }
+        // Create new task
+        const newTask = createTask(buildTaskIntakeSummary(baseInput))
+
+        return buildQuestionResponse(
+          form, candidates, evidenceMap, baseInput,
+          [], [], 0, messages, provider, language,
+          `새로운 추천 작업을 시작합니다.${taskHistory.length > 0 ? ` (이전 작업 ${taskHistory.length}개 보관됨)` : ""}`
+        )
+      }
+
+      // Action: resume_previous_task — restore from archive
+      if (action.type === "resume_previous_task" && ENABLE_TASK_SYSTEM) {
+        const taskHistory = prevState.taskHistory ?? []
+        let target = taskHistory.find(t => t.taskId === action.taskId)
+        if (!target && taskHistory.length > 0) {
+          target = taskHistory[taskHistory.length - 1] // latest
+        }
+        if (target) {
+          const { rebuiltInput, remainingFilters } = restoreFromArchivedTask(target)
+          const restoreResult = await runHybridRetrieval(rebuiltInput, remainingFilters.filter(f => f.op !== "skip"))
+          console.log(`[task-manager] Restored task ${target.taskId}: ${restoreResult.candidates.length} candidates`)
+
+          return buildQuestionResponse(
+            form, restoreResult.candidates, restoreResult.evidenceMap, rebuiltInput,
+            [], remainingFilters, remainingFilters.length, messages, provider, language,
+            `이전 추천 작업을 복원했습니다: ${target.intakeSummary}\n후보 ${restoreResult.candidates.length}개`
+          )
+        }
+        // No archived tasks
+        return buildQuestionResponse(
+          form, candidates, evidenceMap, currentInput,
+          narrowingHistory, filters, turnCount, messages, provider, language,
+          "복원할 이전 작업이 없습니다."
+        )
+      }
+
+      // Action: restore_previous_group — filter to specific series
+      if (action.type === "restore_previous_group") {
+        const snapshot = getFullDisplayedProductsFromState(prevState)?.length > 0
+          ? getFullDisplayedProductsFromState(prevState)!
+          : buildCandidateSnapshot(candidates, evidenceMap)
+        const filtered = filterBySeriesGroup(snapshot, action.groupKey)
+
+        const groupName = filtered.length > 0 && filtered[0].seriesName
+          ? filtered[0].seriesName
+          : action.groupKey
+
+        const sessionState: ExplorationSessionState = {
+          sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+          candidateCount: prevState.candidateCount ?? candidates.length,
+          appliedFilters: filters,
+          narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
+          resolutionStatus: prevState.resolutionStatus ?? "broad",
+          resolvedInput: currentInput,
+          turnCount,
+          lastAskedField: prevState.lastAskedField,
+          displayedProducts: filtered,
+          displayedCandidates: filtered,
+          fullDisplayedProducts: getFullDisplayedProductsFromState(prevState) ?? snapshot,
+          fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? snapshot,
+          displayedSetFilter: null,
+          displayedChips: ["전체 보기", "추천해주세요", "다른 시리즈 보기"],
+          displayedOptions: prevState.displayedOptions ?? [],
+          lastAction: "restore_previous_group",
+          underlyingAction: prevState.underlyingAction ?? prevState.lastAction ?? "show_recommendation",
+          displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+          displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
+          activeGroupKey: action.groupKey,
+          restoreTarget: action.groupKey,
+          currentTask: prevState.currentTask,
+          taskHistory: prevState.taskHistory,
+        }
+        const finalizedRestoreGroupState = finalizeSessionState(sessionState, prevState, {
+          currentMode: "group_focus",
+          activeGroupKey: action.groupKey,
+          restoreTarget: action.groupKey,
+          preserveUnderlyingRecommendation: true,
+        })
+        logSessionSnapshot("restore_previous_group", finalizedRestoreGroupState, { restoreTarget: action.groupKey })
+        return NextResponse.json({
+          text: `${groupName} 시리즈 ${filtered.length}개 제품을 표시합니다.`,
+          purpose: "question",
+          chips: ["전체 보기", "추천해주세요", "다른 시리즈 보기"],
+          isComplete: false,
+          recommendation: null,
+          sessionState: finalizedRestoreGroupState,
+          evidenceSummaries: null,
+          candidateSnapshot: filtered,
+          extractedField: null, requestPreparation: null,
+          primaryExplanation: null, primaryFactChecked: null,
+          altExplanations: [], altFactChecked: [],
+          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+        })
+      }
+
+      // Action: show_group_menu — display series groups as chips
+      if (action.type === "show_group_menu") {
+        const snapshot = getFullDisplayedProductsFromState(prevState)?.length > 0
+          ? getFullDisplayedProductsFromState(prevState)!
+          : buildCandidateSnapshot(candidates, evidenceMap)
+        const groups = groupCandidatesBySeries(snapshot)
+        const groupChips = groups.map(g => `${g.seriesName} (${g.candidateCount}개)`)
+
+        const sessionState: ExplorationSessionState = {
+          sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+          candidateCount: prevState.candidateCount ?? candidates.length,
+          appliedFilters: filters,
+          narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
+          resolutionStatus: prevState.resolutionStatus ?? "broad",
+          resolvedInput: currentInput,
+          turnCount,
+          lastAskedField: prevState.lastAskedField,
+          displayedProducts: snapshot,
+          displayedCandidates: snapshot,
+          fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+          fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
+          displayedSetFilter: prevState.displayedSetFilter,
+          displayedChips: [...groupChips, "전체 보기"],
+          displayedOptions: prevState.displayedOptions ?? [],
+          lastAction: "show_group_menu",
+          underlyingAction: prevState.underlyingAction ?? prevState.lastAction ?? "show_recommendation",
+          displayedSeriesGroups: groups,
+          displayedGroups: groups,
+          currentTask: prevState.currentTask,
+          taskHistory: prevState.taskHistory,
+        }
+        const groupList = groups.map(g => `• ${g.seriesName}: ${g.candidateCount}개 (최고 ${g.topScore}점)`).join("\n")
+        return NextResponse.json({
+          text: `현재 ${groups.length}개 시리즈 그룹이 있습니다:\n\n${groupList}\n\n시리즈를 선택하면 해당 그룹만 표시합니다.`,
+          purpose: "question",
+          chips: [...groupChips, "전체 보기"],
+          isComplete: false,
+          recommendation: null,
+          sessionState: finalizeSessionState(sessionState, prevState, {
+            currentMode: "group_menu",
+            preserveUnderlyingRecommendation: true,
+          }),
+          evidenceSummaries: null,
+          candidateSnapshot: snapshot,
+          extractedField: null, requestPreparation: null,
+          primaryExplanation: null, primaryFactChecked: null,
+          altExplanations: [], altFactChecked: [],
+          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+        })
+      }
+
+      // Action: confirm_scope — deterministic session state summary
+      if (action.type === "confirm_scope") {
+        const activeFilters = filters.filter(f => f.op !== "skip")
+        const skippedFields = filters.filter(f => f.op === "skip").map(f => f.field)
+        const filterLines = activeFilters.length > 0
+          ? activeFilters.map(f => `• **${f.field}** = ${f.value}`).join("\n")
+          : "• (없음)"
+        const skippedLine = skippedFields.length > 0
+          ? `\n건너뛴 항목: ${skippedFields.join(", ")}`
+          : ""
+
+        const scopeText = `**현재 세션 상태:**\n\n` +
+          `적용된 필터:\n${filterLines}${skippedLine}\n\n` +
+          `후보 수: **${candidates.length}개**\n` +
+          `상태: ${prevState.resolutionStatus ?? "narrowing"}\n` +
+          `턴: ${turnCount}회\n` +
+          `[Reference: YG-1 내부 DB]`
+
+        const sessionState: ExplorationSessionState = {
+          sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+          candidateCount: prevState.candidateCount ?? candidates.length,
+          appliedFilters: filters,
+          narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
+          resolutionStatus: prevState.resolutionStatus ?? "broad",
+          resolvedInput: currentInput,
+          turnCount,
+          lastAskedField: prevState.lastAskedField,
+          displayedProducts: getDisplayedProductsFromState(prevState),
+          displayedCandidates: getDisplayedProductsFromState(prevState),
+          fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+          fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
+          displayedSetFilter: prevState.displayedSetFilter ?? null,
+          displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+          displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
+          displayedChips: prevState.displayedChips ?? [],
+          displayedOptions: prevState.displayedOptions ?? [],
+          lastAction: "confirm_scope",
+          underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
+        }
+        const finalizedConfirmScopeState = finalizeSessionState(sessionState, prevState, {
+          currentMode: "general_chat",
+          preserveUnderlyingRecommendation: true,
+        })
+        logSessionSnapshot("confirm_scope", finalizedConfirmScopeState)
+        return NextResponse.json({
+          text: scopeText,
+          purpose: "general_chat",
+          chips: prevState.displayedChips ?? ["추천해주세요", "처음부터 다시"],
+          isComplete: false,
+          recommendation: null,
+          sessionState: finalizedConfirmScopeState,
+          evidenceSummaries: null,
+          candidateSnapshot: getDisplayedProductsFromState(finalizedConfirmScopeState),
+          extractedField: null, requestPreparation: null,
+          primaryExplanation: null, primaryFactChecked: null,
+          altExplanations: [], altFactChecked: [],
+          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+        })
+      }
+
+      // Action: summarize_task — full narrowing journey review
+      if (action.type === "summarize_task") {
+        const steps = narrowingHistory.map((h, i) =>
+          `${i + 1}. ${h.question === "slot-replace" ? "교체" : "필터"}: ${h.answer} (${h.candidateCountBefore}→${h.candidateCountAfter}개)`
+        )
+        const summaryText = `**추천 작업 요약:**\n\n` +
+          (steps.length > 0 ? steps.join("\n") : "아직 필터를 적용하지 않았습니다.") +
+          `\n\n현재 후보: **${candidates.length}개**\n` +
+          `[Reference: YG-1 내부 DB]`
+
+        const sessionState: ExplorationSessionState = {
+          sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+          candidateCount: prevState.candidateCount ?? candidates.length,
+          appliedFilters: filters,
+          narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
+          resolutionStatus: prevState.resolutionStatus ?? "broad",
+          resolvedInput: currentInput,
+          turnCount,
+          lastAskedField: prevState.lastAskedField,
+          displayedProducts: getDisplayedProductsFromState(prevState),
+          displayedCandidates: getDisplayedProductsFromState(prevState),
+          fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+          fullDisplayedCandidates: getFullDisplayedProductsFromState(prevState) ?? undefined,
+          displayedSetFilter: prevState.displayedSetFilter ?? null,
+          displayedSeriesGroups: getDisplayedSeriesGroupsFromState(prevState),
+          displayedGroups: getDisplayedSeriesGroupsFromState(prevState),
+          displayedChips: prevState.displayedChips ?? [],
+          displayedOptions: prevState.displayedOptions ?? [],
+          lastAction: "summarize_task",
+          underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
+        }
+        const finalizedSummarizeTaskState = finalizeSessionState(sessionState, prevState, {
+          currentMode: "general_chat",
+          preserveUnderlyingRecommendation: true,
+        })
+        logSessionSnapshot("summarize_task", finalizedSummarizeTaskState)
+        return NextResponse.json({
+          text: summaryText,
+          purpose: "general_chat",
+          chips: prevState.displayedChips ?? ["추천해주세요", "처음부터 다시"],
+          isComplete: false,
+          recommendation: null,
+          sessionState: finalizedSummarizeTaskState,
+          evidenceSummaries: null,
+          candidateSnapshot: getDisplayedProductsFromState(finalizedSummarizeTaskState),
+          extractedField: null, requestPreparation: null,
+          primaryExplanation: null, primaryFactChecked: null,
+          altExplanations: [], altFactChecked: [],
+          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
         })
       }
 
@@ -507,6 +1966,11 @@ async function handleExploration(
         const newCandidates = testResult.candidates
         const prevCandidateCount = candidates.length  // always use current pool count, not stale session state
 
+        // Mark clarification as resolved if this was a response to ask_clarification
+        if (prevState.lastAction === "ask_clarification" && prevState.lastClarification) {
+          prevState.lastClarification = { ...prevState.lastClarification, resolvedWith: lastUserMsg.text }
+        }
+
         narrowingHistory.push({
           question: prevState.narrowingHistory?.length ? "follow-up" : "initial",
           answer: lastUserMsg.text,
@@ -529,14 +1993,28 @@ async function handleExploration(
 
         console.log(`[orchestrator:filter] ${filter.field}=${filter.value} | ${prevCandidateCount}→${newCandidates.length} candidates | stages: ${updatedStages.map(s => s.stageName).join(" → ")}`)
 
+        // Create checkpoint if task system enabled
+        if (ENABLE_TASK_SYSTEM && prevState.currentTask) {
+          const cpSnapshot = buildCandidateSnapshot(newCandidates, testResult.evidenceMap)
+          const cpGroups = ENABLE_SERIES_GROUPING ? buildGroupSummaries(groupCandidatesBySeries(cpSnapshot)) : []
+          const cp = createCheckpoint(
+            { ...prevState, candidateCount: newCandidates.length, appliedFilters: filters },
+            cpGroups,
+            filter
+          )
+          addCheckpointToTask(prevState.currentTask, cp)
+        }
+
         turnCount++
 
         const newStatus = checkResolution(newCandidates, narrowingHistory)
         if (newStatus.startsWith("resolved")) {
-          return buildRecommendationResponse(form, newCandidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts)
+          return buildRecommendationResponse(form, newCandidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts, sideEffectText || undefined, pendingIntentsForSession)
         }
 
-        return buildQuestionResponse(form, newCandidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, undefined, updatedStages)
+        // If there's side-effect text from multi-intent, pass it as override prefix
+        const filterOverride = sideEffectText ? sideEffectText.replace(/^\n\n---\n\n/, "") : undefined
+        return buildQuestionResponse(form, newCandidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, filterOverride, updatedStages, pendingIntentsForSession)
       }
     }
   }
@@ -572,9 +2050,10 @@ async function buildQuestionResponse(
   provider: ReturnType<typeof getProvider>,
   language: AppLanguage,
   overrideText?: string,
-  existingStageHistory?: NarrowingStage[]
+  existingStageHistory?: NarrowingStage[],
+  pendingIntents?: Array<{ text: string; category: string }>,
 ): Promise<Response> {
-  const question = selectNextQuestion(input, candidates, history)
+  let question = selectNextQuestion(input, candidates, history)
 
   // Build stage history — snapshot current state if we don't have one yet
   const stageHistory: NarrowingStage[] = existingStageHistory
@@ -584,6 +2063,11 @@ async function buildQuestionResponse(
   // Build candidate snapshot for UI (before session state so we can persist it)
   const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
   const chips = question?.chips ?? []
+
+  // Build series groups if enabled
+  const displayedGroups = ENABLE_SERIES_GROUPING
+    ? groupCandidatesBySeries(candidateSnapshot)
+    : undefined
 
   // Build structured displayedOptions from chips for numbered selection
   const displayedOptions = buildDisplayedOptions(chips, question?.field ?? "unknown")
@@ -599,10 +2083,48 @@ async function buildQuestionResponse(
     resolvedInput: input,
     turnCount,
     lastAskedField: question?.field ?? undefined,
+    displayedProducts: candidateSnapshot,
     displayedCandidates: candidateSnapshot,
+    fullDisplayedProducts: null,
+    fullDisplayedCandidates: undefined,
+    displayedSetFilter: null,
     displayedChips: chips,
     displayedOptions,
+    displayedSeriesGroups: displayedGroups,
+    currentMode: messages.length === 0 ? "question" : "narrowing",
     lastAction: "continue_narrowing",
+    displayedGroups,
+    candidateCounts: {
+      dbMatchCount: candidates.length,  // best available at this point
+      filteredCount: candidates.length,
+      rankedCount: candidates.length,
+      displayedCount: candidateSnapshot.length,
+      hiddenBySeriesCapCount: displayedGroups
+        ? displayedGroups.reduce((sum, g) => sum + g.candidateCount, 0) - candidateSnapshot.length
+        : 0,
+    },
+    pendingIntents: pendingIntents ?? undefined,
+  }
+
+  // Non-blocking validation
+  runConsistencyValidation(sessionState, candidates.length, displayedGroups, candidateSnapshot)
+  logSessionSnapshot("question", sessionState)
+
+  // Validation gate with auto-repair for re-ask prevention
+  const vgResult = runValidationGate({
+    question,
+    appliedFilters: filters,
+    candidateCountInState: sessionState.candidateCount,
+    candidateCountActual: candidates.length,
+    displayedCandidates: candidateSnapshot,
+    resolvedInput: input,
+    candidates,
+    narrowingHistory: history,
+  })
+  if (vgResult.repairedQuestion) {
+    question = vgResult.repairedQuestion
+    sessionState.lastAskedField = question.field
+    console.log(`[validation-gate] Auto-repaired: next question field → "${question.field}"`)
   }
 
   // Debug: log narrowing state
@@ -694,7 +2216,9 @@ async function buildRecommendationResponse(
   messages: ChatMessage[],
   provider: ReturnType<typeof getProvider>,
   language: AppLanguage,
-  displayedProducts: DisplayedProduct[] | null = null
+  displayedProducts: DisplayedProduct[] | null = null,
+  appendText?: string,
+  pendingIntents?: Array<{ text: string; category: string }>,
 ): Promise<Response> {
   const { primary, alternatives, status } = classifyHybridResults({ candidates, evidenceMap, totalConsidered: candidates.length, filtersApplied: filters })
   const warnings = primary ? buildWarnings(primary, input) : ["조건에 맞는 제품을 찾지 못했습니다"]
@@ -775,6 +2299,8 @@ async function buildRecommendationResponse(
         resolvedInput: input,
         turnCount,
         displayedCandidates: buildCandidateSnapshot(candidates, evidenceMap),
+        fullDisplayedCandidates: undefined,
+        displayedSetFilter: null,
         displayedChips: [],
         displayedOptions: [],
         lastAction: "show_recommendation",
@@ -821,6 +2347,11 @@ async function buildRecommendationResponse(
   const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
   const followUpChips = getFollowUpChips(recommendation)
 
+  // Build series groups if enabled
+  const recDisplayedGroups = ENABLE_SERIES_GROUPING
+    ? groupCandidatesBySeries(candidateSnapshot)
+    : undefined
+
   const sessionState: ExplorationSessionState = {
     sessionId: `ses-${Date.now()}`,
     candidateCount: candidates.length,
@@ -830,11 +2361,33 @@ async function buildRecommendationResponse(
     resolutionStatus: checkResolution(candidates, history),
     resolvedInput: input,
     turnCount,
+    displayedProducts: candidateSnapshot,
     displayedCandidates: candidateSnapshot,
+    fullDisplayedProducts: candidateSnapshot,
+    fullDisplayedCandidates: candidateSnapshot,
+    displayedSetFilter: null,
     displayedChips: followUpChips,
     displayedOptions: [],
+    displayedSeriesGroups: recDisplayedGroups,
+    currentMode: "recommendation",
     lastAction: "show_recommendation",
+    lastRecommendationArtifact: candidateSnapshot,
+    displayedGroups: recDisplayedGroups,
+    candidateCounts: {
+      dbMatchCount: candidates.length,
+      filteredCount: candidates.length,
+      rankedCount: candidates.length,
+      displayedCount: candidateSnapshot.length,
+      hiddenBySeriesCapCount: recDisplayedGroups
+        ? recDisplayedGroups.reduce((sum, g) => sum + g.candidateCount, 0) - candidateSnapshot.length
+        : 0,
+    },
+    pendingIntents: pendingIntents ?? undefined,
   }
+
+  // Non-blocking validation
+  runConsistencyValidation(sessionState, candidates.length, recDisplayedGroups, candidateSnapshot)
+  logSessionSnapshot("recommendation", sessionState)
 
   // Run request preparation for metadata
   const requestPrep = prepareRequest(form, messages, sessionState, input, candidates.length)
@@ -863,6 +2416,11 @@ async function buildRecommendationResponse(
       score: primary.score,
       query: `직경:${input.diameterMm ?? "?"}mm 소재:${input.material ?? "?"} 가공:${input.operationType ?? "?"}`,
     }).catch(() => {})
+  }
+
+  // Append multi-intent side-effect text
+  if (appendText) {
+    responseText += appendText
   }
 
   return NextResponse.json({
@@ -968,6 +2526,21 @@ function normalizeLookupCode(value: string): string {
   return value.toUpperCase().replace(/[\s-]/g, "").trim()
 }
 
+function resolveLookupCodeFromMessageOrContext(
+  userMessage: string,
+  prevState: ExplorationSessionState
+): string | null {
+  const productCodeMatch = userMessage.match(DIRECT_PRODUCT_CODE_PATTERN)
+  const seriesCodeMatch = userMessage.match(DIRECT_SERIES_CODE_PATTERN)
+  const explicitCode = normalizeLookupCode(productCodeMatch?.[1] ?? seriesCodeMatch?.[1] ?? "")
+  if (explicitCode) return explicitCode
+
+  const topDisplayed = getDisplayedProductsFromState(prevState)[0]?.productCode
+  if (topDisplayed) return normalizeLookupCode(topDisplayed)
+
+  return null
+}
+
 function escapeMarkdownTableCell(value: string | number | null | undefined): string {
   if (value === null || value === undefined || value === "") return "-"
   return String(value).replace(/\|/g, "/").replace(/\n/g, " ").trim() || "-"
@@ -1015,8 +2588,7 @@ async function handleDirectInventoryQuestion(
 ): Promise<{ text: string; chips: string[] } | null> {
   if (!INVENTORY_QUERY_PATTERN.test(userMessage)) return null
 
-  const productCodeMatch = userMessage.match(DIRECT_PRODUCT_CODE_PATTERN)
-  const lookupCode = normalizeLookupCode(productCodeMatch?.[1] ?? "")
+  const lookupCode = resolveLookupCodeFromMessageOrContext(userMessage, prevState)
   if (!lookupCode) return null
 
   const product = await ProductRepo.findByCode(lookupCode).catch(() => null)
@@ -1080,7 +2652,7 @@ async function handleDirectInventoryQuestion(
     }
   }
 
-  if (prevState.displayedCandidates?.length > 0) {
+  if (getDisplayedProductsFromState(prevState).length > 0) {
     return {
       text: [
         `${lookupCode}에 대한 재고 데이터를 내부 데이터에서 찾지 못했습니다.`,
@@ -1131,9 +2703,7 @@ async function handleDirectCuttingConditionQuestion(
 ): Promise<{ text: string; chips: string[] } | null> {
   if (!CUTTING_CONDITION_QUERY_PATTERN.test(userMessage)) return null
 
-  const productCodeMatch = userMessage.match(DIRECT_PRODUCT_CODE_PATTERN)
-  const seriesCodeMatch = userMessage.match(DIRECT_SERIES_CODE_PATTERN)
-  const lookupCode = normalizeLookupCode(productCodeMatch?.[1] ?? seriesCodeMatch?.[1] ?? "")
+  const lookupCode = resolveLookupCodeFromMessageOrContext(userMessage, prevState)
   if (!lookupCode) return null
 
   const product = await ProductRepo.findByCode(lookupCode)
@@ -1248,7 +2818,7 @@ async function handleDirectCuttingConditionQuestion(
     }
   }
 
-  if (prevState.displayedCandidates?.length > 0) {
+  if (getDisplayedProductsFromState(prevState).length > 0) {
     return {
       text: [
         `${lookupCode}에 대한 절삭조건은 내부 DB에서 찾지 못했습니다.`,
@@ -1846,6 +3416,14 @@ function mapIntakeToInput(form: ProductIntakeForm): RecommendationInput {
   }
   const toolType = getKnown(form.toolTypeOrCurrentProduct)
   if (toolType) input.toolType = canonicalizeIntakeSearchText(toolType)
+  // Country/Region mapping
+  if (form.country?.status === "known") {
+    input.region = form.country.value as "KOREA" | "GLOBAL" | "ALL"
+  }
+  // Unit system mapping
+  if (form.unitSystem?.status === "known") {
+    input.unitSystem = form.unitSystem.value as "METRIC" | "INCH" | "ALL"
+  }
   return input as RecommendationInput
 }
 

@@ -91,6 +91,18 @@ export async function runHybridRetrieval(
     }
   }
 
+  // Unit system filter (METRIC / INCH) — in-memory for safety (DB view may lack edp_unit)
+  if (input.unitSystem && input.unitSystem !== "ALL") {
+    const before = candidates.length
+    if (input.unitSystem === "INCH") {
+      candidates = candidates.filter(p => p.diameterInch != null)
+    } else {
+      // METRIC: keep products without inch diameter (or with mm diameter)
+      candidates = candidates.filter(p => p.diameterInch == null)
+    }
+    console.log(`[hybrid:filter] unitSystem=${input.unitSystem}: ${before} → ${candidates.length} candidates`)
+  }
+
   // Soft filter: material tag(s) — supports comma-separated multi-select (e.g. "알루미늄,스테인리스")
   const materialTags: string[] = []
   if (input.material) {
@@ -346,9 +358,10 @@ export async function runHybridRetrieval(
     `[hybrid:stage] stage=final count=${topCandidates.length} edps=${formatScoredEdpList(topCandidates)}`
   )
 
-  // Enrich top candidates with inventory + lead time (deferred for performance)
+  // Enrich top candidates with inventory + lead time (limit to top 10 for Vercel timeout safety)
+  const INVENTORY_LIMIT = parseInt(process.env.INVENTORY_ENRICH_LIMIT ?? "10", 10)
   await Promise.all(
-    topCandidates.slice(0, 100).map(async (c) => {
+    topCandidates.slice(0, INVENTORY_LIMIT).map(async (c) => {
       c.inventory = await InventoryRepo.getByEdpAsync(c.product.normalizedCode)
       c.leadTimes = LeadTimeRepo.getByEdp(c.product.normalizedCode)
       c.totalStock = await InventoryRepo.totalStockAsync(c.product.normalizedCode)

@@ -558,7 +558,7 @@ function mapRowToProduct(row: RawProductRow): CanonicalProduct {
     coolantHole: parseBoolean(firstNonEmpty(row.milling_coolant_hole, row.holemaking_coolant_hole, row.threading_coolant_hole, row.option_coolanthole)),
     applicationShapes: normalizeApplicationShapes(row.series_application_shape),
     materialTags: normalizeMaterialTags(row.material_tags),
-    region: null,
+    region: firstNonEmpty(row.region) ?? null,
     description: firstNonEmpty(row.series_description),
     featureText: firstNonEmpty(row.series_feature),
     seriesIconUrl: null,
@@ -616,6 +616,15 @@ function buildQueryOptions(options: ProductSearchOptions): { where: string[]; va
     const param = next([...materialTags])
     where.push(`COALESCE(material_tags, ARRAY[]::text[]) && ${param}::text[]`)
   }
+
+  // Region filter — DISABLED until DB view has region column
+  // if (input?.region && input.region !== "ALL") {
+  //   const param = next(input.region)
+  //   where.push(`COALESCE(region, '') = ${param}`)
+  // }
+
+  // Unit system filter — applied in-memory by hybrid-retrieval.ts (not DB WHERE)
+  // DB view may not have edp_unit column reliably
 
   const appShapes = input?.operationType ? getAppShapesForOperation(input.operationType) : []
   if (appShapes.length > 0) {

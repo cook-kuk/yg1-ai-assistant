@@ -23,5 +23,11 @@ export const ENABLE_COMPARISON_AGENT = envFlag("ENABLE_COMPARISON_AGENT", true)
 /** Enable validation gate (response checking) */
 export const ENABLE_VALIDATION_GATE = envFlag("ENABLE_VALIDATION_GATE", true)
 
-/** Use Claude tool_use for intent routing instead of regex patterns (default: false for safe rollout) */
-export const ENABLE_TOOL_USE_ROUTING = envFlag("ENABLE_TOOL_USE_ROUTING", false)
+/** Use tool-use routing (Claude chooses tools) instead of legacy intent classification */
+export const ENABLE_TOOL_USE_ROUTING = envFlag("ENABLE_TOOL_USE_ROUTING", true)
+
+/** Enable series-based grouping of candidates in CandidatePanel */
+export const ENABLE_SERIES_GROUPING = envFlag("ENABLE_SERIES_GROUPING", true)
+
+/** Enable task system (multi-task + checkpoint restoration) */
+export const ENABLE_TASK_SYSTEM = envFlag("ENABLE_TASK_SYSTEM", true)

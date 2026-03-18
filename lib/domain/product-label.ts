@@ -21,7 +21,8 @@ const SUBTYPE_KO: Record<string, string> = {
 export function buildProductLabel(product: CanonicalProduct): string {
   // Priority 1: use productName if available
   if (product.productName) {
-    return product.productName
+    // Strip HTML tags (e.g. <br/>) that may come from DB
+    return product.productName.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()
   }
 
   // Priority 2: auto-compose from fields

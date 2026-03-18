@@ -27,7 +27,7 @@ import { Markdown } from "@/components/ui/markdown"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import type { InventorySnapshot, RecommendationResult, ScoredProduct, ScoreBreakdown } from "@/lib/types/canonical"
-import type { CandidateSnapshot, ExplorationSessionState } from "@/lib/types/exploration"
+import type { CandidateSnapshot, ExplorationSessionState, SeriesGroup, ArchivedTask } from "@/lib/types/exploration"
 import type { EvidenceSummary, CuttingConditions } from "@/lib/types/evidence"
 import type { RecommendationExplanation, MatchedFact, UnmatchedFact, SupportingEvidence } from "@/lib/types/explanation"
 import type { VerificationStatus } from "@/lib/types/fact-check"
@@ -354,15 +354,23 @@ function ScoreBreakdownPanel({ breakdown }: { breakdown: ScoreBreakdown }) {
 }
 
 // ── ProductCard ────────────────────────────────────────────────
-function ProductCard({ scored, rank, isAlternative = false, evidenceSummary = null }: {
-  scored: ScoredProduct; rank: number; isAlternative?: boolean; evidenceSummary?: EvidenceSummary | null
+function ProductCard({ scored, rank, isAlternative = false, evidenceSummary = null, candidate = null }: {
+  scored: ScoredProduct; rank: number; isAlternative?: boolean; evidenceSummary?: EvidenceSummary | null; candidate?: CandidateSnapshot | null
 }) {
   const { language } = useApp()
   const [open, setOpen] = useState(!isAlternative)
   const p = scored.product
-  const bestCondition = evidenceSummary?.bestCondition ?? null
-  const inventoryLocations = useMemo(() => summarizeInventoryLocations(scored.inventory), [scored.inventory])
-  const inventorySnapshotDate = useMemo(() => summarizeInventorySnapshotDate(scored.inventory), [scored.inventory])
+  const bestCondition = evidenceSummary?.bestCondition ?? candidate?.bestCondition ?? null
+  const inventoryLocations = useMemo(
+    () => scored.inventory.length > 0 ? summarizeInventoryLocations(scored.inventory) : (candidate?.inventoryLocations ?? []),
+    [candidate?.inventoryLocations, scored.inventory]
+  )
+  const inventorySnapshotDate = useMemo(
+    () => scored.inventory.length > 0 ? summarizeInventorySnapshotDate(scored.inventory) : (candidate?.inventorySnapshotDate ?? null),
+    [candidate?.inventorySnapshotDate, scored.inventory]
+  )
+  const totalStock = scored.totalStock ?? candidate?.totalStock ?? null
+  const stockStatus = scored.stockStatus !== "unknown" ? scored.stockStatus : (candidate?.stockStatus ?? scored.stockStatus)
   return (
     <Card className={`border ${isAlternative ? "border-gray-200" : "border-blue-200 shadow-sm"}`}>
       <CardHeader className="pb-2 pt-3 px-4">
@@ -374,7 +382,7 @@ function ProductCard({ scored, rank, isAlternative = false, evidenceSummary = nu
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span className="text-xs text-gray-400 font-mono">#{rank}</span>
               <MatchBadge status={scored.matchStatus} />
-              <StockBadge status={scored.stockStatus} total={scored.totalStock} />
+              <StockBadge status={stockStatus} total={totalStock} />
             </div>
             <div className="font-mono text-sm font-bold text-gray-900">{p.displayCode}</div>
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -432,7 +440,7 @@ function ProductCard({ scored, rank, isAlternative = false, evidenceSummary = nu
               </div>
             </div>
           )}
-          <InventoryBlock totalStock={scored.totalStock} snapshotDate={inventorySnapshotDate} locations={inventoryLocations} />
+          <InventoryBlock totalStock={totalStock} snapshotDate={inventorySnapshotDate} locations={inventoryLocations} />
           {bestCondition && (
             <div>
               <div className="text-xs text-gray-500 mb-1">{language === 'ko' ? '절삭조건' : 'Cutting Conditions'}</div>
@@ -779,12 +787,13 @@ function EvidenceSourceCard({ evidence }: { evidence: SupportingEvidence[] }) {
   )
 }
 
-function RecommendationPanel({ result, resultText, evidenceSummaries, explanation, factChecked }: {
+function RecommendationPanel({ result, resultText, evidenceSummaries, explanation, factChecked, candidateSnapshot }: {
   result: RecommendationResult
   resultText: string
   evidenceSummaries?: EvidenceSummary[] | null
   explanation?: RecommendationExplanation | null
   factChecked?: Record<string, unknown> | null
+  candidateSnapshot?: CandidateSnapshot[] | null
 }) {
   const { language } = useApp()
   const { status, primaryProduct, alternatives, warnings, totalCandidatesConsidered } = result
@@ -854,11 +863,12 @@ function RecommendationPanel({ result, resultText, evidenceSummaries, explanatio
             scored={primaryProduct}
             rank={1}
             evidenceSummary={evidenceSummaries?.find(es => es.productCode === primaryProduct.product.normalizedCode) ?? null}
+            candidate={candidateSnapshot?.find(c => c.productCode === primaryProduct.product.normalizedCode) ?? null}
           />
         </div>
       )}
       {alternatives.length > 0 && (
-        <div>
+        <div data-section="alternatives">
           <div className="text-xs font-semibold text-gray-500 mb-2">{language === 'ko' ? `대체 후보 (${alternatives.length})` : `Alternatives (${alternatives.length})`}</div>
           <div className="space-y-2">
             {alternatives.map((alt, i) => (
@@ -868,6 +878,7 @@ function RecommendationPanel({ result, resultText, evidenceSummaries, explanatio
                 rank={i + 2}
                 isAlternative
                 evidenceSummary={evidenceSummaries?.find(es => es.productCode === alt.product.normalizedCode) ?? null}
+                candidate={candidateSnapshot?.find(c => c.productCode === alt.product.normalizedCode) ?? null}
               />
             ))}
           </div>
@@ -1169,7 +1180,7 @@ function IntakeGate({
           <span className="text-sm text-gray-600">
             {allDone
               ? <span className="text-green-700 font-medium flex items-center gap-1"><CheckCircle2 size={14} />{language === 'ko' ? '모두 완료되었습니다' : 'All fields complete'}</span>
-              : <span>{answered}/6 {language === 'ko' ? `항목 완료 · ${6 - answered}개 남음` : `complete · ${6 - answered} remaining`}</span>
+              : <span>{answered}/{FIELD_CONFIGS.length} {language === 'ko' ? `항목 완료 · ${FIELD_CONFIGS.length - answered}개 남음` : `complete · ${FIELD_CONFIGS.length - answered} remaining`}</span>
             }
           </span>
           <Button onClick={onNext} disabled={!allDone} className="gap-2">
@@ -1292,6 +1303,7 @@ interface ChatMsg {
   recommendation?: RecommendationResult | null
   chips?: string[]
   evidenceSummaries?: EvidenceSummary[] | null
+  candidateSnapshot?: CandidateSnapshot[] | null
   isLoading?: boolean
   // New: explanation + fact check data
   requestPreparation?: RequestPreparationResult | null
@@ -1338,6 +1350,9 @@ function ExplorationScreen({
   const { language } = useApp()
   const [showSidebar, setShowSidebar] = useState(false)
   const [showCandidates, setShowCandidates] = useState(false)
+  const persistedCandidates = sessionState
+    ? (sessionState.displayedProducts ?? sessionState.displayedCandidates ?? null)
+    : candidateSnapshot
 
   return (
     <div className="flex flex-col h-full">
@@ -1398,7 +1413,7 @@ function ExplorationScreen({
 
         {/* Right candidate panel */}
         <div className={`w-80 border-l bg-white flex-shrink-0 overflow-y-auto transition-all ${showCandidates ? "block" : "hidden"} lg:block`}>
-          <CandidatePanel candidates={candidateSnapshot} messages={messages} />
+          <CandidatePanel candidates={persistedCandidates} messages={messages} sessionState={sessionState} onSend={onSend} />
         </div>
       </div>
     </div>
@@ -1417,6 +1432,8 @@ function ExplorationSidebar({
   const { language } = useApp()
   // Find the latest requestPreparation from messages
   const latestPrep = [...messages].reverse().find(m => m.requestPreparation)?.requestPreparation ?? null
+  const uiNarrowingPath = sessionState?.uiNarrowingPath ?? []
+  const displayedGroups = sessionState?.displayedSeriesGroups ?? sessionState?.displayedGroups ?? []
 
   return (
     <div className="p-3 space-y-3">
@@ -1448,26 +1465,26 @@ function ExplorationSidebar({
       </div>
 
       {/* Narrowing path — 축소 경로 */}
-      {sessionState && sessionState.appliedFilters.length > 0 && (
+      {sessionState && uiNarrowingPath.length > 0 && (
         <div>
           <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
             <Filter size={10} />{language === 'ko' ? '적용 필터' : 'Applied Filters'}
           </div>
           <div className="space-y-0.5">
-            {sessionState.appliedFilters.filter(f => f.op !== "skip").map((f, i) => (
+            {uiNarrowingPath.map((entry, i) => (
               <div key={i} className="flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1 border border-blue-100 bg-blue-50">
                 <ArrowRight size={8} className="text-blue-400 shrink-0" />
                 <span className="text-blue-600 font-medium truncate">
-                  {f.field === "fluteCount"
+                  {entry.field === "fluteCount"
                     ? (language === "ko" ? "날수" : "Flutes")
-                    : f.field === "toolSubtype"
+                    : entry.field === "toolSubtype"
                       ? (language === "ko" ? "형상" : "Shape")
-                      : f.field === "coating"
+                      : entry.field === "coating"
                         ? (language === "ko" ? "코팅" : "Coating")
-                        : f.field === "seriesName"
+                        : entry.field === "seriesName"
                           ? (language === "ko" ? "시리즈" : "Series")
-                          : localizeIntakeText(f.field, language)}
-                  : {localizeIntakeText(f.value, language)}
+                          : localizeIntakeText(entry.field ?? entry.label, language)}
+                  : {localizeIntakeText(entry.value ?? entry.label, language)}
                 </span>
               </div>
             ))}
@@ -1489,6 +1506,44 @@ function ExplorationSidebar({
               <div key={i} className="text-[10px] text-gray-600 bg-white rounded-lg px-2.5 py-1.5 border border-gray-100">
                 <div className="font-medium">Turn {i + 1}: &quot;{localizeIntakeText(h.answer, language)}&quot;</div>
                 <div className="text-gray-400">{h.candidateCountBefore} → {h.candidateCountAfter}{language === 'ko' ? '개' : ''}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Series groups summary */}
+      {displayedGroups.length >= 2 && (
+        <div>
+          <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+            <Package size={10} />{language === 'ko' ? '시리즈 그룹' : 'Series Groups'}
+          </div>
+          <div className="space-y-0.5">
+            {displayedGroups.slice(0, 5).map(g => (
+              <div key={g.seriesKey} className="flex items-center justify-between text-[10px] bg-white rounded-lg px-2.5 py-1 border border-gray-100">
+                <span className="text-gray-700 font-medium truncate">{g.seriesName}</span>
+                <span className="text-gray-400 shrink-0 ml-1">{g.candidateCount}{language === 'ko' ? '개' : ''}</span>
+              </div>
+            ))}
+            {displayedGroups.length > 5 && (
+              <div className="text-[10px] text-gray-400 px-2.5">
+                +{displayedGroups.length - 5}{language === 'ko' ? '개 더' : ' more'}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Checkpoint summary */}
+      {sessionState?.currentTask?.checkpoints && sessionState.currentTask.checkpoints.length > 0 && (
+        <div>
+          <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+            <Clock size={10} />{language === 'ko' ? '체크포인트' : 'Checkpoints'}
+          </div>
+          <div className="space-y-0.5">
+            {sessionState.currentTask.checkpoints.slice(-3).map(cp => (
+              <div key={cp.checkpointId} className="text-[10px] text-gray-600 bg-white rounded-lg px-2.5 py-1 border border-gray-100 truncate">
+                {cp.summary}
               </div>
             ))}
           </div>
@@ -1576,11 +1631,18 @@ function NarrowingChat({
                     // Special action chips — handle client-side instead of sending as message
                     const isResetChip = chip === "처음부터 다시" || chip === "처음부터"
                     const isUndoChip = chip === "⟵ 이전 단계"
+                    const isAltChip = /^대체 후보\s*\d*개?\s*보기$/.test(chip)
                     return (
                       <button key={ci}
                         onClick={() => {
                           if (isResetChip && onReset) {
                             onReset()
+                          } else if (isAltChip) {
+                            // 대체 후보 데이터는 이미 UI에 표시됨 — 스크롤만 수행
+                            const altSection = document.querySelector('[data-section="alternatives"]')
+                            if (altSection) {
+                              altSection.scrollIntoView({ behavior: "smooth", block: "start" })
+                            }
                           } else {
                             setInput("")
                             onSend(chip)
@@ -1609,6 +1671,7 @@ function NarrowingChat({
                   evidenceSummaries={msg.evidenceSummaries}
                   explanation={msg.primaryExplanation}
                   factChecked={msg.primaryFactChecked}
+                  candidateSnapshot={msg.candidateSnapshot}
                 />
               )}
             </div>
@@ -1648,20 +1711,80 @@ function NarrowingChat({
 
 // ── Right: Candidate Panel ───────────────────────────────────
 
+function SeriesAccordionItem({
+  group,
+  isOpen,
+  onToggle,
+}: {
+  group: SeriesGroup
+  isOpen: boolean
+  onToggle: () => void
+}) {
+  const { language } = useApp()
+  const displayMembers = group.members.slice(0, MAX_DISPLAY_CANDIDATES)
+
+  return (
+    <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+      >
+        {group.seriesIconUrl && (
+          <img src={group.seriesIconUrl} alt={group.seriesName} className="w-8 h-8 object-contain rounded border border-gray-100 shrink-0 bg-white" />
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="text-xs font-semibold text-gray-800 truncate">{group.seriesName}</div>
+          <div className="text-[10px] text-gray-500">
+            {group.candidateCount}{language === 'ko' ? '개' : ''} · {language === 'ko' ? '최고' : 'Top'} {group.topScore}{language === 'ko' ? '점' : 'pt'}
+          </div>
+        </div>
+        {isOpen ? <ChevronUp size={14} className="text-gray-400 shrink-0" /> : <ChevronDown size={14} className="text-gray-400 shrink-0" />}
+      </button>
+      {isOpen && (
+        <div className="p-2 space-y-2 bg-white">
+          {displayMembers.map(c => (
+            <CandidateCard key={c.productCode} c={c} />
+          ))}
+          {group.candidateCount > MAX_DISPLAY_CANDIDATES && (
+            <div className="text-center text-[10px] text-gray-400 py-1">
+              +{group.candidateCount - MAX_DISPLAY_CANDIDATES}{language === 'ko' ? '개 추가' : ' more'}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function CandidatePanel({
-  candidates, messages,
+  candidates, messages, sessionState, onSend,
 }: {
   candidates: CandidateSnapshot[] | null
   messages: ChatMsg[]
+  sessionState?: ExplorationSessionState | null
+  onSend?: (text: string) => void
 }) {
   const { language } = useApp()
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set())
   // Find the last recommendation in messages
   const lastRec = [...messages].reverse().find(m => m.recommendation)?.recommendation
+
+  const groups = sessionState?.displayedSeriesGroups ?? sessionState?.displayedGroups ?? null
+  const useAccordion = groups != null && groups.length >= 2
 
   // Cap displayed candidates to 5
   const displayCandidates = candidates?.slice(0, MAX_DISPLAY_CANDIDATES) ?? null
   const totalCount = candidates?.length ?? 0
   const hasMore = totalCount > MAX_DISPLAY_CANDIDATES
+
+  const toggleGroup = (key: string) => {
+    setOpenGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   return (
     <div className="p-3 space-y-3">
@@ -1669,14 +1792,26 @@ function CandidatePanel({
         <Activity size={11} />
         {totalCount > 0 ? (
           language === 'ko'
-            ? <>상위 추천 후보 {displayCandidates?.length ?? 0}개{hasMore && <span className="text-gray-400 font-normal">(전체 {totalCount}개 중)</span>}</>
-            : <>Top {displayCandidates?.length ?? 0} Candidates{hasMore && <span className="text-gray-400 font-normal"> (of {totalCount})</span>}</>
+            ? <>상위 추천 후보 {useAccordion ? `${groups.length}개 시리즈` : `${displayCandidates?.length ?? 0}개`}{hasMore && !useAccordion && <span className="text-gray-400 font-normal">(전체 {totalCount}개 중)</span>}</>
+            : <>Top {useAccordion ? `${groups.length} Series` : `${displayCandidates?.length ?? 0} Candidates`}{hasMore && !useAccordion && <span className="text-gray-400 font-normal"> (of {totalCount})</span>}</>
         ) : (
           <>{language === 'ko' ? '추천 후보' : 'Candidates'}</>
         )}
       </div>
 
-      {displayCandidates && displayCandidates.length > 0 ? (
+      {/* Accordion view (2+ groups) */}
+      {useAccordion ? (
+        <div className="space-y-2">
+          {groups.map(g => (
+            <SeriesAccordionItem
+              key={g.seriesKey}
+              group={g}
+              isOpen={openGroups.has(g.seriesKey)}
+              onToggle={() => toggleGroup(g.seriesKey)}
+            />
+          ))}
+        </div>
+      ) : displayCandidates && displayCandidates.length > 0 ? (
         <div className="space-y-2">
           {displayCandidates.map(c => (
             <CandidateCard key={c.productCode} c={c} />
@@ -1691,6 +1826,29 @@ function CandidatePanel({
         <div className="text-center py-8 text-gray-400">
           <Database size={24} className="mx-auto mb-2 opacity-50" />
           <div className="text-xs">{language === 'ko' ? '조건을 입력하면 후보를 검색합니다' : 'Enter conditions to search candidates'}</div>
+        </div>
+      )}
+
+      {/* Task history section */}
+      {sessionState?.taskHistory && sessionState.taskHistory.length > 0 && (
+        <div className="border-t pt-3">
+          <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+            <FileText size={11} className="text-purple-600" />{language === 'ko' ? '이전 추천 작업' : 'Previous Tasks'}
+          </div>
+          <div className="space-y-1">
+            {sessionState.taskHistory.map(task => (
+              <button
+                key={task.taskId}
+                onClick={() => onSend?.(`이전 작업 재개: ${task.taskId}`)}
+                className="w-full text-left text-[10px] text-purple-700 bg-purple-50 rounded-lg px-2.5 py-1.5 border border-purple-100 hover:bg-purple-100 transition-colors"
+              >
+                <div className="font-medium truncate">{task.intakeSummary}</div>
+                <div className="text-purple-500">
+                  {language === 'ko' ? `체크포인트 ${task.checkpointCount}개` : `${task.checkpointCount} checkpoints`}
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -1998,12 +2156,19 @@ export default function ProductRecommendPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ intakeForm: form, messages: [], sessionState: null, language }),
       })
-      const data = await res.json()
+      const text = await res.text()
+      if (!text) throw new Error("서버 응답이 비어있습니다. 다시 시도해주세요.")
+      const data = JSON.parse(text)
       if (data.error) throw new Error(data.detail ?? data.error)
 
       // Store session state and candidates
-      setSessionState(data.sessionState ?? null)
-      setCandidateSnapshot(data.candidateSnapshot ?? null)
+      const nextSessionState = data.sessionState ?? null
+      const nextCandidateSnapshot = nextSessionState?.displayedProducts
+        ?? nextSessionState?.displayedCandidates
+        ?? data.candidateSnapshot
+        ?? null
+      setSessionState(nextSessionState)
+      setCandidateSnapshot(nextCandidateSnapshot)
 
       // Seed chat
       setChatMessages([
@@ -2014,6 +2179,7 @@ export default function ProductRecommendPage() {
           chips: data.chips ?? [],
           recommendation: data.recommendation ?? null,
           evidenceSummaries: data.evidenceSummaries ?? null,
+          candidateSnapshot: nextCandidateSnapshot,
           requestPreparation: data.requestPreparation ?? null,
           primaryExplanation: data.primaryExplanation ?? null,
           primaryFactChecked: data.primaryFactChecked ?? null,
@@ -2042,7 +2208,10 @@ export default function ProductRecommendPage() {
       history.push({ role: "user", text })
 
       // 현재 표시된 추천 제품 목록을 같이 전송 → LLM이 후속 질문에 활용
-      const displayedProducts = candidateSnapshot?.slice(0, 10).map(c => ({
+      const persistedCandidates = sessionState
+        ? (sessionState.displayedProducts ?? sessionState.displayedCandidates ?? null)
+        : candidateSnapshot
+      const displayedProducts = persistedCandidates?.slice(0, 10).map(c => ({
         rank: c.rank,
         code: c.displayCode,
         brand: c.brand,
@@ -2066,11 +2235,19 @@ export default function ProductRecommendPage() {
           language,
         }),
       })
-      const data = await res.json()
+      const resText = await res.text()
+      if (!resText) throw new Error("서버 응답이 비어있습니다. 다시 시도해주세요.")
+      const data = JSON.parse(resText)
+      if (data.error) throw new Error(data.detail ?? data.text ?? data.error)
 
       // Update session state and candidates
-      if (data.sessionState) setSessionState(data.sessionState)
-      if (data.candidateSnapshot) setCandidateSnapshot(data.candidateSnapshot)
+      const nextSessionState = data.sessionState ?? null
+      const nextCandidateSnapshot = nextSessionState?.displayedProducts
+        ?? nextSessionState?.displayedCandidates
+        ?? data.candidateSnapshot
+        ?? null
+      setSessionState(nextSessionState)
+      setCandidateSnapshot(nextCandidateSnapshot)
 
       setChatMessages(prev => {
         const updated = [...prev]
@@ -2080,6 +2257,7 @@ export default function ProductRecommendPage() {
           recommendation: data.recommendation ?? null,
           chips: data.chips ?? [],
           evidenceSummaries: data.evidenceSummaries ?? null,
+          candidateSnapshot: nextCandidateSnapshot,
           requestPreparation: data.requestPreparation ?? null,
           primaryExplanation: data.primaryExplanation ?? null,
           primaryFactChecked: data.primaryFactChecked ?? null,
@@ -2088,12 +2266,13 @@ export default function ProductRecommendPage() {
         }
         return updated
       })
-    } catch {
+    } catch (err) {
+      console.error("[handleChatSend] Error:", err)
       setChatMessages(prev => {
         const updated = [...prev]
         updated[updated.length - 1] = {
           role: "ai",
-          text: "오류가 발생했습니다. 다시 시도해주세요.",
+          text: `오류가 발생했습니다. 다시 시도해주세요.${err instanceof Error ? ` (${err.message})` : ""}`,
           isLoading: false,
         }
         return updated

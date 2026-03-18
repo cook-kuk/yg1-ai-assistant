@@ -93,7 +93,10 @@ function toSerializable(value: unknown, seen = new WeakSet<object>()): unknown {
   return String(value)
 }
 
+const isVercel = !!process.env.VERCEL
+
 async function ensureLogDirectory(): Promise<void> {
+  if (isVercel) return // Vercel has read-only filesystem
   if (!globalThis.__yg1RuntimeLogDirReady) {
     globalThis.__yg1RuntimeLogDirReady = mkdir(path.dirname(getRuntimeLogPath()), {
       recursive: true,
@@ -113,6 +116,12 @@ export async function appendRuntimeLog(entry: RuntimeLogEntry): Promise<void> {
     context: toSerializable(entry.context ?? {}),
   }
   const line = `${JSON.stringify(record)}\n`
+
+  // On Vercel, just log to console (filesystem is read-only)
+  if (isVercel) {
+    console.log(`[runtime-log] ${line.trim()}`)
+    return
+  }
 
   const write = async () => {
     await ensureLogDirectory()

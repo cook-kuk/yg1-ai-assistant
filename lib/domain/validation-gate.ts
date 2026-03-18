@@ -12,8 +12,10 @@
  * It is purely deterministic — no LLM calls.
  */
 
-import type { ExplorationSessionState, AppliedFilter, CandidateSnapshot } from "@/lib/types/exploration"
+import type { ExplorationSessionState, AppliedFilter, CandidateSnapshot, NarrowingTurn } from "@/lib/types/exploration"
+import type { RecommendationInput, ScoredProduct } from "@/lib/types/canonical"
 import type { NextQuestion } from "@/lib/domain/question-engine"
+import { selectNextQuestion } from "@/lib/domain/question-engine"
 
 export interface ValidationIssue {
   code: string
@@ -119,6 +121,7 @@ export function validateUndoEffect(
 
 /**
  * Run all validations and return combined result.
+ * When auto-repair is possible, returns repaired values.
  */
 export function runValidationGate(params: {
   question: NextQuestion | null
@@ -129,12 +132,33 @@ export function runValidationGate(params: {
   comparisonTargets?: string[]
   actionType?: string
   prevFilterCount?: number
+  // Auto-repair inputs (optional)
+  resolvedInput?: RecommendationInput
+  candidates?: ScoredProduct[]
+  narrowingHistory?: NarrowingTurn[]
 }): ValidationResult {
   const issues: ValidationIssue[] = []
+  let repairedQuestion: NextQuestion | null | undefined
 
   // Check re-ask
   const reaskIssue = validateNoReask(params.question, params.appliedFilters)
-  if (reaskIssue) issues.push(reaskIssue)
+  if (reaskIssue) {
+    issues.push(reaskIssue)
+    // Auto-repair: select next question that hasn't been answered yet
+    if (params.resolvedInput && params.candidates && params.narrowingHistory) {
+      const answeredFields = new Set(params.appliedFilters.map(f => f.field))
+      // Extend narrowing history with a synthetic entry for the re-asked field to force the engine to skip it
+      const extendedHistory = [
+        ...params.narrowingHistory,
+        { question: params.question!.field, answer: "(auto-skipped)", extractedFilters: [], candidateCountBefore: 0, candidateCountAfter: 0 },
+      ]
+      const nextQ = selectNextQuestion(params.resolvedInput, params.candidates, extendedHistory)
+      if (nextQ && !answeredFields.has(nextQ.field)) {
+        repairedQuestion = nextQ
+        console.log(`[validation-gate:REPAIR] REASK_KNOWN_FIELD — replaced "${params.question!.field}" with "${nextQ.field}"`)
+      }
+    }
+  }
 
   // Check candidate count
   const countIssue = validateCandidateCount(params.candidateCountInState, params.candidateCountActual)
@@ -165,5 +189,6 @@ export function runValidationGate(params: {
   return {
     valid: !issues.some(i => i.severity === "error" && !i.autoFixed),
     issues,
+    repairedQuestion,
   }
 }

@@ -15,6 +15,8 @@ const FIELD_LABELS: Record<LocalizedIntakeFieldKey, { ko: string; en: string }> 
   machiningIntent: { ko: "가공 성격", en: "Machining Intent" },
   toolTypeOrCurrentProduct: { ko: "공구 타입 / 현재 제품", en: "Tool Type / Current Product" },
   diameterInfo: { ko: "공구 직경", en: "Tool Diameter" },
+  country: { ko: "시장 / 국가", en: "Market / Region" },
+  unitSystem: { ko: "단위 계열", en: "Unit System" },
 }
 
 const INQUIRY_PURPOSE_LABELS_LOCALIZED: Record<InquiryPurpose, { ko: string; en: string }> = {
@@ -161,6 +163,22 @@ export function getIntakeDisplayValue(
   }
   if (key === "machiningIntent") {
     return MACHINING_INTENT_LABELS_LOCALIZED[value as MachiningIntent]?.[language] ?? value
+  }
+  if (key === "country") {
+    const regionLabels: Record<string, { ko: string; en: string }> = {
+      KOREA: { ko: "한국 (국내)", en: "Korea (Domestic)" },
+      GLOBAL: { ko: "글로벌 (해외)", en: "Global (Export)" },
+      ALL: { ko: "전체", en: "All Markets" },
+    }
+    return regionLabels[value]?.[language] ?? value
+  }
+  if (key === "unitSystem") {
+    const unitLabels: Record<string, { ko: string; en: string }> = {
+      METRIC: { ko: "미터법 (mm)", en: "Metric (mm)" },
+      INCH: { ko: "인치 (inch)", en: "Inch" },
+      ALL: { ko: "전체", en: "All Units" },
+    }
+    return unitLabels[value]?.[language] ?? value
   }
 
   return localizeIntakeText(value, language)
