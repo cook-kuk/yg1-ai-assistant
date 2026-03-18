@@ -2117,7 +2117,7 @@ function FeedbackWidget({
 
 export default function ProductRecommendPage() {
   const searchParams = useSearchParams()
-  const { language } = useApp()
+  const { language, region } = useApp()
   const resetKey = searchParams.get("reset")
 
   const [phase, setPhase] = useState<Phase>("intake")
@@ -2149,12 +2149,19 @@ export default function ProductRecommendPage() {
     setPhase("loading")
     setError(null)
     try {
-      const intakeText = buildIntakePromptText(form, language)
+      // Inject sidebar region selection into the form's country field
+      const formWithRegion: ProductIntakeForm = {
+        ...form,
+        country: region && region !== "ALL"
+          ? { status: "known" as const, value: region }
+          : { status: "known" as const, value: "ALL" },
+      }
+      const intakeText = buildIntakePromptText(formWithRegion, language)
 
       const res = await fetch("/api/recommend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ intakeForm: form, messages: [], sessionState: null, language }),
+        body: JSON.stringify({ intakeForm: formWithRegion, messages: [], sessionState: null, language }),
       })
       const text = await res.text()
       if (!text) throw new Error("서버 응답이 비어있습니다. 다시 시도해주세요.")
@@ -2224,11 +2231,18 @@ export default function ProductRecommendPage() {
         matchStatus: c.matchStatus,
       })) ?? null
 
+      // Inject sidebar region into form for narrowing requests too
+      const formWithRegion: ProductIntakeForm = {
+        ...form,
+        country: region && region !== "ALL"
+          ? { status: "known" as const, value: region }
+          : { status: "known" as const, value: "ALL" },
+      }
       const res = await fetch("/api/recommend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          intakeForm: form,
+          intakeForm: formWithRegion,
           messages: history,
           sessionState,
           displayedProducts,

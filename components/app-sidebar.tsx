@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
@@ -19,6 +20,7 @@ import {
   Lock,
   MessageCircle,
   Globe,
+  MapPin,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/lib/store"
@@ -134,6 +136,31 @@ const navItems = [
   },
 ]
 
+const REGION_LABELS: Record<string, { ko: string; en: string }> = {
+  KOR: { ko: "한국", en: "Korea" },
+  ENG: { ko: "영국", en: "UK" },
+  CHN: { ko: "중국", en: "China" },
+  DEU: { ko: "독일", en: "Germany" },
+  ESP: { ko: "스페인", en: "Spain" },
+  FRA: { ko: "프랑스", en: "France" },
+  HUN: { ko: "헝가리", en: "Hungary" },
+  ITA: { ko: "이탈리아", en: "Italy" },
+  JPN: { ko: "일본", en: "Japan" },
+  POL: { ko: "폴란드", en: "Poland" },
+  PRT: { ko: "포르투갈", en: "Portugal" },
+  RUS: { ko: "러시아", en: "Russia" },
+  THA: { ko: "태국", en: "Thailand" },
+  TUR: { ko: "튀르키예", en: "Turkey" },
+  VNM: { ko: "베트남", en: "Vietnam" },
+  CZE: { ko: "체코", en: "Czech Republic" },
+}
+
+function regionLabel(code: string, lang: string): string {
+  const entry = REGION_LABELS[code]
+  if (!entry) return code
+  return lang === "ko" ? `${entry.ko} (${code})` : `${entry.en} (${code})`
+}
+
 const roleLabels = {
   sales: { kr: "영업", en: "Sales" },
   rnd: { kr: "연구/기술지원", en: "R&D" },
@@ -143,7 +170,23 @@ const roleLabels = {
 export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
   const pathname = usePathname()
   const router = useRouter()
-  const { currentUser, setUserRole, demoScenario, setDemoScenario, language, setLanguage } = useApp()
+  const { currentUser, setUserRole, demoScenario, setDemoScenario, language, setLanguage, region, setRegion } = useApp()
+
+  // Fetch available regions from DB
+  const [regionList, setRegionList] = useState<string[]>([])
+  useEffect(() => {
+    fetch("/api/regions")
+      .then(res => res.json())
+      .then(data => {
+        if (data.regions && data.regions.length > 0) {
+          setRegionList(data.regions)
+        }
+      })
+      .catch(() => {
+        // fallback if API fails
+        setRegionList(["KOR", "ENG", "CHN", "JPN"])
+      })
+  }, [])
 
   const filteredNavItems = navItems.filter(item =>
     item.roles.includes(currentUser.role)
@@ -275,8 +318,26 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
         </ul>
       </nav>
 
-      {/* User Role Selector + Language Toggle */}
+      {/* User Role Selector + Region + Language Toggle */}
       <div className="border-t border-sidebar-border p-3 space-y-2">
+        {/* Region Selector */}
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-1.5 text-xs text-sidebar-foreground/60">
+            <MapPin className="h-3.5 w-3.5" />
+            <span>{language === 'ko' ? '지역' : 'Region'}</span>
+          </div>
+          <select
+            value={region}
+            onChange={(e) => setRegion(e.target.value)}
+            className="h-7 rounded-md border border-sidebar-border bg-sidebar-accent px-2 text-xs font-medium text-sidebar-foreground focus:outline-none focus:ring-1 focus:ring-sidebar-primary"
+          >
+            <option value="ALL">{language === 'ko' ? '전체' : 'All Regions'}</option>
+            {regionList.map((r) => (
+              <option key={r} value={r}>{regionLabel(r, language)}</option>
+            ))}
+          </select>
+        </div>
+
         {/* Language Toggle */}
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-1.5 text-xs text-sidebar-foreground/60">

@@ -166,9 +166,23 @@ export function getIntakeDisplayValue(
   }
   if (key === "country") {
     const regionLabels: Record<string, { ko: string; en: string }> = {
-      KOREA: { ko: "한국 (국내)", en: "Korea (Domestic)" },
-      GLOBAL: { ko: "글로벌 (해외)", en: "Global (Export)" },
       ALL: { ko: "전체", en: "All Markets" },
+      KOR: { ko: "한국", en: "Korea" },
+      ENG: { ko: "영국", en: "UK" },
+      CHN: { ko: "중국", en: "China" },
+      DEU: { ko: "독일", en: "Germany" },
+      ESP: { ko: "스페인", en: "Spain" },
+      FRA: { ko: "프랑스", en: "France" },
+      HUN: { ko: "헝가리", en: "Hungary" },
+      ITA: { ko: "이탈리아", en: "Italy" },
+      JPN: { ko: "일본", en: "Japan" },
+      POL: { ko: "폴란드", en: "Poland" },
+      PRT: { ko: "포르투갈", en: "Portugal" },
+      RUS: { ko: "러시아", en: "Russia" },
+      THA: { ko: "태국", en: "Thailand" },
+      TUR: { ko: "튀르키예", en: "Turkey" },
+      VNM: { ko: "베트남", en: "Vietnam" },
+      CZE: { ko: "체코", en: "Czech Republic" },
     }
     return regionLabels[value]?.[language] ?? value
   }

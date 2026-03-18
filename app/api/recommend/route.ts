@@ -3418,7 +3418,7 @@ function mapIntakeToInput(form: ProductIntakeForm): RecommendationInput {
   if (toolType) input.toolType = canonicalizeIntakeSearchText(toolType)
   // Country/Region mapping
   if (form.country?.status === "known") {
-    input.region = form.country.value as "KOREA" | "GLOBAL" | "ALL"
+    input.region = form.country.value
   }
   // Unit system mapping
   if (form.unitSystem?.status === "known") {

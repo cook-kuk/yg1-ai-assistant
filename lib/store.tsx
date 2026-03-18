@@ -28,6 +28,7 @@ interface AppState {
   compareProducts: Product[]
   notifications: Notification[]
   language: 'ko' | 'en'
+  region: string      // selected market region (e.g. "KOR", "ENG", "CHN", "ALL")
 }
 
 interface Notification {
@@ -41,6 +42,7 @@ interface AppContextType extends AppState {
   setDemoScenario: (scenario: DemoScenario) => void
   setUserRole: (role: 'sales' | 'rnd' | 'admin') => void
   setLanguage: (lang: 'ko' | 'en') => void
+  setRegion: (region: string) => void
   updateInquiryStatus: (id: string, status: InquiryStatus) => void
   addMessageToInquiry: (inquiryId: string, message: { sender: 'customer' | 'sales' | 'ai' | 'system'; content: string }) => void
   addToCompare: (product: Product) => void
@@ -72,7 +74,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     demoScenario: null,
     compareProducts: [],
     notifications: [],
-    language: 'ko'
+    language: 'ko',
+    region: 'ALL'
   })
 
   const setDemoScenario = useCallback((scenario: DemoScenario) => {
@@ -85,6 +88,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setLanguage = useCallback((lang: 'ko' | 'en') => {
     setState(prev => ({ ...prev, language: lang }))
+  }, [])
+
+  const setRegion = useCallback((region: string) => {
+    setState(prev => ({ ...prev, region }))
   }, [])
 
   const updateInquiryStatus = useCallback((id: string, status: InquiryStatus) => {
@@ -216,6 +223,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setDemoScenario,
         setUserRole,
         setLanguage,
+        setRegion,
         updateInquiryStatus,
         addMessageToInquiry,
         addToCompare,

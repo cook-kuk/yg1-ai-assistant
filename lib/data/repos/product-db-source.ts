@@ -619,11 +619,11 @@ function buildQueryOptions(options: ProductSearchOptions): { where: string[]; va
     where.push(`COALESCE(material_tags, ARRAY[]::text[]) && ${param}::text[]`)
   }
 
-  // Region filter — DISABLED until DB view has region column
-  // if (input?.region && input.region !== "ALL") {
-  //   const param = next(input.region)
-  //   where.push(`COALESCE(region, '') = ${param}`)
-  // }
+  // Region filter — region column is comma-separated (e.g. "KOR,ENG,CHN")
+  if (input?.region && input.region !== "ALL") {
+    const param = next(input.region)
+    where.push(`',' || COALESCE(region, '') || ',' LIKE '%,' || ${param} || ',%'`)
+  }
 
   // Unit system filter — applied in-memory by hybrid-retrieval.ts (not DB WHERE)
   // DB view may not have edp_unit column reliably
