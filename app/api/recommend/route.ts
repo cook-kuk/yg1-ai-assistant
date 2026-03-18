@@ -46,7 +46,7 @@ import { orchestrateTurn, orchestrateTurnWithTools, normalizeFieldName } from "@
 import { compareProducts, resolveProductReferences } from "@/lib/agents/comparison-agent"
 import type { TurnContext, OrchestratorResult } from "@/lib/agents/types"
 import { buildSessionState, carryForwardState, createInitialStage, createFilterStage, restoreOnePreviousStep, restoreToBeforeFilter, logSessionSnapshot } from "@/lib/domain/session-manager"
-import { runValidationGate, validateNoReask } from "@/lib/domain/validation-gate"
+import { runValidationGate, validateNoReask, validateComparisonScope } from "@/lib/domain/validation-gate"
 import { ENABLE_MULTI_AGENT_ORCHESTRATOR, ENABLE_VALIDATION_GATE, ENABLE_COMPARISON_AGENT, ENABLE_TOOL_USE_ROUTING, ENABLE_SERIES_GROUPING, ENABLE_TASK_SYSTEM } from "@/lib/feature-flags"
 import { groupCandidatesBySeries, buildGroupSummaries, filterBySeriesGroup } from "@/lib/domain/series-grouper"
 import { createCheckpoint, createTask, archiveTask, restoreFromArchivedTask, addCheckpointToTask, buildTaskIntakeSummary } from "@/lib/domain/task-manager"
@@ -947,6 +947,32 @@ async function handleExploration(
         const snapshot = getFullDisplayedProductsFromState(prevState)?.length > 0
           ? getFullDisplayedProductsFromState(prevState)!
           : buildCandidateSnapshot(candidates, evidenceMap)
+
+        // ── BLOCKING: validate comparison scope before executing ──
+        const scopeIssue = validateComparisonScope(action.targets, snapshot)
+        if (scopeIssue) {
+          console.log(`[validation-gate:BLOCK] ${scopeIssue.code}: ${scopeIssue.message}`)
+          const sessionState = finalizeSessionState({
+            ...prevState,
+            lastAction: prevState.lastAction,
+            underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
+            displayedChips: [`상위 ${Math.min(3, snapshot.length)}개 비교`, "추천해주세요", "처음부터 다시"],
+          }, prevState)
+          return NextResponse.json({
+            text: `${scopeIssue.message}\n\n현재 표시된 제품은 ${snapshot.length}개입니다. "상위 3개 비교" 또는 구체적인 번호를 지정해주세요.`,
+            purpose: "question",
+            chips: [`상위 ${Math.min(3, snapshot.length)}개 비교`, "추천해주세요", "처음부터 다시"],
+            isComplete: false,
+            recommendation: null,
+            sessionState,
+            evidenceSummaries: null,
+            candidateSnapshot: snapshot,
+            extractedField: null, requestPreparation: null,
+            primaryExplanation: null, primaryFactChecked: null,
+            altExplanations: [], altFactChecked: [],
+          })
+        }
+
         const targets = resolveProductReferences(action.targets, snapshot)
         const compResult = await compareProducts(targets, evidenceMap, provider)
 
@@ -2110,7 +2136,7 @@ async function buildQuestionResponse(
   runConsistencyValidation(sessionState, candidates.length, displayedGroups, candidateSnapshot)
   logSessionSnapshot("question", sessionState)
 
-  // Validation gate with auto-repair for re-ask prevention
+  // Validation gate with auto-repair AND blocking
   const vgResult = runValidationGate({
     question,
     appliedFilters: filters,
@@ -2125,6 +2151,11 @@ async function buildQuestionResponse(
     question = vgResult.repairedQuestion
     sessionState.lastAskedField = question.field
     console.log(`[validation-gate] Auto-repaired: next question field → "${question.field}"`)
+  }
+  // Fix candidate count mismatch in session state
+  if (sessionState.candidateCount !== candidates.length) {
+    console.log(`[validation-gate] Count fix: ${sessionState.candidateCount} → ${candidates.length}`)
+    sessionState.candidateCount = candidates.length
   }
 
   // Debug: log narrowing state
