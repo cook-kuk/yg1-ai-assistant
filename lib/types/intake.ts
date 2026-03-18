@@ -206,18 +206,19 @@ export const FIELD_CONFIGS: IntakeFieldConfig[] = [
     ],
     unknownLabel: "모름",
   },
-  {
-    key: "machiningIntent",
-    label: "가공 성격",
-    emoji: "🎚️",
-    description: "황삭 / 중삭 / 정삭 중 어느 쪽인가요?",
-    options: [
-      { value: "roughing", label: "황삭 (Roughing)" },
-      { value: "semi", label: "중삭 (Semi-finishing)" },
-      { value: "finishing", label: "정삭 (Finishing)" },
-    ],
-    unknownLabel: "모름",
-  },
+  // NOTE: machiningIntent 비활성화 — DB에 황삭/중삭/정삭 실데이터 없음 (추정 매핑만 존재)
+  // {
+  //   key: "machiningIntent",
+  //   label: "가공 성격",
+  //   emoji: "🎚️",
+  //   description: "황삭 / 중삭 / 정삭 중 어느 쪽인가요?",
+  //   options: [
+  //     { value: "roughing", label: "황삭 (Roughing)" },
+  //     { value: "semi", label: "중삭 (Semi-finishing)" },
+  //     { value: "finishing", label: "정삭 (Finishing)" },
+  //   ],
+  //   unknownLabel: "모름",
+  // },
   {
     key: "toolTypeOrCurrentProduct",
     label: "공구 타입 / 현재 제품",
