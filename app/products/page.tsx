@@ -354,15 +354,23 @@ function ScoreBreakdownPanel({ breakdown }: { breakdown: ScoreBreakdown }) {
 }
 
 // ── ProductCard ────────────────────────────────────────────────
-function ProductCard({ scored, rank, isAlternative = false, evidenceSummary = null }: {
-  scored: ScoredProduct; rank: number; isAlternative?: boolean; evidenceSummary?: EvidenceSummary | null
+function ProductCard({ scored, rank, isAlternative = false, evidenceSummary = null, candidate = null }: {
+  scored: ScoredProduct; rank: number; isAlternative?: boolean; evidenceSummary?: EvidenceSummary | null; candidate?: CandidateSnapshot | null
 }) {
   const { language } = useApp()
   const [open, setOpen] = useState(!isAlternative)
   const p = scored.product
-  const bestCondition = evidenceSummary?.bestCondition ?? null
-  const inventoryLocations = useMemo(() => summarizeInventoryLocations(scored.inventory), [scored.inventory])
-  const inventorySnapshotDate = useMemo(() => summarizeInventorySnapshotDate(scored.inventory), [scored.inventory])
+  const bestCondition = evidenceSummary?.bestCondition ?? candidate?.bestCondition ?? null
+  const inventoryLocations = useMemo(
+    () => scored.inventory.length > 0 ? summarizeInventoryLocations(scored.inventory) : (candidate?.inventoryLocations ?? []),
+    [candidate?.inventoryLocations, scored.inventory]
+  )
+  const inventorySnapshotDate = useMemo(
+    () => scored.inventory.length > 0 ? summarizeInventorySnapshotDate(scored.inventory) : (candidate?.inventorySnapshotDate ?? null),
+    [candidate?.inventorySnapshotDate, scored.inventory]
+  )
+  const totalStock = scored.totalStock ?? candidate?.totalStock ?? null
+  const stockStatus = scored.stockStatus !== "unknown" ? scored.stockStatus : (candidate?.stockStatus ?? scored.stockStatus)
   return (
     <Card className={`border ${isAlternative ? "border-gray-200" : "border-blue-200 shadow-sm"}`}>
       <CardHeader className="pb-2 pt-3 px-4">
@@ -374,7 +382,7 @@ function ProductCard({ scored, rank, isAlternative = false, evidenceSummary = nu
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span className="text-xs text-gray-400 font-mono">#{rank}</span>
               <MatchBadge status={scored.matchStatus} />
-              <StockBadge status={scored.stockStatus} total={scored.totalStock} />
+              <StockBadge status={stockStatus} total={totalStock} />
             </div>
             <div className="font-mono text-sm font-bold text-gray-900">{p.displayCode}</div>
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -432,7 +440,7 @@ function ProductCard({ scored, rank, isAlternative = false, evidenceSummary = nu
               </div>
             </div>
           )}
-          <InventoryBlock totalStock={scored.totalStock} snapshotDate={inventorySnapshotDate} locations={inventoryLocations} />
+          <InventoryBlock totalStock={totalStock} snapshotDate={inventorySnapshotDate} locations={inventoryLocations} />
           {bestCondition && (
             <div>
               <div className="text-xs text-gray-500 mb-1">{language === 'ko' ? '절삭조건' : 'Cutting Conditions'}</div>
@@ -779,12 +787,13 @@ function EvidenceSourceCard({ evidence }: { evidence: SupportingEvidence[] }) {
   )
 }
 
-function RecommendationPanel({ result, resultText, evidenceSummaries, explanation, factChecked }: {
+function RecommendationPanel({ result, resultText, evidenceSummaries, explanation, factChecked, candidateSnapshot }: {
   result: RecommendationResult
   resultText: string
   evidenceSummaries?: EvidenceSummary[] | null
   explanation?: RecommendationExplanation | null
   factChecked?: Record<string, unknown> | null
+  candidateSnapshot?: CandidateSnapshot[] | null
 }) {
   const { language } = useApp()
   const { status, primaryProduct, alternatives, warnings, totalCandidatesConsidered } = result
@@ -854,6 +863,7 @@ function RecommendationPanel({ result, resultText, evidenceSummaries, explanatio
             scored={primaryProduct}
             rank={1}
             evidenceSummary={evidenceSummaries?.find(es => es.productCode === primaryProduct.product.normalizedCode) ?? null}
+            candidate={candidateSnapshot?.find(c => c.productCode === primaryProduct.product.normalizedCode) ?? null}
           />
         </div>
       )}
@@ -868,6 +878,7 @@ function RecommendationPanel({ result, resultText, evidenceSummaries, explanatio
                 rank={i + 2}
                 isAlternative
                 evidenceSummary={evidenceSummaries?.find(es => es.productCode === alt.product.normalizedCode) ?? null}
+                candidate={candidateSnapshot?.find(c => c.productCode === alt.product.normalizedCode) ?? null}
               />
             ))}
           </div>
@@ -1292,6 +1303,7 @@ interface ChatMsg {
   recommendation?: RecommendationResult | null
   chips?: string[]
   evidenceSummaries?: EvidenceSummary[] | null
+  candidateSnapshot?: CandidateSnapshot[] | null
   isLoading?: boolean
   // New: explanation + fact check data
   requestPreparation?: RequestPreparationResult | null
@@ -1616,6 +1628,7 @@ function NarrowingChat({
                   evidenceSummaries={msg.evidenceSummaries}
                   explanation={msg.primaryExplanation}
                   factChecked={msg.primaryFactChecked}
+                  candidateSnapshot={msg.candidateSnapshot}
                 />
               )}
             </div>
@@ -2023,6 +2036,7 @@ export default function ProductRecommendPage() {
           chips: data.chips ?? [],
           recommendation: data.recommendation ?? null,
           evidenceSummaries: data.evidenceSummaries ?? null,
+          candidateSnapshot: data.candidateSnapshot ?? null,
           requestPreparation: data.requestPreparation ?? null,
           primaryExplanation: data.primaryExplanation ?? null,
           primaryFactChecked: data.primaryFactChecked ?? null,
@@ -2092,6 +2106,7 @@ export default function ProductRecommendPage() {
           recommendation: data.recommendation ?? null,
           chips: data.chips ?? [],
           evidenceSummaries: data.evidenceSummaries ?? null,
+          candidateSnapshot: data.candidateSnapshot ?? null,
           requestPreparation: data.requestPreparation ?? null,
           primaryExplanation: data.primaryExplanation ?? null,
           primaryFactChecked: data.primaryFactChecked ?? null,

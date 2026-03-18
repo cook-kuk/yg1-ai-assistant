@@ -1539,6 +1539,21 @@ function normalizeLookupCode(value: string): string {
   return value.toUpperCase().replace(/[\s-]/g, "").trim()
 }
 
+function resolveLookupCodeFromMessageOrContext(
+  userMessage: string,
+  prevState: ExplorationSessionState
+): string | null {
+  const productCodeMatch = userMessage.match(DIRECT_PRODUCT_CODE_PATTERN)
+  const seriesCodeMatch = userMessage.match(DIRECT_SERIES_CODE_PATTERN)
+  const explicitCode = normalizeLookupCode(productCodeMatch?.[1] ?? seriesCodeMatch?.[1] ?? "")
+  if (explicitCode) return explicitCode
+
+  const topDisplayed = prevState.displayedCandidates?.[0]?.productCode
+  if (topDisplayed) return normalizeLookupCode(topDisplayed)
+
+  return null
+}
+
 function escapeMarkdownTableCell(value: string | number | null | undefined): string {
   if (value === null || value === undefined || value === "") return "-"
   return String(value).replace(/\|/g, "/").replace(/\n/g, " ").trim() || "-"
@@ -1586,8 +1601,7 @@ async function handleDirectInventoryQuestion(
 ): Promise<{ text: string; chips: string[] } | null> {
   if (!INVENTORY_QUERY_PATTERN.test(userMessage)) return null
 
-  const productCodeMatch = userMessage.match(DIRECT_PRODUCT_CODE_PATTERN)
-  const lookupCode = normalizeLookupCode(productCodeMatch?.[1] ?? "")
+  const lookupCode = resolveLookupCodeFromMessageOrContext(userMessage, prevState)
   if (!lookupCode) return null
 
   const product = await ProductRepo.findByCode(lookupCode).catch(() => null)
@@ -1702,9 +1716,7 @@ async function handleDirectCuttingConditionQuestion(
 ): Promise<{ text: string; chips: string[] } | null> {
   if (!CUTTING_CONDITION_QUERY_PATTERN.test(userMessage)) return null
 
-  const productCodeMatch = userMessage.match(DIRECT_PRODUCT_CODE_PATTERN)
-  const seriesCodeMatch = userMessage.match(DIRECT_SERIES_CODE_PATTERN)
-  const lookupCode = normalizeLookupCode(productCodeMatch?.[1] ?? seriesCodeMatch?.[1] ?? "")
+  const lookupCode = resolveLookupCodeFromMessageOrContext(userMessage, prevState)
   if (!lookupCode) return null
 
   const product = await ProductRepo.findByCode(lookupCode)
