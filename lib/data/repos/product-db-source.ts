@@ -40,7 +40,8 @@ interface RawProductRow {
   series_product_type: string | null
   series_application_shape: string | null
   series_cutting_edge_shape: string | null
-  region: string | null
+  country: string | null
+  country_codes: string[] | null
   material_tags: string[] | null
   milling_outside_dia: string | null
   milling_number_of_flute: string | null
@@ -146,7 +147,8 @@ SELECT
   series_product_type,
   series_application_shape,
   series_cutting_edge_shape,
-  region,
+  country,
+  country_codes,
   material_tags,
   milling_outside_dia,
   milling_number_of_flute,
@@ -560,7 +562,7 @@ function mapRowToProduct(row: RawProductRow): CanonicalProduct {
     coolantHole: parseBoolean(firstNonEmpty(row.milling_coolant_hole, row.holemaking_coolant_hole, row.threading_coolant_hole, row.option_coolanthole)),
     applicationShapes: normalizeApplicationShapes(row.series_application_shape),
     materialTags: normalizeMaterialTags(row.material_tags),
-    region: firstNonEmpty(row.region) ?? null,
+    country: firstNonEmpty(row.country) ?? null,
     description: firstNonEmpty(row.series_description),
     featureText: firstNonEmpty(row.series_feature),
     seriesIconUrl: null,
@@ -619,10 +621,10 @@ function buildQueryOptions(options: ProductSearchOptions): { where: string[]; va
     where.push(`COALESCE(material_tags, ARRAY[]::text[]) && ${param}::text[]`)
   }
 
-  // Region filter — region column is comma-separated (e.g. "KOR,ENG,CHN")
-  if (input?.region && input.region !== "ALL") {
-    const param = next(input.region)
-    where.push(`',' || COALESCE(region, '') || ',' LIKE '%,' || ${param} || ',%'`)
+  // Country filter — match the option-table country source used by the sidebar selector.
+  if (input?.country && input.country !== "ALL") {
+    const param = next(input.country)
+    where.push(`COALESCE(country_codes, ARRAY[]::text[]) @> ARRAY[${param}]::text[]`)
   }
 
   // Unit system filter — applied in-memory by hybrid-retrieval.ts (not DB WHERE)

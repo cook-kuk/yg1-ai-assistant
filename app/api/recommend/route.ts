@@ -468,11 +468,11 @@ async function handleExploration(
     hybridResult = await runHybridRetrieval(resolvedInput, filters)
   } catch (retrievalError) {
     console.error(`[recommend] runHybridRetrieval FAILED:`, retrievalError)
-    // Try without unitSystem/region filters
-    const fallbackInput = { ...resolvedInput, unitSystem: undefined, region: undefined }
+    // Try without unitSystem/country filters
+    const fallbackInput = { ...resolvedInput, unitSystem: undefined, country: undefined }
     try {
       hybridResult = await runHybridRetrieval(fallbackInput, filters)
-      console.log(`[recommend] Fallback retrieval succeeded (without unitSystem/region)`)
+      console.log(`[recommend] Fallback retrieval succeeded (without unitSystem/country)`)
     } catch (fallbackError) {
       console.error(`[recommend] Fallback retrieval also failed:`, fallbackError)
       const errMsg = retrievalError instanceof Error ? retrievalError.message : "DB 검색 실패"
@@ -3447,9 +3447,9 @@ function mapIntakeToInput(form: ProductIntakeForm): RecommendationInput {
   }
   const toolType = getKnown(form.toolTypeOrCurrentProduct)
   if (toolType) input.toolType = canonicalizeIntakeSearchText(toolType)
-  // Country/Region mapping
+  // Country mapping
   if (form.country?.status === "known") {
-    input.region = form.country.value
+    input.country = form.country.value
   }
   // Unit system mapping
   if (form.unitSystem?.status === "known") {

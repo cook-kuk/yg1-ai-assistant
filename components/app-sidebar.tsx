@@ -136,7 +136,7 @@ const navItems = [
   },
 ]
 
-const REGION_LABELS: Record<string, { ko: string; en: string }> = {
+const COUNTRY_LABELS: Record<string, { ko: string; en: string }> = {
   KOR: { ko: "한국", en: "Korea" },
   ENG: { ko: "영국", en: "UK" },
   CHN: { ko: "중국", en: "China" },
@@ -155,8 +155,8 @@ const REGION_LABELS: Record<string, { ko: string; en: string }> = {
   CZE: { ko: "체코", en: "Czech Republic" },
 }
 
-function regionLabel(code: string, lang: string): string {
-  const entry = REGION_LABELS[code]
+function countryLabel(code: string, lang: string): string {
+  const entry = COUNTRY_LABELS[code]
   if (!entry) return code
   return lang === "ko" ? `${entry.ko} (${code})` : `${entry.en} (${code})`
 }
@@ -170,21 +170,21 @@ const roleLabels = {
 export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
   const pathname = usePathname()
   const router = useRouter()
-  const { currentUser, setUserRole, demoScenario, setDemoScenario, language, setLanguage, region, setRegion } = useApp()
+  const { currentUser, setUserRole, demoScenario, setDemoScenario, language, setLanguage, country, setCountry } = useApp()
 
-  // Fetch available regions from DB
-  const [regionList, setRegionList] = useState<string[]>([])
+  // Fetch available countries from DB option tables
+  const [countryList, setCountryList] = useState<string[]>([])
   useEffect(() => {
-    fetch("/api/regions")
+    fetch("/api/countries")
       .then(res => res.json())
       .then(data => {
-        if (data.regions && data.regions.length > 0) {
-          setRegionList(data.regions)
+        if (data.countries && data.countries.length > 0) {
+          setCountryList(data.countries)
         }
       })
       .catch(() => {
         // fallback if API fails
-        setRegionList(["KOR", "ENG", "CHN", "JPN"])
+        setCountryList(["KOR", "ENG", "CHN", "JPN"])
       })
   }, [])
 
@@ -318,22 +318,22 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
         </ul>
       </nav>
 
-      {/* User Role Selector + Region + Language Toggle */}
+      {/* User Role Selector + Country + Language Toggle */}
       <div className="border-t border-sidebar-border p-3 space-y-2">
-        {/* Region Selector */}
+        {/* Country Selector */}
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-1.5 text-xs text-sidebar-foreground/60">
             <MapPin className="h-3.5 w-3.5" />
-            <span>{language === 'ko' ? '지역' : 'Region'}</span>
+            <span>{language === 'ko' ? '국가' : 'Country'}</span>
           </div>
           <select
-            value={region}
-            onChange={(e) => setRegion(e.target.value)}
+            value={country}
+            onChange={(e) => setCountry(e.target.value)}
             className="h-7 rounded-md border border-sidebar-border bg-sidebar-accent px-2 text-xs font-medium text-sidebar-foreground focus:outline-none focus:ring-1 focus:ring-sidebar-primary"
           >
-            <option value="ALL">{language === 'ko' ? '전체' : 'All Regions'}</option>
-            {regionList.map((r) => (
-              <option key={r} value={r}>{regionLabel(r, language)}</option>
+            <option value="ALL">{language === 'ko' ? '전체 국가' : 'All Countries'}</option>
+            {countryList.map((r) => (
+              <option key={r} value={r}>{countryLabel(r, language)}</option>
             ))}
           </select>
         </div>

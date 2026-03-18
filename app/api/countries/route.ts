@@ -24,21 +24,20 @@ function getPool(): Pool {
 export async function GET() {
   try {
     const pool = getPool()
-    const result = await pool.query<{ region: string }>(
-      `SELECT DISTINCT TRIM(unnested) AS region
+    const result = await pool.query<{ country: string }>(
+      `SELECT DISTINCT country
        FROM catalog_app.product_recommendation_mv,
-            LATERAL unnest(string_to_array(region, ',')) AS unnested
-       WHERE region IS NOT NULL AND region <> ''
-         AND TRIM(unnested) <> ''
-       ORDER BY region`
+            LATERAL unnest(country_codes) AS country_row(country)
+       WHERE country IS NOT NULL
+         AND BTRIM(country) <> ''
+       ORDER BY country`
     )
-    const regions = result.rows.map((r) => r.region)
-    return NextResponse.json({ regions })
+    const countries = result.rows.map((row) => row.country)
+    return NextResponse.json({ countries })
   } catch (error) {
-    console.error("[regions] Failed to fetch regions:", error)
-    // Fallback: return default region list if DB query fails
+    console.error("[countries] Failed to fetch countries:", error)
     return NextResponse.json({
-      regions: ["KOR", "ENG", "CHN", "JPN"],
+      countries: ["KOR", "ENG", "CHN", "JPN"],
       fallback: true,
     })
   }
