@@ -68,6 +68,16 @@ export async function decomposeQuery(
     }
   }
 
+  // Fast path: if last action was ask_clarification, user is responding to options — don't decompose
+  if (sessionState?.lastAction === "ask_clarification") {
+    return {
+      isMultiIntent: false,
+      chunks: [{ text: userMessage, category: "filtering" }],
+      requiresConfirmation: false,
+      reasoning: "responding_to_clarification",
+    }
+  }
+
   const systemPrompt = `당신은 사용자 메시지를 분석하여 여러 의도가 섞여 있는지 판단하는 분류기입니다.
 
 ═══ 의도 카테고리 ═══

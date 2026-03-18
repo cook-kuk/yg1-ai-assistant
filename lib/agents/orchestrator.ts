@@ -754,33 +754,12 @@ export async function orchestrateTurnWithTools(
     console.warn("[orchestrator:decompose] Failed, proceeding as single intent:", e)
   }
 
-  // If multi-intent with multiple state-changing actions → ask confirmation
-  if (decomposition?.isMultiIntent && decomposition.requiresConfirmation) {
-    const ordered = orderChunksForExecution(decomposition.chunks)
-    const planText = buildExecutionPlanText(ordered)
-    const options = [
-      "순서대로 실행",
-      ...ordered.map((c, i) => `${i + 1}번만 실행`),
-      "취소",
-    ]
-    console.log(`[orchestrator:decompose] Requires confirmation — ${ordered.length} chunks, ${decomposition.reasoning}`)
-
-    return {
-      action: {
-        type: "ask_clarification",
-        question: planText,
-        options,
-        allowDirectInput: true,
-      },
-      reasoning: `multi_intent:confirmation_required (${decomposition.chunks.map(c => c.category).join("+")})`,
-      agentsInvoked: [{ agent: "query-decomposer", model: "haiku", durationMs: Date.now() - startMs }],
-      escalatedToOpus: false,
-    }
-  }
-
-  // If multi-intent but no confirmation needed (one state change + read-only),
-  // route the state-changing chunk first, note the rest
-  const effectiveMessage = decomposition?.isMultiIntent && !decomposition.requiresConfirmation
+  // Multi-intent handling:
+  // - Multiple state-changing actions → execute the FIRST one, note the rest in response
+  // - One state change + read-only → route the state-changing chunk
+  // - No state changes → send full message
+  // (No confirmation flow — it creates dead-end UX since context can't be replayed)
+  const effectiveMessage = decomposition?.isMultiIntent
     ? selectPrimaryChunk(decomposition.chunks)
     : ctx.userMessage
 

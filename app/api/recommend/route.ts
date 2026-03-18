@@ -582,53 +582,60 @@ async function handleExploration(
           })
         }
 
-        // Resolve targets from displayed products
-        const explainSnapshot = prevState.displayedCandidates?.length > 0
-          ? prevState.displayedCandidates
-          : buildCandidateSnapshot(candidates, evidenceMap)
-        const explainTargets = action.type === "explain_product" && action.target ? [action.target] : []
-        const resolved = resolveProductReferences(explainTargets, explainSnapshot)
-        const productLines = resolved.map(p =>
-          `**#${p.rank} ${p.displayCode}**${p.displayLabel ? ` [${p.displayLabel}]` : ""}\n` +
-          `${p.brand ?? "?"} | ${p.seriesName ?? "?"}\n` +
-          `φ${p.diameterMm ?? "?"}mm · ${p.fluteCount ?? "?"}날 · ${p.coating ?? "?"} · ${p.toolMaterial ?? "?"}\n` +
-          `Shank ${p.shankDiameterMm ?? "?"}mm · CL ${p.lengthOfCutMm ?? "?"}mm · OAL ${p.overallLengthMm ?? "?"}mm\n` +
-          `매칭: ${p.matchStatus} (${p.score}점) | 재고: ${p.stockStatus}`
-        ).join("\n\n")
+        // Only show product detail listings when explain_product has an explicit target
+        // (e.g. "1번 제품 보여줘", "#3 상세"). Otherwise fall through to LLM handler below.
+        if (action.type === "explain_product" && action.target) {
+          const explainSnapshot = prevState.displayedCandidates?.length > 0
+            ? prevState.displayedCandidates
+            : buildCandidateSnapshot(candidates, evidenceMap)
+          const explainTargets = [action.target]
+          const resolved = resolveProductReferences(explainTargets, explainSnapshot)
 
-        const responseText = `요청하신 제품 ${resolved.length}개입니다:\n\n${productLines}`
+          if (resolved.length > 0) {
+            const productLines = resolved.map(p =>
+              `**#${p.rank} ${p.displayCode}**${p.displayLabel ? ` [${p.displayLabel}]` : ""}\n` +
+              `${p.brand ?? "?"} | ${p.seriesName ?? "?"}\n` +
+              `φ${p.diameterMm ?? "?"}mm · ${p.fluteCount ?? "?"}날 · ${p.coating ?? "?"} · ${p.toolMaterial ?? "?"}\n` +
+              `Shank ${p.shankDiameterMm ?? "?"}mm · CL ${p.lengthOfCutMm ?? "?"}mm · OAL ${p.overallLengthMm ?? "?"}mm\n` +
+              `매칭: ${p.matchStatus} (${p.score}점) | 재고: ${p.stockStatus}`
+            ).join("\n\n")
 
-        const sessionState: ExplorationSessionState = {
-          sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
-          candidateCount: prevState.candidateCount,
-          appliedFilters: filters,
-          narrowingHistory,
-          stageHistory: prevState.stageHistory ?? [],
-          resolutionStatus: prevState.resolutionStatus ?? "broad",
-          resolvedInput: currentInput,
-          turnCount,
-          lastAskedField: prevState.lastAskedField,
-          displayedCandidates: explainSnapshot,
-          fullDisplayedCandidates: prevState.fullDisplayedCandidates,
-          displayedSetFilter: prevState.displayedSetFilter ?? null,
-          displayedChips: ["비교해줘", "추천해주세요", "⟵ 이전 단계"],
-          displayedOptions: prevState.displayedOptions ?? [],
-          lastAction: "answer_general",
+            const responseText = `요청하신 제품 ${resolved.length}개입니다:\n\n${productLines}`
+
+            const sessionState: ExplorationSessionState = {
+              sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+              candidateCount: prevState.candidateCount,
+              appliedFilters: filters,
+              narrowingHistory,
+              stageHistory: prevState.stageHistory ?? [],
+              resolutionStatus: prevState.resolutionStatus ?? "broad",
+              resolvedInput: currentInput,
+              turnCount,
+              lastAskedField: prevState.lastAskedField,
+              displayedCandidates: explainSnapshot,
+              fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+              displayedSetFilter: prevState.displayedSetFilter ?? null,
+              displayedChips: ["비교해줘", "추천해주세요", "⟵ 이전 단계"],
+              displayedOptions: prevState.displayedOptions ?? [],
+              lastAction: "answer_general",
+            }
+            return NextResponse.json({
+              text: responseText,
+              purpose: "recommendation",
+              chips: ["비교해줘", "추천해주세요", "⟵ 이전 단계"],
+              isComplete: false,
+              recommendation: null,
+              sessionState,
+              evidenceSummaries: null,
+              candidateSnapshot: resolved,
+              extractedField: null, requestPreparation: null,
+              primaryExplanation: null, primaryFactChecked: null,
+              altExplanations: [], altFactChecked: [],
+              orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+            })
+          }
         }
-        return NextResponse.json({
-          text: responseText,
-          purpose: "recommendation",
-          chips: ["비교해줘", "추천해주세요", "⟵ 이전 단계"],
-          isComplete: false,
-          recommendation: null,
-          sessionState,
-          evidenceSummaries: null,
-          candidateSnapshot: resolved.length > 0 ? resolved : explainSnapshot,
-          extractedField: null, requestPreparation: null,
-          primaryExplanation: null, primaryFactChecked: null,
-          altExplanations: [], altFactChecked: [],
-          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
-        })
+        // No explicit target or no resolved products → fall through to LLM handler below
       }
 
       // Action: filter_displayed — in-display 필터링
@@ -913,13 +920,12 @@ async function handleExploration(
         })
       }
 
-      // Action: explain_product / answer_general (fallback LLM handlers)
-      // Note: The first explain_product/answer_general block above handles inventory/cutting/product queries.
-      // This block handles contextual narrowing questions and general LLM chat.
-      // TypeScript may report this as unreachable due to union narrowing, but it's kept as fallback.
-      if ((action as { type: string }).type === "explain_product" || (action as { type: string }).type === "answer_general") {
+      // Action: explain_product / answer_general (LLM handlers)
+      // Handles: contextual narrowing questions, general chat, explanations
+      // The block above handles inventory/cutting/product-detail queries and falls through here otherwise.
+      if (action.type === "explain_product" || action.type === "answer_general") {
         // Use existing LLM handlers
-        if ((action as { type: string }).type === "explain_product") {
+        if (action.type === "explain_product") {
           const contextReply = await handleContextualNarrowingQuestion(
             provider, lastUserMsg.text, currentInput, candidates, prevState
           )
@@ -955,7 +961,7 @@ async function handleExploration(
                 extractedField: null, requestPreparation: null,
                 primaryExplanation: null, primaryFactChecked: null,
                 altExplanations: [], altFactChecked: [],
-                orchestratorResult: { action: (action as { type: string }).type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+                orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
               })
             }
             return buildQuestionResponse(
@@ -967,10 +973,9 @@ async function handleExploration(
         }
 
         // General chat — use preGenerated text if available (from tool-use path), otherwise call LLM
-        const actionAny = action as Record<string, unknown>
-        const preGenerated = actionAny.type === "answer_general" && actionAny.preGenerated === true && actionAny.message != null
+        const preGenerated = action.type === "answer_general" && action.preGenerated === true
         const llmResponse = preGenerated
-          ? { text: String(actionAny.message), chips: generateFollowUpChips(lastUserMsg.text, candidates.length) }
+          ? { text: (action as { message: string }).message, chips: generateFollowUpChips(lastUserMsg.text, candidates.length) }
           : await handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form, prevState.displayedCandidates)
         const sessionState: ExplorationSessionState = {
           sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
@@ -1002,7 +1007,7 @@ async function handleExploration(
           requestPreparation: null,
           primaryExplanation: null, primaryFactChecked: null,
           altExplanations: [], altFactChecked: [],
-          orchestratorResult: { action: (action as { type: string }).type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
         })
       }
 
