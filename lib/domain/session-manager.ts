@@ -20,6 +20,9 @@ import type {
   CandidateSnapshot,
   ResolutionStatus,
   LastActionType,
+  SeriesGroup,
+  RecommendationTask,
+  ArchivedTask,
 } from "@/lib/types/exploration"
 import type { RecommendationInput } from "@/lib/types/canonical"
 
@@ -41,10 +44,16 @@ interface BuildSessionStateParams {
   displayedChips: string[]
   displayedOptions: import("@/lib/types/exploration").DisplayedOption[]
   lastAction?: LastActionType
+  // Series grouping (Phase 1)
+  displayedGroups?: SeriesGroup[]
+  activeGroupKey?: string | null
+  // Task system (Phase 3)
+  currentTask?: RecommendationTask | null
+  taskHistory?: ArchivedTask[]
 }
 
 export function buildSessionState(params: BuildSessionStateParams): ExplorationSessionState {
-  return {
+  const state: ExplorationSessionState = {
     sessionId: params.prevSessionId ?? `ses-${Date.now()}`,
     candidateCount: params.candidateCount,
     appliedFilters: params.appliedFilters,
@@ -59,6 +68,12 @@ export function buildSessionState(params: BuildSessionStateParams): ExplorationS
     displayedOptions: params.displayedOptions,
     lastAction: params.lastAction,
   }
+  // Optional fields — only set if provided
+  if (params.displayedGroups) state.displayedGroups = params.displayedGroups
+  if (params.activeGroupKey !== undefined) state.activeGroupKey = params.activeGroupKey
+  if (params.currentTask !== undefined) state.currentTask = params.currentTask
+  if (params.taskHistory) state.taskHistory = params.taskHistory
+  return state
 }
 
 /** Carry forward from previous state, overriding only what changed */
@@ -80,6 +95,10 @@ export function carryForwardState(
     displayedChips: overrides.displayedChips ?? prev.displayedChips,
     displayedOptions: overrides.displayedOptions ?? prev.displayedOptions ?? [],
     lastAction: overrides.lastAction ?? prev.lastAction,
+    displayedGroups: overrides.displayedGroups ?? prev.displayedGroups,
+    activeGroupKey: overrides.activeGroupKey !== undefined ? overrides.activeGroupKey : prev.activeGroupKey,
+    currentTask: overrides.currentTask !== undefined ? overrides.currentTask : prev.currentTask,
+    taskHistory: overrides.taskHistory ?? prev.taskHistory,
   })
 }
 

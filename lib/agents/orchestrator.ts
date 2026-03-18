@@ -32,7 +32,7 @@ import { extractParameters } from "./parameter-extractor"
 import { needsOpusResolution, resolveAmbiguity } from "./ambiguity-resolver"
 import { resolveProductReferences } from "./comparison-agent"
 import { parseAnswerToFilter } from "@/lib/domain/question-engine"
-import { ENABLE_OPUS_AMBIGUITY, ENABLE_COMPARISON_AGENT } from "@/lib/feature-flags"
+import { ENABLE_OPUS_AMBIGUITY, ENABLE_COMPARISON_AGENT, ENABLE_TASK_SYSTEM } from "@/lib/feature-flags"
 import type { LLMTool, LLMToolResult } from "@/lib/llm/provider"
 
 // ════════════════════════════════════════════════════════════════
@@ -404,6 +404,38 @@ const NARROWING_TOOLS: LLMTool[] = [
       required: ["query_type", "field"]
     }
   },
+  // ── Task & Group Management Tools (conditionally used when ENABLE_TASK_SYSTEM) ──
+  {
+    name: "start_new_recommendation_task",
+    description: "현재 추천 작업을 아카이브하고 새 추천 작업을 시작. '새로운 제품 추천해줘', '다른 가공 조건으로 다시' 등.",
+    input_schema: { type: "object", properties: {} }
+  },
+  {
+    name: "resume_previous_task",
+    description: "이전에 아카이브된 추천 작업을 재개. '아까 그 추천으로 돌아가', '이전 작업 다시 보기' 등.",
+    input_schema: {
+      type: "object",
+      properties: {
+        task_id: { type: "string", description: "복원할 작업 ID. 없으면 가장 최근 아카이브된 작업." }
+      }
+    }
+  },
+  {
+    name: "restore_previous_group",
+    description: "특정 시리즈 그룹으로 포커스를 전환. 'V7 시리즈만 보여줘', 'CE5 그룹 보기' 등.",
+    input_schema: {
+      type: "object",
+      properties: {
+        group_key: { type: "string", description: "시리즈 그룹 키 (seriesName 또는 '__ungrouped__')" }
+      },
+      required: ["group_key"]
+    }
+  },
+  {
+    name: "show_group_menu",
+    description: "시리즈 그룹 목록을 칩으로 표시. '시리즈 목록 보여줘', '어떤 시리즈가 있어?' 등.",
+    input_schema: { type: "object", properties: {} }
+  },
 ]
 
 /** Normalize Korean/English field aliases to canonical field names */
@@ -488,6 +520,13 @@ ${chipsDesc}
 ═══ 표시된 제품 (상위 10개, 전체 스펙) ═══
 ${candidatesDesc}
 
+═══ 시리즈 그룹 ═══
+${state?.displayedGroups?.map(g => `• ${g.seriesName} (${g.candidateCount}개, 최고 ${g.topScore}점)`).join("\n") || "없음"}
+${state?.activeGroupKey ? `현재 포커스: ${state.activeGroupKey}` : ""}
+
+═══ 작업 이력 ═══
+${state?.taskHistory?.map(t => `• [${t.taskId}] ${t.intakeSummary} (체크포인트 ${t.checkpointCount}개)`).join("\n") || "없음"}
+
 ═══ 필드명 정규화 ═══
 직경/diameter/dia/φ → diameterMm
 날수/flute/F → fluteCount
@@ -554,8 +593,14 @@ ${candidatesDesc}
 - "더 줄이고 싶어", "후보 줄여줘", "더 좁혀줘" → ask_clarification (질문: "어떤 기준으로 줄일까요?", 옵션: 표시된 제품의 주요 스펙 차이 기준)
 - "두 상품 OAL 알려줘", "상위 2개 절삭조건" → query_displayed_products (compare_products가 아님! 비교가 아니라 조회임)
 
+시리즈 그룹/작업 관리:
+15. "시리즈 목록", "어떤 시리즈?" → show_group_menu
+16. "XX 시리즈만 보여줘" → restore_previous_group (group_key=시리즈명)
+17. "새로운 제품 추천", "다른 조건으로 새로" → start_new_recommendation_task
+18. "아까 그 추천", "이전 작업 다시" → resume_previous_task
+
 의도가 모호할 때:
-15. 추측하지 말고 ask_clarification으로 선택지 제시 (2-4개 옵션 + "직접 입력" 항상 포함)`
+19. 추측하지 말고 ask_clarification으로 선택지 제시 (2-4개 옵션 + "직접 입력" 항상 포함)`
 }
 
 function mapToolUseToAction(
@@ -660,6 +705,22 @@ function mapToolUseToAction(
 
       return { type: "query_displayed", queryType, field, condition, topN }
     }
+
+    case "start_new_recommendation_task":
+      return { type: "start_new_task" }
+
+    case "resume_previous_task": {
+      const taskId = input.task_id ? String(input.task_id) : ""
+      return { type: "resume_previous_task", taskId }
+    }
+
+    case "restore_previous_group": {
+      const groupKey = String(input.group_key ?? "")
+      return { type: "restore_previous_group", groupKey }
+    }
+
+    case "show_group_menu":
+      return { type: "show_group_menu" }
 
     default:
       return { type: "answer_general", message: ctx.userMessage }

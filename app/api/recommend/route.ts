@@ -47,13 +47,16 @@ import { compareProducts, resolveProductReferences } from "@/lib/agents/comparis
 import type { TurnContext, OrchestratorResult } from "@/lib/agents/types"
 import { buildSessionState, carryForwardState, createInitialStage, createFilterStage, restoreOnePreviousStep, restoreToBeforeFilter } from "@/lib/domain/session-manager"
 import { runValidationGate, validateNoReask } from "@/lib/domain/validation-gate"
-import { ENABLE_MULTI_AGENT_ORCHESTRATOR, ENABLE_VALIDATION_GATE, ENABLE_COMPARISON_AGENT, ENABLE_TOOL_USE_ROUTING } from "@/lib/feature-flags"
+import { ENABLE_MULTI_AGENT_ORCHESTRATOR, ENABLE_VALIDATION_GATE, ENABLE_COMPARISON_AGENT, ENABLE_TOOL_USE_ROUTING, ENABLE_SERIES_GROUPING, ENABLE_TASK_SYSTEM } from "@/lib/feature-flags"
+import { groupCandidatesBySeries, buildGroupSummaries, filterBySeriesGroup } from "@/lib/domain/series-grouper"
+import { createCheckpoint, createTask, archiveTask, restoreFromArchivedTask, addCheckpointToTask, buildTaskIntakeSummary } from "@/lib/domain/task-manager"
+import { runConsistencyValidation } from "@/lib/domain/validation-consistency"
 import { ProductRepo } from "@/lib/data/repos/product-repo"
 import { InventoryRepo } from "@/lib/data/repos/inventory-repo"
 
 import type { RecommendationInput, RecommendationResult, ScoredProduct, ChatMessage, MatchStatus } from "@/lib/types/canonical"
 import type { ProductIntakeForm, AnswerState, MachiningIntent } from "@/lib/types/intake"
-import type { ExplorationSessionState, AppliedFilter, NarrowingTurn, NarrowingStage, CandidateSnapshot } from "@/lib/types/exploration"
+import type { ExplorationSessionState, AppliedFilter, NarrowingTurn, NarrowingStage, CandidateSnapshot, SeriesGroup } from "@/lib/types/exploration"
 import type { EvidenceSummary } from "@/lib/types/evidence"
 import type { FactCheckedRecommendation } from "@/lib/types/fact-check"
 import type { RecommendationExplanation } from "@/lib/types/explanation"
@@ -392,6 +395,18 @@ async function handleExploration(
         turnCount++
 
         console.log(`[orchestrator:slot-replace] ${field}: ${oldValue} → ${action.newValue} | ${candidates.length} → ${newResult.candidates.length} candidates`)
+
+        // Create checkpoint if task system enabled
+        if (ENABLE_TASK_SYSTEM && prevState.currentTask) {
+          const cpSnapshot = buildCandidateSnapshot(newResult.candidates, newResult.evidenceMap)
+          const cpGroups = ENABLE_SERIES_GROUPING ? buildGroupSummaries(groupCandidatesBySeries(cpSnapshot)) : []
+          const cp = createCheckpoint(
+            { ...prevState, candidateCount: newResult.candidates.length, appliedFilters: filters },
+            cpGroups,
+            newFilter
+          )
+          addCheckpointToTask(prevState.currentTask, cp)
+        }
 
         const replaceText = `${field}를 ${oldValue}에서 **${action.displayValue ?? action.newValue}**로 변경했습니다.\n후보가 ${newResult.candidates.length}개로 업데이트되었습니다.`
 
@@ -898,10 +913,13 @@ async function handleExploration(
         })
       }
 
-      // Action: explain_product / answer_general
-      if (action.type === "explain_product" || action.type === "answer_general") {
+      // Action: explain_product / answer_general (fallback LLM handlers)
+      // Note: The first explain_product/answer_general block above handles inventory/cutting/product queries.
+      // This block handles contextual narrowing questions and general LLM chat.
+      // TypeScript may report this as unreachable due to union narrowing, but it's kept as fallback.
+      if ((action as { type: string }).type === "explain_product" || (action as { type: string }).type === "answer_general") {
         // Use existing LLM handlers
-        if (action.type === "explain_product") {
+        if ((action as { type: string }).type === "explain_product") {
           const contextReply = await handleContextualNarrowingQuestion(
             provider, lastUserMsg.text, currentInput, candidates, prevState
           )
@@ -937,7 +955,7 @@ async function handleExploration(
                 extractedField: null, requestPreparation: null,
                 primaryExplanation: null, primaryFactChecked: null,
                 altExplanations: [], altFactChecked: [],
-                orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+                orchestratorResult: { action: (action as { type: string }).type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
               })
             }
             return buildQuestionResponse(
@@ -949,9 +967,10 @@ async function handleExploration(
         }
 
         // General chat — use preGenerated text if available (from tool-use path), otherwise call LLM
-        const preGenerated = action.type === "answer_general" && action.preGenerated === true && action.message != null
+        const actionAny = action as Record<string, unknown>
+        const preGenerated = actionAny.type === "answer_general" && actionAny.preGenerated === true && actionAny.message != null
         const llmResponse = preGenerated
-          ? { text: action.message, chips: generateFollowUpChips(lastUserMsg.text, candidates.length) }
+          ? { text: String(actionAny.message), chips: generateFollowUpChips(lastUserMsg.text, candidates.length) }
           : await handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form, prevState.displayedCandidates)
         const sessionState: ExplorationSessionState = {
           sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
@@ -983,7 +1002,7 @@ async function handleExploration(
           requestPreparation: null,
           primaryExplanation: null, primaryFactChecked: null,
           altExplanations: [], altFactChecked: [],
-          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+          orchestratorResult: { action: (action as { type: string }).type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
         })
       }
 
@@ -1020,6 +1039,152 @@ async function handleExploration(
           extractedField: null, requestPreparation: null,
           primaryExplanation: null, primaryFactChecked: null,
           altExplanations: [], altFactChecked: [],
+        })
+      }
+
+      // Action: start_new_task — archive current + start fresh
+      if (action.type === "start_new_task" && ENABLE_TASK_SYSTEM) {
+        const taskHistory = [...(prevState.taskHistory ?? [])]
+        if (prevState.currentTask) {
+          try {
+            // Add final checkpoint before archiving
+            const snapshot = buildCandidateSnapshot(candidates, evidenceMap)
+            const groups = ENABLE_SERIES_GROUPING ? groupCandidatesBySeries(snapshot) : []
+            const cp = createCheckpoint(prevState, buildGroupSummaries(groups), null)
+            addCheckpointToTask(prevState.currentTask, cp)
+            const archived = archiveTask(prevState.currentTask)
+            taskHistory.push(archived)
+            console.log(`[task-manager] Archived task ${archived.taskId}: ${archived.intakeSummary}`)
+          } catch (e) {
+            console.warn(`[task-manager] Failed to archive current task:`, e)
+          }
+        }
+        // Create new task
+        const newTask = createTask(buildTaskIntakeSummary(baseInput))
+
+        return buildQuestionResponse(
+          form, candidates, evidenceMap, baseInput,
+          [], [], 0, messages, provider, language,
+          `새로운 추천 작업을 시작합니다.${taskHistory.length > 0 ? ` (이전 작업 ${taskHistory.length}개 보관됨)` : ""}`
+        )
+      }
+
+      // Action: resume_previous_task — restore from archive
+      if (action.type === "resume_previous_task" && ENABLE_TASK_SYSTEM) {
+        const taskHistory = prevState.taskHistory ?? []
+        let target = taskHistory.find(t => t.taskId === action.taskId)
+        if (!target && taskHistory.length > 0) {
+          target = taskHistory[taskHistory.length - 1] // latest
+        }
+        if (target) {
+          const { rebuiltInput, remainingFilters } = restoreFromArchivedTask(target)
+          const restoreResult = await runHybridRetrieval(rebuiltInput, remainingFilters.filter(f => f.op !== "skip"))
+          console.log(`[task-manager] Restored task ${target.taskId}: ${restoreResult.candidates.length} candidates`)
+
+          return buildQuestionResponse(
+            form, restoreResult.candidates, restoreResult.evidenceMap, rebuiltInput,
+            [], remainingFilters, remainingFilters.length, messages, provider, language,
+            `이전 추천 작업을 복원했습니다: ${target.intakeSummary}\n후보 ${restoreResult.candidates.length}개`
+          )
+        }
+        // No archived tasks
+        return buildQuestionResponse(
+          form, candidates, evidenceMap, currentInput,
+          narrowingHistory, filters, turnCount, messages, provider, language,
+          "복원할 이전 작업이 없습니다."
+        )
+      }
+
+      // Action: restore_previous_group — filter to specific series
+      if (action.type === "restore_previous_group") {
+        const snapshot = prevState.displayedCandidates?.length > 0
+          ? prevState.displayedCandidates
+          : buildCandidateSnapshot(candidates, evidenceMap)
+        const filtered = filterBySeriesGroup(snapshot, action.groupKey)
+
+        const groupName = filtered.length > 0 && filtered[0].seriesName
+          ? filtered[0].seriesName
+          : action.groupKey
+
+        const sessionState: ExplorationSessionState = {
+          sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+          candidateCount: prevState.candidateCount ?? candidates.length,
+          appliedFilters: filters,
+          narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
+          resolutionStatus: prevState.resolutionStatus ?? "broad",
+          resolvedInput: currentInput,
+          turnCount,
+          lastAskedField: prevState.lastAskedField,
+          displayedCandidates: filtered,
+          fullDisplayedCandidates: prevState.fullDisplayedCandidates ?? snapshot,
+          displayedSetFilter: null,
+          displayedChips: ["전체 보기", "추천해주세요", "다른 시리즈 보기"],
+          displayedOptions: prevState.displayedOptions ?? [],
+          lastAction: "restore_previous_group",
+          displayedGroups: prevState.displayedGroups,
+          activeGroupKey: action.groupKey,
+          currentTask: prevState.currentTask,
+          taskHistory: prevState.taskHistory,
+        }
+        return NextResponse.json({
+          text: `${groupName} 시리즈 ${filtered.length}개 제품을 표시합니다.`,
+          purpose: "question",
+          chips: ["전체 보기", "추천해주세요", "다른 시리즈 보기"],
+          isComplete: false,
+          recommendation: null,
+          sessionState,
+          evidenceSummaries: null,
+          candidateSnapshot: filtered,
+          extractedField: null, requestPreparation: null,
+          primaryExplanation: null, primaryFactChecked: null,
+          altExplanations: [], altFactChecked: [],
+          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+        })
+      }
+
+      // Action: show_group_menu — display series groups as chips
+      if (action.type === "show_group_menu") {
+        const snapshot = prevState.displayedCandidates?.length > 0
+          ? prevState.displayedCandidates
+          : buildCandidateSnapshot(candidates, evidenceMap)
+        const groups = groupCandidatesBySeries(snapshot)
+        const groupChips = groups.map(g => `${g.seriesName} (${g.candidateCount}개)`)
+
+        const sessionState: ExplorationSessionState = {
+          sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+          candidateCount: prevState.candidateCount ?? candidates.length,
+          appliedFilters: filters,
+          narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
+          resolutionStatus: prevState.resolutionStatus ?? "broad",
+          resolvedInput: currentInput,
+          turnCount,
+          lastAskedField: prevState.lastAskedField,
+          displayedCandidates: snapshot,
+          fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+          displayedSetFilter: prevState.displayedSetFilter,
+          displayedChips: [...groupChips, "전체 보기"],
+          displayedOptions: prevState.displayedOptions ?? [],
+          lastAction: "show_group_menu",
+          displayedGroups: groups,
+          currentTask: prevState.currentTask,
+          taskHistory: prevState.taskHistory,
+        }
+        const groupList = groups.map(g => `• ${g.seriesName}: ${g.candidateCount}개 (최고 ${g.topScore}점)`).join("\n")
+        return NextResponse.json({
+          text: `현재 ${groups.length}개 시리즈 그룹이 있습니다:\n\n${groupList}\n\n시리즈를 선택하면 해당 그룹만 표시합니다.`,
+          purpose: "question",
+          chips: [...groupChips, "전체 보기"],
+          isComplete: false,
+          recommendation: null,
+          sessionState,
+          evidenceSummaries: null,
+          candidateSnapshot: snapshot,
+          extractedField: null, requestPreparation: null,
+          primaryExplanation: null, primaryFactChecked: null,
+          altExplanations: [], altFactChecked: [],
+          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
         })
       }
 
@@ -1094,6 +1259,18 @@ async function handleExploration(
 
         console.log(`[orchestrator:filter] ${filter.field}=${filter.value} | ${prevCandidateCount}→${newCandidates.length} candidates | stages: ${updatedStages.map(s => s.stageName).join(" → ")}`)
 
+        // Create checkpoint if task system enabled
+        if (ENABLE_TASK_SYSTEM && prevState.currentTask) {
+          const cpSnapshot = buildCandidateSnapshot(newCandidates, testResult.evidenceMap)
+          const cpGroups = ENABLE_SERIES_GROUPING ? buildGroupSummaries(groupCandidatesBySeries(cpSnapshot)) : []
+          const cp = createCheckpoint(
+            { ...prevState, candidateCount: newCandidates.length, appliedFilters: filters },
+            cpGroups,
+            filter
+          )
+          addCheckpointToTask(prevState.currentTask, cp)
+        }
+
         turnCount++
 
         const newStatus = checkResolution(newCandidates, narrowingHistory)
@@ -1150,6 +1327,11 @@ async function buildQuestionResponse(
   const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
   const chips = question?.chips ?? []
 
+  // Build series groups if enabled
+  const displayedGroups = ENABLE_SERIES_GROUPING
+    ? groupCandidatesBySeries(candidateSnapshot)
+    : undefined
+
   // Build structured displayedOptions from chips for numbered selection
   const displayedOptions = buildDisplayedOptions(chips, question?.field ?? "unknown")
 
@@ -1170,7 +1352,11 @@ async function buildQuestionResponse(
     displayedChips: chips,
     displayedOptions,
     lastAction: "continue_narrowing",
+    displayedGroups,
   }
+
+  // Non-blocking validation
+  runConsistencyValidation(sessionState, candidates.length, displayedGroups, candidateSnapshot)
 
   // Debug: log narrowing state
   logNarrowingState("question", sessionState, question?.field ?? null)
@@ -1390,6 +1576,11 @@ async function buildRecommendationResponse(
   const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
   const followUpChips = getFollowUpChips(recommendation)
 
+  // Build series groups if enabled
+  const recDisplayedGroups = ENABLE_SERIES_GROUPING
+    ? groupCandidatesBySeries(candidateSnapshot)
+    : undefined
+
   const sessionState: ExplorationSessionState = {
     sessionId: `ses-${Date.now()}`,
     candidateCount: candidates.length,
@@ -1405,7 +1596,11 @@ async function buildRecommendationResponse(
     displayedChips: followUpChips,
     displayedOptions: [],
     lastAction: "show_recommendation",
+    displayedGroups: recDisplayedGroups,
   }
+
+  // Non-blocking validation
+  runConsistencyValidation(sessionState, candidates.length, recDisplayedGroups, candidateSnapshot)
 
   // Run request preparation for metadata
   const requestPrep = prepareRequest(form, messages, sessionState, input, candidates.length)

@@ -76,6 +76,10 @@ export type OrchestratorAction =
   | { type: "filter_displayed"; field: string; operator: string; value: string; keepIndices?: number[] }
   | { type: "query_displayed"; queryType: string; field: string; condition?: { operator: string; value: string }; topN?: number }
   | { type: "redirect_off_topic" }
+  | { type: "start_new_task" }
+  | { type: "resume_previous_task"; taskId: string }
+  | { type: "restore_previous_group"; groupKey: string }
+  | { type: "show_group_menu" }
 
 export interface OrchestratorResult {
   action: OrchestratorAction

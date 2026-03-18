@@ -62,6 +62,10 @@ export type LastActionType =
   | "query_displayed"
   | "redirect_off_topic"
   | "reset_session"
+  | "start_new_task"
+  | "resume_previous_task"
+  | "restore_previous_group"
+  | "show_group_menu"
 
 // ── Session State (serializable, sent between client ↔ server) ──
 export interface ExplorationSessionState {
@@ -82,6 +86,14 @@ export interface ExplorationSessionState {
   displayedChips: string[]                  // chips shown with the last question
   displayedOptions: DisplayedOption[]       // structured narrowing options for numbered selection
   lastAction?: LastActionType               // what the system did last turn
+
+  // ── Series Grouping (optional, Phase 1) ──
+  displayedGroups?: SeriesGroup[]
+  activeGroupKey?: string | null
+
+  // ── Task System (optional, Phase 3) ──
+  currentTask?: RecommendationTask | null
+  taskHistory?: ArchivedTask[]
 }
 
 // ── Full Exploration Session (server-side, includes heavy data) ──
@@ -152,4 +164,53 @@ export interface DisplayedOption {
   field: string          // e.g. "coating"
   value: string          // e.g. "Diamond"
   count: number          // candidate count for this option
+}
+
+// ── Series Grouping ────────────────────────────────────────────
+export interface SeriesGroup {
+  seriesKey: string           // seriesName ?? "__ungrouped__"
+  seriesName: string          // 표시명 ("(기타)" for null)
+  seriesIconUrl: string | null
+  description: string | null
+  candidateCount: number
+  topScore: number
+  members: CandidateSnapshot[]
+}
+
+export interface SeriesGroupSummary {
+  seriesKey: string
+  seriesName: string
+  candidateCount: number
+}
+
+// ── Recommendation Checkpoint ──────────────────────────────────
+export interface RecommendationCheckpoint {
+  checkpointId: string
+  stepIndex: number
+  summary: string             // 결정론적 생성 (필터+카운트 기반)
+  candidateCount: number
+  resolvedInputSnapshot: RecommendationInput
+  filtersSnapshot: AppliedFilter[]
+  displayedGroups: SeriesGroupSummary[]
+  filterApplied: AppliedFilter | null
+  timestamp: number
+}
+
+// ── Recommendation Task ────────────────────────────────────────
+export interface RecommendationTask {
+  taskId: string
+  createdAt: number
+  intakeSummary: string
+  checkpoints: RecommendationCheckpoint[]
+  finalCandidateCount: number | null
+  status: "active" | "archived"
+}
+
+export interface ArchivedTask {
+  taskId: string
+  createdAt: number
+  intakeSummary: string
+  checkpointCount: number
+  finalCheckpoint: RecommendationCheckpoint
+  status: "archived"
 }

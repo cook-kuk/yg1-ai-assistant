@@ -27,7 +27,7 @@ import { Markdown } from "@/components/ui/markdown"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import type { InventorySnapshot, RecommendationResult, ScoredProduct, ScoreBreakdown } from "@/lib/types/canonical"
-import type { CandidateSnapshot, ExplorationSessionState } from "@/lib/types/exploration"
+import type { CandidateSnapshot, ExplorationSessionState, SeriesGroup, ArchivedTask } from "@/lib/types/exploration"
 import type { EvidenceSummary, CuttingConditions } from "@/lib/types/evidence"
 import type { RecommendationExplanation, MatchedFact, UnmatchedFact, SupportingEvidence } from "@/lib/types/explanation"
 import type { VerificationStatus } from "@/lib/types/fact-check"
@@ -1410,7 +1410,7 @@ function ExplorationScreen({
 
         {/* Right candidate panel */}
         <div className={`w-80 border-l bg-white flex-shrink-0 overflow-y-auto transition-all ${showCandidates ? "block" : "hidden"} lg:block`}>
-          <CandidatePanel candidates={candidateSnapshot} messages={messages} />
+          <CandidatePanel candidates={candidateSnapshot} messages={messages} sessionState={sessionState} onSend={onSend} />
         </div>
       </div>
     </div>
@@ -1501,6 +1501,44 @@ function ExplorationSidebar({
               <div key={i} className="text-[10px] text-gray-600 bg-white rounded-lg px-2.5 py-1.5 border border-gray-100">
                 <div className="font-medium">Turn {i + 1}: &quot;{localizeIntakeText(h.answer, language)}&quot;</div>
                 <div className="text-gray-400">{h.candidateCountBefore} → {h.candidateCountAfter}{language === 'ko' ? '개' : ''}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Series groups summary */}
+      {sessionState?.displayedGroups && sessionState.displayedGroups.length >= 2 && (
+        <div>
+          <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+            <Package size={10} />{language === 'ko' ? '시리즈 그룹' : 'Series Groups'}
+          </div>
+          <div className="space-y-0.5">
+            {sessionState.displayedGroups.slice(0, 5).map(g => (
+              <div key={g.seriesKey} className="flex items-center justify-between text-[10px] bg-white rounded-lg px-2.5 py-1 border border-gray-100">
+                <span className="text-gray-700 font-medium truncate">{g.seriesName}</span>
+                <span className="text-gray-400 shrink-0 ml-1">{g.candidateCount}{language === 'ko' ? '개' : ''}</span>
+              </div>
+            ))}
+            {sessionState.displayedGroups.length > 5 && (
+              <div className="text-[10px] text-gray-400 px-2.5">
+                +{sessionState.displayedGroups.length - 5}{language === 'ko' ? '개 더' : ' more'}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Checkpoint summary */}
+      {sessionState?.currentTask?.checkpoints && sessionState.currentTask.checkpoints.length > 0 && (
+        <div>
+          <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+            <Clock size={10} />{language === 'ko' ? '체크포인트' : 'Checkpoints'}
+          </div>
+          <div className="space-y-0.5">
+            {sessionState.currentTask.checkpoints.slice(-3).map(cp => (
+              <div key={cp.checkpointId} className="text-[10px] text-gray-600 bg-white rounded-lg px-2.5 py-1 border border-gray-100 truncate">
+                {cp.summary}
               </div>
             ))}
           </div>
@@ -1668,20 +1706,80 @@ function NarrowingChat({
 
 // ── Right: Candidate Panel ───────────────────────────────────
 
+function SeriesAccordionItem({
+  group,
+  isOpen,
+  onToggle,
+}: {
+  group: SeriesGroup
+  isOpen: boolean
+  onToggle: () => void
+}) {
+  const { language } = useApp()
+  const displayMembers = group.members.slice(0, MAX_DISPLAY_CANDIDATES)
+
+  return (
+    <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+      >
+        {group.seriesIconUrl && (
+          <img src={group.seriesIconUrl} alt={group.seriesName} className="w-8 h-8 object-contain rounded border border-gray-100 shrink-0 bg-white" />
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="text-xs font-semibold text-gray-800 truncate">{group.seriesName}</div>
+          <div className="text-[10px] text-gray-500">
+            {group.candidateCount}{language === 'ko' ? '개' : ''} · {language === 'ko' ? '최고' : 'Top'} {group.topScore}{language === 'ko' ? '점' : 'pt'}
+          </div>
+        </div>
+        {isOpen ? <ChevronUp size={14} className="text-gray-400 shrink-0" /> : <ChevronDown size={14} className="text-gray-400 shrink-0" />}
+      </button>
+      {isOpen && (
+        <div className="p-2 space-y-2 bg-white">
+          {displayMembers.map(c => (
+            <CandidateCard key={c.productCode} c={c} />
+          ))}
+          {group.candidateCount > MAX_DISPLAY_CANDIDATES && (
+            <div className="text-center text-[10px] text-gray-400 py-1">
+              +{group.candidateCount - MAX_DISPLAY_CANDIDATES}{language === 'ko' ? '개 추가' : ' more'}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function CandidatePanel({
-  candidates, messages,
+  candidates, messages, sessionState, onSend,
 }: {
   candidates: CandidateSnapshot[] | null
   messages: ChatMsg[]
+  sessionState?: ExplorationSessionState | null
+  onSend?: (text: string) => void
 }) {
   const { language } = useApp()
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set())
   // Find the last recommendation in messages
   const lastRec = [...messages].reverse().find(m => m.recommendation)?.recommendation
+
+  const groups = sessionState?.displayedGroups ?? null
+  const useAccordion = groups != null && groups.length >= 2
 
   // Cap displayed candidates to 5
   const displayCandidates = candidates?.slice(0, MAX_DISPLAY_CANDIDATES) ?? null
   const totalCount = candidates?.length ?? 0
   const hasMore = totalCount > MAX_DISPLAY_CANDIDATES
+
+  const toggleGroup = (key: string) => {
+    setOpenGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   return (
     <div className="p-3 space-y-3">
@@ -1689,14 +1787,26 @@ function CandidatePanel({
         <Activity size={11} />
         {totalCount > 0 ? (
           language === 'ko'
-            ? <>상위 추천 후보 {displayCandidates?.length ?? 0}개{hasMore && <span className="text-gray-400 font-normal">(전체 {totalCount}개 중)</span>}</>
-            : <>Top {displayCandidates?.length ?? 0} Candidates{hasMore && <span className="text-gray-400 font-normal"> (of {totalCount})</span>}</>
+            ? <>상위 추천 후보 {useAccordion ? `${groups.length}개 시리즈` : `${displayCandidates?.length ?? 0}개`}{hasMore && !useAccordion && <span className="text-gray-400 font-normal">(전체 {totalCount}개 중)</span>}</>
+            : <>Top {useAccordion ? `${groups.length} Series` : `${displayCandidates?.length ?? 0} Candidates`}{hasMore && !useAccordion && <span className="text-gray-400 font-normal"> (of {totalCount})</span>}</>
         ) : (
           <>{language === 'ko' ? '추천 후보' : 'Candidates'}</>
         )}
       </div>
 
-      {displayCandidates && displayCandidates.length > 0 ? (
+      {/* Accordion view (2+ groups) */}
+      {useAccordion ? (
+        <div className="space-y-2">
+          {groups.map(g => (
+            <SeriesAccordionItem
+              key={g.seriesKey}
+              group={g}
+              isOpen={openGroups.has(g.seriesKey)}
+              onToggle={() => toggleGroup(g.seriesKey)}
+            />
+          ))}
+        </div>
+      ) : displayCandidates && displayCandidates.length > 0 ? (
         <div className="space-y-2">
           {displayCandidates.map(c => (
             <CandidateCard key={c.productCode} c={c} />
@@ -1711,6 +1821,29 @@ function CandidatePanel({
         <div className="text-center py-8 text-gray-400">
           <Database size={24} className="mx-auto mb-2 opacity-50" />
           <div className="text-xs">{language === 'ko' ? '조건을 입력하면 후보를 검색합니다' : 'Enter conditions to search candidates'}</div>
+        </div>
+      )}
+
+      {/* Task history section */}
+      {sessionState?.taskHistory && sessionState.taskHistory.length > 0 && (
+        <div className="border-t pt-3">
+          <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+            <FileText size={11} className="text-purple-600" />{language === 'ko' ? '이전 추천 작업' : 'Previous Tasks'}
+          </div>
+          <div className="space-y-1">
+            {sessionState.taskHistory.map(task => (
+              <button
+                key={task.taskId}
+                onClick={() => onSend?.(`이전 작업 재개: ${task.taskId}`)}
+                className="w-full text-left text-[10px] text-purple-700 bg-purple-50 rounded-lg px-2.5 py-1.5 border border-purple-100 hover:bg-purple-100 transition-colors"
+              >
+                <div className="font-medium truncate">{task.intakeSummary}</div>
+                <div className="text-purple-500">
+                  {language === 'ko' ? `체크포인트 ${task.checkpointCount}개` : `${task.checkpointCount} checkpoints`}
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
