@@ -154,8 +154,12 @@ function analyzeFields(
     }
   }
 
-  // ── Series ─────────────────────────────────────────────────
-  if (!askedFields.has("seriesName")) {
+  // ── Series (only after at least 2 user-facing filters applied) ──
+  // Series names are meaningless to users at the start — ask coating/flutes/subtype first.
+  const userFacingFilterCount = history.filter(h =>
+    h.extractedFilters.some(f => f.op !== "skip" && !["material", "operationType", "diameterMm"].includes(f.field))
+  ).length
+  if (!askedFields.has("seriesName") && userFacingFilterCount >= 2) {
     const series = new Map<string, number>()
     const seriesRepProduct = new Map<string, ScoredProduct>()
     for (const c of candidates) {
