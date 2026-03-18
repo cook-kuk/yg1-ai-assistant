@@ -66,6 +66,36 @@ export type LastActionType =
   | "resume_previous_task"
   | "restore_previous_group"
   | "show_group_menu"
+  | "confirm_multi_intent"
+  | "confirm_scope"
+  | "summarize_task"
+
+// ── Comparison Artifact (persists comparison results across turns) ──
+export interface ComparisonArtifact {
+  comparedProductCodes: string[]   // codes of compared products
+  comparedRanks: number[]          // ranks in displayedCandidates
+  compareField?: string            // field-specific comparison (e.g. "overallLengthMm")
+  text: string                     // the generated comparison markdown
+  timestamp: number
+}
+
+// ── Candidate Count Breakdown (transparency & debugging) ──
+export interface CandidateCounts {
+  dbMatchCount: number             // raw DB/retrieval matches
+  filteredCount: number            // after narrowing filters applied
+  rankedCount: number              // after scoring/ranking
+  displayedCount: number           // shown to user (may be capped)
+  hiddenBySeriesCapCount: number   // hidden by series grouping cap
+}
+
+// ── Clarification Record (tracks what was asked & resolved) ──
+export interface ClarificationRecord {
+  question: string
+  options: string[]
+  turnAsked: number
+  context?: string                 // what triggered the clarification
+  resolvedWith?: string            // user's selection or direct input
+}
 
 // ── Session State (serializable, sent between client ↔ server) ──
 export interface ExplorationSessionState {
@@ -87,6 +117,21 @@ export interface ExplorationSessionState {
   displayedOptions: DisplayedOption[]       // structured narrowing options for numbered selection
   lastAction?: LastActionType               // what the system did last turn
 
+  // ── Side Conversation Overlay ──
+  // Records the "real" state-machine position before side conversation,
+  // so routing rules can still reference the underlying session mode.
+  underlyingAction?: LastActionType
+
+  // ── Artifacts (persist displayed results & comparisons) ──
+  lastComparisonArtifact?: ComparisonArtifact | null
+  lastRecommendationArtifact?: CandidateSnapshot[] | null  // snapshot at last show_recommendation
+
+  // ── Count Breakdown (transparency) ──
+  candidateCounts?: CandidateCounts
+
+  // ── Clarification Tracking ──
+  lastClarification?: ClarificationRecord | null
+
   // ── Series Grouping (optional, Phase 1) ──
   displayedGroups?: SeriesGroup[]
   activeGroupKey?: string | null
@@ -94,6 +139,9 @@ export interface ExplorationSessionState {
   // ── Task System (optional, Phase 3) ──
   currentTask?: RecommendationTask | null
   taskHistory?: ArchivedTask[]
+
+  // ── Multi-Intent Queue (pending actions from decomposition) ──
+  pendingIntents?: Array<{ text: string; category: string }>
 }
 
 // ── Full Exploration Session (server-side, includes heavy data) ──

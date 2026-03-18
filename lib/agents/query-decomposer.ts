@@ -39,6 +39,23 @@ export interface DecompositionResult {
   reasoning: string
 }
 
+// ── Execution Plan Types ────────────────────────────────────
+
+export interface ExecutionStep {
+  chunk: IntentChunk
+  order: number
+  dependsOn: number[]       // indices of steps this depends on
+  isSideEffect: boolean     // explanation/side_conversation — does not mutate state
+}
+
+export interface ExecutionPlan {
+  steps: ExecutionStep[]
+  primaryIndex: number       // the main state-changing step (or first step)
+  sideEffectIndices: number[] // explanation/side_conversation steps to merge
+  requiresConfirmation: boolean
+  planText: string
+}
+
 // Categories that mutate session state
 const STATE_CHANGING: Set<IntentCategory> = new Set([
   "task_change",
@@ -68,8 +85,8 @@ export async function decomposeQuery(
     }
   }
 
-  // Fast path: if last action was ask_clarification, user is responding to options — don't decompose
-  if (sessionState?.lastAction === "ask_clarification") {
+  // Fast path: if last action was ask_clarification or confirm_multi_intent, user is responding to options — don't decompose
+  if (sessionState?.lastAction === "ask_clarification" || sessionState?.lastAction === "confirm_multi_intent") {
     return {
       isMultiIntent: false,
       chunks: [{ text: userMessage, category: "filtering" }],
@@ -194,6 +211,65 @@ export function orderChunksForExecution(chunks: IntentChunk[]): IntentChunk[] {
     side_conversation: 5,
   }
   return [...chunks].sort((a, b) => priority[a.category] - priority[b.category])
+}
+
+// ── Execution Planning ──────────────────────────────────────────
+
+/**
+ * Build an ordered execution plan from decomposed chunks.
+ *
+ * Rules:
+ * - restore must happen before filtering/task_change (dependency)
+ * - task_change must happen before filtering (dependency)
+ * - explanation/side_conversation are side-effects — they don't mutate state
+ *   and can be merged into the response of the primary action
+ * - If ≥2 state-changing categories → requiresConfirmation
+ */
+export function planActions(decomposition: DecompositionResult): ExecutionPlan {
+  if (!decomposition.isMultiIntent || decomposition.chunks.length <= 1) {
+    const chunk = decomposition.chunks[0] ?? { text: "", category: "filtering" as IntentCategory }
+    return {
+      steps: [{ chunk, order: 0, dependsOn: [], isSideEffect: false }],
+      primaryIndex: 0,
+      sideEffectIndices: [],
+      requiresConfirmation: false,
+      planText: "",
+    }
+  }
+
+  const ordered = orderChunksForExecution(decomposition.chunks)
+
+  const steps: ExecutionStep[] = ordered.map((chunk, i) => {
+    const isSideEffect = !STATE_CHANGING.has(chunk.category)
+    const dependsOn: number[] = []
+
+    // Build dependencies: state-changing steps depend on prior state-changing steps
+    if (!isSideEffect) {
+      for (let j = 0; j < i; j++) {
+        if (STATE_CHANGING.has(ordered[j].category)) {
+          dependsOn.push(j)
+        }
+      }
+    }
+
+    return { chunk, order: i, dependsOn, isSideEffect }
+  })
+
+  // Find primary = first state-changing step; if none, first step
+  const primaryIndex = steps.findIndex(s => !s.isSideEffect)
+  const sideEffectIndices = steps
+    .map((s, i) => s.isSideEffect ? i : -1)
+    .filter(i => i >= 0)
+
+  const planText = buildExecutionPlanText(ordered)
+
+  return {
+    steps,
+    primaryIndex: primaryIndex >= 0 ? primaryIndex : 0,
+    sideEffectIndices,
+    requiresConfirmation: decomposition.requiresConfirmation,
+    planText,
+  }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────

@@ -51,6 +51,7 @@ import { ENABLE_MULTI_AGENT_ORCHESTRATOR, ENABLE_VALIDATION_GATE, ENABLE_COMPARI
 import { groupCandidatesBySeries, buildGroupSummaries, filterBySeriesGroup } from "@/lib/domain/series-grouper"
 import { createCheckpoint, createTask, archiveTask, restoreFromArchivedTask, addCheckpointToTask, buildTaskIntakeSummary } from "@/lib/domain/task-manager"
 import { runConsistencyValidation } from "@/lib/domain/validation-consistency"
+import { executeSlotReplacement } from "@/lib/domain/slot-replacement"
 import { ProductRepo } from "@/lib/data/repos/product-repo"
 import { InventoryRepo } from "@/lib/data/repos/inventory-repo"
 
@@ -165,6 +166,7 @@ async function handleExploration(
   }
   const candidates = hybridResult.candidates
   const evidenceMap = hybridResult.evidenceMap
+  const dbMatchCount = hybridResult.totalConsidered
 
   // Run request preparation engine
   const requestPrep = prepareRequest(form, messages, prevState, resolvedInput, candidates.length)
@@ -257,8 +259,10 @@ async function handleExploration(
       let action = orchResult.action
 
       // ── Guard: apply_filter in post-recommendation state → redirect ALL to filter_displayed ──
+      // Use underlyingAction to survive side conversations (explain/chat don't change the underlying mode)
       const POST_RECOMMENDATION_ACTIONS = new Set(["show_recommendation", "filter_displayed", "query_displayed"])
-      if (action.type === "continue_narrowing" && POST_RECOMMENDATION_ACTIONS.has(prevState.lastAction ?? "")) {
+      const effectiveLastAction = prevState.underlyingAction ?? prevState.lastAction ?? ""
+      if (action.type === "continue_narrowing" && POST_RECOMMENDATION_ACTIONS.has(effectiveLastAction)) {
         const filterField = action.filter.field
         const normalized = normalizeFieldName(filterField) ?? filterField
         console.log(`[orchestrator:guard] apply_filter(${filterField}) redirected to filter_displayed in post-recommendation state`)
@@ -269,6 +273,72 @@ async function handleExploration(
           value: String(action.filter.rawValue),
         }
         orchResult = { ...orchResult, action }
+      }
+
+      // ── Multi-intent: generate side-effect text (explanation/side_conversation) ──
+      let sideEffectText = ""
+      if (orchResult.sideEffectIntents?.length) {
+        const sideTexts: string[] = []
+        for (const se of orchResult.sideEffectIntents) {
+          if (se.category === "explanation") {
+            try {
+              const seReply = await handleContextualNarrowingQuestion(
+                provider, se.text, currentInput, candidates, prevState
+              )
+              if (seReply) sideTexts.push(seReply)
+            } catch (e) {
+              console.warn(`[multi-intent:side-effect] Explanation failed:`, e)
+            }
+          } else if (se.category === "side_conversation") {
+            try {
+              const chatReply = await handleGeneralChat(provider, se.text, currentInput, candidates, form, prevState.displayedCandidates)
+              if (chatReply.text) sideTexts.push(chatReply.text)
+            } catch (e) {
+              console.warn(`[multi-intent:side-effect] Side conversation failed:`, e)
+            }
+          }
+        }
+        if (sideTexts.length > 0) {
+          sideEffectText = "\n\n---\n\n" + sideTexts.join("\n\n")
+          console.log(`[multi-intent:side-effect] Generated ${sideTexts.length} side-effect responses`)
+        }
+      }
+
+      // ── Multi-intent: propagate pending intents to session state helper ──
+      const pendingIntentsForSession = orchResult.pendingIntents?.length
+        ? orchResult.pendingIntents.map(c => ({ text: c.text, category: c.category }))
+        : undefined
+
+      /**
+       * Multi-intent response helper:
+       * Modifies response JSON to include side-effect text and pending intent queue.
+       */
+      function applyMultiIntentToJson(json: Record<string, unknown>): Record<string, unknown> {
+        if (!sideEffectText && !pendingIntentsForSession?.length) return json
+
+        // Append side-effect text
+        if (sideEffectText && typeof json.text === "string") {
+          json.text = json.text + sideEffectText
+        }
+
+        // Add pending intents to session state
+        if (pendingIntentsForSession?.length && json.sessionState && typeof json.sessionState === "object") {
+          const ss = json.sessionState as Record<string, unknown>
+          ss.pendingIntents = pendingIntentsForSession
+
+          // Add visual note about queued actions
+          const CATEGORY_LABELS: Record<string, string> = {
+            task_change: "작업 변경", filtering: "필터 적용",
+            comparison: "제품 비교", restore: "상태 복원",
+            explanation: "설명", side_conversation: "일반 대화",
+          }
+          const nextLabel = CATEGORY_LABELS[pendingIntentsForSession[0].category] ?? pendingIntentsForSession[0].category
+          if (typeof json.text === "string") {
+            json.text += `\n\n> 다음 작업 대기 중: **${nextLabel}** (${pendingIntentsForSession.length}개)`
+          }
+        }
+
+        return json
       }
 
       // ── Dispatch orchestrator action ──────────────────────
@@ -302,7 +372,8 @@ async function handleExploration(
         return buildQuestionResponse(
           form, undoResult.candidates, undoResult.evidenceMap, restoreResult.rebuiltInput,
           restoreResult.remainingHistory, restoreResult.remainingFilters, restoreResult.undoTurnCount,
-          messages, provider, language, undefined, restoreResult.remainingStages
+          messages, provider, language, sideEffectText ? sideEffectText.replace(/^\n\n---\n\n/, "") : undefined, restoreResult.remainingStages,
+          pendingIntentsForSession
         )
       }
 
@@ -328,99 +399,62 @@ async function handleExploration(
         )
       }
 
-      // Action: replace_slot — remove old filter value, apply new value
+      // Action: replace_slot — delegated to SlotReplacementEngine
       if (action.type === "replace_slot") {
-        const field = action.field
-        const existingIdx = filters.findIndex(f => f.field === field && f.op !== "skip")
+        const slotResult = await executeSlotReplacement({
+          field: action.field,
+          newValue: action.newValue,
+          displayValue: action.displayValue,
+          currentFilters: filters,
+          baseInput,
+          currentInput,
+          turnCount,
+          prevCandidateCount: candidates.length,
+          applyFilterToInput,
+        })
 
-        // Save old filter before removing (needed for zero-candidate revert)
-        let oldValue = "(없음)"
-        let savedOldFilter: AppliedFilter | null = null
-        if (existingIdx >= 0) {
-          oldValue = filters[existingIdx].value
-          savedOldFilter = { ...filters[existingIdx] }
-          filters.splice(existingIdx, 1)
-        }
-
-        // Build new filter
-        const isNumeric = !isNaN(Number(action.newValue))
-        const newFilter: AppliedFilter = {
-          field,
-          op: isNumeric ? "eq" : "includes",
-          value: action.displayValue ?? action.newValue,
-          rawValue: isNumeric ? Number(action.newValue) : action.newValue,
-          appliedAt: turnCount,
-        }
-        filters.push(newFilter)
-
-        // Rebuild input from base + all filters
-        let rebuiltInput = { ...baseInput }
-        for (const f of filters) {
-          rebuiltInput = applyFilterToInput(rebuiltInput, f)
-        }
-        currentInput = rebuiltInput
-
-        // Re-run retrieval
-        const newResult = await runHybridRetrieval(currentInput, filters.filter(f => f.op !== "skip"))
-
-        // ── Zero-candidate guard: if new value results in 0 candidates, revert ──
-        if (newResult.candidates.length === 0) {
-          // Revert: remove new filter, restore old filter
-          filters.pop()
-          if (existingIdx >= 0 && savedOldFilter) {
-            filters.push(savedOldFilter)
-          }
-          // Rebuild input from base + all filters
-          let revertInput = { ...baseInput }
-          for (const f of filters) {
-            revertInput = applyFilterToInput(revertInput, f)
-          }
-          currentInput = revertInput
-
-          console.log(`[orchestrator:guard] replace_slot ${field}=${action.newValue} would result in 0 candidates — BLOCKED`)
+        if (!slotResult.success) {
+          // Revert applied — restore filters and input
+          filters.length = 0
+          filters.push(...slotResult.revertedFilters)
+          currentInput = slotResult.revertedInput
           return buildQuestionResponse(
             form, candidates, evidenceMap, currentInput,
             narrowingHistory, filters, turnCount, messages, provider, language,
-            `"${action.displayValue ?? action.newValue}" 조건을 적용하면 후보가 없습니다. 현재 ${candidates.length}개 후보에서 다른 값을 선택해주세요.`
+            slotResult.message
           )
         }
 
-        narrowingHistory.push({
-          question: "slot-replace",
-          answer: `${field}: ${oldValue} → ${action.displayValue ?? action.newValue}`,
-          extractedFilters: [newFilter],
-          candidateCountBefore: candidates.length,
-          candidateCountAfter: newResult.candidates.length,
-        })
+        // Commit: update filters, input, history
+        filters.length = 0
+        filters.push(...slotResult.newFilters)
+        currentInput = slotResult.rebuiltInput
+        narrowingHistory.push(slotResult.narrowingEntry)
         turnCount++
-
-        console.log(`[orchestrator:slot-replace] ${field}: ${oldValue} → ${action.newValue} | ${candidates.length} → ${newResult.candidates.length} candidates`)
 
         // Create checkpoint if task system enabled
         if (ENABLE_TASK_SYSTEM && prevState.currentTask) {
-          const cpSnapshot = buildCandidateSnapshot(newResult.candidates, newResult.evidenceMap)
+          const cpSnapshot = buildCandidateSnapshot(slotResult.candidates, slotResult.evidenceMap)
           const cpGroups = ENABLE_SERIES_GROUPING ? buildGroupSummaries(groupCandidatesBySeries(cpSnapshot)) : []
           const cp = createCheckpoint(
-            { ...prevState, candidateCount: newResult.candidates.length, appliedFilters: filters },
+            { ...prevState, candidateCount: slotResult.candidates.length, appliedFilters: filters },
             cpGroups,
-            newFilter
+            slotResult.newFilter
           )
           addCheckpointToTask(prevState.currentTask, cp)
         }
 
-        const replaceText = `${field}를 ${oldValue}에서 **${action.displayValue ?? action.newValue}**로 변경했습니다.\n후보가 ${newResult.candidates.length}개로 업데이트되었습니다.`
-
-        const status = checkResolution(newResult.candidates, narrowingHistory)
+        const status = checkResolution(slotResult.candidates, narrowingHistory)
         if (status.startsWith("resolved")) {
           return buildRecommendationResponse(
-            form, newResult.candidates, newResult.evidenceMap, currentInput,
+            form, slotResult.candidates, slotResult.evidenceMap, currentInput,
             narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts
           )
         }
 
         return buildQuestionResponse(
-          form, newResult.candidates, newResult.evidenceMap, currentInput,
-          narrowingHistory, filters, turnCount, messages, provider, language, replaceText
+          form, slotResult.candidates, slotResult.evidenceMap, currentInput,
+          narrowingHistory, filters, turnCount, messages, provider, language, slotResult.message
         )
       }
 
@@ -428,6 +462,10 @@ async function handleExploration(
       if (action.type === "ask_clarification") {
         const clarifyChips = [...action.options]
         if (action.allowDirectInput) clarifyChips.push("직접 입력")
+
+        // Multi-intent confirmation: store pending intents in session state
+        const isMultiIntentConfirm = orchResult.pendingIntents && orchResult.pendingIntents.length > 0
+        const lastActionType = isMultiIntentConfirm ? "confirm_multi_intent" as const : "ask_clarification" as const
 
         const sessionState: ExplorationSessionState = {
           sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
@@ -444,7 +482,16 @@ async function handleExploration(
           displayedSetFilter: prevState.displayedSetFilter,
           displayedChips: clarifyChips,
           displayedOptions: prevState.displayedOptions ?? [],
-          lastAction: "ask_clarification",
+          lastAction: lastActionType,
+          lastClarification: !isMultiIntentConfirm ? {
+            question: action.question,
+            options: action.options,
+            turnAsked: turnCount,
+            context: orchResult.reasoning,
+          } : prevState.lastClarification,
+          pendingIntents: isMultiIntentConfirm
+            ? orchResult.pendingIntents!.map(c => ({ text: c.text, category: c.category }))
+            : undefined,
         }
         return NextResponse.json({
           text: action.question,
@@ -458,7 +505,12 @@ async function handleExploration(
           extractedField: null, requestPreparation: null,
           primaryExplanation: null, primaryFactChecked: null,
           altExplanations: [], altFactChecked: [],
-          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+          orchestratorResult: {
+            action: action.type,
+            agents: orchResult.agentsInvoked,
+            opus: orchResult.escalatedToOpus,
+            ...(orchResult.executionPlanText ? { executionPlan: orchResult.executionPlanText } : {}),
+          },
         })
       }
 
@@ -469,6 +521,15 @@ async function handleExploration(
           : buildCandidateSnapshot(candidates, evidenceMap)
         const targets = resolveProductReferences(action.targets, snapshot)
         const compResult = await compareProducts(targets, evidenceMap, provider)
+
+        // Persist comparison as artifact for follow-up
+        const comparisonArtifact: import("@/lib/types/exploration").ComparisonArtifact = {
+          comparedProductCodes: targets.map(t => t.productCode),
+          comparedRanks: targets.map(t => t.rank),
+          compareField: action.compareField,
+          text: compResult.text,
+          timestamp: Date.now(),
+        }
 
         const sessionState: ExplorationSessionState = {
           sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
@@ -485,9 +546,12 @@ async function handleExploration(
           displayedChips: ["추천해주세요", "다른 조건으로", "⟵ 이전 단계", "처음부터 다시"],
           displayedOptions: [],
           lastAction: "compare_products",
+          underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
+          lastComparisonArtifact: comparisonArtifact,
+          pendingIntents: pendingIntentsForSession,
         }
         return NextResponse.json({
-          text: compResult.text,
+          text: compResult.text + sideEffectText,
           purpose: "comparison",
           chips: ["추천해주세요", "다른 조건으로", "⟵ 이전 단계", "처음부터 다시"],
           isComplete: false,
@@ -526,6 +590,7 @@ async function handleExploration(
             displayedChips: inventoryReply.chips,
             displayedOptions: prevState.displayedOptions ?? [],
             lastAction: "answer_general",
+            underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
           }
           return NextResponse.json({
             text: inventoryReply.text,
@@ -565,6 +630,7 @@ async function handleExploration(
             displayedChips: cuttingConditionReply.chips,
             displayedOptions: prevState.displayedOptions ?? [],
             lastAction: "answer_general",
+            underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
           }
           return NextResponse.json({
             text: cuttingConditionReply.text,
@@ -618,6 +684,7 @@ async function handleExploration(
               displayedChips: ["비교해줘", "추천해주세요", "⟵ 이전 단계"],
               displayedOptions: prevState.displayedOptions ?? [],
               lastAction: "answer_general",
+              underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
             }
             return NextResponse.json({
               text: responseText,
@@ -948,6 +1015,7 @@ async function handleExploration(
                 displayedChips: prevState.displayedChips ?? ["대체 후보 보기", "절삭조건 알려줘", "처음부터 다시"],
                 displayedOptions: prevState.displayedOptions ?? [],
                 lastAction: "explain_product",
+                underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
               }
               return NextResponse.json({
                 text: contextReply,
@@ -993,6 +1061,7 @@ async function handleExploration(
           displayedChips: llmResponse.chips,
           displayedOptions: prevState.displayedOptions ?? [],
           lastAction: "answer_general",
+          underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
         }
         return NextResponse.json({
           text: llmResponse.text,
@@ -1193,6 +1262,102 @@ async function handleExploration(
         })
       }
 
+      // Action: confirm_scope — deterministic session state summary
+      if (action.type === "confirm_scope") {
+        const activeFilters = filters.filter(f => f.op !== "skip")
+        const skippedFields = filters.filter(f => f.op === "skip").map(f => f.field)
+        const filterLines = activeFilters.length > 0
+          ? activeFilters.map(f => `• **${f.field}** = ${f.value}`).join("\n")
+          : "• (없음)"
+        const skippedLine = skippedFields.length > 0
+          ? `\n건너뛴 항목: ${skippedFields.join(", ")}`
+          : ""
+
+        const scopeText = `**현재 세션 상태:**\n\n` +
+          `적용된 필터:\n${filterLines}${skippedLine}\n\n` +
+          `후보 수: **${candidates.length}개**\n` +
+          `상태: ${prevState.resolutionStatus ?? "narrowing"}\n` +
+          `턴: ${turnCount}회\n` +
+          `[Reference: YG-1 내부 DB]`
+
+        const sessionState: ExplorationSessionState = {
+          sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+          candidateCount: prevState.candidateCount ?? candidates.length,
+          appliedFilters: filters,
+          narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
+          resolutionStatus: prevState.resolutionStatus ?? "broad",
+          resolvedInput: currentInput,
+          turnCount,
+          lastAskedField: prevState.lastAskedField,
+          displayedCandidates: prevState.displayedCandidates ?? [],
+          fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+          displayedSetFilter: prevState.displayedSetFilter ?? null,
+          displayedChips: prevState.displayedChips ?? [],
+          displayedOptions: prevState.displayedOptions ?? [],
+          lastAction: "confirm_scope",
+          underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
+        }
+        return NextResponse.json({
+          text: scopeText,
+          purpose: "general_chat",
+          chips: prevState.displayedChips ?? ["추천해주세요", "처음부터 다시"],
+          isComplete: false,
+          recommendation: null,
+          sessionState,
+          evidenceSummaries: null,
+          candidateSnapshot: prevState.displayedCandidates ?? null,
+          extractedField: null, requestPreparation: null,
+          primaryExplanation: null, primaryFactChecked: null,
+          altExplanations: [], altFactChecked: [],
+          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+        })
+      }
+
+      // Action: summarize_task — full narrowing journey review
+      if (action.type === "summarize_task") {
+        const steps = narrowingHistory.map((h, i) =>
+          `${i + 1}. ${h.question === "slot-replace" ? "교체" : "필터"}: ${h.answer} (${h.candidateCountBefore}→${h.candidateCountAfter}개)`
+        )
+        const summaryText = `**추천 작업 요약:**\n\n` +
+          (steps.length > 0 ? steps.join("\n") : "아직 필터를 적용하지 않았습니다.") +
+          `\n\n현재 후보: **${candidates.length}개**\n` +
+          `[Reference: YG-1 내부 DB]`
+
+        const sessionState: ExplorationSessionState = {
+          sessionId: prevState.sessionId ?? `ses-${Date.now()}`,
+          candidateCount: prevState.candidateCount ?? candidates.length,
+          appliedFilters: filters,
+          narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
+          resolutionStatus: prevState.resolutionStatus ?? "broad",
+          resolvedInput: currentInput,
+          turnCount,
+          lastAskedField: prevState.lastAskedField,
+          displayedCandidates: prevState.displayedCandidates ?? [],
+          fullDisplayedCandidates: prevState.fullDisplayedCandidates,
+          displayedSetFilter: prevState.displayedSetFilter ?? null,
+          displayedChips: prevState.displayedChips ?? [],
+          displayedOptions: prevState.displayedOptions ?? [],
+          lastAction: "summarize_task",
+          underlyingAction: prevState.underlyingAction ?? prevState.lastAction,
+        }
+        return NextResponse.json({
+          text: summaryText,
+          purpose: "general_chat",
+          chips: prevState.displayedChips ?? ["추천해주세요", "처음부터 다시"],
+          isComplete: false,
+          recommendation: null,
+          sessionState,
+          evidenceSummaries: null,
+          candidateSnapshot: prevState.displayedCandidates ?? null,
+          extractedField: null, requestPreparation: null,
+          primaryExplanation: null, primaryFactChecked: null,
+          altExplanations: [], altFactChecked: [],
+          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+        })
+      }
+
       // Action: skip_field
       if (action.type === "skip_field") {
         const skipField = prevState.lastAskedField ?? "unknown"
@@ -1242,6 +1407,11 @@ async function handleExploration(
         const newCandidates = testResult.candidates
         const prevCandidateCount = candidates.length  // always use current pool count, not stale session state
 
+        // Mark clarification as resolved if this was a response to ask_clarification
+        if (prevState.lastAction === "ask_clarification" && prevState.lastClarification) {
+          prevState.lastClarification = { ...prevState.lastClarification, resolvedWith: lastUserMsg.text }
+        }
+
         narrowingHistory.push({
           question: prevState.narrowingHistory?.length ? "follow-up" : "initial",
           answer: lastUserMsg.text,
@@ -1280,10 +1450,12 @@ async function handleExploration(
 
         const newStatus = checkResolution(newCandidates, narrowingHistory)
         if (newStatus.startsWith("resolved")) {
-          return buildRecommendationResponse(form, newCandidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts)
+          return buildRecommendationResponse(form, newCandidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts, sideEffectText || undefined, pendingIntentsForSession)
         }
 
-        return buildQuestionResponse(form, newCandidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, undefined, updatedStages)
+        // If there's side-effect text from multi-intent, pass it as override prefix
+        const filterOverride = sideEffectText ? sideEffectText.replace(/^\n\n---\n\n/, "") : undefined
+        return buildQuestionResponse(form, newCandidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, filterOverride, updatedStages, pendingIntentsForSession)
       }
     }
   }
@@ -1319,9 +1491,10 @@ async function buildQuestionResponse(
   provider: ReturnType<typeof getProvider>,
   language: AppLanguage,
   overrideText?: string,
-  existingStageHistory?: NarrowingStage[]
+  existingStageHistory?: NarrowingStage[],
+  pendingIntents?: Array<{ text: string; category: string }>,
 ): Promise<Response> {
-  const question = selectNextQuestion(input, candidates, history)
+  let question = selectNextQuestion(input, candidates, history)
 
   // Build stage history — snapshot current state if we don't have one yet
   const stageHistory: NarrowingStage[] = existingStageHistory
@@ -1358,10 +1531,37 @@ async function buildQuestionResponse(
     displayedOptions,
     lastAction: "continue_narrowing",
     displayedGroups,
+    candidateCounts: {
+      dbMatchCount: candidates.length,  // best available at this point
+      filteredCount: candidates.length,
+      rankedCount: candidates.length,
+      displayedCount: candidateSnapshot.length,
+      hiddenBySeriesCapCount: displayedGroups
+        ? displayedGroups.reduce((sum, g) => sum + g.candidateCount, 0) - candidateSnapshot.length
+        : 0,
+    },
+    pendingIntents: pendingIntents ?? undefined,
   }
 
   // Non-blocking validation
   runConsistencyValidation(sessionState, candidates.length, displayedGroups, candidateSnapshot)
+
+  // Validation gate with auto-repair for re-ask prevention
+  const vgResult = runValidationGate({
+    question,
+    appliedFilters: filters,
+    candidateCountInState: sessionState.candidateCount,
+    candidateCountActual: candidates.length,
+    displayedCandidates: candidateSnapshot,
+    resolvedInput: input,
+    candidates,
+    narrowingHistory: history,
+  })
+  if (vgResult.repairedQuestion) {
+    question = vgResult.repairedQuestion
+    sessionState.lastAskedField = question.field
+    console.log(`[validation-gate] Auto-repaired: next question field → "${question.field}"`)
+  }
 
   // Debug: log narrowing state
   logNarrowingState("question", sessionState, question?.field ?? null)
@@ -1452,7 +1652,9 @@ async function buildRecommendationResponse(
   messages: ChatMessage[],
   provider: ReturnType<typeof getProvider>,
   language: AppLanguage,
-  displayedProducts: DisplayedProduct[] | null = null
+  displayedProducts: DisplayedProduct[] | null = null,
+  appendText?: string,
+  pendingIntents?: Array<{ text: string; category: string }>,
 ): Promise<Response> {
   const { primary, alternatives, status } = classifyHybridResults({ candidates, evidenceMap, totalConsidered: candidates.length, filtersApplied: filters })
   const warnings = primary ? buildWarnings(primary, input) : ["조건에 맞는 제품을 찾지 못했습니다"]
@@ -1601,7 +1803,18 @@ async function buildRecommendationResponse(
     displayedChips: followUpChips,
     displayedOptions: [],
     lastAction: "show_recommendation",
+    lastRecommendationArtifact: candidateSnapshot,
     displayedGroups: recDisplayedGroups,
+    candidateCounts: {
+      dbMatchCount: candidates.length,
+      filteredCount: candidates.length,
+      rankedCount: candidates.length,
+      displayedCount: candidateSnapshot.length,
+      hiddenBySeriesCapCount: recDisplayedGroups
+        ? recDisplayedGroups.reduce((sum, g) => sum + g.candidateCount, 0) - candidateSnapshot.length
+        : 0,
+    },
+    pendingIntents: pendingIntents ?? undefined,
   }
 
   // Non-blocking validation
@@ -1634,6 +1847,11 @@ async function buildRecommendationResponse(
       score: primary.score,
       query: `직경:${input.diameterMm ?? "?"}mm 소재:${input.material ?? "?"} 가공:${input.operationType ?? "?"}`,
     }).catch(() => {})
+  }
+
+  // Append multi-intent side-effect text
+  if (appendText) {
+    responseText += appendText
   }
 
   return NextResponse.json({

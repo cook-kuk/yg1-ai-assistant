@@ -31,8 +31,8 @@ import { classifyIntent } from "./intent-classifier"
 import { extractParameters } from "./parameter-extractor"
 import { needsOpusResolution, resolveAmbiguity } from "./ambiguity-resolver"
 import { resolveProductReferences } from "./comparison-agent"
-import { decomposeQuery, buildExecutionPlanText, orderChunksForExecution } from "./query-decomposer"
-import type { DecompositionResult } from "./query-decomposer"
+import { decomposeQuery, buildExecutionPlanText, orderChunksForExecution, planActions } from "./query-decomposer"
+import type { DecompositionResult, IntentChunk, ExecutionPlan } from "./query-decomposer"
 import { parseAnswerToFilter } from "@/lib/domain/question-engine"
 import { ENABLE_OPUS_AMBIGUITY, ENABLE_COMPARISON_AGENT, ENABLE_TASK_SYSTEM } from "@/lib/feature-flags"
 import type { LLMTool, LLMToolResult } from "@/lib/llm/provider"
@@ -438,6 +438,16 @@ const NARROWING_TOOLS: LLMTool[] = [
     description: "시리즈 그룹 목록을 칩으로 표시. '시리즈 목록 보여줘', '어떤 시리즈가 있어?' 등.",
     input_schema: { type: "object", properties: {} }
   },
+  {
+    name: "confirm_current_scope",
+    description: "현재 세션 상태를 확인/요약. '지금 어떤 상태야?', '지금 뭐 적용됐어?', '현재 조건 확인', '몇 개 남았어?' 등. 적용된 필터, 후보 수, 좁히기 진행률을 보여줌.",
+    input_schema: { type: "object", properties: {} }
+  },
+  {
+    name: "summarize_current_task",
+    description: "지금까지 진행 상황 요약. '지금까지 정리해줘', '요약해줘', '어디까지 했지?' 등. 전체 좁히기 과정을 리뷰.",
+    input_schema: { type: "object", properties: {} }
+  },
 ]
 
 /** Normalize Korean/English field aliases to canonical field names */
@@ -512,6 +522,7 @@ function buildToolUseSystemPrompt(ctx: TurnContext): string {
 - 턴 수: ${state?.turnCount ?? 0}
 - 마지막 질문 필드: ${state?.lastAskedField ?? "없음"}
 - 마지막 액션: ${state?.lastAction ?? "없음"}
+- 기저 액션 (side conversation 전): ${state?.underlyingAction ?? state?.lastAction ?? "없음"}
 
 ═══ 현재 표시된 옵션 (칩) ═══
 ${optionsDesc}
@@ -525,6 +536,12 @@ ${candidatesDesc}
 ═══ 시리즈 그룹 ═══
 ${state?.displayedGroups?.map(g => `• ${g.seriesName} (${g.candidateCount}개, 최고 ${g.topScore}점)`).join("\n") || "없음"}
 ${state?.activeGroupKey ? `현재 포커스: ${state.activeGroupKey}` : ""}
+
+═══ 마지막 비교 결과 ═══
+${state?.lastComparisonArtifact ? `비교 대상: ${state.lastComparisonArtifact.comparedProductCodes.join(" vs ")}${state.lastComparisonArtifact.compareField ? ` (기준: ${state.lastComparisonArtifact.compareField})` : ""}\n${state.lastComparisonArtifact.text.slice(0, 300)}${state.lastComparisonArtifact.text.length > 300 ? "..." : ""}` : "없음"}
+
+═══ 마지막 명확화 질문 ═══
+${state?.lastClarification ? `질문: "${state.lastClarification.question}"\n옵션: ${state.lastClarification.options.join(", ")}${state.lastClarification.resolvedWith ? `\n해결: "${state.lastClarification.resolvedWith}"` : "\n(미해결)"}` : "없음"}
 
 ═══ 작업 이력 ═══
 ${state?.taskHistory?.map(t => `• [${t.taskId}] ${t.intakeSummary} (체크포인트 ${t.checkpointCount}개)`).join("\n") || "없음"}
@@ -543,7 +560,9 @@ ${state?.taskHistory?.map(t => `• [${t.taskId}] ${t.intakeSummary} (체크포�
 
 ═══ 핵심 라우팅 규칙 ═══
 
-⭐⭐ 최우선: 마지막 액션이 show_recommendation/filter_displayed/query_displayed이면 (추천 결과가 표시된 상태):
+⚠️ Side Conversation 보정: 마지막 액션이 explain_product/answer_general이지만 기저 액션이 show_recommendation/filter_displayed 등이면, 기저 액션 기준으로 라우팅하세요. 설명/잡담은 추천 상태를 바꾸지 않습니다.
+
+⭐⭐ 최우선: 마지막 액션(또는 기저 액션)이 show_recommendation/filter_displayed/query_displayed이면 (추천 결과가 표시된 상태):
 - 스펙 기준 필터링 → filter_displayed_products (절대 apply_filter 사용 금지!)
   예: "OAL 69mm인 것만" → filter_displayed(overallLengthMm, eq, 69)
   예: "코팅 Diamond인 것만" → filter_displayed(coating, eq, Diamond)
@@ -724,76 +743,190 @@ function mapToolUseToAction(
     case "show_group_menu":
       return { type: "show_group_menu" }
 
+    case "confirm_current_scope":
+      return { type: "confirm_scope" }
+
+    case "summarize_current_task":
+      return { type: "summarize_task" }
+
     default:
       return { type: "answer_general", message: ctx.userMessage }
   }
 }
 
 /**
- * Tool-use based orchestration — single Sonnet call replaces
- * intent classifier (Haiku) + parameter extractor (Haiku) + ambiguity resolver (Opus).
+ * Tool-use based orchestration with full multi-intent decomposition pipeline.
  *
- * Includes query decomposition: if a message contains multiple distinct intents
- * (e.g. restore + filter, or comparison + task change), the decomposer splits
- * them and either asks for confirmation or executes the primary action.
+ * Pipeline:
+ *   1. decompose_request — split user message into semantic parts (Haiku)
+ *   2. classify each part — route through Sonnet tool-use
+ *   3. plan_actions — ordered execution plan with dependencies
+ *   4. if ambiguity or ≥2 state changes → ask_clarification with plan
+ *
+ * State-changing actions are ordered (restore → task_change → filtering).
+ * Explanation/side_conversation are side-effects that don't break recommendation state.
  */
 export async function orchestrateTurnWithTools(
   ctx: TurnContext,
   provider: LLMProvider
 ): Promise<OrchestratorResult> {
   const startMs = Date.now()
+  const agents: OrchestratorResult["agentsInvoked"] = []
 
-  // ═══ Step 0: Query Decomposition (Haiku, ~200ms) ═══
+  // ═══ Step 0: Check for pending intents from previous multi-intent confirmation ═══
+  if (ctx.sessionState?.lastAction === "confirm_multi_intent" && ctx.sessionState.pendingIntents?.length) {
+    const pending = ctx.sessionState.pendingIntents
+    const userConfirmed = /^(네|예|ㅇ|ㅇㅇ|응|좋아|해줘|진행|ok|yes|확인|순서대로)/i.test(ctx.userMessage.trim())
+
+    const userFirstOnly = /^(첫\s*번째만|첫번째만|first only)/i.test(ctx.userMessage.trim())
+    const userCancelled = /^(취소|아니|cancel|no$)/i.test(ctx.userMessage.trim())
+
+    if (userConfirmed) {
+      // User confirmed → execute the first pending intent, queue the rest
+      const nextChunk = pending[0]
+      const remaining = pending.slice(1)
+      console.log(`[orchestrator:multi] Confirmed — executing pending: "${nextChunk.text}" (${nextChunk.category}), ${remaining.length} remaining`)
+
+      return routeChunkThroughTools(
+        nextChunk.text, ctx, provider, agents, startMs,
+        remaining.length > 0 ? remaining as IntentChunk[] : undefined,
+        undefined,
+        `confirmed_pending:${nextChunk.category}`
+      )
+    } else if (userFirstOnly) {
+      // Execute first only, drop the rest
+      const nextChunk = pending[0]
+      console.log(`[orchestrator:multi] First-only — executing: "${nextChunk.text}" (${nextChunk.category}), dropping ${pending.length - 1} remaining`)
+
+      return routeChunkThroughTools(
+        nextChunk.text, ctx, provider, agents, startMs,
+        undefined, // no remaining
+        undefined,
+        `first_only:${nextChunk.category}`
+      )
+    } else if (userCancelled) {
+      // Cancel — return to normal flow
+      console.log(`[orchestrator:multi] Cancelled — dropping ${pending.length} pending`)
+      return {
+        action: { type: "answer_general", message: "작업을 취소했습니다. 다른 질문이 있으시면 말씀해주세요.", preGenerated: true },
+        reasoning: "multi_intent:cancelled",
+        agentsInvoked: agents,
+        escalatedToOpus: false,
+      }
+    } else {
+      // User did NOT confirm — treat as new intent, drop pending queue
+      console.log(`[orchestrator:multi] Not confirmed — treating as new intent, dropping ${pending.length} pending`)
+    }
+  }
+
+  // ═══ Step 1: Decompose Request (Haiku, ~200ms) ═══
   let decomposition: DecompositionResult | null = null
+  const decomposeStart = Date.now()
   try {
     decomposition = await decomposeQuery(ctx.userMessage, ctx.sessionState, provider)
+    agents.push({ agent: "query-decomposer", model: "haiku", durationMs: Date.now() - decomposeStart })
+
     if (decomposition.isMultiIntent) {
-      console.log(`[orchestrator:decompose] Multi-intent detected: ${decomposition.chunks.map(c => c.category).join(" + ")} | ${decomposition.reasoning}`)
+      console.log(`[orchestrator:decompose] Multi-intent detected: ${decomposition.chunks.map(c => `${c.category}("${c.text.slice(0, 20)}")`).join(" + ")} | ${decomposition.reasoning}`)
     }
   } catch (e) {
     console.warn("[orchestrator:decompose] Failed, proceeding as single intent:", e)
   }
 
-  // Multi-intent handling:
-  // - Multiple state-changing actions → execute the FIRST one, note the rest in response
-  // - One state change + read-only → route the state-changing chunk
-  // - No state changes → send full message
-  // (No confirmation flow — it creates dead-end UX since context can't be replayed)
-  const effectiveMessage = decomposition?.isMultiIntent
-    ? selectPrimaryChunk(decomposition.chunks)
-    : ctx.userMessage
+  // ═══ Step 2: Plan Actions (if multi-intent) ═══
+  if (decomposition?.isMultiIntent) {
+    const plan = planActions(decomposition)
+    console.log(`[orchestrator:plan] Steps: ${plan.steps.map((s, i) => `${i}:${s.chunk.category}${s.isSideEffect ? "(side)" : ""}`).join(" → ")} | confirm=${plan.requiresConfirmation}`)
 
+    // ═══ Step 3: If ≥2 state changes → ask confirmation with plan ═══
+    if (plan.requiresConfirmation) {
+      const stateChangingSteps = plan.steps.filter(s => !s.isSideEffect)
+      const pendingIntents = stateChangingSteps.map(s => s.chunk)
+
+      console.log(`[orchestrator:multi] Requires confirmation — ${stateChangingSteps.length} state-changing actions`)
+
+      return {
+        action: {
+          type: "ask_clarification",
+          question: plan.planText,
+          options: ["순서대로 실행", "첫 번째만 실행", "취소"],
+          allowDirectInput: true,
+        },
+        reasoning: `multi_intent:confirm_required [${decomposition.chunks.map(c => c.category).join("+")}]`,
+        agentsInvoked: agents,
+        escalatedToOpus: false,
+        pendingIntents,
+        executionPlanText: plan.planText,
+      }
+    }
+
+    // ═══ Step 4: No confirmation needed — route primary, merge side-effects ═══
+    const primaryStep = plan.steps[plan.primaryIndex]
+    const sideEffects = plan.sideEffectIndices.map(i => plan.steps[i].chunk)
+
+    // Queue remaining state-changing steps (after primary)
+    const remainingStateChanging = plan.steps
+      .filter((s, i) => !s.isSideEffect && i !== plan.primaryIndex)
+      .map(s => s.chunk)
+
+    console.log(`[orchestrator:multi] Primary: ${primaryStep.chunk.category}("${primaryStep.chunk.text.slice(0, 30)}") | sideEffects: ${sideEffects.length} | queuedState: ${remainingStateChanging.length}`)
+
+    return routeChunkThroughTools(
+      primaryStep.chunk.text, ctx, provider, agents, startMs,
+      remainingStateChanging.length > 0 ? remainingStateChanging : undefined,
+      sideEffects.length > 0 ? sideEffects : undefined,
+      `multi_intent:primary=${primaryStep.chunk.category} [${decomposition.chunks.map(c => c.category).join("+")}]`
+    )
+  }
+
+  // ═══ Single intent — direct routing ═══
+  return routeChunkThroughTools(
+    ctx.userMessage, ctx, provider, agents, startMs,
+    undefined, undefined, undefined
+  )
+}
+
+/**
+ * Route a single chunk (or full message) through Sonnet tool-use.
+ * Attaches pendingIntents and sideEffectIntents to the result.
+ */
+async function routeChunkThroughTools(
+  message: string,
+  ctx: TurnContext,
+  provider: LLMProvider,
+  agents: OrchestratorResult["agentsInvoked"],
+  startMs: number,
+  pendingIntents?: IntentChunk[],
+  sideEffectIntents?: IntentChunk[],
+  reasoningPrefix?: string,
+): Promise<OrchestratorResult> {
   const systemPrompt = buildToolUseSystemPrompt(ctx)
-  const messages = [{ role: "user" as const, content: effectiveMessage }]
+  const messages = [{ role: "user" as const, content: message }]
 
   try {
+    const toolStart = Date.now()
     const { text, toolUse } = await provider.completeWithTools(
       systemPrompt, messages, NARROWING_TOOLS, 1024, "sonnet"
     )
-
-    const durationMs = Date.now() - startMs
+    const durationMs = Date.now() - toolStart
+    agents.push({ agent: "tool-use-router", model: "sonnet", durationMs })
 
     if (toolUse) {
       const action = mapToolUseToAction(toolUse, ctx)
       console.log(`[orchestrator:tool-use] Tool: ${toolUse.toolName} → ${action.type} (${durationMs}ms)`)
       console.log(`[orchestrator:tool-use] Input: ${JSON.stringify(toolUse.input)}`)
 
-      const agents: OrchestratorResult["agentsInvoked"] = [
-        { agent: "tool-use-router", model: "sonnet", durationMs },
-      ]
-      if (decomposition?.isMultiIntent) {
-        agents.unshift({ agent: "query-decomposer", model: "haiku", durationMs: 0 })
-      }
-
-      const multiNote = decomposition?.isMultiIntent
-        ? ` [multi-intent: ${decomposition.chunks.map(c => c.category).join("+")}]`
-        : ""
+      const reasoning = reasoningPrefix
+        ? `${reasoningPrefix} → tool_use:${toolUse.toolName} → ${action.type}`
+        : `tool_use:${toolUse.toolName} → ${action.type}`
 
       return {
         action,
-        reasoning: `tool_use:${toolUse.toolName} → ${action.type}${multiNote}`,
+        reasoning,
         agentsInvoked: agents,
         escalatedToOpus: false,
+        pendingIntents,
+        sideEffectIntents,
       }
     }
 
@@ -802,9 +935,11 @@ export async function orchestrateTurnWithTools(
 
     return {
       action: { type: "answer_general", message: responseText, preGenerated: true },
-      reasoning: "no_tool:text_response",
-      agentsInvoked: [{ agent: "tool-use-router", model: "sonnet", durationMs }],
+      reasoning: reasoningPrefix ? `${reasoningPrefix} → no_tool:text` : "no_tool:text_response",
+      agentsInvoked: agents,
       escalatedToOpus: false,
+      pendingIntents,
+      sideEffectIntents,
     }
   } catch (error) {
     console.error(`[orchestrator:tool-use] Error:`, error)
@@ -815,17 +950,4 @@ export async function orchestrateTurnWithTools(
       escalatedToOpus: false,
     }
   }
-}
-
-/**
- * Select the primary chunk to route when multi-intent doesn't require confirmation.
- * Prioritizes state-changing chunks over read-only ones.
- * Falls back to the full original message if no clear primary.
- */
-function selectPrimaryChunk(chunks: import("./query-decomposer").IntentChunk[]): string {
-  const STATE_CHANGING_CATS = new Set(["task_change", "filtering", "restore"])
-  const stateChanging = chunks.filter(c => STATE_CHANGING_CATS.has(c.category))
-  if (stateChanging.length === 1) return stateChanging[0].text
-  // If no state-changing or ambiguous, send the full message
-  return chunks.map(c => c.text).join(" ")
 }

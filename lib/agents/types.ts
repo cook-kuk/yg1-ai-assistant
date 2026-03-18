@@ -80,6 +80,8 @@ export type OrchestratorAction =
   | { type: "resume_previous_task"; taskId: string }
   | { type: "restore_previous_group"; groupKey: string }
   | { type: "show_group_menu" }
+  | { type: "confirm_scope" }
+  | { type: "summarize_task" }
 
 export interface OrchestratorResult {
   action: OrchestratorAction
@@ -87,6 +89,12 @@ export interface OrchestratorResult {
   agentsInvoked: { agent: string; model: ModelTier; durationMs: number }[]
   escalatedToOpus: boolean
   escalationReason?: string
+  /** Remaining intents to execute after the primary action (queued for next turns) */
+  pendingIntents?: import("./query-decomposer").IntentChunk[]
+  /** Side-effect intents (explanation/side_conversation) to merge into the response */
+  sideEffectIntents?: import("./query-decomposer").IntentChunk[]
+  /** The full execution plan for debugging/display */
+  executionPlanText?: string
 }
 
 // ── Turn Context (assembled before each agent call) ──────────
