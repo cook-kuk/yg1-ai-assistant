@@ -1169,7 +1169,7 @@ function IntakeGate({
           <span className="text-sm text-gray-600">
             {allDone
               ? <span className="text-green-700 font-medium flex items-center gap-1"><CheckCircle2 size={14} />{language === 'ko' ? '모두 완료되었습니다' : 'All fields complete'}</span>
-              : <span>{answered}/6 {language === 'ko' ? `항목 완료 · ${6 - answered}개 남음` : `complete · ${6 - answered} remaining`}</span>
+              : <span>{answered}/{FIELD_CONFIGS.length} {language === 'ko' ? `항목 완료 · ${FIELD_CONFIGS.length - answered}개 남음` : `complete · ${FIELD_CONFIGS.length - answered} remaining`}</span>
             }
           </span>
           <Button onClick={onNext} disabled={!allDone} className="gap-2">
