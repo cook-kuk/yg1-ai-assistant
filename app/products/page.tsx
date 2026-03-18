@@ -1756,59 +1756,6 @@ function NarrowingChat({
                 </div>
               )}
 
-              {/* Feedback: Response rating */}
-              {msg.role === "ai" && !msg.isLoading && onFeedback && (
-                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                  {msg.feedback ? (
-                    <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
-                      {language === 'ko' ? '응답' : 'Response'}: {msg.feedback === "good" ? "👍" : msg.feedback === "bad" ? "👎" : "😐"}
-                      {msg.feedback === "bad" && msg.retryCount === undefined && onRetry && (
-                        <button onClick={() => onRetry(i)} className="ml-1 text-blue-600 hover:underline">다시 답변</button>
-                      )}
-                    </span>
-                  ) : (
-                    <>
-                      <span className="text-[10px] text-gray-500 font-medium">{language === 'ko' ? '응답:' : 'Response:'}</span>
-                      {([
-                        { value: "good" as TurnFeedback, icon: "👍", cls: "hover:bg-green-100" },
-                        { value: "neutral" as TurnFeedback, icon: "😐", cls: "hover:bg-gray-200" },
-                        { value: "bad" as TurnFeedback, icon: "👎", cls: "hover:bg-red-100" },
-                      ]).map(fb => (
-                        <button key={fb.value}
-                          onClick={() => onFeedback(i, fb.value)}
-                          className={`px-2 py-0.5 text-sm rounded-full border border-gray-200 ${fb.cls} transition-colors`}
-                        >{fb.icon}</button>
-                      ))}
-                    </>
-                  )}
-                </div>
-              )}
-
-              {/* Feedback: Chip/options rating (only when chips exist) */}
-              {msg.role === "ai" && !msg.isLoading && msg.chips && msg.chips.length > 0 && onChipFeedback && (
-                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                  {msg.chipFeedback ? (
-                    <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
-                      {language === 'ko' ? '선택지' : 'Options'}: {msg.chipFeedback === "good" ? "👍" : msg.chipFeedback === "bad" ? "👎" : "😐"}
-                    </span>
-                  ) : (
-                    <>
-                      <span className="text-[10px] text-gray-500 font-medium">{language === 'ko' ? '선택지:' : 'Options:'}</span>
-                      {([
-                        { value: "good" as TurnFeedback, icon: "👍", cls: "hover:bg-green-100" },
-                        { value: "neutral" as TurnFeedback, icon: "😐", cls: "hover:bg-gray-200" },
-                        { value: "bad" as TurnFeedback, icon: "👎", cls: "hover:bg-red-100" },
-                      ]).map(fb => (
-                        <button key={fb.value}
-                          onClick={() => onChipFeedback(i, fb.value)}
-                          className={`px-2 py-0.5 text-sm rounded-full border border-gray-200 ${fb.cls} transition-colors`}
-                        >{fb.icon}</button>
-                      ))}
-                    </>
-                  )}
-                </div>
-              )}
-
               {/* Recommendation result with evidence */}
               {msg.recommendation && !msg.isLoading && (
                 <RecommendationPanel
@@ -1819,6 +1766,61 @@ function NarrowingChat({
                   factChecked={msg.primaryFactChecked}
                   candidateSnapshot={msg.candidateSnapshot}
                 />
+              )}
+
+              {/* Feedback at the BOTTOM of each AI message (after everything) */}
+              {msg.role === "ai" && !msg.isLoading && onFeedback && (
+                <div className="border-t border-gray-100 pt-1.5 mt-1.5 space-y-1">
+                  {/* Response rating */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {msg.feedback ? (
+                      <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
+                        {language === 'ko' ? '응답' : 'Response'}: {msg.feedback === "good" ? "👍" : msg.feedback === "bad" ? "👎" : "😐"}
+                        {msg.feedback === "bad" && msg.retryCount === undefined && onRetry && (
+                          <button onClick={() => onRetry(i)} className="ml-1 text-blue-600 hover:underline">다시 답변</button>
+                        )}
+                      </span>
+                    ) : (
+                      <>
+                        <span className="text-[10px] text-gray-500 font-medium">{language === 'ko' ? '응답:' : 'Response:'}</span>
+                        {([
+                          { value: "good" as TurnFeedback, icon: "👍", cls: "hover:bg-green-100" },
+                          { value: "neutral" as TurnFeedback, icon: "😐", cls: "hover:bg-gray-200" },
+                          { value: "bad" as TurnFeedback, icon: "👎", cls: "hover:bg-red-100" },
+                        ]).map(fb => (
+                          <button key={fb.value}
+                            onClick={() => onFeedback(i, fb.value)}
+                            className={`px-2 py-0.5 text-sm rounded-full border border-gray-200 ${fb.cls} transition-colors`}
+                          >{fb.icon}</button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                  {/* Chip/options rating (only when chips exist) */}
+                  {msg.chips && msg.chips.length > 0 && onChipFeedback && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {msg.chipFeedback ? (
+                        <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
+                          {language === 'ko' ? '선택지' : 'Options'}: {msg.chipFeedback === "good" ? "👍" : msg.chipFeedback === "bad" ? "👎" : "😐"}
+                        </span>
+                      ) : (
+                        <>
+                          <span className="text-[10px] text-gray-500 font-medium">{language === 'ko' ? '선택지:' : 'Options:'}</span>
+                          {([
+                            { value: "good" as TurnFeedback, icon: "👍", cls: "hover:bg-green-100" },
+                            { value: "neutral" as TurnFeedback, icon: "😐", cls: "hover:bg-gray-200" },
+                            { value: "bad" as TurnFeedback, icon: "👎", cls: "hover:bg-red-100" },
+                          ]).map(fb => (
+                            <button key={fb.value}
+                              onClick={() => onChipFeedback(i, fb.value)}
+                              className={`px-2 py-0.5 text-sm rounded-full border border-gray-200 ${fb.cls} transition-colors`}
+                            >{fb.icon}</button>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -2036,20 +2038,82 @@ function CandidatePanel({
         </div>
       )}
 
-      {/* Final recommendation summary if available */}
-      {lastRec && (
-        <div className="border-t pt-3">
-          <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
-            <Zap size={11} className="text-blue-600" />{language === 'ko' ? '최종 추천' : 'Final Recommendation'}
-          </div>
-          <div className="text-xs text-gray-600 bg-blue-50 rounded-lg p-2.5 border border-blue-100">
-            {lastRec.primaryProduct
-              ? `${lastRec.primaryProduct.product.displayCode} (${lastRec.status === "exact" ? (language === 'ko' ? "정확 매칭" : "Exact Match") : (language === 'ko' ? "근사 후보" : "Approximate")})`
-              : (language === 'ko' ? "매칭 없음" : "No Match")
-            }
-          </div>
+      {/* Final recommendation summary with toggleable specs */}
+      {lastRec && <FinalRecommendationCard rec={lastRec} language={language} />}
+    </div>
+  )
+}
+
+// ── Final Recommendation Card (with toggleable specs) ────────
+function FinalRecommendationCard({ rec, language }: { rec: RecommendationResult; language: string }) {
+  const [open, setOpen] = useState(false)
+  const p = rec.primaryProduct?.product
+  const scored = rec.primaryProduct
+  if (!p) {
+    return (
+      <div className="border-t pt-3">
+        <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+          <Zap size={11} className="text-blue-600" />{language === 'ko' ? '최종 추천' : 'Final Recommendation'}
         </div>
-      )}
+        <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-2.5">{language === 'ko' ? '매칭 없음' : 'No Match'}</div>
+      </div>
+    )
+  }
+
+  const statusLabel = rec.status === "exact"
+    ? (language === 'ko' ? "정확 매칭" : "Exact Match")
+    : (language === 'ko' ? "근사 후보" : "Approximate")
+
+  return (
+    <div className="border-t pt-3">
+      <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+        <Zap size={11} className="text-blue-600" />{language === 'ko' ? '최종 추천' : 'Final Recommendation'}
+      </div>
+      <div className="bg-blue-50 rounded-lg border border-blue-100 overflow-hidden">
+        <button onClick={() => setOpen(o => !o)} className="w-full text-left px-3 py-2 flex items-center justify-between hover:bg-blue-100 transition-colors">
+          <div>
+            <div className="font-mono text-xs font-bold text-gray-900">{p.displayCode}</div>
+            <div className="text-[10px] text-gray-600">
+              {p.brand && <span className="font-semibold text-purple-700">{p.brand}</span>}
+              {p.brand && " | "}{statusLabel} · {scored.score}점
+            </div>
+          </div>
+          {open ? <ChevronUp size={12} className="text-gray-400" /> : <ChevronDown size={12} className="text-gray-400" />}
+        </button>
+        {open && (
+          <div className="px-3 pb-2.5 space-y-1.5">
+            {/* Key spec line */}
+            <div className="text-[11px] text-gray-700 font-medium leading-relaxed">
+              {[
+                p.diameterMm != null ? `φ${p.diameterMm}mm` : null,
+                p.fluteCount != null ? `${p.fluteCount}날` : null,
+                p.coating ?? null,
+                p.toolMaterial ?? null,
+                p.shankDiameterMm != null ? `Shank ${p.shankDiameterMm}mm` : null,
+                p.lengthOfCutMm != null ? `CL ${p.lengthOfCutMm}mm` : null,
+                p.overallLengthMm != null ? `OAL ${p.overallLengthMm}mm` : null,
+                p.helixAngleDeg != null ? `${p.helixAngleDeg}°` : null,
+              ].filter(Boolean).join(" · ")}
+            </div>
+            {/* Detail specs */}
+            <div className="bg-white rounded p-2 text-[10px] space-y-0.5">
+              {p.seriesName && <div><span className="text-gray-400 w-16 inline-block">{language === 'ko' ? '시리즈' : 'Series'}:</span> <span className="text-gray-700">{p.seriesName}</span></div>}
+              {p.diameterMm != null && <div><span className="text-gray-400 w-16 inline-block">{language === 'ko' ? '직경' : 'Diameter'}:</span> <span className="text-gray-700">φ{p.diameterMm}mm</span></div>}
+              {p.fluteCount != null && <div><span className="text-gray-400 w-16 inline-block">{language === 'ko' ? '날수' : 'Flutes'}:</span> <span className="text-gray-700">{p.fluteCount}</span></div>}
+              {p.coating && <div><span className="text-gray-400 w-16 inline-block">{language === 'ko' ? '코팅' : 'Coating'}:</span> <span className="text-gray-700">{p.coating}</span></div>}
+              {p.toolMaterial && <div><span className="text-gray-400 w-16 inline-block">{language === 'ko' ? '공구소재' : 'Material'}:</span> <span className="text-gray-700">{p.toolMaterial}</span></div>}
+              {p.shankDiameterMm != null && <div><span className="text-gray-400 w-16 inline-block">{language === 'ko' ? '섕크' : 'Shank'}:</span> <span className="text-gray-700">{p.shankDiameterMm}mm</span></div>}
+              {p.lengthOfCutMm != null && <div><span className="text-gray-400 w-16 inline-block">{language === 'ko' ? '절삭길이' : 'LOC'}:</span> <span className="text-gray-700">{p.lengthOfCutMm}mm</span></div>}
+              {p.overallLengthMm != null && <div><span className="text-gray-400 w-16 inline-block">{language === 'ko' ? '전장' : 'OAL'}:</span> <span className="text-gray-700">{p.overallLengthMm}mm</span></div>}
+              {p.helixAngleDeg != null && <div><span className="text-gray-400 w-16 inline-block">{language === 'ko' ? '나선각' : 'Helix'}:</span> <span className="text-gray-700">{p.helixAngleDeg}°</span></div>}
+              {p.materialTags && p.materialTags.length > 0 && <div><span className="text-gray-400 w-16 inline-block">{language === 'ko' ? '적용소재' : 'Materials'}:</span> <span className="text-gray-700">{p.materialTags.join(", ")}</span></div>}
+            </div>
+            {p.description && (
+              <div className="text-[10px] text-gray-500 italic">{p.description.replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, "")}</div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
