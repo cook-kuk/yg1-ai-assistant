@@ -1,0 +1,537 @@
+import { notifyRecommendation } from "@/lib/recommendation/infrastructure/notifications/recommendation-notifier"
+import {
+  buildExplanation,
+  buildDeterministicSummary,
+  buildProductLabel,
+  buildRationale,
+  buildSessionState,
+  buildWarnings,
+  checkResolution,
+  classifyHybridResults,
+  prepareRequest,
+  runFactCheck,
+  runHybridRetrieval,
+  selectNextQuestion,
+} from "@/lib/recommendation/domain/recommendation-domain"
+import {
+  buildExplanationResultPrompt,
+  buildGreetingPrompt,
+  buildSessionContext,
+  buildSystemPrompt,
+  getProvider,
+} from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+
+import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
+import type { RecommendationDisplayedProductRequestDto } from "@/lib/contracts/recommendation"
+import type {
+  AppliedFilter,
+  AppLanguage,
+  CandidateSnapshot,
+  DisplayedOption,
+  EvidenceSummary,
+  ExplorationSessionState,
+  FactCheckedRecommendation,
+  NarrowingStage,
+  NarrowingTurn,
+  ProductIntakeForm,
+  RecommendationExplanation,
+  RecommendationInput,
+  RecommendationResult,
+  ScoredProduct,
+  ChatMessage,
+} from "@/lib/recommendation/domain/types"
+
+type DisplayedProduct = RecommendationDisplayedProductRequestDto
+type JsonRecommendationResponse = (
+  params: Parameters<typeof buildRecommendationResponseDto>[0],
+  init?: ResponseInit
+) => Response
+
+export interface ServeResponseBuilderDependencies {
+  jsonRecommendationResponse: JsonRecommendationResponse
+}
+
+export async function buildQuestionResponse(
+  deps: ServeResponseBuilderDependencies,
+  form: ProductIntakeForm,
+  candidates: ScoredProduct[],
+  evidenceMap: Map<string, EvidenceSummary>,
+  input: RecommendationInput,
+  history: NarrowingTurn[],
+  filters: AppliedFilter[],
+  turnCount: number,
+  messages: ChatMessage[],
+  provider: ReturnType<typeof getProvider>,
+  language: AppLanguage,
+  overrideText?: string,
+  existingStageHistory?: NarrowingStage[]
+): Promise<Response> {
+  const question = selectNextQuestion(input, candidates, history)
+  const stageHistory = existingStageHistory
+    ? [...existingStageHistory]
+    : buildStageHistoryFromFilters(filters, input, candidates.length)
+
+  const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
+  const chips = question?.chips ?? []
+  const displayedOptions = buildDisplayedOptions(chips, question?.field ?? "unknown")
+
+  const sessionState = buildSessionState({
+    candidateCount: candidates.length,
+    appliedFilters: filters,
+    narrowingHistory: history,
+    stageHistory,
+    resolutionStatus: checkResolution(candidates, history),
+    resolvedInput: input,
+    turnCount,
+    lastAskedField: question?.field ?? undefined,
+    displayedCandidates: candidateSnapshot,
+    displayedChips: chips,
+    displayedOptions,
+    lastAction: "continue_narrowing",
+  })
+
+  logNarrowingState("question", sessionState, question?.field ?? null)
+
+  if (!question && !overrideText) {
+    return buildRecommendationResponse(
+      deps,
+      form,
+      candidates,
+      evidenceMap,
+      input,
+      history,
+      filters,
+      turnCount,
+      messages,
+      provider,
+      language,
+      snapshotToDisplayed(candidateSnapshot)
+    )
+  }
+
+  let responseText = overrideText ?? question?.questionText ?? ""
+  let responseChips = question?.chips ?? chips
+
+  if (overrideText) {
+    // no-op
+  } else if (provider.available() && messages.length === 0) {
+    try {
+      const systemPrompt = buildSystemPrompt(language)
+      const sessionCtx = buildSessionContext(form, sessionState, candidates.length, snapshotToDisplayed(candidateSnapshot))
+      const greetingPrompt = buildGreetingPrompt(sessionCtx, question, candidates.length, language)
+      const raw = await provider.complete(systemPrompt, [{ role: "user", content: greetingPrompt }], 800)
+      const parsed = safeParseJSON(raw)
+      if (typeof parsed?.responseText === "string") {
+        responseText = parsed.responseText
+      }
+    } catch (error) {
+      console.warn("[recommend] LLM greeting failed:", error)
+    }
+  } else if (provider.available() && messages.length > 0) {
+    try {
+      const systemPrompt = buildSystemPrompt(language)
+      const sessionCtx = buildSessionContext(form, sessionState, candidates.length, snapshotToDisplayed(candidateSnapshot))
+      const raw = await provider.complete(systemPrompt, [
+        { role: "user", content: `${sessionCtx}\n\n다음 질문을 자연스럽고 간결한 ${language === "ko" ? "한국어" : "영어"}로 다듬어주세요: "${question?.questionText ?? ""}"\n현재 후보 ${candidates.length}개.\nJSON으로 응답: { "responseText": "...", "extractedParams": {}, "isComplete": false, "skipQuestion": false }` }
+      ], 300)
+      const parsed = safeParseJSON(raw)
+      if (typeof parsed?.responseText === "string") {
+        responseText = parsed.responseText
+      }
+    } catch (error) {
+      console.warn("[recommend] LLM question polish failed:", error)
+    }
+  }
+
+  const requestPrep = prepareRequest(form, messages, sessionState, input, candidates.length)
+
+  return deps.jsonRecommendationResponse({
+    text: responseText,
+    purpose: messages.length === 0 ? "greeting" : "question",
+    chips: responseChips,
+    isComplete: false,
+    recommendation: null,
+    sessionState,
+    evidenceSummaries: null,
+    candidateSnapshot,
+    requestPreparation: requestPrep,
+    primaryExplanation: null,
+    primaryFactChecked: null,
+    altExplanations: [],
+    altFactChecked: [],
+  })
+}
+
+export async function buildRecommendationResponse(
+  deps: ServeResponseBuilderDependencies,
+  form: ProductIntakeForm,
+  candidates: ScoredProduct[],
+  evidenceMap: Map<string, EvidenceSummary>,
+  input: RecommendationInput,
+  history: NarrowingTurn[],
+  filters: AppliedFilter[],
+  turnCount: number,
+  messages: ChatMessage[],
+  provider: ReturnType<typeof getProvider>,
+  language: AppLanguage,
+  displayedProducts: DisplayedProduct[] | null = null
+): Promise<Response> {
+  const { primary, alternatives, status } = classifyHybridResults({ candidates, evidenceMap, totalConsidered: candidates.length, filtersApplied: filters })
+  const warnings = primary ? buildWarnings(primary, input) : ["조건에 맞는 제품을 찾지 못했습니다"]
+  const rationale = primary ? buildRationale(primary, input) : []
+
+  if (form.material.status === "unknown") warnings.push("소재 미지정 — 전체 소재 대상 검색")
+  if (form.diameterInfo.status === "unknown") warnings.push("직경 미지정 — 직경 기준 필터 없음")
+
+  const deterministicSummary = buildDeterministicSummary({
+    status,
+    query: input,
+    primaryProduct: primary,
+    alternatives,
+    warnings,
+    rationale,
+    sourceSummary: [],
+    deterministicSummary: "",
+    llmSummary: null,
+    totalCandidatesConsidered: candidates.length,
+  })
+
+  const evidenceSummaries: EvidenceSummary[] = []
+  if (primary) {
+    const primarySummary = evidenceMap.get(primary.product.normalizedCode)
+    if (primarySummary) evidenceSummaries.push(primarySummary)
+  }
+  for (const alt of alternatives) {
+    const summary = evidenceMap.get(alt.product.normalizedCode)
+    if (summary) evidenceSummaries.push(summary)
+  }
+
+  let primaryExplanation: RecommendationExplanation | null = null
+  let primaryFactChecked: FactCheckedRecommendation | null = null
+  const altExplanations: RecommendationExplanation[] = []
+  const altFactChecked: FactCheckedRecommendation[] = []
+
+  if (primary) {
+    const primaryEvidence = evidenceMap.get(primary.product.normalizedCode) ?? null
+    primaryExplanation = buildExplanation(primary, input, primaryEvidence)
+    primaryFactChecked = await runFactCheck(primary, input, primaryEvidence, primaryExplanation)
+
+    for (const alt of alternatives) {
+      const altEvidence = evidenceMap.get(alt.product.normalizedCode) ?? null
+      const altExplanation = buildExplanation(alt, input, altEvidence)
+      altExplanations.push(altExplanation)
+      altFactChecked.push(await runFactCheck(alt, input, altEvidence, altExplanation))
+    }
+  }
+
+  const recommendation: RecommendationResult = {
+    status,
+    query: input,
+    primaryProduct: primary,
+    alternatives,
+    warnings,
+    rationale,
+    sourceSummary: primary ? buildSourceSummary(primary) : [],
+    deterministicSummary,
+    llmSummary: null,
+    totalCandidatesConsidered: candidates.length,
+  }
+
+  if (provider.available() && primary && primaryFactChecked && primaryExplanation) {
+    try {
+      const systemPrompt = buildSystemPrompt(language)
+      const llmSessionState = buildSessionState({
+        candidateCount: candidates.length,
+        appliedFilters: filters,
+        narrowingHistory: history,
+        stageHistory: buildStageHistoryFromFilters(filters, input, candidates.length),
+        resolutionStatus: checkResolution(candidates, history),
+        resolvedInput: input,
+        turnCount,
+        displayedCandidates: buildCandidateSnapshot(candidates, evidenceMap),
+        displayedChips: [],
+        displayedOptions: [],
+        lastAction: "show_recommendation",
+      })
+      const sessionCtx = buildSessionContext(form, llmSessionState, candidates.length, snapshotToDisplayed(llmSessionState.displayedCandidates))
+      const resultPrompt = buildExplanationResultPrompt(
+        sessionCtx,
+        primaryFactChecked,
+        primaryExplanation,
+        alternatives.map(alt => {
+          const altEvidence = evidenceMap.get(alt.product.normalizedCode)
+          return {
+            displayCode: alt.product.displayCode,
+            matchStatus: alt.matchStatus,
+            score: alt.score,
+            bestCondition: altEvidence?.bestCondition
+              ? { ...altEvidence.bestCondition } as Record<string, string | null>
+              : null,
+            sourceCount: altEvidence?.sourceCount ?? 0,
+          }
+        }),
+        warnings,
+        language
+      )
+
+      const raw = await provider.complete(systemPrompt, [{ role: "user", content: resultPrompt }], 1500)
+      const parsed = safeParseJSON(raw)
+      if (parsed?.responseText) {
+        recommendation.llmSummary = parsed.responseText as string
+      } else if (raw.trim() && !raw.trim().startsWith("{") && !raw.trim().startsWith("[")) {
+        recommendation.llmSummary = raw.trim()
+      }
+    } catch (error) {
+      console.warn("[recommend] LLM result summary failed:", error)
+    }
+  }
+
+  const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
+  const followUpChips = getFollowUpChips(recommendation)
+  const sessionState = buildSessionState({
+    candidateCount: candidates.length,
+    appliedFilters: filters,
+    narrowingHistory: history,
+    stageHistory: buildStageHistoryFromFilters(filters, input, candidates.length),
+    resolutionStatus: checkResolution(candidates, history),
+    resolvedInput: input,
+    turnCount,
+    displayedCandidates: candidateSnapshot,
+    displayedChips: followUpChips,
+    displayedOptions: [],
+    lastAction: "show_recommendation",
+  })
+
+  const requestPrep = prepareRequest(form, messages, sessionState, input, candidates.length)
+  let responseText = recommendation.llmSummary ?? deterministicSummary
+
+  if (primary && primary.product.brand) {
+    const brandName = primary.product.brand
+    const hasBrand = responseText.includes(brandName) || /브랜드명/.test(responseText)
+    if (!hasBrand) {
+      responseText = `**브랜드명:** ${brandName} | **제품코드:** ${primary.product.displayCode}\n\n${responseText}`
+    }
+  }
+
+  if (primary) {
+    notifyRecommendation({
+      productCode: primary.product.displayCode,
+      brand: primary.product.brand,
+      seriesName: primary.product.seriesName,
+      matchStatus: status,
+      score: primary.score,
+      query: `직경:${input.diameterMm ?? "?"}mm 소재:${input.material ?? "?"} 가공:${input.operationType ?? "?"}`,
+    }).catch(() => {})
+  }
+
+  return deps.jsonRecommendationResponse({
+    text: status === "none"
+      ? "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요."
+      : responseText,
+    purpose: "recommendation",
+    chips: followUpChips,
+    isComplete: true,
+    recommendation,
+    sessionState,
+    evidenceSummaries: evidenceSummaries.length > 0 ? evidenceSummaries : null,
+    candidateSnapshot,
+    requestPreparation: requestPrep,
+    primaryExplanation,
+    primaryFactChecked: primaryFactChecked ? serializeFactChecked(primaryFactChecked) : null,
+    altExplanations,
+    altFactChecked: altFactChecked.map(item => serializeFactChecked(item)),
+  })
+}
+
+export function buildDisplayedOptions(chips: string[], field: string): DisplayedOption[] {
+  const options: DisplayedOption[] = []
+  let index = 1
+  for (const chip of chips) {
+    if (["상관없음", "⟵ 이전 단계", "처음부터 다시", "추천해주세요"].includes(chip)) continue
+    const countMatch = chip.match(/\((\d+)개\)/)
+    const count = countMatch ? parseInt(countMatch[1]) : 0
+    const value = chip.replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
+    if (value) {
+      options.push({ index, label: chip, field, value, count })
+      index++
+    }
+  }
+  return options
+}
+
+export function snapshotToDisplayed(snapshot: CandidateSnapshot[]): DisplayedProduct[] {
+  return snapshot.slice(0, 10).map(candidate => ({
+    rank: candidate.rank,
+    code: candidate.displayCode,
+    brand: candidate.brand,
+    series: candidate.seriesName,
+    diameter: candidate.diameterMm,
+    flute: candidate.fluteCount,
+    coating: candidate.coating,
+    materialTags: candidate.materialTags,
+    score: candidate.score,
+    matchStatus: candidate.matchStatus,
+  }))
+}
+
+export function buildCandidateSnapshot(
+  candidates: ScoredProduct[],
+  evidenceMap: Map<string, EvidenceSummary>
+): CandidateSnapshot[] {
+  return candidates.map((candidate, index) => {
+    const evidence = evidenceMap.get(candidate.product.normalizedCode)
+    const inventoryLocations = Array.from(
+      candidate.inventory.reduce((acc, row) => {
+        if (row.quantity === null || row.quantity <= 0) return acc
+        const key = row.warehouseOrRegion?.trim()
+        if (!key) return acc
+        acc.set(key, (acc.get(key) ?? 0) + row.quantity)
+        return acc
+      }, new Map<string, number>())
+    )
+      .map(([warehouseOrRegion, quantity]) => ({ warehouseOrRegion, quantity }))
+      .sort((a, b) => b.quantity - a.quantity || a.warehouseOrRegion.localeCompare(b.warehouseOrRegion))
+    const inventorySnapshotDate = candidate.inventory
+      .map(row => row.snapshotDate)
+      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      .sort()
+      .at(-1) ?? null
+
+    return {
+      rank: index + 1,
+      productCode: candidate.product.normalizedCode,
+      displayCode: candidate.product.displayCode,
+      displayLabel: buildProductLabel(candidate.product),
+      brand: candidate.product.brand ?? null,
+      seriesName: candidate.product.seriesName,
+      seriesIconUrl: candidate.product.seriesIconUrl ?? null,
+      diameterMm: candidate.product.diameterMm,
+      fluteCount: candidate.product.fluteCount,
+      coating: candidate.product.coating,
+      toolMaterial: candidate.product.toolMaterial ?? null,
+      shankDiameterMm: candidate.product.shankDiameterMm ?? null,
+      lengthOfCutMm: candidate.product.lengthOfCutMm ?? null,
+      overallLengthMm: candidate.product.overallLengthMm ?? null,
+      helixAngleDeg: candidate.product.helixAngleDeg ?? null,
+      description: candidate.product.description ?? null,
+      featureText: candidate.product.featureText ?? null,
+      materialTags: candidate.product.materialTags,
+      score: candidate.score,
+      scoreBreakdown: candidate.scoreBreakdown,
+      matchStatus: candidate.matchStatus,
+      stockStatus: candidate.stockStatus,
+      totalStock: candidate.totalStock,
+      inventorySnapshotDate,
+      inventoryLocations,
+      hasEvidence: !!evidence && evidence.chunks.length > 0,
+      bestCondition: evidence?.bestCondition ?? null,
+    }
+  })
+}
+
+export function buildStageHistoryFromFilters(
+  filters: AppliedFilter[],
+  currentInput: RecommendationInput,
+  currentCandidateCount: number
+): NarrowingStage[] {
+  const stages: NarrowingStage[] = [{
+    stepIndex: -1,
+    stageName: "initial_search",
+    filterApplied: null,
+    candidateCount: currentCandidateCount,
+    resolvedInputSnapshot: { ...currentInput },
+    filtersSnapshot: [],
+  }]
+
+  let accumulatedFilters: AppliedFilter[] = []
+  for (const filter of filters) {
+    accumulatedFilters = [...accumulatedFilters, filter]
+    stages.push({
+      stepIndex: filter.appliedAt,
+      stageName: `${filter.field}_${filter.value}`,
+      filterApplied: filter,
+      candidateCount: currentCandidateCount,
+      resolvedInputSnapshot: { ...currentInput },
+      filtersSnapshot: [...accumulatedFilters],
+    })
+  }
+
+  return stages
+}
+
+export function logNarrowingState(
+  phase: string,
+  state: ExplorationSessionState,
+  currentField: string | null
+): void {
+  console.log(`[narrowing:${phase}] ───────────────────────────`)
+  console.log(`[narrowing:${phase}] Session: ${state.sessionId}`)
+  console.log(`[narrowing:${phase}] Candidates: ${state.candidateCount}`)
+  console.log(`[narrowing:${phase}] Status: ${state.resolutionStatus}`)
+  console.log(`[narrowing:${phase}] Turn: ${state.turnCount}`)
+  console.log(`[narrowing:${phase}] Filters: ${state.appliedFilters.map(filter => `${filter.field}=${filter.value}`).join(", ") || "(none)"}`)
+  console.log(`[narrowing:${phase}] Stages: ${state.stageHistory?.map(stage => stage.stageName).join(" → ") || "(none)"}`)
+  if (currentField) {
+    console.log(`[narrowing:${phase}] Next question field: ${currentField}`)
+  }
+  console.log(`[narrowing:${phase}] ───────────────────────────`)
+}
+
+export function getFollowUpChips(result: RecommendationResult): string[] {
+  const chips = []
+  if (result.alternatives.length > 0) chips.push(`대체 후보 ${result.alternatives.length}개 보기`)
+  chips.push("절삭조건 알려줘")
+  chips.push("코팅 비교")
+  if (result.primaryProduct?.stockStatus === "outofstock") chips.push("납기 확인")
+  chips.push("다른 직경 검색")
+  chips.push("처음부터 다시")
+  return chips.slice(0, 6)
+}
+
+export function buildSourceSummary(
+  primary: { product: { rawSourceFile: string; rawSourceSheet?: string | null; sourceConfidence?: string | null } } | null
+): string[] {
+  if (!primary) return []
+  const product = primary.product
+  return [
+    `Source: ${product.rawSourceFile}${product.rawSourceSheet ? ` / ${product.rawSourceSheet}` : ""}`,
+    `Confidence: ${product.sourceConfidence ?? "unknown"}`,
+  ]
+}
+
+export function serializeFactChecked(fc: FactCheckedRecommendation): Record<string, unknown> {
+  return {
+    productCode: fc.productCode,
+    displayCode: fc.displayCode,
+    seriesName: fc.seriesName,
+    manufacturer: fc.manufacturer,
+    diameterMm: fc.diameterMm,
+    fluteCount: fc.fluteCount,
+    coating: fc.coating,
+    toolMaterial: fc.toolMaterial,
+    materialTags: fc.materialTags,
+    lengthOfCutMm: fc.lengthOfCutMm,
+    overallLengthMm: fc.overallLengthMm,
+    hasCuttingConditions: fc.hasCuttingConditions,
+    bestCondition: fc.bestCondition,
+    conditionConfidence: fc.conditionConfidence,
+    conditionSourceCount: fc.conditionSourceCount,
+    stockStatus: fc.stockStatus,
+    totalStock: fc.totalStock,
+    minLeadTimeDays: fc.minLeadTimeDays,
+    matchPct: fc.matchPct,
+    matchStatus: fc.matchStatus,
+    score: fc.score,
+    explanation: fc.explanation,
+    factCheckReport: fc.factCheckReport,
+  }
+}
+
+export function safeParseJSON(raw: string): Record<string, unknown> | null {
+  try {
+    const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim()
+    return JSON.parse(cleaned)
+  } catch {
+    return null
+  }
+}
