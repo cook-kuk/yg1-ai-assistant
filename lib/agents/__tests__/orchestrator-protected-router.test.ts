@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import { routeProtectedRecommendationIntent } from "../orchestrator"
+import {
+  routeProtectedRecommendationIntent,
+  shouldBypassMultiIntentDecomposition,
+} from "../orchestrator"
 import type { ExplorationSessionState } from "@/lib/types/exploration"
 
 const sessionState: ExplorationSessionState = {
@@ -152,5 +155,26 @@ describe("routeProtectedRecommendationIntent", () => {
     expect(routeProtectedRecommendationIntent("추천해주세요", sessionState)).toEqual({
       type: "show_recommendation",
     })
+  })
+  it("returns null when there is no active recommendation session", () => {
+    expect(routeProtectedRecommendationIntent("Full View", null)).toBeNull()
+  })
+
+  it("does not hijack unrelated general chat even during recommendation session", () => {
+    expect(routeProtectedRecommendationIntent("What should I eat for lunch?", sessionState)).toBeNull()
+  })
+})
+
+describe("shouldBypassMultiIntentDecomposition", () => {
+  it("fast-paths single-action follow-up turns in recommendation mode", () => {
+    expect(shouldBypassMultiIntentDecomposition("Explain coating differences", sessionState)).toBe(true)
+  })
+
+  it("keeps explicit chained requests on the multi-intent path", () => {
+    expect(shouldBypassMultiIntentDecomposition("Compare the top 3 and then show me a table", sessionState)).toBe(false)
+  })
+
+  it("does not fast-path when no active recommendation session exists", () => {
+    expect(shouldBypassMultiIntentDecomposition("Recommend again", null)).toBe(false)
   })
 })

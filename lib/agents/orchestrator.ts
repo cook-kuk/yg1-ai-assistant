@@ -833,6 +833,14 @@ export async function orchestrateTurnWithTools(
   }
 
   // ═══ Step 1: Decompose Request (Haiku, ~200ms) ═══
+  if (shouldBypassMultiIntentDecomposition(ctx.userMessage, ctx.sessionState)) {
+    console.log(`[orchestrator:fast-path] Single-action recommendation turn: "${ctx.userMessage.slice(0, 60)}"`)
+    return routeChunkThroughTools(
+      ctx.userMessage, ctx, provider, agents, startMs,
+      undefined, undefined, "fast_single_action"
+    )
+  }
+
   let decomposition: DecompositionResult | null = null
   const decomposeStart = Date.now()
   try {
@@ -1145,6 +1153,26 @@ function normalizeArtifactLabel(value: string): string {
     .replace(/\(\d+\s*[^\)]*\)/g, "")
     .replace(/\s+/g, " ")
     .trim()
+}
+
+const EXPLICIT_MULTI_INTENT_CONNECTOR = /\b(and|then|also|plus|after that|afterwards)\b|그리고|하고|한 다음|후에|다음에|먼저|그다음|그 다음|같이|동시에|이후|,/
+const TASK_VERB_HINT = /(추천|recommend|비교|compare|표로|table|설명|why|이유|series|시리즈|전체 보기|full view|재고|stock|복원|restore)/gi
+
+export function shouldBypassMultiIntentDecomposition(
+  message: string,
+  sessionState: ExplorationSessionState | null,
+): boolean {
+  if (!hasActiveRecommendationSession(sessionState)) return false
+
+  const clean = message.trim()
+  if (!clean) return true
+
+  if (!EXPLICIT_MULTI_INTENT_CONNECTOR.test(clean)) {
+    return true
+  }
+
+  const uniqueVerbCount = new Set((clean.match(TASK_VERB_HINT) ?? []).map(token => token.toLowerCase())).size
+  return uniqueVerbCount < 2
 }
 
 export function routeProtectedRecommendationIntent(
