@@ -236,9 +236,41 @@ async function handleExploration(
       }, { status: 500 })
     }
   }
-  const candidates = hybridResult.candidates
-  const evidenceMap = hybridResult.evidenceMap
+  let candidates = hybridResult.candidates
+  let evidenceMap = hybridResult.evidenceMap
   const dbMatchCount = hybridResult.totalConsidered
+
+  // ── Zero-candidate recovery: if 0 results and diameter unknown, broaden search ──
+  if (candidates.length === 0 && !resolvedInput.diameterMm) {
+    console.log(`[recommend] 0 candidates with no diameter — retrying without operationType filter`)
+    try {
+      const broadenedInput = { ...resolvedInput, operationType: undefined }
+      const broadResult = await runHybridRetrieval(broadenedInput, filters)
+      if (broadResult.candidates.length > 0) {
+        candidates = broadResult.candidates
+        evidenceMap = broadResult.evidenceMap
+        console.log(`[recommend] Broadened search: ${candidates.length} candidates (without operationType)`)
+      }
+    } catch { /* ignore */ }
+  }
+
+  // ── Zero-candidate recovery: if still 0, try without any structured filters ──
+  if (candidates.length === 0) {
+    console.log(`[recommend] Still 0 candidates — retrying with material only`)
+    try {
+      const minimalInput: RecommendationInput = {
+        manufacturerScope: resolvedInput.manufacturerScope,
+        locale: resolvedInput.locale,
+        material: resolvedInput.material,
+      }
+      const minResult = await runHybridRetrieval(minimalInput, [])
+      if (minResult.candidates.length > 0) {
+        candidates = minResult.candidates
+        evidenceMap = minResult.evidenceMap
+        console.log(`[recommend] Minimal search: ${candidates.length} candidates (material only)`)
+      }
+    } catch { /* ignore */ }
+  }
 
   // Run request preparation engine
   const requestPrep = prepareRequest(form, messages, prevState, resolvedInput, candidates.length)
@@ -271,13 +303,17 @@ async function handleExploration(
     const lastUserMsg = [...messages].reverse().find(m => m.role === "user")
     if (lastUserMsg) {
       // ═══ Multi-Agent Orchestration ═══
+      const turnCtxDisplayedProducts = hasActiveRecommendationSession(prevState)
+        ? getDisplayedProductsFromState(prevState)
+        : buildCandidateSnapshot(candidates, evidenceMap)
+
       const turnCtx: TurnContext = {
         userMessage: lastUserMsg.text,
         intakeForm: form,
         sessionState: prevState,
         resolvedInput: currentInput,
         candidateCount: candidates.length,
-        displayedProducts: buildCandidateSnapshot(candidates, evidenceMap),
+        displayedProducts: turnCtxDisplayedProducts,
         currentCandidates: candidates,
       }
 
@@ -1736,12 +1772,44 @@ async function handleExploration(
         const testResult = await runHybridRetrieval(testInput, testFilters)
 
         if (testResult.candidates.length === 0) {
+          // If current candidates are also 0 (e.g. started with "모름"), try fresh search with just this filter
+          if (candidates.length === 0) {
+            console.log(`[orchestrator:guard] 0→0 candidates — trying fresh search with ${filter.field}=${filter.value}`)
+            const freshInput = { ...baseInput }
+            const freshFilter = { ...filter }
+            const freshResult = await runHybridRetrieval(
+              applyFilterToInput(freshInput, freshFilter),
+              [freshFilter]
+            )
+            if (freshResult.candidates.length > 0) {
+              // Fresh search succeeded — use these results
+              filters.length = 0
+              filters.push(freshFilter)
+              currentInput = applyFilterToInput(freshInput, freshFilter)
+              candidates = freshResult.candidates
+              evidenceMap = freshResult.evidenceMap
+
+              narrowingHistory.push({
+                question: "recovery", answer: lastUserMsg.text,
+                extractedFilters: [freshFilter],
+                candidateCountBefore: 0, candidateCountAfter: freshResult.candidates.length,
+              })
+              turnCount++
+
+              const newStatus = checkResolution(freshResult.candidates, narrowingHistory)
+              if (newStatus.startsWith("resolved")) {
+                return buildRecommendationResponse(form, freshResult.candidates, freshResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts, undefined, undefined, prevState)
+              }
+              return buildQuestionResponse(form, freshResult.candidates, freshResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, undefined, undefined, undefined, prevState)
+            }
+          }
+
           // Filter would eliminate all candidates — DON'T apply it
           console.log(`[orchestrator:guard] Filter ${filter.field}=${filter.value} would result in 0 candidates — BLOCKED`)
           return buildQuestionResponse(
             form, candidates, evidenceMap, currentInput,
             narrowingHistory, filters, turnCount, messages, provider, language,
-            `"${filter.value}" 조건을 적용하면 후보가 없습니다. 현재 ${candidates.length}개 후보에서 다른 조건을 선택해주세요.`
+            `"${filter.value}" 조건을 적용하면 후보가 없습니다. ${candidates.length > 0 ? `현재 ${candidates.length}개 후보에서 다른 조건을 선택해주세요.` : "다른 직경이나 조건을 시도해주세요."}`
           )
         }
 
