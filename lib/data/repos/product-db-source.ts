@@ -4,6 +4,7 @@ import { Pool, type QueryResult, type QueryResultRow } from "pg"
 import { notifyDbQuery } from "@/lib/slack-notifier"
 import { appendRuntimeLog, logRuntimeError } from "@/lib/runtime-logger"
 import type { AppliedFilter } from "@/lib/types/exploration"
+import { getSharedPool } from "@/lib/data/shared-pool"
 import type { CanonicalProduct, RecommendationInput, SourcePriority, SourceType } from "@/lib/types/canonical"
 import { resolveMaterialTag } from "@/lib/domain/material-resolver"
 import { getAppShapesForOperation } from "@/lib/domain/operation-resolver"
@@ -274,7 +275,6 @@ function formatEdpListForLog(products: Array<{ displayCode: string; normalizedCo
 
 function getPool(): Pool {
   // Use shared pool to prevent connection exhaustion
-  const { getSharedPool } = require("@/lib/data/shared-pool")
   const pool = getSharedPool()
   if (!pool) {
     throw new Error("Database source requested but connection settings are missing")

@@ -2,6 +2,7 @@ import "server-only"
 
 import type { InventorySnapshot, StockStatus } from "@/lib/types/canonical"
 import { Pool } from "pg"
+import { getSharedPool } from "@/lib/data/shared-pool"
 
 declare global {
   // eslint-disable-next-line no-var
@@ -38,7 +39,6 @@ function getPool(): Pool | null {
   if (!connectionString) return null
   if (!globalThis.__yg1InventoryDbPool) {
     // Use shared pool
-    const { getSharedPool } = require("@/lib/data/shared-pool")
     const shared = getSharedPool()
     if (shared) {
       globalThis.__yg1InventoryDbPool = shared

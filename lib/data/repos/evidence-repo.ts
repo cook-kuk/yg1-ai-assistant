@@ -8,6 +8,7 @@ import type { EvidenceChunk, EvidenceSummary } from "@/lib/types/evidence"
 import crypto from "crypto"
 import { Pool, type QueryResultRow } from "pg"
 import { ProductRepo } from "@/lib/data/repos/product-repo"
+import { getSharedPool } from "@/lib/data/shared-pool"
 
 interface RawEvidenceRow extends QueryResultRow {
   _row_num: string | null
@@ -154,7 +155,6 @@ function getPool(): Pool {
 
   if (!globalThis.__yg1EvidenceDbPool) {
     // Use shared pool
-    const { getSharedPool } = require("@/lib/data/shared-pool")
     const shared = getSharedPool()
     if (shared) {
       globalThis.__yg1EvidenceDbPool = shared
