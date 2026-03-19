@@ -289,47 +289,42 @@ function buildFilterFromParams(
 const NARROWING_TOOLS: LLMTool[] = [
   {
     name: "apply_filter",
-    description: "좁히기 질문에 답할 때만 호출 (lastAction이 continue_narrowing일 때). 코팅, 날수, 공구 형상, 시리즈 등. '상관없음/모름/패스' 입력 시 value를 'skip'으로 설정. ⚠️ 추천 결과가 이미 표시된 상태(lastAction=show_recommendation)에서 OAL/CL/코팅 등으로 필터링하려면 filter_displayed_products를 사용하세요.",
+    description: "좁히기 질문에 답하거나, 이미 적용된 필터를 변경할 때 호출. 코팅, 날수, 공구 형상, 시리즈, 직경 등. '상관없음/모름/패스' → value='skip'. 이미 적용된 필터를 바꾸려면 is_replacement=true로 설정. ⚠️ 추천 결과가 표시된 상태에서 필터링하려면 interact_displayed를 사용.",
     input_schema: {
       type: "object",
       properties: {
         field: {
           type: "string",
           enum: ["fluteCount", "coating", "toolSubtype", "seriesName", "diameterMm", "diameterRefine", "cuttingType", "material"],
-          description: "필터 대상 필드. 현재 질문(lastAskedField)에 해당하는 필드 사용."
+          description: "필터 대상 필드."
         },
-        value: {
-          type: "string",
-          description: "선택한 값. 예: '4', 'Diamond', 'Square', 'skip'. 칩에서 선택한 경우 칩의 값 그대로 사용 (개수 제외)."
-        },
-        display_value: {
-          type: "string",
-          description: "UI 표시용 값. 예: '4날', 'Diamond', 'Square'. 없으면 value 사용."
-        }
+        value: { type: "string", description: "선택한 값. 예: '4', 'Diamond', 'Square', 'skip'" },
+        display_value: { type: "string", description: "UI 표시용 값" },
+        is_replacement: { type: "boolean", description: "기존 필터를 교체하는 경우 true (예: 직경 4mm→2mm 변경)" }
       },
       required: ["field", "value"]
     }
   },
   {
     name: "show_recommendation",
-    description: "사용자가 추천 결과를 보고 싶어할 때 호출. '추천해줘', '결과 보여줘', '바로 보여줘' 등.",
+    description: "추천 결과 보기. '추천해줘', '결과 보여줘', '바로 보여줘' 등.",
     input_schema: { type: "object", properties: {} }
   },
   {
     name: "compare_products",
-    description: "사용자가 제품 비교를 요청할 때 호출. '1번이랑 2번 비교', '상위 3개 비교', 'OAL 기준으로 비교' 등. 특정 필드 기준 비교 시 compare_field 포함.",
+    description: "제품 비교. '1번이랑 2번 비교', '상위 3개 비교' 등.",
     input_schema: {
       type: "object",
       properties: {
         targets: { type: "array", items: { type: "string" }, description: "비교 대상. 예: ['1번', '2번']" },
-        compare_field: { type: "string", description: "비교 기준 필드 (선택). 예: 'overallLengthMm', 'coating'. 특정 스펙 기준 비교 시 사용." }
+        compare_field: { type: "string", description: "비교 기준 필드 (선택)" }
       },
       required: ["targets"]
     }
   },
   {
     name: "undo_step",
-    description: "사용자가 이전 단계로 돌아가고 싶을 때 호출. '이전으로', '되돌려' 등.",
+    description: "이전 단계로 돌아가기. '이전으로', '되돌려' 등.",
     input_schema: {
       type: "object",
       properties: {
@@ -340,7 +335,7 @@ const NARROWING_TOOLS: LLMTool[] = [
   },
   {
     name: "explain_concept",
-    description: "사용자가 기술 용어, 옵션, 가공 개념 등을 물어볼 때 호출. 'Square가 뭐야?', '코팅 차이 알려줘' 등. 표시된 제품이 있으면 해당 제품 데이터를 참조하여 설명.",
+    description: "기술 용어, 제품 시리즈, 가공 개념 설명. 'Square가 뭐야?', '코팅 차이', 'Alu-cut 특징', '뭔지 몰라요' 등.",
     input_schema: {
       type: "object",
       properties: {
@@ -350,21 +345,8 @@ const NARROWING_TOOLS: LLMTool[] = [
     }
   },
   {
-    name: "replace_slot",
-    description: "이미 적용된 필터 값을 변경할 때 호출. '직경 4mm로 바꿔줘', '코팅 DLC로 변경', '날수 2날로'. 기존 필터를 제거하고 새 값으로 교체.",
-    input_schema: {
-      type: "object",
-      properties: {
-        field: { type: "string", description: "변경할 필드: diameterMm, fluteCount, coating, toolSubtype, seriesName, material, cuttingType" },
-        new_value: { type: "string", description: "새 값. 예: '4', 'DLC', '2'" },
-        display_value: { type: "string", description: "UI 표시용. 예: '4mm', 'DLC', '2날'" }
-      },
-      required: ["field", "new_value"]
-    }
-  },
-  {
     name: "ask_clarification",
-    description: "사용자 의도가 모호할 때 선택지를 제시. 예: 소재 언급이 설명 vs 새 검색인지 불명확, 슬롯 교체 vs 필터 추가 불명확 등.",
+    description: "사용자 의도가 모호할 때 선택지 제시.",
     input_schema: {
       type: "object",
       properties: {
@@ -376,82 +358,38 @@ const NARROWING_TOOLS: LLMTool[] = [
   },
   {
     name: "reset_session",
-    description: "사용자가 처음부터 다시 시작하고 싶을 때 호출.",
+    description: "처음부터 다시 시작.",
     input_schema: { type: "object", properties: {} }
   },
   {
-    name: "filter_displayed_products",
-    description: "⭐ 표시된 제품을 조건으로 줄일 때 호출. 'OAL 69mm인 것만', '코팅 Diamond만', '그것만 보여줘', '#8, #9만 보여줘', '전체 보기'. 직전 대화에서 특정 값을 언급했으면 해당 필드+값으로 필터링. 특정 번호 제품만 보려면 keep_indices 사용.",
+    name: "interact_displayed",
+    description: "⭐ 표시된 제품 필터링/조회/시리즈 그룹 관리. action으로 구분: 'filter'=조건 필터링, 'query'=스펙 조회, 'keep'=번호 지정, 'reset'=전체 보기, 'group_focus'=시리즈 포커스, 'group_menu'=시리즈 목록.",
     input_schema: {
       type: "object",
       properties: {
-        field: { type: "string", description: "필터 대상: diameterMm, fluteCount, coating, toolMaterial, shankDiameterMm, lengthOfCutMm, overallLengthMm, helixAngleDeg, seriesName, brand, materialTags. '전체 보기' 시 'reset'. 특정 번호만 보려면 아무 값." },
-        operator: { type: "string", enum: ["eq","gt","gte","lt","lte","neq","contains","reset"], description: "비교 연산자. 번호 지정 시 불필요." },
-        value: { type: "string", description: "비교 값" },
-        keep_indices: { type: "array", items: { type: "number" }, description: "유지할 rank 번호. '#8, #9만' → [8, 9]. '상위 2개만' → [1, 2]. '그것만' → 직전 필터 결과의 번호들." },
+        action: { type: "string", enum: ["filter", "query", "keep", "reset", "group_focus", "group_menu"], description: "동작 종류" },
+        field: { type: "string", description: "대상 필드 (filter/query 시)" },
+        operator: { type: "string", enum: ["eq","gt","gte","lt","lte","neq","contains"], description: "비교 연산자 (filter 시)" },
+        value: { type: "string", description: "비교 값 (filter 시)" },
+        keep_indices: { type: "array", items: { type: "number" }, description: "유지할 rank 번호 (keep 시)" },
+        query_type: { type: "string", enum: ["max","min","count","list","find"], description: "질의 종류 (query 시)" },
+        top_n: { type: "number", description: "상위 N개 (query 시)" },
+        group_key: { type: "string", description: "시리즈 그룹 키 (group_focus 시)" },
       },
-      required: ["field"]
+      required: ["action"]
     }
   },
   {
-    name: "query_displayed_products",
-    description: "⭐ 표시된 제품에 대한 질문/조회. '절삭 길이 제일 긴 건?', 'Diamond 코팅 몇 개?', '나선각 30도인 건?', 'OAL 목록 보여줘', '상위 2개 OAL 알려줘'. 표시된 제품의 스펙을 조회/비교/집계할 때 사용. top_n으로 상위 N개만 표시 가능.",
+    name: "manage_task",
+    description: "작업 관리. action으로 구분: 'new'=새 추천 시작, 'resume'=이전 작업 복원, 'scope'=현재 상태 확인, 'summary'=진행 요약.",
     input_schema: {
       type: "object",
       properties: {
-        query_type: { type: "string", enum: ["max","min","count","list","find"], description: "질의 종류" },
-        field: { type: "string", description: "대상 필드" },
-        condition: {
-          type: "object",
-          properties: { operator: { type: "string" }, value: { type: "string" } },
-          description: "조건 (선택)"
-        },
-        top_n: { type: "number", description: "상위 N개만 표시 (선택). '상위 2개만' → 2, '1번만' → 1" },
+        action: { type: "string", enum: ["new", "resume", "scope", "summary"], description: "동작 종류" },
+        task_id: { type: "string", description: "복원할 작업 ID (resume 시, 선택)" }
       },
-      required: ["query_type", "field"]
+      required: ["action"]
     }
-  },
-  // ── Task & Group Management Tools (conditionally used when ENABLE_TASK_SYSTEM) ──
-  {
-    name: "start_new_recommendation_task",
-    description: "현재 추천 작업을 아카이브하고 새 추천 작업을 시작. '새로운 제품 추천해줘', '다른 가공 조건으로 다시' 등.",
-    input_schema: { type: "object", properties: {} }
-  },
-  {
-    name: "resume_previous_task",
-    description: "이전에 아카이브된 추천 작업을 재개. '아까 그 추천으로 돌아가', '이전 작업 다시 보기' 등.",
-    input_schema: {
-      type: "object",
-      properties: {
-        task_id: { type: "string", description: "복원할 작업 ID. 없으면 가장 최근 아카이브된 작업." }
-      }
-    }
-  },
-  {
-    name: "restore_previous_group",
-    description: "특정 시리즈 그룹으로 포커스를 전환. 'V7 시리즈만 보여줘', 'CE5 그룹 보기' 등.",
-    input_schema: {
-      type: "object",
-      properties: {
-        group_key: { type: "string", description: "시리즈 그룹 키 (seriesName 또는 '__ungrouped__')" }
-      },
-      required: ["group_key"]
-    }
-  },
-  {
-    name: "show_group_menu",
-    description: "시리즈 그룹 목록을 칩으로 표시. '시리즈 목록 보여줘', '어떤 시리즈가 있어?' 등.",
-    input_schema: { type: "object", properties: {} }
-  },
-  {
-    name: "confirm_current_scope",
-    description: "현재 세션 상태를 확인/요약. '지금 어떤 상태야?', '지금 뭐 적용됐어?', '현재 조건 확인', '몇 개 남았어?' 등. 적용된 필터, 후보 수, 좁히기 진행률을 보여줌.",
-    input_schema: { type: "object", properties: {} }
-  },
-  {
-    name: "summarize_current_task",
-    description: "지금까지 진행 상황 요약. '지금까지 정리해줘', '요약해줘', '어디까지 했지?' 등. 전체 좁히기 과정을 리뷰.",
-    input_schema: { type: "object", properties: {} }
   },
 ]
 
@@ -666,9 +604,16 @@ function mapToolUseToAction(
       const field = String(input.field ?? ctx.sessionState?.lastAskedField ?? "unknown")
       const value = String(input.value ?? "")
       const displayValue = String(input.display_value ?? value)
+      const isReplacement = input.is_replacement === true
 
       if (["skip", "상관없음", "모름", "패스", "스킵"].includes(value.toLowerCase())) {
         return { type: "skip_field" }
+      }
+
+      // Replacement mode — change existing filter
+      if (isReplacement) {
+        const normalizedField = normalizeFieldName(field) ?? field
+        return { type: "replace_slot", field: normalizedField, newValue: value, displayValue: displayValue !== value ? displayValue : undefined }
       }
 
       const filter = parseAnswerToFilter(field, value)
@@ -705,26 +650,12 @@ function mapToolUseToAction(
 
     case "undo_step": {
       const target = String(input.target ?? "last")
-      if (target === "last") {
-        return { type: "go_back_one_step" }
-      }
-      return {
-        type: "go_back_to_filter",
-        filterValue: target,
-        filterField: findFilterField(target, ctx.sessionState),
-      }
+      if (target === "last") return { type: "go_back_one_step" }
+      return { type: "go_back_to_filter", filterValue: target, filterField: findFilterField(target, ctx.sessionState) }
     }
 
     case "explain_concept":
       return { type: "explain_product", target: String(input.topic ?? "") }
-
-    case "replace_slot": {
-      const rawField = String(input.field ?? "")
-      const field = normalizeFieldName(rawField) ?? rawField
-      const newValue = String(input.new_value ?? "")
-      const displayValue = input.display_value ? String(input.display_value) : undefined
-      return { type: "replace_slot", field, newValue, displayValue }
-    }
 
     case "ask_clarification": {
       const question = String(input.question ?? "어떤 것을 원하시나요?")
@@ -735,50 +666,78 @@ function mapToolUseToAction(
     case "reset_session":
       return { type: "reset_session" }
 
-    case "filter_displayed_products": {
+    // ── Merged: interact_displayed (filter + query + keep + reset + group) ──
+    case "interact_displayed": {
+      const action = String(input.action ?? "filter")
+
+      if (action === "reset") {
+        return { type: "filter_displayed", field: "reset", operator: "reset", value: "" }
+      }
+      if (action === "keep") {
+        const keepIndices = (input.keep_indices as number[]) ?? []
+        return { type: "filter_displayed", field: "rank", operator: "eq", value: "", keepIndices }
+      }
+      if (action === "query") {
+        const rawField = String(input.field ?? "")
+        const field = normalizeFieldName(rawField) ?? rawField
+        const queryType = String(input.query_type ?? "list")
+        const condition = input.condition as { operator: string; value: string } | undefined
+        const topN = input.top_n ? Number(input.top_n) : undefined
+        return { type: "query_displayed", queryType, field, condition, topN }
+      }
+      if (action === "group_menu") {
+        return { type: "show_group_menu" }
+      }
+      if (action === "group_focus") {
+        const groupKey = String(input.group_key ?? "")
+        return { type: "restore_previous_group", groupKey }
+      }
+      // Default: filter
       const rawField = String(input.field ?? "")
       const field = normalizeFieldName(rawField) ?? rawField
       const operator = String(input.operator ?? "eq")
       const value = String(input.value ?? "")
       const keepIndices = (input.keep_indices as number[]) ?? undefined
-
-      if (field === "reset" || operator === "reset") {
-        return { type: "filter_displayed", field: "reset", operator: "reset", value: "" }
-      }
       return { type: "filter_displayed", field, operator, value, keepIndices }
     }
 
+    // ── Merged: manage_task (new + resume + scope + summary) ──
+    case "manage_task": {
+      const action = String(input.action ?? "scope")
+      if (action === "new") return { type: "start_new_task" }
+      if (action === "resume") {
+        const taskId = input.task_id ? String(input.task_id) : ""
+        return { type: "resume_previous_task", taskId }
+      }
+      if (action === "summary") return { type: "summarize_task" }
+      return { type: "confirm_scope" } // default: scope
+    }
+
+    // ── Legacy tool names (backward compat if LLM uses old names) ──
+    case "replace_slot": {
+      const rawField = String(input.field ?? "")
+      const field = normalizeFieldName(rawField) ?? rawField
+      const newValue = String(input.new_value ?? "")
+      const displayValue = input.display_value ? String(input.display_value) : undefined
+      return { type: "replace_slot", field, newValue, displayValue }
+    }
+    case "filter_displayed_products": {
+      const rawField = String(input.field ?? "")
+      const field = normalizeFieldName(rawField) ?? rawField
+      if (field === "reset") return { type: "filter_displayed", field: "reset", operator: "reset", value: "" }
+      return { type: "filter_displayed", field, operator: String(input.operator ?? "eq"), value: String(input.value ?? ""), keepIndices: (input.keep_indices as number[]) ?? undefined }
+    }
     case "query_displayed_products": {
       const rawField = String(input.field ?? "")
       const field = normalizeFieldName(rawField) ?? rawField
-      const queryType = String(input.query_type ?? "list")
-      const condition = input.condition as { operator: string; value: string } | undefined
-      const topN = input.top_n ? Number(input.top_n) : undefined
-
-      return { type: "query_displayed", queryType, field, condition, topN }
+      return { type: "query_displayed", queryType: String(input.query_type ?? "list"), field, condition: input.condition as { operator: string; value: string } | undefined, topN: input.top_n ? Number(input.top_n) : undefined }
     }
-
-    case "start_new_recommendation_task":
-      return { type: "start_new_task" }
-
-    case "resume_previous_task": {
-      const taskId = input.task_id ? String(input.task_id) : ""
-      return { type: "resume_previous_task", taskId }
-    }
-
-    case "restore_previous_group": {
-      const groupKey = String(input.group_key ?? "")
-      return { type: "restore_previous_group", groupKey }
-    }
-
-    case "show_group_menu":
-      return { type: "show_group_menu" }
-
-    case "confirm_current_scope":
-      return { type: "confirm_scope" }
-
-    case "summarize_current_task":
-      return { type: "summarize_task" }
+    case "start_new_recommendation_task": return { type: "start_new_task" }
+    case "resume_previous_task": return { type: "resume_previous_task", taskId: input.task_id ? String(input.task_id) : "" }
+    case "restore_previous_group": return { type: "restore_previous_group", groupKey: String(input.group_key ?? "") }
+    case "show_group_menu": return { type: "show_group_menu" }
+    case "confirm_current_scope": return { type: "confirm_scope" }
+    case "summarize_current_task": return { type: "summarize_task" }
 
     default:
       return { type: "answer_general", message: ctx.userMessage }
@@ -1087,29 +1046,24 @@ function buildConversationContext(
 // ════════════════════════════════════════════════════════════════
 
 const TOOL_SCOPES: Record<string, string[]> = {
-  // During narrowing questions — user is answering filter questions
+  // During narrowing — user answering filter questions (5 tools)
   narrowing: [
-    "apply_filter", "explain_concept", "undo_step", "replace_slot",
-    "ask_clarification", "reset_session", "show_recommendation",
-    "confirm_current_scope", "summarize_current_task",
+    "apply_filter", "explain_concept", "undo_step",
+    "ask_clarification", "show_recommendation",
   ],
-  // After recommendation displayed — user is browsing results
+  // After recommendation — browsing results (5 tools)
   post_recommendation: [
-    "filter_displayed_products", "query_displayed_products", "compare_products",
-    "explain_concept", "undo_step", "reset_session",
-    "start_new_recommendation_task", "show_group_menu", "restore_previous_group",
-    "confirm_current_scope", "summarize_current_task",
+    "interact_displayed", "compare_products", "explain_concept",
+    "manage_task", "reset_session",
   ],
-  // After comparison — user is reviewing comparison
+  // After comparison — reviewing comparison (4 tools)
   post_comparison: [
-    "explain_concept", "filter_displayed_products", "show_recommendation",
-    "compare_products", "undo_step", "reset_session",
-    "confirm_current_scope", "summarize_current_task",
+    "explain_concept", "interact_displayed", "show_recommendation",
+    "compare_products",
   ],
-  // After clarification question — user is responding to options
+  // After clarification — responding to options (3 tools)
   clarification: [
-    "apply_filter", "explain_concept", "undo_step", "reset_session",
-    "ask_clarification",
+    "apply_filter", "explain_concept", "undo_step",
   ],
 }
 
