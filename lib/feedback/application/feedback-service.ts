@@ -57,6 +57,69 @@ function getStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []
 }
 
+function getBoolean(value: unknown): boolean {
+  return value === true
+}
+
+function toRecordArray(value: unknown): JsonRecord[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is JsonRecord => Boolean(item) && typeof item === "object" && !Array.isArray(item))
+}
+
+function trimText(value: unknown, maxLength = 2000): string {
+  const text = getString(value)
+  return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text
+}
+
+function sanitizeConversationSnapshot(value: unknown): JsonRecord[] | null {
+  const items = toRecordArray(value).map(item => ({
+    index: typeof item.index === "number" ? item.index : null,
+    role: getString(item.role),
+    text: trimText(item.text, 4000),
+    isLoading: getBoolean(item.isLoading),
+    chips: getStringArray(item.chips),
+    feedback: getNullableString(item.feedback),
+    chipFeedback: getNullableString(item.chipFeedback),
+    createdAt: getNullableString(item.createdAt),
+  }))
+
+  return items.length > 0 ? items : null
+}
+
+function sanitizeChatHistory(value: unknown): Array<{ role: string; text: string }> | null {
+  const items = toRecordArray(value).map(item => ({
+    role: getString(item.role),
+    text: trimText(item.text, 2000),
+  }))
+
+  return items.length > 0 ? items : null
+}
+
+function sanitizeFormSnapshot(value: unknown): JsonRecord | null {
+  return toRecord(value)
+}
+
+function sanitizeSessionSummary(value: unknown): JsonRecord | null {
+  const session = toRecord(value)
+  if (Object.keys(session).length === 0) return null
+
+  return {
+    sessionId: getNullableString(session.sessionId),
+    candidateCount: getNullableNumber(session.candidateCount),
+    resolutionStatus: getNullableString(session.resolutionStatus),
+    turnCount: getNullableNumber(session.turnCount),
+    lastAskedField: getNullableString(session.lastAskedField),
+    lastAction: getNullableString(session.lastAction),
+    currentMode: getNullableString(session.currentMode),
+    activeGroupKey: getNullableString(session.activeGroupKey),
+    displayedChips: getStringArray(session.displayedChips),
+    appliedFilters: Array.isArray(session.appliedFilters) ? session.appliedFilters : [],
+    narrowingHistory: Array.isArray(session.narrowingHistory) ? session.narrowingHistory : [],
+    uiNarrowingPath: Array.isArray(session.uiNarrowingPath) ? session.uiNarrowingPath : [],
+    capabilities: toRecord(session.capabilities),
+  }
+}
+
 function getFailureFeedbackHistory(value: unknown): FailureCaseNotification["feedbackHistory"] {
   if (!Array.isArray(value)) return null
 
@@ -169,22 +232,13 @@ export class FeedbackService {
         candidateCounts: body.candidateCounts ?? "",
         topProducts: body.topProducts ?? "",
         conversationLength: body.conversationLength ?? 0,
-        sessionStateSnapshot: body.sessionStateSnapshot ?? null,
-        displayedProducts: body.displayedProducts ?? null,
-        displayedOptions: body.displayedOptions ?? null,
-        displayedSeriesGroups: body.displayedSeriesGroups ?? null,
-        uiNarrowingPath: body.uiNarrowingPath ?? null,
-        lastRecommendationArtifact: body.lastRecommendationArtifact ?? null,
-        lastComparisonArtifact: body.lastComparisonArtifact ?? null,
         appliedFilters: body.appliedFilters ?? [],
-        chatHistory: body.chatHistory ?? null,
-        requestPayload: body.requestPayload ?? null,
-        responsePayload: body.responsePayload ?? null,
-        formSnapshot: body.formSnapshot ?? null,
-        candidateSnapshot: body.candidateSnapshot ?? null,
-        conversationSnapshot: body.conversationSnapshot ?? null,
-        language: body.language ?? null,
-        clientCapturedAt: body.clientCapturedAt ?? null,
+        chatHistory: sanitizeChatHistory(body.chatHistory),
+        formSnapshot: sanitizeFormSnapshot(body.formSnapshot),
+        sessionSummary: sanitizeSessionSummary(body.sessionStateSnapshot),
+        conversationSnapshot: sanitizeConversationSnapshot(body.conversationSnapshot),
+        language: getNullableString(body.language),
+        clientCapturedAt: getNullableString(body.clientCapturedAt),
       }
 
       const localJsonPath = saveLoggedFeedbackRecord(successEntry, "[TURN_FEEDBACK]")
@@ -223,16 +277,13 @@ export class FeedbackService {
         topProducts: body.topProducts ?? "",
         conversationLength: body.conversationLength ?? 0,
         appliedFilters: body.appliedFilters ?? [],
-        chatHistory: body.chatHistory ?? null,
+        chatHistory: sanitizeChatHistory(body.chatHistory),
         feedbackHistory: body.feedbackHistory ?? null,
-        requestPayload: body.requestPayload ?? null,
-        responsePayload: body.responsePayload ?? null,
-        formSnapshot: body.formSnapshot ?? null,
-        sessionStateSnapshot: body.sessionStateSnapshot ?? null,
-        candidateSnapshot: body.candidateSnapshot ?? null,
-        conversationSnapshot: body.conversationSnapshot ?? null,
-        language: body.language ?? null,
-        clientCapturedAt: body.clientCapturedAt ?? null,
+        formSnapshot: sanitizeFormSnapshot(body.formSnapshot),
+        sessionSummary: sanitizeSessionSummary(body.sessionStateSnapshot),
+        conversationSnapshot: sanitizeConversationSnapshot(body.conversationSnapshot),
+        language: getNullableString(body.language),
+        clientCapturedAt: getNullableString(body.clientCapturedAt),
       }
 
       const localJsonPath = saveLoggedFeedbackRecord(failureEntry, "[TURN_FEEDBACK]")
@@ -288,14 +339,11 @@ export class FeedbackService {
         candidateCount: body.candidateCount ?? null,
         appliedFilters: body.appliedFilters ?? [],
         conversationLength: body.conversationLength ?? 0,
-        requestPayload: body.requestPayload ?? null,
-        responsePayload: body.responsePayload ?? null,
-        formSnapshot: body.formSnapshot ?? null,
-        sessionStateSnapshot: body.sessionStateSnapshot ?? null,
-        candidateSnapshot: body.candidateSnapshot ?? null,
-        conversationSnapshot: body.conversationSnapshot ?? null,
-        language: body.language ?? null,
-        clientCapturedAt: body.clientCapturedAt ?? null,
+        formSnapshot: sanitizeFormSnapshot(body.formSnapshot),
+        sessionSummary: sanitizeSessionSummary(body.sessionStateSnapshot),
+        conversationSnapshot: sanitizeConversationSnapshot(body.conversationSnapshot),
+        language: getNullableString(body.language),
+        clientCapturedAt: getNullableString(body.clientCapturedAt),
       }
 
       const localJsonPath = saveLoggedFeedbackRecord(turnEntry, "[TURN_FEEDBACK]")
@@ -343,14 +391,11 @@ export class FeedbackService {
       ...entry,
       screenshotCount: screenshots.length,
       screenshotPaths,
-      requestPayload: body.requestPayload ?? null,
-      responsePayload: body.responsePayload ?? null,
-      formSnapshot: body.formSnapshot ?? null,
-      sessionStateSnapshot: body.sessionStateSnapshot ?? null,
-      candidateSnapshot: body.candidateSnapshot ?? null,
-      conversationSnapshot: body.conversationSnapshot ?? null,
-      language: body.language ?? null,
-      clientCapturedAt: body.clientCapturedAt ?? null,
+      formSnapshot: sanitizeFormSnapshot(body.formSnapshot),
+      sessionSummary: sanitizeSessionSummary(body.sessionStateSnapshot),
+      conversationSnapshot: sanitizeConversationSnapshot(body.conversationSnapshot),
+      language: getNullableString(body.language),
+      clientCapturedAt: getNullableString(body.clientCapturedAt),
     }
 
     const localJsonPath = saveLoggedFeedbackRecord(persistedEntry, "[FEEDBACK]")

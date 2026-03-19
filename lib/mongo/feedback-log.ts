@@ -37,6 +37,11 @@ function createServerEventId(): string {
   return randomBytes(16).toString("hex")
 }
 
+function createTurnFeedbackDocumentId(turnKey: unknown): string | null {
+  if (typeof turnKey !== "string" || turnKey.length === 0) return null
+  return `turn_feedback:${Buffer.from(turnKey).toString("base64url")}`
+}
+
 function extractRequestMeta(request: Request) {
   const forwardedFor = request.headers.get("x-forwarded-for")
   const referer = request.headers.get("referer")
@@ -150,7 +155,10 @@ export async function logFeedbackEventToMongo(input: FeedbackLogInput): Promise<
   const db = await getMongoLogDb()
   if (!db) return
 
-  const collectionName = process.env.MONGO_LOG_COLLECTION || "feedback_events"
+  const collectionName =
+    input.eventType === "general_feedback"
+      ? (process.env.MONGO_GENERAL_FEEDBACK_COLLECTION || "feedback_general_entries")
+      : (process.env.MONGO_LOG_COLLECTION || "feedback_events")
   const rawBody = safeClone(input.rawBody)
   const persistedEntry = safeClone(input.persistedEntry)
 
@@ -172,16 +180,17 @@ export async function logFeedbackEventToMongo(input: FeedbackLogInput): Promise<
     const turnKey = document.identifiers && typeof document.identifiers === "object"
       ? (document.identifiers as JsonRecord).turnKey
       : null
+    const turnFeedbackDocumentId = createTurnFeedbackDocumentId(turnKey)
 
     await collection.updateOne(
-      {
+      turnFeedbackDocumentId ? { _id: turnFeedbackDocumentId } : {
         eventType: "turn_feedback",
         "identifiers.turnKey": turnKey ?? null,
       },
       {
         $set: document,
         $setOnInsert: {
-          _id: createServerEventId(),
+          _id: turnFeedbackDocumentId ?? createServerEventId(),
           createdAt: new Date(),
         },
       },

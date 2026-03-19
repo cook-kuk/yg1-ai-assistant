@@ -32,7 +32,10 @@ export async function getMongoLogDb(): Promise<Db | null> {
   if (!isMongoLogEnabled()) return null
 
   if (!global.__mongoLogClientPromise) {
-    global.__mongoLogClientPromise = createClient()
+    global.__mongoLogClientPromise = createClient().catch(error => {
+      global.__mongoLogClientPromise = undefined
+      throw error
+    })
   }
 
   const client = await global.__mongoLogClientPromise

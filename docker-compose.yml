@@ -11,6 +11,8 @@ services:
       - "host.docker.internal:host-gateway"
     ports:
       - "${APP_PORT:-3000}:3000"
+    volumes:
+      - ./data/feedback:/app/data/feedback
     environment:
       NODE_ENV: production
       PORT: 3000

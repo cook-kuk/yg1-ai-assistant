@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { type DragEvent, useRef, useState } from "react"
 import {
   CheckCircle2,
   MessageCircle,
@@ -9,7 +9,6 @@ import {
 } from "lucide-react"
 
 import type {
-  RecommendationCandidateDto,
   RecommendationPublicSessionDto,
 } from "@/lib/contracts/recommendation"
 import { useApp } from "@/lib/frontend/app-context"
@@ -41,12 +40,12 @@ export function FeedbackWidget({
   form,
   messages,
   sessionState,
-  candidateSnapshot,
+  candidateSnapshot: _candidateSnapshot,
 }: {
   form: ProductIntakeForm
   messages: ChatMsg[]
   sessionState: RecommendationPublicSessionDto | null
-  candidateSnapshot: RecommendationCandidateDto[] | null
+  candidateSnapshot: unknown
 }) {
   const { language } = useApp()
   const [open, setOpen] = useState(false)
@@ -57,6 +56,8 @@ export function FeedbackWidget({
   const [tags, setTags] = useState<string[]>([])
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
+  const [screenshots, setScreenshots] = useState<Array<{ name: string; dataUrl: string; size: number }>>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const authorTypeOptions: ReadonlyArray<readonly [FeedbackAuthorType, string]> = language === "ko"
     ? [["internal", "내부 개발팀"], ["customer", "고객사"], ["anonymous", "익명"]]
@@ -64,6 +65,38 @@ export function FeedbackWidget({
 
   const toggleTag = (tag: string) => {
     setTags(prev => prev.includes(tag) ? prev.filter(value => value !== tag) : [...prev, tag])
+  }
+
+  const handleFileSelect = (files: FileList | null) => {
+    if (!files) return
+
+    Array.from(files).forEach(file => {
+      if (!file.type.startsWith("image/")) return
+      if (file.size > 5 * 1024 * 1024) {
+        alert("5MB 이하 이미지만 업로드 가능합니다.")
+        return
+      }
+
+      const reader = new FileReader()
+      reader.onload = () => {
+        setScreenshots(prev => [...prev, {
+          name: file.name,
+          dataUrl: reader.result as string,
+          size: file.size,
+        }])
+      }
+      reader.readAsDataURL(file)
+    })
+  }
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    handleFileSelect(event.dataTransfer.files)
+  }
+
+  const removeScreenshot = (index: number) => {
+    setScreenshots(prev => prev.filter((_, screenshotIndex) => screenshotIndex !== index))
   }
 
   const buildIntakeSummary = (): string => {
@@ -95,9 +128,6 @@ export function FeedbackWidget({
       feedback: message.feedback ?? null,
       chipFeedback: message.chipFeedback ?? null,
       createdAt: message.createdAt ?? null,
-      recommendation: message.recommendation ?? null,
-      requestPayload: message.requestPayload ?? null,
-      responsePayload: message.responsePayload ?? null,
     }))
   }
 
@@ -109,8 +139,6 @@ export function FeedbackWidget({
         role: message.role,
         text: message.text.slice(0, 500),
       }))
-
-      const lastAiMsg = [...messages].reverse().find(message => message.role === "ai" && !message.isLoading)
 
       await fetch("/api/feedback", {
         method: "POST",
@@ -127,13 +155,15 @@ export function FeedbackWidget({
           rating: rating > 0 ? rating : null,
           comment,
           tags,
+          screenshots: screenshots.map(screenshot => ({
+            name: screenshot.name,
+            dataUrl: screenshot.dataUrl,
+            size: screenshot.size,
+          })),
           language,
           formSnapshot: form,
           sessionStateSnapshot: sessionState,
-          candidateSnapshot,
           conversationSnapshot: buildConversationSnapshot(),
-          requestPayload: lastAiMsg?.requestPayload ?? null,
-          responsePayload: lastAiMsg?.responsePayload ?? null,
         }),
       })
 
@@ -144,6 +174,7 @@ export function FeedbackWidget({
         setComment("")
         setRating(0)
         setTags([])
+        setScreenshots([])
       }, 1500)
     } catch {
       alert("피드백 저장에 실패했습니다.")
@@ -262,6 +293,57 @@ export function FeedbackWidget({
                     rows={4}
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-300"
                   />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 mb-1.5 block">{language === "ko" ? "스크린샷 (선택)" : "Screenshots (optional)"}</label>
+                  <div
+                    onDragOver={event => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                    }}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-colors"
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={event => handleFileSelect(event.target.files)}
+                    />
+                    <div className="text-xs text-gray-500">
+                      {language === "ko"
+                        ? "📷 클릭하거나 이미지를 드래그해서 놓으세요"
+                        : "📷 Click or drag & drop images here"}
+                    </div>
+                    <div className="text-[10px] text-gray-400 mt-0.5">PNG, JPG · 5MB 이하</div>
+                  </div>
+                  {screenshots.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {screenshots.map((screenshot, index) => (
+                        <div key={`${screenshot.name}-${index}`} className="relative group">
+                          <img
+                            src={screenshot.dataUrl}
+                            alt={screenshot.name}
+                            className="w-16 h-16 object-cover rounded-lg border border-gray-200"
+                          />
+                          <button
+                            onClick={event => {
+                              event.stopPropagation()
+                              removeScreenshot(index)
+                            }}
+                            className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full text-[8px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            x
+                          </button>
+                          <div className="text-[8px] text-gray-400 text-center truncate w-16 mt-0.5">{screenshot.name}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="text-[10px] text-gray-400 bg-gray-50 rounded-lg px-3 py-2">

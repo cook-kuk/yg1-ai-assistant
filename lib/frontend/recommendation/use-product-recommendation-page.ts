@@ -76,9 +76,6 @@ export function useProductRecommendationPage({
       feedback: message.feedback ?? null,
       chipFeedback: message.chipFeedback ?? null,
       createdAt: message.createdAt ?? null,
-      recommendation: message.recommendation ?? null,
-      requestPayload: message.requestPayload ?? null,
-      responsePayload: message.responsePayload ?? null,
     }))
   ), [])
 
@@ -114,14 +111,11 @@ export function useProductRecommendationPage({
       appliedFilters: sessionState?.appliedFilters?.filter(filter => filter.op !== "skip").map(filter => `${filter.field}=${filter.value}`) ?? [],
       conversationLength: updatedMessages.length,
       language,
-      requestPayload: aiMessage?.requestPayload ?? null,
-      responsePayload: aiMessage?.responsePayload ?? null,
       formSnapshot: form,
       sessionStateSnapshot: sessionState,
-      candidateSnapshot,
       conversationSnapshot: buildConversationSnapshot(updatedMessages),
     }
-  }, [buildConversationSnapshot, candidateSnapshot, form, language, sessionState])
+  }, [buildConversationSnapshot, form, language, sessionState])
 
   const runRecommendation = async () => {
     setPhase("loading")
@@ -327,10 +321,6 @@ export function useProductRecommendationPage({
     const filters = currentSession?.appliedFilters?.filter(filter => filter.op !== "skip") ?? []
     const conditions = filters.map(filter => `${filter.field}=${filter.value}`).join(" / ") || "(없음)"
     const counts = `total=${currentSession?.candidateCount ?? "?"}`
-    const displayed = candidateSnapshot ?? []
-    const topProducts = displayed.slice(0, 3).map(candidate =>
-      `#${candidate.rank} ${candidate.displayCode} (${candidate.brand ?? ""} ${candidate.seriesName ?? ""}) ${candidate.score}점`
-    ).join("\n") || "(없음)"
     const narrowingPath = filters.map(filter => `${filter.field}=${filter.value}`).join(" → ") || "(없음)"
 
     fetch("/api/feedback", {
@@ -349,34 +339,13 @@ export function useProductRecommendationPage({
         conditions,
         narrowingPath,
         candidateCounts: counts,
-        topProducts,
         conversationLength: chatMessages.length,
         language,
         formSnapshot: form,
         sessionStateSnapshot: currentSession,
-        displayedProducts: displayed.slice(0, 10).map(candidate => ({
-          rank: candidate.rank,
-          code: candidate.displayCode,
-          productCode: candidate.productCode,
-          brand: candidate.brand,
-          series: candidate.seriesName,
-          diameter: candidate.diameterMm,
-          fluteCount: candidate.fluteCount,
-          coating: candidate.coating,
-          score: candidate.score,
-          matchStatus: candidate.matchStatus,
-        })),
-        candidateSnapshot: displayed,
-        displayedOptions: currentSession?.displayedOptions ?? null,
-        displayedSeriesGroups: currentSession?.displayedSeriesGroups ?? null,
-        uiNarrowingPath: currentSession?.uiNarrowingPath ?? null,
-        lastRecommendationArtifact: null,
-        lastComparisonArtifact: null,
         appliedFilters: filters.map(filter => `${filter.field}=${filter.value}`),
         chatHistory: chatMessages.map(message => ({ role: message.role, text: message.text })),
         conversationSnapshot: buildConversationSnapshot(chatMessages),
-        requestPayload: lastAiMsg?.requestPayload ?? null,
-        responsePayload: lastAiMsg?.responsePayload ?? null,
       }),
     }).catch(() => {})
   }
