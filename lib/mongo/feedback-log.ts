@@ -155,9 +155,10 @@ export async function logFeedbackEventToMongo(input: FeedbackLogInput): Promise<
   const db = await getMongoLogDb()
   if (!db) return
 
-  const collectionName =
-    input.eventType === "general_feedback"
-      ? (process.env.MONGO_GENERAL_FEEDBACK_COLLECTION || "feedback_general_entries")
+  const collectionName = input.eventType === "general_feedback"
+    ? (process.env.MONGO_GENERAL_FEEDBACK_COLLECTION || "feedback_general_entries")
+    : input.eventType === "success_case"
+      ? (process.env.MONGO_SUCCESS_CASE_COLLECTION || "feedback_success_cases")
       : (process.env.MONGO_LOG_COLLECTION || "feedback_events")
   const rawBody = safeClone(input.rawBody)
   const persistedEntry = safeClone(input.persistedEntry)
