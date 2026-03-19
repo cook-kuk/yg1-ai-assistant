@@ -9,6 +9,7 @@ import {
 } from "lucide-react"
 
 import type {
+  RecommendationCandidateDto,
   RecommendationPublicSessionDto,
 } from "@/lib/contracts/recommendation"
 import { useApp } from "@/lib/frontend/app-context"
@@ -36,16 +37,25 @@ const FEEDBACK_TAGS = [
 
 type FeedbackAuthorType = "internal" | "customer" | "anonymous"
 
+function buildCandidateHighlights(candidates: RecommendationCandidateDto[] | null) {
+  return (candidates ?? []).map(candidate => ({
+    rank: candidate.rank,
+    productCode: candidate.productCode,
+    displayCode: candidate.displayCode,
+    score: candidate.score,
+  }))
+}
+
 export function FeedbackWidget({
   form,
   messages,
   sessionState,
-  candidateSnapshot: _candidateSnapshot,
+  candidateSnapshot,
 }: {
   form: ProductIntakeForm
   messages: ChatMsg[]
   sessionState: RecommendationPublicSessionDto | null
-  candidateSnapshot: unknown
+  candidateSnapshot: RecommendationCandidateDto[] | null
 }) {
   const { language } = useApp()
   const [open, setOpen] = useState(false)
@@ -163,6 +173,7 @@ export function FeedbackWidget({
           language,
           formSnapshot: form,
           sessionStateSnapshot: sessionState,
+          candidateHighlights: buildCandidateHighlights(candidateSnapshot),
           conversationSnapshot: buildConversationSnapshot(),
         }),
       })

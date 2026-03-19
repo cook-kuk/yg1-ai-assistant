@@ -25,6 +25,15 @@ import { createClientEventId } from "@/lib/frontend/recommendation/client-event-
 
 export type Phase = "intake" | "summary" | "loading" | "explore"
 
+function buildCandidateHighlights(candidates: RecommendationCandidateDto[] | null) {
+  return (candidates ?? []).map(candidate => ({
+    rank: candidate.rank,
+    productCode: candidate.productCode,
+    displayCode: candidate.displayCode,
+    score: candidate.score,
+  }))
+}
+
 export function useProductRecommendationPage({
   language,
   country,
@@ -113,9 +122,10 @@ export function useProductRecommendationPage({
       language,
       formSnapshot: form,
       sessionStateSnapshot: sessionState,
+      candidateHighlights: buildCandidateHighlights(candidateSnapshot),
       conversationSnapshot: buildConversationSnapshot(updatedMessages),
     }
-  }, [buildConversationSnapshot, form, language, sessionState])
+  }, [buildConversationSnapshot, candidateSnapshot, form, language, sessionState])
 
   const runRecommendation = async () => {
     setPhase("loading")
@@ -343,6 +353,7 @@ export function useProductRecommendationPage({
         language,
         formSnapshot: form,
         sessionStateSnapshot: currentSession,
+        candidateHighlights: buildCandidateHighlights(candidateSnapshot),
         appliedFilters: filters.map(filter => `${filter.field}=${filter.value}`),
         chatHistory: chatMessages.map(message => ({ role: message.role, text: message.text })),
         conversationSnapshot: buildConversationSnapshot(chatMessages),

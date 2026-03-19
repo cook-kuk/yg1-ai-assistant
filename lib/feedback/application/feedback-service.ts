@@ -120,6 +120,17 @@ function sanitizeSessionSummary(value: unknown): JsonRecord | null {
   }
 }
 
+function sanitizeCandidateHighlights(value: unknown): JsonRecord[] | null {
+  const items = toRecordArray(value).map(item => ({
+    rank: getNullableNumber(item.rank),
+    productCode: getString(item.productCode),
+    displayCode: getString(item.displayCode),
+    score: getNullableNumber(item.score),
+  })).filter(item => item.productCode || item.displayCode)
+
+  return items.length > 0 ? items : null
+}
+
 function getFailureFeedbackHistory(value: unknown): FailureCaseNotification["feedbackHistory"] {
   if (!Array.isArray(value)) return null
 
@@ -236,6 +247,7 @@ export class FeedbackService {
         chatHistory: sanitizeChatHistory(body.chatHistory),
         formSnapshot: sanitizeFormSnapshot(body.formSnapshot),
         sessionSummary: sanitizeSessionSummary(body.sessionStateSnapshot),
+        candidateHighlights: sanitizeCandidateHighlights(body.candidateHighlights),
         conversationSnapshot: sanitizeConversationSnapshot(body.conversationSnapshot),
         language: getNullableString(body.language),
         clientCapturedAt: getNullableString(body.clientCapturedAt),
@@ -281,6 +293,7 @@ export class FeedbackService {
         feedbackHistory: body.feedbackHistory ?? null,
         formSnapshot: sanitizeFormSnapshot(body.formSnapshot),
         sessionSummary: sanitizeSessionSummary(body.sessionStateSnapshot),
+        candidateHighlights: sanitizeCandidateHighlights(body.candidateHighlights),
         conversationSnapshot: sanitizeConversationSnapshot(body.conversationSnapshot),
         language: getNullableString(body.language),
         clientCapturedAt: getNullableString(body.clientCapturedAt),
@@ -341,6 +354,7 @@ export class FeedbackService {
         conversationLength: body.conversationLength ?? 0,
         formSnapshot: sanitizeFormSnapshot(body.formSnapshot),
         sessionSummary: sanitizeSessionSummary(body.sessionStateSnapshot),
+        candidateHighlights: sanitizeCandidateHighlights(body.candidateHighlights),
         conversationSnapshot: sanitizeConversationSnapshot(body.conversationSnapshot),
         language: getNullableString(body.language),
         clientCapturedAt: getNullableString(body.clientCapturedAt),
@@ -393,6 +407,7 @@ export class FeedbackService {
       screenshotPaths,
       formSnapshot: sanitizeFormSnapshot(body.formSnapshot),
       sessionSummary: sanitizeSessionSummary(body.sessionStateSnapshot),
+      candidateHighlights: sanitizeCandidateHighlights(body.candidateHighlights),
       conversationSnapshot: sanitizeConversationSnapshot(body.conversationSnapshot),
       language: getNullableString(body.language),
       clientCapturedAt: getNullableString(body.clientCapturedAt),
