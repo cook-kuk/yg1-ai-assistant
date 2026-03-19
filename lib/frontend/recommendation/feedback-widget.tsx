@@ -23,6 +23,7 @@ import {
   getIntakeDisplayValue,
   getIntakeFieldLabel,
 } from "@/lib/frontend/recommendation/intake-localization"
+import { createClientEventId } from "@/lib/frontend/recommendation/client-event-id"
 
 const FEEDBACK_TAGS = [
   { value: "wrong-product", ko: "잘못된 제품", en: "Wrong Product" },
@@ -115,7 +116,7 @@ export function FeedbackWidget({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          clientEventId: globalThis.crypto.randomUUID(),
+          clientEventId: createClientEventId(),
           clientCapturedAt: new Date().toISOString(),
           authorType,
           authorName,

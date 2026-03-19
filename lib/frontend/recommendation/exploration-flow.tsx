@@ -1,18 +1,24 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   Activity,
   ArrowRight,
+  ChevronDown,
+  ChevronUp,
+  Clock,
   Database,
   Edit2,
+  FileText,
   Filter,
   MessageCircle,
+  Package,
   RotateCcw,
   Send,
   Sparkles,
   Star,
   X,
+  Zap,
 } from "lucide-react"
 
 import { Markdown } from "@/components/ui/markdown"
@@ -24,6 +30,7 @@ import {
 } from "@/lib/contracts/recommendation"
 import { useApp } from "@/lib/frontend/app-context"
 import { CandidateCard, IntentSummaryCard, RecommendationPanel } from "@/lib/frontend/recommendation/recommendation-display"
+import { groupRecommendationCandidatesBySeries } from "@/lib/frontend/recommendation/recommendation-grouping"
 import { isUndoChipEnabled, canShowCandidatePanel } from "@/lib/frontend/recommendation/recommendation-view-model"
 import {
   type AnswerState,
@@ -37,7 +44,8 @@ import {
 } from "@/lib/frontend/recommendation/intake-localization"
 import type { ChatMsg, TurnFeedback } from "@/lib/frontend/recommendation/exploration-types"
 
-const MAX_DISPLAY_CANDIDATES = 5
+const MAX_DISPLAY_CANDIDATES = 10
+const PAGE_SIZE = 10
 
 const RESOLUTION_CONFIG: Record<string, { ko: string; en: string; cls: string }> = {
   broad: { ko: "탐색 중", en: "Exploring", cls: "bg-blue-100 text-blue-700" },
@@ -123,6 +131,8 @@ function ExplorationSidebar({
 }) {
   const { language } = useApp()
   const latestPrep = [...messages].reverse().find(message => message.requestPreparation)?.requestPreparation ?? null
+  const uiNarrowingPath = sessionState?.uiNarrowingPath ?? []
+  const displayedGroups = sessionState?.displayedSeriesGroups ?? []
 
   return (
     <div className="p-3 space-y-3">
@@ -152,30 +162,48 @@ function ExplorationSidebar({
         </div>
       </div>
 
-      {sessionState && sessionState.appliedFilters.length > 0 && (
+      {sessionState && (uiNarrowingPath.length > 0 || sessionState.appliedFilters.length > 0) && (
         <div>
           <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
             <Filter size={10} />
             {language === "ko" ? "적용 필터" : "Applied Filters"}
           </div>
           <div className="space-y-0.5">
-            {sessionState.appliedFilters.filter(filter => filter.op !== "skip").map((filter, index) => (
-              <div key={index} className="flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1 border border-blue-100 bg-blue-50">
-                <ArrowRight size={8} className="text-blue-400 shrink-0" />
-                <span className="text-blue-600 font-medium truncate">
-                  {filter.field === "fluteCount"
-                    ? (language === "ko" ? "날수" : "Flutes")
-                    : filter.field === "toolSubtype"
-                      ? (language === "ko" ? "형상" : "Shape")
-                      : filter.field === "coating"
-                        ? (language === "ko" ? "코팅" : "Coating")
-                        : filter.field === "seriesName"
-                          ? (language === "ko" ? "시리즈" : "Series")
-                          : localizeIntakeText(filter.field, language)}
-                  : {localizeIntakeText(filter.value, language)}
-                </span>
-              </div>
-            ))}
+            {uiNarrowingPath.length > 0
+              ? uiNarrowingPath.map((entry, index) => (
+                <div key={index} className="flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1 border border-blue-100 bg-blue-50">
+                  <ArrowRight size={8} className="text-blue-400 shrink-0" />
+                  <span className="text-blue-600 font-medium truncate">
+                    {entry.field === "fluteCount"
+                      ? (language === "ko" ? "날수" : "Flutes")
+                      : entry.field === "toolSubtype"
+                        ? (language === "ko" ? "형상" : "Shape")
+                        : entry.field === "coating"
+                          ? (language === "ko" ? "코팅" : "Coating")
+                          : entry.field === "seriesName"
+                            ? (language === "ko" ? "시리즈" : "Series")
+                            : localizeIntakeText(entry.field ?? entry.label, language)}
+                    : {localizeIntakeText(entry.value ?? entry.label, language)}
+                  </span>
+                </div>
+              ))
+              : sessionState.appliedFilters.filter(filter => filter.op !== "skip").map((filter, index) => (
+                <div key={index} className="flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1 border border-blue-100 bg-blue-50">
+                  <ArrowRight size={8} className="text-blue-400 shrink-0" />
+                  <span className="text-blue-600 font-medium truncate">
+                    {filter.field === "fluteCount"
+                      ? (language === "ko" ? "날수" : "Flutes")
+                      : filter.field === "toolSubtype"
+                        ? (language === "ko" ? "형상" : "Shape")
+                        : filter.field === "coating"
+                          ? (language === "ko" ? "코팅" : "Coating")
+                          : filter.field === "seriesName"
+                            ? (language === "ko" ? "시리즈" : "Series")
+                            : localizeIntakeText(filter.field, language)}
+                    : {localizeIntakeText(filter.value, language)}
+                  </span>
+                </div>
+              ))}
             <div className="text-[10px] text-gray-500 px-2.5 pt-1 font-medium">
               {language === "ko" ? `→ 현재 후보: ${sessionState.candidateCount}개` : `-> Current candidates: ${sessionState.candidateCount}`}
             </div>
@@ -191,6 +219,44 @@ function ExplorationSidebar({
               <div key={index} className="text-[10px] text-gray-600 bg-white rounded-lg px-2.5 py-1.5 border border-gray-100">
                 <div className="font-medium">Turn {index + 1}: &quot;{localizeIntakeText(history.answer, language)}&quot;</div>
                 <div className="text-gray-400">{history.candidateCountBefore} → {history.candidateCountAfter}{language === "ko" ? "개" : ""}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {displayedGroups.length >= 2 && (
+        <div>
+          <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+            <Package size={10} />
+            {language === "ko" ? "시리즈 그룹" : "Series Groups"}
+          </div>
+          <div className="space-y-0.5">
+            {displayedGroups.slice(0, 5).map(group => (
+              <div key={group.seriesKey} className="flex items-center justify-between text-[10px] bg-white rounded-lg px-2.5 py-1 border border-gray-100">
+                <span className="text-gray-700 font-medium truncate">{group.seriesName}</span>
+                <span className="text-gray-400 shrink-0 ml-1">{group.candidateCount}{language === "ko" ? "개" : ""}</span>
+              </div>
+            ))}
+            {displayedGroups.length > 5 && (
+              <div className="text-[10px] text-gray-400 px-2.5">
+                +{displayedGroups.length - 5}{language === "ko" ? "개 더" : " more"}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {sessionState?.currentTask?.checkpoints && sessionState.currentTask.checkpoints.length > 0 && (
+        <div>
+          <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+            <Clock size={10} />
+            {language === "ko" ? "체크포인트" : "Checkpoints"}
+          </div>
+          <div className="space-y-0.5">
+            {sessionState.currentTask.checkpoints.slice(-3).map(checkpoint => (
+              <div key={checkpoint.checkpointId} className="text-[10px] text-gray-600 bg-white rounded-lg px-2.5 py-1 border border-gray-100 truncate">
+                {checkpoint.summary}
               </div>
             ))}
           </div>
@@ -423,15 +489,43 @@ function NarrowingChat({
 function CandidatePanel({
   candidates,
   messages,
+  sessionState,
+  onSend,
 }: {
   candidates: RecommendationCandidateDto[] | null
   messages: ChatMsg[]
+  sessionState?: RecommendationPublicSessionDto | null
+  onSend?: (text: string) => void
 }) {
   const { language } = useApp()
   const lastRecommendation = [...messages].reverse().find(message => message.recommendation)?.recommendation
-  const displayCandidates = candidates?.slice(0, MAX_DISPLAY_CANDIDATES) ?? null
   const totalCount = candidates?.length ?? 0
-  const hasMore = totalCount > MAX_DISPLAY_CANDIDATES
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set())
+  const [page, setPage] = useState(0)
+  const groups = useMemo(
+    () => candidates ? groupRecommendationCandidatesBySeries(candidates, sessionState?.displayedSeriesGroups ?? null) : [],
+    [candidates, sessionState?.displayedSeriesGroups]
+  )
+  const useAccordion = groups.length >= 2
+  const pageStart = page * PAGE_SIZE
+  const pageEnd = pageStart + PAGE_SIZE
+  const displayCandidates = candidates?.slice(pageStart, pageEnd) ?? null
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE)
+  const hasMore = pageEnd < totalCount
+  const hasPrev = page > 0
+
+  useEffect(() => {
+    setPage(0)
+  }, [candidates?.length])
+
+  const toggleGroup = (key: string) => {
+    setOpenGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   return (
     <div className="p-3 space-y-3">
@@ -439,21 +533,88 @@ function CandidatePanel({
         <Activity size={11} />
         {totalCount > 0 ? (
           language === "ko"
-            ? <>상위 추천 후보 {displayCandidates?.length ?? 0}개{hasMore && <span className="text-gray-400 font-normal">(전체 {totalCount}개 중)</span>}</>
-            : <>Top {displayCandidates?.length ?? 0} Candidates{hasMore && <span className="text-gray-400 font-normal"> (of {totalCount})</span>}</>
+            ? <>추천 후보 {useAccordion ? `${groups.length}개 시리즈` : `${pageStart + 1}~${Math.min(pageEnd, totalCount)}위`}<span className="text-gray-400 font-normal ml-1">(전체 {totalCount}개)</span></>
+            : <>Candidates {useAccordion ? `${groups.length} Series` : `#${pageStart + 1}-${Math.min(pageEnd, totalCount)}`}<span className="text-gray-400 font-normal ml-1"> (of {totalCount})</span></>
         ) : (
           <>{language === "ko" ? "추천 후보" : "Candidates"}</>
         )}
       </div>
 
-      {displayCandidates && displayCandidates.length > 0 ? (
+      {useAccordion ? (
+        <div className="space-y-2">
+          {groups.map(group => {
+            const displayMembers = group.members.slice(0, MAX_DISPLAY_CANDIDATES)
+            return (
+              <div key={group.seriesKey} className="border border-gray-200 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => toggleGroup(group.seriesKey)}
+                  className="w-full flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                >
+                  {group.seriesIconUrl && (
+                    <img
+                      src={group.seriesIconUrl}
+                      alt={group.seriesName}
+                      className="w-8 h-8 object-contain rounded border border-gray-100 shrink-0 bg-white"
+                      onError={event => {
+                        event.currentTarget.style.display = "none"
+                      }}
+                    />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    {group.members[0]?.brand && (
+                      <div className="text-xs font-bold text-purple-800 truncate">{group.members[0].brand}</div>
+                    )}
+                    {group.description && (
+                      <div className="text-[10px] text-gray-600 truncate">{group.description.replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, "")}</div>
+                    )}
+                    <div className="text-[10px] text-gray-500">
+                      {group.seriesName} · {group.candidateCount}{language === "ko" ? "개" : ""} · {language === "ko" ? "최고" : "Top"} {group.topScore}{language === "ko" ? "점" : "pt"}
+                    </div>
+                  </div>
+                  {openGroups.has(group.seriesKey) ? <ChevronUp size={14} className="text-gray-400 shrink-0" /> : <ChevronDown size={14} className="text-gray-400 shrink-0" />}
+                </button>
+                {openGroups.has(group.seriesKey) && (
+                  <div className="p-2 space-y-2 bg-white">
+                    {displayMembers.map(candidate => (
+                      <CandidateCard key={candidate.productCode} c={candidate} />
+                    ))}
+                    {group.candidateCount > MAX_DISPLAY_CANDIDATES && (
+                      <div className="text-center text-[10px] text-gray-400 py-1">
+                        +{group.candidateCount - MAX_DISPLAY_CANDIDATES}{language === "ko" ? "개 추가" : " more"}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      ) : displayCandidates && displayCandidates.length > 0 ? (
         <div className="space-y-2">
           {displayCandidates.map(candidate => (
             <CandidateCard key={candidate.productCode} c={candidate} />
           ))}
-          {hasMore && (
-            <div className="text-center text-[10px] text-gray-400 py-1">
-              +{totalCount - MAX_DISPLAY_CANDIDATES}{language === "ko" ? "개 추가 후보 있음" : " more candidates"}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 py-2">
+              {hasPrev && (
+                <button
+                  onClick={() => setPage(prev => prev - 1)}
+                  className="px-3 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                >
+                  {language === "ko" ? `← 이전 ${PAGE_SIZE}개` : `← Prev ${PAGE_SIZE}`}
+                </button>
+              )}
+              <span className="text-[10px] text-gray-400">
+                {page + 1} / {totalPages}
+              </span>
+              {hasMore && (
+                <button
+                  onClick={() => setPage(prev => prev + 1)}
+                  className="px-3 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                >
+                  {language === "ko" ? `대체 후보 ${PAGE_SIZE}개 →` : `Next ${PAGE_SIZE} →`}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -464,17 +625,55 @@ function CandidatePanel({
         </div>
       )}
 
+      {sessionState?.taskHistory && sessionState.taskHistory.length > 0 && (
+        <div className="border-t pt-3">
+          <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+            <FileText size={11} className="text-purple-600" />
+            {language === "ko" ? "이전 추천 작업" : "Previous Tasks"}
+          </div>
+          <div className="space-y-1">
+            {sessionState.taskHistory.map(task => (
+              <button
+                key={task.taskId}
+                onClick={() => onSend?.(`이전 작업 재개: ${task.taskId}`)}
+                className="w-full text-left text-[10px] text-purple-700 bg-purple-50 rounded-lg px-2.5 py-1.5 border border-purple-100 hover:bg-purple-100 transition-colors"
+              >
+                <div className="font-medium truncate">{task.intakeSummary}</div>
+                <div className="text-purple-500">
+                  {language === "ko" ? `체크포인트 ${task.checkpointCount}개` : `${task.checkpointCount} checkpoints`}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {lastRecommendation && (
         <div className="border-t pt-3">
           <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
-            <Activity size={11} className="text-blue-600" />
+            <Zap size={11} className="text-blue-600" />
             {language === "ko" ? "최종 추천" : "Final Recommendation"}
           </div>
-          <div className="text-xs text-gray-600 bg-blue-50 rounded-lg p-2.5 border border-blue-100">
-            {lastRecommendation.primaryProduct
-              ? `${lastRecommendation.primaryProduct.product.displayCode} (${lastRecommendation.status === "exact" ? (language === "ko" ? "정확 매칭" : "Exact Match") : (language === "ko" ? "근사 후보" : "Approximate")})`
-              : (language === "ko" ? "매칭 없음" : "No Match")}
-          </div>
+          {!lastRecommendation.primaryProduct ? (
+            <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-2.5">{language === "ko" ? "매칭 없음" : "No Match"}</div>
+          ) : (
+            <div className="bg-blue-50 rounded-lg border border-blue-100 overflow-hidden">
+              <div className="px-3 py-2">
+                <div className="font-mono text-xs font-bold text-gray-900">{lastRecommendation.primaryProduct.product.displayCode}</div>
+                <div className="text-[10px] text-gray-600">
+                  {lastRecommendation.primaryProduct.product.brand && (
+                    <span className="font-semibold text-purple-700">{lastRecommendation.primaryProduct.product.brand}</span>
+                  )}
+                  {lastRecommendation.primaryProduct.product.brand && " | "}
+                  {lastRecommendation.status === "exact"
+                    ? (language === "ko" ? "정확 매칭" : "Exact Match")
+                    : (language === "ko" ? "근사 후보" : "Approximate")}
+                  {" · "}
+                  {lastRecommendation.primaryProduct.score}{language === "ko" ? "점" : "pt"}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -581,7 +780,7 @@ export function ExplorationScreen({
 
         {canShowResults && (
           <div className={`w-80 border-l bg-white flex-shrink-0 overflow-y-auto transition-all ${showCandidates ? "block" : "hidden"} lg:block`}>
-            <CandidatePanel candidates={candidateSnapshot} messages={messages} />
+            <CandidatePanel candidates={candidateSnapshot} messages={messages} sessionState={sessionState} onSend={onSend} />
           </div>
         )}
       </div>

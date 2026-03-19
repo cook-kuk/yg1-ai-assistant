@@ -1,5 +1,6 @@
 import "server-only"
 
+import { randomBytes } from "node:crypto"
 import { Pool, type QueryResult, type QueryResultRow } from "pg"
 import { notifyDbQuery } from "@/lib/slack-notifier"
 import { appendRuntimeLog, logRuntimeError } from "@/lib/runtime-logger"
@@ -505,6 +506,10 @@ function computeCompletenessScore(product: Omit<CanonicalProduct, "dataCompleten
   return Number((filled / checks.length).toFixed(2))
 }
 
+function createFallbackId(): string {
+  return randomBytes(8).toString("hex")
+}
+
 function mapRowToProduct(row: RawProductRow): CanonicalProduct {
   const rawDiameter = firstNonEmpty(
     row.milling_outside_dia,
@@ -521,7 +526,7 @@ function mapRowToProduct(row: RawProductRow): CanonicalProduct {
   const diameterInch = parsedDiameter == null ? null : isInch ? parsedDiameter : null
 
   const baseProduct = {
-    id: `prod_edp:${row.edp_idx ?? row.edp_no ?? crypto.randomUUID()}`,
+    id: `prod_edp:${row.edp_idx ?? row.edp_no ?? createFallbackId()}`,
     manufacturer: "YG-1",
     brand: firstNonEmpty(row.series_brand_name, row.edp_brand_name, "YG-1")!,
     sourcePriority: 2 as SourcePriority,

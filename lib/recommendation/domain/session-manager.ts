@@ -14,7 +14,9 @@
 
 import type {
   AppliedFilter,
+  ArchivedTask,
   CandidateSnapshot,
+  RecommendationTask,
   DisplayedOption,
   ExplorationSessionState,
   LastActionType,
@@ -22,6 +24,9 @@ import type {
   NarrowingTurn,
   RecommendationInput,
   ResolutionStatus,
+  SeriesGroup,
+  SessionMode,
+  UINarrowingPathEntry,
 } from "@/lib/recommendation/domain/types"
 
 // ════════════════════════════════════════════════════════════════
@@ -38,10 +43,19 @@ interface BuildSessionStateParams {
   resolvedInput: RecommendationInput
   turnCount: number
   lastAskedField?: string
+  displayedProducts?: CandidateSnapshot[]
+  fullDisplayedProducts?: CandidateSnapshot[] | null
+  displayedSeriesGroups?: SeriesGroup[]
+  uiNarrowingPath?: UINarrowingPathEntry[]
+  currentMode?: SessionMode
+  activeGroupKey?: string | null
   displayedCandidates: CandidateSnapshot[]
+  fullDisplayedCandidates?: CandidateSnapshot[]
   displayedChips: string[]
-  displayedOptions: DisplayedOption[]
+  displayedOptions?: DisplayedOption[]
   lastAction?: LastActionType
+  currentTask?: RecommendationTask | null
+  taskHistory?: ArchivedTask[]
 }
 
 export function buildSessionState(params: BuildSessionStateParams): ExplorationSessionState {
@@ -55,10 +69,19 @@ export function buildSessionState(params: BuildSessionStateParams): ExplorationS
     resolvedInput: params.resolvedInput,
     turnCount: params.turnCount,
     lastAskedField: params.lastAskedField,
+    displayedProducts: params.displayedProducts ?? params.displayedCandidates,
+    fullDisplayedProducts: params.fullDisplayedProducts ?? params.displayedCandidates,
+    displayedSeriesGroups: params.displayedSeriesGroups,
+    uiNarrowingPath: params.uiNarrowingPath ?? [],
+    currentMode: params.currentMode,
+    activeGroupKey: params.activeGroupKey ?? null,
     displayedCandidates: params.displayedCandidates,
+    fullDisplayedCandidates: params.fullDisplayedCandidates ?? params.displayedCandidates,
     displayedChips: params.displayedChips,
-    displayedOptions: params.displayedOptions,
+    displayedOptions: params.displayedOptions ?? [],
     lastAction: params.lastAction,
+    currentTask: params.currentTask ?? null,
+    taskHistory: params.taskHistory ?? [],
   }
 }
 
@@ -77,10 +100,19 @@ export function carryForwardState(
     resolvedInput: overrides.resolvedInput ?? prev.resolvedInput,
     turnCount: overrides.turnCount ?? prev.turnCount,
     lastAskedField: overrides.lastAskedField ?? prev.lastAskedField,
+    displayedProducts: overrides.displayedProducts ?? prev.displayedProducts ?? prev.displayedCandidates,
+    fullDisplayedProducts: overrides.fullDisplayedProducts ?? prev.fullDisplayedProducts ?? prev.displayedProducts ?? prev.displayedCandidates,
+    displayedSeriesGroups: overrides.displayedSeriesGroups ?? prev.displayedSeriesGroups ?? prev.displayedGroups,
+    uiNarrowingPath: overrides.uiNarrowingPath ?? prev.uiNarrowingPath ?? [],
+    currentMode: overrides.currentMode ?? prev.currentMode,
+    activeGroupKey: overrides.activeGroupKey ?? prev.activeGroupKey ?? null,
     displayedCandidates: overrides.displayedCandidates ?? prev.displayedCandidates,
+    fullDisplayedCandidates: overrides.fullDisplayedCandidates ?? prev.fullDisplayedCandidates ?? prev.displayedCandidates,
     displayedChips: overrides.displayedChips ?? prev.displayedChips,
     displayedOptions: overrides.displayedOptions ?? prev.displayedOptions ?? [],
     lastAction: overrides.lastAction ?? prev.lastAction,
+    currentTask: overrides.currentTask ?? prev.currentTask ?? null,
+    taskHistory: overrides.taskHistory ?? prev.taskHistory ?? [],
   })
 }
 

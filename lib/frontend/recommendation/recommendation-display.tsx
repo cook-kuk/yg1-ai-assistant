@@ -455,25 +455,32 @@ export function CandidateCard({ c }: { c: RecommendationCandidateDto }) {
   const { language } = useApp()
   const [showXai, setShowXai] = useState(false)
   const breakdown = c.scoreBreakdown
+  const cleanedDescription = c.description
+    ? c.description.replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, "").trim()
+    : null
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-1.5">
       <div className="flex gap-2">
         {c.seriesIconUrl && (
-          <img src={c.seriesIconUrl} alt={c.seriesName ?? ""} className="w-12 h-12 object-contain rounded border border-gray-100 shrink-0 bg-gray-50" />
+          <img
+            src={c.seriesIconUrl}
+            alt={c.seriesName ?? ""}
+            className="w-12 h-12 object-contain rounded border border-gray-100 shrink-0 bg-gray-50"
+            onError={event => {
+              event.currentTarget.style.display = "none"
+            }}
+          />
         )}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
+          {c.brand && <div className="text-xs font-bold text-purple-800 truncate">{c.brand}</div>}
+          {cleanedDescription && <div className="text-[10px] text-gray-500 truncate">{cleanedDescription}</div>}
+          <div className="flex items-center gap-2 flex-wrap mt-0.5">
             <span className="text-xs text-gray-400 font-mono">#{c.rank}</span>
             <MatchBadge status={c.matchStatus} />
             <StockBadge status={c.stockStatus} total={c.totalStock} />
           </div>
           <div className="font-mono text-sm font-bold text-gray-900">{c.displayCode}</div>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {c.brand && <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">{c.brand}</span>}
-            {c.seriesName && <span className="text-xs text-blue-700 font-medium">{c.seriesName}</span>}
-            {c.description && <span className="text-[10px] text-gray-400 italic truncate max-w-[200px]">{c.description.replace(/<br\s*\/?>/gi, " ")}</span>}
-          </div>
           <div className="text-[11px] text-gray-600 mt-1 leading-relaxed font-medium">
             {[
               c.diameterMm != null ? `φ${c.diameterMm}mm` : null,
@@ -518,7 +525,12 @@ export function CandidateCard({ c }: { c: RecommendationCandidateDto }) {
             <Info size={9} />
           </button>
           {showXai && (
-            <div className="mt-2">
+            <div className="mt-2 space-y-2">
+              {c.seriesName && (
+                <div className="text-[10px] text-blue-700 font-medium">
+                  {language === "ko" ? "시리즈" : "Series"}: {c.seriesName}
+                </div>
+              )}
               <ScoreBreakdownPanel breakdown={breakdown} />
             </div>
           )}

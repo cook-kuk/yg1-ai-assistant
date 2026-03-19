@@ -8,6 +8,7 @@ import {
   buildWarnings,
   checkResolution,
   classifyHybridResults,
+  groupCandidatesBySeries,
   prepareRequest,
   runFactCheck,
   runHybridRetrieval,
@@ -38,6 +39,7 @@ import type {
   RecommendationInput,
   RecommendationResult,
   ScoredProduct,
+  UINarrowingPathEntry,
   ChatMessage,
 } from "@/lib/recommendation/domain/types"
 
@@ -74,6 +76,7 @@ export async function buildQuestionResponse(
   const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
   const chips = question?.chips ?? []
   const displayedOptions = buildDisplayedOptions(chips, question?.field ?? "unknown")
+  const displayedSeriesGroups = groupCandidatesBySeries(candidateSnapshot)
 
   const sessionState = buildSessionState({
     candidateCount: candidates.length,
@@ -84,6 +87,11 @@ export async function buildQuestionResponse(
     resolvedInput: input,
     turnCount,
     lastAskedField: question?.field ?? undefined,
+    displayedProducts: candidateSnapshot,
+    fullDisplayedProducts: candidateSnapshot,
+    displayedSeriesGroups,
+    uiNarrowingPath: buildUINarrowingPath(filters, history, candidates.length),
+    currentMode: messages.length === 0 ? "question" : "narrowing",
     displayedCandidates: candidateSnapshot,
     displayedChips: chips,
     displayedOptions,
@@ -288,6 +296,7 @@ export async function buildRecommendationResponse(
 
   const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
   const followUpChips = getFollowUpChips(recommendation)
+  const displayedSeriesGroups = groupCandidatesBySeries(candidateSnapshot)
   const sessionState = buildSessionState({
     candidateCount: candidates.length,
     appliedFilters: filters,
@@ -296,6 +305,11 @@ export async function buildRecommendationResponse(
     resolutionStatus: checkResolution(candidates, history),
     resolvedInput: input,
     turnCount,
+    displayedProducts: candidateSnapshot,
+    fullDisplayedProducts: candidateSnapshot,
+    displayedSeriesGroups,
+    uiNarrowingPath: buildUINarrowingPath(filters, history, candidates.length),
+    currentMode: "recommendation",
     displayedCandidates: candidateSnapshot,
     displayedChips: followUpChips,
     displayedOptions: [],
@@ -457,6 +471,22 @@ export function buildStageHistoryFromFilters(
   }
 
   return stages
+}
+
+function buildUINarrowingPath(
+  filters: AppliedFilter[],
+  history: NarrowingTurn[],
+  fallbackCandidateCount: number
+): UINarrowingPathEntry[] {
+  return filters
+    .filter(filter => filter.op !== "skip")
+    .map((filter, index) => ({
+      kind: "filter",
+      label: `${filter.field}=${filter.value}`,
+      field: filter.field,
+      value: filter.value,
+      candidateCount: history[index]?.candidateCountAfter ?? fallbackCandidateCount,
+    }))
 }
 
 export function logNarrowingState(

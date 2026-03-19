@@ -7,7 +7,7 @@
 import type { EvidenceChunk, EvidenceSummary } from "@/lib/types/evidence"
 import path from "path"
 import fs from "fs"
-import crypto from "crypto"
+import { randomBytes } from "node:crypto"
 import { Pool, type QueryResultRow } from "pg"
 import { ProductRepo } from "@/lib/data/repos/product-repo"
 
@@ -56,6 +56,10 @@ function parseNumber(value: string | null | undefined): number | null {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+function createFallbackId(): string {
+  return randomBytes(8).toString("hex")
+}
+
 function buildSearchText(chunk: EvidenceChunk, workPieceName: string | null): string {
   return [
     chunk.productCode,
@@ -79,7 +83,7 @@ function mapRowToEvidenceChunk(row: RawEvidenceRow): EvidenceChunk {
   const seriesName = cleanText(row.series_name)
   const workPieceName = cleanText(row.work_piece_name)
   const chunk: EvidenceChunk = {
-    id: `raw-cutting:${row._row_num ?? crypto.randomUUID()}`,
+    id: `raw-cutting:${row._row_num ?? createFallbackId()}`,
     productCode: normalizeCode(seriesName),
     seriesName,
     toolType: null,

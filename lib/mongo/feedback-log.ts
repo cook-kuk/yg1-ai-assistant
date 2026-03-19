@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto"
+import { randomBytes } from "node:crypto"
 import { getMongoLogDb } from "@/lib/mongo/client"
 
 type JsonRecord = Record<string, unknown>
@@ -31,6 +31,10 @@ function safeClone<T>(value: T): T {
 function truncateText(value: unknown, maxLength = 2000): string | null {
   if (typeof value !== "string" || value.length === 0) return null
   return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value
+}
+
+function createServerEventId(): string {
+  return randomBytes(16).toString("hex")
 }
 
 function extractRequestMeta(request: Request) {
@@ -177,7 +181,7 @@ export async function logFeedbackEventToMongo(input: FeedbackLogInput): Promise<
       {
         $set: document,
         $setOnInsert: {
-          _id: randomUUID(),
+          _id: createServerEventId(),
           createdAt: new Date(),
         },
       },
@@ -187,7 +191,7 @@ export async function logFeedbackEventToMongo(input: FeedbackLogInput): Promise<
   }
 
   await collection.insertOne({
-    _id: randomUUID(),
+    _id: createServerEventId(),
     createdAt: new Date(),
     ...document,
   })

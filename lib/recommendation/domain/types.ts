@@ -10,13 +10,23 @@ export type {
 } from "@/lib/types/canonical"
 export type {
   AppliedFilter,
+  ArchivedTask,
   CandidateSnapshot,
+  CandidateCounts,
+  ClarificationRecord,
+  ComparisonArtifact,
   DisplayedOption,
   ExplorationSessionState,
   LastActionType,
   NarrowingStage,
   NarrowingTurn,
+  RecommendationCheckpoint,
+  RecommendationTask,
   ResolutionStatus,
+  SeriesGroup,
+  SeriesGroupSummary,
+  SessionMode,
+  UINarrowingPathEntry,
 } from "@/lib/types/exploration"
 export type {
   AnswerState,

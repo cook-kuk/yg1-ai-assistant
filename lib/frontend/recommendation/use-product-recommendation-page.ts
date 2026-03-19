@@ -21,6 +21,7 @@ import {
   DEFAULT_RECOMMENDATION_CAPABILITIES,
   resolveRecommendationCapabilities,
 } from "@/lib/frontend/recommendation/recommendation-view-model"
+import { createClientEventId } from "@/lib/frontend/recommendation/client-event-id"
 
 export type Phase = "intake" | "summary" | "loading" | "explore"
 
@@ -96,7 +97,7 @@ export function useProductRecommendationPage({
 
     return {
       type: "turn_feedback",
-      clientEventId: aiMessage?.feedbackGroupId ?? globalThis.crypto.randomUUID(),
+      clientEventId: aiMessage?.feedbackGroupId ?? createClientEventId(),
       clientCapturedAt: new Date().toISOString(),
       feedbackGroupId: aiMessage?.feedbackGroupId ?? null,
       turnNumber,
@@ -166,7 +167,7 @@ export function useProductRecommendationPage({
           requestPayload,
           responsePayload: data,
           createdAt: new Date().toISOString(),
-          feedbackGroupId: globalThis.crypto.randomUUID(),
+          feedbackGroupId: createClientEventId(),
         },
       ])
       setPhase("explore")
@@ -189,7 +190,7 @@ export function useProductRecommendationPage({
       text: "",
       isLoading: true,
       createdAt: new Date().toISOString(),
-      feedbackGroupId: globalThis.crypto.randomUUID(),
+      feedbackGroupId: createClientEventId(),
     }
 
     setChatMessages(prev => [...prev, userMessage, loadingMessage])
@@ -252,7 +253,7 @@ export function useProductRecommendationPage({
           requestPayload,
           responsePayload: data,
           createdAt: prev[updated.length - 1]?.createdAt ?? new Date().toISOString(),
-          feedbackGroupId: prev[updated.length - 1]?.feedbackGroupId ?? globalThis.crypto.randomUUID(),
+          feedbackGroupId: prev[updated.length - 1]?.feedbackGroupId ?? createClientEventId(),
         }
         return updated
       })
@@ -337,7 +338,7 @@ export function useProductRecommendationPage({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         type: "success_case",
-        clientEventId: globalThis.crypto.randomUUID(),
+        clientEventId: createClientEventId(),
         clientCapturedAt: new Date().toISOString(),
         sessionId: currentSession?.sessionId ?? null,
         userComment: comment,
@@ -367,8 +368,8 @@ export function useProductRecommendationPage({
         })),
         candidateSnapshot: displayed,
         displayedOptions: currentSession?.displayedOptions ?? null,
-        displayedSeriesGroups: null,
-        uiNarrowingPath: null,
+        displayedSeriesGroups: currentSession?.displayedSeriesGroups ?? null,
+        uiNarrowingPath: currentSession?.uiNarrowingPath ?? null,
         lastRecommendationArtifact: null,
         lastComparisonArtifact: null,
         appliedFilters: filters.map(filter => `${filter.field}=${filter.value}`),

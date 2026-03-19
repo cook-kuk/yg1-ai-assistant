@@ -1,24 +1,32 @@
 import {
+  type RecommendationArchivedTaskDto,
   recommendationResponseSchema,
   type RecommendationAppliedFilterDto,
   type RecommendationCandidateDto,
   type RecommendationCapabilityDto,
+  type RecommendationCheckpointSummaryDto,
   type RecommendationDisplayedOptionDto,
   type RecommendationPublicSessionDto,
   type RecommendationResponseDto,
   type RecommendationResponseMetaDto,
+  type RecommendationSeriesGroupSummaryDto,
   type RecommendationSessionEnvelopeDto,
+  type RecommendationUINarrowingPathEntryDto,
 } from "@/lib/contracts/recommendation"
 import type {
   AppliedFilter,
+  ArchivedTask,
   CandidateSnapshot,
   DisplayedOption,
   ExplorationSessionState,
   NarrowingTurn,
+  RecommendationCheckpoint,
   EvidenceSummary,
   RecommendationExplanation,
   RecommendationResult,
   RequestPreparationResult,
+  SeriesGroup,
+  UINarrowingPathEntry,
 } from "@/lib/recommendation/domain/types"
 
 function toAppliedFilterDto(filter: AppliedFilter): RecommendationAppliedFilterDto {
@@ -51,6 +59,46 @@ function toDisplayedOptionDto(option: DisplayedOption): RecommendationDisplayedO
   }
 }
 
+function toSeriesGroupSummaryDto(group: SeriesGroup): RecommendationSeriesGroupSummaryDto {
+  return {
+    seriesKey: group.seriesKey,
+    seriesName: group.seriesName,
+    candidateCount: group.candidateCount,
+  }
+}
+
+function toUINarrowingPathEntryDto(entry: UINarrowingPathEntry): RecommendationUINarrowingPathEntryDto {
+  return {
+    kind: entry.kind,
+    label: entry.label,
+    field: entry.field,
+    value: entry.value,
+    candidateCount: entry.candidateCount,
+  }
+}
+
+function toCheckpointSummaryDto(
+  checkpoint: RecommendationCheckpoint
+): RecommendationCheckpointSummaryDto {
+  return {
+    checkpointId: checkpoint.checkpointId,
+    stepIndex: checkpoint.stepIndex,
+    summary: checkpoint.summary,
+    candidateCount: checkpoint.candidateCount,
+    timestamp: checkpoint.timestamp,
+  }
+}
+
+function toArchivedTaskDto(task: ArchivedTask): RecommendationArchivedTaskDto {
+  return {
+    taskId: task.taskId,
+    createdAt: task.createdAt,
+    intakeSummary: task.intakeSummary,
+    checkpointCount: task.checkpointCount,
+    status: task.status,
+  }
+}
+
 function toBestConditionDto(
   bestCondition: CandidateSnapshot["bestCondition"]
 ): CandidateSnapshot["bestCondition"] | null {
@@ -69,10 +117,12 @@ function toBestConditionDto(
 export function getRecommendationCapabilities(
   sessionState: ExplorationSessionState | null
 ): RecommendationCapabilityDto {
+  const groups = sessionState?.displayedSeriesGroups ?? sessionState?.displayedGroups ?? []
+
   return {
     canCompare: true,
     canRestoreTask: Boolean(sessionState && (sessionState.stageHistory?.length ?? 0) > 1),
-    canGroupBySeries: false,
+    canGroupBySeries: groups.length >= 2,
     canFilterDisplayed: Boolean(sessionState?.displayedCandidates?.length),
   }
 }
@@ -130,6 +180,19 @@ export function toRecommendationPublicSessionDto(
     lastAction: sessionState.lastAction ?? null,
     displayedChips: [...(sessionState.displayedChips ?? [])],
     displayedOptions: (sessionState.displayedOptions ?? []).map(toDisplayedOptionDto),
+    displayedSeriesGroups: (sessionState.displayedSeriesGroups ?? sessionState.displayedGroups ?? []).map(toSeriesGroupSummaryDto),
+    uiNarrowingPath: (sessionState.uiNarrowingPath ?? []).map(toUINarrowingPathEntryDto),
+    currentMode: sessionState.currentMode ?? null,
+    activeGroupKey: sessionState.activeGroupKey ?? null,
+    currentTask: sessionState.currentTask ? {
+      taskId: sessionState.currentTask.taskId,
+      createdAt: sessionState.currentTask.createdAt,
+      intakeSummary: sessionState.currentTask.intakeSummary,
+      checkpoints: sessionState.currentTask.checkpoints.map(toCheckpointSummaryDto),
+      finalCandidateCount: sessionState.currentTask.finalCandidateCount,
+      status: sessionState.currentTask.status,
+    } : null,
+    taskHistory: (sessionState.taskHistory ?? []).map(toArchivedTaskDto),
     capabilities: getRecommendationCapabilities(sessionState),
   }
 }

@@ -7,6 +7,7 @@ export { resolveMaterialTag } from "@/lib/recommendation/domain/material-resolve
 export { buildProductLabel } from "@/lib/recommendation/domain/product-label"
 export { prepareRequest } from "@/lib/recommendation/domain/request-preparation"
 export { checkResolution, selectNextQuestion } from "@/lib/recommendation/domain/question-engine"
+export { buildGroupSummaries, groupCandidatesBySeries } from "@/lib/recommendation/domain/series-grouper"
 export {
   buildSessionState,
   carryForwardState,

@@ -227,6 +227,7 @@ export async function handleServeExploration(
           displayedCandidates: snapshot,
           displayedChips: ["추천해주세요", "다른 조건으로", "⟵ 이전 단계", "처음부터 다시"],
           displayedOptions: [],
+          currentMode: "comparison",
           lastAction: "compare_products",
         })
         return deps.jsonRecommendationResponse({
@@ -262,6 +263,7 @@ export async function handleServeExploration(
             displayedCandidates: prevState.displayedCandidates ?? [],
             displayedChips: inventoryReply.chips,
             displayedOptions: prevState.displayedOptions ?? [],
+            currentMode: "general_chat",
             lastAction: "answer_general",
           })
           return deps.jsonRecommendationResponse({
@@ -296,6 +298,7 @@ export async function handleServeExploration(
             displayedCandidates: prevState.displayedCandidates ?? [],
             displayedChips: cuttingConditionReply.chips,
             displayedOptions: prevState.displayedOptions ?? [],
+            currentMode: "general_chat",
             lastAction: "answer_general",
           })
           return deps.jsonRecommendationResponse({
@@ -334,6 +337,7 @@ export async function handleServeExploration(
                 displayedCandidates: prevState.displayedCandidates ?? [],
                 displayedChips: prevState.displayedChips ?? ["대체 후보 보기", "절삭조건 알려줘", "처음부터 다시"],
                 displayedOptions: prevState.displayedOptions ?? [],
+                currentMode: "general_chat",
                 lastAction: "explain_product",
               })
               return deps.jsonRecommendationResponse({
@@ -379,6 +383,7 @@ export async function handleServeExploration(
           displayedCandidates: prevState.displayedCandidates ?? [],
           displayedChips: llmResponse.chips,
           displayedOptions: prevState.displayedOptions ?? [],
+          currentMode: "general_chat",
           lastAction: "answer_general",
         })
         return deps.jsonRecommendationResponse({
@@ -414,6 +419,7 @@ export async function handleServeExploration(
           displayedCandidates: prevState.displayedCandidates ?? [],
           displayedChips: redirect.chips,
           displayedOptions: prevState.displayedOptions ?? [],
+          currentMode: "question",
           lastAction: "redirect_off_topic",
         })
         return deps.jsonRecommendationResponse({

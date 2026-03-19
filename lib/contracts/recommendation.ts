@@ -68,6 +68,45 @@ export interface RecommendationDisplayedOptionDto {
   count: number
 }
 
+export interface RecommendationSeriesGroupSummaryDto {
+  seriesKey: string
+  seriesName: string
+  candidateCount: number
+}
+
+export interface RecommendationUINarrowingPathEntryDto {
+  kind: "filter" | "display_filter" | "series_group" | "restore" | "meta"
+  label: string
+  field?: string
+  value?: string
+  candidateCount: number
+}
+
+export interface RecommendationCheckpointSummaryDto {
+  checkpointId: string
+  stepIndex: number
+  summary: string
+  candidateCount: number
+  timestamp: number
+}
+
+export interface RecommendationCurrentTaskDto {
+  taskId: string
+  createdAt: number
+  intakeSummary: string
+  checkpoints: RecommendationCheckpointSummaryDto[]
+  finalCandidateCount: number | null
+  status: "active" | "archived"
+}
+
+export interface RecommendationArchivedTaskDto {
+  taskId: string
+  createdAt: number
+  intakeSummary: string
+  checkpointCount: number
+  status: "archived"
+}
+
 export interface RecommendationPublicSessionDto {
   sessionId: string | null
   candidateCount: number
@@ -79,6 +118,12 @@ export interface RecommendationPublicSessionDto {
   lastAction?: string | null
   displayedChips: string[]
   displayedOptions: RecommendationDisplayedOptionDto[]
+  displayedSeriesGroups?: RecommendationSeriesGroupSummaryDto[]
+  uiNarrowingPath?: RecommendationUINarrowingPathEntryDto[]
+  currentMode?: string | null
+  activeGroupKey?: string | null
+  currentTask?: RecommendationCurrentTaskDto | null
+  taskHistory?: RecommendationArchivedTaskDto[]
   capabilities: RecommendationCapabilityDto
 }
 
@@ -220,6 +265,45 @@ export const recommendationDisplayedOptionSchema = z.object({
   count: z.number(),
 })
 
+export const recommendationSeriesGroupSummarySchema = z.object({
+  seriesKey: z.string(),
+  seriesName: z.string(),
+  candidateCount: z.number(),
+}).passthrough()
+
+export const recommendationUiNarrowingPathEntrySchema = z.object({
+  kind: z.enum(["filter", "display_filter", "series_group", "restore", "meta"]),
+  label: z.string(),
+  field: z.string().optional(),
+  value: z.string().optional(),
+  candidateCount: z.number(),
+}).passthrough()
+
+export const recommendationCheckpointSummarySchema = z.object({
+  checkpointId: z.string(),
+  stepIndex: z.number(),
+  summary: z.string(),
+  candidateCount: z.number(),
+  timestamp: z.number(),
+}).passthrough()
+
+export const recommendationCurrentTaskSchema = z.object({
+  taskId: z.string(),
+  createdAt: z.number(),
+  intakeSummary: z.string(),
+  checkpoints: z.array(recommendationCheckpointSummarySchema),
+  finalCandidateCount: z.number().nullable(),
+  status: z.enum(["active", "archived"]),
+}).passthrough()
+
+export const recommendationArchivedTaskSchema = z.object({
+  taskId: z.string(),
+  createdAt: z.number(),
+  intakeSummary: z.string(),
+  checkpointCount: z.number(),
+  status: z.enum(["archived"]),
+}).passthrough()
+
 export const recommendationPublicSessionSchema = z.object({
   sessionId: z.string().nullable(),
   candidateCount: z.number(),
@@ -231,6 +315,12 @@ export const recommendationPublicSessionSchema = z.object({
   lastAction: z.string().nullable().optional(),
   displayedChips: z.array(z.string()),
   displayedOptions: z.array(recommendationDisplayedOptionSchema),
+  displayedSeriesGroups: z.array(recommendationSeriesGroupSummarySchema).optional(),
+  uiNarrowingPath: z.array(recommendationUiNarrowingPathEntrySchema).optional(),
+  currentMode: z.string().nullable().optional(),
+  activeGroupKey: z.string().nullable().optional(),
+  currentTask: recommendationCurrentTaskSchema.nullable().optional(),
+  taskHistory: z.array(recommendationArchivedTaskSchema).optional(),
   capabilities: recommendationCapabilitySchema,
 }).passthrough()
 
