@@ -36,6 +36,7 @@ import {
   type ProductIntakeForm,
   type AnswerState,
   type IntakeFieldConfig,
+  type InquiryPurpose,
   INITIAL_INTAKE_FORM,
   FIELD_CONFIGS,
   allRequiredAnswered,
@@ -1286,6 +1287,8 @@ function LoadingScreen() {
 }
 
 // ── Chat message type ──────────────────────────────────────────
+type TurnFeedback = "good" | "bad" | "neutral" | null
+
 interface ChatMsg {
   role: "user" | "ai"
   text: string
@@ -1293,6 +1296,8 @@ interface ChatMsg {
   chips?: string[]
   evidenceSummaries?: EvidenceSummary[] | null
   isLoading?: boolean
+  feedback?: TurnFeedback
+  chipFeedback?: TurnFeedback
   // New: explanation + fact check data
   requestPreparation?: RequestPreparationResult | null
   primaryExplanation?: RecommendationExplanation | null
@@ -1322,9 +1327,72 @@ function buildIntakePromptText(form: ProductIntakeForm, language: "ko" | "en"): 
 // Right: Candidate cards
 // ════════════════════════════════════════════════════════════════
 
+function CaseCaptureModal({
+  open,
+  onClose,
+  onSubmit,
+}: {
+  open: boolean
+  onClose: () => void
+  onSubmit: (comment: string) => void
+}) {
+  const [comment, setComment] = useState("")
+  const [sent, setSent] = useState(false)
+
+  useEffect(() => {
+    if (!open) {
+      setComment("")
+      setSent(false)
+    }
+  }, [open])
+
+  if (!open) return null
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-5 space-y-3" onClick={e => e.stopPropagation()}>
+        {sent ? (
+          <div className="text-center py-4">
+            <div className="text-3xl mb-2">✅</div>
+            <div className="text-sm font-semibold text-gray-800">좋은 사례를 저장했고 개발자에게 공유했어요.</div>
+            <Button size="sm" className="mt-3" onClick={onClose}>닫기</Button>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-2">
+              <Star size={18} className="text-yellow-500" />
+              <h3 className="text-sm font-bold text-gray-900">좋은 사례 저장</h3>
+            </div>
+            <p className="text-xs text-gray-500">현재 대화 상태와 추천 결과를 좋은 사례로 저장합니다.</p>
+            <textarea
+              value={comment}
+              onChange={e => setComment(e.target.value)}
+              placeholder="어떤 점이 좋았나요? (선택 사항)"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none h-20 focus:outline-none focus:border-blue-400"
+            />
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" size="sm" onClick={onClose}>취소</Button>
+              <Button
+                size="sm"
+                className="bg-yellow-500 hover:bg-yellow-600 text-white"
+                onClick={() => {
+                  onSubmit(comment)
+                  setSent(true)
+                }}
+              >
+                <Star size={13} className="mr-1" /> 좋은 사례 저장
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function ExplorationScreen({
   form, messages, isSending, sessionState, candidateSnapshot,
-  onSend, onReset, onEdit,
+  onSend, onReset, onEdit, onFeedback, onChipFeedback, onSuccessCapture,
 }: {
   form: ProductIntakeForm
   messages: ChatMsg[]
@@ -1334,10 +1402,14 @@ function ExplorationScreen({
   onSend: (text: string) => void
   onReset: () => void
   onEdit: () => void
+  onFeedback: (messageIndex: number, feedback: TurnFeedback) => void
+  onChipFeedback: (messageIndex: number, feedback: TurnFeedback) => void
+  onSuccessCapture: (comment: string) => void
 }) {
   const { language } = useApp()
   const [showSidebar, setShowSidebar] = useState(false)
   const [showCandidates, setShowCandidates] = useState(false)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
 
   return (
     <div className="flex flex-col h-full">
@@ -1376,8 +1448,18 @@ function ExplorationScreen({
           <Button variant="outline" size="sm" onClick={onReset} className="gap-1 text-xs h-7 px-2 border-orange-300 text-orange-700 hover:bg-orange-50">
             <RotateCcw size={11} />{language === 'ko' ? '새 검색' : 'New Search'}
           </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowSuccessModal(true)}
+            className="gap-1 text-xs h-7 px-2 border-yellow-300 text-yellow-700 hover:bg-yellow-50">
+            <Star size={11} />{language === 'ko' ? '좋은 사례 저장' : 'Save Success Case'}
+          </Button>
         </div>
       </div>
+
+      <CaseCaptureModal
+        open={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        onSubmit={onSuccessCapture}
+      />
 
       {/* 3-panel body */}
       <div className="flex-1 min-h-0 flex overflow-hidden">
@@ -1393,6 +1475,8 @@ function ExplorationScreen({
             isSending={isSending}
             onSend={onSend}
             onReset={onReset}
+            onFeedback={onFeedback}
+            onChipFeedback={onChipFeedback}
           />
         </div>
 
@@ -1513,15 +1597,23 @@ function ExplorationSidebar({
 
 // ── Center: Narrowing Chat ───────────────────────────────────
 function NarrowingChat({
-  messages, isSending, onSend, onReset,
+  messages, isSending, onSend, onReset, onFeedback, onChipFeedback,
 }: {
   messages: ChatMsg[]
   isSending: boolean
   onSend: (text: string) => void
   onReset?: () => void
+  onFeedback?: (messageIndex: number, feedback: TurnFeedback) => void
+  onChipFeedback?: (messageIndex: number, feedback: TurnFeedback) => void
 }) {
   const { language } = useApp()
   const [input, setInput] = useState("")
+  const lastAiMsg = [...messages].reverse().find(m => m.role === "ai" && !m.isLoading)
+  const lastAiHasChips = (lastAiMsg?.chips?.length ?? 0) > 0
+  const needsFeedback = lastAiMsg && !isSending && (
+    lastAiMsg.feedback === undefined ||
+    (lastAiHasChips && lastAiMsg.chipFeedback === undefined)
+  )
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -1578,7 +1670,9 @@ function NarrowingChat({
                     const isUndoChip = chip === "⟵ 이전 단계"
                     return (
                       <button key={ci}
+                        disabled={!!needsFeedback}
                         onClick={() => {
+                          if (needsFeedback) return
                           if (isResetChip && onReset) {
                             onReset()
                           } else {
@@ -1587,7 +1681,9 @@ function NarrowingChat({
                           }
                         }}
                         className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-                          isResetChip
+                          needsFeedback
+                            ? "bg-gray-50 border border-gray-200 text-gray-400 cursor-not-allowed opacity-60"
+                            : isResetChip
                             ? "bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
                             : isUndoChip
                             ? "bg-amber-50 border border-amber-300 text-amber-700 hover:bg-amber-100 hover:border-amber-400"
@@ -1611,6 +1707,61 @@ function NarrowingChat({
                   factChecked={msg.primaryFactChecked}
                 />
               )}
+
+              {msg.role === "ai" && !msg.isLoading && onFeedback && (
+                <div className="border-t border-gray-100 pt-1.5 mt-1.5 space-y-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {msg.feedback ? (
+                      <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
+                        {language === 'ko' ? '응답' : 'Response'}: {msg.feedback === "good" ? "👍" : msg.feedback === "bad" ? "👎" : "😐"}
+                      </span>
+                    ) : (
+                      <>
+                        <span className="text-[10px] text-gray-500 font-medium">{language === 'ko' ? '응답:' : 'Response:'}</span>
+                        {([
+                          { value: "good" as TurnFeedback, icon: "👍", cls: "hover:bg-green-100" },
+                          { value: "neutral" as TurnFeedback, icon: "😐", cls: "hover:bg-gray-200" },
+                          { value: "bad" as TurnFeedback, icon: "👎", cls: "hover:bg-red-100" },
+                        ]).map(fb => (
+                          <button
+                            key={fb.value}
+                            onClick={() => onFeedback(i, fb.value)}
+                            className={`px-2 py-0.5 text-sm rounded-full border border-gray-200 ${fb.cls} transition-colors`}
+                          >
+                            {fb.icon}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                  {msg.chips && msg.chips.length > 0 && onChipFeedback && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {msg.chipFeedback ? (
+                        <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
+                          {language === 'ko' ? '선택지' : 'Options'}: {msg.chipFeedback === "good" ? "👍" : msg.chipFeedback === "bad" ? "👎" : "😐"}
+                        </span>
+                      ) : (
+                        <>
+                          <span className="text-[10px] text-gray-500 font-medium">{language === 'ko' ? '선택지:' : 'Options:'}</span>
+                          {([
+                            { value: "good" as TurnFeedback, icon: "👍", cls: "hover:bg-green-100" },
+                            { value: "neutral" as TurnFeedback, icon: "😐", cls: "hover:bg-gray-200" },
+                            { value: "bad" as TurnFeedback, icon: "👎", cls: "hover:bg-red-100" },
+                          ]).map(fb => (
+                            <button
+                              key={fb.value}
+                              onClick={() => onChipFeedback(i, fb.value)}
+                              className={`px-2 py-0.5 text-sm rounded-full border border-gray-200 ${fb.cls} transition-colors`}
+                            >
+                              {fb.icon}
+                            </button>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -1618,6 +1769,13 @@ function NarrowingChat({
 
       {/* Input bar */}
       <div className="shrink-0 px-4 py-3 border-t bg-white">
+        {needsFeedback && (
+          <div className="text-center text-xs text-amber-600 bg-amber-50 rounded-lg py-1.5 mb-2">
+            {language === 'ko'
+              ? (lastAiMsg?.feedback === undefined ? '위 응답을 평가해주세요 (👍/😐/👎)' : '선택지도 평가해주세요 (👍/😐/👎)')
+              : 'Please rate the response above'}
+          </div>
+        )}
         <div className="flex items-end gap-2">
           <textarea
             value={input}
@@ -1630,10 +1788,10 @@ function NarrowingChat({
             }}
             placeholder={language === 'ko' ? "추가 질문이나 조건을 입력하세요..." : "Enter additional questions or conditions..."}
             rows={1}
-            disabled={isSending}
+            disabled={isSending || !!needsFeedback}
             className="flex-1 px-3 py-2.5 rounded-xl border-2 border-gray-200 text-sm focus:outline-none focus:border-blue-400 resize-none min-h-[42px] max-h-[120px]"
           />
-          <Button onClick={handleSend} disabled={!input.trim() || isSending}
+          <Button onClick={handleSend} disabled={!input.trim() || isSending || !!needsFeedback}
             size="sm" className="h-[42px] w-[42px] p-0 shrink-0 rounded-xl">
             <Send size={15} />
           </Button>
@@ -2126,6 +2284,127 @@ export default function ProductRecommendPage() {
     setPhase("intake")
   }
 
+  const handleFeedback = (messageIndex: number, feedback: TurnFeedback) => {
+    setChatMessages(prev => {
+      const updated = [...prev]
+      if (updated[messageIndex]) {
+        updated[messageIndex] = { ...updated[messageIndex], feedback }
+      }
+
+      const aiMsg = updated[messageIndex]
+      const userMsg = messageIndex > 0 ? updated[messageIndex - 1] : null
+      const feedbackEmoji = feedback === "good" ? "👍" : feedback === "bad" ? "👎" : "😐"
+      const turnNumber = Math.floor(messageIndex / 2) + 1
+
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "turn_feedback",
+          turnNumber,
+          feedback,
+          feedbackEmoji,
+          userMessage: userMsg?.text ?? "(intake)",
+          aiResponse: aiMsg?.text?.slice(0, 300) ?? "",
+          chips: aiMsg?.chips ?? [],
+          sessionId: sessionState?.sessionId ?? null,
+          candidateCount: sessionState?.candidateCount ?? null,
+          appliedFilters: sessionState?.appliedFilters?.filter(f => f.op !== "skip").map(f => `${f.field}=${f.value}`) ?? [],
+          conversationLength: updated.length,
+        }),
+      }).catch(() => {})
+
+      return updated
+    })
+  }
+
+  const handleChipFeedback = (messageIndex: number, feedback: TurnFeedback) => {
+    setChatMessages(prev => {
+      const updated = [...prev]
+      if (updated[messageIndex]) {
+        updated[messageIndex] = { ...updated[messageIndex], chipFeedback: feedback }
+      }
+
+      const aiMsg = updated[messageIndex]
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "turn_feedback",
+          turnNumber: Math.floor(messageIndex / 2) + 1,
+          feedback,
+          feedbackEmoji: feedback === "good" ? "👍" : feedback === "bad" ? "👎" : "😐",
+          feedbackTarget: "chips",
+          userMessage: "(선택지 평가)",
+          aiResponse: `칩: ${(aiMsg?.chips ?? []).join(", ")}`,
+          chips: aiMsg?.chips ?? [],
+          sessionId: sessionState?.sessionId ?? null,
+          candidateCount: sessionState?.candidateCount ?? null,
+          appliedFilters: sessionState?.appliedFilters?.filter(f => f.op !== "skip").map(f => `${f.field}=${f.value}`) ?? [],
+          conversationLength: updated.length,
+        }),
+      }).catch(() => {})
+
+      return updated
+    })
+  }
+
+  const handleSuccessCapture = (comment: string) => {
+    const ss = sessionState
+    const lastAiMsg = [...chatMessages].reverse().find(m => m.role === "ai" && !m.isLoading)
+    const lastUserMsg = [...chatMessages].reverse().find(m => m.role === "user")
+    const filters = ss?.appliedFilters?.filter(f => f.op !== "skip") ?? []
+    const conditions = filters.map(f => `${f.field}=${f.value}`).join(" / ") || "(없음)"
+    const counts = `total=${ss?.candidateCount ?? "?"}`
+    const displayed = ss?.displayedCandidates ?? candidateSnapshot ?? []
+    const topProducts = displayed.slice(0, 3).map(c =>
+      `#${c.rank} ${c.displayCode} (${c.brand ?? ""} ${c.seriesName ?? ""}) ${c.score}점`
+    ).join("\n") || "(없음)"
+    const narrowingPath = filters.map(f => `${f.field}=${f.value}`).join(" → ") || "(없음)"
+
+    fetch("/api/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "success_case",
+        sessionId: ss?.sessionId ?? null,
+        userComment: comment,
+        mode: ss?.lastAction ?? null,
+        lastAction: ss?.lastAction ?? null,
+        lastUserMessage: lastUserMsg?.text ?? "",
+        lastAiResponse: lastAiMsg?.text?.slice(0, 500) ?? "",
+        conditions,
+        narrowingPath,
+        candidateCounts: counts,
+        topProducts,
+        conversationLength: chatMessages.length,
+        sessionStateSnapshot: ss ? {
+          sessionId: ss.sessionId,
+          candidateCount: ss.candidateCount,
+          resolutionStatus: ss.resolutionStatus,
+          turnCount: ss.turnCount,
+          lastAskedField: ss.lastAskedField,
+          lastAction: ss.lastAction,
+        } : null,
+        displayedProducts: displayed.slice(0, 10).map(c => ({
+          rank: c.rank,
+          code: c.displayCode,
+          brand: c.brand,
+          series: c.seriesName,
+          score: c.score,
+          matchStatus: c.matchStatus,
+        })),
+        displayedOptions: ss?.displayedOptions ?? null,
+        displayedSeriesGroups: null,
+        uiNarrowingPath: null,
+        lastRecommendationArtifact: null,
+        lastComparisonArtifact: null,
+        appliedFilters: filters.map(f => `${f.field}=${f.value}`),
+        chatHistory: chatMessages.map(m => ({ role: m.role, text: m.text.slice(0, 200) })),
+      }),
+    }).catch(() => {})
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       {/* Feedback widget — always visible */}
@@ -2183,6 +2462,9 @@ export default function ProductRecommendPage() {
             onSend={handleChatSend}
             onReset={handleReset}
             onEdit={() => setPhase("intake")}
+            onFeedback={handleFeedback}
+            onChipFeedback={handleChipFeedback}
+            onSuccessCapture={handleSuccessCapture}
           />
         )}
       </div>

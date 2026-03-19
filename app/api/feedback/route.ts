@@ -51,6 +51,14 @@ function getFeedbackDir(): string {
   }
 }
 
+function saveTurnFeedback(entry: Record<string, unknown>): void {
+  const dir = getFeedbackDir()
+  const filename = `${entry.id}.json`
+  const filepath = path.join(dir, filename)
+  fs.writeFileSync(filepath, JSON.stringify(entry, null, 2), "utf-8")
+  console.log("[TURN_FEEDBACK]", JSON.stringify(entry))
+}
+
 function saveFeedback(entry: FeedbackEntry): void {
   const dir = getFeedbackDir()
   const filename = `${entry.id}.json`
@@ -80,6 +88,118 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
 
+    // ── Success case capture (full state snapshot) ──
+    if (body.type === "success_case") {
+      const successEntry = {
+        id: `sc-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
+        timestamp: new Date().toISOString(),
+        type: "success_case",
+        sessionId: body.sessionId ?? null,
+        userComment: body.userComment ?? "",
+        mode: body.mode ?? null,
+        lastAction: body.lastAction ?? null,
+        lastUserMessage: body.lastUserMessage ?? "",
+        lastAiResponse: body.lastAiResponse ?? "",
+        conditions: body.conditions ?? "",
+        narrowingPath: body.narrowingPath ?? "",
+        candidateCounts: body.candidateCounts ?? "",
+        topProducts: body.topProducts ?? "",
+        conversationLength: body.conversationLength ?? 0,
+        // Full state snapshot for eval/training
+        sessionStateSnapshot: body.sessionStateSnapshot ?? null,
+        displayedProducts: body.displayedProducts ?? null,
+        displayedOptions: body.displayedOptions ?? null,
+        displayedSeriesGroups: body.displayedSeriesGroups ?? null,
+        uiNarrowingPath: body.uiNarrowingPath ?? null,
+        lastRecommendationArtifact: body.lastRecommendationArtifact ?? null,
+        lastComparisonArtifact: body.lastComparisonArtifact ?? null,
+        appliedFilters: body.appliedFilters ?? [],
+        chatHistory: body.chatHistory ?? null,
+      }
+      saveTurnFeedback(successEntry)
+
+      // Slack
+      import("@/lib/slack-notifier").then(({ notifySuccessCase }) =>
+        notifySuccessCase({
+          sessionId: successEntry.sessionId,
+          mode: successEntry.mode,
+          conditions: successEntry.conditions,
+          candidateCounts: successEntry.candidateCounts,
+          topProducts: successEntry.topProducts,
+          narrowingPath: successEntry.narrowingPath,
+          userComment: successEntry.userComment,
+          lastUserMessage: successEntry.lastUserMessage,
+          lastAiResponse: successEntry.lastAiResponse,
+          conversationLength: successEntry.conversationLength,
+          comparisonArtifact: successEntry.lastComparisonArtifact
+            ? JSON.stringify(successEntry.lastComparisonArtifact).slice(0, 200)
+            : null,
+        }).catch(() => {})
+      )
+
+      return NextResponse.json({ success: true, id: successEntry.id })
+    }
+
+    // ── Failure case capture ──
+    if (body.type === "failure_case") {
+      const failureEntry = {
+        id: `fc-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
+        timestamp: new Date().toISOString(),
+        type: "failure_case",
+        sessionId: body.sessionId ?? null,
+        userComment: body.userComment ?? "",
+        mode: body.mode ?? null,
+        lastAction: body.lastAction ?? null,
+        lastUserMessage: body.lastUserMessage ?? "",
+        lastAiResponse: body.lastAiResponse ?? "",
+        conditions: body.conditions ?? "",
+        candidateCounts: body.candidateCounts ?? "",
+        topProducts: body.topProducts ?? "",
+        conversationLength: body.conversationLength ?? 0,
+        appliedFilters: body.appliedFilters ?? [],
+        chatHistory: body.chatHistory ?? null,
+        feedbackHistory: body.feedbackHistory ?? null,
+      }
+      saveTurnFeedback(failureEntry)
+
+      // Slack — failure case alert
+      import("@/lib/slack-notifier").then(({ notifyFailureCase }) =>
+        notifyFailureCase(failureEntry).catch(() => {})
+      )
+
+      return NextResponse.json({ success: true, id: failureEntry.id })
+    }
+
+    // ── Turn-level feedback (per AI response) ──
+    if (body.type === "turn_feedback") {
+      const turnEntry = {
+        id: `tf-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
+        timestamp: new Date().toISOString(),
+        type: "turn_feedback",
+        turnNumber: body.turnNumber ?? 0,
+        feedback: body.feedback ?? "neutral",
+        feedbackEmoji: body.feedbackEmoji ?? "😐",
+        userMessage: body.userMessage ?? "",
+        aiResponse: body.aiResponse ?? "",
+        chips: body.chips ?? [],
+        sessionId: body.sessionId ?? null,
+        candidateCount: body.candidateCount ?? null,
+        appliedFilters: body.appliedFilters ?? [],
+        conversationLength: body.conversationLength ?? 0,
+      }
+      saveTurnFeedback(turnEntry)
+
+      // Slack 알림 — 턴별 피드백
+      import("@/lib/slack-notifier").then(({ notifyTurnFeedback }) =>
+        notifyTurnFeedback(turnEntry).catch(() => {})
+      )
+
+      return NextResponse.json({ success: true, id: turnEntry.id })
+    }
+
+    // ── General feedback (with screenshots) ──
+    const screenshots: Array<{ name: string; dataUrl: string; size: number }> = body.screenshots ?? []
+
     const entry: FeedbackEntry = {
       id: `fb-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
       timestamp: new Date().toISOString(),
@@ -98,9 +218,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Comment or rating required" }, { status: 400 })
     }
 
-    saveFeedback(entry)
+    // Save screenshots as separate files
+    const screenshotPaths: string[] = []
+    if (screenshots.length > 0) {
+      const dir = getFeedbackDir()
+      for (const ss of screenshots) {
+        try {
+          const base64Data = ss.dataUrl.replace(/^data:image\/\w+;base64,/, "")
+          const ext = ss.name.split(".").pop() ?? "png"
+          const ssFilename = `${entry.id}-ss-${screenshotPaths.length}.${ext}`
+          fs.writeFileSync(path.join(dir, ssFilename), Buffer.from(base64Data, "base64"))
+          screenshotPaths.push(ssFilename)
+        } catch (e) {
+          console.warn("[feedback] Failed to save screenshot:", e)
+        }
+      }
+    }
 
-    // Slack 알림
+    // Save feedback entry (without base64 data, just paths)
+    saveTurnFeedback({ ...entry, screenshotCount: screenshots.length, screenshotPaths })
+
+    // Slack 알림 — enhanced with screenshot info + full context
     import("@/lib/slack-notifier").then(({ notifyFeedback }) =>
       notifyFeedback({
         rating: entry.rating,
@@ -108,10 +246,14 @@ export async function POST(req: Request) {
         tags: entry.tags,
         authorType: entry.authorType,
         authorName: entry.authorName,
+        screenshotCount: screenshots.length,
+        intakeSummary: entry.intakeSummary,
+        recommendationSummary: entry.recommendationSummary,
+        chatHistoryLength: entry.chatHistory?.length ?? 0,
       }).catch(() => {})
     )
 
-    return NextResponse.json({ success: true, id: entry.id })
+    return NextResponse.json({ success: true, id: entry.id, screenshotCount: screenshots.length })
   } catch (err) {
     console.error("[feedback] POST error:", err)
     return NextResponse.json(
