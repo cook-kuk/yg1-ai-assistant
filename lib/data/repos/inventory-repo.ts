@@ -37,13 +37,20 @@ function getPool(): Pool | null {
   const connectionString = dbConnectionString()
   if (!connectionString) return null
   if (!globalThis.__yg1InventoryDbPool) {
-    console.log("[inventory-db] creating pg pool")
-    globalThis.__yg1InventoryDbPool = new Pool({
-      connectionString,
-      max: 5,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
-    })
+    // Use shared pool
+    const { getSharedPool } = require("@/lib/data/shared-pool")
+    const shared = getSharedPool()
+    if (shared) {
+      globalThis.__yg1InventoryDbPool = shared
+    } else {
+      console.log("[inventory-db] creating pg pool (no shared pool)")
+      globalThis.__yg1InventoryDbPool = new Pool({
+        connectionString,
+        max: 3,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
+      })
+    }
   }
   return globalThis.__yg1InventoryDbPool
 }

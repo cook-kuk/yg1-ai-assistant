@@ -153,13 +153,20 @@ function getPool(): Pool {
   logDatabaseConfigOnce(connectionString)
 
   if (!globalThis.__yg1EvidenceDbPool) {
-    console.log("[evidence-db] creating pg pool")
-    globalThis.__yg1EvidenceDbPool = new Pool({
-      connectionString,
-      max: 4,
-      idleTimeoutMillis: 30_000,
-      connectionTimeoutMillis: 5_000,
-    })
+    // Use shared pool
+    const { getSharedPool } = require("@/lib/data/shared-pool")
+    const shared = getSharedPool()
+    if (shared) {
+      globalThis.__yg1EvidenceDbPool = shared
+    } else {
+      console.log("[evidence-db] creating pg pool (no shared pool)")
+      globalThis.__yg1EvidenceDbPool = new Pool({
+        connectionString,
+        max: 3,
+        idleTimeoutMillis: 30_000,
+        connectionTimeoutMillis: 5_000,
+      })
+    }
   }
 
   return globalThis.__yg1EvidenceDbPool

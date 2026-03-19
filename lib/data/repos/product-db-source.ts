@@ -273,24 +273,13 @@ function formatEdpListForLog(products: Array<{ displayCode: string; normalizedCo
 }
 
 function getPool(): Pool {
-  const connectionString = dbConnectionString()
-  if (!connectionString) {
+  // Use shared pool to prevent connection exhaustion
+  const { getSharedPool } = require("@/lib/data/shared-pool")
+  const pool = getSharedPool()
+  if (!pool) {
     throw new Error("Database source requested but connection settings are missing")
   }
-
-  logDatabaseConfigOnce(connectionString)
-
-  if (!globalThis.__yg1ProductDbPool) {
-    console.log("[product-db] creating pg pool")
-    globalThis.__yg1ProductDbPool = new Pool({
-      connectionString,
-      max: parsePositiveInt(process.env.PRODUCT_DB_POOL_MAX, 10),
-      idleTimeoutMillis: parsePositiveInt(process.env.PRODUCT_DB_POOL_IDLE_MS, 30_000),
-      connectionTimeoutMillis: parsePositiveInt(process.env.PRODUCT_DB_CONNECT_TIMEOUT_MS, 5_000),
-    })
-  }
-
-  return globalThis.__yg1ProductDbPool
+  return pool
 }
 
 async function executeLoggedQuery<T extends QueryResultRow>(
