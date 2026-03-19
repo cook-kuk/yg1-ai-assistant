@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest"
 
 import {
   buildPersistedSessionState,
+  getDisplayedProductsFromState,
+  getFullDisplayedProductsFromState,
+  hasActiveRecommendationSession,
   getRecommendationSourceSnapshot,
 } from "../session-kernel"
 import type { CandidateSnapshot, ExplorationSessionState } from "@/lib/types/exploration"
@@ -152,5 +155,69 @@ describe("session-kernel", () => {
     expect(repaired.activeGroupKey).toBe("E5D70")
     expect(repaired.displayedProducts?.every(candidate => candidate.seriesName === "E5D70")).toBe(true)
     expect(getRecommendationSourceSnapshot(repaired).every(candidate => candidate.seriesName === "E5D70")).toBe(true)
+  })
+
+  it("preserves displayed options and comparison artifact across general chat overlays", () => {
+    const prevState = {
+      ...buildPrevState(),
+      displayedOptions: [
+        { index: 1, label: "E5D70 (2)", field: "seriesName", value: "E5D70", count: 2 },
+        { index: 2, label: "EI880 (1)", field: "seriesName", value: "EI880", count: 1 },
+      ],
+      lastComparisonArtifact: {
+        comparedProductCodes: ["E5D7004010", "EI880040"],
+        comparedRanks: [1, 3],
+        compareField: "coating",
+        text: "comparison text",
+        timestamp: Date.now(),
+      },
+    }
+
+    const overlay = buildPersistedSessionState({
+      prevState,
+      candidateCount: prevState.candidateCount,
+      appliedFilters: prevState.appliedFilters,
+      narrowingHistory: prevState.narrowingHistory,
+      stageHistory: prevState.stageHistory,
+      resolutionStatus: prevState.resolutionStatus,
+      resolvedInput: prevState.resolvedInput,
+      turnCount: prevState.turnCount + 1,
+      displayedProducts: getDisplayedProductsFromState(prevState),
+      fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+      displayedChips: ["Recommend", "Full View"],
+      displayedOptions: [],
+      lastAction: "answer_general",
+      currentMode: "general_chat",
+      preserveUnderlyingRecommendation: true,
+    })
+
+    expect(overlay.displayedOptions?.length ?? 0).toBe(2)
+    expect(overlay.lastComparisonArtifact?.comparedProductCodes).toEqual(["E5D7004010", "EI880040"])
+    expect(hasActiveRecommendationSession(overlay)).toBe(true)
+  })
+
+  it("builds candidate count breakdown from restored artifacts", () => {
+    const prevState = buildPrevState()
+    const restored = buildPersistedSessionState({
+      prevState,
+      candidateCount: 0,
+      appliedFilters: prevState.appliedFilters,
+      narrowingHistory: prevState.narrowingHistory,
+      stageHistory: prevState.stageHistory,
+      resolutionStatus: "resolved_none",
+      resolvedInput: prevState.resolvedInput,
+      turnCount: prevState.turnCount + 1,
+      displayedProducts: [],
+      fullDisplayedProducts: prevState.fullDisplayedProducts,
+      displayedChips: ["Recommend"],
+      displayedOptions: [],
+      lastAction: "show_recommendation",
+      currentMode: "recommendation",
+      preserveUnderlyingRecommendation: true,
+    })
+
+    expect(restored.candidateCounts?.dbMatchCount).toBeGreaterThan(0)
+    expect(restored.candidateCounts?.filteredCount).toBeGreaterThan(0)
+    expect(restored.candidateCounts?.displayedCount).toBeGreaterThan(0)
   })
 })

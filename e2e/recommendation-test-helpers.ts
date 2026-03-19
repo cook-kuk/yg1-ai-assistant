@@ -39,6 +39,13 @@ export interface RecommendSessionState extends JsonRecord {
   lastAction?: string | null
   underlyingAction?: string | null
   restoreTarget?: string | null
+  candidateCounts?: {
+    dbMatchCount?: number
+    filteredCount?: number
+    rankedCount?: number
+    displayedCount?: number
+    hiddenBySeriesCapCount?: number
+  } | null
 }
 
 export interface RecommendCandidate extends JsonRecord {
@@ -520,6 +527,40 @@ function buildMockResponseFromRequest(body: JsonRecord): RecommendResponsePayloa
     }
   }
 
+  if (
+    normalized.includes("coating") ||
+    normalized.includes("bright finish") ||
+    normalized.includes("diamond") ||
+    normalized.includes("dlc")
+  ) {
+    const sessionState = buildSessionState({
+      displayedProducts: prevDisplayed,
+      fullDisplayedProducts: artifact,
+      currentMode: "general_chat",
+      lastAction: "explain_product",
+      uiNarrowingPath: (prev?.uiNarrowingPath ?? []) as RecommendSessionState["uiNarrowingPath"],
+      lastRecommendationArtifact: artifact,
+      lastComparisonArtifact: keepComparison,
+      underlyingAction: "show_recommendation",
+    })
+    return {
+      text: "Coating explanation returned while preserving the persisted recommendation artifact.",
+      purpose: "question",
+      chips: ["Recommend", "Full View", "Compare Top 3"],
+      isComplete: false,
+      recommendation: null,
+      sessionState,
+      evidenceSummaries: null,
+      candidateSnapshot: prevDisplayed,
+      extractedField: null,
+      requestPreparation: null,
+      primaryExplanation: null,
+      primaryFactChecked: null,
+      altExplanations: [],
+      altFactChecked: [],
+    }
+  }
+
   if (normalized.includes("점심") || normalized.includes("날씨") || normalized.includes("lunch") || normalized.includes("weather")) {
     const sessionState = buildSessionState({
       displayedProducts: prevDisplayed,
@@ -965,6 +1006,35 @@ export class RecommendationHarness {
     const displayedProducts = session?.displayedProducts ?? session?.displayedCandidates ?? []
     expect(Array.isArray(displayedProducts) && displayedProducts.length > 0, "displayed products should persist").toBeTruthy()
     expect(Array.isArray(session?.lastRecommendationArtifact) && session.lastRecommendationArtifact.length > 0, "last recommendation artifact should persist").toBeTruthy()
+  }
+
+  expectNoSilentReset(payload: RecommendResponsePayload | null = this.latestPayload()) {
+    const session = payload?.sessionState
+    expect(session, "sessionState should exist").toBeTruthy()
+    expect(session?.candidateCount ?? 0, "candidateCount should stay positive").toBeGreaterThan(0)
+    expect(session?.lastRecommendationArtifact?.length ?? 0, "recommendation artifact should stay persisted").toBeGreaterThan(0)
+    expect(String(session?.resolvedInput?.material ?? "")).toMatch(/aluminum|알루미늄/i)
+    expect(session?.resolvedInput?.diameterMm).toBe(4)
+  }
+
+  expectMode(expectedMode: string, payload: RecommendResponsePayload | null = this.latestPayload()) {
+    expect(payload?.sessionState?.currentMode).toBe(expectedMode)
+  }
+
+  expectActiveSeries(expectedSeries: string | null, payload: RecommendResponsePayload | null = this.latestPayload()) {
+    expect(payload?.sessionState?.activeGroupKey ?? null).toBe(expectedSeries)
+  }
+
+  expectPathKinds(expectedKinds: string[], payload: RecommendResponsePayload | null = this.latestPayload()) {
+    const kinds = (payload?.sessionState?.uiNarrowingPath ?? []).map(entry => entry.kind).filter(Boolean)
+    for (const kind of expectedKinds) {
+      expect(kinds).toContain(kind)
+    }
+  }
+
+  expectDisplayedCount(count: number, payload: RecommendResponsePayload | null = this.latestPayload()) {
+    const displayed = payload?.sessionState?.displayedProducts ?? payload?.sessionState?.displayedCandidates ?? []
+    expect(displayed.length).toBe(count)
   }
 
   async attachFailureArtifacts() {
