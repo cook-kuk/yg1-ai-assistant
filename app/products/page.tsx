@@ -1288,6 +1288,7 @@ function LoadingScreen() {
 
 // ── Chat message type ──────────────────────────────────────────
 type TurnFeedback = "good" | "bad" | "neutral" | null
+type LogPayload = Record<string, unknown>
 
 interface ChatMsg {
   role: "user" | "ai"
@@ -1303,6 +1304,10 @@ interface ChatMsg {
   primaryExplanation?: RecommendationExplanation | null
   primaryFactChecked?: Record<string, unknown> | null
   altExplanations?: RecommendationExplanation[]
+  requestPayload?: LogPayload | null
+  responsePayload?: LogPayload | null
+  createdAt?: string
+  feedbackGroupId?: string
 }
 
 // ── Build intake prompt text ────────────────────────────────────
@@ -1890,10 +1895,12 @@ function FeedbackWidget({
   form,
   messages,
   sessionState,
+  candidateSnapshot,
 }: {
   form: ProductIntakeForm
   messages: ChatMsg[]
   sessionState: ExplorationSessionState | null
+  candidateSnapshot: CandidateSnapshot[] | null
 }) {
   const { language } = useApp()
   const [open, setOpen] = useState(false)
@@ -1931,6 +1938,22 @@ function FeedbackWidget({
     return `${primary.product.displayCode} (${r.status}) - 점수: ${primary.score}`
   }
 
+  const buildConversationSnapshot = () => {
+    return messages.map((message, index) => ({
+      index,
+      role: message.role,
+      text: message.text,
+      isLoading: Boolean(message.isLoading),
+      chips: message.chips ?? null,
+      feedback: message.feedback ?? null,
+      chipFeedback: message.chipFeedback ?? null,
+      createdAt: message.createdAt ?? null,
+      recommendation: message.recommendation ?? null,
+      requestPayload: message.requestPayload ?? null,
+      responsePayload: message.responsePayload ?? null,
+    }))
+  }
+
   const handleSubmit = async () => {
     if (!comment.trim() && rating === 0) return
     setSending(true)
@@ -1940,10 +1963,14 @@ function FeedbackWidget({
         text: m.text.slice(0, 500),
       }))
 
+      const lastAiMsg = [...messages].reverse().find(message => message.role === "ai" && !message.isLoading)
+
       await fetch("/api/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          clientEventId: globalThis.crypto.randomUUID(),
+          clientCapturedAt: new Date().toISOString(),
           authorType,
           authorName,
           sessionId: sessionState?.sessionId ?? null,
@@ -1953,6 +1980,13 @@ function FeedbackWidget({
           rating: rating > 0 ? rating : null,
           comment,
           tags,
+          language,
+          formSnapshot: form,
+          sessionStateSnapshot: sessionState,
+          candidateSnapshot,
+          conversationSnapshot: buildConversationSnapshot(),
+          requestPayload: lastAiMsg?.requestPayload ?? null,
+          responsePayload: lastAiMsg?.responsePayload ?? null,
         }),
       })
 
@@ -2145,6 +2179,79 @@ export default function ProductRecommendPage() {
     setForm(f => ({ ...f, [key]: val }))
   }
 
+  const buildDisplayedProductsForRequest = useCallback((candidates: CandidateSnapshot[] | null) => (
+    candidates?.slice(0, 10).map(c => ({
+      rank: c.rank,
+      code: c.displayCode,
+      productCode: c.productCode,
+      brand: c.brand,
+      series: c.seriesName,
+      diameter: c.diameterMm,
+      flute: c.fluteCount,
+      coating: c.coating,
+      materialTags: c.materialTags,
+      score: c.score,
+      matchStatus: c.matchStatus,
+    })) ?? null
+  ), [])
+
+  const buildConversationSnapshot = useCallback((messages: ChatMsg[]) => (
+    messages.map((message, index) => ({
+      index,
+      role: message.role,
+      text: message.text,
+      isLoading: Boolean(message.isLoading),
+      chips: message.chips ?? null,
+      feedback: message.feedback ?? null,
+      chipFeedback: message.chipFeedback ?? null,
+      createdAt: message.createdAt ?? null,
+      recommendation: message.recommendation ?? null,
+      requestPayload: message.requestPayload ?? null,
+      responsePayload: message.responsePayload ?? null,
+    }))
+  ), [])
+
+  const buildFeedbackPayload = useCallback((
+    updatedMessages: ChatMsg[],
+    messageIndex: number,
+    latestFeedbackTarget: "response" | "chips" = "response",
+  ) => {
+    const aiMsg = updatedMessages[messageIndex]
+    const userMsg = messageIndex > 0 ? updatedMessages[messageIndex - 1] : null
+    const turnNumber = Math.floor(messageIndex / 2) + 1
+    const responseFeedback = aiMsg?.feedback ?? null
+    const chipFeedback = aiMsg?.chipFeedback ?? null
+    const responseFeedbackEmoji = responseFeedback === "good" ? "👍" : responseFeedback === "bad" ? "👎" : responseFeedback === "neutral" ? "😐" : null
+    const chipFeedbackEmoji = chipFeedback === "good" ? "👍" : chipFeedback === "bad" ? "👎" : chipFeedback === "neutral" ? "😐" : null
+
+    return {
+      type: "turn_feedback",
+      clientEventId: aiMsg?.feedbackGroupId ?? globalThis.crypto.randomUUID(),
+      clientCapturedAt: new Date().toISOString(),
+      feedbackGroupId: aiMsg?.feedbackGroupId ?? null,
+      turnNumber,
+      feedbackTarget: latestFeedbackTarget,
+      responseFeedback,
+      responseFeedbackEmoji,
+      chipFeedback,
+      chipFeedbackEmoji,
+      userMessage: userMsg?.text ?? "(intake)",
+      aiResponse: aiMsg?.text ?? "",
+      chips: aiMsg?.chips ?? [],
+      sessionId: sessionState?.sessionId ?? null,
+      candidateCount: sessionState?.candidateCount ?? null,
+      appliedFilters: sessionState?.appliedFilters?.filter(f => f.op !== "skip").map(f => `${f.field}=${f.value}`) ?? [],
+      conversationLength: updatedMessages.length,
+      language,
+      requestPayload: aiMsg?.requestPayload ?? null,
+      responsePayload: aiMsg?.responsePayload ?? null,
+      formSnapshot: form,
+      sessionStateSnapshot: sessionState,
+      candidateSnapshot,
+      conversationSnapshot: buildConversationSnapshot(updatedMessages),
+    }
+  }, [buildConversationSnapshot, candidateSnapshot, form, language, sessionState])
+
   const runRecommendation = async () => {
     setPhase("loading")
     setError(null)
@@ -2156,11 +2263,17 @@ export default function ProductRecommendPage() {
           : { status: "known" as const, value: "ALL" },
       }
       const intakeText = buildIntakePromptText(formWithCountry, language)
+      const requestPayload = {
+        intakeForm: formWithCountry,
+        messages: [],
+        sessionState: null,
+        language,
+      }
 
       const res = await fetch("/api/recommend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ intakeForm: formWithCountry, messages: [], sessionState: null, language }),
+        body: JSON.stringify(requestPayload),
       })
       const data = await res.json()
       if (data.error) throw new Error(data.detail ?? data.error)
@@ -2171,7 +2284,7 @@ export default function ProductRecommendPage() {
 
       // Seed chat
       setChatMessages([
-        { role: "user", text: intakeText },
+        { role: "user", text: intakeText, createdAt: new Date().toISOString() },
         {
           role: "ai",
           text: data.text ?? "",
@@ -2182,6 +2295,10 @@ export default function ProductRecommendPage() {
           primaryExplanation: data.primaryExplanation ?? null,
           primaryFactChecked: data.primaryFactChecked ?? null,
           altExplanations: data.altExplanations ?? [],
+          requestPayload,
+          responsePayload: data,
+          createdAt: new Date().toISOString(),
+          feedbackGroupId: globalThis.crypto.randomUUID(),
         },
       ])
       setPhase("explore")
@@ -2194,10 +2311,23 @@ export default function ProductRecommendPage() {
   const handleChatSend = async (text: string) => {
     if (isChatSending) return
 
+    const userMessage: ChatMsg = {
+      role: "user",
+      text,
+      createdAt: new Date().toISOString(),
+    }
+    const loadingMessage: ChatMsg = {
+      role: "ai",
+      text: "",
+      isLoading: true,
+      createdAt: new Date().toISOString(),
+      feedbackGroupId: globalThis.crypto.randomUUID(),
+    }
+
     setChatMessages(prev => [
       ...prev,
-      { role: "user", text },
-      { role: "ai", text: "", isLoading: true },
+      userMessage,
+      loadingMessage,
     ])
     setIsChatSending(true)
 
@@ -2206,18 +2336,7 @@ export default function ProductRecommendPage() {
       history.push({ role: "user", text })
 
       // 현재 표시된 추천 제품 목록을 같이 전송 → LLM이 후속 질문에 활용
-      const displayedProducts = candidateSnapshot?.slice(0, 10).map(c => ({
-        rank: c.rank,
-        code: c.displayCode,
-        brand: c.brand,
-        series: c.seriesName,
-        diameter: c.diameterMm,
-        flute: c.fluteCount,
-        coating: c.coating,
-        materialTags: c.materialTags,
-        score: c.score,
-        matchStatus: c.matchStatus,
-      })) ?? null
+      const displayedProducts = buildDisplayedProductsForRequest(candidateSnapshot)
 
       const formWithCountry: ProductIntakeForm = {
         ...form,
@@ -2225,17 +2344,18 @@ export default function ProductRecommendPage() {
           ? { status: "known" as const, value: country }
           : { status: "known" as const, value: "ALL" },
       }
+      const requestPayload = {
+        intakeForm: formWithCountry,
+        messages: history,
+        sessionState,
+        displayedProducts,
+        language,
+      }
 
       const res = await fetch("/api/recommend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          intakeForm: formWithCountry,
-          messages: history,
-          sessionState,
-          displayedProducts,
-          language,
-        }),
+        body: JSON.stringify(requestPayload),
       })
       const data = await res.json()
 
@@ -2256,6 +2376,10 @@ export default function ProductRecommendPage() {
           primaryFactChecked: data.primaryFactChecked ?? null,
           altExplanations: data.altExplanations ?? [],
           isLoading: false,
+          requestPayload,
+          responsePayload: data,
+          createdAt: prev[updated.length - 1]?.createdAt ?? new Date().toISOString(),
+          feedbackGroupId: prev[updated.length - 1]?.feedbackGroupId ?? globalThis.crypto.randomUUID(),
         }
         return updated
       })
@@ -2285,33 +2409,17 @@ export default function ProductRecommendPage() {
   }
 
   const handleFeedback = (messageIndex: number, feedback: TurnFeedback) => {
+    if (!feedback) return
     setChatMessages(prev => {
       const updated = [...prev]
       if (updated[messageIndex]) {
         updated[messageIndex] = { ...updated[messageIndex], feedback }
       }
 
-      const aiMsg = updated[messageIndex]
-      const userMsg = messageIndex > 0 ? updated[messageIndex - 1] : null
-      const feedbackEmoji = feedback === "good" ? "👍" : feedback === "bad" ? "👎" : "😐"
-      const turnNumber = Math.floor(messageIndex / 2) + 1
-
       fetch("/api/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "turn_feedback",
-          turnNumber,
-          feedback,
-          feedbackEmoji,
-          userMessage: userMsg?.text ?? "(intake)",
-          aiResponse: aiMsg?.text?.slice(0, 300) ?? "",
-          chips: aiMsg?.chips ?? [],
-          sessionId: sessionState?.sessionId ?? null,
-          candidateCount: sessionState?.candidateCount ?? null,
-          appliedFilters: sessionState?.appliedFilters?.filter(f => f.op !== "skip").map(f => `${f.field}=${f.value}`) ?? [],
-          conversationLength: updated.length,
-        }),
+        body: JSON.stringify(buildFeedbackPayload(updated, messageIndex, "response")),
       }).catch(() => {})
 
       return updated
@@ -2319,29 +2427,20 @@ export default function ProductRecommendPage() {
   }
 
   const handleChipFeedback = (messageIndex: number, feedback: TurnFeedback) => {
+    if (!feedback) return
     setChatMessages(prev => {
       const updated = [...prev]
       if (updated[messageIndex]) {
         updated[messageIndex] = { ...updated[messageIndex], chipFeedback: feedback }
       }
 
-      const aiMsg = updated[messageIndex]
       fetch("/api/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type: "turn_feedback",
-          turnNumber: Math.floor(messageIndex / 2) + 1,
-          feedback,
-          feedbackEmoji: feedback === "good" ? "👍" : feedback === "bad" ? "👎" : "😐",
-          feedbackTarget: "chips",
+          ...buildFeedbackPayload(updated, messageIndex, "chips"),
           userMessage: "(선택지 평가)",
-          aiResponse: `칩: ${(aiMsg?.chips ?? []).join(", ")}`,
-          chips: aiMsg?.chips ?? [],
-          sessionId: sessionState?.sessionId ?? null,
-          candidateCount: sessionState?.candidateCount ?? null,
-          appliedFilters: sessionState?.appliedFilters?.filter(f => f.op !== "skip").map(f => `${f.field}=${f.value}`) ?? [],
-          conversationLength: updated.length,
+          aiResponse: `칩: ${(updated[messageIndex]?.chips ?? []).join(", ")}`,
         }),
       }).catch(() => {})
 
@@ -2367,40 +2466,45 @@ export default function ProductRecommendPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         type: "success_case",
+        clientEventId: globalThis.crypto.randomUUID(),
+        clientCapturedAt: new Date().toISOString(),
         sessionId: ss?.sessionId ?? null,
         userComment: comment,
         mode: ss?.lastAction ?? null,
         lastAction: ss?.lastAction ?? null,
         lastUserMessage: lastUserMsg?.text ?? "",
-        lastAiResponse: lastAiMsg?.text?.slice(0, 500) ?? "",
+        lastAiResponse: lastAiMsg?.text ?? "",
         conditions,
         narrowingPath,
         candidateCounts: counts,
         topProducts,
         conversationLength: chatMessages.length,
-        sessionStateSnapshot: ss ? {
-          sessionId: ss.sessionId,
-          candidateCount: ss.candidateCount,
-          resolutionStatus: ss.resolutionStatus,
-          turnCount: ss.turnCount,
-          lastAskedField: ss.lastAskedField,
-          lastAction: ss.lastAction,
-        } : null,
+        language,
+        formSnapshot: form,
+        sessionStateSnapshot: ss,
         displayedProducts: displayed.slice(0, 10).map(c => ({
           rank: c.rank,
           code: c.displayCode,
+          productCode: c.productCode,
           brand: c.brand,
           series: c.seriesName,
+          diameter: c.diameterMm,
+          fluteCount: c.fluteCount,
+          coating: c.coating,
           score: c.score,
           matchStatus: c.matchStatus,
         })),
+        candidateSnapshot: displayed,
         displayedOptions: ss?.displayedOptions ?? null,
         displayedSeriesGroups: null,
         uiNarrowingPath: null,
         lastRecommendationArtifact: null,
         lastComparisonArtifact: null,
         appliedFilters: filters.map(f => `${f.field}=${f.value}`),
-        chatHistory: chatMessages.map(m => ({ role: m.role, text: m.text.slice(0, 200) })),
+        chatHistory: chatMessages.map(m => ({ role: m.role, text: m.text })),
+        conversationSnapshot: buildConversationSnapshot(chatMessages),
+        requestPayload: lastAiMsg?.requestPayload ?? null,
+        responsePayload: lastAiMsg?.responsePayload ?? null,
       }),
     }).catch(() => {})
   }
@@ -2408,7 +2512,7 @@ export default function ProductRecommendPage() {
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       {/* Feedback widget — always visible */}
-      <FeedbackWidget form={form} messages={chatMessages} sessionState={sessionState} />
+      <FeedbackWidget form={form} messages={chatMessages} sessionState={sessionState} candidateSnapshot={candidateSnapshot} />
 
       {/* Top header — hidden in explore phase */}
       {phase !== "explore" && (

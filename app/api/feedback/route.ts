@@ -13,6 +13,7 @@ import { NextResponse } from "next/server"
 import fs from "fs"
 import path from "path"
 import crypto from "crypto"
+import { logFeedbackEventToMongo } from "@/lib/mongo/feedback-log"
 
 // ── Feedback entry type ─────────────────────────────────────
 interface FeedbackEntry {
@@ -51,21 +52,40 @@ function getFeedbackDir(): string {
   }
 }
 
-function saveTurnFeedback(entry: Record<string, unknown>): void {
+function saveTurnFeedback(entry: Record<string, unknown>): string {
   const dir = getFeedbackDir()
   const filename = `${entry.id}.json`
   const filepath = path.join(dir, filename)
   fs.writeFileSync(filepath, JSON.stringify(entry, null, 2), "utf-8")
   console.log("[TURN_FEEDBACK]", JSON.stringify(entry))
+  return filepath
 }
 
-function saveFeedback(entry: FeedbackEntry): void {
+function sanitizeFeedbackIdPart(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 120)
+}
+
+function buildTurnFeedbackId(body: Record<string, unknown>): string {
+  const feedbackGroupId = typeof body.feedbackGroupId === "string" ? body.feedbackGroupId.trim() : ""
+  if (feedbackGroupId) {
+    return `tf-${sanitizeFeedbackIdPart(feedbackGroupId)}`
+  }
+
+  const sessionId = typeof body.sessionId === "string" && body.sessionId.trim()
+    ? body.sessionId.trim()
+    : "no-session"
+  const turnNumber = typeof body.turnNumber === "number" ? body.turnNumber : 0
+  return `tf-${sanitizeFeedbackIdPart(`${sessionId}-${turnNumber}`)}`
+}
+
+function saveFeedback(entry: FeedbackEntry): string {
   const dir = getFeedbackDir()
   const filename = `${entry.id}.json`
   const filepath = path.join(dir, filename)
   fs.writeFileSync(filepath, JSON.stringify(entry, null, 2), "utf-8")
   // Also log to console for Vercel log access
   console.log("[FEEDBACK]", JSON.stringify(entry))
+  return filepath
 }
 
 function loadAllFeedback(): FeedbackEntry[] {
@@ -115,8 +135,28 @@ export async function POST(req: Request) {
         lastComparisonArtifact: body.lastComparisonArtifact ?? null,
         appliedFilters: body.appliedFilters ?? [],
         chatHistory: body.chatHistory ?? null,
+        requestPayload: body.requestPayload ?? null,
+        responsePayload: body.responsePayload ?? null,
+        formSnapshot: body.formSnapshot ?? null,
+        candidateSnapshot: body.candidateSnapshot ?? null,
+        conversationSnapshot: body.conversationSnapshot ?? null,
+        language: body.language ?? null,
+        clientCapturedAt: body.clientCapturedAt ?? null,
       }
-      saveTurnFeedback(successEntry)
+      const localJsonPath = saveTurnFeedback(successEntry)
+
+      logFeedbackEventToMongo({
+        eventType: "success_case",
+        request: req,
+        rawBody: body,
+        persistedEntry: successEntry,
+        storage: {
+          localJsonId: successEntry.id,
+          localJsonPath,
+        },
+      }).catch(error => {
+        console.error("[feedback] Failed to log success_case to MongoDB:", error)
+      })
 
       // Slack
       import("@/lib/slack-notifier").then(({ notifySuccessCase }) =>
@@ -159,8 +199,29 @@ export async function POST(req: Request) {
         appliedFilters: body.appliedFilters ?? [],
         chatHistory: body.chatHistory ?? null,
         feedbackHistory: body.feedbackHistory ?? null,
+        requestPayload: body.requestPayload ?? null,
+        responsePayload: body.responsePayload ?? null,
+        formSnapshot: body.formSnapshot ?? null,
+        sessionStateSnapshot: body.sessionStateSnapshot ?? null,
+        candidateSnapshot: body.candidateSnapshot ?? null,
+        conversationSnapshot: body.conversationSnapshot ?? null,
+        language: body.language ?? null,
+        clientCapturedAt: body.clientCapturedAt ?? null,
       }
-      saveTurnFeedback(failureEntry)
+      const localJsonPath = saveTurnFeedback(failureEntry)
+
+      logFeedbackEventToMongo({
+        eventType: "failure_case",
+        request: req,
+        rawBody: body,
+        persistedEntry: failureEntry,
+        storage: {
+          localJsonId: failureEntry.id,
+          localJsonPath,
+        },
+      }).catch(error => {
+        console.error("[feedback] Failed to log failure_case to MongoDB:", error)
+      })
 
       // Slack — failure case alert
       import("@/lib/slack-notifier").then(({ notifyFailureCase }) =>
@@ -172,13 +233,30 @@ export async function POST(req: Request) {
 
     // ── Turn-level feedback (per AI response) ──
     if (body.type === "turn_feedback") {
+      const responseFeedback = body.responseFeedback
+        ?? (body.feedbackTarget === "response" ? body.feedback : null)
+        ?? null
+      const responseFeedbackEmoji = body.responseFeedbackEmoji
+        ?? (body.feedbackTarget === "response" ? body.feedbackEmoji : null)
+        ?? null
+      const chipFeedback = body.chipFeedback
+        ?? (body.feedbackTarget === "chips" ? body.feedback : null)
+        ?? null
+      const chipFeedbackEmoji = body.chipFeedbackEmoji
+        ?? (body.feedbackTarget === "chips" ? body.feedbackEmoji : null)
+        ?? null
       const turnEntry = {
-        id: `tf-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
+        id: buildTurnFeedbackId(body),
         timestamp: new Date().toISOString(),
         type: "turn_feedback",
+        feedbackGroupId: body.feedbackGroupId ?? null,
         turnNumber: body.turnNumber ?? 0,
-        feedback: body.feedback ?? "neutral",
-        feedbackEmoji: body.feedbackEmoji ?? "😐",
+        feedback: responseFeedback ?? chipFeedback ?? "neutral",
+        feedbackEmoji: responseFeedbackEmoji ?? chipFeedbackEmoji ?? "😐",
+        responseFeedback,
+        responseFeedbackEmoji,
+        chipFeedback,
+        chipFeedbackEmoji,
         userMessage: body.userMessage ?? "",
         aiResponse: body.aiResponse ?? "",
         chips: body.chips ?? [],
@@ -186,8 +264,29 @@ export async function POST(req: Request) {
         candidateCount: body.candidateCount ?? null,
         appliedFilters: body.appliedFilters ?? [],
         conversationLength: body.conversationLength ?? 0,
+        requestPayload: body.requestPayload ?? null,
+        responsePayload: body.responsePayload ?? null,
+        formSnapshot: body.formSnapshot ?? null,
+        sessionStateSnapshot: body.sessionStateSnapshot ?? null,
+        candidateSnapshot: body.candidateSnapshot ?? null,
+        conversationSnapshot: body.conversationSnapshot ?? null,
+        language: body.language ?? null,
+        clientCapturedAt: body.clientCapturedAt ?? null,
       }
-      saveTurnFeedback(turnEntry)
+      const localJsonPath = saveTurnFeedback(turnEntry)
+
+      logFeedbackEventToMongo({
+        eventType: "turn_feedback",
+        request: req,
+        rawBody: body,
+        persistedEntry: turnEntry,
+        storage: {
+          localJsonId: turnEntry.id,
+          localJsonPath,
+        },
+      }).catch(error => {
+        console.error("[feedback] Failed to log turn_feedback to MongoDB:", error)
+      })
 
       // Slack 알림 — 턴별 피드백
       import("@/lib/slack-notifier").then(({ notifyTurnFeedback }) =>
@@ -236,7 +335,34 @@ export async function POST(req: Request) {
     }
 
     // Save feedback entry (without base64 data, just paths)
-    saveTurnFeedback({ ...entry, screenshotCount: screenshots.length, screenshotPaths })
+    const persistedEntry = {
+      ...entry,
+      screenshotCount: screenshots.length,
+      screenshotPaths,
+      requestPayload: body.requestPayload ?? null,
+      responsePayload: body.responsePayload ?? null,
+      formSnapshot: body.formSnapshot ?? null,
+      sessionStateSnapshot: body.sessionStateSnapshot ?? null,
+      candidateSnapshot: body.candidateSnapshot ?? null,
+      conversationSnapshot: body.conversationSnapshot ?? null,
+      language: body.language ?? null,
+      clientCapturedAt: body.clientCapturedAt ?? null,
+    }
+    const localJsonPath = saveTurnFeedback(persistedEntry)
+
+    logFeedbackEventToMongo({
+      eventType: "general_feedback",
+      request: req,
+      rawBody: body,
+      persistedEntry,
+      storage: {
+        localJsonId: entry.id,
+        localJsonPath,
+        screenshotPaths,
+      },
+    }).catch(error => {
+      console.error("[feedback] Failed to log general_feedback to MongoDB:", error)
+    })
 
     // Slack 알림 — enhanced with screenshot info + full context
     import("@/lib/slack-notifier").then(({ notifyFeedback }) =>

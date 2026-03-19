@@ -15,3 +15,5 @@ services:
       NODE_ENV: production
       PORT: 3000
       HOSTNAME: 0.0.0.0
+      # When the app runs in Docker, localhost points to the app container itself.
+      MONGO_LOG_URI: mongodb://catalog_logger:catalog_logger@host.docker.internal:27018/yg1_ai_catalog_log?authSource=yg1_ai_catalog_log
