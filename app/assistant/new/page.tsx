@@ -20,6 +20,9 @@ import {
 import { wowScenarios, candidateProducts, type CandidateProduct } from "@/lib/demo-data"
 import { parseChatResponse } from "@/lib/frontend/chat/chat-client"
 import { cn } from "@/lib/utils"
+import { DealerPopupTriggerButton } from "@/components/DealerLocator/DealerPopupTriggerButton"
+import { LocationPermissionBanner } from "@/components/DealerLocator/LocationPermissionBanner"
+import { DealerLocator } from "@/components/DealerLocator"
 
 // ===== TYPES =====
 
@@ -249,7 +252,9 @@ export default function AssistantNewPage() {
         </div>
 
         {/* CENTER: Chat */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 relative">
+          {/* Location Permission Banner */}
+          <LocationPermissionBanner />
           {/* Chat header */}
           <div className="h-12 border-b flex items-center px-4 gap-3">
             <Sparkles className="h-4 w-4 text-[#ed1c24]" />
@@ -273,7 +278,21 @@ export default function AssistantNewPage() {
                   "bg-muted"
                 )}>
                   {msg.role === "ai" ? (
-                    <div className="text-sm"><Markdown>{msg.text}</Markdown></div>
+                    (() => {
+                      const markerRegex = /\{"action":"offer_dealer_popup","region":"([^"]+)","top_dealer":"([^"]+)"\}/;
+                      const match = msg.text.match(markerRegex);
+                      if (match) {
+                        const cleanText = msg.text.replace(markerRegex, '').trim();
+                        const [, region, topDealer] = match;
+                        return (
+                          <div>
+                            <div className="text-sm"><Markdown>{cleanText}</Markdown></div>
+                            <DealerPopupTriggerButton region={region} topDealer={topDealer} />
+                          </div>
+                        );
+                      }
+                      return <div className="text-sm"><Markdown>{msg.text}</Markdown></div>;
+                    })()
                   ) : (
                     <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
                   )}
@@ -323,6 +342,9 @@ export default function AssistantNewPage() {
             )}
             <div ref={chatEndRef} />
           </div>
+
+          {/* Dealer Locator floating button */}
+          <DealerLocator />
 
           {/* Input */}
           <div className="border-t p-3">

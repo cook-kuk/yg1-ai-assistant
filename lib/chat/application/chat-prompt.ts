@@ -139,5 +139,53 @@ conversation_state:
 
 ${MATERIAL_KNOWLEDGE}
 ${COATING_KNOWLEDGE}
-${MACHINING_KNOWLEDGE}`
+${MACHINING_KNOWLEDGE}
+
+=== YG-1 Dealer & Sales Office Knowledge ===
+
+You have complete knowledge of YG-1's global sales network.
+Use this information to answer dealer/office/contact questions.
+
+DEALER LIST (name | country | phone | email):
+서울 지점 | KR | +82-2-681-3456 | -
+대구 사무소 | KR | +82-53-600-8909 | -
+천안 사무소 | KR | +82-41-417-0985 | -
+부산 사무소 | KR | +82-51-314-0985 | -
+창원 사무소 | KR | +82-55-275-0985 | -
+QINGDAO YG-1 CUTTING TOOL | CN | +86-532-8676-9779 | china-sales@yg1.kr
+YG-1 TOOL SOLUTIONS Shanghai | CN | +86-21-5283-6816 | service@yg1-toolsolutions.cn
+YG-1 INDUSTRIES India | IN | +91-80-22044620 | marketing@yg1india.com
+YG-1 JAPAN CO., LTD. | JP | +81-6-6305-9897 | t-kitaoka8@yg1.jp
+YG-1 TOOLS ASIA Singapore | SG | +65-6842-0468 | yg1toolsasia@yg1.co.kr
+YG-1 VIETNAM | VN | +84-24-3795-7233 | bbak98@yg1.co.kr
+YG-1 THAILAND | TH | +66-2-370-4945 | cherdchai@yg1.co.th
+YG-1 AUSTRALIA | AU | +61-3-9558-0177 | ygone@ygone.com.au
+YG-1 Malaysia | MY | +603-5569-9511 | -
+PT. YGI TOOLS Indonesia | ID | +62-21-8946-0074 | -
+YG-1 Middle East UAE | AE | +971-6-522-1419 | CSR@yg1me.ae
+YG-1 Turkey | TR | +90-216-504-8292 | info@yg1.com.tr
+YG-1 DEUTSCHLAND GMBH | DE | +49-6173-9667-0 | info@yg-1.de
+YG-1 EUROPE SAS France | FR | +33-172-84-4070 | yg1@yg1.eu
+herramientas YG-1 Spain | ES | +34-938-297-275 | ventas@yg-1.es
+YG-1 Poland | PL | +48-22-622-2586 | info@yg-1.pl
+YG-1 AMERICA INC. | US | +1-847-634-3700 | info@yg1usa.com
+YG-1 Brazil | BR | +55-11-4496-2170 | vendas@yg1.com.br
+YG-1 CANADA Quebec | CA | +1-514-352-6464 | sales@minicut.com
+YG-1 CANADA Ontario | CA | +1-905-335-2500 | orders@yg1.ca
+YG-1 South Africa | ZA | +27-87-160-0779 | yg1sales@yg1.co.za
+
+RESPONSE RULES FOR DEALER QUESTIONS:
+1. Give a brief 1-2 sentence answer with the most relevant dealer info
+2. ALWAYS append this JSON marker on a new line at the end:
+   {"action":"offer_dealer_popup","region":"<region>","top_dealer":"<name>"}
+   - region: korea / china / asia / europe / americas / africa / all
+   - top_dealer: the single most relevant dealer name
+
+EXAMPLE:
+User: "가까운 영업소 알려줘"
+Response:
+"현재 위치 기준으로 가장 가까운 영업소는 대구 사무소(+82-53-600-8909)입니다.
+더 자세한 정보와 지도를 확인하시겠어요?
+{"action":"offer_dealer_popup","region":"korea","top_dealer":"대구 사무소"}"
+`
 }
