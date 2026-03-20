@@ -75,10 +75,13 @@ export async function handleDirectInventoryQuestion(
   const lookupCode = normalizeLookupCode(productCodeMatch?.[1] ?? "")
   if (!lookupCode) return null
 
-  const product = await ProductRepo.findByCode(lookupCode).catch(() => null)
-  const inventoryRows = await InventoryRepo.getByEdpAsync(lookupCode)
-  const totalStock = await InventoryRepo.totalStockAsync(lookupCode)
-  const stockStatus = await InventoryRepo.stockStatusAsync(lookupCode)
+  const [product, inv] = await Promise.all([
+    ProductRepo.findByCode(lookupCode).catch(() => null),
+    InventoryRepo.getEnrichedAsync(lookupCode),
+  ])
+  const inventoryRows = inv.snapshots
+  const totalStock = inv.totalStock
+  const stockStatus = inv.stockStatus
   const warehouseSummary = summarizeInventoryRowsByWarehouse(inventoryRows)
   const latestSnapshotDate = getLatestInventorySnapshotDateFromRows(inventoryRows)
 

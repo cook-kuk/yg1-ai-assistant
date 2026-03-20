@@ -357,30 +357,35 @@ export async function runHybridRetrieval(
   // Enrich top candidates with inventory + lead time (deferred for performance)
   await Promise.all(
     topCandidates.slice(0, 100).map(async (c) => {
-      c.inventory = await InventoryRepo.getByEdpAsync(c.product.normalizedCode)
+      const inv = await InventoryRepo.getEnrichedAsync(c.product.normalizedCode)
+      c.inventory = inv.snapshots
+      c.totalStock = inv.totalStock
+      c.stockStatus = inv.stockStatus
       c.leadTimes = LeadTimeRepo.getByEdp(c.product.normalizedCode)
-      c.totalStock = await InventoryRepo.totalStockAsync(c.product.normalizedCode)
-      c.stockStatus = await InventoryRepo.stockStatusAsync(c.product.normalizedCode)
       c.minLeadTimeDays = LeadTimeRepo.minLeadTime(c.product.normalizedCode)
     })
   )
 
-  // ── Stage 3: Evidence Retrieval ────────────────────────────
+  // ── Stage 3: Evidence Retrieval (parallelized) ─────────────
   const evidenceMap = new Map<string, EvidenceSummary>()
 
-  for (const candidate of topCandidates) {
-    const summary = await EvidenceRepo.buildSummary(
-      candidate.product.normalizedCode,
-      {
-        seriesName: candidate.product.seriesName,
-        isoGroup: materialTag,
-        cuttingType: input.operationType ? mapOperationToCuttingType(input.operationType) : null,
-        diameterMm: candidate.product.diameterMm ?? input.diameterMm,
-      }
-    )
-
+  const evidenceEntries = await Promise.all(
+    topCandidates.map(async (candidate) => {
+      const summary = await EvidenceRepo.buildSummary(
+        candidate.product.normalizedCode,
+        {
+          seriesName: candidate.product.seriesName,
+          isoGroup: materialTag,
+          cuttingType: input.operationType ? mapOperationToCuttingType(input.operationType) : null,
+          diameterMm: candidate.product.diameterMm ?? input.diameterMm,
+        }
+      )
+      return { code: candidate.product.normalizedCode, summary }
+    })
+  )
+  for (const { code, summary } of evidenceEntries) {
     if (summary.chunks.length > 0) {
-      evidenceMap.set(candidate.product.normalizedCode, summary)
+      evidenceMap.set(code, summary)
     }
   }
 

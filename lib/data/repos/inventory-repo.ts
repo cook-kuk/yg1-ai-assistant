@@ -122,6 +122,12 @@ function statusFromSnapshots(snaps: InventorySnapshot[]): StockStatus {
   return "outofstock"
 }
 
+export interface InventoryEnriched {
+  snapshots: InventorySnapshot[]
+  totalStock: number | null
+  stockStatus: StockStatus
+}
+
 export const InventoryRepo = {
   getByEdp(normalizedCode: string): InventorySnapshot[] {
     logDatabaseUnavailable(`getByEdp code=${normalizedCode}`)
@@ -135,6 +141,14 @@ export const InventoryRepo = {
       return []
     }
     return getByEdpFromDatabase(normalized)
+  },
+
+  /** Fetch snapshots once, derive totalStock + stockStatus from the same result. */
+  async getEnrichedAsync(normalizedCode: string): Promise<InventoryEnriched> {
+    const snapshots = await this.getByEdpAsync(normalizedCode)
+    const totalStock = totalFromSnapshots(snapshots)
+    const stockStatus = statusFromSnapshots(snapshots)
+    return { snapshots, totalStock, stockStatus }
   },
 
   totalStock(normalizedCode: string): number | null {

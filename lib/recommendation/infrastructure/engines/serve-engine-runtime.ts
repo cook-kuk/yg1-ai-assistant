@@ -130,12 +130,51 @@ export async function handleServeExploration(
     ? { ...baseInput, ...prevState.resolvedInput }
     : baseInput
 
-  const hybridResult = await runHybridRetrieval(resolvedInput, filters)
-  const candidates = hybridResult.candidates
-  const evidenceMap = hybridResult.evidenceMap
-
-  const requestPrep = prepareRequest(form, messages, prevState, resolvedInput, candidates.length)
+  // ── Early intent classification (before heavy retrieval) ──
+  // For follow-up turns with existing state, check if we can skip retrieval
+  const requestPrep = prepareRequest(form, messages, prevState, resolvedInput, prevState?.candidateCount ?? 0)
   console.log(`[recommend] Intent: ${requestPrep.intent} (${requestPrep.intentConfidence}), Route: ${requestPrep.route.action}`)
+
+  // Actions that do NOT require fresh hybrid retrieval
+  const SKIP_RETRIEVAL_ACTIONS = new Set([
+    "compare_products", "explain_product", "answer_general",
+  ])
+  const lastUserMsg = messages.length > 0
+    ? [...messages].reverse().find(m => m.role === "user")
+    : null
+
+  // Pre-classify orchestrator action for follow-up turns to decide retrieval
+  let earlyAction: string | null = null
+  if (messages.length > 0 && prevState && lastUserMsg) {
+    const earlyTurnCtx = {
+      userMessage: lastUserMsg.text,
+      intakeForm: form,
+      sessionState: prevState,
+      resolvedInput,
+      candidateCount: prevState.candidateCount ?? 0,
+      displayedProducts: prevState.displayedCandidates ?? [],
+      currentCandidates: [],
+    }
+    const earlyOrch = ENABLE_TOOL_USE_ROUTING
+      ? await orchestrateTurnWithTools(earlyTurnCtx, provider)
+      : await orchestrateTurn(earlyTurnCtx, provider)
+    earlyAction = earlyOrch.action.type
+  }
+
+  // Skip heavy retrieval for actions that don't need fresh candidates
+  const needsRetrieval = !earlyAction || !SKIP_RETRIEVAL_ACTIONS.has(earlyAction)
+  let candidates: ScoredProduct[]
+  let evidenceMap: Map<string, EvidenceSummary>
+  if (needsRetrieval) {
+    const hybridResult = await runHybridRetrieval(resolvedInput, filters)
+    candidates = hybridResult.candidates
+    evidenceMap = hybridResult.evidenceMap
+    console.log(`[recommend] Retrieval executed: ${candidates.length} candidates`)
+  } else {
+    candidates = []
+    evidenceMap = new Map()
+    console.log(`[recommend] Retrieval SKIPPED for action: ${earlyAction}`)
+  }
 
   if (requestPrep.route.action === "reset_session") {
     return deps.jsonRecommendationResponse({

@@ -507,12 +507,50 @@ export function logNarrowingState(
   console.log(`[narrowing:${phase}] ───────────────────────────`)
 }
 
-export function getFollowUpChips(result: RecommendationResult): string[] {
-  const chips = []
-  if (result.alternatives.length > 0) chips.push(`대체 후보 ${result.alternatives.length}개 보기`)
+export function getFollowUpChips(
+  result: RecommendationResult,
+  sessionState?: ExplorationSessionState | null,
+): string[] {
+  const chips: string[] = []
+  const altCount = result.alternatives.length
+  const hasHistory = (sessionState?.stageHistory?.length ?? 0) > 1
+  const primary = result.primaryProduct
+  const isExact = result.status === "exact"
+  const isApproximate = result.status === "approximate"
+  const isNone = result.status === "none"
+  const filterCount = sessionState?.appliedFilters?.length ?? 0
+
+  // ── No result: suggest broadening or restart ──
+  if (isNone || !primary) {
+    if (hasHistory) chips.push("⟵ 이전 단계로 돌아가기")
+    if (filterCount > 0) chips.push("조건 완화하기")
+    chips.push("처음부터 다시")
+    return chips.slice(0, 6)
+  }
+
+  // ── Approximate match: suggest compare, broaden, refine ──
+  if (isApproximate) {
+    if (altCount > 0) chips.push(`후보 ${altCount + 1}개 비교하기`)
+    chips.push("절삭조건 알려줘")
+    if (hasHistory) chips.push("⟵ 이전 단계로 돌아가기")
+    chips.push("다른 직경 검색")
+    chips.push("처음부터 다시")
+    return chips.slice(0, 6)
+  }
+
+  // ── Exact match: context-aware follow-ups ──
+  if (altCount > 0) chips.push(`대체 후보 ${altCount}개 비교하기`)
   chips.push("절삭조건 알려줘")
-  chips.push("코팅 비교")
-  if (result.primaryProduct?.stockStatus === "outofstock") chips.push("납기 확인")
+
+  if (altCount >= 2) chips.push("코팅 비교")
+
+  if (primary.stockStatus === "outofstock") {
+    chips.push("납기 확인")
+  } else if (primary.stockStatus === "limited") {
+    chips.push("재고 상세 확인")
+  }
+
+  if (hasHistory) chips.push("⟵ 이전 단계로 돌아가기")
   chips.push("다른 직경 검색")
   chips.push("처음부터 다시")
   return chips.slice(0, 6)
