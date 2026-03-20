@@ -7,6 +7,7 @@ import {
   saveFeedbackScreenshots,
 } from "@/lib/feedback/infrastructure/storage/feedback-storage"
 import { logFeedbackEventToMongo } from "@/lib/feedback/infrastructure/persistence/feedback-mongo-log"
+import { loadAllFeedbackDataFromMongo } from "@/lib/feedback/infrastructure/persistence/feedback-mongo-read"
 import {
   notifyFailureCase as slackNotifyFailureCase,
   notifyFeedback as slackNotifyFeedback,
@@ -477,8 +478,14 @@ export class FeedbackService {
     }
   }
 
-  loadAll(): FeedbackListResponseDto {
-    const { generalEntries, feedbackEntries } = loadAllFeedbackData()
+  async loadAll(): Promise<FeedbackListResponseDto> {
+    const mongoData = await loadAllFeedbackDataFromMongo().catch(error => {
+      console.error("[feedback] Failed to load feedback from MongoDB, falling back to JSON:", error)
+      return null
+    })
+
+    const { generalEntries, feedbackEntries } = mongoData ?? loadAllFeedbackData()
+
     return {
       generalEntries,
       feedbackEntries,

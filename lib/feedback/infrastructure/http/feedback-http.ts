@@ -27,7 +27,7 @@ export async function handleFeedbackPost(req: Request): Promise<Response> {
 
 export async function handleFeedbackGet(): Promise<Response> {
   try {
-    const result = getFeedbackService().loadAll()
+    const result = await getFeedbackService().loadAll()
     return NextResponse.json(result)
   } catch (err) {
     console.error("[feedback] GET error:", err)
