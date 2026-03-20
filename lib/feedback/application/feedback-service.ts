@@ -2,7 +2,7 @@ import crypto from "crypto"
 
 import { type FeedbackEntryDto, type FeedbackListResponseDto } from "@/lib/contracts/feedback"
 import {
-  loadAllFeedbackEntries,
+  loadAllFeedbackData,
   saveFeedbackRecord,
   saveFeedbackScreenshots,
 } from "@/lib/feedback/infrastructure/storage/feedback-storage"
@@ -442,10 +442,12 @@ export class FeedbackService {
   }
 
   loadAll(): FeedbackListResponseDto {
-    const entries = loadAllFeedbackEntries()
+    const { generalEntries, feedbackEntries } = loadAllFeedbackData()
     return {
-      entries,
-      total: entries.length,
+      generalEntries,
+      feedbackEntries,
+      generalTotal: generalEntries.length,
+      feedbackTotal: feedbackEntries.length,
     }
   }
 }

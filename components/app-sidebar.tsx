@@ -132,7 +132,7 @@ const navItems = [
     titleEn: "Feedback",
     href: "/feedback",
     icon: MessageCircle,
-    roles: ["sales", "rnd", "admin"],
+    roles: ["admin"],
   },
 ]
 
