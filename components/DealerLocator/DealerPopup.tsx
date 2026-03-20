@@ -71,7 +71,7 @@ export function DealerPopup({ isOpen, onClose, initialRegion }: DealerPopupProps
             className={`relative z-10 w-full bg-white overflow-hidden ${
               isMobile
                 ? 'rounded-t-2xl max-h-[85vh]'
-                : 'rounded-2xl max-w-[480px] max-h-[80vh] mx-4'
+                : 'rounded-2xl max-w-[640px] max-h-[80vh] mx-4'
             }`}
             initial={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.95 }}
             animate={isMobile ? { y: 0 } : { opacity: 1, scale: 1 }}
@@ -104,7 +104,7 @@ export function DealerPopup({ isOpen, onClose, initialRegion }: DealerPopupProps
             </div>
 
             {/* Content */}
-            <div className="overflow-y-auto p-4 space-y-3" style={{ maxHeight: isMobile ? '60vh' : '50vh' }}>
+            <div className="overflow-y-auto p-5 space-y-3" style={{ maxHeight: isMobile ? '60vh' : '60vh' }}>
               {permissionStatus === 'not_asked' || permissionStatus === 'pending' ? (
                 <div className="text-center py-8 text-gray-500 text-sm">
                   <p className="mb-3">위치 정보를 허용하면 가까운 영업소를 찾아드립니다.</p>
