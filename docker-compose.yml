@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: yg1-ai-catalog-app
+    container_name: yg1-ai-catalog-app-${APP_MODE:-dev}
     restart: unless-stopped
     env_file:
       - .env
@@ -14,6 +14,7 @@ services:
     volumes:
       - ./data/feedback:/app/data/feedback
     environment:
+      APP_MODE: ${APP_MODE:-dev}
       NODE_ENV: production
       PORT: 3000
       HOSTNAME: 0.0.0.0
