@@ -26,6 +26,26 @@ export interface FeedbackCandidateHighlightDto {
   score: number | null
 }
 
+export interface FeedbackRecommendedProductDto {
+  rank: number
+  productCode: string
+  displayCode: string
+  brand: string | null
+  seriesName: string | null
+  diameterMm: number | null
+  fluteCount: number | null
+  coating: string | null
+  toolMaterial: string | null
+  score: number
+  matchStatus: string
+}
+
+export interface FeedbackConversationRecommendationDto {
+  messageIndex: number
+  anchorText: string | null
+  products: FeedbackRecommendedProductDto[]
+}
+
 export interface FeedbackEntryDto {
   id: string
   timestamp: string
@@ -72,6 +92,8 @@ export interface FeedbackEventEntryDto {
   chatHistory: FeedbackChatHistoryItemDto[] | null
   conversationSnapshot: FeedbackConversationItemDto[] | null
   candidateHighlights: FeedbackCandidateHighlightDto[] | null
+  recommendedProducts: FeedbackRecommendedProductDto[] | null
+  conversationRecommendations: FeedbackConversationRecommendationDto[] | null
   formSnapshot: Record<string, unknown> | null
   sessionSummary: Record<string, unknown> | null
 }
@@ -107,6 +129,26 @@ export const feedbackCandidateHighlightSchema = z.object({
   productCode: z.string(),
   displayCode: z.string(),
   score: z.number().nullable(),
+}).passthrough()
+
+export const feedbackRecommendedProductSchema = z.object({
+  rank: z.number(),
+  productCode: z.string(),
+  displayCode: z.string(),
+  brand: z.string().nullable(),
+  seriesName: z.string().nullable(),
+  diameterMm: z.number().nullable(),
+  fluteCount: z.number().nullable(),
+  coating: z.string().nullable(),
+  toolMaterial: z.string().nullable(),
+  score: z.number(),
+  matchStatus: z.string(),
+}).passthrough()
+
+export const feedbackConversationRecommendationSchema = z.object({
+  messageIndex: z.number(),
+  anchorText: z.string().nullable(),
+  products: z.array(feedbackRecommendedProductSchema),
 }).passthrough()
 
 export const feedbackEntrySchema = z.object({
@@ -155,6 +197,8 @@ export const feedbackEventEntrySchema = z.object({
   chatHistory: z.array(feedbackChatHistoryItemSchema).nullable(),
   conversationSnapshot: z.array(feedbackConversationItemSchema).nullable(),
   candidateHighlights: z.array(feedbackCandidateHighlightSchema).nullable(),
+  recommendedProducts: z.array(feedbackRecommendedProductSchema).nullable(),
+  conversationRecommendations: z.array(feedbackConversationRecommendationSchema).nullable(),
   formSnapshot: z.record(z.string(), z.unknown()).nullable(),
   sessionSummary: z.record(z.string(), z.unknown()).nullable(),
 }).passthrough()

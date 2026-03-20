@@ -46,6 +46,54 @@ function buildCandidateHighlights(candidates: RecommendationCandidateDto[] | nul
   }))
 }
 
+function buildRecommendedProducts(messages: ChatMsg[]) {
+  const lastAiMsg = [...messages].reverse().find(message => message.role === "ai" && message.recommendation)
+  const recommendation = lastAiMsg?.recommendation
+  if (!recommendation) return null
+
+  const items = [
+    recommendation.primaryProduct ? { rank: 1, scored: recommendation.primaryProduct } : null,
+    ...recommendation.alternatives.map((scored, index) => ({ rank: index + 2, scored })),
+  ]
+    .filter((item): item is { rank: number; scored: NonNullable<typeof recommendation.primaryProduct> } => Boolean(item))
+    .map(({ rank, scored }) => ({
+      rank,
+      productCode: scored.product.normalizedCode,
+      displayCode: scored.product.displayCode,
+      brand: scored.product.brand ?? null,
+      seriesName: scored.product.seriesName ?? null,
+      diameterMm: scored.product.diameterMm ?? null,
+      fluteCount: scored.product.fluteCount ?? null,
+      coating: scored.product.coating ?? null,
+      toolMaterial: scored.product.toolMaterial ?? null,
+      score: scored.score,
+      matchStatus: scored.matchStatus,
+    }))
+
+  return items.length > 0 ? items : null
+}
+
+function buildConversationRecommendations(messages: ChatMsg[]) {
+  const recommendations = messages.reduce<Array<{
+    messageIndex: number
+    anchorText: string | null
+    products: NonNullable<ReturnType<typeof buildRecommendedProducts>>
+  }>>((acc, message, index) => {
+    if (message.role !== "ai" || !message.recommendation) return acc
+    const products = buildRecommendedProducts([message])
+    if (!products) return acc
+
+    acc.push({
+      messageIndex: index,
+      anchorText: message.text ?? null,
+      products,
+    })
+    return acc
+  }, [])
+
+  return recommendations.length > 0 ? recommendations : null
+}
+
 export function FeedbackWidget({
   form,
   messages,
@@ -174,6 +222,8 @@ export function FeedbackWidget({
           formSnapshot: form,
           sessionStateSnapshot: sessionState,
           candidateHighlights: buildCandidateHighlights(candidateSnapshot),
+          recommendedProducts: buildRecommendedProducts(messages),
+          conversationRecommendations: buildConversationRecommendations(messages),
           conversationSnapshot: buildConversationSnapshot(),
         }),
       })

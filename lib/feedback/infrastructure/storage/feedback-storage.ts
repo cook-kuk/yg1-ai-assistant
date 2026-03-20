@@ -103,6 +103,14 @@ function getStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []
 }
 
+function getRecommendedProducts(value: unknown) {
+  return Array.isArray(value) ? value : null
+}
+
+function getConversationRecommendations(value: unknown) {
+  return Array.isArray(value) ? value : null
+}
+
 function normalizeFeedbackEventRecord(value: unknown): FeedbackEventEntryDto | null {
   const record = toRecord(value)
   if (!record) return null
@@ -143,6 +151,8 @@ function normalizeFeedbackEventRecord(value: unknown): FeedbackEventEntryDto | n
     chatHistory: Array.isArray(record.chatHistory) ? record.chatHistory : null,
     conversationSnapshot: Array.isArray(record.conversationSnapshot) ? record.conversationSnapshot : null,
     candidateHighlights: Array.isArray(record.candidateHighlights) ? record.candidateHighlights : null,
+    recommendedProducts: getRecommendedProducts(record.recommendedProducts),
+    conversationRecommendations: getConversationRecommendations(record.conversationRecommendations),
     formSnapshot: record.formSnapshot && typeof record.formSnapshot === "object" && !Array.isArray(record.formSnapshot)
       ? record.formSnapshot
       : null,

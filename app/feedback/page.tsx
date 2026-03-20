@@ -50,6 +50,8 @@ const TAG_COLORS: Record<string, string> = {
   "wrong-condition": "bg-red-100 text-red-700",
 }
 
+const PAGE_SIZE = 10
+
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString("ko-KR", {
     year: "numeric",
@@ -103,6 +105,48 @@ function SectionTitle({ children }: { children: string }) {
   return <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">{children}</h3>
 }
 
+function PaginationBar({
+  page,
+  totalPages,
+  totalItems,
+  onPageChange,
+}: {
+  page: number
+  totalPages: number
+  totalItems: number
+  onPageChange: (nextPage: number) => void
+}) {
+  if (totalItems <= PAGE_SIZE || totalPages <= 1) return null
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3">
+      <div className="text-xs text-gray-500">
+        총 {totalItems}건 · {page} / {totalPages} 페이지
+      </div>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page <= 1}
+          onClick={() => onPageChange(page - 1)}
+          className="h-8 px-3 text-xs"
+        >
+          이전
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page >= totalPages}
+          onClick={() => onPageChange(page + 1)}
+          className="h-8 px-3 text-xs"
+        >
+          다음
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 function MessageBubble({
   role,
   text,
@@ -143,36 +187,195 @@ function MessageBubble({
   )
 }
 
-function RecommendedProducts({
-  entry,
+type ConversationRecommendedProduct = NonNullable<FeedbackEventEntryDto["recommendedProducts"]>[number]
+
+function messageContainsRecommendedProduct(
+  text: string,
+  products: ConversationRecommendedProduct[]
+) {
+  const normalizedText = text.toLowerCase()
+  return products.some(product => {
+    const productCode = product.productCode.trim().toLowerCase()
+    const displayCode = product.displayCode.trim().toLowerCase()
+    return Boolean(
+      (productCode && normalizedText.includes(productCode)) ||
+      (displayCode && normalizedText.includes(displayCode))
+    )
+  })
+}
+
+function buildFallbackConversationRecommendations(entry: FeedbackEventEntryDto) {
+  if (!entry.candidateHighlights || entry.candidateHighlights.length === 0) return []
+
+  const targetText = entry.aiResponse ?? entry.lastAiResponse
+  if (!targetText?.trim()) return []
+
+  const normalizedTargetText = targetText.toLowerCase()
+  const products = entry.candidateHighlights
+    .filter(candidate => {
+      const productCode = candidate.productCode.trim().toLowerCase()
+      const displayCode = candidate.displayCode.trim().toLowerCase()
+      return Boolean(
+        (productCode && normalizedTargetText.includes(productCode)) ||
+        (displayCode && normalizedTargetText.includes(displayCode))
+      )
+    })
+    .map(candidate => ({
+      rank: candidate.rank ?? 0,
+      productCode: candidate.productCode,
+      displayCode: candidate.displayCode,
+      brand: null,
+      seriesName: null,
+      diameterMm: null,
+      fluteCount: null,
+      coating: null,
+      toolMaterial: null,
+      score: candidate.score ?? 0,
+      matchStatus: "approximate",
+    }))
+
+  if (products.length === 0) return []
+
+  const matchedIndex = entry.conversationSnapshot?.findIndex(
+    message => message.role === "ai" && message.text === targetText
+  ) ?? -1
+
+  return [{
+    messageIndex: matchedIndex >= 0 ? matchedIndex : Number.MAX_SAFE_INTEGER,
+    anchorText: targetText,
+    products,
+  }]
+}
+
+function findConversationRecommendationIndex(
+  entry: FeedbackEventEntryDto,
+  products: ConversationRecommendedProduct[],
+  anchorText?: string | null
+) {
+  const messages = entry.conversationSnapshot?.filter(message => message.role === "ai") ?? []
+  if (messages.length === 0) return Number.MAX_SAFE_INTEGER
+
+  if (anchorText?.trim()) {
+    const exactMatch = messages.find(message => message.text === anchorText)
+    if (exactMatch?.index != null) return exactMatch.index
+  }
+
+  const loweredCodes = products.flatMap(product => [
+    product.productCode.trim().toLowerCase(),
+    product.displayCode.trim().toLowerCase(),
+  ]).filter(Boolean)
+
+  if (loweredCodes.length > 0) {
+    const codeMatched = messages.find(message => {
+      const text = message.text.toLowerCase()
+      return loweredCodes.some(code => text.includes(code))
+    })
+    if (codeMatched?.index != null) return codeMatched.index
+  }
+
+  return messages[messages.length - 1]?.index ?? Number.MAX_SAFE_INTEGER
+}
+
+function getConversationRecommendations(entry: FeedbackEventEntryDto) {
+  if (entry.conversationRecommendations && entry.conversationRecommendations.length > 0) {
+    return entry.conversationRecommendations
+  }
+
+  if (entry.recommendedProducts && entry.recommendedProducts.length > 0) {
+    const targetText = entry.aiResponse ?? entry.lastAiResponse ?? null
+    const matchedIndex = findConversationRecommendationIndex(entry, entry.recommendedProducts, targetText)
+
+    return [{
+      messageIndex: matchedIndex,
+      anchorText: targetText,
+      products: entry.recommendedProducts,
+    }]
+  }
+
+  return buildFallbackConversationRecommendations(entry)
+}
+
+function getInlineRecommendedProductsForMessage(
+  entry: FeedbackEventEntryDto,
+  message: NonNullable<FeedbackEventEntryDto["conversationSnapshot"]>[number]
+) {
+  if (message.role !== "ai") return []
+
+  const messageRecommendations = getConversationRecommendations(entry)
+  const exactMatch = message.index != null
+    ? messageRecommendations.find(recommendation => recommendation.messageIndex === message.index)
+    : null
+  if (exactMatch) return exactMatch.products
+
+  if (messageRecommendations.length > 0) {
+    const textMatched = messageRecommendations.find(recommendation => {
+      if (recommendation.anchorText?.trim() && recommendation.anchorText === message.text) {
+        return true
+      }
+
+      return messageContainsRecommendedProduct(message.text, recommendation.products)
+    })
+    if (textMatched) return textMatched.products
+  }
+
+  if (entry.recommendedProducts && entry.recommendedProducts.length > 0) {
+    if (messageContainsRecommendedProduct(message.text, entry.recommendedProducts)) {
+      return entry.recommendedProducts
+    }
+  }
+
+  return []
+}
+
+function RecommendedProductSummary({
+  product,
 }: {
-  entry: FeedbackEventEntryDto
+  product: ConversationRecommendedProduct
 }) {
-  if (!entry.candidateHighlights || entry.candidateHighlights.length === 0) return null
+  return (
+    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-3">
+      <div className="mb-1.5 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] text-gray-500">#{product.rank || "-"}</div>
+          <div className="truncate text-lg font-bold text-gray-900">{product.displayCode || product.productCode}</div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs">
+            {product.brand && <span className="font-semibold text-purple-700">{product.brand}</span>}
+            {product.seriesName && <span className="text-blue-700 font-medium">{product.seriesName}</span>}
+          </div>
+        </div>
+        <div className="rounded-full bg-white px-2.5 py-0.5 text-xs font-semibold text-blue-700">
+          {product.score}점
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2 text-xs text-gray-700">
+        {product.diameterMm != null && <span>φ{product.diameterMm}mm</span>}
+        {product.fluteCount != null && <span>{product.fluteCount}날</span>}
+        {product.coating && <span>{product.coating}</span>}
+        {product.toolMaterial && <span>{product.toolMaterial}</span>}
+      </div>
+      <div className="mt-1.5 text-[11px] text-gray-500">
+        {product.matchStatus === "exact" ? "정확 매칭" : "근사 후보"}
+      </div>
+    </div>
+  )
+}
+
+function InlineRecommendedProducts({
+  products,
+}: {
+  products: ConversationRecommendedProduct[]
+}) {
+  if (products.length === 0) return null
 
   return (
-    <div className="space-y-3">
-      <SectionTitle>추천 제품</SectionTitle>
-      <div className="grid gap-2 rounded-3xl border border-gray-200 bg-white p-4 sm:grid-cols-2 xl:grid-cols-3">
-        {entry.candidateHighlights.map(candidate => (
-          <div
-            key={`${entry.id}-${candidate.productCode}-${candidate.rank ?? "na"}`}
-            className="rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-gray-900">
-                  {candidate.productCode || candidate.displayCode}
-                </div>
-                <div className="text-xs text-gray-500">
-                  Rank {candidate.rank ?? "-"}
-                </div>
-              </div>
-              <div className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
-                Score {candidate.score ?? "-"}
-              </div>
-            </div>
-          </div>
+    <div className="mt-2 space-y-2 pl-4">
+      <div className="text-xs font-semibold text-blue-700">추천 제품</div>
+      <div className="space-y-2">
+        {products.map(product => (
+          <RecommendedProductSummary
+            key={`${product.productCode}-${product.rank}`}
+            product={product}
+          />
         ))}
       </div>
     </div>
@@ -185,6 +388,9 @@ export default function FeedbackViewerPage() {
   const [feedbackEntries, setFeedbackEntries] = useState<FeedbackEventEntryDto[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [generalPage, setGeneralPage] = useState(1)
+  const [historyPage, setHistoryPage] = useState(1)
+  const [successPage, setSuccessPage] = useState(1)
   const [selectedGeneralEntry, setSelectedGeneralEntry] = useState<FeedbackEntryDto | null>(null)
   const [selectedFeedbackEntry, setSelectedFeedbackEntry] = useState<FeedbackEventEntryDto | null>(null)
 
@@ -222,8 +428,54 @@ export default function FeedbackViewerPage() {
     return (total / ratedEntries.length).toFixed(1)
   }, [generalEntries])
 
-  const turnFeedbackCount = feedbackEntries.filter(entry => entry.type === "turn_feedback").length
-  const successCaseCount = feedbackEntries.filter(entry => entry.type === "success_case").length
+  const historyEntries = useMemo(
+    () => [...feedbackEntries]
+      .filter(entry => entry.type !== "success_case")
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
+    [feedbackEntries]
+  )
+  const successEntries = useMemo(
+    () => [...feedbackEntries]
+      .filter(entry => entry.type === "success_case")
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
+    [feedbackEntries]
+  )
+  const sortedGeneralEntries = useMemo(
+    () => [...generalEntries].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
+    [generalEntries]
+  )
+
+  const turnFeedbackCount = historyEntries.filter(entry => entry.type === "turn_feedback").length
+  const successCaseCount = successEntries.length
+
+  const generalTotalPages = Math.max(1, Math.ceil(generalEntries.length / PAGE_SIZE))
+  const historyTotalPages = Math.max(1, Math.ceil(historyEntries.length / PAGE_SIZE))
+  const successTotalPages = Math.max(1, Math.ceil(successEntries.length / PAGE_SIZE))
+
+  useEffect(() => {
+    if (generalPage > generalTotalPages) setGeneralPage(generalTotalPages)
+  }, [generalPage, generalTotalPages])
+
+  useEffect(() => {
+    if (historyPage > historyTotalPages) setHistoryPage(historyTotalPages)
+  }, [historyPage, historyTotalPages])
+
+  useEffect(() => {
+    if (successPage > successTotalPages) setSuccessPage(successTotalPages)
+  }, [successPage, successTotalPages])
+
+  const pagedGeneralEntries = useMemo(
+    () => sortedGeneralEntries.slice((generalPage - 1) * PAGE_SIZE, generalPage * PAGE_SIZE),
+    [sortedGeneralEntries, generalPage]
+  )
+  const pagedHistoryEntries = useMemo(
+    () => historyEntries.slice((historyPage - 1) * PAGE_SIZE, historyPage * PAGE_SIZE),
+    [historyEntries, historyPage]
+  )
+  const pagedSuccessEntries = useMemo(
+    () => successEntries.slice((successPage - 1) * PAGE_SIZE, successPage * PAGE_SIZE),
+    [successEntries, successPage]
+  )
 
   if (currentUser.role !== "admin") {
     return (
@@ -306,6 +558,9 @@ export default function FeedbackViewerPage() {
             <TabsTrigger value="history" className="border border-gray-200 bg-white px-4 data-[state=active]:border-blue-200 data-[state=active]:bg-blue-50">
               피드백 내역
             </TabsTrigger>
+            <TabsTrigger value="success" className="border border-gray-200 bg-white px-4 data-[state=active]:border-blue-200 data-[state=active]:bg-blue-50">
+              좋은 사례 공유
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="general">
@@ -320,7 +575,7 @@ export default function FeedbackViewerPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {generalEntries.map(entry => {
+                {pagedGeneralEntries.map(entry => {
                   const authorConfig = AUTHOR_TYPE_CONFIG[entry.authorType]
                   return (
                     <button
@@ -360,6 +615,12 @@ export default function FeedbackViewerPage() {
                     </button>
                   )
                 })}
+                <PaginationBar
+                  page={generalPage}
+                  totalPages={generalTotalPages}
+                  totalItems={generalEntries.length}
+                  onPageChange={setGeneralPage}
+                />
               </div>
             )}
           </TabsContent>
@@ -369,14 +630,14 @@ export default function FeedbackViewerPage() {
               <div className="py-12 text-center text-gray-500">로딩 중...</div>
             ) : error ? (
               <div className="py-12 text-center text-red-500">오류: {error}</div>
-            ) : feedbackEntries.length === 0 ? (
+            ) : historyEntries.length === 0 ? (
               <div className="py-12 text-center text-gray-400">
                 <MessageCircle className="mx-auto mb-2 h-8 w-8 opacity-50" />
                 <div>저장된 피드백 내역이 없습니다.</div>
               </div>
             ) : (
               <div className="space-y-3">
-                {feedbackEntries.map(entry => {
+                {pagedHistoryEntries.map(entry => {
                   const eventConfig = EVENT_TYPE_CONFIG[entry.type]
                   const EventIcon = eventConfig.icon
                   const responseTone = formatFeedbackLabel(entry.responseFeedback ?? entry.feedback)
@@ -431,6 +692,82 @@ export default function FeedbackViewerPage() {
                     </button>
                   )
                 })}
+                <PaginationBar
+                  page={historyPage}
+                  totalPages={historyTotalPages}
+                  totalItems={historyEntries.length}
+                  onPageChange={setHistoryPage}
+                />
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="success">
+            {loading ? (
+              <div className="py-12 text-center text-gray-500">로딩 중...</div>
+            ) : error ? (
+              <div className="py-12 text-center text-red-500">오류: {error}</div>
+            ) : successEntries.length === 0 ? (
+              <div className="py-12 text-center text-gray-400">
+                <MessageCircle className="mx-auto mb-2 h-8 w-8 opacity-50" />
+                <div>저장된 좋은 사례가 없습니다.</div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {pagedSuccessEntries.map(entry => {
+                  const eventConfig = EVENT_TYPE_CONFIG[entry.type]
+                  const EventIcon = eventConfig.icon
+
+                  return (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      onClick={() => setSelectedFeedbackEntry(entry)}
+                      className="block w-full text-left"
+                    >
+                      <Card className="border-gray-200 py-0 transition-shadow hover:shadow-md">
+                        <CardContent className="space-y-3 p-4">
+                          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <div className="min-w-0 flex-1 space-y-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${eventConfig.cls}`}>
+                                  <EventIcon className="h-3 w-3" />
+                                  {eventConfig.label}
+                                </span>
+                                {entry.mode && (
+                                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600">
+                                    {entry.mode}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="line-clamp-1 text-sm font-medium text-gray-900">
+                                마지막 질문: {clipText(entry.lastUserMessage ?? entry.userMessage, 80)}
+                              </div>
+                              <div className="line-clamp-2 text-sm text-gray-600">
+                                추천 요약: {clipText(entry.lastAiResponse ?? entry.aiResponse, 180)}
+                              </div>
+                              {entry.conditions && (
+                                <div className="line-clamp-1 text-xs text-gray-500">
+                                  조건: {entry.conditions}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 text-xs text-gray-400">
+                              <Clock size={12} />
+                              {formatDateTime(entry.timestamp)}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </button>
+                  )
+                })}
+                <PaginationBar
+                  page={successPage}
+                  totalPages={successTotalPages}
+                  totalItems={successEntries.length}
+                  onPageChange={setSuccessPage}
+                />
               </div>
             )}
           </TabsContent>
@@ -560,12 +897,16 @@ export default function FeedbackViewerPage() {
                     <div className="space-y-3 rounded-3xl border border-gray-200 bg-slate-50 p-4">
                       {selectedFeedbackEntry.conversationSnapshot && selectedFeedbackEntry.conversationSnapshot.length > 0 ? (
                         selectedFeedbackEntry.conversationSnapshot.map(message => (
-                          <MessageBubble
-                            key={`${selectedFeedbackEntry.id}-${message.index ?? message.createdAt ?? message.text.slice(0, 10)}`}
-                            role={message.role}
-                            text={message.text}
-                            chips={message.chips}
-                          />
+                          <div key={`${selectedFeedbackEntry.id}-${message.index ?? message.createdAt ?? message.text.slice(0, 10)}`}>
+                            <MessageBubble
+                              role={message.role}
+                              text={message.text}
+                              chips={message.chips}
+                            />
+                            <InlineRecommendedProducts
+                              products={getInlineRecommendedProductsForMessage(selectedFeedbackEntry, message)}
+                            />
+                          </div>
                         ))
                       ) : selectedFeedbackEntry.chatHistory && selectedFeedbackEntry.chatHistory.length > 0 ? (
                         selectedFeedbackEntry.chatHistory.map((message, index) => (
@@ -577,12 +918,16 @@ export default function FeedbackViewerPage() {
                             <MessageBubble role="user" text={selectedFeedbackEntry.userMessage ?? selectedFeedbackEntry.lastUserMessage ?? ""} />
                           )}
                           {(selectedFeedbackEntry.aiResponse ?? selectedFeedbackEntry.lastAiResponse) && (
-                            <MessageBubble role="ai" text={selectedFeedbackEntry.aiResponse ?? selectedFeedbackEntry.lastAiResponse ?? ""} chips={selectedFeedbackEntry.chips} />
+                            <div>
+                              <MessageBubble role="ai" text={selectedFeedbackEntry.aiResponse ?? selectedFeedbackEntry.lastAiResponse ?? ""} chips={selectedFeedbackEntry.chips} />
+                              <InlineRecommendedProducts
+                                products={getConversationRecommendations(selectedFeedbackEntry)[0]?.products ?? []}
+                              />
+                            </div>
                           )}
                         </>
                       )}
                     </div>
-                    <RecommendedProducts entry={selectedFeedbackEntry} />
                   </div>
 
                   <div className="space-y-6">
