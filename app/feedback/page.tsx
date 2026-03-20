@@ -11,22 +11,8 @@ import { useState, useEffect } from "react"
 import { Star, User, Clock, Tag, MessageCircle, ChevronDown, ChevronUp, ArrowLeft, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import Link from "next/link"
-
-interface FeedbackEntry {
-  id: string
-  timestamp: string
-  authorType: "internal" | "customer" | "anonymous"
-  authorName: string
-  sessionId: string | null
-  intakeSummary: string | null
-  chatHistory: Array<{ role: string; text: string }> | null
-  recommendationSummary: string | null
-  rating: number | null
-  comment: string
-  tags: string[]
-}
+import { parseFeedbackListResponse } from "@/lib/frontend/feedback/feedback-client"
+import type { FeedbackEntryDto } from "@/lib/contracts/feedback"
 
 const AUTHOR_TYPE_CONFIG = {
   internal: { label: "내부 개발팀", cls: "bg-blue-100 text-blue-700" },
@@ -60,7 +46,7 @@ function StarRating({ rating }: { rating: number | null }) {
 }
 
 export default function FeedbackViewerPage() {
-  const [entries, setEntries] = useState<FeedbackEntry[]>([])
+  const [entries, setEntries] = useState<FeedbackEntryDto[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<"all" | "internal" | "customer" | "anonymous">("all")
@@ -75,7 +61,7 @@ export default function FeedbackViewerPage() {
       const res = await fetch("/api/feedback", { signal: controller.signal })
       clearTimeout(timeout)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
+      const data = parseFeedbackListResponse(await res.json())
       setEntries(data.entries ?? [])
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {

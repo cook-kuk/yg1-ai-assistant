@@ -124,6 +124,7 @@ export const RecommendationInputSchema = z.object({
   diameterUnit: z.enum(["mm", "inch"]).optional(),
   flutePreference: z.number().optional(),
   coatingPreference: z.string().optional(),
+  country: z.string().optional(),
   manufacturerScope: z.enum(["yg1-only", "include-competitor"]).default("yg1-only"),
   locale: z.string().default("ko"),
   country: z.string().optional(),  // DB country codes from prod_edp_option_* tables, or "ALL"

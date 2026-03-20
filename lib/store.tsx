@@ -28,7 +28,7 @@ interface AppState {
   compareProducts: Product[]
   notifications: Notification[]
   language: 'ko' | 'en'
-  country: string      // selected market country code (e.g. "KOR", "ENG", "CHN", "ALL")
+  country: string
 }
 
 interface Notification {

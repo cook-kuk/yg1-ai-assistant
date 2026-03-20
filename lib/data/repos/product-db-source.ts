@@ -1,10 +1,10 @@
 import "server-only"
 
+import { randomBytes } from "node:crypto"
 import { Pool, type QueryResult, type QueryResultRow } from "pg"
 import { notifyDbQuery } from "@/lib/slack-notifier"
 import { appendRuntimeLog, logRuntimeError } from "@/lib/runtime-logger"
 import type { AppliedFilter } from "@/lib/types/exploration"
-import { getSharedPool } from "@/lib/data/shared-pool"
 import type { CanonicalProduct, RecommendationInput, SourcePriority, SourceType } from "@/lib/types/canonical"
 import { resolveMaterialTag } from "@/lib/domain/material-resolver"
 import { getAppShapesForOperation } from "@/lib/domain/operation-resolver"
@@ -41,7 +41,6 @@ interface RawProductRow {
   series_product_type: string | null
   series_application_shape: string | null
   series_cutting_edge_shape: string | null
-  country: string | null
   country_codes: string[] | null
   material_tags: string[] | null
   milling_outside_dia: string | null
@@ -148,7 +147,6 @@ SELECT
   series_product_type,
   series_application_shape,
   series_cutting_edge_shape,
-  country,
   country_codes,
   material_tags,
   milling_outside_dia,
@@ -274,12 +272,24 @@ function formatEdpListForLog(products: Array<{ displayCode: string; normalizedCo
 }
 
 function getPool(): Pool {
-  // Use shared pool to prevent connection exhaustion
-  const pool = getSharedPool()
-  if (!pool) {
+  const connectionString = dbConnectionString()
+  if (!connectionString) {
     throw new Error("Database source requested but connection settings are missing")
   }
-  return pool
+
+  logDatabaseConfigOnce(connectionString)
+
+  if (!globalThis.__yg1ProductDbPool) {
+    console.log("[product-db] creating pg pool")
+    globalThis.__yg1ProductDbPool = new Pool({
+      connectionString,
+      max: parsePositiveInt(process.env.PRODUCT_DB_POOL_MAX, 10),
+      idleTimeoutMillis: parsePositiveInt(process.env.PRODUCT_DB_POOL_IDLE_MS, 30_000),
+      connectionTimeoutMillis: parsePositiveInt(process.env.PRODUCT_DB_CONNECT_TIMEOUT_MS, 5_000),
+    })
+  }
+
+  return globalThis.__yg1ProductDbPool
 }
 
 async function executeLoggedQuery<T extends QueryResultRow>(
@@ -496,6 +506,10 @@ function computeCompletenessScore(product: Omit<CanonicalProduct, "dataCompleten
   return Number((filled / checks.length).toFixed(2))
 }
 
+function createFallbackId(): string {
+  return randomBytes(8).toString("hex")
+}
+
 function mapRowToProduct(row: RawProductRow): CanonicalProduct {
   const rawDiameter = firstNonEmpty(
     row.milling_outside_dia,
@@ -512,7 +526,7 @@ function mapRowToProduct(row: RawProductRow): CanonicalProduct {
   const diameterInch = parsedDiameter == null ? null : isInch ? parsedDiameter : null
 
   const baseProduct = {
-    id: `prod_edp:${row.edp_idx ?? row.edp_no ?? crypto.randomUUID()}`,
+    id: `prod_edp:${row.edp_idx ?? row.edp_no ?? createFallbackId()}`,
     manufacturer: "YG-1",
     brand: firstNonEmpty(row.series_brand_name, row.edp_brand_name, "YG-1")!,
     sourcePriority: 2 as SourcePriority,
@@ -551,12 +565,10 @@ function mapRowToProduct(row: RawProductRow): CanonicalProduct {
     coolantHole: parseBoolean(firstNonEmpty(row.milling_coolant_hole, row.holemaking_coolant_hole, row.threading_coolant_hole, row.option_coolanthole)),
     applicationShapes: normalizeApplicationShapes(row.series_application_shape),
     materialTags: normalizeMaterialTags(row.material_tags),
-    country: firstNonEmpty(row.country) ?? null,
+    region: null,
     description: firstNonEmpty(row.series_description),
     featureText: firstNonEmpty(row.series_feature),
-    seriesIconUrl: row.edp_series_idx
-      ? `https://www.yg1.kr/upload/series/${row.edp_series_idx}/main.jpg`
-      : null,
+    seriesIconUrl: null,
     sourceConfidence: "medium",
     evidenceRefs: [],
   }
@@ -612,14 +624,16 @@ function buildQueryOptions(options: ProductSearchOptions): { where: string[]; va
     where.push(`COALESCE(material_tags, ARRAY[]::text[]) && ${param}::text[]`)
   }
 
-  // Country filter — match the option-table country source used by the sidebar selector.
   if (input?.country && input.country !== "ALL") {
     const param = next(input.country)
-    where.push(`COALESCE(country_codes, ARRAY[]::text[]) @> ARRAY[${param}]::text[]`)
+    where.push(`
+      EXISTS (
+        SELECT 1
+        FROM unnest(COALESCE(country_codes, ARRAY[]::text[])) AS country_row(country_code)
+        WHERE UPPER(BTRIM(country_row.country_code)) = UPPER(BTRIM(${param}))
+      )
+    `)
   }
-
-  // Unit system filter — applied in-memory by hybrid-retrieval.ts (not DB WHERE)
-  // DB view may not have edp_unit column reliably
 
   const appShapes = input?.operationType ? getAppShapesForOperation(input.operationType) : []
   if (appShapes.length > 0) {

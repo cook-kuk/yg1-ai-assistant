@@ -1,28 +1,48 @@
 import "server-only"
 
 import { NextResponse } from "next/server"
-import { getSharedPool } from "@/lib/data/shared-pool"
+import { Pool } from "pg"
+
+function dbConnectionString(): string | undefined {
+  return (
+    process.env.DATABASE_URL ??
+    process.env.PRODUCT_DB_URL ??
+    undefined
+  )
+}
+
+let _pool: Pool | null = null
+
+function getPool(): Pool {
+  const connectionString = dbConnectionString()
+  if (!connectionString) throw new Error("No database connection string")
+  if (!_pool) {
+    _pool = new Pool({ connectionString, max: 2, idleTimeoutMillis: 30_000 })
+  }
+  return _pool
+}
 
 export async function GET() {
   try {
-    const pool = getSharedPool()
-    if (!pool) {
-      return NextResponse.json({ countries: ["KOR", "ENG", "CHN", "JPN"], fallback: true })
-    }
+    const pool = getPool()
     const result = await pool.query<{ country: string }>(
-      `SELECT DISTINCT country_row.country_code AS country
-       FROM catalog_app.product_recommendation_mv,
-            LATERAL unnest(country_codes) AS country_row(country_code)
-       WHERE country_row.country_code IS NOT NULL
-         AND BTRIM(country_row.country_code) <> ''
-       ORDER BY country_row.country_code`
+      `SELECT DISTINCT country_option.country
+       FROM (
+         SELECT UPPER(BTRIM(country_row.country_code)) AS country
+         FROM catalog_app.product_recommendation_mv
+         CROSS JOIN LATERAL unnest(COALESCE(country_codes, ARRAY[]::text[])) AS country_row(country_code)
+       ) AS country_option
+       WHERE country_option.country <> ''
+       ORDER BY country_option.country`
     )
-    const countries = result.rows.map((row) => row.country)
-    return NextResponse.json({ countries })
+
+    return NextResponse.json({
+      countries: result.rows.map((row) => row.country),
+    })
   } catch (error) {
     console.error("[countries] Failed to fetch countries:", error)
     return NextResponse.json({
-      countries: ["KOR", "ENG", "CHN", "JPN"],
+      countries: ["KOREA", "ASIA", "AMERICA", "EUROPE"],
       fallback: true,
     })
   }

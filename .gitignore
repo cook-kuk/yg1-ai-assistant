@@ -30,3 +30,4 @@ next-env.d.ts
 .vercel
 scripts/pdf_pages.json
 scripts/pdf_full_text.txt
+data/feedback/

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
@@ -136,29 +136,18 @@ const navItems = [
   },
 ]
 
-const COUNTRY_LABELS: Record<string, { ko: string; en: string }> = {
-  KOR: { ko: "한국", en: "Korea" },
-  ENG: { ko: "영국", en: "UK" },
-  CHN: { ko: "중국", en: "China" },
-  DEU: { ko: "독일", en: "Germany" },
-  ESP: { ko: "스페인", en: "Spain" },
-  FRA: { ko: "프랑스", en: "France" },
-  HUN: { ko: "헝가리", en: "Hungary" },
-  ITA: { ko: "이탈리아", en: "Italy" },
-  JPN: { ko: "일본", en: "Japan" },
-  POL: { ko: "폴란드", en: "Poland" },
-  PRT: { ko: "포르투갈", en: "Portugal" },
-  RUS: { ko: "러시아", en: "Russia" },
-  THA: { ko: "태국", en: "Thailand" },
-  TUR: { ko: "튀르키예", en: "Turkey" },
-  VNM: { ko: "베트남", en: "Vietnam" },
-  CZE: { ko: "체코", en: "Czech Republic" },
+const countryLabels: Record<string, { ko: string; en: string }> = {
+  KOREA: { ko: "한국", en: "Korea" },
+  ASIA: { ko: "아시아", en: "Asia" },
+  AMERICA: { ko: "미주", en: "America" },
+  EUROPE: { ko: "유럽", en: "Europe" },
 }
 
-function countryLabel(code: string, lang: string): string {
-  const entry = COUNTRY_LABELS[code]
-  if (!entry) return code
-  return lang === "ko" ? `${entry.ko} (${code})` : `${entry.en} (${code})`
+function countryLabel(code: string, lang: "ko" | "en"): string {
+  const normalized = code.trim().toUpperCase()
+  const entry = countryLabels[normalized]
+  if (!entry) return normalized
+  return lang === "ko" ? `${entry.ko} (${normalized})` : `${entry.en} (${normalized})`
 }
 
 const roleLabels = {
@@ -171,20 +160,18 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
   const pathname = usePathname()
   const router = useRouter()
   const { currentUser, setUserRole, demoScenario, setDemoScenario, language, setLanguage, country, setCountry } = useApp()
-
-  // Fetch available countries from DB option tables
   const [countryList, setCountryList] = useState<string[]>([])
+
   useEffect(() => {
     fetch("/api/countries")
       .then(res => res.json())
       .then(data => {
-        if (data.countries && data.countries.length > 0) {
+        if (Array.isArray(data.countries) && data.countries.length > 0) {
           setCountryList(data.countries)
         }
       })
       .catch(() => {
-        // fallback if API fails
-        setCountryList(["KOR", "ENG", "CHN", "JPN"])
+        setCountryList(["KOREA", "ASIA", "AMERICA", "EUROPE"])
       })
   }, [])
 
@@ -320,7 +307,6 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
 
       {/* User Role Selector + Country + Language Toggle */}
       <div className="border-t border-sidebar-border p-3 space-y-2">
-        {/* Country Selector */}
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-1.5 text-xs text-sidebar-foreground/60">
             <MapPin className="h-3.5 w-3.5" />
@@ -332,8 +318,8 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
             className="h-7 rounded-md border border-sidebar-border bg-sidebar-accent px-2 text-xs font-medium text-sidebar-foreground focus:outline-none focus:ring-1 focus:ring-sidebar-primary"
           >
             <option value="ALL">{language === 'ko' ? '전체 국가' : 'All Countries'}</option>
-            {countryList.map((r) => (
-              <option key={r} value={r}>{countryLabel(r, language)}</option>
+            {countryList.map((entry) => (
+              <option key={entry} value={entry}>{countryLabel(entry, language)}</option>
             ))}
           </select>
         </div>

@@ -70,22 +70,20 @@ export type LastActionType =
   | "confirm_scope"
   | "summarize_task"
 
-// ── Comparison Artifact (persists comparison results across turns) ──
 export interface ComparisonArtifact {
-  comparedProductCodes: string[]   // codes of compared products
-  comparedRanks: number[]          // ranks in displayedCandidates
-  compareField?: string            // field-specific comparison (e.g. "overallLengthMm")
-  text: string                     // the generated comparison markdown
+  comparedProductCodes: string[]
+  comparedRanks: number[]
+  compareField?: string
+  text: string
   timestamp: number
 }
 
-// ── Candidate Count Breakdown (transparency & debugging) ──
 export interface CandidateCounts {
-  dbMatchCount: number             // raw DB/retrieval matches
-  filteredCount: number            // after narrowing filters applied
-  rankedCount: number              // after scoring/ranking
-  displayedCount: number           // shown to user (may be capped)
-  hiddenBySeriesCapCount: number   // hidden by series grouping cap
+  dbMatchCount: number
+  filteredCount: number
+  rankedCount: number
+  displayedCount: number
+  hiddenBySeriesCapCount: number
 }
 
 export type SessionMode =
@@ -107,13 +105,12 @@ export interface UINarrowingPathEntry {
   candidateCount: number
 }
 
-// ── Clarification Record (tracks what was asked & resolved) ──
 export interface ClarificationRecord {
   question: string
   options: string[]
   turnAsked: number
-  context?: string                 // what triggered the clarification
-  resolvedWith?: string            // user's selection or direct input
+  context?: string
+  resolvedWith?: string
 }
 
 // ── Session State (serializable, sent between client ↔ server) ──
@@ -127,7 +124,7 @@ export interface ExplorationSessionState {
   resolvedInput: RecommendationInput   // accumulated from intake + narrowing
   turnCount: number
   lastAskedField?: string              // which field the question engine just asked about
-  displayedProducts?: CandidateSnapshot[]      // canonical UI list for cards/tables
+  displayedProducts?: CandidateSnapshot[]
   fullDisplayedProducts?: CandidateSnapshot[] | null
   displayedSeriesGroups?: SeriesGroup[]
   uiNarrowingPath?: UINarrowingPathEntry[]
@@ -136,36 +133,21 @@ export interface ExplorationSessionState {
 
   // ── Durable UI context (single source of truth) ──
   displayedCandidates: CandidateSnapshot[]  // what the user currently sees
-  fullDisplayedCandidates?: CandidateSnapshot[]  // in-display 필터 전 원본 (filter_displayed 복원용)
-  displayedSetFilter?: { field: string; operator: string; value: string } | null  // 현재 적용된 in-display 필터
+  fullDisplayedCandidates?: CandidateSnapshot[]
+  displayedSetFilter?: { field: string; operator: string; value: string } | null
   displayedChips: string[]                  // chips shown with the last question
   displayedOptions: DisplayedOption[]       // structured narrowing options for numbered selection
   lastAction?: LastActionType               // what the system did last turn
 
-  // ── Side Conversation Overlay ──
-  // Records the "real" state-machine position before side conversation,
-  // so routing rules can still reference the underlying session mode.
   underlyingAction?: LastActionType
-
-  // ── Artifacts (persist displayed results & comparisons) ──
   lastComparisonArtifact?: ComparisonArtifact | null
-  lastRecommendationArtifact?: CandidateSnapshot[] | null  // snapshot at last show_recommendation
-
-  // ── Count Breakdown (transparency) ──
+  lastRecommendationArtifact?: CandidateSnapshot[] | null
   candidateCounts?: CandidateCounts
-
-  // ── Clarification Tracking ──
   lastClarification?: ClarificationRecord | null
-
-  // ── Series Grouping (optional, Phase 1) ──
   displayedGroups?: SeriesGroup[]
   activeGroupKey?: string | null
-
-  // ── Task System (optional, Phase 3) ──
   currentTask?: RecommendationTask | null
   taskHistory?: ArchivedTask[]
-
-  // ── Multi-Intent Queue (pending actions from decomposition) ──
   pendingIntents?: Array<{ text: string; category: string }>
 }
 
@@ -239,10 +221,9 @@ export interface DisplayedOption {
   count: number          // candidate count for this option
 }
 
-// ── Series Grouping ────────────────────────────────────────────
 export interface SeriesGroup {
-  seriesKey: string           // seriesName ?? "__ungrouped__"
-  seriesName: string          // 표시명 ("(기타)" for null)
+  seriesKey: string
+  seriesName: string
   seriesIconUrl: string | null
   description: string | null
   candidateCount: number
@@ -256,11 +237,10 @@ export interface SeriesGroupSummary {
   candidateCount: number
 }
 
-// ── Recommendation Checkpoint ──────────────────────────────────
 export interface RecommendationCheckpoint {
   checkpointId: string
   stepIndex: number
-  summary: string             // 결정론적 생성 (필터+카운트 기반)
+  summary: string
   candidateCount: number
   resolvedInputSnapshot: RecommendationInput
   filtersSnapshot: AppliedFilter[]
@@ -269,7 +249,6 @@ export interface RecommendationCheckpoint {
   timestamp: number
 }
 
-// ── Recommendation Task ────────────────────────────────────────
 export interface RecommendationTask {
   taskId: string
   createdAt: number

@@ -1,14 +1,15 @@
 /**
  * Evidence Repository
- * Loads cutting conditions from PostgreSQL raw_catalog.cutting_condition_table.
- * Local JSON fallback is intentionally disabled at runtime.
+ * Loads cutting conditions from PostgreSQL raw_catalog.cutting_condition_table
+ * and falls back to evidence-chunks.json when DB is unavailable.
  */
 
 import type { EvidenceChunk, EvidenceSummary } from "@/lib/types/evidence"
-import crypto from "crypto"
+import path from "path"
+import fs from "fs"
+import { randomBytes } from "node:crypto"
 import { Pool, type QueryResultRow } from "pg"
 import { ProductRepo } from "@/lib/data/repos/product-repo"
-import { getSharedPool } from "@/lib/data/shared-pool"
 
 interface RawEvidenceRow extends QueryResultRow {
   _row_num: string | null
@@ -36,6 +37,8 @@ declare global {
   var __yg1EvidenceChunksPromise: Promise<EvidenceChunk[]> | undefined
 }
 
+let _jsonCache: EvidenceChunk[] | null = null
+
 function cleanText(value: string | null | undefined): string | null {
   if (!value) return null
   const trimmed = value.trim()
@@ -51,6 +54,10 @@ function parseNumber(value: string | null | undefined): number | null {
   if (!cleaned) return null
   const parsed = Number.parseFloat(cleaned)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+function createFallbackId(): string {
+  return randomBytes(8).toString("hex")
 }
 
 function buildSearchText(chunk: EvidenceChunk, workPieceName: string | null): string {
@@ -76,7 +83,7 @@ function mapRowToEvidenceChunk(row: RawEvidenceRow): EvidenceChunk {
   const seriesName = cleanText(row.series_name)
   const workPieceName = cleanText(row.work_piece_name)
   const chunk: EvidenceChunk = {
-    id: `raw-cutting:${row._row_num ?? crypto.randomUUID()}`,
+    id: `raw-cutting:${row._row_num ?? createFallbackId()}`,
     productCode: normalizeCode(seriesName),
     seriesName,
     toolType: null,
@@ -154,33 +161,32 @@ function getPool(): Pool {
   logDatabaseConfigOnce(connectionString)
 
   if (!globalThis.__yg1EvidenceDbPool) {
-    // Use shared pool
-    const shared = getSharedPool()
-    if (shared) {
-      globalThis.__yg1EvidenceDbPool = shared
-    } else {
-      console.log("[evidence-db] creating pg pool (no shared pool)")
-      globalThis.__yg1EvidenceDbPool = new Pool({
-        connectionString,
-        max: 3,
-        idleTimeoutMillis: 30_000,
-        connectionTimeoutMillis: 5_000,
-      })
-    }
+    console.log("[evidence-db] creating pg pool")
+    globalThis.__yg1EvidenceDbPool = new Pool({
+      connectionString,
+      max: 4,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 5_000,
+    })
   }
 
   return globalThis.__yg1EvidenceDbPool
 }
 
-function logDatabaseUnavailable(): void {
-  console.warn("[evidence-repo] load skipped: runtime JSON fallback disabled and DB source unavailable")
+function loadChunksFromJson(): EvidenceChunk[] {
+  if (_jsonCache) return _jsonCache
+  const filePath = path.join(process.cwd(), "data", "normalized", "evidence-chunks.json")
+  if (!fs.existsSync(filePath)) {
+    console.warn("[EvidenceRepo] evidence-chunks.json not found — run: node scripts/build-evidence-corpus.mjs")
+    _jsonCache = []
+    return _jsonCache
+  }
+  _jsonCache = JSON.parse(fs.readFileSync(filePath, "utf-8")) as EvidenceChunk[]
+  return _jsonCache
 }
 
 async function loadChunks(): Promise<EvidenceChunk[]> {
-  if (!shouldUseDatabaseSource()) {
-    logDatabaseUnavailable()
-    return []
-  }
+  if (!shouldUseDatabaseSource()) return loadChunksFromJson()
 
   if (!globalThis.__yg1EvidenceChunksPromise) {
     globalThis.__yg1EvidenceChunksPromise = (async () => {
@@ -208,8 +214,10 @@ async function loadChunks(): Promise<EvidenceChunk[]> {
         console.log(`[evidence-db] loaded rows=${mapped.length}`)
         return mapped
       } catch (error) {
-        console.warn(`[evidence-db] query failed: ${error instanceof Error ? error.message : String(error)}`)
-        return []
+        console.warn(
+          `[evidence-db] query failed, falling back to JSON evidence: ${error instanceof Error ? error.message : String(error)}`
+        )
+        return loadChunksFromJson()
       }
     })()
   }

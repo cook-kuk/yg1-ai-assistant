@@ -357,6 +357,10 @@ export async function notifyFailureCase(params: {
         type: "section",
         text: { type: "mrkdwn", text: `*표시 상위 제품:*\n${params.topProducts.slice(0, 300)}` },
       },
+      {
+        type: "context",
+        elements: [{ type: "mrkdwn", text: `🔍 필터: ${filterStr}` }],
+      },
     ],
   })
 }

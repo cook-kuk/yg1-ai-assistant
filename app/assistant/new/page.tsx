@@ -18,6 +18,7 @@ import {
   Target, BarChart3
 } from "lucide-react"
 import { wowScenarios, candidateProducts, type CandidateProduct } from "@/lib/demo-data"
+import { parseChatResponse } from "@/lib/frontend/chat/chat-client"
 import { cn } from "@/lib/utils"
 
 // ===== TYPES =====
@@ -101,18 +102,19 @@ export default function AssistantNewPage() {
         body: JSON.stringify({ messages: currentMessages, mode }),
       })
       if (!res.ok) throw new Error("API error")
-      const data = await res.json()
+      const data = parseChatResponse(await res.json())
 
       setTyping(false)
 
       // Update extracted field and metrics
       if (data.extractedField) {
+        const extractedField = data.extractedField
         setExtracted(prev => {
           const updated = [...prev, {
-            label: data.extractedField.label,
-            value: data.extractedField.value,
-            confidence: data.extractedField.confidence,
-            step: data.extractedField.step,
+            label: extractedField.label,
+            value: extractedField.value,
+            confidence: extractedField.confidence,
+            step: extractedField.step,
           }]
           const total = mode === "simple" ? 4 : 9
           const pct = Math.min(100, Math.round((updated.length / total) * 100))
@@ -121,7 +123,7 @@ export default function AssistantNewPage() {
           setCandidates(Math.max(3, Math.round(120 * (1 - pct / 100))))
           return updated
         })
-        setCurrentStep(data.extractedField.step)
+        setCurrentStep(extractedField.step)
       }
 
       // Handle recommendation completion
@@ -145,7 +147,7 @@ export default function AssistantNewPage() {
         role: "ai",
         text: data.text,
         purpose: data.purpose,
-        chips: data.isComplete ? undefined : data.chips,
+        chips: data.isComplete ? undefined : (data.chips ?? undefined),
         timestamp: new Date().toISOString(),
       }])
     } catch {
