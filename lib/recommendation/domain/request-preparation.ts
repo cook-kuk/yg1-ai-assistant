@@ -55,8 +55,8 @@ export function classifyIntent(
     return undoClassification
   }
 
-  // Reset signals
-  if (["처음부터 다시", "처음부터", "다시 시작", "리셋"].some(s => clean.includes(s))) {
+  // Reset signals — only explicit short commands, not quotes or meta-questions
+  if (isExplicitResetCommand(clean)) {
     return { intent: "general_question", confidence: "high" }
   }
 
@@ -102,6 +102,16 @@ export function classifyIntent(
   }
 
   return { intent: "general_question", confidence: "low" }
+}
+
+const RESET_KEYWORDS = ["처음부터 다시", "처음부터", "다시 시작", "리셋"]
+
+function isExplicitResetCommand(clean: string): boolean {
+  if (!RESET_KEYWORDS.some(s => clean.includes(s))) return false
+  if (RESET_KEYWORDS.includes(clean)) return true
+  if (clean.length > 25) return false
+  if (/\?|아니야|아닌가|잖아|않아|맞아|맞지|해야|나와야|보기로|어떻게|왜/.test(clean)) return false
+  return true
 }
 
 function classifyIntakeIntent(form: ProductIntakeForm): { intent: UserIntent; confidence: "high" | "medium" | "low" } {

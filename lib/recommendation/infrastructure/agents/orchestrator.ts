@@ -175,6 +175,9 @@ function routeToAction(
       return { type: "answer_general", message: ctx.userMessage }
     }
 
+    case "REFINE_CONDITION":
+      return { type: "refine_condition", field: value || "material" }
+
     case "START_NEW_TOPIC":
       return { type: "answer_general", message: ctx.userMessage }
 

@@ -12,7 +12,7 @@ import { resolveUndoTarget } from "@/lib/recommendation/domain/request-preparati
 
 // ── Deterministic Patterns (fast path, no LLM) ──────────────
 
-const RESET_PATTERNS = ["처음부터 다시", "다시 시작", "리셋", "처음부터"]
+const RESET_EXACT = ["처음부터 다시", "다시 시작", "리셋", "처음부터", "처음부터 다시 시작", "처음부터 다시 해줘", "리셋해줘", "초기화", "reset"]
 const RECOMMEND_PATTERNS = ["추천해주세요", "바로 보여주세요", "결과 보기", "추천 받기", "추가 조건 없음", "그냥 줘", "빨리", "알아서", "그냥"]
 const COMPARE_PATTERNS = [/비교/, /차이/, /(\d+)번.*(\d+)번/, /상위.*비교/, /위.*비교/, /이\s*중/]
 const EXPLAIN_PATTERNS = [/그게\s*뭐/, /그건\s*뭐/, /이게\s*뭐/, /뭐야/, /차이.*뭐/, /뭐가\s*다/, /설명/, /왜\s*이/, /이유/]
@@ -21,6 +21,18 @@ const META_QUESTION_PATTERNS = [
   /해야\s*(하|되)/, /맞아\s*\?*$/, /맞지\s*\?*$/, /아닌데/,
   /이상하/, /왜.*그/, /왜.*이렇/, /어떻게.*된/, /뭐가.*잘못/,
   /내에서/, /중에서/, /안에서/,
+]
+const REFINEMENT_PATTERNS = [
+  /피삭재.*(바꿔|변경|바꾸|다시)|소재.*(바꿔|변경|바꾸|다시|싶)/,
+  /재질.*(바꿔|변경|바꾸|다시|싶)/,
+  /직경.*(바꿔|변경|바꾸)|다른\s*직경/,
+  /코팅.*(바꿔|변경|바꾸|싶)|다른\s*코팅/,
+  /날수.*(바꿔|변경)|날.*(변경|바꿔)|다른\s*날/,
+  /조건.*(바꿔|변경).*(검색|추천|싶)/,
+  /다른\s*소재|다른\s*재질/,
+  /스테인.*궁금|스테인.*추천|스테인.*바꿔/,
+  /(스테인|알루미늄|탄소강|주철|티타늄|고경도).*(로|으로)\s*(다시|추천|검색|볼래|보고)/,
+  /다시.*(추천|검색|볼래|보고).*싶/,
 ]
 const SKIP_PATTERNS = ["상관없음", "모름", "패스", "넘어", "넘겨", "스킵", "아무거나"]
 const NONSENSE_PATTERNS = [/^[ㅋㅎㅠㅜ]+$/, /^[?!.]+$/, /^\s*$/]
@@ -42,7 +54,8 @@ export async function classifyIntent(
   }
 
   // ── 2. Reset (highest priority navigation) ──
-  if (RESET_PATTERNS.some(p => clean.includes(p))) {
+  // Only match if the message IS a reset command, not a quote/meta-question containing one
+  if (isExplicitResetIntent(clean)) {
     return { intent: "RESET_SESSION", confidence: 0.98, modelUsed: "haiku" }
   }
 
@@ -85,6 +98,15 @@ export async function classifyIntent(
           }
         }
       }
+    }
+  }
+
+  // ── 3.6. Refinement (post-recommendation condition change) ──
+  if (sessionState?.resolutionStatus?.startsWith("resolved")) {
+    if (REFINEMENT_PATTERNS.some(p => p.test(clean))) {
+      // Detect which field to refine
+      const field = detectRefinementField(clean)
+      return { intent: "REFINE_CONDITION", confidence: 0.92, extractedValue: field, modelUsed: "haiku" }
     }
   }
 
@@ -271,6 +293,30 @@ function extractComparisonTargets(clean: string): string[] {
     if (n) targets.push(`상위${n}`)
   }
   return targets
+}
+
+function detectRefinementField(clean: string): string {
+  if (/피삭재|소재|재질|재료|스테인/.test(clean)) return "material"
+  if (/직경|지름/.test(clean)) return "diameter"
+  if (/코팅/.test(clean)) return "coating"
+  if (/날수|날\s*변경/.test(clean)) return "fluteCount"
+  return "material" // default: most common refinement
+}
+
+/**
+ * Returns true only when the message is an explicit, standalone reset command.
+ * Rejects meta-questions, quotes, or long sentences that happen to contain reset words.
+ */
+export function isExplicitResetIntent(clean: string): boolean {
+  // Must contain a reset keyword
+  if (!RESET_EXACT.some(p => clean.includes(p))) return false
+  // Short, direct command → reset
+  if (RESET_EXACT.includes(clean)) return true
+  // Too long to be a genuine reset command (likely a quote or meta-question)
+  if (clean.length > 25) return false
+  // Contains question markers or meta-question patterns → not a reset
+  if (/\?|아니야|아닌가|잖아|않아|맞아|맞지|해야|나와야|보기로|어떻게|왜/.test(clean)) return false
+  return true
 }
 
 function tryDeterministicExtraction(clean: string): string | null {

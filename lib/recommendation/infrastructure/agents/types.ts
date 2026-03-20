@@ -29,6 +29,7 @@ export type NarrowingIntent =
   | "RESET_SESSION"               // "처음부터 다시"
   | "START_NEW_TOPIC"             // unrelated question during session
   | "ASK_EXPLANATION"             // "그게 뭐야?", "차이가 뭐야?"
+  | "REFINE_CONDITION"            // "소재 바꿔서 다시", "다른 직경으로"
   | "OUT_OF_SCOPE"                // nonsense, off-domain
 
 // ── Intent Classification Result ─────────────────────────────
@@ -76,6 +77,7 @@ export type OrchestratorAction =
   | { type: "compare_products"; targets: string[] }
   | { type: "explain_product"; target?: string }
   | { type: "answer_general"; message: string; preGenerated?: boolean }
+  | { type: "refine_condition"; field: string }
   | { type: "redirect_off_topic" }
 
 export interface OrchestratorResult {

@@ -21,6 +21,7 @@ import {
 } from "@/lib/recommendation/infrastructure/agents/recommendation-agents"
 import { ENABLE_TOOL_USE_ROUTING } from "@/lib/recommendation/infrastructure/config/recommendation-feature-flags"
 import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import { buildDisplayedOptions } from "@/lib/recommendation/infrastructure/engines/serve-engine-response"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { RecommendationDisplayedProductRequestDto } from "@/lib/contracts/recommendation"
@@ -137,7 +138,7 @@ export async function handleServeExploration(
 
   // Actions that do NOT require fresh hybrid retrieval
   const SKIP_RETRIEVAL_ACTIONS = new Set([
-    "compare_products", "explain_product", "answer_general",
+    "compare_products", "explain_product", "answer_general", "refine_condition",
   ])
   const lastUserMsg = messages.length > 0
     ? [...messages].reverse().find(m => m.role === "user")
@@ -247,6 +248,53 @@ export async function handleServeExploration(
           form, candidates, evidenceMap, currentInput, narrowingHistory,
           filters, turnCount, messages, provider, language, displayedProducts
         )
+      }
+
+      if (action.type === "refine_condition") {
+        const field = action.field
+        const refinementChips = buildRefinementChips(field, language)
+        const refinementText = field === "material"
+          ? "어떤 소재로 변경하시겠어요?"
+          : field === "diameter"
+          ? "어떤 직경으로 변경하시겠어요?"
+          : field === "coating"
+          ? "어떤 코팅으로 변경하시겠어요?"
+          : field === "fluteCount"
+          ? "몇 날로 변경하시겠어요?"
+          : "어떤 조건을 변경하시겠어요?"
+
+        const sessionState = carryForwardState(prevState, {
+          candidateCount: prevState.candidateCount ?? candidates.length,
+          appliedFilters: filters,
+          narrowingHistory,
+          resolutionStatus: prevState.resolutionStatus ?? "broad",
+          resolvedInput: currentInput,
+          turnCount,
+          displayedCandidates: prevState.displayedCandidates ?? [],
+          displayedChips: refinementChips,
+          displayedOptions: buildDisplayedOptions(refinementChips, field),
+          currentMode: "question",
+          lastAction: "refine_condition",
+          lastAskedField: field,
+        })
+        return deps.jsonRecommendationResponse({
+          text: refinementText,
+          purpose: "question",
+          chips: refinementChips,
+          isComplete: false,
+          recommendation: null,
+          sessionState,
+          evidenceSummaries: null,
+          candidateSnapshot: prevState.displayedCandidates ?? null,
+          requestPreparation: null,
+          primaryExplanation: null,
+          primaryFactChecked: null,
+          altExplanations: [],
+          altFactChecked: [],
+          meta: {
+            orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+          },
+        })
       }
 
       if (action.type === "compare_products") {
@@ -691,4 +739,19 @@ function generateFollowUpChips(userMessage: string, candidateCount: number): str
     return ["후보 제품 보기", "절삭조건 문의", "코팅 비교", "처음부터 다시"]
   }
   return ["제품 추천", "절삭조건 문의", "코팅 비교", "시리즈 검색"]
+}
+
+function buildRefinementChips(field: string, _language: AppLanguage): string[] {
+  switch (field) {
+    case "material":
+      return ["알루미늄 / 비철", "일반강 / 탄소강", "스테인리스 (SUS)", "주철", "티타늄 / 내열합금", "고경도강 (HRC40+)", "처음부터 다시"]
+    case "diameter":
+      return ["2mm", "4mm", "6mm", "8mm", "10mm", "12mm", "처음부터 다시"]
+    case "coating":
+      return ["TiAlN", "AlCrN", "DLC", "무코팅", "Y-코팅", "처음부터 다시"]
+    case "fluteCount":
+      return ["1날", "2날", "3날", "4날", "6날", "처음부터 다시"]
+    default:
+      return ["현재 필터 유지하고 추천 보기", "처음부터 다시"]
+  }
 }
