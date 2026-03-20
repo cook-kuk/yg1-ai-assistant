@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation } from '@/context/LocationContext';
 import { useNearestDealers } from '@/hooks/useNearestDealers';
@@ -50,7 +51,9 @@ export function DealerPopup({ isOpen, onClose, initialRegion }: DealerPopupProps
     }
   }, [isOpen, handleKeyDown]);
 
-  return (
+  if (typeof window === 'undefined') return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <motion.div
@@ -155,6 +158,7 @@ export function DealerPopup({ isOpen, onClose, initialRegion }: DealerPopupProps
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
