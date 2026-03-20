@@ -2,7 +2,7 @@ import crypto from "crypto"
 
 import { type FeedbackEntryDto, type FeedbackListResponseDto } from "@/lib/contracts/feedback"
 import {
-  loadAllFeedbackEntries,
+  loadAllFeedbackData,
   saveFeedbackRecord,
   saveFeedbackScreenshots,
 } from "@/lib/feedback/infrastructure/storage/feedback-storage"
@@ -131,6 +131,34 @@ function sanitizeCandidateHighlights(value: unknown): JsonRecord[] | null {
   return items.length > 0 ? items : null
 }
 
+function sanitizeRecommendedProducts(value: unknown): JsonRecord[] | null {
+  const items = toRecordArray(value).map(item => ({
+    rank: getNumber(item.rank),
+    productCode: getString(item.productCode),
+    displayCode: getString(item.displayCode),
+    brand: getNullableString(item.brand),
+    seriesName: getNullableString(item.seriesName),
+    diameterMm: getNullableNumber(item.diameterMm),
+    fluteCount: getNullableNumber(item.fluteCount),
+    coating: getNullableString(item.coating),
+    toolMaterial: getNullableString(item.toolMaterial),
+    score: getNumber(item.score),
+    matchStatus: getString(item.matchStatus, "approximate"),
+  })).filter(item => item.productCode || item.displayCode)
+
+  return items.length > 0 ? items : null
+}
+
+function sanitizeConversationRecommendations(value: unknown): JsonRecord[] | null {
+  const items = toRecordArray(value).map(item => ({
+    messageIndex: getNumber(item.messageIndex),
+    anchorText: getNullableString(item.anchorText),
+    products: sanitizeRecommendedProducts(item.products) ?? [],
+  })).filter(item => item.products.length > 0)
+
+  return items.length > 0 ? items : null
+}
+
 function getFailureFeedbackHistory(value: unknown): FailureCaseNotification["feedbackHistory"] {
   if (!Array.isArray(value)) return null
 
@@ -248,6 +276,8 @@ export class FeedbackService {
         formSnapshot: sanitizeFormSnapshot(body.formSnapshot),
         sessionSummary: sanitizeSessionSummary(body.sessionStateSnapshot),
         candidateHighlights: sanitizeCandidateHighlights(body.candidateHighlights),
+        recommendedProducts: sanitizeRecommendedProducts(body.recommendedProducts),
+        conversationRecommendations: sanitizeConversationRecommendations(body.conversationRecommendations),
         conversationSnapshot: sanitizeConversationSnapshot(body.conversationSnapshot),
         language: getNullableString(body.language),
         clientCapturedAt: getNullableString(body.clientCapturedAt),
@@ -294,6 +324,8 @@ export class FeedbackService {
         formSnapshot: sanitizeFormSnapshot(body.formSnapshot),
         sessionSummary: sanitizeSessionSummary(body.sessionStateSnapshot),
         candidateHighlights: sanitizeCandidateHighlights(body.candidateHighlights),
+        recommendedProducts: sanitizeRecommendedProducts(body.recommendedProducts),
+        conversationRecommendations: sanitizeConversationRecommendations(body.conversationRecommendations),
         conversationSnapshot: sanitizeConversationSnapshot(body.conversationSnapshot),
         language: getNullableString(body.language),
         clientCapturedAt: getNullableString(body.clientCapturedAt),
@@ -355,6 +387,8 @@ export class FeedbackService {
         formSnapshot: sanitizeFormSnapshot(body.formSnapshot),
         sessionSummary: sanitizeSessionSummary(body.sessionStateSnapshot),
         candidateHighlights: sanitizeCandidateHighlights(body.candidateHighlights),
+        recommendedProducts: sanitizeRecommendedProducts(body.recommendedProducts),
+        conversationRecommendations: sanitizeConversationRecommendations(body.conversationRecommendations),
         conversationSnapshot: sanitizeConversationSnapshot(body.conversationSnapshot),
         language: getNullableString(body.language),
         clientCapturedAt: getNullableString(body.clientCapturedAt),
@@ -408,6 +442,8 @@ export class FeedbackService {
       formSnapshot: sanitizeFormSnapshot(body.formSnapshot),
       sessionSummary: sanitizeSessionSummary(body.sessionStateSnapshot),
       candidateHighlights: sanitizeCandidateHighlights(body.candidateHighlights),
+      recommendedProducts: sanitizeRecommendedProducts(body.recommendedProducts),
+      conversationRecommendations: sanitizeConversationRecommendations(body.conversationRecommendations),
       conversationSnapshot: sanitizeConversationSnapshot(body.conversationSnapshot),
       language: getNullableString(body.language),
       clientCapturedAt: getNullableString(body.clientCapturedAt),
@@ -442,10 +478,12 @@ export class FeedbackService {
   }
 
   loadAll(): FeedbackListResponseDto {
-    const entries = loadAllFeedbackEntries()
+    const { generalEntries, feedbackEntries } = loadAllFeedbackData()
     return {
-      entries,
-      total: entries.length,
+      generalEntries,
+      feedbackEntries,
+      generalTotal: generalEntries.length,
+      feedbackTotal: feedbackEntries.length,
     }
   }
 }

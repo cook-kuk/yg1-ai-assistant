@@ -34,6 +34,52 @@ function buildCandidateHighlights(candidates: RecommendationCandidateDto[] | nul
   }))
 }
 
+function buildRecommendedProducts(message: ChatMsg | null | undefined) {
+  const recommendation = message?.recommendation
+  if (!recommendation) return null
+
+  const items = [
+    recommendation.primaryProduct ? { rank: 1, scored: recommendation.primaryProduct } : null,
+    ...recommendation.alternatives.map((scored, index) => ({ rank: index + 2, scored })),
+  ]
+    .filter((item): item is { rank: number; scored: NonNullable<typeof recommendation.primaryProduct> } => Boolean(item))
+    .map(({ rank, scored }) => ({
+      rank,
+      productCode: scored.product.normalizedCode,
+      displayCode: scored.product.displayCode,
+      brand: scored.product.brand ?? null,
+      seriesName: scored.product.seriesName ?? null,
+      diameterMm: scored.product.diameterMm ?? null,
+      fluteCount: scored.product.fluteCount ?? null,
+      coating: scored.product.coating ?? null,
+      toolMaterial: scored.product.toolMaterial ?? null,
+      score: scored.score,
+      matchStatus: scored.matchStatus,
+    }))
+
+  return items.length > 0 ? items : null
+}
+
+function buildConversationRecommendations(messages: ChatMsg[]) {
+  const recommendations = messages.reduce<Array<{
+    messageIndex: number
+    anchorText: string | null
+    products: NonNullable<ReturnType<typeof buildRecommendedProducts>>
+  }>>((acc, message, index) => {
+    const products = buildRecommendedProducts(message)
+    if (message.role !== "ai" || !products) return acc
+
+    acc.push({
+      messageIndex: index,
+      anchorText: message.text ?? null,
+      products,
+    })
+    return acc
+  }, [])
+
+  return recommendations.length > 0 ? recommendations : null
+}
+
 export function useProductRecommendationPage({
   language,
   country,
@@ -123,6 +169,8 @@ export function useProductRecommendationPage({
       formSnapshot: form,
       sessionStateSnapshot: sessionState,
       candidateHighlights: buildCandidateHighlights(candidateSnapshot),
+      recommendedProducts: buildRecommendedProducts(aiMessage),
+      conversationRecommendations: buildConversationRecommendations(updatedMessages),
       conversationSnapshot: buildConversationSnapshot(updatedMessages),
     }
   }, [buildConversationSnapshot, candidateSnapshot, form, language, sessionState])
@@ -354,6 +402,8 @@ export function useProductRecommendationPage({
         formSnapshot: form,
         sessionStateSnapshot: currentSession,
         candidateHighlights: buildCandidateHighlights(candidateSnapshot),
+        recommendedProducts: buildRecommendedProducts(lastAiMsg),
+        conversationRecommendations: buildConversationRecommendations(chatMessages),
         appliedFilters: filters.map(filter => `${filter.field}=${filter.value}`),
         chatHistory: chatMessages.map(message => ({ role: message.role, text: message.text })),
         conversationSnapshot: buildConversationSnapshot(chatMessages),
