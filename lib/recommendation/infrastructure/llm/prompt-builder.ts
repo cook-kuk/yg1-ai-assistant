@@ -371,7 +371,6 @@ function buildIntakeSummaryText(form: ProductIntakeForm): string {
     `  문의 목적: ${f(form.inquiryPurpose as AnswerState<string>, purposeMap as Record<string, string>)}`,
     `  소재: ${f(form.material)}`,
     `  가공 형상: ${f(form.operationType)}`,
-    `  가공 성격: ${f(form.machiningIntent as AnswerState<string>, intentMap as Record<string, string>)}`,
     `  공구 타입: ${f(form.toolTypeOrCurrentProduct)}`,
     `  직경: ${f(form.diameterInfo)}`,
   ].join("\n")

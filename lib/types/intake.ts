@@ -58,7 +58,6 @@ export function allRequiredAnswered(form: ProductIntakeForm): boolean {
     isAnswered(form.inquiryPurpose) &&
     isAnswered(form.material) &&
     isAnswered(form.operationType) &&
-    isAnswered(form.machiningIntent) &&
     isAnswered(form.toolTypeOrCurrentProduct) &&
     isAnswered(form.diameterInfo)
   )
@@ -69,7 +68,6 @@ export function countAnswered(form: ProductIntakeForm): number {
     form.inquiryPurpose,
     form.material,
     form.operationType,
-    form.machiningIntent,
     form.toolTypeOrCurrentProduct,
     form.diameterInfo,
   ].filter((f) => f.status !== "unanswered").length
@@ -79,7 +77,6 @@ export function countUnknowns(form: ProductIntakeForm): number {
   return [
     form.material,
     form.operationType,
-    form.machiningIntent,
     form.toolTypeOrCurrentProduct,
     form.diameterInfo,
   ].filter((f) => f.status === "unknown").length
@@ -173,18 +170,6 @@ export const FIELD_CONFIGS: IntakeFieldConfig[] = [
       { value: "헬리컬", label: "헬리컬 진입" },
       { value: "정면가공", label: "정면가공 (Face)" },
       { value: "프로파일", label: "프로파일 / 윤곽" },
-    ],
-    unknownLabel: "모름",
-  },
-  {
-    key: "machiningIntent",
-    label: "가공 성격",
-    emoji: "🎚️",
-    description: "황삭 / 중삭 / 정삭 중 어느 쪽인가요?",
-    options: [
-      { value: "roughing", label: "황삭 (Roughing)" },
-      { value: "semi", label: "중삭 (Semi-finishing)" },
-      { value: "finishing", label: "정삭 (Finishing)" },
     ],
     unknownLabel: "모름",
   },

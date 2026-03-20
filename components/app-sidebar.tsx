@@ -25,6 +25,9 @@ import {
 import { cn } from "@/lib/utils"
 import { useApp } from "@/lib/store"
 import { wowScenarios } from "@/lib/demo-data"
+import { useLocation } from "@/context/LocationContext"
+import { useNearestDealers } from "@/hooks/useNearestDealers"
+import { DealerPopup } from "@/components/DealerLocator/DealerPopup"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -161,6 +164,10 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
   const router = useRouter()
   const { currentUser, setUserRole, demoScenario, setDemoScenario, language, setLanguage, country, setCountry } = useApp()
   const [countryList, setCountryList] = useState<string[]>([])
+  const [dealerPopupOpen, setDealerPopupOpen] = useState(false)
+  const { lat, lng, source, permissionStatus, requestGPS } = useLocation()
+  const nearest = useNearestDealers(lat, lng, { topK: 1 })
+  const topDealer = nearest[0]
 
   useEffect(() => {
     fetch("/api/countries")
@@ -355,6 +362,44 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
             </button>
           </div>
         </div>
+
+        {/* Dealer Locator */}
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-1.5 text-xs text-sidebar-foreground/60">
+            <MapPin className="h-3.5 w-3.5" />
+            <span>{language === 'ko' ? '영업소' : 'Dealer'}</span>
+          </div>
+          {permissionStatus === 'granted' && topDealer ? (
+            <button
+              onClick={() => setDealerPopupOpen(true)}
+              className="flex items-center gap-1.5 text-xs font-medium text-[#C8102E] hover:underline transition-colors"
+            >
+              <span>{topDealer.name}</span>
+              <span className={source === 'gps' ? 'text-emerald-600' : 'text-amber-600'}>
+                · {source === 'gps' ? topDealer.distanceLabel : `약 ${topDealer.distanceLabel}`}
+              </span>
+            </button>
+          ) : permissionStatus === 'denied' && topDealer ? (
+            <button
+              onClick={() => setDealerPopupOpen(true)}
+              className="flex items-center gap-1.5 text-xs font-medium text-[#C8102E] hover:underline transition-colors"
+            >
+              <span>{language === 'ko' ? '영업소 찾기' : 'Find Dealer'}</span>
+              <span className="text-amber-600">· 약 {topDealer.distanceLabel}</span>
+            </button>
+          ) : (
+            <button
+              onClick={async () => {
+                await requestGPS();
+                setDealerPopupOpen(true);
+              }}
+              className="text-xs font-medium text-[#C8102E] hover:underline transition-colors"
+            >
+              {language === 'ko' ? '가까운 영업소 찾기' : 'Find Nearby'}
+            </button>
+          )}
+        </div>
+        <DealerPopup isOpen={dealerPopupOpen} onClose={() => setDealerPopupOpen(false)} />
 
         {/* User Role Selector */}
         <DropdownMenu>

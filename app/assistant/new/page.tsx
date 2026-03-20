@@ -22,7 +22,6 @@ import { parseChatResponse } from "@/lib/frontend/chat/chat-client"
 import { cn } from "@/lib/utils"
 import { DealerPopupTriggerButton } from "@/components/DealerLocator/DealerPopupTriggerButton"
 import { LocationPermissionBanner } from "@/components/DealerLocator/LocationPermissionBanner"
-import { DealerLocator } from "@/components/DealerLocator"
 
 // ===== TYPES =====
 
@@ -342,9 +341,6 @@ export default function AssistantNewPage() {
             )}
             <div ref={chatEndRef} />
           </div>
-
-          {/* Dealer Locator floating button */}
-          <DealerLocator />
 
           {/* Input */}
           <div className="border-t p-3">
