@@ -50,5 +50,5 @@ jobs:
           cd "$DEPLOY_PATH"
           git checkout main || git checkout -b main origin/main
           git pull origin main
-          APP_MODE="${APP_MODE:-dev}" sudo -E docker compose up --build -d
+          sudo env APP_MODE="${APP_MODE:-dev}" docker compose up --build -d
           EOF
