@@ -149,6 +149,9 @@ export interface ExplorationSessionState {
   currentTask?: RecommendationTask | null
   taskHistory?: ArchivedTask[]
   pendingIntents?: Array<{ text: string; category: string }>
+
+  // ── Persistent Conversation Memory (accumulates across turns) ──
+  conversationMemory?: import("@/lib/recommendation/domain/memory/conversation-memory").ConversationMemory
 }
 
 // ── Full Exploration Session (server-side, includes heavy data) ──

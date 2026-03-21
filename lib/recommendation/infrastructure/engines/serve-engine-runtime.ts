@@ -29,6 +29,15 @@ import { detectUserState } from "@/lib/recommendation/domain/context/user-unders
 import { buildChipContext } from "@/lib/recommendation/domain/context/chip-context-builder"
 import { rerankChipsWithLLM } from "@/lib/recommendation/domain/options/llm-chip-reranker"
 import { generateContextualChips, type ChipGenerationContext } from "@/lib/recommendation/domain/options/contextual-chip-generator"
+import {
+  recordHighlight,
+  recordQA,
+  recordConfusion,
+  recordSkip,
+  recordDelegation,
+  recordExplanationPreference,
+  recordFrustration,
+} from "@/lib/recommendation/domain/memory/conversation-memory"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { RecommendationDisplayedProductRequestDto } from "@/lib/contracts/recommendation"
@@ -496,6 +505,29 @@ export async function handleServeExploration(
         let finalChips = llmResponse.chips
         let finalDisplayedOptions = prevState.displayedOptions ?? []
 
+        // ── Record user signals into persistent memory ──
+        const persistedMemory = prevState.conversationMemory
+        if (persistedMemory) {
+          if (userStateResult.state === "confused") {
+            recordConfusion(persistedMemory, prevState.lastAskedField ?? "unknown")
+            recordHighlight(persistedMemory, turnCount, "confusion", `${prevState.lastAskedField ?? "unknown"} 필드에서 혼란`, prevState.lastAskedField ?? undefined)
+          }
+          if (userStateResult.state === "wants_delegation") {
+            recordDelegation(persistedMemory)
+            recordHighlight(persistedMemory, turnCount, "preference", "사용자가 시스템에 위임 선호")
+          }
+          if (userStateResult.state === "wants_explanation") {
+            recordExplanationPreference(persistedMemory)
+          }
+          if (userStateResult.state === "wants_skip" && prevState.lastAskedField) {
+            recordSkip(persistedMemory, prevState.lastAskedField)
+          }
+          // Record Q&A pair
+          if (prevState.lastAskedField && lastUserMsg.text) {
+            recordQA(persistedMemory, prevState.lastAskedField, lastUserMsg.text, prevState.lastAskedField, turnCount)
+          }
+        }
+
         // Priority 1: Pending question → question-aligned chips
         if (pendingQ.hasPendingQuestion && pendingQ.question) {
           let questionOptions = buildQuestionAlignedOptions(pendingQ.question)
@@ -545,6 +577,7 @@ export async function handleServeExploration(
           displayedOptions: finalDisplayedOptions,
           currentMode: "general_chat",
           lastAction: "answer_general",
+          conversationMemory: persistedMemory ?? prevState.conversationMemory,
         })
         return deps.jsonRecommendationResponse({
           text: llmResponse.text,

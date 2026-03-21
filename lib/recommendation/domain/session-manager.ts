@@ -56,6 +56,7 @@ interface BuildSessionStateParams {
   lastAction?: LastActionType
   currentTask?: RecommendationTask | null
   taskHistory?: ArchivedTask[]
+  conversationMemory?: import("@/lib/recommendation/domain/memory/conversation-memory").ConversationMemory
 }
 
 export function buildSessionState(params: BuildSessionStateParams): ExplorationSessionState {
@@ -82,6 +83,7 @@ export function buildSessionState(params: BuildSessionStateParams): ExplorationS
     lastAction: params.lastAction,
     currentTask: params.currentTask ?? null,
     taskHistory: params.taskHistory ?? [],
+    conversationMemory: params.conversationMemory,
   }
 }
 
@@ -113,6 +115,7 @@ export function carryForwardState(
     lastAction: overrides.lastAction ?? prev.lastAction,
     currentTask: overrides.currentTask ?? prev.currentTask ?? null,
     taskHistory: overrides.taskHistory ?? prev.taskHistory ?? [],
+    conversationMemory: overrides.conversationMemory ?? prev.conversationMemory,
   })
 }
 
