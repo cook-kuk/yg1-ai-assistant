@@ -22,6 +22,9 @@ import {
 import { ENABLE_TOOL_USE_ROUTING } from "@/lib/recommendation/infrastructure/config/recommendation-feature-flags"
 import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import { buildDisplayedOptions } from "@/lib/recommendation/infrastructure/engines/serve-engine-response"
+import { detectPendingQuestion } from "@/lib/recommendation/domain/context/pending-question-detector"
+import { buildQuestionAlignedOptions } from "@/lib/recommendation/domain/options/question-option-builder"
+import { smartOptionsToDisplayedOptions, smartOptionsToChips } from "@/lib/recommendation/domain/options/option-bridge"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { RecommendationDisplayedProductRequestDto } from "@/lib/contracts/recommendation"
@@ -414,6 +417,19 @@ export async function handleServeExploration(
           )
           if (contextReply) {
             if (prevState.resolutionStatus?.startsWith("resolved")) {
+              // ── Pending question detection for contextReply ──
+              const ctxPendingQ = detectPendingQuestion(contextReply)
+              let ctxChips = prevState.displayedChips ?? ["대체 후보 보기", "절삭조건 알려줘", "처음부터 다시"]
+              let ctxDisplayedOptions = prevState.displayedOptions ?? []
+              if (ctxPendingQ.hasPendingQuestion && ctxPendingQ.question) {
+                const qOptions = buildQuestionAlignedOptions(ctxPendingQ.question)
+                if (qOptions.length > 0) {
+                  ctxChips = smartOptionsToChips(qOptions)
+                  ctxDisplayedOptions = smartOptionsToDisplayedOptions(qOptions)
+                  console.log(`[pending-question] Context reply has "${ctxPendingQ.question.shape}" question, ${ctxChips.length} question-aligned chips`)
+                }
+              }
+
               const sessionState = carryForwardState(prevState, {
                 candidateCount: prevState.candidateCount ?? candidates.length,
                 appliedFilters: filters,
@@ -422,15 +438,15 @@ export async function handleServeExploration(
                 resolvedInput: currentInput,
                 turnCount,
                 displayedCandidates: prevState.displayedCandidates ?? [],
-                displayedChips: prevState.displayedChips ?? ["대체 후보 보기", "절삭조건 알려줘", "처음부터 다시"],
-                displayedOptions: prevState.displayedOptions ?? [],
+                displayedChips: ctxChips,
+                displayedOptions: ctxDisplayedOptions,
                 currentMode: "general_chat",
                 lastAction: "explain_product",
               })
               return deps.jsonRecommendationResponse({
                 text: contextReply,
                 purpose: "general_chat",
-                chips: prevState.displayedChips ?? ["대체 후보 보기", "절삭조건 알려줘", "처음부터 다시"],
+                chips: ctxChips,
                 isComplete: false,
                 recommendation: null,
                 sessionState,
@@ -460,6 +476,19 @@ export async function handleServeExploration(
           ? { text: action.message, chips: generateFollowUpChips(lastUserMsg.text, candidates.length) }
           : await deps.handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form, prevState.displayedCandidates)
 
+        // ── Pending question detection: override generic chips if assistant asked a question ──
+        const pendingQ = detectPendingQuestion(llmResponse.text)
+        let finalChips = llmResponse.chips
+        let finalDisplayedOptions = prevState.displayedOptions ?? []
+        if (pendingQ.hasPendingQuestion && pendingQ.question) {
+          const questionOptions = buildQuestionAlignedOptions(pendingQ.question)
+          if (questionOptions.length > 0) {
+            finalChips = smartOptionsToChips(questionOptions)
+            finalDisplayedOptions = smartOptionsToDisplayedOptions(questionOptions)
+            console.log(`[pending-question] Detected "${pendingQ.question.shape}" question, overriding ${llmResponse.chips.length} generic chips with ${finalChips.length} question-aligned chips`)
+          }
+        }
+
         const sessionState = carryForwardState(prevState, {
           candidateCount: prevState.candidateCount ?? candidates.length,
           appliedFilters: filters,
@@ -468,15 +497,15 @@ export async function handleServeExploration(
           resolvedInput: currentInput,
           turnCount,
           displayedCandidates: prevState.displayedCandidates ?? [],
-          displayedChips: llmResponse.chips,
-          displayedOptions: prevState.displayedOptions ?? [],
+          displayedChips: finalChips,
+          displayedOptions: finalDisplayedOptions,
           currentMode: "general_chat",
           lastAction: "answer_general",
         })
         return deps.jsonRecommendationResponse({
           text: llmResponse.text,
           purpose: "general_chat",
-          chips: llmResponse.chips,
+          chips: finalChips,
           isComplete: false,
           recommendation: null,
           sessionState,
