@@ -54,6 +54,11 @@ import {
   buildPostRecommendationPlannerContext,
   buildContextAwarePlannerContext,
 } from "@/lib/recommendation/domain/options/option-bridge"
+import { detectPendingQuestion } from "@/lib/recommendation/domain/context/pending-question-detector"
+import { buildQuestionAlignedOptions, buildConfusionHelperOptions } from "@/lib/recommendation/domain/options/question-option-builder"
+import { detectUserState } from "@/lib/recommendation/domain/context/user-understanding-detector"
+import { buildChipContext } from "@/lib/recommendation/domain/context/chip-context-builder"
+import { rerankChipsWithLLM } from "@/lib/recommendation/domain/options/llm-chip-reranker"
 
 type DisplayedProduct = RecommendationDisplayedProductRequestDto
 type JsonRecommendationResponse = (
@@ -179,10 +184,50 @@ export async function buildQuestionResponse(
 
   const requestPrep = prepareRequest(form, messages, sessionState, input, candidates.length)
 
+  // ── Post-LLM chip correction: check if the polished response contains a pending question ──
+  let finalResponseChips = responseChips
+  let finalDisplayedOptions = displayedOptions
+  const lastUserMsgText = messages.length > 0
+    ? [...messages].reverse().find(m => m.role === "user")?.text ?? null
+    : null
+
+  if (responseText) {
+    const pendingQ = detectPendingQuestion(responseText)
+    if (pendingQ.hasPendingQuestion && pendingQ.question) {
+      let questionOptions = buildQuestionAlignedOptions(pendingQ.question)
+
+      // Check user confusion state
+      if (lastUserMsgText) {
+        const userStateResult = detectUserState(lastUserMsgText, question?.field)
+        if (userStateResult.state === "confused" || userStateResult.state === "wants_explanation" || userStateResult.state === "wants_delegation") {
+          const helperOptions = buildConfusionHelperOptions(pendingQ.question, userStateResult.confusedAbout)
+          questionOptions = [...helperOptions, ...questionOptions]
+        }
+      }
+
+      if (questionOptions.length > 0) {
+        // LLM rerank (optional)
+        const chipContext = buildChipContext(
+          sessionState, input, lastUserMsgText, responseText,
+          pendingQ.question, lastUserMsgText ? detectUserState(lastUserMsgText).state : "clear", null,
+          messages.map(m => ({ role: m.role, text: m.text }))
+        )
+        const reranked = await rerankChipsWithLLM(questionOptions, chipContext, provider)
+
+        finalResponseChips = smartOptionsToChips(reranked.options)
+        finalDisplayedOptions = smartOptionsToDisplayedOptions(reranked.options)
+        // Update session state chips
+        sessionState.displayedChips = finalResponseChips
+        sessionState.displayedOptions = finalDisplayedOptions
+        console.log(`[narrowing:chip-correction] LLM response had pending question "${pendingQ.question.shape}", ${finalResponseChips.length} chips${reranked.rerankedByLLM ? " (LLM reranked)" : ""}`)
+      }
+    }
+  }
+
   return deps.jsonRecommendationResponse({
     text: responseText,
     purpose: messages.length === 0 ? "greeting" : "question",
-    chips: responseChips,
+    chips: finalResponseChips,
     isComplete: false,
     recommendation: null,
     sessionState,
@@ -376,12 +421,29 @@ export async function buildRecommendationResponse(
     }).catch(() => {})
   }
 
+  // ── Post-LLM chip correction for recommendation response ──
+  let finalRecChips = followUpChips
+  const finalResponseText = status === "none"
+    ? "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요."
+    : responseText
+
+  if (finalResponseText) {
+    const recPendingQ = detectPendingQuestion(finalResponseText)
+    if (recPendingQ.hasPendingQuestion && recPendingQ.question) {
+      const recQuestionOptions = buildQuestionAlignedOptions(recPendingQ.question)
+      if (recQuestionOptions.length > 0) {
+        finalRecChips = smartOptionsToChips(recQuestionOptions)
+        sessionState.displayedChips = finalRecChips
+        sessionState.displayedOptions = smartOptionsToDisplayedOptions(recQuestionOptions)
+        console.log(`[recommendation:chip-correction] LLM response had pending question "${recPendingQ.question.shape}", ${finalRecChips.length} chips`)
+      }
+    }
+  }
+
   return deps.jsonRecommendationResponse({
-    text: status === "none"
-      ? "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요."
-      : responseText,
+    text: finalResponseText,
     purpose: "recommendation",
-    chips: followUpChips,
+    chips: finalRecChips,
     isComplete: true,
     recommendation,
     sessionState,
