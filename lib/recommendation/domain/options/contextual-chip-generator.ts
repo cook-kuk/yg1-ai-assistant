@@ -34,6 +34,12 @@ export interface ChipGenerationContext {
   recentTurns: Array<{ role: string; text: string }>
   /** Recommendation status */
   recommendationStatus: string | null
+  /**
+   * Actual candidate field value distributions from current candidates.
+   * Key: field name, Value: map of value → count.
+   * This is the real data source — chips MUST reflect these values.
+   */
+  candidateFieldValues?: Record<string, Array<{ value: string; count: number }>>
 }
 
 export interface GeneratedChips {
@@ -85,6 +91,12 @@ export async function generateContextualChips(
 - 예/아니요 같은 이진 질문이면 2~3개도 충분
 - 선택지가 많으면 5~7개도 가능
 - 최소 2개, 최대 8개
+
+═══ 매우 중요 ═══
+- "후보 데이터"에 실제 값 분포가 제공되면, 그 값들을 반드시 칩에 포함하세요
+- 데이터에 있는 옵션을 임의로 빼지 마세요
+- 시스템 응답에서 언급된 모든 선택지는 칩으로 제공해야 합니다
+- 항상 "상관없음" 칩도 포함하세요
 
 JSON으로만 응답: {"chips": ["칩1", "칩2", ...], "reasoning": "선택 이유 한 줄"}`
 
@@ -148,15 +160,24 @@ function formatContextForChipGen(ctx: ChipGenerationContext): string {
     lines.push(`${role}: ${turn.text.slice(0, 150)}${turn.text.length > 150 ? "..." : ""}`)
   }
 
+  // Candidate field value distributions — THE REAL DATA
+  if (ctx.candidateFieldValues && Object.keys(ctx.candidateFieldValues).length > 0) {
+    lines.push(`\n═══ 후보 데이터 (실제 값 분포 — 칩에 반드시 반영) ═══`)
+    for (const [field, values] of Object.entries(ctx.candidateFieldValues)) {
+      const valueStr = values.map(v => `${v.value}(${v.count}개)`).join(", ")
+      lines.push(`${field}: ${valueStr}`)
+    }
+  }
+
   lines.push(`\n═══ 시스템 최신 응답 ═══`)
-  lines.push(ctx.assistantText.slice(0, 300))
+  lines.push(ctx.assistantText.slice(0, 400))
 
   if (ctx.userMessage) {
     lines.push(`\n═══ 사용자 최신 메시지 ═══`)
     lines.push(ctx.userMessage)
   }
 
-  lines.push(`\n위 맥락에 맞는 칩을 상황에 맞게 생성하세요. 개수는 자유롭게 (최소 2개, 최대 8개).`)
+  lines.push(`\n위 맥락에 맞는 칩을 생성하세요. 후보 데이터의 모든 값을 포함하고, 개수는 자유롭게 (최소 2개, 최대 8개).`)
 
   return lines.join("\n")
 }
@@ -168,9 +189,34 @@ function formatContextForChipGen(ctx: ChipGenerationContext): string {
 function buildDataDrivenFallbackChips(ctx: ChipGenerationContext): string[] {
   const chips: string[] = []
 
-  // 1. If there are displayed products → use their data
-  if (ctx.displayedProducts.length >= 2) {
-    // Products exist → actions based on them
+  // 1. If there are candidate field values for the current question → use ALL of them as chips
+  if (ctx.candidateFieldValues && ctx.lastAskedField) {
+    const fieldValues = ctx.candidateFieldValues[ctx.lastAskedField]
+    if (fieldValues && fieldValues.length > 0) {
+      for (const fv of fieldValues) {
+        chips.push(`${fv.value} (${fv.count}개)`)
+      }
+      chips.push("상관없음")
+      return chips
+    }
+  }
+
+  // 2. If there are candidate field values for any field → show the most discriminating
+  if (ctx.candidateFieldValues) {
+    const fields = Object.entries(ctx.candidateFieldValues)
+    if (fields.length > 0) {
+      // Pick the field with the most values (most information)
+      const [bestField, bestValues] = fields.reduce((a, b) => a[1].length > b[1].length ? a : b)
+      for (const fv of bestValues.slice(0, 6)) {
+        chips.push(`${fv.value} (${fv.count}개)`)
+      }
+      chips.push("상관없음")
+      return chips
+    }
+  }
+
+  // 3. If there are displayed products → derive chips from their data
+  if (ctx.displayedProducts.length >= 1) {
     const topProduct = ctx.displayedProducts[0]
     if (topProduct.coating) chips.push(`${topProduct.coating} 코팅 상세`)
     if (ctx.displayedProducts.length > 1) {
@@ -178,34 +224,32 @@ function buildDataDrivenFallbackChips(ctx: ChipGenerationContext): string[] {
     }
   }
 
-  // 2. Applied filters → offer to change each one
+  // 4. Applied filters → offer to change each one
   for (const filter of ctx.appliedFilters.slice(-2)) {
     chips.push(`${filter.value} 변경`)
   }
 
-  // 3. Missing conditions → offer to fill them
-  const missing: string[] = []
-  if (!ctx.resolvedConditions.material) missing.push("소재")
-  if (!ctx.resolvedConditions.diameterMm) missing.push("직경")
-  if (!ctx.resolvedConditions.coating) missing.push("코팅")
-  if (!ctx.resolvedConditions.fluteCount) missing.push("날 수")
-  for (const field of missing.slice(0, 2)) {
-    chips.push(`${field} 선택`)
-  }
-
-  // 4. If filters exist, allow undo
+  // 5. If filters exist, allow undo
   if (ctx.appliedFilters.length > 0) {
     const lastFilter = ctx.appliedFilters[ctx.appliedFilters.length - 1]
     chips.push(`${lastFilter.value} 이전으로`)
   }
 
-  // Ensure at least 2 chips
-  if (chips.length < 2) {
-    if (ctx.candidateCount > 0) chips.push(`${ctx.candidateCount}개 후보 보기`)
-    if (chips.length < 2) chips.push("조건 추가")
+  // 6. Missing conditions from data
+  const missing: string[] = []
+  if (!ctx.resolvedConditions.material) missing.push("소재 선택")
+  if (!ctx.resolvedConditions.diameterMm) missing.push("직경 선택")
+  if (!ctx.resolvedConditions.coating) missing.push("코팅 선택")
+  if (!ctx.resolvedConditions.fluteCount) missing.push("날 수 선택")
+  for (const field of missing.slice(0, 2)) {
+    chips.push(field)
   }
 
-  return chips.slice(0, 6)
+  if (chips.length < 2 && ctx.candidateCount > 0) {
+    chips.push(`${ctx.candidateCount}개 후보 보기`)
+  }
+
+  return chips
 }
 
 function safeParseJSON(raw: string): Record<string, unknown> | null {

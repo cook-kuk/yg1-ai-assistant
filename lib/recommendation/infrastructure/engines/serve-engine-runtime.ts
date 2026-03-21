@@ -270,7 +270,7 @@ export async function handleServeExploration(
           : "어떤 조건을 변경하시겠어요?"
 
         // Context-based chip generation instead of hardcoded refinement chips
-        const refineChipCtx = buildChipGenContext(refinementText, lastUserMsg.text, "refinement", currentInput, filters, prevState, messages)
+        const refineChipCtx = buildChipGenContext(refinementText, lastUserMsg.text, "refinement", currentInput, filters, prevState, messages, candidates)
         const refineChipResult = await generateContextualChips(refineChipCtx, provider)
         const refinementChips = refineChipResult.chips
 
@@ -483,7 +483,7 @@ export async function handleServeExploration(
         let llmResponse: { text: string; chips: string[] }
         if (preGenerated) {
           // Generate contextual chips instead of hardcoded follow-up chips
-          const chipCtx = buildChipGenContext(action.message, lastUserMsg.text, "general_chat", currentInput, filters, prevState, messages)
+          const chipCtx = buildChipGenContext(action.message, lastUserMsg.text, "general_chat", currentInput, filters, prevState, messages, candidates)
           const contextChips = await generateContextualChips(chipCtx, provider)
           llmResponse = { text: action.message, chips: contextChips.chips }
         } else {
@@ -876,8 +876,60 @@ function buildChipGenContext(
   resolvedInput: RecommendationInput,
   filters: AppliedFilter[],
   sessionState: ExplorationSessionState | null,
-  messages: ChatMessage[]
+  messages: ChatMessage[],
+  currentCandidates?: ScoredProduct[]
 ): ChipGenerationContext {
+  // Extract actual candidate field value distributions
+  let candidateFieldValues: Record<string, Array<{ value: string; count: number }>> | undefined
+  if (currentCandidates && currentCandidates.length > 0) {
+    candidateFieldValues = {}
+    const fieldExtractors: Array<{ key: string; getter: (p: ScoredProduct) => string | number | null | undefined }> = [
+      { key: "fluteCount", getter: p => p.product.fluteCount },
+      { key: "coating", getter: p => p.product.coating },
+      { key: "seriesName", getter: p => p.product.seriesName },
+      { key: "toolSubtype", getter: p => p.product.toolSubtype },
+    ]
+    for (const { key, getter } of fieldExtractors) {
+      const counts = new Map<string, number>()
+      for (const c of currentCandidates) {
+        const val = getter(c)
+        if (val != null) {
+          const strVal = key === "fluteCount" ? `${val}날` : String(val)
+          counts.set(strVal, (counts.get(strVal) ?? 0) + 1)
+        }
+      }
+      if (counts.size > 1) {
+        const sorted = Array.from(counts.entries())
+          .sort((a, b) => b[1] - a[1])
+          .map(([value, count]) => ({ value, count }))
+        candidateFieldValues[key] = sorted
+      }
+    }
+  } else if (sessionState?.displayedCandidates && sessionState.displayedCandidates.length > 0) {
+    // Fall back to session snapshot data
+    candidateFieldValues = {}
+    const snapFields: Array<{ key: string; getter: (c: CandidateSnapshot) => string | number | null }> = [
+      { key: "fluteCount", getter: c => c.fluteCount },
+      { key: "coating", getter: c => c.coating },
+      { key: "seriesName", getter: c => c.seriesName },
+    ]
+    for (const { key, getter } of snapFields) {
+      const counts = new Map<string, number>()
+      for (const c of sessionState.displayedCandidates) {
+        const val = getter(c)
+        if (val != null) {
+          const strVal = key === "fluteCount" ? `${val}날` : String(val)
+          counts.set(strVal, (counts.get(strVal) ?? 0) + 1)
+        }
+      }
+      if (counts.size > 1) {
+        candidateFieldValues[key] = Array.from(counts.entries())
+          .sort((a, b) => b[1] - a[1])
+          .map(([value, count]) => ({ value, count }))
+      }
+    }
+  }
+
   return {
     assistantText,
     userMessage,
@@ -890,7 +942,7 @@ function buildChipGenContext(
       coating: resolvedInput.coatingPreference ?? null,
     },
     appliedFilters: filters.filter(f => f.op !== "skip").map(f => ({ field: f.field, value: f.value })),
-    candidateCount: sessionState?.candidateCount ?? 0,
+    candidateCount: sessionState?.candidateCount ?? currentCandidates?.length ?? 0,
     displayedProducts: (sessionState?.displayedCandidates ?? []).slice(0, 5).map(c => ({
       code: c.displayCode,
       series: c.seriesName,
@@ -899,5 +951,6 @@ function buildChipGenContext(
     lastAskedField: sessionState?.lastAskedField ?? null,
     recentTurns: messages.slice(-6).map(m => ({ role: m.role, text: m.text })),
     recommendationStatus: sessionState?.resolutionStatus ?? null,
+    candidateFieldValues,
   }
 }

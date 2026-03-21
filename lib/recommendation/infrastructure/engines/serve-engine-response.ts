@@ -389,6 +389,7 @@ export async function buildRecommendationResponse(
     lastAskedField: null,
     recentTurns: messages.slice(-6).map(m => ({ role: m.role, text: m.text })),
     recommendationStatus: checkResolution(candidates, history),
+    candidateFieldValues: extractFieldValuesFromSnapshot(candidateSnapshot),
   }
   const contextualRecChips = await generateContextualChips(recChipCtx, provider)
   const followUpChips = contextualRecChips.chips.length >= 2
@@ -724,6 +725,36 @@ export function safeParseJSON(raw: string): Record<string, unknown> | null {
   } catch {
     return null
   }
+}
+
+/**
+ * Extract field value distributions from candidate snapshots (data-driven, no hardcoding).
+ */
+function extractFieldValuesFromSnapshot(
+  snapshots: CandidateSnapshot[]
+): Record<string, Array<{ value: string; count: number }>> {
+  const result: Record<string, Array<{ value: string; count: number }>> = {}
+  const fields: Array<{ key: string; getter: (c: CandidateSnapshot) => string | number | null }> = [
+    { key: "fluteCount", getter: c => c.fluteCount },
+    { key: "coating", getter: c => c.coating },
+    { key: "seriesName", getter: c => c.seriesName },
+  ]
+  for (const { key, getter } of fields) {
+    const counts = new Map<string, number>()
+    for (const c of snapshots) {
+      const val = getter(c)
+      if (val != null) {
+        const strVal = key === "fluteCount" ? `${val}날` : String(val)
+        counts.set(strVal, (counts.get(strVal) ?? 0) + 1)
+      }
+    }
+    if (counts.size > 1) {
+      result[key] = Array.from(counts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([value, count]) => ({ value, count }))
+    }
+  }
+  return result
 }
 
 // ════════════════════════════════════════════════════════════════
