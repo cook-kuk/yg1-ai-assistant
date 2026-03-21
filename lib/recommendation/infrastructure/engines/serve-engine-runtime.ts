@@ -23,8 +23,11 @@ import { ENABLE_TOOL_USE_ROUTING } from "@/lib/recommendation/infrastructure/con
 import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import { buildDisplayedOptions } from "@/lib/recommendation/infrastructure/engines/serve-engine-response"
 import { detectPendingQuestion } from "@/lib/recommendation/domain/context/pending-question-detector"
-import { buildQuestionAlignedOptions } from "@/lib/recommendation/domain/options/question-option-builder"
+import { buildQuestionAlignedOptions, buildConfusionHelperOptions } from "@/lib/recommendation/domain/options/question-option-builder"
 import { smartOptionsToDisplayedOptions, smartOptionsToChips } from "@/lib/recommendation/domain/options/option-bridge"
+import { detectUserState } from "@/lib/recommendation/domain/context/user-understanding-detector"
+import { buildChipContext } from "@/lib/recommendation/domain/context/chip-context-builder"
+import { rerankChipsWithLLM } from "@/lib/recommendation/domain/options/llm-chip-reranker"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { RecommendationDisplayedProductRequestDto } from "@/lib/contracts/recommendation"
@@ -476,16 +479,44 @@ export async function handleServeExploration(
           ? { text: action.message, chips: generateFollowUpChips(lastUserMsg.text, candidates.length) }
           : await deps.handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form, prevState.displayedCandidates)
 
-        // ── Pending question detection: override generic chips if assistant asked a question ──
+        // ── Chip Priority Pipeline: question → user state → LLM rerank → fallback ──
         const pendingQ = detectPendingQuestion(llmResponse.text)
+        const userStateResult = detectUserState(lastUserMsg.text, prevState.lastAskedField)
         let finalChips = llmResponse.chips
         let finalDisplayedOptions = prevState.displayedOptions ?? []
+
+        // Priority 1: Pending question → question-aligned chips
         if (pendingQ.hasPendingQuestion && pendingQ.question) {
-          const questionOptions = buildQuestionAlignedOptions(pendingQ.question)
+          let questionOptions = buildQuestionAlignedOptions(pendingQ.question)
+
+          // Priority 2: If user is confused, merge helper chips
+          if (userStateResult.state === "confused" || userStateResult.state === "wants_explanation" || userStateResult.state === "wants_delegation") {
+            const helperOptions = buildConfusionHelperOptions(pendingQ.question, userStateResult.confusedAbout)
+            // Helpers first, then question choices
+            questionOptions = [...helperOptions, ...questionOptions]
+            console.log(`[chip-priority] User state: ${userStateResult.state}, added ${helperOptions.length} helper chips`)
+          }
+
           if (questionOptions.length > 0) {
-            finalChips = smartOptionsToChips(questionOptions)
-            finalDisplayedOptions = smartOptionsToDisplayedOptions(questionOptions)
-            console.log(`[pending-question] Detected "${pendingQ.question.shape}" question, overriding ${llmResponse.chips.length} generic chips with ${finalChips.length} question-aligned chips`)
+            // Priority 5: LLM rerank candidates (optional, Haiku)
+            const chipContext = buildChipContext(
+              prevState, currentInput, lastUserMsg.text, llmResponse.text,
+              pendingQ.question, userStateResult.state, userStateResult.confusedAbout,
+              messages.map(m => ({ role: m.role, text: m.text }))
+            )
+            const reranked = await rerankChipsWithLLM(questionOptions, chipContext, provider)
+
+            finalChips = smartOptionsToChips(reranked.options)
+            finalDisplayedOptions = smartOptionsToDisplayedOptions(reranked.options)
+            console.log(`[chip-priority] Pending question "${pendingQ.question.shape}", ${finalChips.length} chips${reranked.rerankedByLLM ? " (LLM reranked)" : ""}`)
+          }
+        } else if (userStateResult.state === "confused" || userStateResult.state === "wants_explanation" || userStateResult.state === "wants_delegation") {
+          // No pending question but user is confused → generate helper chips from session
+          const helperOptions = buildConfusionHelperOptions(null, userStateResult.confusedAbout)
+          if (helperOptions.length > 0) {
+            finalChips = smartOptionsToChips(helperOptions)
+            finalDisplayedOptions = smartOptionsToDisplayedOptions(helperOptions)
+            console.log(`[chip-priority] User confused, ${helperOptions.length} helper chips (no pending question)`)
           }
         }
 

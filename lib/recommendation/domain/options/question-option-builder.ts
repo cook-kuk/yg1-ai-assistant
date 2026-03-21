@@ -359,3 +359,127 @@ function buildReviseOrContinue(question: PendingQuestion): SmartOption[] {
     },
   ]
 }
+
+// ════════════════════════════════════════════════════════════════
+// CONFUSION-AWARE HELPER CHIPS
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * Build helper chips for confused/uncertain users.
+ * These should be MERGED with question-aligned chips, not replace them.
+ */
+export function buildConfusionHelperOptions(
+  question: PendingQuestion | null,
+  confusedAbout: string | null
+): SmartOption[] {
+  const options: SmartOption[] = []
+
+  // "쉽게 설명해줘"
+  options.push({
+    id: nextQuestionOptionId("explain_simple"),
+    family: "explore",
+    label: "쉽게 설명해줘",
+    subtitle: "옵션들의 차이점 설명",
+    value: "explain",
+    reason: "사용자가 혼란스러워함",
+    projectedCount: null,
+    projectedDelta: null,
+    preservesContext: true,
+    destructive: false,
+    recommended: true,
+    priorityScore: 1.0,
+    plan: {
+      type: "apply_filter",
+      patches: [{ op: "add", field: "_action", value: "explain_options" }],
+    },
+  })
+
+  // "추천으로 골라줘"
+  options.push({
+    id: nextQuestionOptionId("delegate"),
+    family: "action",
+    label: "추천으로 골라줘",
+    subtitle: "시스템이 최적 옵션 선택",
+    value: "delegate",
+    reason: "사용자가 위임을 원함",
+    projectedCount: null,
+    projectedDelta: null,
+    preservesContext: true,
+    destructive: false,
+    recommended: false,
+    priorityScore: 0.95,
+    plan: {
+      type: "apply_filter",
+      patches: [{ op: "add", field: "_action", value: "delegate_choice" }],
+    },
+  })
+
+  // "상관없음"
+  options.push({
+    id: nextQuestionOptionId("skip_confused"),
+    family: "action",
+    label: "상관없음",
+    value: "skip",
+    reason: "건너뛰기",
+    projectedCount: null,
+    projectedDelta: null,
+    preservesContext: true,
+    destructive: false,
+    recommended: false,
+    priorityScore: 0.8,
+    plan: {
+      type: "apply_filter",
+      patches: question?.field
+        ? [{ op: "add", field: question.field, value: "skip" }]
+        : [{ op: "add", field: "_action", value: "skip" }],
+    },
+  })
+
+  // Per-option explanation chips (e.g. "Diamond가 뭐야?")
+  if (question?.extractedOptions) {
+    for (const opt of question.extractedOptions.slice(0, 3)) {
+      options.push({
+        id: nextQuestionOptionId(`explain_${opt}`),
+        family: "explore",
+        label: `${opt}(이)가 뭐야?`,
+        subtitle: `${opt} 설명`,
+        value: opt,
+        field: question.field ?? undefined,
+        reason: `${opt}에 대한 설명 요청`,
+        projectedCount: null,
+        projectedDelta: null,
+        preservesContext: true,
+        destructive: false,
+        recommended: false,
+        priorityScore: 0.7,
+        plan: {
+          type: "apply_filter",
+          patches: [{ op: "add", field: "_action", value: `explain_${opt}` }],
+        },
+      })
+    }
+  }
+
+  // If confused about a specific thing
+  if (confusedAbout && (!question?.extractedOptions?.includes(confusedAbout))) {
+    options.push({
+      id: nextQuestionOptionId("explain_specific"),
+      family: "explore",
+      label: `${confusedAbout} 설명해줘`,
+      value: confusedAbout,
+      reason: `${confusedAbout}에 대한 설명`,
+      projectedCount: null,
+      projectedDelta: null,
+      preservesContext: true,
+      destructive: false,
+      recommended: false,
+      priorityScore: 0.75,
+      plan: {
+        type: "apply_filter",
+        patches: [{ op: "add", field: "_action", value: `explain_${confusedAbout}` }],
+      },
+    })
+  }
+
+  return options
+}
