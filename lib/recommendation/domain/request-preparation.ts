@@ -111,6 +111,10 @@ function isExplicitResetCommand(clean: string): boolean {
   if (RESET_KEYWORDS.includes(clean)) return true
   if (clean.length > 25) return false
   if (/\?|아니야|아닌가|잖아|않아|맞아|맞지|해야|나와야|보기로|어떻게|왜/.test(clean)) return false
+  // Frustration emoticons → clarification, not reset
+  if (/ㅠ|ㅜ/.test(clean)) return false
+  // Meta-commentary → not a reset
+  if (/기반으로|만들어|보여|줘야|내놔|라고|라는|이걸|이거|이것|위에|아까/.test(clean)) return false
   return true
 }
 

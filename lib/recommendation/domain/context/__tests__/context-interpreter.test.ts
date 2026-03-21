@@ -165,6 +165,10 @@ describe("memory manager", () => {
       suggestedNextAction: "repair",
       answeredFields: ["material", "diameterMm", "coating"],
       conversationDepth: 3,
+      messageKind: "direct_command",
+      shouldRegenerateOptions: false,
+      shouldShowRevisionOptions: false,
+      shouldBlockResetInterpretation: false,
     }
 
     const { memory: updated, decisions } = updateMemory(memory, interpretation, 3)
@@ -206,6 +210,10 @@ describe("memory manager", () => {
       suggestedNextAction: "reset",
       answeredFields: [],
       conversationDepth: 0,
+      messageKind: "direct_command",
+      shouldRegenerateOptions: false,
+      shouldShowRevisionOptions: false,
+      shouldBlockResetInterpretation: false,
     }
 
     const { decisions } = updateMemory(memory, interpretation, 3)
@@ -264,6 +272,10 @@ describe("context-aware option generation", () => {
       suggestedNextAction: "repair",
       answeredFields: ["material", "coating"],
       conversationDepth: 3,
+      messageKind: "direct_command",
+      shouldRegenerateOptions: false,
+      shouldShowRevisionOptions: false,
+      shouldBlockResetInterpretation: false,
     }
 
     const ctx: OptionPlannerContext = {
@@ -310,6 +322,10 @@ describe("context-aware option generation", () => {
       suggestedNextAction: "explain",
       answeredFields: [],
       conversationDepth: 2,
+      messageKind: "direct_command",
+      shouldRegenerateOptions: false,
+      shouldShowRevisionOptions: false,
+      shouldBlockResetInterpretation: false,
     }
 
     const ctx: OptionPlannerContext = {
@@ -354,6 +370,10 @@ describe("context-aware option generation", () => {
       suggestedNextAction: "narrow",
       answeredFields: ["coating", "fluteCount"],
       conversationDepth: 2,
+      messageKind: "direct_command",
+      shouldRegenerateOptions: false,
+      shouldShowRevisionOptions: false,
+      shouldBlockResetInterpretation: false,
     }
 
     const ctx: OptionPlannerContext = {
@@ -409,6 +429,10 @@ describe("chips and options synchronization", () => {
       suggestedNextAction: "compare",
       answeredFields: [],
       conversationDepth: 2,
+      messageKind: "direct_command",
+      shouldRegenerateOptions: false,
+      shouldShowRevisionOptions: false,
+      shouldBlockResetInterpretation: false,
     }
 
     const ctx: OptionPlannerContext = {

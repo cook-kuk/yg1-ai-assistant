@@ -305,7 +305,7 @@ function detectRefinementField(clean: string): string {
 
 /**
  * Returns true only when the message is an explicit, standalone reset command.
- * Rejects meta-questions, quotes, or long sentences that happen to contain reset words.
+ * Rejects meta-questions, quotes, pasted text, or long sentences that happen to contain reset words.
  */
 export function isExplicitResetIntent(clean: string): boolean {
   // Must contain a reset keyword
@@ -316,6 +316,10 @@ export function isExplicitResetIntent(clean: string): boolean {
   if (clean.length > 25) return false
   // Contains question markers or meta-question patterns → not a reset
   if (/\?|아니야|아닌가|잖아|않아|맞아|맞지|해야|나와야|보기로|어떻게|왜/.test(clean)) return false
+  // Contains emoticons expressing frustration → not a reset, likely clarification
+  if (/ㅠ|ㅜ/.test(clean)) return false
+  // Contains meta-commentary markers → not a reset
+  if (/기반으로|만들어|보여|줘야|내놔|라고|라는|이걸|이거|이것|위에|아까/.test(clean)) return false
   return true
 }
 

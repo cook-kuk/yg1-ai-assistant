@@ -126,6 +126,21 @@ function planContextAwareOptions(
       }
       break
 
+    case "revise":
+      options.push(...planRevisionOptions(ctx, interp))
+      break
+
+    case "regenerate_options":
+      // Regenerate options from current session state
+      if (ctx.topCandidates && ctx.topCandidates.length > 0) {
+        options.push(...planPostRecommendationOptions(ctx))
+      } else {
+        options.push(...planNarrowingOptions(ctx))
+      }
+      // Always add revision options when regenerating
+      options.push(...planRevisionOptions(ctx, interp))
+      break
+
     case "reset":
       options.push({
         id: nextOptionId("reset"),
@@ -145,6 +160,129 @@ function planContextAwareOptions(
     default:
       options.push(...planNarrowingOptions(ctx))
   }
+
+  return options
+}
+
+// ════════════════════════════════════════════════════════════════
+// REVISION OPTIONS (undo / revise / go-back)
+// ════════════════════════════════════════════════════════════════
+
+function planRevisionOptions(
+  ctx: OptionPlannerContext,
+  interp: import("../context/context-types").ContextInterpretation
+): SmartOption[] {
+  const options: SmartOption[] = []
+  const filters = ctx.appliedFilters.filter(f => f.op !== "skip")
+
+  // 1. Undo last selection
+  if (filters.length > 0) {
+    const lastFilter = filters[filters.length - 1]
+    options.push({
+      id: nextOptionId("action"),
+      family: "action",
+      label: `직전 선택 되돌리기 (${lastFilter.value})`,
+      subtitle: `${getFieldLabel(lastFilter.field)} 선택 취소`,
+      field: lastFilter.field,
+      value: lastFilter.value,
+      reason: "마지막 필터 선택 취소",
+      projectedCount: null,
+      projectedDelta: null,
+      preservesContext: true,
+      destructive: false,
+      recommended: true,
+      priorityScore: 0,
+      plan: {
+        type: "replace_filter",
+        patches: [{ op: "remove", field: lastFilter.field, value: lastFilter.value }],
+      },
+    })
+  }
+
+  // 2. Go back to specific prior selection points
+  for (const filter of filters.slice(0, -1)) {
+    options.push({
+      id: nextOptionId("action"),
+      family: "action",
+      label: `${getFieldLabel(filter.field)} 선택 전으로 (${filter.value})`,
+      subtitle: `${filter.value} 이후 선택 모두 취소`,
+      field: filter.field,
+      value: filter.value,
+      reason: `${filter.field} 선택 전 단계로 복귀`,
+      projectedCount: null,
+      projectedDelta: null,
+      preservesContext: true,
+      destructive: false,
+      recommended: false,
+      priorityScore: 0,
+      plan: {
+        type: "relax_filters",
+        patches: [{ op: "remove", field: filter.field, value: filter.value }],
+      },
+    })
+  }
+
+  // 3. Replace individual constraints
+  const replaceableFields = ["material", "coating", "fluteCount", "diameterMm", "toolSubtype"]
+  for (const field of replaceableFields) {
+    const existing = filters.find(f => f.field === field)
+    if (existing) {
+      options.push({
+        id: nextOptionId("action"),
+        family: "action",
+        label: `${getFieldLabel(field)} 다시 고르기`,
+        subtitle: `현재: ${existing.value}`,
+        field,
+        value: existing.value,
+        reason: `${field}만 변경하고 나머지 유지`,
+        projectedCount: null,
+        projectedDelta: null,
+        preservesContext: true,
+        destructive: false,
+        recommended: false,
+        priorityScore: 0,
+        plan: {
+          type: "replace_filter",
+          patches: [{ op: "remove", field }],
+        },
+      })
+    }
+  }
+
+  // 4. Keep current recommendation and explore different conditions
+  if (ctx.topCandidates && ctx.topCandidates.length > 0) {
+    options.push({
+      id: nextOptionId("explore"),
+      family: "explore",
+      label: "현재 추천 유지하고 다른 조건 보기",
+      reason: "추천 결과를 보존하면서 추가 탐색",
+      projectedCount: null,
+      projectedDelta: null,
+      preservesContext: true,
+      destructive: false,
+      recommended: false,
+      priorityScore: 0,
+      plan: {
+        type: "branch_session",
+        patches: [],
+      },
+    })
+  }
+
+  // 5. Reset (always last)
+  options.push({
+    id: nextOptionId("reset"),
+    family: "reset",
+    label: "처음부터 다시",
+    reason: "전체 초기화",
+    projectedCount: null,
+    projectedDelta: null,
+    preservesContext: false,
+    destructive: true,
+    recommended: false,
+    priorityScore: 0,
+    plan: { type: "reset_session", patches: [] },
+  })
 
   return options
 }

@@ -221,6 +221,10 @@ function computeActionSignals(option: SmartOption, ctx: RankerContext): ActionSi
     if (interp.intentShift === "refine_existing" && option.field === interp.referencedField) {
       intentFit = Math.min(1.0, intentFit + 0.15)
     }
+    // Revision boost: when user wants to revise or regenerate, boost undo/revision options
+    if ((interp.shouldShowRevisionOptions || interp.shouldRegenerateOptions) && plan.type === "replace_filter") {
+      intentFit = Math.min(1.0, intentFit + 0.25)
+    }
   }
 
   // Expected utility

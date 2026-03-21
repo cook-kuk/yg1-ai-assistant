@@ -22,6 +22,7 @@ import type {
   CandidateSnapshot,
 } from "@/lib/recommendation/domain/types"
 import type { ProductIntakeForm } from "@/lib/types/intake"
+import { detectMetaMessage, shouldBlockReset, type MetaDetectionResult, type MessageKind } from "./meta-message-detector"
 
 // ── Material compatibility map ───────────────────────────────
 const MATERIAL_COATING_COMPAT: Record<string, string[]> = {
@@ -57,6 +58,8 @@ export interface ContextInterpreterInput {
   resolvedInput: RecommendationInput
   userMessage: string | null
   memory: ConversationMemory
+  /** Previous assistant message text (for quote detection) */
+  previousAssistantText?: string | null
 }
 
 /**
@@ -64,10 +67,15 @@ export interface ContextInterpreterInput {
  * Produces a structured interpretation for downstream option generation.
  */
 export function interpretContext(input: ContextInterpreterInput): ContextInterpretation {
-  const { form, sessionState, resolvedInput, userMessage, memory } = input
+  const { form, sessionState, resolvedInput, userMessage, memory, previousAssistantText } = input
+
+  // ── 0. Meta / quote / echo detection (FIRST GATE) ──
+  const metaResult: MetaDetectionResult = userMessage
+    ? detectMetaMessage(userMessage, previousAssistantText ?? null, sessionState?.displayedChips ?? null)
+    : { kind: "direct_command" as MessageKind, confidence: 0.7, blockCommandExecution: false, shouldRegenerateOptions: false, underlyingIntent: "none" as const }
 
   // 1. Determine mode
-  const mode = inferMode(sessionState)
+  let mode = inferMode(sessionState)
 
   // 2. Extract active constraints from memory + session
   const activeConstraints = buildActiveConstraints(form, sessionState, memory)
@@ -81,10 +89,25 @@ export function interpretContext(input: ContextInterpreterInput): ContextInterpr
     .map(c => ({ field: c.field, value: c.value }))
 
   // 4. Detect intent shift from user message
-  const intentShift = userMessage ? detectIntentShift(userMessage, mode, sessionState) : "none"
+  // If meta detection blocks command execution, override intent shift
+  let intentShift: IntentShift = "none"
+  if (userMessage && !metaResult.blockCommandExecution) {
+    intentShift = detectIntentShift(userMessage, mode, sessionState)
+  } else if (metaResult.underlyingIntent === "regenerate_chips") {
+    intentShift = "regenerate_options"
+  } else if (metaResult.underlyingIntent === "revise_input") {
+    intentShift = "revise_prior_input"
+  } else if (metaResult.underlyingIntent === "explain_behavior") {
+    intentShift = "none" // keep mode, just explain
+  }
 
-  // 5. Detect conflicts
-  const detectedConflicts = userMessage
+  // If meta-detection says to block reset, override restart intent
+  if (intentShift === "restart" && metaResult.blockCommandExecution) {
+    intentShift = "none"
+  }
+
+  // 5. Detect conflicts (skip if message is quoted/meta)
+  const detectedConflicts = (userMessage && !metaResult.blockCommandExecution)
     ? detectConflicts(userMessage, activeConstraints, resolvedInput)
     : []
   const hasConflict = detectedConflicts.length > 0
@@ -94,12 +117,25 @@ export function interpretContext(input: ContextInterpreterInput): ContextInterpr
   const referencedField = inferReferencedField(userMessage)
 
   // 7. Determine context preservation
-  const preserveContext = inferPreserveContext(userMessage, intentShift)
+  const preserveContext = metaResult.blockCommandExecution
+    ? true // always preserve when message is meta/quoted
+    : inferPreserveContext(userMessage, intentShift)
 
   // 8. Determine what to do next
   const shouldGenerateRepairOptions = hasConflict && intentShift !== "restart"
-  const shouldAskFollowup = mode === "narrowing" && !hasConflict && intentShift === "none"
-  const suggestedNextAction = inferNextAction(mode, intentShift, hasConflict, sessionState)
+  const shouldAskFollowup = mode === "narrowing" && !hasConflict && intentShift === "none" && !metaResult.shouldRegenerateOptions
+  const shouldRegenerateOptions = metaResult.shouldRegenerateOptions || intentShift === "regenerate_options"
+  const shouldShowRevisionOptions = intentShift === "revise_prior_input" || metaResult.underlyingIntent === "revise_input"
+  const shouldBlockResetInterpretation = metaResult.blockCommandExecution || (userMessage ? shouldBlockReset(userMessage, metaResult) : false)
+
+  // Override mode for revision/regeneration
+  if (shouldShowRevisionOptions) mode = "revise" as ContextInterpretation["mode"]
+
+  const suggestedNextAction = shouldShowRevisionOptions
+    ? "revise" as const
+    : shouldRegenerateOptions
+    ? "regenerate_options" as const
+    : inferNextAction(mode, intentShift, hasConflict, sessionState)
 
   // 9. Collect answered fields (avoid re-asking)
   const answeredFields = collectAnsweredFields(memory, sessionState)
@@ -120,6 +156,10 @@ export function interpretContext(input: ContextInterpreterInput): ContextInterpr
     suggestedNextAction,
     answeredFields,
     conversationDepth: sessionState?.turnCount ?? 0,
+    messageKind: metaResult.kind,
+    shouldRegenerateOptions,
+    shouldShowRevisionOptions,
+    shouldBlockResetInterpretation,
   }
 }
 

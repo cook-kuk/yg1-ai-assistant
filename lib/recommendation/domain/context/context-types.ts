@@ -13,6 +13,7 @@ export type ContextMode =
   | "repair"
   | "explore"
   | "compare"
+  | "revise"
   | "reset"
 
 // ── Intent Shift ─────────────────────────────────────────────
@@ -21,6 +22,8 @@ export type IntentShift =
   | "refine_existing"
   | "replace_constraint"
   | "branch_exploration"
+  | "revise_prior_input"
+  | "regenerate_options"
   | "compare_products"
   | "explain_recommendation"
   | "restart"
@@ -55,9 +58,17 @@ export interface ContextInterpretation {
   detectedConflicts: DetectedConflict[]
   shouldAskFollowup: boolean
   shouldGenerateRepairOptions: boolean
-  suggestedNextAction: "narrow" | "repair" | "compare" | "explain" | "recommend" | "reset" | "ask_clarification"
+  suggestedNextAction: "narrow" | "repair" | "compare" | "explain" | "recommend" | "revise" | "regenerate_options" | "reset" | "ask_clarification"
   /** Fields already answered — avoid re-asking */
   answeredFields: string[]
   /** How many turns have been in the current narrowing flow */
   conversationDepth: number
+  /** Message kind from meta detector */
+  messageKind: import("./meta-message-detector").MessageKind
+  /** Whether to regenerate options from current session state */
+  shouldRegenerateOptions: boolean
+  /** Whether to show revision-oriented options */
+  shouldShowRevisionOptions: boolean
+  /** Whether reset interpretation should be blocked */
+  shouldBlockResetInterpretation: boolean
 }
