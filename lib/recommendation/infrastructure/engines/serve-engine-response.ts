@@ -42,6 +42,17 @@ import type {
   UINarrowingPathEntry,
   ChatMessage,
 } from "@/lib/recommendation/domain/types"
+import {
+  generateSmartOptions,
+  type SmartOption,
+} from "@/lib/recommendation/domain/options"
+import {
+  extractCandidateFieldValues,
+  smartOptionsToDisplayedOptions,
+  smartOptionsToChips,
+  buildNarrowingPlannerContext,
+  buildPostRecommendationPlannerContext,
+} from "@/lib/recommendation/domain/options/option-bridge"
 
 type DisplayedProduct = RecommendationDisplayedProductRequestDto
 type JsonRecommendationResponse = (
@@ -74,8 +85,16 @@ export async function buildQuestionResponse(
     : buildStageHistoryFromFilters(filters, input, candidates.length)
 
   const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
+
+  // ── Smart Option Engine: generate structured options ──
+  const smartOptions = generateSmartOptionsForQuestion(candidates, filters, input, question?.field)
+  const hasSmartOptions = smartOptions.length > 0
+
+  // Use smart options for displayedOptions when available, fallback to chip-based
   const chips = question?.chips ?? []
-  const displayedOptions = buildDisplayedOptions(chips, question?.field ?? "unknown")
+  const displayedOptions = hasSmartOptions
+    ? smartOptionsToDisplayedOptions(smartOptions)
+    : buildDisplayedOptions(chips, question?.field ?? "unknown")
   const displayedSeriesGroups = groupCandidatesBySeries(candidateSnapshot)
 
   const sessionState = buildSessionState({
@@ -296,6 +315,13 @@ export async function buildRecommendationResponse(
 
   const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
   const followUpChips = getFollowUpChips(recommendation)
+
+  // ── Smart Option Engine: post-recommendation options ──
+  const postRecOptions = generateSmartOptionsForRecommendation(candidateSnapshot, filters, input)
+  const postRecDisplayedOptions = postRecOptions.length > 0
+    ? smartOptionsToDisplayedOptions(postRecOptions)
+    : []
+
   const displayedSeriesGroups = groupCandidatesBySeries(candidateSnapshot)
   const sessionState = buildSessionState({
     candidateCount: candidates.length,
@@ -312,7 +338,7 @@ export async function buildRecommendationResponse(
     currentMode: "recommendation",
     displayedCandidates: candidateSnapshot,
     displayedChips: followUpChips,
-    displayedOptions: [],
+    displayedOptions: postRecDisplayedOptions,
     lastAction: "show_recommendation",
   })
 
@@ -602,4 +628,57 @@ export function safeParseJSON(raw: string): Record<string, unknown> | null {
   } catch {
     return null
   }
+}
+
+// ════════════════════════════════════════════════════════════════
+// SMART OPTION ENGINE INTEGRATION
+// ════════════════════════════════════════════════════════════════
+
+function generateSmartOptionsForQuestion(
+  candidates: ScoredProduct[],
+  filters: AppliedFilter[],
+  input: RecommendationInput,
+  lastAskedField?: string | null
+): SmartOption[] {
+  if (candidates.length === 0) return []
+
+  const plannerCtx = buildNarrowingPlannerContext(candidates, filters, input, lastAskedField ?? undefined)
+  const fieldValues = extractCandidateFieldValues(candidates)
+
+  return generateSmartOptions({
+    plannerCtx,
+    simulatorCtx: {
+      candidateCount: candidates.length,
+      appliedFilters: filters,
+      candidateFieldValues: fieldValues,
+    },
+    rankerCtx: {
+      candidateCount: candidates.length,
+      filterCount: filters.length,
+      hasRecommendation: false,
+    },
+  })
+}
+
+function generateSmartOptionsForRecommendation(
+  candidateSnapshot: CandidateSnapshot[],
+  filters: AppliedFilter[],
+  input: RecommendationInput,
+): SmartOption[] {
+  if (candidateSnapshot.length === 0) return []
+
+  const plannerCtx = buildPostRecommendationPlannerContext(candidateSnapshot, filters, input)
+
+  return generateSmartOptions({
+    plannerCtx,
+    simulatorCtx: {
+      candidateCount: candidateSnapshot.length,
+      appliedFilters: filters,
+    },
+    rankerCtx: {
+      candidateCount: candidateSnapshot.length,
+      filterCount: filters.length,
+      hasRecommendation: true,
+    },
+  })
 }
