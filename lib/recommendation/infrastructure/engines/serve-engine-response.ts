@@ -387,9 +387,10 @@ export async function buildRecommendationResponse(
     candidateCount: candidates.length,
     displayedProducts: candidateSnapshot.slice(0, 5).map(c => ({ code: c.displayCode, series: c.seriesName, coating: c.coating })),
     lastAskedField: null,
-    recentTurns: messages.slice(-6).map(m => ({ role: m.role, text: m.text })),
+    recentTurns: messages.slice(-8).map(m => ({ role: m.role, text: m.text })),
     recommendationStatus: checkResolution(candidates, history),
     candidateFieldValues: extractFieldValuesFromSnapshot(candidateSnapshot),
+    conversationMemory: null, // recommendation path doesn't have prev session memory
   }
   const contextualRecChips = await generateContextualChips(recChipCtx, provider)
   const followUpChips = contextualRecChips.chips.length >= 2

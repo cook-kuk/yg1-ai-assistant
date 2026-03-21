@@ -12,11 +12,12 @@
  */
 
 import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import type { ConversationMemory } from "../memory/conversation-memory"
 
 export interface ChipGenerationContext {
-  /** Latest assistant response text */
+  /** Latest assistant response text — FULL, not truncated */
   assistantText: string
-  /** Latest user message */
+  /** Latest user message — FULL */
   userMessage: string | null
   /** Current mode */
   mode: "question" | "narrowing" | "recommendation" | "general_chat" | "comparison" | "refinement"
@@ -30,7 +31,7 @@ export interface ChipGenerationContext {
   displayedProducts: Array<{ code: string; series: string | null; coating: string | null }>
   /** Last asked field */
   lastAskedField: string | null
-  /** Recent conversation turns (last 4-6) */
+  /** Recent conversation turns (last 4-6) — FULL text, not truncated */
   recentTurns: Array<{ role: string; text: string }>
   /** Recommendation status */
   recommendationStatus: string | null
@@ -40,6 +41,8 @@ export interface ChipGenerationContext {
    * This is the real data source — chips MUST reflect these values.
    */
   candidateFieldValues?: Record<string, Array<{ value: string; count: number }>>
+  /** Persistent conversation memory — accumulated across turns */
+  conversationMemory?: ConversationMemory | null
 }
 
 export interface GeneratedChips {
@@ -61,17 +64,17 @@ export async function generateContextualChips(
   }
 
   try {
-    const systemPrompt = `시스템 응답을 읽고 사용자가 클릭할 칩(버튼)을 만들어라.
+    const systemPrompt = `대화 전체를 읽고 사용자가 다음에 클릭할 칩(버튼)을 만들어라.
 
-핵심 규칙:
-1. 시스템 응답 안에 선택지가 있으면 → 그것들을 그대로 칩으로 써라
-2. 시스템 응답 안에 질문이 있으면 → 그 질문에 답할 수 있는 칩을 만들어라
-3. 후보 데이터에 값 분포가 주어지면 → 그 값들을 모두 칩에 포함해라
-4. 칩 텍스트는 짧게 (2~10자)
-5. 개수는 상황에 맞게 자유롭게 (2~8개)
-6. 새로운 액션을 발명하지 마라 — 응답과 데이터에 근거한 칩만
+규칙:
+1. 대화 흐름을 완전히 이해해라 — 무엇을 물었고, 무엇을 답했고, 지금 무엇을 해야 하는지
+2. 시스템 최신 응답에 선택지/질문이 있으면 → 그것을 칩으로
+3. 후보 데이터에 값 분포가 있으면 → 모든 값을 칩에 포함
+4. 사용자가 혼란하면 → 설명/위임/건너뛰기 칩 우선
+5. 칩 텍스트는 짧게 (2~10자), 개수는 자유 (2~8개)
+6. 응답과 데이터에 근거한 칩만 — 발명 금지
 
-JSON: {"chips": ["칩1", "칩2", ...], "reasoning": "한 줄"}`
+JSON: {"chips": ["칩1", ...], "reasoning": "한 줄"}`
 
     const contextStr = formatContextForChipGen(ctx)
 
@@ -107,50 +110,64 @@ JSON: {"chips": ["칩1", "칩2", ...], "reasoning": "한 줄"}`
 
 function formatContextForChipGen(ctx: ChipGenerationContext): string {
   const lines: string[] = []
+  const mem = ctx.conversationMemory
 
-  lines.push(`═══ 현재 상태 ═══`)
-  lines.push(`모드: ${ctx.mode}`)
-  lines.push(`후보 수: ${ctx.candidateCount}개`)
-  if (ctx.recommendationStatus) lines.push(`추천 상태: ${ctx.recommendationStatus}`)
-  if (ctx.lastAskedField) lines.push(`마지막 질문 필드: ${ctx.lastAskedField}`)
-
-  const conditions = Object.entries(ctx.resolvedConditions)
-    .filter(([, v]) => v != null)
-    .map(([k, v]) => `${k}=${v}`)
-  if (conditions.length > 0) lines.push(`확정 조건: ${conditions.join(", ")}`)
-
-  if (ctx.appliedFilters.length > 0) {
-    lines.push(`적용 필터: ${ctx.appliedFilters.map(f => `${f.field}=${f.value}`).join(", ")}`)
+  // ── 1. 대화 이력 (Q&A 쌍 — 잘리지 않은 전문) ──
+  if (mem?.recentQA && mem.recentQA.length > 0) {
+    lines.push(`═══ 이전 질문과 답변 ═══`)
+    for (const qa of mem.recentQA) {
+      lines.push(`시스템 질문 (${qa.field ?? "일반"}): ${qa.question}`)
+      lines.push(`사용자 답변: ${qa.answer}`)
+    }
   }
 
-  if (ctx.displayedProducts.length > 0) {
-    lines.push(`표시 제품: ${ctx.displayedProducts.map(p => p.code).join(", ")}`)
+  // ── 2. 최근 대화 (전문) ──
+  if (ctx.recentTurns.length > 0) {
+    lines.push(`\n═══ 최근 대화 ═══`)
+    for (const turn of ctx.recentTurns.slice(-8)) {
+      const role = turn.role === "user" ? "사용자" : "시스템"
+      lines.push(`${role}: ${turn.text}`)
+    }
   }
 
-  lines.push(`\n═══ 최근 대화 ═══`)
-  for (const turn of ctx.recentTurns.slice(-6)) {
-    const role = turn.role === "user" ? "사용자" : "시스템"
-    lines.push(`${role}: ${turn.text.slice(0, 150)}${turn.text.length > 150 ? "..." : ""}`)
+  // ── 3. 시스템 최신 응답 (전문 — 칩의 근거) ──
+  lines.push(`\n═══ 시스템 최신 응답 ═══`)
+  lines.push(ctx.assistantText)
+
+  // ── 4. 사용자 최신 메시지 (전문) ──
+  if (ctx.userMessage) {
+    lines.push(`\n═══ 사용자 최신 메시지 ═══`)
+    lines.push(ctx.userMessage)
   }
 
-  // Candidate field value distributions — THE REAL DATA
+  // ── 5. 후보 데이터 분포 ──
   if (ctx.candidateFieldValues && Object.keys(ctx.candidateFieldValues).length > 0) {
-    lines.push(`\n═══ 후보 데이터 (실제 값 분포 — 칩에 반드시 반영) ═══`)
+    lines.push(`\n═══ 후보 데이터 (실제 값 분포) ═══`)
     for (const [field, values] of Object.entries(ctx.candidateFieldValues)) {
       const valueStr = values.map(v => `${v.value}(${v.count}개)`).join(", ")
       lines.push(`${field}: ${valueStr}`)
     }
   }
 
-  lines.push(`\n═══ 시스템 최신 응답 (칩은 이 응답의 선택지에서 추출) ═══`)
-  lines.push(ctx.assistantText.slice(0, 800))
+  // ── 6. 현재 세션 상태 ──
+  lines.push(`\n═══ 세션 상태 ═══`)
+  lines.push(`모드: ${ctx.mode}, 후보: ${ctx.candidateCount}개`)
+  const conditions = Object.entries(ctx.resolvedConditions).filter(([, v]) => v != null).map(([k, v]) => `${k}=${v}`)
+  if (conditions.length > 0) lines.push(`확정 조건: ${conditions.join(", ")}`)
+  if (ctx.appliedFilters.length > 0) lines.push(`적용 필터: ${ctx.appliedFilters.map(f => `${f.field}=${f.value}`).join(", ")}`)
 
-  if (ctx.userMessage) {
-    lines.push(`\n═══ 사용자 최신 메시지 ═══`)
-    lines.push(ctx.userMessage)
+  // ── 7. 사용자 행동 패턴 (누적 시그널) ──
+  if (mem) {
+    const signals: string[] = []
+    if (mem.userSignals.confusedFields.length > 0) signals.push(`혼란 필드: ${mem.userSignals.confusedFields.join(", ")}`)
+    if (mem.userSignals.skippedFields.length > 0) signals.push(`스킵 필드: ${mem.userSignals.skippedFields.join(", ")}`)
+    if (mem.userSignals.prefersDelegate) signals.push("위임 선호")
+    if (mem.userSignals.prefersExplanation) signals.push("설명 선호")
+    if (mem.userSignals.frustrationCount > 0) signals.push(`좌절 ${mem.userSignals.frustrationCount}회`)
+    if (signals.length > 0) lines.push(`사용자 패턴: ${signals.join(", ")}`)
   }
 
-  lines.push(`\n시스템 응답의 선택지를 칩으로 만들어라. 응답에 없는 칩은 만들지 마라.`)
+  lines.push(`\n위 대화 전체를 이해하고, 시스템 응답의 맥락에 맞는 칩을 만들어라.`)
 
   return lines.join("\n")
 }

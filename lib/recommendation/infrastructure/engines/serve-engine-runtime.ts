@@ -982,8 +982,9 @@ function buildChipGenContext(
       coating: c.coating,
     })),
     lastAskedField: sessionState?.lastAskedField ?? null,
-    recentTurns: messages.slice(-6).map(m => ({ role: m.role, text: m.text })),
+    recentTurns: messages.slice(-8).map(m => ({ role: m.role, text: m.text })),
     recommendationStatus: sessionState?.resolutionStatus ?? null,
     candidateFieldValues,
+    conversationMemory: sessionState?.conversationMemory ?? null,
   }
 }
