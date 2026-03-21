@@ -24,6 +24,14 @@ export function resetOptionCounter(): void {
 // ════════════════════════════════════════════════════════════════
 
 export function planOptions(ctx: OptionPlannerContext): SmartOption[] {
+  const interp = ctx.contextInterpretation
+
+  // If context interpretation is available, use it to determine mode and options
+  if (interp) {
+    return planContextAwareOptions(ctx, interp)
+  }
+
+  // Fallback: use mode-based planning
   switch (ctx.mode) {
     case "intake":
     case "narrowing":
@@ -35,6 +43,290 @@ export function planOptions(ctx: OptionPlannerContext): SmartOption[] {
     default:
       return []
   }
+}
+
+// ════════════════════════════════════════════════════════════════
+// CONTEXT-AWARE PLANNING (uses interpretation + memory)
+// ════════════════════════════════════════════════════════════════
+
+function planContextAwareOptions(
+  ctx: OptionPlannerContext,
+  interp: import("../context/context-types").ContextInterpretation
+): SmartOption[] {
+  const options: SmartOption[] = []
+  const memory = ctx.conversationMemory
+
+  // Route based on interpreted next action
+  switch (interp.suggestedNextAction) {
+    case "repair":
+      // Generate repair options from detected conflicts
+      if (interp.detectedConflicts.length > 0) {
+        const conflict = interp.detectedConflicts[0]
+        ctx.conflictField = conflict.newField
+        ctx.conflictValue = conflict.newValue
+        options.push(...planRepairOptions(ctx))
+
+        // Also add a branch exploration option
+        options.push({
+          id: nextOptionId("explore"),
+          family: "explore",
+          label: `${conflict.newValue} 조건으로 별도 탐색`,
+          subtitle: "현재 추천 유지하면서 새 조건 탐색",
+          field: conflict.newField,
+          value: conflict.newValue,
+          reason: "기존 결과를 유지하면서 새로운 가능성 탐색",
+          projectedCount: null,
+          projectedDelta: null,
+          preservesContext: true,
+          destructive: false,
+          recommended: false,
+          priorityScore: 0,
+          plan: {
+            type: "branch_session",
+            patches: [{ op: "add", field: conflict.newField, value: conflict.newValue }],
+          },
+        })
+      }
+      break
+
+    case "compare":
+      options.push(...planCompareOptions(ctx, interp))
+      break
+
+    case "explain":
+      options.push(...planExplainOptions(ctx, interp))
+      break
+
+    case "narrow":
+      options.push(...planContextAwareNarrowingOptions(ctx, interp))
+      break
+
+    case "recommend":
+      options.push(...planPostRecommendationOptions(ctx))
+      // Enrich with context-specific options based on intent shift
+      if (interp.intentShift === "refine_existing" && interp.referencedField) {
+        options.push({
+          id: nextOptionId("action"),
+          family: "action",
+          label: `${getFieldLabel(interp.referencedField)} 변경`,
+          subtitle: "현재 조건 유지하면서 변경",
+          field: interp.referencedField,
+          reason: "사용자가 특정 조건 변경을 요청",
+          projectedCount: null,
+          projectedDelta: null,
+          preservesContext: true,
+          destructive: false,
+          recommended: true,
+          priorityScore: 0,
+          plan: {
+            type: "replace_filter",
+            patches: [{ op: "remove", field: interp.referencedField }],
+          },
+        })
+      }
+      break
+
+    case "reset":
+      options.push({
+        id: nextOptionId("reset"),
+        family: "reset",
+        label: "처음부터 다시",
+        reason: "전체 초기화",
+        projectedCount: null,
+        projectedDelta: null,
+        preservesContext: false,
+        destructive: true,
+        recommended: false,
+        priorityScore: 0,
+        plan: { type: "reset_session", patches: [] },
+      })
+      break
+
+    default:
+      options.push(...planNarrowingOptions(ctx))
+  }
+
+  return options
+}
+
+function planContextAwareNarrowingOptions(
+  ctx: OptionPlannerContext,
+  interp: import("../context/context-types").ContextInterpretation
+): SmartOption[] {
+  const options = planNarrowingOptions(ctx)
+
+  // Filter out options for fields that have already been answered
+  const answeredFields = new Set(interp.answeredFields)
+  const filtered = options.filter(o => {
+    if (!o.field) return true
+    // Keep options for the currently asked field
+    if (o.field === ctx.lastAskedField) return true
+    // Filter out already-answered fields
+    return !answeredFields.has(o.field)
+  })
+
+  return filtered.length > 0 ? filtered : options
+}
+
+function planCompareOptions(
+  ctx: OptionPlannerContext,
+  interp: import("../context/context-types").ContextInterpretation
+): SmartOption[] {
+  const options: SmartOption[] = []
+  const top = ctx.topCandidates ?? []
+
+  if (top.length >= 2) {
+    // Compare all alternatives
+    options.push({
+      id: nextOptionId("compare"),
+      family: "compare",
+      label: `후보 ${top.length}개 전체 비교`,
+      subtitle: "스펙, 재고, 가격 비교",
+      reason: "전체 비교표 확인",
+      projectedCount: null,
+      projectedDelta: null,
+      preservesContext: true,
+      destructive: false,
+      recommended: true,
+      priorityScore: 0,
+      plan: {
+        type: "compare_products",
+        patches: top.map(c => ({ op: "add" as const, field: "_compare", value: c.displayCode })),
+      },
+    })
+  }
+
+  // Compare specific referenced products
+  if (interp.referencedProducts.length >= 2) {
+    options.push({
+      id: nextOptionId("compare"),
+      family: "compare",
+      label: `${interp.referencedProducts.slice(0, 2).join(" vs ")} 비교`,
+      reason: "선택된 제품 비교",
+      projectedCount: null,
+      projectedDelta: null,
+      preservesContext: true,
+      destructive: false,
+      recommended: false,
+      priorityScore: 0,
+      plan: {
+        type: "compare_products",
+        patches: interp.referencedProducts.map(p => ({ op: "add" as const, field: "_compare", value: p })),
+      },
+    })
+  }
+
+  // Always offer cutting conditions and explain after compare
+  options.push({
+    id: nextOptionId("action"),
+    family: "action",
+    label: "절삭조건 알려줘",
+    reason: "절삭조건 확인",
+    projectedCount: null,
+    projectedDelta: null,
+    preservesContext: true,
+    destructive: false,
+    recommended: false,
+    priorityScore: 0,
+    plan: { type: "apply_filter", patches: [{ op: "add", field: "_action", value: "cutting_conditions" }] },
+  })
+
+  options.push({
+    id: nextOptionId("reset"),
+    family: "reset",
+    label: "처음부터 다시",
+    reason: "전체 초기화",
+    projectedCount: null,
+    projectedDelta: null,
+    preservesContext: false,
+    destructive: true,
+    recommended: false,
+    priorityScore: 0,
+    plan: { type: "reset_session", patches: [] },
+  })
+
+  return options
+}
+
+function planExplainOptions(
+  ctx: OptionPlannerContext,
+  interp: import("../context/context-types").ContextInterpretation
+): SmartOption[] {
+  const options: SmartOption[] = []
+  const top = ctx.topCandidates ?? []
+
+  // Why this product
+  options.push({
+    id: nextOptionId("explore"),
+    family: "explore",
+    label: "왜 이 제품을 추천했나요?",
+    subtitle: "추천 근거 확인",
+    reason: "추천 이유 설명",
+    projectedCount: null,
+    projectedDelta: null,
+    preservesContext: true,
+    destructive: false,
+    recommended: true,
+    priorityScore: 0,
+    plan: { type: "explain_recommendation", patches: [{ op: "add", field: "_action", value: "explain_recommendation" }] },
+  })
+
+  // Compare with alternatives
+  if (top.length >= 2) {
+    options.push({
+      id: nextOptionId("compare"),
+      family: "compare",
+      label: `대체 후보 ${top.length - 1}개 비교하기`,
+      reason: "대안 비교",
+      projectedCount: null,
+      projectedDelta: null,
+      preservesContext: true,
+      destructive: false,
+      recommended: false,
+      priorityScore: 0,
+      plan: { type: "compare_products", patches: top.slice(0, 3).map(c => ({ op: "add" as const, field: "_compare", value: c.displayCode })) },
+    })
+  }
+
+  // Cutting conditions
+  options.push({
+    id: nextOptionId("action"),
+    family: "action",
+    label: "절삭조건 알려줘",
+    reason: "절삭조건 확인",
+    projectedCount: null,
+    projectedDelta: null,
+    preservesContext: true,
+    destructive: false,
+    recommended: false,
+    priorityScore: 0,
+    plan: { type: "apply_filter", patches: [{ op: "add", field: "_action", value: "cutting_conditions" }] },
+  })
+
+  options.push({
+    id: nextOptionId("reset"),
+    family: "reset",
+    label: "처음부터 다시",
+    reason: "전체 초기화",
+    projectedCount: null,
+    projectedDelta: null,
+    preservesContext: false,
+    destructive: true,
+    recommended: false,
+    priorityScore: 0,
+    plan: { type: "reset_session", patches: [] },
+  })
+
+  return options
+}
+
+function getFieldLabel(field: string): string {
+  const labels: Record<string, string> = {
+    material: "소재", coating: "코팅", diameterMm: "직경",
+    fluteCount: "날 수", toolSubtype: "공구 형상", seriesName: "시리즈",
+    cuttingType: "가공 유형", operationType: "가공 방식",
+  }
+  return labels[field] ?? field
 }
 
 // ════════════════════════════════════════════════════════════════

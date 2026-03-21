@@ -22,6 +22,9 @@ export { simulateOptions } from "./option-simulator"
 export { rankOptions } from "./option-ranker"
 export { buildPortfolio } from "./option-portfolio"
 export { resetOptionCounter } from "./option-planner"
+export { buildContextAwarePlannerContext } from "./option-bridge"
+export type { ContextInterpretation } from "../context/context-types"
+export type { ConversationMemory } from "../memory/conversation-memory"
 
 export interface SmartOptionEngineInput {
   plannerCtx: OptionPlannerContext

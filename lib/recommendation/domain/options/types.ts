@@ -6,10 +6,10 @@
  */
 
 // ── Option Family ────────────────────────────────────────────
-export type SmartOptionFamily = "narrowing" | "repair" | "action" | "explore" | "reset"
+export type SmartOptionFamily = "narrowing" | "repair" | "action" | "explore" | "compare" | "reset"
 
 // ── Option Plan ──────────────────────────────────────────────
-export type SmartOptionPlanType = "apply_filter" | "replace_filter" | "relax_filters" | "reset_session"
+export type SmartOptionPlanType = "apply_filter" | "replace_filter" | "relax_filters" | "branch_session" | "compare_products" | "explain_recommendation" | "reset_session"
 
 export interface SmartOptionPatch {
   op: "add" | "remove" | "replace"
@@ -56,6 +56,10 @@ export interface OptionPlannerContext {
   /** Field that conflicts with current filters */
   conflictField?: string
   conflictValue?: string
+  /** Context interpretation (when available) */
+  contextInterpretation?: import("../context/context-types").ContextInterpretation
+  /** Conversation memory (when available) */
+  conversationMemory?: import("../memory/conversation-memory").ConversationMemory
 }
 
 // ── Ranking Signals ──────────────────────────────────────────

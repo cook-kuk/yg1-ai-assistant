@@ -7,7 +7,12 @@
 
 import type { SmartOption, OptionPlannerContext } from "./types"
 import type { DisplayedOption, CandidateSnapshot } from "@/lib/types/exploration"
-import type { ScoredProduct, RecommendationInput, AppliedFilter } from "@/lib/recommendation/domain/types"
+import type { ScoredProduct, RecommendationInput, AppliedFilter, ExplorationSessionState, ProductIntakeForm } from "@/lib/recommendation/domain/types"
+import type { ContextInterpretation } from "../context/context-types"
+import type { ConversationMemory } from "../memory/conversation-memory"
+import { interpretContext } from "../context/context-interpreter"
+import { buildMemoryFromSession } from "../memory/conversation-memory"
+import { updateMemory } from "../memory/memory-manager"
 
 /**
  * Extract field value distributions from scored candidates.
@@ -130,4 +135,85 @@ export function buildRepairPlannerContext(
     conflictValue,
     candidateFieldValues: extractCandidateFieldValues(candidates),
   }
+}
+
+/**
+ * Build a context-aware planner context using interpretation + memory.
+ * This is the upgraded entry point that replaces mode-only planning.
+ */
+export function buildContextAwarePlannerContext(
+  form: ProductIntakeForm,
+  sessionState: ExplorationSessionState | null,
+  resolvedInput: RecommendationInput,
+  userMessage: string | null,
+  candidates: ScoredProduct[],
+  filters: AppliedFilter[],
+  lastAskedField?: string
+): {
+  plannerCtx: OptionPlannerContext
+  interpretation: ContextInterpretation
+  memory: ConversationMemory
+} {
+  // 1. Build memory from session
+  const rawMemory = buildMemoryFromSession(
+    form as unknown as Parameters<typeof buildMemoryFromSession>[0],
+    sessionState,
+    sessionState?.turnCount ?? 0
+  )
+
+  // 2. Interpret context
+  const interpretation = interpretContext({
+    form,
+    sessionState,
+    resolvedInput,
+    userMessage,
+    memory: rawMemory,
+  })
+
+  // 3. Update memory with interpretation
+  const { memory } = updateMemory(rawMemory, interpretation, sessionState?.turnCount ?? 0)
+
+  // 4. Map interpretation mode to planner mode
+  const modeMap: Record<string, OptionPlannerContext["mode"]> = {
+    intake: "intake",
+    narrowing: "narrowing",
+    recommended: "recommended",
+    repair: "repair",
+    explore: "recommended",
+    compare: "recommended",
+    reset: "repair",
+  }
+  const plannerMode = modeMap[interpretation.mode] ?? "narrowing"
+
+  // 5. Build planner context with interpretation + memory
+  const plannerCtx: OptionPlannerContext = {
+    mode: interpretation.shouldGenerateRepairOptions ? "repair" : plannerMode,
+    candidateCount: candidates.length,
+    appliedFilters: filters,
+    resolvedInput: resolvedInput as unknown as Record<string, unknown>,
+    lastAskedField,
+    lastAction: sessionState?.lastAction,
+    userMessage: userMessage ?? undefined,
+    candidateFieldValues: extractCandidateFieldValues(candidates),
+    topCandidates: sessionState?.displayedCandidates?.slice(0, 5).map(c => ({
+      displayCode: c.displayCode,
+      seriesName: c.seriesName,
+      coating: c.coating,
+      fluteCount: c.fluteCount,
+      diameterMm: c.diameterMm,
+      score: c.score,
+      matchStatus: c.matchStatus,
+    })),
+    contextInterpretation: interpretation,
+    conversationMemory: memory,
+  }
+
+  // Set conflict fields from interpretation
+  if (interpretation.detectedConflicts.length > 0) {
+    const conflict = interpretation.detectedConflicts[0]
+    plannerCtx.conflictField = conflict.newField
+    plannerCtx.conflictValue = conflict.newValue
+  }
+
+  return { plannerCtx, interpretation, memory }
 }

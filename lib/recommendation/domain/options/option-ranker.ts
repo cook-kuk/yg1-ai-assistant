@@ -45,6 +45,8 @@ export interface RankerContext {
   filterCount: number
   hasRecommendation: boolean
   userMessage?: string
+  /** Context interpretation for smarter scoring */
+  contextInterpretation?: import("../context/context-types").ContextInterpretation
 }
 
 export function rankOptions(options: SmartOption[], ctx: RankerContext): SmartOption[] {
@@ -58,6 +60,7 @@ export function rankOptions(options: SmartOption[], ctx: RankerContext): SmartOp
         break
       case "action":
       case "explore":
+      case "compare":
         option.priorityScore = scoreAction(option, ctx)
         break
       case "reset":
@@ -193,27 +196,48 @@ function scoreAction(option: SmartOption, ctx: RankerContext): number {
 function computeActionSignals(option: SmartOption, ctx: RankerContext): ActionSignals {
   const plan = option.plan
   const actionValue = plan.patches.find(p => p.field === "_action")?.value
+  const interp = ctx.contextInterpretation
 
   // Intent fit: how well does this match what users typically want next?
-  const intentFitMap: Record<string, number> = {
-    compare: 0.9,
-    cutting_conditions: 0.85,
-    explain_recommendation: 0.7,
-    undo: 0.5,
+  let intentFit = 0.5
+  if (actionValue) {
+    const baseMap: Record<string, number> = {
+      compare: 0.9,
+      cutting_conditions: 0.85,
+      explain_recommendation: 0.7,
+      undo: 0.5,
+    }
+    intentFit = baseMap[actionValue] ?? 0.5
   }
-  const intentFit = actionValue ? (intentFitMap[actionValue] ?? 0.5) : 0.5
 
-  // Expected utility: how useful is this action?
-  const expectedUtility = option.family === "explore" ? 0.7 : 0.8
+  // Boost intent fit based on context interpretation
+  if (interp) {
+    if (interp.intentShift === "compare_products" && (option.family === "compare" || plan.type === "compare_products")) {
+      intentFit = Math.min(1.0, intentFit + 0.2)
+    }
+    if (interp.intentShift === "explain_recommendation" && (plan.type === "explain_recommendation" || actionValue === "explain_recommendation")) {
+      intentFit = Math.min(1.0, intentFit + 0.2)
+    }
+    if (interp.intentShift === "refine_existing" && option.field === interp.referencedField) {
+      intentFit = Math.min(1.0, intentFit + 0.15)
+    }
+  }
 
-  // Explainability: is the purpose clear?
+  // Expected utility
+  const expectedUtility = option.family === "explore" ? 0.7
+    : option.family === "compare" ? 0.85
+    : 0.8
+
+  // Explainability
   const explainability = option.subtitle ? 0.9 : 0.7
 
   // Continuity
   const continuity = option.preservesContext ? 0.8 : 0.3
 
-  // Novelty: explore options get a novelty boost
-  const novelty = option.family === "explore" ? 0.8 : 0.4
+  // Novelty: explore and compare options get a novelty boost
+  const novelty = option.family === "explore" ? 0.8
+    : option.family === "compare" ? 0.7
+    : 0.4
 
   return { intentFit, expectedUtility, explainability, continuity, novelty }
 }
