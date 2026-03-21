@@ -390,7 +390,12 @@ export async function buildRecommendationResponse(
     recentTurns: messages.slice(-8).map(m => ({ role: m.role, text: m.text })),
     recommendationStatus: checkResolution(candidates, history),
     candidateFieldValues: extractFieldValuesFromSnapshot(candidateSnapshot),
-    conversationMemory: null, // recommendation path doesn't have prev session memory
+    conversationMemory: null,
+    recentFrame: recLastUserMsg
+      ? (await import("@/lib/recommendation/domain/context/recent-interaction-frame")).buildRecentInteractionFrame(
+          recResponseText, recLastUserMsg, null
+        )
+      : null,
   }
   const contextualRecChips = await generateContextualChips(recChipCtx, provider)
   const followUpChips = contextualRecChips.chips.length >= 2

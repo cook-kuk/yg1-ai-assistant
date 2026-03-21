@@ -29,6 +29,7 @@ import { detectUserState } from "@/lib/recommendation/domain/context/user-unders
 import { buildChipContext } from "@/lib/recommendation/domain/context/chip-context-builder"
 import { rerankChipsWithLLM } from "@/lib/recommendation/domain/options/llm-chip-reranker"
 import { generateContextualChips, type ChipGenerationContext } from "@/lib/recommendation/domain/options/contextual-chip-generator"
+import { buildRecentInteractionFrame } from "@/lib/recommendation/domain/context/recent-interaction-frame"
 import {
   recordHighlight,
   recordQA,
@@ -986,5 +987,8 @@ function buildChipGenContext(
     recommendationStatus: sessionState?.resolutionStatus ?? null,
     candidateFieldValues,
     conversationMemory: sessionState?.conversationMemory ?? null,
+    recentFrame: userMessage
+      ? buildRecentInteractionFrame(assistantText, userMessage, sessionState)
+      : null,
   }
 }
