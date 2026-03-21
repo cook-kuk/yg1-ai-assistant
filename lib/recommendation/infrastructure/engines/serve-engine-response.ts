@@ -59,6 +59,7 @@ import { buildQuestionAlignedOptions, buildConfusionHelperOptions } from "@/lib/
 import { detectUserState } from "@/lib/recommendation/domain/context/user-understanding-detector"
 import { buildChipContext } from "@/lib/recommendation/domain/context/chip-context-builder"
 import { rerankChipsWithLLM } from "@/lib/recommendation/domain/options/llm-chip-reranker"
+import { generateContextualChips } from "@/lib/recommendation/domain/options/contextual-chip-generator"
 
 type DisplayedProduct = RecommendationDisplayedProductRequestDto
 type JsonRecommendationResponse = (
@@ -366,12 +367,33 @@ export async function buildRecommendationResponse(
   }
 
   const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
-  const followUpChips = getFollowUpChips(recommendation)
-
-  // ── Smart Option Engine: context-aware post-recommendation options ──
+  // Use contextual chip generation instead of hardcoded getFollowUpChips
+  const recResponseText = recommendation.llmSummary ?? deterministicSummary
   const recLastUserMsg = messages.length > 0
     ? [...messages].reverse().find(m => m.role === "user")?.text ?? null
     : null
+  const recChipCtx: import("@/lib/recommendation/domain/options/contextual-chip-generator").ChipGenerationContext = {
+    assistantText: recResponseText,
+    userMessage: recLastUserMsg,
+    mode: "recommendation",
+    resolvedConditions: {
+      material: input.material ?? null,
+      operationType: input.operationType ?? null,
+      diameterMm: input.diameterMm ?? null,
+      fluteCount: input.flutePreference ?? null,
+      coating: input.coatingPreference ?? null,
+    },
+    appliedFilters: filters.filter(f => f.op !== "skip").map(f => ({ field: f.field, value: f.value })),
+    candidateCount: candidates.length,
+    displayedProducts: candidateSnapshot.slice(0, 5).map(c => ({ code: c.displayCode, series: c.seriesName, coating: c.coating })),
+    lastAskedField: null,
+    recentTurns: messages.slice(-6).map(m => ({ role: m.role, text: m.text })),
+    recommendationStatus: checkResolution(candidates, history),
+  }
+  const contextualRecChips = await generateContextualChips(recChipCtx, provider)
+  const followUpChips = contextualRecChips.chips.length >= 2
+    ? contextualRecChips.chips
+    : getFollowUpChips(recommendation) // fallback to deterministic if LLM fails
   const postRecOptions = generateSmartOptionsForRecommendation(
     candidateSnapshot, filters, input, form, null, recLastUserMsg
   )

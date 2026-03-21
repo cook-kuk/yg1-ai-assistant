@@ -28,6 +28,7 @@ import { smartOptionsToDisplayedOptions, smartOptionsToChips } from "@/lib/recom
 import { detectUserState } from "@/lib/recommendation/domain/context/user-understanding-detector"
 import { buildChipContext } from "@/lib/recommendation/domain/context/chip-context-builder"
 import { rerankChipsWithLLM } from "@/lib/recommendation/domain/options/llm-chip-reranker"
+import { generateContextualChips, type ChipGenerationContext } from "@/lib/recommendation/domain/options/contextual-chip-generator"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { RecommendationDisplayedProductRequestDto } from "@/lib/contracts/recommendation"
@@ -258,7 +259,6 @@ export async function handleServeExploration(
 
       if (action.type === "refine_condition") {
         const field = action.field
-        const refinementChips = buildRefinementChips(field, language)
         const refinementText = field === "material"
           ? "어떤 소재로 변경하시겠어요?"
           : field === "diameter"
@@ -268,6 +268,11 @@ export async function handleServeExploration(
           : field === "fluteCount"
           ? "몇 날로 변경하시겠어요?"
           : "어떤 조건을 변경하시겠어요?"
+
+        // Context-based chip generation instead of hardcoded refinement chips
+        const refineChipCtx = buildChipGenContext(refinementText, lastUserMsg.text, "refinement", currentInput, filters, prevState, messages)
+        const refineChipResult = await generateContextualChips(refineChipCtx, provider)
+        const refinementChips = refineChipResult.chips
 
         const sessionState = carryForwardState(prevState, {
           candidateCount: prevState.candidateCount ?? candidates.length,
@@ -475,9 +480,15 @@ export async function handleServeExploration(
         }
 
         const preGenerated = action.type === "answer_general" && action.preGenerated && action.message
-        const llmResponse = preGenerated
-          ? { text: action.message, chips: generateFollowUpChips(lastUserMsg.text, candidates.length) }
-          : await deps.handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form, prevState.displayedCandidates)
+        let llmResponse: { text: string; chips: string[] }
+        if (preGenerated) {
+          // Generate contextual chips instead of hardcoded follow-up chips
+          const chipCtx = buildChipGenContext(action.message, lastUserMsg.text, "general_chat", currentInput, filters, prevState, messages)
+          const contextChips = await generateContextualChips(chipCtx, provider)
+          llmResponse = { text: action.message, chips: contextChips.chips }
+        } else {
+          llmResponse = await deps.handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form, prevState.displayedCandidates)
+        }
 
         // ── Chip Priority Pipeline: question → user state → LLM rerank → fallback ──
         const pendingQ = detectPendingQuestion(llmResponse.text)
@@ -852,5 +863,41 @@ function buildRefinementChips(field: string, _language: AppLanguage): string[] {
       return ["1날", "2날", "3날", "4날", "6날", "처음부터 다시"]
     default:
       return ["현재 필터 유지하고 추천 보기", "처음부터 다시"]
+  }
+}
+
+/**
+ * Build ChipGenerationContext from runtime state for contextual chip generation.
+ */
+function buildChipGenContext(
+  assistantText: string,
+  userMessage: string | null,
+  mode: ChipGenerationContext["mode"],
+  resolvedInput: RecommendationInput,
+  filters: AppliedFilter[],
+  sessionState: ExplorationSessionState | null,
+  messages: ChatMessage[]
+): ChipGenerationContext {
+  return {
+    assistantText,
+    userMessage,
+    mode,
+    resolvedConditions: {
+      material: resolvedInput.material ?? null,
+      operationType: resolvedInput.operationType ?? null,
+      diameterMm: resolvedInput.diameterMm ?? null,
+      fluteCount: resolvedInput.flutePreference ?? null,
+      coating: resolvedInput.coatingPreference ?? null,
+    },
+    appliedFilters: filters.filter(f => f.op !== "skip").map(f => ({ field: f.field, value: f.value })),
+    candidateCount: sessionState?.candidateCount ?? 0,
+    displayedProducts: (sessionState?.displayedCandidates ?? []).slice(0, 5).map(c => ({
+      code: c.displayCode,
+      series: c.seriesName,
+      coating: c.coating,
+    })),
+    lastAskedField: sessionState?.lastAskedField ?? null,
+    recentTurns: messages.slice(-6).map(m => ({ role: m.role, text: m.text })),
+    recommendationStatus: sessionState?.resolutionStatus ?? null,
   }
 }
