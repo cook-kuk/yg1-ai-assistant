@@ -511,12 +511,14 @@ export async function handleServeExploration(
             console.log(`[chip-priority] Pending question "${pendingQ.question.shape}", ${finalChips.length} chips${reranked.rerankedByLLM ? " (LLM reranked)" : ""}`)
           }
         } else if (userStateResult.state === "confused" || userStateResult.state === "wants_explanation" || userStateResult.state === "wants_delegation") {
-          // No pending question but user is confused → generate helper chips from session
-          const helperOptions = buildConfusionHelperOptions(null, userStateResult.confusedAbout)
+          // No pending question in current response, but user is confused
+          // → reconstruct previous question context from session state's displayed options/chips
+          const prevQuestion = reconstructPreviousQuestion(prevState)
+          const helperOptions = buildConfusionHelperOptions(prevQuestion, userStateResult.confusedAbout)
           if (helperOptions.length > 0) {
             finalChips = smartOptionsToChips(helperOptions)
             finalDisplayedOptions = smartOptionsToDisplayedOptions(helperOptions)
-            console.log(`[chip-priority] User confused, ${helperOptions.length} helper chips (no pending question)`)
+            console.log(`[chip-priority] User confused, ${helperOptions.length} helper chips (reconstructed from prev state, field=${prevQuestion?.field ?? "none"})`)
           }
         }
 
@@ -781,6 +783,43 @@ function getDefaultChips(input: RecommendationInput): string[] {
   if (!input.diameterMm) return ["2mm", "4mm", "6mm", "8mm", "10mm", "12mm"]
   if (!input.flutePreference) return ["2날", "3날", "4날", "6날", "상관없음"]
   return ["추천 받기", "다른 조건으로", "경쟁사 비교"]
+}
+
+/**
+ * Reconstruct a PendingQuestion from the previous session state.
+ * Used when the user is confused about options that were shown in the previous turn.
+ */
+function reconstructPreviousQuestion(
+  prevState: ExplorationSessionState
+): import("@/lib/recommendation/domain/context/pending-question-detector").PendingQuestion | null {
+  const field = prevState.lastAskedField ?? null
+  const prevOptions = prevState.displayedOptions ?? []
+  const prevChips = prevState.displayedChips ?? []
+
+  // Extract option values from displayedOptions (structured)
+  let extractedOptions: string[] = []
+  if (prevOptions.length > 0) {
+    extractedOptions = prevOptions
+      .map(o => o.value)
+      .filter(v => v && !["상관없음", "skip", "처음부터 다시", "⟵ 이전 단계", "추천해주세요"].includes(v))
+  } else if (prevChips.length > 0) {
+    // Fallback: extract from chips
+    extractedOptions = prevChips
+      .filter(c => !["상관없음", "⟵ 이전 단계", "처음부터 다시", "추천해주세요"].includes(c))
+      .map(c => c.replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim())
+      .filter(c => c.length > 0)
+  }
+
+  if (extractedOptions.length === 0) return null
+
+  return {
+    shape: "constrained_options",
+    questionText: "",
+    extractedOptions,
+    field,
+    isBinary: false,
+    hasExplicitChoices: true,
+  }
 }
 
 function generateFollowUpChips(userMessage: string, candidateCount: number): string[] {
