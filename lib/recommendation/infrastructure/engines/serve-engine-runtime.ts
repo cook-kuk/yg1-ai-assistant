@@ -41,6 +41,7 @@ import {
 } from "@/lib/recommendation/domain/memory/conversation-memory"
 import { buildUnifiedTurnContext, type UnifiedTurnContext } from "@/lib/recommendation/domain/context/turn-context-builder"
 import { checkAnswerChipDivergence, fixChipDivergence } from "@/lib/recommendation/domain/options/divergence-guard"
+import { recordTurn, createEmptyConversationLog, type ConversationLog, type RichTurnRecord } from "@/lib/recommendation/domain/memory/memory-compressor"
 import { validateOptionFirstPipeline } from "@/lib/recommendation/domain/options/option-validator"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
@@ -786,6 +787,8 @@ export async function handleServeExploration(
           lastAskedField: isQuestionAssist ? prevState.lastAskedField : undefined,
           conversationMemory: persistedMemory ?? prevState.conversationMemory,
         })
+        // Record turn to conversation log
+        recordTurnToLog(sessionState, lastUserMsg.text, llmResponse.text)
         return deps.jsonRecommendationResponse({
           text: llmResponse.text,
           purpose: effectivePurpose as any,
@@ -1287,4 +1290,41 @@ function buildChipGenContext(
       ? buildRecentInteractionFrame(assistantText, userMessage, sessionState)
       : null,
   }
+}
+
+/**
+ * Record a turn into the conversation log.
+ * Updates sessionState.conversationLog in place.
+ */
+function recordTurnToLog(
+  sessionState: ExplorationSessionState | null,
+  userMessage: string,
+  assistantText: string
+): void {
+  if (!sessionState) return
+
+  const log = sessionState.conversationLog ?? createEmptyConversationLog()
+
+  const uiSnapshot: RichTurnRecord["uiSnapshot"] = {
+    chips: sessionState.displayedChips ?? [],
+    displayedOptions: (sessionState.displayedOptions ?? []).map(o => ({
+      label: o.label,
+      value: o.value,
+      field: o.field,
+    })),
+    mode: sessionState.currentMode ?? null,
+    lastAskedField: sessionState.lastAskedField ?? null,
+    lastAction: sessionState.lastAction ?? null,
+    candidateCount: sessionState.candidateCount ?? null,
+    displayedProductCodes: (sessionState.displayedCandidates ?? []).slice(0, 10).map(c => c.displayCode),
+    hasRecommendation: !!sessionState.lastRecommendationArtifact,
+    hasComparison: !!sessionState.lastComparisonArtifact,
+    appliedFilters: (sessionState.appliedFilters ?? []).map(f => ({
+      field: f.field,
+      value: f.value,
+      op: f.op,
+    })),
+  }
+
+  sessionState.conversationLog = recordTurn(log, userMessage, assistantText, uiSnapshot)
 }

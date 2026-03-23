@@ -57,6 +57,7 @@ interface BuildSessionStateParams {
   currentTask?: RecommendationTask | null
   taskHistory?: ArchivedTask[]
   conversationMemory?: import("@/lib/recommendation/domain/memory/conversation-memory").ConversationMemory
+  conversationLog?: import("@/lib/recommendation/domain/memory/memory-compressor").ConversationLog
 }
 
 export function buildSessionState(params: BuildSessionStateParams): ExplorationSessionState {
@@ -84,6 +85,7 @@ export function buildSessionState(params: BuildSessionStateParams): ExplorationS
     currentTask: params.currentTask ?? null,
     taskHistory: params.taskHistory ?? [],
     conversationMemory: params.conversationMemory,
+    conversationLog: params.conversationLog,
   }
 }
 
@@ -116,6 +118,7 @@ export function carryForwardState(
     currentTask: overrides.currentTask ?? prev.currentTask ?? null,
     taskHistory: overrides.taskHistory ?? prev.taskHistory ?? [],
     conversationMemory: overrides.conversationMemory ?? prev.conversationMemory,
+    conversationLog: overrides.conversationLog ?? prev.conversationLog,
   })
 }
 

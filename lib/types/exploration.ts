@@ -152,6 +152,8 @@ export interface ExplorationSessionState {
 
   // ── Persistent Conversation Memory (accumulates across turns) ──
   conversationMemory?: import("@/lib/recommendation/domain/memory/conversation-memory").ConversationMemory
+  /** Full conversation log — all prompts + UI outputs, auto-compressed */
+  conversationLog?: import("@/lib/recommendation/domain/memory/memory-compressor").ConversationLog
 }
 
 // ── Full Exploration Session (server-side, includes heavy data) ──
