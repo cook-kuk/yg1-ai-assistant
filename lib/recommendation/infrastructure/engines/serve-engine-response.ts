@@ -20,7 +20,11 @@ import {
   buildSystemPrompt,
   getProvider,
 } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
-import { generateSmartOptionsForRecommendation } from "@/lib/recommendation/infrastructure/engines/serve-engine-option-first"
+import {
+  buildDisplayedOptions,
+  buildQuestionResponseOptionState,
+  generateSmartOptionsForRecommendation,
+} from "@/lib/recommendation/infrastructure/engines/serve-engine-option-first"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { RecommendationDisplayedProductRequestDto } from "@/lib/contracts/recommendation"
@@ -28,7 +32,6 @@ import type {
   AppliedFilter,
   AppLanguage,
   CandidateSnapshot,
-  DisplayedOption,
   EvidenceSummary,
   ExplorationSessionState,
   FactCheckedRecommendation,
@@ -43,13 +46,9 @@ import type {
   ChatMessage,
 } from "@/lib/recommendation/domain/types"
 import {
-  smartOptionsToDisplayedOptions,
   smartOptionsToChips,
+  smartOptionsToDisplayedOptions,
 } from "@/lib/recommendation/domain/options/option-bridge"
-import { buildQuestionAlignedOptions, buildConfusionHelperOptions } from "@/lib/recommendation/domain/options/question-option-builder"
-import { detectUserState } from "@/lib/recommendation/domain/context/user-understanding-detector"
-import { buildChipContext } from "@/lib/recommendation/domain/context/chip-context-builder"
-import { rerankChipsWithLLM } from "@/lib/recommendation/domain/options/llm-chip-reranker"
 import { validateOptionFirstPipeline } from "@/lib/recommendation/domain/options/option-validator"
 
 type DisplayedProduct = RecommendationDisplayedProductRequestDto
@@ -185,41 +184,27 @@ export async function buildQuestionResponse(
     ? [...messages].reverse().find(m => m.role === "user")?.text ?? null
     : null
 
-  // Only apply confusion-helper merge if user is confused AND structured options exist
-  if (lastUserMsgText && displayedOptions.length > 0) {
-    const userStateResult = detectUserState(lastUserMsgText, question?.field)
-    if (userStateResult.state === "confused" || userStateResult.state === "wants_explanation" || userStateResult.state === "wants_delegation") {
-      // Reconstruct pending question from STATE (not answer text)
-      const statePendingQ = question?.field ? {
-        shape: "constrained_options" as const,
-        questionText: question.questionText,
-        extractedOptions: question.chips.filter((c: string) => c !== "상관없음" && c !== "⟵ 이전 단계"),
-        field: question.field,
-        isBinary: false,
-        hasExplicitChoices: true,
-      } : null
-      if (statePendingQ) {
-        const helperOptions = buildConfusionHelperOptions(statePendingQ, userStateResult.confusedAbout)
-        // Use question-aligned options (from chips), not SmartOption engine
-        const questionAlignedOptions = buildQuestionAlignedOptions(statePendingQ)
-        const mergedOptions = [...helperOptions, ...questionAlignedOptions]
-
-        // LLM rerank (optional)
-        const chipContext = buildChipContext(
-          sessionState, input, lastUserMsgText, responseText,
-          statePendingQ, userStateResult.state, userStateResult.confusedAbout,
-          messages.map(m => ({ role: m.role, text: m.text }))
-        )
-        const reranked = await rerankChipsWithLLM(mergedOptions, chipContext, provider)
-
-        finalResponseChips = smartOptionsToChips(reranked.options)
-        finalDisplayedOptions = smartOptionsToDisplayedOptions(reranked.options)
-        sessionState.displayedChips = finalResponseChips
-        sessionState.displayedOptions = finalDisplayedOptions
-        console.log(`[option-first:confusion] User ${userStateResult.state}, ${helperOptions.length} helpers merged (field=${question?.field ?? "none"})`)
-      }
-    }
-  }
+  const questionOptionState = await buildQuestionResponseOptionState({
+    chips: responseChips,
+    question: question
+      ? {
+          questionText: question.questionText,
+          chips: question.chips,
+          field: question.field,
+        }
+      : null,
+    displayedOptions,
+    sessionState,
+    input,
+    userMessage: lastUserMsgText,
+    responseText,
+    messages,
+    provider,
+  })
+  finalResponseChips = questionOptionState.chips
+  finalDisplayedOptions = questionOptionState.displayedOptions
+  sessionState.displayedChips = finalResponseChips
+  sessionState.displayedOptions = finalDisplayedOptions
 
   // ── Post-Answer Validator: strip unauthorized actions from answer ──
   // Direction: displayedOptions → constrain answer (NEVER answer → add chips)
@@ -457,22 +442,6 @@ export async function buildRecommendationResponse(
     altExplanations,
     altFactChecked: altFactChecked.map(item => serializeFactChecked(item)),
   })
-}
-
-export function buildDisplayedOptions(chips: string[], field: string): DisplayedOption[] {
-  const options: DisplayedOption[] = []
-  let index = 1
-  for (const chip of chips) {
-    if (["상관없음", "⟵ 이전 단계", "처음부터 다시", "추천해주세요"].includes(chip)) continue
-    const countMatch = chip.match(/\((\d+)개\)/)
-    const count = countMatch ? parseInt(countMatch[1]) : 0
-    const value = chip.replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
-    if (value) {
-      options.push({ index, label: chip, field, value, count })
-      index++
-    }
-  }
-  return options
 }
 
 export function snapshotToDisplayed(snapshot: CandidateSnapshot[]): DisplayedProduct[] {

@@ -22,12 +22,12 @@ import {
 import { ENABLE_TOOL_USE_ROUTING } from "@/lib/recommendation/infrastructure/config/recommendation-feature-flags"
 import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import {
+  buildComparisonOptionState,
+  buildDisplayedOptions,
   buildGeneralChatOptionState,
   buildQuestionAssistOptions,
+  buildRefinementOptionState,
 } from "@/lib/recommendation/infrastructure/engines/serve-engine-option-first"
-import { buildDisplayedOptions } from "@/lib/recommendation/infrastructure/engines/serve-engine-response"
-import { smartOptionsToDisplayedOptions, smartOptionsToChips, buildContextAwarePlannerContext } from "@/lib/recommendation/domain/options/option-bridge"
-import { generateSmartOptions } from "@/lib/recommendation/domain/options"
 import { detectUserState } from "@/lib/recommendation/domain/context/user-understanding-detector"
 import type { ChipGenerationContext } from "@/lib/recommendation/domain/options/contextual-chip-generator"
 import { buildRecentInteractionFrame } from "@/lib/recommendation/domain/context/recent-interaction-frame"
@@ -295,28 +295,18 @@ export async function handleServeExploration(
           : "어떤 조건을 변경하시겠어요?"
 
         // ── Option-first: build structured options FIRST, then derive chips ──
-        const { plannerCtx: refinePlannerCtx } = buildContextAwarePlannerContext(
-          form, prevState, currentInput, lastUserMsg.text,
-          candidates, filters, field
-        )
-        const refineSmartOptions = generateSmartOptions({
-          plannerCtx: refinePlannerCtx,
-          simulatorCtx: {
-            candidateCount: candidates.length,
-            appliedFilters: filters.map(f => ({ field: f.field, op: f.op, value: f.value, rawValue: f.rawValue })),
-          },
-          rankerCtx: {
-            candidateCount: candidates.length,
-            filterCount: filters.length,
-            hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
-          },
+        const refinementOptionState = buildRefinementOptionState({
+          form,
+          prevState,
+          currentInput,
+          candidates,
+          filters,
+          field,
+          language,
+          userMessage: lastUserMsg.text,
         })
-        const refineDisplayedOptions = refineSmartOptions.length > 0
-          ? smartOptionsToDisplayedOptions(refineSmartOptions)
-          : buildDisplayedOptions(buildRefinementChips(field, "ko"), field)
-        const refinementChips = refineSmartOptions.length > 0
-          ? smartOptionsToChips(refineSmartOptions)
-          : buildRefinementChips(field, "ko")
+        const refineDisplayedOptions = refinementOptionState.displayedOptions
+        const refinementChips = refinementOptionState.chips
 
         const sessionState = carryForwardState(prevState, {
           candidateCount: prevState.candidateCount ?? candidates.length,
@@ -360,14 +350,9 @@ export async function handleServeExploration(
         const compResult = await compareProducts(targets, evidenceMap, provider)
 
         // ── Option-first: build structured comparison options ──
-        const compOptions: import("@/lib/recommendation/domain/options/types").SmartOption[] = [
-          { id: "comp-recommend", family: "action", label: "추천해주세요", value: "추천해주세요", plan: { type: "apply_filter", patches: [] }, projectedCount: null, projectedDelta: null, preservesContext: true, destructive: false, recommended: true, priorityScore: 90 },
-          { id: "comp-other", family: "explore", label: "다른 조건으로", value: "다른 조건으로", plan: { type: "branch_session", patches: [] }, projectedCount: null, projectedDelta: null, preservesContext: false, destructive: false, recommended: false, priorityScore: 70 },
-          { id: "comp-back", family: "action", label: "⟵ 이전 단계", value: "⟵ 이전 단계", plan: { type: "apply_filter", patches: [] }, projectedCount: null, projectedDelta: null, preservesContext: true, destructive: false, recommended: false, priorityScore: 50 },
-          { id: "comp-reset", family: "reset", label: "처음부터 다시", value: "처음부터 다시", plan: { type: "reset_session", patches: [] }, projectedCount: null, projectedDelta: null, preservesContext: false, destructive: true, recommended: false, priorityScore: 10 },
-        ]
-        const compDisplayedOptions = smartOptionsToDisplayedOptions(compOptions)
-        const compChips = smartOptionsToChips(compOptions)
+        const comparisonOptionState = buildComparisonOptionState()
+        const compDisplayedOptions = comparisonOptionState.displayedOptions
+        const compChips = comparisonOptionState.chips
 
         const sessionState = carryForwardState(prevState, {
           candidateCount: candidates.length,
@@ -971,21 +956,6 @@ function generateFollowUpChips(userMessage: string, candidateCount: number): str
     return ["후보 제품 보기", "절삭조건 문의", "코팅 비교", "처음부터 다시"]
   }
   return ["제품 추천", "절삭조건 문의", "코팅 비교", "시리즈 검색"]
-}
-
-function buildRefinementChips(field: string, _language: AppLanguage): string[] {
-  switch (field) {
-    case "material":
-      return ["알루미늄 / 비철", "일반강 / 탄소강", "스테인리스 (SUS)", "주철", "티타늄 / 내열합금", "고경도강 (HRC40+)", "처음부터 다시"]
-    case "diameter":
-      return ["2mm", "4mm", "6mm", "8mm", "10mm", "12mm", "처음부터 다시"]
-    case "coating":
-      return ["TiAlN", "AlCrN", "DLC", "무코팅", "Y-코팅", "처음부터 다시"]
-    case "fluteCount":
-      return ["1날", "2날", "3날", "4날", "6날", "처음부터 다시"]
-    default:
-      return ["현재 필터 유지하고 추천 보기", "처음부터 다시"]
-  }
 }
 
 /**

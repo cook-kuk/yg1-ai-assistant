@@ -227,7 +227,7 @@ lib/recommendation/
 
 ### 최근 리팩터링 기준
 
-- `serve-engine-option-first.ts`: option-first / question-assist / smart-option orchestration 전용 helper
+- `serve-engine-option-first.ts`: option-first / question-assist / question-response / refinement / comparison option assembly 전용 helper
 - `serve-engine-runtime.ts`: turn flow orchestration 중심
 - `serve-engine-response.ts`: recommendation/question response assembly 중심
 

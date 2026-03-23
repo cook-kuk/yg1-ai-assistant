@@ -1,6 +1,7 @@
 import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import type {
   AppliedFilter,
+  AppLanguage,
   CandidateSnapshot,
   ChatMessage,
   DisplayedOption,
@@ -16,9 +17,7 @@ import type { SmartOption } from "@/lib/recommendation/domain/options"
 import { generateSmartOptions } from "@/lib/recommendation/domain/options"
 import {
   buildContextAwarePlannerContext,
-  buildNarrowingPlannerContext,
   buildPostRecommendationPlannerContext,
-  extractCandidateFieldValues,
   smartOptionsToChips,
   smartOptionsToDisplayedOptions,
 } from "@/lib/recommendation/domain/options/option-bridge"
@@ -49,6 +48,16 @@ interface QuestionAssistOptionsResult {
   displayedOptions: DisplayedOption[]
   helperCount: number
   originalCount: number
+}
+
+export interface QuestionResponseOptionState {
+  chips: string[]
+  displayedOptions: DisplayedOption[]
+}
+
+export interface RefinementOptionState {
+  chips: string[]
+  displayedOptions: DisplayedOption[]
 }
 
 export async function buildGeneralChatOptionState(input: {
@@ -181,6 +190,71 @@ export async function buildGeneralChatOptionState(input: {
   }
 }
 
+export async function buildQuestionResponseOptionState(params: {
+  chips: string[]
+  question: { questionText: string; chips: string[]; field?: string | null } | null
+  displayedOptions: DisplayedOption[]
+  sessionState: ExplorationSessionState
+  input: RecommendationInput
+  userMessage: string | null
+  responseText: string
+  messages: ChatMessage[]
+  provider: LLMProvider
+}): Promise<QuestionResponseOptionState> {
+  const { chips, question, displayedOptions, sessionState, input, userMessage, responseText, messages, provider } = params
+
+  if (!userMessage || displayedOptions.length === 0) {
+    return { chips, displayedOptions }
+  }
+
+  const userStateResult = detectUserState(userMessage, question?.field)
+  if (!shouldUseQuestionAssistHelpers(userStateResult)) {
+    return { chips, displayedOptions }
+  }
+
+  const statePendingQuestion = question?.field
+    ? {
+        shape: "constrained_options" as const,
+        questionText: question.questionText,
+        extractedOptions: question.chips.filter(chip => chip !== "상관없음" && chip !== "⟵ 이전 단계"),
+        field: question.field,
+        isBinary: false,
+        hasExplicitChoices: true,
+      }
+    : null
+
+  if (!statePendingQuestion) {
+    return { chips, displayedOptions }
+  }
+
+  const helperOptions = buildConfusionHelperOptions(statePendingQuestion, userStateResult.confusedAbout)
+  const questionAlignedOptions = buildQuestionAlignedOptions(statePendingQuestion)
+  const mergedOptions = deduplicateOptions([...helperOptions, ...questionAlignedOptions])
+
+  const chipContext = buildChipContext(
+    sessionState,
+    input,
+    userMessage,
+    responseText,
+    statePendingQuestion,
+    userStateResult.state,
+    userStateResult.confusedAbout,
+    messages.map(message => ({ role: message.role, text: message.text }))
+  )
+  const reranked = await rerankChipsWithLLM(mergedOptions, chipContext, provider)
+
+  const finalChips = smartOptionsToChips(reranked.options)
+  const finalDisplayedOptions = smartOptionsToDisplayedOptions(reranked.options)
+  console.log(
+    `[option-first:confusion] User ${userStateResult.state}, ${helperOptions.length} helpers merged (field=${question?.field ?? "none"})`
+  )
+
+  return {
+    chips: finalChips,
+    displayedOptions: finalDisplayedOptions,
+  }
+}
+
 export function buildQuestionAssistOptions(
   input: QuestionAssistOptionsInput
 ): QuestionAssistOptionsResult {
@@ -199,61 +273,6 @@ export function buildQuestionAssistOptions(
     helperCount: helperOptions.length,
     originalCount: originalOptions.length,
   }
-}
-
-export function generateSmartOptionsForQuestion(
-  candidates: ScoredProduct[],
-  filters: AppliedFilter[],
-  input: RecommendationInput,
-  lastAskedField?: string | null,
-  form?: ProductIntakeForm | null,
-  sessionState?: ExplorationSessionState | null,
-  userMessage?: string | null
-): SmartOption[] {
-  if (candidates.length === 0) return []
-
-  if (form) {
-    const { plannerCtx, interpretation } = buildContextAwarePlannerContext(
-      form,
-      sessionState ?? null,
-      input,
-      userMessage ?? null,
-      candidates,
-      filters,
-      lastAskedField ?? undefined
-    )
-
-    return generateSmartOptions({
-      plannerCtx,
-      simulatorCtx: {
-        candidateCount: candidates.length,
-        appliedFilters: filters,
-        candidateFieldValues: extractCandidateFieldValues(candidates),
-      },
-      rankerCtx: {
-        candidateCount: candidates.length,
-        filterCount: filters.length,
-        hasRecommendation: false,
-        contextInterpretation: interpretation,
-      },
-    })
-  }
-
-  const plannerCtx = buildNarrowingPlannerContext(candidates, filters, input, lastAskedField ?? undefined)
-
-  return generateSmartOptions({
-    plannerCtx,
-    simulatorCtx: {
-      candidateCount: candidates.length,
-      appliedFilters: filters,
-      candidateFieldValues: extractCandidateFieldValues(candidates),
-    },
-    rankerCtx: {
-      candidateCount: candidates.length,
-      filterCount: filters.length,
-      hasRecommendation: false,
-    },
-  })
 }
 
 export function generateSmartOptionsForRecommendation(
@@ -316,6 +335,139 @@ export function generateSmartOptionsForRecommendation(
       hasRecommendation: true,
     },
   })
+}
+
+export function buildRefinementOptionState(input: {
+  form: ProductIntakeForm
+  prevState: ExplorationSessionState
+  currentInput: RecommendationInput
+  candidates: ScoredProduct[]
+  filters: AppliedFilter[]
+  field: string
+  language: AppLanguage
+  userMessage: string
+}): RefinementOptionState {
+  const { form, prevState, currentInput, candidates, filters, field, language, userMessage } = input
+  const { plannerCtx } = buildContextAwarePlannerContext(
+    form,
+    prevState,
+    currentInput,
+    userMessage,
+    candidates,
+    filters,
+    field
+  )
+  const refineSmartOptions = generateSmartOptions({
+    plannerCtx,
+    simulatorCtx: {
+      candidateCount: candidates.length,
+      appliedFilters: filters.map(filter => ({
+        field: filter.field,
+        op: filter.op,
+        value: filter.value,
+        rawValue: filter.rawValue,
+      })),
+    },
+    rankerCtx: {
+      candidateCount: candidates.length,
+      filterCount: filters.length,
+      hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
+    },
+  })
+
+  if (refineSmartOptions.length > 0) {
+    return {
+      chips: smartOptionsToChips(refineSmartOptions),
+      displayedOptions: smartOptionsToDisplayedOptions(refineSmartOptions),
+    }
+  }
+
+  const fallbackChips = buildRefinementChips(field, language)
+  return {
+    chips: fallbackChips,
+    displayedOptions: buildDisplayedOptions(fallbackChips, field),
+  }
+}
+
+export function buildComparisonOptionState(): {
+  chips: string[]
+  displayedOptions: DisplayedOption[]
+} {
+  const options: SmartOption[] = [
+    {
+      id: "comp-recommend",
+      family: "action",
+      label: "추천해주세요",
+      value: "추천해주세요",
+      plan: { type: "apply_filter", patches: [] },
+      projectedCount: null,
+      projectedDelta: null,
+      preservesContext: true,
+      destructive: false,
+      recommended: true,
+      priorityScore: 90,
+    },
+    {
+      id: "comp-other",
+      family: "explore",
+      label: "다른 조건으로",
+      value: "다른 조건으로",
+      plan: { type: "branch_session", patches: [] },
+      projectedCount: null,
+      projectedDelta: null,
+      preservesContext: false,
+      destructive: false,
+      recommended: false,
+      priorityScore: 70,
+    },
+    {
+      id: "comp-back",
+      family: "action",
+      label: "⟵ 이전 단계",
+      value: "⟵ 이전 단계",
+      plan: { type: "apply_filter", patches: [] },
+      projectedCount: null,
+      projectedDelta: null,
+      preservesContext: true,
+      destructive: false,
+      recommended: false,
+      priorityScore: 50,
+    },
+    {
+      id: "comp-reset",
+      family: "reset",
+      label: "처음부터 다시",
+      value: "처음부터 다시",
+      plan: { type: "reset_session", patches: [] },
+      projectedCount: null,
+      projectedDelta: null,
+      preservesContext: false,
+      destructive: true,
+      recommended: false,
+      priorityScore: 10,
+    },
+  ]
+
+  return {
+    chips: smartOptionsToChips(options),
+    displayedOptions: smartOptionsToDisplayedOptions(options),
+  }
+}
+
+export function buildDisplayedOptions(chips: string[], field: string): DisplayedOption[] {
+  const options: DisplayedOption[] = []
+  let index = 1
+  for (const chip of chips) {
+    if (["상관없음", "⟵ 이전 단계", "처음부터 다시", "추천해주세요"].includes(chip)) continue
+    const countMatch = chip.match(/\((\d+)개\)/)
+    const count = countMatch ? parseInt(countMatch[1]) : 0
+    const value = chip.replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
+    if (value) {
+      options.push({ index, label: chip, field, value, count })
+      index++
+    }
+  }
+  return options
 }
 
 function shouldUseQuestionAssistHelpers(userStateResult: UserStateResult): boolean {
@@ -432,4 +584,19 @@ function deduplicateOptions(options: SmartOption[]): SmartOption[] {
     seen.add(key)
     return [{ ...option, label }]
   })
+}
+
+function buildRefinementChips(field: string, _language: AppLanguage): string[] {
+  switch (field) {
+    case "material":
+      return ["알루미늄 / 비철", "일반강 / 탄소강", "스테인리스 (SUS)", "주철", "티타늄 / 내열합금", "고경도강 (HRC40+)", "처음부터 다시"]
+    case "diameter":
+      return ["2mm", "4mm", "6mm", "8mm", "10mm", "12mm", "처음부터 다시"]
+    case "coating":
+      return ["TiAlN", "AlCrN", "DLC", "무코팅", "Y-코팅", "처음부터 다시"]
+    case "fluteCount":
+      return ["1날", "2날", "3날", "4날", "6날", "처음부터 다시"]
+    default:
+      return ["현재 필터 유지하고 추천 보기", "처음부터 다시"]
+  }
 }
