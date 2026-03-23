@@ -358,7 +358,9 @@ describe("Answer/Chip divergence guard", () => {
     const result = checkAnswerChipDivergence(answerText, chips, options)
 
     expect(result.hasDivergence).toBe(true)
-    expect(result.missingChips.length).toBeGreaterThan(0)
+    expect(result.unauthorizedActions.length).toBeGreaterThan(0)
+    // Option-first: corrected answer should soften the unauthorized action
+    expect(result.correctedAnswer).toBeTruthy()
   })
 
   it("does NOT flag when answer and chips are aligned", () => {
@@ -371,7 +373,7 @@ describe("Answer/Chip divergence guard", () => {
     expect(result.hasDivergence).toBe(false)
   })
 
-  it("fixes divergence by adding missing chips", () => {
+  it("option-first: fixChipDivergence returns chips unchanged (no text→chip)", () => {
     const answerText = "비교해 보기 원하시면 알려주세요."
     const chips = ["Square", "Ball"]
     const options: any[] = []
@@ -379,22 +381,26 @@ describe("Answer/Chip divergence guard", () => {
     const divergence = checkAnswerChipDivergence(answerText, chips, options)
     const fixed = fixChipDivergence(chips, divergence)
 
-    expect(fixed.length).toBeGreaterThan(chips.length)
-    expect(fixed.some(c => c.includes("비교"))).toBe(true)
+    // Option-first: chips are NEVER added from answer text
+    expect(fixed).toEqual(chips)
+    expect(fixed.length).toBe(2)
+    // But the divergence should detect and SOFTEN the answer
+    expect(divergence.hasDivergence).toBe(true)
+    expect(divergence.correctedAnswer).toBeTruthy()
   })
 
-  it("respects max chip limit", () => {
+  it("option-first: fixChipDivergence never adds chips regardless of input", () => {
     const chips = Array.from({ length: 7 }, (_, i) => `Option ${i}`)
     const divergence = {
       hasDivergence: true,
-      missingChips: ["비교 보기"],
-      suggestedChips: ["비교해줘", "대체 후보 보기"],
-      answerActionsToRemove: [],
+      unauthorizedActions: ["비교 보기"],
+      correctedAnswer: "some corrected text",
     }
 
     const fixed = fixChipDivergence(chips, divergence, 8)
 
-    expect(fixed.length).toBeLessThanOrEqual(8)
+    // Must return original chips unchanged
+    expect(fixed).toEqual(chips)
   })
 })
 

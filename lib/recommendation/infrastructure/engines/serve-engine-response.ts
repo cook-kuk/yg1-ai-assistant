@@ -54,7 +54,6 @@ import {
   buildPostRecommendationPlannerContext,
   buildContextAwarePlannerContext,
 } from "@/lib/recommendation/domain/options/option-bridge"
-import { detectPendingQuestion } from "@/lib/recommendation/domain/context/pending-question-detector"
 import { buildQuestionAlignedOptions, buildConfusionHelperOptions } from "@/lib/recommendation/domain/options/question-option-builder"
 import { detectUserState } from "@/lib/recommendation/domain/context/user-understanding-detector"
 import { buildChipContext } from "@/lib/recommendation/domain/context/chip-context-builder"
@@ -186,52 +185,56 @@ export async function buildQuestionResponse(
 
   const requestPrep = prepareRequest(form, messages, sessionState, input, candidates.length)
 
-  // ── Post-LLM chip correction: check if the polished response contains a pending question ──
+  // ── Option-first: chips are derived from structured displayedOptions (built above) ──
+  // Text-to-chip synthesis is NOT allowed on the main path.
+  // displayedOptions (from smart options or question engine) is the source of truth.
   let finalResponseChips = responseChips
   let finalDisplayedOptions = displayedOptions
   const lastUserMsgText = messages.length > 0
     ? [...messages].reverse().find(m => m.role === "user")?.text ?? null
     : null
 
-  if (responseText) {
-    const pendingQ = detectPendingQuestion(responseText)
-    if (pendingQ.hasPendingQuestion && pendingQ.question) {
-      let questionOptions = buildQuestionAlignedOptions(pendingQ.question)
+  // Only apply confusion-helper merge if user is confused AND structured options exist
+  if (lastUserMsgText && displayedOptions.length > 0) {
+    const userStateResult = detectUserState(lastUserMsgText, question?.field)
+    if (userStateResult.state === "confused" || userStateResult.state === "wants_explanation" || userStateResult.state === "wants_delegation") {
+      // Reconstruct pending question from STATE (not answer text)
+      const statePendingQ = question?.field ? {
+        shape: "constrained_options" as const,
+        questionText: question.questionText,
+        extractedOptions: question.chips.filter((c: string) => c !== "상관없음" && c !== "⟵ 이전 단계"),
+        field: question.field,
+        isBinary: false,
+        hasExplicitChoices: true,
+      } : null
+      if (statePendingQ) {
+        const helperOptions = buildConfusionHelperOptions(statePendingQ, userStateResult.confusedAbout)
+        const existingSmartOptions = hasSmartOptions ? smartOptions : []
+        const mergedOptions = [...helperOptions, ...existingSmartOptions]
 
-      // Check user confusion state
-      if (lastUserMsgText) {
-        const userStateResult = detectUserState(lastUserMsgText, question?.field)
-        if (userStateResult.state === "confused" || userStateResult.state === "wants_explanation" || userStateResult.state === "wants_delegation") {
-          const helperOptions = buildConfusionHelperOptions(pendingQ.question, userStateResult.confusedAbout)
-          questionOptions = [...helperOptions, ...questionOptions]
-        }
-      }
-
-      if (questionOptions.length > 0) {
         // LLM rerank (optional)
         const chipContext = buildChipContext(
           sessionState, input, lastUserMsgText, responseText,
-          pendingQ.question, lastUserMsgText ? detectUserState(lastUserMsgText).state : "clear", null,
+          statePendingQ, userStateResult.state, userStateResult.confusedAbout,
           messages.map(m => ({ role: m.role, text: m.text }))
         )
-        const reranked = await rerankChipsWithLLM(questionOptions, chipContext, provider)
+        const reranked = await rerankChipsWithLLM(mergedOptions, chipContext, provider)
 
         finalResponseChips = smartOptionsToChips(reranked.options)
         finalDisplayedOptions = smartOptionsToDisplayedOptions(reranked.options)
-        // Update session state chips
         sessionState.displayedChips = finalResponseChips
         sessionState.displayedOptions = finalDisplayedOptions
-        console.log(`[narrowing:chip-correction] LLM response had pending question "${pendingQ.question.shape}", ${finalResponseChips.length} chips${reranked.rerankedByLLM ? " (LLM reranked)" : ""}`)
+        console.log(`[option-first:confusion] User ${userStateResult.state}, ${helperOptions.length} helpers merged (field=${question?.field ?? "none"})`)
       }
     }
   }
 
-  // ── Answer/Chip Divergence Guard ──
+  // ── Post-Answer Validator: strip unauthorized actions from answer ──
+  // Direction: displayedOptions → constrain answer (NEVER answer → add chips)
   const divergenceCheck = checkAnswerChipDivergence(responseText, finalResponseChips, finalDisplayedOptions)
-  if (divergenceCheck.hasDivergence) {
-    finalResponseChips = fixChipDivergence(finalResponseChips, divergenceCheck)
-    sessionState.displayedChips = finalResponseChips
-    console.log(`[divergence-guard:question] Fixed: missing=${divergenceCheck.missingChips.join(",")}`)
+  if (divergenceCheck.hasDivergence && divergenceCheck.correctedAnswer) {
+    responseText = divergenceCheck.correctedAnswer
+    console.log(`[answer-validator:question] Softened unauthorized actions: ${divergenceCheck.unauthorizedActions.join(",")}`)
   }
 
   return deps.jsonRecommendationResponse({
@@ -459,24 +462,12 @@ export async function buildRecommendationResponse(
     }).catch(() => {})
   }
 
-  // ── Post-LLM chip correction for recommendation response ──
-  let finalRecChips = followUpChips
+  // ── Option-first: recommendation chips are derived from structured state ──
+  // Text-to-chip synthesis is NOT allowed. followUpChips are already structured.
+  const finalRecChips = followUpChips
   const finalResponseText = status === "none"
     ? "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요."
     : responseText
-
-  if (finalResponseText) {
-    const recPendingQ = detectPendingQuestion(finalResponseText)
-    if (recPendingQ.hasPendingQuestion && recPendingQ.question) {
-      const recQuestionOptions = buildQuestionAlignedOptions(recPendingQ.question)
-      if (recQuestionOptions.length > 0) {
-        finalRecChips = smartOptionsToChips(recQuestionOptions)
-        sessionState.displayedChips = finalRecChips
-        sessionState.displayedOptions = smartOptionsToDisplayedOptions(recQuestionOptions)
-        console.log(`[recommendation:chip-correction] LLM response had pending question "${recPendingQ.question.shape}", ${finalRecChips.length} chips`)
-      }
-    }
-  }
 
   return deps.jsonRecommendationResponse({
     text: finalResponseText,

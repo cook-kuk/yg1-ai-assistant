@@ -22,7 +22,6 @@ import {
 import { ENABLE_TOOL_USE_ROUTING } from "@/lib/recommendation/infrastructure/config/recommendation-feature-flags"
 import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import { buildDisplayedOptions } from "@/lib/recommendation/infrastructure/engines/serve-engine-response"
-import { detectPendingQuestion } from "@/lib/recommendation/domain/context/pending-question-detector"
 import { buildQuestionAlignedOptions, buildConfusionHelperOptions } from "@/lib/recommendation/domain/options/question-option-builder"
 import { smartOptionsToDisplayedOptions, smartOptionsToChips } from "@/lib/recommendation/domain/options/option-bridge"
 import { detectUserState } from "@/lib/recommendation/domain/context/user-understanding-detector"
@@ -454,18 +453,10 @@ export async function handleServeExploration(
             const hasPendingField = !!prevState.lastAskedField && !prevState.resolutionStatus?.startsWith("resolved")
 
             if (prevState.resolutionStatus?.startsWith("resolved")) {
-              // ── Pending question detection for contextReply ──
-              const ctxPendingQ = detectPendingQuestion(contextReply)
-              let ctxChips = prevState.displayedChips ?? ["대체 후보 보기", "절삭조건 알려줘", "처음부터 다시"]
-              let ctxDisplayedOptions = prevState.displayedOptions ?? []
-              if (ctxPendingQ.hasPendingQuestion && ctxPendingQ.question) {
-                const qOptions = buildQuestionAlignedOptions(ctxPendingQ.question)
-                if (qOptions.length > 0) {
-                  ctxChips = smartOptionsToChips(qOptions)
-                  ctxDisplayedOptions = smartOptionsToDisplayedOptions(qOptions)
-                  console.log(`[pending-question] Context reply has "${ctxPendingQ.question.shape}" question, ${ctxChips.length} question-aligned chips`)
-                }
-              }
+              // ── Option-first: preserve existing structured options from state ──
+              // Do NOT parse contextReply text to generate chips.
+              const ctxChips = prevState.displayedChips ?? ["대체 후보 보기", "절삭조건 알려줘", "처음부터 다시"]
+              const ctxDisplayedOptions = prevState.displayedOptions ?? []
 
               const sessionState = carryForwardState(prevState, {
                 candidateCount: prevState.candidateCount ?? candidates.length,
@@ -572,8 +563,8 @@ export async function handleServeExploration(
           llmResponse = await deps.handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form, prevState.displayedCandidates)
         }
 
-        // ── Chip Priority Pipeline: question → user state → LLM rerank → fallback ──
-        const pendingQ = detectPendingQuestion(llmResponse.text)
+        // ── Option-first Chip Pipeline: state → user-state → merge ──
+        // Pending question is detected from SESSION STATE (not answer text).
         const userStateResult = detectUserState(lastUserMsg.text, prevState.lastAskedField)
         let finalChips = llmResponse.chips
         let finalDisplayedOptions = prevState.displayedOptions ?? []
@@ -601,30 +592,25 @@ export async function handleServeExploration(
           }
         }
 
-        // Priority 1: Pending question → question-aligned chips
-        if (pendingQ.hasPendingQuestion && pendingQ.question) {
-          let questionOptions = buildQuestionAlignedOptions(pendingQ.question)
+        // Priority 1: State-based pending question from session (NOT answer text)
+        const hasStatePendingQuestion = !!prevState.lastAskedField
+          && !prevState.resolutionStatus?.startsWith("resolved")
+          && prevState.displayedOptions && prevState.displayedOptions.length > 0
+        if (hasStatePendingQuestion) {
+          const prevQuestion = reconstructPreviousQuestion(prevState)
+          let questionOptions = prevQuestion ? buildQuestionAlignedOptions(prevQuestion) : []
 
           // Priority 2: If user is confused, merge helper chips
           if (userStateResult.state === "confused" || userStateResult.state === "wants_explanation" || userStateResult.state === "wants_delegation") {
-            const helperOptions = buildConfusionHelperOptions(pendingQ.question, userStateResult.confusedAbout)
-            // Helpers first, then question choices
+            const helperOptions = buildConfusionHelperOptions(prevQuestion, userStateResult.confusedAbout)
             questionOptions = [...helperOptions, ...questionOptions]
-            console.log(`[chip-priority] User state: ${userStateResult.state}, added ${helperOptions.length} helper chips`)
+            console.log(`[option-first] User state: ${userStateResult.state}, ${helperOptions.length} helpers merged (field=${prevQuestion?.field ?? "none"})`)
           }
 
           if (questionOptions.length > 0) {
-            // Priority 5: LLM rerank candidates (optional, Haiku)
-            const chipContext = buildChipContext(
-              prevState, currentInput, lastUserMsg.text, llmResponse.text,
-              pendingQ.question, userStateResult.state, userStateResult.confusedAbout,
-              messages.map(m => ({ role: m.role, text: m.text }))
-            )
-            const reranked = await rerankChipsWithLLM(questionOptions, chipContext, provider)
-
-            finalChips = smartOptionsToChips(reranked.options)
-            finalDisplayedOptions = smartOptionsToDisplayedOptions(reranked.options)
-            console.log(`[chip-priority] Pending question "${pendingQ.question.shape}", ${finalChips.length} chips${reranked.rerankedByLLM ? " (LLM reranked)" : ""}`)
+            finalChips = smartOptionsToChips(questionOptions)
+            finalDisplayedOptions = smartOptionsToDisplayedOptions(questionOptions)
+            console.log(`[option-first] State-based pending question field="${prevState.lastAskedField}", ${finalChips.length} chips`)
           }
         } else if (userStateResult.state === "confused" || userStateResult.state === "wants_explanation" || userStateResult.state === "wants_delegation") {
           // No pending question in current response, but user is confused
@@ -643,11 +629,12 @@ export async function handleServeExploration(
           }
         }
 
-        // ── Answer/Chip Divergence Guard ──
+        // ── Post-Answer Validator: strip unauthorized actions from answer ──
+        // Direction: displayedOptions → constrain answer (NEVER answer → add chips)
         const divergence = checkAnswerChipDivergence(llmResponse.text, finalChips, finalDisplayedOptions)
-        if (divergence.hasDivergence) {
-          finalChips = fixChipDivergence(finalChips, divergence)
-          console.log(`[divergence-guard] Fixed: missing=${divergence.missingChips.join(",")} added=${divergence.suggestedChips.join(",")}`)
+        if (divergence.hasDivergence && divergence.correctedAnswer) {
+          llmResponse = { text: divergence.correctedAnswer, chips: llmResponse.chips }
+          console.log(`[answer-validator] Softened unauthorized actions: ${divergence.unauthorizedActions.join(",")}`)
         }
 
         // ── Question Assist: preserve question mode if pending field exists ──
