@@ -164,6 +164,49 @@ export async function runHybridRetrieval(
         filtered = candidates.filter(p => p.seriesName?.toLowerCase().includes(q))
         break
       }
+      // ── Extended product fields ──
+      case "toolMaterial": {
+        const q = String(filter.rawValue).toLowerCase()
+        filtered = candidates.filter(p => p.toolMaterial?.toLowerCase().includes(q))
+        break
+      }
+      case "toolType": {
+        const q = String(filter.rawValue).toLowerCase()
+        filtered = candidates.filter(p => p.toolType?.toLowerCase().includes(q))
+        break
+      }
+      case "brand": {
+        const q = String(filter.rawValue).toLowerCase()
+        filtered = candidates.filter(p => p.brand?.toLowerCase().includes(q))
+        break
+      }
+      case "coolantHole": {
+        const want = String(filter.rawValue).toLowerCase() === "true" || String(filter.rawValue) === "yes"
+        filtered = candidates.filter(p => p.coolantHole === want)
+        break
+      }
+      case "shankDiameterMm": {
+        const n = typeof filter.rawValue === "number" ? filter.rawValue : parseFloat(String(filter.rawValue))
+        if (!isNaN(n)) filtered = candidates.filter(p => p.shankDiameterMm != null && Math.abs(p.shankDiameterMm - n) <= 0.5)
+        break
+      }
+      case "lengthOfCutMm": {
+        const n = typeof filter.rawValue === "number" ? filter.rawValue : parseFloat(String(filter.rawValue))
+        if (!isNaN(n)) filtered = candidates.filter(p => p.lengthOfCutMm != null && Math.abs(p.lengthOfCutMm - n) <= 2)
+        break
+      }
+      case "overallLengthMm": {
+        const n = typeof filter.rawValue === "number" ? filter.rawValue : parseFloat(String(filter.rawValue))
+        if (!isNaN(n)) filtered = candidates.filter(p => p.overallLengthMm != null && Math.abs(p.overallLengthMm - n) <= 5)
+        break
+      }
+      case "helixAngleDeg": {
+        const n = typeof filter.rawValue === "number" ? filter.rawValue : parseFloat(String(filter.rawValue))
+        if (!isNaN(n)) filtered = candidates.filter(p => p.helixAngleDeg != null && Math.abs(p.helixAngleDeg - n) <= 2)
+        break
+      }
+      // stockStatus is computed post-scoring (on ScoredProduct), not on CanonicalProduct.
+      // It's applied as a post-filter after scoring in the runtime layer.
     }
 
     if (filtered !== null) {

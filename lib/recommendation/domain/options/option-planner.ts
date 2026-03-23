@@ -733,9 +733,14 @@ function findRelaxableFilters(
 function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartOption[] {
   const options: SmartOption[] = []
   const top = ctx.topCandidates ?? []
+  const displayed = ctx.displayedProducts ?? []
+  const artifacts = ctx.visibleArtifacts
 
-  // 1. Compare alternatives (if there are alternatives)
-  if (top.length >= 2) {
+  // ── UI-artifact-aware: if comparison is already visible, skip compare option ──
+  // ── If cutting conditions already shown, skip cutting conditions option ──
+
+  // 1. Compare alternatives (if there are alternatives and no comparison visible)
+  if (top.length >= 2 && !artifacts?.hasComparison) {
     options.push({
       id: nextOptionId("action"),
       family: "action",
@@ -859,7 +864,48 @@ function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartOption[]
     })
   }
 
-  // 7. Reset (always available, ranked last)
+  // 7. Stock-aware options from displayedProducts
+  const primaryProduct = displayed[0]
+  if (primaryProduct?.stockStatus === "outofstock") {
+    options.push({
+      id: nextOptionId("action"),
+      family: "action",
+      label: "재고 있는 대안 보기",
+      subtitle: `${primaryProduct.displayCode} 재고 없음`,
+      field: "stockStatus",
+      reason: "재고 있는 제품으로 대안 탐색",
+      projectedCount: null,
+      projectedDelta: null,
+      preservesContext: true,
+      destructive: false,
+      recommended: true,
+      priorityScore: 0,
+      plan: {
+        type: "apply_filter",
+        patches: [{ op: "add", field: "stockStatus", value: "instock" }],
+      },
+    })
+  } else if (primaryProduct?.stockStatus === "limited") {
+    options.push({
+      id: nextOptionId("action"),
+      family: "action",
+      label: "재고 상세 확인",
+      subtitle: `${primaryProduct.displayCode} 재고 제한적`,
+      reason: "재고 상세 정보 확인",
+      projectedCount: null,
+      projectedDelta: null,
+      preservesContext: true,
+      destructive: false,
+      recommended: false,
+      priorityScore: 0,
+      plan: {
+        type: "apply_filter",
+        patches: [{ op: "add", field: "_action", value: "inventory_detail" }],
+      },
+    })
+  }
+
+  // 8. Reset (always available, ranked last)
   options.push({
     id: nextOptionId("reset"),
     family: "reset",

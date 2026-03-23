@@ -28,6 +28,13 @@ export function extractCandidateFieldValues(
     { key: "coating", getter: p => p.product.coating },
     { key: "seriesName", getter: p => p.product.seriesName },
     { key: "toolSubtype", getter: p => p.product.toolSubtype },
+    // Extended product fields
+    { key: "toolMaterial", getter: p => p.product.toolMaterial },
+    { key: "toolType", getter: p => p.product.toolType },
+    { key: "brand", getter: p => p.product.brand },
+    { key: "helixAngleDeg", getter: p => p.product.helixAngleDeg },
+    { key: "coolantHole", getter: p => p.product.coolantHole != null ? (p.product.coolantHole ? "Yes" : "No") : null },
+    { key: "stockStatus", getter: p => p.stockStatus },
   ]
 
   for (const { key, getter } of fields) {
@@ -206,6 +213,18 @@ export function buildContextAwarePlannerContext(
     })),
     contextInterpretation: interpretation,
     conversationMemory: memory,
+    displayedProducts: sessionState?.displayedCandidates?.slice(0, 5).map(c => ({
+      displayCode: c.displayCode,
+      seriesName: c.seriesName,
+      coating: c.coating,
+      fluteCount: c.fluteCount,
+      stockStatus: c.stockStatus ?? undefined,
+    })),
+    visibleArtifacts: {
+      hasRecommendation: !!sessionState?.lastRecommendationArtifact,
+      hasComparison: !!sessionState?.lastComparisonArtifact,
+      hasCuttingConditions: false, // TODO: detect from session
+    },
   }
 
   // Set conflict fields from interpretation

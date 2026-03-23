@@ -60,6 +60,14 @@ export interface OptionPlannerContext {
   contextInterpretation?: import("../context/context-types").ContextInterpretation
   /** Conversation memory (when available) */
   conversationMemory?: import("../memory/conversation-memory").ConversationMemory
+  /** Currently displayed products — for context-aware post-recommendation chips */
+  displayedProducts?: Array<{ displayCode: string; seriesName: string | null; coating: string | null; fluteCount: number | null; stockStatus?: string }>
+  /** Whether recommendation/comparison/cutting-condition artifacts are visible */
+  visibleArtifacts?: {
+    hasRecommendation: boolean
+    hasComparison: boolean
+    hasCuttingConditions: boolean
+  }
 }
 
 // ── Ranking Signals ──────────────────────────────────────────

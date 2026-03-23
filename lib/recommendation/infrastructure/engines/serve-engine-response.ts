@@ -94,21 +94,21 @@ export async function buildQuestionResponse(
 
   const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
 
-  // ── Smart Option Engine: context-aware option generation ──
-  const lastUserMsg = messages.length > 0
-    ? [...messages].reverse().find(m => m.role === "user")?.text ?? null
-    : null
-  const smartOptions = generateSmartOptionsForQuestion(
-    candidates, filters, input, question?.field,
-    form, null, lastUserMsg
-  )
-  const hasSmartOptions = smartOptions.length > 0
+  // ── Option-first: question engine chips ARE the source of truth ──
+  // displayedOptions is DERIVED from question engine chips (not SmartOption engine).
+  // This ensures chips and displayedOptions always show the same field-specific values.
+  let chips = question?.chips ?? []
 
-  // Use smart options for displayedOptions when available, fallback to chip-based
-  const chips = question?.chips ?? []
-  const displayedOptions = hasSmartOptions
-    ? smartOptionsToDisplayedOptions(smartOptions)
-    : buildDisplayedOptions(chips, question?.field ?? "unknown")
+  // Safety: if chips are empty (e.g. 0-candidate guard with overrideText),
+  // always provide at least navigation chips
+  if (chips.length === 0) {
+    const fallbackChips: string[] = []
+    if (filters.length > 0) fallbackChips.push("⟵ 이전 단계")
+    fallbackChips.push("처음부터 다시")
+    chips = fallbackChips
+  }
+
+  const displayedOptions = buildDisplayedOptions(chips, question?.field ?? "unknown")
   const displayedSeriesGroups = groupCandidatesBySeries(candidateSnapshot)
 
   const sessionState = buildSessionState({
@@ -210,8 +210,9 @@ export async function buildQuestionResponse(
       } : null
       if (statePendingQ) {
         const helperOptions = buildConfusionHelperOptions(statePendingQ, userStateResult.confusedAbout)
-        const existingSmartOptions = hasSmartOptions ? smartOptions : []
-        const mergedOptions = [...helperOptions, ...existingSmartOptions]
+        // Use question-aligned options (from chips), not SmartOption engine
+        const questionAlignedOptions = buildQuestionAlignedOptions(statePendingQ)
+        const mergedOptions = [...helperOptions, ...questionAlignedOptions]
 
         // LLM rerank (optional)
         const chipContext = buildChipContext(

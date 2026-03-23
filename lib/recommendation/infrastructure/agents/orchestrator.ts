@@ -221,7 +221,12 @@ const NARROWING_TOOLS: LLMTool[] = [
       properties: {
         field: {
           type: "string",
-          enum: ["fluteCount", "coating", "toolSubtype", "seriesName", "diameterMm", "diameterRefine", "cuttingType", "material"],
+          enum: [
+            "fluteCount", "coating", "toolSubtype", "seriesName", "diameterMm", "diameterRefine", "cuttingType", "material",
+            "toolMaterial", "toolType", "brand", "country",
+            "shankDiameterMm", "lengthOfCutMm", "overallLengthMm", "helixAngleDeg", "ballRadiusMm", "taperAngleDeg",
+            "coolantHole", "stockStatus", "applicationShapes", "materialTags"
+          ],
           description: "필터 대상 필드. 현재 질문(lastAskedField)에 해당하는 필드 사용."
         },
         value: {
@@ -288,6 +293,25 @@ const NARROWING_TOOLS: LLMTool[] = [
     }
   },
   {
+    name: "query_field_info",
+    description: "사용자가 특정 필드 값에 대해 물어볼 때 호출 (선택이 아닌 질문/탐색). 'Ball은 몇개야?', 'Taper는 뭐야?', '3날 제품이 많아?', '코팅 종류가 뭐가 있어?'. 정보 조회이지 필터 적용이 아님.",
+    input_schema: {
+      type: "object",
+      properties: {
+        field: {
+          type: "string",
+          description: "질문 대상 필드. 예: 'toolSubtype', 'fluteCount', 'coating'"
+        },
+        values: {
+          type: "array",
+          items: { type: "string" },
+          description: "물어보는 구체적 값들. 예: ['Ball', 'Taper'] 또는 ['3날']"
+        }
+      },
+      required: ["field"]
+    }
+  },
+  {
     name: "reset_session",
     description: "사용자가 처음부터 다시 시작하고 싶을 때 호출. '처음부터 다시', '리셋' 등.",
     input_schema: {
@@ -343,7 +367,8 @@ ${candidatesDesc}
 ═══ 규칙 ═══
 1. 사용자가 칩/옵션을 선택하면 → apply_filter 호출 (field는 lastAskedField 또는 옵션의 field 사용)
 2. "N번" 입력 → 해당 번호의 옵션 값으로 apply_filter 호출
-3. "상관없음/모름/패스/스킵" → apply_filter에 value="skip" 설정
+3. "상관없음/모름/패스/스킵/무난한 걸로/아무거나/추천으로 골라줘/알아서 해줘" → apply_filter에 value="skip" 설정 (현재 질문 필드에 대한 위임/스킵)
+3-1. "네/좋아/그래/응/ㅇㅇ/OK/ㅇ" 같은 긍정 응답 → 마지막 질문 필드(lastAskedField)가 있으면 apply_filter에 value="skip" 설정 (시스템 추천에 동의 = 위임)
 4. 사용자가 추천 결과를 원하면 → show_recommendation
 5. 비교 요청 → compare_products (targets 필수)
 6. 되돌리기 → undo_step
@@ -352,7 +377,13 @@ ${candidatesDesc}
 9. 잡담, 수학, 감정 공감, 시스템 질문 → tool 호출 없이 직접 텍스트 답변
 10. 제품 데이터(코드, 스펙, 재고)를 절대 생성하지 마세요
 11. 한국어로 답변하세요
-12. 답변 끝에 출처 표기: [Reference: YG-1 내부 DB] 또는 [Reference: AI 지식 추론] 또는 [Reference: 웹 검색]`
+12. 답변 끝에 출처 표기: [Reference: YG-1 내부 DB] 또는 [Reference: AI 지식 추론] 또는 [Reference: 웹 검색]
+
+═══ 중요: 질문/탐색 vs 선택 구분 ═══
+- "Ball은 몇개야?", "Taper는 뭐야?", "3날 제품이 많아?" → query_field_info (정보 조회)
+- "Ball로", "Ball 선택", "Ball", "1번" (짧은 값 선택) → apply_filter (필터 적용)
+- 사용자가 "~은/는 뭐야?", "~이/가 몇개야?", "~종류가 뭐가 있어?" → query_field_info
+- 사용자가 명확하게 값을 선택하거나 칩을 클릭한 경우만 apply_filter`
 }
 
 function mapToolUseToAction(
@@ -367,8 +398,14 @@ function mapToolUseToAction(
       const value = String(input.value ?? "")
       const displayValue = String(input.display_value ?? value)
 
-      // Skip detection
-      if (["skip", "상관없음", "모름", "패스", "스킵"].includes(value.toLowerCase())) {
+      // Skip/delegate detection — field-bound to the pending question
+      const skipPatterns = ["skip", "상관없음", "모름", "패스", "스킵", "무난한", "아무거나", "알아서", "추천으로", "골라줘"]
+      if (skipPatterns.some(p => value.toLowerCase().includes(p))) {
+        return { type: "skip_field" }
+      }
+      // Affirmative response with pending question → skip/delegate
+      const affirmativePatterns = ["네", "좋아", "그래", "응", "ㅇㅇ", "ㅇ", "ok", "yes"]
+      if (affirmativePatterns.includes(value.toLowerCase().trim()) && ctx.sessionState?.lastAskedField) {
         return { type: "skip_field" }
       }
 
@@ -418,6 +455,19 @@ function mapToolUseToAction(
 
     case "explain_concept":
       return { type: "explain_product", target: String(input.topic ?? "") }
+
+    case "query_field_info":
+      // Tentative mention — NOT a filter commitment.
+      // Route to explain_product so the system answers the question
+      // without applying any filter.
+      return {
+        type: "explain_product",
+        target: String(
+          (input.values as string[] | undefined)?.join(", ") ??
+          input.field ??
+          ctx.userMessage
+        ),
+      }
 
     case "reset_session":
       return { type: "reset_session" }
@@ -495,7 +545,10 @@ function buildFilterFromParams(
 
   // Check for skip signals
   const clean = (rawValue ?? params?.rawValue ?? "").toLowerCase().trim()
-  if (["상관없음", "모름", "패스", "스킵", "상관 없음", "아무거나"].includes(clean)) {
+  const SKIP_DELEGATION_PHRASES = ["상관없음", "모름", "패스", "스킵", "상관 없음", "아무거나", "무난한", "알아서", "추천으로", "골라줘", "추천해줘", "맡길게"]
+  const AFFIRMATIVE_PHRASES = ["네", "좋아", "그래", "응", "ㅇㅇ", "ㅇ", "ok", "yes"]
+  if (SKIP_DELEGATION_PHRASES.some(p => clean.includes(p)) ||
+      (AFFIRMATIVE_PHRASES.includes(clean) && ctx.sessionState?.lastAskedField)) {
     return {
       field: ctx.sessionState?.lastAskedField ?? "unknown",
       op: "skip",

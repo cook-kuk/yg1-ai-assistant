@@ -564,17 +564,19 @@ export async function handleServeExploration(
 
             if (hasPendingField) {
               // ── Question Assist: explain within pending question ──
-              // Preserve lastAskedField, keep currentMode as "question",
-              // generate helper chips merged with original field options
-              const prevQuestion = reconstructPreviousQuestion(prevState)
+              // Rebuild field options from CANDIDATES (not from prevState.displayedOptions
+              // which may contain accumulated helper labels from prior assist turns).
+              const prevQuestion = reconstructPreviousQuestionFromCandidates(
+                prevState, candidates
+              )
               const userState = detectUserState(lastUserMsg.text, prevState.lastAskedField)
               const helperOptions = buildConfusionHelperOptions(prevQuestion, userState.confusedAbout)
 
-              // Merge: helpers first, then original field options
+              // Merge: helpers first, then original field options (deduplicated)
               const originalOptions = prevQuestion
                 ? buildQuestionAlignedOptions(prevQuestion)
                 : []
-              const mergedOptions = [...helperOptions, ...originalOptions]
+              const mergedOptions = deduplicateOptions([...helperOptions, ...originalOptions])
               const assistChips = smartOptionsToChips(mergedOptions)
               const assistDisplayedOptions = smartOptionsToDisplayedOptions(mergedOptions)
 
@@ -717,51 +719,15 @@ export async function handleServeExploration(
         const hasStatePendingQuestion = !!prevState.lastAskedField
           && !prevState.resolutionStatus?.startsWith("resolved")
         if (hasStatePendingQuestion) {
-          let prevQuestion = reconstructPreviousQuestion(prevState)
-
-          // Safety net: if reconstructPreviousQuestion fails (displayedOptions AND chips empty),
-          // build question options directly from candidate field values
-          if (!prevQuestion && prevState.lastAskedField && candidates.length > 0) {
-            const fieldKey = prevState.lastAskedField
-            const fieldGetter: Record<string, (p: ScoredProduct) => string | number | null> = {
-              fluteCount: p => p.product.fluteCount,
-              coating: p => p.product.coating,
-              seriesName: p => p.product.seriesName,
-              toolSubtype: p => p.product.toolSubtype,
-            }
-            const getter = fieldGetter[fieldKey]
-            if (getter) {
-              const valueCounts = new Map<string, number>()
-              for (const c of candidates) {
-                const val = getter(c)
-                if (val != null) {
-                  const strVal = fieldKey === "fluteCount" ? `${val}날` : String(val)
-                  valueCounts.set(strVal, (valueCounts.get(strVal) ?? 0) + 1)
-                }
-              }
-              if (valueCounts.size > 0) {
-                const extractedOptions = Array.from(valueCounts.entries())
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([v]) => v)
-                prevQuestion = {
-                  shape: "constrained_options",
-                  questionText: "",
-                  extractedOptions,
-                  field: fieldKey,
-                  isBinary: false,
-                  hasExplicitChoices: true,
-                }
-                console.log(`[option-first:safety] Rebuilt pending question from candidates: field=${fieldKey}, options=${extractedOptions.join(",")}`)
-              }
-            }
-          }
+          // Always reconstruct from CANDIDATES to avoid accumulated helper labels
+          const prevQuestion = reconstructPreviousQuestionFromCandidates(prevState, candidates)
 
           let questionOptions = prevQuestion ? buildQuestionAlignedOptions(prevQuestion) : []
 
           // Priority 2: If user is confused, merge helper chips
           if (userStateResult.state === "confused" || userStateResult.state === "wants_explanation" || userStateResult.state === "wants_delegation") {
             const helperOptions = buildConfusionHelperOptions(prevQuestion, userStateResult.confusedAbout)
-            questionOptions = [...helperOptions, ...questionOptions]
+            questionOptions = deduplicateOptions([...helperOptions, ...questionOptions])
             console.log(`[option-first] User state: ${userStateResult.state}, ${helperOptions.length} helpers merged (field=${prevQuestion?.field ?? "none"})`)
           }
 
@@ -772,14 +738,13 @@ export async function handleServeExploration(
           }
         } else if (userStateResult.state === "confused" || userStateResult.state === "wants_explanation" || userStateResult.state === "wants_delegation") {
           // No pending question in current response, but user is confused
-          // → reconstruct previous question context AND merge original field options
-          const prevQuestion = reconstructPreviousQuestion(prevState)
+          // → reconstruct from CANDIDATES (not accumulated state) + merge original field options
+          const prevQuestion = reconstructPreviousQuestionFromCandidates(prevState, candidates)
           const helperOptions = buildConfusionHelperOptions(prevQuestion, userStateResult.confusedAbout)
-          // Also include original field options so user can still answer the question
           const originalOptions = prevQuestion
             ? buildQuestionAlignedOptions(prevQuestion)
             : []
-          const mergedOptions = [...helperOptions, ...originalOptions]
+          const mergedOptions = deduplicateOptions([...helperOptions, ...originalOptions])
           if (mergedOptions.length > 0) {
             finalChips = smartOptionsToChips(mergedOptions)
             finalDisplayedOptions = smartOptionsToDisplayedOptions(mergedOptions)
@@ -1106,6 +1071,96 @@ function reconstructPreviousQuestion(
     isBinary: false,
     hasExplicitChoices: true,
   }
+}
+
+/**
+ * Reconstruct pending question from CANDIDATE DATA (not prevState.displayedOptions).
+ * Prevents helper label accumulation across repeated question-assist turns.
+ */
+function reconstructPreviousQuestionFromCandidates(
+  prevState: ExplorationSessionState,
+  currentCandidates: ScoredProduct[]
+): import("@/lib/recommendation/domain/context/pending-question-detector").PendingQuestion | null {
+  const field = prevState.lastAskedField ?? null
+  if (!field) return null
+
+  // Build options from actual candidate data, NOT from accumulated state.
+  // If currentCandidates is empty (retrieval skipped), use displayedCandidates from state.
+  const fieldGetter: Record<string, (p: { product: Record<string, unknown> }) => string | number | null> = {
+    fluteCount: p => (p.product.fluteCount as number) ?? null,
+    coating: p => (p.product.coating as string) ?? null,
+    seriesName: p => (p.product.seriesName as string) ?? null,
+    toolSubtype: p => (p.product.toolSubtype as string) ?? null,
+    toolMaterial: p => (p.product.toolMaterial as string) ?? null,
+    diameterRefine: p => (p.product.diameterMm as number) ?? null,
+  }
+  const getter = fieldGetter[field]
+  if (!getter) return reconstructPreviousQuestion(prevState)
+
+  // Try currentCandidates first, fall back to displayedCandidates snapshot
+  const candidateSource: Array<{ product: Record<string, unknown> }> =
+    currentCandidates.length > 0
+      ? currentCandidates
+      : (prevState.displayedCandidates ?? []).map(c => ({
+          product: { fluteCount: c.fluteCount, coating: c.coating, seriesName: c.seriesName, toolSubtype: (c as any).toolSubtype, toolMaterial: c.toolMaterial, diameterMm: c.diameterMm }
+        }))
+
+  if (candidateSource.length === 0) return reconstructPreviousQuestion(prevState)
+
+  const valueCounts = new Map<string, number>()
+  for (const c of candidateSource) {
+    const val = getter(c)
+    if (val != null) {
+      const strVal = field === "fluteCount" ? `${val}날` : String(val)
+      valueCounts.set(strVal, (valueCounts.get(strVal) ?? 0) + 1)
+    }
+  }
+  if (valueCounts.size > 0) {
+    return {
+      shape: "constrained_options",
+      questionText: "",
+      extractedOptions: Array.from(valueCounts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([v]) => v),
+      field,
+      isBinary: false,
+      hasExplicitChoices: true,
+    }
+  }
+
+  return reconstructPreviousQuestion(prevState)
+}
+
+/**
+ * Deduplicate options by id/label to prevent accumulation across turns.
+ * Also sanitizes raw internal labels (e.g., "explain", "delegate").
+ */
+function deduplicateOptions(
+  options: import("@/lib/recommendation/domain/options/types").SmartOption[]
+): import("@/lib/recommendation/domain/options/types").SmartOption[] {
+  const seen = new Set<string>()
+  const result: typeof options = []
+
+  // Label sanitization: internal keys → Korean labels
+  const LABEL_MAP: Record<string, string> = {
+    explain: "쉽게 설명해줘",
+    delegate: "추천으로 골라줘",
+  }
+
+  for (const opt of options) {
+    // Sanitize raw internal labels
+    if (LABEL_MAP[opt.label]) {
+      opt.label = LABEL_MAP[opt.label]
+    }
+
+    // Deduplicate by label
+    const key = opt.label.toLowerCase().replace(/\s+/g, "")
+    if (seen.has(key)) continue
+    seen.add(key)
+    result.push(opt)
+  }
+
+  return result
 }
 
 function generateFollowUpChips(userMessage: string, candidateCount: number): string[] {
