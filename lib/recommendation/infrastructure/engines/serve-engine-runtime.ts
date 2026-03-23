@@ -712,11 +712,50 @@ export async function handleServeExploration(
         }
 
         // Priority 1: State-based pending question from session (NOT answer text)
+        // lastAskedField가 있고 resolved가 아니면 pending question이 있는 것.
+        // displayedOptions가 비어있어도 reconstructPreviousQuestion으로 복원 가능.
         const hasStatePendingQuestion = !!prevState.lastAskedField
           && !prevState.resolutionStatus?.startsWith("resolved")
-          && prevState.displayedOptions && prevState.displayedOptions.length > 0
         if (hasStatePendingQuestion) {
-          const prevQuestion = reconstructPreviousQuestion(prevState)
+          let prevQuestion = reconstructPreviousQuestion(prevState)
+
+          // Safety net: if reconstructPreviousQuestion fails (displayedOptions AND chips empty),
+          // build question options directly from candidate field values
+          if (!prevQuestion && prevState.lastAskedField && candidates.length > 0) {
+            const fieldKey = prevState.lastAskedField
+            const fieldGetter: Record<string, (p: ScoredProduct) => string | number | null> = {
+              fluteCount: p => p.product.fluteCount,
+              coating: p => p.product.coating,
+              seriesName: p => p.product.seriesName,
+              toolSubtype: p => p.product.toolSubtype,
+            }
+            const getter = fieldGetter[fieldKey]
+            if (getter) {
+              const valueCounts = new Map<string, number>()
+              for (const c of candidates) {
+                const val = getter(c)
+                if (val != null) {
+                  const strVal = fieldKey === "fluteCount" ? `${val}날` : String(val)
+                  valueCounts.set(strVal, (valueCounts.get(strVal) ?? 0) + 1)
+                }
+              }
+              if (valueCounts.size > 0) {
+                const extractedOptions = Array.from(valueCounts.entries())
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([v]) => v)
+                prevQuestion = {
+                  shape: "constrained_options",
+                  questionText: "",
+                  extractedOptions,
+                  field: fieldKey,
+                  isBinary: false,
+                  hasExplicitChoices: true,
+                }
+                console.log(`[option-first:safety] Rebuilt pending question from candidates: field=${fieldKey}, options=${extractedOptions.join(",")}`)
+              }
+            }
+          }
+
           let questionOptions = prevQuestion ? buildQuestionAlignedOptions(prevQuestion) : []
 
           // Priority 2: If user is confused, merge helper chips
