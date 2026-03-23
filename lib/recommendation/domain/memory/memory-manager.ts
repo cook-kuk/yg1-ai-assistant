@@ -157,6 +157,9 @@ function decideItemFate(
     return { key: item.key, action: "drop", reason: "Already stale/replaced" }
   }
 
+  // Active filters behave like resolved for conflict detection
+  // but can be more easily replaced than intake-resolved facts
+
   // On restart: keep intake facts, drop everything else
   if (intentShift === "restart") {
     if (item.source === "intake") {
@@ -215,7 +218,7 @@ function decideItemFate(
  * Get active (non-stale, non-replaced) memory items.
  */
 export function getActiveMemoryItems(memory: ConversationMemory): MemoryItem[] {
-  return memory.items.filter(i => i.status === "resolved" || i.status === "tentative")
+  return memory.items.filter(i => i.status === "resolved" || i.status === "active" || i.status === "tentative")
 }
 
 /**

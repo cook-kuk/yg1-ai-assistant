@@ -39,6 +39,8 @@ import {
   recordExplanationPreference,
   recordFrustration,
 } from "@/lib/recommendation/domain/memory/conversation-memory"
+import { buildUnifiedTurnContext, type UnifiedTurnContext } from "@/lib/recommendation/domain/context/turn-context-builder"
+import { checkAnswerChipDivergence, fixChipDivergence } from "@/lib/recommendation/domain/options/divergence-guard"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { RecommendationDisplayedProductRequestDto } from "@/lib/contracts/recommendation"
@@ -229,6 +231,18 @@ export async function handleServeExploration(
         ? await orchestrateTurnWithTools(turnCtx, provider)
         : await orchestrateTurn(turnCtx, provider)
       const action = orchResult.action
+
+      // ── Build Unified TurnContext (shared by answer + chip generation) ──
+      const lastAssistantMsg = [...messages].reverse().find(m => m.role === "assistant")
+      const unifiedCtx = buildUnifiedTurnContext({
+        latestAssistantText: lastAssistantMsg?.text ?? null,
+        latestUserMessage: lastUserMsg.text,
+        messages,
+        sessionState: prevState,
+        resolvedInput: currentInput,
+        intakeForm: form,
+        candidates: deps.buildCandidateSnapshot(candidates, evidenceMap),
+      })
 
       if (action.type === "reset_session") {
         return deps.jsonRecommendationResponse({
@@ -564,6 +578,13 @@ export async function handleServeExploration(
             finalDisplayedOptions = smartOptionsToDisplayedOptions(helperOptions)
             console.log(`[chip-priority] User confused, ${helperOptions.length} helper chips (reconstructed from prev state, field=${prevQuestion?.field ?? "none"})`)
           }
+        }
+
+        // ── Answer/Chip Divergence Guard ──
+        const divergence = checkAnswerChipDivergence(llmResponse.text, finalChips, finalDisplayedOptions)
+        if (divergence.hasDivergence) {
+          finalChips = fixChipDivergence(finalChips, divergence)
+          console.log(`[divergence-guard] Fixed: missing=${divergence.missingChips.join(",")} added=${divergence.suggestedChips.join(",")}`)
         }
 
         const sessionState = carryForwardState(prevState, {

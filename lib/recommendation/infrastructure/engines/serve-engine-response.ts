@@ -60,6 +60,7 @@ import { detectUserState } from "@/lib/recommendation/domain/context/user-unders
 import { buildChipContext } from "@/lib/recommendation/domain/context/chip-context-builder"
 import { rerankChipsWithLLM } from "@/lib/recommendation/domain/options/llm-chip-reranker"
 import { generateContextualChips } from "@/lib/recommendation/domain/options/contextual-chip-generator"
+import { checkAnswerChipDivergence, fixChipDivergence } from "@/lib/recommendation/domain/options/divergence-guard"
 
 type DisplayedProduct = RecommendationDisplayedProductRequestDto
 type JsonRecommendationResponse = (
@@ -223,6 +224,14 @@ export async function buildQuestionResponse(
         console.log(`[narrowing:chip-correction] LLM response had pending question "${pendingQ.question.shape}", ${finalResponseChips.length} chips${reranked.rerankedByLLM ? " (LLM reranked)" : ""}`)
       }
     }
+  }
+
+  // ── Answer/Chip Divergence Guard ──
+  const divergenceCheck = checkAnswerChipDivergence(responseText, finalResponseChips, finalDisplayedOptions)
+  if (divergenceCheck.hasDivergence) {
+    finalResponseChips = fixChipDivergence(finalResponseChips, divergenceCheck)
+    sessionState.displayedChips = finalResponseChips
+    console.log(`[divergence-guard:question] Fixed: missing=${divergenceCheck.missingChips.join(",")}`)
   }
 
   return deps.jsonRecommendationResponse({

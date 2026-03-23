@@ -14,7 +14,7 @@
 
 // ── Memory Item ──────────────────────────────────────────────
 export type MemorySource = "intake" | "narrowing" | "repair" | "user_followup" | "system_inference"
-export type MemoryStatus = "resolved" | "tentative" | "stale" | "replaced"
+export type MemoryStatus = "resolved" | "active" | "tentative" | "stale" | "replaced"
 
 export interface MemoryItem {
   key: string
@@ -181,7 +181,7 @@ export function buildMemoryFromSession(
         field: filter.field,
         value: filter.value,
         source: "narrowing",
-        status: "tentative",
+        status: "active",
         priority: 5,
         turnCreated: filter.appliedAt,
         turnUpdated: filter.appliedAt,
