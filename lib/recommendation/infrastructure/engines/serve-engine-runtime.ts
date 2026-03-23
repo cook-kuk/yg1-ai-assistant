@@ -50,6 +50,7 @@ import type {
   AppLanguage,
   CandidateSnapshot,
   ChatMessage,
+  DisplayedOption,
   EvidenceSummary,
   ExplorationSessionState,
   FactCheckedRecommendation,
@@ -625,21 +626,67 @@ export async function handleServeExploration(
         const preGenerated = action.type === "answer_general" && action.preGenerated && action.message
         let llmResponse: { text: string; chips: string[] }
         if (preGenerated) {
-          // ── Option-first: use state-based chips, NOT LLM chip generation from answer text ──
-          // Preserve existing displayedChips from state; only use smart options if available
-          const stateChips = prevState.displayedChips?.length > 0
-            ? prevState.displayedChips
-            : ["처음부터 다시"]
-          llmResponse = { text: action.message, chips: stateChips }
+          llmResponse = { text: action.message, chips: [] }
         } else {
           llmResponse = await deps.handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form, prevState.displayedCandidates)
         }
 
-        // ── Option-first Chip Pipeline: state → user-state → merge ──
-        // Pending question is detected from SESSION STATE (not answer text).
+        // ── Option-first Chip Pipeline ──
+        // STEP 1: Build structured options from state (SmartOption engine)
+        // STEP 2: Build recentFrame for contextual awareness
+        // STEP 3: LLM rerank for semantic ordering
+        // Handler-generated chips are NEVER used as source of truth.
         const userStateResult = detectUserState(lastUserMsg.text, prevState.lastAskedField)
-        let finalChips = llmResponse.chips
-        let finalDisplayedOptions = prevState.displayedOptions ?? []
+
+        // STEP 1: SmartOption engine — structural options from session state
+        const { plannerCtx: generalPlannerCtx, interpretation: generalInterpretation } = buildContextAwarePlannerContext(
+          form, prevState, currentInput, lastUserMsg.text,
+          candidates, filters, prevState.lastAskedField ?? undefined
+        )
+        const generalSmartOptions = generateSmartOptions({
+          plannerCtx: generalPlannerCtx,
+          simulatorCtx: {
+            candidateCount: candidates.length,
+            appliedFilters: filters.map(f => ({ field: f.field, op: f.op, value: f.value, rawValue: f.rawValue })),
+          },
+          rankerCtx: {
+            candidateCount: candidates.length,
+            filterCount: filters.length,
+            hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
+            userMessage: lastUserMsg.text,
+            contextInterpretation: generalInterpretation,
+          },
+        })
+
+        // STEP 2: Build recentFrame for contextual signal
+        const lastAssistantForFrame = [...messages].reverse().find(m => m.role === "ai")
+        const generalFrame = buildRecentInteractionFrame(
+          lastAssistantForFrame?.text ?? llmResponse.text,
+          lastUserMsg.text,
+          prevState
+        )
+
+        // STEP 3: LLM rerank if smart options available
+        let finalChips: string[]
+        let finalDisplayedOptions: DisplayedOption[]
+        if (generalSmartOptions.length > 0) {
+          const chipCtxForRerank = buildChipContext(
+            prevState, currentInput, lastUserMsg.text,
+            lastAssistantForFrame?.text ?? llmResponse.text,
+            null, userStateResult.state, userStateResult.confusedAbout,
+            messages.map(m => ({ role: m.role, text: m.text }))
+          )
+          const reranked = await rerankChipsWithLLM(generalSmartOptions, chipCtxForRerank, provider)
+          finalChips = smartOptionsToChips(reranked.options)
+          finalDisplayedOptions = smartOptionsToDisplayedOptions(reranked.options)
+          console.log(`[option-first:general] SmartOptions=${generalSmartOptions.length}, reranked=${reranked.rerankedByLLM}, frame=${generalFrame.relation}, chips=${finalChips.join(",")}`)
+        } else {
+          // Fallback: preserve state chips if no smart options generated
+          finalChips = prevState.displayedChips?.length > 0
+            ? prevState.displayedChips
+            : llmResponse.chips
+          finalDisplayedOptions = prevState.displayedOptions ?? []
+        }
 
         // ── Record user signals into persistent memory ──
         const persistedMemory = prevState.conversationMemory
