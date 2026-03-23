@@ -1,0 +1,814 @@
+
+> my-v0-project@0.1.0 dev
+> next dev -p 3001
+
+   ▲ Next.js 16.0.10 (Turbopack)
+   - Local:         http://localhost:3001
+   - Network:       http://192.168.0.13:3001
+   - Environments: .env.local
+
+ ✓ Starting...
+Creating turbopack project { dir: 'C:\\Users\\kuksh\\Downloads\\YG1_test', testMode: true }
+ ✓ Ready in 3s
+ ○ Compiling /products ...
+ GET /products 200 in 16.5s (compile: 14.8s, proxy.ts: 509ms, render: 1159ms)
+[recommend] request start hasPrevState=false messages=0 displayedProducts=0
+ POST /api/recommend 500 in 841ms (compile: 686ms, render: 155ms)
+[recommend] request start hasPrevState=false messages=0 displayedProducts=0
+ POST /api/recommend 500 in 52ms (compile: 7ms, render: 44ms)
+[recommend] request start hasPrevState=false messages=0 displayedProducts=0
+[product-repo] search source=json filters=0 limit=auto
+[hybrid:filter] unitSystem=METRIC: 0 → 0 candidates
+[hybrid:stage] stage=post_filter count=0 edps=
+[hybrid:stage] stage=ranked count=0 edps=
+[hybrid:stage] stage=final count=0 edps=
+[recommend] hybrid timings: total=1058ms fetch=1054ms filter=1ms score_evidence=2ms considered=0 final=0
+[recommend] Intent: product_recommendation (high), Route: start_exploration
+[narrowing:question] ───────────────────────────
+[narrowing:question] Session: ses-1773799975468
+[narrowing:question] Candidates: 0
+[narrowing:question] Status: resolved_none
+[narrowing:question] Turn: 0
+[narrowing:question] Filters: (none)
+[narrowing:question] Stages: initial_search
+[narrowing:question] ───────────────────────────
+ POST /api/recommend 200 in 1230ms (compile: 144ms, render: 1086ms)
+[recommend] request start hasPrevState=false messages=0 displayedProducts=0
+[product-repo] search source=json filters=0 limit=auto
+[hybrid:stage] stage=post_filter count=65 edps=GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,CE5G60100,GED70080,GED7008009,GED7008012,GED7008019,GED7008028,GED7008030,GED7008035,GED7008040,GED7008045,GED7008050,GED7008055,GED7008060,GED7008065,GED70090,GED70120,GED70120100,GED7012013,GED7012026,GED7012035,GED7012040,GED7012045,GED7012050,GED7012055,GED7012060,GED7012065,GED7012070,GED7012075,GED7012080,GED7012090,GED71080,...(+15)
+[hybrid:stage] stage=ranked count=65 edps=CE5G60100,GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,GED70090,CE5G60080,CE5G60120,GED70080,GED7008009,GED7008012,GED7008019,GED7008028,GED7008030,GED7008035,GED7008040,GED7008045,GED7008050,GED7008055,GED7008060,GED7008065,GED70120,GED70120100,GED7012013,GED7012026,GED7012035,GED7012040,GED7012045,GED7012050,GED7012055,GED7012060,GED7012065,GED7012070,GED7012075,GED7012080,...(+15)
+[hybrid:stage] stage=final count=65 edps=CE5G60100,GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,GED70090,CE5G60080,CE5G60120,GED70080,GED7008009,GED7008012,GED7008019,GED7008028,GED7008030,GED7008035,GED7008040,GED7008045,GED7008050,GED7008055,GED7008060,GED7008065,GED70120,GED70120100,GED7012013,GED7012026,GED7012035,GED7012040,GED7012045,GED7012050,GED7012055,GED7012060,GED7012065,GED7012070,GED7012075,GED7012080,...(+15)
+[evidence-db] product_lookup code=CE5G60100 series=CE5G60 diameter=10 matched=0
+[evidence-db] product_lookup code=GED70100 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010011 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010015 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010022 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010032 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010035 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010040 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010045 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010050 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010055 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010060 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010065 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED71100 series=E5D71 / GED71 diameter=10 matched=1
+[evidence-db] product_lookup code=GED7110035 series=E5D71 / GED71 diameter=10 matched=1
+[evidence-db] product_lookup code=GEE8310035 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE8310045 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE8310055 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE84100 series=E5E84 / GEE84 diameter=10 matched=2
+[evidence-db] product_lookup code=GEE84100B series=E5E84 / GEE84 diameter=10 matched=2
+[evidence-db] product_lookup code=GED70090 series=E5D70 / GED70 diameter=9 matched=1
+[evidence-db] product_lookup code=CE5G60080 series=CE5G60 diameter=8 matched=0
+[evidence-db] product_lookup code=CE5G60120 series=CE5G60 diameter=12 matched=0
+[evidence-db] product_lookup code=GED70080 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008009 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008012 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008019 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008028 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008030 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008035 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008040 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008045 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008050 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008055 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008060 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008065 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED70120 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED70120100 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012013 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012026 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012035 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012040 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012045 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012050 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012055 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012060 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012065 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012070 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012075 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012080 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012090 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED71080 series=E5D71 / GED71 diameter=8 matched=1
+[evidence-db] product_lookup code=GED7108030 series=E5D71 / GED71 diameter=8 matched=1
+[evidence-db] product_lookup code=GED71120 series=E5D71 / GED71 diameter=12 matched=1
+[evidence-db] product_lookup code=GED7112040 series=E5D71 / GED71 diameter=12 matched=1
+[evidence-db] product_lookup code=GEE8308030 series=E5E83 / GEE83 diameter=8 matched=3
+[evidence-db] product_lookup code=GEE8308040 series=E5E83 / GEE83 diameter=8 matched=3
+[evidence-db] product_lookup code=GEE8308050 series=E5E83 / GEE83 diameter=8 matched=3
+[evidence-db] product_lookup code=GEE8312040 series=E5E83 / GEE83 diameter=12 matched=3
+[evidence-db] product_lookup code=GEE8312050 series=E5E83 / GEE83 diameter=12 matched=3
+[evidence-db] product_lookup code=GEE8312060 series=E5E83 / GEE83 diameter=12 matched=3
+[evidence-db] product_lookup code=GEE84080 series=E5E84 / GEE84 diameter=8 matched=2
+[evidence-db] product_lookup code=GEE84080B series=E5E84 / GEE84 diameter=8 matched=2
+[evidence-db] product_lookup code=GEE84120 series=E5E84 / GEE84 diameter=12 matched=2
+[evidence-db] product_lookup code=GEE84120B series=E5E84 / GEE84 diameter=12 matched=2
+[recommend] hybrid timings: total=324ms fetch=108ms filter=0ms score_evidence=214ms considered=65 final=65
+[recommend] Intent: product_recommendation (high), Route: start_exploration
+[narrowing:question] ───────────────────────────
+[narrowing:question] Session: ses-1773799991393
+[narrowing:question] Candidates: 65
+[narrowing:question] Status: broad
+[narrowing:question] Turn: 0
+[narrowing:question] Filters: (none)
+[narrowing:question] Stages: initial_search
+[narrowing:question] Next question field: diameterRefine
+[narrowing:question] ───────────────────────────
+ POST /api/recommend 200 in 4.2s (compile: 4ms, render: 4.2s)
+[recommend] request start hasPrevState=false messages=0 displayedProducts=0
+[product-repo] search source=json filters=0 limit=auto
+[hybrid:stage] stage=post_filter count=65 edps=GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,CE5G60100,GED70080,GED7008009,GED7008012,GED7008019,GED7008028,GED7008030,GED7008035,GED7008040,GED7008045,GED7008050,GED7008055,GED7008060,GED7008065,GED70090,GED70120,GED70120100,GED7012013,GED7012026,GED7012035,GED7012040,GED7012045,GED7012050,GED7012055,GED7012060,GED7012065,GED7012070,GED7012075,GED7012080,GED7012090,GED71080,...(+15)
+[hybrid:stage] stage=ranked count=65 edps=CE5G60100,GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,GED70090,CE5G60080,CE5G60120,GED70080,GED7008009,GED7008012,GED7008019,GED7008028,GED7008030,GED7008035,GED7008040,GED7008045,GED7008050,GED7008055,GED7008060,GED7008065,GED70120,GED70120100,GED7012013,GED7012026,GED7012035,GED7012040,GED7012045,GED7012050,GED7012055,GED7012060,GED7012065,GED7012070,GED7012075,GED7012080,...(+15)
+[hybrid:stage] stage=final count=65 edps=CE5G60100,GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,GED70090,CE5G60080,CE5G60120,GED70080,GED7008009,GED7008012,GED7008019,GED7008028,GED7008030,GED7008035,GED7008040,GED7008045,GED7008050,GED7008055,GED7008060,GED7008065,GED70120,GED70120100,GED7012013,GED7012026,GED7012035,GED7012040,GED7012045,GED7012050,GED7012055,GED7012060,GED7012065,GED7012070,GED7012075,GED7012080,...(+15)
+[evidence-db] product_lookup code=CE5G60100 series=CE5G60 diameter=10 matched=0
+[evidence-db] product_lookup code=GED70100 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010011 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010015 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010022 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010032 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010035 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010040 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010045 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010050 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010055 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010060 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010065 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED71100 series=E5D71 / GED71 diameter=10 matched=1
+[evidence-db] product_lookup code=GED7110035 series=E5D71 / GED71 diameter=10 matched=1
+[evidence-db] product_lookup code=GEE8310035 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE8310045 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE8310055 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE84100 series=E5E84 / GEE84 diameter=10 matched=2
+[evidence-db] product_lookup code=GEE84100B series=E5E84 / GEE84 diameter=10 matched=2
+[evidence-db] product_lookup code=GED70090 series=E5D70 / GED70 diameter=9 matched=1
+[evidence-db] product_lookup code=CE5G60080 series=CE5G60 diameter=8 matched=0
+[evidence-db] product_lookup code=CE5G60120 series=CE5G60 diameter=12 matched=0
+[evidence-db] product_lookup code=GED70080 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008009 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008012 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008019 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008028 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008030 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008035 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008040 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008045 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008050 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008055 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008060 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008065 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED70120 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED70120100 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012013 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012026 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012035 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012040 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012045 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012050 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012055 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012060 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012065 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012070 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012075 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012080 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012090 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED71080 series=E5D71 / GED71 diameter=8 matched=1
+[evidence-db] product_lookup code=GED7108030 series=E5D71 / GED71 diameter=8 matched=1
+[evidence-db] product_lookup code=GED71120 series=E5D71 / GED71 diameter=12 matched=1
+[evidence-db] product_lookup code=GED7112040 series=E5D71 / GED71 diameter=12 matched=1
+[evidence-db] product_lookup code=GEE8308030 series=E5E83 / GEE83 diameter=8 matched=3
+[evidence-db] product_lookup code=GEE8308040 series=E5E83 / GEE83 diameter=8 matched=3
+[evidence-db] product_lookup code=GEE8308050 series=E5E83 / GEE83 diameter=8 matched=3
+[evidence-db] product_lookup code=GEE8312040 series=E5E83 / GEE83 diameter=12 matched=3
+[evidence-db] product_lookup code=GEE8312050 series=E5E83 / GEE83 diameter=12 matched=3
+[evidence-db] product_lookup code=GEE8312060 series=E5E83 / GEE83 diameter=12 matched=3
+[evidence-db] product_lookup code=GEE84080 series=E5E84 / GEE84 diameter=8 matched=2
+[evidence-db] product_lookup code=GEE84080B series=E5E84 / GEE84 diameter=8 matched=2
+[evidence-db] product_lookup code=GEE84120 series=E5E84 / GEE84 diameter=12 matched=2
+[evidence-db] product_lookup code=GEE84120B series=E5E84 / GEE84 diameter=12 matched=2
+[recommend] hybrid timings: total=230ms fetch=117ms filter=0ms score_evidence=110ms considered=65 final=65
+[recommend] Intent: product_recommendation (high), Route: start_exploration
+[narrowing:question] ───────────────────────────
+[narrowing:question] Session: ses-1773800040238
+[narrowing:question] Candidates: 65
+[narrowing:question] Status: broad
+[narrowing:question] Turn: 0
+[narrowing:question] Filters: (none)
+[narrowing:question] Stages: initial_search
+[narrowing:question] Next question field: diameterRefine
+[narrowing:question] ───────────────────────────
+ POST /api/recommend 200 in 4.2s (compile: 4ms, render: 4.2s)
+[recommend] request start hasPrevState=true messages=3 displayedProducts=10
+[product-repo] search source=json filters=0 limit=auto
+[hybrid:stage] stage=post_filter count=65 edps=GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,CE5G60100,GED70080,GED7008009,GED7008012,GED7008019,GED7008028,GED7008030,GED7008035,GED7008040,GED7008045,GED7008050,GED7008055,GED7008060,GED7008065,GED70090,GED70120,GED70120100,GED7012013,GED7012026,GED7012035,GED7012040,GED7012045,GED7012050,GED7012055,GED7012060,GED7012065,GED7012070,GED7012075,GED7012080,GED7012090,GED71080,...(+15)
+[hybrid:stage] stage=ranked count=65 edps=CE5G60100,GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,GED70090,CE5G60080,CE5G60120,GED70080,GED7008009,GED7008012,GED7008019,GED7008028,GED7008030,GED7008035,GED7008040,GED7008045,GED7008050,GED7008055,GED7008060,GED7008065,GED70120,GED70120100,GED7012013,GED7012026,GED7012035,GED7012040,GED7012045,GED7012050,GED7012055,GED7012060,GED7012065,GED7012070,GED7012075,GED7012080,...(+15)
+[hybrid:stage] stage=final count=65 edps=CE5G60100,GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,GED70090,CE5G60080,CE5G60120,GED70080,GED7008009,GED7008012,GED7008019,GED7008028,GED7008030,GED7008035,GED7008040,GED7008045,GED7008050,GED7008055,GED7008060,GED7008065,GED70120,GED70120100,GED7012013,GED7012026,GED7012035,GED7012040,GED7012045,GED7012050,GED7012055,GED7012060,GED7012065,GED7012070,GED7012075,GED7012080,...(+15)
+[evidence-db] product_lookup code=CE5G60100 series=CE5G60 diameter=10 matched=0
+[evidence-db] product_lookup code=GED70100 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010011 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010015 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010022 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010032 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010035 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010040 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010045 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010050 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010055 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010060 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010065 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED71100 series=E5D71 / GED71 diameter=10 matched=1
+[evidence-db] product_lookup code=GED7110035 series=E5D71 / GED71 diameter=10 matched=1
+[evidence-db] product_lookup code=GEE8310035 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE8310045 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE8310055 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE84100 series=E5E84 / GEE84 diameter=10 matched=2
+[evidence-db] product_lookup code=GEE84100B series=E5E84 / GEE84 diameter=10 matched=2
+[evidence-db] product_lookup code=GED70090 series=E5D70 / GED70 diameter=9 matched=1
+[evidence-db] product_lookup code=CE5G60080 series=CE5G60 diameter=8 matched=0
+[evidence-db] product_lookup code=CE5G60120 series=CE5G60 diameter=12 matched=0
+[evidence-db] product_lookup code=GED70080 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008009 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008012 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008019 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008028 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008030 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008035 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008040 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008045 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008050 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008055 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008060 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008065 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED70120 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED70120100 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012013 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012026 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012035 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012040 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012045 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012050 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012055 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012060 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012065 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012070 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012075 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012080 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012090 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED71080 series=E5D71 / GED71 diameter=8 matched=1
+[evidence-db] product_lookup code=GED7108030 series=E5D71 / GED71 diameter=8 matched=1
+[evidence-db] product_lookup code=GED71120 series=E5D71 / GED71 diameter=12 matched=1
+[evidence-db] product_lookup code=GED7112040 series=E5D71 / GED71 diameter=12 matched=1
+[evidence-db] product_lookup code=GEE8308030 series=E5E83 / GEE83 diameter=8 matched=3
+[evidence-db] product_lookup code=GEE8308040 series=E5E83 / GEE83 diameter=8 matched=3
+[evidence-db] product_lookup code=GEE8308050 series=E5E83 / GEE83 diameter=8 matched=3
+[evidence-db] product_lookup code=GEE8312040 series=E5E83 / GEE83 diameter=12 matched=3
+[evidence-db] product_lookup code=GEE8312050 series=E5E83 / GEE83 diameter=12 matched=3
+[evidence-db] product_lookup code=GEE8312060 series=E5E83 / GEE83 diameter=12 matched=3
+[evidence-db] product_lookup code=GEE84080 series=E5E84 / GEE84 diameter=8 matched=2
+[evidence-db] product_lookup code=GEE84080B series=E5E84 / GEE84 diameter=8 matched=2
+[evidence-db] product_lookup code=GEE84120 series=E5E84 / GEE84 diameter=12 matched=2
+[evidence-db] product_lookup code=GEE84120B series=E5E84 / GEE84 diameter=12 matched=2
+[recommend] hybrid timings: total=244ms fetch=117ms filter=1ms score_evidence=124ms considered=65 final=65
+[recommend] Intent: narrowing_answer (high), Route: continue_narrowing
+[recommend] Step 2: orchestrator start | msg="10mm" | candidates=65 | lastAction=continue_narrowing | lastField=diameterRefine
+[orchestrator:tool-use] Tool: apply_filter → continue_narrowing (2138ms)
+[orchestrator:tool-use] Input: {"field":"diameterRefine","value":"10mm","display_value":"10mm"}
+[recommend] Tool-use succeeded in 2152ms | action=continue_narrowing
+[product-repo] search source=json filters=1 limit=auto
+[hybrid:stage] stage=post_filter count=65 edps=GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,CE5G60100,GED70080,GED7008009,GED7008012,GED7008019,GED7008028,GED7008030,GED7008035,GED7008040,GED7008045,GED7008050,GED7008055,GED7008060,GED7008065,GED70090,GED70120,GED70120100,GED7012013,GED7012026,GED7012035,GED7012040,GED7012045,GED7012050,GED7012055,GED7012060,GED7012065,GED7012070,GED7012075,GED7012080,GED7012090,GED71080,...(+15)
+[hybrid:stage] stage=ranked count=65 edps=CE5G60100,GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,GED70090,CE5G60080,CE5G60120,GED70080,GED7008009,GED7008012,GED7008019,GED7008028,GED7008030,GED7008035,GED7008040,GED7008045,GED7008050,GED7008055,GED7008060,GED7008065,GED70120,GED70120100,GED7012013,GED7012026,GED7012035,GED7012040,GED7012045,GED7012050,GED7012055,GED7012060,GED7012065,GED7012070,GED7012075,GED7012080,...(+15)
+[hybrid:stage] stage=final count=65 edps=CE5G60100,GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,GED70090,CE5G60080,CE5G60120,GED70080,GED7008009,GED7008012,GED7008019,GED7008028,GED7008030,GED7008035,GED7008040,GED7008045,GED7008050,GED7008055,GED7008060,GED7008065,GED70120,GED70120100,GED7012013,GED7012026,GED7012035,GED7012040,GED7012045,GED7012050,GED7012055,GED7012060,GED7012065,GED7012070,GED7012075,GED7012080,...(+15)
+[evidence-db] product_lookup code=CE5G60100 series=CE5G60 diameter=10 matched=0
+[evidence-db] product_lookup code=GED70100 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010011 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010015 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010022 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010032 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010035 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010040 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010045 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010050 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010055 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010060 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010065 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED71100 series=E5D71 / GED71 diameter=10 matched=1
+[evidence-db] product_lookup code=GED7110035 series=E5D71 / GED71 diameter=10 matched=1
+[evidence-db] product_lookup code=GEE8310035 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE8310045 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE8310055 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE84100 series=E5E84 / GEE84 diameter=10 matched=2
+[evidence-db] product_lookup code=GEE84100B series=E5E84 / GEE84 diameter=10 matched=2
+[evidence-db] product_lookup code=GED70090 series=E5D70 / GED70 diameter=9 matched=1
+[evidence-db] product_lookup code=CE5G60080 series=CE5G60 diameter=8 matched=0
+[evidence-db] product_lookup code=CE5G60120 series=CE5G60 diameter=12 matched=0
+[evidence-db] product_lookup code=GED70080 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008009 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008012 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008019 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008028 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008030 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008035 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008040 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008045 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008050 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008055 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008060 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008065 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED70120 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED70120100 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012013 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012026 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012035 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012040 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012045 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012050 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012055 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012060 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012065 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012070 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012075 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012080 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012090 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED71080 series=E5D71 / GED71 diameter=8 matched=1
+[evidence-db] product_lookup code=GED7108030 series=E5D71 / GED71 diameter=8 matched=1
+[evidence-db] product_lookup code=GED71120 series=E5D71 / GED71 diameter=12 matched=1
+[evidence-db] product_lookup code=GED7112040 series=E5D71 / GED71 diameter=12 matched=1
+[evidence-db] product_lookup code=GEE8308030 series=E5E83 / GEE83 diameter=8 matched=3
+[evidence-db] product_lookup code=GEE8308040 series=E5E83 / GEE83 diameter=8 matched=3
+[evidence-db] product_lookup code=GEE8308050 series=E5E83 / GEE83 diameter=8 matched=3
+[evidence-db] product_lookup code=GEE8312040 series=E5E83 / GEE83 diameter=12 matched=3
+[evidence-db] product_lookup code=GEE8312050 series=E5E83 / GEE83 diameter=12 matched=3
+[evidence-db] product_lookup code=GEE8312060 series=E5E83 / GEE83 diameter=12 matched=3
+[evidence-db] product_lookup code=GEE84080 series=E5E84 / GEE84 diameter=8 matched=2
+[evidence-db] product_lookup code=GEE84080B series=E5E84 / GEE84 diameter=8 matched=2
+[evidence-db] product_lookup code=GEE84120 series=E5E84 / GEE84 diameter=12 matched=2
+[evidence-db] product_lookup code=GEE84120B series=E5E84 / GEE84 diameter=12 matched=2
+[recommend] hybrid timings: total=357ms fetch=222ms filter=0ms score_evidence=128ms considered=65 final=65
+[orchestrator:filter] diameterMm=10mm | 65→65 candidates | stages: initial_search → diameterMm_10mm
+[narrowing:question] ───────────────────────────
+[narrowing:question] Session: ses-1773800047260
+[narrowing:question] Candidates: 65
+[narrowing:question] Status: narrowing
+[narrowing:question] Turn: 1
+[narrowing:question] Filters: diameterMm=10mm
+[narrowing:question] Stages: initial_search → diameterMm_10mm
+[narrowing:question] Next question field: diameterRefine
+[narrowing:question] ───────────────────────────
+ POST /api/recommend 200 in 5.3s (compile: 6ms, render: 5.3s)
+[recommend] request start hasPrevState=false messages=0 displayedProducts=0
+[product-repo] search source=json filters=0 limit=auto
+[hybrid:stage] stage=post_filter count=65 edps=GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,CE5G60100,GED70080,GED7008009,GED7008012,GED7008019,GED7008028,GED7008030,GED7008035,GED7008040,GED7008045,GED7008050,GED7008055,GED7008060,GED7008065,GED70090,GED70120,GED70120100,GED7012013,GED7012026,GED7012035,GED7012040,GED7012045,GED7012050,GED7012055,GED7012060,GED7012065,GED7012070,GED7012075,GED7012080,GED7012090,GED71080,...(+15)
+[hybrid:stage] stage=ranked count=65 edps=CE5G60100,GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,GED70090,CE5G60080,CE5G60120,GED70080,GED7008009,GED7008012,GED7008019,GED7008028,GED7008030,GED7008035,GED7008040,GED7008045,GED7008050,GED7008055,GED7008060,GED7008065,GED70120,GED70120100,GED7012013,GED7012026,GED7012035,GED7012040,GED7012045,GED7012050,GED7012055,GED7012060,GED7012065,GED7012070,GED7012075,GED7012080,...(+15)
+[hybrid:stage] stage=final count=65 edps=CE5G60100,GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,GED70090,CE5G60080,CE5G60120,GED70080,GED7008009,GED7008012,GED7008019,GED7008028,GED7008030,GED7008035,GED7008040,GED7008045,GED7008050,GED7008055,GED7008060,GED7008065,GED70120,GED70120100,GED7012013,GED7012026,GED7012035,GED7012040,GED7012045,GED7012050,GED7012055,GED7012060,GED7012065,GED7012070,GED7012075,GED7012080,...(+15)
+[evidence-db] product_lookup code=CE5G60100 series=CE5G60 diameter=10 matched=0
+[evidence-db] product_lookup code=GED70100 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010011 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010015 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010022 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010032 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010035 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010040 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010045 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010050 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010055 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010060 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010065 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED71100 series=E5D71 / GED71 diameter=10 matched=1
+[evidence-db] product_lookup code=GED7110035 series=E5D71 / GED71 diameter=10 matched=1
+[evidence-db] product_lookup code=GEE8310035 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE8310045 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE8310055 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE84100 series=E5E84 / GEE84 diameter=10 matched=2
+[evidence-db] product_lookup code=GEE84100B series=E5E84 / GEE84 diameter=10 matched=2
+[evidence-db] product_lookup code=GED70090 series=E5D70 / GED70 diameter=9 matched=1
+[evidence-db] product_lookup code=CE5G60080 series=CE5G60 diameter=8 matched=0
+[evidence-db] product_lookup code=CE5G60120 series=CE5G60 diameter=12 matched=0
+[evidence-db] product_lookup code=GED70080 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008009 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008012 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008019 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008028 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008030 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008035 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008040 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008045 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008050 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008055 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008060 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008065 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED70120 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED70120100 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012013 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012026 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012035 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012040 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012045 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012050 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012055 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012060 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012065 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012070 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012075 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012080 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012090 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED71080 series=E5D71 / GED71 diameter=8 matched=1
+[evidence-db] product_lookup code=GED7108030 series=E5D71 / GED71 diameter=8 matched=1
+[evidence-db] product_lookup code=GED71120 series=E5D71 / GED71 diameter=12 matched=1
+[evidence-db] product_lookup code=GED7112040 series=E5D71 / GED71 diameter=12 matched=1
+[evidence-db] product_lookup code=GEE8308030 series=E5E83 / GEE83 diameter=8 matched=3
+[evidence-db] product_lookup code=GEE8308040 series=E5E83 / GEE83 diameter=8 matched=3
+[evidence-db] product_lookup code=GEE8308050 series=E5E83 / GEE83 diameter=8 matched=3
+[evidence-db] product_lookup code=GEE8312040 series=E5E83 / GEE83 diameter=12 matched=3
+[evidence-db] product_lookup code=GEE8312050 series=E5E83 / GEE83 diameter=12 matched=3
+[evidence-db] product_lookup code=GEE8312060 series=E5E83 / GEE83 diameter=12 matched=3
+[evidence-db] product_lookup code=GEE84080 series=E5E84 / GEE84 diameter=8 matched=2
+[evidence-db] product_lookup code=GEE84080B series=E5E84 / GEE84 diameter=8 matched=2
+[evidence-db] product_lookup code=GEE84120 series=E5E84 / GEE84 diameter=12 matched=2
+[evidence-db] product_lookup code=GEE84120B series=E5E84 / GEE84 diameter=12 matched=2
+[recommend] hybrid timings: total=811ms fetch=546ms filter=0ms score_evidence=262ms considered=65 final=65
+[recommend] Intent: product_recommendation (high), Route: start_exploration
+[narrowing:question] ───────────────────────────
+[narrowing:question] Session: ses-1773800614642
+[narrowing:question] Candidates: 65
+[narrowing:question] Status: broad
+[narrowing:question] Turn: 0
+[narrowing:question] Filters: (none)
+[narrowing:question] Stages: initial_search
+[narrowing:question] Next question field: diameterRefine
+[narrowing:question] ───────────────────────────
+ POST /api/recommend 200 in 5.2s (compile: 169ms, render: 5.0s)
+[recommend] request start hasPrevState=true messages=3 displayedProducts=10
+[product-repo] search source=json filters=0 limit=auto
+[hybrid:stage] stage=post_filter count=65 edps=GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,CE5G60100,GED70080,GED7008009,GED7008012,GED7008019,GED7008028,GED7008030,GED7008035,GED7008040,GED7008045,GED7008050,GED7008055,GED7008060,GED7008065,GED70090,GED70120,GED70120100,GED7012013,GED7012026,GED7012035,GED7012040,GED7012045,GED7012050,GED7012055,GED7012060,GED7012065,GED7012070,GED7012075,GED7012080,GED7012090,GED71080,...(+15)
+[hybrid:stage] stage=ranked count=65 edps=CE5G60100,GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,GED70090,CE5G60080,CE5G60120,GED70080,GED7008009,GED7008012,GED7008019,GED7008028,GED7008030,GED7008035,GED7008040,GED7008045,GED7008050,GED7008055,GED7008060,GED7008065,GED70120,GED70120100,GED7012013,GED7012026,GED7012035,GED7012040,GED7012045,GED7012050,GED7012055,GED7012060,GED7012065,GED7012070,GED7012075,GED7012080,...(+15)
+[hybrid:stage] stage=final count=65 edps=CE5G60100,GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,GED70090,CE5G60080,CE5G60120,GED70080,GED7008009,GED7008012,GED7008019,GED7008028,GED7008030,GED7008035,GED7008040,GED7008045,GED7008050,GED7008055,GED7008060,GED7008065,GED70120,GED70120100,GED7012013,GED7012026,GED7012035,GED7012040,GED7012045,GED7012050,GED7012055,GED7012060,GED7012065,GED7012070,GED7012075,GED7012080,...(+15)
+[evidence-db] product_lookup code=CE5G60100 series=CE5G60 diameter=10 matched=0
+[evidence-db] product_lookup code=GED70100 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010011 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010015 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010022 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010032 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010035 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010040 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010045 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010050 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010055 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010060 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010065 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED71100 series=E5D71 / GED71 diameter=10 matched=1
+[evidence-db] product_lookup code=GED7110035 series=E5D71 / GED71 diameter=10 matched=1
+[evidence-db] product_lookup code=GEE8310035 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE8310045 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE8310055 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE84100 series=E5E84 / GEE84 diameter=10 matched=2
+[evidence-db] product_lookup code=GEE84100B series=E5E84 / GEE84 diameter=10 matched=2
+[evidence-db] product_lookup code=GED70090 series=E5D70 / GED70 diameter=9 matched=1
+[evidence-db] product_lookup code=CE5G60080 series=CE5G60 diameter=8 matched=0
+[evidence-db] product_lookup code=CE5G60120 series=CE5G60 diameter=12 matched=0
+[evidence-db] product_lookup code=GED70080 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008009 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008012 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008019 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008028 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008030 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008035 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008040 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008045 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008050 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008055 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008060 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008065 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED70120 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED70120100 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012013 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012026 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012035 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012040 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012045 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012050 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012055 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012060 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012065 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012070 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012075 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012080 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012090 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED71080 series=E5D71 / GED71 diameter=8 matched=1
+[evidence-db] product_lookup code=GED7108030 series=E5D71 / GED71 diameter=8 matched=1
+[evidence-db] product_lookup code=GED71120 series=E5D71 / GED71 diameter=12 matched=1
+[evidence-db] product_lookup code=GED7112040 series=E5D71 / GED71 diameter=12 matched=1
+[evidence-db] product_lookup code=GEE8308030 series=E5E83 / GEE83 diameter=8 matched=3
+[evidence-db] product_lookup code=GEE8308040 series=E5E83 / GEE83 diameter=8 matched=3
+[evidence-db] product_lookup code=GEE8308050 series=E5E83 / GEE83 diameter=8 matched=3
+[evidence-db] product_lookup code=GEE8312040 series=E5E83 / GEE83 diameter=12 matched=3
+[evidence-db] product_lookup code=GEE8312050 series=E5E83 / GEE83 diameter=12 matched=3
+[evidence-db] product_lookup code=GEE8312060 series=E5E83 / GEE83 diameter=12 matched=3
+[evidence-db] product_lookup code=GEE84080 series=E5E84 / GEE84 diameter=8 matched=2
+[evidence-db] product_lookup code=GEE84080B series=E5E84 / GEE84 diameter=8 matched=2
+[evidence-db] product_lookup code=GEE84120 series=E5E84 / GEE84 diameter=12 matched=2
+[evidence-db] product_lookup code=GEE84120B series=E5E84 / GEE84 diameter=12 matched=2
+[recommend] hybrid timings: total=205ms fetch=103ms filter=0ms score_evidence=99ms considered=65 final=65
+[recommend] Intent: narrowing_answer (high), Route: continue_narrowing
+[recommend] Step 2: orchestrator start | msg="10mm" | candidates=65 | lastAction=continue_narrowing | lastField=diameterRefine
+[orchestrator:tool-use] Tool: apply_filter → continue_narrowing (2309ms)
+[orchestrator:tool-use] Input: {"field":"diameterRefine","value":"10mm","display_value":"10mm"}
+[recommend] Tool-use succeeded in 2313ms | action=continue_narrowing
+[product-repo] search source=json filters=1 limit=auto
+[hybrid:stage] stage=post_filter count=20 edps=GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,CE5G60100
+[hybrid:stage] stage=ranked count=20 edps=CE5G60100,GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B
+[hybrid:stage] stage=final count=20 edps=CE5G60100,GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B
+[evidence-db] product_lookup code=CE5G60100 series=CE5G60 diameter=10 matched=0
+[evidence-db] product_lookup code=GED70100 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010011 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010015 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010022 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010032 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010035 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010040 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010045 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010050 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010055 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010060 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010065 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED71100 series=E5D71 / GED71 diameter=10 matched=1
+[evidence-db] product_lookup code=GED7110035 series=E5D71 / GED71 diameter=10 matched=1
+[evidence-db] product_lookup code=GEE8310035 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE8310045 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE8310055 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE84100 series=E5E84 / GEE84 diameter=10 matched=2
+[evidence-db] product_lookup code=GEE84100B series=E5E84 / GEE84 diameter=10 matched=2
+[recommend] hybrid timings: total=148ms fetch=103ms filter=0ms score_evidence=44ms considered=20 final=20
+[orchestrator:filter] diameterMm=10mm | 65→20 candidates | stages: initial_search → diameterMm_10mm
+[narrowing:question] ───────────────────────────
+[narrowing:question] Session: ses-1773800621644
+[narrowing:question] Candidates: 20
+[narrowing:question] Status: narrowing
+[narrowing:question] Turn: 1
+[narrowing:question] Filters: diameterMm=10mm
+[narrowing:question] Stages: initial_search → diameterMm_10mm
+[narrowing:question] Next question field: fluteCount
+[narrowing:question] ───────────────────────────
+ POST /api/recommend 200 in 4.9s (compile: 4ms, render: 4.9s)
+[recommend] request start hasPrevState=true messages=5 displayedProducts=10
+[product-repo] search source=json filters=1 limit=auto
+[hybrid:stage] stage=post_filter count=20 edps=GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,CE5G60100
+[hybrid:stage] stage=ranked count=20 edps=CE5G60100,GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B
+[hybrid:stage] stage=final count=20 edps=CE5G60100,GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B
+[evidence-db] product_lookup code=CE5G60100 series=CE5G60 diameter=10 matched=0
+[evidence-db] product_lookup code=GED70100 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010011 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010015 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010022 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010032 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010035 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010040 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010045 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010050 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010055 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010060 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010065 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED71100 series=E5D71 / GED71 diameter=10 matched=1
+[evidence-db] product_lookup code=GED7110035 series=E5D71 / GED71 diameter=10 matched=1
+[evidence-db] product_lookup code=GEE8310035 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE8310045 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE8310055 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE84100 series=E5E84 / GEE84 diameter=10 matched=2
+[evidence-db] product_lookup code=GEE84100B series=E5E84 / GEE84 diameter=10 matched=2
+[recommend] hybrid timings: total=168ms fetch=123ms filter=0ms score_evidence=42ms considered=20 final=20
+[recommend] Intent: narrowing_answer (high), Route: continue_narrowing
+[recommend] Step 2: orchestrator start | msg="cutting conditions" | candidates=20 | lastAction=continue_narrowing | lastField=fluteCount
+[orchestrator:tool-use] Tool: explain_concept → explain_product (2347ms)
+[orchestrator:tool-use] Input: {"topic":"cutting conditions"}
+[recommend] Tool-use succeeded in 2351ms | action=explain_product
+ POST /api/recommend 200 in 2.5s (compile: 7ms, render: 2.5s)
+[recommend] request start hasPrevState=false messages=0 displayedProducts=0
+[product-repo] search source=json filters=0 limit=auto
+[hybrid:stage] stage=post_filter count=65 edps=GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,CE5G60100,GED70080,GED7008009,GED7008012,GED7008019,GED7008028,GED7008030,GED7008035,GED7008040,GED7008045,GED7008050,GED7008055,GED7008060,GED7008065,GED70090,GED70120,GED70120100,GED7012013,GED7012026,GED7012035,GED7012040,GED7012045,GED7012050,GED7012055,GED7012060,GED7012065,GED7012070,GED7012075,GED7012080,GED7012090,GED71080,...(+15)
+[hybrid:stage] stage=ranked count=65 edps=CE5G60100,GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,GED70090,CE5G60080,CE5G60120,GED70080,GED7008009,GED7008012,GED7008019,GED7008028,GED7008030,GED7008035,GED7008040,GED7008045,GED7008050,GED7008055,GED7008060,GED7008065,GED70120,GED70120100,GED7012013,GED7012026,GED7012035,GED7012040,GED7012045,GED7012050,GED7012055,GED7012060,GED7012065,GED7012070,GED7012075,GED7012080,...(+15)
+[hybrid:stage] stage=final count=65 edps=CE5G60100,GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,GED70090,CE5G60080,CE5G60120,GED70080,GED7008009,GED7008012,GED7008019,GED7008028,GED7008030,GED7008035,GED7008040,GED7008045,GED7008050,GED7008055,GED7008060,GED7008065,GED70120,GED70120100,GED7012013,GED7012026,GED7012035,GED7012040,GED7012045,GED7012050,GED7012055,GED7012060,GED7012065,GED7012070,GED7012075,GED7012080,...(+15)
+[evidence-db] product_lookup code=CE5G60100 series=CE5G60 diameter=10 matched=0
+[evidence-db] product_lookup code=GED70100 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010011 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010015 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010022 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010032 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010035 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010040 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010045 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010050 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010055 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010060 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010065 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED71100 series=E5D71 / GED71 diameter=10 matched=1
+[evidence-db] product_lookup code=GED7110035 series=E5D71 / GED71 diameter=10 matched=1
+[evidence-db] product_lookup code=GEE8310035 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE8310045 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE8310055 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE84100 series=E5E84 / GEE84 diameter=10 matched=2
+[evidence-db] product_lookup code=GEE84100B series=E5E84 / GEE84 diameter=10 matched=2
+[evidence-db] product_lookup code=GED70090 series=E5D70 / GED70 diameter=9 matched=1
+[evidence-db] product_lookup code=CE5G60080 series=CE5G60 diameter=8 matched=0
+[evidence-db] product_lookup code=CE5G60120 series=CE5G60 diameter=12 matched=0
+[evidence-db] product_lookup code=GED70080 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008009 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008012 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008019 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008028 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008030 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008035 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008040 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008045 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008050 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008055 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008060 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008065 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED70120 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED70120100 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012013 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012026 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012035 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012040 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012045 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012050 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012055 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012060 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012065 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012070 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012075 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012080 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012090 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED71080 series=E5D71 / GED71 diameter=8 matched=1
+[evidence-db] product_lookup code=GED7108030 series=E5D71 / GED71 diameter=8 matched=1
+[evidence-db] product_lookup code=GED71120 series=E5D71 / GED71 diameter=12 matched=1
+[evidence-db] product_lookup code=GED7112040 series=E5D71 / GED71 diameter=12 matched=1
+[evidence-db] product_lookup code=GEE8308030 series=E5E83 / GEE83 diameter=8 matched=3
+[evidence-db] product_lookup code=GEE8308040 series=E5E83 / GEE83 diameter=8 matched=3
+[evidence-db] product_lookup code=GEE8308050 series=E5E83 / GEE83 diameter=8 matched=3
+[evidence-db] product_lookup code=GEE8312040 series=E5E83 / GEE83 diameter=12 matched=3
+[evidence-db] product_lookup code=GEE8312050 series=E5E83 / GEE83 diameter=12 matched=3
+[evidence-db] product_lookup code=GEE8312060 series=E5E83 / GEE83 diameter=12 matched=3
+[evidence-db] product_lookup code=GEE84080 series=E5E84 / GEE84 diameter=8 matched=2
+[evidence-db] product_lookup code=GEE84080B series=E5E84 / GEE84 diameter=8 matched=2
+[evidence-db] product_lookup code=GEE84120 series=E5E84 / GEE84 diameter=12 matched=2
+[evidence-db] product_lookup code=GEE84120B series=E5E84 / GEE84 diameter=12 matched=2
+[recommend] hybrid timings: total=220ms fetch=120ms filter=0ms score_evidence=97ms considered=65 final=65
+[recommend] Intent: product_recommendation (high), Route: start_exploration
+[narrowing:question] ───────────────────────────
+[narrowing:question] Session: ses-1773800738752
+[narrowing:question] Candidates: 65
+[narrowing:question] Status: broad
+[narrowing:question] Turn: 0
+[narrowing:question] Filters: (none)
+[narrowing:question] Stages: initial_search
+[narrowing:question] Next question field: diameterRefine
+[narrowing:question] ───────────────────────────
+ POST /api/recommend 200 in 4.8s (compile: 6ms, render: 4.7s)
+[recommend] request start hasPrevState=true messages=3 displayedProducts=10
+[product-repo] search source=json filters=0 limit=auto
+[hybrid:stage] stage=post_filter count=65 edps=GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,CE5G60100,GED70080,GED7008009,GED7008012,GED7008019,GED7008028,GED7008030,GED7008035,GED7008040,GED7008045,GED7008050,GED7008055,GED7008060,GED7008065,GED70090,GED70120,GED70120100,GED7012013,GED7012026,GED7012035,GED7012040,GED7012045,GED7012050,GED7012055,GED7012060,GED7012065,GED7012070,GED7012075,GED7012080,GED7012090,GED71080,...(+15)
+[hybrid:stage] stage=ranked count=65 edps=CE5G60100,GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,GED70090,CE5G60080,CE5G60120,GED70080,GED7008009,GED7008012,GED7008019,GED7008028,GED7008030,GED7008035,GED7008040,GED7008045,GED7008050,GED7008055,GED7008060,GED7008065,GED70120,GED70120100,GED7012013,GED7012026,GED7012035,GED7012040,GED7012045,GED7012050,GED7012055,GED7012060,GED7012065,GED7012070,GED7012075,GED7012080,...(+15)
+[hybrid:stage] stage=final count=65 edps=CE5G60100,GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,GED70090,CE5G60080,CE5G60120,GED70080,GED7008009,GED7008012,GED7008019,GED7008028,GED7008030,GED7008035,GED7008040,GED7008045,GED7008050,GED7008055,GED7008060,GED7008065,GED70120,GED70120100,GED7012013,GED7012026,GED7012035,GED7012040,GED7012045,GED7012050,GED7012055,GED7012060,GED7012065,GED7012070,GED7012075,GED7012080,...(+15)
+[evidence-db] product_lookup code=CE5G60100 series=CE5G60 diameter=10 matched=0
+[evidence-db] product_lookup code=GED70100 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010011 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010015 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010022 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010032 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010035 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010040 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010045 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010050 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010055 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010060 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010065 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED71100 series=E5D71 / GED71 diameter=10 matched=1
+[evidence-db] product_lookup code=GED7110035 series=E5D71 / GED71 diameter=10 matched=1
+[evidence-db] product_lookup code=GEE8310035 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE8310045 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE8310055 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE84100 series=E5E84 / GEE84 diameter=10 matched=2
+[evidence-db] product_lookup code=GEE84100B series=E5E84 / GEE84 diameter=10 matched=2
+[evidence-db] product_lookup code=GED70090 series=E5D70 / GED70 diameter=9 matched=1
+[evidence-db] product_lookup code=CE5G60080 series=CE5G60 diameter=8 matched=0
+[evidence-db] product_lookup code=CE5G60120 series=CE5G60 diameter=12 matched=0
+[evidence-db] product_lookup code=GED70080 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008009 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008012 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008019 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008028 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008030 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008035 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008040 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008045 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008050 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008055 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008060 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED7008065 series=E5D70 / GED70 diameter=8 matched=13
+[evidence-db] product_lookup code=GED70120 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED70120100 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012013 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012026 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012035 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012040 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012045 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012050 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012055 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012060 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012065 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012070 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012075 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012080 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED7012090 series=E5D70 / GED70 diameter=12 matched=15
+[evidence-db] product_lookup code=GED71080 series=E5D71 / GED71 diameter=8 matched=1
+[evidence-db] product_lookup code=GED7108030 series=E5D71 / GED71 diameter=8 matched=1
+[evidence-db] product_lookup code=GED71120 series=E5D71 / GED71 diameter=12 matched=1
+[evidence-db] product_lookup code=GED7112040 series=E5D71 / GED71 diameter=12 matched=1
+[evidence-db] product_lookup code=GEE8308030 series=E5E83 / GEE83 diameter=8 matched=3
+[evidence-db] product_lookup code=GEE8308040 series=E5E83 / GEE83 diameter=8 matched=3
+[evidence-db] product_lookup code=GEE8308050 series=E5E83 / GEE83 diameter=8 matched=3
+[evidence-db] product_lookup code=GEE8312040 series=E5E83 / GEE83 diameter=12 matched=3
+[evidence-db] product_lookup code=GEE8312050 series=E5E83 / GEE83 diameter=12 matched=3
+[evidence-db] product_lookup code=GEE8312060 series=E5E83 / GEE83 diameter=12 matched=3
+[evidence-db] product_lookup code=GEE84080 series=E5E84 / GEE84 diameter=8 matched=2
+[evidence-db] product_lookup code=GEE84080B series=E5E84 / GEE84 diameter=8 matched=2
+[evidence-db] product_lookup code=GEE84120 series=E5E84 / GEE84 diameter=12 matched=2
+[evidence-db] product_lookup code=GEE84120B series=E5E84 / GEE84 diameter=12 matched=2
+[recommend] hybrid timings: total=216ms fetch=81ms filter=0ms score_evidence=132ms considered=65 final=65
+[recommend] Intent: narrowing_answer (high), Route: continue_narrowing
+[recommend] Step 2: orchestrator start | msg="3?" | candidates=65 | lastAction=continue_narrowing | lastField=diameterRefine
+[orchestrator:tool-use] Tool: apply_filter → continue_narrowing (4373ms)
+[orchestrator:tool-use] Input: {"field":"diameterRefine","value":"10mm","display_value":"10mm"}
+[recommend] Tool-use succeeded in 4383ms | action=continue_narrowing
+[product-repo] search source=json filters=1 limit=auto
+[hybrid:stage] stage=post_filter count=20 edps=GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,CE5G60100
+[hybrid:stage] stage=ranked count=20 edps=CE5G60100,GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B
+[hybrid:stage] stage=final count=20 edps=CE5G60100,GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B
+[evidence-db] product_lookup code=CE5G60100 series=CE5G60 diameter=10 matched=0
+[evidence-db] product_lookup code=GED70100 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010011 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010015 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010022 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010032 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010035 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010040 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010045 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010050 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010055 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010060 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010065 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED71100 series=E5D71 / GED71 diameter=10 matched=1
+[evidence-db] product_lookup code=GED7110035 series=E5D71 / GED71 diameter=10 matched=1
+[evidence-db] product_lookup code=GEE8310035 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE8310045 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE8310055 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE84100 series=E5E84 / GEE84 diameter=10 matched=2
+[evidence-db] product_lookup code=GEE84100B series=E5E84 / GEE84 diameter=10 matched=2
+[recommend] hybrid timings: total=180ms fetch=141ms filter=0ms score_evidence=37ms considered=20 final=20
+[orchestrator:filter] diameterMm=10mm | 65→20 candidates | stages: initial_search → diameterMm_10mm
+[narrowing:question] ───────────────────────────
+[narrowing:question] Session: ses-1773800748204
+[narrowing:question] Candidates: 20
+[narrowing:question] Status: narrowing
+[narrowing:question] Turn: 1
+[narrowing:question] Filters: diameterMm=10mm
+[narrowing:question] Stages: initial_search → diameterMm_10mm
+[narrowing:question] Next question field: fluteCount
+[narrowing:question] ───────────────────────────
+ POST /api/recommend 200 in 7.8s (compile: 4ms, render: 7.8s)
+[recommend] request start hasPrevState=true messages=5 displayedProducts=10
+[product-repo] search source=json filters=1 limit=auto
+[hybrid:stage] stage=post_filter count=20 edps=GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B,CE5G60100
+[hybrid:stage] stage=ranked count=20 edps=CE5G60100,GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B
+[hybrid:stage] stage=final count=20 edps=CE5G60100,GED70100,GED7010011,GED7010015,GED7010022,GED7010032,GED7010035,GED7010040,GED7010045,GED7010050,GED7010055,GED7010060,GED7010065,GED71100,GED7110035,GEE8310035,GEE8310045,GEE8310055,GEE84100,GEE84100B
+[evidence-db] product_lookup code=CE5G60100 series=CE5G60 diameter=10 matched=0
+[evidence-db] product_lookup code=GED70100 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010011 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010015 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010022 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010032 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010035 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010040 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010045 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010050 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010055 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010060 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED7010065 series=E5D70 / GED70 diameter=10 matched=12
+[evidence-db] product_lookup code=GED71100 series=E5D71 / GED71 diameter=10 matched=1
+[evidence-db] product_lookup code=GED7110035 series=E5D71 / GED71 diameter=10 matched=1
+[evidence-db] product_lookup code=GEE8310035 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE8310045 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE8310055 series=E5E83 / GEE83 diameter=10 matched=3
+[evidence-db] product_lookup code=GEE84100 series=E5E84 / GEE84 diameter=10 matched=2
+[evidence-db] product_lookup code=GEE84100B series=E5E84 / GEE84 diameter=10 matched=2
+[recommend] hybrid timings: total=121ms fetch=89ms filter=0ms score_evidence=30ms considered=20 final=20
+[recommend] Intent: narrowing_answer (high), Route: continue_narrowing
+[recommend] Step 2: orchestrator start | msg="??????" | candidates=20 | lastAction=continue_narrowing | lastField=fluteCount
+[orchestrator:tool-use] No tool called — text response (6085ms): 안녕하세요! 무엇을 도와드릴까요? 😊
+
+현재 직경 10mm 절삭공구 20개 후보가 있고, 날수를 선택하는 단계입니다.
+
+**선택 가능한 옵션:**
+- **3날** (17개 제품)...
+[recommend] Tool-use succeeded in 6087ms | action=answer_general
+ POST /api/recommend 200 in 6.2s (compile: 4ms, render: 6.2s)
+ GET /products 200 in 659ms (compile: 273ms, proxy.ts: 17ms, render: 369ms)
+   Reload env: .env.local

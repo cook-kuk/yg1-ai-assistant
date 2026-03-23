@@ -1,0 +1,261 @@
+
+> my-v0-project@0.1.0 dev
+> next dev -p 3000
+
+   ▲ Next.js 16.0.10 (Turbopack)
+   - Local:         http://localhost:3000
+   - Network:       http://192.168.0.13:3000
+   - Environments: .env.local
+
+ ✓ Starting...
+Creating turbopack project { dir: 'C:\\Users\\kuksh\\Downloads\\YG1_test', testMode: true }
+ ✓ Ready in 924ms
+ GET /products 200 in 3.2s (compile: 2.8s, proxy.ts: 123ms, render: 242ms)
+ GET /products 200 in 95ms (compile: 11ms, proxy.ts: 8ms, render: 76ms)
+ GET /products 200 in 113ms (compile: 7ms, proxy.ts: 8ms, render: 97ms)
+ GET /products?reset=1773802450675 200 in 36ms (compile: 8ms, proxy.ts: 7ms, render: 21ms)
+ GET /products?reset=1773802452692 200 in 31ms (compile: 7ms, proxy.ts: 5ms, render: 18ms)
+ GET /products?reset=1773802453301 200 in 63ms (compile: 16ms, proxy.ts: 15ms, render: 32ms)
+ GET /products?reset=1773802453500 200 in 49ms (compile: 10ms, proxy.ts: 8ms, render: 31ms)
+ GET /products?reset=1773802454076 200 in 50ms (compile: 14ms, proxy.ts: 13ms, render: 23ms)
+[recommend] request start hasPrevState=false messages=0 displayedProducts=0
+[product-repo] search source=json filters=0 limit=auto
+[hybrid:filter] unitSystem=METRIC: 0 → 0 candidates
+[hybrid:stage] stage=post_filter count=0 edps=
+[hybrid:stage] stage=ranked count=0 edps=
+[hybrid:stage] stage=final count=0 edps=
+[recommend] hybrid timings: total=554ms fetch=549ms filter=2ms score_evidence=2ms considered=0 final=0
+[recommend] Intent: product_recommendation (high), Route: start_exploration
+[narrowing:question] ───────────────────────────
+[narrowing:question] Session: ses-1773802462795
+[narrowing:question] Candidates: 0
+[narrowing:question] Status: resolved_none
+[narrowing:question] Turn: 0
+[narrowing:question] Filters: (none)
+[narrowing:question] Stages: initial_search
+[narrowing:question] ───────────────────────────
+ POST /api/recommend 200 in 1159ms (compile: 570ms, render: 589ms)
+ ✓ Compiled in 385ms
+ GET /products?reset=1773802454076 200 in 447ms (compile: 124ms, proxy.ts: 13ms, render: 310ms)
+ GET /products 200 in 307ms (compile: 101ms, proxy.ts: 60ms, render: 146ms)
+ GET /products 200 in 118ms (compile: 14ms, proxy.ts: 14ms, render: 90ms)
+ GET /products?reset=1773803707723 200 in 48ms (compile: 11ms, proxy.ts: 7ms, render: 29ms)
+[recommend] request start hasPrevState=false messages=0 displayedProducts=0
+[product-repo] search source=json filters=0 limit=auto
+[hybrid:filter] unitSystem=METRIC: 0 → 0 candidates
+[hybrid:stage] stage=post_filter count=0 edps=
+[hybrid:stage] stage=ranked count=0 edps=
+[hybrid:stage] stage=final count=0 edps=
+[recommend] hybrid timings: total=104ms fetch=99ms filter=2ms score_evidence=2ms considered=0 final=0
+[recommend] Intent: product_recommendation (high), Route: start_exploration
+[narrowing:question] ───────────────────────────
+[narrowing:question] Session: ses-1773803716214
+[narrowing:question] Candidates: 0
+[narrowing:question] Status: resolved_none
+[narrowing:question] Turn: 0
+[narrowing:question] Filters: (none)
+[narrowing:question] Stages: initial_search
+[narrowing:question] ───────────────────────────
+ POST /api/recommend 200 in 152ms (compile: 7ms, render: 145ms)
+[recommend] request start hasPrevState=true messages=3 displayedProducts=0
+[product-repo] search source=json filters=0 limit=auto
+[hybrid:filter] unitSystem=METRIC: 0 → 0 candidates
+[hybrid:stage] stage=post_filter count=0 edps=
+[hybrid:stage] stage=ranked count=0 edps=
+[hybrid:stage] stage=final count=0 edps=
+[recommend] hybrid timings: total=112ms fetch=109ms filter=2ms score_evidence=1ms considered=0 final=0
+[recommend] Intent: cutting_condition_query (high), Route: continue_narrowing
+[recommend] Step 2: orchestrator start | msg="절삭조건 알려줘" | candidates=0 | lastAction=show_recommendation | lastField=undefined
+[orchestrator:tool-use] Tool: explain_concept → explain_product (4024ms)
+[orchestrator:tool-use] Input: {"topic":"절삭조건"}
+[recommend] Tool-use succeeded in 4028ms | action=explain_product
+ POST /api/recommend 200 in 4.2s (compile: 4ms, render: 4.2s)
+ ✓ Compiled in 657ms
+ ✓ Compiled in 197ms
+ ✓ Compiled in 876ms
+ ✓ Compiled in 441ms
+ GET / 200 in 2.3s (compile: 2.1s, proxy.ts: 40ms, render: 158ms)
+ GET / 200 in 260ms (compile: 166ms, proxy.ts: 20ms, render: 74ms)
+ GET / 200 in 106ms (compile: 5ms, proxy.ts: 5ms, render: 95ms)
+ GET / 200 in 207ms (compile: 110ms, proxy.ts: 22ms, render: 74ms)
+ GET / 200 in 72ms (compile: 4ms, proxy.ts: 4ms, render: 63ms)
+ GET /products 200 in 616ms (compile: 250ms, proxy.ts: 5ms, render: 361ms)
+ GET /products 200 in 107ms (compile: 9ms, proxy.ts: 7ms, render: 91ms)
+ GET / 200 in 222ms (compile: 131ms, proxy.ts: 13ms, render: 77ms)
+ GET / 200 in 85ms (compile: 5ms, proxy.ts: 6ms, render: 75ms)
+ GET /products 200 in 85ms (compile: 7ms, proxy.ts: 6ms, render: 72ms)
+ GET /products 200 in 95ms (compile: 7ms, proxy.ts: 6ms, render: 82ms)
+ GET /products 200 in 175ms (compile: 9ms, proxy.ts: 9ms, render: 156ms)
+ GET /products 200 in 98ms (compile: 7ms, proxy.ts: 6ms, render: 84ms)
+ GET / 200 in 497ms (compile: 291ms, proxy.ts: 38ms, render: 169ms)
+ GET / 200 in 170ms (compile: 9ms, proxy.ts: 9ms, render: 151ms)
+ GET /products 200 in 477ms (compile: 32ms, proxy.ts: 35ms, render: 410ms)
+ GET / 200 in 422ms (compile: 208ms, proxy.ts: 12ms, render: 203ms)
+ GET / 200 in 201ms (compile: 11ms, proxy.ts: 12ms, render: 178ms)
+ GET /products 200 in 217ms (compile: 13ms, proxy.ts: 13ms, render: 192ms)
+[recommend] request start hasPrevState=false messages=0 displayedProducts=0
+[product-repo] search source=json filters=0 limit=auto
+[hybrid:filter] unitSystem=METRIC: 0 → 0 candidates
+[hybrid:stage] stage=post_filter count=0 edps=
+[hybrid:stage] stage=ranked count=0 edps=
+[hybrid:stage] stage=final count=0 edps=
+[recommend] hybrid timings: total=1287ms fetch=1278ms filter=3ms score_evidence=4ms considered=0 final=0
+[recommend] Intent: product_recommendation (high), Route: start_exploration
+[session-snapshot:question] {"slots":{"material":"Aluminum","operationType":"Side Milling","toolType":"End Mill","toolSubtype":null,"diameterMm":4,"seriesName":null,"flutePreference":null,"coatingPreference":null},"candidateCount":0,"displayedArtifactCounts":{"displayedProducts":0,"displayedOptions":0,"displayedSeriesGroups":0,"lastRecommendationArtifact":0,"lastComparisonArtifact":0},"displayedArtifactIds":{"displayedProducts":[],"displayedSeriesGroups":[]},"activeSeriesGroup":null,"currentMode":"question","lastAction":"continue_narrowing","restoreTarget":null}
+[narrowing:question] ───────────────────────────
+[narrowing:question] Session: ses-1773820442694
+[narrowing:question] Candidates: 0
+[narrowing:question] Status: resolved_none
+[narrowing:question] Turn: 0
+[narrowing:question] Filters: (none)
+[narrowing:question] Stages: initial_search
+[narrowing:question] ───────────────────────────
+[session-snapshot:recommendation] {"slots":{"material":"Aluminum","operationType":"Side Milling","toolType":"End Mill","toolSubtype":null,"diameterMm":4,"seriesName":null,"flutePreference":null,"coatingPreference":null},"candidateCount":0,"displayedArtifactCounts":{"displayedProducts":0,"displayedOptions":0,"displayedSeriesGroups":0,"lastRecommendationArtifact":0,"lastComparisonArtifact":0},"displayedArtifactIds":{"displayedProducts":[],"displayedSeriesGroups":[]},"activeSeriesGroup":null,"currentMode":"recommendation","lastAction":"show_recommendation","restoreTarget":null}
+ POST /api/recommend 200 in 2.6s (compile: 1236ms, render: 1395ms)
+[recommend] request start hasPrevState=false messages=0 displayedProducts=0
+[product-repo] search source=json filters=0 limit=auto
+[hybrid:filter] unitSystem=METRIC: 0 → 0 candidates
+[hybrid:stage] stage=post_filter count=0 edps=
+[hybrid:stage] stage=ranked count=0 edps=
+[hybrid:stage] stage=final count=0 edps=
+[recommend] hybrid timings: total=1222ms fetch=1200ms filter=17ms score_evidence=3ms considered=0 final=0
+[recommend] Intent: product_recommendation (high), Route: start_exploration
+[session-snapshot:question] {"slots":{"material":"????","operationType":"????","toolType":"???","toolSubtype":null,"diameterMm":4,"seriesName":null,"flutePreference":null,"coatingPreference":null},"candidateCount":0,"displayedArtifactCounts":{"displayedProducts":0,"displayedOptions":0,"displayedSeriesGroups":0,"lastRecommendationArtifact":0,"lastComparisonArtifact":0},"displayedArtifactIds":{"displayedProducts":[],"displayedSeriesGroups":[]},"activeSeriesGroup":null,"currentMode":"question","lastAction":"continue_narrowing","restoreTarget":null}
+[narrowing:question] ───────────────────────────
+[narrowing:question] Session: ses-1773820510965
+[narrowing:question] Candidates: 0
+[narrowing:question] Status: resolved_none
+[narrowing:question] Turn: 0
+[narrowing:question] Filters: (none)
+[narrowing:question] Stages: initial_search
+[narrowing:question] ───────────────────────────
+[session-snapshot:recommendation] {"slots":{"material":"????","operationType":"????","toolType":"???","toolSubtype":null,"diameterMm":4,"seriesName":null,"flutePreference":null,"coatingPreference":null},"candidateCount":0,"displayedArtifactCounts":{"displayedProducts":0,"displayedOptions":0,"displayedSeriesGroups":0,"lastRecommendationArtifact":0,"lastComparisonArtifact":0},"displayedArtifactIds":{"displayedProducts":[],"displayedSeriesGroups":[]},"activeSeriesGroup":null,"currentMode":"recommendation","lastAction":"show_recommendation","restoreTarget":null}
+ POST /api/recommend 200 in 1271ms (compile: 8ms, render: 1263ms)
+ GET / 200 in 422ms (compile: 226ms, proxy.ts: 17ms, render: 179ms)
+ GET / 200 in 174ms (compile: 10ms, proxy.ts: 13ms, render: 152ms)
+ GET /products 200 in 209ms (compile: 14ms, proxy.ts: 12ms, render: 183ms)
+[recommend] request start hasPrevState=false messages=0 displayedProducts=0
+[product-repo] search source=json filters=0 limit=auto
+[hybrid:filter] unitSystem=METRIC: 0 → 0 candidates
+[hybrid:stage] stage=post_filter count=0 edps=
+[hybrid:stage] stage=ranked count=0 edps=
+[hybrid:stage] stage=final count=0 edps=
+[recommend] hybrid timings: total=245ms fetch=223ms filter=18ms score_evidence=3ms considered=0 final=0
+[recommend] Intent: product_recommendation (high), Route: start_exploration
+[session-snapshot:question] {"slots":{"material":"Aluminum","operationType":"Side Milling","toolType":"End Mill","toolSubtype":null,"diameterMm":4,"seriesName":null,"flutePreference":null,"coatingPreference":null},"candidateCount":0,"displayedArtifactCounts":{"displayedProducts":0,"displayedOptions":0,"displayedSeriesGroups":0,"lastRecommendationArtifact":0,"lastComparisonArtifact":0},"displayedArtifactIds":{"displayedProducts":[],"displayedSeriesGroups":[]},"activeSeriesGroup":null,"currentMode":"question","lastAction":"continue_narrowing","restoreTarget":null}
+[narrowing:question] ───────────────────────────
+[narrowing:question] Session: ses-1773820625544
+[narrowing:question] Candidates: 0
+[narrowing:question] Status: resolved_none
+[narrowing:question] Turn: 0
+[narrowing:question] Filters: (none)
+[narrowing:question] Stages: initial_search
+[narrowing:question] ───────────────────────────
+[session-snapshot:recommendation] {"slots":{"material":"Aluminum","operationType":"Side Milling","toolType":"End Mill","toolSubtype":null,"diameterMm":4,"seriesName":null,"flutePreference":null,"coatingPreference":null},"candidateCount":0,"displayedArtifactCounts":{"displayedProducts":0,"displayedOptions":0,"displayedSeriesGroups":0,"lastRecommendationArtifact":0,"lastComparisonArtifact":0},"displayedArtifactIds":{"displayedProducts":[],"displayedSeriesGroups":[]},"activeSeriesGroup":null,"currentMode":"recommendation","lastAction":"show_recommendation","restoreTarget":null}
+ POST /api/recommend 200 in 295ms (compile: 9ms, render: 286ms)
+[recommend] request start hasPrevState=false messages=0 displayedProducts=0
+[product-repo] search source=json filters=0 limit=auto
+[hybrid:filter] unitSystem=METRIC: 0 → 0 candidates
+[hybrid:stage] stage=post_filter count=0 edps=
+[hybrid:stage] stage=ranked count=0 edps=
+[hybrid:stage] stage=final count=0 edps=
+[recommend] hybrid timings: total=325ms fetch=313ms filter=7ms score_evidence=3ms considered=0 final=0
+[recommend] Intent: product_recommendation (high), Route: start_exploration
+[session-snapshot:question] {"slots":{"material":"Aluminum","operationType":"Side Milling","toolType":"End Mill","toolSubtype":null,"diameterMm":10,"seriesName":null,"flutePreference":null,"coatingPreference":null},"candidateCount":0,"displayedArtifactCounts":{"displayedProducts":0,"displayedOptions":0,"displayedSeriesGroups":0,"lastRecommendationArtifact":0,"lastComparisonArtifact":0},"displayedArtifactIds":{"displayedProducts":[],"displayedSeriesGroups":[]},"activeSeriesGroup":null,"currentMode":"question","lastAction":"continue_narrowing","restoreTarget":null}
+[narrowing:question] ───────────────────────────
+[narrowing:question] Session: ses-1773820682461
+[narrowing:question] Candidates: 0
+[narrowing:question] Status: resolved_none
+[narrowing:question] Turn: 0
+[narrowing:question] Filters: (none)
+[narrowing:question] Stages: initial_search
+[narrowing:question] ───────────────────────────
+[session-snapshot:recommendation] {"slots":{"material":"Aluminum","operationType":"Side Milling","toolType":"End Mill","toolSubtype":null,"diameterMm":10,"seriesName":null,"flutePreference":null,"coatingPreference":null},"candidateCount":0,"displayedArtifactCounts":{"displayedProducts":0,"displayedOptions":0,"displayedSeriesGroups":0,"lastRecommendationArtifact":0,"lastComparisonArtifact":0},"displayedArtifactIds":{"displayedProducts":[],"displayedSeriesGroups":[]},"activeSeriesGroup":null,"currentMode":"recommendation","lastAction":"show_recommendation","restoreTarget":null}
+ POST /api/recommend 200 in 515ms (compile: 76ms, render: 439ms)
+[recommend] request start hasPrevState=false messages=0 displayedProducts=0
+[product-repo] search source=json filters=0 limit=auto
+[hybrid:filter] unitSystem=METRIC: 0 → 0 candidates
+[hybrid:stage] stage=post_filter count=0 edps=
+[hybrid:stage] stage=ranked count=0 edps=
+[hybrid:stage] stage=final count=0 edps=
+[recommend] hybrid timings: total=601ms fetch=594ms filter=2ms score_evidence=3ms considered=0 final=0
+[recommend] Intent: product_recommendation (high), Route: start_exploration
+[session-snapshot:question] {"slots":{"material":"Aluminum","operationType":"Side Milling","toolType":"End Mill","toolSubtype":null,"diameterMm":4,"seriesName":null,"flutePreference":null,"coatingPreference":null},"candidateCount":0,"displayedArtifactCounts":{"displayedProducts":0,"displayedOptions":0,"displayedSeriesGroups":0,"lastRecommendationArtifact":0,"lastComparisonArtifact":0},"displayedArtifactIds":{"displayedProducts":[],"displayedSeriesGroups":[]},"activeSeriesGroup":null,"currentMode":"question","lastAction":"continue_narrowing","restoreTarget":null}
+[narrowing:question] ───────────────────────────
+[narrowing:question] Session: ses-1773820683135
+[narrowing:question] Candidates: 0
+[narrowing:question] Status: resolved_none
+[narrowing:question] Turn: 0
+[narrowing:question] Filters: (none)
+[narrowing:question] Stages: initial_search
+[narrowing:question] ───────────────────────────
+[session-snapshot:recommendation] {"slots":{"material":"Aluminum","operationType":"Side Milling","toolType":"End Mill","toolSubtype":null,"diameterMm":4,"seriesName":null,"flutePreference":null,"coatingPreference":null},"candidateCount":0,"displayedArtifactCounts":{"displayedProducts":0,"displayedOptions":0,"displayedSeriesGroups":0,"lastRecommendationArtifact":0,"lastComparisonArtifact":0},"displayedArtifactIds":{"displayedProducts":[],"displayedSeriesGroups":[]},"activeSeriesGroup":null,"currentMode":"recommendation","lastAction":"show_recommendation","restoreTarget":null}
+ POST /api/recommend 200 in 664ms (compile: 10ms, render: 655ms)
+ GET / 200 in 376ms (compile: 217ms, proxy.ts: 11ms, render: 148ms)
+ GET / 200 in 159ms (compile: 9ms, proxy.ts: 12ms, render: 138ms)
+ GET /products 200 in 211ms (compile: 27ms, proxy.ts: 12ms, render: 172ms)
+ GET / 200 in 365ms (compile: 194ms, proxy.ts: 9ms, render: 161ms)
+ GET / 200 in 265ms (compile: 10ms, proxy.ts: 12ms, render: 243ms)
+ GET /products 200 in 190ms (compile: 11ms, proxy.ts: 12ms, render: 168ms)
+ GET / 200 in 357ms (compile: 192ms, proxy.ts: 14ms, render: 151ms)
+ GET / 200 in 165ms (compile: 8ms, proxy.ts: 9ms, render: 148ms)
+ GET /products 200 in 202ms (compile: 10ms, proxy.ts: 9ms, render: 182ms)
+ GET /products 200 in 221ms (compile: 29ms, proxy.ts: 10ms, render: 182ms)
+ GET /products 200 in 200ms (compile: 11ms, proxy.ts: 11ms, render: 177ms)
+ GET /products 200 in 177ms (compile: 10ms, proxy.ts: 9ms, render: 159ms)
+ GET / 200 in 409ms (compile: 214ms, proxy.ts: 11ms, render: 184ms)
+ GET / 200 in 164ms (compile: 8ms, proxy.ts: 13ms, render: 143ms)
+ GET /products 200 in 206ms (compile: 12ms, proxy.ts: 10ms, render: 184ms)
+ GET /products 200 in 208ms (compile: 12ms, proxy.ts: 10ms, render: 187ms)
+ GET /products 200 in 207ms (compile: 11ms, proxy.ts: 11ms, render: 185ms)
+ GET /products 200 in 202ms (compile: 14ms, proxy.ts: 13ms, render: 175ms)
+ GET / 200 in 4.0s (compile: 396ms, proxy.ts: 891ms, render: 2.7s)
+ GET / 200 in 1579ms (compile: 84ms, proxy.ts: 82ms, render: 1413ms)
+ GET /products 200 in 8.6s (compile: 3.7s, proxy.ts: 16ms, render: 4.9s)
+ GET /products 200 in 206ms (compile: 9ms, proxy.ts: 9ms, render: 188ms)
+ GET /products 200 in 201ms (compile: 14ms, proxy.ts: 14ms, render: 173ms)
+ GET /products 200 in 210ms (compile: 12ms, proxy.ts: 16ms, render: 182ms)
+ GET /products 200 in 187ms (compile: 7ms, proxy.ts: 7ms, render: 173ms)
+ GET / 200 in 227ms (compile: 120ms, proxy.ts: 18ms, render: 89ms)
+ GET / 200 in 84ms (compile: 6ms, proxy.ts: 7ms, render: 70ms)
+ GET /products 200 in 92ms (compile: 6ms, proxy.ts: 6ms, render: 80ms)
+ GET /products 200 in 77ms (compile: 6ms, proxy.ts: 7ms, render: 64ms)
+ GET /products 200 in 90ms (compile: 5ms, proxy.ts: 5ms, render: 79ms)
+ GET /products 200 in 123ms (compile: 6ms, proxy.ts: 6ms, render: 111ms)
+ GET /products 200 in 83ms (compile: 6ms, proxy.ts: 5ms, render: 72ms)
+ GET / 200 in 258ms (compile: 152ms, proxy.ts: 25ms, render: 80ms)
+ GET / 200 in 94ms (compile: 7ms, proxy.ts: 6ms, render: 82ms)
+ GET /products 200 in 93ms (compile: 7ms, proxy.ts: 8ms, render: 78ms)
+ GET /products 200 in 117ms (compile: 8ms, proxy.ts: 7ms, render: 102ms)
+ GET /products 200 in 135ms (compile: 8ms, proxy.ts: 9ms, render: 118ms)
+ GET /products 200 in 186ms (compile: 11ms, proxy.ts: 10ms, render: 165ms)
+ GET /products 200 in 297ms (compile: 14ms, proxy.ts: 15ms, render: 268ms)
+ ✓ Compiled in 2.7s
+ GET / 200 in 1671ms (compile: 756ms, proxy.ts: 277ms, render: 638ms)
+ GET / 200 in 156ms (compile: 8ms, proxy.ts: 19ms, render: 129ms)
+ GET /products 200 in 643ms (compile: 304ms, proxy.ts: 8ms, render: 331ms)
+ GET /api/countries 200 in 569ms (compile: 503ms, render: 66ms)
+ GET / 200 in 291ms (compile: 176ms, proxy.ts: 18ms, render: 97ms)
+ GET / 200 in 104ms (compile: 5ms, proxy.ts: 7ms, render: 92ms)
+ GET /products 200 in 123ms (compile: 7ms, proxy.ts: 6ms, render: 110ms)
+ GET /api/countries 200 in 26ms (compile: 4ms, render: 22ms)
+ GET /products 200 in 137ms (compile: 10ms, proxy.ts: 9ms, render: 118ms)
+ GET /api/countries 200 in 23ms (compile: 4ms, render: 19ms)
+ GET /products 200 in 104ms (compile: 7ms, proxy.ts: 7ms, render: 90ms)
+ GET /api/countries 200 in 23ms (compile: 5ms, render: 18ms)
+ GET / 200 in 1558ms (compile: 152ms, proxy.ts: 235ms, render: 1171ms)
+ GET / 200 in 305ms (compile: 19ms, proxy.ts: 24ms, render: 262ms)
+ GET /products 200 in 322ms (compile: 51ms, proxy.ts: 41ms, render: 230ms)
+ GET /api/countries 200 in 200ms (compile: 72ms, render: 128ms)
+ GET /products 200 in 209ms (compile: 10ms, proxy.ts: 11ms, render: 187ms)
+ GET /api/countries 200 in 33ms (compile: 6ms, render: 27ms)
+ GET / 200 in 358ms (compile: 233ms, proxy.ts: 15ms, render: 110ms)
+ GET / 200 in 106ms (compile: 8ms, proxy.ts: 7ms, render: 91ms)
+ GET /products 200 in 152ms (compile: 9ms, proxy.ts: 10ms, render: 133ms)
+ GET /api/countries 200 in 22ms (compile: 4ms, render: 19ms)
+ GET / 200 in 422ms (compile: 251ms, proxy.ts: 34ms, render: 137ms)
+ GET / 200 in 157ms (compile: 7ms, proxy.ts: 8ms, render: 142ms)
+ GET /products 200 in 295ms (compile: 10ms, proxy.ts: 7ms, render: 279ms)
+ GET /api/countries 200 in 22ms (compile: 5ms, render: 17ms)
+ GET /products 200 in 144ms (compile: 8ms, proxy.ts: 8ms, render: 128ms)
+   Reload env: .env.local

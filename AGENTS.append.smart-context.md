@@ -1,0 +1,117 @@
+## TurnContext and chip priority
+Build one unified TurnContext per turn and use it for both answer generation and chip/option generation.
+TurnContext should include at least:
+- latestAssistantQuestion
+- latestUserMessage
+- relationToLatestQuestion
+- currentMode
+- resolvedFacts
+- activeFilters
+- tentativeReferences
+- pendingQuestions
+- revisionHistory
+- referencedProducts
+- currentDisplayedProducts
+- recentTurns
+- episodicSummaries
+- uiArtifacts
+- likelyReferencedUIBlock
+- userState
+
+Do not let answer generation and chip generation consume different context snapshots.
+If answer text proposes an actionable option, that option must exist in displayedOptions on that turn, or the answer must avoid presenting it as an immediate actionable choice.
+
+Generate chips/options with this strict priority order:
+1. latest assistant question
+2. latest user reply and its relation to that question
+3. current visible UI artifacts
+4. structured working memory / current session state
+5. broader recent conversation
+6. generic fallback rules
+
+If higher-priority signals are strong enough, suppress generic fallback chips.
+
+## UI-grounded and question-first behavior
+Treat current visible UI artifacts as first-class memory.
+Track and use:
+- question prompts
+- recommendation cards
+- comparison tables
+- candidate lists
+- cutting-condition sections
+- displayed chips/options
+- explanation blocks
+- memory/debug views if shown
+
+If there is an unresolved pending question:
+- generate question-aligned chips first
+- suppress generic follow-up chips
+- if the user is confused, switch chips into explain / delegate / skip / simplified-choice mode
+
+## Confusion-aware and revision-aware behavior
+When the user signals confusion or uncertainty:
+- prioritize explanation helper chips
+- prioritize low-friction progression chips
+- allow skip / don't-care chips
+- allow delegate-to-system chips
+- suppress stale generic action chips
+
+Revision and undo are first-class option families.
+When the user wants to edit prior input, generate revision-oriented options such as:
+- 직전 선택 되돌리기
+- 코팅 다시 고르기
+- 날 수 다시 고르기
+- 소재만 바꾸기
+- 현재 추천 유지하고 다른 조건 보기
+
+## Memory model and compression
+Maintain structured conversation memory with explicit categories:
+- resolvedFacts
+- activeFilters
+- tentativeReferences
+- pendingQuestions
+- revisionHistory
+- referencedProducts
+- displayedProductContext
+- userState signals
+- recent raw turns
+- episodic summaries
+- uiArtifacts
+
+Do not treat every mention/reference as an applied filter.
+A mention used for clarification, counting, or comparison must remain tentative until the user explicitly selects it.
+
+Because most sessions are not very long, keep a larger raw recent window before compressing.
+Prefer correctness and continuity over aggressive trimming.
+
+Use layered memory:
+- Layer A: recent raw turns
+- Layer B: structured working memory
+- Layer C: episodic summaries for older turns
+
+Compression rules:
+- never compress away the latest assistant question or latest user message
+- always preserve unresolved threads
+- always preserve resolved facts
+- always preserve active filters
+- always preserve relevant product references
+- always preserve correction / frustration / revision signals
+- keep the latest 6-8 turns raw whenever practical
+
+## Meta / quote safety and LLM reranking
+Never execute reset or other commands from quoted/pasted assistant text.
+When the user references prior assistant text and asks for better chips/options, regenerate from current session state instead of parsing pasted text as new commands.
+
+If an LLM is used for chip/option reranking:
+- deterministic candidate generation remains primary
+- the LLM may only select, reorder, suppress, or lightly relabel existing structured options
+- the LLM must not invent new actions
+- the LLM must not invent new product facts
+- the LLM must preserve stable option ids/plans
+- the LLM must consume the same TurnContext used by the deterministic planner
+
+## Extra validation
+Before final response:
+- validate answer/chip consistency for actionable options
+- validate that tentative references were not silently promoted into active filters
+- validate that unresolved question threads still have matching chips/options
