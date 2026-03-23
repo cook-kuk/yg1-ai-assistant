@@ -108,6 +108,11 @@ export interface ServeEngineRuntimeDependencies {
     userMessage: string,
     prevState: ExplorationSessionState
   ) => Promise<QuestionReply>
+  handleDirectBrandReferenceQuestion: (
+    userMessage: string,
+    currentInput: RecommendationInput,
+    prevState: ExplorationSessionState | null
+  ) => Promise<QuestionReply>
   handleDirectCuttingConditionQuestion: (
     userMessage: string,
     currentInput: RecommendationInput,
@@ -433,6 +438,53 @@ export async function handleServeExploration(
             text: invAnswerText,
             purpose: "general_chat",
             chips: invChips,
+            isComplete: false,
+            recommendation: null,
+            sessionState,
+            evidenceSummaries: null,
+            candidateSnapshot: prevState.displayedCandidates ?? null,
+            requestPreparation: null,
+            primaryExplanation: null,
+            primaryFactChecked: null,
+            altExplanations: [],
+            altFactChecked: [],
+            meta: {
+              orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+            },
+          })
+        }
+
+        const brandReferenceReply = await deps.handleDirectBrandReferenceQuestion(lastUserMsg.text, currentInput, prevState)
+        if (brandReferenceReply) {
+          const brandChips = prevState.displayedChips?.length > 0
+            ? prevState.displayedChips
+            : brandReferenceReply.chips
+          const brandDisplayedOptions = prevState.displayedOptions ?? []
+
+          let brandAnswerText = brandReferenceReply.text
+          const brandValidation = validateOptionFirstPipeline(brandAnswerText, brandChips, brandDisplayedOptions)
+          if (brandValidation.correctedAnswer) {
+            brandAnswerText = brandValidation.correctedAnswer
+            console.log(`[answer-validator:brand-reference] Softened: ${brandValidation.unauthorizedActions.map(a => a.phrase).join(",")}`)
+          }
+
+          const sessionState = carryForwardState(prevState, {
+            candidateCount: prevState.candidateCount ?? candidates.length,
+            appliedFilters: filters,
+            narrowingHistory,
+            resolutionStatus: prevState.resolutionStatus ?? "broad",
+            resolvedInput: currentInput,
+            turnCount,
+            displayedCandidates: prevState.displayedCandidates ?? [],
+            displayedChips: brandChips,
+            displayedOptions: brandDisplayedOptions,
+            currentMode: "general_chat",
+            lastAction: "answer_general",
+          })
+          return deps.jsonRecommendationResponse({
+            text: brandAnswerText,
+            purpose: "general_chat",
+            chips: brandChips,
             isComplete: false,
             recommendation: null,
             sessionState,
@@ -839,7 +891,7 @@ export async function handleServeExploration(
 }
 
 export async function handleServeSimpleChat(
-  deps: Pick<ServeEngineRuntimeDependencies, "jsonRecommendationResponse" | "getFollowUpChips" | "buildSourceSummary">,
+  deps: Pick<ServeEngineRuntimeDependencies, "jsonRecommendationResponse" | "getFollowUpChips" | "buildSourceSummary" | "handleDirectBrandReferenceQuestion">,
   messages: ChatMessage[],
   mode: string
 ): Promise<Response> {
@@ -860,6 +912,19 @@ export async function handleServeSimpleChat(
 
   const latestUserMsg = [...messages].reverse().find(m => m.role === "user")?.text ?? ""
   const baseInput = normalizeInput(latestUserMsg)
+  const brandReferenceReply = await deps.handleDirectBrandReferenceQuestion(latestUserMsg, baseInput, null)
+  if (brandReferenceReply) {
+    return deps.jsonRecommendationResponse({
+      text: brandReferenceReply.text,
+      purpose: "general_chat",
+      chips: brandReferenceReply.chips,
+      isComplete: false,
+      recommendation: null,
+      sessionState: null,
+      evidenceSummaries: null,
+      candidateSnapshot: null,
+    })
+  }
   const hasEnough = !!(baseInput.diameterMm || (baseInput.material && baseInput.operationType))
 
   if (hasEnough) {
