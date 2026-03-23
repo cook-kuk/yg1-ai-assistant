@@ -75,6 +75,44 @@ export async function classifyIntent(
     }
   }
 
+  // ── 3.4. QUESTION ASSIST MODE — field-bound skip/delegate ──
+  // If there is a pending question (lastAskedField), intercept skip/delegate/don't-care
+  // DETERMINISTICALLY before the LLM gets involved.
+  // This prevents the "no active question" bug after explanation turns.
+  if (sessionState?.lastAskedField && !sessionState.resolutionStatus?.startsWith("resolved")) {
+    const pendingField = sessionState.lastAskedField
+
+    // Skip / don't care → SELECT_OPTION with "상관없음" (field-bound)
+    if (SKIP_PATTERNS.some(p => clean.includes(p))) {
+      return {
+        intent: "SELECT_OPTION",
+        confidence: 0.95,
+        extractedValue: "상관없음",
+        reasoning: `Question-assist: skip ${pendingField} (pending field)`,
+        modelUsed: "haiku",
+      }
+    }
+
+    // Delegation → SELECT_OPTION with "skip" (system chooses for this field)
+    const DELEGATE_CLEAN = [/추천.*골라/, /알아서/, /골라.*줘/, /네가.*골라/, /니가.*골라/, /무난한.*걸로/, /네가.*정해/, /니가.*정해/, /시스템.*추천/]
+    if (DELEGATE_CLEAN.some(p => p.test(clean))) {
+      return {
+        intent: "SELECT_OPTION",
+        confidence: 0.92,
+        extractedValue: "상관없음",
+        reasoning: `Question-assist: delegate ${pendingField} (pending field)`,
+        modelUsed: "haiku",
+      }
+    }
+
+    // Novice / confusion signals → ASK_EXPLANATION (but question stays alive)
+    // This is already handled downstream — just ensure it doesn't fall to general chat
+    const NOVICE_PATTERNS = [/신입/, /처음/, /초보/, /입문/, /뉴비/, /하나도.*몰라/, /잘.*몰라/]
+    if (NOVICE_PATTERNS.some(p => p.test(clean)) && clean.length < 40) {
+      return { intent: "ASK_EXPLANATION", confidence: 0.9, extractedValue: pendingField, modelUsed: "haiku" }
+    }
+  }
+
   // ── 3.5. CHIP TEXT MATCHING (safety net for when tool-use fails) ──
   if (sessionState) {
     const chipClean = clean.replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()

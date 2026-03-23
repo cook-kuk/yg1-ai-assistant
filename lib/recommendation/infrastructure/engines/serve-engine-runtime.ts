@@ -233,7 +233,7 @@ export async function handleServeExploration(
       const action = orchResult.action
 
       // ── Build Unified TurnContext (shared by answer + chip generation) ──
-      const lastAssistantMsg = [...messages].reverse().find(m => m.role === "assistant")
+      const lastAssistantMsg = [...messages].reverse().find(m => m.role === "ai")
       const unifiedCtx = buildUnifiedTurnContext({
         latestAssistantText: lastAssistantMsg?.text ?? null,
         latestUserMessage: lastUserMsg.text,
@@ -309,7 +309,7 @@ export async function handleServeExploration(
           displayedChips: refinementChips,
           displayedOptions: buildDisplayedOptions(refinementChips, field),
           currentMode: "question",
-          lastAction: "refine_condition",
+          lastAction: "ask_clarification",
           lastAskedField: field,
         })
         return deps.jsonRecommendationResponse({
@@ -448,6 +448,11 @@ export async function handleServeExploration(
             provider, lastUserMsg.text, currentInput, candidates, prevState
           )
           if (contextReply) {
+            // ── Question Assist Mode ──
+            // If a pending question exists (lastAskedField), this is explanation
+            // WITHIN the question flow. Preserve the question anchor.
+            const hasPendingField = !!prevState.lastAskedField && !prevState.resolutionStatus?.startsWith("resolved")
+
             if (prevState.resolutionStatus?.startsWith("resolved")) {
               // ── Pending question detection for contextReply ──
               const ctxPendingQ = detectPendingQuestion(contextReply)
@@ -479,6 +484,59 @@ export async function handleServeExploration(
                 text: contextReply,
                 purpose: "general_chat",
                 chips: ctxChips,
+                isComplete: false,
+                recommendation: null,
+                sessionState,
+                evidenceSummaries: null,
+                candidateSnapshot: prevState.displayedCandidates ?? null,
+                requestPreparation: null,
+                primaryExplanation: null,
+                primaryFactChecked: null,
+                altExplanations: [],
+                altFactChecked: [],
+                meta: {
+                  orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
+                },
+              })
+            }
+
+            if (hasPendingField) {
+              // ── Question Assist: explain within pending question ──
+              // Preserve lastAskedField, keep currentMode as "question",
+              // generate helper chips merged with original field options
+              const prevQuestion = reconstructPreviousQuestion(prevState)
+              const userState = detectUserState(lastUserMsg.text, prevState.lastAskedField)
+              const helperOptions = buildConfusionHelperOptions(prevQuestion, userState.confusedAbout)
+
+              // Merge: helpers first, then original field options
+              const originalOptions = prevQuestion
+                ? buildQuestionAlignedOptions(prevQuestion)
+                : []
+              const mergedOptions = [...helperOptions, ...originalOptions]
+              const assistChips = smartOptionsToChips(mergedOptions)
+              const assistDisplayedOptions = smartOptionsToDisplayedOptions(mergedOptions)
+
+              console.log(`[question-assist] Explanation within pending field "${prevState.lastAskedField}", ${assistChips.length} chips (${helperOptions.length} helpers + ${originalOptions.length} field options)`)
+
+              const sessionState = carryForwardState(prevState, {
+                candidateCount: prevState.candidateCount ?? candidates.length,
+                appliedFilters: filters,
+                narrowingHistory,
+                resolutionStatus: prevState.resolutionStatus ?? "narrowing",
+                resolvedInput: currentInput,
+                turnCount,
+                displayedCandidates: prevState.displayedCandidates ?? [],
+                displayedChips: assistChips,
+                displayedOptions: assistDisplayedOptions,
+                // CRITICAL: preserve question mode and field anchor
+                currentMode: "question",
+                lastAction: "explain_product",
+                lastAskedField: prevState.lastAskedField,
+              })
+              return deps.jsonRecommendationResponse({
+                text: contextReply,
+                purpose: "question",
+                chips: assistChips,
                 isComplete: false,
                 recommendation: null,
                 sessionState,
@@ -570,13 +628,18 @@ export async function handleServeExploration(
           }
         } else if (userStateResult.state === "confused" || userStateResult.state === "wants_explanation" || userStateResult.state === "wants_delegation") {
           // No pending question in current response, but user is confused
-          // → reconstruct previous question context from session state's displayed options/chips
+          // → reconstruct previous question context AND merge original field options
           const prevQuestion = reconstructPreviousQuestion(prevState)
           const helperOptions = buildConfusionHelperOptions(prevQuestion, userStateResult.confusedAbout)
-          if (helperOptions.length > 0) {
-            finalChips = smartOptionsToChips(helperOptions)
-            finalDisplayedOptions = smartOptionsToDisplayedOptions(helperOptions)
-            console.log(`[chip-priority] User confused, ${helperOptions.length} helper chips (reconstructed from prev state, field=${prevQuestion?.field ?? "none"})`)
+          // Also include original field options so user can still answer the question
+          const originalOptions = prevQuestion
+            ? buildQuestionAlignedOptions(prevQuestion)
+            : []
+          const mergedOptions = [...helperOptions, ...originalOptions]
+          if (mergedOptions.length > 0) {
+            finalChips = smartOptionsToChips(mergedOptions)
+            finalDisplayedOptions = smartOptionsToDisplayedOptions(mergedOptions)
+            console.log(`[question-assist] User ${userStateResult.state}, ${helperOptions.length} helpers + ${originalOptions.length} field options (field=${prevQuestion?.field ?? "none"})`)
           }
         }
 
@@ -585,6 +648,17 @@ export async function handleServeExploration(
         if (divergence.hasDivergence) {
           finalChips = fixChipDivergence(finalChips, divergence)
           console.log(`[divergence-guard] Fixed: missing=${divergence.missingChips.join(",")} added=${divergence.suggestedChips.join(",")}`)
+        }
+
+        // ── Question Assist: preserve question mode if pending field exists ──
+        const isQuestionAssist = !!prevState.lastAskedField
+          && !prevState.resolutionStatus?.startsWith("resolved")
+          && (userStateResult.state === "confused" || userStateResult.state === "wants_explanation" || userStateResult.state === "wants_delegation")
+        const effectiveMode = isQuestionAssist ? "question" : "general_chat"
+        const effectivePurpose = isQuestionAssist ? "question" : "general_chat"
+
+        if (isQuestionAssist) {
+          console.log(`[question-assist] Preserving question mode for field="${prevState.lastAskedField}" during ${userStateResult.state}`)
         }
 
         const sessionState = carryForwardState(prevState, {
@@ -597,13 +671,14 @@ export async function handleServeExploration(
           displayedCandidates: prevState.displayedCandidates ?? [],
           displayedChips: finalChips,
           displayedOptions: finalDisplayedOptions,
-          currentMode: "general_chat",
-          lastAction: "answer_general",
+          currentMode: effectiveMode,
+          lastAction: isQuestionAssist ? "explain_product" : "answer_general",
+          lastAskedField: isQuestionAssist ? prevState.lastAskedField : undefined,
           conversationMemory: persistedMemory ?? prevState.conversationMemory,
         })
         return deps.jsonRecommendationResponse({
           text: llmResponse.text,
-          purpose: "general_chat",
+          purpose: effectivePurpose as any,
           chips: finalChips,
           isComplete: false,
           recommendation: null,
