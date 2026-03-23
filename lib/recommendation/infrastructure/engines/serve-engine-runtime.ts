@@ -21,14 +21,15 @@ import {
 } from "@/lib/recommendation/infrastructure/agents/recommendation-agents"
 import { ENABLE_TOOL_USE_ROUTING } from "@/lib/recommendation/infrastructure/config/recommendation-feature-flags"
 import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import {
+  buildGeneralChatOptionState,
+  buildQuestionAssistOptions,
+} from "@/lib/recommendation/infrastructure/engines/serve-engine-option-first"
 import { buildDisplayedOptions } from "@/lib/recommendation/infrastructure/engines/serve-engine-response"
-import { buildQuestionAlignedOptions, buildConfusionHelperOptions } from "@/lib/recommendation/domain/options/question-option-builder"
 import { smartOptionsToDisplayedOptions, smartOptionsToChips, buildContextAwarePlannerContext } from "@/lib/recommendation/domain/options/option-bridge"
 import { generateSmartOptions } from "@/lib/recommendation/domain/options"
 import { detectUserState } from "@/lib/recommendation/domain/context/user-understanding-detector"
-import { buildChipContext } from "@/lib/recommendation/domain/context/chip-context-builder"
-import { rerankChipsWithLLM } from "@/lib/recommendation/domain/options/llm-chip-reranker"
-import { generateContextualChips, type ChipGenerationContext } from "@/lib/recommendation/domain/options/contextual-chip-generator"
+import type { ChipGenerationContext } from "@/lib/recommendation/domain/options/contextual-chip-generator"
 import { buildRecentInteractionFrame } from "@/lib/recommendation/domain/context/recent-interaction-frame"
 import {
   recordHighlight,
@@ -40,7 +41,6 @@ import {
   recordFrustration,
 } from "@/lib/recommendation/domain/memory/conversation-memory"
 import { buildUnifiedTurnContext, type UnifiedTurnContext } from "@/lib/recommendation/domain/context/turn-context-builder"
-import { checkAnswerChipDivergence, fixChipDivergence } from "@/lib/recommendation/domain/options/divergence-guard"
 import { validateOptionFirstPipeline } from "@/lib/recommendation/domain/options/option-validator"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
@@ -50,7 +50,6 @@ import type {
   AppLanguage,
   CandidateSnapshot,
   ChatMessage,
-  DisplayedOption,
   EvidenceSummary,
   ExplorationSessionState,
   FactCheckedRecommendation,
@@ -566,21 +565,19 @@ export async function handleServeExploration(
               // ── Question Assist: explain within pending question ──
               // Rebuild field options from CANDIDATES (not from prevState.displayedOptions
               // which may contain accumulated helper labels from prior assist turns).
-              const prevQuestion = reconstructPreviousQuestionFromCandidates(
-                prevState, candidates
-              )
               const userState = detectUserState(lastUserMsg.text, prevState.lastAskedField)
-              const helperOptions = buildConfusionHelperOptions(prevQuestion, userState.confusedAbout)
+              const assist = buildQuestionAssistOptions({
+                prevState,
+                currentCandidates: candidates,
+                confusedAbout: userState.confusedAbout,
+                includeHelpers: true,
+              })
+              const assistChips = assist.chips
+              const assistDisplayedOptions = assist.displayedOptions
 
-              // Merge: helpers first, then original field options (deduplicated)
-              const originalOptions = prevQuestion
-                ? buildQuestionAlignedOptions(prevQuestion)
-                : []
-              const mergedOptions = deduplicateOptions([...helperOptions, ...originalOptions])
-              const assistChips = smartOptionsToChips(mergedOptions)
-              const assistDisplayedOptions = smartOptionsToDisplayedOptions(mergedOptions)
-
-              console.log(`[question-assist] Explanation within pending field "${prevState.lastAskedField}", ${assistChips.length} chips (${helperOptions.length} helpers + ${originalOptions.length} field options)`)
+              console.log(
+                `[question-assist] Explanation within pending field "${prevState.lastAskedField}", ${assistChips.length} chips (${assist.helperCount} helpers + ${assist.originalCount} field options)`
+              )
 
               const sessionState = carryForwardState(prevState, {
                 candidateCount: prevState.candidateCount ?? candidates.length,
@@ -634,61 +631,25 @@ export async function handleServeExploration(
         }
 
         // ── Option-first Chip Pipeline ──
-        // STEP 1: Build structured options from state (SmartOption engine)
-        // STEP 2: Build recentFrame for contextual awareness
-        // STEP 3: LLM rerank for semantic ordering
         // Handler-generated chips are NEVER used as source of truth.
-        const userStateResult = detectUserState(lastUserMsg.text, prevState.lastAskedField)
-
-        // STEP 1: SmartOption engine — structural options from session state
-        const { plannerCtx: generalPlannerCtx, interpretation: generalInterpretation } = buildContextAwarePlannerContext(
-          form, prevState, currentInput, lastUserMsg.text,
-          candidates, filters, prevState.lastAskedField ?? undefined
-        )
-        const generalSmartOptions = generateSmartOptions({
-          plannerCtx: generalPlannerCtx,
-          simulatorCtx: {
-            candidateCount: candidates.length,
-            appliedFilters: filters.map(f => ({ field: f.field, op: f.op, value: f.value, rawValue: f.rawValue })),
-          },
-          rankerCtx: {
-            candidateCount: candidates.length,
-            filterCount: filters.length,
-            hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
-            userMessage: lastUserMsg.text,
-            contextInterpretation: generalInterpretation,
-          },
-        })
-
-        // STEP 2: Build recentFrame for contextual signal
         const lastAssistantForFrame = [...messages].reverse().find(m => m.role === "ai")
-        const generalFrame = buildRecentInteractionFrame(
-          lastAssistantForFrame?.text ?? llmResponse.text,
-          lastUserMsg.text,
-          prevState
-        )
-
-        // STEP 3: LLM rerank if smart options available
-        let finalChips: string[]
-        let finalDisplayedOptions: DisplayedOption[]
-        if (generalSmartOptions.length > 0) {
-          const chipCtxForRerank = buildChipContext(
-            prevState, currentInput, lastUserMsg.text,
-            lastAssistantForFrame?.text ?? llmResponse.text,
-            null, userStateResult.state, userStateResult.confusedAbout,
-            messages.map(m => ({ role: m.role, text: m.text }))
-          )
-          const reranked = await rerankChipsWithLLM(generalSmartOptions, chipCtxForRerank, provider)
-          finalChips = smartOptionsToChips(reranked.options)
-          finalDisplayedOptions = smartOptionsToDisplayedOptions(reranked.options)
-          console.log(`[option-first:general] SmartOptions=${generalSmartOptions.length}, reranked=${reranked.rerankedByLLM}, frame=${generalFrame.relation}, chips=${finalChips.join(",")}`)
-        } else {
-          // Fallback: preserve state chips if no smart options generated
-          finalChips = prevState.displayedChips?.length > 0
-            ? prevState.displayedChips
-            : llmResponse.chips
-          finalDisplayedOptions = prevState.displayedOptions ?? []
-        }
+        let {
+          finalChips,
+          finalDisplayedOptions,
+          userStateResult,
+          isQuestionAssist,
+        } = await buildGeneralChatOptionState({
+          form,
+          prevState,
+          currentInput,
+          candidates,
+          filters,
+          userMessage: lastUserMsg.text,
+          assistantText: lastAssistantForFrame?.text ?? llmResponse.text,
+          recentMessages: messages,
+          provider,
+          fallbackChips: llmResponse.chips,
+        })
 
         // ── Record user signals into persistent memory ──
         const persistedMemory = prevState.conversationMemory
@@ -713,45 +674,6 @@ export async function handleServeExploration(
           }
         }
 
-        // Priority 1: State-based pending question from session (NOT answer text)
-        // lastAskedField가 있고 resolved가 아니면 pending question이 있는 것.
-        // displayedOptions가 비어있어도 reconstructPreviousQuestion으로 복원 가능.
-        const hasStatePendingQuestion = !!prevState.lastAskedField
-          && !prevState.resolutionStatus?.startsWith("resolved")
-        if (hasStatePendingQuestion) {
-          // Always reconstruct from CANDIDATES to avoid accumulated helper labels
-          const prevQuestion = reconstructPreviousQuestionFromCandidates(prevState, candidates)
-
-          let questionOptions = prevQuestion ? buildQuestionAlignedOptions(prevQuestion) : []
-
-          // Priority 2: If user is confused, merge helper chips
-          if (userStateResult.state === "confused" || userStateResult.state === "wants_explanation" || userStateResult.state === "wants_delegation") {
-            const helperOptions = buildConfusionHelperOptions(prevQuestion, userStateResult.confusedAbout)
-            questionOptions = deduplicateOptions([...helperOptions, ...questionOptions])
-            console.log(`[option-first] User state: ${userStateResult.state}, ${helperOptions.length} helpers merged (field=${prevQuestion?.field ?? "none"})`)
-          }
-
-          if (questionOptions.length > 0) {
-            finalChips = smartOptionsToChips(questionOptions)
-            finalDisplayedOptions = smartOptionsToDisplayedOptions(questionOptions)
-            console.log(`[option-first] State-based pending question field="${prevState.lastAskedField}", ${finalChips.length} chips`)
-          }
-        } else if (userStateResult.state === "confused" || userStateResult.state === "wants_explanation" || userStateResult.state === "wants_delegation") {
-          // No pending question in current response, but user is confused
-          // → reconstruct from CANDIDATES (not accumulated state) + merge original field options
-          const prevQuestion = reconstructPreviousQuestionFromCandidates(prevState, candidates)
-          const helperOptions = buildConfusionHelperOptions(prevQuestion, userStateResult.confusedAbout)
-          const originalOptions = prevQuestion
-            ? buildQuestionAlignedOptions(prevQuestion)
-            : []
-          const mergedOptions = deduplicateOptions([...helperOptions, ...originalOptions])
-          if (mergedOptions.length > 0) {
-            finalChips = smartOptionsToChips(mergedOptions)
-            finalDisplayedOptions = smartOptionsToDisplayedOptions(mergedOptions)
-            console.log(`[question-assist] User ${userStateResult.state}, ${helperOptions.length} helpers + ${originalOptions.length} field options (field=${prevQuestion?.field ?? "none"})`)
-          }
-        }
-
         // ── Post-Answer Validator: strip unauthorized actions from answer ──
         // Direction: displayedOptions → constrain answer (NEVER answer → add chips)
         const answerValidation = validateOptionFirstPipeline(llmResponse.text, finalChips, finalDisplayedOptions)
@@ -761,9 +683,6 @@ export async function handleServeExploration(
         }
 
         // ── Question Assist: preserve question mode if pending field exists ──
-        const isQuestionAssist = !!prevState.lastAskedField
-          && !prevState.resolutionStatus?.startsWith("resolved")
-          && (userStateResult.state === "confused" || userStateResult.state === "wants_explanation" || userStateResult.state === "wants_delegation")
         const effectiveMode = isQuestionAssist ? "question" : "general_chat"
         const effectivePurpose = isQuestionAssist ? "question" : "general_chat"
 
@@ -1034,133 +953,6 @@ function getDefaultChips(input: RecommendationInput): string[] {
   if (!input.diameterMm) return ["2mm", "4mm", "6mm", "8mm", "10mm", "12mm"]
   if (!input.flutePreference) return ["2날", "3날", "4날", "6날", "상관없음"]
   return ["추천 받기", "다른 조건으로", "경쟁사 비교"]
-}
-
-/**
- * Reconstruct a PendingQuestion from the previous session state.
- * Used when the user is confused about options that were shown in the previous turn.
- */
-function reconstructPreviousQuestion(
-  prevState: ExplorationSessionState
-): import("@/lib/recommendation/domain/context/pending-question-detector").PendingQuestion | null {
-  const field = prevState.lastAskedField ?? null
-  const prevOptions = prevState.displayedOptions ?? []
-  const prevChips = prevState.displayedChips ?? []
-
-  // Extract option values from displayedOptions (structured)
-  let extractedOptions: string[] = []
-  if (prevOptions.length > 0) {
-    extractedOptions = prevOptions
-      .map(o => o.value)
-      .filter(v => v && !["상관없음", "skip", "처음부터 다시", "⟵ 이전 단계", "추천해주세요"].includes(v))
-  } else if (prevChips.length > 0) {
-    // Fallback: extract from chips
-    extractedOptions = prevChips
-      .filter(c => !["상관없음", "⟵ 이전 단계", "처음부터 다시", "추천해주세요"].includes(c))
-      .map(c => c.replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim())
-      .filter(c => c.length > 0)
-  }
-
-  if (extractedOptions.length === 0) return null
-
-  return {
-    shape: "constrained_options",
-    questionText: "",
-    extractedOptions,
-    field,
-    isBinary: false,
-    hasExplicitChoices: true,
-  }
-}
-
-/**
- * Reconstruct pending question from CANDIDATE DATA (not prevState.displayedOptions).
- * Prevents helper label accumulation across repeated question-assist turns.
- */
-function reconstructPreviousQuestionFromCandidates(
-  prevState: ExplorationSessionState,
-  currentCandidates: ScoredProduct[]
-): import("@/lib/recommendation/domain/context/pending-question-detector").PendingQuestion | null {
-  const field = prevState.lastAskedField ?? null
-  if (!field) return null
-
-  // Build options from actual candidate data, NOT from accumulated state.
-  // If currentCandidates is empty (retrieval skipped), use displayedCandidates from state.
-  const fieldGetter: Record<string, (p: { product: Record<string, unknown> }) => string | number | null> = {
-    fluteCount: p => (p.product.fluteCount as number) ?? null,
-    coating: p => (p.product.coating as string) ?? null,
-    seriesName: p => (p.product.seriesName as string) ?? null,
-    toolSubtype: p => (p.product.toolSubtype as string) ?? null,
-    toolMaterial: p => (p.product.toolMaterial as string) ?? null,
-    diameterRefine: p => (p.product.diameterMm as number) ?? null,
-  }
-  const getter = fieldGetter[field]
-  if (!getter) return reconstructPreviousQuestion(prevState)
-
-  // Try currentCandidates first, fall back to displayedCandidates snapshot
-  const candidateSource: Array<{ product: Record<string, unknown> }> =
-    currentCandidates.length > 0
-      ? currentCandidates
-      : (prevState.displayedCandidates ?? []).map(c => ({
-          product: { fluteCount: c.fluteCount, coating: c.coating, seriesName: c.seriesName, toolSubtype: (c as any).toolSubtype, toolMaterial: c.toolMaterial, diameterMm: c.diameterMm }
-        }))
-
-  if (candidateSource.length === 0) return reconstructPreviousQuestion(prevState)
-
-  const valueCounts = new Map<string, number>()
-  for (const c of candidateSource) {
-    const val = getter(c)
-    if (val != null) {
-      const strVal = field === "fluteCount" ? `${val}날` : String(val)
-      valueCounts.set(strVal, (valueCounts.get(strVal) ?? 0) + 1)
-    }
-  }
-  if (valueCounts.size > 0) {
-    return {
-      shape: "constrained_options",
-      questionText: "",
-      extractedOptions: Array.from(valueCounts.entries())
-        .sort((a, b) => b[1] - a[1])
-        .map(([v]) => v),
-      field,
-      isBinary: false,
-      hasExplicitChoices: true,
-    }
-  }
-
-  return reconstructPreviousQuestion(prevState)
-}
-
-/**
- * Deduplicate options by id/label to prevent accumulation across turns.
- * Also sanitizes raw internal labels (e.g., "explain", "delegate").
- */
-function deduplicateOptions(
-  options: import("@/lib/recommendation/domain/options/types").SmartOption[]
-): import("@/lib/recommendation/domain/options/types").SmartOption[] {
-  const seen = new Set<string>()
-  const result: typeof options = []
-
-  // Label sanitization: internal keys → Korean labels
-  const LABEL_MAP: Record<string, string> = {
-    explain: "쉽게 설명해줘",
-    delegate: "추천으로 골라줘",
-  }
-
-  for (const opt of options) {
-    // Sanitize raw internal labels
-    if (LABEL_MAP[opt.label]) {
-      opt.label = LABEL_MAP[opt.label]
-    }
-
-    // Deduplicate by label
-    const key = opt.label.toLowerCase().replace(/\s+/g, "")
-    if (seen.has(key)) continue
-    seen.add(key)
-    result.push(opt)
-  }
-
-  return result
 }
 
 function generateFollowUpChips(userMessage: string, candidateCount: number): string[] {

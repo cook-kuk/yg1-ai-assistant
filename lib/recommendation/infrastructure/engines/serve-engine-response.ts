@@ -11,7 +11,6 @@ import {
   groupCandidatesBySeries,
   prepareRequest,
   runFactCheck,
-  runHybridRetrieval,
   selectNextQuestion,
 } from "@/lib/recommendation/domain/recommendation-domain"
 import {
@@ -21,6 +20,7 @@ import {
   buildSystemPrompt,
   getProvider,
 } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import { generateSmartOptionsForRecommendation } from "@/lib/recommendation/infrastructure/engines/serve-engine-option-first"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { RecommendationDisplayedProductRequestDto } from "@/lib/contracts/recommendation"
@@ -43,23 +43,13 @@ import type {
   ChatMessage,
 } from "@/lib/recommendation/domain/types"
 import {
-  generateSmartOptions,
-  type SmartOption,
-} from "@/lib/recommendation/domain/options"
-import {
-  extractCandidateFieldValues,
   smartOptionsToDisplayedOptions,
   smartOptionsToChips,
-  buildNarrowingPlannerContext,
-  buildPostRecommendationPlannerContext,
-  buildContextAwarePlannerContext,
 } from "@/lib/recommendation/domain/options/option-bridge"
 import { buildQuestionAlignedOptions, buildConfusionHelperOptions } from "@/lib/recommendation/domain/options/question-option-builder"
 import { detectUserState } from "@/lib/recommendation/domain/context/user-understanding-detector"
 import { buildChipContext } from "@/lib/recommendation/domain/context/chip-context-builder"
 import { rerankChipsWithLLM } from "@/lib/recommendation/domain/options/llm-chip-reranker"
-import { generateContextualChips } from "@/lib/recommendation/domain/options/contextual-chip-generator"
-import { checkAnswerChipDivergence, fixChipDivergence } from "@/lib/recommendation/domain/options/divergence-guard"
 import { validateOptionFirstPipeline } from "@/lib/recommendation/domain/options/option-validator"
 
 type DisplayedProduct = RecommendationDisplayedProductRequestDto
@@ -744,123 +734,4 @@ function extractFieldValuesFromSnapshot(
     }
   }
   return result
-}
-
-// ════════════════════════════════════════════════════════════════
-// SMART OPTION ENGINE INTEGRATION
-// ════════════════════════════════════════════════════════════════
-
-function generateSmartOptionsForQuestion(
-  candidates: ScoredProduct[],
-  filters: AppliedFilter[],
-  input: RecommendationInput,
-  lastAskedField?: string | null,
-  form?: ProductIntakeForm | null,
-  sessionState?: ExplorationSessionState | null,
-  userMessage?: string | null
-): SmartOption[] {
-  if (candidates.length === 0) return []
-
-  // Use context-aware planning when form and session are available
-  if (form) {
-    const { plannerCtx, interpretation } = buildContextAwarePlannerContext(
-      form, sessionState ?? null, input, userMessage ?? null,
-      candidates, filters, lastAskedField ?? undefined
-    )
-
-    return generateSmartOptions({
-      plannerCtx,
-      simulatorCtx: {
-        candidateCount: candidates.length,
-        appliedFilters: filters,
-        candidateFieldValues: extractCandidateFieldValues(candidates),
-      },
-      rankerCtx: {
-        candidateCount: candidates.length,
-        filterCount: filters.length,
-        hasRecommendation: false,
-        contextInterpretation: interpretation,
-      },
-    })
-  }
-
-  // Fallback: basic planning
-  const plannerCtx = buildNarrowingPlannerContext(candidates, filters, input, lastAskedField ?? undefined)
-  const fieldValues = extractCandidateFieldValues(candidates)
-
-  return generateSmartOptions({
-    plannerCtx,
-    simulatorCtx: {
-      candidateCount: candidates.length,
-      appliedFilters: filters,
-      candidateFieldValues: fieldValues,
-    },
-    rankerCtx: {
-      candidateCount: candidates.length,
-      filterCount: filters.length,
-      hasRecommendation: false,
-    },
-  })
-}
-
-function generateSmartOptionsForRecommendation(
-  candidateSnapshot: CandidateSnapshot[],
-  filters: AppliedFilter[],
-  input: RecommendationInput,
-  form?: ProductIntakeForm | null,
-  sessionState?: ExplorationSessionState | null,
-  userMessage?: string | null
-): SmartOption[] {
-  if (candidateSnapshot.length === 0) return []
-
-  // Use context-aware planning when form and session are available
-  if (form && sessionState) {
-    // Build a lightweight ScoredProduct-like array for the bridge
-    const { plannerCtx, interpretation } = buildContextAwarePlannerContext(
-      form, sessionState, input, userMessage ?? null,
-      [], // no raw candidates needed for post-rec
-      filters
-    )
-    // Override with actual snapshot data for top candidates
-    plannerCtx.topCandidates = candidateSnapshot.slice(0, 5).map(c => ({
-      displayCode: c.displayCode,
-      seriesName: c.seriesName,
-      coating: c.coating,
-      fluteCount: c.fluteCount,
-      diameterMm: c.diameterMm,
-      score: c.score,
-      matchStatus: c.matchStatus,
-    }))
-    plannerCtx.candidateCount = candidateSnapshot.length
-
-    return generateSmartOptions({
-      plannerCtx,
-      simulatorCtx: {
-        candidateCount: candidateSnapshot.length,
-        appliedFilters: filters,
-      },
-      rankerCtx: {
-        candidateCount: candidateSnapshot.length,
-        filterCount: filters.length,
-        hasRecommendation: true,
-        contextInterpretation: interpretation,
-      },
-    })
-  }
-
-  // Fallback: basic planning
-  const plannerCtx = buildPostRecommendationPlannerContext(candidateSnapshot, filters, input)
-
-  return generateSmartOptions({
-    plannerCtx,
-    simulatorCtx: {
-      candidateCount: candidateSnapshot.length,
-      appliedFilters: filters,
-    },
-    rankerCtx: {
-      candidateCount: candidateSnapshot.length,
-      filterCount: filters.length,
-      hasRecommendation: true,
-    },
-  })
 }
