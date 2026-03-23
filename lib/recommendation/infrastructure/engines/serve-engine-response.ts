@@ -60,6 +60,7 @@ import { buildChipContext } from "@/lib/recommendation/domain/context/chip-conte
 import { rerankChipsWithLLM } from "@/lib/recommendation/domain/options/llm-chip-reranker"
 import { generateContextualChips } from "@/lib/recommendation/domain/options/contextual-chip-generator"
 import { checkAnswerChipDivergence, fixChipDivergence } from "@/lib/recommendation/domain/options/divergence-guard"
+import { validateOptionFirstPipeline } from "@/lib/recommendation/domain/options/option-validator"
 
 type DisplayedProduct = RecommendationDisplayedProductRequestDto
 type JsonRecommendationResponse = (
@@ -231,10 +232,10 @@ export async function buildQuestionResponse(
 
   // ── Post-Answer Validator: strip unauthorized actions from answer ──
   // Direction: displayedOptions → constrain answer (NEVER answer → add chips)
-  const divergenceCheck = checkAnswerChipDivergence(responseText, finalResponseChips, finalDisplayedOptions)
-  if (divergenceCheck.hasDivergence && divergenceCheck.correctedAnswer) {
-    responseText = divergenceCheck.correctedAnswer
-    console.log(`[answer-validator:question] Softened unauthorized actions: ${divergenceCheck.unauthorizedActions.join(",")}`)
+  const questionValidation = validateOptionFirstPipeline(responseText, finalResponseChips, finalDisplayedOptions)
+  if (questionValidation.correctedAnswer) {
+    responseText = questionValidation.correctedAnswer
+    console.log(`[answer-validator:question] Softened unauthorized actions: ${questionValidation.unauthorizedActions.map(a => a.phrase).join(",")}`)
   }
 
   return deps.jsonRecommendationResponse({
@@ -379,46 +380,22 @@ export async function buildRecommendationResponse(
   }
 
   const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
-  // Use contextual chip generation instead of hardcoded getFollowUpChips
-  const recResponseText = recommendation.llmSummary ?? deterministicSummary
   const recLastUserMsg = messages.length > 0
     ? [...messages].reverse().find(m => m.role === "user")?.text ?? null
     : null
-  const recChipCtx: import("@/lib/recommendation/domain/options/contextual-chip-generator").ChipGenerationContext = {
-    assistantText: recResponseText,
-    userMessage: recLastUserMsg,
-    mode: "recommendation",
-    resolvedConditions: {
-      material: input.material ?? null,
-      operationType: input.operationType ?? null,
-      diameterMm: input.diameterMm ?? null,
-      fluteCount: input.flutePreference ?? null,
-      coating: input.coatingPreference ?? null,
-    },
-    appliedFilters: filters.filter(f => f.op !== "skip").map(f => ({ field: f.field, value: f.value })),
-    candidateCount: candidates.length,
-    displayedProducts: candidateSnapshot.slice(0, 5).map(c => ({ code: c.displayCode, series: c.seriesName, coating: c.coating })),
-    lastAskedField: null,
-    recentTurns: messages.slice(-8).map(m => ({ role: m.role, text: m.text })),
-    recommendationStatus: checkResolution(candidates, history),
-    candidateFieldValues: extractFieldValuesFromSnapshot(candidateSnapshot),
-    conversationMemory: null,
-    recentFrame: recLastUserMsg
-      ? (await import("@/lib/recommendation/domain/context/recent-interaction-frame")).buildRecentInteractionFrame(
-          recResponseText, recLastUserMsg, null
-        )
-      : null,
-  }
-  const contextualRecChips = await generateContextualChips(recChipCtx, provider)
-  const followUpChips = contextualRecChips.chips.length >= 2
-    ? contextualRecChips.chips
-    : getFollowUpChips(recommendation) // fallback to deterministic if LLM fails
+
+  // ── Option-first: structured options FIRST, then derive chips ──
+  // NEVER generate chips from answer text. displayedOptions → chips.
   const postRecOptions = generateSmartOptionsForRecommendation(
     candidateSnapshot, filters, input, form, null, recLastUserMsg
   )
   const postRecDisplayedOptions = postRecOptions.length > 0
     ? smartOptionsToDisplayedOptions(postRecOptions)
     : []
+  // Derive chips from structured options; fallback to deterministic if no smart options
+  const followUpChips = postRecOptions.length > 0
+    ? smartOptionsToChips(postRecOptions)
+    : getFollowUpChips(recommendation)
 
   const displayedSeriesGroups = groupCandidatesBySeries(candidateSnapshot)
   const sessionState = buildSessionState({
@@ -462,12 +439,17 @@ export async function buildRecommendationResponse(
     }).catch(() => {})
   }
 
-  // ── Option-first: recommendation chips are derived from structured state ──
-  // Text-to-chip synthesis is NOT allowed. followUpChips are already structured.
+  // ── Post-Answer Validator: strip unauthorized actions from answer ──
+  // Direction: displayedOptions → constrain answer (NEVER answer → add chips)
   const finalRecChips = followUpChips
-  const finalResponseText = status === "none"
+  let finalResponseText = status === "none"
     ? "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요."
     : responseText
+  const recValidation = validateOptionFirstPipeline(finalResponseText, finalRecChips, postRecDisplayedOptions)
+  if (recValidation.correctedAnswer) {
+    finalResponseText = recValidation.correctedAnswer
+    console.log(`[answer-validator:recommendation] Softened unauthorized actions: ${recValidation.unauthorizedActions.map(a => a.phrase).join(",")}`)
+  }
 
   return deps.jsonRecommendationResponse({
     text: finalResponseText,

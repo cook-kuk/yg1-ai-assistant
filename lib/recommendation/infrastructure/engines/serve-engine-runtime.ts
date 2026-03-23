@@ -23,7 +23,8 @@ import { ENABLE_TOOL_USE_ROUTING } from "@/lib/recommendation/infrastructure/con
 import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import { buildDisplayedOptions } from "@/lib/recommendation/infrastructure/engines/serve-engine-response"
 import { buildQuestionAlignedOptions, buildConfusionHelperOptions } from "@/lib/recommendation/domain/options/question-option-builder"
-import { smartOptionsToDisplayedOptions, smartOptionsToChips } from "@/lib/recommendation/domain/options/option-bridge"
+import { smartOptionsToDisplayedOptions, smartOptionsToChips, buildContextAwarePlannerContext } from "@/lib/recommendation/domain/options/option-bridge"
+import { generateSmartOptions } from "@/lib/recommendation/domain/options"
 import { detectUserState } from "@/lib/recommendation/domain/context/user-understanding-detector"
 import { buildChipContext } from "@/lib/recommendation/domain/context/chip-context-builder"
 import { rerankChipsWithLLM } from "@/lib/recommendation/domain/options/llm-chip-reranker"
@@ -40,6 +41,7 @@ import {
 } from "@/lib/recommendation/domain/memory/conversation-memory"
 import { buildUnifiedTurnContext, type UnifiedTurnContext } from "@/lib/recommendation/domain/context/turn-context-builder"
 import { checkAnswerChipDivergence, fixChipDivergence } from "@/lib/recommendation/domain/options/divergence-guard"
+import { validateOptionFirstPipeline } from "@/lib/recommendation/domain/options/option-validator"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { RecommendationDisplayedProductRequestDto } from "@/lib/contracts/recommendation"
@@ -292,10 +294,29 @@ export async function handleServeExploration(
           ? "몇 날로 변경하시겠어요?"
           : "어떤 조건을 변경하시겠어요?"
 
-        // Context-based chip generation instead of hardcoded refinement chips
-        const refineChipCtx = buildChipGenContext(refinementText, lastUserMsg.text, "refinement", currentInput, filters, prevState, messages, candidates)
-        const refineChipResult = await generateContextualChips(refineChipCtx, provider)
-        const refinementChips = refineChipResult.chips
+        // ── Option-first: build structured options FIRST, then derive chips ──
+        const { plannerCtx: refinePlannerCtx } = buildContextAwarePlannerContext(
+          form, prevState, currentInput, lastUserMsg.text,
+          candidates, filters, field
+        )
+        const refineSmartOptions = generateSmartOptions({
+          plannerCtx: refinePlannerCtx,
+          simulatorCtx: {
+            candidateCount: candidates.length,
+            appliedFilters: filters.map(f => ({ field: f.field, op: f.op, value: f.value, rawValue: f.rawValue })),
+          },
+          rankerCtx: {
+            candidateCount: candidates.length,
+            filterCount: filters.length,
+            hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
+          },
+        })
+        const refineDisplayedOptions = refineSmartOptions.length > 0
+          ? smartOptionsToDisplayedOptions(refineSmartOptions)
+          : buildDisplayedOptions(buildRefinementChips(field, "ko"), field)
+        const refinementChips = refineSmartOptions.length > 0
+          ? smartOptionsToChips(refineSmartOptions)
+          : buildRefinementChips(field, "ko")
 
         const sessionState = carryForwardState(prevState, {
           candidateCount: prevState.candidateCount ?? candidates.length,
@@ -306,7 +327,7 @@ export async function handleServeExploration(
           turnCount,
           displayedCandidates: prevState.displayedCandidates ?? [],
           displayedChips: refinementChips,
-          displayedOptions: buildDisplayedOptions(refinementChips, field),
+          displayedOptions: refineDisplayedOptions,
           currentMode: "question",
           lastAction: "ask_clarification",
           lastAskedField: field,
@@ -338,6 +359,16 @@ export async function handleServeExploration(
         const targets = resolveProductReferences(action.targets, snapshot)
         const compResult = await compareProducts(targets, evidenceMap, provider)
 
+        // ── Option-first: build structured comparison options ──
+        const compOptions: import("@/lib/recommendation/domain/options/types").SmartOption[] = [
+          { id: "comp-recommend", family: "action", label: "추천해주세요", value: "추천해주세요", plan: { type: "apply_filter", patches: [] }, projectedCount: null, projectedDelta: null, preservesContext: true, destructive: false, recommended: true, priorityScore: 90 },
+          { id: "comp-other", family: "explore", label: "다른 조건으로", value: "다른 조건으로", plan: { type: "branch_session", patches: [] }, projectedCount: null, projectedDelta: null, preservesContext: false, destructive: false, recommended: false, priorityScore: 70 },
+          { id: "comp-back", family: "action", label: "⟵ 이전 단계", value: "⟵ 이전 단계", plan: { type: "apply_filter", patches: [] }, projectedCount: null, projectedDelta: null, preservesContext: true, destructive: false, recommended: false, priorityScore: 50 },
+          { id: "comp-reset", family: "reset", label: "처음부터 다시", value: "처음부터 다시", plan: { type: "reset_session", patches: [] }, projectedCount: null, projectedDelta: null, preservesContext: false, destructive: true, recommended: false, priorityScore: 10 },
+        ]
+        const compDisplayedOptions = smartOptionsToDisplayedOptions(compOptions)
+        const compChips = smartOptionsToChips(compOptions)
+
         const sessionState = carryForwardState(prevState, {
           candidateCount: candidates.length,
           appliedFilters: filters,
@@ -346,15 +377,24 @@ export async function handleServeExploration(
           resolvedInput: currentInput,
           turnCount,
           displayedCandidates: snapshot,
-          displayedChips: ["추천해주세요", "다른 조건으로", "⟵ 이전 단계", "처음부터 다시"],
-          displayedOptions: [],
+          displayedChips: compChips,
+          displayedOptions: compDisplayedOptions,
           currentMode: "comparison",
           lastAction: "compare_products",
         })
+
+        // ── Post-Answer Validator: constrain comparison answer ──
+        let compAnswerText = compResult.text
+        const compValidation = validateOptionFirstPipeline(compAnswerText, compChips, compDisplayedOptions)
+        if (compValidation.correctedAnswer) {
+          compAnswerText = compValidation.correctedAnswer
+          console.log(`[answer-validator:compare] Softened: ${compValidation.unauthorizedActions.map(a => a.phrase).join(",")}`)
+        }
+
         return deps.jsonRecommendationResponse({
-          text: compResult.text,
+          text: compAnswerText,
           purpose: "comparison",
-          chips: ["추천해주세요", "다른 조건으로", "⟵ 이전 단계", "처음부터 다시"],
+          chips: compChips,
           isComplete: false,
           recommendation: null,
           sessionState,
@@ -374,6 +414,22 @@ export async function handleServeExploration(
       if (action.type === "explain_product" || action.type === "answer_general") {
         const inventoryReply = await deps.handleDirectInventoryQuestion(lastUserMsg.text, prevState)
         if (inventoryReply) {
+          // ── Option-first: preserve existing state displayedOptions ──
+          // Handler-generated chips are informational context, not actionable options.
+          // Carry forward structured displayedOptions from previous state.
+          const invChips = prevState.displayedChips?.length > 0
+            ? prevState.displayedChips
+            : inventoryReply.chips
+          const invDisplayedOptions = prevState.displayedOptions ?? []
+
+          // ── Post-Answer Validator ──
+          let invAnswerText = inventoryReply.text
+          const invValidation = validateOptionFirstPipeline(invAnswerText, invChips, invDisplayedOptions)
+          if (invValidation.correctedAnswer) {
+            invAnswerText = invValidation.correctedAnswer
+            console.log(`[answer-validator:inventory] Softened: ${invValidation.unauthorizedActions.map(a => a.phrase).join(",")}`)
+          }
+
           const sessionState = carryForwardState(prevState, {
             candidateCount: prevState.candidateCount ?? candidates.length,
             appliedFilters: filters,
@@ -382,15 +438,15 @@ export async function handleServeExploration(
             resolvedInput: currentInput,
             turnCount,
             displayedCandidates: prevState.displayedCandidates ?? [],
-            displayedChips: inventoryReply.chips,
-            displayedOptions: prevState.displayedOptions ?? [],
+            displayedChips: invChips,
+            displayedOptions: invDisplayedOptions,
             currentMode: "general_chat",
             lastAction: "answer_general",
           })
           return deps.jsonRecommendationResponse({
-            text: inventoryReply.text,
+            text: invAnswerText,
             purpose: "general_chat",
-            chips: inventoryReply.chips,
+            chips: invChips,
             isComplete: false,
             recommendation: null,
             sessionState,
@@ -409,6 +465,20 @@ export async function handleServeExploration(
 
         const cuttingConditionReply = await deps.handleDirectCuttingConditionQuestion(lastUserMsg.text, currentInput, prevState)
         if (cuttingConditionReply) {
+          // ── Option-first: preserve existing state displayedOptions ──
+          const ccChips = prevState.displayedChips?.length > 0
+            ? prevState.displayedChips
+            : cuttingConditionReply.chips
+          const ccDisplayedOptions = prevState.displayedOptions ?? []
+
+          // ── Post-Answer Validator ──
+          let ccAnswerText = cuttingConditionReply.text
+          const ccValidation = validateOptionFirstPipeline(ccAnswerText, ccChips, ccDisplayedOptions)
+          if (ccValidation.correctedAnswer) {
+            ccAnswerText = ccValidation.correctedAnswer
+            console.log(`[answer-validator:cutting-condition] Softened: ${ccValidation.unauthorizedActions.map(a => a.phrase).join(",")}`)
+          }
+
           const sessionState = carryForwardState(prevState, {
             candidateCount: prevState.candidateCount ?? candidates.length,
             appliedFilters: filters,
@@ -417,15 +487,15 @@ export async function handleServeExploration(
             resolvedInput: currentInput,
             turnCount,
             displayedCandidates: prevState.displayedCandidates ?? [],
-            displayedChips: cuttingConditionReply.chips,
-            displayedOptions: prevState.displayedOptions ?? [],
+            displayedChips: ccChips,
+            displayedOptions: ccDisplayedOptions,
             currentMode: "general_chat",
             lastAction: "answer_general",
           })
           return deps.jsonRecommendationResponse({
-            text: cuttingConditionReply.text,
+            text: ccAnswerText,
             purpose: "general_chat",
-            chips: cuttingConditionReply.chips,
+            chips: ccChips,
             isComplete: false,
             recommendation: null,
             sessionState,
@@ -555,10 +625,12 @@ export async function handleServeExploration(
         const preGenerated = action.type === "answer_general" && action.preGenerated && action.message
         let llmResponse: { text: string; chips: string[] }
         if (preGenerated) {
-          // Generate contextual chips instead of hardcoded follow-up chips
-          const chipCtx = buildChipGenContext(action.message, lastUserMsg.text, "general_chat", currentInput, filters, prevState, messages, candidates)
-          const contextChips = await generateContextualChips(chipCtx, provider)
-          llmResponse = { text: action.message, chips: contextChips.chips }
+          // ── Option-first: use state-based chips, NOT LLM chip generation from answer text ──
+          // Preserve existing displayedChips from state; only use smart options if available
+          const stateChips = prevState.displayedChips?.length > 0
+            ? prevState.displayedChips
+            : ["처음부터 다시"]
+          llmResponse = { text: action.message, chips: stateChips }
         } else {
           llmResponse = await deps.handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form, prevState.displayedCandidates)
         }
@@ -631,10 +703,10 @@ export async function handleServeExploration(
 
         // ── Post-Answer Validator: strip unauthorized actions from answer ──
         // Direction: displayedOptions → constrain answer (NEVER answer → add chips)
-        const divergence = checkAnswerChipDivergence(llmResponse.text, finalChips, finalDisplayedOptions)
-        if (divergence.hasDivergence && divergence.correctedAnswer) {
-          llmResponse = { text: divergence.correctedAnswer, chips: llmResponse.chips }
-          console.log(`[answer-validator] Softened unauthorized actions: ${divergence.unauthorizedActions.join(",")}`)
+        const answerValidation = validateOptionFirstPipeline(llmResponse.text, finalChips, finalDisplayedOptions)
+        if (answerValidation.correctedAnswer) {
+          llmResponse = { text: answerValidation.correctedAnswer, chips: llmResponse.chips }
+          console.log(`[answer-validator:general] Softened unauthorized actions: ${answerValidation.unauthorizedActions.map(a => a.phrase).join(",")}`)
         }
 
         // ── Question Assist: preserve question mode if pending field exists ──
