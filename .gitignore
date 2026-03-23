@@ -31,3 +31,4 @@ next-env.d.ts
 scripts/pdf_pages.json
 scripts/pdf_full_text.txt
 data/feedback/
+__pycache__/
