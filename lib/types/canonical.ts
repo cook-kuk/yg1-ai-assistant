@@ -119,11 +119,21 @@ export const RecommendationInputSchema = z.object({
   material: z.string().optional(),       // Korean or English material name
   operationType: z.string().optional(),  // 황삭/정삭/고이송/측면/슬롯 etc.
   toolType: z.string().optional(),
+  toolMaterial: z.string().optional(),
   toolSubtype: z.string().optional(),
+  seriesName: z.string().optional(),
+  brand: z.string().optional(),
   diameterMm: z.number().optional(),
   diameterUnit: z.enum(["mm", "inch"]).optional(),
+  shankDiameterMm: z.number().optional(),
+  lengthOfCutMm: z.number().optional(),
+  overallLengthMm: z.number().optional(),
+  helixAngleDeg: z.number().optional(),
+  ballRadiusMm: z.number().optional(),
+  taperAngleDeg: z.number().optional(),
   flutePreference: z.number().optional(),
   coatingPreference: z.string().optional(),
+  coolantHole: z.boolean().optional(),
   manufacturerScope: z.enum(["yg1-only", "include-competitor"]).default("yg1-only"),
   locale: z.string().default("ko"),
   country: z.string().optional(),  // DB country codes from prod_edp_option_* tables, or "ALL"

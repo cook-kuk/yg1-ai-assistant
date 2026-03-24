@@ -20,6 +20,7 @@ import {
   buildComparisonOptionState,
   buildRefinementOptionState,
 } from "@/lib/recommendation/infrastructure/engines/serve-engine-option-first"
+import { replaceFieldFilter } from "@/lib/recommendation/infrastructure/engines/serve-engine-filter-state"
 import { detectUserState } from "@/lib/recommendation/domain/context/user-understanding-detector"
 import { buildUnifiedTurnContext } from "@/lib/recommendation/domain/context/turn-context-builder"
 import { validateOptionFirstPipeline } from "@/lib/recommendation/domain/options/option-validator"
@@ -168,7 +169,7 @@ export async function handleServeExploration(
 
   const provider = getProvider()
   const baseInput = deps.mapIntakeToInput(form)
-  const filters: AppliedFilter[] = prevState?.appliedFilters ?? []
+  const filters: AppliedFilter[] = [...(prevState?.appliedFilters ?? [])]
   const resolvedInput: RecommendationInput = prevState?.resolvedInput
     ? { ...baseInput, ...prevState.resolvedInput }
     : baseInput
@@ -225,7 +226,7 @@ export async function handleServeExploration(
     return buildResetResponse(deps, requestPrep)
   }
 
-  const narrowingHistory: NarrowingTurn[] = prevState?.narrowingHistory ?? []
+  const narrowingHistory: NarrowingTurn[] = [...(prevState?.narrowingHistory ?? [])]
   let currentInput = { ...resolvedInput }
   let turnCount = prevState?.turnCount ?? 0
 
@@ -559,8 +560,14 @@ export async function handleServeExploration(
         rawValue: "skip",
         appliedAt: turnCount,
       }
-      filters.push(skipFilter)
-      currentInput = deps.applyFilterToInput(currentInput, skipFilter)
+      const replacedSkipState = replaceFieldFilter(
+        baseInput,
+        filters,
+        skipFilter,
+        deps.applyFilterToInput
+      )
+      filters.splice(0, filters.length, ...replacedSkipState.nextFilters)
+      currentInput = replacedSkipState.nextInput
 
       const newResult = await runHybridRetrieval(currentInput, filters.filter(filter => filter.op !== "skip"))
       narrowingHistory.push({
@@ -571,6 +578,10 @@ export async function handleServeExploration(
         candidateCountAfter: newResult.candidates.length,
       })
       turnCount += 1
+
+      if (replacedSkipState.replacedExisting) {
+        console.log(`[orchestrator:replace] ${skipField} -> skip | filters rebuilt=${filters.length}`)
+      }
 
       const statusAfterSkip = checkResolution(newResult.candidates, narrowingHistory)
       if (statusAfterSkip.startsWith("resolved")) {
@@ -623,8 +634,14 @@ export async function handleServeExploration(
         }
       }
 
-      const testInput = deps.applyFilterToInput(currentInput, filter)
-      const testFilters = [...filters, filter]
+      const nextFilterState = replaceFieldFilter(
+        baseInput,
+        filters,
+        filter,
+        deps.applyFilterToInput
+      )
+      const testInput = nextFilterState.nextInput
+      const testFilters = nextFilterState.nextFilters
       const testResult = await runHybridRetrieval(testInput, testFilters)
 
       if (testResult.candidates.length === 0) {
@@ -644,7 +661,7 @@ export async function handleServeExploration(
         )
       }
 
-      filters.push(filter)
+      filters.splice(0, filters.length, ...testFilters)
       currentInput = testInput
       const newCandidates = testResult.candidates
       const previousCandidateCount = candidates.length
@@ -671,6 +688,9 @@ export async function handleServeExploration(
       console.log(
         `[orchestrator:filter] ${filter.field}=${filter.value} | ${previousCandidateCount}->${newCandidates.length} candidates | stages: ${updatedStages.map(stage => stage.stageName).join(" -> ")}`
       )
+      if (nextFilterState.replacedExisting) {
+        console.log(`[orchestrator:replace] ${filter.field} updated to ${filter.value}`)
+      }
 
       turnCount += 1
       const newStatus = checkResolution(newCandidates, narrowingHistory)
