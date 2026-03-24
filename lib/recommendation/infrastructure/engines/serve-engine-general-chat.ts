@@ -59,6 +59,11 @@ export interface ServeEngineGeneralChatDependencies {
     userMessage: string,
     prevState: ExplorationSessionState
   ) => Promise<QuestionReply>
+  handleDirectEntityProfileQuestion: (
+    userMessage: string,
+    currentInput: RecommendationInput,
+    prevState: ExplorationSessionState | null
+  ) => Promise<QuestionReply>
   handleDirectBrandReferenceQuestion: (
     userMessage: string,
     currentInput: RecommendationInput,
@@ -341,6 +346,33 @@ export async function handleServeGeneralChatAction(
         actionType: "answer_general",
         pendingQuestionField: prevState.lastAskedField ?? null,
         recentFrameRelation: "inventory_reply",
+        displayedOptions: prevState.displayedOptions ?? [],
+      }),
+    )
+  }
+
+  const entityProfileReply = await deps.handleDirectEntityProfileQuestion(lastUserMessage, currentInput, prevState)
+  if (entityProfileReply) {
+    return buildValidatedReplyResponse(
+      deps,
+      prevState,
+      filters,
+      narrowingHistory,
+      currentInput,
+      turnCount,
+      lastUserMessage,
+      entityProfileReply,
+      "entity-profile",
+      {
+        purpose: "general_chat",
+        currentMode: "general_chat",
+        lastAction: "answer_general",
+      },
+      orchResult,
+      buildProcessTrace({
+        actionType: "answer_general",
+        pendingQuestionField: prevState.lastAskedField ?? null,
+        recentFrameRelation: "entity_profile",
         displayedOptions: prevState.displayedOptions ?? [],
       }),
     )

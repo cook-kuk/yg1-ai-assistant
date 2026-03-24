@@ -19,6 +19,11 @@ export interface ServeEngineSimpleChatDependencies {
   jsonRecommendationResponse: JsonRecommendationResponse
   getFollowUpChips: (result: RecommendationResult) => string[]
   buildSourceSummary: (primary: { product: { rawSourceFile: string; rawSourceSheet?: string | null; sourceConfidence?: string | null } } | null) => string[]
+  handleDirectEntityProfileQuestion: (
+    userMessage: string,
+    currentInput: RecommendationInput,
+    prevState: null
+  ) => Promise<{ text: string; chips: string[] } | null>
   handleDirectBrandReferenceQuestion: (
     userMessage: string,
     currentInput: RecommendationInput,
@@ -48,6 +53,20 @@ export async function handleServeSimpleChat(
 
   const latestUserMsg = [...messages].reverse().find(message => message.role === "user")?.text ?? ""
   const baseInput = normalizeInput(latestUserMsg)
+  const entityProfileReply = await deps.handleDirectEntityProfileQuestion(latestUserMsg, baseInput, null)
+  if (entityProfileReply) {
+    return deps.jsonRecommendationResponse({
+      text: entityProfileReply.text,
+      purpose: "general_chat",
+      chips: entityProfileReply.chips,
+      isComplete: false,
+      recommendation: null,
+      sessionState: null,
+      evidenceSummaries: null,
+      candidateSnapshot: null,
+    })
+  }
+
   const brandReferenceReply = await deps.handleDirectBrandReferenceQuestion(latestUserMsg, baseInput, null)
   if (brandReferenceReply) {
     return deps.jsonRecommendationResponse({

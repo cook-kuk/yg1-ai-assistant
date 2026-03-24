@@ -1,11 +1,16 @@
 import {
   BrandReferenceRepo,
   EvidenceRepo,
+  EntityProfileRepo,
   InventoryRepo,
   ProductRepo,
+  type BrandProfileRecord,
+  type SeriesProfileRecord,
 } from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
+import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-target-classifier"
 import { resolveMaterialTag } from "@/lib/recommendation/domain/recommendation-domain"
 import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 
 import type {
   CandidateSnapshot,
@@ -20,6 +25,10 @@ const DIRECT_SERIES_CODE_PATTERN = /\b([A-Z]\d[A-Z]\d{2,}[A-Z]?)\b/i
 const CUTTING_CONDITION_QUERY_PATTERN = /절삭조건|가공조건|vc|fz|이송|회전수|rpm|feed/i
 const INVENTORY_QUERY_PATTERN = /재고|stock|inventory|available|availability|수량|남았/i
 const BRAND_REFERENCE_TRIGGER_PATTERN = /(브랜드|brand).*(추천|기준|표|어떤|무슨|뭐|찾|조회)|(?:iso\s*[pmknsh]|hrc|경도|피삭재|소재).*(브랜드|brand)/i
+const ENTITY_PROFILE_TRIGGER_PATTERN = /시리즈|series|브랜드|brand|차이|비교|vs|대비|특징|용도|적합|형상|설명|몇\s*날|날\s*수|날수|플루트|어떤\s*제품|무슨\s*제품/i
+const SERIES_NAME_ENTITY_PATTERN = /\b(?:ALU[-\s]?CUT(?:\s+(?:POWER|HPC|for\s+Korean\s+Market))?|TANK[-\s]?POWER|X[-\s]?POWER|I[-\s]?POWER|V[-\s]?POWER|ALU[-\s]?MILL|ALU[-\s]?POWER(?:\s+HPC)?|INOX[-\s]?POWER|[A-Z]{2,5}\d{2,4}[A-Z]?|[A-Z]{1,4}\d[A-Z]{1,3}\d{2,4}[A-Z]?)\b/gi
+const BRAND_NAME_ENTITY_PATTERN = /\b(?:E[·∙ㆍ.]?\s*FORCE(?:\s+BLUE)?(?:\s+for\s+Korean\s+Market)?|4G\s*MILLS(?:\s*-\s*KOR)?|SUPER\s+ALLOY|X5070\s*S)\b/gi
+const ENTITY_COMPARISON_PATTERN = /([A-Z0-9][A-Z0-9·∙ㆍ.\-\s]{1,40}?)\s*(?:vs\.?|VS\.?|와|과|이랑|랑|대비)\s*([A-Z0-9][A-Z0-9·∙ㆍ.\-\s]{1,40}?)(?=\s*(?:의|은|는|이|가|를|을|차이|비교|특징|설명|$))/giu
 const CUTTING_KNOWLEDGE_PATTERNS = /절삭|공구|엔드밀|드릴|인서트|코팅|소재|가공|선반|밀링|CNC|초경|CBN|세라믹|황삭|정삭|면취|보링|리머|탭|나사|칩|인선|마모|수명|이송|회전|절입|쿨란트|치핑|버|진동|채터|tialn|alcrn|dlc|hss|carbide|endmill|milling|turning|drilling/i
 
 const WORK_PIECE_ALIASES: Array<{ canonical: string; patterns: RegExp[] }> = [
@@ -59,6 +68,13 @@ const WORK_PIECE_ALIASES: Array<{ canonical: string; patterns: RegExp[] }> = [
 
 function normalizeLookupCode(value: string): string {
   return value.toUpperCase().replace(/[\s-]/g, "").trim()
+}
+
+function normalizeEntityLookupKey(value: string): string {
+  return value
+    .trim()
+    .toUpperCase()
+    .replace(/[\s\-·∙ㆍ./(),]+/g, "")
 }
 
 function escapeMarkdownTableCell(value: string | number | null | undefined): string {
@@ -107,6 +123,429 @@ function formatHrcRange(min: number | null, max: number | null): string {
   if (min != null) return `${min}+`
   if (max != null) return `~${max}`
   return "-"
+}
+
+function compactList(values: string[], max = 5): string {
+  const unique = Array.from(new Set(values.map(value => value.trim()).filter(Boolean)))
+  if (unique.length === 0) return "-"
+  if (unique.length <= max) return unique.join(", ")
+  return `${unique.slice(0, max).join(", ")} 외 ${unique.length - max}개`
+}
+
+function formatDiameterRange(min: number | null, max: number | null): string {
+  if (min != null && max != null) return `φ${min}~${max}mm`
+  if (min != null) return `φ${min}mm+`
+  if (max != null) return `~φ${max}mm`
+  return "-"
+}
+
+function formatFluteCounts(values: number[]): string {
+  const unique = Array.from(new Set(values)).sort((a, b) => a - b)
+  if (unique.length === 0) return "-"
+  return unique.map(value => `${value}날`).join(", ")
+}
+
+function dedupeEntityNames(values: string[]): string[] {
+  const seen = new Set<string>()
+  const names: string[] = []
+  for (const raw of values) {
+    const name = raw.trim()
+    const normalized = normalizeEntityLookupKey(name)
+    if (!normalized || seen.has(normalized)) continue
+    seen.add(normalized)
+    names.push(name)
+  }
+  return names
+}
+
+function extractEntityNamesFromMessage(userMessage: string): string[] {
+  const queryTarget = classifyQueryTarget(userMessage, null, null)
+  const names: string[] = [...queryTarget.entities]
+  names.push(...(userMessage.match(SERIES_NAME_ENTITY_PATTERN) ?? []))
+  names.push(...(userMessage.match(BRAND_NAME_ENTITY_PATTERN) ?? []))
+
+  for (const match of userMessage.matchAll(ENTITY_COMPARISON_PATTERN)) {
+    names.push(match[1], match[2])
+  }
+
+  return dedupeEntityNames(names)
+}
+
+function buildUnmatchedEntityNote(requestedNames: string[], matchedNames: string[]): string {
+  if (requestedNames.length === 0) return ""
+
+  const matched = new Set(matchedNames.map(normalizeEntityLookupKey))
+  const missing = requestedNames.filter(name => !matched.has(normalizeEntityLookupKey(name)))
+  if (missing.length === 0) return ""
+  return `일부 이름은 뷰에서 찾지 못했습니다: ${missing.join(", ")}`
+}
+
+function getSeriesProfileLabel(profile: SeriesProfileRecord): string {
+  return profile.seriesName ?? profile.normalizedSeriesName
+}
+
+function getBrandProfileLabel(profile: BrandProfileRecord): string {
+  return profile.brandName ?? profile.normalizedBrandName
+}
+
+function buildSeriesSummaryRows(profile: SeriesProfileRecord): Array<[string, string]> {
+  return [
+    ["시리즈", getSeriesProfileLabel(profile)],
+    ["브랜드", profile.primaryBrandName ?? "-"],
+    ["설명", profile.primaryDescription ?? "-"],
+    ["주요 feature", profile.primaryFeature ?? "-"],
+    ["공구 타입", compactList([profile.primaryToolType ?? "", profile.primaryProductType ?? ""], 2)],
+    ["형상", compactList([profile.primaryApplicationShape ?? "", profile.primaryCuttingEdgeShape ?? "", ...profile.toolSubtypes], 3)],
+    ["날 수", formatFluteCounts(profile.fluteCounts)],
+    ["코팅", compactList(profile.coatingValues)],
+    ["공구 소재", compactList(profile.toolMaterialValues)],
+    ["직경 범위", formatDiameterRange(profile.diameterMinMm, profile.diameterMaxMm)],
+    ["ISO", compactList(profile.referenceIsoGroups)],
+    ["피삭재", compactList(profile.referenceWorkPieceNames.length > 0 ? profile.referenceWorkPieceNames : profile.materialWorkPieceNames)],
+    ["HRC", formatHrcRange(profile.referenceHrcMin, profile.referenceHrcMax)],
+    ["국가", compactList(profile.countryCodes)],
+    ["EDP 수", `${profile.edpCount}개`],
+  ]
+}
+
+function buildBrandSummaryRows(profile: BrandProfileRecord): Array<[string, string]> {
+  return [
+    ["브랜드", getBrandProfileLabel(profile)],
+    ["설명", profile.primaryDescription ?? "-"],
+    ["적용 소재 설명", profile.primaryDescriptionWorkPiece ?? "-"],
+    ["대표 시리즈", compactList(profile.seriesNames)],
+    ["시리즈 수", `${profile.seriesCount}개`],
+    ["가공 타입", compactList([...profile.toolTypes, ...profile.productTypes])],
+    ["형상", compactList([...profile.applicationShapeValues, ...profile.cuttingEdgeShapeValues])],
+    ["날 수", formatFluteCounts(profile.fluteCounts)],
+    ["코팅", compactList(profile.coatingValues)],
+    ["공구 소재", compactList(profile.toolMaterialValues)],
+    ["직경 범위", formatDiameterRange(profile.diameterMinMm, profile.diameterMaxMm)],
+    ["ISO", compactList(profile.referenceIsoGroups)],
+    ["피삭재", compactList(profile.referenceWorkPieceNames.length > 0 ? profile.referenceWorkPieceNames : profile.materialWorkPieceNames)],
+    ["HRC", formatHrcRange(profile.referenceHrcMin, profile.referenceHrcMax)],
+    ["국가", compactList(profile.countryCodes)],
+    ["EDP 수", `${profile.edpCount}개`],
+  ]
+}
+
+function buildSeriesInfoReply(profile: SeriesProfileRecord, unmatchedNote: string): { text: string; chips: string[] } {
+  return {
+    text: [
+      `${getSeriesProfileLabel(profile)} 시리즈 프로필을 내부 DB에서 조회했습니다.`,
+      "",
+      buildMarkdownTable(
+        ["항목", "값"],
+        buildSeriesSummaryRows(profile).map(([label, value]) => [label, value])
+      ),
+      unmatchedNote ? `\n${unmatchedNote}\n` : "",
+      "[Reference: YG-1 내부 DB]",
+    ].join("\n"),
+    chips: ["다른 시리즈 비교", "브랜드 차이 보기", "추천 제품 보기"],
+  }
+}
+
+function buildBrandInfoReply(profile: BrandProfileRecord, unmatchedNote: string): { text: string; chips: string[] } {
+  return {
+    text: [
+      `${getBrandProfileLabel(profile)} 브랜드 프로필을 내부 DB에서 조회했습니다.`,
+      "",
+      buildMarkdownTable(
+        ["항목", "값"],
+        buildBrandSummaryRows(profile).map(([label, value]) => [label, value])
+      ),
+      unmatchedNote ? `\n${unmatchedNote}\n` : "",
+      "[Reference: YG-1 내부 DB]",
+    ].join("\n"),
+    chips: ["다른 브랜드 비교", "시리즈 차이 보기", "추천 제품 보기"],
+  }
+}
+
+function buildSeriesComparisonReply(profiles: SeriesProfileRecord[], unmatchedNote: string): { text: string; chips: string[] } {
+  const headers = ["항목", ...profiles.map(profile => getSeriesProfileLabel(profile))]
+  const rows: Array<Array<string | number | null | undefined>> = [
+    ["브랜드", ...profiles.map(profile => profile.primaryBrandName ?? "-")],
+    ["설명", ...profiles.map(profile => profile.primaryDescription ?? "-")],
+    ["주요 feature", ...profiles.map(profile => profile.primaryFeature ?? "-")],
+    ["공구 타입", ...profiles.map(profile => compactList([profile.primaryToolType ?? "", profile.primaryProductType ?? ""], 2))],
+    ["형상", ...profiles.map(profile => compactList([profile.primaryApplicationShape ?? "", profile.primaryCuttingEdgeShape ?? "", ...profile.toolSubtypes], 3))],
+    ["날 수", ...profiles.map(profile => formatFluteCounts(profile.fluteCounts))],
+    ["코팅", ...profiles.map(profile => compactList(profile.coatingValues))],
+    ["공구 소재", ...profiles.map(profile => compactList(profile.toolMaterialValues))],
+    ["직경 범위", ...profiles.map(profile => formatDiameterRange(profile.diameterMinMm, profile.diameterMaxMm))],
+    ["ISO", ...profiles.map(profile => compactList(profile.referenceIsoGroups))],
+    ["피삭재", ...profiles.map(profile => compactList(profile.referenceWorkPieceNames.length > 0 ? profile.referenceWorkPieceNames : profile.materialWorkPieceNames))],
+    ["HRC", ...profiles.map(profile => formatHrcRange(profile.referenceHrcMin, profile.referenceHrcMax))],
+  ]
+
+  return {
+    text: [
+      `${profiles.map(profile => getSeriesProfileLabel(profile)).join(" vs ")} 시리즈를 내부 DB 기준으로 비교했습니다.`,
+      "",
+      buildMarkdownTable(headers, rows),
+      unmatchedNote ? `\n${unmatchedNote}\n` : "",
+      "[Reference: YG-1 내부 DB]",
+    ].join("\n"),
+    chips: ["다른 시리즈 비교", "브랜드 비교", "추천 제품 보기"],
+  }
+}
+
+function buildBrandComparisonReply(profiles: BrandProfileRecord[], unmatchedNote: string): { text: string; chips: string[] } {
+  const headers = ["항목", ...profiles.map(profile => getBrandProfileLabel(profile))]
+  const rows: Array<Array<string | number | null | undefined>> = [
+    ["설명", ...profiles.map(profile => profile.primaryDescription ?? "-")],
+    ["적용 소재 설명", ...profiles.map(profile => profile.primaryDescriptionWorkPiece ?? "-")],
+    ["대표 시리즈", ...profiles.map(profile => compactList(profile.seriesNames))],
+    ["시리즈 수", ...profiles.map(profile => `${profile.seriesCount}개`)],
+    ["가공 타입", ...profiles.map(profile => compactList([...profile.toolTypes, ...profile.productTypes]))],
+    ["형상", ...profiles.map(profile => compactList([...profile.applicationShapeValues, ...profile.cuttingEdgeShapeValues]))],
+    ["날 수", ...profiles.map(profile => formatFluteCounts(profile.fluteCounts))],
+    ["코팅", ...profiles.map(profile => compactList(profile.coatingValues))],
+    ["공구 소재", ...profiles.map(profile => compactList(profile.toolMaterialValues))],
+    ["직경 범위", ...profiles.map(profile => formatDiameterRange(profile.diameterMinMm, profile.diameterMaxMm))],
+    ["ISO", ...profiles.map(profile => compactList(profile.referenceIsoGroups))],
+    ["피삭재", ...profiles.map(profile => compactList(profile.referenceWorkPieceNames.length > 0 ? profile.referenceWorkPieceNames : profile.materialWorkPieceNames))],
+    ["HRC", ...profiles.map(profile => formatHrcRange(profile.referenceHrcMin, profile.referenceHrcMax))],
+  ]
+
+  return {
+    text: [
+      `${profiles.map(profile => getBrandProfileLabel(profile)).join(" vs ")} 브랜드를 내부 DB 기준으로 비교했습니다.`,
+      "",
+      buildMarkdownTable(headers, rows),
+      unmatchedNote ? `\n${unmatchedNote}\n` : "",
+      "[Reference: YG-1 내부 DB]",
+    ].join("\n"),
+    chips: ["다른 브랜드 비교", "시리즈 비교", "추천 제품 보기"],
+  }
+}
+
+function buildSeriesProfileContext(profile: SeriesProfileRecord): string {
+  return [
+    `시리즈: ${getSeriesProfileLabel(profile)}`,
+    `브랜드: ${profile.primaryBrandName ?? "-"}`,
+    `설명: ${profile.primaryDescription ?? "-"}`,
+    `feature: ${profile.primaryFeature ?? "-"}`,
+    `공구 타입: ${compactList([profile.primaryToolType ?? "", profile.primaryProductType ?? ""], 2)}`,
+    `형상: ${compactList([profile.primaryApplicationShape ?? "", profile.primaryCuttingEdgeShape ?? "", ...profile.toolSubtypes], 3)}`,
+    `날 수: ${formatFluteCounts(profile.fluteCounts)}`,
+    `코팅: ${compactList(profile.coatingValues)}`,
+    `공구 소재: ${compactList(profile.toolMaterialValues)}`,
+    `직경 범위: ${formatDiameterRange(profile.diameterMinMm, profile.diameterMaxMm)}`,
+    `ISO: ${compactList(profile.referenceIsoGroups)}`,
+    `피삭재: ${compactList(profile.referenceWorkPieceNames.length > 0 ? profile.referenceWorkPieceNames : profile.materialWorkPieceNames)}`,
+    `HRC: ${formatHrcRange(profile.referenceHrcMin, profile.referenceHrcMax)}`,
+  ].join("\n")
+}
+
+function buildBrandProfileContext(profile: BrandProfileRecord): string {
+  return [
+    `브랜드: ${getBrandProfileLabel(profile)}`,
+    `설명: ${profile.primaryDescription ?? "-"}`,
+    `적용 소재 설명: ${profile.primaryDescriptionWorkPiece ?? "-"}`,
+    `대표 시리즈: ${compactList(profile.seriesNames)}`,
+    `시리즈 수: ${profile.seriesCount}개`,
+    `가공 타입: ${compactList([...profile.toolTypes, ...profile.productTypes])}`,
+    `형상: ${compactList([...profile.applicationShapeValues, ...profile.cuttingEdgeShapeValues])}`,
+    `날 수: ${formatFluteCounts(profile.fluteCounts)}`,
+    `코팅: ${compactList(profile.coatingValues)}`,
+    `공구 소재: ${compactList(profile.toolMaterialValues)}`,
+    `직경 범위: ${formatDiameterRange(profile.diameterMinMm, profile.diameterMaxMm)}`,
+    `ISO: ${compactList(profile.referenceIsoGroups)}`,
+    `피삭재: ${compactList(profile.referenceWorkPieceNames.length > 0 ? profile.referenceWorkPieceNames : profile.materialWorkPieceNames)}`,
+    `HRC: ${formatHrcRange(profile.referenceHrcMin, profile.referenceHrcMax)}`,
+  ].join("\n")
+}
+
+async function buildEntityProfileNarrative(
+  provider: LLMProvider,
+  promptTitle: string,
+  body: string
+): Promise<string | null> {
+  if (!provider.available()) return null
+
+  try {
+    const raw = await provider.complete(
+      `당신은 YG-1 절삭공구 데이터 설명 도우미입니다.
+주어진 구조화 데이터만 근거로 한국어 요약을 작성하세요.
+
+규칙:
+- 3~4문장으로만 작성
+- 추측 금지, 데이터에 없는 내용 추가 금지
+- 비교 요청이면 차이가 큰 항목부터 먼저 설명
+- 단건 요청이면 용도/형상/날 수/적용 소재를 우선 설명
+- 문장형 자연어로 쓰고 표는 만들지 마세요`,
+      [{ role: "user", content: `${promptTitle}\n\n${body}` }],
+      280
+    )
+
+    const text = raw?.trim()
+    return text ? text : null
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.warn(`[entity-profile] llm summary failed: ${message}`)
+    return null
+  }
+}
+
+async function enrichEntityReplyWithNarrative(
+  provider: LLMProvider,
+  reply: { text: string; chips: string[] },
+  promptTitle: string,
+  body: string
+): Promise<{ text: string; chips: string[] }> {
+  const narrative = await buildEntityProfileNarrative(provider, promptTitle, body)
+  if (!narrative) return reply
+
+  const marker = "[Reference: YG-1 내부 DB]"
+  const markerIndex = reply.text.lastIndexOf(marker)
+  if (markerIndex < 0) {
+    return {
+      ...reply,
+      text: `${narrative}\n\n${reply.text}`,
+    }
+  }
+
+  const beforeReference = reply.text.slice(0, markerIndex).trimEnd()
+  const referenceTail = reply.text.slice(markerIndex)
+  return {
+    ...reply,
+    text: `${narrative}\n\n${beforeReference}\n\n${referenceTail}`,
+  }
+}
+
+export async function handleDirectEntityProfileQuestion(
+  provider: LLMProvider,
+  userMessage: string,
+  _currentInput: RecommendationInput,
+  _prevState: ExplorationSessionState | null
+): Promise<{ text: string; chips: string[] } | null> {
+  const queryTarget = classifyQueryTarget(userMessage, null, null)
+  const requestedNames = extractEntityNamesFromMessage(userMessage)
+  const wantsComparison = /차이|비교|vs|대비|다른|달라|다를/i.test(userMessage)
+  const mentionsSeries = /시리즈|series|날\s*수|날수|플루트|형상|볼|스퀘어|radius|taper/i.test(userMessage)
+  const mentionsBrand = /브랜드|brand/i.test(userMessage)
+  const explicitProfileIntent =
+    ENTITY_PROFILE_TRIGGER_PATTERN.test(userMessage) ||
+    queryTarget.type === "series_info" ||
+    queryTarget.type === "series_comparison" ||
+    queryTarget.type === "brand_info" ||
+    queryTarget.type === "brand_comparison"
+
+  if (requestedNames.length === 0 || !explicitProfileIntent) {
+    return null
+  }
+
+  const [seriesProfiles, brandProfiles] = await Promise.all([
+    EntityProfileRepo.findSeriesProfiles(requestedNames),
+    EntityProfileRepo.findBrandProfiles(requestedNames),
+  ])
+
+  if (seriesProfiles.length === 0 && brandProfiles.length === 0) {
+    return null
+  }
+
+  const unmatchedNote = buildUnmatchedEntityNote(requestedNames, [
+    ...seriesProfiles.map(profile => getSeriesProfileLabel(profile)),
+    ...brandProfiles.map(profile => getBrandProfileLabel(profile)),
+  ])
+
+  if (wantsComparison) {
+    if (mentionsBrand && brandProfiles.length >= 2) {
+      return enrichEntityReplyWithNarrative(
+        provider,
+        buildBrandComparisonReply(brandProfiles, unmatchedNote),
+        "브랜드 비교 요청입니다. 아래 구조화 데이터만으로 차이를 요약하세요.",
+        brandProfiles.map(profile => buildBrandProfileContext(profile)).join("\n\n---\n\n")
+      )
+    }
+    if (mentionsSeries && seriesProfiles.length >= 2) {
+      return enrichEntityReplyWithNarrative(
+        provider,
+        buildSeriesComparisonReply(seriesProfiles, unmatchedNote),
+        "시리즈 비교 요청입니다. 아래 구조화 데이터만으로 차이를 요약하세요.",
+        seriesProfiles.map(profile => buildSeriesProfileContext(profile)).join("\n\n---\n\n")
+      )
+    }
+    if (seriesProfiles.length >= 2 && brandProfiles.length < 2) {
+      return enrichEntityReplyWithNarrative(
+        provider,
+        buildSeriesComparisonReply(seriesProfiles, unmatchedNote),
+        "시리즈 비교 요청입니다. 아래 구조화 데이터만으로 차이를 요약하세요.",
+        seriesProfiles.map(profile => buildSeriesProfileContext(profile)).join("\n\n---\n\n")
+      )
+    }
+    if (brandProfiles.length >= 2 && seriesProfiles.length < 2) {
+      return enrichEntityReplyWithNarrative(
+        provider,
+        buildBrandComparisonReply(brandProfiles, unmatchedNote),
+        "브랜드 비교 요청입니다. 아래 구조화 데이터만으로 차이를 요약하세요.",
+        brandProfiles.map(profile => buildBrandProfileContext(profile)).join("\n\n---\n\n")
+      )
+    }
+  }
+
+  if (mentionsBrand && brandProfiles.length > 0) {
+    return enrichEntityReplyWithNarrative(
+      provider,
+      buildBrandInfoReply(brandProfiles[0], unmatchedNote),
+      "브랜드 단건 설명 요청입니다. 아래 구조화 데이터만으로 특징을 요약하세요.",
+      buildBrandProfileContext(brandProfiles[0])
+    )
+  }
+  if (mentionsSeries && seriesProfiles.length > 0) {
+    return enrichEntityReplyWithNarrative(
+      provider,
+      buildSeriesInfoReply(seriesProfiles[0], unmatchedNote),
+      "시리즈 단건 설명 요청입니다. 아래 구조화 데이터만으로 특징을 요약하세요.",
+      buildSeriesProfileContext(seriesProfiles[0])
+    )
+  }
+  if (seriesProfiles.length > 0 && brandProfiles.length === 0) {
+    return enrichEntityReplyWithNarrative(
+      provider,
+      buildSeriesInfoReply(seriesProfiles[0], unmatchedNote),
+      "시리즈 단건 설명 요청입니다. 아래 구조화 데이터만으로 특징을 요약하세요.",
+      buildSeriesProfileContext(seriesProfiles[0])
+    )
+  }
+  if (brandProfiles.length > 0 && seriesProfiles.length === 0) {
+    return enrichEntityReplyWithNarrative(
+      provider,
+      buildBrandInfoReply(brandProfiles[0], unmatchedNote),
+      "브랜드 단건 설명 요청입니다. 아래 구조화 데이터만으로 특징을 요약하세요.",
+      buildBrandProfileContext(brandProfiles[0])
+    )
+  }
+
+  const primaryName = requestedNames[0] ?? ""
+  const looksLikeSeries = /^[A-Z]{2,5}\d/.test(primaryName.replace(/\s+/g, "").toUpperCase())
+  if (looksLikeSeries && seriesProfiles.length > 0) {
+    return enrichEntityReplyWithNarrative(
+      provider,
+      buildSeriesInfoReply(seriesProfiles[0], unmatchedNote),
+      "시리즈 단건 설명 요청입니다. 아래 구조화 데이터만으로 특징을 요약하세요.",
+      buildSeriesProfileContext(seriesProfiles[0])
+    )
+  }
+  if (brandProfiles.length > 0) {
+    return enrichEntityReplyWithNarrative(
+      provider,
+      buildBrandInfoReply(brandProfiles[0], unmatchedNote),
+      "브랜드 단건 설명 요청입니다. 아래 구조화 데이터만으로 특징을 요약하세요.",
+      buildBrandProfileContext(brandProfiles[0])
+    )
+  }
+  if (seriesProfiles.length > 0) {
+    return enrichEntityReplyWithNarrative(
+      provider,
+      buildSeriesInfoReply(seriesProfiles[0], unmatchedNote),
+      "시리즈 단건 설명 요청입니다. 아래 구조화 데이터만으로 특징을 요약하세요.",
+      buildSeriesProfileContext(seriesProfiles[0])
+    )
+  }
+
+  return null
 }
 
 function extractRequestedWorkPiece(userMessage: string): string | null {

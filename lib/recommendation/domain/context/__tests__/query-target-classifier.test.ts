@@ -79,6 +79,18 @@ describe("query-target: entity comparison detection", () => {
     expect(result.type).toBe("series_comparison")
     expect(result.overridesActiveFilter).toBe(true)
   })
+
+  it("detects brand comparison entities", () => {
+    const result = classifyQueryTarget(
+      "E·FORCE 와 4G MILLS 브랜드 차이 설명해줘",
+      "coating"
+    )
+
+    expect(result.type).toBe("brand_comparison")
+    expect(result.overridesActiveFilter).toBe(true)
+    expect(result.entities).toContain("E·FORCE")
+    expect(result.entities).toContain("4G MILLS")
+  })
 })
 
 // ════════════════════════════════════════════════════════════════
@@ -105,6 +117,28 @@ describe("query-target: series info", () => {
 
     expect(result.type).toBe("series_info")
     expect(result.overridesActiveFilter).toBe(true)
+  })
+
+  it("GNX45 series question → series_info", () => {
+    const result = classifyQueryTarget(
+      "GNX45의 날 수는 몇 개야?",
+      "coating"
+    )
+
+    expect(result.type).toBe("series_info")
+    expect(result.overridesActiveFilter).toBe(true)
+    expect(result.entities).toContain("GNX45")
+  })
+
+  it("E·FORCE brand question → brand_info", () => {
+    const result = classifyQueryTarget(
+      "E·FORCE 브랜드 특징이 뭐야?",
+      "coating"
+    )
+
+    expect(result.type).toBe("brand_info")
+    expect(result.overridesActiveFilter).toBe(true)
+    expect(result.entities).toContain("E·FORCE")
   })
 })
 
