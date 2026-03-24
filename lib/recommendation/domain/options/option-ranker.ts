@@ -47,6 +47,8 @@ export interface RankerContext {
   userMessage?: string
   /** Context interpretation for smarter scoring */
   contextInterpretation?: import("../context/context-types").ContextInterpretation
+  /** Which UI block the user is likely reacting to — boosts relevant options */
+  likelyReferencedUIBlock?: import("../context/ui-context-extractor").UIArtifactKind
 }
 
 export function rankOptions(options: SmartOption[], ctx: RankerContext): SmartOption[] {
@@ -224,6 +226,32 @@ function computeActionSignals(option: SmartOption, ctx: RankerContext): ActionSi
     // Revision boost: when user wants to revise or regenerate, boost undo/revision options
     if ((interp.shouldShowRevisionOptions || interp.shouldRegenerateOptions) && plan.type === "replace_filter") {
       intentFit = Math.min(1.0, intentFit + 0.25)
+    }
+  }
+
+  // ── UI artifact boost: actions relevant to what the user sees get higher priority ──
+  const uiBlock = ctx.likelyReferencedUIBlock
+  if (uiBlock) {
+    // Recommendation card visible → boost cutting conditions, compare, explain
+    if (uiBlock === "recommendation_card") {
+      if (actionValue === "cutting_conditions") intentFit = Math.min(1.0, intentFit + 0.2)
+      if (option.family === "compare" || actionValue === "compare") intentFit = Math.min(1.0, intentFit + 0.15)
+      if (actionValue === "explain_recommendation") intentFit = Math.min(1.0, intentFit + 0.1)
+    }
+    // Comparison table visible → boost revision/different-condition options
+    if (uiBlock === "comparison_table") {
+      if (plan.type === "replace_filter") intentFit = Math.min(1.0, intentFit + 0.2)
+      if (option.field === "coating" || option.field === "fluteCount") intentFit = Math.min(1.0, intentFit + 0.1)
+    }
+    // Cutting conditions visible → boost inventory, compare, different product options
+    if (uiBlock === "cutting_conditions") {
+      if (actionValue === "inventory_detail") intentFit = Math.min(1.0, intentFit + 0.2)
+      if (option.family === "compare") intentFit = Math.min(1.0, intentFit + 0.15)
+    }
+    // Candidate list visible → boost compare, show recommendation
+    if (uiBlock === "candidate_list") {
+      if (option.family === "compare") intentFit = Math.min(1.0, intentFit + 0.2)
+      if (actionValue === "show_recommendation") intentFit = Math.min(1.0, intentFit + 0.15)
     }
   }
 

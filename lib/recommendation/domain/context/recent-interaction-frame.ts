@@ -10,6 +10,7 @@
  */
 
 import type { ExplorationSessionState, CandidateSnapshot } from "@/lib/recommendation/domain/types"
+import { inferLikelyReferencedBlock, type UIArtifactKind } from "./ui-context-extractor"
 
 // ── User relation to the latest question ─────────────────────
 export type UserRelation =
@@ -56,6 +57,8 @@ export interface RecentInteractionFrame {
   preserveContext: boolean
   /** Whether generic fallback chips should be suppressed */
   suppressGenericChips: boolean
+  /** Which UI artifact the user is most likely reacting to */
+  likelyReferencedUIBlock: UIArtifactKind
 }
 
 // ── Patterns ─────────────────────────────────────────────────
@@ -106,6 +109,9 @@ export function buildRecentInteractionFrame(
     ? extractQuestion(latestAssistantText)
     : null
 
+  // 7. Infer which UI artifact the user is most likely reacting to
+  const likelyReferencedUIBlock = inferLikelyReferencedBlock(sessionState, latestUserMessage)
+
   return {
     latestAssistantQuestion,
     latestUserMessage,
@@ -115,6 +121,7 @@ export function buildRecentInteractionFrame(
     referencedProducts,
     preserveContext: relation !== "restart",
     suppressGenericChips,
+    likelyReferencedUIBlock,
   }
 }
 

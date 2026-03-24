@@ -108,6 +108,32 @@ export function extractUIArtifacts(
     })
   }
 
+  // Cutting conditions (inferred from candidate evidence)
+  {
+    const top = sessionState.displayedCandidates?.slice(0, 3) ?? []
+    const hasBestCondition = top.some((c: any) => c.bestCondition || c.hasEvidence)
+    if (hasBestCondition && (lastAction === "explain_product" || sessionState.resolutionStatus?.startsWith("resolved"))) {
+      artifacts.push({
+        kind: "cutting_conditions",
+        summary: `절삭조건 데이터 있음 (${top.length}개 제품)`,
+        productCodes: top.map(c => c.displayCode),
+        visibleFields: [],
+        isPrimaryFocus: false,
+      })
+    }
+  }
+
+  // Explanation block
+  if (lastAction === "explain_product" || lastAction === "answer_general") {
+    artifacts.push({
+      kind: "explanation_block",
+      summary: "설명/답변 블록 표시 중",
+      productCodes: [],
+      visibleFields: [],
+      isPrimaryFocus: false,
+    })
+  }
+
   // Question prompt
   if (sessionState.displayedOptions?.length > 0) {
     artifacts.push({
@@ -123,6 +149,53 @@ export function extractUIArtifacts(
   }
 
   return artifacts
+}
+
+/**
+ * Infer which UI block the user is most likely reacting to.
+ * Deterministic: based on session state + user message patterns.
+ */
+export function inferLikelyReferencedBlock(
+  sessionState: ExplorationSessionState | null,
+  userMessage: string
+): UIArtifactKind {
+  if (!sessionState) return "question_prompt"
+
+  const clean = userMessage.trim().toLowerCase()
+  const mode = sessionState.currentMode
+  const lastAction = sessionState.lastAction
+
+  // User explicitly references recommendation results
+  if (/이\s*제품|추천.*제품|1번|2번|3번|대체.*후보|재고/.test(clean)) {
+    if (sessionState.resolutionStatus?.startsWith("resolved")) return "recommendation_card"
+  }
+
+  // User references comparison
+  if (/비교|차이|vs|어떤.*게.*나/.test(clean) && sessionState.lastComparisonArtifact) {
+    return "comparison_table"
+  }
+
+  // User references cutting conditions
+  if (/절삭조건|가공조건|Vc|fz|ap|ae|rpm|이송/.test(clean)) {
+    return "cutting_conditions"
+  }
+
+  // User references candidates / counts
+  if (/몇\s*개|후보|제품.*수|갯수|분포/.test(clean)) {
+    return "candidate_list"
+  }
+
+  // User references current options / chips
+  if (/선택지|보기|옵션|칩/.test(clean)) {
+    return "chips_bar"
+  }
+
+  // Default based on current mode
+  if (mode === "recommendation" || lastAction === "show_recommendation") return "recommendation_card"
+  if (mode === "comparison" || lastAction === "compare_products") return "comparison_table"
+  if (mode === "question" || mode === "narrowing") return "question_prompt"
+
+  return "question_prompt"
 }
 
 /**

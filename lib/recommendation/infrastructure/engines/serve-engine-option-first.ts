@@ -26,6 +26,7 @@ import { detectUserState } from "@/lib/recommendation/domain/context/user-unders
 import { buildChipContext } from "@/lib/recommendation/domain/context/chip-context-builder"
 import { rerankChipsWithLLM } from "@/lib/recommendation/domain/options/llm-chip-reranker"
 import { buildRecentInteractionFrame } from "@/lib/recommendation/domain/context/recent-interaction-frame"
+import { inferLikelyReferencedBlock } from "@/lib/recommendation/domain/context/ui-context-extractor"
 
 export interface GeneralChatOptionState {
   finalChips: string[]
@@ -108,6 +109,7 @@ export async function buildGeneralChatOptionState(input: {
       hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
       userMessage,
       contextInterpretation: interpretation,
+      likelyReferencedUIBlock: inferLikelyReferencedBlock(prevState, userMessage),
     },
   })
 
