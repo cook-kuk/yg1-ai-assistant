@@ -684,6 +684,7 @@ export function buildCandidateSnapshot(
       diameterMm: candidate.product.diameterMm,
       fluteCount: candidate.product.fluteCount,
       coating: candidate.product.coating,
+      toolSubtype: candidate.product.toolSubtype ?? null,
       toolMaterial: candidate.product.toolMaterial ?? null,
       shankDiameterMm: candidate.product.shankDiameterMm ?? null,
       lengthOfCutMm: candidate.product.lengthOfCutMm ?? null,

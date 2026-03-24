@@ -65,6 +65,7 @@ function buildRecommendedProducts(messages: ChatMsg[]) {
       diameterMm: scored.product.diameterMm ?? null,
       fluteCount: scored.product.fluteCount ?? null,
       coating: scored.product.coating ?? null,
+      toolSubtype: scored.product.toolSubtype ?? null,
       toolMaterial: scored.product.toolMaterial ?? null,
       score: scored.score,
       matchStatus: scored.matchStatus,

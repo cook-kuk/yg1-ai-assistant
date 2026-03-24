@@ -32,6 +32,7 @@ export interface RecommendationDisplayedProductRequestDto {
   diameter: number | null
   flute: number | null
   coating: string | null
+  toolSubtype?: string | null
   materialTags: string[]
   score: number
   matchStatus: string
@@ -150,6 +151,7 @@ export interface RecommendationCandidateDto {
   diameterMm: number | null
   fluteCount: number | null
   coating: string | null
+  toolSubtype?: string | null
   toolMaterial: string | null
   shankDiameterMm: number | null
   lengthOfCutMm: number | null
@@ -358,6 +360,7 @@ export const recommendationCandidateSchema = z.object({
   diameterMm: z.number().nullable(),
   fluteCount: z.number().nullable(),
   coating: z.string().nullable(),
+  toolSubtype: z.string().nullable().optional(),
   toolMaterial: z.string().nullable(),
   shankDiameterMm: z.number().nullable(),
   lengthOfCutMm: z.number().nullable(),

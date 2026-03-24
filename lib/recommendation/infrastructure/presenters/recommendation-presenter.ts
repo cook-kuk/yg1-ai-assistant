@@ -142,6 +142,7 @@ export function toRecommendationCandidateDto(
     diameterMm: candidate.diameterMm,
     fluteCount: candidate.fluteCount,
     coating: candidate.coating,
+    toolSubtype: candidate.toolSubtype,
     toolMaterial: candidate.toolMaterial,
     shankDiameterMm: candidate.shankDiameterMm,
     lengthOfCutMm: candidate.lengthOfCutMm,

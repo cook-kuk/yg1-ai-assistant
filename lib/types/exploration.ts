@@ -229,6 +229,7 @@ export interface CandidateSnapshot {
   diameterMm: number | null
   fluteCount: number | null
   coating: string | null
+  toolSubtype?: string | null
   toolMaterial: string | null
   shankDiameterMm: number | null
   lengthOfCutMm: number | null

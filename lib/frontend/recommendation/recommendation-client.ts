@@ -40,6 +40,7 @@ export function buildDisplayedProductsForRequest(
     diameter: candidate.diameterMm,
     flute: candidate.fluteCount,
     coating: candidate.coating,
+    toolSubtype: candidate.toolSubtype ?? null,
     materialTags: candidate.materialTags,
     score: candidate.score,
     matchStatus: candidate.matchStatus,
