@@ -60,6 +60,9 @@ export default function ProductRecommendPage() {
               <span className="text-sm font-bold text-gray-900">
                 {localizeIntakeText("YG-1 제품 탐색", language)}
               </span>
+              <span className="text-[10px] text-gray-400 font-mono">
+                최종 업데이트: {process.env.NEXT_PUBLIC_BUILD_TIMESTAMP ?? new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}
+              </span>
               <span
                 className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                   phase === "intake"
