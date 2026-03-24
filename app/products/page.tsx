@@ -53,15 +53,18 @@ export default function ProductRecommendPage() {
         candidateSnapshot={candidateSnapshot}
       />
 
+      <div className="shrink-0 flex justify-center px-4 py-1 border-b bg-gray-50/80">
+        <span className="text-[10px] text-gray-400 font-mono">
+          최종 업데이트: {process.env.NEXT_PUBLIC_BUILD_TIMESTAMP ?? new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}
+        </span>
+      </div>
+
       {phase !== "explore" && (
         <div className="shrink-0 flex items-center gap-3 px-4 py-2.5 border-b bg-white max-w-2xl mx-auto w-full">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-gray-900">
                 {localizeIntakeText("YG-1 제품 탐색", language)}
-              </span>
-              <span className="text-[10px] text-gray-400 font-mono">
-                최종 업데이트: {process.env.NEXT_PUBLIC_BUILD_TIMESTAMP ?? new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}
               </span>
               <span
                 className={`text-xs px-2 py-0.5 rounded-full font-medium ${
