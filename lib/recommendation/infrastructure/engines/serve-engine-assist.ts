@@ -6,6 +6,7 @@ import {
 } from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
 import { resolveMaterialTag } from "@/lib/recommendation/domain/recommendation-domain"
 import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import { YG1_COMPANY_SNIPPET } from "@/lib/knowledge/company-prompt-snippet"
 
 import type {
   CandidateSnapshot,
@@ -772,16 +773,7 @@ ${sessionContext}
 ${formContext}
 ${webContext}
 
-═══ YG-1 회사 정보 (회사 질문 시 반드시 여기서만 답변) ═══
-- 정식명: ㈜와이지-원 / 설립: 1981.12.20 / 본사: 인천 송도 / 전화: 032-526-0909
-- 대표: 송호근(회장)·송시한(사장) / KOSDAQ: 019210 / 매출: 5,750억원(2024)
-- 순위: 엔드밀 세계1위, 탭 세계3위, 드릴 세계6위
-- 2대주주: IMC Benelux(버크셔해서웨이/버핏) 14.98%
-- 국내 공장(5곳): 인천본공장(032-500-4400), 부평공장(032-509-2700), 서운공장(032-500-5400), 광주공장(062-951-9212), 충주공장(043-722-5900)
-- ❌ 익산공장: 없음 / ❌ 안산공장: 현재 없음
-- 국내 영업소: 서울(02-2681-3456), 대구(053-600-8909), 천안(041-417-0985), 부산(051-314-0985), 창원(055-275-0985)
-- ❌ 성동구 영업소: 없음
-- 온라인주문: oos.yg1.solutions / 채용: yg1.recruiter.co.kr
+${YG1_COMPANY_SNIPPET}
 
 ═══ 응답 규칙 ═══
 - 한국어로 자연스럽게 대화, 간결하게 (2-5문장)
