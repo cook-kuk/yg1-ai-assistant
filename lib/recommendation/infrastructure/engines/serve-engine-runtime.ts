@@ -188,7 +188,7 @@ function buildPendingWorkPieceSelectionFilter(
   const raw = userMessage.trim()
   if (!raw || raw.length > 40) return null
   if (/[?？]/.test(raw)) return null
-  if (/뭐야|뭔지|설명|차이|왜|어떻게|몇개|종류|비교|추천|결과|처음부터|이전 단계/u.test(raw)) return null
+  if (/뭐야|뭔지|설명|차이|왜|어떻게|몇개|종류|비교|추천|결과|처음부터|이전 단계|줘|알려|궁금|공장|영업소|연락|번호|정보|회사|사장|회장|매출|주주/u.test(raw)) return null
 
   const clean = normalizePendingSelectionText(raw)
   if (!clean) return null
@@ -205,7 +205,13 @@ function buildPendingWorkPieceSelectionFilter(
     return normalizedChip && (clean === normalizedChip || clean.startsWith(normalizedChip) || normalizedChip.startsWith(clean))
   })
 
-  const selectedValue = optionMatch?.value ?? chipMatch ?? raw.trim()
+  // ★ 명시적 선택만 허용: optionMatch 또는 chipMatch가 없으면 filter 생성 금지
+  // raw fallback 제거 — "익산 공장 정보줘"가 workPieceName이 되는 버그 방지
+  const selectedValue = optionMatch?.value ?? chipMatch ?? null
+  if (!selectedValue) {
+    console.log(`[pending-filter] No option/chip match for "${raw.slice(0, 30)}" → skip filter creation`)
+    return null
+  }
   return parseAnswerToFilter("workPieceName", selectedValue)
 }
 
