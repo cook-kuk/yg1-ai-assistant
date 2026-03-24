@@ -1294,8 +1294,15 @@ async function tryCompanyQuestionResponse(
       hasRecommendation: false,
     }, provider)
 
+    // ★ Tool/application 도메인 질문이면 company path 강제 차단 (우선순위 최상)
+    const isDomainQuestion = /slot|side.?mill|shoulder|plunge|ball|taper|square|corner.?r|radius|flute|날수|날 수|coating|코팅|dlc|tialn|alcrn|rpm|feed|이송|절삭|ap |ae |vc |fz |추천.*이유|왜.*추천|어떤.*형상|뭐가.*맞|차이점|형상|가공|황삭|정삭|엔드밀|드릴|탭|인서트|시리즈|제품/i.test(userMessage)
+    if (isDomainQuestion) {
+      console.log(`[company-response:skip] Domain question detected, bypassing company path: "${userMessage.slice(0, 40)}"`)
+      return null
+    }
+
     // Haiku 판단 OR 키워드 매칭으로 회사 질문 감지 (이중 안전망)
-    const isCompanyByKeyword = /공장|영업소|회장|사장|대표|매출|주주|버핏|설립|창업|직원|순위|경쟁사|연구소|본사|전화|연락|채용|카탈로그|인증|수상|연혁/i.test(userMessage)
+    const isCompanyByKeyword = /공장|영업소|회장|사장|대표|매출|주주|버핏|설립|창업|직원|순위|경쟁사|연구소|본사|전화|연락|채용|카탈로그/i.test(userMessage)
     if (judgment.domainRelevance !== "company_query" && !isCompanyByKeyword) return null
 
     // 회사 정보만 넣은 깨끗한 프롬프트로 별도 Haiku 호출

@@ -101,6 +101,23 @@ export function classifyQueryTarget(
     }
   }
 
+  const looseComparisonWithConjunction = clean.match(/(.+?)\s*[과와랑]\s*(.+?)\s*(차이|비교|다른|좋|별로|뭐)/i)
+  if (looseComparisonWithConjunction) {
+    const entity1 = looseComparisonWithConjunction[1].trim()
+    const entity2 = looseComparisonWithConjunction[2].trim()
+    if (entity1.length >= 2 && entity2.length >= 2) {
+      return {
+        type: hasBrandEntities || mentionsBrand ? "brand_comparison" : "series_comparison",
+        entities: [entity1, entity2],
+        overridesActiveFilter: true,
+        answerTopic: `${entity1} vs ${entity2} 비교`,
+        searchScopeOnly: true,
+        requiresSearch: true,
+        searchScope: "targeted_comparison",
+      }
+    }
+  }
+
   if (entities.length >= 1 && SERIES_INFO_PATTERN.test(lower)) {
     return {
       type: hasBrandEntities || mentionsBrand ? "brand_info" : "series_info",

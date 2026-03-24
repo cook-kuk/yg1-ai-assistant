@@ -397,7 +397,8 @@ function NarrowingChat({
               )}
 
               {message.role === "ai" && !message.isLoading && onFeedback && (
-                <div className="border-t border-gray-100 pt-1.5 mt-1.5 space-y-1">
+                <div className="border-t border-gray-100 pt-3 mt-3 space-y-1.5">
+                  <div className="text-[10px] text-gray-400 font-medium mb-1">{language === "ko" ? "평가" : "Feedback"}</div>
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {message.feedback ? (
                       <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">

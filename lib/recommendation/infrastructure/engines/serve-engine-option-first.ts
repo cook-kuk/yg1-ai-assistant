@@ -181,9 +181,14 @@ export async function buildGeneralChatOptionState(input: {
   } else {
     // Fallback: preserve state chips or provide minimal safe navigation.
     // NEVER use handler-generated chips (fallbackChips) as source of truth.
-    if (prevState.displayedChips?.length > 0) {
-      finalChips = prevState.displayedChips
-      finalDisplayedOptions = prevState.displayedOptions ?? []
+    // Guard: only reuse prevState chips if they match the current pending field
+    const pendingField = prevState.lastAskedField ?? null
+    const prevOptions = prevState.displayedOptions ?? []
+    const prevChipsValid = prevState.displayedChips?.length > 0
+      && !(pendingField && prevOptions.some(opt => opt.field && opt.field !== pendingField && opt.field !== "_action" && opt.field !== "skip"))
+    if (prevChipsValid) {
+      finalChips = prevState.displayedChips!
+      finalDisplayedOptions = prevOptions
     } else {
       // Minimal deterministic fallback — navigation only
       const safeChips: string[] = []

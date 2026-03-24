@@ -330,6 +330,41 @@ export async function buildQuestionResponse(
   })
   finalResponseChips = questionOptionState.chips
   finalDisplayedOptions = questionOptionState.displayedOptions
+
+  // ── Field consistency guard: ensure displayedOptions match current question field ──
+  if (question?.field) {
+    if (finalDisplayedOptions.length > 0) {
+      const staleOptions = finalDisplayedOptions.filter(
+        opt => opt.field && opt.field !== question.field && opt.field !== "_action" && opt.field !== "skip"
+      )
+      if (staleOptions.length > 0) {
+        console.warn(`[field-consistency] Removing ${staleOptions.length} stale options from field "${staleOptions[0].field}" (current: ${question.field})`)
+        finalDisplayedOptions = finalDisplayedOptions.filter(
+          opt => !opt.field || opt.field === question.field || opt.field === "_action" || opt.field === "skip"
+        )
+        finalResponseChips = finalDisplayedOptions.map(opt => opt.label)
+      }
+    }
+
+    // Absolute guard: if chips still don't match question field, rebuild from question engine
+    if (finalResponseChips.length > 0 && questionFieldResult) {
+      const questionChipSet = new Set(questionFieldResult.chips)
+      const hasAnyQuestionChip = finalResponseChips.some(c => questionChipSet.has(c) || c === "상관없음" || c === "⟵ 이전 단계" || c === "처음부터 다시")
+      if (!hasAnyQuestionChip) {
+        console.warn(`[field-consistency:absolute] Chips completely mismatch question field "${question.field}" — rebuilding from question engine`)
+        finalResponseChips = questionFieldResult.chips
+        finalDisplayedOptions = questionFieldResult.displayedOptions
+      }
+    }
+
+    // Last resort: if displayedOptions still empty, use question engine
+    if (finalDisplayedOptions.length === 0 && questionFieldResult && questionFieldResult.displayedOptions.length > 0) {
+      console.warn(`[field-consistency:fallback] Empty displayedOptions, using question engine result for field "${question.field}"`)
+      finalDisplayedOptions = questionFieldResult.displayedOptions
+      finalResponseChips = questionFieldResult.chips
+    }
+  }
+
   sessionState.displayedChips = finalResponseChips
   sessionState.displayedOptions = finalDisplayedOptions
 
