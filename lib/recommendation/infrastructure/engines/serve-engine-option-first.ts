@@ -150,6 +150,7 @@ export async function buildGeneralChatOptionState(input: {
       conversationDepth: interpretation.conversationDepth ?? 0,
       suggestedNextAction: interpretation.suggestedNextAction ?? null,
       hasConflict: interpretation.hasConflict ?? false,
+      recentTurns: (unifiedTurnContext.recentTurns ?? []).slice(-14).map(t => ({ role: t.role, text: t.text })),
     }, provider)
     finalChips = chipSelection.chips
     finalDisplayedOptions = chipSelection.displayedOptions

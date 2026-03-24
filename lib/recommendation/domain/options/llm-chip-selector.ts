@@ -10,6 +10,11 @@ import type { SmartOption } from "./types"
 import type { DisplayedOption } from "@/lib/recommendation/domain/types"
 import { smartOptionsToChips, smartOptionsToDisplayedOptions } from "./option-bridge"
 
+export interface ConversationTurnSlim {
+  role: "user" | "assistant"
+  text: string
+}
+
 export interface ChipSelectionContext {
   userMessage: string
   assistantText: string
@@ -36,6 +41,8 @@ export interface ChipSelectionContext {
   suggestedNextAction: string | null
   /** Whether conflicts were detected */
   hasConflict: boolean
+  /** Recent conversation turns (newest last) */
+  recentTurns: ConversationTurnSlim[]
 }
 
 export interface ChipSelectionResult {
@@ -127,16 +134,20 @@ export async function selectChipsWithLLM(
         : null,
     ].filter(Boolean).join("\n")
 
-    const prompt = `YG-1 절삭공구 추천 챗봇의 칩(버튼) 선택기.
-사용자가 다음에 클릭할 가능성이 높은 칩을 골라 순서대로 배치하세요.
+    // Build conversation history — recent turns detailed, older turns summarized
+    const conversationSection = buildConversationSection(context.recentTurns)
 
-## 현재 상황
+    const prompt = `YG-1 절삭공구 추천 챗봇의 칩(버튼) 선택기.
+대화 흐름을 파악하고, 지금 사용자가 클릭할 가능성이 높은 칩을 골라 순서대로 배치하세요.
+${conversationSection}
+## 현재 상황 (★ 최신 — 이 턴에 집중)
 ${situation}
 
 ## 후보 칩
 ${JSON.stringify(optionList)}
 
 ## 판단 기준
+- ★ 마지막 대화의 맥락이 가장 중요 — 사용자가 방금 무엇을 원했는지에 집중
 - 질문에 대한 직접 답변 칩을 최우선 (pendingField의 값들)
 - "상관없음"/"건너뛰기" 칩이 있으면 반드시 포함 (마지막 배치)
 - 유저가 confused/uncertain이면 설명·위임 칩 우선
@@ -175,6 +186,45 @@ JSON만: {"selected":[0,3,1]}`
   }
 
   return fallback(candidateOptions)
+}
+
+/**
+ * 대화 히스토리를 Haiku용으로 압축:
+ * - 최근 4턴: 원문 (100자 제한)
+ * - 그 이전: 1줄 요약 (50자 제한)
+ * 최신 대화에 집중하되 전체 흐름도 파악 가능
+ */
+function buildConversationSection(turns: ConversationTurnSlim[]): string {
+  if (turns.length === 0) return ""
+
+  const lines: string[] = []
+  const recentCount = 4 // 최근 4턴은 상세
+  const total = turns.length
+
+  // 오래된 턴: 요약 (50자)
+  if (total > recentCount) {
+    lines.push("## 이전 대화 (요약)")
+    const olderTurns = turns.slice(0, total - recentCount)
+    // 너무 많으면 마지막 10개만
+    const shown = olderTurns.slice(-10)
+    for (const t of shown) {
+      const tag = t.role === "user" ? "U" : "A"
+      lines.push(`${tag}: ${t.text.slice(0, 50).replace(/\n/g, " ")}${t.text.length > 50 ? "…" : ""}`)
+    }
+    if (olderTurns.length > 10) {
+      lines.push(`(... 이전 ${olderTurns.length - 10}턴 생략)`)
+    }
+  }
+
+  // 최근 턴: 상세 (100자)
+  lines.push("## 최근 대화 (★ 핵심)")
+  const recent = turns.slice(-recentCount)
+  for (const t of recent) {
+    const tag = t.role === "user" ? "사용자" : "시스템"
+    lines.push(`${tag}: ${t.text.slice(0, 100).replace(/\n/g, " ")}${t.text.length > 100 ? "…" : ""}`)
+  }
+
+  return lines.join("\n") + "\n"
 }
 
 function fallback(options: SmartOption[]): ChipSelectionResult {
