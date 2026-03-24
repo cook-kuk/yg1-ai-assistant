@@ -1,4 +1,5 @@
 import { notifyRecommendation } from "@/lib/recommendation/infrastructure/notifications/recommendation-notifier"
+import { BrandReferenceRepo } from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
 import {
   buildExplanation,
   buildDeterministicSummary,
@@ -26,6 +27,7 @@ import {
   buildQuestionResponseOptionState,
   generateSmartOptionsForRecommendation,
 } from "@/lib/recommendation/infrastructure/engines/serve-engine-option-first"
+import { getMaterialDisplay, resolveMaterialTag } from "@/lib/recommendation/domain/material-resolver"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { RecommendationDisplayedProductRequestDto } from "@/lib/contracts/recommendation"
@@ -62,6 +64,66 @@ export interface ServeResponseBuilderDependencies {
   jsonRecommendationResponse: JsonRecommendationResponse
 }
 
+function resolveSingleIsoGroup(material: string | undefined): string | null {
+  if (!material) return null
+
+  const tags = Array.from(
+    new Set(
+      material
+        .split(",")
+        .map(part => part.trim())
+        .filter(Boolean)
+        .map(part => resolveMaterialTag(part))
+        .filter((tag): tag is string => Boolean(tag))
+    )
+  )
+
+  return tags.length === 1 ? tags[0] : null
+}
+
+async function buildWorkPieceQuestion(
+  input: RecommendationInput,
+  history: NarrowingTurn[],
+  filters: AppliedFilter[]
+): Promise<{
+  field: string
+  questionText: string
+  chips: string[]
+  expectedInfoGain: number
+} | null> {
+  if (input.workPieceName) return null
+
+  const isoGroup = resolveSingleIsoGroup(input.material)
+  if (!isoGroup) return null
+
+  const lastWorkPieceFilterIndex = filters.reduce((lastIndex, filter, index) => (
+    filter.field === "workPieceName" ? index : lastIndex
+  ), -1)
+  const lastMaterialFilterIndex = filters.reduce((lastIndex, filter, index) => (
+    filter.field === "material" ? index : lastIndex
+  ), -1)
+  if (lastWorkPieceFilterIndex !== -1 && lastWorkPieceFilterIndex >= lastMaterialFilterIndex) {
+    return null
+  }
+
+  const workPieceNames = await BrandReferenceRepo.listDistinctWorkPieceNames({
+    isoGroup,
+    limit: 10,
+  })
+  if (workPieceNames.length <= 1) return null
+
+  const materialLabel = getMaterialDisplay(isoGroup).ko
+  const chips = [...workPieceNames, "상관없음"]
+  if (history.length > 0) chips.push("⟵ 이전 단계")
+
+  return {
+    field: "workPieceName",
+    questionText: `선택하신 소재는 ISO ${isoGroup} (${materialLabel})군입니다. 세부 피삭재를 선택해주세요.`,
+    chips,
+    expectedInfoGain: 0.5,
+  }
+}
+
 export async function buildQuestionResponse(
   deps: ServeResponseBuilderDependencies,
   form: ProductIntakeForm,
@@ -77,7 +139,7 @@ export async function buildQuestionResponse(
   overrideText?: string,
   existingStageHistory?: NarrowingStage[]
 ): Promise<Response> {
-  const question = selectNextQuestion(input, candidates, history)
+  const question = await buildWorkPieceQuestion(input, history, filters) ?? selectNextQuestion(input, candidates, history)
   const stageHistory = existingStageHistory
     ? [...existingStageHistory]
     : buildStageHistoryFromFilters(filters, input, candidates.length)
@@ -250,6 +312,23 @@ export async function buildRecommendationResponse(
   language: AppLanguage,
   displayedProducts: DisplayedProduct[] | null = null
 ): Promise<Response> {
+  const workPieceQuestion = await buildWorkPieceQuestion(input, history, filters)
+  if (workPieceQuestion) {
+    return buildQuestionResponse(
+      deps,
+      form,
+      candidates,
+      evidenceMap,
+      input,
+      history,
+      filters,
+      turnCount,
+      messages,
+      provider,
+      language
+    )
+  }
+
   const { primary, alternatives, status } = classifyHybridResults({ candidates, evidenceMap, totalConsidered: candidates.length, filtersApplied: filters })
   const warnings = primary ? buildWarnings(primary, input) : ["조건에 맞는 제품을 찾지 못했습니다"]
   const rationale = primary ? buildRationale(primary, input) : []

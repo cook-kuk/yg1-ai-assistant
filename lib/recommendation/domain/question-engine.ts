@@ -367,6 +367,7 @@ export function parseAnswerToFilter(
     case "toolType":
     case "brand":
     case "country":
+    case "workPieceName":
       return {
         field,
         op: "includes",

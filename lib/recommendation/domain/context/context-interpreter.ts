@@ -234,7 +234,7 @@ function buildActiveConstraints(
     { field: "material", state: form.material as { status: string; value?: unknown } },
     { field: "operationType", state: form.operationType as { status: string; value?: unknown } },
     { field: "diameterMm", state: form.diameterInfo as { status: string; value?: unknown } },
-    { field: "toolType", state: form.toolTypeOrCurrentProduct as { status: string; value?: unknown } },
+    { field: "machiningCategory", state: form.toolTypeOrCurrentProduct as { status: string; value?: unknown } },
   ]
 
   for (const { field, state } of formFields) {

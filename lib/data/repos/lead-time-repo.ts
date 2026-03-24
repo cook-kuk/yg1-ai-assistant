@@ -1,10 +1,6 @@
 import type { LeadTimeRecord } from "@/lib/types/canonical"
 
-function logDisabled(normalizedCode: string): void {
-  console.warn(
-    `[lead-time-repo] lookup skipped code=${normalizedCode}: runtime JSON source disabled and DB source is not implemented`
-  )
-}
+function logDisabled(_normalizedCode: string): void {}
 
 export const LeadTimeRepo = {
   getByEdp(normalizedCode: string): LeadTimeRecord[] {

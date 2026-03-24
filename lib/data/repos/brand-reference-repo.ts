@@ -1,6 +1,7 @@
 import "server-only"
 
 import { Pool } from "pg"
+import { formatQueryValuesForLog, formatSqlForLog, interpolateSqlForLog } from "@/lib/data/sql-log"
 import { getSharedPool } from "@/lib/data/shared-pool"
 
 export interface BrandReferenceRecord {
@@ -17,6 +18,23 @@ export interface BrandReferenceQuery {
   workPieceQuery?: string | null
   hardnessMinHrc?: number | null
   hardnessMaxHrc?: number | null
+  limit?: number
+}
+
+export interface DistinctWorkPieceQuery {
+  isoGroup: string
+  limit?: number
+}
+
+export interface DistinctBrandQuery {
+  isoGroup: string
+  workPieceName: string
+  limit?: number
+}
+
+export interface DistinctSeriesQuery {
+  isoGroup: string
+  workPieceName: string
   limit?: number
 }
 
@@ -70,6 +88,130 @@ function toNullableNumber(value: number | null | undefined): number | null {
 }
 
 export const BrandReferenceRepo = {
+  async listDistinctWorkPieceNames(query: DistinctWorkPieceQuery): Promise<string[]> {
+    const pool = getPool()
+    if (!pool) {
+      console.warn("[brand-reference-repo] distinct work piece query skipped: DB source unavailable")
+      return []
+    }
+
+    const isoGroup = toNullableUpper(query.isoGroup)
+    if (!isoGroup) return []
+
+    const limit = typeof query.limit === "number" && query.limit > 0 ? Math.min(query.limit, 30) : 12
+    const sql = `
+      SELECT DISTINCT work_piece_name
+      FROM catalog_app.brand_reference
+      WHERE UPPER(tag_name) = $1
+        AND work_piece_name IS NOT NULL
+        AND BTRIM(work_piece_name) <> ''
+      ORDER BY work_piece_name ASC
+      LIMIT $2
+    `
+
+    const startedAt = Date.now()
+    try {
+      const values = [isoGroup, limit]
+      const sqlInterpolated = interpolateSqlForLog(formatSqlForLog(sql), values)
+      console.log(`[brand-reference-db] sql query="${sqlInterpolated}" params=${formatQueryValuesForLog(values)}`)
+      const result = await pool.query(sql, values)
+      console.log(
+        `[brand-reference-db] distinct-work-piece iso=${isoGroup} rows=${result.rowCount ?? 0} duration=${Date.now() - startedAt}ms`
+      )
+      return result.rows
+        .map(row => String(row.work_piece_name ?? "").trim())
+        .filter(Boolean)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.warn(`[brand-reference-db] distinct work piece query failed: ${message}`)
+      return []
+    }
+  },
+
+  async listDistinctBrandNames(query: DistinctBrandQuery): Promise<string[]> {
+    const pool = getPool()
+    if (!pool) {
+      console.warn("[brand-reference-repo] distinct brand query skipped: DB source unavailable")
+      return []
+    }
+
+    const isoGroup = toNullableUpper(query.isoGroup)
+    const workPieceName = String(query.workPieceName ?? "").trim()
+    if (!isoGroup || !workPieceName) return []
+
+    const limit = typeof query.limit === "number" && query.limit > 0 ? Math.min(query.limit, 50) : 20
+    const sql = `
+      SELECT DISTINCT brand_name
+      FROM catalog_app.brand_reference
+      WHERE UPPER(tag_name) = $1
+        AND normalized_work_piece_name = regexp_replace(UPPER($2), '\\s+', '', 'g')
+        AND brand_name IS NOT NULL
+        AND BTRIM(brand_name) <> ''
+      ORDER BY brand_name ASC
+      LIMIT $3
+    `
+
+    const startedAt = Date.now()
+    try {
+      const values = [isoGroup, workPieceName, limit]
+      const sqlInterpolated = interpolateSqlForLog(formatSqlForLog(sql), values)
+      console.log(`[brand-reference-db] sql query="${sqlInterpolated}" params=${formatQueryValuesForLog(values)}`)
+      const result = await pool.query(sql, values)
+      console.log(
+        `[brand-reference-db] distinct-brand iso=${isoGroup} workPiece=${workPieceName} rows=${result.rowCount ?? 0} duration=${Date.now() - startedAt}ms`
+      )
+      return result.rows
+        .map(row => String(row.brand_name ?? "").trim())
+        .filter(Boolean)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.warn(`[brand-reference-db] distinct brand query failed: ${message}`)
+      return []
+    }
+  },
+
+  async listDistinctSeriesNames(query: DistinctSeriesQuery): Promise<string[]> {
+    const pool = getPool()
+    if (!pool) {
+      console.warn("[brand-reference-repo] distinct series query skipped: DB source unavailable")
+      return []
+    }
+
+    const isoGroup = toNullableUpper(query.isoGroup)
+    const workPieceName = String(query.workPieceName ?? "").trim()
+    if (!isoGroup || !workPieceName) return []
+
+    const limit = typeof query.limit === "number" && query.limit > 0 ? Math.min(query.limit, 80) : 30
+    const sql = `
+      SELECT DISTINCT series_name
+      FROM catalog_app.brand_reference
+      WHERE UPPER(tag_name) = $1
+        AND normalized_work_piece_name = regexp_replace(UPPER($2), '\\s+', '', 'g')
+        AND series_name IS NOT NULL
+        AND BTRIM(series_name) <> ''
+      ORDER BY series_name ASC
+      LIMIT $3
+    `
+
+    const startedAt = Date.now()
+    try {
+      const values = [isoGroup, workPieceName, limit]
+      const sqlInterpolated = interpolateSqlForLog(formatSqlForLog(sql), values)
+      console.log(`[brand-reference-db] sql query="${sqlInterpolated}" params=${formatQueryValuesForLog(values)}`)
+      const result = await pool.query(sql, values)
+      console.log(
+        `[brand-reference-db] distinct-series iso=${isoGroup} workPiece=${workPieceName} rows=${result.rowCount ?? 0} duration=${Date.now() - startedAt}ms`
+      )
+      return result.rows
+        .map(row => String(row.series_name ?? "").trim())
+        .filter(Boolean)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.warn(`[brand-reference-db] distinct series query failed: ${message}`)
+      return []
+    }
+  },
+
   async findMatches(query: BrandReferenceQuery): Promise<BrandReferenceRecord[]> {
     const pool = getPool()
     if (!pool) {
@@ -120,7 +262,10 @@ export const BrandReferenceRepo = {
 
     const startedAt = Date.now()
     try {
-      const result = await pool.query(sql, [isoGroup, workPieceQuery, hardnessMin, hardnessMax, limit])
+      const values = [isoGroup, workPieceQuery, hardnessMin, hardnessMax, limit]
+      const sqlInterpolated = interpolateSqlForLog(formatSqlForLog(sql), values)
+      console.log(`[brand-reference-db] sql query="${sqlInterpolated}" params=${formatQueryValuesForLog(values)}`)
+      const result = await pool.query(sql, values)
       console.log(
         `[brand-reference-db] iso=${isoGroup ?? "-"} workPiece=${workPieceQuery ?? "-"} ` +
         `hardness=${hardnessMin ?? "-"}~${hardnessMax ?? "-"} rows=${result.rowCount ?? 0} duration=${Date.now() - startedAt}ms`
