@@ -232,7 +232,33 @@ export async function handleServeExploration(
       const orchResult = ENABLE_TOOL_USE_ROUTING
         ? await orchestrateTurnWithTools(turnCtx, provider)
         : await orchestrateTurn(turnCtx, provider)
-      const action = orchResult.action
+      let action = orchResult.action
+
+      // ── Question Assist Interceptor ──
+      // When a pending question exists, confusion/explanation/delegation/skip
+      // must stay in the question flow — override orchestrator if it would leave.
+      const hasPendingQuestion = !!prevState.lastAskedField
+        && !prevState.resolutionStatus?.startsWith("resolved")
+      if (hasPendingQuestion) {
+        const userState = detectUserState(lastUserMsg.text, prevState.lastAskedField)
+        const isQuestionAssistSignal =
+          userState.state === "confused" ||
+          userState.state === "wants_explanation" ||
+          userState.state === "wants_delegation" ||
+          userState.state === "wants_skip"
+
+        if (isQuestionAssistSignal) {
+          if (userState.state === "wants_skip" || userState.state === "wants_delegation") {
+            // Skip/delegate → field-bound skip action
+            action = { type: "skip_field" }
+            console.log(`[question-assist:intercept] ${userState.state} → skip_field for "${prevState.lastAskedField}"`)
+          } else if (action.type === "answer_general" || action.type === "redirect_off_topic") {
+            // Confusion/explanation → stay in question flow, don't go to general chat
+            action = { type: "explain_product", target: lastUserMsg.text }
+            console.log(`[question-assist:intercept] ${userState.state} overrides ${orchResult.action.type} → explain_product (pending: ${prevState.lastAskedField})`)
+          }
+        }
+      }
 
       // ── Build Unified TurnContext (shared by answer + chip generation) ──
       const lastAssistantMsg = [...messages].reverse().find(m => m.role === "ai")
