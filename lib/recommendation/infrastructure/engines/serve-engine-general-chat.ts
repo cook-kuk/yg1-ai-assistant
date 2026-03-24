@@ -22,6 +22,7 @@ import type {
   AppliedFilter,
   CandidateSnapshot,
   ChatMessage,
+  DisplayedOption,
   EvidenceSummary,
   ExplorationSessionState,
   NarrowingTurn,
@@ -37,6 +38,13 @@ type JsonRecommendationResponse = (
 ) => Response
 
 type QuestionReply = { text: string; chips: string[] } | null
+
+// ── Reply UI Strategy ──
+// Determines how displayedOptions/chips are resolved for reply paths.
+export type ReplyUiStrategy =
+  | "preserve_existing_question_options"  // question-assist: keep field-bound options from pending question
+  | "replace_with_reply_options"          // direct factual reply: use handler-provided follow-up actions
+  | "clear_options"                       // fallback: no actionable options
 
 type GeneralChatAction =
   | Extract<OrchestratorAction, { type: "explain_product" }>
@@ -155,6 +163,50 @@ function inferVisibleUiBlocks(sessionState: ExplorationSessionState): string[] {
   return blocks
 }
 
+/**
+ * Resolve which UI strategy to use for a reply path.
+ * - question-assist (pending field + explain_product) → preserve field-bound options
+ * - direct factual replies (inventory, brand, cutting) → replace with handler actions
+ * - otherwise → clear
+ */
+export function resolveReplyUiStrategy(
+  recentFrameRelation: string | null,
+  prevState: ExplorationSessionState,
+): ReplyUiStrategy {
+  const isDirectFactual =
+    recentFrameRelation === "inventory_reply" ||
+    recentFrameRelation === "brand_reference" ||
+    recentFrameRelation === "cutting_conditions"
+
+  if (isDirectFactual) return "replace_with_reply_options"
+
+  const hasPendingField =
+    !!prevState.lastAskedField &&
+    !prevState.resolutionStatus?.startsWith("resolved")
+
+  if (recentFrameRelation === "question_assist" && hasPendingField) {
+    return "preserve_existing_question_options"
+  }
+
+  return "clear_options"
+}
+
+/**
+ * Convert reply follow-up chip labels into DisplayedOption[] (action-type).
+ * Each chip becomes a DisplayedOption with field="_action".
+ */
+export function buildReplyDisplayedOptions(
+  chips: string[],
+): DisplayedOption[] {
+  return chips.map((chip, index) => ({
+    index: index + 1,
+    label: chip,
+    field: "_action",
+    value: chip,
+    count: 0,
+  }))
+}
+
 function validateAnswerText(
   text: string,
   chips: string[],
@@ -238,9 +290,38 @@ function buildValidatedReplyResponse(
   overrides: ReplyOverrides,
   orchResult: OrchestratorResult,
   processTrace: ProcessTrace,
+  strategy: ReplyUiStrategy = "clear_options",
 ) {
-  const chips = prevState.displayedChips?.length ? prevState.displayedChips : reply.chips
-  const displayedOptions = prevState.displayedOptions ?? []
+  let chips: string[]
+  let displayedOptions: DisplayedOption[]
+
+  switch (strategy) {
+    case "preserve_existing_question_options":
+      // Keep field-bound narrowing options from the pending question turn
+      chips = prevState.displayedChips?.length ? prevState.displayedChips : reply.chips
+      displayedOptions = prevState.displayedOptions ?? []
+      break
+
+    case "replace_with_reply_options":
+      // Direct factual reply: derive options from handler-provided chips
+      chips = reply.chips
+      displayedOptions = buildReplyDisplayedOptions(reply.chips)
+      break
+
+    case "clear_options":
+    default:
+      // Fallback: no stale options, use reply chips as-is
+      chips = reply.chips
+      displayedOptions = reply.chips.length > 0
+        ? buildReplyDisplayedOptions(reply.chips)
+        : []
+      break
+  }
+
+  console.log(
+    `[reply-ui-strategy] strategy=${strategy}, label=${validationLabel}, chips=${chips.length}, options=${displayedOptions.length}`
+  )
+
   const validation = validateAnswerText(reply.text, chips, displayedOptions, validationLabel)
 
   return buildReplyResponse(
@@ -321,6 +402,7 @@ export async function handleServeGeneralChatAction(
 
   const inventoryReply = await deps.handleDirectInventoryQuestion(lastUserMessage, prevState)
   if (inventoryReply) {
+    const strategy = resolveReplyUiStrategy("inventory_reply", prevState)
     return buildValidatedReplyResponse(
       deps,
       prevState,
@@ -341,13 +423,15 @@ export async function handleServeGeneralChatAction(
         actionType: "answer_general",
         pendingQuestionField: prevState.lastAskedField ?? null,
         recentFrameRelation: "inventory_reply",
-        displayedOptions: prevState.displayedOptions ?? [],
+        displayedOptions: buildReplyDisplayedOptions(inventoryReply.chips),
       }),
+      strategy,
     )
   }
 
   const brandReferenceReply = await deps.handleDirectBrandReferenceQuestion(lastUserMessage, currentInput, prevState)
   if (brandReferenceReply) {
+    const strategy = resolveReplyUiStrategy("brand_reference", prevState)
     return buildValidatedReplyResponse(
       deps,
       prevState,
@@ -368,13 +452,15 @@ export async function handleServeGeneralChatAction(
         actionType: "answer_general",
         pendingQuestionField: prevState.lastAskedField ?? null,
         recentFrameRelation: "brand_reference",
-        displayedOptions: prevState.displayedOptions ?? [],
+        displayedOptions: buildReplyDisplayedOptions(brandReferenceReply.chips),
       }),
+      strategy,
     )
   }
 
   const cuttingConditionReply = await deps.handleDirectCuttingConditionQuestion(lastUserMessage, currentInput, prevState)
   if (cuttingConditionReply) {
+    const strategy = resolveReplyUiStrategy("cutting_conditions", prevState)
     return buildValidatedReplyResponse(
       deps,
       prevState,
@@ -395,8 +481,9 @@ export async function handleServeGeneralChatAction(
         actionType: "answer_general",
         pendingQuestionField: prevState.lastAskedField ?? null,
         recentFrameRelation: "cutting_conditions",
-        displayedOptions: prevState.displayedOptions ?? [],
+        displayedOptions: buildReplyDisplayedOptions(cuttingConditionReply.chips),
       }),
+      strategy,
     )
   }
 

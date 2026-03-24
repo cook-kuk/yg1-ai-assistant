@@ -767,6 +767,30 @@ function buildPagedProductQueryBase(where: string[]): string {
   `
 }
 
+function buildProductDataQuery(
+  where: string[],
+  values: unknown[],
+  limit?: number,
+  offset = 0
+): { query: string; values: unknown[] } {
+  const queryBase = buildPagedProductQueryBase(where)
+  const dataValues = [...values]
+  const limitClause = limit != null ? `LIMIT $${dataValues.push(limit)}` : ""
+  const offsetClause = offset > 0 ? `OFFSET $${dataValues.push(offset)}` : ""
+
+  return {
+    query: `
+      ${queryBase}
+      SELECT *
+      FROM deduped_products
+      ORDER BY edp_idx DESC
+      ${limitClause}
+      ${offsetClause}
+    `,
+    values: dataValues,
+  }
+}
+
 export async function queryProductsPageFromDatabase(options: ProductSearchOptions = {}): Promise<ProductSearchPageResult> {
   const { where, values, limit, offset } = buildQueryOptions(options)
   const queryBase = buildPagedProductQueryBase(where)
@@ -775,17 +799,7 @@ export async function queryProductsPageFromDatabase(options: ProductSearchOption
     SELECT COUNT(*)::int AS total_count
     FROM deduped_products
   `
-  const dataValues = [...values]
-  const limitClause = limit != null ? `LIMIT $${dataValues.push(limit)}` : ""
-  const offsetClause = offset > 0 ? `OFFSET $${dataValues.push(offset)}` : ""
-  const dataQuery = `
-    ${queryBase}
-    SELECT *
-    FROM deduped_products
-    ORDER BY edp_idx DESC
-    ${limitClause}
-    ${offsetClause}
-  `
+  const dataQuery = buildProductDataQuery(where, values, limit, offset)
 
   const startedAt = Date.now()
   console.log(
@@ -800,7 +814,7 @@ export async function queryProductsPageFromDatabase(options: ProductSearchOption
     seriesName: options.seriesName,
   })
   const totalCount = Number(countResult.rows[0]?.total_count ?? 0)
-  const result = await executeLoggedQuery<RawProductRow>(dataQuery, dataValues, {
+  const result = await executeLoggedQuery<RawProductRow>(dataQuery.query, dataQuery.values, {
     operation: "queryProductsFromDatabase",
     whereCount: where.length,
     limit,
@@ -838,8 +852,35 @@ export async function queryProductsPageFromDatabase(options: ProductSearchOption
 }
 
 export async function queryProductsFromDatabase(options: ProductSearchOptions = {}): Promise<CanonicalProduct[]> {
-  const { products } = await queryProductsPageFromDatabase(options)
-  return products
+  const { where, values, limit, offset } = buildQueryOptions(options)
+  const dataQuery = buildProductDataQuery(where, values, limit, offset)
+
+  const startedAt = Date.now()
+  console.log(
+    `[product-db] query:list:start where=${where.length} values=${values.length} limit=${limit ?? "none"} offset=${offset} code=${options.normalizedCode ?? "-"} series=${options.seriesName ?? "-"}`
+  )
+  const result = await executeLoggedQuery<RawProductRow>(dataQuery.query, dataQuery.values, {
+    operation: "queryProductsListFromDatabase",
+    whereCount: where.length,
+    limit,
+    offset,
+    normalizedCode: options.normalizedCode,
+    seriesName: options.seriesName,
+  })
+  const mapped = result.rows
+    .map(mapRowToProduct)
+    .filter(product => !!product.normalizedCode)
+
+  if (shouldLogTimings()) {
+    console.log(
+      `[product-db] query:list=${Date.now() - startedAt}ms rows=${result.rowCount ?? mapped.length} mapped=${mapped.length} filters=${where.length} limit=${limit ?? "none"} offset=${offset}`
+    )
+    console.log(
+      `[product-db] stage=db_fetch count=${mapped.length} edps=${formatEdpListForLog(mapped)}`
+    )
+  }
+
+  return mapped
 }
 
 export async function getProductByCodeFromDatabase(code: string): Promise<CanonicalProduct | null> {
