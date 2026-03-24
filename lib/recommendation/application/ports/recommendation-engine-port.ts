@@ -1,4 +1,4 @@
-import type { RecommendationDisplayedProductRequestDto } from "@/lib/contracts/recommendation"
+import type { RecommendationDisplayedProductRequestDto, RecommendationPaginationDto } from "@/lib/contracts/recommendation"
 import type {
   AppLanguage,
   ChatMessage,
@@ -11,6 +11,7 @@ export interface RecommendSessionCommand {
   messages: ChatMessage[]
   prevState: ExplorationSessionState | null
   displayedProducts?: RecommendationDisplayedProductRequestDto[] | null
+  pagination?: Pick<RecommendationPaginationDto, "page" | "pageSize"> | null
   language: AppLanguage
 }
 

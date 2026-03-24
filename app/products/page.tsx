@@ -30,10 +30,13 @@ export default function ProductRecommendPage() {
     setError,
     sessionState,
     candidateSnapshot,
+    candidatePagination,
+    isCandidatePageLoading,
     capabilities,
     handleFieldChange,
     runRecommendation,
     handleChatSend,
+    loadCandidatePage,
     handleReset,
     handleFeedback,
     handleChipFeedback,
@@ -116,8 +119,11 @@ export default function ProductRecommendPage() {
             isSending={isChatSending}
             sessionState={sessionState}
             candidateSnapshot={candidateSnapshot}
+            candidatePagination={candidatePagination}
+            isCandidatePageLoading={isCandidatePageLoading}
             capabilities={getSessionCapabilities(sessionState, capabilities)}
             onSend={handleChatSend}
+            onPageChange={loadCandidatePage}
             onReset={handleReset}
             onEdit={() => setPhase("intake")}
             onFeedback={handleFeedback}

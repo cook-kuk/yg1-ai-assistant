@@ -44,6 +44,13 @@ export interface RecommendationCapabilityDto {
   canFilterDisplayed: boolean
 }
 
+export interface RecommendationPaginationDto {
+  page: number
+  pageSize: number
+  totalItems: number
+  totalPages: number
+}
+
 export interface RecommendationAppliedFilterDto {
   field: string
   op: string
@@ -181,6 +188,7 @@ export interface RecommendationRequestDto {
   session?: RecommendationSessionEnvelopeDto | null
   sessionState?: unknown | null
   displayedProducts?: RecommendationDisplayedProductRequestDto[] | null
+  pagination?: Pick<RecommendationPaginationDto, "page" | "pageSize"> | null
   language?: "ko" | "en"
   mode?: string
 }
@@ -193,6 +201,7 @@ export interface RecommendationResponseDto {
   recommendation: RecommendationResult | null
   session: RecommendationSessionEnvelopeDto
   candidates: RecommendationCandidateDto[] | null
+  pagination: RecommendationPaginationDto | null
   evidenceSummaries: EvidenceSummary[] | null
   requestPreparation: RequestPreparationResult | null
   primaryExplanation: RecommendationExplanation | null
@@ -241,6 +250,13 @@ export const recommendationCapabilitySchema = z.object({
   canRestoreTask: z.boolean(),
   canGroupBySeries: z.boolean(),
   canFilterDisplayed: z.boolean(),
+})
+
+export const recommendationPaginationSchema = z.object({
+  page: z.number().int().min(0),
+  pageSize: z.number().int().positive(),
+  totalItems: z.number().int().min(0),
+  totalPages: z.number().int().min(0),
 })
 
 export const recommendationAppliedFilterSchema = z.object({
@@ -376,6 +392,7 @@ export const recommendationRequestSchema = z.object({
   session: recommendationSessionEnvelopeSchema.nullable().optional(),
   sessionState: z.unknown().nullable().optional(),
   displayedProducts: z.array(recommendationDisplayedProductRequestSchema).nullable().optional(),
+  pagination: recommendationPaginationSchema.pick({ page: true, pageSize: true }).nullable().optional(),
   language: z.enum(["ko", "en"]).optional(),
   mode: z.string().optional(),
 }).passthrough()
@@ -393,6 +410,7 @@ export const recommendationResponseSchema = z.object({
   recommendation: z.unknown().nullable(),
   session: recommendationSessionEnvelopeSchema,
   candidates: z.array(recommendationCandidateSchema).nullable(),
+  pagination: recommendationPaginationSchema.nullable(),
   evidenceSummaries: z.array(z.unknown()).nullable(),
   requestPreparation: z.unknown().nullable(),
   primaryExplanation: z.unknown().nullable(),

@@ -5,10 +5,12 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import type {
   RecommendationCapabilityDto,
   RecommendationCandidateDto,
+  RecommendationPaginationDto,
   RecommendationPublicSessionDto,
 } from "@/lib/contracts/recommendation"
 import {
   buildRecommendationSessionEnvelope,
+  createCandidatePaginationRequest,
   createFollowUpRecommendationRequest,
   createInitialRecommendationRequest,
   parseRecommendationResponse,
@@ -24,6 +26,7 @@ import {
 import { createClientEventId } from "@/lib/frontend/recommendation/client-event-id"
 
 export type Phase = "intake" | "summary" | "loading" | "explore"
+const DEFAULT_PAGE_SIZE = 50
 
 function buildCandidateHighlights(candidates: RecommendationCandidateDto[] | null) {
   return (candidates ?? []).map(candidate => ({
@@ -97,6 +100,8 @@ export function useProductRecommendationPage({
   const [sessionState, setSessionState] = useState<RecommendationPublicSessionDto | null>(null)
   const [engineSessionState, setEngineSessionState] = useState<unknown | null>(null)
   const [candidateSnapshot, setCandidateSnapshot] = useState<RecommendationCandidateDto[] | null>(null)
+  const [candidatePagination, setCandidatePagination] = useState<RecommendationPaginationDto | null>(null)
+  const [isCandidatePageLoading, setIsCandidatePageLoading] = useState(false)
   const [capabilities, setCapabilities] = useState<RecommendationCapabilityDto>(DEFAULT_RECOMMENDATION_CAPABILITIES)
 
   const sessionEnvelope = useMemo(
@@ -113,6 +118,8 @@ export function useProductRecommendationPage({
     setSessionState(null)
     setEngineSessionState(null)
     setCandidateSnapshot(null)
+    setCandidatePagination(null)
+    setIsCandidatePageLoading(false)
     setCapabilities(DEFAULT_RECOMMENDATION_CAPABILITIES)
     setPhase("intake")
   }, [resetKey])
@@ -189,6 +196,7 @@ export function useProductRecommendationPage({
       const requestPayload = createInitialRecommendationRequest({
         form: formWithCountry,
         language,
+        pagination: { page: 0, pageSize: DEFAULT_PAGE_SIZE },
       })
 
       const res = await fetch("/api/recommend", {
@@ -202,6 +210,7 @@ export function useProductRecommendationPage({
       setSessionState(data.session.publicState ?? null)
       setEngineSessionState(data.session.engineState ?? null)
       setCandidateSnapshot(data.candidates ?? null)
+      setCandidatePagination(data.pagination ?? null)
       setCapabilities(resolveRecommendationCapabilities(data))
 
       setChatMessages([
@@ -265,6 +274,7 @@ export function useProductRecommendationPage({
         session: sessionEnvelope,
         candidates: candidateSnapshot,
         language,
+        pagination: { page: 0, pageSize: DEFAULT_PAGE_SIZE },
       })
 
       const res = await fetch("/api/recommend", {
@@ -289,6 +299,7 @@ export function useProductRecommendationPage({
       }
 
       if (data.candidates) setCandidateSnapshot(data.candidates)
+      if (data.pagination) setCandidatePagination(data.pagination)
 
       setChatMessages(prev => {
         const updated = [...prev]
@@ -334,9 +345,59 @@ export function useProductRecommendationPage({
     setSessionState(null)
     setEngineSessionState(null)
     setCandidateSnapshot(null)
+    setCandidatePagination(null)
+    setIsCandidatePageLoading(false)
     setCapabilities(DEFAULT_RECOMMENDATION_CAPABILITIES)
     setPhase("intake")
   }
+
+  const loadCandidatePage = useCallback(async (page: number) => {
+    if (isCandidatePageLoading) return
+
+    const currentPagination = candidatePagination ?? {
+      page: 0,
+      pageSize: DEFAULT_PAGE_SIZE,
+      totalItems: sessionState?.candidateCount ?? 0,
+      totalPages: sessionState?.candidateCount ? Math.ceil(sessionState.candidateCount / DEFAULT_PAGE_SIZE) : 0,
+    }
+
+    setIsCandidatePageLoading(true)
+    setError(null)
+
+    try {
+      const formWithCountry: ProductIntakeForm = {
+        ...form,
+        country: country && country !== "ALL"
+          ? { status: "known" as const, value: country }
+          : { status: "known" as const, value: "ALL" },
+      }
+
+      const requestPayload = createCandidatePaginationRequest({
+        form: formWithCountry,
+        session: sessionEnvelope,
+        language,
+        pagination: { page, pageSize: currentPagination.pageSize },
+      })
+
+      const res = await fetch("/api/recommend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestPayload),
+      })
+      const data = parseRecommendationResponse(await res.json())
+      if (data.error) throw new Error(data.detail ?? data.error)
+
+      setSessionState(data.session.publicState ?? null)
+      setEngineSessionState(data.session.engineState ?? null)
+      setCapabilities(resolveRecommendationCapabilities(data))
+      setCandidateSnapshot(data.candidates ?? null)
+      if (data.pagination) setCandidatePagination(data.pagination)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "알 수 없는 오류")
+    } finally {
+      setIsCandidatePageLoading(false)
+    }
+  }, [candidatePagination, country, form, isCandidatePageLoading, language, sessionEnvelope, sessionState?.candidateCount, setError])
 
   const handleFeedback = (messageIndex: number, feedback: TurnFeedback) => {
     if (!feedback) return
@@ -423,10 +484,13 @@ export function useProductRecommendationPage({
     setError,
     sessionState,
     candidateSnapshot,
+    candidatePagination,
+    isCandidatePageLoading,
     capabilities,
     handleFieldChange,
     runRecommendation,
     handleChatSend,
+    loadCandidatePage,
     handleReset,
     handleFeedback,
     handleChipFeedback,
