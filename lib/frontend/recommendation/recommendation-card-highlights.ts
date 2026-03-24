@@ -29,11 +29,12 @@ export function buildCandidateSubtypeHighlight(
 }
 
 export function buildCandidateSpecFallback(candidate: CandidateHighlightInput): string[] {
-  return [
-    candidate.diameterMm != null ? `φ${candidate.diameterMm}mm` : null,
-    candidate.fluteCount != null ? `${candidate.fluteCount}날` : null,
-    candidate.coating ?? null,
-  ].filter((value): value is string => Boolean(value))
+  // 날 형상(toolSubtype)이 있으면 최우선 표시
+  if (candidate.toolSubtype?.trim()) {
+    return [candidate.toolSubtype.trim()]
+  }
+  // toolSubtype 없으면 빈 배열 (φ/날수/코팅 fallback 제거)
+  return []
 }
 
 
