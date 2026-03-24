@@ -25,4 +25,6 @@ export interface ChatMsg {
   responsePayload?: LogPayload | null
   createdAt?: string
   feedbackGroupId?: string
+  /** Developer debug trace — only populated when DEV_AGENT_DEBUG=true */
+  debugTrace?: import("@/lib/debug/agent-trace").TurnDebugTrace | null
 }

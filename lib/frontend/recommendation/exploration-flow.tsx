@@ -43,6 +43,7 @@ import {
   localizeIntakeText,
 } from "@/lib/frontend/recommendation/intake-localization"
 import type { ChatMsg, TurnFeedback } from "@/lib/frontend/recommendation/exploration-types"
+import { DebugPanel } from "@/components/debug/debug-panel"
 
 const MAX_DISPLAY_CANDIDATES = 10
 const PAGE_SIZE = 10
@@ -445,6 +446,10 @@ function NarrowingChat({
                     </div>
                   )}
                 </div>
+              )}
+
+              {message.role === "ai" && message.debugTrace && (
+                <DebugPanel trace={message.debugTrace} />
               )}
             </div>
           </div>

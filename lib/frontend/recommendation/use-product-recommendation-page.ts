@@ -220,6 +220,7 @@ export function useProductRecommendationPage({
           responsePayload: data,
           createdAt: new Date().toISOString(),
           feedbackGroupId: createClientEventId(),
+          debugTrace: (data as any).meta?.debugTrace ?? null,
         },
       ])
       setPhase("explore")
@@ -306,6 +307,7 @@ export function useProductRecommendationPage({
           responsePayload: data,
           createdAt: prev[updated.length - 1]?.createdAt ?? new Date().toISOString(),
           feedbackGroupId: prev[updated.length - 1]?.feedbackGroupId ?? createClientEventId(),
+          debugTrace: (data as any).meta?.debugTrace ?? null,
         }
         return updated
       })
