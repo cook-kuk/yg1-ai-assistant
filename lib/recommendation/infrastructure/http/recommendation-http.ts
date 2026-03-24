@@ -12,11 +12,13 @@ import {
 import {
   handleDirectBrandReferenceQuestion,
   handleDirectCuttingConditionQuestion,
+  handleDirectEntityProfileQuestion,
   handleDirectInventoryQuestion,
   handleGeneralChat,
   handleContextualNarrowingQuestion,
 } from "@/lib/recommendation/infrastructure/engines/serve-engine-assist"
 import { applyFilterToInput, mapIntakeToInput } from "@/lib/recommendation/infrastructure/engines/serve-engine-input"
+import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import {
   buildCandidateSnapshot,
   buildQuestionResponse,
@@ -138,6 +140,8 @@ function createServeRuntimeDependencies(): ServeEngineRuntimeDependencies {
     ),
     buildCandidateSnapshot,
     handleDirectInventoryQuestion,
+    handleDirectEntityProfileQuestion: (userMessage, currentInput, prevState) =>
+      handleDirectEntityProfileQuestion(getProvider(), userMessage, currentInput, prevState),
     handleDirectBrandReferenceQuestion,
     handleDirectCuttingConditionQuestion,
     handleContextualNarrowingQuestion,

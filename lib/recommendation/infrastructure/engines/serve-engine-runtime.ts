@@ -263,6 +263,11 @@ export interface ServeEngineRuntimeDependencies {
     userMessage: string,
     prevState: ExplorationSessionState
   ) => Promise<QuestionReply>
+  handleDirectEntityProfileQuestion: (
+    userMessage: string,
+    currentInput: RecommendationInput,
+    prevState: ExplorationSessionState | null
+  ) => Promise<QuestionReply>
   handleDirectBrandReferenceQuestion: (
     userMessage: string,
     currentInput: RecommendationInput,
@@ -1026,6 +1031,58 @@ async function handleServeExplorationInner(
 
     if (action.type === "compare_products") {
       trace.add("comparison", "answer", { targets: (action as any).targets }, {}, "Product comparison requested")
+      const entityProfileReply = await deps.handleDirectEntityProfileQuestion(lastUserMsg.text, currentInput, prevState)
+      if (entityProfileReply) {
+        const comparisonOptionState = buildComparisonOptionState()
+        const sessionState = carryForwardState(prevState, {
+          candidateCount: prevState.candidateCount ?? candidates.length,
+          appliedFilters: filters,
+          narrowingHistory,
+          resolutionStatus: prevState.resolutionStatus ?? "broad",
+          resolvedInput: currentInput,
+          turnCount,
+          displayedCandidates: prevState.displayedCandidates ?? [],
+          displayedChips: comparisonOptionState.chips,
+          displayedOptions: comparisonOptionState.displayedOptions,
+          currentMode: "comparison",
+          lastAction: "compare_products",
+          lastComparisonArtifact: {
+            comparedProductCodes: action.targets,
+            comparedRanks: [],
+            text: entityProfileReply.text,
+            timestamp: Date.now(),
+          },
+        })
+
+        const entityComparisonValidation = validateOptionFirstPipeline(
+          entityProfileReply.text,
+          comparisonOptionState.chips,
+          comparisonOptionState.displayedOptions,
+        )
+        const comparisonText = entityComparisonValidation.correctedAnswer ?? entityProfileReply.text
+
+        return deps.jsonRecommendationResponse({
+          text: comparisonText,
+          purpose: "comparison",
+          chips: comparisonOptionState.chips,
+          isComplete: false,
+          recommendation: null,
+          sessionState,
+          evidenceSummaries: null,
+          candidateSnapshot: prevState.displayedCandidates ?? null,
+          requestPreparation: null,
+          primaryExplanation: null,
+          primaryFactChecked: null,
+          altExplanations: [],
+          altFactChecked: [],
+          meta: buildActionMeta(action.type, orchResult, trace.build({
+            latestUserMessage: lastUserMsg.text,
+            currentMode: prevState.currentMode ?? null,
+            routeAction: action.type,
+          })),
+        })
+      }
+
       const snapshot = prevState.displayedCandidates?.length
         ? prevState.displayedCandidates
         : deps.buildCandidateSnapshot(candidates, evidenceMap)
