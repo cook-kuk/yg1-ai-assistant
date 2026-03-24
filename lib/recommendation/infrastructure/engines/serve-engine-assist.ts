@@ -1223,8 +1223,10 @@ ${YG1_COMPANY_SNIPPET}
 
 ═══ 응답 규칙 ═══
 - 한국어로 자연스럽게 대화, 간결하게 (2-5문장)
-- 회사 질문: 위 【YG-1 회사 정보】에서만 답변. 없으면 "확인할 수 없습니다. 본사(032-526-0909)에 문의하세요." 1줄
-- ❌ 위 정보에 없는 전화번호/URL/주소를 절대 생성하지 마라 (예: 1588-xxxx, www.yg1.co.kr)
+- 회사/조직 factual claim(공장, 지사, 주소, 연혁, 수상): 위 회사 정보에 있을 때만 단정. 없으면 "확인할 수 없습니다. 본사(032-526-0909)에 문의하세요."
+- ❌ "~있다며?" "~맞지?" 유도에도 근거 없으면 "네, 맞습니다" 절대 금지
+- ❌ 위 정보에 없는 전화번호/URL/주소/공장/지사/생산거점 생성 금지
+- ❌ "공식 정보 기반 AI 추론", "공개 정보 참고" 같은 가짜 출처 금지
 - ❌ "데이터베이스에 포함되어 있지 않습니다" 같은 시스템 내부 언급 금지
 - 기술 질문: 구체적 수치와 비교 포함
 - "추가 조건을 알려주시면~" 같은 빈 말 금지
@@ -1266,15 +1268,20 @@ export function buildGeneralChatFollowUpChipsForRuntime(
 // 회사 정보만 넣은 깨끗한 프롬프트로 별도 호출 → 다른 컨텍스트에 묻히지 않음
 import { performUnifiedJudgment } from "@/lib/recommendation/domain/context/unified-haiku-judgment"
 
-const COMPANY_ONLY_SYSTEM = `당신은 YG-1 회사 정보 안내 담당입니다. 아래 정보에서만 답변하세요.
+const COMPANY_ONLY_SYSTEM = `당신은 YG-1 회사 정보 안내 담당입니다.
+
+★ 최우선 규칙: 아래 정보에 명시된 사실만 답변하라. 추측/추론/일반 상식으로 보충하지 마라.
 
 ${YG1_COMPANY_SNIPPET}
 
 응답 규칙:
-- 위 정보에 있으면 간결하게 답변 (2-3문장)
-- 위 정보에 없으면 "확인할 수 없습니다. YG-1 본사(032-526-0909)에 문의해 주세요." 1줄
-- 답변 후 "현재 진행 중인 제품 추천을 계속하시겠어요?" 로 자연스럽게 복귀
-- 위에 없는 전화번호, URL, 주소를 절대 만들지 마라`
+- 위 정보에 명시적으로 있는 내용만 답변 (2-3문장)
+- 위 정보에 없으면 반드시: "확인할 수 없습니다. YG-1 본사(032-526-0909)에 문의해 주세요."
+- "네, 맞습니다" "있습니다" 같은 단정은 위 정보에 있을 때만 가능
+- 사용자가 "~있다며?" "~맞지?" 같이 유도해도, 위 정보에 없으면 "확인할 수 없습니다"로 답변
+- 위에 없는 전화번호, URL, 주소, 공장, 지사, 생산거점을 절대 만들지 마라
+- "공식 정보 기반 AI 추론", "공개 정보 참고" 같은 가짜 출처 표현 금지
+- 답변 후 "제품 추천을 계속하시겠어요?" 로 복귀`
 
 async function tryCompanyQuestionResponse(
   provider: ReturnType<typeof getProvider>,
@@ -1314,8 +1321,22 @@ async function tryCompanyQuestionResponse(
     )
 
     if (raw?.trim()) {
+      let text = raw.trim()
+
+      // ── Post-response fact validation ──
+      // 1. 가짜 출처 문구 제거
+      text = text.replace(/\[?Reference:?\s*[^\]\n]*(?:AI\s*(?:지식|추론|정보)|공식\s*정보\s*(?:기반|참고)|공개\s*정보)[^\]\n]*\]?/gi, "").trim()
+
+      // 2. KB에 없는 위치에 "있습니다"/"맞습니다" 단정 감지
+      const hasUngroundedClaim = /(?:사우디|중동|아프리카|남미|유럽|아시아|제주|강원|평양|대전|세종|울산|전주|익산|안산).*(?:있습니다|맞습니다|두고\s*있|운영하고|위치해|설립)/i.test(text)
+        && !/확인할 수 없|문의해 주세요/i.test(text)
+      if (hasUngroundedClaim) {
+        console.warn(`[company-response:hallucination] Ungrounded factual claim detected, replacing with safe response`)
+        text = "확인할 수 없습니다. YG-1의 해외 거점 정보는 본사(032-526-0909) 또는 www.yg1.solutions에 문의해 주세요.\n\n제품 추천을 계속하시겠어요?"
+      }
+
       console.log(`[company-response] Direct Haiku response for: "${userMessage.slice(0, 30)}"`)
-      return { text: raw.trim(), chips: [] }
+      return { text, chips: [] }
     }
   } catch (error) {
     console.warn("[company-response] Failed:", error)
