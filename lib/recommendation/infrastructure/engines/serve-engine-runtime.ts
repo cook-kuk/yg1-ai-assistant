@@ -26,6 +26,7 @@ import { buildUnifiedTurnContext } from "@/lib/recommendation/domain/context/tur
 import { validateOptionFirstPipeline } from "@/lib/recommendation/domain/options/option-validator"
 import { normalizeFilterValue, extractDistinctFieldValues } from "@/lib/recommendation/domain/value-normalizer"
 import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-target-classifier"
+import { TraceCollector } from "@/lib/debug/agent-trace"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
@@ -146,13 +147,18 @@ function buildResetResponse(
   })
 }
 
-function buildActionMeta(actionType: string, orchResult: { agentsInvoked: unknown; escalatedToOpus: boolean }) {
+function buildActionMeta(
+  actionType: string,
+  orchResult: { agentsInvoked: unknown; escalatedToOpus: boolean },
+  debugTrace?: import("@/lib/debug/agent-trace").TurnDebugTrace | null
+) {
   return {
     orchestratorResult: {
       action: actionType,
       agents: orchResult.agentsInvoked,
       opus: orchResult.escalatedToOpus,
     },
+    debugTrace: debugTrace ?? undefined,
   }
 }
 
@@ -169,6 +175,7 @@ export async function handleServeExploration(
   )
 
   const provider = getProvider()
+  const trace = new TraceCollector()
   const baseInput = deps.mapIntakeToInput(form)
   const filters: AppliedFilter[] = [...(prevState?.appliedFilters ?? [])]
   const resolvedInput: RecommendationInput = prevState?.resolvedInput
@@ -223,6 +230,15 @@ export async function handleServeExploration(
     console.log(`[recommend] Retrieval SKIPPED for action: ${earlyAction}`)
   }
 
+  trace.add("search", "search", {
+    needsRetrieval,
+    earlyAction,
+    filterCount: filters.length,
+  }, {
+    candidateCount: candidates.length,
+    skipped: !needsRetrieval,
+  }, needsRetrieval ? `Retrieved ${candidates.length} candidates` : `Skipped retrieval for ${earlyAction}`)
+
   if (requestPrep.route.action === "reset_session") {
     return buildResetResponse(deps, requestPrep)
   }
@@ -258,6 +274,18 @@ export async function handleServeExploration(
       : await orchestrateTurn(turnContext, provider)
     let action = orchResult.action
 
+    trace.add("orchestrator", "router", {
+      userMessage: lastUserMsg.text,
+      mode: prevState.currentMode,
+      lastAskedField: prevState.lastAskedField,
+      candidateCount: candidates.length,
+      filterCount: filters.length,
+    }, {
+      action: action.type,
+      agents: orchResult.agentsInvoked,
+      escalatedToOpus: orchResult.escalatedToOpus,
+    }, orchResult.reasoning)
+
     const hasPendingQuestion = !!prevState.lastAskedField
       && !prevState.resolutionStatus?.startsWith("resolved")
     if (hasPendingQuestion) {
@@ -278,8 +306,21 @@ export async function handleServeExploration(
         prevState.lastAskedField
       )
 
+      trace.add("query-target-classifier", "context", {
+        userMessage: lastUserMsg.text,
+        activeFilterField: prevState.appliedFilters?.find(f => f.op !== "skip")?.field,
+        pendingField: prevState.lastAskedField,
+      }, {
+        type: queryTarget.type,
+        entities: queryTarget.entities,
+        overridesActiveFilter: queryTarget.overridesActiveFilter,
+        answerTopic: queryTarget.answerTopic,
+        searchScopeOnly: queryTarget.searchScopeOnly,
+      }, queryTarget.overridesActiveFilter
+        ? `User target "${queryTarget.answerTopic}" overrides pending field "${prevState.lastAskedField}"`
+        : `Query about pending field "${prevState.lastAskedField}"`)
+
       if (queryTarget.overridesActiveFilter) {
-        // User is asking about a specific entity/series — let orchestrator handle it
         console.log(`[query-target:override] User query target="${queryTarget.answerTopic}" overrides pending field="${prevState.lastAskedField}" (entities: ${queryTarget.entities.join(",")})`)
         // Don't intercept — let the orchestrator's original routing stand
       } else if (isQuestionAssistSignal) {
@@ -459,7 +500,11 @@ export async function handleServeExploration(
         primaryFactChecked: null,
         altExplanations: [],
         altFactChecked: [],
-        meta: buildActionMeta(action.type, orchResult),
+        meta: buildActionMeta(action.type, orchResult, trace.build({
+          latestUserMessage: lastUserMsg.text,
+          currentMode: prevState.currentMode ?? null,
+          routeAction: action.type,
+        })),
       })
     }
 
@@ -510,7 +555,11 @@ export async function handleServeExploration(
         primaryFactChecked: null,
         altExplanations: [],
         altFactChecked: [],
-        meta: buildActionMeta(action.type, orchResult),
+        meta: buildActionMeta(action.type, orchResult, trace.build({
+          latestUserMessage: lastUserMsg.text,
+          currentMode: prevState.currentMode ?? null,
+          routeAction: action.type,
+        })),
       })
     }
 

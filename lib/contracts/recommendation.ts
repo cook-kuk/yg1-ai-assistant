@@ -170,6 +170,8 @@ export interface RecommendationSessionEnvelopeDto {
 export interface RecommendationResponseMetaDto {
   extractedField?: unknown | null
   orchestratorResult?: Record<string, unknown> | null
+  /** Developer-only debug trace. Only populated when DEV_AGENT_DEBUG=true. */
+  debugTrace?: import("@/lib/debug/agent-trace").TurnDebugTrace | null
 }
 
 export interface RecommendationRequestDto {
