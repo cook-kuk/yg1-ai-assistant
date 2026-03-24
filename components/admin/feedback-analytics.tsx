@@ -21,10 +21,11 @@ import {
 import type { FeedbackListResponseDto, FeedbackEntryDto, FeedbackEventEntryDto } from "@/lib/contracts/feedback"
 
 interface FeedbackAnalyticsProps {
-  onBack: () => void
+  onBack?: () => void
+  hideBackButton?: boolean
 }
 
-export function FeedbackAnalytics({ onBack }: FeedbackAnalyticsProps) {
+export function FeedbackAnalytics({ onBack, hideBackButton }: FeedbackAnalyticsProps) {
   const [data, setData] = useState<FeedbackListResponseDto | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -187,9 +188,11 @@ export function FeedbackAnalytics({ onBack }: FeedbackAnalyticsProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={onBack}>
-            <ChevronLeft className="h-4 w-4 mr-1" /> 돌아가기
-          </Button>
+          {!hideBackButton && onBack && (
+            <Button variant="ghost" size="sm" onClick={onBack}>
+              <ChevronLeft className="h-4 w-4 mr-1" /> 돌아가기
+            </Button>
+          )}
           <h2 className="text-xl font-bold">피드백 분석</h2>
         </div>
         <Button variant="outline" size="sm" onClick={fetchData}>

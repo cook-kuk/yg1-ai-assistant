@@ -24,7 +24,9 @@ import {
 } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { BarChart3 } from "lucide-react"
 import type { FeedbackEntryDto, FeedbackEventEntryDto } from "@/lib/contracts/feedback"
+import { FeedbackAnalytics } from "@/components/admin/feedback-analytics"
 import { parseFeedbackListResponse } from "@/lib/frontend/feedback/feedback-client"
 import { useApp } from "@/lib/store"
 
@@ -561,6 +563,10 @@ export default function FeedbackViewerPage() {
             <TabsTrigger value="success" className="border border-gray-200 bg-white px-4 data-[state=active]:border-blue-200 data-[state=active]:bg-blue-50">
               좋은 사례 공유
             </TabsTrigger>
+            <TabsTrigger value="analytics" className="border border-gray-200 bg-white px-4 data-[state=active]:border-purple-200 data-[state=active]:bg-purple-50 gap-1">
+              <BarChart3 className="h-3.5 w-3.5" />
+              피드백 분석
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="general">
@@ -770,6 +776,10 @@ export default function FeedbackViewerPage() {
                 />
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="analytics">
+            <FeedbackAnalytics hideBackButton />
           </TabsContent>
         </Tabs>
       </div>
