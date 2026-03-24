@@ -24,6 +24,7 @@ import {
 import {
   getIntakeDisplayValue,
   getIntakeFieldLabel,
+  localizeIntakeText,
 } from "@/lib/frontend/recommendation/intake-localization"
 
 function OptionBtn({
