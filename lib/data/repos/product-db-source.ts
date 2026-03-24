@@ -758,6 +758,7 @@ export async function getProductByCodeFromDatabase(code: string): Promise<Canoni
 
 export async function getSeriesOverviewFromDatabase(limit = 120): Promise<ProductSeriesOverview[]> {
   const query = `
+    WITH
     series_view AS (
       SELECT
         COALESCE(NULLIF(edp_series_name, ''), edp_no) AS series_name,
