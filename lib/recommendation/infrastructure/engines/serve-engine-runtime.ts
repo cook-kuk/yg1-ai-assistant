@@ -25,6 +25,7 @@ import { detectUserState } from "@/lib/recommendation/domain/context/user-unders
 import { buildUnifiedTurnContext } from "@/lib/recommendation/domain/context/turn-context-builder"
 import { validateOptionFirstPipeline } from "@/lib/recommendation/domain/options/option-validator"
 import { normalizeFilterValue, extractDistinctFieldValues } from "@/lib/recommendation/domain/value-normalizer"
+import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-target-classifier"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
@@ -267,7 +268,21 @@ export async function handleServeExploration(
         || userState.state === "wants_delegation"
         || userState.state === "wants_skip"
 
-      if (isQuestionAssistSignal) {
+      // ── Query Target Override ──
+      // If user is asking about a DIFFERENT entity (series/product/comparison),
+      // do NOT intercept into question-assist mode.
+      // Active filters are constraints, not the topic.
+      const queryTarget = classifyQueryTarget(
+        lastUserMsg.text,
+        prevState.appliedFilters?.find(f => f.op !== "skip")?.field,
+        prevState.lastAskedField
+      )
+
+      if (queryTarget.overridesActiveFilter) {
+        // User is asking about a specific entity/series — let orchestrator handle it
+        console.log(`[query-target:override] User query target="${queryTarget.answerTopic}" overrides pending field="${prevState.lastAskedField}" (entities: ${queryTarget.entities.join(",")})`)
+        // Don't intercept — let the orchestrator's original routing stand
+      } else if (isQuestionAssistSignal) {
         if (userState.state === "wants_skip" || userState.state === "wants_delegation") {
           action = { type: "skip_field" }
           console.log(`[question-assist:intercept] ${userState.state} -> skip_field for "${prevState.lastAskedField}"`)
