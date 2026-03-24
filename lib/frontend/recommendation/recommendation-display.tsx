@@ -38,16 +38,16 @@ import type {
 } from "@/lib/frontend/recommendation/recommendation-types"
 
 const STATUS_CONFIG = {
-  exact: { ko: "?뺥솗 留ㅼ묶", en: "Exact Match", cls: "bg-green-100 text-green-800 border-green-300", Icon: CheckCircle2, iconCls: "text-green-600" },
-  approximate: { ko: "洹쇱궗 ?꾨낫", en: "Approximate", cls: "bg-amber-100 text-amber-800 border-amber-300", Icon: AlertTriangle, iconCls: "text-amber-600" },
-  none: { ko: "留ㅼ묶 ?놁쓬", en: "No Match", cls: "bg-red-100 text-red-800 border-red-300", Icon: AlertCircle, iconCls: "text-red-600" },
+  exact: { ko: "정확 매칭", en: "Exact Match", cls: "bg-green-100 text-green-800 border-green-300", Icon: CheckCircle2, iconCls: "text-green-600" },
+  approximate: { ko: "근사 후보", en: "Approximate", cls: "bg-amber-100 text-amber-800 border-amber-300", Icon: AlertTriangle, iconCls: "text-amber-600" },
+  none: { ko: "매칭 없음", en: "No Match", cls: "bg-red-100 text-red-800 border-red-300", Icon: AlertCircle, iconCls: "text-red-600" },
 }
 
 const STOCK_CONFIG = {
-  instock: { ko: "?ш퀬 ?덉쓬", en: "In Stock", cls: "bg-green-100 text-green-700", dot: "bg-green-500" },
-  limited: { ko: "?뚮웾 ?ш퀬", en: "Limited Stock", cls: "bg-amber-100 text-amber-700", dot: "bg-amber-500" },
-  outofstock: { ko: "?ш퀬 ?놁쓬", en: "Out of Stock", cls: "bg-red-100 text-red-700", dot: "bg-red-500" },
-  unknown: { ko: "?ш퀬 誘명솗??, en: "Stock Unknown", cls: "bg-gray-100 text-gray-600", dot: "bg-gray-400" },
+  instock: { ko: "재고 있음", en: "In Stock", cls: "bg-green-100 text-green-700", dot: "bg-green-500" },
+  limited: { ko: "제한 재고", en: "Limited Stock", cls: "bg-amber-100 text-amber-700", dot: "bg-amber-500" },
+  outofstock: { ko: "재고 없음", en: "Out of Stock", cls: "bg-red-100 text-red-700", dot: "bg-red-500" },
+  unknown: { ko: "재고 미확인", en: "Stock Unknown", cls: "bg-gray-100 text-gray-600", dot: "bg-gray-400" },
 }
 
 function MatchBadge({ status }: { status: "exact" | "approximate" | "none" }) {
@@ -130,14 +130,14 @@ function InventoryBlock({
   if (totalStock === null && safeLocations.length === 0) {
     return (
       <div>
-        <div className="text-xs text-gray-500 mb-1">{language === "ko" ? "?ш퀬 ?뺣낫" : "Inventory"}</div>
+        <div className="text-xs text-gray-500 mb-1">{language === "ko" ? "재고 정보" : "Inventory"}</div>
         <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3">
           <div className="text-[11px] text-gray-600">
-            {language === "ko" ? "?ш퀬 ?곗씠??誘명솗?? : "Inventory data unavailable"}
+            {language === "ko" ? "재고 데이터 미확인" : "Inventory data unavailable"}
           </div>
           {snapshotDate && (
             <div className="text-[10px] text-gray-500 mt-1">
-              {language === "ko" ? `湲곗???${snapshotDate}` : `As of ${snapshotDate}`}
+              {language === "ko" ? `기준일: ${snapshotDate}` : `As of ${snapshotDate}`}
             </div>
           )}
         </div>
@@ -150,16 +150,16 @@ function InventoryBlock({
 
   return (
     <div>
-      <div className="text-xs text-gray-500 mb-1">{language === "ko" ? "?ш퀬 ?뺣낫" : "Inventory"}</div>
+      <div className="text-xs text-gray-500 mb-1">{language === "ko" ? "재고 정보" : "Inventory"}</div>
       <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 space-y-2">
         <div className="text-[11px] font-medium text-emerald-800">
           {totalStock !== null
-            ? (language === "ko" ? `?꾩껜 吏???⑹궛 ?ш퀬 ${totalStock}媛? : `Total stock across all regions: ${totalStock}`)
-            : (language === "ko" ? "珥앹옱怨?誘명솗?? : "Total stock unavailable")}
+            ? (language === "ko" ? `전체 지역 합산 재고 ${totalStock}개` : `Total stock across all regions: ${totalStock}`)
+            : (language === "ko" ? "총재고 미확인" : "Total stock unavailable")}
         </div>
         {snapshotDate && (
           <div className="text-[10px] text-emerald-700">
-            {language === "ko" ? `湲곗???${snapshotDate}` : `As of ${snapshotDate}`}
+            {language === "ko" ? `기준일: ${snapshotDate}` : `As of ${snapshotDate}`}
           </div>
         )}
         {visibleLocations.length > 0 && (
@@ -169,12 +169,12 @@ function InventoryBlock({
                 key={location.warehouseOrRegion}
                 className="text-[10px] px-2 py-0.5 rounded-full bg-white text-emerald-700 border border-emerald-200"
               >
-                {location.warehouseOrRegion} {language === "ko" ? `${location.quantity}媛? : `${location.quantity}`}
+                {location.warehouseOrRegion} {language === "ko" ? `${location.quantity}개` : `${location.quantity}`}
               </span>
             ))}
             {remainingCount > 0 && (
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-white text-gray-500 border border-gray-200">
-                {language === "ko" ? `??${remainingCount}媛?吏?? : `+${remainingCount} more`}
+                {language === "ko" ? `+${remainingCount}개 지역` : `+${remainingCount} more`}
               </span>
             )}
           </div>
@@ -197,24 +197,24 @@ function EvidenceBadge({ conditions, confidence }: { conditions: CuttingConditio
         className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700 border border-purple-200 hover:bg-purple-200 transition-colors"
       >
         <FileText size={10} />
-        {language === "ko" ? "?덉궘議곌굔" : "Cutting Cond."}
+        {language === "ko" ? "절삭조건" : "Cutting Cond."}
         {confidence != null && <span className="text-purple-500">({Math.round(confidence * 100)}%)</span>}
       </button>
       {open && (
         <div className="absolute z-20 mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-64">
           <div className="text-xs font-semibold text-gray-700 mb-2">
-            {language === "ko" ? "?덉궘議곌굔 (移댄깉濡쒓렇 ?곗씠??" : "Cutting Conditions (Catalog Data)"}
+            {language === "ko" ? "절삭조건 (카탈로그 데이터)" : "Cutting Conditions (Catalog Data)"}
           </div>
           <div className="space-y-1">
-            {conditions.Vc && <SpecRow label={language === "ko" ? "Vc (?덉궘?띾룄)" : "Vc (Cutting Speed)"} value={conditions.Vc} />}
-            {conditions.n && <SpecRow label={language === "ko" ? "n (?뚯쟾??" : "n (RPM)"} value={conditions.n} />}
-            {conditions.fz && <SpecRow label={language === "ko" ? "fz (?댁넚)" : "fz (Feed/Tooth)"} value={conditions.fz} />}
-            {conditions.vf && <SpecRow label={language === "ko" ? "vf (?뚯씠釉붿씠??" : "vf (Table Feed)"} value={conditions.vf} />}
-            {conditions.ap && <SpecRow label={language === "ko" ? "ap (?덉궘源딆씠)" : "ap (Depth of Cut)"} value={conditions.ap} />}
-            {conditions.ae && <SpecRow label={language === "ko" ? "ae (?덉궘??" : "ae (Width of Cut)"} value={conditions.ae} />}
+            {conditions.Vc && <SpecRow label={language === "ko" ? "Vc (절삭속도)" : "Vc (Cutting Speed)"} value={conditions.Vc} />}
+            {conditions.n && <SpecRow label={language === "ko" ? "n (회전수)" : "n (RPM)"} value={conditions.n} />}
+            {conditions.fz && <SpecRow label={language === "ko" ? "fz (이송)" : "fz (Feed/Tooth)"} value={conditions.fz} />}
+            {conditions.vf && <SpecRow label={language === "ko" ? "vf (테이블이송)" : "vf (Table Feed)"} value={conditions.vf} />}
+            {conditions.ap && <SpecRow label={language === "ko" ? "ap (절삭깊이)" : "ap (Depth of Cut)"} value={conditions.ap} />}
+            {conditions.ae && <SpecRow label={language === "ko" ? "ae (절삭폭)" : "ae (Width of Cut)"} value={conditions.ae} />}
           </div>
           <div className="text-[10px] text-gray-400 mt-2 border-t pt-1">
-            {language === "ko" ? "移댄깉濡쒓렇 異붿텧 ?곗씠??쨌 ?ㅼ젣 媛怨???議곗젙 ?꾩슂" : "Catalog extracted data 쨌 Adjust for actual machining"}
+            {language === "ko" ? "카탈로그 추출 데이터 · 실제 가공시 조정 필요" : "Catalog extracted data · Adjust for actual machining"}
           </div>
         </div>
       )}
@@ -224,12 +224,12 @@ function EvidenceBadge({ conditions, confidence }: { conditions: CuttingConditio
 
 function buildXaiNarrative(breakdown: ScoreBreakdown): string {
   const dims = [
-    { key: "diameter" as const, label: "吏곴꼍" },
-    { key: "flutes" as const, label: "???? },
-    { key: "materialTag" as const, label: "?뚯옱" },
-    { key: "operation" as const, label: "媛怨?諛⑹떇" },
-    { key: "coating" as const, label: "肄뷀똿" },
-    { key: "evidence" as const, label: "?덉궘議곌굔 洹쇨굅" },
+    { key: "diameter" as const, label: "직경" },
+    { key: "flutes" as const, label: "날수" },
+    { key: "materialTag" as const, label: "소재" },
+    { key: "operation" as const, label: "가공방식" },
+    { key: "coating" as const, label: "코팅" },
+    { key: "evidence" as const, label: "절삭조건 근거" },
   ]
 
   const perfect: string[] = []
@@ -248,16 +248,16 @@ function buildXaiNarrative(breakdown: ScoreBreakdown): string {
   }
 
   const parts: string[] = []
-  if (perfect.length > 0) parts.push(`${perfect.join(", ")} 議곌굔???뺥솗???쇱튂?⑸땲??`)
-  if (good.length > 0) parts.push(`${good.join(", ")}?(?? 遺遺꾩쟻?쇰줈 ?쇱튂?⑸땲??`)
-  if (weak.length > 0) parts.push(`${weak.join(", ")} ??ぉ? ?ㅼ냼 李⑥씠媛 ?덉뒿?덈떎.`)
-  if (missing.length > 0) parts.push(`${missing.join(", ")} ?뺣낫???뺤씤?섏? ?딆븯?듬땲??`)
+  if (perfect.length > 0) parts.push(`${perfect.join(", ")} 조건은 정확히 일치합니다.`)
+  if (good.length > 0) parts.push(`${good.join(", ")}은(는) 부분적으로 일치합니다.`)
+  if (weak.length > 0) parts.push(`${weak.join(", ")} 항목은 다소 차이가 있습니다.`)
+  if (missing.length > 0) parts.push(`${missing.join(", ")} 정보는 확인되지 않았습니다.`)
 
   const pct = breakdown.matchPct
-  if (pct >= 80) parts.push("?꾨컲?곸쑝濡??붿껌 議곌굔??留ㅼ슦 ?곹빀???쒗뭹?낅땲??")
-  else if (pct >= 60) parts.push("?붿껌 議곌굔???泥대줈 遺?⑺븯???쒗뭹?낅땲??")
-  else if (pct >= 40) parts.push("?쇰? 議곌굔? 留욎?留? ?몃? ?ы빆 ?뺤씤???꾩슂?⑸땲??")
-  else parts.push("?붿껌 議곌굔怨쇱쓽 ?쇱튂?꾧? ??븘 二쇱쓽媛 ?꾩슂?⑸땲??")
+  if (pct >= 80) parts.push("전반적으로 요청 조건에 매우 적합한 제품입니다.")
+  else if (pct >= 60) parts.push("요청 조건에 대체로 부합하는 제품입니다.")
+  else if (pct >= 40) parts.push("일부 조건만 맞아 더 세부 사항 확인이 필요합니다.")
+  else parts.push("요청 조건과의 일치율이 낮아 주의가 필요합니다.")
 
   return parts.join(" ")
 }
@@ -265,13 +265,13 @@ function buildXaiNarrative(breakdown: ScoreBreakdown): string {
 function ScoreBreakdownPanel({ breakdown }: { breakdown: ScoreBreakdown }) {
   const { language } = useApp()
   const dimensions = [
-    { key: "diameter", ko: "吏곴꼍", en: "Diameter", emoji: "?뱪" },
-    { key: "flutes", ko: "????, en: "Flutes", emoji: "?뵩" },
-    { key: "materialTag", ko: "?뚯옱", en: "Material", emoji: "?㎟" },
-    { key: "operation", ko: "媛怨?, en: "Operation", emoji: "?숋툘" },
-    { key: "coating", ko: "肄뷀똿", en: "Coating", emoji: "?썳截? },
-    { key: "completeness", ko: "?꾩꽦??, en: "Completeness", emoji: "?뱤" },
-    { key: "evidence", ko: "?덉궘議곌굔", en: "Cutting Cond.", emoji: "?뱞" },
+    { key: "diameter", ko: "직경", en: "Diameter", emoji: "📏" },
+    { key: "flutes", ko: "날수", en: "Flutes", emoji: "🔩" },
+    { key: "materialTag", ko: "소재", en: "Material", emoji: "🧱" },
+    { key: "operation", ko: "가공", en: "Operation", emoji: "⚙️" },
+    { key: "coating", ko: "코팅", en: "Coating", emoji: "🛡️" },
+    { key: "completeness", ko: "완성도", en: "Completeness", emoji: "📋" },
+    { key: "evidence", ko: "절삭조건", en: "Cutting Cond.", emoji: "📊" },
   ] as const
 
   const narrative = buildXaiNarrative(breakdown)
@@ -281,7 +281,7 @@ function ScoreBreakdownPanel({ breakdown }: { breakdown: ScoreBreakdown }) {
       <div className="flex items-center justify-between">
         <div className="text-xs font-semibold text-slate-700 flex items-center gap-1">
           <Info size={11} className="text-blue-600" />
-          {language === "ko" ? "異붿쿇 洹쇨굅 (xAI)" : "Recommendation Basis (xAI)"}
+          {language === "ko" ? "추천 근거 (xAI)" : "Recommendation Basis (xAI)"}
         </div>
         <div className="text-xs font-bold text-blue-700">
           {breakdown.total}/{breakdown.maxTotal}pt ({breakdown.matchPct}%)
@@ -317,7 +317,7 @@ function ScoreBreakdownPanel({ breakdown }: { breakdown: ScoreBreakdown }) {
         <div className="text-[11px] text-slate-600 leading-relaxed">{narrative}</div>
       </div>
       <div className="text-[10px] text-slate-400 border-t border-slate-200 pt-1.5 mt-1">
-        {language === "ko" ? "YG-1 ?쒗뭹 DB 湲곕컲 ?먮룞 ?됯? 쨌 異붿젙媛??놁쓬" : "Auto-evaluated from YG-1 product DB 쨌 No estimated values"}
+        {language === "ko" ? "YG-1 제품 DB 기반 자동 평가 · 추정값 없음" : "Auto-evaluated from YG-1 product DB · No estimated values"}
       </div>
     </div>
   )
@@ -367,7 +367,7 @@ function ProductCard({
               {buildSubtypeFirstSummary(product, language).join(" ? ")}
             </div>
             {product.materialTags.length > 0 && (
-              <div className="text-[10px] text-gray-400 mt-0.5">{product.materialTags.join("/")}援?/div>
+              <div className="text-[10px] text-gray-400 mt-0.5">{product.materialTags.join("/")}군</div>
             )}
             {product.description && (
               <div className="text-[10px] text-gray-500 mt-1 italic leading-relaxed">
@@ -383,12 +383,12 @@ function ProductCard({
       {open && (
         <CardContent className="px-4 pb-4 pt-0 space-y-3">
           <div className="bg-gray-50 rounded-lg p-3">
-            <SpecRow label={language === "ko" ? "? ??" : "Subtype"} value={product.toolSubtype} />
-            <SpecRow label={language === "ko" ? "??? ???" : "Tool Material"} value={product.toolMaterial} />
-            <SpecRow label={language === "ko" ? "??? ???" : "Shank Dia."} value={product.shankDiameterMm != null ? `${product.shankDiameterMm}mm` : null} />
-            <SpecRow label={language === "ko" ? "??? ???" : "LOC"} value={product.lengthOfCutMm != null ? `${product.lengthOfCutMm}mm` : null} />
-            <SpecRow label={language === "ko" ? "??? ???" : "OAL"} value={product.overallLengthMm != null ? `${product.overallLengthMm}mm` : null} />
-            <SpecRow label={language === "ko" ? "?????" : "Helix Angle"} value={product.helixAngleDeg != null ? `${product.helixAngleDeg}?` : null} />
+            <SpecRow label={language === "ko" ? "공구 타입" : "Subtype"} value={product.toolSubtype} />
+            <SpecRow label={language === "ko" ? "공구 재질" : "Tool Material"} value={product.toolMaterial} />
+            <SpecRow label={language === "ko" ? "생크 직경" : "Shank Dia."} value={product.shankDiameterMm != null ? `${product.shankDiameterMm}mm` : null} />
+            <SpecRow label={language === "ko" ? "날장 길이" : "LOC"} value={product.lengthOfCutMm != null ? `${product.lengthOfCutMm}mm` : null} />
+            <SpecRow label={language === "ko" ? "전체 길이" : "OAL"} value={product.overallLengthMm != null ? `${product.overallLengthMm}mm` : null} />
+            <SpecRow label={language === "ko" ? "헬릭스각" : "Helix Angle"} value={product.helixAngleDeg != null ? `${product.helixAngleDeg}°` : null} />
 
           </div>
           {product.featureText && (
@@ -398,11 +398,11 @@ function ProductCard({
           )}
           {product.materialTags.length > 0 && (
             <div>
-              <div className="text-xs text-gray-500 mb-1">{language === "ko" ? "?곸슜 ?뚯옱" : "Materials"}</div>
+              <div className="text-xs text-gray-500 mb-1">{language === "ko" ? "적용 소재" : "Materials"}</div>
               <div className="flex flex-wrap gap-1">
                 {product.materialTags.map(tag => (
                   <Badge key={tag} variant="secondary" className="text-xs">
-                    {language === "ko" ? `${tag}援? : `${tag} Group`}
+                    {language === "ko" ? `${tag}군` : `${tag} Group`}
                   </Badge>
                 ))}
               </div>
@@ -411,7 +411,7 @@ function ProductCard({
           <InventoryBlock totalStock={scored.totalStock} snapshotDate={inventorySnapshotDate} locations={inventoryLocations} />
           {bestCondition && (
             <div>
-              <div className="text-xs text-gray-500 mb-1">{language === "ko" ? "?덉궘議곌굔" : "Cutting Conditions"}</div>
+              <div className="text-xs text-gray-500 mb-1">{language === "ko" ? "절삭조건" : "Cutting Conditions"}</div>
               <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
                   {bestCondition.Vc && <span className="text-gray-700">Vc: {bestCondition.Vc}</span>}
@@ -423,15 +423,15 @@ function ProductCard({
                 </div>
                 <div className="text-[10px] text-purple-600 mt-2">
                   {language === "ko"
-                    ? `移댄깉濡쒓렇/DB 洹쇨굅 쨌 ?좊ː??${Math.round((evidenceSummary?.bestConfidence ?? 0) * 100)}% 쨌 ${evidenceSummary?.sourceCount ?? 0}嫄?
-                    : `Catalog/DB grounded 쨌 Confidence ${Math.round((evidenceSummary?.bestConfidence ?? 0) * 100)}% 쨌 ${evidenceSummary?.sourceCount ?? 0} sources`}
+                    ? `카탈로그/DB 근거 · 신뢰도 ${Math.round((evidenceSummary?.bestConfidence ?? 0) * 100)}% · ${evidenceSummary?.sourceCount ?? 0}건`
+                    : `Catalog/DB grounded · Confidence ${Math.round((evidenceSummary?.bestConfidence ?? 0) * 100)}% · ${evidenceSummary?.sourceCount ?? 0} sources`}
                 </div>
               </div>
             </div>
           )}
           {scored.matchedFields.length > 0 && (
             <div>
-              <div className="text-xs text-gray-500 mb-1">{language === "ko" ? "留ㅼ묶 洹쇨굅" : "Match Basis"}</div>
+              <div className="text-xs text-gray-500 mb-1">{language === "ko" ? "매칭 근거" : "Match Basis"}</div>
               <div className="flex flex-wrap gap-1">
                 {scored.matchedFields.map((field, index) => (
                   <span key={index} className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{field}</span>
@@ -482,7 +482,7 @@ export function CandidateCard({ c }: { c: RecommendationCandidateDto }) {
             {buildSubtypeFirstSummary(c, language).join(" ? ")}
           </div>
           {c.materialTags.length > 0 && (
-            <div className="text-[10px] text-gray-400 mt-0.5">{c.materialTags.join("/")}援?/div>
+             <div className="text-[10px] text-gray-400 mt-0.5">{c.materialTags.join("/")}군</div>
           )}
         </div>
       </div>
@@ -527,7 +527,7 @@ export function CandidateCard({ c }: { c: RecommendationCandidateDto }) {
             <div className="mt-2 space-y-2">
               {c.seriesName && (
                 <div className="text-[10px] text-blue-700 font-medium">
-                  {language === "ko" ? "?쒕━利? : "Series"}: {c.seriesName}
+                  {language === "ko" ? "시리즈" : "Series"}: {c.seriesName}
                 </div>
               )}
               <ScoreBreakdownPanel breakdown={breakdown} />
@@ -542,10 +542,10 @@ export function CandidateCard({ c }: { c: RecommendationCandidateDto }) {
 function VerificationBadge({ status }: { status: VerificationStatus }) {
   const { language } = useApp()
   const cfg = {
-    verified: { ko: "?뺤씤??, en: "Verified", cls: "bg-green-100 text-green-700 border-green-200" },
-    partial: { ko: "遺遺꾪솗??, en: "Partial", cls: "bg-amber-100 text-amber-700 border-amber-200" },
-    conflict: { ko: "異⑸룎", en: "Conflict", cls: "bg-red-100 text-red-700 border-red-200" },
-    unverified: { ko: "誘명솗??, en: "Unverified", cls: "bg-gray-100 text-gray-500 border-gray-200" },
+    verified: { ko: "확인됨", en: "Verified", cls: "bg-green-100 text-green-700 border-green-200" },
+    partial: { ko: "부분확인", en: "Partial", cls: "bg-amber-100 text-amber-700 border-amber-200" },
+    conflict: { ko: "충돌", en: "Conflict", cls: "bg-red-100 text-red-700 border-red-200" },
+    unverified: { ko: "미확인", en: "Unverified", cls: "bg-gray-100 text-gray-500 border-gray-200" },
   }[status]
 
   return <span className={`inline-flex items-center px-1.5 py-0 rounded text-[10px] font-medium border ${cfg.cls}`}>{cfg[language]}</span>
@@ -554,20 +554,20 @@ function VerificationBadge({ status }: { status: VerificationStatus }) {
 export function IntentSummaryCard({ prep }: { prep: RequestPreparationResult }) {
   const { language } = useApp()
   const intentLabels: Record<string, { ko: string; en: string }> = {
-    product_recommendation: { ko: "?쒗뭹 異붿쿇", en: "Product Recommendation" },
-    substitute_search: { ko: "?泥댄뭹 寃??, en: "Substitute Search" },
-    cutting_condition_query: { ko: "?덉궘議곌굔 臾몄쓽", en: "Cutting Condition Query" },
-    product_lookup: { ko: "?쒗뭹 ?뺣낫 議고쉶", en: "Product Lookup" },
-    narrowing_answer: { ko: "異뺤냼 ?묐떟", en: "Narrowing Answer" },
-    refinement: { ko: "議곌굔 蹂寃?, en: "Refinement" },
-    general_question: { ko: "?쇰컲 臾몄쓽", en: "General Question" },
+    product_recommendation: { ko: "제품 추천", en: "Product Recommendation" },
+    substitute_search: { ko: "대체품 검색", en: "Substitute Search" },
+    cutting_condition_query: { ko: "절삭조건 문의", en: "Cutting Condition Query" },
+    product_lookup: { ko: "제품 정보 조회", en: "Product Lookup" },
+    narrowing_answer: { ko: "축소 응답", en: "Narrowing Answer" },
+    refinement: { ko: "조건 변경", en: "Refinement" },
+    general_question: { ko: "일반 문의", en: "General Question" },
   }
 
   return (
     <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
       <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-800">
         <Zap size={11} />
-        {language === "ko" ? "?섎룄 遺꾩꽍" : "Intent Analysis"}
+        {language === "ko" ? "의도 분석" : "Intent Analysis"}
       </div>
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
@@ -582,14 +582,14 @@ export function IntentSummaryCard({ prep }: { prep: RequestPreparationResult }) 
                 : "bg-gray-100 text-gray-500"
           }`}
         >
-          {language === "ko" ? "?좊ː?? : "Confidence"}: {prep.intentConfidence}
+          {language === "ko" ? "신뢰도" : "Confidence"}: {prep.intentConfidence}
         </span>
       </div>
       <div className="flex items-center gap-2 text-[10px] text-blue-600">
-        <span>{language === "ko" ? `?щ’ ${prep.slots.length}媛? : `${prep.slots.length} slots`}</span>
-        <span>{language === "ko" ? `?꾩꽦??${prep.completeness.completionPct}%` : `${prep.completeness.completionPct}% complete`}</span>
+        <span>{language === "ko" ? `슬롯 ${prep.slots.length}개` : `${prep.slots.length} slots`}</span>
+        <span>{language === "ko" ? `완성도 ${prep.completeness.completionPct}%` : `${prep.completeness.completionPct}% complete`}</span>
         {prep.route.riskFlags.length > 0 && (
-          <span className="text-amber-600">{language === "ko" ? "?꾪뿕" : "Risk"}: {prep.route.riskFlags.join(", ")}</span>
+          <span className="text-amber-600">{language === "ko" ? "위험" : "Risk"}: {prep.route.riskFlags.join(", ")}</span>
         )}
       </div>
     </div>
@@ -605,8 +605,8 @@ function WhyRecommendedCard({ explanation }: { explanation: RecommendationExplan
       <button onClick={() => setExpanded(prev => !prev)} className="flex items-center justify-between w-full text-xs font-semibold text-green-800">
         <div className="flex items-center gap-1.5">
           <CheckCircle2 size={11} />
-          {language === "ko" ? "?????쒗뭹?멸??" : "Why This Product?"}
-          <span className="text-green-600 font-mono">({explanation.matchPct}% {language === "ko" ? "?쇱튂" : "match"})</span>
+          {language === "ko" ? "왜 이 제품인가?" : "Why This Product?"}
+          <span className="text-green-600 font-mono">({explanation.matchPct}% {language === "ko" ? "일치" : "match"})</span>
         </div>
         {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
       </button>
@@ -617,7 +617,7 @@ function WhyRecommendedCard({ explanation }: { explanation: RecommendationExplan
         <div className="space-y-2 pt-1">
           {explanation.matchedFacts.length > 0 && (
             <div>
-              <div className="text-[10px] font-semibold text-green-700 mb-1">{language === "ko" ? "?쇱튂 ??ぉ" : "Matched"}</div>
+              <div className="text-[10px] font-semibold text-green-700 mb-1">{language === "ko" ? "일치 항목" : "Matched"}</div>
               {explanation.matchedFacts.map((fact, index) => (
                 <div key={index} className="flex items-center gap-2 text-[11px] py-0.5">
                   <Check size={10} className="text-green-600 shrink-0" />
@@ -632,10 +632,10 @@ function WhyRecommendedCard({ explanation }: { explanation: RecommendationExplan
                     }`}
                   >
                     {fact.matchType === "exact"
-                      ? (language === "ko" ? "?뺥솗" : "Exact")
+                      ? (language === "ko" ? "정확" : "Exact")
                       : fact.matchType === "close"
-                        ? (language === "ko" ? "洹쇱궗" : "Close")
-                        : (language === "ko" ? "遺遺? : "Partial")}
+                        ? (language === "ko" ? "근사" : "Close")
+                        : (language === "ko" ? "부분" : "Partial")}
                   </span>
                   <span className="text-gray-400 font-mono text-[10px] ml-auto">{fact.score}/{fact.maxScore}</span>
                 </div>
@@ -645,7 +645,7 @@ function WhyRecommendedCard({ explanation }: { explanation: RecommendationExplan
 
           {explanation.unmatchedFacts.length > 0 && (
             <div>
-              <div className="text-[10px] font-semibold text-amber-700 mb-1">{language === "ko" ? "遺덉씪移???ぉ" : "Unmatched"}</div>
+              <div className="text-[10px] font-semibold text-amber-700 mb-1">{language === "ko" ? "불일치 항목" : "Unmatched"}</div>
               {explanation.unmatchedFacts.map((fact, index) => (
                 <div key={index} className="flex items-start gap-2 text-[11px] py-0.5">
                   <AlertTriangle
@@ -666,10 +666,10 @@ function WhyRecommendedCard({ explanation }: { explanation: RecommendationExplan
                       }`}
                     >
                       {fact.impact === "critical"
-                        ? (language === "ko" ? "以묒슂" : "Critical")
+                        ? (language === "ko" ? "중요" : "Critical")
                         : fact.impact === "moderate"
-                          ? (language === "ko" ? "蹂댄넻" : "Moderate")
-                          : (language === "ko" ? "寃쎈?" : "Minor")}
+                          ? (language === "ko" ? "보통" : "Moderate")
+                          : (language === "ko" ? "경미" : "Minor")}
                     </span>
                   </div>
                 </div>
@@ -736,7 +736,7 @@ function FactCheckCard({ factCheck }: { factCheck: Record<string, unknown> }) {
           ))}
           {report.criticalIssues.length > 0 && (
             <div className="mt-1 pt-1 border-t border-slate-200">
-              <div className="text-[10px] font-semibold text-red-600 mb-0.5">{language === "ko" ? "二쇱쓽?ы빆" : "Critical Issues"}</div>
+              <div className="text-[10px] font-semibold text-red-600 mb-0.5">{language === "ko" ? "주의사항" : "Critical Issues"}</div>
               {report.criticalIssues.map((issue, index) => (
                 <div key={index} className="text-[10px] text-red-500">{issue}</div>
               ))}
@@ -756,7 +756,7 @@ function EvidenceSourceCard({ evidence }: { evidence: SupportingEvidence[] }) {
     <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 space-y-2">
       <div className="flex items-center gap-1.5 text-xs font-semibold text-purple-800">
         <FileText size={11} />
-        {language === "ko" ? "洹쇨굅 ?먮즺" : "Evidence Sources"}
+        {language === "ko" ? "근거 자료" : "Evidence Sources"}
       </div>
       {evidence.map((entry, index) => (
         <div key={index} className="flex items-start gap-2 text-[11px]">
@@ -772,12 +772,12 @@ function EvidenceSourceCard({ evidence }: { evidence: SupportingEvidence[] }) {
             }`}
           >
             {entry.type === "cutting_condition"
-              ? (language === "ko" ? "?덉궘議곌굔" : "Cutting Cond.")
+              ? (language === "ko" ? "절삭조건" : "Cutting Cond.")
               : entry.type === "catalog_spec"
-                ? (language === "ko" ? "移댄깉濡쒓렇" : "Catalog")
+                ? (language === "ko" ? "카탈로그" : "Catalog")
                 : entry.type === "inventory"
-                  ? (language === "ko" ? "?ш퀬" : "Inventory")
-                  : (language === "ko" ? "?⑷린" : "Lead Time")}
+                    ? (language === "ko" ? "재고" : "Inventory")
+                    : (language === "ko" ? "납기" : "Lead Time")}
           </span>
           <span className="text-gray-700">{entry.summary}</span>
         </div>
@@ -807,8 +807,7 @@ export function RecommendationPanel({
       <div className="flex items-center gap-2 flex-wrap">
         <MatchBadge status={status} />
         <span className="text-xs text-gray-500">
-          {totalCandidatesConsidered}
-          {language === "ko" ? "媛??꾨낫 寃?? : " candidates searched"}
+          {language === "ko" ? `${totalCandidatesConsidered}개 후보 검색` : `${totalCandidatesConsidered} candidates searched`}
         </span>
       </div>
       {warnings.length > 0 && (
@@ -837,7 +836,7 @@ export function RecommendationPanel({
         <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
           <div className="text-xs font-semibold text-purple-800 mb-2 flex items-center gap-1">
             <FileText size={11} />
-            ?덉궘議곌굔 洹쇨굅
+            절삭조건 근거
           </div>
           {evidenceSummaries.map((summary, index) => (
             <div key={index} className="mb-2 last:mb-0">
@@ -853,7 +852,7 @@ export function RecommendationPanel({
                 </div>
               )}
               <div className="text-[10px] text-purple-500 mt-0.5">
-                ?좊ː?? {Math.round(summary.bestConfidence * 100)}% 쨌 {summary.sourceCount}嫄?
+                신뢰도 {Math.round(summary.bestConfidence * 100)}% · {summary.sourceCount}건
               </div>
             </div>
           ))}
@@ -864,7 +863,7 @@ export function RecommendationPanel({
         <div>
           <div className="flex items-center gap-1 text-xs font-semibold text-gray-700 mb-2">
             <Zap size={12} className="text-blue-600" />
-            {language === "ko" ? "異붿쿇 ?쒗뭹" : "Recommended Product"}
+            {language === "ko" ? "추천 제품" : "Recommended Product"}
           </div>
           <ProductCard
             scored={primaryProduct}
@@ -877,7 +876,7 @@ export function RecommendationPanel({
       {alternatives.length > 0 && (
         <div>
           <div className="text-xs font-semibold text-gray-500 mb-2">
-            {language === "ko" ? `?泥??꾨낫 (${alternatives.length})` : `Alternatives (${alternatives.length})`}
+            {language === "ko" ? `대체 후보 (${alternatives.length})` : `Alternatives (${alternatives.length})`}
           </div>
           <div className="space-y-2">
             {alternatives.map((alternative, index) => (
@@ -896,9 +895,9 @@ export function RecommendationPanel({
       {status === "none" && (
         <div className="text-center py-8">
           <AlertCircle size={32} className="text-gray-200 mx-auto mb-2" />
-          <div className="text-sm text-gray-500">{language === "ko" ? "議곌굔??留욌뒗 ?쒗뭹 ?놁쓬" : "No matching products found"}</div>
+          <div className="text-sm text-gray-500">{language === "ko" ? "조건에 맞는 제품 없음" : "No matching products found"}</div>
           <div className="text-xs text-gray-400 mt-1">
-            {language === "ko" ? "吏곴꼍?대굹 ?뚯옱 議곌굔??議곗젙?대낫?몄슂" : "Try adjusting diameter or material conditions"}
+            {language === "ko" ? "직경이나 소재 조건을 조정해보세요" : "Try adjusting diameter or material conditions"}
           </div>
         </div>
       )}
