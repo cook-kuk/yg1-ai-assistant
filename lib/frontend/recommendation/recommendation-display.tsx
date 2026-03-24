@@ -22,6 +22,7 @@ import { useApp } from "@/lib/frontend/app-context"
 import {
   buildCandidateSpecFallback,
   buildCandidateSubtypeHighlight,
+  buildSubtypeFirstSummary,
 } from "@/lib/frontend/recommendation/recommendation-card-highlights"
 import type {
   CuttingConditions,
@@ -363,16 +364,7 @@ function ProductCard({
               {product.seriesName && <span className="text-xs text-blue-700 font-medium">{product.seriesName}</span>}
             </div>
             <div className="text-[11px] text-gray-600 mt-1 leading-relaxed font-medium">
-              {[
-                product.diameterMm != null ? `?${product.diameterMm}mm` : null,
-                product.fluteCount != null ? `${product.fluteCount}?? : null,
-                product.coating ?? null,
-                product.toolMaterial ?? null,
-                product.shankDiameterMm != null ? `Shank ${product.shankDiameterMm}mm` : null,
-                product.lengthOfCutMm != null ? `CL ${product.lengthOfCutMm}mm` : null,
-                product.overallLengthMm != null ? `OAL ${product.overallLengthMm}mm` : null,
-                product.helixAngleDeg != null ? `${product.helixAngleDeg}째` : null,
-              ].filter(Boolean).join(" 쨌 ")}
+              {buildSubtypeFirstSummary(product, language).join(" ? ")}
             </div>
             {product.materialTags.length > 0 && (
               <div className="text-[10px] text-gray-400 mt-0.5">{product.materialTags.join("/")}援?/div>
@@ -391,14 +383,13 @@ function ProductCard({
       {open && (
         <CardContent className="px-4 pb-4 pt-0 space-y-3">
           <div className="bg-gray-50 rounded-lg p-3">
-            <SpecRow label={language === "ko" ? "吏곴꼍" : "Diameter"} value={product.diameterMm != null ? `?${product.diameterMm}mm` : null} />
-            <SpecRow label={language === "ko" ? "???? : "Flutes"} value={product.fluteCount != null ? `${product.fluteCount}${language === "ko" ? "?? : "FL"}` : null} />
-            <SpecRow label={language === "ko" ? "肄뷀똿" : "Coating"} value={product.coating} />
-            <SpecRow label={language === "ko" ? "怨듦뎄 ?뚯옱" : "Tool Material"} value={product.toolMaterial} />
-            <SpecRow label={language === "ko" ? "?뺥겕 吏곴꼍" : "Shank Dia."} value={product.shankDiameterMm != null ? `${product.shankDiameterMm}mm` : null} />
-            <SpecRow label={language === "ko" ? "?덉궘 湲몄씠" : "LOC"} value={product.lengthOfCutMm != null ? `${product.lengthOfCutMm}mm` : null} />
-            <SpecRow label={language === "ko" ? "?꾩껜 湲몄씠" : "OAL"} value={product.overallLengthMm != null ? `${product.overallLengthMm}mm` : null} />
-            <SpecRow label={language === "ko" ? "?섏꽑媛? : "Helix Angle"} value={product.helixAngleDeg != null ? `${product.helixAngleDeg}째` : null} />
+            <SpecRow label={language === "ko" ? "? ??" : "Subtype"} value={product.toolSubtype} />
+            <SpecRow label={language === "ko" ? "??? ???" : "Tool Material"} value={product.toolMaterial} />
+            <SpecRow label={language === "ko" ? "??? ???" : "Shank Dia."} value={product.shankDiameterMm != null ? `${product.shankDiameterMm}mm` : null} />
+            <SpecRow label={language === "ko" ? "??? ???" : "LOC"} value={product.lengthOfCutMm != null ? `${product.lengthOfCutMm}mm` : null} />
+            <SpecRow label={language === "ko" ? "??? ???" : "OAL"} value={product.overallLengthMm != null ? `${product.overallLengthMm}mm` : null} />
+            <SpecRow label={language === "ko" ? "?????" : "Helix Angle"} value={product.helixAngleDeg != null ? `${product.helixAngleDeg}?` : null} />
+
           </div>
           {product.featureText && (
             <div className="text-[11px] text-teal-700 bg-teal-50 rounded-lg p-2.5 leading-relaxed whitespace-pre-line">
@@ -488,16 +479,7 @@ export function CandidateCard({ c }: { c: RecommendationCandidateDto }) {
           </div>
           <div className="font-mono text-sm font-bold text-gray-900">{c.displayCode}</div>
           <div className="text-[11px] text-gray-600 mt-1 leading-relaxed font-medium">
-            {[
-              c.diameterMm != null ? `?${c.diameterMm}mm` : null,
-              c.fluteCount != null ? `${c.fluteCount}?? : null,
-              c.coating ?? null,
-              c.toolMaterial ?? null,
-              c.shankDiameterMm != null ? `Shank ${c.shankDiameterMm}mm` : null,
-              c.lengthOfCutMm != null ? `CL ${c.lengthOfCutMm}mm` : null,
-              c.overallLengthMm != null ? `OAL ${c.overallLengthMm}mm` : null,
-              c.helixAngleDeg != null ? `${c.helixAngleDeg}째` : null,
-            ].filter(Boolean).join(" 쨌 ")}
+            {buildSubtypeFirstSummary(c, language).join(" ? ")}
           </div>
           {c.materialTags.length > 0 && (
             <div className="text-[10px] text-gray-400 mt-0.5">{c.materialTags.join("/")}援?/div>
