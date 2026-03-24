@@ -248,11 +248,12 @@ export async function buildQuestionResponse(
     }
   } else if (provider.available() && messages.length > 0) {
     try {
+      const lastUserText = [...messages].reverse().find(m => m.role === "user")?.text ?? ""
       const systemPrompt = buildSystemPrompt(language)
       const sessionCtx = buildSessionContext(form, sessionState, candidates.length, snapshotToDisplayed(candidateSnapshot))
       const raw = await provider.complete(systemPrompt, [
-        { role: "user", content: `${sessionCtx}\n\n다음 질문을 자연스럽고 간결한 ${language === "ko" ? "한국어" : "영어"}로 다듬어주세요: "${question?.questionText ?? ""}"\n현재 후보 ${candidates.length}개.\nJSON으로 응답: { "responseText": "...", "extractedParams": {}, "isComplete": false, "skipQuestion": false }` }
-      ], 300)
+        { role: "user", content: `${sessionCtx}\n\n현재 진행 중인 질문: "${question?.questionText ?? ""}"\n현재 후보 ${candidates.length}개.\n\n사용자의 최신 메시지: "${lastUserText}"\n\n사용자 메시지가 현재 질문과 관련 없는 내용(회사 정보, 영업소, 공장 등)이면 【YG-1 회사 정보】에서 답변한 뒤 자연스럽게 현재 질문으로 돌아와라.\n사용자 메시지가 현재 질문에 대한 답변이면 질문을 자연스럽게 다듬어서 응답하라.\nJSON으로 응답: { "responseText": "...", "extractedParams": {}, "isComplete": false, "skipQuestion": false }` }
+      ], 400)
       const parsed = safeParseJSON(raw)
       if (typeof parsed?.responseText === "string") {
         responseText = parsed.responseText
