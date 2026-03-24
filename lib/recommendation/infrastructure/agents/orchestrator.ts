@@ -312,6 +312,21 @@ const NARROWING_TOOLS: LLMTool[] = [
     }
   },
   {
+    name: "filter_stock",
+    description: "사용자가 재고/납기 기준으로 필터링을 요청할 때 호출. '재고 있는 거로', '재고 있는 제품만', '납기 빠른 거로', '즉시 구매 가능한 거' 등. 이미 추천 결과가 있는 상태에서 재고 기준 2차 필터링.",
+    input_schema: {
+      type: "object",
+      properties: {
+        filter: {
+          type: "string",
+          enum: ["instock", "limited", "all"],
+          description: "instock=재고 있는 것만, limited=제한적 포함, all=전체"
+        }
+      },
+      required: ["filter"]
+    }
+  },
+  {
     name: "reset_session",
     description: "사용자가 처음부터 다시 시작하고 싶을 때 호출. '처음부터 다시', '리셋' 등.",
     input_schema: {
@@ -378,6 +393,11 @@ ${candidatesDesc}
 10. 제품 데이터(코드, 스펙, 재고)를 절대 생성하지 마세요
 11. 한국어로 답변하세요
 12. 답변 끝에 출처 표기: [Reference: YG-1 내부 DB] 또는 [Reference: AI 지식 추론] 또는 [Reference: 웹 검색]
+
+═══ 재고/납기 필터링 ═══
+- "재고 있는 거로", "재고 있는 제품만", "즉시 구매 가능한 거" → filter_stock(filter="instock")
+- "납기 빠른 거", "재고 제한적이어도 괜찮아" → filter_stock(filter="limited")
+- "전부 다 보여줘", "재고 무관" → filter_stock(filter="all")
 
 ═══ 중요: 질문/탐색 vs 선택 구분 ═══
 - "Ball은 몇개야?", "Taper는 뭐야?", "3날 제품이 많아?" → query_field_info (정보 조회)
@@ -469,6 +489,15 @@ function mapToolUseToAction(
           ctx.userMessage
         ),
       }
+
+    case "filter_stock": {
+      const stockValue = String(input.filter ?? "instock")
+      const validValues = ["instock", "limited", "all"] as const
+      const stockFilter = validValues.includes(stockValue as any)
+        ? (stockValue as "instock" | "limited" | "all")
+        : "instock"
+      return { type: "filter_by_stock", stockFilter }
+    }
 
     case "reset_session":
       return { type: "reset_session" }

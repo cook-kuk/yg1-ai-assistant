@@ -61,6 +61,7 @@ export type LastActionType =
   | "filter_displayed"
   | "query_displayed"
   | "redirect_off_topic"
+  | "filter_by_stock"
   | "reset_session"
   | "start_new_task"
   | "resume_previous_task"
