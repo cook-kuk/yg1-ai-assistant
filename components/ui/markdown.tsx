@@ -6,9 +6,18 @@ import remarkGfm from "remark-gfm"
 interface MarkdownProps {
   children: string
   className?: string
+  stripDoubleTilde?: boolean
+  disableStrikethrough?: boolean
 }
 
-export function Markdown({ children, className = "" }: MarkdownProps) {
+export function Markdown({
+  children,
+  className = "",
+  stripDoubleTilde = false,
+  disableStrikethrough = false,
+}: MarkdownProps) {
+  const content = stripDoubleTilde ? children.replace(/~~/g, "") : children
+
   return (
     <div className={`markdown-content ${className}`}>
       <ReactMarkdown
@@ -43,6 +52,9 @@ export function Markdown({ children, className = "" }: MarkdownProps) {
           strong: ({ children }) => (
             <strong className="font-bold text-gray-900">{children}</strong>
           ),
+          del: ({ children }) => (
+            disableStrikethrough ? <>{children}</> : <del>{children}</del>
+          ),
           h2: ({ children }) => (
             <h2 className="text-sm font-bold mt-3 mb-1">{children}</h2>
           ),
@@ -63,7 +75,7 @@ export function Markdown({ children, className = "" }: MarkdownProps) {
           ),
         }}
       >
-        {children}
+        {content}
       </ReactMarkdown>
     </div>
   )

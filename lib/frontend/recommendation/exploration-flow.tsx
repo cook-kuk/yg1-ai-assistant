@@ -340,7 +340,7 @@ function NarrowingChat({
                     ? "bg-blue-600 text-white rounded-br-sm whitespace-pre-wrap"
                     : "bg-gray-100 text-gray-800 rounded-bl-sm"
                 }`}>
-                  {message.role === "ai" ? <Markdown>{message.text}</Markdown> : message.text}
+                  {message.role === "ai" ? <Markdown stripDoubleTilde disableStrikethrough>{message.text}</Markdown> : message.text}
                 </div>
               )}
 
