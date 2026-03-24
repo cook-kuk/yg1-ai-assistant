@@ -268,6 +268,7 @@ export async function buildQuestionResponse(
 
   let responseText = overrideText ?? question?.questionText ?? ""
   let responseChips = question?.chips ?? chips
+  const latestTurnWasSkip = didLatestNarrowingTurnSkip(history)
 
   if (overrideText) {
     // no-op
@@ -284,7 +285,7 @@ export async function buildQuestionResponse(
     } catch (error) {
       console.warn("[recommend] LLM greeting failed:", error)
     }
-  } else if (provider.available() && messages.length > 0) {
+  } else if (provider.available() && messages.length > 0 && !latestTurnWasSkip) {
     try {
       const lastUserText = [...messages].reverse().find(m => m.role === "user")?.text ?? ""
       const systemPrompt = buildSystemPrompt(language)
@@ -299,6 +300,8 @@ export async function buildQuestionResponse(
     } catch (error) {
       console.warn("[recommend] LLM question polish failed:", error)
     }
+  } else if (latestTurnWasSkip) {
+    console.log("[recommend] Skipping LLM question polish after skip_field; using deterministic question text")
   }
 
   const requestPrep = prepareRequest(form, messages, sessionState, input, totalCandidateCount)
@@ -393,6 +396,12 @@ export async function buildQuestionResponse(
     altExplanations: [],
     altFactChecked: [],
   })
+}
+
+export function didLatestNarrowingTurnSkip(history: NarrowingTurn[]): boolean {
+  const latestTurn = history[history.length - 1]
+  if (!latestTurn) return false
+  return latestTurn.extractedFilters.some(filter => filter.op === "skip")
 }
 
 export async function buildRecommendationResponse(

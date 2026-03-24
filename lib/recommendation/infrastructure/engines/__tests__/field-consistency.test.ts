@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest"
 
 vi.mock("server-only", () => ({}))
 
-import { buildQuestionFieldOptions, buildDisplayedOptions } from "../serve-engine-option-first"
+import { buildQuestionFieldOptions } from "../serve-engine-option-first"
+import { didLatestNarrowingTurnSkip } from "../serve-engine-response"
 import type { DisplayedOption } from "@/lib/recommendation/domain/types"
 
 describe("Field consistency guard", () => {
@@ -71,5 +72,33 @@ describe("Field consistency guard", () => {
     expect(chips).not.toContain("4날 (60개)")
     expect(chips).not.toContain("6날 (40개)")
     expect(chips).toContain("TiAlN (50개)")
+  })
+
+  it("treats skip_field follow-ups as deterministic text candidates", () => {
+    expect(didLatestNarrowingTurnSkip([
+      {
+        question: "세부 피삭재를 선택해주세요.",
+        answer: "상관없음",
+        extractedFilters: [
+          { field: "workPieceName", op: "skip", value: "상관없음", rawValue: "skip", appliedAt: 1 },
+        ],
+        candidateCountBefore: 1852,
+        candidateCountAfter: 1852,
+      },
+    ])).toBe(true)
+  })
+
+  it("does not mark normal option selection as skip follow-up", () => {
+    expect(didLatestNarrowingTurnSkip([
+      {
+        question: "코팅 종류 선호가 있으신가요?",
+        answer: "Bright Finish",
+        extractedFilters: [
+          { field: "coating", op: "eq", value: "Bright Finish", rawValue: "Bright Finish", appliedAt: 2 },
+        ],
+        candidateCountBefore: 1852,
+        candidateCountAfter: 609,
+      },
+    ])).toBe(false)
   })
 })
