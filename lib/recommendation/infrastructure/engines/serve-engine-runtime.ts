@@ -823,6 +823,7 @@ async function handleServeExplorationInner(
     }
 
     if (action.type === "compare_products") {
+      trace.add("comparison", "answer", { targets: (action as any).targets }, {}, "Product comparison requested")
       const snapshot = prevState.displayedCandidates?.length
         ? prevState.displayedCandidates
         : deps.buildCandidateSnapshot(candidates, evidenceMap)
@@ -845,6 +846,7 @@ async function handleServeExplorationInner(
       })
 
       let comparisonText = comparison.text
+      trace.add("comparison-result", "answer", {}, { textLength: comparisonText.length, chips: comparisonOptionState.chips }, "Comparison completed")
       const comparisonValidation = validateOptionFirstPipeline(
         comparisonText,
         comparisonOptionState.chips,
@@ -878,6 +880,26 @@ async function handleServeExplorationInner(
     }
 
     if (action.type === "explain_product" || action.type === "answer_general") {
+      // ── Deep debug: user state + option generation context ──
+      const userStateForDebug = detectUserState(lastUserMsg.text, prevState.lastAskedField)
+      trace.add("user-state", "context", {
+        userMessage: lastUserMsg.text.slice(0, 80),
+        pendingField: prevState.lastAskedField,
+      }, {
+        state: userStateForDebug.state,
+        confidence: userStateForDebug.confidence,
+        confusedAbout: userStateForDebug.confusedAbout,
+        boundField: userStateForDebug.boundField,
+      }, `User state: ${userStateForDebug.state}${userStateForDebug.boundField ? ` (bound to ${userStateForDebug.boundField})` : ""}`)
+
+      trace.add("answer-generation", "answer", {
+        action: action.type,
+        hasLLM: true,
+        preGenerated: (action as any).preGenerated ?? false,
+      }, {
+        mode: "general_chat",
+      }, `Answer via ${action.type}`)
+
       return handleServeGeneralChatAction({
         deps,
         action,
@@ -931,6 +953,8 @@ async function handleServeExplorationInner(
 
     if (action.type === "skip_field") {
       const skipField = prevState.lastAskedField ?? "unknown"
+      trace.add("skip-field", "router", { field: skipField }, { skipped: true }, `Skipping field "${skipField}"`)
+
       if (skipField === "material") {
         dropDependentWorkPieceFilters(filters)
       }
@@ -1012,6 +1036,7 @@ async function handleServeExplorationInner(
           provider
         )
         if (matchType !== "none" && normalized !== String(filter.rawValue)) {
+          trace.add("value-normalizer", "search", { original: String(filter.rawValue), field: filter.field }, { normalized, matchType }, `"${filter.rawValue}" → "${normalized}" (${matchType})`)
           console.log(`[value-normalizer] "${filter.rawValue}" → "${normalized}" (${matchType}) for field=${filter.field}`)
           filter.rawValue = normalized
           if (!filter.value.includes("(") && !filter.value.includes("개")) {
@@ -1031,6 +1056,17 @@ async function handleServeExplorationInner(
       const testInput = nextFilterState.nextInput
       const testFilters = nextFilterState.nextFilters
       const testResult = await runHybridRetrieval(testInput, testFilters)
+
+      trace.add("filter-apply", "search", {
+        field: filter.field,
+        value: filter.value,
+        op: filter.op,
+        candidatesBefore: candidates.length,
+      }, {
+        candidatesAfter: testResult.candidates.length,
+        blocked: testResult.candidates.length === 0,
+        replaced: nextFilterState.replacedExisting,
+      }, `Filter ${filter.field}=${filter.value}: ${candidates.length} → ${testResult.candidates.length} candidates${testResult.candidates.length === 0 ? " (BLOCKED)" : ""}`)
 
       if (testResult.candidates.length === 0) {
         console.log(`[orchestrator:guard] Filter ${filter.field}=${filter.value} would result in 0 candidates -> BLOCKED`)
