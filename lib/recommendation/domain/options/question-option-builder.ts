@@ -435,13 +435,15 @@ export function buildConfusionHelperOptions(
     },
   })
 
-  // Per-option explanation chips (e.g. "Diamond가 뭐야?")
+  // Per-option explanation chips (e.g. "Square란?")
   if (question?.extractedOptions) {
+    const EXCLUDED_FROM_EXPLAIN = new Set(["undo", "skip", "reset", "상관없음", "건너뛰기", "이전", "취소"])
     for (const opt of question.extractedOptions.slice(0, 3)) {
+      if (EXCLUDED_FROM_EXPLAIN.has(opt.toLowerCase())) continue
       options.push({
         id: nextQuestionOptionId(`explain_${opt}`),
         family: "explore",
-        label: `${opt}(이)가 뭐야?`,
+        label: `${opt}란?`,
         subtitle: `${opt} 설명`,
         value: opt,
         field: question.field ?? undefined,
