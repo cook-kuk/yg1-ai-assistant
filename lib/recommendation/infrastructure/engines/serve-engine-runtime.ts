@@ -400,6 +400,70 @@ async function handleServeExplorationInner(
     return buildResetResponse(deps, requestPrep)
   }
 
+  // ── Deep debug: session state + memory (ALWAYS, before any dispatch) ──
+  if (prevState) {
+    trace.setSessionState({
+      sessionId: prevState.sessionId ?? "unknown",
+      candidateCount: prevState.candidateCount ?? 0,
+      resolutionStatus: prevState.resolutionStatus ?? null,
+      currentMode: prevState.currentMode ?? null,
+      lastAskedField: prevState.lastAskedField ?? null,
+      lastAction: prevState.lastAction ?? null,
+      turnCount: prevState.turnCount ?? 0,
+      appliedFilters: (prevState.appliedFilters ?? []).map(f => ({ field: f.field, value: f.value, op: f.op })),
+      displayedChips: prevState.displayedChips ?? [],
+      displayedOptionsCount: prevState.displayedOptions?.length ?? 0,
+      displayedCandidateCount: prevState.displayedCandidates?.length ?? 0,
+      hasRecommendation: !!prevState.lastRecommendationArtifact,
+      hasComparison: !!prevState.lastComparisonArtifact,
+      pendingAction: prevState.pendingAction ? { description: prevState.pendingAction.description, actionType: prevState.pendingAction.actionType } : null,
+    })
+
+    if (prevState.conversationMemory) {
+      const mem = prevState.conversationMemory
+      trace.setMemory({
+        resolvedFacts: mem.items.filter(i => i.status === "resolved").map(i => ({ field: i.field, value: i.value, source: i.source })),
+        activeFilters: (prevState.appliedFilters ?? []).filter(f => f.op !== "skip").map(f => ({ field: f.field, value: f.value, op: f.op })),
+        tentativeReferences: mem.items.filter(i => i.status === "tentative").map(i => ({ field: i.field, value: i.value })),
+        pendingQuestions: prevState.lastAskedField ? [{ field: prevState.lastAskedField, kind: prevState.currentMode ?? "narrowing" }] : [],
+        pendingAction: prevState.pendingAction ? { description: prevState.pendingAction.description, actionType: prevState.pendingAction.actionType } : null,
+        recentQACount: mem.recentQA?.length ?? 0,
+        highlightCount: mem.highlights?.length ?? 0,
+        userSignals: { confusedFields: mem.userSignals.confusedFields, skippedFields: mem.userSignals.skippedFields, prefersDelegate: mem.userSignals.prefersDelegate, frustrationCount: mem.userSignals.frustrationCount },
+      })
+    } else {
+      trace.setMemory({
+        resolvedFacts: [],
+        activeFilters: (prevState.appliedFilters ?? []).filter(f => f.op !== "skip").map(f => ({ field: f.field, value: f.value, op: f.op })),
+        tentativeReferences: [],
+        pendingQuestions: prevState.lastAskedField ? [{ field: prevState.lastAskedField, kind: prevState.currentMode ?? "narrowing" }] : [],
+        pendingAction: prevState.pendingAction ? { description: prevState.pendingAction.description, actionType: prevState.pendingAction.actionType } : null,
+        recentQACount: 0, highlightCount: 0, userSignals: {},
+      })
+    }
+
+    // UI artifacts
+    trace.setUIArtifacts({
+      artifacts: [
+        ...(prevState.resolutionStatus?.startsWith("resolved") && prevState.displayedCandidates?.length
+          ? [{ kind: "recommendation_card", summary: `추천 ${prevState.displayedCandidates.length}개`, productCodes: prevState.displayedCandidates.slice(0, 5).map(c => c.displayCode), isPrimaryFocus: prevState.currentMode === "recommendation" }]
+          : []),
+        ...(prevState.lastComparisonArtifact
+          ? [{ kind: "comparison_table", summary: `비교 ${prevState.lastComparisonArtifact.comparedProductCodes?.length ?? 0}개`, productCodes: prevState.lastComparisonArtifact.comparedProductCodes ?? [], isPrimaryFocus: prevState.currentMode === "comparison" }]
+          : []),
+        ...(prevState.displayedChips?.length
+          ? [{ kind: "chips_bar", summary: `칩 ${prevState.displayedChips.length}개`, productCodes: [], isPrimaryFocus: prevState.currentMode === "question" }]
+          : []),
+      ],
+      likelyReferencedBlock: prevState.currentMode === "recommendation" ? "recommendation_card"
+        : prevState.currentMode === "comparison" ? "comparison_table"
+        : prevState.currentMode === "question" ? "question_prompt" : null,
+    })
+
+    // Recent conversation
+    trace.setRecentTurns(messages.slice(-10).map(m => ({ role: m.role, text: m.text.slice(0, 150) })))
+  }
+
   const narrowingHistory: NarrowingTurn[] = [...(prevState?.narrowingHistory ?? [])]
   let currentInput = { ...resolvedInput }
   let turnCount = prevState?.turnCount ?? 0
@@ -491,87 +555,6 @@ async function handleServeExplorationInner(
       agents: orchResult.agentsInvoked,
       escalatedToOpus: orchResult.escalatedToOpus,
     }, orchResult.reasoning)
-
-    // ── Deep debug: session state snapshot (always) ──
-    trace.setSessionState({
-      sessionId: prevState.sessionId ?? "unknown",
-      candidateCount: prevState.candidateCount ?? 0,
-      resolutionStatus: prevState.resolutionStatus ?? null,
-      currentMode: prevState.currentMode ?? null,
-      lastAskedField: prevState.lastAskedField ?? null,
-      lastAction: prevState.lastAction ?? null,
-      turnCount: prevState.turnCount ?? 0,
-      appliedFilters: (prevState.appliedFilters ?? []).map(f => ({ field: f.field, value: f.value, op: f.op })),
-      displayedChips: prevState.displayedChips ?? [],
-      displayedOptionsCount: prevState.displayedOptions?.length ?? 0,
-      displayedCandidateCount: prevState.displayedCandidates?.length ?? 0,
-      hasRecommendation: !!prevState.lastRecommendationArtifact,
-      hasComparison: !!prevState.lastComparisonArtifact,
-      pendingAction: prevState.pendingAction ? { description: prevState.pendingAction.description, actionType: prevState.pendingAction.actionType } : null,
-    })
-
-    // ── Deep debug: memory snapshot ──
-    if (prevState.conversationMemory) {
-      const mem = prevState.conversationMemory
-      trace.setMemory({
-        resolvedFacts: mem.items.filter(i => i.status === "resolved").map(i => ({ field: i.field, value: i.value, source: i.source })),
-        activeFilters: (prevState.appliedFilters ?? []).filter(f => f.op !== "skip").map(f => ({ field: f.field, value: f.value, op: f.op })),
-        tentativeReferences: mem.items.filter(i => i.status === "tentative").map(i => ({ field: i.field, value: i.value })),
-        pendingQuestions: prevState.lastAskedField ? [{ field: prevState.lastAskedField, kind: prevState.currentMode ?? "narrowing" }] : [],
-        pendingAction: prevState.pendingAction ? { description: prevState.pendingAction.description, actionType: prevState.pendingAction.actionType } : null,
-        recentQACount: mem.recentQA?.length ?? 0,
-        highlightCount: mem.highlights?.length ?? 0,
-        userSignals: {
-          confusedFields: mem.userSignals.confusedFields,
-          skippedFields: mem.userSignals.skippedFields,
-          prefersDelegate: mem.userSignals.prefersDelegate,
-          frustrationCount: mem.userSignals.frustrationCount,
-        },
-      })
-    } else {
-      // Minimal memory from session state when conversationMemory not yet built
-      trace.setMemory({
-        resolvedFacts: [],
-        activeFilters: (prevState.appliedFilters ?? []).filter(f => f.op !== "skip").map(f => ({ field: f.field, value: f.value, op: f.op })),
-        tentativeReferences: [],
-        pendingQuestions: prevState.lastAskedField ? [{ field: prevState.lastAskedField, kind: prevState.currentMode ?? "narrowing" }] : [],
-        pendingAction: prevState.pendingAction ? { description: prevState.pendingAction.description, actionType: prevState.pendingAction.actionType } : null,
-        recentQACount: 0,
-        highlightCount: 0,
-        userSignals: {},
-      })
-    }
-
-    // ── Deep debug: UI artifacts ──
-    trace.setUIArtifacts({
-      artifacts: [
-        ...(prevState.resolutionStatus?.startsWith("resolved") && prevState.displayedCandidates?.length
-          ? [{ kind: "recommendation_card", summary: `추천 ${prevState.displayedCandidates.length}개`, productCodes: prevState.displayedCandidates.slice(0, 5).map(c => c.displayCode), isPrimaryFocus: prevState.currentMode === "recommendation" }]
-          : []),
-        ...(prevState.lastComparisonArtifact
-          ? [{ kind: "comparison_table", summary: `비교 ${prevState.lastComparisonArtifact.comparedProductCodes?.length ?? 0}개`, productCodes: prevState.lastComparisonArtifact.comparedProductCodes ?? [], isPrimaryFocus: prevState.currentMode === "comparison" }]
-          : []),
-        ...(prevState.displayedChips?.length
-          ? [{ kind: "chips_bar", summary: `칩 ${prevState.displayedChips.length}개`, productCodes: [], isPrimaryFocus: prevState.currentMode === "question" }]
-          : []),
-        ...(prevState.displayedOptions?.length
-          ? [{ kind: "options", summary: `옵션 ${prevState.displayedOptions.length}개 (${prevState.lastAskedField ?? "?"})`, productCodes: [], isPrimaryFocus: prevState.currentMode === "narrowing" }]
-          : []),
-      ],
-      likelyReferencedBlock: prevState.currentMode === "recommendation" ? "recommendation_card"
-        : prevState.currentMode === "comparison" ? "comparison_table"
-        : prevState.currentMode === "question" ? "question_prompt"
-        : null,
-    })
-
-    // ── Deep debug: recent conversation turns ──
-    trace.setRecentTurns(
-      messages.slice(-10).map(m => ({
-        role: m.role,
-        text: m.text.slice(0, 150),
-        mode: undefined,
-      }))
-    )
 
     const hasPendingQuestion = !!prevState.lastAskedField
       && !prevState.resolutionStatus?.startsWith("resolved")
