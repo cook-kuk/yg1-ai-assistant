@@ -393,53 +393,69 @@ function planExplainOptions(
   const options: SmartOption[] = []
   const top = ctx.topCandidates ?? []
 
-  // Why this product
-  options.push({
-    id: nextOptionId("explore"),
-    family: "explore",
-    label: "왜 이 제품을 추천했나요?",
-    subtitle: "추천 근거 확인",
-    reason: "추천 이유 설명",
+  // ── Post-recommendation 다양한 후보 (LLM chip selector가 맥락에 맞게 선택) ──
+  const mkOpt = (family: SmartOptionFamily, label: string, reason: string, plan: SmartOption["plan"], priority = 0, recommended = false): SmartOption => ({
+    id: nextOptionId(family),
+    family,
+    label,
+    reason,
     projectedCount: null,
     projectedDelta: null,
     preservesContext: true,
     destructive: false,
-    recommended: true,
-    priorityScore: 0,
-    plan: { type: "explain_recommendation", patches: [{ op: "add", field: "_action", value: "explain_recommendation" }] },
+    recommended,
+    priorityScore: priority,
+    plan,
   })
 
-  // Compare with alternatives
+  // 추천 이유
+  options.push(mkOpt("explore", "왜 이 제품을 추천했나요?", "추천 근거 확인",
+    { type: "explain_recommendation", patches: [{ op: "add", field: "_action", value: "explain_recommendation" }] }, 0.9, true))
+
+  // 대체 후보 비교
   if (top.length >= 2) {
-    options.push({
-      id: nextOptionId("compare"),
-      family: "compare",
-      label: `대체 후보 ${top.length - 1}개 비교하기`,
-      reason: "대안 비교",
-      projectedCount: null,
-      projectedDelta: null,
-      preservesContext: true,
-      destructive: false,
-      recommended: false,
-      priorityScore: 0,
-      plan: { type: "compare_products", patches: top.slice(0, 3).map(c => ({ op: "add" as const, field: "_compare", value: c.displayCode })) },
-    })
+    options.push(mkOpt("compare", `대체 후보 ${top.length - 1}개 비교하기`, "대안 비교",
+      { type: "compare_products", patches: top.slice(0, 3).map(c => ({ op: "add" as const, field: "_compare", value: c.displayCode })) }, 0.8))
   }
 
-  // Cutting conditions
-  options.push({
-    id: nextOptionId("action"),
-    family: "action",
-    label: "절삭조건 알려줘",
-    reason: "절삭조건 확인",
-    projectedCount: null,
-    projectedDelta: null,
-    preservesContext: true,
-    destructive: false,
-    recommended: false,
-    priorityScore: 0,
-    plan: { type: "apply_filter", patches: [{ op: "add", field: "_action", value: "cutting_conditions" }] },
-  })
+  // 절삭조건
+  options.push(mkOpt("action", "절삭조건 알려줘", "절삭조건 확인",
+    { type: "apply_filter", patches: [{ op: "add", field: "_action", value: "cutting_conditions" }] }, 0.7))
+
+  // 코팅별 비교 (다양한 코팅이 있을 때)
+  const coatings = new Set(top.map(c => c.coating).filter(Boolean))
+  if (coatings.size >= 2) {
+    options.push(mkOpt("compare", "코팅별 차이 비교", "코팅 특성 비교",
+      { type: "compare_products", patches: [{ op: "add", field: "_action", value: "coating_compare" }] }, 0.6))
+  }
+
+  // 날수별 비교 (다양한 날수가 있을 때)
+  const flutes = new Set(top.map(c => c.fluteCount).filter(Boolean))
+  if (flutes.size >= 2) {
+    options.push(mkOpt("compare", `${[...flutes].sort().join("날 vs ")}날 비교`, "날수별 특성 비교",
+      { type: "compare_products", patches: [{ op: "add", field: "_action", value: "flute_compare" }] }, 0.5))
+  }
+
+  // 시리즈 설명 (다양한 시리즈가 있을 때)
+  const series = new Set(top.map(c => c.seriesName).filter(Boolean))
+  if (series.size >= 2) {
+    options.push(mkOpt("explore", "시리즈 차이 설명해줘", "시리즈 특성 비교",
+      { type: "apply_filter", patches: [{ op: "add", field: "_action", value: "series_explain" }] }, 0.4))
+  }
+
+  // 재고 확인 (primary가 있을 때)
+  if (top.length > 0) {
+    options.push(mkOpt("action", "재고 확인", "재고 현황 조회",
+      { type: "apply_filter", patches: [{ op: "add", field: "_action", value: "inventory_check" }] }, 0.3))
+  }
+
+  // 다른 직경/조건 탐색
+  options.push(mkOpt("explore", "다른 직경으로 검색", "직경 변경 탐색",
+    { type: "apply_filter", patches: [{ op: "add", field: "_action", value: "change_diameter" }] }, 0.2))
+
+  // 다른 소재 조건
+  options.push(mkOpt("explore", "다른 소재 조건 검색", "소재 변경 탐색",
+    { type: "apply_filter", patches: [{ op: "add", field: "_action", value: "change_material" }] }, 0.1))
 
   options.push({
     id: nextOptionId("reset"),
