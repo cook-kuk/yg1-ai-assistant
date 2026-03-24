@@ -796,8 +796,28 @@ function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartOption[]
     },
   })
 
-  // 3. Change coating (explore)
-  if (top[0]?.coating) {
+  // 3. Narrow/change coating (dynamic based on variety)
+  const coatingSet = new Set(top.map(c => c.coating).filter(Boolean))
+  if (coatingSet.size >= 2) {
+    options.push({
+      id: nextOptionId("narrowing"),
+      family: "narrowing",
+      label: `코팅으로 좁히기 (${[...coatingSet].slice(0, 3).join("/")})`,
+      subtitle: `현재 ${coatingSet.size}종`,
+      field: "coating",
+      reason: "코팅 기준 추가 필터링",
+      projectedCount: null,
+      projectedDelta: null,
+      preservesContext: true,
+      destructive: false,
+      recommended: false,
+      priorityScore: 0.7,
+      plan: {
+        type: "apply_filter",
+        patches: [{ op: "add", field: "_action", value: "narrow_coating" }],
+      },
+    })
+  } else if (top[0]?.coating) {
     options.push({
       id: nextOptionId("explore"),
       family: "explore",
@@ -818,7 +838,31 @@ function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartOption[]
     })
   }
 
-  // 4. Change diameter (explore)
+  // 4. Narrow by flute count (if multiple flute counts exist)
+  const fluteCounts = new Set(top.map(c => c.fluteCount).filter(Boolean))
+  if (fluteCounts.size >= 2) {
+    const fluteLabels = [...fluteCounts].sort((a, b) => (a ?? 0) - (b ?? 0)).map(f => `${f}날`).join("/")
+    options.push({
+      id: nextOptionId("narrowing"),
+      family: "narrowing",
+      label: `날수로 좁히기 (${fluteLabels})`,
+      subtitle: `현재 ${fluteCounts.size}종`,
+      field: "fluteCount",
+      reason: "날수 기준 추가 필터링",
+      projectedCount: null,
+      projectedDelta: null,
+      preservesContext: true,
+      destructive: false,
+      recommended: true,
+      priorityScore: 0.85,
+      plan: {
+        type: "apply_filter",
+        patches: [{ op: "add", field: "_action", value: "narrow_flute" }],
+      },
+    })
+  }
+
+  // 4b. Change diameter (explore)
   if (top[0]?.diameterMm) {
     options.push({
       id: nextOptionId("explore"),
