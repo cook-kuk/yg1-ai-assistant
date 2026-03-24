@@ -6,6 +6,7 @@ import {
   type RecommendationCapabilityDto,
   type RecommendationCheckpointSummaryDto,
   type RecommendationDisplayedOptionDto,
+  type RecommendationPaginationDto,
   type RecommendationPublicSessionDto,
   type RecommendationResponseDto,
   type RecommendationResponseMetaDto,
@@ -222,6 +223,7 @@ interface BuildRecommendationResponseDtoParams {
   recommendation?: RecommendationResult | null
   sessionState?: ExplorationSessionState | null
   candidateSnapshot?: CandidateSnapshot[] | null
+  pagination?: RecommendationPaginationDto | null
   evidenceSummaries?: EvidenceSummary[] | null
   requestPreparation?: RequestPreparationResult | null
   primaryExplanation?: RecommendationExplanation | null
@@ -249,6 +251,7 @@ export function buildRecommendationResponseDto(
     candidates: params.candidateSnapshot
       ? params.candidateSnapshot.map(toRecommendationCandidateDto)
       : null,
+    pagination: params.pagination ?? null,
     evidenceSummaries: params.evidenceSummaries ?? null,
     requestPreparation: params.requestPreparation ?? null,
     primaryExplanation: params.primaryExplanation ?? null,

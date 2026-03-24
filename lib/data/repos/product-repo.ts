@@ -10,8 +10,10 @@ import type { AppliedFilter } from "@/lib/types/exploration"
 import {
   getProductByCodeFromDatabase,
   getSeriesOverviewFromDatabase,
+  queryProductsPageFromDatabase,
   queryProductsFromDatabase,
   shouldUseDatabaseSource,
+  type ProductSearchPageResult,
   type ProductSeriesOverview,
 } from "@/lib/data/repos/product-db-source"
 
@@ -32,6 +34,25 @@ export const ProductRepo = {
     } catch (error) {
       console.warn(`[product-repo] search failed: ${error instanceof Error ? error.message : String(error)}`)
       return []
+    }
+  },
+
+  async searchPage(
+    input: RecommendationInput,
+    filters: AppliedFilter[] = [],
+    options: { limit?: number; offset?: number } = {}
+  ): Promise<ProductSearchPageResult> {
+    if (!shouldUseDatabaseSource()) {
+      logDatabaseUnavailable("searchPage")
+      return { products: [], totalCount: 0 }
+    }
+
+    console.log(`[product-repo] searchPage source=db filters=${filters.length} limit=${options.limit ?? "auto"} offset=${options.offset ?? 0}`)
+    try {
+      return await queryProductsPageFromDatabase({ input, filters, limit: options.limit, offset: options.offset })
+    } catch (error) {
+      console.warn(`[product-repo] searchPage failed: ${error instanceof Error ? error.message : String(error)}`)
+      return { products: [], totalCount: 0 }
     }
   },
 

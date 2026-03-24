@@ -33,7 +33,7 @@ import { TraceCollector, isDebugEnabled } from "@/lib/debug/agent-trace"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
-import type { RecommendationDisplayedProductRequestDto } from "@/lib/contracts/recommendation"
+import type { RecommendationDisplayedProductRequestDto, RecommendationPaginationDto } from "@/lib/contracts/recommendation"
 import type {
   AppliedFilter,
   AppLanguage,
@@ -57,6 +57,57 @@ type JsonRecommendationResponse = (
 ) => Response
 
 type QuestionReply = { text: string; chips: string[] } | null
+type CandidatePaginationRequest = Pick<RecommendationPaginationDto, "page" | "pageSize">
+type CandidatePageSlice = {
+  candidates: ScoredProduct[]
+  evidenceMap: Map<string, EvidenceSummary>
+}
+
+const DEFAULT_CANDIDATE_PAGE_SIZE = 50
+
+function resolveCandidatePagination(
+  pagination: CandidatePaginationRequest | null | undefined
+): CandidatePaginationRequest {
+  const page = typeof pagination?.page === "number" && pagination.page >= 0 ? pagination.page : 0
+  const pageSize = typeof pagination?.pageSize === "number" && pagination.pageSize > 0
+    ? pagination.pageSize
+    : DEFAULT_CANDIDATE_PAGE_SIZE
+
+  return { page, pageSize }
+}
+
+function buildPaginationDto(
+  pagination: CandidatePaginationRequest,
+  totalItems: number
+): RecommendationPaginationDto {
+  return {
+    page: pagination.page,
+    pageSize: pagination.pageSize,
+    totalItems,
+    totalPages: totalItems === 0 ? 0 : Math.ceil(totalItems / pagination.pageSize),
+  }
+}
+
+function sliceCandidatesForPage(
+  candidates: ScoredProduct[],
+  evidenceMap: Map<string, EvidenceSummary>,
+  pagination: CandidatePaginationRequest
+): CandidatePageSlice {
+  const start = pagination.page * pagination.pageSize
+  const end = start + pagination.pageSize
+  const pageCandidates = candidates.slice(start, end)
+  const pageEvidenceMap = new Map<string, EvidenceSummary>()
+
+  for (const candidate of pageCandidates) {
+    const summary = evidenceMap.get(candidate.product.normalizedCode)
+    if (summary) pageEvidenceMap.set(candidate.product.normalizedCode, summary)
+  }
+
+  return {
+    candidates: pageCandidates,
+    evidenceMap: pageEvidenceMap,
+  }
+}
 
 function normalizePendingSelectionText(value: string): string {
   return value
@@ -164,6 +215,10 @@ export interface ServeEngineRuntimeDependencies {
     form: ProductIntakeForm,
     candidates: ScoredProduct[],
     evidenceMap: Map<string, EvidenceSummary>,
+    totalCandidateCount: number,
+    pagination: RecommendationPaginationDto | null,
+    displayCandidates: ScoredProduct[] | null,
+    displayEvidenceMap: Map<string, EvidenceSummary> | null,
     input: RecommendationInput,
     history: NarrowingTurn[],
     filters: AppliedFilter[],
@@ -178,6 +233,10 @@ export interface ServeEngineRuntimeDependencies {
     form: ProductIntakeForm,
     candidates: ScoredProduct[],
     evidenceMap: Map<string, EvidenceSummary>,
+    totalCandidateCount: number,
+    pagination: RecommendationPaginationDto | null,
+    displayCandidates: ScoredProduct[] | null,
+    displayEvidenceMap: Map<string, EvidenceSummary> | null,
     input: RecommendationInput,
     history: NarrowingTurn[],
     filters: AppliedFilter[],
@@ -270,10 +329,11 @@ export async function handleServeExploration(
   messages: ChatMessage[],
   prevState: ExplorationSessionState | null,
   displayedProducts: RecommendationDisplayedProductRequestDto[] | null = null,
-  language: AppLanguage = "ko"
+  language: AppLanguage = "ko",
+  pagination: CandidatePaginationRequest | null = null,
 ): Promise<Response> {
   const trace = new TraceCollector()
-  const response = await handleServeExplorationInner(deps, form, messages, prevState, displayedProducts, language, trace)
+  const response = await handleServeExplorationInner(deps, form, messages, prevState, displayedProducts, language, pagination, trace)
 
   // Inject debug trace into every response
   if (isDebugEnabled()) {
@@ -313,6 +373,7 @@ async function handleServeExplorationInner(
   prevState: ExplorationSessionState | null,
   displayedProducts: RecommendationDisplayedProductRequestDto[] | null = null,
   language: AppLanguage = "ko",
+  pagination: CandidatePaginationRequest | null = null,
   trace: TraceCollector = new TraceCollector()
 ): Promise<Response> {
   console.log(
@@ -322,9 +383,41 @@ async function handleServeExplorationInner(
   const provider = getProvider()
   const baseInput = deps.mapIntakeToInput(form)
   const filters: AppliedFilter[] = [...(prevState?.appliedFilters ?? [])]
+  const resolvedPagination = resolveCandidatePagination(pagination)
+  const paginationDto = (totalItems: number) => buildPaginationDto(resolvedPagination, totalItems)
   const resolvedInput: RecommendationInput = prevState?.resolvedInput
     ? { ...baseInput, ...prevState.resolvedInput }
     : baseInput
+
+  if (prevState && messages.length === 0 && pagination) {
+    const fullResult = await runHybridRetrieval(resolvedInput, filters, 0, null)
+    const pageResult = sliceCandidatesForPage(fullResult.candidates, fullResult.evidenceMap, resolvedPagination)
+    const candidateSnapshot = deps.buildCandidateSnapshot(pageResult.candidates, pageResult.evidenceMap)
+    const nextState = carryForwardState(prevState, {
+      candidateCount: fullResult.totalConsidered,
+      displayedCandidates: candidateSnapshot,
+      displayedProducts: candidateSnapshot,
+      fullDisplayedCandidates: candidateSnapshot,
+      fullDisplayedProducts: candidateSnapshot,
+    })
+
+    return deps.jsonRecommendationResponse({
+      text: "",
+      purpose: prevState.currentMode === "recommendation" ? "recommendation" : "question",
+      chips: prevState.displayedChips ?? [],
+      isComplete: prevState.resolutionStatus?.startsWith("resolved") ?? false,
+      recommendation: null,
+      sessionState: nextState,
+      evidenceSummaries: null,
+      candidateSnapshot,
+      pagination: paginationDto(fullResult.totalConsidered),
+      requestPreparation: null,
+      primaryExplanation: null,
+      primaryFactChecked: null,
+      altExplanations: [],
+      altFactChecked: [],
+    })
+  }
 
   const requestPrep = prepareRequest(form, messages, prevState, resolvedInput, prevState?.candidateCount ?? 0)
   console.log(`[recommend] Intent: ${requestPrep.intent} (${requestPrep.intentConfidence}), Route: ${requestPrep.route.action}`)
@@ -366,14 +459,23 @@ async function handleServeExplorationInner(
   const needsRetrieval = !earlyAction || !SKIP_RETRIEVAL_ACTIONS.has(earlyAction)
   let candidates: ScoredProduct[]
   let evidenceMap: Map<string, EvidenceSummary>
+  let displayCandidates: ScoredProduct[]
+  let displayEvidenceMap: Map<string, EvidenceSummary>
+  let totalCandidateCount = prevState?.candidateCount ?? 0
   if (needsRetrieval) {
-    const hybridResult = await runHybridRetrieval(resolvedInput, filters)
+    const hybridResult = await runHybridRetrieval(resolvedInput, filters, 0, null)
     candidates = hybridResult.candidates
     evidenceMap = hybridResult.evidenceMap
-    console.log(`[recommend] Retrieval executed: ${candidates.length} candidates`)
+    totalCandidateCount = hybridResult.totalConsidered
+    const displayPage = sliceCandidatesForPage(candidates, evidenceMap, resolvedPagination)
+    displayCandidates = displayPage.candidates
+    displayEvidenceMap = displayPage.evidenceMap
+    console.log(`[recommend] Retrieval executed: display=${displayCandidates.length} total=${totalCandidateCount} candidates`)
   } else {
     candidates = []
     evidenceMap = new Map()
+    displayCandidates = []
+    displayEvidenceMap = new Map()
     console.log(`[recommend] Retrieval SKIPPED for action: ${earlyAction}`)
   }
 
@@ -384,14 +486,14 @@ async function handleServeExplorationInner(
   }, {
     candidateCount: candidates.length,
     skipped: !needsRetrieval,
-  }, needsRetrieval ? `Retrieved ${candidates.length} candidates` : `Skipped retrieval for ${earlyAction}`)
+  }, needsRetrieval ? `Retrieved ${displayCandidates.length}/${totalCandidateCount} display candidates` : `Skipped retrieval for ${earlyAction}`)
 
   trace.setSearchDetail({
     requiresSearch: needsRetrieval,
     searchScope: earlyAction ?? "full_retrieval",
     targetEntities: [],
-    preFilterCount: candidates.length,
-    postFilterCount: candidates.length,
+    preFilterCount: totalCandidateCount,
+    postFilterCount: totalCandidateCount,
     appliedConstraints: filters.filter(f => f.op !== "skip").map(f => ({ field: f.field, value: f.value })),
     skippedReason: !needsRetrieval ? `Action "${earlyAction}" does not require retrieval` : undefined,
   })
@@ -488,13 +590,14 @@ async function handleServeExplorationInner(
         const filter = { ...pa.filter, appliedAt: prevState.turnCount ?? 0 } as AppliedFilter
         const testInput = deps.applyFilterToInput(currentInput, filter)
         const testFilters = [...filters, filter]
-        const testResult = await runHybridRetrieval(testInput, testFilters)
+        const testResult = await runHybridRetrieval(testInput, testFilters, 0, null)
+        const testDisplayPage = sliceCandidatesForPage(testResult.candidates, testResult.evidenceMap, resolvedPagination)
 
-        if (testResult.candidates.length === 0) {
+        if (testResult.totalConsidered === 0) {
           return deps.buildQuestionResponse(
-            form, candidates, evidenceMap, currentInput,
+            form, candidates, evidenceMap, totalCandidateCount, paginationDto(totalCandidateCount), displayCandidates, displayEvidenceMap, currentInput,
             narrowingHistory, filters, turnCount, messages, provider, language,
-            `"${filter.value}" 조건을 적용하면 후보가 없습니다. 현재 ${candidates.length}개 후보에서 다른 조건을 선택해주세요.`
+            `"${filter.value}" 조건을 적용하면 후보가 없습니다. 현재 ${totalCandidateCount}개 후보에서 다른 조건을 선택해주세요.`
           )
         }
 
@@ -504,20 +607,20 @@ async function handleServeExplorationInner(
           question: "pending-action-accept",
           answer: lastUserMsg.text,
           extractedFilters: [filter],
-          candidateCountBefore: candidates.length,
-          candidateCountAfter: testResult.candidates.length,
+          candidateCountBefore: totalCandidateCount,
+          candidateCountAfter: testResult.totalConsidered,
         })
         turnCount++
 
-        const newStatus = checkResolution(testResult.candidates, narrowingHistory)
+        const newStatus = checkResolution(testResult.candidates, narrowingHistory, testResult.totalConsidered)
         if (newStatus.startsWith("resolved")) {
-          return deps.buildRecommendationResponse(form, testResult.candidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts)
+          return deps.buildRecommendationResponse(form, testResult.candidates, testResult.evidenceMap, testResult.totalConsidered, paginationDto(testResult.totalConsidered), testDisplayPage.candidates, testDisplayPage.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts)
         }
-        return deps.buildQuestionResponse(form, testResult.candidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language)
+        return deps.buildQuestionResponse(form, testResult.candidates, testResult.evidenceMap, testResult.totalConsidered, paginationDto(testResult.totalConsidered), testDisplayPage.candidates, testDisplayPage.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language)
       }
     }
 
-    const currentCandidateSnapshot = deps.buildCandidateSnapshot(candidates, evidenceMap)
+    const currentCandidateSnapshot = deps.buildCandidateSnapshot(displayCandidates, displayEvidenceMap)
     const unifiedTurnContext = buildUnifiedTurnContext({
       latestAssistantText: [...messages].reverse().find(message => message.role === "ai")?.text ?? null,
       latestUserMessage: lastUserMsg.text,
@@ -641,10 +744,10 @@ async function handleServeExplorationInner(
     if (prevState.resolutionStatus?.startsWith("resolved")) reasoningBullets.push("Recommendation already shown")
     if (wasIntercepted) reasoningBullets.push(`Original action "${originalActionType}" was intercepted → "${action.type}"`)
     if (filters.length > 0) reasoningBullets.push(`${filters.length} filters active: ${filters.filter(f => f.op !== "skip").map(f => `${f.field}=${f.value}`).join(", ")}`)
-    reasoningBullets.push(`${candidates.length} candidates available`)
+    reasoningBullets.push(`${totalCandidateCount} candidates available`)
 
     trace.setReasoning({
-      oneLiner: `${action.type} | ${prevState.currentMode ?? "initial"} | ${candidates.length}개 후보${wasIntercepted ? ` (intercepted from ${originalActionType})` : ""}`,
+      oneLiner: `${action.type} | ${prevState.currentMode ?? "initial"} | ${totalCandidateCount}개 후보${wasIntercepted ? ` (intercepted from ${originalActionType})` : ""}`,
       bullets: reasoningBullets,
     })
 
@@ -659,8 +762,11 @@ async function handleServeExplorationInner(
 
       const undoResult = await runHybridRetrieval(
         restoreResult.rebuiltInput,
-        restoreResult.remainingFilters.filter(filter => filter.op !== "skip")
+        restoreResult.remainingFilters.filter(filter => filter.op !== "skip"),
+        0,
+        null
       )
+      const undoDisplayPage = sliceCandidatesForPage(undoResult.candidates, undoResult.evidenceMap, resolvedPagination)
 
       console.log(
         `[session-manager:undo] Reverted "${restoreResult.removedFilterDesc}": ${prevState.candidateCount} -> ${undoResult.candidates.length} candidates, filters: ${prevState.appliedFilters.length} -> ${restoreResult.remainingFilters.length}`
@@ -670,6 +776,10 @@ async function handleServeExplorationInner(
         form,
         undoResult.candidates,
         undoResult.evidenceMap,
+        undoResult.totalConsidered,
+        paginationDto(undoResult.totalConsidered),
+        undoDisplayPage.candidates,
+        undoDisplayPage.evidenceMap,
         restoreResult.rebuiltInput,
         restoreResult.remainingHistory,
         restoreResult.remainingFilters,
@@ -687,6 +797,10 @@ async function handleServeExplorationInner(
         form,
         candidates,
         evidenceMap,
+        totalCandidateCount,
+        paginationDto(totalCandidateCount),
+        displayCandidates,
+        displayEvidenceMap,
         currentInput,
         narrowingHistory,
         filters,
@@ -756,8 +870,9 @@ async function handleServeExplorationInner(
 
       // Rebuild recommendation with stock-filtered candidates
       console.log(`[stock-filter] ${stockFilter}: ${stockCandidates.length} → ${filtered.length} candidates`)
+      const filteredDisplayPage = sliceCandidatesForPage(filtered, evidenceMap, resolvedPagination)
       return deps.buildRecommendationResponse(
-        form, filtered, evidenceMap, currentInput,
+        form, filtered, evidenceMap, filtered.length, paginationDto(filtered.length), filteredDisplayPage.candidates, filteredDisplayPage.evidenceMap, currentInput,
         narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts
       )
     }
@@ -943,6 +1058,7 @@ async function handleServeExplorationInner(
         sessionState,
         evidenceSummaries: null,
         candidateSnapshot: redirect.showCandidates ? deps.buildCandidateSnapshot(candidates, evidenceMap) : null,
+        pagination: paginationDto(totalCandidateCount),
         requestPreparation: null,
         primaryExplanation: null,
         primaryFactChecked: null,
@@ -974,13 +1090,15 @@ async function handleServeExplorationInner(
       filters.splice(0, filters.length, ...replacedSkipState.nextFilters)
       currentInput = replacedSkipState.nextInput
 
-      const newResult = await runHybridRetrieval(currentInput, filters.filter(filter => filter.op !== "skip"))
+      const newResult = await runHybridRetrieval(currentInput, filters.filter(filter => filter.op !== "skip"), 0, null)
+      const newDisplayPage = sliceCandidatesForPage(newResult.candidates, newResult.evidenceMap, resolvedPagination)
+      
       narrowingHistory.push({
         question: "follow-up",
         answer: lastUserMsg.text,
         extractedFilters: [skipFilter],
-        candidateCountBefore: candidates.length,
-        candidateCountAfter: newResult.candidates.length,
+        candidateCountBefore: totalCandidateCount,
+        candidateCountAfter: newResult.totalConsidered,
       })
       turnCount += 1
 
@@ -988,12 +1106,16 @@ async function handleServeExplorationInner(
         console.log(`[orchestrator:replace] ${skipField} -> skip | filters rebuilt=${filters.length}`)
       }
 
-      const statusAfterSkip = checkResolution(newResult.candidates, narrowingHistory)
+      const statusAfterSkip = checkResolution(newResult.candidates, narrowingHistory, newResult.totalConsidered)
       if (statusAfterSkip.startsWith("resolved")) {
         return deps.buildRecommendationResponse(
           form,
           newResult.candidates,
           newResult.evidenceMap,
+          newResult.totalConsidered,
+          paginationDto(newResult.totalConsidered),
+          newDisplayPage.candidates,
+          newDisplayPage.evidenceMap,
           currentInput,
           narrowingHistory,
           filters,
@@ -1009,6 +1131,10 @@ async function handleServeExplorationInner(
         form,
         newResult.candidates,
         newResult.evidenceMap,
+        newResult.totalConsidered,
+        paginationDto(newResult.totalConsidered),
+        newDisplayPage.candidates,
+        newDisplayPage.evidenceMap,
         currentInput,
         narrowingHistory,
         filters,
@@ -1055,25 +1181,30 @@ async function handleServeExplorationInner(
       )
       const testInput = nextFilterState.nextInput
       const testFilters = nextFilterState.nextFilters
-      const testResult = await runHybridRetrieval(testInput, testFilters)
+      const testResult = await runHybridRetrieval(testInput, testFilters, 0, null)
+      const testDisplayPage = sliceCandidatesForPage(testResult.candidates, testResult.evidenceMap, resolvedPagination)
 
       trace.add("filter-apply", "search", {
         field: filter.field,
         value: filter.value,
         op: filter.op,
-        candidatesBefore: candidates.length,
+        candidatesBefore: totalCandidateCount,
       }, {
-        candidatesAfter: testResult.candidates.length,
-        blocked: testResult.candidates.length === 0,
+        candidatesAfter: testResult.totalConsidered,
+        blocked: testResult.totalConsidered === 0,
         replaced: nextFilterState.replacedExisting,
-      }, `Filter ${filter.field}=${filter.value}: ${candidates.length} → ${testResult.candidates.length} candidates${testResult.candidates.length === 0 ? " (BLOCKED)" : ""}`)
+      }, `Filter ${filter.field}=${filter.value}: ${totalCandidateCount} → ${testResult.totalConsidered} candidates${testResult.totalConsidered === 0 ? " (BLOCKED)" : ""}`)
 
-      if (testResult.candidates.length === 0) {
+      if (testResult.totalConsidered === 0) {
         console.log(`[orchestrator:guard] Filter ${filter.field}=${filter.value} would result in 0 candidates -> BLOCKED`)
         return deps.buildQuestionResponse(
           form,
           candidates,
           evidenceMap,
+          totalCandidateCount,
+          paginationDto(totalCandidateCount),
+          displayCandidates,
+          displayEvidenceMap,
           currentInput,
           narrowingHistory,
           filters,
@@ -1081,21 +1212,21 @@ async function handleServeExplorationInner(
           messages,
           provider,
           language,
-          `"${filter.value}" 조건을 적용하면 후보가 없습니다. 현재 ${candidates.length}개 후보에서 다른 조건을 선택해주세요.`
+          `"${filter.value}" 조건을 적용하면 후보가 없습니다. 현재 ${totalCandidateCount}개 후보에서 다른 조건을 선택해주세요.`
         )
       }
 
       filters.splice(0, filters.length, ...testFilters)
       currentInput = testInput
       const newCandidates = testResult.candidates
-      const previousCandidateCount = candidates.length
+      const previousCandidateCount = totalCandidateCount
 
       narrowingHistory.push({
         question: prevState.narrowingHistory?.length ? "follow-up" : "initial",
         answer: lastUserMsg.text,
         extractedFilters: [filter],
         candidateCountBefore: previousCandidateCount,
-        candidateCountAfter: newCandidates.length,
+        candidateCountAfter: testResult.totalConsidered,
       })
 
       const existingStages = prevState.stageHistory ?? []
@@ -1103,26 +1234,30 @@ async function handleServeExplorationInner(
         stepIndex: turnCount,
         stageName: `${filter.field}_${filter.value}`,
         filterApplied: filter,
-        candidateCount: newCandidates.length,
+        candidateCount: testResult.totalConsidered,
         resolvedInputSnapshot: { ...currentInput },
         filtersSnapshot: [...filters],
       }
       const updatedStages = [...existingStages, newStage]
 
       console.log(
-        `[orchestrator:filter] ${filter.field}=${filter.value} | ${previousCandidateCount}->${newCandidates.length} candidates | stages: ${updatedStages.map(stage => stage.stageName).join(" -> ")}`
+        `[orchestrator:filter] ${filter.field}=${filter.value} | ${previousCandidateCount}->${testResult.totalConsidered} candidates | stages: ${updatedStages.map(stage => stage.stageName).join(" -> ")}`
       )
       if (nextFilterState.replacedExisting) {
         console.log(`[orchestrator:replace] ${filter.field} updated to ${filter.value}`)
       }
 
       turnCount += 1
-      const newStatus = checkResolution(newCandidates, narrowingHistory)
+      const newStatus = checkResolution(newCandidates, narrowingHistory, testResult.totalConsidered)
       if (newStatus.startsWith("resolved")) {
         return deps.buildRecommendationResponse(
           form,
           newCandidates,
           testResult.evidenceMap,
+          testResult.totalConsidered,
+          paginationDto(testResult.totalConsidered),
+          testDisplayPage.candidates,
+          testDisplayPage.evidenceMap,
           currentInput,
           narrowingHistory,
           filters,
@@ -1138,6 +1273,10 @@ async function handleServeExplorationInner(
         form,
         newCandidates,
         testResult.evidenceMap,
+        testResult.totalConsidered,
+        paginationDto(testResult.totalConsidered),
+        testDisplayPage.candidates,
+        testDisplayPage.evidenceMap,
         currentInput,
         narrowingHistory,
         filters,
@@ -1151,12 +1290,16 @@ async function handleServeExplorationInner(
     }
   }
 
-  const status = checkResolution(candidates, narrowingHistory)
+  const status = checkResolution(candidates, narrowingHistory, totalCandidateCount)
   if (status.startsWith("resolved") && turnCount > 0) {
     return deps.buildRecommendationResponse(
       form,
       candidates,
       evidenceMap,
+      totalCandidateCount,
+      paginationDto(totalCandidateCount),
+      displayCandidates,
+      displayEvidenceMap,
       currentInput,
       narrowingHistory,
       filters,
@@ -1172,6 +1315,10 @@ async function handleServeExplorationInner(
     form,
     candidates,
     evidenceMap,
+    totalCandidateCount,
+    paginationDto(totalCandidateCount),
+    displayCandidates,
+    displayEvidenceMap,
     currentInput,
     narrowingHistory,
     filters,
