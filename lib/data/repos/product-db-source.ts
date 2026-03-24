@@ -7,7 +7,7 @@ import { appendRuntimeLog, logRuntimeError } from "@/lib/runtime-logger"
 import type { AppliedFilter } from "@/lib/types/exploration"
 import type { CanonicalProduct, RecommendationInput, SourcePriority, SourceType } from "@/lib/types/canonical"
 import { resolveMaterialTag } from "@/lib/domain/material-resolver"
-import { getAppShapesForOperation } from "@/lib/domain/operation-resolver"
+import { getOperationShapeSearchTexts } from "@/lib/domain/operation-resolver"
 import { resolveRequestedToolFamily as resolveRequestedToolFamilyInput } from "@/lib/data/repos/product-query-filters"
 
 interface RawProductRow {
@@ -535,22 +535,6 @@ function normalizeApplicationShapes(raw: string | null | undefined): string[] {
   return [...unique]
 }
 
-function normalizeRootCategoryToken(value: string): string {
-  return value.toLowerCase().replace(/[\s_-]+/g, "")
-}
-
-function getRootCategoriesForOperation(input: string): string[] {
-  const lower = input.toLowerCase()
-  const categories = new Set<string>()
-
-  if (/(^|\b)(milling|mill|밀링)(\b|$)/i.test(lower)) categories.add("milling")
-  if (/(^|\b)(holemaking|hole making|drilling|drill|홀메이킹|드릴)(\b|$)/i.test(lower)) categories.add("holemaking")
-  if (/(^|\b)(threading|thread|tap|tapping|나사|탭|스레딩)(\b|$)/i.test(lower)) categories.add("threading")
-  if (/(^|\b)(turning|turn|선삭|터닝)(\b|$)/i.test(lower)) categories.add("turning")
-
-  return [...categories]
-}
-
 function normalizeMaterialTags(tags: string[] | null | undefined): string[] {
   if (!tags) return []
   const unique = new Set<string>()
@@ -737,22 +721,14 @@ export function buildQueryOptions(options: ProductSearchOptions): { where: strin
     where.push(`LOWER(COALESCE(edp_root_category, '')) LIKE ${categoryParam}`)
   }
 
-  const appShapes = input?.operationType ? getAppShapesForOperation(input.operationType) : []
-  if (appShapes.length > 0) {
+  const operationShapeTexts = input?.operationType ? getOperationShapeSearchTexts(input.operationType) : []
+  if (operationShapeTexts.length > 0) {
     const clauses: string[] = []
-    for (const shape of appShapes) {
-      const param = next(`%${shape.toLowerCase().replace(/_/g, " ")}%`)
-      clauses.push(`LOWER(REPLACE(COALESCE(series_application_shape, ''), '_', ' ')) LIKE ${param}`)
+    for (const shape of operationShapeTexts) {
+      const param = next(`%${shape.toLowerCase()}%`)
+      clauses.push(`LOWER(COALESCE(series_application_shape, '')) LIKE ${param}`)
     }
     where.push(`(${clauses.join(" OR ")})`)
-  }
-
-  const rootCategories = input?.operationType ? getRootCategoriesForOperation(input.operationType) : []
-  if (rootCategories.length > 0) {
-    const param = next(rootCategories.map(normalizeRootCategoryToken))
-    where.push(
-      `REPLACE(REPLACE(REPLACE(LOWER(COALESCE(edp_root_category, '')), ' ', ''), '_', ''), '-', '') = ANY(${param}::text[])`
-    )
   }
 
   // ── Narrowing filters (fluteCount, coating, toolSubtype, seriesName) ──

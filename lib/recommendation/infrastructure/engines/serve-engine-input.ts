@@ -183,6 +183,9 @@ function applySingleFilter(input: RecommendationInput, filter: AppliedFilter): R
     case "coating":
       updated.coatingPreference = String(filter.rawValue)
       break
+    case "cuttingType":
+      updated.operationType = String(filter.rawValue)
+      break
     case "toolSubtype":
       updated.toolSubtype = String(filter.rawValue)
       break

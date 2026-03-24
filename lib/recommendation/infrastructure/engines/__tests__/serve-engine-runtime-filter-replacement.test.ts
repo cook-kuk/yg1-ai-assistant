@@ -95,4 +95,17 @@ describe("serve-engine runtime filter replacement", () => {
     expect(withMaterial.workPieceName).toBeUndefined()
     expect(withMaterial.toolType).toBe("드릴")
   })
+
+  it("applies cuttingType filters into operationType 그대로", () => {
+    const baseInput = makeBaseInput()
+    const updated = applyFilterToInput(baseInput, {
+      field: "cuttingType",
+      op: "eq",
+      value: "Side_Milling",
+      rawValue: "Side_Milling",
+      appliedAt: 3,
+    })
+
+    expect(updated.operationType).toBe("Side_Milling")
+  })
 })
