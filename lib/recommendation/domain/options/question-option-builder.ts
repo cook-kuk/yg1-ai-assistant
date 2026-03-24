@@ -447,9 +447,13 @@ export function buildConfusionHelperOptions(
 
   // Per-option explanation chips (e.g. "Square란?")
   if (question?.extractedOptions) {
-    const EXCLUDED_FROM_EXPLAIN = new Set(["undo", "skip", "reset", "상관없음", "건너뛰기", "이전", "취소"])
+    const EXCLUDED_FROM_EXPLAIN = new Set([
+      "undo", "skip", "reset", "explain", "delegate", "proceed", "continue",
+      "상관없음", "건너뛰기", "이전", "취소", "쉽게 설명해줘", "추천으로 골라줘",
+    ])
     for (const opt of question.extractedOptions.slice(0, 3)) {
       if (EXCLUDED_FROM_EXPLAIN.has(opt.toLowerCase())) continue
+      if (opt.length > 20) continue // 내부 텍스트/디버그 문자열 필터
       options.push({
         id: nextQuestionOptionId(`explain_${opt}`),
         family: "explore",
