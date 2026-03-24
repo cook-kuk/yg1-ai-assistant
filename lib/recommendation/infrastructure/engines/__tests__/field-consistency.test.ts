@@ -1,0 +1,75 @@
+import { describe, expect, it, vi } from "vitest"
+
+vi.mock("server-only", () => ({}))
+
+import { buildQuestionFieldOptions, buildDisplayedOptions } from "../serve-engine-option-first"
+import type { DisplayedOption } from "@/lib/recommendation/domain/types"
+
+describe("Field consistency guard", () => {
+  it("buildQuestionFieldOptions produces options matching the given field", () => {
+    const result = buildQuestionFieldOptions("coating", ["TiAlN (50개)", "AlCrN (30개)"], true)
+
+    // All narrowing options must have field="coating"
+    const narrowingOptions = result.displayedOptions.filter(
+      opt => opt.field !== "_action" && opt.value !== "skip" && opt.value !== "undo"
+    )
+    expect(narrowingOptions.length).toBeGreaterThan(0)
+    for (const opt of narrowingOptions) {
+      expect(opt.field).toBe("coating")
+    }
+
+    // Chips should include the coating values
+    expect(result.chips.some(c => c.includes("TiAlN"))).toBe(true)
+    expect(result.chips.some(c => c.includes("AlCrN"))).toBe(true)
+  })
+
+  it("no fluteCount options remain when field transitions to coating", () => {
+    // Simulate: previous turn had fluteCount options, now question is coating
+    const coatingResult = buildQuestionFieldOptions("coating", ["TiAlN (50개)", "AlCrN (30개)"], true)
+
+    // Verify no option has field="fluteCount"
+    for (const opt of coatingResult.displayedOptions) {
+      expect(opt.field).not.toBe("fluteCount")
+    }
+
+    // Verify chips don't contain flute patterns
+    for (const chip of coatingResult.chips) {
+      expect(chip).not.toMatch(/^\d+날/)
+    }
+  })
+
+  it("chips are always derived from displayedOptions (no stale data)", () => {
+    const result = buildQuestionFieldOptions("fluteCount", ["2날 (100개)", "3날 (80개)", "4날 (60개)"], false)
+
+    // Every chip label must correspond to a displayedOption label (or action chip)
+    const optionLabels = new Set(result.displayedOptions.map(opt => opt.label))
+    for (const chip of result.chips) {
+      expect(optionLabels.has(chip)).toBe(true)
+    }
+  })
+
+  it("field consistency filter removes stale options from different field", () => {
+    // Simulate stale options: mix of coating and fluteCount options
+    const mixedOptions: DisplayedOption[] = [
+      { index: 1, label: "4날 (60개)", field: "fluteCount", value: "4날", count: 60 },
+      { index: 2, label: "6날 (40개)", field: "fluteCount", value: "6날", count: 40 },
+      { index: 3, label: "TiAlN (50개)", field: "coating", value: "TiAlN", count: 50 },
+      { index: 4, label: "상관없음", field: "_action", value: "skip", count: 0 },
+    ]
+
+    const currentField = "coating"
+    const filtered = mixedOptions.filter(
+      opt => !opt.field || opt.field === currentField || opt.field === "_action" || opt.field === "skip"
+    )
+
+    // Only coating and _action options remain
+    expect(filtered.length).toBe(2)
+    expect(filtered.every(opt => opt.field === "coating" || opt.field === "_action")).toBe(true)
+
+    // Derive chips from filtered options
+    const chips = filtered.map(opt => opt.label)
+    expect(chips).not.toContain("4날 (60개)")
+    expect(chips).not.toContain("6날 (40개)")
+    expect(chips).toContain("TiAlN (50개)")
+  })
+})

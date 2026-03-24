@@ -348,11 +348,24 @@ function buildValidatedReplyResponse(
   let displayedOptions: DisplayedOption[]
 
   switch (strategy) {
-    case "preserve_existing_question_options":
-      // Keep field-bound narrowing options from the pending question turn
-      chips = prevState.displayedChips?.length ? prevState.displayedChips : reply.chips
-      displayedOptions = prevState.displayedOptions ?? []
+    case "preserve_existing_question_options": {
+      // Keep field-bound narrowing options from the pending question turn,
+      // but only if they match the current pending field (no stale carry-forward)
+      const pendingField = prevState.lastAskedField ?? null
+      const prevOptions = prevState.displayedOptions ?? []
+      const hasFieldMismatch = pendingField && prevOptions.length > 0 && prevOptions.some(
+        opt => opt.field && opt.field !== pendingField && opt.field !== "_action" && opt.field !== "skip"
+      )
+      if (hasFieldMismatch) {
+        console.warn(`[reply-ui-strategy] Stale options detected for field="${pendingField}", falling back to reply chips`)
+        chips = reply.chips
+        displayedOptions = reply.chips.length > 0 ? buildReplyDisplayedOptions(reply.chips) : []
+      } else {
+        chips = prevState.displayedChips?.length ? prevState.displayedChips : reply.chips
+        displayedOptions = prevOptions
+      }
       break
+    }
 
     case "replace_with_reply_options":
       // Direct factual reply: derive options from handler-provided chips

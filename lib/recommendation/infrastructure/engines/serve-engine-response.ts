@@ -330,6 +330,21 @@ export async function buildQuestionResponse(
   })
   finalResponseChips = questionOptionState.chips
   finalDisplayedOptions = questionOptionState.displayedOptions
+
+  // ── Field consistency guard: ensure displayedOptions match current question field ──
+  if (question?.field && finalDisplayedOptions.length > 0) {
+    const staleOptions = finalDisplayedOptions.filter(
+      opt => opt.field && opt.field !== question.field && opt.field !== "_action" && opt.field !== "skip"
+    )
+    if (staleOptions.length > 0) {
+      console.warn(`[field-consistency] Removing ${staleOptions.length} stale options from field "${staleOptions[0].field}" (current: ${question.field})`)
+      finalDisplayedOptions = finalDisplayedOptions.filter(
+        opt => !opt.field || opt.field === question.field || opt.field === "_action" || opt.field === "skip"
+      )
+      finalResponseChips = finalDisplayedOptions.map(opt => opt.label)
+    }
+  }
+
   sessionState.displayedChips = finalResponseChips
   sessionState.displayedOptions = finalDisplayedOptions
 
