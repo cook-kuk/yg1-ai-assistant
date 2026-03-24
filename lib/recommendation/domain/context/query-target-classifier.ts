@@ -36,6 +36,10 @@ export interface QueryTarget {
   answerTopic: string
   /** Active filters should only be search scope, not answer topic */
   searchScopeOnly: boolean
+  /** Whether this query requires search/data lookup (not just explanation) */
+  requiresSearch: boolean
+  /** Preferred search scope */
+  searchScope: "current_candidates" | "targeted_entity" | "targeted_comparison" | "series_lookup" | "broad_search" | "none"
 }
 
 // ── Patterns ────────────────────────────────────────────────
@@ -79,26 +83,22 @@ export function classifyQueryTarget(
   const isComparison = COMPARISON_PATTERN.test(lower)
   if (isComparison && entities.length >= 2) {
     return {
-      type: "series_comparison",
-      entities,
-      overridesActiveFilter: true,
-      answerTopic: `${entities.join(" vs ")} 비교`,
-      searchScopeOnly: true,
+      type: "series_comparison", entities, overridesActiveFilter: true,
+      answerTopic: `${entities.join(" vs ")} 비교`, searchScopeOnly: true,
+      requiresSearch: true, searchScope: "targeted_comparison",
     }
   }
 
-  // 3. Check for comparison with "과/와/이랑" pattern (even without explicit entities)
+  // 3. Check for comparison with "과/와/이랑" pattern
   const comparisonWithConjunction = clean.match(/(.+?)\s*[과와이랑]\s*(.+?)\s*(차이|비교|다른|좋은|달라|다를|나은|낫)/i)
   if (comparisonWithConjunction) {
     const entity1 = comparisonWithConjunction[1].trim()
     const entity2 = comparisonWithConjunction[2].trim()
     if (entity1.length >= 2 && entity2.length >= 2) {
       return {
-        type: "series_comparison",
-        entities: [entity1, entity2],
-        overridesActiveFilter: true,
-        answerTopic: `${entity1} vs ${entity2} 비교`,
-        searchScopeOnly: true,
+        type: "series_comparison", entities: [entity1, entity2], overridesActiveFilter: true,
+        answerTopic: `${entity1} vs ${entity2} 비교`, searchScopeOnly: true,
+        requiresSearch: true, searchScope: "targeted_comparison",
       }
     }
   }
@@ -106,22 +106,18 @@ export function classifyQueryTarget(
   // 4. Series info request with explicit entity
   if (entities.length >= 1 && SERIES_INFO_PATTERN.test(lower)) {
     return {
-      type: "series_info",
-      entities,
-      overridesActiveFilter: true,
-      answerTopic: `${entities[0]} 시리즈 정보`,
-      searchScopeOnly: true,
+      type: "series_info", entities, overridesActiveFilter: true,
+      answerTopic: `${entities[0]} 시리즈 정보`, searchScopeOnly: true,
+      requiresSearch: true, searchScope: "series_lookup",
     }
   }
 
   // 5. Product code question
   if (productMatches.length >= 1) {
     return {
-      type: "product_info",
-      entities: productMatches,
-      overridesActiveFilter: true,
-      answerTopic: `${productMatches[0]} 제품 정보`,
-      searchScopeOnly: true,
+      type: "product_info", entities: productMatches, overridesActiveFilter: true,
+      answerTopic: `${productMatches[0]} 제품 정보`, searchScopeOnly: true,
+      requiresSearch: true, searchScope: "targeted_entity",
     }
   }
 
@@ -130,13 +126,10 @@ export function classifyQueryTarget(
   if (activeField) {
     const fieldPattern = FIELD_KEYWORDS[activeField]
     if (fieldPattern && fieldPattern.test(lower)) {
-      // User IS asking about the active filter field
       return {
-        type: "active_field_query",
-        entities: [],
-        overridesActiveFilter: false,
-        answerTopic: `${activeField} 설명`,
-        searchScopeOnly: false,
+        type: "active_field_query", entities: [], overridesActiveFilter: false,
+        answerTopic: `${activeField} 설명`, searchScopeOnly: false,
+        requiresSearch: false, searchScope: "none",
       }
     }
   }
@@ -144,42 +137,34 @@ export function classifyQueryTarget(
   // 7. Series name mentioned (even without comparison/info pattern)
   if (entities.length >= 1) {
     return {
-      type: "series_info",
-      entities,
-      overridesActiveFilter: true,
-      answerTopic: `${entities[0]} 정보`,
-      searchScopeOnly: true,
+      type: "series_info", entities, overridesActiveFilter: true,
+      answerTopic: `${entities[0]} 정보`, searchScopeOnly: true,
+      requiresSearch: true, searchScope: "series_lookup",
     }
   }
 
   // 8. Count/distribution question
   if (COUNT_PATTERN.test(lower)) {
     return {
-      type: "field_count",
-      entities: [],
-      overridesActiveFilter: false,
-      answerTopic: "분포/개수",
-      searchScopeOnly: false,
+      type: "field_count", entities: [], overridesActiveFilter: false,
+      answerTopic: "분포/개수", searchScopeOnly: false,
+      requiresSearch: true, searchScope: "current_candidates",
     }
   }
 
   // 9. General explanation
   if (/설명|알려|뭐야|차이/.test(lower) && !activeField) {
     return {
-      type: "general_question",
-      entities: [],
-      overridesActiveFilter: false,
-      answerTopic: "일반 질문",
-      searchScopeOnly: false,
+      type: "general_question", entities: [], overridesActiveFilter: false,
+      answerTopic: "일반 질문", searchScopeOnly: false,
+      requiresSearch: false, searchScope: "none",
     }
   }
 
   return {
-    type: "unknown",
-    entities: [],
-    overridesActiveFilter: false,
-    answerTopic: "unknown",
-    searchScopeOnly: false,
+    type: "unknown", entities: [], overridesActiveFilter: false,
+    answerTopic: "unknown", searchScopeOnly: false,
+    requiresSearch: false, searchScope: "none",
   }
 }
 

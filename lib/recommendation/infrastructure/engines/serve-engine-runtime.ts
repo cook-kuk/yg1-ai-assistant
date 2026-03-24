@@ -395,6 +395,54 @@ async function handleServeExplorationInner(
   let turnCount = prevState?.turnCount ?? 0
 
   if (messages.length > 0 && prevState && lastUserMsg) {
+    // ── PendingAction Interceptor ──
+    // If there's a pending proposed action and user says "응/예/네/좋아",
+    // execute that action directly without going through orchestrator.
+    const AFFIRMATIVE = /^(응|예|네|좋아|좋아요|그래|ㅇㅇ|ㅇ|ok|yes|sure)$/i
+    if (prevState.pendingAction && AFFIRMATIVE.test(lastUserMsg.text.trim())) {
+      const pa = prevState.pendingAction
+      trace.add("pending-action-accept", "router", {
+        userMessage: lastUserMsg.text,
+        pendingAction: pa.description,
+      }, {
+        actionType: pa.actionType,
+        filter: pa.filter,
+      }, `User accepted pending action: "${pa.description}"`)
+      console.log(`[pending-action] Accepted: ${pa.description} (${pa.actionType})`)
+
+      if (pa.filter) {
+        const filter = { ...pa.filter, appliedAt: prevState.turnCount ?? 0 } as AppliedFilter
+        const testInput = deps.applyFilterToInput(currentInput, filter)
+        const testFilters = [...filters, filter]
+        const testResult = await runHybridRetrieval(testInput, testFilters)
+
+        if (testResult.candidates.length === 0) {
+          return deps.buildQuestionResponse(
+            form, candidates, evidenceMap, currentInput,
+            narrowingHistory, filters, turnCount, messages, provider, language,
+            `"${filter.value}" 조건을 적용하면 후보가 없습니다. 현재 ${candidates.length}개 후보에서 다른 조건을 선택해주세요.`
+          )
+        }
+
+        filters.push(filter)
+        currentInput = testInput
+        narrowingHistory.push({
+          question: "pending-action-accept",
+          answer: lastUserMsg.text,
+          extractedFilters: [filter],
+          candidateCountBefore: candidates.length,
+          candidateCountAfter: testResult.candidates.length,
+        })
+        turnCount++
+
+        const newStatus = checkResolution(testResult.candidates, narrowingHistory)
+        if (newStatus.startsWith("resolved")) {
+          return deps.buildRecommendationResponse(form, testResult.candidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts)
+        }
+        return deps.buildQuestionResponse(form, testResult.candidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language)
+      }
+    }
+
     const currentCandidateSnapshot = deps.buildCandidateSnapshot(candidates, evidenceMap)
     const unifiedTurnContext = buildUnifiedTurnContext({
       latestAssistantText: [...messages].reverse().find(message => message.role === "ai")?.text ?? null,
