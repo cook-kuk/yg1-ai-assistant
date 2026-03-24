@@ -467,7 +467,12 @@ async function handleServeExplorationInner(
         hasRecommendation: prevState?.resolutionStatus?.startsWith("resolved") ?? false,
       }, provider) : null
 
-      if (earlyJudgment?.domainRelevance === "company_query" || earlyJudgment?.domainRelevance === "greeting") {
+      // ★ Tool domain guard: tool/가공 질문이면 company 라우팅 절대 차단
+      const isToolDomain = lastUserMsg ? isToolDomainQuestion(lastUserMsg.text) : false
+      if (isToolDomain) {
+        earlyAction = null // orchestrator가 tool domain으로 처리
+        console.log(`[runtime:early] Tool domain detected → skip forced narrowing, block company route`)
+      } else if (earlyJudgment?.domainRelevance === "company_query" || earlyJudgment?.domainRelevance === "greeting") {
         earlyAction = null // orchestrator가 처리하게 넘김
         console.log(`[runtime:early] company_query → skip pendingWorkPieceFilter`)
       } else {
@@ -812,7 +817,12 @@ async function handleServeExplorationInner(
           hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
         }, provider)
 
-        if (quickJudgment.domainRelevance === "company_query" || quickJudgment.domainRelevance === "greeting") {
+        const toolDomainHere = isToolDomainQuestion(lastUserMsg.text)
+        if (toolDomainHere) {
+          // Tool domain → answer_general 유지 (company가 아닌 tool explanation으로)
+          action = { type: "answer_general", message: lastUserMsg.text }
+          console.log(`[runtime:judgment] Tool domain → answer_general (NOT company)`)
+        } else if (quickJudgment.domainRelevance === "company_query" || quickJudgment.domainRelevance === "greeting") {
           // 회사 질문/인사 → answer_general로 유지, narrowing 강제하지 않음
           action = { type: "answer_general", message: lastUserMsg.text }
           console.log(`[runtime:judgment] company_query detected, skip forced narrowing → answer_general`)
@@ -1525,4 +1535,12 @@ async function handleServeExplorationInner(
     provider,
     language
   )
+}
+
+// ── Tool domain detection ─────────────────────────────
+// tool/가공/형상/추천 질문은 company handler로 가면 안 됨
+const TOOL_DOMAIN_PATTERN = /slot|milling|side.?mill|shoulder|plunge|ball.?end|taper|square|corner.?r|radius|flute|날수|날 수|coating|코팅|dlc|tialn|alcrn|알루미늄.*가공|스테인리스.*가공|rpm|feed|이송|절삭|ap |ae |vc |fz |추천.*이유|왜.*추천|어떤.*형상|뭐가.*좋|뭐가.*맞|차이점|형상|가공.*방|황삭|정삭|엔드밀|드릴|탭|인서트|시리즈.*차이|제품.*비교|절삭.*조건/i
+
+function isToolDomainQuestion(message: string): boolean {
+  return TOOL_DOMAIN_PATTERN.test(message)
 }
