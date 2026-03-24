@@ -47,6 +47,31 @@ const WEIGHTS = {
   evidence: 10,  // bonus for having cutting condition evidence
 }
 
+function flattenActiveFilters(filters: AppliedFilter[]): AppliedFilter[] {
+  const lastMaterialIndex = filters.reduce((lastIndex, filter, index) => (
+    filter.field === "material" ? index : lastIndex
+  ), -1)
+
+  return filters.flatMap((filter, index) => {
+    if (
+      (filter.field === "workPieceName" || filter.field === "edpBrandName" || filter.field === "edpSeriesName") &&
+      lastMaterialIndex !== -1 &&
+      index < lastMaterialIndex
+    ) {
+      return []
+    }
+
+    const sideFilters = ((filter as unknown as { _sideFilters?: AppliedFilter[] })._sideFilters ?? [])
+      .filter(sideFilter => !(
+        lastMaterialIndex !== -1 &&
+        (sideFilter.field === "edpBrandName" || sideFilter.field === "edpSeriesName") &&
+        index < lastMaterialIndex
+      ))
+
+    return [filter, ...sideFilters]
+  })
+}
+
 function formatProductEdpList(products: Array<{ displayCode: string; normalizedCode: string }>, maxItems = 50): string {
   const codes = products
     .map(product => product.displayCode || product.normalizedCode)
@@ -132,7 +157,7 @@ export async function runHybridRetrieval(
   // Apply narrowing filters from conversation — STRICT mode
   // Once a filter is selected, it MUST be enforced. No silent skipping.
   // The zero-candidate guard is in route.ts BEFORE the filter reaches here.
-  for (const filter of filters) {
+  for (const filter of flattenActiveFilters(filters)) {
     const before = candidates.length
     let filtered: typeof candidates | null = null
 
@@ -180,6 +205,14 @@ export async function runHybridRetrieval(
         filtered = candidates.filter(p => p.brand?.toLowerCase().includes(q))
         break
       }
+      case "edpBrandName":
+        // Already constrained at DB/view query stage using edp_brand_name.
+        // Keep as an applied filter for traceability, but don't re-filter on mapped product.brand.
+        break
+      case "edpSeriesName":
+        // Already constrained at DB/view query stage using edp_series_name.
+        // Keep as an applied filter for traceability, but don't re-filter again in memory.
+        break
       case "coolantHole": {
         const want = String(filter.rawValue).toLowerCase() === "true" || String(filter.rawValue) === "yes"
         filtered = candidates.filter(p => p.coolantHole === want)

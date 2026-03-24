@@ -143,7 +143,7 @@ export function buildMemoryFromSession(
     { field: "material", state: form.material },
     { field: "operationType", state: form.operationType },
     { field: "diameterMm", state: form.diameterInfo },
-    { field: "toolType", state: form.toolTypeOrCurrentProduct },
+    { field: "machiningCategory", state: form.toolTypeOrCurrentProduct },
   ]
 
   for (const { field, state } of intakeFields) {

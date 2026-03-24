@@ -505,6 +505,9 @@ function classifyMemoryItems(
     if (resolved.operationType && !coveredFields.has("operationType")) {
       resolvedFacts.push(makeMemoryItem("operationType", resolved.operationType, "intake", "resolved"))
     }
+    if (resolved.machiningCategory && !coveredFields.has("machiningCategory")) {
+      resolvedFacts.push(makeMemoryItem("machiningCategory", resolved.machiningCategory, "intake", "resolved"))
+    }
     if (resolved.toolType && !coveredFields.has("toolType")) {
       resolvedFacts.push(makeMemoryItem("toolType", resolved.toolType, "intake", "resolved"))
     }

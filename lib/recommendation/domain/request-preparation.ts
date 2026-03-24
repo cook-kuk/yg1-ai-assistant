@@ -276,7 +276,7 @@ export function extractSlots(
   extractFormSlot(form.material, "material", slots)
   extractFormSlot(form.operationType, "operationType", slots)
   extractFormSlot(form.diameterInfo, "diameterMm", slots)
-  extractFormSlot(form.toolTypeOrCurrentProduct, "toolType", slots)
+  extractFormSlot(form.toolTypeOrCurrentProduct, "machiningCategory", slots)
 
   if (form.machiningIntent.status === "known") {
     const intentMap: Record<MachiningIntent, string> = { roughing: "황삭", semi: "중삭", finishing: "정삭" }
@@ -362,7 +362,7 @@ function extractMessageSlots(message: string): ExtractedSlot[] {
 // 3. COMPLETENESS CHECKER
 // ════════════════════════════════════════════════════════════════
 
-const REQUIRED_SLOTS = ["material", "operationType", "diameterMm", "toolType"]
+const REQUIRED_SLOTS = ["material", "operationType", "diameterMm", "machiningCategory"]
 const OPTIONAL_SLOTS = ["fluteCount", "coating", "machiningIntent", "seriesName", "toolSubtype"]
 
 export function checkCompleteness(slots: ExtractedSlot[], form: ProductIntakeForm): CompletenessCheck {
@@ -409,7 +409,7 @@ function getFormFieldBySlotName(form: ProductIntakeForm, slot: string): AnswerSt
     case "material": return form.material
     case "operationType": return form.operationType
     case "diameterMm": return form.diameterInfo
-    case "toolType": return form.toolTypeOrCurrentProduct
+    case "machiningCategory": return form.toolTypeOrCurrentProduct
     default: return null
   }
 }
