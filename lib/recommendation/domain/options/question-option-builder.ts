@@ -16,7 +16,7 @@ function hasKoreanBatchim(text: string): boolean {
   if (trimmed.length === 0) return false
   const lastChar = trimmed.charCodeAt(trimmed.length - 1)
   // 한글 범위: 0xAC00 ~ 0xD7A3
-  if (lastChar < 0xAC00 || lastChar > 0xD7A3) return true // 영어/숫자 등 → 받침 있다고 간주
+  if (lastChar < 0xAC00 || lastChar > 0xD7A3) return false // 영어/숫자 등 → 받침 없다고 간주 ("란?")
   return (lastChar - 0xAC00) % 28 !== 0
 }
 
