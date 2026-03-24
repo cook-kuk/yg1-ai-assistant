@@ -430,7 +430,24 @@ async function handleServeExplorationInner(
 
   let earlyAction: string | null = null
   if (pendingWorkPieceFilter) {
-    earlyAction = "continue_narrowing"
+    // 회사 질문이면 강제 narrowing 하지 않음 → orchestrator가 판단하게
+    const earlyJudgment = lastUserMsg ? await performUnifiedJudgment({
+      userMessage: lastUserMsg.text,
+      assistantText: null,
+      pendingField: prevState?.lastAskedField ?? null,
+      currentMode: prevState?.currentMode ?? null,
+      displayedChips: prevState?.displayedChips ?? [],
+      filterCount: prevState?.appliedFilters?.length ?? 0,
+      candidateCount: prevState?.candidateCount ?? 0,
+      hasRecommendation: prevState?.resolutionStatus?.startsWith("resolved") ?? false,
+    }, provider) : null
+
+    if (earlyJudgment?.domainRelevance === "company_query" || earlyJudgment?.domainRelevance === "greeting") {
+      earlyAction = null // orchestrator가 처리하게 넘김
+      console.log(`[runtime:early] company_query → skip pendingWorkPieceFilter`)
+    } else {
+      earlyAction = "continue_narrowing"
+    }
   } else if (messages.length > 0 && prevState && lastUserMsg) {
     const earlyUnifiedTurnContext = buildUnifiedTurnContext({
       latestAssistantText: [...messages].reverse().find(message => message.role === "ai")?.text ?? null,
