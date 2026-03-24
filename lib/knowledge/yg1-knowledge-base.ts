@@ -409,7 +409,7 @@ export function searchKB(query: string): { found: boolean; answer: string; confi
   }
 
   // ── 수상 ──
-  if (q.includes("수상") || q.includes("상") || q.includes("표창") || q.includes("어워드")) {
+  if (q.includes("수상") || q.includes("표창") || q.includes("어워드") || q.includes("상 받") || q.includes("수상 이력")) {
     return { found: true, confidence: "high",
       answer: `YG-1 주요 수상: ${YG1_KB.awards.slice(0, 5).join(" / ")}` }
   }

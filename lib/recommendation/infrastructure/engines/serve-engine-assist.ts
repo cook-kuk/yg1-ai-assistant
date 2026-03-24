@@ -1371,6 +1371,7 @@ export async function handleGeneralChat(
   const isCuttingKnowledge = CUTTING_KNOWLEDGE_PATTERNS.test(clean)
   const isKnowledgeQuestion = /차이|비교|뭐야|알려|설명|원리|방법|팁|주의|장단점|특징|어떤|언제|왜|어떻게|추천|좋은/i.test(clean)
   const needsWebSearch = isCuttingKnowledge && isKnowledgeQuestion
+  const isToolDomainQ = /slot|milling|side.?mill|shoulder|plunge|ball|taper|square|corner.?r|radius|flute|날수|날 수|날.*형|coating|코팅|dlc|tialn|alcrn|rpm|feed|이송|절삭|추천.*이유|왜.*추천|어떤.*형상|뭐가.*좋|차이점|형상|가공|황삭|정삭|엔드밀|드릴|탭|인서트/i.test(clean)
 
   let webSearchResult: string | null = null
   if (needsWebSearch) {
@@ -1438,7 +1439,7 @@ ${sessionContext}
 ${formContext}
 ${webContext}
 
-${YG1_COMPANY_SNIPPET}
+${isToolDomainQ ? "═══ 참고: 이 질문은 절삭공구/가공 기술 질문입니다. 회사 연혁/수상/조직 정보로 답하지 마세요. ═══" : YG1_COMPANY_SNIPPET}
 
 ═══ 응답 규칙 ═══
 - 한국어로 자연스럽게 대화, 간결하게 (2-5문장)
