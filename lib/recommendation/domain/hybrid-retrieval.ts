@@ -410,9 +410,8 @@ export async function runHybridRetrieval(
     `[hybrid:stage] stage=ranked count=${scored.length} edps=${formatScoredEdpList(scored)}`
   )
 
-  // Take top-N with minimum quality threshold
-  const maxScore = Object.values(WEIGHTS).reduce((a, b) => a + b, 0)
-  const minScoreThreshold = Math.round(maxScore * 0.25) // At least 25% match required
+  // Take top-N with no minimum score threshold for the initial candidate list.
+  const minScoreThreshold = 0
   const qualifiedCandidates = scored.filter(s => s.score >= minScoreThreshold)
 
   // ── Dedupe by product code (no series cap — show all matched products) ──
