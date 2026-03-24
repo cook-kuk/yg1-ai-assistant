@@ -937,8 +937,25 @@ async function handleServeExplorationInner(
     }
 
     if (action.type === "redirect_off_topic") {
+      // 통합 판단의 domainRelevance가 있으면 활용, 없으면 기존 analyzeInquiry fallback
       const inquiry = analyzeInquiry(lastUserMsg.text)
       const redirect = getRedirectResponse(inquiry)
+      // company_query면 answer_general로 전환
+      if (redirect.text && lastUserMsg.text) {
+        const quickCheck = await performUnifiedJudgment({
+          userMessage: lastUserMsg.text,
+          assistantText: null,
+          pendingField: prevState.lastAskedField ?? null,
+          currentMode: prevState.currentMode ?? null,
+          displayedChips: prevState.displayedChips ?? [],
+          filterCount: filters.length,
+          candidateCount: candidates.length,
+          hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
+        }, provider)
+        if (quickCheck.domainRelevance === "company_query") {
+          return handleServeGeneralChatAction({ deps, action: { type: "answer_general", message: lastUserMsg.text }, orchResult, provider, form, messages, prevState, filters, narrowingHistory, currentInput, candidates, evidenceMap, turnCount })
+        }
+      }
       const sessionState = carryForwardState(prevState, {
         candidateCount: prevState.candidateCount,
         appliedFilters: filters,
