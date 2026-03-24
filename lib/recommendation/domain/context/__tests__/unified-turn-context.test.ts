@@ -264,9 +264,9 @@ describe("Hierarchical memory compression", () => {
 
     const { recentTurns, episodicSummaries } = compressOlderTurns(turns, null, null)
 
-    // Recent turns should be the last 12
-    expect(recentTurns.length).toBe(12)
-    expect(recentTurns[0].turn).toBe(12)
+    // Recent turns should be the last 16 (updated from 12)
+    expect(recentTurns.length).toBe(16)
+    expect(recentTurns[0].turn).toBe(8)
 
     // Older turns should be compressed into episodes
     expect(episodicSummaries.length).toBeGreaterThan(0)

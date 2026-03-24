@@ -76,8 +76,8 @@ export interface CompressedTurnRecord {
 }
 
 // ── Compression Configuration ────────────────────────────────
-const RAW_TURNS_TO_KEEP = 12
-const COMPRESSION_TRIGGER_COUNT = 20
+const RAW_TURNS_TO_KEEP = 16      // generous: keep last 16 raw turns
+const COMPRESSION_TRIGGER_COUNT = 24
 const EPISODE_SPAN = 6
 
 /**
@@ -140,11 +140,13 @@ function buildEpisodeSummary(
   const uiArtifactsMentioned: string[] = []
   const correctionSignals: string[] = []
 
-  // Patterns for extraction
-  const productCodePattern = /(CE\d+[A-Z]*\d*|GNX\d+|SEM[A-Z]*\d+)/gi
-  const fieldMentionPattern = /(코팅|날수|날 수|직경|소재|재질|시리즈|서브타입|엔드밀|볼|스퀘어|라디우스)/gi
+  // Patterns for extraction (broadened to cover YG-1 product codes)
+  const productCodePattern = /([A-Z]{2,5}\d{3,}[A-Z]*\d*|GAA\d+|GEE\d+|JAH\d+|E\d[A-Z]\d+|ALM\d+)/gi
+  const fieldMentionPattern = /(코팅|날수|날 수|직경|소재|재질|시리즈|서브타입|엔드밀|볼|스퀘어|라디우스|생크|전장|절삭길이|헬릭스)/gi
   const correctionPattern = /(아니|틀렸|잘못|바꿔|다시|변경|수정)/gi
+  const frustrationPattern = /(짜증|답답|왜.*안|이상해|이상한|느려|잘.*안.*돼|문제|오류)/gi
   const questionPattern = /[?？]|몰라|모르겠|뭐야/
+  const uiArtifactPattern = /(추천.*결과|비교표|절삭조건|후보.*목록|선택지|칩|카드)/gi
 
   // Build summary from turn content
   const summaryParts: string[] = []
@@ -167,9 +169,22 @@ function buildEpisodeSummary(
       correctionSignals.push(text.slice(0, 50))
     }
 
+    // Frustration signals (preserved for behavioral tracking)
+    if (turn.role === "user" && frustrationPattern.test(text)) {
+      correctionSignals.push(`[불만] ${text.slice(0, 50)}`)
+    }
+
     // Unresolved questions
     if (turn.role === "user" && questionPattern.test(text)) {
       unresolvedThreads.push(text.slice(0, 80))
+    }
+
+    // UI artifact references (preserved for context continuity)
+    const uiMatches = text.match(uiArtifactPattern)
+    if (uiMatches) {
+      for (const m of uiMatches) {
+        if (!uiArtifactsMentioned.includes(m)) uiArtifactsMentioned.push(m)
+      }
     }
 
     // Summarize user turns
@@ -185,8 +200,23 @@ function buildEpisodeSummary(
         if (item.status === "resolved") {
           resolvedFacts.push({ field: item.field, value: item.value })
         }
+        if (item.status === "active") {
+          // Active filters also preserved
+          resolvedFacts.push({ field: `filter:${item.field}`, value: item.value })
+        }
         if (item.replacedBy) {
           changedFacts.push({ field: item.field, oldValue: item.value })
+        }
+      }
+    }
+  }
+
+  // Preserve active session filters from this turn range
+  if (sessionState?.appliedFilters) {
+    for (const f of sessionState.appliedFilters) {
+      if (f.appliedAt >= fromTurn && f.appliedAt <= toTurn && f.op !== "skip") {
+        if (!resolvedFacts.some(rf => rf.field === f.field && rf.value === f.value)) {
+          resolvedFacts.push({ field: f.field, value: f.value })
         }
       }
     }
