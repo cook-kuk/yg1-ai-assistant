@@ -21,7 +21,9 @@ import {
   buildRefinementOptionState,
 } from "@/lib/recommendation/infrastructure/engines/serve-engine-option-first"
 import { detectUserState } from "@/lib/recommendation/domain/context/user-understanding-detector"
+import { buildUnifiedTurnContext } from "@/lib/recommendation/domain/context/turn-context-builder"
 import { validateOptionFirstPipeline } from "@/lib/recommendation/domain/options/option-validator"
+import { normalizeFilterValue, extractDistinctFieldValues } from "@/lib/recommendation/domain/value-normalizer"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
@@ -180,6 +182,15 @@ export async function handleServeExploration(
 
   let earlyAction: string | null = null
   if (messages.length > 0 && prevState && lastUserMsg) {
+    const earlyUnifiedTurnContext = buildUnifiedTurnContext({
+      latestAssistantText: [...messages].reverse().find(message => message.role === "ai")?.text ?? null,
+      latestUserMessage: lastUserMsg.text,
+      messages,
+      sessionState: prevState,
+      resolvedInput,
+      intakeForm: form,
+      candidates: prevState.displayedCandidates ?? [],
+    })
     const earlyTurnContext = {
       userMessage: lastUserMsg.text,
       intakeForm: form,
@@ -188,6 +199,7 @@ export async function handleServeExploration(
       candidateCount: prevState.candidateCount ?? 0,
       displayedProducts: prevState.displayedCandidates ?? [],
       currentCandidates: [],
+      unifiedTurnContext: earlyUnifiedTurnContext,
     }
     const earlyResult = ENABLE_TOOL_USE_ROUTING
       ? await orchestrateTurnWithTools(earlyTurnContext, provider)
@@ -218,14 +230,25 @@ export async function handleServeExploration(
   let turnCount = prevState?.turnCount ?? 0
 
   if (messages.length > 0 && prevState && lastUserMsg) {
+    const currentCandidateSnapshot = deps.buildCandidateSnapshot(candidates, evidenceMap)
+    const unifiedTurnContext = buildUnifiedTurnContext({
+      latestAssistantText: [...messages].reverse().find(message => message.role === "ai")?.text ?? null,
+      latestUserMessage: lastUserMsg.text,
+      messages,
+      sessionState: prevState,
+      resolvedInput: currentInput,
+      intakeForm: form,
+      candidates: currentCandidateSnapshot,
+    })
     const turnContext = {
       userMessage: lastUserMsg.text,
       intakeForm: form,
       sessionState: prevState,
       resolvedInput: currentInput,
       candidateCount: candidates.length,
-      displayedProducts: deps.buildCandidateSnapshot(candidates, evidenceMap),
+      displayedProducts: currentCandidateSnapshot,
       currentCandidates: candidates,
+      unifiedTurnContext,
     }
 
     const orchResult = ENABLE_TOOL_USE_ROUTING
@@ -582,6 +605,24 @@ export async function handleServeExploration(
 
     if (action.type === "continue_narrowing") {
       const filter = { ...action.filter, appliedAt: turnCount }
+
+      // ── Value Normalizer: fuzzy-match Korean user input to actual DB values ──
+      const candidateFieldVals = extractDistinctFieldValues(candidates as any[], filter.field)
+      if (candidateFieldVals.length > 0 && typeof filter.rawValue === "string") {
+        const { normalized, matchType } = normalizeFilterValue(
+          String(filter.rawValue),
+          filter.field,
+          candidateFieldVals
+        )
+        if (matchType !== "none" && normalized !== String(filter.rawValue)) {
+          console.log(`[value-normalizer] "${filter.rawValue}" → "${normalized}" (${matchType}) for field=${filter.field}`)
+          filter.rawValue = normalized
+          if (!filter.value.includes("(") && !filter.value.includes("개")) {
+            filter.value = normalized
+          }
+        }
+      }
+
       const testInput = deps.applyFilterToInput(currentInput, filter)
       const testFilters = [...filters, filter]
       const testResult = await runHybridRetrieval(testInput, testFilters)
