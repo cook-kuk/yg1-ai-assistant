@@ -106,14 +106,36 @@ async function buildWorkPieceQuestion(
     return null
   }
 
-  const workPieceNames = await BrandReferenceRepo.listDistinctWorkPieceNames({
+  const allWorkPieceNames = await BrandReferenceRepo.listDistinctWorkPieceNames({
     isoGroup,
-    limit: 10,
+    limit: 20,
   })
-  if (workPieceNames.length <= 1) return null
+  if (allWorkPieceNames.length <= 1) return null
+
+  // Filter workPiece names to match the user's material input
+  // e.g., if user said "알루미늄", only show aluminum-related options, not 구리/ABS/아크릴
+  const userMaterial = (input.material ?? "").toLowerCase()
+  let relevantNames = allWorkPieceNames
+  if (userMaterial) {
+    const filtered = allWorkPieceNames.filter(name => {
+      const nameLower = name.toLowerCase()
+      // Match if user material keyword appears in the workpiece name, or vice versa
+      return nameLower.includes(userMaterial) || userMaterial.includes(nameLower)
+        || (userMaterial.includes("알루미늄") && nameLower.includes("알루미늄"))
+        || (userMaterial.includes("aluminum") && (nameLower.includes("알루미늄") || nameLower.includes("aluminum")))
+        || (userMaterial.includes("스테인") && (nameLower.includes("스테인") || nameLower.includes("sus")))
+        || (userMaterial.includes("탄소강") && nameLower.includes("탄소강"))
+        || (userMaterial.includes("주철") && nameLower.includes("주철"))
+    })
+    if (filtered.length >= 2) {
+      relevantNames = filtered
+    }
+    // If only 0-1 relevant matches, the sub-selection isn't useful — skip
+    if (filtered.length <= 1) return null
+  }
 
   const materialLabel = getMaterialDisplay(isoGroup).ko
-  const chips = [...workPieceNames, "상관없음"]
+  const chips = [...relevantNames.slice(0, 10), "상관없음"]
   if (history.length > 0) chips.push("⟵ 이전 단계")
 
   return {
