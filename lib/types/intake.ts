@@ -174,7 +174,6 @@ export const FIELD_CONFIGS: IntakeFieldConfig[] = [
       { value: "주철", label: "주철", tag: "K" },
       { value: "고경도강", label: "고경도강 (HRC40+)", tag: "H" },
       { value: "티타늄", label: "티타늄 / 내열합금", tag: "S" },
-      { value: "구리", label: "구리 / 흑연", tag: "N" },
     ],
     unknownLabel: "모름",
   },
