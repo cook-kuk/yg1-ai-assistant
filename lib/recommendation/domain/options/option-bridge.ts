@@ -6,8 +6,15 @@
  */
 
 import type { SmartOption, OptionPlannerContext } from "./types"
-import type { DisplayedOption, CandidateSnapshot } from "@/lib/types/exploration"
-import type { ScoredProduct, RecommendationInput, AppliedFilter, ExplorationSessionState, ProductIntakeForm } from "@/lib/recommendation/domain/types"
+import type {
+  AppliedFilter,
+  CandidateSnapshot,
+  DisplayedOption,
+  ExplorationSessionState,
+  ProductIntakeForm,
+  RecommendationInput,
+  ScoredProduct,
+} from "@/lib/recommendation/domain/types"
 import type { ContextInterpretation } from "../context/context-types"
 import type { ConversationMemory } from "../memory/conversation-memory"
 import { interpretContext } from "../context/context-interpreter"

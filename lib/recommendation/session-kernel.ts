@@ -1,10 +1,9 @@
 import {
   buildSessionState,
   carryForwardState,
-} from "@/lib/domain/session-manager"
-import { groupCandidatesBySeries } from "@/lib/domain/series-grouper"
+} from "@/lib/recommendation/domain/session-manager"
+import { groupCandidatesBySeries } from "@/lib/recommendation/domain/series-grouper"
 import { ENABLE_SERIES_GROUPING } from "@/lib/feature-flags"
-import type { RecommendationInput } from "@/lib/types/canonical"
 import type {
   AppliedFilter,
   CandidateSnapshot,
@@ -16,11 +15,13 @@ import type {
   NarrowingStage,
   NarrowingTurn,
   RecommendationCheckpoint,
+  RecommendationInput,
   SeriesGroup,
   SessionMode,
   ResolutionStatus,
+  UINarrowingPathEntry,
   CandidateCounts,
-} from "@/lib/types/exploration"
+} from "@/lib/recommendation/domain/types"
 
 const PROTECTED_RECOMMENDATION_ACTIONS = new Set<LastActionType>([
   "show_recommendation",
@@ -130,8 +131,8 @@ export function hasActiveRecommendationSession(
   if (state.currentMode && ACTIVE_RECOMMENDATION_MODES.has(state.currentMode)) {
     return true
   }
-  return PROTECTED_RECOMMENDATION_ACTIONS.has(state.lastAction ?? null)
-    || PROTECTED_RECOMMENDATION_ACTIONS.has(state.underlyingAction ?? null)
+  return (state.lastAction ? PROTECTED_RECOMMENDATION_ACTIONS.has(state.lastAction) : false)
+    || (state.underlyingAction ? PROTECTED_RECOMMENDATION_ACTIONS.has(state.underlyingAction) : false)
 }
 
 export function getLatestCheckpoint(
@@ -166,7 +167,7 @@ function buildPersistedUINarrowingPath(
   state: ExplorationSessionState,
   prevState: ExplorationSessionState | null,
 ): NonNullable<ExplorationSessionState["uiNarrowingPath"]> {
-  const path = state.appliedFilters
+  const path: UINarrowingPathEntry[] = state.appliedFilters
     .filter(filter => filter.op !== "skip")
     .map(filter => ({
       kind: "filter" as const,
@@ -334,7 +335,7 @@ export function finalizeSessionState(
     pendingIntents: sessionState.pendingIntents ?? prevState?.pendingIntents,
   }
 
-  if (recommendationContextActive && finalized.displayedProducts.length === 0 && artifactCandidatePoolCount > 0) {
+  if (recommendationContextActive && (finalized.displayedProducts?.length ?? 0) === 0 && artifactCandidatePoolCount > 0) {
     finalized.displayedProducts = fullDisplayedProducts ?? displayedProducts
     finalized.displayedCandidates = finalized.displayedProducts
   }

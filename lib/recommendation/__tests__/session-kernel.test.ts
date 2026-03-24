@@ -7,7 +7,7 @@ import {
   hasActiveRecommendationSession,
   getRecommendationSourceSnapshot,
 } from "../session-kernel"
-import type { CandidateSnapshot, ExplorationSessionState } from "@/lib/types/exploration"
+import type { CandidateSnapshot, ExplorationSessionState } from "@/lib/recommendation/domain/types"
 
 function makeCandidate(rank: number, code: string, seriesName: string): CandidateSnapshot {
   return {
@@ -219,5 +219,39 @@ describe("session-kernel", () => {
     expect(restored.candidateCounts?.dbMatchCount).toBeGreaterThan(0)
     expect(restored.candidateCounts?.filteredCount).toBeGreaterThan(0)
     expect(restored.candidateCounts?.displayedCount).toBeGreaterThan(0)
+  })
+
+  it("preserves displayed series groups and narrowing path across chat overlays", () => {
+    const prevState = buildPrevState()
+
+    const overlay = buildPersistedSessionState({
+      prevState,
+      candidateCount: prevState.candidateCount,
+      appliedFilters: prevState.appliedFilters,
+      narrowingHistory: prevState.narrowingHistory,
+      stageHistory: prevState.stageHistory,
+      resolutionStatus: prevState.resolutionStatus,
+      resolvedInput: prevState.resolvedInput,
+      turnCount: prevState.turnCount + 1,
+      displayedProducts: getDisplayedProductsFromState(prevState),
+      fullDisplayedProducts: getFullDisplayedProductsFromState(prevState),
+      displayedChips: ["조건 설명", "전체 보기"],
+      displayedOptions: [],
+      displayedSeriesGroups: undefined,
+      lastAction: "answer_general",
+      currentMode: "general_chat",
+      preserveUnderlyingRecommendation: true,
+    })
+
+    expect(overlay.displayedSeriesGroups?.map(group => group.seriesKey)).toEqual(
+      prevState.displayedSeriesGroups?.map(group => group.seriesKey)
+    )
+    expect(overlay.restoreTarget).toBe("E5D70")
+    expect(overlay.activeGroupKey).toBe("E5D70")
+    expect(overlay.uiNarrowingPath).toEqual([
+      { kind: "filter", label: "coating: Bright Finish", field: "coating", value: "Bright Finish", candidateCount: 3 },
+      { kind: "series_group", label: "E5D70", value: "E5D70", candidateCount: 3 },
+      { kind: "restore", label: "E5D70", value: "E5D70", candidateCount: 3 },
+    ])
   })
 })

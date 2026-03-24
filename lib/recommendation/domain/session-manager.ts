@@ -16,6 +16,9 @@ import type {
   AppliedFilter,
   ArchivedTask,
   CandidateSnapshot,
+  CandidateCounts,
+  ClarificationRecord,
+  ComparisonArtifact,
   RecommendationTask,
   DisplayedOption,
   ExplorationSessionState,
@@ -48,14 +51,21 @@ interface BuildSessionStateParams {
   displayedSeriesGroups?: SeriesGroup[]
   uiNarrowingPath?: UINarrowingPathEntry[]
   currentMode?: SessionMode
+  restoreTarget?: string | null
   activeGroupKey?: string | null
   displayedCandidates: CandidateSnapshot[]
   fullDisplayedCandidates?: CandidateSnapshot[]
   displayedChips: string[]
   displayedOptions?: DisplayedOption[]
   lastAction?: LastActionType
+  underlyingAction?: LastActionType
+  lastComparisonArtifact?: ComparisonArtifact | null
+  lastRecommendationArtifact?: CandidateSnapshot[] | null
+  candidateCounts?: CandidateCounts
+  lastClarification?: ClarificationRecord | null
   currentTask?: RecommendationTask | null
   taskHistory?: ArchivedTask[]
+  pendingIntents?: Array<{ text: string; category: string }>
   conversationMemory?: import("@/lib/recommendation/domain/memory/conversation-memory").ConversationMemory
   conversationLog?: import("@/lib/recommendation/domain/memory/memory-compressor").ConversationLog
 }
@@ -76,14 +86,21 @@ export function buildSessionState(params: BuildSessionStateParams): ExplorationS
     displayedSeriesGroups: params.displayedSeriesGroups,
     uiNarrowingPath: params.uiNarrowingPath ?? [],
     currentMode: params.currentMode,
+    restoreTarget: params.restoreTarget ?? null,
     activeGroupKey: params.activeGroupKey ?? null,
     displayedCandidates: params.displayedCandidates,
     fullDisplayedCandidates: params.fullDisplayedCandidates ?? params.displayedCandidates,
     displayedChips: params.displayedChips,
     displayedOptions: params.displayedOptions ?? [],
     lastAction: params.lastAction,
+    underlyingAction: params.underlyingAction,
+    lastComparisonArtifact: params.lastComparisonArtifact ?? null,
+    lastRecommendationArtifact: params.lastRecommendationArtifact ?? null,
+    candidateCounts: params.candidateCounts,
+    lastClarification: params.lastClarification ?? null,
     currentTask: params.currentTask ?? null,
     taskHistory: params.taskHistory ?? [],
+    pendingIntents: params.pendingIntents,
     conversationMemory: params.conversationMemory,
     conversationLog: params.conversationLog,
   }
@@ -109,14 +126,21 @@ export function carryForwardState(
     displayedSeriesGroups: overrides.displayedSeriesGroups ?? prev.displayedSeriesGroups ?? prev.displayedGroups,
     uiNarrowingPath: overrides.uiNarrowingPath ?? prev.uiNarrowingPath ?? [],
     currentMode: overrides.currentMode ?? prev.currentMode,
+    restoreTarget: overrides.restoreTarget ?? prev.restoreTarget ?? null,
     activeGroupKey: overrides.activeGroupKey ?? prev.activeGroupKey ?? null,
     displayedCandidates: overrides.displayedCandidates ?? prev.displayedCandidates,
     fullDisplayedCandidates: overrides.fullDisplayedCandidates ?? prev.fullDisplayedCandidates ?? prev.displayedCandidates,
     displayedChips: overrides.displayedChips ?? prev.displayedChips,
     displayedOptions: overrides.displayedOptions ?? prev.displayedOptions ?? [],
     lastAction: overrides.lastAction ?? prev.lastAction,
+    underlyingAction: overrides.underlyingAction ?? prev.underlyingAction,
+    lastComparisonArtifact: overrides.lastComparisonArtifact ?? prev.lastComparisonArtifact ?? null,
+    lastRecommendationArtifact: overrides.lastRecommendationArtifact ?? prev.lastRecommendationArtifact ?? null,
+    candidateCounts: overrides.candidateCounts ?? prev.candidateCounts,
+    lastClarification: overrides.lastClarification ?? prev.lastClarification ?? null,
     currentTask: overrides.currentTask ?? prev.currentTask ?? null,
     taskHistory: overrides.taskHistory ?? prev.taskHistory ?? [],
+    pendingIntents: overrides.pendingIntents ?? prev.pendingIntents,
     conversationMemory: overrides.conversationMemory ?? prev.conversationMemory,
     conversationLog: overrides.conversationLog ?? prev.conversationLog,
   })
