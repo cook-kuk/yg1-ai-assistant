@@ -94,10 +94,10 @@ function makePrevState(): ExplorationSessionState {
     lastAskedField: "workPieceName",
     displayedProducts: [snapshot],
     displayedCandidates: [snapshot],
-    displayedChips: ["?�질", "주조 ?�금", "?�조 ?�금", "?��??�음"],
+    displayedChips: ["?怨쀬춳", "雅뚯눘????룻닊", "??β???룻닊", "?怨???곸벉"],
     displayedOptions: [
-      { index: 1, label: "?�질", field: "workPieceName", value: "?�질", count: 0 },
-      { index: 2, label: "주조 ?�금", field: "workPieceName", value: "주조 ?�금", count: 0 },
+      { index: 1, label: "?怨쀬춳", field: "workPieceName", value: "?怨쀬춳", count: 0 },
+      { index: 2, label: "雅뚯눘????룻닊", field: "workPieceName", value: "雅뚯눘????룻닊", count: 0 },
     ],
     lastAction: "continue_narrowing",
     currentMode: "question",
@@ -105,7 +105,7 @@ function makePrevState(): ExplorationSessionState {
 }
 
 const form: ProductIntakeForm = {
-  material: { status: "known", value: "?�루미늄" },
+  material: { status: "known", value: "Aluminum" },
   operationType: { status: "known", value: "Side_Milling" },
   diameterInfo: { status: "known", value: "8" },
   toolTypeOrCurrentProduct: { status: "known", value: "Milling" },
@@ -125,16 +125,17 @@ describe("serve engine general chat company replies", () => {
       deps: {
         buildCandidateSnapshot: () => prevState.displayedCandidates,
         handleDirectInventoryQuestion: vi.fn(async () => null),
-        handleDirectEntityProfileQuestion: vi.fn(async () => null),`r`n        handleDirectBrandReferenceQuestion: vi.fn(async () => null),
+        handleDirectEntityProfileQuestion: vi.fn(async () => null),
+        handleDirectBrandReferenceQuestion: vi.fn(async () => null),
         handleDirectCuttingConditionQuestion: vi.fn(async () => null),
         handleContextualNarrowingQuestion: vi.fn(async () => null),
         handleGeneralChat,
         jsonRecommendationResponse: params =>
           new Response(JSON.stringify(params), { headers: { "content-type": "application/json" } }),
       },
-      action: { type: "explain_product", target: "부?�영?�소???�?�서 ?�려�? },
+      action: { type: "explain_product", target: "\uBD80\uC0B0\uC601\uC5C5\uC18C\uC5D0 \uB300\uD574\uC11C \uC54C\uB824\uC918" },
       orchResult: {
-        action: { type: "explain_product", target: "부?�영?�소???�?�서 ?�려�? },
+        action: { type: "explain_product", target: "\uBD80\uC0B0\uC601\uC5C5\uC18C\uC5D0 \uB300\uD574\uC11C \uC54C\uB824\uC918" },
         reasoning: "test",
         agentsInvoked: [],
         escalatedToOpus: false,
@@ -142,8 +143,8 @@ describe("serve engine general chat company replies", () => {
       provider: { available: () => false } as any,
       form,
       messages: [
-        { role: "ai", text: "?�루미늄 ?��? 종류�??�려주시겠어??" },
-        { role: "user", text: "부?�영?�소???�?�서 ?�려�? },
+        { role: "ai", text: "???펷沃섎챶???紐? ?ル굝履잏몴????젻雅뚯눘苑??" },
+        { role: "user", text: "\uBD80\uC0B0\uC601\uC5C5\uC18C\uC5D0 \uB300\uD574\uC11C \uC54C\uB824\uC918" },
       ],
       prevState,
       filters: [],
@@ -156,7 +157,7 @@ describe("serve engine general chat company replies", () => {
 
     const body = await response.json()
 
-    expect(body.text).toContain("부?�영?�소")
+    expect(body.text).toContain("\uBD80\uC0B0\uC601\uC5C5\uC18C")
     expect(body.text).toContain("051-314-0985")
     expect(body.sessionState.currentMode).toBe("question")
     expect(body.sessionState.lastAskedField).toBe("workPieceName")
@@ -165,4 +166,3 @@ describe("serve engine general chat company replies", () => {
     expect(handleGeneralChat).not.toHaveBeenCalled()
   })
 })
-
