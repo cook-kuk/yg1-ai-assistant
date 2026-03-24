@@ -386,6 +386,16 @@ async function handleServeExplorationInner(
     skipped: !needsRetrieval,
   }, needsRetrieval ? `Retrieved ${candidates.length} candidates` : `Skipped retrieval for ${earlyAction}`)
 
+  trace.setSearchDetail({
+    requiresSearch: needsRetrieval,
+    searchScope: earlyAction ?? "full_retrieval",
+    targetEntities: [],
+    preFilterCount: candidates.length,
+    postFilterCount: candidates.length,
+    appliedConstraints: filters.filter(f => f.op !== "skip").map(f => ({ field: f.field, value: f.value })),
+    skippedReason: !needsRetrieval ? `Action "${earlyAction}" does not require retrieval` : undefined,
+  })
+
   if (requestPrep.route.action === "reset_session") {
     return buildResetResponse(deps, requestPrep)
   }
@@ -490,6 +500,7 @@ async function handleServeExplorationInner(
         activeFilters: (prevState.appliedFilters ?? []).filter(f => f.op !== "skip").map(f => ({ field: f.field, value: f.value, op: f.op })),
         tentativeReferences: mem.items.filter(i => i.status === "tentative").map(i => ({ field: i.field, value: i.value })),
         pendingQuestions: prevState.lastAskedField ? [{ field: prevState.lastAskedField, kind: prevState.currentMode ?? "narrowing" }] : [],
+        pendingAction: prevState.pendingAction ? { description: prevState.pendingAction.description, actionType: prevState.pendingAction.actionType } : null,
         recentQACount: mem.recentQA?.length ?? 0,
         highlightCount: mem.highlights?.length ?? 0,
         userSignals: {
@@ -597,6 +608,32 @@ async function handleServeExplorationInner(
     )) {
       action = { type: "continue_narrowing", filter: pendingWorkPieceFilter }
     }
+
+    // ── Deep debug: route decision + reasoning summary ──
+    const originalActionType = orchResult.action.type
+    const wasIntercepted = action.type !== originalActionType
+    trace.setRouteDecision({
+      chosen: action.type,
+      reason: wasIntercepted
+        ? `Orchestrator chose "${originalActionType}" but intercepted to "${action.type}"`
+        : `Orchestrator chose "${action.type}"`,
+      alternatives: wasIntercepted
+        ? [{ name: originalActionType, rejectedReason: "Intercepted by question-assist or query-target override" }]
+        : [],
+    })
+
+    // Build human-readable reasoning
+    const reasoningBullets: string[] = []
+    if (prevState.lastAskedField) reasoningBullets.push(`Pending question: "${prevState.lastAskedField}"`)
+    if (prevState.resolutionStatus?.startsWith("resolved")) reasoningBullets.push("Recommendation already shown")
+    if (wasIntercepted) reasoningBullets.push(`Original action "${originalActionType}" was intercepted → "${action.type}"`)
+    if (filters.length > 0) reasoningBullets.push(`${filters.length} filters active: ${filters.filter(f => f.op !== "skip").map(f => `${f.field}=${f.value}`).join(", ")}`)
+    reasoningBullets.push(`${candidates.length} candidates available`)
+
+    trace.setReasoning({
+      oneLiner: `${action.type} | ${prevState.currentMode ?? "initial"} | ${candidates.length}개 후보${wasIntercepted ? ` (intercepted from ${originalActionType})` : ""}`,
+      bullets: reasoningBullets,
+    })
 
     if (action.type === "reset_session") {
       return buildResetResponse(deps, requestPrep)

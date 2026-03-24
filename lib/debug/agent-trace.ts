@@ -1,8 +1,8 @@
 /**
  * Agent Debug Trace — Rich structured decision trace for developer observability.
  *
- * Enabled by default for now (DEV_AGENT_DEBUG !== "false").
- * Zero overhead when disabled — all add() calls are no-ops.
+ * Enabled by default (DEV_AGENT_DEBUG !== "false").
+ * Zero overhead when disabled — all set/add calls are no-ops.
  *
  * RULE: Never expose raw hidden chain-of-thought.
  * Expose structured operational reasoning, decision summaries, and state snapshots.
@@ -29,10 +29,7 @@ export interface AgentTraceEvent {
   reasonSummary?: string
   latencyMs?: number
   fallbackUsed?: boolean
-  alternativesConsidered?: Array<{
-    name: string
-    rejectedReason?: string
-  }>
+  alternativesConsidered?: Array<{ name: string; rejectedReason?: string }>
 }
 
 export interface PromptMetaTrace {
@@ -40,18 +37,17 @@ export interface PromptMetaTrace {
   templateName?: string
   purpose?: string
   model?: string
-  majorSlots: Array<{
-    name: string
-    size?: number
-    preview?: string
-  }>
+  majorSlots: Array<{ name: string; size?: number; preview?: string }>
 }
+
+// ── Memory ────────────────────────────────────────────────────
 
 export interface MemorySnapshot {
   resolvedFacts: Array<{ field: string; value: string; source: string }>
   activeFilters: Array<{ field: string; value: string; op: string }>
   tentativeReferences: Array<{ field: string; value: string }>
   pendingQuestions: Array<{ field: string; kind: string }>
+  pendingAction: { description: string; actionType: string } | null
   recentQACount: number
   highlightCount: number
   userSignals: Record<string, unknown>
@@ -61,17 +57,30 @@ export interface MemoryDiff {
   added: Array<{ field: string; value: string }>
   updated: Array<{ field: string; oldValue: string; newValue: string }>
   dropped: Array<{ field: string; value: string; reason: string }>
+  promotions: Array<{ field: string; from: string; to: string }>
+  demotions: Array<{ field: string; from: string; to: string }>
 }
 
+// ── Search ────────────────────────────────────────────────────
+
+export interface SearchDetail {
+  requiresSearch: boolean
+  searchScope: string
+  targetEntities: string[]
+  preFilterCount: number
+  postFilterCount: number
+  appliedConstraints: Array<{ field: string; value: string }>
+  skippedReason?: string
+}
+
+// ── UI ────────────────────────────────────────────────────────
+
 export interface UIArtifactSnapshot {
-  artifacts: Array<{
-    kind: string
-    summary: string
-    productCodes: string[]
-    isPrimaryFocus: boolean
-  }>
+  artifacts: Array<{ kind: string; summary: string; productCodes: string[]; isPrimaryFocus: boolean }>
   likelyReferencedBlock: string | null
 }
+
+// ── Options ───────────────────────────────────────────────────
 
 export interface OptionSnapshot {
   generated: Array<{
@@ -82,10 +91,40 @@ export interface OptionSnapshot {
     score: number
     projectedCount: number | null
     selected: boolean
+    dropReason?: string
   }>
   finalChips: string[]
   finalDisplayedOptionsCount: number
 }
+
+// ── Validator ─────────────────────────────────────────────────
+
+export interface ValidatorResult {
+  answerTopic: string | null
+  unauthorizedPhrases: string[]
+  rewritesMade: string[]
+  chipConsistency: "aligned" | "orphans_found" | "unchecked"
+  wrongTopicDetected: boolean
+}
+
+// ── Route Alternatives ────────────────────────────────────────
+
+export interface RouteDecision {
+  chosen: string
+  reason: string
+  alternatives: Array<{ name: string; rejectedReason: string }>
+}
+
+// ── Reasoning Summary ─────────────────────────────────────────
+
+export interface ReasoningSummary {
+  /** One-line human-readable explanation of what the system decided */
+  oneLiner: string
+  /** Detailed bullet points */
+  bullets: string[]
+}
+
+// ── Full Trace ────────────────────────────────────────────────
 
 export interface TurnDebugTrace {
   turnId: string
@@ -100,21 +139,20 @@ export interface TurnDebugTrace {
   candidateCount?: number | null
   filterCount?: number | null
   summary?: string
+  reasoning?: ReasoningSummary | null
   // Timeline
   events: AgentTraceEvent[]
   // Rich snapshots
   memorySnapshot?: MemorySnapshot | null
   memoryDiff?: MemoryDiff | null
+  searchDetail?: SearchDetail | null
   uiArtifacts?: UIArtifactSnapshot | null
   options?: OptionSnapshot | null
+  routeDecision?: RouteDecision | null
+  validatorResult?: ValidatorResult | null
   promptMeta?: PromptMetaTrace[]
-  // Recent conversation (last 5 turns summary)
-  recentTurns?: Array<{
-    role: string
-    text: string
-    chips?: string[]
-    mode?: string
-  }>
+  // Recent conversation
+  recentTurns?: Array<{ role: string; text: string; chips?: string[]; mode?: string }>
 }
 
 // ── Debug Mode Check ─────────────────────────────────────────
@@ -130,12 +168,16 @@ export class TraceCollector {
   private turnId: string
   private startTime: number
   private enabled: boolean
-  private memorySnapshot: MemorySnapshot | null = null
-  private memoryDiff: MemoryDiff | null = null
-  private uiArtifacts: UIArtifactSnapshot | null = null
-  private options: OptionSnapshot | null = null
-  private promptMeta: PromptMetaTrace[] = []
-  private recentTurns: TurnDebugTrace["recentTurns"] = []
+  private _memorySnapshot: MemorySnapshot | null = null
+  private _memoryDiff: MemoryDiff | null = null
+  private _searchDetail: SearchDetail | null = null
+  private _uiArtifacts: UIArtifactSnapshot | null = null
+  private _options: OptionSnapshot | null = null
+  private _routeDecision: RouteDecision | null = null
+  private _validatorResult: ValidatorResult | null = null
+  private _promptMeta: PromptMetaTrace[] = []
+  private _recentTurns: TurnDebugTrace["recentTurns"] = []
+  private _reasoning: ReasoningSummary | null = null
 
   constructor(turnId?: string) {
     this.enabled = isDebugEnabled()
@@ -143,60 +185,21 @@ export class TraceCollector {
     this.startTime = Date.now()
   }
 
-  /** Add a trace event. No-op if debug is disabled. */
-  add(
-    step: string,
-    category: TraceCategory,
-    input: Record<string, unknown>,
-    output: Record<string, unknown>,
-    reason?: string,
-    extras?: { fallbackUsed?: boolean; alternativesConsidered?: AgentTraceEvent["alternativesConsidered"] }
-  ): void {
+  add(step: string, category: TraceCategory, input: Record<string, unknown>, output: Record<string, unknown>, reason?: string, extras?: { fallbackUsed?: boolean; alternativesConsidered?: AgentTraceEvent["alternativesConsidered"] }): void {
     if (!this.enabled) return
-    this.events.push({
-      step,
-      category,
-      inputSummary: input,
-      outputSummary: output,
-      reasonSummary: reason,
-      latencyMs: Date.now() - this.startTime,
-      fallbackUsed: extras?.fallbackUsed,
-      alternativesConsidered: extras?.alternativesConsidered,
-    })
+    this.events.push({ step, category, inputSummary: input, outputSummary: output, reasonSummary: reason, latencyMs: Date.now() - this.startTime, fallbackUsed: extras?.fallbackUsed, alternativesConsidered: extras?.alternativesConsidered })
   }
 
-  /** Set memory snapshot for this turn. */
-  setMemory(snapshot: MemorySnapshot, diff?: MemoryDiff): void {
-    if (!this.enabled) return
-    this.memorySnapshot = snapshot
-    this.memoryDiff = diff ?? null
-  }
+  setMemory(snapshot: MemorySnapshot, diff?: MemoryDiff): void { if (this.enabled) { this._memorySnapshot = snapshot; this._memoryDiff = diff ?? null } }
+  setSearchDetail(detail: SearchDetail): void { if (this.enabled) this._searchDetail = detail }
+  setUIArtifacts(artifacts: UIArtifactSnapshot): void { if (this.enabled) this._uiArtifacts = artifacts }
+  setOptions(options: OptionSnapshot): void { if (this.enabled) this._options = options }
+  setRouteDecision(decision: RouteDecision): void { if (this.enabled) this._routeDecision = decision }
+  setValidatorResult(result: ValidatorResult): void { if (this.enabled) this._validatorResult = result }
+  addPromptMeta(meta: PromptMetaTrace): void { if (this.enabled) this._promptMeta.push(meta) }
+  setRecentTurns(turns: TurnDebugTrace["recentTurns"]): void { if (this.enabled) this._recentTurns = turns }
+  setReasoning(reasoning: ReasoningSummary): void { if (this.enabled) this._reasoning = reasoning }
 
-  /** Set UI artifact snapshot. */
-  setUIArtifacts(artifacts: UIArtifactSnapshot): void {
-    if (!this.enabled) return
-    this.uiArtifacts = artifacts
-  }
-
-  /** Set option generation results. */
-  setOptions(options: OptionSnapshot): void {
-    if (!this.enabled) return
-    this.options = options
-  }
-
-  /** Add prompt metadata. */
-  addPromptMeta(meta: PromptMetaTrace): void {
-    if (!this.enabled) return
-    this.promptMeta.push(meta)
-  }
-
-  /** Set recent conversation turns for context. */
-  setRecentTurns(turns: TurnDebugTrace["recentTurns"]): void {
-    if (!this.enabled) return
-    this.recentTurns = turns
-  }
-
-  /** Build the final trace object. Returns null if disabled. */
   build(context: {
     latestUserMessage: string
     latestAssistantQuestion?: string | null
@@ -212,22 +215,18 @@ export class TraceCollector {
     return {
       turnId: this.turnId,
       timestamp: new Date().toISOString(),
-      latestUserMessage: context.latestUserMessage,
-      latestAssistantQuestion: context.latestAssistantQuestion,
-      queryTarget: context.queryTarget,
-      currentMode: context.currentMode,
-      routeAction: context.routeAction,
-      pendingField: context.pendingField,
-      candidateCount: context.candidateCount,
-      filterCount: context.filterCount,
-      summary: context.summary,
+      ...context,
+      reasoning: this._reasoning,
       events: this.events,
-      memorySnapshot: this.memorySnapshot,
-      memoryDiff: this.memoryDiff,
-      uiArtifacts: this.uiArtifacts,
-      options: this.options,
-      promptMeta: this.promptMeta.length > 0 ? this.promptMeta : undefined,
-      recentTurns: this.recentTurns?.length ? this.recentTurns : undefined,
+      memorySnapshot: this._memorySnapshot,
+      memoryDiff: this._memoryDiff,
+      searchDetail: this._searchDetail,
+      uiArtifacts: this._uiArtifacts,
+      options: this._options,
+      routeDecision: this._routeDecision,
+      validatorResult: this._validatorResult,
+      promptMeta: this._promptMeta.length > 0 ? this._promptMeta : undefined,
+      recentTurns: this._recentTurns?.length ? this._recentTurns : undefined,
     }
   }
 }

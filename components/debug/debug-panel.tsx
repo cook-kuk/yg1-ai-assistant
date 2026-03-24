@@ -52,8 +52,11 @@ export function DebugPanel({ trace }: { trace: TurnDebugTrace | null | undefined
     { id: "overview", label: "Overview" },
     { id: "trace", label: `Trace (${trace.events.length})` },
     ...(trace.memorySnapshot ? [{ id: "memory", label: "Memory" }] : []),
+    ...(trace.searchDetail ? [{ id: "search", label: "Search" }] : []),
     ...(trace.uiArtifacts ? [{ id: "ui", label: "UI" }] : []),
     ...(trace.options ? [{ id: "options", label: "Options" }] : []),
+    ...(trace.routeDecision ? [{ id: "route", label: "Route" }] : []),
+    ...(trace.validatorResult ? [{ id: "validator", label: "Validator" }] : []),
     ...(trace.recentTurns?.length ? [{ id: "conversation", label: "Recent" }] : []),
     { id: "json", label: "JSON" },
   ]
@@ -93,8 +96,11 @@ export function DebugPanel({ trace }: { trace: TurnDebugTrace | null | undefined
         {activeTab === "overview" && <OverviewTab trace={trace} />}
         {activeTab === "trace" && <TraceTab events={trace.events} expanded={expandedEvents} onToggle={toggleEvent} />}
         {activeTab === "memory" && <MemoryTab snapshot={trace.memorySnapshot as any} diff={trace.memoryDiff as any} />}
+        {activeTab === "search" && <SearchTab detail={trace.searchDetail as any} />}
         {activeTab === "ui" && <UITab artifacts={trace.uiArtifacts as any} />}
         {activeTab === "options" && <OptionsTab options={trace.options as any} />}
+        {activeTab === "route" && <RouteTab decision={trace.routeDecision as any} />}
+        {activeTab === "validator" && <ValidatorTab result={trace.validatorResult as any} />}
         {activeTab === "conversation" && <ConversationTab turns={trace.recentTurns} />}
         {activeTab === "json" && <JsonTab trace={trace} />}
       </div>
@@ -116,7 +122,16 @@ function OverviewTab({ trace }: { trace: TurnDebugTrace }) {
   ].filter(([, v]) => v != null && v !== "")
 
   return (
-    <div className="p-3 space-y-1">
+    <div className="p-3 space-y-2">
+      {/* Reasoning summary */}
+      {trace.reasoning && (
+        <div className="bg-blue-50 border border-blue-200 rounded p-2 mb-2">
+          <div className="font-medium text-blue-800 text-[11px] mb-1">{trace.reasoning.oneLiner}</div>
+          {trace.reasoning.bullets.map((b, i) => (
+            <div key={i} className="text-[10px] text-blue-700 pl-2">• {b}</div>
+          ))}
+        </div>
+      )}
       {rows.map(([key, val]) => (
         <div key={key as string} className="flex gap-2">
           <span className="text-gray-500 w-24 shrink-0">{key as string}:</span>
@@ -242,6 +257,95 @@ function JsonTab({ trace }: { trace: TurnDebugTrace }) {
       <pre className="text-[9px] text-gray-600 overflow-auto max-h-[300px] whitespace-pre-wrap break-all">
         {JSON.stringify(trace, null, 2)}
       </pre>
+    </div>
+  )
+}
+
+function SearchTab({ detail }: { detail?: Record<string, unknown> | null }) {
+  if (!detail) return <div className="p-3 text-gray-400">No search data</div>
+  const d = detail as any
+  return (
+    <div className="p-3 space-y-2">
+      <div className="flex gap-4">
+        <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${d.requiresSearch ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+          {d.requiresSearch ? "Search Required" : "No Search Needed"}
+        </span>
+        <span className="text-gray-600">scope: {d.searchScope}</span>
+      </div>
+      {d.skippedReason && <div className="text-gray-500 text-[10px]">Skipped: {d.skippedReason}</div>}
+      <div className="grid grid-cols-2 gap-2 text-[10px]">
+        <div>Pre-filter: <span className="font-medium">{d.preFilterCount}</span></div>
+        <div>Post-filter: <span className="font-medium">{d.postFilterCount}</span></div>
+      </div>
+      {d.targetEntities?.length > 0 && <div className="text-[10px]">Targets: {d.targetEntities.join(", ")}</div>}
+      {d.appliedConstraints?.length > 0 && (
+        <div>
+          <div className="text-gray-500 text-[10px] mb-0.5">Applied constraints:</div>
+          {d.appliedConstraints.map((c: any, i: number) => (
+            <div key={i} className="text-[10px] text-gray-600 pl-2">• {c.field}={c.value}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RouteTab({ decision }: { decision?: Record<string, unknown> | null }) {
+  if (!decision) return <div className="p-3 text-gray-400">No route data</div>
+  const d = decision as any
+  return (
+    <div className="p-3 space-y-2">
+      <div className="flex items-center gap-2">
+        <span className="text-gray-500">Chosen:</span>
+        <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-700 text-[10px] font-medium">{d.chosen}</span>
+      </div>
+      <div className="text-[10px] text-gray-600">{d.reason}</div>
+      {d.alternatives?.length > 0 && (
+        <div>
+          <div className="text-gray-500 text-[10px] mb-0.5">Alternatives considered:</div>
+          {d.alternatives.map((a: any, i: number) => (
+            <div key={i} className="text-[10px] pl-2">
+              <span className="text-gray-400">{a.name}</span>
+              <span className="text-red-500 ml-1">✗ {a.rejectedReason}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ValidatorTab({ result }: { result?: Record<string, unknown> | null }) {
+  if (!result) return <div className="p-3 text-gray-400">No validator data</div>
+  const v = result as any
+  return (
+    <div className="p-3 space-y-2">
+      {v.answerTopic && <div className="text-[10px]">Answer topic: <span className="font-medium">{v.answerTopic}</span></div>}
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] text-gray-500">Chip consistency:</span>
+        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+          v.chipConsistency === "aligned" ? "bg-green-100 text-green-700"
+          : v.chipConsistency === "orphans_found" ? "bg-amber-100 text-amber-700"
+          : "bg-gray-100 text-gray-600"
+        }`}>{v.chipConsistency}</span>
+      </div>
+      {v.wrongTopicDetected && <div className="text-red-600 text-[10px] font-medium">⚠ Wrong topic detected!</div>}
+      {v.unauthorizedPhrases?.length > 0 && (
+        <div>
+          <div className="text-red-500 text-[10px] mb-0.5">Unauthorized phrases:</div>
+          {v.unauthorizedPhrases.map((p: string, i: number) => (
+            <div key={i} className="text-[10px] text-red-600 pl-2">• "{p}"</div>
+          ))}
+        </div>
+      )}
+      {v.rewritesMade?.length > 0 && (
+        <div>
+          <div className="text-amber-600 text-[10px] mb-0.5">Rewrites made:</div>
+          {v.rewritesMade.map((r: string, i: number) => (
+            <div key={i} className="text-[10px] text-amber-700 pl-2">• {r}</div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
