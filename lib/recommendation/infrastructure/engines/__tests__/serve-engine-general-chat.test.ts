@@ -533,6 +533,91 @@ describe("side question suspend/resume", () => {
     expect(body.text.length).toBeGreaterThan(0)
     expect(body.sessionState.suspendedFlow).toBeNull()
   })
-})
 
+  it("ignores pre-generated text for knowledge questions and delegates to general chat handler", async () => {
+    const prevState = makePrevState()
+    const candidates = [makeCandidate(1, "E5D7004010", "DLC")]
+    const handleGeneralChat = vi.fn(async () => ({
+      text: "웹 검색 기반 설명",
+      chips: [],
+    }))
+
+    const response = await handleServeGeneralChatAction({
+      deps: {
+        buildCandidateSnapshot: () => prevState.displayedCandidates,
+        handleDirectInventoryQuestion: vi.fn(async () => null),
+        handleDirectEntityProfileQuestion: vi.fn(async () => null),
+        handleDirectBrandReferenceQuestion: vi.fn(async () => null),
+        handleDirectCuttingConditionQuestion: vi.fn(async () => null),
+        handleContextualNarrowingQuestion: vi.fn(async () => null),
+        handleGeneralChat,
+        jsonRecommendationResponse: (params) =>
+          new Response(JSON.stringify(params), { headers: { "content-type": "application/json" } }),
+      },
+      action: { type: "answer_general", message: "라우터 사전 생성 답변", preGenerated: true },
+      orchResult: { ...orchResult, action: { type: "answer_general" as const, message: "라우터 사전 생성 답변", preGenerated: true } },
+      provider: { available: () => true } as any,
+      form,
+      messages: [
+        { role: "ai", text: "무엇을 도와드릴까요?" },
+        { role: "user", text: "Slot 가공할 때 ball 엔드밀이 좋아? 어떤 날 형상이 좋아?" },
+      ],
+      prevState,
+      filters: [],
+      narrowingHistory: [],
+      currentInput: prevState.resolvedInput,
+      candidates,
+      evidenceMap: new Map(),
+      turnCount: 2,
+    })
+
+    const body = await response.json()
+
+    expect(handleGeneralChat).toHaveBeenCalledOnce()
+    expect(body.text).toContain("웹 검색 기반 설명")
+  })
+
+  it("keeps pre-generated text for simple smalltalk", async () => {
+    const prevState = makePrevState()
+    const candidates = [makeCandidate(1, "E5D7004010", "DLC")]
+    const handleGeneralChat = vi.fn(async () => ({
+      text: "일반 채팅 핸들러 응답",
+      chips: [],
+    }))
+
+    const response = await handleServeGeneralChatAction({
+      deps: {
+        buildCandidateSnapshot: () => prevState.displayedCandidates,
+        handleDirectInventoryQuestion: vi.fn(async () => null),
+        handleDirectEntityProfileQuestion: vi.fn(async () => null),
+        handleDirectBrandReferenceQuestion: vi.fn(async () => null),
+        handleDirectCuttingConditionQuestion: vi.fn(async () => null),
+        handleContextualNarrowingQuestion: vi.fn(async () => null),
+        handleGeneralChat,
+        jsonRecommendationResponse: (params) =>
+          new Response(JSON.stringify(params), { headers: { "content-type": "application/json" } }),
+      },
+      action: { type: "answer_general", message: "안녕하세요!", preGenerated: true },
+      orchResult: { ...orchResult, action: { type: "answer_general" as const, message: "안녕하세요!", preGenerated: true } },
+      provider: { available: () => true } as any,
+      form,
+      messages: [
+        { role: "ai", text: "무엇을 도와드릴까요?" },
+        { role: "user", text: "안녕" },
+      ],
+      prevState,
+      filters: [],
+      narrowingHistory: [],
+      currentInput: prevState.resolvedInput,
+      candidates,
+      evidenceMap: new Map(),
+      turnCount: 2,
+    })
+
+    const body = await response.json()
+
+    expect(handleGeneralChat).not.toHaveBeenCalled()
+    expect(body.text).toContain("안녕하세요!")
+  })
+})
 

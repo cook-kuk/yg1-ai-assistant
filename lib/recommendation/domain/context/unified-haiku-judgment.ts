@@ -120,7 +120,7 @@ export async function performUnifiedJudgment(
     const raw = await provider.complete(
       JUDGMENT_SYSTEM,
       [{ role: "user", content: prompt }],
-      120,
+      1024,
       "haiku"
     )
 

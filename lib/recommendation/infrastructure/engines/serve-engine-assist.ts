@@ -33,6 +33,9 @@ const SERIES_NAME_ENTITY_PATTERN = /\b(?:ALU[-\s]?CUT(?:\s+(?:POWER|HPC|for\s+Ko
 const BRAND_NAME_ENTITY_PATTERN = /\b(?:E[·∙ㆍ.]?\s*FORCE(?:\s+BLUE)?(?:\s+for\s+Korean\s+Market)?|4G\s*MILLS(?:\s*-\s*KOR)?|SUPER\s+ALLOY|X5070\s*S)\b/gi
 const ENTITY_COMPARISON_PATTERN = /([A-Z0-9][A-Z0-9·∙ㆍ.\-\s]{1,40}?)\s*(?:vs\.?|VS\.?|와|과|이랑|랑|대비)\s*([A-Z0-9][A-Z0-9·∙ㆍ.\-\s]{1,40}?)(?=\s*(?:의|은|는|이|가|를|을|차이|비교|특징|설명|$))/giu
 const CUTTING_KNOWLEDGE_PATTERNS = /절삭|공구|엔드밀|드릴|인서트|코팅|소재|가공|선반|밀링|CNC|초경|CBN|세라믹|황삭|정삭|면취|보링|리머|탭|나사|칩|인선|마모|수명|이송|회전|절입|쿨란트|치핑|버|진동|채터|tialn|alcrn|dlc|hss|carbide|endmill|milling|turning|drilling/i
+const KNOWLEDGE_QUESTION_PATTERN = /차이|비교|뭐야|무엇|누구|언제|어디|알려|설명|원리|방법|팁|주의|장단점|특징|어떤|왜|어떻게|추천|좋은|의미|정의|역사|사례|규격|표준|최신|트렌드|뉴스|동향|중요|필요|가능/i
+const SIMPLE_CHAT_PATTERN = /^(안녕(?:하세요)?|hello|hi|hey|반가워|고마워|고맙습니다|thanks|thank you|네|응|ㅇㅇ|ㅇ|ok|좋아|그래|알겠어|테스트)\s*[!.?~]*$/i
+const WORKFLOW_ONLY_PATTERN = /^(추천해줘|결과 보여줘|보여줘|다음|이전으로|처음부터 다시|리셋|초기화|상관없음|패스|스킵)\s*[!.?~]*$/i
 
 const WORK_PIECE_ALIASES: Array<{ canonical: string; patterns: RegExp[] }> = [
   { canonical: "스테인레스강(PH)", patterns: [/스테인(?:레)?스강\s*\(ph\)/i, /\bph\b/i, /석출경화/i] },
@@ -1322,6 +1325,31 @@ async function searchWebForKnowledge(query: string): Promise<string | null> {
   }
 }
 
+export function shouldAttemptWebSearchFallback(userMessage: string): boolean {
+  const clean = userMessage.trim()
+  if (!clean || clean.length < 5) return false
+  if (SIMPLE_CHAT_PATTERN.test(clean) || WORKFLOW_ONLY_PATTERN.test(clean)) return false
+
+  const companyQuery = resolveYG1Query(clean)
+  if (companyQuery.source === "internal_kb" && companyQuery.answer) return false
+
+  const isDedicatedLookup =
+    DIRECT_PRODUCT_CODE_PATTERN.test(clean) ||
+    DIRECT_SERIES_CODE_PATTERN.test(clean) ||
+    INVENTORY_QUERY_PATTERN.test(clean) ||
+    CUTTING_CONDITION_QUERY_PATTERN.test(clean)
+  if (isDedicatedLookup) return false
+
+  const isKnowledgeQuestion = KNOWLEDGE_QUESTION_PATTERN.test(clean) || clean.includes("?")
+  if (!isKnowledgeQuestion) return false
+
+  if (CUTTING_KNOWLEDGE_PATTERNS.test(clean)) return true
+
+  // General knowledge / broad factual questions that the internal tool stack
+  // cannot answer deterministically should fall back to web search.
+  return true
+}
+
 /**
  * @deprecated Legacy chip generator — no longer used in active paths.
  * The option-first pipeline (serve-engine-option-first.ts) is the sole chip source.
@@ -1368,9 +1396,7 @@ export async function handleGeneralChat(
     }
   }
 
-  const isCuttingKnowledge = CUTTING_KNOWLEDGE_PATTERNS.test(clean)
-  const isKnowledgeQuestion = /차이|비교|뭐야|알려|설명|원리|방법|팁|주의|장단점|특징|어떤|언제|왜|어떻게|추천|좋은/i.test(clean)
-  const needsWebSearch = isCuttingKnowledge && isKnowledgeQuestion
+  const needsWebSearch = shouldAttemptWebSearchFallback(clean)
   const isToolDomainQ = /slot|milling|side.?mill|shoulder|plunge|ball|taper|square|corner.?r|radius|flute|날수|날 수|날.*형|coating|코팅|dlc|tialn|alcrn|rpm|feed|이송|절삭|추천.*이유|왜.*추천|어떤.*형상|뭐가.*좋|차이점|형상|가공|황삭|정삭|엔드밀|드릴|탭|인서트/i.test(clean)
 
   let webSearchResult: string | null = null

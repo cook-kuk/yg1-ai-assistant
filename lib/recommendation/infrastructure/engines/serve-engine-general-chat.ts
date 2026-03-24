@@ -16,6 +16,7 @@ import {
   buildGeneralChatOptionState,
   buildQuestionAssistOptions,
 } from "@/lib/recommendation/infrastructure/engines/serve-engine-option-first"
+import { shouldAttemptWebSearchFallback } from "@/lib/recommendation/infrastructure/engines/serve-engine-assist"
 import { resolveYG1Query } from "@/lib/knowledge/knowledge-router"
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { OrchestratorAction, OrchestratorResult } from "@/lib/recommendation/infrastructure/agents/types"
@@ -760,8 +761,9 @@ export async function handleServeGeneralChatAction(
   }
 
   const preGenerated = action.type === "answer_general" && action.preGenerated && action.message
+  const canReusePreGenerated = preGenerated && !shouldAttemptWebSearchFallback(lastUserMessage)
   let llmResponse: { text: string; chips: string[] }
-  if (preGenerated) {
+  if (canReusePreGenerated) {
     llmResponse = { text: action.message, chips: [] }
   } else {
     llmResponse = await deps.handleGeneralChat(
