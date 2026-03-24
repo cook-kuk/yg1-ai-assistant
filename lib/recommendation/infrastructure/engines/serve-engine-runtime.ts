@@ -33,6 +33,7 @@ import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-t
 import { TraceCollector, isDebugEnabled } from "@/lib/debug/agent-trace"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
+import { shouldExecutePendingAction, pendingActionToFilter } from "@/lib/recommendation/domain/context/pending-action-resolver"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { RecommendationDisplayedProductRequestDto, RecommendationPaginationDto } from "@/lib/contracts/recommendation"
@@ -559,7 +560,7 @@ async function handleServeExplorationInner(
       displayedCandidateCount: prevState.displayedCandidates?.length ?? 0,
       hasRecommendation: !!prevState.lastRecommendationArtifact,
       hasComparison: !!prevState.lastComparisonArtifact,
-      pendingAction: prevState.pendingAction ? { description: prevState.pendingAction.description, actionType: prevState.pendingAction.actionType } : null,
+      pendingAction: prevState.pendingAction ? { label: prevState.pendingAction.label, type: prevState.pendingAction.type } : null,
     })
 
     if (prevState.conversationMemory) {
@@ -569,7 +570,7 @@ async function handleServeExplorationInner(
         activeFilters: (prevState.appliedFilters ?? []).filter(f => f.op !== "skip").map(f => ({ field: f.field, value: f.value, op: f.op })),
         tentativeReferences: mem.items.filter(i => i.status === "tentative").map(i => ({ field: i.field, value: i.value })),
         pendingQuestions: prevState.lastAskedField ? [{ field: prevState.lastAskedField, kind: prevState.currentMode ?? "narrowing" }] : [],
-        pendingAction: prevState.pendingAction ? { description: prevState.pendingAction.description, actionType: prevState.pendingAction.actionType } : null,
+        pendingAction: prevState.pendingAction ? { label: prevState.pendingAction.label, type: prevState.pendingAction.type } : null,
         recentQACount: mem.recentQA?.length ?? 0,
         highlightCount: mem.highlights?.length ?? 0,
         userSignals: { confusedFields: mem.userSignals.confusedFields, skippedFields: mem.userSignals.skippedFields, prefersDelegate: mem.userSignals.prefersDelegate, frustrationCount: mem.userSignals.frustrationCount },
@@ -580,7 +581,7 @@ async function handleServeExplorationInner(
         activeFilters: (prevState.appliedFilters ?? []).filter(f => f.op !== "skip").map(f => ({ field: f.field, value: f.value, op: f.op })),
         tentativeReferences: [],
         pendingQuestions: prevState.lastAskedField ? [{ field: prevState.lastAskedField, kind: prevState.currentMode ?? "narrowing" }] : [],
-        pendingAction: prevState.pendingAction ? { description: prevState.pendingAction.description, actionType: prevState.pendingAction.actionType } : null,
+        pendingAction: prevState.pendingAction ? { label: prevState.pendingAction.label, type: prevState.pendingAction.type } : null,
         recentQACount: 0, highlightCount: 0, userSignals: {},
       })
     }
@@ -612,52 +613,72 @@ async function handleServeExplorationInner(
   let turnCount = prevState?.turnCount ?? 0
 
   if (messages.length > 0 && prevState && lastUserMsg) {
-    // ── PendingAction Interceptor ──
-    // If there's a pending proposed action and user says "응/예/네/좋아",
-    // execute that action directly without going through orchestrator.
-    const AFFIRMATIVE = /^(응|예|네|좋아|좋아요|그래|ㅇㅇ|ㅇ|ok|yes|sure)$/i
-    if (prevState.pendingAction && AFFIRMATIVE.test(lastUserMsg.text.trim())) {
-      const pa = prevState.pendingAction
-      trace.add("pending-action-accept", "router", {
+    // ── PendingAction Lifecycle: check → execute/expire/override → clear ──
+    if (prevState.pendingAction) {
+      const pendingCheck = shouldExecutePendingAction(
+        prevState.pendingAction,
+        lastUserMsg.text,
+        turnCount,
+        prevState.displayedChips ?? []
+      )
+      console.log(`[pending-action] ${pendingCheck.reason} for "${lastUserMsg.text.slice(0, 20)}"`)
+
+      trace.add("pending-action-check", "router", {
         userMessage: lastUserMsg.text,
-        pendingAction: pa.description,
+        pendingAction: prevState.pendingAction.label,
+        pendingType: prevState.pendingAction.type,
+        createdAt: prevState.pendingAction.createdAt,
       }, {
-        actionType: pa.actionType,
-        filter: pa.filter,
-      }, `User accepted pending action: "${pa.description}"`)
-      console.log(`[pending-action] Accepted: ${pa.description} (${pa.actionType})`)
+        execute: pendingCheck.execute,
+        reason: pendingCheck.reason,
+      }, `Pending action "${prevState.pendingAction.label}": ${pendingCheck.reason}`)
 
-      if (pa.filter) {
-        const filter = { ...pa.filter, appliedAt: prevState.turnCount ?? 0 } as AppliedFilter
-        const testInput = deps.applyFilterToInput(currentInput, filter)
-        const testFilters = [...filters, filter]
-        const testResult = await runHybridRetrieval(testInput, testFilters, 0, null)
-        const testDisplayPage = sliceCandidatesForPage(testResult.candidates, testResult.evidenceMap, resolvedPagination)
+      if (pendingCheck.execute && prevState.pendingAction.type === "apply_filter") {
+        const filter = pendingActionToFilter(prevState.pendingAction)
+        if (filter) {
+          filter.appliedAt = prevState.turnCount ?? 0
+          const acceptedLabel = prevState.pendingAction.label
+          console.log(`[pending-action] Executed: ${acceptedLabel}`)
 
-        if (testResult.totalConsidered === 0) {
-          return deps.buildQuestionResponse(
-            form, candidates, evidenceMap, totalCandidateCount, paginationDto(totalCandidateCount), displayCandidates, displayEvidenceMap, currentInput,
-            narrowingHistory, filters, turnCount, messages, provider, language,
-            `"${filter.value}" 조건을 적용하면 후보가 없습니다. 현재 ${totalCandidateCount}개 후보에서 다른 조건을 선택해주세요.`
-          )
+          // Clear after execution
+          prevState.pendingAction = null
+
+          const testInput = deps.applyFilterToInput(currentInput, filter)
+          const testFilters = [...filters, filter]
+          const testResult = await runHybridRetrieval(testInput, testFilters, 0, null)
+          const testDisplayPage = sliceCandidatesForPage(testResult.candidates, testResult.evidenceMap, resolvedPagination)
+
+          if (testResult.totalConsidered === 0) {
+            return deps.buildQuestionResponse(
+              form, candidates, evidenceMap, totalCandidateCount, paginationDto(totalCandidateCount), displayCandidates, displayEvidenceMap, currentInput,
+              narrowingHistory, filters, turnCount, messages, provider, language,
+              `"${filter.value}" 조건을 적용하면 후보가 없습니다. 현재 ${totalCandidateCount}개 후보에서 다른 조건을 선택해주세요.`
+            )
+          }
+
+          filters.push(filter)
+          currentInput = testInput
+          narrowingHistory.push({
+            question: "pending-action-accept",
+            answer: lastUserMsg.text,
+            extractedFilters: [filter],
+            candidateCountBefore: totalCandidateCount,
+            candidateCountAfter: testResult.totalConsidered,
+          })
+          turnCount++
+
+          const newStatus = checkResolution(testResult.candidates, narrowingHistory, testResult.totalConsidered)
+          if (newStatus.startsWith("resolved")) {
+            return deps.buildRecommendationResponse(form, testResult.candidates, testResult.evidenceMap, testResult.totalConsidered, paginationDto(testResult.totalConsidered), testDisplayPage.candidates, testDisplayPage.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts)
+          }
+          return deps.buildQuestionResponse(form, testResult.candidates, testResult.evidenceMap, testResult.totalConsidered, paginationDto(testResult.totalConsidered), testDisplayPage.candidates, testDisplayPage.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language)
         }
+      }
 
-        filters.push(filter)
-        currentInput = testInput
-        narrowingHistory.push({
-          question: "pending-action-accept",
-          answer: lastUserMsg.text,
-          extractedFilters: [filter],
-          candidateCountBefore: totalCandidateCount,
-          candidateCountAfter: testResult.totalConsidered,
-        })
-        turnCount++
-
-        const newStatus = checkResolution(testResult.candidates, narrowingHistory, testResult.totalConsidered)
-        if (newStatus.startsWith("resolved")) {
-          return deps.buildRecommendationResponse(form, testResult.candidates, testResult.evidenceMap, testResult.totalConsidered, paginationDto(testResult.totalConsidered), testDisplayPage.candidates, testDisplayPage.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts)
-        }
-        return deps.buildQuestionResponse(form, testResult.candidates, testResult.evidenceMap, testResult.totalConsidered, paginationDto(testResult.totalConsidered), testDisplayPage.candidates, testDisplayPage.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language)
+      // Clear on expiration or explicit override (keep for not_affirmative — user may still respond)
+      if (pendingCheck.reason === "expired" || pendingCheck.reason === "explicit_override") {
+        console.log(`[pending-action] Cleared: ${pendingCheck.reason}`)
+        prevState.pendingAction = null
       }
     }
 

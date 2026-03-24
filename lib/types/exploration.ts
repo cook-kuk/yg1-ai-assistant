@@ -123,6 +123,20 @@ export interface ClarificationRecord {
   resolvedWith?: string
 }
 
+// ── Pending Action ─────────────────────────────────────────────
+export interface PendingAction {
+  type: "apply_filter" | "open_comparison" | "show_cutting_conditions" | "show_inventory" | "delegate_choice" | "resume_flow"
+  label: string
+  payload: {
+    field?: string
+    value?: string
+    productIds?: string[]
+  }
+  sourceTurnId: string
+  createdAt: number           // turnCount when created
+  expiresAfterTurns: number   // expires after this many turns
+}
+
 // ── Session State (serializable, sent between client ↔ server) ──
 export interface ExplorationSessionState {
   sessionId: string
@@ -170,16 +184,7 @@ export interface ExplorationSessionState {
   } | null
 
   /** Pending proposed action — "응/예/네"로 수락 가능한 제안 */
-  pendingAction?: {
-    /** What action would be executed */
-    actionType: string
-    /** Human-readable description */
-    description: string
-    /** Filter to apply if accepted */
-    filter?: { field: string; op: string; value: string; rawValue: string | number }
-    /** Turn when proposed */
-    proposedAt: number
-  } | null
+  pendingAction?: PendingAction | null
 
   // ── Persistent Conversation Memory (accumulates across turns) ──
   conversationMemory?: import("@/lib/recommendation/domain/memory/conversation-memory").ConversationMemory

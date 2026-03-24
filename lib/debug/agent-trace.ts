@@ -47,7 +47,7 @@ export interface MemorySnapshot {
   activeFilters: Array<{ field: string; value: string; op: string }>
   tentativeReferences: Array<{ field: string; value: string }>
   pendingQuestions: Array<{ field: string; kind: string }>
-  pendingAction: { description: string; actionType: string } | null
+  pendingAction: { label: string; type: string } | null
   recentQACount: number
   highlightCount: number
   userSignals: Record<string, unknown>
@@ -140,7 +140,7 @@ export interface SessionStateSnapshot {
   displayedCandidateCount: number
   hasRecommendation: boolean
   hasComparison: boolean
-  pendingAction: { description: string; actionType: string } | null
+  pendingAction: { label: string; type: string } | null
 }
 
 export interface TurnDebugTrace {

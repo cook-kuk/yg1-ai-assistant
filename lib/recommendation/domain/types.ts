@@ -20,6 +20,7 @@ export type {
   LastActionType,
   NarrowingStage,
   NarrowingTurn,
+  PendingAction,
   RecommendationCheckpoint,
   RecommendationTask,
   ResolutionStatus,

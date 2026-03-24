@@ -302,7 +302,7 @@ function StateTab({ state }: { state?: Record<string, unknown> | null }) {
       {s.pendingAction && (
         <div className="bg-amber-50 border border-amber-200 rounded p-2">
           <div className="text-[10px] font-medium text-amber-800">Pending Action</div>
-          <div className="text-[10px] text-amber-700">{s.pendingAction.description} ({s.pendingAction.actionType})</div>
+          <div className="text-[10px] text-amber-700">{s.pendingAction.label} ({s.pendingAction.type})</div>
         </div>
       )}
     </div>

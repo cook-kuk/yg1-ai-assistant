@@ -223,6 +223,25 @@ export async function buildQuestionResponse(
     lastAction: "continue_narrowing",
   })
 
+  // ── Set pendingAction when there's a single recommended option ──
+  if (question && displayedOptions.length > 0) {
+    const recommendedOption = displayedOptions.find(o => {
+      // The first narrowing option (index 1) is recommended by buildQuestionFieldOptions
+      return o.index === 1 && o.field === question.field
+    })
+    if (recommendedOption && recommendedOption.field && recommendedOption.value) {
+      sessionState.pendingAction = {
+        type: "apply_filter",
+        label: recommendedOption.label,
+        payload: { field: recommendedOption.field, value: recommendedOption.value },
+        sourceTurnId: `turn-${Date.now()}`,
+        createdAt: turnCount,
+        expiresAfterTurns: 2,
+      }
+      console.log(`[pending-action:set] "${recommendedOption.label}" (field=${recommendedOption.field}, value=${recommendedOption.value})`)
+    }
+  }
+
   logNarrowingState("question", sessionState, question?.field ?? null)
 
   if (!question && !overrideText) {
