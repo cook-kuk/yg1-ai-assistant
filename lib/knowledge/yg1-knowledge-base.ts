@@ -312,7 +312,7 @@ export function searchKB(query: string): { found: boolean; answer: string; confi
   }
 
   // ── 연구소 ──
-  if (q.includes("연구") || q.includes("r&d") || q.includes("연구원")) {
+  if (q.includes("연구소") || q.includes("r&d") || q.includes("연구원")) {
     const rds = YG1_KB.domestic_sites.filter(s => s.type === "R&D")
     return { found: true, confidence: "high",
       answer: `YG-1 연구소: ${rds.map(r => `${r.name}(${"researchers" in r ? `연구원 ${r.researchers}명` : ""}, ${r.tel})`).join(" / ")}` }
@@ -334,7 +334,7 @@ export function searchKB(query: string): { found: boolean; answer: string; confi
   }
 
   // ── 주주/버핏/IMC ──
-  if (q.includes("주주") || q.includes("버핏") || q.includes("imc") || q.includes("2대주주") || q.includes("버크셔") || q.includes("투자")) {
+  if (q.includes("주주") || q.includes("버핏") || q.includes("imc") || q.includes("2대주주") || q.includes("버크셔")) {
     return { found: true, confidence: "high",
       answer: `YG-1 주요 주주: 최대주주 송호근 外 32.17%, IMC Benelux B.V.(워런 버핏 버크셔해서웨이 계열) 14.98%, 와이밸류업 6.85%, 국민연금 2.48%. 2024년 IMC 대상 195억원 유상증자. 버핏 방한 시 송호근 회장 면담.` }
   }
@@ -346,13 +346,13 @@ export function searchKB(query: string): { found: boolean; answer: string; confi
   }
 
   // ── 설립/창업 ──
-  if (q.includes("설립") || q.includes("창업") || q.includes("창립") || q.includes("언제")) {
+  if (q.includes("설립") || q.includes("창업") || q.includes("창립")) {
     return { found: true, confidence: "high",
       answer: `YG-1은 ${YG1_KB.company.founded} 설립. 창업자: 송호근 회장 (서울대 기계공학과 1976년 졸업). 원래 사명 '양지원 공구', 1999년 YG-1로 변경.` }
   }
 
   // ── 대표/CEO ──
-  if (q.includes("대표") || q.includes("ceo") || q.includes("회장") || q.includes("사장") || q.includes("누구")) {
+  if (q.includes("대표") || q.includes("ceo") || q.includes("회장") || q.includes("사장")) {
     return { found: true, confidence: "high",
       answer: `YG-1 공동대표: ${YG1_KB.company.ceo.join(", ")} (2024.03 기준)` }
   }
@@ -364,7 +364,7 @@ export function searchKB(query: string): { found: boolean; answer: string; confi
   }
 
   // ── 순위 ──
-  if (q.includes("순위") || q.includes("몇위") || q.includes("세계") || q.includes("1위") || q.includes("3위") || q.includes("6위")) {
+  if (q.includes("순위") || q.includes("몇위") || q.includes("세계 1위") || q.includes("세계 3위") || q.includes("세계 6위") || (q.includes("세계") && q.includes("위"))) {
     const r = YG1_KB.company.ranking
     return { found: true, confidence: "high",
       answer: `YG-1 글로벌 순위: 엔드밀 ${r.endmill}, 탭 ${r.tap}, 드릴 ${r.drill}, ${r.domestic}. 목표: ${YG1_KB.company.goal_2035}` }
@@ -377,27 +377,27 @@ export function searchKB(query: string): { found: boolean; answer: string; confi
   }
 
   // ── 수출/해외 ──
-  if (q.includes("수출") || q.includes("해외") || q.includes("글로벌") || q.includes("미국")) {
+  if (q.includes("수출") || q.includes("해외 매출") || q.includes("해외 비중") || q.includes("글로벌 매출")) {
     return { found: true, confidence: "high",
       answer: `YG-1 해외 매출 비중 ${YG1_KB.company.overseas_revenue_ratio}, ${YG1_KB.company.export_countries} 수출. 미국 비중 ${YG1_KB.company.us_revenue_ratio}. 해외 생산법인 10곳, 판매법인 20곳+.` }
   }
 
   // ── 산업 비중/사용처 ──
-  if (q.includes("자동차") || q.includes("항공") || q.includes("산업") || q.includes("비중") || q.includes("사용처") || q.includes("어디에")) {
+  if (q.includes("자동차") || q.includes("항공") || (q.includes("산업") && q.includes("비중")) || q.includes("사용처")) {
     const ind = YG1_KB.industries
     return { found: true, confidence: "high",
       answer: `YG-1 적용 산업: ${ind.map(i => `${i.name}${"ratio" in i ? ` ${i.ratio}` : ""}`).join(", ")}. ${ind[0].details}.` }
   }
 
   // ── 비전/경영철학 ──
-  if (q.includes("비전") || q.includes("미션") || q.includes("철학") || q.includes("가치") || q.includes("경영")) {
+  if (q.includes("비전") || q.includes("미션") || q.includes("경영 철학") || q.includes("핵심 가치") || q.includes("경영 이념")) {
     const v = YG1_KB.vision
     return { found: true, confidence: "high",
       answer: `YG-1 비전: ${v.vision}. 미션: ${v.mission}. 핵심 가치: ${v.coreValues}. 전략: ${v.futureStrategy}` }
   }
 
   // ── 정밀도 ──
-  if (q.includes("정밀") || q.includes("마이크로") || q.includes("μm") || q.includes("㎛")) {
+  if (q.includes("정밀도") || q.includes("마이크로미터") || q.includes("μm") || q.includes("㎛")) {
     return { found: true, confidence: "high",
       answer: `YG-1 절삭공구 정밀도: ${YG1_KB.company.precision}` }
   }
@@ -415,25 +415,25 @@ export function searchKB(query: string): { found: boolean; answer: string; confi
   }
 
   // ── 인증 ──
-  if (q.includes("인증") || q.includes("iso") || q.includes("ks") || q.includes("인노비즈")) {
+  if (q.includes("인증") || q.includes("iso 인증") || q.includes("ks 마크") || q.includes("인노비즈")) {
     return { found: true, confidence: "high",
       answer: `YG-1 인증: ${YG1_KB.certifications.join(", ")}` }
   }
 
   // ── 온라인/주문/구매 ──
-  if (q.includes("주문") || q.includes("구매") || q.includes("온라인") || q.includes("구입")) {
+  if (q.includes("온라인 주문") || q.includes("구매 사이트") || q.includes("구입 방법") || q.includes("주문 방법")) {
     return { found: true, confidence: "high",
       answer: `YG-1 온라인 주문: ${YG1_KB.urls.onlineOrder} / 카카오: ${YG1_KB.social.kakao}` }
   }
 
   // ── 채용 ──
-  if (q.includes("채용") || q.includes("입사") || q.includes("취업") || q.includes("지원")) {
+  if (q.includes("채용") || q.includes("입사") || q.includes("취업")) {
     return { found: true, confidence: "high",
       answer: `YG-1 채용: ${YG1_KB.urls.recruit}` }
   }
 
   // ── 카탈로그/자료 ──
-  if (q.includes("카탈로그") || q.includes("자료") || q.includes("다운로드")) {
+  if (q.includes("카탈로그") || q.includes("자료실") || q.includes("다운로드")) {
     return { found: true, confidence: "high",
       answer: `YG-1 카탈로그: ${YG1_KB.urls.catalog} / E-Catalog: ${YG1_KB.urls.ecatalog} / 자료실: ${YG1_KB.urls.dataRoom}` }
   }
@@ -446,7 +446,7 @@ export function searchKB(query: string): { found: boolean; answer: string; confi
   }
 
   // ── 전화/연락처/본사 ──
-  if (q.includes("전화") || q.includes("연락") || q.includes("본사") || q.includes("주소")) {
+  if (q.includes("전화번호") || q.includes("연락처") || (q.includes("본사") && (q.includes("전화") || q.includes("주소") || q.includes("어디")))) {
     return { found: true, confidence: "high",
       answer: `YG-1 본사: ${YG1_KB.company.hq_address} / 전화: ${YG1_KB.company.tel} / 팩스: ${YG1_KB.company.fax_overseas} / Q&A: ${YG1_KB.urls.qna}` }
   }
@@ -458,7 +458,7 @@ export function searchKB(query: string): { found: boolean; answer: string; confi
   }
 
   // ── 목표/2035 ──
-  if (q.includes("목표") || q.includes("2035") || q.includes("장기")) {
+  if (q.includes("장기 목표") || q.includes("2035") || q.includes("장기 비전")) {
     return { found: true, confidence: "high",
       answer: `YG-1 장기 목표: ${YG1_KB.company.goal_2035}. 전략: ${YG1_KB.vision.futureStrategy}` }
   }
