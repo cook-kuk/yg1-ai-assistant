@@ -89,32 +89,33 @@ export async function buildGeneralChatOptionState(input: {
     fallbackChips,
   } = input
 
-  // ── Unified Haiku Judgment: 1번 호출로 5가지 판단 ──
-  const judgment = await performUnifiedJudgment({
-    userMessage,
-    assistantText,
-    pendingField: prevState.lastAskedField ?? null,
-    currentMode: prevState.currentMode ?? null,
-    displayedChips: prevState.displayedChips ?? [],
-    filterCount: filters.length,
-    candidateCount: candidates.length,
-    hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
-  }, provider)
+  // ── Haiku 판단 + 턴 컨텍스트 병렬 실행 (속도 최적화) ──
+  const [judgment, unifiedTurnContext] = await Promise.all([
+    performUnifiedJudgment({
+      userMessage,
+      assistantText,
+      pendingField: prevState.lastAskedField ?? null,
+      currentMode: prevState.currentMode ?? null,
+      displayedChips: prevState.displayedChips ?? [],
+      filterCount: filters.length,
+      candidateCount: candidates.length,
+      hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
+    }, provider),
+    Promise.resolve(buildUnifiedTurnContext({
+      latestAssistantText: assistantText,
+      latestUserMessage: userMessage,
+      messages: recentMessages,
+      sessionState: prevState,
+      resolvedInput: currentInput,
+      intakeForm: form,
+      candidates: (prevState.displayedCandidates?.length ? prevState.displayedCandidates : []).slice(0, 20),
+    })),
+  ])
 
   // Haiku 판단을 기존 형식으로 변환 (호환성 유지)
   const userStateResult = judgment.fromLLM
     ? { state: judgment.userState, confidence: judgment.confidence, confusedAbout: judgment.confusedAbout, boundField: null }
     : detectUserState(userMessage, prevState.lastAskedField)
-
-  const unifiedTurnContext = buildUnifiedTurnContext({
-    latestAssistantText: assistantText,
-    latestUserMessage: userMessage,
-    messages: recentMessages,
-    sessionState: prevState,
-    resolvedInput: currentInput,
-    intakeForm: form,
-    candidates: (prevState.displayedCandidates?.length ? prevState.displayedCandidates : []).slice(0, 20),
-  })
 
   const { plannerCtx, interpretation } = buildContextAwarePlannerContext(
     form,
