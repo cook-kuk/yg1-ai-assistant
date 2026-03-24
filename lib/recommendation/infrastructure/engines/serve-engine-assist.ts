@@ -26,6 +26,7 @@ const DIRECT_PRODUCT_CODE_PATTERN = /\b([A-Z][A-Z0-9-]{4,})\b/i
 const DIRECT_SERIES_CODE_PATTERN = /\b([A-Z]\d[A-Z]\d{2,}[A-Z]?)\b/i
 const CUTTING_CONDITION_QUERY_PATTERN = /절삭조건|가공조건|vc|fz|이송|회전수|rpm|feed/i
 const INVENTORY_QUERY_PATTERN = /재고|stock|inventory|available|availability|수량|남았/i
+const PRODUCT_INFO_TRIGGER_PATTERN = /공구\s*소재|재질|코팅|직경|지름|날\s*수|날수|플루트|형상|스퀘어|볼|라디우스|테이퍼|생크|절삭길이|날길이|전장|헬릭스|쿨런트|제품명|품명|스펙|사양|전체\s*사양|상세\s*사양|전체\s*정보|상세\s*정보|무슨\s*제품|어떤\s*제품|뭐야|뭐예요|알려/i
 const BRAND_REFERENCE_TRIGGER_PATTERN = /(브랜드|brand).*(추천|기준|표|어떤|무슨|뭐|찾|조회)|(?:iso\s*[pmknsh]|hrc|경도|피삭재|소재).*(브랜드|brand)/i
 const ENTITY_PROFILE_TRIGGER_PATTERN = /시리즈|series|브랜드|brand|차이|비교|vs|대비|특징|용도|적합|형상|설명|몇\s*날|날\s*수|날수|플루트|어떤\s*제품|무슨\s*제품/i
 const SERIES_NAME_ENTITY_PATTERN = /\b(?:ALU[-\s]?CUT(?:\s+(?:POWER|HPC|for\s+Korean\s+Market))?|TANK[-\s]?POWER|X[-\s]?POWER|I[-\s]?POWER|V[-\s]?POWER|ALU[-\s]?MILL|ALU[-\s]?POWER(?:\s+HPC)?|INOX[-\s]?POWER|[A-Z]{2,5}\d{2,4}[A-Z]?|[A-Z]{1,4}\d[A-Z]{1,3}\d{2,4}[A-Z]?)\b/gi
@@ -132,6 +133,112 @@ function compactList(values: string[], max = 5): string {
   if (unique.length === 0) return "-"
   if (unique.length <= max) return unique.join(", ")
   return `${unique.slice(0, max).join(", ")} 외 ${unique.length - max}개`
+}
+
+function formatNullableValue(value: string | number | boolean | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "-"
+  if (typeof value === "boolean") return value ? "있음" : "없음"
+  return String(value)
+}
+
+function formatMmValue(value: number | null | undefined): string {
+  return value == null ? "-" : `φ${value}mm`
+}
+
+function formatLengthValue(value: number | null | undefined): string {
+  return value == null ? "-" : `${value}mm`
+}
+
+function formatAngleValue(value: number | null | undefined): string {
+  return value == null ? "-" : `${value}°`
+}
+
+function buildProductInfoChips(displayCode: string, includeFullSpec = false): string[] {
+  const chips = [`${displayCode} 재고 알려줘`, `${displayCode} 절삭조건 알려줘`]
+  if (includeFullSpec) chips.unshift(`${displayCode} 전체 사양 알려줘`)
+  else chips.push("추천 제품 보기")
+  return chips
+}
+
+function detectRequestedProductField(userMessage: string): { label: string; value: string } | null {
+  if (/공구\s*소재|재질|카바이드|초경|hss|고속도강/i.test(userMessage)) {
+    return { label: "공구 소재", value: "toolMaterial" }
+  }
+  if (/코팅/i.test(userMessage)) {
+    return { label: "코팅", value: "coating" }
+  }
+  if (/날\s*수|날수|플루트|몇\s*날/i.test(userMessage)) {
+    return { label: "날 수", value: "fluteCount" }
+  }
+  if (/형상|스퀘어|볼|라디우스|테이퍼|radius|ball|square|taper/i.test(userMessage)) {
+    return { label: "형상", value: "toolSubtype" }
+  }
+  if (/직경|지름|몇\s*파이|mm/i.test(userMessage)) {
+    return { label: "직경", value: "diameterMm" }
+  }
+  if (/생크/i.test(userMessage)) {
+    return { label: "생크 직경", value: "shankDiameterMm" }
+  }
+  if (/절삭길이|날길이|loc/i.test(userMessage)) {
+    return { label: "절삭 길이", value: "lengthOfCutMm" }
+  }
+  if (/전장|overall|oal/i.test(userMessage)) {
+    return { label: "전장", value: "overallLengthMm" }
+  }
+  if (/헬릭스/i.test(userMessage)) {
+    return { label: "헬릭스각", value: "helixAngleDeg" }
+  }
+  if (/쿨런트|coolant/i.test(userMessage)) {
+    return { label: "쿨런트 홀", value: "coolantHole" }
+  }
+  if (/시리즈/i.test(userMessage)) {
+    return { label: "시리즈", value: "seriesName" }
+  }
+  if (/브랜드/i.test(userMessage)) {
+    return { label: "브랜드", value: "brand" }
+  }
+  if (/제품명|품명|이름/i.test(userMessage)) {
+    return { label: "제품명", value: "productName" }
+  }
+  return null
+}
+
+function getProductFieldValue(
+  product: Awaited<ReturnType<typeof ProductRepo.findByCode>>,
+  field: string
+): string {
+  if (!product) return "-"
+
+  switch (field) {
+    case "toolMaterial":
+      return formatNullableValue(product.toolMaterial)
+    case "coating":
+      return formatNullableValue(product.coating)
+    case "fluteCount":
+      return product.fluteCount == null ? "-" : `${product.fluteCount}날`
+    case "toolSubtype":
+      return formatNullableValue(product.toolSubtype)
+    case "diameterMm":
+      return formatMmValue(product.diameterMm)
+    case "shankDiameterMm":
+      return formatMmValue(product.shankDiameterMm)
+    case "lengthOfCutMm":
+      return formatLengthValue(product.lengthOfCutMm)
+    case "overallLengthMm":
+      return formatLengthValue(product.overallLengthMm)
+    case "helixAngleDeg":
+      return formatAngleValue(product.helixAngleDeg)
+    case "coolantHole":
+      return product.coolantHole == null ? "-" : product.coolantHole ? "있음" : "없음"
+    case "seriesName":
+      return formatNullableValue(product.seriesName)
+    case "brand":
+      return formatNullableValue(product.brand)
+    case "productName":
+      return formatNullableValue(product.productName)
+    default:
+      return "-"
+  }
 }
 
 function formatDiameterRange(min: number | null, max: number | null): string {
@@ -548,6 +655,118 @@ export async function handleDirectEntityProfileQuestion(
   }
 
   return null
+}
+
+export async function handleDirectProductInfoQuestion(
+  userMessage: string,
+  _currentInput: RecommendationInput,
+  prevState: ExplorationSessionState | null
+): Promise<{ text: string; chips: string[] } | null> {
+  if (INVENTORY_QUERY_PATTERN.test(userMessage) || CUTTING_CONDITION_QUERY_PATTERN.test(userMessage)) {
+    return null
+  }
+
+  if (/차이|비교|vs|대비/i.test(userMessage)) {
+    return null
+  }
+
+  const queryTarget = classifyQueryTarget(userMessage, null, null)
+  if (
+    queryTarget.type === "series_info" ||
+    queryTarget.type === "brand_info" ||
+    queryTarget.type === "series_comparison" ||
+    queryTarget.type === "brand_comparison"
+  ) {
+    return null
+  }
+
+  const productCodeMatch = userMessage.match(DIRECT_PRODUCT_CODE_PATTERN)
+  const lookupCode = normalizeLookupCode(queryTarget.entities[0] ?? productCodeMatch?.[1] ?? "")
+
+  if (!lookupCode) return null
+
+  const directCodeOnly = normalizeLookupCode(userMessage) === lookupCode
+  const explicitInfoIntent = directCodeOnly || PRODUCT_INFO_TRIGGER_PATTERN.test(userMessage) || queryTarget.type === "product_info"
+  if (!explicitInfoIntent) return null
+
+  const product = await ProductRepo.findByCode(lookupCode).catch(() => null)
+  if (!product) {
+    const hasCandidates = (prevState?.displayedCandidates?.length ?? 0) > 0
+    return {
+      text: [
+        `${lookupCode} 제품 정보를 내부 DB에서 찾지 못했습니다.`,
+        hasCandidates
+          ? "현재 후보 제품의 제품코드로 다시 물어보시면 해당 제품 정보를 조회해드릴 수 있습니다."
+          : "제품코드를 다시 확인해주세요.",
+        "[Reference: YG-1 내부 DB]",
+      ].join("\n"),
+      chips: hasCandidates ? ["후보 제품 보기", "추천 제품 보기", "처음부터 다시"] : ["제품 추천", "추천 제품 보기", "처음부터 다시"],
+    }
+  }
+
+  const requestedField = detectRequestedProductField(userMessage)
+  const displayCode = product.displayCode || lookupCode
+
+  if (requestedField) {
+    const fieldValue = getProductFieldValue(product, requestedField.value)
+    return {
+      text: [
+        `${displayCode}의 ${requestedField.label}는 ${fieldValue}입니다.`,
+        "",
+        buildMarkdownTable(
+          ["항목", "값"],
+          [
+            ["제품코드", displayCode],
+            ["브랜드", product.brand],
+            ["시리즈", product.seriesName],
+            [requestedField.label, fieldValue],
+          ]
+        ),
+        "",
+        "[Reference: YG-1 내부 DB]",
+      ].join("\n"),
+      chips: buildProductInfoChips(displayCode, true),
+    }
+  }
+
+  const summaryTable = buildMarkdownTable(
+    ["항목", "값"],
+    [
+      ["제품코드", displayCode],
+      ["브랜드", product.brand],
+      ["시리즈", product.seriesName],
+      ["제품명", product.productName],
+      ["형상", product.toolSubtype],
+      ["직경", formatMmValue(product.diameterMm)],
+      ["날 수", product.fluteCount == null ? "-" : `${product.fluteCount}날`],
+      ["코팅", product.coating],
+      ["공구 소재", product.toolMaterial],
+      ["생크 직경", formatMmValue(product.shankDiameterMm)],
+      ["절삭 길이", formatLengthValue(product.lengthOfCutMm)],
+      ["전장", formatLengthValue(product.overallLengthMm)],
+      ["헬릭스각", formatAngleValue(product.helixAngleDeg)],
+      ["쿨런트 홀", product.coolantHole == null ? "-" : product.coolantHole ? "있음" : "없음"],
+      ["적용 가공", compactList(product.applicationShapes)],
+      ["ISO 소재", compactList(product.materialTags)],
+    ]
+  )
+
+  const extraLines = [
+    product.description ? `설명: ${product.description}` : null,
+    product.featureText ? `특징: ${product.featureText}` : null,
+  ].filter((line): line is string => Boolean(line))
+
+  return {
+    text: [
+      `${displayCode} 제품 정보를 내부 DB에서 조회했습니다.`,
+      "",
+      summaryTable,
+      ...(extraLines.length > 0 ? ["", ...extraLines] : []),
+      "",
+      "[Reference: YG-1 내부 DB]",
+    ].join("\n"),
+    chips: buildProductInfoChips(displayCode),
+  }
 }
 
 function extractRequestedWorkPiece(userMessage: string): string | null {

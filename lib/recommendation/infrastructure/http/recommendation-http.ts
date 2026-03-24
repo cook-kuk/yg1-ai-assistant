@@ -14,6 +14,7 @@ import {
   handleDirectCuttingConditionQuestion,
   handleDirectEntityProfileQuestion,
   handleDirectInventoryQuestion,
+  handleDirectProductInfoQuestion,
   handleGeneralChat,
   handleContextualNarrowingQuestion,
 } from "@/lib/recommendation/infrastructure/engines/serve-engine-assist"
@@ -142,6 +143,7 @@ function createServeRuntimeDependencies(): ServeEngineRuntimeDependencies {
     handleDirectInventoryQuestion,
     handleDirectEntityProfileQuestion: (userMessage, currentInput, prevState) =>
       handleDirectEntityProfileQuestion(getProvider(), userMessage, currentInput, prevState),
+    handleDirectProductInfoQuestion,
     handleDirectBrandReferenceQuestion,
     handleDirectCuttingConditionQuestion,
     handleContextualNarrowingQuestion,
