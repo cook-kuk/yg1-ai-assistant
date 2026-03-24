@@ -21,6 +21,7 @@ import type {
 import type {
   AppliedFilter,
   CandidateSnapshot,
+  DisplayedOption,
   EvidenceSummary,
   ExplorationSessionState,
   ProductIntakeForm,
@@ -227,7 +228,7 @@ const NARROWING_TOOLS: LLMTool[] = [
             "shankDiameterMm", "lengthOfCutMm", "overallLengthMm", "helixAngleDeg", "ballRadiusMm", "taperAngleDeg",
             "coolantHole", "stockStatus", "applicationShapes", "materialTags"
           ],
-          description: "필터 대상 필드. 현재 질문(lastAskedField)에 해당하는 필드 사용."
+          description: "필터 대상 필드. 한국어→필드명 매핑: 날수=fluteCount, 코팅=coating, 형상/서브타입=toolSubtype, 시리즈=seriesName, 직경=diameterMm, 직경세분화=diameterRefine, 가공방식=cuttingType, 소재/피삭재=material, 공구소재=toolMaterial, 공구타입=toolType, 브랜드=brand, 생산국=country, 생크직경=shankDiameterMm, 절삭길이/날길이/LOC=lengthOfCutMm, 전장/전체길이/OAL=overallLengthMm, 헬릭스각도=helixAngleDeg, 볼반경=ballRadiusMm, 테이퍼각도=taperAngleDeg, 쿨런트홀=coolantHole, 재고상태=stockStatus, 적용가공=applicationShapes, ISO소재분류=materialTags"
         },
         value: {
           type: "string",
@@ -337,7 +338,7 @@ const NARROWING_TOOLS: LLMTool[] = [
 ]
 
 function buildToolUseSystemPrompt(ctx: TurnContext): string {
-  const state = ctx.sessionState
+  const state = ctx.unifiedTurnContext?.sessionState ?? ctx.sessionState
   const filterDesc = state?.appliedFilters
     .filter(f => f.op !== "skip")
     .map(f => `${f.field}=${f.value}`)
@@ -415,7 +416,13 @@ function mapToolUseToAction(
 
   switch (toolUse.toolName) {
     case "apply_filter": {
-      const field = String(input.field ?? ctx.sessionState?.lastAskedField ?? "unknown")
+      const field = String(
+        input.field ??
+        ctx.unifiedTurnContext?.currentPendingQuestion?.field ??
+        ctx.unifiedTurnContext?.latestProcessTrace?.pendingQuestionField ??
+        ctx.sessionState?.lastAskedField ??
+        "unknown"
+      )
       const value = String(input.value ?? "")
       const displayValue = String(input.display_value ?? value)
 
@@ -426,7 +433,14 @@ function mapToolUseToAction(
       }
       // Affirmative response with pending question → skip/delegate
       const affirmativePatterns = ["네", "좋아", "그래", "응", "ㅇㅇ", "ㅇ", "ok", "yes"]
-      if (affirmativePatterns.includes(value.toLowerCase().trim()) && ctx.sessionState?.lastAskedField) {
+      if (
+        affirmativePatterns.includes(value.toLowerCase().trim()) &&
+        (
+          ctx.unifiedTurnContext?.currentPendingQuestion?.field ??
+          ctx.unifiedTurnContext?.latestProcessTrace?.pendingQuestionField ??
+          ctx.sessionState?.lastAskedField
+        )
+      ) {
         return { type: "skip_field" }
       }
 
@@ -588,7 +602,10 @@ function buildFilterFromParams(
     }
   }
 
-  const lastField = ctx.sessionState?.lastAskedField
+  const lastField =
+    ctx.unifiedTurnContext?.currentPendingQuestion?.field ??
+    ctx.unifiedTurnContext?.latestProcessTrace?.pendingQuestionField ??
+    ctx.sessionState?.lastAskedField
 
   // Try building filter from extracted params
   if (params) {

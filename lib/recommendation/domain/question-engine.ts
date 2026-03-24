@@ -338,6 +338,50 @@ export function parseAnswerToFilter(
         rawValue: clean,
         appliedAt: 0,
       }
+    // ── Extended numeric fields ──
+    case "lengthOfCutMm":
+    case "overallLengthMm":
+    case "shankDiameterMm":
+    case "helixAngleDeg":
+    case "ballRadiusMm":
+    case "taperAngleDeg": {
+      const match = clean.match(/([\d.]+)/)
+      if (match) {
+        const numVal = parseFloat(match[1])
+        const unitMap: Record<string, string> = {
+          lengthOfCutMm: "mm", overallLengthMm: "mm", shankDiameterMm: "mm",
+          helixAngleDeg: "°", ballRadiusMm: "mm", taperAngleDeg: "°",
+        }
+        return {
+          field,
+          op: "eq",
+          value: `${numVal}${unitMap[field] ?? ""}`,
+          rawValue: numVal,
+          appliedAt: 0,
+        }
+      }
+      break
+    }
+    // ── Extended string fields ──
+    case "toolMaterial":
+    case "toolType":
+    case "brand":
+    case "country":
+      return {
+        field,
+        op: "includes",
+        value: clean,
+        rawValue: clean,
+        appliedAt: 0,
+      }
+    case "coolantHole":
+      return {
+        field,
+        op: "eq",
+        value: /있|yes|true|유/i.test(clean) ? "true" : "false",
+        rawValue: /있|yes|true|유/i.test(clean) ? "true" : "false",
+        appliedAt: 0,
+      }
   }
 
   return null
