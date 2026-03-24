@@ -23,6 +23,7 @@ import {
 } from "@/lib/recommendation/domain/options/option-bridge"
 import { buildQuestionAlignedOptions, buildConfusionHelperOptions } from "@/lib/recommendation/domain/options/question-option-builder"
 import { detectUserState } from "@/lib/recommendation/domain/context/user-understanding-detector"
+import { performUnifiedJudgment, type UnifiedJudgment } from "@/lib/recommendation/domain/context/unified-haiku-judgment"
 import { buildChipContext, buildChipContextFromUnifiedTurnContext } from "@/lib/recommendation/domain/context/chip-context-builder"
 import { rerankChipsWithLLM } from "@/lib/recommendation/domain/options/llm-chip-reranker"
 import { buildRecentInteractionFrame } from "@/lib/recommendation/domain/context/recent-interaction-frame"
@@ -88,7 +89,23 @@ export async function buildGeneralChatOptionState(input: {
     fallbackChips,
   } = input
 
-  const userStateResult = detectUserState(userMessage, prevState.lastAskedField)
+  // ── Unified Haiku Judgment: 1번 호출로 5가지 판단 ──
+  const judgment = await performUnifiedJudgment({
+    userMessage,
+    assistantText,
+    pendingField: prevState.lastAskedField ?? null,
+    currentMode: prevState.currentMode ?? null,
+    displayedChips: prevState.displayedChips ?? [],
+    filterCount: filters.length,
+    candidateCount: candidates.length,
+    hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
+  }, provider)
+
+  // Haiku 판단을 기존 형식으로 변환 (호환성 유지)
+  const userStateResult = judgment.fromLLM
+    ? { state: judgment.userState, confidence: judgment.confidence, confusedAbout: judgment.confusedAbout, boundField: null }
+    : detectUserState(userMessage, prevState.lastAskedField)
+
   const unifiedTurnContext = buildUnifiedTurnContext({
     latestAssistantText: assistantText,
     latestUserMessage: userMessage,
@@ -141,11 +158,11 @@ export async function buildGeneralChatOptionState(input: {
       appliedFilters: filters.filter(f => f.op !== "skip").map(f => ({ field: f.field, value: f.value })),
       resolutionStatus: prevState.resolutionStatus ?? null,
       displayedProducts: (prevState.displayedCandidates ?? []).slice(0, 5).map(c => c.displayCode),
-      userState: userStateResult.state ?? null,
-      confusedAbout: userStateResult.confusedAbout ?? null,
-      intentShift: interpretation.intentShift ?? null,
+      userState: judgment.fromLLM ? judgment.userState : (userStateResult.state ?? null),
+      confusedAbout: judgment.fromLLM ? judgment.confusedAbout : (userStateResult.confusedAbout ?? null),
+      intentShift: judgment.fromLLM ? judgment.intentShift : (interpretation.intentShift ?? null),
       referencedUIBlock: frame.likelyReferencedUIBlock ?? null,
-      frameRelation: frame.relation ?? null,
+      frameRelation: judgment.fromLLM ? judgment.frameRelation : (frame.relation ?? null),
       answeredFields: interpretation.answeredFields ?? [],
       conversationDepth: interpretation.conversationDepth ?? 0,
       suggestedNextAction: interpretation.suggestedNextAction ?? null,
