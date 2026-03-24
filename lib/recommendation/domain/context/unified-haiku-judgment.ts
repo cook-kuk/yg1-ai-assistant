@@ -107,9 +107,9 @@ export async function performUnifiedJudgment(
   input: UnifiedJudgmentInput,
   provider: LLMProvider
 ): Promise<UnifiedJudgment> {
-  // 같은 메시지면 캐시 반환 (같은 턴 내 중복 호출 방지)
-  const cacheKey = `${input.userMessage}|${input.pendingField}|${input.candidateCount}`
-  if (cacheKey === lastInput) return lastResult
+  // 같은 유저 메시지면 캐시 반환 (같은 턴 내 중복 호출 방지)
+  const cacheKey = input.userMessage
+  if (cacheKey === lastInput && lastResult.fromLLM) return lastResult
 
   if (!provider.available()) {
     return DEFAULT_JUDGMENT
@@ -120,7 +120,7 @@ export async function performUnifiedJudgment(
     const raw = await provider.complete(
       JUDGMENT_SYSTEM,
       [{ role: "user", content: prompt }],
-      200,
+      120,
       "haiku"
     )
 
