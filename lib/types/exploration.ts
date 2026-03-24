@@ -8,6 +8,15 @@ import type { ScoredProduct, RecommendationInput, ChatMessage } from "./canonica
 import type { ProductIntakeForm } from "./intake"
 import type { EvidenceSummary } from "./evidence"
 
+// ── Journey Phase ──────────────────────────────────────────
+export type JourneyPhase =
+  | "intake"
+  | "narrowing"
+  | "results_displayed"
+  | "post_result_exploration"
+  | "comparison"
+  | "revision"
+
 // ── Resolution Status ────────────────────────────────────────
 export type ResolutionStatus =
   | "broad"                // many candidates, needs narrowing

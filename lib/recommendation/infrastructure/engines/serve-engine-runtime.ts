@@ -32,6 +32,7 @@ import { normalizeFilterValue, extractDistinctFieldValues } from "@/lib/recommen
 import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-target-classifier"
 import { TraceCollector, isDebugEnabled } from "@/lib/debug/agent-trace"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
+import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { RecommendationDisplayedProductRequestDto, RecommendationPaginationDto } from "@/lib/contracts/recommendation"
@@ -434,25 +435,33 @@ async function handleServeExplorationInner(
     : null
   const pendingWorkPieceFilter = buildPendingWorkPieceSelectionFilter(prevState, lastUserMsg?.text ?? null)
 
+  const journeyPhase = detectJourneyPhase(prevState)
+
   let earlyAction: string | null = null
   if (pendingWorkPieceFilter) {
-    // 회사 질문이면 강제 narrowing 하지 않음 → orchestrator가 판단하게
-    const earlyJudgment = lastUserMsg ? await performUnifiedJudgment({
-      userMessage: lastUserMsg.text,
-      assistantText: null,
-      pendingField: prevState?.lastAskedField ?? null,
-      currentMode: prevState?.currentMode ?? null,
-      displayedChips: prevState?.displayedChips ?? [],
-      filterCount: prevState?.appliedFilters?.length ?? 0,
-      candidateCount: prevState?.candidateCount ?? 0,
-      hasRecommendation: prevState?.resolutionStatus?.startsWith("resolved") ?? false,
-    }, provider) : null
-
-    if (earlyJudgment?.domainRelevance === "company_query" || earlyJudgment?.domainRelevance === "greeting") {
-      earlyAction = null // orchestrator가 처리하게 넘김
-      console.log(`[runtime:early] company_query → skip pendingWorkPieceFilter`)
+    // Post-result phase: don't force narrowing for non-selection messages
+    if (isPostResultPhase(journeyPhase)) {
+      earlyAction = null // let orchestrator decide
+      console.log(`[runtime:journey] Post-result phase (${journeyPhase}), skip forced narrowing for pendingWorkPieceFilter`)
     } else {
-      earlyAction = "continue_narrowing"
+      // 회사 질문이면 강제 narrowing 하지 않음 → orchestrator가 판단하게
+      const earlyJudgment = lastUserMsg ? await performUnifiedJudgment({
+        userMessage: lastUserMsg.text,
+        assistantText: null,
+        pendingField: prevState?.lastAskedField ?? null,
+        currentMode: prevState?.currentMode ?? null,
+        displayedChips: prevState?.displayedChips ?? [],
+        filterCount: prevState?.appliedFilters?.length ?? 0,
+        candidateCount: prevState?.candidateCount ?? 0,
+        hasRecommendation: prevState?.resolutionStatus?.startsWith("resolved") ?? false,
+      }, provider) : null
+
+      if (earlyJudgment?.domainRelevance === "company_query" || earlyJudgment?.domainRelevance === "greeting") {
+        earlyAction = null // orchestrator가 처리하게 넘김
+        console.log(`[runtime:early] company_query → skip pendingWorkPieceFilter`)
+      } else {
+        earlyAction = "continue_narrowing"
+      }
     }
   } else if (messages.length > 0 && prevState && lastUserMsg) {
     const earlyUnifiedTurnContext = buildUnifiedTurnContext({
@@ -525,6 +534,14 @@ async function handleServeExplorationInner(
   if (requestPrep.route.action === "reset_session") {
     return buildResetResponse(deps, requestPrep)
   }
+
+  // ── Journey phase trace ──
+  trace.add("journey-phase", "context", {
+    journeyPhase,
+    pendingFieldActive: !!prevState?.lastAskedField,
+    pendingFieldSuppressedByPhase: isPostResultPhase(journeyPhase) && !!prevState?.lastAskedField,
+    resultsSurfaceDetected: (prevState?.resolutionStatus?.startsWith("resolved") ?? false) || ((prevState?.displayedCandidates?.length ?? 0) > 0 && prevState?.currentMode === "recommendation"),
+  }, {}, `Phase: ${journeyPhase}`)
 
   // ── Deep debug: session state + memory (ALWAYS, before any dispatch) ──
   if (prevState) {
@@ -685,6 +702,7 @@ async function handleServeExplorationInner(
 
     const hasPendingQuestion = !!prevState.lastAskedField
       && !prevState.resolutionStatus?.startsWith("resolved")
+      && !isPostResultPhase(journeyPhase)
     if (hasPendingQuestion) {
       const userState = detectUserState(lastUserMsg.text, prevState.lastAskedField)
       const isQuestionAssistSignal =
@@ -747,23 +765,29 @@ async function handleServeExplorationInner(
       action.type === "answer_general" ||
       action.type === "redirect_off_topic"
     )) {
-      const quickJudgment = await performUnifiedJudgment({
-        userMessage: lastUserMsg.text,
-        assistantText: null,
-        pendingField: prevState.lastAskedField ?? null,
-        currentMode: prevState.currentMode ?? null,
-        displayedChips: prevState.displayedChips ?? [],
-        filterCount: filters.length,
-        candidateCount: candidates.length,
-        hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
-      }, provider)
-
-      if (quickJudgment.domainRelevance === "company_query" || quickJudgment.domainRelevance === "greeting") {
-        // 회사 질문/인사 → answer_general로 유지, narrowing 강제하지 않음
+      if (isPostResultPhase(journeyPhase)) {
+        // Post-result: don't force narrowing, let the answer go through
         action = { type: "answer_general", message: lastUserMsg.text }
-        console.log(`[runtime:judgment] company_query detected, skip forced narrowing → answer_general`)
+        console.log(`[runtime:journey] Post-result exploration (${journeyPhase}), skip forced narrowing → answer_general`)
       } else {
-        action = { type: "continue_narrowing", filter: pendingWorkPieceFilter }
+        const quickJudgment = await performUnifiedJudgment({
+          userMessage: lastUserMsg.text,
+          assistantText: null,
+          pendingField: prevState.lastAskedField ?? null,
+          currentMode: prevState.currentMode ?? null,
+          displayedChips: prevState.displayedChips ?? [],
+          filterCount: filters.length,
+          candidateCount: candidates.length,
+          hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
+        }, provider)
+
+        if (quickJudgment.domainRelevance === "company_query" || quickJudgment.domainRelevance === "greeting") {
+          // 회사 질문/인사 → answer_general로 유지, narrowing 강제하지 않음
+          action = { type: "answer_general", message: lastUserMsg.text }
+          console.log(`[runtime:judgment] company_query detected, skip forced narrowing → answer_general`)
+        } else {
+          action = { type: "continue_narrowing", filter: pendingWorkPieceFilter }
+        }
       }
     }
 

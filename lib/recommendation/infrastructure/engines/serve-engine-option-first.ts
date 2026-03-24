@@ -27,6 +27,7 @@ import { performUnifiedJudgment, type UnifiedJudgment } from "@/lib/recommendati
 import { buildChipContext, buildChipContextFromUnifiedTurnContext } from "@/lib/recommendation/domain/context/chip-context-builder"
 import { rerankChipsWithLLM } from "@/lib/recommendation/domain/options/llm-chip-reranker"
 import { buildRecentInteractionFrame } from "@/lib/recommendation/domain/context/recent-interaction-frame"
+import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
 import { inferLikelyReferencedBlock } from "@/lib/recommendation/domain/context/ui-context-extractor"
 import { selectChipsWithLLM } from "@/lib/recommendation/domain/options/llm-chip-selector"
 import { buildUnifiedTurnContext } from "@/lib/recommendation/domain/context/turn-context-builder"
@@ -192,8 +193,10 @@ export async function buildGeneralChatOptionState(input: {
   }
 
   const shouldMergeHelpers = shouldUseQuestionAssistHelpers(userStateResult)
+  const journeyPhase = detectJourneyPhase(prevState)
   const hasStatePendingQuestion =
     !!prevState.lastAskedField && !prevState.resolutionStatus?.startsWith("resolved")
+    && !isPostResultPhase(journeyPhase)
 
   if (hasStatePendingQuestion) {
     const assist = buildQuestionAssistOptions({
@@ -233,6 +236,7 @@ export async function buildGeneralChatOptionState(input: {
   const isQuestionAssist =
     !!prevState.lastAskedField &&
     !prevState.resolutionStatus?.startsWith("resolved") &&
+    !isPostResultPhase(journeyPhase) &&
     shouldMergeHelpers
 
   return {

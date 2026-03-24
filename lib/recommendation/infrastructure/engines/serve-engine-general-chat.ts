@@ -11,6 +11,7 @@ import {
 import { createEmptyConversationLog, recordTurn, type ProcessTrace, type RichTurnRecord } from "@/lib/recommendation/domain/memory/memory-compressor"
 import { buildUnifiedTurnContext } from "@/lib/recommendation/domain/context/turn-context-builder"
 import { validateOptionFirstPipeline } from "@/lib/recommendation/domain/options/option-validator"
+import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
 import {
   buildGeneralChatOptionState,
   buildQuestionAssistOptions,
@@ -250,21 +251,29 @@ function buildReplyResponse(
   let finalOverrides = overrides
 
   if (suspended) {
-    const resumePrompt = suspended.pendingQuestion
-      ? `\n\n다시 제품 추천으로 돌아갈게요. ${suspended.pendingQuestion.slice(0, 100)}`
-      : `\n\n다시 제품 추천으로 돌아갈게요.`
-    finalText = text + resumePrompt
-    finalChips = suspended.displayedChipsSnapshot
-    finalDisplayedOptions = suspended.displayedOptionsSnapshot
-    finalOverrides = {
-      ...overrides,
-      currentMode: "question",
-      lastAction: overrides.lastAction,
-      lastAskedField: suspended.pendingField ?? undefined,
+    const journeyPhase = detectJourneyPhase(prevState)
+    if (isPostResultPhase(journeyPhase)) {
+      // Post-result: don't force resume of old field, just clear suspended flow
+      console.log(
+        `[side-question:resume:reply:skip] Post-result phase (${journeyPhase}), skip forced resume for field="${suspended.pendingField}"`
+      )
+    } else {
+      const resumePrompt = suspended.pendingQuestion
+        ? `\n\n다시 제품 추천으로 돌아갈게요. ${suspended.pendingQuestion.slice(0, 100)}`
+        : `\n\n다시 제품 추천으로 돌아갈게요.`
+      finalText = text + resumePrompt
+      finalChips = suspended.displayedChipsSnapshot
+      finalDisplayedOptions = suspended.displayedOptionsSnapshot
+      finalOverrides = {
+        ...overrides,
+        currentMode: "question",
+        lastAction: overrides.lastAction,
+        lastAskedField: suspended.pendingField ?? undefined,
+      }
+      console.log(
+        `[side-question:resume:reply] Restored flow for field="${suspended.pendingField}", options=${suspended.displayedOptionsSnapshot.length}`
+      )
     }
-    console.log(
-      `[side-question:resume:reply] Restored flow for field="${suspended.pendingField}", options=${suspended.displayedOptionsSnapshot.length}`
-    )
   }
 
   const sessionState = carryForwardState(prevState, {
@@ -678,23 +687,31 @@ export async function handleServeGeneralChatAction(
   let resumeText = llmResponse.text
 
   if (suspended && !isQuestionAssist) {
-    // Append resume prompt to the answer text
-    const pendingFieldLabel = suspended.pendingField ?? "이전 질문"
-    const resumePrompt = suspended.pendingQuestion
-      ? `\n\n다시 제품 추천으로 돌아갈게요. ${suspended.pendingQuestion.slice(0, 100)}`
-      : `\n\n다시 제품 추천으로 돌아갈게요.`
-    resumeText = resumeText + resumePrompt
+    const journeyPhaseForResume = detectJourneyPhase(prevState)
+    if (isPostResultPhase(journeyPhaseForResume)) {
+      // Post-result: don't force resume of old field
+      console.log(
+        `[side-question:resume:skip] Post-result phase (${journeyPhaseForResume}), skip forced resume for field="${suspended.pendingField}"`
+      )
+    } else {
+      // Append resume prompt to the answer text
+      const pendingFieldLabel = suspended.pendingField ?? "이전 질문"
+      const resumePrompt = suspended.pendingQuestion
+        ? `\n\n다시 제품 추천으로 돌아갈게요. ${suspended.pendingQuestion.slice(0, 100)}`
+        : `\n\n다시 제품 추천으로 돌아갈게요.`
+      resumeText = resumeText + resumePrompt
 
-    // Restore the suspended flow's options and chips
-    resumeChips = suspended.displayedChipsSnapshot
-    resumeOptions = suspended.displayedOptionsSnapshot
-    resumeMode = "question"
-    resumeLastAction = "continue_narrowing"
-    resumeLastAskedField = suspended.pendingField ?? undefined
+      // Restore the suspended flow's options and chips
+      resumeChips = suspended.displayedChipsSnapshot
+      resumeOptions = suspended.displayedOptionsSnapshot
+      resumeMode = "question"
+      resumeLastAction = "continue_narrowing"
+      resumeLastAskedField = suspended.pendingField ?? undefined
 
-    console.log(
-      `[side-question:resume] Restored flow for field="${suspended.pendingField}", options=${suspended.displayedOptionsSnapshot.length}, chips=${suspended.displayedChipsSnapshot.length}`
-    )
+      console.log(
+        `[side-question:resume] Restored flow for field="${suspended.pendingField}", options=${suspended.displayedOptionsSnapshot.length}, chips=${suspended.displayedChipsSnapshot.length}`
+      )
+    }
   }
 
   const sessionState = carryForwardState(prevState, {
