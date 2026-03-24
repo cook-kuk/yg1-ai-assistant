@@ -285,12 +285,12 @@ export default function AssistantNewPage() {
                         const [, region, topDealer] = match;
                         return (
                           <div>
-                            <div className="text-sm"><Markdown>{cleanText}</Markdown></div>
+                            <div className="text-sm"><Markdown stripDoubleTilde disableStrikethrough>{cleanText}</Markdown></div>
                             <DealerPopupTriggerButton region={region} topDealer={topDealer} />
                           </div>
                         );
                       }
-                      return <div className="text-sm"><Markdown>{msg.text}</Markdown></div>;
+                      return <div className="text-sm"><Markdown stripDoubleTilde disableStrikethrough>{msg.text}</Markdown></div>;
                     })()
                   ) : (
                     <p className="text-sm whitespace-pre-wrap">{msg.text}</p>

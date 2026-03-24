@@ -268,6 +268,11 @@ export interface ServeEngineRuntimeDependencies {
     currentInput: RecommendationInput,
     prevState: ExplorationSessionState | null
   ) => Promise<QuestionReply>
+  handleDirectProductInfoQuestion?: (
+    userMessage: string,
+    currentInput: RecommendationInput,
+    prevState: ExplorationSessionState | null
+  ) => Promise<QuestionReply>
   handleDirectBrandReferenceQuestion: (
     userMessage: string,
     currentInput: RecommendationInput,
