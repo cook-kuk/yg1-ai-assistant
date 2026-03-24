@@ -634,10 +634,10 @@ export async function handleServeExploration(
           }
         }
 
-        const preGenerated = action.type === "answer_general" && action.preGenerated && action.message
+        const preGenerated = action.type === "answer_general" && (action as any).preGenerated && (action as any).message
         let llmResponse: { text: string; chips: string[] }
         if (preGenerated) {
-          llmResponse = { text: action.message, chips: [] }
+          llmResponse = { text: (action as any).message, chips: [] }
         } else {
           llmResponse = await deps.handleGeneralChat(provider, lastUserMsg.text, currentInput, candidates, form, prevState.displayedCandidates)
         }

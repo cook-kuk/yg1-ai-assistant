@@ -64,9 +64,9 @@ export interface RecentInteractionFrame {
 // ── Patterns ─────────────────────────────────────────────────
 const CONFUSION_PATTERNS = [/뭔지.*몰라/, /몰라/, /모르겠/, /뭐야/, /뭐지/, /이해.*안/, /어려워/, /헷갈/, /뭐하는/]
 const CHALLENGE_PATTERNS = [/없어\s*[?？]*/, /없나\s*[?？]*/, /없는거/, /안.*나와/, /왜.*없/, /0개/, /빠졌/, /못.*찾/]
-const REVISE_PATTERNS = [/바꿔/, /변경/, /고치/, /다시.*고르/, /다시.*선택/, /이전으로/, /되돌/]
+const REVISE_PATTERNS = [/바꿔/, /바꾸/, /변경/, /고치/, /고쳐/, /다시.*고르/, /다시.*선택/, /이전으로/, /되돌/, /취소/, /수정/]
 const COMPARE_PATTERNS = [/비교/, /차이/, /vs/, /어떤.*게.*나/, /뭐가.*다/]
-const DETAIL_PATTERNS = [/절삭조건/, /가공조건/, /재고/, /납기/, /스펙/, /상세/, /자세히/]
+const DETAIL_PATTERNS = [/절삭조건/, /가공조건/, /재고/, /납기/, /스펙/, /상세/, /자세히/, /몇\s*개/, /갯수/, /분포/, /얼마/]
 const META_PATTERNS = [/칩.*만들/, /옵션.*만들/, /보기.*줘/, /선택지/, /기반으로/, /왜.*그래/, /어떻게.*된/]
 const RESTART_PATTERNS = [/처음부터/, /리셋/, /다시.*시작/]
 const RESULT_REACTION_PATTERNS = [/이.*제품/, /이거/, /추천.*제품/, /1번/, /2번/, /3번/, /대체/, /다른.*제품/]
