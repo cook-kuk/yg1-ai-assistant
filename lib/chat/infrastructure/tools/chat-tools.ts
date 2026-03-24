@@ -9,6 +9,7 @@ import {
   ProductRepo,
 } from "@/lib/chat/infrastructure/repositories/chat-repositories"
 import type { AppliedFilter, CanonicalProduct, RecommendationInput } from "@/lib/chat/domain/types"
+import { resolveYG1Query, buildNotFoundResponse } from "@/lib/knowledge/knowledge-router"
 
 export const CHAT_TOOLS: Anthropic.Tool[] = [
   {
@@ -135,6 +136,21 @@ export const CHAT_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "query_yg1_knowledge",
+    description:
+      "YG-1 회사 정보를 조회합니다. 3단계 지식 시스템: 1) 내부 KB (빠른 응답) 2) 웹 검색 필요 시 안내 3) 없음 처리. 공장/사업장 위치·전화번호, 매출·재무·주주, 경쟁사·시장, 설립·연혁, 직원, CEO, 순위 등 회사 관련 질문에 사용.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        query: {
+          type: "string",
+          description: "YG-1 회사 관련 질문. 예: '익산공장 어디야?', '매출 얼마?', '2대주주 누구?'",
+        },
+      },
+      required: ["query"],
+    },
+  },
+  {
     name: "web_search",
     description:
       "웹 검색을 수행합니다. 내부 DB에서 제품/절삭조건을 찾지 못했을 때 카탈로그나 기술 자료를 검색하거나, 절삭공구 관련 일반 전문지식 질문에 답하기 위해 사용합니다. 검색 결과는 내부 DB 데이터가 아님을 반드시 명시해야 합니다.",
@@ -162,6 +178,36 @@ interface ChatToolRuntimeDeps {
   anthropicChatModel: string
   client: Anthropic | null
   route: string
+}
+
+function executeQueryYG1Knowledge(params: { query: string }): string {
+  const result = resolveYG1Query(params.query)
+
+  if (result.source === "internal_kb") {
+    return JSON.stringify({
+      found: true,
+      source: "internal_kb",
+      answer: result.answer,
+      badge: "✓ YG-1 공식 정보",
+    })
+  }
+
+  if (result.needsWebSearch) {
+    return JSON.stringify({
+      found: false,
+      source: "needs_web_search",
+      message: `내부 KB에 "${params.query}" 관련 정보가 없습니다. web_search 도구로 "YG-1 ${params.query}"를 검색해보세요.`,
+      suggestedQuery: `YG-1 와이지원 ${params.query}`,
+    })
+  }
+
+  const notFound = buildNotFoundResponse(params.query)
+  return JSON.stringify({
+    found: false,
+    source: "not_found",
+    answer: notFound.answer,
+    badge: "ℹ 정보 없음",
+  })
 }
 
 async function executeWebSearch(
@@ -722,6 +768,10 @@ export async function executeChatTool(
       case "get_competitor_mapping":
         return await executeGetCompetitorMapping(
           toolInput as Parameters<typeof executeGetCompetitorMapping>[0]
+        )
+      case "query_yg1_knowledge":
+        return executeQueryYG1Knowledge(
+          toolInput as Parameters<typeof executeQueryYG1Knowledge>[0]
         )
       case "web_search":
         return await executeWebSearch(

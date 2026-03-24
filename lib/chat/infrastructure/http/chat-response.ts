@@ -60,6 +60,85 @@ export function injectBrandHeader(responseText: string, brandProducts: BrandProd
   return `${header}\n\n${responseText}`
 }
 
+// ── Reference Source 결정 (deterministic) ─────────────────────
+export type ReferenceSource =
+  | "internal_db"
+  | "internal_kb"
+  | "web_search"
+  | "ai_knowledge"
+  | "mixed"
+
+const REFERENCE_LABELS: Record<ReferenceSource, string> = {
+  internal_db: "📋 Reference: YG-1 내부 DB",
+  internal_kb: "📋 Reference: YG-1 공식 정보",
+  web_search: "📋 Reference: 웹 검색 (외부 소스 — 카탈로그 확인 필요)",
+  ai_knowledge: "📋 Reference: AI 일반 지식 (카탈로그 확인 필요)",
+  mixed: "📋 Reference: YG-1 내부 DB + 웹 검색",
+}
+
+/**
+ * 사용된 tool과 결과를 분석하여 정확한 reference source를 결정.
+ * 프롬프트에 의존하지 않는 결정적(deterministic) 로직.
+ */
+export function determineReferenceSource(
+  toolsUsed: string[],
+  toolResults: ToolResultRecord[],
+  kbPrefetchUsed?: boolean
+): ReferenceSource | null {
+  if (kbPrefetchUsed && toolsUsed.length === 0) return "internal_kb"
+  if (toolsUsed.length === 0) return "ai_knowledge"
+
+  const hasInternalDB = toolsUsed.some(t =>
+    ["search_products", "search_product_by_edp", "get_product_detail",
+     "get_cutting_conditions", "get_competitor_mapping"].includes(t)
+  )
+  const hasWebSearch = toolsUsed.includes("web_search")
+  const hasKB = toolsUsed.includes("query_yg1_knowledge")
+
+  // KB 결과에서 internal_kb인지 확인
+  let kbWasInternal = false
+  for (const tr of toolResults) {
+    if (tr.name === "query_yg1_knowledge") {
+      try {
+        const data = JSON.parse(tr.result)
+        if (data.source === "internal_kb") kbWasInternal = true
+      } catch { /* ignore */ }
+    }
+  }
+
+  // 조합 판단
+  if (hasInternalDB && hasWebSearch) return "mixed"
+  if (hasInternalDB) return "internal_db"
+  if (kbWasInternal) return "internal_kb"
+  if (hasKB && hasWebSearch) return "mixed"
+  if (hasWebSearch) return "web_search"
+  if (hasKB) return "internal_kb"
+
+  return "ai_knowledge"
+}
+
+/**
+ * LLM 응답 텍스트에서 기존 (부정확할 수 있는) Reference 라인을 제거하고
+ * 정확한 Reference를 강제 주입.
+ */
+export function injectReferenceBadge(
+  responseText: string,
+  toolsUsed: string[],
+  toolResults: ToolResultRecord[],
+  kbPrefetchUsed?: boolean
+): string {
+  const source = determineReferenceSource(toolsUsed, toolResults, kbPrefetchUsed)
+  if (!source) return responseText
+
+  // 기존 Reference 라인 제거 (LLM이 임의로 붙인 것)
+  const cleaned = responseText
+    .replace(/\n*📋\s*Reference:?\s*[^\n]*/gi, "")
+    .replace(/\n*\[Reference:?\s*[^\]]*\]/gi, "")
+    .trimEnd()
+
+  return `${cleaned}\n\n${REFERENCE_LABELS[source]}`
+}
+
 export function extractReferences(toolResults: ToolResultRecord[]): string[] | null {
   const refs = new Set<string>()
 

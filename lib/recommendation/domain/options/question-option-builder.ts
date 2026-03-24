@@ -10,6 +10,16 @@
 import type { PendingQuestion, QuestionShape } from "../context/pending-question-detector"
 import type { SmartOption, SmartOptionFamily } from "./types"
 
+/** 마지막 글자에 받침(종성)이 있는지 판단 — 한국어 조사 선택용 */
+function hasKoreanBatchim(text: string): boolean {
+  const trimmed = text.replace(/[)\]\s]+$/, "").trim()
+  if (trimmed.length === 0) return false
+  const lastChar = trimmed.charCodeAt(trimmed.length - 1)
+  // 한글 범위: 0xAC00 ~ 0xD7A3
+  if (lastChar < 0xAC00 || lastChar > 0xD7A3) return false // 영어/숫자 등 → 받침 없다고 간주 ("란?")
+  return (lastChar - 0xAC00) % 28 !== 0
+}
+
 let questionOptionCounter = 0
 function nextQuestionOptionId(shape: string): string {
   return `q_${shape}_${++questionOptionCounter}`
@@ -435,13 +445,19 @@ export function buildConfusionHelperOptions(
     },
   })
 
-  // Per-option explanation chips (e.g. "Diamond가 뭐야?")
+  // Per-option explanation chips (e.g. "Square란?")
   if (question?.extractedOptions) {
+    const EXCLUDED_FROM_EXPLAIN = new Set([
+      "undo", "skip", "reset", "explain", "delegate", "proceed", "continue",
+      "상관없음", "건너뛰기", "이전", "취소", "쉽게 설명해줘", "추천으로 골라줘",
+    ])
     for (const opt of question.extractedOptions.slice(0, 3)) {
+      if (EXCLUDED_FROM_EXPLAIN.has(opt.toLowerCase())) continue
+      if (opt.length > 20) continue // 내부 텍스트/디버그 문자열 필터
       options.push({
         id: nextQuestionOptionId(`explain_${opt}`),
         family: "explore",
-        label: `${opt}(이)가 뭐야?`,
+        label: `${opt}${hasKoreanBatchim(opt) ? "이" : ""}란?`,
         subtitle: `${opt} 설명`,
         value: opt,
         field: question.field ?? undefined,

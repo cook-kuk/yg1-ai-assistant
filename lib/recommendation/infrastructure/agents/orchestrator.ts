@@ -39,6 +39,7 @@ import type {
 
 import { classifyIntent } from "./intent-classifier"
 import { extractParameters } from "./parameter-extractor"
+import { performUnifiedJudgment } from "@/lib/recommendation/domain/context/unified-haiku-judgment"
 import { needsOpusResolution, resolveAmbiguity } from "./ambiguity-resolver"
 import { resolveProductReferences } from "./comparison-agent"
 import { parseAnswerToFilter } from "@/lib/recommendation/domain/question-engine"
@@ -55,12 +56,26 @@ export async function orchestrateTurn(
   const agents: OrchestratorResult["agentsInvoked"] = []
   const startMs = Date.now()
 
-  // ═══ Step 1: Intent Classification (Haiku) ═══
+  // ═══ Step 1: Unified Haiku Judgment → Intent (기존 classifyIntent regex 대체) ═══
   const intentStart = Date.now()
-  const intentResult = await classifyIntent(ctx.userMessage, ctx.sessionState, provider)
-  agents.push({ agent: "intent-classifier", model: "haiku", durationMs: Date.now() - intentStart })
+  const judgment = await performUnifiedJudgment({
+    userMessage: ctx.userMessage,
+    assistantText: null,
+    pendingField: ctx.sessionState?.lastAskedField ?? null,
+    currentMode: ctx.sessionState?.currentMode ?? null,
+    displayedChips: ctx.sessionState?.displayedChips ?? [],
+    filterCount: ctx.sessionState?.appliedFilters?.length ?? 0,
+    candidateCount: ctx.sessionState?.candidateCount ?? 0,
+    hasRecommendation: ctx.sessionState?.resolutionStatus?.startsWith("resolved") ?? false,
+  }, provider)
 
-  console.log(`[orchestrator] Intent: ${intentResult.intent} (${intentResult.confidence.toFixed(2)}) model=${intentResult.modelUsed}${intentResult.extractedValue ? ` value="${intentResult.extractedValue}"` : ""}`)
+  // 통합 판단 → NarrowingIntent 매핑
+  const intentResult: IntentClassification = judgment.fromLLM
+    ? mapJudgmentToIntent(judgment, ctx)
+    : await classifyIntent(ctx.userMessage, ctx.sessionState, provider)
+  agents.push({ agent: judgment.fromLLM ? "unified-judgment" : "intent-classifier", model: "haiku", durationMs: Date.now() - intentStart })
+
+  console.log(`[orchestrator] Intent: ${intentResult.intent} (${intentResult.confidence.toFixed(2)}) via=${judgment.fromLLM ? "unified" : "legacy"}${intentResult.extractedValue ? ` value="${intentResult.extractedValue}"` : ""}`)
 
   // ═══ Step 2: Ambiguity Check → Opus Escalation ═══
   let finalIntent = intentResult.intent
@@ -123,6 +138,52 @@ export async function orchestrateTurn(
   console.log(`[orchestrator] ═══════════════════`)
 
   return result
+}
+
+// ════════════════════════════════════════════════════════════════
+// UNIFIED JUDGMENT → INTENT MAPPING
+// ════════════════════════════════════════════════════════════════
+
+function mapJudgmentToIntent(
+  judgment: Awaited<ReturnType<typeof performUnifiedJudgment>>,
+  ctx: TurnContext
+): IntentClassification {
+  const actionMap: Record<string, NarrowingIntent> = {
+    select_option: "SELECT_OPTION",
+    ask_recommendation: "ASK_RECOMMENDATION",
+    compare: "ASK_COMPARISON",
+    explain: "ASK_EXPLANATION",
+    reset_session: "RESET_SESSION",
+    refine_condition: "REFINE_CONDITION",
+    skip_field: "SELECT_OPTION", // skip은 SELECT_OPTION + skip value로 처리
+    undo: "GO_BACK_ONE_STEP",
+    off_topic: "OUT_OF_SCOPE",
+    continue: "SELECT_OPTION",
+  }
+
+  const intent = actionMap[judgment.intentAction] ?? "START_NEW_TOPIC"
+
+  // company_query/greeting → START_NEW_TOPIC (answer_general로 라우팅)
+  if (judgment.domainRelevance === "company_query" || judgment.domainRelevance === "greeting") {
+    return { intent: "START_NEW_TOPIC", confidence: judgment.confidence, extractedValue: ctx.userMessage, modelUsed: "haiku" }
+  }
+
+  // off_topic → OUT_OF_SCOPE
+  if (judgment.domainRelevance === "off_topic") {
+    return { intent: "OUT_OF_SCOPE", confidence: judgment.confidence, modelUsed: "haiku" }
+  }
+
+  // skip_field → extractedValue에 "skip" 세팅
+  if (judgment.intentAction === "skip_field") {
+    return { intent: "SELECT_OPTION", confidence: judgment.confidence, extractedValue: "skip", modelUsed: "haiku" }
+  }
+
+  return {
+    intent,
+    confidence: judgment.confidence,
+    extractedValue: judgment.extractedAnswer ?? undefined,
+    modelUsed: "haiku",
+  }
 }
 
 // ════════════════════════════════════════════════════════════════
