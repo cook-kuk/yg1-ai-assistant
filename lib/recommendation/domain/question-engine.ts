@@ -8,6 +8,7 @@
  */
 
 import { buildProductLabel } from "@/lib/recommendation/domain/product-label"
+import { OPERATION_SHAPE_OPTIONS } from "@/lib/types/intake"
 
 import type {
   AppliedFilter,
@@ -203,7 +204,7 @@ function analyzeFields(
       results.push({
         field: "cuttingType",
         questionText: "어떤 종류의 가공을 하실 예정인가요?",
-        chips: ["슬롯가공", "측면가공", "프로파일", "황삭", "상관없음"],
+        chips: [...OPERATION_SHAPE_OPTIONS.map(option => option.value), "상관없음"],
         infoGain: 0.4,
       })
     }
@@ -312,21 +313,11 @@ export function parseAnswerToFilter(
       break
     }
     case "cuttingType": {
-      const typeMap: Record<string, string> = {
-        "슬롯가공": "Slotting",
-        "슬롯": "Slotting",
-        "측면가공": "Side Cutting",
-        "측면": "Side Cutting",
-        "프로파일": "Profiling",
-        "황삭": "Roughing",
-        "정삭": "Finishing",
-      }
-      const mapped = typeMap[clean] || clean
       return {
         field: "cuttingType",
         op: "eq",
         value: clean,
-        rawValue: mapped,
+        rawValue: clean,
         appliedAt: 0,
       }
     }

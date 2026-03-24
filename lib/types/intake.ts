@@ -125,6 +125,27 @@ export interface IntakeFieldConfig {
   multiSelect?: boolean   // true = allow multiple option selection (comma-separated value)
 }
 
+export const OPERATION_SHAPE_OPTIONS: IntakeOption[] = [
+  { value: "Side_Milling", label: "Side_Milling" },
+  { value: "Facing", label: "Facing" },
+  { value: "Profiling", label: "Profiling" },
+  { value: "Die-Sinking", label: "Die-Sinking" },
+  { value: "Helical_Interpolation", label: "Helical_Interpolation" },
+  { value: "Chamfering", label: "Chamfering" },
+  { value: "Corner_Radius", label: "Corner_Radius" },
+  { value: "Trochoidal", label: "Trochoidal" },
+  { value: "Taper Side Milling", label: "Taper Side Milling" },
+  { value: "Small Part", label: "Small Part" },
+  { value: "Slotting", label: "Slotting" },
+  { value: "Side Milling", label: "Side Milling" },
+  { value: "Helical Interpolation", label: "Helical Interpolation" },
+  { value: "Corner Radius", label: "Corner Radius" },
+  { value: "Taper_Side_Milling", label: "Taper_Side_Milling" },
+  { value: "Small_Part", label: "Small_Part" },
+  { value: "Ramping", label: "Ramping" },
+  { value: "Plunging", label: "Plunging" },
+]
+
 export const FIELD_CONFIGS: IntakeFieldConfig[] = [
   {
     key: "inquiryPurpose",
@@ -163,14 +184,7 @@ export const FIELD_CONFIGS: IntakeFieldConfig[] = [
     emoji: "⚙️",
     description: "어떤 형태의 가공인가요? (복수 선택 가능)",
     multiSelect: true,
-    options: [
-      { value: "측면가공", label: "측면가공 (Side)" },
-      { value: "슬롯", label: "슬롯 (Slot)" },
-      { value: "포켓", label: "포켓 (Pocket)" },
-      { value: "헬리컬", label: "헬리컬 진입" },
-      { value: "정면가공", label: "정면가공 (Face)" },
-      { value: "프로파일", label: "프로파일 / 윤곽" },
-    ],
+    options: OPERATION_SHAPE_OPTIONS,
     unknownLabel: "모름",
   },
   {
