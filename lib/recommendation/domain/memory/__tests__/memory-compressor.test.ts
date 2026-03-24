@@ -219,13 +219,14 @@ describe("memory-compressor: ConversationLog", () => {
           hasRecommendation: false,
           hasComparison: false,
           appliedFilters: [],
+          visibleUIBlocks: ["chips_bar", "question_prompt"],
         }
       )
     }
 
-    // Should have 10 recent rich turns (compressed 5)
-    expect(log.recentRichTurns.length).toBe(10)
-    expect(log.compressedTurns.length).toBe(5)
+    // Should have 12 recent rich turns (compressed 3)
+    expect(log.recentRichTurns.length).toBe(12)
+    expect(log.compressedTurns.length).toBe(3)
     expect(log.totalTurnsRecorded).toBe(15)
   })
 
@@ -237,7 +238,7 @@ describe("memory-compressor: ConversationLog", () => {
       chips: [], displayedOptions: [], mode: "narrowing",
       lastAskedField: "fluteCount", lastAction: "skip_field",
       candidateCount: 100, displayedProductCodes: [],
-      hasRecommendation: false, hasComparison: false, appliedFilters: [],
+      hasRecommendation: false, hasComparison: false, appliedFilters: [], visibleUIBlocks: ["question_prompt"],
     })
 
     // Record 14 more to trigger compression
@@ -246,7 +247,7 @@ describe("memory-compressor: ConversationLog", () => {
         chips: [], displayedOptions: [], mode: "narrowing",
         lastAskedField: null, lastAction: "continue_narrowing",
         candidateCount: 100, displayedProductCodes: [],
-        hasRecommendation: false, hasComparison: false, appliedFilters: [],
+        hasRecommendation: false, hasComparison: false, appliedFilters: [], visibleUIBlocks: ["question_prompt"],
       })
     }
 
@@ -255,5 +256,40 @@ describe("memory-compressor: ConversationLog", () => {
       const first = log.compressedTurns[0]
       expect(first.keySignals).toContain("skip")
     }
+  })
+
+  it("recordTurn keeps process trace and visible UI blocks", () => {
+    let log = createEmptyConversationLog()
+
+    log = recordTurn(
+      log,
+      "Ball 말고 설명해줘",
+      "현재 보이는 옵션 기준으로 설명드리겠습니다.",
+      {
+        chips: ["Ball", "Square"],
+        displayedOptions: [{ label: "Ball", value: "Ball", field: "toolSubtype" }],
+        mode: "question",
+        lastAskedField: "toolSubtype",
+        lastAction: "explain_product",
+        candidateCount: 24,
+        displayedProductCodes: ["CE123"],
+        hasRecommendation: false,
+        hasComparison: false,
+        appliedFilters: [{ field: "coating", value: "DLC", op: "includes" }],
+        visibleUIBlocks: ["question_prompt", "chips_bar", "explanation_block"],
+      },
+      {
+        routeAction: "explain_product",
+        pendingQuestionField: "toolSubtype",
+        recentFrameRelation: "detail_request",
+        optionFamiliesGenerated: ["toolSubtype"],
+        selectedOptionIds: ["toolSubtype:Ball"],
+        validatorRewrites: ["Ball 비교 보기"],
+        memoryTransitions: [{ field: "toolSubtype", from: "pending", to: "explained" }],
+      },
+    )
+
+    expect(log.recentRichTurns[0].processTrace.routeAction).toBe("explain_product")
+    expect(log.recentRichTurns[0].uiSnapshot.visibleUIBlocks).toContain("explanation_block")
   })
 })

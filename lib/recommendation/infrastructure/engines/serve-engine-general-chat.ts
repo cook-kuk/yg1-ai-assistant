@@ -8,7 +8,8 @@ import {
   recordQA,
   recordSkip,
 } from "@/lib/recommendation/domain/memory/conversation-memory"
-import { createEmptyConversationLog, recordTurn, type RichTurnRecord } from "@/lib/recommendation/domain/memory/memory-compressor"
+import { createEmptyConversationLog, recordTurn, type ProcessTrace, type RichTurnRecord } from "@/lib/recommendation/domain/memory/memory-compressor"
+import { buildUnifiedTurnContext } from "@/lib/recommendation/domain/context/turn-context-builder"
 import { validateOptionFirstPipeline } from "@/lib/recommendation/domain/options/option-validator"
 import {
   buildGeneralChatOptionState,
@@ -115,18 +116,63 @@ function buildActionMeta(
   }
 }
 
+function buildProcessTrace(params: {
+  actionType: string
+  pendingQuestionField: string | null
+  recentFrameRelation: string | null
+  displayedOptions: ExplorationSessionState["displayedOptions"]
+  validatorRewrites?: string[]
+  memoryTransitions?: ProcessTrace["memoryTransitions"]
+}): ProcessTrace {
+  const optionFamiliesGenerated = Array.from(
+    new Set((params.displayedOptions ?? []).map(option => option.field ?? "_action"))
+  )
+
+  return {
+    routeAction: params.actionType,
+    pendingQuestionField: params.pendingQuestionField,
+    recentFrameRelation: params.recentFrameRelation,
+    optionFamiliesGenerated,
+    selectedOptionIds: (params.displayedOptions ?? []).map(option => `${option.field}:${option.value}`),
+    validatorRewrites: params.validatorRewrites ?? [],
+    memoryTransitions: params.memoryTransitions ?? [],
+  }
+}
+
+function inferVisibleUiBlocks(sessionState: ExplorationSessionState): string[] {
+  const blocks: string[] = []
+  if (sessionState.displayedOptions?.length) blocks.push("question_prompt")
+  if (sessionState.displayedChips?.length) blocks.push("chips_bar")
+  if (sessionState.lastRecommendationArtifact?.length || sessionState.currentMode === "recommendation") {
+    blocks.push("recommendation_card")
+  }
+  if (sessionState.lastComparisonArtifact || sessionState.currentMode === "comparison") {
+    blocks.push("comparison_table")
+  }
+  if (sessionState.lastAction === "answer_general" || sessionState.lastAction === "explain_product") {
+    blocks.push("explanation_block")
+  }
+  return blocks
+}
+
 function validateAnswerText(
   text: string,
   chips: string[],
   displayedOptions: ExplorationSessionState["displayedOptions"],
-  label: string
+  label: string,
 ) {
   const validation = validateOptionFirstPipeline(text, chips, displayedOptions ?? [])
   if (validation.correctedAnswer) {
     console.log(`[answer-validator:${label}] Softened: ${validation.unauthorizedActions.map(action => action.phrase).join(",")}`)
-    return validation.correctedAnswer
+    return {
+      text: validation.correctedAnswer,
+      validatorRewrites: validation.unauthorizedActions.map(action => action.phrase),
+    }
   }
-  return text
+  return {
+    text,
+    validatorRewrites: [] as string[],
+  }
 }
 
 function buildReplyResponse(
@@ -136,11 +182,13 @@ function buildReplyResponse(
   narrowingHistory: NarrowingTurn[],
   currentInput: RecommendationInput,
   turnCount: number,
+  userMessage: string,
   text: string,
   chips: string[],
   displayedOptions: ExplorationSessionState["displayedOptions"],
   overrides: ReplyOverrides,
   orchResult: OrchestratorResult,
+  processTrace: ProcessTrace,
 ) {
   const sessionState = carryForwardState(prevState, {
     candidateCount: prevState.candidateCount,
@@ -156,6 +204,8 @@ function buildReplyResponse(
     lastAction: overrides.lastAction,
     lastAskedField: overrides.lastAskedField,
   })
+
+  recordTurnToLog(sessionState, userMessage, text, processTrace)
 
   return deps.jsonRecommendationResponse({
     text,
@@ -182,14 +232,16 @@ function buildValidatedReplyResponse(
   narrowingHistory: NarrowingTurn[],
   currentInput: RecommendationInput,
   turnCount: number,
+  userMessage: string,
   reply: { text: string; chips: string[] },
   validationLabel: string,
   overrides: ReplyOverrides,
   orchResult: OrchestratorResult,
+  processTrace: ProcessTrace,
 ) {
   const chips = prevState.displayedChips?.length ? prevState.displayedChips : reply.chips
   const displayedOptions = prevState.displayedOptions ?? []
-  const text = validateAnswerText(reply.text, chips, displayedOptions, validationLabel)
+  const validation = validateAnswerText(reply.text, chips, displayedOptions, validationLabel)
 
   return buildReplyResponse(
     deps,
@@ -198,18 +250,24 @@ function buildValidatedReplyResponse(
     narrowingHistory,
     currentInput,
     turnCount,
-    text,
+    userMessage,
+    validation.text,
     chips,
     displayedOptions,
     overrides,
     orchResult,
+    {
+      ...processTrace,
+      validatorRewrites: validation.validatorRewrites,
+    },
   )
 }
 
 function recordTurnToLog(
   sessionState: ExplorationSessionState | null,
   userMessage: string,
-  assistantText: string
+  assistantText: string,
+  processTrace: ProcessTrace,
 ): void {
   if (!sessionState) return
 
@@ -234,9 +292,10 @@ function recordTurnToLog(
       value: filter.value,
       op: filter.op,
     })),
+    visibleUIBlocks: inferVisibleUiBlocks(sessionState),
   }
 
-  sessionState.conversationLog = recordTurn(log, userMessage, assistantText, uiSnapshot)
+  sessionState.conversationLog = recordTurn(log, userMessage, assistantText, uiSnapshot, processTrace)
 }
 
 export async function handleServeGeneralChatAction(
@@ -269,6 +328,7 @@ export async function handleServeGeneralChatAction(
       narrowingHistory,
       currentInput,
       turnCount,
+      lastUserMessage,
       inventoryReply,
       "inventory",
       {
@@ -277,6 +337,12 @@ export async function handleServeGeneralChatAction(
         lastAction: "answer_general",
       },
       orchResult,
+      buildProcessTrace({
+        actionType: "answer_general",
+        pendingQuestionField: prevState.lastAskedField ?? null,
+        recentFrameRelation: "inventory_reply",
+        displayedOptions: prevState.displayedOptions ?? [],
+      }),
     )
   }
 
@@ -289,6 +355,7 @@ export async function handleServeGeneralChatAction(
       narrowingHistory,
       currentInput,
       turnCount,
+      lastUserMessage,
       brandReferenceReply,
       "brand-reference",
       {
@@ -297,6 +364,12 @@ export async function handleServeGeneralChatAction(
         lastAction: "answer_general",
       },
       orchResult,
+      buildProcessTrace({
+        actionType: "answer_general",
+        pendingQuestionField: prevState.lastAskedField ?? null,
+        recentFrameRelation: "brand_reference",
+        displayedOptions: prevState.displayedOptions ?? [],
+      }),
     )
   }
 
@@ -309,6 +382,7 @@ export async function handleServeGeneralChatAction(
       narrowingHistory,
       currentInput,
       turnCount,
+      lastUserMessage,
       cuttingConditionReply,
       "cutting-condition",
       {
@@ -317,6 +391,12 @@ export async function handleServeGeneralChatAction(
         lastAction: "answer_general",
       },
       orchResult,
+      buildProcessTrace({
+        actionType: "answer_general",
+        pendingQuestionField: prevState.lastAskedField ?? null,
+        recentFrameRelation: "cutting_conditions",
+        displayedOptions: prevState.displayedOptions ?? [],
+      }),
     )
   }
 
@@ -342,6 +422,7 @@ export async function handleServeGeneralChatAction(
           narrowingHistory,
           currentInput,
           turnCount,
+          lastUserMessage,
           contextReply,
           chips,
           displayedOptions,
@@ -351,6 +432,12 @@ export async function handleServeGeneralChatAction(
             lastAction: "explain_product",
           },
           orchResult,
+          buildProcessTrace({
+            actionType: "explain_product",
+            pendingQuestionField: prevState.lastAskedField ?? null,
+            recentFrameRelation: "followup_on_result",
+            displayedOptions,
+          }),
         )
       }
 
@@ -374,6 +461,7 @@ export async function handleServeGeneralChatAction(
           narrowingHistory,
           currentInput,
           turnCount,
+          lastUserMessage,
           contextReply,
           assist.chips,
           assist.displayedOptions,
@@ -384,6 +472,15 @@ export async function handleServeGeneralChatAction(
             lastAskedField: prevState.lastAskedField,
           },
           orchResult,
+          buildProcessTrace({
+            actionType: "explain_product",
+            pendingQuestionField: prevState.lastAskedField ?? null,
+            recentFrameRelation: "question_assist",
+            displayedOptions: assist.displayedOptions,
+            memoryTransitions: prevState.lastAskedField
+              ? [{ field: prevState.lastAskedField, from: "pending", to: "explained" }]
+              : [],
+          }),
         )
       }
     }
@@ -444,8 +541,9 @@ export async function handleServeGeneralChatAction(
     }
   }
 
+  const validation = validateAnswerText(llmResponse.text, finalChips, finalDisplayedOptions, "general")
   llmResponse = {
-    text: validateAnswerText(llmResponse.text, finalChips, finalDisplayedOptions, "general"),
+    text: validation.text,
     chips: llmResponse.chips,
   }
 
@@ -471,8 +569,37 @@ export async function handleServeGeneralChatAction(
     lastAskedField: isQuestionAssist ? prevState.lastAskedField : undefined,
     conversationMemory: persistedMemory ?? prevState.conversationMemory,
   })
-
-  recordTurnToLog(sessionState, lastUserMessage, llmResponse.text)
+  const postTurnContext = buildUnifiedTurnContext({
+    latestAssistantText: llmResponse.text,
+    latestUserMessage: lastUserMessage,
+    messages: [...messages, { role: "ai", text: llmResponse.text }],
+    sessionState,
+    resolvedInput: currentInput,
+    intakeForm: form,
+    candidates: sessionState.displayedCandidates ?? [],
+  })
+  const processTrace = buildProcessTrace({
+    actionType: isQuestionAssist ? "explain_product" : "answer_general",
+    pendingQuestionField: sessionState.lastAskedField ?? null,
+    recentFrameRelation: postTurnContext.relationToLatestQuestion,
+    displayedOptions: finalDisplayedOptions,
+    validatorRewrites: validation.validatorRewrites,
+    memoryTransitions: [
+      ...(userStateResult.state === "confused" && prevState.lastAskedField
+        ? [{ field: prevState.lastAskedField, from: "pending", to: "confused" }]
+        : []),
+      ...(userStateResult.state === "wants_delegation" && prevState.lastAskedField
+        ? [{ field: prevState.lastAskedField, from: "pending", to: "delegated" }]
+        : []),
+      ...(userStateResult.state === "wants_skip" && prevState.lastAskedField
+        ? [{ field: prevState.lastAskedField, from: "pending", to: "skipped" }]
+        : []),
+    ],
+  })
+  recordTurnToLog(sessionState, lastUserMessage, llmResponse.text, {
+    ...processTrace,
+    recentFrameRelation: postTurnContext.relationToLatestQuestion,
+  })
 
   return deps.jsonRecommendationResponse({
     text: llmResponse.text,

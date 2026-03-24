@@ -16,6 +16,7 @@ import type {
   ScoredProduct,
 } from "@/lib/recommendation/domain/types"
 import type { ContextInterpretation } from "../context/context-types"
+import type { UnifiedTurnContext } from "../context/turn-context-builder"
 import type { ConversationMemory } from "../memory/conversation-memory"
 import { interpretContext } from "../context/context-interpreter"
 import { buildMemoryFromSession } from "../memory/conversation-memory"
@@ -162,7 +163,8 @@ export function buildContextAwarePlannerContext(
   userMessage: string | null,
   candidates: ScoredProduct[],
   filters: AppliedFilter[],
-  lastAskedField?: string
+  lastAskedField?: string,
+  unifiedTurnContext?: UnifiedTurnContext,
 ): {
   plannerCtx: OptionPlannerContext
   interpretation: ContextInterpretation
@@ -206,10 +208,10 @@ export function buildContextAwarePlannerContext(
     appliedFilters: filters,
     resolvedInput: resolvedInput as unknown as Record<string, unknown>,
     lastAskedField,
-    lastAction: sessionState?.lastAction,
-    userMessage: userMessage ?? undefined,
+    lastAction: unifiedTurnContext?.latestProcessTrace?.routeAction ?? sessionState?.lastAction,
+    userMessage: unifiedTurnContext?.latestUserMessage ?? userMessage ?? undefined,
     candidateFieldValues: extractCandidateFieldValues(candidates),
-    topCandidates: sessionState?.displayedCandidates?.slice(0, 5).map(c => ({
+    topCandidates: (unifiedTurnContext?.currentCandidates ?? sessionState?.displayedCandidates ?? []).slice(0, 5).map(c => ({
       displayCode: c.displayCode,
       seriesName: c.seriesName,
       coating: c.coating,
@@ -219,8 +221,8 @@ export function buildContextAwarePlannerContext(
       matchStatus: c.matchStatus,
     })),
     contextInterpretation: interpretation,
-    conversationMemory: memory,
-    displayedProducts: sessionState?.displayedCandidates?.slice(0, 5).map(c => ({
+    conversationMemory: unifiedTurnContext?.conversationMemory ?? memory,
+    displayedProducts: (unifiedTurnContext?.currentCandidates ?? sessionState?.displayedCandidates ?? []).slice(0, 5).map(c => ({
       displayCode: c.displayCode,
       seriesName: c.seriesName,
       coating: c.coating,
@@ -228,9 +230,11 @@ export function buildContextAwarePlannerContext(
       stockStatus: c.stockStatus ?? undefined,
     })),
     visibleArtifacts: {
-      hasRecommendation: !!sessionState?.lastRecommendationArtifact,
-      hasComparison: !!sessionState?.lastComparisonArtifact,
-      hasCuttingConditions: false, // TODO: detect from session
+      hasRecommendation: unifiedTurnContext?.uiArtifacts.some(artifact => artifact.kind === "recommendation_card")
+        ?? !!sessionState?.lastRecommendationArtifact,
+      hasComparison: unifiedTurnContext?.uiArtifacts.some(artifact => artifact.kind === "comparison_table")
+        ?? !!sessionState?.lastComparisonArtifact,
+      hasCuttingConditions: unifiedTurnContext?.uiArtifacts.some(artifact => artifact.kind === "cutting_conditions") ?? false,
     },
   }
 

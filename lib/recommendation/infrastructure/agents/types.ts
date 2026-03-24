@@ -16,6 +16,7 @@ import type {
   RecommendationInput,
   ScoredProduct,
 } from "@/lib/recommendation/domain/types"
+import type { UnifiedTurnContext } from "@/lib/recommendation/domain/context/turn-context-builder"
 
 // ── Narrowing Intent (state-machine commands) ────────────────
 export type NarrowingIntent =
@@ -98,6 +99,7 @@ export interface TurnContext {
   candidateCount: number
   displayedProducts: CandidateSnapshot[] | null
   currentCandidates: ScoredProduct[]
+  unifiedTurnContext?: UnifiedTurnContext
 }
 
 // ── Response Composition Result ──────────────────────────────

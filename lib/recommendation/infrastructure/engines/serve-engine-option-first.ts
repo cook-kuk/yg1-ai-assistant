@@ -23,10 +23,11 @@ import {
 } from "@/lib/recommendation/domain/options/option-bridge"
 import { buildQuestionAlignedOptions, buildConfusionHelperOptions } from "@/lib/recommendation/domain/options/question-option-builder"
 import { detectUserState } from "@/lib/recommendation/domain/context/user-understanding-detector"
-import { buildChipContext } from "@/lib/recommendation/domain/context/chip-context-builder"
+import { buildChipContext, buildChipContextFromUnifiedTurnContext } from "@/lib/recommendation/domain/context/chip-context-builder"
 import { rerankChipsWithLLM } from "@/lib/recommendation/domain/options/llm-chip-reranker"
 import { buildRecentInteractionFrame } from "@/lib/recommendation/domain/context/recent-interaction-frame"
 import { inferLikelyReferencedBlock } from "@/lib/recommendation/domain/context/ui-context-extractor"
+import { buildUnifiedTurnContext } from "@/lib/recommendation/domain/context/turn-context-builder"
 
 export interface GeneralChatOptionState {
   finalChips: string[]
@@ -87,6 +88,15 @@ export async function buildGeneralChatOptionState(input: {
   } = input
 
   const userStateResult = detectUserState(userMessage, prevState.lastAskedField)
+  const unifiedTurnContext = buildUnifiedTurnContext({
+    latestAssistantText: assistantText,
+    latestUserMessage: userMessage,
+    messages: recentMessages,
+    sessionState: prevState,
+    resolvedInput: currentInput,
+    intakeForm: form,
+    candidates: (prevState.displayedCandidates?.length ? prevState.displayedCandidates : []).slice(0, 20),
+  })
 
   const { plannerCtx, interpretation } = buildContextAwarePlannerContext(
     form,
@@ -95,7 +105,8 @@ export async function buildGeneralChatOptionState(input: {
     userMessage,
     candidates,
     filters,
-    prevState.lastAskedField ?? undefined
+    prevState.lastAskedField ?? undefined,
+    unifiedTurnContext,
   )
   const generalSmartOptions = generateSmartOptions({
     plannerCtx,
@@ -119,15 +130,11 @@ export async function buildGeneralChatOptionState(input: {
   let finalDisplayedOptions: DisplayedOption[]
 
   if (generalSmartOptions.length > 0) {
-    const chipContext = buildChipContext(
-      prevState,
-      currentInput,
-      userMessage,
-      assistantText,
+    const chipContext = buildChipContextFromUnifiedTurnContext(
+      unifiedTurnContext,
       null,
       userStateResult.state,
       userStateResult.confusedAbout,
-      recentMessages.map(message => ({ role: message.role, text: message.text }))
     )
     const reranked = await rerankChipsWithLLM(generalSmartOptions, chipContext, provider)
     finalChips = smartOptionsToChips(reranked.options)
@@ -254,7 +261,26 @@ export async function buildQuestionResponseOptionState(params: {
     userStateResult.confusedAbout,
     messages.map(message => ({ role: message.role, text: message.text }))
   )
-  const reranked = await rerankChipsWithLLM(mergedOptions, chipContext, provider)
+  const unifiedTurnContext = buildUnifiedTurnContext({
+    latestAssistantText: responseText,
+    latestUserMessage: userMessage,
+    messages,
+    sessionState,
+    resolvedInput: input,
+    intakeForm: {} as ProductIntakeForm,
+    candidates: sessionState.displayedCandidates ?? [],
+  })
+  const unifiedChipContext = buildChipContextFromUnifiedTurnContext(
+    unifiedTurnContext,
+    statePendingQuestion,
+    userStateResult.state,
+    userStateResult.confusedAbout,
+  )
+  const reranked = await rerankChipsWithLLM(
+    mergedOptions,
+    unifiedChipContext.recentTurnsSummary.length > 0 ? unifiedChipContext : chipContext,
+    provider,
+  )
 
   const finalChips = smartOptionsToChips(reranked.options)
   const finalDisplayedOptions = smartOptionsToDisplayedOptions(reranked.options)

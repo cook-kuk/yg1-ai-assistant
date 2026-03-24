@@ -15,7 +15,7 @@
 import { describe, it, expect } from "vitest"
 import { buildUnifiedTurnContext, type UnifiedTurnContext } from "../turn-context-builder"
 import { extractUIArtifacts, summarizeUIArtifacts } from "../ui-context-extractor"
-import { compressOlderTurns, type ConversationTurn } from "../../memory/memory-compressor"
+import { compressOlderTurns, createEmptyConversationLog, recordTurn, type ConversationTurn } from "../../memory/memory-compressor"
 import { checkAnswerChipDivergence, fixChipDivergence } from "../../options/divergence-guard"
 import { createEmptyMemory, type ConversationMemory } from "../../memory/conversation-memory"
 import { isExplicitResetIntent } from "@/lib/recommendation/infrastructure/agents/intent-classifier"
@@ -126,6 +126,51 @@ describe("Unified TurnContext", () => {
     expect(materialFact).toBeTruthy()
     expect(materialFact!.value).toBe("aluminum")
     expect(materialFact!.status).toBe("resolved")
+  })
+
+  it("prefers conversationLog rich turns and historical UI memory over raw messages alone", () => {
+    const conversationLog = recordTurn(
+      createEmptyConversationLog(),
+      "이전에 Ball 옵션을 보여줬지?",
+      "네, Ball과 Square 옵션을 보여드렸습니다.",
+      {
+        chips: ["Ball", "Square"],
+        displayedOptions: [{ label: "Ball", value: "Ball", field: "toolSubtype" }],
+        mode: "question",
+        lastAskedField: "toolSubtype",
+        lastAction: "explain_product",
+        candidateCount: 18,
+        displayedProductCodes: ["CE123"],
+        hasRecommendation: false,
+        hasComparison: false,
+        appliedFilters: [{ field: "coating", value: "DLC", op: "includes" }],
+        visibleUIBlocks: ["question_prompt", "chips_bar", "explanation_block"],
+      },
+      {
+        routeAction: "explain_product",
+        pendingQuestionField: "toolSubtype",
+        recentFrameRelation: "detail_request",
+        optionFamiliesGenerated: ["toolSubtype"],
+        selectedOptionIds: ["toolSubtype:Ball"],
+        validatorRewrites: [],
+        memoryTransitions: [{ field: "toolSubtype", from: "pending", to: "explained" }],
+      },
+    )
+
+    const ctx = buildUnifiedTurnContext({
+      latestAssistantText: "지금은 raw message만 남아 있습니다.",
+      latestUserMessage: "Ball 쪽 다시 설명해줘",
+      messages: [{ role: "user", text: "Ball 쪽 다시 설명해줘" }],
+      sessionState: makeSession({ conversationLog }),
+      resolvedInput: { material: "aluminum", operationType: "side milling", diameterMm: 4, toolType: "endmill" } as RecommendationInput,
+      intakeForm: makeForm("aluminum"),
+      candidates: makeCandidates(),
+    })
+
+    expect(ctx.recentRichTurns).toHaveLength(1)
+    expect(ctx.recentRichTurns[0].processTrace.routeAction).toBe("explain_product")
+    expect(ctx.historicalUIArtifacts[0].visibleUIBlocks).toContain("explanation_block")
+    expect(ctx.recentTurns.some(turn => turn.text.includes("Ball과 Square"))).toBe(true)
   })
 })
 

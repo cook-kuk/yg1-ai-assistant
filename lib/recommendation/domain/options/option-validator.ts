@@ -14,6 +14,7 @@
  */
 
 import type { DisplayedOption } from "@/lib/recommendation/domain/types"
+import type { UnifiedTurnContext } from "@/lib/recommendation/domain/context/turn-context-builder"
 
 // ── Actionable phrase patterns that indicate a selectable action ──
 const ACTIONABLE_PHRASE_PATTERNS: Array<{ pattern: RegExp; actionType: string }> = [
@@ -88,8 +89,15 @@ export interface OptionValidationResult {
 export function validateOptionFirstPipeline(
   answerText: string,
   chips: string[],
-  displayedOptions: DisplayedOption[]
+  displayedOptions: DisplayedOption[],
+  turnContext?: UnifiedTurnContext | null
 ): OptionValidationResult {
+  const effectiveDisplayedOptions = displayedOptions.length > 0
+    ? displayedOptions
+    : (turnContext?.sessionState?.displayedOptions ?? [])
+  const effectiveChips = chips.length > 0
+    ? chips
+    : (turnContext?.sessionState?.displayedChips ?? [])
   const unauthorizedActions: Array<{ phrase: string; actionType: string }> = []
   let correctedAnswer = answerText
 
@@ -103,7 +111,7 @@ export function validateOptionFirstPipeline(
     // Check if this action has a corresponding displayedOption
     // Use semantic root matching: extract the core action word from the phrase
     const phraseRoot = extractActionRoot(phrase)
-    const hasMatchingOption = displayedOptions.some(o => {
+    const hasMatchingOption = effectiveDisplayedOptions.some(o => {
       const optLabel = o.label.toLowerCase().replace(/\s+/g, "")
       const optValue = o.value.toLowerCase().replace(/\s+/g, "")
 
@@ -116,7 +124,7 @@ export function validateOptionFirstPipeline(
     })
 
     // Also check chips for a match
-    const hasMatchingChip = chips.some(c => {
+    const hasMatchingChip = effectiveChips.some(c => {
       const chipNorm = c.toLowerCase().replace(/\s+/g, "")
       return (
         chipNorm.includes(phraseRoot) ||
@@ -139,19 +147,19 @@ export function validateOptionFirstPipeline(
   // Meta chips that are always allowed (navigation, skip, etc.)
   const META_CHIPS = new Set(["상관없음", "⟵ 이전 단계", "처음부터 다시", "추천해주세요", "⟵ 이전 단계로 돌아가기"])
 
-  for (const chip of chips) {
+  for (const chip of effectiveChips) {
     if (META_CHIPS.has(chip)) {
       validatedChips.push(chip)
       continue
     }
 
     // Check if chip maps to a displayedOption
-    const hasOption = displayedOptions.some(o =>
+    const hasOption = effectiveDisplayedOptions.some(o =>
       o.label === chip || o.value === chip ||
       chip.startsWith(o.value) || o.label.startsWith(chip.replace(/\s*\(\d+개\)\s*$/, ""))
     )
 
-    if (hasOption || displayedOptions.length === 0) {
+    if (hasOption || effectiveDisplayedOptions.length === 0) {
       // If no displayedOptions exist, allow chips (legacy paths)
       validatedChips.push(chip)
     } else {

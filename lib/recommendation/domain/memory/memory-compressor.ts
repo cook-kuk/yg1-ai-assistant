@@ -32,6 +32,22 @@ export interface EpisodeSummary {
   correctionSignals: string[]
 }
 
+export interface ProcessTraceTransition {
+  field: string
+  from: string
+  to: string
+}
+
+export interface ProcessTrace {
+  routeAction: string | null
+  pendingQuestionField: string | null
+  recentFrameRelation: string | null
+  optionFamiliesGenerated: string[]
+  selectedOptionIds: string[]
+  validatorRewrites: string[]
+  memoryTransitions: ProcessTraceTransition[]
+}
+
 // ── Conversation Turn (for compression) ─────────────────────
 export interface ConversationTurn {
   role: "user" | "assistant"
@@ -59,7 +75,9 @@ export interface RichTurnRecord {
     hasRecommendation: boolean
     hasComparison: boolean
     appliedFilters: Array<{ field: string; value: string; op: string }>
+    visibleUIBlocks: string[]
   }
+  processTrace: ProcessTrace
 }
 
 // ── Compressed Turn (reduced size) ──────────────────────────
@@ -73,6 +91,11 @@ export interface CompressedTurnRecord {
   candidateCount: number | null
   filtersApplied: string[] // "field=value" format
   keySignals: string[]   // extracted signals (confusion, selection, skip, etc.)
+  displayedProductCodes: string[]
+  visibleUIBlocks: string[]
+  routeAction: string | null
+  pendingQuestionField: string | null
+  selectedOptionIds: string[]
 }
 
 // ── Compression Configuration ────────────────────────────────
@@ -276,7 +299,7 @@ export function formatEpisodicSummaries(summaries: EpisodeSummary[]): string {
 // ════════════════════════════════════════════════════════════════
 
 /** Configuration */
-const RAW_RICH_TURNS_TO_KEEP = 10  // Keep last 10 turns with full UI snapshots
+const RAW_RICH_TURNS_TO_KEEP = 12  // Keep last 12 turns with full UI snapshots
 const COMPRESSED_TURNS_LIMIT = 50  // Max compressed turns to keep
 const MAX_TEXT_LENGTH_RAW = 2000   // Truncate raw text beyond this
 const MAX_TEXT_LENGTH_COMPRESSED = 100 // Truncate compressed summaries
@@ -312,7 +335,16 @@ export function recordTurn(
   log: ConversationLog,
   userMessage: string,
   assistantText: string,
-  uiSnapshot: RichTurnRecord["uiSnapshot"]
+  uiSnapshot: RichTurnRecord["uiSnapshot"],
+  processTrace: ProcessTrace = {
+    routeAction: null,
+    pendingQuestionField: null,
+    recentFrameRelation: null,
+    optionFamiliesGenerated: [],
+    selectedOptionIds: [],
+    validatorRewrites: [],
+    memoryTransitions: [],
+  }
 ): ConversationLog {
   const updated = { ...log }
   const turnNumber = updated.totalTurnsRecorded + 1
@@ -324,6 +356,7 @@ export function recordTurn(
     userMessage: userMessage.slice(0, MAX_TEXT_LENGTH_RAW),
     assistantText: assistantText.slice(0, MAX_TEXT_LENGTH_RAW),
     uiSnapshot,
+    processTrace,
   }
 
   updated.recentRichTurns = [...updated.recentRichTurns, richTurn]
@@ -378,6 +411,11 @@ function compressRichTurn(rich: RichTurnRecord): CompressedTurnRecord {
     candidateCount: rich.uiSnapshot.candidateCount,
     filtersApplied: rich.uiSnapshot.appliedFilters.map(f => `${f.field}=${f.value}`),
     keySignals,
+    displayedProductCodes: rich.uiSnapshot.displayedProductCodes.slice(0, 10),
+    visibleUIBlocks: rich.uiSnapshot.visibleUIBlocks,
+    routeAction: rich.processTrace.routeAction ?? rich.uiSnapshot.lastAction,
+    pendingQuestionField: rich.processTrace.pendingQuestionField ?? rich.uiSnapshot.lastAskedField,
+    selectedOptionIds: rich.processTrace.selectedOptionIds,
   }
 }
 

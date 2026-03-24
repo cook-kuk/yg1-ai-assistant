@@ -163,6 +163,22 @@ function routeToAction(
 
     case "SELECT_OPTION":
     case "SET_PARAMETER": {
+      const displayedOption = resolveDisplayedOptionSelection(
+        ctx,
+        value,
+        params?.rawValue,
+        ctx.userMessage,
+      )
+      const displayedFilter = displayedOption
+        ? buildFilterFromDisplayedOption(displayedOption, ctx)
+        : null
+      if (displayedFilter) {
+        if (displayedFilter.op === "skip") {
+          return { type: "skip_field" }
+        }
+        return { type: "continue_narrowing", filter: displayedFilter }
+      }
+
       // Try to build a filter from extracted params
       const filter = buildFilterFromParams(params, value, ctx)
       if (filter) {
@@ -206,6 +222,116 @@ function findFilterField(
     }
   }
   return undefined
+}
+
+function normalizeDisplayedOptionText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/\s*\([^)]*\)\s*$/u, "")
+    .replace(/\s*[-—]\s*.+$/u, "")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function parseDisplayedOptionIndex(value: string): number | null {
+  const match = value.trim().match(/^(\d+)\s*번/u)
+  if (!match) return null
+
+  const parsed = Number.parseInt(match[1], 10)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function buildFilterFromDisplayedOption(
+  option: DisplayedOption,
+  ctx: TurnContext
+): AppliedFilter | null {
+  if (option.field === "_action") return null
+
+  const normalizedValue = normalizeDisplayedOptionText(option.value)
+  const normalizedLabel = normalizeDisplayedOptionText(option.label)
+  const isSkipOption = normalizedValue === "skip" || normalizedLabel === "상관없음"
+  if (isSkipOption) {
+    return {
+      field: option.field,
+      op: "skip",
+      value: "상관없음",
+      rawValue: "skip",
+      appliedAt: ctx.sessionState?.turnCount ?? 0,
+    }
+  }
+
+  const filter = parseAnswerToFilter(option.field, option.value)
+  if (!filter) return null
+  filter.appliedAt = ctx.sessionState?.turnCount ?? 0
+  return filter
+}
+
+function resolveDisplayedOptionSelection(
+  ctx: TurnContext,
+  ...values: Array<string | null | undefined>
+): DisplayedOption | null {
+  const state = ctx.unifiedTurnContext?.sessionState ?? ctx.sessionState
+  const displayedOptions = state?.displayedOptions ?? []
+  if (displayedOptions.length === 0) return null
+
+  const pendingField =
+    ctx.unifiedTurnContext?.currentPendingQuestion?.field ??
+    ctx.unifiedTurnContext?.latestProcessTrace?.pendingQuestionField ??
+    state?.lastAskedField ??
+    null
+
+  const prioritizedOptions = pendingField
+    ? [
+        ...displayedOptions.filter(option => option.field === pendingField),
+        ...displayedOptions.filter(option => option.field !== pendingField),
+      ]
+    : displayedOptions
+
+  const seen = new Set<string>()
+  const candidates = values
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .filter(value => {
+      const key = value.trim()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+
+  for (const candidate of candidates) {
+    const optionIndex = parseDisplayedOptionIndex(candidate)
+    if (optionIndex === null) continue
+
+    const indexedOption = prioritizedOptions.find(option => option.index === optionIndex)
+    if (indexedOption) return indexedOption
+  }
+
+  for (const candidate of candidates) {
+    const normalizedCandidate = normalizeDisplayedOptionText(candidate)
+    if (!normalizedCandidate) continue
+
+    const exactMatch = prioritizedOptions.find(option => {
+      const normalizedLabel = normalizeDisplayedOptionText(option.label)
+      const normalizedValue = normalizeDisplayedOptionText(option.value)
+      return normalizedCandidate === normalizedLabel || normalizedCandidate === normalizedValue
+    })
+    if (exactMatch) return exactMatch
+  }
+
+  for (const candidate of candidates) {
+    const normalizedCandidate = normalizeDisplayedOptionText(candidate)
+    if (!normalizedCandidate) continue
+
+    const prefixMatches = prioritizedOptions.filter(option => {
+      const normalizedLabel = normalizeDisplayedOptionText(option.label)
+      const normalizedValue = normalizeDisplayedOptionText(option.value)
+      return normalizedLabel.startsWith(normalizedCandidate) || normalizedValue.startsWith(normalizedCandidate)
+    })
+    if (prefixMatches.length === 1) {
+      return prefixMatches[0]
+    }
+  }
+
+  return null
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -425,6 +551,21 @@ function mapToolUseToAction(
       )
       const value = String(input.value ?? "")
       const displayValue = String(input.display_value ?? value)
+      const displayedOption = resolveDisplayedOptionSelection(
+        ctx,
+        displayValue,
+        value,
+        ctx.userMessage,
+      )
+      const displayedFilter = displayedOption
+        ? buildFilterFromDisplayedOption(displayedOption, ctx)
+        : null
+      if (displayedFilter) {
+        if (displayedFilter.op === "skip") {
+          return { type: "skip_field" }
+        }
+        return { type: "continue_narrowing", filter: displayedFilter }
+      }
 
       // Skip/delegate detection — field-bound to the pending question
       const skipPatterns = ["skip", "상관없음", "모름", "패스", "스킵", "무난한", "아무거나", "알아서", "추천으로", "골라줘"]
