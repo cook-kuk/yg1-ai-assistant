@@ -712,6 +712,8 @@ export function buildQuestionFieldOptions(
     const value = chip.replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
 
     if (!value) continue
+    // 0개 후보인 옵션은 칩에서 제외
+    if (count === 0) continue
 
     options.push({
       id: nextId(),
