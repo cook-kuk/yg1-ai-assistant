@@ -17,6 +17,7 @@ import {
   extractReferences,
   inferIntent,
   injectBrandHeader,
+  injectReferenceBadge,
   type ChatMessage,
   type LLMResponse,
 } from "../infrastructure/http/chat-response"
@@ -196,12 +197,17 @@ export async function runChatConversation(
   const intent = inferIntent(toolsUsed)
   const references = extractReferences(toolResults)
   const brandProducts = extractBrandInfo(toolResults)
-  const finalText =
+
+  // 1) 브랜드 헤더 주입
+  const withBrand =
     intent === "product_recommendation" ||
     intent === "product_lookup" ||
     intent === "cross_reference"
       ? injectBrandHeader(responseText, brandProducts)
       : responseText
+
+  // 2) Reference 강제 주입 (LLM이 붙인 부정확한 것 제거 → 정확한 것 추가)
+  const finalText = injectReferenceBadge(withBrand, toolsUsed, toolResults)
 
   return {
     response: {

@@ -27,6 +27,7 @@ import { buildChipContext, buildChipContextFromUnifiedTurnContext } from "@/lib/
 import { rerankChipsWithLLM } from "@/lib/recommendation/domain/options/llm-chip-reranker"
 import { buildRecentInteractionFrame } from "@/lib/recommendation/domain/context/recent-interaction-frame"
 import { inferLikelyReferencedBlock } from "@/lib/recommendation/domain/context/ui-context-extractor"
+import { selectChipsWithLLM } from "@/lib/recommendation/domain/options/llm-chip-selector"
 import { buildUnifiedTurnContext } from "@/lib/recommendation/domain/context/turn-context-builder"
 
 export interface GeneralChatOptionState {
@@ -130,17 +131,30 @@ export async function buildGeneralChatOptionState(input: {
   let finalDisplayedOptions: DisplayedOption[]
 
   if (generalSmartOptions.length > 0) {
-    const chipContext = buildChipContextFromUnifiedTurnContext(
-      unifiedTurnContext,
-      null,
-      userStateResult.state,
-      userStateResult.confusedAbout,
-    )
-    const reranked = await rerankChipsWithLLM(generalSmartOptions, chipContext, provider)
-    finalChips = smartOptionsToChips(reranked.options)
-    finalDisplayedOptions = smartOptionsToDisplayedOptions(reranked.options)
+    // LLM Chip Selector: Haiku가 전체 맥락 보고 최적 칩 선택
+    const chipSelection = await selectChipsWithLLM(generalSmartOptions, {
+      userMessage,
+      assistantText,
+      mode: prevState.currentMode ?? null,
+      pendingField: prevState.lastAskedField ?? null,
+      candidateCount: candidates.length,
+      appliedFilters: filters.filter(f => f.op !== "skip").map(f => ({ field: f.field, value: f.value })),
+      resolutionStatus: prevState.resolutionStatus ?? null,
+      displayedProducts: (prevState.displayedCandidates ?? []).slice(0, 5).map(c => c.displayCode),
+      userState: userStateResult.state ?? null,
+      confusedAbout: userStateResult.confusedAbout ?? null,
+      intentShift: interpretation.intentShift ?? null,
+      referencedUIBlock: frame.likelyReferencedUIBlock ?? null,
+      frameRelation: frame.relation ?? null,
+      answeredFields: interpretation.answeredFields ?? [],
+      conversationDepth: interpretation.conversationDepth ?? 0,
+      suggestedNextAction: interpretation.suggestedNextAction ?? null,
+      hasConflict: interpretation.hasConflict ?? false,
+    }, provider)
+    finalChips = chipSelection.chips
+    finalDisplayedOptions = chipSelection.displayedOptions
     console.log(
-      `[option-first:general] SmartOptions=${generalSmartOptions.length}, reranked=${reranked.rerankedByLLM}, frame=${frame.relation}, chips=${finalChips.join(",")}`
+      `[option-first:general] SmartOptions=${generalSmartOptions.length}, selectedByLLM=${chipSelection.selectedByLLM}, frame=${frame.relation}, chips=${finalChips.join(",")}`
     )
   } else {
     // Fallback: preserve state chips or provide minimal safe navigation.
