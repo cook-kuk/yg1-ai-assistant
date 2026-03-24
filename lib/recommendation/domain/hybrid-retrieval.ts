@@ -25,6 +25,7 @@ import {
   LeadTimeRepo,
   ProductRepo,
 } from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
+import { ENABLE_POST_SQL_CANDIDATE_FILTERS } from "@/lib/feature-flags"
 import { resolveMaterialTag } from "@/lib/recommendation/domain/material-resolver"
 import { getAppShapesForOperation } from "@/lib/recommendation/domain/operation-resolver"
 
@@ -106,21 +107,22 @@ export async function runHybridRetrieval(
   const appliedFilters: AppliedFilter[] = []
   const totalConsidered = candidates.length
 
-  // Hard filter: diameter ±2mm if specified
-  if (input.diameterMm) {
-    const before = candidates.length
-    const strict = candidates.filter(p =>
-      p.diameterMm !== null && Math.abs(p.diameterMm - input.diameterMm!) <= 2
-    )
-    if (strict.length > 0) {
-      candidates = strict
-      appliedFilters.push({
-        field: "diameterMm",
-        op: "range",
-        value: `${input.diameterMm}mm ±2mm`,
-        rawValue: input.diameterMm,
-        appliedAt: 0,
-      })
+  if (ENABLE_POST_SQL_CANDIDATE_FILTERS) {
+    // Hard filter: diameter ±2mm if specified
+    if (input.diameterMm) {
+      const strict = candidates.filter(p =>
+        p.diameterMm !== null && Math.abs(p.diameterMm - input.diameterMm!) <= 2
+      )
+      if (strict.length > 0) {
+        candidates = strict
+        appliedFilters.push({
+          field: "diameterMm",
+          op: "range",
+          value: `${input.diameterMm}mm ±2mm`,
+          rawValue: input.diameterMm,
+          appliedAt: 0,
+        })
+      }
     }
   }
 
@@ -135,121 +137,126 @@ export async function runHybridRetrieval(
   }
   const materialTag = materialTags.length > 0 ? materialTags[0] : null  // primary tag for backward compat
 
-  // Hard filter: material — only keep products that support at least one requested material
-  if (materialTags.length > 0) {
-    const before = candidates.length
-    const matFiltered = candidates.filter(p =>
-      materialTags.some(tag => p.materialTags.includes(tag))
-    )
-    if (matFiltered.length > 0) {
-      candidates = matFiltered
-      appliedFilters.push({
-        field: "materialTag",
-        op: "in",
-        value: materialTags.join(",") + "군",
-        rawValue: materialTags.join(","),
-        appliedAt: 0,
-      })
+  if (ENABLE_POST_SQL_CANDIDATE_FILTERS) {
+    // Hard filter: material — only keep products that support at least one requested material
+    if (materialTags.length > 0) {
+      const matFiltered = candidates.filter(p =>
+        materialTags.some(tag => p.materialTags.includes(tag))
+      )
+      if (matFiltered.length > 0) {
+        candidates = matFiltered
+        appliedFilters.push({
+          field: "materialTag",
+          op: "in",
+          value: materialTags.join(",") + "군",
+          rawValue: materialTags.join(","),
+          appliedAt: 0,
+        })
+      }
+      // If no products match the material, keep all but scoring will penalize
     }
-    // If no products match the material, keep all but scoring will penalize
   }
 
-  // Apply narrowing filters from conversation — STRICT mode
-  // Once a filter is selected, it MUST be enforced. No silent skipping.
-  // The zero-candidate guard is in route.ts BEFORE the filter reaches here.
-  for (const filter of flattenActiveFilters(filters)) {
-    const before = candidates.length
-    let filtered: typeof candidates | null = null
+  if (ENABLE_POST_SQL_CANDIDATE_FILTERS) {
+    // Apply narrowing filters from conversation — STRICT mode
+    // Once a filter is selected, it MUST be enforced. No silent skipping.
+    // The zero-candidate guard is in route.ts BEFORE the filter reaches here.
+    for (const filter of flattenActiveFilters(filters)) {
+      const before = candidates.length
+      let filtered: typeof candidates | null = null
 
-    switch (filter.field) {
-      case "fluteCount": {
-        const n = typeof filter.rawValue === "number" ? filter.rawValue : parseInt(String(filter.rawValue))
-        if (!isNaN(n)) {
-          filtered = candidates.filter(p => p.fluteCount === n)
+      switch (filter.field) {
+        case "fluteCount": {
+          const n = typeof filter.rawValue === "number" ? filter.rawValue : parseInt(String(filter.rawValue))
+          if (!isNaN(n)) {
+            filtered = candidates.filter(p => p.fluteCount === n)
+          }
+          break
         }
-        break
+        case "coating": {
+          const q = String(filter.rawValue).toLowerCase()
+          filtered = candidates.filter(p => p.coating?.toLowerCase().includes(q))
+          break
+        }
+        case "materialTag": {
+          const tag = String(filter.rawValue).toUpperCase()
+          filtered = candidates.filter(p => p.materialTags.includes(tag))
+          break
+        }
+        case "toolSubtype": {
+          const q = String(filter.rawValue).toLowerCase()
+          filtered = candidates.filter(p => p.toolSubtype?.toLowerCase().includes(q))
+          break
+        }
+        case "seriesName": {
+          const q = String(filter.rawValue).toLowerCase()
+          filtered = candidates.filter(p => p.seriesName?.toLowerCase().includes(q))
+          break
+        }
+        // ── Extended product fields ──
+        case "toolMaterial": {
+          const q = String(filter.rawValue).toLowerCase()
+          filtered = candidates.filter(p => p.toolMaterial?.toLowerCase().includes(q))
+          break
+        }
+        case "toolType": {
+          const q = String(filter.rawValue).toLowerCase()
+          filtered = candidates.filter(p => p.toolType?.toLowerCase().includes(q))
+          break
+        }
+        case "brand": {
+          const q = String(filter.rawValue).toLowerCase()
+          filtered = candidates.filter(p => p.brand?.toLowerCase().includes(q))
+          break
+        }
+        case "edpBrandName":
+          // Already constrained at DB/view query stage using edp_brand_name.
+          // Keep as an applied filter for traceability, but don't re-filter on mapped product.brand.
+          break
+        case "edpSeriesName":
+          // Already constrained at DB/view query stage using edp_series_name.
+          // Keep as an applied filter for traceability, but don't re-filter again in memory.
+          break
+        case "coolantHole": {
+          const want = String(filter.rawValue).toLowerCase() === "true" || String(filter.rawValue) === "yes"
+          filtered = candidates.filter(p => p.coolantHole === want)
+          break
+        }
+        case "shankDiameterMm": {
+          const n = typeof filter.rawValue === "number" ? filter.rawValue : parseFloat(String(filter.rawValue))
+          if (!isNaN(n)) filtered = candidates.filter(p => p.shankDiameterMm != null && Math.abs(p.shankDiameterMm - n) <= 0.5)
+          break
+        }
+        case "lengthOfCutMm": {
+          const n = typeof filter.rawValue === "number" ? filter.rawValue : parseFloat(String(filter.rawValue))
+          if (!isNaN(n)) filtered = candidates.filter(p => p.lengthOfCutMm != null && Math.abs(p.lengthOfCutMm - n) <= 2)
+          break
+        }
+        case "overallLengthMm": {
+          const n = typeof filter.rawValue === "number" ? filter.rawValue : parseFloat(String(filter.rawValue))
+          if (!isNaN(n)) filtered = candidates.filter(p => p.overallLengthMm != null && Math.abs(p.overallLengthMm - n) <= 5)
+          break
+        }
+        case "helixAngleDeg": {
+          const n = typeof filter.rawValue === "number" ? filter.rawValue : parseFloat(String(filter.rawValue))
+          if (!isNaN(n)) filtered = candidates.filter(p => p.helixAngleDeg != null && Math.abs(p.helixAngleDeg - n) <= 2)
+          break
+        }
+        // stockStatus is computed post-scoring (on ScoredProduct), not on CanonicalProduct.
+        // It's applied as a post-filter after scoring in the runtime layer.
       }
-      case "coating": {
-        const q = String(filter.rawValue).toLowerCase()
-        filtered = candidates.filter(p => p.coating?.toLowerCase().includes(q))
-        break
-      }
-      case "materialTag": {
-        const tag = String(filter.rawValue).toUpperCase()
-        filtered = candidates.filter(p => p.materialTags.includes(tag))
-        break
-      }
-      case "toolSubtype": {
-        const q = String(filter.rawValue).toLowerCase()
-        filtered = candidates.filter(p => p.toolSubtype?.toLowerCase().includes(q))
-        break
-      }
-      case "seriesName": {
-        const q = String(filter.rawValue).toLowerCase()
-        filtered = candidates.filter(p => p.seriesName?.toLowerCase().includes(q))
-        break
-      }
-      // ── Extended product fields ──
-      case "toolMaterial": {
-        const q = String(filter.rawValue).toLowerCase()
-        filtered = candidates.filter(p => p.toolMaterial?.toLowerCase().includes(q))
-        break
-      }
-      case "toolType": {
-        const q = String(filter.rawValue).toLowerCase()
-        filtered = candidates.filter(p => p.toolType?.toLowerCase().includes(q))
-        break
-      }
-      case "brand": {
-        const q = String(filter.rawValue).toLowerCase()
-        filtered = candidates.filter(p => p.brand?.toLowerCase().includes(q))
-        break
-      }
-      case "edpBrandName":
-        // Already constrained at DB/view query stage using edp_brand_name.
-        // Keep as an applied filter for traceability, but don't re-filter on mapped product.brand.
-        break
-      case "edpSeriesName":
-        // Already constrained at DB/view query stage using edp_series_name.
-        // Keep as an applied filter for traceability, but don't re-filter again in memory.
-        break
-      case "coolantHole": {
-        const want = String(filter.rawValue).toLowerCase() === "true" || String(filter.rawValue) === "yes"
-        filtered = candidates.filter(p => p.coolantHole === want)
-        break
-      }
-      case "shankDiameterMm": {
-        const n = typeof filter.rawValue === "number" ? filter.rawValue : parseFloat(String(filter.rawValue))
-        if (!isNaN(n)) filtered = candidates.filter(p => p.shankDiameterMm != null && Math.abs(p.shankDiameterMm - n) <= 0.5)
-        break
-      }
-      case "lengthOfCutMm": {
-        const n = typeof filter.rawValue === "number" ? filter.rawValue : parseFloat(String(filter.rawValue))
-        if (!isNaN(n)) filtered = candidates.filter(p => p.lengthOfCutMm != null && Math.abs(p.lengthOfCutMm - n) <= 2)
-        break
-      }
-      case "overallLengthMm": {
-        const n = typeof filter.rawValue === "number" ? filter.rawValue : parseFloat(String(filter.rawValue))
-        if (!isNaN(n)) filtered = candidates.filter(p => p.overallLengthMm != null && Math.abs(p.overallLengthMm - n) <= 5)
-        break
-      }
-      case "helixAngleDeg": {
-        const n = typeof filter.rawValue === "number" ? filter.rawValue : parseFloat(String(filter.rawValue))
-        if (!isNaN(n)) filtered = candidates.filter(p => p.helixAngleDeg != null && Math.abs(p.helixAngleDeg - n) <= 2)
-        break
-      }
-      // stockStatus is computed post-scoring (on ScoredProduct), not on CanonicalProduct.
-      // It's applied as a post-filter after scoring in the runtime layer.
-    }
 
-    if (filtered !== null) {
-      // STRICT: always apply the filter. If 0 results, keep 0 — route.ts guards this upstream.
-      candidates = filtered
-      appliedFilters.push(filter)
-      console.log(`[hybrid:filter] ${filter.field}=${filter.value}: ${before} → ${filtered.length} candidates`)
-    } else {
-      appliedFilters.push(filter)
+      if (filtered !== null) {
+        // STRICT: always apply the filter. If 0 results, keep 0 — route.ts guards this upstream.
+        candidates = filtered
+        appliedFilters.push(filter)
+        console.log(`[hybrid:filter] ${filter.field}=${filter.value}: ${before} → ${filtered.length} candidates`)
+      } else {
+        appliedFilters.push(filter)
+      }
     }
+  } else {
+    console.log("[hybrid:filter] post-sql candidate filters disabled by ENABLE_POST_SQL_CANDIDATE_FILTERS=false")
   }
   const filterMs = Date.now() - startedAt - fetchMs
   console.log(
@@ -259,16 +266,6 @@ export async function runHybridRetrieval(
   // ── Stage 2: Score & Rank ──────────────────────────────────
   const scoreStartedAt = Date.now()
   const appShapes = input.operationType ? getAppShapesForOperation(input.operationType) : []
-
-  // Performance: limit scoring to 500 candidates max after filtering
-  if (candidates.length > 500) {
-    // Pre-sort by data completeness + source priority to keep best candidates
-    candidates.sort((a, b) => {
-      if (a.sourcePriority !== b.sourcePriority) return a.sourcePriority - b.sourcePriority
-      return b.dataCompletenessScore - a.dataCompletenessScore
-    })
-    candidates = candidates.slice(0, 500)
-  }
 
   const scored: ScoredProduct[] = candidates.map(product => {
     // ── Compute each scoring dimension with explanations ────
