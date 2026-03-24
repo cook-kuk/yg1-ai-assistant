@@ -256,6 +256,25 @@ export const YG1_KB = {
 // ── KB 검색 함수 ─────────────────────────────────
 export function searchKB(query: string): { found: boolean; answer: string; confidence: "high" | "medium" } {
   const q = query.toLowerCase()
+  const markdownOffice = findSalesOfficeFromMarkdown(query)
+  if (markdownOffice) {
+    return {
+      found: true,
+      confidence: "high",
+      answer: `${markdownOffice.name} / 주소: ${markdownOffice.address} / 전화: ${markdownOffice.tel} / [Source: YG1_Knowledge_Base_FINAL.md]`,
+    }
+  }
+
+  if (q.includes("영업소") && (q.includes("몇") || q.includes("어디") || q.includes("목록") || q.includes("전체"))) {
+    const officesFromMarkdown = getSalesOfficesFromMarkdown()
+    if (officesFromMarkdown.length > 0) {
+      return {
+        found: true,
+        confidence: "high",
+        answer: `YG-1 국내 영업소: ${officesFromMarkdown.map(office => `${office.name}(${office.tel})`).join(", ")} / [Source: YG1_Knowledge_Base_FINAL.md]`,
+      }
+    }
+  }
 
   // ── 존재하지 않는 사업장 ──
   if (q.includes("익산")) {
@@ -460,3 +479,4 @@ export function searchKB(query: string): { found: boolean; answer: string; confi
 
   return { found: false, answer: "", confidence: "medium" }
 }
+import { findSalesOfficeFromMarkdown, getSalesOfficesFromMarkdown } from "./knowledge-markdown"

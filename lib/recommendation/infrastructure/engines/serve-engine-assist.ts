@@ -7,6 +7,7 @@ import {
 import { resolveMaterialTag } from "@/lib/recommendation/domain/recommendation-domain"
 import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import { YG1_COMPANY_SNIPPET } from "@/lib/knowledge/company-prompt-snippet"
+import { resolveYG1Query } from "@/lib/knowledge/knowledge-router"
 
 import type {
   CandidateSnapshot,
@@ -841,6 +842,12 @@ async function tryCompanyQuestionResponse(
   userMessage: string,
   candidateCount: number
 ): Promise<{ text: string; chips: string[] } | null> {
+  const deterministicResult = resolveYG1Query(userMessage)
+  if (deterministicResult.source === "internal_kb" && deterministicResult.answer) {
+    console.log(`[company-response] Deterministic KB hit for: "${userMessage.slice(0, 30)}"`)
+    return { text: deterministicResult.answer, chips: [] }
+  }
+
   try {
     // 통합 판단으로 회사 질문인지 감지 (캐시 히트됨)
     const judgment = await performUnifiedJudgment({

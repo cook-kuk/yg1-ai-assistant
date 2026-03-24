@@ -16,6 +16,7 @@ import {
   buildGeneralChatOptionState,
   buildQuestionAssistOptions,
 } from "@/lib/recommendation/infrastructure/engines/serve-engine-option-first"
+import { resolveYG1Query } from "@/lib/knowledge/knowledge-router"
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { OrchestratorAction, OrchestratorResult } from "@/lib/recommendation/infrastructure/agents/types"
 import type { RecommendationDisplayedProductRequestDto } from "@/lib/contracts/recommendation"
@@ -206,6 +207,16 @@ export function buildReplyDisplayedOptions(
     value: chip,
     count: 0,
   }))
+}
+
+function getDirectCompanyReply(userMessage: string): QuestionReply {
+  const result = resolveYG1Query(userMessage)
+  if (result.source !== "internal_kb" || !result.answer) return null
+
+  return {
+    text: result.answer,
+    chips: [],
+  }
 }
 
 function validateAnswerText(
@@ -520,6 +531,45 @@ export async function handleServeGeneralChatAction(
         displayedOptions: buildReplyDisplayedOptions(cuttingConditionReply.chips),
       }),
       strategy,
+    )
+  }
+
+  const companyReply = getDirectCompanyReply(lastUserMessage)
+  if (companyReply) {
+    const hasPendingField =
+      !!prevState.lastAskedField &&
+      !prevState.resolutionStatus?.startsWith("resolved")
+    const chips = hasPendingField ? (prevState.displayedChips ?? []) : companyReply.chips
+    const displayedOptions = hasPendingField
+      ? (prevState.displayedOptions ?? [])
+      : buildReplyDisplayedOptions(companyReply.chips)
+    const validation = validateAnswerText(companyReply.text, chips, displayedOptions, "company")
+
+    return buildReplyResponse(
+      deps,
+      prevState,
+      filters,
+      narrowingHistory,
+      currentInput,
+      turnCount,
+      lastUserMessage,
+      validation.text,
+      chips,
+      displayedOptions,
+      {
+        purpose: hasPendingField ? "question" : "general_chat",
+        currentMode: hasPendingField ? "question" : "general_chat",
+        lastAction: "answer_general",
+        lastAskedField: hasPendingField ? prevState.lastAskedField ?? undefined : undefined,
+      },
+      orchResult,
+      buildProcessTrace({
+        actionType: "answer_general",
+        pendingQuestionField: prevState.lastAskedField ?? null,
+        recentFrameRelation: "company_reply",
+        displayedOptions,
+        validatorRewrites: validation.validatorRewrites,
+      }),
     )
   }
 
