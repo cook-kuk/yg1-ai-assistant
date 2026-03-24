@@ -111,6 +111,7 @@ const form: ProductIntakeForm = {
   material: { status: "known", value: "Aluminum" },
   operationType: { status: "unknown" },
   diameterInfo: { status: "known", value: "4" },
+  toolTypeOrCurrentProduct: { status: "unknown" },
   coating: { status: "unknown" },
   flute: { status: "unknown" },
   length: { status: "unknown" },
@@ -359,5 +360,170 @@ describe("buildReplyDisplayedOptions", () => {
   it("all options have field=_action", () => {
     const options = buildReplyDisplayedOptions(["a", "b"])
     expect(options.every(o => o.field === "_action")).toBe(true)
+  })
+})
+
+describe("side question suspend/resume", () => {
+  it("restores suspended flow options and chips after side question answer", async () => {
+    const prevState = makePrevState()
+    // Simulate a suspended flow (set by runtime before dispatching)
+    prevState.suspendedFlow = {
+      pendingField: "coating",
+      pendingQuestion: "코팅을 선택해주세요.",
+      displayedOptionsSnapshot: [
+        { index: 1, label: "DLC (1개)", field: "coating", value: "DLC", count: 1 },
+        { index: 2, label: "TiAlN (1개)", field: "coating", value: "TiAlN", count: 1 },
+      ],
+      displayedChipsSnapshot: ["DLC (1개)", "TiAlN (1개)", "상관없음"],
+      reason: "side_question",
+    }
+    const candidates = [makeCandidate(1, "E5D7004010", "DLC"), makeCandidate(2, "E5D7004020", "TiAlN")]
+
+    const response = await handleServeGeneralChatAction({
+      deps: {
+        buildCandidateSnapshot: () => prevState.displayedCandidates,
+        handleDirectInventoryQuestion: vi.fn(async () => null),
+        handleDirectBrandReferenceQuestion: vi.fn(async () => null),
+        handleDirectCuttingConditionQuestion: vi.fn(async () => null),
+        handleContextualNarrowingQuestion: vi.fn(async () => null),
+        handleGeneralChat: vi.fn(async () => ({
+          text: "익산 공장은 충남에 위치해 있습니다.",
+          chips: ["처음부터 다시"],
+        })),
+        jsonRecommendationResponse: (params) =>
+          new Response(JSON.stringify(params), { headers: { "content-type": "application/json" } }),
+      },
+      action: { type: "answer_general", message: "익산 공장 정보줘" } as any,
+      orchResult: { ...orchResult, action: { type: "answer_general" as const, message: "익산 공장 정보줘" } },
+      provider: { available: () => false } as any,
+      form,
+      messages: [
+        { role: "ai", text: "코팅을 선택해주세요." },
+        { role: "user", text: "익산 공장 정보줘" },
+      ],
+      prevState,
+      filters: [],
+      narrowingHistory: [],
+      currentInput: prevState.resolvedInput,
+      candidates,
+      evidenceMap: new Map(),
+      turnCount: 2,
+    })
+
+    const body = await response.json()
+
+    // Chips and options should be restored from the suspended flow
+    expect(body.chips).toEqual(["DLC (1개)", "TiAlN (1개)", "상관없음"])
+    expect(body.sessionState.displayedOptions).toEqual([
+      { index: 1, label: "DLC (1개)", field: "coating", value: "DLC", count: 1 },
+      { index: 2, label: "TiAlN (1개)", field: "coating", value: "TiAlN", count: 1 },
+    ])
+    // Purpose should be "question" to resume narrowing
+    expect(body.purpose).toBe("question")
+    // The answer text should include a resume prompt
+    expect(body.text).toContain("다시 제품 추천으로 돌아갈게요")
+    // The pending field should be restored
+    expect(body.sessionState.lastAskedField).toBe("coating")
+    // suspendedFlow should be cleared
+    expect(body.sessionState.suspendedFlow).toBeNull()
+  })
+
+  it("does NOT trigger suspend for question-assist (DLC가 뭐야?)", async () => {
+    const prevState = makePrevState()
+    // No suspendedFlow set — question-assist should not create one
+    const candidates = [makeCandidate(1, "E5D7004010", "DLC"), makeCandidate(2, "E5D7004020", "TiAlN")]
+
+    const response = await handleServeGeneralChatAction({
+      deps: {
+        buildCandidateSnapshot: () => prevState.displayedCandidates,
+        handleDirectInventoryQuestion: vi.fn(async () => null),
+        handleDirectBrandReferenceQuestion: vi.fn(async () => null),
+        handleDirectCuttingConditionQuestion: vi.fn(async () => null),
+        handleContextualNarrowingQuestion: vi.fn(async () => "DLC는 알루미늄 가공에서 자주 쓰는 코팅입니다."),
+        handleGeneralChat: vi.fn(async () => ({ text: "unused", chips: [] })),
+        jsonRecommendationResponse: (params) =>
+          new Response(JSON.stringify(params), { headers: { "content-type": "application/json" } }),
+      },
+      action: { type: "explain_product", target: "DLC가 뭐야?" },
+      orchResult,
+      provider: { available: () => false } as any,
+      form,
+      messages: [
+        { role: "ai", text: "코팅을 선택해주세요." },
+        { role: "user", text: "DLC가 뭐야?" },
+      ],
+      prevState,
+      filters: [],
+      narrowingHistory: [],
+      currentInput: prevState.resolvedInput,
+      candidates,
+      evidenceMap: new Map(),
+      turnCount: 1,
+    })
+
+    const body = await response.json()
+
+    // Question-assist should preserve question mode and pending field
+    expect(body.purpose).toBe("question")
+    expect(body.sessionState.currentMode).toBe("question")
+    expect(body.sessionState.lastAskedField).toBe("coating")
+    // Should NOT contain resume prompt text
+    expect(body.text).not.toContain("다시 제품 추천으로 돌아갈게요")
+    // suspendedFlow should not be set (it was never suspended)
+    expect(body.sessionState.suspendedFlow).toBeNull()
+  })
+
+  it("restores pendingField on resume even through inventory reply path", async () => {
+    const prevState = makePrevState()
+    prevState.suspendedFlow = {
+      pendingField: "coating",
+      pendingQuestion: "코팅을 선택해주세요.",
+      displayedOptionsSnapshot: [
+        { index: 1, label: "DLC (1개)", field: "coating", value: "DLC", count: 1 },
+      ],
+      displayedChipsSnapshot: ["DLC (1개)", "상관없음"],
+      reason: "side_question",
+    }
+    const candidates = [makeCandidate(1, "E5D7004010", "DLC")]
+    const inventoryChips = ["다른 제품 재고", "추천 제품 보기"]
+
+    const response = await handleServeGeneralChatAction({
+      deps: {
+        buildCandidateSnapshot: () => prevState.displayedCandidates,
+        handleDirectInventoryQuestion: vi.fn(async () => ({
+          text: "E5D7004010의 재고입니다.",
+          chips: inventoryChips,
+        })),
+        handleDirectBrandReferenceQuestion: vi.fn(async () => null),
+        handleDirectCuttingConditionQuestion: vi.fn(async () => null),
+        handleContextualNarrowingQuestion: vi.fn(async () => null),
+        handleGeneralChat: vi.fn(async () => ({ text: "unused", chips: [] })),
+        jsonRecommendationResponse: (params) =>
+          new Response(JSON.stringify(params), { headers: { "content-type": "application/json" } }),
+      },
+      action: { type: "answer_general", message: "" } as any,
+      orchResult: { ...orchResult, action: { type: "answer_general" as const, message: "" } },
+      provider: { available: () => false } as any,
+      form,
+      messages: [
+        { role: "ai", text: "코팅을 선택해주세요." },
+        { role: "user", text: "E5D7004010 재고 알려줘" },
+      ],
+      prevState,
+      filters: [],
+      narrowingHistory: [],
+      currentInput: prevState.resolvedInput,
+      candidates,
+      evidenceMap: new Map(),
+      turnCount: 2,
+    })
+
+    const body = await response.json()
+
+    // Suspended flow should override the inventory chips
+    expect(body.chips).toEqual(["DLC (1개)", "상관없음"])
+    expect(body.sessionState.lastAskedField).toBe("coating")
+    expect(body.text).toContain("다시 제품 추천으로 돌아갈게요")
+    expect(body.sessionState.suspendedFlow).toBeNull()
   })
 })

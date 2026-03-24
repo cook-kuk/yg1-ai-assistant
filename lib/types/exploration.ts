@@ -151,6 +151,15 @@ export interface ExplorationSessionState {
   taskHistory?: ArchivedTask[]
   pendingIntents?: Array<{ text: string; category: string }>
 
+  /** Suspended flow — side question snapshot for resume after off-topic answer */
+  suspendedFlow?: {
+    pendingField: string | null
+    pendingQuestion: string | null
+    displayedOptionsSnapshot: DisplayedOption[]
+    displayedChipsSnapshot: string[]
+    reason: "side_question"
+  } | null
+
   /** Pending proposed action — "응/예/네"로 수락 가능한 제안 */
   pendingAction?: {
     /** What action would be executed */

@@ -1057,6 +1057,26 @@ async function handleServeExplorationInner(
         mode: "general_chat",
       }, `Answer via ${action.type}`)
 
+      // ── Side Question Suspend: snapshot current flow before answering off-topic ──
+      const isSideQuestion =
+        action.type === "answer_general"
+        && hasPendingQuestion
+        && userStateForDebug.state !== "wants_explanation"
+        && userStateForDebug.state !== "confused"
+        && userStateForDebug.state !== "wants_delegation"
+        && userStateForDebug.state !== "wants_skip"
+      if (isSideQuestion) {
+        const lastAiText = [...messages].reverse().find(m => m.role === "ai")?.text ?? null
+        prevState.suspendedFlow = {
+          pendingField: prevState.lastAskedField ?? null,
+          pendingQuestion: lastAiText,
+          displayedOptionsSnapshot: prevState.displayedOptions ?? [],
+          displayedChipsSnapshot: prevState.displayedChips ?? [],
+          reason: "side_question",
+        }
+        console.log(`[side-question:suspend] Suspended flow for field="${prevState.lastAskedField}", options=${prevState.displayedOptions?.length ?? 0}, chips=${prevState.displayedChips?.length ?? 0}`)
+      }
+
       return handleServeGeneralChatAction({
         deps,
         action,
@@ -1091,6 +1111,18 @@ async function handleServeExplorationInner(
           hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
         }, provider)
         if (quickCheck.domainRelevance === "company_query") {
+          // ── Side Question Suspend for redirect_off_topic → company_query ──
+          if (hasPendingQuestion && !prevState.suspendedFlow) {
+            const lastAiText = [...messages].reverse().find(m => m.role === "ai")?.text ?? null
+            prevState.suspendedFlow = {
+              pendingField: prevState.lastAskedField ?? null,
+              pendingQuestion: lastAiText,
+              displayedOptionsSnapshot: prevState.displayedOptions ?? [],
+              displayedChipsSnapshot: prevState.displayedChips ?? [],
+              reason: "side_question",
+            }
+            console.log(`[side-question:suspend:redirect] Suspended flow for field="${prevState.lastAskedField}"`)
+          }
           return handleServeGeneralChatAction({ deps, action: { type: "answer_general", message: lastUserMsg.text }, orchResult, provider, form, messages, prevState, filters, narrowingHistory, currentInput, candidates, evidenceMap, turnCount })
         }
       }

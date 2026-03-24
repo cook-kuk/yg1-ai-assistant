@@ -242,6 +242,31 @@ function buildReplyResponse(
   orchResult: OrchestratorResult,
   processTrace: ProcessTrace,
 ) {
+  // ── Side Question Resume: restore suspended flow for early reply paths ──
+  const suspended = prevState.suspendedFlow
+  let finalText = text
+  let finalChips = chips
+  let finalDisplayedOptions = displayedOptions
+  let finalOverrides = overrides
+
+  if (suspended) {
+    const resumePrompt = suspended.pendingQuestion
+      ? `\n\n다시 제품 추천으로 돌아갈게요. ${suspended.pendingQuestion.slice(0, 100)}`
+      : `\n\n다시 제품 추천으로 돌아갈게요.`
+    finalText = text + resumePrompt
+    finalChips = suspended.displayedChipsSnapshot
+    finalDisplayedOptions = suspended.displayedOptionsSnapshot
+    finalOverrides = {
+      ...overrides,
+      currentMode: "question",
+      lastAction: overrides.lastAction,
+      lastAskedField: suspended.pendingField ?? undefined,
+    }
+    console.log(
+      `[side-question:resume:reply] Restored flow for field="${suspended.pendingField}", options=${suspended.displayedOptionsSnapshot.length}`
+    )
+  }
+
   const sessionState = carryForwardState(prevState, {
     candidateCount: prevState.candidateCount,
     appliedFilters: filters,
@@ -250,19 +275,21 @@ function buildReplyResponse(
     resolvedInput: currentInput,
     turnCount,
     displayedCandidates: prevState.displayedCandidates ?? [],
-    displayedChips: chips,
-    displayedOptions,
-    currentMode: overrides.currentMode,
-    lastAction: overrides.lastAction,
-    lastAskedField: overrides.lastAskedField,
+    displayedChips: finalChips,
+    displayedOptions: finalDisplayedOptions,
+    currentMode: finalOverrides.currentMode,
+    lastAction: finalOverrides.lastAction,
+    lastAskedField: finalOverrides.lastAskedField,
+    // Clear suspendedFlow after resume
+    suspendedFlow: null,
   })
 
-  recordTurnToLog(sessionState, userMessage, text, processTrace)
+  recordTurnToLog(sessionState, userMessage, finalText, processTrace)
 
   return deps.jsonRecommendationResponse({
-    text,
-    purpose: overrides.purpose,
-    chips,
+    text: finalText,
+    purpose: suspended ? "question" : overrides.purpose,
+    chips: finalChips,
     isComplete: false,
     recommendation: null,
     sessionState,
@@ -641,6 +668,35 @@ export async function handleServeGeneralChatAction(
     console.log(`[question-assist] Preserving question mode for field="${prevState.lastAskedField}" during ${userStateResult.state}`)
   }
 
+  // ── Side Question Resume: restore suspended flow after answering off-topic ──
+  const suspended = prevState.suspendedFlow
+  let resumeChips = finalChips
+  let resumeOptions = finalDisplayedOptions
+  let resumeMode = effectiveMode
+  let resumeLastAction: typeof effectiveMode extends string ? string : never = isQuestionAssist ? "explain_product" : "answer_general"
+  let resumeLastAskedField = isQuestionAssist ? prevState.lastAskedField : undefined
+  let resumeText = llmResponse.text
+
+  if (suspended && !isQuestionAssist) {
+    // Append resume prompt to the answer text
+    const pendingFieldLabel = suspended.pendingField ?? "이전 질문"
+    const resumePrompt = suspended.pendingQuestion
+      ? `\n\n다시 제품 추천으로 돌아갈게요. ${suspended.pendingQuestion.slice(0, 100)}`
+      : `\n\n다시 제품 추천으로 돌아갈게요.`
+    resumeText = resumeText + resumePrompt
+
+    // Restore the suspended flow's options and chips
+    resumeChips = suspended.displayedChipsSnapshot
+    resumeOptions = suspended.displayedOptionsSnapshot
+    resumeMode = "question"
+    resumeLastAction = "continue_narrowing"
+    resumeLastAskedField = suspended.pendingField ?? undefined
+
+    console.log(
+      `[side-question:resume] Restored flow for field="${suspended.pendingField}", options=${suspended.displayedOptionsSnapshot.length}, chips=${suspended.displayedChipsSnapshot.length}`
+    )
+  }
+
   const sessionState = carryForwardState(prevState, {
     candidateCount: prevState.candidateCount ?? candidates.length,
     appliedFilters: filters,
@@ -649,12 +705,14 @@ export async function handleServeGeneralChatAction(
     resolvedInput: currentInput,
     turnCount,
     displayedCandidates: prevState.displayedCandidates ?? [],
-    displayedChips: finalChips,
-    displayedOptions: finalDisplayedOptions,
-    currentMode: effectiveMode,
-    lastAction: isQuestionAssist ? "explain_product" : "answer_general",
-    lastAskedField: isQuestionAssist ? prevState.lastAskedField : undefined,
+    displayedChips: resumeChips,
+    displayedOptions: resumeOptions,
+    currentMode: resumeMode as any,
+    lastAction: resumeLastAction as any,
+    lastAskedField: resumeLastAskedField,
     conversationMemory: persistedMemory ?? prevState.conversationMemory,
+    // Clear suspendedFlow after resume (or if there was none)
+    suspendedFlow: null,
   })
   const postTurnContext = buildUnifiedTurnContext({
     latestAssistantText: llmResponse.text,
@@ -669,7 +727,7 @@ export async function handleServeGeneralChatAction(
     actionType: isQuestionAssist ? "explain_product" : "answer_general",
     pendingQuestionField: sessionState.lastAskedField ?? null,
     recentFrameRelation: postTurnContext.relationToLatestQuestion,
-    displayedOptions: finalDisplayedOptions,
+    displayedOptions: resumeOptions,
     validatorRewrites: validation.validatorRewrites,
     memoryTransitions: [
       ...(userStateResult.state === "confused" && prevState.lastAskedField
@@ -683,15 +741,15 @@ export async function handleServeGeneralChatAction(
         : []),
     ],
   })
-  recordTurnToLog(sessionState, lastUserMessage, llmResponse.text, {
+  recordTurnToLog(sessionState, lastUserMessage, resumeText, {
     ...processTrace,
     recentFrameRelation: postTurnContext.relationToLatestQuestion,
   })
 
   return deps.jsonRecommendationResponse({
-    text: llmResponse.text,
-    purpose: effectivePurpose,
-    chips: finalChips,
+    text: resumeText,
+    purpose: suspended && !isQuestionAssist ? "question" : effectivePurpose,
+    chips: resumeChips,
     isComplete: false,
     recommendation: null,
     sessionState,
