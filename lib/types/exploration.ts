@@ -151,6 +151,18 @@ export interface ExplorationSessionState {
   taskHistory?: ArchivedTask[]
   pendingIntents?: Array<{ text: string; category: string }>
 
+  /** Pending proposed action — "응/예/네"로 수락 가능한 제안 */
+  pendingAction?: {
+    /** What action would be executed */
+    actionType: string
+    /** Human-readable description */
+    description: string
+    /** Filter to apply if accepted */
+    filter?: { field: string; op: string; value: string; rawValue: string | number }
+    /** Turn when proposed */
+    proposedAt: number
+  } | null
+
   // ── Persistent Conversation Memory (accumulates across turns) ──
   conversationMemory?: import("@/lib/recommendation/domain/memory/conversation-memory").ConversationMemory
   /** Full conversation log — all prompts + UI outputs, auto-compressed */

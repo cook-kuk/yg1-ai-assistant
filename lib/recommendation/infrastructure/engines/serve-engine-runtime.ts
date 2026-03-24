@@ -279,10 +279,16 @@ export async function handleServeExploration(
   if (isDebugEnabled()) {
     try {
       const lastUserMsg = [...messages].reverse().find(m => m.role === "user")
+      const lastAssistantMsg = [...messages].reverse().find(m => m.role === "ai")
       const debugTrace = trace.build({
         latestUserMessage: lastUserMsg?.text ?? "",
+        latestAssistantQuestion: lastAssistantMsg?.text?.slice(0, 100) ?? null,
         currentMode: prevState?.currentMode ?? null,
         routeAction: null,
+        pendingField: prevState?.lastAskedField ?? null,
+        candidateCount: prevState?.candidateCount ?? null,
+        filterCount: prevState?.appliedFilters?.length ?? 0,
+        summary: `${prevState?.currentMode ?? "initial"} | ${prevState?.candidateCount ?? "?"}개 후보 | 필터 ${prevState?.appliedFilters?.length ?? 0}개`,
       })
       if (debugTrace) {
         const json = await response.json()
@@ -380,6 +386,16 @@ async function handleServeExplorationInner(
     skipped: !needsRetrieval,
   }, needsRetrieval ? `Retrieved ${candidates.length} candidates` : `Skipped retrieval for ${earlyAction}`)
 
+  trace.setSearchDetail({
+    requiresSearch: needsRetrieval,
+    searchScope: earlyAction ?? "full_retrieval",
+    targetEntities: [],
+    preFilterCount: candidates.length,
+    postFilterCount: candidates.length,
+    appliedConstraints: filters.filter(f => f.op !== "skip").map(f => ({ field: f.field, value: f.value })),
+    skippedReason: !needsRetrieval ? `Action "${earlyAction}" does not require retrieval` : undefined,
+  })
+
   if (requestPrep.route.action === "reset_session") {
     return buildResetResponse(deps, requestPrep)
   }
@@ -389,6 +405,54 @@ async function handleServeExplorationInner(
   let turnCount = prevState?.turnCount ?? 0
 
   if (messages.length > 0 && prevState && lastUserMsg) {
+    // ── PendingAction Interceptor ──
+    // If there's a pending proposed action and user says "응/예/네/좋아",
+    // execute that action directly without going through orchestrator.
+    const AFFIRMATIVE = /^(응|예|네|좋아|좋아요|그래|ㅇㅇ|ㅇ|ok|yes|sure)$/i
+    if (prevState.pendingAction && AFFIRMATIVE.test(lastUserMsg.text.trim())) {
+      const pa = prevState.pendingAction
+      trace.add("pending-action-accept", "router", {
+        userMessage: lastUserMsg.text,
+        pendingAction: pa.description,
+      }, {
+        actionType: pa.actionType,
+        filter: pa.filter,
+      }, `User accepted pending action: "${pa.description}"`)
+      console.log(`[pending-action] Accepted: ${pa.description} (${pa.actionType})`)
+
+      if (pa.filter) {
+        const filter = { ...pa.filter, appliedAt: prevState.turnCount ?? 0 } as AppliedFilter
+        const testInput = deps.applyFilterToInput(currentInput, filter)
+        const testFilters = [...filters, filter]
+        const testResult = await runHybridRetrieval(testInput, testFilters)
+
+        if (testResult.candidates.length === 0) {
+          return deps.buildQuestionResponse(
+            form, candidates, evidenceMap, currentInput,
+            narrowingHistory, filters, turnCount, messages, provider, language,
+            `"${filter.value}" 조건을 적용하면 후보가 없습니다. 현재 ${candidates.length}개 후보에서 다른 조건을 선택해주세요.`
+          )
+        }
+
+        filters.push(filter)
+        currentInput = testInput
+        narrowingHistory.push({
+          question: "pending-action-accept",
+          answer: lastUserMsg.text,
+          extractedFilters: [filter],
+          candidateCountBefore: candidates.length,
+          candidateCountAfter: testResult.candidates.length,
+        })
+        turnCount++
+
+        const newStatus = checkResolution(testResult.candidates, narrowingHistory)
+        if (newStatus.startsWith("resolved")) {
+          return deps.buildRecommendationResponse(form, testResult.candidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts)
+        }
+        return deps.buildQuestionResponse(form, testResult.candidates, testResult.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language)
+      }
+    }
+
     const currentCandidateSnapshot = deps.buildCandidateSnapshot(candidates, evidenceMap)
     const unifiedTurnContext = buildUnifiedTurnContext({
       latestAssistantText: [...messages].reverse().find(message => message.role === "ai")?.text ?? null,
@@ -421,11 +485,63 @@ async function handleServeExplorationInner(
       lastAskedField: prevState.lastAskedField,
       candidateCount: candidates.length,
       filterCount: filters.length,
+      resolutionStatus: prevState.resolutionStatus,
     }, {
       action: action.type,
       agents: orchResult.agentsInvoked,
       escalatedToOpus: orchResult.escalatedToOpus,
     }, orchResult.reasoning)
+
+    // ── Deep debug: memory snapshot ──
+    if (prevState.conversationMemory) {
+      const mem = prevState.conversationMemory
+      trace.setMemory({
+        resolvedFacts: mem.items.filter(i => i.status === "resolved").map(i => ({ field: i.field, value: i.value, source: i.source })),
+        activeFilters: (prevState.appliedFilters ?? []).filter(f => f.op !== "skip").map(f => ({ field: f.field, value: f.value, op: f.op })),
+        tentativeReferences: mem.items.filter(i => i.status === "tentative").map(i => ({ field: i.field, value: i.value })),
+        pendingQuestions: prevState.lastAskedField ? [{ field: prevState.lastAskedField, kind: prevState.currentMode ?? "narrowing" }] : [],
+        pendingAction: prevState.pendingAction ? { description: prevState.pendingAction.description, actionType: prevState.pendingAction.actionType } : null,
+        recentQACount: mem.recentQA?.length ?? 0,
+        highlightCount: mem.highlights?.length ?? 0,
+        userSignals: {
+          confusedFields: mem.userSignals.confusedFields,
+          skippedFields: mem.userSignals.skippedFields,
+          prefersDelegate: mem.userSignals.prefersDelegate,
+          frustrationCount: mem.userSignals.frustrationCount,
+        },
+      })
+    }
+
+    // ── Deep debug: UI artifacts ──
+    trace.setUIArtifacts({
+      artifacts: [
+        ...(prevState.resolutionStatus?.startsWith("resolved") && prevState.displayedCandidates?.length
+          ? [{ kind: "recommendation_card", summary: `추천 ${prevState.displayedCandidates.length}개`, productCodes: prevState.displayedCandidates.slice(0, 5).map(c => c.displayCode), isPrimaryFocus: prevState.currentMode === "recommendation" }]
+          : []),
+        ...(prevState.lastComparisonArtifact
+          ? [{ kind: "comparison_table", summary: `비교 ${prevState.lastComparisonArtifact.comparedProductCodes?.length ?? 0}개`, productCodes: prevState.lastComparisonArtifact.comparedProductCodes ?? [], isPrimaryFocus: prevState.currentMode === "comparison" }]
+          : []),
+        ...(prevState.displayedChips?.length
+          ? [{ kind: "chips_bar", summary: `칩 ${prevState.displayedChips.length}개`, productCodes: [], isPrimaryFocus: prevState.currentMode === "question" }]
+          : []),
+        ...(prevState.displayedOptions?.length
+          ? [{ kind: "options", summary: `옵션 ${prevState.displayedOptions.length}개 (${prevState.lastAskedField ?? "?"})`, productCodes: [], isPrimaryFocus: prevState.currentMode === "narrowing" }]
+          : []),
+      ],
+      likelyReferencedBlock: prevState.currentMode === "recommendation" ? "recommendation_card"
+        : prevState.currentMode === "comparison" ? "comparison_table"
+        : prevState.currentMode === "question" ? "question_prompt"
+        : null,
+    })
+
+    // ── Deep debug: recent conversation turns ──
+    trace.setRecentTurns(
+      messages.slice(-10).map(m => ({
+        role: m.role,
+        text: m.text.slice(0, 150),
+        mode: undefined,
+      }))
+    )
 
     const hasPendingQuestion = !!prevState.lastAskedField
       && !prevState.resolutionStatus?.startsWith("resolved")
@@ -462,15 +578,26 @@ async function handleServeExplorationInner(
         : `Query about pending field "${prevState.lastAskedField}"`)
 
       if (queryTarget.overridesActiveFilter) {
+        trace.add("question-assist-bypass", "router", {
+          reason: "query target overrides active filter",
+          pendingField: prevState.lastAskedField,
+        }, {
+          queryTarget: queryTarget.answerTopic,
+          entities: queryTarget.entities,
+          originalAction: action.type,
+        }, `User asked about "${queryTarget.answerTopic}" — bypassing question-assist for pending "${prevState.lastAskedField}"`)
         console.log(`[query-target:override] User query target="${queryTarget.answerTopic}" overrides pending field="${prevState.lastAskedField}" (entities: ${queryTarget.entities.join(",")})`)
         // Don't intercept — let the orchestrator's original routing stand
       } else if (isQuestionAssistSignal) {
         if (userState.state === "wants_skip" || userState.state === "wants_delegation") {
           action = { type: "skip_field" }
+          trace.add("question-assist-intercept", "router", { userState: userState.state, pendingField: prevState.lastAskedField }, { action: "skip_field" }, `${userState.state} → skip_field for "${prevState.lastAskedField}"`)
           console.log(`[question-assist:intercept] ${userState.state} -> skip_field for "${prevState.lastAskedField}"`)
         } else if (action.type === "answer_general" || action.type === "redirect_off_topic") {
+          const originalAction = action.type
           action = { type: "explain_product", target: lastUserMsg.text }
-          console.log(`[question-assist:intercept] ${userState.state} overrides ${orchResult.action.type} -> explain_product (pending: ${prevState.lastAskedField})`)
+          trace.add("question-assist-intercept", "router", { userState: userState.state, pendingField: prevState.lastAskedField, originalAction }, { action: "explain_product" }, `${userState.state} overrides ${originalAction} → explain_product (pending: ${prevState.lastAskedField})`)
+          console.log(`[question-assist:intercept] ${userState.state} overrides ${originalAction} -> explain_product (pending: ${prevState.lastAskedField})`)
         }
       }
     }
@@ -481,6 +608,32 @@ async function handleServeExplorationInner(
     )) {
       action = { type: "continue_narrowing", filter: pendingWorkPieceFilter }
     }
+
+    // ── Deep debug: route decision + reasoning summary ──
+    const originalActionType = orchResult.action.type
+    const wasIntercepted = action.type !== originalActionType
+    trace.setRouteDecision({
+      chosen: action.type,
+      reason: wasIntercepted
+        ? `Orchestrator chose "${originalActionType}" but intercepted to "${action.type}"`
+        : `Orchestrator chose "${action.type}"`,
+      alternatives: wasIntercepted
+        ? [{ name: originalActionType, rejectedReason: "Intercepted by question-assist or query-target override" }]
+        : [],
+    })
+
+    // Build human-readable reasoning
+    const reasoningBullets: string[] = []
+    if (prevState.lastAskedField) reasoningBullets.push(`Pending question: "${prevState.lastAskedField}"`)
+    if (prevState.resolutionStatus?.startsWith("resolved")) reasoningBullets.push("Recommendation already shown")
+    if (wasIntercepted) reasoningBullets.push(`Original action "${originalActionType}" was intercepted → "${action.type}"`)
+    if (filters.length > 0) reasoningBullets.push(`${filters.length} filters active: ${filters.filter(f => f.op !== "skip").map(f => `${f.field}=${f.value}`).join(", ")}`)
+    reasoningBullets.push(`${candidates.length} candidates available`)
+
+    trace.setReasoning({
+      oneLiner: `${action.type} | ${prevState.currentMode ?? "initial"} | ${candidates.length}개 후보${wasIntercepted ? ` (intercepted from ${originalActionType})` : ""}`,
+      bullets: reasoningBullets,
+    })
 
     if (action.type === "reset_session") {
       return buildResetResponse(deps, requestPrep)

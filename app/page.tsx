@@ -49,6 +49,9 @@ export default function DashboardPage() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">대시보드</h1>
             <p className="text-sm text-muted-foreground">Dashboard</p>
+            <p className="text-[10px] text-muted-foreground/60 font-mono mt-0.5">
+              최종 업데이트: {process.env.NEXT_PUBLIC_BUILD_TIMESTAMP ?? new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}
+            </p>
           </div>
           {demoScenario && (
             <Badge variant="outline" className="border-primary text-primary">
