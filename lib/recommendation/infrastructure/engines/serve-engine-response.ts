@@ -28,6 +28,7 @@ import {
   generateSmartOptionsForRecommendation,
 } from "@/lib/recommendation/infrastructure/engines/serve-engine-option-first"
 import { getMaterialDisplay, resolveMaterialTag } from "@/lib/recommendation/domain/material-resolver"
+import { searchKB } from "@/lib/knowledge/yg1-knowledge-base"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { RecommendationDisplayedProductRequestDto } from "@/lib/contracts/recommendation"
@@ -248,10 +249,14 @@ export async function buildQuestionResponse(
     }
   } else if (provider.available() && messages.length > 0) {
     try {
-      const systemPrompt = buildSystemPrompt(language)
+      const lastUserText = [...messages].reverse().find(m => m.role === "user")?.text ?? ""
+      const kbHit = prefetchKBForRecommendation(lastUserText)
+      const systemPrompt = buildSystemPrompt(language) + (kbHit
+        ? `\n\n═══ [KB 자동 조회 결과] ═══\n사용자가 회사 관련 질문을 했습니다. 아래 정보를 기반으로 답변하세요:\n${kbHit}\n이 정보와 다른 답변(전화번호, 주소 등)을 생성하지 마세요. 답변 후 제품 추천으로 자연스럽게 안내하세요.`
+        : "")
       const sessionCtx = buildSessionContext(form, sessionState, candidates.length, snapshotToDisplayed(candidateSnapshot))
       const raw = await provider.complete(systemPrompt, [
-        { role: "user", content: `${sessionCtx}\n\n다음 질문을 자연스럽고 간결한 ${language === "ko" ? "한국어" : "영어"}로 다듬어주세요: "${question?.questionText ?? ""}"\n현재 후보 ${candidates.length}개.\nJSON으로 응답: { "responseText": "...", "extractedParams": {}, "isComplete": false, "skipQuestion": false }` }
+        { role: "user", content: `${sessionCtx}\n\n다음 질문을 자연스럽고 간결한 ${language === "ko" ? "한국어" : "영어"}로 다듬어주세요: "${question?.questionText ?? ""}"\n${kbHit ? `사용자 추가 질문: "${lastUserText}"\n` : ""}현재 후보 ${candidates.length}개.\nJSON으로 응답: { "responseText": "...", "extractedParams": {}, "isComplete": false, "skipQuestion": false }` }
       ], 300)
       const parsed = safeParseJSON(raw)
       if (typeof parsed?.responseText === "string") {
@@ -837,4 +842,29 @@ function extractFieldValuesFromSnapshot(
     }
   }
   return result
+}
+
+// ── KB 프리페치 (추천 경로용) ─────────────────────────
+const REC_COMPANY_KEYWORDS = [
+  "공장", "영업소", "연구소", "본사", "물류센터",
+  "인천", "부평", "서운", "광주", "충주", "익산", "안산",
+  "대구", "부산", "창원", "천안",
+  "매출", "주주", "버핏", "회장", "사장", "대표", "ceo",
+  "설립", "창업", "직원", "순위", "세계", "경쟁사",
+  "수출", "해외", "비전", "연혁", "수상", "인증",
+  "전화", "연락처", "주소", "채용", "카탈로그",
+]
+
+function prefetchKBForRecommendation(userMessage: string): string | null {
+  const q = userMessage.toLowerCase()
+  if (!REC_COMPANY_KEYWORDS.some(kw => q.includes(kw))) return null
+
+  const result = searchKB(userMessage)
+  if (result.found && result.confidence === "high") {
+    console.log(`[recommend:kb-prefetch] Hit: "${userMessage.slice(0, 40)}"`)
+    return result.answer
+  }
+
+  console.log(`[recommend:kb-prefetch] Miss: "${userMessage.slice(0, 40)}"`)
+  return `"${userMessage.slice(0, 30)}" 관련 정보가 내부 KB에 없습니다. 추측하지 말고 "YG-1 본사(032-526-0909) 또는 www.yg1.solutions에 문의해 주세요"로 안내하세요.`
 }
