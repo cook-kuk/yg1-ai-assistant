@@ -315,6 +315,21 @@ function buildReplyResponse(
     suspendedFlow: null,
   })
 
+  // ── Final field consistency guard (general-chat path) ──
+  const finalPendingField = sessionState.lastAskedField ?? prevState.lastAskedField ?? null
+  if (finalPendingField && finalDisplayedOptions.length > 0) {
+    const staleInFinal = finalDisplayedOptions.some(
+      opt => opt.field && opt.field !== finalPendingField && opt.field !== "_action" && opt.field !== "skip"
+    )
+    if (staleInFinal) {
+      console.warn(`[general-chat:field-guard] Stale chips for field="${finalPendingField}" — clearing to prevent mismatch`)
+      finalChips = []
+      finalDisplayedOptions = []
+      sessionState.displayedChips = []
+      sessionState.displayedOptions = []
+    }
+  }
+
   recordTurnToLog(sessionState, userMessage, finalText, processTrace)
 
   return deps.jsonRecommendationResponse({
@@ -366,9 +381,14 @@ function buildValidatedReplyResponse(
         console.warn(`[reply-ui-strategy] Stale options detected for field="${pendingField}", falling back to reply chips`)
         chips = reply.chips
         displayedOptions = reply.chips.length > 0 ? buildReplyDisplayedOptions(reply.chips) : []
-      } else {
-        chips = prevState.displayedChips?.length ? prevState.displayedChips : reply.chips
+      } else if (prevOptions.length > 0 && pendingField) {
+        // prevOptions가 있고 field가 일치할 때만 재사용
+        chips = prevOptions.map(opt => opt.label)
         displayedOptions = prevOptions
+      } else {
+        // prevOptions 비어있거나 field 모름 → reply chips 사용 (stale 방지)
+        chips = reply.chips
+        displayedOptions = reply.chips.length > 0 ? buildReplyDisplayedOptions(reply.chips) : []
       }
       break
     }

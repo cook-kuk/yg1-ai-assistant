@@ -184,10 +184,12 @@ export async function buildGeneralChatOptionState(input: {
     // Guard: only reuse prevState chips if they match the current pending field
     const pendingField = prevState.lastAskedField ?? null
     const prevOptions = prevState.displayedOptions ?? []
+    // prevState chips 재사용 조건: displayedOptions가 있고, 모두 현재 field와 일치
     const prevChipsValid = prevState.displayedChips?.length > 0
-      && !(pendingField && prevOptions.some(opt => opt.field && opt.field !== pendingField && opt.field !== "_action" && opt.field !== "skip"))
+      && prevOptions.length > 0
+      && (!pendingField || prevOptions.every(opt => !opt.field || opt.field === pendingField || opt.field === "_action" || opt.field === "skip"))
     if (prevChipsValid) {
-      finalChips = prevState.displayedChips!
+      finalChips = prevOptions.map(opt => opt.label) // chips를 displayedOptions에서 derive
       finalDisplayedOptions = prevOptions
     } else {
       // Minimal deterministic fallback — navigation only
