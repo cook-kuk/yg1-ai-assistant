@@ -93,7 +93,8 @@ function resolveSingleIsoGroup(material: string | undefined): string | null {
 async function buildWorkPieceQuestion(
   input: RecommendationInput,
   history: NarrowingTurn[],
-  filters: AppliedFilter[]
+  filters: AppliedFilter[],
+  candidates?: ScoredProduct[]
 ): Promise<{
   field: string
   questionText: string
@@ -173,7 +174,7 @@ export async function buildQuestionResponse(
   overrideText?: string,
   existingStageHistory?: NarrowingStage[]
 ): Promise<Response> {
-  const question = await buildWorkPieceQuestion(input, history, filters) ?? selectNextQuestion(input, candidates, history, totalCandidateCount)
+  const question = await buildWorkPieceQuestion(input, history, filters, candidates) ?? selectNextQuestion(input, candidates, history, totalCandidateCount)
   const stageHistory = existingStageHistory
     ? [...existingStageHistory]
     : buildStageHistoryFromFilters(filters, input, totalCandidateCount)
@@ -412,7 +413,7 @@ export async function buildRecommendationResponse(
   language: AppLanguage,
   displayedProducts: DisplayedProduct[] | null = null
 ): Promise<Response> {
-  const workPieceQuestion = await buildWorkPieceQuestion(input, history, filters)
+  const workPieceQuestion = await buildWorkPieceQuestion(input, history, filters, candidates)
   if (workPieceQuestion) {
     return buildQuestionResponse(
       deps,

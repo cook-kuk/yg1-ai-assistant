@@ -19,6 +19,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import type { RecommendationCandidateDto } from "@/lib/contracts/recommendation"
 import { useApp } from "@/lib/frontend/app-context"
+import {
+  buildCandidateSpecFallback,
+  buildCandidateSubtypeHighlight,
+  buildSubtypeFirstSummary,
+} from "@/lib/frontend/recommendation/recommendation-card-highlights"
 import type {
   CuttingConditions,
   EvidenceSummary,
@@ -40,7 +45,7 @@ const STATUS_CONFIG = {
 
 const STOCK_CONFIG = {
   instock: { ko: "재고 있음", en: "In Stock", cls: "bg-green-100 text-green-700", dot: "bg-green-500" },
-  limited: { ko: "소량 재고", en: "Limited Stock", cls: "bg-amber-100 text-amber-700", dot: "bg-amber-500" },
+  limited: { ko: "제한 재고", en: "Limited Stock", cls: "bg-amber-100 text-amber-700", dot: "bg-amber-500" },
   outofstock: { ko: "재고 없음", en: "Out of Stock", cls: "bg-red-100 text-red-700", dot: "bg-red-500" },
   unknown: { ko: "재고 미확인", en: "Stock Unknown", cls: "bg-gray-100 text-gray-600", dot: "bg-gray-400" },
 }
@@ -132,7 +137,7 @@ function InventoryBlock({
           </div>
           {snapshotDate && (
             <div className="text-[10px] text-gray-500 mt-1">
-              {language === "ko" ? `기준일 ${snapshotDate}` : `As of ${snapshotDate}`}
+              {language === "ko" ? `기준일: ${snapshotDate}` : `As of ${snapshotDate}`}
             </div>
           )}
         </div>
@@ -154,7 +159,7 @@ function InventoryBlock({
         </div>
         {snapshotDate && (
           <div className="text-[10px] text-emerald-700">
-            {language === "ko" ? `기준일 ${snapshotDate}` : `As of ${snapshotDate}`}
+            {language === "ko" ? `기준일: ${snapshotDate}` : `As of ${snapshotDate}`}
           </div>
         )}
         {visibleLocations.length > 0 && (
@@ -169,7 +174,7 @@ function InventoryBlock({
             ))}
             {remainingCount > 0 && (
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-white text-gray-500 border border-gray-200">
-                {language === "ko" ? `외 ${remainingCount}개 지역` : `+${remainingCount} more`}
+                {language === "ko" ? `+${remainingCount}개 지역` : `+${remainingCount} more`}
               </span>
             )}
           </div>
@@ -209,7 +214,7 @@ function EvidenceBadge({ conditions, confidence }: { conditions: CuttingConditio
             {conditions.ae && <SpecRow label={language === "ko" ? "ae (절삭폭)" : "ae (Width of Cut)"} value={conditions.ae} />}
           </div>
           <div className="text-[10px] text-gray-400 mt-2 border-t pt-1">
-            {language === "ko" ? "카탈로그 추출 데이터 · 실제 가공 시 조정 필요" : "Catalog extracted data · Adjust for actual machining"}
+            {language === "ko" ? "카탈로그 추출 데이터 · 실제 가공시 조정 필요" : "Catalog extracted data · Adjust for actual machining"}
           </div>
         </div>
       )}
@@ -220,9 +225,9 @@ function EvidenceBadge({ conditions, confidence }: { conditions: CuttingConditio
 function buildXaiNarrative(breakdown: ScoreBreakdown): string {
   const dims = [
     { key: "diameter" as const, label: "직경" },
-    { key: "flutes" as const, label: "날 수" },
+    { key: "flutes" as const, label: "날수" },
     { key: "materialTag" as const, label: "소재" },
-    { key: "operation" as const, label: "가공 방식" },
+    { key: "operation" as const, label: "가공방식" },
     { key: "coating" as const, label: "코팅" },
     { key: "evidence" as const, label: "절삭조건 근거" },
   ]
@@ -243,7 +248,7 @@ function buildXaiNarrative(breakdown: ScoreBreakdown): string {
   }
 
   const parts: string[] = []
-  if (perfect.length > 0) parts.push(`${perfect.join(", ")} 조건이 정확히 일치합니다.`)
+  if (perfect.length > 0) parts.push(`${perfect.join(", ")} 조건은 정확히 일치합니다.`)
   if (good.length > 0) parts.push(`${good.join(", ")}은(는) 부분적으로 일치합니다.`)
   if (weak.length > 0) parts.push(`${weak.join(", ")} 항목은 다소 차이가 있습니다.`)
   if (missing.length > 0) parts.push(`${missing.join(", ")} 정보는 확인되지 않았습니다.`)
@@ -251,8 +256,8 @@ function buildXaiNarrative(breakdown: ScoreBreakdown): string {
   const pct = breakdown.matchPct
   if (pct >= 80) parts.push("전반적으로 요청 조건에 매우 적합한 제품입니다.")
   else if (pct >= 60) parts.push("요청 조건에 대체로 부합하는 제품입니다.")
-  else if (pct >= 40) parts.push("일부 조건은 맞지만, 세부 사항 확인이 필요합니다.")
-  else parts.push("요청 조건과의 일치도가 낮아 주의가 필요합니다.")
+  else if (pct >= 40) parts.push("일부 조건만 맞아 더 세부 사항 확인이 필요합니다.")
+  else parts.push("요청 조건과의 일치율이 낮아 주의가 필요합니다.")
 
   return parts.join(" ")
 }
@@ -260,13 +265,13 @@ function buildXaiNarrative(breakdown: ScoreBreakdown): string {
 function ScoreBreakdownPanel({ breakdown }: { breakdown: ScoreBreakdown }) {
   const { language } = useApp()
   const dimensions = [
-    { key: "diameter", ko: "직경", en: "Diameter", emoji: "📐" },
-    { key: "flutes", ko: "날 수", en: "Flutes", emoji: "🔧" },
+    { key: "diameter", ko: "직경", en: "Diameter", emoji: "📏" },
+    { key: "flutes", ko: "날수", en: "Flutes", emoji: "🔩" },
     { key: "materialTag", ko: "소재", en: "Material", emoji: "🧱" },
     { key: "operation", ko: "가공", en: "Operation", emoji: "⚙️" },
     { key: "coating", ko: "코팅", en: "Coating", emoji: "🛡️" },
-    { key: "completeness", ko: "완성도", en: "Completeness", emoji: "📊" },
-    { key: "evidence", ko: "절삭조건", en: "Cutting Cond.", emoji: "📄" },
+    { key: "completeness", ko: "완성도", en: "Completeness", emoji: "📋" },
+    { key: "evidence", ko: "절삭조건", en: "Cutting Cond.", emoji: "📊" },
   ] as const
 
   const narrative = buildXaiNarrative(breakdown)
@@ -359,16 +364,7 @@ function ProductCard({
               {product.seriesName && <span className="text-xs text-blue-700 font-medium">{product.seriesName}</span>}
             </div>
             <div className="text-[11px] text-gray-600 mt-1 leading-relaxed font-medium">
-              {[
-                product.diameterMm != null ? `φ${product.diameterMm}mm` : null,
-                product.fluteCount != null ? `${product.fluteCount}날` : null,
-                product.coating ?? null,
-                product.toolMaterial ?? null,
-                product.shankDiameterMm != null ? `Shank ${product.shankDiameterMm}mm` : null,
-                product.lengthOfCutMm != null ? `CL ${product.lengthOfCutMm}mm` : null,
-                product.overallLengthMm != null ? `OAL ${product.overallLengthMm}mm` : null,
-                product.helixAngleDeg != null ? `${product.helixAngleDeg}°` : null,
-              ].filter(Boolean).join(" · ")}
+              {buildSubtypeFirstSummary(product, language).join(" ? ")}
             </div>
             {product.materialTags.length > 0 && (
               <div className="text-[10px] text-gray-400 mt-0.5">{product.materialTags.join("/")}군</div>
@@ -387,14 +383,13 @@ function ProductCard({
       {open && (
         <CardContent className="px-4 pb-4 pt-0 space-y-3">
           <div className="bg-gray-50 rounded-lg p-3">
-            <SpecRow label={language === "ko" ? "직경" : "Diameter"} value={product.diameterMm != null ? `φ${product.diameterMm}mm` : null} />
-            <SpecRow label={language === "ko" ? "날 수" : "Flutes"} value={product.fluteCount != null ? `${product.fluteCount}${language === "ko" ? "날" : "FL"}` : null} />
-            <SpecRow label={language === "ko" ? "코팅" : "Coating"} value={product.coating} />
-            <SpecRow label={language === "ko" ? "공구 소재" : "Tool Material"} value={product.toolMaterial} />
-            <SpecRow label={language === "ko" ? "섕크 직경" : "Shank Dia."} value={product.shankDiameterMm != null ? `${product.shankDiameterMm}mm` : null} />
-            <SpecRow label={language === "ko" ? "절삭 길이" : "LOC"} value={product.lengthOfCutMm != null ? `${product.lengthOfCutMm}mm` : null} />
+            <SpecRow label={language === "ko" ? "공구 타입" : "Subtype"} value={product.toolSubtype} />
+            <SpecRow label={language === "ko" ? "공구 재질" : "Tool Material"} value={product.toolMaterial} />
+            <SpecRow label={language === "ko" ? "생크 직경" : "Shank Dia."} value={product.shankDiameterMm != null ? `${product.shankDiameterMm}mm` : null} />
+            <SpecRow label={language === "ko" ? "날장 길이" : "LOC"} value={product.lengthOfCutMm != null ? `${product.lengthOfCutMm}mm` : null} />
             <SpecRow label={language === "ko" ? "전체 길이" : "OAL"} value={product.overallLengthMm != null ? `${product.overallLengthMm}mm` : null} />
-            <SpecRow label={language === "ko" ? "나선각" : "Helix Angle"} value={product.helixAngleDeg != null ? `${product.helixAngleDeg}°` : null} />
+            <SpecRow label={language === "ko" ? "헬릭스각" : "Helix Angle"} value={product.helixAngleDeg != null ? `${product.helixAngleDeg}°` : null} />
+
           </div>
           {product.featureText && (
             <div className="text-[11px] text-teal-700 bg-teal-50 rounded-lg p-2.5 leading-relaxed whitespace-pre-line">
@@ -458,6 +453,8 @@ export function CandidateCard({ c }: { c: RecommendationCandidateDto }) {
   const cleanedDescription = c.description
     ? c.description.replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, "").trim()
     : null
+  const subtypeHighlight = buildCandidateSubtypeHighlight(c, language)
+  const fallbackSpecs = buildCandidateSpecFallback(c)
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-1.5">
@@ -482,27 +479,29 @@ export function CandidateCard({ c }: { c: RecommendationCandidateDto }) {
           </div>
           <div className="font-mono text-sm font-bold text-gray-900">{c.displayCode}</div>
           <div className="text-[11px] text-gray-600 mt-1 leading-relaxed font-medium">
-            {[
-              c.diameterMm != null ? `φ${c.diameterMm}mm` : null,
-              c.fluteCount != null ? `${c.fluteCount}날` : null,
-              c.coating ?? null,
-              c.toolMaterial ?? null,
-              c.shankDiameterMm != null ? `Shank ${c.shankDiameterMm}mm` : null,
-              c.lengthOfCutMm != null ? `CL ${c.lengthOfCutMm}mm` : null,
-              c.overallLengthMm != null ? `OAL ${c.overallLengthMm}mm` : null,
-              c.helixAngleDeg != null ? `${c.helixAngleDeg}°` : null,
-            ].filter(Boolean).join(" · ")}
+            {buildSubtypeFirstSummary(c, language).join(" ? ")}
           </div>
           {c.materialTags.length > 0 && (
-            <div className="text-[10px] text-gray-400 mt-0.5">{c.materialTags.join("/")}군</div>
+             <div className="text-[10px] text-gray-400 mt-0.5">{c.materialTags.join("/")}군</div>
           )}
         </div>
       </div>
-      <div className="flex flex-wrap gap-1.5 text-xs text-gray-600">
-        {c.diameterMm != null && <span>{"φ"}{c.diameterMm}mm</span>}
-        {c.fluteCount != null && <span>{language === "ko" ? `${c.fluteCount}날` : `${c.fluteCount} FL`}</span>}
-        {c.coating && <span>{c.coating}</span>}
-      </div>
+      {subtypeHighlight ? (
+        <div className="flex flex-wrap gap-2">
+          <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900 shadow-sm">
+            <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-amber-600">
+              {subtypeHighlight.label}
+            </span>
+            <span>{subtypeHighlight.value}</span>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-1.5 text-xs text-gray-600">
+          {fallbackSpecs.map(spec => (
+            <span key={spec}>{spec}</span>
+          ))}
+        </div>
+      )}
       <div className="flex items-center gap-2">
         {c.hasEvidence && c.bestCondition && <EvidenceBadge conditions={c.bestCondition} />}
       </div>
@@ -777,8 +776,8 @@ function EvidenceSourceCard({ evidence }: { evidence: SupportingEvidence[] }) {
               : entry.type === "catalog_spec"
                 ? (language === "ko" ? "카탈로그" : "Catalog")
                 : entry.type === "inventory"
-                  ? (language === "ko" ? "재고" : "Inventory")
-                  : (language === "ko" ? "납기" : "Lead Time")}
+                    ? (language === "ko" ? "재고" : "Inventory")
+                    : (language === "ko" ? "납기" : "Lead Time")}
           </span>
           <span className="text-gray-700">{entry.summary}</span>
         </div>
@@ -808,8 +807,7 @@ export function RecommendationPanel({
       <div className="flex items-center gap-2 flex-wrap">
         <MatchBadge status={status} />
         <span className="text-xs text-gray-500">
-          {totalCandidatesConsidered}
-          {language === "ko" ? "개 후보 검색" : " candidates searched"}
+          {language === "ko" ? `${totalCandidatesConsidered}개 후보 검색` : `${totalCandidatesConsidered} candidates searched`}
         </span>
       </div>
       {warnings.length > 0 && (
@@ -854,7 +852,7 @@ export function RecommendationPanel({
                 </div>
               )}
               <div className="text-[10px] text-purple-500 mt-0.5">
-                신뢰도: {Math.round(summary.bestConfidence * 100)}% · {summary.sourceCount}건
+                신뢰도 {Math.round(summary.bestConfidence * 100)}% · {summary.sourceCount}건
               </div>
             </div>
           ))}
