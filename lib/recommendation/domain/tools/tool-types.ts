@@ -8,6 +8,7 @@
 export type ToolName =
   | "candidate_search"
   | "series_lookup"
+  | "brand_lookup"
   | "product_lookup"
   | "comparison"
   | "count_aggregation"
@@ -27,6 +28,8 @@ export interface PlannedToolCall {
 export type AnswerTopic =
   | "series_info"
   | "series_comparison"
+  | "brand_info"
+  | "brand_comparison"
   | "product_comparison"
   | "count_query"
   | "spec_query"

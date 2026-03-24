@@ -635,110 +635,126 @@ async function executeGetCuttingConditions(params: {
   })
 }
 
-async function executeGetCompetitorMapping(params: {
-  competitor_name?: string
-  competitor_product?: string
-}): Promise<string> {
-  const competitors = CompetitorRepo.getAll()
+async function executeGetCompetitorMapping(
+  params: {
+    competitor_name?: string
+    competitor_product?: string
+  },
+  deps: ChatToolRuntimeDeps
+): Promise<string> {
+  const query = params.competitor_product
+    ? `${params.competitor_product} cutting tool specifications diameter flute coating material`
+    : params.competitor_name
+      ? `${params.competitor_name} cutting tool endmill drill tap product lineup specifications`
+      : null
 
-  if (params.competitor_product) {
-    const found = CompetitorRepo.findByCode(params.competitor_product)
-    if (found) {
-      const alternativeInput: RecommendationInput = {
-        manufacturerScope: "yg1-only",
-        locale: "ko",
-      }
-      if (found.diameterMm != null) alternativeInput.diameterMm = found.diameterMm
+  if (!query) {
+    return JSON.stringify({ found: false, message: "경쟁사 이름 또는 제품 코드를 입력해주세요." })
+  }
 
-      const alternativeFilters: AppliedFilter[] = []
-      if (found.fluteCount != null) {
-        alternativeFilters.push({
-          field: "fluteCount",
-          op: "eq",
-          value: `${found.fluteCount}날`,
-          rawValue: found.fluteCount,
-          appliedAt: 0,
-        })
-      }
-      if (found.coating) {
-        alternativeFilters.push({
-          field: "coating",
-          op: "includes",
-          value: found.coating,
-          rawValue: found.coating,
-          appliedAt: 0,
-        })
-      }
-
-      let alternatives = await ProductRepo.search(alternativeInput, alternativeFilters, 100)
-      alternatives = alternatives.filter(product => {
-        let match = true
-        if (found.diameterMm !== null && product.diameterMm !== null) {
-          match = match && Math.abs(product.diameterMm - found.diameterMm) <= 1
-        }
-        if (found.fluteCount !== null && product.fluteCount !== null) {
-          match = match && product.fluteCount === found.fluteCount
-        }
-        return match
+  // Step 1: 웹서치로 경쟁사 제품 스펙 조회
+  let webSpecs: string | null = null
+  if (deps.client) {
+    try {
+      const resp = await createAnthropicMessageWithLogging({
+        client: deps.client,
+        route: deps.route,
+        operation: "competitor_web_search",
+        request: {
+          model: deps.anthropicChatModel as Parameters<typeof deps.client.messages.create>[0]["model"],
+          max_tokens: 1024,
+          tools: [{ type: "web_search_20250305" as const, name: "web_search", max_uses: 2 }],
+          messages: [{
+            role: "user",
+            content: `Find specifications for this cutting tool: ${query}\n\nExtract: diameter (mm), number of flutes, coating type, applicable materials (ISO P/M/K/N/S/H), tool type (endmill/drill/tap). Return as structured text.`,
+          }],
+        },
       })
+      const textBlocks = resp.content.filter(
+        (block): block is Anthropic.TextBlock => block.type === "text"
+      )
+      webSpecs = textBlocks.map(block => block.text).join("\n")
+    } catch (err) {
+      console.warn("[competitor-mapping] Web search failed:", err)
+    }
+  }
 
+  // Step 2: 웹서치 결과에서 스펙 추출 → YG-1 대체품 검색
+  if (webSpecs && deps.client) {
+    try {
+      const extractResp = await createAnthropicMessageWithLogging({
+        client: deps.client,
+        route: deps.route,
+        operation: "competitor_spec_extract",
+        request: {
+          model: deps.anthropicChatModel as Parameters<typeof deps.client.messages.create>[0]["model"],
+          max_tokens: 200,
+          messages: [{
+            role: "user",
+            content: `From this text, extract cutting tool specs as JSON. Only include fields you're confident about.\n\n${webSpecs.slice(0, 1500)}\n\nJSON: {"diameter_mm":null,"flute_count":null,"coating":null,"material":"","tool_type":""}`,
+          }],
+        },
+      })
+      const extractText = extractResp.content.filter(
+        (block): block is Anthropic.TextBlock => block.type === "text"
+      ).map(b => b.text).join("")
+
+      const cleaned = extractText.replace(/```json\n?|\n?```/g, "").trim()
+      const specs = JSON.parse(cleaned)
+
+      // Step 3: 추출된 스펙으로 YG-1 내부 DB 검색
+      const searchInput: RecommendationInput = { manufacturerScope: "yg1-only", locale: "ko" }
+      if (specs.diameter_mm) searchInput.diameterMm = specs.diameter_mm
+      if (specs.material) searchInput.material = specs.material
+
+      const searchFilters: AppliedFilter[] = []
+      if (specs.flute_count) {
+        searchFilters.push({ field: "fluteCount", op: "eq", value: `${specs.flute_count}날`, rawValue: specs.flute_count, appliedAt: 0 })
+      }
+      if (specs.coating) {
+        searchFilters.push({ field: "coating", op: "includes", value: specs.coating, rawValue: specs.coating, appliedAt: 0 })
+      }
+
+      let alternatives = await ProductRepo.search(searchInput, searchFilters, 100)
+      if (specs.diameter_mm) {
+        const diam = specs.diameter_mm
+        alternatives = alternatives.filter(p => p.diameterMm != null && Math.abs(p.diameterMm - diam) <= 1)
+      }
       const deduped = dedupeProductsBySeries(alternatives)
 
       return JSON.stringify({
         found: true,
-        competitorProduct: {
-          displayCode: found.displayCode,
-          manufacturer: found.manufacturer,
-          brand: found.brand,
-          diameterMm: found.diameterMm,
-          fluteCount: found.fluteCount,
-          coating: found.coating,
-          materialTags: found.materialTags,
-        },
+        source: "web_search_then_internal_db",
+        competitorQuery: params.competitor_product ?? params.competitor_name,
+        extractedSpecs: specs,
+        webSearchSummary: webSpecs.slice(0, 500),
         yg1Alternatives: deduped.slice(0, 5).map(slimProduct),
+        note: deduped.length > 0
+          ? `웹 검색으로 경쟁사 제품 스펙을 확인한 뒤, 유사한 YG-1 제품 ${deduped.length}개를 찾았습니다.`
+          : "웹 검색으로 스펙을 확인했지만, 정확히 매칭되는 YG-1 제품이 없습니다. 조건을 완화해서 search_products로 재검색해보세요.",
+        disclaimer: "⚠️ 경쟁사 스펙은 웹 검색 결과 기반이며, 정확한 수치는 해당 제조사 카탈로그를 확인하세요.",
       })
+    } catch (err) {
+      console.warn("[competitor-mapping] Spec extraction failed:", err)
     }
   }
 
-  if (params.competitor_name) {
-    const q = params.competitor_name.toLowerCase()
-    const filtered = competitors.filter(
-      product =>
-        product.manufacturer?.toLowerCase().includes(q) ||
-        product.brand?.toLowerCase().includes(q)
-    )
-
-    if (filtered.length > 0) {
-      const seriesSeen = new Set<string>()
-      const deduped = filtered.filter(product => {
-        const key = product.seriesName ?? product.displayCode
-        if (seriesSeen.has(key)) return false
-        seriesSeen.add(key)
-        return true
-      })
-
-      return JSON.stringify({
-        found: true,
-        competitorName: params.competitor_name,
-        competitorProducts: deduped.slice(0, 10).map(product => ({
-          displayCode: product.displayCode,
-          seriesName: product.seriesName,
-          diameterMm: product.diameterMm,
-          fluteCount: product.fluteCount,
-          coating: product.coating,
-          materialTags: product.materialTags,
-        })),
-        note: "위 경쟁사 제품과 유사한 YG-1 제품을 찾으려면 search_products 도구로 같은 스펙(직경, 날수, 소재)을 검색하세요.",
-      })
-    }
+  // Fallback: 웹서치 결과만 반환
+  if (webSpecs) {
+    return JSON.stringify({
+      found: true,
+      source: "web_search_only",
+      competitorQuery: params.competitor_product ?? params.competitor_name,
+      webSearchResult: webSpecs.slice(0, 800),
+      note: "경쟁사 제품 정보를 웹에서 찾았습니다. 스펙 추출이 어려워 자동 매칭은 하지 못했습니다. search_products 도구로 유사 스펙을 직접 검색해보세요.",
+      disclaimer: "⚠️ 웹 검색 결과 기반 — 정확한 수치는 해당 제조사 카탈로그를 확인하세요.",
+    })
   }
 
   return JSON.stringify({
     found: false,
-    message: "내부 DB에서 해당 경쟁사 제품 정보를 찾지 못했습니다. web_search 도구로 웹에서 검색해보세요.",
-    availableCompetitors: [
-      ...new Set(competitors.map(product => product.manufacturer).filter(Boolean)),
-    ].slice(0, 10),
+    message: "경쟁사 제품 정보를 찾지 못했습니다. 제품 코드나 정확한 경쟁사명을 입력해주세요.",
+    knownCompetitors: ["Sandvik Coromant", "Kennametal", "OSG", "Walter", "Mitsubishi", "Hitachi", "Nachi", "IMC(이스카)"],
   })
 }
 
@@ -767,7 +783,8 @@ export async function executeChatTool(
         )
       case "get_competitor_mapping":
         return await executeGetCompetitorMapping(
-          toolInput as Parameters<typeof executeGetCompetitorMapping>[0]
+          toolInput as Parameters<typeof executeGetCompetitorMapping>[0],
+          deps
         )
       case "query_yg1_knowledge":
         return executeQueryYG1Knowledge(

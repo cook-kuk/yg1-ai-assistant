@@ -137,6 +137,7 @@ describe("handleServeGeneralChatAction", () => {
       deps: {
         buildCandidateSnapshot: () => prevState.displayedCandidates,
         handleDirectInventoryQuestion: vi.fn(async () => null),
+        handleDirectEntityProfileQuestion: vi.fn(async () => null),
         handleDirectBrandReferenceQuestion: vi.fn(async () => null),
         handleDirectCuttingConditionQuestion: vi.fn(async () => null),
         handleContextualNarrowingQuestion: vi.fn(async () => "DLC는 알루미늄 가공에서 자주 쓰는 코팅입니다."),

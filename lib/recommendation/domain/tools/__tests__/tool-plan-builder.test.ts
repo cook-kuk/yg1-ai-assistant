@@ -47,6 +47,25 @@ describe("tool-plan-builder: series info", () => {
   })
 })
 
+describe("tool-plan-builder: brand comparison/info", () => {
+  it("plans brand lookup + comparison for two brand entities", () => {
+    const qt = classifyQueryTarget("E·FORCE와 4G MILLS 브랜드 차이", "coating")
+    const plan = buildToolPlan(qt, defaultContext)
+
+    expect(plan.answerTopic).toBe("brand_comparison")
+    expect(plan.plannedCalls.some(c => c.tool === "brand_lookup" && c.required)).toBe(true)
+    expect(plan.plannedCalls.some(c => c.tool === "comparison")).toBe(true)
+  })
+
+  it("plans brand lookup for single brand info query", () => {
+    const qt = classifyQueryTarget("E·FORCE 브랜드 특징", "coating")
+    const plan = buildToolPlan(qt, defaultContext)
+
+    expect(plan.answerTopic).toBe("brand_info")
+    expect(plan.plannedCalls.some(c => c.tool === "brand_lookup" && c.required)).toBe(true)
+  })
+})
+
 describe("tool-plan-builder: count query", () => {
   it("plans count aggregation for distribution query without field match", () => {
     const qt = classifyQueryTarget("후보가 몇개야?", null) // no pending field

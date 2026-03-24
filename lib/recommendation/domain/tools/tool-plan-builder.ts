@@ -50,6 +50,26 @@ export function buildToolPlan(
       break
     }
 
+    case "brand_comparison": {
+      for (const entity of queryTarget.entities) {
+        calls.push({
+          tool: "brand_lookup",
+          purpose: `브랜드 "${entity}" 정보 조회`,
+          priority: nextPriority(),
+          required: true,
+          inputSummary: { brandName: entity },
+        })
+      }
+      calls.push({
+        tool: "comparison",
+        purpose: `${queryTarget.entities.join(" vs ")} 비교`,
+        priority: nextPriority(),
+        required: true,
+        inputSummary: { targets: queryTarget.entities },
+      })
+      break
+    }
+
     case "product_comparison": {
       calls.push({
         tool: "comparison",
@@ -79,6 +99,19 @@ export function buildToolPlan(
           priority: nextPriority(),
           required: false,
           inputSummary: { seriesName: queryTarget.entities[0] },
+        })
+      }
+      break
+    }
+
+    case "brand_info": {
+      for (const entity of queryTarget.entities) {
+        calls.push({
+          tool: "brand_lookup",
+          purpose: `브랜드 "${entity}" 정보`,
+          priority: nextPriority(),
+          required: true,
+          inputSummary: { brandName: entity },
         })
       }
       break
@@ -168,8 +201,10 @@ export function buildToolPlan(
 function mapQueryTargetToAnswerTopic(type: string): AnswerTopic {
   const map: Record<string, AnswerTopic> = {
     series_comparison: "series_comparison",
+    brand_comparison: "brand_comparison",
     product_comparison: "product_comparison",
     series_info: "series_info",
+    brand_info: "brand_info",
     product_info: "spec_query",
     field_count: "count_query",
     field_explanation: "field_explanation",
@@ -183,6 +218,6 @@ function mapQueryTargetToAnswerTopic(type: string): AnswerTopic {
  * Check if a tool plan requires search/retrieval beyond current state.
  */
 export function planRequiresSearch(plan: ToolPlan): boolean {
-  const searchTools = new Set(["candidate_search", "series_lookup", "product_lookup", "comparison", "inventory_lookup", "cutting_condition_lookup"])
+  const searchTools = new Set(["candidate_search", "series_lookup", "brand_lookup", "product_lookup", "comparison", "inventory_lookup", "cutting_condition_lookup"])
   return plan.plannedCalls.some(c => searchTools.has(c.tool) && c.required)
 }
