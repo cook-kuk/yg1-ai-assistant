@@ -1,81 +1,99 @@
 /**
  * Operation Type Resolver
- * Maps Korean/English operation input -> application_shape keywords used in product data
+ * Treats operation shapes as selectable series_application_shape text values.
  */
 
-export type OperationGroup = "roughing" | "finishing" | "semi-finishing" | "high-feed" | "slotting" | "drilling" | "other"
+import { OPERATION_SHAPE_OPTIONS } from "@/lib/types/intake"
 
-interface OperationMapping {
-  group: OperationGroup
-  keywords: string[]
-  appShapes: string[]
-  labelKo: string
-  labelEn: string
-}
+const DIRECT_OPERATION_SHAPE_VALUES = new Set(OPERATION_SHAPE_OPTIONS.map(option => option.value))
 
-const OPERATION_MAP: OperationMapping[] = [
-  {
-    group: "roughing",
-    keywords: ["황삭", "rough", "roughing", "황", "헤비컷", "heavy"],
-    appShapes: ["Side_Milling", "Profiling", "Roughing"],
-    labelKo: "황삭",
-    labelEn: "Roughing",
-  },
-  {
-    group: "finishing",
-    keywords: ["정삭", "finish", "finishing", "정", "마무리", "fine"],
-    appShapes: ["Side_Milling", "Profiling", "Die-Sinking"],
-    labelKo: "정삭",
-    labelEn: "Finishing",
-  },
-  {
-    group: "semi-finishing",
-    keywords: ["중삭", "semi", "semi-finish", "반정삭"],
-    appShapes: ["Side_Milling", "Profiling"],
-    labelKo: "중삭",
-    labelEn: "Semi-finishing",
-  },
-  {
-    group: "high-feed",
-    keywords: ["고이송", "high feed", "high-feed", "highfeed", "hfm", "빠른이송"],
-    appShapes: ["Trochoidal", "High_Feed"],
-    labelKo: "고이송",
-    labelEn: "High-Feed",
-  },
-  {
-    group: "slotting",
-    keywords: ["슬롯", "slot", "slotting", "홈가공", "홈"],
-    appShapes: ["Slotting"],
-    labelKo: "슬롯가공",
-    labelEn: "Slotting",
-  },
-  {
-    group: "other",
-    keywords: ["측면", "side", "윤곽", "contour", "profile", "금형", "die", "mold"],
-    appShapes: ["Side_Milling", "Die-Sinking", "Profiling"],
-    labelKo: "측면/윤곽",
-    labelEn: "Side/Profile",
-  },
+const OPERATION_ALIASES: Array<{ keywords: string[]; values: string[] }> = [
+  { keywords: ["측면가공", "측면", "side milling"], values: ["Side_Milling", "Side Milling"] },
+  { keywords: ["정면가공", "정면", "face", "facing"], values: ["Facing"] },
+  { keywords: ["프로파일", "윤곽", "profiling", "profile", "contour"], values: ["Profiling"] },
+  { keywords: ["금형", "die", "mold", "diesinking", "die-sinking"], values: ["Die-Sinking"] },
+  { keywords: ["헬리컬 진입", "헬리컬", "helical interpolation"], values: ["Helical_Interpolation", "Helical Interpolation"] },
+  { keywords: ["챔퍼", "chamfer", "chamfering"], values: ["Chamfering"] },
+  { keywords: ["코너 라디우스", "코너라디우스", "corner radius"], values: ["Corner_Radius", "Corner Radius"] },
+  { keywords: ["고이송", "trochoidal"], values: ["Trochoidal"] },
+  { keywords: ["taper side milling"], values: ["Taper Side Milling", "Taper_Side_Milling"] },
+  { keywords: ["small part"], values: ["Small Part", "Small_Part"] },
+  { keywords: ["슬롯가공", "슬롯", "slotting", "slot"], values: ["Slotting"] },
+  { keywords: ["ramping"], values: ["Ramping"] },
+  { keywords: ["plunging"], values: ["Plunging"] },
 ]
 
-export function resolveOperation(input: string): OperationMapping | null {
-  if (!input) return null
-  const lower = input.toLowerCase().trim()
-  for (const operation of OPERATION_MAP) {
-    if (operation.keywords.some(keyword => lower.includes(keyword))) return operation
+function normalizeShapeKey(value: string): string {
+  return value.trim().toLowerCase().replace(/[\s_-]+/g, " ")
+}
+
+export function parseOperationShapeSelections(input: string): string[] {
+  if (!input) return []
+
+  const selections = new Set<string>()
+  for (const rawPart of input.split(",").map(part => part.trim()).filter(Boolean)) {
+    if (DIRECT_OPERATION_SHAPE_VALUES.has(rawPart)) {
+      selections.add(rawPart)
+      continue
+    }
+
+    const normalizedPart = normalizeShapeKey(rawPart)
+    const directMatches = OPERATION_SHAPE_OPTIONS
+      .filter(option => normalizeShapeKey(option.value) === normalizedPart)
+      .map(option => option.value)
+    if (directMatches.length === 1) {
+      selections.add(directMatches[0])
+      continue
+    }
+    if (directMatches.length > 1) {
+      for (const match of directMatches) selections.add(match)
+      continue
+    }
+
+    const aliasMatch = OPERATION_ALIASES.find(alias =>
+      alias.keywords.some(keyword => normalizedPart.includes(normalizeShapeKey(keyword)))
+    )
+    if (aliasMatch) {
+      for (const value of aliasMatch.values) selections.add(value)
+      continue
+    }
+
+    selections.add(rawPart)
   }
-  return null
+
+  return [...selections]
+}
+
+export function getOperationShapeSearchTexts(input: string): string[] {
+  return parseOperationShapeSelections(input)
+}
+
+export function normalizeOperationShapeToken(value: string): string {
+  const normalized = normalizeShapeKey(value)
+  const map: Record<string, string> = {
+    "side milling": "Side_Milling",
+    facing: "Facing",
+    profiling: "Profiling",
+    "die sinking": "Die-Sinking",
+    "helical interpolation": "Helical_Interpolation",
+    chamfering: "Chamfering",
+    "corner radius": "Corner_Radius",
+    trochoidal: "Trochoidal",
+    "taper side milling": "Taper_Side_Milling",
+    "small part": "Small_Part",
+    slotting: "Slotting",
+    ramping: "Ramping",
+    plunging: "Plunging",
+  }
+
+  return map[normalized] ?? value.trim()
 }
 
 export function getAppShapesForOperation(input: string): string[] {
-  const operation = resolveOperation(input)
-  return operation?.appShapes ?? []
+  return parseOperationShapeSelections(input).map(normalizeOperationShapeToken)
 }
 
-export function getOperationLabel(input: string, locale: "ko" | "en" = "ko"): string {
-  const operation = resolveOperation(input)
-  if (!operation) return input
-  return locale === "ko" ? operation.labelKo : operation.labelEn
+export function getOperationLabel(input: string, _locale: "ko" | "en" = "ko"): string {
+  const selections = parseOperationShapeSelections(input)
+  return selections[0] ?? input
 }
-
-export { OPERATION_MAP }
