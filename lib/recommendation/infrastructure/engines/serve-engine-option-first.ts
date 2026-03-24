@@ -597,6 +597,111 @@ function deduplicateOptions(options: SmartOption[]): SmartOption[] {
   })
 }
 
+// ════════════════════════════════════════════════════════════════
+// QUESTION FIELD OPTIONS — option-first question path
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * Convert question engine output (field + candidate chips) into structured SmartOptions.
+ * This is the option-first entry point for the question path.
+ *
+ * The question engine provides: field, candidateChips (e.g. ["2날 (216개)", "3날 (173개)"])
+ * This function produces: SmartOption[] → displayedOptions → chips
+ *
+ * Option families:
+ * - question_choice: direct field value selection
+ * - skip_choice: "상관없음"
+ * - navigation: "⟵ 이전 단계"
+ */
+export function buildQuestionFieldOptions(
+  field: string,
+  candidateChips: string[],
+  hasHistory: boolean
+): { options: SmartOption[]; displayedOptions: DisplayedOption[]; chips: string[] } {
+  let optionIndex = 0
+  const nextId = () => `qfield_${field}_${++optionIndex}`
+
+  const options: SmartOption[] = []
+
+  // Field value choices from candidate distribution
+  for (const chip of candidateChips) {
+    if (["상관없음", "⟵ 이전 단계", "처음부터 다시", "추천해주세요"].includes(chip)) continue
+
+    const countMatch = chip.match(/\((\d+)개\)/)
+    const count = countMatch ? parseInt(countMatch[1]) : null
+    const value = chip.replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
+
+    if (!value) continue
+
+    options.push({
+      id: nextId(),
+      family: "narrowing",
+      label: chip,
+      subtitle: count != null ? `${count}개 후보` : undefined,
+      field,
+      value,
+      reason: "후보 분포 기반 선택지",
+      projectedCount: count,
+      projectedDelta: null,
+      preservesContext: true,
+      destructive: false,
+      recommended: optionIndex === 1, // first option is recommended
+      priorityScore: count ?? 0,
+      plan: {
+        type: "apply_filter",
+        patches: [{ op: "add", field, value }],
+      },
+    })
+  }
+
+  // Skip option
+  options.push({
+    id: nextId(),
+    family: "action" as SmartOption["family"],
+    label: "상관없음",
+    subtitle: "이 조건 건너뛰기",
+    field,
+    value: "skip",
+    reason: "조건 무관",
+    projectedCount: null,
+    projectedDelta: null,
+    preservesContext: true,
+    destructive: false,
+    recommended: false,
+    priorityScore: 0,
+    plan: {
+      type: "apply_filter",
+      patches: [{ op: "add", field, value: "skip" }],
+    },
+  })
+
+  // Navigation: back
+  if (hasHistory) {
+    options.push({
+      id: nextId(),
+      family: "action" as SmartOption["family"],
+      label: "⟵ 이전 단계",
+      value: "undo",
+      reason: "이전 필터 단계로 복귀",
+      projectedCount: null,
+      projectedDelta: null,
+      preservesContext: true,
+      destructive: false,
+      recommended: false,
+      priorityScore: -1,
+      plan: {
+        type: "apply_filter",
+        patches: [{ op: "add", field: "_action", value: "undo" }],
+      },
+    })
+  }
+
+  const displayedOptions = smartOptionsToDisplayedOptions(options)
+  const chips = smartOptionsToChips(options)
+
+  return { options, displayedOptions, chips }
+}
+
 function buildRefinementChips(field: string, _language: AppLanguage): string[] {
   switch (field) {
     case "material":

@@ -22,6 +22,7 @@ import {
 } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import {
   buildDisplayedOptions,
+  buildQuestionFieldOptions,
   buildQuestionResponseOptionState,
   generateSmartOptionsForRecommendation,
 } from "@/lib/recommendation/infrastructure/engines/serve-engine-option-first"
@@ -83,21 +84,25 @@ export async function buildQuestionResponse(
 
   const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
 
-  // ── Option-first: question engine chips ARE the source of truth ──
-  // displayedOptions is DERIVED from question engine chips (not SmartOption engine).
-  // This ensures chips and displayedOptions always show the same field-specific values.
-  let chips = question?.chips ?? []
+  // ── Option-first: question engine provides field + candidate data ──
+  // Structured SmartOptions are built FIRST, then displayedOptions, then chips.
+  // The question engine's raw chips are input data, NOT the source of truth.
+  const questionFieldResult = question
+    ? buildQuestionFieldOptions(question.field, question.chips, history.length > 0)
+    : null
 
-  // Safety: if chips are empty (e.g. 0-candidate guard with overrideText),
-  // always provide at least navigation chips
+  let chips = questionFieldResult?.chips ?? []
+  let displayedOptions = questionFieldResult?.displayedOptions ?? []
+
+  // Safety: if no question field options (e.g. 0-candidate guard with overrideText),
+  // provide minimal navigation chips
   if (chips.length === 0) {
     const fallbackChips: string[] = []
     if (filters.length > 0) fallbackChips.push("⟵ 이전 단계")
     fallbackChips.push("처음부터 다시")
     chips = fallbackChips
+    displayedOptions = buildDisplayedOptions(chips, question?.field ?? "unknown")
   }
-
-  const displayedOptions = buildDisplayedOptions(chips, question?.field ?? "unknown")
   const displayedSeriesGroups = groupCandidatesBySeries(candidateSnapshot)
 
   const sessionState = buildSessionState({
