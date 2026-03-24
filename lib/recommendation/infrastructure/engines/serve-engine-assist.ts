@@ -696,6 +696,12 @@ export async function handleGeneralChat(
   const clean = userMessage.trim()
   const candidateCount = candidates.length
 
+  // ── 회사 질문 전용 별도 Haiku 호출 (깨끗한 컨텍스트) ──
+  if (provider.available()) {
+    const companyResponse = await tryCompanyQuestionResponse(provider, clean, candidateCount)
+    if (companyResponse) return companyResponse
+  }
+
   if (!provider.available()) {
     return {
       text: "안녕하세요! YG-1 절삭공구 추천 시스템입니다. 가공 조건을 알려주시면 최적의 제품을 추천해드립니다.",
@@ -814,4 +820,56 @@ export function buildGeneralChatFollowUpChipsForRuntime(
   candidateCount: number
 ): string[] {
   return buildGeneralChatFollowUpChips(userMessage, candidateCount)
+}
+
+// ── 회사 질문 전용 별도 Haiku 호출 ─────────────────────
+// 회사 정보만 넣은 깨끗한 프롬프트로 별도 호출 → 다른 컨텍스트에 묻히지 않음
+import { performUnifiedJudgment } from "@/lib/recommendation/domain/context/unified-haiku-judgment"
+
+const COMPANY_ONLY_SYSTEM = `당신은 YG-1 회사 정보 안내 담당입니다. 아래 정보에서만 답변하세요.
+
+${YG1_COMPANY_SNIPPET}
+
+응답 규칙:
+- 위 정보에 있으면 간결하게 답변 (2-3문장)
+- 위 정보에 없으면 "확인할 수 없습니다. YG-1 본사(032-526-0909)에 문의해 주세요." 1줄
+- 답변 후 "현재 진행 중인 제품 추천을 계속하시겠어요?" 로 자연스럽게 복귀
+- 위에 없는 전화번호, URL, 주소를 절대 만들지 마라`
+
+async function tryCompanyQuestionResponse(
+  provider: ReturnType<typeof getProvider>,
+  userMessage: string,
+  candidateCount: number
+): Promise<{ text: string; chips: string[] } | null> {
+  try {
+    // 통합 판단으로 회사 질문인지 감지 (캐시 히트됨)
+    const judgment = await performUnifiedJudgment({
+      userMessage,
+      assistantText: null,
+      pendingField: null,
+      currentMode: null,
+      displayedChips: [],
+      filterCount: 0,
+      candidateCount,
+      hasRecommendation: false,
+    }, provider)
+
+    if (judgment.domainRelevance !== "company_query") return null
+
+    // 회사 정보만 넣은 깨끗한 프롬프트로 별도 Haiku 호출
+    const raw = await provider.complete(
+      COMPANY_ONLY_SYSTEM,
+      [{ role: "user", content: userMessage }],
+      300,
+      "haiku"
+    )
+
+    if (raw?.trim()) {
+      console.log(`[company-response] Direct Haiku response for: "${userMessage.slice(0, 30)}"`)
+      return { text: raw.trim(), chips: [] }
+    }
+  } catch (error) {
+    console.warn("[company-response] Failed:", error)
+  }
+  return null
 }
