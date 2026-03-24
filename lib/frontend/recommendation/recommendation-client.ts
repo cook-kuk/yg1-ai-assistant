@@ -2,6 +2,7 @@ import {
   recommendationResponseSchema,
   type RecommendationCandidateDto,
   type RecommendationDisplayedProductRequestDto,
+  type RecommendationPaginationDto,
   type RecommendationPublicSessionDto,
   type RecommendationRequestDto,
   type RecommendationResponseDto,
@@ -48,6 +49,7 @@ export function buildDisplayedProductsForRequest(
 interface CreateInitialRecommendationRequestParams {
   form: ProductIntakeForm
   language: "ko" | "en"
+  pagination?: Pick<RecommendationPaginationDto, "page" | "pageSize">
   engine?: string
 }
 
@@ -59,6 +61,7 @@ export function createInitialRecommendationRequest(
     intakeForm: params.form,
     messages: [],
     session: null,
+    pagination: params.pagination ?? null,
     language: params.language,
   }
 }
@@ -69,6 +72,7 @@ interface CreateFollowUpRecommendationRequestParams {
   session: RecommendationSessionEnvelopeDto | null
   candidates: RecommendationCandidateDto[] | null
   language: "ko" | "en"
+  pagination?: Pick<RecommendationPaginationDto, "page" | "pageSize">
   engine?: string
 }
 
@@ -81,6 +85,28 @@ export function createFollowUpRecommendationRequest(
     messages: params.messages,
     session: params.session,
     displayedProducts: buildDisplayedProductsForRequest(params.candidates),
+    pagination: params.pagination ?? null,
+    language: params.language,
+  }
+}
+
+interface CreateCandidatePaginationRequestParams {
+  form: ProductIntakeForm
+  session: RecommendationSessionEnvelopeDto | null
+  language: "ko" | "en"
+  pagination: Pick<RecommendationPaginationDto, "page" | "pageSize">
+  engine?: string
+}
+
+export function createCandidatePaginationRequest(
+  params: CreateCandidatePaginationRequestParams
+): RecommendationRequestDto {
+  return {
+    engine: params.engine,
+    intakeForm: params.form,
+    messages: [],
+    session: params.session,
+    pagination: params.pagination,
     language: params.language,
   }
 }

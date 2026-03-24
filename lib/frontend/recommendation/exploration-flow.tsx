@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button"
 import {
   type RecommendationCapabilityDto,
   type RecommendationCandidateDto,
+  type RecommendationPaginationDto,
   type RecommendationPublicSessionDto,
 } from "@/lib/contracts/recommendation"
 import { useApp } from "@/lib/frontend/app-context"
@@ -46,8 +47,6 @@ import type { ChatMsg, TurnFeedback } from "@/lib/frontend/recommendation/explor
 import { DebugPanel, DebugToggle } from "@/components/debug/debug-panel"
 
 const MAX_DISPLAY_CANDIDATES = 10
-const PAGE_SIZE = 10
-
 const RESOLUTION_CONFIG: Record<string, { ko: string; en: string; cls: string }> = {
   broad: { ko: "탐색 중", en: "Exploring", cls: "bg-blue-100 text-blue-700" },
   narrowing: { ko: "축소 중", en: "Narrowing", cls: "bg-amber-100 text-amber-700" },
@@ -497,35 +496,42 @@ function NarrowingChat({
 
 function CandidatePanel({
   candidates,
+  pagination,
+  isPageLoading,
   messages,
   sessionState,
   onSend,
+  onPageChange,
 }: {
   candidates: RecommendationCandidateDto[] | null
+  pagination: RecommendationPaginationDto | null
+  isPageLoading: boolean
   messages: ChatMsg[]
   sessionState?: RecommendationPublicSessionDto | null
   onSend?: (text: string) => void
+  onPageChange?: (page: number) => void
 }) {
   const { language } = useApp()
   const lastRecommendation = [...messages].reverse().find(message => message.recommendation)?.recommendation
-  const totalCount = candidates?.length ?? 0
+  const totalCount = pagination?.totalItems ?? candidates?.length ?? 0
+  const page = pagination?.page ?? 0
+  const pageSize = pagination?.pageSize ?? Math.max(candidates?.length ?? 0, 1)
+  const totalPages = pagination?.totalPages ?? (totalCount > 0 ? 1 : 0)
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set())
-  const [page, setPage] = useState(0)
   const groups = useMemo(
     () => candidates ? groupRecommendationCandidatesBySeries(candidates, sessionState?.displayedSeriesGroups ?? null) : [],
     [candidates, sessionState?.displayedSeriesGroups]
   )
-  const useAccordion = groups.length >= 2
-  const pageStart = page * PAGE_SIZE
-  const pageEnd = pageStart + PAGE_SIZE
-  const displayCandidates = candidates?.slice(pageStart, pageEnd) ?? null
-  const totalPages = Math.ceil(totalCount / PAGE_SIZE)
-  const hasMore = pageEnd < totalCount
+  const useAccordion = groups.length > 0
+  const pageStart = page * pageSize
+  const pageEnd = pageStart + (candidates?.length ?? 0)
+  const displayCandidates = candidates ?? null
+  const hasMore = page + 1 < totalPages
   const hasPrev = page > 0
 
   useEffect(() => {
-    setPage(0)
-  }, [candidates?.length])
+    setOpenGroups(new Set())
+  }, [page, candidates])
 
   const toggleGroup = (key: string) => {
     setOpenGroups(prev => {
@@ -542,8 +548,8 @@ function CandidatePanel({
         <Activity size={11} />
         {totalCount > 0 ? (
           language === "ko"
-            ? <>추천 후보 {useAccordion ? `${groups.length}개 시리즈` : `${pageStart + 1}~${Math.min(pageEnd, totalCount)}위`}<span className="text-gray-400 font-normal ml-1">(전체 {totalCount}개)</span></>
-            : <>Candidates {useAccordion ? `${groups.length} Series` : `#${pageStart + 1}-${Math.min(pageEnd, totalCount)}`}<span className="text-gray-400 font-normal ml-1"> (of {totalCount})</span></>
+            ? <>추천 후보 {pageStart + 1}~{Math.min(pageEnd, totalCount)}위<span className="text-gray-400 font-normal ml-1">(현재 {groups.length}개 시리즈 / 전체 {totalCount}개)</span></>
+            : <>Candidates #{pageStart + 1}-{Math.min(pageEnd, totalCount)}<span className="text-gray-400 font-normal ml-1"> ({groups.length} series / {totalCount} total)</span></>
         ) : (
           <>{language === "ko" ? "추천 후보" : "Candidates"}</>
         )}
@@ -552,7 +558,6 @@ function CandidatePanel({
       {useAccordion ? (
         <div className="space-y-2">
           {groups.map(group => {
-            const displayMembers = group.members.slice(0, MAX_DISPLAY_CANDIDATES)
             return (
               <div key={group.seriesKey} className="border border-gray-200 rounded-lg overflow-hidden">
                 <button
@@ -584,14 +589,9 @@ function CandidatePanel({
                 </button>
                 {openGroups.has(group.seriesKey) && (
                   <div className="p-2 space-y-2 bg-white">
-                    {displayMembers.map(candidate => (
+                    {group.members.map(candidate => (
                       <CandidateCard key={candidate.productCode} c={candidate} />
                     ))}
-                    {group.candidateCount > MAX_DISPLAY_CANDIDATES && (
-                      <div className="text-center text-[10px] text-gray-400 py-1">
-                        +{group.candidateCount - MAX_DISPLAY_CANDIDATES}{language === "ko" ? "개 추가" : " more"}
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -603,34 +603,37 @@ function CandidatePanel({
           {displayCandidates.map(candidate => (
             <CandidateCard key={candidate.productCode} c={candidate} />
           ))}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 py-2">
-              {hasPrev && (
-                <button
-                  onClick={() => setPage(prev => prev - 1)}
-                  className="px-3 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
-                >
-                  {language === "ko" ? `← 이전 ${PAGE_SIZE}개` : `← Prev ${PAGE_SIZE}`}
-                </button>
-              )}
-              <span className="text-[10px] text-gray-400">
-                {page + 1} / {totalPages}
-              </span>
-              {hasMore && (
-                <button
-                  onClick={() => setPage(prev => prev + 1)}
-                  className="px-3 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
-                >
-                  {language === "ko" ? `대체 후보 ${PAGE_SIZE}개 →` : `Next ${PAGE_SIZE} →`}
-                </button>
-              )}
-            </div>
-          )}
         </div>
       ) : (
         <div className="text-center py-8 text-gray-400">
           <Database size={24} className="mx-auto mb-2 opacity-50" />
           <div className="text-xs">{language === "ko" ? "조건을 입력하면 후보를 검색합니다" : "Enter conditions to search candidates"}</div>
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 py-2">
+          {hasPrev && (
+            <button
+              onClick={() => onPageChange?.(page - 1)}
+              disabled={isPageLoading}
+              className="px-3 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+            >
+              {language === "ko" ? `← 이전 ${pageSize}개` : `← Prev ${pageSize}`}
+            </button>
+          )}
+          <span className="text-[10px] text-gray-400">
+            {isPageLoading ? (language === "ko" ? "불러오는 중..." : "Loading...") : `${page + 1} / ${Math.max(totalPages, 1)}`}
+          </span>
+          {hasMore && (
+            <button
+              onClick={() => onPageChange?.(page + 1)}
+              disabled={isPageLoading}
+              className="px-3 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+            >
+              {language === "ko" ? `다음 ${pageSize}개 →` : `Next ${pageSize} →`}
+            </button>
+          )}
         </div>
       )}
 
@@ -695,8 +698,11 @@ export function ExplorationScreen({
   isSending,
   sessionState,
   candidateSnapshot,
+  candidatePagination,
+  isCandidatePageLoading,
   capabilities,
   onSend,
+  onPageChange,
   onReset,
   onEdit,
   onFeedback,
@@ -708,8 +714,11 @@ export function ExplorationScreen({
   isSending: boolean
   sessionState: RecommendationPublicSessionDto | null
   candidateSnapshot: RecommendationCandidateDto[] | null
+  candidatePagination: RecommendationPaginationDto | null
+  isCandidatePageLoading: boolean
   capabilities: RecommendationCapabilityDto
   onSend: (text: string) => void
+  onPageChange: (page: number) => void
   onReset: () => void
   onEdit: () => void
   onFeedback: (messageIndex: number, feedback: TurnFeedback) => void
@@ -789,7 +798,15 @@ export function ExplorationScreen({
 
         {canShowResults && (
           <div className={`w-80 border-l bg-white flex-shrink-0 overflow-y-auto transition-all ${showCandidates ? "block" : "hidden"} lg:block`}>
-            <CandidatePanel candidates={candidateSnapshot} messages={messages} sessionState={sessionState} onSend={onSend} />
+            <CandidatePanel
+              candidates={candidateSnapshot}
+              pagination={candidatePagination}
+              isPageLoading={isCandidatePageLoading}
+              messages={messages}
+              sessionState={sessionState}
+              onSend={onSend}
+              onPageChange={onPageChange}
+            />
           </div>
         )}
       </div>

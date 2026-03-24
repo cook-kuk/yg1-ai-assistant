@@ -30,7 +30,7 @@ import {
 import { getMaterialDisplay, resolveMaterialTag } from "@/lib/recommendation/domain/material-resolver"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
-import type { RecommendationDisplayedProductRequestDto } from "@/lib/contracts/recommendation"
+import type { RecommendationDisplayedProductRequestDto, RecommendationPaginationDto } from "@/lib/contracts/recommendation"
 import type {
   AppliedFilter,
   AppLanguage,
@@ -62,6 +62,15 @@ type JsonRecommendationResponse = (
 
 export interface ServeResponseBuilderDependencies {
   jsonRecommendationResponse: JsonRecommendationResponse
+}
+
+export function buildPaginationDto(page: number, pageSize: number, totalItems: number): RecommendationPaginationDto {
+  return {
+    page,
+    pageSize,
+    totalItems,
+    totalPages: totalItems === 0 ? 0 : Math.ceil(totalItems / pageSize),
+  }
 }
 
 function resolveSingleIsoGroup(material: string | undefined): string | null {
@@ -112,8 +121,9 @@ async function buildWorkPieceQuestion(
   })
   if (allWorkPieceNames.length <= 1) return null
 
-  // Filter workPiece names to match the user's material input
-  // e.g., if user said "알루미늄", only show aluminum-related options, not 구리/ABS/아크릴
+  // Filter workPiece names to match the user's material input when that signal is useful.
+  // If the textual match is too weak (common for ISO-group labels like "고경도강"),
+  // fall back to the full ISO-scoped workPiece list rather than suppressing the question.
   const userMaterial = (input.material ?? "").toLowerCase()
   let relevantNames = allWorkPieceNames
   if (userMaterial) {
@@ -130,8 +140,6 @@ async function buildWorkPieceQuestion(
     if (filtered.length >= 2) {
       relevantNames = filtered
     }
-    // If only 0-1 relevant matches, the sub-selection isn't useful — skip
-    if (filtered.length <= 1) return null
   }
 
   const materialLabel = getMaterialDisplay(isoGroup).ko
@@ -151,6 +159,10 @@ export async function buildQuestionResponse(
   form: ProductIntakeForm,
   candidates: ScoredProduct[],
   evidenceMap: Map<string, EvidenceSummary>,
+  totalCandidateCount: number,
+  pagination: RecommendationPaginationDto | null,
+  displayCandidates: ScoredProduct[] | null,
+  displayEvidenceMap: Map<string, EvidenceSummary> | null,
   input: RecommendationInput,
   history: NarrowingTurn[],
   filters: AppliedFilter[],
@@ -161,12 +173,14 @@ export async function buildQuestionResponse(
   overrideText?: string,
   existingStageHistory?: NarrowingStage[]
 ): Promise<Response> {
-  const question = await buildWorkPieceQuestion(input, history, filters) ?? selectNextQuestion(input, candidates, history)
+  const question = await buildWorkPieceQuestion(input, history, filters) ?? selectNextQuestion(input, candidates, history, totalCandidateCount)
   const stageHistory = existingStageHistory
     ? [...existingStageHistory]
-    : buildStageHistoryFromFilters(filters, input, candidates.length)
+    : buildStageHistoryFromFilters(filters, input, totalCandidateCount)
 
-  const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
+  const snapshotCandidates = displayCandidates ?? candidates
+  const snapshotEvidenceMap = displayEvidenceMap ?? evidenceMap
+  const candidateSnapshot = buildCandidateSnapshot(snapshotCandidates, snapshotEvidenceMap)
 
   // ── Option-first: question engine provides field + candidate data ──
   // Structured SmartOptions are built FIRST, then displayedOptions, then chips.
@@ -190,18 +204,18 @@ export async function buildQuestionResponse(
   const displayedSeriesGroups = groupCandidatesBySeries(candidateSnapshot)
 
   const sessionState = buildSessionState({
-    candidateCount: candidates.length,
+    candidateCount: totalCandidateCount,
     appliedFilters: filters,
     narrowingHistory: history,
     stageHistory,
-    resolutionStatus: checkResolution(candidates, history),
+    resolutionStatus: checkResolution(candidates, history, totalCandidateCount),
     resolvedInput: input,
     turnCount,
     lastAskedField: question?.field ?? undefined,
     displayedProducts: candidateSnapshot,
     fullDisplayedProducts: candidateSnapshot,
     displayedSeriesGroups,
-    uiNarrowingPath: buildUINarrowingPath(filters, history, candidates.length),
+    uiNarrowingPath: buildUINarrowingPath(filters, history, totalCandidateCount),
     currentMode: messages.length === 0 ? "question" : "narrowing",
     displayedCandidates: candidateSnapshot,
     displayedChips: chips,
@@ -217,6 +231,10 @@ export async function buildQuestionResponse(
       form,
       candidates,
       evidenceMap,
+      totalCandidateCount,
+      pagination,
+      displayCandidates,
+      displayEvidenceMap,
       input,
       history,
       filters,
@@ -236,8 +254,8 @@ export async function buildQuestionResponse(
   } else if (provider.available() && messages.length === 0) {
     try {
       const systemPrompt = buildSystemPrompt(language)
-      const sessionCtx = buildSessionContext(form, sessionState, candidates.length, snapshotToDisplayed(candidateSnapshot))
-      const greetingPrompt = buildGreetingPrompt(sessionCtx, question, candidates.length, language)
+      const sessionCtx = buildSessionContext(form, sessionState, totalCandidateCount, snapshotToDisplayed(candidateSnapshot))
+      const greetingPrompt = buildGreetingPrompt(sessionCtx, question, totalCandidateCount, language)
       const raw = await provider.complete(systemPrompt, [{ role: "user", content: greetingPrompt }], 800)
       const parsed = safeParseJSON(raw)
       if (typeof parsed?.responseText === "string") {
@@ -250,9 +268,9 @@ export async function buildQuestionResponse(
     try {
       const lastUserText = [...messages].reverse().find(m => m.role === "user")?.text ?? ""
       const systemPrompt = buildSystemPrompt(language)
-      const sessionCtx = buildSessionContext(form, sessionState, candidates.length, snapshotToDisplayed(candidateSnapshot))
+      const sessionCtx = buildSessionContext(form, sessionState, totalCandidateCount, snapshotToDisplayed(candidateSnapshot))
       const raw = await provider.complete(systemPrompt, [
-        { role: "user", content: `${sessionCtx}\n\n현재 진행 중인 질문: "${question?.questionText ?? ""}"\n현재 후보 ${candidates.length}개.\n\n사용자의 최신 메시지: "${lastUserText}"\n\n사용자 메시지가 현재 질문과 관련 없는 내용(회사 정보, 영업소, 공장 등)이면 【YG-1 회사 정보】에서 답변한 뒤 자연스럽게 현재 질문으로 돌아와라.\n사용자 메시지가 현재 질문에 대한 답변이면 질문을 자연스럽게 다듬어서 응답하라.\nJSON으로 응답: { "responseText": "...", "extractedParams": {}, "isComplete": false, "skipQuestion": false }` }
+        { role: "user", content: `${sessionCtx}\n\n현재 진행 중인 질문: "${question?.questionText ?? ""}"\n현재 후보 ${totalCandidateCount}개.\n\n사용자의 최신 메시지: "${lastUserText}"\n\n사용자 메시지가 현재 질문과 관련 없는 내용(회사 정보, 영업소, 공장 등)이면 【YG-1 회사 정보】에서 답변한 뒤 자연스럽게 현재 질문으로 돌아와라.\n사용자 메시지가 현재 질문에 대한 답변이면 질문을 자연스럽게 다듬어서 응답하라.\nJSON으로 응답: { "responseText": "...", "extractedParams": {}, "isComplete": false, "skipQuestion": false }` }
       ], 400)
       const parsed = safeParseJSON(raw)
       if (typeof parsed?.responseText === "string") {
@@ -263,7 +281,7 @@ export async function buildQuestionResponse(
     }
   }
 
-  const requestPrep = prepareRequest(form, messages, sessionState, input, candidates.length)
+  const requestPrep = prepareRequest(form, messages, sessionState, input, totalCandidateCount)
 
   // ── Option-first: chips are derived from structured displayedOptions (built above) ──
   // Text-to-chip synthesis is NOT allowed on the main path.
@@ -313,6 +331,7 @@ export async function buildQuestionResponse(
     sessionState,
     evidenceSummaries: null,
     candidateSnapshot,
+    pagination,
     requestPreparation: requestPrep,
     primaryExplanation: null,
     primaryFactChecked: null,
@@ -326,6 +345,10 @@ export async function buildRecommendationResponse(
   form: ProductIntakeForm,
   candidates: ScoredProduct[],
   evidenceMap: Map<string, EvidenceSummary>,
+  totalCandidateCount: number,
+  pagination: RecommendationPaginationDto | null,
+  displayCandidates: ScoredProduct[] | null,
+  displayEvidenceMap: Map<string, EvidenceSummary> | null,
   input: RecommendationInput,
   history: NarrowingTurn[],
   filters: AppliedFilter[],
@@ -342,6 +365,10 @@ export async function buildRecommendationResponse(
       form,
       candidates,
       evidenceMap,
+      totalCandidateCount,
+      pagination,
+      displayCandidates,
+      displayEvidenceMap,
       input,
       history,
       filters,
@@ -352,7 +379,7 @@ export async function buildRecommendationResponse(
     )
   }
 
-  const { primary, alternatives, status } = classifyHybridResults({ candidates, evidenceMap, totalConsidered: candidates.length, filtersApplied: filters })
+  const { primary, alternatives, status } = classifyHybridResults({ candidates, evidenceMap, totalConsidered: totalCandidateCount, filtersApplied: filters })
   const warnings = primary ? buildWarnings(primary, input) : ["조건에 맞는 제품을 찾지 못했습니다"]
   const rationale = primary ? buildRationale(primary, input) : []
 
@@ -369,7 +396,7 @@ export async function buildRecommendationResponse(
     sourceSummary: [],
     deterministicSummary: "",
     llmSummary: null,
-    totalCandidatesConsidered: candidates.length,
+    totalCandidatesConsidered: totalCandidateCount,
   })
 
   const evidenceSummaries: EvidenceSummary[] = []
@@ -410,18 +437,18 @@ export async function buildRecommendationResponse(
     sourceSummary: primary ? buildSourceSummary(primary) : [],
     deterministicSummary,
     llmSummary: null,
-    totalCandidatesConsidered: candidates.length,
+    totalCandidatesConsidered: totalCandidateCount,
   }
 
   if (provider.available() && primary && primaryFactChecked && primaryExplanation) {
     try {
       const systemPrompt = buildSystemPrompt(language)
       const llmSessionState = buildSessionState({
-        candidateCount: candidates.length,
+        candidateCount: totalCandidateCount,
         appliedFilters: filters,
         narrowingHistory: history,
-        stageHistory: buildStageHistoryFromFilters(filters, input, candidates.length),
-        resolutionStatus: checkResolution(candidates, history),
+        stageHistory: buildStageHistoryFromFilters(filters, input, totalCandidateCount),
+        resolutionStatus: checkResolution(candidates, history, totalCandidateCount),
         resolvedInput: input,
         turnCount,
         displayedCandidates: buildCandidateSnapshot(candidates, evidenceMap),
@@ -429,7 +456,7 @@ export async function buildRecommendationResponse(
         displayedOptions: [],
         lastAction: "show_recommendation",
       })
-      const sessionCtx = buildSessionContext(form, llmSessionState, candidates.length, snapshotToDisplayed(llmSessionState.displayedCandidates))
+      const sessionCtx = buildSessionContext(form, llmSessionState, totalCandidateCount, snapshotToDisplayed(llmSessionState.displayedCandidates))
       const resultPrompt = buildExplanationResultPrompt(
         sessionCtx,
         primaryFactChecked,
@@ -462,7 +489,9 @@ export async function buildRecommendationResponse(
     }
   }
 
-  const candidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
+  const snapshotCandidates = displayCandidates ?? candidates
+  const snapshotEvidenceMap = displayEvidenceMap ?? evidenceMap
+  const candidateSnapshot = buildCandidateSnapshot(snapshotCandidates, snapshotEvidenceMap)
   const recLastUserMsg = messages.length > 0
     ? [...messages].reverse().find(m => m.role === "user")?.text ?? null
     : null
@@ -482,17 +511,17 @@ export async function buildRecommendationResponse(
 
   const displayedSeriesGroups = groupCandidatesBySeries(candidateSnapshot)
   const sessionState = buildSessionState({
-    candidateCount: candidates.length,
+    candidateCount: totalCandidateCount,
     appliedFilters: filters,
     narrowingHistory: history,
-    stageHistory: buildStageHistoryFromFilters(filters, input, candidates.length),
-    resolutionStatus: checkResolution(candidates, history),
+    stageHistory: buildStageHistoryFromFilters(filters, input, totalCandidateCount),
+    resolutionStatus: checkResolution(candidates, history, totalCandidateCount),
     resolvedInput: input,
     turnCount,
     displayedProducts: candidateSnapshot,
     fullDisplayedProducts: candidateSnapshot,
     displayedSeriesGroups,
-    uiNarrowingPath: buildUINarrowingPath(filters, history, candidates.length),
+    uiNarrowingPath: buildUINarrowingPath(filters, history, totalCandidateCount),
     currentMode: "recommendation",
     displayedCandidates: candidateSnapshot,
     displayedChips: followUpChips,
@@ -500,7 +529,7 @@ export async function buildRecommendationResponse(
     lastAction: "show_recommendation",
   })
 
-  const requestPrep = prepareRequest(form, messages, sessionState, input, candidates.length)
+  const requestPrep = prepareRequest(form, messages, sessionState, input, totalCandidateCount)
   let responseText = recommendation.llmSummary ?? deterministicSummary
 
   if (primary && primary.product.brand) {
@@ -543,6 +572,7 @@ export async function buildRecommendationResponse(
     sessionState,
     evidenceSummaries: evidenceSummaries.length > 0 ? evidenceSummaries : null,
     candidateSnapshot,
+    pagination,
     requestPreparation: requestPrep,
     primaryExplanation,
     primaryFactChecked: primaryFactChecked ? serializeFactChecked(primaryFactChecked) : null,
@@ -839,4 +869,3 @@ function extractFieldValuesFromSnapshot(
   }
   return result
 }
-

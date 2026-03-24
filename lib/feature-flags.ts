@@ -32,5 +32,5 @@ export const ENABLE_SERIES_GROUPING = envFlag("ENABLE_SERIES_GROUPING", true)
 /** Enable task system (multi-task + checkpoint restoration) */
 export const ENABLE_TASK_SYSTEM = envFlag("ENABLE_TASK_SYSTEM", true)
 
-/** Apply in-memory candidate filtering after the initial SQL candidate query */
+/** Apply extra in-memory heuristics after SQL fetch. Conversation narrowing filters stay enabled. */
 export const ENABLE_POST_SQL_CANDIDATE_FILTERS = envFlag("ENABLE_POST_SQL_CANDIDATE_FILTERS", true)

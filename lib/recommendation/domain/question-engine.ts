@@ -27,24 +27,25 @@ export interface NextQuestion {
 
 export function checkResolution(
   candidates: ScoredProduct[],
-  history: NarrowingTurn[]
+  history: NarrowingTurn[],
+  candidateCountHint: number = candidates.length
 ): ResolutionStatus {
-  if (candidates.length === 0) return "resolved_none"
+  if (candidateCountHint === 0 || candidates.length === 0) return "resolved_none"
 
   const top = candidates[0]
-  if (top.matchStatus === "exact" && candidates.length <= 3) return "resolved_exact"
+  if (top.matchStatus === "exact" && candidateCountHint <= 3) return "resolved_exact"
   if (top.matchStatus === "exact" && candidates.length > 1) {
     const gap = top.score - candidates[1].score
     if (gap >= 15) return "resolved_exact"
   }
 
-  if (history.length >= 2) {
+  if (history.length >= 3) {
     if (top.matchStatus === "exact") return "resolved_exact"
     if (top.matchStatus === "approximate") return "resolved_approximate"
     return "resolved_approximate"
   }
 
-  if (candidates.length <= 10) {
+  if (candidateCountHint <= 10) {
     if (top.matchStatus === "exact") return "resolved_exact"
     return "resolved_approximate"
   }
@@ -56,9 +57,10 @@ export function checkResolution(
 export function selectNextQuestion(
   input: RecommendationInput,
   candidates: ScoredProduct[],
-  history: NarrowingTurn[]
+  history: NarrowingTurn[],
+  candidateCountHint: number = candidates.length
 ): NextQuestion | null {
-  const status = checkResolution(candidates, history)
+  const status = checkResolution(candidates, history, candidateCountHint)
   if (status.startsWith("resolved")) return null
 
   const fields = analyzeFields(input, candidates, history)
