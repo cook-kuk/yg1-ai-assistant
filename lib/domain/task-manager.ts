@@ -144,6 +144,7 @@ export function buildTaskIntakeSummary(input: RecommendationInput): string {
   if (input.material) parts.push(`소재: ${input.material}`)
   if (input.diameterMm) parts.push(`직경: ${input.diameterMm}mm`)
   if (input.operationType) parts.push(`가공: ${input.operationType}`)
+  if (input.machiningCategory) parts.push(`가공 분류: ${input.machiningCategory}`)
   if (input.toolType) parts.push(`공구: ${input.toolType}`)
   return parts.length > 0 ? parts.join(" | ") : "조건 미지정"
 }

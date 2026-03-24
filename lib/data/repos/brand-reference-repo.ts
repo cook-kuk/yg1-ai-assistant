@@ -1,6 +1,7 @@
 import "server-only"
 
 import { Pool } from "pg"
+import { formatQueryValuesForLog, formatSqlForLog, interpolateSqlForLog } from "@/lib/data/sql-log"
 import { getSharedPool } from "@/lib/data/shared-pool"
 
 export interface BrandReferenceRecord {
@@ -110,7 +111,10 @@ export const BrandReferenceRepo = {
 
     const startedAt = Date.now()
     try {
-      const result = await pool.query(sql, [isoGroup, limit])
+      const values = [isoGroup, limit]
+      const sqlInterpolated = interpolateSqlForLog(formatSqlForLog(sql), values)
+      console.log(`[brand-reference-db] sql query="${sqlInterpolated}" params=${formatQueryValuesForLog(values)}`)
+      const result = await pool.query(sql, values)
       console.log(
         `[brand-reference-db] distinct-work-piece iso=${isoGroup} rows=${result.rowCount ?? 0} duration=${Date.now() - startedAt}ms`
       )
@@ -149,7 +153,10 @@ export const BrandReferenceRepo = {
 
     const startedAt = Date.now()
     try {
-      const result = await pool.query(sql, [isoGroup, workPieceName, limit])
+      const values = [isoGroup, workPieceName, limit]
+      const sqlInterpolated = interpolateSqlForLog(formatSqlForLog(sql), values)
+      console.log(`[brand-reference-db] sql query="${sqlInterpolated}" params=${formatQueryValuesForLog(values)}`)
+      const result = await pool.query(sql, values)
       console.log(
         `[brand-reference-db] distinct-brand iso=${isoGroup} workPiece=${workPieceName} rows=${result.rowCount ?? 0} duration=${Date.now() - startedAt}ms`
       )
@@ -188,7 +195,10 @@ export const BrandReferenceRepo = {
 
     const startedAt = Date.now()
     try {
-      const result = await pool.query(sql, [isoGroup, workPieceName, limit])
+      const values = [isoGroup, workPieceName, limit]
+      const sqlInterpolated = interpolateSqlForLog(formatSqlForLog(sql), values)
+      console.log(`[brand-reference-db] sql query="${sqlInterpolated}" params=${formatQueryValuesForLog(values)}`)
+      const result = await pool.query(sql, values)
       console.log(
         `[brand-reference-db] distinct-series iso=${isoGroup} workPiece=${workPieceName} rows=${result.rowCount ?? 0} duration=${Date.now() - startedAt}ms`
       )
@@ -252,7 +262,10 @@ export const BrandReferenceRepo = {
 
     const startedAt = Date.now()
     try {
-      const result = await pool.query(sql, [isoGroup, workPieceQuery, hardnessMin, hardnessMax, limit])
+      const values = [isoGroup, workPieceQuery, hardnessMin, hardnessMax, limit]
+      const sqlInterpolated = interpolateSqlForLog(formatSqlForLog(sql), values)
+      console.log(`[brand-reference-db] sql query="${sqlInterpolated}" params=${formatQueryValuesForLog(values)}`)
+      const result = await pool.query(sql, values)
       console.log(
         `[brand-reference-db] iso=${isoGroup ?? "-"} workPiece=${workPieceQuery ?? "-"} ` +
         `hardness=${hardnessMin ?? "-"}~${hardnessMax ?? "-"} rows=${result.rowCount ?? 0} duration=${Date.now() - startedAt}ms`

@@ -93,7 +93,7 @@ export interface UnifiedTurnContext {
   currentPendingQuestion: PendingQuestionInfo | null
 
   // ── Structured Memory (Priority 3) ──
-  /** Facts confirmed by user — material, operation, toolType, diameter */
+  /** Facts confirmed by user — material, operation, machiningCategory, diameter */
   resolvedFacts: MemoryItem[]
   /** Active narrowing filters — coating, flute, etc. */
   activeFilters: MemoryItem[]
@@ -279,8 +279,8 @@ function classifyMemoryItems(
       resolvedFacts.push(makeMemoryItem("material", ri.material, "intake", "resolved"))
     if (ri.operationType && !coveredFields.has("operationType"))
       resolvedFacts.push(makeMemoryItem("operationType", ri.operationType, "intake", "resolved"))
-    if (ri.toolType && !coveredFields.has("toolType"))
-      resolvedFacts.push(makeMemoryItem("toolType", ri.toolType, "intake", "resolved"))
+    if (ri.machiningCategory && !coveredFields.has("machiningCategory"))
+      resolvedFacts.push(makeMemoryItem("machiningCategory", ri.machiningCategory, "intake", "resolved"))
     if (ri.diameterMm && !coveredFields.has("diameterMm"))
       resolvedFacts.push(makeMemoryItem("diameterMm", String(ri.diameterMm), "intake", "resolved"))
   }

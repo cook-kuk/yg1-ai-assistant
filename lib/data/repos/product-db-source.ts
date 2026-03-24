@@ -500,6 +500,22 @@ function normalizeApplicationShapes(raw: string | null | undefined): string[] {
   return [...unique]
 }
 
+function normalizeRootCategoryToken(value: string): string {
+  return value.toLowerCase().replace(/[\s_-]+/g, "")
+}
+
+function getRootCategoriesForOperation(input: string): string[] {
+  const lower = input.toLowerCase()
+  const categories = new Set<string>()
+
+  if (/(^|\b)(milling|mill|밀링)(\b|$)/i.test(lower)) categories.add("milling")
+  if (/(^|\b)(holemaking|hole making|drilling|drill|홀메이킹|드릴)(\b|$)/i.test(lower)) categories.add("holemaking")
+  if (/(^|\b)(threading|thread|tap|tapping|나사|탭|스레딩)(\b|$)/i.test(lower)) categories.add("threading")
+  if (/(^|\b)(turning|turn|선삭|터닝)(\b|$)/i.test(lower)) categories.add("turning")
+
+  return [...categories]
+}
+
 function normalizeMaterialTags(tags: string[] | null | undefined): string[] {
   if (!tags) return []
   const unique = new Set<string>()
@@ -604,7 +620,7 @@ function mapRowToProduct(row: RawProductRow): CanonicalProduct {
   }
 }
 
-function buildQueryOptions(options: ProductSearchOptions): { where: string[]; values: unknown[]; limit: number } {
+function buildQueryOptions(options: ProductSearchOptions): { where: string[]; values: unknown[]; limit: number | null } {
   const where: string[] = []
   const values: unknown[] = []
   const next = (value: unknown) => {
@@ -690,15 +706,20 @@ function buildQueryOptions(options: ProductSearchOptions): { where: string[]; va
     where.push(`(${clauses.join(" OR ")})`)
   }
 
+  const rootCategories = input?.operationType ? getRootCategoriesForOperation(input.operationType) : []
+  if (rootCategories.length > 0) {
+    const param = next(rootCategories.map(normalizeRootCategoryToken))
+    where.push(
+      `REPLACE(REPLACE(REPLACE(LOWER(COALESCE(edp_root_category, '')), ' ', ''), '_', ''), '-', '') = ANY(${param}::text[])`
+    )
+  }
+
   // ── Narrowing filters (fluteCount, coating, toolSubtype, seriesName) ──
   // NOT applied in DB WHERE clause. Applied in-memory by runHybridRetrieval.
   // This ensures candidate counts match exactly what the question engine shows.
   // See: hybrid-retrieval.ts lines 106-166 for in-memory filter application.
 
-  const hasStructuredFilters = where.length > 0
-  const filteredLimit = parsePositiveInt(process.env.PRODUCT_QUERY_LIMIT_FILTERED, 2000)
-  const broadLimit = parsePositiveInt(process.env.PRODUCT_QUERY_LIMIT_BROAD, 800)
-  const limit = options.limit ?? (hasStructuredFilters ? filteredLimit : broadLimit)
+  const limit = typeof options.limit === "number" && options.limit > 0 ? options.limit : null
   return { where, values, limit }
 }
 
@@ -711,12 +732,12 @@ export async function queryProductsFromDatabase(options: ProductSearchOptions = 
     ) product_source
     ${where.length > 0 ? `WHERE ${where.join(" AND ")}` : ""}
     ORDER BY edp_idx DESC
-    LIMIT ${limit}
+    ${limit != null ? `LIMIT ${limit}` : ""}
   `
 
   const startedAt = Date.now()
   console.log(
-    `[product-db] query:start where=${where.length} values=${values.length} limit=${limit} code=${options.normalizedCode ?? "-"} series=${options.seriesName ?? "-"}`
+    `[product-db] query:start where=${where.length} values=${values.length} limit=${limit ?? "none"} code=${options.normalizedCode ?? "-"} series=${options.seriesName ?? "-"}`
   )
   const result = await executeLoggedQuery<RawProductRow>(query, values, {
     operation: "queryProductsFromDatabase",
@@ -732,7 +753,7 @@ export async function queryProductsFromDatabase(options: ProductSearchOptions = 
   const durationMs = Date.now() - startedAt
   if (shouldLogTimings()) {
     console.log(
-      `[product-db] query=${durationMs}ms rows=${result.rowCount ?? mapped.length} mapped=${mapped.length} filters=${where.length} limit=${limit}`
+      `[product-db] query=${durationMs}ms rows=${result.rowCount ?? mapped.length} mapped=${mapped.length} filters=${where.length} limit=${limit ?? "none"}`
     )
     console.log(
       `[product-db] stage=db_fetch count=${mapped.length} edps=${formatEdpListForLog(mapped)}`

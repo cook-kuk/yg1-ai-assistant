@@ -55,7 +55,6 @@ export function mapIntakeToInput(form: ProductIntakeForm): RecommendationInput {
       .filter(Boolean)
     opParts.push(...ops)
   }
-  if (opParts.length > 0) input.operationType = opParts.join(" ")
 
   const diamStr = getKnown(form.diameterInfo)
   if (diamStr) {
@@ -63,8 +62,16 @@ export function mapIntakeToInput(form: ProductIntakeForm): RecommendationInput {
     if (diam !== null) input.diameterMm = diam
   }
 
-  const toolType = getKnown(form.toolTypeOrCurrentProduct)
-  if (toolType) input.toolType = canonicalizeIntakeSearchText(toolType)
+  const operationCategory = getKnown(form.toolTypeOrCurrentProduct)
+  if (operationCategory) {
+    const normalized = canonicalizeIntakeSearchText(operationCategory)
+    if (normalized) {
+      input.machiningCategory = normalized
+      if (!opParts.includes(normalized)) opParts.push(normalized)
+    }
+  }
+
+  if (opParts.length > 0) input.operationType = opParts.join(" ")
 
   const country = getKnown(form.country)
   if (country) input.country = country.trim().toUpperCase()

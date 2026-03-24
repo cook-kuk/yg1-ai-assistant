@@ -119,6 +119,7 @@ export const RecommendationInputSchema = z.object({
   material: z.string().optional(),       // Korean or English material name
   workPieceName: z.string().optional(),  // detailed work piece name from brand reference
   operationType: z.string().optional(),  // 황삭/정삭/고이송/측면/슬롯 etc.
+  machiningCategory: z.string().optional(),
   toolType: z.string().optional(),
   toolSubtype: z.string().optional(),
   diameterMm: z.number().optional(),
