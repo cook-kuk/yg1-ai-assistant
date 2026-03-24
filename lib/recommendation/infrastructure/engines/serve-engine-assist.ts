@@ -402,6 +402,10 @@ async function searchWebForKnowledge(query: string): Promise<string | null> {
   }
 }
 
+/**
+ * @deprecated Legacy chip generator — no longer used in active paths.
+ * The option-first pipeline (serve-engine-option-first.ts) is the sole chip source.
+ */
 function buildGeneralChatFollowUpChips(userMessage: string, candidateCount: number): string[] {
   const lower = userMessage.toLowerCase()
 
@@ -528,7 +532,9 @@ ${webContext}
     if (raw && raw.trim()) {
       return {
         text: raw.trim(),
-        chips: buildGeneralChatFollowUpChips(clean, candidateCount),
+        // Option-first: chips are NOT generated here.
+        // The runtime's structured option pipeline is the sole chip source.
+        chips: [],
       }
     }
   } catch (error) {
@@ -537,10 +543,12 @@ ${webContext}
 
   return {
     text: "죄송합니다, 잠시 오류가 있었습니다. 절삭공구 관련 질문이나 가공 조건을 말씀해주세요.",
-    chips: ["스테인리스 가공", "알루미늄 10mm", "엔드밀 추천", "절삭조건 문의"],
+    // Option-first: empty chips — runtime pipeline will provide structured options.
+    chips: [],
   }
 }
 
+/** @deprecated Legacy — not used in active option-first paths. */
 export function buildGeneralChatFollowUpChipsForRuntime(
   userMessage: string,
   candidateCount: number

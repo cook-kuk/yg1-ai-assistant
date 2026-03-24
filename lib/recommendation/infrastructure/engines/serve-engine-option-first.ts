@@ -134,8 +134,19 @@ export async function buildGeneralChatOptionState(input: {
       `[option-first:general] SmartOptions=${generalSmartOptions.length}, reranked=${reranked.rerankedByLLM}, frame=${frame.relation}, chips=${finalChips.join(",")}`
     )
   } else {
-    finalChips = prevState.displayedChips?.length > 0 ? prevState.displayedChips : fallbackChips
-    finalDisplayedOptions = prevState.displayedOptions ?? []
+    // Fallback: preserve state chips or provide minimal safe navigation.
+    // NEVER use handler-generated chips (fallbackChips) as source of truth.
+    if (prevState.displayedChips?.length > 0) {
+      finalChips = prevState.displayedChips
+      finalDisplayedOptions = prevState.displayedOptions ?? []
+    } else {
+      // Minimal deterministic fallback — navigation only
+      const safeChips: string[] = []
+      if (filters.length > 0) safeChips.push("⟵ 이전 단계")
+      safeChips.push("처음부터 다시")
+      finalChips = safeChips
+      finalDisplayedOptions = []
+    }
   }
 
   const shouldMergeHelpers = shouldUseQuestionAssistHelpers(userStateResult)

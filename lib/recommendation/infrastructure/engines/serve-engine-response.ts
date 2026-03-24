@@ -368,10 +368,10 @@ export async function buildRecommendationResponse(
   const postRecDisplayedOptions = postRecOptions.length > 0
     ? smartOptionsToDisplayedOptions(postRecOptions)
     : []
-  // Derive chips from structured options; fallback to deterministic if no smart options
+  // Derive chips from structured options; fallback to minimal safe navigation
   const followUpChips = postRecOptions.length > 0
     ? smartOptionsToChips(postRecOptions)
-    : getFollowUpChips(recommendation)
+    : buildMinimalPostRecChips(recommendation, filters)
 
   const displayedSeriesGroups = groupCandidatesBySeries(candidateSnapshot)
   const sessionState = buildSessionState({
@@ -578,6 +578,34 @@ export function logNarrowingState(
   console.log(`[narrowing:${phase}] ───────────────────────────`)
 }
 
+/**
+ * Minimal deterministic post-recommendation chips.
+ * Used ONLY when SmartOption engine produces zero options.
+ * No regex, no LLM, no answer-text parsing.
+ */
+function buildMinimalPostRecChips(
+  result: RecommendationResult,
+  filters: AppliedFilter[]
+): string[] {
+  const chips: string[] = []
+  if (result.status === "none" || !result.primaryProduct) {
+    if (filters.length > 0) chips.push("⟵ 이전 단계")
+    chips.push("처음부터 다시")
+    return chips
+  }
+  if (result.alternatives.length > 0) {
+    chips.push(`대체 후보 ${result.alternatives.length}개 비교하기`)
+  }
+  chips.push("절삭조건 알려줘")
+  if (filters.length > 0) chips.push("⟵ 이전 단계")
+  chips.push("처음부터 다시")
+  return chips.slice(0, 5)
+}
+
+/**
+ * @deprecated Legacy chip generator — replaced by SmartOption engine + buildMinimalPostRecChips.
+ * Kept for backward compatibility in handleServeSimpleChat only.
+ */
 export function getFollowUpChips(
   result: RecommendationResult,
   sessionState?: ExplorationSessionState | null,

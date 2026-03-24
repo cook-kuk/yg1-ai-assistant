@@ -29,7 +29,7 @@ import {
   buildRefinementOptionState,
 } from "@/lib/recommendation/infrastructure/engines/serve-engine-option-first"
 import { detectUserState } from "@/lib/recommendation/domain/context/user-understanding-detector"
-import type { ChipGenerationContext } from "@/lib/recommendation/domain/options/contextual-chip-generator"
+// contextual-chip-generator is deprecated — no longer imported in active paths
 import { buildRecentInteractionFrame } from "@/lib/recommendation/domain/context/recent-interaction-frame"
 import {
   recordHighlight,
@@ -927,6 +927,7 @@ export async function handleServeSimpleChat(
   })
 }
 
+/** @deprecated Legacy — only used in handleServeSimpleChat (non-exploration path). */
 function getNextQuestion(input: RecommendationInput): string {
   if (!input.material) return "어떤 소재를 가공하실 예정인가요?"
   if (!input.operationType) return "어떤 가공 방식이 필요하신가요? (황삭/정삭/고이송 등)"
@@ -935,6 +936,7 @@ function getNextQuestion(input: RecommendationInput): string {
   return "추가로 확인이 필요한 조건이 있으신가요?"
 }
 
+/** @deprecated Legacy — only used in handleServeSimpleChat (non-exploration path). */
 function getDefaultChips(input: RecommendationInput): string[] {
   if (!input.material) return ["알루미늄", "스테인리스", "탄소강", "주철", "티타늄", "고경도강"]
   if (!input.operationType) return ["황삭", "정삭", "고이송", "슬롯가공", "측면가공"]
@@ -943,6 +945,7 @@ function getDefaultChips(input: RecommendationInput): string[] {
   return ["추천 받기", "다른 조건으로", "경쟁사 비교"]
 }
 
+/** @deprecated DEAD CODE — never called in active paths. Kept for reference only. */
 function generateFollowUpChips(userMessage: string, candidateCount: number): string[] {
   const lower = userMessage.toLowerCase()
 
@@ -962,18 +965,19 @@ function generateFollowUpChips(userMessage: string, candidateCount: number): str
 }
 
 /**
- * Build ChipGenerationContext from runtime state for contextual chip generation.
+ * @deprecated DEAD CODE — replaced by serve-engine-option-first.ts pipeline.
+ * Kept temporarily for reference.
  */
 function buildChipGenContext(
   assistantText: string,
   userMessage: string | null,
-  mode: ChipGenerationContext["mode"],
+  mode: "question" | "narrowing" | "recommendation" | "general_chat" | "comparison" | "refinement",
   resolvedInput: RecommendationInput,
   filters: AppliedFilter[],
   sessionState: ExplorationSessionState | null,
   messages: ChatMessage[],
   currentCandidates?: ScoredProduct[]
-): ChipGenerationContext {
+): Record<string, unknown> {
   // Extract actual candidate field value distributions
   let candidateFieldValues: Record<string, Array<{ value: string; count: number }>> | undefined
   if (currentCandidates && currentCandidates.length > 0) {
