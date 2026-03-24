@@ -8,6 +8,7 @@ import type { AppliedFilter } from "@/lib/types/exploration"
 import type { CanonicalProduct, RecommendationInput, SourcePriority, SourceType } from "@/lib/types/canonical"
 import { resolveMaterialTag } from "@/lib/domain/material-resolver"
 import { getAppShapesForOperation } from "@/lib/domain/operation-resolver"
+import { resolveRequestedToolFamily as resolveRequestedToolFamilyInput } from "@/lib/data/repos/product-query-filters"
 
 interface RawProductRow {
   edp_idx: string | null
@@ -436,6 +437,40 @@ function normalizeToolSubtype(...candidates: Array<string | null | undefined>): 
   return titleCase(source.replace(/_/g, " "))
 }
 
+type RequestedToolFamily = "milling" | "holemaking" | "threading"
+
+function resolveRequestedToolFamily(toolType: string | null | undefined): RequestedToolFamily | null {
+  if (!toolType) return null
+  const lower = toolType.trim().toLowerCase()
+
+  if (
+    lower.includes("엔드밀") ||
+    lower.includes("end mill") ||
+    lower.includes("endmill") ||
+    lower.includes("밀링")
+  ) {
+    return "milling"
+  }
+
+  if (
+    lower.includes("드릴") ||
+    lower.includes("drill") ||
+    lower.includes("holemaking")
+  ) {
+    return "holemaking"
+  }
+
+  if (
+    lower.includes("탭") ||
+    lower.includes("tap") ||
+    lower.includes("thread")
+  ) {
+    return "threading"
+  }
+
+  return null
+}
+
 function normalizeAppShapeToken(value: string): string | null {
   const trimmed = value.trim()
   if (!trimmed || trimmed === "-" || trimmed === "NONE" || trimmed === "undefined") return null
@@ -579,7 +614,7 @@ function mapRowToProduct(row: RawProductRow): CanonicalProduct {
   }
 }
 
-function buildQueryOptions(options: ProductSearchOptions): { where: string[]; values: unknown[]; limit: number } {
+export function buildQueryOptions(options: ProductSearchOptions): { where: string[]; values: unknown[]; limit: number } {
   const where: string[] = []
   const values: unknown[] = []
   const next = (value: unknown) => {
@@ -633,6 +668,12 @@ function buildQueryOptions(options: ProductSearchOptions): { where: string[]; va
         WHERE UPPER(BTRIM(country_row.country_code)) = UPPER(BTRIM(${param}))
       )
     `)
+  }
+
+  const requestedToolFamily = resolveRequestedToolFamilyInput(input?.toolType)
+  if (requestedToolFamily) {
+    const categoryParam = next(`%${requestedToolFamily}%`)
+    where.push(`LOWER(COALESCE(edp_root_category, '')) LIKE ${categoryParam}`)
   }
 
   const appShapes = input?.operationType ? getAppShapesForOperation(input.operationType) : []
