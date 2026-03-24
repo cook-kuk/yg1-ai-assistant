@@ -126,6 +126,23 @@ export interface ReasoningSummary {
 
 // ── Full Trace ────────────────────────────────────────────────
 
+export interface SessionStateSnapshot {
+  sessionId: string
+  candidateCount: number
+  resolutionStatus: string | null
+  currentMode: string | null
+  lastAskedField: string | null
+  lastAction: string | null
+  turnCount: number
+  appliedFilters: Array<{ field: string; value: string; op: string }>
+  displayedChips: string[]
+  displayedOptionsCount: number
+  displayedCandidateCount: number
+  hasRecommendation: boolean
+  hasComparison: boolean
+  pendingAction: { description: string; actionType: string } | null
+}
+
 export interface TurnDebugTrace {
   turnId: string
   timestamp: string
@@ -143,6 +160,7 @@ export interface TurnDebugTrace {
   // Timeline
   events: AgentTraceEvent[]
   // Rich snapshots
+  sessionState?: SessionStateSnapshot | null
   memorySnapshot?: MemorySnapshot | null
   memoryDiff?: MemoryDiff | null
   searchDetail?: SearchDetail | null
@@ -178,6 +196,7 @@ export class TraceCollector {
   private _promptMeta: PromptMetaTrace[] = []
   private _recentTurns: TurnDebugTrace["recentTurns"] = []
   private _reasoning: ReasoningSummary | null = null
+  private _sessionState: SessionStateSnapshot | null = null
 
   constructor(turnId?: string) {
     this.enabled = isDebugEnabled()
@@ -190,6 +209,7 @@ export class TraceCollector {
     this.events.push({ step, category, inputSummary: input, outputSummary: output, reasonSummary: reason, latencyMs: Date.now() - this.startTime, fallbackUsed: extras?.fallbackUsed, alternativesConsidered: extras?.alternativesConsidered })
   }
 
+  setSessionState(state: SessionStateSnapshot): void { if (this.enabled) this._sessionState = state }
   setMemory(snapshot: MemorySnapshot, diff?: MemoryDiff): void { if (this.enabled) { this._memorySnapshot = snapshot; this._memoryDiff = diff ?? null } }
   setSearchDetail(detail: SearchDetail): void { if (this.enabled) this._searchDetail = detail }
   setUIArtifacts(artifacts: UIArtifactSnapshot): void { if (this.enabled) this._uiArtifacts = artifacts }
@@ -218,6 +238,7 @@ export class TraceCollector {
       ...context,
       reasoning: this._reasoning,
       events: this.events,
+      sessionState: this._sessionState,
       memorySnapshot: this._memorySnapshot,
       memoryDiff: this._memoryDiff,
       searchDetail: this._searchDetail,

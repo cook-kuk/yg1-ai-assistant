@@ -51,6 +51,7 @@ export function DebugPanel({ trace }: { trace: TurnDebugTrace | null | undefined
   const tabs = [
     { id: "overview", label: "Overview" },
     { id: "trace", label: `Trace (${trace.events.length})` },
+    ...(trace.sessionState ? [{ id: "state", label: "State" }] : []),
     ...(trace.memorySnapshot ? [{ id: "memory", label: "Memory" }] : []),
     ...(trace.searchDetail ? [{ id: "search", label: "Search" }] : []),
     ...(trace.uiArtifacts ? [{ id: "ui", label: "UI" }] : []),
@@ -95,6 +96,7 @@ export function DebugPanel({ trace }: { trace: TurnDebugTrace | null | undefined
       <div className="max-h-[400px] overflow-y-auto">
         {activeTab === "overview" && <OverviewTab trace={trace} />}
         {activeTab === "trace" && <TraceTab events={trace.events} expanded={expandedEvents} onToggle={toggleEvent} />}
+        {activeTab === "state" && <StateTab state={trace.sessionState as any} />}
         {activeTab === "memory" && <MemoryTab snapshot={trace.memorySnapshot as any} diff={trace.memoryDiff as any} />}
         {activeTab === "search" && <SearchTab detail={trace.searchDetail as any} />}
         {activeTab === "ui" && <UITab artifacts={trace.uiArtifacts as any} />}
@@ -257,6 +259,62 @@ function JsonTab({ trace }: { trace: TurnDebugTrace }) {
       <pre className="text-[9px] text-gray-600 overflow-auto max-h-[300px] whitespace-pre-wrap break-all">
         {JSON.stringify(trace, null, 2)}
       </pre>
+    </div>
+  )
+}
+
+function StateTab({ state }: { state?: Record<string, unknown> | null }) {
+  if (!state) return <div className="p-3 text-gray-400">No state data</div>
+  const s = state as any
+  return (
+    <div className="p-3 space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        <KV label="Session" value={s.sessionId} />
+        <KV label="Mode" value={s.currentMode} />
+        <KV label="Resolution" value={s.resolutionStatus} />
+        <KV label="Turn" value={s.turnCount} />
+        <KV label="Candidates" value={s.candidateCount} />
+        <KV label="Displayed" value={s.displayedCandidateCount} />
+        <KV label="Last Field" value={s.lastAskedField} />
+        <KV label="Last Action" value={s.lastAction} />
+        <KV label="Has Recommendation" value={s.hasRecommendation ? "✓" : "✗"} />
+        <KV label="Has Comparison" value={s.hasComparison ? "✓" : "✗"} />
+        <KV label="Options" value={s.displayedOptionsCount} />
+      </div>
+      {s.appliedFilters?.length > 0 && (
+        <div>
+          <div className="font-medium text-gray-700 text-[10px] mb-0.5">Applied Filters ({s.appliedFilters.length})</div>
+          {s.appliedFilters.map((f: any, i: number) => (
+            <div key={i} className="text-[10px] text-gray-600 pl-2">• {f.field}={f.value} ({f.op})</div>
+          ))}
+        </div>
+      )}
+      {s.displayedChips?.length > 0 && (
+        <div>
+          <div className="font-medium text-gray-700 text-[10px] mb-0.5">Displayed Chips ({s.displayedChips.length})</div>
+          <div className="flex flex-wrap gap-1 mt-0.5">
+            {s.displayedChips.map((chip: string, i: number) => (
+              <span key={i} className="px-1.5 py-0.5 bg-gray-100 rounded text-[9px] text-gray-700">{chip}</span>
+            ))}
+          </div>
+        </div>
+      )}
+      {s.pendingAction && (
+        <div className="bg-amber-50 border border-amber-200 rounded p-2">
+          <div className="text-[10px] font-medium text-amber-800">Pending Action</div>
+          <div className="text-[10px] text-amber-700">{s.pendingAction.description} ({s.pendingAction.actionType})</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function KV({ label, value }: { label: string; value: unknown }) {
+  if (value == null || value === "") return null
+  return (
+    <div className="text-[10px]">
+      <span className="text-gray-500">{label}: </span>
+      <span className="text-gray-800 font-medium">{String(value)}</span>
     </div>
   )
 }

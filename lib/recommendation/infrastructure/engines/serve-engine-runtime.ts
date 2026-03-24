@@ -492,6 +492,24 @@ async function handleServeExplorationInner(
       escalatedToOpus: orchResult.escalatedToOpus,
     }, orchResult.reasoning)
 
+    // ── Deep debug: session state snapshot (always) ──
+    trace.setSessionState({
+      sessionId: prevState.sessionId ?? "unknown",
+      candidateCount: prevState.candidateCount ?? 0,
+      resolutionStatus: prevState.resolutionStatus ?? null,
+      currentMode: prevState.currentMode ?? null,
+      lastAskedField: prevState.lastAskedField ?? null,
+      lastAction: prevState.lastAction ?? null,
+      turnCount: prevState.turnCount ?? 0,
+      appliedFilters: (prevState.appliedFilters ?? []).map(f => ({ field: f.field, value: f.value, op: f.op })),
+      displayedChips: prevState.displayedChips ?? [],
+      displayedOptionsCount: prevState.displayedOptions?.length ?? 0,
+      displayedCandidateCount: prevState.displayedCandidates?.length ?? 0,
+      hasRecommendation: !!prevState.lastRecommendationArtifact,
+      hasComparison: !!prevState.lastComparisonArtifact,
+      pendingAction: prevState.pendingAction ? { description: prevState.pendingAction.description, actionType: prevState.pendingAction.actionType } : null,
+    })
+
     // ── Deep debug: memory snapshot ──
     if (prevState.conversationMemory) {
       const mem = prevState.conversationMemory
@@ -509,6 +527,18 @@ async function handleServeExplorationInner(
           prefersDelegate: mem.userSignals.prefersDelegate,
           frustrationCount: mem.userSignals.frustrationCount,
         },
+      })
+    } else {
+      // Minimal memory from session state when conversationMemory not yet built
+      trace.setMemory({
+        resolvedFacts: [],
+        activeFilters: (prevState.appliedFilters ?? []).filter(f => f.op !== "skip").map(f => ({ field: f.field, value: f.value, op: f.op })),
+        tentativeReferences: [],
+        pendingQuestions: prevState.lastAskedField ? [{ field: prevState.lastAskedField, kind: prevState.currentMode ?? "narrowing" }] : [],
+        pendingAction: prevState.pendingAction ? { description: prevState.pendingAction.description, actionType: prevState.pendingAction.actionType } : null,
+        recentQACount: 0,
+        highlightCount: 0,
+        userSignals: {},
       })
     }
 
