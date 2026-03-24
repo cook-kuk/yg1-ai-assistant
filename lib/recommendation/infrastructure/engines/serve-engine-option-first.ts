@@ -44,6 +44,8 @@ interface QuestionAssistOptionsInput {
   currentCandidates: ScoredProduct[]
   confusedAbout: string | null
   includeHelpers: boolean
+  /** 현재 턴의 질문 필드 (prevState.lastAskedField와 다를 수 있음) */
+  currentQuestionField?: string | null
 }
 
 interface QuestionAssistOptionsResult {
@@ -334,7 +336,7 @@ export async function buildQuestionResponseOptionState(params: {
 export function buildQuestionAssistOptions(
   input: QuestionAssistOptionsInput
 ): QuestionAssistOptionsResult {
-  const question = reconstructPreviousQuestionFromCandidates(input.prevState, input.currentCandidates)
+  const question = reconstructPreviousQuestionFromCandidates(input.prevState, input.currentCandidates, input.currentQuestionField)
   const originalOptions = question ? buildQuestionAlignedOptions(question) : []
   const helperOptions = input.includeHelpers
     ? buildConfusionHelperOptions(question, input.confusedAbout)
@@ -591,9 +593,11 @@ function reconstructPreviousQuestion(
 
 function reconstructPreviousQuestionFromCandidates(
   prevState: ExplorationSessionState,
-  currentCandidates: ScoredProduct[]
+  currentCandidates: ScoredProduct[],
+  /** 현재 턴의 질문 필드 (있으면 prevState.lastAskedField 대신 사용) */
+  currentQuestionField?: string | null
 ): PendingQuestion | null {
-  const field = prevState.lastAskedField ?? null
+  const field = currentQuestionField ?? prevState.lastAskedField ?? null
   if (!field) return null
 
   const fieldGetter: Record<string, (product: { product: Record<string, unknown> }) => string | number | null> = {
@@ -606,6 +610,12 @@ function reconstructPreviousQuestionFromCandidates(
   }
   const getter = fieldGetter[field]
   if (!getter) return reconstructPreviousQuestion(prevState)
+
+  // 현재 질문 필드가 명시적으로 전달되었고 prevState 필드와 다르면
+  // prevState의 displayedOptions/chips를 사용하지 않음 (stale 방지)
+  if (currentQuestionField && currentQuestionField !== prevState.lastAskedField) {
+    console.log(`[reconstruct-question] Field transition: ${prevState.lastAskedField} → ${currentQuestionField}, invalidating stale options`)
+  }
 
   const candidateSource: Array<{ product: Record<string, unknown> }> =
     currentCandidates.length > 0

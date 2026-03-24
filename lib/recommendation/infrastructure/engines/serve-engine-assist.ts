@@ -8,6 +8,7 @@ import {
   type SeriesProfileRecord,
 } from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
 import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-target-classifier"
+import { resolveYG1Query } from "@/lib/knowledge/knowledge-router"
 import { resolveMaterialTag } from "@/lib/recommendation/domain/recommendation-domain"
 import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import { YG1_COMPANY_SNIPPET } from "@/lib/knowledge/company-prompt-snippet"
