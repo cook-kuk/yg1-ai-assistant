@@ -617,13 +617,15 @@ export async function handleServeExploration(
     if (action.type === "continue_narrowing") {
       const filter = { ...action.filter, appliedAt: turnCount }
 
-      // ── Value Normalizer: fuzzy-match Korean user input to actual DB values ──
+      // ── Value Normalizer: match user input to actual DB values ──
+      // Tier 1-2: exact/fuzzy (instant), Tier 3: Haiku LLM translation (~200ms)
       const candidateFieldVals = extractDistinctFieldValues(candidates as any[], filter.field)
       if (candidateFieldVals.length > 0 && typeof filter.rawValue === "string") {
-        const { normalized, matchType } = normalizeFilterValue(
+        const { normalized, matchType } = await normalizeFilterValue(
           String(filter.rawValue),
           filter.field,
-          candidateFieldVals
+          candidateFieldVals,
+          provider
         )
         if (matchType !== "none" && normalized !== String(filter.rawValue)) {
           console.log(`[value-normalizer] "${filter.rawValue}" → "${normalized}" (${matchType}) for field=${filter.field}`)

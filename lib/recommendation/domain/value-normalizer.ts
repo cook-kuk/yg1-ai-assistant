@@ -1,73 +1,31 @@
 /**
- * Value Normalizer — Fuzzy-matches user input (Korean/English) against actual candidate data.
+ * Value Normalizer — Matches user input against actual candidate data.
  *
- * Instead of hardcoding every Korean→English mapping, this looks at the real values
- * in the current candidate pool and finds the best match.
+ * 3-tier strategy:
+ * 1. Exact match (case-insensitive) — instant, no LLM
+ * 2. Substring/fuzzy match — instant, no LLM
+ * 3. LLM translation (Haiku) — Korean→English, ~200ms
  *
- * Examples:
- * - "카바이드" → candidates have "Carbide" → match
- * - "고속도강" → candidates have "HSS" → match via alias
- * - "브라이트 피니시" → candidates have "Bright Finish" → match
- * - "DLC" → candidates have "DLC" → exact match
- *
- * Deterministic. No LLM calls.
+ * No hardcoded alias tables. The LLM handles all language translation.
  */
 
-// ── Known aliases: Korean common names → English DB values ──
-// This is a SEED list, not exhaustive. The fuzzy matcher does the heavy lifting.
-const KNOWN_ALIASES: Record<string, string[]> = {
-  // Tool materials
-  "카바이드": ["Carbide", "carbide"],
-  "초경": ["Carbide", "carbide"],
-  "초경합금": ["Carbide", "carbide"],
-  "고속도강": ["HSS", "hss"],
-  "하이스": ["HSS", "hss"],
-  "서멧": ["Cermet", "cermet"],
-
-  // Coatings
-  "무코팅": ["Uncoated", "uncoated", "Bright Finish"],
-  "브라이트피니시": ["Bright Finish"],
-  "다이아몬드": ["Diamond", "DLC"],
-
-  // Tool subtypes
-  "스퀘어": ["Square"],
-  "볼": ["Ball"],
-  "라디우스": ["Radius"],
-  "테이퍼": ["Taper"],
-  "황삭": ["Roughing"],
-  "정삭": ["Finishing"],
-  "고이송": ["High-Feed", "High Feed"],
-
-  // Stock status
-  "재고있음": ["instock"],
-  "제한적": ["limited"],
-  "품절": ["outofstock"],
-
-  // ISO material tags
-  "탄소강": ["P"],
-  "스테인리스": ["M"],
-  "주철": ["K"],
-  "알루미늄": ["N"],
-  "비철": ["N"],
-  "티타늄": ["S"],
-  "내열합금": ["S"],
-  "고경도강": ["H"],
-}
+import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 
 /**
  * Normalize a user-provided value against actual candidate values.
  *
  * Priority:
- * 1. Exact match (case-insensitive)
- * 2. Known alias match
- * 3. Substring/prefix match
+ * 1. Exact match (case-insensitive) — no LLM
+ * 2. Substring/fuzzy match — no LLM
+ * 3. LLM translation via Haiku — when user input is in different language from DB values
  * 4. Original value (if no match found)
  */
-export function normalizeFilterValue(
+export async function normalizeFilterValue(
   userValue: string,
   field: string,
-  candidateValues: string[]
-): { normalized: string; matchType: "exact" | "alias" | "fuzzy" | "none" } {
+  candidateValues: string[],
+  provider?: LLMProvider | null
+): Promise<{ normalized: string; matchType: "exact" | "fuzzy" | "llm" | "none" }> {
   const clean = userValue.trim()
   const cleanLower = clean.toLowerCase().replace(/\s+/g, "")
 
@@ -81,30 +39,7 @@ export function normalizeFilterValue(
     return { normalized: exactMatch, matchType: "exact" }
   }
 
-  // 2. Known alias match
-  const aliasTargets = KNOWN_ALIASES[cleanLower] ?? KNOWN_ALIASES[clean] ?? []
-  for (const alias of aliasTargets) {
-    const match = candidateValues.find(v =>
-      v.toLowerCase() === alias.toLowerCase() ||
-      v.toLowerCase().includes(alias.toLowerCase())
-    )
-    if (match) {
-      return { normalized: match, matchType: "alias" }
-    }
-  }
-
-  // Also check reverse: candidate value as key in alias table
-  for (const candidateVal of candidateValues) {
-    for (const [korean, englishList] of Object.entries(KNOWN_ALIASES)) {
-      if (englishList.some(e => e.toLowerCase() === candidateVal.toLowerCase())) {
-        if (cleanLower.includes(korean) || korean.includes(cleanLower)) {
-          return { normalized: candidateVal, matchType: "alias" }
-        }
-      }
-    }
-  }
-
-  // 3. Substring/prefix match
+  // 2. Substring match
   const substringMatch = candidateValues.find(v =>
     v.toLowerCase().includes(cleanLower) ||
     cleanLower.includes(v.toLowerCase())
@@ -113,22 +48,86 @@ export function normalizeFilterValue(
     return { normalized: substringMatch, matchType: "fuzzy" }
   }
 
-  // 4. Partial overlap (at least 3 chars in common)
+  // 3. Partial overlap (3+ chars in common)
   if (cleanLower.length >= 3) {
     for (const candidateVal of candidateValues) {
       const candLower = candidateVal.toLowerCase()
-      // Check if any 3-char substring of user input appears in candidate value
       for (let i = 0; i <= cleanLower.length - 3; i++) {
-        const sub = cleanLower.slice(i, i + 3)
-        if (candLower.includes(sub)) {
+        if (candLower.includes(cleanLower.slice(i, i + 3))) {
           return { normalized: candidateVal, matchType: "fuzzy" }
         }
       }
     }
   }
 
-  // No match — return original
+  // 4. LLM translation (Haiku) — handles Korean↔English, industry jargon, etc.
+  if (provider?.available()) {
+    try {
+      const llmMatch = await translateWithLLM(clean, field, candidateValues, provider)
+      if (llmMatch) {
+        return { normalized: llmMatch, matchType: "llm" }
+      }
+    } catch (e) {
+      console.warn(`[value-normalizer] LLM translation failed:`, e)
+    }
+  }
+
+  // 5. No match
   return { normalized: clean, matchType: "none" }
+}
+
+/**
+ * Use Haiku to translate/match user input to one of the candidate values.
+ * Returns the matched candidate value, or null if no match.
+ */
+async function translateWithLLM(
+  userValue: string,
+  field: string,
+  candidateValues: string[],
+  provider: LLMProvider
+): Promise<string | null> {
+  const valuesStr = candidateValues.slice(0, 20).join(", ")
+
+  const prompt = `사용자가 "${userValue}"라고 입력했습니다.
+이것은 "${field}" 필드의 값입니다.
+
+현재 DB에 있는 실제 값들: [${valuesStr}]
+
+사용자 입력이 위 값 중 하나와 같은 뜻이면, 해당 DB 값을 그대로 반환하세요.
+같은 뜻인 값이 없으면 "NONE"을 반환하세요.
+
+예시:
+- "카바이드" → "Carbide" (같은 뜻)
+- "고속도강" → "HSS" (같은 뜻)
+- "무코팅" → "Bright Finish" 또는 "Uncoated" (같은 뜻)
+- "스퀘어" → "Square" (같은 뜻)
+
+DB 값만 정확히 반환하세요. 설명이나 따옴표 없이 값만.`
+
+  const raw = await provider.complete(
+    "당신은 절삭공구 용어 번역기입니다. DB 값과 매칭되는 것을 찾아 DB 값 그대로 반환합니다. 값만 반환하세요.",
+    [{ role: "user", content: prompt }],
+    30, // max tokens — 값만 반환하면 충분
+    "haiku"
+  )
+
+  const result = raw.trim().replace(/^["']|["']$/g, "")
+
+  if (result === "NONE" || result.length === 0) return null
+
+  // Verify the LLM returned an actual candidate value
+  const matched = candidateValues.find(v =>
+    v.toLowerCase() === result.toLowerCase() ||
+    v.toLowerCase().includes(result.toLowerCase()) ||
+    result.toLowerCase().includes(v.toLowerCase())
+  )
+
+  if (matched) {
+    console.log(`[value-normalizer:llm] "${userValue}" → "${matched}" (field=${field})`)
+    return matched
+  }
+
+  return null
 }
 
 /**
