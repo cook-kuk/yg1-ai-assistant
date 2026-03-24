@@ -520,65 +520,117 @@ export async function handleContextualNarrowingQuestion(
 ): Promise<string | null> {
   const lastField = prevState.lastAskedField ?? "unknown"
 
-  const fieldExplanations: Record<string, () => string> = {
-    coating: () => {
-      const coatings = [...new Set(candidates.map(c => c.product.coating).filter(Boolean))]
-      return `코팅 종류에 대해 설명드리겠습니다.
-
-현재 후보 제품들의 코팅 종류:
-${coatings.map(c => `• ${c}`).join("\n")}
-
-간단 설명:
-• DLC (Diamond-Like Carbon) — 알루미늄/비철금속에 최적. 낮은 마찰, 높은 내마모성
-• TiAlN — 고온 가공에 적합. 내열성 우수 (강, 스테인리스)
-• AlCrN — 고경도 소재 가공용. TiAlN보다 더 높은 내열성
-• TiCN — 범용. 중간 경도, 탄소강/합금강에 적합
-• Blue Coating — YG-1 자체 코팅. 범용 가공에 적합
-• 무코팅 — 알루미늄/구리 등 연질 소재에 사용
-
-모르시면 "상관없음"을 선택하면 전체 후보에서 추천해드립니다.`
-    },
-    fluteCount: () => {
-      const flutes = [...new Set(candidates.map(c => c.product.fluteCount).filter(Boolean))].sort()
-      return `날 수(flute)에 대해 설명드리겠습니다.
-
-현재 후보 제품 날 수: ${flutes.join(", ")}날
-
-• 2날 — 알루미늄/비철 가공, 칩 배출 우수 (황삭에 유리)
-• 3날 — 범용. 황삭~정삭 겸용
-• 4날 — 정삭/고정밀 가공. 표면 품질 우수
-• 6날 이상 — 고이송 가공, 높은 생산성
-
-모르시면 "상관없음"을 선택해주세요.`
-    },
-    diameterRefine: () => {
-      const diameters = [...new Set(candidates.map(c => c.product.diameterMm).filter((value): value is number => value != null))].sort((a, b) => a - b)
-      const min = diameters[0]
-      const max = diameters[diameters.length - 1]
-      return `직경은 가공하려는 형상과 장비에 따라 선택합니다.
-
-현재 후보 직경 범위: ${min}mm ~ ${max}mm
-가용 직경: ${diameters.slice(0, 10).join(", ")}mm${diameters.length > 10 ? " ..." : ""}
-
-직경을 모르시면 "상관없음"을 선택해주세요.`
-    },
-  }
-
-  const explainer = fieldExplanations[lastField]
-  if (explainer) return explainer()
+  // ── Data-driven context (no hardcoded explanations) ──
+  // Extract actual values from current candidates for LLM context
+  const fieldDataContext = buildFieldDataContext(lastField, candidates)
 
   if (provider.available()) {
     try {
       const raw = await provider.complete(
-        "당신은 YG-1 절삭공구 전문 엔지니어입니다. 사용자가 추천 대화 중 현재 질문에 대해 '그게 뭐야?' 같은 질문을 했습니다. 간결하게 3-4문장으로 설명하세요.",
-        [{ role: "user", content: `현재 질문 필드: ${lastField}\n사용자 질문: ${userMessage}\n현재 후보 수: ${candidates.length}개` }],
-        400
+        `당신은 YG-1 절삭공구 전문 엔지니어입니다.
+사용자가 추천 대화 중 현재 질문에 대해 설명을 요청했습니다.
+
+규칙:
+- 하드코딩된 설명 금지 — 실제 후보 데이터 기반으로 설명
+- 간결하게 3-5문장
+- 실제 후보에 있는 값만 언급
+- "상관없음"을 선택할 수 있다고 안내
+- 한국어로 답변`,
+        [{ role: "user", content: `현재 질문 필드: ${lastField}\n사용자 질문: ${userMessage}\n현재 후보 수: ${candidates.length}개\n\n${fieldDataContext}` }],
+        500
       )
       if (raw?.trim()) return raw.trim()
     } catch {}
   }
 
-  return `현재 ${candidates.length}개 후보가 있습니다. 잘 모르시면 "상관없음"을 선택해주세요.`
+  // Minimal data-driven fallback (no hardcoded explanations)
+  return fieldDataContext || `현재 ${candidates.length}개 후보가 있습니다. 잘 모르시면 "상관없음"을 선택해주세요.`
+}
+
+/**
+ * Build data-driven context for field explanation.
+ * Extracts actual values from current candidates — NO hardcoded descriptions.
+ */
+function buildFieldDataContext(field: string, candidates: ScoredProduct[]): string {
+  const lines: string[] = []
+
+  switch (field) {
+    case "coating": {
+      const counts = new Map<string, number>()
+      for (const c of candidates) {
+        const v = c.product.coating
+        if (v) counts.set(v, (counts.get(v) ?? 0) + 1)
+      }
+      if (counts.size > 0) {
+        lines.push(`현재 후보의 코팅 분포:`)
+        for (const [coating, count] of Array.from(counts.entries()).sort((a, b) => b[1] - a[1])) {
+          lines.push(`• ${coating}: ${count}개`)
+        }
+      }
+      break
+    }
+    case "fluteCount": {
+      const counts = new Map<number, number>()
+      for (const c of candidates) {
+        const v = c.product.fluteCount
+        if (v != null) counts.set(v, (counts.get(v) ?? 0) + 1)
+      }
+      if (counts.size > 0) {
+        lines.push(`현재 후보의 날수 분포:`)
+        for (const [flute, count] of Array.from(counts.entries()).sort((a, b) => b[1] - a[1])) {
+          lines.push(`• ${flute}날: ${count}개`)
+        }
+      }
+      break
+    }
+    case "diameterRefine": {
+      const diameters = [...new Set(candidates.map(c => c.product.diameterMm).filter((v): v is number => v != null))].sort((a, b) => a - b)
+      if (diameters.length > 0) {
+        lines.push(`현재 후보 직경 범위: ${diameters[0]}mm ~ ${diameters[diameters.length - 1]}mm`)
+        lines.push(`가용 직경: ${diameters.slice(0, 15).map(d => `${d}mm`).join(", ")}${diameters.length > 15 ? " ..." : ""}`)
+      }
+      break
+    }
+    case "toolSubtype": {
+      const counts = new Map<string, number>()
+      for (const c of candidates) {
+        const v = c.product.toolSubtype
+        if (v) counts.set(v, (counts.get(v) ?? 0) + 1)
+      }
+      if (counts.size > 0) {
+        lines.push(`현재 후보의 형상 분포:`)
+        for (const [subtype, count] of Array.from(counts.entries()).sort((a, b) => b[1] - a[1])) {
+          lines.push(`• ${subtype}: ${count}개`)
+        }
+      }
+      break
+    }
+    case "toolMaterial": {
+      const counts = new Map<string, number>()
+      for (const c of candidates) {
+        const v = c.product.toolMaterial
+        if (v) counts.set(v, (counts.get(v) ?? 0) + 1)
+      }
+      if (counts.size > 0) {
+        lines.push(`현재 후보의 공구 소재 분포:`)
+        for (const [mat, count] of Array.from(counts.entries()).sort((a, b) => b[1] - a[1])) {
+          lines.push(`• ${mat}: ${count}개`)
+        }
+      }
+      break
+    }
+    default: {
+      // Generic: try to extract any field distribution
+      lines.push(`현재 ${candidates.length}개 후보가 있습니다.`)
+      break
+    }
+  }
+
+  if (lines.length === 0) {
+    lines.push(`현재 ${candidates.length}개 후보가 있습니다.`)
+  }
+
+  return lines.join("\n")
 }
 
 async function searchWebForKnowledge(query: string): Promise<string | null> {
