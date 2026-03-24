@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk"
 
 import { CHAT_TOOLS, executeChatTool } from "@/lib/chat/infrastructure/tools/chat-tools"
+import { searchKB } from "@/lib/knowledge/yg1-knowledge-base"
 import {
   buildStructuredContext,
   buildRetrievalMemory,
@@ -109,7 +110,15 @@ export async function runChatConversation(
 
   const baseSystemPrompt = await buildSystemPrompt()
   const structuredCtx = buildStructuredContext(convState, null)
-  const systemPrompt = `${baseSystemPrompt}\n\n${structuredCtx}`
+
+  // ── KB 프리페치: LLM 호출 전에 회사 관련 키워드 감지 → KB 자동 조회 ──
+  const lastUserMsg = [...messages].reverse().find(m => m.role === "user")?.text ?? ""
+  const kbPrefetch = prefetchKBIfRelevant(lastUserMsg)
+  const kbContext = kbPrefetch
+    ? `\n\n═══ [시스템 자동 조회] KB 결과 (반드시 이 정보를 기반으로 답변하라) ═══\n${kbPrefetch}\n이 정보는 내부 지식베이스에서 자동 조회한 결과입니다. 이 정보와 다른 답변을 하지 마세요.`
+    : ""
+
+  const systemPrompt = `${baseSystemPrompt}\n\n${structuredCtx}${kbContext}`
 
   let currentMessages = [...apiMessages]
   const toolsUsed: string[] = []
@@ -207,7 +216,7 @@ export async function runChatConversation(
       : responseText
 
   // 2) Reference 강제 주입 (LLM이 붙인 부정확한 것 제거 → 정확한 것 추가)
-  const finalText = injectReferenceBadge(withBrand, toolsUsed, toolResults)
+  const finalText = injectReferenceBadge(withBrand, toolsUsed, toolResults, !!kbPrefetch)
 
   return {
     response: {
@@ -227,4 +236,46 @@ export async function runChatConversation(
     durationMs: Date.now() - startedAt,
     llmUsage: llmResponse.usage,
   }
+}
+
+// ── KB 프리페치 ─────────────────────────────────────
+// 회사 관련 키워드가 메시지에 있으면 LLM 호출 전에 KB를 자동 조회.
+// 결과를 시스템 프롬프트에 주입하여 LLM이 날조할 수 없게 함.
+const COMPANY_KEYWORDS = [
+  // 사업장
+  "공장", "영업소", "연구소", "본사", "물류센터", "교육원",
+  "인천", "부평", "서운", "광주", "충주", "익산", "안산",
+  "대구", "부산", "창원", "천안",
+  // 경영/재무
+  "매출", "영업이익", "순이익", "실적", "재무", "주주", "버핏", "imc", "버크셔",
+  "주가", "상장", "코스닥", "종목", "주식",
+  // 회사 기본
+  "설립", "창업", "창립", "대표", "회장", "사장", "ceo",
+  "직원", "인원", "몇명",
+  "순위", "세계", "1위", "몇위",
+  // 기타
+  "경쟁사", "수출", "해외", "비전", "미션", "연혁", "역사",
+  "수상", "인증", "iso", "채용", "입사",
+  "카탈로그", "온라인 주문", "카카오",
+  "sns", "인스타", "유튜브",
+  "전화", "연락처", "팩스", "주소",
+  "산업", "자동차", "항공",
+  "정밀", "목표", "2035",
+  "제품 라인", "브랜드",
+]
+
+function prefetchKBIfRelevant(userMessage: string): string | null {
+  const q = userMessage.toLowerCase()
+  const isCompanyQuery = COMPANY_KEYWORDS.some(kw => q.includes(kw))
+  if (!isCompanyQuery) return null
+
+  const result = searchKB(userMessage)
+  if (result.found && result.confidence === "high") {
+    console.log(`[chat:kb-prefetch] Hit: "${userMessage.slice(0, 40)}" → ${result.answer.slice(0, 60)}`)
+    return result.answer
+  }
+
+  // KB에 없는 회사 질문 → "모른다"고 안내하라는 지시
+  console.log(`[chat:kb-prefetch] Miss: "${userMessage.slice(0, 40)}" → KB에 없음`)
+  return `내부 KB에 "${userMessage.slice(0, 30)}" 관련 정보가 없습니다. 추측하지 말고 "확인할 수 없습니다. YG-1 본사(032-526-0909) 또는 www.yg1.solutions에 문의해 주세요."로 안내하세요.`
 }

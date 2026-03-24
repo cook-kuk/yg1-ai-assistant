@@ -82,8 +82,10 @@ const REFERENCE_LABELS: Record<ReferenceSource, string> = {
  */
 export function determineReferenceSource(
   toolsUsed: string[],
-  toolResults: ToolResultRecord[]
+  toolResults: ToolResultRecord[],
+  kbPrefetchUsed?: boolean
 ): ReferenceSource | null {
+  if (kbPrefetchUsed && toolsUsed.length === 0) return "internal_kb"
   if (toolsUsed.length === 0) return "ai_knowledge"
 
   const hasInternalDB = toolsUsed.some(t =>
@@ -122,9 +124,10 @@ export function determineReferenceSource(
 export function injectReferenceBadge(
   responseText: string,
   toolsUsed: string[],
-  toolResults: ToolResultRecord[]
+  toolResults: ToolResultRecord[],
+  kbPrefetchUsed?: boolean
 ): string {
-  const source = determineReferenceSource(toolsUsed, toolResults)
+  const source = determineReferenceSource(toolsUsed, toolResults, kbPrefetchUsed)
   if (!source) return responseText
 
   // 기존 Reference 라인 제거 (LLM이 임의로 붙인 것)
