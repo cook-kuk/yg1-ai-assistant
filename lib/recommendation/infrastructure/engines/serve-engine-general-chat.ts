@@ -74,6 +74,11 @@ export interface ServeEngineGeneralChatDependencies {
     currentInput: RecommendationInput,
     prevState: ExplorationSessionState | null
   ) => Promise<QuestionReply>
+  handleDirectProductInfoQuestion?: (
+    userMessage: string,
+    currentInput: RecommendationInput,
+    prevState: ExplorationSessionState | null
+  ) => Promise<QuestionReply>
   handleDirectBrandReferenceQuestion: (
     userMessage: string,
     currentInput: RecommendationInput,
@@ -181,6 +186,7 @@ export function resolveReplyUiStrategy(
   prevState: ExplorationSessionState,
 ): ReplyUiStrategy {
   const isDirectFactual =
+    recentFrameRelation === "product_info" ||
     recentFrameRelation === "inventory_reply" ||
     recentFrameRelation === "brand_reference" ||
     recentFrameRelation === "cutting_conditions"
@@ -489,6 +495,35 @@ export async function handleServeGeneralChatAction(
         pendingQuestionField: prevState.lastAskedField ?? null,
         recentFrameRelation: "inventory_reply",
         displayedOptions: buildReplyDisplayedOptions(inventoryReply.chips),
+      }),
+      strategy,
+    )
+  }
+
+  const productInfoReply = await (deps.handleDirectProductInfoQuestion?.(lastUserMessage, currentInput, prevState) ?? Promise.resolve(null))
+  if (productInfoReply) {
+    const strategy = resolveReplyUiStrategy("product_info", prevState)
+    return buildValidatedReplyResponse(
+      deps,
+      prevState,
+      filters,
+      narrowingHistory,
+      currentInput,
+      turnCount,
+      lastUserMessage,
+      productInfoReply,
+      "product-info",
+      {
+        purpose: "general_chat",
+        currentMode: "general_chat",
+        lastAction: "answer_general",
+      },
+      orchResult,
+      buildProcessTrace({
+        actionType: "answer_general",
+        pendingQuestionField: prevState.lastAskedField ?? null,
+        recentFrameRelation: "product_info",
+        displayedOptions: buildReplyDisplayedOptions(productInfoReply.chips),
       }),
       strategy,
     )
