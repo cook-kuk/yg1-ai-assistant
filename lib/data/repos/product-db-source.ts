@@ -99,6 +99,31 @@ interface ProductSearchOptions {
   seriesName?: string
 }
 
+function flattenActiveFilters(filters: AppliedFilter[] = []): AppliedFilter[] {
+  const lastMaterialIndex = filters.reduce((lastIndex, filter, index) => (
+    filter.field === "material" ? index : lastIndex
+  ), -1)
+
+  return filters.flatMap((filter, index) => {
+    if (
+      (filter.field === "workPieceName" || filter.field === "edpBrandName" || filter.field === "edpSeriesName") &&
+      lastMaterialIndex !== -1 &&
+      index < lastMaterialIndex
+    ) {
+      return []
+    }
+
+    const sideFilters = ((filter as unknown as { _sideFilters?: AppliedFilter[] })._sideFilters ?? [])
+      .filter(sideFilter => !(
+        lastMaterialIndex !== -1 &&
+        (sideFilter.field === "edpBrandName" || sideFilter.field === "edpSeriesName") &&
+        index < lastMaterialIndex
+      ))
+
+    return [filter, ...sideFilters]
+  })
+}
+
 interface DbQueryContext {
   operation: string
   limit?: number
@@ -565,7 +590,7 @@ function mapRowToProduct(row: RawProductRow): CanonicalProduct {
     coolantHole: parseBoolean(firstNonEmpty(row.milling_coolant_hole, row.holemaking_coolant_hole, row.threading_coolant_hole, row.option_coolanthole)),
     applicationShapes: normalizeApplicationShapes(row.series_application_shape),
     materialTags: normalizeMaterialTags(row.material_tags),
-    region: null,
+    country: null,
     description: firstNonEmpty(row.series_description),
     featureText: firstNonEmpty(row.series_feature),
     seriesIconUrl: null,
@@ -612,10 +637,30 @@ function buildQueryOptions(options: ProductSearchOptions): { where: string[]; va
       if (tag) materialTags.add(tag)
     }
   }
-  for (const filter of options.filters ?? []) {
+  for (const filter of flattenActiveFilters(options.filters ?? [])) {
     if (filter.field === "materialTag") {
       for (const part of String(filter.rawValue).split(",").map(s => s.trim().toUpperCase()).filter(Boolean)) {
         if (/^[PMKNSH]$/.test(part)) materialTags.add(part)
+      }
+    }
+    if (filter.field === "edpBrandName") {
+      const brands = String(filter.rawValue)
+        .split("||")
+        .map(value => value.trim().toLowerCase())
+        .filter(Boolean)
+      if (brands.length > 0) {
+        const param = next(brands)
+        where.push(`LOWER(COALESCE(edp_brand_name, '')) = ANY(${param}::text[])`)
+      }
+    }
+    if (filter.field === "edpSeriesName") {
+      const seriesNames = String(filter.rawValue)
+        .split("||")
+        .map(value => value.trim().toLowerCase())
+        .filter(Boolean)
+      if (seriesNames.length > 0) {
+        const param = next(seriesNames)
+        where.push(`LOWER(COALESCE(edp_series_name, '')) = ANY(${param}::text[])`)
       }
     }
   }

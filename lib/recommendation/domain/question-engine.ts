@@ -338,6 +338,14 @@ export function parseAnswerToFilter(
         rawValue: clean,
         appliedAt: 0,
       }
+    case "workPieceName":
+      return {
+        field: "workPieceName",
+        op: "eq",
+        value: clean,
+        rawValue: clean,
+        appliedAt: 0,
+      }
   }
 
   return null

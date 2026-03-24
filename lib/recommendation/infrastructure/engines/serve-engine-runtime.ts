@@ -13,6 +13,9 @@ import {
   restoreToBeforeFilter,
   runHybridRetrieval,
 } from "@/lib/recommendation/domain/recommendation-domain"
+import { BrandReferenceRepo } from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
+import { resolveMaterialTag } from "@/lib/recommendation/domain/material-resolver"
+import { parseAnswerToFilter } from "@/lib/recommendation/domain/question-engine"
 import {
   compareProducts,
   orchestrateTurn,
@@ -69,6 +72,105 @@ type JsonRecommendationResponse = (
 ) => Response
 
 type QuestionReply = { text: string; chips: string[] } | null
+
+function normalizePendingSelectionText(value: string): string {
+  return value
+    .trim()
+    .replace(/\s*\(\d+개\)\s*$/, "")
+    .replace(/\s*—\s*.+$/, "")
+    .replace(/(으로요|로요|이에요|예요|입니다|으로|로|요)$/u, "")
+    .trim()
+    .toLowerCase()
+}
+
+function resolveSingleIsoGroup(material: string | undefined): string | null {
+  if (!material) return null
+
+  const tags = Array.from(
+    new Set(
+      material
+        .split(",")
+        .map(part => part.trim())
+        .filter(Boolean)
+        .map(part => resolveMaterialTag(part))
+        .filter((tag): tag is string => Boolean(tag))
+    )
+  )
+
+  return tags.length === 1 ? tags[0] : null
+}
+
+function dropDependentWorkPieceFilters(filters: AppliedFilter[]): void {
+  for (let index = filters.length - 1; index >= 0; index--) {
+    const field = filters[index]?.field
+    if (field === "workPieceName" || field === "edpBrandName" || field === "edpSeriesName") {
+      filters.splice(index, 1)
+    }
+  }
+}
+
+async function enrichWorkPieceFilterWithSeriesScope(
+  filter: AppliedFilter,
+  currentInput: RecommendationInput
+): Promise<AppliedFilter> {
+  if (filter.field !== "workPieceName") return filter
+
+  const isoGroup = resolveSingleIsoGroup(currentInput.material)
+  const workPieceName = String(filter.rawValue ?? "").trim()
+  if (!isoGroup || !workPieceName) return filter
+
+  const seriesNames = await BrandReferenceRepo.listDistinctSeriesNames({
+    isoGroup,
+    workPieceName,
+    limit: 30,
+  })
+  if (seriesNames.length === 0) return filter
+
+  const seriesScopeFilter: AppliedFilter = {
+    field: "edpSeriesName",
+    op: "in",
+    value: seriesNames.length <= 3 ? seriesNames.join(", ") : `${seriesNames.length}개 시리즈`,
+    rawValue: seriesNames.join("||"),
+    appliedAt: filter.appliedAt,
+  }
+
+  return {
+    ...filter,
+    _sideFilters: [seriesScopeFilter],
+  } as AppliedFilter
+}
+
+function buildPendingWorkPieceSelectionFilter(
+  sessionState: ExplorationSessionState | null,
+  userMessage: string | null
+): AppliedFilter | null {
+  if (!sessionState || sessionState.lastAskedField !== "workPieceName") return null
+  if (sessionState.resolutionStatus?.startsWith("resolved")) return null
+  if (!userMessage) return null
+
+  const raw = userMessage.trim()
+  if (!raw || raw.length > 40) return null
+  if (/[?？]/.test(raw)) return null
+  if (/뭐야|뭔지|설명|차이|왜|어떻게|몇개|종류|비교|추천|결과|처음부터|이전 단계/u.test(raw)) return null
+
+  const clean = normalizePendingSelectionText(raw)
+  if (!clean) return null
+
+  const optionMatch = sessionState.displayedOptions?.find(option => {
+    if (option.field !== "workPieceName") return false
+    const normalizedValue = normalizePendingSelectionText(option.value)
+    const normalizedLabel = normalizePendingSelectionText(option.label)
+    return clean === normalizedValue || clean === normalizedLabel || clean.startsWith(normalizedValue) || normalizedValue.startsWith(clean)
+  })
+
+  const chipMatch = sessionState.displayedChips?.find(chip => {
+    const normalizedChip = normalizePendingSelectionText(chip)
+    return normalizedChip && (clean === normalizedChip || clean.startsWith(normalizedChip) || normalizedChip.startsWith(clean))
+  })
+
+  const selectedValue = optionMatch?.value ?? chipMatch ?? raw.trim()
+  return parseAnswerToFilter("workPieceName", selectedValue)
+}
 
 export interface ServeEngineRuntimeDependencies {
   mapIntakeToInput: (form: ProductIntakeForm) => RecommendationInput
@@ -169,10 +271,13 @@ export async function handleServeExploration(
   const lastUserMsg = messages.length > 0
     ? [...messages].reverse().find(m => m.role === "user")
     : null
+  const pendingWorkPieceFilter = buildPendingWorkPieceSelectionFilter(prevState, lastUserMsg?.text ?? null)
 
   // Pre-classify orchestrator action for follow-up turns to decide retrieval
   let earlyAction: string | null = null
-  if (messages.length > 0 && prevState && lastUserMsg) {
+  if (pendingWorkPieceFilter) {
+    earlyAction = "continue_narrowing"
+  } else if (messages.length > 0 && prevState && lastUserMsg) {
     const earlyTurnCtx = {
       userMessage: lastUserMsg.text,
       intakeForm: form,
@@ -237,7 +342,12 @@ export async function handleServeExploration(
       const orchResult = ENABLE_TOOL_USE_ROUTING
         ? await orchestrateTurnWithTools(turnCtx, provider)
         : await orchestrateTurn(turnCtx, provider)
-      const action = orchResult.action
+      const action = pendingWorkPieceFilter && (
+        orchResult.action.type === "answer_general" ||
+        orchResult.action.type === "redirect_off_topic"
+      )
+        ? { type: "continue_narrowing" as const, filter: pendingWorkPieceFilter }
+        : orchResult.action
 
       // ── Build Unified TurnContext (shared by answer + chip generation) ──
       const lastAssistantMsg = [...messages].reverse().find(m => m.role === "ai")
@@ -800,6 +910,9 @@ export async function handleServeExploration(
 
       if (action.type === "skip_field") {
         const skipField = prevState.lastAskedField ?? "unknown"
+        if (skipField === "material") {
+          dropDependentWorkPieceFilters(filters)
+        }
         const skipFilter: AppliedFilter = {
           field: skipField, op: "skip", value: "상관없음", rawValue: "skip", appliedAt: turnCount,
         }
@@ -824,7 +937,11 @@ export async function handleServeExploration(
       }
 
       if (action.type === "continue_narrowing") {
-        const filter = { ...action.filter, appliedAt: turnCount }
+        if (action.filter.field === "material") {
+          dropDependentWorkPieceFilters(filters)
+        }
+        let filter = { ...action.filter, appliedAt: turnCount } as AppliedFilter
+        filter = await enrichWorkPieceFilterWithSeriesScope(filter, currentInput)
         const testInput = deps.applyFilterToInput(currentInput, filter)
         const testFilters = [...filters, filter]
         const testResult = await runHybridRetrieval(testInput, testFilters)

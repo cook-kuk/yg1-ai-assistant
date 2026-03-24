@@ -106,9 +106,13 @@ function applySingleFilter(input: RecommendationInput, filter: AppliedFilter): R
         break
       case "material":
         updated.material = undefined
+        updated.workPieceName = undefined
         break
       case "toolSubtype":
         updated.toolSubtype = undefined
+        break
+      case "workPieceName":
+        updated.workPieceName = undefined
         break
     }
     return updated
@@ -121,6 +125,10 @@ function applySingleFilter(input: RecommendationInput, filter: AppliedFilter): R
       break
     case "material":
       updated.material = String(filter.rawValue)
+      updated.workPieceName = undefined
+      break
+    case "workPieceName":
+      updated.workPieceName = String(filter.rawValue)
       break
   }
 

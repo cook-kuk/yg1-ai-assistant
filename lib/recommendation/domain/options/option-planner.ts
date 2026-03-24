@@ -462,7 +462,7 @@ function getFieldLabel(field: string): string {
   const labels: Record<string, string> = {
     material: "소재", coating: "코팅", diameterMm: "직경",
     fluteCount: "날 수", toolSubtype: "공구 형상", seriesName: "시리즈",
-    cuttingType: "가공 유형", operationType: "가공 방식",
+    cuttingType: "가공 유형", operationType: "가공 방식", workPieceName: "세부 피삭재",
   }
   return labels[field] ?? field
 }
@@ -579,6 +579,7 @@ function formatNarrowingLabel(field: string, value: string, count: number): stri
     seriesName: "시리즈",
     toolSubtype: "공구 형상",
     cuttingType: "가공 유형",
+    workPieceName: "세부 피삭재",
   }
   const fieldLabel = fieldNames[field] ?? field
   return `${value} (${count}개)`

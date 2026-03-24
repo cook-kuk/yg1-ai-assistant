@@ -117,6 +117,7 @@ export type LeadTimeRecord = z.infer<typeof LeadTimeRecordSchema>
 export const RecommendationInputSchema = z.object({
   queryText: z.string().optional(),
   material: z.string().optional(),       // Korean or English material name
+  workPieceName: z.string().optional(),  // detailed work piece name from brand reference
   operationType: z.string().optional(),  // 황삭/정삭/고이송/측면/슬롯 etc.
   toolType: z.string().optional(),
   toolSubtype: z.string().optional(),
@@ -124,7 +125,6 @@ export const RecommendationInputSchema = z.object({
   diameterUnit: z.enum(["mm", "inch"]).optional(),
   flutePreference: z.number().optional(),
   coatingPreference: z.string().optional(),
-  country: z.string().optional(),
   manufacturerScope: z.enum(["yg1-only", "include-competitor"]).default("yg1-only"),
   locale: z.string().default("ko"),
   country: z.string().optional(),  // DB country codes from prod_edp_option_* tables, or "ALL"
