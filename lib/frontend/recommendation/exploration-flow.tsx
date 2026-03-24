@@ -43,7 +43,7 @@ import {
   localizeIntakeText,
 } from "@/lib/frontend/recommendation/intake-localization"
 import type { ChatMsg, TurnFeedback } from "@/lib/frontend/recommendation/exploration-types"
-import { DebugPanel } from "@/components/debug/debug-panel"
+import { DebugPanel, DebugToggle } from "@/components/debug/debug-panel"
 
 const MAX_DISPLAY_CANDIDATES = 10
 const PAGE_SIZE = 10
@@ -298,6 +298,7 @@ function NarrowingChat({
 }) {
   const { language } = useApp()
   const [input, setInput] = useState("")
+  const [debugMode, setDebugMode] = useState(false)
   const lastAiMsg = [...messages].reverse().find(message => message.role === "ai" && !message.isLoading)
   const lastAiHasChips = (lastAiMsg?.chips?.length ?? 0) > 0
   const needsFeedback = lastAiMsg && !isSending && (
@@ -321,6 +322,9 @@ function NarrowingChat({
 
   return (
     <div className="flex flex-col h-full">
+      <div className="flex justify-end px-4 pt-2">
+        <DebugToggle enabled={debugMode} onToggle={() => setDebugMode(prev => !prev)} />
+      </div>
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
         {messages.map((message, index) => (
           <div key={index} className={`flex items-end gap-2 ${message.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
@@ -448,7 +452,7 @@ function NarrowingChat({
                 </div>
               )}
 
-              {message.role === "ai" && message.debugTrace && (
+              {debugMode && message.role === "ai" && message.debugTrace && (
                 <DebugPanel trace={message.debugTrace} />
               )}
             </div>
