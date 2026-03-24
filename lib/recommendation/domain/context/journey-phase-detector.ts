@@ -6,7 +6,8 @@
  * narrowing field questions.
  */
 
-import type { ExplorationSessionState, JourneyPhase } from "@/lib/recommendation/domain/types"
+import type { ExplorationSessionState } from "@/lib/recommendation/domain/types"
+import type { JourneyPhase } from "@/lib/types/exploration"
 
 /**
  * Compute the current journey phase from session state.
