@@ -42,7 +42,8 @@ export interface TurnDebugTrace {
 // ── Debug Mode Check ─────────────────────────────────────────
 
 export function isDebugEnabled(): boolean {
-  return process.env.DEV_AGENT_DEBUG === "true" || process.env.NODE_ENV === "development"
+  // Always enabled for now — disable later via DEV_AGENT_DEBUG=false
+  return process.env.DEV_AGENT_DEBUG !== "false"
 }
 
 // ── Trace Collector ──────────────────────────────────────────
