@@ -189,7 +189,7 @@ export async function handleDirectBrandReferenceQuestion(
 
   const explicitIso = resolveMaterialTag(userMessage)
   const isoGroup = explicitIso ?? (mentionsBrand ? resolveMaterialTag(currentInput.material ?? "") : null)
-  const workPieceName = extractRequestedWorkPiece(userMessage)
+  const workPieceName = extractRequestedWorkPiece(userMessage) ?? currentInput.workPieceName ?? null
   const hardnessRange = extractRequestedHardnessRange(userMessage)
 
   if (!isoGroup && !workPieceName && hardnessRange.min == null && hardnessRange.max == null) {

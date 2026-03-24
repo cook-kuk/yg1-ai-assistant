@@ -79,8 +79,8 @@ async function getByEdpFromDatabase(normalizedCode: string): Promise<InventorySn
 
   const startedAt = Date.now()
   try {
-    const result = await pool.query(sql, [normalizedCode])
-    console.log(`[inventory-db] query code=${normalizedCode} rows=${result.rowCount ?? 0} duration=${Date.now() - startedAt}ms`)
+    const values = [normalizedCode]
+    const result = await pool.query(sql, values)
     return result.rows.map(row => ({
       edp: row.edp,
       normalizedEdp: normalizeCode(row.normalized_edp ?? row.edp),

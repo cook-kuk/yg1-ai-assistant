@@ -10,6 +10,7 @@ import fs from "fs"
 import { randomBytes } from "node:crypto"
 import { Pool, type QueryResultRow } from "pg"
 import { ProductRepo } from "@/lib/data/repos/product-repo"
+import { formatQueryValuesForLog, formatSqlForLog, interpolateSqlForLog } from "@/lib/data/sql-log"
 
 interface RawEvidenceRow extends QueryResultRow {
   _row_num: string | null
@@ -191,7 +192,7 @@ async function loadChunks(): Promise<EvidenceChunk[]> {
   if (!globalThis.__yg1EvidenceChunksPromise) {
     globalThis.__yg1EvidenceChunksPromise = (async () => {
       try {
-        const result = await getPool().query<RawEvidenceRow>(`
+        const query = `
           SELECT
             _row_num,
             application_shape,
@@ -209,7 +210,11 @@ async function loadChunks(): Promise<EvidenceChunk[]> {
             cutting_speed
           FROM raw_catalog.cutting_condition_table
           ORDER BY _row_num ASC
-        `)
+        `
+        const values: unknown[] = []
+        const sqlInterpolated = interpolateSqlForLog(formatSqlForLog(query), values)
+        console.log(`[evidence-db] sql query="${sqlInterpolated}" params=${formatQueryValuesForLog(values)}`)
+        const result = await getPool().query<RawEvidenceRow>(query, values)
         const mapped = result.rows.map(mapRowToEvidenceChunk)
         console.log(`[evidence-db] loaded rows=${mapped.length}`)
         return mapped
@@ -336,17 +341,11 @@ export const EvidenceRepo = {
 
     if (resolvedOpts.seriesName) {
       const bySeries = await this.findBySeriesName(resolvedOpts.seriesName, resolvedOpts)
-      console.log(
-        `[evidence-db] product_lookup code=${productCode} series=${resolvedOpts.seriesName ?? "-"} diameter=${resolvedOpts.diameterMm ?? "-"} matched=${bySeries.length}`
-      )
       return bySeries
     }
 
     const direct = await this.findByProductCode(productCode)
     const filtered = applyEvidenceFilters(direct, resolvedOpts)
-    console.log(
-      `[evidence-db] product_lookup code=${productCode} series=- diameter=${resolvedOpts.diameterMm ?? "-"} matched=${filtered.length}`
-    )
     return filtered
   },
 

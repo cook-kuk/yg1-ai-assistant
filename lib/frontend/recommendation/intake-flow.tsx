@@ -8,14 +8,12 @@ import {
   CheckCircle2,
   Edit2,
   HelpCircle,
-  Info,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { useApp } from "@/lib/frontend/app-context"
 import {
   type AnswerState,
-  type InquiryPurpose,
   type IntakeFieldConfig,
   type ProductIntakeForm,
   FIELD_CONFIGS,
@@ -222,10 +220,6 @@ export function IntakeGate({
   const { language } = useApp()
   const answered = countAnswered(form)
   const allDone = allRequiredAnswered(form)
-  const purposeIsSubstitute =
-    form.inquiryPurpose.status === "known" &&
-    ((form.inquiryPurpose as { status: "known"; value: InquiryPurpose }).value === "substitute" ||
-      (form.inquiryPurpose as { status: "known"; value: InquiryPurpose }).value === "inventory_substitute")
 
   const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
@@ -285,17 +279,8 @@ export function IntakeGate({
       </div>
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {FIELD_CONFIGS.map((config, index) => {
-          const highlight = purposeIsSubstitute && config.key === "toolTypeOrCurrentProduct"
           return (
             <div key={config.key} ref={element => { fieldRefs.current[config.key] = element }} className="rounded-xl transition-all duration-300">
-              {highlight && (
-                <div className="flex items-center gap-1.5 mb-2 px-2">
-                  <Info size={11} className="text-blue-500" />
-                  <span className="text-xs text-blue-600 font-medium">
-                    {localizeIntakeText("대체품 찾기 → 현재 사용 중인 EDP/품번을 입력하면 더 정확합니다", language)}
-                  </span>
-                </div>
-              )}
               <IntakeFieldSection
                 config={config}
                 index={index}

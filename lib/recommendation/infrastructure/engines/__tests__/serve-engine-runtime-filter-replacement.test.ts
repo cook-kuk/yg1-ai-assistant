@@ -65,4 +65,34 @@ describe("serve-engine runtime filter replacement", () => {
     expect(result.nextInput.flutePreference).toBeUndefined()
     expect(result.nextInput.coatingPreference).toBe("TiAlN")
   })
+
+  it("clears dependent workPieceName when material changes and applies toolType filters", () => {
+    const baseInput = {
+      ...makeBaseInput(),
+      workPieceName: "ADC12",
+    }
+
+    const withToolType = applyFilterToInput(baseInput, {
+      field: "toolType",
+      op: "includes",
+      value: "드릴",
+      rawValue: "드릴",
+      appliedAt: 3,
+    })
+
+    expect(withToolType.toolType).toBe("드릴")
+    expect(withToolType.workPieceName).toBe("ADC12")
+
+    const withMaterial = applyFilterToInput(withToolType, {
+      field: "material",
+      op: "includes",
+      value: "주철",
+      rawValue: "주철",
+      appliedAt: 4,
+    })
+
+    expect(withMaterial.material).toBe("주철")
+    expect(withMaterial.workPieceName).toBeUndefined()
+    expect(withMaterial.toolType).toBe("드릴")
+  })
 })

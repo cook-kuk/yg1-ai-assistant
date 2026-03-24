@@ -8,6 +8,9 @@ import {
   restoreToBeforeFilter,
   runHybridRetrieval,
 } from "@/lib/recommendation/domain/recommendation-domain"
+import { BrandReferenceRepo } from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
+import { resolveMaterialTag } from "@/lib/recommendation/domain/material-resolver"
+import { parseAnswerToFilter } from "@/lib/recommendation/domain/question-engine"
 import {
   compareProducts,
   orchestrateTurn,
@@ -54,6 +57,105 @@ type JsonRecommendationResponse = (
 ) => Response
 
 type QuestionReply = { text: string; chips: string[] } | null
+
+function normalizePendingSelectionText(value: string): string {
+  return value
+    .trim()
+    .replace(/\s*\(\d+개\)\s*$/, "")
+    .replace(/\s*—\s*.+$/, "")
+    .replace(/(으로요|로요|이에요|예요|입니다|으로|로|요)$/u, "")
+    .trim()
+    .toLowerCase()
+}
+
+function resolveSingleIsoGroup(material: string | undefined): string | null {
+  if (!material) return null
+
+  const tags = Array.from(
+    new Set(
+      material
+        .split(",")
+        .map(part => part.trim())
+        .filter(Boolean)
+        .map(part => resolveMaterialTag(part))
+        .filter((tag): tag is string => Boolean(tag))
+    )
+  )
+
+  return tags.length === 1 ? tags[0] : null
+}
+
+function dropDependentWorkPieceFilters(filters: AppliedFilter[]): void {
+  for (let index = filters.length - 1; index >= 0; index--) {
+    const field = filters[index]?.field
+    if (field === "workPieceName" || field === "edpBrandName" || field === "edpSeriesName") {
+      filters.splice(index, 1)
+    }
+  }
+}
+
+async function enrichWorkPieceFilterWithSeriesScope(
+  filter: AppliedFilter,
+  currentInput: RecommendationInput
+): Promise<AppliedFilter> {
+  if (filter.field !== "workPieceName") return filter
+
+  const isoGroup = resolveSingleIsoGroup(currentInput.material)
+  const workPieceName = String(filter.rawValue ?? "").trim()
+  if (!isoGroup || !workPieceName) return filter
+
+  const seriesNames = await BrandReferenceRepo.listDistinctSeriesNames({
+    isoGroup,
+    workPieceName,
+    limit: 30,
+  })
+  if (seriesNames.length === 0) return filter
+
+  const seriesScopeFilter: AppliedFilter = {
+    field: "edpSeriesName",
+    op: "in",
+    value: seriesNames.length <= 3 ? seriesNames.join(", ") : `${seriesNames.length}개 시리즈`,
+    rawValue: seriesNames.join("||"),
+    appliedAt: filter.appliedAt,
+  }
+
+  return {
+    ...filter,
+    _sideFilters: [seriesScopeFilter],
+  } as AppliedFilter
+}
+
+function buildPendingWorkPieceSelectionFilter(
+  sessionState: ExplorationSessionState | null,
+  userMessage: string | null
+): AppliedFilter | null {
+  if (!sessionState || sessionState.lastAskedField !== "workPieceName") return null
+  if (sessionState.resolutionStatus?.startsWith("resolved")) return null
+  if (!userMessage) return null
+
+  const raw = userMessage.trim()
+  if (!raw || raw.length > 40) return null
+  if (/[?？]/.test(raw)) return null
+  if (/뭐야|뭔지|설명|차이|왜|어떻게|몇개|종류|비교|추천|결과|처음부터|이전 단계/u.test(raw)) return null
+
+  const clean = normalizePendingSelectionText(raw)
+  if (!clean) return null
+
+  const optionMatch = sessionState.displayedOptions?.find(option => {
+    if (option.field !== "workPieceName") return false
+    const normalizedValue = normalizePendingSelectionText(option.value)
+    const normalizedLabel = normalizePendingSelectionText(option.label)
+    return clean === normalizedValue || clean === normalizedLabel || clean.startsWith(normalizedValue) || normalizedValue.startsWith(clean)
+  })
+
+  const chipMatch = sessionState.displayedChips?.find(chip => {
+    const normalizedChip = normalizePendingSelectionText(chip)
+    return normalizedChip && (clean === normalizedChip || clean.startsWith(normalizedChip) || normalizedChip.startsWith(clean))
+  })
+
+  const selectedValue = optionMatch?.value ?? chipMatch ?? raw.trim()
+  return parseAnswerToFilter("workPieceName", selectedValue)
+}
 
 export interface ServeEngineRuntimeDependencies {
   mapIntakeToInput: (form: ProductIntakeForm) => RecommendationInput
@@ -230,9 +332,12 @@ async function handleServeExplorationInner(
   const lastUserMsg = messages.length > 0
     ? [...messages].reverse().find(message => message.role === "user")
     : null
+  const pendingWorkPieceFilter = buildPendingWorkPieceSelectionFilter(prevState, lastUserMsg?.text ?? null)
 
   let earlyAction: string | null = null
-  if (messages.length > 0 && prevState && lastUserMsg) {
+  if (pendingWorkPieceFilter) {
+    earlyAction = "continue_narrowing"
+  } else if (messages.length > 0 && prevState && lastUserMsg) {
     const earlyUnifiedTurnContext = buildUnifiedTurnContext({
       latestAssistantText: [...messages].reverse().find(message => message.role === "ai")?.text ?? null,
       latestUserMessage: lastUserMsg.text,
@@ -436,6 +541,13 @@ async function handleServeExplorationInner(
           console.log(`[question-assist:intercept] ${userState.state} overrides ${originalAction} -> explain_product (pending: ${prevState.lastAskedField})`)
         }
       }
+    }
+
+    if (pendingWorkPieceFilter && (
+      action.type === "answer_general" ||
+      action.type === "redirect_off_topic"
+    )) {
+      action = { type: "continue_narrowing", filter: pendingWorkPieceFilter }
     }
 
     if (action.type === "reset_session") {
@@ -721,6 +833,9 @@ async function handleServeExplorationInner(
 
     if (action.type === "skip_field") {
       const skipField = prevState.lastAskedField ?? "unknown"
+      if (skipField === "material") {
+        dropDependentWorkPieceFilters(filters)
+      }
       const skipFilter: AppliedFilter = {
         field: skipField,
         op: "skip",
@@ -783,7 +898,10 @@ async function handleServeExplorationInner(
     }
 
     if (action.type === "continue_narrowing") {
-      const filter = { ...action.filter, appliedAt: turnCount }
+      let filter = { ...action.filter, appliedAt: turnCount }
+      if (filter.field === "material") {
+        dropDependentWorkPieceFilters(filters)
+      }
 
       // ── Value Normalizer: match user input to actual DB values ──
       // Tier 1-2: exact/fuzzy (instant), Tier 3: Haiku LLM translation (~200ms)
@@ -803,6 +921,8 @@ async function handleServeExplorationInner(
           }
         }
       }
+
+      filter = await enrichWorkPieceFilterWithSeriesScope(filter, currentInput)
 
       const nextFilterState = replaceFieldFilter(
         baseInput,
