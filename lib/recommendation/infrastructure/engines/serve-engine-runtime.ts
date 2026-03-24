@@ -26,7 +26,7 @@ import { buildUnifiedTurnContext } from "@/lib/recommendation/domain/context/tur
 import { validateOptionFirstPipeline } from "@/lib/recommendation/domain/options/option-validator"
 import { normalizeFilterValue, extractDistinctFieldValues } from "@/lib/recommendation/domain/value-normalizer"
 import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-target-classifier"
-import { TraceCollector } from "@/lib/debug/agent-trace"
+import { TraceCollector, isDebugEnabled } from "@/lib/debug/agent-trace"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
@@ -170,12 +170,48 @@ export async function handleServeExploration(
   displayedProducts: RecommendationDisplayedProductRequestDto[] | null = null,
   language: AppLanguage = "ko"
 ): Promise<Response> {
+  const trace = new TraceCollector()
+  const response = await handleServeExplorationInner(deps, form, messages, prevState, displayedProducts, language, trace)
+
+  // Inject debug trace into every response
+  if (isDebugEnabled()) {
+    try {
+      const lastUserMsg = [...messages].reverse().find(m => m.role === "user")
+      const debugTrace = trace.build({
+        latestUserMessage: lastUserMsg?.text ?? "",
+        currentMode: prevState?.currentMode ?? null,
+        routeAction: null,
+      })
+      if (debugTrace) {
+        const json = await response.json()
+        const meta = (json as any).meta ?? {}
+        meta.debugTrace = debugTrace
+        ;(json as any).meta = meta
+        return new Response(JSON.stringify(json), {
+          status: response.status,
+          headers: response.headers,
+        })
+      }
+    } catch { /* response already consumed or not JSON — return as-is */ }
+  }
+
+  return response
+}
+
+async function handleServeExplorationInner(
+  deps: ServeEngineRuntimeDependencies,
+  form: ProductIntakeForm,
+  messages: ChatMessage[],
+  prevState: ExplorationSessionState | null,
+  displayedProducts: RecommendationDisplayedProductRequestDto[] | null = null,
+  language: AppLanguage = "ko",
+  trace: TraceCollector = new TraceCollector()
+): Promise<Response> {
   console.log(
     `[recommend] request start hasPrevState=${!!prevState} messages=${messages.length} displayedProducts=${displayedProducts?.length ?? 0}`
   )
 
   const provider = getProvider()
-  const trace = new TraceCollector()
   const baseInput = deps.mapIntakeToInput(form)
   const filters: AppliedFilter[] = [...(prevState?.appliedFilters ?? [])]
   const resolvedInput: RecommendationInput = prevState?.resolvedInput
