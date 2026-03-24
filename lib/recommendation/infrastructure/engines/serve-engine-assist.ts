@@ -1,4 +1,5 @@
 import {
+  BrandReferenceRepo,
   EvidenceRepo,
   InventoryRepo,
   ProductRepo,
@@ -18,7 +19,43 @@ const DIRECT_PRODUCT_CODE_PATTERN = /\b([A-Z][A-Z0-9-]{4,})\b/i
 const DIRECT_SERIES_CODE_PATTERN = /\b([A-Z]\d[A-Z]\d{2,}[A-Z]?)\b/i
 const CUTTING_CONDITION_QUERY_PATTERN = /절삭조건|가공조건|vc|fz|이송|회전수|rpm|feed/i
 const INVENTORY_QUERY_PATTERN = /재고|stock|inventory|available|availability|수량|남았/i
+const BRAND_REFERENCE_TRIGGER_PATTERN = /(브랜드|brand).*(추천|기준|표|어떤|무슨|뭐|찾|조회)|(?:iso\s*[pmknsh]|hrc|경도|피삭재|소재).*(브랜드|brand)/i
 const CUTTING_KNOWLEDGE_PATTERNS = /절삭|공구|엔드밀|드릴|인서트|코팅|소재|가공|선반|밀링|CNC|초경|CBN|세라믹|황삭|정삭|면취|보링|리머|탭|나사|칩|인선|마모|수명|이송|회전|절입|쿨란트|치핑|버|진동|채터|tialn|alcrn|dlc|hss|carbide|endmill|milling|turning|drilling/i
+
+const WORK_PIECE_ALIASES: Array<{ canonical: string; patterns: RegExp[] }> = [
+  { canonical: "스테인레스강(PH)", patterns: [/스테인(?:레)?스강\s*\(ph\)/i, /\bph\b/i, /석출경화/i] },
+  { canonical: "스테인레스강 300", patterns: [/스테인(?:레)?스강\s*300/i, /\b30[46]\b/i, /\b31[46]\b/i, /\bsus3\d\d\b/i, /\bsts3\d\d\b/i, /오스테나이트/i] },
+  { canonical: "스테인레스강 400", patterns: [/스테인(?:레)?스강\s*400/i, /\b4(10|20|30|40)\b/i, /\bsus4\d\d\b/i, /\bsts4\d\d\b/i, /페라이트/i, /마르텐사이트/i] },
+  { canonical: "스테인레스강", patterns: [/스테인(?:레)?스강/i, /스테인리스/i, /스텐/i, /\bsus\b/i, /\bsts\b/i, /stainless/i] },
+  { canonical: "고경도강", patterns: [/고경도강/i, /고경도/i, /경화강/i, /hardened/i] },
+  { canonical: "프리하든강", patterns: [/프리하든/i, /pre-?harden/i] },
+  { canonical: "내열합금", patterns: [/내열합금/i, /superalloy/i] },
+  { canonical: "내열강", patterns: [/내열강/i, /heat resistant steel/i] },
+  { canonical: "합금강", patterns: [/합금강/i, /alloy steel/i] },
+  { canonical: "탄소강", patterns: [/탄소강/i, /carbon steel/i] },
+  { canonical: "공구강", patterns: [/공구강/i, /tool steel/i] },
+  { canonical: "주철", patterns: [/주철/i, /cast iron/i] },
+  { canonical: "합금주철", patterns: [/합금주철/i] },
+  { canonical: "알루미늄 단조 합금", patterns: [/알루미늄.*단조/i, /단조.*알루미늄/i] },
+  { canonical: "알루미늄 주조 합금", patterns: [/알루미늄.*주조/i, /주조.*알루미늄/i] },
+  { canonical: "알루미늄 합금", patterns: [/알루미늄 합금/i] },
+  { canonical: "알루미늄 (연질)", patterns: [/연질.*알루미늄/i, /알루미늄.*연질/i] },
+  { canonical: "알루미늄", patterns: [/알루미늄/i, /\baluminum\b/i, /\baluminium\b/i] },
+  { canonical: "비철금속", patterns: [/비철금속/i, /비철/i, /non-?ferrous/i] },
+  { canonical: "구리", patterns: [/구리/i, /copper/i] },
+  { canonical: "동합금", patterns: [/동합금/i, /copper alloy/i] },
+  { canonical: "티타늄 합금", patterns: [/티타늄 합금/i, /titanium alloy/i] },
+  { canonical: "티타늄", patterns: [/티타늄/i, /titanium/i] },
+  { canonical: "인코넬", patterns: [/인코넬/i, /inconel/i] },
+  { canonical: "니켈 기반 내열합금", patterns: [/니켈 기반 내열합금/i] },
+  { canonical: "철 기반 내열합금", patterns: [/철 기반 내열합금/i] },
+  { canonical: "코발트 기반 내열합금", patterns: [/코발트 기반 내열합금/i] },
+  { canonical: "플라스틱", patterns: [/플라스틱/i, /plastic/i] },
+  { canonical: "열가소성 플라스틱", patterns: [/열가소성/i, /thermoplastic/i] },
+  { canonical: "열경화성 플라스틱", patterns: [/열경화성/i, /thermoset/i] },
+  { canonical: "아크릴", patterns: [/아크릴/i, /acrylic/i] },
+  { canonical: "흑연", patterns: [/흑연/i, /graphite/i] },
+]
 
 function normalizeLookupCode(value: string): string {
   return value.toUpperCase().replace(/[\s-]/g, "").trim()
@@ -63,6 +100,177 @@ function getLatestInventorySnapshotDateFromRows(rows: Array<{ snapshotDate: stri
     .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
     .sort()
   return dates.length > 0 ? dates[dates.length - 1] : null
+}
+
+function formatHrcRange(min: number | null, max: number | null): string {
+  if (min != null && max != null) return `${min}~${max}`
+  if (min != null) return `${min}+`
+  if (max != null) return `~${max}`
+  return "-"
+}
+
+function extractRequestedWorkPiece(userMessage: string): string | null {
+  for (const alias of WORK_PIECE_ALIASES) {
+    if (alias.patterns.some(pattern => pattern.test(userMessage))) {
+      return alias.canonical
+    }
+  }
+  return null
+}
+
+function extractRequestedHardnessRange(userMessage: string): { min: number | null; max: number | null } {
+  const rangeMatch = userMessage.match(/(?:hrc|경도)?\s*(\d{1,2}(?:\.\d+)?)\s*[-~]\s*(\d{1,2}(?:\.\d+)?)/i)
+  if (rangeMatch) {
+    const a = Number.parseFloat(rangeMatch[1])
+    const b = Number.parseFloat(rangeMatch[2])
+    if (Number.isFinite(a) && Number.isFinite(b)) {
+      return { min: Math.min(a, b), max: Math.max(a, b) }
+    }
+  }
+
+  const singleMatch = userMessage.match(/(?:hrc|경도)\s*(?:약\s*)?(\d{1,2}(?:\.\d+)?)/i)
+  if (singleMatch) {
+    const value = Number.parseFloat(singleMatch[1])
+    if (Number.isFinite(value)) {
+      return { min: value, max: value }
+    }
+  }
+
+  return { min: null, max: null }
+}
+
+function summarizeBrandReferenceRows(rows: Awaited<ReturnType<typeof BrandReferenceRepo.findMatches>>) {
+  const grouped = new Map<string, {
+    tagName: string
+    workPieceName: string
+    hardnessMinHrc: number | null
+    hardnessMaxHrc: number | null
+    brands: string[]
+  }>()
+
+  for (const row of rows) {
+    const key = [
+      row.tagName,
+      row.workPieceName,
+      row.hardnessMinHrc ?? "",
+      row.hardnessMaxHrc ?? "",
+    ].join("|")
+    const existing = grouped.get(key)
+    if (existing) {
+      if (!existing.brands.includes(row.brandName)) existing.brands.push(row.brandName)
+      continue
+    }
+    grouped.set(key, {
+      tagName: row.tagName,
+      workPieceName: row.workPieceName,
+      hardnessMinHrc: row.hardnessMinHrc,
+      hardnessMaxHrc: row.hardnessMaxHrc,
+      brands: [row.brandName],
+    })
+  }
+
+  return [...grouped.values()]
+}
+
+export async function handleDirectBrandReferenceQuestion(
+  userMessage: string,
+  currentInput: RecommendationInput,
+  _prevState: ExplorationSessionState | null
+): Promise<{ text: string; chips: string[] } | null> {
+  const mentionsBrand = /브랜드|brand/i.test(userMessage)
+  const hasMaterialContext =
+    /iso\s*[pmknsh]/i.test(userMessage) ||
+    /hrc|경도/i.test(userMessage) ||
+    WORK_PIECE_ALIASES.some(alias => alias.patterns.some(pattern => pattern.test(userMessage)))
+
+  if (!BRAND_REFERENCE_TRIGGER_PATTERN.test(userMessage) && !(mentionsBrand && hasMaterialContext)) {
+    return null
+  }
+
+  const explicitIso = resolveMaterialTag(userMessage)
+  const isoGroup = explicitIso ?? (mentionsBrand ? resolveMaterialTag(currentInput.material ?? "") : null)
+  const workPieceName = extractRequestedWorkPiece(userMessage)
+  const hardnessRange = extractRequestedHardnessRange(userMessage)
+
+  if (!isoGroup && !workPieceName && hardnessRange.min == null && hardnessRange.max == null) {
+    return {
+      text: [
+        "브랜드 기준표는 ISO, 피삭재, HRC 조건으로 조회할 수 있습니다.",
+        "예: `ISO H에서 HRC 55는 어떤 브랜드야?`, `스테인레스강 300용 브랜드 추천해줘`",
+        "[Reference: YG-1 내부 DB]",
+      ].join("\n"),
+      chips: ["ISO H 브랜드", "스테인레스강 브랜드", "알루미늄 브랜드"],
+    }
+  }
+
+  const rows = await BrandReferenceRepo.findMatches({
+    isoGroup,
+    workPieceQuery: workPieceName,
+    hardnessMinHrc: hardnessRange.min,
+    hardnessMaxHrc: hardnessRange.max,
+    limit: 40,
+  })
+
+  if (rows.length === 0) {
+    const conditionTable = buildMarkdownTable(
+      ["조건", "값"],
+      [
+        ["ISO", isoGroup ? `ISO ${isoGroup}` : "-"],
+        ["피삭재", workPieceName ?? "-"],
+        ["HRC", formatHrcRange(hardnessRange.min, hardnessRange.max)],
+      ]
+    )
+
+    return {
+      text: [
+        "요청한 조건에 맞는 reference brand 데이터를 내부 DB에서 찾지 못했습니다.",
+        "",
+        conditionTable,
+        "",
+        "[Reference: YG-1 내부 DB]",
+      ].join("\n"),
+      chips: ["ISO 다시 지정", "HRC 조건 다시 입력", "추천 제품 보기"],
+    }
+  }
+
+  const groupedRows = summarizeBrandReferenceRows(rows)
+  const summaryTable = buildMarkdownTable(
+    ["조건", "값"],
+    [
+      ["ISO", isoGroup ? `ISO ${isoGroup}` : "전체"],
+      ["피삭재", workPieceName ?? "전체"],
+      ["HRC", formatHrcRange(hardnessRange.min, hardnessRange.max)],
+      ["매칭 행 수", `${rows.length}개`],
+    ]
+  )
+  const resultTable = buildMarkdownTable(
+    ["ISO", "피삭재", "HRC", "브랜드"],
+    groupedRows.slice(0, 12).map(row => [
+      row.tagName,
+      row.workPieceName,
+      formatHrcRange(row.hardnessMinHrc, row.hardnessMaxHrc),
+      row.brands.join(", "),
+    ])
+  )
+
+  const tail =
+    groupedRows.length > 12
+      ? `\n추가 매칭 ${groupedRows.length - 12}건이 더 있습니다. 조건을 더 좁히면 더 정확하게 볼 수 있습니다.`
+      : ""
+
+  return {
+    text: [
+      "reference brand 기준표를 내부 DB에서 조회했습니다.",
+      "",
+      summaryTable,
+      "",
+      resultTable,
+      tail,
+      "",
+      "[Reference: YG-1 내부 DB]",
+    ].join("\n"),
+    chips: ["HRC 조건 추가", "다른 ISO 보기", "추천 제품 보기"],
+  }
 }
 
 export async function handleDirectInventoryQuestion(

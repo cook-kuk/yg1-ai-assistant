@@ -10,6 +10,7 @@ import {
   type ServeEngineRuntimeDependencies,
 } from "@/lib/recommendation/infrastructure/engines/serve-engine-runtime"
 import {
+  handleDirectBrandReferenceQuestion,
   handleDirectCuttingConditionQuestion,
   handleDirectInventoryQuestion,
   handleGeneralChat,
@@ -121,6 +122,7 @@ function createServeRuntimeDependencies(): ServeEngineRuntimeDependencies {
     ),
     buildCandidateSnapshot,
     handleDirectInventoryQuestion,
+    handleDirectBrandReferenceQuestion,
     handleDirectCuttingConditionQuestion,
     handleContextualNarrowingQuestion,
     handleGeneralChat,

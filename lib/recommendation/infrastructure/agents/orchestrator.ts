@@ -294,7 +294,7 @@ const NARROWING_TOOLS: LLMTool[] = [
   },
   {
     name: "query_field_info",
-    description: "사용자가 특정 필드 값에 대해 물어볼 때 호출 (선택이 아닌 질문/탐색). 'Ball은 몇개야?', 'Taper는 뭐야?', '3날 제품이 많아?', '코팅 종류가 뭐가 있어?'. 정보 조회이지 필터 적용이 아님.",
+    description: "사용자가 특정 필드 값이나 내부 기준표 정보에 대해 물어볼 때 호출 (선택이 아닌 질문/탐색). 'Ball은 몇개야?', 'Taper는 뭐야?', '3날 제품이 많아?', '코팅 종류가 뭐가 있어?', 'ISO H에서 HRC 55는 어떤 브랜드야?'. 정보 조회이지 필터 적용이 아님.",
     input_schema: {
       type: "object",
       properties: {
@@ -381,6 +381,7 @@ ${candidatesDesc}
 
 ═══ 중요: 질문/탐색 vs 선택 구분 ═══
 - "Ball은 몇개야?", "Taper는 뭐야?", "3날 제품이 많아?" → query_field_info (정보 조회)
+- "ISO H에서 HRC 55는 어떤 브랜드야?", "스테인레스강 300용 브랜드 뭐가 있어?" → query_field_info (내부 기준표 조회)
 - "Ball로", "Ball 선택", "Ball", "1번" (짧은 값 선택) → apply_filter (필터 적용)
 - 사용자가 "~은/는 뭐야?", "~이/가 몇개야?", "~종류가 뭐가 있어?" → query_field_info
 - 사용자가 명확하게 값을 선택하거나 칩을 클릭한 경우만 apply_filter`

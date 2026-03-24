@@ -1,4 +1,5 @@
 export {
+  BrandReferenceRepo,
   EvidenceRepo,
   InventoryRepo,
   LeadTimeRepo,
