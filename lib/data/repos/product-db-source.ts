@@ -9,6 +9,7 @@ import type { CanonicalProduct, RecommendationInput, SourcePriority, SourceType 
 import { resolveMaterialTag } from "@/lib/domain/material-resolver"
 import { getOperationShapeSearchTexts } from "@/lib/domain/operation-resolver"
 import { resolveRequestedToolFamily as resolveRequestedToolFamilyInput } from "@/lib/data/repos/product-query-filters"
+import { buildDbWhereClauseForFilter } from "@/lib/recommendation/shared/filter-field-registry"
 
 interface RawProductRow {
   edp_idx: string | null
@@ -702,26 +703,8 @@ export function buildQueryOptions(options: ProductSearchOptions): { where: strin
         if (/^[PMKNSH]$/.test(part)) materialTags.add(part)
       }
     }
-    if (filter.field === "edpBrandName") {
-      const brands = String(filter.rawValue)
-        .split("||")
-        .map(value => value.trim().toLowerCase())
-        .filter(Boolean)
-      if (brands.length > 0) {
-        const param = next(brands)
-        where.push(`LOWER(COALESCE(edp_brand_name, '')) = ANY(${param}::text[])`)
-      }
-    }
-    if (filter.field === "edpSeriesName") {
-      const seriesNames = String(filter.rawValue)
-        .split("||")
-        .map(value => value.trim().toLowerCase())
-        .filter(Boolean)
-      if (seriesNames.length > 0) {
-        const param = next(seriesNames)
-        where.push(`LOWER(COALESCE(edp_series_name, '')) = ANY(${param}::text[])`)
-      }
-    }
+    const clause = buildDbWhereClauseForFilter(filter, next)
+    if (clause) where.push(clause)
   }
   if (materialTags.size > 0) {
     const param = next([...materialTags])
@@ -754,11 +737,6 @@ export function buildQueryOptions(options: ProductSearchOptions): { where: strin
     }
     where.push(`(${clauses.join(" OR ")})`)
   }
-
-  // ── Narrowing filters (fluteCount, coating, toolSubtype, seriesName) ──
-  // NOT applied in DB WHERE clause. Applied in-memory by runHybridRetrieval.
-  // This ensures candidate counts match exactly what the question engine shows.
-  // See: hybrid-retrieval.ts lines 106-166 for in-memory filter application.
 
   const limit = typeof options.limit === "number" && options.limit > 0 ? options.limit : undefined
   const offset = typeof options.offset === "number" && options.offset > 0 ? options.offset : 0

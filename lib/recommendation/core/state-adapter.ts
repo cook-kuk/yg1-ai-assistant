@@ -21,6 +21,7 @@ import type {
   PendingQuestion,
 } from "./types"
 import { createInitialSessionState } from "./turn-orchestrator"
+import { buildAppliedFilterFromValue } from "../shared/filter-field-registry"
 
 // ── Field mapping tables ────────────────────────────────────
 
@@ -84,16 +85,20 @@ function buildConstraintsFromFilters(filters: AppliedFilter[]): ConstraintState 
     const raw = filter.rawValue ?? filter.value
     const baseKey = LEGACY_FIELD_TO_BASE[filter.field]
     if (baseKey) {
-      base[baseKey] = filter.field === "diameterMm" ? Number(raw) : String(raw)
+      base[baseKey] = (
+        typeof raw === "number" || typeof raw === "boolean"
+          ? raw
+          : (filter.field === "diameterMm" ? Number(raw) : String(raw))
+      )
       continue
     }
     const refKey = LEGACY_FIELD_TO_REFINEMENT[filter.field]
     if (refKey) {
-      refinements[refKey] = String(raw)
+      refinements[refKey] = typeof raw === "number" || typeof raw === "boolean" ? raw : String(raw)
       continue
     }
     // Unknown fields go into refinements to avoid data loss
-    refinements[filter.field] = String(raw)
+    refinements[filter.field] = typeof raw === "number" || typeof raw === "boolean" ? raw : String(raw)
   }
 
   return { base, refinements }
@@ -174,6 +179,11 @@ function buildFiltersFromConstraints(constraints: ConstraintState): AppliedFilte
 
   for (const [key, value] of Object.entries(constraints.base)) {
     const legacyField = BASE_TO_LEGACY_FIELD[key] ?? key
+    const filter = buildAppliedFilterFromValue(legacyField, value)
+    if (filter) {
+      filters.push(filter)
+      continue
+    }
     filters.push({
       field: legacyField,
       op: "eq",
@@ -185,11 +195,16 @@ function buildFiltersFromConstraints(constraints: ConstraintState): AppliedFilte
 
   for (const [key, value] of Object.entries(constraints.refinements)) {
     const legacyField = REFINEMENT_TO_LEGACY_FIELD[key] ?? key
+    const filter = buildAppliedFilterFromValue(legacyField, value)
+    if (filter) {
+      filters.push(filter)
+      continue
+    }
     filters.push({
       field: legacyField,
       op: "eq",
       value: String(value),
-      rawValue: String(value),
+      rawValue: typeof value === "number" ? value : String(value),
       appliedAt: 0,
     })
   }

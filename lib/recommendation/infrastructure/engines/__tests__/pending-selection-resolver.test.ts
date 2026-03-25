@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import { buildPendingSelectionFilter, resolveExplicitComparisonAction, resolveExplicitRevisionRequest } from "../serve-engine-runtime"
+import { buildPendingSelectionFilter, resolveExplicitComparisonAction, resolveExplicitFilterRequest, resolveExplicitRevisionRequest } from "../serve-engine-runtime"
+import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import type { ExplorationSessionState } from "@/lib/recommendation/domain/types"
 
 function makeState(overrides: Partial<ExplorationSessionState> = {}): ExplorationSessionState {
@@ -62,6 +63,25 @@ describe("pending selection resolver", () => {
       op: "includes",
       value: "TiAlN",
       rawValue: "TiAlN",
+    })
+  })
+
+  it("resolves chip labels with counts for the pending field", () => {
+    const state = makeState({
+      lastAskedField: "toolSubtype",
+      displayedOptions: [
+        { index: 1, label: "Radius (362개)", field: "toolSubtype", value: "Radius", count: 362 },
+        { index: 2, label: "Square (164개)", field: "toolSubtype", value: "Square", count: 164 },
+      ],
+    })
+
+    const filter = buildPendingSelectionFilter(state, "Square (164개)")
+
+    expect(filter).toMatchObject({
+      field: "toolSubtype",
+      op: "includes",
+      value: "Square",
+      rawValue: "Square",
     })
   })
 
@@ -295,5 +315,28 @@ describe("explicit revision resolver", () => {
     })
 
     expect(resolveExplicitRevisionRequest(state, "Radius")).toBeNull()
+  })
+})
+
+describe("explicit filter resolver", () => {
+  it('resolves "Tank-Power로 필터링" as a brand filter before direct lookup routing', async () => {
+    const state = makeState({
+      displayedCandidates: [
+        { product: { brand: "TANK-POWER", seriesName: "GAA31", toolSubtype: "Roughing" } },
+        { product: { brand: "ALU-POWER", seriesName: "E5E39", toolSubtype: "Roughing" } },
+      ] as any,
+    })
+
+    const provider = getProvider()
+    const result = await resolveExplicitFilterRequest(state, "Tank-Power로 필터링", provider)
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      filter: {
+        field: "brand",
+        value: "TANK-POWER",
+        rawValue: "TANK-POWER",
+      },
+    })
   })
 })

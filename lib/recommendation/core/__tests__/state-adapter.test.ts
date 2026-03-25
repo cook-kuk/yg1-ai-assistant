@@ -84,6 +84,15 @@ describe("convertToV2State", () => {
     expect(result.constraints.refinements.coating).toBe("AlTiN")
   })
 
+  it("preserves numeric mv-backed refinements without stringifying them", () => {
+    const legacy = makeLegacyState({
+      appliedFilters: [makeFilter("ballRadiusMm", "1mm", 1)],
+    })
+
+    const result = convertToV2State(legacy)
+    expect(result.constraints.refinements.ballRadiusMm).toBe(1)
+  })
+
   it("maps workPieceName to materialDetail", () => {
     const legacy = makeLegacyState({
       appliedFilters: [makeFilter("workPieceName", "SUS304", "SUS304")],
@@ -243,6 +252,21 @@ describe("convertFromV2State", () => {
     const coatingFilter = result.appliedFilters.find((f) => f.field === "coating")
     expect(coatingFilter).toBeDefined()
     expect(coatingFilter!.value).toBe("AlTiN")
+  })
+
+  it("rebuilds arbitrary registry-backed refinements from V2 constraints", () => {
+    const v2: RecommendationSessionState = {
+      ...createInitialSessionState(),
+      constraints: {
+        base: {},
+        refinements: { ballRadiusMm: 1, brand: "TANK-POWER" },
+      },
+    }
+
+    const result = convertFromV2State(v2, null)
+
+    expect(result.appliedFilters.some((f) => f.field === "ballRadiusMm" && f.rawValue === 1)).toBe(true)
+    expect(result.appliedFilters.some((f) => f.field === "brand" && f.rawValue === "TANK-POWER")).toBe(true)
   })
 
   it("maps pendingQuestion field to lastAskedField", () => {

@@ -10,6 +10,7 @@
  */
 
 import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import { extractDistinctFilterFieldValues } from "@/lib/recommendation/shared/filter-field-registry"
 
 /**
  * Normalize a user-provided value against actual candidate values.
@@ -138,24 +139,5 @@ export function extractDistinctFieldValues(
   candidates: Array<Record<string, unknown>>,
   field: string
 ): string[] {
-  const FIELD_GETTERS: Record<string, (p: Record<string, unknown>) => unknown> = {
-    coating: p => (p as any).product?.coating ?? (p as any).coating,
-    toolMaterial: p => (p as any).product?.toolMaterial ?? (p as any).toolMaterial,
-    toolType: p => (p as any).product?.toolType ?? (p as any).toolType,
-    toolSubtype: p => (p as any).product?.toolSubtype ?? (p as any).toolSubtype,
-    seriesName: p => (p as any).product?.seriesName ?? (p as any).seriesName,
-    brand: p => (p as any).product?.brand ?? (p as any).brand,
-    country: p => (p as any).product?.country ?? (p as any).country,
-    stockStatus: p => (p as any).stockStatus,
-  }
-
-  const getter = FIELD_GETTERS[field]
-  if (!getter) return []
-
-  const values = new Set<string>()
-  for (const c of candidates) {
-    const val = getter(c)
-    if (val != null && val !== "") values.add(String(val))
-  }
-  return Array.from(values)
+  return extractDistinctFilterFieldValues(candidates, field)
 }
