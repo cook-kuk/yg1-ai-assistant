@@ -191,7 +191,7 @@ function buildPendingWorkPieceSelectionFilter(
   const raw = userMessage.trim()
   if (!raw || raw.length > 40) return null
   if (/[?？]/.test(raw)) return null
-  if (/뭐야|뭔지|설명|차이|왜|어떻게|몇개|종류|비교|추천|결과|처음부터|이전 단계|줘|알려|궁금|공장|영업소|연락|번호|정보|회사|사장|회장|매출|주주/u.test(raw)) return null
+  if (/뭐야|뭔지|설명|차이|왜|어떻게|몇개|종류|비교|추천|결과|처음부터|이전 단계|줘|알려|궁금|공장|영업소|연락|번호|정보|회사|사장|회장|매출|주주|지점|사우디|해외|국가|나라|도시|어디/u.test(raw)) return null
 
   const clean = normalizePendingSelectionText(raw)
   if (!clean) return null
@@ -516,9 +516,9 @@ async function handleServeExplorationInner(
       if (isToolDomain) {
         earlyAction = null // orchestrator가 tool domain으로 처리
         console.log(`[runtime:early] Tool domain detected → skip forced narrowing, block company route`)
-      } else if (earlyJudgment?.domainRelevance === "company_query" || earlyJudgment?.domainRelevance === "greeting") {
+      } else if (earlyJudgment?.domainRelevance === "company_query" || earlyJudgment?.domainRelevance === "greeting" || earlyJudgment?.domainRelevance === "off_topic") {
         earlyAction = null // orchestrator가 처리하게 넘김
-        console.log(`[runtime:early] company_query → skip pendingWorkPieceFilter`)
+        console.log(`[runtime:early] ${earlyJudgment?.domainRelevance} → skip pendingWorkPieceFilter`)
       } else {
         earlyAction = "continue_narrowing"
       }

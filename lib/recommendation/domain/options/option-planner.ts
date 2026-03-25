@@ -991,7 +991,30 @@ function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartOption[]
     })
   }
 
-  // 8. Reset (always available, ranked last)
+  // 8. Material-specific tips (when material is known and multiple products exist)
+  const material = ctx.resolvedInput?.material as string | undefined
+  if (material && top.length >= 2) {
+    options.push({
+      id: nextOptionId("explore"),
+      family: "explore",
+      label: `${material} 가공 팁 보기`,
+      subtitle: "소재별 최적 조건",
+      field: "material",
+      reason: "소재 특성에 맞는 가공 조건 안내",
+      projectedCount: null,
+      projectedDelta: null,
+      preservesContext: true,
+      destructive: false,
+      recommended: false,
+      priorityScore: 0.5,
+      plan: {
+        type: "apply_filter",
+        patches: [{ op: "add", field: "_action", value: "material_tip" }],
+      },
+    })
+  }
+
+  // 9. Reset (always available, ranked last)
   options.push({
     id: nextOptionId("reset"),
     family: "reset",

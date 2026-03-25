@@ -403,6 +403,7 @@ export function generateSmartOptionsForRecommendation(
         hasRecommendation: true,
         contextInterpretation: interpretation,
       },
+      portfolioConfig: { maxOptions: 6 },
     })
   }
 
@@ -419,6 +420,7 @@ export function generateSmartOptionsForRecommendation(
       filterCount: filters.length,
       hasRecommendation: true,
     },
+    portfolioConfig: { maxOptions: 6 },
   })
 }
 
