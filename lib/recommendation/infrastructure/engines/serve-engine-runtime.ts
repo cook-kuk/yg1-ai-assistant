@@ -34,6 +34,7 @@ import { normalizeFilterValue, extractDistinctFieldValues } from "@/lib/recommen
 import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-target-classifier"
 import { TraceCollector, isDebugEnabled } from "@/lib/debug/agent-trace"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
+import { classifyPreSearchRoute } from "@/lib/recommendation/infrastructure/engines/pre-search-route"
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
 import { shouldExecutePendingAction, pendingActionToFilter } from "@/lib/recommendation/domain/context/pending-action-resolver"
 import { TurnPerfLogger, setCurrentPerfLogger } from "@/lib/recommendation/infrastructure/perf/turn-perf-logger"
@@ -70,6 +71,15 @@ type CandidatePageSlice = {
 }
 
 const DEFAULT_CANDIDATE_PAGE_SIZE = 50
+
+function buildPreSearchOrchestratorResult(userMessage: string, reason: string) {
+  return {
+    action: { type: "answer_general" as const, message: userMessage },
+    reasoning: `pre_search_route:${reason}`,
+    agentsInvoked: [{ agent: "pre-search-router", model: "haiku" as const, durationMs: 0 }],
+    escalatedToOpus: false,
+  }
+}
 
 function resolveCandidatePagination(
   pagination: CandidatePaginationRequest | null | undefined
@@ -454,6 +464,45 @@ async function handleServeExplorationInner(
   const lastUserMsg = messages.length > 0
     ? [...messages].reverse().find(message => message.role === "user")
     : null
+  const narrowingHistory: NarrowingTurn[] = [...(prevState?.narrowingHistory ?? [])]
+  let currentInput = { ...resolvedInput }
+  let turnCount = prevState?.turnCount ?? 0
+
+  if (messages.length > 0 && prevState && lastUserMsg) {
+    if (prevState.pendingAction) {
+      const pendingCheck = shouldExecutePendingAction(
+        prevState.pendingAction,
+        lastUserMsg.text,
+        turnCount,
+        prevState.displayedChips ?? []
+      )
+
+      if (pendingCheck.reason === "expired" || pendingCheck.reason === "explicit_override") {
+        console.log(`[pending-action:pre-route] Cleared before V2: ${pendingCheck.reason}`)
+        prevState.pendingAction = null
+      }
+    }
+
+    const preSearchRoute = await classifyPreSearchRoute(lastUserMsg.text, prevState, provider)
+    if (preSearchRoute.kind !== "recommendation_action") {
+      console.log(`[runtime:pre-route] ${preSearchRoute.kind} -> answer_general (${preSearchRoute.reason})`)
+      return handleServeGeneralChatAction({
+        deps,
+        action: { type: "answer_general", message: lastUserMsg.text },
+        orchResult: buildPreSearchOrchestratorResult(lastUserMsg.text, preSearchRoute.reason),
+        provider,
+        form,
+        messages,
+        prevState,
+        filters,
+        narrowingHistory,
+        currentInput,
+        candidates: [],
+        evidenceMap: new Map(),
+        turnCount,
+      })
+    }
+  }
 
   // ── V2 Orchestrator Integration ──
   // V2 handles routing decisions (LLM-based), then delegates execution to legacy engines.
@@ -707,10 +756,6 @@ async function handleServeExplorationInner(
     // Recent conversation
     trace.setRecentTurns(messages.slice(-10).map(m => ({ role: m.role, text: m.text.slice(0, 150) })))
   }
-
-  const narrowingHistory: NarrowingTurn[] = [...(prevState?.narrowingHistory ?? [])]
-  let currentInput = { ...resolvedInput }
-  let turnCount = prevState?.turnCount ?? 0
 
   if (messages.length > 0 && prevState && lastUserMsg) {
     // ── PendingAction Lifecycle: check → execute/expire/override → clear ──

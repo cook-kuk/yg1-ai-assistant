@@ -45,6 +45,8 @@ describe("validateSurfaceV2", () => {
     expect(result.rewrites).toContain("added_fallback_chips")
     expect(result.displayedOptions).toHaveLength(1)
     expect(result.displayedOptions[0].label).toBe("처음부터 다시")
+    expect(result.displayedOptions[0].index).toBe(1)
+    expect(result.displayedOptions[0].count).toBe(0)
     expect(result.chips).toEqual(["처음부터 다시"])
   })
 
@@ -177,5 +179,24 @@ describe("validateSurfaceV2", () => {
     const chipSet = new Set(result.chips)
     const labelSet = new Set(result.displayedOptions.map(o => o.label))
     expect(chipSet).toEqual(labelSet)
+  })
+
+  it("normalizes displayedOptions to include index and count defaults", () => {
+    const decision = makeDecision()
+    const surface = {
+      answer: "테스트",
+      displayedOptions: [
+        { label: "옵션1", field: "material", value: "steel" },
+        { label: "옵션2", field: "_action", value: "_reset" },
+      ],
+      chips: ["옵션1", "옵션2"],
+    }
+
+    const result = validateSurfaceV2(surface, decision, false)
+
+    expect(result.displayedOptions).toEqual([
+      { index: 1, label: "옵션1", field: "material", value: "steel", count: 0 },
+      { index: 2, label: "옵션2", field: "_action", value: "_reset", count: 0 },
+    ])
   })
 })

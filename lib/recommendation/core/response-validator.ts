@@ -1,12 +1,32 @@
 import type { LlmTurnDecision } from "./types"
 
+interface ValidatedDisplayedOption {
+  index: number
+  label: string
+  field?: string
+  value?: string
+  count: number
+}
+
 export interface ValidationResult {
   answer: string
-  displayedOptions: Array<{ label: string; field?: string; value?: string }>
+  displayedOptions: ValidatedDisplayedOption[]
   chips: string[]
   valid: boolean
   warnings: string[]
   rewrites: string[]
+}
+
+function normalizeDisplayedOptions(displayedOptions: any[]): ValidatedDisplayedOption[] {
+  return displayedOptions
+    .filter(option => typeof option?.label === "string" && option.label.trim().length > 0)
+    .map((option, index) => ({
+      index: typeof option.index === "number" ? option.index : index + 1,
+      label: option.label,
+      field: typeof option.field === "string" ? option.field : undefined,
+      value: typeof option.value === "string" ? option.value : undefined,
+      count: typeof option.count === "number" ? option.count : 0,
+    }))
 }
 
 export function validateSurfaceV2(
@@ -16,7 +36,8 @@ export function validateSurfaceV2(
 ): ValidationResult {
   const warnings: string[] = []
   const rewrites: string[] = []
-  let { answer, displayedOptions, chips } = surface
+  let { answer, chips } = surface
+  let displayedOptions = normalizeDisplayedOptions(surface.displayedOptions)
 
   // 1. Field consistency check
   if (decision.nextQuestion?.field && displayedOptions.length > 0) {
@@ -37,7 +58,7 @@ export function validateSurfaceV2(
   if (chips.length === 0 && displayedOptions.length === 0 && decision.uiPlan.optionMode !== "none") {
     // No options but mode expects them — add minimal fallback
     displayedOptions = [
-      { label: "처음부터 다시", field: "_action", value: "_reset" }
+      { index: 1, label: "처음부터 다시", field: "_action", value: "_reset", count: 0 }
     ]
     chips = ["처음부터 다시"]
     rewrites.push("added_fallback_chips")
