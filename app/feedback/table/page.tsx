@@ -17,6 +17,12 @@ import { parseFeedbackListResponse } from "@/lib/frontend/feedback/feedback-clie
 import type { FeedbackEntryDto, FeedbackEventEntryDto } from "@/lib/contracts/feedback"
 
 // ── Unified row type for the table ────────────────────────────
+interface AdminFields {
+  csComment: string
+  dueDate: string
+  completed: boolean
+}
+
 interface TableRow {
   id: string
   no: number
@@ -35,6 +41,22 @@ interface TableRow {
   source: "general" | "event"
   rating: number | null
   tags: string[]
+}
+
+// ── LocalStorage persistence for admin fields ────────────────
+const ADMIN_STORAGE_KEY = "yg1_feedback_admin_fields"
+
+function loadAdminFields(): Record<string, AdminFields> {
+  if (typeof window === "undefined") return {}
+  try {
+    const raw = localStorage.getItem(ADMIN_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch { return {} }
+}
+
+function saveAdminFields(fields: Record<string, AdminFields>) {
+  if (typeof window === "undefined") return
+  localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(fields))
 }
 
 // ── Parse from FeedbackEntryDto ────────────────────────────────
@@ -149,15 +171,18 @@ type SortDir = "asc" | "desc"
 const COLUMNS = [
   { key: "no", label: "No.", width: "w-12" },
   { key: "date", label: "일자", width: "w-20" },
-  { key: "department", label: "소속부서", width: "w-24" },
+  { key: "department", label: "소속부서", width: "w-28" },
   { key: "author", label: "작성자", width: "w-20" },
   { key: "questionType", label: "질문 유형", width: "w-20" },
-  { key: "questionContent", label: "질문 내용", width: "w-64 min-w-[200px]" },
+  { key: "questionContent", label: "질문 내용", width: "w-56 min-w-[180px]" },
   { key: "questionIntent", label: "질문 의도", width: "w-24" },
   { key: "accuracy", label: "정확도", width: "w-16" },
   { key: "qualityScore", label: "품질점수", width: "w-16" },
   { key: "errorType", label: "오류 유형", width: "w-28" },
-  { key: "improvement", label: "개선 필요사항", width: "w-64 min-w-[200px]" },
+  { key: "improvement", label: "개선 필요사항", width: "w-48 min-w-[160px]" },
+  { key: "csComment", label: "코너스톤 의견", width: "w-48 min-w-[160px]" },
+  { key: "dueDate", label: "예상 Due Date", width: "w-32" },
+  { key: "completed", label: "완료", width: "w-14" },
 ] as const
 
 type ColumnKey = (typeof COLUMNS)[number]["key"]
@@ -186,6 +211,22 @@ export default function FeedbackTablePage() {
   const [rows, setRows] = useState<TableRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Admin fields (persisted in localStorage)
+  const [adminFields, setAdminFields] = useState<Record<string, AdminFields>>({})
+
+  useEffect(() => {
+    setAdminFields(loadAdminFields())
+  }, [])
+
+  const updateAdminField = (id: string, field: keyof AdminFields, value: string | boolean) => {
+    setAdminFields(prev => {
+      const current = prev[id] ?? { csComment: "", dueDate: "", completed: false }
+      const updated = { ...prev, [id]: { ...current, [field]: value } }
+      saveAdminFields(updated)
+      return updated
+    })
+  }
 
   // Filters
   const [searchText, setSearchText] = useState("")
@@ -421,22 +462,25 @@ export default function FeedbackTablePage() {
             <table className="w-full text-xs">
               <thead>
                 <tr className="bg-gray-50 border-b">
-                  {COLUMNS.map(col => (
-                    <th
-                      key={col.key}
-                      className={`px-3 py-2.5 text-left font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 select-none ${col.width}`}
-                      onClick={() => handleSort(col.key)}
-                    >
-                      <div className="flex items-center gap-1">
-                        {col.label}
-                        {sortKey === col.key ? (
-                          <ArrowUpDown size={12} className="text-blue-500" />
-                        ) : (
-                          <ArrowUpDown size={10} className="text-gray-300" />
-                        )}
-                      </div>
-                    </th>
-                  ))}
+                  {COLUMNS.map(col => {
+                    const isAdmin = col.key === "csComment" || col.key === "dueDate" || col.key === "completed"
+                    return (
+                      <th
+                        key={col.key}
+                        className={`px-3 py-2.5 text-left font-semibold cursor-pointer hover:bg-gray-100 select-none ${col.width} ${isAdmin ? "bg-violet-50 text-violet-700" : "text-gray-600"}`}
+                        onClick={() => handleSort(col.key)}
+                      >
+                        <div className="flex items-center gap-1">
+                          {col.label}
+                          {sortKey === col.key ? (
+                            <ArrowUpDown size={12} className="text-blue-500" />
+                          ) : (
+                            <ArrowUpDown size={10} className={isAdmin ? "text-violet-300" : "text-gray-300"} />
+                          )}
+                        </div>
+                      </th>
+                    )
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -452,9 +496,20 @@ export default function FeedbackTablePage() {
                       <td className="px-3 py-2.5 text-gray-400 font-mono">{row.no}</td>
                       <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{row.date}</td>
                       <td className="px-3 py-2.5">
-                        {row.department ? (
-                          <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-[10px] font-medium">{row.department}</span>
-                        ) : <span className="text-gray-300">-</span>}
+                        <div className="flex flex-col gap-0.5">
+                          {row.authorType === "internal" && (
+                            <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[10px] font-bold w-fit">내부 개발팀</span>
+                          )}
+                          {row.authorType === "customer" && (
+                            <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-[10px] font-bold w-fit">고객사</span>
+                          )}
+                          {row.authorType === "anonymous" && (
+                            <span className="bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded text-[10px] w-fit">익명</span>
+                          )}
+                          {row.department && (
+                            <span className="text-[10px] text-gray-500">{row.department}</span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-3 py-2.5 text-gray-700 font-medium">{row.author || <span className="text-gray-300">-</span>}</td>
                       <td className="px-3 py-2.5">
@@ -470,6 +525,34 @@ export default function FeedbackTablePage() {
                         ) : <span className="text-gray-300">-</span>}
                       </td>
                       <td className="px-3 py-2.5 text-gray-600 max-w-xs truncate" title={row.improvement}>{row.improvement || <span className="text-gray-300">-</span>}</td>
+                      {/* 코너스톤 의견 */}
+                      <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
+                        <input
+                          type="text"
+                          value={adminFields[row.id]?.csComment ?? ""}
+                          onChange={e => updateAdminField(row.id, "csComment", e.target.value)}
+                          placeholder="의견 입력..."
+                          className="w-full px-2 py-1 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-400 focus:border-violet-400 bg-violet-50/30 placeholder-gray-300"
+                        />
+                      </td>
+                      {/* 예상 Due Date */}
+                      <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
+                        <input
+                          type="date"
+                          value={adminFields[row.id]?.dueDate ?? ""}
+                          onChange={e => updateAdminField(row.id, "dueDate", e.target.value)}
+                          className="w-full px-2 py-1 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-violet-400 focus:border-violet-400 bg-violet-50/30"
+                        />
+                      </td>
+                      {/* 완료 여부 */}
+                      <td className="px-3 py-2.5 text-center" onClick={e => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={adminFields[row.id]?.completed ?? false}
+                          onChange={e => updateAdminField(row.id, "completed", e.target.checked)}
+                          className="w-4 h-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500 cursor-pointer"
+                        />
+                      </td>
                     </tr>
                   ))
                 )}
