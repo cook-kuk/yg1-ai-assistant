@@ -5,7 +5,6 @@ import {
   checkResolution,
   getRedirectResponse,
   prepareRequest,
-  restoreOnePreviousStep,
   restoreToBeforeFilter,
   runHybridRetrieval,
 } from "@/lib/recommendation/domain/recommendation-domain"
@@ -36,6 +35,9 @@ import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-t
 import { TraceCollector, isDebugEnabled } from "@/lib/debug/agent-trace"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
 import { handleFilterByStock } from "@/lib/recommendation/infrastructure/engines/serve-engine-stock"
+import { handleCompareProducts } from "@/lib/recommendation/infrastructure/engines/serve-engine-comparison"
+import { handleResetSession, handleGoBack, handleShowRecommendation } from "@/lib/recommendation/infrastructure/engines/serve-engine-navigation"
+import type { NavigationHandlerContext } from "@/lib/recommendation/infrastructure/engines/serve-engine-navigation"
 import { classifyPreSearchRoute } from "@/lib/recommendation/infrastructure/engines/pre-search-route"
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
 import { shouldExecutePendingAction, pendingActionToFilter } from "@/lib/recommendation/domain/context/pending-action-resolver"
@@ -806,23 +808,6 @@ const SKIP_RETRIEVAL_ACTIONS = new Set([
   "filter_by_stock",
 ])
 
-function buildResetResponse(
-  deps: Pick<ServeEngineRuntimeDependencies, "jsonRecommendationResponse">,
-  requestPreparation: ReturnType<typeof prepareRequest> | null
-) {
-  return deps.jsonRecommendationResponse({
-    text: "처음부터 다시 시작합니다. 새로 조건을 입력해주세요.",
-    purpose: "greeting",
-    chips: ["처음부터 다시"],
-    isComplete: true,
-    recommendation: null,
-    sessionState: null,
-    evidenceSummaries: null,
-    candidateSnapshot: null,
-    requestPreparation,
-  })
-}
-
 function buildActionMeta(
   actionType: string,
   orchResult: { agentsInvoked: unknown; escalatedToOpus: boolean },
@@ -1389,7 +1374,7 @@ async function handleServeExplorationInner(
   })
 
   if (requestPrep.route.action === "reset_session") {
-    return buildResetResponse(deps, requestPrep)
+    return handleResetSession({ deps, requestPrep })
   }
 
   // ── Journey phase trace ──
@@ -1706,64 +1691,41 @@ async function handleServeExplorationInner(
     })
 
     if (action.type === "reset_session") {
-      return buildResetResponse(deps, requestPrep)
+      return handleResetSession({ deps, requestPrep })
+    }
+
+    const navCtx: NavigationHandlerContext = {
+      jsonRecommendationResponse: deps.jsonRecommendationResponse,
+      prevState,
+      filters,
+      narrowingHistory,
+      currentInput,
+      turnCount,
+      orchResult,
+      deps,
+      form,
+      messages,
+      provider,
+      language,
+      displayedProducts,
+      baseInput,
+      candidates,
+      evidenceMap,
+      totalCandidateCount,
+      displayCandidates,
+      displayEvidenceMap,
+      resolvedPagination,
+      paginationDto,
+      requestPrep,
+      sliceCandidatesForPage,
     }
 
     if (action.type === "go_back_one_step" || action.type === "go_back_to_filter") {
-      const restoreResult = action.type === "go_back_to_filter"
-        ? restoreToBeforeFilter(prevState, action.filterValue ?? "", action.filterField, baseInput, deps.applyFilterToInput)
-        : restoreOnePreviousStep(prevState, baseInput, deps.applyFilterToInput)
-
-      const undoResult = await runHybridRetrieval(
-        restoreResult.rebuiltInput,
-        restoreResult.remainingFilters.filter(filter => filter.op !== "skip"),
-        0,
-        null
-      )
-      const undoDisplayPage = sliceCandidatesForPage(undoResult.candidates, undoResult.evidenceMap, resolvedPagination)
-
-      console.log(
-        `[session-manager:undo] Reverted "${restoreResult.removedFilterDesc}": ${prevState.candidateCount} -> ${undoResult.candidates.length} candidates, filters: ${prevState.appliedFilters.length} -> ${restoreResult.remainingFilters.length}`
-      )
-
-      return deps.buildQuestionResponse(
-        form,
-        undoResult.candidates,
-        undoResult.evidenceMap,
-        undoResult.totalConsidered,
-        paginationDto(undoResult.totalConsidered),
-        undoDisplayPage.candidates,
-        undoDisplayPage.evidenceMap,
-        restoreResult.rebuiltInput,
-        restoreResult.remainingHistory,
-        restoreResult.remainingFilters,
-        restoreResult.undoTurnCount,
-        messages,
-        provider,
-        language,
-        undefined,
-        restoreResult.remainingStages
-      )
+      return handleGoBack(action, navCtx)
     }
 
     if (action.type === "show_recommendation") {
-      return deps.buildRecommendationResponse(
-        form,
-        candidates,
-        evidenceMap,
-        totalCandidateCount,
-        paginationDto(totalCandidateCount),
-        displayCandidates,
-        displayEvidenceMap,
-        currentInput,
-        narrowingHistory,
-        filters,
-        turnCount,
-        messages,
-        provider,
-        language,
-        displayedProducts
-      )
+      return handleShowRecommendation(navCtx)
     }
 
     if (action.type === "filter_by_stock") {
