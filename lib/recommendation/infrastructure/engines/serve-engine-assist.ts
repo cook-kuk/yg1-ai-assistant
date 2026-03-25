@@ -1183,14 +1183,27 @@ export async function handleContextualNarrowingQuestion(
 ): Promise<string | null> {
   const lastField = prevState.lastAskedField ?? "unknown"
 
-  // ── Data-driven context (no hardcoded explanations) ──
-  // Extract actual values from current candidates for LLM context
-  const fieldDataContext = buildFieldDataContext(lastField, candidates)
+  // ── 브랜드/시리즈 설명 요청 감지 ──
+  const isBrandSeriesQuery = /브랜드|시리즈|brand|series|CRX|ALU.?POWER|ALU.?CUT|Titanox|V7|4G.?MILL|DREAM|JET.?POWER|X5070|X.?POWER|SINE|ONLY.?ONE/i.test(userMessage)
+
+  // ── Data-driven context ──
+  const fieldDataContext = isBrandSeriesQuery
+    ? buildBrandSeriesContext(candidates)
+    : buildFieldDataContext(lastField, candidates)
 
   if (provider.available()) {
     try {
-      const raw = await provider.complete(
-        `당신은 YG-1 절삭공구 전문 엔지니어입니다.
+      const systemPrompt = isBrandSeriesQuery
+        ? `당신은 YG-1 절삭공구 전문 엔지니어입니다.
+사용자가 특정 브랜드나 시리즈에 대해 설명을 요청했습니다.
+
+규칙:
+- 해당 브랜드/시리즈의 특징, 적용 소재, 장점을 설명
+- 현재 후보에 있는 제품 기반으로 답변
+- 코팅 필드 질문으로 유도하지 마라 — 브랜드/시리즈 자체를 설명
+- 간결하게 3-5문장
+- 한국어로 답변`
+        : `당신은 YG-1 절삭공구 전문 엔지니어입니다.
 사용자가 추천 대화 중 현재 질문에 대해 설명을 요청했습니다.
 
 규칙:
@@ -1198,8 +1211,15 @@ export async function handleContextualNarrowingQuestion(
 - 간결하게 3-5문장
 - 실제 후보에 있는 값만 언급
 - "상관없음"을 선택할 수 있다고 안내
-- 한국어로 답변`,
-        [{ role: "user", content: `현재 질문 필드: ${lastField}\n사용자 질문: ${userMessage}\n현재 후보 수: ${candidates.length}개\n\n${fieldDataContext}` }],
+- 한국어로 답변`
+
+      const userPrompt = isBrandSeriesQuery
+        ? `사용자 질문: ${userMessage}\n현재 후보 수: ${candidates.length}개\n\n${fieldDataContext}`
+        : `현재 질문 필드: ${lastField}\n사용자 질문: ${userMessage}\n현재 후보 수: ${candidates.length}개\n\n${fieldDataContext}`
+
+      const raw = await provider.complete(
+        systemPrompt,
+        [{ role: "user", content: userPrompt }],
         500
       )
       if (raw?.trim()) return raw.trim()
@@ -1214,6 +1234,50 @@ export async function handleContextualNarrowingQuestion(
  * Build data-driven context for field explanation.
  * Extracts actual values from current candidates — NO hardcoded descriptions.
  */
+function buildBrandSeriesContext(candidates: ScoredProduct[]): string {
+  const lines: string[] = []
+  const brands = new Map<string, number>()
+  const series = new Map<string, { count: number; coating: string | null; flute: number | null; subtype: string | null }>()
+
+  for (const c of candidates) {
+    const b = (c.product as Record<string, unknown>).brand as string | null
+    if (b) brands.set(b, (brands.get(b) ?? 0) + 1)
+    const s = c.product.seriesName
+    if (s) {
+      const existing = series.get(s)
+      if (!existing) {
+        series.set(s, {
+          count: 1,
+          coating: c.product.coating ?? null,
+          flute: c.product.fluteCount ?? null,
+          subtype: (c.product as Record<string, unknown>).toolSubtype as string | null,
+        })
+      } else {
+        existing.count++
+      }
+    }
+  }
+
+  if (brands.size > 0) {
+    lines.push("현재 후보의 브랜드 분포:")
+    for (const [brand, count] of [...brands.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)) {
+      lines.push(`• ${brand}: ${count}개`)
+    }
+  }
+  if (series.size > 0) {
+    lines.push("\n주요 시리즈:")
+    for (const [name, info] of [...series.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 8)) {
+      const parts = [name, `${info.count}개`]
+      if (info.subtype) parts.push(info.subtype)
+      if (info.coating) parts.push(info.coating)
+      if (info.flute) parts.push(`${info.flute}날`)
+      lines.push(`• ${parts.join(" / ")}`)
+    }
+  }
+
+  return lines.join("\n")
+}
+
 function buildFieldDataContext(field: string, candidates: ScoredProduct[]): string {
   const lines: string[] = []
 
