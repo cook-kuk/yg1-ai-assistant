@@ -122,26 +122,10 @@ async function buildWorkPieceQuestion(
   })
   if (allWorkPieceNames.length <= 1) return null
 
-  // Filter workPiece names to match the user's material input when that signal is useful.
-  // If the textual match is too weak (common for ISO-group labels like "고경도강"),
-  // fall back to the full ISO-scoped workPiece list rather than suppressing the question.
-  const userMaterial = (input.material ?? "").toLowerCase()
+  // Show ALL workPiece names within the ISO group (no material keyword filtering).
+  // ISO N군 = 알루미늄 + 구리 + 비철 전체, P군 = 탄소강 + 합금강 전체 등.
+  // 사용자가 "알루미늄"을 선택해도 같은 ISO 그룹의 다른 소재(구리 등)도 보여줘야 함.
   let relevantNames = allWorkPieceNames
-  if (userMaterial) {
-    const filtered = allWorkPieceNames.filter(name => {
-      const nameLower = name.toLowerCase()
-      // Match if user material keyword appears in the workpiece name, or vice versa
-      return nameLower.includes(userMaterial) || userMaterial.includes(nameLower)
-        || (userMaterial.includes("알루미늄") && nameLower.includes("알루미늄"))
-        || (userMaterial.includes("aluminum") && (nameLower.includes("알루미늄") || nameLower.includes("aluminum")))
-        || (userMaterial.includes("스테인") && (nameLower.includes("스테인") || nameLower.includes("sus")))
-        || (userMaterial.includes("탄소강") && nameLower.includes("탄소강"))
-        || (userMaterial.includes("주철") && nameLower.includes("주철"))
-    })
-    if (filtered.length >= 2) {
-      relevantNames = filtered
-    }
-  }
 
   const materialLabel = getMaterialDisplay(isoGroup).ko
   const chips = [...relevantNames.slice(0, 10), "상관없음"]
