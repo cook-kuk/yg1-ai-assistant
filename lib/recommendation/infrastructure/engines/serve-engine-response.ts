@@ -1,5 +1,9 @@
 import { notifyRecommendation } from "@/lib/recommendation/infrastructure/notifications/recommendation-notifier"
-import { BrandReferenceRepo } from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
+import {
+  BrandReferenceRepo,
+  SeriesMaterialStatusRepo,
+  type SeriesMaterialStatusValue,
+} from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
 import { getSessionCache } from "@/lib/recommendation/infrastructure/cache/session-cache"
 import {
   buildExplanation,
@@ -89,6 +93,45 @@ function resolveSingleIsoGroup(material: string | undefined): string | null {
   )
 
   return tags.length === 1 ? tags[0] : null
+}
+
+function normalizeSeriesKey(value: string): string {
+  return value.trim().toUpperCase().replace(/[\s\-·ㆍ./(),]+/g, "")
+}
+
+async function loadSeriesMaterialRatings(
+  candidates: CandidateSnapshot[],
+  input: RecommendationInput
+): Promise<Map<string, SeriesMaterialStatusValue>> {
+  const isoGroup = resolveSingleIsoGroup(input.material)
+  if (!isoGroup) return new Map()
+
+  const seriesNames = Array.from(
+    new Set(
+      candidates
+        .map(candidate => candidate.seriesName)
+        .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    )
+  )
+  if (seriesNames.length === 0) return new Map()
+
+  const ratings = await SeriesMaterialStatusRepo.findRatingsBySeries({
+    isoGroup,
+    seriesNames,
+    workPieceName: input.workPieceName ?? null,
+  })
+
+  return new Map(
+    [...ratings.entries()].map(([seriesName, rating]) => [normalizeSeriesKey(seriesName), rating])
+  )
+}
+
+async function buildDisplayedSeriesGroups(
+  candidates: CandidateSnapshot[],
+  input: RecommendationInput
+) {
+  const ratingBySeries = await loadSeriesMaterialRatings(candidates, input)
+  return groupCandidatesBySeries(candidates, ratingBySeries)
 }
 
 async function buildWorkPieceQuestion(
@@ -221,7 +264,7 @@ export async function buildQuestionResponse(
     chips = fallbackChips
     displayedOptions = buildDisplayedOptions(chips, question?.field ?? "unknown")
   }
-  const displayedSeriesGroups = groupCandidatesBySeries(candidateSnapshot)
+  const displayedSeriesGroups = await buildDisplayedSeriesGroups(candidateSnapshot, input)
 
   const sessionState = buildSessionState({
     candidateCount: totalCandidateCount,
@@ -595,7 +638,7 @@ export async function buildRecommendationResponse(
     ? smartOptionsToChips(postRecOptions)
     : buildMinimalPostRecChips(recommendation, filters)
 
-  const displayedSeriesGroups = groupCandidatesBySeries(candidateSnapshot)
+  const displayedSeriesGroups = await buildDisplayedSeriesGroups(candidateSnapshot, input)
   const sessionState = buildSessionState({
     candidateCount: totalCandidateCount,
     appliedFilters: filters,

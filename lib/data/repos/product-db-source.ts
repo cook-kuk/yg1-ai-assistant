@@ -106,6 +106,23 @@ export interface ProductSearchPageResult {
   totalCount: number
 }
 
+function resolveSingleIsoGroup(material: string | undefined): string | null {
+  if (!material) return null
+
+  const tags = Array.from(
+    new Set(
+      material
+        .split(",")
+        .map(part => part.trim())
+        .filter(Boolean)
+        .map(part => resolveMaterialTag(part))
+        .filter((tag): tag is string => Boolean(tag))
+    )
+  )
+
+  return tags.length === 1 ? tags[0] : null
+}
+
 function flattenActiveFilters(filters: AppliedFilter[] = []): AppliedFilter[] {
   const lastMaterialIndex = filters.reduce((lastIndex, filter, index) => (
     filter.field === "material" ? index : lastIndex
@@ -768,6 +785,7 @@ function buildPagedProductQueryBase(where: string[]): string {
 }
 
 function buildProductDataQuery(
+  input: RecommendationInput | undefined,
   where: string[],
   values: unknown[],
   limit?: number,
@@ -775,15 +793,78 @@ function buildProductDataQuery(
 ): { query: string; values: unknown[] } {
   const queryBase = buildPagedProductQueryBase(where)
   const dataValues = [...values]
+  const materialTag = resolveSingleIsoGroup(input?.material)
+  const workPieceName = input?.workPieceName?.trim() || null
+  const materialTagParam = `$${dataValues.push(materialTag)}`
+  const workPieceNameParam = `$${dataValues.push(workPieceName)}`
   const limitClause = limit != null ? `LIMIT $${dataValues.push(limit)}` : ""
   const offsetClause = offset > 0 ? `OFFSET $${dataValues.push(offset)}` : ""
 
   return {
     query: `
       ${queryBase}
+      , ranked_products AS (
+        SELECT
+          deduped_products.*,
+          status_lookup.material_rating,
+          COALESCE(status_lookup.material_rating_score, 0) AS material_rating_score,
+          COALESCE(
+            NULLIF(BTRIM(deduped_products.milling_tool_material), ''),
+            NULLIF(BTRIM(deduped_products.holemaking_tool_material), ''),
+            NULLIF(BTRIM(deduped_products.threading_tool_material), '')
+          ) AS effective_tool_material
+        FROM deduped_products
+        LEFT JOIN LATERAL (
+          SELECT
+            CASE
+              WHEN UPPER(COALESCE(status_row.material_rating, '')) = 'EXCELLENT' THEN 'EXCELLENT'
+              WHEN UPPER(COALESCE(status_row.material_rating, '')) = 'GOOD' THEN 'GOOD'
+              ELSE 'NULL'
+            END AS material_rating,
+            COALESCE(status_row.material_rating_score, 0) AS material_rating_score
+          FROM catalog_app.series_profile_mv sp
+          CROSS JOIN LATERAL jsonb_to_recordset(COALESCE(sp.work_piece_statuses, '[]'::jsonb)) AS status_row(
+            tag_name text,
+            work_piece_name text,
+            normalized_work_piece_name text,
+            status text,
+            material_rating text,
+            material_rating_score integer
+          )
+          WHERE ${materialTagParam}::text IS NOT NULL
+            AND sp.normalized_series_name = NULLIF(
+              regexp_replace(UPPER(BTRIM(COALESCE(deduped_products.edp_series_name, ''))), '[\\s\\-·ㆍ\\./(),]+', '', 'g'),
+              ''
+            )
+            AND status_row.tag_name = ${materialTagParam}
+          ORDER BY
+            CASE
+              WHEN ${workPieceNameParam}::text IS NOT NULL
+                AND status_row.normalized_work_piece_name = NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '')
+              THEN 0
+              ELSE 1
+            END ASC,
+            status_row.material_rating_score DESC,
+            status_row.work_piece_name ASC NULLS LAST
+          LIMIT 1
+        ) status_lookup ON TRUE
+      )
       SELECT *
-      FROM deduped_products
-      ORDER BY edp_idx DESC
+      FROM ranked_products
+      ORDER BY
+        material_rating_score DESC,
+        CASE material_rating
+          WHEN 'EXCELLENT' THEN 0
+          WHEN 'GOOD' THEN 1
+          WHEN 'NULL' THEN 2
+          ELSE 3
+        END ASC,
+        CASE
+          WHEN UPPER(COALESCE(effective_tool_material, '')) = 'CARBIDE' THEN 0
+          WHEN COALESCE(effective_tool_material, '') <> '' THEN 1
+          ELSE 2
+        END ASC,
+        edp_idx DESC
       ${limitClause}
       ${offsetClause}
     `,
@@ -799,7 +880,7 @@ export async function queryProductsPageFromDatabase(options: ProductSearchOption
     SELECT COUNT(*)::int AS total_count
     FROM deduped_products
   `
-  const dataQuery = buildProductDataQuery(where, values, limit, offset)
+  const dataQuery = buildProductDataQuery(options.input, where, values, limit, offset)
 
   const startedAt = Date.now()
   console.log(
@@ -853,7 +934,7 @@ export async function queryProductsPageFromDatabase(options: ProductSearchOption
 
 export async function queryProductsFromDatabase(options: ProductSearchOptions = {}): Promise<CanonicalProduct[]> {
   const { where, values, limit, offset } = buildQueryOptions(options)
-  const dataQuery = buildProductDataQuery(where, values, limit, offset)
+  const dataQuery = buildProductDataQuery(options.input, where, values, limit, offset)
 
   const startedAt = Date.now()
   console.log(

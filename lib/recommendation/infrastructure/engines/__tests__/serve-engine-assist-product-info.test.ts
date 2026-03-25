@@ -32,7 +32,10 @@ vi.mock("@/lib/knowledge/company-prompt-snippet", () => ({
   YG1_COMPANY_SNIPPET: "",
 }))
 
-import { handleDirectProductInfoQuestion } from "../serve-engine-assist"
+import {
+  handleDirectProductInfoQuestion,
+  shouldAttemptWebSearchFallback,
+} from "../serve-engine-assist"
 
 describe("handleDirectProductInfoQuestion", () => {
   beforeEach(() => {
@@ -114,5 +117,20 @@ describe("handleDirectProductInfoQuestion", () => {
     )
 
     expect(reply?.chips).toEqual(["GYG02100 재고 알려줘", "GYG02100 절삭조건 알려줘", "추천 제품 보기"])
+  })
+
+  it("does not hijack subtype taxonomy questions as product lookup", async () => {
+    const reply = await handleDirectProductInfoQuestion(
+      "slotting 하는데 적절한 공구 형상은 뭔가요?",
+      {} as any,
+      null
+    )
+
+    expect(findByCodeMock).not.toHaveBeenCalled()
+    expect(reply).toBeNull()
+  })
+
+  it("allows taxonomy knowledge questions to reach web-search fallback", () => {
+    expect(shouldAttemptWebSearchFallback("slotting 하는데 적절한 공구 형상은 뭔가요?")).toBe(true)
   })
 })

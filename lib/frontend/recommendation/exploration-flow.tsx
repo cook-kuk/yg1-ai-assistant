@@ -31,7 +31,10 @@ import {
 } from "@/lib/contracts/recommendation"
 import { useApp } from "@/lib/frontend/app-context"
 import { CandidateCard, IntentSummaryCard, RecommendationPanel } from "@/lib/frontend/recommendation/recommendation-display"
-import { groupRecommendationCandidatesBySeries } from "@/lib/frontend/recommendation/recommendation-grouping"
+import {
+  groupRecommendationCandidatesBySeries,
+  type RecommendationCandidateSeriesGroup,
+} from "@/lib/frontend/recommendation/recommendation-grouping"
 import { isUndoChipEnabled, canShowCandidatePanel } from "@/lib/frontend/recommendation/recommendation-view-model"
 import {
   type AnswerState,
@@ -53,6 +56,71 @@ const RESOLUTION_CONFIG: Record<string, { ko: string; en: string; cls: string }>
   resolved_exact: { ko: "정확 매칭", en: "Exact Match", cls: "bg-green-100 text-green-700" },
   resolved_approximate: { ko: "근사 매칭", en: "Approximate", cls: "bg-amber-100 text-amber-700" },
   resolved_none: { ko: "매칭 없음", en: "No Match", cls: "bg-red-100 text-red-700" },
+}
+
+function getSeriesRatingLabel(
+  rating: "EXCELLENT" | "GOOD" | "NULL" | null | undefined,
+  language: "ko" | "en"
+): string | null {
+  if (rating === "EXCELLENT") return language === "ko" ? "EXCELLENT" : "EXCELLENT"
+  if (rating === "GOOD") return language === "ko" ? "GOOD" : "GOOD"
+  if (rating === "NULL") return "NULL"
+  return null
+}
+
+function getSeriesRatingBadgeClass(rating: "EXCELLENT" | "GOOD" | "NULL" | null | undefined): string {
+  if (rating === "EXCELLENT") return "bg-emerald-100 text-emerald-700 border-emerald-200"
+  if (rating === "GOOD") return "bg-amber-100 text-amber-700 border-amber-200"
+  if (rating === "NULL") return "bg-slate-100 text-slate-600 border-slate-200"
+  return "bg-gray-100 text-gray-500 border-gray-200"
+}
+
+function getCurrentMaterialLabel(form: ProductIntakeForm, language: "ko" | "en"): string | null {
+  if (form.material.status !== "known") return null
+  const label = getIntakeDisplayValue("material", form.material, language).trim()
+  return label.length > 0 ? label : null
+}
+
+function buildSeriesMaterialTitle(seriesName: string, materialLabel: string | null): string {
+  if (!materialLabel) return seriesName
+  return `${seriesName} · ${materialLabel}`
+}
+
+function extractSeriesCode(value: string | null | undefined): string | null {
+  const text = value?.trim()
+  if (!text) return null
+  const match = text.match(/\b([A-Z]{1,5}\d[A-Z0-9]{1,})\b/i)
+  return match?.[1]?.toUpperCase() ?? null
+}
+
+function resolveSeriesPrimaryLabel(group: Pick<RecommendationCandidateSeriesGroup, "seriesKey" | "seriesName" | "members">): string {
+  const codeFromKey = extractSeriesCode(group.seriesKey)
+  if (codeFromKey) return codeFromKey
+
+  const codeFromName = extractSeriesCode(group.seriesName)
+  if (codeFromName) return codeFromName
+
+  const codeFromMembers = group.members
+    .map(member => extractSeriesCode(member.displayCode) ?? extractSeriesCode(member.productCode))
+    .find((value): value is string => Boolean(value))
+  if (codeFromMembers) return codeFromMembers
+
+  const seriesKey = group.seriesKey?.trim()
+  if (seriesKey && seriesKey !== "__ungrouped__") return seriesKey
+  return group.seriesName
+}
+
+function getPrimaryBrandLabel(group: RecommendationCandidateSeriesGroup): string | null {
+  const brands = Array.from(
+    new Set(
+      group.members
+        .map(member => member.brand?.trim())
+        .filter((value): value is string => Boolean(value))
+    )
+  )
+  if (brands.length === 0) return null
+  if (brands.length === 1) return brands[0]
+  return brands.join(" / ")
 }
 
 function CaseCaptureModal({
@@ -133,6 +201,7 @@ function ExplorationSidebar({
   const latestPrep = [...messages].reverse().find(message => message.requestPreparation)?.requestPreparation ?? null
   const uiNarrowingPath = sessionState?.uiNarrowingPath ?? []
   const displayedGroups = sessionState?.displayedSeriesGroups ?? []
+  const currentMaterialLabel = getCurrentMaterialLabel(form, language)
 
   return (
     <div className="p-3 space-y-3">
@@ -234,7 +303,17 @@ function ExplorationSidebar({
           <div className="space-y-0.5">
             {displayedGroups.slice(0, 5).map(group => (
               <div key={group.seriesKey} className="flex items-center justify-between text-[10px] bg-white rounded-lg px-2.5 py-1 border border-gray-100">
-                <span className="text-gray-700 font-medium truncate">{group.seriesName}</span>
+                <div className="min-w-0 flex items-center gap-1.5">
+                  <span className="text-gray-700 font-medium truncate">{buildSeriesMaterialTitle(resolveSeriesPrimaryLabel({
+                    ...group,
+                    members: [],
+                  }), currentMaterialLabel)}</span>
+                  {group.materialRating && (
+                    <span className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${getSeriesRatingBadgeClass(group.materialRating)}`}>
+                      {getSeriesRatingLabel(group.materialRating, language)}
+                    </span>
+                  )}
+                </div>
                 <span className="text-gray-400 shrink-0 ml-1">{group.candidateCount}{language === "ko" ? "개" : ""}</span>
               </div>
             ))}
@@ -500,6 +579,7 @@ function CandidatePanel({
   pagination,
   isPageLoading,
   messages,
+  form,
   sessionState,
   onSend,
   onPageChange,
@@ -508,6 +588,7 @@ function CandidatePanel({
   pagination: RecommendationPaginationDto | null
   isPageLoading: boolean
   messages: ChatMsg[]
+  form: ProductIntakeForm
   sessionState?: RecommendationPublicSessionDto | null
   onSend?: (text: string) => void
   onPageChange?: (page: number) => void
@@ -519,6 +600,7 @@ function CandidatePanel({
   const pageSize = pagination?.pageSize ?? Math.max(candidates?.length ?? 0, 1)
   const totalPages = pagination?.totalPages ?? (totalCount > 0 ? 1 : 0)
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set())
+  const currentMaterialLabel = useMemo(() => getCurrentMaterialLabel(form, language), [form, language])
   const groups = useMemo(
     () => candidates ? groupRecommendationCandidatesBySeries(candidates, sessionState?.displayedSeriesGroups ?? null) : [],
     [candidates, sessionState?.displayedSeriesGroups]
@@ -559,6 +641,8 @@ function CandidatePanel({
       {useAccordion ? (
         <div className="space-y-2">
           {groups.map(group => {
+            const primaryBrandLabel = getPrimaryBrandLabel(group)
+            const groupTitle = buildSeriesMaterialTitle(resolveSeriesPrimaryLabel(group), currentMaterialLabel)
             return (
               <div key={group.seriesKey} className="border border-gray-200 rounded-lg overflow-hidden">
                 <button
@@ -576,14 +660,22 @@ function CandidatePanel({
                     />
                   )}
                   <div className="flex-1 min-w-0">
-                    {group.members[0]?.brand && (
-                      <div className="text-xs font-bold text-purple-800 truncate">{group.members[0].brand}</div>
+                    <div className="text-xs font-semibold text-gray-900 truncate">{groupTitle}</div>
+                    {primaryBrandLabel && (
+                      <div className="text-[10px] font-medium text-blue-700 truncate">{primaryBrandLabel}</div>
                     )}
                     {group.description && (
                       <div className="text-[10px] text-gray-600 truncate">{group.description.replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, "")}</div>
                     )}
-                    <div className="text-[10px] text-gray-500">
-                      {group.seriesName} · {group.candidateCount}{language === "ko" ? "개" : ""} · {language === "ko" ? "최고" : "Top"} {group.topScore}{language === "ko" ? "점" : "pt"}
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                      {group.materialRating && (
+                        <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${getSeriesRatingBadgeClass(group.materialRating)}`}>
+                          {getSeriesRatingLabel(group.materialRating, language)}
+                        </span>
+                      )}
+                      <div className="text-[10px] text-gray-500">
+                        {group.candidateCount}{language === "ko" ? "개" : ""} · {language === "ko" ? "최고" : "Top"} {group.topScore}{language === "ko" ? "점" : "pt"}
+                      </div>
                     </div>
                   </div>
                   {openGroups.has(group.seriesKey) ? <ChevronUp size={14} className="text-gray-400 shrink-0" /> : <ChevronDown size={14} className="text-gray-400 shrink-0" />}
@@ -804,6 +896,7 @@ export function ExplorationScreen({
               pagination={candidatePagination}
               isPageLoading={isCandidatePageLoading}
               messages={messages}
+              form={form}
               sessionState={sessionState}
               onSend={onSend}
               onPageChange={onPageChange}

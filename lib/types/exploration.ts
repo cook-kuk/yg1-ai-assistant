@@ -270,6 +270,8 @@ export interface SeriesGroup {
   description: string | null
   candidateCount: number
   topScore: number
+  materialRating?: "EXCELLENT" | "GOOD" | "NULL" | null
+  materialRatingScore?: number | null
   members: CandidateSnapshot[]
 }
 
@@ -277,6 +279,8 @@ export interface SeriesGroupSummary {
   seriesKey: string
   seriesName: string
   candidateCount: number
+  materialRating?: "EXCELLENT" | "GOOD" | "NULL" | null
+  materialRatingScore?: number | null
 }
 
 export interface RecommendationCheckpoint {

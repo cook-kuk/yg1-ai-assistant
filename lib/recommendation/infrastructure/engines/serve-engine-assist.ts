@@ -14,6 +14,10 @@ import { resolveYG1Query } from "@/lib/knowledge/knowledge-router"
 import { resolveMaterialTag } from "@/lib/recommendation/domain/recommendation-domain"
 import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import { YG1_COMPANY_SNIPPET } from "@/lib/knowledge/company-prompt-snippet"
+import {
+  buildCuttingToolSubtypeTaxonomyKnowledgeBlock,
+  isCuttingToolTaxonomyKnowledgeQuestion,
+} from "@/lib/shared/domain/cutting-tool-routing-knowledge"
 import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 
 import type {
@@ -28,7 +32,7 @@ import { formatConversationContextForLLM } from "@/lib/recommendation/domain/con
 
 const TOOL_DOMAIN_PATTERN = /slot|milling|side.?mill|shoulder|plunge|ball|taper|square|corner.?r|radius|flute|날수|날 수|날.*형|coating|코팅|dlc|tialn|alcrn|rpm|feed|이송|절삭|ap |ae |vc |fz |추천.*이유|왜.*추천|어떤.*형상|뭐가.*좋|뭐가.*맞|차이점|형상|가공|황삭|정삭|엔드밀|드릴|탭|인서트|시리즈|제품/i
 
-const DIRECT_PRODUCT_CODE_PATTERN = /\b([A-Z][A-Z0-9-]{4,})\b/i
+const DIRECT_PRODUCT_CODE_PATTERN = /\b([A-Z]{2,5}\d{3,}[A-Z0-9-]*)\b/i
 const DIRECT_SERIES_CODE_PATTERN = /\b([A-Z]\d[A-Z]\d{2,}[A-Z]?)\b/i
 const CUTTING_CONDITION_QUERY_PATTERN = /절삭조건|가공조건|vc|fz|이송|회전수|rpm|feed/i
 const INVENTORY_QUERY_PATTERN = /재고|stock|inventory|available|availability|수량|남았/i
@@ -699,6 +703,15 @@ export async function handleDirectProductInfoQuestion(
   }
 
   const queryTarget = classifyQueryTarget(userMessage, null, null)
+  const explicitLookupEntity =
+    queryTarget.entities.length > 0 ||
+    DIRECT_PRODUCT_CODE_PATTERN.test(userMessage) ||
+    DIRECT_SERIES_CODE_PATTERN.test(userMessage)
+
+  if (isCuttingToolTaxonomyKnowledgeQuestion(userMessage) && !explicitLookupEntity) {
+    return null
+  }
+
   if (
     queryTarget.type === "series_info" ||
     queryTarget.type === "brand_info" ||
@@ -1462,6 +1475,8 @@ export function shouldAttemptWebSearchFallback(userMessage: string): boolean {
     CUTTING_CONDITION_QUERY_PATTERN.test(clean)
   if (isDedicatedLookup) return false
 
+  if (isCuttingToolTaxonomyKnowledgeQuestion(clean)) return true
+
   const isKnowledgeQuestion = KNOWLEDGE_QUESTION_PATTERN.test(clean) || clean.includes("?")
   if (!isKnowledgeQuestion) return false
 
@@ -1562,6 +1577,8 @@ YG-1은 한국의 세계적인 절삭공구 제조사입니다.
 - 정삭: 낮은 이송, 면조도 우선, 2~4날
 - 슬롯: 100% 물림, 칩 배출 중요
 - 측면: 진동 주의
+
+${buildCuttingToolSubtypeTaxonomyKnowledgeBlock()}
 
 ${sessionContext}
 ${formContext}
