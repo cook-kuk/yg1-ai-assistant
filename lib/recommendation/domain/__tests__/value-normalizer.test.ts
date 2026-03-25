@@ -44,6 +44,33 @@ describe("value-normalizer: exact and fuzzy matching (no LLM)", () => {
     expect(result.normalized).toBe("TiAlN")
     expect(result.matchType).toBe("fuzzy")
   })
+
+  it("'알루미늄 합금' → '알루미늄 단조 합금' (all-words-contained match)", async () => {
+    const workPieceNames = [
+      "알루미늄(연질)",
+      "알루미늄 단조 합금",
+      "알루미늄 주조 합금",
+      "비철금속",
+      "구리",
+    ]
+    const result = await normalizeFilterValue("알루미늄 합금", "workPieceName", workPieceNames)
+    expect(result.matchType).toBe("fuzzy")
+    expect(result.normalized).toMatch(/알루미늄.*합금/)
+  })
+
+  it("'알루미늄' → '알루미늄(연질)' (substring match)", async () => {
+    const workPieceNames = ["알루미늄(연질)", "알루미늄 단조 합금", "비철금속"]
+    const result = await normalizeFilterValue("알루미늄", "workPieceName", workPieceNames)
+    expect(result.matchType).toBe("fuzzy")
+    expect(result.normalized).toContain("알루미늄")
+  })
+
+  it("space-normalized exact match", async () => {
+    const result = await normalizeFilterValue("Bright Finish", "coating", ["DLC", "BrightFinish", "TiAlN"])
+    expect(result.normalized).toBe("BrightFinish")
+    // "brightfinish" (space-removed) matches exact after normalization
+    expect(result.matchType).toBe("exact")
+  })
 })
 
 describe("value-normalizer: LLM translation", () => {

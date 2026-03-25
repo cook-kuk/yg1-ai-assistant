@@ -1570,7 +1570,19 @@ async function handleServeExplorationInner(
 
       // ── Value Normalizer: match user input to actual DB values ──
       // Tier 1-2: exact/fuzzy (instant), Tier 3: Haiku LLM translation (~200ms)
-      const candidateFieldVals = extractDistinctFieldValues(candidates as any[], filter.field)
+      let candidateFieldVals = extractDistinctFieldValues(candidates as any[], filter.field)
+
+      // workPieceName은 제품 필드가 아니므로 brand_reference에서 후보값을 가져옴
+      if (candidateFieldVals.length === 0 && filter.field === "workPieceName") {
+        const isoGroup = resolveSingleIsoGroup(currentInput.material)
+        if (isoGroup) {
+          candidateFieldVals = await getSessionCache().getOrFetch(
+            `workPieceNames:${isoGroup}`,
+            () => BrandReferenceRepo.listDistinctWorkPieceNames({ isoGroup, limit: 30 })
+          )
+          console.log(`[value-normalizer:workPiece] Loaded ${candidateFieldVals.length} workPiece names from brand_reference for ISO ${isoGroup}`)
+        }
+      }
       if (candidateFieldVals.length > 0 && typeof filter.rawValue === "string") {
         const { normalized, matchType } = await normalizeFilterValue(
           String(filter.rawValue),

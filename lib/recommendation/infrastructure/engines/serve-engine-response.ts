@@ -130,7 +130,8 @@ async function buildWorkPieceQuestion(
     : allWorkPieceNames
 
   // ── 현재 candidates에 실제로 있는 workPiece만 남기기 ──
-  // candidates의 시리즈 → brand_reference에서 해당 시리즈의 workPiece 역조회
+  // 1차: candidates의 시리즈 → brand_reference에서 해당 시리즈의 workPiece 역조회
+  // 2차: candidates의 materialTags에서 ISO 그룹 일치하는 것만 (관련 없는 소재 제거)
   if (candidates && candidates.length > 0) {
     const candidateSeriesSet = new Set(
       candidates.map(c => (c.product.seriesName ?? "").trim().toUpperCase()).filter(Boolean)
@@ -149,6 +150,21 @@ async function buildWorkPieceQuestion(
       const removed = relevantNames.length - validNames.length
       if (removed > 0) console.log(`[workpiece-filter] Removed ${removed} workPieces with 0 matching series in current candidates`)
       relevantNames = validNames
+    }
+
+    // 2차 필터: workPiece 이름에 기존 소재 키워드가 포함된 것 우선
+    // 예: "알루미늄" 검색 후 0-candidate guard 시 "ABS", "구리" 등 무관한 소재 제거
+    if (input.material && relevantNames.length > 5) {
+      const materialLower = input.material.toLowerCase()
+      const materialRelevant = relevantNames.filter(name => {
+        const nameLower = name.toLowerCase()
+        // 기존 소재 키워드가 workPiece 이름에 포함되면 우선
+        return nameLower.includes(materialLower) || materialLower.includes(nameLower.split(/[\s(]/)[0])
+      })
+      if (materialRelevant.length >= 2) {
+        console.log(`[workpiece-filter] Material-relevant filter: ${relevantNames.length} → ${materialRelevant.length} (material=${input.material})`)
+        relevantNames = materialRelevant
+      }
     }
   }
 

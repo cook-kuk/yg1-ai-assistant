@@ -39,13 +39,25 @@ export async function normalizeFilterValue(
     return { normalized: exactMatch, matchType: "exact" }
   }
 
-  // 2. Substring match
-  const substringMatch = candidateValues.find(v =>
-    v.toLowerCase().includes(cleanLower) ||
-    cleanLower.includes(v.toLowerCase())
-  )
+  // 2a. Substring match (space-normalized)
+  const substringMatch = candidateValues.find(v => {
+    const vNorm = v.toLowerCase().replace(/\s+/g, "")
+    return vNorm.includes(cleanLower) || cleanLower.includes(vNorm)
+  })
   if (substringMatch) {
     return { normalized: substringMatch, matchType: "fuzzy" }
+  }
+
+  // 2b. "All words contained" match — e.g. "알루미늄 합금" matches "알루미늄 단조 합금"
+  const words = clean.split(/\s+/).filter(w => w.length >= 2)
+  if (words.length >= 2) {
+    const allWordsMatch = candidateValues.find(v => {
+      const vLower = v.toLowerCase()
+      return words.every(w => vLower.includes(w.toLowerCase()))
+    })
+    if (allWordsMatch) {
+      return { normalized: allWordsMatch, matchType: "fuzzy" }
+    }
   }
 
   // 3. Partial overlap (3+ chars in common)
