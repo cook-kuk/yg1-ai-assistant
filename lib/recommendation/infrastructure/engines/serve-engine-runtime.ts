@@ -1315,7 +1315,8 @@ async function handleServeExplorationInner(
       const comparisonOptionState = buildComparisonOptionState()
 
       const sessionState = carryForwardState(prevState, {
-        candidateCount: candidates.length,
+        // Preserve candidateCount from prevState when retrieval was skipped (candidates=[])
+        candidateCount: candidates.length > 0 ? candidates.length : (prevState.candidateCount ?? 0),
         appliedFilters: filters,
         narrowingHistory,
         resolutionStatus: prevState.resolutionStatus ?? "broad",
