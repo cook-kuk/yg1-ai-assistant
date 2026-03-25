@@ -9,7 +9,7 @@
  * 5. Post-recommendation stock-aware options
  */
 
-import { describe, it, expect } from "vitest"
+import { beforeEach, describe, it, expect } from "vitest"
 import { planOptions, resetOptionCounter } from "../option-planner"
 import type { OptionPlannerContext } from "../types"
 

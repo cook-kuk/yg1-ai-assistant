@@ -12,7 +12,11 @@ export function CompareDrawer() {
 
   if (compareProducts.length === 0) return null
 
-  const specs = [
+  const specs: Array<{
+    key: string
+    label: string
+    format?: (value: number) => string
+  }> = [
     { key: "toolType", label: "공구 종류" },
     { key: "diameter", label: "직경 (mm)" },
     { key: "flute", label: "날수" },

@@ -74,7 +74,7 @@ export function constraintsToFilters(state: RecommendationSessionState): {
       field: "coolantHole",
       op: "eq",
       value: String(refinements.coolantHole),
-      rawValue: refinements.coolantHole,
+      rawValue: String(refinements.coolantHole),
       appliedAt: 0,
     })
   }
@@ -97,7 +97,7 @@ export function scoredProductToCandidateRef(
     keySpecs: {
       flute: product.product.fluteCount ?? null,
       coating: product.product.coating ?? null,
-      hasInventory: product.stockStatus === "in_stock",
+      hasInventory: product.stockStatus === "instock",
     },
   }
 }
