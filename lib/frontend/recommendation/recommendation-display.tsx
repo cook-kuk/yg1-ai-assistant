@@ -513,12 +513,12 @@ export function CandidateCard({ c }: { c: RecommendationCandidateDto }) {
             className="w-full flex items-center gap-1.5 text-[10px] text-slate-500 hover:text-blue-600 transition-colors"
           >
             <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden flex">
-              <div className="bg-green-500 h-full" style={{ width: `${(breakdown.diameter.score / breakdown.maxTotal) * 100}%` }} />
-              <div className="bg-blue-500 h-full" style={{ width: `${(breakdown.flutes.score / breakdown.maxTotal) * 100}%` }} />
-              <div className="bg-amber-500 h-full" style={{ width: `${(breakdown.materialTag.score / breakdown.maxTotal) * 100}%` }} />
-              <div className="bg-purple-500 h-full" style={{ width: `${(breakdown.operation.score / breakdown.maxTotal) * 100}%` }} />
-              <div className="bg-cyan-500 h-full" style={{ width: `${(breakdown.coating.score / breakdown.maxTotal) * 100}%` }} />
-              <div className="bg-gray-400 h-full" style={{ width: `${((breakdown.completeness.score + breakdown.evidence.score) / breakdown.maxTotal) * 100}%` }} />
+              <div className="bg-green-500 h-full" style={{ width: `${((breakdown?.diameter?.score ?? 0) / (breakdown?.maxTotal || 1)) * 100}%` }} />
+              <div className="bg-blue-500 h-full" style={{ width: `${((breakdown?.flutes?.score ?? 0) / (breakdown?.maxTotal || 1)) * 100}%` }} />
+              <div className="bg-amber-500 h-full" style={{ width: `${((breakdown?.materialTag?.score ?? 0) / (breakdown?.maxTotal || 1)) * 100}%` }} />
+              <div className="bg-purple-500 h-full" style={{ width: `${((breakdown?.operation?.score ?? 0) / (breakdown?.maxTotal || 1)) * 100}%` }} />
+              <div className="bg-cyan-500 h-full" style={{ width: `${((breakdown?.coating?.score ?? 0) / (breakdown?.maxTotal || 1)) * 100}%` }} />
+              <div className="bg-gray-400 h-full" style={{ width: `${(((breakdown?.completeness?.score ?? 0) + (breakdown?.evidence?.score ?? 0)) / (breakdown?.maxTotal || 1)) * 100}%` }} />
             </div>
             <span className="font-mono shrink-0">{breakdown.matchPct}%</span>
             <Info size={9} />
@@ -868,7 +868,7 @@ export function RecommendationPanel({
           <ProductCard
             scored={primaryProduct}
             rank={1}
-            evidenceSummary={evidenceSummaries?.find(summary => summary.productCode === primaryProduct.product.normalizedCode) ?? null}
+            evidenceSummary={evidenceSummaries?.find(summary => summary.productCode === primaryProduct?.product?.normalizedCode) ?? null}
           />
         </div>
       )}
@@ -881,11 +881,11 @@ export function RecommendationPanel({
           <div className="space-y-2">
             {alternatives.map((alternative, index) => (
               <ProductCard
-                key={alternative.product.id}
+                key={alternative?.product?.id}
                 scored={alternative}
                 rank={index + 2}
                 isAlternative
-                evidenceSummary={evidenceSummaries?.find(summary => summary.productCode === alternative.product.normalizedCode) ?? null}
+                evidenceSummary={evidenceSummaries?.find(summary => summary.productCode === alternative?.product?.normalizedCode) ?? null}
               />
             ))}
           </div>

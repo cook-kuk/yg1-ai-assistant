@@ -64,8 +64,8 @@ function scoreCoating(product: CanonicalProduct, pref: string | undefined): numb
 
 function determineMatchStatus(score: number, maxScore: number, input: RecommendationInput): MatchStatus {
   const ratio = score / maxScore
-  if (ratio >= 0.85) return "exact"
-  if (ratio >= 0.5) return "approximate"
+  if (ratio >= 0.75) return "exact"
+  if (ratio >= 0.45) return "approximate"
   return "none"
 }
 

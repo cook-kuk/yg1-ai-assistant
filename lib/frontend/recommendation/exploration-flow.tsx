@@ -577,7 +577,7 @@ function CandidatePanel({
                   )}
                   <div className="flex-1 min-w-0">
                     {group.members[0]?.brand && (
-                      <div className="text-xs font-bold text-purple-800 truncate">{group.members[0].brand}</div>
+                      <div className="text-xs font-bold text-purple-800 truncate">{group.members[0]?.brand}</div>
                     )}
                     {group.description && (
                       <div className="text-[10px] text-gray-600 truncate">{group.description.replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, "")}</div>
@@ -672,12 +672,12 @@ function CandidatePanel({
           ) : (
             <div className="bg-blue-50 rounded-lg border border-blue-100 overflow-hidden">
               <div className="px-3 py-2">
-                <div className="font-mono text-xs font-bold text-gray-900">{lastRecommendation.primaryProduct.product.displayCode}</div>
+                <div className="font-mono text-xs font-bold text-gray-900">{lastRecommendation.primaryProduct?.product?.displayCode}</div>
                 <div className="text-[10px] text-gray-600">
-                  {lastRecommendation.primaryProduct.product.brand && (
-                    <span className="font-semibold text-purple-700">{lastRecommendation.primaryProduct.product.brand}</span>
+                  {lastRecommendation.primaryProduct?.product?.brand && (
+                    <span className="font-semibold text-purple-700">{lastRecommendation.primaryProduct?.product?.brand}</span>
                   )}
-                  {lastRecommendation.primaryProduct.product.brand && " | "}
+                  {lastRecommendation.primaryProduct?.product?.brand && " | "}
                   {lastRecommendation.status === "exact"
                     ? (language === "ko" ? "정확 매칭" : "Exact Match")
                     : (language === "ko" ? "근사 후보" : "Approximate")}
