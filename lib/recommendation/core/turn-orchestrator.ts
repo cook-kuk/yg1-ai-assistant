@@ -133,7 +133,16 @@ TopProducts: ${productSummary}
 [ConversationHistory]
 ${recentTurnsStr}
 
-Generate a complete turn plan as JSON. The "answerDraft" MUST be the final user-facing answer in natural Korean — complete sentences, not placeholders. If asking a question, include the question in answerDraft. Generate "suggestedChips" with 2-5 contextual options the user can click next.
+Generate a complete turn plan as JSON. The "answerDraft" MUST be the final user-facing answer in natural Korean — complete sentences, not placeholders. If asking a question, include the question in answerDraft.
+
+★ suggestedChips 생성 규칙 (매우 중요):
+- 반드시 현재 대화 맥락과 직전 질문/답변에 기반한 칩 3-6개 생성
+- 같은 칩을 매번 반복하지 마라 ("왜 이 제품을 추천했나요?" 같은 고정 칩 금지)
+- 추천 결과가 있으면: 해당 제품/시리즈의 구체적 정보를 물을 수 있는 칩 (예: "GED7210030 재고", "E5E83 시리즈 특징")
+- 후보에 다양한 코팅/날수가 있으면: 분포 기반 필터 칩 (예: "3날로 좁히기", "DLC 코팅만")
+- 비교 요청 후: 선택 칩 (예: "1번으로 할게", "다른 직경 검색")
+- 설명 후: 심화/전환 칩 (예: "더 자세히", "이걸로 결정")
+- 항상 하나 이상의 탐색 칩 포함 (예: "조건 변경", "다른 소재로")
 
 {"phaseInterpretation":{"currentPhase":"intake|narrowing|results_displayed|post_result_exploration|comparison|revision","confidence":0.0-1.0},"actionInterpretation":{"type":"continue_narrowing|replace_slot|show_recommendation|go_back|compare_products|answer_general|redirect_off_topic|reset_session|skip_field|ask_clarification|refine_current_results","rationale":"...","confidence":0.0-1.0},"answerIntent":{"topic":"...","needsGroundedFact":false,"shouldUseCurrentResultContext":false,"shouldResumePendingQuestion":false},"uiPlan":{"optionMode":"question_options|result_followups|none|comparison_options|no_options"},"nextQuestion":{"field":"...","suggestedOptions":[{"label":"...","value":"..."}],"allowSkip":true},"suggestedChips":[{"label":"...","type":"option|action|filter|navigation"}],"answerDraft":"..."}`
 }
@@ -444,12 +453,43 @@ export function buildSurface(
         value: opt.value,
         count: opt.count,
       }))
+    } else if (decision.suggestedChips && decision.suggestedChips.length >= 2) {
+      // ── LLM이 문맥 기반 칩을 생성했으면 그걸 우선 사용 ──
+      displayedOptions = decision.suggestedChips.slice(0, 8).map((chip, i) => ({
+        index: i + 1,
+        label: chip.label,
+        field: chip.type === "filter" ? "_filter"
+             : chip.type === "navigation" ? "_control"
+             : "_action",
+        value: chip.label,
+        count: 0,
+      }))
     } else {
-      displayedOptions = [
-        { index: 1, label: "왜 이 제품을 추천했나요?", field: "_action", value: "explain", count: 0 },
-        { index: 2, label: "절삭조건 알려줘", field: "_action", value: "cutting_conditions", count: 0 },
-        { index: 3, label: "대체 후보 비교하기", field: "_action", value: "compare", count: 0 },
-      ]
+      // ── Fallback: LLM 칩 없을 때만 기본 칩 사용 ──
+      const fallbackChips: DisplayedOption[] = []
+      const top = _state.resultContext?.candidates ?? []
+
+      // 동적: 후보 데이터 기반 칩 생성
+      const coatings = new Set(top.map(c => c.keySpecs?.coating).filter(Boolean))
+      const flutes = new Set(top.map(c => c.keySpecs?.flute).filter(Boolean))
+
+      if (flutes.size >= 2) {
+        const fluteLabels = [...flutes].sort().map(f => `${f}날`).join("/")
+        fallbackChips.push({ index: fallbackChips.length + 1, label: `날수별 비교 (${fluteLabels})`, field: "_action", value: "compare_flutes", count: 0 })
+      }
+      if (coatings.size >= 2) {
+        fallbackChips.push({ index: fallbackChips.length + 1, label: `코팅별 비교 (${[...coatings].slice(0, 3).join("/")})`, field: "_action", value: "compare_coatings", count: 0 })
+      }
+      if (top.length > 0) {
+        fallbackChips.push({ index: fallbackChips.length + 1, label: "추천 근거 알려줘", field: "_action", value: "explain", count: 0 })
+      }
+      fallbackChips.push({ index: fallbackChips.length + 1, label: "절삭조건 보기", field: "_action", value: "cutting_conditions", count: 0 })
+      if (top.length >= 2) {
+        fallbackChips.push({ index: fallbackChips.length + 1, label: `상위 ${Math.min(top.length, 3)}개 비교`, field: "_action", value: "compare", count: 0 })
+      }
+      fallbackChips.push({ index: fallbackChips.length + 1, label: "조건 변경", field: "_action", value: "refine", count: 0 })
+
+      displayedOptions = fallbackChips.slice(0, 6)
     }
   }
   // "none" and other modes: displayedOptions stays empty

@@ -90,7 +90,7 @@ describe("buildSurface", () => {
   })
 
   describe("result_followups mode", () => {
-    it("creates action options for post-result exploration", () => {
+    it("creates dynamic fallback options for post-result exploration (no hardcoded chips)", () => {
       const decision = makeDecision({
         uiPlan: { optionMode: "result_followups" },
         answerDraft: "추천 결과입니다.",
@@ -98,28 +98,32 @@ describe("buildSurface", () => {
 
       const surface = buildSurface(decision, state)
 
-      expect(surface.displayedOptions).toHaveLength(3)
-      expect(surface.displayedOptions[0]).toEqual({
-        index: 1,
-        label: "왜 이 제품을 추천했나요?",
-        field: "_action",
-        value: "explain",
-        count: 0,
+      // Dynamic fallback: at least 2 options (절삭조건 + 조건 변경 always present)
+      expect(surface.displayedOptions.length).toBeGreaterThanOrEqual(2)
+      // Should contain cutting conditions and refine options
+      expect(surface.displayedOptions.some(o => o.value === "cutting_conditions")).toBe(true)
+      expect(surface.displayedOptions.some(o => o.value === "refine")).toBe(true)
+      // Should NOT be the old hardcoded set
+      expect(surface.chips).not.toEqual(["왜 이 제품을 추천했나요?", "절삭조건 알려줘", "대체 후보 비교하기"])
+    })
+
+    it("uses LLM suggestedChips when available (priority over fallback)", () => {
+      const decision = makeDecision({
+        uiPlan: { optionMode: "result_followups" },
+        answerDraft: "추천 결과입니다.",
+        suggestedChips: [
+          { label: "GED7210030 재고 확인", type: "action" },
+          { label: "3날로 좁히기", type: "filter" },
+          { label: "코팅별 비교", type: "action" },
+          { label: "조건 변경", type: "navigation" },
+        ],
       })
-      expect(surface.displayedOptions[1]).toEqual({
-        index: 2,
-        label: "절삭조건 알려줘",
-        field: "_action",
-        value: "cutting_conditions",
-        count: 0,
-      })
-      expect(surface.displayedOptions[2]).toEqual({
-        index: 3,
-        label: "대체 후보 비교하기",
-        field: "_action",
-        value: "compare",
-        count: 0,
-      })
+
+      const surface = buildSurface(decision, state)
+
+      expect(surface.displayedOptions).toHaveLength(4)
+      expect(surface.chips[0]).toBe("GED7210030 재고 확인")
+      expect(surface.chips[1]).toBe("3날로 좁히기")
     })
   })
 
