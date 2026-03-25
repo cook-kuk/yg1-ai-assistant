@@ -185,6 +185,19 @@ function buildProductInfoChips(displayCode: string, includeFullSpec = false): st
   return chips
 }
 
+function findDisplayedCandidateByCode(
+  prevState: ExplorationSessionState | null,
+  lookupCode: string
+): CandidateSnapshot | null {
+  if (!prevState?.displayedCandidates?.length) return null
+
+  const normalized = normalizeLookupCode(lookupCode)
+  return prevState.displayedCandidates.find(candidate =>
+    normalizeLookupCode(candidate.productCode) === normalized ||
+    normalizeLookupCode(candidate.displayCode) === normalized
+  ) ?? null
+}
+
 function detectRequestedProductField(userMessage: string): { label: string; value: string } | null {
   if (/공구\s*소재|재질|카바이드|초경|hss|고속도강/i.test(userMessage)) {
     return { label: "공구 소재", value: "toolMaterial" }
@@ -1068,8 +1081,14 @@ export async function handleDirectInventoryQuestion(
   const lookupCode = normalizeLookupCode(productCodeMatch?.[1] ?? "")
   if (!lookupCode) return null
 
+  const displayedCandidate = findDisplayedCandidateByCode(prevState, lookupCode)
   const [product, inv] = await Promise.all([
-    ProductRepo.findByCode(lookupCode).catch(() => null),
+    displayedCandidate
+      ? Promise.resolve({
+        seriesName: displayedCandidate.seriesName,
+        diameterMm: displayedCandidate.diameterMm,
+      })
+      : ProductRepo.findByCode(lookupCode).catch(() => null),
     InventoryRepo.getEnrichedAsync(lookupCode),
   ])
   const inventoryRows = inv.snapshots
@@ -1165,7 +1184,13 @@ export async function handleDirectCuttingConditionQuestion(
   const lookupCode = normalizeLookupCode(productCodeMatch?.[1] ?? seriesCodeMatch?.[1] ?? "")
   if (!lookupCode) return null
 
-  const product = await ProductRepo.findByCode(lookupCode)
+  const displayedCandidate = findDisplayedCandidateByCode(prevState, lookupCode)
+  const product = displayedCandidate
+    ? {
+      seriesName: displayedCandidate.seriesName,
+      diameterMm: displayedCandidate.diameterMm,
+    }
+    : await ProductRepo.findByCode(lookupCode)
   const isoGroup = currentInput.material ? resolveMaterialTag(currentInput.material) : null
 
   if (product) {

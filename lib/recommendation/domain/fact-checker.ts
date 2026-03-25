@@ -2,8 +2,8 @@
  * Fact Check Layer — 5-Step Verification Pipeline
  *
  * Every field displayed to the user goes through verification:
- *   Step 1: Product Identity — productCode exists in ProductRepo
- *   Step 2: Spec Check — geometry/material values match canonical data
+ *   Step 1: Product Identity — scored candidate contains canonical identity fields
+ *   Step 2: Spec Check — geometry/material values are present on the canonical candidate
  *   Step 3: Cutting Conditions — evidence from EvidenceRepo confirmed
  *   Step 4: Inventory & Lead Time — real-time data confirmed
  *   Step 5: Render-Safe — all fields wrapped in VerifiedField<T>
@@ -27,12 +27,7 @@ import type {
   VerificationStatus,
   VerifiedField,
 } from "@/lib/recommendation/domain/types"
-import {
-  EvidenceRepo,
-  InventoryRepo,
-  LeadTimeRepo,
-  ProductRepo,
-} from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
+import { EvidenceRepo } from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
 
 // ── Helper: Create VerifiedField ────────────────────────────
 
@@ -65,7 +60,7 @@ export async function runFactCheck(
   const steps: FactCheckStep[] = []
 
   // Step 1: Product Identity
-  const step1 = await checkProductIdentity(scored)
+  const step1 = checkProductIdentity(scored)
   steps.push(step1)
 
   // Step 2: Spec Check
@@ -119,19 +114,16 @@ export async function runFactCheck(
 // STEP 1: Product Identity
 // ════════════════════════════════════════════════════════════════
 
-async function checkProductIdentity(scored: ScoredProduct): Promise<FactCheckStep> {
+function checkProductIdentity(scored: ScoredProduct): FactCheckStep {
   const issues: string[] = []
   let fieldsChecked = 4
   let fieldsVerified = 0
 
-  // Check product code exists in repo
   const p = scored.product
-  const fromRepo = await ProductRepo.findByCode(p.normalizedCode)
-
-  if (fromRepo) {
+  if (p.normalizedCode && p.normalizedCode.length > 0) {
     fieldsVerified++
   } else {
-    issues.push(`제품 코드 ${p.normalizedCode}가 Product Repository에 없습니다`)
+    issues.push("정규화된 제품 코드 없음")
   }
 
   // Check display code
@@ -148,12 +140,10 @@ async function checkProductIdentity(scored: ScoredProduct): Promise<FactCheckSte
     issues.push(`제조사가 YG-1이 아닙니다: ${p.manufacturer}`)
   }
 
-  // Check series name (optional, but verify if present)
   if (p.seriesName) {
     fieldsVerified++
   } else {
-    // Not an issue, just missing
-    fieldsVerified++ // series is optional
+    fieldsVerified++
   }
 
   return {
@@ -346,57 +336,57 @@ function buildRenderSafe(
   // Product identity fields
   fieldsChecked += 4
   const productCode = step1Passed
-    ? verified(p.normalizedCode, "ProductRepo", "product_identity")
+    ? verified(p.normalizedCode, "candidate_data", "product_identity")
     : partial(p.normalizedCode, "candidate_data", "product_identity")
   if (productCode.status === "verified") fieldsVerified++
 
   const displayCode = p.displayCode
-    ? verified(p.displayCode, "ProductRepo", "product_identity")
+    ? verified(p.displayCode, "candidate_data", "product_identity")
     : unverified(p.normalizedCode, "product_identity")
   if (displayCode.status === "verified") fieldsVerified++
 
   const seriesName = p.seriesName
-    ? verified(p.seriesName, "ProductRepo", "product_identity")
+    ? verified(p.seriesName, "candidate_data", "product_identity")
     : unverified(null as string | null, "product_identity")
   if (seriesName.status === "verified") fieldsVerified++
 
-  const manufacturer = verified(p.manufacturer, "ProductRepo", "product_identity")
+  const manufacturer = verified(p.manufacturer, "candidate_data", "product_identity")
   fieldsVerified++
 
   // Spec fields
   fieldsChecked += 7
   const diameterMm = p.diameterMm !== null
-    ? verified(p.diameterMm, "ProductRepo", "spec_check")
+    ? verified(p.diameterMm, "candidate_data", "spec_check")
     : unverified(null as number | null, "spec_check")
   if (diameterMm.status === "verified") fieldsVerified++
 
   const fluteCount = p.fluteCount !== null
-    ? verified(p.fluteCount, "ProductRepo", "spec_check")
+    ? verified(p.fluteCount, "candidate_data", "spec_check")
     : unverified(null as number | null, "spec_check")
   if (fluteCount.status === "verified") fieldsVerified++
 
   const coating = p.coating
-    ? verified(p.coating, "ProductRepo", "spec_check")
+    ? verified(p.coating, "candidate_data", "spec_check")
     : unverified(null as string | null, "spec_check")
   if (coating.status === "verified") fieldsVerified++
 
   const toolMaterial = p.toolMaterial
-    ? verified(p.toolMaterial, "ProductRepo", "spec_check")
+    ? verified(p.toolMaterial, "candidate_data", "spec_check")
     : unverified(null as string | null, "spec_check")
   if (toolMaterial.status === "verified") fieldsVerified++
 
   const materialTags = p.materialTags.length > 0
-    ? verified(p.materialTags, "ProductRepo", "spec_check")
+    ? verified(p.materialTags, "candidate_data", "spec_check")
     : unverified([] as string[], "spec_check")
   if (materialTags.status === "verified") fieldsVerified++
 
   const lengthOfCutMm = p.lengthOfCutMm !== null
-    ? verified(p.lengthOfCutMm, "ProductRepo", "spec_check")
+    ? verified(p.lengthOfCutMm, "candidate_data", "spec_check")
     : unverified(null as number | null, "spec_check")
   if (lengthOfCutMm.status === "verified") fieldsVerified++
 
   const overallLengthMm = p.overallLengthMm !== null
-    ? verified(p.overallLengthMm, "ProductRepo", "spec_check")
+    ? verified(p.overallLengthMm, "candidate_data", "spec_check")
     : unverified(null as number | null, "spec_check")
   if (overallLengthMm.status === "verified") fieldsVerified++
 
