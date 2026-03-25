@@ -74,10 +74,12 @@ export function selectNextQuestion(
   // 직경 → 날형상 → 날수 → 피삭재 순이 도메인 권장이지만,
   // 매번 같은 순서 대신 가중 랜덤으로 다양성을 부여.
   // 우선순위가 높을수록 선택 확률이 높지만 절대적이지 않음.
+  // 밀링 vs 비밀링에 따라 우선순위 조정
+  const isMilling = !input.toolType || /mill|엔드밀|밀링/i.test(input.toolType ?? "")
   const FIELD_PRIORITY_BOOST: Record<string, number> = {
-    toolSubtype: 4.0,      // 날형상 (Square/Radius/Ball): 최우선
+    toolSubtype: isMilling ? 4.0 : 1.5,  // 밀링: 날형상 최우선 / 드릴·탭: 낮춤
     diameterRefine: 3.0,   // 직경 정제
-    fluteCount: 2.0,       // 날수
+    fluteCount: isMilling ? 2.0 : 1.0,   // 드릴은 날수 덜 중요
     workPieceName: 1.5,    // 피삭재
     coating: 1.0,          // 코팅 (기본)
     seriesName: 0.8,       // 시리즈
@@ -227,9 +229,14 @@ function analyzeFields(
         .map(([value, count]) => `${value} (${count}개)`)
       if (chips.length > 1) {
         chips.push("상관없음")
+        // 공구 타입에 따라 질문 텍스트 변경
+        const isMilling = !input.toolType || /mill|엔드밀|밀링/i.test(input.toolType ?? "")
+        const questionText = isMilling
+          ? `날 형상을 선택해주세요. ${chips.slice(0, 3).join(", ")} 등이 있습니다.`
+          : `공구 세부 타입을 선택해주세요. ${chips.slice(0, 3).join(", ")} 등이 있습니다.`
         results.push({
           field: "toolSubtype",
-          questionText: `날 형상을 선택해주세요. ${chips.slice(0, 3).join(", ")} 등이 있습니다.`,
+          questionText,
           chips,
           infoGain: gain,
         })
