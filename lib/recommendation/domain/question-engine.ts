@@ -70,27 +70,40 @@ export function selectNextQuestion(
 
   const fields = analyzeFields(input, candidates, history)
 
-  // ── 도메인 우선순위 가중치 ──
-  // 직경 → 날형상 → 날수 → 피삭재 → 코팅 → 시리즈 순서가 도메인 전문가 권장 순서.
-  // 엔트로피(정보 이득)에 도메인 우선순위 가중치를 곱해서 최종 정렬.
+  // ── 도메인 우선순위 기반 가중 랜덤 선택 ──
+  // 직경 → 날형상 → 날수 → 피삭재 순이 도메인 권장이지만,
+  // 매번 같은 순서 대신 가중 랜덤으로 다양성을 부여.
+  // 우선순위가 높을수록 선택 확률이 높지만 절대적이지 않음.
   const FIELD_PRIORITY_BOOST: Record<string, number> = {
-    toolSubtype: 4.0,      // 날형상 (Square/Radius/Ball): 1순위 — 도메인 최우선
-    diameterRefine: 3.0,   // 직경 정제: 2순위
-    fluteCount: 2.0,       // 날수: 3순위
-    workPieceName: 1.5,    // 피삭재: 4순위
-    coating: 1.0,          // 코팅: 5순위 (기본)
-    seriesName: 0.8,       // 시리즈: 6순위
-    cuttingType: 0.6,      // 가공방식: 7순위
+    toolSubtype: 4.0,      // 날형상 (Square/Radius/Ball): 최우선
+    diameterRefine: 3.0,   // 직경 정제
+    fluteCount: 2.0,       // 날수
+    workPieceName: 1.5,    // 피삭재
+    coating: 1.0,          // 코팅 (기본)
+    seriesName: 0.8,       // 시리즈
+    cuttingType: 0.6,      // 가공방식
   }
 
   for (const f of fields) {
     const boost = FIELD_PRIORITY_BOOST[f.field] ?? 1.0
     f.infoGain = f.infoGain * boost
   }
-  fields.sort((a, b) => b.infoGain - a.infoGain)
 
-  const best = fields[0]
-  if (!best || best.infoGain < 0.1) return null
+  // 최소 infoGain 필터
+  const viable = fields.filter(f => f.infoGain >= 0.1)
+  if (viable.length === 0) return null
+
+  // 가중 랜덤 선택: infoGain을 가중치로 사용
+  const totalWeight = viable.reduce((sum, f) => sum + f.infoGain, 0)
+  let random = Math.random() * totalWeight
+  let best = viable[0]
+  for (const f of viable) {
+    random -= f.infoGain
+    if (random <= 0) {
+      best = f
+      break
+    }
+  }
 
   const chips = [...best.chips]
   if (history.length > 0) chips.push("⟵ 이전 단계")
