@@ -364,7 +364,7 @@ function ProductCard({
               {product.seriesName && <span className="text-xs text-blue-700 font-medium">{product.seriesName}</span>}
             </div>
             <div className="text-[11px] text-gray-600 mt-1 leading-relaxed font-medium">
-              {buildSubtypeFirstSummary(product, language).join(" ? ")}
+              {buildSubtypeFirstSummary(product, language).join(" · ")}
             </div>
             {product.materialTags.length > 0 && (
               <div className="text-[10px] text-gray-400 mt-0.5">{product.materialTags.join("/")}군</div>
@@ -479,7 +479,7 @@ export function CandidateCard({ c }: { c: RecommendationCandidateDto }) {
           </div>
           <div className="font-mono text-sm font-bold text-gray-900">{c.displayCode}</div>
           <div className="text-[11px] text-gray-600 mt-1 leading-relaxed font-medium">
-            {buildSubtypeFirstSummary(c, language).join(" ? ")}
+            {buildSubtypeFirstSummary(c, language).join(" · ")}
           </div>
           {c.materialTags.length > 0 && (
              <div className="text-[10px] text-gray-400 mt-0.5">{c.materialTags.join("/")}군</div>
