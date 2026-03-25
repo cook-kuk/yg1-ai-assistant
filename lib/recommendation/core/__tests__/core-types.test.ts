@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { createInitialSessionState, orchestrateTurnV2 } from "../turn-orchestrator"
+import { createInitialSessionState, orchestrateTurnV2, applyStateTransition } from "../turn-orchestrator"
 import {
   setBaseConstraint,
   replaceBaseConstraint,
@@ -7,7 +7,7 @@ import {
   removeRefinement,
   createRevisionNode,
 } from "../constraint-helpers"
-import type { RecommendationSessionState, ResolvedAction } from "../types"
+import type { RecommendationSessionState, ResolvedAction, LlmTurnDecision } from "../types"
 import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 
 // Stub LLM provider for testing
@@ -205,5 +205,247 @@ describe("surface contract", () => {
     // In the stub, both should be empty
     expect(result.chips).toHaveLength(0)
     expect(result.displayedOptions).toHaveLength(0)
+  })
+})
+
+// ── applyStateTransition tests ──────────────────────────────
+
+/** Helper to build a minimal LlmTurnDecision with overrides. */
+function makeDecision(
+  actionType: LlmTurnDecision["actionInterpretation"]["type"],
+  phase: LlmTurnDecision["phaseInterpretation"]["currentPhase"] = "narrowing"
+): LlmTurnDecision {
+  return {
+    phaseInterpretation: { currentPhase: phase, confidence: 0.9 },
+    actionInterpretation: { type: actionType, rationale: "test", confidence: 0.9 },
+    answerIntent: {
+      topic: "test",
+      needsGroundedFact: false,
+      shouldUseCurrentResultContext: false,
+      shouldResumePendingQuestion: false,
+    },
+    uiPlan: { optionMode: "question_options" },
+    answerDraft: "test answer",
+  }
+}
+
+describe("applyStateTransition", () => {
+  it("increments turnCount", () => {
+    const state = createInitialSessionState()
+    const next = applyStateTransition(state, makeDecision("continue_narrowing"))
+    expect(next.turnCount).toBe(1)
+  })
+
+  it("updates journeyPhase from the decision", () => {
+    const state = createInitialSessionState()
+    const next = applyStateTransition(state, makeDecision("continue_narrowing", "results_displayed"))
+    expect(next.journeyPhase).toBe("results_displayed")
+  })
+
+  it("does not mutate the original state", () => {
+    const state = createInitialSessionState()
+    applyStateTransition(state, makeDecision("continue_narrowing"))
+    expect(state.turnCount).toBe(0)
+    expect(state.journeyPhase).toBe("intake")
+  })
+
+  describe("continue_narrowing", () => {
+    it("records a no_op revision node", () => {
+      const state = createInitialSessionState()
+      const next = applyStateTransition(state, makeDecision("continue_narrowing"))
+
+      expect(next.revisionNodes).toHaveLength(1)
+      expect(next.revisionNodes[0].action.type).toBe("no_op")
+      expect(next.currentRevisionId).toBeTruthy()
+    })
+  })
+
+  describe("replace_slot", () => {
+    it("records a no_op revision node (placeholder)", () => {
+      const state = createInitialSessionState()
+      const next = applyStateTransition(state, makeDecision("replace_slot"))
+
+      expect(next.revisionNodes).toHaveLength(1)
+      expect(next.revisionNodes[0].action.type).toBe("no_op")
+    })
+  })
+
+  describe("show_recommendation", () => {
+    it("records a no_op revision node and transitions phase", () => {
+      const state = createInitialSessionState()
+      const next = applyStateTransition(state, makeDecision("show_recommendation", "results_displayed"))
+
+      expect(next.journeyPhase).toBe("results_displayed")
+      expect(next.revisionNodes).toHaveLength(1)
+    })
+  })
+
+  describe("go_back", () => {
+    it("reverts constraints to the state before the last revision", () => {
+      // Build a state with one revision that set diameter=10
+      let state = createInitialSessionState()
+      const action: ResolvedAction = {
+        type: "set_base_constraint",
+        field: "diameter",
+        oldValue: null,
+        newValue: 10,
+      }
+      state = createRevisionNode(state, action)
+      expect(state.constraints.base["diameter"]).toBe(10)
+      expect(state.revisionNodes).toHaveLength(1)
+
+      // go_back should revert to before that revision
+      const next = applyStateTransition(state, makeDecision("go_back", "narrowing"))
+
+      expect(next.constraints.base["diameter"]).toBeUndefined()
+      expect(next.revisionNodes).toHaveLength(0)
+      expect(next.currentRevisionId).toBeNull()
+    })
+
+    it("clears pendingQuestion", () => {
+      let state = createInitialSessionState()
+      state = {
+        ...state,
+        pendingQuestion: {
+          field: "material",
+          questionText: "What material?",
+          options: [],
+          turnAsked: 0,
+          context: null,
+        },
+      }
+      const next = applyStateTransition(state, makeDecision("go_back"))
+      expect(next.pendingQuestion).toBeNull()
+    })
+
+    it("is a no-op on constraints when there are no revision nodes", () => {
+      const state = createInitialSessionState()
+      const next = applyStateTransition(state, makeDecision("go_back"))
+
+      expect(next.constraints).toEqual({ base: {}, refinements: {} })
+      expect(next.pendingQuestion).toBeNull()
+    })
+  })
+
+  describe("compare_products", () => {
+    it("records a no_op revision node", () => {
+      const state = createInitialSessionState()
+      const next = applyStateTransition(state, makeDecision("compare_products", "comparison"))
+
+      expect(next.journeyPhase).toBe("comparison")
+      expect(next.revisionNodes).toHaveLength(1)
+    })
+  })
+
+  describe("answer_general", () => {
+    it("sets sideThreadActive to true", () => {
+      const state = createInitialSessionState()
+      const next = applyStateTransition(state, makeDecision("answer_general"))
+      expect(next.sideThreadActive).toBe(true)
+    })
+
+    it("does not create a revision node", () => {
+      const state = createInitialSessionState()
+      const next = applyStateTransition(state, makeDecision("answer_general"))
+      expect(next.revisionNodes).toHaveLength(0)
+    })
+  })
+
+  describe("redirect_off_topic", () => {
+    it("only increments turnCount, no other changes", () => {
+      const state = createInitialSessionState()
+      const next = applyStateTransition(state, makeDecision("redirect_off_topic"))
+
+      expect(next.turnCount).toBe(1)
+      expect(next.revisionNodes).toHaveLength(0)
+      expect(next.constraints).toEqual({ base: {}, refinements: {} })
+    })
+  })
+
+  describe("reset_session", () => {
+    it("resets all state except turnCount", () => {
+      // Build a state with some constraints and revision nodes
+      let state = createInitialSessionState()
+      state = createRevisionNode(state, {
+        type: "set_base_constraint",
+        field: "diameter",
+        oldValue: null,
+        newValue: 10,
+      })
+      state = { ...state, sideThreadActive: true, turnCount: 5 }
+
+      const next = applyStateTransition(state, makeDecision("reset_session", "intake"))
+
+      expect(next.journeyPhase).toBe("intake")
+      expect(next.constraints).toEqual({ base: {}, refinements: {} })
+      expect(next.revisionNodes).toHaveLength(0)
+      expect(next.currentRevisionId).toBeNull()
+      expect(next.sideThreadActive).toBe(false)
+      expect(next.pendingQuestion).toBeNull()
+      expect(next.pendingAction).toBeNull()
+      // turnCount is preserved (was 5 + 1 for this turn = 6)
+      expect(next.turnCount).toBe(6)
+    })
+  })
+
+  describe("skip_field", () => {
+    it("clears pendingQuestion", () => {
+      let state = createInitialSessionState()
+      state = {
+        ...state,
+        pendingQuestion: {
+          field: "coating",
+          questionText: "What coating?",
+          options: [],
+          turnAsked: 1,
+          context: null,
+        },
+      }
+      const next = applyStateTransition(state, makeDecision("skip_field"))
+
+      expect(next.pendingQuestion).toBeNull()
+    })
+
+    it("does not modify constraints", () => {
+      let state = createInitialSessionState()
+      state = createRevisionNode(state, {
+        type: "set_base_constraint",
+        field: "diameter",
+        oldValue: null,
+        newValue: 10,
+      })
+      const next = applyStateTransition(state, makeDecision("skip_field"))
+
+      expect(next.constraints.base["diameter"]).toBe(10)
+    })
+  })
+
+  describe("ask_clarification", () => {
+    it("does not change constraints or revision nodes", () => {
+      const state = createInitialSessionState()
+      const next = applyStateTransition(state, makeDecision("ask_clarification"))
+
+      expect(next.constraints).toEqual({ base: {}, refinements: {} })
+      expect(next.revisionNodes).toHaveLength(0)
+      expect(next.turnCount).toBe(1)
+    })
+  })
+
+  describe("side thread auto-deactivation", () => {
+    it("deactivates sideThreadActive when action is not answer_general", () => {
+      let state = createInitialSessionState()
+      state = { ...state, sideThreadActive: true }
+
+      const next = applyStateTransition(state, makeDecision("continue_narrowing"))
+      expect(next.sideThreadActive).toBe(false)
+    })
+
+    it("keeps sideThreadActive when action is answer_general", () => {
+      let state = createInitialSessionState()
+      state = { ...state, sideThreadActive: true }
+
+      const next = applyStateTransition(state, makeDecision("answer_general"))
+      expect(next.sideThreadActive).toBe(true)
+    })
   })
 })

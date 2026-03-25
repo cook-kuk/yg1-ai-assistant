@@ -129,22 +129,13 @@ async function buildWorkPieceQuestion(
     : allWorkPieceNames
 
   // ── 실제 제품이 있는 workPiece만 남기기 ──
-  // 각 workPieceName에 대해 매칭되는 시리즈가 현재 candidates에 존재하는지 확인
-  if (candidates && candidates.length > 0) {
-    const candidateSeriesSet = new Set(
-      candidates.map(c => c.product.seriesName?.toLowerCase()).filter(Boolean)
-    )
-    const seriesChecks = await Promise.all(
-      relevantNames.map(async name => {
-        const series = await BrandReferenceRepo.listDistinctSeriesNames({ isoGroup, workPieceName: name, limit: 5 })
-        const hasMatchingSeries = series.some(s => candidateSeriesSet.has(s.toLowerCase()))
-        return { name, hasMatchingSeries }
-      })
-    )
-    const filtered = seriesChecks.filter(c => c.hasMatchingSeries).map(c => c.name)
+  // brand_reference → product_recommendation_mv JOIN으로 실제 제품 수 확인
+  const productCounts = await BrandReferenceRepo.countProductsByWorkPiece(isoGroup)
+  if (productCounts.size > 0) {
+    const filtered = relevantNames.filter(name => (productCounts.get(name) ?? 0) > 0)
     if (filtered.length >= 2) {
       const removed = relevantNames.length - filtered.length
-      if (removed > 0) console.log(`[workpiece-filter] Removed ${removed} workPieces with 0 matching series in candidates`)
+      if (removed > 0) console.log(`[workpiece-filter] Removed ${removed} workPieces with 0 actual products`)
       relevantNames = filtered
     }
   }

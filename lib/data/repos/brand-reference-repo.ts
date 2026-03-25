@@ -212,6 +212,52 @@ export const BrandReferenceRepo = {
     }
   },
 
+  async countProductsByWorkPiece(isoGroupRaw: string): Promise<Map<string, number>> {
+    const pool = getPool()
+    if (!pool) {
+      console.warn("[brand-reference-repo] countProductsByWorkPiece skipped: DB source unavailable")
+      return new Map()
+    }
+
+    const isoGroup = toNullableUpper(isoGroupRaw)
+    if (!isoGroup) return new Map()
+
+    const sql = `
+      SELECT br.work_piece_name, COUNT(DISTINCT p.edp_no) AS product_count
+      FROM catalog_app.brand_reference br
+      JOIN catalog_app.product_recommendation_mv p
+        ON UPPER(br.series_name) = UPPER(p.edp_series_name)
+      WHERE UPPER(br.tag_name) = $1
+        AND br.work_piece_name IS NOT NULL
+        AND BTRIM(br.work_piece_name) <> ''
+      GROUP BY br.work_piece_name
+      HAVING COUNT(DISTINCT p.edp_no) > 0
+      ORDER BY br.work_piece_name ASC
+    `
+
+    const startedAt = Date.now()
+    try {
+      const values = [isoGroup]
+      const sqlInterpolated = interpolateSqlForLog(formatSqlForLog(sql), values)
+      console.log(`[brand-reference-db] sql query="${sqlInterpolated}" params=${formatQueryValuesForLog(values)}`)
+      const result = await pool.query(sql, values)
+      console.log(
+        `[brand-reference-db] countProductsByWorkPiece iso=${isoGroup} rows=${result.rowCount ?? 0} duration=${Date.now() - startedAt}ms`
+      )
+      const map = new Map<string, number>()
+      for (const row of result.rows) {
+        const name = String(row.work_piece_name ?? "").trim()
+        const count = Number(row.product_count ?? 0)
+        if (name) map.set(name, count)
+      }
+      return map
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.warn(`[brand-reference-db] countProductsByWorkPiece failed: ${message}`)
+      return new Map()
+    }
+  },
+
   async findMatches(query: BrandReferenceQuery): Promise<BrandReferenceRecord[]> {
     const pool = getPool()
     if (!pool) {

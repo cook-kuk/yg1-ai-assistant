@@ -141,8 +141,13 @@ export interface LlmTurnDecision {
     shouldUseCurrentResultContext: boolean
     shouldResumePendingQuestion: boolean
   }
+  nextQuestion?: {
+    field: string
+    suggestedOptions: Array<{ label: string; value: string }>
+    allowSkip: boolean
+  }
   uiPlan: {
-    optionMode: "question_options" | "comparison_options" | "no_options"
+    optionMode: "question_options" | "result_followups" | "none" | "comparison_options" | "no_options"
   }
   answerDraft: string
 }

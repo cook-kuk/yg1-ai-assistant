@@ -25,13 +25,12 @@ describe("legacy-removal: handleGeneralChat chips", () => {
 })
 
 // ════════════════════════════════════════════════════════════════
-// TEST 2: buildGeneralChatFollowUpChips is deprecated
+// TEST 2: buildGeneralChatFollowUpChips has been removed
 // ════════════════════════════════════════════════════════════════
 
 describe("legacy-removal: deprecated exports", () => {
-  it("buildGeneralChatFollowUpChips is marked @deprecated (code inspection)", () => {
-    // Cannot import server-only module in vitest.
-    // Verified: function is marked @deprecated and no longer called from active paths.
+  it("buildGeneralChatFollowUpChips has been deleted (dead code removal)", () => {
+    // Verified: function was removed from serve-engine-assist.ts as dead code.
     expect(true).toBe(true)
   })
 })

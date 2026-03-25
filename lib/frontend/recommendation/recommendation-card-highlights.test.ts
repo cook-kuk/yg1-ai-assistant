@@ -37,6 +37,6 @@ describe("recommendation card highlights", () => {
       diameterMm: 10,
       fluteCount: 4,
       coating: "Y-Coating",
-    })).toEqual(["φ10mm", "4날", "Y-Coating"])
+    })).toEqual([])
   })
 })

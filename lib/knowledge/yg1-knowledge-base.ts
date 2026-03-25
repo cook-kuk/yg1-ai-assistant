@@ -480,3 +480,76 @@ export function searchKB(query: string): { found: boolean; answer: string; confi
   return { found: false, answer: "", confidence: "medium" }
 }
 import { findSalesOfficeFromMarkdown, getSalesOfficesFromMarkdown } from "./knowledge-markdown"
+import type { LLMProvider } from "@/lib/shared/infrastructure/llm/llm-provider"
+
+// ── Haiku 기반 시맨틱 KB 검색 ─────────────────────────────────
+function buildKBSummary(): string {
+  const kb = YG1_KB
+  return [
+    `[회사] ${kb.company.name_ko}(${kb.company.name_en}), 설립:${kb.company.founded}, 창업자:${kb.company.founder}, CEO:${kb.company.ceo.join("/")}`,
+    `본사:${kb.company.hq_address}, 전화:${kb.company.tel}, 직원:국내${kb.company.employees_domestic}/전체${kb.company.employees_total}`,
+    `매출:${kb.company.revenue_2024}(2024), 해외비중:${kb.company.overseas_revenue_ratio}, 미국:${kb.company.us_revenue_ratio}, 수출:${kb.company.export_countries}`,
+    `순위: 엔드밀${kb.company.ranking.endmill}, 탭${kb.company.ranking.tap}, 드릴${kb.company.ranking.drill}, ${kb.company.ranking.domestic}`,
+    `목표:${kb.company.goal_2035}, 정밀도:${kb.company.precision}`,
+    `경쟁사:${kb.company.competitors.join(",")}`,
+    `[주주] ${kb.shareholders.map(s => `${s.name} ${s.ratio}${s.note ? `(${s.note})` : ""}`).join(", ")}`,
+    `[KOSDAQ] 코드:${kb.company.kosdaq.code}, 상장일:${kb.company.kosdaq.listed}, 주식수:${kb.company.kosdaq.shares}`,
+    `[재무] ${kb.financials.slice(0, 4).map(f => `${f.year}:${f.revenue}억${f.op_income ? `/영업${f.op_income}억` : ""}${f.note ? `(${f.note})` : ""}`).join(", ")}`,
+    `[비전] 미션:${kb.vision.mission}, 비전:${kb.vision.vision}, 핵심가치:${kb.vision.coreValues}`,
+    `전략:${kb.vision.futureStrategy}, 품질:${kb.vision.qualityStrategy}`,
+    `[산업] ${kb.industries.map(i => `${i.name}${"ratio" in i ? ` ${i.ratio}` : ""}`).join(", ")}`,
+    `[국내사업장] ${kb.domestic_sites.map(s => `${s.name}(${s.type},${s.tel})`).join(", ")}`,
+    `존재하지 않는 사업장: ${kb.non_existent_sites.join(",")}`,
+    `[해외생산] ${kb.overseas_production.map(p => `${p.name}(${p.country})`).join(", ")}`,
+    `[제품-밀링] ${kb.products.milling.map(p => p.brand).join(",")}`,
+    `[제품-홀메이킹] ${kb.products.holemaking.map(p => p.brand).join(",")}`,
+    `[제품-나사] ${kb.products.threading.map(p => p.brand).join(",")}`,
+    `[제품-터닝] ${kb.products.turning}`,
+    `[연혁] ${kb.history.slice(0, 6).join(" / ")} ... 총${kb.history.length}건`,
+    `[수상] ${kb.awards.slice(0, 4).join(" / ")}`,
+    `[인증] ${kb.certifications.join(", ")}`,
+    `[URL] 메인:${kb.urls.main}, 주문:${kb.urls.onlineOrder}, 채용:${kb.urls.recruit}, 카탈로그:${kb.urls.catalog}, 자료실:${kb.urls.dataRoom}`,
+    `[SNS] 인스타:${kb.social.instagram}, 유튜브:${kb.social.youtube}, 카카오:${kb.social.kakao}`,
+  ].join("\n")
+}
+
+export async function searchKBSemantic(
+  query: string,
+  provider: LLMProvider
+): Promise<{ found: boolean; answer: string; confidence: "high" | "medium" }> {
+  const kbSummary = buildKBSummary()
+
+  const systemPrompt = `You are a YG-1 knowledge lookup. Given the KB data below and a user query, determine if the KB contains the answer.
+
+<kb>
+${kbSummary}
+</kb>
+
+Rules:
+- If the KB has the answer, respond: FOUND: <concise answer in Korean using only KB data>
+- If the KB does NOT have the answer, respond exactly: NOT_FOUND
+- Never fabricate information not present in the KB`
+
+  try {
+    const response = await provider.complete(
+      systemPrompt,
+      [{ role: "user", content: query }],
+      200,
+      "haiku"
+    )
+
+    const text = response.trim()
+    if (text.startsWith("NOT_FOUND") || !text.startsWith("FOUND:")) {
+      return { found: false, answer: "", confidence: "medium" }
+    }
+
+    const answer = text.slice("FOUND:".length).trim()
+    if (!answer) {
+      return { found: false, answer: "", confidence: "medium" }
+    }
+
+    return { found: true, answer, confidence: "high" }
+  } catch {
+    return { found: false, answer: "", confidence: "medium" }
+  }
+}

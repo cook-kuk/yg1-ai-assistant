@@ -89,7 +89,7 @@ describe("confusion-aware chips", () => {
     expect(chips).toContain("상관없음")
 
     // Should have per-option explanation chips
-    expect(chips.some(c => c.includes("뭐야"))).toBe(true)
+    expect(chips.some(c => c.includes("란?"))).toBe(true)
   })
 
   it("'추천으로 골라줘' detects delegation intent", () => {

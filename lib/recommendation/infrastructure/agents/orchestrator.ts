@@ -230,6 +230,12 @@ function routeToAction(
         params?.rawValue,
         ctx.userMessage,
       )
+
+      // "날수로 좁히기" chip → refine_condition with fluteCount
+      if (displayedOption && displayedOption.label.includes("날수로 좁히기")) {
+        return { type: "refine_condition", field: "fluteCount" }
+      }
+
       const displayedFilter = displayedOption
         ? buildFilterFromDisplayedOption(displayedOption, ctx)
         : null
@@ -253,8 +259,16 @@ function routeToAction(
       return { type: "answer_general", message: ctx.userMessage }
     }
 
-    case "REFINE_CONDITION":
-      return { type: "refine_condition", field: value || "material" }
+    case "REFINE_CONDITION": {
+      const fieldMap: Record<string, string> = {
+        "날수": "fluteCount", "flute": "fluteCount", "flutecount": "fluteCount",
+        "소재": "material", "재질": "material",
+        "직경": "diameter", "코팅": "coating",
+      }
+      const rawField = (value || "material").toLowerCase()
+      const resolvedField = fieldMap[rawField] ?? value ?? "material"
+      return { type: "refine_condition", field: resolvedField }
+    }
 
     case "START_NEW_TOPIC":
       return { type: "answer_general", message: ctx.userMessage }
