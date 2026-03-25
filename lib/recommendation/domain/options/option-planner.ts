@@ -769,7 +769,7 @@ function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartOption[]
       preservesContext: true,
       destructive: false,
       recommended: top.length >= 3,
-      priorityScore: 0,
+      priorityScore: 0.6,
       plan: {
         type: "apply_filter",
         patches: [{ op: "add", field: "_action", value: "compare" }],
@@ -789,7 +789,7 @@ function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartOption[]
     preservesContext: true,
     destructive: false,
     recommended: false,
-    priorityScore: 0,
+    priorityScore: 0.5,
     plan: {
       type: "apply_filter",
       patches: [{ op: "add", field: "_action", value: "cutting_conditions" }],
@@ -831,7 +831,7 @@ function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartOption[]
       preservesContext: true,
       destructive: false,
       recommended: false,
-      priorityScore: 0,
+      priorityScore: 0.7,
       plan: {
         type: "replace_filter",
         patches: [{ op: "remove", field: "coating" }],
@@ -864,7 +864,30 @@ function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartOption[]
     })
   }
 
-  // 4b. Change diameter (explore)
+  // 4b. Series comparison (when multiple series exist)
+  const seriesSet = new Set(top.map(c => c.seriesName).filter(Boolean))
+  if (seriesSet.size >= 2) {
+    options.push({
+      id: nextOptionId("explore"),
+      family: "explore",
+      label: `시리즈 차이 설명해줘 (${[...seriesSet].slice(0, 2).join(" vs ")})`,
+      subtitle: `${seriesSet.size}개 시리즈`,
+      field: "seriesName",
+      reason: "시리즈별 특성 비교",
+      projectedCount: null,
+      projectedDelta: null,
+      preservesContext: true,
+      destructive: false,
+      recommended: false,
+      priorityScore: 0.6,
+      plan: {
+        type: "apply_filter",
+        patches: [{ op: "add", field: "_action", value: "series_explain" }],
+      },
+    })
+  }
+
+  // 4c. Change diameter (explore)
   if (top[0]?.diameterMm) {
     options.push({
       id: nextOptionId("explore"),
@@ -878,7 +901,7 @@ function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartOption[]
       preservesContext: true,
       destructive: false,
       recommended: false,
-      priorityScore: 0,
+      priorityScore: 0.85,
       plan: {
         type: "replace_filter",
         patches: [{ op: "remove", field: "diameterMm" }],
@@ -899,7 +922,7 @@ function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartOption[]
       preservesContext: true,
       destructive: false,
       recommended: false,
-      priorityScore: 0,
+      priorityScore: 0.4,
       plan: {
         type: "apply_filter",
         patches: [{ op: "add", field: "_action", value: "explain_recommendation" }],
@@ -919,7 +942,7 @@ function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartOption[]
       preservesContext: true,
       destructive: false,
       recommended: false,
-      priorityScore: 0,
+      priorityScore: 0.65,
       plan: {
         type: "apply_filter",
         patches: [{ op: "add", field: "_action", value: "undo" }],
@@ -942,7 +965,7 @@ function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartOption[]
       preservesContext: true,
       destructive: false,
       recommended: true,
-      priorityScore: 0,
+      priorityScore: 0.3,
       plan: {
         type: "apply_filter",
         patches: [{ op: "add", field: "stockStatus", value: "instock" }],
@@ -960,7 +983,7 @@ function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartOption[]
       preservesContext: true,
       destructive: false,
       recommended: false,
-      priorityScore: 0,
+      priorityScore: 0.55,
       plan: {
         type: "apply_filter",
         patches: [{ op: "add", field: "_action", value: "inventory_detail" }],
@@ -979,7 +1002,7 @@ function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartOption[]
     preservesContext: false,
     destructive: true,
     recommended: false,
-    priorityScore: 0,
+    priorityScore: 0.05,
     plan: {
       type: "reset_session",
       patches: [],
