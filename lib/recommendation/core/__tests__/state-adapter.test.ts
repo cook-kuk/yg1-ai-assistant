@@ -1,4 +1,6 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
+
+vi.mock("server-only", () => ({}))
 import {
   convertToV2State,
   convertFromV2State,
@@ -236,7 +238,7 @@ describe("convertFromV2State", () => {
 
     const diameterFilter = result.appliedFilters.find((f) => f.field === "diameterMm")
     expect(diameterFilter).toBeDefined()
-    expect(diameterFilter!.rawValue).toBe("10")
+    expect(diameterFilter!.rawValue).toBe(10)
 
     const coatingFilter = result.appliedFilters.find((f) => f.field === "coating")
     expect(coatingFilter).toBeDefined()

@@ -7,12 +7,22 @@ import {
 } from "../search-adapter"
 import type { RecommendationSessionState, LlmTurnDecision } from "../types"
 import type { ScoredProduct } from "@/lib/recommendation/domain/types"
-import { createInitialSessionState } from "../turn-orchestrator"
 
 // ── Helpers ──
 
 function makeState(overrides: Partial<RecommendationSessionState> = {}): RecommendationSessionState {
-  return { ...createInitialSessionState(), ...overrides }
+  const initial: RecommendationSessionState = {
+    journeyPhase: "intake",
+    constraints: { base: {}, refinements: {} },
+    resultContext: null,
+    pendingQuestion: null,
+    pendingAction: null,
+    revisionNodes: [],
+    currentRevisionId: null,
+    sideThreadActive: false,
+    turnCount: 0,
+  }
+  return { ...initial, ...overrides }
 }
 
 function makeDecision(

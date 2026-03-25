@@ -25,7 +25,6 @@ import {
   buildResultContext,
   shouldSearch,
 } from "./search-adapter"
-import { runHybridRetrieval } from "../domain/hybrid-retrieval"
 
 // Step 1: Build snapshot from current state + user message
 function buildTurnSnapshot(userMessage: string, state: RecommendationSessionState): TurnSnapshot {
@@ -298,6 +297,7 @@ async function executeSearchIfNeeded(
     const { input, filters } = constraintsToFilters(state)
     console.log(`[orchestrator-v2] Running hybrid retrieval: input=${JSON.stringify(input)}, filters=${filters.length}`)
 
+    const { runHybridRetrieval } = await import("../domain/hybrid-retrieval")
     const hybridResult = await runHybridRetrieval(input, filters)
     const resultContext = buildResultContext(hybridResult.candidates, state)
 
