@@ -396,6 +396,29 @@ export default function FeedbackViewerPage() {
   const [selectedGeneralEntry, setSelectedGeneralEntry] = useState<FeedbackEntryDto | null>(null)
   const [selectedFeedbackEntry, setSelectedFeedbackEntry] = useState<FeedbackEventEntryDto | null>(null)
 
+  // ── 코너스톤 관리자 필드 ──
+  const [adminFields, setAdminFields] = useState<Record<string, { csComment: string; dueDate: string; completed: boolean }>>({})
+  const [savingId, setSavingId] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch("/api/feedback/admin").then(r => r.json()).then(d => setAdminFields(d.fields ?? {})).catch(() => {})
+  }, [])
+
+  const saveAdminField = async (id: string, field: string, value: string | boolean) => {
+    const current = adminFields[id] ?? { csComment: "", dueDate: "", completed: false }
+    const updated = { ...current, [field]: value }
+    setAdminFields(prev => ({ ...prev, [id]: updated }))
+    setSavingId(id)
+    try {
+      await fetch("/api/feedback/admin", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ feedbackId: id, ...updated }),
+      })
+    } catch {}
+    setTimeout(() => setSavingId(prev => prev === id ? null : prev), 800)
+  }
+
   const fetchFeedback = async () => {
     setLoading(true)
     setError(null)
@@ -592,42 +615,96 @@ export default function FeedbackViewerPage() {
               <div className="space-y-3">
                 {pagedGeneralEntries.map(entry => {
                   const authorConfig = AUTHOR_TYPE_CONFIG[entry.authorType]
+                  const deptMatch = entry.authorName?.match(/^\[(.+?)\]\s*(.+)$/)
+                  const department = deptMatch?.[1]
+                  const authorDisplay = deptMatch?.[2] ?? entry.authorName
+                  const af = adminFields[entry.id] ?? { csComment: "", dueDate: "", completed: false }
                   return (
-                    <button
-                      key={entry.id}
-                      type="button"
-                      onClick={() => setSelectedGeneralEntry(entry)}
-                      className="block w-full text-left"
-                    >
-                      <Card className="border-gray-200 py-0 transition-shadow hover:shadow-md">
-                        <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
-                          <div className="min-w-0 flex-1">
-                            <div className="mb-2 flex flex-wrap items-center gap-2">
-                              <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${authorConfig.cls}`}>
-                                {authorConfig.label}
-                              </span>
-                              {entry.authorName && (
-                                <span className="flex items-center gap-1 text-xs font-medium text-gray-600">
-                                  <User size={12} />
-                                  {entry.authorName}
+                    <div key={entry.id}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedGeneralEntry(entry)}
+                        className="block w-full text-left"
+                      >
+                        <Card className={`py-0 transition-shadow hover:shadow-md ${af.completed ? "border-emerald-300 bg-emerald-50/30" : "border-gray-200"}`}>
+                          <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
+                            <div className="min-w-0 flex-1">
+                              <div className="mb-2 flex flex-wrap items-center gap-2">
+                                <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${authorConfig.cls}`}>
+                                  {authorConfig.label}
                                 </span>
-                              )}
-                              <StarRating rating={entry.rating} />
+                                {department && (
+                                  <span className="rounded-lg bg-indigo-100 text-indigo-700 px-2 py-0.5 text-[11px] font-bold border border-indigo-200">
+                                    {department}
+                                  </span>
+                                )}
+                                {authorDisplay && (
+                                  <span className="flex items-center gap-1 text-xs font-medium text-gray-700">
+                                    <User size={12} />
+                                    {authorDisplay}
+                                  </span>
+                                )}
+                                <StarRating rating={entry.rating} />
+                              </div>
+                              <div className="line-clamp-1 text-sm font-medium text-gray-900">
+                                {clipText(entry.comment, 90)}
+                              </div>
+                              <div className="mt-1 line-clamp-1 text-xs text-gray-500">
+                                {entry.tags.length > 0 ? entry.tags.join(" · ") : "태그 없음"}
+                              </div>
                             </div>
-                            <div className="line-clamp-1 text-sm font-medium text-gray-900">
-                              {clipText(entry.comment, 90)}
+                            <div className="flex items-center gap-1 text-xs text-gray-400">
+                              <Clock size={12} />
+                              {formatDateTime(entry.timestamp)}
                             </div>
-                            <div className="mt-1 line-clamp-1 text-xs text-gray-500">
-                              {entry.tags.length > 0 ? entry.tags.join(" · ") : "태그 없음"}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1 text-xs text-gray-400">
-                            <Clock size={12} />
-                            {formatDateTime(entry.timestamp)}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </button>
+                          </CardContent>
+                        </Card>
+                      </button>
+                      {/* ── 코너스톤 관리자 영역 ── */}
+                      <div className="ml-2 mr-2 -mt-1 rounded-b-xl border border-t-0 border-violet-200 bg-violet-50/60 px-4 py-2.5 flex flex-wrap items-center gap-3">
+                        <span className="text-[10px] font-bold text-violet-600 whitespace-nowrap">코너스톤</span>
+                        <div className="flex-1 min-w-[200px] flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            value={af.csComment}
+                            onChange={e => setAdminFields(prev => ({ ...prev, [entry.id]: { ...af, csComment: e.target.value } }))}
+                            onKeyDown={e => { if (e.key === "Enter") saveAdminField(entry.id, "csComment", (e.target as HTMLInputElement).value) }}
+                            placeholder="개발팀 의견 입력..."
+                            className="flex-1 px-2.5 py-1.5 text-xs border border-violet-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white placeholder-violet-300"
+                          />
+                          <button
+                            onClick={() => saveAdminField(entry.id, "csComment", af.csComment)}
+                            className={`px-2.5 py-1.5 text-[10px] font-bold rounded-lg transition-colors whitespace-nowrap ${
+                              savingId === entry.id
+                                ? "bg-emerald-500 text-white"
+                                : "bg-violet-600 text-white hover:bg-violet-700"
+                            }`}
+                          >
+                            {savingId === entry.id ? "✓ 저장됨" : "저장"}
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-violet-500">Due</span>
+                          <input
+                            type="date"
+                            value={af.dueDate}
+                            onChange={e => saveAdminField(entry.id, "dueDate", e.target.value)}
+                            className="px-2 py-1 text-xs border border-violet-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white"
+                          />
+                        </div>
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={af.completed}
+                            onChange={e => saveAdminField(entry.id, "completed", e.target.checked)}
+                            className="w-4 h-4 rounded border-violet-300 text-violet-600 focus:ring-violet-500"
+                          />
+                          <span className={`text-[10px] font-medium ${af.completed ? "text-emerald-600" : "text-violet-500"}`}>
+                            {af.completed ? "완료" : "미완료"}
+                          </span>
+                        </label>
+                      </div>
+                    </div>
                   )
                 })}
                 <PaginationBar
