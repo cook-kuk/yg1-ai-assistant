@@ -17,6 +17,7 @@ import {
   buildQuestionAssistOptions,
 } from "@/lib/recommendation/infrastructure/engines/serve-engine-option-first"
 import { shouldAttemptWebSearchFallback } from "@/lib/recommendation/infrastructure/engines/serve-engine-assist"
+import { buildFinalChipsFromLLM } from "@/lib/recommendation/domain/options/llm-chip-pipeline"
 import { resolveYG1Query } from "@/lib/knowledge/knowledge-router"
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { OrchestratorAction, OrchestratorResult } from "@/lib/recommendation/infrastructure/agents/types"
@@ -95,7 +96,8 @@ export interface ServeEngineGeneralChatDependencies {
     userMessage: string,
     currentInput: RecommendationInput,
     candidates: ScoredProduct[],
-    prevState: ExplorationSessionState
+    prevState: ExplorationSessionState,
+    messages?: ChatMessage[],
   ) => Promise<string | null>
   handleGeneralChat: (
     provider: LLMProvider,
@@ -103,7 +105,9 @@ export interface ServeEngineGeneralChatDependencies {
     currentInput: RecommendationInput,
     candidates: ScoredProduct[],
     form: ProductIntakeForm,
-    displayedCandidatesContext?: CandidateSnapshot[]
+    displayedCandidatesContext?: CandidateSnapshot[],
+    messages?: ChatMessage[],
+    prevState?: ExplorationSessionState,
   ) => Promise<{ text: string; chips: string[] }>
   jsonRecommendationResponse: JsonRecommendationResponse
 }
@@ -300,7 +304,7 @@ function buildReplyResponse(
   }
 
   const sessionState = carryForwardState(prevState, {
-    candidateCount: prevState.candidateCount,
+    candidateCount: prevState.candidateCount ?? (prevState.displayedCandidates?.length ?? 0),
     appliedFilters: filters,
     narrowingHistory,
     resolutionStatus: prevState.resolutionStatus ?? "broad",
@@ -681,6 +685,7 @@ export async function handleServeGeneralChatAction(
       currentInput,
       candidates,
       prevState,
+      messages,
     )
 
     if (contextReply) {
@@ -773,12 +778,14 @@ export async function handleServeGeneralChatAction(
       candidates,
       form,
       prevState.displayedCandidates,
+      messages,
+      prevState,
     )
   }
 
   const lastAssistantText = [...messages].reverse().find(message => message.role === "ai")?.text ?? llmResponse.text
   const {
-    finalChips,
+    finalChips: _rawFinalChips,
     finalDisplayedOptions,
     userStateResult,
     isQuestionAssist,
@@ -794,6 +801,20 @@ export async function handleServeGeneralChatAction(
     provider,
     fallbackChips: llmResponse.chips,
   })
+
+  // Enrich sparse chips with contextual fallbacks from LLM chip pipeline
+  let finalChips = _rawFinalChips
+  if (finalChips.length < 3 && prevState) {
+    const enrichCandidates = prevState.displayedCandidates ?? []
+    const previousChips = prevState.displayedChips ?? []
+    const { chips: enrichedChips } = buildFinalChipsFromLLM(
+      finalChips.map(c => ({ label: c, type: "action" as const })),
+      prevState,
+      enrichCandidates,
+      previousChips,
+    )
+    finalChips = enrichedChips
+  }
 
   const persistedMemory = prevState.conversationMemory
   if (persistedMemory) {
@@ -867,7 +888,7 @@ export async function handleServeGeneralChatAction(
   }
 
   const sessionState = carryForwardState(prevState, {
-    candidateCount: prevState.candidateCount ?? candidates.length,
+    candidateCount: prevState.candidateCount ?? (candidates.length > 0 ? candidates.length : (prevState.displayedCandidates?.length ?? 0)),
     appliedFilters: filters,
     narrowingHistory,
     resolutionStatus: prevState.resolutionStatus ?? "broad",
@@ -923,7 +944,9 @@ export async function handleServeGeneralChatAction(
     recommendation: null,
     sessionState,
     evidenceSummaries: null,
-    candidateSnapshot: candidates.length > 0 ? deps.buildCandidateSnapshot(candidates, evidenceMap) : null,
+    candidateSnapshot: candidates.length > 0
+      ? deps.buildCandidateSnapshot(candidates, evidenceMap)
+      : (prevState.displayedCandidates ?? null),
     requestPreparation: null,
     primaryExplanation: null,
     primaryFactChecked: null,

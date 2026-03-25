@@ -20,8 +20,10 @@ export interface ComparisonResult {
  */
 export function resolveProductReferences(
   references: string[],
-  candidates: CandidateSnapshot[]
+  candidates: CandidateSnapshot[],
+  options?: { fallbackToTop2?: boolean }
 ): CandidateSnapshot[] {
+  const fallbackToTop2 = options?.fallbackToTop2 ?? true
   const resolved: CandidateSnapshot[] = []
 
   for (const ref of references) {
@@ -52,8 +54,8 @@ export function resolveProductReferences(
     if (byCode && !resolved.includes(byCode)) resolved.push(byCode)
   }
 
-  // Default: top 2 if no references resolved
-  if (resolved.length === 0 && candidates.length >= 2) {
+  // Default: top 2 if no references resolved (unless fallbackToTop2 is disabled)
+  if (resolved.length === 0 && candidates.length >= 2 && fallbackToTop2) {
     resolved.push(candidates[0], candidates[1])
   }
 

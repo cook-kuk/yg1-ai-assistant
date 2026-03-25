@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("server-only", () => ({}))
 
-const findByCodeMock = vi.fn()
+const { findByCodeMock } = vi.hoisted(() => ({
+  findByCodeMock: vi.fn(),
+}))
 
 vi.mock("@/lib/recommendation/infrastructure/repositories/recommendation-repositories", () => ({
   BrandReferenceRepo: {},

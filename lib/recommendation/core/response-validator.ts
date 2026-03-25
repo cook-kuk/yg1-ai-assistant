@@ -43,6 +43,24 @@ export function validateSurfaceV2(
     rewrites.push("added_fallback_chips")
   }
 
+  // 2b. Deduplicate chips (LLM sometimes generates near-duplicates)
+  if (chips.length > 0) {
+    const seen = new Set<string>()
+    const dedupedOptions: typeof displayedOptions = []
+    for (const opt of displayedOptions) {
+      const normalized = opt.label.replace(/\s+/g, "").toLowerCase()
+      if (!seen.has(normalized)) {
+        seen.add(normalized)
+        dedupedOptions.push(opt)
+      }
+    }
+    if (dedupedOptions.length < displayedOptions.length) {
+      displayedOptions = dedupedOptions
+      chips = displayedOptions.map(opt => opt.label)
+      rewrites.push("deduped_llm_chips")
+    }
+  }
+
   // 3. Company info leakage check
   const isRecommendationTopic = ["narrowing", "refinement", "recommendation", "comparison"].includes(decision.answerIntent.topic)
   if (isRecommendationTopic) {

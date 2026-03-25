@@ -396,6 +396,22 @@ export function buildSurface(
   }
   // "none" and other modes: displayedOptions stays empty
 
+  // ── LLM suggestedChips integration ──
+  // If LLM provided suggestedChips and displayedOptions is still empty,
+  // convert suggestedChips to displayedOptions.
+  if (displayedOptions.length === 0 && decision.suggestedChips && decision.suggestedChips.length > 0) {
+    displayedOptions = decision.suggestedChips.slice(0, 8).map((chip, i) => ({
+      index: i + 1,
+      label: chip.label,
+      field: chip.type === "option" ? (decision.nextQuestion?.field ?? "_action")
+           : chip.type === "filter" ? "_filter"
+           : chip.type === "navigation" ? "_control"
+           : "_action",
+      value: chip.label,
+      count: 0,
+    }))
+  }
+
   // Surface contract: chips MUST derive from displayedOptions
   const chips = displayedOptions.map((opt) => opt.label)
 

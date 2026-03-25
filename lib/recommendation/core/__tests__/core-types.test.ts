@@ -202,9 +202,9 @@ describe("surface contract", () => {
       expect(result.displayedOptions.some((opt) => opt.label === chip)).toBe(true)
     }
 
-    // In the stub, both should be empty
-    expect(result.chips).toHaveLength(0)
-    expect(result.displayedOptions).toHaveLength(0)
+    // Validator adds fallback "처음부터 다시" when optionMode !== "none" but no options exist
+    // So chips/options may have 1 fallback entry — the contract is that every chip has a matching option
+    expect(result.chips.length).toBe(result.displayedOptions.length)
   })
 })
 

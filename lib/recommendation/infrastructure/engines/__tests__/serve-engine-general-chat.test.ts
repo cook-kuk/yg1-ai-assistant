@@ -120,7 +120,7 @@ const form: ProductIntakeForm = {
 } as unknown as ProductIntakeForm
 
 const orchResult: OrchestratorResult = {
-  action: { type: "explain_product", target: "DLC?????ル뒌?? ??轅붽틓???????몃뒌嶺?" },
+  action: { type: "explain_product", target: "DLC코팅이란 무엇인가요?" },
   reasoning: "test",
   agentsInvoked: [],
   escalatedToOpus: false,
@@ -140,18 +140,18 @@ describe("handleServeGeneralChatAction", () => {
         handleDirectEntityProfileQuestion: vi.fn(async () => null),
         handleDirectBrandReferenceQuestion: vi.fn(async () => null),
         handleDirectCuttingConditionQuestion: vi.fn(async () => null),
-        handleContextualNarrowingQuestion: vi.fn(async () => "DLC????????猷매?뙴?????????????ル뒌????????⑤９???????????????袁④뎬????????????筌?캉??"),
+        handleContextualNarrowingQuestion: vi.fn(async () => "DLC코팅은 다이아몬드 유사 탄소 코팅으로, 알루미늄 및 비철금속 가공에 적합합니다."),
         handleGeneralChat: vi.fn(async () => ({ text: "unused", chips: [] })),
         jsonRecommendationResponse: (params) =>
           new Response(JSON.stringify(params), { headers: { "content-type": "application/json" } }),
       },
-      action: { type: "explain_product", target: "DLC?????ル뒌?? ??轅붽틓???????몃뒌嶺?" },
+      action: { type: "explain_product", target: "DLC코팅이란 무엇인가요?" },
       orchResult,
       provider: { available: () => false } as any,
       form,
       messages: [
-        { role: "ai", text: "??????????壤굿??Β?????欲꼲????饔낅떽??????" },
-        { role: "user", text: "DLC?????ル뒌?? ??轅붽틓???????몃뒌嶺?" },
+        { role: "ai", text: "코팅 종류를 선택해주세요." },
+        { role: "user", text: "DLC코팅이란 무엇인가요?" },
       ],
       prevState,
       filters,
@@ -180,7 +180,7 @@ describe("handleServeGeneralChatAction", () => {
       deps: {
         buildCandidateSnapshot: () => prevState.displayedCandidates,
         handleDirectInventoryQuestion: vi.fn(async () => ({
-          text: "E5D7004010????????????????????????????곸죩.",
+          text: "E5D7004010 제품의 재고가 확인되었습니다",
           chips: inventoryChips,
         })),
         handleDirectEntityProfileQuestion: vi.fn(async () => null),
@@ -196,7 +196,7 @@ describe("handleServeGeneralChatAction", () => {
       provider: { available: () => false } as any,
       form,
       messages: [
-        { role: "ai", text: "??????????壤굿??Β?????欲꼲????饔낅떽??????" },
+        { role: "ai", text: "코팅 종류를 선택해주세요." },
         { role: "user", text: "E5D7004010 stock info" },
       ],
       prevState,
@@ -231,7 +231,7 @@ describe("handleServeGeneralChatAction", () => {
         handleDirectInventoryQuestion: vi.fn(async () => null),
         handleDirectEntityProfileQuestion: vi.fn(async () => null),
         handleDirectBrandReferenceQuestion: vi.fn(async () => ({
-          text: "reference brand ??????????轅붽틓????????????곸죩.",
+          text: "reference brand 시리즈의 제품 정보를 확인했습니다",
           chips: brandChips,
         })),
         handleDirectCuttingConditionQuestion: vi.fn(async () => null),
@@ -245,7 +245,7 @@ describe("handleServeGeneralChatAction", () => {
       provider: { available: () => false } as any,
       form,
       messages: [
-        { role: "ai", text: "??????????壤굿??Β?????欲꼲????饔낅떽??????" },
+        { role: "ai", text: "코팅 종류를 선택해주세요." },
         { role: "user", text: "Show ISO H brand reference" },
       ],
       prevState,
@@ -276,7 +276,7 @@ describe("handleServeGeneralChatAction", () => {
         handleDirectEntityProfileQuestion: vi.fn(async () => null),
         handleDirectBrandReferenceQuestion: vi.fn(async () => null),
         handleDirectCuttingConditionQuestion: vi.fn(async () => ({
-          text: "E5D7004010 ?????????⑥ル????????????筌?캉??",
+          text: "E5D7004010 제품의 절삭조건을 알려드리겠습니다.",
           chips: cuttingChips,
         })),
         handleContextualNarrowingQuestion: vi.fn(async () => null),
@@ -289,7 +289,7 @@ describe("handleServeGeneralChatAction", () => {
       provider: { available: () => false } as any,
       form,
       messages: [
-        { role: "ai", text: "??????????壤굿??Β?????欲꼲????饔낅떽??????" },
+        { role: "ai", text: "코팅 종류를 선택해주세요." },
         { role: "user", text: "E5D7004010 cutting condition" },
       ],
       prevState,
@@ -373,7 +373,7 @@ describe("side question suspend/resume", () => {
     // Simulate a suspended flow (set by runtime before dispatching)
     prevState.suspendedFlow = {
       pendingField: "coating",
-      pendingQuestion: "??????????壤굿??Β?????欲꼲????饔낅떽??????",
+      pendingQuestion: "코팅 종류를 선택해주세요.",
       displayedOptionsSnapshot: [
         { index: 1, label: "DLC (1??", field: "coating", value: "DLC", count: 1 },
         { index: 2, label: "TiAlN (1??", field: "coating", value: "TiAlN", count: 1 },
@@ -403,7 +403,7 @@ describe("side question suspend/resume", () => {
       provider: { available: () => false } as any,
       form,
       messages: [
-        { role: "ai", text: "??????????壤굿??Β?????欲꼲????饔낅떽??????" },
+        { role: "ai", text: "코팅 종류를 선택해주세요." },
         { role: "user", text: "Factory info" },
       ],
       prevState,
@@ -433,7 +433,7 @@ describe("side question suspend/resume", () => {
     expect(body.sessionState.suspendedFlow).toBeNull()
   })
 
-  it("does NOT trigger suspend for question-assist (DLC?????ル뒌?? ??轅붽틓???????몃뒌嶺?)", async () => {
+  it("does NOT trigger suspend for question-assist (DLC코팅이란 무엇인가요?)", async () => {
     const prevState = makePrevState()
     // No suspendedFlow set ??question-assist should not create one
     const candidates = [makeCandidate(1, "E5D7004010", "DLC"), makeCandidate(2, "E5D7004020", "TiAlN")]
@@ -445,18 +445,18 @@ describe("side question suspend/resume", () => {
         handleDirectEntityProfileQuestion: vi.fn(async () => null),
         handleDirectBrandReferenceQuestion: vi.fn(async () => null),
         handleDirectCuttingConditionQuestion: vi.fn(async () => null),
-        handleContextualNarrowingQuestion: vi.fn(async () => "DLC????????猷매?뙴?????????????ル뒌????????⑤９???????????????袁④뎬????????????筌?캉??"),
+        handleContextualNarrowingQuestion: vi.fn(async () => "DLC코팅은 다이아몬드 유사 탄소 코팅으로, 알루미늄 및 비철금속 가공에 적합합니다."),
         handleGeneralChat: vi.fn(async () => ({ text: "unused", chips: [] })),
         jsonRecommendationResponse: (params) =>
           new Response(JSON.stringify(params), { headers: { "content-type": "application/json" } }),
       },
-      action: { type: "explain_product", target: "DLC?????ル뒌?? ??轅붽틓???????몃뒌嶺?" },
+      action: { type: "explain_product", target: "DLC코팅이란 무엇인가요?" },
       orchResult,
       provider: { available: () => false } as any,
       form,
       messages: [
-        { role: "ai", text: "??????????壤굿??Β?????欲꼲????饔낅떽??????" },
-        { role: "user", text: "DLC?????ル뒌?? ??轅붽틓???????몃뒌嶺?" },
+        { role: "ai", text: "코팅 종류를 선택해주세요." },
+        { role: "user", text: "DLC코팅이란 무엇인가요?" },
       ],
       prevState,
       filters: [],
@@ -483,7 +483,7 @@ describe("side question suspend/resume", () => {
     const prevState = makePrevState()
     prevState.suspendedFlow = {
       pendingField: "coating",
-      pendingQuestion: "??????????壤굿??Β?????欲꼲????饔낅떽??????",
+      pendingQuestion: "코팅 종류를 선택해주세요.",
       displayedOptionsSnapshot: [
         { index: 1, label: "DLC (1??", field: "coating", value: "DLC", count: 1 },
       ],
@@ -513,7 +513,7 @@ describe("side question suspend/resume", () => {
       provider: { available: () => false } as any,
       form,
       messages: [
-        { role: "ai", text: "??????????壤굿??Β?????欲꼲????饔낅떽??????" },
+        { role: "ai", text: "코팅 종류를 선택해주세요." },
         { role: "user", text: "E5D7004010 stock info" },
       ],
       prevState,

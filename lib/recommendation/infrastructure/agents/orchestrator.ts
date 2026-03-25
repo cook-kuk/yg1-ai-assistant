@@ -875,3 +875,73 @@ function buildFilterFromParams(
 
   return null
 }
+
+// ════════════════════════════════════════════════════════════════
+// PROTECTED ROUTING — deterministic fast-path for known UI actions
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * Routes protected recommendation intents deterministically without LLM calls.
+ * Returns null if sessionState is null or the message doesn't match any protected pattern.
+ */
+export function routeProtectedRecommendationIntent(
+  userMessage: string,
+  sessionState: ExplorationSessionState | null
+): Record<string, unknown> | null {
+  if (!sessionState) return null
+
+  const trimmed = userMessage.trim()
+  const lower = trimmed.toLowerCase()
+
+  // Full view / reset filter
+  if (lower === "전체 보기" || lower === "full view") {
+    return { type: "filter_displayed", field: "reset", operator: "reset", value: "__all__" }
+  }
+
+  // Series menu
+  if (lower === "다른 시리즈 보기" || lower === "시리즈 메뉴") {
+    return { type: "show_group_menu" }
+  }
+
+  // Recommendation request
+  if (lower === "추천해주세요" || lower === "추천해줘" || lower === "recommend") {
+    return { type: "show_recommendation" }
+  }
+
+  // Series selection — match against displayedSeriesGroups or displayedCandidates
+  const seriesGroups = sessionState.displayedSeriesGroups ?? []
+  for (const group of seriesGroups) {
+    if (group.seriesKey.toLowerCase() === lower || group.seriesName.toLowerCase() === lower) {
+      return { type: "restore_previous_group", groupKey: group.seriesKey }
+    }
+  }
+
+  const candidates = sessionState.displayedCandidates ?? []
+  for (const candidate of candidates) {
+    const seriesName = candidate.seriesName?.toLowerCase()
+    if (seriesName && seriesName === lower) {
+      return { type: "restore_previous_group", groupKey: candidate.seriesName! }
+    }
+  }
+
+  return null
+}
+
+/**
+ * Returns true when the message is a single-action follow-up in recommendation mode
+ * that can bypass multi-intent decomposition.
+ */
+export function shouldBypassMultiIntentDecomposition(
+  userMessage: string,
+  sessionState: ExplorationSessionState | null
+): boolean {
+  if (!sessionState) return false
+
+  const lower = userMessage.toLowerCase()
+  const multiIntentMarkers = ["and then", "그리고", "다음에", "and also"]
+  if (multiIntentMarkers.some(marker => lower.includes(marker))) {
+    return false
+  }
+
+  return true
+}

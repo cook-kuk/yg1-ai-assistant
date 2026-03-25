@@ -94,10 +94,10 @@ function makePrevState(): ExplorationSessionState {
     lastAskedField: "workPieceName",
     displayedProducts: [snapshot],
     displayedCandidates: [snapshot],
-    displayedChips: ["?怨쀬춳", "雅뚯눘????룻닊", "??β???룻닊", "?怨???곸벉"],
+    displayedChips: ["탄소강", "알루미늄 합금", "??β???룻닊", "기타 소재"],
     displayedOptions: [
-      { index: 1, label: "?怨쀬춳", field: "workPieceName", value: "?怨쀬춳", count: 0 },
-      { index: 2, label: "雅뚯눘????룻닊", field: "workPieceName", value: "雅뚯눘????룻닊", count: 0 },
+      { index: 1, label: "탄소강", field: "workPieceName", value: "탄소강", count: 0 },
+      { index: 2, label: "알루미늄 합금", field: "workPieceName", value: "알루미늄 합금", count: 0 },
     ],
     lastAction: "continue_narrowing",
     currentMode: "question",
@@ -143,7 +143,7 @@ describe("serve engine general chat company replies", () => {
       provider: { available: () => false } as any,
       form,
       messages: [
-        { role: "ai", text: "???펷沃섎챶???紐? ?ル굝履잏몴????젻雅뚯눘苑??" },
+        { role: "ai", text: "가공 소재를 선택해주세요. 알루미늄인가요?" },
         { role: "user", text: "\uBD80\uC0B0\uC601\uC5C5\uC18C\uC5D0 \uB300\uD574\uC11C \uC54C\uB824\uC918" },
       ],
       prevState,

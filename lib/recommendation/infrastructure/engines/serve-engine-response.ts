@@ -571,6 +571,9 @@ export async function buildRecommendationResponse(
   const snapshotCandidates = displayCandidates ?? candidates
   const snapshotEvidenceMap = displayEvidenceMap ?? evidenceMap
   const candidateSnapshot = buildCandidateSnapshot(snapshotCandidates, snapshotEvidenceMap)
+  // Full candidate snapshot for option planning — uses ALL candidates, not just display page,
+  // so the planner can detect diversity in coating/flute/series across the full result set.
+  const fullCandidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
   const recLastUserMsg = messages.length > 0
     ? [...messages].reverse().find(m => m.role === "user")?.text ?? null
     : null
@@ -578,7 +581,7 @@ export async function buildRecommendationResponse(
   // ── Option-first: structured options FIRST, then derive chips ──
   // NEVER generate chips from answer text. displayedOptions → chips.
   const postRecOptions = generateSmartOptionsForRecommendation(
-    candidateSnapshot, filters, input, form, null, recLastUserMsg
+    fullCandidateSnapshot, filters, input, form, null, recLastUserMsg
   )
   const postRecDisplayedOptions = postRecOptions.length > 0
     ? smartOptionsToDisplayedOptions(postRecOptions)

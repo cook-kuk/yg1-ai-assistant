@@ -153,6 +153,10 @@ export interface LlmTurnDecision {
     suggestedOptions: Array<{ label: string; value: string }>
     allowSkip: boolean
   }
+  suggestedChips?: Array<{
+    label: string
+    type: "option" | "action" | "filter" | "navigation"
+  }>
   uiPlan: {
     optionMode: "question_options" | "result_followups" | "none" | "comparison_options" | "no_options"
   }

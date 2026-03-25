@@ -62,9 +62,22 @@ export function resolveMaterialTag(input: string): string | null {
   return null
 }
 
+const ISO_DISPLAY: Record<string, { ko: string; en: string }> = {
+  P: { ko: "일반강", en: "Steel" },
+  M: { ko: "스테인리스", en: "Stainless Steels" },
+  K: { ko: "주철", en: "Cast Iron" },
+  N: { ko: "비철", en: "Non-Ferrous" },
+  S: { ko: "내열합금", en: "Heat Resistant Alloys" },
+  H: { ko: "고경도", en: "Hardened Steel" },
+}
+
 export function getMaterialDisplay(tag: string): { ko: string; en: string } {
   const taxonomy = load()
   const mat = taxonomy.find(m => m.tag === tag)
-  if (!mat) return { ko: tag, en: tag }
-  return { ko: mat.displayNameKo, en: mat.displayNameEn }
+  if (mat) return { ko: mat.displayNameKo, en: mat.displayNameEn }
+  return ISO_DISPLAY[tag] ?? { ko: tag, en: tag }
+}
+
+export function getAllTags(): string[] {
+  return Object.keys(ISO_DISPLAY)
 }
