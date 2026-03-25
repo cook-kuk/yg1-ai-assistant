@@ -517,10 +517,19 @@ export default function FeedbackViewerPage() {
               <p className="text-xs text-gray-500">의견 남기기와 대화 피드백을 관리자 모드에서 검토합니다.</p>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={fetchFeedback} className="gap-1">
-            <RefreshCw size={12} />
-            새로고침
-          </Button>
+          <div className="flex items-center gap-2">
+            <a
+              href="/feedback/table"
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 border border-blue-200"
+            >
+              <BarChart3 size={12} />
+              평가 테이블
+            </a>
+            <Button variant="outline" size="sm" onClick={fetchFeedback} className="gap-1">
+              <RefreshCw size={12} />
+              새로고침
+            </Button>
+          </div>
         </div>
       </div>
 
