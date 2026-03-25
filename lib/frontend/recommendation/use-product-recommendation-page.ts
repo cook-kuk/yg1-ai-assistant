@@ -200,11 +200,14 @@ export function useProductRecommendationPage({
         pagination: { page: 0, pageSize: DEFAULT_PAGE_SIZE },
       })
 
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 55000) // 55s timeout (server maxDuration=60s)
       const res = await fetch("/api/recommend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestPayload),
-      })
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeout))
       if (!res.ok) throw new Error(`서버 오류 (${res.status})`)
       const data = parseRecommendationResponse(await res.json())
       if (data.error) throw new Error(data.detail ?? data.error)
@@ -279,11 +282,14 @@ export function useProductRecommendationPage({
         pagination: { page: 0, pageSize: DEFAULT_PAGE_SIZE },
       })
 
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 55000) // 55s timeout (server maxDuration=60s)
       const res = await fetch("/api/recommend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestPayload),
-      })
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeout))
       if (!res.ok) throw new Error(`서버 오류 (${res.status})`)
       const data = parseRecommendationResponse(await res.json())
       if (data.error) throw new Error(data.detail ?? data.error)
@@ -382,11 +388,14 @@ export function useProductRecommendationPage({
         pagination: { page, pageSize: currentPagination.pageSize },
       })
 
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 55000) // 55s timeout (server maxDuration=60s)
       const res = await fetch("/api/recommend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestPayload),
-      })
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeout))
       if (!res.ok) throw new Error(`서버 오류 (${res.status})`)
       const data = parseRecommendationResponse(await res.json())
       if (data.error) throw new Error(data.detail ?? data.error)
