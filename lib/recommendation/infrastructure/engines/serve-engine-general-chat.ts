@@ -17,7 +17,7 @@ import {
   buildQuestionAssistOptions,
 } from "@/lib/recommendation/infrastructure/engines/serve-engine-option-first"
 import { shouldAttemptWebSearchFallback } from "@/lib/recommendation/infrastructure/engines/serve-engine-assist"
-import { buildFinalChipsFromLLM } from "@/lib/recommendation/domain/options/llm-chip-pipeline"
+import { buildFinalChipsFromLLM, isUnfilterableChip } from "@/lib/recommendation/domain/options/llm-chip-pipeline"
 import { resolveYG1Query } from "@/lib/knowledge/knowledge-router"
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { OrchestratorAction, OrchestratorResult } from "@/lib/recommendation/infrastructure/agents/types"
@@ -216,7 +216,15 @@ export function resolveReplyUiStrategy(
 export function buildReplyDisplayedOptions(
   chips: string[],
 ): DisplayedOption[] {
-  return chips.map((chip, index) => ({
+  // Catch-all guard: remove any chip referencing non-filterable DB fields
+  const safeChips = chips.filter(chip => {
+    if (isUnfilterableChip(chip)) {
+      console.log(`[buildReplyDisplayedOptions] Blocked unfilterable chip: "${chip}"`)
+      return false
+    }
+    return true
+  })
+  return safeChips.map((chip, index) => ({
     index: index + 1,
     label: chip,
     field: "_action",
