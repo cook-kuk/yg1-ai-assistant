@@ -477,6 +477,60 @@ async function handleServeExplorationInner(
       const v2Action = result.trace.action
       console.log(`[runtime:v2] Orchestrator decision: action=${v2Action}, phase=${result.trace.phase}, confidence=${result.trace.confidence}`)
 
+      // ── Enrich debug trace with V2 orchestrator details ──
+      trace.add("v2-orchestrator", "router", {
+        userMessage: lastUserMsg.text.slice(0, 100),
+        prevPhase: currentPhase,
+        prevFilters: prevState?.appliedFilters?.length ?? 0,
+        prevCandidates: prevState?.candidateCount ?? 0,
+      }, {
+        action: v2Action,
+        phase: result.trace.phase,
+        confidence: result.trace.confidence,
+        searchExecuted: result.trace.searchExecuted,
+        validated: result.trace.validated,
+        answerLength: result.answer.length,
+        chipsCount: result.chips.length,
+        chips: result.chips,
+      }, `V2 single-call: ${v2Action} (${(result.trace.confidence * 100).toFixed(0)}% confidence)`)
+
+      trace.setRouteDecision({
+        chosen: `v2:${v2Action}`,
+        reason: `V2 orchestrator decided: ${v2Action}`,
+        alternatives: [{ name: "legacy_fallback", rejectedReason: "V2 succeeded" }],
+      })
+
+      trace.setReasoning({
+        oneLiner: `V2: ${v2Action} → ${result.trace.phase} (${result.chips.length} chips)`,
+        bullets: [
+          `Action: ${v2Action}`,
+          `Phase: ${result.trace.phase}`,
+          `Confidence: ${(result.trace.confidence * 100).toFixed(0)}%`,
+          `Search: ${result.trace.searchExecuted ? "executed" : "skipped"}`,
+          `Answer: ${result.answer.slice(0, 80)}...`,
+          `Chips: [${result.chips.join(", ")}]`,
+        ],
+      })
+
+      if (prevState) {
+        trace.setSessionState({
+          sessionId: prevState.sessionId ?? "",
+          candidateCount: prevState.candidateCount ?? 0,
+          resolutionStatus: prevState.resolutionStatus ?? null,
+          currentMode: prevState.currentMode ?? null,
+          lastAskedField: prevState.lastAskedField ?? null,
+          lastAction: prevState.lastAction ?? null,
+          turnCount: prevState.turnCount ?? 0,
+          appliedFilters: (prevState.appliedFilters ?? []).map(f => ({ field: f.field, value: f.value, op: f.op })),
+          displayedChips: prevState.displayedChips ?? [],
+          displayedOptionsCount: prevState.displayedOptions?.length ?? 0,
+          displayedCandidateCount: prevState.displayedCandidates?.length ?? 0,
+          hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
+          hasComparison: prevState.currentMode === "comparison",
+          pendingAction: prevState.pendingAction ? { label: prevState.pendingAction.label, type: prevState.pendingAction.type } : null,
+        })
+      }
+
       // Convert V2 result → legacy session state (preserving existing state data)
       const legacyState = convertFromV2State(result.sessionState, prevState)
       legacyState.displayedChips = result.chips
@@ -515,6 +569,17 @@ async function handleServeExplorationInner(
         meta: {
           orchestratorResult: { action: `v2:${v2Action}`, agents: [], opus: false },
           trace: result.trace,
+          debugTrace: trace.build({
+            latestUserMessage: lastUserMsg.text,
+            latestAssistantQuestion: null,
+            currentMode: currentPhase,
+            routeAction: `v2:${v2Action}`,
+            pendingField: prevState?.lastAskedField ?? null,
+            candidateCount: prevState?.candidateCount ?? null,
+            filterCount: prevState?.appliedFilters?.length ?? 0,
+            summary: `V2 | ${v2Action} | ${result.trace.phase} | ${result.chips.length} chips | ${perfMetrics.totalMs}ms`,
+          }),
+          perfMetrics,
         },
       })
     } catch (err) {
