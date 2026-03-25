@@ -647,7 +647,7 @@ export async function buildRecommendationResponse(
       matchStatus: status,
       score: primary.score,
       query: `직경:${input.diameterMm ?? "?"}mm 소재:${input.material ?? "?"} 가공:${input.operationType ?? "?"}`,
-    }).catch(() => {})
+    }).catch((err) => { console.warn("[notify] Recommendation notification failed:", err) })
   }
 
   // ── Post-Answer Validator: strip unauthorized actions from answer ──

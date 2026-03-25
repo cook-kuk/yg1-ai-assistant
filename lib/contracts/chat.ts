@@ -45,7 +45,7 @@ export const chatMessageRoleSchema = z.enum(["user", "ai", "system"])
 
 export const chatMessageSchema = z.object({
   role: chatMessageRoleSchema,
-  text: z.string(),
+  text: z.string().min(1).max(5000),
 }).passthrough()
 
 export const chatExtractedFieldSchema = z.object({

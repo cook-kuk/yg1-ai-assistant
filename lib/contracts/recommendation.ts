@@ -390,7 +390,7 @@ export const recommendationRequestSchema = z.object({
   intakeForm: z.unknown().optional(),
   messages: z.array(z.object({
     role: z.enum(["user", "ai"]),
-    text: z.string(),
+    text: z.string().min(1).max(5000),
   })).optional(),
   session: recommendationSessionEnvelopeSchema.nullable().optional(),
   sessionState: z.unknown().nullable().optional(),
