@@ -34,3 +34,6 @@ export const ENABLE_TASK_SYSTEM = envFlag("ENABLE_TASK_SYSTEM", true)
 
 /** Apply extra in-memory heuristics after SQL fetch. Conversation narrowing filters stay enabled. */
 export const ENABLE_POST_SQL_CANDIDATE_FILTERS = envFlag("ENABLE_POST_SQL_CANDIDATE_FILTERS", true)
+
+/** Use V2 turn orchestrator (new recommendation pipeline). Defaults to false — existing behavior. */
+export const USE_NEW_ORCHESTRATOR = process.env.USE_NEW_ORCHESTRATOR === "true"

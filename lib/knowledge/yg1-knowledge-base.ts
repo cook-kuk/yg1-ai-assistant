@@ -281,7 +281,7 @@ export function searchKB(query: string): { found: boolean; answer: string; confi
     return { found: true, confidence: "high",
       answer: "YG-1에 익산공장은 없습니다. 국내 공장은 인천(인천본공장·부평공장·서운공장), 광주, 충주 총 5곳입니다." }
   }
-  if (q.includes("안산") && (q.includes("공장") || q.includes("있"))) {
+  if (q.includes("안산") && q.includes("공장")) {
     return { found: true, confidence: "high",
       answer: "안산공장은 1995년에 준공됐지만 현재는 운영하지 않습니다. 현재 국내 공장은 인천(3곳), 광주, 충주입니다." }
   }
@@ -295,7 +295,7 @@ export function searchKB(query: string): { found: boolean; answer: string; confi
     if (site.type === "plant") nameVariants.push(site.name.replace("공장", "").toLowerCase())
     if (site.type === "sales") nameVariants.push(site.name.replace("영업소", "").replace("(", "").replace(")", "").toLowerCase())
 
-    if (nameVariants.some(v => v.length >= 2 && q.includes(v))) {
+    if (nameVariants.some(v => v.length >= 4 && q.includes(v))) {
       const parts = [`${site.name} — 주소: ${site.address}`, `전화: ${site.tel}`]
       if ("researchers" in site && site.researchers) parts.push(`연구원 ${site.researchers}명`)
       if ("production" in site && site.production) parts.push(`생산: ${site.production}`)
@@ -305,7 +305,7 @@ export function searchKB(query: string): { found: boolean; answer: string; confi
   }
 
   // ── 공장 목록/개수 ──
-  if (q.includes("공장") && (q.includes("몇") || q.includes("어디") || q.includes("목록") || q.includes("전체") || q.includes("리스트") || q.includes("개"))) {
+  if (q.includes("공장") && (q.includes("몇") || q.includes("어디") || q.includes("목록") || q.includes("전체") || q.includes("리스트") || q.includes("몇개") || q.includes("몇 개"))) {
     const plants = YG1_KB.domestic_sites.filter(s => s.type === "plant")
     return { found: true, confidence: "high",
       answer: `YG-1 국내 공장은 총 ${plants.length}곳: ${plants.map(p => `${p.name}(${p.address.split(" ")[0]})`).join(", ")}. ❌ 익산공장 없음, 안산공장 현재 없음.` }
@@ -364,7 +364,7 @@ export function searchKB(query: string): { found: boolean; answer: string; confi
   }
 
   // ── 순위 ──
-  if (q.includes("순위") || q.includes("몇위") || q.includes("세계 1위") || q.includes("세계 3위") || q.includes("세계 6위") || (q.includes("세계") && q.includes("위"))) {
+  if (q.includes("순위") || q.includes("몇위") || q.includes("세계 1위") || q.includes("세계 3위") || q.includes("세계 6위") || /세계.*\d+위/.test(q)) {
     const r = YG1_KB.company.ranking
     return { found: true, confidence: "high",
       answer: `YG-1 글로벌 순위: 엔드밀 ${r.endmill}, 탭 ${r.tap}, 드릴 ${r.drill}, ${r.domestic}. 목표: ${YG1_KB.company.goal_2035}` }

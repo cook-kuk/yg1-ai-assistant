@@ -18,6 +18,7 @@ import {
   resolveProductReferences,
 } from "@/lib/recommendation/infrastructure/agents/recommendation-agents"
 import { ENABLE_TOOL_USE_ROUTING } from "@/lib/recommendation/infrastructure/config/recommendation-feature-flags"
+import { USE_NEW_ORCHESTRATOR } from "@/lib/feature-flags"
 import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import { performUnifiedJudgment } from "@/lib/recommendation/domain/context/unified-haiku-judgment"
 import {
@@ -445,6 +446,13 @@ async function handleServeExplorationInner(
   const lastUserMsg = messages.length > 0
     ? [...messages].reverse().find(message => message.role === "user")
     : null
+
+  if (USE_NEW_ORCHESTRATOR && lastUserMsg) {
+    console.log("[runtime] Using new orchestrator v2")
+    // TODO: Wire to orchestrateTurnV2 in Phase 2
+    // For now, just log and fall through to existing logic
+  }
+
   const pendingWorkPieceFilter = buildPendingWorkPieceSelectionFilter(prevState, lastUserMsg?.text ?? null)
 
   const journeyPhase = detectJourneyPhase(prevState)
