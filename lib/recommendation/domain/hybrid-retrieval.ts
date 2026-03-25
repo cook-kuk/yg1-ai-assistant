@@ -328,8 +328,8 @@ export async function runHybridRetrieval(
           ? `${matchedMats.join(",")}군 모두 적합`
           : `${matchedMats.join(",")}군 적합 (${materialTags.length}개 중 ${matchedMats.length}개)`
       } else {
-        // Penalty for explicit material mismatch: -10 points instead of 0
-        matScore = -10
+        // Penalty for explicit material mismatch: 0 points (no bonus, no negative)
+        matScore = 0
         matDetail = `${materialTags.join(",")}군 미지원 (지원: ${product.materialTags.join(", ") || "없음"})`
       }
     }

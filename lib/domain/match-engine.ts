@@ -139,12 +139,14 @@ export async function runMatchEngine(input: RecommendationInput, topN = 5): Prom
     } satisfies ScoredProduct
   }))
 
-  // Sort: by score desc, then by source priority asc, then completeness desc
+  // Sort: by score desc, then by source priority asc, then completeness desc, then stable tie-breaker
   scored.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score
     if (a.product.sourcePriority !== b.product.sourcePriority)
       return a.product.sourcePriority - b.product.sourcePriority
-    return b.product.dataCompletenessScore - a.product.dataCompletenessScore
+    if (b.product.dataCompletenessScore !== a.product.dataCompletenessScore)
+      return b.product.dataCompletenessScore - a.product.dataCompletenessScore
+    return (a.product.normalizedCode ?? "").localeCompare(b.product.normalizedCode ?? "")
   })
 
   // Return top-N, but only if score is meaningful (> 0)
