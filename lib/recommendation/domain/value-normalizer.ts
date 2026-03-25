@@ -107,7 +107,7 @@ DB 값만 정확히 반환하세요. 설명이나 따옴표 없이 값만.`
   const raw = await provider.complete(
     "당신은 절삭공구 용어 번역기입니다. DB 값과 매칭되는 것을 찾아 DB 값 그대로 반환합니다. 값만 반환하세요.",
     [{ role: "user", content: prompt }],
-    30, // max tokens — 값만 반환하면 충분
+    1500,
     "haiku"
   )
 

@@ -133,7 +133,7 @@ export async function decomposeQuery(
     const raw = await provider.complete(
       systemPrompt,
       [{ role: "user", content: userMessage }],
-      300,
+      1500,
       "haiku"
     )
 

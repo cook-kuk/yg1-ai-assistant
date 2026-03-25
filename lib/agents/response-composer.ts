@@ -70,7 +70,7 @@ JSON 응답: {"responseText": "..."}`
     const raw = await provider.complete(
       systemPrompt,
       [{ role: "user", content: questionText }],
-      300,
+      1500,
       "sonnet",
       "response-composer"
     )

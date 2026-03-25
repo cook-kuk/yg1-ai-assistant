@@ -87,7 +87,7 @@ JSON: {"chips": ["칩1", ...], "reasoning": "한 줄"}`
     const raw = await provider.complete(
       systemPrompt,
       [{ role: "user", content: contextStr }],
-      200,
+      1500,
       "haiku"
     )
 
