@@ -99,7 +99,10 @@ function sliceCandidatesForPage(
   evidenceMap: Map<string, EvidenceSummary>,
   pagination: CandidatePaginationRequest
 ): CandidatePageSlice {
-  const start = pagination.page * pagination.pageSize
+  // Clamp page to valid range to prevent empty results on out-of-bounds requests
+  const totalPages = candidates.length === 0 ? 0 : Math.ceil(candidates.length / pagination.pageSize)
+  const clampedPage = totalPages > 0 ? Math.min(pagination.page, totalPages - 1) : 0
+  const start = clampedPage * pagination.pageSize
   const end = start + pagination.pageSize
   const pageCandidates = candidates.slice(start, end)
   const pageEvidenceMap = new Map<string, EvidenceSummary>()

@@ -276,7 +276,8 @@ export function restoreToBeforeFilter(
     }
   }
 
-  // Fallback: use replay
+  // Fallback: use replay (filter not found in stageHistory)
+  console.warn(`[go_back_to_filter] Filter "${filterField}=${filterValue}" not found in stageHistory (${stageHistory.length} stages), falling back to replay`)
   return replayFromBase(state, baseInput, applyFilterToInput, state.turnCount - 1)
 }
 
