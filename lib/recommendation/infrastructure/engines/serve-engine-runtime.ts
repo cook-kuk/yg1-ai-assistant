@@ -465,17 +465,16 @@ async function handleServeExplorationInner(
       const { orchestrateTurnV2 } = await import("@/lib/recommendation/core/turn-orchestrator")
       const { convertToV2State, convertFromV2State } = await import("@/lib/recommendation/core/state-adapter")
 
-      // ── Pending field answer → skip V2, use legacy (필터 + 재검색 필요) ──
-      // 사용자가 이전 턴의 칩(예: "Drill Mill (8개)")을 클릭한 경우,
-      // 레거시 경로가 필터 적용 + 재검색을 제대로 처리하므로 V2를 skip.
-      if (prevState?.lastAskedField && lastUserMsg) {
-        const pendingFilter = parseAnswerToFilter(prevState.lastAskedField, lastUserMsg.text)
-        if (pendingFilter) {
-          console.log(`[runtime:v2] Pending field answer detected (${pendingFilter.field}=${pendingFilter.value}), delegating to legacy for filter+search`)
-          perf.endStep("v2_orchestrator")
-          // Fall through to legacy path — it handles filter application + re-retrieval correctly
-          throw new Error("DELEGATE_TO_LEGACY")
-        }
+      // ── Narrowing 단계 → 항상 레거시 사용 ──
+      // V2는 필터 적용 + 재검색을 하지 못하므로, 축소 질문 응답 단계에서는
+      // 반드시 레거시 경로를 사용해야 필터가 정확히 걸린다.
+      // V2는 side question, 회사 질문, 제품 설명 등 비검색 턴에서만 사용.
+      const isNarrowingPhase = prevState?.currentMode === "question" || prevState?.currentMode === "narrowing"
+      const hasPendingField = !!prevState?.lastAskedField
+      if (isNarrowingPhase && hasPendingField) {
+        console.log(`[runtime:v2] Narrowing phase with pending field "${prevState!.lastAskedField}" → delegating to legacy for filter+search`)
+        perf.endStep("v2_orchestrator")
+        throw new Error("DELEGATE_TO_LEGACY")
       }
 
       const v2State = convertToV2State(prevState)
