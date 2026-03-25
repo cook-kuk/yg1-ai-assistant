@@ -94,7 +94,8 @@ async function buildWorkPieceQuestion(
   input: RecommendationInput,
   history: NarrowingTurn[],
   filters: AppliedFilter[],
-  candidates?: ScoredProduct[]
+  candidates?: ScoredProduct[],
+  excludeValues?: string[]
 ): Promise<{
   field: string
   questionText: string
@@ -122,8 +123,10 @@ async function buildWorkPieceQuestion(
   })
   if (allWorkPieceNames.length <= 1) return null
 
-  // workPiece 전체 목록 사용 — 0개 후보는 선택 시 0-candidate guard가 제거
-  let relevantNames = allWorkPieceNames
+  // 0-candidate guard에서 제외 요청된 값 필터링
+  let relevantNames = excludeValues?.length
+    ? allWorkPieceNames.filter(name => !excludeValues.includes(name))
+    : allWorkPieceNames
 
   const materialLabel = getMaterialDisplay(isoGroup).ko
   const chips = [...relevantNames.slice(0, 10), "상관없음"]
@@ -154,9 +157,10 @@ export async function buildQuestionResponse(
   provider: ReturnType<typeof getProvider>,
   language: AppLanguage,
   overrideText?: string,
-  existingStageHistory?: NarrowingStage[]
+  existingStageHistory?: NarrowingStage[],
+  excludeWorkPieceValues?: string[]
 ): Promise<Response> {
-  const question = await buildWorkPieceQuestion(input, history, filters, candidates) ?? selectNextQuestion(input, candidates, history, totalCandidateCount)
+  const question = await buildWorkPieceQuestion(input, history, filters, candidates, excludeWorkPieceValues) ?? selectNextQuestion(input, candidates, history, totalCandidateCount)
   const stageHistory = existingStageHistory
     ? [...existingStageHistory]
     : buildStageHistoryFromFilters(filters, input, totalCandidateCount)
