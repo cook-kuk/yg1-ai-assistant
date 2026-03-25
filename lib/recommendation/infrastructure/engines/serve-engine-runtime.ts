@@ -1672,7 +1672,10 @@ async function handleServeExplorationInner(
         resolvedInputSnapshot: { ...currentInput },
         filtersSnapshot: [...filters],
       }
-      const updatedStages = [...existingStages, newStage]
+      // Cap stageHistory to last 10 stages to prevent session state bloat in long conversations
+      // (each stage has full resolvedInputSnapshot + filtersSnapshot)
+      const MAX_STAGE_HISTORY = 10
+      const updatedStages = [...existingStages, newStage].slice(-MAX_STAGE_HISTORY)
 
       console.log(
         `[orchestrator:filter] ${filter.field}=${filter.value} | ${previousCandidateCount}->${testResult.totalConsidered} candidates | stages: ${updatedStages.map(stage => stage.stageName).join(" -> ")}`
