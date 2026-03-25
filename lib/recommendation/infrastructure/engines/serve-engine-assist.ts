@@ -1517,21 +1517,35 @@ async function searchWebForKnowledge(query: string): Promise<string | null> {
   if (!apiKey) return null
 
   try {
-    const Anthropic = (await import("@anthropic-ai/sdk")).default
-    const searchClient = new Anthropic({ apiKey })
-
-    const resp = await searchClient.messages.create({
-      model: "claude-sonnet-4-20250514" as Parameters<typeof searchClient.messages.create>["0"]["model"],
-      max_tokens: 1024,
-      tools: [{ type: "web_search_20250305" as const, name: "web_search", max_uses: 3 }],
-      messages: [{
-        role: "user",
-        content: `다음 질문에 대해 웹 검색으로 전문적인 정보를 찾아 한국어로 정리해주세요.\n\n질문: ${query}\n\n규칙:\n- 구체적 수치와 비교 포함\n- 3~5문장으로 핵심만\n- 출처가 있으면 간단히 언급`,
-      }],
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1024,
+        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }],
+        messages: [{
+          role: "user",
+          content: `다음 질문에 대해 웹 검색으로 전문적인 정보를 찾아 한국어로 정리해주세요.\n\n질문: ${query}\n\n규칙:\n- 구체적 수치와 비교 포함\n- 3~5문장으로 핵심만\n- 출처가 있으면 간단히 언급`,
+        }],
+      }),
     })
 
-    const text = resp.content
-      .map(block => block.type === "text" ? block.text : "")
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`${response.status} ${errorText}`)
+    }
+
+    const resp = await response.json() as {
+      content?: Array<{ type?: string; text?: string }>
+    }
+
+    const text = (resp.content ?? [])
+      .map(block => block.type === "text" ? block.text ?? "" : "")
       .join("\n")
       .trim()
     return text || null
