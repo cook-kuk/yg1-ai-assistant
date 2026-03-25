@@ -408,54 +408,54 @@ function planExplainOptions(
     plan,
   })
 
-  // 추천 이유
-  options.push(mkOpt("explore", "왜 이 제품을 추천했나요?", "추천 근거 확인",
-    { type: "explain_recommendation", patches: [{ op: "add", field: "_action", value: "explain_recommendation" }] }, 0.9, true))
+  // ── 후보 데이터 기반 동적 칩 생성 ──
+  const coatings = new Set(top.map(c => c.coating).filter(Boolean))
+  const flutes = new Set(top.map(c => c.fluteCount).filter(Boolean))
+  const series = new Set(top.map(c => c.seriesName).filter(Boolean))
+  const primaryCode = top[0]?.displayCode
 
-  // 대체 후보 비교
+  // 제품 상세 (1순위 제품코드 포함)
+  if (primaryCode) {
+    options.push(mkOpt("explore", `${primaryCode} 상세 정보`, "추천 제품 상세",
+      { type: "explain_recommendation", patches: [{ op: "add", field: "_action", value: "explain_recommendation" }] }, 0.9, true))
+  }
+
+  // 상위 비교 (후보 있을 때)
   if (top.length >= 2) {
-    options.push(mkOpt("compare", `대체 후보 ${top.length - 1}개 비교하기`, "대안 비교",
+    options.push(mkOpt("compare", `상위 ${Math.min(top.length, 3)}개 비교`, "상위 후보 비교",
       { type: "compare_products", patches: top.slice(0, 3).map(c => ({ op: "add" as const, field: "_compare", value: c.displayCode })) }, 0.8))
   }
 
-  // 절삭조건
-  options.push(mkOpt("action", "절삭조건 알려줘", "절삭조건 확인",
-    { type: "apply_filter", patches: [{ op: "add", field: "_action", value: "cutting_conditions" }] }, 0.7))
+  // 날수 분포 비교 (2종 이상)
+  if (flutes.size >= 2) {
+    options.push(mkOpt("compare", `날수별 (${[...flutes].sort().join("/")}날)`, "날수별 비교",
+      { type: "compare_products", patches: [{ op: "add", field: "_action", value: "flute_compare" }] }, 0.7))
+  }
 
-  // 코팅별 비교 (다양한 코팅이 있을 때)
-  const coatings = new Set(top.map(c => c.coating).filter(Boolean))
+  // 코팅 분포 비교 (2종 이상)
   if (coatings.size >= 2) {
-    options.push(mkOpt("compare", "코팅별 차이 비교", "코팅 특성 비교",
+    options.push(mkOpt("compare", `코팅별 (${[...coatings].slice(0, 3).join("/")})`, "코팅별 비교",
       { type: "compare_products", patches: [{ op: "add", field: "_action", value: "coating_compare" }] }, 0.6))
   }
 
-  // 날수별 비교 (다양한 날수가 있을 때)
-  const flutes = new Set(top.map(c => c.fluteCount).filter(Boolean))
-  if (flutes.size >= 2) {
-    options.push(mkOpt("compare", `${[...flutes].sort().join("날 vs ")}날 비교`, "날수별 특성 비교",
-      { type: "compare_products", patches: [{ op: "add", field: "_action", value: "flute_compare" }] }, 0.5))
-  }
-
-  // 시리즈 설명 (다양한 시리즈가 있을 때)
-  const series = new Set(top.map(c => c.seriesName).filter(Boolean))
+  // 시리즈 비교 (2개 이상)
   if (series.size >= 2) {
-    options.push(mkOpt("explore", "시리즈 차이 설명해줘", "시리즈 특성 비교",
-      { type: "apply_filter", patches: [{ op: "add", field: "_action", value: "series_explain" }] }, 0.4))
+    options.push(mkOpt("explore", `${[...series].slice(0, 2).join(" vs ")} 비교`, "시리즈 비교",
+      { type: "apply_filter", patches: [{ op: "add", field: "_action", value: "series_explain" }] }, 0.5))
   }
 
-  // 재고 확인 (primary가 있을 때)
-  if (top.length > 0) {
-    options.push(mkOpt("action", "재고 확인", "재고 현황 조회",
-      { type: "apply_filter", patches: [{ op: "add", field: "_action", value: "inventory_check" }] }, 0.3))
+  // 재고 상태 기반
+  if (top[0]?.matchStatus) {
+    const stockInfo = ctx.displayedProducts?.find(p => p.displayCode === primaryCode)
+    if (stockInfo?.stockStatus === "outofstock" || stockInfo?.stockStatus === "limited") {
+      options.push(mkOpt("action", "재고 있는 대안", "재고 있는 제품 탐색",
+        { type: "apply_filter", patches: [{ op: "add", field: "stockStatus", value: "instock" }] }, 0.4))
+    }
   }
 
-  // 다른 직경/조건 탐색
-  options.push(mkOpt("explore", "다른 직경으로 검색", "직경 변경 탐색",
-    { type: "apply_filter", patches: [{ op: "add", field: "_action", value: "change_diameter" }] }, 0.2))
-
-  // 다른 소재 조건
-  options.push(mkOpt("explore", "다른 소재 조건 검색", "소재 변경 탐색",
-    { type: "apply_filter", patches: [{ op: "add", field: "_action", value: "change_material" }] }, 0.1))
+  // 조건 변경
+  options.push(mkOpt("explore", "조건 변경", "검색 조건 변경",
+    { type: "apply_filter", patches: [{ op: "add", field: "_action", value: "change_conditions" }] }, 0.2))
 
   options.push({
     id: nextOptionId("reset"),
@@ -756,14 +756,38 @@ function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartOption[]
   // ── UI-artifact-aware: if comparison is already visible, skip compare option ──
   // ── If cutting conditions already shown, skip cutting conditions option ──
 
-  // 1. Compare alternatives (if there are alternatives and no comparison visible)
+  // ── 후보 데이터 기반 동적 옵션 ──
+  const primaryCode = top[0]?.displayCode
+
+  // 1. 제품 상세 (1순위 제품코드 포함)
+  if (primaryCode) {
+    options.push({
+      id: nextOptionId("explore"),
+      family: "explore",
+      label: `${primaryCode} 상세 정보`,
+      subtitle: "추천 제품 상세",
+      reason: "추천 근거 + 스펙 확인",
+      projectedCount: null,
+      projectedDelta: null,
+      preservesContext: true,
+      destructive: false,
+      recommended: true,
+      priorityScore: 0.9,
+      plan: {
+        type: "apply_filter",
+        patches: [{ op: "add", field: "_action", value: "explain_recommendation" }],
+      },
+    })
+  }
+
+  // 2. 상위 비교 (후보 + 비교 UI 없을 때)
   if (top.length >= 2 && !artifacts?.hasComparison) {
     options.push({
-      id: nextOptionId("action"),
-      family: "action",
-      label: `대체 후보 ${top.length - 1}개 비교하기`,
-      subtitle: "추천 제품과 대안 비교",
-      reason: "대안 비교로 확신 있는 선택",
+      id: nextOptionId("compare"),
+      family: "compare",
+      label: `상위 ${Math.min(top.length, 3)}개 비교`,
+      subtitle: top.slice(0, 3).map(c => c.displayCode).join(" vs "),
+      reason: "상위 후보 비교",
       projectedCount: null,
       projectedDelta: null,
       preservesContext: true,
@@ -776,25 +800,6 @@ function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartOption[]
       },
     })
   }
-
-  // 2. Cutting conditions
-  options.push({
-    id: nextOptionId("action"),
-    family: "action",
-    label: "절삭조건 알려줘",
-    subtitle: "추천 제품의 권장 가공 조건",
-    reason: "절삭조건 확인",
-    projectedCount: null,
-    projectedDelta: null,
-    preservesContext: true,
-    destructive: false,
-    recommended: false,
-    priorityScore: 0.5,
-    plan: {
-      type: "apply_filter",
-      patches: [{ op: "add", field: "_action", value: "cutting_conditions" }],
-    },
-  })
 
   // 3. Narrow/change coating (dynamic based on variety)
   const coatingSet = new Set(top.map(c => c.coating).filter(Boolean))
@@ -887,12 +892,12 @@ function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartOption[]
     })
   }
 
-  // 4c. Change diameter (explore)
+  // 4c. 직경 변경 (현재 직경 표시)
   if (top[0]?.diameterMm) {
     options.push({
       id: nextOptionId("explore"),
       family: "explore",
-      label: "다른 직경 검색",
+      label: `φ${top[0].diameterMm}mm 외 다른 직경`,
       subtitle: `현재: ${top[0].diameterMm}mm`,
       field: "diameterMm",
       reason: "직경 변경 탐색",
@@ -905,27 +910,6 @@ function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartOption[]
       plan: {
         type: "replace_filter",
         patches: [{ op: "remove", field: "diameterMm" }],
-      },
-    })
-  }
-
-  // 5. Why this product (explore)
-  if (top.length > 0) {
-    options.push({
-      id: nextOptionId("explore"),
-      family: "explore",
-      label: "왜 이 제품을 추천했나요?",
-      subtitle: "추천 근거 확인",
-      reason: "추천 이유 설명",
-      projectedCount: null,
-      projectedDelta: null,
-      preservesContext: true,
-      destructive: false,
-      recommended: false,
-      priorityScore: 0.4,
-      plan: {
-        type: "apply_filter",
-        patches: [{ op: "add", field: "_action", value: "explain_recommendation" }],
       },
     })
   }

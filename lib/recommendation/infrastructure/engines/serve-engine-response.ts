@@ -830,65 +830,98 @@ function buildMinimalPostRecChips(
     chips.push("처음부터 다시")
     return chips
   }
-  if (result.alternatives.length > 0) {
-    chips.push(`대체 후보 ${result.alternatives.length}개 비교하기`)
+
+  const primary = result.primaryProduct
+  const alts = result.alternatives
+
+  // 동적: 후보 데이터 기반 칩 생성
+  const coatings = new Set(alts.map(a => a.product.coating).filter(Boolean))
+  const flutes = new Set(alts.map(a => a.product.fluteCount).filter(Boolean))
+  const series = new Set(alts.map(a => a.product.seriesName).filter(Boolean))
+
+  if (primary.product.displayCode) {
+    chips.push(`${primary.product.displayCode} 상세 정보`)
   }
-  chips.push("절삭조건 알려줘")
-  if (filters.length > 0) chips.push("⟵ 이전 단계")
-  chips.push("처음부터 다시")
-  return chips.slice(0, 5)
+  if (alts.length > 0) {
+    chips.push(`상위 ${Math.min(alts.length + 1, 3)}개 비교`)
+  }
+  if (flutes.size >= 2) {
+    chips.push(`날수별 비교 (${[...flutes].sort().join("/")}날)`)
+  }
+  if (coatings.size >= 2) {
+    chips.push(`코팅별 비교 (${[...coatings].slice(0, 3).join("/")})`)
+  }
+  if (primary.stockStatus === "outofstock" || primary.stockStatus === "limited") {
+    chips.push("재고 있는 대안 보기")
+  }
+  if (series.size >= 2) {
+    chips.push(`시리즈 비교 (${[...series].slice(0, 2).join(" vs ")})`)
+  }
+  if (filters.length > 0) chips.push("조건 변경")
+  return chips.slice(0, 6)
 }
 
 /**
- * @deprecated Legacy chip generator — replaced by SmartOption engine + buildMinimalPostRecChips.
- * Kept for backward compatibility in handleServeSimpleChat only.
+ * Data-driven follow-up chips for recommendation results.
+ * Generates contextual chips from actual product data — no hardcoded strings.
  */
 export function getFollowUpChips(
   result: RecommendationResult,
   sessionState?: ExplorationSessionState | null,
 ): string[] {
   const chips: string[] = []
-  const altCount = result.alternatives.length
-  const hasHistory = (sessionState?.stageHistory?.length ?? 0) > 1
   const primary = result.primaryProduct
-  const isExact = result.status === "exact"
-  const isApproximate = result.status === "approximate"
-  const isNone = result.status === "none"
+  const alts = result.alternatives
+  const altCount = alts.length
+  const hasHistory = (sessionState?.stageHistory?.length ?? 0) > 1
   const filterCount = sessionState?.appliedFilters?.length ?? 0
 
-  // ── No result: suggest broadening or restart ──
-  if (isNone || !primary) {
-    if (hasHistory) chips.push("⟵ 이전 단계로 돌아가기")
-    if (filterCount > 0) chips.push("조건 완화하기")
+  // ── No result ──
+  if (result.status === "none" || !primary) {
+    if (hasHistory) chips.push("⟵ 이전 단계")
+    if (filterCount > 0) chips.push("조건 완화")
     chips.push("처음부터 다시")
     return chips.slice(0, 6)
   }
 
-  // ── Approximate match: suggest compare, broaden, refine ──
-  if (isApproximate) {
-    if (altCount > 0) chips.push(`후보 ${altCount + 1}개 비교하기`)
-    chips.push("절삭조건 알려줘")
-    if (hasHistory) chips.push("⟵ 이전 단계로 돌아가기")
-    chips.push("다른 직경 검색")
-    chips.push("처음부터 다시")
-    return chips.slice(0, 6)
+  // ── 후보 데이터 기반 동적 칩 ──
+  const coatings = new Set([primary, ...alts].map(p => p.product.coating).filter(Boolean))
+  const flutes = new Set([primary, ...alts].map(p => p.product.fluteCount).filter(Boolean))
+  const series = new Set([primary, ...alts].map(p => p.product.seriesName).filter(Boolean))
+
+  // 1순위: 제품 상세
+  if (primary.product.displayCode) {
+    chips.push(`${primary.product.displayCode} 상세`)
   }
 
-  // ── Exact match: context-aware follow-ups ──
-  if (altCount > 0) chips.push(`대체 후보 ${altCount}개 비교하기`)
-  chips.push("절삭조건 알려줘")
+  // 2순위: 비교 (후보 있을 때)
+  if (altCount > 0) {
+    chips.push(`상위 ${Math.min(altCount + 1, 3)}개 비교`)
+  }
 
-  if (altCount >= 2) chips.push("코팅 비교")
+  // 3순위: 분포 기반 필터
+  if (flutes.size >= 2) {
+    chips.push(`날수별 (${[...flutes].sort().join("/")}날)`)
+  }
+  if (coatings.size >= 2) {
+    chips.push(`코팅별 (${[...coatings].slice(0, 3).join("/")})`)
+  }
 
+  // 4순위: 재고 상태 기반
   if (primary.stockStatus === "outofstock") {
-    chips.push("납기 확인")
+    chips.push("재고 있는 대안")
   } else if (primary.stockStatus === "limited") {
-    chips.push("재고 상세 확인")
+    chips.push("재고 상세")
   }
 
-  if (hasHistory) chips.push("⟵ 이전 단계로 돌아가기")
-  chips.push("다른 직경 검색")
-  chips.push("처음부터 다시")
+  // 5순위: 시리즈 비교
+  if (series.size >= 2) {
+    chips.push(`${[...series].slice(0, 2).join(" vs ")} 비교`)
+  }
+
+  // 네비게이션
+  if (hasHistory) chips.push("⟵ 이전 단계")
+  chips.push("조건 변경")
   return chips.slice(0, 6)
 }
 
