@@ -205,6 +205,7 @@ export function useProductRecommendationPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestPayload),
       })
+      if (!res.ok) throw new Error(`서버 오류 (${res.status})`)
       const data = parseRecommendationResponse(await res.json())
       if (data.error) throw new Error(data.detail ?? data.error)
 
@@ -283,6 +284,7 @@ export function useProductRecommendationPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestPayload),
       })
+      if (!res.ok) throw new Error(`서버 오류 (${res.status})`)
       const data = parseRecommendationResponse(await res.json())
       if (data.error) throw new Error(data.detail ?? data.error)
 
@@ -385,6 +387,7 @@ export function useProductRecommendationPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestPayload),
       })
+      if (!res.ok) throw new Error(`서버 오류 (${res.status})`)
       const data = parseRecommendationResponse(await res.json())
       if (data.error) throw new Error(data.detail ?? data.error)
 
