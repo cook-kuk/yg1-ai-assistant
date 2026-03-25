@@ -8,7 +8,12 @@ export const YG1_KB = {
     name_en: "YG-1 Co., Ltd.",
     founded: "1981년 12월 20일",
     founder: "송호근 (서울대 기계공학과 1976년 졸업)",
-    ceo: ["송호근 (회장)", "송시한 (사장)"],
+    ceo: ["송호근 (대표이사 회장, 창업자)", "송시한 (각자대표이사 사장, 장남, KAIST 기계공학)"],
+    executives: [
+      { name: "송호근", title: "대표이사 회장", role: "창업자", education: "서울대 기계공학과 1976년 졸업" },
+      { name: "송시한", title: "각자대표이사 사장", role: "경영 전반 총괄, 장남", education: "KAIST 기계공학과" },
+      { name: "송지한", title: "사장", role: "해외영업 총괄, 차남", education: "KAIST 수학과" },
+    ],
     hq_address: "인천광역시 연수구 송도과학로16번길 13-40 (우.21984)",
     tel: "032-526-0909",
     fax_overseas: "032-526-4373",
@@ -349,6 +354,20 @@ export function searchKB(query: string): { found: boolean; answer: string; confi
   if (q.includes("설립") || q.includes("창업") || q.includes("창립")) {
     return { found: true, confidence: "high",
       answer: `YG-1은 ${YG1_KB.company.founded} 설립. 창업자: 송호근 회장 (서울대 기계공학과 1976년 졸업). 원래 사명 '양지원 공구', 1999년 YG-1로 변경.` }
+  }
+
+  // ── 경영진 상세 ──
+  if (q.includes("송시한")) {
+    return { found: true, confidence: "high",
+      answer: "송시한은 YG-1의 각자대표이사 사장입니다 (회장이 아님). 회장은 송호근입니다. 송시한은 송호근 회장의 장남으로 KAIST 기계공학과 출신이며 경영 전반을 총괄합니다." }
+  }
+  if (q.includes("송지한")) {
+    return { found: true, confidence: "high",
+      answer: "송지한은 YG-1 사장으로 해외영업을 총괄합니다. 송호근 회장의 차남이며 KAIST 수학과 출신입니다." }
+  }
+  if (q.includes("송호근")) {
+    return { found: true, confidence: "high",
+      answer: "송호근은 YG-1 대표이사 회장(창업자)입니다. 1981년 YG-1을 설립했으며 서울대 기계공학과 출신입니다." }
   }
 
   // ── 대표/CEO ──

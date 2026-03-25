@@ -799,6 +799,7 @@ function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartOption[]
   // 3. Narrow/change coating (dynamic based on variety)
   const coatingSet = new Set(top.map(c => c.coating).filter(Boolean))
   if (coatingSet.size >= 2) {
+    const coatingProjected = Math.max(1, Math.round(top.length / coatingSet.size))
     options.push({
       id: nextOptionId("narrowing"),
       family: "narrowing",
@@ -806,8 +807,8 @@ function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartOption[]
       subtitle: `현재 ${coatingSet.size}종`,
       field: "coating",
       reason: "코팅 기준 추가 필터링",
-      projectedCount: null,
-      projectedDelta: null,
+      projectedCount: coatingProjected,
+      projectedDelta: -(top.length - coatingProjected),
       preservesContext: true,
       destructive: false,
       recommended: false,
@@ -842,6 +843,7 @@ function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartOption[]
   const fluteCounts = new Set(top.map(c => c.fluteCount).filter(Boolean))
   if (fluteCounts.size >= 2) {
     const fluteLabels = [...fluteCounts].sort((a, b) => (a ?? 0) - (b ?? 0)).map(f => `${f}날`).join("/")
+    const fluteProjected = Math.max(1, Math.round(top.length / fluteCounts.size))
     options.push({
       id: nextOptionId("narrowing"),
       family: "narrowing",
@@ -849,8 +851,8 @@ function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartOption[]
       subtitle: `현재 ${fluteCounts.size}종`,
       field: "fluteCount",
       reason: "날수 기준 추가 필터링",
-      projectedCount: null,
-      projectedDelta: null,
+      projectedCount: fluteProjected,
+      projectedDelta: -(top.length - fluteProjected),
       preservesContext: true,
       destructive: false,
       recommended: true,

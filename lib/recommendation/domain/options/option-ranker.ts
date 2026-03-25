@@ -89,13 +89,21 @@ export function rankOptions(options: SmartOption[], ctx: RankerContext): SmartOp
 
 function scoreNarrowing(option: SmartOption, ctx: RankerContext): number {
   const signals = computeNarrowingSignals(option, ctx)
-  return (
+  let score = (
     NARROWING_WEIGHTS.infoGain * signals.infoGain +
     NARROWING_WEIGHTS.answerability * signals.answerability +
     NARROWING_WEIGHTS.feasibility * signals.feasibility +
     NARROWING_WEIGHTS.continuity * signals.continuity +
     NARROWING_WEIGHTS.businessValue * signals.businessValue
   )
+
+  // Post-recommendation narrowing boost: narrowing after recommendation is high-value
+  // because the user already has results and wants to refine them
+  if (ctx.hasRecommendation && ctx.candidateCount > 1) {
+    score += 0.25
+  }
+
+  return score
 }
 
 function computeNarrowingSignals(option: SmartOption, ctx: RankerContext): NarrowingSignals {
