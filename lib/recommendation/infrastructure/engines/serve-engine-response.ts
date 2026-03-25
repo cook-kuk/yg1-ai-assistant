@@ -122,10 +122,26 @@ async function buildWorkPieceQuestion(
   })
   if (allWorkPieceNames.length <= 1) return null
 
-  // Show ALL workPiece names within the ISO group (no material keyword filtering).
-  // ISO N군 = 알루미늄 + 구리 + 비철 전체, P군 = 탄소강 + 합금강 전체 등.
-  // 사용자가 "알루미늄"을 선택해도 같은 ISO 그룹의 다른 소재(구리 등)도 보여줘야 함.
+  // Show workPiece names within the ISO group, but only those with actual matching candidates.
+  // 0개 후보인 workPiece는 칩에서 제외 (선택해도 "후보 없음" 나오므로).
   let relevantNames = allWorkPieceNames
+  if (candidates && candidates.length > 0) {
+    const namesWithCandidates = relevantNames.filter(name => {
+      const nameLower = name.toLowerCase()
+      return candidates.some(c => {
+        const tags = (c.product.materialTags as string[]) ?? []
+        const desc = ((c.product as Record<string, unknown>).description as string ?? "").toLowerCase()
+        const series = (c.product.seriesName ?? "").toLowerCase()
+        const feature = ((c.product as Record<string, unknown>).featureText as string ?? "").toLowerCase()
+        return tags.some(t => nameLower.includes(t.toLowerCase()) || t.toLowerCase().includes(nameLower)) ||
+          desc.includes(nameLower) || series.includes(nameLower) || feature.includes(nameLower)
+      })
+    })
+    if (namesWithCandidates.length >= 2) {
+      relevantNames = namesWithCandidates
+      console.log(`[workpiece-filter] ${allWorkPieceNames.length} → ${namesWithCandidates.length} (removed ${allWorkPieceNames.length - namesWithCandidates.length} with 0 candidates)`)
+    }
+  }
 
   const materialLabel = getMaterialDisplay(isoGroup).ko
   const chips = [...relevantNames.slice(0, 10), "상관없음"]
