@@ -14,6 +14,171 @@ The active recommendation request path is now:
 8. `lib/recommendation/infrastructure/presenters/recommendation-presenter.ts`
 9. `lib/contracts/recommendation.ts`
 
+## Engine Structure (ASCII)
+
+### 1. Top-level engine topology
+
+```text
+[Browser / app/products/page.tsx]
+              |
+              v
+[lib/frontend/recommendation/*]
+              |
+              v
+[app/api/recommend/route.ts]
+              |
+              v
+[infrastructure/http/recommendation-http.ts]
+              |
+              v
+      +-----------------------------------+
+      | RecommendationService             |
+      | defaultEngineId = "serve"         |
+      | engines = ["serve", "main"]       |
+      +-----------------------------------+
+              |
+              v
+   +-------------------------------+
+   | RecommendationEnginePort      |
+   | - runSession(...)             |
+   | - runLegacyChat(...)          |
+   +-------------------------------+
+              |
+      +-------+--------+
+      |                |
+      v                v
++-------------+   +-------------+
+| serve-engine|   | main-engine |
+| engineId=   |   | engineId=   |
+| "serve"     |   | "main"      |
++-------------+   +-------------+
+      |                |
+      +-------+--------+
+              |
+              v
+   same runtime wiring today
+              |
+      +-------+------------------------------+
+      |                                      |
+      v                                      v
+[handleServeExploration(...)]       [handleServeSimpleChat(...)]
+ session/intake path                legacy chat path
+```
+
+Current code note:
+
+- `serve` and `main` are separate engine IDs, but both are currently wired to the same runtime callbacks in `recommendation-http.ts`.
+- The real behavioral center is `serve-engine-runtime.ts`, not the thin `main-engine.ts` / `serve-engine.ts` wrappers.
+
+### 2. `handleServeExploration` runtime structure
+
+```text
+[handleServeExploration]
+          |
+          v
++----------------------------------------------+
+| bootstrap                                    |
+| - map intake -> input                        |
+| - load prevState / filters / pagination      |
+| - prepareRequest(...)                        |
++----------------------------------------------+
+          |
+          v
+  message exists?
+    | yes
+    v
++----------------------------------------------+
+| pre-routing guards                           |
+| - pending action cleanup                     |
+| - explicit compare detection                 |
+| - explicit filter revision detection         |
+| - classifyPreSearchRoute(...)                |
++----------------------------------------------+
+          |
+          +------------------------------+
+          | non-recommendation           |
+          v                              |
+[handleServeGeneralChatAction]           |
+                                         |
+                                         v
++----------------------------------------------+
+| optional V2 bridge                           |
+| - shouldUseV2ForPhase(...)                   |
+| - orchestrateTurnV2(...)                     |
+| - either return V2 response directly         |
+|   or bridge into legacy action               |
++----------------------------------------------+
+          |
+          v
++----------------------------------------------+
+| early action decision                        |
+| - pending selection -> continue/skip         |
+| - otherwise orchestrateTurn(...)             |
+|   or orchestrateTurnWithTools(...)           |
++----------------------------------------------+
+          |
+          v
++----------------------------------------------+
+| retrieval gate                               |
+| - skip retrieval for:                        |
+|   compare / explain / answer_general /       |
+|   refine_condition / filter_by_stock         |
+| - else runHybridRetrieval(...)               |
++----------------------------------------------+
+          |
+          v
++----------------------------------------------+
+| action execution                             |
+| - reset_session                              |
+| - go_back_one_step / go_back_to_filter       |
+| - show_recommendation                        |
+| - filter_by_stock                            |
+| - refine_condition                           |
+| - compare_products                           |
+| - explain_product / answer_general           |
+| - redirect_off_topic                         |
+| - skip_field                                 |
+| - replace_existing_filter                    |
+| - continue_narrowing                         |
++----------------------------------------------+
+          |
+          v
+   +-------------------------------+   +-------------------------------+
+   | buildQuestionResponse(...)    |   | buildRecommendationResponse(...)|
+   | question / narrowing surface  |   | resolved recommendation surface |
+   +-------------------------------+   +-------------------------------+
+```
+
+### 3. Module relationship around the runtime
+
+```text
+serve-engine-runtime.ts
+  |
+  +-- pre-search-route.ts
+  |     general-vs-recommendation guard
+  |
+  +-- infrastructure/agents/orchestrator.ts
+  |     legacy action routing
+  |
+  +-- core/turn-orchestrator.ts
+  |     V2 single-turn orchestrator bridge
+  |
+  +-- domain/recommendation-domain.ts
+  |     prepareRequest / retrieval / restore helpers
+  |
+  +-- serve-engine-general-chat.ts
+  |     general answer / explanation handling
+  |
+  +-- serve-engine-response.ts
+  |     question/recommendation response builders
+  |
+  +-- serve-engine-option-first.ts
+  |     displayedOptions / chips builders
+  |
+  +-- presenters/recommendation-presenter.ts
+        final DTO serialization
+```
+
 ## Boundary Rules
 
 ### Frontend
