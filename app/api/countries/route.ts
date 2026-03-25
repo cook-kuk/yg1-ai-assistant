@@ -26,23 +26,19 @@ export async function GET() {
   try {
     const pool = getPool()
     const result = await pool.query<{ country: string }>(
-      `SELECT DISTINCT country_option.country
-       FROM (
-         SELECT UPPER(BTRIM(country_row.country_code)) AS country
-         FROM catalog_app.product_recommendation_mv
-         CROSS JOIN LATERAL unnest(COALESCE(country_codes, ARRAY[]::text[])) AS country_row(country_code)
-       ) AS country_option
-       WHERE country_option.country <> ''
-       ORDER BY country_option.country`
+      `SELECT DISTINCT country_row.country_code AS country
+       FROM catalog_app.product_recommendation_mv,
+            LATERAL unnest(country_codes) AS country_row(country_code)
+       WHERE country_row.country_code IS NOT NULL
+         AND BTRIM(country_row.country_code) <> ''
+       ORDER BY country_row.country_code`
     )
-
-    return NextResponse.json({
-      countries: result.rows.map((row) => row.country),
-    })
+    const countries = result.rows.map((row) => row.country)
+    return NextResponse.json({ countries })
   } catch (error) {
     console.error("[countries] Failed to fetch countries:", error)
     return NextResponse.json({
-      countries: ["KOREA", "ASIA", "AMERICA", "EUROPE"],
+      countries: ["KOR", "ENG", "CHN", "JPN"],
       fallback: true,
     })
   }
