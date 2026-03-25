@@ -396,7 +396,7 @@ export default function FeedbackViewerPage() {
   const [selectedGeneralEntry, setSelectedGeneralEntry] = useState<FeedbackEntryDto | null>(null)
   const [selectedFeedbackEntry, setSelectedFeedbackEntry] = useState<FeedbackEventEntryDto | null>(null)
 
-  // ── 코너스톤 관리자 필드 ──
+  // ── 코너스톤 피드백 관리자 필드 ──
   const [adminFields, setAdminFields] = useState<Record<string, { csComment: string; dueDate: string; completed: boolean }>>({})
   const [savingId, setSavingId] = useState<string | null>(null)
 
@@ -665,9 +665,9 @@ export default function FeedbackViewerPage() {
                           </CardContent>
                         </Card>
                       </button>
-                      {/* ── 코너스톤 관리자 영역 ── */}
+                      {/* ── 코너스톤 피드백 관리자 영역 ── */}
                       <div className="ml-2 mr-2 -mt-1 rounded-b-xl border border-t-0 border-violet-200 bg-violet-50/60 px-4 py-2.5 flex flex-wrap items-center gap-3">
-                        <span className="text-[10px] font-bold text-violet-600 whitespace-nowrap">코너스톤</span>
+                        <span className="text-[10px] font-bold text-violet-600 whitespace-nowrap">코너스톤 피드백</span>
                         <div className="flex-1 min-w-[200px] flex items-center gap-1.5">
                           <input
                             type="text"

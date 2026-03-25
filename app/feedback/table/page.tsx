@@ -209,7 +209,7 @@ const COLUMNS = [
   { key: "qualityScore", label: "품질점수", width: "w-16" },
   { key: "errorType", label: "오류 유형", width: "w-28" },
   { key: "improvement", label: "개선 필요사항", width: "w-48 min-w-[160px]" },
-  { key: "csComment", label: "코너스톤 의견", width: "w-48 min-w-[160px]" },
+  { key: "csComment", label: "코너스톤 피드백", width: "w-48 min-w-[160px]" },
   { key: "dueDate", label: "예상 Due Date", width: "w-32" },
   { key: "completed", label: "완료", width: "w-14" },
 ] as const
@@ -555,7 +555,7 @@ export default function FeedbackTablePage() {
                         ) : <span className="text-gray-300">-</span>}
                       </td>
                       <td className="px-3 py-2.5 text-gray-600 max-w-xs truncate" title={row.improvement}>{row.improvement || <span className="text-gray-300">-</span>}</td>
-                      {/* 코너스톤 의견 */}
+                      {/* 코너스톤 피드백 */}
                       <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
                         <input
                           type="text"
