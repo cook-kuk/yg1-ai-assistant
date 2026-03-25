@@ -494,6 +494,7 @@ export async function handleServeGeneralChatAction(
     turnCount,
   } = params
 
+  try {
   const lastUserMessage = [...messages].reverse().find(message => message.role === "user")?.text ?? ""
 
   const inventoryReply = await deps.handleDirectInventoryQuestion(lastUserMessage, prevState)
@@ -954,4 +955,37 @@ export async function handleServeGeneralChatAction(
     altFactChecked: [],
     meta: buildActionMeta(action.type, orchResult),
   })
+  } catch (error) {
+    console.error("[general-chat] Error:", error)
+    const sessionState = carryForwardState(prevState, {
+      candidateCount: prevState.candidateCount ?? 0,
+      appliedFilters: prevState.appliedFilters ?? [],
+      narrowingHistory: prevState.narrowingHistory ?? [],
+      resolutionStatus: prevState.resolutionStatus ?? "broad",
+      resolvedInput: prevState.resolvedInput ?? currentInput,
+      turnCount,
+      displayedCandidates: prevState.displayedCandidates ?? [],
+      displayedChips: ["처음부터 다시", "⟵ 이전 단계"],
+      displayedOptions: [],
+      currentMode: prevState.currentMode ?? "question",
+      lastAction: prevState.lastAction,
+      lastAskedField: prevState.lastAskedField,
+    })
+    return deps.jsonRecommendationResponse({
+      text: "일시적인 오류가 발생했습니다. 다시 시도해주세요.",
+      purpose: "question",
+      chips: ["처음부터 다시", "⟵ 이전 단계"],
+      isComplete: false,
+      recommendation: null,
+      sessionState,
+      evidenceSummaries: null,
+      candidateSnapshot: null,
+      requestPreparation: null,
+      primaryExplanation: null,
+      primaryFactChecked: null,
+      altExplanations: [],
+      altFactChecked: [],
+      meta: { orchestratorResult: { action: "error_fallback", agents: [], opus: false } },
+    })
+  }
 }

@@ -92,6 +92,7 @@ export async function buildGeneralChatOptionState(input: {
     fallbackChips,
   } = input
 
+  try {
   // ── Haiku 판단 + 턴 컨텍스트 병렬 실행 (속도 최적화) ──
   const [judgment, unifiedTurnContext] = await Promise.all([
     performUnifiedJudgment({
@@ -254,6 +255,15 @@ export async function buildGeneralChatOptionState(input: {
     userStateResult,
     isQuestionAssist,
   }
+  } catch (error) {
+    console.error("[option-first] Error:", error)
+    return {
+      finalChips: ["처음부터 다시"],
+      finalDisplayedOptions: [],
+      userStateResult: { state: "normal", confidence: 0, confusedAbout: null, boundField: null },
+      isQuestionAssist: false,
+    }
+  }
 }
 
 export async function buildQuestionResponseOptionState(params: {
@@ -269,6 +279,7 @@ export async function buildQuestionResponseOptionState(params: {
 }): Promise<QuestionResponseOptionState> {
   const { chips, question, displayedOptions, sessionState, input, userMessage, responseText, messages, provider } = params
 
+  try {
   if (!userMessage || displayedOptions.length === 0) {
     return { chips, displayedOptions }
   }
@@ -337,6 +348,10 @@ export async function buildQuestionResponseOptionState(params: {
   return {
     chips: finalChips,
     displayedOptions: finalDisplayedOptions,
+  }
+  } catch (error) {
+    console.error("[option-first] Error:", error)
+    return { chips, displayedOptions }
   }
 }
 

@@ -41,6 +41,7 @@ export async function handleServeSimpleChat(
   messages: ChatMessage[],
   _mode: string
 ): Promise<Response> {
+  try {
   if (!messages.length) {
     return deps.jsonRecommendationResponse({
       error: "bad_request",
@@ -164,6 +165,19 @@ export async function handleServeSimpleChat(
     evidenceSummaries: null,
     candidateSnapshot: null,
   })
+  } catch (error) {
+    console.error("[simple-chat] Error:", error)
+    return deps.jsonRecommendationResponse({
+      text: "일시적인 오류가 발생했습니다. 다시 시도해주세요.",
+      purpose: "question",
+      chips: ["처음부터 다시"],
+      isComplete: false,
+      recommendation: null,
+      sessionState: null,
+      evidenceSummaries: null,
+      candidateSnapshot: null,
+    })
+  }
 }
 
 function getNextQuestion(input: RecommendationInput): string {
