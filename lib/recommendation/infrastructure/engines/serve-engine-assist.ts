@@ -592,7 +592,7 @@ async function buildEntityProfileNarrative(
 - 단건 요청이면 용도/형상/날 수/적용 소재를 우선 설명
 - 문장형 자연어로 쓰고 표는 만들지 마세요`,
       [{ role: "user", content: `${promptTitle}\n\n${body}` }],
-      280
+      1000
     )
 
     const text = raw?.trim()

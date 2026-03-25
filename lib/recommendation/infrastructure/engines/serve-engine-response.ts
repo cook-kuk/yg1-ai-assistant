@@ -99,6 +99,74 @@ function normalizeSeriesKey(value: string): string {
   return value.trim().toUpperCase().replace(/[\s\-·ㆍ./(),]+/g, "")
 }
 
+function normalizeQuestionOptionToken(value: string): string {
+  return value
+    .replace(/\s*\(\d+개\)\s*$/, "")
+    .replace(/\s*—\s*.+$/, "")
+    .trim()
+    .toLowerCase()
+}
+
+const QUESTION_FIELD_HINTS: Record<string, RegExp[]> = {
+  workPieceName: [/피삭재/u, /세부\s*피삭재/u, /소재/u, /재질/u, /강종/u, /hardened/i, /hrc/i],
+  diameterRefine: [/직경/u, /\bmm\b/i, /파이/u, /지름/u],
+  fluteCount: [/날\s*수/u, /몇\s*날/u, /플루트/u, /flute/i],
+  coating: [/코팅/u, /coat/i, /tialn/i, /alcrn/i, /ticn/i],
+  toolSubtype: [/형상/u, /타입/u, /엔드밀/u, /볼/u, /스퀘어/u, /corner\s*radius/i],
+  seriesName: [/시리즈/u, /brand/i, /브랜드/u],
+  cuttingType: [/가공/u, /절삭/u, /포켓/u, /슬롯/u, /측면/u, /평면/u, /홀\s*가공/u],
+}
+
+export function inferQuestionFieldFromText(text: string): string | null {
+  const clean = text.trim().toLowerCase()
+  if (!clean) return null
+
+  let bestField: string | null = null
+  let bestScore = 0
+
+  for (const [field, patterns] of Object.entries(QUESTION_FIELD_HINTS)) {
+    let score = 0
+    for (const pattern of patterns) {
+      if (pattern.test(clean)) score += 1
+    }
+    if (score > bestScore) {
+      bestField = field
+      bestScore = score
+    }
+  }
+
+  return bestScore > 0 ? bestField : null
+}
+
+export function shouldFallbackToDeterministicQuestionText(params: {
+  questionField: string
+  questionText: string
+  responseText: string
+  displayedOptions: { label: string; value: string; field?: string | null }[]
+}): boolean {
+  const { questionField, questionText, responseText, displayedOptions } = params
+  const inferredField = inferQuestionFieldFromText(responseText)
+  if (inferredField && inferredField !== questionField) return true
+
+  const normalizedResponse = responseText.toLowerCase()
+  const normalizedQuestion = questionText.toLowerCase()
+
+  if (normalizedResponse.includes(normalizedQuestion)) return false
+
+  const optionTokens = displayedOptions
+    .filter(option => option.field === questionField || option.field === "_action" || option.value === "skip")
+    .flatMap(option => [option.label, option.value])
+    .map(normalizeQuestionOptionToken)
+    .filter(token => token && !["skip", "상관없음"].includes(token))
+
+  if (optionTokens.some(token => normalizedResponse.includes(token))) return false
+
+  const ownHints = QUESTION_FIELD_HINTS[questionField] ?? []
+  if (ownHints.some(pattern => pattern.test(responseText))) return false
+
+  return true
+}
+
 async function loadSeriesMaterialRatings(
   candidates: CandidateSnapshot[],
   input: RecommendationInput
@@ -428,6 +496,19 @@ export async function buildQuestionResponse(
       console.warn(`[field-consistency:fallback] Empty displayedOptions, using question engine result for field "${question.field}"`)
       finalDisplayedOptions = questionFieldResult.displayedOptions
       finalResponseChips = questionFieldResult.chips
+    }
+
+    if (
+      !overrideText &&
+      shouldFallbackToDeterministicQuestionText({
+        questionField: question.field,
+        questionText: question.questionText,
+        responseText,
+        displayedOptions: finalDisplayedOptions,
+      })
+    ) {
+      console.warn(`[field-consistency:text] Response text drifted from field "${question.field}" — reverting to deterministic question text`)
+      responseText = question.questionText
     }
   }
 

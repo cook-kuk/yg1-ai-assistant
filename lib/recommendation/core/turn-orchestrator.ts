@@ -18,6 +18,7 @@ import type {
   ResultContext,
   ResolvedAction,
 } from "./types"
+import type { EvidenceSummary, ScoredProduct } from "../domain/types"
 import { createRevisionNode } from "./constraint-helpers"
 import { validateSurfaceV2 } from "./response-validator"
 import {
@@ -360,7 +361,16 @@ export function applyStateTransition(
 async function executeSearchIfNeeded(
   state: RecommendationSessionState,
   decision: LlmTurnDecision
-): Promise<{ resultContext: ResultContext; evidenceMap: Map<string, unknown>; refined?: boolean } | null> {
+): Promise<{
+  resultContext: ResultContext
+  evidenceMap: Map<string, unknown>
+  refined?: boolean
+  searchPayload?: {
+    candidates: ScoredProduct[]
+    evidenceMap: Map<string, EvidenceSummary>
+    totalConsidered: number
+  } | null
+} | null> {
   // Refine within current results instead of full search
   if (decision.actionInterpretation.type === "refine_current_results" && state.resultContext) {
     const field = decision.nextQuestion?.field ?? "flute"
@@ -387,7 +397,15 @@ async function executeSearchIfNeeded(
 
     console.log(`[orchestrator-v2] Search complete: ${hybridResult.candidates.length} candidates, ${hybridResult.evidenceMap.size} with evidence`)
 
-    return { resultContext, evidenceMap: hybridResult.evidenceMap as Map<string, unknown> }
+    return {
+      resultContext,
+      evidenceMap: hybridResult.evidenceMap as Map<string, unknown>,
+      searchPayload: {
+        candidates: hybridResult.candidates,
+        evidenceMap: hybridResult.evidenceMap,
+        totalConsidered: hybridResult.totalConsidered,
+      },
+    }
   } catch (error) {
     console.error("[orchestrator-v2] Search failed:", error)
     return null
@@ -554,6 +572,7 @@ export async function orchestrateTurnV2(
     displayedOptions: validated.displayedOptions,
     chips: validated.chips,
     sessionState: finalState,
+    searchPayload: searchResult?.searchPayload ?? null,
     trace: {
       snapshotId: snapshot.snapshotId,
       phase: finalState.journeyPhase,

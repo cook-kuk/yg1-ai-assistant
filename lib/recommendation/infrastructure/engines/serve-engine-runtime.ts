@@ -136,6 +136,21 @@ function normalizePendingSelectionText(value: string): string {
     .toLowerCase()
 }
 
+function rebuildResolvedInputFromFilters(
+  form: ProductIntakeForm,
+  filters: AppliedFilter[],
+  deps: Pick<ServeEngineRuntimeDependencies, "mapIntakeToInput" | "applyFilterToInput">
+): RecommendationInput {
+  let nextInput = deps.mapIntakeToInput(form)
+
+  for (const filter of filters) {
+    if (filter.op === "skip") continue
+    nextInput = deps.applyFilterToInput(nextInput, filter)
+  }
+
+  return nextInput
+}
+
 function resolveSingleIsoGroup(material: string | undefined): string | null {
   if (!material) return null
 
@@ -542,6 +557,7 @@ async function handleServeExplorationInner(
 
       // Convert V2 result → legacy session state (preserving existing state data)
       const legacyState = convertFromV2State(result.sessionState, prevState)
+      const v2ResolvedInput = rebuildResolvedInputFromFilters(form, legacyState.appliedFilters ?? [], deps)
       legacyState.displayedChips = result.chips
       legacyState.displayedOptions = result.displayedOptions
       legacyState.turnCount = result.sessionState.turnCount
@@ -549,15 +565,66 @@ async function handleServeExplorationInner(
         : result.sessionState.journeyPhase === "comparison" ? "comparison"
         : "question"
       legacyState.lastAskedField = result.sessionState.pendingQuestion?.field ?? prevState?.lastAskedField ?? undefined
-      // Preserve candidate data through V2 transitions
-      legacyState.candidateCount = prevState?.candidateCount ?? legacyState.candidateCount
+      legacyState.candidateCount = result.sessionState.resultContext?.totalConsidered ?? prevState?.candidateCount ?? legacyState.candidateCount
       legacyState.displayedCandidates = prevState?.displayedCandidates ?? legacyState.displayedCandidates
-      legacyState.resolvedInput = prevState?.resolvedInput ?? legacyState.resolvedInput
+      legacyState.resolvedInput = v2ResolvedInput
       legacyState.narrowingHistory = prevState?.narrowingHistory ?? legacyState.narrowingHistory
       legacyState.stageHistory = prevState?.stageHistory ?? legacyState.stageHistory
 
       // Build response matching existing API format
       const isResultPhase = result.sessionState.journeyPhase === "results_displayed" || result.sessionState.journeyPhase === "post_result_exploration"
+      if (result.searchPayload) {
+        const totalCandidateCount = result.searchPayload.totalConsidered
+        const displayPage = sliceCandidatesForPage(
+          result.searchPayload.candidates,
+          result.searchPayload.evidenceMap,
+          resolvedPagination
+        )
+
+        legacyState.candidateCount = totalCandidateCount
+        legacyState.displayedCandidates = deps.buildCandidateSnapshot(displayPage.candidates, displayPage.evidenceMap)
+
+        perf.endStep("v2_orchestrator")
+        perf.recordLlmCall()
+        perf.finish()
+
+        if (isResultPhase) {
+          return deps.buildRecommendationResponse(
+            form,
+            result.searchPayload.candidates,
+            result.searchPayload.evidenceMap,
+            totalCandidateCount,
+            paginationDto(totalCandidateCount),
+            displayPage.candidates,
+            displayPage.evidenceMap,
+            v2ResolvedInput,
+            legacyState.narrowingHistory ?? [],
+            legacyState.appliedFilters ?? [],
+            legacyState.turnCount,
+            messages,
+            provider,
+            language,
+          )
+        }
+
+        return deps.buildQuestionResponse(
+          form,
+          result.searchPayload.candidates,
+          result.searchPayload.evidenceMap,
+          totalCandidateCount,
+          paginationDto(totalCandidateCount),
+          displayPage.candidates,
+          displayPage.evidenceMap,
+          v2ResolvedInput,
+          legacyState.narrowingHistory ?? [],
+          legacyState.appliedFilters ?? [],
+          legacyState.turnCount,
+          messages,
+          provider,
+          language,
+        )
+      }
+
       perf.endStep("v2_orchestrator")
       perf.recordLlmCall() // V2 orchestrator does 1 LLM call
       const perfMetrics = perf.finish()
@@ -569,7 +636,8 @@ async function handleServeExplorationInner(
         recommendation: null,
         sessionState: legacyState,
         evidenceSummaries: null,
-        candidateSnapshot: prevState?.displayedCandidates ?? null,
+        candidateSnapshot: legacyState.displayedCandidates ?? prevState?.displayedCandidates ?? null,
+        pagination: legacyState.candidateCount > 0 ? paginationDto(legacyState.candidateCount) : null,
         requestPreparation: requestPrep,
         primaryExplanation: null,
         primaryFactChecked: null,
