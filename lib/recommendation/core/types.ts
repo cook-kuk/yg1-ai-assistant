@@ -33,6 +33,12 @@ export interface CandidateRef {
   rank: number
   score: number
   seriesName: string | null
+  /** Optional key specs carried forward for in-memory refinement */
+  keySpecs?: {
+    flute?: number | null
+    coating?: string | null
+    hasInventory?: boolean
+  }
 }
 
 // ── Result Context ─────────────────────────────────────────
@@ -132,6 +138,7 @@ export interface LlmTurnDecision {
       | "reset_session"
       | "skip_field"
       | "ask_clarification"
+      | "refine_current_results"
     rationale: string
     confidence: number
   }

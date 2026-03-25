@@ -452,20 +452,26 @@ async function handleServeExplorationInner(
       const { orchestrateTurnV2 } = await import("@/lib/recommendation/core/turn-orchestrator")
       const { convertToV2State, convertFromV2State } = await import("@/lib/recommendation/core/state-adapter")
 
+      console.log("[runtime:v2] Using new orchestrator")
       const v2State = convertToV2State(prevState)
       const provider = getProvider()
       const result = await orchestrateTurnV2(lastUserMsg.text, v2State, provider)
 
+      // Convert V2 result → legacy session state
       const legacyState = convertFromV2State(result.sessionState, prevState)
       legacyState.displayedChips = result.chips
       legacyState.displayedOptions = result.displayedOptions
+      legacyState.turnCount = result.sessionState.turnCount
+      legacyState.currentMode = result.sessionState.journeyPhase === "results_displayed" ? "recommendation" : "question"
+      legacyState.lastAskedField = result.sessionState.pendingQuestion?.field ?? prevState?.lastAskedField ?? undefined
 
+      // Build response matching existing API format
       return deps.jsonRecommendationResponse({
         text: result.answer,
         purpose: result.sessionState.journeyPhase === "results_displayed" ? "recommendation" : "question",
         chips: result.chips,
         isComplete: result.sessionState.journeyPhase === "results_displayed",
-        recommendation: null,
+        recommendation: null, // TODO: wire recommendation card in Phase 4
         sessionState: legacyState,
         evidenceSummaries: null,
         candidateSnapshot: prevState?.displayedCandidates ?? null,
@@ -474,9 +480,10 @@ async function handleServeExplorationInner(
         primaryFactChecked: null,
         altExplanations: [],
         altFactChecked: [],
+        meta: { orchestratorResult: { action: "v2_orchestrator", agents: [], opus: false }, trace: result.trace },
       })
     } catch (err) {
-      console.error("[orchestrator-v2] Failed, falling through to legacy:", err)
+      console.error("[runtime:v2] Failed, falling back to legacy:", err)
       // Fall through to legacy path
     }
   }

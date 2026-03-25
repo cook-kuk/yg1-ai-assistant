@@ -94,6 +94,11 @@ export function scoredProductToCandidateRef(
     rank,
     score: product.score,
     seriesName: product.product.seriesName,
+    keySpecs: {
+      flute: product.product.fluteCount ?? null,
+      coating: product.product.coating ?? null,
+      hasInventory: product.stockStatus === "in_stock",
+    },
   }
 }
 

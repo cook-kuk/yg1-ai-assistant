@@ -315,6 +315,18 @@ export function buildSurface(
   decision: LlmTurnDecision,
   _state: RecommendationSessionState
 ): { answer: string; displayedOptions: DisplayedOption[]; chips: string[] } {
+  // Side question answered — build resume surface with pending question chips
+  if (_state.sideThreadActive && _state.pendingQuestion) {
+    const sideAnswer = decision.answerDraft
+    const resumePrompt = `\n\n다시 제품 추천으로 돌아갈게요. ${_state.pendingQuestion.questionText}`
+    const answer = sideAnswer + resumePrompt
+
+    const displayedOptions = _state.pendingQuestion.options ?? []
+    const chips = displayedOptions.map(opt => opt.label)
+
+    return { answer, displayedOptions, chips }
+  }
+
   let displayedOptions: DisplayedOption[] = []
 
   const mode = decision.uiPlan.optionMode
