@@ -109,6 +109,7 @@ export function FeedbackWidget({
   const { language } = useApp()
   const [open, setOpen] = useState(false)
   const [authorType, setAuthorType] = useState<FeedbackAuthorType>("internal")
+  const [authorDepartment, setAuthorDepartment] = useState("")
   const [authorName, setAuthorName] = useState("")
   const [rating, setRating] = useState<number>(0)
   const [comment, setComment] = useState("")
@@ -206,7 +207,8 @@ export function FeedbackWidget({
           clientEventId: createClientEventId(),
           clientCapturedAt: new Date().toISOString(),
           authorType,
-          authorName,
+          authorDepartment,
+          authorName: authorDepartment && authorName ? `[${authorDepartment}] ${authorName}` : authorName || authorDepartment,
           sessionId: sessionState?.sessionId ?? null,
           intakeSummary: buildIntakeSummary(),
           chatHistory,
@@ -237,6 +239,7 @@ export function FeedbackWidget({
         setRating(0)
         setTags([])
         setScreenshots([])
+        setAuthorDepartment("")
       }, 1500)
     } catch {
       alert("피드백 저장에 실패했습니다.")
@@ -294,15 +297,27 @@ export function FeedbackWidget({
                 </div>
 
                 {authorType !== "anonymous" && (
-                  <div>
-                    <label className="text-xs font-semibold text-gray-700 mb-1.5 block">{language === "ko" ? "이름 (선택)" : "Name (optional)"}</label>
-                    <input
-                      type="text"
-                      value={authorName}
-                      onChange={event => setAuthorName(event.target.value)}
-                      placeholder={language === "ko" ? "이름을 입력하세요" : "Enter your name"}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    />
+                  <div className="space-y-2">
+                    <div>
+                      <label className="text-xs font-semibold text-gray-700 mb-1.5 block">{language === "ko" ? "소속부서" : "Department"}</label>
+                      <input
+                        type="text"
+                        value={authorDepartment}
+                        onChange={event => setAuthorDepartment(event.target.value)}
+                        placeholder={language === "ko" ? (authorType === "internal" ? "예: AI개발팀, 영업부" : "예: 현대자동차, 삼성전자") : "e.g. Engineering, Sales"}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-700 mb-1.5 block">{language === "ko" ? "이름 (선택)" : "Name (optional)"}</label>
+                      <input
+                        type="text"
+                        value={authorName}
+                        onChange={event => setAuthorName(event.target.value)}
+                        placeholder={language === "ko" ? "이름을 입력하세요" : "Enter your name"}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      />
+                    </div>
                   </div>
                 )}
 
