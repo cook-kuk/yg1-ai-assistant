@@ -43,10 +43,10 @@ interface TableRow {
   tags: string[]
 }
 
-// ── LocalStorage persistence for admin fields ────────────────
+// ── MongoDB persistence for admin fields (fallback: localStorage) ──
 const ADMIN_STORAGE_KEY = "yg1_feedback_admin_fields"
 
-function loadAdminFields(): Record<string, AdminFields> {
+function loadAdminFieldsLocal(): Record<string, AdminFields> {
   if (typeof window === "undefined") return {}
   try {
     const raw = localStorage.getItem(ADMIN_STORAGE_KEY)
@@ -54,9 +54,38 @@ function loadAdminFields(): Record<string, AdminFields> {
   } catch { return {} }
 }
 
-function saveAdminFields(fields: Record<string, AdminFields>) {
+function saveAdminFieldsLocal(fields: Record<string, AdminFields>) {
   if (typeof window === "undefined") return
   localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(fields))
+}
+
+async function loadAdminFieldsFromDB(): Promise<Record<string, AdminFields>> {
+  try {
+    const res = await fetch("/api/feedback/admin")
+    if (!res.ok) return loadAdminFieldsLocal()
+    const data = await res.json()
+    return data.fields ?? loadAdminFieldsLocal()
+  } catch {
+    return loadAdminFieldsLocal()
+  }
+}
+
+async function saveAdminFieldToDB(id: string, fields: AdminFields): Promise<void> {
+  // Save to localStorage first (instant)
+  const all = loadAdminFieldsLocal()
+  all[id] = fields
+  saveAdminFieldsLocal(all)
+
+  // Then save to MongoDB (async)
+  try {
+    await fetch("/api/feedback/admin", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ feedbackId: id, ...fields }),
+    })
+  } catch {
+    // localStorage still has the data
+  }
 }
 
 // ── Parse from FeedbackEntryDto ────────────────────────────────
@@ -212,18 +241,19 @@ export default function FeedbackTablePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Admin fields (persisted in localStorage)
+  // Admin fields (persisted in MongoDB, fallback localStorage)
   const [adminFields, setAdminFields] = useState<Record<string, AdminFields>>({})
 
   useEffect(() => {
-    setAdminFields(loadAdminFields())
+    loadAdminFieldsFromDB().then(setAdminFields)
   }, [])
 
   const updateAdminField = (id: string, field: keyof AdminFields, value: string | boolean) => {
     setAdminFields(prev => {
       const current = prev[id] ?? { csComment: "", dueDate: "", completed: false }
-      const updated = { ...prev, [id]: { ...current, [field]: value } }
-      saveAdminFields(updated)
+      const updatedEntry = { ...current, [field]: value }
+      const updated = { ...prev, [id]: updatedEntry }
+      saveAdminFieldToDB(id, updatedEntry)
       return updated
     })
   }
