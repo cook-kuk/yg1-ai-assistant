@@ -103,7 +103,9 @@ export async function runMatchEngine(input: RecommendationInput, topN = 5): Prom
   }
 
   // ── Score all candidates ─────────────────────────────────────
-  const maxScore = Object.values(WEIGHTS).reduce((a, b) => a + b, 0) + 10 // +10 for diameter neutral
+  // maxScore = sum of all WEIGHTS (100). No +10 bonus:
+  // scoreDiameter returns 10 when no preference, but max is still 40 (diameter weight).
+  const maxScore = Object.values(WEIGHTS).reduce((a, b) => a + b, 0)
 
   const scored = await Promise.all(candidates.map(async (product) => {
     const score =

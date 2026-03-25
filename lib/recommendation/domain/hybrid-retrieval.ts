@@ -366,7 +366,9 @@ export async function runHybridRetrieval(
     const compDetail = `데이터 완성도 ${Math.round(product.dataCompletenessScore * 100)}%`
 
     const score = diamScore + fluteScore + matScore + opScore + coatScore + compScore
-    const maxScore = Object.values(WEIGHTS).reduce((a, b) => a + b, 0)
+    // maxScore must exclude evidence weight since evidence scoring is not yet implemented
+    // (evidence is always 0, so including it in denominator artificially lowers all ratios)
+    const maxScore = WEIGHTS.diameter + WEIGHTS.flutes + WEIGHTS.materialTag + WEIGHTS.operation + WEIGHTS.coating + WEIGHTS.completeness
     const ratio = score / maxScore
     const matchStatus: MatchStatus = ratio >= 0.75 ? "exact" : ratio >= 0.45 ? "approximate" : "none"
 
@@ -377,9 +379,9 @@ export async function runHybridRetrieval(
       operation: { score: opScore, max: WEIGHTS.operation, detail: opDetail },
       coating: { score: coatScore, max: WEIGHTS.coating, detail: coatDetail },
       completeness: { score: compScore, max: WEIGHTS.completeness, detail: compDetail },
-      evidence: { score: 0, max: WEIGHTS.evidence, detail: "증거 미매칭" },
+      evidence: { score: 0, max: WEIGHTS.evidence, detail: "증거 미매칭 (maxScore 제외)" },
       total: score,
-      maxTotal: maxScore,
+      maxTotal: maxScore,  // excludes evidence weight (not yet implemented)
       matchPct: Math.round(ratio * 100),
     }
 
