@@ -193,7 +193,16 @@ export async function buildQuestionResponse(
   existingStageHistory?: NarrowingStage[],
   excludeWorkPieceValues?: string[]
 ): Promise<Response> {
-  const question = await buildWorkPieceQuestion(input, history, filters, candidates, excludeWorkPieceValues) ?? selectNextQuestion(input, candidates, history, totalCandidateCount)
+  // 질문 선택: selectNextQuestion이 도메인 우선순위(직경→날형상→날수→피삭재)에 따라 결정.
+  // workPieceQuestion은 selectNextQuestion이 피삭재를 선택했을 때만 사용.
+  const engineQuestion = selectNextQuestion(input, candidates, history, totalCandidateCount)
+  let question: typeof engineQuestion = null
+  if (engineQuestion?.field === "workPieceName" || (!engineQuestion && !input.workPieceName)) {
+    // 엔진이 피삭재를 골랐거나, 다른 질문이 없으면 workPiece 질문 시도
+    question = await buildWorkPieceQuestion(input, history, filters, candidates, excludeWorkPieceValues) ?? engineQuestion
+  } else {
+    question = engineQuestion
+  }
   const stageHistory = existingStageHistory
     ? [...existingStageHistory]
     : buildStageHistoryFromFilters(filters, input, totalCandidateCount)

@@ -64,6 +64,24 @@ export function selectNextQuestion(
   if (status.startsWith("resolved")) return null
 
   const fields = analyzeFields(input, candidates, history)
+
+  // ── 도메인 우선순위 가중치 ──
+  // 직경 → 날형상 → 날수 → 피삭재 → 코팅 → 시리즈 순서가 도메인 전문가 권장 순서.
+  // 엔트로피(정보 이득)에 도메인 우선순위 가중치를 곱해서 최종 정렬.
+  const FIELD_PRIORITY_BOOST: Record<string, number> = {
+    diameterRefine: 3.0,   // 직경 정제: 최우선
+    toolSubtype: 2.5,      // 날형상 (Square/Radius/Ball): 2순위
+    fluteCount: 2.0,       // 날수: 3순위
+    workPieceName: 1.5,    // 피삭재: 4순위
+    coating: 1.0,          // 코팅: 5순위 (기본)
+    seriesName: 0.8,       // 시리즈: 6순위
+    cuttingType: 0.6,      // 가공방식: 7순위
+  }
+
+  for (const f of fields) {
+    const boost = FIELD_PRIORITY_BOOST[f.field] ?? 1.0
+    f.infoGain = f.infoGain * boost
+  }
   fields.sort((a, b) => b.infoGain - a.infoGain)
 
   const best = fields[0]
@@ -170,7 +188,7 @@ function analyzeFields(
           field: "seriesName",
           questionText: `시리즈 선호가 있으신가요? ${chips.slice(0, 3).join(", ")} 등의 시리즈가 있습니다.`,
           chips,
-          infoGain: gain * 0.8,
+          infoGain: gain,
         })
       }
     }
@@ -195,7 +213,7 @@ function analyzeFields(
           field: "toolSubtype",
           questionText: `공구 세부 타입이 중요한가요? ${chips.slice(0, 3).join(", ")} 등이 있습니다.`,
           chips,
-          infoGain: gain * 0.9,
+          infoGain: gain,
         })
       }
     }
@@ -231,6 +249,16 @@ function analyzeFields(
         })
       }
     }
+  }
+
+  // workPieceName (세부 피삭재) — 도메인 우선순위 가중치로 순서 제어
+  if (!input.workPieceName && !askedFields.has("workPieceName") && input.material) {
+    results.push({
+      field: "workPieceName",
+      questionText: "세부 피삭재를 선택해주세요.",
+      chips: ["상관없음"],
+      infoGain: 0.5,  // FIELD_PRIORITY_BOOST에서 1.5× → 실효 0.75
+    })
   }
 
   return results
