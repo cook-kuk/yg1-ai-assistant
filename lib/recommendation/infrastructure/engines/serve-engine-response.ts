@@ -128,17 +128,34 @@ async function buildWorkPieceQuestion(
     ? allWorkPieceNames.filter(name => !excludeValues.includes(name))
     : allWorkPieceNames
 
-  // ── 실제 제품이 있는 workPiece만 남기기 ──
-  // brand_reference → product_recommendation_mv JOIN으로 실제 제품 수 확인
-  const productCounts = await BrandReferenceRepo.countProductsByWorkPiece(isoGroup)
-  if (productCounts.size > 0) {
-    const filtered = relevantNames.filter(name => (productCounts.get(name) ?? 0) > 0)
-    if (filtered.length >= 2) {
-      const removed = relevantNames.length - filtered.length
-      if (removed > 0) console.log(`[workpiece-filter] Removed ${removed} workPieces with 0 actual products`)
-      relevantNames = filtered
+  // ── 현재 candidates에 실제로 있는 workPiece만 남기기 ──
+  // candidates의 시리즈 → brand_reference에서 해당 시리즈의 workPiece 역조회
+  if (candidates && candidates.length > 0) {
+    const candidateSeriesSet = new Set(
+      candidates.map(c => (c.product.seriesName ?? "").trim().toUpperCase()).filter(Boolean)
+    )
+    // 각 workPiece에 대해 시리즈가 candidates에 있는지 확인
+    const validNames: string[] = []
+    for (const name of relevantNames) {
+      const series = await BrandReferenceRepo.listDistinctSeriesNames({ isoGroup, workPieceName: name, limit: 30 })
+      const hasMatch = series.some(s => candidateSeriesSet.has(s.toUpperCase()))
+      if (hasMatch) validNames.push(name)
+    }
+    if (validNames.length >= 2) {
+      const removed = relevantNames.length - validNames.length
+      if (removed > 0) console.log(`[workpiece-filter] Removed ${removed} workPieces with 0 matching series in current candidates`)
+      relevantNames = validNames
     }
   }
+
+  // 중복 제거 (공백 차이: "알루미늄(연질)" vs "알루미늄 (연질)")
+  const normalizedSeen = new Set<string>()
+  relevantNames = relevantNames.filter(name => {
+    const normalized = name.replace(/\s+/g, "").toLowerCase()
+    if (normalizedSeen.has(normalized)) return false
+    normalizedSeen.add(normalized)
+    return true
+  })
 
   const materialLabel = getMaterialDisplay(isoGroup).ko
   const chips = [...relevantNames.slice(0, 10), "상관없음"]
