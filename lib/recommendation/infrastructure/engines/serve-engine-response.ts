@@ -269,11 +269,9 @@ async function buildWorkPieceQuestion(
       const hasMatch = series.some(s => candidateSeriesSet.has(s.toUpperCase()))
       if (hasMatch) validNames.push(name)
     }
-    if (validNames.length >= 2) {
-      const removed = relevantNames.length - validNames.length
-      if (removed > 0) console.log(`[workpiece-filter] Removed ${removed} workPieces with 0 matching series in current candidates`)
-      relevantNames = validNames
-    }
+    const removed = relevantNames.length - validNames.length
+    if (removed > 0) console.log(`[workpiece-filter] Removed ${removed} workPieces with 0 matching series in current candidates`)
+    relevantNames = validNames
   }
 
   // 중복 제거 (공백 차이: "알루미늄(연질)" vs "알루미늄 (연질)")
@@ -284,6 +282,9 @@ async function buildWorkPieceQuestion(
     normalizedSeen.add(normalized)
     return true
   })
+
+  // 현재 후보 기준으로 의미 있는 선택지가 없으면 질문하지 않는다.
+  if (relevantNames.length <= 1) return null
 
   const materialLabel = getMaterialDisplay(isoGroup).ko
   const chips = [...relevantNames.slice(0, 10), "상관없음"]

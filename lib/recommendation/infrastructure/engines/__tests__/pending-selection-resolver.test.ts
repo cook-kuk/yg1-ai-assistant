@@ -231,6 +231,61 @@ describe("explicit revision resolver", () => {
     })
   })
 
+  it('resolves "형상을 roughing으로 변경" as a toolSubtype revision instead of workPieceName', () => {
+    const state = makeState({
+      appliedFilters: [
+        { field: "toolSubtype", op: "includes", value: "Square", rawValue: "Square", appliedAt: 0 } as any,
+        { field: "fluteCount", op: "eq", value: "4날", rawValue: 4, appliedAt: 1 } as any,
+        { field: "workPieceName", op: "includes", value: "알루미늄", rawValue: "알루미늄", appliedAt: 2 } as any,
+      ],
+      displayedCandidates: [
+        { product: { toolSubtype: "Square", coating: "TiCN", seriesName: "CE7659" } },
+        { product: { toolSubtype: "Roughing", coating: "TiCN", seriesName: "GAA31" } },
+      ] as any,
+    })
+
+    expect(resolveExplicitRevisionRequest(state, "형상을 roughing으로 변경")).toMatchObject({
+      targetField: "toolSubtype",
+      previousValue: "Square",
+      nextFilter: {
+        field: "toolSubtype",
+        value: "Roughing",
+        rawValue: "Roughing",
+      },
+    })
+  })
+
+  it("matches Korean subtype aliases against the active toolSubtype filter", () => {
+    const state = makeState({
+      appliedFilters: [
+        { field: "toolSubtype", op: "includes", value: "Roughing", rawValue: "Roughing", appliedAt: 0 } as any,
+      ],
+    })
+
+    expect(resolveExplicitRevisionRequest(state, "황삭 말고 Square로 변경")).toMatchObject({
+      targetField: "toolSubtype",
+      previousValue: "Roughing",
+      nextFilter: {
+        field: "toolSubtype",
+        value: "Square",
+        rawValue: "Square",
+      },
+    })
+  })
+
+  it("returns an ambiguous clarification instead of guessing when the target field is unclear", () => {
+    const state = makeState({
+      appliedFilters: [
+        { field: "toolSubtype", op: "includes", value: "Square", rawValue: "Square", appliedAt: 0 } as any,
+        { field: "workPieceName", op: "includes", value: "알루미늄", rawValue: "알루미늄", appliedAt: 1 } as any,
+      ],
+    })
+
+    expect(resolveExplicitRevisionRequest(state, "알루미늄으로 변경")).toMatchObject({
+      kind: "ambiguous",
+    })
+  })
+
   it("does not treat a plain pending-answer selection as a revision", () => {
     const state = makeState({
       appliedFilters: [

@@ -78,6 +78,47 @@ type ExplicitRevisionRequest = {
   nextFilter: AppliedFilter
 }
 
+type ExplicitRevisionResolution =
+  | { kind: "resolved"; request: ExplicitRevisionRequest }
+  | { kind: "ambiguous"; question: string }
+
+const REVISION_FIELD_LABELS: Record<string, string> = {
+  toolSubtype: "형상",
+  coating: "코팅",
+  fluteCount: "날 수",
+  diameterMm: "직경",
+  seriesName: "시리즈",
+  workPieceName: "피삭재",
+}
+
+const REVISION_FIELD_HINTS: Record<string, RegExp[]> = {
+  toolSubtype: [/형상/u, /타입/u, /subtype/i, /square/i, /radius/i, /ball/i, /rough/i, /황삭/u, /라디우스/u, /볼/u, /스퀘어/u],
+  coating: [/코팅/u, /\bcoat/i, /ticn/i, /tialn/i, /alcrn/i, /x-?coating/i, /bright\s*finish/i],
+  fluteCount: [/날\s*수/u, /몇\s*날/u, /\d+\s*날/u, /flute/i],
+  diameterMm: [/직경/u, /지름/u, /파이/u, /\b\d+(?:\.\d+)?\s*mm\b/i],
+  seriesName: [/시리즈/u, /series/i],
+  workPieceName: [/피삭재/u, /소재/u, /재질/u],
+}
+
+const TOOL_SUBTYPE_ALIASES: Record<string, string> = {
+  square: "Square",
+  스퀘어: "Square",
+  ball: "Ball",
+  볼: "Ball",
+  radius: "Radius",
+  라디우스: "Radius",
+  "cornerradius": "Corner Radius",
+  roughing: "Roughing",
+  rough: "Roughing",
+  황삭: "Roughing",
+  taper: "Taper",
+  테이퍼: "Taper",
+  chamfer: "Chamfer",
+  챔퍼: "Chamfer",
+  highfeed: "High-Feed",
+  하이피드: "High-Feed",
+}
+
 const DEFAULT_CANDIDATE_PAGE_SIZE = 50
 
 function buildPreSearchOrchestratorResult(userMessage: string, reason: string) {
@@ -291,6 +332,126 @@ function buildRevisionValueCandidates(raw: string): { previousText: string | nul
   return { previousText, nextValues: candidates }
 }
 
+function getRevisionCandidatePool(sessionState: ExplorationSessionState | null): Array<Record<string, unknown>> {
+  return (
+    sessionState?.fullDisplayedProducts
+    ?? sessionState?.fullDisplayedCandidates
+    ?? sessionState?.displayedProducts
+    ?? sessionState?.displayedCandidates
+    ?? []
+  ) as unknown as Array<Record<string, unknown>>
+}
+
+function canonicalizeToolSubtypeValue(value: string): string | null {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[()\s_-]+/g, "")
+
+  if (!normalized) return null
+
+  for (const [alias, canonical] of Object.entries(TOOL_SUBTYPE_ALIASES)) {
+    if (normalized.includes(alias)) return canonical
+  }
+
+  return null
+}
+
+function matchRevisionValueAgainstCandidateValues(
+  field: string,
+  value: string,
+  sessionState: ExplorationSessionState | null
+): string | null {
+  const candidateValues = extractDistinctFieldValues(getRevisionCandidatePool(sessionState), field)
+  if (candidateValues.length === 0) return null
+
+  const normalizedValue = normalizePendingSelectionText(value).replace(/\s+/g, "")
+  if (!normalizedValue) return null
+
+  const exactMatch = candidateValues.find(candidate => (
+    normalizePendingSelectionText(candidate).replace(/\s+/g, "") === normalizedValue
+  ))
+  if (exactMatch) return exactMatch
+
+  const fuzzyMatch = candidateValues.find(candidate => {
+    const normalizedCandidate = normalizePendingSelectionText(candidate).replace(/\s+/g, "")
+    return normalizedCandidate.includes(normalizedValue) || normalizedValue.includes(normalizedCandidate)
+  })
+  if (fuzzyMatch) return fuzzyMatch
+
+  return null
+}
+
+function sanitizeRevisionValueForField(
+  field: string,
+  value: string,
+  sessionState: ExplorationSessionState | null
+): string {
+  let cleaned = cleanupRevisionCandidate(value)
+
+  switch (field) {
+    case "toolSubtype": {
+      cleaned = cleaned
+        .replace(/^(?:공구\s*)?(?:세부\s*)?(?:형상|타입)(?:은|는|이|가|을|를)?\s*/u, "")
+        .trim()
+      const canonical = canonicalizeToolSubtypeValue(cleaned)
+      if (canonical) return canonical
+      return matchRevisionValueAgainstCandidateValues(field, cleaned, sessionState) ?? cleaned
+    }
+    case "coating": {
+      cleaned = cleaned.replace(/^(?:표면\s*)?코팅(?:은|는|이|가|을|를)?\s*/u, "").trim()
+      return matchRevisionValueAgainstCandidateValues(field, cleaned, sessionState) ?? cleaned
+    }
+    case "seriesName": {
+      cleaned = cleaned.replace(/^시리즈(?:는|를|가|이|은|을)?\s*/u, "").trim()
+      return matchRevisionValueAgainstCandidateValues(field, cleaned, sessionState) ?? cleaned
+    }
+    case "workPieceName":
+      return cleaned.replace(/^(?:세부\s*)?(?:피삭재|소재|재질)(?:는|를|가|이|은|을)?\s*/u, "").trim()
+    default:
+      return cleaned
+  }
+}
+
+function inferRevisionTargetFields(
+  raw: string,
+  activeFilters: AppliedFilter[],
+  sessionState: ExplorationSessionState | null
+): string[] {
+  const activeFieldSet = new Set(activeFilters.map(filter => filter.field))
+  const hintedFields = Object.entries(REVISION_FIELD_HINTS)
+    .filter(([, patterns]) => patterns.some(pattern => pattern.test(raw)))
+    .map(([field]) => field)
+    .filter(field => activeFieldSet.has(field))
+
+  if (hintedFields.length > 0) return hintedFields
+
+  const lastAskedField = sessionState?.lastAskedField
+  if (lastAskedField && activeFieldSet.has(lastAskedField)) {
+    return [lastAskedField]
+  }
+
+  return [...new Set(activeFilters.map(filter => filter.field))]
+}
+
+function buildRevisionClarificationQuestion(
+  fields: string[],
+  nextValues: string[]
+): string {
+  const value = nextValues[0] ?? "해당 값"
+  const labels = [...new Set(fields.map(field => REVISION_FIELD_LABELS[field] ?? field))]
+
+  if (labels.length === 0) {
+    return `어떤 조건을 "${value}"로 바꾸실지 다시 말씀해주세요. 예: "형상을 ${value}으로 변경".`
+  }
+
+  if (labels.length === 1) {
+    return `어떤 조건을 바꾸실지 조금 더 구체적으로 말씀해주세요. 예: "${labels[0]}을 ${value}으로 변경".`
+  }
+
+  return `어떤 조건을 "${value}"로 바꾸실지 다시 말씀해주세요. 현재 문장만으로는 ${labels.join(", ")} 중 무엇을 바꾸려는지 모호합니다.`
+}
+
 function normalizeComparableFilterValue(field: string, value: string | number | null | undefined): string {
   if (value == null) return ""
 
@@ -302,6 +463,11 @@ function normalizeComparableFilterValue(field: string, value: string | number | 
   if (field === "diameterMm" || field === "diameterRefine") {
     const match = String(value).match(/([\d.]+)/)
     return match?.[1] ?? ""
+  }
+
+  if (field === "toolSubtype") {
+    const canonical = canonicalizeToolSubtypeValue(String(value))
+    if (canonical) return normalizePendingSelectionText(canonical)
   }
 
   const parsed = typeof value === "string" ? parseAnswerToFilter(field, value) : null
@@ -467,7 +633,7 @@ export function resolveExplicitComparisonAction(
 export function resolveExplicitRevisionRequest(
   sessionState: ExplorationSessionState | null,
   userMessage: string | null
-): ExplicitRevisionRequest | null {
+): ExplicitRevisionResolution | null {
   if (!sessionState || !userMessage) return null
 
   const raw = userMessage.trim()
@@ -480,31 +646,60 @@ export function resolveExplicitRevisionRequest(
   if (nextValues.length === 0) return null
 
   const prioritizedFilters = [...activeFilters].sort((a, b) => (b.appliedAt ?? 0) - (a.appliedAt ?? 0))
-  for (const nextValue of nextValues) {
-    for (const existingFilter of prioritizedFilters) {
-      const parsed = parseAnswerToFilter(existingFilter.field, nextValue)
+  const candidateFields = inferRevisionTargetFields(raw, prioritizedFilters, sessionState)
+  const matchedRequests: ExplicitRevisionRequest[] = []
+
+  for (const field of candidateFields) {
+    const matchingFilters = prioritizedFilters.filter(filter => filter.field === field)
+    if (matchingFilters.length === 0) continue
+
+    for (const nextValue of nextValues) {
+      const sanitizedNextValue = sanitizeRevisionValueForField(field, nextValue, sessionState)
+      const parsed = parseAnswerToFilter(field, sanitizedNextValue)
       if (!parsed) continue
 
-      const existingComparable = normalizeComparableFilterValue(existingFilter.field, existingFilter.rawValue ?? existingFilter.value)
-      const nextComparable = normalizeComparableFilterValue(existingFilter.field, parsed.rawValue ?? parsed.value)
-      if (!nextComparable || existingComparable === nextComparable) continue
+      for (const existingFilter of matchingFilters) {
+        const existingComparable = normalizeComparableFilterValue(existingFilter.field, existingFilter.rawValue ?? existingFilter.value)
+        const nextComparable = normalizeComparableFilterValue(existingFilter.field, parsed.rawValue ?? parsed.value)
+        if (!nextComparable || existingComparable === nextComparable) continue
 
-      if (previousText) {
-        const previousComparable = normalizeComparableFilterValue(existingFilter.field, previousText)
-        if (previousComparable && existingComparable && !existingComparable.includes(previousComparable)) {
-          continue
+        if (previousText) {
+          const sanitizedPreviousText = sanitizeRevisionValueForField(existingFilter.field, previousText, sessionState)
+          const previousComparable = normalizeComparableFilterValue(existingFilter.field, sanitizedPreviousText)
+          if (previousComparable && existingComparable && !existingComparable.includes(previousComparable)) {
+            continue
+          }
         }
-      }
 
-      return {
-        targetField: existingFilter.field,
-        previousValue: String(existingFilter.value),
-        nextFilter: parsed,
+        matchedRequests.push({
+          targetField: existingFilter.field,
+          previousValue: String(existingFilter.value),
+          nextFilter: parsed,
+        })
       }
     }
   }
 
-  return null
+  if (matchedRequests.length === 0) return null
+
+  const dedupedRequests = matchedRequests.filter((request, index, requests) => {
+    const key = `${request.targetField}:${normalizeComparableFilterValue(request.targetField, request.nextFilter.rawValue ?? request.nextFilter.value)}`
+    return index === requests.findIndex(candidate => (
+      `${candidate.targetField}:${normalizeComparableFilterValue(candidate.targetField, candidate.nextFilter.rawValue ?? candidate.nextFilter.value)}` === key
+    ))
+  })
+
+  if (dedupedRequests.length === 1) {
+    return { kind: "resolved", request: dedupedRequests[0] }
+  }
+
+  return {
+    kind: "ambiguous",
+    question: buildRevisionClarificationQuestion(
+      dedupedRequests.map(request => request.targetField),
+      nextValues
+    ),
+  }
 }
 
 export interface ServeEngineRuntimeDependencies {
@@ -639,6 +834,46 @@ function buildActionMeta(
   }
 }
 
+function buildRevisionClarificationResponse(
+  deps: Pick<ServeEngineRuntimeDependencies, "jsonRecommendationResponse" | "buildCandidateSnapshot">,
+  prevState: ExplorationSessionState,
+  form: ProductIntakeForm,
+  filters: AppliedFilter[],
+  narrowingHistory: NarrowingTurn[],
+  currentInput: RecommendationInput,
+  turnCount: number,
+  question: string,
+  requestPreparation: ReturnType<typeof prepareRequest> | null
+) {
+  const sessionState = carryForwardState(prevState, {
+    appliedFilters: filters,
+    narrowingHistory,
+    resolutionStatus: prevState.resolutionStatus ?? "narrowing",
+    resolvedInput: currentInput,
+    turnCount,
+    displayedChips: filters.length > 0 ? ["⟵ 이전 단계", "처음부터 다시"] : ["처음부터 다시"],
+    displayedOptions: [],
+    currentMode: "question",
+    lastAction: "ask_clarification",
+  })
+
+  return deps.jsonRecommendationResponse({
+    text: question,
+    purpose: "question",
+    chips: sessionState.displayedChips,
+    isComplete: false,
+    recommendation: null,
+    sessionState,
+    evidenceSummaries: null,
+    candidateSnapshot: prevState.displayedCandidates ?? null,
+    requestPreparation,
+    primaryExplanation: null,
+    primaryFactChecked: null,
+    altExplanations: [],
+    altFactChecked: [],
+  })
+}
+
 export async function handleServeExploration(
   deps: ServeEngineRuntimeDependencies,
   form: ProductIntakeForm,
@@ -749,7 +984,7 @@ async function handleServeExplorationInner(
   let turnCount = prevState?.turnCount ?? 0
   let explicitComparisonAction: OrchestratorAction | null = null
   let explicitComparisonOrchestratorResult: OrchestratorResult | null = null
-  let explicitRevisionRequest: ExplicitRevisionRequest | null = null
+  let explicitRevisionResolution: ExplicitRevisionResolution | null = null
   let explicitRevisionAction: OrchestratorAction | null = null
   let explicitRevisionOrchestratorResult: OrchestratorResult | null = null
   let bridgedV2Action: OrchestratorAction | null = null
@@ -780,8 +1015,9 @@ async function handleServeExplorationInner(
         console.log(`[runtime:explicit-compare] targets=${explicitComparisonAction.targets.join(", ")}`)
       }
       if (!explicitComparisonAction) {
-        explicitRevisionRequest = resolveExplicitRevisionRequest(prevState, lastUserMsg.text)
-        if (explicitRevisionRequest) {
+        explicitRevisionResolution = resolveExplicitRevisionRequest(prevState, lastUserMsg.text)
+        if (explicitRevisionResolution?.kind === "resolved") {
+          const explicitRevisionRequest = explicitRevisionResolution.request
           explicitRevisionAction = {
             type: "replace_existing_filter",
             targetField: explicitRevisionRequest.targetField,
@@ -801,7 +1037,21 @@ async function handleServeExplorationInner(
       }
     }
 
-    if (!shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionRequest) {
+    if (prevState && explicitRevisionResolution?.kind === "ambiguous") {
+      return buildRevisionClarificationResponse(
+        deps,
+        prevState,
+        form,
+        filters,
+        narrowingHistory,
+        currentInput,
+        turnCount,
+        explicitRevisionResolution.question,
+        requestPrep
+      )
+    }
+
+    if (!shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution) {
       const preSearchRoute = await classifyPreSearchRoute(lastUserMsg.text, prevState, provider)
       if (preSearchRoute.kind !== "recommendation_action") {
         console.log(`[runtime:pre-route] ${preSearchRoute.kind} -> answer_general (${preSearchRoute.reason})`)
@@ -842,7 +1092,7 @@ async function handleServeExplorationInner(
   // On error, automatically falls back to legacy path.
   const currentPhase = prevState?.currentMode ?? "intake"
   perf.startStep("v2_orchestrator")
-  if (shouldUseV2ForPhase(currentPhase) && lastUserMsg && !shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionRequest) {
+  if (shouldUseV2ForPhase(currentPhase) && lastUserMsg && !shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution) {
     try {
       const { orchestrateTurnV2 } = await import("@/lib/recommendation/core/turn-orchestrator")
       const { convertToV2State, convertFromV2State } = await import("@/lib/recommendation/core/state-adapter")
