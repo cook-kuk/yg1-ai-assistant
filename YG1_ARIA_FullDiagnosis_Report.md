@@ -174,12 +174,13 @@
 | 11 | `8089b65` | silent .catch 로깅 + 서버사이드 입력 검증 |
 | 12 | `f3d7c43` | pagination page clamp + go_back_to_filter 로그 |
 | 13 | `dddfebc` | 칩 중복 비교 정규화 (case-insensitive) |
+| S2-0 | `5c67f36` | Critical Bug 3+4: workPieceName fuzzy match + 0-candidate 소재 칩 필터 |
 
 ## 부록: 진단 라운드 요약
 
 | 라운드 | 목표 | 결과 |
 |--------|------|------|
-| 0 | Critical Bug 2개 수정 | 수정 완료 (unfilterable 칩 + V2 필터) |
+| 0 | Critical Bug 4개 수정 | S1: unfilterable 칩 + V2 필터, S2: fuzzy match + 소재 칩 |
 | 1 | 기초 체력 검사 | TSC 0에러, 888/888 테스트, 순환 의존 없음 |
 | 2 | 칩→액션 경로 추적 | catch-all 가드 추가, 필터 리셋 경로 확인 |
 | 3-4 | 상태 변이 + LLM 호출 분석 | 상태 변이 4곳 (Low), LLM 28곳 (2-7/턴) |
