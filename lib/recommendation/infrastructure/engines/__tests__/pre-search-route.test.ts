@@ -31,6 +31,17 @@ const unavailableProvider = {
 } as any
 
 describe("classifyPreSearchRoute", () => {
+  it("routes first-turn taxonomy explanation questions to general_knowledge before search", async () => {
+    const result = await classifyPreSearchRoute(
+      "slotting 하는데 적절한 공구 형상은 어떤 것인가요",
+      null,
+      unavailableProvider,
+    )
+
+    expect(result.kind).toBe("general_knowledge")
+    expect(result.reason).toBe("taxonomy_knowledge")
+  })
+
   it("routes taxonomy explanation questions to general_knowledge before search", async () => {
     const result = await classifyPreSearchRoute(
       "slotting 하는데 적절한 공구 형상은 어떤 것인가요",

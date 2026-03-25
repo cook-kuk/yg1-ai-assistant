@@ -1,5 +1,6 @@
 import {
   analyzeInquiry,
+  buildSessionState,
   carryForwardState,
   checkResolution,
   getRedirectResponse,
@@ -468,8 +469,8 @@ async function handleServeExplorationInner(
   let currentInput = { ...resolvedInput }
   let turnCount = prevState?.turnCount ?? 0
 
-  if (messages.length > 0 && prevState && lastUserMsg) {
-    if (prevState.pendingAction) {
+  if (messages.length > 0 && lastUserMsg) {
+    if (prevState?.pendingAction) {
       const pendingCheck = shouldExecutePendingAction(
         prevState.pendingAction,
         lastUserMsg.text,
@@ -486,6 +487,19 @@ async function handleServeExplorationInner(
     const preSearchRoute = await classifyPreSearchRoute(lastUserMsg.text, prevState, provider)
     if (preSearchRoute.kind !== "recommendation_action") {
       console.log(`[runtime:pre-route] ${preSearchRoute.kind} -> answer_general (${preSearchRoute.reason})`)
+      const generalChatState = prevState ?? buildSessionState({
+        candidateCount: 0,
+        appliedFilters: filters,
+        narrowingHistory,
+        stageHistory: [],
+        resolutionStatus: "narrowing",
+        resolvedInput: currentInput,
+        turnCount,
+        displayedCandidates: [],
+        displayedChips: [],
+        displayedOptions: [],
+        currentMode: "question",
+      })
       return handleServeGeneralChatAction({
         deps,
         action: { type: "answer_general", message: lastUserMsg.text },
@@ -493,7 +507,7 @@ async function handleServeExplorationInner(
         provider,
         form,
         messages,
-        prevState,
+        prevState: generalChatState,
         filters,
         narrowingHistory,
         currentInput,

@@ -81,6 +81,8 @@ describe("handleDirectProductInfoQuestion", () => {
     )
 
     expect(findByCodeMock).toHaveBeenCalledWith("GYG02100")
+    expect(findSeriesProfilesMock).not.toHaveBeenCalled()
+    expect(findBrandProfilesMock).not.toHaveBeenCalled()
     expect(reply).not.toBeNull()
     expect(reply?.text).toContain("GYG02100의 공구 소재는 Carbide입니다.")
     expect(reply?.text).toContain("| 공구 소재 | Carbide |")
@@ -158,6 +160,8 @@ describe("handleDirectProductInfoQuestion", () => {
     )
 
     expect(findByCodeMock).toHaveBeenCalledWith("P2777221")
+    expect(findSeriesProfilesMock).not.toHaveBeenCalled()
+    expect(findBrandProfilesMock).not.toHaveBeenCalled()
     expect(reply).not.toBeNull()
     expect(reply?.text).toContain("P2777221 제품 정보를 내부 DB에서 조회했습니다.")
   })
@@ -214,6 +218,7 @@ describe("handleDirectProductInfoQuestion", () => {
     )
 
     expect(reply).not.toBeNull()
+    expect(findByCodeMock).not.toHaveBeenCalled()
     expect(reply?.text).toContain("GENERAL CARBIDE DRILLS 브랜드 프로필을 내부 DB에서 조회했습니다.")
   })
 })

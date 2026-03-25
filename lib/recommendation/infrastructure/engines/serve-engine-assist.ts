@@ -330,45 +330,48 @@ function extractEntityNamesFromMessage(userMessage: string): string[] {
   return extractLookupCandidatesFromMessage(userMessage)
 }
 
-type DirectLookupResolution = {
-  brandProfile: BrandProfileRecord | null
-  product: Awaited<ReturnType<typeof ProductRepo.findByCode>>
-  requestedName: string
-  seriesProfile: SeriesProfileRecord | null
-}
-
 function isLikelyProductLookupCandidate(value: string): boolean {
   const trimmed = value.trim()
   return trimmed.length >= 3 && !/\s/.test(trimmed) && /[A-Za-z]/.test(trimmed) && /\d/.test(trimmed)
 }
 
-async function resolveDirectLookupEntities(userMessage: string): Promise<DirectLookupResolution[]> {
-  const requestedNames = extractLookupCandidatesFromMessage(userMessage).slice(0, 8)
-  if (requestedNames.length === 0) return []
+function extractProductLookupCodesFromMessage(userMessage: string): string[] {
+  const queryTarget = classifyQueryTarget(userMessage, null, null)
+  const codes: string[] = []
+  codes.push(...queryTarget.entities.filter(isLikelyProductLookupCandidate))
+  codes.push(...collectRegexMatches(DIRECT_PRODUCT_CODE_GLOBAL_PATTERN, userMessage))
+  codes.push(...collectRegexMatches(LATIN_ENTITY_PHRASE_PATTERN, userMessage).filter(isLikelyProductLookupCandidate))
+  return Array.from(new Set(codes.map(normalizeLookupCode))).filter(Boolean).slice(0, 3)
+}
 
-  const cacheKey = `directLookup:${requestedNames.map(normalizeEntityLookupKey).join(",")}`
+async function resolveEntityProfiles(requestedNames: string[]): Promise<{
+  brandProfiles: BrandProfileRecord[]
+  seriesProfiles: SeriesProfileRecord[]
+}> {
+  const limitedNames = requestedNames.slice(0, 8)
+  if (limitedNames.length === 0) {
+    return { seriesProfiles: [], brandProfiles: [] }
+  }
+
+  const cacheKey = `directEntityProfiles:${limitedNames.map(normalizeEntityLookupKey).join(",")}`
   return getSessionCache().getOrFetch(cacheKey, async () => {
-    const resolved = await Promise.all(
-      requestedNames.map(async requestedName => {
-        const [product, seriesProfiles, brandProfiles] = await Promise.all([
-          isLikelyProductLookupCandidate(requestedName)
-            ? ProductRepo.findByCode(normalizeLookupCode(requestedName)).catch(() => null)
-            : Promise.resolve(null),
-          EntityProfileRepo.findSeriesProfiles([requestedName]).catch(() => [] as SeriesProfileRecord[]),
-          EntityProfileRepo.findBrandProfiles([requestedName]).catch(() => [] as BrandProfileRecord[]),
-        ])
+    const [seriesProfiles, brandProfiles] = await Promise.all([
+      EntityProfileRepo.findSeriesProfiles(limitedNames).catch(() => [] as SeriesProfileRecord[]),
+      EntityProfileRepo.findBrandProfiles(limitedNames).catch(() => [] as BrandProfileRecord[]),
+    ])
 
-        return {
-          requestedName,
-          product,
-          seriesProfile: seriesProfiles[0] ?? null,
-          brandProfile: brandProfiles[0] ?? null,
-        }
-      })
-    )
-
-    return resolved.filter(item => item.product || item.seriesProfile || item.brandProfile)
+    return { seriesProfiles, brandProfiles }
   })
+}
+
+async function findDirectProductByCode(lookupCode: string): Promise<Awaited<ReturnType<typeof ProductRepo.findByCode>>> {
+  const normalizedCode = normalizeLookupCode(lookupCode)
+  if (!normalizedCode) return null
+
+  const cacheKey = `directProduct:${normalizedCode}`
+  return getSessionCache().getOrFetch(cacheKey, () =>
+    ProductRepo.findByCode(normalizedCode).catch(() => null)
+  )
 }
 
 function buildUnmatchedEntityNote(requestedNames: string[], matchedNames: string[]): string {
@@ -624,7 +627,6 @@ export async function handleDirectEntityProfileQuestion(
   const requestedNames = extractEntityNamesFromMessage(userMessage)
   if (requestedNames.length === 0) return null
 
-  const resolvedLookups = await resolveDirectLookupEntities(userMessage)
   const wantsComparison = /차이|비교|vs|대비|다른|달라|다를/i.test(userMessage)
   const mentionsSeries = /시리즈|series|날\s*수|날수|플루트|형상|볼|스퀘어|radius|taper/i.test(userMessage)
   const mentionsBrand = /브랜드|brand/i.test(userMessage)
@@ -635,24 +637,21 @@ export async function handleDirectEntityProfileQuestion(
     queryTarget.type === "series_comparison" ||
     queryTarget.type === "brand_info" ||
     queryTarget.type === "brand_comparison" ||
-    (resolvedLookups.some(item => item.seriesProfile || item.brandProfile) && /뭐야|뭐예요|알려|설명|정보|특징|용도|적합/i.test(userMessage)) ||
+    (requestedNames.length > 0 && /뭐야|뭐예요|알려|설명|정보|특징|용도|적합/i.test(userMessage)) ||
     directEntityOnly
 
   if (!explicitProfileIntent) {
     return null
   }
+  const resolvedProfiles = await resolveEntityProfiles(requestedNames)
   const seriesProfiles = Array.from(
     new Map(
-      resolvedLookups
-        .filter((item): item is DirectLookupResolution & { seriesProfile: SeriesProfileRecord } => item.seriesProfile !== null)
-        .map(item => [item.seriesProfile.normalizedSeriesName, item.seriesProfile])
+      resolvedProfiles.seriesProfiles.map(profile => [profile.normalizedSeriesName, profile])
     ).values()
   )
   const brandProfiles = Array.from(
     new Map(
-      resolvedLookups
-        .filter((item): item is DirectLookupResolution & { brandProfile: BrandProfileRecord } => item.brandProfile !== null)
-        .map(item => [item.brandProfile.normalizedBrandName, item.brandProfile])
+      resolvedProfiles.brandProfiles.map(profile => [profile.normalizedBrandName, profile])
     ).values()
   )
 
@@ -782,10 +781,10 @@ export async function handleDirectProductInfoQuestion(
   }
 
   const queryTarget = classifyQueryTarget(userMessage, null, null)
-  const resolvedLookups = await resolveDirectLookupEntities(userMessage)
-  const resolvedProductLookup = resolvedLookups.find(item => item.product)
+  const productLookupCodes = extractProductLookupCodesFromMessage(userMessage)
+  const lookupCode = productLookupCodes[0] ?? ""
   const explicitLookupEntity =
-    resolvedLookups.length > 0 ||
+    productLookupCodes.length > 0 ||
     queryTarget.entities.length > 0 ||
     DIRECT_PRODUCT_CODE_PATTERN.test(userMessage) ||
     DIRECT_SERIES_CODE_PATTERN.test(userMessage)
@@ -794,27 +793,25 @@ export async function handleDirectProductInfoQuestion(
     return null
   }
 
-  const directCodeOnly = resolvedProductLookup
-    ? normalizeLookupCode(userMessage) === normalizeLookupCode(resolvedProductLookup.requestedName)
+  const directCodeOnly = lookupCode
+    ? normalizeLookupCode(userMessage) === lookupCode
     : false
   const explicitInfoIntent = directCodeOnly || PRODUCT_INFO_TRIGGER_PATTERN.test(userMessage) || queryTarget.type === "product_info"
   if (!explicitInfoIntent) return null
 
   if (
-    !resolvedProductLookup &&
+    !lookupCode &&
     (queryTarget.type === "series_info" ||
       queryTarget.type === "brand_info" ||
       queryTarget.type === "series_comparison" ||
-      queryTarget.type === "brand_comparison" ||
-      resolvedLookups.some(item => item.seriesProfile || item.brandProfile))
+      queryTarget.type === "brand_comparison")
   ) {
     return null
   }
 
-  const lookupCode = normalizeLookupCode(resolvedProductLookup?.requestedName ?? extractLookupCandidatesFromMessage(userMessage)[0] ?? "")
   if (!lookupCode) return null
 
-  const product = resolvedProductLookup?.product ?? null
+  const product = await findDirectProductByCode(lookupCode)
   if (!product) {
     const hasCandidates = (prevState?.displayedCandidates?.length ?? 0) > 0
     return {
