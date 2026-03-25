@@ -15,9 +15,17 @@ import type {
   LlmTurnDecision,
   TurnResult,
   CandidateRef,
+  ResultContext,
   ResolvedAction,
 } from "./types"
 import { createRevisionNode } from "./constraint-helpers"
+import { validateSurfaceV2 } from "./response-validator"
+import {
+  constraintsToFilters,
+  buildResultContext,
+  shouldSearch,
+} from "./search-adapter"
+import { runHybridRetrieval } from "../domain/hybrid-retrieval"
 
 // Step 1: Build snapshot from current state + user message
 function buildTurnSnapshot(userMessage: string, state: RecommendationSessionState): TurnSnapshot {
@@ -277,13 +285,29 @@ export function applyStateTransition(
   return next
 }
 
-// Step 4-5: Search planning + execution (stub)
+// Step 4-5: Search planning + execution — delegates to hybrid-retrieval engine
 async function executeSearchIfNeeded(
-  _state: RecommendationSessionState,
-  _decision: LlmTurnDecision
-): Promise<{ candidates: CandidateRef[]; evidenceMap: Map<string, unknown> } | null> {
-  // TODO: Wire to hybrid-retrieval.ts
-  return null
+  state: RecommendationSessionState,
+  decision: LlmTurnDecision
+): Promise<{ resultContext: ResultContext; evidenceMap: Map<string, unknown> } | null> {
+  if (!shouldSearch(decision)) {
+    return null
+  }
+
+  try {
+    const { input, filters } = constraintsToFilters(state)
+    console.log(`[orchestrator-v2] Running hybrid retrieval: input=${JSON.stringify(input)}, filters=${filters.length}`)
+
+    const hybridResult = await runHybridRetrieval(input, filters)
+    const resultContext = buildResultContext(hybridResult.candidates, state)
+
+    console.log(`[orchestrator-v2] Search complete: ${hybridResult.candidates.length} candidates, ${hybridResult.evidenceMap.size} with evidence`)
+
+    return { resultContext, evidenceMap: hybridResult.evidenceMap as Map<string, unknown> }
+  } catch (error) {
+    console.error("[orchestrator-v2] Search failed:", error)
+    return null
+  }
 }
 
 // Step 6: Build surface (displayedOptions → chips → answer)
@@ -334,10 +358,22 @@ export function buildSurface(
 // Step 7: Validate surface
 function validateSurface(
   surface: { answer: string; displayedOptions: DisplayedOption[]; chips: string[] },
-  _decision: LlmTurnDecision
+  decision: LlmTurnDecision,
+  hasGroundedFacts: boolean
 ): { answer: string; displayedOptions: DisplayedOption[]; chips: string[]; valid: boolean } {
-  // TODO: Wire to option-validator
-  return { ...surface, valid: true }
+  const result = validateSurfaceV2(surface, decision, hasGroundedFacts)
+  if (result.warnings.length > 0) {
+    console.warn(`[orchestrator-v2] Validation warnings: ${result.warnings.join(", ")}`)
+  }
+  if (result.rewrites.length > 0) {
+    console.log(`[orchestrator-v2] Validation rewrites: ${result.rewrites.join(", ")}`)
+  }
+  return {
+    answer: result.answer,
+    displayedOptions: result.displayedOptions as DisplayedOption[],
+    chips: result.chips,
+    valid: result.valid,
+  }
 }
 
 // Step 8: Write revision node
@@ -369,14 +405,21 @@ export async function orchestrateTurnV2(
   // Step 4-5: Search
   const searchResult = await executeSearchIfNeeded(nextState, decision)
 
+  // Attach search results to state if search was executed
+  let stateAfterSearch = nextState
+  if (searchResult) {
+    stateAfterSearch = { ...nextState, resultContext: searchResult.resultContext }
+  }
+
   // Step 6: Build surface
-  const surface = buildSurface(decision, nextState)
+  const surface = buildSurface(decision, stateAfterSearch)
 
   // Step 7: Validate
-  const validated = validateSurface(surface, decision)
+  const hasGroundedFacts = !!searchResult && searchResult.resultContext.candidates.length > 0
+  const validated = validateSurface(surface, decision, hasGroundedFacts)
 
   // Step 8: Write revision
-  const finalState = writeRevision(nextState, decision)
+  const finalState = writeRevision(stateAfterSearch, decision)
 
   console.log(`[orchestrator-v2] Turn complete: phase=${finalState.journeyPhase}, action=${decision.actionInterpretation.type}`)
 

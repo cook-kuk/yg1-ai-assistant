@@ -448,9 +448,37 @@ async function handleServeExplorationInner(
     : null
 
   if (USE_NEW_ORCHESTRATOR && lastUserMsg) {
-    console.log("[runtime] Using new orchestrator v2")
-    // TODO: Wire to orchestrateTurnV2 in Phase 2
-    // For now, just log and fall through to existing logic
+    try {
+      const { orchestrateTurnV2 } = await import("@/lib/recommendation/core/turn-orchestrator")
+      const { convertToV2State, convertFromV2State } = await import("@/lib/recommendation/core/state-adapter")
+
+      const v2State = convertToV2State(prevState)
+      const provider = getProvider()
+      const result = await orchestrateTurnV2(lastUserMsg.text, v2State, provider)
+
+      const legacyState = convertFromV2State(result.sessionState, prevState)
+      legacyState.displayedChips = result.chips
+      legacyState.displayedOptions = result.displayedOptions
+
+      return deps.jsonRecommendationResponse({
+        text: result.answer,
+        purpose: result.sessionState.journeyPhase === "results_displayed" ? "recommendation" : "question",
+        chips: result.chips,
+        isComplete: result.sessionState.journeyPhase === "results_displayed",
+        recommendation: null,
+        sessionState: legacyState,
+        evidenceSummaries: null,
+        candidateSnapshot: prevState?.displayedCandidates ?? null,
+        requestPreparation: null,
+        primaryExplanation: null,
+        primaryFactChecked: null,
+        altExplanations: [],
+        altFactChecked: [],
+      })
+    } catch (err) {
+      console.error("[orchestrator-v2] Failed, falling through to legacy:", err)
+      // Fall through to legacy path
+    }
   }
 
   const pendingWorkPieceFilter = buildPendingWorkPieceSelectionFilter(prevState, lastUserMsg?.text ?? null)
