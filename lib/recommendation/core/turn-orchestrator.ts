@@ -25,6 +25,7 @@ import {
   buildResultContext,
   shouldSearch,
 } from "./search-adapter"
+import { refineResults, buildRefinementOptions } from "./result-refiner"
 
 // Step 1: Build snapshot from current state + user message
 function buildTurnSnapshot(userMessage: string, state: RecommendationSessionState): TurnSnapshot {
@@ -96,7 +97,7 @@ RecentTurns:
 ${recentTurnsStr}
 
 Decide turn plan as JSON:
-{"phaseInterpretation":{"currentPhase":"intake|narrowing|results_displayed|post_result_exploration|comparison|revision","confidence":0.0-1.0},"actionInterpretation":{"type":"continue_narrowing|replace_slot|show_recommendation|go_back|compare_products|answer_general|redirect_off_topic|reset_session|skip_field|ask_clarification","rationale":"...","confidence":0.0-1.0},"answerIntent":{"topic":"...","needsGroundedFact":false,"shouldUseCurrentResultContext":false,"shouldResumePendingQuestion":false},"uiPlan":{"optionMode":"question_options|result_followups|none|comparison_options|no_options"},"nextQuestion":{"field":"...","suggestedOptions":[{"label":"...","value":"..."}],"allowSkip":true},"answerDraft":"..."}`
+{"phaseInterpretation":{"currentPhase":"intake|narrowing|results_displayed|post_result_exploration|comparison|revision","confidence":0.0-1.0},"actionInterpretation":{"type":"continue_narrowing|replace_slot|show_recommendation|go_back|compare_products|answer_general|redirect_off_topic|reset_session|skip_field|ask_clarification|refine_current_results","rationale":"...","confidence":0.0-1.0},"answerIntent":{"topic":"...","needsGroundedFact":false,"shouldUseCurrentResultContext":false,"shouldResumePendingQuestion":false},"uiPlan":{"optionMode":"question_options|result_followups|none|comparison_options|no_options"},"nextQuestion":{"field":"...","suggestedOptions":[{"label":"...","value":"..."}],"allowSkip":true},"answerDraft":"..."}`
 }
 
 // Step 2: Get LLM decision via Haiku call (falls back to defaults on failure)
@@ -268,6 +269,19 @@ export function applyStateTransition(
       break
     }
 
+    case "refine_current_results": {
+      // Narrow within current candidates — no constraint change, no re-search.
+      // The actual filtering happens in the search step via refineResults.
+      const action: ResolvedAction = {
+        type: "apply_refinement",
+        field: null,
+        oldValue: null,
+        newValue: null,
+      }
+      next = createRevisionNode(next, action)
+      break
+    }
+
     default: {
       // Exhaustive check — TypeScript will error if a case is missing.
       const _exhaustive: never = actionType
@@ -288,7 +302,19 @@ export function applyStateTransition(
 async function executeSearchIfNeeded(
   state: RecommendationSessionState,
   decision: LlmTurnDecision
-): Promise<{ resultContext: ResultContext; evidenceMap: Map<string, unknown> } | null> {
+): Promise<{ resultContext: ResultContext; evidenceMap: Map<string, unknown>; refined?: boolean } | null> {
+  // Refine within current results instead of full search
+  if (decision.actionInterpretation.type === "refine_current_results" && state.resultContext) {
+    const field = decision.nextQuestion?.field ?? "flute"
+    const value = decision.nextQuestion?.suggestedOptions?.[0]?.value
+    console.log(`[orchestrator-v2] Refining current results: field=${field}, value=${value ?? "show options"}`)
+
+    const refined = refineResults(state.resultContext, field, value)
+    console.log(`[orchestrator-v2] Refinement complete: ${state.resultContext.candidates.length} → ${refined.candidates.length} candidates`)
+
+    return { resultContext: refined, evidenceMap: new Map(), refined: true }
+  }
+
   if (!shouldSearch(decision)) {
     return null
   }
@@ -349,11 +375,24 @@ export function buildSurface(
       })
     }
   } else if (mode === "result_followups") {
-    displayedOptions = [
-      { index: 1, label: "왜 이 제품을 추천했나요?", field: "_action", value: "explain", count: 0 },
-      { index: 2, label: "절삭조건 알려줘", field: "_action", value: "cutting_conditions", count: 0 },
-      { index: 3, label: "대체 후보 비교하기", field: "_action", value: "compare", count: 0 },
-    ]
+    // When refining, show refinement options as chips
+    if (decision.actionInterpretation.type === "refine_current_results" && _state.resultContext) {
+      const field = decision.nextQuestion?.field ?? "flute"
+      const options = buildRefinementOptions(_state.resultContext, field)
+      displayedOptions = options.map((opt, i) => ({
+        index: i + 1,
+        label: opt.label,
+        field,
+        value: opt.value,
+        count: opt.count,
+      }))
+    } else {
+      displayedOptions = [
+        { index: 1, label: "왜 이 제품을 추천했나요?", field: "_action", value: "explain", count: 0 },
+        { index: 2, label: "절삭조건 알려줘", field: "_action", value: "cutting_conditions", count: 0 },
+        { index: 3, label: "대체 후보 비교하기", field: "_action", value: "compare", count: 0 },
+      ]
+    }
   }
   // "none" and other modes: displayedOptions stays empty
 
