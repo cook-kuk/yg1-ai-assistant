@@ -69,8 +69,8 @@ export function selectNextQuestion(
   // 직경 → 날형상 → 날수 → 피삭재 → 코팅 → 시리즈 순서가 도메인 전문가 권장 순서.
   // 엔트로피(정보 이득)에 도메인 우선순위 가중치를 곱해서 최종 정렬.
   const FIELD_PRIORITY_BOOST: Record<string, number> = {
-    diameterRefine: 3.0,   // 직경 정제: 최우선
-    toolSubtype: 2.5,      // 날형상 (Square/Radius/Ball): 2순위
+    toolSubtype: 4.0,      // 날형상 (Square/Radius/Ball): 1순위 — 도메인 최우선
+    diameterRefine: 3.0,   // 직경 정제: 2순위
     fluteCount: 2.0,       // 날수: 3순위
     workPieceName: 1.5,    // 피삭재: 4순위
     coating: 1.0,          // 코팅: 5순위 (기본)
