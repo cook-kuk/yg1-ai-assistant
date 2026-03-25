@@ -47,7 +47,12 @@ export function checkResolution(
 
   if (candidateCountHint <= 10) {
     if (top.matchStatus === "exact") return "resolved_exact"
-    return "resolved_approximate"
+    // Only resolve if top candidate has minimum quality (score >= 30)
+    // to avoid showing very poor matches when candidates are few but bad
+    if (top.score >= 30) return "resolved_approximate"
+    // Low quality + few candidates: keep narrowing if possible
+    if (history.length > 0) return "narrowing"
+    return "resolved_approximate" // first turn fallback
   }
 
   if (history.length === 0) return "broad"
