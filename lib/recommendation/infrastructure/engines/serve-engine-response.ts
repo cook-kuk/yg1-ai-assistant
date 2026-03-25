@@ -122,25 +122,20 @@ async function buildWorkPieceQuestion(
   })
   if (allWorkPieceNames.length <= 1) return null
 
-  // Show workPiece names within the ISO group, but only those with actual matching candidates.
-  // 0개 후보인 workPiece는 칩에서 제외 (선택해도 "후보 없음" 나오므로).
-  let relevantNames = allWorkPieceNames
-  if (candidates && candidates.length > 0) {
-    const namesWithCandidates = relevantNames.filter(name => {
-      const nameLower = name.toLowerCase()
-      return candidates.some(c => {
-        const tags = (c.product.materialTags as string[]) ?? []
-        const desc = ((c.product as Record<string, unknown>).description as string ?? "").toLowerCase()
-        const series = (c.product.seriesName ?? "").toLowerCase()
-        const feature = ((c.product as Record<string, unknown>).featureText as string ?? "").toLowerCase()
-        return tags.some(t => nameLower.includes(t.toLowerCase()) || t.toLowerCase().includes(nameLower)) ||
-          desc.includes(nameLower) || series.includes(nameLower) || feature.includes(nameLower)
-      })
+  // 0개 후보 workPiece 제거: 실제 DB에서 시리즈가 존재하는 것만 남기기
+  const seriesChecks = await Promise.all(
+    allWorkPieceNames.map(async name => {
+      const series = await BrandReferenceRepo.listDistinctSeriesNames({ isoGroup, workPieceName: name, limit: 1 })
+      return { name, hasSeries: series.length > 0 }
     })
-    if (namesWithCandidates.length >= 2) {
-      relevantNames = namesWithCandidates
-      console.log(`[workpiece-filter] ${allWorkPieceNames.length} → ${namesWithCandidates.length} (removed ${allWorkPieceNames.length - namesWithCandidates.length} with 0 candidates)`)
-    }
+  )
+  let relevantNames = seriesChecks.filter(c => c.hasSeries).map(c => c.name)
+  const removed = allWorkPieceNames.length - relevantNames.length
+  if (removed > 0) {
+    console.log(`[workpiece-filter] ${allWorkPieceNames.length} → ${relevantNames.length} (removed ${removed} with 0 series)`)
+  }
+  if (relevantNames.length <= 1) {
+    relevantNames = allWorkPieceNames // fallback: DB 체크 실패 시 전체 보여주기
   }
 
   const materialLabel = getMaterialDisplay(isoGroup).ko
