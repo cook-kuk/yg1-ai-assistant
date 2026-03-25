@@ -122,21 +122,8 @@ async function buildWorkPieceQuestion(
   })
   if (allWorkPieceNames.length <= 1) return null
 
-  // 0개 후보 workPiece 제거: 실제 DB에서 시리즈가 존재하는 것만 남기기
-  const seriesChecks = await Promise.all(
-    allWorkPieceNames.map(async name => {
-      const series = await BrandReferenceRepo.listDistinctSeriesNames({ isoGroup, workPieceName: name, limit: 1 })
-      return { name, hasSeries: series.length > 0 }
-    })
-  )
-  let relevantNames = seriesChecks.filter(c => c.hasSeries).map(c => c.name)
-  const removed = allWorkPieceNames.length - relevantNames.length
-  if (removed > 0) {
-    console.log(`[workpiece-filter] ${allWorkPieceNames.length} → ${relevantNames.length} (removed ${removed} with 0 series)`)
-  }
-  if (relevantNames.length <= 1) {
-    relevantNames = allWorkPieceNames // fallback: DB 체크 실패 시 전체 보여주기
-  }
+  // workPiece 전체 목록 사용 — 0개 후보는 선택 시 0-candidate guard가 제거
+  let relevantNames = allWorkPieceNames
 
   const materialLabel = getMaterialDisplay(isoGroup).ko
   const chips = [...relevantNames.slice(0, 10), "상관없음"]
