@@ -537,7 +537,12 @@ export default function FeedbackViewerPage() {
             </Button>
             <div>
               <h1 className="text-lg font-bold text-gray-900">피드백 관리</h1>
-              <p className="text-xs text-gray-500">의견 남기기와 대화 피드백을 관리자 모드에서 검토합니다.</p>
+              <p className="text-xs text-gray-500">
+                의견 남기기와 대화 피드백을 관리자 모드에서 검토합니다.
+                <span className="ml-2 text-gray-400">
+                  최종 업데이트: {process.env.NEXT_PUBLIC_BUILD_TIMESTAMP ?? new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}
+                </span>
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
