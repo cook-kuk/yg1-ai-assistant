@@ -107,6 +107,10 @@ export function selectNextQuestion(
     }
   }
 
+  // 디버그: 선택 확률 로깅 (재현 불가능한 질문 순서 디버깅용)
+  const probabilities = viable.map(f => `${f.field}(${Math.round(f.infoGain / totalWeight * 100)}%)`).join(", ")
+  console.log(`[question-engine] Selected: ${best.field} | Probabilities: ${probabilities}`)
+
   const chips = [...best.chips]
   if (history.length > 0) chips.push("⟵ 이전 단계")
 
