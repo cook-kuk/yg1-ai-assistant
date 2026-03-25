@@ -576,8 +576,12 @@ async function handleServeExplorationInner(
         altExplanations: [],
         altFactChecked: [],
         meta: {
-          orchestratorResult: { action: `v2:${v2Action}`, agents: [], opus: false },
-          trace: result.trace,
+          orchestratorResult: {
+            action: `v2:${v2Action}`,
+            agents: [],
+            opus: false,
+            v2Trace: result.trace,
+          },
         },
       })
     } catch (err) {

@@ -9,7 +9,6 @@ import path from "path"
 import fs from "fs"
 import { randomBytes } from "node:crypto"
 import { Pool, type QueryResultRow } from "pg"
-import { ProductRepo } from "@/lib/data/repos/product-repo"
 import { formatQueryValuesForLog, formatSqlForLog, interpolateSqlForLog } from "@/lib/data/sql-log"
 
 interface RawEvidenceRow extends QueryResultRow {
@@ -286,15 +285,22 @@ async function resolveProductEvidenceContext(
   diameterMm?: number | null
   toleranceMm?: number
 }> {
-  if (opts?.seriesName && opts?.diameterMm != null) return opts
+  // Evidence retrieval should not re-open product DB lookups on the hot path.
+  // If the caller already knows the series, that is sufficient to resolve by-series evidence.
+  if (opts?.seriesName) return opts
 
-  const product = await ProductRepo.findByCode(productCode)
-  if (!product) return opts ?? {}
+  const chunks = await loadChunks()
+  const directMatches = applyEvidenceFilters(
+    chunks.filter(chunk => chunk.productCode === normalizeCode(productCode)),
+    opts,
+  )
+  const bestMatch = directMatches[0]
+  if (!bestMatch) return opts ?? {}
 
   return {
     ...opts,
-    seriesName: opts?.seriesName ?? product.seriesName,
-    diameterMm: opts?.diameterMm ?? product.diameterMm,
+    seriesName: bestMatch.seriesName ?? opts?.seriesName ?? null,
+    diameterMm: opts?.diameterMm ?? bestMatch.diameterMm ?? null,
   }
 }
 
