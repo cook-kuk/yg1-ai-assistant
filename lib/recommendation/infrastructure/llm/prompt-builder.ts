@@ -233,6 +233,7 @@ ${questionPart}
 1. 입력 조건을 간단히 확인 (1문장)
 2. 현재 ${candidateCount}개 후보가 있다고 알림
 3. ${question ? "첫 번째 추가 질문을 자연스럽게 질문" : "바로 추천을 진행할 수 있다고 안내"}
+★ 질문할 때 반드시 위 제안 칩과 일치하는 선택지를 안내하라. 칩에 없는 옵션을 임의로 만들지 마라.
 
 responseText에 자연스러운 ${responseLanguage} 인사+질문을 작성하세요.
 isComplete: false로 설정하세요 (첫 턴에서는 항상).`
