@@ -9,6 +9,7 @@ import {
   runHybridRetrieval,
 } from "@/lib/recommendation/domain/recommendation-domain"
 import { BrandReferenceRepo } from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
+import { getSessionCache } from "@/lib/recommendation/infrastructure/cache/session-cache"
 import { resolveMaterialTag } from "@/lib/recommendation/domain/material-resolver"
 import { parseAnswerToFilter } from "@/lib/recommendation/domain/question-engine"
 import {
@@ -35,6 +36,7 @@ import { TraceCollector, isDebugEnabled } from "@/lib/debug/agent-trace"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
 import { shouldExecutePendingAction, pendingActionToFilter } from "@/lib/recommendation/domain/context/pending-action-resolver"
+import { TurnPerfLogger, setCurrentPerfLogger } from "@/lib/recommendation/infrastructure/perf/turn-perf-logger"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { RecommendationDisplayedProductRequestDto, RecommendationPaginationDto } from "@/lib/contracts/recommendation"
@@ -159,11 +161,10 @@ async function enrichWorkPieceFilterWithSeriesScope(
   const workPieceName = String(filter.rawValue ?? "").trim()
   if (!isoGroup || !workPieceName) return filter
 
-  const seriesNames = await BrandReferenceRepo.listDistinctSeriesNames({
-    isoGroup,
-    workPieceName,
-    limit: 30,
-  })
+  const seriesNames = await getSessionCache().getOrFetch(
+    `seriesNames:${isoGroup}|${workPieceName}`,
+    () => BrandReferenceRepo.listDistinctSeriesNames({ isoGroup, workPieceName, limit: 30 })
+  )
   if (seriesNames.length === 0) return filter
 
   const seriesScopeFilter: AppliedFilter = {
@@ -406,6 +407,9 @@ async function handleServeExplorationInner(
   )
 
   const provider = getProvider()
+  const perf = new TurnPerfLogger()
+  setCurrentPerfLogger(perf)
+  perf.setPhase(prevState?.currentMode ?? "intake")
   const baseInput = deps.mapIntakeToInput(form)
   const filters: AppliedFilter[] = [...(prevState?.appliedFilters ?? [])]
   const resolvedPagination = resolveCandidatePagination(pagination)
@@ -455,13 +459,21 @@ async function handleServeExplorationInner(
   // V2 handles routing decisions (LLM-based), then delegates execution to legacy engines.
   // On error, automatically falls back to legacy path.
   const currentPhase = prevState?.currentMode ?? "intake"
+  perf.startStep("v2_orchestrator")
   if (shouldUseV2ForPhase(currentPhase) && lastUserMsg) {
     try {
       const { orchestrateTurnV2 } = await import("@/lib/recommendation/core/turn-orchestrator")
       const { convertToV2State, convertFromV2State } = await import("@/lib/recommendation/core/state-adapter")
 
       const v2State = convertToV2State(prevState)
-      const result = await orchestrateTurnV2(lastUserMsg.text, v2State, provider)
+
+      // Extract recent conversation turns for V2 single-call context
+      const v2RecentTurns = messages.slice(-6).map(m => ({
+        role: (m.role === "ai" ? "assistant" : m.role) as "user" | "assistant",
+        text: m.text,
+      })).filter(t => t.role === "user" || t.role === "assistant")
+
+      const result = await orchestrateTurnV2(lastUserMsg.text, v2State, provider, v2RecentTurns)
       const v2Action = result.trace.action
       console.log(`[runtime:v2] Orchestrator decision: action=${v2Action}, phase=${result.trace.phase}, confidence=${result.trace.confidence}`)
 
@@ -483,6 +495,9 @@ async function handleServeExplorationInner(
 
       // Build response matching existing API format
       const isResultPhase = result.sessionState.journeyPhase === "results_displayed" || result.sessionState.journeyPhase === "post_result_exploration"
+      perf.endStep("v2_orchestrator")
+      perf.recordLlmCall() // V2 orchestrator does 1 LLM call
+      const perfMetrics = perf.finish()
       return deps.jsonRecommendationResponse({
         text: result.answer,
         purpose: isResultPhase ? "recommendation" : "question",
@@ -503,6 +518,7 @@ async function handleServeExplorationInner(
         },
       })
     } catch (err) {
+      perf.endStep("v2_orchestrator")
       // V2 error → automatic legacy fallback (zero user impact)
       const errMsg = err instanceof Error ? err.message : String(err)
       console.error(`[runtime:v2] Error (falling back to legacy): ${errMsg}`, {

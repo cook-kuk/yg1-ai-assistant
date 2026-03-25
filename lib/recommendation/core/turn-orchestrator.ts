@@ -28,7 +28,22 @@ import {
 import { refineResults, buildRefinementOptions } from "./result-refiner"
 
 // Step 1: Build snapshot from current state + user message
-function buildTurnSnapshot(userMessage: string, state: RecommendationSessionState): TurnSnapshot {
+function buildTurnSnapshot(
+  userMessage: string,
+  state: RecommendationSessionState,
+  recentTurns?: Array<{ role: "user" | "assistant"; text: string }>
+): TurnSnapshot {
+  // Use provided recentTurns, or build a minimal summary from revision history
+  const turns: Array<{ role: "user" | "assistant"; text: string }> = recentTurns ?? []
+
+  // Build revision summary from revision nodes for context
+  const revisionSummary = state.revisionNodes.length > 0
+    ? state.revisionNodes
+        .slice(-3) // last 3 revisions
+        .map(r => `${r.action.type}${r.action.field ? `(${r.action.field})` : ""}`)
+        .join(" → ")
+    : ""
+
   return {
     snapshotId: `snap-${Date.now()}`,
     userMessage,
@@ -38,8 +53,8 @@ function buildTurnSnapshot(userMessage: string, state: RecommendationSessionStat
     pendingAction: state.pendingAction,
     latestResultContext: state.resultContext,
     displayedProducts: state.resultContext?.candidates ?? [],
-    recentTurns: [],
-    revisionSummary: "",
+    recentTurns: turns.slice(-6), // last 6 turns (3 exchanges) for context window efficiency
+    revisionSummary,
     sideThreadActive: state.sideThreadActive,
   }
 }
@@ -64,40 +79,63 @@ function getDefaultDecision(snapshot: TurnSnapshot): LlmTurnDecision {
   }
 }
 
-const TURN_DECISION_SYSTEM = "YG-1 cutting tool recommendation turn orchestrator. Return JSON only."
+const TURN_DECISION_SYSTEM = `YG-1 cutting tool recommendation assistant. You make routing decisions AND generate the user-facing answer in a single call.
+Your answer must be natural Korean. Generate actionable chips (suggestedChips) that help the user proceed.
+Return JSON only — no markdown fences.`
 
 function buildTurnDecisionPrompt(snapshot: TurnSnapshot): string {
+  // Constraints summary
   const constraintEntries = [
     ...Object.entries(snapshot.constraints.base).map(([k, v]) => `${k}=${v}`),
     ...Object.entries(snapshot.constraints.refinements).map(([k, v]) => `${k}=${v} (refinement)`),
   ]
   const constraintStr = constraintEntries.length > 0 ? constraintEntries.join(", ") : "none"
 
+  // Pending question/action
   const pendingQ = snapshot.pendingQuestion
-    ? `field="${snapshot.pendingQuestion.field}", question="${snapshot.pendingQuestion.questionText.slice(0, 80)}"`
+    ? `field="${snapshot.pendingQuestion.field}", question="${snapshot.pendingQuestion.questionText.slice(0, 80)}", options=[${snapshot.pendingQuestion.options.slice(0, 5).map(o => o.label).join(", ")}]`
     : "none"
 
   const pendingA = snapshot.pendingAction
     ? `type="${snapshot.pendingAction.type}", label="${snapshot.pendingAction.label}"`
     : "none"
 
+  // Conversation history
   const recentTurnsStr = snapshot.recentTurns.length > 0
-    ? snapshot.recentTurns.map(t => `${t.role}: ${t.text.slice(0, 60)}`).join("\n")
+    ? snapshot.recentTurns.map(t => `${t.role}: ${t.text.slice(0, 120)}`).join("\n")
     : "none"
 
+  // Displayed products summary
   const hasResults = snapshot.displayedProducts.length > 0
+  const productSummary = hasResults
+    ? snapshot.displayedProducts.slice(0, 5).map(p =>
+        `${p.displayCode} (${p.seriesName ?? "?"}, score=${p.score.toFixed(2)})`
+      ).join("; ")
+    : "none"
+
+  // Revision history for context
+  const revisionStr = snapshot.revisionSummary || "none"
 
   return `User: "${snapshot.userMessage}"
+
+[Session]
 Phase: ${snapshot.journeyPhase}
 Constraints: ${constraintStr}
 PendingQuestion: ${pendingQ}
 PendingAction: ${pendingA}
-ResultsDisplayed: ${hasResults} (${snapshot.displayedProducts.length} products)
-RecentTurns:
+SideThread: ${snapshot.sideThreadActive}
+RecentRevisions: ${revisionStr}
+
+[Products]
+Displayed: ${hasResults ? `${snapshot.displayedProducts.length} products` : "none"}
+TopProducts: ${productSummary}
+
+[ConversationHistory]
 ${recentTurnsStr}
 
-Decide turn plan as JSON:
-{"phaseInterpretation":{"currentPhase":"intake|narrowing|results_displayed|post_result_exploration|comparison|revision","confidence":0.0-1.0},"actionInterpretation":{"type":"continue_narrowing|replace_slot|show_recommendation|go_back|compare_products|answer_general|redirect_off_topic|reset_session|skip_field|ask_clarification|refine_current_results","rationale":"...","confidence":0.0-1.0},"answerIntent":{"topic":"...","needsGroundedFact":false,"shouldUseCurrentResultContext":false,"shouldResumePendingQuestion":false},"uiPlan":{"optionMode":"question_options|result_followups|none|comparison_options|no_options"},"nextQuestion":{"field":"...","suggestedOptions":[{"label":"...","value":"..."}],"allowSkip":true},"answerDraft":"..."}`
+Generate a complete turn plan as JSON. The "answerDraft" MUST be the final user-facing answer in natural Korean — complete sentences, not placeholders. If asking a question, include the question in answerDraft. Generate "suggestedChips" with 2-5 contextual options the user can click next.
+
+{"phaseInterpretation":{"currentPhase":"intake|narrowing|results_displayed|post_result_exploration|comparison|revision","confidence":0.0-1.0},"actionInterpretation":{"type":"continue_narrowing|replace_slot|show_recommendation|go_back|compare_products|answer_general|redirect_off_topic|reset_session|skip_field|ask_clarification|refine_current_results","rationale":"...","confidence":0.0-1.0},"answerIntent":{"topic":"...","needsGroundedFact":false,"shouldUseCurrentResultContext":false,"shouldResumePendingQuestion":false},"uiPlan":{"optionMode":"question_options|result_followups|none|comparison_options|no_options"},"nextQuestion":{"field":"...","suggestedOptions":[{"label":"...","value":"..."}],"allowSkip":true},"suggestedChips":[{"label":"...","type":"option|action|filter|navigation"}],"answerDraft":"..."}`
 }
 
 // Step 2: Get LLM decision via Haiku call (falls back to defaults on failure)
@@ -113,7 +151,7 @@ async function getLlmTurnDecision(snapshot: TurnSnapshot, provider: LLMProvider)
     const raw = await provider.complete(
       TURN_DECISION_SYSTEM,
       [{ role: "user", content: prompt }],
-      500,
+      700,
       "haiku"
     )
 
@@ -139,6 +177,26 @@ async function getLlmTurnDecision(snapshot: TurnSnapshot, provider: LLMProvider)
       uiPlan: {
         optionMode: p.uiPlan?.optionMode ?? "question_options",
       },
+      // Parse nextQuestion if LLM provided it
+      ...(p.nextQuestion?.field ? {
+        nextQuestion: {
+          field: p.nextQuestion.field,
+          suggestedOptions: Array.isArray(p.nextQuestion.suggestedOptions)
+            ? p.nextQuestion.suggestedOptions.map((o: { label?: string; value?: string }) => ({
+                label: o.label ?? "",
+                value: o.value ?? o.label ?? "",
+              }))
+            : [],
+          allowSkip: p.nextQuestion.allowSkip ?? true,
+        },
+      } : {}),
+      // Parse suggestedChips for chip generation without extra LLM calls
+      ...(Array.isArray(p.suggestedChips) && p.suggestedChips.length > 0 ? {
+        suggestedChips: p.suggestedChips.map((c: { label?: string; type?: string }) => ({
+          label: c.label ?? "",
+          type: (c.type as "option" | "action" | "filter" | "navigation") ?? "action",
+        })),
+      } : {}),
       answerDraft: p.answerDraft ?? "Processing...",
     }
 
@@ -456,12 +514,13 @@ function writeRevision(
 export async function orchestrateTurnV2(
   userMessage: string,
   currentState: RecommendationSessionState,
-  provider: LLMProvider
+  provider: LLMProvider,
+  recentTurns?: Array<{ role: "user" | "assistant"; text: string }>
 ): Promise<TurnResult> {
   console.log(`[orchestrator-v2] Starting turn ${currentState.turnCount + 1}`)
 
-  // Step 1: Build snapshot
-  const snapshot = buildTurnSnapshot(userMessage, currentState)
+  // Step 1: Build snapshot (with conversation history for single-call quality)
+  const snapshot = buildTurnSnapshot(userMessage, currentState, recentTurns)
 
   // Step 2: LLM decision
   const decision = await getLlmTurnDecision(snapshot, provider)

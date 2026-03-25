@@ -1,5 +1,6 @@
 import { notifyRecommendation } from "@/lib/recommendation/infrastructure/notifications/recommendation-notifier"
 import { BrandReferenceRepo } from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
+import { getSessionCache } from "@/lib/recommendation/infrastructure/cache/session-cache"
 import {
   buildExplanation,
   buildDeterministicSummary,
@@ -117,10 +118,10 @@ async function buildWorkPieceQuestion(
     return null
   }
 
-  const allWorkPieceNames = await BrandReferenceRepo.listDistinctWorkPieceNames({
-    isoGroup,
-    limit: 20,
-  })
+  const allWorkPieceNames = await getSessionCache().getOrFetch(
+    `workPieceNames:${isoGroup}`,
+    () => BrandReferenceRepo.listDistinctWorkPieceNames({ isoGroup, limit: 20 })
+  )
   if (allWorkPieceNames.length <= 1) return null
 
   // 0-candidate guard에서 제외 요청된 값 필터링
@@ -137,7 +138,10 @@ async function buildWorkPieceQuestion(
     // 각 workPiece에 대해 시리즈가 candidates에 있는지 확인
     const validNames: string[] = []
     for (const name of relevantNames) {
-      const series = await BrandReferenceRepo.listDistinctSeriesNames({ isoGroup, workPieceName: name, limit: 30 })
+      const series = await getSessionCache().getOrFetch(
+        `seriesNames:${isoGroup}|${name}`,
+        () => BrandReferenceRepo.listDistinctSeriesNames({ isoGroup, workPieceName: name, limit: 30 })
+      )
       const hasMatch = series.some(s => candidateSeriesSet.has(s.toUpperCase()))
       if (hasMatch) validNames.push(name)
     }

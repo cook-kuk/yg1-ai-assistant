@@ -7,6 +7,7 @@ import {
   type BrandProfileRecord,
   type SeriesProfileRecord,
 } from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
+import { getSessionCache } from "@/lib/recommendation/infrastructure/cache/session-cache"
 import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-target-classifier"
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
 import { resolveYG1Query } from "@/lib/knowledge/knowledge-router"
@@ -562,9 +563,14 @@ export async function handleDirectEntityProfileQuestion(
     return null
   }
 
+  const cache = getSessionCache()
   const [seriesProfiles, brandProfiles] = await Promise.all([
-    EntityProfileRepo.findSeriesProfiles(requestedNames),
-    EntityProfileRepo.findBrandProfiles(requestedNames),
+    cache.getOrFetch(`seriesProfiles:${requestedNames.sort().join(",")}`, () =>
+      EntityProfileRepo.findSeriesProfiles(requestedNames)
+    ),
+    cache.getOrFetch(`brandProfiles:${requestedNames.sort().join(",")}`, () =>
+      EntityProfileRepo.findBrandProfiles(requestedNames)
+    ),
   ])
 
   if (seriesProfiles.length === 0 && brandProfiles.length === 0) {
@@ -885,13 +891,16 @@ export async function handleDirectBrandReferenceQuestion(
     }
   }
 
-  const rows = await BrandReferenceRepo.findMatches({
-    isoGroup,
-    workPieceQuery: workPieceName,
-    hardnessMinHrc: hardnessRange.min,
-    hardnessMaxHrc: hardnessRange.max,
-    limit: 40,
-  })
+  const brandCacheKey = `brandRef:${isoGroup}|${workPieceName}|${hardnessRange.min}-${hardnessRange.max}`
+  const rows = await getSessionCache().getOrFetch(brandCacheKey, () =>
+    BrandReferenceRepo.findMatches({
+      isoGroup,
+      workPieceQuery: workPieceName,
+      hardnessMinHrc: hardnessRange.min,
+      hardnessMaxHrc: hardnessRange.max,
+      limit: 40,
+    })
+  )
 
   if (rows.length === 0) {
     const conditionTable = buildMarkdownTable(
