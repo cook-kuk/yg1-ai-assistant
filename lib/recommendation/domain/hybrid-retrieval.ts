@@ -428,6 +428,29 @@ export async function runHybridRetrieval(
   const minScoreThreshold = 0
   const qualifiedCandidates = scored.filter(s => s.score >= minScoreThreshold)
 
+  // ── Series diversity reranker ──
+  // Top 5에서 같은 시리즈 최대 2개로 제한 → 다양한 시리즈 추천
+  const MAX_PER_SERIES_IN_TOP = 2
+  const TOP_DIVERSITY_WINDOW = 5
+  if (qualifiedCandidates.length > TOP_DIVERSITY_WINDOW) {
+    const seriesCount = new Map<string, number>()
+    const diversified: typeof qualifiedCandidates = []
+    const deferred: typeof qualifiedCandidates = []
+
+    for (const c of qualifiedCandidates) {
+      const series = c.product.seriesName ?? "__none__"
+      const count = seriesCount.get(series) ?? 0
+      if (diversified.length < TOP_DIVERSITY_WINDOW && count >= MAX_PER_SERIES_IN_TOP) {
+        deferred.push(c)
+      } else {
+        seriesCount.set(series, count + 1)
+        diversified.push(c)
+      }
+    }
+    // Append deferred items after the diversity window
+    qualifiedCandidates.splice(0, qualifiedCandidates.length, ...diversified, ...deferred)
+  }
+
   const topCandidates = topN > 0
     ? qualifiedCandidates.slice(0, topN)
     : qualifiedCandidates
