@@ -72,7 +72,7 @@ describe("classifyPreSearchRoute", () => {
     )
 
     expect(result.kind).toBe("direct_lookup")
-    expect(result.reason).toContain("query_target:product_comparison")
+    expect(result.reason).toContain("query_target:series_comparison")
   })
 
   it("keeps recommendation narrowing answers in recommendation_action", async () => {
