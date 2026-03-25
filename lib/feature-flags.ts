@@ -35,5 +35,15 @@ export const ENABLE_TASK_SYSTEM = envFlag("ENABLE_TASK_SYSTEM", true)
 /** Apply extra in-memory heuristics after SQL fetch. Conversation narrowing filters stay enabled. */
 export const ENABLE_POST_SQL_CANDIDATE_FILTERS = envFlag("ENABLE_POST_SQL_CANDIDATE_FILTERS", true)
 
-/** Use V2 turn orchestrator (new recommendation pipeline). Defaults to false — existing behavior. */
-export const USE_NEW_ORCHESTRATOR = process.env.USE_NEW_ORCHESTRATOR === "true"
+/** Use V2 turn orchestrator (new recommendation pipeline). Defaults to true — V2 is the primary pipeline. Set USE_NEW_ORCHESTRATOR=false to revert to legacy. */
+export const USE_NEW_ORCHESTRATOR = process.env.USE_NEW_ORCHESTRATOR !== "false"
+
+/** Comma-separated list of phases where V2 is enabled. "all" = everything. Useful for gradual rollout. */
+export const V2_ENABLED_PHASES = (process.env.V2_ENABLED_PHASES ?? "all").split(",").map(s => s.trim()).filter(Boolean)
+
+/** Check if V2 should be used for a given phase */
+export function shouldUseV2ForPhase(currentPhase: string): boolean {
+  if (!USE_NEW_ORCHESTRATOR) return false
+  if (V2_ENABLED_PHASES.includes("all")) return true
+  return V2_ENABLED_PHASES.includes(currentPhase)
+}

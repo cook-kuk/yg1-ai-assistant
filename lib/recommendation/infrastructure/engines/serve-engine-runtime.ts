@@ -18,7 +18,7 @@ import {
   resolveProductReferences,
 } from "@/lib/recommendation/infrastructure/agents/recommendation-agents"
 import { ENABLE_TOOL_USE_ROUTING } from "@/lib/recommendation/infrastructure/config/recommendation-feature-flags"
-import { USE_NEW_ORCHESTRATOR } from "@/lib/feature-flags"
+import { USE_NEW_ORCHESTRATOR, shouldUseV2ForPhase } from "@/lib/feature-flags"
 import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import { performUnifiedJudgment } from "@/lib/recommendation/domain/context/unified-haiku-judgment"
 import {
@@ -451,44 +451,65 @@ async function handleServeExplorationInner(
     ? [...messages].reverse().find(message => message.role === "user")
     : null
 
-  if (USE_NEW_ORCHESTRATOR && lastUserMsg) {
+  // ── V2 Orchestrator Integration ──
+  // V2 handles routing decisions (LLM-based), then delegates execution to legacy engines.
+  // On error, automatically falls back to legacy path.
+  const currentPhase = prevState?.currentMode ?? "intake"
+  if (shouldUseV2ForPhase(currentPhase) && lastUserMsg) {
     try {
       const { orchestrateTurnV2 } = await import("@/lib/recommendation/core/turn-orchestrator")
       const { convertToV2State, convertFromV2State } = await import("@/lib/recommendation/core/state-adapter")
 
-      console.log("[runtime:v2] Using new orchestrator")
       const v2State = convertToV2State(prevState)
-      const provider = getProvider()
       const result = await orchestrateTurnV2(lastUserMsg.text, v2State, provider)
+      const v2Action = result.trace.action
+      console.log(`[runtime:v2] Orchestrator decision: action=${v2Action}, phase=${result.trace.phase}, confidence=${result.trace.confidence}`)
 
-      // Convert V2 result → legacy session state
+      // Convert V2 result → legacy session state (preserving existing state data)
       const legacyState = convertFromV2State(result.sessionState, prevState)
       legacyState.displayedChips = result.chips
       legacyState.displayedOptions = result.displayedOptions
       legacyState.turnCount = result.sessionState.turnCount
-      legacyState.currentMode = result.sessionState.journeyPhase === "results_displayed" ? "recommendation" : "question"
+      legacyState.currentMode = result.sessionState.journeyPhase === "results_displayed" ? "recommendation"
+        : result.sessionState.journeyPhase === "comparison" ? "comparison"
+        : "question"
       legacyState.lastAskedField = result.sessionState.pendingQuestion?.field ?? prevState?.lastAskedField ?? undefined
+      // Preserve candidate data through V2 transitions
+      legacyState.candidateCount = prevState?.candidateCount ?? legacyState.candidateCount
+      legacyState.displayedCandidates = prevState?.displayedCandidates ?? legacyState.displayedCandidates
+      legacyState.resolvedInput = prevState?.resolvedInput ?? legacyState.resolvedInput
+      legacyState.narrowingHistory = prevState?.narrowingHistory ?? legacyState.narrowingHistory
+      legacyState.stageHistory = prevState?.stageHistory ?? legacyState.stageHistory
 
       // Build response matching existing API format
+      const isResultPhase = result.sessionState.journeyPhase === "results_displayed" || result.sessionState.journeyPhase === "post_result_exploration"
       return deps.jsonRecommendationResponse({
         text: result.answer,
-        purpose: result.sessionState.journeyPhase === "results_displayed" ? "recommendation" : "question",
+        purpose: isResultPhase ? "recommendation" : "question",
         chips: result.chips,
-        isComplete: result.sessionState.journeyPhase === "results_displayed",
-        recommendation: null, // TODO: wire recommendation card in Phase 4
+        isComplete: isResultPhase,
+        recommendation: null,
         sessionState: legacyState,
         evidenceSummaries: null,
         candidateSnapshot: prevState?.displayedCandidates ?? null,
-        requestPreparation: null,
+        requestPreparation: requestPrep,
         primaryExplanation: null,
         primaryFactChecked: null,
         altExplanations: [],
         altFactChecked: [],
-        meta: { orchestratorResult: { action: "v2_orchestrator", agents: [], opus: false }, trace: result.trace },
+        meta: {
+          orchestratorResult: { action: `v2:${v2Action}`, agents: [], opus: false },
+          trace: result.trace,
+        },
       })
     } catch (err) {
-      console.error("[runtime:v2] Failed, falling back to legacy:", err)
-      // Fall through to legacy path
+      // V2 error → automatic legacy fallback (zero user impact)
+      const errMsg = err instanceof Error ? err.message : String(err)
+      console.error(`[runtime:v2] Error (falling back to legacy): ${errMsg}`, {
+        phase: currentPhase,
+        userMessage: lastUserMsg.text.slice(0, 50),
+      })
+      // Fall through to legacy path below
     }
   }
 
