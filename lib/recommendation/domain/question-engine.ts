@@ -211,7 +211,7 @@ function analyzeFields(
         chips.push("상관없음")
         results.push({
           field: "toolSubtype",
-          questionText: `공구 세부 타입이 중요한가요? ${chips.slice(0, 3).join(", ")} 등이 있습니다.`,
+          questionText: `날 형상을 선택해주세요. ${chips.slice(0, 3).join(", ")} 등이 있습니다.`,
           chips,
           infoGain: gain,
         })
