@@ -88,6 +88,30 @@ export function validateSurfaceV2(
     rewrites.push("removed_fake_citations")
   }
 
+  // 6. Price/availability/spec hallucination guard
+  // LLM이 DB에 없는 가격, 납기, 경도 등을 생성하면 경고 면책 추가
+  if (isRecommendationTopic) {
+    const pricePattern = /(\d[\d,]*)\s*원|가격[은는이가]?\s*\d|단���[은는이가]?\s*\d|비용[은는이가]?\s*\d/
+    const availPattern = /즉시\s*출고|바로\s*배송|당일\s*(출고|배송)|내일\s*(출고|배송)/
+    const unverifiedSpecPattern = /경도[은는이가]?\s*H[Rr][Cc]\s*\d|인장강도[은는이가]?\s*\d|토크[은는이가]?\s*\d/
+
+    if (pricePattern.test(answer)) {
+      answer = answer + "\n\n※ 가격 정보는 AI가 생성한 것으로, 정확한 가격은 YG-1 본사(032-526-0909)에 문의하세요."
+      warnings.push("Price hallucination detected in answer")
+      rewrites.push("added_price_disclaimer")
+    }
+    if (availPattern.test(answer)) {
+      answer = answer + "\n\n※ 출���/배송 정보는 실시간 재고��� 다를 수 있습니다. 정확한 납기는 별도 확인이 필요합니다."
+      warnings.push("Availability hallucination detected in answer")
+      rewrites.push("added_availability_disclaimer")
+    }
+    if (unverifiedSpecPattern.test(answer)) {
+      answer = answer + "\n\n※ 위 기��� 스펙은 AI 추론입니다. 정확한 수치는 카탈로그를 확인하세요."
+      warnings.push("Unverified spec claim detected in answer")
+      rewrites.push("added_spec_disclaimer")
+    }
+  }
+
   return {
     answer: answer.trim(),
     displayedOptions,
