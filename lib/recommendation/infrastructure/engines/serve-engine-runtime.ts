@@ -1204,8 +1204,16 @@ async function handleServeExplorationInner(
           resolvedPagination
         )
 
-        legacyState.candidateCount = totalCandidateCount
-        legacyState.displayedCandidates = deps.buildCandidateSnapshot(displayPage.candidates, displayPage.evidenceMap)
+        // V2 검색 결과가 이전 필터된 수보다 많으면 필터 손실 의심 → 이전 값 유지
+        const prevCount = prevState?.candidateCount ?? 0
+        if (prevCount > 0 && totalCandidateCount > prevCount * 1.5 && (prevState?.appliedFilters?.length ?? 0) > 0) {
+          console.warn(`[runtime:v2:guard] V2 search returned ${totalCandidateCount} but prevState had ${prevCount} with ${prevState!.appliedFilters.length} filters → keeping prev candidateCount`)
+          legacyState.candidateCount = prevCount
+          legacyState.displayedCandidates = prevState?.displayedCandidates ?? legacyState.displayedCandidates
+        } else {
+          legacyState.candidateCount = totalCandidateCount
+          legacyState.displayedCandidates = deps.buildCandidateSnapshot(displayPage.candidates, displayPage.evidenceMap)
+        }
 
         perf.endStep("v2_orchestrator")
         perf.recordLlmCall()
