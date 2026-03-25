@@ -286,7 +286,7 @@ function buildReplyResponse(
       )
     } else {
       const resumePrompt = suspended.pendingQuestion
-        ? `\n\n다시 제품 추천으로 돌아갈게요. ${suspended.pendingQuestion.slice(0, 100)}`
+        ? `\n\n다시 제품 추천으로 돌아갈게요. ${suspended.pendingQuestion}`
         : `\n\n다시 제품 추천으로 돌아갈게요.`
       finalText = text + resumePrompt
       finalChips = suspended.displayedChipsSnapshot
@@ -870,7 +870,7 @@ export async function handleServeGeneralChatAction(
       // Append resume prompt to the answer text
       const pendingFieldLabel = suspended.pendingField ?? "이전 질문"
       const resumePrompt = suspended.pendingQuestion
-        ? `\n\n다시 제품 추천으로 돌아갈게요. ${suspended.pendingQuestion.slice(0, 100)}`
+        ? `\n\n다시 제품 추천으로 돌아갈게요. ${suspended.pendingQuestion}`
         : `\n\n다시 제품 추천으로 돌아갈게요.`
       resumeText = resumeText + resumePrompt
 

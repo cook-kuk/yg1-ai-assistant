@@ -34,6 +34,8 @@ const TOOL_DOMAIN_PATTERN = /slot|milling|side.?mill|shoulder|plunge|ball|taper|
 
 const DIRECT_PRODUCT_CODE_PATTERN = /\b([A-Z]{2,5}\d{3,}[A-Z0-9-]*)\b/i
 const DIRECT_SERIES_CODE_PATTERN = /\b([A-Z]\d[A-Z]\d{2,}[A-Z]?)\b/i
+const DIRECT_PRODUCT_CODE_GLOBAL_PATTERN = /\b([A-Z]{2,5}\d{3,}[A-Z0-9-]*)\b/gi
+const DIRECT_SERIES_CODE_GLOBAL_PATTERN = /\b([A-Z]\d[A-Z]\d{2,}[A-Z]?)\b/gi
 const CUTTING_CONDITION_QUERY_PATTERN = /절삭조건|가공조건|vc|fz|이송|회전수|rpm|feed/i
 const INVENTORY_QUERY_PATTERN = /재고|stock|inventory|available|availability|수량|남았/i
 const PRODUCT_INFO_TRIGGER_PATTERN = /공구\s*소재|재질|코팅|직경|지름|날\s*수|날수|플루트|형상|스퀘어|볼|라디우스|테이퍼|생크|절삭길이|날길이|전장|헬릭스|쿨런트|제품명|품명|스펙|사양|전체\s*사양|상세\s*사양|전체\s*정보|상세\s*정보|무슨\s*제품|어떤\s*제품|뭐야|뭐예요|알려/i
@@ -42,6 +44,7 @@ const ENTITY_PROFILE_TRIGGER_PATTERN = /시리즈|series|브랜드|brand|차이|
 const SERIES_NAME_ENTITY_PATTERN = /\b(?:ALU[-\s]?CUT(?:\s+(?:POWER|HPC|for\s+Korean\s+Market))?|TANK[-\s]?POWER|X[-\s]?POWER|I[-\s]?POWER|V[-\s]?POWER|ALU[-\s]?MILL|ALU[-\s]?POWER(?:\s+HPC)?|INOX[-\s]?POWER|[A-Z]{2,5}\d{2,4}[A-Z]?|[A-Z]{1,4}\d[A-Z]{1,3}\d{2,4}[A-Z]?)\b/gi
 const BRAND_NAME_ENTITY_PATTERN = /\b(?:E[·∙ㆍ.]?\s*FORCE(?:\s+BLUE)?(?:\s+for\s+Korean\s+Market)?|4G\s*MILLS(?:\s*-\s*KOR)?|SUPER\s+ALLOY|X5070\s*S)\b/gi
 const ENTITY_COMPARISON_PATTERN = /([A-Z0-9][A-Z0-9·∙ㆍ.\-\s]{1,40}?)\s*(?:vs\.?|VS\.?|와|과|이랑|랑|대비)\s*([A-Z0-9][A-Z0-9·∙ㆍ.\-\s]{1,40}?)(?=\s*(?:의|은|는|이|가|를|을|차이|비교|특징|설명|$))/giu
+const LATIN_ENTITY_PHRASE_PATTERN = /\b[A-Za-z0-9][A-Za-z0-9&.+/-]*(?:\s+[A-Za-z0-9][A-Za-z0-9&.+/-]*){0,5}\b/g
 const CUTTING_KNOWLEDGE_PATTERNS = /절삭|공구|엔드밀|드릴|인서트|코팅|소재|가공|선반|밀링|CNC|초경|CBN|세라믹|황삭|정삭|면취|보링|리머|탭|나사|칩|인선|마모|수명|이송|회전|절입|쿨란트|치핑|버|진동|채터|tialn|alcrn|dlc|hss|carbide|endmill|milling|turning|drilling/i
 const KNOWLEDGE_QUESTION_PATTERN = /차이|비교|뭐야|무엇|누구|언제|어디|알려|설명|원리|방법|팁|주의|장단점|특징|어떤|왜|어떻게|추천|좋은|의미|정의|역사|사례|규격|표준|최신|트렌드|뉴스|동향|중요|필요|가능/i
 const SIMPLE_CHAT_PATTERN = /^(안녕(?:하세요)?|hello|hi|hey|반가워|고마워|고맙습니다|thanks|thank you|네|응|ㅇㅇ|ㅇ|ok|좋아|그래|알겠어|테스트)\s*[!.?~]*$/i
@@ -289,17 +292,83 @@ function dedupeEntityNames(values: string[]): string[] {
   return names
 }
 
-function extractEntityNamesFromMessage(userMessage: string): string[] {
+function collectRegexMatches(pattern: RegExp, value: string): string[] {
+  const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`
+  const globalPattern = new RegExp(pattern.source, flags)
+  return Array.from(value.matchAll(globalPattern))
+    .map(match => (match[1] ?? match[0] ?? "").trim())
+    .filter(Boolean)
+}
+
+function isLikelyLookupPhrase(value: string): boolean {
+  const trimmed = value.trim()
+  if (trimmed.length < 2) return false
+
+  const normalized = normalizeEntityLookupKey(trimmed)
+  if (normalized.length < 2) return false
+
+  return /[A-Z]/.test(trimmed) || /\d/.test(trimmed)
+}
+
+function extractLookupCandidatesFromMessage(userMessage: string): string[] {
   const queryTarget = classifyQueryTarget(userMessage, null, null)
   const names: string[] = [...queryTarget.entities]
+  names.push(...collectRegexMatches(DIRECT_PRODUCT_CODE_GLOBAL_PATTERN, userMessage))
+  names.push(...collectRegexMatches(DIRECT_SERIES_CODE_GLOBAL_PATTERN, userMessage))
   names.push(...(userMessage.match(SERIES_NAME_ENTITY_PATTERN) ?? []))
   names.push(...(userMessage.match(BRAND_NAME_ENTITY_PATTERN) ?? []))
+  names.push(...collectRegexMatches(LATIN_ENTITY_PHRASE_PATTERN, userMessage).filter(isLikelyLookupPhrase))
 
   for (const match of userMessage.matchAll(ENTITY_COMPARISON_PATTERN)) {
     names.push(match[1], match[2])
   }
 
   return dedupeEntityNames(names)
+}
+
+function extractEntityNamesFromMessage(userMessage: string): string[] {
+  return extractLookupCandidatesFromMessage(userMessage)
+}
+
+type DirectLookupResolution = {
+  brandProfile: BrandProfileRecord | null
+  product: Awaited<ReturnType<typeof ProductRepo.findByCode>>
+  requestedName: string
+  seriesProfile: SeriesProfileRecord | null
+}
+
+function isLikelyProductLookupCandidate(value: string): boolean {
+  const trimmed = value.trim()
+  return trimmed.length >= 3 && !/\s/.test(trimmed) && /[A-Za-z]/.test(trimmed) && /\d/.test(trimmed)
+}
+
+async function resolveDirectLookupEntities(userMessage: string): Promise<DirectLookupResolution[]> {
+  const requestedNames = extractLookupCandidatesFromMessage(userMessage).slice(0, 8)
+  if (requestedNames.length === 0) return []
+
+  const cacheKey = `directLookup:${requestedNames.map(normalizeEntityLookupKey).join(",")}`
+  return getSessionCache().getOrFetch(cacheKey, async () => {
+    const resolved = await Promise.all(
+      requestedNames.map(async requestedName => {
+        const [product, seriesProfiles, brandProfiles] = await Promise.all([
+          isLikelyProductLookupCandidate(requestedName)
+            ? ProductRepo.findByCode(normalizeLookupCode(requestedName)).catch(() => null)
+            : Promise.resolve(null),
+          EntityProfileRepo.findSeriesProfiles([requestedName]).catch(() => [] as SeriesProfileRecord[]),
+          EntityProfileRepo.findBrandProfiles([requestedName]).catch(() => [] as BrandProfileRecord[]),
+        ])
+
+        return {
+          requestedName,
+          product,
+          seriesProfile: seriesProfiles[0] ?? null,
+          brandProfile: brandProfiles[0] ?? null,
+        }
+      })
+    )
+
+    return resolved.filter(item => item.product || item.seriesProfile || item.brandProfile)
+  })
 }
 
 function buildUnmatchedEntityNote(requestedNames: string[], matchedNames: string[]): string {
@@ -553,29 +622,39 @@ export async function handleDirectEntityProfileQuestion(
 ): Promise<{ text: string; chips: string[] } | null> {
   const queryTarget = classifyQueryTarget(userMessage, null, null)
   const requestedNames = extractEntityNamesFromMessage(userMessage)
+  if (requestedNames.length === 0) return null
+
+  const resolvedLookups = await resolveDirectLookupEntities(userMessage)
   const wantsComparison = /차이|비교|vs|대비|다른|달라|다를/i.test(userMessage)
   const mentionsSeries = /시리즈|series|날\s*수|날수|플루트|형상|볼|스퀘어|radius|taper/i.test(userMessage)
   const mentionsBrand = /브랜드|brand/i.test(userMessage)
+  const directEntityOnly = requestedNames.length === 1 && normalizeEntityLookupKey(userMessage) === normalizeEntityLookupKey(requestedNames[0])
   const explicitProfileIntent =
     ENTITY_PROFILE_TRIGGER_PATTERN.test(userMessage) ||
     queryTarget.type === "series_info" ||
     queryTarget.type === "series_comparison" ||
     queryTarget.type === "brand_info" ||
-    queryTarget.type === "brand_comparison"
+    queryTarget.type === "brand_comparison" ||
+    (resolvedLookups.some(item => item.seriesProfile || item.brandProfile) && /뭐야|뭐예요|알려|설명|정보|특징|용도|적합/i.test(userMessage)) ||
+    directEntityOnly
 
-  if (requestedNames.length === 0 || !explicitProfileIntent) {
+  if (!explicitProfileIntent) {
     return null
   }
-
-  const cache = getSessionCache()
-  const [seriesProfiles, brandProfiles] = await Promise.all([
-    cache.getOrFetch(`seriesProfiles:${requestedNames.sort().join(",")}`, () =>
-      EntityProfileRepo.findSeriesProfiles(requestedNames)
-    ),
-    cache.getOrFetch(`brandProfiles:${requestedNames.sort().join(",")}`, () =>
-      EntityProfileRepo.findBrandProfiles(requestedNames)
-    ),
-  ])
+  const seriesProfiles = Array.from(
+    new Map(
+      resolvedLookups
+        .filter((item): item is DirectLookupResolution & { seriesProfile: SeriesProfileRecord } => item.seriesProfile !== null)
+        .map(item => [item.seriesProfile.normalizedSeriesName, item.seriesProfile])
+    ).values()
+  )
+  const brandProfiles = Array.from(
+    new Map(
+      resolvedLookups
+        .filter((item): item is DirectLookupResolution & { brandProfile: BrandProfileRecord } => item.brandProfile !== null)
+        .map(item => [item.brandProfile.normalizedBrandName, item.brandProfile])
+    ).values()
+  )
 
   if (seriesProfiles.length === 0 && brandProfiles.length === 0) {
     return null
@@ -703,7 +782,10 @@ export async function handleDirectProductInfoQuestion(
   }
 
   const queryTarget = classifyQueryTarget(userMessage, null, null)
+  const resolvedLookups = await resolveDirectLookupEntities(userMessage)
+  const resolvedProductLookup = resolvedLookups.find(item => item.product)
   const explicitLookupEntity =
+    resolvedLookups.length > 0 ||
     queryTarget.entities.length > 0 ||
     DIRECT_PRODUCT_CODE_PATTERN.test(userMessage) ||
     DIRECT_SERIES_CODE_PATTERN.test(userMessage)
@@ -712,25 +794,27 @@ export async function handleDirectProductInfoQuestion(
     return null
   }
 
+  const directCodeOnly = resolvedProductLookup
+    ? normalizeLookupCode(userMessage) === normalizeLookupCode(resolvedProductLookup.requestedName)
+    : false
+  const explicitInfoIntent = directCodeOnly || PRODUCT_INFO_TRIGGER_PATTERN.test(userMessage) || queryTarget.type === "product_info"
+  if (!explicitInfoIntent) return null
+
   if (
-    queryTarget.type === "series_info" ||
-    queryTarget.type === "brand_info" ||
-    queryTarget.type === "series_comparison" ||
-    queryTarget.type === "brand_comparison"
+    !resolvedProductLookup &&
+    (queryTarget.type === "series_info" ||
+      queryTarget.type === "brand_info" ||
+      queryTarget.type === "series_comparison" ||
+      queryTarget.type === "brand_comparison" ||
+      resolvedLookups.some(item => item.seriesProfile || item.brandProfile))
   ) {
     return null
   }
 
-  const productCodeMatch = userMessage.match(DIRECT_PRODUCT_CODE_PATTERN)
-  const lookupCode = normalizeLookupCode(queryTarget.entities[0] ?? productCodeMatch?.[1] ?? "")
-
+  const lookupCode = normalizeLookupCode(resolvedProductLookup?.requestedName ?? extractLookupCandidatesFromMessage(userMessage)[0] ?? "")
   if (!lookupCode) return null
 
-  const directCodeOnly = normalizeLookupCode(userMessage) === lookupCode
-  const explicitInfoIntent = directCodeOnly || PRODUCT_INFO_TRIGGER_PATTERN.test(userMessage) || queryTarget.type === "product_info"
-  if (!explicitInfoIntent) return null
-
-  const product = await ProductRepo.findByCode(lookupCode).catch(() => null)
+  const product = resolvedProductLookup?.product ?? null
   if (!product) {
     const hasCandidates = (prevState?.displayedCandidates?.length ?? 0) > 0
     return {
