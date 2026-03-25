@@ -25,6 +25,16 @@ export interface NextQuestion {
   expectedInfoGain: number
 }
 
+const QUESTION_FIELD_PRIORITY: Record<string, number> = {
+  diameterRefine: 0,
+  toolSubtype: 1,
+  fluteCount: 2,
+  workPieceName: 3,
+  coating: 4,
+  seriesName: 5,
+  cuttingType: 6,
+}
+
 const QUESTION_FIELD_LABELS: Record<string, string> = {
   fluteCount: "날 수",
   coating: "코팅",
@@ -74,7 +84,11 @@ export function selectNextQuestion(
   if (status.startsWith("resolved")) return null
 
   const fields = analyzeFields(input, candidates, history)
-  fields.sort((a, b) => b.infoGain - a.infoGain)
+  fields.sort((a, b) => {
+    const priorityDiff = getQuestionFieldPriority(a.field) - getQuestionFieldPriority(b.field)
+    if (priorityDiff !== 0) return priorityDiff
+    return b.infoGain - a.infoGain
+  })
 
   const best = fields[0]
   if (!best || best.infoGain < 0.1) return null
@@ -88,6 +102,10 @@ export function selectNextQuestion(
     chips,
     expectedInfoGain: best.infoGain,
   }
+}
+
+export function getQuestionFieldPriority(field: string): number {
+  return QUESTION_FIELD_PRIORITY[field] ?? Number.MAX_SAFE_INTEGER
 }
 
 export function selectQuestionForField(

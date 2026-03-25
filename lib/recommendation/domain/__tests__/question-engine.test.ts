@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { explainQuestionFieldReplayFailure, selectQuestionForField } from "@/lib/recommendation/domain/question-engine"
+import { explainQuestionFieldReplayFailure, selectNextQuestion, selectQuestionForField } from "@/lib/recommendation/domain/question-engine"
 import type { NarrowingTurn, RecommendationInput, ScoredProduct } from "@/lib/recommendation/domain/types"
 
 function makeInput(overrides: Partial<RecommendationInput> = {}): RecommendationInput {
@@ -98,5 +98,38 @@ describe("selectQuestionForField", () => {
 
     expect(explainQuestionFieldReplayFailure(makeInput(), candidates, "toolSubtype")).toContain("공구 세부 타입")
     expect(explainQuestionFieldReplayFailure(makeInput(), candidates, "toolSubtype")).toContain("같은 질문으로 후보를 더 나누기 어렵습니다")
+  })
+})
+
+describe("selectNextQuestion", () => {
+  it("prefers diameter over subtype and flute when multiple question fields are available", () => {
+    const candidates = [
+      {
+        ...makeCandidate("Square", "TiCN", "P1"),
+        product: { ...makeCandidate("Square", "TiCN", "P1").product, diameterMm: 10 },
+      },
+      {
+        ...makeCandidate("Radius", "X-Coating", "P2"),
+        product: { ...makeCandidate("Radius", "X-Coating", "P2").product, diameterMm: 12 },
+      },
+      {
+        ...makeCandidate("Square", "TiCN", "P3"),
+        product: { ...makeCandidate("Square", "TiCN", "P3").product, diameterMm: 14 },
+      },
+      {
+        ...makeCandidate("Radius", "X-Coating", "P4"),
+        product: { ...makeCandidate("Radius", "X-Coating", "P4").product, diameterMm: 16 },
+      },
+    ] as ScoredProduct[]
+
+    const question = selectNextQuestion(
+      makeInput({ workPieceName: undefined, flutePreference: undefined, diameterMm: 12 }),
+      candidates,
+      [],
+      candidates.length
+    )
+
+    expect(question?.field).toBe("diameterRefine")
+    expect(question?.chips).toContain("10mm")
   })
 })

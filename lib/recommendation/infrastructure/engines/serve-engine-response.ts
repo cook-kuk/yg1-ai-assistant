@@ -15,6 +15,7 @@ import {
   checkResolution,
   classifyHybridResults,
   explainQuestionFieldReplayFailure,
+  getQuestionFieldPriority,
   groupCandidatesBySeries,
   prepareRequest,
   runFactCheck,
@@ -318,6 +319,19 @@ export async function buildQuestionResponse(
   preferredQuestionField?: string,
   responsePrefix?: string
 ): Promise<Response> {
+  const chooseHigherPriorityQuestion = <T extends { field: string }>(left: T | null, right: T | null): T | null => {
+    if (!left) return right
+    if (!right) return left
+
+    const leftPriority = getQuestionFieldPriority(left.field)
+    const rightPriority = getQuestionFieldPriority(right.field)
+    if (leftPriority !== rightPriority) {
+      return leftPriority < rightPriority ? left : right
+    }
+
+    return left
+  }
+
   const preferredQuestion = preferredQuestionField
     ? (
         preferredQuestionField === "workPieceName"
@@ -328,9 +342,10 @@ export async function buildQuestionResponse(
   const replayFailureReason = preferredQuestionField && !preferredQuestion
     ? explainQuestionFieldReplayFailure(input, candidates, preferredQuestionField)
     : null
+  const workPieceQuestion = await buildWorkPieceQuestion(input, history, filters, candidates, excludeWorkPieceValues)
+  const nextQuestion = selectNextQuestion(input, candidates, history, totalCandidateCount)
   const question = preferredQuestion
-    ?? await buildWorkPieceQuestion(input, history, filters, candidates, excludeWorkPieceValues)
-    ?? selectNextQuestion(input, candidates, history, totalCandidateCount)
+    ?? chooseHigherPriorityQuestion(workPieceQuestion, nextQuestion)
   const stageHistory = existingStageHistory
     ? [...existingStageHistory]
     : buildStageHistoryFromFilters(filters, input, totalCandidateCount)
