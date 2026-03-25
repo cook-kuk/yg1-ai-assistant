@@ -30,10 +30,10 @@ const STEEL_FORM = {
 }
 
 const MINIMAL_FORM = {
-  material: { status: "unknown" },
-  operationType: { status: "unknown" },
+  material: { status: "unknown", value: "" },
+  operationType: { status: "unknown", value: "" },
   toolTypeOrCurrentProduct: { status: "known", value: "엔드밀" },
-  diameterInfo: { status: "unknown" },
+  diameterInfo: { status: "unknown", value: "" },
   country: { status: "unknown" },
   machiningIntent: { status: "unknown" },
   purpose: "new_product_recommendation",
@@ -45,6 +45,8 @@ interface TurnResult {
   sessionState: Record<string, unknown> | null
   purpose?: string
 }
+
+type SessionStateRecord = Record<string, unknown> | null
 
 async function send(
   page: import("@playwright/test").Page,
@@ -237,7 +239,7 @@ test("E7: emoji and special characters", async ({ page }) => {
   if (!t1.sessionState) return
 
   const inputs = ["👍", "ㅋㅋㅋ", "???", "!!!"]
-  let state = t1.sessionState
+  let state: SessionStateRecord = t1.sessionState
   let turn = 1
   for (const input of inputs) {
     if (!state) break
@@ -317,7 +319,7 @@ test("E10: reset then restart", async ({ page }) => {
   if (!t1.sessionState) return
 
   // Fast forward to recommendation
-  let state = t1.sessionState
+  let state: SessionStateRecord = t1.sessionState
   for (let i = 0; i < 5; i++) {
     const t = await send(page, "상관없음", state)
     state = t.sessionState
@@ -355,7 +357,7 @@ test("E11: vague revision requests", async ({ page }) => {
     "다른 거 보여줘",
   ]
 
-  let state = t2.sessionState
+  let state: SessionStateRecord = t2.sessionState
   let turn = 2
   for (const rev of revisions) {
     if (!state) break
@@ -381,7 +383,7 @@ test("E12: meta questions about the system", async ({ page }) => {
     "몇 개 제품이 있어?",
   ]
 
-  let state = t1.sessionState
+  let state: SessionStateRecord = t1.sessionState
   let turn = 1
   for (const q of metaQuestions) {
     if (!state) break

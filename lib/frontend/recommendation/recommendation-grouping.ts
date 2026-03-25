@@ -10,6 +10,8 @@ export interface RecommendationCandidateSeriesGroup {
   topScore: number
   seriesIconUrl: string | null
   description: string | null
+  materialRating: "EXCELLENT" | "GOOD" | "NULL" | null
+  materialRatingScore: number | null
   members: RecommendationCandidateDto[]
 }
 
@@ -46,6 +48,8 @@ export function groupRecommendationCandidatesBySeries(
       topScore: candidate.score,
       seriesIconUrl: candidate.seriesIconUrl ?? null,
       description: candidate.description ?? null,
+      materialRating: null,
+      materialRatingScore: null,
       members: [candidate],
     })
   }
@@ -53,6 +57,13 @@ export function groupRecommendationCandidatesBySeries(
   const grouped = [...groupMap.values()]
 
   if (summaries && summaries.length > 0) {
+    for (const summary of summaries) {
+      const group = groupMap.get(summary.seriesKey)
+      if (group) {
+        group.materialRating = summary.materialRating ?? null
+        group.materialRatingScore = summary.materialRatingScore ?? null
+      }
+    }
     const ordered = summaries
       .map(summary => groupMap.get(summary.seriesKey))
       .filter((group): group is RecommendationCandidateSeriesGroup => Boolean(group))

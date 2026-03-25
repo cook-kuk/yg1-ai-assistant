@@ -6,6 +6,7 @@
  */
 
 import type { DisplayedOption, CandidateSnapshot } from "@/lib/types/exploration"
+import type { EvidenceSummary, ScoredProduct } from "../domain/types"
 
 // ── Journey Phase ──────────────────────────────────────────
 export type JourneyPhase =
@@ -184,6 +185,11 @@ export interface TurnResult {
   displayedOptions: DisplayedOption[]
   chips: string[]
   sessionState: RecommendationSessionState
+  searchPayload?: {
+    candidates: ScoredProduct[]
+    evidenceMap: Map<string, EvidenceSummary>
+    totalConsidered: number
+  } | null
   trace: {
     snapshotId: string
     phase: JourneyPhase

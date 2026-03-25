@@ -109,7 +109,7 @@ export async function compareProducts(
     const raw = await provider.complete(
       systemPrompt,
       [{ role: "user", content: `다음 제품들을 비교해주세요:\n\n${productLines}` }],
-      800,
+      1500,
       "sonnet",
       "comparison"
     )

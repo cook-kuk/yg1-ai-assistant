@@ -109,7 +109,7 @@ Extract any relevant values. Respond with JSON only.
   const raw = await provider.complete(
     systemPrompt,
     [{ role: "user", content: message }],
-    200,
+    1500,
     "haiku",
     "parameter-extractor"
   )

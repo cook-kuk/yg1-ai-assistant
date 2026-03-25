@@ -161,7 +161,7 @@ JSON만: {"selected":[0,3,1]}`
     const raw = await provider.complete(
       "칩 선택기. JSON만.",
       [{ role: "user", content: prompt }],
-      50,
+      1500,
       "haiku"
     )
 

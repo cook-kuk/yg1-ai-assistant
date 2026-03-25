@@ -26,6 +26,8 @@ interface TurnResult {
   purpose?: string
 }
 
+type SessionStateRecord = Record<string, unknown> | null
+
 async function send(
   page: import("@playwright/test").Page,
   message: string,
@@ -110,7 +112,7 @@ test("S2: number-only answers for flute count", async ({ page }) => {
   log("S2", 1, t1)
 
   // Skip until we get to fluteCount question
-  let state = t1.sessionState
+  let state: SessionStateRecord = t1.sessionState
   let turn = 1
   while (turn < 5) {
     const f = (state as any)?.lastAskedField
@@ -150,7 +152,7 @@ test("S3: informal Korean answers", async ({ page }) => {
     "아 몰라 알아서 해",
   ]
 
-  let state = t1.sessionState
+  let state: SessionStateRecord = t1.sessionState
   let turn = 1
   for (const answer of informalAnswers) {
     if (!state) break
@@ -179,7 +181,7 @@ test("S4: exploratory questions during narrowing", async ({ page }) => {
     "3날이랑 4날 뭐가 좋아?",
   ]
 
-  let state = t1.sessionState
+  let state: SessionStateRecord = t1.sessionState
   let turn = 1
   for (const q of exploratoryQuestions) {
     if (!state) break
@@ -236,7 +238,7 @@ test("S6: post-recommendation conversation", async ({ page }) => {
   const t1 = await send(page, "추천해주세요")
   if (!t1.sessionState) return
 
-  let state = t1.sessionState
+  let state: SessionStateRecord = t1.sessionState
   for (let i = 0; i < 4; i++) {
     const t = await send(page, "상관없음", state)
     state = t.sessionState
@@ -289,7 +291,7 @@ test("S7: ambiguous inputs (네, 좋아, 그래, ㅇㅇ)", async ({ page }) => {
   log("S7", 1, t1)
 
   const ambiguous = ["네", "좋아", "그래", "ㅇㅇ", "응"]
-  let state = t1.sessionState
+  let state: SessionStateRecord = t1.sessionState
   let turn = 1
 
   for (const input of ambiguous) {
@@ -319,7 +321,7 @@ test("S8: mixed Korean/English inputs", async ({ page }) => {
     "ball nose는?",
   ]
 
-  let state = t1.sessionState
+  let state: SessionStateRecord = t1.sessionState
   let turn = 1
   for (const input of mixed) {
     if (!state) break
@@ -339,7 +341,7 @@ test("S9: comparison then continue narrowing", async ({ page }) => {
   if (!t1.sessionState) return
 
   // Get some candidates
-  let state = t1.sessionState
+  let state: SessionStateRecord = t1.sessionState
   const t2 = await send(page, "상관없음", state)
   state = t2.sessionState
   if (!state) return
@@ -376,7 +378,7 @@ test("S10: long conversation stability", async ({ page }) => {
     "처음부터 다시",
   ]
 
-  let state = t1.sessionState
+  let state: SessionStateRecord = t1.sessionState
   let turn = 1
   for (const msg of conversation) {
     if (!state && turn > 2) break

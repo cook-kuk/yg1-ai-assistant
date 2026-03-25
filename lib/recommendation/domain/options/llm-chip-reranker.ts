@@ -83,7 +83,7 @@ JSON으로만 응답: {"selected": [{"index": 번호, "label": "라벨"}]}`
     const raw = await provider.complete(
       systemPrompt,
       [{ role: "user", content: userPrompt }],
-      300,
+      1500,
       "haiku"
     )
 

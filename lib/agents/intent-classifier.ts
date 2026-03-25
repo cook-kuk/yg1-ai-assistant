@@ -248,7 +248,7 @@ Respond: {"intent":"...", "confidence": 0.0-1.0, "extractedValue": "..." or null
   const raw = await provider.complete(
     systemPrompt,
     [{ role: "user", content: message }],
-    200,
+    1500,
     "haiku",
     "intent-classifier"
   )

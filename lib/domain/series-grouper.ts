@@ -11,12 +11,31 @@ import type { CandidateSnapshot, SeriesGroup, SeriesGroupSummary } from "@/lib/t
 
 const UNGROUPED_KEY = "__ungrouped__"
 const UNGROUPED_NAME = "(기타)"
+type SeriesMaterialRatingValue = "EXCELLENT" | "GOOD" | "NULL"
+interface SeriesMaterialRank {
+  rating: SeriesMaterialRatingValue
+  score: number
+}
+
+function normalizeSeriesKey(value: string): string {
+  return value.trim().toUpperCase().replace(/[\s\-·ㆍ./(),]+/g, "")
+}
+
+function materialRatingOrder(value: SeriesMaterialRatingValue | null | undefined): number {
+  if (value === "EXCELLENT") return 0
+  if (value === "GOOD") return 1
+  if (value === "NULL") return 2
+  return 3
+}
 
 /**
  * Group candidates by series name.
  * Returns groups sorted by topScore (desc), with ungrouped last.
  */
-export function groupCandidatesBySeries(candidates: CandidateSnapshot[]): SeriesGroup[] {
+export function groupCandidatesBySeries(
+  candidates: CandidateSnapshot[],
+  ratingBySeries?: Map<string, SeriesMaterialRank>
+): SeriesGroup[] {
   const groupMap = new Map<string, SeriesGroup>()
 
   for (const c of candidates) {
@@ -38,6 +57,8 @@ export function groupCandidatesBySeries(candidates: CandidateSnapshot[]): Series
         description: c.description ?? null,
         candidateCount: 1,
         topScore: c.score,
+        materialRating: c.seriesName ? (ratingBySeries?.get(normalizeSeriesKey(c.seriesName))?.rating ?? null) : null,
+        materialRatingScore: c.seriesName ? (ratingBySeries?.get(normalizeSeriesKey(c.seriesName))?.score ?? null) : null,
         members: [c],
       })
     }
@@ -48,6 +69,10 @@ export function groupCandidatesBySeries(candidates: CandidateSnapshot[]): Series
   groups.sort((a, b) => {
     if (a.seriesKey === UNGROUPED_KEY) return 1
     if (b.seriesKey === UNGROUPED_KEY) return -1
+    const scoreDelta = (b.materialRatingScore ?? 0) - (a.materialRatingScore ?? 0)
+    if (scoreDelta !== 0) return scoreDelta
+    const ratingDelta = materialRatingOrder(a.materialRating) - materialRatingOrder(b.materialRating)
+    if (ratingDelta !== 0) return ratingDelta
     return b.topScore - a.topScore
   })
 
@@ -62,6 +87,8 @@ export function buildGroupSummaries(groups: SeriesGroup[]): SeriesGroupSummary[]
     seriesKey: g.seriesKey,
     seriesName: g.seriesName,
     candidateCount: g.candidateCount,
+    materialRating: g.materialRating ?? null,
+    materialRatingScore: g.materialRatingScore ?? null,
   }))
 }
 

@@ -1,5 +1,9 @@
 import { notifyRecommendation } from "@/lib/recommendation/infrastructure/notifications/recommendation-notifier"
-import { BrandReferenceRepo } from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
+import {
+  BrandReferenceRepo,
+  SeriesMaterialStatusRepo,
+  type SeriesMaterialStatusValue,
+} from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
 import { getSessionCache } from "@/lib/recommendation/infrastructure/cache/session-cache"
 import {
   buildExplanation,
@@ -10,10 +14,13 @@ import {
   buildWarnings,
   checkResolution,
   classifyHybridResults,
+  explainQuestionFieldReplayFailure,
+  getQuestionFieldPriority,
   groupCandidatesBySeries,
   prepareRequest,
   runFactCheck,
   selectNextQuestion,
+  selectQuestionForField,
 } from "@/lib/recommendation/domain/recommendation-domain"
 import {
   buildExplanationResultPrompt,
@@ -91,6 +98,123 @@ function resolveSingleIsoGroup(material: string | undefined): string | null {
   return tags.length === 1 ? tags[0] : null
 }
 
+function normalizeSeriesKey(value: string): string {
+  return value.trim().toUpperCase().replace(/[\s\-·ㆍ./(),]+/g, "")
+}
+
+function normalizeQuestionOptionToken(value: string): string {
+  return value
+    .replace(/\s*\(\d+개\)\s*$/, "")
+    .replace(/\s*—\s*.+$/, "")
+    .trim()
+    .toLowerCase()
+}
+
+const QUESTION_FIELD_HINTS: Record<string, RegExp[]> = {
+  workPieceName: [/피삭재/u, /세부\s*피삭재/u, /소재/u, /재질/u, /강종/u, /hardened/i, /hrc/i],
+  diameterRefine: [/직경/u, /\bmm\b/i, /파이/u, /지름/u],
+  fluteCount: [/날\s*수/u, /몇\s*날/u, /플루트/u, /flute/i],
+  coating: [/코팅/u, /coat/i, /tialn/i, /alcrn/i, /ticn/i],
+  toolSubtype: [/형상/u, /타입/u, /엔드밀/u, /볼/u, /스퀘어/u, /corner\s*radius/i],
+  seriesName: [/시리즈/u, /brand/i, /브랜드/u],
+  cuttingType: [/가공/u, /절삭/u, /포켓/u, /슬롯/u, /측면/u, /평면/u, /홀\s*가공/u],
+}
+
+const QUESTION_FIELD_LABELS: Record<string, string> = {
+  workPieceName: "세부 피삭재",
+  fluteCount: "날 수",
+  coating: "코팅",
+  toolSubtype: "공구 세부 타입",
+  seriesName: "시리즈",
+  cuttingType: "가공 종류",
+  diameterRefine: "직경",
+}
+
+export function inferQuestionFieldFromText(text: string): string | null {
+  const clean = text.trim().toLowerCase()
+  if (!clean) return null
+
+  let bestField: string | null = null
+  let bestScore = 0
+
+  for (const [field, patterns] of Object.entries(QUESTION_FIELD_HINTS)) {
+    let score = 0
+    for (const pattern of patterns) {
+      if (pattern.test(clean)) score += 1
+    }
+    if (score > bestScore) {
+      bestField = field
+      bestScore = score
+    }
+  }
+
+  return bestScore > 0 ? bestField : null
+}
+
+export function shouldFallbackToDeterministicQuestionText(params: {
+  questionField: string
+  questionText: string
+  responseText: string
+  displayedOptions: { label: string; value: string; field?: string | null }[]
+}): boolean {
+  const { questionField, questionText, responseText, displayedOptions } = params
+  const inferredField = inferQuestionFieldFromText(responseText)
+  if (inferredField && inferredField !== questionField) return true
+
+  const normalizedResponse = responseText.toLowerCase()
+  const normalizedQuestion = questionText.toLowerCase()
+
+  if (normalizedResponse.includes(normalizedQuestion)) return false
+
+  const optionTokens = displayedOptions
+    .filter(option => option.field === questionField || option.field === "_action" || option.value === "skip")
+    .flatMap(option => [option.label, option.value])
+    .map(normalizeQuestionOptionToken)
+    .filter(token => token && !["skip", "상관없음"].includes(token))
+
+  if (optionTokens.some(token => normalizedResponse.includes(token))) return false
+
+  const ownHints = QUESTION_FIELD_HINTS[questionField] ?? []
+  if (ownHints.some(pattern => pattern.test(responseText))) return false
+
+  return true
+}
+
+async function loadSeriesMaterialRatings(
+  candidates: CandidateSnapshot[],
+  input: RecommendationInput
+): Promise<Map<string, SeriesMaterialStatusValue>> {
+  const isoGroup = resolveSingleIsoGroup(input.material)
+  if (!isoGroup) return new Map()
+
+  const seriesNames = Array.from(
+    new Set(
+      candidates
+        .map(candidate => candidate.seriesName)
+        .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    )
+  )
+  if (seriesNames.length === 0) return new Map()
+
+  const ratings = await SeriesMaterialStatusRepo.findRatingsBySeries({
+    isoGroup,
+    seriesNames,
+    workPieceName: input.workPieceName ?? null,
+  })
+
+  return new Map(
+    [...ratings.entries()].map(([seriesName, rating]) => [normalizeSeriesKey(seriesName), rating])
+  )
+}
+
+async function buildDisplayedSeriesGroups(
+  candidates: CandidateSnapshot[],
+  input: RecommendationInput
+) {
+  const ratingBySeries = await loadSeriesMaterialRatings(candidates, input)
+  return groupCandidatesBySeries(candidates, ratingBySeries)
+}
+
 async function buildWorkPieceQuestion(
   input: RecommendationInput,
   history: NarrowingTurn[],
@@ -146,26 +270,9 @@ async function buildWorkPieceQuestion(
       const hasMatch = series.some(s => candidateSeriesSet.has(s.toUpperCase()))
       if (hasMatch) validNames.push(name)
     }
-    if (validNames.length >= 2) {
-      const removed = relevantNames.length - validNames.length
-      if (removed > 0) console.log(`[workpiece-filter] Removed ${removed} workPieces with 0 matching series in current candidates`)
-      relevantNames = validNames
-    }
-
-    // 2차 필터: workPiece 이름에 기존 소재 키워드가 포함된 것 우선
-    // 예: "알루미늄" 검색 후 0-candidate guard 시 "ABS", "구리" 등 무관한 소재 제거
-    if (input.material && relevantNames.length > 5) {
-      const materialLower = input.material.toLowerCase()
-      const materialRelevant = relevantNames.filter(name => {
-        const nameLower = name.toLowerCase()
-        // 기존 소재 키워드가 workPiece 이름에 포함되면 우선
-        return nameLower.includes(materialLower) || materialLower.includes(nameLower.split(/[\s(]/)[0])
-      })
-      if (materialRelevant.length >= 2) {
-        console.log(`[workpiece-filter] Material-relevant filter: ${relevantNames.length} → ${materialRelevant.length} (material=${input.material})`)
-        relevantNames = materialRelevant
-      }
-    }
+    const removed = relevantNames.length - validNames.length
+    if (removed > 0) console.log(`[workpiece-filter] Removed ${removed} workPieces with 0 matching series in current candidates`)
+    relevantNames = validNames
   }
 
   // 중복 제거 (공백 차이: "알루미늄(연질)" vs "알루미늄 (연질)")
@@ -176,6 +283,9 @@ async function buildWorkPieceQuestion(
     normalizedSeen.add(normalized)
     return true
   })
+
+  // 현재 후보 기준으로 의미 있는 선택지가 없으면 질문하지 않는다.
+  if (relevantNames.length <= 1) return null
 
   const materialLabel = getMaterialDisplay(isoGroup).ko
   const chips = [...relevantNames.slice(0, 10), "상관없음"]
@@ -207,18 +317,37 @@ export async function buildQuestionResponse(
   language: AppLanguage,
   overrideText?: string,
   existingStageHistory?: NarrowingStage[],
-  excludeWorkPieceValues?: string[]
+  excludeWorkPieceValues?: string[],
+  preferredQuestionField?: string,
+  responsePrefix?: string
 ): Promise<Response> {
-  // 질문 선택: selectNextQuestion이 도메인 우선순위(직경→날형상→날수→피삭재)에 따라 결정.
-  // workPieceQuestion은 selectNextQuestion이 피삭재를 선택했을 때만 사용.
-  const engineQuestion = selectNextQuestion(input, candidates, history, totalCandidateCount)
-  let question: typeof engineQuestion = null
-  if (engineQuestion?.field === "workPieceName" || (!engineQuestion && !input.workPieceName)) {
-    // 엔진이 피삭재를 골랐거나, 다른 질문이 없으면 workPiece 질문 시도
-    question = await buildWorkPieceQuestion(input, history, filters, candidates, excludeWorkPieceValues) ?? engineQuestion
-  } else {
-    question = engineQuestion
+  const chooseHigherPriorityQuestion = <T extends { field: string }>(left: T | null, right: T | null): T | null => {
+    if (!left) return right
+    if (!right) return left
+
+    const leftPriority = getQuestionFieldPriority(left.field)
+    const rightPriority = getQuestionFieldPriority(right.field)
+    if (leftPriority !== rightPriority) {
+      return leftPriority < rightPriority ? left : right
+    }
+
+    return left
   }
+
+  const preferredQuestion = preferredQuestionField
+    ? (
+        preferredQuestionField === "workPieceName"
+          ? await buildWorkPieceQuestion(input, history, filters, candidates, excludeWorkPieceValues)
+          : selectQuestionForField(input, candidates, history, preferredQuestionField, totalCandidateCount)
+      )
+    : null
+  const replayFailureReason = preferredQuestionField && !preferredQuestion
+    ? explainQuestionFieldReplayFailure(input, candidates, preferredQuestionField)
+    : null
+  const workPieceQuestion = await buildWorkPieceQuestion(input, history, filters, candidates, excludeWorkPieceValues)
+  const nextQuestion = selectNextQuestion(input, candidates, history, totalCandidateCount)
+  const question = preferredQuestion
+    ?? chooseHigherPriorityQuestion(workPieceQuestion, nextQuestion)
   const stageHistory = existingStageHistory
     ? [...existingStageHistory]
     : buildStageHistoryFromFilters(filters, input, totalCandidateCount)
@@ -246,7 +375,7 @@ export async function buildQuestionResponse(
     chips = fallbackChips
     displayedOptions = buildDisplayedOptions(chips, question?.field ?? "unknown")
   }
-  const displayedSeriesGroups = groupCandidatesBySeries(candidateSnapshot)
+  const displayedSeriesGroups = await buildDisplayedSeriesGroups(candidateSnapshot, input)
 
   const sessionState = buildSessionState({
     candidateCount: totalCandidateCount,
@@ -321,7 +450,7 @@ export async function buildQuestionResponse(
       const systemPrompt = buildSystemPrompt(language)
       const sessionCtx = buildSessionContext(form, sessionState, totalCandidateCount, snapshotToDisplayed(candidateSnapshot))
       const greetingPrompt = buildGreetingPrompt(sessionCtx, question, totalCandidateCount, language)
-      const raw = await provider.complete(systemPrompt, [{ role: "user", content: greetingPrompt }], 800)
+      const raw = await provider.complete(systemPrompt, [{ role: "user", content: greetingPrompt }], 1500)
       const parsed = safeParseJSON(raw)
       if (typeof parsed?.responseText === "string") {
         responseText = parsed.responseText
@@ -339,8 +468,8 @@ export async function buildQuestionResponse(
         ? `\n선택지(칩): [${chipList}]\n★ 응답에서 질문할 때 반드시 위 선택지와 일치하는 표현을 사용하라. 선택지에 없는 옵션을 제시하지 마라. 선택지를 자연스럽게 안내하되 그대로 나열하지 말고 맥락에 맞게 질문하라.`
         : ""
       const raw = await provider.complete(systemPrompt, [
-        { role: "user", content: `${sessionCtx}\n\n현재 진행 중인 질문: "${question?.questionText ?? ""}"\n현재 후보 ${totalCandidateCount}개.${chipInstruction}\n\n사용자의 최신 메시지: "${lastUserText}"\n\n사용자 메시지가 현재 질문과 관련 없는 내용(회사 정보, 영업소, 공장 등)이면 【YG-1 회사 정보】에서 답변한 뒤 자연스럽게 현재 질문으로 돌아와라.\n사용자 메시지가 현재 질문에 대한 답변이면 질문을 자연스럽게 다듬어서 응답하라.\nJSON으로 응답: { "responseText": "...", "extractedParams": {}, "isComplete": false, "skipQuestion": false }` }
-      ], 400)
+        { role: "user", content: `${sessionCtx}\n\n현재 진행 중인 질문: "${question?.questionText ?? ""}"\n현재 후보 ${totalCandidateCount}개.\n\n사용자의 최신 메시지: "${lastUserText}"\n\n사용자 메시지가 현재 질문과 관련 없는 내용(회사 정보, 영업소, 공장 등)이면 【YG-1 회사 정보】에서 답변한 뒤 자연스럽게 현재 질문으로 돌아와라.\n사용자 메시지가 현재 질문에 대한 답변이면 질문을 자연스럽게 다듬어서 응답하라.\nJSON으로 응답: { "responseText": "...", "extractedParams": {}, "isComplete": false, "skipQuestion": false }` }
+      ], 1500)
       const parsed = safeParseJSON(raw)
       if (typeof parsed?.responseText === "string") {
         responseText = parsed.responseText
@@ -415,6 +544,28 @@ export async function buildQuestionResponse(
       finalDisplayedOptions = questionFieldResult.displayedOptions
       finalResponseChips = questionFieldResult.chips
     }
+
+    if (
+      !overrideText &&
+      shouldFallbackToDeterministicQuestionText({
+        questionField: question.field,
+        questionText: question.questionText,
+        responseText,
+        displayedOptions: finalDisplayedOptions,
+      })
+    ) {
+      console.warn(`[field-consistency:text] Response text drifted from field "${question.field}" — reverting to deterministic question text`)
+      responseText = question.questionText
+    }
+  }
+
+  if (responsePrefix) {
+    responseText = `${responsePrefix}\n\n${responseText}`.trim()
+  }
+
+  if (replayFailureReason && question && preferredQuestionField && question.field !== preferredQuestionField) {
+    const nextLabel = QUESTION_FIELD_LABELS[question.field] ?? question.field
+    responseText = `${replayFailureReason} 그래서 ${nextLabel} 기준으로 이어서 질문드릴게요.\n\n${responseText}`.trim()
   }
 
   sessionState.displayedChips = finalResponseChips
@@ -624,7 +775,7 @@ export async function buildRecommendationResponse(
     ? smartOptionsToChips(postRecOptions)
     : buildMinimalPostRecChips(recommendation, filters)
 
-  const displayedSeriesGroups = groupCandidatesBySeries(candidateSnapshot)
+  const displayedSeriesGroups = await buildDisplayedSeriesGroups(candidateSnapshot, input)
   const sessionState = buildSessionState({
     candidateCount: totalCandidateCount,
     appliedFilters: filters,
@@ -669,8 +820,11 @@ export async function buildRecommendationResponse(
   // ── Post-Answer Validator: strip unauthorized actions from answer ──
   // Direction: displayedOptions → constrain answer (NEVER answer → add chips)
   const finalRecChips = followUpChips
+  const hasCandidatePool = totalCandidateCount > 0 && !!primary
   let finalResponseText = status === "none"
-    ? "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요."
+    ? hasCandidatePool
+      ? `조건에 완전히 맞는 제품은 없지만 유사 후보 ${totalCandidateCount}개를 찾았습니다. 직경이나 소재 조건을 조정하거나 현재 후보를 검토해보세요.`
+      : "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요."
     : responseText
   const recValidation = validateOptionFirstPipeline(finalResponseText, finalRecChips, postRecDisplayedOptions)
   if (recValidation.correctedAnswer) {
@@ -841,7 +995,7 @@ function buildMinimalPostRecChips(
   filters: AppliedFilter[]
 ): string[] {
   const chips: string[] = []
-  if (result.status === "none" || !result.primaryProduct) {
+  if (!result.primaryProduct) {
     if (filters.length > 0) chips.push("⟵ 이전 단계")
     chips.push("처음부터 다시")
     return chips
@@ -892,22 +1046,22 @@ export function getFollowUpChips(
   const hasHistory = (sessionState?.stageHistory?.length ?? 0) > 1
   const filterCount = sessionState?.appliedFilters?.length ?? 0
 
-  // ── No result ──
-  if (result.status === "none" || !primary) {
-    if (hasHistory) chips.push("⟵ 이전 단계")
-    if (filterCount > 0) chips.push("조건 완화")
+  // ── No result: suggest broadening or restart ──
+  if (!primary) {
+    if (hasHistory) chips.push("⟵ 이전 단계로 돌아가기")
+    if (filterCount > 0) chips.push("조건 완화하기")
     chips.push("처음부터 다시")
     return chips.slice(0, 6)
   }
 
-  // ── 후보 데이터 기반 동적 칩 ──
-  const coatings = new Set([primary, ...alts].map(p => p.product.coating).filter(Boolean))
-  const flutes = new Set([primary, ...alts].map(p => p.product.fluteCount).filter(Boolean))
-  const series = new Set([primary, ...alts].map(p => p.product.seriesName).filter(Boolean))
-
-  // 1순위: 제품 상세
-  if (primary.product.displayCode) {
-    chips.push(`${primary.product.displayCode} 상세`)
+  // ── Low-confidence match: suggest compare, broaden, refine ──
+  if (isApproximate || isNone) {
+    if (altCount > 0) chips.push(`후보 ${altCount + 1}개 비교하기`)
+    chips.push("절삭조건 알려줘")
+    if (hasHistory) chips.push("⟵ 이전 단계로 돌아가기")
+    chips.push("다른 직경 검색")
+    chips.push("처음부터 다시")
+    return chips.slice(0, 6)
   }
 
   // 2순위: 비교 (후보 있을 때)

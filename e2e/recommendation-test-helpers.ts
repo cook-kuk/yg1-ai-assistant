@@ -23,7 +23,7 @@ export interface RecommendSessionState extends JsonRecord {
   candidateCount?: number
   displayedProducts?: RecommendCandidate[] | null
   displayedCandidates?: RecommendCandidate[] | null
-  displayedOptions?: Array<{ label?: string; value?: string; kind?: string }> | null
+  displayedOptions?: Array<{ index?: number; count?: number; label?: string; value?: string; field?: string; kind?: string }> | null
   displayedSeriesGroups?: Array<{ seriesName?: string; seriesKey?: string; candidateCount?: number }> | null
   displayedGroups?: Array<{ seriesName?: string; seriesKey?: string; candidateCount?: number }> | null
   lastRecommendationArtifact?: RecommendCandidate[] | null
@@ -49,11 +49,33 @@ export interface RecommendSessionState extends JsonRecord {
 }
 
 export interface RecommendCandidate extends JsonRecord {
-  rank?: number
-  displayCode?: string
-  seriesName?: string | null
-  diameterMm?: number | null
-  brand?: string | null
+  rank: number
+  productCode: string
+  displayCode: string
+  displayLabel?: string | null
+  seriesName: string | null
+  diameterMm: number | null
+  brand: string | null
+  seriesIconUrl?: string | null
+  fluteCount?: number | null
+  coating?: string | null
+  toolMaterial?: string | null
+  shankDiameterMm?: number | null
+  lengthOfCutMm?: number | null
+  overallLengthMm?: number | null
+  helixAngleDeg?: number | null
+  description?: string | null
+  featureText?: string | null
+  materialTags?: string[]
+  score?: number
+  scoreBreakdown?: unknown
+  matchStatus?: "exact" | "approximate" | "none"
+  stockStatus?: string
+  totalStock?: number | null
+  inventorySnapshotDate?: string | null
+  inventoryLocations?: Array<{ warehouseOrRegion: string; quantity: number }>
+  hasEvidence?: boolean
+  bestCondition?: Record<string, unknown> | null
 }
 
 interface InteractionRecord {
@@ -88,6 +110,7 @@ function makeCandidate(input: {
   toolMaterial?: string
   flutes?: number
 }) {
+  const matchStatus: RecommendCandidate["matchStatus"] = input.rank === 1 ? "exact" : "approximate"
   return {
     rank: input.rank,
     productCode: input.code,
@@ -109,7 +132,7 @@ function makeCandidate(input: {
     materialTags: ["N"],
     score: input.score ?? 95 - input.rank,
     scoreBreakdown: null,
-    matchStatus: input.rank === 1 ? "exact" : "approximate",
+    matchStatus,
     stockStatus: input.stock == null ? "unknown" : input.stock > 0 ? "instock" : "outofstock",
     totalStock: input.stock ?? null,
     inventorySnapshotDate: "2026-03-18",
@@ -130,7 +153,7 @@ function makeCandidate(input: {
   }
 }
 
-const BASE_CANDIDATES = [
+const BASE_CANDIDATES: RecommendCandidate[] = [
   makeCandidate({ rank: 1, code: "E5D7004010", series: "E5D70", stock: 12 }),
   makeCandidate({ rank: 2, code: "E5D7004020", series: "E5D70", stock: 8 }),
   makeCandidate({ rank: 3, code: "EI880040", series: "EI880", coating: "Uncoated", stock: 4 }),
@@ -138,7 +161,7 @@ const BASE_CANDIDATES = [
   makeCandidate({ rank: 5, code: "ALM90040", series: "ALM90", coating: "DLC", stock: 6 }),
 ]
 
-const RADIUS_CANDIDATES = BASE_CANDIDATES.map((candidate, index) => ({
+const RADIUS_CANDIDATES: RecommendCandidate[] = BASE_CANDIDATES.map((candidate, index) => ({
   ...candidate,
   rank: index + 1,
   displayLabel: `${candidate.fluteCount}F Radius ${candidate.seriesName}`,
@@ -152,13 +175,13 @@ function buildSeriesGroups(candidates: RecommendCandidate[]) {
     bucket.push(candidate)
     groupMap.set(key, bucket)
   }
-  return [...groupMap.entries()].map(([seriesName, members]) => ({
+  return Array.from(groupMap.entries()).map(([seriesName, members]) => ({
     seriesKey: seriesName,
     seriesName,
     seriesIconUrl: null,
     description: `${seriesName} series`,
     candidateCount: members.length,
-    topScore: Math.max(...members.map(member => member.score ?? 0)),
+    topScore: Math.max(0, ...members.map(member => member.score ?? 0)),
     members,
   }))
 }
@@ -218,7 +241,7 @@ function buildSessionState(args: {
   fullDisplayedProducts?: RecommendCandidate[] | null
   currentMode: string
   lastAction: string
-  uiNarrowingPath?: Array<{ kind: string; label: string; field?: string; value?: string; candidateCount: number }>
+  uiNarrowingPath?: RecommendSessionState["uiNarrowingPath"]
   activeGroupKey?: string | null
   lastRecommendationArtifact?: RecommendCandidate[] | null
   lastComparisonArtifact?: RecommendSessionState["lastComparisonArtifact"]

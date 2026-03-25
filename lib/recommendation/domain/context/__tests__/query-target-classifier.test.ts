@@ -76,8 +76,19 @@ describe("query-target: entity comparison detection", () => {
       "fluteCount"
     )
 
-    expect(result.type).toBe("series_comparison")
+    expect(result.type).toBe("product_comparison")
     expect(result.overridesActiveFilter).toBe(true)
+  })
+
+  it("detects product comparison with explicit explanation wording", () => {
+    const result = classifyQueryTarget(
+      "E5E84200B 와 E5E84200 비교 설명",
+      "coating"
+    )
+
+    expect(result.type).toBe("product_comparison")
+    expect(result.entities).toContain("E5E84200B")
+    expect(result.entities).toContain("E5E84200")
   })
 
   it("detects brand comparison entities", () => {

@@ -1,5 +1,6 @@
 import {
   analyzeInquiry,
+  buildSessionState,
   carryForwardState,
   checkResolution,
   getRedirectResponse,
@@ -34,12 +35,15 @@ import { normalizeFilterValue, extractDistinctFieldValues } from "@/lib/recommen
 import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-target-classifier"
 import { TraceCollector, isDebugEnabled } from "@/lib/debug/agent-trace"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
+import { classifyPreSearchRoute } from "@/lib/recommendation/infrastructure/engines/pre-search-route"
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
 import { shouldExecutePendingAction, pendingActionToFilter } from "@/lib/recommendation/domain/context/pending-action-resolver"
 import { TurnPerfLogger, setCurrentPerfLogger } from "@/lib/recommendation/infrastructure/perf/turn-perf-logger"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { RecommendationDisplayedProductRequestDto, RecommendationPaginationDto } from "@/lib/contracts/recommendation"
+import type { TurnResult } from "@/lib/recommendation/core/types"
+import type { OrchestratorAction, OrchestratorResult } from "@/lib/recommendation/infrastructure/agents/types"
 import type {
   AppliedFilter,
   AppLanguage,
@@ -68,8 +72,114 @@ type CandidatePageSlice = {
   candidates: ScoredProduct[]
   evidenceMap: Map<string, EvidenceSummary>
 }
+type ExplicitRevisionRequest = {
+  targetField: string
+  previousValue: string
+  nextFilter: AppliedFilter
+}
+
+type ExplicitRevisionResolution =
+  | { kind: "resolved"; request: ExplicitRevisionRequest }
+  | { kind: "ambiguous"; question: string }
+
+const REVISION_FIELD_LABELS: Record<string, string> = {
+  toolSubtype: "형상",
+  coating: "코팅",
+  fluteCount: "날 수",
+  diameterMm: "직경",
+  seriesName: "시리즈",
+  workPieceName: "피삭재",
+}
+
+const REVISION_FIELD_HINTS: Record<string, RegExp[]> = {
+  toolSubtype: [/형상/u, /타입/u, /subtype/i, /square/i, /radius/i, /ball/i, /rough/i, /황삭/u, /라디우스/u, /볼/u, /스퀘어/u],
+  coating: [/코팅/u, /\bcoat/i, /ticn/i, /tialn/i, /alcrn/i, /x-?coating/i, /bright\s*finish/i],
+  fluteCount: [/날\s*수/u, /몇\s*날/u, /\d+\s*날/u, /flute/i],
+  diameterMm: [/직경/u, /지름/u, /파이/u, /\b\d+(?:\.\d+)?\s*mm\b/i],
+  seriesName: [/시리즈/u, /series/i],
+  workPieceName: [/피삭재/u, /소재/u, /재질/u],
+}
+
+const TOOL_SUBTYPE_ALIASES: Record<string, string> = {
+  square: "Square",
+  스퀘어: "Square",
+  ball: "Ball",
+  볼: "Ball",
+  radius: "Radius",
+  라디우스: "Radius",
+  "cornerradius": "Corner Radius",
+  roughing: "Roughing",
+  rough: "Roughing",
+  황삭: "Roughing",
+  taper: "Taper",
+  테이퍼: "Taper",
+  chamfer: "Chamfer",
+  챔퍼: "Chamfer",
+  highfeed: "High-Feed",
+  하이피드: "High-Feed",
+}
 
 const DEFAULT_CANDIDATE_PAGE_SIZE = 50
+
+function buildPreSearchOrchestratorResult(userMessage: string, reason: string) {
+  return {
+    action: { type: "answer_general" as const, message: userMessage },
+    reasoning: `pre_search_route:${reason}`,
+    agentsInvoked: [{ agent: "pre-search-router", model: "haiku" as const, durationMs: 0 }],
+    escalatedToOpus: false,
+  }
+}
+
+function buildExplicitComparisonOrchestratorResult(targets: string[]): OrchestratorResult {
+  return {
+    action: { type: "compare_products", targets },
+    reasoning: `explicit_compare:${targets.join(",")}`,
+    agentsInvoked: [{ agent: "explicit-compare-resolver", model: "haiku" as const, durationMs: 0 }],
+    escalatedToOpus: false,
+  }
+}
+
+function buildV2BridgeOrchestratorResult(
+  action: OrchestratorAction,
+  result: TurnResult
+): OrchestratorResult {
+  return {
+    action,
+    reasoning: `v2_bridge:${result.trace.action}`,
+    agentsInvoked: [{ agent: "v2-bridge", model: "haiku", durationMs: 0 }],
+    escalatedToOpus: false,
+  }
+}
+
+function buildV2BridgeAction(
+  result: TurnResult,
+  prevState: ExplorationSessionState | null
+): OrchestratorAction | null {
+  switch (result.trace.action) {
+    case "compare_products": {
+      const availableCount =
+        prevState?.displayedCandidates?.length
+        ?? result.sessionState.resultContext?.candidates.length
+        ?? 0
+      const topN = Math.min(3, availableCount)
+      return topN >= 2
+        ? { type: "compare_products", targets: [`상위 ${topN}`] }
+        : { type: "answer_general", message: result.answer, preGenerated: true }
+    }
+    case "skip_field":
+      return { type: "skip_field" }
+    case "answer_general":
+      return { type: "answer_general", message: result.answer, preGenerated: true }
+    case "redirect_off_topic":
+      return { type: "redirect_off_topic" }
+    case "reset_session":
+      return { type: "reset_session" }
+    case "show_recommendation":
+      return { type: "show_recommendation" }
+    default:
+      return null
+  }
+}
 
 function resolveCandidatePagination(
   pagination: CandidatePaginationRequest | null | undefined
@@ -128,6 +238,264 @@ function normalizePendingSelectionText(value: string): string {
     .toLowerCase()
 }
 
+function isSkipSelectionValue(value: string | null | undefined): boolean {
+  if (!value) return false
+  const normalized = normalizePendingSelectionText(value)
+  return ["상관없음", "상관 없음", "모름", "skip", "패스", "스킵"].includes(normalized)
+}
+
+function hasExplicitComparisonSignal(value: string): boolean {
+  return /(비교|차이|vs|versus)/i.test(value)
+}
+
+function parseExplicitComparisonTargets(raw: string): string[] {
+  const clean = raw.trim().toLowerCase()
+  const targets: string[] = []
+  const seen = new Set<string>()
+
+  const pushTarget = (target: string | null) => {
+    if (!target || seen.has(target)) return
+    seen.add(target)
+    targets.push(target)
+  }
+
+  for (const match of clean.matchAll(/(\d+)\s*번/g)) {
+    pushTarget(`${match[1]}번`)
+  }
+
+  const topMatch = clean.match(/상위\s*(\d+|한|하나|두|둘|세|셋|네|넷|다섯)\s*개?/)
+  if (topMatch) {
+    const map: Record<string, string> = {
+      한: "1",
+      하나: "1",
+      두: "2",
+      둘: "2",
+      세: "3",
+      셋: "3",
+      네: "4",
+      넷: "4",
+      다섯: "5",
+    }
+    pushTarget(`상위${map[topMatch[1]] ?? topMatch[1]}`)
+  }
+
+  const aboveMatch = clean.match(/위[에]?\s*(\d+|두|세|네)\s*개/)
+  if (aboveMatch && targets.length === 0) {
+    const map: Record<string, string> = {
+      두: "2",
+      세: "3",
+      네: "4",
+    }
+    pushTarget(`상위${map[aboveMatch[1]] ?? aboveMatch[1]}`)
+  }
+
+  for (const match of raw.toUpperCase().matchAll(/\b(?=[A-Z0-9-]*\d)[A-Z0-9-]{6,}\b/g)) {
+    pushTarget(match[0].replace(/-/g, ""))
+  }
+
+  return targets
+}
+
+function hasExplicitRevisionSignal(value: string): boolean {
+  return /(대신|말고|변경|바꿔|바꿀|수정)/u.test(value)
+}
+
+function cleanupRevisionCandidate(value: string): string {
+  return value
+    .trim()
+    .replace(/^[은는이가을를]\s*/u, "")
+    .replace(/\s*(?:로|으로)\s*(?:변경|바꿔|바꿀게|바꿔줘|수정).*$/u, "")
+    .replace(/\s*(?:변경|바꿔|바꿀게|바꿔줘|수정).*$/u, "")
+    .trim()
+}
+
+function buildRevisionValueCandidates(raw: string): { previousText: string | null; nextValues: string[] } {
+  const candidates: string[] = []
+  const seen = new Set<string>()
+  const pushCandidate = (value: string | null) => {
+    const cleaned = cleanupRevisionCandidate(value ?? "")
+    if (!cleaned || seen.has(cleaned)) return
+    seen.add(cleaned)
+    candidates.push(cleaned)
+  }
+
+  let previousText: string | null = null
+  const replaceMatch = raw.match(/(.+?)\s*(?:대신|말고)\s*(.+)$/u)
+  if (replaceMatch) {
+    previousText = cleanupRevisionCandidate(replaceMatch[1])
+    pushCandidate(replaceMatch[2])
+  }
+
+  const directChangeMatch = raw.match(/(.+?)(?:로|으로)\s*(?:변경|바꿔|바꿀게|바꿔줘|수정)/u)
+  if (directChangeMatch) {
+    pushCandidate(directChangeMatch[1])
+  }
+
+  pushCandidate(raw)
+  return { previousText, nextValues: candidates }
+}
+
+function getRevisionCandidatePool(sessionState: ExplorationSessionState | null): Array<Record<string, unknown>> {
+  return (
+    sessionState?.fullDisplayedProducts
+    ?? sessionState?.fullDisplayedCandidates
+    ?? sessionState?.displayedProducts
+    ?? sessionState?.displayedCandidates
+    ?? []
+  ) as unknown as Array<Record<string, unknown>>
+}
+
+function canonicalizeToolSubtypeValue(value: string): string | null {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[()\s_-]+/g, "")
+
+  if (!normalized) return null
+
+  for (const [alias, canonical] of Object.entries(TOOL_SUBTYPE_ALIASES)) {
+    if (normalized.includes(alias)) return canonical
+  }
+
+  return null
+}
+
+function matchRevisionValueAgainstCandidateValues(
+  field: string,
+  value: string,
+  sessionState: ExplorationSessionState | null
+): string | null {
+  const candidateValues = extractDistinctFieldValues(getRevisionCandidatePool(sessionState), field)
+  if (candidateValues.length === 0) return null
+
+  const normalizedValue = normalizePendingSelectionText(value).replace(/\s+/g, "")
+  if (!normalizedValue) return null
+
+  const exactMatch = candidateValues.find(candidate => (
+    normalizePendingSelectionText(candidate).replace(/\s+/g, "") === normalizedValue
+  ))
+  if (exactMatch) return exactMatch
+
+  const fuzzyMatch = candidateValues.find(candidate => {
+    const normalizedCandidate = normalizePendingSelectionText(candidate).replace(/\s+/g, "")
+    return normalizedCandidate.includes(normalizedValue) || normalizedValue.includes(normalizedCandidate)
+  })
+  if (fuzzyMatch) return fuzzyMatch
+
+  return null
+}
+
+function sanitizeRevisionValueForField(
+  field: string,
+  value: string,
+  sessionState: ExplorationSessionState | null
+): string {
+  let cleaned = cleanupRevisionCandidate(value)
+
+  switch (field) {
+    case "toolSubtype": {
+      cleaned = cleaned
+        .replace(/^(?:공구\s*)?(?:세부\s*)?(?:형상|타입)(?:은|는|이|가|을|를)?\s*/u, "")
+        .trim()
+      const canonical = canonicalizeToolSubtypeValue(cleaned)
+      if (canonical) return canonical
+      return matchRevisionValueAgainstCandidateValues(field, cleaned, sessionState) ?? cleaned
+    }
+    case "coating": {
+      cleaned = cleaned.replace(/^(?:표면\s*)?코팅(?:은|는|이|가|을|를)?\s*/u, "").trim()
+      return matchRevisionValueAgainstCandidateValues(field, cleaned, sessionState) ?? cleaned
+    }
+    case "seriesName": {
+      cleaned = cleaned.replace(/^시리즈(?:는|를|가|이|은|을)?\s*/u, "").trim()
+      return matchRevisionValueAgainstCandidateValues(field, cleaned, sessionState) ?? cleaned
+    }
+    case "workPieceName":
+      return cleaned.replace(/^(?:세부\s*)?(?:피삭재|소재|재질)(?:는|를|가|이|은|을)?\s*/u, "").trim()
+    default:
+      return cleaned
+  }
+}
+
+function inferRevisionTargetFields(
+  raw: string,
+  activeFilters: AppliedFilter[],
+  sessionState: ExplorationSessionState | null
+): string[] {
+  const activeFieldSet = new Set(activeFilters.map(filter => filter.field))
+  const hintedFields = Object.entries(REVISION_FIELD_HINTS)
+    .filter(([, patterns]) => patterns.some(pattern => pattern.test(raw)))
+    .map(([field]) => field)
+    .filter(field => activeFieldSet.has(field))
+
+  if (hintedFields.length > 0) return hintedFields
+
+  const lastAskedField = sessionState?.lastAskedField
+  if (lastAskedField && activeFieldSet.has(lastAskedField)) {
+    return [lastAskedField]
+  }
+
+  return [...new Set(activeFilters.map(filter => filter.field))]
+}
+
+function buildRevisionClarificationQuestion(
+  fields: string[],
+  nextValues: string[]
+): string {
+  const value = nextValues[0] ?? "해당 값"
+  const labels = [...new Set(fields.map(field => REVISION_FIELD_LABELS[field] ?? field))]
+
+  if (labels.length === 0) {
+    return `어떤 조건을 "${value}"로 바꾸실지 다시 말씀해주세요. 예: "형상을 ${value}으로 변경".`
+  }
+
+  if (labels.length === 1) {
+    return `어떤 조건을 바꾸실지 조금 더 구체적으로 말씀해주세요. 예: "${labels[0]}을 ${value}으로 변경".`
+  }
+
+  return `어떤 조건을 "${value}"로 바꾸실지 다시 말씀해주세요. 현재 문장만으로는 ${labels.join(", ")} 중 무엇을 바꾸려는지 모호합니다.`
+}
+
+function normalizeComparableFilterValue(field: string, value: string | number | null | undefined): string {
+  if (value == null) return ""
+
+  if (field === "fluteCount") {
+    const match = String(value).match(/(\d+)/)
+    return match?.[1] ?? ""
+  }
+
+  if (field === "diameterMm" || field === "diameterRefine") {
+    const match = String(value).match(/([\d.]+)/)
+    return match?.[1] ?? ""
+  }
+
+  if (field === "toolSubtype") {
+    const canonical = canonicalizeToolSubtypeValue(String(value))
+    if (canonical) return normalizePendingSelectionText(canonical)
+  }
+
+  const parsed = typeof value === "string" ? parseAnswerToFilter(field, value) : null
+  const canonicalValue = parsed?.rawValue ?? parsed?.value ?? value
+
+  if (canonicalValue == null) return ""
+  if (typeof canonicalValue === "number") return String(canonicalValue)
+  return normalizePendingSelectionText(String(canonicalValue))
+}
+
+function rebuildResolvedInputFromFilters(
+  form: ProductIntakeForm,
+  filters: AppliedFilter[],
+  deps: Pick<ServeEngineRuntimeDependencies, "mapIntakeToInput" | "applyFilterToInput">
+): RecommendationInput {
+  let nextInput = deps.mapIntakeToInput(form)
+
+  for (const filter of filters) {
+    if (filter.op === "skip") continue
+    nextInput = deps.applyFilterToInput(nextInput, filter)
+  }
+
+  return nextInput
+}
+
 function resolveSingleIsoGroup(material: string | undefined): string | null {
   if (!material) return null
 
@@ -184,11 +552,12 @@ async function enrichWorkPieceFilterWithSeriesScope(
   } as AppliedFilter
 }
 
-function buildPendingWorkPieceSelectionFilter(
+export function buildPendingSelectionFilter(
   sessionState: ExplorationSessionState | null,
   userMessage: string | null
 ): AppliedFilter | null {
-  if (!sessionState || sessionState.lastAskedField !== "workPieceName") return null
+  const pendingField = sessionState?.lastAskedField ?? null
+  if (!sessionState || !pendingField) return null
   if (sessionState.resolutionStatus?.startsWith("resolved")) return null
   if (!userMessage) return null
 
@@ -200,26 +569,140 @@ function buildPendingWorkPieceSelectionFilter(
   const clean = normalizePendingSelectionText(raw)
   if (!clean) return null
 
-  const optionMatch = sessionState.displayedOptions?.find(option => {
-    if (option.field !== "workPieceName") return false
+  const optionsForPendingField = (sessionState.displayedOptions ?? []).filter(option => option.field === pendingField)
+
+  const optionMatch = optionsForPendingField.find(option => {
     const normalizedValue = normalizePendingSelectionText(option.value)
     const normalizedLabel = normalizePendingSelectionText(option.label)
     return clean === normalizedValue || clean === normalizedLabel || clean.startsWith(normalizedValue) || normalizedValue.startsWith(clean)
   })
 
-  const chipMatch = sessionState.displayedChips?.find(chip => {
-    const normalizedChip = normalizePendingSelectionText(chip)
+  const chipMatch = optionsForPendingField.find(option => {
+    const normalizedChip = normalizePendingSelectionText(option.label)
     return normalizedChip && (clean === normalizedChip || clean.startsWith(normalizedChip) || normalizedChip.startsWith(clean))
   })
 
-  // ★ 명시적 선택만 허용: optionMatch 또는 chipMatch가 없으면 filter 생성 금지
-  // raw fallback 제거 — "익산 공장 정보줘"가 workPieceName이 되는 버그 방지
-  const selectedValue = optionMatch?.value ?? chipMatch ?? null
+  const selectedOption = optionMatch ?? chipMatch ?? null
+  const selectedValue = selectedOption?.value ?? null
   if (!selectedValue) {
     console.log(`[pending-filter] No option/chip match for "${raw.slice(0, 30)}" → skip filter creation`)
     return null
   }
-  return parseAnswerToFilter("workPieceName", selectedValue)
+
+  if (selectedValue === "skip" || isSkipSelectionValue(selectedOption?.label) || isSkipSelectionValue(raw)) {
+    const filter: AppliedFilter = {
+      field: pendingField,
+      op: "skip",
+      value: "상관없음",
+      rawValue: "skip",
+      appliedAt: sessionState.turnCount ?? 0,
+    }
+    console.log(`[pending-selection] Resolved field="${pendingField}" as skip`)
+    return filter
+  }
+
+  const filter = parseAnswerToFilter(pendingField, selectedValue)
+  if (filter) {
+    console.log(`[pending-selection] Resolved field="${pendingField}" value="${selectedValue}"`)
+  }
+  return filter
+}
+
+export function resolveExplicitComparisonAction(
+  sessionState: ExplorationSessionState | null,
+  userMessage: string | null
+): OrchestratorAction | null {
+  if (!sessionState || !userMessage) return null
+
+  const raw = userMessage.trim()
+  if (!raw || !hasExplicitComparisonSignal(raw)) return null
+
+  const candidatePool = sessionState.fullDisplayedProducts
+    ?? sessionState.fullDisplayedCandidates
+    ?? sessionState.displayedProducts
+    ?? sessionState.displayedCandidates
+    ?? []
+  if (candidatePool.length < 2) return null
+
+  const targets = parseExplicitComparisonTargets(raw)
+  if (targets.length === 0) return null
+
+  const resolvedTargets = resolveProductReferences(targets, candidatePool, { fallbackToTop2: false })
+  if (resolvedTargets.length < 2) return null
+
+  return { type: "compare_products", targets }
+}
+
+export function resolveExplicitRevisionRequest(
+  sessionState: ExplorationSessionState | null,
+  userMessage: string | null
+): ExplicitRevisionResolution | null {
+  if (!sessionState || !userMessage) return null
+
+  const raw = userMessage.trim()
+  if (!raw || !hasExplicitRevisionSignal(raw)) return null
+
+  const activeFilters = (sessionState.appliedFilters ?? []).filter(filter => filter.op !== "skip")
+  if (activeFilters.length === 0) return null
+
+  const { previousText, nextValues } = buildRevisionValueCandidates(raw)
+  if (nextValues.length === 0) return null
+
+  const prioritizedFilters = [...activeFilters].sort((a, b) => (b.appliedAt ?? 0) - (a.appliedAt ?? 0))
+  const candidateFields = inferRevisionTargetFields(raw, prioritizedFilters, sessionState)
+  const matchedRequests: ExplicitRevisionRequest[] = []
+
+  for (const field of candidateFields) {
+    const matchingFilters = prioritizedFilters.filter(filter => filter.field === field)
+    if (matchingFilters.length === 0) continue
+
+    for (const nextValue of nextValues) {
+      const sanitizedNextValue = sanitizeRevisionValueForField(field, nextValue, sessionState)
+      const parsed = parseAnswerToFilter(field, sanitizedNextValue)
+      if (!parsed) continue
+
+      for (const existingFilter of matchingFilters) {
+        const existingComparable = normalizeComparableFilterValue(existingFilter.field, existingFilter.rawValue ?? existingFilter.value)
+        const nextComparable = normalizeComparableFilterValue(existingFilter.field, parsed.rawValue ?? parsed.value)
+        if (!nextComparable || existingComparable === nextComparable) continue
+
+        if (previousText) {
+          const sanitizedPreviousText = sanitizeRevisionValueForField(existingFilter.field, previousText, sessionState)
+          const previousComparable = normalizeComparableFilterValue(existingFilter.field, sanitizedPreviousText)
+          if (previousComparable && existingComparable && !existingComparable.includes(previousComparable)) {
+            continue
+          }
+        }
+
+        matchedRequests.push({
+          targetField: existingFilter.field,
+          previousValue: String(existingFilter.value),
+          nextFilter: parsed,
+        })
+      }
+    }
+  }
+
+  if (matchedRequests.length === 0) return null
+
+  const dedupedRequests = matchedRequests.filter((request, index, requests) => {
+    const key = `${request.targetField}:${normalizeComparableFilterValue(request.targetField, request.nextFilter.rawValue ?? request.nextFilter.value)}`
+    return index === requests.findIndex(candidate => (
+      `${candidate.targetField}:${normalizeComparableFilterValue(candidate.targetField, candidate.nextFilter.rawValue ?? candidate.nextFilter.value)}` === key
+    ))
+  })
+
+  if (dedupedRequests.length === 1) {
+    return { kind: "resolved", request: dedupedRequests[0] }
+  }
+
+  return {
+    kind: "ambiguous",
+    question: buildRevisionClarificationQuestion(
+      dedupedRequests.map(request => request.targetField),
+      nextValues
+    ),
+  }
 }
 
 export interface ServeEngineRuntimeDependencies {
@@ -242,7 +725,9 @@ export interface ServeEngineRuntimeDependencies {
     language: AppLanguage,
     overrideText?: string,
     existingStageHistory?: NarrowingStage[],
-    excludeWorkPieceValues?: string[]
+    excludeWorkPieceValues?: string[],
+    preferredQuestionField?: string,
+    responsePrefix?: string
   ) => Promise<Response>
   buildRecommendationResponse: (
     form: ProductIntakeForm,
@@ -352,6 +837,46 @@ function buildActionMeta(
   }
 }
 
+function buildRevisionClarificationResponse(
+  deps: Pick<ServeEngineRuntimeDependencies, "jsonRecommendationResponse" | "buildCandidateSnapshot">,
+  prevState: ExplorationSessionState,
+  form: ProductIntakeForm,
+  filters: AppliedFilter[],
+  narrowingHistory: NarrowingTurn[],
+  currentInput: RecommendationInput,
+  turnCount: number,
+  question: string,
+  requestPreparation: ReturnType<typeof prepareRequest> | null
+) {
+  const sessionState = carryForwardState(prevState, {
+    appliedFilters: filters,
+    narrowingHistory,
+    resolutionStatus: prevState.resolutionStatus ?? "narrowing",
+    resolvedInput: currentInput,
+    turnCount,
+    displayedChips: filters.length > 0 ? ["⟵ 이전 단계", "처음부터 다시"] : ["처음부터 다시"],
+    displayedOptions: [],
+    currentMode: "question",
+    lastAction: "ask_clarification",
+  })
+
+  return deps.jsonRecommendationResponse({
+    text: question,
+    purpose: "question",
+    chips: sessionState.displayedChips,
+    isComplete: false,
+    recommendation: null,
+    sessionState,
+    evidenceSummaries: null,
+    candidateSnapshot: prevState.displayedCandidates ?? null,
+    requestPreparation,
+    primaryExplanation: null,
+    primaryFactChecked: null,
+    altExplanations: [],
+    altFactChecked: [],
+  })
+}
+
 export async function handleServeExploration(
   deps: ServeEngineRuntimeDependencies,
   form: ProductIntakeForm,
@@ -457,13 +982,120 @@ async function handleServeExplorationInner(
   const lastUserMsg = messages.length > 0
     ? [...messages].reverse().find(message => message.role === "user")
     : null
+  const narrowingHistory: NarrowingTurn[] = [...(prevState?.narrowingHistory ?? [])]
+  let currentInput = { ...resolvedInput }
+  let turnCount = prevState?.turnCount ?? 0
+  let explicitComparisonAction: OrchestratorAction | null = null
+  let explicitComparisonOrchestratorResult: OrchestratorResult | null = null
+  let explicitRevisionResolution: ExplicitRevisionResolution | null = null
+  let explicitRevisionAction: OrchestratorAction | null = null
+  let explicitRevisionOrchestratorResult: OrchestratorResult | null = null
+  let bridgedV2Action: OrchestratorAction | null = null
+  let bridgedV2OrchestratorResult: OrchestratorResult | null = null
+  const journeyPhase = detectJourneyPhase(prevState)
+  const pendingSelectionFilter = buildPendingSelectionFilter(prevState, lastUserMsg?.text ?? null)
+  const shouldResolvePendingSelectionEarly = !!pendingSelectionFilter && !isPostResultPhase(journeyPhase)
+
+  if (messages.length > 0 && lastUserMsg) {
+    if (prevState?.pendingAction) {
+      const pendingCheck = shouldExecutePendingAction(
+        prevState.pendingAction,
+        lastUserMsg.text,
+        turnCount,
+        prevState.displayedChips ?? []
+      )
+
+      if (pendingCheck.reason === "expired" || pendingCheck.reason === "explicit_override") {
+        console.log(`[pending-action:pre-route] Cleared before V2: ${pendingCheck.reason}`)
+        prevState.pendingAction = null
+      }
+    }
+
+    if (!shouldResolvePendingSelectionEarly) {
+      explicitComparisonAction = resolveExplicitComparisonAction(prevState, lastUserMsg.text)
+      if (explicitComparisonAction?.type === "compare_products") {
+        explicitComparisonOrchestratorResult = buildExplicitComparisonOrchestratorResult(explicitComparisonAction.targets)
+        console.log(`[runtime:explicit-compare] targets=${explicitComparisonAction.targets.join(", ")}`)
+      }
+      if (!explicitComparisonAction) {
+        explicitRevisionResolution = resolveExplicitRevisionRequest(prevState, lastUserMsg.text)
+        if (explicitRevisionResolution?.kind === "resolved") {
+          const explicitRevisionRequest = explicitRevisionResolution.request
+          explicitRevisionAction = {
+            type: "replace_existing_filter",
+            targetField: explicitRevisionRequest.targetField,
+            previousValue: explicitRevisionRequest.previousValue,
+            nextFilter: explicitRevisionRequest.nextFilter,
+          }
+          explicitRevisionOrchestratorResult = {
+            action: explicitRevisionAction,
+            reasoning: `explicit_revision:${explicitRevisionRequest.targetField}:${explicitRevisionRequest.previousValue}->${explicitRevisionRequest.nextFilter.value}`,
+            agentsInvoked: [{ agent: "explicit-revision-resolver", model: "haiku", durationMs: 0 }],
+            escalatedToOpus: false,
+          }
+          console.log(
+            `[runtime:explicit-revision] field=${explicitRevisionRequest.targetField} ${explicitRevisionRequest.previousValue} -> ${explicitRevisionRequest.nextFilter.value}`
+          )
+        }
+      }
+    }
+
+    if (prevState && explicitRevisionResolution?.kind === "ambiguous") {
+      return buildRevisionClarificationResponse(
+        deps,
+        prevState,
+        form,
+        filters,
+        narrowingHistory,
+        currentInput,
+        turnCount,
+        explicitRevisionResolution.question,
+        requestPrep
+      )
+    }
+
+    if (!shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution) {
+      const preSearchRoute = await classifyPreSearchRoute(lastUserMsg.text, prevState, provider)
+      if (preSearchRoute.kind !== "recommendation_action") {
+        console.log(`[runtime:pre-route] ${preSearchRoute.kind} -> answer_general (${preSearchRoute.reason})`)
+        const generalChatState = prevState ?? buildSessionState({
+          candidateCount: 0,
+          appliedFilters: filters,
+          narrowingHistory,
+          stageHistory: [],
+          resolutionStatus: "narrowing",
+          resolvedInput: currentInput,
+          turnCount,
+          displayedCandidates: [],
+          displayedChips: [],
+          displayedOptions: [],
+          currentMode: "question",
+        })
+        return handleServeGeneralChatAction({
+          deps,
+          action: { type: "answer_general", message: lastUserMsg.text },
+          orchResult: buildPreSearchOrchestratorResult(lastUserMsg.text, preSearchRoute.reason),
+          provider,
+          form,
+          messages,
+          prevState: generalChatState,
+          filters,
+          narrowingHistory,
+          currentInput,
+          candidates: [],
+          evidenceMap: new Map(),
+          turnCount,
+        })
+      }
+    }
+  }
 
   // ── V2 Orchestrator Integration ──
   // V2 handles routing decisions (LLM-based), then delegates execution to legacy engines.
   // On error, automatically falls back to legacy path.
   const currentPhase = prevState?.currentMode ?? "intake"
   perf.startStep("v2_orchestrator")
-  if (shouldUseV2ForPhase(currentPhase) && lastUserMsg) {
+  if (shouldUseV2ForPhase(currentPhase) && lastUserMsg && !shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution) {
     try {
       const { orchestrateTurnV2 } = await import("@/lib/recommendation/core/turn-orchestrator")
       const { convertToV2State, convertFromV2State } = await import("@/lib/recommendation/core/state-adapter")
@@ -548,6 +1180,7 @@ async function handleServeExplorationInner(
 
       // Convert V2 result → legacy session state (preserving existing state data)
       const legacyState = convertFromV2State(result.sessionState, prevState)
+      const v2ResolvedInput = rebuildResolvedInputFromFilters(form, legacyState.appliedFilters ?? [], deps)
       legacyState.displayedChips = result.chips
       legacyState.displayedOptions = result.displayedOptions
       legacyState.turnCount = result.sessionState.turnCount
@@ -555,53 +1188,103 @@ async function handleServeExplorationInner(
         : result.sessionState.journeyPhase === "comparison" ? "comparison"
         : "question"
       legacyState.lastAskedField = result.sessionState.pendingQuestion?.field ?? prevState?.lastAskedField ?? undefined
-      // Preserve candidate data AND filters through V2 transitions.
-      // V2 converts filters→constraints→filters which can be lossy,
-      // so always prefer the original appliedFilters from prevState.
-      if (prevState?.appliedFilters && prevState.appliedFilters.length > 0) {
-        legacyState.appliedFilters = prevState.appliedFilters
-      }
-      legacyState.candidateCount = prevState?.candidateCount ?? legacyState.candidateCount
+      legacyState.candidateCount = result.sessionState.resultContext?.totalConsidered ?? prevState?.candidateCount ?? legacyState.candidateCount
       legacyState.displayedCandidates = prevState?.displayedCandidates ?? legacyState.displayedCandidates
-      legacyState.resolvedInput = prevState?.resolvedInput ?? legacyState.resolvedInput
+      legacyState.resolvedInput = v2ResolvedInput
       legacyState.narrowingHistory = prevState?.narrowingHistory ?? legacyState.narrowingHistory
       legacyState.stageHistory = prevState?.stageHistory ?? legacyState.stageHistory
 
       // Build response matching existing API format
       const isResultPhase = result.sessionState.journeyPhase === "results_displayed" || result.sessionState.journeyPhase === "post_result_exploration"
+      if (result.searchPayload) {
+        const totalCandidateCount = result.searchPayload.totalConsidered
+        const displayPage = sliceCandidatesForPage(
+          result.searchPayload.candidates,
+          result.searchPayload.evidenceMap,
+          resolvedPagination
+        )
+
+        legacyState.candidateCount = totalCandidateCount
+        legacyState.displayedCandidates = deps.buildCandidateSnapshot(displayPage.candidates, displayPage.evidenceMap)
+
+        perf.endStep("v2_orchestrator")
+        perf.recordLlmCall()
+        perf.finish()
+
+        if (isResultPhase) {
+          return deps.buildRecommendationResponse(
+            form,
+            result.searchPayload.candidates,
+            result.searchPayload.evidenceMap,
+            totalCandidateCount,
+            paginationDto(totalCandidateCount),
+            displayPage.candidates,
+            displayPage.evidenceMap,
+            v2ResolvedInput,
+            legacyState.narrowingHistory ?? [],
+            legacyState.appliedFilters ?? [],
+            legacyState.turnCount,
+            messages,
+            provider,
+            language,
+          )
+        }
+
+        return deps.buildQuestionResponse(
+          form,
+          result.searchPayload.candidates,
+          result.searchPayload.evidenceMap,
+          totalCandidateCount,
+          paginationDto(totalCandidateCount),
+          displayPage.candidates,
+          displayPage.evidenceMap,
+          v2ResolvedInput,
+          legacyState.narrowingHistory ?? [],
+          legacyState.appliedFilters ?? [],
+          legacyState.turnCount,
+          messages,
+          provider,
+          language,
+        )
+      }
+
       perf.endStep("v2_orchestrator")
       perf.recordLlmCall() // V2 orchestrator does 1 LLM call
-      const perfMetrics = perf.finish()
-      return deps.jsonRecommendationResponse({
-        text: result.answer,
-        purpose: isResultPhase ? "recommendation" : "question",
-        chips: result.chips,
-        isComplete: isResultPhase,
-        recommendation: null,
-        sessionState: legacyState,
-        evidenceSummaries: null,
-        candidateSnapshot: prevState?.displayedCandidates ?? null,
-        requestPreparation: requestPrep,
-        primaryExplanation: null,
-        primaryFactChecked: null,
-        altExplanations: [],
-        altFactChecked: [],
-        meta: {
-          orchestratorResult: { action: `v2:${v2Action}`, agents: [], opus: false },
-          trace: result.trace,
-          debugTrace: trace.build({
-            latestUserMessage: lastUserMsg.text,
-            latestAssistantQuestion: null,
-            currentMode: currentPhase,
-            routeAction: `v2:${v2Action}`,
-            pendingField: prevState?.lastAskedField ?? null,
-            candidateCount: prevState?.candidateCount ?? null,
-            filterCount: prevState?.appliedFilters?.length ?? 0,
-            summary: `V2 | ${v2Action} | ${result.trace.phase} | ${result.chips.length} chips | ${perfMetrics.totalMs}ms`,
-          }),
-          perfMetrics,
-        },
-      })
+      const bridgeAction = buildV2BridgeAction(result, prevState)
+      if (bridgeAction) {
+        bridgedV2Action = bridgeAction
+        bridgedV2OrchestratorResult = buildV2BridgeOrchestratorResult(bridgeAction, result)
+        currentInput = v2ResolvedInput
+        turnCount = legacyState.turnCount
+        filters.splice(0, filters.length, ...(legacyState.appliedFilters ?? []))
+        console.log(`[runtime:v2-bridge] ${v2Action} -> legacy ${bridgeAction.type}`)
+      } else {
+        perf.finish()
+        return deps.jsonRecommendationResponse({
+          text: result.answer,
+          purpose: isResultPhase ? "recommendation" : "question",
+          chips: result.chips,
+          isComplete: isResultPhase,
+          recommendation: null,
+          sessionState: legacyState,
+          evidenceSummaries: null,
+          candidateSnapshot: legacyState.displayedCandidates ?? prevState?.displayedCandidates ?? null,
+          pagination: legacyState.candidateCount > 0 ? paginationDto(legacyState.candidateCount) : null,
+          requestPreparation: requestPrep,
+          primaryExplanation: null,
+          primaryFactChecked: null,
+          altExplanations: [],
+          altFactChecked: [],
+          meta: {
+            orchestratorResult: {
+              action: `v2:${v2Action}`,
+              agents: [],
+              opus: false,
+              v2Trace: result.trace,
+            },
+          },
+        })
+      }
     } catch (err) {
       perf.endStep("v2_orchestrator")
       const errMsg = err instanceof Error ? err.message : String(err)
@@ -619,42 +1302,16 @@ async function handleServeExplorationInner(
     }
   }
 
-  const pendingWorkPieceFilter = buildPendingWorkPieceSelectionFilter(prevState, lastUserMsg?.text ?? null)
-
-  const journeyPhase = detectJourneyPhase(prevState)
-
-  let earlyAction: string | null = null
-  if (pendingWorkPieceFilter) {
+  let earlyAction: string | null = explicitComparisonAction?.type ?? explicitRevisionAction?.type ?? bridgedV2Action?.type ?? null
+  if (!earlyAction && pendingSelectionFilter) {
     // Post-result phase: don't force narrowing for non-selection messages
     if (isPostResultPhase(journeyPhase)) {
       earlyAction = null // let orchestrator decide
-      console.log(`[runtime:journey] Post-result phase (${journeyPhase}), skip forced narrowing for pendingWorkPieceFilter`)
+      console.log(`[runtime:journey] Post-result phase (${journeyPhase}), skip forced narrowing for pendingSelectionFilter`)
     } else {
-      // 회사 질문이면 강제 narrowing 하지 않음 → orchestrator가 판단하게
-      const earlyJudgment = lastUserMsg ? await performUnifiedJudgment({
-        userMessage: lastUserMsg.text,
-        assistantText: null,
-        pendingField: prevState?.lastAskedField ?? null,
-        currentMode: prevState?.currentMode ?? null,
-        displayedChips: prevState?.displayedChips ?? [],
-        filterCount: prevState?.appliedFilters?.length ?? 0,
-        candidateCount: prevState?.candidateCount ?? 0,
-        hasRecommendation: prevState?.resolutionStatus?.startsWith("resolved") ?? false,
-      }, provider) : null
-
-      // ★ Tool domain guard: tool/가공 질문이면 company 라우팅 절대 차단
-      const isToolDomain = lastUserMsg ? isToolDomainQuestion(lastUserMsg.text) : false
-      if (isToolDomain) {
-        earlyAction = null // orchestrator가 tool domain으로 처리
-        console.log(`[runtime:early] Tool domain detected → skip forced narrowing, block company route`)
-      } else if (earlyJudgment?.domainRelevance === "company_query" || earlyJudgment?.domainRelevance === "greeting" || earlyJudgment?.domainRelevance === "off_topic") {
-        earlyAction = null // orchestrator가 처리하게 넘김
-        console.log(`[runtime:early] ${earlyJudgment?.domainRelevance} → skip pendingWorkPieceFilter`)
-      } else {
-        earlyAction = "continue_narrowing"
-      }
+      earlyAction = pendingSelectionFilter.op === "skip" ? "skip_field" : "continue_narrowing"
     }
-  } else if (messages.length > 0 && prevState && lastUserMsg) {
+  } else if (!earlyAction && messages.length > 0 && prevState && lastUserMsg) {
     const earlyUnifiedTurnContext = buildUnifiedTurnContext({
       latestAssistantText: [...messages].reverse().find(message => message.role === "ai")?.text ?? null,
       latestUserMessage: lastUserMsg.text,
@@ -798,10 +1455,6 @@ async function handleServeExplorationInner(
     trace.setRecentTurns(messages.slice(-10).map(m => ({ role: m.role, text: m.text.slice(0, 150) })))
   }
 
-  const narrowingHistory: NarrowingTurn[] = [...(prevState?.narrowingHistory ?? [])]
-  let currentInput = { ...resolvedInput }
-  let turnCount = prevState?.turnCount ?? 0
-
   if (messages.length > 0 && prevState && lastUserMsg) {
     // ── PendingAction Lifecycle: check → execute/expire/override → clear ──
     if (prevState.pendingAction) {
@@ -896,10 +1549,13 @@ async function handleServeExplorationInner(
       unifiedTurnContext,
     }
 
-    const orchResult = ENABLE_TOOL_USE_ROUTING
-      ? await orchestrateTurnWithTools(turnContext, provider)
-      : await orchestrateTurn(turnContext, provider)
-    let action = orchResult.action
+    const orchResult = explicitComparisonOrchestratorResult ?? explicitRevisionOrchestratorResult ?? bridgedV2OrchestratorResult ?? (
+      ENABLE_TOOL_USE_ROUTING
+        ? await orchestrateTurnWithTools(turnContext, provider)
+        : await orchestrateTurn(turnContext, provider)
+    )
+    let action = explicitComparisonAction ?? explicitRevisionAction ?? bridgedV2Action ?? orchResult.action
+    const usingBridgedAction = !!explicitComparisonAction || !!explicitRevisionAction || !!bridgedV2Action
 
     trace.add("orchestrator", "router", {
       userMessage: lastUserMsg.text,
@@ -917,7 +1573,7 @@ async function handleServeExplorationInner(
     const hasPendingQuestion = !!prevState.lastAskedField
       && !prevState.resolutionStatus?.startsWith("resolved")
       && !isPostResultPhase(journeyPhase)
-    if (hasPendingQuestion) {
+    if (hasPendingQuestion && !usingBridgedAction) {
       const userState = detectUserState(lastUserMsg.text, prevState.lastAskedField)
       const isQuestionAssistSignal =
         userState.state === "confused"
@@ -975,7 +1631,8 @@ async function handleServeExplorationInner(
     }
 
     // 회사 질문이면 강제 narrowing 하지 않고 LLM이 답변할 수 있게 허용
-    if (pendingWorkPieceFilter && (
+    if (!usingBridgedAction && pendingSelectionFilter && (
+      pendingSelectionFilter.op === "skip" ||
       action.type === "answer_general" ||
       action.type === "redirect_off_topic"
     )) {
@@ -983,6 +1640,9 @@ async function handleServeExplorationInner(
         // Post-result: don't force narrowing, let the answer go through
         action = { type: "answer_general", message: lastUserMsg.text }
         console.log(`[runtime:journey] Post-result exploration (${journeyPhase}), skip forced narrowing → answer_general`)
+      } else if (pendingSelectionFilter.op === "skip") {
+        action = { type: "skip_field" }
+        console.log(`[runtime:pending-selection] explicit skip -> skip_field for "${prevState.lastAskedField ?? "unknown"}"`)
       } else {
         const quickJudgment = await performUnifiedJudgment({
           userMessage: lastUserMsg.text,
@@ -1005,7 +1665,7 @@ async function handleServeExplorationInner(
           action = { type: "answer_general", message: lastUserMsg.text }
           console.log(`[runtime:judgment] company_query detected, skip forced narrowing → answer_general`)
         } else {
-          action = { type: "continue_narrowing", filter: pendingWorkPieceFilter }
+          action = { type: "continue_narrowing", filter: pendingSelectionFilter }
         }
       }
     }
@@ -1255,7 +1915,14 @@ async function handleServeExplorationInner(
 
     if (action.type === "compare_products") {
       trace.add("comparison", "answer", { targets: (action as any).targets }, {}, "Product comparison requested")
-      const entityProfileReply = await deps.handleDirectEntityProfileQuestion(lastUserMsg.text, currentInput, prevState)
+      const compareQueryTarget = classifyQueryTarget(
+        lastUserMsg.text,
+        prevState.appliedFilters?.find(f => f.op !== "skip")?.field,
+        prevState.lastAskedField
+      )
+      const entityProfileReply = compareQueryTarget.type === "series_comparison" || compareQueryTarget.type === "brand_comparison"
+        ? await deps.handleDirectEntityProfileQuestion(lastUserMsg.text, currentInput, prevState)
+        : null
       if (entityProfileReply) {
         const comparisonOptionState = buildComparisonOptionState()
         const sessionState = carryForwardState(prevState, {
@@ -1563,10 +2230,172 @@ async function handleServeExplorationInner(
       )
     }
 
-    if (action.type === "continue_narrowing") {
-      let filter = { ...action.filter, appliedAt: turnCount }
+    if (action.type === "replace_existing_filter") {
+      const restoreResult = restoreToBeforeFilter(
+        prevState,
+        action.previousValue,
+        action.targetField,
+        baseInput,
+        deps.applyFilterToInput
+      )
+
+      const baseFiltersForNext = [...restoreResult.remainingFilters]
+      const baseStageHistoryForNext = [...restoreResult.remainingStages]
+      const baseHistoryForNext = [...restoreResult.remainingHistory]
+      currentInput = restoreResult.rebuiltInput
+
+      const filterAppliedAt = restoreResult.undoTurnCount
+      const candidateCountBeforeFilter = restoreResult.remainingStages.at(-1)?.candidateCount ?? totalCandidateCount
+
+      let filter = { ...action.nextFilter, appliedAt: filterAppliedAt }
       if (filter.field === "material") {
-        dropDependentWorkPieceFilters(filters)
+        dropDependentWorkPieceFilters(baseFiltersForNext)
+      }
+
+      const candidateFieldVals = extractDistinctFieldValues(candidates as any[], filter.field)
+      if (candidateFieldVals.length > 0 && typeof filter.rawValue === "string") {
+        const { normalized, matchType } = await normalizeFilterValue(
+          String(filter.rawValue),
+          filter.field,
+          candidateFieldVals,
+          provider
+        )
+        if (matchType !== "none" && normalized !== String(filter.rawValue)) {
+          trace.add("value-normalizer", "search", { original: String(filter.rawValue), field: filter.field }, { normalized, matchType }, `"${filter.rawValue}" → "${normalized}" (${matchType})`)
+          console.log(`[value-normalizer] "${filter.rawValue}" → "${normalized}" (${matchType}) for field=${filter.field}`)
+          filter.rawValue = normalized
+          if (!filter.value.includes("(") && !filter.value.includes("개")) {
+            filter.value = normalized
+          }
+        }
+      }
+
+      filter = await enrichWorkPieceFilterWithSeriesScope(filter, currentInput)
+
+      const nextFilterState = replaceFieldFilter(
+        baseInput,
+        baseFiltersForNext,
+        filter,
+        deps.applyFilterToInput
+      )
+      const testInput = nextFilterState.nextInput
+      const testFilters = nextFilterState.nextFilters
+      const testResult = await runHybridRetrieval(testInput, testFilters, 0, null)
+      const testDisplayPage = sliceCandidatesForPage(testResult.candidates, testResult.evidenceMap, resolvedPagination)
+
+      trace.add("filter-replace", "search", {
+        field: filter.field,
+        previousValue: action.previousValue,
+        nextValue: filter.value,
+        candidatesBefore: candidateCountBeforeFilter,
+      }, {
+        candidatesAfter: testResult.totalConsidered,
+        replaced: nextFilterState.replacedExisting,
+      }, `Replace ${filter.field}: ${action.previousValue} → ${filter.value} | ${candidateCountBeforeFilter} → ${testResult.totalConsidered} candidates`)
+
+      const updatedHistory = [...baseHistoryForNext, {
+        question: baseHistoryForNext.length > 0 ? "follow-up" : "initial",
+        answer: lastUserMsg.text,
+        extractedFilters: [filter],
+        candidateCountBefore: candidateCountBeforeFilter,
+        candidateCountAfter: testResult.totalConsidered,
+      }]
+      const updatedStages = [...baseStageHistoryForNext, {
+        stepIndex: filterAppliedAt,
+        stageName: `${filter.field}_${filter.value}`,
+        filterApplied: filter,
+        candidateCount: testResult.totalConsidered,
+        resolvedInputSnapshot: { ...testInput },
+        filtersSnapshot: [...testFilters],
+      }]
+
+      console.log(
+        `[orchestrator:replace] ${action.targetField} ${action.previousValue} -> ${filter.value} | ${candidateCountBeforeFilter}->${testResult.totalConsidered} candidates`
+      )
+
+      if (testResult.totalConsidered === 0) {
+        return deps.buildRecommendationResponse(
+          form,
+          testResult.candidates,
+          testResult.evidenceMap,
+          testResult.totalConsidered,
+          paginationDto(testResult.totalConsidered),
+          testDisplayPage.candidates,
+          testDisplayPage.evidenceMap,
+          testInput,
+          updatedHistory,
+          testFilters,
+          filterAppliedAt + 1,
+          messages,
+          provider,
+          language,
+          []
+        )
+      }
+
+      filters.splice(0, filters.length, ...testFilters)
+      currentInput = testInput
+      narrowingHistory.splice(0, narrowingHistory.length, ...updatedHistory)
+
+      turnCount = filterAppliedAt + 1
+      const newStatus = checkResolution(testResult.candidates, narrowingHistory, testResult.totalConsidered)
+      if (newStatus.startsWith("resolved")) {
+        return deps.buildRecommendationResponse(
+          form,
+          testResult.candidates,
+          testResult.evidenceMap,
+          testResult.totalConsidered,
+          paginationDto(testResult.totalConsidered),
+          testDisplayPage.candidates,
+          testDisplayPage.evidenceMap,
+          currentInput,
+          narrowingHistory,
+          filters,
+          turnCount,
+          messages,
+          provider,
+          language,
+          displayedProducts
+        )
+      }
+
+      const replayPendingField = prevState?.lastAskedField ?? undefined
+      const shouldReplayPendingField = replayPendingField && replayPendingField !== action.targetField
+      const revisionResponsePrefix = `알겠습니다. ${action.previousValue} 대신 ${filter.value}로 변경했습니다.`
+
+      return deps.buildQuestionResponse(
+        form,
+        testResult.candidates,
+        testResult.evidenceMap,
+        testResult.totalConsidered,
+        paginationDto(testResult.totalConsidered),
+        testDisplayPage.candidates,
+        testDisplayPage.evidenceMap,
+        currentInput,
+        narrowingHistory,
+        filters,
+        turnCount,
+        messages,
+        provider,
+        language,
+        undefined,
+        updatedStages,
+        undefined,
+        shouldReplayPendingField ? replayPendingField : undefined,
+        revisionResponsePrefix
+      )
+    }
+
+    if (action.type === "continue_narrowing") {
+      let filterAppliedAt = turnCount
+      let baseFiltersForNext = filters
+      let baseStageHistoryForNext = prevState.stageHistory ?? []
+      let baseHistoryForNext = narrowingHistory
+      let candidateCountBeforeFilter = totalCandidateCount
+
+      let filter = { ...action.filter, appliedAt: filterAppliedAt }
+      if (filter.field === "material") {
+        dropDependentWorkPieceFilters(baseFiltersForNext)
       }
 
       // ── Value Normalizer: match user input to actual DB values ──
@@ -1605,7 +2434,7 @@ async function handleServeExplorationInner(
 
       const nextFilterState = replaceFieldFilter(
         baseInput,
-        filters,
+        baseFiltersForNext,
         filter,
         deps.applyFilterToInput
       )
@@ -1618,12 +2447,12 @@ async function handleServeExplorationInner(
         field: filter.field,
         value: filter.value,
         op: filter.op,
-        candidatesBefore: totalCandidateCount,
+        candidatesBefore: candidateCountBeforeFilter,
       }, {
         candidatesAfter: testResult.totalConsidered,
         blocked: testResult.totalConsidered === 0,
         replaced: nextFilterState.replacedExisting,
-      }, `Filter ${filter.field}=${filter.value}: ${totalCandidateCount} → ${testResult.totalConsidered} candidates${testResult.totalConsidered === 0 ? " (BLOCKED)" : ""}`)
+      }, `Filter ${filter.field}=${filter.value}: ${candidateCountBeforeFilter} → ${testResult.totalConsidered} candidates${testResult.totalConsidered === 0 ? " (BLOCKED)" : ""}`)
 
       if (testResult.totalConsidered === 0) {
         console.log(`[orchestrator:guard] Filter ${filter.field}=${filter.value} would result in 0 candidates -> BLOCKED, excluding from chips`)
@@ -1653,19 +2482,20 @@ async function handleServeExplorationInner(
       filters.splice(0, filters.length, ...testFilters)
       currentInput = testInput
       const newCandidates = testResult.candidates
-      const previousCandidateCount = totalCandidateCount
+      const previousCandidateCount = candidateCountBeforeFilter
 
-      narrowingHistory.push({
-        question: prevState.narrowingHistory?.length ? "follow-up" : "initial",
+      const updatedHistory = [...baseHistoryForNext, {
+        question: baseHistoryForNext.length > 0 ? "follow-up" : "initial",
         answer: lastUserMsg.text,
         extractedFilters: [filter],
         candidateCountBefore: previousCandidateCount,
         candidateCountAfter: testResult.totalConsidered,
-      })
+      }]
+      narrowingHistory.splice(0, narrowingHistory.length, ...updatedHistory)
 
-      const existingStages = prevState.stageHistory ?? []
+      const existingStages = baseStageHistoryForNext
       const newStage: NarrowingStage = {
-        stepIndex: turnCount,
+        stepIndex: filterAppliedAt,
         stageName: `${filter.field}_${filter.value}`,
         filterApplied: filter,
         candidateCount: testResult.totalConsidered,
@@ -1684,7 +2514,7 @@ async function handleServeExplorationInner(
         console.log(`[orchestrator:replace] ${filter.field} updated to ${filter.value}`)
       }
 
-      turnCount += 1
+      turnCount = filterAppliedAt + 1
       const newStatus = checkResolution(newCandidates, narrowingHistory, testResult.totalConsidered)
       if (newStatus.startsWith("resolved")) {
         return deps.buildRecommendationResponse(
@@ -1722,7 +2552,8 @@ async function handleServeExplorationInner(
         provider,
         language,
         undefined,
-        updatedStages
+        updatedStages,
+        undefined
       )
     }
   }

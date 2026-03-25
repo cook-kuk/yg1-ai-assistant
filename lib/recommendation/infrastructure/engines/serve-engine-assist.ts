@@ -14,6 +14,10 @@ import { resolveYG1Query } from "@/lib/knowledge/knowledge-router"
 import { resolveMaterialTag } from "@/lib/recommendation/domain/recommendation-domain"
 import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import { YG1_COMPANY_SNIPPET } from "@/lib/knowledge/company-prompt-snippet"
+import {
+  buildCuttingToolSubtypeTaxonomyKnowledgeBlock,
+  isCuttingToolTaxonomyKnowledgeQuestion,
+} from "@/lib/shared/domain/cutting-tool-routing-knowledge"
 import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 
 import type {
@@ -28,8 +32,10 @@ import { formatConversationContextForLLM } from "@/lib/recommendation/domain/con
 
 const TOOL_DOMAIN_PATTERN = /slot|milling|side.?mill|shoulder|plunge|ball|taper|square|corner.?r|radius|flute|날수|날 수|날.*형|coating|코팅|dlc|tialn|alcrn|rpm|feed|이송|절삭|ap |ae |vc |fz |추천.*이유|왜.*추천|어떤.*형상|뭐가.*좋|뭐가.*맞|차이점|형상|가공|황삭|정삭|엔드밀|드릴|탭|인서트|시리즈|제품/i
 
-const DIRECT_PRODUCT_CODE_PATTERN = /\b([A-Z][A-Z0-9-]{4,})\b/i
+const DIRECT_PRODUCT_CODE_PATTERN = /\b([A-Z]{2,5}\d{3,}[A-Z0-9-]*)\b/i
 const DIRECT_SERIES_CODE_PATTERN = /\b([A-Z]\d[A-Z]\d{2,}[A-Z]?)\b/i
+const DIRECT_PRODUCT_CODE_GLOBAL_PATTERN = /\b([A-Z]{2,5}\d{3,}[A-Z0-9-]*)\b/gi
+const DIRECT_SERIES_CODE_GLOBAL_PATTERN = /\b([A-Z]\d[A-Z]\d{2,}[A-Z]?)\b/gi
 const CUTTING_CONDITION_QUERY_PATTERN = /절삭조건|가공조건|vc|fz|이송|회전수|rpm|feed/i
 const INVENTORY_QUERY_PATTERN = /재고|stock|inventory|available|availability|수량|남았/i
 const PRODUCT_INFO_TRIGGER_PATTERN = /공구\s*소재|재질|코팅|직경|지름|날\s*수|날수|플루트|형상|스퀘어|볼|라디우스|테이퍼|생크|절삭길이|날길이|전장|헬릭스|쿨런트|제품명|품명|스펙|사양|전체\s*사양|상세\s*사양|전체\s*정보|상세\s*정보|무슨\s*제품|어떤\s*제품|뭐야|뭐예요|알려/i
@@ -38,6 +44,7 @@ const ENTITY_PROFILE_TRIGGER_PATTERN = /시리즈|series|브랜드|brand|차이|
 const SERIES_NAME_ENTITY_PATTERN = /\b(?:ALU[-\s]?CUT(?:\s+(?:POWER|HPC|for\s+Korean\s+Market))?|TANK[-\s]?POWER|X[-\s]?POWER|I[-\s]?POWER|V[-\s]?POWER|ALU[-\s]?MILL|ALU[-\s]?POWER(?:\s+HPC)?|INOX[-\s]?POWER|[A-Z]{2,5}\d{2,4}[A-Z]?|[A-Z]{1,4}\d[A-Z]{1,3}\d{2,4}[A-Z]?)\b/gi
 const BRAND_NAME_ENTITY_PATTERN = /\b(?:E[·∙ㆍ.]?\s*FORCE(?:\s+BLUE)?(?:\s+for\s+Korean\s+Market)?|4G\s*MILLS(?:\s*-\s*KOR)?|SUPER\s+ALLOY|X5070\s*S)\b/gi
 const ENTITY_COMPARISON_PATTERN = /([A-Z0-9][A-Z0-9·∙ㆍ.\-\s]{1,40}?)\s*(?:vs\.?|VS\.?|와|과|이랑|랑|대비)\s*([A-Z0-9][A-Z0-9·∙ㆍ.\-\s]{1,40}?)(?=\s*(?:의|은|는|이|가|를|을|차이|비교|특징|설명|$))/giu
+const LATIN_ENTITY_PHRASE_PATTERN = /\b[A-Za-z0-9][A-Za-z0-9&.+/-]*(?:\s+[A-Za-z0-9][A-Za-z0-9&.+/-]*){0,5}\b/g
 const CUTTING_KNOWLEDGE_PATTERNS = /절삭|공구|엔드밀|드릴|인서트|코팅|소재|가공|선반|밀링|CNC|초경|CBN|세라믹|황삭|정삭|면취|보링|리머|탭|나사|칩|인선|마모|수명|이송|회전|절입|쿨란트|치핑|버|진동|채터|tialn|alcrn|dlc|hss|carbide|endmill|milling|turning|drilling/i
 const KNOWLEDGE_QUESTION_PATTERN = /차이|비교|뭐야|무엇|누구|언제|어디|알려|설명|원리|방법|팁|주의|장단점|특징|어떤|왜|어떻게|추천|좋은|의미|정의|역사|사례|규격|표준|최신|트렌드|뉴스|동향|중요|필요|가능/i
 const SIMPLE_CHAT_PATTERN = /^(안녕(?:하세요)?|hello|hi|hey|반가워|고마워|고맙습니다|thanks|thank you|네|응|ㅇㅇ|ㅇ|ok|좋아|그래|알겠어|테스트)\s*[!.?~]*$/i
@@ -178,6 +185,19 @@ function buildProductInfoChips(displayCode: string, includeFullSpec = false): st
   return chips
 }
 
+function findDisplayedCandidateByCode(
+  prevState: ExplorationSessionState | null,
+  lookupCode: string
+): CandidateSnapshot | null {
+  if (!prevState?.displayedCandidates?.length) return null
+
+  const normalized = normalizeLookupCode(lookupCode)
+  return prevState.displayedCandidates.find(candidate =>
+    normalizeLookupCode(candidate.productCode) === normalized ||
+    normalizeLookupCode(candidate.displayCode) === normalized
+  ) ?? null
+}
+
 function detectRequestedProductField(userMessage: string): { label: string; value: string } | null {
   if (/공구\s*소재|재질|카바이드|초경|hss|고속도강/i.test(userMessage)) {
     return { label: "공구 소재", value: "toolMaterial" }
@@ -285,17 +305,86 @@ function dedupeEntityNames(values: string[]): string[] {
   return names
 }
 
-function extractEntityNamesFromMessage(userMessage: string): string[] {
+function collectRegexMatches(pattern: RegExp, value: string): string[] {
+  const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`
+  const globalPattern = new RegExp(pattern.source, flags)
+  return Array.from(value.matchAll(globalPattern))
+    .map(match => (match[1] ?? match[0] ?? "").trim())
+    .filter(Boolean)
+}
+
+function isLikelyLookupPhrase(value: string): boolean {
+  const trimmed = value.trim()
+  if (trimmed.length < 2) return false
+
+  const normalized = normalizeEntityLookupKey(trimmed)
+  if (normalized.length < 2) return false
+
+  return /[A-Z]/.test(trimmed) || /\d/.test(trimmed)
+}
+
+function extractLookupCandidatesFromMessage(userMessage: string): string[] {
   const queryTarget = classifyQueryTarget(userMessage, null, null)
   const names: string[] = [...queryTarget.entities]
+  names.push(...collectRegexMatches(DIRECT_PRODUCT_CODE_GLOBAL_PATTERN, userMessage))
+  names.push(...collectRegexMatches(DIRECT_SERIES_CODE_GLOBAL_PATTERN, userMessage))
   names.push(...(userMessage.match(SERIES_NAME_ENTITY_PATTERN) ?? []))
   names.push(...(userMessage.match(BRAND_NAME_ENTITY_PATTERN) ?? []))
+  names.push(...collectRegexMatches(LATIN_ENTITY_PHRASE_PATTERN, userMessage).filter(isLikelyLookupPhrase))
 
   for (const match of userMessage.matchAll(ENTITY_COMPARISON_PATTERN)) {
     names.push(match[1], match[2])
   }
 
   return dedupeEntityNames(names)
+}
+
+function extractEntityNamesFromMessage(userMessage: string): string[] {
+  return extractLookupCandidatesFromMessage(userMessage)
+}
+
+function isLikelyProductLookupCandidate(value: string): boolean {
+  const trimmed = value.trim()
+  return trimmed.length >= 3 && !/\s/.test(trimmed) && /[A-Za-z]/.test(trimmed) && /\d/.test(trimmed)
+}
+
+function extractProductLookupCodesFromMessage(userMessage: string): string[] {
+  const queryTarget = classifyQueryTarget(userMessage, null, null)
+  const codes: string[] = []
+  codes.push(...queryTarget.entities.filter(isLikelyProductLookupCandidate))
+  codes.push(...collectRegexMatches(DIRECT_PRODUCT_CODE_GLOBAL_PATTERN, userMessage))
+  codes.push(...collectRegexMatches(LATIN_ENTITY_PHRASE_PATTERN, userMessage).filter(isLikelyProductLookupCandidate))
+  return Array.from(new Set(codes.map(normalizeLookupCode))).filter(Boolean).slice(0, 3)
+}
+
+async function resolveEntityProfiles(requestedNames: string[]): Promise<{
+  brandProfiles: BrandProfileRecord[]
+  seriesProfiles: SeriesProfileRecord[]
+}> {
+  const limitedNames = requestedNames.slice(0, 8)
+  if (limitedNames.length === 0) {
+    return { seriesProfiles: [], brandProfiles: [] }
+  }
+
+  const cacheKey = `directEntityProfiles:${limitedNames.map(normalizeEntityLookupKey).join(",")}`
+  return getSessionCache().getOrFetch(cacheKey, async () => {
+    const [seriesProfiles, brandProfiles] = await Promise.all([
+      EntityProfileRepo.findSeriesProfiles(limitedNames).catch(() => [] as SeriesProfileRecord[]),
+      EntityProfileRepo.findBrandProfiles(limitedNames).catch(() => [] as BrandProfileRecord[]),
+    ])
+
+    return { seriesProfiles, brandProfiles }
+  })
+}
+
+async function findDirectProductByCode(lookupCode: string): Promise<Awaited<ReturnType<typeof ProductRepo.findByCode>>> {
+  const normalizedCode = normalizeLookupCode(lookupCode)
+  if (!normalizedCode) return null
+
+  const cacheKey = `directProduct:${normalizedCode}`
+  return getSessionCache().getOrFetch(cacheKey, () =>
+    ProductRepo.findByCode(normalizedCode).catch(() => null)
+  )
 }
 
 function buildUnmatchedEntityNote(requestedNames: string[], matchedNames: string[]): string {
@@ -503,7 +592,7 @@ async function buildEntityProfileNarrative(
 - 단건 요청이면 용도/형상/날 수/적용 소재를 우선 설명
 - 문장형 자연어로 쓰고 표는 만들지 마세요`,
       [{ role: "user", content: `${promptTitle}\n\n${body}` }],
-      280
+      1500
     )
 
     const text = raw?.trim()
@@ -548,30 +637,39 @@ export async function handleDirectEntityProfileQuestion(
   _prevState: ExplorationSessionState | null
 ): Promise<{ text: string; chips: string[] } | null> {
   const queryTarget = classifyQueryTarget(userMessage, null, null)
+  if (queryTarget.type === "product_comparison") {
+    return null
+  }
   const requestedNames = extractEntityNamesFromMessage(userMessage)
+  if (requestedNames.length === 0) return null
+
   const wantsComparison = /차이|비교|vs|대비|다른|달라|다를/i.test(userMessage)
   const mentionsSeries = /시리즈|series|날\s*수|날수|플루트|형상|볼|스퀘어|radius|taper/i.test(userMessage)
   const mentionsBrand = /브랜드|brand/i.test(userMessage)
+  const directEntityOnly = requestedNames.length === 1 && normalizeEntityLookupKey(userMessage) === normalizeEntityLookupKey(requestedNames[0])
   const explicitProfileIntent =
     ENTITY_PROFILE_TRIGGER_PATTERN.test(userMessage) ||
     queryTarget.type === "series_info" ||
     queryTarget.type === "series_comparison" ||
     queryTarget.type === "brand_info" ||
-    queryTarget.type === "brand_comparison"
+    queryTarget.type === "brand_comparison" ||
+    (requestedNames.length > 0 && /뭐야|뭐예요|알려|설명|정보|특징|용도|적합/i.test(userMessage)) ||
+    directEntityOnly
 
-  if (requestedNames.length === 0 || !explicitProfileIntent) {
+  if (!explicitProfileIntent) {
     return null
   }
-
-  const cache = getSessionCache()
-  const [seriesProfiles, brandProfiles] = await Promise.all([
-    cache.getOrFetch(`seriesProfiles:${requestedNames.sort().join(",")}`, () =>
-      EntityProfileRepo.findSeriesProfiles(requestedNames)
-    ),
-    cache.getOrFetch(`brandProfiles:${requestedNames.sort().join(",")}`, () =>
-      EntityProfileRepo.findBrandProfiles(requestedNames)
-    ),
-  ])
+  const resolvedProfiles = await resolveEntityProfiles(requestedNames)
+  const seriesProfiles = Array.from(
+    new Map(
+      resolvedProfiles.seriesProfiles.map(profile => [profile.normalizedSeriesName, profile])
+    ).values()
+  )
+  const brandProfiles = Array.from(
+    new Map(
+      resolvedProfiles.brandProfiles.map(profile => [profile.normalizedBrandName, profile])
+    ).values()
+  )
 
   if (seriesProfiles.length === 0 && brandProfiles.length === 0) {
     return null
@@ -699,25 +797,37 @@ export async function handleDirectProductInfoQuestion(
   }
 
   const queryTarget = classifyQueryTarget(userMessage, null, null)
+  const productLookupCodes = extractProductLookupCodesFromMessage(userMessage)
+  const lookupCode = productLookupCodes[0] ?? ""
+  const explicitLookupEntity =
+    productLookupCodes.length > 0 ||
+    queryTarget.entities.length > 0 ||
+    DIRECT_PRODUCT_CODE_PATTERN.test(userMessage) ||
+    DIRECT_SERIES_CODE_PATTERN.test(userMessage)
+
+  if (isCuttingToolTaxonomyKnowledgeQuestion(userMessage) && !explicitLookupEntity) {
+    return null
+  }
+
+  const directCodeOnly = lookupCode
+    ? normalizeLookupCode(userMessage) === lookupCode
+    : false
+  const explicitInfoIntent = directCodeOnly || PRODUCT_INFO_TRIGGER_PATTERN.test(userMessage) || queryTarget.type === "product_info"
+  if (!explicitInfoIntent) return null
+
   if (
-    queryTarget.type === "series_info" ||
-    queryTarget.type === "brand_info" ||
-    queryTarget.type === "series_comparison" ||
-    queryTarget.type === "brand_comparison"
+    !lookupCode &&
+    (queryTarget.type === "series_info" ||
+      queryTarget.type === "brand_info" ||
+      queryTarget.type === "series_comparison" ||
+      queryTarget.type === "brand_comparison")
   ) {
     return null
   }
 
-  const productCodeMatch = userMessage.match(DIRECT_PRODUCT_CODE_PATTERN)
-  const lookupCode = normalizeLookupCode(queryTarget.entities[0] ?? productCodeMatch?.[1] ?? "")
-
   if (!lookupCode) return null
 
-  const directCodeOnly = normalizeLookupCode(userMessage) === lookupCode
-  const explicitInfoIntent = directCodeOnly || PRODUCT_INFO_TRIGGER_PATTERN.test(userMessage) || queryTarget.type === "product_info"
-  if (!explicitInfoIntent) return null
-
-  const product = await ProductRepo.findByCode(lookupCode).catch(() => null)
+  const product = await findDirectProductByCode(lookupCode)
   if (!product) {
     const hasCandidates = (prevState?.displayedCandidates?.length ?? 0) > 0
     return {
@@ -974,8 +1084,14 @@ export async function handleDirectInventoryQuestion(
   const lookupCode = normalizeLookupCode(productCodeMatch?.[1] ?? "")
   if (!lookupCode) return null
 
+  const displayedCandidate = findDisplayedCandidateByCode(prevState, lookupCode)
   const [product, inv] = await Promise.all([
-    ProductRepo.findByCode(lookupCode).catch(() => null),
+    displayedCandidate
+      ? Promise.resolve({
+        seriesName: displayedCandidate.seriesName,
+        diameterMm: displayedCandidate.diameterMm,
+      })
+      : ProductRepo.findByCode(lookupCode).catch(() => null),
     InventoryRepo.getEnrichedAsync(lookupCode),
   ])
   const inventoryRows = inv.snapshots
@@ -1071,7 +1187,13 @@ export async function handleDirectCuttingConditionQuestion(
   const lookupCode = normalizeLookupCode(productCodeMatch?.[1] ?? seriesCodeMatch?.[1] ?? "")
   if (!lookupCode) return null
 
-  const product = await ProductRepo.findByCode(lookupCode)
+  const displayedCandidate = findDisplayedCandidateByCode(prevState, lookupCode)
+  const product = displayedCandidate
+    ? {
+      seriesName: displayedCandidate.seriesName,
+      diameterMm: displayedCandidate.diameterMm,
+    }
+    : await ProductRepo.findByCode(lookupCode)
   const isoGroup = currentInput.material ? resolveMaterialTag(currentInput.material) : null
 
   if (product) {
@@ -1238,7 +1360,7 @@ export async function handleContextualNarrowingQuestion(
 - 실제 데이터만 언급, 간결하게 답변
 - 한국어로 답변`,
           [{ role: "user", content: `사용자 질문: ${userMessage}\n\n═══ 추천 제품 매칭 상세 ═══\n${matchBreakdown}` }],
-          600
+          1500
         )
         if (raw?.trim()) return raw.trim()
       } catch {}
@@ -1296,7 +1418,7 @@ export async function handleContextualNarrowingQuestion(
       const raw = await provider.complete(
         systemPrompt,
         [{ role: "user", content: userPrompt }],
-        500
+        1500
       )
       if (raw?.trim()) return raw.trim()
     } catch {}
@@ -1423,21 +1545,35 @@ async function searchWebForKnowledge(query: string): Promise<string | null> {
   if (!apiKey) return null
 
   try {
-    const Anthropic = (await import("@anthropic-ai/sdk")).default
-    const searchClient = new Anthropic({ apiKey })
-
-    const resp = await searchClient.messages.create({
-      model: "claude-sonnet-4-20250514" as Parameters<typeof searchClient.messages.create>["0"]["model"],
-      max_tokens: 1024,
-      tools: [{ type: "web_search_20250305" as const, name: "web_search", max_uses: 3 }],
-      messages: [{
-        role: "user",
-        content: `다음 질문에 대해 웹 검색으로 전문적인 정보를 찾아 한국어로 정리해주세요.\n\n질문: ${query}\n\n규칙:\n- 구체적 수치와 비교 포함\n- 3~5문장으로 핵심만\n- 출처가 있으면 간단히 언급`,
-      }],
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1500,
+        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }],
+        messages: [{
+          role: "user",
+          content: `다음 질문에 대해 웹 검색으로 전문적인 정보를 찾아 한국어로 정리해주세요.\n\n질문: ${query}\n\n규칙:\n- 구체적 수치와 비교 포함\n- 3~5문장으로 핵심만\n- 출처가 있으면 간단히 언급`,
+        }],
+      }),
     })
 
-    const text = resp.content
-      .map(block => block.type === "text" ? block.text : "")
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`${response.status} ${errorText}`)
+    }
+
+    const resp = await response.json() as {
+      content?: Array<{ type?: string; text?: string }>
+    }
+
+    const text = (resp.content ?? [])
+      .map(block => block.type === "text" ? block.text ?? "" : "")
       .join("\n")
       .trim()
     return text || null
@@ -1461,6 +1597,8 @@ export function shouldAttemptWebSearchFallback(userMessage: string): boolean {
     INVENTORY_QUERY_PATTERN.test(clean) ||
     CUTTING_CONDITION_QUERY_PATTERN.test(clean)
   if (isDedicatedLookup) return false
+
+  if (isCuttingToolTaxonomyKnowledgeQuestion(clean)) return true
 
   const isKnowledgeQuestion = KNOWLEDGE_QUESTION_PATTERN.test(clean) || clean.includes("?")
   if (!isKnowledgeQuestion) return false
@@ -1563,6 +1701,8 @@ YG-1은 한국의 세계적인 절삭공구 제조사입니다.
 - 슬롯: 100% 물림, 칩 배출 중요
 - 측면: 진동 주의
 
+${buildCuttingToolSubtypeTaxonomyKnowledgeBlock()}
+
 ${sessionContext}
 ${formContext}
 ${webContext}
@@ -1598,7 +1738,7 @@ ${isToolDomainQ ? "═══ 참고: 이 질문은 절삭공구/가공 기술 �
       : baseUserPrompt
     const raw = await provider.complete(systemPrompt, [
       { role: "user", content: userPrompt }
-    ], 800)
+    ], 1500)
 
     if (raw && raw.trim()) {
       return {
@@ -1673,7 +1813,7 @@ async function tryCompanyQuestionResponse(
     const raw = await provider.complete(
       COMPANY_ONLY_SYSTEM,
       [{ role: "user", content: userMessage }],
-      300,
+      1500,
       "haiku"
     )
 

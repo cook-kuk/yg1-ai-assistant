@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 vi.mock("server-only", () => ({}))
 
 import { buildQuestionFieldOptions } from "../serve-engine-option-first"
-import { didLatestNarrowingTurnSkip } from "../serve-engine-response"
+import { didLatestNarrowingTurnSkip, inferQuestionFieldFromText, shouldFallbackToDeterministicQuestionText } from "../serve-engine-response"
 import type { DisplayedOption } from "@/lib/recommendation/domain/types"
 
 describe("Field consistency guard", () => {
@@ -100,5 +100,33 @@ describe("Field consistency guard", () => {
         candidateCountAfter: 609,
       },
     ])).toBe(false)
+  })
+
+  it("infers diameter text as diameterRefine field", () => {
+    expect(inferQuestionFieldFromText("직경은 어느 정도 생각하고 계세요?")).toBe("diameterRefine")
+  })
+
+  it("falls back to deterministic question text when response drifts to another field", () => {
+    expect(shouldFallbackToDeterministicQuestionText({
+      questionField: "workPieceName",
+      questionText: "선택하신 소재는 ISO H군입니다. 세부 피삭재를 선택해주세요.",
+      responseText: "직경은 어느 정도 생각하고 계세요?",
+      displayedOptions: [
+        { label: "고탄소강", field: "workPieceName", value: "고탄소강" },
+        { label: "공구강", field: "workPieceName", value: "공구강" },
+      ],
+    })).toBe(true)
+  })
+
+  it("does not fall back when response remains aligned with workPieceName question", () => {
+    expect(shouldFallbackToDeterministicQuestionText({
+      questionField: "workPieceName",
+      questionText: "선택하신 소재는 ISO H군입니다. 세부 피삭재를 선택해주세요.",
+      responseText: "선택하신 소재는 ISO H군입니다. 세부 피삭재를 선택해주세요.",
+      displayedOptions: [
+        { label: "고탄소강", field: "workPieceName", value: "고탄소강" },
+        { label: "공구강", field: "workPieceName", value: "공구강" },
+      ],
+    })).toBe(false)
   })
 })

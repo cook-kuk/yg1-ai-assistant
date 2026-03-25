@@ -44,9 +44,14 @@ function makeCandidateSnapshot(
     featureText: null,
     materialTags: ["N"],
     score: 92,
-    matchStatus: "good_match" as const,
+    scoreBreakdown: null,
+    matchStatus: "approximate",
     totalStock: 100,
     stockStatus: "instock",
+    inventorySnapshotDate: "2026-03-18",
+    inventoryLocations: [],
+    hasEvidence: true,
+    bestCondition: null,
     ...overrides,
   }
 }
@@ -218,6 +223,8 @@ describe("buildFinalChipsFromLLM", () => {
         pendingField: "coating",
         pendingQuestion: "코팅을 선택해주세요",
         displayedOptionsSnapshot: [],
+        displayedChipsSnapshot: [],
+        reason: "side_question",
       },
     })
 

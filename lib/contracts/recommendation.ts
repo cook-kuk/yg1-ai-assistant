@@ -80,6 +80,8 @@ export interface RecommendationSeriesGroupSummaryDto {
   seriesKey: string
   seriesName: string
   candidateCount: number
+  materialRating?: "EXCELLENT" | "GOOD" | "NULL" | null
+  materialRatingScore?: number | null
 }
 
 export interface RecommendationUINarrowingPathEntryDto {
@@ -289,6 +291,8 @@ export const recommendationSeriesGroupSummarySchema = z.object({
   seriesKey: z.string(),
   seriesName: z.string(),
   candidateCount: z.number(),
+  materialRating: z.enum(["EXCELLENT", "GOOD", "NULL"]).nullable().optional(),
+  materialRatingScore: z.number().nullable().optional(),
 }).passthrough()
 
 export const recommendationUiNarrowingPathEntrySchema = z.object({

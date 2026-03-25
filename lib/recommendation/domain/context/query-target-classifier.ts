@@ -55,6 +55,15 @@ const FIELD_KEYWORDS: Record<string, RegExp> = {
   toolMaterial: /공구\s*소재|카바이드|초경|HSS|고속도강/i,
 }
 
+function resolveComparisonType(
+  productMatches: string[],
+  hasBrandEntities: boolean,
+  mentionsBrand: boolean
+): QueryTargetType {
+  if (productMatches.length >= 2) return "product_comparison"
+  return hasBrandEntities || mentionsBrand ? "brand_comparison" : "series_comparison"
+}
+
 export function classifyQueryTarget(
   userMessage: string,
   activeFilterField?: string | null,
@@ -73,8 +82,9 @@ export function classifyQueryTarget(
 
   const isComparison = COMPARISON_PATTERN.test(lower)
   if (isComparison && entities.length >= 2) {
+    const comparisonType = resolveComparisonType(productMatches, hasBrandEntities, mentionsBrand)
     return {
-      type: hasBrandEntities || mentionsBrand ? "brand_comparison" : "series_comparison",
+      type: comparisonType,
       entities,
       overridesActiveFilter: true,
       answerTopic: `${entities.join(" vs ")} 비교`,
@@ -89,8 +99,9 @@ export function classifyQueryTarget(
     const entity1 = comparisonWithConjunction[1].trim()
     const entity2 = comparisonWithConjunction[2].trim()
     if (entity1.length >= 2 && entity2.length >= 2) {
+      const comparisonType = resolveComparisonType(productMatches, hasBrandEntities, mentionsBrand)
       return {
-        type: hasBrandEntities || mentionsBrand ? "brand_comparison" : "series_comparison",
+        type: comparisonType,
         entities: [entity1, entity2],
         overridesActiveFilter: true,
         answerTopic: `${entity1} vs ${entity2} 비교`,
@@ -106,8 +117,9 @@ export function classifyQueryTarget(
     const entity1 = looseComparisonWithConjunction[1].trim()
     const entity2 = looseComparisonWithConjunction[2].trim()
     if (entity1.length >= 2 && entity2.length >= 2) {
+      const comparisonType = resolveComparisonType(productMatches, hasBrandEntities, mentionsBrand)
       return {
-        type: hasBrandEntities || mentionsBrand ? "brand_comparison" : "series_comparison",
+        type: comparisonType,
         entities: [entity1, entity2],
         overridesActiveFilter: true,
         answerTopic: `${entity1} vs ${entity2} 비교`,

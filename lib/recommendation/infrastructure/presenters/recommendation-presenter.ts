@@ -65,6 +65,8 @@ function toSeriesGroupSummaryDto(group: SeriesGroup): RecommendationSeriesGroupS
     seriesKey: group.seriesKey,
     seriesName: group.seriesName,
     candidateCount: group.candidateCount,
+    materialRating: group.materialRating ?? null,
+    materialRatingScore: group.materialRatingScore ?? null,
   }
 }
 

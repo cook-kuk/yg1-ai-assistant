@@ -70,6 +70,7 @@ export interface AmbiguityResolution {
 // ── Orchestrator Decision ────────────────────────────────────
 export type OrchestratorAction =
   | { type: "continue_narrowing"; filter: AppliedFilter }
+  | { type: "replace_existing_filter"; targetField: string; previousValue: string; nextFilter: AppliedFilter }
   | { type: "skip_field" }
   | { type: "show_recommendation" }
   | { type: "go_back_one_step" }
