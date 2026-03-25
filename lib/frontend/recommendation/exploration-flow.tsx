@@ -362,7 +362,7 @@ function NarrowingChat({
                         key={chipIndex}
                         disabled={!!needsFeedback}
                         onClick={() => {
-                          if (needsFeedback) return
+                          if (needsFeedback || isSending) return
                           if (isResetChip && onReset) onReset()
                           else {
                             setInput("")
