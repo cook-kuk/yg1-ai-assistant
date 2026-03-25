@@ -36,6 +36,40 @@ const TYPE_PRIORITY: Record<LlmSuggestedChip["type"], number> = {
   navigation: 3,
 }
 
+// ── Filterable fields whitelist ──────────────────────────────────
+// Only fields that actually exist in the product DB and have in-memory
+// filter handlers in hybrid-retrieval.ts are allowed.
+// Chips referencing non-filterable fields (e.g. RPM, 가격, 납기) must be blocked.
+export const FILTERABLE_FIELDS = new Set([
+  "fluteCount",
+  "coating",
+  "materialTag",
+  "toolSubtype",
+  "seriesName",
+  "toolMaterial",
+  "toolType",
+  "brand",
+  "edpBrandName",
+  "edpSeriesName",
+  "coolantHole",
+  "shankDiameterMm",
+  "lengthOfCutMm",
+  "overallLengthMm",
+  "helixAngleDeg",
+  "workPieceName",
+  "diameterMm",
+])
+
+// Keywords that indicate a chip references a non-filterable concept
+const NON_FILTERABLE_KEYWORDS = /회전수|RPM|rpm|이송|절삭속도|Vc|절삭조건범위|가격|납기|무게|경도|인장강도|토크|스핀들/i
+
+/**
+ * Returns true if a chip label references a field that cannot be filtered in the DB.
+ */
+export function isUnfilterableChip(label: string): boolean {
+  return NON_FILTERABLE_KEYWORDS.test(label)
+}
+
 // ── Filter detection patterns ───────────────────────────────────
 
 interface FilterDetection {
@@ -117,7 +151,16 @@ export function buildFinalChipsFromLLM(
   // 1. Deduplicate vs previous turn
   let chips = llmChips.filter((c) => !prevSet.has(c.label))
 
-  // 2. Validate filter chips against actual candidate values
+  // 2. Block chips that reference non-filterable DB fields (e.g. RPM, 가격)
+  chips = chips.filter((c) => {
+    if (isUnfilterableChip(c.label)) {
+      console.log(`[llm-chip-pipeline] Blocked unfilterable chip: "${c.label}"`)
+      return false
+    }
+    return true
+  })
+
+  // 3. Validate filter chips against actual candidate values
   chips = chips.filter((c) => {
     if (c.type !== "filter") return true
     const detection = detectFilterFromLabel(c.label)
@@ -129,7 +172,7 @@ export function buildFinalChipsFromLLM(
     })
   })
 
-  // 3. Add mandatory fallback chips based on state
+  // 4. Add mandatory fallback chips based on state
   const existingLabels = new Set(chips.map((c) => c.label))
 
   if (sessionState?.lastAskedField) {
@@ -162,13 +205,13 @@ export function buildFinalChipsFromLLM(
     }
   }
 
-  // 4. Sort by type priority
+  // 5. Sort by type priority
   chips.sort((a, b) => TYPE_PRIORITY[a.type] - TYPE_PRIORITY[b.type])
 
-  // 5. Limit
+  // 6. Limit
   chips = chips.slice(0, MAX_CHIPS)
 
-  // 6. Convert to DisplayedOption[]
+  // 7. Convert to DisplayedOption[]
   const lastAskedField = sessionState?.lastAskedField
 
   const displayedOptions: DisplayedOption[] = chips.map((chip, idx) => {

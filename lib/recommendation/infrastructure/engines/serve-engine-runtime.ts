@@ -552,7 +552,12 @@ async function handleServeExplorationInner(
         : result.sessionState.journeyPhase === "comparison" ? "comparison"
         : "question"
       legacyState.lastAskedField = result.sessionState.pendingQuestion?.field ?? prevState?.lastAskedField ?? undefined
-      // Preserve candidate data through V2 transitions
+      // Preserve candidate data AND filters through V2 transitions.
+      // V2 converts filters→constraints→filters which can be lossy,
+      // so always prefer the original appliedFilters from prevState.
+      if (prevState?.appliedFilters && prevState.appliedFilters.length > 0) {
+        legacyState.appliedFilters = prevState.appliedFilters
+      }
       legacyState.candidateCount = prevState?.candidateCount ?? legacyState.candidateCount
       legacyState.displayedCandidates = prevState?.displayedCandidates ?? legacyState.displayedCandidates
       legacyState.resolvedInput = prevState?.resolvedInput ?? legacyState.resolvedInput

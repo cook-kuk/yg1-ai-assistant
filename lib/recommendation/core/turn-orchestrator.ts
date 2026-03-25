@@ -26,6 +26,7 @@ import {
   shouldSearch,
 } from "./search-adapter"
 import { refineResults, buildRefinementOptions } from "./result-refiner"
+import { isUnfilterableChip } from "@/lib/recommendation/domain/options/llm-chip-pipeline"
 
 // Step 1: Build snapshot from current state + user message
 function buildTurnSnapshot(
@@ -455,7 +456,15 @@ export function buildSurface(
       }))
     } else if (decision.suggestedChips && decision.suggestedChips.length >= 2) {
       // ── LLM이 문맥 기반 칩을 생성했으면 그걸 우선 사용 ──
-      displayedOptions = decision.suggestedChips.slice(0, 8).map((chip, i) => ({
+      // Block chips referencing non-filterable fields (e.g. RPM, 가격)
+      const validChips = decision.suggestedChips.filter(chip => {
+        if (isUnfilterableChip(chip.label)) {
+          console.log(`[turn-orchestrator:buildSurface] Blocked unfilterable chip: "${chip.label}"`)
+          return false
+        }
+        return true
+      })
+      displayedOptions = validChips.slice(0, 8).map((chip, i) => ({
         index: i + 1,
         label: chip.label,
         field: chip.type === "filter" ? "_filter"
@@ -498,7 +507,14 @@ export function buildSurface(
   // If LLM provided suggestedChips and displayedOptions is still empty,
   // convert suggestedChips to displayedOptions.
   if (displayedOptions.length === 0 && decision.suggestedChips && decision.suggestedChips.length > 0) {
-    displayedOptions = decision.suggestedChips.slice(0, 8).map((chip, i) => ({
+    const validFallbackChips = decision.suggestedChips.filter(chip => {
+      if (isUnfilterableChip(chip.label)) {
+        console.log(`[turn-orchestrator:buildSurface:fallback] Blocked unfilterable chip: "${chip.label}"`)
+        return false
+      }
+      return true
+    })
+    displayedOptions = validFallbackChips.slice(0, 8).map((chip, i) => ({
       index: i + 1,
       label: chip.label,
       field: chip.type === "option" ? (decision.nextQuestion?.field ?? "_action")
