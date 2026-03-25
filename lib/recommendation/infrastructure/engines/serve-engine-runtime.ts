@@ -465,6 +465,19 @@ async function handleServeExplorationInner(
       const { orchestrateTurnV2 } = await import("@/lib/recommendation/core/turn-orchestrator")
       const { convertToV2State, convertFromV2State } = await import("@/lib/recommendation/core/state-adapter")
 
+      // ── Pending field answer → skip V2, use legacy (필터 + 재검색 필요) ──
+      // 사용자가 이전 턴의 칩(예: "Drill Mill (8개)")을 클릭한 경우,
+      // 레거시 경로가 필터 적용 + 재검색을 제대로 처리하므로 V2를 skip.
+      if (prevState?.lastAskedField && lastUserMsg) {
+        const pendingFilter = parseAnswerToFilter(prevState.lastAskedField, lastUserMsg.text)
+        if (pendingFilter) {
+          console.log(`[runtime:v2] Pending field answer detected (${pendingFilter.field}=${pendingFilter.value}), delegating to legacy for filter+search`)
+          perf.endStep("v2_orchestrator")
+          // Fall through to legacy path — it handles filter application + re-retrieval correctly
+          throw new Error("DELEGATE_TO_LEGACY")
+        }
+      }
+
       const v2State = convertToV2State(prevState)
 
       // Extract recent conversation turns for V2 single-call context
@@ -584,12 +597,17 @@ async function handleServeExplorationInner(
       })
     } catch (err) {
       perf.endStep("v2_orchestrator")
-      // V2 error → automatic legacy fallback (zero user impact)
       const errMsg = err instanceof Error ? err.message : String(err)
-      console.error(`[runtime:v2] Error (falling back to legacy): ${errMsg}`, {
-        phase: currentPhase,
-        userMessage: lastUserMsg.text.slice(0, 50),
-      })
+      if (errMsg === "DELEGATE_TO_LEGACY") {
+        // Intentional delegation — pending field answer needs legacy filter+search
+        console.log(`[runtime:v2] Delegated to legacy path for filter application`)
+      } else {
+        // V2 error → automatic legacy fallback (zero user impact)
+        console.error(`[runtime:v2] Error (falling back to legacy): ${errMsg}`, {
+          phase: currentPhase,
+          userMessage: lastUserMsg.text.slice(0, 50),
+        })
+      }
       // Fall through to legacy path below
     }
   }
