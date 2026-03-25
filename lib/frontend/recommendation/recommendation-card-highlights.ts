@@ -40,11 +40,11 @@ export function buildCandidateSpecFallback(candidate: CandidateHighlightInput): 
 
 export function buildSubtypeFirstSummary(candidate: CandidateHighlightInput, language: "ko" | "en"): string[] {
   return [
-    candidate.toolSubtype ? `${language === "ko" ? "? ??" : "Subtype"} ${candidate.toolSubtype}` : null,
+    candidate.toolSubtype ? `${language === "ko" ? "형상" : "Subtype"} ${candidate.toolSubtype}` : null,
     candidate.toolMaterial ?? null,
     candidate.shankDiameterMm != null ? `Shank ${candidate.shankDiameterMm}mm` : null,
     candidate.lengthOfCutMm != null ? `CL ${candidate.lengthOfCutMm}mm` : null,
     candidate.overallLengthMm != null ? `OAL ${candidate.overallLengthMm}mm` : null,
-    candidate.helixAngleDeg != null ? `${candidate.helixAngleDeg}?` : null,
+    candidate.helixAngleDeg != null ? `${candidate.helixAngleDeg}°` : null,
   ].filter((value): value is string => Boolean(value))
 }
