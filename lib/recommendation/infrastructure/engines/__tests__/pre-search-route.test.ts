@@ -64,6 +64,17 @@ describe("classifyPreSearchRoute", () => {
     expect(result.reason).toContain("query_target:product_info")
   })
 
+  it("routes explicit product comparison questions to direct_lookup", async () => {
+    const result = await classifyPreSearchRoute(
+      "E5E84200B 와 E5E84200 비교 설명",
+      makeState(),
+      unavailableProvider,
+    )
+
+    expect(result.kind).toBe("direct_lookup")
+    expect(result.reason).toContain("query_target:product_comparison")
+  })
+
   it("keeps recommendation narrowing answers in recommendation_action", async () => {
     const result = await classifyPreSearchRoute(
       "알루미늄으로 해줘",

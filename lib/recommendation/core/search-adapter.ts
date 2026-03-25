@@ -33,10 +33,11 @@ export function constraintsToFilters(state: RecommendationSessionState): {
 
   // Map base constraints to RecommendationInput fields
   if (base.material) input.material = String(base.material)
+  if (base.materialDetail) input.workPieceName = String(base.materialDetail)
   if (base.diameter) input.diameterMm = Number(base.diameter)
   if (base.operation) input.operationType = String(base.operation)
   if (base.toolType) input.toolType = String(base.toolType)
-  if (base.toolSubtype) input.toolSubtype = String(base.toolSubtype)
+  if (base.toolSubtype || base.endType) input.toolSubtype = String(base.toolSubtype ?? base.endType)
   if (base.seriesName) input.seriesName = String(base.seriesName)
   if (base.brand) input.brand = String(base.brand)
   if (base.country) input.country = String(base.country)

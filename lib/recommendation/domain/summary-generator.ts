@@ -29,12 +29,19 @@ function formatLeadTime(days: number | null): string {
 
 /** Build a deterministic, data-only summary (no LLM, no hallucination) */
 export function buildDeterministicSummary(result: RecommendationResult): string {
-  const { status, query, primaryProduct, alternatives, warnings } = result
+  const { status, query, primaryProduct, alternatives, warnings, totalCandidatesConsidered } = result
 
   if (status === "none") {
-    const parts = ["현재 샘플 데이터에서 조건에 맞는 제품을 찾지 못했습니다."]
+    const hasCandidatePool = totalCandidatesConsidered > 0 || !!primaryProduct || alternatives.length > 0
+    const parts = [
+      hasCandidatePool
+        ? `조건에 완전히 맞는 제품은 없지만, 유사 후보 ${totalCandidatesConsidered}개를 찾았습니다.`
+        : "현재 샘플 데이터에서 조건에 맞는 제품을 찾지 못했습니다."
+    ]
     if (query.diameterMm) parts.push(`(검색 직경: ${formatDiameter(query.diameterMm)})`)
-    if (alternatives.length > 0) {
+    if (hasCandidatePool) {
+      parts.push("조건을 조정하거나 현재 후보를 검토해보세요.")
+    } else if (alternatives.length > 0) {
       parts.push(`유사 후보 ${alternatives.length}건이 있습니다. 조건을 조정해보세요.`)
     }
     return parts.join(" ")

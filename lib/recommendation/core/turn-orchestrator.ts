@@ -152,7 +152,7 @@ async function getLlmTurnDecision(snapshot: TurnSnapshot, provider: LLMProvider)
     const raw = await provider.complete(
       TURN_DECISION_SYSTEM,
       [{ role: "user", content: prompt }],
-      700,
+      1500,
       "haiku"
     )
 

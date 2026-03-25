@@ -14,10 +14,12 @@ import {
   buildWarnings,
   checkResolution,
   classifyHybridResults,
+  explainQuestionFieldReplayFailure,
   groupCandidatesBySeries,
   prepareRequest,
   runFactCheck,
   selectNextQuestion,
+  selectQuestionForField,
 } from "@/lib/recommendation/domain/recommendation-domain"
 import {
   buildExplanationResultPrompt,
@@ -115,6 +117,16 @@ const QUESTION_FIELD_HINTS: Record<string, RegExp[]> = {
   toolSubtype: [/형상/u, /타입/u, /엔드밀/u, /볼/u, /스퀘어/u, /corner\s*radius/i],
   seriesName: [/시리즈/u, /brand/i, /브랜드/u],
   cuttingType: [/가공/u, /절삭/u, /포켓/u, /슬롯/u, /측면/u, /평면/u, /홀\s*가공/u],
+}
+
+const QUESTION_FIELD_LABELS: Record<string, string> = {
+  workPieceName: "세부 피삭재",
+  fluteCount: "날 수",
+  coating: "코팅",
+  toolSubtype: "공구 세부 타입",
+  seriesName: "시리즈",
+  cuttingType: "가공 종류",
+  diameterRefine: "직경",
 }
 
 export function inferQuestionFieldFromText(text: string): string | null {
@@ -302,9 +314,23 @@ export async function buildQuestionResponse(
   language: AppLanguage,
   overrideText?: string,
   existingStageHistory?: NarrowingStage[],
-  excludeWorkPieceValues?: string[]
+  excludeWorkPieceValues?: string[],
+  preferredQuestionField?: string,
+  responsePrefix?: string
 ): Promise<Response> {
-  const question = await buildWorkPieceQuestion(input, history, filters, candidates, excludeWorkPieceValues) ?? selectNextQuestion(input, candidates, history, totalCandidateCount)
+  const preferredQuestion = preferredQuestionField
+    ? (
+        preferredQuestionField === "workPieceName"
+          ? await buildWorkPieceQuestion(input, history, filters, candidates, excludeWorkPieceValues)
+          : selectQuestionForField(input, candidates, history, preferredQuestionField, totalCandidateCount)
+      )
+    : null
+  const replayFailureReason = preferredQuestionField && !preferredQuestion
+    ? explainQuestionFieldReplayFailure(input, candidates, preferredQuestionField)
+    : null
+  const question = preferredQuestion
+    ?? await buildWorkPieceQuestion(input, history, filters, candidates, excludeWorkPieceValues)
+    ?? selectNextQuestion(input, candidates, history, totalCandidateCount)
   const stageHistory = existingStageHistory
     ? [...existingStageHistory]
     : buildStageHistoryFromFilters(filters, input, totalCandidateCount)
@@ -407,7 +433,7 @@ export async function buildQuestionResponse(
       const systemPrompt = buildSystemPrompt(language)
       const sessionCtx = buildSessionContext(form, sessionState, totalCandidateCount, snapshotToDisplayed(candidateSnapshot))
       const greetingPrompt = buildGreetingPrompt(sessionCtx, question, totalCandidateCount, language)
-      const raw = await provider.complete(systemPrompt, [{ role: "user", content: greetingPrompt }], 800)
+      const raw = await provider.complete(systemPrompt, [{ role: "user", content: greetingPrompt }], 1500)
       const parsed = safeParseJSON(raw)
       if (typeof parsed?.responseText === "string") {
         responseText = parsed.responseText
@@ -422,7 +448,7 @@ export async function buildQuestionResponse(
       const sessionCtx = buildSessionContext(form, sessionState, totalCandidateCount, snapshotToDisplayed(candidateSnapshot))
       const raw = await provider.complete(systemPrompt, [
         { role: "user", content: `${sessionCtx}\n\n현재 진행 중인 질문: "${question?.questionText ?? ""}"\n현재 후보 ${totalCandidateCount}개.\n\n사용자의 최신 메시지: "${lastUserText}"\n\n사용자 메시지가 현재 질문과 관련 없는 내용(회사 정보, 영업소, 공장 등)이면 【YG-1 회사 정보】에서 답변한 뒤 자연스럽게 현재 질문으로 돌아와라.\n사용자 메시지가 현재 질문에 대한 답변이면 질문을 자연스럽게 다듬어서 응답하라.\nJSON으로 응답: { "responseText": "...", "extractedParams": {}, "isComplete": false, "skipQuestion": false }` }
-      ], 400)
+      ], 1500)
       const parsed = safeParseJSON(raw)
       if (typeof parsed?.responseText === "string") {
         responseText = parsed.responseText
@@ -510,6 +536,15 @@ export async function buildQuestionResponse(
       console.warn(`[field-consistency:text] Response text drifted from field "${question.field}" — reverting to deterministic question text`)
       responseText = question.questionText
     }
+  }
+
+  if (responsePrefix) {
+    responseText = `${responsePrefix}\n\n${responseText}`.trim()
+  }
+
+  if (replayFailureReason && question && preferredQuestionField && question.field !== preferredQuestionField) {
+    const nextLabel = QUESTION_FIELD_LABELS[question.field] ?? question.field
+    responseText = `${replayFailureReason} 그래서 ${nextLabel} 기준으로 이어서 질문드릴게요.\n\n${responseText}`.trim()
   }
 
   sessionState.displayedChips = finalResponseChips
@@ -764,8 +799,11 @@ export async function buildRecommendationResponse(
   // ── Post-Answer Validator: strip unauthorized actions from answer ──
   // Direction: displayedOptions → constrain answer (NEVER answer → add chips)
   const finalRecChips = followUpChips
+  const hasCandidatePool = totalCandidateCount > 0 && !!primary
   let finalResponseText = status === "none"
-    ? "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요."
+    ? hasCandidatePool
+      ? `조건에 완전히 맞는 제품은 없지만 유사 후보 ${totalCandidateCount}개를 찾았습니다. 직경이나 소재 조건을 조정하거나 현재 후보를 검토해보세요.`
+      : "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요."
     : responseText
   const recValidation = validateOptionFirstPipeline(finalResponseText, finalRecChips, postRecDisplayedOptions)
   if (recValidation.correctedAnswer) {
@@ -936,7 +974,7 @@ function buildMinimalPostRecChips(
   filters: AppliedFilter[]
 ): string[] {
   const chips: string[] = []
-  if (result.status === "none" || !result.primaryProduct) {
+  if (!result.primaryProduct) {
     if (filters.length > 0) chips.push("⟵ 이전 단계")
     chips.push("처음부터 다시")
     return chips
@@ -968,15 +1006,15 @@ export function getFollowUpChips(
   const filterCount = sessionState?.appliedFilters?.length ?? 0
 
   // ── No result: suggest broadening or restart ──
-  if (isNone || !primary) {
+  if (!primary) {
     if (hasHistory) chips.push("⟵ 이전 단계로 돌아가기")
     if (filterCount > 0) chips.push("조건 완화하기")
     chips.push("처음부터 다시")
     return chips.slice(0, 6)
   }
 
-  // ── Approximate match: suggest compare, broaden, refine ──
-  if (isApproximate) {
+  // ── Low-confidence match: suggest compare, broaden, refine ──
+  if (isApproximate || isNone) {
     if (altCount > 0) chips.push(`후보 ${altCount + 1}개 비교하기`)
     chips.push("절삭조건 알려줘")
     if (hasHistory) chips.push("⟵ 이전 단계로 돌아가기")

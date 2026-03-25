@@ -16,6 +16,7 @@ export interface PreSearchRouteDecision {
 
 const DIRECT_LOOKUP_TYPES = new Set<QueryTargetType>([
   "product_info",
+  "product_comparison",
   "series_info",
   "brand_info",
   "series_comparison",

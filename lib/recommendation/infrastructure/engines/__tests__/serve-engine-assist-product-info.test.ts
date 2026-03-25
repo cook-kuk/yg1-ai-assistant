@@ -221,4 +221,17 @@ describe("handleDirectProductInfoQuestion", () => {
     expect(findByCodeMock).not.toHaveBeenCalled()
     expect(reply?.text).toContain("GENERAL CARBIDE DRILLS 브랜드 프로필을 내부 DB에서 조회했습니다.")
   })
+
+  it("does not hijack product comparison questions into entity profile lookup", async () => {
+    const reply = await handleDirectEntityProfileQuestion(
+      { available: () => false } as any,
+      "E5E84200B 와 E5E84200 비교 설명",
+      {} as any,
+      null
+    )
+
+    expect(reply).toBeNull()
+    expect(findSeriesProfilesMock).not.toHaveBeenCalled()
+    expect(findBrandProfilesMock).not.toHaveBeenCalled()
+  })
 })

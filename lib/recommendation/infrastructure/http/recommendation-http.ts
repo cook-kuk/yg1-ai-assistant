@@ -87,6 +87,8 @@ function createServeRuntimeDependencies(): ServeEngineRuntimeDependencies {
       overrideText?: Parameters<typeof buildQuestionResponse>[15],
       existingStageHistory?: Parameters<typeof buildQuestionResponse>[16],
       excludeWorkPieceValues?: Parameters<typeof buildQuestionResponse>[17],
+      preferredQuestionField?: Parameters<typeof buildQuestionResponse>[18],
+      responsePrefix?: Parameters<typeof buildQuestionResponse>[19],
     ) => buildQuestionResponse(
       responseDeps,
       form,
@@ -106,6 +108,8 @@ function createServeRuntimeDependencies(): ServeEngineRuntimeDependencies {
       overrideText,
       existingStageHistory,
       excludeWorkPieceValues,
+      preferredQuestionField,
+      responsePrefix,
     ),
     buildRecommendationResponse: (
       form: ProductIntakeForm,

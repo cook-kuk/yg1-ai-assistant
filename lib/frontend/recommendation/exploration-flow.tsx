@@ -64,15 +64,13 @@ function getSeriesRatingLabel(
 ): string | null {
   if (rating === "EXCELLENT") return language === "ko" ? "EXCELLENT" : "EXCELLENT"
   if (rating === "GOOD") return language === "ko" ? "GOOD" : "GOOD"
-  if (rating === "NULL") return "NULL"
-  return null
+  return "BAD"
 }
 
 function getSeriesRatingBadgeClass(rating: "EXCELLENT" | "GOOD" | "NULL" | null | undefined): string {
   if (rating === "EXCELLENT") return "bg-emerald-100 text-emerald-700 border-emerald-200"
   if (rating === "GOOD") return "bg-amber-100 text-amber-700 border-amber-200"
-  if (rating === "NULL") return "bg-slate-100 text-slate-600 border-slate-200"
-  return "bg-gray-100 text-gray-500 border-gray-200"
+  return "bg-rose-100 text-rose-700 border-rose-200"
 }
 
 function getCurrentMaterialLabel(form: ProductIntakeForm, language: "ko" | "en"): string | null {
@@ -304,15 +302,22 @@ function ExplorationSidebar({
             {displayedGroups.slice(0, 5).map(group => (
               <div key={group.seriesKey} className="flex items-center justify-between text-[10px] bg-white rounded-lg px-2.5 py-1 border border-gray-100">
                 <div className="min-w-0 flex items-center gap-1.5">
+                  {(() => {
+                    const ratingLabel = getSeriesRatingLabel(group.materialRating, language)
+                    return (
+                      <>
                   <span className="text-gray-700 font-medium truncate">{buildSeriesMaterialTitle(resolveSeriesPrimaryLabel({
                     ...group,
                     members: [],
                   }), currentMaterialLabel)}</span>
-                  {group.materialRating && (
+                        {ratingLabel && (
                     <span className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${getSeriesRatingBadgeClass(group.materialRating)}`}>
-                      {getSeriesRatingLabel(group.materialRating, language)}
+                            {ratingLabel}
                     </span>
-                  )}
+                        )}
+                      </>
+                    )
+                  })()}
                 </div>
                 <span className="text-gray-400 shrink-0 ml-1">{group.candidateCount}{language === "ko" ? "개" : ""}</span>
               </div>
@@ -668,7 +673,7 @@ function CandidatePanel({
                       <div className="text-[10px] text-gray-600 truncate">{group.description.replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, "")}</div>
                     )}
                     <div className="mt-0.5 flex flex-wrap items-center gap-1">
-                      {group.materialRating && (
+                      {getSeriesRatingLabel(group.materialRating, language) && (
                         <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${getSeriesRatingBadgeClass(group.materialRating)}`}>
                           {getSeriesRatingLabel(group.materialRating, language)}
                         </span>

@@ -140,6 +140,22 @@ describe("constraintsToFilters", () => {
     expect(coatingFilter!.op).toBe("includes")
   })
 
+  it("maps V2 materialDetail and endType aliases back into legacy search input", () => {
+    const state = makeState({
+      constraints: {
+        base: { material: "알루미늄", materialDetail: "알루미늄합금", endType: "Radius" },
+        refinements: {},
+      },
+    })
+
+    const { input, filters } = constraintsToFilters(state)
+
+    expect(input.material).toBe("알루미늄")
+    expect(input.workPieceName).toBe("알루미늄합금")
+    expect(input.toolSubtype).toBe("Radius")
+    expect(filters).toHaveLength(0)
+  })
+
   it("returns empty filters when no refinements present", () => {
     const state = makeState({
       constraints: { base: {}, refinements: {} },
