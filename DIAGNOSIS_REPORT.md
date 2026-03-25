@@ -68,6 +68,8 @@
 | 9 | ambiguity-resolver fallback 거부형 톤 | `ambiguity-resolver.ts:126` | JSON 파싱 실패 시에만 |
 | 10 | Dead code: contextual-chip-generator.ts | import 0건 | 삭제 가능 |
 | 11 | 코팅 가중치 과소 (5/110점) | `match-engine.ts:20` | 도메인 전문가 확인 필요 |
+| 12 | Dead code: `lib/agents/` 폴더 5개 파일 | ~800줄 | production import 0건, `infrastructure/agents/`와 중복 |
+| 13 | React key={index} 패턴 15+건 | `exploration-flow.tsx`, `recommendation-display.tsx` | 리스트 재정렬 시 UI 깜빡임 가능 |
 
 ═══════════════════════════════════════
 ## 3부: 시스템 한계점
