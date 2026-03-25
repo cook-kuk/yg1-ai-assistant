@@ -146,10 +146,11 @@ export function buildFinalChipsFromLLM(
   candidates: CandidateSnapshot[],
   previousChips: string[],
 ): { displayedOptions: DisplayedOption[]; chips: string[] } {
-  const prevSet = new Set(previousChips)
+  // Normalize previous chips for robust dedup (case-insensitive, trim whitespace)
+  const prevSet = new Set(previousChips.map(c => c.trim().toLowerCase().replace(/\s+/g, "")))
 
-  // 1. Deduplicate vs previous turn
-  let chips = llmChips.filter((c) => !prevSet.has(c.label))
+  // 1. Deduplicate vs previous turn (normalized comparison)
+  let chips = llmChips.filter((c) => !prevSet.has(c.label.trim().toLowerCase().replace(/\s+/g, "")))
 
   // 2. Block chips that reference non-filterable DB fields (e.g. RPM, 가격)
   chips = chips.filter((c) => {
