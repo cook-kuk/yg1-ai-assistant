@@ -1026,18 +1026,9 @@ async function handleServeExplorationInner(
   let bridgedV2Action: OrchestratorAction | null = null
   let bridgedV2OrchestratorResult: OrchestratorResult | null = null
   const journeyPhase = detectJourneyPhase(prevState)
-  const pendingSelectionFilter = buildPendingSelectionFilter(prevState, lastUserMsg?.text ?? null)
-  const shouldResolvePendingSelectionEarly = !!pendingSelectionFilter && !isPostResultPhase(journeyPhase)
 
-  if (shouldResolvePendingSelectionEarly && pendingSelectionFilter) {
-    pendingSelectionAction = pendingSelectionFilter.op === "skip"
-      ? { type: "skip_field" }
-      : { type: "continue_narrowing", filter: pendingSelectionFilter }
-    pendingSelectionOrchestratorResult = buildPendingSelectionOrchestratorResult(pendingSelectionFilter)
-  }
-
-  // ── LLM fallback: when pending field exists but deterministic extraction found nothing ──
-  if (!pendingSelectionFilter && !pendingSelectionAction && prevState?.lastAskedField && lastUserMsg && !isPostResultPhase(journeyPhase)) {
+  // ── Step 1: LLM 분석 (primary) — 매 턴 사용자 메시지를 LLM이 먼저 분석 ──
+  if (prevState?.lastAskedField && lastUserMsg && !isPostResultPhase(journeyPhase)) {
     const llmResult = await extractFiltersWithLLM(
       lastUserMsg.text,
       prevState.lastAskedField,
@@ -1055,15 +1046,30 @@ async function handleServeExplorationInner(
       }
       pendingSelectionAction = { type: "skip_field" }
       pendingSelectionOrchestratorResult = buildPendingSelectionOrchestratorResult(skipFilter)
-      console.log(`[llm-fallback] skipPendingField for "${prevState.lastAskedField}"`)
+      console.log(`[llm-extract:primary] skipPendingField for "${prevState.lastAskedField}"`)
     } else if (llmResult.extractedFilters.length > 0) {
       const primaryFilter = llmResult.extractedFilters[0]
       pendingSelectionAction = { type: "continue_narrowing", filter: primaryFilter }
       pendingSelectionOrchestratorResult = buildPendingSelectionOrchestratorResult(primaryFilter)
-      console.log(`[llm-fallback] Extracted filter field="${primaryFilter.field}" value="${primaryFilter.value}"`)
+      console.log(`[llm-extract:primary] Extracted filter field="${primaryFilter.field}" value="${primaryFilter.value}"`)
+    } else if (llmResult.isSideQuestion) {
+      // side question → pendingSelectionAction stays null → orchestrator handles as general chat
+      console.log(`[llm-extract:primary] Side question detected, delegating to orchestrator`)
     }
-    // If isSideQuestion, leave pendingSelectionAction null → orchestrator will handle as general chat
   }
+
+  // ── Step 2: Deterministic fallback — LLM이 못 잡으면 칩/패턴 매칭 ──
+  let pendingSelectionFilter: AppliedFilter | null = null
+  if (!pendingSelectionAction) {
+    pendingSelectionFilter = buildPendingSelectionFilter(prevState, lastUserMsg?.text ?? null)
+    if (pendingSelectionFilter && !isPostResultPhase(journeyPhase)) {
+      pendingSelectionAction = pendingSelectionFilter.op === "skip"
+        ? { type: "skip_field" }
+        : { type: "continue_narrowing", filter: pendingSelectionFilter }
+      pendingSelectionOrchestratorResult = buildPendingSelectionOrchestratorResult(pendingSelectionFilter)
+    }
+  }
+  const shouldResolvePendingSelectionEarly = !!pendingSelectionAction && !isPostResultPhase(journeyPhase)
 
   if (messages.length > 0 && lastUserMsg) {
     if (prevState?.pendingAction) {
