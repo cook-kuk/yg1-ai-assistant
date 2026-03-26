@@ -228,6 +228,7 @@ function buildXaiNarrative(breakdown: ScoreBreakdown): string {
     { key: "flutes" as const, label: "날수" },
     { key: "materialTag" as const, label: "소재" },
     { key: "operation" as const, label: "가공방식" },
+    { key: "toolShape" as const, label: "공구형상 적합도" },
     { key: "coating" as const, label: "코팅" },
     { key: "evidence" as const, label: "절삭조건 근거" },
   ]
@@ -269,6 +270,7 @@ function ScoreBreakdownPanel({ breakdown }: { breakdown: ScoreBreakdown }) {
     { key: "flutes", ko: "날수", en: "Flutes", emoji: "🔩" },
     { key: "materialTag", ko: "소재", en: "Material", emoji: "🧱" },
     { key: "operation", ko: "가공", en: "Operation", emoji: "⚙️" },
+    { key: "toolShape", ko: "공구형상", en: "Tool Shape", emoji: "🔧" },
     { key: "coating", ko: "코팅", en: "Coating", emoji: "🛡️" },
     { key: "completeness", ko: "완성도", en: "Completeness", emoji: "📋" },
     { key: "evidence", ko: "절삭조건", en: "Cutting Cond.", emoji: "📊" },

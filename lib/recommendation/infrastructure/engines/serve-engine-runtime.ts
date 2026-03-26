@@ -1025,7 +1025,9 @@ async function handleServeExplorationInner(
   let bridgedV2OrchestratorResult: OrchestratorResult | null = null
   const journeyPhase = detectJourneyPhase(prevState)
   const pendingSelectionFilter = buildPendingSelectionFilter(prevState, lastUserMsg?.text ?? null)
-  const shouldResolvePendingSelectionEarly = !!pendingSelectionFilter && !isPostResultPhase(journeyPhase)
+  // 비교 신호가 있으면 pending selection을 우회 → 비교 질문을 side question으로 처리
+  const hasComparisonSignal = lastUserMsg?.text ? hasExplicitComparisonSignal(lastUserMsg.text) : false
+  const shouldResolvePendingSelectionEarly = !!pendingSelectionFilter && !isPostResultPhase(journeyPhase) && !hasComparisonSignal
 
   if (shouldResolvePendingSelectionEarly && pendingSelectionFilter) {
     pendingSelectionAction = pendingSelectionFilter.op === "skip"

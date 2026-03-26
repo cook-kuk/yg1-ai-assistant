@@ -149,6 +149,7 @@ export interface ScoreBreakdown {
   flutes: { score: number; max: number; detail: string }
   materialTag: { score: number; max: number; detail: string }
   operation: { score: number; max: number; detail: string }
+  toolShape: { score: number; max: number; detail: string }
   coating: { score: number; max: number; detail: string }
   completeness: { score: number; max: number; detail: string }
   evidence: { score: number; max: number; detail: string }

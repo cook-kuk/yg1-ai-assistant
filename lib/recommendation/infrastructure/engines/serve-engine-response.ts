@@ -875,6 +875,7 @@ export function snapshotToDisplayed(snapshot: CandidateSnapshot[]): DisplayedPro
     code: candidate.displayCode,
     brand: candidate.brand,
     series: candidate.seriesName,
+    toolSubtype: candidate.toolSubtype ?? null,
     diameter: candidate.diameterMm,
     flute: candidate.fluteCount,
     coating: candidate.coating,

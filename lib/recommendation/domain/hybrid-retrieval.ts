@@ -49,9 +49,26 @@ const WEIGHTS = {
   flutes: 15,
   materialTag: 20,
   operation: 15,
+  toolShape: 15,  // operationType → toolSubtype compatibility bonus/penalty
   coating: 5,
   completeness: 5,
   evidence: 10,  // bonus for having cutting condition evidence
+}
+
+// ── Operation → Tool Shape compatibility ─────────────────────
+// Bonus/penalty applied when operationType is known.
+// Positive = good fit, negative = bad fit, 0 = neutral.
+const OPERATION_TOOL_SHAPE_COMPATIBILITY: Record<string, Record<string, number>> = {
+  "Slotting":    { "Square": 10, "Roughing": 5,  "Ball": -15, "Radius": 0  },
+  "Side_Milling":{ "Square": 5,  "Radius": 5,   "Ball": -5,  "Roughing": 0 },
+  "Shouldering": { "Square": 10, "Radius": 5,   "Ball": -10, "Roughing": 0 },
+  "Facing":      { "Square": 10, "Ball": -10,   "Radius": 0,  "Roughing": 5 },
+  "Ramping":     { "Radius": 10, "Square": 5,   "Ball": 0,    "Roughing": -5 },
+  "Pocketing":   { "Square": 5,  "Radius": 5,   "Ball": -5,   "Roughing": 5 },
+  "Profiling":   { "Ball": 10,   "Radius": 5,   "Square": 0,  "Roughing": -5 },
+  "Finishing":   { "Ball": 5,    "Radius": 5,   "Square": 0,  "Roughing": -10 },
+  "Die-Sinking": { "Ball": 10,   "Radius": 5,   "Square": -5, "Roughing": -5 },
+  "Plunging":    { "Square": 5,  "Radius": 5,   "Ball": -5,   "Roughing": 5 },
 }
 
 function flattenActiveFilters(filters: AppliedFilter[]): AppliedFilter[] {
@@ -270,6 +287,26 @@ export async function runHybridRetrieval(
       }
     }
 
+    // ── Tool shape compatibility (operationType → toolSubtype) ──
+    let shapeScore = 0
+    let shapeDetail = ""
+    if (!appShapes.length || !product.toolSubtype) {
+      shapeDetail = !appShapes.length ? "가공형상 미지정" : "공구형상 정보 없음"
+    } else {
+      // Use the first normalized operation shape to look up compatibility
+      const opKey = appShapes[0]
+      const compat = OPERATION_TOOL_SHAPE_COMPATIBILITY[opKey]
+      if (compat) {
+        const bonus = compat[product.toolSubtype] ?? 0
+        shapeScore = bonus
+        if (bonus > 0) shapeDetail = `${product.toolSubtype} → ${opKey} 적합 (+${bonus})`
+        else if (bonus < 0) shapeDetail = `${product.toolSubtype} → ${opKey} 부적합 (${bonus})`
+        else shapeDetail = `${product.toolSubtype} → ${opKey} 보통`
+      } else {
+        shapeDetail = `${opKey} 매핑 없음`
+      }
+    }
+
     let coatScore = 0
     let coatDetail = ""
     if (!input.coatingPreference) {
@@ -285,9 +322,10 @@ export async function runHybridRetrieval(
     const compScore = Math.round(product.dataCompletenessScore * WEIGHTS.completeness)
     const compDetail = `데이터 완성도 ${Math.round(product.dataCompletenessScore * 100)}%`
 
-    const score = diamScore + fluteScore + matScore + opScore + coatScore + compScore
+    const score = diamScore + fluteScore + matScore + opScore + shapeScore + coatScore + compScore
     // maxScore must exclude evidence weight since evidence scoring is not yet implemented
     // (evidence is always 0, so including it in denominator artificially lowers all ratios)
+    // toolShape is a bonus/penalty (can be negative), so not included in maxScore denominator
     const maxScore = WEIGHTS.diameter + WEIGHTS.flutes + WEIGHTS.materialTag + WEIGHTS.operation + WEIGHTS.coating + WEIGHTS.completeness
     const ratio = score / maxScore
     const matchStatus: MatchStatus = ratio >= 0.75 ? "exact" : ratio >= 0.45 ? "approximate" : "none"
@@ -297,6 +335,7 @@ export async function runHybridRetrieval(
       flutes: { score: fluteScore, max: WEIGHTS.flutes, detail: fluteDetail },
       materialTag: { score: matScore, max: WEIGHTS.materialTag, detail: matDetail },
       operation: { score: opScore, max: WEIGHTS.operation, detail: opDetail },
+      toolShape: { score: shapeScore, max: WEIGHTS.toolShape, detail: shapeDetail },
       coating: { score: coatScore, max: WEIGHTS.coating, detail: coatDetail },
       completeness: { score: compScore, max: WEIGHTS.completeness, detail: compDetail },
       evidence: { score: 0, max: WEIGHTS.evidence, detail: "증거 미매칭 (maxScore 제외)" },

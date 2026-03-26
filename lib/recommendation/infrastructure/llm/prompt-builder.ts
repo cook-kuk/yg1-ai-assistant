@@ -46,6 +46,15 @@ export function buildSystemPrompt(language: AppLanguage = "ko"): string {
 ${YG1_COMPANY_SNIPPET}
 회사 질문 → 위 정보에서 답변 후 제품 추천으로 돌아와라. 없으면 "확인할 수 없습니다. 본사(032-526-0909)에 문의하세요." 1줄.
 
+═══ 제품 스펙 답변 규칙 (최우선) ═══
+1. 시리즈/제품의 형상(Square, Ball, Radius 등)은 반드시 제공된 데이터의 toolSubtype 필드에서만 인용
+2. 시리즈/제품의 소재 적합성은 반드시 materialTags 필드에서만 인용
+3. 시리즈/제품의 코팅은 반드시 coating 필드에서만 인용
+4. "~일 가능성", "~로 추정" 같은 추측 표현 절대 금지. 데이터에 없으면 "해당 정보를 확인할 수 없습니다"
+5. 시리즈 비교 질문 시: 반드시 [현재 표시된 추천 제품] 데이터에서 각 시리즈의 실제 스펙을 인용하여 비교
+6. 답변에서 제품 추천 시: 반드시 displayedProducts의 상위 제품 기준으로 답변. 목록에 없는 제품을 추천하지 마라.
+7. "이 제품은 ~에 적합합니다" → materialTags에 해당 소재가 있을 때만 이 표현 사용
+
 ═══ 대화 스타일 ═══
 - 반드시 ${responseLanguage}로 자연스럽게 대화.
 - 간결: 질문 1-2문장, 추천 2-4문장. 불필요한 서론/인사 생략.
@@ -150,7 +159,7 @@ export function buildSessionContext(
   intakeForm: ProductIntakeForm,
   sessionState: ExplorationSessionState | null,
   candidateCount: number,
-  displayedProducts?: { rank: number; code: string; brand: string | null; series: string | null; diameter: number | null; flute: number | null; coating: string | null; materialTags: string[]; score: number; matchStatus: string }[] | null
+  displayedProducts?: { rank: number; code: string; brand: string | null; series: string | null; toolSubtype: string | null; diameter: number | null; flute: number | null; coating: string | null; materialTags: string[]; score: number; matchStatus: string }[] | null
 ): string {
   const intakeSummary = buildIntakeSummaryText(intakeForm)
   const filterSummary = sessionState
@@ -169,7 +178,7 @@ export function buildSessionContext(
     const lines = displayedProducts.map(p => {
       const label = (p as { displayLabel?: string }).displayLabel
       const labelStr = label ? ` [${label}]` : ""
-      return `  #${p.rank} ${p.code}${labelStr} | ${p.brand ?? "?"} | ${p.series ?? "?"} | φ${p.diameter ?? "?"}mm | ${p.flute ?? "?"}F | ${p.coating ?? "?"} | ${p.materialTags.join("/") || "?"} | ${p.matchStatus} ${p.score}점`
+      return `  #${p.rank} ${p.code}${labelStr} | ${p.brand ?? "?"} | ${p.series ?? "?"} | ${p.toolSubtype ?? "?"} | φ${p.diameter ?? "?"}mm | ${p.flute ?? "?"}F | ${p.coating ?? "?"} | ${p.materialTags.join("/") || "?"} | ${p.matchStatus} ${p.score}점`
     })
     displayedSection = `
 [현재 표시된 추천 제품] — 사용자가 "이 중", "위 제품", "상위 3개", "1번/2번" 등으로 참조할 때 반드시 이 목록에서 답하라
@@ -214,6 +223,7 @@ export function buildNarrowingPrompt(
 "${userMessage}"
 
 위 응답에서 파라미터를 추출하고, 자연스러운 ${responseLanguage}로 다음 단계를 안내하세요.
+제품 형상, 코팅, 소재 적합성은 위 [현재 표시된 추천 제품] 데이터에서만 인용하라. 추측/생성 금지.
 고객이 "상관없음"이라고 하면 skipQuestion: true로 설정하세요.
 고객이 "추천해주세요"라고 하면 isComplete: true로 설정하세요.`
 }
