@@ -566,6 +566,19 @@ async function enrichWorkPieceFilterWithSeriesScope(
   } as AppliedFilter
 }
 
+/**
+ * Detect "다른 직경/소재/코팅" refinement patterns deterministically.
+ * Returns the target field name or null if no match.
+ */
+function detectRefineConditionField(userMessage: string): string | null {
+  const clean = userMessage.trim()
+  if (/(?:외|다른)\s*직경|다른\s*(?:사이즈|크기|지름)|직경\s*(?:변경|바꿔|바꾸)/u.test(clean)) return "diameter"
+  if (/다른\s*(?:소재|재질|피삭재)|소재\s*(?:변경|바꿔|바꾸)/u.test(clean)) return "material"
+  if (/다른\s*코팅|코팅\s*(?:변경|바꿔|바꾸)/u.test(clean)) return "coating"
+  if (/다른\s*날|날수?\s*(?:변경|바꿔|바꾸)/u.test(clean)) return "fluteCount"
+  return null
+}
+
 export function buildPendingSelectionFilter(
   sessionState: ExplorationSessionState | null,
   userMessage: string | null
@@ -844,7 +857,6 @@ const SKIP_RETRIEVAL_ACTIONS = new Set([
   "compare_products",
   "explain_product",
   "answer_general",
-  "refine_condition",
   "filter_by_stock",
 ])
 
@@ -1020,6 +1032,8 @@ async function handleServeExplorationInner(
   let explicitFilterResolution: ExplicitFilterResolution | null = null
   let explicitFilterAction: OrchestratorAction | null = null
   let explicitFilterOrchestratorResult: OrchestratorResult | null = null
+  let explicitRefineAction: OrchestratorAction | null = null
+  let explicitRefineOrchestratorResult: OrchestratorResult | null = null
   let pendingSelectionAction: OrchestratorAction | null = null
   let pendingSelectionOrchestratorResult: OrchestratorResult | null = null
   let llmExtraFilters: AppliedFilter[] = []
@@ -1140,6 +1154,33 @@ async function handleServeExplorationInner(
           )
         }
       }
+
+      // ── Deterministic refine-condition detection ──
+      // "φ8mm 외 다른 직경", "다른 직경 검색", "다른 소재", "다른 코팅" etc.
+      // Must be detected BEFORE V2 orchestrator to prevent misrouting to product lookup.
+      if (!explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution) {
+        const refineField = detectRefineConditionField(lastUserMsg.text)
+        if (refineField) {
+          explicitRefineAction = { type: "refine_condition", field: refineField }
+          explicitRefineOrchestratorResult = {
+            action: explicitRefineAction,
+            reasoning: `explicit_refine:${refineField}`,
+            agentsInvoked: [{ agent: "explicit-refine-detector", model: "deterministic", durationMs: 0 }],
+            escalatedToOpus: false,
+          }
+          // Remove existing filter for the target field so retrieval returns broader results
+          const diameterFields = ["diameterMm", "diameterRefine", "diameter"]
+          const fieldAliases = refineField === "diameter" ? diameterFields : [refineField]
+          for (let i = filters.length - 1; i >= 0; i--) {
+            if (fieldAliases.includes(filters[i].field)) {
+              console.log(`[runtime:explicit-refine] Removing filter: ${filters[i].field}=${filters[i].value}`)
+              filters.splice(i, 1)
+            }
+          }
+          currentInput = rebuildResolvedInputFromFilters(form, filters, deps)
+          console.log(`[runtime:explicit-refine] field=${refineField}, filters remaining=${filters.length}`)
+        }
+      }
     }
 
     if (prevState && explicitRevisionResolution?.kind === "ambiguous") {
@@ -1169,7 +1210,7 @@ async function handleServeExplorationInner(
       )
     }
 
-    if (!shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution && prevState) {
+    if (!shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution && !explicitRefineAction && prevState) {
       const explanationJudgment = await performUnifiedJudgment({
         userMessage: lastUserMsg.text,
         assistantText: null,
@@ -1208,7 +1249,7 @@ async function handleServeExplorationInner(
       }
     }
 
-    if (!shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution) {
+    if (!shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution && !explicitRefineAction) {
       const preSearchRoute = await classifyPreSearchRoute(lastUserMsg.text, prevState, provider)
       if (preSearchRoute.kind !== "recommendation_action") {
         console.log(`[runtime:pre-route] ${preSearchRoute.kind} -> answer_general (${preSearchRoute.reason})`)
@@ -1249,7 +1290,7 @@ async function handleServeExplorationInner(
   // On error, automatically falls back to legacy path.
   const currentPhase = prevState?.currentMode ?? "intake"
   perf.startStep("v2_orchestrator")
-  if (shouldUseV2ForPhase(currentPhase) && lastUserMsg && !shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution) {
+  if (shouldUseV2ForPhase(currentPhase) && lastUserMsg && !shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution && !explicitRefineAction) {
     try {
       const { orchestrateTurnV2 } = await import("@/lib/recommendation/core/turn-orchestrator")
       const { convertToV2State, convertFromV2State } = await import("@/lib/recommendation/core/state-adapter")
@@ -1471,6 +1512,7 @@ async function handleServeExplorationInner(
     ?? explicitComparisonAction?.type
     ?? explicitRevisionAction?.type
     ?? explicitFilterAction?.type
+    ?? explicitRefineAction?.type
     ?? bridgedV2Action?.type
     ?? null
   if (!earlyAction && pendingSelectionFilter) {
@@ -1720,13 +1762,13 @@ async function handleServeExplorationInner(
       unifiedTurnContext,
     }
 
-    const orchResult = pendingSelectionOrchestratorResult ?? explicitComparisonOrchestratorResult ?? explicitRevisionOrchestratorResult ?? explicitFilterOrchestratorResult ?? bridgedV2OrchestratorResult ?? (
+    const orchResult = pendingSelectionOrchestratorResult ?? explicitComparisonOrchestratorResult ?? explicitRevisionOrchestratorResult ?? explicitFilterOrchestratorResult ?? explicitRefineOrchestratorResult ?? bridgedV2OrchestratorResult ?? (
       ENABLE_TOOL_USE_ROUTING
         ? await orchestrateTurnWithTools(turnContext, provider)
         : await orchestrateTurn(turnContext, provider)
     )
-    let action = pendingSelectionAction ?? explicitComparisonAction ?? explicitRevisionAction ?? explicitFilterAction ?? bridgedV2Action ?? orchResult.action
-    const usingBridgedAction = !!pendingSelectionAction || !!explicitComparisonAction || !!explicitRevisionAction || !!explicitFilterAction || !!bridgedV2Action
+    let action = pendingSelectionAction ?? explicitComparisonAction ?? explicitRevisionAction ?? explicitFilterAction ?? explicitRefineAction ?? bridgedV2Action ?? orchResult.action
+    const usingBridgedAction = !!pendingSelectionAction || !!explicitComparisonAction || !!explicitRevisionAction || !!explicitFilterAction || !!explicitRefineAction || !!bridgedV2Action
 
     trace.add("orchestrator", "router", {
       userMessage: lastUserMsg.text,
