@@ -259,6 +259,40 @@ function matchesPendingOptionValue(clean: string, option: { label?: string; valu
   )
 }
 
+function normalizePendingComparableValue(value: string | number | boolean | null | undefined): string {
+  return normalizePendingSelectionText(String(value ?? "")).replace(/\s+/g, "")
+}
+
+function inferPendingFieldFromScope(
+  sessionState: ExplorationSessionState,
+  cleanValue: string,
+  pendingField: string
+): string | null {
+  const scope = sessionState.filterValueScope ?? {}
+  const matchedFields = getRegisteredFilterFields().filter(field => {
+    const parsedUserValue = buildAppliedFilterFromValue(field, cleanValue, sessionState.turnCount ?? 0)
+    if (!parsedUserValue) return false
+
+    const scopeValues = scope[field] ?? []
+    if (scopeValues.length === 0) return false
+
+    return scopeValues.some(scopeValue => {
+      const parsedScopeValue = buildAppliedFilterFromValue(field, scopeValue, sessionState.turnCount ?? 0)
+      if (!parsedScopeValue) return false
+
+      const userComparable = normalizePendingComparableValue(parsedUserValue.rawValue ?? parsedUserValue.value)
+      const scopeComparable = normalizePendingComparableValue(parsedScopeValue.rawValue ?? parsedScopeValue.value)
+      if (!userComparable || !scopeComparable) return false
+
+      return userComparable === scopeComparable
+    })
+  })
+
+  if (matchedFields.length === 1) return matchedFields[0]
+  if (matchedFields.includes(pendingField)) return pendingField
+  return null
+}
+
 function isSkipSelectionValue(value: string | null | undefined): boolean {
   if (!value) return false
   const normalized = normalizePendingSelectionText(value)
@@ -637,6 +671,14 @@ export function resolvePendingQuestionReply(
   }
 
   if (optionsForPendingField.length === 0) {
+    const inferredField = inferPendingFieldFromScope(sessionState, clean, pendingField)
+    if (inferredField && inferredField !== pendingField) {
+      resolvedField = inferredField
+      console.warn(
+        `[pending-selection] Inferred field "${resolvedField}" from scope while pending field was "${pendingField}"`
+      )
+    }
+
     optionsForPendingField = (sessionState.displayedChips ?? []).map((chip, index) => {
       const skipValue = isSkipSelectionValue(chip)
       const cleanChipValue = normalizePendingSelectionText(chip)
@@ -646,7 +688,7 @@ export function resolvePendingQuestionReply(
       return {
         index: index + 1,
         label: chip,
-        field: pendingField,
+        field: resolvedField,
         value: skipValue ? "skip" : cleanChipValue,
         count: 0,
       }

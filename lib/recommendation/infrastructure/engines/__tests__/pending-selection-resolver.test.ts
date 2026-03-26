@@ -121,6 +121,27 @@ describe("pending selection resolver", () => {
     })
   })
 
+  it("infers the correct field from filterValueScope when displayedOptions are missing and lastAskedField is stale", () => {
+    const state = makeState({
+      lastAskedField: "diameterRefine",
+      displayedChips: ["Square (167개)", "Spiral Flute (94개)", "상관없음"],
+      displayedOptions: [],
+      filterValueScope: {
+        toolSubtype: ["Square", "Spiral Flute", "Radius"],
+        diameterMm: ["8", "8.03", "7.95"],
+      },
+    })
+
+    const filter = buildPendingSelectionFilter(state, "Square (167개)")
+
+    expect(filter).toMatchObject({
+      field: "toolSubtype",
+      op: "includes",
+      value: "Square",
+      rawValue: "Square",
+    })
+  })
+
   it('resolves "상관없음" as a skip filter for the pending field', () => {
     const state = makeState({
       lastAskedField: "toolSubtype",
