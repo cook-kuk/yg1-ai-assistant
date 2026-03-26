@@ -6,11 +6,13 @@ import {
   ArrowLeft,
   CheckCircle2,
   Clock,
+  Filter,
   Lock,
   MessageCircle,
   RefreshCw,
   Star,
   User,
+  X,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -393,6 +395,8 @@ export default function FeedbackViewerPage() {
   const [generalPage, setGeneralPage] = useState(1)
   const [historyPage, setHistoryPage] = useState(1)
   const [successPage, setSuccessPage] = useState(1)
+  const [filterDept, setFilterDept] = useState("")
+  const [filterAuthor, setFilterAuthor] = useState("")
   const [selectedGeneralEntry, setSelectedGeneralEntry] = useState<FeedbackEntryDto | null>(null)
   const [selectedFeedbackEntry, setSelectedFeedbackEntry] = useState<FeedbackEventEntryDto | null>(null)
 
@@ -465,9 +469,22 @@ export default function FeedbackViewerPage() {
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
     [feedbackEntries]
   )
-  const sortedGeneralEntries = useMemo(
-    () => [...generalEntries].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
+  const parsedGeneralEntries = useMemo(
+    () => generalEntries.map(e => {
+      const m = e.authorName?.match(/^\[(.+?)\]\s*(.+)$/)
+      return { entry: e, department: m?.[1] ?? "", author: m?.[2] ?? e.authorName ?? "" }
+    }),
     [generalEntries]
+  )
+  const deptOptions = useMemo(() => [...new Set(parsedGeneralEntries.map(p => p.department).filter(Boolean))].sort(), [parsedGeneralEntries])
+  const authorOptions = useMemo(() => [...new Set(parsedGeneralEntries.map(p => p.author).filter(Boolean))].sort(), [parsedGeneralEntries])
+
+  const sortedGeneralEntries = useMemo(
+    () => parsedGeneralEntries
+      .filter(p => (!filterDept || p.department === filterDept) && (!filterAuthor || p.author === filterAuthor))
+      .map(p => p.entry)
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
+    [parsedGeneralEntries, filterDept, filterAuthor]
   )
 
   const turnFeedbackCount = historyEntries.filter(entry => entry.type === "turn_feedback").length
@@ -607,11 +624,31 @@ export default function FeedbackViewerPage() {
           </TabsList>
 
           <TabsContent value="general">
+            {/* ── 부서 / 작성자 필터 ── */}
+            {!loading && !error && generalEntries.length > 0 && (
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <Filter size={14} className="text-gray-400" />
+                <select value={filterDept} onChange={e => { setFilterDept(e.target.value); setGeneralPage(1) }} className="text-xs border rounded-lg px-2 py-1.5 text-gray-600 bg-white">
+                  <option value="">부서 전체</option>
+                  {deptOptions.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+                <select value={filterAuthor} onChange={e => { setFilterAuthor(e.target.value); setGeneralPage(1) }} className="text-xs border rounded-lg px-2 py-1.5 text-gray-600 bg-white">
+                  <option value="">작성자 전체</option>
+                  {authorOptions.map(a => <option key={a} value={a}>{a}</option>)}
+                </select>
+                {(filterDept || filterAuthor) && (
+                  <button onClick={() => { setFilterDept(""); setFilterAuthor(""); setGeneralPage(1) }} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100">
+                    <X size={12} /> 초기화
+                  </button>
+                )}
+                <span className="text-xs text-gray-400 ml-auto">{sortedGeneralEntries.length}건</span>
+              </div>
+            )}
             {loading ? (
               <div className="py-12 text-center text-gray-500">로딩 중...</div>
             ) : error ? (
               <div className="py-12 text-center text-red-500">오류: {error}</div>
-            ) : generalEntries.length === 0 ? (
+            ) : sortedGeneralEntries.length === 0 ? (
               <div className="py-12 text-center text-gray-400">
                 <MessageCircle className="mx-auto mb-2 h-8 w-8 opacity-50" />
                 <div>저장된 의견이 없습니다.</div>
