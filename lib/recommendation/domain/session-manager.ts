@@ -117,11 +117,17 @@ export function carryForwardState(
   prev: ExplorationSessionState,
   overrides: Partial<BuildSessionStateParams>
 ): ExplorationSessionState {
+  // When narrowingHistory is updated but uiNarrowingPath is not explicitly provided,
+  // rebuild uiNarrowingPath from the new history to keep them in sync.
+  const resolvedHistory = overrides.narrowingHistory ?? prev.narrowingHistory
+  const resolvedUiPath = overrides.uiNarrowingPath
+    ?? (overrides.narrowingHistory ? rebuildUINarrowingPathFromHistory(resolvedHistory) : (prev.uiNarrowingPath ?? []))
+
   return buildSessionState({
     prevSessionId: prev.sessionId,
     candidateCount: overrides.candidateCount ?? prev.candidateCount,
     appliedFilters: overrides.appliedFilters ?? prev.appliedFilters,
-    narrowingHistory: overrides.narrowingHistory ?? prev.narrowingHistory,
+    narrowingHistory: resolvedHistory,
     stageHistory: overrides.stageHistory ?? prev.stageHistory,
     resolutionStatus: overrides.resolutionStatus ?? prev.resolutionStatus,
     resolvedInput: overrides.resolvedInput ?? prev.resolvedInput,
@@ -130,7 +136,7 @@ export function carryForwardState(
     displayedProducts: overrides.displayedProducts ?? prev.displayedProducts ?? prev.displayedCandidates,
     fullDisplayedProducts: overrides.fullDisplayedProducts ?? prev.fullDisplayedProducts ?? prev.displayedProducts ?? prev.displayedCandidates,
     displayedSeriesGroups: overrides.displayedSeriesGroups ?? prev.displayedSeriesGroups ?? prev.displayedGroups,
-    uiNarrowingPath: overrides.uiNarrowingPath ?? prev.uiNarrowingPath ?? [],
+    uiNarrowingPath: resolvedUiPath,
     currentMode: overrides.currentMode ?? prev.currentMode,
     restoreTarget: overrides.restoreTarget ?? prev.restoreTarget ?? null,
     activeGroupKey: overrides.activeGroupKey ?? prev.activeGroupKey ?? null,
@@ -273,7 +279,7 @@ export function restoreToBeforeFilter(
       rebuiltInput: { ...baseInput },
       remainingFilters: [],
       remainingHistory: [],
-      remainingStages: stageHistory.length > 0 ? [stageHistory[0]] : [],
+      remainingStages: [],
       undoTurnCount: 0,
       removedFilterDesc: stageHistory[0]?.filterApplied?.value ?? filterValue,
     }

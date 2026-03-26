@@ -376,17 +376,28 @@ function buildCuttingTypeQuestion(input: RecommendationInput): FieldAnalysis | n
 function buildDiameterRefineQuestion(input: RecommendationInput, candidates: ScoredProduct[]): FieldAnalysis | null {
   if (!input.diameterMm) return null
 
+  // If exact diameter match exists in candidates, no need to refine
+  const exactMatch = candidates.some(c => c.product.diameterMm === input.diameterMm)
+  if (exactMatch) return null
+
   const uniqueDiameters = new Set(
     candidates.map(candidate => candidate.product.diameterMm).filter((diameter): diameter is number => diameter !== null)
   )
   if (uniqueDiameters.size <= 3) return null
 
   const sortedDiameters = [...uniqueDiameters].sort((a, b) => a - b)
-  const closestDiameters = sortedDiameters
+  let closestDiameters = sortedDiameters
     .filter(diameter => Math.abs(diameter - input.diameterMm!) <= 2)
     .slice(0, 5)
 
   if (closestDiameters.length <= 1) return null
+
+  // Ensure user's specified diameter is first if it exists in candidates
+  if (closestDiameters.includes(input.diameterMm)) {
+    closestDiameters = [input.diameterMm, ...closestDiameters.filter(d => d !== input.diameterMm)]
+  } else if (uniqueDiameters.has(input.diameterMm)) {
+    closestDiameters.unshift(input.diameterMm)
+  }
 
   return {
     field: "diameterRefine",

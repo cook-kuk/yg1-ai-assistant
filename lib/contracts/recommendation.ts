@@ -90,6 +90,7 @@ export interface RecommendationUINarrowingPathEntryDto {
   field?: string
   value?: string
   candidateCount: number
+  candidateCountBefore?: number
 }
 
 export interface RecommendationCheckpointSummaryDto {
@@ -301,6 +302,7 @@ export const recommendationUiNarrowingPathEntrySchema = z.object({
   field: z.string().optional(),
   value: z.string().optional(),
   candidateCount: z.number(),
+  candidateCountBefore: z.number().optional(),
 }).passthrough()
 
 export const recommendationCheckpointSummarySchema = z.object({

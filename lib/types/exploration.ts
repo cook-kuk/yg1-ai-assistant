@@ -113,6 +113,7 @@ export interface UINarrowingPathEntry {
   field?: string
   value?: string
   candidateCount: number
+  candidateCountBefore?: number
 }
 
 export interface ClarificationRecord {

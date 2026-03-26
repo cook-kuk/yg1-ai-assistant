@@ -2256,7 +2256,13 @@ async function handleServeExplorationInner(
       currentInput = restoreResult.rebuiltInput
 
       const filterAppliedAt = restoreResult.undoTurnCount
-      const candidateCountBeforeFilter = restoreResult.remainingStages.at(-1)?.candidateCount ?? totalCandidateCount
+      let candidateCountBeforeFilter = restoreResult.remainingStages.at(-1)?.candidateCount
+      if (candidateCountBeforeFilter == null) {
+        // No stage snapshot available (e.g. replacing the first filter) — run retrieval on restored input to get accurate "before" count
+        const restoredResult = await runHybridRetrieval(restoreResult.rebuiltInput, restoreResult.remainingFilters, 0, null)
+        candidateCountBeforeFilter = restoredResult.totalConsidered
+        console.log(`[orchestrator:replace] No stage snapshot, retrieved candidateCountBefore=${candidateCountBeforeFilter} from restored input`)
+      }
 
       let filter = { ...action.nextFilter, appliedAt: filterAppliedAt }
       if (filter.field === "material") {

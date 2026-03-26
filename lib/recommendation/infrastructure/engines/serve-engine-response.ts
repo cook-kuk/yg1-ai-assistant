@@ -972,19 +972,25 @@ export function buildStageHistoryFromFilters(
 }
 
 function buildUINarrowingPath(
-  filters: AppliedFilter[],
+  _filters: AppliedFilter[],
   history: NarrowingTurn[],
   fallbackCandidateCount: number
 ): UINarrowingPathEntry[] {
-  return filters
-    .filter(filter => filter.op !== "skip")
-    .map((filter, index) => ({
-      kind: "filter",
-      label: `${filter.field}=${filter.value}`,
-      field: filter.field,
-      value: filter.value,
-      candidateCount: history[index]?.candidateCountAfter ?? fallbackCandidateCount,
-    }))
+  const entries: UINarrowingPathEntry[] = []
+  for (const turn of history) {
+    for (const filter of turn.extractedFilters) {
+      if (filter.op === "skip") continue
+      entries.push({
+        kind: "filter" as const,
+        label: `${filter.field}=${filter.value}`,
+        field: filter.field,
+        value: filter.value,
+        candidateCount: turn.candidateCountAfter ?? fallbackCandidateCount,
+        candidateCountBefore: turn.candidateCountBefore,
+      })
+    }
+  }
+  return entries
 }
 
 export function logNarrowingState(

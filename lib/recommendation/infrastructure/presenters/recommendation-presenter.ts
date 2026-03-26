@@ -77,6 +77,7 @@ function toUINarrowingPathEntryDto(entry: UINarrowingPathEntry): RecommendationU
     field: entry.field,
     value: entry.value,
     candidateCount: entry.candidateCount,
+    candidateCountBefore: entry.candidateCountBefore,
   }
 }
 
