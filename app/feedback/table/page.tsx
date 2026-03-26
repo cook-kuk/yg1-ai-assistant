@@ -261,6 +261,7 @@ export default function FeedbackTablePage() {
   // Filters
   const [searchText, setSearchText] = useState("")
   const [filterDepartment, setFilterDepartment] = useState<string>("")
+  const [filterAuthor, setFilterAuthor] = useState<string>("")
   const [filterAuthorType, setFilterAuthorType] = useState<string>("")
   const [filterQuestionType, setFilterQuestionType] = useState<string>("")
   const [filterAccuracy, setFilterAccuracy] = useState<string>("")
@@ -296,7 +297,8 @@ export default function FeedbackTablePage() {
   useEffect(() => { fetchData() }, [])
 
   // Unique filter options
-  const departments = useMemo(() => [...new Set(rows.map(r => r.department).filter(Boolean))], [rows])
+  const departments = useMemo(() => [...new Set(rows.map(r => r.department).filter(Boolean))].sort(), [rows])
+  const authors = useMemo(() => [...new Set(rows.map(r => r.author).filter(Boolean))].sort(), [rows])
   const questionTypes = useMemo(() => [...new Set(rows.map(r => r.questionType).filter(Boolean))], [rows])
   const errorTypes = useMemo(() => [...new Set(rows.map(r => r.errorType).filter(Boolean))], [rows])
 
@@ -314,6 +316,7 @@ export default function FeedbackTablePage() {
       )
     }
     if (filterDepartment) result = result.filter(r => r.department === filterDepartment)
+    if (filterAuthor) result = result.filter(r => r.author === filterAuthor)
     if (filterAuthorType) result = result.filter(r => r.authorType === filterAuthorType)
     if (filterQuestionType) result = result.filter(r => r.questionType === filterQuestionType)
     if (filterAccuracy) result = result.filter(r => r.accuracy === filterAccuracy)
@@ -334,7 +337,7 @@ export default function FeedbackTablePage() {
     })
 
     return result
-  }, [rows, searchText, filterDepartment, filterAuthorType, filterQuestionType, filterAccuracy, filterErrorType, sortKey, sortDir])
+  }, [rows, searchText, filterDepartment, filterAuthor, filterAuthorType, filterQuestionType, filterAccuracy, filterErrorType, sortKey, sortDir])
 
   // Stats
   const stats = useMemo(() => {
@@ -358,13 +361,14 @@ export default function FeedbackTablePage() {
   const clearFilters = () => {
     setSearchText("")
     setFilterDepartment("")
+    setFilterAuthor("")
     setFilterAuthorType("")
     setFilterQuestionType("")
     setFilterAccuracy("")
     setFilterErrorType("")
   }
 
-  const hasFilters = searchText || filterDepartment || filterAuthorType || filterQuestionType || filterAccuracy || filterErrorType
+  const hasFilters = searchText || filterDepartment || filterAuthor || filterAuthorType || filterQuestionType || filterAccuracy || filterErrorType
 
   const handleExportCSV = () => {
     const headers = COLUMNS.map(c => c.label).join(",")
@@ -452,6 +456,10 @@ export default function FeedbackTablePage() {
           <select value={filterDepartment} onChange={e => setFilterDepartment(e.target.value)} className="text-xs border rounded-lg px-2 py-1.5 text-gray-600">
             <option value="">부서 전체</option>
             {departments.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+          <select value={filterAuthor} onChange={e => setFilterAuthor(e.target.value)} className="text-xs border rounded-lg px-2 py-1.5 text-gray-600">
+            <option value="">작성자 전체</option>
+            {authors.map(a => <option key={a} value={a}>{a}</option>)}
           </select>
           <select value={filterAuthorType} onChange={e => setFilterAuthorType(e.target.value)} className="text-xs border rounded-lg px-2 py-1.5 text-gray-600">
             <option value="">유형 전체</option>
