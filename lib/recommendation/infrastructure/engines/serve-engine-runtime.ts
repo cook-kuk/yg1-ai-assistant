@@ -11,7 +11,7 @@ import {
 import { BrandReferenceRepo } from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
 import { getSessionCache } from "@/lib/recommendation/infrastructure/cache/session-cache"
 import { resolveMaterialTag } from "@/lib/recommendation/domain/material-resolver"
-import { parseAnswerToFilter } from "@/lib/recommendation/domain/question-engine"
+import { parseAnswerToFilter, extractAllFiltersFromMessage } from "@/lib/recommendation/domain/question-engine"
 import {
   compareProducts,
   orchestrateTurn,
@@ -565,9 +565,13 @@ export function buildPendingSelectionFilter(
   if (!userMessage) return null
 
   const raw = userMessage.trim()
-  if (!raw || raw.length > 40) return null
-  if (/[?？]/.test(raw)) return null
-  if (/뭐야|뭔지|설명|차이|왜|어떻게|몇개|종류|비교|추천|결과|처음부터|이전 단계|줘|알려|궁금|공장|영업소|연락|번호|정보|회사|사장|회장|매출|주주|지점|사우디|해외|국가|나라|도시|어디/u.test(raw)) return null
+  if (!raw) return null
+  // Short question marks → skip (long messages may contain ? in context)
+  if (/[?？]/.test(raw) && raw.length <= 40) return null
+  // Block question-words only for short messages; long NL messages like
+  // "Corner radius 타입에 알루미늄 소재 추천해주세요" should pass through.
+  // Removed "추천", "줘", "알려" — they appear in legitimate filter requests.
+  if (raw.length <= 40 && /뭐야|뭔지|설명|차이|왜|어떻게|몇개|종류|비교|결과|처음부터|이전 단계|궁금|공장|영업소|연락|번호|정보|회사|사장|회장|매출|주주|지점|사우디|해외|국가|나라|도시|어디/u.test(raw)) return null
 
   const clean = normalizePendingSelectionText(raw)
   if (!clean) return null
@@ -588,7 +592,14 @@ export function buildPendingSelectionFilter(
   const selectedOption = optionMatch ?? chipMatch ?? null
   const selectedValue = selectedOption?.value ?? null
   if (!selectedValue) {
-    console.log(`[pending-filter] No option/chip match for "${raw.slice(0, 30)}" → skip filter creation`)
+    // ── NL fallback: try pattern-based extraction for the pending field ──
+    const nlFilters = extractAllFiltersFromMessage(raw, sessionState.appliedFilters ?? [])
+    const nlMatch = nlFilters.find(f => f.field === pendingField)
+    if (nlMatch) {
+      console.log(`[pending-filter:nl] NL extracted field="${pendingField}" value="${nlMatch.rawValue}"`)
+      return nlMatch
+    }
+    console.log(`[pending-filter] No option/chip/NL match for "${raw.slice(0, 30)}" → skip filter creation`)
     return null
   }
 
@@ -1801,119 +1812,24 @@ async function handleServeExplorationInner(
     }
 
     if (action.type === "compare_products") {
-      trace.add("comparison", "answer", { targets: (action as any).targets }, {}, "Product comparison requested")
-      const compareQueryTarget = classifyQueryTarget(
-        lastUserMsg.text,
-        prevState.appliedFilters?.find(f => f.op !== "skip")?.field,
-        prevState.lastAskedField
-      )
-      const entityProfileReply = compareQueryTarget.type === "series_comparison" || compareQueryTarget.type === "brand_comparison"
-        ? await deps.handleDirectEntityProfileQuestion(lastUserMsg.text, currentInput, prevState)
-        : null
-      if (entityProfileReply) {
-        const comparisonOptionState = buildComparisonOptionState()
-        const sessionState = carryForwardState(prevState, {
-          candidateCount: prevState.candidateCount ?? candidates.length,
-          appliedFilters: filters,
-          narrowingHistory,
-          resolutionStatus: prevState.resolutionStatus ?? "broad",
-          resolvedInput: currentInput,
-          turnCount,
-          displayedCandidates: prevState.displayedCandidates ?? [],
-          displayedChips: comparisonOptionState.chips,
-          displayedOptions: comparisonOptionState.displayedOptions,
-          currentMode: "comparison",
-          lastAction: "compare_products",
-          lastComparisonArtifact: {
-            comparedProductCodes: action.targets,
-            comparedRanks: [],
-            text: entityProfileReply.text,
-            timestamp: Date.now(),
-          },
-        })
-
-        const entityComparisonValidation = validateOptionFirstPipeline(
-          entityProfileReply.text,
-          comparisonOptionState.chips,
-          comparisonOptionState.displayedOptions,
-        )
-        const comparisonText = entityComparisonValidation.correctedAnswer ?? entityProfileReply.text
-
-        return deps.jsonRecommendationResponse({
-          text: comparisonText,
-          purpose: "comparison",
-          chips: comparisonOptionState.chips,
-          isComplete: false,
-          recommendation: null,
-          sessionState,
-          evidenceSummaries: null,
-          candidateSnapshot: prevState.displayedCandidates ?? null,
-          requestPreparation: null,
-          primaryExplanation: null,
-          primaryFactChecked: null,
-          altExplanations: [],
-          altFactChecked: [],
-          meta: buildActionMeta(action.type, orchResult, trace.build({
-            latestUserMessage: lastUserMsg.text,
-            currentMode: prevState.currentMode ?? null,
-            routeAction: action.type,
-          })),
-        })
-      }
-
-      const snapshot = prevState.displayedCandidates?.length
-        ? prevState.displayedCandidates
-        : deps.buildCandidateSnapshot(candidates, evidenceMap)
-      const targets = resolveProductReferences(action.targets, snapshot)
-      const comparison = await compareProducts(targets, evidenceMap, provider)
-      const comparisonOptionState = buildComparisonOptionState()
-
-      const sessionState = carryForwardState(prevState, {
-        // Preserve candidateCount from prevState when retrieval was skipped (candidates=[])
-        candidateCount: candidates.length > 0 ? candidates.length : (prevState.candidateCount ?? 0),
-        appliedFilters: filters,
+      return handleCompareProducts(action, {
+        jsonRecommendationResponse: deps.jsonRecommendationResponse,
+        prevState,
+        filters,
         narrowingHistory,
-        resolutionStatus: prevState.resolutionStatus ?? "broad",
-        resolvedInput: currentInput,
+        currentInput,
         turnCount,
-        displayedCandidates: snapshot,
-        displayedChips: comparisonOptionState.chips,
-        displayedOptions: comparisonOptionState.displayedOptions,
-        currentMode: "comparison",
-        lastAction: "compare_products",
-      })
-
-      let comparisonText = comparison.text
-      trace.add("comparison-result", "answer", {}, { textLength: comparisonText.length, chips: comparisonOptionState.chips }, "Comparison completed")
-      const comparisonValidation = validateOptionFirstPipeline(
-        comparisonText,
-        comparisonOptionState.chips,
-        comparisonOptionState.displayedOptions,
-      )
-      if (comparisonValidation.correctedAnswer) {
-        comparisonText = comparisonValidation.correctedAnswer
-        console.log(`[answer-validator:compare] Softened: ${comparisonValidation.unauthorizedActions.map(actionItem => actionItem.phrase).join(",")}`)
-      }
-
-      return deps.jsonRecommendationResponse({
-        text: comparisonText,
-        purpose: "comparison",
-        chips: comparisonOptionState.chips,
-        isComplete: false,
-        recommendation: null,
-        sessionState,
-        evidenceSummaries: null,
-        candidateSnapshot: snapshot,
-        requestPreparation: null,
-        primaryExplanation: null,
-        primaryFactChecked: null,
-        altExplanations: [],
-        altFactChecked: [],
-        meta: buildActionMeta(action.type, orchResult, trace.build({
-          latestUserMessage: lastUserMsg.text,
-          currentMode: prevState.currentMode ?? null,
-          routeAction: action.type,
-        })),
+        orchResult,
+        deps: {
+          handleDirectEntityProfileQuestion: deps.handleDirectEntityProfileQuestion,
+          buildCandidateSnapshot: deps.buildCandidateSnapshot,
+        },
+        provider,
+        candidates,
+        evidenceMap,
+        lastUserText: lastUserMsg.text,
+        trace,
+        buildActionMeta,
       })
     }
 
@@ -2402,16 +2318,46 @@ async function handleServeExplorationInner(
       }
 
       turnCount = filterAppliedAt + 1
-      const newStatus = checkResolution(newCandidates, narrowingHistory, testResult.totalConsidered)
+
+      // ── Multi-filter: extract and apply additional NL filters from same message ──
+      // e.g. "Radius로 해주세요 소재는 알루미늄입니다" → primary filter=Radius, additional=알루미늄
+      let finalCandidates = newCandidates
+      let finalEvidenceMap = testResult.evidenceMap
+      let finalTotalConsidered = testResult.totalConsidered
+      let finalDisplayPage = testDisplayPage
+      const additionalNLFilters = extractAllFiltersFromMessage(lastUserMsg.text, filters)
+      for (const addFilter of additionalNLFilters) {
+        const enrichedAdd = await enrichWorkPieceFilterWithSeriesScope(
+          { ...addFilter, appliedAt: turnCount - 1 },
+          currentInput
+        )
+        const addState = replaceFieldFilter(baseInput, filters, enrichedAdd, deps.applyFilterToInput)
+        const addResult = await runHybridRetrieval(addState.nextInput, addState.nextFilters, 0, null)
+        if (addResult.totalConsidered > 0) {
+          filters.splice(0, filters.length, ...addState.nextFilters)
+          currentInput = addState.nextInput
+          finalCandidates = addResult.candidates
+          finalEvidenceMap = addResult.evidenceMap
+          finalTotalConsidered = addResult.totalConsidered
+          finalDisplayPage = sliceCandidatesForPage(finalCandidates, finalEvidenceMap, resolvedPagination)
+          narrowingHistory[narrowingHistory.length - 1].extractedFilters.push(enrichedAdd)
+          narrowingHistory[narrowingHistory.length - 1].candidateCountAfter = finalTotalConsidered
+          console.log(`[multi-filter] Applied ${enrichedAdd.field}=${enrichedAdd.value} → ${finalTotalConsidered} candidates`)
+        } else {
+          console.log(`[multi-filter] Skipped ${enrichedAdd.field}=${enrichedAdd.value}: would result in 0 candidates`)
+        }
+      }
+
+      const newStatus = checkResolution(finalCandidates, narrowingHistory, finalTotalConsidered)
       if (newStatus.startsWith("resolved")) {
         return deps.buildRecommendationResponse(
           form,
-          newCandidates,
-          testResult.evidenceMap,
-          testResult.totalConsidered,
-          paginationDto(testResult.totalConsidered),
-          testDisplayPage.candidates,
-          testDisplayPage.evidenceMap,
+          finalCandidates,
+          finalEvidenceMap,
+          finalTotalConsidered,
+          paginationDto(finalTotalConsidered),
+          finalDisplayPage.candidates,
+          finalDisplayPage.evidenceMap,
           currentInput,
           narrowingHistory,
           filters,
@@ -2425,12 +2371,12 @@ async function handleServeExplorationInner(
 
       return deps.buildQuestionResponse(
         form,
-        newCandidates,
-        testResult.evidenceMap,
-        testResult.totalConsidered,
-        paginationDto(testResult.totalConsidered),
-        testDisplayPage.candidates,
-        testDisplayPage.evidenceMap,
+        finalCandidates,
+        finalEvidenceMap,
+        finalTotalConsidered,
+        paginationDto(finalTotalConsidered),
+        finalDisplayPage.candidates,
+        finalDisplayPage.evidenceMap,
         currentInput,
         narrowingHistory,
         filters,
