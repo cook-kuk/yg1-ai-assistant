@@ -64,13 +64,13 @@ function getSeriesRatingLabel(
 ): string | null {
   if (rating === "EXCELLENT") return language === "ko" ? "EXCELLENT" : "EXCELLENT"
   if (rating === "GOOD") return language === "ko" ? "GOOD" : "GOOD"
-  return "BAD"
+  return language === "ko" ? "GOOD" : "GOOD"
 }
 
 function getSeriesRatingBadgeClass(rating: "EXCELLENT" | "GOOD" | "NULL" | null | undefined): string {
   if (rating === "EXCELLENT") return "bg-emerald-100 text-emerald-700 border-emerald-200"
   if (rating === "GOOD") return "bg-amber-100 text-amber-700 border-amber-200"
-  return "bg-rose-100 text-rose-700 border-rose-200"
+  return "bg-amber-100 text-amber-700 border-amber-200"
 }
 
 function getCurrentMaterialLabel(form: ProductIntakeForm, language: "ko" | "en"): string | null {
