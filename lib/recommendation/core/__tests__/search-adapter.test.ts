@@ -164,6 +164,36 @@ describe("constraintsToFilters", () => {
     const { filters } = constraintsToFilters(state)
     expect(filters).toHaveLength(0)
   })
+
+  it("emits filter-backed base constraints such as brand", () => {
+    const state = makeState({
+      constraints: {
+        base: { brand: "TANK-POWER" },
+        refinements: {},
+      },
+    })
+
+    const { input, filters } = constraintsToFilters(state)
+
+    expect(input.brand).toBe("TANK-POWER")
+    expect(filters.some((f) => f.field === "brand" && f.rawValue === "TANK-POWER")).toBe(true)
+  })
+
+  it("maps arbitrary mv-backed numeric refinements through the registry", () => {
+    const state = makeState({
+      constraints: {
+        base: {},
+        refinements: { ballRadiusMm: 1.0 },
+      },
+    })
+
+    const { filters } = constraintsToFilters(state)
+
+    const ballRadiusFilter = filters.find((f) => f.field === "ballRadiusMm")
+    expect(ballRadiusFilter).toBeDefined()
+    expect(ballRadiusFilter!.rawValue).toBe(1)
+    expect(ballRadiusFilter!.value).toBe("1mm")
+  })
 })
 
 describe("scoredProductToCandidateRef", () => {

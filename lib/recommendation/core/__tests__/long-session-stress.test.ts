@@ -98,10 +98,11 @@ describe("State Adapter Deep Consistency", () => {
     const v2 = convertToV2State(legacy)
     const roundTrip = convertFromV2State(v2, legacy)
 
-    // Every original filter field should still be present
+    // Every original filter field should still be present (compare rawValue
+    // because the registry may reformat the display `value`, e.g. adding units)
     for (const filter of filters) {
       const found = roundTrip.appliedFilters.some(f =>
-        f.field === filter.field && String(f.value) === String(filter.value)
+        f.field === filter.field && String(f.rawValue) === String(filter.rawValue)
       )
       expect(found).toBe(true)
     }

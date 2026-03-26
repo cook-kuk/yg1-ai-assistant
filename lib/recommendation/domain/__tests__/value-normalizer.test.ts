@@ -1,23 +1,48 @@
-import { describe, it, expect } from "vitest"
-import { normalizeFilterValue, extractDistinctFieldValues } from "../value-normalizer"
+import { describe, expect, it } from "vitest"
 
-describe("value-normalizer: exact and fuzzy matching (no LLM)", () => {
-  it("DLC → DLC (exact match)", async () => {
-    const result = await normalizeFilterValue("DLC", "coating", ["DLC", "TiAlN", "AlCrN"])
-    expect(result.normalized).toBe("DLC")
-    expect(result.matchType).toBe("exact")
+import { extractDistinctFieldValues, normalizeFilterValue } from "../value-normalizer"
+
+describe("normalizeFilterValue", () => {
+  it("matches identifier fields by normalized exact equality", async () => {
+    const result = await normalizeFilterValue(
+      "ALU POWER HPC",
+      "brand",
+      ["ALU-POWER HPC", "ALU-CUT for Korean Market"],
+      null
+    )
+
+    expect(result).toEqual({
+      normalized: "ALU-POWER HPC",
+      matchType: "exact",
+    })
   })
 
-  it("dlc → DLC (case-insensitive exact)", async () => {
-    const result = await normalizeFilterValue("dlc", "coating", ["DLC", "TiAlN"])
-    expect(result.normalized).toBe("DLC")
-    expect(result.matchType).toBe("exact")
+  it("does not fuzzy-match identifier fields to a different brand", async () => {
+    const result = await normalizeFilterValue(
+      "ALU POWER HPC",
+      "brand",
+      ["ALU-CUT for Korean Market"],
+      null
+    )
+
+    expect(result).toEqual({
+      normalized: "ALU POWER HPC",
+      matchType: "none",
+    })
   })
 
-  it("Bright → Bright Finish (fuzzy substring)", async () => {
-    const result = await normalizeFilterValue("Bright", "coating", ["DLC", "Bright Finish", "TiAlN"])
-    expect(result.normalized).toBe("Bright Finish")
-    expect(result.matchType).toBe("fuzzy")
+  it("keeps fuzzy matching for semantic fields", async () => {
+    const result = await normalizeFilterValue(
+      "rough",
+      "toolSubtype",
+      ["Square", "Roughing"],
+      null
+    )
+
+    expect(result).toEqual({
+      normalized: "Roughing",
+      matchType: "fuzzy",
+    })
   })
 
   it("Carbide → Carbide (exact)", async () => {

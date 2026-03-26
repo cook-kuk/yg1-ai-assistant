@@ -16,6 +16,43 @@ import type {
   RecommendationInput,
   ScoredProduct,
 } from "../domain/types"
+import { buildAppliedFilterFromValue } from "../shared/filter-field-registry"
+
+const BASE_TO_LEGACY_FIELD: Record<string, string> = {
+  material: "material",
+  materialDetail: "workPieceName",
+  diameter: "diameterMm",
+  operation: "cuttingType",
+  toolType: "toolType",
+  toolSubtype: "toolSubtype",
+  endType: "toolSubtype",
+  seriesName: "seriesName",
+  brand: "brand",
+  country: "country",
+}
+
+const REFINEMENT_TO_LEGACY_FIELD: Record<string, string> = {
+  flute: "fluteCount",
+  coating: "coating",
+  toolMaterial: "toolMaterial",
+  coolantHole: "coolantHole",
+  helixAngle: "helixAngleDeg",
+  helixAngleDeg: "helixAngleDeg",
+  lengthOfCut: "lengthOfCutMm",
+  lengthOfCutMm: "lengthOfCutMm",
+  overallLength: "overallLengthMm",
+  overallLengthMm: "overallLengthMm",
+  shankDiameter: "shankDiameterMm",
+  shankDiameterMm: "shankDiameterMm",
+  ballRadius: "ballRadiusMm",
+  ballRadiusMm: "ballRadiusMm",
+  taperAngle: "taperAngleDeg",
+  taperAngleDeg: "taperAngleDeg",
+  brand: "brand",
+  seriesName: "seriesName",
+  toolSubtype: "toolSubtype",
+  country: "country",
+}
 
 // ── Convert V2 constraints → legacy filters for hybrid-retrieval ──
 
@@ -42,42 +79,23 @@ export function constraintsToFilters(state: RecommendationSessionState): {
   if (base.brand) input.brand = String(base.brand)
   if (base.country) input.country = String(base.country)
 
-  // Map refinements to AppliedFilter[]
-  if (refinements.flute != null) {
-    filters.push({
-      field: "fluteCount",
-      op: "eq",
-      value: `${refinements.flute}`,
-      rawValue: Number(refinements.flute),
-      appliedAt: 0,
-    })
+  // Base constraints that do not have dedicated DB/input handling still become filters.
+  for (const [key, value] of Object.entries(base)) {
+    if (value == null) continue
+    const legacyField = BASE_TO_LEGACY_FIELD[key]
+    if (!legacyField) continue
+    if (["material", "workPieceName", "diameterMm", "cuttingType", "toolType", "toolSubtype", "seriesName", "country"].includes(legacyField)) {
+      continue
+    }
+    const filter = buildAppliedFilterFromValue(legacyField, value)
+    if (filter) filters.push(filter)
   }
-  if (refinements.coating != null) {
-    filters.push({
-      field: "coating",
-      op: "includes",
-      value: String(refinements.coating),
-      rawValue: String(refinements.coating),
-      appliedAt: 0,
-    })
-  }
-  if (refinements.toolMaterial != null) {
-    filters.push({
-      field: "toolMaterial",
-      op: "includes",
-      value: String(refinements.toolMaterial),
-      rawValue: String(refinements.toolMaterial),
-      appliedAt: 0,
-    })
-  }
-  if (refinements.coolantHole != null) {
-    filters.push({
-      field: "coolantHole",
-      op: "eq",
-      value: String(refinements.coolantHole),
-      rawValue: String(refinements.coolantHole),
-      appliedAt: 0,
-    })
+
+  for (const [key, value] of Object.entries(refinements)) {
+    if (value == null) continue
+    const legacyField = REFINEMENT_TO_LEGACY_FIELD[key] ?? key
+    const filter = buildAppliedFilterFromValue(legacyField, value)
+    if (filter) filters.push(filter)
   }
 
   return { input, filters }

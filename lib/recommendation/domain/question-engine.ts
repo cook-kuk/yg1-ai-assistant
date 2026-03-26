@@ -8,6 +8,7 @@
  */
 
 import { buildProductLabel } from "@/lib/recommendation/domain/product-label"
+import { parseFieldAnswerToFilter } from "@/lib/recommendation/shared/filter-field-registry"
 import { OPERATION_SHAPE_OPTIONS } from "@/lib/types/intake"
 
 import type {
@@ -490,128 +491,7 @@ export function parseAnswerToFilter(
   field: string,
   answer: string
 ): AppliedFilter | null {
-  const clean = answer.trim().replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
-
-  if (["상관없음", "모름", "skip", "상관 없음"].includes(clean.toLowerCase())) {
-    return null
-  }
-
-  switch (field) {
-    case "fluteCount": {
-      const match = clean.match(/(\d+)/)
-      if (match) {
-        return {
-          field: "fluteCount",
-          op: "eq",
-          value: `${match[1]}날`,
-          rawValue: parseInt(match[1]),
-          appliedAt: 0,
-        }
-      }
-      break
-    }
-    case "coating":
-      return {
-        field: "coating",
-        op: "includes",
-        value: clean,
-        rawValue: clean,
-        appliedAt: 0,
-      }
-    case "seriesName":
-      return {
-        field: "seriesName",
-        op: "includes",
-        value: clean,
-        rawValue: clean,
-        appliedAt: 0,
-      }
-    case "toolSubtype":
-      return {
-        field: "toolSubtype",
-        op: "includes",
-        value: clean,
-        rawValue: clean,
-        appliedAt: 0,
-      }
-    case "diameterRefine": {
-      const match = clean.match(/([\d.]+)/)
-      if (match) {
-        return {
-          field: "diameterMm",
-          op: "eq",
-          value: `${match[1]}mm`,
-          rawValue: parseFloat(match[1]),
-          appliedAt: 0,
-        }
-      }
-      break
-    }
-    case "cuttingType": {
-      return {
-        field: "cuttingType",
-        op: "eq",
-        value: clean,
-        rawValue: clean,
-        appliedAt: 0,
-      }
-    }
-    case "material":
-      return {
-        field: "material",
-        op: "eq",
-        value: clean,
-        rawValue: clean,
-        appliedAt: 0,
-      }
-    // ── Extended numeric fields ──
-    case "lengthOfCutMm":
-    case "overallLengthMm":
-    case "shankDiameterMm":
-    case "helixAngleDeg":
-    case "ballRadiusMm":
-    case "taperAngleDeg": {
-      const match = clean.match(/([\d.]+)/)
-      if (match) {
-        const numVal = parseFloat(match[1])
-        const unitMap: Record<string, string> = {
-          lengthOfCutMm: "mm", overallLengthMm: "mm", shankDiameterMm: "mm",
-          helixAngleDeg: "°", ballRadiusMm: "mm", taperAngleDeg: "°",
-        }
-        return {
-          field,
-          op: "eq",
-          value: `${numVal}${unitMap[field] ?? ""}`,
-          rawValue: numVal,
-          appliedAt: 0,
-        }
-      }
-      break
-    }
-    // ── Extended string fields ──
-    case "toolMaterial":
-    case "toolType":
-    case "brand":
-    case "country":
-    case "workPieceName":
-      return {
-        field,
-        op: "includes",
-        value: clean,
-        rawValue: clean,
-        appliedAt: 0,
-      }
-    case "coolantHole":
-      return {
-        field,
-        op: "eq",
-        value: /있|yes|true|유/i.test(clean) ? "true" : "false",
-        rawValue: /있|yes|true|유/i.test(clean) ? "true" : "false",
-        appliedAt: 0,
-      }
-  }
-
-  return null
+  return parseFieldAnswerToFilter(field, answer)
 }
 
 /**

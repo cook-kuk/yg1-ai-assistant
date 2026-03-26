@@ -84,6 +84,15 @@ describe("convertToV2State", () => {
     expect(result.constraints.refinements.coating).toBe("AlTiN")
   })
 
+  it("preserves numeric mv-backed refinements without stringifying them", () => {
+    const legacy = makeLegacyState({
+      appliedFilters: [makeFilter("ballRadiusMm", "1mm", 1)],
+    })
+
+    const result = convertToV2State(legacy)
+    expect(result.constraints.refinements.ballRadiusMm).toBe(1)
+  })
+
   it("maps workPieceName to materialDetail", () => {
     const legacy = makeLegacyState({
       appliedFilters: [makeFilter("workPieceName", "SUS304", "SUS304")],
@@ -91,6 +100,51 @@ describe("convertToV2State", () => {
 
     const result = convertToV2State(legacy)
     expect(result.constraints.base.materialDetail).toBe("SUS304")
+  })
+
+  it("preserves resolvedInput base constraints even when appliedFilters are empty", () => {
+    const legacy = makeLegacyState({
+      resolvedInput: {
+        manufacturerScope: "yg1-only",
+        locale: "ko",
+        material: "알루미늄",
+        toolType: "Milling",
+      },
+    })
+
+    const result = convertToV2State(legacy)
+
+    expect(result.constraints.base.material).toBe("알루미늄")
+    expect(result.constraints.base.toolType).toBe("Milling")
+  })
+
+  it("lets appliedFilters override conflicting resolvedInput values", () => {
+    const legacy = makeLegacyState({
+      resolvedInput: {
+        manufacturerScope: "yg1-only",
+        locale: "ko",
+        material: "알루미늄",
+      },
+      appliedFilters: [makeFilter("material", "일반강", "일반강")],
+    })
+
+    const result = convertToV2State(legacy)
+
+    expect(result.constraints.base.material).toBe("일반강")
+  })
+
+  it('does not materialize country "ALL" as a V2 base constraint', () => {
+    const legacy = makeLegacyState({
+      resolvedInput: {
+        manufacturerScope: "yg1-only",
+        locale: "ko",
+        country: "ALL",
+      },
+    })
+
+    const result = convertToV2State(legacy)
+
+    expect(result.constraints.base.country).toBeUndefined()
   })
 
   it("maps lastAskedField to pendingQuestion", () => {
@@ -186,6 +240,51 @@ describe("convertToV2State", () => {
   })
 })
 
+describe("convertFromV2State", () => {
+  it("does not rehydrate resolvedInput base constraints as duplicate applied filters", () => {
+    const prevLegacy = makeLegacyState({
+      resolvedInput: {
+        manufacturerScope: "yg1-only",
+        locale: "ko",
+        material: "Aluminum",
+        operationType: "Milling",
+      },
+    })
+
+    const nextV2: RecommendationSessionState = {
+      ...createInitialSessionState(),
+      journeyPhase: "narrowing",
+      constraints: {
+        base: {
+          material: "Aluminum",
+          operation: "Milling",
+          endType: "Radius",
+          country: "ALL",
+        },
+        refinements: {},
+      },
+      pendingQuestion: {
+        field: "workPieceName",
+        questionText: "",
+        options: [],
+        turnAsked: 1,
+        context: null,
+      },
+      turnCount: 1,
+    }
+
+    const result = convertFromV2State(nextV2, prevLegacy)
+
+    expect(result.appliedFilters).toEqual([
+      expect.objectContaining({
+        field: "toolSubtype",
+        value: "Radius",
+        rawValue: "Radius",
+      }),
+    ])
+  })
+})
+
 describe("mapLegacyPhase", () => {
   it("returns intake for empty state", () => {
     const legacy = makeLegacyState({})
@@ -243,6 +342,21 @@ describe("convertFromV2State", () => {
     const coatingFilter = result.appliedFilters.find((f) => f.field === "coating")
     expect(coatingFilter).toBeDefined()
     expect(coatingFilter!.value).toBe("AlTiN")
+  })
+
+  it("rebuilds arbitrary registry-backed refinements from V2 constraints", () => {
+    const v2: RecommendationSessionState = {
+      ...createInitialSessionState(),
+      constraints: {
+        base: {},
+        refinements: { ballRadiusMm: 1, brand: "TANK-POWER" },
+      },
+    }
+
+    const result = convertFromV2State(v2, null)
+
+    expect(result.appliedFilters.some((f) => f.field === "ballRadiusMm" && f.rawValue === 1)).toBe(true)
+    expect(result.appliedFilters.some((f) => f.field === "brand" && f.rawValue === "TANK-POWER")).toBe(true)
   })
 
   it("maps pendingQuestion field to lastAskedField", () => {

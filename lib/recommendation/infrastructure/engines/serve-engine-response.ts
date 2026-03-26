@@ -61,6 +61,7 @@ import {
   smartOptionsToDisplayedOptions,
 } from "@/lib/recommendation/domain/options/option-bridge"
 import { validateOptionFirstPipeline } from "@/lib/recommendation/domain/options/option-validator"
+import { buildFilterValueScope } from "@/lib/recommendation/shared/filter-field-registry"
 
 type DisplayedProduct = RecommendationDisplayedProductRequestDto
 type JsonRecommendationResponse = (
@@ -355,6 +356,7 @@ export async function buildQuestionResponse(
   const snapshotCandidates = displayCandidates ?? candidates
   const snapshotEvidenceMap = displayEvidenceMap ?? evidenceMap
   const candidateSnapshot = buildCandidateSnapshot(snapshotCandidates, snapshotEvidenceMap)
+  const filterValueScope = buildFilterValueScope(candidates as unknown as Array<Record<string, unknown>>)
 
   // ── Option-first: question engine provides field + candidate data ──
   // Structured SmartOptions are built FIRST, then displayedOptions, then chips.
@@ -392,6 +394,7 @@ export async function buildQuestionResponse(
     uiNarrowingPath: buildUINarrowingPath(filters, history, totalCandidateCount),
     currentMode: messages.length === 0 ? "question" : "narrowing",
     displayedCandidates: candidateSnapshot,
+    filterValueScope,
     displayedChips: chips,
     displayedOptions,
     lastAction: "continue_narrowing",
@@ -715,6 +718,7 @@ export async function buildRecommendationResponse(
         resolvedInput: input,
         turnCount,
         displayedCandidates: buildCandidateSnapshot(candidates, evidenceMap),
+        filterValueScope: buildFilterValueScope(candidates as unknown as Array<Record<string, unknown>>),
         displayedChips: [],
         displayedOptions: [],
         lastAction: "show_recommendation",
@@ -758,6 +762,7 @@ export async function buildRecommendationResponse(
   // Full candidate snapshot for option planning — uses ALL candidates, not just display page,
   // so the planner can detect diversity in coating/flute/series across the full result set.
   const fullCandidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
+  const filterValueScope = buildFilterValueScope(candidates as unknown as Array<Record<string, unknown>>)
   const recLastUserMsg = messages.length > 0
     ? [...messages].reverse().find(m => m.role === "user")?.text ?? null
     : null
@@ -790,6 +795,7 @@ export async function buildRecommendationResponse(
     uiNarrowingPath: buildUINarrowingPath(filters, history, totalCandidateCount),
     currentMode: "recommendation",
     displayedCandidates: candidateSnapshot,
+    filterValueScope,
     displayedChips: followUpChips,
     displayedOptions: postRecDisplayedOptions,
     lastAction: "show_recommendation",

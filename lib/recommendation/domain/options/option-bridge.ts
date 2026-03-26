@@ -21,6 +21,7 @@ import type { ConversationMemory } from "../memory/conversation-memory"
 import { interpretContext } from "../context/context-interpreter"
 import { buildMemoryFromSession } from "../memory/conversation-memory"
 import { updateMemory } from "../memory/memory-manager"
+import { extractFilterFieldValueMap } from "@/lib/recommendation/shared/filter-field-registry"
 
 /**
  * Extract field value distributions from scored candidates.
@@ -29,37 +30,25 @@ import { updateMemory } from "../memory/memory-manager"
 export function extractCandidateFieldValues(
   candidates: ScoredProduct[]
 ): Map<string, Map<string, number>> {
-  const result = new Map<string, Map<string, number>>()
-
-  const fields: Array<{ key: string; getter: (p: ScoredProduct) => string | number | null }> = [
-    { key: "fluteCount", getter: p => p.product.fluteCount },
-    { key: "coating", getter: p => p.product.coating },
-    { key: "seriesName", getter: p => p.product.seriesName },
-    { key: "toolSubtype", getter: p => p.product.toolSubtype },
-    // Extended product fields
-    { key: "toolMaterial", getter: p => p.product.toolMaterial },
-    { key: "toolType", getter: p => p.product.toolType },
-    { key: "brand", getter: p => p.product.brand },
-    { key: "helixAngleDeg", getter: p => p.product.helixAngleDeg },
-    { key: "coolantHole", getter: p => p.product.coolantHole != null ? (p.product.coolantHole ? "Yes" : "No") : null },
-    { key: "stockStatus", getter: p => p.stockStatus },
-  ]
-
-  for (const { key, getter } of fields) {
-    const valueMap = new Map<string, number>()
-    for (const candidate of candidates) {
-      const val = getter(candidate)
-      if (val != null) {
-        const strVal = String(val)
-        valueMap.set(strVal, (valueMap.get(strVal) ?? 0) + 1)
-      }
-    }
-    if (valueMap.size > 1) {
-      result.set(key, valueMap)
-    }
-  }
-
-  return result
+  return extractFilterFieldValueMap(candidates, [
+    "fluteCount",
+    "coating",
+    "seriesName",
+    "toolSubtype",
+    "toolMaterial",
+    "toolType",
+    "brand",
+    "country",
+    "diameterMm",
+    "shankDiameterMm",
+    "lengthOfCutMm",
+    "overallLengthMm",
+    "helixAngleDeg",
+    "ballRadiusMm",
+    "taperAngleDeg",
+    "coolantHole",
+    "stockStatus",
+  ])
 }
 
 /**

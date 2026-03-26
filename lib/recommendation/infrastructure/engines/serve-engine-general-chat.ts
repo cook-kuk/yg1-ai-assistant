@@ -353,7 +353,10 @@ function buildReplyResponse(
     recommendation: null,
     sessionState,
     evidenceSummaries: null,
-    candidateSnapshot: overrides.candidateSnapshot ?? prevState.displayedCandidates ?? null,
+    candidateSnapshot: overrides.candidateSnapshot
+      ?? prevState.lastRecommendationArtifact
+      ?? prevState.displayedCandidates
+      ?? null,
     requestPreparation: null,
     primaryExplanation: null,
     primaryFactChecked: null,

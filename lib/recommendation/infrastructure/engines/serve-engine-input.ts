@@ -1,4 +1,8 @@
 import { canonicalizeIntakeSearchText } from "@/lib/recommendation/shared/intake-localization"
+import {
+  applyFilterToRecommendationInput,
+  clearFilterFromRecommendationInput,
+} from "@/lib/recommendation/shared/filter-field-registry"
 
 import type {
   AnswerState,
@@ -74,7 +78,12 @@ export function mapIntakeToInput(form: ProductIntakeForm): RecommendationInput {
   if (opParts.length > 0) input.operationType = opParts.join(" ")
 
   const country = getKnown(form.country)
-  if (country) input.country = country.trim().toUpperCase()
+  if (country) {
+    const normalizedCountry = country.trim().toUpperCase()
+    if (normalizedCountry && normalizedCountry !== "ALL") {
+      input.country = normalizedCountry
+    }
+  }
 
   return input as RecommendationInput
 }
@@ -94,138 +103,9 @@ export function applyFilterToInput(input: RecommendationInput, filter: AppliedFi
 }
 
 function applySingleFilter(input: RecommendationInput, filter: AppliedFilter): RecommendationInput {
-  const updated = { ...input }
-
-  const numericFilterValue = typeof filter.rawValue === "number"
-    ? filter.rawValue
-    : parseFloat(String(filter.rawValue))
-  const booleanFilterValue = String(filter.rawValue).toLowerCase() === "true" || String(filter.rawValue).toLowerCase() === "yes"
-
   if (filter.op === "skip" || filter.rawValue === "skip") {
-    switch (filter.field) {
-      case "diameterMm":
-      case "diameterRefine":
-        updated.diameterMm = undefined
-        break
-      case "fluteCount":
-        updated.flutePreference = undefined
-        break
-      case "coating":
-        updated.coatingPreference = undefined
-        break
-      case "cuttingType":
-        updated.operationType = undefined
-        break
-      case "material":
-        updated.material = undefined
-        updated.workPieceName = undefined
-        break
-      case "toolSubtype":
-        updated.toolSubtype = undefined
-        break
-      case "seriesName":
-        updated.seriesName = undefined
-        break
-      case "toolMaterial":
-        updated.toolMaterial = undefined
-        break
-      case "toolType":
-        updated.toolType = undefined
-        break
-      case "brand":
-        updated.brand = undefined
-        break
-      case "country":
-        updated.country = undefined
-        break
-      case "shankDiameterMm":
-        updated.shankDiameterMm = undefined
-        break
-      case "lengthOfCutMm":
-        updated.lengthOfCutMm = undefined
-        break
-      case "overallLengthMm":
-        updated.overallLengthMm = undefined
-        break
-      case "helixAngleDeg":
-        updated.helixAngleDeg = undefined
-        break
-      case "ballRadiusMm":
-        updated.ballRadiusMm = undefined
-        break
-      case "taperAngleDeg":
-        updated.taperAngleDeg = undefined
-        break
-      case "coolantHole":
-        updated.coolantHole = undefined
-      case "workPieceName":
-        updated.workPieceName = undefined
-        break
-    }
-    return updated
+    return clearFilterFromRecommendationInput(input, filter.field)
   }
 
-  switch (filter.field) {
-    case "diameterMm":
-    case "diameterRefine":
-      updated.diameterMm = typeof filter.rawValue === "number" ? filter.rawValue : parseFloat(String(filter.rawValue))
-      break
-    case "material":
-      updated.material = String(filter.rawValue)
-      updated.workPieceName = undefined
-      break
-    case "workPieceName":
-      updated.workPieceName = String(filter.rawValue)
-      break
-    case "fluteCount":
-      updated.flutePreference = Number.isNaN(numericFilterValue) ? undefined : numericFilterValue
-      break
-    case "coating":
-      updated.coatingPreference = String(filter.rawValue)
-      break
-    case "cuttingType":
-      updated.operationType = String(filter.rawValue)
-      break
-    case "toolSubtype":
-      updated.toolSubtype = String(filter.rawValue)
-      break
-    case "seriesName":
-      updated.seriesName = String(filter.rawValue)
-      break
-    case "toolMaterial":
-      updated.toolMaterial = String(filter.rawValue)
-      break
-    case "toolType":
-      updated.toolType = String(filter.rawValue)
-      break
-    case "brand":
-      updated.brand = String(filter.rawValue)
-      break
-    case "country":
-      updated.country = String(filter.rawValue).toUpperCase()
-      break
-    case "shankDiameterMm":
-      updated.shankDiameterMm = Number.isNaN(numericFilterValue) ? undefined : numericFilterValue
-      break
-    case "lengthOfCutMm":
-      updated.lengthOfCutMm = Number.isNaN(numericFilterValue) ? undefined : numericFilterValue
-      break
-    case "overallLengthMm":
-      updated.overallLengthMm = Number.isNaN(numericFilterValue) ? undefined : numericFilterValue
-      break
-    case "helixAngleDeg":
-      updated.helixAngleDeg = Number.isNaN(numericFilterValue) ? undefined : numericFilterValue
-      break
-    case "ballRadiusMm":
-      updated.ballRadiusMm = Number.isNaN(numericFilterValue) ? undefined : numericFilterValue
-      break
-    case "taperAngleDeg":
-      updated.taperAngleDeg = Number.isNaN(numericFilterValue) ? undefined : numericFilterValue
-      break
-    case "coolantHole":
-      updated.coolantHole = booleanFilterValue
-      break
-  }
-
-  return updated
+  return applyFilterToRecommendationInput(input, filter)
 }

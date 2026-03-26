@@ -10,6 +10,18 @@
  */
 
 import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import {
+  extractDistinctFilterFieldValues,
+  getFilterFieldMatchPolicy,
+} from "@/lib/recommendation/shared/filter-field-registry"
+
+function normalizeCompactValue(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, "")
+}
+
+function normalizeIdentifierValue(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9가-힣]+/g, "")
+}
 
 /**
  * Normalize a user-provided value against actual candidate values.
@@ -27,23 +39,34 @@ export async function normalizeFilterValue(
   provider?: LLMProvider | null
 ): Promise<{ normalized: string; matchType: "exact" | "fuzzy" | "llm" | "none" }> {
   const clean = userValue.trim()
-  const cleanLower = clean.toLowerCase().replace(/\s+/g, "")
+  const matchPolicy = getFilterFieldMatchPolicy(field)
+  const cleanLower = normalizeCompactValue(clean)
+  const cleanIdentifier = normalizeIdentifierValue(clean)
 
   if (candidateValues.length === 0) {
     return { normalized: clean, matchType: "none" }
   }
 
-  // 1. Exact match (case-insensitive)
-  const exactMatch = candidateValues.find(v => v.toLowerCase() === cleanLower)
+  // 1. Exact match
+  const exactMatch = candidateValues.find(v => {
+    const normalizedCandidate = matchPolicy === "strict_identifier"
+      ? normalizeIdentifierValue(v)
+      : normalizeCompactValue(v)
+    return normalizedCandidate === (matchPolicy === "strict_identifier" ? cleanIdentifier : cleanLower)
+  })
   if (exactMatch) {
     return { normalized: exactMatch, matchType: "exact" }
   }
 
+  if (matchPolicy === "strict_identifier") {
+    return { normalized: clean, matchType: "none" }
+  }
+
   // 2a. Substring match (space-normalized)
-  const substringMatch = candidateValues.find(v => {
-    const vNorm = v.toLowerCase().replace(/\s+/g, "")
-    return vNorm.includes(cleanLower) || cleanLower.includes(vNorm)
-  })
+  const substringMatch = candidateValues.find(v =>
+    normalizeCompactValue(v).includes(cleanLower) ||
+    cleanLower.includes(normalizeCompactValue(v))
+  )
   if (substringMatch) {
     return { normalized: substringMatch, matchType: "fuzzy" }
   }
@@ -63,7 +86,7 @@ export async function normalizeFilterValue(
   // 3. Partial overlap (3+ chars in common)
   if (cleanLower.length >= 3) {
     for (const candidateVal of candidateValues) {
-      const candLower = candidateVal.toLowerCase()
+      const candLower = normalizeCompactValue(candidateVal)
       for (let i = 0; i <= cleanLower.length - 3; i++) {
         if (candLower.includes(cleanLower.slice(i, i + 3))) {
           return { normalized: candidateVal, matchType: "fuzzy" }
@@ -73,7 +96,7 @@ export async function normalizeFilterValue(
   }
 
   // 4. LLM translation (Haiku) — handles Korean↔English, industry jargon, etc.
-  if (provider?.available()) {
+  if (matchPolicy === "llm_assisted" && provider?.available()) {
     try {
       const llmMatch = await translateWithLLM(clean, field, candidateValues, provider)
       if (llmMatch) {
@@ -129,9 +152,9 @@ DB 값만 정확히 반환하세요. 설명이나 따옴표 없이 값만.`
 
   // Verify the LLM returned an actual candidate value
   const matched = candidateValues.find(v =>
-    v.toLowerCase() === result.toLowerCase() ||
-    v.toLowerCase().includes(result.toLowerCase()) ||
-    result.toLowerCase().includes(v.toLowerCase())
+    normalizeCompactValue(v) === normalizeCompactValue(result) ||
+    normalizeCompactValue(v).includes(normalizeCompactValue(result)) ||
+    normalizeCompactValue(result).includes(normalizeCompactValue(v))
   )
 
   if (matched) {
@@ -150,24 +173,5 @@ export function extractDistinctFieldValues(
   candidates: Array<Record<string, unknown>>,
   field: string
 ): string[] {
-  const FIELD_GETTERS: Record<string, (p: Record<string, unknown>) => unknown> = {
-    coating: p => (p as any).product?.coating ?? (p as any).coating,
-    toolMaterial: p => (p as any).product?.toolMaterial ?? (p as any).toolMaterial,
-    toolType: p => (p as any).product?.toolType ?? (p as any).toolType,
-    toolSubtype: p => (p as any).product?.toolSubtype ?? (p as any).toolSubtype,
-    seriesName: p => (p as any).product?.seriesName ?? (p as any).seriesName,
-    brand: p => (p as any).product?.brand ?? (p as any).brand,
-    country: p => (p as any).product?.country ?? (p as any).country,
-    stockStatus: p => (p as any).stockStatus,
-  }
-
-  const getter = FIELD_GETTERS[field]
-  if (!getter) return []
-
-  const values = new Set<string>()
-  for (const c of candidates) {
-    const val = getter(c)
-    if (val != null && val !== "") values.add(String(val))
-  }
-  return Array.from(values)
+  return extractDistinctFilterFieldValues(candidates, field)
 }

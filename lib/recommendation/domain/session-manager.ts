@@ -55,6 +55,7 @@ interface BuildSessionStateParams {
   activeGroupKey?: string | null
   displayedCandidates: CandidateSnapshot[]
   fullDisplayedCandidates?: CandidateSnapshot[]
+  filterValueScope?: ExplorationSessionState["filterValueScope"]
   displayedChips: string[]
   displayedOptions?: DisplayedOption[]
   lastAction?: LastActionType
@@ -92,6 +93,7 @@ export function buildSessionState(params: BuildSessionStateParams): ExplorationS
     activeGroupKey: params.activeGroupKey ?? null,
     displayedCandidates: params.displayedCandidates,
     fullDisplayedCandidates: params.fullDisplayedCandidates ?? params.displayedCandidates,
+    filterValueScope: params.filterValueScope,
     displayedChips: params.displayedChips,
     displayedOptions: params.displayedOptions ?? [],
     lastAction: params.lastAction,
@@ -134,6 +136,7 @@ export function carryForwardState(
     activeGroupKey: overrides.activeGroupKey ?? prev.activeGroupKey ?? null,
     displayedCandidates: overrides.displayedCandidates ?? prev.displayedCandidates,
     fullDisplayedCandidates: overrides.fullDisplayedCandidates ?? prev.fullDisplayedCandidates ?? prev.displayedCandidates,
+    filterValueScope: overrides.filterValueScope ?? prev.filterValueScope,
     displayedChips: overrides.displayedChips ?? prev.displayedChips,
     displayedOptions: overrides.displayedOptions ?? prev.displayedOptions ?? [],
     lastAction: overrides.lastAction ?? prev.lastAction,
