@@ -113,7 +113,8 @@ function normalizeQuestionOptionToken(value: string): string {
 
 const QUESTION_FIELD_HINTS: Record<string, RegExp[]> = {
   workPieceName: [/피삭재/u, /세부\s*피삭재/u, /소재/u, /재질/u, /강종/u, /hardened/i, /hrc/i],
-  diameterRefine: [/직경/u, /\bmm\b/i, /파이/u, /지름/u],
+  diameterMm: [/어떤\s*직경/u, /직경은\s*어느/u, /직경을\s*선택/u, /직접\s*입력/u],
+  diameterRefine: [/정확한\s*직경/u, /근처에/u, /직경\s*\d+(?:\.\d+)?mm/u],
   fluteCount: [/날\s*수/u, /몇\s*날/u, /플루트/u, /flute/i],
   coating: [/코팅/u, /coat/i, /tialn/i, /alcrn/i, /ticn/i],
   toolSubtype: [/형상/u, /타입/u, /엔드밀/u, /볼/u, /스퀘어/u, /corner\s*radius/i],
@@ -128,6 +129,7 @@ const QUESTION_FIELD_LABELS: Record<string, string> = {
   toolSubtype: "공구 세부 타입",
   seriesName: "시리즈",
   cuttingType: "가공 종류",
+  diameterMm: "직경",
   diameterRefine: "직경",
 }
 

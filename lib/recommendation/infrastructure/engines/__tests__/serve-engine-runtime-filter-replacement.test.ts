@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import { applyFilterToInput } from "../serve-engine-input"
+import { applyFilterToInput, mapIntakeToInput } from "../serve-engine-input"
 import { replaceFieldFilter } from "../serve-engine-filter-state"
-import type { AppliedFilter, RecommendationInput } from "@/lib/recommendation/domain/types"
+import { resolvePendingQuestionReply } from "../serve-engine-runtime"
+import type { AppliedFilter, ExplorationSessionState, ProductIntakeForm, RecommendationInput } from "@/lib/recommendation/domain/types"
 
 function makeBaseInput(): RecommendationInput {
   return {
@@ -107,5 +108,41 @@ describe("serve-engine runtime filter replacement", () => {
     })
 
     expect(updated.operationType).toBe("Side_Milling")
+  })
+
+  it("keeps machining category separate from operation shape when mapping intake input", () => {
+    const form: ProductIntakeForm = {
+      inquiryPurpose: { status: "known", value: "new" },
+      material: { status: "known", value: "알루미늄" },
+      operationType: { status: "known", value: "Slotting" },
+      machiningIntent: { status: "known", value: "roughing" },
+      toolTypeOrCurrentProduct: { status: "known", value: "Milling" },
+      diameterInfo: { status: "known", value: "10mm" },
+      country: { status: "unanswered" },
+    }
+
+    const input = mapIntakeToInput(form)
+
+    expect(input.operationType).toBe("Slotting")
+    expect(input.machiningCategory).toBe("Milling")
+    expect(input.machiningIntent).toBe("Roughing")
+  })
+
+  it("resolves direct numeric replies for pending diameter questions without chip match", () => {
+    const sessionState = {
+      lastAskedField: "diameterMm",
+      resolutionStatus: "narrowing",
+      turnCount: 2,
+      displayedChips: ["6mm (12개)", "8mm (9개)", "상관없음"],
+      displayedOptions: [],
+    } as unknown as ExplorationSessionState
+
+    const resolution = resolvePendingQuestionReply(sessionState, "7.5mm")
+
+    expect(resolution.kind).toBe("resolved")
+    if (resolution.kind === "resolved") {
+      expect(resolution.filter.field).toBe("diameterMm")
+      expect(resolution.filter.rawValue).toBe(7.5)
+    }
   })
 })

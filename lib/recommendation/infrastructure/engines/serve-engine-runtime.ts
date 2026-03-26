@@ -94,6 +94,12 @@ type ExplicitFilterResolution =
   | { kind: "resolved"; filter: AppliedFilter }
   | { kind: "ambiguous"; question: string }
 
+type PendingQuestionReplyResolution =
+  | { kind: "none" }
+  | { kind: "resolved"; filter: AppliedFilter }
+  | { kind: "side_question"; pendingField: string; raw: string }
+  | { kind: "unresolved"; pendingField: string; raw: string }
+
 const DEFAULT_CANDIDATE_PAGE_SIZE = 50
 
 function buildPreSearchOrchestratorResult(userMessage: string, reason: string) {
@@ -559,22 +565,25 @@ async function enrichWorkPieceFilterWithSeriesScope(
   } as AppliedFilter
 }
 
-export function buildPendingSelectionFilter(
+export function resolvePendingQuestionReply(
   sessionState: ExplorationSessionState | null,
   userMessage: string | null
-): AppliedFilter | null {
+): PendingQuestionReplyResolution {
   const pendingField = sessionState?.lastAskedField ?? null
-  if (!sessionState || !pendingField) return null
-  if (sessionState.resolutionStatus?.startsWith("resolved")) return null
-  if (!userMessage) return null
+  if (!sessionState || !pendingField) return { kind: "none" }
+  if (sessionState.resolutionStatus?.startsWith("resolved")) return { kind: "none" }
+  if (!userMessage) return { kind: "none" }
 
   const raw = userMessage.trim()
-  if (!raw || raw.length > 40) return null
-  if (/[?？]/.test(raw)) return null
-  if (/뭐야|뭔지|설명|차이|왜|어떻게|몇개|종류|비교|추천|결과|처음부터|이전 단계|줘|알려|궁금|공장|영업소|연락|번호|정보|회사|사장|회장|매출|주주|지점|사우디|해외|국가|나라|도시|어디/u.test(raw)) return null
+  if (!raw) return { kind: "none" }
+  if (raw.length > 80) return { kind: "unresolved", pendingField, raw }
+  if (/[?？]/.test(raw)) return { kind: "side_question", pendingField, raw }
+  if (/뭐야|뭔지|설명|차이|왜|어떻게|몇개|종류|비교|추천|결과|처음부터|이전 단계|줘|알려|궁금|공장|영업소|연락|번호|정보|회사|사장|회장|매출|주주|지점|사우디|해외|국가|나라|도시|어디/u.test(raw)) {
+    return { kind: "side_question", pendingField, raw }
+  }
 
   const clean = normalizePendingSelectionText(raw)
-  if (!clean) return null
+  if (!clean) return { kind: "unresolved", pendingField, raw }
 
   let optionsForPendingField = (sessionState.displayedOptions ?? []).filter(option => option.field === pendingField)
   if (optionsForPendingField.length === 0) {
@@ -607,12 +616,11 @@ export function buildPendingSelectionFilter(
 
   const selectedOption = optionMatch ?? chipMatch ?? null
   const selectedValue = selectedOption?.value ?? null
-  if (!selectedValue) {
-    console.log(`[pending-filter] No option/chip match for "${raw.slice(0, 30)}" → skip filter creation`)
-    return null
-  }
+  const supportsDirectFreeformAnswer = pendingField === "diameterMm" || pendingField === "diameterRefine"
+  const parsedDirect = selectedValue || !supportsDirectFreeformAnswer ? null : parseAnswerToFilter(pendingField, raw)
+  const resolvedValue = selectedValue ?? null
 
-  if (selectedValue === "skip" || isSkipSelectionValue(selectedOption?.label) || isSkipSelectionValue(raw)) {
+  if (resolvedValue === "skip" || isSkipSelectionValue(selectedOption?.label) || isSkipSelectionValue(raw)) {
     const filter: AppliedFilter = {
       field: pendingField,
       op: "skip",
@@ -621,14 +629,25 @@ export function buildPendingSelectionFilter(
       appliedAt: sessionState.turnCount ?? 0,
     }
     console.log(`[pending-selection] Resolved field="${pendingField}" as skip`)
-    return filter
+    return { kind: "resolved", filter }
   }
 
-  const filter = parseAnswerToFilter(pendingField, selectedValue)
+  const filter = resolvedValue ? parseAnswerToFilter(pendingField, resolvedValue) : parsedDirect
   if (filter) {
-    console.log(`[pending-selection] Resolved field="${pendingField}" value="${selectedValue}"`)
+    console.log(`[pending-selection] Resolved field="${pendingField}" value="${filter.value}"`)
+    return { kind: "resolved", filter }
   }
-  return filter
+
+  console.log(`[pending-selection] Unresolved reply for field="${pendingField}" raw="${raw.slice(0, 30)}"`)
+  return { kind: "unresolved", pendingField, raw }
+}
+
+export function buildPendingSelectionFilter(
+  sessionState: ExplorationSessionState | null,
+  userMessage: string | null
+): AppliedFilter | null {
+  const resolved = resolvePendingQuestionReply(sessionState, userMessage)
+  return resolved.kind === "resolved" ? resolved.filter : null
 }
 
 export function resolveExplicitComparisonAction(
@@ -1024,7 +1043,8 @@ async function handleServeExplorationInner(
   let bridgedV2Action: OrchestratorAction | null = null
   let bridgedV2OrchestratorResult: OrchestratorResult | null = null
   const journeyPhase = detectJourneyPhase(prevState)
-  const pendingSelectionFilter = buildPendingSelectionFilter(prevState, lastUserMsg?.text ?? null)
+  const pendingQuestionReply = resolvePendingQuestionReply(prevState, lastUserMsg?.text ?? null)
+  const pendingSelectionFilter = pendingQuestionReply.kind === "resolved" ? pendingQuestionReply.filter : null
   const shouldResolvePendingSelectionEarly = !!pendingSelectionFilter && !isPostResultPhase(journeyPhase)
 
   if (shouldResolvePendingSelectionEarly && pendingSelectionFilter) {

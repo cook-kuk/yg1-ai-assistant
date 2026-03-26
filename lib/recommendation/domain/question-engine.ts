@@ -27,13 +27,14 @@ export interface NextQuestion {
 }
 
 const QUESTION_FIELD_PRIORITY: Record<string, number> = {
-  diameterRefine: 0,
-  toolSubtype: 1,
-  fluteCount: 2,
-  workPieceName: 3,
-  coating: 4,
-  seriesName: 5,
-  cuttingType: 6,
+  diameterMm: 0,
+  diameterRefine: 1,
+  toolSubtype: 2,
+  fluteCount: 3,
+  workPieceName: 4,
+  coating: 5,
+  seriesName: 6,
+  cuttingType: 7,
 }
 
 const QUESTION_FIELD_LABELS: Record<string, string> = {
@@ -42,6 +43,7 @@ const QUESTION_FIELD_LABELS: Record<string, string> = {
   seriesName: "시리즈",
   toolSubtype: "공구 세부 타입",
   cuttingType: "가공 종류",
+  diameterMm: "직경",
   diameterRefine: "직경",
   workPieceName: "세부 피삭재",
 }
@@ -187,6 +189,14 @@ export function explainQuestionFieldReplayFailure(
       if (values.size <= 3) return `현재 후보에서는 ${label} 선택지가 충분히 갈리지 않아 같은 질문으로 후보를 더 나누기 어렵습니다.`
       return null
     }
+    case "diameterMm": {
+      if (input.diameterMm) return `${label}은 이미 조건에 반영되어 있어 같은 질문을 이어갈 필요가 없습니다.`
+      const values = new Set(
+        candidates.map(candidate => candidate.product.diameterMm).filter((value): value is number => typeof value === "number")
+      )
+      if (values.size <= 1) return `현재 후보에서는 ${label}가 하나로 좁혀져 같은 질문으로 후보를 더 나누기 어렵습니다.`
+      return null
+    }
     case "cuttingType":
       return input.operationType
         ? `${label}는 이미 조건에 반영되어 있어 같은 질문을 이어갈 필요가 없습니다.`
@@ -330,6 +340,33 @@ function buildCuttingTypeQuestion(input: RecommendationInput): FieldAnalysis | n
   }
 }
 
+function buildDiameterQuestion(input: RecommendationInput, candidates: ScoredProduct[]): FieldAnalysis | null {
+  if (input.diameterMm != null) return null
+
+  const diameterCounts = new Map<number, number>()
+  for (const candidate of candidates) {
+    if (candidate.product.diameterMm != null) {
+      diameterCounts.set(candidate.product.diameterMm, (diameterCounts.get(candidate.product.diameterMm) || 0) + 1)
+    }
+  }
+  if (diameterCounts.size <= 1) return null
+
+  const gain = computeEntropy(diameterCounts, candidates.length)
+  const chips = [...diameterCounts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0] - b[0])
+    .slice(0, 5)
+    .map(([value, count]) => `${value}mm (${count}개)`)
+  chips.push("상관없음")
+
+  const diameterPreview = [...diameterCounts.keys()].sort((a, b) => a - b).slice(0, 5).map(v => `${v}mm`).join(", ")
+  return {
+    field: "diameterMm",
+    questionText: `필요한 직경을 선택하거나 직접 입력해주세요. 현재 후보에는 ${diameterPreview}${diameterCounts.size > 5 ? " 등이" : "가"} 있습니다.`,
+    chips,
+    infoGain: gain,
+  }
+}
+
 function buildDiameterRefineQuestion(input: RecommendationInput, candidates: ScoredProduct[]): FieldAnalysis | null {
   if (!input.diameterMm) return null
 
@@ -338,9 +375,13 @@ function buildDiameterRefineQuestion(input: RecommendationInput, candidates: Sco
   )
   if (uniqueDiameters.size <= 3) return null
 
-  const sortedDiameters = [...uniqueDiameters].sort((a, b) => a - b)
-  const closestDiameters = sortedDiameters
+  const closestDiameters = [...uniqueDiameters]
     .filter(diameter => Math.abs(diameter - input.diameterMm!) <= 2)
+    .sort((a, b) => {
+      const distanceDiff = Math.abs(a - input.diameterMm!) - Math.abs(b - input.diameterMm!)
+      if (distanceDiff !== 0) return distanceDiff
+      return a - b
+    })
     .slice(0, 5)
 
   if (closestDiameters.length <= 1) return null
@@ -369,6 +410,8 @@ function analyzeFieldDirect(
       return buildToolSubtypeQuestion(input, candidates)
     case "cuttingType":
       return buildCuttingTypeQuestion(input)
+    case "diameterMm":
+      return buildDiameterQuestion(input, candidates)
     case "diameterRefine":
       return buildDiameterRefineQuestion(input, candidates)
     default:
@@ -406,6 +449,11 @@ function analyzeFields(
 
   if (!askedFields.has("cuttingType")) {
     const question = buildCuttingTypeQuestion(input)
+    if (question) results.push(question)
+  }
+
+  if (!askedFields.has("diameterMm")) {
+    const question = buildDiameterQuestion(input, candidates)
     if (question) results.push(question)
   }
 

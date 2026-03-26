@@ -102,6 +102,37 @@ describe("selectQuestionForField", () => {
 })
 
 describe("selectNextQuestion", () => {
+  it("asks for diameter first when no diameter has been provided and candidate diameters are broad", () => {
+    const candidates = [
+      {
+        ...makeCandidate("Square", "TiCN", "P1"),
+        product: { ...makeCandidate("Square", "TiCN", "P1").product, diameterMm: 6 },
+      },
+      {
+        ...makeCandidate("Radius", "X-Coating", "P2"),
+        product: { ...makeCandidate("Radius", "X-Coating", "P2").product, diameterMm: 8 },
+      },
+      {
+        ...makeCandidate("Square", "TiCN", "P3"),
+        product: { ...makeCandidate("Square", "TiCN", "P3").product, diameterMm: 10 },
+      },
+      {
+        ...makeCandidate("Radius", "X-Coating", "P4"),
+        product: { ...makeCandidate("Radius", "X-Coating", "P4").product, diameterMm: 12 },
+      },
+    ] as ScoredProduct[]
+
+    const question = selectNextQuestion(
+      makeInput({ workPieceName: undefined, flutePreference: undefined, operationType: undefined, diameterMm: undefined }),
+      candidates,
+      [],
+      candidates.length
+    )
+
+    expect(question?.field).toBe("diameterMm")
+    expect(question?.chips.some(chip => chip.includes("6mm"))).toBe(true)
+  })
+
   it("prefers diameter over subtype and flute when multiple question fields are available", () => {
     const candidates = [
       {
@@ -130,6 +161,7 @@ describe("selectNextQuestion", () => {
     )
 
     expect(question?.field).toBe("diameterRefine")
+    expect(question?.chips).toContain("12mm")
     expect(question?.chips).toContain("10mm")
   })
 })

@@ -1498,6 +1498,7 @@ function buildFieldDataContext(field: string, candidates: ScoredProduct[]): stri
       }
       break
     }
+    case "diameterMm":
     case "diameterRefine": {
       const diameters = [...new Set(candidates.map(c => c.product.diameterMm).filter((v): v is number => v != null))].sort((a, b) => a - b)
       if (diameters.length > 0) {

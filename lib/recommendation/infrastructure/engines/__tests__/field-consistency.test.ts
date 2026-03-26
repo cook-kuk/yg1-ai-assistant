@@ -102,8 +102,12 @@ describe("Field consistency guard", () => {
     ])).toBe(false)
   })
 
-  it("infers diameter text as diameterRefine field", () => {
-    expect(inferQuestionFieldFromText("직경은 어느 정도 생각하고 계세요?")).toBe("diameterRefine")
+  it("infers generic diameter text as diameterMm field", () => {
+    expect(inferQuestionFieldFromText("직경은 어느 정도 생각하고 계세요?")).toBe("diameterMm")
+  })
+
+  it("infers exact diameter clarification text as diameterRefine field", () => {
+    expect(inferQuestionFieldFromText("직경 10mm 근처에 9.5mm, 10mm, 10.5mm가 있습니다. 정확한 직경을 선택해주세요.")).toBe("diameterRefine")
   })
 
   it("falls back to deterministic question text when response drifts to another field", () => {
