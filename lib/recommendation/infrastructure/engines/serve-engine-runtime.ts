@@ -133,6 +133,24 @@ function buildPendingSelectionOrchestratorResult(filter: AppliedFilter): Orchest
   }
 }
 
+function createNarrowingTurn(params: {
+  question: string
+  askedField?: string
+  answer: string
+  extractedFilters: AppliedFilter[]
+  candidateCountBefore: number
+  candidateCountAfter: number
+}): NarrowingTurn {
+  return {
+    question: params.question,
+    askedField: params.askedField,
+    answer: params.answer,
+    extractedFilters: params.extractedFilters,
+    candidateCountBefore: params.candidateCountBefore,
+    candidateCountAfter: params.candidateCountAfter,
+  }
+}
+
 function buildV2BridgeOrchestratorResult(
   action: OrchestratorAction,
   result: TurnResult
@@ -227,6 +245,18 @@ function normalizePendingSelectionText(value: string): string {
     .replace(/(으로요|로요|이에요|예요|입니다|으로|로|요)$/u, "")
     .trim()
     .toLowerCase()
+}
+
+function matchesPendingOptionValue(clean: string, option: { label?: string; value?: string | number | boolean }): boolean {
+  const normalizedValue = normalizePendingSelectionText(String(option.value ?? ""))
+  const normalizedLabel = normalizePendingSelectionText(String(option.label ?? ""))
+  if (!clean) return false
+  return (
+    clean === normalizedValue
+    || clean === normalizedLabel
+    || (normalizedValue.length > 0 && (clean.startsWith(normalizedValue) || normalizedValue.startsWith(clean)))
+    || (normalizedLabel.length > 0 && (clean.startsWith(normalizedLabel) || normalizedLabel.startsWith(clean)))
+  )
 }
 
 function isSkipSelectionValue(value: string | null | undefined): boolean {
@@ -585,7 +615,27 @@ export function resolvePendingQuestionReply(
   const clean = normalizePendingSelectionText(raw)
   if (!clean) return { kind: "unresolved", pendingField, raw }
 
-  let optionsForPendingField = (sessionState.displayedOptions ?? []).filter(option => option.field === pendingField)
+  const structuredOptions = sessionState.displayedOptions ?? []
+  let resolvedField = pendingField
+  let optionsForPendingField = structuredOptions.filter(option => option.field === pendingField)
+
+  if (structuredOptions.length > 0 && optionsForPendingField.length === 0) {
+    const actionableMatchedOptions = structuredOptions.filter(option => (
+      option.field
+      && option.field !== "_action"
+      && option.field !== "skip"
+      && matchesPendingOptionValue(clean, option)
+    ))
+    const matchedFields = Array.from(new Set(actionableMatchedOptions.map(option => option.field)))
+    if (matchedFields.length === 1) {
+      resolvedField = matchedFields[0]
+      optionsForPendingField = structuredOptions.filter(option => option.field === resolvedField)
+      console.warn(
+        `[pending-selection] Stale pending field "${pendingField}" detected; using displayed option field "${resolvedField}"`
+      )
+    }
+  }
+
   if (optionsForPendingField.length === 0) {
     optionsForPendingField = (sessionState.displayedChips ?? []).map((chip, index) => {
       const skipValue = isSkipSelectionValue(chip)
@@ -603,11 +653,7 @@ export function resolvePendingQuestionReply(
     })
   }
 
-  const optionMatch = optionsForPendingField.find(option => {
-    const normalizedValue = normalizePendingSelectionText(option.value)
-    const normalizedLabel = normalizePendingSelectionText(option.label)
-    return clean === normalizedValue || clean === normalizedLabel || clean.startsWith(normalizedValue) || normalizedValue.startsWith(clean)
-  })
+  const optionMatch = optionsForPendingField.find(option => matchesPendingOptionValue(clean, option))
 
   const chipMatch = optionsForPendingField.find(option => {
     const normalizedChip = normalizePendingSelectionText(option.label)
@@ -616,29 +662,29 @@ export function resolvePendingQuestionReply(
 
   const selectedOption = optionMatch ?? chipMatch ?? null
   const selectedValue = selectedOption?.value ?? null
-  const supportsDirectFreeformAnswer = pendingField === "diameterMm" || pendingField === "diameterRefine"
-  const parsedDirect = selectedValue || !supportsDirectFreeformAnswer ? null : parseAnswerToFilter(pendingField, raw)
+  const supportsDirectFreeformAnswer = resolvedField === "diameterMm" || resolvedField === "diameterRefine"
+  const parsedDirect = selectedValue || !supportsDirectFreeformAnswer ? null : parseAnswerToFilter(resolvedField, raw)
   const resolvedValue = selectedValue ?? null
 
   if (resolvedValue === "skip" || isSkipSelectionValue(selectedOption?.label) || isSkipSelectionValue(raw)) {
     const filter: AppliedFilter = {
-      field: pendingField,
+      field: resolvedField,
       op: "skip",
       value: "상관없음",
       rawValue: "skip",
       appliedAt: sessionState.turnCount ?? 0,
     }
-    console.log(`[pending-selection] Resolved field="${pendingField}" as skip`)
+    console.log(`[pending-selection] Resolved field="${resolvedField}" as skip`)
     return { kind: "resolved", filter }
   }
 
-  const filter = resolvedValue ? parseAnswerToFilter(pendingField, resolvedValue) : parsedDirect
+  const filter = resolvedValue ? parseAnswerToFilter(resolvedField, String(resolvedValue)) : parsedDirect
   if (filter) {
-    console.log(`[pending-selection] Resolved field="${pendingField}" value="${filter.value}"`)
+    console.log(`[pending-selection] Resolved field="${resolvedField}" value="${filter.value}"`)
     return { kind: "resolved", filter }
   }
 
-  console.log(`[pending-selection] Unresolved reply for field="${pendingField}" raw="${raw.slice(0, 30)}"`)
+  console.log(`[pending-selection] Unresolved reply for field="${resolvedField}" raw="${raw.slice(0, 30)}"`)
   return { kind: "unresolved", pendingField, raw }
 }
 
@@ -1043,6 +1089,9 @@ async function handleServeExplorationInner(
   let bridgedV2Action: OrchestratorAction | null = null
   let bridgedV2OrchestratorResult: OrchestratorResult | null = null
   const journeyPhase = detectJourneyPhase(prevState)
+  const hasActivePendingQuestion = !!prevState?.lastAskedField
+    && !prevState.resolutionStatus?.startsWith("resolved")
+    && !isPostResultPhase(journeyPhase)
   const pendingQuestionReply = resolvePendingQuestionReply(prevState, lastUserMsg?.text ?? null)
   const pendingSelectionFilter = pendingQuestionReply.kind === "resolved" ? pendingQuestionReply.filter : null
   const shouldResolvePendingSelectionEarly = !!pendingSelectionFilter && !isPostResultPhase(journeyPhase)
@@ -1223,7 +1272,7 @@ async function handleServeExplorationInner(
   // On error, automatically falls back to legacy path.
   const currentPhase = prevState?.currentMode ?? "intake"
   perf.startStep("v2_orchestrator")
-  if (shouldUseV2ForPhase(currentPhase) && lastUserMsg && !shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution) {
+  if (shouldUseV2ForPhase(currentPhase) && lastUserMsg && !hasActivePendingQuestion && !shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution) {
     try {
       const { orchestrateTurnV2 } = await import("@/lib/recommendation/core/turn-orchestrator")
       const { convertToV2State, convertFromV2State } = await import("@/lib/recommendation/core/state-adapter")
@@ -1569,13 +1618,14 @@ async function handleServeExplorationInner(
 
           filters.push(filter)
           currentInput = testInput
-          narrowingHistory.push({
+          narrowingHistory.push(createNarrowingTurn({
             question: "pending-action-accept",
+            askedField: prevState.lastAskedField,
             answer: lastUserMsg.text,
             extractedFilters: [filter],
             candidateCountBefore: totalCandidateCount,
             candidateCountAfter: testResult.totalConsidered,
-          })
+          }))
           turnCount++
 
           const newStatus = checkResolution(testResult.candidates, narrowingHistory, testResult.totalConsidered)
@@ -1612,6 +1662,34 @@ async function handleServeExplorationInner(
       displayedProducts: currentCandidateSnapshot,
       currentCandidates: candidates,
       unifiedTurnContext,
+    }
+
+    if (hasActivePendingQuestion && pendingQuestionReply.kind === "unresolved") {
+      const replayField = prevState.lastAskedField ?? undefined
+      if (replayField) {
+        console.log(`[pending-selection] Unresolved reply for active field="${replayField}" -> replaying same question`)
+        return deps.buildQuestionResponse(
+          form,
+          candidates,
+          evidenceMap,
+          totalCandidateCount,
+          paginationDto(totalCandidateCount),
+          displayCandidates,
+          displayEvidenceMap,
+          currentInput,
+          narrowingHistory,
+          filters,
+          turnCount,
+          messages,
+          provider,
+          language,
+          undefined,
+          prevState.stageHistory,
+          undefined,
+          replayField,
+          "현재 질문에 대한 답변으로 인식하지 못했습니다. 아래 선택지 중에서 골라주시거나, 필요한 값이 있으면 형식에 맞게 직접 입력해주세요."
+        )
+      }
     }
 
     const orchResult = pendingSelectionOrchestratorResult ?? explicitComparisonOrchestratorResult ?? explicitRevisionOrchestratorResult ?? explicitFilterOrchestratorResult ?? bridgedV2OrchestratorResult ?? (
@@ -2242,13 +2320,14 @@ async function handleServeExplorationInner(
       const newResult = await runHybridRetrieval(currentInput, filters.filter(filter => filter.op !== "skip"), 0, null)
       const newDisplayPage = sliceCandidatesForPage(newResult.candidates, newResult.evidenceMap, resolvedPagination)
       
-      narrowingHistory.push({
+      narrowingHistory.push(createNarrowingTurn({
         question: "follow-up",
+        askedField: skipField,
         answer: lastUserMsg.text,
         extractedFilters: [skipFilter],
         candidateCountBefore: totalCandidateCount,
         candidateCountAfter: newResult.totalConsidered,
-      })
+      }))
       turnCount += 1
 
       if (replacedSkipState.replacedExisting) {
@@ -2536,13 +2615,14 @@ async function handleServeExplorationInner(
       const newCandidates = testResult.candidates
       const previousCandidateCount = candidateCountBeforeFilter
 
-      const updatedHistory = [...baseHistoryForNext, {
+      const updatedHistory = [...baseHistoryForNext, createNarrowingTurn({
         question: baseHistoryForNext.length > 0 ? "follow-up" : "initial",
+        askedField: prevState?.lastAskedField ?? filter.field,
         answer: lastUserMsg.text,
         extractedFilters: [filter],
         candidateCountBefore: previousCandidateCount,
         candidateCountAfter: testResult.totalConsidered,
-      }]
+      })]
       narrowingHistory.splice(0, narrowingHistory.length, ...updatedHistory)
 
       const existingStages = baseStageHistoryForNext

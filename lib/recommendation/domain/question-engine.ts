@@ -425,7 +425,12 @@ function analyzeFields(
   history: NarrowingTurn[]
 ): FieldAnalysis[] {
   const results: FieldAnalysis[] = []
-  const askedFields = new Set(history.flatMap(turn => turn.extractedFilters.map(filter => filter.field)))
+  const askedFields = new Set(
+    history.flatMap(turn => {
+      if (turn.askedField) return [turn.askedField]
+      return turn.extractedFilters.map(filter => filter.field)
+    })
+  )
 
   if (!askedFields.has("fluteCount")) {
     const question = buildFluteQuestion(input, candidates)

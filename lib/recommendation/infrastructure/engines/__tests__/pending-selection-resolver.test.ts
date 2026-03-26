@@ -85,6 +85,25 @@ describe("pending selection resolver", () => {
     })
   })
 
+  it("resolves the clicked option from displayedOptions even when lastAskedField is stale", () => {
+    const state = makeState({
+      lastAskedField: "diameterRefine",
+      displayedOptions: [
+        { index: 1, label: "Square (167개)", field: "toolSubtype", value: "Square", count: 167 },
+        { index: 2, label: "Spiral Flute (94개)", field: "toolSubtype", value: "Spiral Flute", count: 94 },
+      ],
+    })
+
+    const filter = buildPendingSelectionFilter(state, "Square (167개)")
+
+    expect(filter).toMatchObject({
+      field: "toolSubtype",
+      op: "includes",
+      value: "Square",
+      rawValue: "Square",
+    })
+  })
+
   it("falls back to displayedChips when displayedOptions are missing", () => {
     const state = makeState({
       lastAskedField: "toolSubtype",

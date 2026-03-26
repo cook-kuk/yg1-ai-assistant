@@ -19,6 +19,7 @@ function makeHistory(): NarrowingTurn[] {
   return [
     {
       question: "initial",
+      askedField: "workPieceName",
       answer: "알루미늄",
       extractedFilters: [
         { field: "workPieceName", op: "includes", value: "알루미늄", rawValue: "알루미늄", appliedAt: 0 } as any,
@@ -28,6 +29,7 @@ function makeHistory(): NarrowingTurn[] {
     },
     {
       question: "follow-up",
+      askedField: "fluteCount",
       answer: "4날",
       extractedFilters: [
         { field: "fluteCount", op: "eq", value: "4날", rawValue: 4, appliedAt: 1 } as any,
@@ -163,5 +165,49 @@ describe("selectNextQuestion", () => {
     expect(question?.field).toBe("diameterRefine")
     expect(question?.chips).toContain("12mm")
     expect(question?.chips).toContain("10mm")
+  })
+
+  it("does not ask diameterRefine again after that question was already asked", () => {
+    const candidates = [
+      {
+        ...makeCandidate("Square", "TiCN", "P1"),
+        product: { ...makeCandidate("Square", "TiCN", "P1").product, diameterMm: 10 },
+      },
+      {
+        ...makeCandidate("Radius", "X-Coating", "P2"),
+        product: { ...makeCandidate("Radius", "X-Coating", "P2").product, diameterMm: 9.95 },
+      },
+      {
+        ...makeCandidate("Spiral Flute", "TiCN", "P3"),
+        product: { ...makeCandidate("Spiral Flute", "TiCN", "P3").product, diameterMm: 10.08 },
+      },
+      {
+        ...makeCandidate("Square", "X-Coating", "P4"),
+        product: { ...makeCandidate("Square", "X-Coating", "P4").product, diameterMm: 9.92 },
+      },
+    ] as ScoredProduct[]
+
+    const history: NarrowingTurn[] = [
+      {
+        question: "follow-up",
+        askedField: "diameterRefine",
+        answer: "10mm",
+        extractedFilters: [
+          { field: "diameterMm", op: "eq", value: "10mm", rawValue: 10, appliedAt: 1 } as any,
+        ],
+        candidateCountBefore: 637,
+        candidateCountAfter: 176,
+      },
+    ]
+
+    const question = selectNextQuestion(
+      makeInput({ diameterMm: 10, workPieceName: "알루미늄", flutePreference: undefined }),
+      candidates,
+      history,
+      176
+    )
+
+    expect(question?.field).not.toBe("diameterRefine")
+    expect(question?.field).toBe("toolSubtype")
   })
 })
