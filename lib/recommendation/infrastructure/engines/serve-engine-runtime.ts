@@ -12,6 +12,7 @@ import { BrandReferenceRepo } from "@/lib/recommendation/infrastructure/reposito
 import { getSessionCache } from "@/lib/recommendation/infrastructure/cache/session-cache"
 import { resolveMaterialTag } from "@/lib/recommendation/domain/material-resolver"
 import { parseAnswerToFilter, extractAllFiltersFromMessage } from "@/lib/recommendation/domain/question-engine"
+import { extractFiltersWithLLM, llmResultToAppliedFilters } from "@/lib/recommendation/core/llm-filter-extractor"
 import {
   compareProducts,
   orchestrateTurn,
@@ -1021,6 +1022,7 @@ async function handleServeExplorationInner(
   let explicitFilterOrchestratorResult: OrchestratorResult | null = null
   let pendingSelectionAction: OrchestratorAction | null = null
   let pendingSelectionOrchestratorResult: OrchestratorResult | null = null
+  let llmExtraFilters: AppliedFilter[] = []
   let bridgedV2Action: OrchestratorAction | null = null
   let bridgedV2OrchestratorResult: OrchestratorResult | null = null
   const journeyPhase = detectJourneyPhase(prevState)
@@ -1034,6 +1036,48 @@ async function handleServeExplorationInner(
       ? { type: "skip_field" }
       : { type: "continue_narrowing", filter: pendingSelectionFilter }
     pendingSelectionOrchestratorResult = buildPendingSelectionOrchestratorResult(pendingSelectionFilter)
+  }
+
+  // ── Step 2: LLM fallback — deterministic(Step 0+1)이 못 잡았을 때만 ──
+  if (!pendingSelectionAction && prevState?.lastAskedField && lastUserMsg && !isPostResultPhase(journeyPhase) && !hasComparisonSignal) {
+    const llmResult = await extractFiltersWithLLM(
+      lastUserMsg.text,
+      prevState.lastAskedField,
+      prevState.appliedFilters ?? [],
+      provider
+    )
+
+    if (llmResult.skipPendingField) {
+      const skipFilter: AppliedFilter = {
+        field: prevState.lastAskedField,
+        op: "skip",
+        value: "상관없음",
+        rawValue: "skip",
+        appliedAt: prevState.turnCount ?? 0,
+      }
+      pendingSelectionAction = { type: "skip_field" }
+      pendingSelectionOrchestratorResult = buildPendingSelectionOrchestratorResult(skipFilter)
+      console.log(`[llm-filter] skip "${prevState.lastAskedField}"`)
+
+    } else if (llmResult.isSideQuestion) {
+      // side question → pendingSelectionAction stays null → orchestrator handles
+      console.log(`[llm-filter] side question detected`)
+
+    } else if (Object.keys(llmResult.extractedFilters).length > 0) {
+      const allFilters = llmResultToAppliedFilters(llmResult.extractedFilters, prevState.turnCount ?? 0)
+      if (allFilters.length > 0) {
+        // 첫 번째 필터를 primary action으로
+        const primaryFilter = allFilters[0]
+        pendingSelectionAction = { type: "continue_narrowing", filter: primaryFilter }
+        pendingSelectionOrchestratorResult = buildPendingSelectionOrchestratorResult(primaryFilter)
+        console.log(`[llm-filter] primary: ${primaryFilter.field}=${primaryFilter.value}`)
+
+        if (allFilters.length > 1) {
+          llmExtraFilters = allFilters.slice(1)
+          console.log(`[llm-filter] ${llmExtraFilters.length} extra filters queued`)
+        }
+      }
+    }
   }
 
   if (messages.length > 0 && lastUserMsg) {
@@ -2448,7 +2492,7 @@ async function handleServeExplorationInner(
       let finalEvidenceMap = testResult.evidenceMap
       let finalTotalConsidered = testResult.totalConsidered
       let finalDisplayPage = testDisplayPage
-      const additionalNLFilters = extractAllFiltersFromMessage(lastUserMsg.text, filters)
+      const additionalNLFilters = llmExtraFilters
       for (const addFilter of additionalNLFilters) {
         const enrichedAdd = await enrichWorkPieceFilterWithSeriesScope(
           { ...addFilter, appliedAt: turnCount - 1 },
