@@ -38,7 +38,6 @@ import { handleFilterByStock } from "@/lib/recommendation/infrastructure/engines
 import { handleCompareProducts } from "@/lib/recommendation/infrastructure/engines/serve-engine-comparison"
 import { handleResetSession, handleGoBack, handleShowRecommendation } from "@/lib/recommendation/infrastructure/engines/serve-engine-navigation"
 import type { NavigationHandlerContext } from "@/lib/recommendation/infrastructure/engines/serve-engine-navigation"
-import { extractFiltersWithLLM } from "@/lib/recommendation/core/llm-filter-extractor"
 import { classifyPreSearchRoute } from "@/lib/recommendation/infrastructure/engines/pre-search-route"
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
 import { shouldExecutePendingAction, pendingActionToFilter } from "@/lib/recommendation/domain/context/pending-action-resolver"
@@ -770,8 +769,7 @@ export interface ServeEngineRuntimeDependencies {
     existingStageHistory?: NarrowingStage[],
     excludeWorkPieceValues?: string[],
     preferredQuestionField?: string,
-    responsePrefix?: string,
-    excludeFieldValues?: { field: string; values: string[] }
+    responsePrefix?: string
   ) => Promise<Response>
   buildRecommendationResponse: (
     form: ProductIntakeForm,
@@ -1036,35 +1034,6 @@ async function handleServeExplorationInner(
     pendingSelectionOrchestratorResult = buildPendingSelectionOrchestratorResult(pendingSelectionFilter)
   }
 
-  // ── LLM fallback: when pending field exists but deterministic extraction found nothing ──
-  if (!pendingSelectionFilter && !pendingSelectionAction && prevState?.lastAskedField && lastUserMsg && !isPostResultPhase(journeyPhase)) {
-    const llmResult = await extractFiltersWithLLM(
-      lastUserMsg.text,
-      prevState.lastAskedField,
-      prevState.appliedFilters ?? [],
-      provider
-    )
-
-    if (llmResult.skipPendingField) {
-      const skipFilter: AppliedFilter = {
-        field: prevState.lastAskedField,
-        op: "skip",
-        value: "상관없음",
-        rawValue: "skip",
-        appliedAt: prevState.turnCount ?? 0,
-      }
-      pendingSelectionAction = { type: "skip_field" }
-      pendingSelectionOrchestratorResult = buildPendingSelectionOrchestratorResult(skipFilter)
-      console.log(`[llm-fallback] skipPendingField for "${prevState.lastAskedField}"`)
-    } else if (llmResult.extractedFilters.length > 0) {
-      const primaryFilter = llmResult.extractedFilters[0]
-      pendingSelectionAction = { type: "continue_narrowing", filter: primaryFilter }
-      pendingSelectionOrchestratorResult = buildPendingSelectionOrchestratorResult(primaryFilter)
-      console.log(`[llm-fallback] Extracted filter field="${primaryFilter.field}" value="${primaryFilter.value}"`)
-    }
-    // If isSideQuestion, leave pendingSelectionAction null → orchestrator will handle as general chat
-  }
-
   if (messages.length > 0 && lastUserMsg) {
     if (prevState?.pendingAction) {
       const pendingCheck = shouldExecutePendingAction(
@@ -1080,7 +1049,7 @@ async function handleServeExplorationInner(
       }
     }
 
-    if (!shouldResolvePendingSelectionEarly && !pendingSelectionAction) {
+    if (!shouldResolvePendingSelectionEarly) {
       explicitComparisonAction = resolveExplicitComparisonAction(prevState, lastUserMsg.text)
       if (explicitComparisonAction?.type === "compare_products") {
         explicitComparisonOrchestratorResult = buildExplicitComparisonOrchestratorResult(explicitComparisonAction.targets)
@@ -1154,7 +1123,7 @@ async function handleServeExplorationInner(
       )
     }
 
-    if (!shouldResolvePendingSelectionEarly && !pendingSelectionAction && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution && prevState) {
+    if (!shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution && prevState) {
       const explanationJudgment = await performUnifiedJudgment({
         userMessage: lastUserMsg.text,
         assistantText: null,
@@ -1193,7 +1162,7 @@ async function handleServeExplorationInner(
       }
     }
 
-    if (!shouldResolvePendingSelectionEarly && !pendingSelectionAction && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution) {
+    if (!shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution) {
       const preSearchRoute = await classifyPreSearchRoute(lastUserMsg.text, prevState, provider)
       if (preSearchRoute.kind !== "recommendation_action") {
         console.log(`[runtime:pre-route] ${preSearchRoute.kind} -> answer_general (${preSearchRoute.reason})`)
@@ -1234,7 +1203,7 @@ async function handleServeExplorationInner(
   // On error, automatically falls back to legacy path.
   const currentPhase = prevState?.currentMode ?? "intake"
   perf.startStep("v2_orchestrator")
-  if (shouldUseV2ForPhase(currentPhase) && lastUserMsg && !shouldResolvePendingSelectionEarly && !pendingSelectionAction && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution) {
+  if (shouldUseV2ForPhase(currentPhase) && lastUserMsg && !shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution) {
     try {
       const { orchestrateTurnV2 } = await import("@/lib/recommendation/core/turn-orchestrator")
       const { convertToV2State, convertFromV2State } = await import("@/lib/recommendation/core/state-adapter")
@@ -1648,16 +1617,12 @@ async function handleServeExplorationInner(
 
           if (testResult.totalConsidered === 0) {
             const excludeVals = filter.field === "workPieceName" ? [filter.value] : undefined
-            const excludeFieldValues = { field: filter.field, values: [filter.value] }
             return deps.buildQuestionResponse(
               form, candidates, evidenceMap, totalCandidateCount, paginationDto(totalCandidateCount), displayCandidates, displayEvidenceMap, currentInput,
               narrowingHistory, filters, turnCount, messages, provider, language,
               `"${filter.value}" 조건을 적용하면 후보가 없습니다. 현재 ${totalCandidateCount}개 후보에서 다른 조건을 선택해주세요.`,
               undefined, // existingStageHistory
-              excludeVals,
-              undefined, // preferredQuestionField
-              undefined, // responsePrefix
-              excludeFieldValues
+              excludeVals
             )
           }
 
@@ -2413,10 +2378,8 @@ async function handleServeExplorationInner(
 
       if (testResult.totalConsidered === 0) {
         console.log(`[orchestrator:guard] Filter ${filter.field}=${filter.value} would result in 0 candidates -> BLOCKED, excluding from chips`)
-        // 실패값을 buildQuestionResponse에 전달 → 해당 필드 칩에서 제외
+        // 실패값을 buildQuestionResponse에 전달 → workPiece 칩에서 제외
         const excludeValues = filter.field === "workPieceName" ? [filter.value] : undefined
-        // 모든 필드에 대해 실패한 값을 칩에서 제외하는 범용 메커니즘
-        const excludeFieldValues = { field: filter.field, values: [filter.value] }
         return deps.buildQuestionResponse(
           form,
           candidates,
@@ -2434,10 +2397,7 @@ async function handleServeExplorationInner(
           language,
           `"${filter.value}" 조건을 적용하면 후보가 없습니다. 현재 ${totalCandidateCount}개 후보에서 다른 조건을 선택해주세요.`,
           undefined, // existingStageHistory
-          excludeValues,
-          undefined, // preferredQuestionField
-          undefined, // responsePrefix
-          excludeFieldValues
+          excludeValues
         )
       }
 

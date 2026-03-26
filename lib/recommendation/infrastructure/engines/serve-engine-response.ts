@@ -257,32 +257,19 @@ async function buildWorkPieceQuestion(
   // ── 현재 candidates에 실제로 있는 workPiece만 남기기 ──
   // 1차: candidates의 시리즈 → brand_reference에서 해당 시리즈의 workPiece 역조회
   // 2차: candidates의 materialTags에서 ISO 그룹 일치하는 것만 (관련 없는 소재 제거)
-  // 각 workPiece별 매칭 후보 수를 추적
-  const workPieceCandidateCounts = new Map<string, number>()
-
   if (candidates && candidates.length > 0) {
     const candidateSeriesSet = new Set(
       candidates.map(c => (c.product.seriesName ?? "").trim().toUpperCase()).filter(Boolean)
     )
-    // 각 workPiece에 대해 시리즈가 candidates에 있는지 확인 + 매칭 후보 수 계산
+    // 각 workPiece에 대해 시리즈가 candidates에 있는지 확인
     const validNames: string[] = []
     for (const name of relevantNames) {
       const series = await getSessionCache().getOrFetch(
         `seriesNames:${isoGroup}|${name}`,
         () => BrandReferenceRepo.listDistinctSeriesNames({ isoGroup, workPieceName: name, limit: 30 })
       )
-      const matchingSeries = new Set(series.filter(s => candidateSeriesSet.has(s.toUpperCase())).map(s => s.toUpperCase()))
-      if (matchingSeries.size > 0) {
-        // 해당 workPiece의 시리즈에 속하는 후보 수 계산
-        const count = candidates.filter(c => {
-          const seriesName = (c.product.seriesName ?? "").trim().toUpperCase()
-          return matchingSeries.has(seriesName)
-        }).length
-        if (count > 0) {
-          validNames.push(name)
-          workPieceCandidateCounts.set(name, count)
-        }
-      }
+      const hasMatch = series.some(s => candidateSeriesSet.has(s.toUpperCase()))
+      if (hasMatch) validNames.push(name)
     }
     const removed = relevantNames.length - validNames.length
     if (removed > 0) console.log(`[workpiece-filter] Removed ${removed} workPieces with 0 matching series in current candidates`)
@@ -302,12 +289,7 @@ async function buildWorkPieceQuestion(
   if (relevantNames.length <= 1) return null
 
   const materialLabel = getMaterialDisplay(isoGroup).ko
-  // 후보 수가 있으면 칩에 카운트 표시, 0개 후보는 이미 위에서 필터링됨
-  const chips = relevantNames.slice(0, 10).map(name => {
-    const count = workPieceCandidateCounts.get(name)
-    return count != null && count > 0 ? `${name} (${count}개)` : name
-  })
-  chips.push("상관없음")
+  const chips = [...relevantNames.slice(0, 10), "상관없음"]
   if (history.length > 0) chips.push("⟵ 이전 단계")
 
   return {
@@ -338,8 +320,7 @@ export async function buildQuestionResponse(
   existingStageHistory?: NarrowingStage[],
   excludeWorkPieceValues?: string[],
   preferredQuestionField?: string,
-  responsePrefix?: string,
-  excludeFieldValues?: { field: string; values: string[] }
+  responsePrefix?: string
 ): Promise<Response> {
   const chooseHigherPriorityQuestion = <T extends { field: string }>(left: T | null, right: T | null): T | null => {
     if (!left) return right
@@ -384,23 +365,8 @@ export async function buildQuestionResponse(
   // ── Option-first: question engine provides field + candidate data ──
   // Structured SmartOptions are built FIRST, then displayedOptions, then chips.
   // The question engine's raw chips are input data, NOT the source of truth.
-
-  // 0-candidate guard: 실패한 필드 값을 칩에서 제외
-  let filteredQuestionChips = question?.chips ?? []
-  if (question && excludeFieldValues && excludeFieldValues.field === question.field && excludeFieldValues.values.length > 0) {
-    const excludeSet = new Set(excludeFieldValues.values.map(v => v.toLowerCase()))
-    filteredQuestionChips = filteredQuestionChips.filter(chip => {
-      // 시스템 칩은 유지
-      if (["상관없음", "⟵ 이전 단계", "처음부터 다시", "추천해주세요"].includes(chip)) return true
-      // 칩에서 값 부분 추출 (카운트/설명 제거)
-      const value = chip.replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim().toLowerCase()
-      return !excludeSet.has(value)
-    })
-    console.log(`[0-candidate-guard] Excluded ${excludeFieldValues.values.join(", ")} from ${question.field} chips`)
-  }
-
   const questionFieldResult = question
-    ? buildQuestionFieldOptions(question.field, filteredQuestionChips, history.length > 0)
+    ? buildQuestionFieldOptions(question.field, question.chips, history.length > 0)
     : null
 
   let chips = questionFieldResult?.chips ?? []
