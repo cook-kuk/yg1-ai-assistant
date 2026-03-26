@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { applyFilterToInput, mapIntakeToInput } from "../serve-engine-input"
 import { replaceFieldFilter } from "../serve-engine-filter-state"
-import { resolvePendingQuestionReply } from "../serve-engine-runtime"
+import { resolvePendingQuestionReply, shouldReplayUnresolvedPendingQuestion } from "../serve-engine-runtime"
 import type { AppliedFilter, ExplorationSessionState, ProductIntakeForm, RecommendationInput } from "@/lib/recommendation/domain/types"
 
 function makeBaseInput(): RecommendationInput {
@@ -144,5 +144,12 @@ describe("serve-engine runtime filter replacement", () => {
       expect(resolution.filter.field).toBe("diameterMm")
       expect(resolution.filter.rawValue).toBe(7.5)
     }
+  })
+
+  it("does not replay the pending question when a later action already recovered the answer", () => {
+    expect(shouldReplayUnresolvedPendingQuestion("unresolved", null)).toBe(true)
+    expect(shouldReplayUnresolvedPendingQuestion("unresolved", "continue_narrowing")).toBe(false)
+    expect(shouldReplayUnresolvedPendingQuestion("unresolved", "replace_existing_filter")).toBe(false)
+    expect(shouldReplayUnresolvedPendingQuestion("resolved", "continue_narrowing")).toBe(false)
   })
 })

@@ -101,6 +101,18 @@ type PendingQuestionReplyResolution =
   | { kind: "unresolved"; pendingField: string; raw: string }
 
 const DEFAULT_CANDIDATE_PAGE_SIZE = 50
+const PENDING_QUESTION_RECOVERY_ACTIONS = new Set<string>([
+  "continue_narrowing",
+  "skip_field",
+  "replace_existing_filter",
+])
+
+export function shouldReplayUnresolvedPendingQuestion(
+  pendingReplyKind: PendingQuestionReplyResolution["kind"],
+  earlyAction: string | null
+): boolean {
+  return pendingReplyKind === "unresolved" && !PENDING_QUESTION_RECOVERY_ACTIONS.has(earlyAction ?? "")
+}
 
 function buildPreSearchOrchestratorResult(userMessage: string, reason: string) {
   return {
@@ -1706,7 +1718,7 @@ async function handleServeExplorationInner(
       unifiedTurnContext,
     }
 
-    if (hasActivePendingQuestion && pendingQuestionReply.kind === "unresolved") {
+    if (hasActivePendingQuestion && shouldReplayUnresolvedPendingQuestion(pendingQuestionReply.kind, earlyAction)) {
       const replayField = prevState.lastAskedField ?? undefined
       if (replayField) {
         console.log(`[pending-selection] Unresolved reply for active field="${replayField}" -> replaying same question`)
@@ -1732,6 +1744,10 @@ async function handleServeExplorationInner(
           "현재 질문에 대한 답변으로 인식하지 못했습니다. 아래 선택지 중에서 골라주시거나, 필요한 값이 있으면 형식에 맞게 직접 입력해주세요."
         )
       }
+    } else if (hasActivePendingQuestion && pendingQuestionReply.kind === "unresolved" && earlyAction) {
+      console.log(
+        `[pending-selection] Unresolved direct match recovered by action="${earlyAction}" for field="${prevState.lastAskedField ?? "unknown"}"`
+      )
     }
 
     const orchResult = pendingSelectionOrchestratorResult ?? explicitComparisonOrchestratorResult ?? explicitRevisionOrchestratorResult ?? explicitFilterOrchestratorResult ?? bridgedV2OrchestratorResult ?? (
