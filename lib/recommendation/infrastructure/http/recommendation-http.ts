@@ -89,6 +89,7 @@ function createServeRuntimeDependencies(): ServeEngineRuntimeDependencies {
       excludeWorkPieceValues?: Parameters<typeof buildQuestionResponse>[17],
       preferredQuestionField?: Parameters<typeof buildQuestionResponse>[18],
       responsePrefix?: Parameters<typeof buildQuestionResponse>[19],
+      excludeFieldValues?: Parameters<typeof buildQuestionResponse>[20],
     ) => buildQuestionResponse(
       responseDeps,
       form,
@@ -110,6 +111,7 @@ function createServeRuntimeDependencies(): ServeEngineRuntimeDependencies {
       excludeWorkPieceValues,
       preferredQuestionField,
       responsePrefix,
+      excludeFieldValues,
     ),
     buildRecommendationResponse: (
       form: ProductIntakeForm,
