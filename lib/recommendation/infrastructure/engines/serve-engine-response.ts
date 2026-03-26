@@ -255,25 +255,30 @@ async function buildWorkPieceQuestion(
     : allWorkPieceNames
 
   // ── 현재 candidates에 실제로 있는 workPiece만 남기기 ──
-  // 1차: candidates의 시리즈 → brand_reference에서 해당 시리즈의 workPiece 역조회
-  // 2차: candidates의 materialTags에서 ISO 그룹 일치하는 것만 (관련 없는 소재 제거)
+  var workPieceCounts: Map<string, number> | undefined
   if (candidates && candidates.length > 0) {
     const candidateSeriesSet = new Set(
       candidates.map(c => (c.product.seriesName ?? "").trim().toUpperCase()).filter(Boolean)
     )
-    // 각 workPiece에 대해 시리즈가 candidates에 있는지 확인
-    const validNames: string[] = []
+    // 각 workPiece에 대해 시리즈가 candidates에 있는지 확인 + 개수 계산
+    const validNamesWithCount: { name: string; count: number }[] = []
     for (const name of relevantNames) {
       const series = await getSessionCache().getOrFetch(
         `seriesNames:${isoGroup}|${name}`,
         () => BrandReferenceRepo.listDistinctSeriesNames({ isoGroup, workPieceName: name, limit: 30 })
       )
-      const hasMatch = series.some(s => candidateSeriesSet.has(s.toUpperCase()))
-      if (hasMatch) validNames.push(name)
+      const seriesUpper = new Set(series.map(s => s.toUpperCase()))
+      const count = candidates.filter(c => {
+        const cs = (c.product.seriesName ?? "").trim().toUpperCase()
+        return cs && seriesUpper.has(cs)
+      }).length
+      if (count > 0) validNamesWithCount.push({ name, count })
     }
-    const removed = relevantNames.length - validNames.length
-    if (removed > 0) console.log(`[workpiece-filter] Removed ${removed} workPieces with 0 matching series in current candidates`)
-    relevantNames = validNames
+    const removed = relevantNames.length - validNamesWithCount.length
+    if (removed > 0) console.log(`[workpiece-filter] Removed ${removed} workPieces with 0 matching candidates`)
+    relevantNames = validNamesWithCount.map(v => v.name)
+    // 개수 정보를 칩 생성 시 사용하기 위해 저장
+    var workPieceCounts = new Map(validNamesWithCount.map(v => [v.name, v.count]))
   }
 
   // 중복 제거 (공백 차이: "알루미늄(연질)" vs "알루미늄 (연질)")
@@ -289,7 +294,11 @@ async function buildWorkPieceQuestion(
   if (relevantNames.length <= 1) return null
 
   const materialLabel = getMaterialDisplay(isoGroup).ko
-  const chips = [...relevantNames.slice(0, 10), "상관없음"]
+  const chips = relevantNames.slice(0, 10).map(name => {
+    const count = workPieceCounts?.get(name)
+    return count != null ? `${name} (${count}개)` : name
+  })
+  chips.push("상관없음")
   if (history.length > 0) chips.push("⟵ 이전 단계")
 
   return {
