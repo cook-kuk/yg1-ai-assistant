@@ -252,6 +252,11 @@ function ExplorationSidebar({
                             : localizeIntakeText(entry.field ?? entry.label, language)}
                     : {localizeIntakeText(entry.value ?? entry.label, language)}
                   </span>
+                  {entry.candidateCountBefore != null && (
+                    <span className="text-[9px] text-blue-400 shrink-0 ml-auto">
+                      {entry.candidateCountBefore}→{entry.candidateCount}
+                    </span>
+                  )}
                 </div>
               ))
               : sessionState.appliedFilters.filter(filter => filter.op !== "skip").map((filter, index) => (
@@ -284,8 +289,10 @@ function ExplorationSidebar({
           <div className="space-y-1">
             {sessionState.narrowingHistory.map((history, index) => (
               <div key={index} className="text-[10px] text-gray-600 bg-white rounded-lg px-2.5 py-1.5 border border-gray-100">
-                <div className="font-medium">Turn {index + 1}: &quot;{localizeIntakeText(history.answer, language)}&quot;</div>
-                <div className="text-gray-400">{history.candidateCountBefore} → {history.candidateCountAfter}{language === "ko" ? "개" : ""}</div>
+                <div className="font-medium">
+                  Turn {index + 1}: {history.extractedFilters.filter(f => f.op !== "skip").map(f => `${f.field}=${f.value}`).join(", ") || localizeIntakeText(history.answer, language)}
+                </div>
+                <div className="text-gray-400">{history.candidateCountBefore}→{history.candidateCountAfter}{language === "ko" ? "개" : ""}</div>
               </div>
             ))}
           </div>

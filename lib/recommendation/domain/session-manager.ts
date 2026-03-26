@@ -112,6 +112,25 @@ export function buildSessionState(params: BuildSessionStateParams): ExplorationS
   }
 }
 
+/** Rebuild uiNarrowingPath from narrowingHistory to keep them in sync */
+function rebuildUINarrowingPathFromHistory(history: NarrowingTurn[]): UINarrowingPathEntry[] {
+  const entries: UINarrowingPathEntry[] = []
+  for (const turn of history) {
+    for (const filter of turn.extractedFilters) {
+      if (filter.op === "skip") continue
+      entries.push({
+        kind: "filter",
+        label: `${filter.field}=${filter.value}`,
+        field: filter.field,
+        value: filter.value,
+        candidateCount: turn.candidateCountAfter,
+        candidateCountBefore: turn.candidateCountBefore,
+      })
+    }
+  }
+  return entries
+}
+
 /** Carry forward from previous state, overriding only what changed */
 export function carryForwardState(
   prev: ExplorationSessionState,
