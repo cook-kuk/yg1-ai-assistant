@@ -484,6 +484,16 @@ export function buildRefinementOptionState(input: {
     }
   }
 
+  // ── Candidate-based fallback: 현재 candidates에서 해당 필드의 실제 값 추출 ──
+  const currentFilterValue = filters.find(f => f.field === field && f.op !== "skip")?.rawValue
+  const candidateChips = buildCandidateBasedRefinementChips(field, candidates, currentFilterValue)
+  if (candidateChips.length > 0) {
+    return {
+      chips: candidateChips,
+      displayedOptions: buildDisplayedOptions(candidateChips, field),
+    }
+  }
+
   const fallbackChips = buildRefinementChips(field, language)
   return {
     chips: fallbackChips,
@@ -801,6 +811,51 @@ export function buildQuestionFieldOptions(
   const chips = smartOptionsToChips(options)
 
   return { options, displayedOptions, chips }
+}
+
+/**
+ * candidates에서 해당 field의 실제 값을 추출하여 칩 생성.
+ * 현재 적용된 필터값은 제외, 각 값의 후보 개수 표시.
+ */
+function buildCandidateBasedRefinementChips(
+  field: string,
+  candidates: ScoredProduct[],
+  currentFilterValue: string | number | undefined
+): string[] {
+  if (candidates.length === 0) return []
+
+  const valueCounts = new Map<string, number>()
+  const fieldKey = field === "diameter" || field === "diameterMm" || field === "diameterRefine" ? "diameterMm"
+    : field === "fluteCount" ? "fluteCount"
+    : field === "coating" ? "coating"
+    : field === "toolSubtype" ? "toolSubtype"
+    : field === "seriesName" ? "seriesName"
+    : null
+  if (!fieldKey) return []
+
+  for (const c of candidates) {
+    const raw = (c.product as Record<string, unknown>)[fieldKey]
+    if (raw == null) continue
+    const val = String(raw)
+    if (!val || val === "미확인") continue
+    valueCounts.set(val, (valueCounts.get(val) ?? 0) + 1)
+  }
+
+  // 현재 필터값 제외
+  if (currentFilterValue != null) {
+    valueCounts.delete(String(currentFilterValue))
+  }
+
+  if (valueCounts.size === 0) return []
+
+  const sorted = [...valueCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6)
+  const chips = sorted.map(([val, count]) => {
+    if (fieldKey === "fluteCount") return `${val}날 (${count}개)`
+    if (fieldKey === "diameterMm") return `${val}mm (${count}개)`
+    return `${val} (${count}개)`
+  })
+  chips.push("상관없음")
+  return chips
 }
 
 function buildRefinementChips(field: string, _language: AppLanguage): string[] {
