@@ -345,10 +345,14 @@ export async function buildQuestionResponse(
   const replayFailureReason = preferredQuestionField && !preferredQuestion
     ? explainQuestionFieldReplayFailure(input, candidates, preferredQuestionField)
     : null
-  const workPieceQuestion = await buildWorkPieceQuestion(input, history, filters, candidates, excludeWorkPieceValues)
-  const nextQuestion = selectNextQuestion(input, candidates, history, totalCandidateCount)
-  const question = preferredQuestion
-    ?? chooseHigherPriorityQuestion(workPieceQuestion, nextQuestion)
+  // ── Resolution guard: if already resolved, skip all questions → show recommendation ──
+  const preCheckStatus = checkResolution(candidates, history, totalCandidateCount)
+  const alreadyResolved = preCheckStatus.startsWith("resolved")
+
+  const workPieceQuestion = alreadyResolved ? null : await buildWorkPieceQuestion(input, history, filters, candidates, excludeWorkPieceValues)
+  const nextQuestion = alreadyResolved ? null : selectNextQuestion(input, candidates, history, totalCandidateCount)
+  const question = alreadyResolved ? null : (preferredQuestion
+    ?? chooseHigherPriorityQuestion(workPieceQuestion, nextQuestion))
   const stageHistory = existingStageHistory
     ? [...existingStageHistory]
     : buildStageHistoryFromFilters(filters, input, totalCandidateCount)
