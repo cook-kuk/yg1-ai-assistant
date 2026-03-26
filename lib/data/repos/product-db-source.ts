@@ -639,7 +639,7 @@ function mapRowToProduct(row: RawProductRow): CanonicalProduct {
       row.option_numberofflute,
       row.option_z,
     )),
-    coating: firstNonEmpty(row.milling_coating, row.holemaking_coating, row.threading_coating),
+    coating: firstNonEmpty(row.milling_coating, row.holemaking_coating, row.threading_coating, row.search_coating),
     toolMaterial: firstNonEmpty(row.milling_tool_material, row.holemaking_tool_material, row.threading_tool_material),
     shankDiameterMm: parseNumber(firstNonEmpty(row.milling_shank_dia, row.holemaking_shank_dia, row.threading_shank_dia, row.option_shank_diameter, row.option_dcon)),
     lengthOfCutMm: parseNumber(firstNonEmpty(row.milling_length_of_cut, row.holemaking_flute_length, row.threading_thread_length, row.option_flute_length, row.option_loc)),

@@ -1182,7 +1182,7 @@ export async function handleContextualNarrowingQuestion(
     const matchBreakdown = topCandidates.map((c, i) =>
       `#${i + 1} ${c.displayCode}${c.brand ? ` (${c.brand})` : ""}
   매칭 점수: ${c.score}점 | 매칭 상태: ${c.matchStatus}
-  직경: ${c.diameterMm ?? "?"}mm | 날수: ${c.fluteCount ?? "?"} | 코팅: ${c.coating ?? "?"}
+  직경: ${c.diameterMm ?? "?"}mm | 날수: ${c.fluteCount ?? "?"} | 코팅: ${c.coating || "정보없음"}
   소재: ${c.materialTags?.join("/") || "?"}
   재고: ${c.totalStock ?? "미확인"}`
     ).join("\n\n")
@@ -1492,7 +1492,7 @@ export async function handleGeneralChat(
 
   const displayedContext = displayedCandidatesContext && displayedCandidatesContext.length > 0
     ? `\n═══ 현재 표시된 추천 제품 (사용자가 "이 중", "위 제품", "상위 N개" 등으로 참조 시 반드시 이 목록에서 답하라) ═══\n${displayedCandidatesContext.slice(0, 10).map(c =>
-      `#${c.rank} ${c.displayCode}${c.displayLabel ? ` [${c.displayLabel}]` : ""} | ${c.brand ?? "?"} | ${c.seriesName ?? "?"} | φ${c.diameterMm ?? "?"}mm | ${c.fluteCount ?? "?"}F | ${c.coating ?? "?"} | ${c.materialTags.join("/") || "?"} | ${c.matchStatus} ${c.score}점`
+      `#${c.rank} ${c.displayCode}${c.displayLabel ? ` [${c.displayLabel}]` : ""} | ${c.brand ?? "?"} | ${c.seriesName ?? "?"} | φ${c.diameterMm ?? "?"}mm | ${c.fluteCount ?? "?"}F | ${c.coating || "정보없음"} | ${c.materialTags.join("/") || "?"} | ${c.matchStatus} ${c.score}점`
     ).join("\n")}`
     : ""
 

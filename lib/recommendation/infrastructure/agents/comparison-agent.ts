@@ -86,7 +86,7 @@ export async function compareProducts(
     return `#${t.rank} ${t.displayCode}${t.displayLabel ? ` [${t.displayLabel}]` : ""}
   브랜드: ${t.brand ?? "?"}
   시리즈: ${t.seriesName ?? "?"}
-  직경: ${t.diameterMm ?? "?"}mm | 날수: ${t.fluteCount ?? "?"} | 코팅: ${t.coating ?? "?"}
+  직경: ${t.diameterMm ?? "?"}mm | 날수: ${t.fluteCount ?? "?"} | 코팅: ${t.coating || "정보없음"}
   소재: ${t.materialTags.join(", ") || "?"}
   매칭: ${t.matchStatus} (${t.score}점)
   재고: ${t.stockStatus} (${t.totalStock ?? "?"})
@@ -123,7 +123,7 @@ export async function compareProducts(
     console.warn("[comparison-agent:sonnet] Failed:", e)
     // Deterministic fallback
     const lines = targets.map(t =>
-      `**${t.displayCode}** (${t.displayLabel ?? t.seriesName ?? "?"}) — φ${t.diameterMm ?? "?"}mm, ${t.fluteCount ?? "?"}F, ${t.coating ?? "?"}, ${t.matchStatus} ${t.score}점`
+      `**${t.displayCode}** (${t.displayLabel ?? t.seriesName ?? "?"}) — φ${t.diameterMm ?? "?"}mm, ${t.fluteCount ?? "?"}F, ${t.coating || "정보없음"}, ${t.matchStatus} ${t.score}점`
     )
     return {
       text: `제품 비교:\n${lines.join("\n")}`,

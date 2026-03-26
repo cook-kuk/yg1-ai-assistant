@@ -1618,11 +1618,12 @@ async function handleServeExplorationInner(
           const testDisplayPage = sliceCandidatesForPage(testResult.candidates, testResult.evidenceMap, resolvedPagination)
 
           if (testResult.totalConsidered === 0) {
-            const excludeVals = filter.field === "workPieceName" ? [filter.value] : undefined
+            const excludeRawVal = String(filter.rawValue ?? filter.value).replace(/\s*\(\d+개\)\s*$/, "")
+            const excludeVals = filter.field === "workPieceName" ? [excludeRawVal] : undefined
             return deps.buildQuestionResponse(
               form, candidates, evidenceMap, totalCandidateCount, paginationDto(totalCandidateCount), displayCandidates, displayEvidenceMap, currentInput,
               narrowingHistory, filters, turnCount, messages, provider, language,
-              `"${filter.value}" 조건을 적용하면 후보가 없습니다. 현재 ${totalCandidateCount}개 후보에서 다른 조건을 선택해주세요.`,
+              `"${excludeRawVal}" 조건을 적용하면 후보가 없습니다. 현재 ${totalCandidateCount}개 후보에서 다른 조건을 선택해주세요.`,
               undefined, // existingStageHistory
               excludeVals
             )
@@ -2381,7 +2382,8 @@ async function handleServeExplorationInner(
       if (testResult.totalConsidered === 0) {
         console.log(`[orchestrator:guard] Filter ${filter.field}=${filter.value} would result in 0 candidates -> BLOCKED, excluding from chips`)
         // 실패값을 buildQuestionResponse에 전달 → workPiece 칩에서 제외
-        const excludeValues = filter.field === "workPieceName" ? [filter.value] : undefined
+        const excludeRawValue = String(filter.rawValue ?? filter.value).replace(/\s*\(\d+개\)\s*$/, "")
+        const excludeValues = filter.field === "workPieceName" ? [excludeRawValue] : undefined
         return deps.buildQuestionResponse(
           form,
           candidates,
@@ -2397,7 +2399,7 @@ async function handleServeExplorationInner(
           messages,
           provider,
           language,
-          `"${filter.value}" 조건을 적용하면 후보가 없습니다. 현재 ${totalCandidateCount}개 후보에서 다른 조건을 선택해주세요.`,
+          `"${excludeRawValue}" 조건을 적용하면 후보가 없습니다. 현재 ${totalCandidateCount}개 후보에서 다른 조건을 선택해주세요.`,
           undefined, // existingStageHistory
           excludeValues
         )

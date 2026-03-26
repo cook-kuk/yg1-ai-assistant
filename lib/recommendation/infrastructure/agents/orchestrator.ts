@@ -554,7 +554,7 @@ function buildToolUseSystemPrompt(ctx: TurnContext): string {
     : "없음"
 
   const candidatesDesc = state?.displayedCandidates?.slice(0, 5).map(c =>
-    `#${c.rank} ${c.displayCode} | ${c.seriesName ?? "?"} | φ${c.diameterMm ?? "?"}mm | ${c.fluteCount ?? "?"}F | ${c.coating ?? "?"} | ${c.matchStatus} ${c.score}점`
+    `#${c.rank} ${c.displayCode} | ${c.seriesName ?? "?"} | φ${c.diameterMm ?? "?"}mm | ${c.fluteCount ?? "?"}F | ${c.coating || "정보없음"} | ${c.matchStatus} ${c.score}점`
   ).join("\n") || "없음"
 
   return `당신은 YG-1 절삭공구 추천 시스템의 대화 라우터입니다.
