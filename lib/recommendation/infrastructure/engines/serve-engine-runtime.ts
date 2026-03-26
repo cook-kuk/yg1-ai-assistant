@@ -39,7 +39,7 @@ import { classifyPreSearchRoute } from "@/lib/recommendation/infrastructure/engi
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
 import { shouldExecutePendingAction, pendingActionToFilter } from "@/lib/recommendation/domain/context/pending-action-resolver"
 import { TurnPerfLogger, setCurrentPerfLogger } from "@/lib/recommendation/infrastructure/perf/turn-perf-logger"
-import { buildAppliedFilterFromValue, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
+import { buildAppliedFilterFromValue, buildFilterValueScope, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
 import {
   buildConstraintClarificationQuestion,
   hasExplicitFilterIntent,
@@ -306,12 +306,21 @@ function getRevisionCandidatePool(sessionState: ExplorationSessionState | null):
   ) as unknown as Array<Record<string, unknown>>
 }
 
+function getRevisionCandidateValues(
+  sessionState: ExplorationSessionState | null,
+  field: string
+): string[] {
+  const scopedValues = sessionState?.filterValueScope?.[field]
+  if (Array.isArray(scopedValues)) return scopedValues
+  return extractDistinctFieldValues(getRevisionCandidatePool(sessionState), field)
+}
+
 function matchRevisionValueAgainstCandidateValues(
   field: string,
   value: string,
   sessionState: ExplorationSessionState | null
 ): string | null {
-  const candidateValues = extractDistinctFieldValues(getRevisionCandidatePool(sessionState), field)
+  const candidateValues = getRevisionCandidateValues(sessionState, field)
   if (candidateValues.length === 0) return null
 
   const normalizedValue = normalizePendingSelectionText(value).replace(/\s+/g, "")
@@ -373,12 +382,10 @@ function inferExplicitFilterTargetFields(
   sessionState: ExplorationSessionState | null
 ): string[] {
   if (hintedFields.length > 0) return [...new Set(hintedFields)]
-
-  const candidatePool = getRevisionCandidatePool(sessionState)
   const matchedFields: string[] = []
 
   for (const field of getRegisteredFilterFields()) {
-    const values = extractDistinctFieldValues(candidatePool, field)
+    const values = getRevisionCandidateValues(sessionState, field)
     if (values.length === 0) continue
     if (values.some(value => includesText(String(value), raw))) {
       matchedFields.push(field)
@@ -414,7 +421,7 @@ function doesCandidatePoolContainFilterValue(
   filter: AppliedFilter,
   sessionState: ExplorationSessionState | null
 ): boolean {
-  const candidateValues = extractDistinctFieldValues(getRevisionCandidatePool(sessionState), field)
+  const candidateValues = getRevisionCandidateValues(sessionState, field)
   if (candidateValues.length === 0) return true
 
   const filterComparable = normalizeComparableFilterValue(field, filter.rawValue ?? filter.value)
@@ -434,7 +441,7 @@ export async function resolveExplicitFilterRequest(
 
   const raw = userMessage.trim()
   if (!raw || !hasExplicitFilterIntentSignal(raw) || hasExplicitRevisionSignal(raw)) return null
-  const parsedText = parseExplicitFilterText(raw)
+  const parsedText = await parseExplicitFilterText(raw, undefined, provider)
   const candidateFields = inferExplicitFilterTargetFields(raw, parsedText.hintedFields, sessionState)
   if (candidateFields.length === 0) return null
 
@@ -444,7 +451,7 @@ export async function resolveExplicitFilterRequest(
   const matchedFilters: AppliedFilter[] = []
 
   for (const field of candidateFields) {
-    const fieldCandidateValues = extractDistinctFieldValues(getRevisionCandidatePool(sessionState), field)
+    const fieldCandidateValues = getRevisionCandidateValues(sessionState, field)
 
     for (const rawCandidate of valueCandidates) {
       const sanitized = sanitizeRevisionValueForField(field, rawCandidate, sessionState)
@@ -569,7 +576,23 @@ export function buildPendingSelectionFilter(
   const clean = normalizePendingSelectionText(raw)
   if (!clean) return null
 
-  const optionsForPendingField = (sessionState.displayedOptions ?? []).filter(option => option.field === pendingField)
+  let optionsForPendingField = (sessionState.displayedOptions ?? []).filter(option => option.field === pendingField)
+  if (optionsForPendingField.length === 0) {
+    optionsForPendingField = (sessionState.displayedChips ?? []).map((chip, index) => {
+      const skipValue = isSkipSelectionValue(chip)
+      const cleanChipValue = normalizePendingSelectionText(chip)
+        .replace(/\s*\(\d+개\)\s*$/u, "")
+        .trim()
+
+      return {
+        index: index + 1,
+        label: chip,
+        field: pendingField,
+        value: skipValue ? "skip" : cleanChipValue,
+        count: 0,
+      }
+    })
+  }
 
   const optionMatch = optionsForPendingField.find(option => {
     const normalizedValue = normalizePendingSelectionText(option.value)
@@ -633,10 +656,11 @@ export function resolveExplicitComparisonAction(
   return { type: "compare_products", targets }
 }
 
-export function resolveExplicitRevisionRequest(
+export async function resolveExplicitRevisionRequest(
   sessionState: ExplorationSessionState | null,
-  userMessage: string | null
-): ExplicitRevisionResolution | null {
+  userMessage: string | null,
+  provider?: ReturnType<typeof getProvider>
+): Promise<ExplicitRevisionResolution | null> {
   if (!sessionState || !userMessage) return null
 
   const raw = userMessage.trim()
@@ -645,7 +669,7 @@ export function resolveExplicitRevisionRequest(
   const activeFilters = (sessionState.appliedFilters ?? []).filter(filter => filter.op !== "skip")
   if (activeFilters.length === 0) return null
 
-  const parsedText = parseExplicitRevisionText(raw, activeFilters.map(filter => filter.field))
+  const parsedText = await parseExplicitRevisionText(raw, activeFilters.map(filter => filter.field), provider)
   const { previousText, valueCandidates: nextValues } = parsedText
   if (nextValues.length === 0) return null
 
@@ -957,6 +981,7 @@ async function handleServeExplorationInner(
       displayedProducts: candidateSnapshot,
       fullDisplayedCandidates: candidateSnapshot,
       fullDisplayedProducts: candidateSnapshot,
+      filterValueScope: buildFilterValueScope(fullResult.candidates as unknown as Array<Record<string, unknown>>),
     })
 
     return deps.jsonRecommendationResponse({
@@ -1031,7 +1056,7 @@ async function handleServeExplorationInner(
         console.log(`[runtime:explicit-compare] targets=${explicitComparisonAction.targets.join(", ")}`)
       }
       if (!explicitComparisonAction) {
-        explicitRevisionResolution = resolveExplicitRevisionRequest(prevState, lastUserMsg.text)
+        explicitRevisionResolution = await resolveExplicitRevisionRequest(prevState, lastUserMsg.text, provider)
         if (explicitRevisionResolution?.kind === "resolved") {
           const explicitRevisionRequest = explicitRevisionResolution.request
           explicitRevisionAction = {
@@ -1096,6 +1121,45 @@ async function handleServeExplorationInner(
         explicitFilterResolution.question,
         requestPrep
       )
+    }
+
+    if (!shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution && prevState) {
+      const explanationJudgment = await performUnifiedJudgment({
+        userMessage: lastUserMsg.text,
+        assistantText: null,
+        pendingField: prevState.lastAskedField ?? null,
+        currentMode: prevState.currentMode ?? null,
+        displayedChips: prevState.displayedChips ?? [],
+        filterCount: filters.length,
+        candidateCount: prevState.candidateCount ?? 0,
+        hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
+      }, provider)
+
+      const isExplainQuestion = explanationJudgment.intentAction === "explain" || /[?？]$/.test(lastUserMsg.text.trim())
+      if (
+        isExplainQuestion &&
+        (
+          explanationJudgment.domainRelevance === "cutting_condition" ||
+          isToolDomainQuestion(lastUserMsg.text)
+        )
+      ) {
+        console.log(`[runtime:explain-route] ${explanationJudgment.domainRelevance} -> answer_general before V2`)
+        return handleServeGeneralChatAction({
+          deps,
+          action: { type: "answer_general", message: lastUserMsg.text },
+          orchResult: buildPreSearchOrchestratorResult(lastUserMsg.text, `tool_explain:${explanationJudgment.domainRelevance}`),
+          provider,
+          form,
+          messages,
+          prevState,
+          filters,
+          narrowingHistory,
+          currentInput,
+          candidates: [],
+          evidenceMap: new Map(),
+          turnCount,
+        })
+      }
     }
 
     if (!shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution) {
@@ -1168,6 +1232,7 @@ async function handleServeExplorationInner(
       legacyState.lastAskedField = result.sessionState.pendingQuestion?.field ?? prevState?.lastAskedField ?? undefined
       legacyState.candidateCount = result.sessionState.resultContext?.totalConsidered ?? prevState?.candidateCount ?? legacyState.candidateCount
       legacyState.displayedCandidates = prevState?.displayedCandidates ?? legacyState.displayedCandidates
+      legacyState.filterValueScope = prevState?.filterValueScope
       legacyState.resolvedInput = v2ResolvedInput
       legacyState.narrowingHistory = prevState?.narrowingHistory ?? legacyState.narrowingHistory
       legacyState.stageHistory = prevState?.stageHistory ?? legacyState.stageHistory
@@ -1184,6 +1249,7 @@ async function handleServeExplorationInner(
 
         legacyState.candidateCount = totalCandidateCount
         legacyState.displayedCandidates = deps.buildCandidateSnapshot(displayPage.candidates, displayPage.evidenceMap)
+        legacyState.filterValueScope = buildFilterValueScope(result.searchPayload.candidates as unknown as Array<Record<string, unknown>>)
 
         perf.endStep("v2_orchestrator")
         perf.recordLlmCall()

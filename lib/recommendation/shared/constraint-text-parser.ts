@@ -1,3 +1,4 @@
+import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import { getFilterFieldLabel, getFilterFieldQueryAliases, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
 
 type ParsedConstraintText = {
@@ -6,10 +7,12 @@ type ParsedConstraintText = {
   previousText: string | null
 }
 
+type ConstraintParseMode = "filter" | "revision"
+
 const FILTER_INTENT_PATTERNS = [
-  /\s*(?:로|으로)\s*(?:필터|필터링|적용|추천(?:해줘)?|보여줘?|찾아줘?|검색).*$/u,
-  /\s*(?:만\s*보여줘?|만\s*추천해줘?).*$/u,
-  /\s*기준으로\s*(?:추천|필터링|검색).*$/u,
+  /\s*(?:로|으로|만|만으로|기준으로)?\s*(?:필터|필터링|적용|추천(?:해줘)?|보여줘?|찾아줘?|검색|좁혀줘?|좁혀).*$/u,
+  /\s*(?:만\s*보여줘?|만\s*추천해줘?|만\s*찾아줘?).*$/u,
+  /\s*기준으로\s*(?:추천|필터링|검색|적용|보여줘?).*$/u,
 ]
 
 const REVISION_INTENT_PATTERNS = [
@@ -48,6 +51,15 @@ function stripByPatterns(value: string, patterns: RegExp[]): string {
 
 function stripLeadingParticles(value: string): string {
   return value.trim().replace(/^[은는이가을를]\s*/u, "").trim()
+}
+
+function stripValueAffixes(value: string): string {
+  return value
+    .trim()
+    .replace(/^(?:지금\s*후보에서|후보에서|지금|추천은\s*그대로\s*하고|추천은\s*그대로|추천은|일단|그럼|그러면|현재\s*후보에서)\s*/u, "")
+    .replace(/^\s*(?:은|는|이|가|을|를|만|기준|기준으로|쪽으로|에서|로|으로)\s*/u, "")
+    .replace(/\s*(?:은|는|이|가|을|를|만|기준|기준으로|쪽으로|에서|로|으로)\s*$/u, "")
+    .trim()
 }
 
 function escapePattern(value: string): string {
@@ -90,16 +102,65 @@ function matchLeadingFieldPhrase(raw: string, candidateFields?: Set<string>): { 
   return null
 }
 
+function collectFieldMentions(raw: string, candidateFields?: Set<string>): Array<{ field: string; alias: string; index: number; end: number }> {
+  const mentions: Array<{ field: string; alias: string; index: number; end: number }> = []
+
+  for (const field of getRegisteredFilterFields()) {
+    if (candidateFields && !candidateFields.has(field)) continue
+
+    const aliases = getFilterFieldQueryAliases(field).sort((a, b) => b.length - a.length)
+    for (const alias of aliases) {
+      if (!alias.trim()) continue
+      const pattern = new RegExp(escapePattern(alias), "igu")
+      for (const match of raw.matchAll(pattern)) {
+        const index = match.index ?? -1
+        if (index < 0) continue
+        mentions.push({ field, alias, index, end: index + match[0].length })
+      }
+    }
+  }
+
+  return mentions.sort((a, b) => a.index - b.index || b.alias.length - a.alias.length)
+}
+
+function extractValueSpansAroundFieldMentions(
+  raw: string,
+  candidateFields?: Set<string>,
+  intentPatterns: RegExp[] = FILTER_INTENT_PATTERNS
+): { hintedFields: string[]; valueCandidates: string[] } {
+  const base = stripByPatterns(raw, intentPatterns)
+  const mentions = collectFieldMentions(base, candidateFields)
+  const hintedFields = uniqueStrings(mentions.map(mention => mention.field))
+  const valueCandidates: string[] = []
+
+  for (const mention of mentions) {
+    const before = stripValueAffixes(base.slice(0, mention.index))
+    const after = stripValueAffixes(base.slice(mention.end))
+    const withoutAlias = stripValueAffixes(`${base.slice(0, mention.index)} ${base.slice(mention.end)}`)
+
+    valueCandidates.push(before, after, withoutAlias)
+  }
+
+  return {
+    hintedFields,
+    valueCandidates: uniqueStrings(valueCandidates),
+  }
+}
+
 function buildFilterValueCandidates(raw: string, candidateFields?: Set<string>): { hintedFields: string[]; valueCandidates: string[] } {
   const leading = matchLeadingFieldPhrase(raw, candidateFields)
+  const slotExtraction = extractValueSpansAroundFieldMentions(raw, candidateFields, FILTER_INTENT_PATTERNS)
   const hintedFields = uniqueStrings([
     ...(leading ? [leading.field] : []),
+    ...slotExtraction.hintedFields,
     ...collectHintedFields(raw, candidateFields),
   ])
 
   const strippedRaw = stripByPatterns(raw, FILTER_INTENT_PATTERNS)
   const valueCandidates = uniqueStrings([
     leading?.remainder,
+    ...slotExtraction.valueCandidates,
+    stripValueAffixes(strippedRaw),
     strippedRaw,
   ])
 
@@ -109,9 +170,13 @@ function buildFilterValueCandidates(raw: string, candidateFields?: Set<string>):
 function buildRevisionValueCandidates(raw: string): { previousText: string | null; nextValues: string[] } {
   const replaceMatch = raw.match(/(.+?)\s*(?:대신|말고)\s*(.+)$/u)
   if (replaceMatch) {
+    const previousSlot = extractValueSpansAroundFieldMentions(replaceMatch[1], undefined, REVISION_INTENT_PATTERNS)
+    const nextSlot = extractValueSpansAroundFieldMentions(replaceMatch[2], undefined, REVISION_INTENT_PATTERNS)
     return {
-      previousText: stripLeadingParticles(stripByPatterns(replaceMatch[1], REVISION_INTENT_PATTERNS)),
+      previousText: previousSlot.valueCandidates[0]
+        ?? stripValueAffixes(stripLeadingParticles(stripByPatterns(replaceMatch[1], REVISION_INTENT_PATTERNS))),
       nextValues: uniqueStrings([
+        ...nextSlot.valueCandidates,
         stripLeadingParticles(stripByPatterns(replaceMatch[2], REVISION_INTENT_PATTERNS)),
         stripLeadingParticles(stripByPatterns(raw, REVISION_INTENT_PATTERNS)),
       ]),
@@ -119,12 +184,107 @@ function buildRevisionValueCandidates(raw: string): { previousText: string | nul
   }
 
   const directChangeMatch = raw.match(/(.+?)(?:로|으로)\s*(?:변경|바꿔|바꿀게|바꿔줘|수정)/u)
+  const directSlot = extractValueSpansAroundFieldMentions(raw, undefined, REVISION_INTENT_PATTERNS)
   return {
     previousText: null,
     nextValues: uniqueStrings([
+      ...directSlot.valueCandidates,
       directChangeMatch ? stripLeadingParticles(directChangeMatch[1]) : null,
       stripLeadingParticles(stripByPatterns(raw, REVISION_INTENT_PATTERNS)),
     ]),
+  }
+}
+
+function buildFieldGuide(candidateFields?: Iterable<string>): string {
+  const fieldSet = candidateFields ? new Set(candidateFields) : null
+
+  return getRegisteredFilterFields()
+    .filter(field => !fieldSet || fieldSet.has(field))
+    .map(field => {
+      const label = getFilterFieldLabel(field)
+      const aliases = getFilterFieldQueryAliases(field).filter(Boolean).join(", ")
+      return `- ${field}: label=${label}; aliases=[${aliases}]`
+    })
+    .join("\n")
+}
+
+function parseConstraintLlmJson(raw: string): {
+  intent: "filter" | "revision" | "none"
+  fields: string[]
+  value: string | null
+  previousValue: string | null
+} | null {
+  try {
+    const cleaned = raw.trim().replace(/```json\n?|\n?```/g, "")
+    const parsed = JSON.parse(cleaned)
+    const intent = parsed.intent === "filter" || parsed.intent === "revision" ? parsed.intent : "none"
+    const fields = Array.isArray(parsed.fields)
+      ? parsed.fields.map((field: unknown) => String(field ?? "").trim()).filter(Boolean)
+      : parsed.field
+        ? [String(parsed.field).trim()].filter(Boolean)
+        : []
+    const value = parsed.value == null ? null : String(parsed.value).trim() || null
+    const previousValue = parsed.previousValue == null ? null : String(parsed.previousValue).trim() || null
+
+    return { intent, fields, value, previousValue }
+  } catch {
+    return null
+  }
+}
+
+async function extractConstraintSlotsWithLLM(
+  raw: string,
+  mode: ConstraintParseMode,
+  provider?: LLMProvider | null,
+  candidateFields?: Iterable<string>
+): Promise<ParsedConstraintText | null> {
+  if (!provider?.available()) return null
+
+  const fieldGuide = buildFieldGuide(candidateFields)
+  const modeRule = mode === "filter"
+    ? `사용자가 "필터링/좁히기/보여주기" 요청인지 판단하세요.`
+    : `사용자가 기존 조건을 다른 값으로 "변경/교체"하려는지 판단하세요.`
+
+  const prompt = `다음 사용자 문장에서 제약 조건 슬롯을 추출하세요.
+
+문장:
+${raw}
+
+가능한 field 목록:
+${fieldGuide}
+
+규칙:
+- ${modeRule}
+- 결과는 JSON만 반환하세요.
+- field는 반드시 field 목록의 id만 사용하세요.
+- value는 실제 적용하려는 값 span만 넣으세요.
+- 조사, "필터링", "추천해줘", "보여줘" 같은 의도 표현은 value에 포함하지 마세요.
+- mode가 revision이면 previousValue도 추출하세요. 없으면 null.
+- 확실하지 않으면 intent를 "none"으로 두세요.
+
+형식:
+{"intent":"filter|revision|none","fields":["fieldId"],"value":"...","previousValue":"..."}
+`
+
+  try {
+    const rawResponse = await provider.complete(
+      "당신은 추천 검색용 제약 슬롯 추출기입니다. JSON만 반환하세요.",
+      [{ role: "user", content: prompt }],
+      800,
+      "haiku"
+    )
+    const parsed = parseConstraintLlmJson(rawResponse)
+    if (!parsed) return null
+    if (parsed.intent === "none") return null
+    if (parsed.intent !== mode) return null
+
+    return {
+      hintedFields: uniqueStrings(parsed.fields),
+      valueCandidates: uniqueStrings([parsed.value]),
+      previousText: parsed.previousValue,
+    }
+  } catch {
+    return null
   }
 }
 
@@ -136,10 +296,14 @@ export function hasExplicitFilterIntent(value: string): boolean {
   return FILTER_SIGNAL_PATTERN.test(value)
 }
 
-export function parseExplicitFilterText(
+export async function parseExplicitFilterText(
   raw: string,
-  candidateFields?: Iterable<string>
-): ParsedConstraintText {
+  candidateFields?: Iterable<string>,
+  provider?: LLMProvider | null
+): Promise<ParsedConstraintText> {
+  const llmParsed = await extractConstraintSlotsWithLLM(raw.trim(), "filter", provider, candidateFields)
+  if (llmParsed) return llmParsed
+
   const fieldSet = candidateFields ? new Set(candidateFields) : undefined
   const { hintedFields, valueCandidates } = buildFilterValueCandidates(raw.trim(), fieldSet)
   return {
@@ -149,10 +313,14 @@ export function parseExplicitFilterText(
   }
 }
 
-export function parseExplicitRevisionText(
+export async function parseExplicitRevisionText(
   raw: string,
-  candidateFields?: Iterable<string>
-): ParsedConstraintText {
+  candidateFields?: Iterable<string>,
+  provider?: LLMProvider | null
+): Promise<ParsedConstraintText> {
+  const llmParsed = await extractConstraintSlotsWithLLM(raw.trim(), "revision", provider, candidateFields)
+  if (llmParsed) return llmParsed
+
   const fieldSet = candidateFields ? new Set(candidateFields) : undefined
   const { previousText, nextValues } = buildRevisionValueCandidates(raw.trim())
   return {

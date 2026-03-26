@@ -6,6 +6,7 @@ import type {
 } from "@/lib/recommendation/domain/types"
 
 type FilterValueKind = "string" | "number" | "boolean"
+export type FilterMatchPolicy = "strict_identifier" | "fuzzy" | "llm_assisted"
 
 type FilterRecord = CanonicalProduct | ScoredProduct | Record<string, unknown>
 
@@ -16,6 +17,7 @@ interface FilterFieldDefinition {
   label?: string
   queryAliases?: string[]
   kind: FilterValueKind
+  matchPolicy?: FilterMatchPolicy
   op: "eq" | "includes" | "range"
   canonicalField?: string
   unit?: string
@@ -42,6 +44,13 @@ function normalizeText(value: string): string {
 
 function normalizeCompactText(value: string): string {
   return normalizeText(value).replace(/\s+/g, "")
+}
+
+function normalizeIdentifierText(value: string): string {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9가-힣]+/g, "")
 }
 
 function stripFilterAnswer(answer: string): string {
@@ -89,6 +98,13 @@ function includesText(haystack: string, needle: string): boolean {
   return normalizedHaystack.includes(normalizedNeedle) || normalizedNeedle.includes(normalizedHaystack)
 }
 
+function identifierMatch(record: FilterRecord, filter: AppliedFilter, key: string): boolean {
+  const query = normalizeIdentifierText(String(filter.rawValue ?? filter.value))
+  if (!query) return false
+
+  return extractPrimitiveValues(record, key).some(value => normalizeIdentifierText(String(value)) === query)
+}
+
 function canonicalizeToolSubtypeRawValue(rawValue: string | number | boolean): string | null {
   const normalized = String(rawValue)
     .trim()
@@ -133,6 +149,13 @@ function buildLikeClause(columns: string[], filter: AppliedFilter, next: (value:
   if (!raw) return null
   const param = next(`%${raw}%`)
   return `(${columns.map(column => `LOWER(COALESCE(${column}, '')) LIKE ${param}`).join(" OR ")})`
+}
+
+function buildExactIdentifierClause(columns: string[], filter: AppliedFilter, next: (value: unknown) => string): string | null {
+  const raw = normalizeIdentifierText(String(filter.rawValue ?? filter.value))
+  if (!raw) return null
+  const param = next(raw)
+  return `(${columns.map(column => `regexp_replace(LOWER(COALESCE(${column}, '')), '[^a-z0-9가-힣]+', '', 'g') = ${param}`).join(" OR ")})`
 }
 
 function buildNumericEqualityClause(
@@ -266,6 +289,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     label: "가공 타입",
     queryAliases: ["가공", "작업", "커팅", "cutting"],
     kind: "string",
+    matchPolicy: "strict_identifier",
     op: "eq",
     setInput: (input, filter) => ({ ...input, operationType: String(filter.rawValue) }),
     clearInput: input => ({ ...input, operationType: undefined }),
@@ -288,12 +312,13 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     label: "시리즈",
     queryAliases: ["시리즈", "series"],
     kind: "string",
+    matchPolicy: "strict_identifier",
     op: "includes",
     setInput: (input, filter) => ({ ...input, seriesName: String(filter.rawValue) }),
     clearInput: input => ({ ...input, seriesName: undefined }),
     extractValues: record => extractPrimitiveValues(record, "seriesName"),
-    matches: (record, filter) => stringMatch(record, filter, "seriesName"),
-    buildDbClause: (filter, next) => buildLikeClause(["edp_series_name"], filter, next),
+    matches: (record, filter) => identifierMatch(record, filter, "seriesName"),
+    buildDbClause: (filter, next) => buildExactIdentifierClause(["edp_series_name"], filter, next),
   },
   toolMaterial: {
     field: "toolMaterial",
@@ -316,12 +341,13 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     label: "공구 타입",
     queryAliases: ["공구 타입", "tool type", "카테고리"],
     kind: "string",
+    matchPolicy: "strict_identifier",
     op: "includes",
     setInput: (input, filter) => ({ ...input, toolType: String(filter.rawValue) }),
     clearInput: input => ({ ...input, toolType: undefined }),
     extractValues: record => extractPrimitiveValues(record, "toolType"),
-    matches: (record, filter) => stringMatch(record, filter, "toolType"),
-    buildDbClause: (filter, next) => buildLikeClause(
+    matches: (record, filter) => identifierMatch(record, filter, "toolType"),
+    buildDbClause: (filter, next) => buildExactIdentifierClause(
       ["series_tool_type", "series_product_type", "edp_root_category"],
       filter,
       next
@@ -332,18 +358,20 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     label: "브랜드",
     queryAliases: ["브랜드", "brand"],
     kind: "string",
+    matchPolicy: "strict_identifier",
     op: "includes",
     setInput: (input, filter) => ({ ...input, brand: String(filter.rawValue) }),
     clearInput: input => ({ ...input, brand: undefined }),
     extractValues: record => extractPrimitiveValues(record, "brand"),
-    matches: (record, filter) => stringMatch(record, filter, "brand"),
-    buildDbClause: (filter, next) => buildLikeClause(["series_brand_name", "edp_brand_name"], filter, next),
+    matches: (record, filter) => identifierMatch(record, filter, "brand"),
+    buildDbClause: (filter, next) => buildExactIdentifierClause(["series_brand_name", "edp_brand_name"], filter, next),
   },
   country: {
     field: "country",
     label: "국가",
     queryAliases: ["국가", "생산국", "원산지", "country"],
     kind: "string",
+    matchPolicy: "strict_identifier",
     canonicalizeRawValue: rawValue => String(rawValue).trim().toUpperCase() || null,
     op: "includes",
     setInput: (input, filter) => ({ ...input, country: String(filter.rawValue).toUpperCase() }),
@@ -529,6 +557,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
   },
   edpBrandName: {
     field: "edpBrandName",
+    matchPolicy: "strict_identifier",
     kind: "string",
     op: "includes",
     buildDbClause: (filter, next) => {
@@ -543,6 +572,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
   },
   edpSeriesName: {
     field: "edpSeriesName",
+    matchPolicy: "strict_identifier",
     kind: "string",
     op: "includes",
     buildDbClause: (filter, next) => {
@@ -574,6 +604,10 @@ export function getFilterFieldQueryAliases(field: string): string[] {
     definition.label ?? "",
     ...(definition.queryAliases ?? []),
   ].filter(Boolean)))
+}
+
+export function getFilterFieldMatchPolicy(field: string): FilterMatchPolicy {
+  return FILTER_FIELD_DEFINITIONS[field]?.matchPolicy ?? "llm_assisted"
 }
 
 export function getRegisteredFilterFields(): string[] {
@@ -670,6 +704,19 @@ export function extractDistinctFilterFieldValues(
     }
   }
   return Array.from(values)
+}
+
+export function buildFilterValueScope(
+  records: Array<Record<string, unknown>>,
+  fields: string[] = getRegisteredFilterFields()
+): Record<string, string[]> {
+  const scope: Record<string, string[]> = {}
+
+  for (const field of fields) {
+    scope[field] = extractDistinctFilterFieldValues(records, field)
+  }
+
+  return scope
 }
 
 export function extractFilterFieldValueMap(

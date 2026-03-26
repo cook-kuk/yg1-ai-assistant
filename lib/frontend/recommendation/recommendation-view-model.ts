@@ -1,6 +1,5 @@
 import type {
   RecommendationCapabilityDto,
-  RecommendationCandidateDto,
   RecommendationPublicSessionDto,
   RecommendationResponseDto,
 } from "@/lib/contracts/recommendation"
@@ -23,13 +22,6 @@ export function getSessionCapabilities(
   fallback: RecommendationCapabilityDto = DEFAULT_RECOMMENDATION_CAPABILITIES
 ): RecommendationCapabilityDto {
   return sessionState?.capabilities ?? fallback
-}
-
-export function canShowCandidatePanel(
-  capabilities: RecommendationCapabilityDto,
-  candidates: RecommendationCandidateDto[] | null
-): boolean {
-  return capabilities.canFilterDisplayed || (candidates?.length ?? 0) > 0
 }
 
 export function isUndoChipEnabled(

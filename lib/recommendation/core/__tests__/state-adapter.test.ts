@@ -102,6 +102,51 @@ describe("convertToV2State", () => {
     expect(result.constraints.base.materialDetail).toBe("SUS304")
   })
 
+  it("preserves resolvedInput base constraints even when appliedFilters are empty", () => {
+    const legacy = makeLegacyState({
+      resolvedInput: {
+        manufacturerScope: "yg1-only",
+        locale: "ko",
+        material: "알루미늄",
+        toolType: "Milling",
+      },
+    })
+
+    const result = convertToV2State(legacy)
+
+    expect(result.constraints.base.material).toBe("알루미늄")
+    expect(result.constraints.base.toolType).toBe("Milling")
+  })
+
+  it("lets appliedFilters override conflicting resolvedInput values", () => {
+    const legacy = makeLegacyState({
+      resolvedInput: {
+        manufacturerScope: "yg1-only",
+        locale: "ko",
+        material: "알루미늄",
+      },
+      appliedFilters: [makeFilter("material", "일반강", "일반강")],
+    })
+
+    const result = convertToV2State(legacy)
+
+    expect(result.constraints.base.material).toBe("일반강")
+  })
+
+  it('does not materialize country "ALL" as a V2 base constraint', () => {
+    const legacy = makeLegacyState({
+      resolvedInput: {
+        manufacturerScope: "yg1-only",
+        locale: "ko",
+        country: "ALL",
+      },
+    })
+
+    const result = convertToV2State(legacy)
+
+    expect(result.constraints.base.country).toBeUndefined()
+  })
+
   it("maps lastAskedField to pendingQuestion", () => {
     const options: DisplayedOption[] = [
       { index: 1, label: "4날", field: "fluteCount", value: "4", count: 10 },
@@ -192,6 +237,51 @@ describe("convertToV2State", () => {
     expect(result.resultContext!.candidates[0].productCode).toBe("P001")
     expect(result.resultContext!.candidates[0].seriesName).toBe("X-Series")
     expect(result.resultContext!.totalConsidered).toBe(100)
+  })
+})
+
+describe("convertFromV2State", () => {
+  it("does not rehydrate resolvedInput base constraints as duplicate applied filters", () => {
+    const prevLegacy = makeLegacyState({
+      resolvedInput: {
+        manufacturerScope: "yg1-only",
+        locale: "ko",
+        material: "Aluminum",
+        operationType: "Milling",
+      },
+    })
+
+    const nextV2: RecommendationSessionState = {
+      ...createInitialSessionState(),
+      journeyPhase: "narrowing",
+      constraints: {
+        base: {
+          material: "Aluminum",
+          operation: "Milling",
+          endType: "Radius",
+          country: "ALL",
+        },
+        refinements: {},
+      },
+      pendingQuestion: {
+        field: "workPieceName",
+        questionText: "",
+        options: [],
+        turnAsked: 1,
+        context: null,
+      },
+      turnCount: 1,
+    }
+
+    const result = convertFromV2State(nextV2, prevLegacy)
+
+    expect(result.appliedFilters).toEqual([
+      expect.objectContaining({
+        field: "toolSubtype",
+        value: "Radius",
+        rawValue: "Radius",
+      }),
+    ])
   })
 })
 

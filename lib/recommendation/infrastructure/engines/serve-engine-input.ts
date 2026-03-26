@@ -78,7 +78,12 @@ export function mapIntakeToInput(form: ProductIntakeForm): RecommendationInput {
   if (opParts.length > 0) input.operationType = opParts.join(" ")
 
   const country = getKnown(form.country)
-  if (country) input.country = country.trim().toUpperCase()
+  if (country) {
+    const normalizedCountry = country.trim().toUpperCase()
+    if (normalizedCountry && normalizedCountry !== "ALL") {
+      input.country = normalizedCountry
+    }
+  }
 
   return input as RecommendationInput
 }

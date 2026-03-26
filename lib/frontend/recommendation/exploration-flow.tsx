@@ -35,7 +35,7 @@ import {
   groupRecommendationCandidatesBySeries,
   type RecommendationCandidateSeriesGroup,
 } from "@/lib/frontend/recommendation/recommendation-grouping"
-import { isUndoChipEnabled, canShowCandidatePanel } from "@/lib/frontend/recommendation/recommendation-view-model"
+import { isUndoChipEnabled } from "@/lib/frontend/recommendation/recommendation-view-model"
 import {
   type AnswerState,
   FIELD_CONFIGS,
@@ -827,7 +827,6 @@ export function ExplorationScreen({
   const [showSidebar, setShowSidebar] = useState(false)
   const [showCandidates, setShowCandidates] = useState(false)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
-  const canShowResults = canShowCandidatePanel(capabilities, candidateSnapshot)
 
   return (
     <div className="flex flex-col h-full">
@@ -854,12 +853,10 @@ export function ExplorationScreen({
             <Filter size={11} />
             {language === "ko" ? "조건" : "Filters"}
           </Button>
-          {canShowResults && (
-            <Button variant="outline" size="sm" onClick={() => setShowCandidates(prev => !prev)} className="gap-1 text-xs h-7 px-2 lg:hidden">
-              <Activity size={11} />
-              {language === "ko" ? "후보" : "Results"}
-            </Button>
-          )}
+          <Button variant="outline" size="sm" onClick={() => setShowCandidates(prev => !prev)} className="gap-1 text-xs h-7 px-2 lg:hidden">
+            <Activity size={11} />
+            {language === "ko" ? "후보" : "Results"}
+          </Button>
           <Button variant="outline" size="sm" onClick={onEdit} className="gap-1 text-xs h-7 px-2">
             <Edit2 size={11} />
             {language === "ko" ? "조건 수정" : "Edit Conditions"}
@@ -894,20 +891,18 @@ export function ExplorationScreen({
           />
         </div>
 
-        {canShowResults && (
-          <div className={`w-80 border-l bg-white flex-shrink-0 overflow-y-auto transition-all ${showCandidates ? "block" : "hidden"} lg:block`}>
-            <CandidatePanel
-              candidates={candidateSnapshot}
-              pagination={candidatePagination}
-              isPageLoading={isCandidatePageLoading}
-              messages={messages}
-              form={form}
-              sessionState={sessionState}
-              onSend={onSend}
-              onPageChange={onPageChange}
-            />
-          </div>
-        )}
+        <div className={`w-80 border-l bg-white flex-shrink-0 overflow-y-auto transition-all ${showCandidates ? "block" : "hidden"} lg:block`}>
+          <CandidatePanel
+            candidates={candidateSnapshot}
+            pagination={candidatePagination}
+            isPageLoading={isCandidatePageLoading}
+            messages={messages}
+            form={form}
+            sessionState={sessionState}
+            onSend={onSend}
+            onPageChange={onPageChange}
+          />
+        </div>
       </div>
     </div>
   )

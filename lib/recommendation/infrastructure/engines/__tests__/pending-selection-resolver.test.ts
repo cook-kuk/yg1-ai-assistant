@@ -85,6 +85,23 @@ describe("pending selection resolver", () => {
     })
   })
 
+  it("falls back to displayedChips when displayedOptions are missing", () => {
+    const state = makeState({
+      lastAskedField: "toolSubtype",
+      displayedChips: ["Square (1180개)", "Radius (362개)", "상관없음"],
+      displayedOptions: [],
+    })
+
+    const filter = buildPendingSelectionFilter(state, "Radius (362개)")
+
+    expect(filter).toMatchObject({
+      field: "toolSubtype",
+      op: "includes",
+      value: "Radius",
+      rawValue: "Radius",
+    })
+  })
+
   it('resolves "상관없음" as a skip filter for the pending field', () => {
     const state = makeState({
       lastAskedField: "toolSubtype",
@@ -172,7 +189,7 @@ describe("explicit comparison resolver", () => {
 })
 
 describe("explicit revision resolver", () => {
-  it('resolves "3날 대신 2날로 변경" as a fluteCount revision', () => {
+  it('resolves "3날 대신 2날로 변경" as a fluteCount revision', async () => {
     const state = makeState({
       appliedFilters: [
         { field: "workPieceName", op: "includes", value: "알루미늄", rawValue: "알루미늄", appliedAt: 0 } as any,
@@ -181,7 +198,7 @@ describe("explicit revision resolver", () => {
       lastAskedField: "toolSubtype",
     })
 
-    expect(resolveExplicitRevisionRequest(state, "3날 대신 2날로 변경")).toMatchObject({
+    await expect(resolveExplicitRevisionRequest(state, "3날 대신 2날로 변경")).resolves.toMatchObject({
       targetField: "fluteCount",
       previousValue: "3날",
       nextFilter: {
@@ -193,7 +210,7 @@ describe("explicit revision resolver", () => {
     })
   })
 
-  it('resolves recommendation-phase phrasing like "3날 말고 4날로 변경해서 추천해줘"', () => {
+  it('resolves recommendation-phase phrasing like "3날 말고 4날로 변경해서 추천해줘"', async () => {
     const state = makeState({
       currentMode: "recommendation",
       appliedFilters: [
@@ -203,7 +220,7 @@ describe("explicit revision resolver", () => {
       ],
     })
 
-    expect(resolveExplicitRevisionRequest(state, "3날 말고 4날로 변경해서 추천해줘")).toMatchObject({
+    await expect(resolveExplicitRevisionRequest(state, "3날 말고 4날로 변경해서 추천해줘")).resolves.toMatchObject({
       targetField: "fluteCount",
       previousValue: "3날",
       nextFilter: {
@@ -215,14 +232,14 @@ describe("explicit revision resolver", () => {
     })
   })
 
-  it("treats legacy stored numeric flute values and display text as the same previous filter", () => {
+  it("treats legacy stored numeric flute values and display text as the same previous filter", async () => {
     const state = makeState({
       appliedFilters: [
         { field: "fluteCount", op: "eq", value: "3", rawValue: "3", appliedAt: 1 } as any,
       ],
     })
 
-    expect(resolveExplicitRevisionRequest(state, "3날 말고 4날로 변경")).toMatchObject({
+    await expect(resolveExplicitRevisionRequest(state, "3날 말고 4날로 변경")).resolves.toMatchObject({
       targetField: "fluteCount",
       previousValue: "3",
       nextFilter: {
@@ -233,7 +250,7 @@ describe("explicit revision resolver", () => {
     })
   })
 
-  it("resolves coating revisions against existing applied filters", () => {
+  it("resolves coating revisions against existing applied filters", async () => {
     const state = makeState({
       appliedFilters: [
         { field: "coating", op: "includes", value: "TiCN", rawValue: "TiCN", appliedAt: 1 } as any,
@@ -241,7 +258,7 @@ describe("explicit revision resolver", () => {
       lastAskedField: "toolSubtype",
     })
 
-    expect(resolveExplicitRevisionRequest(state, "TiCN 말고 Bright Finish로 변경")).toMatchObject({
+    await expect(resolveExplicitRevisionRequest(state, "TiCN 말고 Bright Finish로 변경")).resolves.toMatchObject({
       targetField: "coating",
       previousValue: "TiCN",
       nextFilter: {
@@ -251,7 +268,7 @@ describe("explicit revision resolver", () => {
     })
   })
 
-  it('resolves "형상을 roughing으로 변경" as a toolSubtype revision instead of workPieceName', () => {
+  it('resolves "형상을 roughing으로 변경" as a toolSubtype revision instead of workPieceName', async () => {
     const state = makeState({
       appliedFilters: [
         { field: "toolSubtype", op: "includes", value: "Square", rawValue: "Square", appliedAt: 0 } as any,
@@ -264,7 +281,7 @@ describe("explicit revision resolver", () => {
       ] as any,
     })
 
-    expect(resolveExplicitRevisionRequest(state, "형상을 roughing으로 변경")).toMatchObject({
+    await expect(resolveExplicitRevisionRequest(state, "형상을 roughing으로 변경")).resolves.toMatchObject({
       targetField: "toolSubtype",
       previousValue: "Square",
       nextFilter: {
@@ -275,14 +292,14 @@ describe("explicit revision resolver", () => {
     })
   })
 
-  it("matches Korean subtype aliases against the active toolSubtype filter", () => {
+  it("matches Korean subtype aliases against the active toolSubtype filter", async () => {
     const state = makeState({
       appliedFilters: [
         { field: "toolSubtype", op: "includes", value: "Roughing", rawValue: "Roughing", appliedAt: 0 } as any,
       ],
     })
 
-    expect(resolveExplicitRevisionRequest(state, "황삭 말고 Square로 변경")).toMatchObject({
+    await expect(resolveExplicitRevisionRequest(state, "황삭 말고 Square로 변경")).resolves.toMatchObject({
       targetField: "toolSubtype",
       previousValue: "Roughing",
       nextFilter: {
@@ -293,7 +310,7 @@ describe("explicit revision resolver", () => {
     })
   })
 
-  it("returns an ambiguous clarification instead of guessing when the target field is unclear", () => {
+  it("returns an ambiguous clarification instead of guessing when the target field is unclear", async () => {
     const state = makeState({
       appliedFilters: [
         { field: "toolSubtype", op: "includes", value: "Square", rawValue: "Square", appliedAt: 0 } as any,
@@ -301,12 +318,12 @@ describe("explicit revision resolver", () => {
       ],
     })
 
-    expect(resolveExplicitRevisionRequest(state, "알루미늄으로 변경")).toMatchObject({
+    await expect(resolveExplicitRevisionRequest(state, "알루미늄으로 변경")).resolves.toMatchObject({
       kind: "ambiguous",
     })
   })
 
-  it("does not treat a plain pending-answer selection as a revision", () => {
+  it("does not treat a plain pending-answer selection as a revision", async () => {
     const state = makeState({
       appliedFilters: [
         { field: "fluteCount", op: "eq", value: "3날", rawValue: 3, appliedAt: 1 } as any,
@@ -314,7 +331,7 @@ describe("explicit revision resolver", () => {
       lastAskedField: "toolSubtype",
     })
 
-    expect(resolveExplicitRevisionRequest(state, "Radius")).toBeNull()
+    await expect(resolveExplicitRevisionRequest(state, "Radius")).resolves.toBeNull()
   })
 })
 
@@ -336,6 +353,71 @@ describe("explicit filter resolver", () => {
         field: "brand",
         value: "TANK-POWER",
         rawValue: "TANK-POWER",
+      },
+    })
+  })
+
+  it('resolves "ALU-POWER HPC 브랜드로 필터링" as a brand filter when the value comes before the field phrase', async () => {
+    const state = makeState({
+      displayedCandidates: [
+        { product: { brand: "ALU-POWER HPC", seriesName: "E5H22", toolSubtype: "Square" } },
+        { product: { brand: "ALU-CUT for Korean Market", seriesName: "E5E83", toolSubtype: "Square" } },
+      ] as any,
+    })
+
+    const provider = getProvider()
+    const result = await resolveExplicitFilterRequest(state, "ALU-POWER HPC 브랜드로 필터링", provider)
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      filter: {
+        field: "brand",
+        value: "ALU-POWER HPC",
+        rawValue: "ALU-POWER HPC",
+      },
+    })
+  })
+
+  it('resolves longer slot-based phrasing like "지금 후보에서 브랜드를 ALU-POWER HPC로만 보여줘"', async () => {
+    const state = makeState({
+      displayedCandidates: [
+        { product: { brand: "ALU-POWER HPC", seriesName: "E5H22", toolSubtype: "Square" } },
+        { product: { brand: "ALU-CUT for Korean Market", seriesName: "E5E83", toolSubtype: "Square" } },
+      ] as any,
+    })
+
+    const provider = getProvider()
+    const result = await resolveExplicitFilterRequest(state, "지금 후보에서 브랜드를 ALU-POWER HPC로만 보여줘", provider)
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      filter: {
+        field: "brand",
+        value: "ALU-POWER HPC",
+        rawValue: "ALU-POWER HPC",
+      },
+    })
+  })
+
+  it("uses filterValueScope from the full candidate set instead of the visible snapshot", async () => {
+    const state = makeState({
+      displayedCandidates: [
+        { product: { brand: "ALU-CUT for Korean Market", seriesName: "E5E83", toolSubtype: "Square" } },
+      ] as any,
+      filterValueScope: {
+        brand: ["ALU-POWER HPC", "ALU-CUT for Korean Market"],
+      },
+    })
+
+    const provider = getProvider()
+    const result = await resolveExplicitFilterRequest(state, "ALU-POWER HPC 브랜드로 필터링", provider)
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      filter: {
+        field: "brand",
+        value: "ALU-POWER HPC",
+        rawValue: "ALU-POWER HPC",
       },
     })
   })

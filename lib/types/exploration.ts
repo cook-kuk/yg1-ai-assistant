@@ -158,6 +158,7 @@ export interface ExplorationSessionState {
   // ── Durable UI context (single source of truth) ──
   displayedCandidates: CandidateSnapshot[]  // what the user currently sees
   fullDisplayedCandidates?: CandidateSnapshot[]
+  filterValueScope?: Record<string, string[]>
   displayedSetFilter?: { field: string; operator: string; value: string } | null
   displayedChips: string[]                  // chips shown with the last question
   displayedOptions: DisplayedOption[]       // structured narrowing options for numbered selection

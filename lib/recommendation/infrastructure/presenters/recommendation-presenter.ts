@@ -243,6 +243,10 @@ export function buildRecommendationResponseDto(
 ): RecommendationResponseDto {
   const sessionState = params.sessionState ?? null
   const capabilities = getRecommendationCapabilities(sessionState)
+  const stableCandidateSnapshot =
+    params.purpose === "recommendation"
+      ? (params.candidateSnapshot ?? sessionState?.lastRecommendationArtifact ?? null)
+      : (sessionState?.lastRecommendationArtifact ?? params.candidateSnapshot ?? null)
 
   const dto: RecommendationResponseDto = {
     text: params.text,
@@ -251,8 +255,8 @@ export function buildRecommendationResponseDto(
     isComplete: params.isComplete,
     recommendation: params.recommendation ?? null,
     session: toRecommendationSessionEnvelope(sessionState),
-    candidates: params.candidateSnapshot
-      ? params.candidateSnapshot.map(toRecommendationCandidateDto)
+    candidates: stableCandidateSnapshot
+      ? stableCandidateSnapshot.map(toRecommendationCandidateDto)
       : null,
     pagination: params.pagination ?? null,
     evidenceSummaries: params.evidenceSummaries ?? null,

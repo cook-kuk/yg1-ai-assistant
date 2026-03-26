@@ -22,6 +22,7 @@ import type {
 } from "./types"
 import { createInitialSessionState } from "./turn-orchestrator"
 import { buildAppliedFilterFromValue } from "../shared/filter-field-registry"
+import type { RecommendationInput } from "../domain/types"
 
 // ── Field mapping tables ────────────────────────────────────
 
@@ -30,7 +31,13 @@ const LEGACY_FIELD_TO_BASE: Record<string, string> = {
   material: "material",
   workPieceName: "materialDetail",
   diameterMm: "diameter",
+  operation: "operation",
+  cuttingType: "operation",
+  toolType: "toolType",
   toolSubtype: "endType",
+  seriesName: "seriesName",
+  brand: "brand",
+  country: "country",
 }
 
 const LEGACY_FIELD_TO_REFINEMENT: Record<string, string> = {
@@ -59,7 +66,10 @@ export function convertToV2State(
 ): RecommendationSessionState {
   if (!legacy) return createInitialSessionState()
 
-  const constraints = buildConstraintsFromFilters(legacy.appliedFilters ?? [])
+  const constraints = mergeConstraintStates(
+    buildConstraintsFromResolvedInput(legacy.resolvedInput),
+    buildConstraintsFromFilters(legacy.appliedFilters ?? [])
+  )
   const journeyPhase = mapLegacyPhase(legacy)
   const resultContext = buildResultContextFromCandidates(legacy, constraints)
   const pendingQuestion = buildPendingQuestion(legacy)
@@ -74,6 +84,54 @@ export function convertToV2State(
     currentRevisionId: null,
     sideThreadActive: !!legacy.suspendedFlow,
     turnCount: legacy.turnCount ?? 0,
+  }
+}
+
+function buildConstraintsFromResolvedInput(input: RecommendationInput | null | undefined): ConstraintState {
+  const base: Record<string, string | number | boolean> = {}
+  const refinements: Record<string, string | number | boolean> = {}
+
+  if (!input) return { base, refinements }
+
+  if (input.material) base.material = input.material
+  if (input.workPieceName) base.materialDetail = input.workPieceName
+  if (input.diameterMm != null) base.diameter = input.diameterMm
+  if (input.operationType) base.operation = input.operationType
+  if (input.toolType) base.toolType = input.toolType
+  if (input.toolSubtype) base.endType = input.toolSubtype
+  if (input.seriesName) base.seriesName = input.seriesName
+  if (input.brand) base.brand = input.brand
+  if (input.country && String(input.country).trim().toUpperCase() !== "ALL") {
+    base.country = input.country
+  }
+
+  if (input.flutePreference != null) refinements.flute = input.flutePreference
+  if (input.coatingPreference) refinements.coating = input.coatingPreference
+  if (input.toolMaterial) refinements.toolMaterial = input.toolMaterial
+  if (input.coolantHole != null) refinements.coolantHole = input.coolantHole
+  if (input.helixAngleDeg != null) refinements.helixAngle = input.helixAngleDeg
+  if (input.lengthOfCutMm != null) refinements.lengthOfCut = input.lengthOfCutMm
+  if (input.overallLengthMm != null) refinements.overallLength = input.overallLengthMm
+  if (input.shankDiameterMm != null) refinements.shankDiameter = input.shankDiameterMm
+  if (input.ballRadiusMm != null) refinements.ballRadius = input.ballRadiusMm
+  if (input.taperAngleDeg != null) refinements.taperAngle = input.taperAngleDeg
+
+  return { base, refinements }
+}
+
+function mergeConstraintStates(
+  baseState: ConstraintState,
+  overrideState: ConstraintState
+): ConstraintState {
+  return {
+    base: {
+      ...baseState.base,
+      ...overrideState.base,
+    },
+    refinements: {
+      ...baseState.refinements,
+      ...overrideState.refinements,
+    },
   }
 }
 
@@ -157,7 +215,7 @@ export function convertFromV2State(
   v2: RecommendationSessionState,
   prevLegacy: ExplorationSessionState | null
 ): ExplorationSessionState {
-  const filters = buildFiltersFromConstraints(v2.constraints)
+  const filters = buildFiltersFromConstraints(v2.constraints, prevLegacy)
 
   return {
     ...(prevLegacy ?? createEmptyLegacyShell()),
@@ -174,11 +232,98 @@ export function convertFromV2State(
   } as ExplorationSessionState
 }
 
-function buildFiltersFromConstraints(constraints: ConstraintState): AppliedFilter[] {
+function getComparableResolvedInputValue(
+  resolvedInput: RecommendationInput | null | undefined,
+  legacyField: string
+): string | number | boolean | null {
+  if (!resolvedInput) return null
+
+  switch (legacyField) {
+    case "material":
+      return resolvedInput.material ?? null
+    case "workPieceName":
+      return resolvedInput.workPieceName ?? null
+    case "diameterMm":
+      return resolvedInput.diameterMm ?? null
+    case "operation":
+    case "cuttingType":
+      return resolvedInput.operationType ?? null
+    case "toolType":
+      return resolvedInput.toolType ?? null
+    case "toolSubtype":
+      return resolvedInput.toolSubtype ?? null
+    case "seriesName":
+      return resolvedInput.seriesName ?? null
+    case "brand":
+      return resolvedInput.brand ?? null
+    case "country": {
+      const country = resolvedInput.country ?? null
+      if (!country) return null
+      const normalized = String(country).trim().toUpperCase()
+      return normalized === "ALL" ? null : normalized
+    }
+    case "fluteCount":
+      return resolvedInput.flutePreference ?? null
+    case "coating":
+      return resolvedInput.coatingPreference ?? null
+    case "toolMaterial":
+      return resolvedInput.toolMaterial ?? null
+    case "coolantHole":
+      return resolvedInput.coolantHole ?? null
+    case "helixAngleDeg":
+      return resolvedInput.helixAngleDeg ?? null
+    case "lengthOfCutMm":
+      return resolvedInput.lengthOfCutMm ?? null
+    case "overallLengthMm":
+      return resolvedInput.overallLengthMm ?? null
+    case "shankDiameterMm":
+      return resolvedInput.shankDiameterMm ?? null
+    case "ballRadiusMm":
+      return resolvedInput.ballRadiusMm ?? null
+    case "taperAngleDeg":
+      return resolvedInput.taperAngleDeg ?? null
+    default:
+      return null
+  }
+}
+
+function normalizeComparableConstraintValue(value: string | number | boolean | null): string {
+  if (value == null) return ""
+  if (typeof value === "number" || typeof value === "boolean") return String(value)
+  return String(value).trim().toUpperCase()
+}
+
+function shouldMaterializeConstraintAsFilter(
+  legacyField: string,
+  value: string | number | boolean,
+  prevLegacy: ExplorationSessionState | null
+): boolean {
+  if (legacyField === "country" && normalizeComparableConstraintValue(value) === "ALL") {
+    return false
+  }
+
+  const previousAppliedFilters = prevLegacy?.appliedFilters ?? []
+  if (previousAppliedFilters.some(filter => filter.field === legacyField)) {
+    return true
+  }
+
+  const resolvedComparable = normalizeComparableConstraintValue(
+    getComparableResolvedInputValue(prevLegacy?.resolvedInput, legacyField)
+  )
+  if (!resolvedComparable) return true
+
+  return resolvedComparable !== normalizeComparableConstraintValue(value)
+}
+
+function buildFiltersFromConstraints(
+  constraints: ConstraintState,
+  prevLegacy: ExplorationSessionState | null
+): AppliedFilter[] {
   const filters: AppliedFilter[] = []
 
   for (const [key, value] of Object.entries(constraints.base)) {
     const legacyField = BASE_TO_LEGACY_FIELD[key] ?? key
+    if (!shouldMaterializeConstraintAsFilter(legacyField, value, prevLegacy)) continue
     const filter = buildAppliedFilterFromValue(legacyField, value)
     if (filter) {
       filters.push(filter)
@@ -195,6 +340,7 @@ function buildFiltersFromConstraints(constraints: ConstraintState): AppliedFilte
 
   for (const [key, value] of Object.entries(constraints.refinements)) {
     const legacyField = REFINEMENT_TO_LEGACY_FIELD[key] ?? key
+    if (!shouldMaterializeConstraintAsFilter(legacyField, value, prevLegacy)) continue
     const filter = buildAppliedFilterFromValue(legacyField, value)
     if (filter) {
       filters.push(filter)
