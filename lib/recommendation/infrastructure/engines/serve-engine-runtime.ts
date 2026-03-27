@@ -1055,13 +1055,11 @@ async function handleServeExplorationInner(
     const currentCount = prevState.candidateCount ?? 0
 
     if (isProductListRequest) {
-      // 제품 보기는 항상 show_recommendation으로 — 개수가 많으면 답변에서 안내
+      // 제품 보기: 간단한 텍스트 + 카드 목록만 (긴 AI 분석 없이)
       pendingSelectionAction = { type: "show_recommendation" } as OrchestratorAction
-      if (currentCount > 200) {
-        console.log(`[product-list] ${currentCount} > 200 — will show with caution note`)
-      } else {
-        console.log(`[product-list] ${currentCount} candidates → show products`)
-      }
+      // 짧은 요약 텍스트를 override로 설정 — LLM 호출 건너뜀
+      ;(pendingSelectionAction as any)._quickViewText = `현재 조건에 맞는 **${currentCount}개** 제품입니다. 상세 분석이 필요하시면 "✨ AI 상세 분석"을 눌러주세요.`
+      console.log(`[product-list] ${currentCount} candidates → quick product view`)
     } else if (isAIAnalysisRequest) {
       // AI 상세 분석은 개수 제한 없음 — 현재 추천 리스트 기반 깊은 분석
       const analysisPrompt = `현재 ${currentCount}개 후보 제품에 대해 상세 분석을 해주세요. 상위 제품들의 특성, 용도별 적합성, 선택 가이드를 자세히 설명해주세요.`
@@ -2017,6 +2015,43 @@ async function handleServeExplorationInner(
     }
 
     if (action.type === "show_recommendation") {
+      // 📋 제품 보기 (quick view): LLM 분석 없이 짧은 텍스트 + 카드만
+      const quickViewText = (action as any)._quickViewText as string | undefined
+      if (quickViewText) {
+        const candidateSnapshot = deps.buildCandidateSnapshot(displayCandidates, displayEvidenceMap)
+        const sessionState = buildSessionState({
+          candidateCount: totalCandidateCount,
+          appliedFilters: filters,
+          narrowingHistory,
+          stageHistory: prevState.stageHistory ?? [],
+          resolutionStatus: "resolved_approximate",
+          resolvedInput: currentInput,
+          turnCount,
+          displayedCandidates: candidateSnapshot,
+          displayedProducts: candidateSnapshot,
+          fullDisplayedProducts: candidateSnapshot,
+          currentMode: "recommendation",
+          displayedChips: ["상위 3개 비교", "✨ AI 상세 분석", "다른 조건으로", "⟵ 이전 단계"],
+          displayedOptions: [],
+          lastAction: "show_recommendation",
+        })
+        return deps.jsonRecommendationResponse({
+          text: quickViewText,
+          purpose: "recommendation",
+          chips: ["상위 3개 비교", "✨ AI 상세 분석", "다른 조건으로", "⟵ 이전 단계"],
+          isComplete: true,
+          recommendation: null,
+          sessionState,
+          evidenceSummaries: null,
+          candidateSnapshot,
+          pagination: paginationDto(totalCandidateCount),
+          requestPreparation: null,
+          primaryExplanation: null,
+          primaryFactChecked: null,
+          altExplanations: [],
+          altFactChecked: [],
+        })
+      }
       return handleShowRecommendation(navCtx)
     }
 
