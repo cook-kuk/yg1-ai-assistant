@@ -305,30 +305,41 @@ export default function AssistantNewPage() {
                   )}
 
                   {/* Quick reply chips */}
-                  {msg.chips && !showResult && (
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {msg.chips.map((chip, i) => {
-                        const isRecommendBtn = chip.includes("추천받기")
-                        return (
-                          <Button
-                            key={i}
-                            variant={isRecommendBtn ? "default" : "outline"}
-                            size="sm"
-                            className={cn(
-                              "text-xs h-7",
-                              isRecommendBtn
-                                ? "bg-blue-600 hover:bg-blue-700 text-white border-blue-600 font-bold shadow-sm"
-                                : "bg-transparent",
-                              chip.includes("모르겠") && "border-amber-300 text-amber-700"
-                            )}
-                            onClick={() => handleSend(chip)}
-                          >
-                            {chip}
-                          </Button>
-                        )
-                      })}
-                    </div>
-                  )}
+                  {msg.chips && !showResult && (() => {
+                    const recommendChip = msg.chips.find(c => c.includes("추천받기"))
+                    const normalChips = msg.chips.filter(c => !c.includes("추천받기"))
+                    return (
+                      <>
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {normalChips.map((chip, i) => (
+                            <Button
+                              key={i}
+                              variant="outline"
+                              size="sm"
+                              className={cn(
+                                "text-xs h-7 bg-transparent",
+                                chip.includes("모르겠") && "border-amber-300 text-amber-700"
+                              )}
+                              onClick={() => handleSend(chip)}
+                            >
+                              {chip}
+                            </Button>
+                          ))}
+                        </div>
+                        {recommendChip && (
+                          <div className="mt-2">
+                            <Button
+                              size="sm"
+                              className="w-full h-9 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm shadow-md rounded-lg border-0"
+                              onClick={() => handleSend(recommendChip)}
+                            >
+                              {recommendChip}
+                            </Button>
+                          </div>
+                        )}
+                      </>
+                    )
+                  })()}
                 </div>
               </div>
             ))}
