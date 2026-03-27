@@ -320,12 +320,11 @@ export default function AssistantNewPage() {
                               key={i}
                               variant="outline"
                               size="sm"
-                              disabled={!isLatestAi}
                               className={cn(
                                 "text-xs h-7",
                                 isLatestAi
-                                  ? "bg-transparent"
-                                  : "opacity-40 cursor-default bg-gray-50 border-gray-200 text-gray-400",
+                                  ? "bg-transparent hover:bg-gray-50"
+                                  : "opacity-35 pointer-events-none bg-gray-50/50 border-gray-200 text-gray-400",
                                 chip.includes("모르겠") && isLatestAi && "border-amber-300 text-amber-700"
                               )}
                               onClick={() => isLatestAi && handleSend(chip)}
