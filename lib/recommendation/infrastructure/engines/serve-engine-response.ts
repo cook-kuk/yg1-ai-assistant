@@ -848,7 +848,10 @@ export async function buildRecommendationResponse(
 
   // ── Post-Answer Validator: strip unauthorized actions from answer ──
   // Direction: displayedOptions → constrain answer (NEVER answer → add chips)
-  const finalRecChips = followUpChips
+  // post-result 칩에서 narrowing 칩(소재/날수/개수 포함 칩) 제거
+  const finalRecChips = followUpChips.filter(chip =>
+    !chip.includes("개)") || chip.includes("비교") || chip.includes("보기")
+  )
   const hasCandidatePool = totalCandidateCount > 0 && !!primary
   let finalResponseText = status === "none"
     ? hasCandidatePool
