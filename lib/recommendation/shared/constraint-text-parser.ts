@@ -1,5 +1,7 @@
-import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import { resolveModel, type LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import { getFilterFieldLabel, getFilterFieldQueryAliases, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
+
+const CONSTRAINT_TEXT_PARSER_MODEL = resolveModel("haiku")
 
 type ParsedConstraintText = {
   hintedFields: string[]
@@ -271,7 +273,7 @@ ${fieldGuide}
       "당신은 추천 검색용 제약 슬롯 추출기입니다. JSON만 반환하세요.",
       [{ role: "user", content: prompt }],
       800,
-      "haiku"
+      CONSTRAINT_TEXT_PARSER_MODEL
     )
     const parsed = parseConstraintLlmJson(rawResponse)
     if (!parsed) return null

@@ -6,6 +6,10 @@
 
 import { createAnthropicMessageWithLogging } from "@/lib/llm/anthropic-tracer"
 import { logRuntimeError } from "@/lib/runtime-logger"
+import {
+  traceRecommendation,
+  traceRecommendationError,
+} from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
 import Anthropic from "@anthropic-ai/sdk"
 
 export interface LLMMessage { role: "user" | "assistant"; content: string }
@@ -23,6 +27,7 @@ export interface LLMToolResult {
 
 /** Model tier for multi-agent routing */
 export type ModelTier = "haiku" | "sonnet" | "opus"
+export type ModelSpecifier = ModelTier | string
 
 /** Agent name for per-agent model override */
 export type AgentName =
@@ -31,18 +36,44 @@ export type AgentName =
   | "comparison"
   | "response-composer"
   | "ambiguity-resolver"
+  | "llm-filter-extractor"
 
 export interface LLMProvider {
-  complete(systemPrompt: string, messages: LLMMessage[], maxTokens?: number, modelTier?: ModelTier, agentName?: AgentName): Promise<string>
+  complete(systemPrompt: string, messages: LLMMessage[], maxTokens?: number, model?: ModelSpecifier, agentName?: AgentName): Promise<string>
   completeWithTools(
     systemPrompt: string,
     messages: LLMMessage[],
     tools: LLMTool[],
     maxTokens?: number,
-    modelTier?: ModelTier,
+    model?: ModelSpecifier,
     agentName?: AgentName
   ): Promise<{ text: string | null; toolUse: LLMToolResult | null }>
   available(): boolean
+}
+
+function summarizeMessages(messages: LLMMessage[]) {
+  const lastUser = [...messages].reverse().find(message => message.role === "user")
+  const lastAssistant = [...messages].reverse().find(message => message.role === "assistant")
+  return {
+    count: messages.length,
+    roles: messages.map(message => message.role),
+    lastUserPreview: lastUser?.content.slice(0, 180) ?? null,
+    lastUserLength: lastUser?.content.length ?? 0,
+    lastAssistantPreview: lastAssistant?.content.slice(0, 180) ?? null,
+    lastAssistantLength: lastAssistant?.content.length ?? 0,
+  }
+}
+
+function summarizeTextBlocks(blocks: Anthropic.ContentBlock[]) {
+  const contentTypes = blocks.map(block => block.type)
+  const textBlocks = blocks.filter((block): block is Anthropic.TextBlock => block.type === "text")
+  const joinedText = textBlocks.map(block => block.text).join("\n")
+  return {
+    contentTypes,
+    textBlockCount: textBlocks.length,
+    textPreview: joinedText.slice(0, 180),
+    textLength: joinedText.length,
+  }
 }
 
 function anthropicMainModel(): string {
@@ -56,6 +87,11 @@ const AGENT_MODEL_ENV: Record<AgentName, string> = {
   "comparison":           "AGENT_COMPARISON_MODEL",
   "response-composer":    "AGENT_RESPONSE_COMPOSER_MODEL",
   "ambiguity-resolver":   "AGENT_AMBIGUITY_RESOLVER_MODEL",
+  "llm-filter-extractor": "AGENT_LLM_FILTER_EXTRACTOR_MODEL",
+}
+
+function isModelTier(value: string): value is ModelTier {
+  return value === "haiku" || value === "sonnet" || value === "opus"
 }
 
 /** Resolve model ID from tier, with optional agent-level override */
@@ -76,15 +112,28 @@ export function resolveModel(tier?: ModelTier, agentName?: AgentName): string {
   }
 }
 
+export function resolveModelInput(model?: ModelSpecifier, agentName?: AgentName): string {
+  if (!model) return resolveModel(undefined, agentName)
+  return isModelTier(model) ? resolveModel(model, agentName) : model
+}
+
 // ── Claude Provider ───────────────────────────────────────────
 export function createClaudeProvider(): LLMProvider {
   return {
     available() { return !!process.env.ANTHROPIC_API_KEY },
 
-    async complete(systemPrompt, messages, maxTokens = 1500, modelTier?, agentName?) {
+    async complete(systemPrompt, messages, maxTokens = 1500, model?, agentName?) {
       if (!this.available()) throw new Error("No ANTHROPIC_API_KEY")
-      const model = resolveModel(modelTier, agentName)
+      const resolvedModel = resolveModelInput(model, agentName)
       const startMs = Date.now()
+      traceRecommendation("llm.provider.complete:input", {
+        model: resolvedModel,
+        agentName: agentName ?? null,
+        maxTokens,
+        systemPromptPreview: systemPrompt.slice(0, 180),
+        systemPromptLength: systemPrompt.length,
+        messages: summarizeMessages(messages),
+      })
       try {
         const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
         const response = await createAnthropicMessageWithLogging({
@@ -92,7 +141,7 @@ export function createClaudeProvider(): LLMProvider {
           route: "/api/recommend",
           operation: "provider.complete",
           request: {
-            model: model as Parameters<typeof client.messages.create>[0]["model"],
+            model: resolvedModel as Parameters<typeof client.messages.create>[0]["model"],
             max_tokens: maxTokens,
             system: systemPrompt,
             messages: messages as Parameters<typeof client.messages.create>[0]["messages"],
@@ -106,7 +155,7 @@ export function createClaudeProvider(): LLMProvider {
         // Slack LLM 알림 (비동기)
         import("@/lib/slack-notifier").then(({ notifyLlmCall }) =>
           notifyLlmCall({
-            model,
+            model: resolvedModel,
             route: "/api/recommend",
             promptPreview: messages[messages.length - 1]?.content ?? "",
             responsePreview: content,
@@ -114,15 +163,29 @@ export function createClaudeProvider(): LLMProvider {
           }).catch(() => {})
         )
 
+        traceRecommendation("llm.provider.complete:output", {
+          model: resolvedModel,
+          agentName: agentName ?? null,
+          durationMs: Date.now() - startMs,
+          textPreview: content.slice(0, 180),
+          textLength: content.length,
+          contentBlocks: summarizeTextBlocks(response.content),
+          usage: response.usage ?? null,
+        })
         return content
       } catch (error) {
+        traceRecommendationError("llm.provider.complete:error", error, {
+          model: resolvedModel,
+          agentName: agentName ?? null,
+          maxTokens,
+        })
         await logRuntimeError({
           category: "llm",
           event: "provider.complete.error",
           error,
           context: {
             route: "/api/recommend",
-            model,
+            model: resolvedModel,
             maxTokens,
           },
         })
@@ -130,14 +193,24 @@ export function createClaudeProvider(): LLMProvider {
       }
     },
 
-    async completeWithTools(systemPrompt, messages, tools, maxTokens = 1500, modelTier?, agentName?) {
+    async completeWithTools(systemPrompt, messages, tools, maxTokens = 1500, model?, agentName?) {
       if (!this.available()) throw new Error("No ANTHROPIC_API_KEY")
-      const model = resolveModel(modelTier, agentName)
+      const resolvedModel = resolveModelInput(model, agentName)
       const startMs = Date.now()
+      traceRecommendation("llm.provider.completeWithTools:input", {
+        model: resolvedModel,
+        agentName: agentName ?? null,
+        maxTokens,
+        systemPromptPreview: systemPrompt.slice(0, 180),
+        systemPromptLength: systemPrompt.length,
+        messages: summarizeMessages(messages),
+        toolCount: tools.length,
+        toolNames: tools.map(tool => tool.name),
+      })
       try {
         const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
         const resp = await client.messages.create({
-          model: model as Parameters<typeof client.messages.create>[0]["model"],
+          model: resolvedModel as Parameters<typeof client.messages.create>[0]["model"],
           max_tokens: maxTokens,
           system: systemPrompt,
           messages,
@@ -164,7 +237,7 @@ export function createClaudeProvider(): LLMProvider {
         const toolNames = tools.map((t: LLMTool) => t.name).join(", ")
         import("@/lib/slack-notifier").then(({ notifyLlmCall }) =>
           notifyLlmCall({
-            model,
+            model: resolvedModel,
             route: "tool-use-router",
             promptPreview: `[system: ${systemPrompt.slice(0, 200)}...]\n[tools: ${toolNames}]\n[user: ${typeof lastUserMsg === "string" ? lastUserMsg.slice(0, 150) : JSON.stringify(lastUserMsg).slice(0, 150)}]`,
             responsePreview: toolUse
@@ -176,15 +249,36 @@ export function createClaudeProvider(): LLMProvider {
           }).catch(() => {})
         )
 
+        traceRecommendation("llm.provider.completeWithTools:output", {
+          model: resolvedModel,
+          agentName: agentName ?? null,
+          durationMs,
+          textPreview: text?.slice(0, 180) ?? null,
+          textLength: text?.length ?? 0,
+          toolUse: toolUse
+            ? {
+                toolName: toolUse.toolName,
+                inputKeys: Object.keys(toolUse.input),
+              }
+            : null,
+          usage: resp.usage ?? null,
+          content: summarizeTextBlocks(resp.content),
+        })
         return { text, toolUse }
       } catch (error) {
+        traceRecommendationError("llm.provider.completeWithTools:error", error, {
+          model: resolvedModel,
+          agentName: agentName ?? null,
+          maxTokens,
+          toolCount: tools.length,
+        })
         await logRuntimeError({
           category: "llm",
           event: "provider.completeWithTools.error",
           error,
           context: {
             route: "/api/recommend",
-            model,
+            model: resolvedModel,
             maxTokens,
             toolCount: tools.length,
           },
@@ -219,6 +313,9 @@ export function getProvider(): LLMProvider {
   if (claude.available()) return claude
 
   // Deterministic fallback (no LLM, always works)
+  traceRecommendation("llm.getProvider:fallback", {
+    reason: "No ANTHROPIC_API_KEY available",
+  }, "warn")
   return {
     available() { return true },
     async complete() { return "" },

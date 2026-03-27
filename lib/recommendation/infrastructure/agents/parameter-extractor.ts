@@ -5,9 +5,11 @@
  * Deterministic patterns first, Haiku LLM for complex expressions.
  */
 
-import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import { resolveModel, type LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import type { ExplorationSessionState } from "@/lib/recommendation/domain/types"
 import type { ExtractedParameters } from "./types"
+
+const PARAMETER_EXTRACTOR_MODEL = resolveModel("haiku", "parameter-extractor")
 
 /**
  * Extract parameters from user message.
@@ -19,7 +21,7 @@ export async function extractParameters(
   provider: LLMProvider
 ): Promise<ExtractedParameters> {
   const clean = message.trim().toLowerCase()
-  const params: ExtractedParameters = { modelUsed: "haiku" }
+  const params: ExtractedParameters = { modelUsed: PARAMETER_EXTRACTOR_MODEL }
 
   // ── Deterministic extraction ──────────────────────────────
 
@@ -79,7 +81,7 @@ export async function extractParameters(
   if (!hasAnything && provider.available() && clean.length > 2) {
     try {
       const haikuResult = await extractWithHaiku(message, sessionState, provider)
-      return { ...params, ...haikuResult, modelUsed: "haiku" }
+      return { ...params, ...haikuResult, modelUsed: PARAMETER_EXTRACTOR_MODEL }
     } catch (e) {
       console.warn("[param-extractor] Haiku extraction failed:", e)
     }
@@ -104,7 +106,7 @@ Extract any relevant values. Respond with JSON only.
     systemPrompt,
     [{ role: "user", content: message }],
     1500,
-    "haiku",
+    PARAMETER_EXTRACTOR_MODEL,
     "parameter-extractor"
   )
 

@@ -21,7 +21,7 @@ import {
 } from "@/lib/recommendation/infrastructure/agents/recommendation-agents"
 import { ENABLE_TOOL_USE_ROUTING } from "@/lib/recommendation/infrastructure/config/recommendation-feature-flags"
 import { USE_NEW_ORCHESTRATOR, shouldUseV2ForPhase } from "@/lib/feature-flags"
-import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import { getProvider, resolveModel } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import { performUnifiedJudgment } from "@/lib/recommendation/domain/context/unified-haiku-judgment"
 import {
   buildComparisonOptionState,
@@ -51,6 +51,9 @@ import {
   parseExplicitFilterText,
   parseExplicitRevisionText,
 } from "@/lib/recommendation/shared/constraint-text-parser"
+import {
+  traceRecommendation,
+} from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { RecommendationDisplayedProductRequestDto, RecommendationPaginationDto } from "@/lib/contracts/recommendation"
@@ -99,12 +102,79 @@ type ExplicitFilterResolution =
   | { kind: "ambiguous"; question: string }
 
 const DEFAULT_CANDIDATE_PAGE_SIZE = 50
+const HAIKU_MODEL = resolveModel("haiku")
+
+function summarizeMessagesForTrace(messages: ChatMessage[]) {
+  return {
+    count: messages.length,
+    recent: messages.slice(-3).map(message => ({
+      role: message.role,
+      text: message.text.slice(0, 120),
+    })),
+  }
+}
+
+function summarizeDisplayedProductsForTrace(displayedProducts: RecommendationDisplayedProductRequestDto[] | null) {
+  return {
+    count: displayedProducts?.length ?? 0,
+    preview: (displayedProducts ?? []).slice(0, 5).map(product => ({
+      rank: product.rank,
+      code: product.code,
+      series: product.series ?? null,
+      toolSubtype: product.toolSubtype ?? null,
+    })),
+  }
+}
+
+function summarizeStateForTrace(prevState: ExplorationSessionState | null) {
+  if (!prevState) return null
+
+  return {
+    sessionId: prevState.sessionId ?? null,
+    currentMode: prevState.currentMode ?? null,
+    lastAskedField: prevState.lastAskedField ?? null,
+    resolutionStatus: prevState.resolutionStatus ?? null,
+    turnCount: prevState.turnCount ?? 0,
+    candidateCount: prevState.candidateCount ?? 0,
+    appliedFilterCount: prevState.appliedFilters?.length ?? 0,
+    displayedChipCount: prevState.displayedChips?.length ?? 0,
+    displayedChipPreview: (prevState.displayedChips ?? []).slice(0, 6),
+    displayedOptionCount: prevState.displayedOptions?.length ?? 0,
+    displayedProductCount: prevState.displayedProducts?.length ?? 0,
+    displayedSeriesGroupCount: prevState.displayedSeriesGroups?.length ?? 0,
+    hasPendingAction: !!prevState.pendingAction,
+    hasSuspendedFlow: !!prevState.suspendedFlow,
+  }
+}
+
+function summarizeRequestPrepForTrace(requestPrep: ReturnType<typeof prepareRequest>) {
+  return {
+    intent: requestPrep.intent,
+    intentConfidence: requestPrep.intentConfidence,
+    slotCount: requestPrep.slots.length,
+    slots: requestPrep.slots.slice(0, 6).map(slot => ({
+      field: slot.field,
+      value: String(slot.value),
+      confidence: slot.confidence,
+      source: slot.source,
+    })),
+    completeness: requestPrep.completeness,
+    route: requestPrep.route,
+    sessionContext: {
+      lastUserMessage: requestPrep.sessionContext.lastUserMessage,
+      turnCount: requestPrep.sessionContext.turnCount,
+      intakeKeys: Object.keys(requestPrep.sessionContext.intakeForm ?? {}),
+      resolvedInputKeys: Object.keys(requestPrep.sessionContext.resolvedInput ?? {}),
+      sessionState: summarizeStateForTrace(requestPrep.sessionContext.sessionState ?? null),
+    },
+  }
+}
 
 function buildPreSearchOrchestratorResult(userMessage: string, reason: string) {
   return {
     action: { type: "answer_general" as const, message: userMessage },
     reasoning: `pre_search_route:${reason}`,
-    agentsInvoked: [{ agent: "pre-search-router", model: "haiku" as const, durationMs: 0 }],
+    agentsInvoked: [{ agent: "pre-search-router", model: HAIKU_MODEL, durationMs: 0 }],
     escalatedToOpus: false,
   }
 }
@@ -113,7 +183,7 @@ function buildExplicitComparisonOrchestratorResult(targets: string[]): Orchestra
   return {
     action: { type: "compare_products", targets },
     reasoning: `explicit_compare:${targets.join(",")}`,
-    agentsInvoked: [{ agent: "explicit-compare-resolver", model: "haiku" as const, durationMs: 0 }],
+    agentsInvoked: [{ agent: "explicit-compare-resolver", model: HAIKU_MODEL, durationMs: 0 }],
     escalatedToOpus: false,
   }
 }
@@ -126,7 +196,7 @@ function buildPendingSelectionOrchestratorResult(filter: AppliedFilter): Orchest
   return {
     action,
     reasoning: `pending_selection:${filter.field}:${filter.op === "skip" ? "skip" : filter.value}`,
-    agentsInvoked: [{ agent: "pending-selection-resolver", model: "haiku" as const, durationMs: 0 }],
+    agentsInvoked: [{ agent: "pending-selection-resolver", model: HAIKU_MODEL, durationMs: 0 }],
     escalatedToOpus: false,
   }
 }
@@ -138,7 +208,7 @@ function buildV2BridgeOrchestratorResult(
   return {
     action,
     reasoning: `v2_bridge:${result.trace.action}`,
-    agentsInvoked: [{ agent: "v2-bridge", model: "haiku", durationMs: 0 }],
+    agentsInvoked: [{ agent: "v2-bridge", model: HAIKU_MODEL, durationMs: 0 }],
     escalatedToOpus: false,
   }
 }
@@ -538,13 +608,58 @@ function dropDependentWorkPieceFilters(filters: AppliedFilter[]): void {
 
 async function enrichWorkPieceFilterWithSeriesScope(
   filter: AppliedFilter,
-  currentInput: RecommendationInput
+  currentInput: RecommendationInput,
+  currentCandidates: ScoredProduct[] = []
 ): Promise<AppliedFilter> {
   if (filter.field !== "workPieceName") return filter
 
   const isoGroup = resolveSingleIsoGroup(currentInput.material)
   const workPieceName = String(filter.rawValue ?? "").trim()
   if (!isoGroup || !workPieceName) return filter
+
+  if (workPieceName.toUpperCase() === "ETC") {
+    const allWorkPieceNames = await getSessionCache().getOrFetch(
+      `workPieceNames:${isoGroup}`,
+      () => BrandReferenceRepo.listDistinctWorkPieceNames({ isoGroup, limit: 30 })
+    )
+    const mappedSeriesNames = new Set<string>()
+    for (const name of allWorkPieceNames) {
+      const seriesNames = await getSessionCache().getOrFetch(
+        `seriesNames:${isoGroup}|${name}`,
+        () => BrandReferenceRepo.listDistinctSeriesNames({ isoGroup, workPieceName: name, limit: 30 })
+      )
+      for (const seriesName of seriesNames) {
+        const normalizedSeries = seriesName.trim().toUpperCase()
+        if (normalizedSeries) mappedSeriesNames.add(normalizedSeries)
+      }
+    }
+
+    const unmappedSeriesNames = Array.from(
+      new Set(
+        currentCandidates.flatMap(candidate => {
+          const seriesName = (candidate.product.seriesName ?? "").trim().toUpperCase()
+          const edpSeriesName = ((candidate.product as Record<string, unknown>).edpSeriesName as string ?? "").trim().toUpperCase()
+          const values = [seriesName, edpSeriesName].filter(Boolean)
+          return values.filter(value => !mappedSeriesNames.has(value))
+        })
+      )
+    )
+
+    if (unmappedSeriesNames.length === 0) return filter
+
+    const seriesScopeFilter: AppliedFilter = {
+      field: "edpSeriesName",
+      op: "in",
+      value: unmappedSeriesNames.length <= 3 ? unmappedSeriesNames.join(", ") : `ETC ${unmappedSeriesNames.length}개 시리즈`,
+      rawValue: unmappedSeriesNames.join("||"),
+      appliedAt: filter.appliedAt,
+    }
+
+    return {
+      ...filter,
+      _sideFilters: [seriesScopeFilter],
+    } as AppliedFilter
+  }
 
   const seriesNames = await getSessionCache().getOrFetch(
     `seriesNames:${isoGroup}|${workPieceName}`,
@@ -786,7 +901,6 @@ export interface ServeEngineRuntimeDependencies {
     overrideText?: string,
     existingStageHistory?: NarrowingStage[],
     excludeWorkPieceValues?: string[],
-    preferredQuestionField?: string,
     responsePrefix?: string
   ) => Promise<Response>
   buildRecommendationResponse: (
@@ -928,8 +1042,21 @@ export async function handleServeExploration(
   language: AppLanguage = "ko",
   pagination: CandidatePaginationRequest | null = null,
 ): Promise<Response> {
+  traceRecommendation("runtime.handleServeExploration:input", {
+    messageCount: messages.length,
+    hasPrevState: !!prevState,
+    displayedProducts: displayedProducts?.length ?? 0,
+    language,
+    pagination,
+    currentMode: prevState?.currentMode ?? null,
+    pendingField: prevState?.lastAskedField ?? null,
+  })
   const trace = new TraceCollector()
   const response = await handleServeExplorationInner(deps, form, messages, prevState, displayedProducts, language, pagination, trace)
+  traceRecommendation("runtime.handleServeExploration:output", {
+    status: response.status,
+    ok: response.ok,
+  })
 
   // Inject debug trace into every response
   if (isDebugEnabled()) {
@@ -972,6 +1099,14 @@ async function handleServeExplorationInner(
   pagination: CandidatePaginationRequest | null = null,
   trace: TraceCollector = new TraceCollector()
 ): Promise<Response> {
+  traceRecommendation("runtime.handleServeExplorationInner:input", {
+    formKeys: Object.keys(form ?? {}),
+    messages: summarizeMessagesForTrace(messages),
+    prevState: summarizeStateForTrace(prevState),
+    displayedProducts: summarizeDisplayedProductsForTrace(displayedProducts),
+    language,
+    pagination,
+  })
   console.log(
     `[recommend] request start hasPrevState=${!!prevState} messages=${messages.length} displayedProducts=${displayedProducts?.length ?? 0}`
   )
@@ -1020,6 +1155,12 @@ async function handleServeExplorationInner(
   }
 
   const requestPrep = prepareRequest(form, messages, prevState, resolvedInput, prevState?.candidateCount ?? 0)
+  traceRecommendation("runtime.handleServeExplorationInner:request-prep", {
+    requestPrep: summarizeRequestPrepForTrace(requestPrep),
+    resolvedInputKeys: Object.keys(resolvedInput ?? {}),
+    filters,
+    turnCount: prevState?.turnCount ?? 0,
+  })
   console.log(`[recommend] Intent: ${requestPrep.intent} (${requestPrep.intentConfidence}), Route: ${requestPrep.route.action}`)
 
   const lastUserMsg = messages.length > 0
@@ -1107,6 +1248,11 @@ async function handleServeExplorationInner(
       prevState.appliedFilters ?? [],
       provider
     )
+    traceRecommendation("runtime.handleServeExplorationInner:llm-filter-result", {
+      pendingField: prevState.lastAskedField,
+      userMessage: lastUserMsg.text,
+      llmResult,
+    })
 
     // Record LLM filter result for debug visualization
     trace.setLLMFilterResult({
@@ -1168,6 +1314,18 @@ async function handleServeExplorationInner(
     }
   }
 
+  traceRecommendation("runtime.handleServeExplorationInner:state-after-routing-prep", {
+    pendingSelectionAction,
+    pendingSelectionOrchestratorResult,
+    explicitComparisonAction,
+    explicitRevisionAction,
+    explicitFilterAction,
+    explicitRefineAction,
+    llmExtraFilters,
+    currentInput,
+    filters,
+  })
+
   if (messages.length > 0 && lastUserMsg) {
     if (prevState?.pendingAction) {
       const pendingCheck = shouldExecutePendingAction(
@@ -1202,7 +1360,7 @@ async function handleServeExplorationInner(
           explicitRevisionOrchestratorResult = {
             action: explicitRevisionAction,
             reasoning: `explicit_revision:${explicitRevisionRequest.targetField}:${explicitRevisionRequest.previousValue}->${explicitRevisionRequest.nextFilter.value}`,
-            agentsInvoked: [{ agent: "explicit-revision-resolver", model: "haiku", durationMs: 0 }],
+            agentsInvoked: [{ agent: "explicit-revision-resolver", model: HAIKU_MODEL, durationMs: 0 }],
             escalatedToOpus: false,
           }
           console.log(
@@ -1220,7 +1378,7 @@ async function handleServeExplorationInner(
           explicitFilterOrchestratorResult = {
             action: explicitFilterAction,
             reasoning: `explicit_filter:${explicitFilterResolution.filter.field}:${explicitFilterResolution.filter.value}`,
-            agentsInvoked: [{ agent: "explicit-filter-resolver", model: "haiku", durationMs: 0 }],
+            agentsInvoked: [{ agent: "explicit-filter-resolver", model: HAIKU_MODEL, durationMs: 0 }],
             escalatedToOpus: false,
           }
           console.log(
@@ -2374,7 +2532,7 @@ async function handleServeExplorationInner(
         }
       }
 
-      filter = await enrichWorkPieceFilterWithSeriesScope(filter, currentInput)
+      filter = await enrichWorkPieceFilterWithSeriesScope(filter, currentInput, candidates)
 
       const nextFilterState = replaceFieldFilter(
         baseInput,
@@ -2470,8 +2628,6 @@ async function handleServeExplorationInner(
         )
       }
 
-      const replayPendingField = prevState?.lastAskedField ?? undefined
-      const shouldReplayPendingField = replayPendingField && replayPendingField !== action.targetField
       const revisionResponsePrefix = `알겠습니다. ${action.previousValue} 대신 ${filter.value}로 변경했습니다.`
 
       return deps.buildQuestionResponse(
@@ -2492,7 +2648,6 @@ async function handleServeExplorationInner(
         undefined,
         updatedStages,
         undefined,
-        shouldReplayPendingField ? replayPendingField : undefined,
         revisionResponsePrefix
       )
     }
@@ -2541,7 +2696,7 @@ async function handleServeExplorationInner(
         }
       }
 
-      filter = await enrichWorkPieceFilterWithSeriesScope(filter, currentInput)
+      filter = await enrichWorkPieceFilterWithSeriesScope(filter, currentInput, candidates)
 
       const nextFilterState = replaceFieldFilter(
         baseInput,
@@ -2670,7 +2825,8 @@ async function handleServeExplorationInner(
       for (const addFilter of additionalNLFilters) {
         const enrichedAdd = await enrichWorkPieceFilterWithSeriesScope(
           { ...addFilter, appliedAt: turnCount - 1 },
-          currentInput
+          currentInput,
+          finalCandidates
         )
         const addState = replaceFieldFilter(baseInput, filters, enrichedAdd, deps.applyFilterToInput)
         const addResult = await runHybridRetrieval(addState.nextInput, addState.nextFilters, 0, null)

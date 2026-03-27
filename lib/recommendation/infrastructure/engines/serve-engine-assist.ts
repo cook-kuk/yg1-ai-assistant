@@ -12,7 +12,7 @@ import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-t
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
 import { resolveYG1Query } from "@/lib/knowledge/knowledge-router"
 import { resolveMaterialTag } from "@/lib/recommendation/domain/recommendation-domain"
-import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import { getProvider, resolveModel } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import { YG1_COMPANY_SNIPPET } from "@/lib/knowledge/company-prompt-snippet"
 import {
   buildCuttingToolSubtypeTaxonomyKnowledgeBlock,
@@ -1652,7 +1652,7 @@ async function tryCompanyQuestionResponse(
       COMPANY_ONLY_SYSTEM,
       [{ role: "user", content: userMessage }],
       1500,
-      "haiku"
+      COMPANY_ONLY_MODEL
     )
 
     if (raw?.trim()) {
@@ -1678,3 +1678,4 @@ async function tryCompanyQuestionResponse(
   }
   return null
 }
+const COMPANY_ONLY_MODEL = resolveModel("haiku")

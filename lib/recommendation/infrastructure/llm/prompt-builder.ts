@@ -254,7 +254,6 @@ export function buildNarrowingPrompt(
 시스템이 선택한 최적 질문: "${question.questionText}"
 질문 필드: ${question.field}
 제안 칩: [${question.chips.join(", ")}]
-예상 정보 이득: ${(question.expectedInfoGain * 100).toFixed(0)}%
 
 === 고객 응답 ===
 "${userMessage}"

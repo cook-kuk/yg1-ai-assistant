@@ -32,7 +32,7 @@ export interface IntentClassification {
   confidence: number          // 0-1
   extractedValue?: string     // e.g., "Square" for GO_BACK_TO_SPECIFIC_STAGE
   reasoning?: string          // debug: why this intent was chosen
-  modelUsed: ModelTier
+  modelUsed: string
 }
 
 // ── Parameter Extraction Result ──────────────────────────────
@@ -47,7 +47,7 @@ export interface ExtractedParameters {
   productCode?: string
   comparisonTargets?: string[] // e.g., ["1번", "2번"]
   rawValue?: string           // the extracted value as-is
-  modelUsed: ModelTier
+  modelUsed: string
 }
 
 // ── Ambiguity Resolution Result ──────────────────────────────
@@ -57,7 +57,7 @@ export interface AmbiguityResolution {
   resolvedTargets?: string[]  // for comparison references
   explanation: string         // why this interpretation was chosen
   confidence: number
-  modelUsed: "opus"
+  modelUsed: string
 }
 
 // ── Orchestrator Decision ────────────────────────────────────
@@ -86,7 +86,7 @@ export type OrchestratorAction =
 export interface OrchestratorResult {
   action: OrchestratorAction
   reasoning: string
-  agentsInvoked: { agent: string; model: ModelTier; durationMs: number }[]
+  agentsInvoked: { agent: string; model: string; durationMs: number }[]
   escalatedToOpus: boolean
   escalationReason?: string
   /** Remaining intents to execute after the primary action (queued for next turns) */
@@ -113,5 +113,5 @@ export interface ComposedResponse {
   text: string
   chips: string[]
   purpose: "greeting" | "question" | "recommendation" | "comparison" | "explanation" | "general_chat"
-  modelUsed: ModelTier
+  modelUsed: string
 }

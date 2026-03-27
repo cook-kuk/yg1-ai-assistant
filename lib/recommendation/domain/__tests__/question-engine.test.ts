@@ -130,7 +130,33 @@ describe("selectNextQuestion", () => {
     )
 
     expect(question).not.toBeNull()
-    expect(question?.field).toBeTruthy()
+    expect(question?.field).toBe("diameterRefine")
     expect(question?.chips).toBeDefined()
+  })
+
+  it("considers externally supplied workPiece question in the same priority ordering", () => {
+    const candidates = [
+      makeCandidate("Square", "TiCN", "P1"),
+      makeCandidate("Square", "X-Coating", "P2"),
+      makeCandidate("Square", "TiCN", "P3"),
+      makeCandidate("Square", "X-Coating", "P4"),
+    ]
+
+    const question = selectNextQuestion(
+      makeInput({ workPieceName: undefined, flutePreference: 4, diameterMm: undefined, toolSubtype: "Square" }),
+      candidates,
+      [],
+      50,
+      [{
+        field: "workPieceName",
+        questionText: "세부 피삭재를 선택해주세요.",
+        chips: ["알루미늄 합금 (3개)", "비철금속 (1개)", "상관없음"],
+      }]
+    )
+
+    expect(question).not.toBeNull()
+    expect(question?.field).toBe("workPieceName")
+    expect(question?.chips).toContain("알루미늄 합금 (3개)")
+    expect(question?.chips).toContain("상관없음")
   })
 })

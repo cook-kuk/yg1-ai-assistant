@@ -76,6 +76,11 @@ export interface RecommendationDisplayedOptionDto {
   count: number
 }
 
+export interface RecommendationChipGroupDto {
+  label: string
+  chips: string[]
+}
+
 export interface RecommendationSeriesGroupSummaryDto {
   seriesKey: string
   seriesName: string
@@ -202,6 +207,7 @@ export interface RecommendationResponseDto {
   text: string
   purpose: RecommendationPurpose
   chips: string[]
+  chipGroups?: RecommendationChipGroupDto[]
   isComplete: boolean
   recommendation: RecommendationResult | null
   session: RecommendationSessionEnvelopeDto
@@ -286,6 +292,11 @@ export const recommendationDisplayedOptionSchema = z.object({
   field: z.string(),
   value: z.string(),
   count: z.number(),
+})
+
+export const recommendationChipGroupSchema = z.object({
+  label: z.string(),
+  chips: z.array(z.string()),
 })
 
 export const recommendationSeriesGroupSummarySchema = z.object({
@@ -415,6 +426,7 @@ export const recommendationResponseSchema = z.object({
   text: z.string(),
   purpose: recommendationPurposeSchema,
   chips: z.array(z.string()),
+  chipGroups: z.array(recommendationChipGroupSchema).optional(),
   isComplete: z.boolean(),
   recommendation: z.unknown().nullable(),
   session: recommendationSessionEnvelopeSchema,

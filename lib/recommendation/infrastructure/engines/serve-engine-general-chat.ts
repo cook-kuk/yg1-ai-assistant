@@ -19,8 +19,10 @@ import {
 import { shouldAttemptWebSearchFallback } from "@/lib/recommendation/infrastructure/engines/serve-engine-assist"
 import { buildFinalChipsFromLLM, isUnfilterableChip } from "@/lib/recommendation/domain/options/llm-chip-pipeline"
 import { resolveYG1Query } from "@/lib/knowledge/knowledge-router"
+import { traceRecommendation } from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { OrchestratorAction, OrchestratorResult } from "@/lib/recommendation/infrastructure/agents/types"
+import type { RecommendationChipGroupDto } from "@/lib/contracts/recommendation"
 import type { RecommendationDisplayedProductRequestDto } from "@/lib/contracts/recommendation"
 import type {
   AppliedFilter,
@@ -263,6 +265,46 @@ function validateAnswerText(
   }
 }
 
+function deriveQuestionAssistChipGroups(
+  displayedOptions: DisplayedOption[],
+  pendingField: string | null | undefined,
+): RecommendationChipGroupDto[] | undefined {
+  if (!pendingField || displayedOptions.length === 0) return undefined
+
+  const helperChips = displayedOptions
+    .filter(option => option.field === "_action" || option.field === "skip")
+    .map(option => option.label)
+  const originalChips = displayedOptions
+    .filter(option => option.field === pendingField)
+    .map(option => option.label)
+
+  const groups = [
+    ...(helperChips.length > 0 ? [{ label: "현재 제안", chips: helperChips }] : []),
+    ...(originalChips.length > 0 ? [{ label: "이전 선택지", chips: originalChips }] : []),
+  ]
+
+  return groups.length > 0 ? groups : undefined
+}
+
+function summarizeChipGroupsForLog(
+  chips: string[],
+  chipGroups: RecommendationChipGroupDto[] | undefined,
+  displayedOptions: DisplayedOption[],
+) {
+  return {
+    chipCount: chips.length,
+    chipPreview: chips.slice(0, 6),
+    chipGroupCount: chipGroups?.length ?? 0,
+    chipGroups: (chipGroups ?? []).map(group => ({
+      label: group.label,
+      count: group.chips.length,
+      preview: group.chips.slice(0, 4),
+    })),
+    displayedOptionCount: displayedOptions.length,
+    displayedOptionFields: Array.from(new Set(displayedOptions.map(option => option.field))).slice(0, 8),
+  }
+}
+
 function buildReplyResponse(
   deps: ServeEngineGeneralChatDependencies,
   prevState: ExplorationSessionState,
@@ -277,6 +319,7 @@ function buildReplyResponse(
   overrides: ReplyOverrides,
   orchResult: OrchestratorResult,
   processTrace: ProcessTrace,
+  chipGroups?: RecommendationChipGroupDto[],
 ) {
   // ── Side Question Resume: restore suspended flow for early reply paths ──
   const suspended = prevState.suspendedFlow
@@ -349,6 +392,7 @@ function buildReplyResponse(
     text: finalText,
     purpose: suspended ? "question" : overrides.purpose,
     chips: finalChips,
+    chipGroups,
     isComplete: false,
     recommendation: null,
     sessionState,
@@ -772,6 +816,10 @@ export async function handleServeGeneralChatAction(
               ? [{ field: prevState.lastAskedField, from: "pending", to: "explained" }]
               : [],
           }),
+          [
+            ...(assist.helperChips.length > 0 ? [{ label: "현재 제안", chips: assist.helperChips }] : []),
+            ...(assist.originalChips.length > 0 ? [{ label: "이전 선택지", chips: assist.originalChips }] : []),
+          ],
         )
       }
     }
@@ -801,6 +849,7 @@ export async function handleServeGeneralChatAction(
     finalDisplayedOptions,
     userStateResult,
     isQuestionAssist,
+    chipGroups,
   } = await buildGeneralChatOptionState({
     form,
     prevState,
@@ -870,6 +919,14 @@ export async function handleServeGeneralChatAction(
   let resumeLastAction: typeof effectiveMode extends string ? string : never = isQuestionAssist ? "explain_product" : "answer_general"
   let resumeLastAskedField = isQuestionAssist ? prevState.lastAskedField : undefined
   let resumeText = llmResponse.text
+  const resumeChipGroups = suspended && !isQuestionAssist
+    ? undefined
+    : (
+      chipGroups
+      ?? (isQuestionAssist
+        ? deriveQuestionAssistChipGroups(finalDisplayedOptions, prevState.lastAskedField)
+        : undefined)
+    )
 
   if (suspended && !isQuestionAssist) {
     const journeyPhaseForResume = detectJourneyPhase(prevState)
@@ -898,6 +955,12 @@ export async function handleServeGeneralChatAction(
       )
     }
   }
+
+  console.log("[chip-groups:server:build]", JSON.stringify({
+    isQuestionAssist,
+    pendingField: prevState.lastAskedField ?? null,
+    ...summarizeChipGroupsForLog(resumeChips, resumeChipGroups, resumeOptions),
+  }))
 
   const sessionState = carryForwardState(prevState, {
     candidateCount: prevState.candidateCount ?? (candidates.length > 0 ? candidates.length : (prevState.displayedCandidates?.length ?? 0)),
@@ -947,11 +1010,18 @@ export async function handleServeGeneralChatAction(
     ...processTrace,
     recentFrameRelation: postTurnContext.relationToLatestQuestion,
   })
+  traceRecommendation("general-chat:final-response", {
+    isQuestionAssist,
+    userState: userStateResult.state,
+    lastAskedField: prevState.lastAskedField ?? null,
+    ...summarizeChipGroupsForLog(resumeChips, resumeChipGroups, resumeOptions),
+  })
 
   return deps.jsonRecommendationResponse({
     text: resumeText,
     purpose: suspended && !isQuestionAssist ? "question" : effectivePurpose,
     chips: resumeChips,
+    chipGroups: resumeChipGroups,
     isComplete: false,
     recommendation: null,
     sessionState,

@@ -224,6 +224,7 @@ export function useProductRecommendationPage({
           role: "ai",
           text: data.text ?? "",
           chips: data.chips ?? [],
+          chipGroups: data.chipGroups ?? undefined,
           recommendation: data.recommendation ?? null,
           evidenceSummaries: data.evidenceSummaries ?? null,
           requestPreparation: data.requestPreparation ?? null,
@@ -293,6 +294,19 @@ export function useProductRecommendationPage({
       if (!res.ok) throw new Error(`서버 오류 (${res.status})`)
       const data = parseRecommendationResponse(await res.json())
       if (data.error) throw new Error(data.detail ?? data.error)
+      console.log("[chip-groups:client:response]", {
+        purpose: data.purpose,
+        chipCount: data.chips?.length ?? 0,
+        chipPreview: (data.chips ?? []).slice(0, 6),
+        chipGroupCount: data.chipGroups?.length ?? 0,
+        chipGroups: (data.chipGroups ?? []).map(group => ({
+          label: group.label,
+          count: group.chips.length,
+          preview: group.chips.slice(0, 4),
+        })),
+        sessionLastAskedField: data.session.publicState?.lastAskedField ?? null,
+        sessionMode: data.session.publicState?.currentMode ?? null,
+      })
 
       if (data.session.publicState !== null || data.session.engineState !== null) {
         setSessionState(data.session.publicState ?? null)
@@ -312,11 +326,12 @@ export function useProductRecommendationPage({
 
       setChatMessages(prev => {
         const updated = [...prev]
-        updated[updated.length - 1] = {
+        const nextMessage: ChatMsg = {
           role: "ai",
           text: data.text ?? "",
           recommendation: data.recommendation ?? null,
           chips: data.chips ?? [],
+          chipGroups: data.chipGroups ?? undefined,
           evidenceSummaries: data.evidenceSummaries ?? null,
           requestPreparation: data.requestPreparation ?? null,
           primaryExplanation: data.primaryExplanation ?? null,
@@ -329,6 +344,18 @@ export function useProductRecommendationPage({
           feedbackGroupId: prev[updated.length - 1]?.feedbackGroupId ?? createClientEventId(),
           debugTrace: (data as any).meta?.debugTrace ?? null,
         }
+        console.log("[chip-groups:client:store]", {
+          messageIndex: updated.length - 1,
+          chipCount: nextMessage.chips?.length ?? 0,
+          chipPreview: (nextMessage.chips ?? []).slice(0, 6),
+          chipGroupCount: nextMessage.chipGroups?.length ?? 0,
+          chipGroups: (nextMessage.chipGroups ?? []).map(group => ({
+            label: group.label,
+            count: group.chips.length,
+            preview: group.chips.slice(0, 4),
+          })),
+        })
+        updated[updated.length - 1] = nextMessage
         return updated
       })
     } catch {

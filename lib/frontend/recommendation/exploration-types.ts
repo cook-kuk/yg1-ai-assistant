@@ -13,6 +13,7 @@ export interface ChatMsg {
   text: string
   recommendation?: RecommendationResult | null
   chips?: string[]
+  chipGroups?: Array<{ label: string; chips: string[] }>
   evidenceSummaries?: EvidenceSummary[] | null
   isLoading?: boolean
   feedback?: TurnFeedback

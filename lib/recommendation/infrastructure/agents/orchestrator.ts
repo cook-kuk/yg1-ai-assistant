@@ -18,6 +18,7 @@ import type {
   LLMTool,
   LLMToolResult,
 } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import { resolveModel } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import type {
   AppliedFilter,
   CandidateSnapshot,
@@ -44,6 +45,12 @@ import { needsOpusResolution, resolveAmbiguity } from "./ambiguity-resolver"
 import { resolveProductReferences } from "./comparison-agent"
 import { parseAnswerToFilter } from "@/lib/recommendation/domain/question-engine"
 import { ENABLE_OPUS_AMBIGUITY, ENABLE_COMPARISON_AGENT } from "@/lib/recommendation/infrastructure/config/recommendation-agent-flags"
+
+const UNIFIED_JUDGMENT_MODEL = resolveModel("haiku")
+const INTENT_CLASSIFIER_MODEL = resolveModel("haiku", "intent-classifier")
+const PARAMETER_EXTRACTOR_MODEL = resolveModel("haiku", "parameter-extractor")
+const AMBIGUITY_RESOLVER_MODEL = resolveModel("opus", "ambiguity-resolver")
+const TOOL_USE_ROUTER_MODEL = resolveModel("sonnet")
 
 // ════════════════════════════════════════════════════════════════
 // MAIN ORCHESTRATOR
@@ -73,7 +80,11 @@ export async function orchestrateTurn(
   const intentResult: IntentClassification = judgment.fromLLM
     ? mapJudgmentToIntent(judgment, ctx)
     : await classifyIntent(ctx.userMessage, ctx.sessionState, provider)
-  agents.push({ agent: judgment.fromLLM ? "unified-judgment" : "intent-classifier", model: "haiku", durationMs: Date.now() - intentStart })
+  agents.push({
+    agent: judgment.fromLLM ? "unified-judgment" : "intent-classifier",
+    model: judgment.fromLLM ? UNIFIED_JUDGMENT_MODEL : INTENT_CLASSIFIER_MODEL,
+    durationMs: Date.now() - intentStart,
+  })
 
   console.log(`[orchestrator] Intent: ${intentResult.intent} (${intentResult.confidence.toFixed(2)}) via=${judgment.fromLLM ? "unified" : "legacy"}${intentResult.extractedValue ? ` value="${intentResult.extractedValue}"` : ""}`)
 
@@ -98,7 +109,7 @@ export async function orchestrateTurn(
       ctx.displayedProducts,
       provider
     )
-    agents.push({ agent: "ambiguity-resolver", model: "opus", durationMs: Date.now() - opusStart })
+    agents.push({ agent: "ambiguity-resolver", model: AMBIGUITY_RESOLVER_MODEL, durationMs: Date.now() - opusStart })
 
     if (opusResult.confidence > intentResult.confidence) {
       finalIntent = opusResult.resolvedIntent
@@ -112,7 +123,7 @@ export async function orchestrateTurn(
   if (finalIntent === "SET_PARAMETER" || finalIntent === "SELECT_OPTION") {
     const paramStart = Date.now()
     extractedParams = await extractParameters(ctx.userMessage, ctx.sessionState, provider)
-    agents.push({ agent: "parameter-extractor", model: "haiku", durationMs: Date.now() - paramStart })
+    agents.push({ agent: "parameter-extractor", model: PARAMETER_EXTRACTOR_MODEL, durationMs: Date.now() - paramStart })
 
     console.log(`[orchestrator] Extracted: ${JSON.stringify(extractedParams)}`)
   }
@@ -165,24 +176,24 @@ function mapJudgmentToIntent(
 
   // company_query/greeting → START_NEW_TOPIC (answer_general로 라우팅)
   if (judgment.domainRelevance === "company_query" || judgment.domainRelevance === "greeting") {
-    return { intent: "START_NEW_TOPIC", confidence: judgment.confidence, extractedValue: ctx.userMessage, modelUsed: "haiku" }
+    return { intent: "START_NEW_TOPIC", confidence: judgment.confidence, extractedValue: ctx.userMessage, modelUsed: UNIFIED_JUDGMENT_MODEL }
   }
 
   // off_topic → OUT_OF_SCOPE
   if (judgment.domainRelevance === "off_topic") {
-    return { intent: "OUT_OF_SCOPE", confidence: judgment.confidence, modelUsed: "haiku" }
+    return { intent: "OUT_OF_SCOPE", confidence: judgment.confidence, modelUsed: UNIFIED_JUDGMENT_MODEL }
   }
 
   // skip_field → extractedValue에 "skip" 세팅
   if (judgment.intentAction === "skip_field") {
-    return { intent: "SELECT_OPTION", confidence: judgment.confidence, extractedValue: "skip", modelUsed: "haiku" }
+    return { intent: "SELECT_OPTION", confidence: judgment.confidence, extractedValue: "skip", modelUsed: UNIFIED_JUDGMENT_MODEL }
   }
 
   return {
     intent,
     confidence: judgment.confidence,
     extractedValue: judgment.extractedAnswer ?? undefined,
-    modelUsed: "haiku",
+    modelUsed: UNIFIED_JUDGMENT_MODEL,
   }
 }
 
@@ -752,7 +763,7 @@ export async function orchestrateTurnWithTools(
 
   try {
     const { text, toolUse } = await provider.completeWithTools(
-      systemPrompt, messages, NARROWING_TOOLS, 1024, "sonnet"
+      systemPrompt, messages, NARROWING_TOOLS, 1024, TOOL_USE_ROUTER_MODEL
     )
 
     const durationMs = Date.now() - startMs
@@ -766,7 +777,7 @@ export async function orchestrateTurnWithTools(
       return {
         action,
         reasoning: `tool_use:${toolUse.toolName} → ${action.type}`,
-        agentsInvoked: [{ agent: "tool-use-router", model: "sonnet", durationMs }],
+        agentsInvoked: [{ agent: "tool-use-router", model: TOOL_USE_ROUTER_MODEL, durationMs }],
         escalatedToOpus: false,
       }
     }
@@ -778,7 +789,7 @@ export async function orchestrateTurnWithTools(
     return {
       action: { type: "answer_general", message: responseText, preGenerated: true },
       reasoning: "no_tool:text_response",
-      agentsInvoked: [{ agent: "tool-use-router", model: "sonnet", durationMs }],
+      agentsInvoked: [{ agent: "tool-use-router", model: TOOL_USE_ROUTER_MODEL, durationMs }],
       escalatedToOpus: false,
     }
   } catch (error) {
@@ -786,7 +797,7 @@ export async function orchestrateTurnWithTools(
     return {
       action: { type: "answer_general", message: ctx.userMessage },
       reasoning: "tool_use_error:fallback",
-      agentsInvoked: [{ agent: "tool-use-router", model: "sonnet", durationMs: Date.now() - startMs }],
+      agentsInvoked: [{ agent: "tool-use-router", model: TOOL_USE_ROUTER_MODEL, durationMs: Date.now() - startMs }],
       escalatedToOpus: false,
     }
   }

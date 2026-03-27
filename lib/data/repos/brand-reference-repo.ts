@@ -3,6 +3,10 @@ import "server-only"
 import { Pool } from "pg"
 import { formatQueryValuesForLog, formatSqlForLog, interpolateSqlForLog } from "@/lib/data/sql-log"
 import { getSharedPool } from "@/lib/data/shared-pool"
+import {
+  traceRecommendation,
+  traceRecommendationError,
+} from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
 
 export interface BrandReferenceRecord {
   tagName: string
@@ -89,6 +93,10 @@ function toNullableNumber(value: number | null | undefined): number | null {
 
 export const BrandReferenceRepo = {
   async listDistinctWorkPieceNames(query: DistinctWorkPieceQuery): Promise<string[]> {
+    traceRecommendation("db.brandReference.listDistinctWorkPieceNames:input", {
+      isoGroup: query.isoGroup ?? null,
+      limit: query.limit ?? null,
+    })
     const pool = getPool()
     if (!pool) {
       console.warn("[brand-reference-repo] distinct work piece query skipped: DB source unavailable")
@@ -118,11 +126,19 @@ export const BrandReferenceRepo = {
       console.log(
         `[brand-reference-db] distinct-work-piece iso=${isoGroup} rows=${result.rowCount ?? 0} duration=${Date.now() - startedAt}ms`
       )
-      return result.rows
+      const rows = result.rows
         .map(row => String(row.work_piece_name ?? "").trim())
         .filter(Boolean)
+      traceRecommendation("db.brandReference.listDistinctWorkPieceNames:output", {
+        isoGroup,
+        durationMs: Date.now() - startedAt,
+        rowCount: rows.length,
+        preview: rows.slice(0, 6),
+      })
+      return rows
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
+      traceRecommendationError("db.brandReference.listDistinctWorkPieceNames:error", error, { query })
       console.warn(`[brand-reference-db] distinct work piece query failed: ${message}`)
       return []
     }
@@ -171,6 +187,11 @@ export const BrandReferenceRepo = {
   },
 
   async listDistinctSeriesNames(query: DistinctSeriesQuery): Promise<string[]> {
+    traceRecommendation("db.brandReference.listDistinctSeriesNames:input", {
+      isoGroup: query.isoGroup ?? null,
+      workPieceName: query.workPieceName ?? null,
+      limit: query.limit ?? null,
+    })
     const pool = getPool()
     if (!pool) {
       console.warn("[brand-reference-repo] distinct series query skipped: DB source unavailable")
@@ -202,11 +223,20 @@ export const BrandReferenceRepo = {
       console.log(
         `[brand-reference-db] distinct-series iso=${isoGroup} workPiece=${workPieceName} rows=${result.rowCount ?? 0} duration=${Date.now() - startedAt}ms`
       )
-      return result.rows
+      const rows = result.rows
         .map(row => String(row.series_name ?? "").trim())
         .filter(Boolean)
+      traceRecommendation("db.brandReference.listDistinctSeriesNames:output", {
+        isoGroup,
+        workPieceName,
+        durationMs: Date.now() - startedAt,
+        rowCount: rows.length,
+        preview: rows.slice(0, 6),
+      })
+      return rows
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
+      traceRecommendationError("db.brandReference.listDistinctSeriesNames:error", error, { query })
       console.warn(`[brand-reference-db] distinct series query failed: ${message}`)
       return []
     }

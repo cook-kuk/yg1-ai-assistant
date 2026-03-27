@@ -17,7 +17,13 @@
  * 안전: Haiku 실패 → 기존 하드코딩 fallback
  */
 
-import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import { resolveModel, type LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import {
+  traceRecommendation,
+  traceRecommendationError,
+} from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
+
+const UNIFIED_JUDGMENT_MODEL = resolveModel("haiku")
 
 export interface UnifiedJudgment {
   // 기존 5가지
@@ -56,6 +62,70 @@ export interface UnifiedJudgmentInput {
 }
 
 const JUDGMENT_SYSTEM = "YG-1 절삭공구 추천 챗봇 의도 분석기. JSON만 반환."
+
+function stripJsonCodeFence(raw: string): string {
+  return raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim()
+}
+
+function extractFirstJsonObject(raw: string): string | null {
+  const source = stripJsonCodeFence(raw)
+  const start = source.indexOf("{")
+  if (start < 0) return null
+
+  let depth = 0
+  let inString = false
+  let escaped = false
+
+  for (let i = start; i < source.length; i += 1) {
+    const char = source[i]
+
+    if (inString) {
+      if (escaped) {
+        escaped = false
+        continue
+      }
+      if (char === "\\") {
+        escaped = true
+        continue
+      }
+      if (char === "\"") {
+        inString = false
+      }
+      continue
+    }
+
+    if (char === "\"") {
+      inString = true
+      continue
+    }
+    if (char === "{") {
+      depth += 1
+      continue
+    }
+    if (char === "}") {
+      depth -= 1
+      if (depth === 0) {
+        return source.slice(start, i + 1)
+      }
+    }
+  }
+
+  return null
+}
+
+function parseJudgmentJson(raw: string): Record<string, unknown> {
+  const cleaned = stripJsonCodeFence(raw)
+
+  try {
+    return JSON.parse(cleaned) as Record<string, unknown>
+  } catch {
+    const extracted = extractFirstJsonObject(cleaned)
+    if (!extracted) {
+      throw new Error("No JSON object found in unified-judgment response")
+    }
+    return JSON.parse(extracted) as Record<string, unknown>
+  }
+}
 
 function buildJudgmentPrompt(input: UnifiedJudgmentInput): string {
   const chips = input.displayedChips.length > 0
@@ -116,6 +186,7 @@ export async function performUnifiedJudgment(
   input: UnifiedJudgmentInput,
   provider: LLMProvider
 ): Promise<UnifiedJudgment> {
+  traceRecommendation("context.performUnifiedJudgment:input", input)
   // 같은 유저 메시지면 캐시 반환 (같은 턴 내 중복 호출 방지)
   const cacheKey = input.userMessage
   if (cacheKey === lastInput && lastResult.fromLLM) return lastResult
@@ -124,17 +195,18 @@ export async function performUnifiedJudgment(
     return DEFAULT_JUDGMENT
   }
 
+  let rawResponse: string | null = null
+
   try {
     const prompt = buildJudgmentPrompt(input)
-    const raw = await provider.complete(
+    rawResponse = await provider.complete(
       JUDGMENT_SYSTEM,
       [{ role: "user", content: prompt }],
-      1500,
-      "haiku"
+      2500,
+      UNIFIED_JUDGMENT_MODEL
     )
 
-    const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim()
-    const p = JSON.parse(cleaned)
+    const p = parseJudgmentJson(rawResponse) as Partial<UnifiedJudgment>
 
     const result: UnifiedJudgment = {
       userState: p.userState ?? "clear",
@@ -153,12 +225,31 @@ export async function performUnifiedJudgment(
     }
 
     console.log(`[unified-judgment] "${input.userMessage.slice(0, 25)}" → action=${result.intentAction} domain=${result.domainRelevance} state=${result.userState} signal=${result.signalStrength}`)
+    traceRecommendation("context.performUnifiedJudgment:output", {
+      input,
+      result,
+      rawResponse,
+    })
 
     lastInput = cacheKey
     lastResult = result
     return result
   } catch (error) {
+    if (error instanceof SyntaxError || (error instanceof Error && /JSON/i.test(error.message))) {
+      console.warn("[unified-judgment] Raw LLM response:", {
+        userMessage: input.userMessage,
+        assistantText: input.assistantText,
+        pendingField: input.pendingField,
+        currentMode: input.currentMode,
+        rawResponse,
+      })
+    }
     console.warn("[unified-judgment] Haiku failed:", error)
+    traceRecommendationError("context.performUnifiedJudgment:error", error, {
+      input,
+      rawResponse,
+      fallback: DEFAULT_JUDGMENT,
+    })
     return DEFAULT_JUDGMENT
   }
 }

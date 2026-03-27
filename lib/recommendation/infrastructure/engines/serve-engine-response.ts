@@ -14,13 +14,10 @@ import {
   buildWarnings,
   checkResolution,
   classifyHybridResults,
-  explainQuestionFieldReplayFailure,
-  getQuestionFieldPriority,
   groupCandidatesBySeries,
   prepareRequest,
   runFactCheck,
   selectNextQuestion,
-  selectQuestionForField,
 } from "@/lib/recommendation/domain/recommendation-domain"
 import {
   buildExplanationResultPrompt,
@@ -39,6 +36,7 @@ import { getMaterialDisplay, resolveMaterialTag } from "@/lib/recommendation/dom
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { RecommendationDisplayedProductRequestDto, RecommendationPaginationDto } from "@/lib/contracts/recommendation"
+import type { NextQuestion } from "@/lib/recommendation/domain/question-engine"
 import type {
   AppliedFilter,
   AppLanguage,
@@ -62,6 +60,7 @@ import {
 } from "@/lib/recommendation/domain/options/option-bridge"
 import { validateOptionFirstPipeline } from "@/lib/recommendation/domain/options/option-validator"
 import { buildFilterValueScope } from "@/lib/recommendation/shared/filter-field-registry"
+import { traceRecommendation } from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
 
 type DisplayedProduct = RecommendationDisplayedProductRequestDto
 type JsonRecommendationResponse = (
@@ -129,6 +128,58 @@ const QUESTION_FIELD_LABELS: Record<string, string> = {
   seriesName: "시리즈",
   cuttingType: "가공 종류",
   diameterRefine: "직경",
+}
+
+function summarizeRecommendationInputForTrace(input: RecommendationInput) {
+  return {
+    manufacturerScope: input.manufacturerScope ?? null,
+    locale: input.locale ?? null,
+    material: input.material ?? null,
+    workPieceName: input.workPieceName ?? null,
+    diameterMm: input.diameterMm ?? null,
+    machiningCategory: input.machiningCategory ?? null,
+    operationType: input.operationType ?? null,
+    toolSubtype: input.toolSubtype ?? null,
+    flutePreference: input.flutePreference ?? null,
+    coatingPreference: input.coatingPreference ?? null,
+    seriesName: input.seriesName ?? null,
+  }
+}
+
+function summarizeFiltersForTrace(filters: AppliedFilter[]) {
+  return filters.map(filter => ({
+    field: filter.field,
+    op: filter.op,
+    value: filter.value,
+    rawValue: filter.rawValue,
+    appliedAt: filter.appliedAt,
+  }))
+}
+
+function summarizeHistoryForTrace(history: NarrowingTurn[]) {
+  return history.slice(-4).map(turn => ({
+    question: turn.question,
+    answer: turn.answer,
+    extractedFilters: turn.extractedFilters.map(filter => ({
+      field: filter.field,
+      op: filter.op,
+      value: filter.value,
+      rawValue: filter.rawValue,
+      appliedAt: filter.appliedAt,
+    })),
+    candidateCountBefore: turn.candidateCountBefore,
+    candidateCountAfter: turn.candidateCountAfter,
+  }))
+}
+
+function summarizePaginationForTrace(pagination: RecommendationPaginationDto | null) {
+  if (!pagination) return null
+  return {
+    page: pagination.page,
+    pageSize: pagination.pageSize,
+    totalItems: pagination.totalItems,
+    totalPages: pagination.totalPages,
+  }
 }
 
 export function inferQuestionFieldFromText(text: string): string | null {
@@ -218,16 +269,17 @@ async function buildDisplayedSeriesGroups(
 
 async function buildWorkPieceQuestion(
   input: RecommendationInput,
-  history: NarrowingTurn[],
   filters: AppliedFilter[],
   candidates?: ScoredProduct[],
   excludeValues?: string[]
-): Promise<{
-  field: string
-  questionText: string
-  chips: string[]
-  expectedInfoGain: number
-} | null> {
+): Promise<NextQuestion | null> {
+  traceRecommendation("response.buildWorkPieceQuestion:input", {
+    input: summarizeRecommendationInputForTrace(input),
+    filters: summarizeFiltersForTrace(filters),
+    filterCount: filters.length,
+    candidateCount: candidates?.length ?? 0,
+    excludeValues,
+  })
   if (input.workPieceName) return null
 
   const isoGroup = resolveSingleIsoGroup(input.material)
@@ -254,28 +306,60 @@ async function buildWorkPieceQuestion(
     ? allWorkPieceNames.filter(name => !excludeValues.includes(name))
     : allWorkPieceNames
 
+  const preferWorkPieceName = (left: string, right: string) => {
+    if (left.length !== right.length) return left.length > right.length ? left : right
+    return left.localeCompare(right, "ko") <= 0 ? left : right
+  }
+
   // ── 현재 candidates 기준으로 workPiece 개수 계산 (DB 전체가 아님!) ──
   // candidates는 이미 직경, 소재, 가공형상 등 모든 필터가 적용된 상태
   var workPieceCounts: Map<string, number> | undefined
+  let workPieceCandidateKeys = new Map<string, string[]>()
+  const mappedSeriesNames = new Set<string>()
   if (candidates && candidates.length > 0) {
-    const validNamesWithCount: { name: string; count: number }[] = []
+    const validNamesWithCount: { name: string; count: number; candidateKeys: string[] }[] = []
     for (const name of relevantNames) {
       const series = await getSessionCache().getOrFetch(
         `seriesNames:${isoGroup}|${name}`,
         () => BrandReferenceRepo.listDistinctSeriesNames({ isoGroup, workPieceName: name, limit: 30 })
       )
+      for (const seriesName of series) {
+        const normalizedSeries = seriesName.trim().toUpperCase()
+        if (normalizedSeries) mappedSeriesNames.add(normalizedSeries)
+      }
       const seriesUpper = new Set(series.map(s => s.toUpperCase()))
-      const count = candidates.filter(c => {
+      const candidateKeys = Array.from(new Set(candidates.flatMap(c => {
         const cs = (c.product.seriesName ?? "").trim().toUpperCase()
         const edp = ((c.product as Record<string, unknown>).edpSeriesName as string ?? "").trim().toUpperCase()
-        return (cs && seriesUpper.has(cs)) || (edp && seriesUpper.has(edp))
-      }).length
-      if (count > 0) validNamesWithCount.push({ name, count })
+        const matched = (cs && seriesUpper.has(cs)) || (edp && seriesUpper.has(edp))
+        if (!matched) return []
+        return [c.product.normalizedCode ?? c.product.displayCode]
+      })))
+      const count = candidateKeys.length
+      if (count > 0) validNamesWithCount.push({ name, count, candidateKeys })
     }
     const removed = relevantNames.length - validNamesWithCount.length
     if (removed > 0) console.log(`[workpiece-filter] Removed ${removed} workPieces with 0 in current ${candidates.length} candidates`)
-    relevantNames = validNamesWithCount.map(v => v.name)
-    workPieceCounts = new Map(validNamesWithCount.map(v => [v.name, v.count]))
+
+    const duplicateWorkPieces = new Map<string, { name: string; count: number; candidateKeys: string[] }>()
+    for (const entry of validNamesWithCount) {
+      const signature = entry.candidateKeys.slice().sort().join("||")
+      const existing = duplicateWorkPieces.get(signature)
+      if (!existing) {
+        duplicateWorkPieces.set(signature, entry)
+        continue
+      }
+      const preferredName = preferWorkPieceName(existing.name, entry.name)
+      if (preferredName !== existing.name) {
+        duplicateWorkPieces.set(signature, entry)
+      }
+      console.log(`[workpiece-filter] Collapsed duplicate candidate-set workPieces: "${existing.name}" vs "${entry.name}" -> "${preferredName}"`)
+    }
+
+    const dedupedEntries = Array.from(duplicateWorkPieces.values())
+    relevantNames = dedupedEntries.map(v => v.name)
+    workPieceCounts = new Map(dedupedEntries.map(v => [v.name, v.count]))
+    workPieceCandidateKeys = new Map(dedupedEntries.map(v => [v.name, v.candidateKeys]))
   }
 
   // 중복 제거 (공백 차이: "알루미늄(연질)" vs "알루미늄 (연질)")
@@ -295,16 +379,54 @@ async function buildWorkPieceQuestion(
     const count = workPieceCounts?.get(name)
     return count != null ? `${name} (${count}개)` : name
   })
-  const totalCount = candidates?.length ?? 0
-  chips.push(totalCount > 0 ? `상관없음 (전체 ${totalCount}개)` : "상관없음")
-  if (history.length > 0) chips.push("⟵ 이전 단계")
-
+  const unmappedCandidateCount = (candidates ?? []).filter(candidate => {
+    const seriesName = (candidate.product.seriesName ?? "").trim().toUpperCase()
+    const edpSeriesName = ((candidate.product as Record<string, unknown>).edpSeriesName as string ?? "").trim().toUpperCase()
+    if (seriesName && mappedSeriesNames.has(seriesName)) return false
+    if (edpSeriesName && mappedSeriesNames.has(edpSeriesName)) return false
+    return true
+  }).length
+  if (unmappedCandidateCount > 0) {
+    chips.push(`ETC (${unmappedCandidateCount}개)`)
+  }
+  traceRecommendation("response.buildWorkPieceQuestion:output", {
+    field: "workPieceName",
+    isoGroup,
+    relevantNames,
+    workPieceCounts,
+    workPieceCandidateKeys: Array.from(workPieceCandidateKeys.entries()).map(([name, keys]) => ({
+      name,
+      count: keys.length,
+      preview: keys.slice(0, 5),
+    })),
+    mappedSeriesNames: Array.from(mappedSeriesNames).slice(0, 10),
+    unmappedCandidateCount,
+    chips,
+  })
   return {
     field: "workPieceName",
     questionText: `선택하신 소재는 ISO ${isoGroup} (${materialLabel})군입니다. 세부 피삭재를 선택해주세요. (일부 제품은 세부 분류가 없어 "상관없음" 선택 시 전체 후보에서 추천합니다)`,
     chips,
-    expectedInfoGain: 0.5,
   }
+}
+
+async function selectNextQuestionForResponse(params: {
+  input: RecommendationInput
+  candidates: ScoredProduct[]
+  history: NarrowingTurn[]
+  filters: AppliedFilter[]
+  totalCandidateCount: number
+  excludeWorkPieceValues?: string[]
+}): Promise<NextQuestion | null> {
+  const { input, candidates, history, filters, totalCandidateCount, excludeWorkPieceValues } = params
+  const workPieceQuestion = await buildWorkPieceQuestion(input, filters, candidates, excludeWorkPieceValues)
+  return selectNextQuestion(
+    input,
+    candidates,
+    history,
+    totalCandidateCount,
+    workPieceQuestion ? [workPieceQuestion] : []
+  )
 }
 
 export async function buildQuestionResponse(
@@ -326,40 +448,36 @@ export async function buildQuestionResponse(
   overrideText?: string,
   existingStageHistory?: NarrowingStage[],
   excludeWorkPieceValues?: string[],
-  preferredQuestionField?: string,
   responsePrefix?: string
 ): Promise<Response> {
-  const chooseHigherPriorityQuestion = <T extends { field: string }>(left: T | null, right: T | null): T | null => {
-    if (!left) return right
-    if (!right) return left
-
-    const leftPriority = getQuestionFieldPriority(left.field)
-    const rightPriority = getQuestionFieldPriority(right.field)
-    if (leftPriority !== rightPriority) {
-      return leftPriority < rightPriority ? left : right
-    }
-
-    return left
-  }
-
-  const preferredQuestion = preferredQuestionField
-    ? (
-        preferredQuestionField === "workPieceName"
-          ? await buildWorkPieceQuestion(input, history, filters, candidates, excludeWorkPieceValues)
-          : selectQuestionForField(input, candidates, history, preferredQuestionField, totalCandidateCount)
-      )
-    : null
-  const replayFailureReason = preferredQuestionField && !preferredQuestion
-    ? explainQuestionFieldReplayFailure(input, candidates, preferredQuestionField)
-    : null
+  traceRecommendation("response.buildQuestionResponse:input", {
+    totalCandidateCount,
+    turnCount,
+    input: summarizeRecommendationInputForTrace(input),
+    historyCount: history.length,
+    history: summarizeHistoryForTrace(history),
+    filterCount: filters.length,
+    filters: summarizeFiltersForTrace(filters),
+    messageCount: messages.length,
+    pagination: summarizePaginationForTrace(pagination),
+    overrideText: overrideText ?? null,
+    excludeWorkPieceValues,
+    responsePrefix: responsePrefix ?? null,
+  })
   // ── Resolution guard: if already resolved, skip all questions → show recommendation ──
   const preCheckStatus = checkResolution(candidates, history, totalCandidateCount)
   const alreadyResolved = preCheckStatus.startsWith("resolved")
 
-  const workPieceQuestion = alreadyResolved ? null : await buildWorkPieceQuestion(input, history, filters, candidates, excludeWorkPieceValues)
-  const nextQuestion = alreadyResolved ? null : selectNextQuestion(input, candidates, history, totalCandidateCount)
-  const question = alreadyResolved ? null : (preferredQuestion
-    ?? chooseHigherPriorityQuestion(workPieceQuestion, nextQuestion))
+  const question = alreadyResolved
+    ? null
+    : await selectNextQuestionForResponse({
+        input,
+        candidates,
+        history,
+        filters,
+        totalCandidateCount,
+        excludeWorkPieceValues,
+      })
   const stageHistory = existingStageHistory
     ? [...existingStageHistory]
     : buildStageHistoryFromFilters(filters, input, totalCandidateCount)
@@ -584,11 +702,6 @@ export async function buildQuestionResponse(
     responseText = `${responsePrefix}\n\n${responseText}`.trim()
   }
 
-  if (replayFailureReason && question && preferredQuestionField && question.field !== preferredQuestionField) {
-    const nextLabel = QUESTION_FIELD_LABELS[question.field] ?? question.field
-    responseText = `${replayFailureReason} 그래서 ${nextLabel} 기준으로 이어서 질문드릴게요.\n\n${responseText}`.trim()
-  }
-
   // ── CTA 버튼 2개를 최종 칩에 항상 추가 ──
   if (totalCandidateCount > 0) {
     if (!finalResponseChips.some(c => c.includes("제품 보기"))) finalResponseChips = [...finalResponseChips, `📋 지금 바로 제품 보기 (${totalCandidateCount}개)`]
@@ -606,6 +719,33 @@ export async function buildQuestionResponse(
     console.log(`[answer-validator:question] Softened unauthorized actions: ${questionValidation.unauthorizedActions.map(a => a.phrase).join(",")}`)
   }
 
+  traceRecommendation("response.buildQuestionResponse:output", {
+    purpose: messages.length === 0 ? "greeting" : "question",
+    question: question ? {
+      field: question.field,
+      questionText: question.questionText,
+      chipCount: question.chips.length,
+      chipPreview: question.chips.slice(0, 6),
+    } : null,
+    responseText,
+    chipCount: finalResponseChips.length,
+    chipPreview: finalResponseChips.slice(0, 6),
+    displayedOptionCount: finalDisplayedOptions.length,
+    displayedOptions: finalDisplayedOptions.slice(0, 6).map(option => ({
+      label: option.label,
+      field: option.field,
+      value: option.value,
+      count: option.count,
+    })),
+    sessionState: {
+      sessionId: sessionState.sessionId ?? null,
+      currentMode: sessionState.currentMode ?? null,
+      lastAskedField: sessionState.lastAskedField ?? null,
+      candidateCount: sessionState.candidateCount ?? 0,
+      displayedChipCount: sessionState.displayedChips?.length ?? 0,
+      displayedOptionCount: sessionState.displayedOptions?.length ?? 0,
+    },
+  })
   return deps.jsonRecommendationResponse({
     text: responseText,
     purpose: messages.length === 0 ? "greeting" : "question",
@@ -648,8 +788,26 @@ export async function buildRecommendationResponse(
   language: AppLanguage,
   displayedProducts: DisplayedProduct[] | null = null
 ): Promise<Response> {
-  const workPieceQuestion = await buildWorkPieceQuestion(input, history, filters, candidates)
-  if (workPieceQuestion) {
+  traceRecommendation("response.buildRecommendationResponse:input", {
+    totalCandidateCount,
+    turnCount,
+    input: summarizeRecommendationInputForTrace(input),
+    historyCount: history.length,
+    history: summarizeHistoryForTrace(history),
+    filterCount: filters.length,
+    filters: summarizeFiltersForTrace(filters),
+    messageCount: messages.length,
+    pagination: summarizePaginationForTrace(pagination),
+    displayedProductsCount: displayedProducts?.length ?? 0,
+  })
+  const nextQuestion = await selectNextQuestionForResponse({
+    input,
+    candidates,
+    history,
+    filters,
+    totalCandidateCount,
+  })
+  if (nextQuestion) {
     return buildQuestionResponse(
       deps,
       form,
@@ -869,6 +1027,13 @@ export async function buildRecommendationResponse(
     console.log(`[answer-validator:recommendation] Softened unauthorized actions: ${recValidation.unauthorizedActions.map(a => a.phrase).join(",")}`)
   }
 
+  traceRecommendation("response.buildRecommendationResponse:output", {
+    purpose: "recommendation",
+    text: finalResponseText,
+    chips: finalRecChips,
+    sessionState,
+    recommendation,
+  })
   return deps.jsonRecommendationResponse({
     text: finalResponseText,
     purpose: "recommendation",

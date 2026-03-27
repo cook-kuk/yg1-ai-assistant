@@ -5,10 +5,12 @@
  * Uses deterministic patterns first, falls back to Haiku LLM for ambiguous cases.
  */
 
-import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import { resolveModel, type LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import type { ExplorationSessionState } from "@/lib/recommendation/domain/types"
 import type { NarrowingIntent, IntentClassification } from "./types"
 import { resolveUndoTarget } from "@/lib/recommendation/domain/request-preparation"
+
+const INTENT_CLASSIFIER_MODEL = resolveModel("haiku", "intent-classifier")
 
 // ── Deterministic Patterns (fast path, no LLM) ──────────────
 
@@ -50,13 +52,13 @@ export async function classifyIntent(
 
   // ── 1. Nonsense ──
   if (!clean || NONSENSE_PATTERNS.some(p => p.test(clean))) {
-    return { intent: "OUT_OF_SCOPE", confidence: 0.95, modelUsed: "haiku" }
+    return { intent: "OUT_OF_SCOPE", confidence: 0.95, modelUsed: INTENT_CLASSIFIER_MODEL }
   }
 
   // ── 2. Reset (highest priority navigation) ──
   // Only match if the message IS a reset command, not a quote/meta-question containing one
   if (isExplicitResetIntent(clean)) {
-    return { intent: "RESET_SESSION", confidence: 0.98, modelUsed: "haiku" }
+    return { intent: "RESET_SESSION", confidence: 0.98, modelUsed: INTENT_CLASSIFIER_MODEL }
   }
 
   // ── 3. Undo / Back navigation (must be before general patterns) ──
@@ -68,10 +70,10 @@ export async function classifyIntent(
           intent: "GO_BACK_TO_SPECIFIC_STAGE",
           confidence: 0.95,
           extractedValue: undoResult.target.filterValue ?? undoResult.target.filterField,
-          modelUsed: "haiku",
+          modelUsed: INTENT_CLASSIFIER_MODEL,
         }
       }
-      return { intent: "GO_BACK_ONE_STEP", confidence: 0.95, modelUsed: "haiku" }
+      return { intent: "GO_BACK_ONE_STEP", confidence: 0.95, modelUsed: INTENT_CLASSIFIER_MODEL }
     }
   }
 
@@ -89,7 +91,7 @@ export async function classifyIntent(
         confidence: 0.95,
         extractedValue: "상관없음",
         reasoning: `Question-assist: skip ${pendingField} (pending field)`,
-        modelUsed: "haiku",
+        modelUsed: INTENT_CLASSIFIER_MODEL,
       }
     }
 
@@ -101,7 +103,7 @@ export async function classifyIntent(
         confidence: 0.92,
         extractedValue: "상관없음",
         reasoning: `Question-assist: delegate ${pendingField} (pending field)`,
-        modelUsed: "haiku",
+        modelUsed: INTENT_CLASSIFIER_MODEL,
       }
     }
 
@@ -109,7 +111,7 @@ export async function classifyIntent(
     // This is already handled downstream — just ensure it doesn't fall to general chat
     const NOVICE_PATTERNS = [/신입/, /처음/, /초보/, /입문/, /뉴비/, /하나도.*몰라/, /잘.*몰라/]
     if (NOVICE_PATTERNS.some(p => p.test(clean)) && clean.length < 40) {
-      return { intent: "ASK_EXPLANATION", confidence: 0.9, extractedValue: pendingField, modelUsed: "haiku" }
+      return { intent: "ASK_EXPLANATION", confidence: 0.9, extractedValue: pendingField, modelUsed: INTENT_CLASSIFIER_MODEL }
     }
   }
 
@@ -123,7 +125,7 @@ export async function classifyIntent(
           const optVal = opt.value.toLowerCase()
           const optLabel = opt.label.toLowerCase().replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
           if (chipClean === optVal || chipClean === optLabel || clean.startsWith(optVal) || clean.startsWith(optLabel)) {
-            return { intent: "SELECT_OPTION", confidence: 0.98, extractedValue: opt.value, reasoning: `Chip match: ${opt.label}`, modelUsed: "haiku" }
+            return { intent: "SELECT_OPTION", confidence: 0.98, extractedValue: opt.value, reasoning: `Chip match: ${opt.label}`, modelUsed: INTENT_CLASSIFIER_MODEL }
           }
         }
       }
@@ -132,7 +134,7 @@ export async function classifyIntent(
           if (metaChips.includes(chip)) continue
           const cv = chip.toLowerCase().replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
           if (chipClean === cv || clean === chip.toLowerCase()) {
-            return { intent: "SELECT_OPTION", confidence: 0.95, extractedValue: chip.replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim(), modelUsed: "haiku" }
+            return { intent: "SELECT_OPTION", confidence: 0.95, extractedValue: chip.replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim(), modelUsed: INTENT_CLASSIFIER_MODEL }
           }
         }
       }
@@ -144,7 +146,7 @@ export async function classifyIntent(
     if (REFINEMENT_PATTERNS.some(p => p.test(clean))) {
       // Detect which field to refine
       const field = detectRefinementField(clean)
-      return { intent: "REFINE_CONDITION", confidence: 0.92, extractedValue: field, modelUsed: "haiku" }
+      return { intent: "REFINE_CONDITION", confidence: 0.92, extractedValue: field, modelUsed: INTENT_CLASSIFIER_MODEL }
     }
   }
 
@@ -156,24 +158,24 @@ export async function classifyIntent(
         intent: "ASK_COMPARISON",
         confidence: 0.9,
         extractedValue: targets.join(","),
-        modelUsed: "haiku",
+        modelUsed: INTENT_CLASSIFIER_MODEL,
       }
     }
   }
 
   // ── 5. Explanation requests ──
   if (EXPLAIN_PATTERNS.some(p => p.test(clean))) {
-    return { intent: "ASK_EXPLANATION", confidence: 0.85, modelUsed: "haiku" }
+    return { intent: "ASK_EXPLANATION", confidence: 0.85, modelUsed: INTENT_CLASSIFIER_MODEL }
   }
 
   // ── 6. Immediate recommendation ──
   if (RECOMMEND_PATTERNS.some(p => clean.includes(p))) {
-    return { intent: "ASK_RECOMMENDATION", confidence: 0.9, modelUsed: "haiku" }
+    return { intent: "ASK_RECOMMENDATION", confidence: 0.9, modelUsed: INTENT_CLASSIFIER_MODEL }
   }
 
   // ── 7. Skip/Don't care ──
   if (SKIP_PATTERNS.some(p => clean.includes(p))) {
-    return { intent: "SELECT_OPTION", confidence: 0.9, extractedValue: "상관없음", modelUsed: "haiku" }
+    return { intent: "SELECT_OPTION", confidence: 0.9, extractedValue: "상관없음", modelUsed: INTENT_CLASSIFIER_MODEL }
   }
 
   // ── 7.5. Numbered option selection ("2번", "2번으로", "두번째로") ──
@@ -187,7 +189,7 @@ export async function classifyIntent(
           confidence: 0.95,
           extractedValue: option.value,
           reasoning: `Numbered option #${optionIndex}: ${option.label}`,
-          modelUsed: "haiku",
+          modelUsed: INTENT_CLASSIFIER_MODEL,
         }
       }
     }
@@ -195,7 +197,7 @@ export async function classifyIntent(
 
   // ── 7.6. Meta-questions about the process (NOT parameters) ──
   if (META_QUESTION_PATTERNS.some(p => p.test(clean))) {
-    return { intent: "ASK_EXPLANATION", confidence: 0.85, modelUsed: "haiku" }
+    return { intent: "ASK_EXPLANATION", confidence: 0.85, modelUsed: INTENT_CLASSIFIER_MODEL }
   }
 
   // ── 8. In active narrowing session: likely a parameter/option ──
@@ -207,7 +209,7 @@ export async function classifyIntent(
         intent: "SELECT_OPTION",
         confidence: 0.85,
         extractedValue: paramResult,
-        modelUsed: "haiku",
+        modelUsed: INTENT_CLASSIFIER_MODEL,
       }
     }
   }
@@ -225,9 +227,9 @@ export async function classifyIntent(
   if (sessionState) {
     // In any active session (narrowing OR resolved), route to general answer
     // This prevents "dead" responses after comparison or recommendation
-    return { intent: "START_NEW_TOPIC", confidence: 0.5, extractedValue: clean, modelUsed: "haiku" }
+    return { intent: "START_NEW_TOPIC", confidence: 0.5, extractedValue: clean, modelUsed: INTENT_CLASSIFIER_MODEL }
   }
-  return { intent: "OUT_OF_SCOPE", confidence: 0.3, modelUsed: "haiku" }
+  return { intent: "OUT_OF_SCOPE", confidence: 0.3, modelUsed: INTENT_CLASSIFIER_MODEL }
 }
 
 // ── Haiku LLM Classification ─────────────────────────────────
@@ -265,7 +267,7 @@ Respond: {"intent":"...", "confidence": 0.0-1.0, "extractedValue": "..." or null
     systemPrompt,
     [{ role: "user", content: message }],
     1500,
-    "haiku",
+    INTENT_CLASSIFIER_MODEL,
     "intent-classifier"
   )
 
@@ -276,10 +278,10 @@ Respond: {"intent":"...", "confidence": 0.0-1.0, "extractedValue": "..." or null
       confidence: parsed.confidence ?? 0.7,
       extractedValue: parsed.extractedValue ?? undefined,
       reasoning: `Haiku: ${parsed.intent}`,
-      modelUsed: "haiku",
+      modelUsed: INTENT_CLASSIFIER_MODEL,
     }
   } catch {
-    return { intent: "SET_PARAMETER", confidence: 0.4, modelUsed: "haiku" }
+    return { intent: "SET_PARAMETER", confidence: 0.4, modelUsed: INTENT_CLASSIFIER_MODEL }
   }
 }
 

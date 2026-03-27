@@ -1,6 +1,8 @@
-import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import { resolveModel, type LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import type { AppliedFilter } from "@/lib/recommendation/domain/types"
 import { parseAnswerToFilter } from "@/lib/recommendation/domain/question-engine"
+
+const LLM_FILTER_EXTRACTOR_MODEL = resolveModel("haiku", "llm-filter-extractor")
 
 export interface LlmFilterResult {
   extractedFilters: Record<string, string | number>
@@ -69,7 +71,7 @@ export async function extractFiltersWithLLM(
 {"extractedFilters": {}, "skipPendingField": false, "isSideQuestion": false, "confidence": 0.9}`
 
   try {
-    const raw = await provider.complete(systemPrompt, [{ role: "user", content: userPrompt }], 1500, "haiku", "llm-filter-extractor")
+    const raw = await provider.complete(systemPrompt, [{ role: "user", content: userPrompt }], 1500, LLM_FILTER_EXTRACTOR_MODEL, "llm-filter-extractor")
     const cleaned = raw.trim().replace(/```json\n?|\n?```/g, "")
     const parsed = JSON.parse(cleaned)
 

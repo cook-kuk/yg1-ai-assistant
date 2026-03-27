@@ -29,6 +29,7 @@ import { ENABLE_POST_SQL_CANDIDATE_FILTERS } from "@/lib/feature-flags"
 import { resolveMaterialTag } from "@/lib/recommendation/domain/material-resolver"
 import { getAppShapesForOperation } from "@/lib/recommendation/domain/operation-resolver"
 import { applyPostFilterToProducts } from "@/lib/recommendation/shared/filter-field-registry"
+import { traceRecommendation } from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
 
 // ── Result type ──────────────────────────────────────────────
 export interface HybridResult {
@@ -115,6 +116,98 @@ function formatScoredEdpList(candidates: ScoredProduct[], maxItems = 50): string
   )
 }
 
+function summarizeRecommendationInputForTrace(input: RecommendationInput) {
+  return {
+    manufacturerScope: input.manufacturerScope ?? null,
+    locale: input.locale ?? null,
+    material: input.material ?? null,
+    workPieceName: input.workPieceName ?? null,
+    diameterMm: input.diameterMm ?? null,
+    machiningCategory: input.machiningCategory ?? null,
+    operationType: input.operationType ?? null,
+    toolSubtype: input.toolSubtype ?? null,
+    flutePreference: input.flutePreference ?? null,
+    coatingPreference: input.coatingPreference ?? null,
+    seriesName: input.seriesName ?? null,
+  }
+}
+
+function summarizeFiltersForTrace(filters: AppliedFilter[]) {
+  return filters.map(filter => ({
+    field: filter.field,
+    op: filter.op,
+    value: filter.value,
+    rawValue: filter.rawValue,
+    appliedAt: filter.appliedAt,
+  }))
+}
+
+function summarizeProductPreviewForTrace(product: {
+  displayCode?: string | null
+  normalizedCode?: string | null
+  seriesName?: string | null
+  brand?: string | null
+  toolSubtype?: string | null
+  fluteCount?: number | null
+  diameterMm?: number | null
+  coating?: string | null
+}) {
+  return {
+    code: product.displayCode || product.normalizedCode || null,
+    seriesName: product.seriesName ?? null,
+    brand: product.brand ?? null,
+    toolSubtype: product.toolSubtype ?? null,
+    fluteCount: product.fluteCount ?? null,
+    diameterMm: product.diameterMm ?? null,
+    coating: product.coating ?? null,
+  }
+}
+
+function summarizeFetchedProductsForTrace(products: Array<{
+  displayCode?: string | null
+  normalizedCode?: string | null
+  seriesName?: string | null
+  brand?: string | null
+  toolSubtype?: string | null
+  fluteCount?: number | null
+  diameterMm?: number | null
+  coating?: string | null
+}>) {
+  return {
+    count: products.length,
+    preview: products.slice(0, 6).map(product => summarizeProductPreviewForTrace(product)),
+  }
+}
+
+function summarizeCandidatesForTrace(candidates: ScoredProduct[]) {
+  return {
+    count: candidates.length,
+    preview: candidates.slice(0, 6).map(candidate => ({
+      ...summarizeProductPreviewForTrace(candidate.product),
+      score: candidate.score,
+      matchStatus: candidate.matchStatus,
+      stockStatus: candidate.stockStatus,
+      totalStock: candidate.totalStock,
+      matchedFields: candidate.matchedFields.slice(0, 4),
+    })),
+  }
+}
+
+function summarizeEvidenceMapForTrace(evidenceMap: Map<string, EvidenceSummary>) {
+  const entries = Array.from(evidenceMap.entries())
+  return {
+    count: entries.length,
+    preview: entries.slice(0, 6).map(([code, summary]) => ({
+      code,
+      productCode: summary.productCode,
+      seriesName: summary.seriesName,
+      chunkCount: summary.chunks.length,
+      sourceCount: summary.sourceCount,
+      bestConfidence: summary.bestConfidence,
+    })),
+  }
+}
+
 // ── Main Entry Point ─────────────────────────────────────────
 export async function runHybridRetrieval(
   input: RecommendationInput,
@@ -122,6 +215,13 @@ export async function runHybridRetrieval(
   topN = 0,
   pagination: HybridRetrievalPagination | null = null,
 ): Promise<HybridResult> {
+  traceRecommendation("domain.runHybridRetrieval:input", {
+    input: summarizeRecommendationInputForTrace(input),
+    filters: summarizeFiltersForTrace(filters),
+    filterCount: filters.length,
+    topN,
+    pagination,
+  })
   const startedAt = Date.now()
   const shouldApplyPostSqlHeuristics = ENABLE_POST_SQL_CANDIDATE_FILTERS && !pagination
 
@@ -134,6 +234,13 @@ export async function runHybridRetrieval(
   const searchResult = pagination
     ? await ProductRepo.searchPage(input, filters, { limit, offset })
     : { products: await ProductRepo.search(input, filters, limit), totalCount: 0 }
+  traceRecommendation("domain.runHybridRetrieval:db-fetch", {
+    limit,
+    offset,
+    pagination,
+    fetchedProducts: summarizeFetchedProductsForTrace(searchResult.products),
+    totalCount: searchResult.totalCount,
+  })
   let candidates = searchResult.products
   const fetchMs = Date.now() - fetchStartedAt
   const appliedFilters: AppliedFilter[] = []
@@ -486,6 +593,16 @@ export async function runHybridRetrieval(
     `[recommend] hybrid timings: total=${Date.now() - startedAt}ms fetch=${fetchMs}ms filter=${filterMs}ms score_evidence=${scoreAndEvidenceMs}ms source=${initialCandidateCount} considered=${totalConsidered} final=${topCandidates.length}`
   )
 
+  traceRecommendation("domain.runHybridRetrieval:output", {
+    durationMs: Date.now() - startedAt,
+    fetchMs,
+    filterMs,
+    scoreAndEvidenceMs,
+    totalConsidered,
+    filtersApplied: summarizeFiltersForTrace(appliedFilters),
+    candidates: summarizeCandidatesForTrace(topCandidates),
+    evidenceMap: summarizeEvidenceMapForTrace(evidenceMap),
+  })
   return {
     candidates: topCandidates,
     evidenceMap,

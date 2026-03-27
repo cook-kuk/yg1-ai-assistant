@@ -37,6 +37,10 @@ export interface GeneralChatOptionState {
   finalDisplayedOptions: DisplayedOption[]
   userStateResult: UserStateResult
   isQuestionAssist: boolean
+  chipGroups?: Array<{
+    label: string
+    chips: string[]
+  }>
 }
 
 interface QuestionAssistOptionsInput {
@@ -53,6 +57,8 @@ interface QuestionAssistOptionsResult {
   options: SmartOption[]
   chips: string[]
   displayedOptions: DisplayedOption[]
+  helperChips: string[]
+  originalChips: string[]
   helperCount: number
   originalCount: number
 }
@@ -151,6 +157,7 @@ export async function buildGeneralChatOptionState(input: {
 
   let finalChips: string[]
   let finalDisplayedOptions: DisplayedOption[]
+  let chipGroups: GeneralChatOptionState["chipGroups"]
 
   if (generalSmartOptions.length > 0) {
     // LLM Chip Selector: Haiku가 전체 맥락 보고 최적 칩 선택
@@ -218,6 +225,10 @@ export async function buildGeneralChatOptionState(input: {
     if (assist.options.length > 0) {
       finalChips = assist.chips
       finalDisplayedOptions = assist.displayedOptions
+      chipGroups = [
+        ...(assist.helperChips.length > 0 ? [{ label: "현재 제안", chips: assist.helperChips }] : []),
+        ...(assist.originalChips.length > 0 ? [{ label: "이전 선택지", chips: assist.originalChips }] : []),
+      ]
       if (shouldMergeHelpers) {
         console.log(
           `[option-first] User state: ${userStateResult.state}, ${assist.helperCount} helpers merged (field=${assist.question?.field ?? "none"})`
@@ -237,6 +248,10 @@ export async function buildGeneralChatOptionState(input: {
     if (assist.options.length > 0) {
       finalChips = assist.chips
       finalDisplayedOptions = assist.displayedOptions
+      chipGroups = [
+        ...(assist.helperChips.length > 0 ? [{ label: "현재 제안", chips: assist.helperChips }] : []),
+        ...(assist.originalChips.length > 0 ? [{ label: "이전 선택지", chips: assist.originalChips }] : []),
+      ]
       console.log(
         `[question-assist] User ${userStateResult.state}, ${assist.helperCount} helpers + ${assist.originalCount} field options (field=${assist.question?.field ?? "none"})`
       )
@@ -254,6 +269,7 @@ export async function buildGeneralChatOptionState(input: {
     finalDisplayedOptions,
     userStateResult,
     isQuestionAssist,
+    chipGroups,
   }
   } catch (error) {
     console.error("[option-first] Error:", error)
@@ -262,6 +278,7 @@ export async function buildGeneralChatOptionState(input: {
       finalDisplayedOptions: [],
       userStateResult: { state: "normal", confidence: 0, confusedAbout: null, boundField: null },
       isQuestionAssist: false,
+      chipGroups: undefined,
     }
   }
 }
@@ -370,6 +387,8 @@ export function buildQuestionAssistOptions(
     options,
     chips: smartOptionsToChips(options),
     displayedOptions: smartOptionsToDisplayedOptions(options),
+    helperChips: smartOptionsToChips(helperOptions),
+    originalChips: smartOptionsToChips(originalOptions),
     helperCount: helperOptions.length,
     originalCount: originalOptions.length,
   }

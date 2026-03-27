@@ -448,37 +448,66 @@ function NarrowingChat({
                 const productListChip = message.chips.find(c => c.includes("제품 보기"))
                 const aiAnalysisChip = message.chips.find(c => c.includes("AI 상세 분석"))
                 const normalChips = message.chips.filter(c => !c.includes("제품 보기") && !c.includes("AI 상세 분석"))
+                const chipGroups = message.chipGroups?.filter(group => group.chips.length > 0) ?? []
+                console.log("[chip-groups:client:render]", {
+                  messageIndex: index,
+                  isLatest,
+                  chipCount: message.chips.length,
+                  chipPreview: message.chips.slice(0, 6),
+                  normalChipCount: normalChips.length,
+                  normalChipPreview: normalChips.slice(0, 6),
+                  chipGroupCount: chipGroups.length,
+                  chipGroups: chipGroups.map(group => ({
+                    label: group.label,
+                    count: group.chips.length,
+                    preview: group.chips.slice(0, 4),
+                  })),
+                })
+                const renderChipButton = (chip: string, chipIndex: number) => {
+                  const isResetChip = chip === "처음부터 다시" || chip === "처음부터"
+                  const isUndoChip = isUndoChipEnabled(chip, capabilities)
+                  return (
+                    <button
+                      key={`${chip}-${chipIndex}`}
+                      onClick={() => {
+                        if (!isLatest || needsFeedback || isSending) return
+                        if (isResetChip && onReset) onReset()
+                        else { setInput(""); onSend(chip) }
+                      }}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+                        !isLatest
+                          ? "bg-gray-50/50 border border-gray-200 text-gray-400 opacity-35 pointer-events-none"
+                          : needsFeedback
+                            ? "bg-gray-50 border border-gray-200 text-gray-400 cursor-not-allowed opacity-60"
+                            : isResetChip
+                              ? "bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+                              : isUndoChip
+                                ? "bg-amber-50 border border-amber-300 text-amber-700 hover:bg-amber-100 hover:border-amber-400"
+                                : "bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300"
+                      }`}
+                    >
+                      {chip}
+                    </button>
+                  )
+                }
                 return (
                   <>
-                    <div className="flex flex-wrap gap-1.5 mt-1">
-                      {normalChips.map((chip, chipIndex) => {
-                        const isResetChip = chip === "처음부터 다시" || chip === "처음부터"
-                        const isUndoChip = isUndoChipEnabled(chip, capabilities)
-                        return (
-                          <button
-                            key={chipIndex}
-                            onClick={() => {
-                              if (!isLatest || needsFeedback || isSending) return
-                              if (isResetChip && onReset) onReset()
-                              else { setInput(""); onSend(chip) }
-                            }}
-                            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-                              !isLatest
-                                ? "bg-gray-50/50 border border-gray-200 text-gray-400 opacity-35 pointer-events-none"
-                                : needsFeedback
-                                  ? "bg-gray-50 border border-gray-200 text-gray-400 cursor-not-allowed opacity-60"
-                                  : isResetChip
-                                    ? "bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
-                                    : isUndoChip
-                                      ? "bg-amber-50 border border-amber-300 text-amber-700 hover:bg-amber-100 hover:border-amber-400"
-                                      : "bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300"
-                            }`}
-                          >
-                            {chip}
-                          </button>
-                        )
-                      })}
-                    </div>
+                    {chipGroups.length > 0 ? (
+                      <div className="mt-1 space-y-2">
+                        {chipGroups.map((group, groupIndex) => (
+                          <div key={`${group.label}-${groupIndex}`} className="space-y-1">
+                            <div className="text-[10px] font-medium text-gray-400 px-1">{group.label}</div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {group.chips.map((chip, chipIndex) => renderChipButton(chip, chipIndex))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        {normalChips.map((chip, chipIndex) => renderChipButton(chip, chipIndex))}
+                      </div>
+                    )}
                     {isLatest && (productListChip || aiAnalysisChip) && (
                       <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-gray-100">
                         {productListChip && (

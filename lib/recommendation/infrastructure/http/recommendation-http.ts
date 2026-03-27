@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { installRecommendationConsoleGuard } from "@/lib/recommendation/infrastructure/observability/recommendation-console-guard"
 
 import { recommendationRequestSchema, type RecommendationRequestDto } from "@/lib/contracts/recommendation"
 import { RecommendationService } from "@/lib/recommendation/application/recommendation-service"
@@ -31,15 +32,23 @@ import {
   buildRecommendationResponseDto,
   getEngineSessionState,
 } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
+import {
+  traceRecommendation,
+  traceRecommendationError,
+} from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
 import type {
   ExplorationSessionState,
   ProductIntakeForm,
 } from "@/lib/recommendation/domain/types"
 
+installRecommendationConsoleGuard()
+
+// 외부 요청 body를 공개 API 계약 스키마로 검증한다.
 function parseRecommendationRequest(body: unknown): RecommendationRequestDto {
   return recommendationRequestSchema.parse(body) as RecommendationRequestDto
 }
 
+// 신형 sessionState가 있으면 그대로 쓰고, 없으면 구형 session payload를 호환 변환한다.
 function getRequestSessionState(body: RecommendationRequestDto): ExplorationSessionState | null {
   if (body.sessionState && typeof body.sessionState === "object") {
     return body.sessionState as ExplorationSessionState
@@ -48,15 +57,88 @@ function getRequestSessionState(body: RecommendationRequestDto): ExplorationSess
   return getEngineSessionState(body.session ?? null)
 }
 
+function summarizeRequestBodyForTrace(body: unknown) {
+  if (!body || typeof body !== "object") return { kind: typeof body }
+
+  const raw = body as Record<string, unknown>
+  const messages = Array.isArray(raw.messages) ? raw.messages as Array<Record<string, unknown>> : []
+  const displayedProducts = Array.isArray(raw.displayedProducts) ? raw.displayedProducts as Array<Record<string, unknown>> : []
+  const intakeForm = raw.intakeForm && typeof raw.intakeForm === "object"
+    ? raw.intakeForm as Record<string, unknown>
+    : null
+  const session = raw.session && typeof raw.session === "object"
+    ? raw.session as Record<string, unknown>
+    : null
+  const publicState = session?.publicState && typeof session.publicState === "object"
+    ? session.publicState as Record<string, unknown>
+    : null
+
+  return {
+    keys: Object.keys(raw),
+    engine: raw.engine ?? null,
+    language: raw.language ?? null,
+    mode: raw.mode ?? null,
+    intakeKeys: intakeForm ? Object.keys(intakeForm) : [],
+    messageCount: messages.length,
+    recentMessages: messages.slice(-3).map(message => ({
+      role: message.role ?? null,
+      text: typeof message.text === "string" ? message.text.slice(0, 120) : null,
+    })),
+    displayedProductCount: displayedProducts.length,
+    displayedProductPreview: displayedProducts.slice(0, 5).map(product => ({
+      rank: product.rank ?? null,
+      code: product.code ?? null,
+      series: product.series ?? null,
+      toolSubtype: product.toolSubtype ?? null,
+    })),
+    hasSession: !!session,
+    sessionPublicState: publicState ? {
+      currentMode: publicState.currentMode ?? null,
+      lastAskedField: publicState.lastAskedField ?? null,
+      resolutionStatus: publicState.resolutionStatus ?? null,
+      candidateCount: publicState.candidateCount ?? null,
+      displayedChipCount: Array.isArray(publicState.displayedChips) ? publicState.displayedChips.length : 0,
+      displayedOptionCount: Array.isArray(publicState.displayedOptions) ? publicState.displayedOptions.length : 0,
+    } : null,
+  }
+}
+
 export function jsonRecommendationResponse(
   params: Parameters<typeof buildRecommendationResponseDto>[0],
   init?: ResponseInit
 ): Response {
+  // 내부 도메인 응답을 프런트 계약 DTO로 변환한 뒤 JSON으로 내보낸다.
   const dto = buildRecommendationResponseDto(params)
+  traceRecommendation("http.jsonRecommendationResponse:dto", {
+    purpose: dto.purpose,
+    chipCount: dto.chips.length,
+    chipPreview: dto.chips.slice(0, 6),
+    chipGroupCount: dto.chipGroups?.length ?? 0,
+    chipGroups: (dto.chipGroups ?? []).map(group => ({
+      label: group.label,
+      count: group.chips.length,
+      preview: group.chips.slice(0, 4),
+    })),
+    sessionLastAskedField: dto.session.publicState?.lastAskedField ?? null,
+    sessionMode: dto.session.publicState?.currentMode ?? null,
+  })
+  console.log("[chip-groups:server:http]", JSON.stringify({
+    purpose: dto.purpose,
+    chipCount: dto.chips.length,
+    chipPreview: dto.chips.slice(0, 6),
+    chipGroupCount: dto.chipGroups?.length ?? 0,
+    chipGroups: (dto.chipGroups ?? []).map(group => ({
+      label: group.label,
+      count: group.chips.length,
+      preview: group.chips.slice(0, 4),
+    })),
+    sessionLastAskedField: dto.session.publicState?.lastAskedField ?? null,
+    sessionMode: dto.session.publicState?.currentMode ?? null,
+  }))
 
   return NextResponse.json({
     ...dto,
-    // Backward-compatible aliases kept temporarily while the UI migrates.
+    // UI 마이그레이션 동안만 유지하는 하위 호환 alias다.
     sessionState: params.sessionState ?? null,
     candidateSnapshot: params.candidateSnapshot ?? null,
     extractedField: params.meta?.extractedField ?? null,
@@ -64,6 +146,7 @@ export function jsonRecommendationResponse(
 }
 
 function createServeRuntimeDependencies(): ServeEngineRuntimeDependencies {
+  // 런타임이 직접 import하지 않도록, 응답/보조 기능들을 의존성으로 묶어 주입한다.
   const responseDeps = { jsonRecommendationResponse }
 
   return {
@@ -87,8 +170,7 @@ function createServeRuntimeDependencies(): ServeEngineRuntimeDependencies {
       overrideText?: Parameters<typeof buildQuestionResponse>[15],
       existingStageHistory?: Parameters<typeof buildQuestionResponse>[16],
       excludeWorkPieceValues?: Parameters<typeof buildQuestionResponse>[17],
-      preferredQuestionField?: Parameters<typeof buildQuestionResponse>[18],
-      responsePrefix?: Parameters<typeof buildQuestionResponse>[19],
+      responsePrefix?: Parameters<typeof buildQuestionResponse>[18],
     ) => buildQuestionResponse(
       responseDeps,
       form,
@@ -108,7 +190,6 @@ function createServeRuntimeDependencies(): ServeEngineRuntimeDependencies {
       overrideText,
       existingStageHistory,
       excludeWorkPieceValues,
-      preferredQuestionField,
       responsePrefix,
     ),
     buildRecommendationResponse: (
@@ -147,6 +228,7 @@ function createServeRuntimeDependencies(): ServeEngineRuntimeDependencies {
     ),
     buildCandidateSnapshot,
     handleDirectInventoryQuestion,
+    // provider 생성 시점은 요청 처리 직전으로 늦춰, 테스트/런타임 교체를 쉽게 한다.
     handleDirectEntityProfileQuestion: (userMessage, currentInput, prevState) =>
       handleDirectEntityProfileQuestion(getProvider(), userMessage, currentInput, prevState),
     handleDirectProductInfoQuestion,
@@ -160,6 +242,7 @@ function createServeRuntimeDependencies(): ServeEngineRuntimeDependencies {
   }
 }
 
+// API route 레벨에서 서비스 인스턴스를 재사용해 엔진 생성 비용을 줄인다.
 let recommendationService: RecommendationService | null = null
 
 export function getRecommendationService(): RecommendationService {
@@ -170,15 +253,19 @@ export function getRecommendationService(): RecommendationService {
   const runtimeDeps = createServeRuntimeDependencies()
 
   recommendationService = new RecommendationService({
+    // 별도 engineId가 없으면 serve 엔진을 기본 경로로 사용한다.
     defaultEngineId: "serve",
     engines: [
       createServeRecommendationEngine({
+        // 세션 추천 요청은 공통 serve exploration 런타임으로 연결한다.
         runSession: async ({ form, messages, prevState, displayedProducts, pagination, language }) =>
           handleServeExploration(runtimeDeps, form, messages, prevState, displayedProducts ?? null, language, pagination ?? null),
+        // intakeForm 없는 레거시 chat 요청도 같은 serve 런타임의 단순 채팅 경로로 보낸다.
         runLegacyChat: async ({ messages, mode }) =>
           handleServeSimpleChat(runtimeDeps, messages, mode ?? "simple"),
       }),
       createMainRecommendationEngine({
+        // main 엔진도 현재는 동일한 exploration/runtime 구현을 공유한다.
         runSession: async ({ form, messages, prevState, displayedProducts, pagination, language }) =>
           handleServeExploration(runtimeDeps, form, messages, prevState, displayedProducts ?? null, language, pagination ?? null),
         runLegacyChat: async ({ messages, mode }) =>
@@ -192,10 +279,19 @@ export function getRecommendationService(): RecommendationService {
 
 export async function handleRecommendationPost(req: Request): Promise<Response> {
   try {
-    const body = parseRecommendationRequest(await req.json())
+    // 1. 요청 본문을 읽고
+    const rawBody = await req.json()
+    traceRecommendation("http.handleRecommendationPost:input", {
+      method: "POST",
+      url: req.url,
+      body: summarizeRequestBodyForTrace(rawBody),
+    })
+    const body = parseRecommendationRequest(rawBody)
+    // 2. 서비스/엔진 진입점을 준비한 뒤
     const recommendationService = getRecommendationService()
 
-    return recommendationService.handleRequest({
+    // 3. 공개 DTO를 내부 command 형태로 바꿔 서비스에 넘긴다.
+    const response = await recommendationService.handleRequest({
       engineId: body.engine,
       intakeForm: body.intakeForm as ProductIntakeForm | undefined,
       messages: body.messages ?? [],
@@ -205,9 +301,17 @@ export async function handleRecommendationPost(req: Request): Promise<Response> 
       language: body.language === "en" ? "en" : "ko",
       mode: body.mode ?? "simple",
     })
+    traceRecommendation("http.handleRecommendationPost:output", {
+      status: response.status,
+      ok: response.ok,
+      engineId: body.engine ?? "serve",
+    })
+    return response
   } catch (err) {
+    traceRecommendationError("http.handleRecommendationPost:error", err)
     console.error("[recommend] Error:", err)
 
+    // 계약된 에러 응답 형태를 유지해 UI가 항상 같은 구조를 받도록 한다.
     return jsonRecommendationResponse({
       error: "internal_error",
       detail: err instanceof Error ? err.message : "Unknown error",
