@@ -1050,8 +1050,14 @@ async function handleServeExplorationInner(
   const isProductListRequest = /제품 보기|후보 목록|제품 목록|바로 보기/u.test(userText)
   const isAIAnalysisRequest = /AI 상세 분석|상세 분석|분석해/u.test(userText)
   const isRecommendRequest = /추천받기|추천보기|추천해주세요|추천해줘|바로 보여|결과 보여|지금 조건으로/u.test(userText)
+  const isStockFilterRequest = /재고.*있|재고.*확인|재고.*된|즉시.*구매|바로.*구매|재고.*만/u.test(userText)
 
-  if (prevState && (isProductListRequest || isAIAnalysisRequest || isRecommendRequest)) {
+  if (prevState && isStockFilterRequest) {
+    pendingSelectionAction = { type: "filter_by_stock", stockFilter: "instock" } as OrchestratorAction
+    console.log(`[stock-filter] Detected stock filter request`)
+  }
+
+  if (!pendingSelectionAction && prevState && (isProductListRequest || isAIAnalysisRequest || isRecommendRequest)) {
     const currentCount = prevState.candidateCount ?? 0
 
     if (isProductListRequest) {
@@ -1061,10 +1067,14 @@ async function handleServeExplorationInner(
       ;(pendingSelectionAction as any)._quickViewText = `현재 조건에 맞는 **${currentCount}개** 제품입니다. 상세 분석이 필요하시면 "✨ AI 상세 분석"을 눌러주세요.`
       console.log(`[product-list] ${currentCount} candidates → quick product view`)
     } else if (isAIAnalysisRequest) {
-      // AI 상세 분석은 개수 제한 없음 — 현재 추천 리스트 기반 깊은 분석
-      const analysisPrompt = `현재 ${currentCount}개 후보 제품에 대해 상세 분석을 해주세요. 상위 제품들의 특성, 용도별 적합성, 선택 가이드를 자세히 설명해주세요.`
-      pendingSelectionAction = { type: "answer_general", message: analysisPrompt } as OrchestratorAction
-      console.log(`[ai-analysis] ${currentCount} candidates → deep analysis`)
+      // AI 상세 분석: 현재 추천 리스트 기반 깊은 분석
+      const topProducts = (prevState.displayedCandidates ?? []).slice(0, 10)
+      const productSummary = topProducts.map((p, i) =>
+        `${i + 1}. ${p.displayCode} (${p.seriesName ?? "?"}) | ${p.brand ?? "?"} | ${p.toolSubtype ?? "?"} | φ${p.diameterMm ?? "?"}mm | ${p.fluteCount ?? "?"}F | ${p.coating ?? "?"} | ${p.materialTags?.join("/") ?? "?"}`
+      ).join("\n")
+      const analysisPrompt = `현재 ${currentCount}개 후보 중 상위 제품:\n${productSummary}\n\n위 제품들의 특성, 시리즈별 차이, 용도별 적합성, 선택 가이드를 상세히 분석해주세요. [DB 데이터]와 [AI 보충 의견] 섹션으로 구분하세요.`
+      pendingSelectionAction = { type: "answer_general", message: analysisPrompt, preGenerated: false } as OrchestratorAction
+      console.log(`[ai-analysis] ${currentCount} candidates, top ${topProducts.length} → deep analysis`)
     } else if (isRecommendRequest) {
       pendingSelectionAction = { type: "show_recommendation" } as OrchestratorAction
     }

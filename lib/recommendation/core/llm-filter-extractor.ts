@@ -58,6 +58,7 @@ export async function extractFiltersWithLLM(
 - "쿨런트홀 있는" / "쿨런트 홀" / "내부 급유" → coolantHole: true
 - "쿨런트홀 없는" / "외부 급유" → coolantHole: false
 - "헬릭스 45도" / "나선각 45" / "helix 45" → helixAngleDeg: 45
+- "A 말고 B로" / "A 대신 B" / "B로 바꿔" → extractedFilters에 B값만 넣어라 (A는 시스템이 자동 제거)
 - "상관없음" / "몰라" / "아무거나" / "패스" / "스킵" → skipPendingField: true
 - 공장/회사/지점/본사/영업소/연락처/전화번호 질문 → isSideQuestion: true
 

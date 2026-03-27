@@ -80,6 +80,8 @@ function buildJudgmentPrompt(input: UnifiedJudgmentInput): string {
    - "변경", "바꾸고", "바꿔", "틀렸", "실수", "다시", "고치" + 필드명(날수/직경/코팅/형상/소재) → intentAction: "refine_condition" (select_option 아님!)
    - "N날로 해줘", "코팅 바꿔줘" 같은 직접 값 지정도 refine_condition
    - "재고 있는 것만", "재고 확인", "즉시 구매", "재고 된 거만" → domainRelevance: "product_query", intentAction: "select_option" (재고 필터링)
+   - "쉽게 설명해줘", "쉽게 알려줘", "설명해줘", "뭐가 다른거야", "어떤 차이" → intentAction: "explain" (현재 표시된 선택지/시리즈 설명)
+   - "A 말고 B로", "A 대신 B", "B로 바꿔", "B로 교체" → intentAction: "refine_condition", intentShift: "replace_constraint" (기존 A 제거 → B 적용)
 8. questionShape: 시스템응답에 질문이 있으면 형태 — binary_yes_no|binary_proceed|explicit_choice|constrained_options|open_ended|none
 9. extractedAnswer: 사용자가 선택한 값(칩 텍스트/값) 추출, 없으면 null
    - 가공방식 키워드 매핑: "램핑"→Radius, "슬롯"→Square, "프로파일"→Ball, "정삭"→Finishing, "황삭"→Roughing
