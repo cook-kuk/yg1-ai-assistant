@@ -232,7 +232,7 @@ async function executeWebSearch(
       operation: "web_search",
       request: {
         model: deps.anthropicChatModel as Parameters<typeof deps.client.messages.create>[0]["model"],
-        max_tokens: 1024,
+        max_tokens: 1500,
         tools: [{ type: "web_search_20250305" as const, name: "web_search", max_uses: 3 }],
         messages: [{
           role: "user",
@@ -662,7 +662,7 @@ async function executeGetCompetitorMapping(
         operation: "competitor_web_search",
         request: {
           model: deps.anthropicChatModel as Parameters<typeof deps.client.messages.create>[0]["model"],
-          max_tokens: 1024,
+          max_tokens: 1500,
           tools: [{ type: "web_search_20250305" as const, name: "web_search", max_uses: 2 }],
           messages: [{
             role: "user",
@@ -688,7 +688,7 @@ async function executeGetCompetitorMapping(
         operation: "competitor_spec_extract",
         request: {
           model: deps.anthropicChatModel as Parameters<typeof deps.client.messages.create>[0]["model"],
-          max_tokens: 200,
+          max_tokens: 1500,
           messages: [{
             role: "user",
             content: `From this text, extract cutting tool specs as JSON. Only include fields you're confident about.\n\n${webSpecs.slice(0, 1500)}\n\nJSON: {"diameter_mm":null,"flute_count":null,"coating":null,"material":"","tool_type":""}`,

@@ -81,7 +81,7 @@ export function createClaudeProvider(): LLMProvider {
   return {
     available() { return !!process.env.ANTHROPIC_API_KEY },
 
-    async complete(systemPrompt, messages, maxTokens = 1024, modelTier?, agentName?) {
+    async complete(systemPrompt, messages, maxTokens = 1500, modelTier?, agentName?) {
       if (!this.available()) throw new Error("No ANTHROPIC_API_KEY")
       const model = resolveModel(modelTier, agentName)
       const startMs = Date.now()
@@ -130,7 +130,7 @@ export function createClaudeProvider(): LLMProvider {
       }
     },
 
-    async completeWithTools(systemPrompt, messages, tools, maxTokens = 1024, modelTier?, agentName?) {
+    async completeWithTools(systemPrompt, messages, tools, maxTokens = 1500, modelTier?, agentName?) {
       if (!this.available()) throw new Error("No ANTHROPIC_API_KEY")
       const model = resolveModel(modelTier, agentName)
       const startMs = Date.now()

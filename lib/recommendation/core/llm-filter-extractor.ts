@@ -69,7 +69,7 @@ export async function extractFiltersWithLLM(
 {"extractedFilters": {}, "skipPendingField": false, "isSideQuestion": false, "confidence": 0.9}`
 
   try {
-    const raw = await provider.complete(systemPrompt, [{ role: "user", content: userPrompt }], 500, "haiku", "llm-filter-extractor")
+    const raw = await provider.complete(systemPrompt, [{ role: "user", content: userPrompt }], 1500, "haiku", "llm-filter-extractor")
     const cleaned = raw.trim().replace(/```json\n?|\n?```/g, "")
     const parsed = JSON.parse(cleaned)
 
