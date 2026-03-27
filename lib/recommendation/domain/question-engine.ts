@@ -52,11 +52,17 @@ export function checkResolution(
 ): ResolutionStatus {
   if (candidateCountHint === 0 || candidates.length === 0) return "resolved_none"
 
-  // 자동 전환은 후보 3개 이하일 때만 — 그 외에는 사용자가 "추천받기" 버튼을 눌러야 전환
+  // 자동 전환: 후보 3개 이하 또는 충분히 좁혀졌을 때
+  const top = candidates[0]
   if (candidateCountHint <= 3) {
-    const top = candidates[0]
     if (top.matchStatus === "exact") return "resolved_exact"
     if (top.score >= 30) return "resolved_approximate"
+  }
+
+  // 30개 이하 + 3턴 이상이면 자동 전환 (더 이상 좁힐 필요 없음)
+  if (candidateCountHint <= 30 && history.length >= 3) {
+    if (top.matchStatus === "exact") return "resolved_exact"
+    return "resolved_approximate"
   }
 
   if (history.length === 0) return "broad"
