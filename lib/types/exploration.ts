@@ -158,9 +158,9 @@ export interface ExplorationSessionState {
 
   // ── Durable UI context (single source of truth) ──
   displayedCandidates: CandidateSnapshot[]  // what the user currently sees
-  fullDisplayedCandidates?: CandidateSnapshot[]
+  fullDisplayedCandidates?: CandidateSnapshot[]  // in-display 필터 전 원본 (filter_displayed 복원용)
   filterValueScope?: Record<string, string[]>
-  displayedSetFilter?: { field: string; operator: string; value: string } | null
+  displayedSetFilter?: { field: string; operator: string; value: string } | null  // 현재 적용된 in-display 필터
   displayedChips: string[]                  // chips shown with the last question
   displayedOptions: DisplayedOption[]       // structured narrowing options for numbered selection
   lastAction?: LastActionType               // what the system did last turn
