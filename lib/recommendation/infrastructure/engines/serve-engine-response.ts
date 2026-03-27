@@ -254,13 +254,26 @@ async function buildWorkPieceQuestion(
     ? allWorkPieceNames.filter(name => !excludeValues.includes(name))
     : allWorkPieceNames
 
-  // ── 현재 candidates에 실제로 있는 workPiece만 남기기 ──
+  // ── DB 기준 실제 제품 수로 workPiece 필터링 + 개수 계산 ──
+  // countProductsByWorkPiece는 brand_reference JOIN product_recommendation_mv로
+  // 실제 필터 적용(edpSeriesName)과 동일한 경로로 개수를 계산한다.
   var workPieceCounts: Map<string, number> | undefined
-  if (candidates && candidates.length > 0) {
-    const candidateSeriesSet = new Set(
-      candidates.map(c => (c.product.seriesName ?? "").trim().toUpperCase()).filter(Boolean)
-    )
-    // 각 workPiece에 대해 시리즈가 candidates에 있는지 확인 + 개수 계산
+  const dbCounts = await getSessionCache().getOrFetch(
+    `workPieceProductCounts:${isoGroup}`,
+    () => BrandReferenceRepo.countProductsByWorkPiece(isoGroup)
+  )
+  if (dbCounts.size > 0) {
+    const validNamesWithCount: { name: string; count: number }[] = []
+    for (const name of relevantNames) {
+      const count = dbCounts.get(name) ?? 0
+      if (count > 0) validNamesWithCount.push({ name, count })
+    }
+    const removed = relevantNames.length - validNamesWithCount.length
+    if (removed > 0) console.log(`[workpiece-filter] Removed ${removed} workPieces with 0 matching products (DB count)`)
+    relevantNames = validNamesWithCount.map(v => v.name)
+    workPieceCounts = new Map(validNamesWithCount.map(v => [v.name, v.count]))
+  } else if (candidates && candidates.length > 0) {
+    // DB 카운트 불가 시 후보 기반 fallback
     const validNamesWithCount: { name: string; count: number }[] = []
     for (const name of relevantNames) {
       const series = await getSessionCache().getOrFetch(
@@ -275,10 +288,9 @@ async function buildWorkPieceQuestion(
       if (count > 0) validNamesWithCount.push({ name, count })
     }
     const removed = relevantNames.length - validNamesWithCount.length
-    if (removed > 0) console.log(`[workpiece-filter] Removed ${removed} workPieces with 0 matching candidates`)
+    if (removed > 0) console.log(`[workpiece-filter] Removed ${removed} workPieces with 0 matching candidates (fallback)`)
     relevantNames = validNamesWithCount.map(v => v.name)
-    // 개수 정보를 칩 생성 시 사용하기 위해 저장
-    var workPieceCounts = new Map(validNamesWithCount.map(v => [v.name, v.count]))
+    workPieceCounts = new Map(validNamesWithCount.map(v => [v.name, v.count]))
   }
 
   // 중복 제거 (공백 차이: "알루미늄(연질)" vs "알루미늄 (연질)")

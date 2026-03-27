@@ -7,7 +7,6 @@
  * No LLM needed for question selection — only for polishing question text.
  */
 
-import { buildProductLabel } from "@/lib/recommendation/domain/product-label"
 import { parseFieldAnswerToFilter } from "@/lib/recommendation/shared/filter-field-registry"
 import { OPERATION_SHAPE_OPTIONS } from "@/lib/types/intake"
 
@@ -305,8 +304,8 @@ function buildSeriesQuestion(candidates: ScoredProduct[]): FieldAnalysis | null 
     .slice(0, 4)
     .map(([value, count]) => {
       const representative = seriesRepProduct.get(value)
-      const label = representative ? buildProductLabel(representative.product) : null
-      return label ? `${value} — ${label} (${count}개)` : `${value} (${count}개)`
+      const brandName = representative?.product.brand ?? null
+      return brandName ? `${value} — ${brandName} (${count}개)` : `${value} (${count}개)`
     })
   if (chips.length <= 1) return null
 
