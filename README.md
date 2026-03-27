@@ -302,20 +302,14 @@ type NarrowingIntent =
        └────────┬───────┘
                 ▼
 ┌─────────────────────────────────┐
-│ 2. Action 결정                   │
-│    • continue_narrowing          │  → 필터 적용하고 후보 축소
-│    • compare_products            │  → 비교 테이블 생성
-│    • explain_product             │  → 제품/개념 설명
-│    • reset_session               │  → 세션 초기화
-│    • filter_displayed            │  → 표시된 후보에서 필터
-│    • query_displayed             │  → 표시된 후보에 대한 질문
-│    • ask_clarification           │  → 사용자에게 명확화 요청
-│    • undo_step / go_to_stage     │  → 탐색 이력 탐색
+│ 2. Action 결정 (routeToAction)  │  ← intent → 실행 가능한 action 변환
+│    (상세 구조는 아래 참조)         │
 └──────────────┬──────────────────┘
                │
                ▼
 ┌─────────────────────────────────┐
 │ 3. 결정론적 엔진 실행            │  ← LLM이 아닌 코드로 실행
+│    (action.type별 핸들러 분기)    │
 │    • DB 쿼리 + 필터              │
 │    • 스코어링                    │
 │    • 세션 상태 업데이트           │
@@ -343,6 +337,296 @@ interface OrchestratorResult {
   }[]
   escalatedToOpus: boolean          // Opus 에스컬레이션 여부
 }
+```
+
+### Step 2 상세: Action 결정 (`routeToAction`)
+
+> **파일**: `lib/recommendation/infrastructure/agents/orchestrator.ts` — `routeToAction()` 함수
+>
+> Step 1에서 분류된 `NarrowingIntent`를 실행 가능한 `OrchestratorAction`으로 변환하는 **switch 라우터**.
+> 이 함수가 반환한 action.type에 따라 Step 3의 엔진 핸들러가 결정됩니다.
+
+#### Action 타입 정의 (전체)
+
+```typescript
+// lib/recommendation/infrastructure/agents/types.ts
+
+type OrchestratorAction =
+  | { type: "continue_narrowing"; filter: AppliedFilter }
+  | { type: "replace_existing_filter"; targetField: string; previousValue: string; nextFilter: AppliedFilter }
+  | { type: "skip_field" }
+  | { type: "show_recommendation" }
+  | { type: "go_back_one_step" }
+  | { type: "go_back_to_filter"; filterValue: string; filterField?: string }
+  | { type: "reset_session" }
+  | { type: "compare_products"; targets: string[] }
+  | { type: "explain_product"; target?: string }
+  | { type: "answer_general"; message: string; preGenerated?: boolean }
+  | { type: "refine_condition"; field: string }
+  | { type: "redirect_off_topic" }
+  | { type: "filter_by_stock"; stockFilter: "instock" | "limited" | "all" }
+```
+
+#### Intent → Action 매핑 테이블
+
+```
+┌───────────────────────────────┐        ┌──────────────────────────────────┐
+│     NarrowingIntent           │        │     OrchestratorAction           │
+│     (Step 1 결과)              │  ───▶  │     (Step 2 결과)                │
+├───────────────────────────────┤        ├──────────────────────────────────┤
+│ RESET_SESSION                 │  ───▶  │ reset_session                    │
+│ GO_BACK_ONE_STEP              │  ───▶  │ go_back_one_step                 │
+│ GO_BACK_TO_SPECIFIC_STAGE     │  ───▶  │ go_back_to_filter                │
+│ ASK_RECOMMENDATION            │  ───▶  │ show_recommendation              │
+│ ASK_COMPARISON                │  ───▶  │ compare_products                 │
+│ ASK_EXPLANATION / ASK_REASON  │  ───▶  │ explain_product                  │
+│ SELECT_OPTION / SET_PARAMETER │  ───▶  │ continue_narrowing (복합 분기)    │
+│ REFINE_CONDITION              │  ───▶  │ refine_condition                 │
+│ START_NEW_TOPIC               │  ───▶  │ answer_general                   │
+│ OUT_OF_SCOPE                  │  ───▶  │ redirect_off_topic               │
+└───────────────────────────────┘        └──────────────────────────────────┘
+```
+
+#### 각 Action의 상세 라우팅 로직
+
+**1. `reset_session`** — 세션 초기화
+```
+Intent: RESET_SESSION
+입력: "처음부터 다시", "리셋", "초기화"
+동작: 모든 필터/이력/세션 상태를 초기화하고 처음부터 시작
+핸들러: serve-engine-runtime.ts → handleResetSession()
+```
+
+**2. `go_back_one_step` / `go_back_to_filter`** — 탐색 이력 탐색
+```
+Intent: GO_BACK_ONE_STEP / GO_BACK_TO_SPECIFIC_STAGE
+입력: "이전으로", "소재 선택으로 돌아가기"
+동작:
+  • go_back_one_step → 마지막 필터 1개 제거
+  • go_back_to_filter → 특정 필터 시점으로 복원
+    - filterValue: 돌아갈 필터 값 (예: "SUS304")
+    - filterField: findFilterField()로 세션 이력에서 필드명 역추적
+핸들러: serve-engine-navigation.ts → handleGoBack()
+```
+
+**3. `show_recommendation`** — 추천 결과 표시
+```
+Intent: ASK_RECOMMENDATION
+입력: "추천해주세요", "결과 보기", "바로 보여주세요"
+동작: 현재 후보 기반으로 추천 결과 + 제품 카드 생성
+핸들러: serve-engine-runtime.ts → handleShowRecommendation()
+```
+
+**4. `compare_products`** — 제품 비교
+```
+Intent: ASK_COMPARISON
+입력: "1번 2번 비교", "상위 3개 비교해줘"
+동작:
+  • extractComparisonTargets()로 비교 대상 파싱
+    - "N번" 패턴 → ["1번", "2번"]
+    - "상위 N개" 패턴 → ["상위3"]
+  • targets 배열을 비교 엔진에 전달
+핸들러: serve-engine-comparison.ts → handleCompareProducts()
+```
+
+**5. `explain_product`** — 설명/근거
+```
+Intent: ASK_EXPLANATION / ASK_REASON
+입력: "코팅 종류 설명해줘", "왜 이거 추천했어?"
+동작:
+  • target에 특수 키워드 가능:
+    - "__confirm_scope__" → 현재 필터/상태 요약
+    - "__summarize_task__" → 지금까지 진행 상황 정리
+    - 일반 텍스트 → 해당 개념/제품 설명
+핸들러: serve-engine-general-chat.ts → handleServeGeneralChatAction()
+```
+
+**6. `continue_narrowing`** — 필터 적용 & 후보 축소 (★ 가장 복잡)
+```
+Intent: SELECT_OPTION / SET_PARAMETER
+입력: "4날", "AlTiN", "SUS304", 옵션 칩 클릭
+
+[분기 로직 — 3단계 폴백]
+
+  Step A: displayedOption 매칭 시도
+  ┌─────────────────────────────────────────────────┐
+  │ resolveDisplayedOptionSelection()               │
+  │  • 사용자 입력을 displayedOptions와 매칭         │
+  │  • "N번" 인덱스 매칭 → option.index              │
+  │  • 텍스트 정규화 후 label/value 매칭              │
+  │  • pendingField 우선 매칭 (질문 맥락)             │
+  └──────────────┬──────────────────────────────────┘
+                 │
+          매칭 성공?
+          ┌──────┴──────┐
+          │ Yes         │ No
+          ▼             ▼
+  buildFilterFrom    Step B로
+  DisplayedOption()
+
+  Step B: displayedOption에서 필터 빌드
+  ┌─────────────────────────────────────────────────┐
+  │ buildFilterFromDisplayedOption()                 │
+  │  • option.field === "_action" → null (액션 칩)   │
+  │  • "상관없음" → { op: "skip" } → skip_field      │
+  │  • "날수로 좁히기" → refine_condition (fluteCount) │
+  │  • 일반 옵션 → parseAnswerToFilter() → filter    │
+  └──────────────┬──────────────────────────────────┘
+                 │
+          필터 생성?
+          ┌──────┴──────┐
+          │ Yes         │ No
+          ▼             ▼
+  continue_narrowing  Step C로
+
+  Step C: extractedParams에서 필터 빌드 (LLM 추출값)
+  ┌─────────────────────────────────────────────────┐
+  │ buildFilterFromParams()                          │
+  │  • Parameter Extractor가 추출한 값으로 필터 생성  │
+  │  • 실패 시 → answer_general (일반 답변 폴백)      │
+  └─────────────────────────────────────────────────┘
+
+핸들러: serve-engine-runtime.ts (continue_narrowing 블록)
+  • Value Normalizer: 사용자 입력을 DB 실제 값에 매칭
+    - Tier 1: exact match (즉시)
+    - Tier 2: fuzzy match (즉시)
+    - Tier 3: Haiku LLM 번역 (~200ms)
+  • 필터 적용 → 새 후보 검색 → 해상도 체크
+  • resolved → 추천 결과 반환
+  • 미해결 → 다음 질문 생성
+```
+
+**7. `replace_existing_filter`** — 기존 필터 교체
+```
+Intent: (SELECT_OPTION/SET_PARAMETER에서 파생)
+입력: "소재를 알루미늄으로 바꿔줘"
+동작:
+  • restoreToBeforeFilter()로 해당 필터 이전 상태로 복원
+  • 새 필터 적용 → 후보 재검색
+  • 교체 전/후 후보 수 비교
+  • 0개면 경고 응답, 아니면 정상 진행
+핸들러: serve-engine-runtime.ts (replace_existing_filter 블록)
+```
+
+**8. `skip_field`** — 필드 건너뛰기
+```
+Intent: SELECT_OPTION (value="상관없음")
+입력: "상관없음", "패스", "아무거나"
+동작:
+  • { op: "skip", value: "상관없음" } 필터 생성
+  • material skip 시 → 의존 필터(workPiece 등)도 제거
+  • 다음 질문으로 진행
+핸들러: serve-engine-runtime.ts (skip_field 블록)
+```
+
+**9. `refine_condition`** — 조건 수정 질문
+```
+Intent: REFINE_CONDITION
+입력: "날수를 변경하고 싶어"
+동작:
+  • field 매핑: "날수" → fluteCount, "소재" → material 등
+  • 해당 필드의 수정 옵션 생성 (buildRefinementOptionState)
+  • 사용자에게 "어떤 값으로 변경하시겠어요?" 질문
+핸들러: serve-engine-runtime.ts (refine_condition 블록)
+```
+
+**10. `answer_general`** — 일반 답변
+```
+Intent: START_NEW_TOPIC
+입력: "안녕", "고마워", 범위 밖 대화
+동작:
+  • LLM으로 자연어 응답 생성
+  • 진행 중 질문이 있으면 suspendedFlow에 저장 (나중에 복원)
+핸들러: serve-engine-general-chat.ts → handleServeGeneralChatAction()
+```
+
+**11. `redirect_off_topic`** — 범위 밖 리다이렉트
+```
+Intent: OUT_OF_SCOPE
+입력: 의미 없는 입력, 완전히 무관한 질문
+동작:
+  • analyzeInquiry()로 2차 분석
+  • company_query면 → answer_general로 전환 (YG-1 관련이면 답변)
+  • 진짜 범위 밖이면 → 리다이렉트 메시지 반환
+핸들러: serve-engine-runtime.ts (redirect_off_topic 블록)
+```
+
+**12. `filter_by_stock`** — 재고 필터
+```
+Intent: (CTA 버튼/칩에서 파생)
+입력: "재고 있는 것만 보기"
+동작:
+  • stockFilter: "instock" | "limited" | "all"
+  • 현재 후보에서 재고 상태별 필터링
+핸들러: serve-engine-runtime.ts → handleFilterByStock()
+```
+
+#### Action → 엔진 핸들러 매핑 요약
+
+```
+serve-engine-runtime.ts (메인 라우터)
+├── reset_session        → handleResetSession()
+├── go_back_*            → handleGoBack()               ← serve-engine-navigation.ts
+├── show_recommendation  → handleShowRecommendation()
+├── filter_by_stock      → handleFilterByStock()
+├── refine_condition     → 인라인 처리 (질문 + 옵션 생성)
+├── compare_products     → handleCompareProducts()      ← serve-engine-comparison.ts
+├── explain_product      → handleServeGeneralChatAction() ← serve-engine-general-chat.ts
+├── answer_general       → handleServeGeneralChatAction() ← serve-engine-general-chat.ts
+├── redirect_off_topic   → analyzeInquiry() → 리다이렉트 or answer_general 전환
+├── skip_field           → 인라인 처리 (skip 필터 + 재검색)
+├── replace_existing_filter → 인라인 처리 (복원 + 새 필터 + 재검색)
+└── continue_narrowing   → 인라인 처리 (Value Normalizer + 필터 + 재검색)
+```
+
+#### SELECT_OPTION / SET_PARAMETER 내부 분기 플로우 (전체 그림)
+
+```
+사용자: "AlTiN"
+    │
+    ▼
+┌─────────────────────────────────────────────┐
+│ intent-classifier.ts (regex fast path)       │
+│                                              │
+│ EXPLAIN_PATTERNS 매칭? → No                  │
+│ COMPARE_PATTERNS 매칭? → No                  │
+│ RECOMMEND_PATTERNS 매칭? → No                │
+│ SKIP_PATTERNS 매칭? → No                     │
+│ tryDeterministicExtraction("altin")          │
+│   → coatings 배열에서 "altin" 발견           │
+│   → return "altin"                           │
+│ ──────────────────────────                   │
+│ return SELECT_OPTION, value="altin"          │
+└──────────────────┬──────────────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────────────┐
+│ orchestrator.ts: routeToAction()             │
+│                                              │
+│ case SELECT_OPTION:                          │
+│   resolveDisplayedOptionSelection()          │
+│     → displayedOptions에서 "altin" 매칭      │
+│     → option { field: "coating", value: ... }│
+│   buildFilterFromDisplayedOption()            │
+│     → { field: "coating", op: "eq",          │
+│         value: "AlTiN", rawValue: "AlTiN" }  │
+│   return { type: "continue_narrowing",       │
+│            filter: {...} }                   │
+└──────────────────┬──────────────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────────────┐
+│ serve-engine-runtime.ts                      │
+│                                              │
+│ action.type === "continue_narrowing"         │
+│   1. Value Normalizer (DB 값 매칭)           │
+│   2. 필터 적용 → SQL 재검색                   │
+│   3. 후보 수 변화 추적                        │
+│   4. checkResolution()                       │
+│      ├─ resolved → buildRecommendationResponse│
+│      └─ 미해결   → buildQuestionResponse      │
+│                    (다음 필드 질문 생성)        │
+└─────────────────────────────────────────────┘
 ```
 
 ---
