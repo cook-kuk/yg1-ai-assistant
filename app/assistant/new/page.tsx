@@ -18,7 +18,10 @@ import {
   Target, BarChart3
 } from "lucide-react"
 import { wowScenarios, candidateProducts, type CandidateProduct } from "@/lib/demo-data"
+import { parseChatResponse } from "@/lib/frontend/chat/chat-client"
 import { cn } from "@/lib/utils"
+import { DealerPopupTriggerButton } from "@/components/DealerLocator/DealerPopupTriggerButton"
+import { LocationPermissionBanner } from "@/components/DealerLocator/LocationPermissionBanner"
 
 // ===== TYPES =====
 
@@ -101,18 +104,19 @@ export default function AssistantNewPage() {
         body: JSON.stringify({ messages: currentMessages, mode }),
       })
       if (!res.ok) throw new Error("API error")
-      const data = await res.json()
+      const data = parseChatResponse(await res.json())
 
       setTyping(false)
 
       // Update extracted field and metrics
       if (data.extractedField) {
+        const extractedField = data.extractedField
         setExtracted(prev => {
           const updated = [...prev, {
-            label: data.extractedField.label,
-            value: data.extractedField.value,
-            confidence: data.extractedField.confidence,
-            step: data.extractedField.step,
+            label: extractedField.label,
+            value: extractedField.value,
+            confidence: extractedField.confidence,
+            step: extractedField.step,
           }]
           const total = mode === "simple" ? 4 : 9
           const pct = Math.min(100, Math.round((updated.length / total) * 100))
@@ -121,7 +125,7 @@ export default function AssistantNewPage() {
           setCandidates(Math.max(3, Math.round(120 * (1 - pct / 100))))
           return updated
         })
-        setCurrentStep(data.extractedField.step)
+        setCurrentStep(extractedField.step)
       }
 
       // Handle recommendation completion
@@ -145,7 +149,7 @@ export default function AssistantNewPage() {
         role: "ai",
         text: data.text,
         purpose: data.purpose,
-        chips: data.isComplete ? undefined : data.chips,
+        chips: data.chips ?? undefined,
         timestamp: new Date().toISOString(),
       }])
     } catch {
@@ -247,7 +251,9 @@ export default function AssistantNewPage() {
         </div>
 
         {/* CENTER: Chat */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 relative">
+          {/* Location Permission Banner */}
+          <LocationPermissionBanner />
           {/* Chat header */}
           <div className="h-12 border-b flex items-center px-4 gap-3">
             <Sparkles className="h-4 w-4 text-[#ed1c24]" />
@@ -271,7 +277,21 @@ export default function AssistantNewPage() {
                   "bg-muted"
                 )}>
                   {msg.role === "ai" ? (
-                    <div className="text-sm"><Markdown>{msg.text}</Markdown></div>
+                    (() => {
+                      const markerRegex = /\{"action":"offer_dealer_popup","region":"([^"]+)","top_dealer":"([^"]+)"\}/;
+                      const match = msg.text.match(markerRegex);
+                      if (match) {
+                        const cleanText = msg.text.replace(markerRegex, '').trim();
+                        const [, region, topDealer] = match;
+                        return (
+                          <div>
+                            <div className="text-sm"><Markdown stripDoubleTilde disableStrikethrough>{cleanText}</Markdown></div>
+                            <DealerPopupTriggerButton region={region} topDealer={topDealer} />
+                          </div>
+                        );
+                      }
+                      return <div className="text-sm"><Markdown stripDoubleTilde disableStrikethrough>{msg.text}</Markdown></div>;
+                    })()
                   ) : (
                     <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
                   )}
@@ -285,24 +305,60 @@ export default function AssistantNewPage() {
                   )}
 
                   {/* Quick reply chips */}
-                  {msg.chips && !showResult && (
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {msg.chips.map((chip, i) => (
-                        <Button
-                          key={i}
-                          variant="outline"
-                          size="sm"
-                          className={cn(
-                            "text-xs h-7 bg-transparent",
-                            chip.includes("모르겠") && "border-amber-300 text-amber-700"
-                          )}
-                          onClick={() => handleSend(chip)}
-                        >
-                          {chip}
-                        </Button>
-                      ))}
-                    </div>
-                  )}
+                  {msg.chips && (() => {
+                    const lastAiMsg = [...messages].reverse().find(m => m.role === "ai")
+                    const isLatestAi = lastAiMsg?.id === msg.id
+                    const productListChip = msg.chips.find(c => c.includes("제품 보기"))
+                    const aiAnalysisChip = msg.chips.find(c => c.includes("AI 상세 분석"))
+                    const ctaChips = [productListChip, aiAnalysisChip].filter(Boolean)
+                    const normalChips = msg.chips.filter(c => !c.includes("제품 보기") && !c.includes("AI 상세 분석"))
+                    return (
+                      <>
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {normalChips.map((chip, i) => (
+                            <Button
+                              key={i}
+                              variant="outline"
+                              size="sm"
+                              className={cn(
+                                "text-xs h-7",
+                                isLatestAi
+                                  ? "bg-transparent hover:bg-gray-50"
+                                  : "opacity-35 pointer-events-none bg-gray-50/50 border-gray-200 text-gray-400",
+                                chip.includes("모르겠") && isLatestAi && "border-amber-300 text-amber-700"
+                              )}
+                              onClick={() => isLatestAi && handleSend(chip)}
+                            >
+                              {chip}
+                            </Button>
+                          ))}
+                        </div>
+                        {ctaChips.length > 0 && isLatestAi && (
+                          <div className="mt-3 pt-3 border-t border-gray-100 flex flex-col gap-2">
+                            {productListChip && (
+                              <Button
+                                size="sm"
+                                className="w-full h-10 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm shadow-md rounded-lg border-0"
+                                onClick={() => handleSend(productListChip)}
+                              >
+                                {productListChip}
+                              </Button>
+                            )}
+                            {aiAnalysisChip && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full h-10 text-sm font-medium border-purple-300 text-purple-700 hover:bg-purple-50 rounded-lg"
+                                onClick={() => handleSend(aiAnalysisChip)}
+                              >
+                                {aiAnalysisChip}
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )
+                  })()}
                 </div>
               </div>
             ))}

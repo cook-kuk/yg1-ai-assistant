@@ -26,13 +26,19 @@ export async function extractParameters(
   // "(15개)" chip count suffix removal, "— label" removal
   const chipClean = clean.replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
 
-  // Flute count
+  // Flute count (validated: 1~20)
   const fluteMatch = clean.match(/(\d+)\s*날/)
-  if (fluteMatch) params.fluteCount = parseInt(fluteMatch[1])
+  if (fluteMatch) {
+    const f = parseInt(fluteMatch[1])
+    if (f >= 1 && f <= 20) params.fluteCount = f
+  }
 
-  // Diameter
+  // Diameter (validated: 0.1mm ~ 200mm)
   const diamMatch = clean.match(/([\d.]+)\s*mm/)
-  if (diamMatch) params.diameterMm = parseFloat(diamMatch[1])
+  if (diamMatch) {
+    const d = parseFloat(diamMatch[1])
+    if (d > 0 && d <= 200) params.diameterMm = d
+  }
 
   // Coating
   const coatingMap: Record<string, string> = {
@@ -103,7 +109,7 @@ Extract any relevant values. Respond with JSON only.
   const raw = await provider.complete(
     systemPrompt,
     [{ role: "user", content: message }],
-    200,
+    1500,
     "haiku",
     "parameter-extractor"
   )
@@ -111,11 +117,15 @@ Extract any relevant values. Respond with JSON only.
   try {
     const parsed = JSON.parse(raw.trim().replace(/```json\n?|\n?```/g, ""))
     const result: Partial<ExtractedParameters> = {}
-    if (parsed.fluteCount) result.fluteCount = parsed.fluteCount
+    if (parsed.fluteCount && Number(parsed.fluteCount) >= 1 && Number(parsed.fluteCount) <= 20) {
+      result.fluteCount = Number(parsed.fluteCount)
+    }
     if (parsed.coating) result.coating = parsed.coating
     if (parsed.toolSubtype) result.toolSubtype = parsed.toolSubtype
     if (parsed.seriesName) result.seriesName = parsed.seriesName
-    if (parsed.diameterMm) result.diameterMm = parsed.diameterMm
+    if (parsed.diameterMm && Number(parsed.diameterMm) > 0 && Number(parsed.diameterMm) <= 200) {
+      result.diameterMm = Number(parsed.diameterMm)
+    }
     if (parsed.material) result.material = parsed.material
     if (parsed.rawValue) result.rawValue = parsed.rawValue
     return result

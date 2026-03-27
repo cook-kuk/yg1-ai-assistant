@@ -57,6 +57,7 @@ import {
 } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/hooks/use-toast"
+import { FeedbackAnalytics } from "@/components/admin/feedback-analytics"
 import {
   ChartContainer,
   ChartTooltip,
@@ -110,6 +111,7 @@ export default function AdminPage() {
   const [schemas, setSchemas] = useState(fieldSchemas)
   const [rules, setRules] = useState(guardrailRules)
   const [selectedSchema, setSelectedSchema] = useState<typeof fieldSchemas[0] | null>(null)
+  const [showFeedbackAnalytics, setShowFeedbackAnalytics] = useState(false)
   const [isSchemaDialogOpen, setIsSchemaDialogOpen] = useState(false)
   const [newField, setNewField] = useState("")
 
@@ -386,6 +388,16 @@ export default function AdminPage() {
 
           {/* Feedback Loop Tab */}
           <TabsContent value="feedback" className="space-y-6">
+            {showFeedbackAnalytics ? (
+              <FeedbackAnalytics onBack={() => setShowFeedbackAnalytics(false)} />
+            ) : (
+            <>
+            <div className="flex justify-end">
+              <Button onClick={() => setShowFeedbackAnalytics(true)} className="gap-2">
+                <BarChart3 className="h-4 w-4" />
+                피드백 분석 보기
+              </Button>
+            </div>
             <div className="grid gap-6 md:grid-cols-2">
               <Card>
                 <CardHeader>
@@ -523,6 +535,8 @@ export default function AdminPage() {
                 </div>
               </CardContent>
             </Card>
+            </>
+            )}
           </TabsContent>
         </Tabs>
       </div>

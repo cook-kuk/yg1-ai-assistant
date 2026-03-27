@@ -63,17 +63,25 @@ export interface AmbiguityResolution {
 // ── Orchestrator Decision ────────────────────────────────────
 export type OrchestratorAction =
   | { type: "continue_narrowing"; filter: AppliedFilter }
+  | { type: "replace_slot"; field: string; newValue: string; displayValue?: string }
   | { type: "skip_field" }
   | { type: "show_recommendation" }
   | { type: "go_back_one_step" }
   | { type: "go_back_to_filter"; filterValue: string; filterField?: string }
   | { type: "reset_session" }
-  | { type: "compare_products"; targets: string[] }
+  | { type: "compare_products"; targets: string[]; compareField?: string }
   | { type: "explain_product"; target?: string }
   | { type: "answer_general"; message: string; preGenerated?: boolean }
+  | { type: "ask_clarification"; question: string; options: string[]; allowDirectInput?: boolean }
   | { type: "filter_displayed"; field: string; operator: string; value: string; keepIndices?: number[] }
-  | { type: "query_displayed"; queryType: string; field: string; condition?: { operator: string; value: string } }
+  | { type: "query_displayed"; queryType: string; field: string; condition?: { operator: string; value: string }; topN?: number }
   | { type: "redirect_off_topic" }
+  | { type: "start_new_task" }
+  | { type: "resume_previous_task"; taskId: string }
+  | { type: "restore_previous_group"; groupKey: string }
+  | { type: "show_group_menu" }
+  | { type: "confirm_scope" }
+  | { type: "summarize_task" }
 
 export interface OrchestratorResult {
   action: OrchestratorAction
@@ -81,6 +89,12 @@ export interface OrchestratorResult {
   agentsInvoked: { agent: string; model: ModelTier; durationMs: number }[]
   escalatedToOpus: boolean
   escalationReason?: string
+  /** Remaining intents to execute after the primary action (queued for next turns) */
+  pendingIntents?: import("./query-decomposer").IntentChunk[]
+  /** Side-effect intents (explanation/side_conversation) to merge into the response */
+  sideEffectIntents?: import("./query-decomposer").IntentChunk[]
+  /** The full execution plan for debugging/display */
+  executionPlanText?: string
 }
 
 // ── Turn Context (assembled before each agent call) ──────────

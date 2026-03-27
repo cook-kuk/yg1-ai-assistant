@@ -39,6 +39,7 @@ jobs:
           DEPLOY_USER: ${{ secrets.MAIN_USER }}
           DEPLOY_PASSWORD: ${{ secrets.MAIN_PASSWORD }}
           DEPLOY_PATH: ${{ secrets.MAIN_PATH }}
+          APP_MODE: dev
         run: |
           sshpass -p "$DEPLOY_PASSWORD" ssh \
             -o StrictHostKeyChecking=no \
@@ -49,5 +50,5 @@ jobs:
           cd "$DEPLOY_PATH"
           git checkout main || git checkout -b main origin/main
           git pull origin main
-          sudo docker compose up --build -d
+          sudo env APP_MODE="${APP_MODE:-dev}" docker compose up --build -d
           EOF

@@ -25,6 +25,8 @@ import type { RecommendationInput } from "@/lib/types/canonical"
 // ── Helpers ──────────────────────────────────────────────────
 
 const baseInput: RecommendationInput = {
+  manufacturerScope: "yg1-only",
+  locale: "ko",
   material: "알루미늄",
   operationType: "측면가공",
   diameterMm: 10,

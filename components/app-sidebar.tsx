@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
@@ -19,10 +20,14 @@ import {
   Lock,
   MessageCircle,
   Globe,
+  MapPin,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/lib/store"
 import { wowScenarios } from "@/lib/demo-data"
+import { useLocation } from "@/context/LocationContext"
+import { useNearestDealers } from "@/hooks/useNearestDealers"
+import { DealerPopup } from "@/components/DealerLocator/DealerPopup"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -130,9 +135,23 @@ const navItems = [
     titleEn: "Feedback",
     href: "/feedback",
     icon: MessageCircle,
-    roles: ["sales", "rnd", "admin"],
+    roles: ["admin"],
   },
 ]
+
+const countryLabels: Record<string, { ko: string; en: string }> = {
+  KOREA: { ko: "한국", en: "Korea" },
+  ASIA: { ko: "아시아", en: "Asia" },
+  AMERICA: { ko: "미주", en: "America" },
+  EUROPE: { ko: "유럽", en: "Europe" },
+}
+
+function countryLabel(code: string, lang: "ko" | "en"): string {
+  const normalized = code.trim().toUpperCase()
+  const entry = countryLabels[normalized]
+  if (!entry) return normalized
+  return lang === "ko" ? `${entry.ko} (${normalized})` : `${entry.en} (${normalized})`
+}
 
 const roleLabels = {
   sales: { kr: "영업", en: "Sales" },
@@ -143,7 +162,25 @@ const roleLabels = {
 export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
   const pathname = usePathname()
   const router = useRouter()
-  const { currentUser, setUserRole, demoScenario, setDemoScenario, language, setLanguage } = useApp()
+  const { currentUser, setUserRole, demoScenario, setDemoScenario, language, setLanguage, country, setCountry } = useApp()
+  const [countryList, setCountryList] = useState<string[]>([])
+  const [dealerPopupOpen, setDealerPopupOpen] = useState(false)
+  const { lat, lng, source, permissionStatus, requestGPS } = useLocation()
+  const nearest = useNearestDealers(lat, lng, { topK: 1 })
+  const topDealer = nearest[0]
+
+  useEffect(() => {
+    fetch("/api/countries")
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data.countries) && data.countries.length > 0) {
+          setCountryList(data.countries)
+        }
+      })
+      .catch(() => {
+        setCountryList(["KOREA", "ASIA", "AMERICA", "EUROPE"])
+      })
+  }, [])
 
   const filteredNavItems = navItems.filter(item =>
     item.roles.includes(currentUser.role)
@@ -275,8 +312,25 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
         </ul>
       </nav>
 
-      {/* User Role Selector + Language Toggle */}
+      {/* User Role Selector + Country + Language Toggle */}
       <div className="border-t border-sidebar-border p-3 space-y-2">
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-1.5 text-xs text-sidebar-foreground/60">
+            <MapPin className="h-3.5 w-3.5" />
+            <span>{language === 'ko' ? '국가' : 'Country'}</span>
+          </div>
+          <select
+            value={country}
+            onChange={(e) => setCountry(e.target.value)}
+            className="h-7 rounded-md border border-sidebar-border bg-sidebar-accent px-2 text-xs font-medium text-sidebar-foreground focus:outline-none focus:ring-1 focus:ring-sidebar-primary"
+          >
+            <option value="ALL">{language === 'ko' ? '전체 국가' : 'All Countries'}</option>
+            {countryList.map((entry) => (
+              <option key={entry} value={entry}>{countryLabel(entry, language)}</option>
+            ))}
+          </select>
+        </div>
+
         {/* Language Toggle */}
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-1.5 text-xs text-sidebar-foreground/60">
@@ -308,6 +362,44 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
             </button>
           </div>
         </div>
+
+        {/* Dealer Locator */}
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-1.5 text-xs text-sidebar-foreground/60">
+            <MapPin className="h-3.5 w-3.5" />
+            <span>{language === 'ko' ? '영업소' : 'Dealer'}</span>
+          </div>
+          {permissionStatus === 'granted' && topDealer ? (
+            <button
+              onClick={() => setDealerPopupOpen(true)}
+              className="flex items-center gap-1.5 text-xs font-medium text-[#C8102E] hover:underline transition-colors"
+            >
+              <span>{topDealer.name}</span>
+              <span className={source === 'gps' ? 'text-emerald-600' : 'text-amber-600'}>
+                · {source === 'gps' ? topDealer.distanceLabel : `약 ${topDealer.distanceLabel}`}
+              </span>
+            </button>
+          ) : permissionStatus === 'denied' && topDealer ? (
+            <button
+              onClick={() => setDealerPopupOpen(true)}
+              className="flex items-center gap-1.5 text-xs font-medium text-[#C8102E] hover:underline transition-colors"
+            >
+              <span>{language === 'ko' ? '영업소 찾기' : 'Find Dealer'}</span>
+              <span className="text-amber-600">· 약 {topDealer.distanceLabel}</span>
+            </button>
+          ) : (
+            <button
+              onClick={async () => {
+                await requestGPS();
+                setDealerPopupOpen(true);
+              }}
+              className="text-xs font-medium text-[#C8102E] hover:underline transition-colors"
+            >
+              {language === 'ko' ? '가까운 영업소 찾기' : 'Find Nearby'}
+            </button>
+          )}
+        </div>
+        <DealerPopup isOpen={dealerPopupOpen} onClose={() => setDealerPopupOpen(false)} />
 
         {/* User Role Selector */}
         <DropdownMenu>

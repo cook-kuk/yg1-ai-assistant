@@ -8,6 +8,15 @@ import type { ScoredProduct, RecommendationInput, ChatMessage } from "./canonica
 import type { ProductIntakeForm } from "./intake"
 import type { EvidenceSummary } from "./evidence"
 
+// ── Journey Phase ──────────────────────────────────────────
+export type JourneyPhase =
+  | "intake"
+  | "narrowing"
+  | "results_displayed"
+  | "post_result_exploration"
+  | "comparison"
+  | "revision"
+
 // ── Resolution Status ────────────────────────────────────────
 export type ResolutionStatus =
   | "broad"                // many candidates, needs narrowing
@@ -49,6 +58,8 @@ export interface NarrowingStage {
 export type LastActionType =
   | "start_exploration"
   | "continue_narrowing"
+  | "replace_slot"
+  | "ask_clarification"
   | "skip_field"
   | "show_recommendation"
   | "go_back_one_step"
@@ -59,7 +70,73 @@ export type LastActionType =
   | "filter_displayed"
   | "query_displayed"
   | "redirect_off_topic"
+  | "filter_by_stock"
   | "reset_session"
+  | "start_new_task"
+  | "resume_previous_task"
+  | "restore_previous_group"
+  | "show_group_menu"
+  | "confirm_multi_intent"
+  | "confirm_scope"
+  | "summarize_task"
+
+export interface ComparisonArtifact {
+  comparedProductCodes: string[]
+  comparedRanks: number[]
+  compareField?: string
+  text: string
+  timestamp: number
+}
+
+export interface CandidateCounts {
+  dbMatchCount: number
+  filteredCount: number
+  rankedCount: number
+  displayedCount: number
+  hiddenBySeriesCapCount: number
+}
+
+export type SessionMode =
+  | "narrowing"
+  | "question"
+  | "recommendation"
+  | "comparison"
+  | "general_chat"
+  | "group_menu"
+  | "group_focus"
+  | "restore"
+  | "task"
+
+export interface UINarrowingPathEntry {
+  kind: "filter" | "display_filter" | "series_group" | "restore" | "meta"
+  label: string
+  field?: string
+  value?: string
+  candidateCount: number
+  candidateCountBefore?: number
+}
+
+export interface ClarificationRecord {
+  question: string
+  options: string[]
+  turnAsked: number
+  context?: string
+  resolvedWith?: string
+}
+
+// ── Pending Action ─────────────────────────────────────────────
+export interface PendingAction {
+  type: "apply_filter" | "open_comparison" | "show_cutting_conditions" | "show_inventory" | "delegate_choice" | "resume_flow"
+  label: string
+  payload: {
+    field?: string
+    value?: string
+    productIds?: string[]
+  }
+  sourceTurnId: string
+  createdAt: number           // turnCount when created
+  expiresAfterTurns: number   // expires after this many turns
+}
 
 // ── Session State (serializable, sent between client ↔ server) ──
 export interface ExplorationSessionState {
@@ -72,14 +149,49 @@ export interface ExplorationSessionState {
   resolvedInput: RecommendationInput   // accumulated from intake + narrowing
   turnCount: number
   lastAskedField?: string              // which field the question engine just asked about
+  displayedProducts?: CandidateSnapshot[]
+  fullDisplayedProducts?: CandidateSnapshot[] | null
+  displayedSeriesGroups?: SeriesGroup[]
+  uiNarrowingPath?: UINarrowingPathEntry[]
+  currentMode?: SessionMode
+  restoreTarget?: string | null
 
   // ── Durable UI context (single source of truth) ──
   displayedCandidates: CandidateSnapshot[]  // what the user currently sees
   fullDisplayedCandidates?: CandidateSnapshot[]  // in-display 필터 전 원본 (filter_displayed 복원용)
+  filterValueScope?: Record<string, string[]>
   displayedSetFilter?: { field: string; operator: string; value: string } | null  // 현재 적용된 in-display 필터
   displayedChips: string[]                  // chips shown with the last question
   displayedOptions: DisplayedOption[]       // structured narrowing options for numbered selection
   lastAction?: LastActionType               // what the system did last turn
+
+  underlyingAction?: LastActionType
+  lastComparisonArtifact?: ComparisonArtifact | null
+  lastRecommendationArtifact?: CandidateSnapshot[] | null
+  candidateCounts?: CandidateCounts
+  lastClarification?: ClarificationRecord | null
+  displayedGroups?: SeriesGroup[]
+  activeGroupKey?: string | null
+  currentTask?: RecommendationTask | null
+  taskHistory?: ArchivedTask[]
+  pendingIntents?: Array<{ text: string; category: string }>
+
+  /** Suspended flow — side question snapshot for resume after off-topic answer */
+  suspendedFlow?: {
+    pendingField: string | null
+    pendingQuestion: string | null
+    displayedOptionsSnapshot: DisplayedOption[]
+    displayedChipsSnapshot: string[]
+    reason: "side_question"
+  } | null
+
+  /** Pending proposed action — "응/예/네"로 수락 가능한 제안 */
+  pendingAction?: PendingAction | null
+
+  // ── Persistent Conversation Memory (accumulates across turns) ──
+  conversationMemory?: import("@/lib/recommendation/domain/memory/conversation-memory").ConversationMemory
+  /** Full conversation log — all prompts + UI outputs, auto-compressed */
+  conversationLog?: import("@/lib/recommendation/domain/memory/memory-compressor").ConversationLog
 }
 
 // ── Full Exploration Session (server-side, includes heavy data) ──
@@ -119,6 +231,7 @@ export interface CandidateSnapshot {
   diameterMm: number | null
   fluteCount: number | null
   coating: string | null
+  toolSubtype?: string | null
   toolMaterial: string | null
   shankDiameterMm: number | null
   lengthOfCutMm: number | null
@@ -132,8 +245,15 @@ export interface CandidateSnapshot {
   matchStatus: "exact" | "approximate" | "none"
   stockStatus: string
   totalStock: number | null
+  inventorySnapshotDate: string | null
+  inventoryLocations: InventoryLocationSnapshot[]
   hasEvidence: boolean
   bestCondition: import("./evidence").CuttingConditions | null
+}
+
+export interface InventoryLocationSnapshot {
+  warehouseOrRegion: string
+  quantity: number
 }
 
 /** Structured narrowing option (persisted for numbered selection) */
@@ -143,4 +263,54 @@ export interface DisplayedOption {
   field: string          // e.g. "coating"
   value: string          // e.g. "Diamond"
   count: number          // candidate count for this option
+}
+
+export interface SeriesGroup {
+  seriesKey: string
+  seriesName: string
+  seriesIconUrl: string | null
+  description: string | null
+  candidateCount: number
+  topScore: number
+  materialRating?: "EXCELLENT" | "GOOD" | "NULL" | null
+  materialRatingScore?: number | null
+  members: CandidateSnapshot[]
+}
+
+export interface SeriesGroupSummary {
+  seriesKey: string
+  seriesName: string
+  candidateCount: number
+  materialRating?: "EXCELLENT" | "GOOD" | "NULL" | null
+  materialRatingScore?: number | null
+}
+
+export interface RecommendationCheckpoint {
+  checkpointId: string
+  stepIndex: number
+  summary: string
+  candidateCount: number
+  resolvedInputSnapshot: RecommendationInput
+  filtersSnapshot: AppliedFilter[]
+  displayedGroups: SeriesGroupSummary[]
+  filterApplied: AppliedFilter | null
+  timestamp: number
+}
+
+export interface RecommendationTask {
+  taskId: string
+  createdAt: number
+  intakeSummary: string
+  checkpoints: RecommendationCheckpoint[]
+  finalCandidateCount: number | null
+  status: "active" | "archived"
+}
+
+export interface ArchivedTask {
+  taskId: string
+  createdAt: number
+  intakeSummary: string
+  checkpointCount: number
+  finalCheckpoint: RecommendationCheckpoint
+  status: "archived"
 }

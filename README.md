@@ -189,6 +189,52 @@ lib/
 
 ---
 
+## 추천 엔진 구조 원칙
+
+추천 엔진 관련 변경은 아래 구조를 기본 원칙으로 유지한다.
+
+### 현재 기준 구조
+
+```
+lib/recommendation/
+├── application/                 # use-case/service 조립
+├── domain/                      # 순수 규칙, 상태 전이, 질문/옵션/메모리 모델
+│   ├── context/
+│   ├── memory/
+│   └── options/
+├── infrastructure/              # LLM, engine, presenter, repository, notification
+│   └── engines/
+└── shared/                      # 공용 유틸
+```
+
+### 책임 분리 규칙
+
+- `domain/` 에는 가능한 한 순수 규칙만 둔다. LLM 호출, HTTP 응답 생성, 로그 포맷, 세션 직렬화 같은 인프라 책임을 넣지 않는다.
+- `infrastructure/engines/` 는 최종 흐름 조립만 담당한다. 분기, 상태 연결, 응답 반환은 여기서 하되, 옵션 계산이나 질문 복원 같은 세부 규칙은 helper 또는 `domain/` 으로 뺀다.
+- `serve-engine-runtime.ts` 에는 "turn orchestration" 만 둔다. option-first 계산, question-assist 복원, chip rerank 준비 같은 로직이 길어지면 별도 engine helper 파일로 분리한다.
+- `serve-engine-response.ts` 에는 "response assembly" 만 둔다. recommendation/question 응답 DTO 조립 외의 계산 로직이 커지면 별도 helper로 이동한다.
+- `option-first`, `question-assist`, `pending-question reconstruction` 같이 여러 경로에서 재사용되는 로직은 엔진 파일 안에 중복 복사하지 말고 별도 파일로 모은다.
+- `displayedOptions` 가 actionable choice 의 source of truth 이다. `chips` 는 presentation 이며, answer text 에서 다시 chips 를 생성하지 않는다.
+- 새 기능을 넣을 때 기존 engine 파일에 `if` 블록만 계속 추가하지 말고, 먼저 "이 책임이 orchestration 인지 / domain rule 인지 / helper 조립인지"를 분류한 뒤 해당 위치에 넣는다.
+
+### PR / 커밋 전 체크리스트
+
+- `serve-engine-runtime.ts` 또는 `serve-engine-response.ts` 에 30~50줄 이상의 새 블록을 추가했다면, helper 분리가 가능한지 먼저 확인한다.
+- 같은 option/chip/pending-question 로직이 두 군데 이상 생기면 즉시 공통 helper로 합친다.
+- `domain/` 파일이 `infrastructure/` 타입이나 구현에 직접 의존하는지 확인한다. 의존이 필요하면 위치를 다시 검토한다.
+- 기능 추가 커밋과 구조 정리 커밋을 가능하면 분리한다. 회귀 수정이 급해도 후속 refactor 커밋을 남겨 엔진 비대화를 방치하지 않는다.
+- README의 이 섹션과 어긋나는 구조 변경이 생기면 코드만 바꾸지 말고 이 문서도 같이 갱신한다.
+
+### 최근 리팩터링 기준
+
+- `serve-engine-option-first.ts`: option-first / question-assist / question-response / refinement / comparison option assembly 전용 helper
+- `serve-engine-runtime.ts`: turn flow orchestration 중심
+- `serve-engine-response.ts`: recommendation/question response assembly 중심
+
+이 경계를 다시 흐리게 만드는 변경은 지양한다.
+
+---
+
 ## Git 구조
 
 | Remote | Repository | 용도 |

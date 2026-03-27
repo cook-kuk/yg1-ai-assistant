@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: yg1-ai-catalog-app
+    container_name: yg1-ai-catalog-app-${APP_MODE:-dev}
     restart: unless-stopped
     env_file:
       - .env
@@ -11,7 +11,13 @@ services:
       - "host.docker.internal:host-gateway"
     ports:
       - "${APP_PORT:-3000}:3000"
+    volumes:
+      - ./data/feedback:/app/data/feedback
     environment:
+      APP_MODE: ${APP_MODE:-dev}
       NODE_ENV: production
       PORT: 3000
       HOSTNAME: 0.0.0.0
+      # When the app runs in Docker, localhost points to the app container itself.
+      # Prefer .env MONGO_LOG_URI when provided; otherwise fall back to the Docker host address.
+      MONGO_LOG_URI: ${MONGO_LOG_URI:-mongodb://catalog_logger:catalog_logger@host.docker.internal:27018/yg1_ai_catalog_log?authSource=yg1_ai_catalog_log}

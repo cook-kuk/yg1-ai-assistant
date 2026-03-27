@@ -64,8 +64,8 @@ function scoreCoating(product: CanonicalProduct, pref: string | undefined): numb
 
 function determineMatchStatus(score: number, maxScore: number, input: RecommendationInput): MatchStatus {
   const ratio = score / maxScore
-  if (ratio >= 0.85) return "exact"
-  if (ratio >= 0.5) return "approximate"
+  if (ratio >= 0.75) return "exact"
+  if (ratio >= 0.45) return "approximate"
   return "none"
 }
 
@@ -103,9 +103,11 @@ export async function runMatchEngine(input: RecommendationInput, topN = 5): Prom
   }
 
   // ── Score all candidates ─────────────────────────────────────
-  const maxScore = Object.values(WEIGHTS).reduce((a, b) => a + b, 0) + 10 // +10 for diameter neutral
+  // maxScore = sum of all WEIGHTS (100). No +10 bonus:
+  // scoreDiameter returns 10 when no preference, but max is still 40 (diameter weight).
+  const maxScore = Object.values(WEIGHTS).reduce((a, b) => a + b, 0)
 
-  const scored = candidates.map(product => {
+  const scored = await Promise.all(candidates.map(async (product) => {
     const score =
       scoreDiameter(product, input.diameterMm) +
       scoreFlutes(product, input.flutePreference) +
@@ -118,10 +120,10 @@ export async function runMatchEngine(input: RecommendationInput, topN = 5): Prom
     const fields = matchedFields(product, input)
 
     // Enrichment
-    const inventory = InventoryRepo.getByEdp(product.normalizedCode)
+    const inventory = await InventoryRepo.getByEdpAsync(product.normalizedCode)
     const leadTimes = LeadTimeRepo.getByEdp(product.normalizedCode)
-    const totalStock = InventoryRepo.totalStock(product.normalizedCode)
-    const stockStatus = InventoryRepo.stockStatus(product.normalizedCode)
+    const totalStock = await InventoryRepo.totalStockAsync(product.normalizedCode)
+    const stockStatus = await InventoryRepo.stockStatusAsync(product.normalizedCode)
     const minLeadTimeDays = LeadTimeRepo.minLeadTime(product.normalizedCode)
 
     return {
@@ -137,14 +139,16 @@ export async function runMatchEngine(input: RecommendationInput, topN = 5): Prom
       totalStock,
       minLeadTimeDays,
     } satisfies ScoredProduct
-  })
+  }))
 
-  // Sort: by score desc, then by source priority asc, then completeness desc
+  // Sort: by score desc, then by source priority asc, then completeness desc, then stable tie-breaker
   scored.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score
     if (a.product.sourcePriority !== b.product.sourcePriority)
       return a.product.sourcePriority - b.product.sourcePriority
-    return b.product.dataCompletenessScore - a.product.dataCompletenessScore
+    if (b.product.dataCompletenessScore !== a.product.dataCompletenessScore)
+      return b.product.dataCompletenessScore - a.product.dataCompletenessScore
+    return (a.product.normalizedCode ?? "").localeCompare(b.product.normalizedCode ?? "")
   })
 
   // Return top-N, but only if score is meaningful (> 0)

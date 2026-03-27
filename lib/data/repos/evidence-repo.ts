@@ -7,9 +7,9 @@
 import type { EvidenceChunk, EvidenceSummary } from "@/lib/types/evidence"
 import path from "path"
 import fs from "fs"
-import crypto from "crypto"
+import { randomBytes } from "node:crypto"
 import { Pool, type QueryResultRow } from "pg"
-import { ProductRepo } from "@/lib/data/repos/product-repo"
+import { formatQueryValuesForLog, formatSqlForLog, interpolateSqlForLog } from "@/lib/data/sql-log"
 
 interface RawEvidenceRow extends QueryResultRow {
   _row_num: string | null
@@ -56,6 +56,10 @@ function parseNumber(value: string | null | undefined): number | null {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+function createFallbackId(): string {
+  return randomBytes(8).toString("hex")
+}
+
 function buildSearchText(chunk: EvidenceChunk, workPieceName: string | null): string {
   return [
     chunk.productCode,
@@ -79,7 +83,7 @@ function mapRowToEvidenceChunk(row: RawEvidenceRow): EvidenceChunk {
   const seriesName = cleanText(row.series_name)
   const workPieceName = cleanText(row.work_piece_name)
   const chunk: EvidenceChunk = {
-    id: `raw-cutting:${row._row_num ?? crypto.randomUUID()}`,
+    id: `raw-cutting:${row._row_num ?? createFallbackId()}`,
     productCode: normalizeCode(seriesName),
     seriesName,
     toolType: null,
@@ -187,7 +191,7 @@ async function loadChunks(): Promise<EvidenceChunk[]> {
   if (!globalThis.__yg1EvidenceChunksPromise) {
     globalThis.__yg1EvidenceChunksPromise = (async () => {
       try {
-        const result = await getPool().query<RawEvidenceRow>(`
+        const query = `
           SELECT
             _row_num,
             application_shape,
@@ -205,7 +209,11 @@ async function loadChunks(): Promise<EvidenceChunk[]> {
             cutting_speed
           FROM raw_catalog.cutting_condition_table
           ORDER BY _row_num ASC
-        `)
+        `
+        const values: unknown[] = []
+        const sqlInterpolated = interpolateSqlForLog(formatSqlForLog(query), values)
+        console.log(`[evidence-db] sql query="${sqlInterpolated}" params=${formatQueryValuesForLog(values)}`)
+        const result = await getPool().query<RawEvidenceRow>(query, values)
         const mapped = result.rows.map(mapRowToEvidenceChunk)
         console.log(`[evidence-db] loaded rows=${mapped.length}`)
         return mapped
@@ -277,15 +285,22 @@ async function resolveProductEvidenceContext(
   diameterMm?: number | null
   toleranceMm?: number
 }> {
-  if (opts?.seriesName && opts?.diameterMm != null) return opts
+  // Evidence retrieval should not re-open product DB lookups on the hot path.
+  // If the caller already knows the series, that is sufficient to resolve by-series evidence.
+  if (opts?.seriesName) return opts
 
-  const product = await ProductRepo.findByCode(productCode)
-  if (!product) return opts ?? {}
+  const chunks = await loadChunks()
+  const directMatches = applyEvidenceFilters(
+    chunks.filter(chunk => chunk.productCode === normalizeCode(productCode)),
+    opts,
+  )
+  const bestMatch = directMatches[0]
+  if (!bestMatch) return opts ?? {}
 
   return {
     ...opts,
-    seriesName: opts?.seriesName ?? product.seriesName,
-    diameterMm: opts?.diameterMm ?? product.diameterMm,
+    seriesName: bestMatch.seriesName ?? opts?.seriesName ?? null,
+    diameterMm: opts?.diameterMm ?? bestMatch.diameterMm ?? null,
   }
 }
 
@@ -332,17 +347,11 @@ export const EvidenceRepo = {
 
     if (resolvedOpts.seriesName) {
       const bySeries = await this.findBySeriesName(resolvedOpts.seriesName, resolvedOpts)
-      console.log(
-        `[evidence-db] product_lookup code=${productCode} series=${resolvedOpts.seriesName ?? "-"} diameter=${resolvedOpts.diameterMm ?? "-"} matched=${bySeries.length}`
-      )
       return bySeries
     }
 
     const direct = await this.findByProductCode(productCode)
     const filtered = applyEvidenceFilters(direct, resolvedOpts)
-    console.log(
-      `[evidence-db] product_lookup code=${productCode} series=- diameter=${resolvedOpts.diameterMm ?? "-"} matched=${filtered.length}`
-    )
     return filtered
   },
 

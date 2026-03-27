@@ -1,12 +1,15 @@
 import "server-only"
 
+import { randomBytes } from "node:crypto"
 import { Pool, type QueryResult, type QueryResultRow } from "pg"
 import { notifyDbQuery } from "@/lib/slack-notifier"
 import { appendRuntimeLog, logRuntimeError } from "@/lib/runtime-logger"
 import type { AppliedFilter } from "@/lib/types/exploration"
 import type { CanonicalProduct, RecommendationInput, SourcePriority, SourceType } from "@/lib/types/canonical"
 import { resolveMaterialTag } from "@/lib/domain/material-resolver"
-import { getAppShapesForOperation } from "@/lib/domain/operation-resolver"
+import { getOperationShapeSearchTexts } from "@/lib/domain/operation-resolver"
+import { resolveRequestedToolFamily as resolveRequestedToolFamilyInput } from "@/lib/data/repos/product-query-filters"
+import { buildDbWhereClauseForFilter } from "@/lib/recommendation/shared/filter-field-registry"
 
 interface RawProductRow {
   edp_idx: string | null
@@ -40,6 +43,7 @@ interface RawProductRow {
   series_product_type: string | null
   series_application_shape: string | null
   series_cutting_edge_shape: string | null
+  country_codes: string[] | null
   material_tags: string[] | null
   milling_outside_dia: string | null
   milling_number_of_flute: string | null
@@ -93,13 +97,62 @@ interface ProductSearchOptions {
   input?: RecommendationInput
   filters?: AppliedFilter[]
   limit?: number
+  offset?: number
   normalizedCode?: string
   seriesName?: string
+}
+
+export interface ProductSearchPageResult {
+  products: CanonicalProduct[]
+  totalCount: number
+}
+
+function resolveSingleIsoGroup(material: string | undefined): string | null {
+  if (!material) return null
+
+  const tags = Array.from(
+    new Set(
+      material
+        .split(",")
+        .map(part => part.trim())
+        .filter(Boolean)
+        .map(part => resolveMaterialTag(part))
+        .filter((tag): tag is string => Boolean(tag))
+    )
+  )
+
+  return tags.length === 1 ? tags[0] : null
+}
+
+function flattenActiveFilters(filters: AppliedFilter[] = []): AppliedFilter[] {
+  const lastMaterialIndex = filters.reduce((lastIndex, filter, index) => (
+    filter.field === "material" ? index : lastIndex
+  ), -1)
+
+  return filters.flatMap((filter, index) => {
+    if (
+      (filter.field === "workPieceName" || filter.field === "edpBrandName" || filter.field === "edpSeriesName") &&
+      lastMaterialIndex !== -1 &&
+      index < lastMaterialIndex
+    ) {
+      return []
+    }
+
+    const sideFilters = ((filter as unknown as { _sideFilters?: AppliedFilter[] })._sideFilters ?? [])
+      .filter(sideFilter => !(
+        lastMaterialIndex !== -1 &&
+        (sideFilter.field === "edpBrandName" || sideFilter.field === "edpSeriesName") &&
+        index < lastMaterialIndex
+      ))
+
+    return [filter, ...sideFilters]
+  })
 }
 
 interface DbQueryContext {
   operation: string
   limit?: number
+  offset?: number
   whereCount?: number
   normalizedCode?: string
   seriesName?: string
@@ -145,6 +198,7 @@ SELECT
   series_product_type,
   series_application_shape,
   series_cutting_edge_shape,
+  country_codes,
   material_tags,
   milling_outside_dia,
   milling_number_of_flute,
@@ -433,6 +487,40 @@ function normalizeToolSubtype(...candidates: Array<string | null | undefined>): 
   return titleCase(source.replace(/_/g, " "))
 }
 
+type RequestedToolFamily = "milling" | "holemaking" | "threading"
+
+function resolveRequestedToolFamily(toolType: string | null | undefined): RequestedToolFamily | null {
+  if (!toolType) return null
+  const lower = toolType.trim().toLowerCase()
+
+  if (
+    lower.includes("엔드밀") ||
+    lower.includes("end mill") ||
+    lower.includes("endmill") ||
+    lower.includes("밀링")
+  ) {
+    return "milling"
+  }
+
+  if (
+    lower.includes("드릴") ||
+    lower.includes("drill") ||
+    lower.includes("holemaking")
+  ) {
+    return "holemaking"
+  }
+
+  if (
+    lower.includes("탭") ||
+    lower.includes("tap") ||
+    lower.includes("thread")
+  ) {
+    return "threading"
+  }
+
+  return null
+}
+
 function normalizeAppShapeToken(value: string): string | null {
   const trimmed = value.trim()
   if (!trimmed || trimmed === "-" || trimmed === "NONE" || trimmed === "undefined") return null
@@ -503,6 +591,10 @@ function computeCompletenessScore(product: Omit<CanonicalProduct, "dataCompleten
   return Number((filled / checks.length).toFixed(2))
 }
 
+function createFallbackId(): string {
+  return randomBytes(8).toString("hex")
+}
+
 function mapRowToProduct(row: RawProductRow): CanonicalProduct {
   const rawDiameter = firstNonEmpty(
     row.milling_outside_dia,
@@ -519,7 +611,7 @@ function mapRowToProduct(row: RawProductRow): CanonicalProduct {
   const diameterInch = parsedDiameter == null ? null : isInch ? parsedDiameter : null
 
   const baseProduct = {
-    id: `prod_edp:${row.edp_idx ?? row.edp_no ?? crypto.randomUUID()}`,
+    id: `prod_edp:${row.edp_idx ?? row.edp_no ?? createFallbackId()}`,
     manufacturer: "YG-1",
     brand: firstNonEmpty(row.series_brand_name, row.edp_brand_name, "YG-1")!,
     sourcePriority: 2 as SourcePriority,
@@ -547,7 +639,7 @@ function mapRowToProduct(row: RawProductRow): CanonicalProduct {
       row.option_numberofflute,
       row.option_z,
     )),
-    coating: firstNonEmpty(row.milling_coating, row.holemaking_coating, row.threading_coating),
+    coating: firstNonEmpty(row.milling_coating, row.holemaking_coating, row.threading_coating, row.search_coating),
     toolMaterial: firstNonEmpty(row.milling_tool_material, row.holemaking_tool_material, row.threading_tool_material),
     shankDiameterMm: parseNumber(firstNonEmpty(row.milling_shank_dia, row.holemaking_shank_dia, row.threading_shank_dia, row.option_shank_diameter, row.option_dcon)),
     lengthOfCutMm: parseNumber(firstNonEmpty(row.milling_length_of_cut, row.holemaking_flute_length, row.threading_thread_length, row.option_flute_length, row.option_loc)),
@@ -558,7 +650,7 @@ function mapRowToProduct(row: RawProductRow): CanonicalProduct {
     coolantHole: parseBoolean(firstNonEmpty(row.milling_coolant_hole, row.holemaking_coolant_hole, row.threading_coolant_hole, row.option_coolanthole)),
     applicationShapes: normalizeApplicationShapes(row.series_application_shape),
     materialTags: normalizeMaterialTags(row.material_tags),
-    region: null,
+    country: null,
     description: firstNonEmpty(row.series_description),
     featureText: firstNonEmpty(row.series_feature),
     seriesIconUrl: null,
@@ -572,7 +664,7 @@ function mapRowToProduct(row: RawProductRow): CanonicalProduct {
   }
 }
 
-function buildQueryOptions(options: ProductSearchOptions): { where: string[]; values: unknown[]; limit: number } {
+export function buildQueryOptions(options: ProductSearchOptions): { where: string[]; values: unknown[]; limit: number | undefined; offset: number } {
   const where: string[] = []
   const values: unknown[] = []
   const next = (value: unknown) => {
@@ -605,60 +697,187 @@ function buildQueryOptions(options: ProductSearchOptions): { where: string[]; va
       if (tag) materialTags.add(tag)
     }
   }
-  for (const filter of options.filters ?? []) {
+  for (const filter of flattenActiveFilters(options.filters ?? [])) {
     if (filter.field === "materialTag") {
       for (const part of String(filter.rawValue).split(",").map(s => s.trim().toUpperCase()).filter(Boolean)) {
         if (/^[PMKNSH]$/.test(part)) materialTags.add(part)
       }
     }
+    const clause = buildDbWhereClauseForFilter(filter, next)
+    if (clause) where.push(clause)
   }
   if (materialTags.size > 0) {
     const param = next([...materialTags])
     where.push(`COALESCE(material_tags, ARRAY[]::text[]) && ${param}::text[]`)
   }
 
-  const appShapes = input?.operationType ? getAppShapesForOperation(input.operationType) : []
-  if (appShapes.length > 0) {
+  if (input?.country && input.country !== "ALL") {
+    const param = next(input.country)
+    where.push(`
+      EXISTS (
+        SELECT 1
+        FROM unnest(COALESCE(country_codes, ARRAY[]::text[])) AS country_row(country_code)
+        WHERE UPPER(BTRIM(country_row.country_code)) = UPPER(BTRIM(${param}))
+      )
+    `)
+  }
+
+  const requestedToolFamily = resolveRequestedToolFamilyInput(input?.toolType)
+  if (requestedToolFamily) {
+    const categoryParam = next(`%${requestedToolFamily}%`)
+    where.push(`LOWER(COALESCE(edp_root_category, '')) LIKE ${categoryParam}`)
+  }
+
+  const operationShapeTexts = input?.operationType ? getOperationShapeSearchTexts(input.operationType) : []
+  if (operationShapeTexts.length > 0) {
     const clauses: string[] = []
-    for (const shape of appShapes) {
-      const param = next(`%${shape.toLowerCase().replace(/_/g, " ")}%`)
-      clauses.push(`LOWER(REPLACE(COALESCE(series_application_shape, ''), '_', ' ')) LIKE ${param}`)
+    for (const shape of operationShapeTexts) {
+      const param = next(`%${shape.toLowerCase()}%`)
+      clauses.push(`LOWER(COALESCE(series_application_shape, '')) LIKE ${param}`)
     }
     where.push(`(${clauses.join(" OR ")})`)
   }
 
-  // ── Narrowing filters (fluteCount, coating, toolSubtype, seriesName) ──
-  // NOT applied in DB WHERE clause. Applied in-memory by runHybridRetrieval.
-  // This ensures candidate counts match exactly what the question engine shows.
-  // See: hybrid-retrieval.ts lines 106-166 for in-memory filter application.
-
-  const hasStructuredFilters = where.length > 0
-  const filteredLimit = parsePositiveInt(process.env.PRODUCT_QUERY_LIMIT_FILTERED, 2000)
-  const broadLimit = parsePositiveInt(process.env.PRODUCT_QUERY_LIMIT_BROAD, 800)
-  const limit = options.limit ?? (hasStructuredFilters ? filteredLimit : broadLimit)
-  return { where, values, limit }
+  const limit = typeof options.limit === "number" && options.limit > 0 ? options.limit : undefined
+  const offset = typeof options.offset === "number" && options.offset > 0 ? options.offset : 0
+  return { where, values, limit, offset }
 }
 
-export async function queryProductsFromDatabase(options: ProductSearchOptions = {}): Promise<CanonicalProduct[]> {
-  const { where, values, limit } = buildQueryOptions(options)
-  const query = `
-    SELECT *
-    FROM (
-      ${PRODUCT_BASE_QUERY}
-    ) product_source
-    ${where.length > 0 ? `WHERE ${where.join(" AND ")}` : ""}
-    ORDER BY edp_idx DESC
-    LIMIT ${limit}
+function buildPagedProductQueryBase(where: string[]): string {
+  return `
+    WITH filtered_products AS (
+      SELECT
+        *,
+        REPLACE(REPLACE(UPPER(COALESCE(edp_no, '')), ' ', ''), '-', '') AS normalized_code
+      FROM (
+        ${PRODUCT_BASE_QUERY}
+      ) product_source
+      ${where.length > 0 ? `WHERE ${where.join(" AND ")}` : ""}
+    ),
+    deduped_products AS (
+      SELECT DISTINCT ON (normalized_code) *
+      FROM filtered_products
+      ORDER BY normalized_code, edp_idx DESC
+    )
   `
+}
+
+function buildProductDataQuery(
+  input: RecommendationInput | undefined,
+  where: string[],
+  values: unknown[],
+  limit?: number,
+  offset = 0
+): { query: string; values: unknown[] } {
+  const queryBase = buildPagedProductQueryBase(where)
+  const dataValues = [...values]
+  const materialTag = resolveSingleIsoGroup(input?.material)
+  const workPieceName = input?.workPieceName?.trim() || null
+  const materialTagParam = `$${dataValues.push(materialTag)}`
+  const workPieceNameParam = `$${dataValues.push(workPieceName)}`
+  const limitClause = limit != null ? `LIMIT $${dataValues.push(limit)}` : ""
+  const offsetClause = offset > 0 ? `OFFSET $${dataValues.push(offset)}` : ""
+
+  return {
+    query: `
+      ${queryBase}
+      , ranked_products AS (
+        SELECT
+          deduped_products.*,
+          status_lookup.material_rating,
+          COALESCE(status_lookup.material_rating_score, 0) AS material_rating_score,
+          COALESCE(
+            NULLIF(BTRIM(deduped_products.milling_tool_material), ''),
+            NULLIF(BTRIM(deduped_products.holemaking_tool_material), ''),
+            NULLIF(BTRIM(deduped_products.threading_tool_material), '')
+          ) AS effective_tool_material
+        FROM deduped_products
+        LEFT JOIN LATERAL (
+          SELECT
+            CASE
+              WHEN UPPER(COALESCE(status_row.material_rating, '')) = 'EXCELLENT' THEN 'EXCELLENT'
+              WHEN UPPER(COALESCE(status_row.material_rating, '')) = 'GOOD' THEN 'GOOD'
+              ELSE 'NULL'
+            END AS material_rating,
+            COALESCE(status_row.material_rating_score, 0) AS material_rating_score
+          FROM catalog_app.series_profile_mv sp
+          CROSS JOIN LATERAL jsonb_to_recordset(COALESCE(sp.work_piece_statuses, '[]'::jsonb)) AS status_row(
+            tag_name text,
+            work_piece_name text,
+            normalized_work_piece_name text,
+            status text,
+            material_rating text,
+            material_rating_score integer
+          )
+          WHERE ${materialTagParam}::text IS NOT NULL
+            AND sp.normalized_series_name = NULLIF(
+              regexp_replace(UPPER(BTRIM(COALESCE(deduped_products.edp_series_name, ''))), '[\\s\\-·ㆍ\\./(),]+', '', 'g'),
+              ''
+            )
+            AND status_row.tag_name = ${materialTagParam}
+          ORDER BY
+            CASE
+              WHEN ${workPieceNameParam}::text IS NOT NULL
+                AND status_row.normalized_work_piece_name = NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '')
+              THEN 0
+              ELSE 1
+            END ASC,
+            status_row.material_rating_score DESC,
+            status_row.work_piece_name ASC NULLS LAST
+          LIMIT 1
+        ) status_lookup ON TRUE
+      )
+      SELECT *
+      FROM ranked_products
+      ORDER BY
+        material_rating_score DESC,
+        CASE material_rating
+          WHEN 'EXCELLENT' THEN 0
+          WHEN 'GOOD' THEN 1
+          WHEN 'NULL' THEN 2
+          ELSE 3
+        END ASC,
+        CASE
+          WHEN UPPER(COALESCE(effective_tool_material, '')) = 'CARBIDE' THEN 0
+          WHEN COALESCE(effective_tool_material, '') <> '' THEN 1
+          ELSE 2
+        END ASC,
+        edp_idx DESC
+      ${limitClause}
+      ${offsetClause}
+    `,
+    values: dataValues,
+  }
+}
+
+export async function queryProductsPageFromDatabase(options: ProductSearchOptions = {}): Promise<ProductSearchPageResult> {
+  const { where, values, limit, offset } = buildQueryOptions(options)
+  const queryBase = buildPagedProductQueryBase(where)
+  const countQuery = `
+    ${queryBase}
+    SELECT COUNT(*)::int AS total_count
+    FROM deduped_products
+  `
+  const dataQuery = buildProductDataQuery(options.input, where, values, limit, offset)
 
   const startedAt = Date.now()
   console.log(
-    `[product-db] query:start where=${where.length} values=${values.length} limit=${limit} code=${options.normalizedCode ?? "-"} series=${options.seriesName ?? "-"}`
+    `[product-db] query:start where=${where.length} values=${values.length} limit=${limit ?? "none"} offset=${offset} code=${options.normalizedCode ?? "-"} series=${options.seriesName ?? "-"}`
   )
-  const result = await executeLoggedQuery<RawProductRow>(query, values, {
+  const countResult = await executeLoggedQuery<{ total_count: number | string }>(countQuery, values, {
+    operation: "queryProductsCountFromDatabase",
+    whereCount: where.length,
+    limit,
+    offset,
+    normalizedCode: options.normalizedCode,
+    seriesName: options.seriesName,
+  })
+  const totalCount = Number(countResult.rows[0]?.total_count ?? 0)
+  const result = await executeLoggedQuery<RawProductRow>(dataQuery.query, dataQuery.values, {
     operation: "queryProductsFromDatabase",
     whereCount: where.length,
     limit,
+    offset,
     normalizedCode: options.normalizedCode,
     seriesName: options.seriesName,
   })
@@ -669,7 +888,7 @@ export async function queryProductsFromDatabase(options: ProductSearchOptions = 
   const durationMs = Date.now() - startedAt
   if (shouldLogTimings()) {
     console.log(
-      `[product-db] query=${durationMs}ms rows=${result.rowCount ?? mapped.length} mapped=${mapped.length} filters=${where.length} limit=${limit}`
+      `[product-db] query=${durationMs}ms rows=${result.rowCount ?? mapped.length} mapped=${mapped.length} total=${totalCount} filters=${where.length} limit=${limit ?? "none"} offset=${offset}`
     )
     console.log(
       `[product-db] stage=db_fetch count=${mapped.length} edps=${formatEdpListForLog(mapped)}`
@@ -682,8 +901,43 @@ export async function queryProductsFromDatabase(options: ProductSearchOptions = 
     filterCount: where.length,
     resultCount: mapped.length,
     durationMs,
-    query: `code=${options.normalizedCode ?? "-"} series=${options.seriesName ?? "-"} filters=${where.length} limit=${limit}`,
+    query: `code=${options.normalizedCode ?? "-"} series=${options.seriesName ?? "-"} filters=${where.length} limit=${limit} offset=${offset} total=${totalCount}`,
   }).catch(() => {})
+
+  return {
+    products: mapped,
+    totalCount,
+  }
+}
+
+export async function queryProductsFromDatabase(options: ProductSearchOptions = {}): Promise<CanonicalProduct[]> {
+  const { where, values, limit, offset } = buildQueryOptions(options)
+  const dataQuery = buildProductDataQuery(options.input, where, values, limit, offset)
+
+  const startedAt = Date.now()
+  console.log(
+    `[product-db] query:list:start where=${where.length} values=${values.length} limit=${limit ?? "none"} offset=${offset} code=${options.normalizedCode ?? "-"} series=${options.seriesName ?? "-"}`
+  )
+  const result = await executeLoggedQuery<RawProductRow>(dataQuery.query, dataQuery.values, {
+    operation: "queryProductsListFromDatabase",
+    whereCount: where.length,
+    limit,
+    offset,
+    normalizedCode: options.normalizedCode,
+    seriesName: options.seriesName,
+  })
+  const mapped = result.rows
+    .map(mapRowToProduct)
+    .filter(product => !!product.normalizedCode)
+
+  if (shouldLogTimings()) {
+    console.log(
+      `[product-db] query:list=${Date.now() - startedAt}ms rows=${result.rowCount ?? mapped.length} mapped=${mapped.length} filters=${where.length} limit=${limit ?? "none"} offset=${offset}`
+    )
+    console.log(
+      `[product-db] stage=db_fetch count=${mapped.length} edps=${formatEdpListForLog(mapped)}`
+    )
+  }
 
   return mapped
 }
@@ -695,6 +949,7 @@ export async function getProductByCodeFromDatabase(code: string): Promise<Canoni
 
 export async function getSeriesOverviewFromDatabase(limit = 120): Promise<ProductSeriesOverview[]> {
   const query = `
+    WITH
     series_view AS (
       SELECT
         COALESCE(NULLIF(edp_series_name, ''), edp_no) AS series_name,

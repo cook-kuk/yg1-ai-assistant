@@ -12,18 +12,47 @@ import { resolveUndoTarget } from "@/lib/domain/request-preparation"
 
 // ── Deterministic Patterns (fast path, no LLM) ──────────────
 
-const RESET_PATTERNS = ["처음부터 다시", "다시 시작", "리셋", "처음부터"]
-const RECOMMEND_PATTERNS = ["추천해주세요", "바로 보여주세요", "결과 보기", "추천 받기", "추가 조건 없음", "그냥 줘", "빨리", "알아서", "그냥"]
-const COMPARE_PATTERNS = [/비교/, /차이/, /(\d+)번.*(\d+)번/, /상위.*비교/, /위.*비교/, /이\s*중/]
-const EXPLAIN_PATTERNS = [/그게\s*뭐/, /그건\s*뭐/, /이게\s*뭐/, /뭐야/, /차이.*뭐/, /뭐가\s*다/, /설명/, /왜\s*이/, /이유/]
+const RESET_PATTERNS = ["처음부터 다시", "다시 시작", "리셋", "처음부터", "새로 시작", "초기화", "reset"]
+const RECOMMEND_PATTERNS = ["추천해주세요", "바로 보여주세요", "결과 보기", "추천 받기", "추가 조건 없음", "그냥 줘", "빨리", "알아서", "그냥", "보여줘", "결과", "추천해줘", "추천 해줘", "결과보기"]
+const COMPARE_PATTERNS = [
+  /비교/, /차이/, /(\d+)번.*(\d+)번/, /상위.*비교/, /위.*비교/, /이\s*중/,
+  /(\d+)\s*번.*이랑/, /(\d+)~(\d+)\s*번/, /(\d+)\s*번.*하고.*(\d+)\s*번/,
+  /둘.*비교/, /셋.*비교/, /전부.*비교/, /다.*비교/,
+  /(\d+)\s*개.*비교/, /상위\s*(\d+)\s*개/,
+]
+const EXPLAIN_PATTERNS = [
+  /그게\s*뭐/, /그건\s*뭐/, /이게\s*뭐/, /뭐야/, /차이.*뭐/, /뭐가\s*다/, /설명/, /왜\s*이/, /이유/,
+  /알려\s*줘/, /알려줘/, /어떤\s*거/, /뭐\s*좋/, /좋은\s*거/,
+  /코팅.*종류/, /종류.*알려/, /특징/, /장단점/,
+  /뭐야\s*\?*$/, /뭔가요/, /뭐에요/, /뭐죠/,
+  /에\s*대해(서)?\s*(설명|알려)/, /대해\s*설명/, /대해서\s*알려/,
+  /.+[,\s].+[,\s].+(설명|알려|뭐야|차이)/, // "A, B, C 설명해줘" — 복수 옵션 나열 + 설명 요청
+  /각각.*설명/, /하나씩.*설명/, /비교.*설명/,
+  /뭔지\s*(몰라|모르|잘\s*몰|모르겠)/, // "뭔지 몰라요", "뭔지 모르겠어요"
+  /몰라(요|서)?$/, /모르겠(어요|습니다|네)?/, // "몰라요", "모르겠어요"
+  /설명\s*(해\s*줄\s*수|좀|해\s*줘|해\s*주세요|해줘)/, // "설명해줄수 있어?"
+]
+const SCOPE_CONFIRM_PATTERNS = [
+  /지금.*상태/, /현재.*상태/, /지금.*어떤/, /뭐.*적용/, /어디까지/, /몇\s*개.*남/,
+  /필터.*뭐/, /조건.*뭐/, /지금.*조건/, /현재.*조건/,
+]
+const SUMMARIZE_PATTERNS = [
+  /정리/, /요약/, /지금까지/, /어디까지.*했/, /진행.*상황/,
+]
 const META_QUESTION_PATTERNS = [
   /아니야\s*\?*$/, /아닌가\s*\?*$/, /않아\s*\?*$/, /잖아/,
   /해야\s*(하|되)/, /맞아\s*\?*$/, /맞지\s*\?*$/, /아닌데/,
   /이상하/, /왜.*그/, /왜.*이렇/, /어떻게.*된/, /뭐가.*잘못/,
   /내에서/, /중에서/, /안에서/,
+  /왜.*추천/, /이거.*왜/, /왜.*이거/,
 ]
-const SKIP_PATTERNS = ["상관없음", "모름", "패스", "넘어", "넘겨", "스킵", "아무거나"]
+const SKIP_PATTERNS = ["상관없음", "모름", "패스", "넘어", "넘겨", "스킵", "아무거나", "다음", "다음으로"]
 const NONSENSE_PATTERNS = [/^[ㅋㅎㅠㅜ]+$/, /^[?!.]+$/, /^\s*$/]
+const SIDE_CHAT_PATTERNS = [
+  /^안녕/, /^ㅎㅇ/, /^하이/, /^hello/i, /^hi\b/i,
+  /고마워/, /감사/, /thanks/i, /ㄳ/,
+  /\d+\s*[+\-*/]\s*\d+/,  // math
+]
 
 /**
  * Classify user intent — deterministic first, Haiku fallback for ambiguity.
@@ -88,7 +117,12 @@ export async function classifyIntent(
     }
   }
 
-  // ── 4. Comparison requests ──
+  // ── 4. Explanation requests (BEFORE comparison — "차이 설명해줘" is explanation, not comparison) ──
+  if (EXPLAIN_PATTERNS.some(p => p.test(clean))) {
+    return { intent: "ASK_EXPLANATION", confidence: 0.9, modelUsed: "haiku" }
+  }
+
+  // ── 5. Comparison requests ──
   for (const p of COMPARE_PATTERNS) {
     if (p instanceof RegExp ? p.test(clean) : clean.includes(p)) {
       const targets = extractComparisonTargets(clean)
@@ -99,11 +133,6 @@ export async function classifyIntent(
         modelUsed: "haiku",
       }
     }
-  }
-
-  // ── 5. Explanation requests ──
-  if (EXPLAIN_PATTERNS.some(p => p.test(clean))) {
-    return { intent: "ASK_EXPLANATION", confidence: 0.85, modelUsed: "haiku" }
   }
 
   // ── 6. Immediate recommendation ──
@@ -133,9 +162,24 @@ export async function classifyIntent(
     }
   }
 
-  // ── 7.6. Meta-questions about the process (NOT parameters) ──
+  // ── 7.6. Scope confirmation ("지금 어떤 상태야?") ──
+  if (SCOPE_CONFIRM_PATTERNS.some(p => p.test(clean))) {
+    return { intent: "ASK_EXPLANATION", confidence: 0.9, extractedValue: "__confirm_scope__", modelUsed: "haiku" }
+  }
+
+  // ── 7.7. Task summary ("지금까지 정리해줘") ──
+  if (SUMMARIZE_PATTERNS.some(p => p.test(clean))) {
+    return { intent: "ASK_EXPLANATION", confidence: 0.9, extractedValue: "__summarize_task__", modelUsed: "haiku" }
+  }
+
+  // ── 7.8. Meta-questions about the process (NOT parameters) ──
   if (META_QUESTION_PATTERNS.some(p => p.test(clean))) {
     return { intent: "ASK_EXPLANATION", confidence: 0.85, modelUsed: "haiku" }
+  }
+
+  // ── 7.9. Side conversation (greetings, thanks, math) ──
+  if (SIDE_CHAT_PATTERNS.some(p => p.test(clean))) {
+    return { intent: "START_NEW_TOPIC", confidence: 0.85, modelUsed: "haiku" }
   }
 
   // ── 8. In active narrowing session: likely a parameter/option ──
@@ -204,7 +248,7 @@ Respond: {"intent":"...", "confidence": 0.0-1.0, "extractedValue": "..." or null
   const raw = await provider.complete(
     systemPrompt,
     [{ role: "user", content: message }],
-    200,
+    1500,
     "haiku",
     "intent-classifier"
   )
@@ -274,29 +318,35 @@ function extractComparisonTargets(clean: string): string[] {
 }
 
 function tryDeterministicExtraction(clean: string): string | null {
-  // Flute count
-  const fluteMatch = clean.match(/^(\d+)\s*날/)
+  // Flute count: "4날", "날수 4", "4 flute"
+  const fluteMatch = clean.match(/^(\d+)\s*날/) || clean.match(/날수?\s*(\d+)/) || clean.match(/(\d+)\s*f(?:lute)?$/i)
   if (fluteMatch) return `${fluteMatch[1]}날`
 
-  // Diameter
-  const diamMatch = clean.match(/^([\d.]+)\s*mm/)
+  // Diameter: "4mm", "직경 4mm", "φ4", "4밀리"
+  const diamMatch = clean.match(/^([\d.]+)\s*mm/) || clean.match(/직경\s*([\d.]+)/) || clean.match(/φ\s*([\d.]+)/) || clean.match(/([\d.]+)\s*밀리/)
   if (diamMatch) return `${diamMatch[1]}mm`
 
   // Known coating keywords
-  const coatings = ["altin", "tialn", "dlc", "무코팅", "y-코팅", "ticn", "bright finish", "diamond", "x-coating", "t-coating", "uncoated", "alcrn"]
+  const coatings = ["altin", "tialn", "dlc", "무코팅", "y-코팅", "ticn", "bright finish", "diamond", "x-coating", "t-coating", "uncoated", "alcrn", "다이아몬드", "코팅없"]
   for (const c of coatings) {
     if (clean.includes(c)) return c
   }
 
   // Known subtypes
-  const subtypes = ["square", "ball", "radius", "스퀘어", "볼", "라디우스", "하이피드"]
+  const subtypes = ["square", "ball", "radius", "스퀘어", "볼", "라디우스", "하이피드", "flat", "chamfer", "taper"]
   for (const s of subtypes) {
     if (clean.includes(s)) return s
   }
 
-  // Series code pattern
-  const seriesMatch = clean.match(/^(ce\d+[a-z]*\d*|gnx\d+|sem[a-z]*\d+)/i)
+  // Series code pattern (expanded)
+  const seriesMatch = clean.match(/(ce\d+[a-z]*\d*|gnx\d+|sem[a-z]*\d+|e\d+[a-z]\d+|v\d+[a-z]*|alu[_-]?cut)/i)
   if (seriesMatch) return seriesMatch[1]
+
+  // Material keywords (when user types workpiece material as answer)
+  const materials = ["알루미늄", "스테인리스", "탄소강", "합금강", "주철", "티타늄", "구리", "인코넬", "sus", "s45c", "aluminum", "stainless"]
+  for (const m of materials) {
+    if (clean.includes(m)) return m
+  }
 
   return null
 }

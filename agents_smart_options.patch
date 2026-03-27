@@ -1,0 +1,121 @@
+--- /mnt/data/yg1repo/YG1_test/AGENTS.md	2026-03-18 06:27:16.000000000 +0000
++++ /mnt/data/AGENTS.updated.md	2026-03-21 00:47:34.841984257 +0000
+@@ -1,49 +1,68 @@
+-# YG-1 working agreements
+-
+-This project is NOT a generic chatbot.
+-It is a stateful industrial tool recommendation system.
+-
+-## Source of truth
+-The source of truth is deterministic session state, not raw chat history.
+-
+-Persist and trust:
+-- recommendation session state
+-- displayedProducts
+-- displayedOptions
+-- displayedSeriesGroups
+-- lastRecommendationArtifact
+-- lastComparisonArtifact
+-- uiNarrowingPath
+-- checkpoint history
+-
+-## Core principles
+-- Never invent product data
+-- Never let UI and session state diverge silently
+-- Never present displayedCount as if it were total matched count
+-- Always preserve or restore recommendation state when possible
+-- Use tool-use for routing and interpretation
+-- Use deterministic logic for execution and validation
+-
+-## Restore / back semantics
+-Support separately:
+-- undo_step
+-- restore_previous_group
+-- resume_previous_task
+-
+-## Clarification
+-If ambiguity affects task boundary, scope, restore target, displayed products, or comparison scope:
+-- ask a clarifying question
+-- provide 2-4 options
+-- always include "직접 입력"
+-
+-## Required validation
+-Before final response:
+-- validate slot replacement
+-- validate candidate count consistency
+-- validate displayedProducts / displayedSeriesGroups persistence
+-- validate UI/state synchronization
+-- validate restore target correctness
+-
+-## Testing
+-Every bug fix must add or update a regression test.
+-Prefer Playwright for end-to-end session/UI bugs.
+\ No newline at end of file
++# YG-1 working agreements
++
++This project is NOT a generic chatbot.
++It is a stateful industrial tool recommendation system.
++
++## Source of truth
++The source of truth is deterministic session state, not raw chat history.
++
++Persist and trust:
++- recommendation session state
++- displayedProducts
++- displayedOptions
++- displayedSeriesGroups
++- lastRecommendationArtifact
++- lastComparisonArtifact
++- uiNarrowingPath
++- checkpoint history
++
++## Core principles
++- Never invent product data
++- Never let UI and session state diverge silently
++- Never present displayedCount as if it were total matched count
++- Always preserve or restore recommendation state when possible
++- Prefer deterministic routing when active session state already makes user intent obvious
++- Use tool-use only for routing and interpretation when deterministic routing is insufficient
++- Use deterministic logic for execution and validation
++
++## Smart suggestion / option rules
++- displayedOptions is the source of truth for selectable UI actions; chips are presentation only
++- Never emit actionable menus as freeform text when structured options can be produced
++- Every selectable option must have a stable id, family, and executable plan
++- Support option families separately: narrowing, repair, action, explore, reset
++- In conflict cases, generate repair options before suggesting reset
++- Prefer minimal-change repairs over destructive reset
++- Reset must only fire on explicit reset commands, never from quoted text, pasted options, or meta-discussion
++- Keep resolved intake constraints separate from later applied narrowing filters
++- Preserve recommendation artifacts and narrowing path unless reset is explicitly chosen
++- When useful, show projected outcome using cheap deterministic estimation rather than expensive full recomputation
++
++## Restore / back semantics
++Support separately:
++- undo_step
++- restore_previous_group
++- resume_previous_task
++
++## Clarification
++If ambiguity affects task boundary, scope, restore target, displayed products, or comparison scope:
++- ask a clarifying question
++- provide 2-4 options
++- always include "직접 입력"
++
++For bounded bug fixes or scoped implementation tasks:
++- do not stop for follow-up questions unless blocked by real ambiguity
++- make the smallest deterministic assumption and proceed
++
++## Required validation
++Before final response:
++- validate slot replacement
++- validate candidate count consistency
++- validate displayedProducts / displayedSeriesGroups persistence
++- validate displayedOptions / chips synchronization for selectable actions
++- validate UI/state synchronization
++- validate restore target correctness
++- validate reset only occurs for explicit reset commands
++
++## Testing
++Every bug fix must add or update a regression test.
++Prefer Playwright for end-to-end session/UI bugs.

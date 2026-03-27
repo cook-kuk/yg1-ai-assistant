@@ -74,7 +74,7 @@ export const CanonicalProductSchema = z.object({
   materialTags: z.array(z.string()),        // ISO tags: P, M, K, N, S, H
 
   // Meta
-  region: z.string().nullable(),
+  country: z.string().nullable(),
   description: z.string().nullable(),
   featureText: z.string().nullable(),       // HTML stripped to plain text
   seriesIconUrl: z.string().nullable(),
@@ -117,15 +117,29 @@ export type LeadTimeRecord = z.infer<typeof LeadTimeRecordSchema>
 export const RecommendationInputSchema = z.object({
   queryText: z.string().optional(),
   material: z.string().optional(),       // Korean or English material name
+  workPieceName: z.string().optional(),  // detailed work piece name from brand reference
   operationType: z.string().optional(),  // 황삭/정삭/고이송/측면/슬롯 etc.
+  machiningCategory: z.string().optional(),
   toolType: z.string().optional(),
+  toolMaterial: z.string().optional(),
   toolSubtype: z.string().optional(),
+  seriesName: z.string().optional(),
+  brand: z.string().optional(),
   diameterMm: z.number().optional(),
   diameterUnit: z.enum(["mm", "inch"]).optional(),
+  shankDiameterMm: z.number().optional(),
+  lengthOfCutMm: z.number().optional(),
+  overallLengthMm: z.number().optional(),
+  helixAngleDeg: z.number().optional(),
+  ballRadiusMm: z.number().optional(),
+  taperAngleDeg: z.number().optional(),
   flutePreference: z.number().optional(),
   coatingPreference: z.string().optional(),
+  coolantHole: z.boolean().optional(),
   manufacturerScope: z.enum(["yg1-only", "include-competitor"]).default("yg1-only"),
   locale: z.string().default("ko"),
+  country: z.string().optional(),  // DB country codes from prod_edp_option_* tables, or "ALL"
+  unitSystem: z.enum(["METRIC", "INCH", "ALL"]).optional(),
 })
 export type RecommendationInput = z.infer<typeof RecommendationInputSchema>
 
@@ -135,6 +149,7 @@ export interface ScoreBreakdown {
   flutes: { score: number; max: number; detail: string }
   materialTag: { score: number; max: number; detail: string }
   operation: { score: number; max: number; detail: string }
+  toolShape: { score: number; max: number; detail: string }
   coating: { score: number; max: number; detail: string }
   completeness: { score: number; max: number; detail: string }
   evidence: { score: number; max: number; detail: string }

@@ -29,6 +29,7 @@ export interface ProductIntakeForm {
   machiningIntent: AnswerState<MachiningIntent>
   toolTypeOrCurrentProduct: AnswerState<string>
   diameterInfo: AnswerState<string>
+  country?: AnswerState<string>
   advanced?: {
     fluteCount?: AnswerState<number>
     coating?: AnswerState<string>
@@ -43,6 +44,7 @@ export const INITIAL_INTAKE_FORM: ProductIntakeForm = {
   machiningIntent: { status: "unanswered" },
   toolTypeOrCurrentProduct: { status: "unanswered" },
   diameterInfo: { status: "unanswered" },
+  country: { status: "unanswered" },
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -56,7 +58,6 @@ export function allRequiredAnswered(form: ProductIntakeForm): boolean {
     isAnswered(form.inquiryPurpose) &&
     isAnswered(form.material) &&
     isAnswered(form.operationType) &&
-    isAnswered(form.machiningIntent) &&
     isAnswered(form.toolTypeOrCurrentProduct) &&
     isAnswered(form.diameterInfo)
   )
@@ -67,7 +68,6 @@ export function countAnswered(form: ProductIntakeForm): number {
     form.inquiryPurpose,
     form.material,
     form.operationType,
-    form.machiningIntent,
     form.toolTypeOrCurrentProduct,
     form.diameterInfo,
   ].filter((f) => f.status !== "unanswered").length
@@ -77,7 +77,6 @@ export function countUnknowns(form: ProductIntakeForm): number {
   return [
     form.material,
     form.operationType,
-    form.machiningIntent,
     form.toolTypeOrCurrentProduct,
     form.diameterInfo,
   ].filter((f) => f.status === "unknown").length
@@ -126,6 +125,27 @@ export interface IntakeFieldConfig {
   multiSelect?: boolean   // true = allow multiple option selection (comma-separated value)
 }
 
+export const OPERATION_SHAPE_OPTIONS: IntakeOption[] = [
+  { value: "Side_Milling", label: "Side_Milling" },
+  { value: "Facing", label: "Facing" },
+  { value: "Profiling", label: "Profiling" },
+  { value: "Die-Sinking", label: "Die-Sinking" },
+  { value: "Helical_Interpolation", label: "Helical_Interpolation" },
+  { value: "Chamfering", label: "Chamfering" },
+  { value: "Corner_Radius", label: "Corner_Radius" },
+  { value: "Trochoidal", label: "Trochoidal" },
+  { value: "Taper Side Milling", label: "Taper Side Milling" },
+  { value: "Small Part", label: "Small Part" },
+  { value: "Slotting", label: "Slotting" },
+  { value: "Side Milling", label: "Side Milling" },
+  { value: "Helical Interpolation", label: "Helical Interpolation" },
+  { value: "Corner Radius", label: "Corner Radius" },
+  { value: "Taper_Side_Milling", label: "Taper_Side_Milling" },
+  { value: "Small_Part", label: "Small_Part" },
+  { value: "Ramping", label: "Ramping" },
+  { value: "Plunging", label: "Plunging" },
+]
+
 export const FIELD_CONFIGS: IntakeFieldConfig[] = [
   {
     key: "inquiryPurpose",
@@ -154,7 +174,6 @@ export const FIELD_CONFIGS: IntakeFieldConfig[] = [
       { value: "주철", label: "주철", tag: "K" },
       { value: "고경도강", label: "고경도강 (HRC40+)", tag: "H" },
       { value: "티타늄", label: "티타늄 / 내열합금", tag: "S" },
-      { value: "구리", label: "구리 / 흑연", tag: "N" },
     ],
     unknownLabel: "모름",
   },
@@ -164,42 +183,21 @@ export const FIELD_CONFIGS: IntakeFieldConfig[] = [
     emoji: "⚙️",
     description: "어떤 형태의 가공인가요? (복수 선택 가능)",
     multiSelect: true,
-    options: [
-      { value: "측면가공", label: "측면가공 (Side)" },
-      { value: "슬롯", label: "슬롯 (Slot)" },
-      { value: "포켓", label: "포켓 (Pocket)" },
-      { value: "헬리컬", label: "헬리컬 진입" },
-      { value: "정면가공", label: "정면가공 (Face)" },
-      { value: "프로파일", label: "프로파일 / 윤곽" },
-    ],
-    unknownLabel: "모름",
-  },
-  {
-    key: "machiningIntent",
-    label: "가공 성격",
-    emoji: "🎚️",
-    description: "황삭 / 중삭 / 정삭 중 어느 쪽인가요?",
-    options: [
-      { value: "roughing", label: "황삭 (Roughing)" },
-      { value: "semi", label: "중삭 (Semi-finishing)" },
-      { value: "finishing", label: "정삭 (Finishing)" },
-    ],
+    options: OPERATION_SHAPE_OPTIONS,
     unknownLabel: "모름",
   },
   {
     key: "toolTypeOrCurrentProduct",
-    label: "공구 타입 / 현재 제품",
+    label: "가공 방식",
     emoji: "🔧",
-    description: "원하는 공구 타입 또는 현재 사용 중인 EDP를 알려주세요",
+    description: "어떤 가공 분류로 찾으시나요?",
     options: [
-      { value: "엔드밀", label: "엔드밀 (Square / Ball / CR)" },
-      { value: "드릴", label: "드릴 (Drill)", disabled: true },
-      { value: "탭", label: "탭 (Tap)", disabled: true },
+      { value: "Milling", label: "Milling" },
+      { value: "Holemaking", label: "Holemaking" },
+      { value: "Threading", label: "Threading" },
+      { value: "Turning", label: "Turning" },
     ],
     unknownLabel: "모름",
-    hasCustomInput: true,
-    customInputLabel: "EDP 코드 직접입력",
-    customInputPlaceholder: "예: CE5G60030",
   },
   {
     key: "diameterInfo",

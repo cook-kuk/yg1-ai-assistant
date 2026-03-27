@@ -1,0 +1,5 @@
+export {
+  ENABLE_COMPARISON_AGENT,
+  ENABLE_OPUS_AMBIGUITY,
+  ENABLE_TOOL_USE_ROUTING,
+} from "@/lib/feature-flags"
