@@ -40,6 +40,7 @@ export default function ProductRecommendPage() {
     handleReset,
     handleFeedback,
     handleChipFeedback,
+    handleRecommendationFeedback,
     handleSuccessCapture,
   } = useProductRecommendationPage({
     language,
@@ -134,6 +135,7 @@ export default function ProductRecommendPage() {
             onEdit={() => setPhase("intake")}
             onFeedback={handleFeedback}
             onChipFeedback={handleChipFeedback}
+            onRecommendationFeedback={handleRecommendationFeedback}
             onSuccessCapture={handleSuccessCapture}
           />
         )}

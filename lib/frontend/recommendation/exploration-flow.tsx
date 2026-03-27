@@ -377,6 +377,7 @@ function NarrowingChat({
   onReset,
   onFeedback,
   onChipFeedback,
+  onRecommendationFeedback,
 }: {
   messages: ChatMsg[]
   isSending: boolean
@@ -385,15 +386,18 @@ function NarrowingChat({
   onReset?: () => void
   onFeedback?: (messageIndex: number, feedback: TurnFeedback) => void
   onChipFeedback?: (messageIndex: number, feedback: TurnFeedback) => void
+  onRecommendationFeedback?: (messageIndex: number, feedback: TurnFeedback) => void
 }) {
   const { language } = useApp()
   const [input, setInput] = useState("")
   const [debugMode, setDebugMode] = useState(false)
   const lastAiMsg = [...messages].reverse().find(message => message.role === "ai" && !message.isLoading)
   const lastAiHasChips = (lastAiMsg?.chips?.length ?? 0) > 0
+  const lastAiHasRecommendation = !!lastAiMsg?.recommendation
   const needsFeedback = lastAiMsg && !isSending && (
     lastAiMsg.feedback === undefined ||
-    (lastAiHasChips && lastAiMsg.chipFeedback === undefined)
+    (lastAiHasChips && lastAiMsg.chipFeedback === undefined) ||
+    (lastAiHasRecommendation && lastAiMsg.recommendationFeedback === undefined)
   )
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -481,18 +485,33 @@ function NarrowingChat({
                     </div>
                     {isLatest && (productListChip || aiAnalysisChip) && (
                       <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-gray-100">
+                        {needsFeedback && (
+                          <div className="text-center text-[10px] text-amber-600 bg-amber-50 rounded-lg py-1.5">
+                            {language === "ko" ? "위 응답을 평가한 후 진행할 수 있습니다" : "Please rate the response above to proceed"}
+                          </div>
+                        )}
                         {productListChip && (
                           <button
-                            onClick={() => { setInput(""); onSend(productListChip) }}
-                            className="w-full py-2.5 text-sm font-bold rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md"
+                            onClick={() => { if (needsFeedback) return; setInput(""); onSend(productListChip) }}
+                            disabled={!!needsFeedback}
+                            className={`w-full py-2.5 text-sm font-bold rounded-lg shadow-md ${
+                              needsFeedback
+                                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+                            }`}
                           >
                             {productListChip}
                           </button>
                         )}
                         {aiAnalysisChip && (
                           <button
-                            onClick={() => { setInput(""); onSend(aiAnalysisChip) }}
-                            className="w-full py-2.5 text-sm font-medium rounded-lg border border-purple-300 text-purple-700 hover:bg-purple-50"
+                            onClick={() => { if (needsFeedback) return; setInput(""); onSend(aiAnalysisChip) }}
+                            disabled={!!needsFeedback}
+                            className={`w-full py-2.5 text-sm font-medium rounded-lg border ${
+                              needsFeedback
+                                ? "border-gray-200 text-gray-400 cursor-not-allowed"
+                                : "border-purple-300 text-purple-700 hover:bg-purple-50"
+                            }`}
                           >
                             {aiAnalysisChip}
                           </button>
@@ -504,13 +523,43 @@ function NarrowingChat({
               })()}
 
               {message.recommendation && !message.isLoading && (
-                <RecommendationPanel
-                  result={message.recommendation}
-                  resultText=""
-                  evidenceSummaries={message.evidenceSummaries}
-                  explanation={message.primaryExplanation}
-                  factChecked={message.primaryFactChecked}
-                />
+                <>
+                  <RecommendationPanel
+                    result={message.recommendation}
+                    resultText=""
+                    evidenceSummaries={message.evidenceSummaries}
+                    explanation={message.primaryExplanation}
+                    factChecked={message.primaryFactChecked}
+                  />
+                  {onRecommendationFeedback && (
+                    <div className="border-t border-gray-100 pt-2 mt-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {message.recommendationFeedback ? (
+                          <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
+                            {language === "ko" ? "추천 결과" : "Recommendation"}: {message.recommendationFeedback === "good" ? "👍" : message.recommendationFeedback === "bad" ? "👎" : "😐"}
+                          </span>
+                        ) : (
+                          <>
+                            <span className="text-[10px] text-gray-500 font-medium">{language === "ko" ? "추천 결과:" : "Recommendation:"}</span>
+                            {([
+                              { value: "good" as TurnFeedback, icon: "👍", cls: "hover:bg-green-100" },
+                              { value: "neutral" as TurnFeedback, icon: "😐", cls: "hover:bg-gray-200" },
+                              { value: "bad" as TurnFeedback, icon: "👎", cls: "hover:bg-red-100" },
+                            ]).map(feedback => (
+                              <button
+                                key={feedback.value}
+                                onClick={() => onRecommendationFeedback(index, feedback.value)}
+                                className={`px-2 py-0.5 text-sm rounded-full border border-gray-200 ${feedback.cls} transition-colors`}
+                              >
+                                {feedback.icon}
+                              </button>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               {message.role === "ai" && !message.isLoading && onFeedback && (
@@ -581,7 +630,11 @@ function NarrowingChat({
         {needsFeedback && (
           <div className="text-center text-xs text-amber-600 bg-amber-50 rounded-lg py-1.5 mb-2">
             {language === "ko"
-              ? (lastAiMsg?.feedback === undefined ? "위 응답을 평가해주세요 (👍/😐/👎)" : "선택지도 평가해주세요 (👍/😐/👎)")
+              ? (lastAiMsg?.feedback === undefined
+                ? "위 응답을 평가해주세요 (👍/😐/👎)"
+                : lastAiHasRecommendation && lastAiMsg?.recommendationFeedback === undefined
+                  ? "추천 결과도 평가해주세요 (👍/😐/👎)"
+                  : "선택지도 평가해주세요 (👍/😐/👎)")
               : "Please rate the response above"}
           </div>
         )}
@@ -836,6 +889,7 @@ export function ExplorationScreen({
   onEdit,
   onFeedback,
   onChipFeedback,
+  onRecommendationFeedback,
   onSuccessCapture,
 }: {
   form: ProductIntakeForm
@@ -852,6 +906,7 @@ export function ExplorationScreen({
   onEdit: () => void
   onFeedback: (messageIndex: number, feedback: TurnFeedback) => void
   onChipFeedback: (messageIndex: number, feedback: TurnFeedback) => void
+  onRecommendationFeedback: (messageIndex: number, feedback: TurnFeedback) => void
   onSuccessCapture: (comment: string) => void
 }) {
   const { language } = useApp()
@@ -919,6 +974,7 @@ export function ExplorationScreen({
             onReset={onReset}
             onFeedback={onFeedback}
             onChipFeedback={onChipFeedback}
+            onRecommendationFeedback={onRecommendationFeedback}
           />
         </div>
 
