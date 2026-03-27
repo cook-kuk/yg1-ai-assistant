@@ -53,17 +53,9 @@ export function checkResolution(
 ): ResolutionStatus {
   if (candidateCountHint === 0 || candidates.length === 0) return "resolved_none"
 
-  const top = candidates[0]
-  if (top.matchStatus === "exact" && candidateCountHint <= 3) return "resolved_exact"
-  if (top.matchStatus === "exact" && candidates.length > 1) {
-    const gap = top.score - candidates[1].score
-    if (gap >= 15) return "resolved_exact"
-  }
-
-  // 턴 수 기반 강제 전환 제거 — 사용자가 "지금 조건으로 추천보기" 버튼을 눌러야 전환
-  // 자동 전환은 후보 3개 이하 + exact match일 때만
-
+  // 자동 전환은 후보 3개 이하일 때만 — 그 외에는 사용자가 "추천받기" 버튼을 눌러야 전환
   if (candidateCountHint <= 3) {
+    const top = candidates[0]
     if (top.matchStatus === "exact") return "resolved_exact"
     if (top.score >= 30) return "resolved_approximate"
   }
