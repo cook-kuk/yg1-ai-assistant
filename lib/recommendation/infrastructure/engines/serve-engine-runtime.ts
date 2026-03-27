@@ -2019,43 +2019,8 @@ async function handleServeExplorationInner(
     }
 
     if (action.type === "show_recommendation") {
-      // 📋 제품 보기 (quick view): LLM 분석 없이 짧은 텍스트 + 카드만
-      const quickViewText = (action as any)._quickViewText as string | undefined
-      if (quickViewText) {
-        const candidateSnapshot = deps.buildCandidateSnapshot(displayCandidates, displayEvidenceMap)
-        const sessionState = buildSessionState({
-          candidateCount: totalCandidateCount,
-          appliedFilters: filters,
-          narrowingHistory,
-          stageHistory: prevState.stageHistory ?? [],
-          resolutionStatus: "resolved_approximate",
-          resolvedInput: currentInput,
-          turnCount,
-          displayedCandidates: candidateSnapshot,
-          displayedProducts: candidateSnapshot,
-          fullDisplayedProducts: candidateSnapshot,
-          currentMode: "recommendation",
-          displayedChips: ["상위 3개 비교", "✨ AI 상세 분석", "다른 조건으로", "⟵ 이전 단계"],
-          displayedOptions: [],
-          lastAction: "show_recommendation",
-        })
-        return deps.jsonRecommendationResponse({
-          text: quickViewText,
-          purpose: "recommendation",
-          chips: ["상위 3개 비교", "✨ AI 상세 분석", "다른 조건으로", "⟵ 이전 단계"],
-          isComplete: true,
-          recommendation: null,
-          sessionState,
-          evidenceSummaries: null,
-          candidateSnapshot,
-          pagination: paginationDto(totalCandidateCount),
-          requestPreparation: null,
-          primaryExplanation: null,
-          primaryFactChecked: null,
-          altExplanations: [],
-          altFactChecked: [],
-        })
-      }
+      // 📋 제품 보기든 일반 추천이든 동일하게 handleShowRecommendation 사용
+      // (제품 카드 + 추천 데이터가 포함되어야 프론트에서 렌더링됨)
       return handleShowRecommendation(navCtx)
     }
 
