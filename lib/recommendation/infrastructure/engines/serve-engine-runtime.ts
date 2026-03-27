@@ -1232,11 +1232,15 @@ async function handleServeExplorationInner(
             agentsInvoked: [{ agent: "explicit-refine-detector", model: "deterministic", durationMs: 0 }],
             escalatedToOpus: false,
           }
-          // Remove existing filter for the target field so retrieval returns broader results
+          // Remove existing filter for the target field + dependent filters
           const diameterFields = ["diameterMm", "diameterRefine", "diameter"]
           const fieldAliases = refineField === "diameter" ? diameterFields : [refineField]
+          // 직경 변경 시 시리즈 필터도 제거 (시리즈는 직경에 종속됨)
+          const dependentFields = refineField === "diameter"
+            ? [...diameterFields, "seriesName", "edpSeriesName"]
+            : fieldAliases
           for (let i = filters.length - 1; i >= 0; i--) {
-            if (fieldAliases.includes(filters[i].field)) {
+            if (dependentFields.includes(filters[i].field)) {
               console.log(`[runtime:explicit-refine] Removing filter: ${filters[i].field}=${filters[i].value}`)
               filters.splice(i, 1)
             }
@@ -2624,16 +2628,32 @@ async function handleServeExplorationInner(
       const newCandidates = testResult.candidates
       const previousCandidateCount = candidateCountBeforeFilter
 
-      const updatedHistory = [...baseHistoryForNext, {
+      // 같은 필드가 이미 있으면 교체(replace), 없으면 추가(push)
+      const existingTurnIdx = baseHistoryForNext.findIndex(h =>
+        h.extractedFilters?.some(f => f.field === filter.field && f.op !== "skip")
+      )
+      const newTurn = {
         question: baseHistoryForNext.length > 0 ? "follow-up" : "initial",
         answer: lastUserMsg.text,
         extractedFilters: [filter],
         candidateCountBefore: previousCandidateCount,
         candidateCountAfter: testResult.totalConsidered,
-      }]
+      }
+      let updatedHistory: NarrowingTurn[]
+      if (existingTurnIdx >= 0 && nextFilterState.replacedExisting) {
+        // 같은 필드 교체: 해당 턴을 교체하고 이후 턴 유지
+        updatedHistory = [...baseHistoryForNext]
+        updatedHistory[existingTurnIdx] = newTurn
+        console.log(`[narrowing-history] Replaced turn ${existingTurnIdx} (${filter.field}=${filter.value})`)
+      } else {
+        updatedHistory = [...baseHistoryForNext, newTurn]
+      }
       narrowingHistory.splice(0, narrowingHistory.length, ...updatedHistory)
 
-      const existingStages = baseStageHistoryForNext
+      // stageHistory도 같은 필드면 교체
+      const existingStageIdx = baseStageHistoryForNext.findIndex(s =>
+        s.filterApplied?.field === filter.field
+      )
       const newStage: NarrowingStage = {
         stepIndex: filterAppliedAt,
         stageName: `${filter.field}_${filter.value}`,
@@ -2642,10 +2662,19 @@ async function handleServeExplorationInner(
         resolvedInputSnapshot: { ...currentInput },
         filtersSnapshot: [...filters],
       }
+      let existingStages: NarrowingStage[]
+      if (existingStageIdx >= 0 && nextFilterState.replacedExisting) {
+        existingStages = [...baseStageHistoryForNext]
+        existingStages[existingStageIdx] = newStage
+      } else {
+        existingStages = baseStageHistoryForNext
+      }
       // Cap stageHistory to last 10 stages to prevent session state bloat in long conversations
       // (each stage has full resolvedInputSnapshot + filtersSnapshot)
       const MAX_STAGE_HISTORY = 10
-      const updatedStages = [...existingStages, newStage].slice(-MAX_STAGE_HISTORY)
+      const updatedStages = (existingStageIdx >= 0 && nextFilterState.replacedExisting)
+        ? existingStages.slice(-MAX_STAGE_HISTORY) // 이미 교체됨
+        : [...existingStages, newStage].slice(-MAX_STAGE_HISTORY)
 
       console.log(
         `[orchestrator:filter] ${filter.field}=${filter.value} | ${previousCandidateCount}->${testResult.totalConsidered} candidates | stages: ${updatedStages.map(stage => stage.stageName).join(" -> ")}`
