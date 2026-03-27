@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <rect width="80" height="80" fill="white"/>
+  <!-- Workpiece block -->
+  <path d="M15,30 L15,65 L65,65 L65,30" fill="none" stroke="#374151" stroke-width="2"/>
+  <!-- Chamfer cut (45 degree) -->
+  <line x1="15" y1="30" x2="30" y2="45" stroke="#ed1c24" stroke-width="2.5"/>
+  <!-- Original edge (dashed) -->
+  <line x1="15" y1="45" x2="15" y2="30" stroke="#374151" stroke-width="1" stroke-dasharray="3,2"/>
+  <line x1="15" y1="45" x2="30" y2="45" stroke="#374151" stroke-width="1" stroke-dasharray="3,2"/>
+  <!-- Top surface continues -->
+  <line x1="30" y1="45" x2="65" y2="45" stroke="#374151" stroke-width="1.5"/>
+  <!-- Chamfer tool (angled) -->
+  <line x1="18" y1="24" x2="25" y2="31" stroke="#374151" stroke-width="2.5"/>
+  <line x1="22" y1="20" x2="29" y2="27" stroke="#374151" stroke-width="2.5"/>
+  <!-- Tool shank -->
+  <rect x="17" y="8" width="8" height="14" rx="1" fill="none" stroke="#374151" stroke-width="2"/>
+  <!-- 45 degree angle indicator -->
+  <path d="M18,42 L18,38 L22,42 Z" fill="none" stroke="#ed1c24" stroke-width="1"/>
+  <!-- Angle label -->
+  <text x="6" y="42" font-family="Arial" font-size="7" fill="#ed1c24">45</text>
+</svg>

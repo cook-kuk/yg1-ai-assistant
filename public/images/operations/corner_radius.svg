@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <rect width="80" height="80" fill="white"/>
+  <!-- Workpiece L-shape (before rounding) -->
+  <path d="M15,20 L15,65 L65,65 L65,45 L40,45 L40,20 Z" fill="none" stroke="#374151" stroke-width="2"/>
+  <!-- Rounded corner (the radius cut) -->
+  <path d="M40,45" fill="none" stroke="#374151" stroke-width="1" stroke-dasharray="3,2"/>
+  <!-- Corner radius arc (machined) -->
+  <path d="M52,45 Q40,45 40,33" fill="none" stroke="#ed1c24" stroke-width="2.5"/>
+  <!-- Remove the sharp corner lines (show as dashed) -->
+  <line x1="40" y1="33" x2="40" y2="45" stroke="#374151" stroke-width="1" stroke-dasharray="2,2"/>
+  <line x1="40" y1="45" x2="52" y2="45" stroke="#374151" stroke-width="1" stroke-dasharray="2,2"/>
+  <!-- Tool at corner position -->
+  <circle cx="46" cy="39" r="5" fill="none" stroke="#374151" stroke-width="2"/>
+  <!-- Tool shank -->
+  <line x1="50" y1="35" x2="58" y2="18" stroke="#374151" stroke-width="2"/>
+  <rect x="55" y="8" width="6" height="12" rx="1" fill="none" stroke="#374151" stroke-width="1.5"/>
+  <!-- Radius indicator -->
+  <path d="M44,45 Q40,45 40,41" fill="none" stroke="#ed1c24" stroke-width="1" stroke-dasharray="2,1"/>
+  <text x="32" y="50" font-family="Arial" font-size="7" fill="#ed1c24">R</text>
+</svg>

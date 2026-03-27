@@ -25,7 +25,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             >
               <Menu className="h-5 w-5" />
             </button>
-            <span className="ml-2 font-semibold text-sm">YG-1 AI Assistant</span>
+            <img src="/logo.png" alt="YG-1" className="ml-2 h-6 object-contain" />
+            <span className="ml-1.5 font-semibold text-sm">AI Assistant</span>
           </div>
           {children}
         </main>

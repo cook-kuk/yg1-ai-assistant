@@ -36,6 +36,35 @@ const TOOL_CATEGORY_IMAGES: Record<string, string> = {
   Turning: "/images/reference/turning.png",
 }
 
+const OPERATION_SHAPE_IMAGES: Record<string, string> = {
+  Side_Milling: "/images/operations/side_milling.svg",
+  "Side Milling": "/images/operations/side_milling.svg",
+  Facing: "/images/operations/facing.svg",
+  Profiling: "/images/operations/profiling.svg",
+  "Die-Sinking": "/images/operations/die_sinking.svg",
+  Helical_Interpolation: "/images/operations/helical_interpolation.svg",
+  "Helical Interpolation": "/images/operations/helical_interpolation.svg",
+  Chamfering: "/images/operations/chamfering.svg",
+  Corner_Radius: "/images/operations/corner_radius.svg",
+  "Corner Radius": "/images/operations/corner_radius.svg",
+  Trochoidal: "/images/operations/trochoidal.svg",
+  Taper_Side_Milling: "/images/operations/taper_side_milling.svg",
+  "Taper Side Milling": "/images/operations/taper_side_milling.svg",
+  Small_Part: "/images/operations/small_part.svg",
+  "Small Part": "/images/operations/small_part.svg",
+  Slotting: "/images/operations/slotting.svg",
+  Ramping: "/images/operations/ramping.svg",
+  Plunging: "/images/operations/plunging.svg",
+}
+
+const INQUIRY_PURPOSE_ICONS: Record<string, { icon: string; color: string }> = {
+  new: { icon: "✨", color: "from-blue-500 to-indigo-500" },
+  substitute: { icon: "🔄", color: "from-emerald-500 to-teal-500" },
+  inventory_substitute: { icon: "📦", color: "from-amber-500 to-orange-500" },
+  cutting_condition: { icon: "⚙️", color: "from-purple-500 to-violet-500" },
+  product_lookup: { icon: "🔍", color: "from-gray-500 to-slate-500" },
+}
+
 const ISO_ACCENT_BY_TAG: Record<string, string> = {
   P: "text-sky-500",
   M: "text-amber-400",
@@ -303,6 +332,91 @@ function IntakeFieldSection({
               onClick={() => onChange({ status: "known", value: option.value })}
             />
           ))}
+        </div>
+      </div>
+    ) : config.key === "inquiryPurpose" ? (
+      <div className="rounded-[32px] border border-gray-200 bg-[linear-gradient(180deg,#ffffff_0%,#fafafa_100%)] p-4">
+        <div className="mb-3 px-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-gray-400">
+            {language === "ko" ? "문의 목적" : "Inquiry Purpose"}
+          </p>
+        </div>
+        <div className="grid gap-2.5 sm:grid-cols-2">
+          {config.options.map(option => {
+            const iconConfig = INQUIRY_PURPOSE_ICONS[option.value]
+            const isSelected = state.status === "known" && currentValue === option.value
+            return (
+              <button
+                key={option.value}
+                type="button"
+                disabled={option.disabled}
+                onClick={() => onChange({ status: "known", value: option.value })}
+                className={[
+                  "group flex items-center gap-3 rounded-2xl border px-4 py-4 text-left transition-all duration-200",
+                  option.disabled
+                    ? "cursor-not-allowed border-gray-100 bg-gray-50 opacity-50"
+                    : isSelected
+                      ? "border-gray-900 bg-white shadow-[0_8px_30px_-12px_rgba(15,23,42,0.3)]"
+                      : "border-gray-200 bg-white hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md",
+                ].join(" ")}
+              >
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${iconConfig?.color ?? "from-gray-400 to-gray-500"} text-lg shadow-sm`}>
+                  {iconConfig?.icon ?? "📋"}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900">{localizeIntakeText(option.label, language)}</p>
+                  {option.disabled && <p className="text-[10px] text-gray-400 mt-0.5">{language === "ko" ? "준비 중" : "Coming Soon"}</p>}
+                </div>
+                {isSelected && (
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-gray-900" />
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    ) : config.key === "operationType" && config.multiSelect ? (
+      <div className="rounded-[32px] border border-gray-200 bg-[linear-gradient(180deg,#ffffff_0%,#fafafa_100%)] p-4">
+        <div className="mb-3 flex items-center justify-between px-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-gray-400">
+            {language === "ko" ? "가공 형상" : "Application Shape"}
+          </p>
+          <div className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-500">
+            {selectedValues.size > 0
+              ? `${selectedValues.size}${language === "ko" ? "개 선택" : " selected"}`
+              : language === "ko" ? "복수 선택 가능" : "Multi-select"}
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5">
+          {config.options
+            .filter((opt, idx, arr) => arr.findIndex(o => o.label === opt.label) === idx)
+            .map(option => {
+              const imgSrc = OPERATION_SHAPE_IMAGES[option.value]
+              const isSelected = selectedValues.has(option.value)
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => handleMultiToggle(option.value)}
+                  className={[
+                    "group flex flex-col items-center gap-1.5 rounded-2xl border p-3 transition-all duration-200",
+                    isSelected
+                      ? "border-blue-600 bg-blue-50 shadow-sm"
+                      : "border-gray-200 bg-white hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md",
+                  ].join(" ")}
+                >
+                  {imgSrc ? (
+                    <img src={imgSrc} alt={option.label} className="h-12 w-12 object-contain" />
+                  ) : (
+                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100 text-gray-400 text-xs">?</div>
+                  )}
+                  <span className={`text-[10px] font-medium text-center leading-tight ${isSelected ? "text-blue-700" : "text-gray-600"}`}>
+                    {option.label}
+                  </span>
+                  {isSelected && <Check className="h-3.5 w-3.5 text-blue-600" />}
+                </button>
+              )
+            })}
         </div>
       </div>
     ) : config.key === "material" && config.multiSelect ? (
