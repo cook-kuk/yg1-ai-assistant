@@ -572,10 +572,12 @@ async function enrichWorkPieceFilterWithSeriesScope(
  */
 function detectRefineConditionField(userMessage: string): string | null {
   const clean = userMessage.trim()
-  if (/(?:외|다른)\s*직경|다른\s*(?:사이즈|크기|지름)|직경\s*(?:변경|바꿔|바꾸)/u.test(clean)) return "diameter"
-  if (/다른\s*(?:소재|재질|피삭재)|소재\s*(?:변경|바꿔|바꾸)/u.test(clean)) return "material"
-  if (/다른\s*코팅|코팅\s*(?:변경|바꿔|바꾸)/u.test(clean)) return "coating"
-  if (/다른\s*날|날수?\s*(?:변경|바꿔|바꾸)/u.test(clean)) return "fluteCount"
+  // "다른 X", "X 변경/바꿔/바꾸" (original patterns)
+  // + correction patterns: "X 틀렸/잘못/실수", "틀렸/잘못/실수 ... X"
+  if (/(?:외|다른)\s*직경|다른\s*(?:사이즈|크기|지름)|직경\s*(?:변경|바꿔|바꾸|틀렸|틀림|잘못|실수|다시)|(?:틀렸|틀림|잘못|실수)[^.]{0,6}직경/u.test(clean)) return "diameter"
+  if (/다른\s*(?:소재|재질|피삭재)|소재\s*(?:변경|바꿔|바꾸|틀렸|틀림|잘못|실수|다시)|(?:틀렸|틀림|잘못|실수)[^.]{0,6}소재/u.test(clean)) return "material"
+  if (/다른\s*코팅|코팅\s*(?:변경|바꿔|바꾸|틀렸|틀림|잘못|실수|다시)|(?:틀렸|틀림|잘못|실수)[^.]{0,6}코팅/u.test(clean)) return "coating"
+  if (/다른\s*날|날수?\s*(?:변경|바꿔|바꾸|틀렸|틀림|잘못|실수|다시)|(?:틀렸|틀림|잘못|실수)[^.]{0,6}날수?/u.test(clean)) return "fluteCount"
   return null
 }
 
@@ -1050,6 +1052,13 @@ async function handleServeExplorationInner(
       ? { type: "skip_field" }
       : { type: "continue_narrowing", filter: pendingSelectionFilter }
     pendingSelectionOrchestratorResult = buildPendingSelectionOrchestratorResult(pendingSelectionFilter)
+    trace.addProcessingStep({
+      label: "칩매칭",
+      status: "success",
+      detail: pendingSelectionFilter.op === "skip"
+        ? `"${prevState?.lastAskedField}" 스킵`
+        : `${pendingSelectionFilter.field}=${pendingSelectionFilter.value}`,
+    })
   }
 
   // ── Step 2: LLM fallback — deterministic(Step 0+1)이 못 잡았을 때만 ──
@@ -1060,6 +1069,24 @@ async function handleServeExplorationInner(
       prevState.appliedFilters ?? [],
       provider
     )
+
+    // Record LLM filter result for debug visualization
+    trace.setLLMFilterResult({
+      extractedFilters: llmResult.extractedFilters ?? {},
+      skipPendingField: llmResult.skipPendingField,
+      isSideQuestion: llmResult.isSideQuestion,
+      confidence: (llmResult as any).confidence,
+      pendingField: prevState.lastAskedField,
+    })
+    trace.add("llm-filter-extract", "router", {
+      userMessage: lastUserMsg.text.slice(0, 100),
+      pendingField: prevState.lastAskedField,
+    }, {
+      extractedFilters: llmResult.extractedFilters,
+      skipPendingField: llmResult.skipPendingField,
+      isSideQuestion: llmResult.isSideQuestion,
+      confidence: (llmResult as any).confidence,
+    }, `LLM filter: ${JSON.stringify(llmResult.extractedFilters)}`)
 
     if (llmResult.skipPendingField) {
       const skipFilter: AppliedFilter = {
@@ -1072,10 +1099,12 @@ async function handleServeExplorationInner(
       pendingSelectionAction = { type: "skip_field" }
       pendingSelectionOrchestratorResult = buildPendingSelectionOrchestratorResult(skipFilter)
       console.log(`[llm-filter] skip "${prevState.lastAskedField}"`)
+      trace.addProcessingStep({ label: "칩매칭 실패 → LLM 분석", status: "success", detail: `skipPendingField → "${prevState.lastAskedField}" 스킵` })
 
     } else if (llmResult.isSideQuestion) {
       // side question → pendingSelectionAction stays null → orchestrator handles
       console.log(`[llm-filter] side question detected`)
+      trace.addProcessingStep({ label: "칩매칭 실패 → LLM 분석", status: "info", detail: "isSideQuestion=true → 오케스트레이터 위임" })
 
     } else if (Object.keys(llmResult.extractedFilters).length > 0) {
       const allFilters = llmResultToAppliedFilters(llmResult.extractedFilters, prevState.turnCount ?? 0)
@@ -1085,12 +1114,19 @@ async function handleServeExplorationInner(
         pendingSelectionAction = { type: "continue_narrowing", filter: primaryFilter }
         pendingSelectionOrchestratorResult = buildPendingSelectionOrchestratorResult(primaryFilter)
         console.log(`[llm-filter] primary: ${primaryFilter.field}=${primaryFilter.value}`)
+        trace.addProcessingStep({
+          label: "칩매칭 실패 → LLM 분석",
+          status: "success",
+          detail: `${Object.keys(llmResult.extractedFilters).map(k => `${k}=${(llmResult.extractedFilters as any)[k]}`).join(", ")}`,
+        })
 
         if (allFilters.length > 1) {
           llmExtraFilters = allFilters.slice(1)
           console.log(`[llm-filter] ${llmExtraFilters.length} extra filters queued`)
         }
       }
+    } else {
+      trace.addProcessingStep({ label: "칩매칭 실패 → LLM 분석", status: "fail", detail: "필터 추출 없음" })
     }
   }
 
@@ -1783,6 +1819,13 @@ async function handleServeExplorationInner(
       escalatedToOpus: orchResult.escalatedToOpus,
     }, orchResult.reasoning)
 
+    // Processing path: orchestrator decision
+    trace.addProcessingStep({
+      label: usingBridgedAction ? `사전결정 → ${action.type}` : `오케스트레이터 → ${action.type}`,
+      status: "success",
+      detail: orchResult.reasoning?.slice(0, 100),
+    })
+
     const hasPendingQuestion = !!prevState.lastAskedField
       && !prevState.resolutionStatus?.startsWith("resolved")
       && !isPostResultPhase(journeyPhase)
@@ -2309,6 +2352,13 @@ async function handleServeExplorationInner(
         candidatesAfter: testResult.totalConsidered,
         replaced: nextFilterState.replacedExisting,
       }, `Replace ${filter.field}: ${action.previousValue} → ${filter.value} | ${candidateCountBeforeFilter} → ${testResult.totalConsidered} candidates`)
+      trace.addCandidateChange({ before: candidateCountBeforeFilter ?? 0, after: testResult.totalConsidered, filterApplied: `${filter.field}: ${action.previousValue} → ${filter.value}` })
+      trace.addProcessingStep({
+        label: `필터 교체: ${filter.field}`,
+        status: testResult.totalConsidered === 0 ? "fail" : "success",
+        detail: `${candidateCountBeforeFilter} → ${testResult.totalConsidered}개`,
+        error: testResult.totalConsidered === 0 ? "후보 0개 — 차단됨" : undefined,
+      })
 
       const updatedHistory = [...baseHistoryForNext, {
         question: baseHistoryForNext.length > 0 ? "follow-up" : "initial",
@@ -2470,6 +2520,13 @@ async function handleServeExplorationInner(
         blocked: testResult.totalConsidered === 0,
         replaced: nextFilterState.replacedExisting,
       }, `Filter ${filter.field}=${filter.value}: ${candidateCountBeforeFilter} → ${testResult.totalConsidered} candidates${testResult.totalConsidered === 0 ? " (BLOCKED)" : ""}`)
+      trace.addCandidateChange({ before: candidateCountBeforeFilter, after: testResult.totalConsidered, filterApplied: `${filter.field}=${filter.value}` })
+      trace.addProcessingStep({
+        label: `필터 적용: ${filter.field}=${filter.value}`,
+        status: testResult.totalConsidered === 0 ? "fail" : "success",
+        detail: `${candidateCountBeforeFilter} → ${testResult.totalConsidered}개`,
+        error: testResult.totalConsidered === 0 ? "후보 0개 — 차단됨" : undefined,
+      })
 
       if (testResult.totalConsidered === 0) {
         console.log(`[orchestrator:guard] Filter ${filter.field}=${filter.value} would result in 0 candidates -> BLOCKED, excluding from chips`)

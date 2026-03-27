@@ -124,6 +124,29 @@ export interface ReasoningSummary {
   bullets: string[]
 }
 
+// ── Processing Path ──────────────────────────────────────────
+
+export interface ProcessingPathStep {
+  label: string
+  status: "success" | "fail" | "skip" | "info"
+  detail?: string
+  error?: string
+}
+
+export interface LLMFilterResultSnapshot {
+  extractedFilters: Record<string, unknown>
+  skipPendingField?: boolean
+  isSideQuestion?: boolean
+  confidence?: number | string
+  pendingField?: string
+}
+
+export interface CandidateChangeSnapshot {
+  before: number
+  after: number
+  filterApplied?: string
+}
+
 // ── Full Trace ────────────────────────────────────────────────
 
 export interface SessionStateSnapshot {
@@ -169,6 +192,10 @@ export interface TurnDebugTrace {
   routeDecision?: RouteDecision | null
   validatorResult?: ValidatorResult | null
   promptMeta?: PromptMetaTrace[]
+  // Processing path visualization
+  processingPath?: ProcessingPathStep[]
+  llmFilterResult?: LLMFilterResultSnapshot | null
+  candidateChanges?: CandidateChangeSnapshot[]
   // Recent conversation
   recentTurns?: Array<{ role: string; text: string; chips?: string[]; mode?: string }>
 }
@@ -197,6 +224,9 @@ export class TraceCollector {
   private _recentTurns: TurnDebugTrace["recentTurns"] = []
   private _reasoning: ReasoningSummary | null = null
   private _sessionState: SessionStateSnapshot | null = null
+  private _processingPath: ProcessingPathStep[] = []
+  private _llmFilterResult: LLMFilterResultSnapshot | null = null
+  private _candidateChanges: CandidateChangeSnapshot[] = []
 
   constructor(turnId?: string) {
     this.enabled = isDebugEnabled()
@@ -219,6 +249,9 @@ export class TraceCollector {
   addPromptMeta(meta: PromptMetaTrace): void { if (this.enabled) this._promptMeta.push(meta) }
   setRecentTurns(turns: TurnDebugTrace["recentTurns"]): void { if (this.enabled) this._recentTurns = turns }
   setReasoning(reasoning: ReasoningSummary): void { if (this.enabled) this._reasoning = reasoning }
+  addProcessingStep(step: ProcessingPathStep): void { if (this.enabled) this._processingPath.push(step) }
+  setLLMFilterResult(result: LLMFilterResultSnapshot): void { if (this.enabled) this._llmFilterResult = result }
+  addCandidateChange(change: CandidateChangeSnapshot): void { if (this.enabled) this._candidateChanges.push(change) }
 
   build(context: {
     latestUserMessage: string
@@ -247,6 +280,9 @@ export class TraceCollector {
       routeDecision: this._routeDecision,
       validatorResult: this._validatorResult,
       promptMeta: this._promptMeta.length > 0 ? this._promptMeta : undefined,
+      processingPath: this._processingPath.length > 0 ? this._processingPath : undefined,
+      llmFilterResult: this._llmFilterResult,
+      candidateChanges: this._candidateChanges.length > 0 ? this._candidateChanges : undefined,
       recentTurns: this._recentTurns?.length ? this._recentTurns : undefined,
     }
   }
