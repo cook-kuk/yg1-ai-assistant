@@ -74,9 +74,11 @@ function buildJudgmentPrompt(input: UnifiedJudgmentInput): string {
 4. frameRelation: direct_answer|confusion|challenge|revise|compare_request|detail_request|followup_on_result|meta_feedback|restart|general_chat
 5. intentShift: none|refine_existing|replace_constraint|branch_exploration|compare_request|explain_request|reset
 6. domainRelevance: product_query|company_query|cutting_condition|competitor|greeting|off_topic|narrowing_response
-7. intentAction: select_option(칩/값 선택)|ask_recommendation(추천 요청)|compare(비교)|explain(설명요청)|reset_session(처음부터)|refine_condition(조건변경)|skip_field(건너뛰기)|undo(되돌리기)|continue(진행)|off_topic(무관)
-   - "차이점", "비교", "A와 B", "A랑 B", "vs" → intentAction: "compare" (narrowing 중이어도)
+7. intentAction: select_option(칩/값 선택)|ask_recommendation(추천 요청)|compare(비교+설명 둘 다)|explain(설명요청)|reset_session(처음부터)|refine_condition(조건변경)|skip_field(건너뛰기)|undo(되돌리기)|continue(진행)|off_topic(무관)
+   - "차이점", "비교", "A와 B", "A랑 B", "vs" → intentAction: "compare" (narrowing 중이어도). compare는 비교표+설명 둘 다 제공
    - 시리즈/브랜드 이름이 2개 이상 언급되면 → intentAction: "compare"
+   - "변경", "바꾸고", "바꿔", "틀렸", "실수", "다시", "고치" + 필드명(날수/직경/코팅/형상/소재) → intentAction: "refine_condition" (select_option 아님!)
+   - "N날로 해줘", "코팅 바꿔줘" 같은 직접 값 지정도 refine_condition
 8. questionShape: 시스템응답에 질문이 있으면 형태 — binary_yes_no|binary_proceed|explicit_choice|constrained_options|open_ended|none
 9. extractedAnswer: 사용자가 선택한 값(칩 텍스트/값) 추출, 없으면 null
    - 가공방식 키워드 매핑: "램핑"→Radius, "슬롯"→Square, "프로파일"→Ball, "정삭"→Finishing, "황삭"→Roughing

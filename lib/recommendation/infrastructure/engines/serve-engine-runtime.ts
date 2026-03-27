@@ -1044,6 +1044,16 @@ async function handleServeExplorationInner(
   let bridgedV2Action: OrchestratorAction | null = null
   let bridgedV2OrchestratorResult: OrchestratorResult | null = null
   const journeyPhase = detectJourneyPhase(prevState)
+
+  // ── "지금 조건으로 추천보기" 버튼 감지 → 즉시 추천 전환 ──
+  const isRecommendRequest = lastUserMsg?.text
+    ? /추천보기|추천해주세요|추천해줘|바로 보여|결과 보여|지금 조건으로/u.test(lastUserMsg.text)
+    : false
+  if (isRecommendRequest && prevState && candidates.length === 0) {
+    // candidates가 아직 없으면 retrieval 후 처리하도록 show_recommendation으로 라우팅
+    pendingSelectionAction = { type: "show_recommendation" } as OrchestratorAction
+  }
+
   const pendingSelectionFilter = buildPendingSelectionFilter(prevState, lastUserMsg?.text ?? null)
   // 비교 신호가 있으면 pending selection을 우회 → 비교 질문을 side question으로 처리
   const hasComparisonSignal = lastUserMsg?.text ? hasExplicitComparisonSignal(lastUserMsg.text) : false

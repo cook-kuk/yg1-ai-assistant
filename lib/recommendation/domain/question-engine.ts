@@ -60,20 +60,12 @@ export function checkResolution(
     if (gap >= 15) return "resolved_exact"
   }
 
-  if (history.length >= 3) {
-    if (top.matchStatus === "exact") return "resolved_exact"
-    if (top.matchStatus === "approximate") return "resolved_approximate"
-    return "resolved_approximate"
-  }
+  // 턴 수 기반 강제 전환 제거 — 사용자가 "지금 조건으로 추천보기" 버튼을 눌러야 전환
+  // 자동 전환은 후보 3개 이하 + exact match일 때만
 
-  if (candidateCountHint <= 10) {
+  if (candidateCountHint <= 3) {
     if (top.matchStatus === "exact") return "resolved_exact"
-    // Only resolve if top candidate has minimum quality (score >= 30)
-    // to avoid showing very poor matches when candidates are few but bad
     if (top.score >= 30) return "resolved_approximate"
-    // Low quality + few candidates: keep narrowing if possible
-    if (history.length > 0) return "narrowing"
-    return "resolved_approximate" // first turn fallback
   }
 
   if (history.length === 0) return "broad"
