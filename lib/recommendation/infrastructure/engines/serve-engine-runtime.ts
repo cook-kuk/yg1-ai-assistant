@@ -1045,18 +1045,30 @@ async function handleServeExplorationInner(
   let bridgedV2OrchestratorResult: OrchestratorResult | null = null
   const journeyPhase = detectJourneyPhase(prevState)
 
-  // ── "지금 단계에서 추천받기" 버튼 감지 ──
-  const isRecommendRequest = lastUserMsg?.text
-    ? /추천받기|추천보기|추천해주세요|추천해줘|바로 보여|결과 보여|지금 조건으로|지금 단계/u.test(lastUserMsg.text)
-    : false
-  if (isRecommendRequest && prevState) {
+  // ── CTA 버튼 감지 ──
+  const userText = lastUserMsg?.text ?? ""
+  const isProductListRequest = /제품 보기|후보 목록|제품 목록|바로 보기/u.test(userText)
+  const isAIAnalysisRequest = /AI 상세 분석|상세 분석|분석해/u.test(userText)
+  const isRecommendRequest = /추천받기|추천보기|추천해주세요|추천해줘|바로 보여|결과 보여|지금 조건으로/u.test(userText)
+
+  if (prevState && (isProductListRequest || isAIAnalysisRequest || isRecommendRequest)) {
     const currentCount = prevState.candidateCount ?? 0
-    if (currentCount > 100) {
-      // ⚠️ 후보 100개 초과 → 추천 대신 필터링 제안 (caution)
-      const cautionText = `⚠️ 현재 후보가 ${currentCount}개로 너무 많습니다. 이대로 추천하면 정확도가 낮을 수 있습니다.\n\n조건을 더 좁혀주시면 더 정확한 추천이 가능합니다. 아래 조건 중 추가로 지정해주세요.`
-      pendingSelectionAction = { type: "answer_general", message: cautionText, preGenerated: true } as OrchestratorAction
-      console.log(`[recommend-guard] ${currentCount} candidates > 100 → caution`)
-    } else {
+
+    if (isProductListRequest) {
+      if (currentCount > 100) {
+        const cautionText = `⚠️ 현재 후보가 ${currentCount}개로 너무 많습니다. 이대로 보여드리면 선택이 어려울 수 있습니다.\n\n조건을 더 좁혀주시면 더 정확한 결과를 볼 수 있습니다.`
+        pendingSelectionAction = { type: "answer_general", message: cautionText, preGenerated: true } as OrchestratorAction
+        console.log(`[product-list-guard] ${currentCount} > 100 → caution`)
+      } else {
+        pendingSelectionAction = { type: "show_recommendation" } as OrchestratorAction
+        console.log(`[product-list] ${currentCount} candidates → show products`)
+      }
+    } else if (isAIAnalysisRequest) {
+      // AI 상세 분석은 개수 제한 없음 — 현재 추천 리스트 기반 깊은 분석
+      const analysisPrompt = `현재 ${currentCount}개 후보 제품에 대해 상세 분석을 해주세요. 상위 제품들의 특성, 용도별 적합성, 선택 가이드를 자세히 설명해주세요.`
+      pendingSelectionAction = { type: "answer_general", message: analysisPrompt } as OrchestratorAction
+      console.log(`[ai-analysis] ${currentCount} candidates → deep analysis`)
+    } else if (isRecommendRequest) {
       pendingSelectionAction = { type: "show_recommendation" } as OrchestratorAction
     }
   }

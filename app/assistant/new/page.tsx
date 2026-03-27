@@ -306,8 +306,10 @@ export default function AssistantNewPage() {
 
                   {/* Quick reply chips */}
                   {msg.chips && !showResult && (() => {
-                    const recommendChip = msg.chips.find(c => c.includes("추천받기"))
-                    const normalChips = msg.chips.filter(c => !c.includes("추천받기"))
+                    const productListChip = msg.chips.find(c => c.includes("제품 보기"))
+                    const aiAnalysisChip = msg.chips.find(c => c.includes("AI 상세 분석"))
+                    const ctaChips = [productListChip, aiAnalysisChip].filter(Boolean)
+                    const normalChips = msg.chips.filter(c => !c.includes("제품 보기") && !c.includes("AI 상세 분석"))
                     return (
                       <>
                         <div className="mt-3 flex flex-wrap gap-1.5">
@@ -326,23 +328,27 @@ export default function AssistantNewPage() {
                             </Button>
                           ))}
                         </div>
-                        {recommendChip && (
+                        {ctaChips.length > 0 && (
                           <div className="mt-2 flex gap-2">
-                            <Button
-                              size="sm"
-                              className="flex-1 h-9 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm shadow-md rounded-lg border-0"
-                              onClick={() => handleSend(recommendChip)}
-                            >
-                              {recommendChip}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-9 px-4 text-sm font-medium text-gray-700 border-gray-300 hover:bg-gray-50"
-                              onClick={() => handleSend("📋 후보 제품 목록 보기")}
-                            >
-                              📋 후보 목록
-                            </Button>
+                            {productListChip && (
+                              <Button
+                                size="sm"
+                                className="flex-1 h-9 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm shadow-md rounded-lg border-0"
+                                onClick={() => handleSend(productListChip)}
+                              >
+                                {productListChip}
+                              </Button>
+                            )}
+                            {aiAnalysisChip && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-9 px-4 text-sm font-medium border-purple-300 text-purple-700 hover:bg-purple-50"
+                                onClick={() => handleSend(aiAnalysisChip)}
+                              >
+                                {aiAnalysisChip}
+                              </Button>
+                            )}
                           </div>
                         )}
                       </>

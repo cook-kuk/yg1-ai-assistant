@@ -388,10 +388,10 @@ export async function buildQuestionResponse(
     displayedOptions = buildDisplayedOptions(chips, question?.field ?? "unknown")
   }
 
-  // ── "지금 단계에서 추천받기" 버튼 매 턴 상시 표시 ──
-  const RECOMMEND_CHIP = `✨ 지금 단계에서 추천받기 (${totalCandidateCount}개 후보)`
-  if (totalCandidateCount > 0 && !chips.some(c => c.includes("추천받기"))) {
-    chips.push(RECOMMEND_CHIP)
+  // ── CTA 버튼 2개 매 턴 상시 표시 ──
+  if (totalCandidateCount > 0) {
+    if (!chips.some(c => c.includes("제품 보기"))) chips.push(`📋 지금 바로 제품 보기 (${totalCandidateCount}개)`)
+    if (!chips.some(c => c.includes("AI 상세 분석"))) chips.push(`✨ AI 상세 분석`)
   }
 
   const displayedSeriesGroups = await buildDisplayedSeriesGroups(candidateSnapshot, input)
@@ -588,9 +588,10 @@ export async function buildQuestionResponse(
     responseText = `${replayFailureReason} 그래서 ${nextLabel} 기준으로 이어서 질문드릴게요.\n\n${responseText}`.trim()
   }
 
-  // ── "지금 단계에서 추천받기" 버튼을 최종 칩에 항상 추가 ──
-  if (totalCandidateCount > 0 && !finalResponseChips.some(c => c.includes("추천받기"))) {
-    finalResponseChips = [...finalResponseChips, `✨ 지금 단계에서 추천받기 (${totalCandidateCount}개 후보)`]
+  // ── CTA 버튼 2개를 최종 칩에 항상 추가 ──
+  if (totalCandidateCount > 0) {
+    if (!finalResponseChips.some(c => c.includes("제품 보기"))) finalResponseChips = [...finalResponseChips, `📋 지금 바로 제품 보기 (${totalCandidateCount}개)`]
+    if (!finalResponseChips.some(c => c.includes("AI 상세 분석"))) finalResponseChips = [...finalResponseChips, `✨ AI 상세 분석`]
   }
 
   sessionState.displayedChips = finalResponseChips
