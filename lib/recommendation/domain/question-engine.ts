@@ -516,6 +516,84 @@ export function extractAllFiltersFromMessage(
   message: string,
   existingFilters: AppliedFilter[]
 ): AppliedFilter[] {
-  // Deterministic regex 제거 — LLM이 판단
-  return []
+  if (!message || message.trim().length < 2) return []
+  const existingFields = new Set(existingFilters.filter(f => f.op !== "skip").map(f => f.field))
+  const filters: AppliedFilter[] = []
+  const msg = message.trim()
+  const lower = msg.toLowerCase()
+
+  // 고유명사 exact 매핑만 (regex 패턴 아님, 대소문자 무시)
+  if (!existingFields.has("toolSubtype")) {
+    const EXACT_SUBTYPES: Record<string, string> = {
+      "square": "Square", "스퀘어": "Square", "평날": "Square",
+      "ball": "Ball", "볼": "Ball", "볼노즈": "Ball", "볼엔드": "Ball",
+      "radius": "Radius", "라디우스": "Radius", "래디우스": "Radius",
+      "코너r": "Radius", "코너래디우스": "Radius", "corner radius": "Radius",
+      "roughing": "Roughing", "러핑": "Roughing", "황삭": "Roughing",
+      "taper": "Taper", "테이퍼": "Taper",
+      "chamfer": "Chamfer", "챔퍼": "Chamfer",
+      "high-feed": "High-Feed", "하이피드": "High-Feed",
+      "drill mill": "Drill Mill", "드릴밀": "Drill Mill",
+    }
+    for (const [key, value] of Object.entries(EXACT_SUBTYPES)) {
+      if (lower.includes(key)) {
+        filters.push({ field: "toolSubtype", op: "includes", value, rawValue: value, appliedAt: 0 })
+        break
+      }
+    }
+  }
+
+  // 직경 숫자 추출
+  if (!existingFields.has("diameterMm")) {
+    const diamMatch = msg.match(/(\d+(?:\.\d+)?)\s*(?:mm|파이|φ)/i)
+    if (diamMatch) {
+      const d = parseFloat(diamMatch[1])
+      if (d > 0 && d < 200) {
+        filters.push({ field: "diameterMm", op: "eq", value: `${d}mm`, rawValue: d, appliedAt: 0 })
+      }
+    }
+  }
+
+  // 날수 추출
+  if (!existingFields.has("fluteCount")) {
+    const fluteMatch = msg.match(/(\d+)\s*(?:날|[fF](?:lute)?)\b/)
+    if (fluteMatch) {
+      const n = parseInt(fluteMatch[1])
+      if (n >= 1 && n <= 12) {
+        filters.push({ field: "fluteCount", op: "eq", value: `${n}날`, rawValue: n, appliedAt: 0 })
+      }
+    }
+  }
+
+  // 소재 고유명사
+  if (!existingFields.has("workPieceName")) {
+    const MATERIALS: Record<string, string> = {
+      "알루미늄": "알루미늄", "스테인리스": "스테인리스강", "스텐": "스테인리스강",
+      "sus": "스테인리스강", "sts": "스테인리스강", "탄소강": "탄소강",
+      "티타늄": "티타늄", "주철": "주철", "인코넬": "인코넬",
+      "구리": "구리", "황동": "황동", "합금강": "합금강",
+    }
+    for (const [key, value] of Object.entries(MATERIALS)) {
+      if (lower.includes(key)) {
+        filters.push({ field: "workPieceName", op: "includes", value, rawValue: value, appliedAt: 0 })
+        break
+      }
+    }
+  }
+
+  // 코팅 고유명사
+  if (!existingFields.has("coating")) {
+    const COATINGS: Record<string, string> = {
+      "무코팅": "Bright Finish", "dlc": "DLC", "tialn": "TiAlN",
+      "altin": "AlTiN", "ticn": "TiCN", "alcrn": "AlCrN",
+    }
+    for (const [key, value] of Object.entries(COATINGS)) {
+      if (lower.includes(key)) {
+        filters.push({ field: "coating", op: "includes", value, rawValue: value, appliedAt: 0 })
+        break
+      }
+    }
+  }
+
+  return filters
 }

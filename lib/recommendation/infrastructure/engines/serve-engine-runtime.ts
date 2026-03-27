@@ -572,12 +572,14 @@ async function enrichWorkPieceFilterWithSeriesScope(
  */
 function detectRefineConditionField(userMessage: string): string | null {
   const clean = userMessage.trim()
-  // "다른 X", "X 변경/바꿔/바꾸" (original patterns)
-  // + correction patterns: "X 틀렸/잘못/실수", "틀렸/잘못/실수 ... X"
-  if (/(?:외|다른)\s*직경|다른\s*(?:사이즈|크기|지름)|직경\s*(?:변경|바꿔|바꾸|틀렸|틀림|잘못|실수|다시)|(?:틀렸|틀림|잘못|실수)[^.]{0,6}직경/u.test(clean)) return "diameter"
-  if (/다른\s*(?:소재|재질|피삭재)|소재\s*(?:변경|바꿔|바꾸|틀렸|틀림|잘못|실수|다시)|(?:틀렸|틀림|잘못|실수)[^.]{0,6}소재/u.test(clean)) return "material"
-  if (/다른\s*코팅|코팅\s*(?:변경|바꿔|바꾸|틀렸|틀림|잘못|실수|다시)|(?:틀렸|틀림|잘못|실수)[^.]{0,6}코팅/u.test(clean)) return "coating"
-  if (/다른\s*날|날수?\s*(?:변경|바꿔|바꾸|틀렸|틀림|잘못|실수|다시)|(?:틀렸|틀림|잘못|실수)[^.]{0,6}날수?/u.test(clean)) return "fluteCount"
+  // Action verbs: 변경/바꿔/바꾸/바꾸고/바꿨/고치/수정 + correction: 틀렸/틀림/잘못/실수/다시
+  const actionVerbs = "변경|바꿔|바꾸|바꾸고|바꿨|고치|수정|틀렸|틀림|잘못|실수|다시"
+  // "다른 X", "X + action verb", "correction ... X"
+  if (new RegExp(`(?:외|다른)\\s*(?:직경|사이즈|크기|지름)|(?:직경|사이즈|크기|지름)\\s*(?:${actionVerbs})|(?:틀렸|틀림|잘못|실수)[^.]{0,6}직경`, "u").test(clean)) return "diameter"
+  if (new RegExp(`다른\\s*(?:소재|재질|피삭재)|(?:소재|재질|피삭재)\\s*(?:${actionVerbs})|(?:틀렸|틀림|잘못|실수)[^.]{0,6}(?:소재|재질)`, "u").test(clean)) return "material"
+  if (new RegExp(`다른\\s*코팅|코팅\\s*(?:${actionVerbs})|(?:틀렸|틀림|잘못|실수)[^.]{0,6}코팅`, "u").test(clean)) return "coating"
+  if (new RegExp(`다른\\s*(?:날수?|플루트)|(?:날수?)\\s*(?:${actionVerbs})|(?:틀렸|틀림|잘못|실수)[^.]{0,6}날수?`, "u").test(clean)) return "fluteCount"
+  if (new RegExp(`다른\\s*형상|형상\\s*(?:${actionVerbs})|(?:틀렸|틀림|잘못|실수)[^.]{0,6}형상`, "u").test(clean)) return "toolSubtype"
   return null
 }
 
