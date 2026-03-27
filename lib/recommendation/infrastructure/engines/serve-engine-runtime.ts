@@ -1045,13 +1045,20 @@ async function handleServeExplorationInner(
   let bridgedV2OrchestratorResult: OrchestratorResult | null = null
   const journeyPhase = detectJourneyPhase(prevState)
 
-  // ── "지금 조건으로 추천보기" 버튼 감지 → 즉시 추천 전환 ──
+  // ── "지금 단계에서 추천받기" 버튼 감지 ──
   const isRecommendRequest = lastUserMsg?.text
-    ? /추천보기|추천해주세요|추천해줘|바로 보여|결과 보여|지금 조건으로/u.test(lastUserMsg.text)
+    ? /추천받기|추천보기|추천해주세요|추천해줘|바로 보여|결과 보여|지금 조건으로|지금 단계/u.test(lastUserMsg.text)
     : false
-  if (isRecommendRequest && prevState && candidates.length === 0) {
-    // candidates가 아직 없으면 retrieval 후 처리하도록 show_recommendation으로 라우팅
-    pendingSelectionAction = { type: "show_recommendation" } as OrchestratorAction
+  if (isRecommendRequest && prevState) {
+    const currentCount = prevState.candidateCount ?? 0
+    if (currentCount > 100) {
+      // ⚠️ 후보 100개 초과 → 추천 대신 필터링 제안 (caution)
+      const cautionText = `⚠️ 현재 후보가 ${currentCount}개로 너무 많습니다. 이대로 추천하면 정확도가 낮을 수 있습니다.\n\n조건을 더 좁혀주시면 더 정확한 추천이 가능합니다. 아래 조건 중 추가로 지정해주세요.`
+      pendingSelectionAction = { type: "answer_general", message: cautionText, preGenerated: true } as OrchestratorAction
+      console.log(`[recommend-guard] ${currentCount} candidates > 100 → caution`)
+    } else {
+      pendingSelectionAction = { type: "show_recommendation" } as OrchestratorAction
+    }
   }
 
   const pendingSelectionFilter = buildPendingSelectionFilter(prevState, lastUserMsg?.text ?? null)

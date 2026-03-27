@@ -391,9 +391,9 @@ export async function buildQuestionResponse(
     displayedOptions = buildDisplayedOptions(chips, question?.field ?? "unknown")
   }
 
-  // ── "지금 조건으로 추천보기" 버튼 매 턴 상시 표시 ──
-  const RECOMMEND_CHIP = "🔍 지금 조건으로 추천보기"
-  if (!chips.includes(RECOMMEND_CHIP) && totalCandidateCount > 0) {
+  // ── "지금 단계에서 추천받기" 버튼 매 턴 상시 표시 ──
+  const RECOMMEND_CHIP = `✨ 지금 단계에서 추천받기 (${totalCandidateCount}개 후보)`
+  if (totalCandidateCount > 0 && !chips.some(c => c.includes("추천받기"))) {
     chips.push(RECOMMEND_CHIP)
   }
 

@@ -307,20 +307,26 @@ export default function AssistantNewPage() {
                   {/* Quick reply chips */}
                   {msg.chips && !showResult && (
                     <div className="mt-3 flex flex-wrap gap-1.5">
-                      {msg.chips.map((chip, i) => (
-                        <Button
-                          key={i}
-                          variant="outline"
-                          size="sm"
-                          className={cn(
-                            "text-xs h-7 bg-transparent",
-                            chip.includes("모르겠") && "border-amber-300 text-amber-700"
-                          )}
-                          onClick={() => handleSend(chip)}
-                        >
-                          {chip}
-                        </Button>
-                      ))}
+                      {msg.chips.map((chip, i) => {
+                        const isRecommendBtn = chip.includes("추천받기")
+                        return (
+                          <Button
+                            key={i}
+                            variant={isRecommendBtn ? "default" : "outline"}
+                            size="sm"
+                            className={cn(
+                              "text-xs h-7",
+                              isRecommendBtn
+                                ? "bg-blue-600 hover:bg-blue-700 text-white border-blue-600 font-bold shadow-sm"
+                                : "bg-transparent",
+                              chip.includes("모르겠") && "border-amber-300 text-amber-700"
+                            )}
+                            onClick={() => handleSend(chip)}
+                          >
+                            {chip}
+                          </Button>
+                        )
+                      })}
                     </div>
                   )}
                 </div>
