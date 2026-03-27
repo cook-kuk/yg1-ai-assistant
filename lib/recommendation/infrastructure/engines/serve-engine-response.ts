@@ -295,12 +295,13 @@ async function buildWorkPieceQuestion(
     const count = workPieceCounts?.get(name)
     return count != null ? `${name} (${count}개)` : name
   })
-  chips.push("상관없음")
+  const totalCount = candidates?.length ?? 0
+  chips.push(totalCount > 0 ? `상관없음 (전체 ${totalCount}개)` : "상관없음")
   if (history.length > 0) chips.push("⟵ 이전 단계")
 
   return {
     field: "workPieceName",
-    questionText: `선택하신 소재는 ISO ${isoGroup} (${materialLabel})군입니다. 세부 피삭재를 선택해주세요.`,
+    questionText: `선택하신 소재는 ISO ${isoGroup} (${materialLabel})군입니다. 세부 피삭재를 선택해주세요. (일부 제품은 세부 분류가 없어 "상관없음" 선택 시 전체 후보에서 추천합니다)`,
     chips,
     expectedInfoGain: 0.5,
   }
