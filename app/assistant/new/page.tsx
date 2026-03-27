@@ -329,11 +329,11 @@ export default function AssistantNewPage() {
                           ))}
                         </div>
                         {ctaChips.length > 0 && (
-                          <div className="mt-2 flex gap-2">
+                          <div className="mt-3 pt-3 border-t border-gray-100 flex flex-col gap-2">
                             {productListChip && (
                               <Button
                                 size="sm"
-                                className="flex-1 h-9 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm shadow-md rounded-lg border-0"
+                                className="w-full h-10 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm shadow-md rounded-lg border-0"
                                 onClick={() => handleSend(productListChip)}
                               >
                                 {productListChip}
@@ -343,7 +343,7 @@ export default function AssistantNewPage() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="h-9 px-4 text-sm font-medium border-purple-300 text-purple-700 hover:bg-purple-50"
+                                className="w-full h-10 text-sm font-medium border-purple-300 text-purple-700 hover:bg-purple-50 rounded-lg"
                                 onClick={() => handleSend(aiAnalysisChip)}
                               >
                                 {aiAnalysisChip}
