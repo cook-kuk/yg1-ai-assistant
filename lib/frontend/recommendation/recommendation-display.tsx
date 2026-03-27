@@ -11,6 +11,7 @@ import {
   Database,
   FileText,
   Info,
+  PlayCircle,
   Zap,
 } from "lucide-react"
 
@@ -19,6 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import type { RecommendationCandidateDto } from "@/lib/contracts/recommendation"
 import { useApp } from "@/lib/frontend/app-context"
+import { findVideosForProduct } from "@/lib/data/video-mapping"
 import {
   buildCandidateSpecFallback,
   buildCandidateSubtypeHighlight,
@@ -442,6 +444,30 @@ function ProductCard({
               </div>
             </div>
           )}
+          {(() => {
+            const videos = findVideosForProduct(product.seriesName, product.description, product.brand, language === "ko" ? "ko" : "en")
+            if (videos.length === 0) return null
+            return (
+              <div>
+                <div className="text-xs text-gray-500 mb-1">{language === "ko" ? "제품 영상" : "Product Videos"}</div>
+                <div className="space-y-1.5">
+                  {videos.slice(0, 3).map((video, vi) => (
+                    <a
+                      key={vi}
+                      href={video.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-[11px] text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg px-2.5 py-1.5 transition-colors"
+                    >
+                      <PlayCircle size={14} className="shrink-0" />
+                      <span className="flex-1 truncate font-medium">{video.title}</span>
+                      <span className="text-[9px] text-red-400 shrink-0 uppercase">{video.language === "both" ? "KO/EN" : video.language.toUpperCase()}</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
           {scored.scoreBreakdown && <ScoreBreakdownPanel breakdown={scored.scoreBreakdown} />}
         </CardContent>
       )}
