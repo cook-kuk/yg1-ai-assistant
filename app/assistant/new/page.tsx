@@ -306,6 +306,8 @@ export default function AssistantNewPage() {
 
                   {/* Quick reply chips */}
                   {msg.chips && !showResult && (() => {
+                    const lastAiMsg = [...messages].reverse().find(m => m.role === "ai")
+                    const isLatestAi = lastAiMsg?.id === msg.id
                     const productListChip = msg.chips.find(c => c.includes("제품 보기"))
                     const aiAnalysisChip = msg.chips.find(c => c.includes("AI 상세 분석"))
                     const ctaChips = [productListChip, aiAnalysisChip].filter(Boolean)
@@ -318,17 +320,21 @@ export default function AssistantNewPage() {
                               key={i}
                               variant="outline"
                               size="sm"
+                              disabled={!isLatestAi}
                               className={cn(
-                                "text-xs h-7 bg-transparent",
-                                chip.includes("모르겠") && "border-amber-300 text-amber-700"
+                                "text-xs h-7",
+                                isLatestAi
+                                  ? "bg-transparent"
+                                  : "opacity-40 cursor-default bg-gray-50 border-gray-200 text-gray-400",
+                                chip.includes("모르겠") && isLatestAi && "border-amber-300 text-amber-700"
                               )}
-                              onClick={() => handleSend(chip)}
+                              onClick={() => isLatestAi && handleSend(chip)}
                             >
                               {chip}
                             </Button>
                           ))}
                         </div>
-                        {ctaChips.length > 0 && (
+                        {ctaChips.length > 0 && isLatestAi && (
                           <div className="mt-3 pt-3 border-t border-gray-100 flex flex-col gap-2">
                             {productListChip && (
                               <Button
