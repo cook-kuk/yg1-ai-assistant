@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Bug, ChevronDown, ChevronRight, Clock, Copy, Check } from "lucide-react"
-import type { TurnDebugTrace, AgentTraceEvent, ProcessingPathStep, LLMFilterResultSnapshot, CandidateChangeSnapshot } from "@/lib/debug/agent-trace"
+import type { TurnDebugTrace, AgentTraceEvent } from "@/lib/debug/agent-trace"
 
 const CATEGORY_COLORS: Record<string, string> = {
   router: "bg-blue-100 text-blue-700",
@@ -32,7 +32,7 @@ export function DebugToggle({ enabled, onToggle }: { enabled: boolean; onToggle:
 }
 
 export function DebugPanel({ trace }: { trace: TurnDebugTrace | null | undefined }) {
-  const [activeTab, setActiveTab] = useState<string>("overview")
+  const [activeTab, setActiveTab] = useState<string>("pipeline")
   const [expandedEvents, setExpandedEvents] = useState<Set<number>>(new Set())
   const [copied, setCopied] = useState(false)
 
@@ -48,11 +48,9 @@ export function DebugPanel({ trace }: { trace: TurnDebugTrace | null | undefined
     setTimeout(() => setCopied(false), 1500)
   }
 
-  const hasPipeline = !!(trace.processingPath?.length || trace.llmFilterResult || trace.candidateChanges?.length)
-
   const tabs = [
+    { id: "pipeline", label: "🔄 처리 과정" },
     { id: "overview", label: "Overview" },
-    ...(hasPipeline ? [{ id: "pipeline", label: "Pipeline" }] : []),
     { id: "trace", label: `Trace (${trace.events.length})` },
     ...(trace.sessionState ? [{ id: "state", label: "State" }] : []),
     ...(trace.memorySnapshot ? [{ id: "memory", label: "Memory" }] : []),
@@ -98,7 +96,7 @@ export function DebugPanel({ trace }: { trace: TurnDebugTrace | null | undefined
       {/* Tab Content */}
       <div className="max-h-[400px] overflow-y-auto">
         {activeTab === "overview" && <OverviewTab trace={trace} />}
-        {activeTab === "pipeline" && <PipelineTab processingPath={trace.processingPath} llmFilterResult={trace.llmFilterResult} candidateChanges={trace.candidateChanges} />}
+        {activeTab === "pipeline" && <PipelineTab trace={trace} />}
         {activeTab === "trace" && <TraceTab events={trace.events} expanded={expandedEvents} onToggle={toggleEvent} />}
         {activeTab === "state" && <StateTab state={trace.sessionState as any} />}
         {activeTab === "memory" && <MemoryTab snapshot={trace.memorySnapshot as any} diff={trace.memoryDiff as any} />}
@@ -257,112 +255,124 @@ function ConversationTab({ turns }: { turns?: Array<{ role: string; text: string
   )
 }
 
-const PATH_STATUS_STYLES: Record<string, string> = {
-  success: "border-green-400 bg-green-50",
-  fail: "border-red-400 bg-red-50",
-  skip: "border-gray-300 bg-gray-50",
-  info: "border-blue-300 bg-blue-50",
-}
+function PipelineTab({ trace }: { trace: TurnDebugTrace }) {
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null)
 
-const PATH_STATUS_LABEL: Record<string, string> = {
-  success: "text-green-700",
-  fail: "text-red-700 font-semibold",
-  skip: "text-gray-500",
-  info: "text-blue-700",
-}
+  const ICONS: Record<string, string> = {
+    router: "\u{1F9E0}", context: "\u{1F4CB}", memory: "\u{1F4BE}", search: "\u{1F50D}",
+    ui: "\u{1F3F7}\uFE0F", options: "\u2699\uFE0F", answer: "\u270D\uFE0F", validator: "\u2705", prompt: "\u{1F4DD}", llm: "\u{1F916}",
+  }
 
-function PipelineTab({ processingPath, llmFilterResult, candidateChanges }: {
-  processingPath?: ProcessingPathStep[]
-  llmFilterResult?: LLMFilterResultSnapshot | null
-  candidateChanges?: CandidateChangeSnapshot[]
-}) {
+  const steps = trace.events.map(event => {
+    const out = event.outputSummary as Record<string, unknown> | null
+    let status: "success" | "fail" | "warning" | "skip" = "success"
+    if (event.fallbackUsed) status = "warning"
+    else if (out?.error || out?.failed) status = "fail"
+    else if (out?.skipped || out?.notNeeded || event.reasonSummary?.includes("skip")) status = "skip"
+
+    return {
+      icon: ICONS[event.category] || "\u{1F4E6}",
+      name: event.step,
+      status,
+      detail: event.reasonSummary || (out ? JSON.stringify(out).slice(0, 100) : ""),
+      ms: event.latencyMs ?? 0,
+      expanded: out,
+      category: event.category,
+    }
+  })
+
+  const successCount = steps.filter(s => s.status === "success").length
+  const totalMs = steps.reduce((sum, s) => sum + s.ms, 0)
+  const candidateCount = (trace.sessionState as any)?.candidateCount ?? "?"
+  const confEvent = trace.events.find(e => (e.outputSummary as any)?.confidence)
+  const confidenceVal = confEvent ? Math.round(((confEvent.outputSummary as any).confidence ?? 0) * 100) : null
+
+  const STATUS_STYLES: Record<string, { bg: string; border: string; text: string; badge: string; label: string; line: string }> = {
+    success: { bg: "bg-green-50", border: "border-green-200", text: "text-green-700", badge: "bg-green-100 text-green-700", label: "\uC131\uACF5", line: "bg-green-200" },
+    fail: { bg: "bg-red-50", border: "border-red-200", text: "text-red-700", badge: "bg-red-100 text-red-700", label: "\uC2E4\uD328", line: "bg-red-200" },
+    warning: { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", badge: "bg-amber-100 text-amber-700", label: "\uC8FC\uC758", line: "bg-amber-200" },
+    skip: { bg: "bg-gray-50", border: "border-gray-200", text: "text-gray-500", badge: "bg-gray-100 text-gray-500", label: "\uAC74\uB108\uB6F0", line: "bg-gray-200" },
+  }
+
   return (
-    <div className="p-3 space-y-3">
-      {/* Processing Path */}
-      {processingPath && processingPath.length > 0 && (
-        <div>
-          <div className="font-medium text-gray-700 text-[11px] mb-1.5">처리 경로</div>
-          <div className="space-y-1">
-            {processingPath.map((step, i) => (
-              <div key={i} className={`pl-2 py-1 pr-2 border-l-2 rounded-r text-[10px] ${PATH_STATUS_STYLES[step.status] ?? PATH_STATUS_STYLES.info}`}>
-                <div className={`font-medium ${PATH_STATUS_LABEL[step.status] ?? PATH_STATUS_LABEL.info}`}>
-                  {i > 0 && <span className="text-gray-400 mr-1">&rarr;</span>}
-                  {step.label}
-                </div>
-                {step.detail && <div className="text-gray-600 mt-0.5">{step.detail}</div>}
-                {step.error && <div className="text-red-600 font-semibold mt-0.5">{step.error}</div>}
-              </div>
-            ))}
-          </div>
+    <div className="p-3">
+      {/* Summary cards */}
+      <div className="grid grid-cols-4 gap-2 mb-3">
+        <div className="text-center py-2 bg-gray-50 rounded-md">
+          <div className={`text-base font-bold ${successCount === steps.length ? "text-green-600" : "text-amber-600"}`}>{successCount}/{steps.length}</div>
+          <div className="text-[9px] text-gray-400">{"\uC131\uACF5"}</div>
         </div>
-      )}
+        <div className="text-center py-2 bg-gray-50 rounded-md">
+          <div className={`text-base font-bold ${totalMs > 5000 ? "text-red-500" : "text-blue-600"}`}>{totalMs > 1000 ? `${(totalMs / 1000).toFixed(1)}s` : `${totalMs}ms`}</div>
+          <div className="text-[9px] text-gray-400">{"\uC18C\uC694\uC2DC\uAC04"}</div>
+        </div>
+        {confidenceVal != null && (
+          <div className="text-center py-2 bg-gray-50 rounded-md">
+            <div className="text-base font-bold text-purple-600">{confidenceVal}%</div>
+            <div className="text-[9px] text-gray-400">{"\uC2E0\uB8B0\uB3C4"}</div>
+          </div>
+        )}
+        <div className="text-center py-2 bg-gray-50 rounded-md">
+          <div className="text-base font-bold text-cyan-600">{String(candidateCount)}{"\uAC1C"}</div>
+          <div className="text-[9px] text-gray-400">{"\uD6C4\uBCF4"}</div>
+        </div>
+      </div>
 
-      {/* LLM Filter Result */}
-      {llmFilterResult && (
-        <div>
-          <div className="font-medium text-gray-700 text-[11px] mb-1.5">LLM 필터 추출</div>
-          <div className="bg-white border border-gray-200 rounded p-2 space-y-1 text-[10px]">
-            {llmFilterResult.pendingField && (
-              <div><span className="text-gray-500">pendingField: </span><span className="text-gray-800 font-medium">{llmFilterResult.pendingField}</span></div>
-            )}
-            <div>
-              <span className="text-gray-500">extractedFilters: </span>
-              <span className="text-gray-800 font-medium break-all">
-                {Object.keys(llmFilterResult.extractedFilters).length > 0
-                  ? JSON.stringify(llmFilterResult.extractedFilters)
-                  : "(없음)"}
-              </span>
+      {/* LLM filter result */}
+      {trace.llmFilterResult && (
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-2.5 mb-3">
+          <div className="font-medium text-purple-800 text-[10px] mb-1.5">{"\u{1F916}"} LLM {"\uD544\uD130"} {"\uCD94\uCD9C"}</div>
+          {Object.entries(trace.llmFilterResult.extractedFilters ?? {}).map(([k, v]) => (
+            <div key={k} className="text-[10px] pl-2">
+              <code className="text-purple-600 bg-purple-100 px-1 py-0.5 rounded">{k}</code>
+              <span className="text-gray-400 mx-1">{"\u2192"}</span>
+              <span className="font-medium text-gray-800">{String(v)}</span>
             </div>
-            {llmFilterResult.confidence != null && (
-              <div><span className="text-gray-500">confidence: </span><span className="text-gray-800 font-medium">{String(llmFilterResult.confidence)}</span></div>
-            )}
-            <div className="flex gap-3">
-              <div>
-                <span className="text-gray-500">isSideQuestion: </span>
-                <span className={`font-medium ${llmFilterResult.isSideQuestion ? "text-amber-700" : "text-gray-800"}`}>
-                  {String(!!llmFilterResult.isSideQuestion)}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-500">skipPendingField: </span>
-                <span className={`font-medium ${llmFilterResult.skipPendingField ? "text-amber-700" : "text-gray-800"}`}>
-                  {String(!!llmFilterResult.skipPendingField)}
-                </span>
-              </div>
-            </div>
-          </div>
+          ))}
+          {trace.llmFilterResult.isSideQuestion && <div className="text-[10px] text-amber-600 pl-2 mt-1">{"\u26A1"} side question {"\uAC10\uC9C0\uB428"}</div>}
+          {trace.llmFilterResult.skipPendingField && <div className="text-[10px] text-gray-500 pl-2 mt-1">{"\u23ED"} pending field {"\uC2A4\uD0B5"}</div>}
+          <div className="text-[9px] text-gray-400 mt-1">{"\uC2E0\uB8B0\uB3C4"}: {Math.round((trace.llmFilterResult.confidence as number ?? 0) * 100)}%</div>
         </div>
       )}
 
-      {/* Candidate Changes */}
-      {candidateChanges && candidateChanges.length > 0 && (
-        <div>
-          <div className="font-medium text-gray-700 text-[11px] mb-1.5">후보 수 변화</div>
-          <div className="space-y-1">
-            {candidateChanges.map((change, i) => {
-              const decreased = change.after < change.before
-              const blocked = change.after === 0
-              return (
-                <div key={i} className={`flex items-center gap-2 px-2 py-1 rounded text-[10px] ${
-                  blocked ? "bg-red-50 border border-red-200" : decreased ? "bg-amber-50 border border-amber-200" : "bg-green-50 border border-green-200"
-                }`}>
-                  <span className="font-mono font-medium">
-                    <span className="text-gray-700">{change.before}</span>
-                    <span className="text-gray-400 mx-1">&rarr;</span>
-                    <span className={blocked ? "text-red-600 font-bold" : decreased ? "text-amber-700" : "text-green-700"}>{change.after}</span>
-                  </span>
-                  {change.filterApplied && <span className="text-gray-500 truncate">{change.filterApplied}</span>}
-                  {blocked && <span className="text-red-600 font-semibold ml-auto">BLOCKED</span>}
+      {/* Pipeline steps */}
+      <p className="text-[10px] text-gray-400 mb-2">{"\uAC01"} {"\uB2E8\uACC4\uB97C"} {"\uD074\uB9AD\uD558\uBA74"} {"\uC0C1\uC138"} {"\uC815\uBCF4\uB97C"} {"\uBCFC"} {"\uC218"} {"\uC788\uC2B5\uB2C8\uB2E4"}</p>
+      {steps.map((step, i) => {
+        const s = STATUS_STYLES[step.status] || STATUS_STYLES.success
+        const isExpanded = expandedIdx === i
+        return (
+          <div key={i} className="relative mb-0.5">
+            {i < steps.length - 1 && <div className={`absolute left-[17px] top-[34px] bottom-[-2px] w-[2px] ${s.line}`} />}
+            <div
+              onClick={() => setExpandedIdx(isExpanded ? null : i)}
+              className={`flex items-start gap-2.5 p-2 rounded-lg cursor-pointer transition-colors ${isExpanded ? `${s.bg} border ${s.border}` : "hover:bg-gray-50 border border-transparent"}`}
+            >
+              <div className={`w-7 h-7 rounded-md flex items-center justify-center text-sm shrink-0 border ${s.bg} ${s.border}`}>{step.icon}</div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-semibold text-[12px] text-gray-800">{step.name}</span>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-medium ${s.badge}`}>{s.label}</span>
+                  {step.ms > 0 && <span className="text-[9px] text-gray-400 font-mono">{step.ms}ms</span>}
                 </div>
-              )
-            })}
+                <div className={`text-[11px] mt-0.5 leading-relaxed ${s.text}`}>{step.detail}</div>
+              </div>
+              {step.expanded && <span className="text-[10px] text-gray-400 mt-1 shrink-0">{isExpanded ? "\u25BC" : "\u25B6"}</span>}
+            </div>
+            {isExpanded && step.expanded && (
+              <div className="ml-10 mt-1 mb-2 p-2.5 bg-purple-50 border border-purple-200 rounded-md">
+                <div className="text-[10px] font-semibold text-purple-700 mb-1.5">{"\u{1F4CB}"} {"\uC0C1\uC138"} {"\uACB0\uACFC"}</div>
+                {Object.entries(step.expanded).map(([k, v]) => (
+                  <div key={k} className="flex items-start gap-1.5 text-[11px] mb-0.5">
+                    <code className="text-purple-600 bg-purple-100 px-1 py-0.5 rounded text-[10px] shrink-0">{k}</code>
+                    <span className="text-gray-400">{"\u2192"}</span>
+                    <span className="font-medium text-gray-800 break-all">{typeof v === "object" ? JSON.stringify(v) : String(v)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
-      )}
-
-      {!processingPath?.length && !llmFilterResult && !candidateChanges?.length && (
-        <div className="text-gray-400">No pipeline data</div>
-      )}
+        )
+      })}
     </div>
   )
 }
