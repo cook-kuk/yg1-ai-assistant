@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
   Activity,
-  ArrowRight,
   ChevronDown,
   ChevronUp,
   Clock,
@@ -58,19 +57,120 @@ const RESOLUTION_CONFIG: Record<string, { ko: string; en: string; cls: string }>
   resolved_none: { ko: "매칭 없음", en: "No Match", cls: "bg-red-100 text-red-700" },
 }
 
+type SidebarConditionItem = {
+  key: string
+  label: string
+  value: string
+  emoji: string
+  source: "input" | "filter"
+  order: number
+}
+
+function getFilterDisplayValue(
+  filter: RecommendationPublicSessionDto["appliedFilters"][number],
+  language: "ko" | "en"
+): string {
+  if (filter.op === "skip") {
+    return language === "ko" ? "상관없음" : "No Preference"
+  }
+  return localizeIntakeText(filter.value, language)
+}
+
+function getFilterFieldLabel(field: string, language: "ko" | "en"): string {
+  switch (field) {
+    case "toolSubtype":
+      return language === "ko" ? "형상" : "Shape"
+    case "fluteCount":
+      return language === "ko" ? "날수" : "Flutes"
+    case "coating":
+      return language === "ko" ? "코팅" : "Coating"
+    case "workPieceName":
+      return language === "ko" ? "세부 피삭재" : "Workpiece"
+    case "seriesName":
+      return language === "ko" ? "시리즈" : "Series"
+    case "cuttingType":
+      return language === "ko" ? "가공 종류" : "Cutting Type"
+    case "diameterRefine":
+    case "diameterMm":
+      return language === "ko" ? "직경" : "Diameter"
+    default:
+      return localizeIntakeText(field, language)
+  }
+}
+
+function getFilterFieldEmoji(field: string): string {
+  switch (field) {
+    case "toolSubtype":
+      return "🧩"
+    case "fluteCount":
+      return "🪶"
+    case "coating":
+      return "🛡️"
+    case "workPieceName":
+      return "🔩"
+    case "seriesName":
+      return "🗂️"
+    case "cuttingType":
+      return "⚙️"
+    case "diameterRefine":
+    case "diameterMm":
+      return "📏"
+    default:
+      return "🏷️"
+  }
+}
+
+function buildSidebarConditionItems(
+  form: ProductIntakeForm,
+  sessionState: RecommendationPublicSessionDto | null,
+  language: "ko" | "en"
+): SidebarConditionItem[] {
+  const itemsByKey = new Map<string, SidebarConditionItem>()
+  const orderByKey = new Map<string, number>()
+
+  FIELD_CONFIGS.forEach((config, index) => {
+    orderByKey.set(config.key, index)
+    const state = form[config.key as keyof ProductIntakeForm] as AnswerState<string>
+    if (state.status === "unanswered") return
+
+    itemsByKey.set(config.key, {
+      key: config.key,
+      label: getIntakeFieldLabel(config.key as keyof ProductIntakeForm, language),
+      value: getIntakeDisplayValue(config.key as keyof ProductIntakeForm, state, language),
+      emoji: config.emoji,
+      source: "input",
+      order: index,
+    })
+  })
+
+  const activeFilters = sessionState?.appliedFilters ?? []
+  activeFilters.forEach((filter, index) => {
+    const existing = itemsByKey.get(filter.field)
+    itemsByKey.set(filter.field, {
+      key: filter.field,
+      label: getFilterFieldLabel(filter.field, language),
+      value: getFilterDisplayValue(filter, language),
+      emoji: existing?.emoji ?? getFilterFieldEmoji(filter.field),
+      source: "filter",
+      order: existing?.order ?? FIELD_CONFIGS.length + index,
+    })
+  })
+
+  return Array.from(itemsByKey.values()).sort((left, right) => left.order - right.order)
+}
+
 function getSeriesRatingLabel(
   rating: "EXCELLENT" | "GOOD" | "NULL" | null | undefined,
   language: "ko" | "en"
 ): string | null {
   if (rating === "EXCELLENT") return language === "ko" ? "EXCELLENT" : "EXCELLENT"
-  if (rating === "GOOD") return language === "ko" ? "GOOD" : "GOOD"
-  return "BAD"
+  if (rating === "GOOD" || rating === "NULL" || rating == null) return language === "ko" ? "GOOD" : "GOOD"
+  return language === "ko" ? "GOOD" : "GOOD"
 }
 
 function getSeriesRatingBadgeClass(rating: "EXCELLENT" | "GOOD" | "NULL" | null | undefined): string {
   if (rating === "EXCELLENT") return "bg-emerald-100 text-emerald-700 border-emerald-200"
-  if (rating === "GOOD") return "bg-amber-100 text-amber-700 border-amber-200"
-  return "bg-rose-100 text-rose-700 border-rose-200"
+  return "bg-amber-100 text-amber-700 border-amber-200"
 }
 
 function getCurrentMaterialLabel(form: ProductIntakeForm, language: "ko" | "en"): string | null {
@@ -200,6 +300,10 @@ function ExplorationSidebar({
   const uiNarrowingPath = sessionState?.uiNarrowingPath ?? []
   const displayedGroups = sessionState?.displayedSeriesGroups ?? []
   const currentMaterialLabel = getCurrentMaterialLabel(form, language)
+  const sidebarConditionItems = useMemo(
+    () => buildSidebarConditionItems(form, sessionState, language),
+    [form, language, sessionState]
+  )
 
   return (
     <div className="p-3 space-y-3">
@@ -207,81 +311,42 @@ function ExplorationSidebar({
 
       <div>
         <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-semibold text-gray-700">{language === "ko" ? "입력 조건" : "Input Conditions"}</span>
+          <span className="text-xs font-semibold text-gray-700">{language === "ko" ? "조건 및 필터" : "Conditions & Filters"}</span>
           <button onClick={onEdit} className="text-[10px] text-blue-500 hover:text-blue-700">{language === "ko" ? "수정" : "Edit"}</button>
         </div>
         <div className="space-y-1">
-          {FIELD_CONFIGS.map(config => {
-            const state = form[config.key as keyof ProductIntakeForm] as AnswerState<string>
-            const isUnknown = state.status === "unknown"
-            const isUnanswered = state.status === "unanswered"
-            if (isUnanswered) return null
-
+          {sidebarConditionItems.map(item => {
+            const isFilterValue = item.source === "filter"
+            const isUnknown = item.value === "모름" || item.value === "Unknown"
             return (
-              <div key={config.key} className="flex justify-between items-center text-xs bg-white rounded-lg px-2.5 py-1.5 border border-gray-100">
-                <span className="text-gray-500">{config.emoji}</span>
-                <span className={`flex-1 ml-1.5 truncate ${isUnknown ? "text-gray-400 italic" : "text-gray-800 font-medium"}`}>
-                  {getIntakeDisplayValue(config.key as keyof ProductIntakeForm, state, language)}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {sessionState && (uiNarrowingPath.length > 0 || sessionState.appliedFilters.length > 0) && (
-        <div>
-          <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
-            <Filter size={10} />
-            {language === "ko" ? "적용 필터" : "Applied Filters"}
-          </div>
-          <div className="space-y-0.5">
-            {uiNarrowingPath.length > 0
-              ? uiNarrowingPath.map((entry, index) => (
-                <div key={index} className="flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1 border border-blue-100 bg-blue-50">
-                  <ArrowRight size={8} className="text-blue-400 shrink-0" />
-                  <span className="text-blue-600 font-medium truncate">
-                    {entry.field === "fluteCount"
-                      ? (language === "ko" ? "날수" : "Flutes")
-                      : entry.field === "toolSubtype"
-                        ? (language === "ko" ? "형상" : "Shape")
-                        : entry.field === "coating"
-                          ? (language === "ko" ? "코팅" : "Coating")
-                          : entry.field === "seriesName"
-                            ? (language === "ko" ? "시리즈" : "Series")
-                            : localizeIntakeText(entry.field ?? entry.label, language)}
-                    : {localizeIntakeText(entry.value ?? entry.label, language)}
+              <div
+                key={item.key}
+                className={`rounded-lg px-2.5 py-1.5 border text-xs ${isFilterValue ? "border-blue-100 bg-blue-50" : "border-gray-100 bg-white"}`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className={isFilterValue ? "text-blue-500" : "text-gray-500"}>{item.emoji}</span>
+                  <span className={`shrink-0 text-[10px] ${isFilterValue ? "text-blue-500 font-semibold" : "text-gray-500"}`}>
+                    {item.label}
                   </span>
-                  {entry.candidateCountBefore != null && (
-                    <span className="text-[9px] text-blue-400 shrink-0 ml-auto">
-                      {entry.candidateCountBefore}→{entry.candidateCount}
+                  {isFilterValue && (
+                    <span className="ml-auto rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-semibold text-blue-600">
+                      {language === "ko" ? "필터" : "Filter"}
                     </span>
                   )}
                 </div>
-              ))
-              : sessionState.appliedFilters.filter(filter => filter.op !== "skip").map((filter, index) => (
-                <div key={index} className="flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1 border border-blue-100 bg-blue-50">
-                  <ArrowRight size={8} className="text-blue-400 shrink-0" />
-                  <span className="text-blue-600 font-medium truncate">
-                    {filter.field === "fluteCount"
-                      ? (language === "ko" ? "날수" : "Flutes")
-                      : filter.field === "toolSubtype"
-                        ? (language === "ko" ? "형상" : "Shape")
-                        : filter.field === "coating"
-                          ? (language === "ko" ? "코팅" : "Coating")
-                          : filter.field === "seriesName"
-                            ? (language === "ko" ? "시리즈" : "Series")
-                            : localizeIntakeText(filter.field, language)}
-                    : {localizeIntakeText(filter.value, language)}
-                  </span>
+                <div className={`mt-1 truncate pl-6 ${isUnknown ? "text-gray-400 italic" : isFilterValue ? "text-blue-700 font-medium" : "text-gray-800 font-medium"}`}>
+                  {item.value}
                 </div>
-              ))}
+              </div>
+            )
+          })}
+          {sessionState && (
             <div className="text-[10px] text-gray-500 px-2.5 pt-1 font-medium">
-              {language === "ko" ? `→ 현재 후보: ${sessionState.candidateCount}개` : `-> Current candidates: ${sessionState.candidateCount}`}
+              {language === "ko" ? `현재 후보 ${sessionState.candidateCount}개` : `${sessionState.candidateCount} candidates`}
             </div>
-          </div>
+          )}
         </div>
-      )}
+      </div>
 
       {sessionState && sessionState.narrowingHistory.length > 0 && (
         <div>
@@ -290,7 +355,7 @@ function ExplorationSidebar({
             {sessionState.narrowingHistory.map((history, index) => (
               <div key={index} className="text-[10px] text-gray-600 bg-white rounded-lg px-2.5 py-1.5 border border-gray-100">
                 <div className="font-medium">
-                  Turn {index + 1}: {history.extractedFilters.filter(f => f.op !== "skip").map(f => `${f.field}=${f.value}`).join(", ") || localizeIntakeText(history.answer, language)}
+                  Turn {index + 1}: {history.extractedFilters.map(f => `${f.field}=${getFilterDisplayValue(f, language)}`).join(", ") || localizeIntakeText(history.answer, language)}
                 </div>
                 <div className="text-gray-400">{history.candidateCountBefore}→{history.candidateCountAfter}{language === "ko" ? "개" : ""}</div>
               </div>

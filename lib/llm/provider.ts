@@ -77,7 +77,12 @@ function summarizeTextBlocks(blocks: Anthropic.ContentBlock[]) {
 }
 
 function anthropicMainModel(): string {
-  return process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514"
+  return process.env.ANTHROPIC_MODEL
+    || process.env.ANTHROPIC_FAST_MODEL
+    || process.env.ANTHROPIC_SONNET_MODEL
+    || process.env.ANTHROPIC_HAIKU_MODEL
+    || process.env.ANTHROPIC_OPUS_MODEL
+    || ""
 }
 
 /** Agent-specific env var mapping */
@@ -106,9 +111,9 @@ export function resolveModel(tier?: ModelTier, agentName?: AgentName): string {
   // 2. Tier-level default
   if (!tier) return anthropicMainModel()
   switch (tier) {
-    case "haiku":  return process.env.ANTHROPIC_HAIKU_MODEL  || "claude-haiku-4-5-20251001"
+    case "haiku":  return process.env.ANTHROPIC_HAIKU_MODEL  || anthropicMainModel()
     case "sonnet": return process.env.ANTHROPIC_SONNET_MODEL || anthropicMainModel()
-    case "opus":   return process.env.ANTHROPIC_OPUS_MODEL   || "claude-opus-4-0-20250415"
+    case "opus":   return process.env.ANTHROPIC_OPUS_MODEL   || anthropicMainModel()
   }
 }
 
@@ -125,6 +130,7 @@ export function createClaudeProvider(): LLMProvider {
     async complete(systemPrompt, messages, maxTokens = 1500, model?, agentName?) {
       if (!this.available()) throw new Error("No ANTHROPIC_API_KEY")
       const resolvedModel = resolveModelInput(model, agentName)
+      if (!resolvedModel) throw new Error("No Anthropic model configured in environment")
       const startMs = Date.now()
       traceRecommendation("llm.provider.complete:input", {
         model: resolvedModel,
@@ -196,6 +202,7 @@ export function createClaudeProvider(): LLMProvider {
     async completeWithTools(systemPrompt, messages, tools, maxTokens = 1500, model?, agentName?) {
       if (!this.available()) throw new Error("No ANTHROPIC_API_KEY")
       const resolvedModel = resolveModelInput(model, agentName)
+      if (!resolvedModel) throw new Error("No Anthropic model configured in environment")
       const startMs = Date.now()
       traceRecommendation("llm.provider.completeWithTools:input", {
         model: resolvedModel,

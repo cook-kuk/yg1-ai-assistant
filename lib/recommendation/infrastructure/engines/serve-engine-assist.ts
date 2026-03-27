@@ -1381,6 +1381,8 @@ function buildFieldDataContext(field: string, candidates: ScoredProduct[]): stri
 async function searchWebForKnowledge(query: string): Promise<string | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_KEY || ""
   if (!apiKey) return null
+  const model = resolveModel("sonnet")
+  if (!model) return null
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -1391,7 +1393,7 @@ async function searchWebForKnowledge(query: string): Promise<string | null> {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model,
         max_tokens: 1500,
         tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }],
         messages: [{

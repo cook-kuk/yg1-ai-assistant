@@ -72,6 +72,26 @@ const OPERATION_TOOL_SHAPE_COMPATIBILITY: Record<string, Record<string, number>>
   "Plunging":    { "Square": 5,  "Radius": 5,   "Ball": -5,   "Roughing": 5 },
 }
 
+const GENERIC_MACHINING_CATEGORIES = new Set(["Milling", "Holemaking", "Threading", "Turning"])
+
+function normalizeToolSubtype(value: string | null | undefined): string | null {
+  const normalized = value?.trim().toLowerCase()
+  return normalized ? normalized : null
+}
+
+function getSpecificOperationShapes(input: RecommendationInput): string[] {
+  const appShapes = input.operationType ? getAppShapesForOperation(input.operationType) : []
+  if (!appShapes.length) return []
+
+  return appShapes.filter(shape => {
+    const trimmed = shape.trim()
+    if (!trimmed) return false
+    if (GENERIC_MACHINING_CATEGORIES.has(trimmed)) return false
+    if (input.machiningCategory && trimmed === input.machiningCategory) return false
+    return true
+  })
+}
+
 function flattenActiveFilters(filters: AppliedFilter[]): AppliedFilter[] {
   const lastMaterialIndex = filters.reduce((lastIndex, filter, index) => (
     filter.field === "material" ? index : lastIndex
@@ -324,7 +344,7 @@ export async function runHybridRetrieval(
 
   // ── Stage 2: Score & Rank ──────────────────────────────────
   const scoreStartedAt = Date.now()
-  const appShapes = input.operationType ? getAppShapesForOperation(input.operationType) : []
+  const specificAppShapes = getSpecificOperationShapes(input)
 
   const scored: ScoredProduct[] = candidates.map(product => {
     // ── Compute each scoring dimension with explanations ────
@@ -380,13 +400,15 @@ export async function runHybridRetrieval(
 
     let opScore = 0
     let opDetail = ""
-    if (!appShapes.length) {
+    if (!specificAppShapes.length) {
       opScore = Math.round(WEIGHTS.operation * 0.5)
-      opDetail = "가공방식 미지정 (기본 50%)"
+      opDetail = input.machiningCategory
+        ? `세부 가공형상 미지정 (분류: ${input.machiningCategory})`
+        : "가공방식 미지정 (기본 50%)"
     } else {
-      const matches = product.applicationShapes.filter(s => appShapes.includes(s))
+      const matches = product.applicationShapes.filter(s => specificAppShapes.includes(s))
       if (matches.length > 0) {
-        const r = matches.length / appShapes.length
+        const r = matches.length / specificAppShapes.length
         opScore = Math.round(WEIGHTS.operation * Math.min(r, 1))
         opDetail = `가공 적합 (${matches.join(", ")})`
       } else {
@@ -397,11 +419,20 @@ export async function runHybridRetrieval(
     // ── Tool shape compatibility (operationType → toolSubtype) ──
     let shapeScore = 0
     let shapeDetail = ""
-    if (!appShapes.length || !product.toolSubtype) {
-      shapeDetail = !appShapes.length ? "가공형상 미지정" : "공구형상 정보 없음"
+    if (input.toolSubtype) {
+      if (!product.toolSubtype) {
+        shapeDetail = "공구형상 정보 없음"
+      } else if (normalizeToolSubtype(product.toolSubtype) === normalizeToolSubtype(input.toolSubtype)) {
+        shapeScore = WEIGHTS.toolShape
+        shapeDetail = `${product.toolSubtype} 선택과 일치`
+      } else {
+        shapeDetail = `${product.toolSubtype} (선택: ${input.toolSubtype})`
+      }
+    } else if (!specificAppShapes.length || !product.toolSubtype) {
+      shapeDetail = !specificAppShapes.length ? "공구형상 미지정" : "공구형상 정보 없음"
     } else {
       // Use the first normalized operation shape to look up compatibility
-      const opKey = appShapes[0]
+      const opKey = specificAppShapes[0]
       const compat = OPERATION_TOOL_SHAPE_COMPATIBILITY[opKey]
       if (compat) {
         const bonus = compat[product.toolSubtype] ?? 0
@@ -459,8 +490,10 @@ export async function runHybridRetrieval(
       matchedFields.push(`${product.fluteCount}날 일치`)
     if (materialTags.length > 0 && materialTags.some(tag => product.materialTags.includes(tag)))
       matchedFields.push(`소재 ${materialTags.filter(t => product.materialTags.includes(t)).join(",")}군 적합`)
-    if (appShapes.length && product.applicationShapes.some(s => appShapes.includes(s)))
+    if (specificAppShapes.length && product.applicationShapes.some(s => specificAppShapes.includes(s)))
       matchedFields.push(`가공 방식 적합`)
+    if (input.toolSubtype && normalizeToolSubtype(product.toolSubtype) === normalizeToolSubtype(input.toolSubtype))
+      matchedFields.push(`형상 ${product.toolSubtype} 일치`)
     if (input.coatingPreference && product.coating?.toLowerCase().includes(input.coatingPreference.toLowerCase()))
       matchedFields.push(`코팅 ${product.coating} 일치`)
 

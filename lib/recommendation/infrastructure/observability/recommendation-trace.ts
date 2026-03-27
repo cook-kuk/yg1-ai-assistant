@@ -5,7 +5,7 @@ type TraceLevel = "log" | "warn" | "error"
 const DEFAULT_MAX_STRING = 600
 const DEFAULT_MAX_ARRAY = 8
 const DEFAULT_MAX_DEPTH = 5
-const DEFAULT_MAX_OUTPUT = 400
+const DEFAULT_MAX_OUTPUT = 800
 
 function parsePositiveInt(raw: string | undefined, fallback: number): number {
   const value = Number.parseInt(String(raw ?? ""), 10)
