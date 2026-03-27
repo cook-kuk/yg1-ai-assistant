@@ -52,6 +52,12 @@ export async function extractFiltersWithLLM(
 - "무코팅" → coating: "Bright Finish"
 - "DLC" / "TiAlN" / "AlTiN" / "TiCN" / "AlCrN" → coating: (해당값)
 - "엔드밀" → toolType: "엔드밀"
+- "날장 30mm" / "커팅 길이 30" / "날 길이 30" → lengthOfCutMm: 30
+- "전장 100mm" / "전체 길이 100" / "OAL 100" → overallLengthMm: 100
+- "생크 8mm" / "생크 직경 8" / "shank 8" → shankDiameterMm: 8
+- "쿨런트홀 있는" / "쿨런트 홀" / "내부 급유" → coolantHole: true
+- "쿨런트홀 없는" / "외부 급유" → coolantHole: false
+- "헬릭스 45도" / "나선각 45" / "helix 45" → helixAngleDeg: 45
 - "상관없음" / "몰라" / "아무거나" / "패스" / "스킵" → skipPendingField: true
 - 공장/회사/지점/본사/영업소/연락처/전화번호 질문 → isSideQuestion: true
 
