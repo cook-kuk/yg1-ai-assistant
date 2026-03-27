@@ -327,13 +327,21 @@ export default function AssistantNewPage() {
                           ))}
                         </div>
                         {recommendChip && (
-                          <div className="mt-2">
+                          <div className="mt-2 flex gap-2">
                             <Button
                               size="sm"
-                              className="w-full h-9 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm shadow-md rounded-lg border-0"
+                              className="flex-1 h-9 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm shadow-md rounded-lg border-0"
                               onClick={() => handleSend(recommendChip)}
                             >
                               {recommendChip}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-9 px-4 text-sm font-medium text-gray-700 border-gray-300 hover:bg-gray-50"
+                              onClick={() => handleSend("📋 후보 제품 목록 보기")}
+                            >
+                              📋 후보 목록
                             </Button>
                           </div>
                         )}
