@@ -11,6 +11,7 @@ import {
   Database,
   FileText,
   Info,
+  BookOpen,
   PlayCircle,
   Zap,
 } from "lucide-react"
@@ -21,6 +22,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import type { RecommendationCandidateDto } from "@/lib/contracts/recommendation"
 import { useApp } from "@/lib/frontend/app-context"
 import { findVideosForProduct } from "@/lib/data/video-mapping"
+import { findCatalogsForProduct } from "@/lib/data/catalog-mapping"
 import {
   buildCandidateSpecFallback,
   buildCandidateSubtypeHighlight,
@@ -462,6 +464,30 @@ function ProductCard({
                       <PlayCircle size={14} className="shrink-0" />
                       <span className="flex-1 truncate font-medium">{video.title}</span>
                       <span className="text-[9px] text-red-400 shrink-0 uppercase">{video.language === "both" ? "KO/EN" : video.language.toUpperCase()}</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+          {(() => {
+            const catalogs = findCatalogsForProduct(product.seriesName, product.description, product.brand, product.toolType, language === "ko" ? "ko" : "en")
+            if (catalogs.length === 0) return null
+            return (
+              <div>
+                <div className="text-xs text-gray-500 mb-1">{language === "ko" ? "카탈로그" : "Catalogs"}</div>
+                <div className="space-y-1.5">
+                  {catalogs.slice(0, 3).map((catalog, ci) => (
+                    <a
+                      key={ci}
+                      href={catalog.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-[11px] text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg px-2.5 py-1.5 transition-colors"
+                    >
+                      <BookOpen size={14} className="shrink-0" />
+                      <span className="flex-1 truncate font-medium">{catalog.title}</span>
+                      <span className="text-[9px] text-blue-400 shrink-0 uppercase">{catalog.language.toUpperCase()}</span>
                     </a>
                   ))}
                 </div>
