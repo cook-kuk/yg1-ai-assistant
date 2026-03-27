@@ -149,7 +149,7 @@ export default function AssistantNewPage() {
         role: "ai",
         text: data.text,
         purpose: data.purpose,
-        chips: data.isComplete ? undefined : (data.chips ?? undefined),
+        chips: data.chips ?? undefined,
         timestamp: new Date().toISOString(),
       }])
     } catch {
@@ -305,7 +305,7 @@ export default function AssistantNewPage() {
                   )}
 
                   {/* Quick reply chips */}
-                  {msg.chips && !showResult && (() => {
+                  {msg.chips && (() => {
                     const lastAiMsg = [...messages].reverse().find(m => m.role === "ai")
                     const isLatestAi = lastAiMsg?.id === msg.id
                     const productListChip = msg.chips.find(c => c.includes("제품 보기"))
