@@ -10,7 +10,7 @@ import type { ExplorationSessionState } from "@/lib/types/exploration"
 import type { NarrowingIntent, IntentClassification } from "./types"
 import { resolveUndoTarget } from "@/lib/domain/request-preparation"
 
-const INTENT_CLASSIFIER_MODEL = resolveModel("haiku", "intent-classifier")
+const INTENT_CLASSIFIER_MODEL = resolveModel("opus", "intent-classifier")
 
 // ── Deterministic Patterns (fast path, no LLM) ──────────────
 

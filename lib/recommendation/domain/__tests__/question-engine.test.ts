@@ -102,7 +102,7 @@ describe("selectQuestionForField", () => {
 })
 
 describe("selectNextQuestion", () => {
-  it("prefers diameter over subtype and flute when multiple question fields are available", () => {
+  it("prefers toolSubtype when multiple question fields are available", () => {
     const candidates = [
       {
         ...makeCandidate("Square", "TiCN", "P1"),
@@ -130,8 +130,9 @@ describe("selectNextQuestion", () => {
     )
 
     expect(question).not.toBeNull()
-    expect(question?.field).toBe("diameterRefine")
-    expect(question?.chips).toBeDefined()
+    expect(question?.field).toBe("toolSubtype")
+    expect(question?.chips).toContain("Square (2개)")
+    expect(question?.chips).toContain("Radius (2개)")
   })
 
   it("considers externally supplied workPiece question in the same priority ordering", () => {

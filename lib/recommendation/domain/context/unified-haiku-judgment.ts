@@ -23,7 +23,7 @@ import {
   traceRecommendationError,
 } from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
 
-const UNIFIED_JUDGMENT_MODEL = resolveModel("haiku")
+const UNIFIED_JUDGMENT_MODEL = resolveModel("opus", "unified-judgment")
 
 export interface UnifiedJudgment {
   // 기존 5가지
@@ -203,7 +203,8 @@ export async function performUnifiedJudgment(
       JUDGMENT_SYSTEM,
       [{ role: "user", content: prompt }],
       2500,
-      UNIFIED_JUDGMENT_MODEL
+      UNIFIED_JUDGMENT_MODEL,
+      "unified-judgment"
     )
 
     const p = parseJudgmentJson(rawResponse) as Partial<UnifiedJudgment>

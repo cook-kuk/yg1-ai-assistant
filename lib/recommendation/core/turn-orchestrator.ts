@@ -29,7 +29,7 @@ import {
 import { refineResults, buildRefinementOptions } from "./result-refiner"
 import { isUnfilterableChip } from "@/lib/recommendation/domain/options/llm-chip-pipeline"
 
-const TURN_DECISION_MODEL = resolveModel("haiku")
+const TURN_DECISION_MODEL = resolveModel("opus", "turn-orchestrator")
 
 // Step 1: Build snapshot from current state + user message
 function buildTurnSnapshot(
@@ -165,7 +165,8 @@ async function getLlmTurnDecision(snapshot: TurnSnapshot, provider: LLMProvider)
       TURN_DECISION_SYSTEM,
       [{ role: "user", content: prompt }],
       1500,
-      TURN_DECISION_MODEL
+      TURN_DECISION_MODEL,
+      "turn-orchestrator"
     )
 
     const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim()

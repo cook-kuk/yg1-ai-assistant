@@ -31,6 +31,7 @@ vi.mock("@/lib/recommendation/domain/recommendation-domain", () => ({
 
 vi.mock("@/lib/recommendation/infrastructure/llm/recommendation-llm", () => ({
   getProvider: () => ({ available: () => false }),
+  resolveModel: () => "haiku",
 }))
 
 vi.mock("@/lib/knowledge/company-prompt-snippet", () => ({

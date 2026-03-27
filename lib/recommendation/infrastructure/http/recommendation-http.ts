@@ -229,8 +229,8 @@ function createServeRuntimeDependencies(): ServeEngineRuntimeDependencies {
     buildCandidateSnapshot,
     handleDirectInventoryQuestion,
     // provider 생성 시점은 요청 처리 직전으로 늦춰, 테스트/런타임 교체를 쉽게 한다.
-    handleDirectEntityProfileQuestion: (userMessage, currentInput, prevState) =>
-      handleDirectEntityProfileQuestion(getProvider(), userMessage, currentInput, prevState),
+    handleDirectEntityProfileQuestion: (userMessage, currentInput, prevState, options) =>
+      handleDirectEntityProfileQuestion(getProvider(), userMessage, currentInput, prevState, options),
     handleDirectProductInfoQuestion,
     handleDirectBrandReferenceQuestion,
     handleDirectCuttingConditionQuestion,

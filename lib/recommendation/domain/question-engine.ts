@@ -25,7 +25,6 @@ export interface NextQuestion {
 }
 
 const QUESTION_FIELD_PRIORITY: Record<string, number> = {
-  diameterRefine: 0,
   toolSubtype: 1,
   fluteCount: 2,
   workPieceName: 3,
@@ -276,39 +275,6 @@ function buildCuttingTypeQuestion(input: RecommendationInput): FieldAnalysis | n
   }
 }
 
-function buildDiameterRefineQuestion(input: RecommendationInput, candidates: ScoredProduct[]): FieldAnalysis | null {
-  if (!input.diameterMm) return null
-
-  // If exact diameter match exists in candidates, no need to refine
-  const exactMatch = candidates.some(c => c.product.diameterMm === input.diameterMm)
-  if (exactMatch) return null
-
-  const uniqueDiameters = new Set(
-    candidates.map(candidate => candidate.product.diameterMm).filter((diameter): diameter is number => diameter !== null)
-  )
-  if (uniqueDiameters.size <= 3) return null
-
-  const sortedDiameters = [...uniqueDiameters].sort((a, b) => a - b)
-  let closestDiameters = sortedDiameters
-    .filter(diameter => Math.abs(diameter - input.diameterMm!) <= 2)
-    .slice(0, 5)
-
-  if (closestDiameters.length <= 1) return null
-
-  // Ensure user's specified diameter is first if it exists in candidates
-  if (closestDiameters.includes(input.diameterMm)) {
-    closestDiameters = [input.diameterMm, ...closestDiameters.filter(d => d !== input.diameterMm)]
-  } else if (uniqueDiameters.has(input.diameterMm)) {
-    closestDiameters.unshift(input.diameterMm)
-  }
-
-  return {
-    field: "diameterRefine",
-    questionText: `직경 ${input.diameterMm}mm 근처에 ${closestDiameters.join(", ")}mm가 있습니다. 정확한 직경을 선택해주세요.`,
-    chips: closestDiameters.map(diameter => `${diameter}mm`),
-  }
-}
-
 function analyzeFieldDirect(
   input: RecommendationInput,
   candidates: ScoredProduct[],
@@ -323,8 +289,6 @@ function analyzeFieldDirect(
       return buildToolSubtypeQuestion(input, candidates)
     case "cuttingType":
       return buildCuttingTypeQuestion(input)
-    case "diameterRefine":
-      return buildDiameterRefineQuestion(input, candidates)
     default:
       return null
   }
@@ -358,10 +322,6 @@ function analyzeFields(
     if (question) results.push(question)
   }
 
-  if (input.diameterMm && !askedFields.has("diameterRefine")) {
-    const question = buildDiameterRefineQuestion(input, candidates)
-    if (question) results.push(question)
-  }
   return results
 }
 

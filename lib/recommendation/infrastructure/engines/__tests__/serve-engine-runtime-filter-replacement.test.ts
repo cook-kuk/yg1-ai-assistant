@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { applyFilterToInput } from "../serve-engine-input"
-import { replaceFieldFilter } from "../serve-engine-filter-state"
+import { replaceFieldFilter, replaceFieldFilters } from "../serve-engine-filter-state"
 import type { AppliedFilter, RecommendationInput } from "@/lib/recommendation/domain/types"
 
 function makeBaseInput(): RecommendationInput {
@@ -107,5 +107,30 @@ describe("serve-engine runtime filter replacement", () => {
     })
 
     expect(updated.operationType).toBe("Side_Milling")
+  })
+
+  it("merges same-turn replacement and additional filters together", () => {
+    const baseInput = makeBaseInput()
+    const currentFilters: AppliedFilter[] = [
+      { field: "diameterMm", op: "eq", value: "8mm", rawValue: 8, appliedAt: 0 },
+      { field: "toolSubtype", op: "includes", value: "Square", rawValue: "Square", appliedAt: 1 },
+    ]
+    const turnFilters: AppliedFilter[] = [
+      { field: "toolSubtype", op: "includes", value: "Radius", rawValue: "Radius", appliedAt: 2 },
+      { field: "fluteCount", op: "eq", value: "4날", rawValue: 4, appliedAt: 2 },
+    ]
+
+    const result = replaceFieldFilters(baseInput, currentFilters, turnFilters, applyFilterToInput)
+
+    expect(result.replacedExisting).toBe(true)
+    expect(result.replacedFields).toEqual(["toolSubtype"])
+    expect(result.nextFilters).toEqual([
+      currentFilters[0],
+      turnFilters[0],
+      turnFilters[1],
+    ])
+    expect(result.nextInput.diameterMm).toBe(8)
+    expect(result.nextInput.toolSubtype).toBe("Radius")
+    expect(result.nextInput.flutePreference).toBe(4)
   })
 })

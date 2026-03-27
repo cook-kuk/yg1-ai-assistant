@@ -13,6 +13,7 @@ import { getSessionCache } from "@/lib/recommendation/infrastructure/cache/sessi
 import { resolveMaterialTag } from "@/lib/recommendation/domain/material-resolver"
 import { parseAnswerToFilter, extractAllFiltersFromMessage } from "@/lib/recommendation/domain/question-engine"
 import { extractFiltersWithLLM, llmResultToAppliedFilters } from "@/lib/recommendation/core/llm-filter-extractor"
+import { extractSemanticTurnDecision, type SemanticDirectContext, type SemanticReplyRoute } from "@/lib/recommendation/core/semantic-turn-extractor"
 import {
   compareProducts,
   orchestrateTurn,
@@ -27,7 +28,7 @@ import {
   buildComparisonOptionState,
   buildRefinementOptionState,
 } from "@/lib/recommendation/infrastructure/engines/serve-engine-option-first"
-import { replaceFieldFilter } from "@/lib/recommendation/infrastructure/engines/serve-engine-filter-state"
+import { replaceFieldFilter, replaceFieldFilters } from "@/lib/recommendation/infrastructure/engines/serve-engine-filter-state"
 import { detectUserState } from "@/lib/recommendation/domain/context/user-understanding-detector"
 import { buildUnifiedTurnContext } from "@/lib/recommendation/domain/context/turn-context-builder"
 import { validateOptionFirstPipeline } from "@/lib/recommendation/domain/options/option-validator"
@@ -197,6 +198,19 @@ function buildPendingSelectionOrchestratorResult(filter: AppliedFilter): Orchest
     action,
     reasoning: `pending_selection:${filter.field}:${filter.op === "skip" ? "skip" : filter.value}`,
     agentsInvoked: [{ agent: "pending-selection-resolver", model: HAIKU_MODEL, durationMs: 0 }],
+    escalatedToOpus: false,
+  }
+}
+
+function buildSemanticOrchestratorResult(
+  reasoning: string,
+  action: OrchestratorAction,
+  confidence: number
+): OrchestratorResult {
+  return {
+    action,
+    reasoning: `semantic:${confidence.toFixed(2)}:${reasoning}`,
+    agentsInvoked: [{ agent: "semantic-turn-extractor", model: HAIKU_MODEL, durationMs: 0 }],
     escalatedToOpus: false,
   }
 }
@@ -681,6 +695,76 @@ async function enrichWorkPieceFilterWithSeriesScope(
   } as AppliedFilter
 }
 
+async function normalizeAndEnrichFilterForTurn(params: {
+  filter: AppliedFilter
+  currentInput: RecommendationInput
+  currentCandidates: ScoredProduct[]
+  provider: ReturnType<typeof getProvider>
+}): Promise<AppliedFilter> {
+  const { currentInput, currentCandidates, provider } = params
+  let filter = { ...params.filter }
+
+  let candidateFieldVals = extractDistinctFieldValues(currentCandidates as any[], filter.field)
+
+  if (candidateFieldVals.length === 0 && filter.field === "workPieceName") {
+    const isoGroup = resolveSingleIsoGroup(currentInput.material)
+    if (isoGroup) {
+      candidateFieldVals = await getSessionCache().getOrFetch(
+        `workPieceNames:${isoGroup}`,
+        () => BrandReferenceRepo.listDistinctWorkPieceNames({ isoGroup, limit: 30 })
+      )
+      console.log(`[value-normalizer:workPiece] Loaded ${candidateFieldVals.length} workPiece names from brand_reference for ISO ${isoGroup}`)
+    }
+  }
+
+  if (candidateFieldVals.length > 0 && typeof filter.rawValue === "string") {
+    const { normalized, matchType } = await normalizeFilterValue(
+      String(filter.rawValue),
+      filter.field,
+      candidateFieldVals,
+      provider
+    )
+    if (matchType !== "none" && normalized !== String(filter.rawValue)) {
+      console.log(`[value-normalizer] "${filter.rawValue}" → "${normalized}" (${matchType}) for field=${filter.field}`)
+      filter.rawValue = normalized
+      if (!filter.value.includes("(") && !filter.value.includes("개")) {
+        filter.value = normalized
+      }
+    }
+  }
+
+  filter = await enrichWorkPieceFilterWithSeriesScope(filter, currentInput, currentCandidates)
+  return filter
+}
+
+async function prepareMergedTurnFilters(params: {
+  baseAppliedAt: number
+  currentInput: RecommendationInput
+  currentCandidates: ScoredProduct[]
+  primaryFilter: AppliedFilter
+  extraFilters: AppliedFilter[]
+  provider: ReturnType<typeof getProvider>
+  applyFilterToInput: (input: RecommendationInput, filter: AppliedFilter) => RecommendationInput
+}): Promise<AppliedFilter[]> {
+  const { baseAppliedAt, currentCandidates, provider, applyFilterToInput } = params
+  const rawTurnFilters = [params.primaryFilter, ...params.extraFilters]
+  const preparedTurnFilters: AppliedFilter[] = []
+  let previewInput = { ...params.currentInput }
+
+  for (const rawFilter of rawTurnFilters) {
+    const nextFilter = await normalizeAndEnrichFilterForTurn({
+      filter: { ...rawFilter, appliedAt: baseAppliedAt },
+      currentInput: previewInput,
+      currentCandidates,
+      provider,
+    })
+    preparedTurnFilters.push(nextFilter)
+    previewInput = applyFilterToInput(previewInput, nextFilter)
+  }
+
+  return preparedTurnFilters
+}
+
 /**
  * Detect "다른 직경/소재/코팅" refinement patterns deterministically.
  * Returns the target field name or null if no match.
@@ -926,27 +1010,32 @@ export interface ServeEngineRuntimeDependencies {
   ) => CandidateSnapshot[]
   handleDirectInventoryQuestion: (
     userMessage: string,
-    prevState: ExplorationSessionState
+    prevState: ExplorationSessionState,
+    options?: { force?: boolean; semanticContext?: SemanticDirectContext | null }
   ) => Promise<QuestionReply>
   handleDirectEntityProfileQuestion: (
     userMessage: string,
     currentInput: RecommendationInput,
-    prevState: ExplorationSessionState | null
+    prevState: ExplorationSessionState | null,
+    options?: { force?: boolean; semanticContext?: SemanticDirectContext | null }
   ) => Promise<QuestionReply>
   handleDirectProductInfoQuestion?: (
     userMessage: string,
     currentInput: RecommendationInput,
-    prevState: ExplorationSessionState | null
+    prevState: ExplorationSessionState | null,
+    options?: { force?: boolean; semanticContext?: SemanticDirectContext | null }
   ) => Promise<QuestionReply>
   handleDirectBrandReferenceQuestion: (
     userMessage: string,
     currentInput: RecommendationInput,
-    prevState: ExplorationSessionState | null
+    prevState: ExplorationSessionState | null,
+    options?: { force?: boolean; semanticContext?: SemanticDirectContext | null }
   ) => Promise<QuestionReply>
   handleDirectCuttingConditionQuestion: (
     userMessage: string,
     currentInput: RecommendationInput,
-    prevState: ExplorationSessionState
+    prevState: ExplorationSessionState,
+    options?: { force?: boolean; semanticContext?: SemanticDirectContext | null }
   ) => Promise<QuestionReply>
   handleContextualNarrowingQuestion: (
     provider: ReturnType<typeof getProvider>,
@@ -1179,12 +1268,61 @@ async function handleServeExplorationInner(
   let explicitFilterOrchestratorResult: OrchestratorResult | null = null
   let explicitRefineAction: OrchestratorAction | null = null
   let explicitRefineOrchestratorResult: OrchestratorResult | null = null
+  let semanticAction: OrchestratorAction | null = null
+  let semanticOrchestratorResult: OrchestratorResult | null = null
+  let semanticReplyRoute: SemanticReplyRoute | null = null
+  let semanticDirectContext: SemanticDirectContext | null = null
   let pendingSelectionAction: OrchestratorAction | null = null
   let pendingSelectionOrchestratorResult: OrchestratorResult | null = null
   let llmExtraFilters: AppliedFilter[] = []
   let bridgedV2Action: OrchestratorAction | null = null
   let bridgedV2OrchestratorResult: OrchestratorResult | null = null
   const journeyPhase = detectJourneyPhase(prevState)
+
+  if (lastUserMsg) {
+    const semanticDecision = await extractSemanticTurnDecision({
+      userMessage: lastUserMsg.text,
+      sessionState: prevState,
+      provider,
+    })
+
+    if (semanticDecision) {
+      semanticAction = semanticDecision.action
+      semanticOrchestratorResult = buildSemanticOrchestratorResult(
+        semanticDecision.reasoning,
+        semanticDecision.action,
+        semanticDecision.confidence
+      )
+      semanticReplyRoute = semanticDecision.replyRoute
+      semanticDirectContext = semanticDecision.directContext
+      if (
+        (semanticDecision.action.type === "continue_narrowing" || semanticDecision.action.type === "replace_existing_filter") &&
+        semanticDecision.extraFilters.length > 0
+      ) {
+        llmExtraFilters = semanticDecision.extraFilters.map(filter => ({ ...filter, appliedAt: turnCount }))
+      }
+      trace.add("semantic-turn", "router", {
+        userMessage: lastUserMsg.text,
+        pendingField: prevState?.lastAskedField ?? null,
+        filterCount: filters.length,
+      }, {
+        action: semanticDecision.action.type,
+        extraFilterCount: semanticDecision.extraFilters.length,
+        replyRoute: semanticDecision.replyRoute,
+        directContext: semanticDecision.directContext,
+        confidence: semanticDecision.confidence,
+      }, semanticDecision.reasoning)
+    } else {
+      trace.add("semantic-turn", "router", {
+        userMessage: lastUserMsg.text,
+        pendingField: prevState?.lastAskedField ?? null,
+        filterCount: filters.length,
+      }, {
+        action: null,
+        fallback: "legacy-routing",
+      }, "semantic extractor returned null -> fallback to legacy routing")
+    }
+  }
 
   // ── CTA 버튼 감지 ──
   const userText = lastUserMsg?.text ?? ""
@@ -1193,12 +1331,12 @@ async function handleServeExplorationInner(
   const isRecommendRequest = /추천받기|추천보기|추천해주세요|추천해줘|바로 보여|결과 보여|지금 조건으로/u.test(userText)
   const isStockFilterRequest = /재고.*있|재고.*확인|재고.*된|즉시.*구매|바로.*구매|재고.*만/u.test(userText)
 
-  if (prevState && isStockFilterRequest) {
+  if (!semanticAction && prevState && isStockFilterRequest) {
     pendingSelectionAction = { type: "filter_by_stock", stockFilter: "instock" } as OrchestratorAction
     console.log(`[stock-filter] Detected stock filter request`)
   }
 
-  if (!pendingSelectionAction && prevState && (isProductListRequest || isAIAnalysisRequest || isRecommendRequest)) {
+  if (!semanticAction && !pendingSelectionAction && prevState && (isProductListRequest || isAIAnalysisRequest || isRecommendRequest)) {
     const currentCount = prevState.candidateCount ?? 0
 
     if (isProductListRequest) {
@@ -1221,7 +1359,7 @@ async function handleServeExplorationInner(
     }
   }
 
-  const pendingSelectionFilter = buildPendingSelectionFilter(prevState, lastUserMsg?.text ?? null)
+  const pendingSelectionFilter = semanticAction ? null : buildPendingSelectionFilter(prevState, lastUserMsg?.text ?? null)
   // 비교 신호가 있으면 pending selection을 우회 → 비교 질문을 side question으로 처리
   const hasComparisonSignal = lastUserMsg?.text ? hasExplicitComparisonSignal(lastUserMsg.text) : false
   const shouldResolvePendingSelectionEarly = !!pendingSelectionFilter && !isPostResultPhase(journeyPhase) && !hasComparisonSignal
@@ -1241,7 +1379,7 @@ async function handleServeExplorationInner(
   }
 
   // ── Step 2: LLM fallback — deterministic(Step 0+1)이 못 잡았을 때만 ──
-  if (!pendingSelectionAction && prevState?.lastAskedField && lastUserMsg && !isPostResultPhase(journeyPhase) && !hasComparisonSignal) {
+  if (!semanticAction && !pendingSelectionAction && prevState?.lastAskedField && lastUserMsg && !isPostResultPhase(journeyPhase) && !hasComparisonSignal) {
     const llmResult = await extractFiltersWithLLM(
       lastUserMsg.text,
       prevState.lastAskedField,
@@ -1315,6 +1453,9 @@ async function handleServeExplorationInner(
   }
 
   traceRecommendation("runtime.handleServeExplorationInner:state-after-routing-prep", {
+    semanticAction,
+    semanticReplyRoute,
+    semanticDirectContext,
     pendingSelectionAction,
     pendingSelectionOrchestratorResult,
     explicitComparisonAction,
@@ -1341,7 +1482,7 @@ async function handleServeExplorationInner(
       }
     }
 
-    if (!shouldResolvePendingSelectionEarly) {
+    if (!semanticAction && !shouldResolvePendingSelectionEarly) {
       explicitComparisonAction = resolveExplicitComparisonAction(prevState, lastUserMsg.text)
       if (explicitComparisonAction?.type === "compare_products") {
         explicitComparisonOrchestratorResult = buildExplicitComparisonOrchestratorResult(explicitComparisonAction.targets)
@@ -1446,7 +1587,7 @@ async function handleServeExplorationInner(
       )
     }
 
-    if (!shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution && !explicitRefineAction && prevState) {
+    if (!semanticAction && !shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution && !explicitRefineAction && prevState) {
       const explanationJudgment = await performUnifiedJudgment({
         userMessage: lastUserMsg.text,
         assistantText: null,
@@ -1481,11 +1622,13 @@ async function handleServeExplorationInner(
           candidates: [],
           evidenceMap: new Map(),
           turnCount,
+          semanticReplyRoute: null,
+          semanticDirectContext: null,
         })
       }
     }
 
-    if (!shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution && !explicitRefineAction) {
+    if (!semanticAction && !shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution && !explicitRefineAction) {
       const preSearchRoute = await classifyPreSearchRoute(lastUserMsg.text, prevState, provider)
       if (preSearchRoute.kind !== "recommendation_action") {
         console.log(`[runtime:pre-route] ${preSearchRoute.kind} -> answer_general (${preSearchRoute.reason})`)
@@ -1516,6 +1659,8 @@ async function handleServeExplorationInner(
           candidates: [],
           evidenceMap: new Map(),
           turnCount,
+          semanticReplyRoute: null,
+          semanticDirectContext: null,
         })
       }
     }
@@ -1526,7 +1671,7 @@ async function handleServeExplorationInner(
   // On error, automatically falls back to legacy path.
   const currentPhase = prevState?.currentMode ?? "intake"
   perf.startStep("v2_orchestrator")
-  if (shouldUseV2ForPhase(currentPhase) && lastUserMsg && !shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution && !explicitRefineAction) {
+  if (shouldUseV2ForPhase(currentPhase) && lastUserMsg && !semanticAction && !shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution && !explicitRefineAction) {
     try {
       const { orchestrateTurnV2 } = await import("@/lib/recommendation/core/turn-orchestrator")
       const { convertToV2State, convertFromV2State } = await import("@/lib/recommendation/core/state-adapter")
@@ -1744,7 +1889,8 @@ async function handleServeExplorationInner(
   }
 
   let earlyAction: string | null =
-    pendingSelectionAction?.type
+    semanticAction?.type
+    ?? pendingSelectionAction?.type
     ?? explicitComparisonAction?.type
     ?? explicitRevisionAction?.type
     ?? explicitFilterAction?.type
@@ -1998,13 +2144,13 @@ async function handleServeExplorationInner(
       unifiedTurnContext,
     }
 
-    const orchResult = pendingSelectionOrchestratorResult ?? explicitComparisonOrchestratorResult ?? explicitRevisionOrchestratorResult ?? explicitFilterOrchestratorResult ?? explicitRefineOrchestratorResult ?? bridgedV2OrchestratorResult ?? (
+    const orchResult = semanticOrchestratorResult ?? pendingSelectionOrchestratorResult ?? explicitComparisonOrchestratorResult ?? explicitRevisionOrchestratorResult ?? explicitFilterOrchestratorResult ?? explicitRefineOrchestratorResult ?? bridgedV2OrchestratorResult ?? (
       ENABLE_TOOL_USE_ROUTING
         ? await orchestrateTurnWithTools(turnContext, provider)
         : await orchestrateTurn(turnContext, provider)
     )
-    let action = pendingSelectionAction ?? explicitComparisonAction ?? explicitRevisionAction ?? explicitFilterAction ?? explicitRefineAction ?? bridgedV2Action ?? orchResult.action
-    const usingBridgedAction = !!pendingSelectionAction || !!explicitComparisonAction || !!explicitRevisionAction || !!explicitFilterAction || !!explicitRefineAction || !!bridgedV2Action
+    let action = semanticAction ?? pendingSelectionAction ?? explicitComparisonAction ?? explicitRevisionAction ?? explicitFilterAction ?? explicitRefineAction ?? bridgedV2Action ?? orchResult.action
+    const usingBridgedAction = !!semanticAction || !!pendingSelectionAction || !!explicitComparisonAction || !!explicitRevisionAction || !!explicitFilterAction || !!explicitRefineAction || !!bridgedV2Action
 
     trace.add("orchestrator", "router", {
       userMessage: lastUserMsg.text,
@@ -2341,6 +2487,8 @@ async function handleServeExplorationInner(
         candidates,
         evidenceMap,
         turnCount,
+        semanticReplyRoute,
+        semanticDirectContext,
       })
     }
 
@@ -2373,7 +2521,7 @@ async function handleServeExplorationInner(
             }
             console.log(`[side-question:suspend:redirect] Suspended flow for field="${prevState.lastAskedField}"`)
           }
-          return handleServeGeneralChatAction({ deps, action: { type: "answer_general", message: lastUserMsg.text }, orchResult, provider, form, messages, prevState, filters, narrowingHistory, currentInput, candidates, evidenceMap, turnCount })
+          return handleServeGeneralChatAction({ deps, action: { type: "answer_general", message: lastUserMsg.text }, orchResult, provider, form, messages, prevState, filters, narrowingHistory, currentInput, candidates, evidenceMap, turnCount, semanticReplyRoute: null, semanticDirectContext: null })
         }
       }
       const sessionState = carryForwardState(prevState, {
@@ -2509,35 +2657,25 @@ async function handleServeExplorationInner(
         console.log(`[orchestrator:replace] No stage snapshot, retrieved candidateCountBefore=${candidateCountBeforeFilter} from restored input`)
       }
 
-      let filter = { ...action.nextFilter, appliedAt: filterAppliedAt }
-      if (filter.field === "material") {
+      const preparedTurnFilters = await prepareMergedTurnFilters({
+        baseAppliedAt: filterAppliedAt,
+        currentInput,
+        currentCandidates: candidates,
+        primaryFilter: action.nextFilter,
+        extraFilters: llmExtraFilters,
+        provider,
+        applyFilterToInput: deps.applyFilterToInput,
+      })
+      const filter = preparedTurnFilters[0]
+
+      if (preparedTurnFilters.some(candidate => candidate.field === "material")) {
         dropDependentWorkPieceFilters(baseFiltersForNext)
       }
 
-      const candidateFieldVals = extractDistinctFieldValues(candidates as any[], filter.field)
-      if (candidateFieldVals.length > 0 && typeof filter.rawValue === "string") {
-        const { normalized, matchType } = await normalizeFilterValue(
-          String(filter.rawValue),
-          filter.field,
-          candidateFieldVals,
-          provider
-        )
-        if (matchType !== "none" && normalized !== String(filter.rawValue)) {
-          trace.add("value-normalizer", "search", { original: String(filter.rawValue), field: filter.field }, { normalized, matchType }, `"${filter.rawValue}" → "${normalized}" (${matchType})`)
-          console.log(`[value-normalizer] "${filter.rawValue}" → "${normalized}" (${matchType}) for field=${filter.field}`)
-          filter.rawValue = normalized
-          if (!filter.value.includes("(") && !filter.value.includes("개")) {
-            filter.value = normalized
-          }
-        }
-      }
-
-      filter = await enrichWorkPieceFilterWithSeriesScope(filter, currentInput, candidates)
-
-      const nextFilterState = replaceFieldFilter(
+      const nextFilterState = replaceFieldFilters(
         baseInput,
         baseFiltersForNext,
-        filter,
+        preparedTurnFilters,
         deps.applyFilterToInput
       )
       const testInput = nextFilterState.nextInput
@@ -2565,7 +2703,7 @@ async function handleServeExplorationInner(
       const updatedHistory = [...baseHistoryForNext, {
         question: baseHistoryForNext.length > 0 ? "follow-up" : "initial",
         answer: lastUserMsg.text,
-        extractedFilters: [filter],
+        extractedFilters: preparedTurnFilters,
         candidateCountBefore: candidateCountBeforeFilter,
         candidateCountAfter: testResult.totalConsidered,
       }]
@@ -2659,49 +2797,25 @@ async function handleServeExplorationInner(
       let baseHistoryForNext = narrowingHistory
       let candidateCountBeforeFilter = totalCandidateCount
 
-      let filter = { ...action.filter, appliedAt: filterAppliedAt }
-      if (filter.field === "material") {
+      const preparedTurnFilters = await prepareMergedTurnFilters({
+        baseAppliedAt: filterAppliedAt,
+        currentInput,
+        currentCandidates: candidates,
+        primaryFilter: action.filter,
+        extraFilters: llmExtraFilters,
+        provider,
+        applyFilterToInput: deps.applyFilterToInput,
+      })
+      const filter = preparedTurnFilters[0]
+
+      if (preparedTurnFilters.some(candidate => candidate.field === "material")) {
         dropDependentWorkPieceFilters(baseFiltersForNext)
       }
 
-      // ── Value Normalizer: match user input to actual DB values ──
-      // Tier 1-2: exact/fuzzy (instant), Tier 3: Haiku LLM translation (~200ms)
-      let candidateFieldVals = extractDistinctFieldValues(candidates as any[], filter.field)
-
-      // workPieceName은 제품 필드가 아니므로 brand_reference에서 후보값을 가져옴
-      if (candidateFieldVals.length === 0 && filter.field === "workPieceName") {
-        const isoGroup = resolveSingleIsoGroup(currentInput.material)
-        if (isoGroup) {
-          candidateFieldVals = await getSessionCache().getOrFetch(
-            `workPieceNames:${isoGroup}`,
-            () => BrandReferenceRepo.listDistinctWorkPieceNames({ isoGroup, limit: 30 })
-          )
-          console.log(`[value-normalizer:workPiece] Loaded ${candidateFieldVals.length} workPiece names from brand_reference for ISO ${isoGroup}`)
-        }
-      }
-      if (candidateFieldVals.length > 0 && typeof filter.rawValue === "string") {
-        const { normalized, matchType } = await normalizeFilterValue(
-          String(filter.rawValue),
-          filter.field,
-          candidateFieldVals,
-          provider
-        )
-        if (matchType !== "none" && normalized !== String(filter.rawValue)) {
-          trace.add("value-normalizer", "search", { original: String(filter.rawValue), field: filter.field }, { normalized, matchType }, `"${filter.rawValue}" → "${normalized}" (${matchType})`)
-          console.log(`[value-normalizer] "${filter.rawValue}" → "${normalized}" (${matchType}) for field=${filter.field}`)
-          filter.rawValue = normalized
-          if (!filter.value.includes("(") && !filter.value.includes("개")) {
-            filter.value = normalized
-          }
-        }
-      }
-
-      filter = await enrichWorkPieceFilterWithSeriesScope(filter, currentInput, candidates)
-
-      const nextFilterState = replaceFieldFilter(
+      const nextFilterState = replaceFieldFilters(
         baseInput,
         baseFiltersForNext,
-        filter,
+        preparedTurnFilters,
         deps.applyFilterToInput
       )
       const testInput = nextFilterState.nextInput
@@ -2765,7 +2879,7 @@ async function handleServeExplorationInner(
       const newTurn = {
         question: baseHistoryForNext.length > 0 ? "follow-up" : "initial",
         answer: lastUserMsg.text,
-        extractedFilters: [filter],
+        extractedFilters: preparedTurnFilters,
         candidateCountBefore: previousCandidateCount,
         candidateCountAfter: testResult.totalConsidered,
       }
@@ -2815,35 +2929,10 @@ async function handleServeExplorationInner(
 
       turnCount = filterAppliedAt + 1
 
-      // ── Multi-filter: extract and apply additional NL filters from same message ──
-      // e.g. "Radius로 해주세요 소재는 알루미늄입니다" → primary filter=Radius, additional=알루미늄
-      let finalCandidates = newCandidates
-      let finalEvidenceMap = testResult.evidenceMap
-      let finalTotalConsidered = testResult.totalConsidered
-      let finalDisplayPage = testDisplayPage
-      const additionalNLFilters = llmExtraFilters
-      for (const addFilter of additionalNLFilters) {
-        const enrichedAdd = await enrichWorkPieceFilterWithSeriesScope(
-          { ...addFilter, appliedAt: turnCount - 1 },
-          currentInput,
-          finalCandidates
-        )
-        const addState = replaceFieldFilter(baseInput, filters, enrichedAdd, deps.applyFilterToInput)
-        const addResult = await runHybridRetrieval(addState.nextInput, addState.nextFilters, 0, null)
-        if (addResult.totalConsidered > 0) {
-          filters.splice(0, filters.length, ...addState.nextFilters)
-          currentInput = addState.nextInput
-          finalCandidates = addResult.candidates
-          finalEvidenceMap = addResult.evidenceMap
-          finalTotalConsidered = addResult.totalConsidered
-          finalDisplayPage = sliceCandidatesForPage(finalCandidates, finalEvidenceMap, resolvedPagination)
-          narrowingHistory[narrowingHistory.length - 1].extractedFilters.push(enrichedAdd)
-          narrowingHistory[narrowingHistory.length - 1].candidateCountAfter = finalTotalConsidered
-          console.log(`[multi-filter] Applied ${enrichedAdd.field}=${enrichedAdd.value} → ${finalTotalConsidered} candidates`)
-        } else {
-          console.log(`[multi-filter] Skipped ${enrichedAdd.field}=${enrichedAdd.value}: would result in 0 candidates`)
-        }
-      }
+      const finalCandidates = newCandidates
+      const finalEvidenceMap = testResult.evidenceMap
+      const finalTotalConsidered = testResult.totalConsidered
+      const finalDisplayPage = testDisplayPage
 
       const newStatus = checkResolution(finalCandidates, narrowingHistory, finalTotalConsidered)
       if (newStatus.startsWith("resolved")) {

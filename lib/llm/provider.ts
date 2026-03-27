@@ -37,6 +37,11 @@ export type AgentName =
   | "response-composer"
   | "ambiguity-resolver"
   | "llm-filter-extractor"
+  | "semantic-turn-extractor"
+  | "unified-judgment"
+  | "query-decomposer"
+  | "turn-orchestrator"
+  | "tool-use-router"
 
 export interface LLMProvider {
   complete(systemPrompt: string, messages: LLMMessage[], maxTokens?: number, model?: ModelSpecifier, agentName?: AgentName): Promise<string>
@@ -93,6 +98,11 @@ const AGENT_MODEL_ENV: Record<AgentName, string> = {
   "response-composer":    "AGENT_RESPONSE_COMPOSER_MODEL",
   "ambiguity-resolver":   "AGENT_AMBIGUITY_RESOLVER_MODEL",
   "llm-filter-extractor": "AGENT_LLM_FILTER_EXTRACTOR_MODEL",
+  "semantic-turn-extractor": "AGENT_SEMANTIC_TURN_EXTRACTOR_MODEL",
+  "unified-judgment":        "AGENT_UNIFIED_JUDGMENT_MODEL",
+  "query-decomposer":        "AGENT_QUERY_DECOMPOSER_MODEL",
+  "turn-orchestrator":       "AGENT_TURN_ORCHESTRATOR_MODEL",
+  "tool-use-router":         "AGENT_TOOL_USE_ROUTER_MODEL",
 }
 
 function isModelTier(value: string): value is ModelTier {

@@ -17,7 +17,7 @@
 import { resolveModel, type LLMProvider } from "@/lib/llm/provider"
 import type { ExplorationSessionState } from "@/lib/types/exploration"
 
-const QUERY_DECOMPOSER_MODEL = resolveModel("haiku")
+const QUERY_DECOMPOSER_MODEL = resolveModel("opus", "query-decomposer")
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -136,7 +136,8 @@ export async function decomposeQuery(
       systemPrompt,
       [{ role: "user", content: userMessage }],
       1500,
-      QUERY_DECOMPOSER_MODEL
+      QUERY_DECOMPOSER_MODEL,
+      "query-decomposer"
     )
 
     const parsed = safeParseJSON(raw)

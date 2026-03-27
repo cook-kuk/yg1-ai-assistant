@@ -46,11 +46,11 @@ import { resolveProductReferences } from "./comparison-agent"
 import { parseAnswerToFilter } from "@/lib/recommendation/domain/question-engine"
 import { ENABLE_OPUS_AMBIGUITY, ENABLE_COMPARISON_AGENT } from "@/lib/recommendation/infrastructure/config/recommendation-agent-flags"
 
-const UNIFIED_JUDGMENT_MODEL = resolveModel("haiku")
-const INTENT_CLASSIFIER_MODEL = resolveModel("haiku", "intent-classifier")
+const UNIFIED_JUDGMENT_MODEL = resolveModel("opus", "unified-judgment")
+const INTENT_CLASSIFIER_MODEL = resolveModel("opus", "intent-classifier")
 const PARAMETER_EXTRACTOR_MODEL = resolveModel("haiku", "parameter-extractor")
 const AMBIGUITY_RESOLVER_MODEL = resolveModel("opus", "ambiguity-resolver")
-const TOOL_USE_ROUTER_MODEL = resolveModel("sonnet")
+const TOOL_USE_ROUTER_MODEL = resolveModel("opus", "tool-use-router")
 
 // ════════════════════════════════════════════════════════════════
 // MAIN ORCHESTRATOR
