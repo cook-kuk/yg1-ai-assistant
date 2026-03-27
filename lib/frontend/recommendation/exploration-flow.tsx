@@ -687,16 +687,14 @@ function CandidatePanel({
                   onClick={() => toggleGroup(group.seriesKey)}
                   className="w-full flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
                 >
-                  {group.seriesIconUrl && (
-                    <img
-                      src={group.seriesIconUrl}
-                      alt={group.seriesName}
-                      className="w-8 h-8 object-contain rounded border border-gray-100 shrink-0 bg-white"
-                      onError={event => {
-                        event.currentTarget.style.display = "none"
-                      }}
-                    />
-                  )}
+                  <img
+                    src={group.seriesIconUrl || "/images/series/todo-placeholder.svg"}
+                    alt={group.seriesName}
+                    className="w-8 h-8 object-contain rounded border border-gray-100 shrink-0 bg-white"
+                    onError={event => {
+                      (event.currentTarget as HTMLImageElement).src = "/images/series/todo-placeholder.svg"
+                    }}
+                  />
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-semibold text-gray-900 truncate">{groupTitle}</div>
                     {primaryBrandLabel && (

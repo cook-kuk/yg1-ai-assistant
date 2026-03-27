@@ -347,13 +347,14 @@ function ProductCard({
     <Card className={`border ${isAlternative ? "border-gray-200" : "border-blue-200 shadow-sm"}`}>
       <CardHeader className="pb-2 pt-3 px-4">
         <div className="flex items-start justify-between gap-2">
-          {product.seriesIconUrl && (
-            <img
-              src={product.seriesIconUrl}
-              alt={product.seriesName ?? ""}
-              className="w-16 h-16 object-contain rounded border border-gray-100 shrink-0 bg-gray-50"
-            />
-          )}
+          <img
+            src={product.seriesIconUrl || "/images/series/todo-placeholder.svg"}
+            alt={product.seriesName ?? ""}
+            className="w-16 h-16 object-contain rounded border border-gray-100 shrink-0 bg-gray-50"
+            onError={event => {
+              (event.currentTarget as HTMLImageElement).src = "/images/series/todo-placeholder.svg"
+            }}
+          />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span className="text-xs text-gray-400 font-mono">#{rank}</span>
@@ -461,16 +462,14 @@ export function CandidateCard({ c }: { c: RecommendationCandidateDto }) {
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-1.5">
       <div className="flex gap-2">
-        {c.seriesIconUrl && (
-          <img
-            src={c.seriesIconUrl}
-            alt={c.seriesName ?? ""}
-            className="w-12 h-12 object-contain rounded border border-gray-100 shrink-0 bg-gray-50"
-            onError={event => {
-              event.currentTarget.style.display = "none"
-            }}
-          />
-        )}
+        <img
+          src={c.seriesIconUrl || "/images/series/todo-placeholder.svg"}
+          alt={c.seriesName ?? ""}
+          className="w-12 h-12 object-contain rounded border border-gray-100 shrink-0 bg-gray-50"
+          onError={event => {
+            (event.currentTarget as HTMLImageElement).src = "/images/series/todo-placeholder.svg"
+          }}
+        />
         <div className="flex-1 min-w-0">
           {c.brand && <div className="text-xs font-bold text-purple-800 truncate">{c.brand}</div>}
           {cleanedDescription && <div className="text-[10px] text-gray-500 truncate">{cleanedDescription}</div>}
