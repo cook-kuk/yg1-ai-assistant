@@ -603,6 +603,11 @@ export async function buildQuestionResponse(
     responseText = `${replayFailureReason} 그래서 ${nextLabel} 기준으로 이어서 질문드릴게요.\n\n${responseText}`.trim()
   }
 
+  // ── "지금 단계에서 추천받기" 버튼을 최종 칩에 항상 추가 ──
+  if (totalCandidateCount > 0 && !finalResponseChips.some(c => c.includes("추천받기"))) {
+    finalResponseChips = [...finalResponseChips, `✨ 지금 단계에서 추천받기 (${totalCandidateCount}개 후보)`]
+  }
+
   sessionState.displayedChips = finalResponseChips
   sessionState.displayedOptions = finalDisplayedOptions
 
