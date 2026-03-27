@@ -87,64 +87,39 @@ function ToolCategoryCard({
 }) {
   const { language } = useApp()
 
-  if (disabled) {
-    return (
-      <div className="grid min-h-[108px] grid-cols-[120px_1fr] overflow-hidden rounded-[28px] border border-gray-200 bg-gray-100 opacity-60">
-        <div className="relative bg-gray-200">
-          <Image
-            src={TOOL_CATEGORY_IMAGES[option.value] ?? "/placeholder.jpg"}
-            alt={option.label}
-            fill
-            className="object-cover grayscale"
-            sizes="120px"
-          />
-        </div>
-        <div className="flex items-center justify-between px-6 py-5">
-          <div>
-            <p className="text-[28px] font-light tracking-[-0.03em] text-gray-500">{option.label}</p>
-            <p className="mt-1 text-xs uppercase tracking-[0.24em] text-gray-400">
-              {language === "ko" ? "준비 중" : "Coming Soon"}
-            </p>
-          </div>
-          <ChevronRight className="h-5 w-5 text-gray-400" />
-        </div>
-      </div>
-    )
-  }
-
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
       className={[
-        "group grid min-h-[108px] w-full grid-cols-[120px_1fr] overflow-hidden rounded-[28px] border bg-white text-left transition-all duration-200",
-        selected
-          ? "border-gray-900 shadow-[0_20px_50px_-28px_rgba(15,23,42,0.55)]"
-          : "border-gray-200 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-[0_20px_45px_-32px_rgba(15,23,42,0.45)]",
+        "group relative overflow-hidden rounded-2xl border text-left transition-all duration-200",
+        disabled
+          ? "cursor-not-allowed border-gray-200 bg-gray-50 opacity-50"
+          : selected
+            ? "border-gray-900 shadow-[0_8px_24px_-8px_rgba(15,23,42,0.4)]"
+            : "border-gray-200 bg-white hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-lg",
       ].join(" ")}
     >
-      <div className="relative bg-gray-200">
+      <div className="relative h-20 bg-gray-200">
         <Image
           src={TOOL_CATEGORY_IMAGES[option.value] ?? "/placeholder.jpg"}
           alt={option.label}
           fill
-          className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-          sizes="120px"
+          className={`object-cover transition-transform duration-300 ${disabled ? "grayscale" : "group-hover:scale-[1.05]"}`}
+          sizes="180px"
         />
+        {selected && (
+          <div className="absolute top-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-gray-900 text-white">
+            <Check className="h-3 w-3" />
+          </div>
+        )}
       </div>
-      <div className="flex items-center justify-between bg-[linear-gradient(135deg,#fcfcfd_0%,#f2f2f4_100%)] px-6 py-5">
-        <div>
-          <p className="text-[28px] font-light tracking-[-0.03em] text-gray-800">{option.label}</p>
-          <p className="mt-1 text-xs uppercase tracking-[0.24em] text-gray-400">{selected ? "Selected" : "Process"}</p>
-        </div>
-        <div
-          className={[
-            "flex h-10 w-10 items-center justify-center rounded-full border transition-colors",
-            selected ? "border-gray-900 bg-gray-900 text-white" : "border-gray-300 bg-white text-gray-500",
-          ].join(" ")}
-        >
-          <ChevronRight className="h-4 w-4" />
-        </div>
+      <div className="px-3 py-2.5 bg-[linear-gradient(135deg,#fcfcfd_0%,#f2f2f4_100%)]">
+        <p className="text-sm font-semibold text-gray-800">{option.label}</p>
+        <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400">
+          {disabled ? (language === "ko" ? "준비 중" : "Coming Soon") : selected ? "Selected" : "Process"}
+        </p>
       </div>
     </button>
   )
@@ -166,40 +141,25 @@ function MaterialOptionPanel({
       type="button"
       onClick={onClick}
       className={[
-        "rounded-[24px] border px-5 py-5 text-left transition-all duration-200",
+        "rounded-xl border px-3 py-3 text-left transition-all duration-200",
         selected
-          ? "border-gray-900 bg-white shadow-[0_20px_45px_-34px_rgba(15,23,42,0.55)]"
+          ? "border-gray-900 bg-white shadow-[0_8px_24px_-10px_rgba(15,23,42,0.4)]"
           : "border-gray-200 bg-[#f5f5f6] hover:-translate-y-0.5 hover:border-gray-300 hover:bg-white",
       ].join(" ")}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className={`text-5xl font-semibold leading-none tracking-[-0.06em] ${accentClass}`}>{option.tag}</div>
-          <div className="mt-2 text-lg font-semibold text-gray-900">{option.label}</div>
+      <div className="flex items-center gap-3">
+        <div className={`text-3xl font-bold leading-none tracking-tight ${accentClass}`}>{option.tag}</div>
+        <div className="flex-1">
+          <div className="text-sm font-semibold text-gray-900">{option.label}</div>
         </div>
         <span
           className={[
-            "mt-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border",
+            "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border",
             selected ? "border-gray-900 bg-gray-900 text-white" : "border-gray-300 bg-white text-transparent",
           ].join(" ")}
-          aria-hidden="true"
         >
-          <Check className="h-3.5 w-3.5" />
+          <Check className="h-3 w-3" />
         </span>
-      </div>
-      <div className="mt-5 border-t border-gray-200 pt-4">
-        <div className="flex items-start gap-3 text-sm text-gray-700">
-          <span
-            className={[
-              "mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[2px] border",
-              selected ? "border-gray-900 bg-gray-900 text-white" : "border-gray-300 bg-white text-transparent",
-            ].join(" ")}
-            aria-hidden="true"
-          >
-            <Check className="h-3 w-3" />
-          </span>
-          <span className="leading-5">{option.label}</span>
-        </div>
       </div>
     </button>
   )
@@ -316,13 +276,8 @@ function IntakeFieldSection({
   const selectedCount = config.multiSelect ? selectedValues.size : (state.status === "known" ? 1 : 0)
   const referenceStyleSelection =
     config.key === "toolTypeOrCurrentProduct" ? (
-      <div className="rounded-[32px] border border-gray-200 bg-[radial-gradient(circle_at_top_left,#ffffff_0%,#f4f4f5_72%)] p-3 sm:p-4">
-        <div className="mb-3 px-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-gray-400">
-            {language === "ko" ? "가공 방식" : "Tool Family"}
-          </p>
-        </div>
-        <div className="space-y-3">
+      <div className="rounded-2xl border border-gray-200 bg-[radial-gradient(circle_at_top_left,#ffffff_0%,#f4f4f5_72%)] p-3">
+        <div className="grid grid-cols-2 gap-2">
           {config.options.map(option => (
             <ToolCategoryCard
               key={option.value}
@@ -335,13 +290,8 @@ function IntakeFieldSection({
         </div>
       </div>
     ) : config.key === "inquiryPurpose" ? (
-      <div className="rounded-[32px] border border-gray-200 bg-[linear-gradient(180deg,#ffffff_0%,#fafafa_100%)] p-4">
-        <div className="mb-3 px-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-gray-400">
-            {language === "ko" ? "문의 목적" : "Inquiry Purpose"}
-          </p>
-        </div>
-        <div className="grid gap-2.5 sm:grid-cols-2">
+      <div className="rounded-2xl border border-gray-200 bg-[linear-gradient(180deg,#ffffff_0%,#fafafa_100%)] p-3">
+        <div className="grid gap-2 sm:grid-cols-2">
           {config.options.map(option => {
             const iconConfig = INQUIRY_PURPOSE_ICONS[option.value]
             const isSelected = state.status === "known" && currentValue === option.value
@@ -352,42 +302,40 @@ function IntakeFieldSection({
                 disabled={option.disabled}
                 onClick={() => onChange({ status: "known", value: option.value })}
                 className={[
-                  "group flex items-center gap-3 rounded-2xl border px-4 py-4 text-left transition-all duration-200",
+                  "group flex items-center gap-2.5 rounded-xl border px-3 py-3 text-left transition-all duration-200",
                   option.disabled
                     ? "cursor-not-allowed border-gray-100 bg-gray-50 opacity-50"
                     : isSelected
-                      ? "border-gray-900 bg-white shadow-[0_8px_30px_-12px_rgba(15,23,42,0.3)]"
+                      ? "border-gray-900 bg-white shadow-[0_6px_20px_-8px_rgba(15,23,42,0.3)]"
                       : "border-gray-200 bg-white hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md",
                 ].join(" ")}
               >
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${iconConfig?.color ?? "from-gray-400 to-gray-500"} text-lg shadow-sm`}>
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${iconConfig?.color ?? "from-gray-400 to-gray-500"} text-sm shadow-sm`}>
                   {iconConfig?.icon ?? "📋"}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900">{localizeIntakeText(option.label, language)}</p>
-                  {option.disabled && <p className="text-[10px] text-gray-400 mt-0.5">{language === "ko" ? "준비 중" : "Coming Soon"}</p>}
+                  <p className="text-xs font-semibold text-gray-900">{localizeIntakeText(option.label, language)}</p>
+                  {option.disabled && <p className="text-[9px] text-gray-400">{language === "ko" ? "준비 중" : "Coming Soon"}</p>}
                 </div>
-                {isSelected && (
-                  <CheckCircle2 className="h-5 w-5 shrink-0 text-gray-900" />
-                )}
+                {isSelected && <Check className="h-4 w-4 shrink-0 text-gray-900" />}
               </button>
             )
           })}
         </div>
       </div>
     ) : config.key === "operationType" && config.multiSelect ? (
-      <div className="rounded-[32px] border border-gray-200 bg-[linear-gradient(180deg,#ffffff_0%,#fafafa_100%)] p-4">
-        <div className="mb-3 flex items-center justify-between px-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-gray-400">
+      <div className="rounded-2xl border border-gray-200 bg-[linear-gradient(180deg,#ffffff_0%,#fafafa_100%)] p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">
             {language === "ko" ? "가공 형상" : "Application Shape"}
           </p>
-          <div className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-500">
+          <span className="text-[10px] text-gray-400">
             {selectedValues.size > 0
               ? `${selectedValues.size}${language === "ko" ? "개 선택" : " selected"}`
-              : language === "ko" ? "복수 선택 가능" : "Multi-select"}
-          </div>
+              : language === "ko" ? "복수 선택" : "Multi"}
+          </span>
         </div>
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5">
+        <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-5 lg:grid-cols-6">
           {config.options
             .filter((opt, idx, arr) => arr.findIndex(o => o.label === opt.label) === idx)
             .map(option => {
@@ -399,46 +347,38 @@ function IntakeFieldSection({
                   type="button"
                   onClick={() => handleMultiToggle(option.value)}
                   className={[
-                    "group flex flex-col items-center gap-1.5 rounded-2xl border p-3 transition-all duration-200",
+                    "group flex flex-col items-center gap-1 rounded-xl border p-2 transition-all duration-150",
                     isSelected
-                      ? "border-blue-600 bg-blue-50 shadow-sm"
-                      : "border-gray-200 bg-white hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md",
+                      ? "border-blue-500 bg-blue-50 shadow-sm"
+                      : "border-gray-150 bg-white hover:border-gray-300 hover:shadow",
                   ].join(" ")}
                 >
                   {imgSrc ? (
-                    <img src={imgSrc} alt={option.label} className="h-12 w-12 object-contain" />
+                    <img src={imgSrc} alt={option.label} className="h-10 w-10 object-contain" />
                   ) : (
-                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100 text-gray-400 text-xs">?</div>
+                    <div className="flex h-10 w-10 items-center justify-center rounded bg-gray-100 text-gray-400 text-[9px]">?</div>
                   )}
-                  <span className={`text-[10px] font-medium text-center leading-tight ${isSelected ? "text-blue-700" : "text-gray-600"}`}>
+                  <span className={`text-[9px] font-medium text-center leading-tight ${isSelected ? "text-blue-700" : "text-gray-500"}`}>
                     {option.label}
                   </span>
-                  {isSelected && <Check className="h-3.5 w-3.5 text-blue-600" />}
                 </button>
               )
             })}
         </div>
       </div>
     ) : config.key === "material" && config.multiSelect ? (
-      <div className="rounded-[32px] border border-gray-200 bg-[linear-gradient(180deg,#ffffff_0%,#fafafa_100%)] p-4 sm:p-5">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-gray-400">
-              {language === "ko" ? "가공 소재" : "Work Material"}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              {language === "ko" ? "ISO 그룹 기준으로 소재를 선택하세요." : "Choose material groups by ISO class."}
-            </p>
-          </div>
-          <div className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-500">
+      <div className="rounded-2xl border border-gray-200 bg-[linear-gradient(180deg,#ffffff_0%,#fafafa_100%)] p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">
+            {language === "ko" ? "ISO 소재 그룹" : "ISO Material Group"}
+          </p>
+          <span className="text-[10px] text-gray-400">
             {selectedValues.size > 0
               ? `${selectedValues.size}${language === "ko" ? "개 선택" : " selected"}`
-              : language === "ko"
-                ? "복수 선택 가능"
-                : "Multi-select"}
-          </div>
+              : language === "ko" ? "복수 선택" : "Multi"}
+          </span>
         </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-2 grid-cols-2 xl:grid-cols-3">
           {config.options.map(option => (
             <MaterialOptionPanel
               key={option.value}
@@ -449,20 +389,68 @@ function IntakeFieldSection({
           ))}
         </div>
       </div>
+    ) : config.key === "diameterInfo" ? (
+      <div className="rounded-2xl border border-gray-200 bg-[linear-gradient(180deg,#ffffff_0%,#fafafa_100%)] p-3">
+        <div className="flex items-end gap-1.5 justify-center mb-3">
+          {config.options.map(option => {
+            const diamNum = parseFloat(option.value)
+            const barH = Math.max(20, Math.min(64, diamNum * 5))
+            const barW = Math.max(8, Math.min(20, diamNum * 1.5))
+            const isSelected = state.status === "known" && currentValue === option.value
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => { setShowCustom(false); onChange({ status: "known", value: option.value }) }}
+                className={[
+                  "group flex flex-col items-center gap-1 transition-all duration-150",
+                ].join(" ")}
+              >
+                <div
+                  className={[
+                    "rounded-sm transition-all duration-200",
+                    isSelected
+                      ? "bg-gradient-to-t from-blue-600 to-blue-400 shadow-md"
+                      : "bg-gradient-to-t from-gray-300 to-gray-200 group-hover:from-blue-400 group-hover:to-blue-300",
+                  ].join(" ")}
+                  style={{ width: `${barW}px`, height: `${barH}px` }}
+                />
+                <span className={`text-[10px] font-mono font-semibold ${isSelected ? "text-blue-700" : "text-gray-500"}`}>
+                  {option.label}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleCustomClick}
+            className={[
+              "flex-1 rounded-xl border-2 border-dashed px-3 py-2 text-xs font-medium transition-colors",
+              isCustom || (showCustom && state.status !== "unknown")
+                ? "border-blue-400 bg-blue-50 text-blue-700"
+                : "border-gray-300 text-gray-500 hover:border-gray-400",
+            ].join(" ")}
+          >
+            {localizeIntakeText(config.customInputLabel ?? "직접 입력", language)}
+          </button>
+        </div>
+      </div>
     ) : null
 
   return (
-    <div className="space-y-3 rounded-2xl border border-gray-200 bg-white p-4">
-      <div className="flex items-start gap-3">
-        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">
+    <div className="space-y-2 rounded-xl border border-gray-200 bg-white p-3">
+      <div className="flex items-start gap-2">
+        <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">
           {index + 1}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span className="text-base">{config.emoji}</span>
-            <span className="text-sm font-semibold text-gray-900">{getIntakeFieldLabel(config.key as keyof ProductIntakeForm, language)}</span>
+            <span className="text-sm">{config.emoji}</span>
+            <span className="text-xs font-semibold text-gray-900">{getIntakeFieldLabel(config.key as keyof ProductIntakeForm, language)}</span>
             {state.status !== "unanswered" && (
-              <span className={`rounded-full px-1.5 py-0.5 text-xs ${state.status === "unknown" ? "bg-gray-100 text-gray-500" : "bg-green-100 text-green-700"}`}>
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${state.status === "unknown" ? "bg-gray-100 text-gray-500" : "bg-green-100 text-green-700"}`}>
                 {state.status === "unknown"
                   ? (language === "ko" ? "모름" : "Unknown")
                   : config.multiSelect && selectedCount > 1
@@ -471,13 +459,13 @@ function IntakeFieldSection({
               </span>
             )}
           </div>
-          <p className="mt-0.5 text-xs text-gray-500">{localizeIntakeText(config.description, language)}</p>
+          <p className="text-[10px] text-gray-500">{localizeIntakeText(config.description, language)}</p>
         </div>
       </div>
       {referenceStyleSelection ? (
         referenceStyleSelection
       ) : (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           {config.options.map(option => (
             <OptionBtn
               key={option.value}
@@ -507,21 +495,25 @@ function IntakeFieldSection({
           value={customVal}
           onChange={event => handleCustomChange(event.target.value)}
           placeholder={localizeIntakeText(config.customInputPlaceholder ?? "직접 입력", language)}
-          className="w-full rounded-xl border-2 border-blue-300 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none"
+          className="w-full rounded-lg border-2 border-blue-300 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none"
         />
       )}
-      <div className="border-t border-gray-100 pt-1">
-        <OptionBtn
-          label={localizeIntakeText(config.unknownLabel, language)}
-          isUnknown
-          selected={state.status === "unknown"}
-          onClick={() => {
-            setShowCustom(false)
-            setCustomVal("")
-            onChange({ status: "unknown" })
-          }}
-        />
-      </div>
+      <button
+        type="button"
+        onClick={() => {
+          setShowCustom(false)
+          setCustomVal("")
+          onChange({ status: "unknown" })
+        }}
+        className={[
+          "w-full rounded-lg border px-3 py-2 text-xs font-medium transition-all",
+          state.status === "unknown"
+            ? "border-gray-400 bg-gray-200 text-gray-700"
+            : "border-dashed border-gray-300 text-gray-400 hover:border-gray-400 hover:text-gray-500",
+        ].join(" ")}
+      >
+        {localizeIntakeText(config.unknownLabel, language)}
+      </button>
     </div>
   )
 }
