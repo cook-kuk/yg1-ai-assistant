@@ -443,39 +443,65 @@ function NarrowingChat({
                 </div>
               )}
 
-              {message.role === "ai" && message.chips && message.chips.length > 0 && !message.isLoading && !isSending && index === messages.length - 1 && (
-                <div className="flex flex-wrap gap-1.5 mt-1">
-                  {message.chips.map((chip, chipIndex) => {
-                    const isResetChip = chip === "처음부터 다시" || chip === "처음부터"
-                    const isUndoChip = isUndoChipEnabled(chip, capabilities)
-                    return (
-                      <button
-                        key={chipIndex}
-                        disabled={!!needsFeedback}
-                        onClick={() => {
-                          if (needsFeedback || isSending) return
-                          if (isResetChip && onReset) onReset()
-                          else {
-                            setInput("")
-                            onSend(chip)
-                          }
-                        }}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-                          needsFeedback
-                            ? "bg-gray-50 border border-gray-200 text-gray-400 cursor-not-allowed opacity-60"
-                            : isResetChip
-                              ? "bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
-                              : isUndoChip
-                                ? "bg-amber-50 border border-amber-300 text-amber-700 hover:bg-amber-100 hover:border-amber-400"
-                                : "bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300"
-                        }`}
-                      >
-                        {chip}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
+              {message.role === "ai" && message.chips && message.chips.length > 0 && !message.isLoading && (() => {
+                const isLatest = index === messages.length - 1 && !isSending
+                const productListChip = message.chips.find(c => c.includes("제품 보기"))
+                const aiAnalysisChip = message.chips.find(c => c.includes("AI 상세 분석"))
+                const normalChips = message.chips.filter(c => !c.includes("제품 보기") && !c.includes("AI 상세 분석"))
+                return (
+                  <>
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {normalChips.map((chip, chipIndex) => {
+                        const isResetChip = chip === "처음부터 다시" || chip === "처음부터"
+                        const isUndoChip = isUndoChipEnabled(chip, capabilities)
+                        return (
+                          <button
+                            key={chipIndex}
+                            onClick={() => {
+                              if (!isLatest || needsFeedback || isSending) return
+                              if (isResetChip && onReset) onReset()
+                              else { setInput(""); onSend(chip) }
+                            }}
+                            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+                              !isLatest
+                                ? "bg-gray-50/50 border border-gray-200 text-gray-400 opacity-35 pointer-events-none"
+                                : needsFeedback
+                                  ? "bg-gray-50 border border-gray-200 text-gray-400 cursor-not-allowed opacity-60"
+                                  : isResetChip
+                                    ? "bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+                                    : isUndoChip
+                                      ? "bg-amber-50 border border-amber-300 text-amber-700 hover:bg-amber-100 hover:border-amber-400"
+                                      : "bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300"
+                            }`}
+                          >
+                            {chip}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {isLatest && (productListChip || aiAnalysisChip) && (
+                      <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-gray-100">
+                        {productListChip && (
+                          <button
+                            onClick={() => { setInput(""); onSend(productListChip) }}
+                            className="w-full py-2.5 text-sm font-bold rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md"
+                          >
+                            {productListChip}
+                          </button>
+                        )}
+                        {aiAnalysisChip && (
+                          <button
+                            onClick={() => { setInput(""); onSend(aiAnalysisChip) }}
+                            className="w-full py-2.5 text-sm font-medium rounded-lg border border-purple-300 text-purple-700 hover:bg-purple-50"
+                          >
+                            {aiAnalysisChip}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
 
               {message.recommendation && !message.isLoading && (
                 <RecommendationPanel
