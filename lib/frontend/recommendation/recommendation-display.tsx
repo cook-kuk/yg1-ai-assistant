@@ -471,7 +471,7 @@ function ProductCard({
             )
           })()}
           {(() => {
-            const catalogs = findCatalogsForProduct(product.seriesName, product.description, product.brand, product.toolType, language === "ko" ? "ko" : "en")
+            const catalogs = findCatalogsForProduct(product.seriesName, product.description, product.brand, product.toolType ?? null, language === "ko" ? "ko" : "en")
             if (catalogs.length === 0) return null
             return (
               <div>

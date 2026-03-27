@@ -17,10 +17,10 @@ export interface CatalogEntry {
 }
 
 function kor(id: string, region = "국내용"): string {
-  return `${CATALOG_BASE}/${id}/${encodeURIComponent(region)}`
+  return `${CATALOG_BASE}/${id}/${encodeURI(encodeURI(region))}`
 }
 function eng(id: string, region = "EUROPE"): string {
-  return `${CATALOG_BASE}/${id}/${encodeURIComponent(region)}`
+  return `${CATALOG_BASE}/${id}/${encodeURI(encodeURI(region))}`
 }
 
 export const CATALOG_LIST: CatalogEntry[] = [
