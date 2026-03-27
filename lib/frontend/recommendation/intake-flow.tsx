@@ -197,11 +197,11 @@ function OptionBtn({
     return (
       <div
         className="relative flex min-h-[44px] cursor-not-allowed select-none items-center gap-1.5 rounded-xl border-2 border-gray-100 bg-gray-50 px-3 py-2.5 text-left text-sm font-medium text-gray-400"
-        title={language === "ko" ? "以鍮?以?" : "Coming Soon"}
+        title={language === "ko" ? "준비 중" : "Coming Soon"}
       >
         <span className="flex-1">{label}</span>
         {tag && <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-300">{tag}</span>}
-        <span className="whitespace-nowrap text-[10px] text-gray-300">{language === "ko" ? "以鍮?以?" : "Coming Soon"}</span>
+        <span className="whitespace-nowrap text-[10px] text-gray-300">{language === "ko" ? "준비 중" : "Coming Soon"}</span>
       </div>
     )
   }
@@ -350,10 +350,10 @@ function IntakeFieldSection({
             {state.status !== "unanswered" && (
               <span className={`rounded-full px-1.5 py-0.5 text-xs ${state.status === "unknown" ? "bg-gray-100 text-gray-500" : "bg-green-100 text-green-700"}`}>
                 {state.status === "unknown"
-                  ? (language === "ko" ? "紐⑤쫫" : "Unknown")
+                  ? (language === "ko" ? "모름" : "Unknown")
                   : config.multiSelect && selectedCount > 1
-                    ? `??${selectedCount}${language === "ko" ? "媛??좏깮" : " selected"}`
-                    : (language === "ko" ? "???좏깮??" : "Selected")}
+                    ? `${selectedCount}${language === "ko" ? "개 선택" : " selected"}`
+                    : (language === "ko" ? "선택됨" : "Selected")}
               </span>
             )}
           </div>
@@ -380,7 +380,7 @@ function IntakeFieldSection({
           ))}
           {config.hasCustomInput && (
             <OptionBtn
-              label={localizeIntakeText(config.customInputLabel ?? "吏곸젒?낅젰", language)}
+              label={localizeIntakeText(config.customInputLabel ?? "직접 입력", language)}
               selected={isCustom || (showCustom && state.status !== "unknown")}
               onClick={handleCustomClick}
             />
@@ -392,7 +392,7 @@ function IntakeFieldSection({
           ref={inputRef}
           value={customVal}
           onChange={event => handleCustomChange(event.target.value)}
-          placeholder={localizeIntakeText(config.customInputPlaceholder ?? "吏곸젒 ?낅젰", language)}
+          placeholder={localizeIntakeText(config.customInputPlaceholder ?? "직접 입력", language)}
           className="w-full rounded-xl border-2 border-blue-300 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none"
         />
       )}
@@ -456,10 +456,10 @@ export function IntakeGate({
   return (
     <div className="flex h-full flex-col">
       <div className="shrink-0 border-b bg-white px-4 pb-4 pt-5">
-        <h2 className="text-base font-bold text-gray-900">{language === "ko" ? "異붿쿇 ??湲곕낯 ?뺣낫 ?뺤씤" : "Basic Info Before Recommendation"}</h2>
+        <h2 className="text-base font-bold text-gray-900">{language === "ko" ? "추천 전 기본 정보 확인" : "Basic Info Before Recommendation"}</h2>
         <p className="mt-0.5 text-xs text-gray-500">
           {language === "ko"
-            ? <span>紐⑤Ⅴ????ぉ? 鍮꾩썙?먯? 留먭퀬 <strong>&apos;紐⑤쫫&apos;</strong>???좏깮?댁＜?몄슂. 異붿젙?섏? ?딆뒿?덈떎.</span>
+            ? <span>모르는 항목은 비워두지 말고 <strong>&apos;모름&apos;</strong>을 선택해 주세요. 추정하지 않습니다.</span>
             : <span>For unknown fields, select <strong>&apos;Unknown&apos;</strong> instead of leaving blank. No guessing.</span>}
         </p>
         <div className="mt-3 flex items-center gap-2">
@@ -498,11 +498,11 @@ export function IntakeGate({
         <div className="mx-auto flex max-w-lg items-center justify-between">
           <span className="text-sm text-gray-600">
             {allDone
-              ? <span className="flex items-center gap-1 font-medium text-green-700"><CheckCircle2 size={14} />{language === "ko" ? "紐⑤몢 ?꾨즺?섏뿀?듬땲??" : "All fields complete"}</span>
-              : <span>{answered}/6 {language === "ko" ? `??ぉ ?꾨즺 쨌 ${6 - answered}媛??⑥쓬` : `complete 쨌 ${6 - answered} remaining`}</span>}
+              ? <span className="flex items-center gap-1 font-medium text-green-700"><CheckCircle2 size={14} />{language === "ko" ? "모든 필드를 입력했습니다." : "All fields complete"}</span>
+              : <span>{answered}/6 {language === "ko" ? `항목 입력, ${6 - answered}개 남음` : `complete, ${6 - answered} remaining`}</span>}
           </span>
           <Button onClick={onNext} disabled={!allDone} className="gap-2">
-            {language === "ko" ? "議곌굔 ?붿빟 ?뺤씤" : "Review Conditions"} <ArrowRight size={14} />
+            {language === "ko" ? "조건 요약 확인" : "Review Conditions"} <ArrowRight size={14} />
           </Button>
         </div>
       </div>
@@ -527,14 +527,14 @@ export function IntakeSummaryScreen({
       <div className="shrink-0 border-b bg-white px-4 pb-4 pt-5">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-gray-900">{language === "ko" ? "?낅젰 議곌굔 ?붿빟" : "Condition Summary"}</h2>
+            <h2 className="text-base font-bold text-gray-900">{language === "ko" ? "입력 조건 요약" : "Condition Summary"}</h2>
             <p className="mt-0.5 text-xs text-gray-500">
-              {language === "ko" ? "?꾨옒 議곌굔?쇰줈 ?먯깋?⑸땲?? 紐⑤Ⅴ???뺣낫??異붿젙?섏? ?딆뒿?덈떎." : "Will search with these conditions. Unknown fields are not guessed."}
+              {language === "ko" ? "아래 조건으로 검색합니다. 모르는 정보는 추정하지 않습니다." : "Will search with these conditions. Unknown fields are not guessed."}
             </p>
           </div>
           <Button variant="outline" size="sm" onClick={onEdit} className="gap-1 text-xs">
             <Edit2 size={12} />
-            {language === "ko" ? "?섏젙" : "Edit"}
+            {language === "ko" ? "수정" : "Edit"}
           </Button>
         </div>
       </div>
@@ -558,7 +558,7 @@ export function IntakeSummaryScreen({
                 </div>
               </div>
               <button onClick={onEdit} className="shrink-0 text-xs text-blue-500 hover:text-blue-700">
-                {language === "ko" ? "?섏젙" : "Edit"}
+                {language === "ko" ? "수정" : "Edit"}
               </button>
             </div>
           )
@@ -569,16 +569,16 @@ export function IntakeSummaryScreen({
             <div className="text-xs leading-relaxed text-amber-800">
               {language === "ko" ? (
                 <>
-                  <strong>{unknownCount}媛???ぉ??&quot;紐⑤쫫&quot;</strong>?쇰줈 ?ㅼ젙?섏뼱 ?덉뒿?덈떎.
+                  <strong>{unknownCount}개 항목이 &quot;모름&quot;</strong>으로 설정되어 있습니다.
                   {unknownCount >= 3
-                    ? " 留롮? 議곌굔???놁뼱 ?뺥솗 異붿쿇 ???洹쇱궗 ?꾨낫濡??쒓났?⑸땲??"
-                    : " ?대떦 議곌굔? ?꾪꽣?먯꽌 ?쒖쇅?섍퀬, ?뚮젮吏?議곌굔 湲곗??쇰줈留?異붿쿇?⑸땲??"}
+                    ? " 모르는 조건이 많아 정확 추천 대신 근사 후보를 제공할 수 있습니다."
+                    : " 모르는 조건은 필터에서 제외하고, 확인된 조건만 기준으로 추천합니다."}
                 </>
               ) : (
                 <>
                   <strong>{unknownCount} field(s) set to &quot;Unknown&quot;</strong>.
                   {unknownCount >= 3
-                    ? " Many conditions unknown ??approximate candidates will be provided instead of exact matches."
+                    ? " Many conditions unknown, so approximate candidates may be provided instead of exact matches."
                     : " Unknown fields will be excluded from filters; recommendation based on known conditions only."}
                 </>
               )}
@@ -589,7 +589,7 @@ export function IntakeSummaryScreen({
           <div className="flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
             <CheckCircle2 size={14} className="text-green-600" />
             <span className="text-xs text-green-800">
-              {language === "ko" ? "紐⑤뱺 議곌굔???낅젰?섏뿀?듬땲?? ?뺥솗??異붿쿇??媛?ν빀?덈떎." : "All conditions entered. Exact recommendations are possible."}
+              {language === "ko" ? "모든 조건을 입력했습니다. 더 정확한 추천이 가능합니다." : "All conditions entered. Exact recommendations are possible."}
             </span>
           </div>
         )}
@@ -598,11 +598,11 @@ export function IntakeSummaryScreen({
       <div className="shrink-0 space-y-2 border-t bg-white px-4 py-3 shadow-md">
         <div className="mx-auto max-w-lg">
           <Button onClick={onStart} className="w-full gap-2">
-            {language === "ko" ? "??議곌굔?쇰줈 異붿쿇 ?쒖옉" : "Start Recommendation"} <ArrowRight size={14} />
+            {language === "ko" ? "이 조건으로 추천 시작" : "Start Recommendation"} <ArrowRight size={14} />
           </Button>
           <Button variant="ghost" onClick={onEdit} className="mt-1 w-full gap-1 text-xs text-gray-500">
             <Edit2 size={11} />
-            {language === "ko" ? "異붽? 議곌굔 ?섏젙?섍린" : "Edit Conditions"}
+            {language === "ko" ? "조건 다시 수정" : "Edit Conditions"}
           </Button>
         </div>
       </div>
@@ -619,8 +619,8 @@ export function LoadingScreen() {
           <div key={index} className="h-2 w-2 animate-bounce rounded-full bg-blue-500" style={{ animationDelay: `${index * 0.15}s` }} />
         ))}
       </div>
-      <div className="text-sm font-medium text-gray-700">{language === "ko" ? "?ㅼ젣 ?곗씠?곗뿉???쒗뭹 寃??以?.." : "Searching products from real data..."}</div>
-      <div className="mt-1 text-xs text-gray-400">{language === "ko" ? "?녿뒗 ?쒗뭹? ?앹꽦?섏? ?딆뒿?덈떎" : "Only real products ??no hallucination"}</div>
+      <div className="text-sm font-medium text-gray-700">{language === "ko" ? "실제 데이터에서 제품을 검색 중입니다..." : "Searching products from real data..."}</div>
+      <div className="mt-1 text-xs text-gray-400">{language === "ko" ? "없는 제품은 생성하지 않습니다." : "Only real products - no hallucination"}</div>
     </div>
   )
 }
@@ -635,7 +635,7 @@ export function buildIntakePromptText(form: ProductIntakeForm, language: "ko" | 
   })
   parts.push(
     language === "ko"
-      ? "\n??議곌굔?쇰줈 ?곹빀??YG-1 ?쒗뭹??異붿쿇?댁＜?몄슂."
+      ? "\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
       : "\nPlease recommend suitable YG-1 products based on the conditions above."
   )
   return parts.join("\n")

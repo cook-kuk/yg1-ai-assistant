@@ -44,4 +44,13 @@ test.describe("Products page", () => {
     await expect(page.locator("text=/\\bS\\b/").first()).toBeVisible()
     await expect(page.locator("text=/\\bH\\b/").first()).toBeVisible()
   })
+
+  test("/products shows readable korean helper copy", async ({ page }) => {
+    await page.goto("/products")
+    await page.waitForLoadState("networkidle")
+
+    await expect(page.getByText("추천 전 기본 정보 확인")).toBeVisible()
+    await expect(page.getByText(/모르는 항목은 비워두지 말고/)).toBeVisible()
+    await expect(page.getByText(/추정하지 않습니다/)).toBeVisible()
+  })
 })
