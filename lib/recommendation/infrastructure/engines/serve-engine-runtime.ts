@@ -1055,12 +1055,11 @@ async function handleServeExplorationInner(
     const currentCount = prevState.candidateCount ?? 0
 
     if (isProductListRequest) {
-      if (currentCount > 100) {
-        const cautionText = `⚠️ 현재 후보가 ${currentCount}개로 너무 많습니다. 이대로 보여드리면 선택이 어려울 수 있습니다.\n\n조건을 더 좁혀주시면 더 정확한 결과를 볼 수 있습니다.`
-        pendingSelectionAction = { type: "answer_general", message: cautionText, preGenerated: true } as OrchestratorAction
-        console.log(`[product-list-guard] ${currentCount} > 100 → caution`)
+      // 제품 보기는 항상 show_recommendation으로 — 개수가 많으면 답변에서 안내
+      pendingSelectionAction = { type: "show_recommendation" } as OrchestratorAction
+      if (currentCount > 200) {
+        console.log(`[product-list] ${currentCount} > 200 — will show with caution note`)
       } else {
-        pendingSelectionAction = { type: "show_recommendation" } as OrchestratorAction
         console.log(`[product-list] ${currentCount} candidates → show products`)
       }
     } else if (isAIAnalysisRequest) {
