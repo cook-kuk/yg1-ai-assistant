@@ -101,12 +101,12 @@ function ToolCategoryCard({
             : "border-gray-200 bg-white hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-lg",
       ].join(" ")}
     >
-      <div className="relative h-20 bg-gray-200">
+      <div className="relative h-24 bg-gray-100 flex items-center justify-center p-2">
         <Image
           src={TOOL_CATEGORY_IMAGES[option.value] ?? "/placeholder.jpg"}
           alt={option.label}
           fill
-          className={`object-cover transition-transform duration-300 ${disabled ? "grayscale" : "group-hover:scale-[1.05]"}`}
+          className={`object-contain transition-transform duration-300 ${disabled ? "grayscale" : "group-hover:scale-[1.05]"}`}
           sizes="180px"
         />
         {selected && (
@@ -394,8 +394,8 @@ function IntakeFieldSection({
         <div className="flex items-end gap-1.5 justify-center mb-3">
           {config.options.map(option => {
             const diamNum = parseFloat(option.value)
-            const barH = Math.max(20, Math.min(64, diamNum * 5))
-            const barW = Math.max(8, Math.min(20, diamNum * 1.5))
+            const barH = 16 + diamNum * 4.5
+            const barW = 6 + diamNum * 1.8
             const isSelected = state.status === "known" && currentValue === option.value
             return (
               <button
