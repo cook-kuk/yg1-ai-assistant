@@ -101,13 +101,13 @@ function ToolCategoryCard({
             : "border-gray-200 bg-white hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-lg",
       ].join(" ")}
     >
-      <div className="relative h-24 bg-gray-100 flex items-center justify-center p-2">
+      <div className="relative aspect-[4/3] bg-gray-100 flex items-center justify-center p-2">
         <Image
           src={TOOL_CATEGORY_IMAGES[option.value] ?? "/placeholder.jpg"}
           alt={option.label}
           fill
           className={`object-contain transition-transform duration-300 ${disabled ? "grayscale" : "group-hover:scale-[1.05]"}`}
-          sizes="180px"
+          sizes="(max-width: 640px) 45vw, 180px"
         />
         {selected && (
           <div className="absolute top-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-gray-900 text-white">
@@ -335,7 +335,7 @@ function IntakeFieldSection({
               : language === "ko" ? "복수 선택" : "Multi"}
           </span>
         </div>
-        <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-5 lg:grid-cols-6">
+        <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
           {config.options
             .filter((opt, idx, arr) => arr.findIndex(o => o.label === opt.label) === idx)
             .map(option => {
@@ -391,30 +391,29 @@ function IntakeFieldSection({
       </div>
     ) : config.key === "diameterInfo" ? (
       <div className="rounded-2xl border border-gray-200 bg-[linear-gradient(180deg,#ffffff_0%,#fafafa_100%)] p-3">
-        <div className="flex items-end gap-1.5 justify-center mb-3">
+        <div className="grid grid-cols-6 gap-1 mb-3">
           {config.options.map(option => {
             const diamNum = parseFloat(option.value)
-            const barH = 16 + diamNum * 4.5
-            const barW = 6 + diamNum * 1.8
+            const barPct = 30 + (diamNum / 12) * 70
             const isSelected = state.status === "known" && currentValue === option.value
             return (
               <button
                 key={option.value}
                 type="button"
                 onClick={() => { setShowCustom(false); onChange({ status: "known", value: option.value }) }}
-                className={[
-                  "group flex flex-col items-center gap-1 transition-all duration-150",
-                ].join(" ")}
+                className="group flex flex-col items-center gap-1"
               >
-                <div
-                  className={[
-                    "rounded-sm transition-all duration-200",
-                    isSelected
-                      ? "bg-gradient-to-t from-blue-600 to-blue-400 shadow-md"
-                      : "bg-gradient-to-t from-gray-300 to-gray-200 group-hover:from-blue-400 group-hover:to-blue-300",
-                  ].join(" ")}
-                  style={{ width: `${barW}px`, height: `${barH}px` }}
-                />
+                <div className="w-full flex items-end justify-center" style={{ height: "60px" }}>
+                  <div
+                    className={[
+                      "rounded-sm transition-all duration-200 w-3/5",
+                      isSelected
+                        ? "bg-gradient-to-t from-blue-600 to-blue-400 shadow-md"
+                        : "bg-gradient-to-t from-gray-300 to-gray-200 group-hover:from-blue-400 group-hover:to-blue-300",
+                    ].join(" ")}
+                    style={{ height: `${barPct}%` }}
+                  />
+                </div>
                 <span className={`text-[10px] font-mono font-semibold ${isSelected ? "text-blue-700" : "text-gray-500"}`}>
                   {option.label}
                 </span>
