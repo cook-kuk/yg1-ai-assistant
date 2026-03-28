@@ -277,7 +277,7 @@ function IntakeFieldSection({
   const referenceStyleSelection =
     config.key === "toolTypeOrCurrentProduct" ? (
       <div className="rounded-2xl border border-gray-200 bg-[radial-gradient(circle_at_top_left,#ffffff_0%,#f4f4f5_72%)] p-3">
-        <div className="grid grid-cols-2 gap-2">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.5rem" }}>
           {config.options.map(option => (
             <ToolCategoryCard
               key={option.value}
@@ -291,7 +291,7 @@ function IntakeFieldSection({
       </div>
     ) : config.key === "inquiryPurpose" ? (
       <div className="rounded-2xl border border-gray-200 bg-[linear-gradient(180deg,#ffffff_0%,#fafafa_100%)] p-3">
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "0.5rem" }}>
           {config.options.map(option => {
             const iconConfig = INQUIRY_PURPOSE_ICONS[option.value]
             const isSelected = state.status === "known" && currentValue === option.value
@@ -335,7 +335,7 @@ function IntakeFieldSection({
               : language === "ko" ? "복수 선택" : "Multi"}
           </span>
         </div>
-        <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(70px, 1fr))", gap: "0.375rem" }}>
           {config.options
             .filter((opt, idx, arr) => arr.findIndex(o => o.label === opt.label) === idx)
             .map(option => {
@@ -378,7 +378,7 @@ function IntakeFieldSection({
               : language === "ko" ? "복수 선택" : "Multi"}
           </span>
         </div>
-        <div className="grid gap-2 grid-cols-2 xl:grid-cols-3">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "0.5rem" }}>
           {config.options.map(option => (
             <MaterialOptionPanel
               key={option.value}
@@ -391,7 +391,7 @@ function IntakeFieldSection({
       </div>
     ) : config.key === "diameterInfo" ? (
       <div className="rounded-2xl border border-gray-200 bg-[linear-gradient(180deg,#ffffff_0%,#fafafa_100%)] p-3">
-        <div className="grid grid-cols-6 gap-1 mb-3">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(45px, 1fr))", gap: "0.25rem" }} className="mb-3">
           {config.options.map(option => {
             const diamNum = parseFloat(option.value)
             const barPct = 30 + (diamNum / 12) * 70
