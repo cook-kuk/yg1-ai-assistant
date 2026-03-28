@@ -44,6 +44,7 @@ import { needsOpusResolution, resolveAmbiguity } from "./ambiguity-resolver"
 import { resolveProductReferences } from "./comparison-agent"
 import { parseAnswerToFilter } from "@/lib/recommendation/domain/question-engine"
 import { ENABLE_OPUS_AMBIGUITY, ENABLE_COMPARISON_AGENT } from "@/lib/recommendation/infrastructure/config/recommendation-agent-flags"
+import { classifySessionAction, detectFilterIntent } from "@/lib/recommendation/domain/session-action-classifier"
 
 // ════════════════════════════════════════════════════════════════
 // MAIN ORCHESTRATOR
@@ -115,6 +116,55 @@ export async function orchestrateTurn(
     agents.push({ agent: "parameter-extractor", model: "haiku", durationMs: Date.now() - paramStart })
 
     console.log(`[orchestrator] Extracted: ${JSON.stringify(extractedParams)}`)
+  }
+
+  // ═══ Step 3.5: Session Action Classifier — stabilize filter replace/remove/in-session routing ═══
+  if (ctx.sessionState && ctx.sessionState.appliedFilters?.length > 0) {
+    const sessionAction = classifySessionAction(
+      ctx.userMessage,
+      ctx.sessionState.appliedFilters.map(f => ({ field: f.field, value: f.value, op: f.op })),
+      (ctx.sessionState.displayedCandidates?.length ?? 0) > 0,
+      !!ctx.sessionState.lastAskedField,
+      ctx.sessionState.lastAskedField ?? null,
+    )
+    console.log(`[orchestrator:session-action] ${sessionAction.action} (${sessionAction.confidence.toFixed(2)}) — ${sessionAction.reasoning}`)
+
+    // Override intent when session classifier has high-confidence filter operations
+    if (sessionAction.confidence >= 0.7) {
+      if (sessionAction.action === "replace_filter" && sessionAction.targetField) {
+        // Detected explicit filter replacement — route to replace_existing_filter
+        const filterIntent = detectFilterIntent(ctx.userMessage, ctx.sessionState.appliedFilters.map(f => ({ field: f.field, value: f.value, op: f.op })))
+        if (filterIntent.field && filterIntent.value) {
+          const existingFilter = ctx.sessionState.appliedFilters.find(f => f.field === filterIntent.field)
+          if (existingFilter) {
+            finalIntent = "SET_PARAMETER"
+            finalValue = filterIntent.value
+            if (!extractedParams) {
+              const paramStart = Date.now()
+              extractedParams = await extractParameters(ctx.userMessage, ctx.sessionState, provider)
+              agents.push({ agent: "parameter-extractor", model: "haiku", durationMs: Date.now() - paramStart })
+            }
+            console.log(`[orchestrator:session-action] Overriding to replace_existing_filter: ${filterIntent.field} ${existingFilter.value} → ${filterIntent.value}`)
+          }
+        }
+      } else if (sessionAction.action === "remove_filter" && sessionAction.targetField) {
+        // Route to undo the specific filter
+        finalIntent = "GO_BACK_TO_SPECIFIC_STAGE"
+        finalValue = sessionAction.targetField
+        console.log(`[orchestrator:session-action] Overriding to remove filter on: ${sessionAction.targetField}`)
+      } else if (sessionAction.action === "summarize_state") {
+        finalIntent = "ASK_EXPLANATION"
+        finalValue = "__confirm_scope__"
+        console.log(`[orchestrator:session-action] Overriding to scope summary`)
+      } else if (
+        (sessionAction.action === "query_current_results" || sessionAction.action === "ask_in_context") &&
+        (finalIntent === "START_NEW_TOPIC" || finalIntent === "OUT_OF_SCOPE")
+      ) {
+        // Prevent dropping out of session for in-context follow-ups
+        finalIntent = "ASK_EXPLANATION"
+        console.log(`[orchestrator:session-action] Prevented session drop — keeping as in-session follow-up`)
+      }
+    }
   }
 
   // ═══ Step 4: Route to Action ═══

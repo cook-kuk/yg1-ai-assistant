@@ -221,11 +221,17 @@ export async function classifyIntent(
     }
   }
 
-  // ── 10. Final fallback ──
+  // ── 10. Final fallback — prefer staying in session when context exists ──
   if (sessionState) {
-    // In any active session (narrowing OR resolved), route to general answer
-    // This prevents "dead" responses after comparison or recommendation
-    return { intent: "START_NEW_TOPIC", confidence: 0.5, extractedValue: clean, modelUsed: "haiku" }
+    // If there's a pending question, treat unclassified input as an answer attempt
+    if (sessionState.lastAskedField && !sessionState.resolutionStatus?.startsWith("resolved")) {
+      return { intent: "SELECT_OPTION", confidence: 0.45, extractedValue: clean, reasoning: "fallback: pending field answer attempt", modelUsed: "haiku" }
+    }
+    // After resolution or with displayed products, keep in-session as explanation
+    if (sessionState.resolutionStatus?.startsWith("resolved") || (sessionState.displayedCandidates?.length ?? 0) > 0) {
+      return { intent: "ASK_EXPLANATION", confidence: 0.45, extractedValue: clean, modelUsed: "haiku" }
+    }
+    return { intent: "START_NEW_TOPIC", confidence: 0.4, extractedValue: clean, modelUsed: "haiku" }
   }
   return { intent: "OUT_OF_SCOPE", confidence: 0.3, modelUsed: "haiku" }
 }
