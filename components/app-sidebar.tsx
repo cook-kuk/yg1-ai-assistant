@@ -199,12 +199,10 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
         open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       )}>
       {/* Logo */}
-      <div className="flex h-16 items-center gap-2 px-4 border-b border-sidebar-border">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary">
-          <Sparkles className="h-4 w-4 text-sidebar-primary-foreground" />
-        </div>
+      <div className="flex h-16 items-center gap-3 px-4 border-b border-sidebar-border">
+        <img src="/logo.png" alt="YG-1" className="h-8 object-contain" />
         <div>
-          <h1 className="font-semibold text-sm">YG-1 AI Assistant</h1>
+          <h1 className="font-semibold text-sm">AI Assistant</h1>
           <p className="text-xs text-sidebar-foreground/60">Sales Support System</p>
         </div>
       </div>

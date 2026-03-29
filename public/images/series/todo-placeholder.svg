@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
+  <rect width="120" height="120" rx="8" fill="#f3f4f6"/>
+  <text x="60" y="55" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#9ca3af">ToDo</text>
+  <text x="60" y="75" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#d1d5db">Image Coming</text>
+</svg>

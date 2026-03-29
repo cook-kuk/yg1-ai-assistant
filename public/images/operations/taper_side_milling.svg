@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <rect width="80" height="80" fill="white"/>
+  <!-- Workpiece with tapered side -->
+  <path d="M40,20 L30,65 L70,65 L70,20 Z" fill="none" stroke="#374151" stroke-width="2"/>
+  <!-- Tapered cut surface -->
+  <line x1="40" y1="20" x2="30" y2="65" stroke="#ed1c24" stroke-width="2.5"/>
+  <!-- Original vertical edge (dashed) -->
+  <line x1="30" y1="20" x2="30" y2="65" stroke="#374151" stroke-width="1" stroke-dasharray="3,2"/>
+  <!-- Endmill (angled along taper) -->
+  <rect x="24" y="25" width="10" height="30" rx="1" fill="none" stroke="#374151" stroke-width="2" transform="rotate(-12, 29, 40)"/>
+  <!-- Tool shank -->
+  <rect x="27" y="8" width="5" height="18" fill="none" stroke="#374151" stroke-width="1.5" transform="rotate(-12, 29, 17)"/>
+  <!-- Angle indicator -->
+  <path d="M35,60 L35,45 " fill="none" stroke="#ed1c24" stroke-width="1"/>
+  <path d="M35,60 L32,48" fill="none" stroke="#ed1c24" stroke-width="1"/>
+  <path d="M35,52 Q34,51 33.5,52" fill="none" stroke="#ed1c24" stroke-width="1"/>
+</svg>

@@ -475,6 +475,26 @@ export function useProductRecommendationPage({
     })
   }
 
+  const handleRecommendationFeedback = (messageIndex: number, feedback: TurnFeedback) => {
+    if (!feedback) return
+    setChatMessages(prev => {
+      const updated = [...prev]
+      if (updated[messageIndex]) updated[messageIndex] = { ...updated[messageIndex], recommendationFeedback: feedback }
+
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...buildFeedbackPayload(updated, messageIndex, "recommendation"),
+          userMessage: "(추천 결과 평가)",
+          aiResponse: `추천: ${updated[messageIndex]?.recommendation?.primaryProduct?.product?.displayCode ?? "N/A"}`,
+        }),
+      }).catch(() => {})
+
+      return updated
+    })
+  }
+
   const handleSuccessCapture = (comment: string) => {
     const currentSession = sessionState
     const lastAiMsg = [...chatMessages].reverse().find(message => message.role === "ai" && !message.isLoading)
@@ -534,6 +554,7 @@ export function useProductRecommendationPage({
     handleReset,
     handleFeedback,
     handleChipFeedback,
+    handleRecommendationFeedback,
     handleSuccessCapture,
   }
 }

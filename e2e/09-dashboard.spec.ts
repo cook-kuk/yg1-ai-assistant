@@ -1,46 +1,36 @@
-import { test, expect } from "@playwright/test"
+import { expect, test } from "@playwright/test"
 
-/**
- * Scenario 9: 대시보드 기본 렌더링
- * - / 로드 시 상태 카드 6개 표시
- * - 인기 요청 제품, 누락 필드, 성과 지표 섹션
- * - 빠른 액션 섹션
- */
 test.describe("Dashboard", () => {
-  test("/ loads with status cards", async ({ page }) => {
+  test("/ loads with landing hero and status cards", async ({ page }) => {
     await page.goto("/")
     await page.waitForLoadState("networkidle")
 
-    // Status labels should be visible
-    const statusLabels = ["신규", "검토중", "정보필요", "견적 작성", "발송완료", "이관"]
-    const body = await page.textContent("body") || ""
+    await expect(page.getByRole("heading", { name: "YG-1 Recommendation Hub" })).toBeVisible()
+    await expect(page.getByText("AI Recommendation Readiness")).toBeVisible()
 
-    const found = statusLabels.filter(l => body.includes(l))
-    expect(found.length).toBeGreaterThanOrEqual(4)
+    for (const label of ["New", "In Review", "Need Info", "Quote Drafted", "Sent", "Escalated"]) {
+      await expect(page.getByText(label, { exact: true }).first()).toBeVisible()
+    }
   })
 
-  test("/ shows performance metrics", async ({ page }) => {
+  test("/ shows metrics and trends", async ({ page }) => {
     await page.goto("/")
     await page.waitForLoadState("networkidle")
 
-    await expect(page.getByText("성과 지표")).toBeVisible()
-    await expect(page.getByText("평균 견적 시간")).toBeVisible()
+    await expect(page.getByText("Request Trends")).toBeVisible()
+    await expect(page.getByText("Top Requested Products")).toBeVisible()
+    await expect(page.getByText("Top Missing Fields")).toBeVisible()
+    await expect(page.getByText("Performance Snapshot")).toBeVisible()
+    await expect(page.getByText("Average Time to Quote")).toBeVisible()
   })
 
-  test("/ shows AI learning banner", async ({ page }) => {
+  test("/ shows quick launch cards", async ({ page }) => {
     await page.goto("/")
     await page.waitForLoadState("networkidle")
 
-    await expect(page.getByText("데이터가 쌓일수록 추천이 더 정확해집니다")).toBeVisible()
-  })
-
-  test("/ shows quick actions section", async ({ page }) => {
-    await page.goto("/")
-    await page.waitForLoadState("networkidle")
-
-    await expect(page.getByText("빠른 액션")).toBeVisible()
-    await expect(page.getByText("새 문의 확인")).toBeVisible()
-    await expect(page.getByText("제품 탐색", { exact: true }).first()).toBeVisible()
-    await expect(page.getByText("견적 관리")).toBeVisible()
+    await expect(page.locator('a[href="/products"]').filter({ hasText: "Smart Tool Recommendation" }).last()).toBeVisible()
+    await expect(page.locator('a[href="/inbox"]').filter({ hasText: "Inquiry Inbox" }).last()).toBeVisible()
+    await expect(page.locator('a[href="/quotes"]').filter({ hasText: "Quote Workspace" }).last()).toBeVisible()
+    await expect(page.locator('a[href="/knowledge"]').filter({ hasText: "Knowledge Base" }).last()).toBeVisible()
   })
 })

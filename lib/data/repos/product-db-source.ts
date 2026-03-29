@@ -596,6 +596,14 @@ function normalizeMaterialTags(tags: string[] | null | undefined): string[] {
   return [...unique]
 }
 
+const TODO_PLACEHOLDER = "/images/series/todo-placeholder.svg"
+
+function resolveSeriesIconUrl(seriesName: string | null | undefined): string {
+  if (!seriesName || !seriesName.trim()) return TODO_PLACEHOLDER
+  const clean = seriesName.trim()
+  return `/images/series/${clean}.jpg`
+}
+
 function computeCompletenessScore(product: Omit<CanonicalProduct, "dataCompletenessScore">): number {
   const checks = [
     product.seriesName,
@@ -679,7 +687,7 @@ function mapRowToProduct(row: RawProductRow): CanonicalProduct {
     country: null,
     description: firstNonEmpty(row.series_description),
     featureText: firstNonEmpty(row.series_feature),
-    seriesIconUrl: null,
+    seriesIconUrl: resolveSeriesIconUrl(row.edp_series_name),
     sourceConfidence: "medium",
     evidenceRefs: [],
   }

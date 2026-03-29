@@ -27,4 +27,30 @@ test.describe("Products page", () => {
     const heading = page.locator("h1, h2").first()
     await expect(heading).toBeVisible()
   })
+
+  test("/products shows reference-style tool and material selectors", async ({ page }) => {
+    await page.goto("/products")
+    await page.waitForLoadState("networkidle")
+
+    await expect(page.getByRole("button", { name: /Holemaking.*Process/i })).toBeVisible()
+    await expect(page.getByRole("button", { name: /Threading.*Process/i })).toBeVisible()
+    await expect(page.getByRole("button", { name: /Milling.*Process/i })).toBeVisible()
+    await expect(page.getByRole("button", { name: /Turning.*Process/i })).toBeVisible()
+
+    await expect(page.locator("text=/\\bP\\b/").first()).toBeVisible()
+    await expect(page.locator("text=/\\bM\\b/").first()).toBeVisible()
+    await expect(page.locator("text=/\\bK\\b/").first()).toBeVisible()
+    await expect(page.locator("text=/\\bN\\b/").first()).toBeVisible()
+    await expect(page.locator("text=/\\bS\\b/").first()).toBeVisible()
+    await expect(page.locator("text=/\\bH\\b/").first()).toBeVisible()
+  })
+
+  test("/products shows readable korean helper copy", async ({ page }) => {
+    await page.goto("/products")
+    await page.waitForLoadState("networkidle")
+
+    await expect(page.getByText("추천 전 기본 정보 확인")).toBeVisible()
+    await expect(page.getByText(/모르는 항목은 비워두지 말고/)).toBeVisible()
+    await expect(page.getByText(/추정하지 않습니다/)).toBeVisible()
+  })
 })

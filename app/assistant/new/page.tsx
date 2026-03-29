@@ -474,9 +474,10 @@ export default function AssistantNewPage() {
                   <CardContent className="p-3">
                     <div className="flex items-start gap-2 mb-2">
                       <img
-                        src={cp.imageUrl || "/placeholder.svg"}
+                        src={cp.imageUrl || "/images/series/todo-placeholder.svg"}
                         alt={cp.name}
                         className="w-12 h-12 rounded object-cover bg-muted"
+                        onError={(e) => { (e.target as HTMLImageElement).src = "/images/series/todo-placeholder.svg" }}
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">

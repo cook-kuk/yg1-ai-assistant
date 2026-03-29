@@ -18,6 +18,7 @@ export interface ChatMsg {
   isLoading?: boolean
   feedback?: TurnFeedback
   chipFeedback?: TurnFeedback
+  recommendationFeedback?: TurnFeedback
   requestPreparation?: RequestPreparationResult | null
   primaryExplanation?: RecommendationExplanation | null
   primaryFactChecked?: Record<string, unknown> | null

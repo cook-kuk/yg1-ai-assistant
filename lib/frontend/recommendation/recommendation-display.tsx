@@ -11,6 +11,8 @@ import {
   Database,
   FileText,
   Info,
+  BookOpen,
+  PlayCircle,
   Zap,
 } from "lucide-react"
 
@@ -19,6 +21,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import type { RecommendationCandidateDto } from "@/lib/contracts/recommendation"
 import { useApp } from "@/lib/frontend/app-context"
+import { findVideosForProduct } from "@/lib/data/video-mapping"
+import { findCatalogsForProduct } from "@/lib/data/catalog-mapping"
 import {
   buildCandidateSpecFallback,
   buildCandidateSubtypeHighlight,
@@ -347,13 +351,14 @@ function ProductCard({
     <Card className={`border ${isAlternative ? "border-gray-200" : "border-blue-200 shadow-sm"}`}>
       <CardHeader className="pb-2 pt-3 px-4">
         <div className="flex items-start justify-between gap-2">
-          {product.seriesIconUrl && (
-            <img
-              src={product.seriesIconUrl}
-              alt={product.seriesName ?? ""}
-              className="w-16 h-16 object-contain rounded border border-gray-100 shrink-0 bg-gray-50"
-            />
-          )}
+          <img
+            src={product.seriesIconUrl || "/images/series/todo-placeholder.svg"}
+            alt={product.seriesName ?? ""}
+            className="w-16 h-16 object-contain rounded border border-gray-100 shrink-0 bg-gray-50"
+            onError={event => {
+              (event.currentTarget as HTMLImageElement).src = "/images/series/todo-placeholder.svg"
+            }}
+          />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span className="text-xs text-gray-400 font-mono">#{rank}</span>
@@ -441,6 +446,54 @@ function ProductCard({
               </div>
             </div>
           )}
+          {(() => {
+            const videos = findVideosForProduct(product.seriesName, product.description, product.brand, language === "ko" ? "ko" : "en")
+            if (videos.length === 0) return null
+            return (
+              <div>
+                <div className="text-xs text-gray-500 mb-1">{language === "ko" ? "제품 영상" : "Product Videos"}</div>
+                <div className="space-y-1.5">
+                  {videos.slice(0, 3).map((video, vi) => (
+                    <a
+                      key={vi}
+                      href={video.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-[11px] text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg px-2.5 py-1.5 transition-colors"
+                    >
+                      <PlayCircle size={14} className="shrink-0" />
+                      <span className="flex-1 truncate font-medium">{video.title}</span>
+                      <span className="text-[9px] text-red-400 shrink-0 uppercase">{video.language === "both" ? "KO/EN" : video.language.toUpperCase()}</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+          {(() => {
+            const catalogs = findCatalogsForProduct(product.seriesName, product.description, product.brand, product.toolType ?? null, language === "ko" ? "ko" : "en")
+            if (catalogs.length === 0) return null
+            return (
+              <div>
+                <div className="text-xs text-gray-500 mb-1">{language === "ko" ? "카탈로그" : "Catalogs"}</div>
+                <div className="space-y-1.5">
+                  {catalogs.slice(0, 3).map((catalog, ci) => (
+                    <a
+                      key={ci}
+                      href={catalog.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-[11px] text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg px-2.5 py-1.5 transition-colors"
+                    >
+                      <BookOpen size={14} className="shrink-0" />
+                      <span className="flex-1 truncate font-medium">{catalog.title}</span>
+                      <span className="text-[9px] text-blue-400 shrink-0 uppercase">{catalog.language.toUpperCase()}</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
           {scored.scoreBreakdown && <ScoreBreakdownPanel breakdown={scored.scoreBreakdown} />}
         </CardContent>
       )}
@@ -461,16 +514,14 @@ export function CandidateCard({ c }: { c: RecommendationCandidateDto }) {
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-1.5">
       <div className="flex gap-2">
-        {c.seriesIconUrl && (
-          <img
-            src={c.seriesIconUrl}
-            alt={c.seriesName ?? ""}
-            className="w-12 h-12 object-contain rounded border border-gray-100 shrink-0 bg-gray-50"
-            onError={event => {
-              event.currentTarget.style.display = "none"
-            }}
-          />
-        )}
+        <img
+          src={c.seriesIconUrl || "/images/series/todo-placeholder.svg"}
+          alt={c.seriesName ?? ""}
+          className="w-12 h-12 object-contain rounded border border-gray-100 shrink-0 bg-gray-50"
+          onError={event => {
+            (event.currentTarget as HTMLImageElement).src = "/images/series/todo-placeholder.svg"
+          }}
+        />
         <div className="flex-1 min-w-0">
           {c.brand && <div className="text-xs font-bold text-purple-800 truncate">{c.brand}</div>}
           {cleanedDescription && <div className="text-[10px] text-gray-500 truncate">{cleanedDescription}</div>}

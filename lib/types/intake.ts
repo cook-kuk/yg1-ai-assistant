@@ -1,9 +1,6 @@
 // ============================================================
 // YG-1 Intake Form Types
-// AnswerState: unanswered → unknown or known
-// null    = 아직 안 건드림 (unanswered)
-// unknown = 사용자가 명시적으로 "모름" 선택
-// known   = 실제 값 입력
+// AnswerState: unanswered / unknown / known
 // ============================================================
 
 export type AnswerStatus = "unanswered" | "unknown" | "known"
@@ -47,8 +44,6 @@ export const INITIAL_INTAKE_FORM: ProductIntakeForm = {
   country: { status: "unanswered" },
 }
 
-// ── Helpers ──────────────────────────────────────────────────
-
 export function isAnswered(state: AnswerState<unknown>): boolean {
   return state.status !== "unanswered"
 }
@@ -70,7 +65,7 @@ export function countAnswered(form: ProductIntakeForm): number {
     form.operationType,
     form.toolTypeOrCurrentProduct,
     form.diameterInfo,
-  ].filter((f) => f.status !== "unanswered").length
+  ].filter(field => field.status !== "unanswered").length
 }
 
 export function countUnknowns(form: ProductIntakeForm): number {
@@ -79,20 +74,18 @@ export function countUnknowns(form: ProductIntakeForm): number {
     form.operationType,
     form.toolTypeOrCurrentProduct,
     form.diameterInfo,
-  ].filter((f) => f.status === "unknown").length
+  ].filter(field => field.status === "unknown").length
 }
 
 export function getKnownValue<T>(state: AnswerState<T>): T | undefined {
   return state.status === "known" ? state.value : undefined
 }
 
-// ── Display label maps ─────────────────────────────────────────
-
 export const INQUIRY_PURPOSE_LABELS: Record<InquiryPurpose, string> = {
   new: "신규 제품 추천",
   substitute: "YG-1 대체품 찾기",
   inventory_substitute: "재고 없는 대체품",
-  cutting_condition: "가공조건 참고",
+  cutting_condition: "가공 조건 참고",
   product_lookup: "현재 제품 정보 확인",
 }
 
@@ -102,14 +95,12 @@ export const MACHINING_INTENT_LABELS: Record<MachiningIntent, string> = {
   finishing: "정삭",
 }
 
-// ── Field display config ───────────────────────────────────────
-
 export interface IntakeOption {
   value: string
   label: string
-  tag?: string       // e.g. ISO group "N", "M"
+  tag?: string
   emoji?: string
-  disabled?: boolean  // true = shown but not selectable (준비 중)
+  disabled?: boolean
 }
 
 export interface IntakeFieldConfig {
@@ -122,17 +113,17 @@ export interface IntakeFieldConfig {
   hasCustomInput?: boolean
   customInputLabel?: string
   customInputPlaceholder?: string
-  multiSelect?: boolean   // true = allow multiple option selection (comma-separated value)
+  multiSelect?: boolean
 }
 
 export const OPERATION_SHAPE_OPTIONS: IntakeOption[] = [
-  { value: "Side_Milling", label: "Side_Milling" },
+  { value: "Side_Milling", label: "Side Milling" },
   { value: "Facing", label: "Facing" },
   { value: "Profiling", label: "Profiling" },
   { value: "Die-Sinking", label: "Die-Sinking" },
-  { value: "Helical_Interpolation", label: "Helical_Interpolation" },
+  { value: "Helical_Interpolation", label: "Helical Interpolation" },
   { value: "Chamfering", label: "Chamfering" },
-  { value: "Corner_Radius", label: "Corner_Radius" },
+  { value: "Corner_Radius", label: "Corner Radius" },
   { value: "Trochoidal", label: "Trochoidal" },
   { value: "Taper Side Milling", label: "Taper Side Milling" },
   { value: "Small Part", label: "Small Part" },
@@ -140,8 +131,8 @@ export const OPERATION_SHAPE_OPTIONS: IntakeOption[] = [
   { value: "Side Milling", label: "Side Milling" },
   { value: "Helical Interpolation", label: "Helical Interpolation" },
   { value: "Corner Radius", label: "Corner Radius" },
-  { value: "Taper_Side_Milling", label: "Taper_Side_Milling" },
-  { value: "Small_Part", label: "Small_Part" },
+  { value: "Taper_Side_Milling", label: "Taper Side Milling" },
+  { value: "Small_Part", label: "Small Part" },
   { value: "Ramping", label: "Ramping" },
   { value: "Plunging", label: "Plunging" },
 ]
@@ -150,38 +141,38 @@ export const FIELD_CONFIGS: IntakeFieldConfig[] = [
   {
     key: "inquiryPurpose",
     label: "문의 목적",
-    emoji: "🎯",
-    description: "어떤 목적으로 제품을 찾으시나요?",
+    emoji: "🧭",
+    description: "어떤 목적의 추천이 필요한지 선택하세요.",
     options: [
       { value: "new", label: "신규 제품 추천" },
       { value: "substitute", label: "YG-1 대체품 찾기", disabled: true },
       { value: "inventory_substitute", label: "재고 없는 대체품", disabled: true },
-      { value: "cutting_condition", label: "가공조건 참고", disabled: true },
+      { value: "cutting_condition", label: "가공 조건 참고", disabled: true },
       { value: "product_lookup", label: "현재 제품 정보 확인", disabled: true },
     ],
-    unknownLabel: "해당없음",
+    unknownLabel: "해당 없음",
   },
   {
     key: "material",
-    label: "피삭재 (소재)",
-    emoji: "🔩",
-    description: "가공할 소재를 선택하세요 (복수 선택 가능)",
+    label: "가공 소재",
+    emoji: "🧱",
+    description: "가공할 소재를 선택하세요. 복수 선택도 가능합니다.",
     multiSelect: true,
     options: [
-      { value: "알루미늄", label: "알루미늄 / 비철", tag: "N" },
-      { value: "일반강", label: "일반강 / 탄소강", tag: "P" },
-      { value: "스테인리스", label: "스테인리스 (SUS)", tag: "M" },
+      { value: "탄소강", label: "탄소강", tag: "P" },
+      { value: "스테인리스강", label: "스테인리스강", tag: "M" },
       { value: "주철", label: "주철", tag: "K" },
-      { value: "고경도강", label: "고경도강 (HRC40+)", tag: "H" },
-      { value: "티타늄", label: "티타늄 / 내열합금", tag: "S" },
+      { value: "비철금속", label: "비철금속", tag: "N" },
+      { value: "초내열합금", label: "초내열합금", tag: "S" },
+      { value: "고경도강", label: "고경도강", tag: "H" },
     ],
     unknownLabel: "모름",
   },
   {
     key: "operationType",
     label: "가공 형상",
-    emoji: "⚙️",
-    description: "어떤 형태의 가공인가요? (복수 선택 가능)",
+    emoji: "📐",
+    description: "필요한 가공 형상을 선택하세요. 복수 선택도 가능합니다.",
     multiSelect: true,
     options: OPERATION_SHAPE_OPTIONS,
     unknownLabel: "모름",
@@ -189,8 +180,8 @@ export const FIELD_CONFIGS: IntakeFieldConfig[] = [
   {
     key: "toolTypeOrCurrentProduct",
     label: "가공 방식",
-    emoji: "🔧",
-    description: "어떤 가공 분류로 찾으시나요?",
+    emoji: "🛠️",
+    description: "찾고 싶은 공구 계열을 선택하세요.",
     options: [
       { value: "Milling", label: "Milling" },
       { value: "Holemaking", label: "Holemaking" },
@@ -203,18 +194,18 @@ export const FIELD_CONFIGS: IntakeFieldConfig[] = [
     key: "diameterInfo",
     label: "공구 직경",
     emoji: "📏",
-    description: "공구 직경을 선택하거나 직접 입력하세요",
+    description: "공구 직경을 선택하거나 직접 입력하세요.",
     options: [
-      { value: "2mm", label: "φ2mm" },
-      { value: "4mm", label: "φ4mm" },
-      { value: "6mm", label: "φ6mm" },
-      { value: "8mm", label: "φ8mm" },
-      { value: "10mm", label: "φ10mm" },
-      { value: "12mm", label: "φ12mm" },
+      { value: "2mm", label: "2mm" },
+      { value: "4mm", label: "4mm" },
+      { value: "6mm", label: "6mm" },
+      { value: "8mm", label: "8mm" },
+      { value: "10mm", label: "10mm" },
+      { value: "12mm", label: "12mm" },
     ],
     unknownLabel: "모름",
     hasCustomInput: true,
-    customInputLabel: "직접입력",
+    customInputLabel: "직접 입력",
     customInputPlaceholder: "예: 3.5mm, 1/4인치, 6.35",
   },
 ]
