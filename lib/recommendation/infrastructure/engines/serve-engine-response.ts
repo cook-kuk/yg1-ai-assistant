@@ -1,10 +1,9 @@
 import { notifyRecommendation } from "@/lib/recommendation/infrastructure/notifications/recommendation-notifier"
 import {
-  BrandReferenceRepo,
+  EntityProfileRepo,
   SeriesMaterialStatusRepo,
   type SeriesMaterialStatusValue,
 } from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
-import { getSessionCache } from "@/lib/recommendation/infrastructure/cache/session-cache"
 import {
   buildExplanation,
   buildDeterministicSummary,
@@ -103,6 +102,10 @@ function resolveSingleIsoGroup(material: string | undefined): string | null {
 
 function normalizeSeriesKey(value: string): string {
   return value.trim().toUpperCase().replace(/[\s\-·ㆍ./(),]+/g, "")
+}
+
+function normalizeWorkPieceKey(value: string): string {
+  return value.replace(/\s+/g, "").trim().toUpperCase()
 }
 
 function normalizeQuestionOptionToken(value: string): string {
@@ -297,98 +300,81 @@ async function buildWorkPieceQuestion(
   if (lastWorkPieceFilterIndex !== -1 && lastWorkPieceFilterIndex >= lastMaterialFilterIndex) {
     return null
   }
+  if (!candidates || candidates.length === 0) return null
 
-  const allWorkPieceNames = await getSessionCache().getOrFetch(
-    `workPieceNames:${isoGroup}`,
-    () => BrandReferenceRepo.listDistinctWorkPieceNames({ isoGroup, limit: 20 })
+  const seriesNames = Array.from(new Set(candidates.flatMap(candidate => {
+    const values = [
+      candidate.product.seriesName,
+      (candidate.product as Record<string, unknown>).edpSeriesName as string | undefined,
+    ]
+    return values.map(value => String(value ?? "").trim()).filter(Boolean)
+  })))
+  if (seriesNames.length === 0) return null
+
+  const profiles = await EntityProfileRepo.findSeriesProfiles(seriesNames)
+  const profileBySeriesKey = new Map(
+    profiles.map(profile => [normalizeSeriesKey(profile.normalizedSeriesName), profile])
   )
-  if (allWorkPieceNames.length <= 1) return null
-
-  // 0-candidate guard에서 제외 요청된 값 필터링
-  let relevantNames = excludeValues?.length
-    ? allWorkPieceNames.filter(name => !excludeValues.includes(name))
-    : allWorkPieceNames
 
   const preferWorkPieceName = (left: string, right: string) => {
     if (left.length !== right.length) return left.length > right.length ? left : right
     return left.localeCompare(right, "ko") <= 0 ? left : right
   }
 
-  // ── 현재 candidates 기준으로 workPiece 개수 계산 (DB 전체가 아님!) ──
-  // candidates는 이미 직경, 소재, 가공형상 등 모든 필터가 적용된 상태
-  var workPieceCounts: Map<string, number> | undefined
-  let workPieceCandidateKeys = new Map<string, string[]>()
-  const mappedSeriesNames = new Set<string>()
-  if (candidates && candidates.length > 0) {
-    const validNamesWithCount: { name: string; count: number; candidateKeys: string[] }[] = []
-    for (const name of relevantNames) {
-      const series = await getSessionCache().getOrFetch(
-        `seriesNames:${isoGroup}|${name}`,
-        () => BrandReferenceRepo.listDistinctSeriesNames({ isoGroup, workPieceName: name, limit: 30 })
-      )
-      for (const seriesName of series) {
-        const normalizedSeries = seriesName.trim().toUpperCase()
-        if (normalizedSeries) mappedSeriesNames.add(normalizedSeries)
-      }
-      const seriesUpper = new Set(series.map(s => s.toUpperCase()))
-      const candidateKeys = Array.from(new Set(candidates.flatMap(c => {
-        const cs = (c.product.seriesName ?? "").trim().toUpperCase()
-        const edp = ((c.product as Record<string, unknown>).edpSeriesName as string ?? "").trim().toUpperCase()
-        const matched = (cs && seriesUpper.has(cs)) || (edp && seriesUpper.has(edp))
-        if (!matched) return []
-        return [c.product.normalizedCode ?? c.product.displayCode]
-      })))
-      const count = candidateKeys.length
-      if (count > 0) validNamesWithCount.push({ name, count, candidateKeys })
-    }
-    const removed = relevantNames.length - validNamesWithCount.length
-    if (removed > 0) console.log(`[workpiece-filter] Removed ${removed} workPieces with 0 in current ${candidates.length} candidates`)
+  const excludedKeys = new Set((excludeValues ?? []).map(normalizeWorkPieceKey))
+  const workPieceEntries = new Map<string, { name: string; candidateKeys: Set<string> }>()
+  let unmappedCandidateCount = 0
+  for (const candidate of candidates) {
+    const candidateKey = candidate.product.normalizedCode ?? candidate.product.displayCode
+    const candidateSeriesNames = Array.from(new Set([
+      candidate.product.seriesName,
+      (candidate.product as Record<string, unknown>).edpSeriesName as string | undefined,
+    ].map(value => String(value ?? "").trim()).filter(Boolean)))
 
-    const duplicateWorkPieces = new Map<string, { name: string; count: number; candidateKeys: string[] }>()
-    for (const entry of validNamesWithCount) {
-      const signature = entry.candidateKeys.slice().sort().join("||")
-      const existing = duplicateWorkPieces.get(signature)
+    const candidateWorkPieces = new Map<string, string>()
+    for (const seriesName of candidateSeriesNames) {
+      const profile = profileBySeriesKey.get(normalizeSeriesKey(seriesName))
+      if (!profile) continue
+      for (const rawName of profile.materialWorkPieceNames) {
+        const name = rawName.trim()
+        if (!name) continue
+        const key = normalizeWorkPieceKey(name)
+        if (excludedKeys.has(key)) continue
+        const existing = candidateWorkPieces.get(key)
+        candidateWorkPieces.set(key, existing ? preferWorkPieceName(existing, name) : name)
+      }
+    }
+
+    if (candidateWorkPieces.size === 0) {
+      unmappedCandidateCount += 1
+      continue
+    }
+
+    for (const [key, name] of candidateWorkPieces.entries()) {
+      const existing = workPieceEntries.get(key)
       if (!existing) {
-        duplicateWorkPieces.set(signature, entry)
+        workPieceEntries.set(key, { name, candidateKeys: new Set([candidateKey]) })
         continue
       }
-      const preferredName = preferWorkPieceName(existing.name, entry.name)
-      if (preferredName !== existing.name) {
-        duplicateWorkPieces.set(signature, entry)
-      }
-      console.log(`[workpiece-filter] Collapsed duplicate candidate-set workPieces: "${existing.name}" vs "${entry.name}" -> "${preferredName}"`)
+      existing.name = preferWorkPieceName(existing.name, name)
+      existing.candidateKeys.add(candidateKey)
     }
-
-    const dedupedEntries = Array.from(duplicateWorkPieces.values())
-    relevantNames = dedupedEntries.map(v => v.name)
-    workPieceCounts = new Map(dedupedEntries.map(v => [v.name, v.count]))
-    workPieceCandidateKeys = new Map(dedupedEntries.map(v => [v.name, v.candidateKeys]))
   }
 
-  // 중복 제거 (공백 차이: "알루미늄(연질)" vs "알루미늄 (연질)")
-  const normalizedSeen = new Set<string>()
-  relevantNames = relevantNames.filter(name => {
-    const normalized = name.replace(/\s+/g, "").toLowerCase()
-    if (normalizedSeen.has(normalized)) return false
-    normalizedSeen.add(normalized)
-    return true
-  })
+  const relevantEntries = Array.from(workPieceEntries.values())
+    .map(entry => ({ name: entry.name, count: entry.candidateKeys.size, candidateKeys: Array.from(entry.candidateKeys) }))
+    .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name, "ko"))
+  if (relevantEntries.length <= 1) return null
 
-  // 현재 후보 기준으로 의미 있는 선택지가 없으면 질문하지 않는다.
-  if (relevantNames.length <= 1) return null
+  const workPieceCounts = new Map(relevantEntries.map(entry => [entry.name, entry.count]))
+  const workPieceCandidateKeys = new Map(relevantEntries.map(entry => [entry.name, entry.candidateKeys]))
+  const relevantNames = relevantEntries.map(entry => entry.name)
 
   const materialLabel = getMaterialDisplay(isoGroup).ko
   const chips = relevantNames.slice(0, 10).map(name => {
     const count = workPieceCounts?.get(name)
     return count != null ? `${name} (${count}개)` : name
   })
-  const unmappedCandidateCount = (candidates ?? []).filter(candidate => {
-    const seriesName = (candidate.product.seriesName ?? "").trim().toUpperCase()
-    const edpSeriesName = ((candidate.product as Record<string, unknown>).edpSeriesName as string ?? "").trim().toUpperCase()
-    if (seriesName && mappedSeriesNames.has(seriesName)) return false
-    if (edpSeriesName && mappedSeriesNames.has(edpSeriesName)) return false
-    return true
-  }).length
   if (unmappedCandidateCount > 0) {
     chips.push(`ETC (${unmappedCandidateCount}개)`)
   }
@@ -402,7 +388,6 @@ async function buildWorkPieceQuestion(
       count: keys.length,
       preview: keys.slice(0, 5),
     })),
-    mappedSeriesNames: Array.from(mappedSeriesNames).slice(0, 10),
     unmappedCandidateCount,
     chips,
   })

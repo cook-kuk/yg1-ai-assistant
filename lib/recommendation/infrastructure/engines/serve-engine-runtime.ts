@@ -7,8 +7,7 @@ import {
   prepareRequest,
   runHybridRetrieval,
 } from "@/lib/recommendation/domain/recommendation-domain"
-import { BrandReferenceRepo } from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
-import { getSessionCache } from "@/lib/recommendation/infrastructure/cache/session-cache"
+import { EntityProfileRepo } from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
 import { resolveMaterialTag } from "@/lib/recommendation/domain/material-resolver"
 import { parseAnswerToFilter, extractAllFiltersFromMessage } from "@/lib/recommendation/domain/question-engine"
 import { extractFiltersWithLLM, llmResultToAppliedFilters } from "@/lib/recommendation/core/llm-filter-extractor"
@@ -690,6 +689,107 @@ function resolveSingleIsoGroup(material: string | undefined): string | null {
   return tags.length === 1 ? tags[0] : null
 }
 
+function normalizeSeriesLookupKey(value: string): string {
+  return value
+    .trim()
+    .toUpperCase()
+    .replace(/[\s\-·∙ㆍ./(),]+/g, "")
+}
+
+function normalizeWorkPieceLookupKey(value: string): string {
+  return value
+    .replace(/\s+/g, "")
+    .trim()
+    .toUpperCase()
+}
+
+function preferWorkPieceName(left: string, right: string): string {
+  if (left.length !== right.length) return left.length > right.length ? left : right
+  return left.localeCompare(right, "ko") <= 0 ? left : right
+}
+
+function extractCandidateSeriesNames(candidate: ScoredProduct): string[] {
+  return Array.from(
+    new Set(
+      [
+        candidate.product.seriesName,
+        (candidate.product as Record<string, unknown>).edpSeriesName as string | undefined,
+      ]
+        .map(value => String(value ?? "").trim())
+        .filter(Boolean)
+    )
+  )
+}
+
+async function collectWorkPieceSeriesAggregation(candidates: ScoredProduct[]): Promise<{
+  names: string[]
+  seriesNamesByWorkPiece: Map<string, string[]>
+  unmappedSeriesNames: string[]
+}> {
+  const seriesNames = Array.from(new Set(candidates.flatMap(extractCandidateSeriesNames)))
+  if (seriesNames.length === 0) {
+    return { names: [], seriesNamesByWorkPiece: new Map(), unmappedSeriesNames: [] }
+  }
+
+  const profiles = await EntityProfileRepo.findSeriesProfiles(seriesNames)
+  const profileBySeriesKey = new Map(
+    profiles.map(profile => [normalizeSeriesLookupKey(profile.normalizedSeriesName), profile])
+  )
+
+  const workPieceEntries = new Map<string, { name: string; candidateKeys: Set<string>; seriesNames: Set<string> }>()
+  const unmappedSeriesNames = new Set<string>()
+
+  for (const candidate of candidates) {
+    const candidateKey = candidate.product.normalizedCode ?? candidate.product.displayCode
+    const candidateSeriesNames = extractCandidateSeriesNames(candidate)
+    const candidateMatchedNames = new Map<string, string>()
+    const matchedSeriesNames = new Set<string>()
+
+    for (const seriesName of candidateSeriesNames) {
+      const profile = profileBySeriesKey.get(normalizeSeriesLookupKey(seriesName))
+      if (!profile || profile.materialWorkPieceNames.length === 0) continue
+      matchedSeriesNames.add(seriesName.trim().toUpperCase())
+      for (const rawName of profile.materialWorkPieceNames) {
+        const name = rawName.trim()
+        if (!name) continue
+        const key = normalizeWorkPieceLookupKey(name)
+        const existing = candidateMatchedNames.get(key)
+        candidateMatchedNames.set(key, existing ? preferWorkPieceName(existing, name) : name)
+      }
+    }
+
+    if (candidateMatchedNames.size === 0) {
+      for (const seriesName of candidateSeriesNames) {
+        unmappedSeriesNames.add(seriesName.trim().toUpperCase())
+      }
+      continue
+    }
+
+    for (const [key, name] of candidateMatchedNames.entries()) {
+      const existing = workPieceEntries.get(key)
+      if (!existing) {
+        workPieceEntries.set(key, {
+          name,
+          candidateKeys: new Set([candidateKey]),
+          seriesNames: new Set(matchedSeriesNames),
+        })
+        continue
+      }
+      existing.name = preferWorkPieceName(existing.name, name)
+      existing.candidateKeys.add(candidateKey)
+      for (const seriesName of matchedSeriesNames) existing.seriesNames.add(seriesName)
+    }
+  }
+
+  return {
+    names: Array.from(workPieceEntries.values()).map(entry => entry.name),
+    seriesNamesByWorkPiece: new Map(
+      Array.from(workPieceEntries.entries()).map(([key, entry]) => [key, Array.from(entry.seriesNames)])
+    ),
+    unmappedSeriesNames: Array.from(unmappedSeriesNames),
+  }
+}
+
 async function enrichWorkPieceFilterWithSeriesScope(
   filter: AppliedFilter,
   currentInput: RecommendationInput,
@@ -697,37 +797,13 @@ async function enrichWorkPieceFilterWithSeriesScope(
 ): Promise<AppliedFilter> {
   if (filter.field !== "workPieceName") return filter
 
-  const isoGroup = resolveSingleIsoGroup(currentInput.material)
   const workPieceName = String(filter.rawValue ?? "").trim()
-  if (!isoGroup || !workPieceName) return filter
+  if (!resolveSingleIsoGroup(currentInput.material) || !workPieceName) return filter
+
+  const aggregation = await collectWorkPieceSeriesAggregation(currentCandidates)
 
   if (workPieceName.toUpperCase() === "ETC") {
-    const allWorkPieceNames = await getSessionCache().getOrFetch(
-      `workPieceNames:${isoGroup}`,
-      () => BrandReferenceRepo.listDistinctWorkPieceNames({ isoGroup, limit: 30 })
-    )
-    const mappedSeriesNames = new Set<string>()
-    for (const name of allWorkPieceNames) {
-      const seriesNames = await getSessionCache().getOrFetch(
-        `seriesNames:${isoGroup}|${name}`,
-        () => BrandReferenceRepo.listDistinctSeriesNames({ isoGroup, workPieceName: name, limit: 30 })
-      )
-      for (const seriesName of seriesNames) {
-        const normalizedSeries = seriesName.trim().toUpperCase()
-        if (normalizedSeries) mappedSeriesNames.add(normalizedSeries)
-      }
-    }
-
-    const unmappedSeriesNames = Array.from(
-      new Set(
-        currentCandidates.flatMap(candidate => {
-          const seriesName = (candidate.product.seriesName ?? "").trim().toUpperCase()
-          const edpSeriesName = ((candidate.product as Record<string, unknown>).edpSeriesName as string ?? "").trim().toUpperCase()
-          const values = [seriesName, edpSeriesName].filter(Boolean)
-          return values.filter(value => !mappedSeriesNames.has(value))
-        })
-      )
-    )
+    const unmappedSeriesNames = aggregation.unmappedSeriesNames
 
     if (unmappedSeriesNames.length === 0) return filter
 
@@ -745,10 +821,7 @@ async function enrichWorkPieceFilterWithSeriesScope(
     } as AppliedFilter
   }
 
-  const seriesNames = await getSessionCache().getOrFetch(
-    `seriesNames:${isoGroup}|${workPieceName}`,
-    () => BrandReferenceRepo.listDistinctSeriesNames({ isoGroup, workPieceName, limit: 30 })
-  )
+  const seriesNames = aggregation.seriesNamesByWorkPiece.get(normalizeWorkPieceLookupKey(workPieceName)) ?? []
   if (seriesNames.length === 0) return filter
 
   const seriesScopeFilter: AppliedFilter = {
@@ -777,14 +850,9 @@ async function normalizeAndEnrichFilterForTurn(params: {
   let candidateFieldVals = extractDistinctFieldValues(currentCandidates as any[], filter.field)
 
   if (candidateFieldVals.length === 0 && filter.field === "workPieceName") {
-    const isoGroup = resolveSingleIsoGroup(currentInput.material)
-    if (isoGroup) {
-      candidateFieldVals = await getSessionCache().getOrFetch(
-        `workPieceNames:${isoGroup}`,
-        () => BrandReferenceRepo.listDistinctWorkPieceNames({ isoGroup, limit: 30 })
-      )
-      console.log(`[value-normalizer:workPiece] Loaded ${candidateFieldVals.length} workPiece names from brand_reference for ISO ${isoGroup}`)
-    }
+    const aggregation = await collectWorkPieceSeriesAggregation(currentCandidates)
+    candidateFieldVals = aggregation.names
+    console.log(`[value-normalizer:workPiece] Loaded ${candidateFieldVals.length} workPiece names from series_profile_mv candidate series`)
   }
 
   if (candidateFieldVals.length > 0 && typeof filter.rawValue === "string") {
@@ -1306,6 +1374,189 @@ function buildZeroCandidateFilterResponse(params: {
     language,
     `"${appliedLabel}" 조건을 적용했습니다. 현재 필터 기준 후보는 0개입니다. 이전 단계로 돌아가거나 다른 조건을 선택해주세요.`,
     stageHistory
+  )
+}
+
+async function detectSingleRelevantWorkPieceFilter(params: {
+  currentInput: RecommendationInput
+  filters: AppliedFilter[]
+  candidates: ScoredProduct[]
+  appliedAt: number
+}): Promise<AppliedFilter | null> {
+  const { currentInput, filters, candidates, appliedAt } = params
+  if (currentInput.workPieceName || candidates.length === 0) return null
+
+  const isoGroup = resolveSingleIsoGroup(currentInput.material)
+  if (!isoGroup) return null
+
+  const lastWorkPieceFilterIndex = filters.reduce((lastIndex, filter, index) => (
+    filter.field === "workPieceName" ? index : lastIndex
+  ), -1)
+  const lastMaterialFilterIndex = filters.reduce((lastIndex, filter, index) => (
+    filter.field === "material" ? index : lastIndex
+  ), -1)
+  if (lastWorkPieceFilterIndex !== -1 && lastWorkPieceFilterIndex >= lastMaterialFilterIndex) {
+    return null
+  }
+
+  const aggregation = await collectWorkPieceSeriesAggregation(candidates)
+  const relevantNames = aggregation.names
+  const unmappedCandidateCount = aggregation.unmappedSeriesNames.length
+
+  if (relevantNames.length !== 1 || unmappedCandidateCount > 0) return null
+
+  return enrichWorkPieceFilterWithSeriesScope({
+    field: "workPieceName",
+    op: "includes",
+    value: relevantNames[0],
+    rawValue: relevantNames[0],
+    appliedAt,
+  } as AppliedFilter, currentInput, candidates)
+}
+
+async function buildQuestionResponseWithAutoWorkPiece(params: {
+  deps: ServeEngineRuntimeDependencies
+  form: ProductIntakeForm
+  candidates: ScoredProduct[]
+  evidenceMap: Map<string, EvidenceSummary>
+  totalCandidateCount: number
+  paginationRequest: CandidatePaginationRequest
+  input: RecommendationInput
+  history: NarrowingTurn[]
+  filters: AppliedFilter[]
+  turnCount: number
+  messages: ChatMessage[]
+  provider: ReturnType<typeof getProvider>
+  language: AppLanguage
+  displayedProducts?: RecommendationDisplayedProductRequestDto[] | null
+  overrideText?: string
+  existingStageHistory?: NarrowingStage[]
+  excludeWorkPieceValues?: string[]
+  responsePrefix?: string
+}): Promise<Response> {
+  const {
+    deps,
+    form,
+    candidates,
+    evidenceMap,
+    totalCandidateCount,
+    paginationRequest,
+    input,
+    history,
+    filters,
+    turnCount,
+    messages,
+    provider,
+    language,
+    displayedProducts = null,
+    overrideText,
+    existingStageHistory,
+    excludeWorkPieceValues,
+    responsePrefix,
+  } = params
+
+  const autoWorkPieceFilter = !overrideText
+    ? await detectSingleRelevantWorkPieceFilter({
+        currentInput: input,
+        filters,
+        candidates,
+        appliedAt: turnCount,
+      })
+    : null
+
+  if (autoWorkPieceFilter) {
+    console.log(`[workpiece:auto-apply] ${autoWorkPieceFilter.value}`)
+    const nextInput = deps.applyFilterToInput(input, autoWorkPieceFilter)
+    const nextFilters = [...filters, autoWorkPieceFilter]
+    const nextResult = await runHybridRetrieval(
+      nextInput,
+      nextFilters.filter(filter => filter.op !== "skip"),
+      0,
+      null
+    )
+    const nextDisplayPage = sliceCandidatesForPage(nextResult.candidates, nextResult.evidenceMap, paginationRequest)
+    const nextHistory = [...history, {
+      question: "auto-workpiece",
+      answer: String(autoWorkPieceFilter.rawValue ?? autoWorkPieceFilter.value),
+      extractedFilters: [autoWorkPieceFilter],
+      candidateCountBefore: totalCandidateCount,
+      candidateCountAfter: nextResult.totalConsidered,
+    }]
+    const nextTurnCount = turnCount + 1
+    const nextStageHistory = existingStageHistory
+      ? [...existingStageHistory, {
+          stepIndex: autoWorkPieceFilter.appliedAt,
+          stageName: `workPieceName_${autoWorkPieceFilter.value}_auto`,
+          filterApplied: autoWorkPieceFilter,
+          candidateCount: nextResult.totalConsidered,
+          resolvedInputSnapshot: { ...nextInput },
+          filtersSnapshot: [...nextFilters],
+        }]
+      : undefined
+
+    const nextStatus = checkResolution(nextResult.candidates, nextHistory, nextResult.totalConsidered)
+    if (nextStatus.startsWith("resolved")) {
+      return deps.buildRecommendationResponse(
+        form,
+        nextResult.candidates,
+        nextResult.evidenceMap,
+        nextResult.totalConsidered,
+        buildPaginationDto(paginationRequest, nextResult.totalConsidered),
+        nextDisplayPage.candidates,
+        nextDisplayPage.evidenceMap,
+        nextInput,
+        nextHistory,
+        nextFilters,
+        nextTurnCount,
+        messages,
+        provider,
+        language,
+        displayedProducts
+      )
+    }
+
+    return deps.buildQuestionResponse(
+      form,
+      nextResult.candidates,
+      nextResult.evidenceMap,
+      nextResult.totalConsidered,
+      buildPaginationDto(paginationRequest, nextResult.totalConsidered),
+      nextDisplayPage.candidates,
+      nextDisplayPage.evidenceMap,
+      nextInput,
+      nextHistory,
+      nextFilters,
+      nextTurnCount,
+      messages,
+      provider,
+      language,
+      undefined,
+      nextStageHistory,
+      excludeWorkPieceValues,
+      responsePrefix
+    )
+  }
+
+  const displayPage = sliceCandidatesForPage(candidates, evidenceMap, paginationRequest)
+  return deps.buildQuestionResponse(
+    form,
+    candidates,
+    evidenceMap,
+    totalCandidateCount,
+    buildPaginationDto(paginationRequest, totalCandidateCount),
+    displayPage.candidates,
+    displayPage.evidenceMap,
+    input,
+    history,
+    filters,
+    turnCount,
+    messages,
+    provider,
+    language,
+    overrideText,
+    existingStageHistory,
+    excludeWorkPieceValues,
+    responsePrefix
   )
 }
 
@@ -2074,22 +2325,21 @@ async function handleServeExplorationInner(
           )
         }
 
-        return deps.buildQuestionResponse(
+        return buildQuestionResponseWithAutoWorkPiece({
+          deps,
           form,
-          result.searchPayload.candidates,
-          result.searchPayload.evidenceMap,
+          candidates: result.searchPayload.candidates,
+          evidenceMap: result.searchPayload.evidenceMap,
           totalCandidateCount,
-          paginationDto(totalCandidateCount),
-          displayPage.candidates,
-          displayPage.evidenceMap,
-          v2ResolvedInput,
-          legacyState.narrowingHistory ?? [],
-          legacyState.appliedFilters ?? [],
-          legacyState.turnCount,
+          paginationRequest: resolvedPagination,
+          input: v2ResolvedInput,
+          history: legacyState.narrowingHistory ?? [],
+          filters: legacyState.appliedFilters ?? [],
+          turnCount: legacyState.turnCount,
           messages,
           provider,
           language,
-        )
+        })
       }
 
       perf.endStep("v2_orchestrator")
@@ -2395,7 +2645,22 @@ async function handleServeExplorationInner(
           if (newStatus.startsWith("resolved")) {
             return deps.buildRecommendationResponse(form, testResult.candidates, testResult.evidenceMap, testResult.totalConsidered, paginationDto(testResult.totalConsidered), testDisplayPage.candidates, testDisplayPage.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language, displayedProducts)
           }
-          return deps.buildQuestionResponse(form, testResult.candidates, testResult.evidenceMap, testResult.totalConsidered, paginationDto(testResult.totalConsidered), testDisplayPage.candidates, testDisplayPage.evidenceMap, currentInput, narrowingHistory, filters, turnCount, messages, provider, language)
+          return buildQuestionResponseWithAutoWorkPiece({
+            deps,
+            form,
+            candidates: testResult.candidates,
+            evidenceMap: testResult.evidenceMap,
+            totalCandidateCount: testResult.totalConsidered,
+            paginationRequest: resolvedPagination,
+            input: currentInput,
+            history: narrowingHistory,
+            filters,
+            turnCount,
+            messages,
+            provider,
+            language,
+            displayedProducts,
+          })
         }
       }
 
@@ -2937,22 +3202,22 @@ async function handleServeExplorationInner(
         )
       }
 
-      return deps.buildQuestionResponse(
+      return buildQuestionResponseWithAutoWorkPiece({
+        deps,
         form,
-        newResult.candidates,
-        newResult.evidenceMap,
-        newResult.totalConsidered,
-        paginationDto(newResult.totalConsidered),
-        newDisplayPage.candidates,
-        newDisplayPage.evidenceMap,
-        currentInput,
-        narrowingHistory,
+        candidates: newResult.candidates,
+        evidenceMap: newResult.evidenceMap,
+        totalCandidateCount: newResult.totalConsidered,
+        paginationRequest: resolvedPagination,
+        input: currentInput,
+        history: narrowingHistory,
         filters,
         turnCount,
         messages,
         provider,
-        language
-      )
+        language,
+        displayedProducts,
+      })
     }
 
     if (action.type === "replace_existing_filter") {
@@ -3097,26 +3362,24 @@ async function handleServeExplorationInner(
 
       const revisionResponsePrefix = `알겠습니다. ${action.previousValue} 대신 ${filter.value}로 변경했습니다.`
 
-      return deps.buildQuestionResponse(
+      return buildQuestionResponseWithAutoWorkPiece({
+        deps,
         form,
-        testResult.candidates,
-        testResult.evidenceMap,
-        testResult.totalConsidered,
-        paginationDto(testResult.totalConsidered),
-        testDisplayPage.candidates,
-        testDisplayPage.evidenceMap,
-        currentInput,
-        narrowingHistory,
+        candidates: testResult.candidates,
+        evidenceMap: testResult.evidenceMap,
+        totalCandidateCount: testResult.totalConsidered,
+        paginationRequest: resolvedPagination,
+        input: currentInput,
+        history: narrowingHistory,
         filters,
         turnCount,
         messages,
         provider,
         language,
-        undefined,
-        updatedStages,
-        undefined,
-        revisionResponsePrefix
-      )
+        displayedProducts,
+        existingStageHistory: updatedStages,
+        responsePrefix: revisionResponsePrefix,
+      })
     }
 
     if (action.type === "continue_narrowing") {
@@ -3282,25 +3545,23 @@ async function handleServeExplorationInner(
         )
       }
 
-      return deps.buildQuestionResponse(
+      return buildQuestionResponseWithAutoWorkPiece({
+        deps,
         form,
-        finalCandidates,
-        finalEvidenceMap,
-        finalTotalConsidered,
-        paginationDto(finalTotalConsidered),
-        finalDisplayPage.candidates,
-        finalDisplayPage.evidenceMap,
-        currentInput,
-        narrowingHistory,
+        candidates: finalCandidates,
+        evidenceMap: finalEvidenceMap,
+        totalCandidateCount: finalTotalConsidered,
+        paginationRequest: resolvedPagination,
+        input: currentInput,
+        history: narrowingHistory,
         filters,
         turnCount,
         messages,
         provider,
         language,
-        undefined,
-        updatedStages,
-        undefined
-      )
+        displayedProducts,
+        existingStageHistory: updatedStages,
+      })
     }
   }
 
@@ -3325,22 +3586,22 @@ async function handleServeExplorationInner(
     )
   }
 
-  return deps.buildQuestionResponse(
+  return buildQuestionResponseWithAutoWorkPiece({
+    deps,
     form,
     candidates,
     evidenceMap,
     totalCandidateCount,
-    paginationDto(totalCandidateCount),
-    displayCandidates,
-    displayEvidenceMap,
-    currentInput,
-    narrowingHistory,
+    paginationRequest: resolvedPagination,
+    input: currentInput,
+    history: narrowingHistory,
     filters,
     turnCount,
     messages,
     provider,
-    language
-  )
+    language,
+    displayedProducts,
+  })
 }
 
 // ── Tool domain detection ─────────────────────────────
