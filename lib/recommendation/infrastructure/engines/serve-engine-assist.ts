@@ -12,6 +12,7 @@ import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-t
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
 import { resolveYG1Query } from "@/lib/knowledge/knowledge-router"
 import { resolveMaterialTag } from "@/lib/recommendation/domain/recommendation-domain"
+import { getIntakeDisplayValue } from "@/lib/recommendation/shared/intake-localization"
 import { getProvider, resolveModel } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import { YG1_COMPANY_SNIPPET } from "@/lib/knowledge/company-prompt-snippet"
 import {
@@ -1553,7 +1554,7 @@ export async function handleGeneralChat(
     : ""
 
   const formContext = form.material.status === "known" || form.operationType.status === "known"
-    ? `사용자 입력 조건: 소재=${form.material.status === "known" ? form.material.value : "미지정"}, 가공=${form.operationType.status === "known" ? form.operationType.value : "미지정"}`
+    ? `사용자 입력 조건: 소재=${getIntakeDisplayValue("material", form.material, "ko")}, 가공=${form.operationType.status === "known" ? form.operationType.value : "미지정"}`
     : ""
 
   const displayedContext = displayedCandidatesContext && displayedCandidatesContext.length > 0

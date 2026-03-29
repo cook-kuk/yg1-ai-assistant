@@ -9,6 +9,7 @@
  */
 
 import { YG1_COMPANY_SNIPPET } from "@/lib/knowledge/company-prompt-snippet"
+import { getIntakeDisplayValue } from "@/lib/recommendation/shared/intake-localization"
 import type {
   AnswerState,
   AppLanguage,
@@ -498,7 +499,7 @@ function buildIntakeSummaryText(form: ProductIntakeForm): string {
 
   return [
     `  문의 목적: ${f(form.inquiryPurpose as AnswerState<string>, purposeMap as Record<string, string>)}`,
-    `  소재: ${f(form.material)}`,
+    `  소재: ${getIntakeDisplayValue("material", form.material, "ko")}`,
     `  가공 형상: ${f(form.operationType)}`,
     `  가공 방식: ${f(form.toolTypeOrCurrentProduct)}`,
     `  직경: ${f(form.diameterInfo)}`,

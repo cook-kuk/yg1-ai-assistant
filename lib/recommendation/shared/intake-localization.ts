@@ -32,6 +32,15 @@ const MACHINING_INTENT_LABELS_LOCALIZED: Record<MachiningIntent, { ko: string; e
   finishing: { ko: "정삭", en: "Finishing" },
 }
 
+const ISO_MATERIAL_LABELS: Record<string, { ko: string; en: string }> = {
+  P: { ko: "탄소강", en: "Carbon Steel" },
+  M: { ko: "스테인리스강", en: "Stainless Steel" },
+  K: { ko: "주철", en: "Cast Iron" },
+  N: { ko: "비철금속", en: "Non-ferrous" },
+  S: { ko: "초내열합금", en: "Superalloy" },
+  H: { ko: "고경도강", en: "Hardened Steel" },
+}
+
 const TEXT_REPLACEMENTS_EN: Array<[string, string]> = [
   ["문의 목적", "Inquiry Purpose"],
   ["가공 소재", "Workpiece Material"],
@@ -73,6 +82,32 @@ function translateFreeTextToEnglish(text: string): string {
   return translated
 }
 
+function isIsoMaterialToken(value: string): boolean {
+  return /^[PMKNSH]$/i.test(value.trim())
+}
+
+function formatIsoMaterialToken(value: string, language: AppLanguage): string | null {
+  const normalized = value.trim().toUpperCase()
+  if (!isIsoMaterialToken(normalized)) return null
+  return ISO_MATERIAL_LABELS[normalized]?.[language] ?? normalized
+}
+
+export function canonicalizeMaterialSelection(text: string): string {
+  const parts = text.split(",").map(value => value.trim()).filter(Boolean)
+  if (parts.length > 0 && parts.every(isIsoMaterialToken)) {
+    return parts.map(value => value.toUpperCase()).join(",")
+  }
+  return translateFreeTextToEnglish(text)
+}
+
+export function getMaterialDisplayValue(value: string, language: AppLanguage): string {
+  const parts = value.split(",").map(part => part.trim()).filter(Boolean)
+  if (parts.length === 0) return localizeIntakeText(value, language)
+  return parts
+    .map(part => formatIsoMaterialToken(part, language) ?? localizeIntakeText(part, language))
+    .join(", ")
+}
+
 export function getIntakeFieldLabel(key: keyof ProductIntakeForm, language: AppLanguage): string {
   if (key === "advanced") return language === "ko" ? "고급 조건" : "Advanced Filters"
   return FIELD_LABELS[key][language]
@@ -102,6 +137,9 @@ export function getIntakeDisplayValue(
   }
   if (key === "machiningIntent") {
     return MACHINING_INTENT_LABELS_LOCALIZED[value as MachiningIntent]?.[language] ?? value
+  }
+  if (key === "material") {
+    return getMaterialDisplayValue(value, language)
   }
 
   return localizeIntakeText(value, language)
