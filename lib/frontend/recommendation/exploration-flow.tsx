@@ -416,10 +416,14 @@ function NarrowingChat({
 
               {message.role === "ai" && message.chips && message.chips.length > 0 && !message.isLoading && (() => {
                 const isLatest = index === messages.length - 1 && !isSending
-                const productListChip = message.chips.find(c => c.includes("제품 보기"))
-                const aiAnalysisChip = message.chips.find(c => c.includes("AI 상세 분석"))
-                const normalChips = message.chips.filter(c => !c.includes("제품 보기") && !c.includes("AI 상세 분석"))
-                const chipGroups = message.chipGroups?.filter(group => group.chips.length > 0) ?? []
+                const isHiddenCtaChip = (chip: string) => chip.includes("제품 보기") || chip.includes("AI 상세 분석")
+                const normalChips = message.chips.filter(chip => !isHiddenCtaChip(chip))
+                const chipGroups = (message.chipGroups ?? [])
+                  .map(group => ({
+                    ...group,
+                    chips: group.chips.filter(chip => !isHiddenCtaChip(chip)),
+                  }))
+                  .filter(group => group.chips.length > 0)
                 console.log("[chip-groups:client:render]", {
                   messageIndex: index,
                   isLatest,
@@ -477,41 +481,6 @@ function NarrowingChat({
                     ) : (
                       <div className="flex flex-wrap gap-1.5 mt-1">
                         {normalChips.map((chip, chipIndex) => renderChipButton(chip, chipIndex))}
-                      </div>
-                    )}
-                    {isLatest && (productListChip || aiAnalysisChip) && (
-                      <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-gray-100">
-                        {needsFeedback && (
-                          <div className="text-center text-[10px] text-amber-600 bg-amber-50 rounded-lg py-1.5">
-                            {language === "ko" ? "위 응답을 평가한 후 진행할 수 있습니다" : "Please rate the response above to proceed"}
-                          </div>
-                        )}
-                        {productListChip && (
-                          <button
-                            onClick={() => { if (needsFeedback) return; setInput(""); onSend(productListChip) }}
-                            disabled={!!needsFeedback}
-                            className={`w-full py-2.5 text-sm font-bold rounded-lg shadow-md ${
-                              needsFeedback
-                                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                                : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
-                            }`}
-                          >
-                            {productListChip}
-                          </button>
-                        )}
-                        {aiAnalysisChip && (
-                          <button
-                            onClick={() => { if (needsFeedback) return; setInput(""); onSend(aiAnalysisChip) }}
-                            disabled={!!needsFeedback}
-                            className={`w-full py-2.5 text-sm font-medium rounded-lg border ${
-                              needsFeedback
-                                ? "border-gray-200 text-gray-400 cursor-not-allowed"
-                                : "border-purple-300 text-purple-700 hover:bg-purple-50"
-                            }`}
-                          >
-                            {aiAnalysisChip}
-                          </button>
-                        )}
                       </div>
                     )}
                   </>

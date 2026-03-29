@@ -308,10 +308,8 @@ export default function AssistantNewPage() {
                   {msg.chips && (() => {
                     const lastAiMsg = [...messages].reverse().find(m => m.role === "ai")
                     const isLatestAi = lastAiMsg?.id === msg.id
-                    const productListChip = msg.chips.find(c => c.includes("제품 보기"))
-                    const aiAnalysisChip = msg.chips.find(c => c.includes("AI 상세 분석"))
-                    const ctaChips = [productListChip, aiAnalysisChip].filter(Boolean)
-                    const normalChips = msg.chips.filter(c => !c.includes("제품 보기") && !c.includes("AI 상세 분석"))
+                    const isHiddenCtaChip = (chip: string) => chip.includes("제품 보기") || chip.includes("AI 상세 분석")
+                    const normalChips = msg.chips.filter(chip => !isHiddenCtaChip(chip))
                     return (
                       <>
                         <div className="mt-3 flex flex-wrap gap-1.5">
@@ -333,29 +331,6 @@ export default function AssistantNewPage() {
                             </Button>
                           ))}
                         </div>
-                        {ctaChips.length > 0 && isLatestAi && (
-                          <div className="mt-3 pt-3 border-t border-gray-100 flex flex-col gap-2">
-                            {productListChip && (
-                              <Button
-                                size="sm"
-                                className="w-full h-10 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm shadow-md rounded-lg border-0"
-                                onClick={() => handleSend(productListChip)}
-                              >
-                                {productListChip}
-                              </Button>
-                            )}
-                            {aiAnalysisChip && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="w-full h-10 text-sm font-medium border-purple-300 text-purple-700 hover:bg-purple-50 rounded-lg"
-                                onClick={() => handleSend(aiAnalysisChip)}
-                              >
-                                {aiAnalysisChip}
-                              </Button>
-                            )}
-                          </div>
-                        )}
                       </>
                     )
                   })()}
