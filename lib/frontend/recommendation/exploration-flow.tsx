@@ -743,6 +743,8 @@ function CandidatePanel({
   const displayCandidates = candidates ?? null
   const hasMore = page + 1 < totalPages
   const hasPrev = page > 0
+  const activeFilterCount = sessionState?.appliedFilters?.filter(filter => filter.op !== "skip").length ?? 0
+  const hasZeroCandidateResult = !!sessionState && (sessionState.candidateCount ?? totalCount) === 0 && activeFilterCount > 0
 
   useEffect(() => {
     setOpenGroups(new Set())
@@ -828,6 +830,18 @@ function CandidatePanel({
           {displayCandidates.map(candidate => (
             <CandidateCard key={candidate.productCode} c={candidate} />
           ))}
+        </div>
+      ) : hasZeroCandidateResult ? (
+        <div className="text-center py-8 text-gray-500">
+          <Database size={24} className="mx-auto mb-2 opacity-50" />
+          <div className="text-xs font-semibold text-gray-700">
+            {language === "ko" ? "현재 필터 기준 결과 0건" : "0 results for current filters"}
+          </div>
+          <div className="text-[11px] mt-1 leading-relaxed">
+            {language === "ko"
+              ? `적용된 필터 ${activeFilterCount}개 기준으로 일치하는 후보가 없습니다. 이전 단계로 돌아가거나 조건을 조정하세요.`
+              : `No candidates match the ${activeFilterCount} applied filters. Go back or adjust the filters.`}
+          </div>
         </div>
       ) : (
         <div className="text-center py-8 text-gray-400">
@@ -965,13 +979,15 @@ export function ExplorationScreen({
               {RESOLUTION_CONFIG[sessionState.resolutionStatus]?.[language] ?? sessionState.resolutionStatus}
             </span>
           )}
-          {sessionState && sessionState.candidateCount > 0 && sessionState.resolutionStatus !== "broad" && (
+          {sessionState && sessionState.resolutionStatus !== "broad" && (
             <span className="text-xs text-gray-500">
-              {sessionState.candidateCount > 50
-                ? (language === "ko" ? "후보군 넓음" : "Wide candidate pool")
-                : language === "ko"
-                  ? `${Math.min(sessionState.candidateCount, MAX_DISPLAY_CANDIDATES)}개 추천`
-                  : `${Math.min(sessionState.candidateCount, MAX_DISPLAY_CANDIDATES)} recommended`}
+              {sessionState.candidateCount === 0
+                ? (language === "ko" ? "0건" : "0 results")
+                : sessionState.candidateCount > 50
+                  ? (language === "ko" ? "후보군 넓음" : "Wide candidate pool")
+                  : language === "ko"
+                    ? `${Math.min(sessionState.candidateCount, MAX_DISPLAY_CANDIDATES)}개 추천`
+                    : `${Math.min(sessionState.candidateCount, MAX_DISPLAY_CANDIDATES)} recommended`}
             </span>
           )}
         </div>

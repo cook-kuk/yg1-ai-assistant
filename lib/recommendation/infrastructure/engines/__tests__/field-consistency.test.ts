@@ -3,7 +3,12 @@ import { describe, expect, it, vi } from "vitest"
 vi.mock("server-only", () => ({}))
 
 import { buildQuestionFieldOptions } from "../serve-engine-option-first"
-import { didLatestNarrowingTurnSkip, inferQuestionFieldFromText, shouldFallbackToDeterministicQuestionText } from "../serve-engine-response"
+import {
+  didLatestNarrowingTurnSkip,
+  extractRecommendationSummaryText,
+  inferQuestionFieldFromText,
+  shouldFallbackToDeterministicQuestionText,
+} from "../serve-engine-response"
 import type { DisplayedOption } from "@/lib/recommendation/domain/types"
 
 describe("Field consistency guard", () => {
@@ -128,5 +133,20 @@ describe("Field consistency guard", () => {
         { label: "공구강", field: "workPieceName", value: "공구강" },
       ],
     })).toBe(false)
+  })
+
+  it("extracts responseText from valid JSON recommendation summaries", () => {
+    expect(extractRecommendationSummaryText("{\"responseText\":\"Square 3날 P 소재에는 ALU-CUT 시리즈를 추천드립니다.\"}"))
+      .toBe("Square 3날 P 소재에는 ALU-CUT 시리즈를 추천드립니다.")
+  })
+
+  it("extracts responseText from truncated JSON recommendation summaries", () => {
+    expect(extractRecommendationSummaryText("{\n  \"responseText\": \"추천 제품은 ALU-CUT입니다. 코팅은 Bright Finish입니다."))
+      .toBe("추천 제품은 ALU-CUT입니다. 코팅은 Bright Finish입니다.")
+  })
+
+  it("returns plain text summaries as-is", () => {
+    expect(extractRecommendationSummaryText("ALU-CUT 시리즈를 추천드립니다. Square 형상과 3날 조건에 가장 가깝습니다."))
+      .toBe("ALU-CUT 시리즈를 추천드립니다. Square 형상과 3날 조건에 가장 가깝습니다.")
   })
 })

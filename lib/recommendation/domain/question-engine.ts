@@ -72,13 +72,14 @@ export function selectNextQuestion(
   candidates: ScoredProduct[],
   history: NarrowingTurn[],
   candidateCountHint: number = candidates.length,
-  externalQuestions: NextQuestion[] = []
+  externalQuestions: NextQuestion[] = [],
+  appliedFilters: AppliedFilter[] = []
 ): NextQuestion | null {
   const status = checkResolution(candidates, history, candidateCountHint)
   if (status.startsWith("resolved")) return null
 
   const fields = [
-    ...analyzeFields(input, candidates, history),
+    ...analyzeFields(input, candidates, history, appliedFilters),
     ...externalQuestions.map(question => ({
       field: question.field,
       questionText: question.questionText,
@@ -111,12 +112,13 @@ export function selectQuestionForField(
   candidates: ScoredProduct[],
   history: NarrowingTurn[],
   field: string,
-  candidateCountHint: number = candidates.length
+  candidateCountHint: number = candidates.length,
+  appliedFilters: AppliedFilter[] = []
 ): NextQuestion | null {
   const status = checkResolution(candidates, history, candidateCountHint)
   if (status.startsWith("resolved")) return null
 
-  const matched = analyzeFieldDirect(input, candidates, field)
+  const matched = analyzeFieldDirect(input, candidates, field, appliedFilters)
   if (!matched) return null
 
   const chips = [...matched.chips]
@@ -278,8 +280,12 @@ function buildCuttingTypeQuestion(input: RecommendationInput): FieldAnalysis | n
 function analyzeFieldDirect(
   input: RecommendationInput,
   candidates: ScoredProduct[],
-  field: string
+  field: string,
+  appliedFilters: AppliedFilter[] = []
 ): FieldAnalysis | null {
+  const answeredOrSkippedFields = new Set(appliedFilters.map(filter => filter.field))
+  if (answeredOrSkippedFields.has(field)) return null
+
   switch (field) {
     case "fluteCount":
       return buildFluteQuestion(input, candidates)
@@ -297,27 +303,30 @@ function analyzeFieldDirect(
 function analyzeFields(
   input: RecommendationInput,
   candidates: ScoredProduct[],
-  history: NarrowingTurn[]
+  history: NarrowingTurn[],
+  appliedFilters: AppliedFilter[] = []
 ): FieldAnalysis[] {
   const results: FieldAnalysis[] = []
   const askedFields = new Set(history.flatMap(turn => turn.extractedFilters.map(filter => filter.field)))
+  const answeredOrSkippedFields = new Set(appliedFilters.map(filter => filter.field))
+  const blockedFields = new Set([...askedFields, ...answeredOrSkippedFields])
 
-  if (!askedFields.has("fluteCount")) {
+  if (!blockedFields.has("fluteCount")) {
     const question = buildFluteQuestion(input, candidates)
     if (question) results.push(question)
   }
 
-  if (!askedFields.has("coating")) {
+  if (!blockedFields.has("coating")) {
     const question = buildCoatingQuestion(input, candidates)
     if (question) results.push(question)
   }
 
-  if (!askedFields.has("toolSubtype")) {
+  if (!blockedFields.has("toolSubtype")) {
     const question = buildToolSubtypeQuestion(input, candidates)
     if (question) results.push(question)
   }
 
-  if (!askedFields.has("cuttingType")) {
+  if (!blockedFields.has("cuttingType")) {
     const question = buildCuttingTypeQuestion(input)
     if (question) results.push(question)
   }

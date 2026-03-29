@@ -160,4 +160,74 @@ describe("selectNextQuestion", () => {
     expect(question?.chips).toContain("알루미늄 합금 (3개)")
     expect(question?.chips).toContain("상관없음")
   })
+
+  it("does not ask coating again when the latest turn skipped coating alongside other filters", () => {
+    const candidates = [
+      makeCandidate("Square", "TiCN", "P1"),
+      makeCandidate("Square", "X-Coating", "P2"),
+      makeCandidate("Radius", "TiCN", "P3"),
+      makeCandidate("Radius", "X-Coating", "P4"),
+    ]
+
+    const history: NarrowingTurn[] = [
+      {
+        question: "follow-up",
+        answer: "square / 3날 / 코팅은 아무거나 추천",
+        extractedFilters: [
+          { field: "toolSubtype", op: "includes", value: "Square", rawValue: "Square", appliedAt: 2 } as any,
+          { field: "fluteCount", op: "eq", value: "3날", rawValue: 3, appliedAt: 2 } as any,
+          { field: "coating", op: "skip", value: "상관없음", rawValue: "skip", appliedAt: 2 } as any,
+        ],
+        candidateCountBefore: 42,
+        candidateCountAfter: 18,
+      },
+    ]
+
+    const question = selectNextQuestion(
+      makeInput({ workPieceName: undefined, flutePreference: undefined, diameterMm: 12, operationType: undefined }),
+      candidates,
+      history,
+      18
+    )
+
+    expect(question).not.toBeNull()
+    expect(question?.field).not.toBe("coating")
+  })
+
+  it("does not ask coating again when coating skip exists in applied filters even if recent history changed another field", () => {
+    const candidates = [
+      makeCandidate("Square", "TiCN", "P1"),
+      makeCandidate("Square", "X-Coating", "P2"),
+      makeCandidate("Radius", "TiCN", "P3"),
+      makeCandidate("Radius", "X-Coating", "P4"),
+    ]
+
+    const history: NarrowingTurn[] = [
+      {
+        question: "follow-up",
+        answer: "2날",
+        extractedFilters: [
+          { field: "fluteCount", op: "eq", value: "2날", rawValue: 2, appliedAt: 3 } as any,
+        ],
+        candidateCountBefore: 156,
+        candidateCountAfter: 139,
+      },
+    ]
+
+    const question = selectNextQuestion(
+      makeInput({ workPieceName: undefined, flutePreference: undefined, diameterMm: 12, operationType: undefined }),
+      candidates,
+      history,
+      139,
+      [],
+      [
+        { field: "toolSubtype", op: "includes", value: "Square", rawValue: "Square", appliedAt: 1 } as any,
+        { field: "coating", op: "skip", value: "상관없음", rawValue: "skip", appliedAt: 2 } as any,
+        { field: "fluteCount", op: "eq", value: "2날", rawValue: 2, appliedAt: 3 } as any,
+      ]
+    )
+
+    expect(question).not.toBeNull()
+    expect(question?.field).not.toBe("coating")
+  })
 })

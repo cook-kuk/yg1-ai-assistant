@@ -135,6 +135,7 @@ export interface ProcessingPathStep {
 
 export interface LLMFilterResultSnapshot {
   extractedFilters: Record<string, unknown>
+  skippedFields?: string[]
   skipPendingField?: boolean
   isSideQuestion?: boolean
   confidence?: number | string

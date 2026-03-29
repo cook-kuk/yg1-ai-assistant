@@ -22,6 +22,7 @@ import {
 import {
   buildExplanationResultPrompt,
   buildGreetingPrompt,
+  buildRecommendationSummarySystemPrompt,
   buildSessionContext,
   buildSystemPrompt,
   getProvider,
@@ -63,6 +64,8 @@ import { buildFilterValueScope } from "@/lib/recommendation/shared/filter-field-
 import { traceRecommendation } from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
 
 type DisplayedProduct = RecommendationDisplayedProductRequestDto
+const RECOMMENDATION_SUMMARY_MAX_TOKENS = 4000
+
 type JsonRecommendationResponse = (
   params: Parameters<typeof buildRecommendationResponseDto>[0],
   init?: ResponseInit
@@ -425,7 +428,8 @@ async function selectNextQuestionForResponse(params: {
     candidates,
     history,
     totalCandidateCount,
-    workPieceQuestion ? [workPieceQuestion] : []
+    workPieceQuestion ? [workPieceQuestion] : [],
+    filters
   )
 }
 
@@ -890,7 +894,7 @@ export async function buildRecommendationResponse(
 
   if (provider.available() && primary && primaryFactChecked && primaryExplanation) {
     try {
-      const systemPrompt = buildSystemPrompt(language)
+      const systemPrompt = buildRecommendationSummarySystemPrompt(language)
       const llmSessionState = buildSessionState({
         candidateCount: totalCandidateCount,
         appliedFilters: filters,
@@ -926,12 +930,14 @@ export async function buildRecommendationResponse(
         language
       )
 
-      const raw = await provider.complete(systemPrompt, [{ role: "user", content: resultPrompt }], 1500)
-      const parsed = safeParseJSON(raw)
-      if (parsed?.responseText) {
-        recommendation.llmSummary = parsed.responseText as string
-      } else if (raw.trim() && !raw.trim().startsWith("{") && !raw.trim().startsWith("[")) {
-        recommendation.llmSummary = raw.trim()
+      const raw = await provider.complete(
+        systemPrompt,
+        [{ role: "user", content: resultPrompt }],
+        RECOMMENDATION_SUMMARY_MAX_TOKENS
+      )
+      const extractedSummary = extractRecommendationSummaryText(raw)
+      if (extractedSummary) {
+        recommendation.llmSummary = extractedSummary
       }
     } catch (error) {
       console.warn("[recommend] LLM result summary failed:", error)
@@ -988,9 +994,12 @@ export async function buildRecommendationResponse(
 
   if (primary && primary.product.brand) {
     const brandName = primary.product.brand
-    const hasBrand = responseText.includes(brandName) || /브랜드명/.test(responseText)
-    if (!hasBrand) {
-      responseText = `**브랜드명:** ${brandName} | **제품코드:** ${primary.product.displayCode}\n\n${responseText}`
+    const hasBrand = responseText.includes(brandName)
+    const hasProductCode = responseText.includes(primary.product.displayCode)
+    if (!hasBrand && !hasProductCode) {
+      responseText = `${brandName} ${primary.product.displayCode} 기준으로 보면, ${responseText}`.trim()
+    } else if (!hasProductCode) {
+      responseText = `${primary.product.displayCode} 기준으로 보면, ${responseText}`.trim()
     }
   }
 
@@ -1350,6 +1359,42 @@ export function safeParseJSON(raw: string): Record<string, unknown> | null {
   } catch {
     return null
   }
+}
+
+function unescapeJsonString(value: string): string {
+  return value
+    .replace(/\\"/g, "\"")
+    .replace(/\\n/g, "\n")
+    .replace(/\\t/g, "\t")
+    .replace(/\\\\/g, "\\")
+}
+
+export function extractRecommendationSummaryText(raw: string): string | null {
+  const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim()
+  if (!cleaned) return null
+
+  const parsed = safeParseJSON(cleaned)
+  if (typeof parsed?.responseText === "string" && parsed.responseText.trim()) {
+    return parsed.responseText.trim()
+  }
+
+  const responseTextMatch = cleaned.match(/"responseText"\s*:\s*"((?:\\.|[^"])*)"/s)
+  if (responseTextMatch?.[1]) {
+    const extracted = unescapeJsonString(responseTextMatch[1]).trim()
+    if (extracted) return extracted
+  }
+
+  const truncatedResponseTextMatch = cleaned.match(/"responseText"\s*:\s*"([\s\S]*)$/)
+  if (truncatedResponseTextMatch?.[1]) {
+    const extracted = unescapeJsonString(truncatedResponseTextMatch[1]).trim()
+    if (extracted) return extracted
+  }
+
+  if (!cleaned.startsWith("{") && !cleaned.startsWith("[")) {
+    return cleaned
+  }
+
+  return null
 }
 
 /**

@@ -66,7 +66,7 @@ describe("serve-engine runtime filter replacement", () => {
     expect(result.nextInput.coatingPreference).toBe("TiAlN")
   })
 
-  it("clears dependent workPieceName when material changes and applies toolType filters", () => {
+  it("preserves workPieceName when material changes and applies toolType filters", () => {
     const baseInput = {
       ...makeBaseInput(),
       workPieceName: "ADC12",
@@ -92,7 +92,7 @@ describe("serve-engine runtime filter replacement", () => {
     })
 
     expect(withMaterial.material).toBe("주철")
-    expect(withMaterial.workPieceName).toBeUndefined()
+    expect(withMaterial.workPieceName).toBe("ADC12")
     expect(withMaterial.toolType).toBe("드릴")
   })
 
@@ -132,5 +132,54 @@ describe("serve-engine runtime filter replacement", () => {
     expect(result.nextInput.diameterMm).toBe(8)
     expect(result.nextInput.toolSubtype).toBe("Radius")
     expect(result.nextInput.flutePreference).toBe(4)
+  })
+
+  it("keeps non-pending filters while merging a same-turn skip filter", () => {
+    const baseInput = {
+      ...makeBaseInput(),
+      coatingPreference: "TiAlN",
+    }
+    const currentFilters: AppliedFilter[] = [
+      { field: "coating", op: "includes", value: "TiAlN", rawValue: "TiAlN", appliedAt: 1 },
+    ]
+    const turnFilters: AppliedFilter[] = [
+      { field: "toolSubtype", op: "includes", value: "Square", rawValue: "Square", appliedAt: 2 },
+      { field: "fluteCount", op: "eq", value: "3날", rawValue: 3, appliedAt: 2 },
+      { field: "coating", op: "skip", value: "상관없음", rawValue: "skip", appliedAt: 2 },
+    ]
+
+    const result = replaceFieldFilters(baseInput, currentFilters, turnFilters, applyFilterToInput)
+
+    expect(result.nextFilters).toEqual(turnFilters)
+    expect(result.nextInput.toolSubtype).toBe("Square")
+    expect(result.nextInput.flutePreference).toBe(3)
+    expect(result.nextInput.coatingPreference).toBeUndefined()
+  })
+
+  it("replaces only the target field and preserves unrelated filters", () => {
+    const baseInput = {
+      ...makeBaseInput(),
+      workPieceName: "알루미늄 합금",
+      toolSubtype: "Square",
+      flutePreference: 3,
+    }
+    const currentFilters: AppliedFilter[] = [
+      { field: "toolSubtype", op: "includes", value: "Square", rawValue: "Square", appliedAt: 0 },
+      { field: "fluteCount", op: "eq", value: "3날", rawValue: 3, appliedAt: 1 },
+      { field: "workPieceName", op: "includes", value: "알루미늄 합금", rawValue: "알루미늄 합금", appliedAt: 2 },
+    ]
+
+    const result = replaceFieldFilters(baseInput, currentFilters, [
+      { field: "toolSubtype", op: "includes", value: "Radius", rawValue: "Radius", appliedAt: 3 },
+    ], applyFilterToInput)
+
+    expect(result.nextFilters).toEqual([
+      currentFilters[1],
+      currentFilters[2],
+      { field: "toolSubtype", op: "includes", value: "Radius", rawValue: "Radius", appliedAt: 3 },
+    ])
+    expect(result.nextInput.toolSubtype).toBe("Radius")
+    expect(result.nextInput.flutePreference).toBe(3)
+    expect(result.nextInput.workPieceName).toBe("알루미늄 합금")
   })
 })

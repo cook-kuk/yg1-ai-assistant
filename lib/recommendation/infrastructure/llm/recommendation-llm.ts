@@ -10,6 +10,7 @@ export type {
 export {
   buildExplanationResultPrompt,
   buildGreetingPrompt,
+  buildRecommendationSummarySystemPrompt,
   buildSessionContext,
   buildSystemPrompt,
 } from "@/lib/recommendation/infrastructure/llm/prompt-builder"

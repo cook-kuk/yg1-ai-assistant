@@ -17,6 +17,7 @@ export function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartO
   const top = ctx.topCandidates ?? []
   const displayed = ctx.displayedProducts ?? []
   const artifacts = ctx.visibleArtifacts
+  const skippedFields = new Set(ctx.appliedFilters.filter(filter => filter.op === "skip").map(filter => filter.field))
 
   // ── UI-artifact-aware: if comparison is already visible, skip compare option ──
   // ── If cutting conditions already shown, skip cutting conditions option ──
@@ -68,7 +69,7 @@ export function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartO
 
   // 3. Narrow/change coating (dynamic based on variety)
   const coatingSet = new Set(top.map(c => c.coating).filter(Boolean))
-  if (coatingSet.size >= 2) {
+  if (!skippedFields.has("coating") && coatingSet.size >= 2) {
     const coatingProjected = Math.max(1, Math.round(top.length / coatingSet.size))
     options.push({
       id: nextOptionId("narrowing"),
@@ -88,7 +89,7 @@ export function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartO
         patches: [{ op: "add", field: "_action", value: "narrow_coating" }],
       },
     })
-  } else if (top[0]?.coating) {
+  } else if (!skippedFields.has("coating") && top[0]?.coating) {
     options.push({
       id: nextOptionId("explore"),
       family: "explore",

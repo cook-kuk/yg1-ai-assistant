@@ -4,9 +4,6 @@
  * LLM summary is optional and layered on top.
  */
 
-import { getMaterialDisplay } from "@/lib/recommendation/domain/material-resolver"
-import { getOperationLabel } from "@/lib/recommendation/domain/operation-resolver"
-import { resolveMaterialTag } from "@/lib/recommendation/domain/material-resolver"
 import type { RecommendationResult, ScoredProduct, RecommendationInput } from "@/lib/recommendation/domain/types"
 
 function formatDiameter(mm: number | null): string {
@@ -33,73 +30,49 @@ export function buildDeterministicSummary(result: RecommendationResult): string 
 
   if (status === "none") {
     const hasCandidatePool = totalCandidatesConsidered > 0 || !!primaryProduct || alternatives.length > 0
-    const parts = [
-      hasCandidatePool
-        ? `조건에 완전히 맞는 제품은 없지만, 유사 후보 ${totalCandidatesConsidered}개를 찾았습니다.`
-        : "현재 샘플 데이터에서 조건에 맞는 제품을 찾지 못했습니다."
-    ]
-    if (query.diameterMm) parts.push(`(검색 직경: ${formatDiameter(query.diameterMm)})`)
     if (hasCandidatePool) {
-      parts.push("조건을 조정하거나 현재 후보를 검토해보세요.")
-    } else if (alternatives.length > 0) {
-      parts.push(`유사 후보 ${alternatives.length}건이 있습니다. 조건을 조정해보세요.`)
+      return query.diameterMm
+        ? `조건에 완전히 맞는 제품은 없지만, ${formatDiameter(query.diameterMm)} 기준으로 검토해볼 만한 유사 후보 ${totalCandidatesConsidered}개는 찾았습니다. 현재 후보를 보시거나 직경·소재 조건을 조금만 넓혀보시면 됩니다.`
+        : `조건에 완전히 맞는 제품은 없지만, 검토해볼 만한 유사 후보 ${totalCandidatesConsidered}개는 찾았습니다. 현재 후보를 보시거나 조건을 조금만 넓혀보시면 됩니다.`
     }
-    return parts.join(" ")
+    return "현재 조건으로는 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조금 조정해서 다시 보시면 좋겠습니다."
   }
 
   if (!primaryProduct) return "추천 결과가 없습니다."
 
   const p = primaryProduct.product
-  const parts: string[] = []
+  const leadingReasonParts: string[] = []
+  if (p.toolSubtype) leadingReasonParts.push(`${p.toolSubtype} 형상`)
+  if (p.fluteCount !== null) leadingReasonParts.push(`${p.fluteCount}날`)
+  if (p.diameterMm !== null) leadingReasonParts.push(formatDiameter(p.diameterMm))
 
-  // Match quality statement
-  if (status === "exact") {
-    parts.push(`✓ 정확 매칭: ${p.displayCode}`)
-  } else {
-    parts.push(`⚠ 근사 후보: ${p.displayCode} (일부 조건 불일치)`)
+  const firstSentence = status === "exact"
+    ? `이 조건이면 ${p.displayCode}${p.seriesName ? ` (${p.seriesName})` : ""}를 먼저 보시면 됩니다.`
+    : `가장 가까운 후보로는 ${p.displayCode}${p.seriesName ? ` (${p.seriesName})` : ""}를 먼저 검토해보시면 됩니다.`
+
+  const secondSentence = leadingReasonParts.length > 0
+    ? `${leadingReasonParts.join(", ")} 기준에 잘 맞고${p.coating ? `, 코팅은 ${p.coating}` : ""}${p.materialTags.length > 0 ? `으로 ${p.materialTags.map(t => `${t}군`).join(", ")} 소재 대응 범위를 확인할 수 있습니다` : " 선택 기준을 무난하게 충족합니다"}.`
+    : p.coating
+      ? `코팅은 ${p.coating} 기준으로 확인되며, 현재 조건에 맞는 우선 후보입니다.`
+      : "현재 조건에 맞는 우선 후보입니다."
+
+  const tailParts: string[] = []
+  const stockText = formatStock(primaryProduct.stockStatus, primaryProduct.totalStock)
+  const leadTimeText = formatLeadTime(primaryProduct.minLeadTimeDays)
+  if (stockText !== "재고 정보 없음" || leadTimeText !== "납기 정보 없음") {
+    tailParts.push([stockText, leadTimeText].filter(text => text !== "재고 정보 없음" && text !== "납기 정보 없음").join(", "))
+  }
+  if (warnings.length > 0) {
+    tailParts.push(warnings[0])
+  } else if (alternatives.length > 0) {
+    tailParts.push(`비슷한 대안은 ${alternatives.length}개 더 있습니다`)
   }
 
-  // Product basics
-  const specs: string[] = []
-  if (p.diameterMm !== null) specs.push(formatDiameter(p.diameterMm))
-  if (p.fluteCount !== null) specs.push(`${p.fluteCount}날`)
-  if (p.coating) specs.push(`코팅: ${p.coating}`)
-  if (p.toolMaterial) specs.push(p.toolMaterial)
-  if (specs.length) parts.push(specs.join(", "))
+  const tailSentence = tailParts.length > 0
+    ? `${tailParts.join(". ")}.`
+    : ""
 
-  // Brand & Series info
-  if (p.brand && p.brand !== "YG-1") parts.push(`브랜드명: ${p.brand}`)
-  if (p.seriesName) parts.push(`시리즈: ${p.seriesName}`)
-
-  // Material compatibility
-  if (p.materialTags.length > 0) {
-    const tagLabels = p.materialTags.map(t => {
-      const d = getMaterialDisplay(t)
-      return `${t}군(${d.ko})`
-    })
-    parts.push(`적용 소재: ${tagLabels.join(", ")}`)
-  }
-
-  // Matched fields
-  if (primaryProduct.matchedFields.length > 0) {
-    parts.push(`매칭 근거: ${primaryProduct.matchedFields.join(" / ")}`)
-  }
-
-  // Inventory + lead time
-  parts.push(formatStock(primaryProduct.stockStatus, primaryProduct.totalStock))
-  parts.push(formatLeadTime(primaryProduct.minLeadTimeDays))
-
-  // Alternatives count
-  if (alternatives.length > 0) {
-    parts.push(`대체 후보 ${alternatives.length}건 있음`)
-  }
-
-  // Warnings
-  if (warnings.length) {
-    parts.push(`⚠ 주의: ${warnings.join(", ")}`)
-  }
-
-  return parts.join(" | ")
+  return [firstSentence, secondSentence, tailSentence].filter(Boolean).join(" ").trim()
 }
 
 /** Build rationale list from matched fields and data */

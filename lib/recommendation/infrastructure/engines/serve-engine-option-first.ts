@@ -302,6 +302,9 @@ export async function buildQuestionResponseOptionState(params: {
   }
 
   const userStateResult = detectUserState(userMessage, question?.field)
+  if (userStateResult.state === "wants_skip" || userStateResult.state === "wants_delegation") {
+    return { chips, displayedOptions }
+  }
   if (!shouldUseQuestionAssistHelpers(userStateResult)) {
     return { chips, displayedOptions }
   }
@@ -604,8 +607,7 @@ export function buildDisplayedOptions(chips: string[], field: string): Displayed
 function shouldUseQuestionAssistHelpers(userStateResult: UserStateResult): boolean {
   return (
     userStateResult.state === "confused" ||
-    userStateResult.state === "wants_explanation" ||
-    userStateResult.state === "wants_delegation"
+    userStateResult.state === "wants_explanation"
   )
 }
 
@@ -652,6 +654,11 @@ function reconstructPreviousQuestionFromCandidates(
 ): PendingQuestion | null {
   const field = currentQuestionField ?? prevState.lastAskedField ?? null
   if (!field) return null
+  const alreadySkipped = (prevState.appliedFilters ?? []).some(filter => filter.field === field && filter.op === "skip")
+  if (alreadySkipped) {
+    console.log(`[reconstruct-question] Skip filter already applied for "${field}", suppressing stale question rebuild`)
+    return null
+  }
 
   const fieldGetter: Record<string, (product: { product: Record<string, unknown> }) => string | number | null> = {
     fluteCount: product => (product.product.fluteCount as number) ?? null,

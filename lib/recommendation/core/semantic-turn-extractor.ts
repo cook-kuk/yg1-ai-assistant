@@ -367,6 +367,7 @@ function buildSystemPrompt(repairFeedback: string | null): string {
 
 반드시 지킬 규칙:
 1. 필터링/조건변경/대기 질문 응답은 action="continue_narrowing" 또는 "skip_field" 로 판단한다.
+1-1. pendingField가 있을 때 "상관없음", "아무거나", "괜찮은 걸로", "추천으로 골라줘", "알아서", "무난한 걸로", "적당한 걸로"는 현재 필드를 건너뛰는 의미이므로 action="skip_field" 로 판단한다. show_recommendation으로 보내지 않는다.
 2. 제품정보/재고/절삭조건/시리즈비교/브랜드기준표 같은 DB성 질문은 action="answer_general" 으로 두고 replyRoute를 지정한다.
 3. 일반 지식/회사 질문/도메인 설명도 action="answer_general" 으로 두고 replyRoute="general_chat" 으로 둔다.
 4. 여러 필터가 있으면 filters 배열에 모두 넣는다.

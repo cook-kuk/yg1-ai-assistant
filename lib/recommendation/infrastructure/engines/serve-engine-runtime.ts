@@ -5,7 +5,6 @@ import {
   checkResolution,
   getRedirectResponse,
   prepareRequest,
-  restoreToBeforeFilter,
   runHybridRetrieval,
 } from "@/lib/recommendation/domain/recommendation-domain"
 import { BrandReferenceRepo } from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
@@ -200,6 +199,39 @@ function buildPendingSelectionOrchestratorResult(filter: AppliedFilter): Orchest
     agentsInvoked: [{ agent: "pending-selection-resolver", model: HAIKU_MODEL, durationMs: 0 }],
     escalatedToOpus: false,
   }
+}
+
+function buildSkipFilter(field: string | null | undefined, appliedAt: number): AppliedFilter | null {
+  if (!field) return null
+
+  return {
+    field,
+    op: "skip",
+    value: "상관없음",
+    rawValue: "skip",
+    appliedAt,
+  }
+}
+
+function buildPendingSkipFilter(field: string | null | undefined, appliedAt: number): AppliedFilter | null {
+  return buildSkipFilter(field, appliedAt)
+}
+
+function actionTouchesNonPendingField(
+  action: OrchestratorAction,
+  extraFilters: AppliedFilter[],
+  pendingField: string | null | undefined
+): boolean {
+  const touchedFields = new Set(extraFilters.map(filter => filter.field))
+
+  if (action.type === "continue_narrowing") touchedFields.add(action.filter.field)
+  if (action.type === "replace_existing_filter") touchedFields.add(action.nextFilter.field)
+
+  for (const field of touchedFields) {
+    if (field !== pendingField) return true
+  }
+
+  return false
 }
 
 function buildSemanticOrchestratorResult(
@@ -609,15 +641,6 @@ function resolveSingleIsoGroup(material: string | undefined): string | null {
   )
 
   return tags.length === 1 ? tags[0] : null
-}
-
-function dropDependentWorkPieceFilters(filters: AppliedFilter[]): void {
-  for (let index = filters.length - 1; index >= 0; index--) {
-    const field = filters[index]?.field
-    if (field === "workPieceName" || field === "edpBrandName" || field === "edpSeriesName") {
-      filters.splice(index, 1)
-    }
-  }
 }
 
 async function enrichWorkPieceFilterWithSeriesScope(
@@ -1122,6 +1145,70 @@ function buildRevisionClarificationResponse(
   })
 }
 
+function formatAppliedFilterLabel(filter: AppliedFilter): string {
+  return String(filter.rawValue ?? filter.value)
+    .replace(/\s*\(\d+개\)\s*$/, "")
+    .trim()
+}
+
+function buildZeroCandidateFilterResponse(params: {
+  deps: ServeEngineRuntimeDependencies
+  form: ProductIntakeForm
+  candidates: ScoredProduct[]
+  evidenceMap: Map<string, EvidenceSummary>
+  pagination: RecommendationPaginationDto | null
+  displayCandidates: ScoredProduct[] | null
+  displayEvidenceMap: Map<string, EvidenceSummary> | null
+  input: RecommendationInput
+  history: NarrowingTurn[]
+  filters: AppliedFilter[]
+  turnCount: number
+  messages: ChatMessage[]
+  provider: ReturnType<typeof getProvider>
+  language: AppLanguage
+  filter: AppliedFilter
+  stageHistory: NarrowingStage[]
+}): Promise<Response> {
+  const {
+    deps,
+    form,
+    candidates,
+    evidenceMap,
+    pagination,
+    displayCandidates,
+    displayEvidenceMap,
+    input,
+    history,
+    filters,
+    turnCount,
+    messages,
+    provider,
+    language,
+    filter,
+    stageHistory,
+  } = params
+  const appliedLabel = formatAppliedFilterLabel(filter)
+
+  return deps.buildQuestionResponse(
+    form,
+    candidates,
+    evidenceMap,
+    0,
+    pagination,
+    displayCandidates,
+    displayEvidenceMap,
+    input,
+    history,
+    filters,
+    turnCount,
+    messages,
+    provider,
+    language,
+    `"${appliedLabel}" 조건을 적용했습니다. 현재 필터 기준 후보는 0개입니다. 이전 단계로 돌아가거나 다른 조건을 선택해주세요.`,
+    stageHistory
+  )
+}
+
 export async function handleServeExploration(
   deps: ServeEngineRuntimeDependencies,
   form: ProductIntakeForm,
@@ -1378,8 +1465,22 @@ async function handleServeExplorationInner(
     })
   }
 
-  // ── Step 2: LLM fallback — deterministic(Step 0+1)이 못 잡았을 때만 ──
-  if (!semanticAction && !pendingSelectionAction && prevState?.lastAskedField && lastUserMsg && !isPostResultPhase(journeyPhase) && !hasComparisonSignal) {
+  // ── Step 2: LLM fallback / supplemental extraction for pending-field skip+filters ──
+  const shouldRunSupplementalLlmFilter =
+    !!prevState?.lastAskedField
+    && !!lastUserMsg
+    && !isPostResultPhase(journeyPhase)
+    && !hasComparisonSignal
+    && (
+      (!semanticAction && !pendingSelectionAction)
+      || semanticAction?.type === "skip_field"
+      || semanticAction?.type === "continue_narrowing"
+      || semanticAction?.type === "replace_existing_filter"
+      || pendingSelectionAction?.type === "continue_narrowing"
+      || pendingSelectionAction?.type === "skip_field"
+    )
+
+  if (shouldRunSupplementalLlmFilter && prevState?.lastAskedField && lastUserMsg) {
     const llmResult = await extractFiltersWithLLM(
       lastUserMsg.text,
       prevState.lastAskedField,
@@ -1395,6 +1496,7 @@ async function handleServeExplorationInner(
     // Record LLM filter result for debug visualization
     trace.setLLMFilterResult({
       extractedFilters: llmResult.extractedFilters ?? {},
+      skippedFields: llmResult.skippedFields ?? [],
       skipPendingField: llmResult.skipPendingField,
       isSideQuestion: llmResult.isSideQuestion,
       confidence: (llmResult as any).confidence,
@@ -1405,19 +1507,73 @@ async function handleServeExplorationInner(
       pendingField: prevState.lastAskedField,
     }, {
       extractedFilters: llmResult.extractedFilters,
+      skippedFields: llmResult.skippedFields,
       skipPendingField: llmResult.skipPendingField,
       isSideQuestion: llmResult.isSideQuestion,
       confidence: (llmResult as any).confidence,
     }, `LLM filter: ${JSON.stringify(llmResult.extractedFilters)}`)
 
-    if (llmResult.skipPendingField) {
-      const skipFilter: AppliedFilter = {
-        field: prevState.lastAskedField,
-        op: "skip",
-        value: "상관없음",
-        rawValue: "skip",
-        appliedAt: prevState.turnCount ?? 0,
+    const skippedFieldSet = new Set(llmResult.skippedFields ?? [])
+    const allFilters = Object.keys(llmResult.extractedFilters).length > 0
+      ? llmResultToAppliedFilters(llmResult.extractedFilters, prevState.turnCount ?? 0)
+        .filter(filter => !skippedFieldSet.has(filter.field))
+      : []
+    const llmSkipFilters = [...skippedFieldSet]
+      .map(field => buildSkipFilter(field, prevState.turnCount ?? 0))
+      .filter((filter): filter is AppliedFilter => !!filter)
+    const skipFilter = buildPendingSkipFilter(prevState.lastAskedField, prevState.turnCount ?? 0)
+    const resolvedLlmFilters = [...allFilters]
+    for (const llmSkipFilter of llmSkipFilters) {
+      const existingIndex = resolvedLlmFilters.findIndex(filter => filter.field === llmSkipFilter.field)
+      if (existingIndex >= 0) resolvedLlmFilters.splice(existingIndex, 1)
+      resolvedLlmFilters.push(llmSkipFilter)
+    }
+    if (llmResult.skipPendingField && skipFilter && !resolvedLlmFilters.some(filter => filter.field === skipFilter.field)) {
+      resolvedLlmFilters.push(skipFilter)
+    }
+    const primaryActionField =
+      semanticAction?.type === "continue_narrowing" ? semanticAction.filter.field
+        : semanticAction?.type === "replace_existing_filter" ? semanticAction.nextFilter.field
+          : pendingSelectionAction?.type === "continue_narrowing" ? pendingSelectionAction.filter.field
+            : null
+    const supplementalFilters = primaryActionField
+      ? resolvedLlmFilters.filter(filter => filter.field !== primaryActionField)
+      : resolvedLlmFilters
+
+    if (semanticAction?.type === "skip_field" && resolvedLlmFilters.length > 0) {
+      const primaryFilter = resolvedLlmFilters.find(filter => filter.op !== "skip") ?? resolvedLlmFilters[0]
+      semanticAction = null
+      semanticOrchestratorResult = null
+      semanticReplyRoute = null
+      semanticDirectContext = null
+      pendingSelectionAction = { type: "continue_narrowing", filter: primaryFilter }
+      pendingSelectionOrchestratorResult = buildPendingSelectionOrchestratorResult(primaryFilter)
+      llmExtraFilters = resolvedLlmFilters.filter(filter => filter.field !== primaryFilter.field)
+      console.log(
+        `[llm-filter:supplemental] recovered ${resolvedLlmFilters.length} filter(s) alongside semantic skip for "${prevState.lastAskedField}"`
+      )
+      trace.addProcessingStep({
+        label: "semantic skip 보강 → LLM 분석",
+        status: "success",
+        detail: resolvedLlmFilters.map(filter => `${filter.field}=${filter.value}`).join(", "),
+      })
+    } else if (
+      (semanticAction?.type === "continue_narrowing" || semanticAction?.type === "replace_existing_filter" || pendingSelectionAction?.type === "continue_narrowing")
+      && supplementalFilters.length > 0
+    ) {
+      for (const supplementalFilter of supplementalFilters) {
+        llmExtraFilters = [
+          ...llmExtraFilters.filter(filter => filter.field !== supplementalFilter.field),
+          supplementalFilter,
+        ]
       }
+      console.log(`[llm-filter:supplemental] merged ${supplementalFilters.length} additional filter(s)`)
+      trace.addProcessingStep({
+        label: "LLM 보강 병합",
+        status: "success",
+        detail: supplementalFilters.map(filter => `${filter.field}=${filter.value}`).join(", "),
+      })
+    } else if (llmResult.skipPendingField && skipFilter) {
       pendingSelectionAction = { type: "skip_field" }
       pendingSelectionOrchestratorResult = buildPendingSelectionOrchestratorResult(skipFilter)
       console.log(`[llm-filter] skip "${prevState.lastAskedField}"`)
@@ -1428,22 +1584,21 @@ async function handleServeExplorationInner(
       console.log(`[llm-filter] side question detected`)
       trace.addProcessingStep({ label: "칩매칭 실패 → LLM 분석", status: "info", detail: "isSideQuestion=true → 오케스트레이터 위임" })
 
-    } else if (Object.keys(llmResult.extractedFilters).length > 0) {
-      const allFilters = llmResultToAppliedFilters(llmResult.extractedFilters, prevState.turnCount ?? 0)
-      if (allFilters.length > 0) {
+    } else if (resolvedLlmFilters.length > 0) {
+      if (resolvedLlmFilters.length > 0) {
         // 첫 번째 필터를 primary action으로
-        const primaryFilter = allFilters[0]
+        const primaryFilter = resolvedLlmFilters.find(filter => filter.op !== "skip") ?? resolvedLlmFilters[0]
         pendingSelectionAction = { type: "continue_narrowing", filter: primaryFilter }
         pendingSelectionOrchestratorResult = buildPendingSelectionOrchestratorResult(primaryFilter)
         console.log(`[llm-filter] primary: ${primaryFilter.field}=${primaryFilter.value}`)
         trace.addProcessingStep({
           label: "칩매칭 실패 → LLM 분석",
           status: "success",
-          detail: `${Object.keys(llmResult.extractedFilters).map(k => `${k}=${(llmResult.extractedFilters as any)[k]}`).join(", ")}`,
+          detail: resolvedLlmFilters.map(filter => `${filter.field}=${filter.value}`).join(", "),
         })
 
-        if (allFilters.length > 1) {
-          llmExtraFilters = allFilters.slice(1)
+        if (resolvedLlmFilters.length > 1) {
+          llmExtraFilters = resolvedLlmFilters.filter(filter => filter.field !== primaryFilter.field)
           console.log(`[llm-filter] ${llmExtraFilters.length} extra filters queued`)
         }
       }
@@ -2086,15 +2241,40 @@ async function handleServeExplorationInner(
           const testDisplayPage = sliceCandidatesForPage(testResult.candidates, testResult.evidenceMap, resolvedPagination)
 
           if (testResult.totalConsidered === 0) {
-            const excludeRawVal = String(filter.rawValue ?? filter.value).replace(/\s*\(\d+개\)\s*$/, "")
-            const excludeVals = filter.field === "workPieceName" ? [excludeRawVal] : undefined
-            return deps.buildQuestionResponse(
-              form, candidates, evidenceMap, totalCandidateCount, paginationDto(totalCandidateCount), displayCandidates, displayEvidenceMap, currentInput,
-              narrowingHistory, filters, turnCount, messages, provider, language,
-              `"${excludeRawVal}" 조건을 적용하면 후보가 없습니다. 현재 ${totalCandidateCount}개 후보에서 다른 조건을 선택해주세요.`,
-              undefined, // existingStageHistory
-              excludeVals
-            )
+            const updatedHistory = [...narrowingHistory, {
+              question: "pending-action-accept",
+              answer: lastUserMsg.text,
+              extractedFilters: [filter],
+              candidateCountBefore: totalCandidateCount,
+              candidateCountAfter: 0,
+            }]
+            const updatedStages = [...(prevState.stageHistory ?? []), {
+              stepIndex: filter.appliedAt,
+              stageName: `${filter.field}_${filter.value}`,
+              filterApplied: filter,
+              candidateCount: 0,
+              resolvedInputSnapshot: { ...testInput },
+              filtersSnapshot: [...testFilters],
+            }]
+
+            return buildZeroCandidateFilterResponse({
+              deps,
+              form,
+              candidates: testResult.candidates,
+              evidenceMap: testResult.evidenceMap,
+              pagination: paginationDto(0),
+              displayCandidates: testDisplayPage.candidates,
+              displayEvidenceMap: testDisplayPage.evidenceMap,
+              input: testInput,
+              history: updatedHistory,
+              filters: testFilters,
+              turnCount: turnCount + 1,
+              messages,
+              provider,
+              language,
+              filter,
+              stageHistory: updatedStages,
+            })
           }
 
           filters.push(filter)
@@ -2175,7 +2355,7 @@ async function handleServeExplorationInner(
     const hasPendingQuestion = !!prevState.lastAskedField
       && !prevState.resolutionStatus?.startsWith("resolved")
       && !isPostResultPhase(journeyPhase)
-    if (hasPendingQuestion && !usingBridgedAction) {
+    if (hasPendingQuestion) {
       const userState = detectUserState(lastUserMsg.text, prevState.lastAskedField)
       const isQuestionAssistSignal =
         userState.state === "confused"
@@ -2219,11 +2399,52 @@ async function handleServeExplorationInner(
         console.log(`[query-target:override] User query target="${queryTarget.answerTopic}" overrides pending field="${prevState.lastAskedField}" (entities: ${queryTarget.entities.join(",")})`)
         // Don't intercept — let the orchestrator's original routing stand
       } else if (isQuestionAssistSignal) {
-        if (userState.state === "wants_skip" || userState.state === "wants_delegation") {
-          action = { type: "skip_field" }
-          trace.add("question-assist-intercept", "router", { userState: userState.state, pendingField: prevState.lastAskedField }, { action: "skip_field" }, `${userState.state} → skip_field for "${prevState.lastAskedField}"`)
-          console.log(`[question-assist:intercept] ${userState.state} -> skip_field for "${prevState.lastAskedField}"`)
-        } else if (action.type === "answer_general" || action.type === "redirect_off_topic") {
+        const preserveCompoundFieldIntent = actionTouchesNonPendingField(action, llmExtraFilters, prevState.lastAskedField)
+        if ((userState.state === "wants_skip" || userState.state === "wants_delegation") && preserveCompoundFieldIntent) {
+          trace.add(
+            "question-assist-bypass",
+            "router",
+            {
+              userState: userState.state,
+              pendingField: prevState.lastAskedField,
+            },
+            {
+              action: action.type,
+              explicitFields: [action.type === "continue_narrowing"
+                ? action.filter.field
+                : action.type === "replace_existing_filter"
+                  ? action.nextFilter.field
+                  : null, ...llmExtraFilters.map(filter => filter.field)].filter(Boolean),
+            },
+            `${userState.state} ignored because explicit non-pending filters were already detected`
+          )
+          console.log(`[question-assist:bypass] preserve explicit non-pending filters for pending="${prevState.lastAskedField}"`)
+        } else if (userState.state === "wants_skip" || userState.state === "wants_delegation") {
+          const pendingField = prevState.lastAskedField
+          const skipFilter = buildPendingSkipFilter(pendingField, turnCount)
+          const primaryTargetsPendingField =
+            (action.type === "continue_narrowing" && action.filter.field === pendingField)
+            || (action.type === "replace_existing_filter" && action.nextFilter.field === pendingField)
+
+          if (skipFilter && !primaryTargetsPendingField && (action.type === "continue_narrowing" || action.type === "replace_existing_filter")) {
+            llmExtraFilters = [
+              ...llmExtraFilters.filter(filter => filter.field !== pendingField),
+              skipFilter,
+            ]
+            trace.add(
+              "question-assist-intercept",
+              "router",
+              { userState: userState.state, pendingField },
+              { action: action.type, mergedSkip: true, extraFilterCount: llmExtraFilters.length },
+              `${userState.state} → merge skip(${pendingField}) with ${action.type}`
+            )
+            console.log(`[question-assist:merge-skip] ${userState.state} + ${action.type} -> add skip for "${pendingField}"`)
+          } else {
+            action = { type: "skip_field" }
+            trace.add("question-assist-intercept", "router", { userState: userState.state, pendingField: prevState.lastAskedField }, { action: "skip_field" }, `${userState.state} → skip_field for "${prevState.lastAskedField}"`)
+            console.log(`[question-assist:intercept] ${userState.state} -> skip_field for "${prevState.lastAskedField}"`)
+          }
+        } else if (!usingBridgedAction && (action.type === "answer_general" || action.type === "redirect_off_topic")) {
           const originalAction = action.type
           action = { type: "explain_product", target: lastUserMsg.text }
           trace.add("question-assist-intercept", "router", { userState: userState.state, pendingField: prevState.lastAskedField, originalAction }, { action: "explain_product" }, `${userState.state} overrides ${originalAction} → explain_product (pending: ${prevState.lastAskedField})`)
@@ -2560,9 +2781,6 @@ async function handleServeExplorationInner(
       const skipField = prevState.lastAskedField ?? "unknown"
       trace.add("skip-field", "router", { field: skipField }, { skipped: true }, `Skipping field "${skipField}"`)
 
-      if (skipField === "material") {
-        dropDependentWorkPieceFilters(filters)
-      }
       const skipFilter: AppliedFilter = {
         field: skipField,
         op: "skip",
@@ -2635,27 +2853,11 @@ async function handleServeExplorationInner(
     }
 
     if (action.type === "replace_existing_filter") {
-      const restoreResult = restoreToBeforeFilter(
-        prevState,
-        action.previousValue,
-        action.targetField,
-        baseInput,
-        deps.applyFilterToInput
-      )
-
-      const baseFiltersForNext = [...restoreResult.remainingFilters]
-      const baseStageHistoryForNext = [...restoreResult.remainingStages]
-      const baseHistoryForNext = [...restoreResult.remainingHistory]
-      currentInput = restoreResult.rebuiltInput
-
-      const filterAppliedAt = restoreResult.undoTurnCount
-      let candidateCountBeforeFilter = restoreResult.remainingStages.at(-1)?.candidateCount
-      if (candidateCountBeforeFilter == null) {
-        // No stage snapshot available (e.g. replacing the first filter) — run retrieval on restored input to get accurate "before" count
-        const restoredResult = await runHybridRetrieval(restoreResult.rebuiltInput, restoreResult.remainingFilters, 0, null)
-        candidateCountBeforeFilter = restoredResult.totalConsidered
-        console.log(`[orchestrator:replace] No stage snapshot, retrieved candidateCountBefore=${candidateCountBeforeFilter} from restored input`)
-      }
+      const baseFiltersForNext = filters
+      const baseStageHistoryForNext = prevState.stageHistory ?? []
+      const baseHistoryForNext = narrowingHistory
+      const filterAppliedAt = turnCount
+      const candidateCountBeforeFilter = totalCandidateCount
 
       const preparedTurnFilters = await prepareMergedTurnFilters({
         baseAppliedAt: filterAppliedAt,
@@ -2668,10 +2870,6 @@ async function handleServeExplorationInner(
       })
       const filter = preparedTurnFilters[0]
 
-      if (preparedTurnFilters.some(candidate => candidate.field === "material")) {
-        dropDependentWorkPieceFilters(baseFiltersForNext)
-      }
-
       const nextFilterState = replaceFieldFilters(
         baseInput,
         baseFiltersForNext,
@@ -2680,7 +2878,12 @@ async function handleServeExplorationInner(
       )
       const testInput = nextFilterState.nextInput
       const testFilters = nextFilterState.nextFilters
-      const testResult = await runHybridRetrieval(testInput, testFilters, 0, null)
+      const testResult = await runHybridRetrieval(
+        testInput,
+        testFilters.filter(filter => filter.op !== "skip"),
+        0,
+        null
+      )
       const testDisplayPage = sliceCandidatesForPage(testResult.candidates, testResult.evidenceMap, resolvedPagination)
 
       trace.add("filter-replace", "search", {
@@ -2695,9 +2898,8 @@ async function handleServeExplorationInner(
       trace.addCandidateChange({ before: candidateCountBeforeFilter ?? 0, after: testResult.totalConsidered, filterApplied: `${filter.field}: ${action.previousValue} → ${filter.value}` })
       trace.addProcessingStep({
         label: `필터 교체: ${filter.field}`,
-        status: testResult.totalConsidered === 0 ? "fail" : "success",
+        status: "success",
         detail: `${candidateCountBeforeFilter} → ${testResult.totalConsidered}개`,
-        error: testResult.totalConsidered === 0 ? "후보 0개 — 차단됨" : undefined,
       })
 
       const updatedHistory = [...baseHistoryForNext, {
@@ -2707,37 +2909,61 @@ async function handleServeExplorationInner(
         candidateCountBefore: candidateCountBeforeFilter,
         candidateCountAfter: testResult.totalConsidered,
       }]
-      const updatedStages = [...baseStageHistoryForNext, {
+      const existingTurnIdx = baseHistoryForNext.findIndex(h =>
+        h.extractedFilters?.some(candidate => candidate.field === action.targetField && candidate.op !== "skip")
+      )
+      if (existingTurnIdx >= 0 && nextFilterState.replacedExisting) {
+        updatedHistory.splice(existingTurnIdx, 1, {
+          question: baseHistoryForNext.length > 0 ? "follow-up" : "initial",
+          answer: lastUserMsg.text,
+          extractedFilters: preparedTurnFilters,
+          candidateCountBefore: candidateCountBeforeFilter,
+          candidateCountAfter: testResult.totalConsidered,
+        })
+      }
+
+      const newStage: NarrowingStage = {
         stepIndex: filterAppliedAt,
         stageName: `${filter.field}_${filter.value}`,
         filterApplied: filter,
         candidateCount: testResult.totalConsidered,
         resolvedInputSnapshot: { ...testInput },
         filtersSnapshot: [...testFilters],
-      }]
+      }
+      const existingStageIdx = baseStageHistoryForNext.findIndex(stage =>
+        stage.filterApplied?.field === action.targetField
+      )
+      let updatedStages: NarrowingStage[]
+      if (existingStageIdx >= 0 && nextFilterState.replacedExisting) {
+        updatedStages = [...baseStageHistoryForNext]
+        updatedStages[existingStageIdx] = newStage
+      } else {
+        updatedStages = [...baseStageHistoryForNext, newStage]
+      }
 
       console.log(
         `[orchestrator:replace] ${action.targetField} ${action.previousValue} -> ${filter.value} | ${candidateCountBeforeFilter}->${testResult.totalConsidered} candidates`
       )
 
       if (testResult.totalConsidered === 0) {
-        return deps.buildRecommendationResponse(
+        return buildZeroCandidateFilterResponse({
+          deps,
           form,
-          testResult.candidates,
-          testResult.evidenceMap,
-          testResult.totalConsidered,
-          paginationDto(testResult.totalConsidered),
-          testDisplayPage.candidates,
-          testDisplayPage.evidenceMap,
-          testInput,
-          updatedHistory,
-          testFilters,
-          filterAppliedAt + 1,
+          candidates: testResult.candidates,
+          evidenceMap: testResult.evidenceMap,
+          pagination: paginationDto(0),
+          displayCandidates: testDisplayPage.candidates,
+          displayEvidenceMap: testDisplayPage.evidenceMap,
+          input: testInput,
+          history: updatedHistory,
+          filters: testFilters,
+          turnCount: filterAppliedAt + 1,
           messages,
           provider,
           language,
-          []
-        )
+          filter,
+          stageHistory: updatedStages,
+        })
       }
 
       filters.splice(0, filters.length, ...testFilters)
@@ -2808,10 +3034,6 @@ async function handleServeExplorationInner(
       })
       const filter = preparedTurnFilters[0]
 
-      if (preparedTurnFilters.some(candidate => candidate.field === "material")) {
-        dropDependentWorkPieceFilters(baseFiltersForNext)
-      }
-
       const nextFilterState = replaceFieldFilters(
         baseInput,
         baseFiltersForNext,
@@ -2820,7 +3042,12 @@ async function handleServeExplorationInner(
       )
       const testInput = nextFilterState.nextInput
       const testFilters = nextFilterState.nextFilters
-      const testResult = await runHybridRetrieval(testInput, testFilters, 0, null)
+      const testResult = await runHybridRetrieval(
+        testInput,
+        testFilters.filter(filter => filter.op !== "skip"),
+        0,
+        null
+      )
       const testDisplayPage = sliceCandidatesForPage(testResult.candidates, testResult.evidenceMap, resolvedPagination)
 
       trace.add("filter-apply", "search", {
@@ -2830,49 +3057,18 @@ async function handleServeExplorationInner(
         candidatesBefore: candidateCountBeforeFilter,
       }, {
         candidatesAfter: testResult.totalConsidered,
-        blocked: testResult.totalConsidered === 0,
+        zeroCandidates: testResult.totalConsidered === 0,
         replaced: nextFilterState.replacedExisting,
-      }, `Filter ${filter.field}=${filter.value}: ${candidateCountBeforeFilter} → ${testResult.totalConsidered} candidates${testResult.totalConsidered === 0 ? " (BLOCKED)" : ""}`)
+      }, `Filter ${filter.field}=${filter.value}: ${candidateCountBeforeFilter} → ${testResult.totalConsidered} candidates`)
       trace.addCandidateChange({ before: candidateCountBeforeFilter, after: testResult.totalConsidered, filterApplied: `${filter.field}=${filter.value}` })
       trace.addProcessingStep({
         label: `필터 적용: ${filter.field}=${filter.value}`,
-        status: testResult.totalConsidered === 0 ? "fail" : "success",
+        status: "success",
         detail: `${candidateCountBeforeFilter} → ${testResult.totalConsidered}개`,
-        error: testResult.totalConsidered === 0 ? "후보 0개 — 차단됨" : undefined,
       })
 
-      if (testResult.totalConsidered === 0) {
-        console.log(`[orchestrator:guard] Filter ${filter.field}=${filter.value} would result in 0 candidates -> BLOCKED, excluding from chips`)
-        // 실패값을 buildQuestionResponse에 전달 → workPiece 칩에서 제외
-        const excludeRawValue = String(filter.rawValue ?? filter.value).replace(/\s*\(\d+개\)\s*$/, "")
-        const excludeValues = filter.field === "workPieceName" ? [excludeRawValue] : undefined
-        return deps.buildQuestionResponse(
-          form,
-          candidates,
-          evidenceMap,
-          totalCandidateCount,
-          paginationDto(totalCandidateCount),
-          displayCandidates,
-          displayEvidenceMap,
-          currentInput,
-          narrowingHistory,
-          filters,
-          turnCount,
-          messages,
-          provider,
-          language,
-          `"${excludeRawValue}" 조건을 적용하면 후보가 없습니다. 현재 ${totalCandidateCount}개 후보에서 다른 조건을 선택해주세요.`,
-          undefined, // existingStageHistory
-          excludeValues
-        )
-      }
-
-      filters.splice(0, filters.length, ...testFilters)
-      currentInput = testInput
-      const newCandidates = testResult.candidates
-      const previousCandidateCount = candidateCountBeforeFilter
-
       // 같은 필드가 이미 있으면 교체(replace), 없으면 추가(push)
+      const previousCandidateCount = candidateCountBeforeFilter
       const existingTurnIdx = baseHistoryForNext.findIndex(h =>
         h.extractedFilters?.some(f => f.field === filter.field && f.op !== "skip")
       )
@@ -2903,8 +3099,8 @@ async function handleServeExplorationInner(
         stageName: `${filter.field}_${filter.value}`,
         filterApplied: filter,
         candidateCount: testResult.totalConsidered,
-        resolvedInputSnapshot: { ...currentInput },
-        filtersSnapshot: [...filters],
+        resolvedInputSnapshot: { ...testInput },
+        filtersSnapshot: [...testFilters],
       }
       let existingStages: NarrowingStage[]
       if (existingStageIdx >= 0 && nextFilterState.replacedExisting) {
@@ -2919,6 +3115,34 @@ async function handleServeExplorationInner(
       const updatedStages = (existingStageIdx >= 0 && nextFilterState.replacedExisting)
         ? existingStages.slice(-MAX_STAGE_HISTORY) // 이미 교체됨
         : [...existingStages, newStage].slice(-MAX_STAGE_HISTORY)
+
+      if (testResult.totalConsidered === 0) {
+        console.log(
+          `[orchestrator:filter] ${filter.field}=${filter.value} | ${previousCandidateCount}->0 candidates | filter preserved`
+        )
+        return buildZeroCandidateFilterResponse({
+          deps,
+          form,
+          candidates: testResult.candidates,
+          evidenceMap: testResult.evidenceMap,
+          pagination: paginationDto(0),
+          displayCandidates: testDisplayPage.candidates,
+          displayEvidenceMap: testDisplayPage.evidenceMap,
+          input: testInput,
+          history: updatedHistory,
+          filters: testFilters,
+          turnCount: filterAppliedAt + 1,
+          messages,
+          provider,
+          language,
+          filter,
+          stageHistory: updatedStages,
+        })
+      }
+
+      filters.splice(0, filters.length, ...testFilters)
+      currentInput = testInput
+      const newCandidates = testResult.candidates
 
       console.log(
         `[orchestrator:filter] ${filter.field}=${filter.value} | ${previousCandidateCount}->${testResult.totalConsidered} candidates | stages: ${updatedStages.map(stage => stage.stageName).join(" -> ")}`

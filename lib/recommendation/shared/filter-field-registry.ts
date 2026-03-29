@@ -242,8 +242,8 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     queryAliases: ["소재", "재질", "material"],
     kind: "string",
     op: "eq",
-    setInput: (input, filter) => ({ ...input, material: String(filter.rawValue), workPieceName: undefined }),
-    clearInput: input => ({ ...input, material: undefined, workPieceName: undefined }),
+    setInput: (input, filter) => ({ ...input, material: String(filter.rawValue) }),
+    clearInput: input => ({ ...input, material: undefined }),
   },
   workPieceName: {
     field: "workPieceName",
