@@ -1,4 +1,9 @@
-import { canonicalizeIntakeSearchText, canonicalizeMaterialSelection } from "@/lib/recommendation/shared/intake-localization"
+import {
+  canonicalizeIntakeSearchText,
+  canonicalizeMaterialSelection,
+  canonicalizeToolCategorySelection,
+  getMachiningCategoryDisplayValue,
+} from "@/lib/recommendation/shared/intake-localization"
 import {
   applyFilterToRecommendationInput,
   clearFilterFromRecommendationInput,
@@ -68,10 +73,10 @@ export function mapIntakeToInput(form: ProductIntakeForm): RecommendationInput {
 
   const operationCategory = getKnown(form.toolTypeOrCurrentProduct)
   if (operationCategory) {
-    const normalized = canonicalizeIntakeSearchText(operationCategory)
+    const normalized = canonicalizeToolCategorySelection(operationCategory)
     if (normalized) {
-      input.machiningCategory = normalized
-      if (!opParts.includes(normalized)) opParts.push(normalized)
+      input.toolType = normalized
+      input.machiningCategory = getMachiningCategoryDisplayValue(normalized, "en")
     }
   }
 

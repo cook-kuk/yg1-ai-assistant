@@ -1,22 +1,35 @@
 import { resolveModel, type LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import type { AppliedFilter } from "@/lib/recommendation/domain/types"
 import { parseAnswerToFilter } from "@/lib/recommendation/domain/question-engine"
+import {
+  buildAppliedFilterFromValue,
+  getFilterFieldDefinition,
+  getFilterFieldMatchPolicy,
+  getRegisteredFilterFields,
+} from "@/lib/recommendation/shared/filter-field-registry"
 
 const LLM_FILTER_EXTRACTOR_MODEL = resolveModel("haiku", "llm-filter-extractor")
 
+export interface LlmFilterValidationOptions {
+  allowedFields?: string[]
+  fieldValueScope?: Record<string, string[]>
+}
+
 export interface LlmFilterResult {
-  extractedFilters: Record<string, string | number>
+  extractedFilters: Record<string, string | number | Array<string | number>>
   skippedFields: string[]
   skipPendingField: boolean
   isSideQuestion: boolean
   confidence: number
+  validationIssues?: string[]
 }
 
 export async function extractFiltersWithLLM(
   userMessage: string,
   lastAskedField: string | null,
   currentFilters: AppliedFilter[],
-  provider: LLMProvider
+  provider: LLMProvider,
+  validationOptions: LlmFilterValidationOptions = {}
 ): Promise<LlmFilterResult> {
   const DEFAULT_RESULT: LlmFilterResult = {
     extractedFilters: {},
@@ -24,6 +37,7 @@ export async function extractFiltersWithLLM(
     skipPendingField: false,
     isSideQuestion: false,
     confidence: 0,
+    validationIssues: [],
   }
 
   if (!provider.available() || !userMessage.trim()) return DEFAULT_RESULT
@@ -58,8 +72,10 @@ export async function extractFiltersWithLLM(
 - "인코넬" → workPieceName: "인코넬"
 - "10mm" / "φ10" / "10파이" / "직경 10" → diameterMm: 10
 - "3날" / "3F" / "3플루트" → fluteCount: 3
+- "4날 또는 5날" / "4,5날" → fluteCount: [4, 5]
 - "무코팅" → coating: "Bright Finish"
 - "DLC" / "TiAlN" / "AlTiN" / "TiCN" / "AlCrN" → coating: (해당값)
+- "TiAlN이나 AlTiN" → coating: ["TiAlN", "AlTiN"]
 - "엔드밀" → toolType: "엔드밀"
 - "날장 30mm" / "커팅 길이 30" / "날 길이 30" → lengthOfCutMm: 30
 - "전장 100mm" / "전체 길이 100" / "OAL 100" → overallLengthMm: 100
@@ -84,15 +100,20 @@ skippedFields에 들어간 필드는 extractedFilters에 중복해서 넣지 마
     const cleaned = raw.trim().replace(/```json\n?|\n?```/g, "")
     const parsed = JSON.parse(cleaned)
 
-    return {
-      extractedFilters: parsed.extractedFilters ?? {},
-      skippedFields: Array.isArray(parsed.skippedFields)
-        ? parsed.skippedFields.filter((field: unknown): field is string => typeof field === "string" && field.trim().length > 0)
-        : [],
-      skipPendingField: !!parsed.skipPendingField,
-      isSideQuestion: !!parsed.isSideQuestion,
-      confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0.5,
-    }
+    const sanitized = sanitizeLlmResult(
+      {
+        extractedFilters: parsed.extractedFilters ?? {},
+        skippedFields: Array.isArray(parsed.skippedFields)
+          ? parsed.skippedFields.filter((field: unknown): field is string => typeof field === "string" && field.trim().length > 0)
+          : [],
+        skipPendingField: !!parsed.skipPendingField,
+        isSideQuestion: !!parsed.isSideQuestion,
+        confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0.5,
+      },
+      currentFilters,
+      validationOptions
+    )
+    return sanitized
   } catch (err) {
     console.warn("[llm-filter-extractor] Failed:", err)
     return DEFAULT_RESULT
@@ -103,28 +124,245 @@ skippedFields에 들어간 필드는 extractedFilters에 중복해서 넣지 마
  * Convert LLM extracted filters (Record) to AppliedFilter[] for the runtime
  */
 export function llmResultToAppliedFilters(
-  extractedFilters: Record<string, string | number>,
+  extractedFilters: Record<string, string | number | Array<string | number>>,
   turnCount: number
 ): AppliedFilter[] {
   const results: AppliedFilter[] = []
 
   for (const [field, value] of Object.entries(extractedFilters)) {
-    const filter = parseAnswerToFilter(field, String(value))
-    if (filter) {
-      filter.appliedAt = turnCount
-      results.push(filter)
-    } else {
-      // parseAnswerToFilter가 못 잡으면 직접 생성
-      const isNumeric = typeof value === "number" || /^\d+(\.\d+)?$/.test(String(value))
-      results.push({
-        field,
-        op: isNumeric ? "eq" : "includes",
-        value: String(value),
-        rawValue: isNumeric ? Number(value) : String(value),
-        appliedAt: turnCount,
-      })
-    }
+    const filter =
+      buildAppliedFilterFromValue(field, value, turnCount)
+      ?? parseAnswerToFilter(field, String(value))
+    if (!filter) continue
+    filter.appliedAt = turnCount
+    results.push(filter)
   }
 
   return results
+}
+
+function sanitizeLlmResult(
+  raw: LlmFilterResult,
+  currentFilters: AppliedFilter[],
+  validationOptions: LlmFilterValidationOptions
+): LlmFilterResult {
+  const issues: string[] = []
+  const allowedFields = validationOptions.allowedFields
+    ? new Set(validationOptions.allowedFields)
+    : null
+
+  const skippedFields = Array.from(new Set(
+    raw.skippedFields.filter(field => isAllowedField(field, allowedFields))
+  ))
+
+  const extractedFilters: Record<string, string | number | Array<string | number>> = {}
+  for (const [field, rawValue] of Object.entries(raw.extractedFilters ?? {})) {
+    if (skippedFields.includes(field)) continue
+    const filter = sanitizeSingleFilter(field, rawValue, currentFilters, validationOptions, issues)
+    if (!filter) continue
+    extractedFilters[filter.field] = typeof filter.rawValue === "number"
+      ? filter.rawValue
+      : Array.isArray(filter.rawValue)
+        ? filter.rawValue.every(item => typeof item === "number")
+          ? filter.rawValue.map(item => Number(item))
+          : filter.rawValue.map(item => String(item))
+        : String(filter.rawValue)
+  }
+
+  return {
+    extractedFilters,
+    skippedFields,
+    skipPendingField: !!raw.skipPendingField,
+    isSideQuestion: !!raw.isSideQuestion,
+    confidence: typeof raw.confidence === "number" ? raw.confidence : 0.5,
+    validationIssues: issues,
+  }
+}
+
+function sanitizeSingleFilter(
+  field: string,
+  rawValue: string | number | Array<string | number>,
+  currentFilters: AppliedFilter[],
+  validationOptions: LlmFilterValidationOptions,
+  issues: string[]
+): AppliedFilter | null {
+  const allowedFields = validationOptions.allowedFields
+    ? new Set(validationOptions.allowedFields)
+    : null
+  if (!isAllowedField(field, allowedFields)) {
+    issues.push(`disallowed field: ${field}`)
+    return null
+  }
+
+  const parsed =
+    buildAppliedFilterFromValue(field, rawValue, 0)
+    ?? parseAnswerToFilter(field, String(rawValue))
+  if (!parsed) {
+    issues.push(`invalid value for ${field}: ${String(rawValue)}`)
+    return null
+  }
+
+  const scopedFilter = matchFilterToScope(parsed, validationOptions.fieldValueScope?.[field] ?? null)
+  if (!scopedFilter) {
+    issues.push(`out-of-scope value for ${field}: ${String(rawValue)}`)
+    return null
+  }
+
+  if (isDuplicateFilter(currentFilters, scopedFilter)) {
+    issues.push(`duplicate current filter for ${field}: ${scopedFilter.value}`)
+    return null
+  }
+
+  return scopedFilter
+}
+
+function isAllowedField(field: string, allowedFields: Set<string> | null): boolean {
+  if (!getRegisteredFilterFields().includes(field)) return false
+  if (!allowedFields) return true
+  return allowedFields.has(field)
+}
+
+function isDuplicateFilter(currentFilters: AppliedFilter[], nextFilter: AppliedFilter): boolean {
+  return currentFilters.some(filter => {
+    if (filter.op === "skip") return false
+    if (filter.field !== nextFilter.field) return false
+    return normalizeFilterComparableValue(filter) === normalizeFilterComparableValue(nextFilter)
+  })
+}
+
+function normalizeFilterComparableValue(filter: AppliedFilter): string {
+  const definition = getFilterFieldDefinition(filter.field)
+  if (!definition) return String(filter.rawValue ?? filter.value)
+
+  if (definition.kind === "number") {
+    return String(extractNumericValue(filter.rawValue ?? filter.value))
+  }
+  if (definition.kind === "boolean") {
+    return String(parseBooleanValue(filter.rawValue ?? filter.value))
+  }
+  if (getFilterFieldMatchPolicy(filter.field) === "strict_identifier") {
+    return normalizeIdentifierText(String(filter.rawValue ?? filter.value))
+  }
+  return normalizeCompactText(String(filter.rawValue ?? filter.value))
+}
+
+function matchFilterToScope(filter: AppliedFilter, scopeValues: string[] | null): AppliedFilter | null {
+  if (!scopeValues || scopeValues.length === 0) return filter
+
+  const definition = getFilterFieldDefinition(filter.field)
+  if (!definition) return null
+
+  const matchedValues = findScopeMatches(filter, scopeValues)
+  if (matchedValues.length === 0) return null
+
+  return buildAppliedFilterFromValue(filter.field, matchedValues.length === 1 ? matchedValues[0] : matchedValues, filter.appliedAt)
+}
+
+function findScopeMatches(filter: AppliedFilter, scopeValues: string[]): Array<string | number | boolean> {
+  const definition = getFilterFieldDefinition(filter.field)
+  if (!definition) return []
+
+  if (definition.kind === "number") {
+    const targets = extractNumericArray(filter.rawValue ?? filter.value)
+    if (targets.length === 0) return []
+    const matches: number[] = []
+    for (const target of targets) {
+      for (const scopeValue of scopeValues) {
+        const candidate = extractNumericValue(scopeValue)
+        if (candidate == null) continue
+        if (Math.abs(candidate - target) <= 0.0001 && !matches.includes(candidate)) matches.push(candidate)
+      }
+    }
+    return matches
+  }
+
+  if (definition.kind === "boolean") {
+    const targets = extractBooleanArray(filter.rawValue ?? filter.value)
+    if (targets.length === 0) return []
+    const matches: boolean[] = []
+    for (const target of targets) {
+      for (const scopeValue of scopeValues) {
+        const candidate = parseBooleanValue(scopeValue)
+        if (candidate === target && !matches.includes(candidate)) matches.push(candidate)
+      }
+    }
+    return matches
+  }
+
+  const rawValues = extractStringArray(filter.rawValue ?? filter.value)
+  if (rawValues.length === 0) return []
+
+  if (getFilterFieldMatchPolicy(filter.field) === "strict_identifier") {
+    const matches: string[] = []
+    for (const raw of rawValues) {
+      const normalizedRaw = normalizeIdentifierText(raw)
+      const exact = scopeValues.find(scopeValue => normalizeIdentifierText(scopeValue) === normalizedRaw)
+      if (exact && !matches.includes(exact)) matches.push(exact)
+    }
+    return matches
+  }
+
+  const matches: string[] = []
+  for (const raw of rawValues) {
+    const normalizedRaw = normalizeCompactText(raw)
+    const exact = scopeValues.find(scopeValue => normalizeCompactText(scopeValue) === normalizedRaw)
+    if (exact) {
+      if (!matches.includes(exact)) matches.push(exact)
+      continue
+    }
+    for (const scopeValue of scopeValues) {
+      const normalizedScope = normalizeCompactText(scopeValue)
+      if (normalizedScope.includes(normalizedRaw) || normalizedRaw.includes(normalizedScope)) {
+        if (!matches.includes(scopeValue)) matches.push(scopeValue)
+        break
+      }
+    }
+  }
+  return matches
+}
+
+function extractStringArray(value: string | number | boolean | Array<string | number>): string[] {
+  const source = Array.isArray(value) ? value : [value]
+  return source.map(item => String(item).trim()).filter(Boolean)
+}
+
+function extractNumericArray(value: string | number | boolean | Array<string | number>): number[] {
+  const source = Array.isArray(value) ? value : [value]
+  return source
+    .map(item => typeof item === "number" ? item : extractNumericValue(String(item)))
+    .filter((item): item is number => item != null && !Number.isNaN(item))
+}
+
+function extractBooleanArray(value: string | number | boolean | Array<string | number>): boolean[] {
+  const source = Array.isArray(value) ? value : [value]
+  return source
+    .map(item => parseBooleanValue(item))
+    .filter((item): item is boolean => item != null)
+}
+
+function normalizeCompactText(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, "")
+}
+
+function normalizeIdentifierText(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9가-힣]+/g, "")
+}
+
+function extractNumericValue(value: string | number | boolean): number | null {
+  if (typeof value === "number") return Number.isNaN(value) ? null : value
+  const match = String(value).match(/[-+]?\d+(?:\.\d+)?/)
+  if (!match) return null
+  const parsed = parseFloat(match[0])
+  return Number.isNaN(parsed) ? null : parsed
+}
+
+function parseBooleanValue(value: string | number | boolean): boolean | null {
+  if (typeof value === "boolean") return value
+  const normalized = String(value).trim().toLowerCase()
+  if (["true", "yes", "y", "있음", "유", "있다"].includes(normalized)) return true
+  if (["false", "no", "n", "없음", "무", "없다"].includes(normalized)) return false
+  return null
 }

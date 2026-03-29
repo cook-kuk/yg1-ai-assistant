@@ -46,6 +46,7 @@ import { resolveProductReferences } from "./comparison-agent"
 import { parseAnswerToFilter } from "@/lib/recommendation/domain/question-engine"
 import { ENABLE_OPUS_AMBIGUITY, ENABLE_COMPARISON_AGENT } from "@/lib/recommendation/infrastructure/config/recommendation-agent-flags"
 import { classifySessionAction, detectFilterIntent } from "@/lib/recommendation/domain/session-action-classifier"
+import { buildAppliedFilterFromValue } from "@/lib/recommendation/shared/filter-field-registry"
 
 const UNIFIED_JUDGMENT_MODEL = resolveModel("opus", "unified-judgment")
 const INTENT_CLASSIFIER_MODEL = resolveModel("opus", "intent-classifier")
@@ -887,44 +888,24 @@ function buildFilterFromParams(
   // Try building filter from extracted params
   if (params) {
     if (params.fluteCount != null) {
-      return {
-        field: "fluteCount", op: "eq",
-        value: `${params.fluteCount}날`,
-        rawValue: params.fluteCount,
-        appliedAt: ctx.sessionState?.turnCount ?? 0,
-      }
+      const filter = buildAppliedFilterFromValue("fluteCount", params.fluteCount as any, ctx.sessionState?.turnCount ?? 0)
+      if (filter) return filter
     }
     if (params.coating) {
-      return {
-        field: "coating", op: "includes",
-        value: params.coating,
-        rawValue: params.coating,
-        appliedAt: ctx.sessionState?.turnCount ?? 0,
-      }
+      const filter = buildAppliedFilterFromValue("coating", params.coating as any, ctx.sessionState?.turnCount ?? 0)
+      if (filter) return filter
     }
     if (params.toolSubtype) {
-      return {
-        field: "toolSubtype", op: "includes",
-        value: params.toolSubtype,
-        rawValue: params.toolSubtype,
-        appliedAt: ctx.sessionState?.turnCount ?? 0,
-      }
+      const filter = buildAppliedFilterFromValue("toolSubtype", params.toolSubtype as any, ctx.sessionState?.turnCount ?? 0)
+      if (filter) return filter
     }
     if (params.seriesName) {
-      return {
-        field: "seriesName", op: "includes",
-        value: params.seriesName,
-        rawValue: params.seriesName,
-        appliedAt: ctx.sessionState?.turnCount ?? 0,
-      }
+      const filter = buildAppliedFilterFromValue("seriesName", params.seriesName as any, ctx.sessionState?.turnCount ?? 0)
+      if (filter) return filter
     }
     if (params.diameterMm != null) {
-      return {
-        field: "diameterMm", op: "eq",
-        value: `${params.diameterMm}mm`,
-        rawValue: params.diameterMm,
-        appliedAt: ctx.sessionState?.turnCount ?? 0,
-      }
+      const filter = buildAppliedFilterFromValue("diameterMm", params.diameterMm as any, ctx.sessionState?.turnCount ?? 0)
+      if (filter) return filter
     }
   }
 

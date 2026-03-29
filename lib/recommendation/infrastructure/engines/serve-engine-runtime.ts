@@ -805,10 +805,11 @@ function detectRefineConditionField(userMessage: string): string | null {
   return null
 }
 
-export function buildPendingSelectionFilter(
+export async function buildPendingSelectionFilter(
   sessionState: ExplorationSessionState | null,
-  userMessage: string | null
-): AppliedFilter | null {
+  userMessage: string | null,
+  provider?: ReturnType<typeof getProvider>
+): Promise<AppliedFilter | null> {
   const pendingField = sessionState?.lastAskedField ?? null
   if (!sessionState || !pendingField) return null
   if (sessionState.resolutionStatus?.startsWith("resolved")) return null
@@ -858,6 +859,45 @@ export function buildPendingSelectionFilter(
   const selectedOption = optionMatch ?? chipMatch ?? null
   const selectedValue = selectedOption?.value ?? null
   if (!selectedValue) {
+    const effectiveProvider = provider ?? {
+      available: () => false,
+      complete: async () => "",
+      completeWithTools: async () => ({ text: null, toolUse: null }),
+    }
+    const pendingFieldScope = optionsForPendingField
+      .map(option => option.value)
+      .filter(value => value && value !== "skip")
+
+    const llmResult = await extractFiltersWithLLM(
+      raw,
+      pendingField,
+      sessionState.appliedFilters ?? [],
+      effectiveProvider,
+      {
+        allowedFields: [pendingField],
+        fieldValueScope: pendingFieldScope.length > 0
+          ? { [pendingField]: pendingFieldScope }
+          : undefined,
+      }
+    )
+    if (llmResult.skipPendingField || llmResult.skippedFields.includes(pendingField)) {
+      console.log(`[pending-filter:llm] LLM resolved field="${pendingField}" as skip`)
+      return {
+        field: pendingField,
+        op: "skip",
+        value: "상관없음",
+        rawValue: "skip",
+        appliedAt: sessionState.turnCount ?? 0,
+      }
+    }
+
+    const llmFilter = llmResultToAppliedFilters(llmResult.extractedFilters, sessionState.turnCount ?? 0)
+      .find(filter => filter.field === pendingField)
+    if (llmFilter) {
+      console.log(`[pending-filter:llm] LLM extracted field="${pendingField}" value="${llmFilter.rawValue}"`)
+      return llmFilter
+    }
+
     // ── NL fallback: try pattern-based extraction for the pending field ──
     const nlFilters = extractAllFiltersFromMessage(raw, sessionState.appliedFilters ?? [])
     const nlMatch = nlFilters.find(f => f.field === pendingField)
@@ -1446,7 +1486,7 @@ async function handleServeExplorationInner(
     }
   }
 
-  const pendingSelectionFilter = semanticAction ? null : buildPendingSelectionFilter(prevState, lastUserMsg?.text ?? null)
+  const pendingSelectionFilter = semanticAction ? null : await buildPendingSelectionFilter(prevState, lastUserMsg?.text ?? null, provider)
   // 비교 신호가 있으면 pending selection을 우회 → 비교 질문을 side question으로 처리
   const hasComparisonSignal = lastUserMsg?.text ? hasExplicitComparisonSignal(lastUserMsg.text) : false
   const shouldResolvePendingSelectionEarly = !!pendingSelectionFilter && !isPostResultPhase(journeyPhase) && !hasComparisonSignal
@@ -1485,7 +1525,10 @@ async function handleServeExplorationInner(
       lastUserMsg.text,
       prevState.lastAskedField,
       prevState.appliedFilters ?? [],
-      provider
+      provider,
+      {
+        fieldValueScope: prevState.filterValueScope,
+      }
     )
     traceRecommendation("runtime.handleServeExplorationInner:llm-filter-result", {
       pendingField: prevState.lastAskedField,

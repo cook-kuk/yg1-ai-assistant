@@ -44,13 +44,13 @@ export interface IntentClassification {
 
 // ── Parameter Extraction Result ──────────────────────────────
 export interface ExtractedParameters {
-  fluteCount?: number
-  coating?: string
-  toolSubtype?: string
-  seriesName?: string
-  diameterMm?: number
-  material?: string
-  operationType?: string
+  fluteCount?: number | number[]
+  coating?: string | string[]
+  toolSubtype?: string | string[]
+  seriesName?: string | string[]
+  diameterMm?: number | number[]
+  material?: string | string[]
+  operationType?: string | string[]
   productCode?: string
   comparisonTargets?: string[] // e.g., ["1번", "2번"]
   rawValue?: string           // the extracted value as-is

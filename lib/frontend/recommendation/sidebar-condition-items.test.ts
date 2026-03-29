@@ -101,4 +101,19 @@ describe("buildSidebarConditionItems", () => {
 
     expect(items.find(item => item.label === "공구 직경")?.value).toBe("6.35mm")
   })
+
+  it("shows Turning when the stored machining category value is Tooling System", () => {
+    const items = buildSidebarConditionItems(
+      makeForm({
+        toolTypeOrCurrentProduct: { status: "known", value: "Tooling System" },
+      }),
+      makeSessionState(),
+      {
+        resolvedInput: { toolType: "Tooling System" },
+      } as ExplorationSessionState,
+      "ko"
+    )
+
+    expect(items.find(item => item.label === "가공 방식")?.value).toBe("Turning")
+  })
 })

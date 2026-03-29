@@ -5,6 +5,7 @@ import type {
   ScoredProduct,
 } from "@/lib/recommendation/domain/types"
 
+type FilterPrimitive = string | number | boolean
 type FilterValueKind = "string" | "number" | "boolean"
 export type FilterMatchPolicy = "strict_identifier" | "fuzzy" | "llm_assisted"
 
@@ -30,6 +31,7 @@ interface FilterFieldDefinition {
 }
 
 const SKIP_TOKENS = new Set(["상관없음", "상관 없음", "모름", "skip"])
+const MULTI_VALUE_SEPARATOR_PATTERN = /\s*(?:,|\/|\||또는|아니면| and | or )\s*/iu
 
 function unwrapRecord(record: FilterRecord): Record<string, unknown> {
   if (record && typeof record === "object" && "product" in record && record.product && typeof record.product === "object") {
@@ -80,6 +82,97 @@ function extractNumericValue(value: string): number | null {
   return Number.isNaN(parsed) ? null : parsed
 }
 
+function splitRawStringValues(value: string): string[] {
+  const normalized = value.trim()
+  if (!normalized) return []
+  return normalized
+    .split(MULTI_VALUE_SEPARATOR_PATTERN)
+    .map(part => part.trim())
+    .filter(Boolean)
+}
+
+function normalizeInputValues(kind: FilterValueKind, rawValue: string | number | boolean | Array<string | number | boolean>): FilterPrimitive[] {
+  if (Array.isArray(rawValue)) {
+    return rawValue.flatMap(value => normalizeInputValues(kind, value))
+  }
+
+  if (typeof rawValue === "string") {
+    const splitValues = splitRawStringValues(rawValue)
+    if (splitValues.length > 1) return splitValues
+    return [rawValue]
+  }
+
+  return [rawValue]
+}
+
+function uniqPrimitiveValues(values: FilterPrimitive[]): FilterPrimitive[] {
+  const seen = new Set<string>()
+  const result: FilterPrimitive[] = []
+
+  for (const value of values) {
+    const key = typeof value === "string"
+      ? `s:${normalizeCompactText(value)}`
+      : typeof value === "number"
+        ? `n:${value}`
+        : `b:${value ? "1" : "0"}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    result.push(value)
+  }
+
+  return result
+}
+
+function extractFilterRawValues(filter: AppliedFilter): FilterPrimitive[] {
+  const raw = filter.rawValue ?? filter.value
+  return Array.isArray(raw) ? raw : [raw]
+}
+
+function extractStringFilterRawValues(filter: AppliedFilter): string[] {
+  return uniqPrimitiveValues(
+    extractFilterRawValues(filter)
+      .flatMap(value => typeof value === "string" ? splitRawStringValues(value) : [String(value)])
+      .map(value => value.trim())
+      .filter(Boolean)
+  ).map(value => String(value))
+}
+
+function extractNumericFilterRawValues(filter: AppliedFilter): number[] {
+  return uniqPrimitiveValues(
+    extractFilterRawValues(filter)
+      .map(value => typeof value === "number" ? value : extractNumericValue(String(value)))
+      .filter((value): value is number => value != null && !Number.isNaN(value))
+  ).map(value => Number(value))
+}
+
+function extractBooleanFilterRawValues(filter: AppliedFilter): boolean[] {
+  return uniqPrimitiveValues(
+    extractFilterRawValues(filter)
+      .map(value => parseBooleanValue(value))
+      .filter((value): value is boolean => value != null)
+  ).map(value => Boolean(value))
+}
+
+function displayRawValue(rawValue: FilterPrimitive, unit?: string): string {
+  if (typeof rawValue === "number") return `${formatNumericValue(rawValue)}${unit ?? ""}`
+  if (typeof rawValue === "boolean") return rawValue ? "true" : "false"
+  return rawValue
+}
+
+function firstFilterNumberValue(filter: AppliedFilter): number | undefined {
+  return extractNumericFilterRawValues(filter)[0]
+}
+
+function firstFilterBooleanValue(filter: AppliedFilter): boolean | undefined {
+  return extractBooleanFilterRawValues(filter)[0]
+}
+
+function joinedFilterStringValue(filter: AppliedFilter, separator = ", "): string | undefined {
+  const values = extractStringFilterRawValues(filter)
+  if (values.length === 0) return undefined
+  return values.join(separator)
+}
+
 function formatNumericValue(num: number): string {
   return Number.isInteger(num) ? String(num) : String(num)
 }
@@ -99,10 +192,10 @@ function includesText(haystack: string, needle: string): boolean {
 }
 
 function identifierMatch(record: FilterRecord, filter: AppliedFilter, key: string): boolean {
-  const query = normalizeIdentifierText(String(filter.rawValue ?? filter.value))
-  if (!query) return false
+  const queries = extractStringFilterRawValues(filter).map(value => normalizeIdentifierText(value)).filter(Boolean)
+  if (queries.length === 0) return false
 
-  return extractPrimitiveValues(record, key).some(value => normalizeIdentifierText(String(value)) === query)
+  return extractPrimitiveValues(record, key).some(value => queries.includes(normalizeIdentifierText(String(value))))
 }
 
 function canonicalizeToolSubtypeRawValue(rawValue: string | number | boolean): string | null {
@@ -145,17 +238,20 @@ function firstNumberFromColumns(columns: string[]): string {
 }
 
 function buildLikeClause(columns: string[], filter: AppliedFilter, next: (value: unknown) => string): string | null {
-  const raw = String(filter.rawValue ?? filter.value).trim().toLowerCase()
-  if (!raw) return null
-  const param = next(`%${raw}%`)
-  return `(${columns.map(column => `LOWER(COALESCE(${column}, '')) LIKE ${param}`).join(" OR ")})`
+  const rawValues = extractStringFilterRawValues(filter).map(value => value.toLowerCase()).filter(Boolean)
+  if (rawValues.length === 0) return null
+  const valueClauses = rawValues.map(raw => {
+    const param = next(`%${raw}%`)
+    return `(${columns.map(column => `LOWER(COALESCE(${column}, '')) LIKE ${param}`).join(" OR ")})`
+  })
+  return valueClauses.length === 1 ? valueClauses[0] : `(${valueClauses.join(" OR ")})`
 }
 
 function buildExactIdentifierClause(columns: string[], filter: AppliedFilter, next: (value: unknown) => string): string | null {
-  const raw = normalizeIdentifierText(String(filter.rawValue ?? filter.value))
-  if (!raw) return null
-  const param = next(raw)
-  return `(${columns.map(column => `regexp_replace(LOWER(COALESCE(${column}, '')), '[^a-z0-9가-힣]+', '', 'g') = ${param}`).join(" OR ")})`
+  const rawValues = extractStringFilterRawValues(filter).map(value => normalizeIdentifierText(value)).filter(Boolean)
+  if (rawValues.length === 0) return null
+  const param = next(rawValues)
+  return `(${columns.map(column => `regexp_replace(LOWER(COALESCE(${column}, '')), '[^a-z0-9가-힣]+', '', 'g') = ANY(${param}::text[])`).join(" OR ")})`
 }
 
 function buildNumericEqualityClause(
@@ -164,14 +260,17 @@ function buildNumericEqualityClause(
   next: (value: unknown) => string,
   tolerance = 0.0001
 ): string | null {
-  const raw = typeof filter.rawValue === "number" ? filter.rawValue : extractNumericValue(String(filter.rawValue))
-  if (raw == null || Number.isNaN(raw)) return null
+  const rawValues = extractNumericFilterRawValues(filter)
+  if (rawValues.length === 0) return null
   const numericExpr = firstNumberFromColumns(columns)
-  const param = next(raw)
-  if (tolerance <= 0) {
-    return `${numericExpr} = ${param}`
-  }
-  return `${numericExpr} IS NOT NULL AND ABS(${numericExpr} - ${param}) <= ${tolerance}`
+  const clauses = rawValues.map(raw => {
+    const param = next(raw)
+    if (tolerance <= 0) {
+      return `${numericExpr} = ${param}`
+    }
+    return `${numericExpr} IS NOT NULL AND ABS(${numericExpr} - ${param}) <= ${tolerance}`
+  })
+  return clauses.length === 1 ? clauses[0] : `(${clauses.join(" OR ")})`
 }
 
 function extractPrimitiveValues(record: FilterRecord, key: string): Array<string | number | boolean> {
@@ -189,23 +288,28 @@ function extractPrimitiveValues(record: FilterRecord, key: string): Array<string
 }
 
 function stringMatch(record: FilterRecord, filter: AppliedFilter, key: string): boolean {
-  const query = String(filter.rawValue ?? filter.value)
-  return extractPrimitiveValues(record, key).some(value => includesText(String(value), query))
+  const queries = extractStringFilterRawValues(filter)
+  return extractPrimitiveValues(record, key).some(value =>
+    queries.some(query => includesText(String(value), query))
+  )
 }
 
 function numericMatch(record: FilterRecord, filter: AppliedFilter, key: string, tolerance = 0.0001): boolean {
-  const raw = typeof filter.rawValue === "number" ? filter.rawValue : extractNumericValue(String(filter.rawValue))
-  if (raw == null || Number.isNaN(raw)) return false
+  const rawValues = extractNumericFilterRawValues(filter)
+  if (rawValues.length === 0) return false
   return extractPrimitiveValues(record, key).some(value => {
     if (typeof value !== "number") return false
-    return Math.abs(value - raw) <= tolerance
+    return rawValues.some(raw => Math.abs(value - raw) <= tolerance)
   })
 }
 
 function booleanMatch(record: FilterRecord, filter: AppliedFilter, key: string): boolean {
-  const want = parseBooleanValue(filter.rawValue ?? filter.value)
-  if (want == null) return false
-  return extractPrimitiveValues(record, key).some(value => parseBooleanValue(value) === want)
+  const wants = extractBooleanFilterRawValues(filter)
+  if (wants.length === 0) return false
+  return extractPrimitiveValues(record, key).some(value => {
+    const parsed = parseBooleanValue(value)
+    return parsed != null && wants.includes(parsed)
+  })
 }
 
 const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
@@ -216,16 +320,11 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "number",
     op: "eq",
     unit: "mm",
-    setInput: (input, filter) => ({ ...input, diameterMm: Number(filter.rawValue) }),
+    setInput: (input, filter) => ({ ...input, diameterMm: firstFilterNumberValue(filter) }),
     clearInput: input => ({ ...input, diameterMm: undefined }),
     extractValues: record => extractPrimitiveValues(record, "diameterMm"),
     matches: (record, filter) => numericMatch(record, filter, "diameterMm"),
-    buildDbClause: (filter, next) => {
-      const raw = typeof filter.rawValue === "number" ? filter.rawValue : extractNumericValue(String(filter.rawValue))
-      if (raw == null || Number.isNaN(raw)) return null
-      const param = next(raw)
-      return `search_diameter_mm IS NOT NULL AND ABS(search_diameter_mm - ${param}) <= 0.0001`
-    },
+    buildDbClause: (filter, next) => buildNumericEqualityClause(["search_diameter_mm"], filter, next, 0.0001),
   },
   diameterRefine: {
     field: "diameterRefine",
@@ -242,7 +341,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     queryAliases: ["소재", "재질", "material"],
     kind: "string",
     op: "eq",
-    setInput: (input, filter) => ({ ...input, material: String(filter.rawValue) }),
+    setInput: (input, filter) => ({ ...input, material: joinedFilterStringValue(filter) }),
     clearInput: input => ({ ...input, material: undefined }),
   },
   workPieceName: {
@@ -251,7 +350,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     queryAliases: ["피삭재", "소재", "재질", "workpiece", "material"],
     kind: "string",
     op: "includes",
-    setInput: (input, filter) => ({ ...input, workPieceName: String(filter.rawValue) }),
+    setInput: (input, filter) => ({ ...input, workPieceName: joinedFilterStringValue(filter) }),
     clearInput: input => ({ ...input, workPieceName: undefined }),
   },
   fluteCount: {
@@ -261,7 +360,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "number",
     op: "eq",
     unit: "날",
-    setInput: (input, filter) => ({ ...input, flutePreference: Number(filter.rawValue) }),
+    setInput: (input, filter) => ({ ...input, flutePreference: firstFilterNumberValue(filter) }),
     clearInput: input => ({ ...input, flutePreference: undefined }),
     extractValues: record => extractPrimitiveValues(record, "fluteCount"),
     matches: (record, filter) => numericMatch(record, filter, "fluteCount"),
@@ -278,7 +377,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     queryAliases: ["코팅", "coat", "coating"],
     kind: "string",
     op: "includes",
-    setInput: (input, filter) => ({ ...input, coatingPreference: String(filter.rawValue) }),
+    setInput: (input, filter) => ({ ...input, coatingPreference: joinedFilterStringValue(filter) }),
     clearInput: input => ({ ...input, coatingPreference: undefined }),
     extractValues: record => extractPrimitiveValues(record, "coating"),
     matches: (record, filter) => stringMatch(record, filter, "coating"),
@@ -291,7 +390,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "string",
     matchPolicy: "strict_identifier",
     op: "eq",
-    setInput: (input, filter) => ({ ...input, operationType: String(filter.rawValue) }),
+    setInput: (input, filter) => ({ ...input, operationType: joinedFilterStringValue(filter) }),
     clearInput: input => ({ ...input, operationType: undefined }),
   },
   toolSubtype: {
@@ -301,7 +400,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "string",
     op: "includes",
     canonicalizeRawValue: canonicalizeToolSubtypeRawValue,
-    setInput: (input, filter) => ({ ...input, toolSubtype: String(filter.rawValue) }),
+    setInput: (input, filter) => ({ ...input, toolSubtype: joinedFilterStringValue(filter) }),
     clearInput: input => ({ ...input, toolSubtype: undefined }),
     extractValues: record => extractPrimitiveValues(record, "toolSubtype"),
     matches: (record, filter) => stringMatch(record, filter, "toolSubtype"),
@@ -314,7 +413,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "string",
     matchPolicy: "strict_identifier",
     op: "includes",
-    setInput: (input, filter) => ({ ...input, seriesName: String(filter.rawValue) }),
+    setInput: (input, filter) => ({ ...input, seriesName: joinedFilterStringValue(filter) }),
     clearInput: input => ({ ...input, seriesName: undefined }),
     extractValues: record => extractPrimitiveValues(record, "seriesName"),
     matches: (record, filter) => identifierMatch(record, filter, "seriesName"),
@@ -326,7 +425,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     queryAliases: ["공구 소재", "tool material", "초경", "카바이드", "hss"],
     kind: "string",
     op: "includes",
-    setInput: (input, filter) => ({ ...input, toolMaterial: String(filter.rawValue) }),
+    setInput: (input, filter) => ({ ...input, toolMaterial: joinedFilterStringValue(filter) }),
     clearInput: input => ({ ...input, toolMaterial: undefined }),
     extractValues: record => extractPrimitiveValues(record, "toolMaterial"),
     matches: (record, filter) => stringMatch(record, filter, "toolMaterial"),
@@ -343,7 +442,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "string",
     matchPolicy: "strict_identifier",
     op: "includes",
-    setInput: (input, filter) => ({ ...input, toolType: String(filter.rawValue) }),
+    setInput: (input, filter) => ({ ...input, toolType: joinedFilterStringValue(filter) }),
     clearInput: input => ({ ...input, toolType: undefined }),
     extractValues: record => extractPrimitiveValues(record, "toolType"),
     matches: (record, filter) => identifierMatch(record, filter, "toolType"),
@@ -360,7 +459,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "string",
     matchPolicy: "strict_identifier",
     op: "includes",
-    setInput: (input, filter) => ({ ...input, brand: String(filter.rawValue) }),
+    setInput: (input, filter) => ({ ...input, brand: joinedFilterStringValue(filter) }),
     clearInput: input => ({ ...input, brand: undefined }),
     extractValues: record => extractPrimitiveValues(record, "brand"),
     matches: (record, filter) => identifierMatch(record, filter, "brand"),
@@ -374,15 +473,23 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     matchPolicy: "strict_identifier",
     canonicalizeRawValue: rawValue => String(rawValue).trim().toUpperCase() || null,
     op: "includes",
-    setInput: (input, filter) => ({ ...input, country: String(filter.rawValue).toUpperCase() }),
+    setInput: (input, filter) => {
+      const value = joinedFilterStringValue(filter)
+      return { ...input, country: value ? value.toUpperCase() : undefined }
+    },
     clearInput: input => ({ ...input, country: undefined }),
     extractValues: record => extractPrimitiveValues(record, "country"),
-    matches: (record, filter) => stringMatch(record, { ...filter, rawValue: String(filter.rawValue).toUpperCase() }, "country"),
+    matches: (record, filter) => stringMatch(record, {
+      ...filter,
+      rawValue: extractStringFilterRawValues(filter).map(value => value.toUpperCase()),
+    }, "country"),
     buildDbClause: (filter, next) => {
-      const normalized = String(filter.rawValue).trim().toUpperCase()
-      if (!normalized) return null
+      const normalized = extractStringFilterRawValues(filter)
+        .map(value => value.trim().toUpperCase())
+        .filter(Boolean)
+      if (normalized.length === 0) return null
       const param = next(normalized)
-      return `EXISTS (SELECT 1 FROM unnest(COALESCE(country_codes, ARRAY[]::text[])) AS country_row(country_code) WHERE UPPER(BTRIM(country_row.country_code)) = UPPER(BTRIM(${param})))`
+      return `EXISTS (SELECT 1 FROM unnest(COALESCE(country_codes, ARRAY[]::text[])) AS country_row(country_code) WHERE UPPER(BTRIM(country_row.country_code)) = ANY(${param}::text[]))`
     },
   },
   shankDiameterMm: {
@@ -392,7 +499,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "number",
     op: "eq",
     unit: "mm",
-    setInput: (input, filter) => ({ ...input, shankDiameterMm: Number(filter.rawValue) }),
+    setInput: (input, filter) => ({ ...input, shankDiameterMm: firstFilterNumberValue(filter) }),
     clearInput: input => ({ ...input, shankDiameterMm: undefined }),
     extractValues: record => extractPrimitiveValues(record, "shankDiameterMm"),
     matches: (record, filter) => numericMatch(record, filter, "shankDiameterMm", 0.5),
@@ -410,7 +517,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "number",
     op: "eq",
     unit: "mm",
-    setInput: (input, filter) => ({ ...input, lengthOfCutMm: Number(filter.rawValue) }),
+    setInput: (input, filter) => ({ ...input, lengthOfCutMm: firstFilterNumberValue(filter) }),
     clearInput: input => ({ ...input, lengthOfCutMm: undefined }),
     extractValues: record => extractPrimitiveValues(record, "lengthOfCutMm"),
     matches: (record, filter) => numericMatch(record, filter, "lengthOfCutMm", 2),
@@ -428,7 +535,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "number",
     op: "eq",
     unit: "mm",
-    setInput: (input, filter) => ({ ...input, overallLengthMm: Number(filter.rawValue) }),
+    setInput: (input, filter) => ({ ...input, overallLengthMm: firstFilterNumberValue(filter) }),
     clearInput: input => ({ ...input, overallLengthMm: undefined }),
     extractValues: record => extractPrimitiveValues(record, "overallLengthMm"),
     matches: (record, filter) => numericMatch(record, filter, "overallLengthMm", 5),
@@ -446,7 +553,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "number",
     op: "eq",
     unit: "°",
-    setInput: (input, filter) => ({ ...input, helixAngleDeg: Number(filter.rawValue) }),
+    setInput: (input, filter) => ({ ...input, helixAngleDeg: firstFilterNumberValue(filter) }),
     clearInput: input => ({ ...input, helixAngleDeg: undefined }),
     extractValues: record => extractPrimitiveValues(record, "helixAngleDeg"),
     matches: (record, filter) => numericMatch(record, filter, "helixAngleDeg", 2),
@@ -464,7 +571,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "number",
     op: "eq",
     unit: "mm",
-    setInput: (input, filter) => ({ ...input, ballRadiusMm: Number(filter.rawValue) }),
+    setInput: (input, filter) => ({ ...input, ballRadiusMm: firstFilterNumberValue(filter) }),
     clearInput: input => ({ ...input, ballRadiusMm: undefined }),
     extractValues: record => extractPrimitiveValues(record, "ballRadiusMm"),
     matches: (record, filter) => numericMatch(record, filter, "ballRadiusMm"),
@@ -482,7 +589,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "number",
     op: "eq",
     unit: "°",
-    setInput: (input, filter) => ({ ...input, taperAngleDeg: Number(filter.rawValue) }),
+    setInput: (input, filter) => ({ ...input, taperAngleDeg: firstFilterNumberValue(filter) }),
     clearInput: input => ({ ...input, taperAngleDeg: undefined }),
     extractValues: record => extractPrimitiveValues(record, "taperAngleDeg"),
     matches: (record, filter) => numericMatch(record, filter, "taperAngleDeg", 0.5),
@@ -499,10 +606,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     queryAliases: ["쿨런트", "절삭유홀", "coolant", "coolant hole"],
     kind: "boolean",
     op: "eq",
-    setInput: (input, filter) => {
-      const parsed = parseBooleanValue(filter.rawValue ?? filter.value)
-      return { ...input, coolantHole: parsed == null ? undefined : parsed }
-    },
+    setInput: (input, filter) => ({ ...input, coolantHole: firstFilterBooleanValue(filter) }),
     clearInput: input => ({ ...input, coolantHole: undefined }),
     extractValues: record => extractPrimitiveValues(record, "coolantHole"),
     matches: (record, filter) => booleanMatch(record, filter, "coolantHole"),
@@ -538,9 +642,9 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     extractValues: record => extractPrimitiveValues(record, "materialTags"),
     matches: (record, filter) => stringMatch(record, filter, "materialTags"),
     buildDbClause: (filter, next) => {
-      const raw = String(filter.rawValue).trim().toUpperCase()
-      if (!raw) return null
-      const param = next([raw])
+      const raw = extractStringFilterRawValues(filter).map(value => value.trim().toUpperCase()).filter(Boolean)
+      if (raw.length === 0) return null
+      const param = next(raw)
       return `COALESCE(material_tags, ARRAY[]::text[]) && ${param}::text[]`
     },
   },
@@ -549,9 +653,9 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "string",
     op: "includes",
     buildDbClause: (filter, next) => {
-      const raw = String(filter.rawValue).trim().toUpperCase()
-      if (!raw) return null
-      const param = next([raw])
+      const raw = extractStringFilterRawValues(filter).map(value => value.trim().toUpperCase()).filter(Boolean)
+      if (raw.length === 0) return null
+      const param = next(raw)
       return `COALESCE(material_tags, ARRAY[]::text[]) && ${param}::text[]`
     },
   },
@@ -561,8 +665,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "string",
     op: "includes",
     buildDbClause: (filter, next) => {
-      const brands = String(filter.rawValue)
-        .split("||")
+      const brands = extractStringFilterRawValues(filter)
         .map(value => value.trim().toLowerCase())
         .filter(Boolean)
       if (brands.length === 0) return null
@@ -576,8 +679,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "string",
     op: "includes",
     buildDbClause: (filter, next) => {
-      const seriesNames = String(filter.rawValue)
-        .split("||")
+      const seriesNames = extractStringFilterRawValues(filter)
         .map(value => value.trim().toLowerCase())
         .filter(Boolean)
       if (seriesNames.length === 0) return null
@@ -616,52 +718,65 @@ export function getRegisteredFilterFields(): string[] {
 
 export function buildAppliedFilterFromValue(
   field: string,
-  rawValue: string | number | boolean,
+  rawValue: string | number | boolean | Array<string | number | boolean>,
   appliedAt = 0
 ): AppliedFilter | null {
   const definition = getFilterFieldDefinition(field)
   if (!definition) return null
 
   const targetField = definition.canonicalField ?? definition.field
-  const normalizedRawValue = definition.canonicalizeRawValue
-    ? definition.canonicalizeRawValue(rawValue)
-    : rawValue
-  if (normalizedRawValue == null) return null
+  const inputValues = normalizeInputValues(definition.kind, rawValue)
+  const normalizedValues = uniqPrimitiveValues(
+    inputValues
+      .map(value => definition.canonicalizeRawValue ? definition.canonicalizeRawValue(value) : value)
+      .filter((value): value is FilterPrimitive => value != null)
+  )
+  if (normalizedValues.length === 0) return null
 
   if (definition.kind === "boolean") {
-    const parsed = parseBooleanValue(normalizedRawValue)
-    if (parsed == null) return null
+    const parsedValues = uniqPrimitiveValues(
+      normalizedValues
+        .map(value => parseBooleanValue(value))
+        .filter((value): value is boolean => value != null)
+    ).map(value => Boolean(value))
+    if (parsedValues.length === 0) return null
+    const rawBooleanValue = parsedValues.length === 1 ? parsedValues[0] : parsedValues
     return {
       field: targetField,
       op: definition.op,
-      value: parsed ? "true" : "false",
-      rawValue: parsed ? "true" : "false",
+      value: parsedValues.map(value => value ? "true" : "false").join(", "),
+      rawValue: rawBooleanValue,
       appliedAt,
     }
   }
 
   if (definition.kind === "number") {
-    const parsed = typeof normalizedRawValue === "number"
-      ? normalizedRawValue
-      : extractNumericValue(String(normalizedRawValue))
-    if (parsed == null || Number.isNaN(parsed)) return null
-    const displayValue = `${formatNumericValue(parsed)}${definition.unit ?? ""}`
+    const parsedValues = uniqPrimitiveValues(
+      normalizedValues
+        .map(value => typeof value === "number" ? value : extractNumericValue(String(value)))
+        .filter((value): value is number => value != null && !Number.isNaN(value))
+    ).map(value => Number(value))
+    if (parsedValues.length === 0) return null
+    const rawNumberValue = parsedValues.length === 1 ? parsedValues[0] : parsedValues
     return {
       field: targetField,
       op: definition.op,
-      value: displayValue,
-      rawValue: parsed,
+      value: parsedValues.map(value => `${formatNumericValue(value)}${definition.unit ?? ""}`).join(", "),
+      rawValue: rawNumberValue,
       appliedAt,
     }
   }
 
-  const stringValue = String(normalizedRawValue).trim()
-  if (!stringValue) return null
+  const stringValues = normalizedValues
+    .map(value => String(value).trim())
+    .filter(Boolean)
+  if (stringValues.length === 0) return null
+  const rawStringValue = stringValues.length === 1 ? stringValues[0] : stringValues
   return {
     field: targetField,
     op: definition.op,
-    value: stringValue,
-    rawValue: stringValue,
+    value: stringValues.join(", "),
+    rawValue: rawStringValue,
     appliedAt,
   }
 }

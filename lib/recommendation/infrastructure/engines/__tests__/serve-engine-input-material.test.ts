@@ -25,4 +25,15 @@ describe("serve-engine input material mapping", () => {
     const input = mapIntakeToInput(makeForm("p, n"))
     expect(input.material).toBe("P,N")
   })
+
+  it("maps machining category directly to the DB root-category value", () => {
+    const input = mapIntakeToInput({
+      ...makeForm("S"),
+      toolTypeOrCurrentProduct: { status: "known", value: "Tooling System" },
+    })
+
+    expect(input.toolType).toBe("Tooling System")
+    expect(input.machiningCategory).toBe("Turning")
+    expect(input.operationType).toBe("Side_Milling")
+  })
 })

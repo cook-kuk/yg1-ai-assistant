@@ -41,6 +41,14 @@ const ISO_MATERIAL_LABELS: Record<string, { ko: string; en: string }> = {
   H: { ko: "고경도강", en: "Hardened Steel" },
 }
 
+const MACHINING_CATEGORY_DISPLAY_LABELS: Record<string, { ko: string; en: string }> = {
+  Milling: { ko: "Milling", en: "Milling" },
+  Holemaking: { ko: "Holemaking", en: "Holemaking" },
+  Threading: { ko: "Threading", en: "Threading" },
+  Turning: { ko: "Turning", en: "Turning" },
+  "Tooling System": { ko: "Turning", en: "Turning" },
+}
+
 const TEXT_REPLACEMENTS_EN: Array<[string, string]> = [
   ["문의 목적", "Inquiry Purpose"],
   ["가공 소재", "Workpiece Material"],
@@ -92,6 +100,22 @@ function formatIsoMaterialToken(value: string, language: AppLanguage): string | 
   return ISO_MATERIAL_LABELS[normalized]?.[language] ?? normalized
 }
 
+export function canonicalizeToolCategorySelection(text: string): string {
+  const trimmed = text.trim()
+  if (!trimmed) return ""
+  if (trimmed === "Turning") return "Tooling System"
+  if (trimmed in MACHINING_CATEGORY_DISPLAY_LABELS) return trimmed
+
+  const normalized = translateFreeTextToEnglish(trimmed)
+  if (normalized === "Turning") return "Tooling System"
+  if (normalized in MACHINING_CATEGORY_DISPLAY_LABELS) return normalized
+  return normalized
+}
+
+export function getMachiningCategoryDisplayValue(value: string, language: AppLanguage): string {
+  return MACHINING_CATEGORY_DISPLAY_LABELS[value.trim()]?.[language] ?? value
+}
+
 export function canonicalizeMaterialSelection(text: string): string {
   const parts = text.split(",").map(value => value.trim()).filter(Boolean)
   if (parts.length > 0 && parts.every(isIsoMaterialToken)) {
@@ -114,6 +138,8 @@ export function getIntakeFieldLabel(key: keyof ProductIntakeForm, language: AppL
 }
 
 export function localizeIntakeText(text: string, language: AppLanguage): string {
+  const machiningCategory = MACHINING_CATEGORY_DISPLAY_LABELS[text.trim()]
+  if (machiningCategory) return machiningCategory[language]
   if (language === "ko") return text
   return translateFreeTextToEnglish(text)
 }
@@ -140,6 +166,9 @@ export function getIntakeDisplayValue(
   }
   if (key === "material") {
     return getMaterialDisplayValue(value, language)
+  }
+  if (key === "toolTypeOrCurrentProduct") {
+    return getMachiningCategoryDisplayValue(value, language)
   }
 
   return localizeIntakeText(value, language)

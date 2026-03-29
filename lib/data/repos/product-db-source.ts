@@ -513,40 +513,6 @@ function normalizeToolSubtype(...candidates: Array<string | null | undefined>): 
   return titleCase(source.replace(/_/g, " "))
 }
 
-type RequestedToolFamily = "milling" | "holemaking" | "threading"
-
-function resolveRequestedToolFamily(toolType: string | null | undefined): RequestedToolFamily | null {
-  if (!toolType) return null
-  const lower = toolType.trim().toLowerCase()
-
-  if (
-    lower.includes("엔드밀") ||
-    lower.includes("end mill") ||
-    lower.includes("endmill") ||
-    lower.includes("밀링")
-  ) {
-    return "milling"
-  }
-
-  if (
-    lower.includes("드릴") ||
-    lower.includes("drill") ||
-    lower.includes("holemaking")
-  ) {
-    return "holemaking"
-  }
-
-  if (
-    lower.includes("탭") ||
-    lower.includes("tap") ||
-    lower.includes("thread")
-  ) {
-    return "threading"
-  }
-
-  return null
-}
-
 function normalizeAppShapeToken(value: string): string | null {
   const trimmed = value.trim()
   if (!trimmed || trimmed === "-" || trimmed === "NONE" || trimmed === "undefined") return null
@@ -758,8 +724,8 @@ export function buildQueryOptions(options: ProductSearchOptions): { where: strin
 
   const requestedToolFamily = resolveRequestedToolFamilyInput(input?.toolType)
   if (requestedToolFamily) {
-    const categoryParam = next(`%${requestedToolFamily}%`)
-    where.push(`LOWER(COALESCE(edp_root_category, '')) LIKE ${categoryParam}`)
+    const categoryParam = next(requestedToolFamily)
+    where.push(`LOWER(BTRIM(COALESCE(edp_root_category, ''))) = LOWER(BTRIM(${categoryParam}))`)
   }
 
   const operationShapeTexts = input?.operationType ? getOperationShapeSearchTexts(input.operationType) : []

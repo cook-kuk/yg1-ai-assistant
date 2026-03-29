@@ -186,7 +186,7 @@ export const FIELD_CONFIGS: IntakeFieldConfig[] = [
       { value: "Milling", label: "Milling" },
       { value: "Holemaking", label: "Holemaking" },
       { value: "Threading", label: "Threading" },
-      { value: "Turning", label: "Turning" },
+      { value: "Tooling System", label: "Turning" },
     ],
     unknownLabel: "모름",
   },

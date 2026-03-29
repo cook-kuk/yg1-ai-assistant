@@ -34,6 +34,7 @@ const TOOL_CATEGORY_IMAGES: Record<string, string> = {
   Threading: "/images/reference/threading.png",
   Milling: "/images/reference/milling.png",
   Turning: "/images/reference/turning.png",
+  "Tooling System": "/images/reference/turning.png",
 }
 
 const OPERATION_SHAPE_IMAGES: Record<string, string> = {

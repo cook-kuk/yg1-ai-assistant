@@ -60,4 +60,89 @@ describe("llm-filter-extractor", () => {
     expect(result.skippedFields).toEqual([])
     expect(result.skipPendingField).toBe(true)
   })
+
+  it("drops unsupported or out-of-scope values during validation", async () => {
+    const provider = createMockProvider(`{
+      "extractedFilters": {
+        "coating": "GhostCoat",
+        "unknownField": "nope"
+      },
+      "skippedFields": ["unknownField"],
+      "skipPendingField": false,
+      "isSideQuestion": false,
+      "confidence": 0.81
+    }`)
+
+    const result = await extractFiltersWithLLM(
+      "GhostCoat으로 해줘",
+      "coating",
+      [],
+      provider,
+      {
+        allowedFields: ["coating"],
+        fieldValueScope: { coating: ["TiAlN", "AlCrN"] },
+      }
+    )
+
+    expect(result.extractedFilters).toEqual({})
+    expect(result.skippedFields).toEqual([])
+    expect(result.validationIssues).toEqual(expect.arrayContaining([
+      expect.stringContaining("out-of-scope value for coating"),
+      expect.stringContaining("disallowed field: unknownField"),
+    ]))
+  })
+
+  it("reconciles validated values to the candidate scope casing", async () => {
+    const provider = createMockProvider(`{
+      "extractedFilters": {
+        "coating": "alcrn"
+      },
+      "skippedFields": [],
+      "skipPendingField": false,
+      "isSideQuestion": false,
+      "confidence": 0.9
+    }`)
+
+    const result = await extractFiltersWithLLM(
+      "alcrn으로 보여줘",
+      "coating",
+      [],
+      provider,
+      {
+        allowedFields: ["coating"],
+        fieldValueScope: { coating: ["TiAlN", "AlCrN"] },
+      }
+    )
+
+    expect(result.extractedFilters).toEqual({
+      coating: "AlCrN",
+    })
+  })
+
+  it("keeps multiple values for one field when the LLM returns an array", async () => {
+    const provider = createMockProvider(`{
+      "extractedFilters": {
+        "fluteCount": [4, 5]
+      },
+      "skippedFields": [],
+      "skipPendingField": false,
+      "isSideQuestion": false,
+      "confidence": 0.92
+    }`)
+
+    const result = await extractFiltersWithLLM(
+      "4날 또는 5날로 해줘",
+      "fluteCount",
+      [],
+      provider,
+      {
+        allowedFields: ["fluteCount"],
+        fieldValueScope: { fluteCount: ["4날", "5날", "6날"] },
+      }
+    )
+
+    expect(result.extractedFilters).toEqual({
+      fluteCount: [4, 5],
+    })
+  })
 })
