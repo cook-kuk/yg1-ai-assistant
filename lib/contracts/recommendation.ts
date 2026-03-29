@@ -56,7 +56,7 @@ export interface RecommendationAppliedFilterDto {
   field: string
   op: string
   value: string
-  rawValue?: string | number
+  rawValue?: string | number | boolean | Array<string | number | boolean>
   appliedAt?: number
 }
 
@@ -274,7 +274,12 @@ export const recommendationAppliedFilterSchema = z.object({
   field: z.string(),
   op: z.string(),
   value: z.string(),
-  rawValue: z.union([z.string(), z.number()]).optional(),
+  rawValue: z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.array(z.union([z.string(), z.number(), z.boolean()])),
+  ]).optional(),
   appliedAt: z.number().optional(),
 }).passthrough()
 

@@ -216,6 +216,58 @@ describe("pending selection resolver", () => {
       value: "4날, 5날",
     })
   })
+
+  it("uses LLM before single chip matching for multi-value tool subtype answers", async () => {
+    const state = makeState({
+      lastAskedField: "toolSubtype",
+      displayedOptions: [
+        { index: 1, label: "Square (3291개)", field: "toolSubtype", value: "Square", count: 3291 },
+        { index: 2, label: "Radius (1766개)", field: "toolSubtype", value: "Radius", count: 1766 },
+        { index: 3, label: "Ball (469개)", field: "toolSubtype", value: "Ball", count: 469 },
+      ],
+    })
+    const provider = createMockProvider(`{
+      "extractedFilters": { "toolSubtype": ["Square", "Radius"] },
+      "skippedFields": [],
+      "skipPendingField": false,
+      "isSideQuestion": false,
+      "confidence": 0.97
+    }`)
+
+    const filter = await buildPendingSelectionFilter(state, "square과 radius", provider)
+
+    expect(filter).toMatchObject({
+      field: "toolSubtype",
+      rawValue: ["Square", "Radius"],
+      value: "Square, Radius",
+    })
+  })
+
+  it("falls back to deterministic multi-value parsing when LLM does not return a pending-field filter", async () => {
+    const state = makeState({
+      lastAskedField: "toolSubtype",
+      displayedOptions: [
+        { index: 1, label: "Square (3291개)", field: "toolSubtype", value: "Square", count: 3291 },
+        { index: 2, label: "Radius (1766개)", field: "toolSubtype", value: "Radius", count: 1766 },
+        { index: 3, label: "Ball (469개)", field: "toolSubtype", value: "Ball", count: 469 },
+      ],
+    })
+    const provider = createMockProvider(`{
+      "extractedFilters": {},
+      "skippedFields": [],
+      "skipPendingField": false,
+      "isSideQuestion": false,
+      "confidence": 0.31
+    }`)
+
+    const filter = await buildPendingSelectionFilter(state, "square과 radius", provider)
+
+    expect(filter).toMatchObject({
+      field: "toolSubtype",
+      rawValue: ["Square", "Radius"],
+      value: "Square, Radius",
+    })
+  })
 })
 
 describe("explicit comparison resolver", () => {

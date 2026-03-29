@@ -243,13 +243,21 @@ function buildValidatedFilters(
     validated.push(filter)
   }
 
-  const dedupedByField = new Map<string, AppliedFilter>()
+  const mergedRawValuesByField = new Map<string, Array<string | number | boolean>>()
   for (const filter of validated) {
-    dedupedByField.set(filter.field, filter)
+    const existing = mergedRawValuesByField.get(filter.field) ?? []
+    const rawValues = Array.isArray(filter.rawValue) ? filter.rawValue : [filter.rawValue]
+    mergedRawValuesByField.set(filter.field, [...existing, ...rawValues])
+  }
+
+  const mergedFilters: AppliedFilter[] = []
+  for (const [field, rawValues] of mergedRawValuesByField.entries()) {
+    const merged = buildAppliedFilterFromValue(field, rawValues)
+    if (merged) mergedFilters.push(merged)
   }
 
   return {
-    filters: Array.from(dedupedByField.values()),
+    filters: mergedFilters,
     errors,
   }
 }

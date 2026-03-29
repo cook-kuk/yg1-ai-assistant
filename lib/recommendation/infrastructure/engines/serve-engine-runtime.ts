@@ -346,6 +346,53 @@ function normalizePendingSelectionText(value: string): string {
     .toLowerCase()
 }
 
+function looksLikeMultiValueSelection(value: string): boolean {
+  return /(?:,|\/|\||또는|아니면|\band\b|\bor\b|(?<=[0-9A-Za-z가-힣])(?:과|와)(?=\s*[0-9A-Za-z가-힣]))/iu.test(value)
+}
+
+function normalizePendingScopeValue(field: string, value: string | number | boolean): string {
+  const parsed = buildAppliedFilterFromValue(field, value, 0)
+  const canonicalValue = Array.isArray(parsed?.rawValue)
+    ? parsed.rawValue[0]
+    : parsed?.rawValue
+  return normalizePendingSelectionText(String(canonicalValue ?? value))
+}
+
+function isPendingFilterWithinScope(
+  field: string,
+  filter: AppliedFilter,
+  optionsForPendingField: Array<{ value: string; label: string }>
+): boolean {
+  const scopeValues = optionsForPendingField
+    .flatMap(option => [option.value, option.label])
+    .filter(value => value && value !== "skip")
+    .map(value => normalizePendingScopeValue(field, value))
+    .filter(Boolean)
+
+  if (scopeValues.length === 0) return true
+
+  const rawValues = Array.isArray(filter.rawValue) ? filter.rawValue : [filter.rawValue]
+  return rawValues.every(value => {
+    const normalized = normalizePendingScopeValue(field, value)
+    return scopeValues.some(scopeValue =>
+      scopeValue === normalized
+      || includesText(scopeValue, normalized)
+      || includesText(normalized, scopeValue)
+    )
+  })
+}
+
+function tryBuildScopedPendingFieldFilter(
+  field: string,
+  rawValue: string,
+  optionsForPendingField: Array<{ value: string; label: string }>,
+  appliedAt: number
+): AppliedFilter | null {
+  const parsed = buildAppliedFilterFromValue(field, rawValue, appliedAt)
+  if (!parsed || parsed.op === "skip") return parsed
+  return isPendingFilterWithinScope(field, parsed, optionsForPendingField) ? parsed : null
+}
+
 function isSkipSelectionValue(value: string | null | undefined): boolean {
   if (!value) return false
   const normalized = normalizePendingSelectionText(value)
@@ -845,6 +892,58 @@ export async function buildPendingSelectionFilter(
     })
   }
 
+  const effectiveProvider = provider ?? {
+    available: () => false,
+    complete: async () => "",
+    completeWithTools: async () => ({ text: null, toolUse: null }),
+  }
+  const pendingFieldScope = optionsForPendingField
+    .map(option => option.value)
+    .filter(value => value && value !== "skip")
+
+  const llmResult = await extractFiltersWithLLM(
+    raw,
+    pendingField,
+    sessionState.appliedFilters ?? [],
+    effectiveProvider,
+    {
+      allowedFields: [pendingField],
+      fieldValueScope: pendingFieldScope.length > 0
+        ? { [pendingField]: pendingFieldScope }
+        : undefined,
+    }
+  )
+  if (llmResult.skipPendingField || llmResult.skippedFields.includes(pendingField)) {
+    console.log(`[pending-filter:llm] LLM resolved field="${pendingField}" as skip`)
+    return {
+      field: pendingField,
+      op: "skip",
+      value: "상관없음",
+      rawValue: "skip",
+      appliedAt: sessionState.turnCount ?? 0,
+    }
+  }
+
+  const llmFilter = llmResultToAppliedFilters(llmResult.extractedFilters, sessionState.turnCount ?? 0)
+    .find(filter => filter.field === pendingField)
+  if (llmFilter) {
+    console.log(`[pending-filter:llm] LLM extracted field="${pendingField}" value="${llmFilter.rawValue}"`)
+    return llmFilter
+  }
+
+  if (looksLikeMultiValueSelection(raw)) {
+    const multiValueFilter = tryBuildScopedPendingFieldFilter(
+      pendingField,
+      raw,
+      optionsForPendingField,
+      sessionState.turnCount ?? 0
+    )
+    if (multiValueFilter) {
+      console.log(`[pending-filter:multi] Parsed multi-value field="${pendingField}" value="${multiValueFilter.rawValue}"`)
+      return multiValueFilter
+    }
+  }
+
   const optionMatch = optionsForPendingField.find(option => {
     const normalizedValue = normalizePendingSelectionText(option.value)
     const normalizedLabel = normalizePendingSelectionText(option.label)
@@ -859,45 +958,6 @@ export async function buildPendingSelectionFilter(
   const selectedOption = optionMatch ?? chipMatch ?? null
   const selectedValue = selectedOption?.value ?? null
   if (!selectedValue) {
-    const effectiveProvider = provider ?? {
-      available: () => false,
-      complete: async () => "",
-      completeWithTools: async () => ({ text: null, toolUse: null }),
-    }
-    const pendingFieldScope = optionsForPendingField
-      .map(option => option.value)
-      .filter(value => value && value !== "skip")
-
-    const llmResult = await extractFiltersWithLLM(
-      raw,
-      pendingField,
-      sessionState.appliedFilters ?? [],
-      effectiveProvider,
-      {
-        allowedFields: [pendingField],
-        fieldValueScope: pendingFieldScope.length > 0
-          ? { [pendingField]: pendingFieldScope }
-          : undefined,
-      }
-    )
-    if (llmResult.skipPendingField || llmResult.skippedFields.includes(pendingField)) {
-      console.log(`[pending-filter:llm] LLM resolved field="${pendingField}" as skip`)
-      return {
-        field: pendingField,
-        op: "skip",
-        value: "상관없음",
-        rawValue: "skip",
-        appliedAt: sessionState.turnCount ?? 0,
-      }
-    }
-
-    const llmFilter = llmResultToAppliedFilters(llmResult.extractedFilters, sessionState.turnCount ?? 0)
-      .find(filter => filter.field === pendingField)
-    if (llmFilter) {
-      console.log(`[pending-filter:llm] LLM extracted field="${pendingField}" value="${llmFilter.rawValue}"`)
-      return llmFilter
-    }
-
     // ── NL fallback: try pattern-based extraction for the pending field ──
     const nlFilters = extractAllFiltersFromMessage(raw, sessionState.appliedFilters ?? [])
     const nlMatch = nlFilters.find(f => f.field === pendingField)

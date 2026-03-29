@@ -31,7 +31,7 @@ interface FilterFieldDefinition {
 }
 
 const SKIP_TOKENS = new Set(["상관없음", "상관 없음", "모름", "skip"])
-const MULTI_VALUE_SEPARATOR_PATTERN = /\s*(?:,|\/|\||또는|아니면| and | or )\s*/iu
+const MULTI_VALUE_SEPARATOR_PATTERN = /\s*(?:,|\/|\||또는|아니면| and | or |(?<=[0-9A-Za-z가-힣])(?:과|와)(?=\s*[0-9A-Za-z가-힣]))\s*/iu
 
 function unwrapRecord(record: FilterRecord): Record<string, unknown> {
   if (record && typeof record === "object" && "product" in record && record.product && typeof record.product === "object") {
