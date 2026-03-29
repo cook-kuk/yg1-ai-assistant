@@ -8,6 +8,7 @@ import type {
   RecommendationPaginationDto,
   RecommendationPublicSessionDto,
 } from "@/lib/contracts/recommendation"
+import type { ExplorationSessionState } from "@/lib/recommendation/domain/types"
 import {
   buildRecommendationSessionEnvelope,
   createCandidatePaginationRequest,
@@ -99,7 +100,7 @@ export function useProductRecommendationPage({
   const [isChatSending, setIsChatSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sessionState, setSessionState] = useState<RecommendationPublicSessionDto | null>(null)
-  const [engineSessionState, setEngineSessionState] = useState<unknown | null>(null)
+  const [engineSessionState, setEngineSessionState] = useState<ExplorationSessionState | null>(null)
   const [candidateSnapshot, setCandidateSnapshot] = useState<RecommendationCandidateDto[] | null>(null)
   const [candidatePagination, setCandidatePagination] = useState<RecommendationPaginationDto | null>(null)
   const [isCandidatePageLoading, setIsCandidatePageLoading] = useState(false)
@@ -145,7 +146,7 @@ export function useProductRecommendationPage({
   const buildFeedbackPayload = useCallback((
     updatedMessages: ChatMsg[],
     messageIndex: number,
-    latestFeedbackTarget: "response" | "chips" = "response",
+    latestFeedbackTarget: "response" | "chips" | "recommendation" = "response",
   ) => {
     const aiMessage = updatedMessages[messageIndex]
     const userMessage = messageIndex > 0 ? updatedMessages[messageIndex - 1] : null
@@ -213,7 +214,7 @@ export function useProductRecommendationPage({
       if (data.error) throw new Error(data.detail ?? data.error)
 
       setSessionState(data.session.publicState ?? null)
-      setEngineSessionState(data.session.engineState ?? null)
+      setEngineSessionState((data.session.engineState as ExplorationSessionState | null) ?? null)
       setCandidateSnapshot(data.candidates ?? null)
       setCandidatePagination(data.pagination ?? null)
       setCapabilities(resolveRecommendationCapabilities(data))
@@ -310,7 +311,7 @@ export function useProductRecommendationPage({
 
       if (data.session.publicState !== null || data.session.engineState !== null) {
         setSessionState(data.session.publicState ?? null)
-        setEngineSessionState(data.session.engineState ?? null)
+        setEngineSessionState((data.session.engineState as ExplorationSessionState | null) ?? null)
         setCapabilities(resolveRecommendationCapabilities(data))
       } else if (data.purpose === "greeting") {
         setSessionState(null)
@@ -428,7 +429,7 @@ export function useProductRecommendationPage({
       if (data.error) throw new Error(data.detail ?? data.error)
 
       setSessionState(data.session.publicState ?? null)
-      setEngineSessionState(data.session.engineState ?? null)
+      setEngineSessionState((data.session.engineState as ExplorationSessionState | null) ?? null)
       setCapabilities(resolveRecommendationCapabilities(data))
       setCandidateSnapshot(data.candidates ?? null)
       if (data.pagination) setCandidatePagination(data.pagination)
@@ -543,6 +544,7 @@ export function useProductRecommendationPage({
     error,
     setError,
     sessionState,
+    engineSessionState,
     candidateSnapshot,
     candidatePagination,
     isCandidatePageLoading,

@@ -36,17 +36,19 @@ import {
 } from "@/lib/frontend/recommendation/recommendation-grouping"
 import { isUndoChipEnabled } from "@/lib/frontend/recommendation/recommendation-view-model"
 import {
-  type AnswerState,
-  FIELD_CONFIGS,
   type ProductIntakeForm,
 } from "@/lib/frontend/recommendation/intake-types"
 import {
   getIntakeDisplayValue,
-  getIntakeFieldLabel,
   localizeIntakeText,
 } from "@/lib/frontend/recommendation/intake-localization"
+import {
+  buildSidebarConditionItems,
+  getFilterDisplayValue,
+} from "@/lib/frontend/recommendation/sidebar-condition-items"
 import type { ChatMsg, TurnFeedback } from "@/lib/frontend/recommendation/exploration-types"
 import { DebugPanel, DebugToggle } from "@/components/debug/debug-panel"
+import type { ExplorationSessionState } from "@/lib/recommendation/domain/types"
 
 const MAX_DISPLAY_CANDIDATES = 10
 const RESOLUTION_CONFIG: Record<string, { ko: string; en: string; cls: string }> = {
@@ -55,108 +57,6 @@ const RESOLUTION_CONFIG: Record<string, { ko: string; en: string; cls: string }>
   resolved_exact: { ko: "정확 매칭", en: "Exact Match", cls: "bg-green-100 text-green-700" },
   resolved_approximate: { ko: "근사 매칭", en: "Approximate", cls: "bg-amber-100 text-amber-700" },
   resolved_none: { ko: "매칭 없음", en: "No Match", cls: "bg-red-100 text-red-700" },
-}
-
-type SidebarConditionItem = {
-  key: string
-  label: string
-  value: string
-  emoji: string
-  source: "input" | "filter"
-  order: number
-}
-
-function getFilterDisplayValue(
-  filter: RecommendationPublicSessionDto["appliedFilters"][number],
-  language: "ko" | "en"
-): string {
-  if (filter.op === "skip") {
-    return language === "ko" ? "상관없음" : "No Preference"
-  }
-  return localizeIntakeText(filter.value, language)
-}
-
-function getFilterFieldLabel(field: string, language: "ko" | "en"): string {
-  switch (field) {
-    case "toolSubtype":
-      return language === "ko" ? "형상" : "Shape"
-    case "fluteCount":
-      return language === "ko" ? "날수" : "Flutes"
-    case "coating":
-      return language === "ko" ? "코팅" : "Coating"
-    case "workPieceName":
-      return language === "ko" ? "세부 피삭재" : "Workpiece"
-    case "seriesName":
-      return language === "ko" ? "시리즈" : "Series"
-    case "cuttingType":
-      return language === "ko" ? "가공 종류" : "Cutting Type"
-    case "diameterRefine":
-    case "diameterMm":
-      return language === "ko" ? "직경" : "Diameter"
-    default:
-      return localizeIntakeText(field, language)
-  }
-}
-
-function getFilterFieldEmoji(field: string): string {
-  switch (field) {
-    case "toolSubtype":
-      return "🧩"
-    case "fluteCount":
-      return "🪶"
-    case "coating":
-      return "🛡️"
-    case "workPieceName":
-      return "🔩"
-    case "seriesName":
-      return "🗂️"
-    case "cuttingType":
-      return "⚙️"
-    case "diameterRefine":
-    case "diameterMm":
-      return "📏"
-    default:
-      return "🏷️"
-  }
-}
-
-function buildSidebarConditionItems(
-  form: ProductIntakeForm,
-  sessionState: RecommendationPublicSessionDto | null,
-  language: "ko" | "en"
-): SidebarConditionItem[] {
-  const itemsByKey = new Map<string, SidebarConditionItem>()
-  const orderByKey = new Map<string, number>()
-
-  FIELD_CONFIGS.forEach((config, index) => {
-    orderByKey.set(config.key, index)
-    const state = form[config.key as keyof ProductIntakeForm] as AnswerState<string>
-    if (state.status === "unanswered") return
-
-    itemsByKey.set(config.key, {
-      key: config.key,
-      label: getIntakeFieldLabel(config.key as keyof ProductIntakeForm, language),
-      value: getIntakeDisplayValue(config.key as keyof ProductIntakeForm, state, language),
-      emoji: config.emoji,
-      source: "input",
-      order: index,
-    })
-  })
-
-  const activeFilters = sessionState?.appliedFilters ?? []
-  activeFilters.forEach((filter, index) => {
-    const existing = itemsByKey.get(filter.field)
-    itemsByKey.set(filter.field, {
-      key: filter.field,
-      label: getFilterFieldLabel(filter.field, language),
-      value: getFilterDisplayValue(filter, language),
-      emoji: existing?.emoji ?? getFilterFieldEmoji(filter.field),
-      source: "filter",
-      order: existing?.order ?? FIELD_CONFIGS.length + index,
-    })
-  })
-
-  return Array.from(itemsByKey.values()).sort((left, right) => left.order - right.order)
 }
 
 function getSeriesRatingLabel(
@@ -287,11 +187,13 @@ function CaseCaptureModal({
 function ExplorationSidebar({
   form,
   sessionState,
+  engineSessionState,
   onEdit,
   messages,
 }: {
   form: ProductIntakeForm
   sessionState: RecommendationPublicSessionDto | null
+  engineSessionState: ExplorationSessionState | null
   onEdit: () => void
   messages: ChatMsg[]
 }) {
@@ -301,8 +203,8 @@ function ExplorationSidebar({
   const displayedGroups = sessionState?.displayedSeriesGroups ?? []
   const currentMaterialLabel = getCurrentMaterialLabel(form, language)
   const sidebarConditionItems = useMemo(
-    () => buildSidebarConditionItems(form, sessionState, language),
-    [form, language, sessionState]
+    () => buildSidebarConditionItems(form, sessionState, engineSessionState, language),
+    [engineSessionState, form, language, sessionState]
   )
 
   return (
@@ -987,6 +889,7 @@ export function ExplorationScreen({
   messages,
   isSending,
   sessionState,
+  engineSessionState,
   candidateSnapshot,
   candidatePagination,
   isCandidatePageLoading,
@@ -1004,6 +907,7 @@ export function ExplorationScreen({
   messages: ChatMsg[]
   isSending: boolean
   sessionState: RecommendationPublicSessionDto | null
+  engineSessionState: ExplorationSessionState | null
   candidateSnapshot: RecommendationCandidateDto[] | null
   candidatePagination: RecommendationPaginationDto | null
   isCandidatePageLoading: boolean
@@ -1072,7 +976,7 @@ export function ExplorationScreen({
 
       <div className="flex-1 min-h-0 flex overflow-hidden">
         <div className={`w-60 border-r bg-gray-50 flex-shrink-0 overflow-y-auto transition-all ${showSidebar ? "block" : "hidden"} lg:block`}>
-          <ExplorationSidebar form={form} sessionState={sessionState} onEdit={onEdit} messages={messages} />
+          <ExplorationSidebar form={form} sessionState={sessionState} engineSessionState={engineSessionState} onEdit={onEdit} messages={messages} />
         </div>
 
         <div className="flex-1 min-w-0 flex flex-col">
