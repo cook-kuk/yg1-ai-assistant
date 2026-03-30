@@ -42,11 +42,11 @@ const ISO_MATERIAL_LABELS: Record<string, { ko: string; en: string }> = {
 }
 
 const MACHINING_CATEGORY_DISPLAY_LABELS: Record<string, { ko: string; en: string }> = {
-  Milling: { ko: "Milling", en: "Milling" },
   Holemaking: { ko: "Holemaking", en: "Holemaking" },
   Threading: { ko: "Threading", en: "Threading" },
+  Milling: { ko: "Milling", en: "Milling" },
   Turning: { ko: "Turning", en: "Turning" },
-  "Tooling System": { ko: "Turning", en: "Turning" },
+  "Tooling System": { ko: "Tooling System", en: "Tooling System" },
 }
 
 const TEXT_REPLACEMENTS_EN: Array<[string, string]> = [
@@ -103,11 +103,9 @@ function formatIsoMaterialToken(value: string, language: AppLanguage): string | 
 export function canonicalizeToolCategorySelection(text: string): string {
   const trimmed = text.trim()
   if (!trimmed) return ""
-  if (trimmed === "Turning") return "Tooling System"
   if (trimmed in MACHINING_CATEGORY_DISPLAY_LABELS) return trimmed
 
   const normalized = translateFreeTextToEnglish(trimmed)
-  if (normalized === "Turning") return "Tooling System"
   if (normalized in MACHINING_CATEGORY_DISPLAY_LABELS) return normalized
   return normalized
 }

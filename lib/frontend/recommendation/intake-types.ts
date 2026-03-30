@@ -1,6 +1,7 @@
 export {
   INITIAL_INTAKE_FORM,
   FIELD_CONFIGS,
+  OPERATION_SHAPES_BY_METHOD,
   allRequiredAnswered,
   countAnswered,
   countUnknowns,

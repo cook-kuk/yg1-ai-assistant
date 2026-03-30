@@ -116,26 +116,41 @@ export interface IntakeFieldConfig {
   multiSelect?: boolean
 }
 
-export const OPERATION_SHAPE_OPTIONS: IntakeOption[] = [
-  { value: "Side_Milling", label: "Side Milling" },
-  { value: "Facing", label: "Facing" },
-  { value: "Profiling", label: "Profiling" },
-  { value: "Die-Sinking", label: "Die-Sinking" },
-  { value: "Helical_Interpolation", label: "Helical Interpolation" },
-  { value: "Chamfering", label: "Chamfering" },
-  { value: "Corner_Radius", label: "Corner Radius" },
-  { value: "Trochoidal", label: "Trochoidal" },
-  { value: "Taper Side Milling", label: "Taper Side Milling" },
-  { value: "Small Part", label: "Small Part" },
-  { value: "Slotting", label: "Slotting" },
-  { value: "Side Milling", label: "Side Milling" },
-  { value: "Helical Interpolation", label: "Helical Interpolation" },
-  { value: "Corner Radius", label: "Corner Radius" },
-  { value: "Taper_Side_Milling", label: "Taper Side Milling" },
-  { value: "Small_Part", label: "Small Part" },
-  { value: "Ramping", label: "Ramping" },
-  { value: "Plunging", label: "Plunging" },
-]
+// ── e-catalog 기준 가공방식 → 가공형상 매핑 ──────────────────
+export const OPERATION_SHAPES_BY_METHOD: Record<string, IntakeOption[]> = {
+  Holemaking: [
+    { value: "Drilling", label: "Drilling" },
+    { value: "Reaming_Blind", label: "Reaming - Blind" },
+    { value: "Reaming_Through", label: "Reaming - Through" },
+  ],
+  Threading: [
+    { value: "Threading_Blind", label: "Blind" },
+    { value: "Threading_Through", label: "Through" },
+  ],
+  Milling: [
+    { value: "Side_Milling", label: "Side Milling" },
+    { value: "Slotting", label: "Slotting" },
+    { value: "Profiling", label: "Profiling" },
+    { value: "Die-Sinking", label: "Die-Sinking" },
+    { value: "Taper_Side_Milling", label: "Taper Side Milling" },
+    { value: "Corner_Radius", label: "Corner Radius" },
+    { value: "Small_Part", label: "Small Part" },
+    { value: "Facing", label: "Facing" },
+    { value: "Trochoidal", label: "Trochoidal" },
+    { value: "Helical_Interpolation", label: "Helical Interpolation" },
+  ],
+  Turning: [
+    { value: "ISO_Turning", label: "ISO Turn" },
+    { value: "Parting_Grooving", label: "Parting & Grooving" },
+  ],
+  "Tooling System": [
+    { value: "Tool_Holder", label: "Tool Holder" },
+    { value: "Accessory", label: "Accessory" },
+  ],
+}
+
+export const OPERATION_SHAPE_OPTIONS: IntakeOption[] =
+  Object.values(OPERATION_SHAPES_BY_METHOD).flat()
 
 export const FIELD_CONFIGS: IntakeFieldConfig[] = [
   {
@@ -169,25 +184,26 @@ export const FIELD_CONFIGS: IntakeFieldConfig[] = [
     unknownLabel: "모름",
   },
   {
+    key: "toolTypeOrCurrentProduct",
+    label: "가공 방식",
+    emoji: "🛠️",
+    description: "찾고 싶은 공구 계열을 선택하세요.",
+    options: [
+      { value: "Holemaking", label: "Holemaking" },
+      { value: "Threading", label: "Threading" },
+      { value: "Milling", label: "Milling" },
+      { value: "Turning", label: "Turning" },
+      { value: "Tooling System", label: "Tooling System" },
+    ],
+    unknownLabel: "모름",
+  },
+  {
     key: "operationType",
     label: "가공 형상",
     emoji: "📐",
     description: "필요한 가공 형상을 선택하세요. 복수 선택도 가능합니다.",
     multiSelect: true,
     options: OPERATION_SHAPE_OPTIONS,
-    unknownLabel: "모름",
-  },
-  {
-    key: "toolTypeOrCurrentProduct",
-    label: "가공 방식",
-    emoji: "🛠️",
-    description: "찾고 싶은 공구 계열을 선택하세요.",
-    options: [
-      { value: "Milling", label: "Milling" },
-      { value: "Holemaking", label: "Holemaking" },
-      { value: "Threading", label: "Threading" },
-      { value: "Tooling System", label: "Turning" },
-    ],
     unknownLabel: "모름",
   },
   {

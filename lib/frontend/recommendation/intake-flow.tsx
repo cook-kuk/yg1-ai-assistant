@@ -19,6 +19,7 @@ import {
   type IntakeFieldConfig,
   type ProductIntakeForm,
   FIELD_CONFIGS,
+  OPERATION_SHAPES_BY_METHOD,
   allRequiredAnswered,
   countAnswered,
   countUnknowns,
@@ -38,24 +39,30 @@ const TOOL_CATEGORY_IMAGES: Record<string, string> = {
 }
 
 const OPERATION_SHAPE_IMAGES: Record<string, string> = {
-  Side_Milling: "/images/operations/side_milling.svg",
-  "Side Milling": "/images/operations/side_milling.svg",
-  Facing: "/images/operations/facing.svg",
-  Profiling: "/images/operations/profiling.svg",
-  "Die-Sinking": "/images/operations/die_sinking.svg",
-  Helical_Interpolation: "/images/operations/helical_interpolation.svg",
-  "Helical Interpolation": "/images/operations/helical_interpolation.svg",
-  Chamfering: "/images/operations/chamfering.svg",
-  Corner_Radius: "/images/operations/corner_radius.svg",
-  "Corner Radius": "/images/operations/corner_radius.svg",
-  Trochoidal: "/images/operations/trochoidal.svg",
-  Taper_Side_Milling: "/images/operations/taper_side_milling.svg",
-  "Taper Side Milling": "/images/operations/taper_side_milling.svg",
-  Small_Part: "/images/operations/small_part.svg",
-  "Small Part": "/images/operations/small_part.svg",
-  Slotting: "/images/operations/slotting.svg",
-  Ramping: "/images/operations/ramping.svg",
-  Plunging: "/images/operations/plunging.svg",
+  // Holemaking
+  Drilling: "/images/operations/drilling.png",
+  Reaming_Blind: "/images/operations/reaming_blind.png",
+  Reaming_Through: "/images/operations/reaming_through.png",
+  // Threading
+  Threading_Blind: "/images/operations/threading_blind.png",
+  Threading_Through: "/images/operations/threading_through.png",
+  // Milling
+  Side_Milling: "/images/operations/side_milling.png",
+  Slotting: "/images/operations/slotting.png",
+  Profiling: "/images/operations/profiling.png",
+  "Die-Sinking": "/images/operations/die_sinking.png",
+  Taper_Side_Milling: "/images/operations/taper_side_milling.png",
+  Corner_Radius: "/images/operations/corner_radius.png",
+  Small_Part: "/images/operations/small_part.png",
+  Facing: "/images/operations/facing.png",
+  Trochoidal: "/images/operations/trochoidal.png",
+  Helical_Interpolation: "/images/operations/helical_interpolation.png",
+  // Turning
+  ISO_Turning: "/images/operations/iso_turning.png",
+  Parting_Grooving: "/images/operations/parting.png",
+  // Tooling System
+  Tool_Holder: "/images/operations/tool_holder.png",
+  Accessory: "/images/operations/accessory.png",
 }
 
 const INQUIRY_PURPOSE_ICONS: Record<string, { icon: string; color: string }> = {
@@ -227,11 +234,13 @@ function IntakeFieldSection({
   index,
   state,
   onChange,
+  form,
 }: {
   config: IntakeFieldConfig
   index: number
   state: AnswerState<string>
   onChange: (s: AnswerState<string>) => void
+  form?: ProductIntakeForm
 }) {
   const { language } = useApp()
   const [showCustom, setShowCustom] = useState(false)
@@ -324,50 +333,77 @@ function IntakeFieldSection({
           })}
         </div>
       </div>
-    ) : config.key === "operationType" && config.multiSelect ? (
-      <div className="rounded-2xl border border-gray-200 bg-[linear-gradient(180deg,#ffffff_0%,#fafafa_100%)] p-3">
-        <div className="mb-2 flex items-center justify-between">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">
-            {language === "ko" ? "가공 형상" : "Application Shape"}
-          </p>
-          <span className="text-[10px] text-gray-400">
-            {selectedValues.size > 0
-              ? `${selectedValues.size}${language === "ko" ? "개 선택" : " selected"}`
-              : language === "ko" ? "복수 선택" : "Multi"}
-          </span>
+    ) : config.key === "operationType" && config.multiSelect ? (() => {
+      const selectedMethod = form?.toolTypeOrCurrentProduct
+      const methodValue = selectedMethod?.status === "known" ? (selectedMethod as { status: "known"; value: string }).value : null
+      const filteredOptions = methodValue && OPERATION_SHAPES_BY_METHOD[methodValue]
+        ? OPERATION_SHAPES_BY_METHOD[methodValue]
+        : config.options
+      const needsMethod = !methodValue
+
+      return (
+        <div className="rounded-2xl border border-gray-200 bg-[linear-gradient(180deg,#ffffff_0%,#fafafa_100%)] p-3">
+          {needsMethod ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <div className="mb-2 text-2xl">🛠️</div>
+              <p className="text-sm font-medium text-gray-500">
+                {language === "ko" ? "먼저 가공 방식을 선택해 주세요" : "Please select a machining method first"}
+              </p>
+              <p className="mt-1 text-[10px] text-gray-400">
+                {language === "ko" ? "가공 방식에 따라 형상이 표시됩니다" : "Shapes will appear based on your method"}
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">
+                  {methodValue} — {language === "ko" ? "가공 형상" : "Application Shape"}
+                </p>
+                <span className="text-[10px] text-gray-400">
+                  {selectedValues.size > 0
+                    ? `${selectedValues.size}${language === "ko" ? "개 선택" : " selected"}`
+                    : language === "ko" ? "복수 선택" : "Multi"}
+                </span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(clamp(80px, 14vw, 130px), 1fr))", gap: "0.5rem" }}>
+                {filteredOptions.map(option => {
+                  const imgSrc = OPERATION_SHAPE_IMAGES[option.value]
+                  const isSelected = selectedValues.has(option.value)
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => handleMultiToggle(option.value)}
+                      className={[
+                        "group flex flex-col items-center gap-1.5 rounded-xl border p-3 transition-all duration-150",
+                        isSelected
+                          ? "border-blue-500 bg-blue-50 shadow-md"
+                          : "border-gray-200 bg-white hover:border-gray-300 hover:shadow-md hover:-translate-y-0.5",
+                      ].join(" ")}
+                    >
+                      {imgSrc ? (
+                        <img src={imgSrc} alt={option.label} className="h-14 w-14 object-contain" />
+                      ) : (
+                        <div className="flex h-14 w-14 items-center justify-center rounded bg-gray-100 text-gray-400 text-xs">?</div>
+                      )}
+                      <span className={`text-[10px] font-medium text-center leading-tight ${isSelected ? "text-blue-700" : "text-gray-600"}`}>
+                        {option.label}
+                      </span>
+                      {isSelected && (
+                        <div className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-white">
+                          <Check className="h-2.5 w-2.5" />
+                        </div>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          )}
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(clamp(60px, 10vw, 100px), 1fr))", gap: "0.375rem" }}>
-          {config.options
-            .filter((opt, idx, arr) => arr.findIndex(o => o.label === opt.label) === idx)
-            .map(option => {
-              const imgSrc = OPERATION_SHAPE_IMAGES[option.value]
-              const isSelected = selectedValues.has(option.value)
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => handleMultiToggle(option.value)}
-                  className={[
-                    "group flex flex-col items-center gap-1 rounded-xl border p-2 transition-all duration-150",
-                    isSelected
-                      ? "border-blue-500 bg-blue-50 shadow-sm"
-                      : "border-gray-150 bg-white hover:border-gray-300 hover:shadow",
-                  ].join(" ")}
-                >
-                  {imgSrc ? (
-                    <img src={imgSrc} alt={option.label} className="h-10 w-10 object-contain" />
-                  ) : (
-                    <div className="flex h-10 w-10 items-center justify-center rounded bg-gray-100 text-gray-400 text-[9px]">?</div>
-                  )}
-                  <span className={`text-[9px] font-medium text-center leading-tight ${isSelected ? "text-blue-700" : "text-gray-500"}`}>
-                    {option.label}
-                  </span>
-                </button>
-              )
-            })}
-        </div>
-      </div>
-    ) : config.key === "material" && config.multiSelect ? (
+      )
+    })()
+    : config.key === "material" && config.multiSelect ? (
       <div className="rounded-2xl border border-gray-200 bg-[linear-gradient(180deg,#ffffff_0%,#fafafa_100%)] p-3">
         <div className="mb-2 flex items-center justify-between">
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">
@@ -556,6 +592,15 @@ export function IntakeGate({
 
   const handleFieldChange = (key: keyof ProductIntakeForm, value: AnswerState<string>) => {
     onChange(key, value)
+    // 가공방식 변경 시 가공형상 초기화 (종속 선택)
+    if (key === "toolTypeOrCurrentProduct") {
+      const prev = form.toolTypeOrCurrentProduct
+      const prevVal = prev.status === "known" ? (prev as { status: "known"; value: string }).value : null
+      const newVal = value.status === "known" ? (value as { status: "known"; value: string }).value : null
+      if (prevVal !== newVal && form.operationType.status === "known") {
+        onChange("operationType", { status: "unanswered" })
+      }
+    }
     if (value.status !== "unanswered") scrollToNextUnanswered(key as string)
   }
 
@@ -595,6 +640,7 @@ export function IntakeGate({
               index={index}
               state={form[config.key as keyof ProductIntakeForm] as AnswerState<string>}
               onChange={value => handleFieldChange(config.key as keyof ProductIntakeForm, value)}
+              form={form}
             />
           </div>
         ))}

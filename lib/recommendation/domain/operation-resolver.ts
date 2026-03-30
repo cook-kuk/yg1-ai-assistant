@@ -8,19 +8,33 @@ import { OPERATION_SHAPE_OPTIONS } from "@/lib/types/intake"
 const DIRECT_OPERATION_SHAPE_VALUES = new Set(OPERATION_SHAPE_OPTIONS.map(option => option.value))
 
 const OPERATION_ALIASES: Array<{ keywords: string[]; values: string[] }> = [
-  { keywords: ["측면가공", "측면", "side milling"], values: ["Side_Milling", "Side Milling"] },
+  // Holemaking
+  { keywords: ["드릴", "drilling", "drill"], values: ["Drilling"] },
+  { keywords: ["리밍 블라인드", "reaming blind"], values: ["Reaming_Blind"] },
+  { keywords: ["리밍 쓰루", "reaming through"], values: ["Reaming_Through"] },
+  // Threading
+  { keywords: ["나사 블라인드", "threading blind"], values: ["Threading_Blind"] },
+  { keywords: ["나사 쓰루", "threading through"], values: ["Threading_Through"] },
+  // Milling
+  { keywords: ["측면가공", "측면", "side milling"], values: ["Side_Milling"] },
   { keywords: ["정면가공", "정면", "face", "facing"], values: ["Facing"] },
   { keywords: ["프로파일", "윤곽", "profiling", "profile", "contour"], values: ["Profiling"] },
   { keywords: ["금형", "die", "mold", "diesinking", "die-sinking"], values: ["Die-Sinking"] },
-  { keywords: ["헬리컬 진입", "헬리컬", "helical interpolation"], values: ["Helical_Interpolation", "Helical Interpolation"] },
+  { keywords: ["헬리컬 진입", "헬리컬", "helical interpolation"], values: ["Helical_Interpolation"] },
   { keywords: ["챔퍼", "chamfer", "chamfering"], values: ["Chamfering"] },
-  { keywords: ["코너 라디우스", "코너라디우스", "corner radius"], values: ["Corner_Radius", "Corner Radius"] },
+  { keywords: ["코너 라디우스", "코너라디우스", "corner radius"], values: ["Corner_Radius"] },
   { keywords: ["고이송", "trochoidal"], values: ["Trochoidal"] },
-  { keywords: ["taper side milling"], values: ["Taper Side Milling", "Taper_Side_Milling"] },
-  { keywords: ["small part"], values: ["Small Part", "Small_Part"] },
+  { keywords: ["taper side milling"], values: ["Taper_Side_Milling"] },
+  { keywords: ["small part"], values: ["Small_Part"] },
   { keywords: ["슬롯가공", "슬롯", "slotting", "slot"], values: ["Slotting"] },
   { keywords: ["ramping"], values: ["Ramping"] },
   { keywords: ["plunging"], values: ["Plunging"] },
+  // Turning
+  { keywords: ["iso 터닝", "iso turning", "iso turn"], values: ["ISO_Turning"] },
+  { keywords: ["파팅", "그루빙", "parting", "grooving"], values: ["Parting_Grooving"] },
+  // Tooling System
+  { keywords: ["툴홀더", "tool holder"], values: ["Tool_Holder"] },
+  { keywords: ["악세서리", "accessory"], values: ["Accessory"] },
 ]
 
 function normalizeShapeKey(value: string): string {
@@ -71,6 +85,14 @@ export function getOperationShapeSearchTexts(input: string): string[] {
 export function normalizeOperationShapeToken(value: string): string {
   const normalized = normalizeShapeKey(value)
   const map: Record<string, string> = {
+    // Holemaking
+    drilling: "Drilling",
+    "reaming blind": "Reaming_Blind",
+    "reaming through": "Reaming_Through",
+    // Threading
+    "threading blind": "Threading_Blind",
+    "threading through": "Threading_Through",
+    // Milling
     "side milling": "Side_Milling",
     facing: "Facing",
     profiling: "Profiling",
@@ -84,6 +106,13 @@ export function normalizeOperationShapeToken(value: string): string {
     slotting: "Slotting",
     ramping: "Ramping",
     plunging: "Plunging",
+    // Turning
+    "iso turning": "ISO_Turning",
+    "iso turn": "ISO_Turning",
+    "parting grooving": "Parting_Grooving",
+    // Tooling
+    "tool holder": "Tool_Holder",
+    accessory: "Accessory",
   }
 
   return map[normalized] ?? value.trim()
