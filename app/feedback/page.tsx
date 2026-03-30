@@ -401,15 +401,27 @@ export default function FeedbackViewerPage() {
   const [selectedFeedbackEntry, setSelectedFeedbackEntry] = useState<FeedbackEventEntryDto | null>(null)
 
   // ── 코너스톤 피드백 관리자 필드 ──
-  const [adminFields, setAdminFields] = useState<Record<string, { csComment: string; dueDate: string; completed: boolean }>>({})
+  const [adminFields, setAdminFields] = useState<Record<string, { csComment: string; dueDate: string; completed: string }>>({})
   const [savingId, setSavingId] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch("/api/feedback/admin").then(r => r.json()).then(d => setAdminFields(d.fields ?? {})).catch(() => {})
+    fetch("/api/feedback/admin").then(r => r.json()).then(d => {
+      const raw = d.fields ?? {}
+      const migrated: Record<string, { csComment: string; dueDate: string; completed: string }> = {}
+      for (const [id, af] of Object.entries(raw) as [string, Record<string, unknown>][]) {
+        const c = af.completed
+        migrated[id] = {
+          csComment: (af.csComment as string) ?? "",
+          dueDate: (af.dueDate as string) ?? "",
+          completed: typeof c === "boolean" ? (c ? "완료" : "미완료") : (c as string) ?? "미완료",
+        }
+      }
+      setAdminFields(migrated)
+    }).catch(() => {})
   }, [])
 
-  const saveAdminField = async (id: string, field: string, value: string | boolean) => {
-    const current = adminFields[id] ?? { csComment: "", dueDate: "", completed: false }
+  const saveAdminField = async (id: string, field: string, value: string) => {
+    const current = adminFields[id] ?? { csComment: "", dueDate: "", completed: "미완료" }
     const updated = { ...current, [field]: value }
     setAdminFields(prev => ({ ...prev, [id]: updated }))
     setSavingId(id)
@@ -660,7 +672,7 @@ export default function FeedbackViewerPage() {
                   const deptMatch = entry.authorName?.match(/^\[(.+?)\]\s*(.+)$/)
                   const department = deptMatch?.[1]
                   const authorDisplay = deptMatch?.[2] ?? entry.authorName
-                  const af = adminFields[entry.id] ?? { csComment: "", dueDate: "", completed: false }
+                  const af = adminFields[entry.id] ?? { csComment: "", dueDate: "", completed: "미완료" }
                   return (
                     <div key={entry.id}>
                       <button
@@ -668,7 +680,7 @@ export default function FeedbackViewerPage() {
                         onClick={() => setSelectedGeneralEntry(entry)}
                         className="block w-full text-left"
                       >
-                        <Card className={`py-0 transition-shadow hover:shadow-md ${af.completed ? "border-emerald-300 bg-emerald-50/30" : "border-gray-200"}`}>
+                        <Card className={`py-0 transition-shadow hover:shadow-md ${af.completed === "완료" ? "border-emerald-300 bg-emerald-50/30" : af.completed === "DB 오류" ? "border-amber-300 bg-amber-50/30" : "border-gray-200"}`}>
                           <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
                             <div className="min-w-0 flex-1">
                               <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -734,17 +746,28 @@ export default function FeedbackViewerPage() {
                             className="px-2 py-1 text-xs border border-violet-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white"
                           />
                         </div>
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={af.completed}
-                            onChange={e => saveAdminField(entry.id, "completed", e.target.checked)}
-                            className="w-4 h-4 rounded border-violet-300 text-violet-600 focus:ring-violet-500"
-                          />
-                          <span className={`text-[10px] font-medium ${af.completed ? "text-emerald-600" : "text-violet-500"}`}>
-                            {af.completed ? "완료" : "미완료"}
-                          </span>
-                        </label>
+                        <div className="flex items-center gap-1.5">
+                          {af.completed === "완료" ? (
+                            <CheckCircle2 size={14} className="text-emerald-500" />
+                          ) : af.completed === "DB 오류" ? (
+                            <AlertTriangle size={14} className="text-amber-500" />
+                          ) : (
+                            <X size={14} className="text-rose-400" />
+                          )}
+                          <select
+                            value={af.completed}
+                            onChange={e => saveAdminField(entry.id, "completed", e.target.value)}
+                            className={`px-2 py-1 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400 cursor-pointer ${
+                              af.completed === "완료" ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                              : af.completed === "DB 오류" ? "bg-amber-50 text-amber-700 border-amber-300"
+                              : "bg-rose-50 text-rose-700 border-rose-300"
+                            }`}
+                          >
+                            <option value="미완료">미완료</option>
+                            <option value="완료">완료</option>
+                            <option value="DB 오류">DB 오류</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
                   )
