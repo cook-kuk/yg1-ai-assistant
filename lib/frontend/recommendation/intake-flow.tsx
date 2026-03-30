@@ -382,9 +382,11 @@ function IntakeFieldSection({
                       ].join(" ")}
                     >
                       {imgSrc ? (
-                        <img src={imgSrc} alt={option.label} className="h-14 w-14 object-contain" />
+                        <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-slate-100 p-1.5">
+                          <img src={imgSrc} alt={option.label} className="h-full w-full object-contain" style={{ filter: "contrast(1.6) brightness(0.85)" }} />
+                        </div>
                       ) : (
-                        <div className="flex h-14 w-14 items-center justify-center rounded bg-gray-100 text-gray-400 text-xs">?</div>
+                        <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-gray-100 text-gray-400 text-xs">?</div>
                       )}
                       <span className={`text-[10px] font-medium text-center leading-tight ${isSelected ? "text-blue-700" : "text-gray-600"}`}>
                         {option.label}
