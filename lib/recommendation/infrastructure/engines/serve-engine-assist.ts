@@ -12,7 +12,8 @@ import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-t
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
 import { resolveYG1Query } from "@/lib/knowledge/knowledge-router"
 import { resolveMaterialTag } from "@/lib/recommendation/domain/recommendation-domain"
-import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import { getIntakeDisplayValue } from "@/lib/recommendation/shared/intake-localization"
+import { getProvider, resolveModel } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import { YG1_COMPANY_SNIPPET } from "@/lib/knowledge/company-prompt-snippet"
 import {
   buildCuttingToolSubtypeTaxonomyKnowledgeBlock,
@@ -29,6 +30,7 @@ import type {
   ScoredProduct,
 } from "@/lib/recommendation/domain/types"
 import { formatConversationContextForLLM } from "@/lib/recommendation/domain/context/conversation-context-formatter"
+import type { SemanticDirectContext } from "@/lib/recommendation/core/semantic-turn-extractor"
 import {
   TOOL_DOMAIN_PATTERN,
   DIRECT_PRODUCT_CODE_PATTERN,
@@ -71,6 +73,11 @@ import {
   isLikelyLookupPhrase,
   isLikelyProductLookupCandidate,
 } from "./serve-engine-assist-utils"
+
+export interface DirectQuestionOptions {
+  force?: boolean
+  semanticContext?: SemanticDirectContext | null
+}
 
 function findDisplayedCandidateByCode(
   prevState: ExplorationSessionState | null,
@@ -126,6 +133,39 @@ function detectRequestedProductField(userMessage: string): { label: string; valu
     return { label: "제품명", value: "productName" }
   }
   return null
+}
+
+function getRequestedProductFieldByValue(field: string | null | undefined): { label: string; value: string } | null {
+  switch (field) {
+    case "toolMaterial":
+      return { label: "공구 소재", value: "toolMaterial" }
+    case "coating":
+      return { label: "코팅", value: "coating" }
+    case "fluteCount":
+      return { label: "날 수", value: "fluteCount" }
+    case "toolSubtype":
+      return { label: "형상", value: "toolSubtype" }
+    case "diameterMm":
+      return { label: "직경", value: "diameterMm" }
+    case "shankDiameterMm":
+      return { label: "생크 직경", value: "shankDiameterMm" }
+    case "lengthOfCutMm":
+      return { label: "절삭 길이", value: "lengthOfCutMm" }
+    case "overallLengthMm":
+      return { label: "전장", value: "overallLengthMm" }
+    case "helixAngleDeg":
+      return { label: "헬릭스각", value: "helixAngleDeg" }
+    case "coolantHole":
+      return { label: "쿨런트 홀", value: "coolantHole" }
+    case "seriesName":
+      return { label: "시리즈", value: "seriesName" }
+    case "brand":
+      return { label: "브랜드", value: "brand" }
+    case "productName":
+      return { label: "제품명", value: "productName" }
+    default:
+      return null
+  }
 }
 
 function getProductFieldValue(
@@ -472,18 +512,31 @@ export async function handleDirectEntityProfileQuestion(
   provider: LLMProvider,
   userMessage: string,
   _currentInput: RecommendationInput,
-  _prevState: ExplorationSessionState | null
+  _prevState: ExplorationSessionState | null,
+  options?: DirectQuestionOptions
 ): Promise<{ text: string; chips: string[] } | null> {
   const queryTarget = classifyQueryTarget(userMessage, null, null)
   if (queryTarget.type === "product_comparison") {
     return null
   }
-  const requestedNames = extractEntityNamesFromMessage(userMessage)
+  const requestedNames = options?.semanticContext?.entityNames?.length
+    ? options.semanticContext.entityNames
+    : extractEntityNamesFromMessage(userMessage)
   if (requestedNames.length === 0) return null
 
-  const wantsComparison = /차이|비교|vs|대비|다른|달라|다를/i.test(userMessage)
-  const mentionsSeries = /시리즈|series|날\s*수|날수|플루트|형상|볼|스퀘어|radius|taper/i.test(userMessage)
-  const mentionsBrand = /브랜드|brand/i.test(userMessage)
+  const semanticComparison = options?.semanticContext?.comparisonRequested
+  const semanticEntityFocus = options?.semanticContext?.entityFocus
+  const wantsComparison = semanticComparison ?? /차이|비교|vs|대비|다른|달라|다를/i.test(userMessage)
+  const mentionsSeries = semanticEntityFocus === "series"
+    ? true
+    : semanticEntityFocus === "brand"
+      ? false
+      : /시리즈|series|날\s*수|날수|플루트|형상|볼|스퀘어|radius|taper/i.test(userMessage)
+  const mentionsBrand = semanticEntityFocus === "brand"
+    ? true
+    : semanticEntityFocus === "series"
+      ? false
+      : /브랜드|brand/i.test(userMessage)
   const directEntityOnly = requestedNames.length === 1 && normalizeEntityLookupKey(userMessage) === normalizeEntityLookupKey(requestedNames[0])
   const explicitProfileIntent =
     ENTITY_PROFILE_TRIGGER_PATTERN.test(userMessage) ||
@@ -494,7 +547,7 @@ export async function handleDirectEntityProfileQuestion(
     (requestedNames.length > 0 && /뭐야|뭐예요|알려|설명|정보|특징|용도|적합/i.test(userMessage)) ||
     directEntityOnly
 
-  if (!explicitProfileIntent) {
+  if (!options?.force && !explicitProfileIntent) {
     return null
   }
   const resolvedProfiles = await resolveEntityProfiles(requestedNames)
@@ -624,20 +677,25 @@ export async function handleDirectEntityProfileQuestion(
 export async function handleDirectProductInfoQuestion(
   userMessage: string,
   _currentInput: RecommendationInput,
-  prevState: ExplorationSessionState | null
+  prevState: ExplorationSessionState | null,
+  options?: DirectQuestionOptions
 ): Promise<{ text: string; chips: string[] } | null> {
-  if (INVENTORY_QUERY_PATTERN.test(userMessage) || CUTTING_CONDITION_QUERY_PATTERN.test(userMessage)) {
+  if (!options?.force && (INVENTORY_QUERY_PATTERN.test(userMessage) || CUTTING_CONDITION_QUERY_PATTERN.test(userMessage))) {
     return null
   }
 
-  if (/차이|비교|vs|대비/i.test(userMessage)) {
+  if (!options?.force && /차이|비교|vs|대비/i.test(userMessage)) {
     return null
   }
 
   const queryTarget = classifyQueryTarget(userMessage, null, null)
-  const productLookupCodes = extractProductLookupCodesFromMessage(userMessage)
+  const semanticLookupCode = options?.semanticContext?.lookupCode ?? ""
+  const productLookupCodes = semanticLookupCode
+    ? [normalizeLookupCode(semanticLookupCode)]
+    : extractProductLookupCodesFromMessage(userMessage)
   const lookupCode = productLookupCodes[0] ?? ""
   const explicitLookupEntity =
+    !!semanticLookupCode ||
     productLookupCodes.length > 0 ||
     queryTarget.entities.length > 0 ||
     DIRECT_PRODUCT_CODE_PATTERN.test(userMessage) ||
@@ -651,7 +709,7 @@ export async function handleDirectProductInfoQuestion(
     ? normalizeLookupCode(userMessage) === lookupCode
     : false
   const explicitInfoIntent = directCodeOnly || PRODUCT_INFO_TRIGGER_PATTERN.test(userMessage) || queryTarget.type === "product_info"
-  if (!explicitInfoIntent) return null
+  if (!options?.force && !explicitInfoIntent) return null
 
   if (
     !lookupCode &&
@@ -680,7 +738,7 @@ export async function handleDirectProductInfoQuestion(
     }
   }
 
-  const requestedField = detectRequestedProductField(userMessage)
+  const requestedField = getRequestedProductFieldByValue(options?.semanticContext?.requestedField) ?? detectRequestedProductField(userMessage)
   const displayCode = product.displayCode || lookupCode
 
   if (requestedField) {
@@ -811,7 +869,8 @@ function summarizeBrandReferenceRows(rows: Awaited<ReturnType<typeof BrandRefere
 export async function handleDirectBrandReferenceQuestion(
   userMessage: string,
   currentInput: RecommendationInput,
-  _prevState: ExplorationSessionState | null
+  _prevState: ExplorationSessionState | null,
+  options?: DirectQuestionOptions
 ): Promise<{ text: string; chips: string[] } | null> {
   const mentionsBrand = /브랜드|brand/i.test(userMessage)
   const hasMaterialContext =
@@ -819,14 +878,18 @@ export async function handleDirectBrandReferenceQuestion(
     /hrc|경도/i.test(userMessage) ||
     WORK_PIECE_ALIASES.some(alias => alias.patterns.some(pattern => pattern.test(userMessage)))
 
-  if (!BRAND_REFERENCE_TRIGGER_PATTERN.test(userMessage) && !(mentionsBrand && hasMaterialContext)) {
+  if (!options?.force && !BRAND_REFERENCE_TRIGGER_PATTERN.test(userMessage) && !(mentionsBrand && hasMaterialContext)) {
     return null
   }
 
-  const explicitIso = resolveMaterialTag(userMessage)
+  const explicitIso = options?.semanticContext?.isoGroup ?? resolveMaterialTag(userMessage)
   const isoGroup = explicitIso ?? (mentionsBrand ? resolveMaterialTag(currentInput.material ?? "") : null)
-  const workPieceName = extractRequestedWorkPiece(userMessage) ?? currentInput.workPieceName ?? null
-  const hardnessRange = extractRequestedHardnessRange(userMessage)
+  const workPieceName = options?.semanticContext?.workPieceName ?? extractRequestedWorkPiece(userMessage) ?? currentInput.workPieceName ?? null
+  const extractedHardnessRange = extractRequestedHardnessRange(userMessage)
+  const hardnessRange = {
+    min: options?.semanticContext?.hardnessMinHrc ?? extractedHardnessRange.min,
+    max: options?.semanticContext?.hardnessMaxHrc ?? extractedHardnessRange.max,
+  }
 
   if (!isoGroup && !workPieceName && hardnessRange.min == null && hardnessRange.max == null) {
     return {
@@ -914,12 +977,13 @@ export async function handleDirectBrandReferenceQuestion(
 
 export async function handleDirectInventoryQuestion(
   userMessage: string,
-  prevState: ExplorationSessionState
+  prevState: ExplorationSessionState,
+  options?: DirectQuestionOptions
 ): Promise<{ text: string; chips: string[] } | null> {
-  if (!INVENTORY_QUERY_PATTERN.test(userMessage)) return null
+  if (!options?.force && !INVENTORY_QUERY_PATTERN.test(userMessage)) return null
 
   const productCodeMatch = userMessage.match(DIRECT_PRODUCT_CODE_PATTERN)
-  const lookupCode = normalizeLookupCode(productCodeMatch?.[1] ?? "")
+  const lookupCode = normalizeLookupCode(options?.semanticContext?.lookupCode ?? productCodeMatch?.[1] ?? "")
   if (!lookupCode) return null
 
   const displayedCandidate = findDisplayedCandidateByCode(prevState, lookupCode)
@@ -1016,13 +1080,14 @@ export async function handleDirectInventoryQuestion(
 export async function handleDirectCuttingConditionQuestion(
   userMessage: string,
   currentInput: RecommendationInput,
-  prevState: ExplorationSessionState
+  prevState: ExplorationSessionState,
+  options?: DirectQuestionOptions
 ): Promise<{ text: string; chips: string[] } | null> {
-  if (!CUTTING_CONDITION_QUERY_PATTERN.test(userMessage)) return null
+  if (!options?.force && !CUTTING_CONDITION_QUERY_PATTERN.test(userMessage)) return null
 
   const productCodeMatch = userMessage.match(DIRECT_PRODUCT_CODE_PATTERN)
   const seriesCodeMatch = userMessage.match(DIRECT_SERIES_CODE_PATTERN)
-  const lookupCode = normalizeLookupCode(productCodeMatch?.[1] ?? seriesCodeMatch?.[1] ?? "")
+  const lookupCode = normalizeLookupCode(options?.semanticContext?.lookupCode ?? productCodeMatch?.[1] ?? seriesCodeMatch?.[1] ?? "")
   if (!lookupCode) return null
 
   const displayedCandidate = findDisplayedCandidateByCode(prevState, lookupCode)
@@ -1381,6 +1446,8 @@ function buildFieldDataContext(field: string, candidates: ScoredProduct[]): stri
 async function searchWebForKnowledge(query: string): Promise<string | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_KEY || ""
   if (!apiKey) return null
+  const model = resolveModel("sonnet")
+  if (!model) return null
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -1391,7 +1458,7 @@ async function searchWebForKnowledge(query: string): Promise<string | null> {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model,
         max_tokens: 1500,
         tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }],
         messages: [{
@@ -1487,7 +1554,7 @@ export async function handleGeneralChat(
     : ""
 
   const formContext = form.material.status === "known" || form.operationType.status === "known"
-    ? `사용자 입력 조건: 소재=${form.material.status === "known" ? form.material.value : "미지정"}, 가공=${form.operationType.status === "known" ? form.operationType.value : "미지정"}`
+    ? `사용자 입력 조건: 소재=${getIntakeDisplayValue("material", form.material, "ko")}, 가공=${form.operationType.status === "known" ? form.operationType.value : "미지정"}`
     : ""
 
   const displayedContext = displayedCandidatesContext && displayedCandidatesContext.length > 0
@@ -1652,7 +1719,7 @@ async function tryCompanyQuestionResponse(
       COMPANY_ONLY_SYSTEM,
       [{ role: "user", content: userMessage }],
       1500,
-      "haiku"
+      COMPANY_ONLY_MODEL
     )
 
     if (raw?.trim()) {
@@ -1678,3 +1745,4 @@ async function tryCompanyQuestionResponse(
   }
   return null
 }
+const COMPANY_ONLY_MODEL = resolveModel("haiku")

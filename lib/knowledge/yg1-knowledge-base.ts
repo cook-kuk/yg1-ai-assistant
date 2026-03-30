@@ -1,6 +1,10 @@
 // YG-1 ARIA Knowledge Base — FINAL
 // Source: yg1.kr, IR페이지, Wikipedia, 언론보도 종합 크롤링
 
+import { resolveModel, type LLMProvider } from "@/lib/llm/provider"
+
+const KB_SEMANTIC_MODEL = resolveModel("haiku")
+
 export const YG1_KB = {
   // ── 1. 회사 기본 정보 ──────────────────────────────
   company: {
@@ -499,7 +503,6 @@ export function searchKB(query: string): { found: boolean; answer: string; confi
   return { found: false, answer: "", confidence: "medium" }
 }
 import { findSalesOfficeFromMarkdown, getSalesOfficesFromMarkdown } from "./knowledge-markdown"
-import type { LLMProvider } from "@/lib/shared/infrastructure/llm/llm-provider"
 
 // ── Haiku 기반 시맨틱 KB 검색 ─────────────────────────────────
 function buildKBSummary(): string {
@@ -554,7 +557,7 @@ Rules:
       systemPrompt,
       [{ role: "user", content: query }],
       200,
-      "haiku"
+      KB_SEMANTIC_MODEL
     )
 
     const text = response.trim()

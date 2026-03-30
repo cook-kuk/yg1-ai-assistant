@@ -100,6 +100,7 @@ describe("question-assist: field-bound delegation", () => {
     "알아서 해줘",
     "네가 정해줘",
     "아무거나",
+    "아무거나 괜찮은 걸로 추천해주세요",
     "무난한 걸로",
     "그냥 추천해줘",
     "적당한 걸로",
@@ -156,5 +157,35 @@ describe("question-assist: helper chip alignment", () => {
     expect(fieldOptions.length).toBeGreaterThan(0)
     expect(fieldOptions.some(o => o.value === "DLC")).toBe(true)
     expect(fieldOptions.some(o => o.value === "AlTiN")).toBe(true)
+  })
+
+  it("does not rebuild skipped field options from stale pending state", async () => {
+    const { buildQuestionAssistOptions } = await import("../../../infrastructure/engines/serve-engine-option-first")
+
+    const mockState = {
+      lastAskedField: "coating",
+      appliedFilters: [{ field: "coating", op: "skip", value: "상관없음", rawValue: "skip", appliedAt: 2 }],
+      displayedOptions: [],
+      displayedChips: [],
+      displayedCandidates: [
+        { displayCode: "A", fluteCount: 2, coating: "DLC", seriesName: "S1", diameterMm: 4, toolMaterial: "Carbide" },
+        { displayCode: "B", fluteCount: 2, coating: "AlTiN", seriesName: "S1", diameterMm: 4, toolMaterial: "Carbide" },
+      ],
+    } as any
+
+    const mockCandidates = [
+      { product: { fluteCount: 2, coating: "DLC", seriesName: "S1", toolSubtype: "Square", toolMaterial: "Carbide", diameterMm: 4 } },
+      { product: { fluteCount: 2, coating: "AlTiN", seriesName: "S1", toolSubtype: "Square", toolMaterial: "Carbide", diameterMm: 4 } },
+    ] as any[]
+
+    const result = buildQuestionAssistOptions({
+      prevState: mockState,
+      currentCandidates: mockCandidates,
+      confusedAbout: null,
+      includeHelpers: true,
+    })
+
+    expect(result.options.some(option => option.field === "coating")).toBe(false)
+    expect(result.chips.some(chip => /DLC|AlTiN|코팅/u.test(chip))).toBe(false)
   })
 })

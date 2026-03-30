@@ -13,9 +13,10 @@ import {
   appendRuntimeLog,
   logRuntimeError,
 } from "@/lib/chat/infrastructure/runtime/chat-runtime-log"
+import { resolveModel } from "@/lib/llm/provider"
 
 const anthropicApiKey = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_KEY || ""
-const anthropicChatModel = process.env.ANTHROPIC_FAST_MODEL || process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514"
+const anthropicChatModel = process.env.ANTHROPIC_FAST_MODEL || resolveModel("sonnet")
 const client = anthropicApiKey ? new Anthropic({ apiKey: anthropicApiKey }) : null
 
 function parseChatRequest(body: unknown): ChatRequestDto {

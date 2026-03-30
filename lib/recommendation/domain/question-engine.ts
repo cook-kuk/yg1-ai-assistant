@@ -1,8 +1,8 @@
 /**
- * Question Engine — Information-Gain-Based Question Selection
+ * Question Engine — Deterministic Question Selection
  *
- * Deterministic: analyzes the current candidate pool and selects the
- * next question that maximally reduces uncertainty (highest entropy split).
+ * Analyzes the current candidate pool and selects the next question using a
+ * fixed domain priority order.
  *
  * No LLM needed for question selection — only for polishing question text.
  */
@@ -22,23 +22,19 @@ export interface NextQuestion {
   field: string
   questionText: string
   chips: string[]
-  expectedInfoGain: number
 }
 
 const QUESTION_FIELD_PRIORITY: Record<string, number> = {
-  diameterRefine: 0,
   toolSubtype: 1,
   fluteCount: 2,
   workPieceName: 3,
   coating: 4,
-  seriesName: 5,
-  cuttingType: 6,
+  cuttingType: 5,
 }
 
 const QUESTION_FIELD_LABELS: Record<string, string> = {
   fluteCount: "날 수",
   coating: "코팅",
-  seriesName: "시리즈",
   toolSubtype: "공구 세부 타입",
   cuttingType: "가공 종류",
   diameterRefine: "직경",
@@ -75,58 +71,27 @@ export function selectNextQuestion(
   input: RecommendationInput,
   candidates: ScoredProduct[],
   history: NarrowingTurn[],
-  candidateCountHint: number = candidates.length
+  candidateCountHint: number = candidates.length,
+  externalQuestions: NextQuestion[] = [],
+  appliedFilters: AppliedFilter[] = []
 ): NextQuestion | null {
   const status = checkResolution(candidates, history, candidateCountHint)
   if (status.startsWith("resolved")) return null
 
-  const fields = analyzeFields(input, candidates, history)
+  const fields = [
+    ...analyzeFields(input, candidates, history, appliedFilters),
+    ...externalQuestions.map(question => ({
+      field: question.field,
+      questionText: question.questionText,
+      chips: [...question.chips],
+    })),
+  ]
   fields.sort((a, b) => {
-    const priorityDiff = getQuestionFieldPriority(a.field) - getQuestionFieldPriority(b.field)
-    if (priorityDiff !== 0) return priorityDiff
-    return b.infoGain - a.infoGain
+    return getQuestionFieldPriority(a.field) - getQuestionFieldPriority(b.field)
   })
 
-  // ── 도메인 우선순위 기반 가중 랜덤 선택 ──
-  // 직경 → 날형상 → 날수 → 피삭재 순이 도메인 권장이지만,
-  // 매번 같은 순서 대신 가중 랜덤으로 다양성을 부여.
-  // 우선순위가 높을수록 선택 확률이 높지만 절대적이지 않음.
-  // 밀링 vs 비밀링에 따라 우선순위 조정
-  const isMilling = !input.toolType || /mill|엔드밀|밀링/i.test(input.toolType ?? "")
-  const FIELD_PRIORITY_BOOST: Record<string, number> = {
-    toolSubtype: isMilling ? 4.0 : 1.5,  // 밀링: 날형상 최우선 / 드릴·탭: 낮춤
-    diameterRefine: 3.0,   // 직경 정제
-    fluteCount: isMilling ? 2.0 : 1.0,   // 드릴은 날수 덜 중요
-    workPieceName: 1.5,    // 피삭재
-    coating: 1.0,          // 코팅 (기본)
-    seriesName: 0.8,       // 시리즈
-    cuttingType: 0.6,      // 가공방식
-  }
-
-  for (const f of fields) {
-    const boost = FIELD_PRIORITY_BOOST[f.field] ?? 1.0
-    f.infoGain = f.infoGain * boost
-  }
-
-  // 최소 infoGain 필터
-  const viable = fields.filter(f => f.infoGain >= 0.1)
-  if (viable.length === 0) return null
-
-  // 가중 랜덤 선택: infoGain을 가중치로 사용
-  const totalWeight = viable.reduce((sum, f) => sum + f.infoGain, 0)
-  let random = Math.random() * totalWeight
-  let best = viable[0]
-  for (const f of viable) {
-    random -= f.infoGain
-    if (random <= 0) {
-      best = f
-      break
-    }
-  }
-
-  // 디버그: 선택 확률 로깅 (재현 불가능한 질문 순서 디버깅용)
-  const probabilities = viable.map(f => `${f.field}(${Math.round(f.infoGain / totalWeight * 100)}%)`).join(", ")
-  console.log(`[question-engine] Selected: ${best.field} | Probabilities: ${probabilities}`)
+  if (fields.length === 0) return null
+  const best = fields[0]
 
   const chips = [...best.chips]
   if (history.length > 0) chips.push("⟵ 이전 단계")
@@ -135,7 +100,6 @@ export function selectNextQuestion(
     field: best.field,
     questionText: best.questionText,
     chips,
-    expectedInfoGain: best.infoGain,
   }
 }
 
@@ -148,12 +112,13 @@ export function selectQuestionForField(
   candidates: ScoredProduct[],
   history: NarrowingTurn[],
   field: string,
-  candidateCountHint: number = candidates.length
+  candidateCountHint: number = candidates.length,
+  appliedFilters: AppliedFilter[] = []
 ): NextQuestion | null {
   const status = checkResolution(candidates, history, candidateCountHint)
   if (status.startsWith("resolved")) return null
 
-  const matched = analyzeFieldDirect(input, candidates, field)
+  const matched = analyzeFieldDirect(input, candidates, field, appliedFilters)
   if (!matched) return null
 
   const chips = [...matched.chips]
@@ -163,7 +128,6 @@ export function selectQuestionForField(
     field: matched.field,
     questionText: matched.questionText,
     chips,
-    expectedInfoGain: matched.infoGain,
   }
 }
 
@@ -193,16 +157,6 @@ export function explainQuestionFieldReplayFailure(
       )
       if (values.size === 0) return `현재 후보에서는 ${label} 정보가 충분히 구분되지 않아 같은 질문으로 후보를 더 나누기 어렵습니다.`
       if (values.size === 1) return `현재 후보에서는 ${label}이 모두 ${[...values][0]}로 좁혀져 같은 질문으로 후보를 더 나누기 어렵습니다.`
-      return null
-    }
-    case "seriesName": {
-      const values = new Set(
-        candidates
-          .map(candidate => candidate.product.seriesName)
-          .filter((value): value is string => typeof value === "string" && value.trim().length > 0 && value !== "미확인")
-      )
-      if (values.size <= 1) return `현재 후보에서는 ${label}가 하나로 좁혀져 같은 질문으로 후보를 더 나누기 어렵습니다.`
-      if (values.size > 8) return `현재 후보에서는 ${label} 종류가 너무 넓게 퍼져 있어 다른 조건부터 묻는 편이 더 적절합니다.`
       return null
     }
     case "fluteCount": {
@@ -238,7 +192,6 @@ interface FieldAnalysis {
   field: string
   questionText: string
   chips: string[]
-  infoGain: number
 }
 
 function buildFluteQuestion(input: RecommendationInput, candidates: ScoredProduct[]): FieldAnalysis | null {
@@ -252,7 +205,6 @@ function buildFluteQuestion(input: RecommendationInput, candidates: ScoredProduc
   }
   if (fluteCounts.size <= 1) return null
 
-  const gain = computeEntropy(fluteCounts, candidates.length)
   const chips = [...fluteCounts.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 4)
@@ -263,7 +215,6 @@ function buildFluteQuestion(input: RecommendationInput, candidates: ScoredProduc
     field: "fluteCount",
     questionText: `현재 ${candidates.length}개 후보가 있습니다. 날 수(flute) 선호가 있으신가요?`,
     chips,
-    infoGain: gain,
   }
 }
 
@@ -277,7 +228,6 @@ function buildCoatingQuestion(input: RecommendationInput, candidates: ScoredProd
   }
   if (coatings.size <= 1) return null
 
-  const gain = computeEntropy(coatings, candidates.length)
   const chips = [...coatings.entries()]
     .filter(([value]) => value !== "미확인")
     .sort((a, b) => b[1] - a[1])
@@ -289,40 +239,6 @@ function buildCoatingQuestion(input: RecommendationInput, candidates: ScoredProd
     field: "coating",
     questionText: `코팅 종류 선호가 있으신가요? 후보 중에 ${[...coatings.keys()].filter(value => value !== "미확인").slice(0, 3).join(", ")} 등이 있습니다.`,
     chips,
-    infoGain: gain,
-  }
-}
-
-function buildSeriesQuestion(candidates: ScoredProduct[]): FieldAnalysis | null {
-  const series = new Map<string, number>()
-  const seriesRepProduct = new Map<string, ScoredProduct>()
-  for (const candidate of candidates) {
-    const seriesName = candidate.product.seriesName || "미확인"
-    series.set(seriesName, (series.get(seriesName) || 0) + 1)
-    if (!seriesRepProduct.has(seriesName) || candidate.score > (seriesRepProduct.get(seriesName)?.score ?? 0)) {
-      seriesRepProduct.set(seriesName, candidate)
-    }
-  }
-  if (series.size <= 1 || series.size > 8) return null
-
-  const gain = computeEntropy(series, candidates.length)
-  const chips = [...series.entries()]
-    .filter(([value]) => value !== "미확인")
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 4)
-    .map(([value, count]) => {
-      const representative = seriesRepProduct.get(value)
-      const brandName = representative?.product.brand ?? null
-      return brandName ? `${value} — ${brandName} (${count}개)` : `${value} (${count}개)`
-    })
-  if (chips.length <= 1) return null
-
-  chips.push("상관없음")
-  return {
-    field: "seriesName",
-    questionText: `시리즈 선호가 있으신가요? ${chips.slice(0, 3).join(", ")} 등의 시리즈가 있습니다.`,
-    chips,
-    infoGain: gain * 0.8,
   }
 }
 
@@ -336,7 +252,6 @@ function buildToolSubtypeQuestion(input: RecommendationInput, candidates: Scored
   }
   if (subtypes.size <= 1) return null
 
-  const gain = computeEntropy(subtypes, candidates.length)
   const chips = [...subtypes.entries()]
     .filter(([value]) => value !== "미확인")
     .sort((a, b) => b[1] - a[1])
@@ -349,7 +264,6 @@ function buildToolSubtypeQuestion(input: RecommendationInput, candidates: Scored
     field: "toolSubtype",
     questionText: `공구 세부 타입이 중요한가요? ${chips.slice(0, 3).join(", ")} 등이 있습니다.`,
     chips,
-    infoGain: gain * 0.9,
   }
 }
 
@@ -360,62 +274,27 @@ function buildCuttingTypeQuestion(input: RecommendationInput): FieldAnalysis | n
     field: "cuttingType",
     questionText: "어떤 종류의 가공을 하실 예정인가요?",
     chips: [...OPERATION_SHAPE_OPTIONS.map(option => option.value), "상관없음"],
-    infoGain: 0.4,
-  }
-}
-
-function buildDiameterRefineQuestion(input: RecommendationInput, candidates: ScoredProduct[]): FieldAnalysis | null {
-  if (!input.diameterMm) return null
-
-  // If exact diameter match exists in candidates, no need to refine
-  const exactMatch = candidates.some(c => c.product.diameterMm === input.diameterMm)
-  if (exactMatch) return null
-
-  const uniqueDiameters = new Set(
-    candidates.map(candidate => candidate.product.diameterMm).filter((diameter): diameter is number => diameter !== null)
-  )
-  if (uniqueDiameters.size <= 3) return null
-
-  const sortedDiameters = [...uniqueDiameters].sort((a, b) => a - b)
-  let closestDiameters = sortedDiameters
-    .filter(diameter => Math.abs(diameter - input.diameterMm!) <= 2)
-    .slice(0, 5)
-
-  if (closestDiameters.length <= 1) return null
-
-  // Ensure user's specified diameter is first if it exists in candidates
-  if (closestDiameters.includes(input.diameterMm)) {
-    closestDiameters = [input.diameterMm, ...closestDiameters.filter(d => d !== input.diameterMm)]
-  } else if (uniqueDiameters.has(input.diameterMm)) {
-    closestDiameters.unshift(input.diameterMm)
-  }
-
-  return {
-    field: "diameterRefine",
-    questionText: `직경 ${input.diameterMm}mm 근처에 ${closestDiameters.join(", ")}mm가 있습니다. 정확한 직경을 선택해주세요.`,
-    chips: closestDiameters.map(diameter => `${diameter}mm`),
-    infoGain: 0.6,
   }
 }
 
 function analyzeFieldDirect(
   input: RecommendationInput,
   candidates: ScoredProduct[],
-  field: string
+  field: string,
+  appliedFilters: AppliedFilter[] = []
 ): FieldAnalysis | null {
+  const answeredOrSkippedFields = new Set(appliedFilters.map(filter => filter.field))
+  if (answeredOrSkippedFields.has(field)) return null
+
   switch (field) {
     case "fluteCount":
       return buildFluteQuestion(input, candidates)
     case "coating":
       return buildCoatingQuestion(input, candidates)
-    case "seriesName":
-      return buildSeriesQuestion(candidates)
     case "toolSubtype":
       return buildToolSubtypeQuestion(input, candidates)
     case "cuttingType":
       return buildCuttingTypeQuestion(input)
-    case "diameterRefine":
-      return buildDiameterRefineQuestion(input, candidates)
     default:
       return null
   }
@@ -424,69 +303,35 @@ function analyzeFieldDirect(
 function analyzeFields(
   input: RecommendationInput,
   candidates: ScoredProduct[],
-  history: NarrowingTurn[]
+  history: NarrowingTurn[],
+  appliedFilters: AppliedFilter[] = []
 ): FieldAnalysis[] {
   const results: FieldAnalysis[] = []
   const askedFields = new Set(history.flatMap(turn => turn.extractedFilters.map(filter => filter.field)))
+  const answeredOrSkippedFields = new Set(appliedFilters.map(filter => filter.field))
+  const blockedFields = new Set([...askedFields, ...answeredOrSkippedFields])
 
-  if (!askedFields.has("fluteCount")) {
+  if (!blockedFields.has("fluteCount")) {
     const question = buildFluteQuestion(input, candidates)
     if (question) results.push(question)
   }
 
-  if (!askedFields.has("coating")) {
+  if (!blockedFields.has("coating")) {
     const question = buildCoatingQuestion(input, candidates)
     if (question) results.push(question)
   }
 
-  if (!askedFields.has("seriesName")) {
-    const question = buildSeriesQuestion(candidates)
-    if (question) results.push(question)
-  }
-
-  if (!askedFields.has("toolSubtype")) {
+  if (!blockedFields.has("toolSubtype")) {
     const question = buildToolSubtypeQuestion(input, candidates)
     if (question) results.push(question)
   }
 
-  if (!askedFields.has("cuttingType")) {
+  if (!blockedFields.has("cuttingType")) {
     const question = buildCuttingTypeQuestion(input)
     if (question) results.push(question)
   }
 
-  if (input.diameterMm && !askedFields.has("diameterRefine")) {
-    const question = buildDiameterRefineQuestion(input, candidates)
-    if (question) results.push(question)
-  }
-
-  // workPieceName (세부 피삭재) — 도메인 우선순위 가중치로 순서 제어
-  if (!input.workPieceName && !askedFields.has("workPieceName") && input.material) {
-    results.push({
-      field: "workPieceName",
-      questionText: "세부 피삭재를 선택해주세요.",
-      chips: ["상관없음"],
-      infoGain: 0.5,  // FIELD_PRIORITY_BOOST에서 1.5× → 실효 0.75
-    })
-  }
-
   return results
-}
-
-function computeEntropy<T>(
-  distribution: Map<T, number>,
-  total: number
-): number {
-  if (total === 0 || distribution.size <= 1) return 0
-
-  let entropy = 0
-  for (const count of distribution.values()) {
-    if (count === 0) continue
-    const probability = count / total
-    entropy -= probability * Math.log2(probability)
-  }
-
-  const maxEntropy = Math.log2(distribution.size)
-  return maxEntropy > 0 ? entropy / maxEntropy : 0
 }
 
 export function parseAnswerToFilter(

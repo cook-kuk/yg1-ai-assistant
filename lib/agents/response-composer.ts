@@ -5,9 +5,11 @@
  * Takes the orchestrator's decision + session context → polished Korean response.
  */
 
-import type { LLMProvider } from "@/lib/llm/provider"
+import { resolveModel, type LLMProvider } from "@/lib/llm/provider"
 import type { ExplorationSessionState } from "@/lib/types/exploration"
 import type { OrchestratorAction, ComposedResponse } from "./types"
+
+const RESPONSE_COMPOSER_MODEL = resolveModel("sonnet", "response-composer")
 
 /**
  * Compose a natural-language response for undo/back navigation.
@@ -38,7 +40,7 @@ export function composeUndoResponse(
     text,
     chips: [],  // chips will be added by the question engine
     purpose: "question",
-    modelUsed: "sonnet",
+    modelUsed: RESPONSE_COMPOSER_MODEL,
   }
 }
 
@@ -52,7 +54,7 @@ export async function composeNarrowingResponse(
   provider: LLMProvider
 ): Promise<ComposedResponse> {
   if (!provider.available()) {
-    return { text: questionText, chips: [], purpose: "question", modelUsed: "sonnet" }
+    return { text: questionText, chips: [], purpose: "question", modelUsed: RESPONSE_COMPOSER_MODEL }
   }
 
   const filterPath = sessionState.appliedFilters
@@ -71,7 +73,7 @@ JSON 응답: {"responseText": "..."}`
       systemPrompt,
       [{ role: "user", content: questionText }],
       1500,
-      "sonnet",
+      RESPONSE_COMPOSER_MODEL,
       "response-composer"
     )
     const parsed = JSON.parse(raw.trim().replace(/```json\n?|\n?```/g, ""))
@@ -79,10 +81,10 @@ JSON 응답: {"responseText": "..."}`
       text: parsed.responseText ?? questionText,
       chips: [],
       purpose: "question",
-      modelUsed: "sonnet",
+      modelUsed: RESPONSE_COMPOSER_MODEL,
     }
   } catch {
-    return { text: questionText, chips: [], purpose: "question", modelUsed: "sonnet" }
+    return { text: questionText, chips: [], purpose: "question", modelUsed: RESPONSE_COMPOSER_MODEL }
   }
 }
 
@@ -103,5 +105,5 @@ export function composeRedirectResponse(
     ? ["추천해주세요", "⟵ 이전 단계", "처음부터 다시"]
     : ["소재 입력", "직경 입력"]
 
-  return { text, chips, purpose: "question", modelUsed: "sonnet" }
+  return { text, chips, purpose: "question", modelUsed: RESPONSE_COMPOSER_MODEL }
 }

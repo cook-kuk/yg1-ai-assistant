@@ -1,0 +1,674 @@
+import { resolveModel, type LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import type { AppliedFilter, ExplorationSessionState } from "@/lib/recommendation/domain/types"
+import type { OrchestratorAction } from "@/lib/recommendation/infrastructure/agents/types"
+import {
+  buildAppliedFilterFromValue,
+  getFilterFieldLabel,
+  getFilterFieldQueryAliases,
+  getRegisteredFilterFields,
+} from "@/lib/recommendation/shared/filter-field-registry"
+
+const SEMANTIC_TURN_MODEL = resolveModel("opus", "semantic-turn-extractor")
+const MIN_CONFIDENCE = 0.55
+const MAX_SEMANTIC_ATTEMPTS = 3
+
+export type SemanticReplyRoute =
+  | "inventory"
+  | "product_info"
+  | "entity_profile"
+  | "brand_reference"
+  | "cutting_conditions"
+  | "general_chat"
+
+export interface SemanticDirectContext {
+  lookupCode: string | null
+  entityNames: string[]
+  entityFocus: "series" | "brand" | null
+  comparisonRequested: boolean | null
+  requestedField: string | null
+  isoGroup: string | null
+  workPieceName: string | null
+  hardnessMinHrc: number | null
+  hardnessMaxHrc: number | null
+}
+
+type SemanticActionType =
+  | "continue_narrowing"
+  | "skip_field"
+  | "show_recommendation"
+  | "go_back_one_step"
+  | "reset_session"
+  | "compare_products"
+  | "refine_condition"
+  | "filter_by_stock"
+  | "answer_general"
+  | "none"
+
+interface RawSemanticFilter {
+  field?: unknown
+  value?: unknown
+}
+
+interface RawSemanticTurnResult {
+  action?: unknown
+  filters?: unknown
+  compareTargets?: unknown
+  refineField?: unknown
+  stockFilter?: unknown
+  replyRoute?: unknown
+  directContext?: unknown
+  confidence?: unknown
+  reasoning?: unknown
+}
+
+export interface SemanticTurnDecision {
+  action: OrchestratorAction
+  extraFilters: AppliedFilter[]
+  replyRoute: SemanticReplyRoute | null
+  directContext: SemanticDirectContext | null
+  confidence: number
+  reasoning: string
+}
+
+interface ValidatedFilterResult {
+  filters: AppliedFilter[]
+  errors: string[]
+}
+
+interface SemanticValidationResult {
+  decision: SemanticTurnDecision | null
+  errors: string[]
+}
+
+function normalizeKey(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9가-힣]+/g, "")
+}
+
+function buildFieldCatalog(): string {
+  return getRegisteredFilterFields().map(field => {
+    const aliases = getFilterFieldQueryAliases(field)
+      .filter(alias => alias !== field)
+      .slice(0, 8)
+      .join(", ")
+    const suffix = aliases ? ` | aliases: ${aliases}` : ""
+    return `- ${field} (${getFilterFieldLabel(field)})${suffix}`
+  }).join("\n")
+}
+
+function resolveFilterField(field: string): string | null {
+  const normalized = normalizeKey(field)
+  if (!normalized) return null
+
+  for (const candidate of getRegisteredFilterFields()) {
+    if (normalizeKey(candidate) === normalized) return candidate
+
+    const aliases = getFilterFieldQueryAliases(candidate)
+    if (aliases.some(alias => normalizeKey(alias) === normalized)) {
+      return candidate
+    }
+  }
+
+  return null
+}
+
+function sanitizeRawJson(raw: string): string {
+  return raw.trim().replace(/```json\n?|\n?```/g, "")
+}
+
+function parseJsonObject(raw: string): RawSemanticTurnResult | null {
+  try {
+    const parsed = JSON.parse(sanitizeRawJson(raw))
+    return parsed && typeof parsed === "object" ? parsed as RawSemanticTurnResult : null
+  } catch {
+    return null
+  }
+}
+
+function validateReplyRoute(value: unknown): SemanticReplyRoute | null {
+  const raw = typeof value === "string" ? value.trim() : ""
+  if (!raw) return null
+
+  const normalized = raw.toLowerCase()
+  switch (normalized) {
+    case "inventory":
+      return "inventory"
+    case "product_info":
+      return "product_info"
+    case "entity_profile":
+      return "entity_profile"
+    case "brand_reference":
+      return "brand_reference"
+    case "cutting_conditions":
+      return "cutting_conditions"
+    case "general_chat":
+      return "general_chat"
+    default:
+      return null
+  }
+}
+
+function validateAction(value: unknown): SemanticActionType {
+  const raw = typeof value === "string" ? value.trim() : ""
+  switch (raw) {
+    case "continue_narrowing":
+    case "skip_field":
+    case "show_recommendation":
+    case "go_back_one_step":
+    case "reset_session":
+    case "compare_products":
+    case "refine_condition":
+    case "filter_by_stock":
+    case "answer_general":
+      return raw
+    default:
+      return "none"
+  }
+}
+
+function validateRefineField(value: unknown): string | null {
+  const raw = typeof value === "string" ? value.trim().toLowerCase() : ""
+  switch (raw) {
+    case "material":
+    case "소재":
+    case "재질":
+      return "material"
+    case "diameter":
+    case "diametermm":
+    case "직경":
+    case "지름":
+      return "diameter"
+    case "coating":
+    case "코팅":
+      return "coating"
+    case "flutecount":
+    case "날수":
+    case "날":
+    case "플루트":
+      return "fluteCount"
+    case "toolsubtype":
+    case "형상":
+      return "toolSubtype"
+    default:
+      return null
+  }
+}
+
+function validateStockFilter(value: unknown): "instock" | "limited" | "all" | null {
+  const raw = typeof value === "string" ? value.trim().toLowerCase() : ""
+  switch (raw) {
+    case "instock":
+    case "in_stock":
+    case "stock":
+      return "instock"
+    case "limited":
+      return "limited"
+    case "all":
+      return "all"
+    default:
+      return null
+  }
+}
+
+function buildValidatedFilters(
+  rawFilters: unknown,
+  sessionState: ExplorationSessionState | null
+): ValidatedFilterResult {
+  if (!Array.isArray(rawFilters)) {
+    return { filters: [], errors: ["filters must be an array"] }
+  }
+
+  const validated: AppliedFilter[] = []
+  const errors: string[] = []
+  for (const item of rawFilters as RawSemanticFilter[]) {
+    const rawField = typeof item?.field === "string"
+      ? item.field
+      : (typeof sessionState?.lastAskedField === "string" ? sessionState.lastAskedField : "")
+    const resolvedField = resolveFilterField(rawField)
+    if (!resolvedField) {
+      errors.push(`unknown filter field: ${String(item?.field ?? "") || "(missing)"}`)
+      continue
+    }
+
+    const rawValue = item?.value
+    if (typeof rawValue !== "string" && typeof rawValue !== "number" && typeof rawValue !== "boolean") {
+      errors.push(`invalid value for ${resolvedField}`)
+      continue
+    }
+
+    const filter = buildAppliedFilterFromValue(resolvedField, rawValue)
+    if (!filter) {
+      errors.push(`failed to canonicalize ${resolvedField}=${String(rawValue)}`)
+      continue
+    }
+    validated.push(filter)
+  }
+
+  const mergedRawValuesByField = new Map<string, Array<string | number | boolean>>()
+  for (const filter of validated) {
+    const existing = mergedRawValuesByField.get(filter.field) ?? []
+    const rawValues = Array.isArray(filter.rawValue) ? filter.rawValue : [filter.rawValue]
+    mergedRawValuesByField.set(filter.field, [...existing, ...rawValues])
+  }
+
+  const mergedFilters: AppliedFilter[] = []
+  for (const [field, rawValues] of mergedRawValuesByField.entries()) {
+    const merged = buildAppliedFilterFromValue(field, rawValues)
+    if (merged) mergedFilters.push(merged)
+  }
+
+  return {
+    filters: mergedFilters,
+    errors,
+  }
+}
+
+function buildCompareTargets(rawTargets: unknown): string[] {
+  if (!Array.isArray(rawTargets)) return []
+
+  const targets = rawTargets
+    .filter((value): value is string => typeof value === "string")
+    .map(value => value.trim())
+    .filter(Boolean)
+
+  return Array.from(new Set(targets)).slice(0, 4)
+}
+
+function validateRequestedField(value: unknown): string | null {
+  const raw = typeof value === "string" ? value.trim() : ""
+  if (!raw) return null
+
+  const allowedFields = new Set([
+    "toolMaterial",
+    "coating",
+    "fluteCount",
+    "toolSubtype",
+    "diameterMm",
+    "shankDiameterMm",
+    "lengthOfCutMm",
+    "overallLengthMm",
+    "helixAngleDeg",
+    "coolantHole",
+    "seriesName",
+    "brand",
+    "productName",
+  ])
+
+  return allowedFields.has(raw) ? raw : null
+}
+
+function validateEntityFocus(value: unknown): "series" | "brand" | null {
+  if (value === "series" || value === "brand") return value
+  return null
+}
+
+function validateDirectContext(value: unknown): SemanticDirectContext | null {
+  if (!value || typeof value !== "object") return null
+
+  const source = value as Record<string, unknown>
+  const lookupCode = typeof source.lookupCode === "string" ? source.lookupCode.trim() || null : null
+  const entityNames = Array.isArray(source.entityNames)
+    ? Array.from(new Set(source.entityNames.filter((item): item is string => typeof item === "string").map(item => item.trim()).filter(Boolean))).slice(0, 8)
+    : []
+  const entityFocus = validateEntityFocus(source.entityFocus)
+  const comparisonRequested = typeof source.comparisonRequested === "boolean" ? source.comparisonRequested : null
+  const requestedField = validateRequestedField(source.requestedField)
+  const isoGroupRaw = typeof source.isoGroup === "string" ? source.isoGroup.trim().toUpperCase() : ""
+  const isoGroup = /^[PMKNSH]$/.test(isoGroupRaw) ? isoGroupRaw : null
+  const workPieceName = typeof source.workPieceName === "string" ? source.workPieceName.trim() || null : null
+  const hardnessMinHrc = typeof source.hardnessMinHrc === "number" && Number.isFinite(source.hardnessMinHrc) ? source.hardnessMinHrc : null
+  const hardnessMaxHrc = typeof source.hardnessMaxHrc === "number" && Number.isFinite(source.hardnessMaxHrc) ? source.hardnessMaxHrc : null
+
+  if (
+    !lookupCode &&
+    entityNames.length === 0 &&
+    !entityFocus &&
+    comparisonRequested == null &&
+    !requestedField &&
+    !isoGroup &&
+    !workPieceName &&
+    hardnessMinHrc == null &&
+    hardnessMaxHrc == null
+  ) {
+    return null
+  }
+
+  return {
+    lookupCode,
+    entityNames,
+    entityFocus,
+    comparisonRequested,
+    requestedField,
+    isoGroup,
+    workPieceName,
+    hardnessMinHrc,
+    hardnessMaxHrc,
+  }
+}
+
+function buildSessionSummary(sessionState: ExplorationSessionState | null): string {
+  if (!sessionState) return "없음"
+
+  const activeFilters = (sessionState.appliedFilters ?? [])
+    .filter(filter => filter.op !== "skip")
+    .map(filter => `${filter.field}=${filter.value}`)
+    .join(", ") || "없음"
+  const displayedOptions = (sessionState.displayedOptions ?? [])
+    .slice(0, 8)
+    .map(option => `${option.field}:${option.value}`)
+    .join(", ") || "없음"
+  const displayedChips = (sessionState.displayedChips ?? []).slice(0, 8).join(", ") || "없음"
+
+  return [
+    `pendingField=${sessionState.lastAskedField ?? "없음"}`,
+    `mode=${sessionState.currentMode ?? "없음"}`,
+    `resolution=${sessionState.resolutionStatus ?? "없음"}`,
+    `candidateCount=${sessionState.candidateCount ?? 0}`,
+    `activeFilters=${activeFilters}`,
+    `displayedOptions=${displayedOptions}`,
+    `displayedChips=${displayedChips}`,
+  ].join("\n")
+}
+
+function buildSystemPrompt(repairFeedback: string | null): string {
+  return `당신은 절삭공구 추천 시스템의 의미 해석기입니다.
+최신 사용자 발화를 세션 맥락과 함께 읽고, 실행 가능한 JSON만 반환하세요.
+
+반드시 지킬 규칙:
+1. 필터링/조건변경/대기 질문 응답은 action="continue_narrowing" 또는 "skip_field" 로 판단한다.
+1-1. pendingField가 있을 때 "상관없음", "아무거나", "괜찮은 걸로", "추천으로 골라줘", "알아서", "무난한 걸로", "적당한 걸로"는 현재 필드를 건너뛰는 의미이므로 action="skip_field" 로 판단한다. show_recommendation으로 보내지 않는다.
+2. 제품정보/재고/절삭조건/시리즈비교/브랜드기준표 같은 DB성 질문은 action="answer_general" 으로 두고 replyRoute를 지정한다.
+3. 일반 지식/회사 질문/도메인 설명도 action="answer_general" 으로 두고 replyRoute="general_chat" 으로 둔다.
+4. 여러 필터가 있으면 filters 배열에 모두 넣는다.
+5. filters[].field 는 아래 허용 필드 중 하나만 사용한다.
+6. filters[].value 는 canonical value를 우선 사용한다. 예: Square, Ball, Radius, Roughing, Taper, Chamfer, High-Feed, Bright Finish.
+7. pendingField가 존재하고 사용자가 값만 답한 경우, 그 field를 명시해서 반환한다.
+8. "이전 단계", "뒤로"는 action="go_back_one_step" 으로 반환한다.
+9. "재고 있는 것만"은 action="filter_by_stock" + stockFilter="instock" 으로 반환한다.
+10. "다른 직경/소재/코팅/형상/날수로"는 action="refine_condition" + refineField를 설정한다.
+11. 불확실하면 action="none" 으로 반환한다.
+9. DB성 질문이면 directContext에 실행 힌트를 함께 넣는다.
+10. 제품코드는 lookupCode, 시리즈/브랜드명은 entityNames, 제품 단일 필드 질문은 requestedField를 canonical key로 넣는다.
+11. entity_profile 질문이면 entityFocus에 "series" 또는 "brand"를 넣고, 비교 요청이면 comparisonRequested=true를 넣는다.
+
+허용 action:
+- continue_narrowing
+- skip_field
+- show_recommendation
+- go_back_one_step
+- reset_session
+- compare_products
+- refine_condition
+- filter_by_stock
+- answer_general
+- none
+
+replyRoute 허용값:
+- inventory
+- product_info
+- entity_profile
+- brand_reference
+- cutting_conditions
+- general_chat
+
+허용 필드:
+${buildFieldCatalog()}
+${repairFeedback ? `\n이전 응답 검증 실패 사유:\n${repairFeedback}\n위 오류를 수정한 JSON만 다시 출력하세요.` : ""}
+
+JSON 형식:
+{
+  "action": "continue_narrowing|skip_field|show_recommendation|reset_session|compare_products|answer_general|none",
+  "filters": [{"field":"toolSubtype","value":"Square"}],
+  "compareTargets": ["A","B"],
+  "refineField": "material|diameter|coating|fluteCount|toolSubtype|null",
+  "stockFilter": "instock|limited|all|null",
+  "replyRoute": "inventory|product_info|entity_profile|brand_reference|cutting_conditions|general_chat|null",
+  "directContext": {
+    "lookupCode": "E5E8310045",
+    "entityNames": ["E5D74", "GMG31"],
+    "entityFocus": "series",
+    "comparisonRequested": true,
+    "requestedField": "coating",
+    "isoGroup": "N",
+    "workPieceName": "알루미늄",
+    "hardnessMinHrc": 45,
+    "hardnessMaxHrc": 55
+  },
+  "confidence": 0.0,
+  "reasoning": "짧은 근거"
+}`
+}
+
+function buildUserPrompt(userMessage: string, sessionState: ExplorationSessionState | null): string {
+  return `세션 상태:
+${buildSessionSummary(sessionState)}
+
+사용자 메시지:
+${userMessage}`
+}
+
+function validateSemanticTurnResult(
+  parsed: RawSemanticTurnResult | null,
+  sessionState: ExplorationSessionState | null,
+  clean: string
+): SemanticValidationResult {
+  if (!parsed) {
+    return { decision: null, errors: ["response was not valid JSON"] }
+  }
+
+  const confidence = typeof parsed.confidence === "number" ? parsed.confidence : 0
+  if (confidence < MIN_CONFIDENCE) {
+    return { decision: null, errors: [`confidence too low: ${confidence}`] }
+  }
+
+  const actionType = validateAction(parsed.action)
+  const replyRoute = validateReplyRoute(parsed.replyRoute)
+  const refineField = validateRefineField(parsed.refineField)
+  const stockFilter = validateStockFilter(parsed.stockFilter)
+  const directContext = validateDirectContext(parsed.directContext)
+  const reasoning = typeof parsed.reasoning === "string" ? parsed.reasoning.trim() : "semantic_turn"
+
+  if (actionType === "skip_field") {
+    if (!sessionState?.lastAskedField) {
+      return { decision: null, errors: ["skip_field requires an active pending field"] }
+    }
+    return {
+      decision: {
+        action: { type: "skip_field" },
+        extraFilters: [],
+        replyRoute,
+        directContext,
+        confidence,
+        reasoning,
+      },
+      errors: [],
+    }
+  }
+
+  if (actionType === "show_recommendation") {
+    return {
+      decision: {
+        action: { type: "show_recommendation" },
+        extraFilters: [],
+        replyRoute,
+        directContext,
+        confidence,
+        reasoning,
+      },
+      errors: [],
+    }
+  }
+
+  if (actionType === "go_back_one_step") {
+    return {
+      decision: {
+        action: { type: "go_back_one_step" },
+        extraFilters: [],
+        replyRoute,
+        directContext,
+        confidence,
+        reasoning,
+      },
+      errors: [],
+    }
+  }
+
+  if (actionType === "reset_session") {
+    return {
+      decision: {
+        action: { type: "reset_session" },
+        extraFilters: [],
+        replyRoute,
+        directContext,
+        confidence,
+        reasoning,
+      },
+      errors: [],
+    }
+  }
+
+  if (actionType === "compare_products") {
+    const targets = buildCompareTargets(parsed.compareTargets)
+    if (targets.length < 2) {
+      return { decision: null, errors: ["compare_products requires at least 2 compareTargets"] }
+    }
+
+    return {
+      decision: {
+        action: { type: "compare_products", targets },
+        extraFilters: [],
+        replyRoute,
+        directContext,
+        confidence,
+        reasoning,
+      },
+      errors: [],
+    }
+  }
+
+  if (actionType === "refine_condition") {
+    if (!refineField) {
+      return { decision: null, errors: ["refine_condition requires refineField"] }
+    }
+    return {
+      decision: {
+        action: { type: "refine_condition", field: refineField },
+        extraFilters: [],
+        replyRoute,
+        directContext,
+        confidence,
+        reasoning,
+      },
+      errors: [],
+    }
+  }
+
+  if (actionType === "filter_by_stock") {
+    if (!stockFilter) {
+      return { decision: null, errors: ["filter_by_stock requires stockFilter"] }
+    }
+    return {
+      decision: {
+        action: { type: "filter_by_stock", stockFilter },
+        extraFilters: [],
+        replyRoute,
+        directContext,
+        confidence,
+        reasoning,
+      },
+      errors: [],
+    }
+  }
+
+  if (actionType === "answer_general") {
+    return {
+      decision: {
+        action: { type: "answer_general", message: clean },
+        extraFilters: [],
+        replyRoute: replyRoute ?? "general_chat",
+        directContext,
+        confidence,
+        reasoning,
+      },
+      errors: [],
+    }
+  }
+
+  if (actionType !== "continue_narrowing") {
+    return { decision: null, errors: [`unsupported or empty action: ${String(parsed.action ?? "null")}`] }
+  }
+
+  const validatedFilters = buildValidatedFilters(parsed.filters, sessionState)
+  if (validatedFilters.filters.length === 0) {
+    return {
+      decision: null,
+      errors: validatedFilters.errors.length > 0
+        ? validatedFilters.errors
+        : ["continue_narrowing requires at least one valid filter"],
+    }
+  }
+
+  return {
+    decision: {
+      action: (() => {
+        const primaryFilter = validatedFilters.filters[0]
+        const existingFilter = sessionState?.appliedFilters?.find(filter =>
+          filter.op !== "skip" && filter.field === primaryFilter.field
+        )
+
+        if (existingFilter && String(existingFilter.rawValue ?? existingFilter.value) !== String(primaryFilter.rawValue ?? primaryFilter.value)) {
+          return {
+            type: "replace_existing_filter" as const,
+            targetField: existingFilter.field,
+            previousValue: String(existingFilter.rawValue ?? existingFilter.value),
+            nextFilter: { ...primaryFilter },
+          }
+        }
+
+        return { type: "continue_narrowing" as const, filter: { ...primaryFilter } }
+      })(),
+      extraFilters: validatedFilters.filters.slice(1),
+      replyRoute,
+      directContext,
+      confidence,
+      reasoning,
+    },
+    errors: [],
+  }
+}
+
+export async function extractSemanticTurnDecision(params: {
+  userMessage: string
+  sessionState: ExplorationSessionState | null
+  provider: LLMProvider
+}): Promise<SemanticTurnDecision | null> {
+  const { userMessage, sessionState, provider } = params
+  const clean = userMessage.trim()
+  if (!clean || !provider.available()) return null
+
+  let repairFeedback: string | null = null
+
+  for (let attempt = 1; attempt <= MAX_SEMANTIC_ATTEMPTS; attempt++) {
+    const raw = await provider.complete(
+      buildSystemPrompt(repairFeedback),
+      [{ role: "user", content: buildUserPrompt(clean, sessionState) }],
+      1800,
+      SEMANTIC_TURN_MODEL,
+      "semantic-turn-extractor"
+    )
+    const validation = validateSemanticTurnResult(parseJsonObject(raw), sessionState, clean)
+    if (validation.decision) {
+      const reasoning = validation.decision.reasoning
+      return {
+        ...validation.decision,
+        reasoning: attempt > 1 ? `${reasoning} [repair:${attempt}]` : reasoning,
+      }
+    }
+
+    repairFeedback = [
+      `attempt=${attempt}`,
+      ...validation.errors.slice(0, 6),
+    ].join("\n- ")
+  }
+
+  return null
+}

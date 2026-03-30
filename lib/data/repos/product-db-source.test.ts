@@ -34,4 +34,18 @@ describe("product db operation shape filtering", () => {
     expect(values).toContain("%side_milling%")
     expect(values).toContain("%side milling%")
   })
+
+  it("filters machining category by exact edp_root_category value", () => {
+    const { where, values } = buildQueryOptions({
+      input: {
+        manufacturerScope: "yg1-only",
+        locale: "ko",
+        toolType: "Tooling System",
+      },
+    })
+
+    expect(where.some(clause => clause.includes("edp_root_category"))).toBe(true)
+    expect(where.some(clause => clause.includes("series_application_shape"))).toBe(false)
+    expect(values).toContain("Tooling System")
+  })
 })

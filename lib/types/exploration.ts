@@ -30,7 +30,7 @@ export interface AppliedFilter {
   field: string            // e.g. "fluteCount", "coating", "cuttingType"
   op: string               // "eq", "includes", "range"
   value: string            // display value (e.g. "4날", "AlTiN")
-  rawValue: string | number // actual filter value
+  rawValue: string | number | boolean | Array<string | number | boolean> // actual filter value(s)
   appliedAt: number        // narrowing turn index
 }
 

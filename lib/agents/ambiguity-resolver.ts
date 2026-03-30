@@ -10,9 +10,11 @@
  * Only invoked when the Orchestrator detects high ambiguity.
  */
 
-import type { LLMProvider } from "@/lib/llm/provider"
+import { resolveModel, type LLMProvider } from "@/lib/llm/provider"
 import type { ExplorationSessionState, CandidateSnapshot } from "@/lib/types/exploration"
 import type { NarrowingIntent, AmbiguityResolution } from "./types"
+
+const AMBIGUITY_RESOLVER_MODEL = resolveModel("opus", "ambiguity-resolver")
 
 /**
  * Escalation threshold — when to invoke Opus instead of handling deterministically.
@@ -103,7 +105,7 @@ ${displayedSummary}
 "${message}"`
 
   try {
-    const raw = await provider.complete(systemPrompt, [{ role: "user", content: userPrompt }], 1500, "opus", "ambiguity-resolver")
+    const raw = await provider.complete(systemPrompt, [{ role: "user", content: userPrompt }], 1500, AMBIGUITY_RESOLVER_MODEL, "ambiguity-resolver")
     const parsed = JSON.parse(raw.trim().replace(/```json\n?|\n?```/g, ""))
 
     const durationMs = Date.now() - startMs
@@ -116,7 +118,7 @@ ${displayedSummary}
       resolvedTargets: parsed.resolvedTargets ?? undefined,
       explanation: parsed.explanation ?? "해석 불가",
       confidence: parsed.confidence ?? 0.5,
-      modelUsed: "opus",
+      modelUsed: AMBIGUITY_RESOLVER_MODEL,
     }
   } catch (e) {
     console.warn("[ambiguity-resolver:opus] Failed:", e)
@@ -125,7 +127,7 @@ ${displayedSummary}
       resolvedValue: undefined,
       explanation: "해석에 실패했습니다. 좀 더 구체적으로 말씀해주세요.",
       confidence: 0.2,
-      modelUsed: "opus",
+      modelUsed: AMBIGUITY_RESOLVER_MODEL,
     }
   }
 }

@@ -5,13 +5,15 @@
  * Resolves product references like "1번", "2번", "상위 3개" against displayed candidates.
  */
 
-import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import { resolveModel, type LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import type { CandidateSnapshot, EvidenceSummary } from "@/lib/recommendation/domain/types"
+
+const COMPARISON_MODEL = resolveModel("sonnet", "comparison")
 
 export interface ComparisonResult {
   text: string
   comparedProducts: string[]
-  modelUsed: "sonnet"
+  modelUsed: string
 }
 
 /**
@@ -74,7 +76,7 @@ export async function compareProducts(
     return {
       text: "비교할 제품이 2개 이상 필요합니다.",
       comparedProducts: targets.map(t => t.displayCode),
-      modelUsed: "sonnet",
+      modelUsed: COMPARISON_MODEL,
     }
   }
 
@@ -110,14 +112,14 @@ export async function compareProducts(
       systemPrompt,
       [{ role: "user", content: `다음 제품들을 비교해주세요:\n\n${productLines}` }],
       1500,
-      "sonnet",
+      COMPARISON_MODEL,
       "comparison"
     )
 
     return {
       text: raw.trim(),
       comparedProducts: targets.map(t => t.displayCode),
-      modelUsed: "sonnet",
+      modelUsed: COMPARISON_MODEL,
     }
   } catch (e) {
     console.warn("[comparison-agent:sonnet] Failed:", e)
@@ -128,7 +130,7 @@ export async function compareProducts(
     return {
       text: `제품 비교:\n${lines.join("\n")}`,
       comparedProducts: targets.map(t => t.displayCode),
-      modelUsed: "sonnet",
+      modelUsed: COMPARISON_MODEL,
     }
   }
 }

@@ -9,6 +9,8 @@
     "lint": "eslint .",
     "start": "next start",
     "test": "vitest run",
+    "test:node22": "node scripts/run-vitest-node22.mjs",
+    "test:recommendation": "node scripts/run-vitest-node22.mjs run lib/recommendation",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"

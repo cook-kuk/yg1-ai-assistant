@@ -29,6 +29,7 @@ import { ENABLE_POST_SQL_CANDIDATE_FILTERS } from "@/lib/feature-flags"
 import { resolveMaterialTag } from "@/lib/recommendation/domain/material-resolver"
 import { getAppShapesForOperation } from "@/lib/recommendation/domain/operation-resolver"
 import { applyPostFilterToProducts } from "@/lib/recommendation/shared/filter-field-registry"
+import { traceRecommendation } from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
 
 // ── Result type ──────────────────────────────────────────────
 export interface HybridResult {
@@ -69,6 +70,26 @@ const OPERATION_TOOL_SHAPE_COMPATIBILITY: Record<string, Record<string, number>>
   "Finishing":   { "Ball": 5,    "Radius": 5,   "Square": 0,  "Roughing": -10 },
   "Die-Sinking": { "Ball": 10,   "Radius": 5,   "Square": -5, "Roughing": -5 },
   "Plunging":    { "Square": 5,  "Radius": 5,   "Ball": -5,   "Roughing": 5 },
+}
+
+const GENERIC_MACHINING_CATEGORIES = new Set(["Milling", "Holemaking", "Threading", "Turning"])
+
+function normalizeToolSubtype(value: string | null | undefined): string | null {
+  const normalized = value?.trim().toLowerCase()
+  return normalized ? normalized : null
+}
+
+function getSpecificOperationShapes(input: RecommendationInput): string[] {
+  const appShapes = input.operationType ? getAppShapesForOperation(input.operationType) : []
+  if (!appShapes.length) return []
+
+  return appShapes.filter(shape => {
+    const trimmed = shape.trim()
+    if (!trimmed) return false
+    if (GENERIC_MACHINING_CATEGORIES.has(trimmed)) return false
+    if (input.machiningCategory && trimmed === input.machiningCategory) return false
+    return true
+  })
 }
 
 function flattenActiveFilters(filters: AppliedFilter[]): AppliedFilter[] {
@@ -115,6 +136,98 @@ function formatScoredEdpList(candidates: ScoredProduct[], maxItems = 50): string
   )
 }
 
+function summarizeRecommendationInputForTrace(input: RecommendationInput) {
+  return {
+    manufacturerScope: input.manufacturerScope ?? null,
+    locale: input.locale ?? null,
+    material: input.material ?? null,
+    workPieceName: input.workPieceName ?? null,
+    diameterMm: input.diameterMm ?? null,
+    machiningCategory: input.machiningCategory ?? null,
+    operationType: input.operationType ?? null,
+    toolSubtype: input.toolSubtype ?? null,
+    flutePreference: input.flutePreference ?? null,
+    coatingPreference: input.coatingPreference ?? null,
+    seriesName: input.seriesName ?? null,
+  }
+}
+
+function summarizeFiltersForTrace(filters: AppliedFilter[]) {
+  return filters.map(filter => ({
+    field: filter.field,
+    op: filter.op,
+    value: filter.value,
+    rawValue: filter.rawValue,
+    appliedAt: filter.appliedAt,
+  }))
+}
+
+function summarizeProductPreviewForTrace(product: {
+  displayCode?: string | null
+  normalizedCode?: string | null
+  seriesName?: string | null
+  brand?: string | null
+  toolSubtype?: string | null
+  fluteCount?: number | null
+  diameterMm?: number | null
+  coating?: string | null
+}) {
+  return {
+    code: product.displayCode || product.normalizedCode || null,
+    seriesName: product.seriesName ?? null,
+    brand: product.brand ?? null,
+    toolSubtype: product.toolSubtype ?? null,
+    fluteCount: product.fluteCount ?? null,
+    diameterMm: product.diameterMm ?? null,
+    coating: product.coating ?? null,
+  }
+}
+
+function summarizeFetchedProductsForTrace(products: Array<{
+  displayCode?: string | null
+  normalizedCode?: string | null
+  seriesName?: string | null
+  brand?: string | null
+  toolSubtype?: string | null
+  fluteCount?: number | null
+  diameterMm?: number | null
+  coating?: string | null
+}>) {
+  return {
+    count: products.length,
+    preview: products.slice(0, 6).map(product => summarizeProductPreviewForTrace(product)),
+  }
+}
+
+function summarizeCandidatesForTrace(candidates: ScoredProduct[]) {
+  return {
+    count: candidates.length,
+    preview: candidates.slice(0, 6).map(candidate => ({
+      ...summarizeProductPreviewForTrace(candidate.product),
+      score: candidate.score,
+      matchStatus: candidate.matchStatus,
+      stockStatus: candidate.stockStatus,
+      totalStock: candidate.totalStock,
+      matchedFields: candidate.matchedFields.slice(0, 4),
+    })),
+  }
+}
+
+function summarizeEvidenceMapForTrace(evidenceMap: Map<string, EvidenceSummary>) {
+  const entries = Array.from(evidenceMap.entries())
+  return {
+    count: entries.length,
+    preview: entries.slice(0, 6).map(([code, summary]) => ({
+      code,
+      productCode: summary.productCode,
+      seriesName: summary.seriesName,
+      chunkCount: summary.chunks.length,
+      sourceCount: summary.sourceCount,
+      bestConfidence: summary.bestConfidence,
+    })),
+  }
+}
+
 // ── Main Entry Point ─────────────────────────────────────────
 export async function runHybridRetrieval(
   input: RecommendationInput,
@@ -122,6 +235,13 @@ export async function runHybridRetrieval(
   topN = 0,
   pagination: HybridRetrievalPagination | null = null,
 ): Promise<HybridResult> {
+  traceRecommendation("domain.runHybridRetrieval:input", {
+    input: summarizeRecommendationInputForTrace(input),
+    filters: summarizeFiltersForTrace(filters),
+    filterCount: filters.length,
+    topN,
+    pagination,
+  })
   const startedAt = Date.now()
   const shouldApplyPostSqlHeuristics = ENABLE_POST_SQL_CANDIDATE_FILTERS && !pagination
 
@@ -134,6 +254,13 @@ export async function runHybridRetrieval(
   const searchResult = pagination
     ? await ProductRepo.searchPage(input, filters, { limit, offset })
     : { products: await ProductRepo.search(input, filters, limit), totalCount: 0 }
+  traceRecommendation("domain.runHybridRetrieval:db-fetch", {
+    limit,
+    offset,
+    pagination,
+    fetchedProducts: summarizeFetchedProductsForTrace(searchResult.products),
+    totalCount: searchResult.totalCount,
+  })
   let candidates = searchResult.products
   const fetchMs = Date.now() - fetchStartedAt
   const appliedFilters: AppliedFilter[] = []
@@ -217,7 +344,7 @@ export async function runHybridRetrieval(
 
   // ── Stage 2: Score & Rank ──────────────────────────────────
   const scoreStartedAt = Date.now()
-  const appShapes = input.operationType ? getAppShapesForOperation(input.operationType) : []
+  const specificAppShapes = getSpecificOperationShapes(input)
 
   const scored: ScoredProduct[] = candidates.map(product => {
     // ── Compute each scoring dimension with explanations ────
@@ -273,13 +400,15 @@ export async function runHybridRetrieval(
 
     let opScore = 0
     let opDetail = ""
-    if (!appShapes.length) {
+    if (!specificAppShapes.length) {
       opScore = Math.round(WEIGHTS.operation * 0.5)
-      opDetail = "가공방식 미지정 (기본 50%)"
+      opDetail = input.machiningCategory
+        ? `세부 가공형상 미지정 (분류: ${input.machiningCategory})`
+        : "가공방식 미지정 (기본 50%)"
     } else {
-      const matches = product.applicationShapes.filter(s => appShapes.includes(s))
+      const matches = product.applicationShapes.filter(s => specificAppShapes.includes(s))
       if (matches.length > 0) {
-        const r = matches.length / appShapes.length
+        const r = matches.length / specificAppShapes.length
         opScore = Math.round(WEIGHTS.operation * Math.min(r, 1))
         opDetail = `가공 적합 (${matches.join(", ")})`
       } else {
@@ -290,11 +419,20 @@ export async function runHybridRetrieval(
     // ── Tool shape compatibility (operationType → toolSubtype) ──
     let shapeScore = 0
     let shapeDetail = ""
-    if (!appShapes.length || !product.toolSubtype) {
-      shapeDetail = !appShapes.length ? "가공형상 미지정" : "공구형상 정보 없음"
+    if (input.toolSubtype) {
+      if (!product.toolSubtype) {
+        shapeDetail = "공구형상 정보 없음"
+      } else if (normalizeToolSubtype(product.toolSubtype) === normalizeToolSubtype(input.toolSubtype)) {
+        shapeScore = WEIGHTS.toolShape
+        shapeDetail = `${product.toolSubtype} 선택과 일치`
+      } else {
+        shapeDetail = `${product.toolSubtype} (선택: ${input.toolSubtype})`
+      }
+    } else if (!specificAppShapes.length || !product.toolSubtype) {
+      shapeDetail = !specificAppShapes.length ? "공구형상 미지정" : "공구형상 정보 없음"
     } else {
       // Use the first normalized operation shape to look up compatibility
-      const opKey = appShapes[0]
+      const opKey = specificAppShapes[0]
       const compat = OPERATION_TOOL_SHAPE_COMPATIBILITY[opKey]
       if (compat) {
         const bonus = compat[product.toolSubtype] ?? 0
@@ -352,8 +490,10 @@ export async function runHybridRetrieval(
       matchedFields.push(`${product.fluteCount}날 일치`)
     if (materialTags.length > 0 && materialTags.some(tag => product.materialTags.includes(tag)))
       matchedFields.push(`소재 ${materialTags.filter(t => product.materialTags.includes(t)).join(",")}군 적합`)
-    if (appShapes.length && product.applicationShapes.some(s => appShapes.includes(s)))
+    if (specificAppShapes.length && product.applicationShapes.some(s => specificAppShapes.includes(s)))
       matchedFields.push(`가공 방식 적합`)
+    if (input.toolSubtype && normalizeToolSubtype(product.toolSubtype) === normalizeToolSubtype(input.toolSubtype))
+      matchedFields.push(`형상 ${product.toolSubtype} 일치`)
     if (input.coatingPreference && product.coating?.toLowerCase().includes(input.coatingPreference.toLowerCase()))
       matchedFields.push(`코팅 ${product.coating} 일치`)
 
@@ -486,6 +626,16 @@ export async function runHybridRetrieval(
     `[recommend] hybrid timings: total=${Date.now() - startedAt}ms fetch=${fetchMs}ms filter=${filterMs}ms score_evidence=${scoreAndEvidenceMs}ms source=${initialCandidateCount} considered=${totalConsidered} final=${topCandidates.length}`
   )
 
+  traceRecommendation("domain.runHybridRetrieval:output", {
+    durationMs: Date.now() - startedAt,
+    fetchMs,
+    filterMs,
+    scoreAndEvidenceMs,
+    totalConsidered,
+    filtersApplied: summarizeFiltersForTrace(appliedFilters),
+    candidates: summarizeCandidatesForTrace(topCandidates),
+    evidenceMap: summarizeEvidenceMapForTrace(evidenceMap),
+  })
   return {
     candidates: topCandidates,
     evidenceMap,

@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
   Activity,
-  ArrowRight,
   ChevronDown,
   ChevronUp,
   Clock,
@@ -37,17 +36,19 @@ import {
 } from "@/lib/frontend/recommendation/recommendation-grouping"
 import { isUndoChipEnabled } from "@/lib/frontend/recommendation/recommendation-view-model"
 import {
-  type AnswerState,
-  FIELD_CONFIGS,
   type ProductIntakeForm,
 } from "@/lib/frontend/recommendation/intake-types"
 import {
   getIntakeDisplayValue,
-  getIntakeFieldLabel,
   localizeIntakeText,
 } from "@/lib/frontend/recommendation/intake-localization"
+import {
+  buildSidebarConditionItems,
+  getFilterDisplayValue,
+} from "@/lib/frontend/recommendation/sidebar-condition-items"
 import type { ChatMsg, TurnFeedback } from "@/lib/frontend/recommendation/exploration-types"
 import { DebugPanel, DebugToggle } from "@/components/debug/debug-panel"
+import type { ExplorationSessionState } from "@/lib/recommendation/domain/types"
 
 const MAX_DISPLAY_CANDIDATES = 10
 const RESOLUTION_CONFIG: Record<string, { ko: string; en: string; cls: string }> = {
@@ -63,14 +64,13 @@ function getSeriesRatingLabel(
   language: "ko" | "en"
 ): string | null {
   if (rating === "EXCELLENT") return language === "ko" ? "EXCELLENT" : "EXCELLENT"
-  if (rating === "GOOD") return language === "ko" ? "GOOD" : "GOOD"
-  return "BAD"
+  if (rating === "GOOD" || rating === "NULL" || rating == null) return language === "ko" ? "GOOD" : "GOOD"
+  return language === "ko" ? "GOOD" : "GOOD"
 }
 
 function getSeriesRatingBadgeClass(rating: "EXCELLENT" | "GOOD" | "NULL" | null | undefined): string {
   if (rating === "EXCELLENT") return "bg-emerald-100 text-emerald-700 border-emerald-200"
-  if (rating === "GOOD") return "bg-amber-100 text-amber-700 border-amber-200"
-  return "bg-rose-100 text-rose-700 border-rose-200"
+  return "bg-amber-100 text-amber-700 border-amber-200"
 }
 
 function getCurrentMaterialLabel(form: ProductIntakeForm, language: "ko" | "en"): string | null {
@@ -187,11 +187,13 @@ function CaseCaptureModal({
 function ExplorationSidebar({
   form,
   sessionState,
+  engineSessionState,
   onEdit,
   messages,
 }: {
   form: ProductIntakeForm
   sessionState: RecommendationPublicSessionDto | null
+  engineSessionState: ExplorationSessionState | null
   onEdit: () => void
   messages: ChatMsg[]
 }) {
@@ -200,6 +202,10 @@ function ExplorationSidebar({
   const uiNarrowingPath = sessionState?.uiNarrowingPath ?? []
   const displayedGroups = sessionState?.displayedSeriesGroups ?? []
   const currentMaterialLabel = getCurrentMaterialLabel(form, language)
+  const sidebarConditionItems = useMemo(
+    () => buildSidebarConditionItems(form, sessionState, engineSessionState, language),
+    [engineSessionState, form, language, sessionState]
+  )
 
   return (
     <div className="p-3 space-y-3">
@@ -207,81 +213,42 @@ function ExplorationSidebar({
 
       <div>
         <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-semibold text-gray-700">{language === "ko" ? "입력 조건" : "Input Conditions"}</span>
+          <span className="text-xs font-semibold text-gray-700">{language === "ko" ? "조건 및 필터" : "Conditions & Filters"}</span>
           <button onClick={onEdit} className="text-[10px] text-blue-500 hover:text-blue-700">{language === "ko" ? "수정" : "Edit"}</button>
         </div>
         <div className="space-y-1">
-          {FIELD_CONFIGS.map(config => {
-            const state = form[config.key as keyof ProductIntakeForm] as AnswerState<string>
-            const isUnknown = state.status === "unknown"
-            const isUnanswered = state.status === "unanswered"
-            if (isUnanswered) return null
-
+          {sidebarConditionItems.map(item => {
+            const isFilterValue = item.source === "filter"
+            const isUnknown = item.value === "모름" || item.value === "Unknown"
             return (
-              <div key={config.key} className="flex justify-between items-center text-xs bg-white rounded-lg px-2.5 py-1.5 border border-gray-100">
-                <span className="text-gray-500">{config.emoji}</span>
-                <span className={`flex-1 ml-1.5 truncate ${isUnknown ? "text-gray-400 italic" : "text-gray-800 font-medium"}`}>
-                  {getIntakeDisplayValue(config.key as keyof ProductIntakeForm, state, language)}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {sessionState && (uiNarrowingPath.length > 0 || sessionState.appliedFilters.length > 0) && (
-        <div>
-          <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
-            <Filter size={10} />
-            {language === "ko" ? "적용 필터" : "Applied Filters"}
-          </div>
-          <div className="space-y-0.5">
-            {uiNarrowingPath.length > 0
-              ? uiNarrowingPath.map((entry, index) => (
-                <div key={index} className="flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1 border border-blue-100 bg-blue-50">
-                  <ArrowRight size={8} className="text-blue-400 shrink-0" />
-                  <span className="text-blue-600 font-medium truncate">
-                    {entry.field === "fluteCount"
-                      ? (language === "ko" ? "날수" : "Flutes")
-                      : entry.field === "toolSubtype"
-                        ? (language === "ko" ? "형상" : "Shape")
-                        : entry.field === "coating"
-                          ? (language === "ko" ? "코팅" : "Coating")
-                          : entry.field === "seriesName"
-                            ? (language === "ko" ? "시리즈" : "Series")
-                            : localizeIntakeText(entry.field ?? entry.label, language)}
-                    : {localizeIntakeText(entry.value ?? entry.label, language)}
+              <div
+                key={item.key}
+                className={`rounded-lg px-2.5 py-1.5 border text-xs ${isFilterValue ? "border-blue-100 bg-blue-50" : "border-gray-100 bg-white"}`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className={isFilterValue ? "text-blue-500" : "text-gray-500"}>{item.emoji}</span>
+                  <span className={`shrink-0 text-[10px] ${isFilterValue ? "text-blue-500 font-semibold" : "text-gray-500"}`}>
+                    {item.label}
                   </span>
-                  {entry.candidateCountBefore != null && (
-                    <span className="text-[9px] text-blue-400 shrink-0 ml-auto">
-                      {entry.candidateCountBefore}→{entry.candidateCount}
+                  {isFilterValue && (
+                    <span className="ml-auto rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-semibold text-blue-600">
+                      {language === "ko" ? "필터" : "Filter"}
                     </span>
                   )}
                 </div>
-              ))
-              : sessionState.appliedFilters.filter(filter => filter.op !== "skip").map((filter, index) => (
-                <div key={index} className="flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1 border border-blue-100 bg-blue-50">
-                  <ArrowRight size={8} className="text-blue-400 shrink-0" />
-                  <span className="text-blue-600 font-medium truncate">
-                    {filter.field === "fluteCount"
-                      ? (language === "ko" ? "날수" : "Flutes")
-                      : filter.field === "toolSubtype"
-                        ? (language === "ko" ? "형상" : "Shape")
-                        : filter.field === "coating"
-                          ? (language === "ko" ? "코팅" : "Coating")
-                          : filter.field === "seriesName"
-                            ? (language === "ko" ? "시리즈" : "Series")
-                            : localizeIntakeText(filter.field, language)}
-                    : {localizeIntakeText(filter.value, language)}
-                  </span>
+                <div className={`mt-1 truncate pl-6 ${isUnknown ? "text-gray-400 italic" : isFilterValue ? "text-blue-700 font-medium" : "text-gray-800 font-medium"}`}>
+                  {item.value}
                 </div>
-              ))}
+              </div>
+            )
+          })}
+          {sessionState && (
             <div className="text-[10px] text-gray-500 px-2.5 pt-1 font-medium">
-              {language === "ko" ? `→ 현재 후보: ${sessionState.candidateCount}개` : `-> Current candidates: ${sessionState.candidateCount}`}
+              {language === "ko" ? `현재 후보 ${sessionState.candidateCount}개` : `${sessionState.candidateCount} candidates`}
             </div>
-          </div>
+          )}
         </div>
-      )}
+      </div>
 
       {sessionState && sessionState.narrowingHistory.length > 0 && (
         <div>
@@ -290,7 +257,7 @@ function ExplorationSidebar({
             {sessionState.narrowingHistory.map((history, index) => (
               <div key={index} className="text-[10px] text-gray-600 bg-white rounded-lg px-2.5 py-1.5 border border-gray-100">
                 <div className="font-medium">
-                  Turn {index + 1}: {history.extractedFilters.filter(f => f.op !== "skip").map(f => `${f.field}=${f.value}`).join(", ") || localizeIntakeText(history.answer, language)}
+                  Turn {index + 1}: {history.extractedFilters.map(f => `${f.field}=${getFilterDisplayValue(f, language)}`).join(", ") || localizeIntakeText(history.answer, language)}
                 </div>
                 <div className="text-gray-400">{history.candidateCountBefore}→{history.candidateCountAfter}{language === "ko" ? "개" : ""}</div>
               </div>
@@ -449,73 +416,71 @@ function NarrowingChat({
 
               {message.role === "ai" && message.chips && message.chips.length > 0 && !message.isLoading && (() => {
                 const isLatest = index === messages.length - 1 && !isSending
-                const productListChip = message.chips.find(c => c.includes("제품 보기"))
-                const aiAnalysisChip = message.chips.find(c => c.includes("AI 상세 분석"))
-                const normalChips = message.chips.filter(c => !c.includes("제품 보기") && !c.includes("AI 상세 분석"))
+                const isHiddenCtaChip = (chip: string) => chip.includes("제품 보기") || chip.includes("AI 상세 분석")
+                const normalChips = message.chips.filter(chip => !isHiddenCtaChip(chip))
+                const chipGroups = (message.chipGroups ?? [])
+                  .map(group => ({
+                    ...group,
+                    chips: group.chips.filter(chip => !isHiddenCtaChip(chip)),
+                  }))
+                  .filter(group => group.chips.length > 0)
+                console.log("[chip-groups:client:render]", {
+                  messageIndex: index,
+                  isLatest,
+                  chipCount: message.chips.length,
+                  chipPreview: message.chips.slice(0, 6),
+                  normalChipCount: normalChips.length,
+                  normalChipPreview: normalChips.slice(0, 6),
+                  chipGroupCount: chipGroups.length,
+                  chipGroups: chipGroups.map(group => ({
+                    label: group.label,
+                    count: group.chips.length,
+                    preview: group.chips.slice(0, 4),
+                  })),
+                })
+                const renderChipButton = (chip: string, chipIndex: number) => {
+                  const isResetChip = chip === "처음부터 다시" || chip === "처음부터"
+                  const isUndoChip = isUndoChipEnabled(chip, capabilities)
+                  return (
+                    <button
+                      key={`${chip}-${chipIndex}`}
+                      onClick={() => {
+                        if (!isLatest || needsFeedback || isSending) return
+                        if (isResetChip && onReset) onReset()
+                        else { setInput(""); onSend(chip) }
+                      }}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+                        !isLatest
+                          ? "bg-gray-50/50 border border-gray-200 text-gray-400 opacity-35 pointer-events-none"
+                          : needsFeedback
+                            ? "bg-gray-50 border border-gray-200 text-gray-400 cursor-not-allowed opacity-60"
+                            : isResetChip
+                              ? "bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+                              : isUndoChip
+                                ? "bg-amber-50 border border-amber-300 text-amber-700 hover:bg-amber-100 hover:border-amber-400"
+                                : "bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300"
+                      }`}
+                    >
+                      {chip}
+                    </button>
+                  )
+                }
                 return (
                   <>
-                    <div className="flex flex-wrap gap-1.5 mt-1">
-                      {normalChips.map((chip, chipIndex) => {
-                        const isResetChip = chip === "처음부터 다시" || chip === "처음부터"
-                        const isUndoChip = isUndoChipEnabled(chip, capabilities)
-                        return (
-                          <button
-                            key={chipIndex}
-                            onClick={() => {
-                              if (!isLatest || needsFeedback || isSending) return
-                              if (isResetChip && onReset) onReset()
-                              else { setInput(""); onSend(chip) }
-                            }}
-                            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-                              !isLatest
-                                ? "bg-gray-50/50 border border-gray-200 text-gray-400 opacity-35 pointer-events-none"
-                                : needsFeedback
-                                  ? "bg-gray-50 border border-gray-200 text-gray-400 cursor-not-allowed opacity-60"
-                                  : isResetChip
-                                    ? "bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
-                                    : isUndoChip
-                                      ? "bg-amber-50 border border-amber-300 text-amber-700 hover:bg-amber-100 hover:border-amber-400"
-                                      : "bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300"
-                            }`}
-                          >
-                            {chip}
-                          </button>
-                        )
-                      })}
-                    </div>
-                    {isLatest && (productListChip || aiAnalysisChip) && (
-                      <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-gray-100">
-                        {needsFeedback && (
-                          <div className="text-center text-[10px] text-amber-600 bg-amber-50 rounded-lg py-1.5">
-                            {language === "ko" ? "위 응답을 평가한 후 진행할 수 있습니다" : "Please rate the response above to proceed"}
+                    {chipGroups.length > 0 ? (
+                      <div className="mt-1 space-y-2">
+                        {chipGroups.map((group, groupIndex) => (
+                          <div key={`${group.label}-${groupIndex}`} className="space-y-1">
+                            <div className="text-[10px] font-medium text-gray-400 px-1">{group.label}</div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {group.chips.map((chip, chipIndex) => renderChipButton(chip, chipIndex))}
+                            </div>
                           </div>
-                        )}
-                        {productListChip && (
-                          <button
-                            onClick={() => { if (needsFeedback) return; setInput(""); onSend(productListChip) }}
-                            disabled={!!needsFeedback}
-                            className={`w-full py-2.5 text-sm font-bold rounded-lg shadow-md ${
-                              needsFeedback
-                                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                                : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
-                            }`}
-                          >
-                            {productListChip}
-                          </button>
-                        )}
-                        {aiAnalysisChip && (
-                          <button
-                            onClick={() => { if (needsFeedback) return; setInput(""); onSend(aiAnalysisChip) }}
-                            disabled={!!needsFeedback}
-                            className={`w-full py-2.5 text-sm font-medium rounded-lg border ${
-                              needsFeedback
-                                ? "border-gray-200 text-gray-400 cursor-not-allowed"
-                                : "border-purple-300 text-purple-700 hover:bg-purple-50"
-                            }`}
-                          >
-                            {aiAnalysisChip}
-                          </button>
-                        )}
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        {normalChips.map((chip, chipIndex) => renderChipButton(chip, chipIndex))}
                       </div>
                     )}
                   </>
@@ -702,6 +667,8 @@ function CandidatePanel({
   const displayCandidates = candidates ?? null
   const hasMore = page + 1 < totalPages
   const hasPrev = page > 0
+  const activeFilterCount = sessionState?.appliedFilters?.filter(filter => filter.op !== "skip").length ?? 0
+  const hasZeroCandidateResult = !!sessionState && (sessionState.candidateCount ?? totalCount) === 0 && activeFilterCount > 0
 
   useEffect(() => {
     setOpenGroups(new Set())
@@ -785,6 +752,18 @@ function CandidatePanel({
           {displayCandidates.map(candidate => (
             <CandidateCard key={candidate.productCode} c={candidate} />
           ))}
+        </div>
+      ) : hasZeroCandidateResult ? (
+        <div className="text-center py-8 text-gray-500">
+          <Database size={24} className="mx-auto mb-2 opacity-50" />
+          <div className="text-xs font-semibold text-gray-700">
+            {language === "ko" ? "현재 필터 기준 결과 0건" : "0 results for current filters"}
+          </div>
+          <div className="text-[11px] mt-1 leading-relaxed">
+            {language === "ko"
+              ? `적용된 필터 ${activeFilterCount}개 기준으로 일치하는 후보가 없습니다. 이전 단계로 돌아가거나 조건을 조정하세요.`
+              : `No candidates match the ${activeFilterCount} applied filters. Go back or adjust the filters.`}
+          </div>
         </div>
       ) : (
         <div className="text-center py-8 text-gray-400">
@@ -879,6 +858,7 @@ export function ExplorationScreen({
   messages,
   isSending,
   sessionState,
+  engineSessionState,
   candidateSnapshot,
   candidatePagination,
   isCandidatePageLoading,
@@ -896,6 +876,7 @@ export function ExplorationScreen({
   messages: ChatMsg[]
   isSending: boolean
   sessionState: RecommendationPublicSessionDto | null
+  engineSessionState: ExplorationSessionState | null
   candidateSnapshot: RecommendationCandidateDto[] | null
   candidatePagination: RecommendationPaginationDto | null
   isCandidatePageLoading: boolean
@@ -924,13 +905,15 @@ export function ExplorationScreen({
               {RESOLUTION_CONFIG[sessionState.resolutionStatus]?.[language] ?? sessionState.resolutionStatus}
             </span>
           )}
-          {sessionState && sessionState.candidateCount > 0 && sessionState.resolutionStatus !== "broad" && (
+          {sessionState && sessionState.resolutionStatus !== "broad" && (
             <span className="text-xs text-gray-500">
-              {sessionState.candidateCount > 50
-                ? (language === "ko" ? "후보군 넓음" : "Wide candidate pool")
-                : language === "ko"
-                  ? `${Math.min(sessionState.candidateCount, MAX_DISPLAY_CANDIDATES)}개 추천`
-                  : `${Math.min(sessionState.candidateCount, MAX_DISPLAY_CANDIDATES)} recommended`}
+              {sessionState.candidateCount === 0
+                ? (language === "ko" ? "0건" : "0 results")
+                : sessionState.candidateCount > 50
+                  ? (language === "ko" ? "후보군 넓음" : "Wide candidate pool")
+                  : language === "ko"
+                    ? `${Math.min(sessionState.candidateCount, MAX_DISPLAY_CANDIDATES)}개 추천`
+                    : `${Math.min(sessionState.candidateCount, MAX_DISPLAY_CANDIDATES)} recommended`}
             </span>
           )}
         </div>
@@ -962,7 +945,7 @@ export function ExplorationScreen({
 
       <div className="flex-1 min-h-0 flex overflow-hidden">
         <div className={`w-60 border-r bg-gray-50 flex-shrink-0 overflow-y-auto transition-all ${showSidebar ? "block" : "hidden"} lg:block`}>
-          <ExplorationSidebar form={form} sessionState={sessionState} onEdit={onEdit} messages={messages} />
+          <ExplorationSidebar form={form} sessionState={sessionState} engineSessionState={engineSessionState} onEdit={onEdit} messages={messages} />
         </div>
 
         <div className="flex-1 min-w-0 flex flex-col">

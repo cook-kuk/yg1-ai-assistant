@@ -4,6 +4,10 @@ import { Pool } from "pg"
 
 import { formatQueryValuesForLog, formatSqlForLog, interpolateSqlForLog } from "@/lib/data/sql-log"
 import { getSharedPool } from "@/lib/data/shared-pool"
+import {
+  traceRecommendation,
+  traceRecommendationError,
+} from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
 
 export type SeriesMaterialRating = "EXCELLENT" | "GOOD" | "NULL"
 export interface SeriesMaterialStatusValue {
@@ -88,6 +92,12 @@ function normalizeRating(value: string | null | undefined): SeriesMaterialRating
 
 export const SeriesMaterialStatusRepo = {
   async findRatingsBySeries(query: SeriesMaterialStatusQuery): Promise<Map<string, SeriesMaterialStatusValue>> {
+    traceRecommendation("db.seriesMaterialStatus.findRatingsBySeries:input", {
+      isoGroup: query.isoGroup ?? null,
+      workPieceName: query.workPieceName ?? null,
+      seriesCount: query.seriesNames.length,
+      seriesPreview: query.seriesNames.slice(0, 6),
+    })
     const pool = getPool()
     if (!pool) {
       console.warn("[series-material-status-repo] query skipped: DB source unavailable")
@@ -164,7 +174,7 @@ export const SeriesMaterialStatusRepo = {
         `[series-material-status-db] iso=${isoGroup} workPiece=${workPieceName ?? "-"} rows=${result.rowCount ?? 0} duration=${Date.now() - startedAt}ms`
       )
 
-      return new Map(
+      const ratings = new Map(
         result.rows.map(row => [
           normalizeSeriesName(row.normalized_series_name),
           {
@@ -173,8 +183,21 @@ export const SeriesMaterialStatusRepo = {
           },
         ])
       )
+      traceRecommendation("db.seriesMaterialStatus.findRatingsBySeries:output", {
+        isoGroup,
+        workPieceName,
+        durationMs: Date.now() - startedAt,
+        ratingCount: ratings.size,
+        preview: Array.from(ratings.entries()).slice(0, 6).map(([seriesName, rating]) => ({
+          seriesName,
+          rating: rating.rating,
+          score: rating.score,
+        })),
+      })
+      return ratings
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
+      traceRecommendationError("db.seriesMaterialStatus.findRatingsBySeries:error", error, { query })
       console.warn(`[series-material-status-db] query failed: ${message}`)
       return new Map()
     }

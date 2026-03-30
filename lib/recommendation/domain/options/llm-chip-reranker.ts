@@ -13,7 +13,9 @@
 import type { SmartOption } from "./types"
 import type { ChipContext } from "../context/chip-context-builder"
 import { formatChipContextForLLM } from "../context/chip-context-builder"
-import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import { resolveModel, type LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+
+const LLM_CHIP_RERANKER_MODEL = resolveModel("haiku")
 
 export interface RerankedResult {
   options: SmartOption[]
@@ -84,7 +86,7 @@ JSON으로만 응답: {"selected": [{"index": 번호, "label": "라벨"}]}`
       systemPrompt,
       [{ role: "user", content: userPrompt }],
       1500,
-      "haiku"
+      LLM_CHIP_RERANKER_MODEL
     )
 
     const parsed = safeParseJSON(raw)

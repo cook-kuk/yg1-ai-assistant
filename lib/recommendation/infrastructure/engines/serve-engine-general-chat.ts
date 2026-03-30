@@ -19,8 +19,11 @@ import {
 import { shouldAttemptWebSearchFallback } from "@/lib/recommendation/infrastructure/engines/serve-engine-assist"
 import { buildFinalChipsFromLLM, isUnfilterableChip } from "@/lib/recommendation/domain/options/llm-chip-pipeline"
 import { resolveYG1Query } from "@/lib/knowledge/knowledge-router"
+import { traceRecommendation } from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
+import type { SemanticDirectContext, SemanticReplyRoute } from "@/lib/recommendation/core/semantic-turn-extractor"
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { OrchestratorAction, OrchestratorResult } from "@/lib/recommendation/infrastructure/agents/types"
+import type { RecommendationChipGroupDto } from "@/lib/contracts/recommendation"
 import type { RecommendationDisplayedProductRequestDto } from "@/lib/contracts/recommendation"
 import type {
   AppliedFilter,
@@ -35,6 +38,7 @@ import type {
   ScoredProduct,
 } from "@/lib/recommendation/domain/types"
 import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import type { DirectQuestionOptions } from "@/lib/recommendation/infrastructure/engines/serve-engine-assist"
 
 type JsonRecommendationResponse = (
   params: Parameters<typeof buildRecommendationResponseDto>[0],
@@ -69,27 +73,32 @@ export interface ServeEngineGeneralChatDependencies {
   ) => CandidateSnapshot[]
   handleDirectInventoryQuestion: (
     userMessage: string,
-    prevState: ExplorationSessionState
+    prevState: ExplorationSessionState,
+    options?: DirectQuestionOptions
   ) => Promise<QuestionReply>
   handleDirectEntityProfileQuestion: (
     userMessage: string,
     currentInput: RecommendationInput,
-    prevState: ExplorationSessionState | null
+    prevState: ExplorationSessionState | null,
+    options?: DirectQuestionOptions
   ) => Promise<QuestionReply>
   handleDirectProductInfoQuestion?: (
     userMessage: string,
     currentInput: RecommendationInput,
-    prevState: ExplorationSessionState | null
+    prevState: ExplorationSessionState | null,
+    options?: DirectQuestionOptions
   ) => Promise<QuestionReply>
   handleDirectBrandReferenceQuestion: (
     userMessage: string,
     currentInput: RecommendationInput,
-    prevState: ExplorationSessionState | null
+    prevState: ExplorationSessionState | null,
+    options?: DirectQuestionOptions
   ) => Promise<QuestionReply>
   handleDirectCuttingConditionQuestion: (
     userMessage: string,
     currentInput: RecommendationInput,
-    prevState: ExplorationSessionState
+    prevState: ExplorationSessionState,
+    options?: DirectQuestionOptions
   ) => Promise<QuestionReply>
   handleContextualNarrowingQuestion: (
     provider: LLMProvider,
@@ -126,6 +135,8 @@ interface HandleGeneralChatActionParams {
   candidates: ScoredProduct[]
   evidenceMap: Map<string, EvidenceSummary>
   turnCount: number
+  semanticReplyRoute?: SemanticReplyRoute | null
+  semanticDirectContext?: SemanticDirectContext | null
 }
 
 function buildActionMeta(
@@ -233,7 +244,7 @@ export function buildReplyDisplayedOptions(
   }))
 }
 
-function getDirectCompanyReply(userMessage: string): QuestionReply {
+function getGroundedKnowledgeReply(userMessage: string): QuestionReply {
   const result = resolveYG1Query(userMessage)
   if (result.source !== "internal_kb" || !result.answer) return null
 
@@ -263,6 +274,46 @@ function validateAnswerText(
   }
 }
 
+function deriveQuestionAssistChipGroups(
+  displayedOptions: DisplayedOption[],
+  pendingField: string | null | undefined,
+): RecommendationChipGroupDto[] | undefined {
+  if (!pendingField || displayedOptions.length === 0) return undefined
+
+  const helperChips = displayedOptions
+    .filter(option => option.field === "_action" || option.field === "skip")
+    .map(option => option.label)
+  const originalChips = displayedOptions
+    .filter(option => option.field === pendingField)
+    .map(option => option.label)
+
+  const groups = [
+    ...(helperChips.length > 0 ? [{ label: "현재 제안", chips: helperChips }] : []),
+    ...(originalChips.length > 0 ? [{ label: "이전 선택지", chips: originalChips }] : []),
+  ]
+
+  return groups.length > 0 ? groups : undefined
+}
+
+function summarizeChipGroupsForLog(
+  chips: string[],
+  chipGroups: RecommendationChipGroupDto[] | undefined,
+  displayedOptions: DisplayedOption[],
+) {
+  return {
+    chipCount: chips.length,
+    chipPreview: chips.slice(0, 6),
+    chipGroupCount: chipGroups?.length ?? 0,
+    chipGroups: (chipGroups ?? []).map(group => ({
+      label: group.label,
+      count: group.chips.length,
+      preview: group.chips.slice(0, 4),
+    })),
+    displayedOptionCount: displayedOptions.length,
+    displayedOptionFields: Array.from(new Set(displayedOptions.map(option => option.field))).slice(0, 8),
+  }
+}
+
 function buildReplyResponse(
   deps: ServeEngineGeneralChatDependencies,
   prevState: ExplorationSessionState,
@@ -277,6 +328,7 @@ function buildReplyResponse(
   overrides: ReplyOverrides,
   orchResult: OrchestratorResult,
   processTrace: ProcessTrace,
+  chipGroups?: RecommendationChipGroupDto[],
 ) {
   // ── Side Question Resume: restore suspended flow for early reply paths ──
   const suspended = prevState.suspendedFlow
@@ -349,6 +401,7 @@ function buildReplyResponse(
     text: finalText,
     purpose: suspended ? "question" : overrides.purpose,
     chips: finalChips,
+    chipGroups,
     isComplete: false,
     recommendation: null,
     sessionState,
@@ -503,164 +556,323 @@ export async function handleServeGeneralChatAction(
     candidates,
     evidenceMap,
     turnCount,
+    semanticReplyRoute,
+    semanticDirectContext,
   } = params
 
   try {
   const lastUserMessage = [...messages].reverse().find(message => message.role === "user")?.text ?? ""
+  const semanticForce: DirectQuestionOptions = { force: true, semanticContext: semanticDirectContext }
+  const shouldRunLegacyDirectRoutes = semanticReplyRoute == null
 
-  const inventoryReply = await deps.handleDirectInventoryQuestion(lastUserMessage, prevState)
-  if (inventoryReply) {
-    const strategy = resolveReplyUiStrategy("inventory_reply", prevState)
-    return buildValidatedReplyResponse(
-      deps,
-      prevState,
-      filters,
-      narrowingHistory,
-      currentInput,
-      turnCount,
-      lastUserMessage,
-      inventoryReply,
-      "inventory",
-      {
-        purpose: "general_chat",
-        currentMode: "general_chat",
-        lastAction: "answer_general",
-      },
-      orchResult,
-      buildProcessTrace({
-        actionType: "answer_general",
-        pendingQuestionField: prevState.lastAskedField ?? null,
-        recentFrameRelation: "inventory_reply",
-        displayedOptions: buildReplyDisplayedOptions(inventoryReply.chips),
-      }),
-      strategy,
-    )
+  if (semanticReplyRoute === "inventory") {
+    const forcedInventoryReply = await deps.handleDirectInventoryQuestion(lastUserMessage, prevState, semanticForce)
+    if (forcedInventoryReply) {
+      const strategy = resolveReplyUiStrategy("inventory_reply", prevState)
+      return buildValidatedReplyResponse(
+        deps,
+        prevState,
+        filters,
+        narrowingHistory,
+        currentInput,
+        turnCount,
+        lastUserMessage,
+        forcedInventoryReply,
+        "inventory",
+        {
+          purpose: "general_chat",
+          currentMode: "general_chat",
+          lastAction: "answer_general",
+        },
+        orchResult,
+        buildProcessTrace({
+          actionType: "answer_general",
+          pendingQuestionField: prevState.lastAskedField ?? null,
+          recentFrameRelation: "inventory_reply",
+          displayedOptions: buildReplyDisplayedOptions(forcedInventoryReply.chips),
+        }),
+        strategy,
+      )
+    }
   }
 
-  const productInfoReply = await (deps.handleDirectProductInfoQuestion?.(lastUserMessage, currentInput, prevState) ?? Promise.resolve(null))
-  if (productInfoReply) {
-    const strategy = resolveReplyUiStrategy("product_info", prevState)
-    return buildValidatedReplyResponse(
-      deps,
-      prevState,
-      filters,
-      narrowingHistory,
-      currentInput,
-      turnCount,
-      lastUserMessage,
-      productInfoReply,
-      "product-info",
-      {
-        purpose: "general_chat",
-        currentMode: "general_chat",
-        lastAction: "answer_general",
-      },
-      orchResult,
-      buildProcessTrace({
-        actionType: "answer_general",
-        pendingQuestionField: prevState.lastAskedField ?? null,
-        recentFrameRelation: "product_info",
-        displayedOptions: buildReplyDisplayedOptions(productInfoReply.chips),
-      }),
-      strategy,
-    )
+  if (semanticReplyRoute === "product_info") {
+    const forcedProductInfoReply = await (deps.handleDirectProductInfoQuestion?.(lastUserMessage, currentInput, prevState, semanticForce) ?? Promise.resolve(null))
+    if (forcedProductInfoReply) {
+      const strategy = resolveReplyUiStrategy("product_info", prevState)
+      return buildValidatedReplyResponse(
+        deps,
+        prevState,
+        filters,
+        narrowingHistory,
+        currentInput,
+        turnCount,
+        lastUserMessage,
+        forcedProductInfoReply,
+        "product-info",
+        {
+          purpose: "general_chat",
+          currentMode: "general_chat",
+          lastAction: "answer_general",
+        },
+        orchResult,
+        buildProcessTrace({
+          actionType: "answer_general",
+          pendingQuestionField: prevState.lastAskedField ?? null,
+          recentFrameRelation: "product_info",
+          displayedOptions: buildReplyDisplayedOptions(forcedProductInfoReply.chips),
+        }),
+        strategy,
+      )
+    }
   }
 
-  const entityProfileReply = await deps.handleDirectEntityProfileQuestion(lastUserMessage, currentInput, prevState)
-  if (entityProfileReply) {
-    return buildValidatedReplyResponse(
-      deps,
-      prevState,
-      filters,
-      narrowingHistory,
-      currentInput,
-      turnCount,
-      lastUserMessage,
-      entityProfileReply,
-      "entity-profile",
-      {
-        purpose: "general_chat",
-        currentMode: "general_chat",
-        lastAction: "answer_general",
-      },
-      orchResult,
-      buildProcessTrace({
-        actionType: "answer_general",
-        pendingQuestionField: prevState.lastAskedField ?? null,
-        recentFrameRelation: "entity_profile",
-        displayedOptions: prevState.displayedOptions ?? [],
-      }),
-    )
+  if (semanticReplyRoute === "entity_profile") {
+    const forcedEntityProfileReply = await deps.handleDirectEntityProfileQuestion(lastUserMessage, currentInput, prevState, semanticForce)
+    if (forcedEntityProfileReply) {
+      return buildValidatedReplyResponse(
+        deps,
+        prevState,
+        filters,
+        narrowingHistory,
+        currentInput,
+        turnCount,
+        lastUserMessage,
+        forcedEntityProfileReply,
+        "entity-profile",
+        {
+          purpose: "general_chat",
+          currentMode: "general_chat",
+          lastAction: "answer_general",
+        },
+        orchResult,
+        buildProcessTrace({
+          actionType: "answer_general",
+          pendingQuestionField: prevState.lastAskedField ?? null,
+          recentFrameRelation: "entity_profile",
+          displayedOptions: prevState.displayedOptions ?? [],
+        }),
+      )
+    }
   }
 
-  const brandReferenceReply = await deps.handleDirectBrandReferenceQuestion(lastUserMessage, currentInput, prevState)
-  if (brandReferenceReply) {
-    const strategy = resolveReplyUiStrategy("brand_reference", prevState)
-    return buildValidatedReplyResponse(
-      deps,
-      prevState,
-      filters,
-      narrowingHistory,
-      currentInput,
-      turnCount,
-      lastUserMessage,
-      brandReferenceReply,
-      "brand-reference",
-      {
-        purpose: "general_chat",
-        currentMode: "general_chat",
-        lastAction: "answer_general",
-      },
-      orchResult,
-      buildProcessTrace({
-        actionType: "answer_general",
-        pendingQuestionField: prevState.lastAskedField ?? null,
-        recentFrameRelation: "brand_reference",
-        displayedOptions: buildReplyDisplayedOptions(brandReferenceReply.chips),
-      }),
-      strategy,
-    )
+  if (semanticReplyRoute === "brand_reference") {
+    const forcedBrandReferenceReply = await deps.handleDirectBrandReferenceQuestion(lastUserMessage, currentInput, prevState, semanticForce)
+    if (forcedBrandReferenceReply) {
+      const strategy = resolveReplyUiStrategy("brand_reference", prevState)
+      return buildValidatedReplyResponse(
+        deps,
+        prevState,
+        filters,
+        narrowingHistory,
+        currentInput,
+        turnCount,
+        lastUserMessage,
+        forcedBrandReferenceReply,
+        "brand-reference",
+        {
+          purpose: "general_chat",
+          currentMode: "general_chat",
+          lastAction: "answer_general",
+        },
+        orchResult,
+        buildProcessTrace({
+          actionType: "answer_general",
+          pendingQuestionField: prevState.lastAskedField ?? null,
+          recentFrameRelation: "brand_reference",
+          displayedOptions: buildReplyDisplayedOptions(forcedBrandReferenceReply.chips),
+        }),
+        strategy,
+      )
+    }
   }
 
-  const cuttingConditionReply = await deps.handleDirectCuttingConditionQuestion(lastUserMessage, currentInput, prevState)
-  if (cuttingConditionReply) {
-    const strategy = resolveReplyUiStrategy("cutting_conditions", prevState)
-    return buildValidatedReplyResponse(
-      deps,
-      prevState,
-      filters,
-      narrowingHistory,
-      currentInput,
-      turnCount,
-      lastUserMessage,
-      cuttingConditionReply,
-      "cutting-condition",
-      {
-        purpose: "general_chat",
-        currentMode: "general_chat",
-        lastAction: "answer_general",
-      },
-      orchResult,
-      buildProcessTrace({
-        actionType: "answer_general",
-        pendingQuestionField: prevState.lastAskedField ?? null,
-        recentFrameRelation: "cutting_conditions",
-        displayedOptions: buildReplyDisplayedOptions(cuttingConditionReply.chips),
-      }),
-      strategy,
-    )
+  if (semanticReplyRoute === "cutting_conditions") {
+    const forcedCuttingConditionReply = await deps.handleDirectCuttingConditionQuestion(lastUserMessage, currentInput, prevState, semanticForce)
+    if (forcedCuttingConditionReply) {
+      const strategy = resolveReplyUiStrategy("cutting_conditions", prevState)
+      return buildValidatedReplyResponse(
+        deps,
+        prevState,
+        filters,
+        narrowingHistory,
+        currentInput,
+        turnCount,
+        lastUserMessage,
+        forcedCuttingConditionReply,
+        "cutting-condition",
+        {
+          purpose: "general_chat",
+          currentMode: "general_chat",
+          lastAction: "answer_general",
+        },
+        orchResult,
+        buildProcessTrace({
+          actionType: "answer_general",
+          pendingQuestionField: prevState.lastAskedField ?? null,
+          recentFrameRelation: "cutting_conditions",
+          displayedOptions: buildReplyDisplayedOptions(forcedCuttingConditionReply.chips),
+        }),
+        strategy,
+      )
+    }
   }
 
-  const companyReply = getDirectCompanyReply(lastUserMessage)
-  if (companyReply) {
+  if (shouldRunLegacyDirectRoutes) {
+    const inventoryReply = await deps.handleDirectInventoryQuestion(lastUserMessage, prevState)
+    if (inventoryReply) {
+      const strategy = resolveReplyUiStrategy("inventory_reply", prevState)
+      return buildValidatedReplyResponse(
+        deps,
+        prevState,
+        filters,
+        narrowingHistory,
+        currentInput,
+        turnCount,
+        lastUserMessage,
+        inventoryReply,
+        "inventory",
+        {
+          purpose: "general_chat",
+          currentMode: "general_chat",
+          lastAction: "answer_general",
+        },
+        orchResult,
+        buildProcessTrace({
+          actionType: "answer_general",
+          pendingQuestionField: prevState.lastAskedField ?? null,
+          recentFrameRelation: "inventory_reply",
+          displayedOptions: buildReplyDisplayedOptions(inventoryReply.chips),
+        }),
+        strategy,
+      )
+    }
+
+    const productInfoReply = await (deps.handleDirectProductInfoQuestion?.(lastUserMessage, currentInput, prevState) ?? Promise.resolve(null))
+    if (productInfoReply) {
+      const strategy = resolveReplyUiStrategy("product_info", prevState)
+      return buildValidatedReplyResponse(
+        deps,
+        prevState,
+        filters,
+        narrowingHistory,
+        currentInput,
+        turnCount,
+        lastUserMessage,
+        productInfoReply,
+        "product-info",
+        {
+          purpose: "general_chat",
+          currentMode: "general_chat",
+          lastAction: "answer_general",
+        },
+        orchResult,
+        buildProcessTrace({
+          actionType: "answer_general",
+          pendingQuestionField: prevState.lastAskedField ?? null,
+          recentFrameRelation: "product_info",
+          displayedOptions: buildReplyDisplayedOptions(productInfoReply.chips),
+        }),
+        strategy,
+      )
+    }
+
+    const entityProfileReply = await deps.handleDirectEntityProfileQuestion(lastUserMessage, currentInput, prevState)
+    if (entityProfileReply) {
+      return buildValidatedReplyResponse(
+        deps,
+        prevState,
+        filters,
+        narrowingHistory,
+        currentInput,
+        turnCount,
+        lastUserMessage,
+        entityProfileReply,
+        "entity-profile",
+        {
+          purpose: "general_chat",
+          currentMode: "general_chat",
+          lastAction: "answer_general",
+        },
+        orchResult,
+        buildProcessTrace({
+          actionType: "answer_general",
+          pendingQuestionField: prevState.lastAskedField ?? null,
+          recentFrameRelation: "entity_profile",
+          displayedOptions: prevState.displayedOptions ?? [],
+        }),
+      )
+    }
+
+    const brandReferenceReply = await deps.handleDirectBrandReferenceQuestion(lastUserMessage, currentInput, prevState)
+    if (brandReferenceReply) {
+      const strategy = resolveReplyUiStrategy("brand_reference", prevState)
+      return buildValidatedReplyResponse(
+        deps,
+        prevState,
+        filters,
+        narrowingHistory,
+        currentInput,
+        turnCount,
+        lastUserMessage,
+        brandReferenceReply,
+        "brand-reference",
+        {
+          purpose: "general_chat",
+          currentMode: "general_chat",
+          lastAction: "answer_general",
+        },
+        orchResult,
+        buildProcessTrace({
+          actionType: "answer_general",
+          pendingQuestionField: prevState.lastAskedField ?? null,
+          recentFrameRelation: "brand_reference",
+          displayedOptions: buildReplyDisplayedOptions(brandReferenceReply.chips),
+        }),
+        strategy,
+      )
+    }
+
+    const cuttingConditionReply = await deps.handleDirectCuttingConditionQuestion(lastUserMessage, currentInput, prevState)
+    if (cuttingConditionReply) {
+      const strategy = resolveReplyUiStrategy("cutting_conditions", prevState)
+      return buildValidatedReplyResponse(
+        deps,
+        prevState,
+        filters,
+        narrowingHistory,
+        currentInput,
+        turnCount,
+        lastUserMessage,
+        cuttingConditionReply,
+        "cutting-condition",
+        {
+          purpose: "general_chat",
+          currentMode: "general_chat",
+          lastAction: "answer_general",
+        },
+        orchResult,
+        buildProcessTrace({
+          actionType: "answer_general",
+          pendingQuestionField: prevState.lastAskedField ?? null,
+          recentFrameRelation: "cutting_conditions",
+          displayedOptions: buildReplyDisplayedOptions(cuttingConditionReply.chips),
+        }),
+        strategy,
+      )
+    }
+  }
+
+  const groundedKnowledgeReply = getGroundedKnowledgeReply(lastUserMessage)
+  if (groundedKnowledgeReply) {
     const hasPendingField =
       !!prevState.lastAskedField &&
       !prevState.resolutionStatus?.startsWith("resolved")
-    const chips = hasPendingField ? (prevState.displayedChips ?? []) : companyReply.chips
+    const chips = hasPendingField ? (prevState.displayedChips ?? []) : groundedKnowledgeReply.chips
     const displayedOptions = hasPendingField
       ? (prevState.displayedOptions ?? [])
-      : buildReplyDisplayedOptions(companyReply.chips)
-    const validation = validateAnswerText(companyReply.text, chips, displayedOptions, "company")
+      : buildReplyDisplayedOptions(groundedKnowledgeReply.chips)
+    const validation = validateAnswerText(groundedKnowledgeReply.text, chips, displayedOptions, "grounded-knowledge")
 
     return buildReplyResponse(
       deps,
@@ -683,7 +895,7 @@ export async function handleServeGeneralChatAction(
       buildProcessTrace({
         actionType: "answer_general",
         pendingQuestionField: prevState.lastAskedField ?? null,
-        recentFrameRelation: "company_reply",
+        recentFrameRelation: "grounded_kb_reply",
         displayedOptions,
         validatorRewrites: validation.validatorRewrites,
       }),
@@ -772,6 +984,10 @@ export async function handleServeGeneralChatAction(
               ? [{ field: prevState.lastAskedField, from: "pending", to: "explained" }]
               : [],
           }),
+          [
+            ...(assist.helperChips.length > 0 ? [{ label: "현재 제안", chips: assist.helperChips }] : []),
+            ...(assist.originalChips.length > 0 ? [{ label: "이전 선택지", chips: assist.originalChips }] : []),
+          ],
         )
       }
     }
@@ -801,6 +1017,7 @@ export async function handleServeGeneralChatAction(
     finalDisplayedOptions,
     userStateResult,
     isQuestionAssist,
+    chipGroups,
   } = await buildGeneralChatOptionState({
     form,
     prevState,
@@ -870,6 +1087,14 @@ export async function handleServeGeneralChatAction(
   let resumeLastAction: typeof effectiveMode extends string ? string : never = isQuestionAssist ? "explain_product" : "answer_general"
   let resumeLastAskedField = isQuestionAssist ? prevState.lastAskedField : undefined
   let resumeText = llmResponse.text
+  const resumeChipGroups = suspended && !isQuestionAssist
+    ? undefined
+    : (
+      chipGroups
+      ?? (isQuestionAssist
+        ? deriveQuestionAssistChipGroups(finalDisplayedOptions, prevState.lastAskedField)
+        : undefined)
+    )
 
   if (suspended && !isQuestionAssist) {
     const journeyPhaseForResume = detectJourneyPhase(prevState)
@@ -898,6 +1123,12 @@ export async function handleServeGeneralChatAction(
       )
     }
   }
+
+  console.log("[chip-groups:server:build]", JSON.stringify({
+    isQuestionAssist,
+    pendingField: prevState.lastAskedField ?? null,
+    ...summarizeChipGroupsForLog(resumeChips, resumeChipGroups, resumeOptions),
+  }))
 
   const sessionState = carryForwardState(prevState, {
     candidateCount: prevState.candidateCount ?? (candidates.length > 0 ? candidates.length : (prevState.displayedCandidates?.length ?? 0)),
@@ -947,11 +1178,18 @@ export async function handleServeGeneralChatAction(
     ...processTrace,
     recentFrameRelation: postTurnContext.relationToLatestQuestion,
   })
+  traceRecommendation("general-chat:final-response", {
+    isQuestionAssist,
+    userState: userStateResult.state,
+    lastAskedField: prevState.lastAskedField ?? null,
+    ...summarizeChipGroupsForLog(resumeChips, resumeChipGroups, resumeOptions),
+  })
 
   return deps.jsonRecommendationResponse({
     text: resumeText,
     purpose: suspended && !isQuestionAssist ? "question" : effectivePurpose,
     chips: resumeChips,
+    chipGroups: resumeChipGroups,
     isComplete: false,
     recommendation: null,
     sessionState,

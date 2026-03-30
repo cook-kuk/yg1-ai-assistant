@@ -5,10 +5,12 @@
  * Haiku 실패 시 → deterministic fallback (priority score 순)
  */
 
-import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import { resolveModel, type LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import type { SmartOption } from "./types"
 import type { DisplayedOption } from "@/lib/recommendation/domain/types"
 import { smartOptionsToChips, smartOptionsToDisplayedOptions } from "./option-bridge"
+
+const LLM_CHIP_SELECTOR_MODEL = resolveModel("haiku")
 
 export interface ConversationTurnSlim {
   role: "user" | "assistant"
@@ -162,7 +164,7 @@ JSON만: {"selected":[0,3,1]}`
       "칩 선택기. JSON만.",
       [{ role: "user", content: prompt }],
       1500,
-      "haiku"
+      LLM_CHIP_SELECTOR_MODEL
     )
 
     const parsed = safeParseJSON(raw)

@@ -11,9 +11,11 @@
  * Falls back to deterministic generation if LLM is unavailable.
  */
 
-import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import { resolveModel, type LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import type { ConversationMemory } from "../memory/conversation-memory"
 import type { RecentInteractionFrame, UserRelation, UIBlockReference } from "../context/recent-interaction-frame"
+
+const CONTEXTUAL_CHIP_GENERATOR_MODEL = resolveModel("haiku")
 
 export interface ChipGenerationContext {
   /** Latest assistant response text — FULL, not truncated */
@@ -88,7 +90,7 @@ JSON: {"chips": ["칩1", ...], "reasoning": "한 줄"}`
       systemPrompt,
       [{ role: "user", content: contextStr }],
       1500,
-      "haiku"
+      CONTEXTUAL_CHIP_GENERATOR_MODEL
     )
 
     const parsed = safeParseJSON(raw)

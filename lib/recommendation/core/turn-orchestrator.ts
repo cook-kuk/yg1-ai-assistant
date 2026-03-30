@@ -7,7 +7,7 @@
  * Phase 1: All steps are stubs. Phase 2 will wire real implementations.
  */
 
-import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import { resolveModel, type LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import type { DisplayedOption } from "@/lib/types/exploration"
 import type {
   RecommendationSessionState,
@@ -28,6 +28,8 @@ import {
 } from "./search-adapter"
 import { refineResults, buildRefinementOptions } from "./result-refiner"
 import { isUnfilterableChip } from "@/lib/recommendation/domain/options/llm-chip-pipeline"
+
+const TURN_DECISION_MODEL = resolveModel("opus", "turn-orchestrator")
 
 // Step 1: Build snapshot from current state + user message
 function buildTurnSnapshot(
@@ -163,7 +165,8 @@ async function getLlmTurnDecision(snapshot: TurnSnapshot, provider: LLMProvider)
       TURN_DECISION_SYSTEM,
       [{ role: "user", content: prompt }],
       1500,
-      "haiku"
+      TURN_DECISION_MODEL,
+      "turn-orchestrator"
     )
 
     const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim()

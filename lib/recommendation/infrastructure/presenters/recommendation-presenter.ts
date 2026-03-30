@@ -4,6 +4,7 @@ import {
   type RecommendationAppliedFilterDto,
   type RecommendationCandidateDto,
   type RecommendationCapabilityDto,
+  type RecommendationChipGroupDto,
   type RecommendationCheckpointSummaryDto,
   type RecommendationDisplayedOptionDto,
   type RecommendationPaginationDto,
@@ -223,6 +224,7 @@ interface BuildRecommendationResponseDtoParams {
   text: string
   purpose: RecommendationResponseDto["purpose"]
   chips?: string[]
+  chipGroups?: RecommendationChipGroupDto[]
   isComplete: boolean
   recommendation?: RecommendationResult | null
   sessionState?: ExplorationSessionState | null
@@ -253,6 +255,7 @@ export function buildRecommendationResponseDto(
     text: params.text,
     purpose: params.purpose,
     chips: params.chips ?? [],
+    chipGroups: params.chipGroups,
     isComplete: params.isComplete,
     recommendation: params.recommendation ?? null,
     session: toRecommendationSessionEnvelope(sessionState),

@@ -8,6 +8,7 @@ import type {
   RecommendationPaginationDto,
   RecommendationPublicSessionDto,
 } from "@/lib/contracts/recommendation"
+import type { ExplorationSessionState } from "@/lib/recommendation/domain/types"
 import {
   buildRecommendationSessionEnvelope,
   createCandidatePaginationRequest,
@@ -99,7 +100,7 @@ export function useProductRecommendationPage({
   const [isChatSending, setIsChatSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sessionState, setSessionState] = useState<RecommendationPublicSessionDto | null>(null)
-  const [engineSessionState, setEngineSessionState] = useState<unknown | null>(null)
+  const [engineSessionState, setEngineSessionState] = useState<ExplorationSessionState | null>(null)
   const [candidateSnapshot, setCandidateSnapshot] = useState<RecommendationCandidateDto[] | null>(null)
   const [candidatePagination, setCandidatePagination] = useState<RecommendationPaginationDto | null>(null)
   const [isCandidatePageLoading, setIsCandidatePageLoading] = useState(false)
@@ -145,7 +146,7 @@ export function useProductRecommendationPage({
   const buildFeedbackPayload = useCallback((
     updatedMessages: ChatMsg[],
     messageIndex: number,
-    latestFeedbackTarget: "response" | "chips" = "response",
+    latestFeedbackTarget: "response" | "chips" | "recommendation" = "response",
   ) => {
     const aiMessage = updatedMessages[messageIndex]
     const userMessage = messageIndex > 0 ? updatedMessages[messageIndex - 1] : null
@@ -213,7 +214,7 @@ export function useProductRecommendationPage({
       if (data.error) throw new Error(data.detail ?? data.error)
 
       setSessionState(data.session.publicState ?? null)
-      setEngineSessionState(data.session.engineState ?? null)
+      setEngineSessionState((data.session.engineState as ExplorationSessionState | null) ?? null)
       setCandidateSnapshot(data.candidates ?? null)
       setCandidatePagination(data.pagination ?? null)
       setCapabilities(resolveRecommendationCapabilities(data))
@@ -224,6 +225,7 @@ export function useProductRecommendationPage({
           role: "ai",
           text: data.text ?? "",
           chips: data.chips ?? [],
+          chipGroups: data.chipGroups ?? undefined,
           recommendation: data.recommendation ?? null,
           evidenceSummaries: data.evidenceSummaries ?? null,
           requestPreparation: data.requestPreparation ?? null,
@@ -293,10 +295,23 @@ export function useProductRecommendationPage({
       if (!res.ok) throw new Error(`서버 오류 (${res.status})`)
       const data = parseRecommendationResponse(await res.json())
       if (data.error) throw new Error(data.detail ?? data.error)
+      console.log("[chip-groups:client:response]", {
+        purpose: data.purpose,
+        chipCount: data.chips?.length ?? 0,
+        chipPreview: (data.chips ?? []).slice(0, 6),
+        chipGroupCount: data.chipGroups?.length ?? 0,
+        chipGroups: (data.chipGroups ?? []).map(group => ({
+          label: group.label,
+          count: group.chips.length,
+          preview: group.chips.slice(0, 4),
+        })),
+        sessionLastAskedField: data.session.publicState?.lastAskedField ?? null,
+        sessionMode: data.session.publicState?.currentMode ?? null,
+      })
 
       if (data.session.publicState !== null || data.session.engineState !== null) {
         setSessionState(data.session.publicState ?? null)
-        setEngineSessionState(data.session.engineState ?? null)
+        setEngineSessionState((data.session.engineState as ExplorationSessionState | null) ?? null)
         setCapabilities(resolveRecommendationCapabilities(data))
       } else if (data.purpose === "greeting") {
         setSessionState(null)
@@ -312,11 +327,12 @@ export function useProductRecommendationPage({
 
       setChatMessages(prev => {
         const updated = [...prev]
-        updated[updated.length - 1] = {
+        const nextMessage: ChatMsg = {
           role: "ai",
           text: data.text ?? "",
           recommendation: data.recommendation ?? null,
           chips: data.chips ?? [],
+          chipGroups: data.chipGroups ?? undefined,
           evidenceSummaries: data.evidenceSummaries ?? null,
           requestPreparation: data.requestPreparation ?? null,
           primaryExplanation: data.primaryExplanation ?? null,
@@ -329,6 +345,18 @@ export function useProductRecommendationPage({
           feedbackGroupId: prev[updated.length - 1]?.feedbackGroupId ?? createClientEventId(),
           debugTrace: (data as any).meta?.debugTrace ?? null,
         }
+        console.log("[chip-groups:client:store]", {
+          messageIndex: updated.length - 1,
+          chipCount: nextMessage.chips?.length ?? 0,
+          chipPreview: (nextMessage.chips ?? []).slice(0, 6),
+          chipGroupCount: nextMessage.chipGroups?.length ?? 0,
+          chipGroups: (nextMessage.chipGroups ?? []).map(group => ({
+            label: group.label,
+            count: group.chips.length,
+            preview: group.chips.slice(0, 4),
+          })),
+        })
+        updated[updated.length - 1] = nextMessage
         return updated
       })
     } catch {
@@ -401,7 +429,7 @@ export function useProductRecommendationPage({
       if (data.error) throw new Error(data.detail ?? data.error)
 
       setSessionState(data.session.publicState ?? null)
-      setEngineSessionState(data.session.engineState ?? null)
+      setEngineSessionState((data.session.engineState as ExplorationSessionState | null) ?? null)
       setCapabilities(resolveRecommendationCapabilities(data))
       setCandidateSnapshot(data.candidates ?? null)
       if (data.pagination) setCandidatePagination(data.pagination)
@@ -516,6 +544,7 @@ export function useProductRecommendationPage({
     error,
     setError,
     sessionState,
+    engineSessionState,
     candidateSnapshot,
     candidatePagination,
     isCandidatePageLoading,

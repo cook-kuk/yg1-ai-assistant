@@ -116,6 +116,27 @@ describe("option planner", () => {
     expect(families.has("action")).toBe(true)
     expect(families.has("reset")).toBe(true)
   })
+
+  it("does not suggest coating options again when coating was explicitly skipped", () => {
+    const ctx: OptionPlannerContext = {
+      mode: "recommended",
+      candidateCount: 5,
+      appliedFilters: [
+        { field: "toolSubtype", op: "includes", value: "Square", rawValue: "Square" },
+        { field: "coating", op: "skip", value: "상관없음", rawValue: "skip" },
+      ],
+      resolvedInput: { toolSubtype: "Square" },
+      topCandidates: [
+        { displayCode: "CE480", seriesName: "CE480", coating: "DLC", fluteCount: 3, diameterMm: 10, score: 85, matchStatus: "exact" },
+        { displayCode: "CE481", seriesName: "CE481", coating: "AlTiN", fluteCount: 4, diameterMm: 10, score: 78, matchStatus: "exact" },
+      ],
+    }
+
+    const options = planOptions(ctx)
+    const coatingOptions = options.filter(option => option.field === "coating")
+
+    expect(coatingOptions).toEqual([])
+  })
 })
 
 // ════════════════════════════════════════════════════════════════

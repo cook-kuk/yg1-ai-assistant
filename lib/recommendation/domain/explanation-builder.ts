@@ -18,6 +18,7 @@ import type {
   UnmatchedFact,
 } from "@/lib/recommendation/domain/types"
 import { resolveMaterialTag, getMaterialDisplay } from "@/lib/recommendation/domain/material-resolver"
+import { getMaterialDisplayValue } from "@/lib/recommendation/shared/intake-localization"
 
 // ── Main Entry ──────────────────────────────────────────────
 
@@ -84,7 +85,7 @@ function buildMatchedFacts(
       facts.push({
         field: "materialTag",
         label: "소재군",
-        requestedValue: `${input.material} (${tag}군)`,
+        requestedValue: `${getMaterialDisplayValue(input.material, "ko")} (${tag}군)`,
         productValue: `${tag}군 (${display.ko})`,
         matchType: "exact",
         score: breakdown.materialTag.score,
@@ -178,7 +179,7 @@ function buildUnmatchedFacts(
       facts.push({
         field: "materialTag",
         label: "소재군",
-        requestedValue: `${input.material} (${tag}군)`,
+        requestedValue: `${getMaterialDisplayValue(input.material, "ko")} (${tag}군)`,
         productValue: p.materialTags.length > 0 ? p.materialTags.join(", ") + "군" : null,
         reason: `${tag}군 소재에 대한 적합성 미확인`,
         impact: "critical",

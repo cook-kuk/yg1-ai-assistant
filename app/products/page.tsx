@@ -28,6 +28,7 @@ export default function ProductRecommendPage() {
     error,
     setError,
     sessionState,
+    engineSessionState,
     candidateSnapshot,
     candidatePagination,
     isCandidatePageLoading,
@@ -137,6 +138,7 @@ export default function ProductRecommendPage() {
             messages={chatMessages}
             isSending={isChatSending}
             sessionState={sessionState}
+            engineSessionState={engineSessionState}
             candidateSnapshot={candidateSnapshot}
             candidatePagination={candidatePagination}
             isCandidatePageLoading={isCandidatePageLoading}

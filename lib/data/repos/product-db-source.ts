@@ -4,6 +4,10 @@ import { randomBytes } from "node:crypto"
 import { Pool, type QueryResult, type QueryResultRow } from "pg"
 import { notifyDbQuery } from "@/lib/slack-notifier"
 import { appendRuntimeLog, logRuntimeError } from "@/lib/runtime-logger"
+import {
+  traceRecommendation,
+  traceRecommendationError,
+} from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
 import type { AppliedFilter } from "@/lib/types/exploration"
 import type { CanonicalProduct, RecommendationInput, SourcePriority, SourceType } from "@/lib/types/canonical"
 import { resolveMaterialTag } from "@/lib/domain/material-resolver"
@@ -357,6 +361,17 @@ async function executeLoggedQuery<T extends QueryResultRow>(
   console.log(
     `[product-db] sql operation=${context.operation} query="${interpolatedQuery}" params=${loggedValues}`
   )
+  traceRecommendation("db.product.executeLoggedQuery:input", {
+    operation: context.operation,
+    whereCount: context.whereCount ?? 0,
+    limit: context.limit ?? null,
+    offset: context.offset ?? 0,
+    normalizedCode: context.normalizedCode ?? null,
+    seriesName: context.seriesName ?? null,
+    query: compactQuery,
+    interpolatedQuery,
+    valueCount: values.length,
+  })
 
   await appendRuntimeLog({
     category: "db",
@@ -376,6 +391,11 @@ async function executeLoggedQuery<T extends QueryResultRow>(
     console.log(
       `[product-db] sql:done operation=${context.operation} duration=${durationMs}ms rows=${result.rowCount ?? result.rows.length}`
     )
+    traceRecommendation("db.product.executeLoggedQuery:output", {
+      operation: context.operation,
+      durationMs,
+      rowCount: result.rowCount ?? result.rows.length,
+    })
 
     await appendRuntimeLog({
       category: "db",
@@ -392,6 +412,12 @@ async function executeLoggedQuery<T extends QueryResultRow>(
 
     return result
   } catch (error) {
+    traceRecommendationError("db.product.executeLoggedQuery:error", error, {
+      context,
+      query: normalizedQuery,
+      interpolatedQuery,
+      values,
+    })
     console.error(
       `[product-db] sql:error operation=${context.operation} duration=${Date.now() - startedAt}ms message=${error instanceof Error ? error.message : String(error)}`
     )
@@ -485,40 +511,6 @@ function normalizeToolSubtype(...candidates: Array<string | null | undefined>): 
   if (lower.includes("square")) return "Square"
 
   return titleCase(source.replace(/_/g, " "))
-}
-
-type RequestedToolFamily = "milling" | "holemaking" | "threading"
-
-function resolveRequestedToolFamily(toolType: string | null | undefined): RequestedToolFamily | null {
-  if (!toolType) return null
-  const lower = toolType.trim().toLowerCase()
-
-  if (
-    lower.includes("엔드밀") ||
-    lower.includes("end mill") ||
-    lower.includes("endmill") ||
-    lower.includes("밀링")
-  ) {
-    return "milling"
-  }
-
-  if (
-    lower.includes("드릴") ||
-    lower.includes("drill") ||
-    lower.includes("holemaking")
-  ) {
-    return "holemaking"
-  }
-
-  if (
-    lower.includes("탭") ||
-    lower.includes("tap") ||
-    lower.includes("thread")
-  ) {
-    return "threading"
-  }
-
-  return null
 }
 
 function normalizeAppShapeToken(value: string): string | null {
@@ -732,8 +724,8 @@ export function buildQueryOptions(options: ProductSearchOptions): { where: strin
 
   const requestedToolFamily = resolveRequestedToolFamilyInput(input?.toolType)
   if (requestedToolFamily) {
-    const categoryParam = next(`%${requestedToolFamily}%`)
-    where.push(`LOWER(COALESCE(edp_root_category, '')) LIKE ${categoryParam}`)
+    const categoryParam = next(requestedToolFamily)
+    where.push(`LOWER(BTRIM(COALESCE(edp_root_category, ''))) = LOWER(BTRIM(${categoryParam}))`)
   }
 
   const operationShapeTexts = input?.operationType ? getOperationShapeSearchTexts(input.operationType) : []
@@ -859,6 +851,15 @@ function buildProductDataQuery(
 }
 
 export async function queryProductsPageFromDatabase(options: ProductSearchOptions = {}): Promise<ProductSearchPageResult> {
+  traceRecommendation("db.product.queryProductsPageFromDatabase:input", {
+    normalizedCode: options.normalizedCode ?? null,
+    seriesName: options.seriesName ?? null,
+    limit: options.limit ?? null,
+    offset: options.offset ?? 0,
+    hasInput: !!options.input,
+    inputKeys: options.input ? Object.keys(options.input).filter(key => options.input?.[key as keyof typeof options.input] != null) : [],
+    filterCount: options.filters?.length ?? 0,
+  })
   const { where, values, limit, offset } = buildQueryOptions(options)
   const queryBase = buildPagedProductQueryBase(where)
   const countQuery = `
@@ -912,6 +913,18 @@ export async function queryProductsPageFromDatabase(options: ProductSearchOption
     query: `code=${options.normalizedCode ?? "-"} series=${options.seriesName ?? "-"} filters=${where.length} limit=${limit} offset=${offset} total=${totalCount}`,
   }).catch(() => {})
 
+  traceRecommendation("db.product.queryProductsPageFromDatabase:output", {
+    normalizedCode: options.normalizedCode ?? null,
+    seriesName: options.seriesName ?? null,
+    totalCount,
+    productCount: mapped.length,
+    productPreview: mapped.slice(0, 6).map(product => ({
+      code: product.displayCode || product.normalizedCode,
+      seriesName: product.seriesName,
+      brand: product.brand,
+    })),
+    durationMs,
+  })
   return {
     products: mapped,
     totalCount,
@@ -919,6 +932,15 @@ export async function queryProductsPageFromDatabase(options: ProductSearchOption
 }
 
 export async function queryProductsFromDatabase(options: ProductSearchOptions = {}): Promise<CanonicalProduct[]> {
+  traceRecommendation("db.product.queryProductsFromDatabase:input", {
+    normalizedCode: options.normalizedCode ?? null,
+    seriesName: options.seriesName ?? null,
+    limit: options.limit ?? null,
+    offset: options.offset ?? 0,
+    hasInput: !!options.input,
+    inputKeys: options.input ? Object.keys(options.input).filter(key => options.input?.[key as keyof typeof options.input] != null) : [],
+    filterCount: options.filters?.length ?? 0,
+  })
   const { where, values, limit, offset } = buildQueryOptions(options)
   const dataQuery = buildProductDataQuery(options.input, where, values, limit, offset)
 
@@ -947,6 +969,17 @@ export async function queryProductsFromDatabase(options: ProductSearchOptions = 
     )
   }
 
+  traceRecommendation("db.product.queryProductsFromDatabase:output", {
+    normalizedCode: options.normalizedCode ?? null,
+    seriesName: options.seriesName ?? null,
+    productCount: mapped.length,
+    productPreview: mapped.slice(0, 6).map(product => ({
+      code: product.displayCode || product.normalizedCode,
+      seriesName: product.seriesName,
+      brand: product.brand,
+    })),
+    durationMs: Date.now() - startedAt,
+  })
   return mapped
 }
 

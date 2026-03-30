@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import { buildPendingSelectionFilter, resolveExplicitComparisonAction, resolveExplicitFilterRequest, resolveExplicitRevisionRequest } from "../serve-engine-runtime"
 import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import type { ExplorationSessionState } from "@/lib/recommendation/domain/types"
+import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 
 function makeState(overrides: Partial<ExplorationSessionState> = {}): ExplorationSessionState {
   return {
@@ -27,8 +28,16 @@ function makeState(overrides: Partial<ExplorationSessionState> = {}): Exploratio
   } as ExplorationSessionState
 }
 
+function createMockProvider(responseText: string): LLMProvider {
+  return {
+    available: () => true,
+    complete: async () => responseText,
+    completeWithTools: async () => ({ text: null, toolUse: null }),
+  }
+}
+
 describe("pending selection resolver", () => {
-  it("resolves explicit workPieceName selection from displayed options", () => {
+  it("resolves explicit workPieceName selection from displayed options", async () => {
     const state = makeState({
       lastAskedField: "workPieceName",
       displayedOptions: [
@@ -37,7 +46,7 @@ describe("pending selection resolver", () => {
       ],
     })
 
-    const filter = buildPendingSelectionFilter(state, "고경도강")
+    const filter = await buildPendingSelectionFilter(state, "고경도강")
 
     expect(filter).toMatchObject({
       field: "workPieceName",
@@ -47,7 +56,7 @@ describe("pending selection resolver", () => {
     })
   })
 
-  it("resolves explicit coating selection for generic pending fields", () => {
+  it("resolves explicit coating selection for generic pending fields", async () => {
     const state = makeState({
       lastAskedField: "coating",
       displayedOptions: [
@@ -56,7 +65,7 @@ describe("pending selection resolver", () => {
       ],
     })
 
-    const filter = buildPendingSelectionFilter(state, "TiAlN")
+    const filter = await buildPendingSelectionFilter(state, "TiAlN")
 
     expect(filter).toMatchObject({
       field: "coating",
@@ -66,7 +75,7 @@ describe("pending selection resolver", () => {
     })
   })
 
-  it("resolves chip labels with counts for the pending field", () => {
+  it("resolves chip labels with counts for the pending field", async () => {
     const state = makeState({
       lastAskedField: "coating",
       displayedOptions: [
@@ -75,7 +84,7 @@ describe("pending selection resolver", () => {
       ],
     })
 
-    const filter = buildPendingSelectionFilter(state, "AlCrN (164개)")
+    const filter = await buildPendingSelectionFilter(state, "AlCrN (164개)")
 
     expect(filter).toMatchObject({
       field: "coating",
@@ -85,14 +94,14 @@ describe("pending selection resolver", () => {
     })
   })
 
-  it("falls back to displayedChips when displayedOptions are missing", () => {
+  it("falls back to displayedChips when displayedOptions are missing", async () => {
     const state = makeState({
       lastAskedField: "coating",
       displayedChips: ["TiAlN (1180개)", "AlCrN (362개)", "상관없음"],
       displayedOptions: [],
     })
 
-    const filter = buildPendingSelectionFilter(state, "AlCrN (362개)")
+    const filter = await buildPendingSelectionFilter(state, "AlCrN (362개)")
 
     expect(filter).toMatchObject({
       field: "coating",
@@ -102,7 +111,7 @@ describe("pending selection resolver", () => {
     })
   })
 
-  it('resolves "상관없음" as a skip filter for the pending field', () => {
+  it('resolves "상관없음" as a skip filter for the pending field', async () => {
     const state = makeState({
       lastAskedField: "toolSubtype",
       displayedOptions: [
@@ -111,7 +120,7 @@ describe("pending selection resolver", () => {
       ],
     })
 
-    const filter = buildPendingSelectionFilter(state, "상관없음")
+    const filter = await buildPendingSelectionFilter(state, "상관없음")
 
     expect(filter).toMatchObject({
       field: "toolSubtype",
@@ -121,7 +130,7 @@ describe("pending selection resolver", () => {
     })
   })
 
-  it("does not resolve explanation-like free text as explicit selection", () => {
+  it("does not resolve explanation-like free text as explicit selection", async () => {
     const state = makeState({
       lastAskedField: "workPieceName",
       displayedOptions: [
@@ -129,7 +138,135 @@ describe("pending selection resolver", () => {
       ],
     })
 
-    expect(buildPendingSelectionFilter(state, "고경도강이 뭐야?")).toBeNull()
+    await expect(buildPendingSelectionFilter(state, "고경도강이 뭐야?")).resolves.toBeNull()
+  })
+
+  it("uses validated LLM extraction before regex fallback for pending answers", async () => {
+    const state = makeState({
+      lastAskedField: "coating",
+      displayedOptions: [
+        { index: 1, label: "TiAlN (50개)", field: "coating", value: "TiAlN", count: 50 },
+        { index: 2, label: "AlCrN (30개)", field: "coating", value: "AlCrN", count: 30 },
+      ],
+    })
+    const provider = createMockProvider(`{
+      "extractedFilters": { "coating": "alcrn" },
+      "skippedFields": [],
+      "skipPendingField": false,
+      "isSideQuestion": false,
+      "confidence": 0.93
+    }`)
+
+    const filter = await buildPendingSelectionFilter(state, "알크른으로 해줘", provider)
+
+    expect(filter).toMatchObject({
+      field: "coating",
+      value: "AlCrN",
+      rawValue: "AlCrN",
+    })
+  })
+
+  it("falls back to regex when LLM extraction is invalid for the pending field", async () => {
+    const state = makeState({
+      lastAskedField: "fluteCount",
+      displayedOptions: [
+        { index: 1, label: "3날 (10개)", field: "fluteCount", value: "3날", count: 10 },
+        { index: 2, label: "4날 (8개)", field: "fluteCount", value: "4날", count: 8 },
+      ],
+    })
+    const provider = createMockProvider(`{
+      "extractedFilters": { "fluteCount": 7 },
+      "skippedFields": [],
+      "skipPendingField": false,
+      "isSideQuestion": false,
+      "confidence": 0.62
+    }`)
+
+    const filter = await buildPendingSelectionFilter(state, "3날로 해줘", provider)
+
+    expect(filter).toMatchObject({
+      field: "fluteCount",
+      value: "3날",
+      rawValue: 3,
+    })
+  })
+
+  it("preserves multi-value selection for a single pending field", async () => {
+    const state = makeState({
+      lastAskedField: "fluteCount",
+      displayedOptions: [
+        { index: 1, label: "4날 (864개)", field: "fluteCount", value: "4날", count: 864 },
+        { index: 2, label: "5날 (291개)", field: "fluteCount", value: "5날", count: 291 },
+        { index: 3, label: "6날 (614개)", field: "fluteCount", value: "6날", count: 614 },
+      ],
+    })
+    const provider = createMockProvider(`{
+      "extractedFilters": { "fluteCount": [4, 5] },
+      "skippedFields": [],
+      "skipPendingField": false,
+      "isSideQuestion": false,
+      "confidence": 0.95
+    }`)
+
+    const filter = await buildPendingSelectionFilter(state, "4,5날", provider)
+
+    expect(filter).toMatchObject({
+      field: "fluteCount",
+      rawValue: [4, 5],
+      value: "4날, 5날",
+    })
+  })
+
+  it("uses LLM before single chip matching for multi-value tool subtype answers", async () => {
+    const state = makeState({
+      lastAskedField: "toolSubtype",
+      displayedOptions: [
+        { index: 1, label: "Square (3291개)", field: "toolSubtype", value: "Square", count: 3291 },
+        { index: 2, label: "Radius (1766개)", field: "toolSubtype", value: "Radius", count: 1766 },
+        { index: 3, label: "Ball (469개)", field: "toolSubtype", value: "Ball", count: 469 },
+      ],
+    })
+    const provider = createMockProvider(`{
+      "extractedFilters": { "toolSubtype": ["Square", "Radius"] },
+      "skippedFields": [],
+      "skipPendingField": false,
+      "isSideQuestion": false,
+      "confidence": 0.97
+    }`)
+
+    const filter = await buildPendingSelectionFilter(state, "square과 radius", provider)
+
+    expect(filter).toMatchObject({
+      field: "toolSubtype",
+      rawValue: ["Square", "Radius"],
+      value: "Square, Radius",
+    })
+  })
+
+  it("falls back to deterministic multi-value parsing when LLM does not return a pending-field filter", async () => {
+    const state = makeState({
+      lastAskedField: "toolSubtype",
+      displayedOptions: [
+        { index: 1, label: "Square (3291개)", field: "toolSubtype", value: "Square", count: 3291 },
+        { index: 2, label: "Radius (1766개)", field: "toolSubtype", value: "Radius", count: 1766 },
+        { index: 3, label: "Ball (469개)", field: "toolSubtype", value: "Ball", count: 469 },
+      ],
+    })
+    const provider = createMockProvider(`{
+      "extractedFilters": {},
+      "skippedFields": [],
+      "skipPendingField": false,
+      "isSideQuestion": false,
+      "confidence": 0.31
+    }`)
+
+    const filter = await buildPendingSelectionFilter(state, "square과 radius", provider)
+
+    expect(filter).toMatchObject({
+      field: "toolSubtype",
+      rawValue: ["Square", "Radius"],
+      value: "Square, Radius",
+    })
   })
 })
 
