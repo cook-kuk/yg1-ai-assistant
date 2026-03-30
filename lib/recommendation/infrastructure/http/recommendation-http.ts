@@ -36,6 +36,7 @@ import {
   traceRecommendation,
   traceRecommendationError,
 } from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
+import { runWithBenchmark, getBenchmarkTurnUsage } from "@/lib/llm/benchmark-collector"
 import type {
   ExplorationSessionState,
   ProductIntakeForm,
@@ -291,16 +292,34 @@ export async function handleRecommendationPost(req: Request): Promise<Response> 
     const recommendationService = getRecommendationService()
 
     // 3. 공개 DTO를 내부 command 형태로 바꿔 서비스에 넘긴다.
-    const response = await recommendationService.handleRequest({
-      engineId: body.engine,
-      intakeForm: body.intakeForm as ProductIntakeForm | undefined,
-      messages: body.messages ?? [],
-      prevState: getRequestSessionState(body),
-      displayedProducts: body.displayedProducts ?? null,
-      pagination: body.pagination ?? null,
-      language: body.language === "en" ? "en" : "ko",
-      mode: body.mode ?? "simple",
-    })
+    const response = await runWithBenchmark(() =>
+      recommendationService.handleRequest({
+        engineId: body.engine,
+        intakeForm: body.intakeForm as ProductIntakeForm | undefined,
+        messages: body.messages ?? [],
+        prevState: getRequestSessionState(body),
+        displayedProducts: body.displayedProducts ?? null,
+        pagination: body.pagination ?? null,
+        language: body.language === "en" ? "en" : "ko",
+        mode: body.mode ?? "simple",
+      })
+    )
+
+    // Inject benchmark LLM usage into response meta
+    const benchmarkUsage = getBenchmarkTurnUsage()
+    if (benchmarkUsage) {
+      try {
+        const json = await response.json()
+        const meta = (json as Record<string, unknown>).meta ?? {}
+        ;(meta as Record<string, unknown>).benchmarkLlmUsage = benchmarkUsage
+        ;(json as Record<string, unknown>).meta = meta
+        return new Response(JSON.stringify(json), {
+          status: response.status,
+          headers: response.headers,
+        })
+      } catch { /* response not JSON — return as-is */ }
+    }
+
     traceRecommendation("http.handleRecommendationPost:output", {
       status: response.status,
       ok: response.ok,

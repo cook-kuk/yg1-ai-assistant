@@ -13,7 +13,8 @@
     "test:recommendation": "node scripts/run-vitest-node22.mjs run lib/recommendation",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "benchmark:turns": "node scripts/benchmark-turns.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

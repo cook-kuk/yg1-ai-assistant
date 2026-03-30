@@ -5,6 +5,7 @@
  */
 
 import { createAnthropicMessageWithLogging } from "@/lib/llm/anthropic-tracer"
+import { isBenchmarkEnabled, recordBenchmarkLlmCall } from "@/lib/llm/benchmark-collector"
 import { logRuntimeError } from "@/lib/runtime-logger"
 import {
   traceRecommendation,
@@ -179,10 +180,23 @@ export function createClaudeProvider(): LLMProvider {
           }).catch(() => {})
         )
 
+        const completeDurationMs = Date.now() - startMs
+        if (isBenchmarkEnabled()) {
+          const u = response.usage as unknown as Record<string, number> | undefined
+          recordBenchmarkLlmCall({
+            agent: agentName ?? null,
+            model: resolvedModel,
+            inputTokens: u?.input_tokens ?? 0,
+            outputTokens: u?.output_tokens ?? 0,
+            cacheReadTokens: u?.cache_read_input_tokens ?? 0,
+            cacheWriteTokens: u?.cache_creation_input_tokens ?? 0,
+            durationMs: completeDurationMs,
+          })
+        }
         traceRecommendation("llm.provider.complete:output", {
           model: resolvedModel,
           agentName: agentName ?? null,
-          durationMs: Date.now() - startMs,
+          durationMs: completeDurationMs,
           textPreview: content.slice(0, 180),
           textLength: content.length,
           contentBlocks: summarizeTextBlocks(response.content),
@@ -266,6 +280,18 @@ export function createClaudeProvider(): LLMProvider {
           }).catch(() => {})
         )
 
+        if (isBenchmarkEnabled()) {
+          const u = resp.usage as unknown as Record<string, number> | undefined
+          recordBenchmarkLlmCall({
+            agent: agentName ?? null,
+            model: resolvedModel,
+            inputTokens: u?.input_tokens ?? 0,
+            outputTokens: u?.output_tokens ?? 0,
+            cacheReadTokens: u?.cache_read_input_tokens ?? 0,
+            cacheWriteTokens: u?.cache_creation_input_tokens ?? 0,
+            durationMs,
+          })
+        }
         traceRecommendation("llm.provider.completeWithTools:output", {
           model: resolvedModel,
           agentName: agentName ?? null,
