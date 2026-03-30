@@ -21,4 +21,4 @@ services:
       # When the app runs in Docker, localhost points to the app container itself.
       # Prefer .env MONGO_LOG_URI when provided; otherwise fall back to the Docker host address.
       MONGO_LOG_URI: ${MONGO_LOG_URI:-mongodb://catalog_logger:catalog_logger@host.docker.internal:27018/yg1_ai_catalog_log?authSource=yg1_ai_catalog_log}
-      BENCHMARK_TRACE: ${BENCHMARK_TRACE:-false}
+      BENCHMARK_TRACE: ${BENCHMARK_TRACE:-true}
