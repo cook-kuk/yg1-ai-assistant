@@ -144,11 +144,13 @@ export default function AssistantNewPage() {
         if (done) break
 
         buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split("\n")
-        buffer = lines.pop() || ""
+        // SSE format: "data: {...}\n\n"
+        const parts = buffer.split("\n\n")
+        buffer = parts.pop() || ""
 
-        for (const line of lines) {
-          if (!line.trim()) continue
+        for (const part of parts) {
+          const line = part.replace(/^data: /, "").trim()
+          if (!line) continue
           try {
             const event = JSON.parse(line)
             if (event.type === "text") {
@@ -156,6 +158,8 @@ export default function AssistantNewPage() {
               flushStreamingText(aiMsgId)
             } else if (event.type === "meta") {
               metaData = event
+            } else if (event.type === "done") {
+              // stream complete
             } else if (event.type === "error") {
               throw new Error(event.message)
             }

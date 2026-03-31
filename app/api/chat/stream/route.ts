@@ -21,8 +21,8 @@ export async function POST(req: NextRequest) {
 
     if (!client) {
       return new Response(
-        JSON.stringify({ type: "error", message: "Anthropic API key not set" }) + "\n",
-        { status: 500, headers: { "Content-Type": "text/plain; charset=utf-8" } },
+        "data: " + JSON.stringify({ type: "error", message: "Anthropic API key not set" }) + "\n\n",
+        { status: 500, headers: { "Content-Type": "text/event-stream; charset=utf-8" } },
       )
     }
 
@@ -30,64 +30,66 @@ export async function POST(req: NextRequest) {
     if (apiMessages.length === 0) {
       return new Response(
         [
-          JSON.stringify({ type: "text", content: "안녕하세요! YG-1 AI 어시스턴트입니다. 무엇을 도와드릴까요?" }),
-          JSON.stringify({ type: "meta", intent: "general", chips: ["제품 추천", "절삭조건 문의", "코팅 비교"], isComplete: false }),
-          JSON.stringify({ type: "done" }),
-        ].join("\n") + "\n",
-        { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-cache" } },
+          "data: " + JSON.stringify({ type: "text", content: "안녕하세요! YG-1 AI 어시스턴트입니다. 무엇을 도와드릴까요?" }),
+          "data: " + JSON.stringify({ type: "meta", intent: "general", chips: ["제품 추천", "절삭조건 문의", "코팅 비교"], isComplete: false }),
+          "data: " + JSON.stringify({ type: "done" }),
+          "",
+        ].join("\n\n") + "\n\n",
+        { headers: { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache" } },
       )
     }
 
     const encoder = new TextEncoder()
-    const stream = new ReadableStream({
-      async start(controller) {
-        try {
-          await runChatConversationStreaming(messages, {
-            client: client!,
-            model: anthropicChatModel,
-            route: "/api/chat/stream",
-          }, {
-            onText(chunk) {
-              const line = JSON.stringify({ type: "text", content: chunk }) + "\n"
-              controller.enqueue(encoder.encode(line))
-            },
-            onMeta(meta) {
-              const line = JSON.stringify({ type: "meta", ...meta }) + "\n"
-              controller.enqueue(encoder.encode(line))
-            },
-            onDone() {
-              const line = JSON.stringify({ type: "done" }) + "\n"
-              controller.enqueue(encoder.encode(line))
-              controller.close()
-            },
-            onError(message) {
-              const line = JSON.stringify({ type: "error", message }) + "\n"
-              controller.enqueue(encoder.encode(line))
-              controller.close()
-            },
-          })
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err)
-          const line = JSON.stringify({ type: "error", message: msg }) + "\n"
-          controller.enqueue(encoder.encode(line))
-          controller.close()
-        }
-      },
-    })
+    const { readable, writable } = new TransformStream()
+    const writer = writable.getWriter()
 
-    return new Response(stream, {
+    const sendSSE = async (data: unknown) => {
+      await writer.write(encoder.encode("data: " + JSON.stringify(data) + "\n\n"))
+    }
+
+    // Run streaming in background, write SSE events
+    ;(async () => {
+      try {
+        await runChatConversationStreaming(messages, {
+          client: client!,
+          model: anthropicChatModel,
+          route: "/api/chat/stream",
+        }, {
+          async onText(chunk) {
+            await sendSSE({ type: "text", content: chunk })
+          },
+          async onMeta(meta) {
+            await sendSSE({ type: "meta", ...meta })
+          },
+          async onDone() {
+            await sendSSE({ type: "done" })
+            await writer.close()
+          },
+          async onError(message) {
+            await sendSSE({ type: "error", message })
+            await writer.close()
+          },
+        })
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        await sendSSE({ type: "error", message: msg })
+        await writer.close()
+      }
+    })()
+
+    return new Response(readable, {
       headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Transfer-Encoding": "chunked",
-        "Cache-Control": "no-cache",
-        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
       },
     })
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
     return new Response(
-      JSON.stringify({ type: "error", message: msg }) + "\n",
-      { status: 500, headers: { "Content-Type": "text/plain; charset=utf-8" } },
+      "data: " + JSON.stringify({ type: "error", message: msg }) + "\n\n",
+      { status: 500, headers: { "Content-Type": "text/event-stream; charset=utf-8" } },
     )
   }
 }

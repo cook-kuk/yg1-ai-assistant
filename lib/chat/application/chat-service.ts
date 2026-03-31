@@ -44,10 +44,10 @@ const MAX_TOOL_ROUNDS = 5
 // ── Streaming version ──────────────────────────────────────────
 
 export interface ChatStreamCallbacks {
-  onText: (chunk: string) => void
-  onMeta: (meta: Omit<LLMResponse, "text">) => void
-  onDone: () => void
-  onError: (message: string) => void
+  onText: (chunk: string) => void | Promise<void>
+  onMeta: (meta: Omit<LLMResponse, "text">) => void | Promise<void>
+  onDone: () => void | Promise<void>
+  onError: (message: string) => void | Promise<void>
 }
 
 /**
@@ -154,7 +154,7 @@ export async function runChatConversationStreaming(
         .slice(0, 3)
         .map(p => `**브랜드명:** ${p.brand} | **제품코드:** ${p.displayCode}`)
         .join("\n")
-      callbacks.onText(header + "\n\n")
+      await callbacks.onText(header + "\n\n")
     }
 
     // Stream the final LLM call
@@ -170,7 +170,7 @@ export async function runChatConversationStreaming(
       if (event.type === "content_block_delta") {
         const delta = event.delta as { type: string; text?: string }
         if (delta.type === "text_delta" && delta.text) {
-          callbacks.onText(delta.text)
+          await callbacks.onText(delta.text)
         }
       }
     }
@@ -185,10 +185,10 @@ export async function runChatConversationStreaming(
         ai_knowledge: "📋 Reference: AI 일반 지식 (카탈로그 확인 필요)",
         mixed: "📋 Reference: YG-1 내부 DB + 웹 검색",
       }
-      callbacks.onText("\n\n" + REFERENCE_LABELS[refSource])
+      await callbacks.onText("\n\n" + REFERENCE_LABELS[refSource])
     }
 
-    callbacks.onMeta({
+    await callbacks.onMeta({
       intent,
       chips: resolveChips(intent, ""),
       extractedField: null,
@@ -196,9 +196,9 @@ export async function runChatConversationStreaming(
       recommendationIds: null,
       references,
     })
-    callbacks.onDone()
+    await callbacks.onDone()
   } catch (err) {
-    callbacks.onError(err instanceof Error ? err.message : String(err))
+    await callbacks.onError(err instanceof Error ? err.message : String(err))
   }
 }
 
@@ -235,7 +235,7 @@ async function emitFinalStream(
       .slice(0, 3)
       .map(p => `**브랜드명:** ${p.brand} | **제품코드:** ${p.displayCode}`)
       .join("\n")
-    callbacks.onText(header + "\n\n")
+    await callbacks.onText(header + "\n\n")
   }
 
   // Clean LLM reference lines
@@ -247,8 +247,8 @@ async function emitFinalStream(
   // Simulate streaming: emit in small chunks with real delay for network flush
   const chunks = cleaned.match(/.{1,12}/gs) || [cleaned]
   for (const chunk of chunks) {
-    callbacks.onText(chunk)
-    await new Promise(r => setTimeout(r, 15))
+    await callbacks.onText(chunk)
+    await new Promise(r => setTimeout(r, 20))
   }
 
   // Reference badge
@@ -261,10 +261,10 @@ async function emitFinalStream(
       ai_knowledge: "📋 Reference: AI 일반 지식 (카탈로그 확인 필요)",
       mixed: "📋 Reference: YG-1 내부 DB + 웹 검색",
     }
-    callbacks.onText("\n\n" + REFERENCE_LABELS[refSource])
+    await callbacks.onText("\n\n" + REFERENCE_LABELS[refSource])
   }
 
-  callbacks.onMeta({
+  await callbacks.onMeta({
     intent,
     chips: resolveChips(intent, ""),
     extractedField: null,
@@ -272,7 +272,7 @@ async function emitFinalStream(
     recommendationIds: null,
     references,
   })
-  callbacks.onDone()
+  await callbacks.onDone()
 }
 
 function toAnthropicMessages(messages: ChatMessage[]): Anthropic.MessageParam[] {
