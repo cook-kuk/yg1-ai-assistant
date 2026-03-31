@@ -20,6 +20,48 @@ import {
 import { wowScenarios, candidateProducts, type CandidateProduct } from "@/lib/demo-data"
 import { parseChatResponse } from "@/lib/frontend/chat/chat-client"
 import type { ChatResponseDto } from "@/lib/contracts/chat"
+
+// ── Typing animation hook ──
+function useTypingAnimation() {
+  const fullTextRef = useRef("")
+  const displayedRef = useRef(0)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const callbackRef = useRef<((text: string) => void) | null>(null)
+  const doneCallbackRef = useRef<(() => void) | null>(null)
+
+  const start = (fullText: string, onUpdate: (text: string) => void, onDone: () => void) => {
+    stop()
+    fullTextRef.current = fullText
+    displayedRef.current = 0
+    callbackRef.current = onUpdate
+    doneCallbackRef.current = onDone
+
+    timerRef.current = setInterval(() => {
+      const full = fullTextRef.current
+      const current = displayedRef.current
+      if (current >= full.length) {
+        stop()
+        doneCallbackRef.current?.()
+        return
+      }
+      // Variable speed: 2-5 chars per tick for natural feel
+      const step = Math.min(full.length - current, 2 + Math.floor(Math.random() * 4))
+      displayedRef.current = current + step
+      callbackRef.current?.(full.slice(0, displayedRef.current))
+    }, 25)
+  }
+
+  const stop = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+  }
+
+  useEffect(() => stop, [])
+
+  return { start, stop }
+}
 import { cn } from "@/lib/utils"
 import { DealerPopupTriggerButton } from "@/components/DealerLocator/DealerPopupTriggerButton"
 import { LocationPermissionBanner } from "@/components/DealerLocator/LocationPermissionBanner"
@@ -97,137 +139,88 @@ export default function AssistantNewPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const streamingTextRef = useRef("")
   const streamingIdRef = useRef("")
-  const rafPendingRef = useRef(false)
-
-  const flushStreamingText = (aiMsgId: string) => {
-    if (rafPendingRef.current) return
-    rafPendingRef.current = true
-    requestAnimationFrame(() => {
-      rafPendingRef.current = false
-      const text = streamingTextRef.current
-      setMessages(prev => prev.map(m =>
-        m.id === aiMsgId ? { ...m, text } : m
-      ))
-    })
-  }
+  const typingAnim = useTypingAnimation()
 
   const callLLM = async (currentMessages: ChatMessage[]) => {
     const aiMsgId = `ai-${Date.now()}`
-    streamingTextRef.current = ""
     streamingIdRef.current = aiMsgId
 
-    // Add empty AI bubble immediately
-    setMessages(prev => [...prev, {
-      id: aiMsgId,
-      role: "ai",
-      text: "",
-      timestamp: new Date().toISOString(),
-    }])
-
     try {
-      const res = await fetch("/api/chat/stream", {
+      const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: currentMessages, mode }),
       })
       if (!res.ok) throw new Error("API error")
+      const data = parseChatResponse(await res.json())
 
-      const reader = res.body!.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ""
-      let metaData: Partial<ChatResponseDto> | null = null
+      // Add empty AI bubble, then animate text in
+      setMessages(prev => [...prev, {
+        id: aiMsgId,
+        role: "ai",
+        text: "",
+        purpose: data.purpose,
+        timestamp: new Date().toISOString(),
+      }])
 
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        // SSE format: "data: {...}\n\n"
-        const parts = buffer.split("\n\n")
-        buffer = parts.pop() || ""
-
-        for (const part of parts) {
-          const line = part.replace(/^data: /, "").trim()
-          if (!line) continue
-          try {
-            const event = JSON.parse(line)
-            if (event.type === "text") {
-              streamingTextRef.current += event.content
-              flushStreamingText(aiMsgId)
-            } else if (event.type === "meta") {
-              metaData = event
-            } else if (event.type === "done") {
-              // stream complete
-            } else if (event.type === "error") {
-              throw new Error(event.message)
-            }
-          } catch (e) {
-            if (e instanceof SyntaxError) continue
-            throw e
-          }
-        }
-      }
-
-      // Final flush to ensure all text is rendered
-      setMessages(prev => prev.map(m =>
-        m.id === aiMsgId ? { ...m, text: streamingTextRef.current } : m
-      ))
-      setTyping(false)
-
-      // Apply meta data (chips, intent, etc.)
-      if (metaData) {
-        if (metaData.chips) {
+      typingAnim.start(
+        data.text,
+        // onUpdate: progressively reveal text
+        (partialText) => {
           setMessages(prev => prev.map(m =>
-            m.id === aiMsgId ? { ...m, chips: metaData!.chips as string[] } : m
+            m.id === aiMsgId ? { ...m, text: partialText } : m
           ))
-        }
+        },
+        // onDone: animation complete, show chips + process metadata
+        () => {
+          setTyping(false)
+          setMessages(prev => prev.map(m =>
+            m.id === aiMsgId ? { ...m, text: data.text, chips: data.chips ?? undefined } : m
+          ))
 
-        if (metaData.extractedField) {
-          const extractedField = metaData.extractedField
-          setExtracted(prev => {
-            const updated = [...prev, {
-              label: extractedField.label,
-              value: extractedField.value,
-              confidence: extractedField.confidence,
-              step: extractedField.step,
-            }]
-            const total = mode === "simple" ? 4 : 9
-            const pct = Math.min(100, Math.round((updated.length / total) * 100))
-            setCompleteness(pct)
-            setUncertainty(Math.max(5, 100 - pct))
-            setCandidates(Math.max(3, Math.round(120 * (1 - pct / 100))))
-            return updated
-          })
-          setCurrentStep(extractedField.step)
-        }
-
-        if (metaData.isComplete) {
-          setCurrentStep(5)
-          setCompleteness(100)
-          setUncertainty(8)
-          setCandidates(3)
-          setShowResult(true)
-          if (metaData.recommendationIds?.length) {
-            const recs = metaData.recommendationIds
-              .map((id: string) => candidateProducts.find(p => p.id === id))
-              .filter(Boolean) as CandidateProduct[]
-            if (recs.length > 0) setRecommendations(recs)
+          if (data.extractedField) {
+            const extractedField = data.extractedField
+            setExtracted(prev => {
+              const updated = [...prev, {
+                label: extractedField.label,
+                value: extractedField.value,
+                confidence: extractedField.confidence,
+                step: extractedField.step,
+              }]
+              const total = mode === "simple" ? 4 : 9
+              const pct = Math.min(100, Math.round((updated.length / total) * 100))
+              setCompleteness(pct)
+              setUncertainty(Math.max(5, 100 - pct))
+              setCandidates(Math.max(3, Math.round(120 * (1 - pct / 100))))
+              return updated
+            })
+            setCurrentStep(extractedField.step)
           }
-        }
-      }
+
+          if (data.isComplete) {
+            setCurrentStep(5)
+            setCompleteness(100)
+            setUncertainty(8)
+            setCandidates(3)
+            setShowResult(true)
+            if (data.recommendationIds?.length) {
+              const recs = data.recommendationIds
+                .map((id: string) => candidateProducts.find(p => p.id === id))
+                .filter(Boolean) as CandidateProduct[]
+              if (recs.length > 0) setRecommendations(recs)
+            }
+          }
+        },
+      )
     } catch {
       setTyping(false)
-      setMessages(prev => {
-        const existing = prev.find(m => m.id === aiMsgId)
-        if (existing && existing.text) return prev // Keep partial text
-        return prev.map(m =>
-          m.id === aiMsgId
-            ? { ...m, text: "죄송합니다. 응답을 가져오는데 실패했습니다. 다시 시도해주세요." }
-            : m
-        )
-      })
+      setMessages(prev => [...prev, {
+        id: `ai-err-${Date.now()}`,
+        role: "ai",
+        text: "죄송합니다. 응답을 가져오는데 실패했습니다. 다시 시도해주세요.",
+        timestamp: new Date().toISOString(),
+      }])
     }
   }
 
@@ -333,7 +326,7 @@ export default function AssistantNewPage() {
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.filter(m => !(m.id === streamingIdRef.current && m.text === "" && typing)).map(msg => (
+            {messages.filter(m => !(m.text === "" && typing)).map(msg => (
               <div key={msg.id} className={cn(
                 "flex",
                 msg.role === "user" ? "justify-end" : "justify-start"
@@ -406,7 +399,7 @@ export default function AssistantNewPage() {
               </div>
             ))}
 
-            {typing && !messages.some(m => m.id === streamingIdRef.current && m.text.length > 0) && (
+            {typing && !messages.some(m => m.text.length > 0 && m.id === streamingIdRef.current) && (
               <div className="flex justify-start">
                 <div className="bg-muted rounded-xl px-4 py-3 flex items-center gap-2">
                   <div className="flex gap-1">
