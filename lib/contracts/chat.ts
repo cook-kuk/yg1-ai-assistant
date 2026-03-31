@@ -70,6 +70,13 @@ export const chatPurposeSchema = z.enum([
   "web_search",
 ])
 
+// ── Stream event types (NDJSON protocol) ──
+export type StreamEventText = { type: "text"; content: string }
+export type StreamEventMeta = { type: "meta" } & Omit<ChatResponseDto, "text">
+export type StreamEventDone = { type: "done" }
+export type StreamEventError = { type: "error"; message: string }
+export type StreamEvent = StreamEventText | StreamEventMeta | StreamEventDone | StreamEventError
+
 export const chatResponseSchema = z.object({
   intent: chatPurposeSchema,
   text: z.string(),

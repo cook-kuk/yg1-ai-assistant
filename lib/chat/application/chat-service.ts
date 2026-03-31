@@ -41,6 +41,241 @@ export interface ChatServiceResult {
 
 const MAX_TOOL_ROUNDS = 5
 
+// ── Streaming version ──────────────────────────────────────────
+
+export interface ChatStreamCallbacks {
+  onText: (chunk: string) => void
+  onMeta: (meta: Omit<LLMResponse, "text">) => void
+  onDone: () => void
+  onError: (message: string) => void
+}
+
+/**
+ * Streaming chat: tool rounds run non-streaming server-side,
+ * then the final text response is streamed token-by-token via Anthropic streaming API.
+ */
+export async function runChatConversationStreaming(
+  messages: ChatMessage[],
+  deps: ChatServiceDeps,
+  callbacks: ChatStreamCallbacks,
+): Promise<void> {
+  const { CHAT_TOOLS, executeChatTool } = await import("@/lib/chat/infrastructure/tools/chat-tools")
+  const { determineReferenceSource } = await import("../infrastructure/http/chat-response")
+
+  const apiMessages = toAnthropicMessages(messages)
+  const convState = buildStateFromHistory(messages)
+  logConversationState(convState, null)
+
+  const baseSystemPrompt = await buildSystemPrompt()
+  const structuredCtx = buildStructuredContext(convState, null)
+  const systemPrompt = `${baseSystemPrompt}\n\n${structuredCtx}`
+
+  let currentMessages: Anthropic.MessageParam[] = [...apiMessages]
+  const toolsUsed: string[] = []
+  const toolResults: { name: string; result: string }[] = []
+
+  const modelId = deps.model as Parameters<typeof deps.client.messages.create>[0]["model"]
+
+  // ── Tool-use rounds (non-streaming) ──
+  // Each round: call LLM, check for tool_use blocks. If text-only → break and stream.
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    const llmResponse = await createAnthropicMessageWithLogging({
+      client: deps.client,
+      route: deps.route,
+      operation: round === 0 ? "chat.initial" : `chat.tool_round.${round}`,
+      request: {
+        model: modelId,
+        max_tokens: 2048,
+        system: systemPrompt,
+        tools: CHAT_TOOLS,
+        messages: currentMessages,
+      },
+    })
+
+    const toolUseBlocks = llmResponse.content.filter(
+      (block): block is Anthropic.ContentBlock & { type: "tool_use" } => block.type === "tool_use"
+    )
+
+    // No tool use → this is the final text response, but we already have it non-streaming.
+    // Instead of wasting an extra API call, we'll simulate streaming from this text.
+    if (toolUseBlocks.length === 0) {
+      const textBlocks = llmResponse.content.filter(
+        (block): block is Anthropic.TextBlock => block.type === "text"
+      )
+      const rawText = textBlocks.map(b => b.text).join("\n")
+        || "죄송합니다, 응답을 생성하지 못했습니다."
+
+      await emitFinalStream(rawText, toolsUsed, toolResults, convState, callbacks, determineReferenceSource)
+      return
+    }
+
+    // Execute tools
+    const toolResultMessages: Anthropic.ToolResultBlockParam[] = []
+    for (const toolBlock of toolUseBlocks) {
+      const toolInput = mergeSearchProductsInput(
+        toolBlock.name,
+        toolBlock.input as Record<string, unknown>,
+        convState,
+      )
+      const result = await executeChatTool(toolBlock.name, toolInput, {
+        anthropicChatModel: deps.model,
+        client: deps.client,
+        route: deps.route,
+      })
+      toolsUsed.push(toolBlock.name)
+      toolResults.push({ name: toolBlock.name, result })
+      toolResultMessages.push({
+        type: "tool_result",
+        tool_use_id: toolBlock.id,
+        content: result,
+      })
+    }
+
+    currentMessages = [
+      ...currentMessages,
+      { role: "assistant", content: llmResponse.content },
+      { role: "user", content: toolResultMessages },
+    ]
+  }
+
+  // ── Final round: use streaming API so tokens arrive in real-time ──
+  try {
+    const intent = inferIntent(toolsUsed)
+    const references = extractReferences(toolResults)
+    const brandProducts = extractBrandInfo(toolResults)
+    const needsBrandHeader =
+      intent === "product_recommendation" ||
+      intent === "product_lookup" ||
+      intent === "cross_reference"
+
+    // Brand header first
+    if (needsBrandHeader && brandProducts.length > 0) {
+      const header = brandProducts
+        .slice(0, 3)
+        .map(p => `**브랜드명:** ${p.brand} | **제품코드:** ${p.displayCode}`)
+        .join("\n")
+      callbacks.onText(header + "\n\n")
+    }
+
+    // Stream the final LLM call
+    const stream = deps.client.messages.stream({
+      model: modelId,
+      max_tokens: 2048,
+      system: systemPrompt,
+      tools: CHAT_TOOLS,
+      messages: currentMessages,
+    })
+
+    for await (const event of stream) {
+      if (event.type === "content_block_delta") {
+        const delta = event.delta as { type: string; text?: string }
+        if (delta.type === "text_delta" && delta.text) {
+          callbacks.onText(delta.text)
+        }
+      }
+    }
+
+    // Reference badge
+    const refSource = determineReferenceSource(toolsUsed, toolResults)
+    if (refSource) {
+      const REFERENCE_LABELS: Record<string, string> = {
+        internal_db: "📋 Reference: YG-1 내부 DB",
+        internal_kb: "📋 Reference: YG-1 공식 정보",
+        web_search: "📋 Reference: 웹 검색 (외부 소스 — 카탈로그 확인 필요)",
+        ai_knowledge: "📋 Reference: AI 일반 지식 (카탈로그 확인 필요)",
+        mixed: "📋 Reference: YG-1 내부 DB + 웹 검색",
+      }
+      callbacks.onText("\n\n" + REFERENCE_LABELS[refSource])
+    }
+
+    callbacks.onMeta({
+      intent,
+      chips: resolveChips(intent, ""),
+      extractedField: null,
+      isComplete: intent !== "general",
+      recommendationIds: null,
+      references,
+    })
+    callbacks.onDone()
+  } catch (err) {
+    callbacks.onError(err instanceof Error ? err.message : String(err))
+  }
+}
+
+/**
+ * Emit the final text with simulated streaming (word-by-word) + post-processing.
+ * Used when the final LLM response was obtained non-streaming (no tool calls in last round).
+ */
+async function emitFinalStream(
+  rawText: string,
+  toolsUsed: string[],
+  toolResults: { name: string; result: string }[],
+  convState: ConversationState,
+  callbacks: ChatStreamCallbacks,
+  determineReferenceSource: (toolsUsed: string[], toolResults: { name: string; result: string }[]) => string | null,
+) {
+  const retrievalMemory = buildRetrievalMemory(toolResults, convState)
+  if (retrievalMemory) {
+    convState.retrievalMemory = retrievalMemory
+    logConversationState(convState, retrievalMemory)
+  }
+
+  const intent = inferIntent(toolsUsed)
+  const references = extractReferences(toolResults)
+  const brandProducts = extractBrandInfo(toolResults)
+
+  const needsBrandHeader =
+    intent === "product_recommendation" ||
+    intent === "product_lookup" ||
+    intent === "cross_reference"
+
+  // Brand header
+  if (needsBrandHeader && brandProducts.length > 0) {
+    const header = brandProducts
+      .slice(0, 3)
+      .map(p => `**브랜드명:** ${p.brand} | **제품코드:** ${p.displayCode}`)
+      .join("\n")
+    callbacks.onText(header + "\n\n")
+  }
+
+  // Clean LLM reference lines
+  const cleaned = rawText
+    .replace(/\n*📋\s*Reference:?\s*[^\n]*/gi, "")
+    .replace(/\n*\[Reference:?\s*[^\]]*\]/gi, "")
+    .trimEnd()
+
+  // Simulate streaming: split by words/markdown tokens, emit in small chunks
+  const chunks = cleaned.match(/.{1,6}/gs) || [cleaned]
+  for (const chunk of chunks) {
+    callbacks.onText(chunk)
+    // Tiny yield to allow the stream to flush
+    await new Promise(r => setTimeout(r, 0))
+  }
+
+  // Reference badge
+  const refSource = determineReferenceSource(toolsUsed, toolResults)
+  if (refSource) {
+    const REFERENCE_LABELS: Record<string, string> = {
+      internal_db: "📋 Reference: YG-1 내부 DB",
+      internal_kb: "📋 Reference: YG-1 공식 정보",
+      web_search: "📋 Reference: 웹 검색 (외부 소스 — 카탈로그 확인 필요)",
+      ai_knowledge: "📋 Reference: AI 일반 지식 (카탈로그 확인 필요)",
+      mixed: "📋 Reference: YG-1 내부 DB + 웹 검색",
+    }
+    callbacks.onText("\n\n" + REFERENCE_LABELS[refSource])
+  }
+
+  callbacks.onMeta({
+    intent,
+    chips: resolveChips(intent, ""),
+    extractedField: null,
+    isComplete: intent !== "general",
+    recommendationIds: null,
+    references,
+  })
+  callbacks.onDone()
+}
+
 function toAnthropicMessages(messages: ChatMessage[]): Anthropic.MessageParam[] {
   return messages
     .filter(message => message.role === "user" || message.role === "ai")

@@ -19,6 +19,7 @@ import {
 } from "lucide-react"
 import { wowScenarios, candidateProducts, type CandidateProduct } from "@/lib/demo-data"
 import { parseChatResponse } from "@/lib/frontend/chat/chat-client"
+import type { ChatResponseDto } from "@/lib/contracts/chat"
 import { cn } from "@/lib/utils"
 import { DealerPopupTriggerButton } from "@/components/DealerLocator/DealerPopupTriggerButton"
 import { LocationPermissionBanner } from "@/components/DealerLocator/LocationPermissionBanner"
@@ -96,70 +97,119 @@ export default function AssistantNewPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const streamingTextRef = useRef("")
+  const streamingIdRef = useRef("")
+
   const callLLM = async (currentMessages: ChatMessage[]) => {
+    const aiMsgId = `ai-${Date.now()}`
+    streamingTextRef.current = ""
+    streamingIdRef.current = aiMsgId
+
+    // Add empty AI bubble immediately
+    setMessages(prev => [...prev, {
+      id: aiMsgId,
+      role: "ai",
+      text: "",
+      timestamp: new Date().toISOString(),
+    }])
+
     try {
-      const res = await fetch("/api/chat", {
+      const res = await fetch("/api/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: currentMessages, mode }),
       })
       if (!res.ok) throw new Error("API error")
-      const data = parseChatResponse(await res.json())
 
-      setTyping(false)
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ""
+      let metaData: Partial<ChatResponseDto> | null = null
 
-      // Update extracted field and metrics
-      if (data.extractedField) {
-        const extractedField = data.extractedField
-        setExtracted(prev => {
-          const updated = [...prev, {
-            label: extractedField.label,
-            value: extractedField.value,
-            confidence: extractedField.confidence,
-            step: extractedField.step,
-          }]
-          const total = mode === "simple" ? 4 : 9
-          const pct = Math.min(100, Math.round((updated.length / total) * 100))
-          setCompleteness(pct)
-          setUncertainty(Math.max(5, 100 - pct))
-          setCandidates(Math.max(3, Math.round(120 * (1 - pct / 100))))
-          return updated
-        })
-        setCurrentStep(extractedField.step)
-      }
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
 
-      // Handle recommendation completion
-      if (data.isComplete) {
-        setCurrentStep(5)
-        setCompleteness(100)
-        setUncertainty(8)
-        setCandidates(3)
-        setShowResult(true)
-        if (data.recommendationIds?.length) {
-          const recs = data.recommendationIds
-            .map((id: string) => candidateProducts.find(p => p.id === id))
-            .filter(Boolean) as CandidateProduct[]
-          if (recs.length > 0) setRecommendations(recs)
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split("\n")
+        buffer = lines.pop() || ""
+
+        for (const line of lines) {
+          if (!line.trim()) continue
+          try {
+            const event = JSON.parse(line)
+            if (event.type === "text") {
+              streamingTextRef.current += event.content
+              const currentText = streamingTextRef.current
+              setMessages(prev => prev.map(m =>
+                m.id === aiMsgId ? { ...m, text: currentText } : m
+              ))
+            } else if (event.type === "meta") {
+              metaData = event
+            } else if (event.type === "error") {
+              throw new Error(event.message)
+            }
+          } catch (e) {
+            if (e instanceof SyntaxError) continue
+            throw e
+          }
         }
       }
 
-      // Add AI message to chat
-      setMessages(prev => [...prev, {
-        id: `ai-${Date.now()}`,
-        role: "ai",
-        text: data.text,
-        purpose: data.purpose,
-        chips: data.chips ?? undefined,
-        timestamp: new Date().toISOString(),
-      }])
+      setTyping(false)
+
+      // Apply meta data (chips, intent, etc.)
+      if (metaData) {
+        if (metaData.chips) {
+          setMessages(prev => prev.map(m =>
+            m.id === aiMsgId ? { ...m, chips: metaData!.chips as string[] } : m
+          ))
+        }
+
+        if (metaData.extractedField) {
+          const extractedField = metaData.extractedField
+          setExtracted(prev => {
+            const updated = [...prev, {
+              label: extractedField.label,
+              value: extractedField.value,
+              confidence: extractedField.confidence,
+              step: extractedField.step,
+            }]
+            const total = mode === "simple" ? 4 : 9
+            const pct = Math.min(100, Math.round((updated.length / total) * 100))
+            setCompleteness(pct)
+            setUncertainty(Math.max(5, 100 - pct))
+            setCandidates(Math.max(3, Math.round(120 * (1 - pct / 100))))
+            return updated
+          })
+          setCurrentStep(extractedField.step)
+        }
+
+        if (metaData.isComplete) {
+          setCurrentStep(5)
+          setCompleteness(100)
+          setUncertainty(8)
+          setCandidates(3)
+          setShowResult(true)
+          if (metaData.recommendationIds?.length) {
+            const recs = metaData.recommendationIds
+              .map((id: string) => candidateProducts.find(p => p.id === id))
+              .filter(Boolean) as CandidateProduct[]
+            if (recs.length > 0) setRecommendations(recs)
+          }
+        }
+      }
     } catch {
       setTyping(false)
-      setMessages(prev => [...prev, {
-        id: `ai-err-${Date.now()}`,
-        role: "ai",
-        text: "죄송합니다. 응답을 가져오는데 실패했습니다. 다시 시도해주세요.",
-        timestamp: new Date().toISOString(),
-      }])
+      setMessages(prev => {
+        const existing = prev.find(m => m.id === aiMsgId)
+        if (existing && existing.text) return prev // Keep partial text
+        return prev.map(m =>
+          m.id === aiMsgId
+            ? { ...m, text: "죄송합니다. 응답을 가져오는데 실패했습니다. 다시 시도해주세요." }
+            : m
+        )
+      })
     }
   }
 
@@ -265,7 +315,7 @@ export default function AssistantNewPage() {
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.map(msg => (
+            {messages.filter(m => !(m.id === streamingIdRef.current && m.text === "" && typing)).map(msg => (
               <div key={msg.id} className={cn(
                 "flex",
                 msg.role === "user" ? "justify-end" : "justify-start"
@@ -338,7 +388,7 @@ export default function AssistantNewPage() {
               </div>
             ))}
 
-            {typing && (
+            {typing && !messages.some(m => m.id === streamingIdRef.current && m.text.length > 0) && (
               <div className="flex justify-start">
                 <div className="bg-muted rounded-xl px-4 py-3 flex items-center gap-2">
                   <div className="flex gap-1">

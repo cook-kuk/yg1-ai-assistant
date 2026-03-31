@@ -41,6 +41,7 @@ interface TableRow {
   source: "general" | "event"
   rating: number | null
   tags: string[]
+  chatHistory: string
 }
 
 // ── MongoDB persistence for admin fields (fallback: localStorage) ──
@@ -130,6 +131,7 @@ function generalToRow(entry: FeedbackEntryDto, index: number): TableRow {
     source: "general",
     rating: entry.rating,
     tags,
+    chatHistory: (entry.chatHistory ?? []).map(m => `[${m.role}] ${m.text}`).join("\n"),
   }
 }
 
@@ -164,6 +166,9 @@ function eventToRow(entry: FeedbackEventEntryDto, index: number): TableRow {
     source: "event",
     rating: null,
     tags: [],
+    chatHistory: (entry.chatHistory ?? []).map(m => `[${m.role}] ${m.text}`).join("\n")
+      || (entry.conversationSnapshot ?? []).map(m => `[${m.role}] ${m.text ?? ""}`).join("\n")
+      || [userMsg && `[user] ${userMsg}`, aiMsg && `[assistant] ${aiMsg}`].filter(Boolean).join("\n"),
   }
 }
 
@@ -371,14 +376,16 @@ export default function FeedbackTablePage() {
   const hasFilters = searchText || filterDepartment || filterAuthor || filterAuthorType || filterQuestionType || filterAccuracy || filterErrorType
 
   const handleExportCSV = () => {
-    const headers = COLUMNS.map(c => c.label).join(",")
-    const csvRows = filteredRows.map(r =>
-      COLUMNS.map(c => {
-        const val = r[c.key as keyof TableRow]
+    const exportCols = [...COLUMNS, { key: "chatHistory" as const, label: "대화내용", width: "" }]
+    const headers = exportCols.map(c => c.label).join(",")
+    const csvRows = filteredRows.map(r => {
+      const merged = { ...r, ...adminFields[r.id] }
+      return exportCols.map(c => {
+        const val = (merged as Record<string, unknown>)[c.key]
         const str = val == null ? "" : String(val)
         return `"${str.replace(/"/g, '""')}"`
       }).join(",")
-    )
+    })
     const csv = [headers, ...csvRows].join("\n")
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" })
     const url = URL.createObjectURL(blob)
