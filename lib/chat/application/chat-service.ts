@@ -244,12 +244,11 @@ async function emitFinalStream(
     .replace(/\n*\[Reference:?\s*[^\]]*\]/gi, "")
     .trimEnd()
 
-  // Simulate streaming: split by words/markdown tokens, emit in small chunks
-  const chunks = cleaned.match(/.{1,6}/gs) || [cleaned]
+  // Simulate streaming: emit in small chunks with real delay for network flush
+  const chunks = cleaned.match(/.{1,12}/gs) || [cleaned]
   for (const chunk of chunks) {
     callbacks.onText(chunk)
-    // Tiny yield to allow the stream to flush
-    await new Promise(r => setTimeout(r, 0))
+    await new Promise(r => setTimeout(r, 15))
   }
 
   // Reference badge

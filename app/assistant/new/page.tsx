@@ -99,6 +99,19 @@ export default function AssistantNewPage() {
 
   const streamingTextRef = useRef("")
   const streamingIdRef = useRef("")
+  const rafPendingRef = useRef(false)
+
+  const flushStreamingText = (aiMsgId: string) => {
+    if (rafPendingRef.current) return
+    rafPendingRef.current = true
+    requestAnimationFrame(() => {
+      rafPendingRef.current = false
+      const text = streamingTextRef.current
+      setMessages(prev => prev.map(m =>
+        m.id === aiMsgId ? { ...m, text } : m
+      ))
+    })
+  }
 
   const callLLM = async (currentMessages: ChatMessage[]) => {
     const aiMsgId = `ai-${Date.now()}`
@@ -140,10 +153,7 @@ export default function AssistantNewPage() {
             const event = JSON.parse(line)
             if (event.type === "text") {
               streamingTextRef.current += event.content
-              const currentText = streamingTextRef.current
-              setMessages(prev => prev.map(m =>
-                m.id === aiMsgId ? { ...m, text: currentText } : m
-              ))
+              flushStreamingText(aiMsgId)
             } else if (event.type === "meta") {
               metaData = event
             } else if (event.type === "error") {
@@ -156,6 +166,10 @@ export default function AssistantNewPage() {
         }
       }
 
+      // Final flush to ensure all text is rendered
+      setMessages(prev => prev.map(m =>
+        m.id === aiMsgId ? { ...m, text: streamingTextRef.current } : m
+      ))
       setTyping(false)
 
       // Apply meta data (chips, intent, etc.)
