@@ -11,6 +11,7 @@ import {
   IntakeSummaryScreen,
   LoadingScreen,
 } from "@/lib/frontend/recommendation/intake-flow"
+import { SubstituteFlow } from "@/lib/frontend/recommendation/substitute-flow"
 import { useProductRecommendationPage } from "@/lib/frontend/recommendation/use-product-recommendation-page"
 import { getSessionCapabilities } from "@/lib/frontend/recommendation/recommendation-view-model"
 
@@ -35,6 +36,7 @@ export default function ProductRecommendPage() {
     capabilities,
     handleFieldChange,
     runRecommendation,
+    runRecommendationWithForm,
     handleChatSend,
     loadCandidatePage,
     handleReset,
@@ -116,7 +118,15 @@ export default function ProductRecommendPage() {
       <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
         {phase === "intake" && (
           <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col">
-            <IntakeGate form={form} onChange={handleFieldChange} onNext={() => setPhase("summary")} />
+            {form.inquiryPurpose.status === "known" &&
+             (form.inquiryPurpose as { status: "known"; value: string }).value === "substitute" ? (
+              <SubstituteFlow
+                language={language as "ko" | "en"}
+                onStart={runRecommendationWithForm}
+              />
+            ) : (
+              <IntakeGate form={form} onChange={handleFieldChange} onNext={() => setPhase("summary")} />
+            )}
           </div>
         )}
 

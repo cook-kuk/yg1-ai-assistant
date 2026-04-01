@@ -246,6 +246,69 @@ export function useProductRecommendationPage({
     }
   }
 
+  const runRecommendationWithForm = async (overrideForm: ProductIntakeForm) => {
+    setForm(overrideForm)
+    setPhase("loading")
+    setError(null)
+    try {
+      const formWithCountry: ProductIntakeForm = {
+        ...overrideForm,
+        country: country && country !== "ALL"
+          ? { status: "known" as const, value: country }
+          : { status: "known" as const, value: "ALL" },
+      }
+      const intakeText = buildIntakePromptText(formWithCountry, language)
+      const requestPayload = createInitialRecommendationRequest({
+        form: formWithCountry,
+        language,
+        pagination: { page: 0, pageSize: DEFAULT_PAGE_SIZE },
+      })
+
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 55000)
+      const res = await fetch("/api/recommend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestPayload),
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeout))
+      if (!res.ok) throw new Error(`서버 오류 (${res.status})`)
+      const data = parseRecommendationResponse(await res.json())
+      if (data.error) throw new Error(data.detail ?? data.error)
+
+      setSessionState(data.session.publicState ?? null)
+      setEngineSessionState((data.session.engineState as ExplorationSessionState | null) ?? null)
+      setCandidateSnapshot(data.candidates ?? null)
+      setCandidatePagination(data.pagination ?? null)
+      setCapabilities(resolveRecommendationCapabilities(data))
+
+      setChatMessages([
+        { role: "user", text: intakeText, createdAt: new Date().toISOString() },
+        {
+          role: "ai",
+          text: data.text ?? "",
+          chips: data.chips ?? [],
+          chipGroups: data.chipGroups ?? undefined,
+          recommendation: data.recommendation ?? null,
+          evidenceSummaries: data.evidenceSummaries ?? null,
+          requestPreparation: data.requestPreparation ?? null,
+          primaryExplanation: data.primaryExplanation ?? null,
+          primaryFactChecked: data.primaryFactChecked ?? null,
+          altExplanations: data.altExplanations ?? [],
+          requestPayload,
+          responsePayload: data,
+          createdAt: new Date().toISOString(),
+          feedbackGroupId: createClientEventId(),
+          debugTrace: (data as any).meta?.debugTrace ?? null,
+        },
+      ])
+      setPhase("explore")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "알 수 없는 오류")
+      setPhase("intake")
+    }
+  }
+
   const handleChatSend = async (text: string) => {
     if (isChatSending) return
 
@@ -551,6 +614,7 @@ export function useProductRecommendationPage({
     capabilities,
     handleFieldChange,
     runRecommendation,
+    runRecommendationWithForm,
     handleChatSend,
     loadCandidatePage,
     handleReset,
