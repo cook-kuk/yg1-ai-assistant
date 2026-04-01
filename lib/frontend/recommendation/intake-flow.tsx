@@ -24,6 +24,7 @@ import {
   countAnswered,
   countUnknowns,
 } from "@/lib/frontend/recommendation/intake-types"
+import { useCompetitorSpec } from "./use-competitor-spec"
 import {
   getIntakeDisplayValue,
   getIntakeFieldLabel,
@@ -229,18 +230,168 @@ function OptionBtn({
   )
 }
 
+function SubstituteModeInput({
+  currentValue,
+  onChange,
+  onFormChange,
+}: {
+  currentValue: string | null
+  onChange: (s: AnswerState<string>) => void
+  onFormChange: (key: keyof ProductIntakeForm, val: AnswerState<string>) => void
+}) {
+  const [inputVal, setInputVal] = useState(currentValue ?? "")
+  const { isResolving, resolvedSpec, resolveError, resolveSpec, clearSpec } =
+    useCompetitorSpec(onFormChange)
+
+  const handleSearch = () => {
+    if (!inputVal.trim()) return
+    onChange({ status: "known", value: inputVal.trim() })
+    resolveSpec(inputVal.trim())
+  }
+
+  return (
+    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <span className="text-lg">🔄</span>
+        <div>
+          <p className="text-sm font-semibold text-blue-800">
+            현재 사용 중인 경쟁사 공구 모델명
+          </p>
+          <p className="text-[10px] text-blue-500 mt-0.5">
+            입력하면 스펙을 자동으로 찾아 아래 항목을 채워줍니다
+          </p>
+        </div>
+      </div>
+
+      <div className="flex gap-2">
+        <input
+          className="flex-1 rounded-xl border-2 border-blue-300 bg-white px-3 py-2.5 text-sm
+                     placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
+          placeholder="예: GUHRING 3736, SANDVIK R216, SGS 47698..."
+          value={inputVal}
+          onChange={e => {
+            setInputVal(e.target.value)
+            onChange(
+              e.target.value.trim()
+                ? { status: "known", value: e.target.value.trim() }
+                : { status: "unanswered" },
+            )
+          }}
+          onKeyDown={e => e.key === "Enter" && handleSearch()}
+        />
+        <button
+          type="button"
+          onClick={handleSearch}
+          disabled={!inputVal.trim() || isResolving}
+          className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white
+                     hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed
+                     flex items-center gap-1.5 whitespace-nowrap"
+        >
+          {isResolving ? (
+            <>
+              <div className="h-3.5 w-3.5 animate-spin rounded-full border-2
+                              border-white border-t-transparent" />
+              검색 중...
+            </>
+          ) : (
+            <>🔍 스펙 검색</>
+          )}
+        </button>
+      </div>
+
+      {resolvedSpec && !isResolving && (
+        <div className="rounded-xl border border-green-200 bg-white p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-green-700 flex items-center gap-1">
+              ✓ 스펙 자동 완성됨
+              <span className={`ml-1 rounded-full px-1.5 py-0.5 text-[9px] font-medium ${
+                resolvedSpec.confidence === "high"
+                  ? "bg-green-100 text-green-700"
+                  : resolvedSpec.confidence === "medium"
+                  ? "bg-amber-100 text-amber-700"
+                  : "bg-gray-100 text-gray-500"
+              }`}>
+                {resolvedSpec.confidence === "high" ? "신뢰도 높음"
+                  : resolvedSpec.confidence === "medium" ? "신뢰도 중간"
+                  : "신뢰도 낮음 — 확인 권장"}
+              </span>
+            </p>
+            <button
+              type="button"
+              onClick={() => { clearSpec(); setInputVal(""); onChange({ status: "unanswered" }) }}
+              className="text-[10px] text-gray-400 hover:text-gray-600"
+            >
+              초기화
+            </button>
+          </div>
+          <div className="grid grid-cols-3 gap-1.5 text-[11px]">
+            {resolvedSpec.diameterMm != null && (
+              <div className="rounded-lg bg-gray-50 px-2 py-1.5">
+                <div className="text-gray-400">직경</div>
+                <div className="font-semibold text-gray-800">φ{resolvedSpec.diameterMm}mm ✓</div>
+              </div>
+            )}
+            {resolvedSpec.flutes != null && (
+              <div className="rounded-lg bg-gray-50 px-2 py-1.5">
+                <div className="text-gray-400">날수</div>
+                <div className="font-semibold text-gray-800">{resolvedSpec.flutes}날 ✓</div>
+              </div>
+            )}
+            {resolvedSpec.isoMaterial.length > 0 && (
+              <div className="rounded-lg bg-gray-50 px-2 py-1.5">
+                <div className="text-gray-400">소재</div>
+                <div className="font-semibold text-gray-800">{resolvedSpec.isoMaterial.join("/")} ✓</div>
+              </div>
+            )}
+            {resolvedSpec.toolSubtype && (
+              <div className="rounded-lg bg-gray-50 px-2 py-1.5">
+                <div className="text-gray-400">형상</div>
+                <div className="font-semibold text-gray-800">{resolvedSpec.toolSubtype} ✓</div>
+              </div>
+            )}
+            {resolvedSpec.coating && (
+              <div className="rounded-lg bg-gray-50 px-2 py-1.5">
+                <div className="text-gray-400">코팅</div>
+                <div className="font-semibold text-gray-800">{resolvedSpec.coating}</div>
+              </div>
+            )}
+          </div>
+          {resolvedSpec.confidence === "low" && (
+            <p className="text-[10px] text-amber-600 flex items-center gap-1">
+              ⚠ 아래 항목들을 직접 확인하고 수정하세요
+            </p>
+          )}
+          {resolvedSpec.source && (
+            <p className="text-[10px] text-gray-400 truncate">출처: {resolvedSpec.source}</p>
+          )}
+        </div>
+      )}
+
+      {resolveError && !isResolving && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+          <p className="text-xs text-amber-700">
+            ⚠ 스펙을 자동으로 찾지 못했습니다. 아래 항목을 직접 입력해주세요.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function IntakeFieldSection({
   config,
   index,
   state,
   onChange,
   form,
+  onFormChange,
 }: {
   config: IntakeFieldConfig
   index: number
   state: AnswerState<string>
   onChange: (s: AnswerState<string>) => void
   form?: ProductIntakeForm
+  onFormChange?: (key: keyof ProductIntakeForm, val: AnswerState<string>) => void
 }) {
   const { language } = useApp()
   const [showCustom, setShowCustom] = useState(false)
@@ -284,21 +435,34 @@ function IntakeFieldSection({
   }
 
   const selectedCount = config.multiSelect ? selectedValues.size : (state.status === "known" ? 1 : 0)
+  const isSubstituteMode =
+    config.key === "toolTypeOrCurrentProduct" &&
+    form?.inquiryPurpose?.status === "known" &&
+    (form.inquiryPurpose as { status: "known"; value: string }).value === "substitute"
+
   const referenceStyleSelection =
     config.key === "toolTypeOrCurrentProduct" ? (
-      <div className="rounded-2xl border border-gray-200 bg-[radial-gradient(circle_at_top_left,#ffffff_0%,#f4f4f5_72%)] p-3">
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(clamp(120px, 22vw, 240px), 1fr))", gap: "0.5rem" }}>
-          {config.options.map(option => (
-            <ToolCategoryCard
-              key={option.value}
-              option={option}
-              disabled={option.disabled}
-              selected={state.status === "known" && currentValue === option.value}
-              onClick={() => onChange({ status: "known", value: option.value })}
-            />
-          ))}
+      isSubstituteMode && onFormChange ? (
+        <SubstituteModeInput
+          currentValue={currentValue}
+          onChange={onChange}
+          onFormChange={onFormChange}
+        />
+      ) : (
+        <div className="rounded-2xl border border-gray-200 bg-[radial-gradient(circle_at_top_left,#ffffff_0%,#f4f4f5_72%)] p-3">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(clamp(120px, 22vw, 240px), 1fr))", gap: "0.5rem" }}>
+            {config.options.map(option => (
+              <ToolCategoryCard
+                key={option.value}
+                option={option}
+                disabled={option.disabled}
+                selected={state.status === "known" && currentValue === option.value}
+                onClick={() => onChange({ status: "known", value: option.value })}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      )
     ) : config.key === "inquiryPurpose" ? (
       <div className="rounded-2xl border border-gray-200 bg-[linear-gradient(180deg,#ffffff_0%,#fafafa_100%)] p-3">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(clamp(100px, 20vw, 220px), 1fr))", gap: "0.5rem" }}>
@@ -643,6 +807,7 @@ export function IntakeGate({
               state={form[config.key as keyof ProductIntakeForm] as AnswerState<string>}
               onChange={value => handleFieldChange(config.key as keyof ProductIntakeForm, value)}
               form={form}
+              onFormChange={(key, val) => handleFieldChange(key, val)}
             />
           </div>
         ))}

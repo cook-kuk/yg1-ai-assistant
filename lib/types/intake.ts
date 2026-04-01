@@ -160,7 +160,7 @@ export const FIELD_CONFIGS: IntakeFieldConfig[] = [
     description: "어떤 목적의 추천이 필요한지 선택하세요.",
     options: [
       { value: "new", label: "신규 제품 추천" },
-      { value: "substitute", label: "YG-1 대체품 찾기", disabled: true },
+      { value: "substitute", label: "YG-1 대체품 찾기" },
       { value: "inventory_substitute", label: "재고 없는 대체품", disabled: true },
       { value: "cutting_condition", label: "가공 조건 참고", disabled: true },
       { value: "product_lookup", label: "현재 제품 정보 확인", disabled: true },
