@@ -37,6 +37,7 @@ export interface AppliedFilter {
 // ── Narrowing Turn ───────────────────────────────────────────
 export interface NarrowingTurn {
   question: string
+  askedField?: string
   answer: string
   extractedFilters: AppliedFilter[]
   candidateCountBefore: number

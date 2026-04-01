@@ -70,6 +70,7 @@ function getSeriesRatingLabel(
 
 function getSeriesRatingBadgeClass(rating: "EXCELLENT" | "GOOD" | "NULL" | null | undefined): string {
   if (rating === "EXCELLENT") return "bg-emerald-100 text-emerald-700 border-emerald-200"
+  if (rating === "GOOD") return "bg-amber-100 text-amber-700 border-amber-200"
   return "bg-amber-100 text-amber-700 border-amber-200"
 }
 

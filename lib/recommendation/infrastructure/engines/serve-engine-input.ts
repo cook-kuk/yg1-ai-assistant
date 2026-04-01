@@ -1,9 +1,4 @@
-import {
-  canonicalizeIntakeSearchText,
-  canonicalizeMaterialSelection,
-  canonicalizeToolCategorySelection,
-  getMachiningCategoryDisplayValue,
-} from "@/lib/recommendation/shared/intake-localization"
+import { canonicalizeIntakeSearchText } from "@/lib/recommendation/shared/intake-localization"
 import {
   applyFilterToRecommendationInput,
   clearFilterFromRecommendationInput,
@@ -45,16 +40,15 @@ export function mapIntakeToInput(form: ProductIntakeForm): RecommendationInput {
   }
 
   const material = getKnown(form.material)
-  if (material) input.material = canonicalizeMaterialSelection(material)
+  if (material) input.material = canonicalizeIntakeSearchText(material)
 
-  const opParts: string[] = []
   const intent = getKnown(form.machiningIntent as AnswerState<MachiningIntent>)
   const intentMap: Record<MachiningIntent, string> = {
     roughing: "Roughing",
     semi: "Semi-finishing",
     finishing: "Finishing",
   }
-  if (intent) opParts.push(intentMap[intent])
+  if (intent) input.machiningIntent = intentMap[intent]
 
   const opType = getKnown(form.operationType)
   if (opType) {
@@ -62,7 +56,7 @@ export function mapIntakeToInput(form: ProductIntakeForm): RecommendationInput {
       .split(",")
       .map(value => canonicalizeIntakeSearchText(value.trim()))
       .filter(Boolean)
-    opParts.push(...ops)
+    if (ops.length > 0) input.operationType = ops.join(", ")
   }
 
   const diamStr = getKnown(form.diameterInfo)
@@ -73,14 +67,11 @@ export function mapIntakeToInput(form: ProductIntakeForm): RecommendationInput {
 
   const operationCategory = getKnown(form.toolTypeOrCurrentProduct)
   if (operationCategory) {
-    const normalized = canonicalizeToolCategorySelection(operationCategory)
+    const normalized = canonicalizeIntakeSearchText(operationCategory)
     if (normalized) {
-      input.toolType = normalized
-      input.machiningCategory = getMachiningCategoryDisplayValue(normalized, "en")
+      input.machiningCategory = normalized
     }
   }
-
-  if (opParts.length > 0) input.operationType = opParts.join(" ")
 
   const country = getKnown(form.country)
   if (country) {

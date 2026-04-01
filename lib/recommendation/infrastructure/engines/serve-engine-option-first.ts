@@ -666,6 +666,7 @@ function reconstructPreviousQuestionFromCandidates(
     seriesName: product => (product.product.seriesName as string) ?? null,
     toolSubtype: product => (product.product.toolSubtype as string) ?? null,
     toolMaterial: product => (product.product.toolMaterial as string) ?? null,
+    diameterMm: product => (product.product.diameterMm as number) ?? null,
     diameterRefine: product => (product.product.diameterMm as number) ?? null,
   }
   const getter = fieldGetter[field]
@@ -697,7 +698,11 @@ function reconstructPreviousQuestionFromCandidates(
   for (const candidate of candidateSource) {
     const value = getter(candidate)
     if (value != null) {
-      const label = field === "fluteCount" ? `${value}날` : String(value)
+      const label = field === "fluteCount"
+        ? `${value}날`
+        : field === "diameterMm" || field === "diameterRefine"
+          ? `${value}mm`
+          : String(value)
       valueCounts.set(label, (valueCounts.get(label) ?? 0) + 1)
     }
   }

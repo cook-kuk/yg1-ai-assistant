@@ -334,6 +334,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "number",
     op: "eq",
     unit: "mm",
+    clearInput: input => ({ ...input }),
   },
   material: {
     field: "material",

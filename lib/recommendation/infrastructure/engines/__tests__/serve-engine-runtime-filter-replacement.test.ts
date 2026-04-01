@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import { applyFilterToInput } from "../serve-engine-input"
-import { replaceFieldFilter, replaceFieldFilters } from "../serve-engine-filter-state"
-import type { AppliedFilter, RecommendationInput } from "@/lib/recommendation/domain/types"
+import { applyFilterToInput, mapIntakeToInput } from "../serve-engine-input"
+import { replaceFieldFilter } from "../serve-engine-filter-state"
+import { resolvePendingQuestionReply, shouldReplayUnresolvedPendingQuestion } from "../serve-engine-runtime"
+import type { AppliedFilter, ExplorationSessionState, ProductIntakeForm, RecommendationInput } from "@/lib/recommendation/domain/types"
 
 function makeBaseInput(): RecommendationInput {
   return {
@@ -66,7 +67,7 @@ describe("serve-engine runtime filter replacement", () => {
     expect(result.nextInput.coatingPreference).toBe("TiAlN")
   })
 
-  it("preserves workPieceName when material changes and applies toolType filters", () => {
+  it("clears dependent workPieceName when material changes and applies toolType filters", () => {
     const baseInput = {
       ...makeBaseInput(),
       workPieceName: "ADC12",
@@ -92,7 +93,7 @@ describe("serve-engine runtime filter replacement", () => {
     })
 
     expect(withMaterial.material).toBe("주철")
-    expect(withMaterial.workPieceName).toBe("ADC12")
+    expect(withMaterial.workPieceName).toBeUndefined()
     expect(withMaterial.toolType).toBe("드릴")
   })
 
@@ -109,77 +110,46 @@ describe("serve-engine runtime filter replacement", () => {
     expect(updated.operationType).toBe("Side_Milling")
   })
 
-  it("merges same-turn replacement and additional filters together", () => {
-    const baseInput = makeBaseInput()
-    const currentFilters: AppliedFilter[] = [
-      { field: "diameterMm", op: "eq", value: "8mm", rawValue: 8, appliedAt: 0 },
-      { field: "toolSubtype", op: "includes", value: "Square", rawValue: "Square", appliedAt: 1 },
-    ]
-    const turnFilters: AppliedFilter[] = [
-      { field: "toolSubtype", op: "includes", value: "Radius", rawValue: "Radius", appliedAt: 2 },
-      { field: "fluteCount", op: "eq", value: "4날", rawValue: 4, appliedAt: 2 },
-    ]
+  it("keeps machining category separate from operation shape when mapping intake input", () => {
+    const form: ProductIntakeForm = {
+      inquiryPurpose: { status: "known", value: "new" },
+      material: { status: "known", value: "알루미늄" },
+      operationType: { status: "known", value: "Slotting" },
+      machiningIntent: { status: "known", value: "roughing" },
+      toolTypeOrCurrentProduct: { status: "known", value: "Milling" },
+      diameterInfo: { status: "known", value: "10mm" },
+      country: { status: "unanswered" },
+    }
 
-    const result = replaceFieldFilters(baseInput, currentFilters, turnFilters, applyFilterToInput)
+    const input = mapIntakeToInput(form)
 
-    expect(result.replacedExisting).toBe(true)
-    expect(result.replacedFields).toEqual(["toolSubtype"])
-    expect(result.nextFilters).toEqual([
-      currentFilters[0],
-      turnFilters[0],
-      turnFilters[1],
-    ])
-    expect(result.nextInput.diameterMm).toBe(8)
-    expect(result.nextInput.toolSubtype).toBe("Radius")
-    expect(result.nextInput.flutePreference).toBe(4)
+    expect(input.operationType).toBe("Slotting")
+    expect(input.machiningCategory).toBe("Milling")
+    expect(input.machiningIntent).toBe("Roughing")
   })
 
-  it("keeps non-pending filters while merging a same-turn skip filter", () => {
-    const baseInput = {
-      ...makeBaseInput(),
-      coatingPreference: "TiAlN",
+  it("resolves direct numeric replies for pending diameter questions without chip match", () => {
+    const sessionState = {
+      lastAskedField: "diameterMm",
+      resolutionStatus: "narrowing",
+      turnCount: 2,
+      displayedChips: ["6mm (12개)", "8mm (9개)", "상관없음"],
+      displayedOptions: [],
+    } as unknown as ExplorationSessionState
+
+    const resolution = resolvePendingQuestionReply(sessionState, "7.5mm")
+
+    expect(resolution.kind).toBe("resolved")
+    if (resolution.kind === "resolved") {
+      expect(resolution.filter.field).toBe("diameterMm")
+      expect(resolution.filter.rawValue).toBe(7.5)
     }
-    const currentFilters: AppliedFilter[] = [
-      { field: "coating", op: "includes", value: "TiAlN", rawValue: "TiAlN", appliedAt: 1 },
-    ]
-    const turnFilters: AppliedFilter[] = [
-      { field: "toolSubtype", op: "includes", value: "Square", rawValue: "Square", appliedAt: 2 },
-      { field: "fluteCount", op: "eq", value: "3날", rawValue: 3, appliedAt: 2 },
-      { field: "coating", op: "skip", value: "상관없음", rawValue: "skip", appliedAt: 2 },
-    ]
-
-    const result = replaceFieldFilters(baseInput, currentFilters, turnFilters, applyFilterToInput)
-
-    expect(result.nextFilters).toEqual(turnFilters)
-    expect(result.nextInput.toolSubtype).toBe("Square")
-    expect(result.nextInput.flutePreference).toBe(3)
-    expect(result.nextInput.coatingPreference).toBeUndefined()
   })
 
-  it("replaces only the target field and preserves unrelated filters", () => {
-    const baseInput = {
-      ...makeBaseInput(),
-      workPieceName: "알루미늄 합금",
-      toolSubtype: "Square",
-      flutePreference: 3,
-    }
-    const currentFilters: AppliedFilter[] = [
-      { field: "toolSubtype", op: "includes", value: "Square", rawValue: "Square", appliedAt: 0 },
-      { field: "fluteCount", op: "eq", value: "3날", rawValue: 3, appliedAt: 1 },
-      { field: "workPieceName", op: "includes", value: "알루미늄 합금", rawValue: "알루미늄 합금", appliedAt: 2 },
-    ]
-
-    const result = replaceFieldFilters(baseInput, currentFilters, [
-      { field: "toolSubtype", op: "includes", value: "Radius", rawValue: "Radius", appliedAt: 3 },
-    ], applyFilterToInput)
-
-    expect(result.nextFilters).toEqual([
-      currentFilters[1],
-      currentFilters[2],
-      { field: "toolSubtype", op: "includes", value: "Radius", rawValue: "Radius", appliedAt: 3 },
-    ])
-    expect(result.nextInput.toolSubtype).toBe("Radius")
-    expect(result.nextInput.flutePreference).toBe(3)
-    expect(result.nextInput.workPieceName).toBe("알루미늄 합금")
+  it("does not replay the pending question when a later action already recovered the answer", () => {
+    expect(shouldReplayUnresolvedPendingQuestion("unresolved", null)).toBe(true)
+    expect(shouldReplayUnresolvedPendingQuestion("unresolved", "continue_narrowing")).toBe(false)
+    expect(shouldReplayUnresolvedPendingQuestion("unresolved", "replace_existing_filter")).toBe(false)
+    expect(shouldReplayUnresolvedPendingQuestion("resolved", "continue_narrowing")).toBe(false)
   })
 })
