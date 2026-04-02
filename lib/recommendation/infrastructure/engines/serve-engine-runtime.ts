@@ -36,8 +36,8 @@ import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-t
 import { TraceCollector, isDebugEnabled } from "@/lib/debug/agent-trace"
 import { normalizePlannerResult, validatePlannerResult, buildExecutorSummary } from "@/lib/recommendation/core/turn-boundaries"
 import { dryRunReduce, reduce, compareReducerVsActual, type ReducerAction } from "@/lib/recommendation/core/state-reducer"
-import { USE_STATE_REDUCER } from "@/lib/feature-flags"
-import { deriveChips, toChipState } from "@/lib/recommendation/core/chip-system"
+import { USE_STATE_REDUCER, USE_CHIP_SYSTEM } from "@/lib/feature-flags"
+import { deriveChips, toChipState, compareChips, safeApplyChips } from "@/lib/recommendation/core/chip-system"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
 import { classifyPreSearchRoute } from "@/lib/recommendation/infrastructure/engines/pre-search-route"
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
@@ -1085,6 +1085,37 @@ export async function handleServeExploration(
           } catch (e) {
             // Comparison failed — not critical
             console.warn("[reducer-shadow] comparison error:", e)
+          }
+        }
+
+        // ── Shadow chip comparison ──
+        const actualChips: string[] = (json as any).chips ?? []
+        if (prevState && actualChips.length > 0) {
+          try {
+            const chipState = toChipState(actualSessionState ?? prevState)
+            const newChips = deriveChips(chipState, language)
+            const chipComparison = compareChips(actualChips, newChips)
+
+            meta.chipComparison = {
+              match: chipComparison.match,
+              oldCount: chipComparison.oldCount,
+              newCount: chipComparison.newCount,
+              onlyInOld: chipComparison.onlyInOld.slice(0, 5),
+              onlyInNew: chipComparison.onlyInNew.slice(0, 5),
+              chipSystemUsed: USE_CHIP_SYSTEM,
+            }
+
+            if (!chipComparison.match) {
+              console.log(`[chip-shadow] MISMATCH: old=${chipComparison.oldCount} new=${chipComparison.newCount} onlyOld=[${chipComparison.onlyInOld.join(",")}] onlyNew=[${chipComparison.onlyInNew.join(",")}]`)
+            }
+
+            // Apply new chips if flag enabled + safe
+            if (USE_CHIP_SYSTEM) {
+              const applied = safeApplyChips(actualChips, newChips, true)
+              ;(json as any).chips = applied
+            }
+          } catch (e) {
+            console.warn("[chip-shadow] comparison error:", e)
           }
         }
 

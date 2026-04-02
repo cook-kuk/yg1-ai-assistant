@@ -266,3 +266,58 @@ export function toChipState(prevState: {
     hasHistory: (prevState?.narrowingHistory?.length ?? 0) > 0,
   }
 }
+
+// ── Chip Comparison (shadow mode) ──
+
+export interface ChipComparison {
+  match: boolean
+  oldCount: number
+  newCount: number
+  onlyInOld: string[]
+  onlyInNew: string[]
+  common: string[]
+}
+
+export function compareChips(oldChips: string[], newChips: RenderedChip[]): ChipComparison {
+  const oldSet = new Set(oldChips.map(c => c.trim()))
+  const newLabels = newChips.map(c => c.label)
+  const newSet = new Set(newLabels)
+
+  const onlyInOld = [...oldSet].filter(c => !newSet.has(c))
+  const onlyInNew = newLabels.filter(c => !oldSet.has(c))
+  const common = newLabels.filter(c => oldSet.has(c))
+
+  return {
+    match: onlyInOld.length === 0 && onlyInNew.length === 0,
+    oldCount: oldChips.length,
+    newCount: newChips.length,
+    onlyInOld,
+    onlyInNew,
+    common,
+  }
+}
+
+/**
+ * Safe chip application: returns new chips if valid, falls back to old chips.
+ * - Empty new chips → fallback
+ * - Abnormal count (>10 or 0) → fallback
+ */
+export function safeApplyChips(
+  oldChips: string[],
+  newChips: RenderedChip[],
+  useNewSystem: boolean,
+): string[] {
+  if (!useNewSystem) return oldChips
+
+  // Safety: fallback if new chips are empty or abnormal
+  if (newChips.length === 0) {
+    console.log("[chip-system] empty chips → fallback to old")
+    return oldChips
+  }
+  if (newChips.length > 10) {
+    console.log(`[chip-system] abnormal chip count (${newChips.length}) → fallback to old`)
+    return oldChips
+  }
+
+  return newChips.map(c => c.label)
+}

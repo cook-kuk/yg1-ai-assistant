@@ -38,6 +38,9 @@ export const ENABLE_POST_SQL_CANDIDATE_FILTERS = envFlag("ENABLE_POST_SQL_CANDID
 /** Use new state reducer instead of carryForwardState. Defaults to false (dry-run comparison only). Set USE_STATE_REDUCER=true to activate. */
 export const USE_STATE_REDUCER = envFlag("USE_STATE_REDUCER", false)
 
+/** Use new chip system instead of hardcoded chips. Defaults to false (shadow comparison only). Set USE_CHIP_SYSTEM=true to activate. */
+export const USE_CHIP_SYSTEM = envFlag("USE_CHIP_SYSTEM", false)
+
 /** Use V2 turn orchestrator (new recommendation pipeline). Defaults to true — V2 is the primary pipeline. Set USE_NEW_ORCHESTRATOR=false to revert to legacy. */
 export const USE_NEW_ORCHESTRATOR = process.env.USE_NEW_ORCHESTRATOR !== "false"
 
