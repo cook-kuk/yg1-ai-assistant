@@ -46,6 +46,8 @@ export interface ChatProductDto {
   lengthOfCutMm: number | null
   overallLengthMm: number | null
   helixAngleDeg: number | null
+  stockStatus: "instock" | "limited" | "outofstock" | "unknown"
+  totalStock: number | null
 }
 
 export interface ChatResponseDto {
@@ -116,6 +118,8 @@ export const chatProductSchema = z.object({
   lengthOfCutMm: z.number().nullable(),
   overallLengthMm: z.number().nullable(),
   helixAngleDeg: z.number().nullable(),
+  stockStatus: z.enum(["instock", "limited", "outofstock", "unknown"]).optional(),
+  totalStock: z.number().nullable().optional(),
 }).passthrough()
 
 export const chatResponseSchema = z.object({

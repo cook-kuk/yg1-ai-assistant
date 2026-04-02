@@ -86,6 +86,8 @@ interface ChatProduct {
   lengthOfCutMm: number | null
   overallLengthMm: number | null
   helixAngleDeg: number | null
+  stockStatus?: "instock" | "limited" | "outofstock" | "unknown"
+  totalStock?: number | null
 }
 
 interface ChatMessage {
@@ -388,48 +390,64 @@ export default function AssistantNewPage() {
                   {/* Product cards */}
                   {msg.products && msg.products.length > 0 && (
                     <div className="mt-3 space-y-2">
-                      {msg.products.slice(0, 5).map((p, i) => (
-                        <div key={p.displayCode} className="rounded-lg border border-gray-200 bg-white p-3 space-y-1.5">
-                          <div className="flex gap-2">
-                            <img
-                              src={p.seriesIconUrl || "/images/series/todo-placeholder.svg"}
-                              alt={p.displayCode}
-                              className="w-12 h-12 object-contain rounded border border-gray-100 bg-gray-50"
-                              onError={(e) => { (e.target as HTMLImageElement).src = "/images/series/todo-placeholder.svg" }}
-                            />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className={cn(
-                                  "inline-flex h-5 min-w-[20px] items-center justify-center rounded-full text-[10px] font-bold text-white px-1",
-                                  i === 0 ? "bg-[#ed1c24]" : "bg-gray-400"
-                                )}>#{i + 1}</span>
-                                {p.brand && <span className="text-xs font-bold text-purple-800">{p.brand}</span>}
+                      {msg.products.slice(0, 5).map((p, i) => {
+                        const stockBadge = p.stockStatus === "instock"
+                          ? { label: `재고 있음${p.totalStock ? ` (${p.totalStock})` : ""}`, cls: "bg-emerald-50 text-emerald-700 border-emerald-200" }
+                          : p.stockStatus === "limited"
+                          ? { label: `재고 한정${p.totalStock ? ` (${p.totalStock})` : ""}`, cls: "bg-amber-50 text-amber-700 border-amber-200" }
+                          : p.stockStatus === "outofstock"
+                          ? { label: "재고 없음", cls: "bg-red-50 text-red-600 border-red-200" }
+                          : { label: "재고 미확인", cls: "bg-gray-50 text-gray-500 border-gray-200" }
+                        const cleanFeature = (p.featureText || "").replace(/<br\s*\/?>/gi, " ").replace(/<[^>]*>/g, "")
+                        const cleanDesc = (p.description || "").replace(/<br\s*\/?>/gi, " ").replace(/<[^>]*>/g, "")
+                        return (
+                          <div key={p.displayCode} className="rounded-lg border border-gray-200 bg-white p-3 space-y-2">
+                            {/* Header: image + info */}
+                            <div className="flex gap-3">
+                              <img
+                                src={p.seriesIconUrl || "/images/series/todo-placeholder.svg"}
+                                alt={p.displayCode}
+                                className="w-14 h-14 object-contain rounded-lg border border-gray-100 bg-gray-50 p-0.5"
+                                onError={(e) => { (e.target as HTMLImageElement).src = "/images/series/todo-placeholder.svg" }}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className={cn(
+                                    "text-xs font-mono text-gray-400"
+                                  )}>#{i + 1}</span>
+                                  {stockBadge && (
+                                    <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-medium", stockBadge.cls)}>
+                                      {stockBadge.label}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="font-mono text-sm font-bold text-gray-900 mt-0.5">{p.displayCode}</div>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  {p.brand && <span className="text-xs font-bold text-purple-700">{p.brand}</span>}
+                                  {p.seriesName && <span className="text-xs text-green-600">{p.seriesName}</span>}
+                                </div>
                               </div>
-                              <div className="font-mono text-sm font-bold text-gray-900">{p.displayCode}</div>
-                              {p.description && <div className="text-[10px] text-gray-500 line-clamp-1">{p.description}</div>}
-                              <div className="text-[11px] text-gray-600 mt-0.5 font-medium">
-                                {[
-                                  p.toolSubtype,
-                                  p.toolMaterial,
-                                  p.shankDiameterMm ? `Shank ${p.shankDiameterMm}mm` : null,
-                                  p.lengthOfCutMm ? `CL ${p.lengthOfCutMm}mm` : null,
-                                  p.overallLengthMm ? `OAL ${p.overallLengthMm}mm` : null,
-                                  p.helixAngleDeg ? `${p.helixAngleDeg}°` : null,
-                                ].filter(Boolean).join(" · ")}
-                              </div>
-                              {p.materialTags?.length > 0 && (
-                                <div className="text-[10px] text-gray-400 mt-0.5">{p.materialTags.join("/")}군</div>
-                              )}
                             </div>
+                            {/* Spec summary line */}
+                            <div className="text-[11px] text-gray-600 font-medium">
+                              형상 {[
+                                p.toolSubtype,
+                                p.toolMaterial,
+                                p.shankDiameterMm ? `Shank ${p.shankDiameterMm}mm` : null,
+                                p.lengthOfCutMm ? `CL ${p.lengthOfCutMm}mm` : null,
+                                p.overallLengthMm ? `OAL ${p.overallLengthMm}mm` : null,
+                                p.helixAngleDeg ? `${p.helixAngleDeg}°` : null,
+                              ].filter(Boolean).join(" · ")}
+                            </div>
+                            {p.materialTags?.length > 0 && (
+                              <div className="text-[10px] text-gray-400">{p.materialTags.join("/")}군</div>
+                            )}
+                            {/* Feature text */}
+                            {cleanFeature && <p className="text-[10px] text-gray-500 italic line-clamp-1">{cleanFeature}</p>}
+                            {cleanDesc && !cleanFeature && <p className="text-[10px] text-gray-500 italic line-clamp-1">{cleanDesc}</p>}
                           </div>
-                          <div className="flex flex-wrap gap-1.5 text-[10px]">
-                            {p.diameterMm != null && <span className="rounded-full bg-blue-50 border border-blue-200 px-2 py-0.5 text-blue-700 font-semibold">φ{p.diameterMm}mm</span>}
-                            {p.fluteCount != null && <span className="rounded-full bg-green-50 border border-green-200 px-2 py-0.5 text-green-700">{p.fluteCount}날</span>}
-                            {p.coating && <span className="rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-amber-700">{p.coating}</span>}
-                          </div>
-                          {p.featureText && <p className="text-[10px] text-gray-400 line-clamp-2">{p.featureText}</p>}
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   )}
 

@@ -43,7 +43,8 @@ import type { ChatProductDto } from "@/lib/contracts/chat"
 
 const MAX_TOOL_ROUNDS = 5
 
-function extractProductsFromToolResults(toolResults: { name: string; result: string }[]): ChatProductDto[] {
+async function extractProductsFromToolResults(toolResults: { name: string; result: string }[]): Promise<ChatProductDto[]> {
+  const { InventoryRepo } = await import("@/lib/data/repos/inventory-repo")
   const products: ChatProductDto[] = []
   const seen = new Set<string>()
 
@@ -74,12 +75,26 @@ function extractProductsFromToolResults(toolResults: { name: string; result: str
           lengthOfCutMm: p.lengthOfCutMm ?? null,
           overallLengthMm: p.overallLengthMm ?? null,
           helixAngleDeg: p.helixAngleDeg ?? null,
+          stockStatus: "unknown",
+          totalStock: null,
         })
       }
     } catch { /* ignore parse errors */ }
   }
 
-  return products.slice(0, 10) // Top 10
+  // Enrich with inventory data
+  const enriched = await Promise.all(
+    products.slice(0, 10).map(async (p) => {
+      try {
+        const inv = await InventoryRepo.getEnrichedAsync(p.displayCode)
+        return { ...p, stockStatus: inv.stockStatus, totalStock: inv.totalStock }
+      } catch {
+        return p
+      }
+    })
+  )
+
+  return enriched
 }
 
 // ── Streaming version ──────────────────────────────────────────
@@ -560,7 +575,7 @@ export async function runChatConversation(
   const brandProducts = extractBrandInfo(toolResults)
 
   // Extract structured product data from tool results
-  const recommendedProducts = extractProductsFromToolResults(toolResults)
+  const recommendedProducts = await extractProductsFromToolResults(toolResults)
 
   // 1) 브랜드 헤더 주입
   const withBrand =
