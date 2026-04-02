@@ -763,7 +763,9 @@ async function executeGetCompetitorMapping(
           max_tokens: 1500,
           messages: [{
             role: "user",
-            content: `From this text, extract cutting tool specs as JSON. Only include fields you're confident about.\n\n${webSpecs.slice(0, 1500)}\n\nJSON: {"diameter_mm":null,"flute_count":null,"coating":null,"material":"","tool_type":""}`,
+            content: `From this text, extract cutting tool specs as JSON. Only include fields you're confident about.\n\n${webSpecs.slice(0, 1500)}\n\nJSON: {"diameter_mm":null,"flute_count":null,"coating":null,"material":"","tool_type":"","tool_shape":"square|ball|radius|chamfer|roughing|drill|tap|null","iso_groups":[]}
+\ntool_shape: square(flat end mill), ball(ball nose), radius(corner R), chamfer, roughing, drill, tap
+\niso_groups: array of ISO material groups this tool supports, e.g. ["P","M","K","S","N"]`,
           }],
         },
       })
@@ -787,11 +789,57 @@ async function executeGetCompetitorMapping(
         searchFilters.push({ field: "coating", op: "includes", value: specs.coating, rawValue: specs.coating, appliedAt: 0 })
       }
 
-      let alternatives = await ProductRepo.search(searchInput, searchFilters, 100)
+      let alternatives = await ProductRepo.search(searchInput, searchFilters, 200)
       if (specs.diameter_mm) {
         const diam = specs.diameter_mm
         alternatives = alternatives.filter(p => p.diameterMm != null && Math.abs(p.diameterMm - diam) <= 1)
       }
+
+      // ── Cross-reference hard filters: shape + material group ──
+      const SHAPE_GROUPS: Record<string, string[]> = {
+        square:  ["square", "flat", "em", "스퀘어"],
+        ball:    ["ball", "bnem", "볼", "ball nose"],
+        radius:  ["radius", "corner r", "corner radius", "코너r", "코너R"],
+        chamfer: ["chamfer", "bevel", "챔퍼"],
+        roughing:["roughing", "hog", "corn cob", "황삭"],
+        drill:   ["drill", "드릴"],
+        tap:     ["tap", "탭"],
+      }
+
+      function getShapeGroup(shapeStr: string): string {
+        const s = shapeStr.toLowerCase().replace(/\s/g, "")
+        for (const [group, keywords] of Object.entries(SHAPE_GROUPS)) {
+          if (keywords.some(k => s.includes(k.replace(/\s/g, "")))) return group
+        }
+        return "unknown"
+      }
+
+      // Shape filter: competitor shape must match YG-1 shape group
+      if (specs.tool_shape) {
+        const srcGroup = getShapeGroup(specs.tool_shape)
+        if (srcGroup !== "unknown") {
+          const shapeFiltered = alternatives.filter(p => {
+            const candShape = p.toolSubtype ?? p.toolType ?? ""
+            const candGroup = getShapeGroup(candShape)
+            return candGroup === "unknown" || candGroup === srcGroup
+          })
+          if (shapeFiltered.length > 0) alternatives = shapeFiltered
+        }
+      }
+
+      // ISO material group intersection filter
+      const srcIsoGroups = new Set<string>(
+        (specs.iso_groups ?? []).map((g: string) => g.toUpperCase())
+      )
+      if (srcIsoGroups.size > 0) {
+        const materialFiltered = alternatives.filter(p => {
+          if (!p.materialTags || p.materialTags.length === 0) return true // no data → keep
+          const intersection = p.materialTags.filter(t => srcIsoGroups.has(t.toUpperCase()))
+          return intersection.length > 0
+        })
+        if (materialFiltered.length > 0) alternatives = materialFiltered
+      }
+
       const deduped = dedupeProductsBySeries(alternatives)
 
       return JSON.stringify({
