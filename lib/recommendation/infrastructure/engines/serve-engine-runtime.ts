@@ -36,6 +36,7 @@ import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-t
 import { TraceCollector, isDebugEnabled } from "@/lib/debug/agent-trace"
 import { normalizePlannerResult, validatePlannerResult, buildExecutorSummary } from "@/lib/recommendation/core/turn-boundaries"
 import { dryRunReduce, type ReducerAction } from "@/lib/recommendation/core/state-reducer"
+import { deriveChips, toChipState } from "@/lib/recommendation/core/chip-system"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
 import { classifyPreSearchRoute } from "@/lib/recommendation/infrastructure/engines/pre-search-route"
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
@@ -1955,6 +1956,25 @@ async function handleServeExplorationInner(
         mutations: dryRun.mutations,
         nextStateSummary: dryRun.nextStateSummary,
       }, `Reducer would produce: ${dryRun.mutations.map(m => `${m.field}: ${m.before}→${m.after}`).join(", ")}`)
+
+      // Chip system dry-run: what chips WOULD be generated from reducer's nextState
+      const chipState = toChipState({
+        currentMode: dryRun.nextStateSummary.currentMode as string | null,
+        candidateCount: dryRun.nextStateSummary.candidateCount as number,
+        appliedFilters: prevState.appliedFilters,
+        lastAskedField: dryRun.nextStateSummary.lastAskedField as string | null,
+        turnCount: dryRun.nextStateSummary.turnCount as number,
+        resolutionStatus: prevState.resolutionStatus,
+        displayedCandidates: prevState.displayedCandidates,
+        narrowingHistory: prevState.narrowingHistory,
+      })
+      const derivedChips = deriveChips(chipState, language)
+      trace.add("chip-system-dry-run", "ui", {
+        chipState: { mode: chipState.currentMode, candidates: chipState.candidateCount, filters: chipState.appliedFilters.length },
+      }, {
+        chipCount: derivedChips.length,
+        chips: derivedChips.map(c => ({ key: c.key, label: c.label, type: c.type })),
+      }, `Chip system would produce ${derivedChips.length} chips: ${derivedChips.map(c => c.label).join(", ")}`)
     }
 
     if (action.type === "reset_session") {
