@@ -55,7 +55,6 @@ const navItems = [
     href: "/assistant/new",
     icon: MessageSquare,
     roles: ["sales", "rnd", "admin"],
-    disabled: true,
   },
   {
     title: "대시보드",
