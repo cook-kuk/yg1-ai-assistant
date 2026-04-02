@@ -1785,7 +1785,9 @@ async function handleServeExplorationInner(
           prevState.pendingAction = null
 
           const testInput = deps.applyFilterToInput(currentInput, filter)
-          const testFilters = [...filters, filter]
+          // 같은 필드 필터가 이미 있으면 교체 (추가가 아님)
+          const canonField = filter.field === "diameterRefine" ? "diameterMm" : filter.field
+          const testFilters = [...filters.filter(f => f.field !== filter.field && f.field !== canonField), filter]
           console.log(`[chip-filter-debug] filter=${JSON.stringify(filter)} testInput.diameterMm=${testInput.diameterMm} testFilters=${JSON.stringify(testFilters.map(f=>f.field+'='+f.value))}`)
           const testResult = await runHybridRetrieval(testInput, testFilters, 0, null)
           const testDisplayPage = sliceCandidatesForPage(testResult.candidates, testResult.evidenceMap, resolvedPagination)
