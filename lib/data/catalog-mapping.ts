@@ -193,24 +193,23 @@ export function findCatalogsForProduct(
   toolType: string | null,
   preferredLanguage: "ko" | "en" = "ko"
 ): CatalogEntry[] {
-  if (!seriesName && !description && !brand && !toolType) return []
+  if (!seriesName && !brand) return []
 
-  const searchText = [
-    seriesName ?? "",
-    description ?? "",
-    brand ?? "",
-    toolType ?? "",
-  ].join(" ").toLowerCase().replace(/[-_]/g, "")
+  // 매칭은 seriesName과 brand만 사용 (description/toolType은 오매칭 유발)
+  const seriesNorm = (seriesName ?? "").toLowerCase().replace(/[-_\s]/g, "")
+  const brandNorm = (brand ?? "").toLowerCase().replace(/[-_\s]/g, "")
 
-  const seriesLower = (seriesName ?? "").toLowerCase()
+  const matched = CATALOG_LIST.filter(catalog => {
+    // 언어 필터: preferredLanguage만 허용
+    if (catalog.language !== preferredLanguage) return false
 
-  const matched = CATALOG_LIST.filter(catalog =>
-    catalog.matchKeywords.length > 0 &&
-    catalog.matchKeywords.some(kw => {
-      const kwNorm = kw.replace(/[-_]/g, "")
-      return searchText.includes(kwNorm) || seriesLower.startsWith(kwNorm)
-    })
-  )
+    return catalog.matchKeywords.length > 0 &&
+      catalog.matchKeywords.some(kw => {
+        const kwNorm = kw.replace(/[-_\s]/g, "")
+        if (kwNorm.length < 3) return false // 짧은 키워드 오매칭 방지
+        return seriesNorm.includes(kwNorm) || brandNorm.includes(kwNorm) || kwNorm.includes(seriesNorm) && seriesNorm.length >= 3
+      })
+  })
 
   // Deduplicate by catalogId
   const seen = new Set<string>()
@@ -220,7 +219,7 @@ export function findCatalogsForProduct(
     return true
   })
 
-  // Sort: preferred language first
+  // Sort: preferred language first (already filtered, but keep for consistency)
   return unique.sort((a, b) => {
     const aScore = a.language === preferredLanguage ? 0 : 1
     const bScore = b.language === preferredLanguage ? 0 : 1

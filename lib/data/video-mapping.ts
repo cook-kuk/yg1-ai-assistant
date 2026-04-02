@@ -107,35 +107,28 @@ export function findVideosForProduct(
   brand: string | null,
   preferredLanguage: "ko" | "en" = "ko"
 ): VideoEntry[] {
-  if (!seriesName && !description && !brand) return []
+  if (!seriesName && !brand) return []
 
-  const searchText = [
-    seriesName ?? "",
-    description ?? "",
-    brand ?? "",
-  ].join(" ").toLowerCase().replace(/[-_]/g, "")
+  // 매칭은 seriesName과 brand만 사용 (description은 오매칭 유발)
+  const seriesNorm = (seriesName ?? "").toLowerCase().replace(/[-_\s]/g, "")
+  const brandNorm = (brand ?? "").toLowerCase().replace(/[-_\s]/g, "")
 
-  const seriesLower = (seriesName ?? "").toLowerCase()
+  const matched = VIDEO_LIST.filter(video => {
+    // 언어 필터: preferredLanguage 또는 "both"만 허용
+    if (video.language !== preferredLanguage && video.language !== "both") return false
 
-  const matched = VIDEO_LIST.filter(video =>
-    video.matchKeywords.some(kw => {
-      const kwNorm = kw.replace(/[-_]/g, "")
-      return searchText.includes(kwNorm) || seriesLower.startsWith(kwNorm)
+    return video.matchKeywords.some(kw => {
+      const kwNorm = kw.replace(/[-_\s]/g, "")
+      if (kwNorm.length < 3) return false // 짧은 키워드 오매칭 방지
+      return seriesNorm.includes(kwNorm) || brandNorm.includes(kwNorm) || kwNorm.includes(seriesNorm) && seriesNorm.length >= 3
     })
-  )
+  })
 
   // Deduplicate by URL
   const seen = new Set<string>()
-  const unique = matched.filter(v => {
+  return matched.filter(v => {
     if (seen.has(v.url)) return false
     seen.add(v.url)
     return true
-  })
-
-  // Sort: preferred language first, then "both"
-  return unique.sort((a, b) => {
-    const aScore = a.language === preferredLanguage ? 0 : a.language === "both" ? 1 : 2
-    const bScore = b.language === preferredLanguage ? 0 : b.language === "both" ? 1 : 2
-    return aScore - bScore
   })
 }
