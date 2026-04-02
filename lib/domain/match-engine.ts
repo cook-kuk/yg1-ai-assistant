@@ -13,12 +13,53 @@ import { getAppShapesForOperation } from "@/lib/domain/operation-resolver"
 
 // ── Scoring weights ───────────────────────────────────────────
 const WEIGHTS = {
-  diameter: 40,       // exact diameter match is most critical
-  flutes: 15,
+  diameter: 35,       // exact diameter match is most critical
+  shape: 20,          // tool shape (Square/Ball/Radius) match
   materialTag: 20,
-  operation: 15,
+  flutes: 10,
+  operation: 10,
   coating: 5,
-  completeness: 5,    // prefer more complete data
+  completeness: 0,    // prefer more complete data (unused in cross-ref)
+}
+
+// Cross-reference weights: shape & material are most important
+const WEIGHTS_CROSSREF = {
+  shape: 35,
+  materialTag: 30,
+  diameter: 20,
+  flutes: 10,
+  operation: 0,
+  coating: 0,
+  completeness: 0,
+}
+
+const SHAPE_ALIASES: Record<string, string> = {
+  square: "square", flat: "square", "flat end": "square",
+  ball: "ball", "ball nose": "ball", ballnose: "ball",
+  radius: "radius", "corner r": "radius", "corner radius": "radius",
+  chamfer: "chamfer",
+  roughing: "roughing",
+  drill: "drill",
+  tap: "tap",
+}
+
+function normalizeShape(s: string | null | undefined): string | null {
+  if (!s) return null
+  const lower = s.toLowerCase().trim()
+  for (const [key, group] of Object.entries(SHAPE_ALIASES)) {
+    if (lower.includes(key)) return group
+  }
+  return lower
+}
+
+function scoreShape(product: CanonicalProduct, targetShape: string | undefined, weight: number): number {
+  if (!targetShape) return Math.round(weight * 0.5)
+  const prodShape = normalizeShape(product.toolSubtype)
+  const tgtShape = normalizeShape(targetShape)
+  if (!prodShape || !tgtShape) return 0
+  if (prodShape === tgtShape) return weight
+  // Shape mismatch → strong penalty
+  return -20
 }
 
 function scoreDiameter(product: CanonicalProduct, targetMm: number | undefined): number {
@@ -87,7 +128,29 @@ function matchedFields(product: CanonicalProduct, input: RecommendationInput): s
   return fields
 }
 
-export async function runMatchEngine(input: RecommendationInput, topN = 5): Promise<ScoredProduct[]> {
+// Runtime material tag enrichment based on coating + tool material
+function enrichMaterialTags(product: CanonicalProduct): string[] {
+  const tags = [...product.materialTags]
+  if (tags.length >= 4) return tags // already rich
+
+  const coating = (product.coating ?? "").toLowerCase()
+  const toolMat = (product.toolMaterial ?? "").toLowerCase()
+  const subtype = (product.toolSubtype ?? "").toLowerCase()
+
+  if (coating.includes("t-coat") && toolMat.includes("carbide") && (subtype.includes("square") || subtype.includes("ball") || subtype.includes("radius"))) {
+    for (const t of ["P", "M", "K", "H"]) if (!tags.includes(t)) tags.push(t)
+  } else if (coating.includes("ticn") && toolMat.includes("carbide")) {
+    for (const t of ["P", "M", "K"]) if (!tags.includes(t)) tags.push(t)
+  } else if ((coating.includes("dlc") || coating.includes("diamond")) && toolMat.includes("carbide")) {
+    if (!tags.includes("N")) tags.push("N")
+  } else if (coating.includes("x-coat") && toolMat.includes("hss")) {
+    for (const t of ["P", "M"]) if (!tags.includes(t)) tags.push(t)
+  }
+
+  return tags
+}
+
+export async function runMatchEngine(input: RecommendationInput, topN = 5, isCrossReference = false): Promise<ScoredProduct[]> {
   const products = await ProductRepo.search(input, [], Math.max(topN * 20, 500))
 
   // ── Pre-filter: hard constraints ─────────────────────────────
@@ -98,23 +161,39 @@ export async function runMatchEngine(input: RecommendationInput, topN = 5): Prom
     const strict = candidates.filter(p =>
       p.diameterMm !== null && Math.abs(p.diameterMm - input.diameterMm!) <= 2
     )
-    // If strict filter has results, use it; otherwise keep all
     if (strict.length > 0) candidates = strict
   }
 
+  // Cross-reference: shape hard filter — remove mismatched shapes
+  if (isCrossReference && input.toolSubtype) {
+    const targetShape = normalizeShape(input.toolSubtype)
+    if (targetShape) {
+      const shapeFiltered = candidates.filter(p => {
+        const pShape = normalizeShape(p.toolSubtype)
+        return !pShape || pShape === targetShape
+      })
+      if (shapeFiltered.length > 0) candidates = shapeFiltered
+    }
+  }
+
   // ── Score all candidates ─────────────────────────────────────
-  // maxScore = sum of all WEIGHTS (100). No +10 bonus:
-  // scoreDiameter returns 10 when no preference, but max is still 40 (diameter weight).
-  const maxScore = Object.values(WEIGHTS).reduce((a, b) => a + b, 0)
+  const w = isCrossReference ? WEIGHTS_CROSSREF : WEIGHTS
+  const maxScore = Object.values(w).reduce((a, b) => a + b, 0)
 
   const scored = await Promise.all(candidates.map(async (product) => {
+    // Enrich material tags at runtime for sparse data
+    const enrichedProduct = isCrossReference
+      ? { ...product, materialTags: enrichMaterialTags(product) }
+      : product
+
     const score =
-      scoreDiameter(product, input.diameterMm) +
-      scoreFlutes(product, input.flutePreference) +
-      scoreMaterial(product, input.material) +
-      scoreOperation(product, input.operationType) +
-      scoreCoating(product, input.coatingPreference) +
-      Math.round(product.dataCompletenessScore * WEIGHTS.completeness)
+      scoreDiameter(enrichedProduct, input.diameterMm) +
+      scoreShape(enrichedProduct, input.toolSubtype, w.shape) +
+      scoreFlutes(enrichedProduct, input.flutePreference) +
+      scoreMaterial(enrichedProduct, input.material) +
+      scoreOperation(enrichedProduct, input.operationType) +
+      scoreCoating(enrichedProduct, input.coatingPreference) +
+      Math.round(enrichedProduct.dataCompletenessScore * w.completeness)
 
     const status = determineMatchStatus(score, maxScore, input)
     const fields = matchedFields(product, input)
