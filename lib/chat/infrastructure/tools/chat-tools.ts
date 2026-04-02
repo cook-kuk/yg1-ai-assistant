@@ -815,15 +815,28 @@ async function executeGetCompetitorMapping(
       }
 
       // Shape filter: competitor shape must match YG-1 shape group
-      if (specs.tool_shape) {
-        const srcGroup = getShapeGroup(specs.tool_shape)
-        if (srcGroup !== "unknown") {
-          const shapeFiltered = alternatives.filter(p => {
-            const candShape = p.toolSubtype ?? p.toolType ?? ""
-            const candGroup = getShapeGroup(candShape)
-            return candGroup === "unknown" || candGroup === srcGroup
-          })
-          if (shapeFiltered.length > 0) alternatives = shapeFiltered
+      // Also try to infer shape from tool_type if tool_shape is missing
+      const competitorShape = specs.tool_shape ?? specs.tool_type ?? ""
+      const srcGroup = getShapeGroup(competitorShape)
+      console.log(`[competitor-xref] shape filter: input="${competitorShape}" → group="${srcGroup}", candidates before=${alternatives.length}`)
+
+      if (srcGroup !== "unknown") {
+        const shapeFiltered = alternatives.filter(p => {
+          // Check toolSubtype, toolType, AND description/featureText for shape keywords
+          const fields = [
+            p.toolSubtype ?? "",
+            p.toolType ?? "",
+            p.description ?? "",
+            p.featureText ?? "",
+          ].join(" ")
+          const candGroup = getShapeGroup(fields)
+          return candGroup === srcGroup
+        })
+        console.log(`[competitor-xref] shape filter: ${srcGroup} → ${shapeFiltered.length} matches (from ${alternatives.length})`)
+        if (shapeFiltered.length > 0) {
+          alternatives = shapeFiltered
+        } else {
+          console.log(`[competitor-xref] shape filter returned 0, keeping all ${alternatives.length} candidates`)
         }
       }
 
@@ -831,12 +844,15 @@ async function executeGetCompetitorMapping(
       const srcIsoGroups = new Set<string>(
         (specs.iso_groups ?? []).map((g: string) => g.toUpperCase())
       )
+      console.log(`[competitor-xref] material filter: srcGroups=${[...srcIsoGroups].join(",")}, candidates before=${alternatives.length}`)
+
       if (srcIsoGroups.size > 0) {
         const materialFiltered = alternatives.filter(p => {
-          if (!p.materialTags || p.materialTags.length === 0) return true // no data → keep
+          if (!p.materialTags || p.materialTags.length === 0) return true
           const intersection = p.materialTags.filter(t => srcIsoGroups.has(t.toUpperCase()))
           return intersection.length > 0
         })
+        console.log(`[competitor-xref] material filter: ${materialFiltered.length} matches (from ${alternatives.length})`)
         if (materialFiltered.length > 0) alternatives = materialFiltered
       }
 
