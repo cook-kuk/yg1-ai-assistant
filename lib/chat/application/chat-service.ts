@@ -404,6 +404,46 @@ JSON 형식으로만 응답: {"material":"P/M/K/N/S/H 또는 null","diameter_mm"
   }
 }
 
+// ── Regex-based fast parameter extraction (no LLM needed) ──
+function fastExtractParams(text: string): Record<string, unknown> {
+  const params: Record<string, unknown> = {}
+  const lower = text.toLowerCase()
+
+  // diameter
+  const diamMatch = text.match(/(?:φ|ø|직경\s*)(\d+(?:\.\d+)?)\s*mm/i) ?? text.match(/(\d+(?:\.\d+)?)\s*mm/)
+  if (diamMatch) params.diameter_mm = parseFloat(diamMatch[1])
+
+  // flute count
+  const fluteMatch = text.match(/(\d+)\s*날/)
+  if (fluteMatch) params.flute_count = parseInt(fluteMatch[1])
+
+  // tool type
+  if (/드릴|drill/i.test(lower)) params.tool_type = "drill"
+  else if (/엔드밀|endmill|end mill/i.test(lower)) params.tool_type = "endmill"
+  else if (/탭|tap/i.test(lower)) params.tool_type = "tap"
+
+  // tool subtype
+  if (/square|스퀘어/i.test(lower)) params.tool_subtype = "square"
+  else if (/ball|볼/i.test(lower)) params.tool_subtype = "ball"
+  else if (/radius|코너\s*r/i.test(lower)) params.tool_subtype = "radius"
+  else if (/roughing|황삭/i.test(lower)) params.tool_subtype = "roughing"
+
+  // material (ISO)
+  if (/탄소강|s45c|sm45c|일반강|carbon steel/i.test(lower)) params.material = "P"
+  else if (/스테인리스|스텐|sus|stainless/i.test(lower)) params.material = "M"
+  else if (/주철|cast iron/i.test(lower)) params.material = "K"
+  else if (/알루미늄|비철|aluminum|non.?ferrous/i.test(lower)) params.material = "N"
+  else if (/인코넬|초내열|titanium|inconel|티타늄/i.test(lower)) params.material = "S"
+  else if (/고경도|hrc|hardened|경화강/i.test(lower)) params.material = "H"
+
+  // coating
+  if (/tialn/i.test(lower)) params.coating = "TiAlN"
+  else if (/dlc/i.test(lower)) params.coating = "DLC"
+  else if (/비코팅|무코팅|uncoated/i.test(lower)) params.coating = "Uncoated"
+
+  return params
+}
+
 async function extractParamsAndPreSearch(
   messages: ChatMessage[],
   deps: ChatServiceDeps,
@@ -414,31 +454,52 @@ async function extractParamsAndPreSearch(
       .map(m => `[${m.role}] ${m.text}`)
       .join("\n")
 
-    const policy = loadParamExtractionPolicy()
-    const response = await deps.client.messages.create({
-      model: deps.model as Parameters<typeof deps.client.messages.create>[0]["model"],
-      max_tokens: 300,
-      system: policy,
-      messages: [{ role: "user", content: conversationText }],
-    })
+    const lastUserText = [...messages].reverse().find(m => m.role === "user")?.text ?? ""
 
-    const text = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map(b => b.text).join("")
+    // ── Fast path: regex extraction (skip LLM if 2+ params found) ──
+    const fastParams = fastExtractParams(lastUserText)
+    const fastParamCount = Object.keys(fastParams).length
 
-    const jsonMatch = text.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) return { preSearchResult: null, extractedParams: {} }
+    let extractedParams: Record<string, unknown>
 
-    const params = JSON.parse(jsonMatch[0])
-    const extractedParams: Record<string, unknown> = {}
+    if (fastParamCount >= 2) {
+      // Skip LLM — regex extraction is sufficient
+      console.log(`[pre-search] fast-path: ${fastParamCount} params from regex, skipping LLM`)
+      extractedParams = fastParams
+    } else {
+      // ── Slow path: LLM extraction ──
+      const policy = loadParamExtractionPolicy()
+      const response = await deps.client.messages.create({
+        model: deps.model as Parameters<typeof deps.client.messages.create>[0]["model"],
+        max_tokens: 300,
+        system: policy,
+        messages: [{ role: "user", content: conversationText }],
+      })
 
-    // Only keep non-null values
-    if (params.material) extractedParams.material = params.material
-    if (params.diameter_mm) extractedParams.diameter_mm = params.diameter_mm
-    if (params.operation_type) extractedParams.operation_type = params.operation_type
-    if (params.flute_count) extractedParams.flute_count = params.flute_count
-    if (params.coating) extractedParams.coating = params.coating
-    if (params.keyword) extractedParams.keyword = params.keyword
+      const text = response.content
+        .filter((b): b is Anthropic.TextBlock => b.type === "text")
+        .map(b => b.text).join("")
+
+      const jsonMatch = text.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) return { preSearchResult: null, extractedParams: {} }
+
+      const params = JSON.parse(jsonMatch[0])
+      extractedParams = {}
+
+      if (params.material) extractedParams.material = params.material
+      if (params.diameter_mm) extractedParams.diameter_mm = params.diameter_mm
+      if (params.operation_type) extractedParams.operation_type = params.operation_type
+      if (params.flute_count) extractedParams.flute_count = params.flute_count
+      if (params.coating) extractedParams.coating = params.coating
+      if (params.keyword) extractedParams.keyword = params.keyword
+      if (params.tool_type) extractedParams.tool_type = params.tool_type
+      if (params.tool_subtype) extractedParams.tool_subtype = params.tool_subtype
+
+      // Merge fast params for fields LLM missed
+      for (const [k, v] of Object.entries(fastParams)) {
+        if (!extractedParams[k]) extractedParams[k] = v
+      }
+    }
 
     // If we have at least 1 param, do a pre-search
     if (Object.keys(extractedParams).length > 0) {

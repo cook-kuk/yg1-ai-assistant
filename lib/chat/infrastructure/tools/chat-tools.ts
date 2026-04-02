@@ -24,6 +24,14 @@ export const CHAT_TOOLS: Anthropic.Tool[] = [
           description:
             "가공 소재 (한국어/영어/ISO 태그). 예: '스테인리스', 'SUS304', 'aluminum', 'P', 'M'",
         },
+        tool_type: {
+          type: "string",
+          description: "공구 타입. 예: 'endmill', 'drill', 'tap', 'reamer'. 사용자가 '드릴', '엔드밀', '탭' 등 명시한 경우에만.",
+        },
+        tool_subtype: {
+          type: "string",
+          description: "공구 형상. 예: 'square', 'ball', 'radius', 'roughing', 'chamfer', 'taper'. 사용자가 명시한 경우에만.",
+        },
         diameter_mm: {
           type: "number",
           description: "공구 직경 (mm)",
@@ -334,6 +342,26 @@ function dedupeProductsBySeries(products: CanonicalProduct[]): CanonicalProduct[
   return [...seriesSeen.values()]
 }
 
+// ── Tool type / subtype canonical resolver ──
+const TOOL_TYPE_MAP: Record<string, string> = {
+  drill: "Holemaking", endmill: "Milling", tap: "Threading", reamer: "Holemaking",
+  "드릴": "Holemaking", "엔드밀": "Milling", "탭": "Threading", "리머": "Holemaking",
+}
+const TOOL_SUBTYPE_CANON: Record<string, string> = {
+  square: "Square", ball: "Ball", radius: "Radius", roughing: "Roughing",
+  chamfer: "Chamfer", taper: "Taper",
+  "스퀘어": "Square", "볼": "Ball", "코너r": "Radius", "황삭": "Roughing",
+}
+
+function resolveToolType(raw: string | undefined): string | null {
+  if (!raw) return null
+  return TOOL_TYPE_MAP[raw.toLowerCase()] ?? null
+}
+function resolveToolSubtype(raw: string | undefined): string | null {
+  if (!raw) return null
+  return TOOL_SUBTYPE_CANON[raw.toLowerCase()] ?? null
+}
+
 function buildProductSearchOptions(params: {
   material?: string
   diameter_mm?: number
@@ -341,6 +369,8 @@ function buildProductSearchOptions(params: {
   operation_type?: string
   coating?: string
   keyword?: string
+  tool_type?: string
+  tool_subtype?: string
 }): { input: RecommendationInput; filters: AppliedFilter[] } {
   const input: RecommendationInput = {
     manufacturerScope: "yg1-only",
@@ -350,6 +380,10 @@ function buildProductSearchOptions(params: {
   if (params.material) input.material = params.material
   if (params.diameter_mm != null) input.diameterMm = params.diameter_mm
   if (params.operation_type) input.operationType = params.operation_type
+
+  // tool_type → edp_root_category mapping
+  const rootCategory = resolveToolType(params.tool_type)
+  if (rootCategory) input.toolType = rootCategory
 
   const filters: AppliedFilter[] = []
   if (params.flute_count != null) {
@@ -370,7 +404,6 @@ function buildProductSearchOptions(params: {
       appliedAt: 0,
     })
   }
-  // keyword는 DB 필터가 아닌 JS 후필터로 처리 (executeSearchProducts에서)
 
   return { input, filters }
 }
@@ -382,12 +415,16 @@ async function executeSearchProducts(params: {
   operation_type?: string
   coating?: string
   keyword?: string
+  tool_type?: string
+  tool_subtype?: string
   show_all?: boolean
   offset?: number
 }): Promise<string> {
   const { input, filters } = buildProductSearchOptions(params)
   let results = await ProductRepo.search(input, filters, 200)
+  const canonSubtype = resolveToolSubtype(params.tool_subtype)
 
+  // ── Hard filter 1: material ──
   if (params.material) {
     const tag = resolveMaterialTag(params.material)
     if (tag) {
@@ -396,13 +433,64 @@ async function executeSearchProducts(params: {
     }
   }
 
+  // ── Hard filter 2: tool_type (드릴/엔드밀/탭 구분) ──
+  if (params.tool_type) {
+    const rootCat = resolveToolType(params.tool_type)
+    if (rootCat) {
+      const filtered = results.filter(p => {
+        const pCat = (p.toolType ?? "").toLowerCase()
+        return pCat.includes(rootCat.toLowerCase()) || pCat.includes(params.tool_type!.toLowerCase())
+      })
+      if (filtered.length > 0) results = filtered
+    }
+  }
+
+  // ── Hard filter 3: tool_subtype (Square/Ball/Radius) ──
+  if (canonSubtype) {
+    const filtered = results.filter(p => {
+      const pSub = (p.toolSubtype ?? "").toLowerCase()
+      return pSub.includes(canonSubtype.toLowerCase())
+    })
+    if (filtered.length > 0) results = filtered
+  }
+
+  // ── Diameter: exact-first → near fallback ──
+  let diameterNote: string | null = null
+  if (params.diameter_mm != null) {
+    const target = params.diameter_mm
+    // Stage 1: exact match (0mm tolerance)
+    const exact = results.filter(p => p.diameterMm != null && p.diameterMm === target)
+    if (exact.length > 0) {
+      results = exact
+    } else {
+      // Stage 2: near match (±0.5mm)
+      const near = results.filter(p => p.diameterMm != null && Math.abs(p.diameterMm - target) <= 0.5)
+      if (near.length > 0) {
+        results = near
+        diameterNote = `φ${target}mm 정확 매칭 없음. ±0.5mm 근접 직경으로 검색.`
+      } else {
+        // Stage 3: wider near (±2mm)
+        const wider = results.filter(p => p.diameterMm != null && Math.abs(p.diameterMm - target) <= 2)
+        if (wider.length > 0) {
+          results = wider
+          const nearDiameters = [...new Set(wider.map(p => p.diameterMm))].sort((a, b) => Math.abs(a! - target) - Math.abs(b! - target)).slice(0, 3)
+          diameterNote = `φ${target}mm 제품 없음. 근접 직경: ${nearDiameters.map(d => `φ${d}mm`).join(", ")}`
+        } else {
+          // No products within ±2mm — don't return distant mismatches
+          diameterNote = `φ${target}mm 및 근접 직경 제품을 찾지 못했습니다.`
+          results = []
+        }
+      }
+    }
+  }
+
+  // ── Keyword search ──
   const keyword = params.keyword
   if (keyword) {
     const filtered = results.filter(product => matchesKeyword(product, keyword))
     if (filtered.length > 0) {
       results = filtered
     } else if (results.length === 0) {
-      // Keyword-only search: if no other filters produced results, do a wide search
       const wideResults = await ProductRepo.search({ manufacturerScope: "yg1-only", locale: "ko" }, [], 500)
       const keywordMatched = wideResults.filter(product => matchesKeyword(product, keyword))
       if (keywordMatched.length > 0) results = keywordMatched
@@ -411,21 +499,40 @@ async function executeSearchProducts(params: {
 
   let deduped = dedupeProductsBySeries(results)
 
-  // Auto-relax: 0건이면 operation_type 빼고 재검색
-  if (deduped.length === 0 && params.operation_type) {
-    const relaxedParams = { ...params, operation_type: undefined }
+  // ── Safe auto-relax: only soft constraints ──
+  // NEVER relax: tool_type, tool_subtype (when explicit), diameter (hard)
+  if (deduped.length === 0 && (params.operation_type || params.coating)) {
+    const relaxedParams = { ...params, operation_type: undefined, coating: undefined }
+    // Keep hard constraints
     const { input: rInput, filters: rFilters } = buildProductSearchOptions(relaxedParams)
     let relaxedResults = await ProductRepo.search(rInput, rFilters, 200)
+    // Re-apply hard filters
     if (params.material) {
       const tag = resolveMaterialTag(params.material)
       if (tag) {
-        const filtered = relaxedResults.filter(product => product.materialTags.includes(tag))
-        if (filtered.length > 0) relaxedResults = filtered
+        const f = relaxedResults.filter(product => product.materialTags.includes(tag))
+        if (f.length > 0) relaxedResults = f
       }
+    }
+    if (params.tool_type) {
+      const rootCat = resolveToolType(params.tool_type)
+      if (rootCat) {
+        const f = relaxedResults.filter(p => (p.toolType ?? "").toLowerCase().includes(rootCat.toLowerCase()))
+        if (f.length > 0) relaxedResults = f
+      }
+    }
+    if (canonSubtype) {
+      const f = relaxedResults.filter(p => (p.toolSubtype ?? "").toLowerCase().includes(canonSubtype.toLowerCase()))
+      if (f.length > 0) relaxedResults = f
+    }
+    if (params.diameter_mm != null) {
+      const f = relaxedResults.filter(p => p.diameterMm != null && Math.abs(p.diameterMm - params.diameter_mm!) <= 2)
+      if (f.length > 0) relaxedResults = f
+      else relaxedResults = [] // don't return distant diameter mismatches
     }
     if (keyword) {
-      const filtered = relaxedResults.filter(product => matchesKeyword(product, keyword))
-      if (filtered.length > 0) relaxedResults = filtered
+      const f = relaxedResults.filter(product => matchesKeyword(product, keyword))
+      if (f.length > 0) relaxedResults = f
     }
     deduped = dedupeProductsBySeries(relaxedResults)
     if (deduped.length > 0) {
@@ -439,37 +546,8 @@ async function executeSearchProducts(params: {
         showing: `${offset + 1}~${offset + page.length}/${totalDeduped}`,
         hasMore: offset + page.length < totalDeduped,
         remainingCount: Math.max(0, totalDeduped - offset - page.length),
-        relaxedFilter: "operation_type 필터를 완화하여 검색했습니다. 가공형상(operation_type) 매칭이 정확하지 않을 수 있습니다.",
-        products: page.map(slimProduct),
-      })
-    }
-  }
-
-  // Auto-relax: 여전히 0건이면 coating도 빼고 재검색
-  if (deduped.length === 0 && params.coating) {
-    const relaxedParams = { ...params, operation_type: undefined, coating: undefined }
-    const { input: rInput, filters: rFilters } = buildProductSearchOptions(relaxedParams)
-    let relaxedResults = await ProductRepo.search(rInput, rFilters, 200)
-    if (params.material) {
-      const tag = resolveMaterialTag(params.material)
-      if (tag) {
-        const filtered = relaxedResults.filter(product => product.materialTags.includes(tag))
-        if (filtered.length > 0) relaxedResults = filtered
-      }
-    }
-    deduped = dedupeProductsBySeries(relaxedResults)
-    if (deduped.length > 0) {
-      const totalDeduped = deduped.length
-      const pageSize = params.show_all ? 100 : 10
-      const offset = params.offset ?? 0
-      const page = deduped.slice(offset, offset + pageSize)
-      return JSON.stringify({
-        count: page.length,
-        totalMatched: totalDeduped,
-        showing: `${offset + 1}~${offset + page.length}/${totalDeduped}`,
-        hasMore: offset + page.length < totalDeduped,
-        remainingCount: Math.max(0, totalDeduped - offset - page.length),
-        relaxedFilter: "operation_type + coating 필터를 완화하여 검색했습니다.",
+        relaxedFilter: "가공형상/코팅 필터를 완화하여 검색했습니다.",
+        ...(diameterNote ? { diameterNote } : {}),
         products: page.map(slimProduct),
       })
     }
@@ -482,7 +560,10 @@ async function executeSearchProducts(params: {
       count: 0,
       totalMatched: 0,
       products: [],
-      message: "내부 DB에서 검색 조건에 맞는 제품을 찾지 못했습니다. 조건을 줄이거나 keyword로 시리즈명을 검색해보세요.",
+      ...(diameterNote ? { diameterNote } : {}),
+      message: diameterNote
+        ? `${diameterNote} 다른 직경이나 조건으로 검색해보세요.`
+        : "내부 DB에서 검색 조건에 맞는 제품을 찾지 못했습니다. 조건을 줄이거나 keyword로 시리즈명을 검색해보세요.",
     })
   }
 
@@ -496,6 +577,7 @@ async function executeSearchProducts(params: {
     showing: `${offset + 1}~${offset + page.length}/${totalDeduped}`,
     hasMore: offset + page.length < totalDeduped,
     remainingCount: Math.max(0, totalDeduped - offset - page.length),
+    ...(diameterNote ? { diameterNote } : {}),
     products: page.map(slimProduct),
   })
 }
