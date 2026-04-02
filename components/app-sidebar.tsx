@@ -21,6 +21,7 @@ import {
   MessageCircle,
   Globe,
   MapPin,
+  Calculator,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/lib/store"
@@ -78,6 +79,13 @@ const navItems = [
     titleEn: "Product Finder",
     href: "/products",
     icon: Search,
+    roles: ["sales", "rnd", "admin"],
+  },
+  {
+    title: "가공조건 시뮬레이터",
+    titleEn: "Cutting Simulator",
+    href: "/simulator",
+    icon: Calculator,
     roles: ["sales", "rnd", "admin"],
   },
   {
