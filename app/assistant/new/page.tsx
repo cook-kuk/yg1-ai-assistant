@@ -78,7 +78,14 @@ interface ChatProduct {
   materialTags: string[]
   toolType: string | null
   toolSubtype: string | null
+  toolMaterial: string | null
   featureText: string | null
+  description: string | null
+  seriesIconUrl: string | null
+  shankDiameterMm: number | null
+  lengthOfCutMm: number | null
+  overallLengthMm: number | null
+  helixAngleDeg: number | null
 }
 
 interface ChatMessage {
@@ -382,26 +389,45 @@ export default function AssistantNewPage() {
                   {msg.products && msg.products.length > 0 && (
                     <div className="mt-3 space-y-2">
                       {msg.products.slice(0, 5).map((p, i) => (
-                        <div key={p.displayCode} className="rounded-lg border border-gray-200 bg-white p-2.5 text-xs">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className={cn(
-                              "inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white",
-                              i === 0 ? "bg-[#ed1c24]" : "bg-gray-400"
-                            )}>
-                              {i + 1}
-                            </span>
-                            <span className="font-bold text-gray-900">{p.brand || "YG-1"}</span>
-                            <span className="font-mono text-blue-600">{p.displayCode}</span>
+                        <div key={p.displayCode} className="rounded-lg border border-gray-200 bg-white p-3 space-y-1.5">
+                          <div className="flex gap-2">
+                            <img
+                              src={p.seriesIconUrl || "/images/series/todo-placeholder.svg"}
+                              alt={p.displayCode}
+                              className="w-12 h-12 object-contain rounded border border-gray-100 bg-gray-50"
+                              onError={(e) => { (e.target as HTMLImageElement).src = "/images/series/todo-placeholder.svg" }}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={cn(
+                                  "inline-flex h-5 min-w-[20px] items-center justify-center rounded-full text-[10px] font-bold text-white px-1",
+                                  i === 0 ? "bg-[#ed1c24]" : "bg-gray-400"
+                                )}>#{i + 1}</span>
+                                {p.brand && <span className="text-xs font-bold text-purple-800">{p.brand}</span>}
+                              </div>
+                              <div className="font-mono text-sm font-bold text-gray-900">{p.displayCode}</div>
+                              {p.description && <div className="text-[10px] text-gray-500 line-clamp-1">{p.description}</div>}
+                              <div className="text-[11px] text-gray-600 mt-0.5 font-medium">
+                                {[
+                                  p.toolSubtype,
+                                  p.toolMaterial,
+                                  p.shankDiameterMm ? `Shank ${p.shankDiameterMm}mm` : null,
+                                  p.lengthOfCutMm ? `CL ${p.lengthOfCutMm}mm` : null,
+                                  p.overallLengthMm ? `OAL ${p.overallLengthMm}mm` : null,
+                                  p.helixAngleDeg ? `${p.helixAngleDeg}°` : null,
+                                ].filter(Boolean).join(" · ")}
+                              </div>
+                              {p.materialTags?.length > 0 && (
+                                <div className="text-[10px] text-gray-400 mt-0.5">{p.materialTags.join("/")}군</div>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex flex-wrap gap-1.5 text-[10px] text-gray-500">
-                            {p.seriesName && <span className="rounded bg-gray-100 px-1.5 py-0.5">{p.seriesName}</span>}
-                            {p.diameterMm && <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700">φ{p.diameterMm}mm</span>}
-                            {p.fluteCount && <span className="rounded bg-green-50 px-1.5 py-0.5 text-green-700">{p.fluteCount}날</span>}
-                            {p.coating && <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-700">{p.coating}</span>}
-                            {p.toolSubtype && <span className="rounded bg-purple-50 px-1.5 py-0.5 text-purple-700">{p.toolSubtype}</span>}
-                            {p.materialTags?.length > 0 && <span className="rounded bg-red-50 px-1.5 py-0.5 text-red-700">{p.materialTags.join("/")}</span>}
+                          <div className="flex flex-wrap gap-1.5 text-[10px]">
+                            {p.diameterMm != null && <span className="rounded-full bg-blue-50 border border-blue-200 px-2 py-0.5 text-blue-700 font-semibold">φ{p.diameterMm}mm</span>}
+                            {p.fluteCount != null && <span className="rounded-full bg-green-50 border border-green-200 px-2 py-0.5 text-green-700">{p.fluteCount}날</span>}
+                            {p.coating && <span className="rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-amber-700">{p.coating}</span>}
                           </div>
-                          {p.featureText && <p className="mt-1 text-[10px] text-gray-400 line-clamp-2">{p.featureText}</p>}
+                          {p.featureText && <p className="text-[10px] text-gray-400 line-clamp-2">{p.featureText}</p>}
                         </div>
                       ))}
                     </div>
@@ -555,19 +581,37 @@ export default function AssistantNewPage() {
               {chatProducts.slice(0, 5).map((p, i) => (
                 <Card key={p.displayCode} className={cn("overflow-hidden", i === 0 && "ring-2 ring-[#ed1c24]/30")}>
                   <CardContent className="p-2.5">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <Badge className={cn("text-[10px]", i === 0 ? "bg-[#ed1c24]" : "bg-muted-foreground")}>#{i + 1}</Badge>
-                      <span className="text-xs font-bold truncate">{p.brand || "YG-1"}</span>
+                    <div className="flex gap-2 mb-1.5">
+                      <img
+                        src={p.seriesIconUrl || "/images/series/todo-placeholder.svg"}
+                        alt={p.displayCode}
+                        className="w-10 h-10 object-contain rounded border border-gray-100 bg-gray-50"
+                        onError={(e) => { (e.target as HTMLImageElement).src = "/images/series/todo-placeholder.svg" }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <Badge className={cn("text-[10px]", i === 0 ? "bg-[#ed1c24]" : "bg-muted-foreground")}>#{i + 1}</Badge>
+                          {p.brand && <span className="text-[10px] font-bold text-purple-800 truncate">{p.brand}</span>}
+                        </div>
+                        <p className="text-xs font-mono font-bold text-gray-900">{p.displayCode}</p>
+                      </div>
                     </div>
-                    <p className="text-xs font-mono text-blue-600 mb-1">{p.displayCode}</p>
-                    {p.seriesName && <p className="text-[10px] text-muted-foreground mb-1.5">{p.seriesName}</p>}
+                    {p.description && <p className="text-[10px] text-gray-500 line-clamp-1 mb-1">{p.description}</p>}
+                    <div className="text-[10px] text-gray-600 font-medium mb-1">
+                      {[
+                        p.toolSubtype,
+                        p.toolMaterial,
+                        p.lengthOfCutMm ? `CL ${p.lengthOfCutMm}mm` : null,
+                        p.overallLengthMm ? `OAL ${p.overallLengthMm}mm` : null,
+                      ].filter(Boolean).join(" · ")}
+                    </div>
                     <div className="flex flex-wrap gap-1 text-[9px]">
-                      {p.diameterMm && <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700">φ{p.diameterMm}mm</span>}
-                      {p.fluteCount && <span className="rounded bg-green-50 px-1.5 py-0.5 text-green-700">{p.fluteCount}날</span>}
-                      {p.coating && <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-700">{p.coating}</span>}
-                      {p.toolSubtype && <span className="rounded bg-purple-50 px-1.5 py-0.5 text-purple-700">{p.toolSubtype}</span>}
+                      {p.diameterMm != null && <span className="rounded-full bg-blue-50 border border-blue-200 px-1.5 py-0.5 text-blue-700 font-semibold">φ{p.diameterMm}mm</span>}
+                      {p.fluteCount != null && <span className="rounded-full bg-green-50 border border-green-200 px-1.5 py-0.5 text-green-700">{p.fluteCount}날</span>}
+                      {p.coating && <span className="rounded-full bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-amber-700">{p.coating}</span>}
+                      {p.materialTags?.length > 0 && <span className="rounded-full bg-red-50 border border-red-200 px-1.5 py-0.5 text-red-700">{p.materialTags.join("/")}</span>}
                     </div>
-                    {p.featureText && <p className="mt-1.5 text-[10px] text-gray-400 line-clamp-2">{p.featureText}</p>}
+                    {p.featureText && <p className="mt-1 text-[10px] text-gray-400 line-clamp-2">{p.featureText}</p>}
                   </CardContent>
                 </Card>
               ))}

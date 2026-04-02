@@ -66,7 +66,14 @@ function extractProductsFromToolResults(toolResults: { name: string; result: str
           materialTags: p.materialTags ?? [],
           toolType: p.toolType ?? null,
           toolSubtype: p.toolSubtype ?? null,
+          toolMaterial: p.toolMaterial ?? null,
           featureText: p.featureText ?? null,
+          description: p.description ?? null,
+          seriesIconUrl: p.seriesIconUrl ?? null,
+          shankDiameterMm: p.shankDiameterMm ?? null,
+          lengthOfCutMm: p.lengthOfCutMm ?? null,
+          overallLengthMm: p.overallLengthMm ?? null,
+          helixAngleDeg: p.helixAngleDeg ?? null,
         })
       }
     } catch { /* ignore parse errors */ }

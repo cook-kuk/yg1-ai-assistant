@@ -38,7 +38,14 @@ export interface ChatProductDto {
   materialTags: string[]
   toolType: string | null
   toolSubtype: string | null
+  toolMaterial: string | null
   featureText: string | null
+  description: string | null
+  seriesIconUrl: string | null
+  shankDiameterMm: number | null
+  lengthOfCutMm: number | null
+  overallLengthMm: number | null
+  helixAngleDeg: number | null
 }
 
 export interface ChatResponseDto {
@@ -101,7 +108,14 @@ export const chatProductSchema = z.object({
   materialTags: z.array(z.string()),
   toolType: z.string().nullable(),
   toolSubtype: z.string().nullable(),
+  toolMaterial: z.string().nullable(),
   featureText: z.string().nullable(),
+  description: z.string().nullable(),
+  seriesIconUrl: z.string().nullable(),
+  shankDiameterMm: z.number().nullable(),
+  lengthOfCutMm: z.number().nullable(),
+  overallLengthMm: z.number().nullable(),
+  helixAngleDeg: z.number().nullable(),
 }).passthrough()
 
 export const chatResponseSchema = z.object({

@@ -297,7 +297,14 @@ function slimProduct(product: CanonicalProduct) {
     featureText: product.featureText,
     toolType: product.toolType,
     toolSubtype: product.toolSubtype,
+    toolMaterial: product.toolMaterial,
     applicationShapes: product.applicationShapes,
+    description: product.description,
+    seriesIconUrl: product.seriesIconUrl,
+    shankDiameterMm: product.shankDiameterMm,
+    lengthOfCutMm: product.lengthOfCutMm,
+    overallLengthMm: product.overallLengthMm,
+    helixAngleDeg: product.helixAngleDeg,
   }
 }
 
