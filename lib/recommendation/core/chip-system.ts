@@ -79,12 +79,14 @@ function getLabel(key: string, locale: "ko" | "en"): string {
 export interface ChipState {
   currentMode: string | null          // "narrowing" | "recommendation" | "question" | null
   candidateCount: number
-  appliedFilters: Array<{ field: string; op: string }>
+  appliedFilters: Array<{ field: string; op: string; value?: string }>
   lastAskedField: string | null
   turnCount: number
   resolutionStatus: string | null
   displayedCandidateCount: number
   hasHistory: boolean
+  // Dynamic chip data (candidate distribution)
+  candidateDistribution?: Array<{ field: string; value: string; count: number }>
 }
 
 function hasFilter(state: ChipState, field: string): boolean {
@@ -232,15 +234,39 @@ const CHIP_POLICIES: ChipPolicy[] = [
 // ── Main derivation function ──
 
 export function deriveChips(state: ChipState, locale: "ko" | "en" = "ko", maxChips = 6): RenderedChip[] {
-  return CHIP_POLICIES
+  const staticChips = CHIP_POLICIES
     .filter(policy => policy.visible(state))
     .sort((a, b) => a.priority - b.priority)
     .slice(0, maxChips)
     .map(policy => ({
       key: policy.intent,
       label: getLabel(policy.labelKey, locale),
-      type: policy.type,
+      type: policy.type as ChipType,
     }))
+
+  // Dynamic chips from candidate distribution (e.g., "Radius (204개)", "Square (189개)")
+  const dynamicChips: RenderedChip[] = []
+  if (state.candidateDistribution && state.candidateDistribution.length > 0 && isNarrowingPhase(state)) {
+    const topValues = state.candidateDistribution
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 4)
+
+    for (const item of topValues) {
+      dynamicChips.push({
+        key: `narrow_${item.field}_${item.value}`,
+        label: `${item.value} (${item.count}${locale === "ko" ? "개" : ""})`,
+        type: "filter",
+      })
+    }
+  }
+
+  // Merge: dynamic chips first (if any), then static, up to maxChips
+  if (dynamicChips.length > 0) {
+    const combined = [...dynamicChips, ...staticChips]
+    return combined.slice(0, maxChips)
+  }
+
+  return staticChips
 }
 
 // ── Helper: convert ExplorationSessionState to ChipState ──
@@ -248,22 +274,25 @@ export function deriveChips(state: ChipState, locale: "ko" | "en" = "ko", maxChi
 export function toChipState(prevState: {
   currentMode?: string | null
   candidateCount?: number
-  appliedFilters?: Array<{ field: string; op: string }>
+  appliedFilters?: Array<{ field: string; op: string; value?: string }>
   lastAskedField?: string | null
   turnCount?: number
   resolutionStatus?: string | null
   displayedCandidates?: unknown[]
   narrowingHistory?: unknown[]
+  // Optional: candidate distribution for dynamic chips
+  candidateDistribution?: Array<{ field: string; value: string; count: number }>
 } | null): ChipState {
   return {
     currentMode: prevState?.currentMode ?? null,
     candidateCount: prevState?.candidateCount ?? 0,
-    appliedFilters: (prevState?.appliedFilters ?? []).map(f => ({ field: f.field, op: f.op })),
+    appliedFilters: (prevState?.appliedFilters ?? []).map(f => ({ field: f.field, op: f.op, value: f.value })),
     lastAskedField: prevState?.lastAskedField ?? null,
     turnCount: prevState?.turnCount ?? 0,
     resolutionStatus: prevState?.resolutionStatus ?? null,
     displayedCandidateCount: prevState?.displayedCandidates?.length ?? 0,
     hasHistory: (prevState?.narrowingHistory?.length ?? 0) > 0,
+    candidateDistribution: prevState?.candidateDistribution,
   }
 }
 

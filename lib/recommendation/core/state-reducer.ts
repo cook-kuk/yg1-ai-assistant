@@ -73,10 +73,11 @@ function reduceNarrow(
   const newCandidateCount = action.candidateCountAfter
   mutations.push({ field: "candidateCount", before: prev.candidateCount, after: newCandidateCount })
 
-  const newPhase = newCandidateCount <= 10 ? "recommendation" : prev.currentMode
-  if (newPhase !== prev.currentMode) {
-    mutations.push({ field: "currentMode", before: prev.currentMode, after: newPhase })
-  }
+  // Phase: match actual buildSessionState behavior
+  // "narrowing" if still asking questions (candidateCount > 0 and not resolved)
+  // "recommendation" only when resolution triggered
+  // Don't change phase on narrow — the response builder decides
+  const newPhase = prev.currentMode ?? "narrowing"
 
   return {
     nextState: {
@@ -87,7 +88,8 @@ function reduceNarrow(
       currentMode: newPhase,
       resolvedInput: action.resolvedInput,
       lastAction: "continue_narrowing",
-      lastAskedField: null,
+      // Don't force lastAskedField to null — the question engine sets it
+      lastAskedField: prev.lastAskedField,
     },
     mutations,
   }

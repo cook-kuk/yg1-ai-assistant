@@ -1057,21 +1057,50 @@ export async function handleServeExploration(
         const meta = (json as any).meta ?? {}
         meta.debugTrace = debugTrace
 
-        // ── Shadow reducer comparison ──
+        // ── Shadow reducer comparison (post-execution — uses ACTUAL response data) ──
         const actualSessionState = (json as any).sessionState ?? (json as any).session?.engineState
         if (actualSessionState && prevState && debugTrace.plannerAction) {
           try {
-            // Reconstruct the reducer action from planner
+            // Use ACTUAL candidateCount and lastAskedField from response
+            const actualCandidateCount = actualSessionState.candidateCount ?? 0
+            const actualLastAskedField = actualSessionState.lastAskedField ?? null
+            const actualMode = actualSessionState.currentMode ?? null
+            const actualFilters = actualSessionState.appliedFilters ?? []
+
             const reducerAction: ReducerAction = debugTrace.plannerAction === "continue_narrowing"
-              ? { type: "narrow", filter: { field: "unknown", value: "unknown", op: "eq", rawValue: "unknown", appliedAt: 0 }, candidateCountAfter: actualSessionState.candidateCount ?? 0, resolvedInput: prevState.resolvedInput ?? {} as any }
+              ? { type: "narrow", filter: actualFilters[actualFilters.length - 1] ?? { field: "unknown", value: "unknown", op: "eq", rawValue: "unknown", appliedAt: 0 }, candidateCountAfter: actualCandidateCount, resolvedInput: actualSessionState.resolvedInput ?? prevState.resolvedInput ?? {} as any }
+              : debugTrace.plannerAction === "skip_field"
+              ? { type: "skip_field", field: prevState.lastAskedField ?? "unknown" }
               : debugTrace.plannerAction === "show_recommendation"
-              ? { type: "recommend", candidateCountAfter: actualSessionState.candidateCount ?? 0, displayedCandidates: [] }
-              : debugTrace.plannerAction === "answer_general"
+              ? { type: "recommend", candidateCountAfter: actualCandidateCount, displayedCandidates: actualSessionState.displayedCandidates ?? [] }
+              : debugTrace.plannerAction === "answer_general" || debugTrace.plannerAction === "redirect_off_topic"
               ? { type: "general_chat" }
-              : { type: "passthrough", overrides: { turnCount: (prevState.turnCount ?? 0) + 1, lastAction: debugTrace.plannerAction } }
+              : debugTrace.plannerAction === "reset_session"
+              ? { type: "reset" }
+              : debugTrace.plannerAction === "go_back_one_step" || debugTrace.plannerAction === "go_back_to_filter"
+              ? { type: "go_back", candidateCountAfter: actualCandidateCount, remainingFilters: actualFilters }
+              : debugTrace.plannerAction === "filter_by_stock"
+              ? { type: "stock_filter", candidateCountAfter: actualCandidateCount }
+              : { type: "passthrough", overrides: {
+                  turnCount: actualSessionState.turnCount ?? (prevState.turnCount ?? 0) + 1,
+                  lastAction: debugTrace.plannerAction,
+                  candidateCount: actualCandidateCount,
+                  currentMode: actualMode,
+                  lastAskedField: actualLastAskedField,
+                } }
 
             const reducerResult = reduce(prevState as any, reducerAction)
             const comparison = compareReducerVsActual(reducerResult.nextState, actualSessionState)
+
+            // Reducer dry-run trace (now post-execution with real data)
+            const dryRun = dryRunReduce(prevState as any, reducerAction)
+            debugTrace.events?.push({
+              step: "reducer-dry-run",
+              category: "context",
+              inputSummary: { actionType: reducerAction.type, actualCandidateCount, actualMode },
+              outputSummary: { mutations: dryRun.mutations, nextStateSummary: dryRun.nextStateSummary },
+              reasonSummary: `Post-exec reducer: ${dryRun.mutations.map(m => `${m.field}: ${m.before}→${m.after}`).join(", ")}`,
+            })
 
             meta.reducerComparison = {
               match: comparison.match,
@@ -1083,18 +1112,31 @@ export async function handleServeExploration(
               console.log(`[reducer-shadow] MISMATCH: ${comparison.differences.map(d => `${d.field}: reducer=${d.reducer} actual=${d.actual}`).join(", ")}`)
             }
           } catch (e) {
-            // Comparison failed — not critical
             console.warn("[reducer-shadow] comparison error:", e)
           }
         }
 
-        // ── Shadow chip comparison ──
+        // ── Shadow chip comparison (post-execution — uses ACTUAL state + candidate data) ──
         const actualChips: string[] = (json as any).chips ?? []
         if (prevState && actualChips.length > 0) {
           try {
+            // Use actual session state for chip derivation (includes real filters, mode, candidateCount)
             const chipState = toChipState(actualSessionState ?? prevState)
             const newChips = deriveChips(chipState, language)
             const chipComparison = compareChips(actualChips, newChips)
+
+            // Chip dry-run trace
+            debugTrace.events?.push({
+              step: "chip-system-dry-run",
+              category: "ui",
+              inputSummary: { mode: chipState.currentMode, candidates: chipState.candidateCount, filters: chipState.appliedFilters.length },
+              outputSummary: {
+                chipCount: newChips.length,
+                chips: newChips.map(c => ({ key: c.key, label: c.label, type: c.type })),
+                dynamicChipCount: 0,
+              },
+              reasonSummary: `Chips: ${newChips.map(c => c.label).join(", ")}`,
+            })
 
             meta.chipComparison = {
               match: chipComparison.match,
@@ -1109,7 +1151,6 @@ export async function handleServeExploration(
               console.log(`[chip-shadow] MISMATCH: old=${chipComparison.oldCount} new=${chipComparison.newCount} onlyOld=[${chipComparison.onlyInOld.join(",")}] onlyNew=[${chipComparison.onlyInNew.join(",")}]`)
             }
 
-            // Apply new chips if flag enabled + safe
             if (USE_CHIP_SYSTEM) {
               const applied = safeApplyChips(actualChips, newChips, true)
               ;(json as any).chips = applied
@@ -1996,50 +2037,8 @@ async function handleServeExplorationInner(
       bullets: reasoningBullets,
     })
 
-    // ── Dry-run reducer for DebugTrace (no behavior change) ──
-    {
-      const reducerAction: ReducerAction = action.type === "continue_narrowing" && action.filter
-        ? { type: "narrow", filter: action.filter, candidateCountAfter: totalCandidateCount, resolvedInput: currentInput }
-        : action.type === "skip_field"
-        ? { type: "skip_field", field: prevState.lastAskedField ?? "unknown" }
-        : action.type === "show_recommendation"
-        ? { type: "recommend", candidateCountAfter: totalCandidateCount, displayedCandidates: [] }
-        : action.type === "compare_products"
-        ? { type: "compare" }
-        : action.type === "answer_general" || action.type === "redirect_off_topic"
-        ? { type: "general_chat" }
-        : action.type === "reset_session"
-        ? { type: "reset" }
-        : { type: "passthrough", overrides: { turnCount: turnCount + 1, lastAction: action.type } }
-
-      const dryRun = dryRunReduce(prevState, reducerAction)
-      trace.add("reducer-dry-run", "context", {
-        actionType: reducerAction.type,
-        mutationCount: dryRun.mutations.length,
-      }, {
-        mutations: dryRun.mutations,
-        nextStateSummary: dryRun.nextStateSummary,
-      }, `Reducer would produce: ${dryRun.mutations.map(m => `${m.field}: ${m.before}→${m.after}`).join(", ")}`)
-
-      // Chip system dry-run: what chips WOULD be generated from reducer's nextState
-      const chipState = toChipState({
-        currentMode: dryRun.nextStateSummary.currentMode as string | null,
-        candidateCount: dryRun.nextStateSummary.candidateCount as number,
-        appliedFilters: prevState.appliedFilters,
-        lastAskedField: dryRun.nextStateSummary.lastAskedField as string | null,
-        turnCount: dryRun.nextStateSummary.turnCount as number,
-        resolutionStatus: prevState.resolutionStatus,
-        displayedCandidates: prevState.displayedCandidates,
-        narrowingHistory: prevState.narrowingHistory,
-      })
-      const derivedChips = deriveChips(chipState, language)
-      trace.add("chip-system-dry-run", "ui", {
-        chipState: { mode: chipState.currentMode, candidates: chipState.candidateCount, filters: chipState.appliedFilters.length },
-      }, {
-        chipCount: derivedChips.length,
-        chips: derivedChips.map(c => ({ key: c.key, label: c.label, type: c.type })),
-      }, `Chip system would produce ${derivedChips.length} chips: ${derivedChips.map(c => c.label).join(", ")}`)
-    }
+    // ── Reducer/Chip dry-run moved to post-execution (handleServeExploration outer) ──
+    // Uses actual response data for accurate comparison
 
     if (action.type === "reset_session") {
       return buildResetResponse(deps, requestPrep)
