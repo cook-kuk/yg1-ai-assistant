@@ -917,6 +917,10 @@ export interface ServeEngineRuntimeDependencies {
     currentInput: RecommendationInput,
     prevState: ExplorationSessionState | null
   ) => Promise<QuestionReply>
+  handleCompetitorCrossReference?: (
+    userMessage: string,
+    prevState: ExplorationSessionState | null,
+  ) => Promise<QuestionReply>
   handleDirectCuttingConditionQuestion: (
     userMessage: string,
     currentInput: RecommendationInput,
