@@ -28,6 +28,19 @@ export interface ChatRequestDto {
   mode?: string
 }
 
+export interface ChatProductDto {
+  displayCode: string
+  seriesName: string | null
+  brand: string | null
+  diameterMm: number | null
+  fluteCount: number | null
+  coating: string | null
+  materialTags: string[]
+  toolType: string | null
+  toolSubtype: string | null
+  featureText: string | null
+}
+
 export interface ChatResponseDto {
   intent: ChatPurpose
   text: string
@@ -36,6 +49,7 @@ export interface ChatResponseDto {
   extractedField?: ChatExtractedFieldDto | null
   isComplete: boolean
   recommendationIds?: string[] | null
+  recommendedProducts?: ChatProductDto[] | null
   references?: string[] | null
   error?: string
   detail?: string
@@ -77,6 +91,19 @@ export type StreamEventDone = { type: "done" }
 export type StreamEventError = { type: "error"; message: string }
 export type StreamEvent = StreamEventText | StreamEventMeta | StreamEventDone | StreamEventError
 
+export const chatProductSchema = z.object({
+  displayCode: z.string(),
+  seriesName: z.string().nullable(),
+  brand: z.string().nullable(),
+  diameterMm: z.number().nullable(),
+  fluteCount: z.number().nullable(),
+  coating: z.string().nullable(),
+  materialTags: z.array(z.string()),
+  toolType: z.string().nullable(),
+  toolSubtype: z.string().nullable(),
+  featureText: z.string().nullable(),
+}).passthrough()
+
 export const chatResponseSchema = z.object({
   intent: chatPurposeSchema,
   text: z.string(),
@@ -85,6 +112,7 @@ export const chatResponseSchema = z.object({
   extractedField: chatExtractedFieldSchema.nullable().optional(),
   isComplete: z.boolean(),
   recommendationIds: z.array(z.string()).nullable().optional(),
+  recommendedProducts: z.array(chatProductSchema).nullable().optional(),
   references: z.array(z.string()).nullable().optional(),
   error: z.string().optional(),
   detail: z.string().optional(),

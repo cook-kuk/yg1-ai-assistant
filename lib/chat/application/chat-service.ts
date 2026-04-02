@@ -39,7 +39,41 @@ export interface ChatServiceResult {
   llmUsage: Anthropic.Message["usage"] | undefined
 }
 
+import type { ChatProductDto } from "@/lib/contracts/chat"
+
 const MAX_TOOL_ROUNDS = 5
+
+function extractProductsFromToolResults(toolResults: { name: string; result: string }[]): ChatProductDto[] {
+  const products: ChatProductDto[] = []
+  const seen = new Set<string>()
+
+  for (const tr of toolResults) {
+    if (tr.name !== "search_products" && tr.name !== "get_competitor_mapping" && tr.name !== "get_product_detail") continue
+    try {
+      const data = JSON.parse(tr.result)
+      const items = data.products ?? data.yg1Alternatives ?? []
+      for (const p of items) {
+        const code = p.displayCode
+        if (!code || seen.has(code)) continue
+        seen.add(code)
+        products.push({
+          displayCode: code,
+          seriesName: p.seriesName ?? null,
+          brand: p.brand ?? null,
+          diameterMm: p.diameterMm ?? null,
+          fluteCount: p.fluteCount ?? null,
+          coating: p.coating ?? null,
+          materialTags: p.materialTags ?? [],
+          toolType: p.toolType ?? null,
+          toolSubtype: p.toolSubtype ?? null,
+          featureText: p.featureText ?? null,
+        })
+      }
+    } catch { /* ignore parse errors */ }
+  }
+
+  return products.slice(0, 10) // Top 10
+}
 
 // ── Streaming version ──────────────────────────────────────────
 
@@ -518,6 +552,9 @@ export async function runChatConversation(
   const references = extractReferences(toolResults)
   const brandProducts = extractBrandInfo(toolResults)
 
+  // Extract structured product data from tool results
+  const recommendedProducts = extractProductsFromToolResults(toolResults)
+
   // 1) 브랜드 헤더 주입
   const withBrand =
     intent === "product_recommendation" ||
@@ -536,7 +573,8 @@ export async function runChatConversation(
       chips: resolveChips(intent, responseText),
       extractedField: null,
       isComplete: intent !== "general",
-      recommendationIds: null,
+      recommendationIds: recommendedProducts.length > 0 ? recommendedProducts.map(p => p.displayCode) : null,
+      recommendedProducts: recommendedProducts.length > 0 ? recommendedProducts : null,
       references,
     },
     convState,

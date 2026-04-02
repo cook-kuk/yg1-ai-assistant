@@ -68,12 +68,26 @@ import { LocationPermissionBanner } from "@/components/DealerLocator/LocationPer
 
 // ===== TYPES =====
 
+interface ChatProduct {
+  displayCode: string
+  seriesName: string | null
+  brand: string | null
+  diameterMm: number | null
+  fluteCount: number | null
+  coating: string | null
+  materialTags: string[]
+  toolType: string | null
+  toolSubtype: string | null
+  featureText: string | null
+}
+
 interface ChatMessage {
   id: string
   role: "user" | "ai" | "system"
   text: string
   purpose?: string
   chips?: string[]
+  products?: ChatProduct[]
   timestamp: string
 }
 
@@ -108,6 +122,7 @@ export default function AssistantNewPage() {
   const [extracted, setExtracted] = useState<ExtractedField[]>([])
   const [completeness, setCompleteness] = useState(0)
   const [showResult, setShowResult] = useState(false)
+  const [chatProducts, setChatProducts] = useState<ChatProduct[]>([])
   const [uncertainty, setUncertainty] = useState(100)
   const [candidates, setCandidates] = useState(120)
   const [recommendations, setRecommendations] = useState<CandidateProduct[]>(candidateProducts)
@@ -175,9 +190,15 @@ export default function AssistantNewPage() {
         // onDone: animation complete, show chips + process metadata
         () => {
           setTyping(false)
+          const products = (data as any).recommendedProducts ?? undefined
           setMessages(prev => prev.map(m =>
-            m.id === aiMsgId ? { ...m, text: data.text, chips: data.chips ?? undefined } : m
+            m.id === aiMsgId ? { ...m, text: data.text, chips: data.chips ?? undefined, products } : m
           ))
+          // Update right panel with chat products
+          if (products && products.length > 0) {
+            setChatProducts(products)
+            setShowResult(true)
+          }
 
           if (data.extractedField) {
             const extractedField = data.extractedField
@@ -357,6 +378,35 @@ export default function AssistantNewPage() {
                     <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
                   )}
 
+                  {/* Product cards */}
+                  {msg.products && msg.products.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {msg.products.slice(0, 5).map((p, i) => (
+                        <div key={p.displayCode} className="rounded-lg border border-gray-200 bg-white p-2.5 text-xs">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={cn(
+                              "inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white",
+                              i === 0 ? "bg-[#ed1c24]" : "bg-gray-400"
+                            )}>
+                              {i + 1}
+                            </span>
+                            <span className="font-bold text-gray-900">{p.brand || "YG-1"}</span>
+                            <span className="font-mono text-blue-600">{p.displayCode}</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5 text-[10px] text-gray-500">
+                            {p.seriesName && <span className="rounded bg-gray-100 px-1.5 py-0.5">{p.seriesName}</span>}
+                            {p.diameterMm && <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700">φ{p.diameterMm}mm</span>}
+                            {p.fluteCount && <span className="rounded bg-green-50 px-1.5 py-0.5 text-green-700">{p.fluteCount}날</span>}
+                            {p.coating && <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-700">{p.coating}</span>}
+                            {p.toolSubtype && <span className="rounded bg-purple-50 px-1.5 py-0.5 text-purple-700">{p.toolSubtype}</span>}
+                            {p.materialTags?.length > 0 && <span className="rounded bg-red-50 px-1.5 py-0.5 text-red-700">{p.materialTags.join("/")}</span>}
+                          </div>
+                          {p.featureText && <p className="mt-1 text-[10px] text-gray-400 line-clamp-2">{p.featureText}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Purpose tooltip */}
                   {msg.purpose && (
                     <div className="mt-2 flex items-start gap-1.5 text-xs opacity-70">
@@ -496,7 +546,33 @@ export default function AssistantNewPage() {
           </div>
 
           {/* Results */}
-          {showResult ? (
+          {chatProducts.length > 0 ? (
+            <div className="p-3 space-y-2">
+              <h4 className="text-xs font-semibold flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-[#ed1c24]" />
+                추천 제품 ({chatProducts.length}개)
+              </h4>
+              {chatProducts.slice(0, 5).map((p, i) => (
+                <Card key={p.displayCode} className={cn("overflow-hidden", i === 0 && "ring-2 ring-[#ed1c24]/30")}>
+                  <CardContent className="p-2.5">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <Badge className={cn("text-[10px]", i === 0 ? "bg-[#ed1c24]" : "bg-muted-foreground")}>#{i + 1}</Badge>
+                      <span className="text-xs font-bold truncate">{p.brand || "YG-1"}</span>
+                    </div>
+                    <p className="text-xs font-mono text-blue-600 mb-1">{p.displayCode}</p>
+                    {p.seriesName && <p className="text-[10px] text-muted-foreground mb-1.5">{p.seriesName}</p>}
+                    <div className="flex flex-wrap gap-1 text-[9px]">
+                      {p.diameterMm && <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700">φ{p.diameterMm}mm</span>}
+                      {p.fluteCount && <span className="rounded bg-green-50 px-1.5 py-0.5 text-green-700">{p.fluteCount}날</span>}
+                      {p.coating && <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-700">{p.coating}</span>}
+                      {p.toolSubtype && <span className="rounded bg-purple-50 px-1.5 py-0.5 text-purple-700">{p.toolSubtype}</span>}
+                    </div>
+                    {p.featureText && <p className="mt-1.5 text-[10px] text-gray-400 line-clamp-2">{p.featureText}</p>}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : showResult ? (
             <div className="p-3 space-y-3">
               <h4 className="text-xs font-semibold flex items-center gap-1.5">
                 <Sparkles className="h-3.5 w-3.5 text-[#ed1c24]" />
