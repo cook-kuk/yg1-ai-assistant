@@ -707,6 +707,25 @@ async function executeGetCuttingConditions(params: {
   })
 }
 
+// ── Cross-reference shape group matching ──
+const SHAPE_GROUPS: Record<string, string[]> = {
+  square:  ["square", "flat", "em", "스퀘어"],
+  ball:    ["ball", "bnem", "볼", "ball nose"],
+  radius:  ["radius", "corner r", "corner radius", "코너r", "코너R"],
+  chamfer: ["chamfer", "bevel", "챔퍼"],
+  roughing:["roughing", "hog", "corn cob", "황삭"],
+  drill:   ["drill", "드릴"],
+  tap:     ["tap", "탭"],
+}
+
+function getShapeGroup(shapeStr: string): string {
+  const s = shapeStr.toLowerCase().replace(/\s/g, "")
+  for (const [group, keywords] of Object.entries(SHAPE_GROUPS)) {
+    if (keywords.some(k => s.includes(k.replace(/\s/g, "")))) return group
+  }
+  return "unknown"
+}
+
 async function executeGetCompetitorMapping(
   params: {
     competitor_name?: string
@@ -724,7 +743,42 @@ async function executeGetCompetitorMapping(
     return JSON.stringify({ found: false, message: "경쟁사 이름 또는 제품 코드를 입력해주세요." })
   }
 
-  // Step 1: 웹서치로 경쟁사 제품 스펙 조회
+  // Step 0: LLM 코드 파싱으로 스펙 추정 (웹서치 전 — 빠르고 정확)
+  let codeParseSpecs: Record<string, unknown> | null = null
+  if (params.competitor_product && deps.client) {
+    try {
+      let parsingPolicy: string
+      try {
+        const { readFileSync } = await import("fs")
+        const { join } = await import("path")
+        parsingPolicy = readFileSync(join(process.cwd(), "data", "competitor-code-parsing-policy.md"), "utf-8")
+      } catch {
+        parsingPolicy = "절삭공구 전문가로서 경쟁사 제품 코드를 분석하여 스펙을 JSON으로 추정하세요."
+      }
+
+      const parseResp = await deps.client.messages.create({
+        model: deps.anthropicChatModel as Parameters<typeof deps.client.messages.create>[0]["model"],
+        max_tokens: 500,
+        system: parsingPolicy,
+        messages: [{
+          role: "user",
+          content: `제품코드: "${params.competitor_product}"\nJSON만 반환:`,
+        }],
+      })
+      const parseText = parseResp.content
+        .filter((b): b is Anthropic.TextBlock => b.type === "text")
+        .map(b => b.text).join("")
+      const parseMatch = parseText.match(/\{[\s\S]*\}/)
+      if (parseMatch) {
+        codeParseSpecs = JSON.parse(parseMatch[0])
+        console.log(`[competitor-xref] code parse result:`, JSON.stringify(codeParseSpecs))
+      }
+    } catch (err) {
+      console.warn("[competitor-mapping] Code parse failed:", err)
+    }
+  }
+
+  // Step 1: 웹서치로 경쟁사 제품 스펙 조회 (코드 파싱으로 부족한 정보 보충)
   let webSpecs: string | null = null
   if (deps.client) {
     try {
@@ -774,7 +828,18 @@ async function executeGetCompetitorMapping(
       ).map(b => b.text).join("")
 
       const cleaned = extractText.replace(/```json\n?|\n?```/g, "").trim()
-      const specs = JSON.parse(cleaned)
+      let specs = JSON.parse(cleaned)
+
+      // Merge: code parse specs (Step 0) take priority for non-null fields
+      if (codeParseSpecs) {
+        const cp = codeParseSpecs as Record<string, unknown>
+        if (cp.diameter_mm && !specs.diameter_mm) specs.diameter_mm = cp.diameter_mm
+        if (cp.flute_count && !specs.flute_count) specs.flute_count = cp.flute_count
+        if (cp.tool_shape && !specs.tool_shape) specs.tool_shape = cp.tool_shape
+        if (cp.coating && !specs.coating) specs.coating = cp.coating
+        if (cp.iso_groups && (!specs.iso_groups || specs.iso_groups.length === 0)) specs.iso_groups = cp.iso_groups
+        console.log(`[competitor-xref] merged specs:`, JSON.stringify(specs))
+      }
 
       // Step 3: 추출된 스펙으로 YG-1 내부 DB 검색
       const searchInput: RecommendationInput = { manufacturerScope: "yg1-only", locale: "ko" }
@@ -796,24 +861,6 @@ async function executeGetCompetitorMapping(
       }
 
       // ── Cross-reference hard filters: shape + material group ──
-      const SHAPE_GROUPS: Record<string, string[]> = {
-        square:  ["square", "flat", "em", "스퀘어"],
-        ball:    ["ball", "bnem", "볼", "ball nose"],
-        radius:  ["radius", "corner r", "corner radius", "코너r", "코너R"],
-        chamfer: ["chamfer", "bevel", "챔퍼"],
-        roughing:["roughing", "hog", "corn cob", "황삭"],
-        drill:   ["drill", "드릴"],
-        tap:     ["tap", "탭"],
-      }
-
-      function getShapeGroup(shapeStr: string): string {
-        const s = shapeStr.toLowerCase().replace(/\s/g, "")
-        for (const [group, keywords] of Object.entries(SHAPE_GROUPS)) {
-          if (keywords.some(k => s.includes(k.replace(/\s/g, "")))) return group
-        }
-        return "unknown"
-      }
-
       // Shape filter: competitor shape must match YG-1 shape group
       // Also try to infer shape from tool_type if tool_shape is missing
       const competitorShape = specs.tool_shape ?? specs.tool_type ?? ""
@@ -875,7 +922,63 @@ async function executeGetCompetitorMapping(
     }
   }
 
-  // Fallback: 웹서치 결과만 반환
+  // Fallback 1: 코드 파싱만으로 YG-1 매칭 시도 (웹서치 실패 시)
+  if (codeParseSpecs && deps.client) {
+    try {
+      const cp = codeParseSpecs as Record<string, unknown>
+      const searchInput: RecommendationInput = { manufacturerScope: "yg1-only", locale: "ko" }
+      if (cp.diameter_mm) searchInput.diameterMm = cp.diameter_mm as number
+
+      const searchFilters: AppliedFilter[] = []
+      if (cp.flute_count) {
+        searchFilters.push({ field: "fluteCount", op: "eq", value: `${cp.flute_count}날`, rawValue: cp.flute_count, appliedAt: 0 })
+      }
+
+      let alternatives = await ProductRepo.search(searchInput, searchFilters, 200)
+      if (cp.diameter_mm) {
+        const diam = cp.diameter_mm as number
+        alternatives = alternatives.filter(p => p.diameterMm != null && Math.abs(p.diameterMm - diam) <= 1)
+      }
+
+      // Shape filter
+      const cpShape = (cp.tool_shape as string) ?? ""
+      const cpShapeGroup = getShapeGroup(cpShape)
+      if (cpShapeGroup !== "unknown") {
+        const filtered = alternatives.filter(p => {
+          const fields = [p.toolSubtype ?? "", p.toolType ?? "", p.description ?? "", p.featureText ?? ""].join(" ")
+          return getShapeGroup(fields) === cpShapeGroup
+        })
+        if (filtered.length > 0) alternatives = filtered
+      }
+
+      // Material filter
+      const cpIso = new Set<string>(((cp.iso_groups as string[]) ?? []).map(g => g.toUpperCase()))
+      if (cpIso.size > 0) {
+        const filtered = alternatives.filter(p => {
+          if (!p.materialTags || p.materialTags.length === 0) return true
+          return p.materialTags.some(t => cpIso.has(t.toUpperCase()))
+        })
+        if (filtered.length > 0) alternatives = filtered
+      }
+
+      const deduped = dedupeProductsBySeries(alternatives)
+      if (deduped.length > 0) {
+        return JSON.stringify({
+          found: true,
+          source: "code_parse_then_internal_db",
+          competitorQuery: params.competitor_product,
+          extractedSpecs: cp,
+          yg1Alternatives: deduped.slice(0, 5).map(slimProduct),
+          note: `제품 코드 분석으로 스펙을 추정하여 YG-1 제품 ${deduped.length}개를 찾았습니다.`,
+          disclaimer: `⚠️ AI 코드 파싱 기반 추정 (${(cp.confidence as string) ?? "medium"}) — ${(cp.parse_notes as string) ?? ""}`,
+        })
+      }
+    } catch (err) {
+      console.warn("[competitor-mapping] Code parse DB search failed:", err)
+    }
+  }
+
+  // Fallback 2: 웹서치 결과만 반환
   if (webSpecs) {
     return JSON.stringify({
       found: true,
