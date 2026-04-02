@@ -7,7 +7,8 @@ export function buildSystemPrompt(): string {
 ## 도구 사용
 
 사용자가 공구를 찾으면 → search_products로 DB를 검색하세요.
-사용자가 경쟁사 대체품을 찾으면 → get_competitor_mapping을 쓰세요.
+사용자가 경쟁사 대체품을 찾으면 → get_competitor_mapping을 쓰세요. 내부 DB에 없으면 web_search로 경쟁사 제품 스펙을 반드시 찾아오세요.
+경쟁사 제품 비교 시 웹 검색으로 직경, 날수, 코팅, 날길이(LOC), 전체길이(OAL), 헬릭스각, 적용소재, 공구형상을 모두 확인하세요. "확인 필요"로 남기지 말고 여러 소스를 검색해서 최대한 채우세요.
 사용자가 절삭조건을 물으면 → get_cutting_conditions를 쓰세요.
 사용자가 특정 제품 코드를 말하면 → search_product_by_edp를 쓰세요.
 사용자가 YG-1 회사 정보를 물으면 → query_yg1_knowledge를 쓰세요.
