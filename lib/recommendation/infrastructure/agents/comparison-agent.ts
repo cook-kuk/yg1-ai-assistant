@@ -83,29 +83,39 @@ export async function compareProducts(
   const productLines = targets.map(t => {
     const ev = evidenceMap.get(t.productCode)
     const condStr = ev?.bestCondition
-      ? `Vc=${ev.bestCondition.Vc ?? "?"}, fz=${ev.bestCondition.fz ?? "?"}`
+      ? `Vc=${ev.bestCondition.Vc ?? "-"}, fz=${ev.bestCondition.fz ?? "-"}, ap=${ev.bestCondition.ap ?? "-"}, ae=${ev.bestCondition.ae ?? "-"}`
       : "절삭조건 없음"
     return `#${t.rank} ${t.displayCode}${t.displayLabel ? ` [${t.displayLabel}]` : ""}
-  브랜드: ${t.brand ?? "?"}
-  시리즈: ${t.seriesName ?? "?"}
-  직경: ${t.diameterMm ?? "?"}mm | 날수: ${t.fluteCount ?? "?"} | 코팅: ${t.coating || "정보없음"}
-  소재: ${t.materialTags.join(", ") || "?"}
+  브랜드: ${t.brand ?? "-"}
+  시리즈: ${t.seriesName ?? "-"}
+  형상: ${t.toolSubtype ?? "-"}
+  재질: ${t.toolMaterial ?? "-"}
+  직경: ${t.diameterMm != null ? `${t.diameterMm}mm` : "-"}
+  날수: ${t.fluteCount ?? "-"}
+  코팅: ${t.coating || "-"}
+  생크직경: ${t.shankDiameterMm != null ? `${t.shankDiameterMm}mm` : "-"}
+  날길이(LOC): ${t.lengthOfCutMm != null ? `${t.lengthOfCutMm}mm` : "-"}
+  전체길이(OAL): ${t.overallLengthMm != null ? `${t.overallLengthMm}mm` : "-"}
+  헬릭스각: ${t.helixAngleDeg != null ? `${t.helixAngleDeg}°` : "-"}
+  소재: ${t.materialTags.join(", ") || "-"}
   매칭: ${t.matchStatus} (${t.score}점)
-  재고: ${t.stockStatus} (${t.totalStock ?? "?"})
+  재고: ${t.stockStatus} (${t.totalStock ?? "미확인"})
   절삭조건: ${condStr}`
   }).join("\n\n")
 
   const systemPrompt = `당신은 YG-1 절삭공구 비교 전문가입니다.
-아래 제품들을 비교하여 간결한 한국어로 차이점과 추천 용도를 설명하세요.
+아래 제품 데이터는 DB에서 직접 조회한 실제 값입니다.
 
-규칙:
-- 반드시 **마크다운 표** 형식으로 비교 (| 항목 | 제품1 | 제품2 | ... |)
-- 비교 항목: 제품코드, 시리즈, 직경, 날수, 코팅, 소재 적합성, 매칭 점수, 절삭조건 유무
-- 데이터에 있는 정보만 사용 (추정 금지)
-- 표 아래에 각 제품의 강점/약점을 1-2줄로
-- 어떤 상황에서 어떤 제품이 더 적합한지 결론
-- 없는 정보는 "-"으로 표시
-- 답변 마지막에 반드시: [Reference: YG-1 내부 DB]`
+★ 절대 규칙: 수치 데이터(직경, LOC, OAL, 생크직경, 헬릭스각, 날수, 재고)는 아래 데이터를 그대로 인용하세요. 추론하거나 만들지 마세요. "-"인 항목은 "-"으로 표시하세요.
+★ 당신이 생성하는 것은 "추천 의견"과 "비교 분석" 텍스트뿐입니다.
+
+마크다운 표로 비교:
+| 항목 | 제품1 | 제품2 | ... |
+비교 항목: 제품코드, 브랜드, 형상, 직경, 날수, 코팅, 재질, 생크직경, LOC, OAL, 헬릭스각, 소재 적합성, 재고
+
+표 아래에:
+- 각 제품의 강점/약점 1-2줄
+- 어떤 상황에서 어떤 제품이 더 적합한지 결론`
 
   try {
     const raw = await provider.complete(
@@ -123,9 +133,9 @@ export async function compareProducts(
     }
   } catch (e) {
     console.warn("[comparison-agent:sonnet] Failed:", e)
-    // Deterministic fallback
+    // Deterministic fallback — DB 값만 사용
     const lines = targets.map(t =>
-      `**${t.displayCode}** (${t.displayLabel ?? t.seriesName ?? "?"}) — φ${t.diameterMm ?? "?"}mm, ${t.fluteCount ?? "?"}F, ${t.coating || "정보없음"}, ${t.matchStatus} ${t.score}점`
+      `**${t.displayCode}** (${t.brand ?? ""} ${t.seriesName ?? ""}) — ${t.toolSubtype ?? ""} φ${t.diameterMm ?? "-"}mm, ${t.fluteCount ?? "-"}F, ${t.coating || "-"}, LOC ${t.lengthOfCutMm ?? "-"}mm, OAL ${t.overallLengthMm ?? "-"}mm, 재고: ${t.stockStatus}(${t.totalStock ?? "미확인"})`
     )
     return {
       text: `제품 비교:\n${lines.join("\n")}`,
