@@ -20,6 +20,9 @@ import {
 import { wowScenarios, candidateProducts, type CandidateProduct } from "@/lib/demo-data"
 import { parseChatResponse } from "@/lib/frontend/chat/chat-client"
 import type { ChatResponseDto } from "@/lib/contracts/chat"
+import { findVideosForProduct, countryToLanguage } from "@/lib/data/video-mapping"
+import { findCatalogsForProduct } from "@/lib/data/catalog-mapping"
+import { useApp } from "@/lib/frontend/app-context"
 
 // ── Typing animation hook ──
 function useTypingAnimation() {
@@ -120,8 +123,10 @@ const STEPS = [
 
 export default function AssistantNewPage() {
   const searchParams = useSearchParams()
+  const { country } = useApp()
   const scenarioId = searchParams.get("scenario")
   const scenario = wowScenarios.find(s => s.id === scenarioId)
+  const preferredLang = countryToLanguage(country)
 
   const [mode, setMode] = useState<"simple" | "precision">("simple")
   const [currentStep, setCurrentStep] = useState(0)
@@ -445,6 +450,28 @@ export default function AssistantNewPage() {
                             {/* Feature text */}
                             {cleanFeature && <p className="text-[10px] text-gray-500 italic line-clamp-1">{cleanFeature}</p>}
                             {cleanDesc && !cleanFeature && <p className="text-[10px] text-gray-500 italic line-clamp-1">{cleanDesc}</p>}
+                            {/* Video & Catalog buttons */}
+                            {(() => {
+                              const videos = findVideosForProduct(p.seriesName, p.description, p.brand, preferredLang)
+                              const catalogs = findCatalogsForProduct(p.seriesName, p.description, p.brand, p.toolType, preferredLang)
+                              if (videos.length === 0 && catalogs.length === 0) return null
+                              return (
+                                <div className="flex gap-1.5 mt-1.5">
+                                  {videos.length > 0 && (
+                                    <a href={videos[0].url} target="_blank" rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-200 px-2 py-0.5 text-[9px] font-medium text-red-700 hover:bg-red-100">
+                                      ▶ {videos[0].title}
+                                    </a>
+                                  )}
+                                  {catalogs.length > 0 && (
+                                    <a href={catalogs[0].url} target="_blank" rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 px-2 py-0.5 text-[9px] font-medium text-blue-700 hover:bg-blue-100">
+                                      📄 카탈로그
+                                    </a>
+                                  )}
+                                </div>
+                              )
+                            })()}
                           </div>
                         )
                       })}

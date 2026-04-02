@@ -92,6 +92,15 @@ export const VIDEO_LIST: VideoEntry[] = [
  * Find matching videos for a given series name, description, and brand.
  * Returns videos sorted by language preference (matching language first).
  */
+/**
+ * country → preferredLanguage 변환
+ * KR → "ko", 그 외 → "en", 없으면 "ko"
+ */
+export function countryToLanguage(country?: string | null): "ko" | "en" {
+  if (!country) return "ko"
+  return country.toUpperCase() === "KR" ? "ko" : "en"
+}
+
 export function findVideosForProduct(
   seriesName: string | null,
   description: string | null,
