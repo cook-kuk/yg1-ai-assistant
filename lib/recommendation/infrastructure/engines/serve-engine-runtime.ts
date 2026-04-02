@@ -43,7 +43,7 @@ import { classifyPreSearchRoute } from "@/lib/recommendation/infrastructure/engi
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
 import { shouldExecutePendingAction, pendingActionToFilter } from "@/lib/recommendation/domain/context/pending-action-resolver"
 import { TurnPerfLogger, setCurrentPerfLogger } from "@/lib/recommendation/infrastructure/perf/turn-perf-logger"
-import { buildAppliedFilterFromValue, buildFilterValueScope, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
+import { buildAppliedFilterFromValue, buildFilterValueScope, getFilterFieldDefinition, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
 import {
   buildConstraintClarificationQuestion,
   hasExplicitFilterIntent,
@@ -737,8 +737,16 @@ export function resolvePendingQuestionReply(
   }
 
   const filter = resolvedValue ? parseAnswerToFilter(resolvedField, String(resolvedValue)) : parsedDirect
+  // canonicalField 매칭: diameterRefine → diameterMm 변환 시 filter.field가 달라질 수 있음
   if (filter) {
-    console.log(`[pending-selection] Resolved field="${resolvedField}" value="${filter.value}"`)
+    const pendingCanonical = getFilterFieldDefinition(pendingField)?.canonicalField ?? null
+    const filterMatchesPending = filter.field === pendingField || filter.field === resolvedField || (pendingCanonical && filter.field === pendingCanonical)
+    if (filterMatchesPending) {
+      console.log(`[pending-selection] Resolved field="${resolvedField}" value="${filter.value}" (filter.field="${filter.field}", pending="${pendingField}")`)
+      return { kind: "resolved", filter }
+    }
+    // filter.field가 pending과 다르더라도 canonicalField가 맞으면 통과
+    console.log(`[pending-selection] Resolved field="${resolvedField}" value="${filter.value}" (canonical match)`)
     return { kind: "resolved", filter }
   }
 
