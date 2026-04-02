@@ -614,22 +614,28 @@ export default function AssistantNewPage() {
                         <p className="text-xs font-mono font-bold text-gray-900">{p.displayCode}</p>
                       </div>
                     </div>
-                    {p.description && <p className="text-[10px] text-gray-500 line-clamp-1 mb-1">{p.description}</p>}
-                    <div className="text-[10px] text-gray-600 font-medium mb-1">
-                      {[
-                        p.toolSubtype,
-                        p.toolMaterial,
-                        p.lengthOfCutMm ? `CL ${p.lengthOfCutMm}mm` : null,
-                        p.overallLengthMm ? `OAL ${p.overallLengthMm}mm` : null,
-                      ].filter(Boolean).join(" · ")}
-                    </div>
-                    <div className="flex flex-wrap gap-1 text-[9px]">
-                      {p.diameterMm != null && <span className="rounded-full bg-blue-50 border border-blue-200 px-1.5 py-0.5 text-blue-700 font-semibold">φ{p.diameterMm}mm</span>}
-                      {p.fluteCount != null && <span className="rounded-full bg-green-50 border border-green-200 px-1.5 py-0.5 text-green-700">{p.fluteCount}날</span>}
-                      {p.coating && <span className="rounded-full bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-amber-700">{p.coating}</span>}
-                      {p.materialTags?.length > 0 && <span className="rounded-full bg-red-50 border border-red-200 px-1.5 py-0.5 text-red-700">{p.materialTags.join("/")}</span>}
-                    </div>
-                    {p.featureText && <p className="mt-1 text-[10px] text-gray-400 line-clamp-2">{p.featureText}</p>}
+                    {(() => {
+                      const cleanDesc = (p.description || "").replace(/<br\s*\/?>/gi, " ").replace(/<[^>]*>/g, "").trim()
+                      const cleanFeat = (p.featureText || "").replace(/<br\s*\/?>/gi, " ").replace(/<[^>]*>/g, "").trim()
+                      return (<>
+                        {cleanDesc && <p className="text-[10px] text-gray-500 line-clamp-1 mb-1">{cleanDesc}</p>}
+                        <div className="text-[10px] text-gray-600 font-medium mb-1">
+                          {[
+                            p.toolSubtype,
+                            p.toolMaterial,
+                            p.lengthOfCutMm ? `CL ${p.lengthOfCutMm}mm` : null,
+                            p.overallLengthMm ? `OAL ${p.overallLengthMm}mm` : null,
+                          ].filter(Boolean).join(" · ")}
+                        </div>
+                        <div className="flex flex-wrap gap-1 text-[9px]">
+                          {p.diameterMm != null && <span className="rounded-full bg-blue-50 border border-blue-200 px-1.5 py-0.5 text-blue-700 font-semibold">φ{p.diameterMm}mm</span>}
+                          {p.fluteCount != null && <span className="rounded-full bg-green-50 border border-green-200 px-1.5 py-0.5 text-green-700">{p.fluteCount}날</span>}
+                          {p.coating && <span className="rounded-full bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-amber-700">{p.coating}</span>}
+                          {p.materialTags?.length > 0 && <span className="rounded-full bg-red-50 border border-red-200 px-1.5 py-0.5 text-red-700">{p.materialTags.join("/")}</span>}
+                        </div>
+                        {cleanFeat && <p className="mt-1 text-[10px] text-gray-400 line-clamp-2">{cleanFeat}</p>}
+                      </>)
+                    })()}
                   </CardContent>
                 </Card>
               ))}
