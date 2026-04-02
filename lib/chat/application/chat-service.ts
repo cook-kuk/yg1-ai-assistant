@@ -490,10 +490,12 @@ async function extractParamsAndPreSearch(
       console.log(`[pre-search] fast-path: ${fastParamCount} params from regex, skipping LLM`)
       extractedParams = fastParams
     } else {
-      // ── Slow path: LLM extraction ──
+      // ── LLM extraction (Haiku — fast & cheap) ──
       const policy = loadParamExtractionPolicy()
+      const { resolveModel } = await import("@/lib/llm/provider")
+      const haikuModel = resolveModel("haiku")
       const response = await deps.client.messages.create({
-        model: deps.model as Parameters<typeof deps.client.messages.create>[0]["model"],
+        model: (haikuModel || deps.model) as Parameters<typeof deps.client.messages.create>[0]["model"],
         max_tokens: 300,
         system: policy,
         messages: [{ role: "user", content: conversationText }],
