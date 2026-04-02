@@ -338,7 +338,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     clearInput: input => ({ ...input, diameterMm: undefined }),
     extractValues: record => extractPrimitiveValues(record, "diameterMm"),
     matches: (record, filter) => numericMatch(record, filter, "diameterMm"),
-    buildDbClause: (filter, next) => buildNumericEqualityClause(["search_diameter_mm"], filter, next, 0.05),
+    buildDbClause: (filter, next) => buildNumericEqualityClause(["search_diameter_mm"], filter, next, 0.01),
   },
   material: {
     field: "material",
