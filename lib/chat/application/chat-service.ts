@@ -333,6 +333,75 @@ function resolveChips(intent: LLMResponse["intent"], responseText: string): stri
   return buildDefaultChips(intent)
 }
 
+// ── Pre-search: extract params from conversation via LLM, then search DB ──
+const PARAM_EXTRACTION_PROMPT = `대화에서 절삭공구 검색에 필요한 파라미터를 추출하세요.
+반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트 없이 JSON만:
+{
+  "material": "ISO 태그 (P/M/K/N/S/H) 또는 null",
+  "diameter_mm": 숫자 또는 null,
+  "operation_type": "가공형상 (Drilling/Side_Milling/Slotting 등) 또는 null",
+  "flute_count": 숫자 또는 null,
+  "coating": "코팅명 또는 null",
+  "keyword": "시리즈명/브랜드명/특수 키워드 또는 null"
+}
+소재 매핑: 탄소강/합금강/일반강=P, 스테인리스=M, 주철=K, 비철/알루미늄=N, 내열합금/티타늄=S, 고경도강=H
+가공방식 매핑: Holemaking/드릴=Drilling, 측면가공=Side_Milling, 슬롯=Slotting, 정면가공=Facing
+확실하지 않은 파라미터는 null로 두세요.`
+
+async function extractParamsAndPreSearch(
+  messages: ChatMessage[],
+  deps: ChatServiceDeps,
+): Promise<{ preSearchResult: string | null; extractedParams: Record<string, unknown> }> {
+  try {
+    const conversationText = messages
+      .filter(m => m.role === "user" || m.role === "ai")
+      .map(m => `[${m.role}] ${m.text}`)
+      .join("\n")
+
+    const response = await deps.client.messages.create({
+      model: deps.model as Parameters<typeof deps.client.messages.create>[0]["model"],
+      max_tokens: 300,
+      system: PARAM_EXTRACTION_PROMPT,
+      messages: [{ role: "user", content: conversationText }],
+    })
+
+    const text = response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map(b => b.text).join("")
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) return { preSearchResult: null, extractedParams: {} }
+
+    const params = JSON.parse(jsonMatch[0])
+    const extractedParams: Record<string, unknown> = {}
+
+    // Only keep non-null values
+    if (params.material) extractedParams.material = params.material
+    if (params.diameter_mm) extractedParams.diameter_mm = params.diameter_mm
+    if (params.operation_type) extractedParams.operation_type = params.operation_type
+    if (params.flute_count) extractedParams.flute_count = params.flute_count
+    if (params.coating) extractedParams.coating = params.coating
+    if (params.keyword) extractedParams.keyword = params.keyword
+
+    // If we have at least 1 param, do a pre-search
+    if (Object.keys(extractedParams).length > 0) {
+      const { executeChatTool: execTool } = await import("@/lib/chat/infrastructure/tools/chat-tools")
+      const result = await execTool("search_products", extractedParams, {
+        anthropicChatModel: deps.model,
+        client: deps.client,
+        route: deps.route,
+      })
+      console.log(`[chat] pre-search: params=${JSON.stringify(extractedParams)} → result length=${result.length}`)
+      return { preSearchResult: result, extractedParams }
+    }
+
+    return { preSearchResult: null, extractedParams }
+  } catch (err) {
+    console.error("[chat] pre-search failed:", err)
+    return { preSearchResult: null, extractedParams: {} }
+  }
+}
+
 export async function runChatConversation(
   messages: ChatMessage[],
   deps: ChatServiceDeps
@@ -341,13 +410,29 @@ export async function runChatConversation(
   const convState = buildStateFromHistory(messages)
   logConversationState(convState, null)
 
+  // ── Step 0: Pre-search (LLM 파라미터 추출 → DB 검색) ──
+  const { preSearchResult, extractedParams } = await extractParamsAndPreSearch(messages, deps)
+
   const baseSystemPrompt = await buildSystemPrompt()
   const structuredCtx = buildStructuredContext(convState, null)
-  const systemPrompt = `${baseSystemPrompt}\n\n${structuredCtx}`
+
+  // Inject pre-search results into system prompt
+  let preSearchContext = ""
+  if (preSearchResult) {
+    preSearchContext = `\n\n═══ 사전 검색 결과 (서버가 대화에서 추출한 파라미터로 미리 검색함) ═══\n추출된 파라미터: ${JSON.stringify(extractedParams)}\n검색 결과:\n${preSearchResult}\n\n★ 위 사전 검색 결과가 있으면 이를 기반으로 바로 추천하라. 불필요한 질문을 하지 마라. 결과가 10개 이하면 즉시 추천하라.\n★ 사전 검색에서 이미 찾은 파라미터를 다시 묻지 마라.\n═══`
+  }
+
+  const systemPrompt = `${baseSystemPrompt}\n\n${structuredCtx}${preSearchContext}`
 
   let currentMessages = [...apiMessages]
   const toolsUsed: string[] = []
   const toolResults: { name: string; result: string }[] = []
+
+  // Pre-search 결과를 toolResults에도 추가 (reference 추적용)
+  if (preSearchResult) {
+    toolsUsed.push("search_products")
+    toolResults.push({ name: "search_products", result: preSearchResult })
+  }
 
   const startedAt = Date.now()
   let llmResponse = await createAnthropicMessageWithLogging({
