@@ -1078,6 +1078,24 @@ async function handleServeExplorationInner(
     `[recommend] request start hasPrevState=${!!prevState} messages=${messages.length} displayedProducts=${displayedProducts?.length ?? 0}`
   )
 
+  // ── DebugTrace: snapshot stateBefore ──
+  trace.setStateBefore({
+    sessionId: trace["turnId"],
+    candidateCount: prevState?.candidateCount ?? 0,
+    resolutionStatus: prevState?.resolutionStatus ?? null,
+    currentMode: prevState?.currentMode ?? null,
+    lastAskedField: prevState?.lastAskedField ?? null,
+    lastAction: prevState?.lastAction ?? null,
+    turnCount: prevState?.turnCount ?? 0,
+    appliedFilters: (prevState?.appliedFilters ?? []).map(f => ({ field: f.field, value: f.value, op: f.op })),
+    displayedChips: prevState?.displayedChips ?? [],
+    displayedOptionsCount: prevState?.displayedOptions?.length ?? 0,
+    displayedCandidateCount: prevState?.displayedCandidates?.length ?? 0,
+    hasRecommendation: false,
+    hasComparison: false,
+    pendingAction: prevState?.pendingAction ? { label: String(prevState.pendingAction.type ?? ""), type: String(prevState.pendingAction.type ?? "") } : null,
+  })
+
   const provider = getProvider()
   const perf = new TurnPerfLogger()
   setCurrentPerfLogger(perf)
@@ -1770,6 +1788,12 @@ async function handleServeExplorationInner(
       agents: orchResult.agentsInvoked,
       escalatedToOpus: orchResult.escalatedToOpus,
     }, orchResult.reasoning)
+
+    // ── DebugTrace: planner result ──
+    trace.setPlannerResult(
+      action.type,
+      orchResult.reasoning ?? `action=${action.type}, usingBridged=${usingBridgedAction}`
+    )
 
     const hasPendingQuestion = !!prevState.lastAskedField
       && !prevState.resolutionStatus?.startsWith("resolved")

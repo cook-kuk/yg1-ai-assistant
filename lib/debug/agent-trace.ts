@@ -229,10 +229,38 @@ export class TraceCollector {
   private _llmFilterResult: LLMFilterResultSnapshot | null = null
   private _candidateChanges: CandidateChangeSnapshot[] = []
 
+  private _stateBefore: SessionStateSnapshot | null = null
+  private _stateAfter: SessionStateSnapshot | null = null
+  private _plannerAction: string | null = null
+  private _plannerReasoning: string | null = null
+
   constructor(turnId?: string) {
     this.enabled = isDebugEnabled()
     this.turnId = turnId ?? `turn-${Date.now()}`
     this.startTime = Date.now()
+  }
+
+  setStateBefore(state: SessionStateSnapshot): void { if (this.enabled) this._stateBefore = state }
+  setStateAfter(state: SessionStateSnapshot): void { if (this.enabled) this._stateAfter = state }
+  setPlannerResult(action: string, reasoning: string): void {
+    if (!this.enabled) return
+    this._plannerAction = action
+    this._plannerReasoning = reasoning
+  }
+
+  buildStateDiff(): Record<string, unknown> | null {
+    if (!this._stateBefore || !this._stateAfter) return null
+    const before = this._stateBefore
+    const after = this._stateAfter
+    return {
+      candidateCountChange: `${before.candidateCount} → ${after.candidateCount}`,
+      filterCountChange: `${before.appliedFilters.length} → ${after.appliedFilters.length}`,
+      filtersAdded: after.appliedFilters
+        .filter(af => !before.appliedFilters.some(bf => bf.field === af.field && bf.value === af.value))
+        .map(f => `${f.field}=${f.value}`),
+      phaseChange: before.currentMode !== after.currentMode ? `${before.currentMode} → ${after.currentMode}` : null,
+      turnCountChange: `${before.turnCount} → ${after.turnCount}`,
+    }
   }
 
   add(step: string, category: TraceCategory, input: Record<string, unknown>, output: Record<string, unknown>, reason?: string, extras?: { fallbackUsed?: boolean; alternativesConsidered?: AgentTraceEvent["alternativesConsidered"] }): void {
@@ -285,6 +313,12 @@ export class TraceCollector {
       llmFilterResult: this._llmFilterResult,
       candidateChanges: this._candidateChanges.length > 0 ? this._candidateChanges : undefined,
       recentTurns: this._recentTurns?.length ? this._recentTurns : undefined,
-    }
+      // New: state diff for debugging
+      stateBefore: this._stateBefore ?? undefined,
+      stateAfter: this._stateAfter ?? undefined,
+      stateDiff: this.buildStateDiff() ?? undefined,
+      plannerAction: this._plannerAction ?? undefined,
+      plannerReasoning: this._plannerReasoning ?? undefined,
+    } as TurnDebugTrace
   }
 }
