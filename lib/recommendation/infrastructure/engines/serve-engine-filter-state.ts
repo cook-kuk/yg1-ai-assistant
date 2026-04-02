@@ -22,8 +22,13 @@ export function replaceFieldFilter(
   nextFilters: AppliedFilter[]
   nextInput: RecommendationInput
 } {
-  const hadExistingFieldFilter = currentFilters.some(filter => filter.field === nextFilter.field)
-  const remainingFilters = currentFilters.filter(filter => filter.field !== nextFilter.field)
+  // canonicalField 매핑: diameterRefine과 diameterMm은 같은 필드로 취급
+  const CANONICAL_MAP: Record<string, string> = { diameterRefine: "diameterMm", diameterMm: "diameterMm" }
+  const canonField = CANONICAL_MAP[nextFilter.field] ?? nextFilter.field
+  const fieldsToReplace = new Set([nextFilter.field, canonField])
+
+  const hadExistingFieldFilter = currentFilters.some(filter => fieldsToReplace.has(filter.field) || fieldsToReplace.has(CANONICAL_MAP[filter.field] ?? filter.field))
+  const remainingFilters = currentFilters.filter(filter => !fieldsToReplace.has(filter.field) && !fieldsToReplace.has(CANONICAL_MAP[filter.field] ?? filter.field))
   const nextFilters = [...remainingFilters, nextFilter]
 
   return {
