@@ -743,9 +743,57 @@ async function executeGetCompetitorMapping(
     return JSON.stringify({ found: false, message: "경쟁사 이름 또는 제품 코드를 입력해주세요." })
   }
 
-  // Step 0: LLM 코드 파싱으로 스펙 추정 (웹서치 전 — 빠르고 정확)
+  // Step 1: 웹서치로 경쟁사 제품 스펙 조회 (메인 — PDF 카탈로그까지 깊게 검색)
+  let webSpecs: string | null = null
+  if (deps.client) {
+    try {
+      const searchPrompt = params.competitor_product
+        ? `Search for the cutting tool "${params.competitor_product}" specifications. Look for:
+1. Official manufacturer product page or PDF catalog
+2. Distributor pages with detailed specs
+3. Technical data sheets
+
+Extract ALL of these specs:
+- Exact diameter (mm)
+- Number of flutes/teeth
+- Coating type and name
+- Applicable ISO material groups (P/M/K/N/S/H)
+- Tool shape (Square/Ball/Radius/Chamfer/Roughing)
+- Length of cut (LOC) in mm
+- Overall length (OAL) in mm
+- Helix angle
+- Shank diameter
+
+Return as detailed structured text with ALL specs found.`
+        : `Find specifications for: ${query}\n\nExtract: diameter, flutes, coating, materials (ISO P/M/K/N/S/H), tool type.`
+
+      const resp = await createAnthropicMessageWithLogging({
+        client: deps.client,
+        route: deps.route,
+        operation: "competitor_web_search",
+        request: {
+          model: deps.anthropicChatModel as Parameters<typeof deps.client.messages.create>[0]["model"],
+          max_tokens: 2000,
+          tools: [{ type: "web_search_20250305" as const, name: "web_search", max_uses: 3 }],
+          messages: [{
+            role: "user",
+            content: searchPrompt,
+          }],
+        },
+      })
+      const textBlocks = resp.content.filter(
+        (block): block is Anthropic.TextBlock => block.type === "text"
+      )
+      webSpecs = textBlocks.map(block => block.text).join("\n")
+      console.log(`[competitor-xref] web search result length: ${webSpecs?.length ?? 0}`)
+    } catch (err) {
+      console.warn("[competitor-mapping] Web search failed:", err)
+    }
+  }
+
+  // Step 1.5: 웹서치 실패 시에만 — LLM 코드 파싱으로 스펙 추정 (최후 수단)
   let codeParseSpecs: Record<string, unknown> | null = null
-  if (params.competitor_product && deps.client) {
+  if (!webSpecs && params.competitor_product && deps.client) {
     try {
       let parsingPolicy: string
       try {
@@ -771,37 +819,10 @@ async function executeGetCompetitorMapping(
       const parseMatch = parseText.match(/\{[\s\S]*\}/)
       if (parseMatch) {
         codeParseSpecs = JSON.parse(parseMatch[0])
-        console.log(`[competitor-xref] code parse result:`, JSON.stringify(codeParseSpecs))
+        console.log(`[competitor-xref] code parse fallback:`, JSON.stringify(codeParseSpecs))
       }
     } catch (err) {
       console.warn("[competitor-mapping] Code parse failed:", err)
-    }
-  }
-
-  // Step 1: 웹서치로 경쟁사 제품 스펙 조회 (코드 파싱으로 부족한 정보 보충)
-  let webSpecs: string | null = null
-  if (deps.client) {
-    try {
-      const resp = await createAnthropicMessageWithLogging({
-        client: deps.client,
-        route: deps.route,
-        operation: "competitor_web_search",
-        request: {
-          model: deps.anthropicChatModel as Parameters<typeof deps.client.messages.create>[0]["model"],
-          max_tokens: 1500,
-          tools: [{ type: "web_search_20250305" as const, name: "web_search", max_uses: 2 }],
-          messages: [{
-            role: "user",
-            content: `Find specifications for this cutting tool: ${query}\n\nExtract: diameter (mm), number of flutes, coating type, applicable materials (ISO P/M/K/N/S/H), tool type (endmill/drill/tap). Return as structured text.`,
-          }],
-        },
-      })
-      const textBlocks = resp.content.filter(
-        (block): block is Anthropic.TextBlock => block.type === "text"
-      )
-      webSpecs = textBlocks.map(block => block.text).join("\n")
-    } catch (err) {
-      console.warn("[competitor-mapping] Web search failed:", err)
     }
   }
 
@@ -830,15 +851,15 @@ async function executeGetCompetitorMapping(
       const cleaned = extractText.replace(/```json\n?|\n?```/g, "").trim()
       let specs = JSON.parse(cleaned)
 
-      // Merge: code parse specs (Step 0) take priority for non-null fields
+      // Merge: web search is primary, code parse only fills gaps
       if (codeParseSpecs) {
         const cp = codeParseSpecs as Record<string, unknown>
-        if (cp.diameter_mm && !specs.diameter_mm) specs.diameter_mm = cp.diameter_mm
-        if (cp.flute_count && !specs.flute_count) specs.flute_count = cp.flute_count
-        if (cp.tool_shape && !specs.tool_shape) specs.tool_shape = cp.tool_shape
-        if (cp.coating && !specs.coating) specs.coating = cp.coating
-        if (cp.iso_groups && (!specs.iso_groups || specs.iso_groups.length === 0)) specs.iso_groups = cp.iso_groups
-        console.log(`[competitor-xref] merged specs:`, JSON.stringify(specs))
+        if (!specs.diameter_mm && cp.diameter_mm) specs.diameter_mm = cp.diameter_mm
+        if (!specs.flute_count && cp.flute_count) specs.flute_count = cp.flute_count
+        if (!specs.tool_shape && cp.tool_shape) specs.tool_shape = cp.tool_shape
+        if (!specs.coating && cp.coating) specs.coating = cp.coating
+        if ((!specs.iso_groups || specs.iso_groups.length === 0) && cp.iso_groups) specs.iso_groups = cp.iso_groups
+        console.log(`[competitor-xref] merged (web+codeParse):`, JSON.stringify(specs))
       }
 
       // Step 3: 추출된 스펙으로 YG-1 내부 DB 검색
