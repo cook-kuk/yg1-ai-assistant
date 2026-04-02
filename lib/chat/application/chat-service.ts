@@ -334,19 +334,19 @@ function resolveChips(intent: LLMResponse["intent"], responseText: string): stri
 }
 
 // ── Pre-search: extract params from conversation via LLM, then search DB ──
-const PARAM_EXTRACTION_PROMPT = `대화에서 절삭공구 검색에 필요한 파라미터를 추출하세요.
-반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트 없이 JSON만:
-{
-  "material": "ISO 태그 (P/M/K/N/S/H) 또는 null",
-  "diameter_mm": 숫자 또는 null,
-  "operation_type": "가공형상 (Drilling/Side_Milling/Slotting 등) 또는 null",
-  "flute_count": 숫자 또는 null,
-  "coating": "코팅명 또는 null",
-  "keyword": "시리즈명/브랜드명/특수 키워드 또는 null"
+import { readFileSync } from "fs"
+import { join } from "path"
+
+function loadParamExtractionPolicy(): string {
+  try {
+    return readFileSync(join(process.cwd(), "data", "param-extraction-policy.md"), "utf-8")
+  } catch {
+    // Fallback if file not found
+    return `대화에서 절삭공구 검색 파라미터를 추출하세요.
+JSON 형식으로만 응답: {"material":"P/M/K/N/S/H 또는 null","diameter_mm":숫자 또는 null,"operation_type":"가공형상 또는 null","flute_count":숫자 또는 null,"coating":"코팅명 또는 null","keyword":"시리즈명 또는 null"}
+확실하지 않으면 null.`
+  }
 }
-소재 매핑: 탄소강/합금강/일반강=P, 스테인리스=M, 주철=K, 비철/알루미늄=N, 내열합금/티타늄=S, 고경도강=H
-가공방식 매핑: Holemaking/드릴=Drilling, 측면가공=Side_Milling, 슬롯=Slotting, 정면가공=Facing
-확실하지 않은 파라미터는 null로 두세요.`
 
 async function extractParamsAndPreSearch(
   messages: ChatMessage[],
@@ -358,10 +358,11 @@ async function extractParamsAndPreSearch(
       .map(m => `[${m.role}] ${m.text}`)
       .join("\n")
 
+    const policy = loadParamExtractionPolicy()
     const response = await deps.client.messages.create({
       model: deps.model as Parameters<typeof deps.client.messages.create>[0]["model"],
       max_tokens: 300,
-      system: PARAM_EXTRACTION_PROMPT,
+      system: policy,
       messages: [{ role: "user", content: conversationText }],
     })
 
