@@ -159,6 +159,24 @@ export const CHAT_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "find_yg1_alternative",
+    description: "YG-1 제품의 대체품을 찾습니다. 같은 직경/형상/소재의 다른 YG-1 제품을 검색합니다.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        product_code: {
+          type: "string",
+          description: "원본 YG-1 제품 코드 (EDP). 예: 'CG3S4510045'",
+        },
+        reason: {
+          type: "string",
+          description: "대체 이유. 예: '재고 없음', '단종', '비용 절감'",
+        },
+      },
+      required: ["product_code"],
+    },
+  },
+  {
     name: "web_search",
     description:
       "웹 검색을 수행합니다. 내부 DB에서 제품/절삭조건을 찾지 못했을 때 카탈로그나 기술 자료를 검색하거나, 절삭공구 관련 일반 전문지식 질문에 답하기 위해 사용합니다. 검색 결과는 내부 DB 데이터가 아님을 반드시 명시해야 합니다.",
@@ -1102,6 +1120,93 @@ Return as detailed structured text with ALL specs found.`
   })
 }
 
+async function executeFindYG1Alternative(params: {
+  product_code?: string
+  reason?: string
+}): Promise<string> {
+  if (!params.product_code?.trim()) {
+    return JSON.stringify({ found: false, message: "제품 코드를 입력해주세요." })
+  }
+
+  // Step 1: 원본 제품 스펙 조회
+  const original = await ProductRepo.findByCode(params.product_code.trim())
+  if (!original) {
+    return JSON.stringify({ found: false, message: `${params.product_code} 제품을 찾을 수 없습니다.` })
+  }
+
+  // Step 2: 같은 조건으로 대체품 검색
+  const searchInput: RecommendationInput = {
+    manufacturerScope: "yg1-only",
+    locale: "ko",
+    diameterMm: original.diameterMm ?? undefined,
+    toolSubtype: original.toolSubtype ?? undefined,
+  }
+
+  const filters: AppliedFilter[] = []
+  if (original.fluteCount) {
+    filters.push({ field: "fluteCount", op: "eq", value: `${original.fluteCount}날`, rawValue: original.fluteCount, appliedAt: 0 })
+  }
+
+  let alternatives = await ProductRepo.search(searchInput, filters, 100)
+
+  // 직경 exact match
+  if (original.diameterMm) {
+    alternatives = alternatives.filter(p => p.diameterMm === original.diameterMm)
+  }
+
+  // 형상 match
+  if (original.toolSubtype) {
+    const sub = original.toolSubtype.toLowerCase()
+    const shaped = alternatives.filter(p => (p.toolSubtype ?? "").toLowerCase().includes(sub))
+    if (shaped.length > 0) alternatives = shaped
+  }
+
+  // 소재 match (교집합)
+  if (original.materialTags.length > 0) {
+    const matFiltered = alternatives.filter(p =>
+      p.materialTags.some(t => original.materialTags.includes(t))
+    )
+    if (matFiltered.length > 0) alternatives = matFiltered
+  }
+
+  // 원본 제외
+  alternatives = alternatives.filter(p => p.normalizedCode !== original.normalizedCode)
+
+  // 재고 확인 + 정렬 (재고 있는 것 우선)
+  const { InventoryRepo } = await import("@/lib/data/repos/inventory-repo")
+  const enriched = await Promise.all(alternatives.slice(0, 20).map(async p => {
+    const inv = await InventoryRepo.getEnrichedAsync(p.normalizedCode)
+    return { product: p, stockStatus: inv.stockStatus, totalStock: inv.totalStock }
+  }))
+
+  enriched.sort((a, b) => {
+    const stockOrder: Record<string, number> = { instock: 0, limited: 1, unknown: 2, outofstock: 3 }
+    return (stockOrder[a.stockStatus] ?? 3) - (stockOrder[b.stockStatus] ?? 3)
+  })
+
+  const deduped = dedupeProductsBySeries(enriched.map(e => e.product))
+
+  return JSON.stringify({
+    found: deduped.length > 0,
+    originalProduct: {
+      displayCode: original.displayCode,
+      seriesName: original.seriesName,
+      brand: original.brand,
+      diameterMm: original.diameterMm,
+      fluteCount: original.fluteCount,
+      coating: original.coating,
+      toolSubtype: original.toolSubtype,
+      materialTags: original.materialTags,
+    },
+    reason: params.reason ?? "대체품 검색",
+    alternativeCount: deduped.length,
+    alternatives: deduped.slice(0, 5).map(slimProduct),
+    note: deduped.length > 0
+      ? `${original.displayCode}와 동일 스펙(φ${original.diameterMm}mm, ${original.toolSubtype})의 대체품 ${deduped.length}개를 찾았습니다.`
+      : `${original.displayCode}와 동일 스펙의 대체품을 찾지 못했습니다. 직경이나 형상을 변경해서 검색해보세요.`,
+  })
+}
+
 export async function executeChatTool(
   toolName: string,
   toolInput: Record<string, unknown>,
@@ -1129,6 +1234,10 @@ export async function executeChatTool(
         return await executeGetCompetitorMapping(
           toolInput as Parameters<typeof executeGetCompetitorMapping>[0],
           deps
+        )
+      case "find_yg1_alternative":
+        return await executeFindYG1Alternative(
+          toolInput as Parameters<typeof executeFindYG1Alternative>[0]
         )
       case "query_yg1_knowledge":
         return executeQueryYG1Knowledge(

@@ -84,7 +84,7 @@ export function getKnownValue<T>(state: AnswerState<T>): T | undefined {
 export const INQUIRY_PURPOSE_LABELS: Record<InquiryPurpose, string> = {
   new: "신규 제품 추천",
   substitute: "YG-1 대체품 찾기",
-  inventory_substitute: "재고 없는 대체품",
+  inventory_substitute: "재고 대체품 찾기",
   cutting_condition: "가공 조건 참고",
   product_lookup: "현재 제품 정보 확인",
 }
@@ -161,7 +161,7 @@ export const FIELD_CONFIGS: IntakeFieldConfig[] = [
     options: [
       { value: "new", label: "신규 제품 추천" },
       { value: "substitute", label: "YG-1 대체품 찾기" },
-      { value: "inventory_substitute", label: "재고 없는 대체품", disabled: true },
+      { value: "inventory_substitute", label: "재고 대체품 찾기" },
       { value: "cutting_condition", label: "가공 조건 참고", disabled: true },
       { value: "product_lookup", label: "현재 제품 정보 확인", disabled: true },
     ],

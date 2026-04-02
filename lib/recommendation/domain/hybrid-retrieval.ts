@@ -267,20 +267,46 @@ export async function runHybridRetrieval(
   const initialCandidateCount = pagination ? searchResult.totalCount : candidates.length
 
   if (shouldApplyPostSqlHeuristics) {
-    // Hard filter: diameter ±2mm if specified
+    // Hard filter: diameter — exact-first, then ±0.5mm, then ±2mm
     if (input.diameterMm) {
-      const strict = candidates.filter(p =>
-        p.diameterMm !== null && Math.abs(p.diameterMm - input.diameterMm!) <= 2
+      // Stage 1: exact match
+      let diamFiltered = candidates.filter(p =>
+        p.diameterMm !== null && p.diameterMm === input.diameterMm!
       )
-      if (strict.length > 0) {
-        candidates = strict
+      // Stage 2: near match ±0.5mm
+      if (diamFiltered.length === 0) {
+        diamFiltered = candidates.filter(p =>
+          p.diameterMm !== null && Math.abs(p.diameterMm - input.diameterMm!) <= 0.5
+        )
+      }
+      // Stage 3: wider ±2mm (existing behavior)
+      if (diamFiltered.length === 0) {
+        diamFiltered = candidates.filter(p =>
+          p.diameterMm !== null && Math.abs(p.diameterMm - input.diameterMm!) <= 2
+        )
+      }
+      if (diamFiltered.length > 0) {
+        candidates = diamFiltered
         appliedFilters.push({
           field: "diameterMm",
           op: "range",
-          value: `${input.diameterMm}mm ±2mm`,
+          value: `${input.diameterMm}mm`,
           rawValue: input.diameterMm,
           appliedAt: 0,
         })
+      }
+    }
+
+    // Hard filter: toolSubtype when explicitly specified in input
+    if (input.toolSubtype) {
+      const subtypeLower = input.toolSubtype.toLowerCase()
+      const subtypeFiltered = candidates.filter(p => {
+        const pSub = (p.toolSubtype ?? "").toLowerCase()
+        return pSub.includes(subtypeLower) || !pSub // keep products with no subtype data
+      })
+      if (subtypeFiltered.length > 0) {
+        candidates = subtypeFiltered
+        console.log(`[hybrid-retrieval] toolSubtype filter: ${input.toolSubtype} → ${subtypeFiltered.length} candidates`)
       }
     }
   }

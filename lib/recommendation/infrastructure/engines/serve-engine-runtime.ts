@@ -1782,10 +1782,12 @@ async function handleServeExplorationInner(
 
           const testInput = deps.applyFilterToInput(currentInput, filter)
           const testFilters = [...filters, filter]
+          console.log(`[chip-filter-debug] filter=${JSON.stringify(filter)} testInput.diameterMm=${testInput.diameterMm} testFilters=${JSON.stringify(testFilters.map(f=>f.field+'='+f.value))}`)
           const testResult = await runHybridRetrieval(testInput, testFilters, 0, null)
           const testDisplayPage = sliceCandidatesForPage(testResult.candidates, testResult.evidenceMap, resolvedPagination)
 
           if (testResult.totalConsidered === 0) {
+            console.log(`[chip-filter-debug] ZERO RESULTS: filter=${filter.field}=${filter.value} currentInput.diameterMm=${currentInput.diameterMm} totalBefore=${totalCandidateCount}`)
             const excludeVals = filter.field === "workPieceName" ? [filter.value] : undefined
             return deps.buildQuestionResponse(
               form, candidates, evidenceMap, totalCandidateCount, paginationDto(totalCandidateCount), displayCandidates, displayEvidenceMap, currentInput,
@@ -2624,6 +2626,7 @@ async function handleServeExplorationInner(
       )
       const testInput = nextFilterState.nextInput
       const testFilters = nextFilterState.nextFilters
+      console.log(`[chip-filter-debug] (replace) filter=${JSON.stringify(filter)} testInput.diameterMm=${testInput.diameterMm} testFilters=${JSON.stringify(testFilters.map(f=>f.field+'='+f.value))}`)
       const testResult = await runHybridRetrieval(testInput, testFilters, 0, null)
       const testDisplayPage = sliceCandidatesForPage(testResult.candidates, testResult.evidenceMap, resolvedPagination)
 
@@ -2658,6 +2661,7 @@ async function handleServeExplorationInner(
       )
 
       if (testResult.totalConsidered === 0) {
+        console.log(`[chip-filter-debug] (replace) ZERO RESULTS: filter=${filter.field}=${filter.value} currentInput.diameterMm=${testInput.diameterMm} totalBefore=${candidateCountBeforeFilter}`)
         return deps.buildRecommendationResponse(
           form,
           testResult.candidates,
@@ -2772,6 +2776,7 @@ async function handleServeExplorationInner(
       )
       const testInput = nextFilterState.nextInput
       const testFilters = nextFilterState.nextFilters
+      console.log(`[chip-filter-debug] (apply) filter=${JSON.stringify(filter)} testInput.diameterMm=${testInput.diameterMm} testFilters=${JSON.stringify(testFilters.map(f=>f.field+'='+f.value))}`)
       const testResult = await runHybridRetrieval(testInput, testFilters, 0, null)
       const testDisplayPage = sliceCandidatesForPage(testResult.candidates, testResult.evidenceMap, resolvedPagination)
 
@@ -2787,6 +2792,7 @@ async function handleServeExplorationInner(
       }, `Filter ${filter.field}=${filter.value}: ${candidateCountBeforeFilter} → ${testResult.totalConsidered} candidates${testResult.totalConsidered === 0 ? " (BLOCKED)" : ""}`)
 
       if (testResult.totalConsidered === 0) {
+        console.log(`[chip-filter-debug] (apply) ZERO RESULTS: filter=${filter.field}=${filter.value} currentInput.diameterMm=${testInput.diameterMm} totalBefore=${candidateCountBeforeFilter}`)
         console.log(`[orchestrator:guard] Filter ${filter.field}=${filter.value} would result in 0 candidates -> BLOCKED, excluding from chips`)
         // 실패값을 buildQuestionResponse에 전달 → workPiece 칩에서 제외
         const excludeValues = filter.field === "workPieceName" ? [filter.value] : undefined
