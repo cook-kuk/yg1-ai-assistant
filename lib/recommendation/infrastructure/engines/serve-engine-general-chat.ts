@@ -94,6 +94,10 @@ export interface ServeEngineGeneralChatDependencies {
     prevState: ExplorationSessionState | null,
     options?: DirectQuestionOptions
   ) => Promise<QuestionReply>
+  handleCompetitorCrossReference?: (
+    userMessage: string,
+    prevState: ExplorationSessionState | null,
+  ) => Promise<QuestionReply>
   handleDirectCuttingConditionQuestion: (
     userMessage: string,
     currentInput: RecommendationInput,
@@ -831,6 +835,38 @@ export async function handleServeGeneralChatAction(
         }),
         strategy,
       )
+    }
+
+    // Competitor cross-reference: detect competitor brand/product mentions
+    if (deps.handleCompetitorCrossReference) {
+      const competitorReply = await deps.handleCompetitorCrossReference(lastUserMessage, prevState)
+      if (competitorReply) {
+        const strategy = resolveReplyUiStrategy("brand_reference", prevState)
+        return buildValidatedReplyResponse(
+          deps,
+          prevState,
+          filters,
+          narrowingHistory,
+          currentInput,
+          turnCount,
+          lastUserMessage,
+          competitorReply,
+          "competitor-cross-ref",
+          {
+            purpose: "general_chat",
+            currentMode: "general_chat",
+            lastAction: "answer_general",
+          },
+          orchResult,
+          buildProcessTrace({
+            actionType: "answer_general",
+            pendingQuestionField: prevState.lastAskedField ?? null,
+            recentFrameRelation: "brand_reference",
+            displayedOptions: buildReplyDisplayedOptions(competitorReply.chips),
+          }),
+          strategy,
+        )
+      }
     }
 
     const cuttingConditionReply = await deps.handleDirectCuttingConditionQuestion(lastUserMessage, currentInput, prevState)

@@ -975,6 +975,102 @@ export async function handleDirectBrandReferenceQuestion(
   }
 }
 
+// ── Competitor Cross-Reference ──
+// Detects competitor brand/product mentions and calls chat-tools competitor mapping
+const COMPETITOR_CROSS_REF_PATTERN =
+  /(?:대체|경쟁사|크로스\s*레퍼런스|cross\s*ref|대응|호환)\s*(?:품|제품|추천)?|(?:sandvik|seco|kennametal|guhring|osg|mitsubishi|iscar|walter|helical|niagara|widia|kyocera|sumitomo|tungaloy|dormer|emuge|hanita|nachi)\b/i
+
+export async function handleCompetitorCrossReference(
+  userMessage: string,
+  _prevState: ExplorationSessionState | null,
+): Promise<{ text: string; chips: string[] } | null> {
+  if (!COMPETITOR_CROSS_REF_PATTERN.test(userMessage)) return null
+
+  // Require an Anthropic API key for competitor mapping (web search + code parsing)
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.warn("[serve-engine] competitor cross-ref skipped: no ANTHROPIC_API_KEY")
+    return null
+  }
+
+  try {
+    const Anthropic = (await import("@anthropic-ai/sdk")).default
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    const { executeChatTool } = await import("@/lib/chat/infrastructure/tools/chat-tools")
+
+    const competitorResult = await executeChatTool("get_competitor_mapping", {
+      competitor_product: userMessage,
+    }, {
+      anthropicChatModel: process.env.ANTHROPIC_CHAT_MODEL ?? "claude-sonnet-4-20250514",
+      client,
+      route: "/api/recommend",
+    })
+
+    const parsed = JSON.parse(competitorResult)
+    if (!parsed.found) {
+      return {
+        text: [
+          "경쟁사 제품 정보를 검색했지만 매칭되는 YG-1 대체품을 찾지 못했습니다.",
+          "",
+          parsed.message ?? parsed.note ?? "",
+          "",
+          "더 정확한 결과를 위해 경쟁사 제품 코드를 직접 입력해보세요.",
+          '예: "SECO JS554100E2C.0Z3-HSIRA 대체품"',
+          "",
+          "[Reference: 웹 검색 + YG-1 내부 DB]",
+        ].filter(Boolean).join("\n"),
+        chips: ["경쟁사 제품코드 입력", "조건으로 추천받기", "AI Chat에서 상세 검색"],
+      }
+    }
+
+    const alternatives = parsed.yg1Alternatives ?? []
+    const specs = parsed.extractedSpecs ?? {}
+
+    // Build specs summary
+    const specsLines: string[] = []
+    if (specs.diameter_mm) specsLines.push(`직경: ${specs.diameter_mm}mm`)
+    if (specs.flute_count) specsLines.push(`날수: ${specs.flute_count}`)
+    if (specs.tool_shape) specsLines.push(`형상: ${specs.tool_shape}`)
+    if (specs.coating) specsLines.push(`코팅: ${specs.coating}`)
+    if (specs.iso_groups?.length) specsLines.push(`소재: ISO ${specs.iso_groups.join(", ")}`)
+
+    const specsBlock = specsLines.length > 0
+      ? `**경쟁사 스펙 (추정):**\n${specsLines.join(" | ")}\n`
+      : ""
+
+    // Build alternatives table
+    const altLines = alternatives.slice(0, 5).map((alt: Record<string, unknown>, i: number) => {
+      const code = alt.displayCode ?? alt.edpNo ?? "?"
+      const series = alt.seriesName ?? ""
+      const diam = alt.diameterMm != null ? `Ø${alt.diameterMm}mm` : ""
+      const flute = alt.fluteCount != null ? `${alt.fluteCount}날` : ""
+      return `${i + 1}. **${code}** ${series} ${[diam, flute].filter(Boolean).join(", ")}`
+    })
+
+    const altBlock = altLines.length > 0
+      ? `**YG-1 대체품 ${altLines.length}건:**\n${altLines.join("\n")}`
+      : ""
+
+    return {
+      text: [
+        `경쟁사 제품 크로스 레퍼런스 결과입니다.`,
+        "",
+        specsBlock,
+        altBlock,
+        "",
+        parsed.disclaimer ?? "",
+        "",
+        "[Reference: 웹 검색 + YG-1 내부 DB]",
+      ].filter(Boolean).join("\n"),
+      chips: alternatives.length > 0
+        ? ["대체품 상세 비교", "다른 경쟁사 제품 검색", "추천 제품 보기"]
+        : ["경쟁사 제품코드 입력", "조건으로 추천받기"],
+    }
+  } catch (err) {
+    console.warn("[serve-engine] competitor cross-ref failed:", err)
+    return null
+  }
+}
+
 export async function handleDirectInventoryQuestion(
   userMessage: string,
   prevState: ExplorationSessionState,

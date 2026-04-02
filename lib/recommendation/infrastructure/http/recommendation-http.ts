@@ -12,6 +12,7 @@ import {
 } from "@/lib/recommendation/infrastructure/engines/serve-engine-runtime"
 import {
   handleDirectBrandReferenceQuestion,
+  handleCompetitorCrossReference,
   handleDirectCuttingConditionQuestion,
   handleDirectEntityProfileQuestion,
   handleDirectInventoryQuestion,
@@ -234,6 +235,7 @@ function createServeRuntimeDependencies(): ServeEngineRuntimeDependencies {
       handleDirectEntityProfileQuestion(getProvider(), userMessage, currentInput, prevState, options),
     handleDirectProductInfoQuestion,
     handleDirectBrandReferenceQuestion,
+    handleCompetitorCrossReference,
     handleDirectCuttingConditionQuestion,
     handleContextualNarrowingQuestion,
     handleGeneralChat,

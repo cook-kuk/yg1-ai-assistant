@@ -34,6 +34,10 @@ export interface ServeEngineSimpleChatDependencies {
     currentInput: RecommendationInput,
     prevState: null
   ) => Promise<{ text: string; chips: string[] } | null>
+  handleCompetitorCrossReference?: (
+    userMessage: string,
+    prevState: null,
+  ) => Promise<{ text: string; chips: string[] } | null>
 }
 
 export async function handleServeSimpleChat(
@@ -99,6 +103,23 @@ export async function handleServeSimpleChat(
       evidenceSummaries: null,
       candidateSnapshot: null,
     })
+  }
+
+  // Competitor cross-reference
+  if (deps.handleCompetitorCrossReference) {
+    const competitorReply = await deps.handleCompetitorCrossReference(latestUserMsg, null)
+    if (competitorReply) {
+      return deps.jsonRecommendationResponse({
+        text: competitorReply.text,
+        purpose: "general_chat",
+        chips: competitorReply.chips,
+        isComplete: false,
+        recommendation: null,
+        sessionState: null,
+        evidenceSummaries: null,
+        candidateSnapshot: null,
+      })
+    }
   }
 
   const hasEnough = !!(baseInput.diameterMm || (baseInput.material && baseInput.operationType))
