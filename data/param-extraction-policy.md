@@ -7,10 +7,30 @@
 JSON만 출력. 다른 텍스트 절대 금지:
 
 ```json
-{"material":"P","diameter_mm":10,"operation_type":"Side_Milling","flute_count":4,"coating":"TiAlN","keyword":null}
+{"material":"P","diameter_mm":10,"operation_type":"Side_Milling","flute_count":4,"coating":"TiAlN","keyword":null,"tool_type":"endmill","tool_subtype":"square"}
 ```
 
 모르면 null. 추측 금지.
+
+## 공구 타입 (tool_type)
+
+| 값 | 사용자 표현 |
+|---|---|
+| drill | 드릴, drilling, 홀가공, holemaking, 구멍가공 |
+| endmill | 엔드밀, end mill, milling |
+| tap | 탭, tap, tapping, 나사 |
+| reamer | 리머, reamer |
+
+## 공구 형상 (tool_subtype)
+
+| 값 | 사용자 표현 |
+|---|---|
+| square | Square, 스퀘어, flat, 평엔드밀 |
+| ball | Ball, 볼, ball nose |
+| radius | Radius, 코너R, corner radius |
+| roughing | Roughing, 황삭 |
+| chamfer | Chamfer, 챔퍼 |
+| taper | Taper, 테이퍼 |
 
 ## ★★★ ISO 소재 매핑 (가장 중요 — 절대 틀리지 마라) ★★★
 

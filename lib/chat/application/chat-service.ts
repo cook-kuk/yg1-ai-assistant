@@ -172,6 +172,7 @@ export async function runChatConversationStreaming(
         toolBlock.name,
         toolBlock.input as Record<string, unknown>,
         convState,
+        undefined, // streaming path has no pre-search params
       )
       const result = await executeChatTool(toolBlock.name, toolInput, {
         anthropicChatModel: deps.model,
@@ -344,21 +345,43 @@ function toAnthropicMessages(messages: ChatMessage[]): Anthropic.MessageParam[] 
 function mergeSearchProductsInput(
   toolName: string,
   toolInput: Record<string, unknown>,
-  convState: ConversationState
+  convState: ConversationState,
+  preSearchParams?: Record<string, unknown>,
 ): Record<string, unknown> {
-  if (toolName !== "search_products" || convState.topicStatus === "new") {
+  if (toolName !== "search_products") {
     return toolInput
   }
 
   const merged = { ...toolInput }
-  if (!merged.material && convState.params.material) merged.material = convState.params.material
-  if (merged.diameter_mm == null && convState.params.diameterMm != null) merged.diameter_mm = convState.params.diameterMm
-  if (merged.flute_count == null && convState.params.fluteCount != null) merged.flute_count = convState.params.fluteCount
-  if (!merged.operation_type && convState.params.operation) merged.operation_type = convState.params.operation
-  if (!merged.coating && convState.params.coating) merged.coating = convState.params.coating
+
+  // 1. Merge conversation state params (existing behavior)
+  if (convState.topicStatus !== "new") {
+    if (!merged.material && convState.params.material) merged.material = convState.params.material
+    if (merged.diameter_mm == null && convState.params.diameterMm != null) merged.diameter_mm = convState.params.diameterMm
+    if (merged.flute_count == null && convState.params.fluteCount != null) merged.flute_count = convState.params.fluteCount
+    if (!merged.operation_type && convState.params.operation) merged.operation_type = convState.params.operation
+    if (!merged.coating && convState.params.coating) merged.coating = convState.params.coating
+  }
+
+  // 2. Enforce pre-search extracted params (critical: tool_type, tool_subtype, diameter)
+  // These are validated params from user's explicit input — LLM should not override
+  if (preSearchParams) {
+    // Hard enforcement: tool_type and tool_subtype ALWAYS override LLM
+    if (preSearchParams.tool_type && !merged.tool_type) merged.tool_type = preSearchParams.tool_type
+    if (preSearchParams.tool_subtype && !merged.tool_subtype) merged.tool_subtype = preSearchParams.tool_subtype
+    // Diameter: enforce if LLM didn't specify
+    if (preSearchParams.diameter_mm != null && merged.diameter_mm == null) merged.diameter_mm = preSearchParams.diameter_mm
+    // Material: enforce if LLM didn't specify
+    if (preSearchParams.material && !merged.material) merged.material = preSearchParams.material
+    // Others: soft merge
+    if (preSearchParams.flute_count != null && merged.flute_count == null) merged.flute_count = preSearchParams.flute_count
+    if (preSearchParams.coating && !merged.coating) merged.coating = preSearchParams.coating
+    if (preSearchParams.keyword && !merged.keyword) merged.keyword = preSearchParams.keyword
+    if (preSearchParams.operation_type && !merged.operation_type) merged.operation_type = preSearchParams.operation_type
+  }
 
   console.log(
-    `[chat] progressive-narrow: LLM sent [${Object.keys(toolInput).join(",")}] -> merged [${Object.keys(merged).filter(key => merged[key] != null).join(",")}]`
+    `[chat] merge: LLM=[${Object.keys(toolInput).join(",")}] + preSearch=[${Object.keys(preSearchParams ?? {}).join(",")}] → final=[${Object.keys(merged).filter(key => merged[key] != null).join(",")}]`
   )
 
   return merged
@@ -579,7 +602,8 @@ export async function runChatConversation(
       const toolInput = mergeSearchProductsInput(
         toolBlock.name,
         toolBlock.input as Record<string, unknown>,
-        convState
+        convState,
+        extractedParams,
       )
       const result = await executeChatTool(toolBlock.name, toolInput, {
         anthropicChatModel: deps.model,
