@@ -276,6 +276,39 @@ export function reduce(
   }
 }
 
+// ── Compare reducer output vs actual state (for shadow mode) ──
+
+export interface ReducerComparison {
+  match: boolean
+  differences: Array<{ field: string; reducer: unknown; actual: unknown }>
+}
+
+export function compareReducerVsActual(
+  reducerState: ExplorationSessionState,
+  actualState: ExplorationSessionState,
+): ReducerComparison {
+  const differences: ReducerComparison["differences"] = []
+
+  const fields: Array<{ field: string; get: (s: ExplorationSessionState) => unknown }> = [
+    { field: "candidateCount", get: s => s.candidateCount },
+    { field: "turnCount", get: s => s.turnCount },
+    { field: "currentMode", get: s => s.currentMode },
+    { field: "lastAction", get: s => s.lastAction },
+    { field: "lastAskedField", get: s => s.lastAskedField },
+    { field: "filterCount", get: s => s.appliedFilters?.length ?? 0 },
+  ]
+
+  for (const { field, get } of fields) {
+    const rv = get(reducerState)
+    const av = get(actualState)
+    if (rv !== av) {
+      differences.push({ field, reducer: rv, actual: av })
+    }
+  }
+
+  return { match: differences.length === 0, differences }
+}
+
 // ── Dry-run helper for DebugTrace ──
 
 export function dryRunReduce(

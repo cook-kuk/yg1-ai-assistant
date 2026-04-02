@@ -35,6 +35,9 @@ export const ENABLE_TASK_SYSTEM = envFlag("ENABLE_TASK_SYSTEM", true)
 /** Apply extra in-memory heuristics after SQL fetch. Conversation narrowing filters stay enabled. */
 export const ENABLE_POST_SQL_CANDIDATE_FILTERS = envFlag("ENABLE_POST_SQL_CANDIDATE_FILTERS", true)
 
+/** Use new state reducer instead of carryForwardState. Defaults to false (dry-run comparison only). Set USE_STATE_REDUCER=true to activate. */
+export const USE_STATE_REDUCER = envFlag("USE_STATE_REDUCER", false)
+
 /** Use V2 turn orchestrator (new recommendation pipeline). Defaults to true — V2 is the primary pipeline. Set USE_NEW_ORCHESTRATOR=false to revert to legacy. */
 export const USE_NEW_ORCHESTRATOR = process.env.USE_NEW_ORCHESTRATOR !== "false"
 

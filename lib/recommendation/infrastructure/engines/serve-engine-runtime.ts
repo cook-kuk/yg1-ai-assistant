@@ -35,7 +35,8 @@ import { normalizeFilterValue, extractDistinctFieldValues } from "@/lib/recommen
 import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-target-classifier"
 import { TraceCollector, isDebugEnabled } from "@/lib/debug/agent-trace"
 import { normalizePlannerResult, validatePlannerResult, buildExecutorSummary } from "@/lib/recommendation/core/turn-boundaries"
-import { dryRunReduce, type ReducerAction } from "@/lib/recommendation/core/state-reducer"
+import { dryRunReduce, reduce, compareReducerVsActual, type ReducerAction } from "@/lib/recommendation/core/state-reducer"
+import { USE_STATE_REDUCER } from "@/lib/feature-flags"
 import { deriveChips, toChipState } from "@/lib/recommendation/core/chip-system"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
 import { classifyPreSearchRoute } from "@/lib/recommendation/infrastructure/engines/pre-search-route"
@@ -1055,6 +1056,38 @@ export async function handleServeExploration(
         const json = await response.json()
         const meta = (json as any).meta ?? {}
         meta.debugTrace = debugTrace
+
+        // ── Shadow reducer comparison ──
+        const actualSessionState = (json as any).sessionState ?? (json as any).session?.engineState
+        if (actualSessionState && prevState && debugTrace.plannerAction) {
+          try {
+            // Reconstruct the reducer action from planner
+            const reducerAction: ReducerAction = debugTrace.plannerAction === "continue_narrowing"
+              ? { type: "narrow", filter: { field: "unknown", value: "unknown", op: "eq", rawValue: "unknown", appliedAt: 0 }, candidateCountAfter: actualSessionState.candidateCount ?? 0, resolvedInput: prevState.resolvedInput ?? {} as any }
+              : debugTrace.plannerAction === "show_recommendation"
+              ? { type: "recommend", candidateCountAfter: actualSessionState.candidateCount ?? 0, displayedCandidates: [] }
+              : debugTrace.plannerAction === "answer_general"
+              ? { type: "general_chat" }
+              : { type: "passthrough", overrides: { turnCount: (prevState.turnCount ?? 0) + 1, lastAction: debugTrace.plannerAction } }
+
+            const reducerResult = reduce(prevState as any, reducerAction)
+            const comparison = compareReducerVsActual(reducerResult.nextState, actualSessionState)
+
+            meta.reducerComparison = {
+              match: comparison.match,
+              differences: comparison.differences,
+              reducerUsed: USE_STATE_REDUCER,
+            }
+
+            if (!comparison.match) {
+              console.log(`[reducer-shadow] MISMATCH: ${comparison.differences.map(d => `${d.field}: reducer=${d.reducer} actual=${d.actual}`).join(", ")}`)
+            }
+          } catch (e) {
+            // Comparison failed — not critical
+            console.warn("[reducer-shadow] comparison error:", e)
+          }
+        }
+
         ;(json as any).meta = meta
         return new Response(JSON.stringify(json), {
           status: response.status,
