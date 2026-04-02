@@ -824,9 +824,41 @@ async function executeGetCompetitorMapping(
     return JSON.stringify({ found: false, message: "경쟁사 이름 또는 제품 코드를 입력해주세요." })
   }
 
-  // Step 1: 웹서치로 경쟁사 제품 스펙 조회 (메인 — PDF 카탈로그까지 깊게 검색)
+  // Step 0: 코드파싱 먼저 (빠름 ~2초) → 충분하면 웹검색 skip
+  let codeParseSpecs: Record<string, unknown> | null = null
+  if (params.competitor_product && deps.client) {
+    try {
+      let parsingPolicy: string
+      try {
+        const { readFileSync } = await import("fs")
+        const { join } = await import("path")
+        parsingPolicy = readFileSync(join(process.cwd(), "data", "competitor-code-parsing-policy.md"), "utf-8")
+      } catch {
+        parsingPolicy = "절삭공구 전문가로서 경쟁사 제품 코드를 분석하여 스펙을 JSON으로 추정하세요."
+      }
+      const parseResp = await deps.client.messages.create({
+        model: deps.anthropicChatModel as Parameters<typeof deps.client.messages.create>[0]["model"],
+        max_tokens: 500,
+        system: parsingPolicy,
+        messages: [{ role: "user", content: `제품코드: "${params.competitor_product}"\nJSON만 반환:` }],
+      })
+      const parseText = parseResp.content
+        .filter((b): b is Anthropic.TextBlock => b.type === "text")
+        .map(b => b.text).join("")
+      const parseMatch = parseText.match(/\{[\s\S]*\}/)
+      if (parseMatch) {
+        codeParseSpecs = JSON.parse(parseMatch[0])
+        console.log(`[competitor-xref] code parse: ${JSON.stringify(codeParseSpecs)}`)
+      }
+    } catch (err) {
+      console.warn("[competitor-mapping] Code parse failed:", err)
+    }
+  }
+
+  // Step 1: 웹서치 (코드파싱이 high confidence면 skip)
+  const skipWebSearch = codeParseSpecs && (codeParseSpecs as any).confidence === "high" && (codeParseSpecs as any).diameter_mm
   let webSpecs: string | null = null
-  if (deps.client) {
+  if (!skipWebSearch && deps.client) {
     try {
       const searchPrompt = params.competitor_product
         ? `Search for the cutting tool "${params.competitor_product}" specifications. Look for:
@@ -854,8 +886,8 @@ Return as detailed structured text with ALL specs found.`
         operation: "competitor_web_search",
         request: {
           model: deps.anthropicChatModel as Parameters<typeof deps.client.messages.create>[0]["model"],
-          max_tokens: 2000,
-          tools: [{ type: "web_search_20250305" as const, name: "web_search", max_uses: 3 }],
+          max_tokens: 1000,
+          tools: [{ type: "web_search_20250305" as const, name: "web_search", max_uses: 1 }],
           messages: [{
             role: "user",
             content: searchPrompt,
@@ -872,40 +904,7 @@ Return as detailed structured text with ALL specs found.`
     }
   }
 
-  // Step 1.5: 웹서치 실패 시에만 — LLM 코드 파싱으로 스펙 추정 (최후 수단)
-  let codeParseSpecs: Record<string, unknown> | null = null
-  if (!webSpecs && params.competitor_product && deps.client) {
-    try {
-      let parsingPolicy: string
-      try {
-        const { readFileSync } = await import("fs")
-        const { join } = await import("path")
-        parsingPolicy = readFileSync(join(process.cwd(), "data", "competitor-code-parsing-policy.md"), "utf-8")
-      } catch {
-        parsingPolicy = "절삭공구 전문가로서 경쟁사 제품 코드를 분석하여 스펙을 JSON으로 추정하세요."
-      }
-
-      const parseResp = await deps.client.messages.create({
-        model: deps.anthropicChatModel as Parameters<typeof deps.client.messages.create>[0]["model"],
-        max_tokens: 500,
-        system: parsingPolicy,
-        messages: [{
-          role: "user",
-          content: `제품코드: "${params.competitor_product}"\nJSON만 반환:`,
-        }],
-      })
-      const parseText = parseResp.content
-        .filter((b): b is Anthropic.TextBlock => b.type === "text")
-        .map(b => b.text).join("")
-      const parseMatch = parseText.match(/\{[\s\S]*\}/)
-      if (parseMatch) {
-        codeParseSpecs = JSON.parse(parseMatch[0])
-        console.log(`[competitor-xref] code parse fallback:`, JSON.stringify(codeParseSpecs))
-      }
-    } catch (err) {
-      console.warn("[competitor-mapping] Code parse failed:", err)
-    }
-  }
+  // (코드파싱은 Step 0으로 이동됨)
 
   // Step 2: 웹서치 결과에서 스펙 추출 → YG-1 대체품 검색
   if (webSpecs && deps.client) {
