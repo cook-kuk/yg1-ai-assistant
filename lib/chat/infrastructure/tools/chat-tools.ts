@@ -709,9 +709,9 @@ async function executeGetCuttingConditions(params: {
 
 // ── Cross-reference shape group matching ──
 const SHAPE_GROUPS: Record<string, string[]> = {
-  square:  ["square", "flat", "em", "스퀘어"],
-  ball:    ["ball", "bnem", "볼", "ball nose"],
-  radius:  ["radius", "corner r", "corner radius", "코너r", "코너R"],
+  square:  ["square", "flat end", "스퀘어", "평엔드밀"],
+  ball:    ["ball", "볼", "ball nose", "ballnose"],
+  radius:  ["radius", "corner r", "corner radius", "코너r", "코너R", "코너라디우스"],
   chamfer: ["chamfer", "bevel", "챔퍼"],
   roughing:["roughing", "hog", "corn cob", "황삭"],
   drill:   ["drill", "드릴"],
@@ -867,18 +867,22 @@ Return as detailed structured text with ALL specs found.`
       if (specs.diameter_mm) searchInput.diameterMm = specs.diameter_mm
       if (specs.material) searchInput.material = specs.material
 
+      // 크로스레퍼런스에서는 날수 필터만 적용 — 코팅은 경쟁사≠YG-1이므로 필터 안 함
       const searchFilters: AppliedFilter[] = []
       if (specs.flute_count) {
         searchFilters.push({ field: "fluteCount", op: "eq", value: `${specs.flute_count}날`, rawValue: specs.flute_count, appliedAt: 0 })
       }
-      if (specs.coating) {
-        searchFilters.push({ field: "coating", op: "includes", value: specs.coating, rawValue: specs.coating, appliedAt: 0 })
-      }
+      // 코팅은 크로스레퍼런스에서 제외 (SECO SIRA ≠ YG-1 T-Coating이므로 매칭 불가)
 
       let alternatives = await ProductRepo.search(searchInput, searchFilters, 200)
+      console.log(`[competitor-xref] DB search: input=${JSON.stringify(searchInput)}, filters=${JSON.stringify(searchFilters)}, results=${alternatives.length}`)
+      console.log(`[competitor-xref] sample products:`, alternatives.slice(0, 3).map(p => `${p.displayCode}(${p.toolSubtype},d=${p.diameterMm})`).join(", "))
+
       if (specs.diameter_mm) {
         const diam = specs.diameter_mm
+        const beforeDiam = alternatives.length
         alternatives = alternatives.filter(p => p.diameterMm != null && Math.abs(p.diameterMm - diam) <= 1)
+        console.log(`[competitor-xref] diameter filter: ±1mm of ${diam} → ${alternatives.length} (from ${beforeDiam})`)
       }
 
       // ── Cross-reference hard filters: shape + material group ──
