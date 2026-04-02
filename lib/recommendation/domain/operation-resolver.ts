@@ -8,14 +8,19 @@ import { OPERATION_SHAPE_OPTIONS } from "@/lib/types/intake"
 const DIRECT_OPERATION_SHAPE_VALUES = new Set(OPERATION_SHAPE_OPTIONS.map(option => option.value))
 
 const OPERATION_ALIASES: Array<{ keywords: string[]; values: string[] }> = [
-  // Holemaking
+  // Holemaking (broad category → all sub-shapes)
+  { keywords: ["holemaking", "홀가공", "홀 가공", "구멍가공", "구멍 가공"], values: ["Drilling", "Reaming_Blind", "Reaming_Through"] },
   { keywords: ["드릴", "drilling", "drill"], values: ["Drilling"] },
   { keywords: ["리밍 블라인드", "reaming blind"], values: ["Reaming_Blind"] },
   { keywords: ["리밍 쓰루", "reaming through"], values: ["Reaming_Through"] },
-  // Threading
+  // Threading (broad category → all sub-shapes)
+  { keywords: ["threading", "나사", "탭", "tap", "tapping"], values: ["Threading_Blind", "Threading_Through"] },
   { keywords: ["나사 블라인드", "threading blind"], values: ["Threading_Blind"] },
   { keywords: ["나사 쓰루", "threading through"], values: ["Threading_Through"] },
-  // Milling
+  // Turning (broad category)
+  { keywords: ["turning", "터닝", "선반", "선삭"], values: ["ISO_Turning", "Parting_Grooving"] },
+  // Milling (broad category → common sub-shapes)
+  { keywords: ["milling", "밀링", "엔드밀", "end mill", "endmill"], values: ["Side_Milling", "Slotting", "Profiling", "Facing"] },
   { keywords: ["측면가공", "측면", "side milling"], values: ["Side_Milling"] },
   { keywords: ["정면가공", "정면", "face", "facing"], values: ["Facing"] },
   { keywords: ["프로파일", "윤곽", "profiling", "profile", "contour"], values: ["Profiling"] },

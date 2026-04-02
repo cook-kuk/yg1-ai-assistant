@@ -837,6 +837,7 @@ function buildProductDataQuery(
           WHEN 'NULL' THEN 2
           ELSE 3
         END ASC,
+        CASE WHEN 'KR' = ANY(COALESCE(country_codes, ARRAY[]::text[])) THEN 0 ELSE 1 END ASC,
         CASE
           WHEN UPPER(COALESCE(effective_tool_material, '')) = 'CARBIDE' THEN 0
           WHEN COALESCE(effective_tool_material, '') <> '' THEN 1

@@ -403,7 +403,72 @@ async function executeSearchProducts(params: {
     if (filtered.length > 0) results = filtered
   }
 
-  const deduped = dedupeProductsBySeries(results)
+  let deduped = dedupeProductsBySeries(results)
+
+  // Auto-relax: 0건이면 operation_type 빼고 재검색
+  if (deduped.length === 0 && params.operation_type) {
+    const relaxedParams = { ...params, operation_type: undefined }
+    const { input: rInput, filters: rFilters } = buildProductSearchOptions(relaxedParams)
+    let relaxedResults = await ProductRepo.search(rInput, rFilters, 200)
+    if (params.material) {
+      const tag = resolveMaterialTag(params.material)
+      if (tag) {
+        const filtered = relaxedResults.filter(product => product.materialTags.includes(tag))
+        if (filtered.length > 0) relaxedResults = filtered
+      }
+    }
+    if (keyword) {
+      const filtered = relaxedResults.filter(product => matchesKeyword(product, keyword))
+      if (filtered.length > 0) relaxedResults = filtered
+    }
+    deduped = dedupeProductsBySeries(relaxedResults)
+    if (deduped.length > 0) {
+      const totalDeduped = deduped.length
+      const pageSize = params.show_all ? 100 : 10
+      const offset = params.offset ?? 0
+      const page = deduped.slice(offset, offset + pageSize)
+      return JSON.stringify({
+        count: page.length,
+        totalMatched: totalDeduped,
+        showing: `${offset + 1}~${offset + page.length}/${totalDeduped}`,
+        hasMore: offset + page.length < totalDeduped,
+        remainingCount: Math.max(0, totalDeduped - offset - page.length),
+        relaxedFilter: "operation_type 필터를 완화하여 검색했습니다. 가공형상(operation_type) 매칭이 정확하지 않을 수 있습니다.",
+        products: page.map(slimProduct),
+      })
+    }
+  }
+
+  // Auto-relax: 여전히 0건이면 coating도 빼고 재검색
+  if (deduped.length === 0 && params.coating) {
+    const relaxedParams = { ...params, operation_type: undefined, coating: undefined }
+    const { input: rInput, filters: rFilters } = buildProductSearchOptions(relaxedParams)
+    let relaxedResults = await ProductRepo.search(rInput, rFilters, 200)
+    if (params.material) {
+      const tag = resolveMaterialTag(params.material)
+      if (tag) {
+        const filtered = relaxedResults.filter(product => product.materialTags.includes(tag))
+        if (filtered.length > 0) relaxedResults = filtered
+      }
+    }
+    deduped = dedupeProductsBySeries(relaxedResults)
+    if (deduped.length > 0) {
+      const totalDeduped = deduped.length
+      const pageSize = params.show_all ? 100 : 10
+      const offset = params.offset ?? 0
+      const page = deduped.slice(offset, offset + pageSize)
+      return JSON.stringify({
+        count: page.length,
+        totalMatched: totalDeduped,
+        showing: `${offset + 1}~${offset + page.length}/${totalDeduped}`,
+        hasMore: offset + page.length < totalDeduped,
+        remainingCount: Math.max(0, totalDeduped - offset - page.length),
+        relaxedFilter: "operation_type + coating 필터를 완화하여 검색했습니다.",
+        products: page.map(slimProduct),
+      })
+    }
+  }
+
   const totalDeduped = deduped.length
 
   if (deduped.length === 0) {
@@ -411,7 +476,7 @@ async function executeSearchProducts(params: {
       count: 0,
       totalMatched: 0,
       products: [],
-      message: "내부 DB에서 검색 조건에 맞는 제품을 찾지 못했습니다. web_search 도구로 웹에서 카탈로그를 검색해보세요.",
+      message: "내부 DB에서 검색 조건에 맞는 제품을 찾지 못했습니다. 조건을 줄이거나 keyword로 시리즈명을 검색해보세요.",
     })
   }
 
