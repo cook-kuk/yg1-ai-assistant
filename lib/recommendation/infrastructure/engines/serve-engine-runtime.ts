@@ -35,6 +35,7 @@ import { normalizeFilterValue, extractDistinctFieldValues } from "@/lib/recommen
 import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-target-classifier"
 import { TraceCollector, isDebugEnabled } from "@/lib/debug/agent-trace"
 import { normalizePlannerResult, validatePlannerResult, buildExecutorSummary } from "@/lib/recommendation/core/turn-boundaries"
+import { dryRunReduce, type ReducerAction } from "@/lib/recommendation/core/state-reducer"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
 import { classifyPreSearchRoute } from "@/lib/recommendation/infrastructure/engines/pre-search-route"
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
@@ -1929,6 +1930,32 @@ async function handleServeExplorationInner(
       oneLiner: `${action.type} | ${prevState.currentMode ?? "initial"} | ${totalCandidateCount}개 후보${wasIntercepted ? ` (intercepted from ${originalActionType})` : ""}`,
       bullets: reasoningBullets,
     })
+
+    // ── Dry-run reducer for DebugTrace (no behavior change) ──
+    {
+      const reducerAction: ReducerAction = action.type === "continue_narrowing" && action.filter
+        ? { type: "narrow", filter: action.filter, candidateCountAfter: totalCandidateCount, resolvedInput: currentInput }
+        : action.type === "skip_field"
+        ? { type: "skip_field", field: prevState.lastAskedField ?? "unknown" }
+        : action.type === "show_recommendation"
+        ? { type: "recommend", candidateCountAfter: totalCandidateCount, displayedCandidates: [] }
+        : action.type === "compare_products"
+        ? { type: "compare" }
+        : action.type === "answer_general" || action.type === "redirect_off_topic"
+        ? { type: "general_chat" }
+        : action.type === "reset_session"
+        ? { type: "reset" }
+        : { type: "passthrough", overrides: { turnCount: turnCount + 1, lastAction: action.type } }
+
+      const dryRun = dryRunReduce(prevState, reducerAction)
+      trace.add("reducer-dry-run", "context", {
+        actionType: reducerAction.type,
+        mutationCount: dryRun.mutations.length,
+      }, {
+        mutations: dryRun.mutations,
+        nextStateSummary: dryRun.nextStateSummary,
+      }, `Reducer would produce: ${dryRun.mutations.map(m => `${m.field}: ${m.before}→${m.after}`).join(", ")}`)
+    }
 
     if (action.type === "reset_session") {
       return buildResetResponse(deps, requestPrep)
