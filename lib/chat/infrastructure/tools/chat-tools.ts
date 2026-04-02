@@ -370,15 +370,7 @@ function buildProductSearchOptions(params: {
       appliedAt: 0,
     })
   }
-  if (params.keyword) {
-    filters.push({
-      field: "seriesName",
-      op: "includes",
-      value: params.keyword,
-      rawValue: params.keyword,
-      appliedAt: 0,
-    })
-  }
+  // keyword는 DB 필터가 아닌 JS 후필터로 처리 (executeSearchProducts에서)
 
   return { input, filters }
 }
@@ -407,7 +399,14 @@ async function executeSearchProducts(params: {
   const keyword = params.keyword
   if (keyword) {
     const filtered = results.filter(product => matchesKeyword(product, keyword))
-    if (filtered.length > 0) results = filtered
+    if (filtered.length > 0) {
+      results = filtered
+    } else if (results.length === 0) {
+      // Keyword-only search: if no other filters produced results, do a wide search
+      const wideResults = await ProductRepo.search({ manufacturerScope: "yg1-only", locale: "ko" }, [], 500)
+      const keywordMatched = wideResults.filter(product => matchesKeyword(product, keyword))
+      if (keywordMatched.length > 0) results = keywordMatched
+    }
   }
 
   let deduped = dedupeProductsBySeries(results)
