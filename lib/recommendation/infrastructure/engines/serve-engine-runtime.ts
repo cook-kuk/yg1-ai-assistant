@@ -34,6 +34,7 @@ import { validateOptionFirstPipeline } from "@/lib/recommendation/domain/options
 import { normalizeFilterValue, extractDistinctFieldValues } from "@/lib/recommendation/domain/value-normalizer"
 import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-target-classifier"
 import { TraceCollector, isDebugEnabled } from "@/lib/debug/agent-trace"
+import { normalizePlannerResult, validatePlannerResult, buildExecutorSummary } from "@/lib/recommendation/core/turn-boundaries"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
 import { classifyPreSearchRoute } from "@/lib/recommendation/infrastructure/engines/pre-search-route"
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
@@ -1907,6 +1908,14 @@ async function handleServeExplorationInner(
         ? [{ name: originalActionType, rejectedReason: "Intercepted by question-assist or query-target override" }]
         : [],
     })
+
+    // ── Boundary: normalize planner result + validate ──
+    const plannerResult = normalizePlannerResult(orchResult, action, wasIntercepted)
+    const validationResult = validatePlannerResult(plannerResult, trace)
+    if (validationResult.warnings.length > 0) {
+      console.log(`[turn-boundary:validator] warnings: ${validationResult.warnings.join(", ")}`)
+    }
+    const executionStartTime = Date.now()
 
     // Build human-readable reasoning
     const reasoningBullets: string[] = []
