@@ -864,17 +864,44 @@ function buildCandidateBasedRefinementChips(
     : null
   if (!fieldKey) return []
 
-  // 직경 칩의 경우: 각 직경 값이 현재 후보에서 실제로 exact match 가능한지 확인
-  // candidates는 ±2mm 범위로 가져온 것이라, 다른 toolType(드릴 등)이 섞여있을 수 있음
-  // → 직경별로 카운트할 때, 해당 직경의 제품이 candidates 내에서 다른 필터 조건도 만족하는지 확인
+  // ── Dominant category 결정 (Milling vs Holemaking vs Threading 등) ──
+  // candidates는 ±2mm 범위라 다른 카테고리(드릴 등)가 섞여있을 수 있음
+  // applicationShapes로 dominant category를 판별하고, 해당 카테고리 제품만 카운트
+  const MILLING_SHAPES = new Set(["Side_Milling","Slotting","Profiling","Facing","Die-Sinking","Trochoidal","Helical_Interpolation","Corner_Radius","Taper_Side_Milling","Small_Part","Ramping","Plunging","Chamfering"])
+  const HOLEMAKING_SHAPES = new Set(["Drilling","Reaming_Blind","Reaming_Through"])
+  const THREADING_SHAPES = new Set(["Threading_Blind","Threading_Through"])
+
+  let millingCount = 0, holemakerCount = 0, threadingCount = 0
   for (const c of candidates) {
+    const shapes: string[] = (c.product as Record<string, unknown>).applicationShapes as string[] ?? []
+    if (shapes.some(s => MILLING_SHAPES.has(s))) millingCount++
+    else if (shapes.some(s => HOLEMAKING_SHAPES.has(s))) holemakerCount++
+    else if (shapes.some(s => THREADING_SHAPES.has(s))) threadingCount++
+    else millingCount++ // default to milling
+  }
+
+  const dominantCategory = millingCount >= holemakerCount && millingCount >= threadingCount ? "milling"
+    : holemakerCount > millingCount ? "holemaking"
+    : "threading"
+
+  for (const c of candidates) {
+    // dominant category에 속하는 제품만 카운트
+    const shapes: string[] = (c.product as Record<string, unknown>).applicationShapes as string[] ?? []
+    const isMilling = shapes.some(s => MILLING_SHAPES.has(s)) || shapes.length === 0
+    const isHolemaking = shapes.some(s => HOLEMAKING_SHAPES.has(s))
+    const isThreading = shapes.some(s => THREADING_SHAPES.has(s))
+
+    const matchesDominant =
+      (dominantCategory === "milling" && isMilling) ||
+      (dominantCategory === "holemaking" && isHolemaking) ||
+      (dominantCategory === "threading" && isThreading)
+
+    if (!matchesDominant) continue
+
     const raw = (c.product as Record<string, unknown>)[fieldKey]
     if (raw == null) continue
     const val = String(raw)
     if (!val || val === "미확인") continue
-
-    // 직경 칩: 해당 직경 제품이 실제로 현재 후보 조건(toolType 등)에 맞는지 간접 확인
-    // candidates 자체가 필터된 결과이므로 포함된 제품은 유효함
     valueCounts.set(val, (valueCounts.get(val) ?? 0) + 1)
   }
 
@@ -885,9 +912,7 @@ function buildCandidateBasedRefinementChips(
 
   if (valueCounts.size === 0) return []
 
-  // 최소 2개 이상의 제품이 있는 직경만 칩으로 표시 (1개는 노이즈일 수 있음)
-  const filtered = [...valueCounts.entries()].filter(([, count]) => count >= 2)
-  const sorted = (filtered.length > 0 ? filtered : [...valueCounts.entries()])
+  const sorted = [...valueCounts.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
 
