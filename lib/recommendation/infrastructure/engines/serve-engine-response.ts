@@ -623,6 +623,30 @@ export async function buildQuestionResponse(
     console.log("[recommend] Skipping LLM question polish after skip_field; using deterministic question text")
   }
 
+  // ── Post-process: strip hallucinated numbers from LLM text ──
+  // Build valid number set from chips and total candidate count
+  if (responseText && question?.chips?.length) {
+    const validNums = new Set<number>()
+    validNums.add(totalCandidateCount)
+    for (const chip of question.chips) {
+      const m = chip.match(/(\d[\d,]*)\s*개/)
+      if (m) validNums.add(parseInt(m[1].replace(/,/g, "")))
+    }
+    // Replace "약 N개" or "N개" where N is not in validNums
+    responseText = responseText.replace(/약?\s*(\d[\d,]*)\s*개/g, (match, numStr) => {
+      const num = parseInt(numStr.replace(/,/g, ""))
+      if (validNums.has(num)) return match
+      // Check ±5% tolerance
+      for (const v of validNums) {
+        if (Math.abs(v - num) / Math.max(v, 1) < 0.05) return match
+      }
+      // Hallucinated number — remove the whole "약 N개" phrase
+      return ""
+    })
+    // Clean up double spaces / orphan punctuation from removals
+    responseText = responseText.replace(/\(\s*\)/g, "").replace(/  +/g, " ").trim()
+  }
+
   const requestPrep = prepareRequest(form, messages, sessionState, input, totalCandidateCount)
 
   // ── Option-first: chips are derived from structured displayedOptions (built above) ──
@@ -636,7 +660,11 @@ export async function buildQuestionResponse(
 
   // When overrideChips is provided (e.g. 0-result recovery), skip the option state
   // pipeline and consistency guards — the caller knows exactly which chips to show.
-  if (overrideChips && overrideChips.length > 0) {
+  // Safety: reject non-array values to prevent string spread (e.g. [..."text"] → ["t","e","x","t"])
+  if (overrideChips && !Array.isArray(overrideChips)) {
+    console.error(`[buildQuestionResponse] overrideChips is not an array: ${typeof overrideChips} — ignoring to prevent character-level chip split`)
+  }
+  if (overrideChips && Array.isArray(overrideChips) && overrideChips.length > 0) {
     finalResponseChips = [...overrideChips]
     finalDisplayedOptions = buildDisplayedOptions(overrideChips, question?.field ?? "unknown")
   } else {
