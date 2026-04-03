@@ -43,7 +43,7 @@ import { classifyPreSearchRoute } from "@/lib/recommendation/infrastructure/engi
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
 import { shouldExecutePendingAction, pendingActionToFilter } from "@/lib/recommendation/domain/context/pending-action-resolver"
 import { TurnPerfLogger, setCurrentPerfLogger } from "@/lib/recommendation/infrastructure/perf/turn-perf-logger"
-import { buildAppliedFilterFromValue, buildFilterValueScope, getFilterFieldDefinition, getFilterFieldLabel, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
+import { buildAppliedFilterFromValue, buildFilterValueScope, extractFilterFieldValueMap, getFilterFieldDefinition, getFilterFieldLabel, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
 import {
   buildConstraintClarificationQuestion,
   hasExplicitFilterIntent,
@@ -137,6 +137,68 @@ function buildZeroResultMessage(
     `현재 ${totalCandidateCount}개 후보에서 다른 옵션을 골라보세요.`,
   ]
   return lines.join("\n")
+}
+
+/**
+ * When a filter change produces 0 results, compute which values ARE available
+ * for the failed field given the current (pre-change) candidate set.
+ * Returns an enriched message + alternative chips so the user can recover.
+ */
+function buildZeroResultWithAlternatives(
+  failedFilter: { field: string; value: string },
+  activeFilters: Array<{ field: string; value: string }>,
+  currentCandidates: ScoredProduct[],
+  totalCandidateCount: number,
+  previousValue?: string | null,
+): { message: string; chips: string[] } {
+  const failedLabel = getFilterFieldLabel(failedFilter.field)
+  const failedValue = failedFilter.value
+
+  // Get available values with counts for the failed field from current candidates
+  const valueMap = extractFilterFieldValueMap(currentCandidates, [failedFilter.field])
+  const distribution = valueMap.get(failedFilter.field)
+
+  // Build condition summary
+  const allConditions = [
+    ...activeFilters.map(f => `${getFilterFieldLabel(f.field)}: ${f.value}`),
+    `${failedLabel}: ${failedValue}`,
+  ]
+  const conditionSummary = allConditions.join(" + ")
+
+  const lines = [
+    `${conditionSummary} 조건을 모두 적용하면 후보가 없습니다.`,
+  ]
+
+  const chips: string[] = []
+
+  if (distribution && distribution.size > 0) {
+    // Sort by count descending, take top alternatives
+    const sorted = [...distribution.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+
+    const availableList = sorted
+      .map(([val, count]) => `${val} (${count}개)`)
+      .join(", ")
+    lines.push(`현재 조건에서 선택 가능한 ${failedLabel}: ${availableList}`)
+
+    // Build chips for each available value
+    for (const [val, count] of sorted) {
+      chips.push(`${failedLabel} ${val} (${count}개)`)
+    }
+  } else {
+    lines.push(`${failedLabel} 조건을 변경하거나 '상관없음'을 선택해주세요.`)
+  }
+
+  // Add revert chip if there's a previous value to go back to
+  if (previousValue) {
+    chips.unshift(`${previousValue}로 돌아가기`)
+  }
+
+  // Always add navigation options
+  if (!chips.some(c => c.includes("이전 단계"))) chips.push("⟵ 이전 단계")
+
+  return { message: lines.join("\n"), chips }
 }
 
 export function shouldReplayUnresolvedPendingQuestion(
@@ -340,7 +402,7 @@ function inferPendingFieldFromScope(
 function isSkipSelectionValue(value: string | null | undefined): boolean {
   if (!value) return false
   const normalized = normalizePendingSelectionText(value)
-  return ["상관없음", "상관 없음", "모름", "skip", "패스", "스킵"].includes(normalized)
+  return ["상관없음", "상관 없음", "모름", "skip", "패스", "스킵", "아무거나", "아무거나요", "넘어가", "넘어가줘", "넘어갈게", "모르겠어", "모르겠어요", "다괜찮아", "뭐든상관없어"].includes(normalized)
 }
 
 function hasExplicitComparisonSignal(value: string): boolean {
@@ -696,7 +758,7 @@ export function resolvePendingQuestionReply(
     console.log(`[pending-selection] Detected revision signal in "${raw.slice(0, 30)}" — deferring to revision resolver`)
     return { kind: "unresolved", pendingField, raw }
   }
-  if (/뭐야|뭔지|설명|차이|왜|어떻게|몇개|종류|비교|추천|결과|처음부터|이전 단계|줘|알려|궁금|공장|영업소|연락|번호|정보|회사|사장|회장|매출|주주|지점|사우디|해외|국가|나라|도시|어디|재고|납기|가격|배송|리드\s*타임|stock|inventory|price|lead\s*time/u.test(raw)) {
+  if (/뭐야|뭔지|설명|차이|왜|어떻게|몇개|종류|비교|추천|결과|처음부터|이전 단계|줘|알려|궁금|공장|영업소|연락|번호|정보|회사|사장|회장|매출|주주|지점|사우디|해외|국가|나라|도시|어디|재고|납기|가격|배송|리드\s*타임|stock|inventory|price|lead\s*time|적합|카탈로그|스펙/u.test(raw)) {
     return { kind: "side_question", pendingField, raw }
   }
   // Product code + additional text → side question about a specific product (e.g., "G8A59080의 재고 수")
@@ -944,8 +1006,8 @@ export interface ServeEngineRuntimeDependencies {
     overrideText?: string,
     existingStageHistory?: NarrowingStage[],
     excludeWorkPieceValues?: string[],
-    preferredQuestionField?: string,
-    responsePrefix?: string
+    responsePrefix?: string,
+    overrideChips?: string[],
   ) => Promise<Response>
   buildRecommendationResponse: (
     form: ProductIntakeForm,
@@ -1865,12 +1927,21 @@ async function handleServeExplorationInner(
           if (testResult.totalConsidered === 0) {
             console.log(`[chip-filter-debug] ZERO RESULTS: filter=${filter.field}=${filter.value} currentInput.diameterMm=${currentInput.diameterMm} totalBefore=${totalCandidateCount}`)
             const excludeVals = filter.field === "workPieceName" ? [filter.value] : undefined
+            const { message: zeroMsg, chips: zeroChips } = buildZeroResultWithAlternatives(
+              filter,
+              filters,
+              candidates,
+              totalCandidateCount,
+            )
             return deps.buildQuestionResponse(
               form, candidates, evidenceMap, totalCandidateCount, paginationDto(totalCandidateCount), displayCandidates, displayEvidenceMap, currentInput,
               narrowingHistory, filters, turnCount, messages, provider, language,
-              buildZeroResultMessage(filter, filters, totalCandidateCount),
+              zeroMsg,
               undefined, // existingStageHistory
-              excludeVals
+              excludeVals,
+              undefined, // preferredQuestionField
+              undefined, // responsePrefix
+              zeroChips,
             )
           }
 
@@ -2758,9 +2829,14 @@ async function handleServeExplorationInner(
 
       if (testResult.totalConsidered === 0) {
         console.log(`[chip-filter-debug] (replace) ZERO RESULTS: filter=${filter.field}=${filter.value} currentInput.diameterMm=${testInput.diameterMm} totalBefore=${candidateCountBeforeFilter}`)
-        // Provide a descriptive message about why 0 results occurred, instead of a generic empty response
-        const filterDisplayValue = String(filter.value || filter.rawValue || "")
-        const zeroResultMessage = `"${filterDisplayValue}" 조건으로 변경하면 해당하는 제품이 없습니다. "${action.previousValue}" 조건을 유지하거나 다른 값을 선택해주세요.`
+        // Build message with available alternatives so user can pick a valid value
+        const { message: zeroResultMessage, chips: zeroResultChips } = buildZeroResultWithAlternatives(
+          filter,
+          filters,
+          candidates,
+          totalCandidateCount,
+          action.previousValue,
+        )
         return deps.buildQuestionResponse(
           form,
           candidates,
@@ -2777,6 +2853,10 @@ async function handleServeExplorationInner(
           provider,
           language,
           zeroResultMessage,
+          undefined, // existingStageHistory
+          undefined, // excludeWorkPieceValues
+          undefined, // responsePrefix
+          zeroResultChips,
         )
       }
 
@@ -2893,8 +2973,14 @@ async function handleServeExplorationInner(
       if (testResult.totalConsidered === 0) {
         console.log(`[chip-filter-debug] (apply) ZERO RESULTS: filter=${filter.field}=${filter.value} currentInput.diameterMm=${testInput.diameterMm} totalBefore=${candidateCountBeforeFilter}`)
         console.log(`[orchestrator:guard] Filter ${filter.field}=${filter.value} would result in 0 candidates -> BLOCKED, excluding from chips`)
-        // 실패값을 buildQuestionResponse에 전달 → workPiece 칩에서 제외
+        // Build message with available alternatives so user can pick a valid value
         const excludeValues = filter.field === "workPieceName" ? [filter.value] : undefined
+        const { message: zeroMsg, chips: zeroChips } = buildZeroResultWithAlternatives(
+          filter,
+          filters,
+          candidates,
+          totalCandidateCount,
+        )
         return deps.buildQuestionResponse(
           form,
           candidates,
@@ -2910,9 +2996,11 @@ async function handleServeExplorationInner(
           messages,
           provider,
           language,
-          buildZeroResultMessage(filter, filters, totalCandidateCount),
+          zeroMsg,
           undefined, // existingStageHistory
-          excludeValues
+          excludeValues,
+          undefined, // responsePrefix
+          zeroChips,
         )
       }
 

@@ -270,6 +270,7 @@ const COATING_KO_ALIASES: Record<string, string> = {
   무코팅: "Uncoated",
   비코팅: "Uncoated",
   코팅없: "Uncoated",
+  코팅없음: "Uncoated",
   다이아몬드: "Diamond",
   다이아몬드코팅: "Diamond",
 }
@@ -311,6 +312,9 @@ function canonicalizeToolSubtypeRawValue(rawValue: string | number | boolean): s
     roughing: "Roughing",
     rough: "Roughing",
     황삭: "Roughing",
+    러핑: "Roughing",
+    볼엔드밀: "Ball",
+    평엔드밀: "Square",
     taper: "Taper",
     테이퍼: "Taper",
     chamfer: "Chamfer",
@@ -458,6 +462,15 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     queryAliases: ["피삭재", "소재", "재질", "workpiece", "material"],
     kind: "string",
     op: "includes",
+    canonicalizeRawValue: rawValue => {
+      const WORKPIECE_KO_ALIASES: Record<string, string> = {
+        스텐: "stainless",
+        스테인리스: "stainless",
+        스테인레스: "stainless",
+      }
+      const normalized = String(rawValue).trim().toLowerCase().replace(/\s+/g, "")
+      return WORKPIECE_KO_ALIASES[normalized] ?? (String(rawValue).trim() || null)
+    },
     setInput: (input, filter) => ({ ...input, workPieceName: joinedFilterStringValue(filter) }),
     clearInput: input => ({ ...input, workPieceName: undefined }),
   },
@@ -580,7 +593,17 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     queryAliases: ["국가", "생산국", "원산지", "country"],
     kind: "string",
     matchPolicy: "strict_identifier",
-    canonicalizeRawValue: rawValue => String(rawValue).trim().toUpperCase() || null,
+    canonicalizeRawValue: rawValue => {
+      const COUNTRY_KO_MAP: Record<string, string> = {
+        한국: "KR", 대한민국: "KR",
+        미국: "US",
+        일본: "JP",
+        중국: "CN",
+        독일: "DE",
+      }
+      const trimmed = String(rawValue).trim()
+      return COUNTRY_KO_MAP[trimmed] ?? (trimmed.toUpperCase() || null)
+    },
     op: "includes",
     setInput: (input, filter) => {
       const value = joinedFilterStringValue(filter)

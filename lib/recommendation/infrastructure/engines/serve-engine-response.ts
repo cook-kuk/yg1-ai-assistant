@@ -439,7 +439,8 @@ export async function buildQuestionResponse(
   overrideText?: string,
   existingStageHistory?: NarrowingStage[],
   excludeWorkPieceValues?: string[],
-  responsePrefix?: string
+  responsePrefix?: string,
+  overrideChips?: string[],
 ): Promise<Response> {
   traceRecommendation("response.buildQuestionResponse:input", {
     totalCandidateCount,
@@ -487,6 +488,12 @@ export async function buildQuestionResponse(
 
   let chips = questionFieldResult?.chips ?? []
   let displayedOptions = questionFieldResult?.displayedOptions ?? []
+
+  // Override chips when caller provides explicit alternatives (e.g. 0-result recovery)
+  if (overrideChips && overrideChips.length > 0) {
+    chips = [...overrideChips]
+    displayedOptions = buildDisplayedOptions(chips, question?.field ?? "unknown")
+  }
 
   // Safety: if no question field options (e.g. 0-candidate guard with overrideText),
   // provide minimal navigation chips
@@ -622,70 +629,77 @@ export async function buildQuestionResponse(
     ? [...messages].reverse().find(m => m.role === "user")?.text ?? null
     : null
 
-  const questionOptionState = await buildQuestionResponseOptionState({
-    chips: responseChips,
-    question: question
-      ? {
-          questionText: question.questionText,
-          chips: question.chips,
-          field: question.field,
-        }
-      : null,
-    displayedOptions,
-    sessionState,
-    input,
-    userMessage: lastUserMsgText,
-    responseText,
-    messages,
-    provider,
-  })
-  finalResponseChips = questionOptionState.chips
-  finalDisplayedOptions = questionOptionState.displayedOptions
+  // When overrideChips is provided (e.g. 0-result recovery), skip the option state
+  // pipeline and consistency guards — the caller knows exactly which chips to show.
+  if (overrideChips && overrideChips.length > 0) {
+    finalResponseChips = [...overrideChips]
+    finalDisplayedOptions = buildDisplayedOptions(overrideChips, question?.field ?? "unknown")
+  } else {
+    const questionOptionState = await buildQuestionResponseOptionState({
+      chips: responseChips,
+      question: question
+        ? {
+            questionText: question.questionText,
+            chips: question.chips,
+            field: question.field,
+          }
+        : null,
+      displayedOptions,
+      sessionState,
+      input,
+      userMessage: lastUserMsgText,
+      responseText,
+      messages,
+      provider,
+    })
+    finalResponseChips = questionOptionState.chips
+    finalDisplayedOptions = questionOptionState.displayedOptions
 
-  // ── Field consistency guard: ensure displayedOptions match current question field ──
-  if (question?.field) {
-    if (finalDisplayedOptions.length > 0) {
-      const staleOptions = finalDisplayedOptions.filter(
-        opt => opt.field && opt.field !== question.field && opt.field !== "_action" && opt.field !== "skip"
-      )
-      if (staleOptions.length > 0) {
-        console.warn(`[field-consistency] Removing ${staleOptions.length} stale options from field "${staleOptions[0].field}" (current: ${question.field})`)
-        finalDisplayedOptions = finalDisplayedOptions.filter(
-          opt => !opt.field || opt.field === question.field || opt.field === "_action" || opt.field === "skip"
+    // ── Field consistency guard: ensure displayedOptions match current question field ──
+    if (question?.field) {
+      if (finalDisplayedOptions.length > 0) {
+        const staleOptions = finalDisplayedOptions.filter(
+          opt => opt.field && opt.field !== question.field && opt.field !== "_action" && opt.field !== "skip"
         )
-        finalResponseChips = finalDisplayedOptions.map(opt => opt.label)
+        if (staleOptions.length > 0) {
+          console.warn(`[field-consistency] Removing ${staleOptions.length} stale options from field "${staleOptions[0].field}" (current: ${question.field})`)
+          finalDisplayedOptions = finalDisplayedOptions.filter(
+            opt => !opt.field || opt.field === question.field || opt.field === "_action" || opt.field === "skip"
+          )
+          finalResponseChips = finalDisplayedOptions.map(opt => opt.label)
+        }
       }
-    }
 
-    // Absolute guard: if chips still don't match question field, rebuild from question engine
-    if (finalResponseChips.length > 0 && questionFieldResult) {
-      const questionChipSet = new Set(questionFieldResult.chips)
-      const hasAnyQuestionChip = finalResponseChips.some(c => questionChipSet.has(c) || c === "상관없음" || c === "⟵ 이전 단계" || c === "처음부터 다시")
-      if (!hasAnyQuestionChip) {
-        console.warn(`[field-consistency:absolute] Chips completely mismatch question field "${question.field}" — rebuilding from question engine`)
-        finalResponseChips = questionFieldResult.chips
+      // Absolute guard: if chips still don't match question field, rebuild from question engine
+      if (finalResponseChips.length > 0 && questionFieldResult) {
+        const questionChipSet = new Set(questionFieldResult.chips)
+        const hasAnyQuestionChip = finalResponseChips.some(c => questionChipSet.has(c) || c === "상관없음" || c === "⟵ 이전 단계" || c === "처음부터 다시")
+        if (!hasAnyQuestionChip) {
+          console.warn(`[field-consistency:absolute] Chips completely mismatch question field "${question.field}" — rebuilding from question engine`)
+          finalResponseChips = questionFieldResult.chips
+          finalDisplayedOptions = questionFieldResult.displayedOptions
+        }
+      }
+
+      // Last resort: if displayedOptions still empty, use question engine
+      if (finalDisplayedOptions.length === 0 && questionFieldResult && questionFieldResult.displayedOptions.length > 0) {
+        console.warn(`[field-consistency:fallback] Empty displayedOptions, using question engine result for field "${question.field}"`)
         finalDisplayedOptions = questionFieldResult.displayedOptions
+        finalResponseChips = questionFieldResult.chips
       }
-    }
 
-    // Last resort: if displayedOptions still empty, use question engine
-    if (finalDisplayedOptions.length === 0 && questionFieldResult && questionFieldResult.displayedOptions.length > 0) {
-      console.warn(`[field-consistency:fallback] Empty displayedOptions, using question engine result for field "${question.field}"`)
-      finalDisplayedOptions = questionFieldResult.displayedOptions
-      finalResponseChips = questionFieldResult.chips
-    }
-
-    if (
-      !overrideText &&
-      shouldFallbackToDeterministicQuestionText({
-        questionField: question.field,
-        questionText: question.questionText,
-        responseText,
-        displayedOptions: finalDisplayedOptions,
-      })
-    ) {
-      console.warn(`[field-consistency:text] Response text drifted from field "${question.field}" — reverting to deterministic question text`)
-      responseText = question.questionText
+      if (
+        !overrideText &&
+        shouldFallbackToDeterministicQuestionText({
+          questionField: question.field,
+          questionText: question.questionText,
+          responseText,
+          displayedOptions: finalDisplayedOptions,
+        })
+      ) {
+        console.warn(`[field-consistency:text] Response text drifted from field "${question.field}" — reverting to deterministic question text`)
+        responseText = question.questionText
+      }
     }
   }
 

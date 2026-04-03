@@ -321,13 +321,13 @@ describe("country uppercase normalization", () => {
 describe("string field passthrough", () => {
   describe("workPieceName", () => {
     it.each([
-      "알루미늄",
-      "고경도강",
-      "스테인리스",
-      "탄소강",
-      "주철",
-    ])("parse %j → same string", (answer) => {
-      expect(parseRaw("workPieceName", answer)).toBe(answer)
+      ["알루미늄", "알루미늄"],
+      ["고경도강", "고경도강"],
+      ["스테인리스", "stainless"],  // canonicalized to English
+      ["탄소강", "탄소강"],
+      ["주철", "주철"],
+    ])("parse %j → %j", (answer, expected) => {
+      expect(parseRaw("workPieceName", answer)).toBe(expected)
     })
   })
 
