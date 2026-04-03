@@ -32,7 +32,15 @@ export const MATERIAL_KEYWORD_FLAT: Set<string> = new Set(
 export function matchMaterial(text: string): string | null {
   const lower = text.toLowerCase()
   for (const [mat, keywords] of Object.entries(MATERIAL_KEYWORDS)) {
-    if (keywords.some(k => lower.includes(k.toLowerCase()))) return mat
+    if (keywords.some(k => {
+      const kl = k.toLowerCase()
+      if (kl.length <= 2) {
+        // Short keywords (AL, Ti, Cu, FC, GC) need word boundary check
+        const re = new RegExp(`(?:^|[^a-z])${kl}(?:$|[^a-z])`, "i")
+        return re.test(text)
+      }
+      return lower.includes(kl)
+    })) return mat
   }
   return null
 }
