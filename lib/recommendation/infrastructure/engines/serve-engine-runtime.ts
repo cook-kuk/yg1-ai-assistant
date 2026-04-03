@@ -971,7 +971,13 @@ export async function resolveExplicitRevisionRequest(
       const sanitizedNextValue = sanitizeRevisionValueForField(field, nextValue, sessionState)
       const parsed = parseAnswerToFilter(field, sanitizedNextValue)
       if (!parsed) continue
-      if (!doesCandidatePoolContainFilterValue(field, parsed, sessionState)) continue
+      if (!doesCandidatePoolContainFilterValue(field, parsed, sessionState)) {
+        // Revision 대상 필드에 eq/includes 필터가 이미 있으면, candidate pool이
+        // 그 값으로 좁혀져 새 값이 없는 게 정상 (예: 6날 풀에서 4날).
+        // 이 경우만 검증 스킵 — 다른 필드는 정상 검증.
+        const hasRealFilterOnField = matchingFilters.some(f => f.op !== "skip")
+        if (!hasRealFilterOnField) continue
+      }
 
       for (const existingFilter of matchingFilters) {
         const existingComparable = normalizeComparableFilterValue(existingFilter.field, existingFilter.rawValue ?? existingFilter.value)
