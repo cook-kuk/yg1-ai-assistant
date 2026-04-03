@@ -1472,9 +1472,41 @@ async function handleServeExplorationInner(
       /\d+mm|\d+밀리|직경/i.test(msg),
     ].filter(Boolean).length
     const hasMultipleConditions = filterHints >= 2
-    // Negation patterns also need Single-Call Router (빼고, 제외, 아닌, 없는)
+    // ── Deterministic negation handling (빼고/제외/아닌것) ──
+    // Detect "X 빼고", "X 제외", "X 아닌 것" and remove matching filter WITHOUT LLM
     const hasNegationPattern = /빼고|제외|아닌\s*것|없는\s*거|말고\s*다른/u.test(msg)
-    const shouldUseSingleCall = isSingleCallRouterEnabled() && lastUserMsg && messages.length > 0 && (hasMultipleConditions || hasNegationPattern || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
+    if (hasNegationPattern && filters.length > 0) {
+      const msgLower = msg.toLowerCase()
+      let negationHandled = false
+      for (const existingFilter of [...filters]) {
+        const filterValue = String(existingFilter.rawValue ?? existingFilter.value).toLowerCase()
+        if (msgLower.includes(filterValue) && existingFilter.op !== "skip") {
+          // Found: "Square 빼고" matches existing toolSubtype=Square filter
+          const idx = filters.indexOf(existingFilter)
+          if (idx >= 0) {
+            filters.splice(idx, 1)
+            currentInput = rebuildResolvedInputFromFilters(form, filters, deps)
+            console.log(`[negation-deterministic] Removed ${existingFilter.field}=${existingFilter.value} filter`)
+            negationHandled = true
+          }
+        }
+      }
+      if (negationHandled) {
+        // Skip pending selection — we already handled the message
+        pendingSelectionAction = null
+        pendingSelectionOrchestratorResult = null
+        bridgedV2Action = { type: "continue_narrowing", filter: filters[filters.length - 1] ?? { field: "none", op: "skip", value: "", rawValue: "", appliedAt: turnCount } as AppliedFilter }
+        bridgedV2OrchestratorResult = {
+          action: bridgedV2Action,
+          reasoning: `negation_deterministic:removed_filter`,
+          agentsInvoked: [],
+          escalatedToOpus: false,
+        }
+        // Skip Single-Call Router — already handled
+      }
+    }
+
+    const shouldUseSingleCall = isSingleCallRouterEnabled() && lastUserMsg && messages.length > 0 && !hasNegationPattern && (hasMultipleConditions || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
     if (shouldUseSingleCall) {
       const singleResult = await routeSingleCall(lastUserMsg.text, prevState, provider)
       // Temporary debug: log SCR result to trace
