@@ -713,13 +713,7 @@ export function buildQueryOptions(options: ProductSearchOptions): { where: strin
 
   if (input?.country && input.country !== "ALL") {
     const param = next(input.country)
-    where.push(`
-      EXISTS (
-        SELECT 1
-        FROM unnest(COALESCE(country_codes, ARRAY[]::text[])) AS country_row(country_code)
-        WHERE UPPER(BTRIM(country_row.country_code)) = UPPER(BTRIM(${param}))
-      )
-    `)
+    where.push(`COALESCE(country_codes, ARRAY[]::text[]) @> ARRAY[${param}]::text[]`)
   }
 
   const requestedToolFamily = resolveRequestedToolFamilyInput(input?.toolType)

@@ -726,16 +726,16 @@ describe("날 수 파싱 엣지 케이스", () => {
 
 describe("국가 필터 (국내/해외 구분 피드백)", () => {
 
-  it("한국 → KR", () => {
+  it("한국 → KOR", () => {
     const f = mustBuildFilter("country", "한국")
     const input = applyFilterToRecommendationInput(makeBaseInput(), f)
-    expect(input.country).toBe("KR")
+    expect(input.country).toBe("KOR")
   })
 
-  it("KR → KR", () => {
+  it("KR → KOR", () => {
     const f = mustBuildFilter("country", "KR")
     const input = applyFilterToRecommendationInput(makeBaseInput(), f)
-    expect(input.country).toBe("KR")
+    expect(input.country).toBe("KOR")
   })
 })
 

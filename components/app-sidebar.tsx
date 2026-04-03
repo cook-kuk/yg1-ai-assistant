@@ -146,16 +146,29 @@ const navItems = [
   },
 ]
 
-const countryLabels: Record<string, { ko: string; en: string }> = {
-  KOREA: { ko: "한국", en: "Korea" },
-  ASIA: { ko: "아시아", en: "Asia" },
-  AMERICA: { ko: "미주", en: "America" },
-  EUROPE: { ko: "유럽", en: "Europe" },
+const COUNTRY_LABELS: Record<string, { ko: string; en: string }> = {
+  ALL: { ko: "전체 국가", en: "All Countries" },
+  KOR: { ko: "한국", en: "Korea" },
+  ENG: { ko: "영국", en: "UK" },
+  CHN: { ko: "중국", en: "China" },
+  DEU: { ko: "독일", en: "Germany" },
+  ESP: { ko: "스페인", en: "Spain" },
+  FRA: { ko: "프랑스", en: "France" },
+  HUN: { ko: "헝가리", en: "Hungary" },
+  ITA: { ko: "이탈리아", en: "Italy" },
+  JPN: { ko: "일본", en: "Japan" },
+  POL: { ko: "폴란드", en: "Poland" },
+  PRT: { ko: "포르투갈", en: "Portugal" },
+  RUS: { ko: "러시아", en: "Russia" },
+  THA: { ko: "태국", en: "Thailand" },
+  TUR: { ko: "튀르키예", en: "Turkey" },
+  VNM: { ko: "베트남", en: "Vietnam" },
+  CZE: { ko: "체코", en: "Czech Republic" },
 }
 
 function countryLabel(code: string, lang: "ko" | "en"): string {
   const normalized = code.trim().toUpperCase()
-  const entry = countryLabels[normalized]
+  const entry = COUNTRY_LABELS[normalized]
   if (!entry) return normalized
   return lang === "ko" ? `${entry.ko} (${normalized})` : `${entry.en} (${normalized})`
 }
@@ -185,7 +198,7 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
         }
       })
       .catch(() => {
-        setCountryList(["KOREA", "ASIA", "AMERICA", "EUROPE"])
+        setCountryList(["KOR", "ENG", "CHN", "JPN"])
       })
   }, [])
 

@@ -41,6 +41,26 @@ const ISO_MATERIAL_LABELS: Record<string, { ko: string; en: string }> = {
   H: { ko: "고경도강", en: "Hardened Steel" },
 }
 
+export const COUNTRY_DISPLAY_LABELS: Record<string, { ko: string; en: string }> = {
+  ALL: { ko: "전체 국가", en: "All Countries" },
+  KOR: { ko: "한국", en: "Korea" },
+  ENG: { ko: "영국", en: "UK" },
+  CHN: { ko: "중국", en: "China" },
+  DEU: { ko: "독일", en: "Germany" },
+  ESP: { ko: "스페인", en: "Spain" },
+  FRA: { ko: "프랑스", en: "France" },
+  HUN: { ko: "헝가리", en: "Hungary" },
+  ITA: { ko: "이탈리아", en: "Italy" },
+  JPN: { ko: "일본", en: "Japan" },
+  POL: { ko: "폴란드", en: "Poland" },
+  PRT: { ko: "포르투갈", en: "Portugal" },
+  RUS: { ko: "러시아", en: "Russia" },
+  THA: { ko: "태국", en: "Thailand" },
+  TUR: { ko: "튀르키예", en: "Turkey" },
+  VNM: { ko: "베트남", en: "Vietnam" },
+  CZE: { ko: "체코", en: "Czech Republic" },
+}
+
 const MACHINING_CATEGORY_DISPLAY_LABELS: Record<string, { ko: string; en: string }> = {
   Holemaking: { ko: "Holemaking", en: "Holemaking" },
   Threading: { ko: "Threading", en: "Threading" },
@@ -156,6 +176,12 @@ export function getIntakeDisplayValue(
   if (state.status === "unanswered") return language === "ko" ? "미입력" : "Not provided"
 
   const value = state.value
+  if (key === "country") {
+    const normalized = value.trim().toUpperCase()
+    const label = COUNTRY_DISPLAY_LABELS[normalized]
+    if (label) return language === "ko" ? `${label.ko} (${normalized})` : `${label.en} (${normalized})`
+    return normalized
+  }
   if (key === "inquiryPurpose") {
     return INQUIRY_PURPOSE_LABELS_LOCALIZED[value as InquiryPurpose]?.[language] ?? value
   }

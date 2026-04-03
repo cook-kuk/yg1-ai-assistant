@@ -523,9 +523,9 @@ describe("Input field mapping — applyFilterToInput per field", () => {
 
   it("country → country (uppercase)", () => {
     const input = makeBaseInput()
-    const filter = af("country", "includes", "kr", "kr")
+    const filter = af("country", "includes", "KOR", "KOR")
     const result = applyFilterToInput(input, filter)
-    expect(result.country).toBe("KR")
+    expect(result.country).toBe("KOR")
   })
 
   it("diameterMm → diameterMm", () => {

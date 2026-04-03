@@ -116,7 +116,7 @@ const form: ProductIntakeForm = {
   flute: { status: "unknown" },
   length: { status: "unknown" },
   machine: { status: "unknown" },
-  country: { status: "known", value: "KR" },
+  country: { status: "known", value: "KOR" },
 } as unknown as ProductIntakeForm
 
 const orchResult: OrchestratorResult = {

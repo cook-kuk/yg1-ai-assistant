@@ -661,19 +661,72 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
   country: {
     field: "country",
     label: "국가",
-    queryAliases: ["국가", "생산국", "원산지", "country"],
+    queryAliases: [
+      "국가", "나라", "시장", "생산국", "원산지",
+      "country", "market", "region",
+    ],
     kind: "string",
     matchPolicy: "strict_identifier",
     canonicalizeRawValue: rawValue => {
-      const COUNTRY_KO_MAP: Record<string, string> = {
-        한국: "KR", 대한민국: "KR",
-        미국: "US",
-        일본: "JP",
-        중국: "CN",
-        독일: "DE",
+      /** Natural-language → ISO 3166-1 alpha-3 (DB standard) */
+      const COUNTRY_NAME_MAP: Record<string, string> = {
+        // Korean names
+        한국: "KOR", 대한민국: "KOR",
+        미국: "USA",
+        일본: "JPN",
+        중국: "CHN",
+        독일: "DEU",
+        영국: "ENG",
+        프랑스: "FRA",
+        이탈리아: "ITA",
+        스페인: "ESP",
+        러시아: "RUS",
+        태국: "THA",
+        베트남: "VNM",
+        폴란드: "POL",
+        헝가리: "HUN",
+        튀르키예: "TUR", 터키: "TUR",
+        체코: "CZE",
+        포르투갈: "PRT",
+        // English names
+        korea: "KOR", "south korea": "KOR",
+        usa: "USA", "united states": "USA", america: "USA",
+        japan: "JPN",
+        china: "CHN",
+        germany: "DEU",
+        england: "ENG", uk: "ENG", "united kingdom": "ENG", britain: "ENG",
+        france: "FRA",
+        italy: "ITA",
+        spain: "ESP",
+        russia: "RUS",
+        thailand: "THA",
+        vietnam: "VNM",
+        poland: "POL",
+        hungary: "HUN",
+        turkey: "TUR", türkiye: "TUR",
+        czech: "CZE", czechia: "CZE", "czech republic": "CZE",
+        portugal: "PRT",
+        // Old alpha-2 backward compat
+        kr: "KOR",
+        us: "USA",
+        jp: "JPN",
+        cn: "CHN",
+        de: "DEU",
+      }
+      /** Region → multiple country codes (comma-separated for downstream split) */
+      const REGION_MAP: Record<string, string> = {
+        아시아: "KOR,JPN,CHN,THA,VNM",
+        유럽: "ENG,DEU,ESP,FRA,HUN,ITA,POL,PRT,RUS,TUR,CZE",
+        asia: "KOR,JPN,CHN,THA,VNM",
+        europe: "ENG,DEU,ESP,FRA,HUN,ITA,POL,PRT,RUS,TUR,CZE",
       }
       const trimmed = String(rawValue).trim()
-      return COUNTRY_KO_MAP[trimmed] ?? (trimmed.toUpperCase() || null)
+      const lower = trimmed.toLowerCase()
+      // Check region first
+      if (REGION_MAP[lower] || REGION_MAP[trimmed]) {
+        return REGION_MAP[lower] ?? REGION_MAP[trimmed]
+      }
+      return COUNTRY_NAME_MAP[lower] ?? COUNTRY_NAME_MAP[trimmed] ?? (trimmed.toUpperCase() || null)
     },
     op: "includes",
     setInput: (input, filter) => {
@@ -692,7 +745,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
         .filter(Boolean)
       if (normalized.length === 0) return null
       const param = next(normalized)
-      return `EXISTS (SELECT 1 FROM unnest(COALESCE(country_codes, ARRAY[]::text[])) AS country_row(country_code) WHERE UPPER(BTRIM(country_row.country_code)) = ANY(${param}::text[]))`
+      return `COALESCE(country_codes, ARRAY[]::text[]) && ${param}::text[]`
     },
   },
   shankDiameterMm: {

@@ -73,7 +73,7 @@ function makeScoredProduct(overrides: Partial<ScoredProduct> = {}): ScoredProduc
       coolantHole: false,
       applicationShapes: ["Side_Milling"],
       materialTags: ["P", "M"],
-      country: "KR",
+      country: "KOR",
       description: null,
       featureText: null,
       seriesIconUrl: null,

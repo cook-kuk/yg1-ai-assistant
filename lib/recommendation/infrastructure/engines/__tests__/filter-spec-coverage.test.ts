@@ -178,7 +178,7 @@ describe("parseAnswerToFilter — 전 스펙 필드 커버리지", () => {
   })
 
   it("country: 국가 코드", () => {
-    const f = parseAnswerToFilter("country", "KR")
+    const f = parseAnswerToFilter("country", "KOR")
     expect(f).toMatchObject({ field: "country", op: "includes" })
   })
 })
@@ -258,8 +258,8 @@ describe("applyFilterToInput — 종속 관계 & 교체", () => {
   })
 
   it("country 적용 (대문자 정규화)", () => {
-    const updated = applyFilterToInput(makeBaseInput(), af("country", "includes", "KR", "KR"))
-    expect(updated.country).toBe("KR")
+    const updated = applyFilterToInput(makeBaseInput(), af("country", "includes", "KOR", "KOR"))
+    expect(updated.country).toBe("KOR")
   })
 })
 

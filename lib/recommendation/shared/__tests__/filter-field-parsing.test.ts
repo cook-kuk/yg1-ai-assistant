@@ -292,24 +292,48 @@ describe("numeric field parsing", () => {
 // ===========================================================================
 // 6. Country uppercase normalization (8 cases)
 // ===========================================================================
-describe("country uppercase normalization", () => {
+describe("country canonicalization — ISO alpha-3", () => {
   it.each([
-    ["kr", "KR"],
-    ["us", "US"],
-    ["KR", "KR"],
-    ["US", "US"],
-    ["jp", "JP"],
-    ["de", "DE"],
-    ["Kr", "KR"],
-    ["uS", "US"],
+    // Old alpha-2 backward compat → new alpha-3
+    ["kr", "KOR"],
+    ["us", "USA"],
+    ["jp", "JPN"],
+    ["cn", "CHN"],
+    ["de", "DEU"],
+    ["Kr", "KOR"],
+    ["uS", "USA"],
+    // Already alpha-3 passthrough
+    ["KOR", "KOR"],
+    ["USA", "USA"],
+    ["JPN", "JPN"],
+    // Korean names
+    ["한국", "KOR"],
+    ["대한민국", "KOR"],
+    ["미국", "USA"],
+    ["일본", "JPN"],
+    ["중국", "CHN"],
+    ["독일", "DEU"],
+    ["영국", "ENG"],
+    ["프랑스", "FRA"],
+    ["이탈리아", "ITA"],
+    ["터키", "TUR"],
+    ["체코", "CZE"],
+    // English names
+    ["Japan", "JPN"],
+    ["Germany", "DEU"],
+    ["China", "CHN"],
+    ["Korea", "KOR"],
   ])("canonicalize country(%j) → %j", (input, expected) => {
     expect(canonicalize("country", input)).toBe(expected)
   })
 
   it.each([
-    ["kr", "KR"],
-    ["us", "US"],
-    ["KR", "KR"],
+    ["kr", "KOR"],
+    ["us", "USA"],
+    ["KOR", "KOR"],
+    ["한국", "KOR"],
+    ["Japan", "JPN"],
+    ["독일", "DEU"],
   ])("parseAnswerToFilter('country', %j).rawValue → %j", (answer, expected) => {
     expect(parseRaw("country", answer)).toBe(expected)
   })
@@ -442,7 +466,7 @@ describe("filter structure correctness", () => {
   })
 
   it("country filter has includes op", () => {
-    const filter = parseAnswerToFilter("country", "KR")
+    const filter = parseAnswerToFilter("country", "KOR")
     expect(filter).not.toBeNull()
     expect(filter!.field).toBe("country")
     expect(filter!.op).toBe("includes")

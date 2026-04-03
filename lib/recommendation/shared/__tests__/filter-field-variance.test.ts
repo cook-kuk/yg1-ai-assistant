@@ -390,39 +390,39 @@ describe("workPieceName variance", () => {
 // ===========================================================================
 // 6. Country variations (8 cases)
 // ===========================================================================
-describe("country variance — all should canonicalize to uppercase", () => {
+describe("country variance — all should canonicalize to ISO alpha-3", () => {
   const FIELD = "country"
 
   it.each([
-    ["kr", "KR"],
-    ["KR", "KR"],
-    ["Kr", "KR"],
+    ["kr", "KOR"],
+    ["KOR", "KOR"],
+    ["Kr", "KOR"],
   ])("Korea: %j → rawValue %j", (answer, expected) => {
     expect(parsedField(FIELD, answer)).toBe("country")
     expect(parsedRawValue(FIELD, answer)).toBe(expected)
   })
 
-  it("한국 → KR", () => {
-    expect(parsedRawValue(FIELD, "한국")).toBe("KR")
+  it("한국 → KOR", () => {
+    expect(parsedRawValue(FIELD, "한국")).toBe("KOR")
   })
 
   it.each([
-    ["us", "US"],
-    ["US", "US"],
-  ])("US: %j → rawValue %j", (answer, expected) => {
+    ["us", "USA"],
+    ["USA", "USA"],
+  ])("USA: %j → rawValue %j", (answer, expected) => {
     expect(parsedRawValue(FIELD, answer)).toBe(expected)
   })
 
-  it("미국 → US", () => {
-    expect(parsedRawValue(FIELD, "미국")).toBe("US")
+  it("미국 → USA", () => {
+    expect(parsedRawValue(FIELD, "미국")).toBe("USA")
   })
 
-  it("JP → JP", () => {
-    expect(parsedRawValue(FIELD, "JP")).toBe("JP")
+  it("JPN → JPN", () => {
+    expect(parsedRawValue(FIELD, "JPN")).toBe("JPN")
   })
 
-  it("일본 → JP", () => {
-    expect(parsedRawValue(FIELD, "일본")).toBe("JP")
+  it("일본 → JPN", () => {
+    expect(parsedRawValue(FIELD, "일본")).toBe("JPN")
   })
 })
 
@@ -598,11 +598,11 @@ describe("additional variance — edge cases", () => {
     expect(String(raw)).toBe("DLC")
   })
 
-  // Country case normalization
+  // Country case normalization — old alpha-2 → new alpha-3
   it.each([
-    ["de", "DE"],
-    ["cn", "CN"],
-    ["il", "IL"],
+    ["de", "DEU"],
+    ["cn", "CHN"],
+    ["ENG", "ENG"],
   ])("country: %j → %j", (answer, expected) => {
     expect(parsedRawValue("country", answer)).toBe(expected)
   })
