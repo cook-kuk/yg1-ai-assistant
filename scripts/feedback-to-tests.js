@@ -13,8 +13,9 @@ const path = require("path")
 
 // Load .env for ANTHROPIC_API_KEY
 try {
-  const envPath = path.join(__dirname, "..", ".env")
-  if (fs.existsSync(envPath)) {
+  const envFiles = [".env.local", ".env"]
+  const envPath = envFiles.map(f => path.join(__dirname, "..", f)).find(f => fs.existsSync(f))
+  if (envPath) {
     const envContent = fs.readFileSync(envPath, "utf-8")
     for (const line of envContent.split("\n")) {
       const match = line.match(/^([A-Z_]+)=(.+)$/)
@@ -41,9 +42,10 @@ async function fetchFeedback() {
   const data = await res.json()
 
   const general = data.generalEntries ?? []
+  const feedback = data.feedbackEntries ?? []
   const conversation = data.conversationEntries ?? []
-  console.log(`  → general: ${general.length}, conversation: ${conversation.length}`)
-  return { general, conversation }
+  console.log(`  → general: ${general.length}, feedbackEntries: ${feedback.length}, conversation: ${conversation.length}`)
+  return { general, feedback, conversation }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -52,14 +54,17 @@ async function fetchFeedback() {
 
 function classifyEntry(entry) {
   const chat = entry.chatHistory ?? []
-  const lastAi = [...chat].reverse().find(m => m.role === "ai")?.text ?? ""
-  const lastUser = [...chat].reverse().find(m => m.role === "user")?.text ?? ""
-  const rec = entry.recommendationSummary ?? ""
-  const intake = entry.intakeSummary ?? ""
+  const lastAi = entry.aiResponse ?? [...chat].reverse().find(m => m.role === "ai")?.text ?? ""
+  const lastUser = entry.userMessage ?? [...chat].reverse().find(m => m.role === "user")?.text ?? ""
+  const rec = entry.recommendationSummary ?? entry.topProducts ?? ""
+  const intake = entry.intakeSummary ?? entry.conditions ?? ""
   const rating = entry.rating
-  const comment = entry.comment ?? ""
+  const comment = entry.comment ?? entry.userComment ?? ""
   const sessionState = entry.conversationSnapshot?.sessionState ?? null
-  const candidateCount = sessionState?.candidateCount ?? null
+  const candidateCount = entry.candidateCount ?? sessionState?.candidateCount ?? null
+  const responseFeedback = entry.responseFeedback ?? null
+  const chipFeedback = entry.chipFeedback ?? null
+  const appliedFilters = entry.appliedFilters ?? sessionState?.appliedFilters ?? []
 
   // Rule 1: 0건 결과
   if (candidateCount === 0 || lastAi.includes("후보가 없습니다") || lastAi.includes("0개 후보")) {
@@ -100,8 +105,22 @@ function classifyEntry(entry) {
     }
   }
 
-  // Rule 4: 👎 피드백 — LLM 정제 필요
-  if (rating === 1 || comment.includes("👎")) {
+  // Rule 4: 칩만 👎 (응답은 OK) — 칩 품질 문제
+  if (chipFeedback === "bad" && responseFeedback !== "bad") {
+    return {
+      type: "chip_quality",
+      confidence: 0.8,
+      entry,
+      reason: "칩 선택지 불만 (응답 자체는 OK)",
+      userMessage: lastUser,
+      aiResponse: lastAi,
+      sessionState,
+      appliedFilters,
+    }
+  }
+
+  // Rule 5: 👎 피드백 — LLM 정제 필요
+  if (responseFeedback === "bad" || rating === 1 || comment.includes("👎")) {
     return {
       type: "needs_llm_refinement",
       confidence: 0.5,
@@ -111,6 +130,7 @@ function classifyEntry(entry) {
       aiResponse: lastAi,
       comment,
       sessionState,
+      appliedFilters,
     }
   }
 
@@ -138,10 +158,10 @@ async function refineWithHaiku(classified) {
 
   const client = new Anthropic()
   const refined = []
+  const BATCH_SIZE = 20
 
-  for (const item of needsRefinement) {
-    try {
-      const prompt = `다음은 YG-1 절삭공구 추천 시스템의 피드백입니다. 이 피드백이 시스템 버그인지 분석해주세요.
+  async function refineOne(item) {
+    const prompt = `다음은 YG-1 절삭공구 추천 시스템의 피드백입니다. 이 피드백이 시스템 버그인지 분석해주세요.
 
 사용자 메시지: ${item.userMessage?.slice(0, 200) ?? "없음"}
 AI 응답: ${item.aiResponse?.slice(0, 300) ?? "없음"}
@@ -150,29 +170,34 @@ AI 응답: ${item.aiResponse?.slice(0, 300) ?? "없음"}
 JSON으로 답변:
 {"refined":"👎","confidence":0.0~1.0,"actionable":true/false,"failure_type":"zero_result|revision_failed|category_mixing|wrong_recommendation|ui_issue|other","reason":"한줄 설명"}`
 
-      const response = await client.messages.create({
-        model: HAIKU_MODEL,
-        max_tokens: 200,
-        messages: [{ role: "user", content: prompt }],
-      })
+    const response = await client.messages.create({
+      model: HAIKU_MODEL,
+      max_tokens: 200,
+      messages: [{ role: "user", content: prompt }],
+    })
 
-      const text = response.content[0]?.text ?? ""
-      const jsonMatch = text.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0])
-        if (parsed.confidence >= 0.6 && parsed.actionable) {
-          refined.push({
-            ...item,
-            type: parsed.failure_type || "other",
-            confidence: parsed.confidence,
-            reason: parsed.reason,
-          })
-        }
+    const text = response.content[0]?.text ?? ""
+    const jsonMatch = text.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0])
+      if (parsed.confidence >= 0.6 && parsed.actionable) {
+        return { ...item, type: parsed.failure_type || "other", confidence: parsed.confidence, reason: parsed.reason }
       }
-    } catch (err) {
-      console.log(`  ⚠ Haiku refinement failed for entry: ${err.message}`)
     }
+    return null
   }
+
+  // Process in parallel batches of BATCH_SIZE
+  for (let i = 0; i < needsRefinement.length; i += BATCH_SIZE) {
+    const batch = needsRefinement.slice(i, i + BATCH_SIZE)
+    const results = await Promise.allSettled(batch.map(item => refineOne(item)))
+    for (const r of results) {
+      if (r.status === "fulfilled" && r.value) refined.push(r.value)
+    }
+    const done = Math.min(i + BATCH_SIZE, needsRefinement.length)
+    process.stdout.write(`  → ${done}/${needsRefinement.length} processed (${refined.length} actionable)\r`)
+  }
+  console.log()
 
   console.log(`  → ${refined.length}/${needsRefinement.length} actionable after refinement`)
   return [...classified.filter(c => c.type !== "needs_llm_refinement"), ...refined]
@@ -331,8 +356,8 @@ async function main() {
   console.log(`\n🔄 feedback-to-tests${DRY_RUN ? " (DRY RUN)" : ""}\n`)
 
   // 1. Fetch
-  const { general, conversation } = await fetchFeedback()
-  const allEntries = [...general, ...conversation]
+  const { general, feedback, conversation } = await fetchFeedback()
+  const allEntries = [...general, ...feedback, ...conversation]
 
   // 2. Classify
   const classified = allEntries.map(classifyEntry).filter(Boolean)
