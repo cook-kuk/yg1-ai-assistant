@@ -43,10 +43,9 @@ export const USE_CHIP_SYSTEM = envFlag("USE_CHIP_SYSTEM", false)
 
 /** Use single Sonnet call for routing instead of multiple parallel Haiku calls. */
 export function isSingleCallRouterEnabled(): boolean {
-  // 하드코딩 ON — 안정화 후 환경변수로 전환
-  return true
+  return process.env.USE_SINGLE_CALL_ROUTER === "true"
 }
-export const USE_SINGLE_CALL_ROUTER = true
+export const USE_SINGLE_CALL_ROUTER = false
 
 /** Use V2 turn orchestrator (new recommendation pipeline). Defaults to true — V2 is the primary pipeline. Set USE_NEW_ORCHESTRATOR=false to revert to legacy. */
 export const USE_NEW_ORCHESTRATOR = process.env.USE_NEW_ORCHESTRATOR !== "false"
