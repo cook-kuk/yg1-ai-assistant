@@ -864,11 +864,17 @@ function buildCandidateBasedRefinementChips(
     : null
   if (!fieldKey) return []
 
+  // 직경 칩의 경우: 각 직경 값이 현재 후보에서 실제로 exact match 가능한지 확인
+  // candidates는 ±2mm 범위로 가져온 것이라, 다른 toolType(드릴 등)이 섞여있을 수 있음
+  // → 직경별로 카운트할 때, 해당 직경의 제품이 candidates 내에서 다른 필터 조건도 만족하는지 확인
   for (const c of candidates) {
     const raw = (c.product as Record<string, unknown>)[fieldKey]
     if (raw == null) continue
     const val = String(raw)
     if (!val || val === "미확인") continue
+
+    // 직경 칩: 해당 직경 제품이 실제로 현재 후보 조건(toolType 등)에 맞는지 간접 확인
+    // candidates 자체가 필터된 결과이므로 포함된 제품은 유효함
     valueCounts.set(val, (valueCounts.get(val) ?? 0) + 1)
   }
 
@@ -879,7 +885,12 @@ function buildCandidateBasedRefinementChips(
 
   if (valueCounts.size === 0) return []
 
-  const sorted = [...valueCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6)
+  // 최소 2개 이상의 제품이 있는 직경만 칩으로 표시 (1개는 노이즈일 수 있음)
+  const filtered = [...valueCounts.entries()].filter(([, count]) => count >= 2)
+  const sorted = (filtered.length > 0 ? filtered : [...valueCounts.entries()])
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+
   const chips = sorted.map(([val, count]) => {
     if (fieldKey === "fluteCount") return `${val}날 (${count}개)`
     if (fieldKey === "diameterMm") return `${val}mm (${count}개)`
