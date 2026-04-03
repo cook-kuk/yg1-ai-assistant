@@ -36,7 +36,7 @@ import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-t
 import { TraceCollector, isDebugEnabled } from "@/lib/debug/agent-trace"
 import { normalizePlannerResult, validatePlannerResult, buildExecutorSummary } from "@/lib/recommendation/core/turn-boundaries"
 import { dryRunReduce, reduce, compareReducerVsActual, type ReducerAction } from "@/lib/recommendation/core/state-reducer"
-import { USE_STATE_REDUCER, USE_CHIP_SYSTEM, isSingleCallRouterEnabled } from "@/lib/feature-flags"
+import { USE_STATE_REDUCER, USE_CHIP_SYSTEM, isSingleCallRouterEnabled, LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
 import { routeSingleCall } from "@/lib/recommendation/core/single-call-router"
 import { deriveChips, toChipState, compareChips, safeApplyChips } from "@/lib/recommendation/core/chip-system"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
@@ -1557,7 +1557,6 @@ async function handleServeExplorationInner(
       }
     }
 
-    const { LLM_FREE_INTERPRETATION } = await import("@/lib/feature-flags")
     // LLM_FREE_INTERPRETATION ON → filterHints 조건 무시, 항상 Sonnet 라우팅
     const shouldUseSingleCall = (isSingleCallRouterEnabled() || LLM_FREE_INTERPRETATION) && lastUserMsg && messages.length > 0 && !hasNegationPattern && (LLM_FREE_INTERPRETATION || hasMultipleConditions || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
     if (shouldUseSingleCall) {
@@ -1662,7 +1661,7 @@ async function handleServeExplorationInner(
       // Empty actions = fallthrough to legacy routing below
     }
 
-    if (!shouldResolvePendingSelectionEarly) {
+    if (!shouldResolvePendingSelectionEarly && !singleCallHandled) {
       // Step 1: Synchronous comparison check (no LLM, instant)
       explicitComparisonAction = resolveExplicitComparisonAction(prevState, lastUserMsg.text)
       if (explicitComparisonAction?.type === "compare_products") {

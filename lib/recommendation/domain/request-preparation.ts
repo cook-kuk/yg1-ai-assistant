@@ -119,7 +119,7 @@ function isExplicitResetCommand(clean: string): boolean {
 }
 
 function classifyIntakeIntent(form: ProductIntakeForm): { intent: UserIntent; confidence: "high" | "medium" | "low" } {
-  if (form.inquiryPurpose.status === "known") {
+  if (form.inquiryPurpose?.status === "known") {
     const purpose = (form.inquiryPurpose as { status: "known"; value: string }).value
     switch (purpose) {
       case "new": return { intent: "product_recommendation", confidence: "high" }
@@ -278,7 +278,7 @@ export function extractSlots(
   extractFormSlot(form.diameterInfo, "diameterMm", slots)
   extractFormSlot(form.toolTypeOrCurrentProduct, "machiningCategory", slots)
 
-  if (form.machiningIntent.status === "known") {
+  if (form.machiningIntent?.status === "known") {
     const intentMap: Record<MachiningIntent, string> = { roughing: "황삭", semi: "중삭", finishing: "정삭" }
     const v = (form.machiningIntent as { status: "known"; value: MachiningIntent }).value
     slots.push({ field: "machiningIntent", value: intentMap[v], confidence: "high", source: "intake" })
@@ -306,8 +306,8 @@ export function extractSlots(
   return slots
 }
 
-function extractFormSlot(state: AnswerState<unknown>, field: string, slots: ExtractedSlot[]): void {
-  if (state.status === "known") {
+function extractFormSlot(state: AnswerState<unknown> | undefined, field: string, slots: ExtractedSlot[]): void {
+  if (state?.status === "known") {
     slots.push({
       field,
       value: (state as { status: "known"; value: string | number }).value,
