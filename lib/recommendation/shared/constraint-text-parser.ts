@@ -57,6 +57,21 @@ function stripLeadingParticles(value: string): string {
   return value.trim().replace(/^[은는이가을를]\s*/u, "").trim()
 }
 
+/**
+ * Strip trailing Korean particles (으로, 로, 은, 는, 이, 가, 을, 를, 에, 에서, 도, 만, 요)
+ * from revision value candidates. Only applied when the value contains at least one
+ * non-Hangul character (letter or digit), so pure-Korean values are left alone, and
+ * English-only words like "Roughing" are never affected (no Hangul particle suffix).
+ */
+function stripTrailingKoreanParticles(value: string): string {
+  const trimmed = value.trim()
+  // Only strip if there is at least one Latin letter or digit — i.e. the core value is technical
+  if (!/[a-zA-Z0-9]/.test(trimmed)) return trimmed
+  return trimmed
+    .replace(/(?:기준으로|만으로|쪽으로|으로|에서|이나|이가|이를|까지|부터|에도|로|은|는|이|가|을|를|에|도|만|요)$/u, "")
+    .trim()
+}
+
 function stripValueAffixes(value: string): string {
   return value
     .trim()
@@ -180,8 +195,8 @@ function buildRevisionValueCandidates(raw: string): { previousText: string | nul
       previousText: previousSlot.valueCandidates[0]
         ?? stripValueAffixes(stripLeadingParticles(stripByPatterns(replaceMatch[1], REVISION_INTENT_PATTERNS))),
       nextValues: uniqueStrings([
-        ...nextSlot.valueCandidates,
-        stripLeadingParticles(stripByPatterns(replaceMatch[2], REVISION_INTENT_PATTERNS)),
+        ...nextSlot.valueCandidates.map(stripTrailingKoreanParticles),
+        stripTrailingKoreanParticles(stripLeadingParticles(stripByPatterns(replaceMatch[2], REVISION_INTENT_PATTERNS))),
       ]),
     }
   }
@@ -191,9 +206,9 @@ function buildRevisionValueCandidates(raw: string): { previousText: string | nul
   return {
     previousText: null,
     nextValues: uniqueStrings([
-      ...directSlot.valueCandidates,
-      directChangeMatch ? stripLeadingParticles(directChangeMatch[1]) : null,
-      stripLeadingParticles(stripByPatterns(raw, REVISION_INTENT_PATTERNS)),
+      ...directSlot.valueCandidates.map(stripTrailingKoreanParticles),
+      directChangeMatch ? stripTrailingKoreanParticles(stripLeadingParticles(directChangeMatch[1])) : null,
+      stripTrailingKoreanParticles(stripLeadingParticles(stripByPatterns(raw, REVISION_INTENT_PATTERNS))),
     ]),
   }
 }

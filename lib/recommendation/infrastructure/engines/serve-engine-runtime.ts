@@ -43,7 +43,7 @@ import { classifyPreSearchRoute } from "@/lib/recommendation/infrastructure/engi
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
 import { shouldExecutePendingAction, pendingActionToFilter } from "@/lib/recommendation/domain/context/pending-action-resolver"
 import { TurnPerfLogger, setCurrentPerfLogger } from "@/lib/recommendation/infrastructure/perf/turn-perf-logger"
-import { buildAppliedFilterFromValue, buildFilterValueScope, getFilterFieldDefinition, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
+import { buildAppliedFilterFromValue, buildFilterValueScope, getFilterFieldDefinition, getFilterFieldLabel, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
 import {
   buildConstraintClarificationQuestion,
   hasExplicitFilterIntent,
@@ -110,6 +110,34 @@ const PENDING_QUESTION_RECOVERY_ACTIONS = new Set<string>([
   "skip_field",
   "replace_existing_filter",
 ])
+
+/**
+ * Build a user-friendly 0-result message that tells the user:
+ * 1. Which combined conditions caused 0 results
+ * 2. Which specific filter (the newly attempted one) to relax
+ */
+function buildZeroResultMessage(
+  failedFilter: { field: string; value: string },
+  activeFilters: Array<{ field: string; value: string }>,
+  totalCandidateCount: number,
+): string {
+  const failedLabel = getFilterFieldLabel(failedFilter.field)
+  const failedValue = failedFilter.value
+
+  // Build a summary of all active conditions including the failed one
+  const allConditions = [
+    ...activeFilters.map(f => `${getFilterFieldLabel(f.field)}: ${f.value}`),
+    `${failedLabel}: ${failedValue}`,
+  ]
+  const conditionSummary = allConditions.join(" + ")
+
+  const lines = [
+    `${conditionSummary} 조건을 모두 적용하면 후보가 없습니다.`,
+    `${failedLabel} 조건을 변경하거나 '상관없음'을 선택해주세요.`,
+    `현재 ${totalCandidateCount}개 후보에서 다른 옵션을 골라보세요.`,
+  ]
+  return lines.join("\n")
+}
 
 export function shouldReplayUnresolvedPendingQuestion(
   pendingReplyKind: PendingQuestionReplyResolution["kind"],
@@ -398,6 +426,12 @@ function getRevisionCandidateValues(
 ): string[] {
   const scopedValues = sessionState?.filterValueScope?.[field]
   if (Array.isArray(scopedValues)) return scopedValues
+
+  // filterValueScope covers the FULL candidate set (not just the displayed page).
+  // If the scope exists but this field is missing, return [] (= no constraint, allow all)
+  // rather than falling back to displayedCandidates which only contains the top-N page.
+  if (sessionState?.filterValueScope) return []
+
   return extractDistinctFieldValues(getRevisionCandidatePool(sessionState), field)
 }
 
@@ -1834,7 +1868,7 @@ async function handleServeExplorationInner(
             return deps.buildQuestionResponse(
               form, candidates, evidenceMap, totalCandidateCount, paginationDto(totalCandidateCount), displayCandidates, displayEvidenceMap, currentInput,
               narrowingHistory, filters, turnCount, messages, provider, language,
-              `"${filter.value}" 조건을 적용하면 후보가 없습니다. 현재 ${totalCandidateCount}개 후보에서 다른 조건을 선택해주세요.`,
+              buildZeroResultMessage(filter, filters, totalCandidateCount),
               undefined, // existingStageHistory
               excludeVals
             )
@@ -2193,7 +2227,7 @@ async function handleServeExplorationInner(
           lastAction: "filter_by_stock",
         })
         return deps.jsonRecommendationResponse({
-          text: `${stockLabel} 후보가 없습니다. 현재 ${prevCandidates.length}개 후보 중 재고 조건에 맞는 제품이 없어요.`,
+          text: `${stockLabel} 후보가 없습니다. 현재 ${prevCandidates.length}개 후보 중 재고 조건에 맞는 제품이 없어요.\n재고 조건을 완화하거나 '전체 보기'를 선택해주세요.`,
           purpose: "question",
           chips: noStockChips,
           isComplete: false,
@@ -2876,7 +2910,7 @@ async function handleServeExplorationInner(
           messages,
           provider,
           language,
-          `"${filter.value}" 조건을 적용하면 후보가 없습니다. 현재 ${totalCandidateCount}개 후보에서 다른 조건을 선택해주세요.`,
+          buildZeroResultMessage(filter, filters, totalCandidateCount),
           undefined, // existingStageHistory
           excludeValues
         )

@@ -120,7 +120,7 @@ export function findVideosForProduct(
     return video.matchKeywords.some(kw => {
       const kwNorm = kw.replace(/[-_\s]/g, "")
       if (kwNorm.length < 3) return false // 짧은 키워드 오매칭 방지
-      return seriesNorm.includes(kwNorm) || brandNorm.includes(kwNorm) || kwNorm.includes(seriesNorm) && seriesNorm.length >= 3
+      return seriesNorm.includes(kwNorm) || brandNorm.includes(kwNorm) || (kwNorm.includes(seriesNorm) && seriesNorm.length >= 3)
     })
   })
 

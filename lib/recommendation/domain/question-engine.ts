@@ -243,27 +243,104 @@ function buildFluteQuestion(input: RecommendationInput, candidates: ScoredProduc
   }
 }
 
+/**
+ * Coating group map: similar coating variants → representative group name.
+ * Only the group name is shown as a chip; filtering later matches all variants.
+ */
+const COATING_GROUP_MAP: Record<string, string> = {
+  /* TiAlN family */
+  "tialn": "TiAlN",
+  "tialnnano": "TiAlN",
+  "tialnnanoplus": "TiAlN",
+  "tialnnanova": "TiAlN",
+  "nanotigaalsin": "TiAlN",
+  "nanotigaalsintl": "TiAlN",
+  "altisin": "TiAlN",
+  "altisinnano": "TiAlN",
+  /* AlCrN family */
+  "alcrn": "AlCrN",
+  "alcrnnano": "AlCrN",
+  "alcrsinfamily": "AlCrN",
+  "alcrsin": "AlCrN",
+  /* TiN family */
+  "tin": "TiN",
+  "tinnano": "TiN",
+  /* TiCN family */
+  "ticn": "TiCN",
+  "ticnnano": "TiCN",
+  /* DLC family */
+  "dlc": "DLC",
+  "dlcnano": "DLC",
+  "diamondlike": "DLC",
+  /* Diamond family */
+  "diamond": "Diamond",
+  "cvddiamond": "Diamond",
+  "pcd": "Diamond",
+  /* Uncoated */
+  "uncoated": "Uncoated",
+  "bright": "Uncoated",
+  "noncoated": "Uncoated",
+}
+
+/** Brief Korean descriptions for common coating groups shown in chips */
+const COATING_DESCRIPTION_KO: Record<string, string> = {
+  "TiAlN": "내열·범용",
+  "AlCrN": "고경도·내마모",
+  "TiN": "범용·경제적",
+  "TiCN": "비철·플라스틱",
+  "DLC": "비철·저마찰",
+  "Diamond": "비철·고경도",
+  "Uncoated": "무코팅",
+}
+
+/** Normalize a raw coating string into a group name, or return the original trimmed value */
+function coatingToGroup(raw: string): string {
+  const key = raw.trim().toLowerCase().replace(/[\s\-_()]+/g, "")
+  if (!key) return raw.trim()
+  return COATING_GROUP_MAP[key] ?? raw.trim()
+}
+
 function buildCoatingQuestion(input: RecommendationInput, candidates: ScoredProduct[]): FieldAnalysis | null {
   if (input.coatingPreference) return null
 
-  const coatings = new Map<string, number>()
+  // Step 1: count raw coatings
+  const rawCoatings = new Map<string, number>()
   for (const candidate of candidates) {
     const coating = candidate.product.coating || "미확인"
-    coatings.set(coating, (coatings.get(coating) || 0) + 1)
+    rawCoatings.set(coating, (rawCoatings.get(coating) || 0) + 1)
   }
-  if (coatings.size <= 1) return null
+  if (rawCoatings.size <= 1) return null
 
-  const gain = computeEntropy(coatings, candidates.length)
-  const chips = [...coatings.entries()]
-    .filter(([value]) => value !== "미확인")
+  // Step 2: group similar coatings
+  const grouped = new Map<string, number>()
+  for (const [raw, count] of rawCoatings) {
+    if (raw === "미확인") continue
+    const group = coatingToGroup(raw)
+    grouped.set(group, (grouped.get(group) || 0) + count)
+  }
+  if (grouped.size === 0) return null
+
+  // Step 3: entropy on grouped distribution for info gain
+  const gain = computeEntropy(grouped, candidates.length)
+
+  // Step 4: build chips — top 5 groups, with Korean description
+  const chips = [...grouped.entries()]
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 4)
-    .map(([value, count]) => `${value} (${count}개)`)
+    .slice(0, 5)
+    .map(([group, count]) => {
+      const desc = COATING_DESCRIPTION_KO[group]
+      return desc ? `${group} — ${desc} (${count}개)` : `${group} (${count}개)`
+    })
   chips.push("상관없음")
+
+  const topGroupNames = [...grouped.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([group]) => group)
 
   return {
     field: "coating",
-    questionText: `코팅 종류 선호가 있으신가요? 후보 중에 ${[...coatings.keys()].filter(value => value !== "미확인").slice(0, 3).join(", ")} 등이 있습니다.`,
+    questionText: `코팅 종류 선호가 있으신가요? 후보 중에 ${topGroupNames.join(", ")} 등이 있습니다.`,
     chips,
     infoGain: gain,
   }

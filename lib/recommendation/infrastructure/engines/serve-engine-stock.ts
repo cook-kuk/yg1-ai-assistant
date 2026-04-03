@@ -62,7 +62,7 @@ export function handleFilterByStock(
       lastAction: "filter_by_stock",
     })
     return jsonRecommendationResponse({
-      text: `${stockLabel} 후보가 없습니다. 현재 ${prevCandidates.length}개 후보 중 재고 조건에 맞는 제품이 없어요.`,
+      text: `${stockLabel} 후보가 없습니다. 현재 ${prevCandidates.length}개 후보 중 재고 조건에 맞는 제품이 없어요.\n재고 조건을 완화하거나 '전체 보기'를 선택해주세요.`,
       purpose: "question",
       chips: noStockChips,
       isComplete: false,
