@@ -161,6 +161,38 @@ describe("pending selection resolver", () => {
     })
   })
 
+  it("resolves bare number as diameter when pending field is diameterMm even if resolvedField drifts", () => {
+    const state = makeState({
+      lastAskedField: "diameterMm",
+      displayedChips: ["6mm (12개)", "8mm (9개)", "상관없음"],
+      displayedOptions: [],
+      filterValueScope: {
+        edpSeriesName: ["SG9E76", "SG5E16"],
+        diameterMm: ["6", "8"],
+      },
+    })
+
+    const filter = buildPendingSelectionFilter(state, "10")
+
+    expect(filter).not.toBeNull()
+    expect(filter!.field).toBe("diameterMm")
+    expect(filter!.rawValue).toBe(10)
+  })
+
+  it("resolves bare number as diameter when pending field is diameterRefine", () => {
+    const state = makeState({
+      lastAskedField: "diameterRefine",
+      displayedChips: ["6mm (12개)", "8mm (9개)", "상관없음"],
+      displayedOptions: [],
+    })
+
+    const filter = buildPendingSelectionFilter(state, "10")
+
+    expect(filter).not.toBeNull()
+    expect(filter!.field).toBe("diameterMm")
+    expect(filter!.rawValue).toBe(10)
+  })
+
   it("does not resolve explanation-like free text as explicit selection", () => {
     const state = makeState({
       lastAskedField: "workPieceName",

@@ -31,7 +31,7 @@ interface FilterFieldDefinition {
 }
 
 const SKIP_TOKENS = new Set(["상관없음", "상관 없음", "모름", "skip"])
-const MULTI_VALUE_SEPARATOR_PATTERN = /\s*(?:,|\/|\||또는|아니면| and | or |(?<=[0-9A-Za-z가-힣])(?:과|와)(?=\s*[0-9A-Za-z가-힣]))\s*/iu
+const MULTI_VALUE_SEPARATOR_PATTERN = /\s*(?:,|\/|\||또는|아니면| and | or |(?<=[0-9A-Za-z가-힣])(?:이나|과|와)(?=\s*[0-9A-Za-z가-힣]))\s*/iu
 
 function unwrapRecord(record: FilterRecord): Record<string, unknown> {
   if (record && typeof record === "object" && "product" in record && record.product && typeof record.product === "object") {
@@ -82,6 +82,58 @@ function extractNumericValue(value: string): number | null {
   if (!match) return null
   const parsed = parseFloat(match[1])
   return Number.isNaN(parsed) ? null : parsed
+}
+
+/**
+ * Parse fractional inch notation (e.g. "3/8\"", "1-1/2\"", "3/4 inch") and convert to mm.
+ * Returns the mm value if the input matches an inch fraction pattern, otherwise null.
+ */
+function parseFractionalInchToMm(value: string): number | null {
+  const trimmed = value.trim()
+
+  // Pattern: optional whole number + fraction + optional inch indicator
+  // Matches: "3/8\"", "3/8"", "3/8 inch", "1-1/2\"", "1 1/2\"", "1-1/2 inch", "1\"", "2\""
+  const fractionPattern = /^(\d+)[\s-]+(\d+)\s*\/\s*(\d+)\s*(?:"|"|"|''|inch|in)?$/i
+  const simpleFractionPattern = /^(\d+)\s*\/\s*(\d+)\s*(?:"|"|"|''|inch|in)?$/i
+  const wholeInchPattern = /^(\d+(?:\.\d+)?)\s*(?:"|"|"|''|inch|in)$/i
+
+  let inches: number | null = null
+
+  // Mixed number: "1-1/2"", "1 1/2 inch"
+  const mixedMatch = trimmed.match(fractionPattern)
+  if (mixedMatch) {
+    const whole = parseInt(mixedMatch[1], 10)
+    const numerator = parseInt(mixedMatch[2], 10)
+    const denominator = parseInt(mixedMatch[3], 10)
+    if (denominator !== 0) {
+      inches = whole + numerator / denominator
+    }
+  }
+
+  // Simple fraction: "3/8"", "1/2 inch"
+  if (inches == null) {
+    const simpleMatch = trimmed.match(simpleFractionPattern)
+    if (simpleMatch) {
+      const numerator = parseInt(simpleMatch[1], 10)
+      const denominator = parseInt(simpleMatch[2], 10)
+      if (denominator !== 0) {
+        inches = numerator / denominator
+      }
+    }
+  }
+
+  // Whole inch: "1\"", "2 inch"
+  if (inches == null) {
+    const wholeMatch = trimmed.match(wholeInchPattern)
+    if (wholeMatch) {
+      inches = parseFloat(wholeMatch[1])
+    }
+  }
+
+  if (inches == null || Number.isNaN(inches)) return null
+
+  // Round to 4 decimal places to avoid floating point artifacts
+  return Math.round(inches * 25.4 * 10000) / 10000
 }
 
 function splitRawStringValues(value: string): string[] {
@@ -200,6 +252,45 @@ function identifierMatch(record: FilterRecord, filter: AppliedFilter, key: strin
   return extractPrimitiveValues(record, key).some(value => queries.includes(normalizeIdentifierText(String(value))))
 }
 
+/**
+ * Korean → English coating alias map.
+ * These are stable industry terms unlikely to change;
+ * the map only bridges the language gap so that the DB LIKE clause
+ * can match the English `search_coating` column.
+ */
+const COATING_KO_ALIASES: Record<string, string> = {
+  블루: "Blue",
+  블루코팅: "Blue",
+  골드: "Gold",
+  골드코팅: "TiN",
+  블랙: "Black",
+  블랙코팅: "TiAlN",
+  실버: "Bright",
+  실버코팅: "Bright",
+  무코팅: "Uncoated",
+  비코팅: "Uncoated",
+  코팅없: "Uncoated",
+  다이아몬드: "Diamond",
+  다이아몬드코팅: "Diamond",
+}
+
+function canonicalizeCoatingRawValue(rawValue: string | number | boolean): string | null {
+  const normalized = String(rawValue)
+    .trim()
+    .toLowerCase()
+    .replace(/[\s\-_]+/g, "")
+
+  if (!normalized) return null
+
+  for (const [alias, canonical] of Object.entries(COATING_KO_ALIASES)) {
+    if (normalized === alias || normalized === alias.replace(/[\s\-_]+/g, "")) {
+      return canonical
+    }
+  }
+
+  return String(rawValue).trim() || null
+}
+
 function canonicalizeToolSubtypeRawValue(rawValue: string | number | boolean): string | null {
   const normalized = String(rawValue)
     .trim()
@@ -215,6 +306,7 @@ function canonicalizeToolSubtypeRawValue(rawValue: string | number | boolean): s
     볼: "Ball",
     radius: "Radius",
     라디우스: "Radius",
+    코너레디우스: "Radius",
     cornerradius: "Corner Radius",
     roughing: "Roughing",
     rough: "Roughing",
@@ -322,6 +414,11 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "number",
     op: "eq",
     unit: "mm",
+    canonicalizeRawValue: (rawValue) => {
+      const inchMm = parseFractionalInchToMm(String(rawValue))
+      if (inchMm != null) return inchMm
+      return rawValue
+    },
     setInput: (input, filter) => ({ ...input, diameterMm: firstFilterNumberValue(filter) }),
     clearInput: input => ({ ...input, diameterMm: undefined }),
     extractValues: record => extractPrimitiveValues(record, "diameterMm"),
@@ -336,6 +433,11 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "number",
     op: "eq",
     unit: "mm",
+    canonicalizeRawValue: (rawValue) => {
+      const inchMm = parseFractionalInchToMm(String(rawValue))
+      if (inchMm != null) return inchMm
+      return rawValue
+    },
     setInput: (input, filter) => ({ ...input, diameterMm: firstFilterNumberValue(filter) }),
     clearInput: input => ({ ...input, diameterMm: undefined }),
     extractValues: record => extractPrimitiveValues(record, "diameterMm"),
@@ -380,9 +482,10 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
   coating: {
     field: "coating",
     label: "코팅",
-    queryAliases: ["코팅", "coat", "coating"],
+    queryAliases: ["코팅", "coat", "coating", "블루코팅", "골드코팅", "블랙코팅", "실버코팅", "무코팅", "비코팅"],
     kind: "string",
     op: "includes",
+    canonicalizeRawValue: canonicalizeCoatingRawValue,
     setInput: (input, filter) => ({ ...input, coatingPreference: joinedFilterStringValue(filter) }),
     clearInput: input => ({ ...input, coatingPreference: undefined }),
     extractValues: record => extractPrimitiveValues(record, "coating"),
@@ -402,7 +505,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
   toolSubtype: {
     field: "toolSubtype",
     label: "형상",
-    queryAliases: ["형상", "타입", "subtype", "square", "radius", "ball", "roughing", "rough", "황삭", "라디우스", "볼", "스퀘어"],
+    queryAliases: ["형상", "타입", "subtype", "square", "radius", "ball", "roughing", "rough", "황삭", "라디우스", "볼", "스퀘어", "코너레디우스", "코너 레디우스", "테이퍼", "챔퍼", "하이피드"],
     kind: "string",
     op: "includes",
     canonicalizeRawValue: canonicalizeToolSubtypeRawValue,

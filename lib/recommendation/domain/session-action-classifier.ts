@@ -73,8 +73,8 @@ const FIELD_PATTERNS: FieldPattern[] = [
   },
   {
     field: "material",
-    pattern: /소재|재질|피삭재|workpiece|material/i,
-    valueExtractor: /(?:소재|재질|피삭재)\s*(?:을|를)?\s*(\S+)/i,
+    pattern: /소재|재질|피삭재|workpiece|material|알루미늄|알루|aluminum|aluminium|스테인리스|스텐|stainless|주철|cast\s*iron|탄소강|carbon|티타늄|titanium|인코넬|inconel|고경도|hardened|그라파이트|graphite|구리|copper|황동|brass|CFRP/i,
+    valueExtractor: /(?:소재|재질|피삭재)\s*(?:을|를)?\s*(\S+)|(알루미늄|알루|aluminum|aluminium|스테인리스|스텐|stainless|주철|탄소강|티타늄|titanium|인코넬|inconel|고경도|hardened|그라파이트|graphite|구리|copper|황동|brass|CFRP)/i,
   },
   {
     field: "toolSubtype",
@@ -89,6 +89,8 @@ const REPLACE_PATTERNS = [
   /바꿔/,
   /변경/,
   /대신/,
+  /아니고/,
+  /아니라/,
   /(?:볼|스퀘어|라디우스|테이퍼|코팅|소재|재질|날)\s*말고/,  // "X 말고 Y" — field-scoped replacement only
   /로\s*변경/,
   /로\s*바꿔/,
@@ -100,6 +102,7 @@ const REPLACE_PATTERNS = [
   /change\s+to/i,
   /instead\s+of/i,
   /switch\s+to/i,
+  /not\s+.+\s+but/i,
 ]
 
 const REMOVE_PATTERNS = [
@@ -314,12 +317,12 @@ export function detectFilterIntent(
     return { mode: "none" }
   }
 
-  // Explicit replace keywords — prefer value AFTER "말고" if present
+  // Explicit replace keywords — prefer value AFTER "말고"/"아니고" if present
   if (matchesAny(text, REPLACE_PATTERNS)) {
     let replaceValue = fieldInfo.value
-    const malgoMatch = text.match(/말고\s*(\S+)/)
+    const malgoMatch = text.match(/(?:말고|아니고|아니라)\s*(\S+)/)
     if (malgoMatch) {
-      // Re-detect field from the value after "말고"
+      // Re-detect field from the value after "말고"/"아니고"
       const afterMalgo = malgoMatch[1]
       const afterField = detectField(afterMalgo)
       if (afterField?.value) replaceValue = afterField.value

@@ -20,9 +20,11 @@ const FILTER_INTENT_PATTERNS = [
 const REVISION_INTENT_PATTERNS = [
   /\s*(?:로|으로)\s*(?:변경|바꿔|바꿀게|바꿔줘|수정).*$/u,
   /\s*(?:변경|바꿔|바꿀게|바꿔줘|수정).*$/u,
+  /\s*(?:이|가)?\s*아니고\s*/u,
+  /\s*(?:이|가)?\s*아니라\s*/u,
 ]
 
-const REVISION_SIGNAL_PATTERN = /(대신|말고|변경|바꿔|바꿀|수정)/u
+const REVISION_SIGNAL_PATTERN = /(대신|말고|변경|바꿔|바꿀|수정|���니고|아닌|아니라)/u
 const FILTER_SIGNAL_PATTERN = /(필터|필터링|적용|좁혀|추천|추천해|추천해줘|보여|찾아|검색|기준으로|만\s*(?:보여|추천|찾)|로\s*추천|으로\s*추천)/u
 
 function normalizeQueryText(value: string): string {
@@ -170,7 +172,7 @@ function buildFilterValueCandidates(raw: string, candidateFields?: Set<string>):
 }
 
 function buildRevisionValueCandidates(raw: string): { previousText: string | null; nextValues: string[] } {
-  const replaceMatch = raw.match(/(.+?)\s*(?:대신|말고)\s*(.+)$/u)
+  const replaceMatch = raw.match(/(.+?)\s*(?:대신|말고|아니고|아닌|아니라)\s*(.+)$/u)
   if (replaceMatch) {
     const previousSlot = extractValueSpansAroundFieldMentions(replaceMatch[1], undefined, REVISION_INTENT_PATTERNS)
     const nextSlot = extractValueSpansAroundFieldMentions(replaceMatch[2], undefined, REVISION_INTENT_PATTERNS)

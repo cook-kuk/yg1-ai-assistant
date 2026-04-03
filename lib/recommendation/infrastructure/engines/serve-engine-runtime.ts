@@ -724,8 +724,10 @@ export function resolvePendingQuestionReply(
 
   const selectedOption = optionMatch ?? chipMatch ?? null
   const selectedValue = selectedOption?.value ?? null
-  const supportsDirectFreeformAnswer = resolvedField === "diameterMm" || resolvedField === "diameterRefine"
-  const parsedDirect = selectedValue || !supportsDirectFreeformAnswer ? null : parseAnswerToFilter(resolvedField, raw)
+  const diameterFields = ["diameterMm", "diameterRefine"]
+  const supportsDirectFreeformAnswer = diameterFields.includes(pendingField) || diameterFields.includes(resolvedField)
+  const freeformField = diameterFields.includes(pendingField) ? pendingField : resolvedField
+  const parsedDirect = selectedValue || !supportsDirectFreeformAnswer ? null : parseAnswerToFilter(freeformField, raw)
   const resolvedValue = selectedValue ?? null
 
   if (resolvedValue === "skip" || isSkipSelectionValue(selectedOption?.label) || isSkipSelectionValue(raw)) {
@@ -2703,22 +2705,25 @@ async function handleServeExplorationInner(
 
       if (testResult.totalConsidered === 0) {
         console.log(`[chip-filter-debug] (replace) ZERO RESULTS: filter=${filter.field}=${filter.value} currentInput.diameterMm=${testInput.diameterMm} totalBefore=${candidateCountBeforeFilter}`)
-        return deps.buildRecommendationResponse(
+        // Provide a descriptive message about why 0 results occurred, instead of a generic empty response
+        const filterDisplayValue = String(filter.value || filter.rawValue || "")
+        const zeroResultMessage = `"${filterDisplayValue}" 조건으로 변경하면 해당하는 제품이 없습니다. "${action.previousValue}" 조건을 유지하거나 다른 값을 선택해주세요.`
+        return deps.buildQuestionResponse(
           form,
-          testResult.candidates,
-          testResult.evidenceMap,
-          testResult.totalConsidered,
-          paginationDto(testResult.totalConsidered),
-          testDisplayPage.candidates,
-          testDisplayPage.evidenceMap,
-          testInput,
-          updatedHistory,
-          testFilters,
-          filterAppliedAt + 1,
+          candidates,
+          evidenceMap,
+          totalCandidateCount,
+          paginationDto(totalCandidateCount),
+          displayCandidates,
+          displayEvidenceMap,
+          currentInput,
+          narrowingHistory,
+          filters,
+          turnCount,
           messages,
           provider,
           language,
-          []
+          zeroResultMessage,
         )
       }
 
