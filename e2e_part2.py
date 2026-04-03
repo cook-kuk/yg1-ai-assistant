@@ -233,10 +233,9 @@ def test_compare_series():
     r = call_api(make_initial("SEME71이랑 SEME72 비교해줘"))
     purpose = r.get("purpose", "")
     text = r.get("text", "")
-    # Legacy chat may route to general_chat for comparison, or may ask intake questions
-    ok = check(purpose in ("comparison", "general_chat") or "비교" in text or "SEME71" in text
-               or r.get("error") is None,
-               "시리즈 비교 -> 비교/채팅/에러없음",
+    # 비교 라우팅 수정 후: comparison 또는 general_chat + 비교 텍스트
+    ok = check(purpose in ("comparison", "general_chat") or "비교" in text or "SEME71" in text,
+               "시리즈 비교 -> comparison 또는 비교 텍스트",
                f"purpose={purpose}, text[:150]={text[:150]}")
     return ok
 
@@ -248,10 +247,8 @@ def test_compare_top3():
     r2 = call_api(make_followup(r1, "상위 3개 비교해줘"))
     purpose = r2.get("purpose", "")
     text = r2.get("text", "")
-    # Legacy chat has no session context, so comparison may not work perfectly
-    ok = check(purpose in ("comparison", "general_chat") or "비교" in text or len(text) > 50
-               or r2.get("error") is None,
-               "상위 3개 비교 -> 비교/채팅/에러없음",
+    ok = check(purpose in ("comparison", "general_chat", "question") or "비교" in text or len(text) > 50,
+               "상위 3개 비교 -> 비교/채팅/질문",
                f"purpose={purpose}, text_len={len(text)}, text[:100]={text[:100]}")
     return ok
 
