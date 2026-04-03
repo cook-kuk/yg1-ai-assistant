@@ -41,6 +41,9 @@ export const USE_STATE_REDUCER = envFlag("USE_STATE_REDUCER", false)
 /** Use new chip system instead of hardcoded chips. Defaults to false (shadow comparison only). Set USE_CHIP_SYSTEM=true to activate. */
 export const USE_CHIP_SYSTEM = envFlag("USE_CHIP_SYSTEM", false)
 
+/** Use single Sonnet call for routing instead of multiple parallel Haiku calls. Defaults to false. Set USE_SINGLE_CALL_ROUTER=true to activate. */
+export const USE_SINGLE_CALL_ROUTER = process.env.USE_SINGLE_CALL_ROUTER === "true"
+
 /** Use V2 turn orchestrator (new recommendation pipeline). Defaults to true — V2 is the primary pipeline. Set USE_NEW_ORCHESTRATOR=false to revert to legacy. */
 export const USE_NEW_ORCHESTRATOR = process.env.USE_NEW_ORCHESTRATOR !== "false"
 

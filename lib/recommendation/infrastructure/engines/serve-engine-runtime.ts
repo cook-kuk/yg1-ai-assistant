@@ -36,7 +36,8 @@ import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-t
 import { TraceCollector, isDebugEnabled } from "@/lib/debug/agent-trace"
 import { normalizePlannerResult, validatePlannerResult, buildExecutorSummary } from "@/lib/recommendation/core/turn-boundaries"
 import { dryRunReduce, reduce, compareReducerVsActual, type ReducerAction } from "@/lib/recommendation/core/state-reducer"
-import { USE_STATE_REDUCER, USE_CHIP_SYSTEM } from "@/lib/feature-flags"
+import { USE_STATE_REDUCER, USE_CHIP_SYSTEM, USE_SINGLE_CALL_ROUTER } from "@/lib/feature-flags"
+import { routeSingleCall } from "@/lib/recommendation/core/single-call-router"
 import { deriveChips, toChipState, compareChips, safeApplyChips } from "@/lib/recommendation/core/chip-system"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
 import { classifyPreSearchRoute } from "@/lib/recommendation/infrastructure/engines/pre-search-route"
@@ -1456,6 +1457,90 @@ async function handleServeExplorationInner(
         console.log(`[pending-action:pre-route] Cleared before V2: ${pendingCheck.reason}`)
         prevState.pendingAction = null
       }
+    }
+
+    // ── Single-Call Router (feature-flagged) ──────────────────
+    if (USE_SINGLE_CALL_ROUTER && !shouldResolvePendingSelectionEarly && lastUserMsg && messages.length > 0) {
+      const singleResult = await routeSingleCall(lastUserMsg.text, prevState, provider)
+
+      if (singleResult.actions.length > 0) {
+        for (const action of singleResult.actions) {
+          switch (action.type) {
+            case "apply_filter": {
+              const filter = buildAppliedFilterFromValue(action.field!, action.value!, turnCount)
+              if (filter) {
+                const result = replaceFieldFilter(baseInput, filters, filter, deps.applyFilterToInput)
+                filters.splice(0, filters.length, ...result.nextFilters)
+                currentInput = result.nextInput
+              }
+              break
+            }
+            case "remove_filter": {
+              const idx = filters.findIndex(f => f.field === action.field)
+              if (idx >= 0) filters.splice(idx, 1)
+              currentInput = rebuildResolvedInputFromFilters(form, filters, deps)
+              break
+            }
+            case "replace_filter": {
+              const newFilter = buildAppliedFilterFromValue(action.field!, action.to!, turnCount)
+              if (newFilter) {
+                const result = replaceFieldFilter(baseInput, filters, newFilter, deps.applyFilterToInput)
+                filters.splice(0, filters.length, ...result.nextFilters)
+                currentInput = result.nextInput
+              }
+              break
+            }
+            case "skip": {
+              const skipFilter: AppliedFilter = {
+                field: action.field || prevState?.lastAskedField || "",
+                op: "skip",
+                value: "상관없음",
+                rawValue: "skip",
+                appliedAt: turnCount,
+              }
+              filters.push(skipFilter)
+              break
+            }
+            case "compare": {
+              explicitComparisonAction = { type: "compare_products", targets: action.targets || [] }
+              explicitComparisonOrchestratorResult = buildExplicitComparisonOrchestratorResult(action.targets || [])
+              break
+            }
+            case "answer": {
+              return handleServeGeneralChatAction({
+                deps,
+                action: { type: "answer_general", message: lastUserMsg.text },
+                orchResult: buildPreSearchOrchestratorResult(lastUserMsg.text, "single_call_answer"),
+                provider,
+                form,
+                messages,
+                prevState: prevState!,
+                filters,
+                narrowingHistory,
+                currentInput,
+                candidates: [],
+                evidenceMap: new Map(),
+                turnCount,
+              })
+            }
+            case "reset":
+            case "go_back":
+              break // fall through to existing reset/go_back handling below
+          }
+        }
+
+        // If filters changed, set up continue_narrowing action
+        if (singleResult.actions.some(a => ["apply_filter", "remove_filter", "replace_filter"].includes(a.type))) {
+          bridgedV2Action = { type: "continue_narrowing", filter: filters[filters.length - 1] }
+          bridgedV2OrchestratorResult = {
+            action: bridgedV2Action,
+            reasoning: `single_call:${singleResult.reasoning}`,
+            agentsInvoked: [{ agent: "single-call-router", model: "sonnet" as const, durationMs: 0 }],
+            escalatedToOpus: false,
+          }
+        }
+      }
+      // Empty actions = fallthrough to legacy routing below
     }
 
     if (!shouldResolvePendingSelectionEarly) {
