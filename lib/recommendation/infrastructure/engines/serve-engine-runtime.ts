@@ -1477,6 +1477,13 @@ async function handleServeExplorationInner(
     const shouldUseSingleCall = isSingleCallRouterEnabled() && lastUserMsg && messages.length > 0 && (hasMultipleConditions || hasNegationPattern || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
     if (shouldUseSingleCall) {
       const singleResult = await routeSingleCall(lastUserMsg.text, prevState, provider)
+      // Temporary debug: log SCR result to trace
+      trace.add("single-call-router", "router", {
+        actionCount: singleResult.actions.length,
+        actions: singleResult.actions.map(a => ({ type: a.type, field: a.field, value: a.value, op: a.op })),
+        reasoning: singleResult.reasoning,
+        answer: singleResult.answer?.slice(0, 100),
+      })
 
       if (singleResult.actions.length > 0) {
         for (const action of singleResult.actions) {
