@@ -114,7 +114,9 @@ function sanitizeSessionSummary(value: unknown): JsonRecord | null {
     currentMode: getNullableString(session.currentMode),
     activeGroupKey: getNullableString(session.activeGroupKey),
     displayedChips: getStringArray(session.displayedChips),
-    appliedFilters: Array.isArray(session.appliedFilters) ? session.appliedFilters : [],
+    appliedFilters: Array.isArray(session.appliedFilters)
+      ? session.appliedFilters.filter((f: Record<string, unknown>) => f && f.field && f.field !== "")
+      : [],
     narrowingHistory: Array.isArray(session.narrowingHistory) ? session.narrowingHistory : [],
     uiNarrowingPath: Array.isArray(session.uiNarrowingPath) ? session.uiNarrowingPath : [],
     capabilities: toRecord(session.capabilities),

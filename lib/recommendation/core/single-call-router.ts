@@ -149,7 +149,8 @@ Given the user's Korean message and the current session state, determine what ac
 - go_back: User wants to undo the last step.
 
 ## Korean Intent Patterns
-- "아닌것/빼고/제외" -> op:"neq" or remove_filter
+- "빼고/제외/아닌것/없는거" → If the field already has a filter, use remove_filter. If no existing filter, use apply_filter with op:"neq"
+  CRITICAL: "X 빼고" means REMOVE X, NOT add X. "Square 빼고" = remove Square filter.
 - "바꿔/변경/대신/말고" -> replace_filter
 - "상관없음/아무거나/패스" -> skip
 - Question ending with ? -> answer (no filter change)
@@ -175,8 +176,17 @@ Given the user's Korean message and the current session state, determine what ac
 User: "4날 TiAlN Square 추천해줘"
 → {"actions":[{"type":"apply_filter","field":"fluteCount","value":4,"op":"eq"},{"type":"apply_filter","field":"coating","value":"TiAlN","op":"eq"},{"type":"apply_filter","field":"toolSubtype","value":"Square","op":"eq"}],"answer":"","reasoning":"3 filters from single message"}
 
-User: "Square 빼고"
-→ {"actions":[{"type":"apply_filter","field":"toolSubtype","value":"Square","op":"neq"}],"answer":"","reasoning":"exclude Square"}
+User: "Square 빼고" (when toolSubtype=Square filter exists)
+→ {"actions":[{"type":"remove_filter","field":"toolSubtype"}],"answer":"","reasoning":"user wants to remove Square filter"}
+
+User: "Square 빼고 나머지로" (when toolSubtype=Square filter exists)
+→ {"actions":[{"type":"remove_filter","field":"toolSubtype"}],"answer":"","reasoning":"remove existing Square filter to show all other subtypes"}
+
+User: "TiAlN 제외하고" (when coating=TiAlN filter exists)
+→ {"actions":[{"type":"remove_filter","field":"coating"}],"answer":"","reasoning":"remove TiAlN coating filter"}
+
+User: "Ball 아닌 것들" (no existing toolSubtype filter)
+→ {"actions":[{"type":"apply_filter","field":"toolSubtype","value":"Ball","op":"neq"}],"answer":"","reasoning":"exclude Ball subtype"}
 
 User: "TiAlN이 뭐야?"
 → {"actions":[],"answer":"TiAlN은 내열성 코팅입니다.","reasoning":"question, no filter change"}

@@ -1516,8 +1516,13 @@ async function handleServeExplorationInner(
               break
             }
             case "skip": {
+              const skipField = action.field || prevState?.lastAskedField
+              if (!skipField) {
+                console.warn(`[orchestrate] skip action ignored — no field resolved`)
+                break
+              }
               const skipFilter: AppliedFilter = {
-                field: action.field || prevState?.lastAskedField || "",
+                field: skipField,
                 op: "skip",
                 value: "상관없음",
                 rawValue: "skip",
