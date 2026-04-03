@@ -81,16 +81,31 @@ interface FieldRank {
   entropy: number
 }
 
+// toolSubtype values that belong to Threading/Tapping — never show as Milling chips
+const THREADING_SUBTYPES = new Set([
+  "spiral flute", "point tap", "roll tap", "straight flute",
+  "spiral point", "forming tap", "hand tap", "nut tap", "pipe tap",
+])
+
 function rankNarrowingFields(
   fieldValues: Map<string, Map<string, number>>,
   ctx: OptionPlannerContext
 ): FieldRank[] {
   const askedFields = new Set(ctx.appliedFilters.map(f => f.field))
+  const machiningCategory = (ctx.resolvedInput as Record<string, unknown>)?.machiningCategory as string | undefined
   const results: FieldRank[] = []
 
   fieldValues.forEach((values, field) => {
     if (askedFields.has(field)) return
     if (values.size <= 1) return
+
+    // Filter out cross-category toolSubtype values
+    if (field === "toolSubtype" && machiningCategory && machiningCategory !== "Threading") {
+      for (const key of values.keys()) {
+        if (THREADING_SUBTYPES.has(key.toLowerCase())) values.delete(key)
+      }
+      if (values.size <= 1) return
+    }
 
     const entropy = computeEntropy(values, ctx.candidateCount)
     results.push({ field, values, entropy })

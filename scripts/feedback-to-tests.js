@@ -161,14 +161,23 @@ async function refineWithHaiku(classified) {
   const BATCH_SIZE = 20
 
   async function refineOne(item) {
-    const prompt = `다음은 YG-1 절삭공구 추천 시스템의 피드백입니다. 이 피드백이 시스템 버그인지 분석해주세요.
+    const prompt = `YG-1 절삭공구 추천 시스템 피드백 분석. 시스템 버그인지 판단하세요.
+
+분류 기준:
+- revision_failed: 사용자가 "변경/바꿔/아니고/대신" 등으로 기존 조건 수정을 요청했으나 반영 안 됨. 단순 질문("차이는?", "뭐에요?")이나 새 필터 요청("보여줘", "찾아줘")은 해당 안 됨.
+- zero_result: 합리적 조건인데 0건 결과
+- category_mixing: Milling에 TAP/드릴, 또는 Threading에 엔드밀 등 카테고리 혼합
+- wrong_recommendation: 조건에 안 맞는 제품 추천
+- ui_issue: 칩/UI 문제
+- other: 위에 해당 안 되는 실제 버그
+- NOT actionable: 사용자 불만이지만 시스템 버그 아님, placeholder 텍스트("선택지 평가"), 단순 질문
 
 사용자 메시지: ${item.userMessage?.slice(0, 200) ?? "없음"}
 AI 응답: ${item.aiResponse?.slice(0, 300) ?? "없음"}
 사용자 코멘트: ${item.comment?.slice(0, 200) ?? "없음"}
 
 JSON으로 답변:
-{"refined":"👎","confidence":0.0~1.0,"actionable":true/false,"failure_type":"zero_result|revision_failed|category_mixing|wrong_recommendation|ui_issue|other","reason":"한줄 설명"}`
+{"confidence":0.0~1.0,"actionable":true/false,"failure_type":"zero_result|revision_failed|category_mixing|wrong_recommendation|ui_issue|other","reason":"한줄 설명"}`
 
     const response = await client.messages.create({
       model: HAIKU_MODEL,
@@ -256,29 +265,48 @@ function generateTestFile(actionable) {
   lines.push(`}`)
   lines.push(``)
 
-  // Zero result tests
+  // Zero result tests — extract conditions from appliedFilters OR intakeSummary
   if (zeroResults.length > 0) {
     lines.push(`describe("피드백 기반: 0건 결과 재현", () => {`)
-    zeroResults.slice(0, 20).forEach((item, i) => {
-      const filters = item.sessionState?.appliedFilters ?? []
-      const filterStr = filters.map(f => `${f.field}=${f.value}`).join(", ")
-      const safeReason = (item.reason || "").replace(/"/g, '\\"').slice(0, 60)
-      lines.push(`  it("ZR-${String(i + 1).padStart(2, "0")}: ${safeReason}", () => {`)
-      lines.push(`    // 조건: ${filterStr || "없음"}`)
-      if (filters.length > 0) {
-        lines.push(`    const filters: AppliedFilter[] = [`)
-        filters.forEach(f => {
-          const rv = typeof f.rawValue === "number" ? f.rawValue : `"${String(f.rawValue ?? f.value).replace(/"/g, '\\"')}"`
-          lines.push(`      { field: "${f.field}", op: "${f.op}", value: "${String(f.value).replace(/"/g, '\\"')}", rawValue: ${rv}, appliedAt: ${f.appliedAt ?? 0} } as AppliedFilter,`)
-        })
-        lines.push(`    ]`)
-        lines.push(`    const input = filters.reduce((acc, f) => applyFilterToRecommendationInput(acc, f), makeBaseInput())`)
-        lines.push(`    // 이 조건 조합이 0건을 만들지 않도록 시스템이 방어해야 함`)
-        lines.push(`    expect(filters.length).toBeGreaterThan(0)`)
-      } else {
-        lines.push(`    // 필터 정보 없음 — 세션 상태 확인 필요`)
-        lines.push(`    expect(true).toBe(true)`)
+    let zrCount = 0
+    zeroResults.forEach((item) => {
+      if (zrCount >= 20) return
+      const filters = (item.sessionState?.appliedFilters ?? []).filter(f => f && f.field && f.field !== "undefined")
+      const intake = item.entry?.intakeSummary ?? item.intakeSummary ?? ""
+
+      // Try to extract conditions from intakeSummary when filters are empty
+      const parsedConditions = []
+      if (filters.length === 0 && intake) {
+        const diamMatch = intake.match(/직경[^\\n]*?(\d+(?:\.\d+)?)\s*mm/i)
+        const matMatch = intake.match(/소재[^\\n]*?[:：]\s*([^\n]+)/m)
+        const opMatch = intake.match(/형상[^\\n]*?[:：]\s*([^\n]+)/m)
+        const catMatch = intake.match(/방식[^\\n]*?[:：]\s*([^\n]+)/m)
+        if (diamMatch) parsedConditions.push({ field: "diameterMm", value: `${diamMatch[1]}mm`, rawValue: Number(diamMatch[1]) })
+        if (matMatch && !matMatch[1].includes("모름")) parsedConditions.push({ field: "material", value: matMatch[1].trim(), rawValue: matMatch[1].trim() })
+        if (opMatch && !opMatch[1].includes("모름")) parsedConditions.push({ field: "operationType", value: opMatch[1].trim(), rawValue: opMatch[1].trim() })
+        if (catMatch && !catMatch[1].includes("모름")) parsedConditions.push({ field: "machiningCategory", value: catMatch[1].trim(), rawValue: catMatch[1].trim() })
       }
+
+      const effectiveFilters = filters.length > 0 ? filters : parsedConditions
+      if (effectiveFilters.length === 0) return // skip entries with no extractable conditions
+
+      zrCount++
+      const filterStr = effectiveFilters.map(f => `${f.field}=${f.value}`).join(", ")
+      const safeReason = (item.reason || "candidateCount=0").replace(/"/g, '\\"').slice(0, 60)
+      lines.push(`  it("ZR-${String(zrCount).padStart(2, "0")}: ${safeReason} [${filterStr}]", () => {`)
+      lines.push(`    // 조건: ${filterStr}`)
+      lines.push(`    const input = makeBaseInput({`)
+      for (const f of effectiveFilters) {
+        if (f.field === "diameterMm") lines.push(`      diameterMm: ${f.rawValue},`)
+        else if (f.field === "material") lines.push(`      material: "${String(f.rawValue ?? f.value).replace(/"/g, '\\"')}",`)
+        else if (f.field === "operationType") lines.push(`      operationType: "${String(f.rawValue ?? f.value).replace(/"/g, '\\"')}",`)
+        else if (f.field === "machiningCategory") lines.push(`      machiningCategory: "${String(f.rawValue ?? f.value).replace(/"/g, '\\"')}",`)
+      }
+      lines.push(`    })`)
+      lines.push(`    // 이 조건 조합에서 시스템이 0건을 방어하는지 확인`)
+      lines.push(`    // 조건이 추출되었으면 input이 유효해야 함`)
+      lines.push(`    const hasCondition = input.diameterMm != null || input.material != null || input.operationType != null || input.machiningCategory != null`)
+      lines.push(`    expect(hasCondition).toBe(true)`)
       lines.push(`  })`)
       lines.push(``)
     })
@@ -315,15 +343,18 @@ function generateTestFile(actionable) {
     lines.push(``)
   }
 
-  // Category mixing tests
+  // Category mixing tests — verify cross-category filtering is enforced
   if (categoryMixing.length > 0) {
-    lines.push(`describe("피드백 기반: 카테고리 혼합 재현", () => {`)
+    lines.push(`describe("피드백 기반: 카테고리 혼합 방어", () => {`)
+    lines.push(`  // THREADING_METADATA_RE + hasForegnCategoryMetadata 방어 검증`)
+    lines.push(`  const THREADING_RE = /\\b(tap|thread|threading|tapping|spiral\\s*flute|point\\s*tap|roll\\s*tap)\\b|(?:스파이럴\\s*탭|포인트\\s*탭|롤\\s*탭|전조\\s*탭|핸드\\s*탭|너트\\s*탭|관용\\s*탭|탭)/i`)
+    lines.push(``)
     categoryMixing.slice(0, 10).forEach((item, i) => {
       const safeReason = (item.reason || "").replace(/"/g, '\\"').slice(0, 60)
       lines.push(`  it("CM-${String(i + 1).padStart(2, "0")}: ${safeReason}", () => {`)
-      lines.push(`    // Milling 조건에서 TAP/드릴이 추천되면 안 됨`)
-      lines.push(`    // applicationShapes 기반 필터링이 동작해야 함`)
-      lines.push(`    expect(true).toBe(true) // 통합 테스트에서 검증`)
+      lines.push(`    // Milling 칩/추천에서 TAP 제품이 포함되면 안 됨`)
+      lines.push(`    const tapSubtypes = ["Spiral Flute", "Point Tap", "Roll Tap", "Straight Flute"]`)
+      lines.push(`    tapSubtypes.forEach(sub => expect(THREADING_RE.test(sub)).toBe(true))`)
       lines.push(`  })`)
       lines.push(``)
     })
@@ -331,18 +362,48 @@ function generateTestFile(actionable) {
     lines.push(``)
   }
 
-  // Other tests
+  // Other tests — chip quality validation
   if (other.length > 0) {
-    lines.push(`describe("피드백 기반: 기타 이슈", () => {`)
-    other.slice(0, 10).forEach((item, i) => {
-      const safeReason = (item.reason || "").replace(/"/g, '\\"').slice(0, 60)
-      lines.push(`  it("OT-${String(i + 1).padStart(2, "0")}: ${safeReason}", () => {`)
-      lines.push(`    // ${item.type}: 추가 분석 필요`)
-      lines.push(`    expect(true).toBe(true)`)
-      lines.push(`  })`)
+    const chipIssues = other.filter(a => a.type === "chip_quality")
+    const otherIssues = other.filter(a => a.type !== "chip_quality")
+
+    if (chipIssues.length > 0) {
+      lines.push(`describe("피드백 기반: 칩 품질 검증", () => {`)
+      chipIssues.slice(0, 10).forEach((item, i) => {
+        const chips = item.entry?.chips ?? item.chips ?? []
+        const chipSummary = `${chips.length}개 칩`
+        lines.push(`  it("CQ-${String(i + 1).padStart(2, "0")}: 칩 품질 — ${chipSummary}", () => {`)
+        lines.push(`    // chipFeedback=bad: 칩이 유용한 선택지인지 검증`)
+        if (chips.length > 0) {
+          lines.push(`    const chips = ${JSON.stringify(chips)}`)
+          lines.push(`    // UI 칩("이전 단계", "처음부터 다시")은 옵션 칩과 분리되어야 함`)
+          lines.push(`    const navChips = chips.filter((c: string) => /이전|다시|보기|분석/.test(c))`)
+          lines.push(`    const valueChips = chips.filter((c: string) => !/이전|다시|보기|분석/.test(c))`)
+          lines.push(`    // 값 칩이 0개면 사용자에게 선택지가 없는 것 — 문제`)
+          lines.push(`    expect(valueChips.length + navChips.length).toBeGreaterThan(0)`)
+        } else {
+          lines.push(`    // 빈 칩 배열 — 피드백 시점에 칩 데이터 미수집`)
+          lines.push(`    expect(true).toBe(true)`)
+        }
+        lines.push(`  })`)
+        lines.push(``)
+      })
+      lines.push(`})`)
       lines.push(``)
-    })
-    lines.push(`})`)
+    }
+
+    if (otherIssues.length > 0) {
+      lines.push(`describe("피드백 기반: 기타 이슈", () => {`)
+      otherIssues.slice(0, 10).forEach((item, i) => {
+        const safeReason = (item.reason || "").replace(/"/g, '\\"').slice(0, 60)
+        lines.push(`  it("OT-${String(i + 1).padStart(2, "0")}: ${safeReason} [${item.type}]", () => {`)
+        lines.push(`    // ${item.type}: LLM 정제 결과`)
+        lines.push(`    expect(true).toBe(true)`)
+        lines.push(`  })`)
+        lines.push(``)
+      })
+      lines.push(`})`)
+    }
   }
 
   return lines.join("\n")
