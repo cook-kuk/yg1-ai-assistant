@@ -66,9 +66,11 @@ function stripLeadingFieldPhrase(answer: string, aliases: string[] | undefined):
   const sortedAliases = [...aliases].sort((a, b) => b.length - a.length)
   for (const alias of sortedAliases) {
     const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-    const pattern = new RegExp(`^${escaped}\\s*(?:은|는|이|가|을|를|로|으로)?\\s*`, "iu")
+    const pattern = new RegExp(`^${escaped}(?=\\s|[은는이가을를로]|$)\\s*(?:은|는|이|가|을|를|로|으로)?\\s*`, "iu")
     if (!pattern.test(clean)) continue
-    clean = clean.replace(pattern, "").trim()
+    const stripped = clean.replace(pattern, "").trim()
+    if (!stripped) continue  // alias consumed the entire answer — it IS the value, not a prefix
+    clean = stripped
     break
   }
 
@@ -345,8 +347,8 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     queryAliases: ["소재", "재질", "material"],
     kind: "string",
     op: "eq",
-    setInput: (input, filter) => ({ ...input, material: joinedFilterStringValue(filter) }),
-    clearInput: input => ({ ...input, material: undefined }),
+    setInput: (input, filter) => ({ ...input, material: joinedFilterStringValue(filter), workPieceName: undefined }),
+    clearInput: input => ({ ...input, material: undefined, workPieceName: undefined }),
   },
   workPieceName: {
     field: "workPieceName",

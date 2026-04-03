@@ -180,7 +180,6 @@ function buildRevisionValueCandidates(raw: string): { previousText: string | nul
       nextValues: uniqueStrings([
         ...nextSlot.valueCandidates,
         stripLeadingParticles(stripByPatterns(replaceMatch[2], REVISION_INTENT_PATTERNS)),
-        stripLeadingParticles(stripByPatterns(raw, REVISION_INTENT_PATTERNS)),
       ]),
     }
   }

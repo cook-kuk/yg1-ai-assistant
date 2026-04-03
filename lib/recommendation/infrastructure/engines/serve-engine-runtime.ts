@@ -833,6 +833,7 @@ export async function resolveExplicitRevisionRequest(
       const sanitizedNextValue = sanitizeRevisionValueForField(field, nextValue, sessionState)
       const parsed = parseAnswerToFilter(field, sanitizedNextValue)
       if (!parsed) continue
+      if (!doesCandidatePoolContainFilterValue(field, parsed, sessionState)) continue
 
       for (const existingFilter of matchingFilters) {
         const existingComparable = normalizeComparableFilterValue(existingFilter.field, existingFilter.rawValue ?? existingFilter.value)

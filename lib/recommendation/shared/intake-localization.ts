@@ -46,7 +46,7 @@ const MACHINING_CATEGORY_DISPLAY_LABELS: Record<string, { ko: string; en: string
   Threading: { ko: "Threading", en: "Threading" },
   Milling: { ko: "Milling", en: "Milling" },
   Turning: { ko: "Turning", en: "Turning" },
-  "Tooling System": { ko: "Tooling System", en: "Tooling System" },
+  "Tooling System": { ko: "Turning", en: "Turning" },
 }
 
 const TEXT_REPLACEMENTS_EN: Array<[string, string]> = [

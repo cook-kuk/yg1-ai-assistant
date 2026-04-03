@@ -84,7 +84,34 @@ export function parseOperationShapeSelections(input: string): string[] {
 }
 
 export function getOperationShapeSearchTexts(input: string): string[] {
-  return parseOperationShapeSelections(input)
+  if (!input) return []
+
+  // Preserve every distinct comma-separated token (lowercased) so that
+  // "Side_Milling" and "Side Milling" produce separate SQL LIKE conditions.
+  // parseOperationShapeSelections normalises both to the same canonical value,
+  // which is correct for UI selection but loses the textual difference needed
+  // for DB searching.
+  const seen = new Set<string>()
+  const results: string[] = []
+
+  for (const rawPart of input.split(",").map(p => p.trim()).filter(Boolean)) {
+    const resolved = parseOperationShapeSelections(rawPart)
+    for (const value of resolved) {
+      const key = value.toLowerCase()
+      if (!seen.has(key)) {
+        seen.add(key)
+        results.push(value)
+      }
+    }
+    // Also keep the raw text if it differs (lowercased) from every resolved value
+    const rawKey = rawPart.toLowerCase()
+    if (!seen.has(rawKey)) {
+      seen.add(rawKey)
+      results.push(rawPart)
+    }
+  }
+
+  return results
 }
 
 export function normalizeOperationShapeToken(value: string): string {

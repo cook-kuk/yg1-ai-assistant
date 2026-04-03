@@ -73,7 +73,7 @@ describe("selectQuestionForField", () => {
       makeCandidate("Radius", "X-Coating", "P4"),
     ]
 
-    const question = selectQuestionForField(makeInput(), candidates, makeHistory(), "toolSubtype", candidates.length)
+    const question = selectQuestionForField(makeInput(), candidates, makeHistory(), "toolSubtype", 50)
 
     expect(question?.field).toBe("toolSubtype")
     expect(question?.chips).toContain("Square (2개)")
@@ -128,7 +128,7 @@ describe("selectNextQuestion", () => {
       makeInput({ workPieceName: undefined, flutePreference: undefined, operationType: undefined, diameterMm: undefined }),
       candidates,
       [],
-      candidates.length
+      200
     )
 
     expect(question?.field).toBe("diameterMm")
@@ -156,15 +156,15 @@ describe("selectNextQuestion", () => {
     ] as ScoredProduct[]
 
     const question = selectNextQuestion(
-      makeInput({ workPieceName: undefined, flutePreference: undefined, diameterMm: 12 }),
+      makeInput({ workPieceName: undefined, flutePreference: undefined, diameterMm: 13 }),
       candidates,
       [],
-      candidates.length
+      200
     )
 
     expect(question?.field).toBe("diameterRefine")
     expect(question?.chips).toContain("12mm")
-    expect(question?.chips).toContain("10mm")
+    expect(question?.chips).toContain("14mm")
   })
 
   it("does not ask diameterRefine again after that question was already asked", () => {
