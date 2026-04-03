@@ -1145,6 +1145,8 @@ export function applyPostFilterToProducts(
   products: CanonicalProduct[],
   filter: AppliedFilter
 ): CanonicalProduct[] | null {
+  // skip 필터는 후처리에서도 제외
+  if (filter.op === "skip") return null
   const definition = getFilterFieldDefinition(filter.field)
   if (!definition?.matches) return null
 
@@ -1155,6 +1157,8 @@ export function buildDbWhereClauseForFilter(
   filter: AppliedFilter,
   next: (value: unknown) => string
 ): string | null {
+  // skip 필터는 DB 쿼리에서 제외 — "상관없음"으로 WHERE 걸리면 0건
+  if (filter.op === "skip") return null
   const definition = getFilterFieldDefinition(filter.field)
   if (!definition?.buildDbClause) return null
   return definition.buildDbClause(filter, next)
