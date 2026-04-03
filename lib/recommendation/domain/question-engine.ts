@@ -370,6 +370,12 @@ function buildDiameterQuestion(input: RecommendationInput, candidates: ScoredPro
 function buildDiameterRefineQuestion(input: RecommendationInput, candidates: ScoredProduct[]): FieldAnalysis | null {
   if (!input.diameterMm) return null
 
+  // 사용자가 선택한 직경으로 exact match 제품이 있으면 refine 불필요
+  const exactMatchCount = candidates.filter(c =>
+    c.product.diameterMm !== null && c.product.diameterMm === input.diameterMm
+  ).length
+  if (exactMatchCount > 0) return null
+
   const uniqueDiameters = new Set(
     candidates.map(candidate => candidate.product.diameterMm).filter((diameter): diameter is number => diameter !== null)
   )
