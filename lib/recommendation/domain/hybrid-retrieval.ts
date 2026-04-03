@@ -307,6 +307,18 @@ export async function runHybridRetrieval(
     totalCount: searchResult.totalCount,
   })
   let candidates = searchResult.products
+
+  // Fallback: if operationType produced 0 results, retry without it
+  // This prevents rare shape tags (e.g. Trochoidal) from eliminating all candidates
+  if (candidates.length === 0 && input.operationType && !pagination) {
+    const relaxedInput = { ...input, operationType: undefined }
+    const retryResult = await ProductRepo.search(relaxedInput, filters, limit)
+    if (retryResult.length > 0) {
+      console.log(`[hybrid-retrieval] operationType="${input.operationType}" produced 0 results → relaxed to ${retryResult.length} candidates`)
+      candidates = retryResult
+    }
+  }
+
   const fetchMs = Date.now() - fetchStartedAt
   const appliedFilters: AppliedFilter[] = []
   const initialCandidateCount = pagination ? searchResult.totalCount : candidates.length
