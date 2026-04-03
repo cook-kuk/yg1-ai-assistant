@@ -1005,6 +1005,12 @@ export function parseFieldAnswerToFilter(field: string, answer: string): Applied
 }
 
 export function applyFilterToRecommendationInput(input: RecommendationInput, filter: AppliedFilter): RecommendationInput {
+  if (filter.op === "skip") {
+    // skip 필터는 해당 필드를 클리어 — "skip" 문자열이 값으로 들어가면 안 됨
+    const definition = getFilterFieldDefinition(filter.field)
+    if (definition?.clearInput) return definition.clearInput(input)
+    return { ...input }
+  }
   const definition = getFilterFieldDefinition(filter.field)
   if (!definition?.setInput) return { ...input }
   return definition.setInput(input, filter)
