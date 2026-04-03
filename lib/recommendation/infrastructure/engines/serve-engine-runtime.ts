@@ -1515,15 +1515,14 @@ async function handleServeExplorationInner(
     // Use Single-Call when: multi-condition message detected (2+ filter hints)
     // Skip when: simple chip click, side question, or pending selection early
     const pendingAlreadyResolved = pendingQuestionReply.kind === "resolved" || pendingQuestionReply.kind === "side_question"
-    // Detect 2+ filter hints in a single message: flute+coating, flute+subtype, coating+subtype, etc.
+    // Detect 2+ filter hints — LLM_FREE_INTERPRETATION ON이면 스킵 (Sonnet이 전부 처리)
     const msg = lastUserMsg?.text ?? ""
-    const filterHints = [
+    const hasMultipleConditions = !LLM_FREE_INTERPRETATION && [
       /\d+날|\d+flute|\d+플루트/i.test(msg),
       /TiAlN|AlCrN|DLC|TiCN|Bright|Blue|코팅|무코팅|블루코팅/i.test(msg),
       /Square|Ball|Radius|Roughing|Taper|Chamfer|스퀘어|볼|라디우스|황삭|코너/i.test(msg),
       /\d+mm|\d+밀리|직경/i.test(msg),
-    ].filter(Boolean).length
-    const hasMultipleConditions = filterHints >= 2
+    ].filter(Boolean).length >= 2
     // ── Deterministic negation handling (빼고/제외/아닌것) ──
     // Detect "X 빼고", "X 제외", "X 아닌 것" and remove matching filter WITHOUT LLM
     const hasNegationPattern = /빼고|제외|아닌\s*것|없는\s*거|말고\s*다른/u.test(msg)

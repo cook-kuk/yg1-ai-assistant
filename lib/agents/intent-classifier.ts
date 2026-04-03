@@ -163,6 +163,9 @@ export async function classifyIntent(
     }
   }
 
+  // ── 4~7.9: LLM_FREE_INTERPRETATION ON이면 전부 스킵 — LLM이 처리 ──
+  if (!LLM_FREE_INTERPRETATION) {
+
   // ── 4. Explanation requests (BEFORE comparison — "차이 설명해줘" is explanation, not comparison) ──
   if (EXPLAIN_PATTERNS.some(p => p.test(clean))) {
     return { intent: "ASK_EXPLANATION", confidence: 0.9, modelUsed: INTENT_CLASSIFIER_MODEL }
@@ -228,9 +231,11 @@ export async function classifyIntent(
     return { intent: "START_NEW_TOPIC", confidence: 0.85, modelUsed: INTENT_CLASSIFIER_MODEL }
   }
 
+  } // end !LLM_FREE_INTERPRETATION
+
   // ── 8. In active narrowing session: likely a parameter/option ──
-  if (sessionState && !sessionState.resolutionStatus?.startsWith("resolved")) {
-    // Check if message matches a known option pattern
+  // LLM_FREE_INTERPRETATION ON이면 tryDeterministicExtraction 스킵 — Single-Call Router가 처리
+  if (!LLM_FREE_INTERPRETATION && sessionState && !sessionState.resolutionStatus?.startsWith("resolved")) {
     const paramResult = tryDeterministicExtraction(clean)
     if (paramResult) {
       return {

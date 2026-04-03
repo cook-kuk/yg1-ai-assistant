@@ -179,10 +179,12 @@ export async function classifyIntent(
     }
   }
 
+  // ── 3.6~8: LLM_FREE_INTERPRETATION ON이면 전부 스킵 — LLM이 처리 ──
+  if (!LLM_FREE_INTERPRETATION) {
+
   // ── 3.6. Refinement (post-recommendation condition change) ──
   if (sessionState?.resolutionStatus?.startsWith("resolved")) {
     if (REFINEMENT_PATTERNS.some(p => p.test(clean))) {
-      // Detect which field to refine
       const field = detectRefinementField(clean)
       return { intent: "REFINE_CONDITION", confidence: 0.92, extractedValue: field, modelUsed: INTENT_CLASSIFIER_MODEL }
     }
@@ -240,7 +242,6 @@ export async function classifyIntent(
 
   // ── 8. In active narrowing session: likely a parameter/option ──
   if (sessionState && !sessionState.resolutionStatus?.startsWith("resolved")) {
-    // Check if message matches a known option pattern
     const paramResult = tryDeterministicExtraction(clean)
     if (paramResult) {
       return {
@@ -251,6 +252,8 @@ export async function classifyIntent(
       }
     }
   }
+
+  } // end !LLM_FREE_INTERPRETATION
 
   // ── 9. Ambiguous: use Haiku LLM ──
   if (provider.available()) {
