@@ -271,7 +271,8 @@ export async function routeSingleCall(
 
     return { actions: canonicalizedActions, answer: result.answer, reasoning: result.reasoning }
   } catch (err) {
-    console.error(`[SCR] ERROR: ${err instanceof Error ? err.message : String(err)}`)
-    return { actions: [], answer: "", reasoning: "llm_error" }
+    const errMsg = err instanceof Error ? err.message : String(err)
+    console.error(`[SCR] ERROR: ${errMsg}`)
+    return { actions: [], answer: "", reasoning: `llm_error:${errMsg.slice(0, 100)}` }
   }
 }
