@@ -1464,7 +1464,7 @@ async function handleServeExplorationInner(
     // Skip when: simple chip click, side question, or pending selection early
     const pendingAlreadyResolved = pendingQuestionReply.kind === "resolved" || pendingQuestionReply.kind === "side_question"
     const hasMultipleConditions = lastUserMsg && /\d+날.*(?:TiAlN|AlCrN|DLC|Square|Ball|Radius|Roughing|코팅|형상)|(?:TiAlN|AlCrN|DLC|Square|Ball|Radius|Roughing).*\d+날/i.test(lastUserMsg.text)
-    const shouldUseSingleCall = isSingleCallRouterEnabled() && !shouldResolvePendingSelectionEarly && lastUserMsg && messages.length > 0 && (!pendingAlreadyResolved || hasMultipleConditions)
+    const shouldUseSingleCall = isSingleCallRouterEnabled() && lastUserMsg && messages.length > 0 && (hasMultipleConditions || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
     if (shouldUseSingleCall) {
       const singleResult = await routeSingleCall(lastUserMsg.text, prevState, provider)
 
