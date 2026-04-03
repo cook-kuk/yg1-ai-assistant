@@ -602,10 +602,10 @@ export async function buildQuestionResponse(
       const sessionCtx = buildSessionContext(form, sessionState, totalCandidateCount, snapshotToDisplayed(candidateSnapshot))
       const chipList = question?.chips?.length ? question.chips.join(", ") : ""
       const chipInstruction = chipList
-        ? `\n선택지(칩): [${chipList}]\n★ 응답에서 질문할 때 반드시 위 선택지와 일치하는 표현을 사용하라. 선택지에 없는 옵션을 제시하지 마라. 선택지를 자연스럽게 안내하되 그대로 나열하지 말고 맥락에 맞게 질문하라.`
+        ? `\n선택지(칩): [${chipList}]\n★ 응답에서 질문할 때 반드시 위 선택지와 일치하는 표현을 사용하라. 선택지에 없는 옵션을 제시하지 마라. 선택지를 자연스럽게 안내하되 그대로 나열하지 말고 맥락에 맞게 질문하라.\n★★ 숫자/개수/분포를 절대 지어내지 마라. 칩에 "(N개)"로 표시된 숫자만 인용 가능. 칩에 없는 통계는 언급 금지.`
         : ""
       const raw = await provider.complete(systemPrompt, [
-        { role: "user", content: `${sessionCtx}\n\n현재 진행 중인 질문: "${question?.questionText ?? ""}"\n현재 후보 ${totalCandidateCount}개.\n\n사용자의 최신 메시지: "${lastUserText}"\n\n사용자 메시지가 현재 질문과 관련 없는 내용(회사 정보, 영업소, 공장 등)이면 【YG-1 회사 정보】에서 답변한 뒤 자연스럽게 현재 질문으로 돌아와라.\n사용자 메시지가 현재 질문에 대한 답변이면 질문을 자연스럽게 다듬어서 응답하라.\nJSON으로 응답: { "responseText": "...", "extractedParams": {}, "isComplete": false, "skipQuestion": false }` }
+        { role: "user", content: `${sessionCtx}\n\n현재 진행 중인 질문: "${question?.questionText ?? ""}"\n현재 후보 ${totalCandidateCount}개.\n${chipInstruction}\n\n사용자의 최신 메시지: "${lastUserText}"\n\n사용자 메시지가 현재 질문과 관련 없는 내용(회사 정보, 영업소, 공장 등)이면 【YG-1 회사 정보】에서 답변한 뒤 자연스럽게 현재 질문으로 돌아와라.\n사용자 메시지가 현재 질문에 대한 답변이면 질문을 자연스럽게 다듬어서 응답하라.\nJSON으로 응답: { "responseText": "...", "extractedParams": {}, "isComplete": false, "skipQuestion": false }` }
       ], 1500)
       const parsed = safeParseJSON(raw)
       if (typeof parsed?.responseText === "string") {
