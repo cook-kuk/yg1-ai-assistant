@@ -27,7 +27,7 @@ try {
 } catch { /* ignore */ }
 
 const FEEDBACK_API = "http://20.119.98.136:3001/api/feedback"
-const OUTPUT_PATH = path.join(__dirname, "..", "lib/recommendation/infrastructure/engines/__tests__/feedback-derived.test.ts")
+const OUTPUT_PATH = path.join(__dirname, "..", "lib/recommendation/core/__tests__/feedback-derived.test.ts")
 const DRY_RUN = process.argv.includes("--dry-run")
 const HAIKU_MODEL = "claude-haiku-4-5-20251001"
 
@@ -36,7 +36,7 @@ const HAIKU_MODEL = "claude-haiku-4-5-20251001"
 // ═══════════════════════════════════════════════════════════════
 
 async function fetchFeedback() {
-  console.log(`[1/4] Fetching feedback from ${FEEDBACK_API}...`)
+  console.log(`[1/5] Fetching feedback from ${FEEDBACK_API}...`)
   const res = await fetch(FEEDBACK_API)
   if (!res.ok) throw new Error(`Feedback API error: ${res.status}`)
   const data = await res.json()
@@ -145,7 +145,7 @@ async function refineWithHaiku(classified) {
   const needsRefinement = classified.filter(c => c.type === "needs_llm_refinement")
   if (needsRefinement.length === 0) return classified.filter(c => c.type !== "needs_llm_refinement")
 
-  console.log(`[2/4] Refining ${needsRefinement.length} entries with Haiku...`)
+  console.log(`[2/5] Refining ${needsRefinement.length} entries with Haiku...`)
 
   let Anthropic
   try {
@@ -180,7 +180,7 @@ JSON으로 답변:
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0])
-      if (parsed.confidence >= 0.6 && parsed.actionable) {
+      if (parsed.confidence >= 0.8 && parsed.actionable) {
         return { ...item, type: parsed.failure_type || "other", confidence: parsed.confidence, reason: parsed.reason }
       }
     }
@@ -213,7 +213,7 @@ function generateTestFile(actionable) {
   const categoryMixing = actionable.filter(a => a.type === "category_mixing")
   const other = actionable.filter(a => !["zero_result", "revision_failed", "category_mixing"].includes(a.type))
 
-  console.log(`[3/4] Generating test file...`)
+  console.log(`[3/5] Generating test file...`)
   console.log(`  → zero_result: ${zeroResults.length}`)
   console.log(`  → revision_failed: ${revisionFailed.length}`)
   console.log(`  → category_mixing: ${categoryMixing.length}`)
@@ -228,7 +228,7 @@ function generateTestFile(actionable) {
   lines.push(` */`)
   lines.push(`import { describe, expect, it } from "vitest"`)
   lines.push(``)
-  lines.push(`import { resolvePendingQuestionReply, resolveExplicitRevisionRequest } from "../serve-engine-runtime"`)
+  lines.push(`import { resolvePendingQuestionReply, resolveExplicitRevisionRequest } from "@/lib/recommendation/infrastructure/engines/serve-engine-runtime"`)
   lines.push(`import { applyFilterToRecommendationInput, buildAppliedFilterFromValue } from "@/lib/recommendation/shared/filter-field-registry"`)
   lines.push(`import type { AppliedFilter, ExplorationSessionState, RecommendationInput } from "@/lib/recommendation/domain/types"`)
   lines.push(``)
@@ -379,15 +379,32 @@ async function main() {
   const testCode = generateTestFile(actionable)
 
   if (DRY_RUN) {
-    console.log(`\n[4/4] DRY RUN — would write ${testCode.split("\n").length} lines to ${OUTPUT_PATH}`)
+    console.log(`\n[4/5] DRY RUN — would write ${testCode.split("\n").length} lines to ${OUTPUT_PATH}`)
     console.log("\nPreview (first 30 lines):")
     console.log(testCode.split("\n").slice(0, 30).join("\n"))
   } else {
     fs.writeFileSync(OUTPUT_PATH, testCode, "utf-8")
-    console.log(`\n[4/4] Written ${testCode.split("\n").length} lines to ${OUTPUT_PATH}`)
+    console.log(`\n[4/5] Written ${testCode.split("\n").length} lines to ${OUTPUT_PATH}`)
   }
 
-  console.log(`\n✅ Done! Run: npx vitest run ${path.relative(process.cwd(), OUTPUT_PATH)}`)
+  if (!DRY_RUN) {
+    // 5. Run generated tests
+    console.log(`\n[5/5] Running generated tests...`)
+    const { execSync } = require("child_process")
+    try {
+      const relPath = path.relative(path.join(__dirname, ".."), OUTPUT_PATH).replace(/\\/g, "/")
+      execSync(`npx vitest run ${relPath}`, {
+        cwd: path.join(__dirname, ".."),
+        stdio: "inherit",
+      })
+      console.log(`\n✅ Tests passed!`)
+    } catch {
+      console.log(`\n⚠ Some tests failed — review ${OUTPUT_PATH}`)
+      process.exit(1)
+    }
+  } else {
+    console.log(`\n✅ DRY RUN done. Run: npx vitest run ${path.relative(process.cwd(), OUTPUT_PATH)}`)
+  }
 }
 
 main().catch(err => {
