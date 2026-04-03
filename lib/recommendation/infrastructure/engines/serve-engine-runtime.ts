@@ -1460,7 +1460,9 @@ async function handleServeExplorationInner(
     }
 
     // ── Single-Call Router (feature-flagged) ──────────────────
-    if (USE_SINGLE_CALL_ROUTER && !shouldResolvePendingSelectionEarly && lastUserMsg && messages.length > 0) {
+    // Skip if: pending selection resolved, pending question active (chip click), or comparison detected
+    const pendingAlreadyResolved = pendingQuestionReply.kind === "resolved" || pendingQuestionReply.kind === "side_question"
+    if (USE_SINGLE_CALL_ROUTER && !shouldResolvePendingSelectionEarly && !pendingAlreadyResolved && lastUserMsg && messages.length > 0) {
       const singleResult = await routeSingleCall(lastUserMsg.text, prevState, provider)
 
       if (singleResult.actions.length > 0) {
