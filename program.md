@@ -147,13 +147,23 @@ echo "$(date +%H:%M)\t$(node -e "const r=require('./results.json');console.log(r
 | 빌드 성공 | ✅ | ✅ |
 | 기존 통과 테스트 유지 | 1977 | ≥1977 |
 
+## 필수 Golden Test (절대 삭제 금지)
+
+매 실험 시작 전 반드시 확인:
+```bash
+npx vitest run lib/recommendation/infrastructure/engines/__tests__/golden-crxs-copper.test.ts
+```
+- "피삭재는 구리 SQUARE 2날 직경 10 짜리 추천해줘" → CRX-S 시리즈 추천
+- 구리/copper/Cu + Square + 2날 + 10mm 필터 파싱 검증
+
 ## 시작
 
 ```
 1. results.json이 없으면 먼저 점수 측정
-2. 실패/스킵 테스트 목록 확인
-3. 가장 쉬운 실패부터 시작
-4. 루프 실행
+2. golden test 먼저 확인 (golden-crxs-copper)
+3. 실패/스킵 테스트 목록 확인
+4. 가장 쉬운 실패부터 시작
+5. 루프 실행
 ```
 
 ## 피드백 기반 자율 개선 (Phase 2)

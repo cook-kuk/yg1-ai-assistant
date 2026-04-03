@@ -132,6 +132,23 @@ const scenarios = [
       { user: "소재를 주철로 변경해줘", expect: { noError: true } },
     ],
   },
+  {
+    name: "🏆 Golden: 구리 SQUARE 2날 직경 10 → CRX-S 추천",
+    form: makeForm({ material: { status: "known", value: "N" } }),
+    turns: [
+      { user: "피삭재는 구리 SQUARE 2날 직경 10 짜리 추천해줘", expect: { noError: true } },
+    ],
+  },
+  {
+    name: "🏆 Golden: 구리 조건 순차 입력 → CRX-S",
+    form: makeForm({ material: { status: "known", value: "N" } }),
+    turns: [
+      { user: "위 조건에 맞는 YG-1 제품을 추천해 주세요.", expect: { hasChips: true } },
+      { user: "Square", expect: { hasChips: true } },
+      { user: "2날", expect: { hasChips: true } },
+      { user: "상관없음", expect: { noError: true } },
+    ],
+  },
 ]
 
 // ═══════════════════════════════════════════════════════════════
