@@ -658,6 +658,10 @@ export function resolvePendingQuestionReply(
   if (!raw) return { kind: "none" }
   if (raw.length > 80) return { kind: "unresolved", pendingField, raw }
   if (/[?？]/.test(raw)) return { kind: "side_question", pendingField, raw }
+  if (hasExplicitRevisionSignal(raw)) {
+    console.log(`[pending-selection] Detected revision signal in "${raw.slice(0, 30)}" — deferring to revision resolver`)
+    return { kind: "unresolved", pendingField, raw }
+  }
   if (/뭐야|뭔지|설명|차이|왜|어떻게|몇개|종류|비교|추천|결과|처음부터|이전 단계|줘|알려|궁금|공장|영업소|연락|번호|정보|회사|사장|회장|매출|주주|지점|사우디|해외|국가|나라|도시|어디/u.test(raw)) {
     return { kind: "side_question", pendingField, raw }
   }
