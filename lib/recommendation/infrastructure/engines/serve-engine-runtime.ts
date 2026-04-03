@@ -975,6 +975,30 @@ export async function resolveExplicitRevisionRequest(
     }
   }
 
+  // ── Fast path: "X로 바꿔줘" 형상 revision — toolSubtype 필터가 있을 때 ──
+  const { canonicalizeToolSubtype } = await import("@/lib/recommendation/shared/patterns")
+  const subtypeRevisionMatch = raw.match(/(.+?)\s*(?:로|으로)\s*(?:바꿔|변경|교체)/)
+  if (subtypeRevisionMatch) {
+    const candidateValue = subtypeRevisionMatch[1].trim()
+    const canonical = canonicalizeToolSubtype(candidateValue)
+    if (canonical) {
+      const existingSubtypeFilter = activeFilters.find(f => f.field === "toolSubtype" && f.op !== "skip")
+      if (existingSubtypeFilter && String(existingSubtypeFilter.rawValue ?? existingSubtypeFilter.value) !== canonical) {
+        const nextFilter = buildAppliedFilterFromValue("toolSubtype", canonical, existingSubtypeFilter.appliedAt ?? 0)
+        if (nextFilter) {
+          return {
+            kind: "resolved",
+            request: {
+              targetField: "toolSubtype",
+              previousValue: String(existingSubtypeFilter.value),
+              nextFilter,
+            },
+          }
+        }
+      }
+    }
+  }
+
   const parsedText = await parseExplicitRevisionText(raw, activeFilters.map(filter => filter.field), provider)
   const { previousText, valueCandidates: nextValues } = parsedText
   if (nextValues.length === 0) return null
