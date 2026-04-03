@@ -351,6 +351,8 @@ function canonicalizeToolSubtypeRawValue(rawValue: string | number | boolean): s
     radius: "Radius",
     라디우스: "Radius",
     코너레디우스: "Radius",
+    코너r: "Radius",
+    cornerr: "Radius",
     cornerradius: "Corner Radius",
     roughing: "Roughing",
     rough: "Roughing",
@@ -916,6 +918,16 @@ export function buildAppliedFilterFromValue(
   if (!definition) return null
 
   const targetField = definition.canonicalField ?? definition.field
+
+  // For numeric fields, check fractional inch BEFORE multi-value splitting
+  // so "5/16" doesn't get split into ["5", "16"] by MULTI_VALUE_SEPARATOR_PATTERN
+  if (definition.kind === "number" && typeof rawValue === "string") {
+    const inchMm = parseFractionalInchToMm(rawValue.trim())
+    if (inchMm != null) {
+      return buildAppliedFilterFromValue(field, inchMm, appliedAt)
+    }
+  }
+
   const inputValues = normalizeInputValues(definition.kind, rawValue)
   const normalizedValues = uniqPrimitiveValues(
     inputValues
