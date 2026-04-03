@@ -797,7 +797,24 @@ export async function resolveExplicitRevisionRequest(
   const raw = userMessage.trim()
   if (!raw || !hasExplicitRevisionSignal(raw)) return null
 
-  const activeFilters = (sessionState.appliedFilters ?? []).filter(filter => filter.op !== "skip")
+  let activeFilters = (sessionState.appliedFilters ?? []).filter(filter => filter.op !== "skip")
+
+  // intake form에서 설정된 조건은 appliedFilters에 없을 수 있음 — resolvedInput에서 가상 필터 생성
+  if (activeFilters.length === 0 && sessionState.resolvedInput) {
+    const ri = sessionState.resolvedInput
+    const syntheticFilters: AppliedFilter[] = []
+    if (ri.diameterMm != null) syntheticFilters.push({ field: "diameterMm", op: "eq", value: `${ri.diameterMm}mm`, rawValue: ri.diameterMm, appliedAt: 0 })
+    if (ri.material) syntheticFilters.push({ field: "material", op: "eq", value: ri.material, rawValue: ri.material, appliedAt: 0 })
+    if (ri.operationType) syntheticFilters.push({ field: "operationType", op: "eq", value: ri.operationType, rawValue: ri.operationType, appliedAt: 0 })
+    if (ri.flutePreference != null) syntheticFilters.push({ field: "fluteCount", op: "eq", value: `${ri.flutePreference}날`, rawValue: ri.flutePreference, appliedAt: 0 })
+    if (ri.coatingPreference) syntheticFilters.push({ field: "coating", op: "includes", value: ri.coatingPreference, rawValue: ri.coatingPreference, appliedAt: 0 })
+    if (ri.toolSubtype) syntheticFilters.push({ field: "toolSubtype", op: "eq", value: ri.toolSubtype, rawValue: ri.toolSubtype, appliedAt: 0 })
+    activeFilters = syntheticFilters
+    if (activeFilters.length > 0) {
+      console.log(`[explicit-revision] No appliedFilters, using ${activeFilters.length} synthetic filters from resolvedInput`)
+    }
+  }
+
   if (activeFilters.length === 0) return null
 
   const parsedText = await parseExplicitRevisionText(raw, activeFilters.map(filter => filter.field), provider)
@@ -2121,8 +2138,13 @@ async function handleServeExplorationInner(
       // ── Post-scoring stock filter ──
       // Filters from already-displayed candidates (no re-retrieval).
       // Uses prevState.displayedCandidates snapshots to avoid re-running full search.
-      const prevCandidates = prevState?.displayedCandidates ?? []
+      let prevCandidates = prevState?.displayedCandidates ?? []
       const stockFilter = action.stockFilter
+
+      // Fallback: if no displayed candidates, use full candidates from current search
+      if (prevCandidates.length === 0 && candidates.length > 0) {
+        prevCandidates = deps.buildCandidateSnapshot(candidates, evidenceMap)
+      }
 
       let filteredSnapshots: CandidateSnapshot[]
       if (stockFilter === "instock") {
