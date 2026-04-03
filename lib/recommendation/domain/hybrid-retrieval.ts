@@ -274,10 +274,12 @@ function summarizeEvidenceMapForTrace(evidenceMap: Map<string, EvidenceSummary>)
 // ── Main Entry Point ─────────────────────────────────────────
 export async function runHybridRetrieval(
   input: RecommendationInput,
-  filters: AppliedFilter[],
+  rawFilters: AppliedFilter[],
   topN = 0,
   pagination: HybridRetrievalPagination | null = null,
 ): Promise<HybridResult> {
+  // Defensive: strip skip/empty filters that must never reach DB or post-filter
+  const filters = rawFilters.filter(f => f.op !== "skip" && f.field && f.field !== "")
   traceRecommendation("domain.runHybridRetrieval:input", {
     input: summarizeRecommendationInputForTrace(input),
     filters: summarizeFiltersForTrace(filters),
