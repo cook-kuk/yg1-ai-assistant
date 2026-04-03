@@ -64,9 +64,11 @@ export const FILTERABLE_FIELDS = new Set([
 const NON_FILTERABLE_KEYWORDS = /회전수|RPM|rpm|이송|절삭속도|Vc|절삭조건범위|가격|납기|무게|경도|인장강도|토크|스핀들/i
 
 /**
- * Returns true if a chip label references a field that cannot be filtered in the DB.
+ * Returns true if a chip label references a field that cannot be filtered in the DB,
+ * or is too short to be a meaningful action (e.g. single-character chips like "탭").
  */
 export function isUnfilterableChip(label: string): boolean {
+  if (label.trim().length <= 1) return true
   return NON_FILTERABLE_KEYWORDS.test(label)
 }
 

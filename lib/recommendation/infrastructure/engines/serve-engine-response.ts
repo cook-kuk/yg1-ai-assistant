@@ -740,6 +740,14 @@ export async function buildQuestionResponse(
     responseText = `${responsePrefix}\n\n${responseText}`.trim()
   }
 
+  // ── Safety: strip single-character chips (e.g. "탭" from LLM, or spread string remnants) ──
+  const preFilterCount = finalResponseChips.length
+  finalResponseChips = finalResponseChips.filter(c => typeof c === "string" && c.trim().length > 1)
+  finalDisplayedOptions = finalDisplayedOptions.filter(o => typeof o.label === "string" && o.label.trim().length > 1)
+  if (finalResponseChips.length < preFilterCount) {
+    console.warn(`[chip-safety] Removed ${preFilterCount - finalResponseChips.length} single-char chips`)
+  }
+
   // ── CTA 버튼 2개를 최종 칩에 항상 추가 ──
   if (totalCandidateCount > 0) {
     if (!finalResponseChips.some(c => c.includes("제품 보기"))) finalResponseChips = [...finalResponseChips, `📋 지금 바로 제품 보기 (${totalCandidateCount}개)`]

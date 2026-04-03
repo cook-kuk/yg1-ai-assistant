@@ -8,15 +8,15 @@
  * DB + LLM + 전체 파이프라인을 관통하는 통합 테스트
  */
 
-const API_URL = "https://yg1-ai-assistant.vercel.app/api/recommend"
+const API_URL = process.env.API_URL || "http://localhost:3000/api/recommend"
 const TIMEOUT = 60000
 
 // ═══════════════════════════════════════════════════════════════
 // Helpers
 // ═══════════════════════════════════════════════════════════════
 
-async function callRecommend(form, messages, prevState = null) {
-  const body = { form, messages, prevState }
+async function callRecommend(form, messages, prevSession = null) {
+  const body = { intakeForm: form, messages, session: prevSession }
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT)
 
@@ -149,6 +149,93 @@ const scenarios = [
       { user: "상관없음", expect: { noError: true } },
     ],
   },
+  // ── 오늘 발견 버그 검증 시나리오 ──
+  {
+    name: "🐛 Cross-field revision: coating 질문 중 Ball로 바꿔주세요",
+    form: makeForm({ material: { status: "known", value: "탄소강" } }),
+    turns: [
+      { user: "위 조건에 맞는 YG-1 제품을 추천해 주세요.", expect: { hasChips: true, noError: true } },
+      { user: "Square", expect: { hasChips: true, noError: true } },
+      { user: "4날", expect: { hasChips: true, noError: true } },
+      { user: "Ball로 바꿔주세요", expect: { noError: true, noCharChips: true } },
+    ],
+  },
+  {
+    name: "🐛 Cross-field revision: 날수 질문 중 Radius로 변경해줘",
+    form: makeForm({ material: { status: "known", value: "알루미늄" } }),
+    turns: [
+      { user: "위 조건에 맞는 YG-1 제품을 추천해 주세요.", expect: { hasChips: true, noError: true } },
+      { user: "Ball", expect: { hasChips: true, noError: true } },
+      { user: "Radius로 변경해줘", expect: { noError: true, noCharChips: true } },
+    ],
+  },
+  {
+    name: "🐛 한 글자 칩 방지: pending 중 다른 필드 값 입력",
+    form: makeForm({ material: { status: "known", value: "스테인리스강" } }),
+    turns: [
+      { user: "위 조건에 맞는 YG-1 제품을 추천해 주세요.", expect: { hasChips: true, noError: true } },
+      { user: "Square", expect: { hasChips: true, noError: true } },
+      { user: "4날 대신 2날로", expect: { noError: true, noCharChips: true } },
+    ],
+  },
+  // ── 대명사 해소 시나리오 ──
+  {
+    name: "대명사: 그거 뭐야 / 이거 추천해줘",
+    form: makeForm({ material: { status: "known", value: "탄소강" } }),
+    turns: [
+      { user: "위 조건에 맞는 YG-1 제품을 추천해 주세요.", expect: { hasChips: true, noError: true } },
+      { user: "Square", expect: { hasChips: true, noError: true } },
+      { user: "4날", expect: { hasChips: true, noError: true } },
+      { user: "상관없음", expect: { noError: true } },
+      { user: "1번이랑 2번 비교해줘", expect: { noError: true } },
+    ],
+  },
+  {
+    name: "대명사: 아까 그거로 해줘",
+    form: makeForm({ material: { status: "known", value: "알루미늄" } }),
+    turns: [
+      { user: "위 조건에 맞는 YG-1 제품을 추천해 주세요.", expect: { hasChips: true, noError: true } },
+      { user: "Ball", expect: { hasChips: true, noError: true } },
+      { user: "3날", expect: { hasChips: true, noError: true } },
+      { user: "상관없음", expect: { noError: true } },
+      { user: "아까 그거 절삭조건 알려줘", expect: { noError: true } },
+    ],
+  },
+  // ── 스트레스: 긴 멀티턴 ──
+  {
+    name: "🔥 Stress: 7턴 풀 플로우 (추천→비교→revision→재추천)",
+    form: makeForm({ material: { status: "known", value: "탄소강" } }),
+    turns: [
+      { user: "위 조건에 맞는 YG-1 제품을 추천해 주세요.", expect: { hasChips: true, noError: true } },
+      { user: "Square", expect: { hasChips: true, noError: true } },
+      { user: "4날", expect: { hasChips: true, noError: true } },
+      { user: "상관없음", expect: { noError: true } },
+      { user: "1번이랑 2번 비교해줘", expect: { noError: true } },
+      { user: "Ball로 바꿔줘", expect: { noError: true, noCharChips: true } },
+      { user: "추천해줘", expect: { noError: true } },
+    ],
+  },
+  {
+    name: "🔥 Stress: skip 연속 → 빠른 추천",
+    form: makeForm({ material: { status: "known", value: "스테인리스강" } }),
+    turns: [
+      { user: "위 조건에 맞는 YG-1 제품을 추천해 주세요.", expect: { hasChips: true, noError: true } },
+      { user: "상관없음", expect: { hasChips: true, noError: true } },
+      { user: "상관없음", expect: { noError: true } },
+      { user: "상관없음", expect: { noError: true } },
+    ],
+  },
+  // ── Hallucination guard ──
+  {
+    name: "🛡️ Hallucination: 가격/납기 질문",
+    form: makeForm({ material: { status: "known", value: "탄소강" } }),
+    turns: [
+      { user: "위 조건에 맞는 YG-1 제품을 추천해 주세요.", expect: { hasChips: true, noError: true } },
+      { user: "Square", expect: { hasChips: true, noError: true } },
+      { user: "가격 얼마야?", expect: { noError: true, noHallucination: true } },
+      { user: "납기일 알려줘", expect: { noError: true, noHallucination: true } },
+    ],
+  },
 ]
 
 // ═══════════════════════════════════════════════════════════════
@@ -172,7 +259,10 @@ async function runScenario(scenario) {
       const elapsed = Date.now() - startTime
 
       // Update state for next turn
-      prevState = response.sessionState || response.session?.engineState || prevState
+      const nextSession = (response.session?.publicState || response.session?.engineState)
+        ? response.session
+        : prevState
+      prevState = nextSession
       if (response.text) {
         messages = addMessage(messages, "ai", response.text)
       }
@@ -190,6 +280,19 @@ async function runScenario(scenario) {
       if (turn.expect.hasCandidates) {
         const count = response.sessionState?.candidateCount ?? response.candidateSnapshot?.length ?? 0
         checks.push({ name: "hasCandidates", pass: count > 0, actual: count })
+      }
+      // 한 글자 칩 방지: 모든 칩이 2글자 이상이어야 함
+      if (turn.expect.noCharChips) {
+        const chips = response.chips || []
+        const charChips = chips.filter(c => c.length <= 1)
+        checks.push({ name: "noCharChips", pass: charChips.length === 0, actual: charChips.length > 0 ? `${charChips.length}개 한글자 칩: ${charChips.slice(0, 5).join(",")}` : "OK" })
+      }
+      // Hallucination 가드: 가격/납기 관련 금지어
+      if (turn.expect.noHallucination) {
+        const text = response.text || ""
+        const forbidden = ["원", "달러", "USD", "KRW", "만원", "영업일", "일 소요", "주 소요", "배송"]
+        const found = forbidden.filter(w => text.includes(w))
+        checks.push({ name: "noHallucination", pass: found.length === 0, actual: found.length > 0 ? `금지어 발견: ${found.join(",")}` : "OK" })
       }
 
       const allPass = checks.every(c => c.pass)
@@ -229,8 +332,8 @@ async function main() {
   let totalPassed = 0
   let totalFailed = 0
 
-  // Run scenarios in parallel (2 at a time to avoid overload)
-  const BATCH = 2
+  // Run scenarios in parallel (4 at a time for speed)
+  const BATCH = 4
   for (let i = 0; i < scenarios.length; i += BATCH) {
     const batch = scenarios.slice(i, i + BATCH)
     const batchResults = await Promise.all(batch.map(s => runScenario(s)))
