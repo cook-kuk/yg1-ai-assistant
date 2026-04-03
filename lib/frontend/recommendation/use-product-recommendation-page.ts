@@ -111,6 +111,15 @@ export function useProductRecommendationPage({
     [engineSessionState, sessionState]
   )
 
+  // 사이드바 국가 선택 → form.country 자동 동기화
+  useEffect(() => {
+    if (!country || country === "ALL") return
+    setForm(prev => ({
+      ...prev,
+      country: { status: "known" as const, value: country },
+    }))
+  }, [country])
+
   useEffect(() => {
     if (!resetKey) return
     setForm(INITIAL_INTAKE_FORM)
