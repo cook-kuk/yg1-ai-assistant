@@ -79,6 +79,9 @@ export const CanonicalProductSchema = z.object({
   featureText: z.string().nullable(),       // HTML stripped to plain text
   seriesIconUrl: z.string().nullable(),
 
+  // Material fitness (from series_profile_mv)
+  materialRatingScore: z.number().nullable(),  // DB series-level material fitness score; higher = better match
+
   // Quality
   sourceConfidence: z.string().nullable(),  // high/medium/low
   dataCompletenessScore: z.number(),        // 0-1

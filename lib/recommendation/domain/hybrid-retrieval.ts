@@ -498,6 +498,16 @@ export async function runHybridRetrieval(
       }
     }
 
+    // Material fitness bonus: series-level "designed for" vs "merely supports"
+    // materialRatingScore from DB series_profile_mv — higher = better fit for the requested material
+    const ratingScore = product.materialRatingScore
+    if (ratingScore != null && ratingScore > 0 && materialTags.length > 0) {
+      // Normalize to 0–10 bonus points (DB scores typically 0–100 range)
+      const ratingBonus = Math.round(Math.min(ratingScore / 10, 1) * WEIGHTS.evidence)
+      matScore += ratingBonus
+      matDetail += ` +소재전용(${ratingBonus})`
+    }
+
     let opScore = 0
     let opDetail = ""
     if (!specificAppShapes.length) {

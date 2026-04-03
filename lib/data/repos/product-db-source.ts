@@ -84,6 +84,8 @@ interface RawProductRow {
   search_diameter_mm: number | null
   search_coating: string | null
   search_subtype: string | null
+  // Injected by ranked_products CTE (not in base table)
+  material_rating_score?: number | null
 }
 
 export interface ProductSeriesOverview {
@@ -654,6 +656,7 @@ function mapRowToProduct(row: RawProductRow): CanonicalProduct {
     description: firstNonEmpty(row.series_description),
     featureText: firstNonEmpty(row.series_feature),
     seriesIconUrl: resolveSeriesIconUrl(row.edp_series_name),
+    materialRatingScore: typeof row.material_rating_score === "number" ? row.material_rating_score : null,
     sourceConfidence: "medium",
     evidenceRefs: [],
   }
