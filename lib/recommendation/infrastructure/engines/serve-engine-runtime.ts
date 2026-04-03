@@ -991,8 +991,6 @@ export async function resolveExplicitRevisionRequest(
 
   if (matchedRequests.length === 0) return null
 
-  console.log(`[DEBUG-MR] matched=${JSON.stringify(matchedRequests.map(r => ({ f: r.targetField, raw: r.nextFilter.rawValue })))}`)
-
   // Dedup by targetField + normalized value
   const dedupedRequests = matchedRequests.filter((request, index, requests) => {
     const key = `${request.targetField}:${normalizeComparableFilterValue(request.targetField, request.nextFilter.rawValue ?? request.nextFilter.value)}`
@@ -1021,22 +1019,15 @@ export async function resolveExplicitRevisionRequest(
       const fieldAliasSet = new Set(
         getFilterFieldQueryAliases(field).map(a => a.toLowerCase().replace(/\s+/g, ""))
       )
-      // Filter out entries whose parsed rawValue is a field descriptor (like "형상" for toolSubtype)
-      // but not a valid canonical domain value. If canonicalization returns the same as input
-      // AND the input matches a queryAlias, it's likely a descriptor, not a value.
+      // Among same-field duplicates, prefer entries whose rawValue is a real domain value,
+      // not a field label. Field labels (e.g. "형상" for toolSubtype, "코팅" for coating)
+      // are noise from the field-mention extraction surrounding text.
       const fieldDef = getFilterFieldDefinition(field)
+      const fieldLabel = (fieldDef?.label ?? "").toLowerCase().replace(/\s+/g, "")
+      const fieldId = field.toLowerCase().replace(/\s+/g, "")
       const nonAliasEntries = group.filter(req => {
         const rawStr = String(req.nextFilter.rawValue ?? "").toLowerCase().replace(/\s+/g, "")
-        if (!fieldAliasSet.has(rawStr)) return true  // not an alias → keep
-        // Check if canonicalization transforms it to a known domain value
-        if (fieldDef?.canonicalizeRawValue) {
-          const canonical = fieldDef.canonicalizeRawValue(String(req.nextFilter.rawValue ?? ""))
-          const canonicalStr = String(canonical ?? "").toLowerCase().replace(/\s+/g, "")
-          // If canonical === raw, the alias didn't resolve to a standard value → it's a descriptor
-          // If canonical !== raw, it resolved to a domain value → keep it
-          return canonicalStr !== rawStr
-        }
-        return true  // no canonicalize → keep
+        return rawStr !== fieldLabel && rawStr !== fieldId
       })
       filtered.push(...(nonAliasEntries.length > 0 ? nonAliasEntries : group))
     }
