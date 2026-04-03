@@ -204,6 +204,8 @@ export async function routeSingleCall(
   const systemPrompt = buildSystemPrompt(sessionState)
 
   try {
+    console.log(`[SCR] calling LLM, msg: "${userMessage}", hasState: ${!!sessionState}, candidateCount: ${sessionState?.candidateCount ?? "null"}`)
+
     const raw = await provider.complete(
       systemPrompt,
       [{ role: "user", content: userMessage }],
@@ -212,13 +214,18 @@ export async function routeSingleCall(
       "single-call-router"
     )
 
+    console.log(`[SCR] raw response (first 500): ${raw?.substring(0, 500)}`)
+
     const parsed = extractJsonFromResponse(raw)
     if (!parsed) {
-      console.warn("[single-call-router] Failed to parse JSON from LLM response")
+      console.warn("[SCR] Failed to parse JSON from LLM response, raw:", raw?.substring(0, 200))
       return { actions: [], answer: "", reasoning: "parse_failure" }
     }
 
+    console.log(`[SCR] parsed raw: ${JSON.stringify(parsed).substring(0, 300)}`)
+
     const result = validateAndCleanResult(parsed)
+    console.log(`[SCR] validated actions (pre-canonicalize): ${result.actions.map(a => `${a.type}(${a.field}=${a.value ?? a.to ?? ""})`).join(", ") || "EMPTY"}`)
 
     // Canonicalize ALL action values through filter-field-registry
     // This ensures Korean values from LLM (스퀘어→Square, 4날→4) are normalized
@@ -248,7 +255,7 @@ export async function routeSingleCall(
 
     return { actions: canonicalizedActions, answer: result.answer, reasoning: result.reasoning }
   } catch (err) {
-    console.error("[single-call-router] LLM call failed:", err)
+    console.error(`[SCR] ERROR: ${err instanceof Error ? err.message : String(err)}`)
     return { actions: [], answer: "", reasoning: "llm_error" }
   }
 }
