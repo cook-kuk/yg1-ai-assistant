@@ -63,6 +63,27 @@ export async function handleServeSimpleChat(
 
   const latestUserMsg = [...messages].reverse().find(message => message.role === "user")?.text ?? ""
   const baseInput = normalizeInput(latestUserMsg)
+
+  // ── 비교 감지: "비교해줘" 패턴이면 entity profile로 먼저 라우팅 ──
+  const isComparisonRequest = /비교|차이|vs|versus/i.test(latestUserMsg)
+  if (isComparisonRequest) {
+    const comparisonReply = await deps.handleDirectEntityProfileQuestion(
+      latestUserMsg, baseInput, null
+    )
+    if (comparisonReply) {
+      return deps.jsonRecommendationResponse({
+        text: comparisonReply.text,
+        purpose: "comparison",
+        chips: comparisonReply.chips,
+        isComplete: false,
+        recommendation: null,
+        sessionState: null,
+        evidenceSummaries: null,
+        candidateSnapshot: null,
+      })
+    }
+  }
+
   const productInfoReply = await deps.handleDirectProductInfoQuestion?.(latestUserMsg, baseInput, null)
   if (productInfoReply) {
     return deps.jsonRecommendationResponse({

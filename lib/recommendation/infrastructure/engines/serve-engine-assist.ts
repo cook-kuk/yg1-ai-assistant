@@ -516,7 +516,9 @@ export async function handleDirectEntityProfileQuestion(
   options?: DirectQuestionOptions
 ): Promise<{ text: string; chips: string[] } | null> {
   const queryTarget = classifyQueryTarget(userMessage, null, null)
-  if (queryTarget.type === "product_comparison") {
+  // product_comparison은 세션 기반 비교 핸들러가 처리하도록 양보.
+  // 단, prevState가 null이면 legacy chat이므로 시리즈 비교로 처리한다.
+  if (queryTarget.type === "product_comparison" && _prevState !== null) {
     return null
   }
   const requestedNames = options?.semanticContext?.entityNames?.length
