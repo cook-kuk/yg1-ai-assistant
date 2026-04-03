@@ -188,6 +188,12 @@ User: "TiAlN 제외하고" (when coating=TiAlN filter exists)
 User: "Ball 아닌 것들" (no existing toolSubtype filter)
 → {"actions":[{"type":"apply_filter","field":"toolSubtype","value":"Ball","op":"neq"}],"answer":"","reasoning":"exclude Ball subtype"}
 
+User: "4날로 바꿔줘" (when fluteCount=6 filter exists)
+→ {"actions":[{"type":"replace_filter","field":"fluteCount","from":"6","to":4}],"answer":"","reasoning":"replace 6 flute with 4 flute"}
+
+User: "Ball로 변경해주세요" (when toolSubtype=Square filter exists)
+→ {"actions":[{"type":"replace_filter","field":"toolSubtype","from":"Square","to":"Ball"}],"answer":"","reasoning":"replace Square with Ball"}
+
 User: "TiAlN이 뭐야?"
 → {"actions":[],"answer":"TiAlN은 내열성 코팅입니다.","reasoning":"question, no filter change"}
 
