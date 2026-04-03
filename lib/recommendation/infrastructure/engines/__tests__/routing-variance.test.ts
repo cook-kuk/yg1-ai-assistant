@@ -394,16 +394,18 @@ describe("ambiguous/noisy input behavior", () => {
     expect(["unresolved", "side_question"]).toContain(result.kind)
   })
 
-  it('"그냥 추천해줘" -> side_question (contains 추천 and 줘 keywords)', () => {
+  it('"그냥 추천해줘" -> resolved as skip (delegation intent)', () => {
     const state = makeState({ lastAskedField: "toolSubtype", displayedOptions: subtypeOptions })
     const result = resolvePendingQuestionReply(state, "그냥 추천해줘")
-    expect(result.kind).toBe("side_question")
+    expect(result.kind).toBe("resolved")
+    if (result.kind === "resolved") expect(result.filter.op).toBe("skip")
   })
 
-  it('"알아서 해줘" -> side_question (contains 줘 keyword)', () => {
+  it('"알아서 해줘" -> resolved as skip (delegation intent)', () => {
     const state = makeState({ lastAskedField: "toolSubtype", displayedOptions: subtypeOptions })
     const result = resolvePendingQuestionReply(state, "알아서 해줘")
-    expect(result.kind).toBe("side_question")
+    expect(result.kind).toBe("resolved")
+    if (result.kind === "resolved") expect(result.filter.op).toBe("skip")
   })
 
   it('"뭘로 해야 돼?" -> side_question (contains question mark)', () => {

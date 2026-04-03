@@ -758,7 +758,19 @@ export function resolvePendingQuestionReply(
     console.log(`[pending-selection] Detected revision signal in "${raw.slice(0, 30)}" — deferring to revision resolver`)
     return { kind: "unresolved", pendingField, raw }
   }
-  if (/뭐야|뭔지|설명|차이|왜|어떻게|몇개|종류|비교|추천|결과|처음부터|이전 단계|알려줘|알려|궁금|공장|영업소|연락|번호|정보|회사|사장|회장|매출|주주|지점|사우디|해외|국가|나라|도시|어디|재고|납기|가격|배송|리드\s*타임|stock|inventory|price|lead\s*time|적합|카탈로그|스펙|알아서/u.test(raw)) {
+  // 위임 표현 → skip으로 처리 (추천해줘, 알아서 해줘, 아무거나 한개 등)
+  if (/^(?:.*(?:추천해|골라|알아서|너가|니가|한개|하나만|아무거나).*(?:줘|해줘|해|주세요|요)?|추천으로\s*골라줘)$/u.test(raw)) {
+    console.log(`[pending-selection] Delegation detected: "${raw.slice(0, 30)}" → treating as skip`)
+    const skipFilter: AppliedFilter = {
+      field: pendingField,
+      op: "skip",
+      value: "상관없음",
+      rawValue: "skip",
+      appliedAt: sessionState.turnCount ?? 0,
+    }
+    return { kind: "resolved", filter: skipFilter }
+  }
+  if (/뭐야|뭔지|설명|차��|왜|어떻게|몇개|종류|비교|결과|처음부터|이전 단계|알려줘|��려|궁금|공장|영업소|연락|번호|정보|회사|사장|회장|매출|주주|지점|사우디|해외|국가|��라|도시|어디|재고|납기|가격|배송|리드\s*타임|stock|inventory|price|lead\s*time|적합|카탈로그|스펙/u.test(raw)) {
     return { kind: "side_question", pendingField, raw }
   }
   // Product code + additional text → side question about a specific product (e.g., "G8A59080의 재고 수")
