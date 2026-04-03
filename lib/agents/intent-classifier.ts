@@ -9,19 +9,28 @@ import { resolveModel, type LLMProvider } from "@/lib/llm/provider"
 import type { ExplorationSessionState } from "@/lib/types/exploration"
 import type { NarrowingIntent, IntentClassification } from "./types"
 import { resolveUndoTarget } from "@/lib/domain/request-preparation"
+import {
+  RESET_KEYWORDS,
+  RECOMMEND_PATTERNS as SHARED_RECOMMEND_PATTERNS,
+  COMPARE_PATTERNS as SHARED_COMPARE_PATTERNS,
+  SKIP_TOKENS,
+  NONSENSE_PATTERNS as SHARED_NONSENSE_PATTERNS,
+  isSkipToken,
+  COATING_KEYWORD_SET,
+  TOOL_SUBTYPE_ALIASES,
+  MATERIAL_KEYWORD_FLAT,
+  extractDiameter,
+  extractFluteCount,
+} from "@/lib/recommendation/shared/patterns"
 
 const INTENT_CLASSIFIER_MODEL = resolveModel("opus", "intent-classifier")
 
 // ── Deterministic Patterns (fast path, no LLM) ──────────────
+// 공유 패턴은 shared/patterns.ts에서 import
 
-const RESET_PATTERNS = ["처음부터 다시", "다시 시작", "리셋", "처음부터", "새로 시작", "초기화", "reset"]
-const RECOMMEND_PATTERNS = ["추천해주세요", "바로 보여주세요", "결과 보기", "추천 받기", "추가 조건 없음", "그냥 줘", "빨리", "알아서", "그냥", "보여줘", "결과", "추천해줘", "추천 해줘", "결과보기"]
-const COMPARE_PATTERNS = [
-  /비교/, /차이/, /(\d+)번.*(\d+)번/, /상위.*비교/, /위.*비교/, /이\s*중/,
-  /(\d+)\s*번.*이랑/, /(\d+)~(\d+)\s*번/, /(\d+)\s*번.*하고.*(\d+)\s*번/,
-  /둘.*비교/, /셋.*비교/, /전부.*비교/, /다.*비교/,
-  /(\d+)\s*개.*비교/, /상위\s*(\d+)\s*개/,
-]
+const RESET_PATTERNS = RESET_KEYWORDS
+const RECOMMEND_PATTERNS = SHARED_RECOMMEND_PATTERNS
+const COMPARE_PATTERNS = SHARED_COMPARE_PATTERNS
 const EXPLAIN_PATTERNS = [
   /그게\s*뭐/, /그건\s*뭐/, /이게\s*뭐/, /뭐야/, /차이.*뭐/, /뭐가\s*다/, /설명/, /왜\s*이/, /이유/,
   /알려\s*줘/, /알려줘/, /어떤\s*거/, /뭐\s*좋/, /좋은\s*거/,
@@ -48,8 +57,8 @@ const META_QUESTION_PATTERNS = [
   /내에서/, /중에서/, /안에서/,
   /왜.*추천/, /이거.*왜/, /왜.*이거/,
 ]
-const SKIP_PATTERNS = ["상관없음", "모름", "패스", "넘어", "넘겨", "스킵", "아무거나", "다음", "다음으로"]
-const NONSENSE_PATTERNS = [/^[ㅋㅎㅠㅜ]+$/, /^[?!.]+$/, /^\s*$/]
+const SKIP_PATTERNS = [...SKIP_TOKENS]
+const NONSENSE_PATTERNS = SHARED_NONSENSE_PATTERNS
 const SIDE_CHAT_PATTERNS = [
   /^안녕/, /^ㅎㅇ/, /^하이/, /^hello/i, /^hi\b/i,
   /고마워/, /감사/, /thanks/i, /ㄳ/,
@@ -320,33 +329,30 @@ function extractComparisonTargets(clean: string): string[] {
 }
 
 function tryDeterministicExtraction(clean: string): string | null {
-  // Flute count: "4날", "날수 4", "4 flute"
-  const fluteMatch = clean.match(/^(\d+)\s*날/) || clean.match(/날수?\s*(\d+)/) || clean.match(/(\d+)\s*f(?:lute)?$/i)
-  if (fluteMatch) return `${fluteMatch[1]}날`
+  // Flute count
+  const flute = extractFluteCount(clean)
+  if (flute) return `${flute}날`
 
-  // Diameter: "4mm", "직경 4mm", "φ4", "4밀리"
-  const diamMatch = clean.match(/^([\d.]+)\s*mm/) || clean.match(/직경\s*([\d.]+)/) || clean.match(/φ\s*([\d.]+)/) || clean.match(/([\d.]+)\s*밀리/)
-  if (diamMatch) return `${diamMatch[1]}mm`
+  // Diameter
+  const diam = extractDiameter(clean)
+  if (diam) return `${diam}mm`
 
-  // Known coating keywords
-  const coatings = ["altin", "tialn", "dlc", "무코팅", "y-코팅", "ticn", "bright finish", "diamond", "x-coating", "t-coating", "uncoated", "alcrn", "다이아몬드", "코팅없"]
-  for (const c of coatings) {
+  // Coating keywords (shared)
+  for (const c of COATING_KEYWORD_SET) {
     if (clean.includes(c)) return c
   }
 
-  // Known subtypes
-  const subtypes = ["square", "ball", "radius", "스퀘어", "볼", "라디우스", "하이피드", "flat", "chamfer", "taper"]
-  for (const s of subtypes) {
+  // Tool subtypes (shared)
+  for (const s of Object.keys(TOOL_SUBTYPE_ALIASES)) {
     if (clean.includes(s)) return s
   }
 
-  // Series code pattern (expanded)
+  // Series code pattern
   const seriesMatch = clean.match(/(ce\d+[a-z]*\d*|gnx\d+|sem[a-z]*\d+|e\d+[a-z]\d+|v\d+[a-z]*|alu[_-]?cut)/i)
   if (seriesMatch) return seriesMatch[1]
 
-  // Material keywords (when user types workpiece material as answer)
-  const materials = ["알루미늄", "스테인리스", "탄소강", "합금강", "주철", "티타늄", "구리", "인코넬", "sus", "s45c", "aluminum", "stainless"]
-  for (const m of materials) {
+  // Material keywords (shared)
+  for (const m of MATERIAL_KEYWORD_FLAT) {
     if (clean.includes(m)) return m
   }
 

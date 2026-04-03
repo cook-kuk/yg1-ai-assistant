@@ -31,6 +31,11 @@ function normalizeQueryText(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, "")
 }
 
+/** Strip emojis, variation selectors, and other non-text Unicode symbols */
+function stripEmoji(value: string): string {
+  return value.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu, "").trim()
+}
+
 function uniqueStrings(values: Array<string | null | undefined>): string[] {
   const result: string[] = []
   const seen = new Set<string>()
@@ -187,7 +192,7 @@ function buildFilterValueCandidates(raw: string, candidateFields?: Set<string>):
 }
 
 function buildRevisionValueCandidates(raw: string): { previousText: string | null; nextValues: string[] } {
-  const replaceMatch = raw.match(/(.+?)\s*(?:대신|말고|아니고|아닌|아니라)\s*(.+)$/u)
+  const replaceMatch = raw.match(/(.+?)\s*(?:대신에|대신|말고|아니고|아닌|아니라)\s*(.+)$/u)
   if (replaceMatch) {
     const previousSlot = extractValueSpansAroundFieldMentions(replaceMatch[1], undefined, REVISION_INTENT_PATTERNS)
     const nextSlot = extractValueSpansAroundFieldMentions(replaceMatch[2], undefined, REVISION_INTENT_PATTERNS)
@@ -334,11 +339,12 @@ export async function parseExplicitFilterText(
   candidateFields?: Iterable<string>,
   provider?: LLMProvider | null
 ): Promise<ParsedConstraintText> {
-  const llmParsed = await extractConstraintSlotsWithLLM(raw.trim(), "filter", provider, candidateFields)
+  const cleaned = stripEmoji(raw.trim())
+  const llmParsed = await extractConstraintSlotsWithLLM(cleaned, "filter", provider, candidateFields)
   if (llmParsed) return llmParsed
 
   const fieldSet = candidateFields ? new Set(candidateFields) : undefined
-  const { hintedFields, valueCandidates } = buildFilterValueCandidates(raw.trim(), fieldSet)
+  const { hintedFields, valueCandidates } = buildFilterValueCandidates(cleaned, fieldSet)
   return {
     hintedFields,
     valueCandidates,
@@ -351,13 +357,14 @@ export async function parseExplicitRevisionText(
   candidateFields?: Iterable<string>,
   provider?: LLMProvider | null
 ): Promise<ParsedConstraintText> {
-  const llmParsed = await extractConstraintSlotsWithLLM(raw.trim(), "revision", provider, candidateFields)
+  const cleaned = stripEmoji(raw.trim())
+  const llmParsed = await extractConstraintSlotsWithLLM(cleaned, "revision", provider, candidateFields)
   if (llmParsed) return llmParsed
 
   const fieldSet = candidateFields ? new Set(candidateFields) : undefined
-  const { previousText, nextValues } = buildRevisionValueCandidates(raw.trim())
+  const { previousText, nextValues } = buildRevisionValueCandidates(cleaned)
   return {
-    hintedFields: collectHintedFields(raw.trim(), fieldSet),
+    hintedFields: collectHintedFields(cleaned, fieldSet),
     valueCandidates: nextValues,
     previousText,
   }

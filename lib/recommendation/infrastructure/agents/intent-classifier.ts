@@ -9,14 +9,22 @@ import { resolveModel, type LLMProvider } from "@/lib/recommendation/infrastruct
 import type { ExplorationSessionState } from "@/lib/recommendation/domain/types"
 import type { NarrowingIntent, IntentClassification } from "./types"
 import { resolveUndoTarget } from "@/lib/recommendation/domain/request-preparation"
+import {
+  RESET_KEYWORDS,
+  RECOMMEND_PATTERNS as SHARED_RECOMMEND_PATTERNS,
+  COMPARE_PATTERNS as SHARED_COMPARE_PATTERNS,
+  NONSENSE_PATTERNS as SHARED_NONSENSE_PATTERNS,
+  isSkipToken,
+} from "@/lib/recommendation/shared/patterns"
 
 const INTENT_CLASSIFIER_MODEL = resolveModel("opus", "intent-classifier")
 
 // ── Deterministic Patterns (fast path, no LLM) ──────────────
+// 공유 패턴은 shared/patterns.ts에서 import
 
-const RESET_EXACT = ["처음부터 다시", "다시 시작", "리셋", "처음부터", "처음부터 다시 시작", "처음부터 다시 해줘", "리셋해줘", "초기화", "reset"]
-const RECOMMEND_PATTERNS = ["추천해주세요", "바로 보여주세요", "결과 보기", "추천 받기", "추가 조건 없음", "그냥 줘", "빨리", "알아서", "그냥"]
-const COMPARE_PATTERNS = [/비교/, /차이/, /(\d+)번.*(\d+)번/, /상위.*비교/, /위.*비교/, /이\s*중/]
+const RESET_EXACT = RESET_KEYWORDS
+const RECOMMEND_PATTERNS = SHARED_RECOMMEND_PATTERNS
+const COMPARE_PATTERNS = SHARED_COMPARE_PATTERNS
 const EXPLAIN_PATTERNS = [/그게\s*뭐/, /그건\s*뭐/, /이게\s*뭐/, /뭐야/, /차이.*뭐/, /뭐가\s*다/, /설명/, /왜\s*이/, /이유/]
 const META_QUESTION_PATTERNS = [
   /아니야\s*\?*$/, /아닌가\s*\?*$/, /않아\s*\?*$/, /잖아/,
@@ -36,8 +44,8 @@ const REFINEMENT_PATTERNS = [
   /(스테인|알루미늄|탄소강|주철|티타늄|고경도).*(로|으로)\s*(다시|추천|검색|볼래|보고)/,
   /다시.*(추천|검색|볼래|보고).*싶/,
 ]
-const SKIP_PATTERNS = ["상관없음", "모름", "패스", "넘어", "넘겨", "스킵", "아무거나"]
-const NONSENSE_PATTERNS = [/^[ㅋㅎㅠㅜ]+$/, /^[?!.]+$/, /^\s*$/]
+const SKIP_PATTERNS_LOCAL: string[] = [] // skip 판단은 isSkipToken()으로 통합
+const NONSENSE_PATTERNS = SHARED_NONSENSE_PATTERNS
 
 /**
  * Classify user intent — deterministic first, Haiku fallback for ambiguity.
@@ -85,7 +93,7 @@ export async function classifyIntent(
     const pendingField = sessionState.lastAskedField
 
     // Skip / don't care → SELECT_OPTION with "상관없음" (field-bound)
-    if (SKIP_PATTERNS.some(p => clean.includes(p))) {
+    if (isSkipToken(clean)) {
       return {
         intent: "SELECT_OPTION",
         confidence: 0.95,
@@ -174,7 +182,7 @@ export async function classifyIntent(
   }
 
   // ── 7. Skip/Don't care ──
-  if (SKIP_PATTERNS.some(p => clean.includes(p))) {
+  if (isSkipToken(clean)) {
     return { intent: "SELECT_OPTION", confidence: 0.9, extractedValue: "상관없음", modelUsed: INTENT_CLASSIFIER_MODEL }
   }
 

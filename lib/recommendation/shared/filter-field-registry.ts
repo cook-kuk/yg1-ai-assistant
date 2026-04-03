@@ -4,6 +4,13 @@ import type {
   RecommendationInput,
   ScoredProduct,
 } from "@/lib/recommendation/domain/types"
+import {
+  SKIP_TOKENS as SHARED_SKIP_TOKENS,
+  COATING_KO_ALIASES as SHARED_COATING_KO_ALIASES,
+  canonicalizeCoating as sharedCanonicalizeCoating,
+  canonicalizeToolSubtype as sharedCanonicalizeToolSubtype,
+  stripKoreanParticles,
+} from "@/lib/recommendation/shared/patterns"
 
 type FilterPrimitive = string | number | boolean
 type FilterValueKind = "string" | "number" | "boolean"
@@ -30,13 +37,7 @@ interface FilterFieldDefinition {
   buildDbClause?: DbClauseBuilder
 }
 
-const SKIP_TOKENS = new Set([
-  "상관없음", "상관 없음", "모름", "skip",
-  "패스", "스킵", "아무거나", "아무거나요",
-  "넘어가", "넘어가줘", "넘어갈게",
-  "모르겠어", "모르겠어요",
-  "다 괜찮아", "다괜찮아", "뭐든 상관없어", "뭐든상관없어",
-])
+const SKIP_TOKENS = SHARED_SKIP_TOKENS
 const MULTI_VALUE_SEPARATOR_PATTERN = /\s*(?:,|\/|\||또는|아니면| and | or |(?<=[0-9A-Za-z가-힣])(?:이나|과|와)(?=\s*[0-9A-Za-z가-힣]))\s*/iu
 
 function unwrapRecord(record: FilterRecord): Record<string, unknown> {
@@ -107,9 +108,7 @@ function stripKoreanDiameterAliases(value: string): string {
  * Strip trailing Korean particles from values:
  * "알루미늄으로" → "알루미늄", "2날이요" → "2날"
  */
-function stripKoreanParticles(value: string): string {
-  return value.replace(/(?:이요|으로|이랑|에서|한테|부터|까지|로|은|는|이|가|을|를|요)\s*$/u, "")
-}
+// stripKoreanParticles는 shared/patterns.ts에서 import
 
 function extractNumericValue(value: string): number | null {
   const cleaned = stripApproximateAffixes(value)
@@ -293,87 +292,23 @@ function identifierMatch(record: FilterRecord, filter: AppliedFilter, key: strin
  * the map only bridges the language gap so that the DB LIKE clause
  * can match the English `search_coating` column.
  */
-const COATING_KO_ALIASES: Record<string, string> = {
-  블루: "Blue",
-  블루코팅: "Blue",
-  골드: "Gold",
-  골드코팅: "TiN",
-  블랙: "Black",
-  블랙코팅: "TiAlN",
-  실버: "Bright",
-  실버코팅: "Bright",
-  무코팅: "Uncoated",
-  비코팅: "Uncoated",
-  코팅없: "Uncoated",
-  코팅없음: "Uncoated",
-  다이아몬드: "Diamond",
-  다이아몬드코팅: "Diamond",
-}
+const COATING_KO_ALIASES = SHARED_COATING_KO_ALIASES
 
 function canonicalizeCoatingRawValue(rawValue: string | number | boolean): string | null {
-  // Strip Korean particles first: "TiAlN으로" → "TiAlN"
-  const stripped = stripKoreanParticles(String(rawValue).trim())
-  const normalized = stripped
-    .toLowerCase()
-    .replace(/[\s\-_]+/g, "")
-
-  if (!normalized) return null
-
-  for (const [alias, canonical] of Object.entries(COATING_KO_ALIASES)) {
-    if (normalized === alias || normalized === alias.replace(/[\s\-_]+/g, "")) {
-      return canonical
-    }
-  }
-
-  // For hyphenated chemical notation: "Ti-Al-N" → "TiAlN", "Al-Cr-N" → "AlCrN"
-  // Return the dehyphenated form if the original had hyphens between elements
-  if (/[A-Za-z]+-[A-Za-z]/.test(stripped)) {
-    return stripped.replace(/-/g, "")
-  }
-
+  const raw = String(rawValue)
+  const canonical = sharedCanonicalizeCoating(raw)
+  if (canonical) return canonical
+  // 매칭 실패 시 particle 제거 후 원본 반환 (기존 동작 유지)
+  const stripped = stripKoreanParticles(raw.trim())
   return stripped || null
 }
 
 function canonicalizeToolSubtypeRawValue(rawValue: string | number | boolean): string | null {
-  // Strip Korean particles first: "스퀘어로" → "스퀘어"
-  const stripped = stripKoreanParticles(String(rawValue).trim())
-  const normalized = stripped
-    .toLowerCase()
-    .replace(/[()\s_-]+/g, "")
-
-  if (!normalized) return null
-
-  const aliases: Record<string, string> = {
-    square: "Square",
-    스퀘어: "Square",
-    ball: "Ball",
-    볼: "Ball",
-    radius: "Radius",
-    라디우스: "Radius",
-    코너레디우스: "Radius",
-    코너r: "Radius",
-    cornerr: "Radius",
-    cornerradius: "Corner Radius",
-    roughing: "Roughing",
-    rough: "Roughing",
-    황삭: "Roughing",
-    러핑: "Roughing",
-    러프: "Roughing",
-    볼엔드밀: "Ball",
-    평엔드밀: "Square",
-    r엔드밀: "Radius",
-    taper: "Taper",
-    테이퍼: "Taper",
-    chamfer: "Chamfer",
-    챔퍼: "Chamfer",
-    highfeed: "High-Feed",
-    하이피드: "High-Feed",
-  }
-
-  for (const [alias, canonical] of Object.entries(aliases)) {
-    if (normalized.includes(alias)) return canonical
-  }
-
+  const raw = String(rawValue)
+  const canonical = sharedCanonicalizeToolSubtype(raw)
+  if (canonical) return canonical
+  // 매칭 실패 시 particle 제거 후 원본 반환 (기존 동작 유지)
+  const stripped = stripKoreanParticles(raw.trim())
   return stripped || null
 }
 

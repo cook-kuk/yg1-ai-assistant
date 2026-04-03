@@ -962,13 +962,6 @@ export async function resolveExplicitRevisionRequest(
     if (matchingFilters.length === 0) continue
 
     for (const nextValue of nextValues) {
-      // Skip value candidates that are purely field-label aliases (e.g. "형상" for toolSubtype, "코팅" for coating)
-      // but NOT value aliases that also serve as valid values (e.g. "Ball", "Square", "TiAlN")
-      const fieldDef = getFilterFieldDefinition(field)
-      const labelAliases = [field, fieldDef?.label ?? ""].filter(Boolean).map(a => a.toLowerCase().replace(/\s+/g, ""))
-      const normalizedValue = nextValue.toLowerCase().replace(/\s+/g, "")
-      if (labelAliases.includes(normalizedValue)) continue
-
       const sanitizedNextValue = sanitizeRevisionValueForField(field, nextValue, sessionState)
       const parsed = parseAnswerToFilter(field, sanitizedNextValue)
       if (!parsed) continue
@@ -998,12 +991,71 @@ export async function resolveExplicitRevisionRequest(
 
   if (matchedRequests.length === 0) return null
 
+  console.log(`[DEBUG-MR] matched=${JSON.stringify(matchedRequests.map(r => ({ f: r.targetField, raw: r.nextFilter.rawValue })))}`)
+
+  // Dedup by targetField + normalized value
   const dedupedRequests = matchedRequests.filter((request, index, requests) => {
     const key = `${request.targetField}:${normalizeComparableFilterValue(request.targetField, request.nextFilter.rawValue ?? request.nextFilter.value)}`
     return index === requests.findIndex(candidate => (
       `${candidate.targetField}:${normalizeComparableFilterValue(candidate.targetField, candidate.nextFilter.rawValue ?? candidate.nextFilter.value)}` === key
     ))
   })
+
+  // When multiple deduped requests exist for the SAME field, filter out those whose rawValue
+  // is a field label/alias (e.g. "형상" for toolSubtype) rather than a real domain value.
+  if (dedupedRequests.length > 1) {
+    const fieldGroups = new Map<string, typeof dedupedRequests>()
+    for (const req of dedupedRequests) {
+      const group = fieldGroups.get(req.targetField) ?? []
+      group.push(req)
+      fieldGroups.set(req.targetField, group)
+    }
+    const filtered: typeof dedupedRequests = []
+    for (const [field, group] of fieldGroups) {
+      if (group.length <= 1) {
+        filtered.push(...group)
+        continue
+      }
+      // For same-field duplicates, remove entries whose rawValue matches a field query alias
+      // but only if there are other entries that don't
+      const fieldAliasSet = new Set(
+        getFilterFieldQueryAliases(field).map(a => a.toLowerCase().replace(/\s+/g, ""))
+      )
+      // Filter out entries whose parsed rawValue is a field descriptor (like "형상" for toolSubtype)
+      // but not a valid canonical domain value. If canonicalization returns the same as input
+      // AND the input matches a queryAlias, it's likely a descriptor, not a value.
+      const fieldDef = getFilterFieldDefinition(field)
+      const nonAliasEntries = group.filter(req => {
+        const rawStr = String(req.nextFilter.rawValue ?? "").toLowerCase().replace(/\s+/g, "")
+        if (!fieldAliasSet.has(rawStr)) return true  // not an alias → keep
+        // Check if canonicalization transforms it to a known domain value
+        if (fieldDef?.canonicalizeRawValue) {
+          const canonical = fieldDef.canonicalizeRawValue(String(req.nextFilter.rawValue ?? ""))
+          const canonicalStr = String(canonical ?? "").toLowerCase().replace(/\s+/g, "")
+          // If canonical === raw, the alias didn't resolve to a standard value → it's a descriptor
+          // If canonical !== raw, it resolved to a domain value → keep it
+          return canonicalStr !== rawStr
+        }
+        return true  // no canonicalize → keep
+      })
+      filtered.push(...(nonAliasEntries.length > 0 ? nonAliasEntries : group))
+    }
+    if (filtered.length === 1) {
+      return { kind: "resolved", request: filtered[0] }
+    }
+    if (filtered.length > 1 && filtered.length < dedupedRequests.length) {
+      // Re-check after filtering
+      const reDedupedFiltered = filtered.filter((request, index, requests) => {
+        const key = `${request.targetField}:${normalizeComparableFilterValue(request.targetField, request.nextFilter.rawValue ?? request.nextFilter.value)}`
+        return index === requests.findIndex(candidate => (
+          `${candidate.targetField}:${normalizeComparableFilterValue(candidate.targetField, candidate.nextFilter.rawValue ?? candidate.nextFilter.value)}` === key
+        ))
+      })
+      if (reDedupedFiltered.length === 1) {
+        return { kind: "resolved", request: reDedupedFiltered[0] }
+      }
+    }
+  }
 
   if (dedupedRequests.length === 1) {
     return { kind: "resolved", request: dedupedRequests[0] }
