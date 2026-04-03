@@ -171,4 +171,143 @@ describe("findVideosForProduct", () => {
     const results = findVideosForProduct(null, null, "YG TURN", "en")
     expect(results.length).toBeGreaterThanOrEqual(1)
   })
+
+  // ═══════════════════════════════════════════════════════════════
+  // Additional edge cases (20+ new tests)
+  // ═══════════════════════════════════════════════════════════════
+
+  // ── Case insensitivity ──
+  it("matches case-insensitively on brand (alu-power lowercase)", () => {
+    const results = findVideosForProduct(null, null, "alu-power", "en")
+    expect(results.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it("matches case-insensitively on seriesName (dge510 lowercase)", () => {
+    const results = findVideosForProduct("dge510", null, null, "en")
+    expect(results.length).toBeGreaterThanOrEqual(1)
+  })
+
+  // ── Underscore normalization ──
+  it("matches when brand contains underscores instead of hyphens", () => {
+    const results = findVideosForProduct(null, null, "ALU_POWER", "en")
+    expect(results.length).toBeGreaterThanOrEqual(1)
+  })
+
+  // ── i-Xmill matching ──
+  it("matches i-Xmill via series prefix XB1 (en)", () => {
+    const results = findVideosForProduct("XB1200", null, null, "en")
+    expect(results.some(v => v.title.toLowerCase().includes("xmill"))).toBe(true)
+  })
+
+  it("matches i-Xmill via series prefix XMB (en)", () => {
+    const results = findVideosForProduct("XMB300", null, null, "en")
+    expect(results.some(v => v.title.toLowerCase().includes("xmill"))).toBe(true)
+  })
+
+  // ── ONLY ONE matching ──
+  it("matches ONLY ONE via series prefix GYF (en)", () => {
+    const results = findVideosForProduct("GYF400", null, null, "en")
+    expect(results.some(v => v.title.includes("ONLY ONE"))).toBe(true)
+  })
+
+  // ── Combo Tap matching (ko) ──
+  it("matches Combo Tap via brand in Korean (ko)", () => {
+    const results = findVideosForProduct("T2400", null, "COMBO TAP", "ko")
+    expect(results.some(v => v.title.includes("콤보탭"))).toBe(true)
+  })
+
+  // ── Thread Mill matching ──
+  it("matches Thread Mill via series L111 (en)", () => {
+    const results = findVideosForProduct("L111200", null, null, "en")
+    expect(results.some(v => v.title.includes("THREAD"))).toBe(true)
+  })
+
+  // ── Spade drill matching (ko) ──
+  it("matches spade drill video via keyword '스페이드' in brand (ko)", () => {
+    const results = findVideosForProduct(null, null, "스페이드 드릴", "ko")
+    expect(results.some(v => v.title.includes("스페이드"))).toBe(true)
+  })
+
+  // ── Dream Drill flat bottom ──
+  it("matches flat bottom drill via series DH3 (en)", () => {
+    const results = findVideosForProduct("DH3100", null, null, "en")
+    expect(results.some(v => v.title.toLowerCase().includes("flat bottom"))).toBe(true)
+  })
+
+  // ── i-SMART matching ──
+  it("matches i-SMART via brand (both language)", () => {
+    const enResults = findVideosForProduct(null, null, "i-SMART", "en")
+    const koResults = findVideosForProduct(null, null, "i-SMART", "ko")
+    expect(enResults.length).toBeGreaterThanOrEqual(1)
+    expect(koResults.length).toBeGreaterThanOrEqual(1)
+  })
+
+  // ── NanoCut matching ──
+  it("matches NanoCut video via brand (en)", () => {
+    const results = findVideosForProduct(null, null, "NanoCut", "en")
+    expect(results.some(v => v.title.includes("NanoCut"))).toBe(true)
+  })
+
+  // ── E-FORCE matching (ko) ──
+  it("matches E-FORCE BLUE video via keyword (ko)", () => {
+    const results = findVideosForProduct("E5E200", null, "E-FORCE", "ko")
+    expect(results.some(v => v.title.includes("E-FORCE"))).toBe(true)
+  })
+
+  // ── CFRP matching ──
+  it("matches CFRP drill via keyword (en)", () => {
+    const results = findVideosForProduct("RTI500", null, null, "en")
+    expect(results.some(v => v.title.toLowerCase().includes("cfrp"))).toBe(true)
+  })
+
+  // ── Hydro Chuck (Tooling) ──
+  it("matches Hydro Chuck via brand keyword (en)", () => {
+    const results = findVideosForProduct(null, null, "E-Hydro Chuck", "en")
+    expect(results.some(v => v.category === "Tooling")).toBe(true)
+  })
+
+  // ── Company videos should match yg-1 brand ──
+  it("matches corporate videos via 'yg-1' in brand (en)", () => {
+    const results = findVideosForProduct(null, null, "YG-1", "en")
+    expect(results.some(v => v.category === "Company")).toBe(true)
+  })
+
+  // ── Description is ignored for matching ──
+  it("does NOT match based on description alone", () => {
+    // description containing a keyword should not cause a match
+    const results = findVideosForProduct("ZZZUNKNOWN", "dream drill carbide", null, "en")
+    expect(results).toEqual([])
+  })
+
+  // ── Multiple categories returned ──
+  it("returns videos from multiple categories when brand matches several", () => {
+    // YG-1 matches both Company and potentially others
+    const results = findVideosForProduct(null, null, "YG-1 Corporate", "en")
+    expect(results.length).toBeGreaterThanOrEqual(1)
+  })
+
+  // ── Korean drilling insert ──
+  it("matches 드릴링 인서트 video (ko)", () => {
+    const results = findVideosForProduct(null, null, "드릴링 인서트", "ko")
+    expect(results.some(v => v.title.includes("드릴링 인서트"))).toBe(true)
+  })
+
+  // ── Synchro tap ──
+  it("matches synchro tap via series TKS (en)", () => {
+    const results = findVideosForProduct("TKS500", null, null, "en")
+    expect(results.some(v => v.title.includes("SYNCHRO"))).toBe(true)
+  })
+
+  // ── VIDEO_LIST integrity ──
+  it("all video entries have valid YouTube URLs", () => {
+    VIDEO_LIST.forEach(v => {
+      expect(v.url).toMatch(/^https:\/\/youtu\.be\/[a-zA-Z0-9_-]+$/)
+    })
+  })
+
+  it("all video entries have at least one matchKeyword", () => {
+    VIDEO_LIST.forEach(v => {
+      expect(v.matchKeywords.length).toBeGreaterThanOrEqual(1)
+    })
+  })
 })

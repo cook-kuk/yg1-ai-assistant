@@ -63,11 +63,11 @@ export interface UnifiedJudgmentInput {
 
 const JUDGMENT_SYSTEM = "YG-1 절삭공구 추천 챗봇 의도 분석기. JSON만 반환."
 
-function stripJsonCodeFence(raw: string): string {
+export function stripJsonCodeFence(raw: string): string {
   return raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim()
 }
 
-function extractFirstJsonObject(raw: string): string | null {
+export function extractFirstJsonObject(raw: string): string | null {
   const source = stripJsonCodeFence(raw)
   const start = source.indexOf("{")
   if (start < 0) return null
@@ -113,7 +113,7 @@ function extractFirstJsonObject(raw: string): string | null {
   return null
 }
 
-function parseJudgmentJson(raw: string): Record<string, unknown> {
+export function parseJudgmentJson(raw: string): Record<string, unknown> {
   const cleaned = stripJsonCodeFence(raw)
 
   try {
@@ -127,7 +127,7 @@ function parseJudgmentJson(raw: string): Record<string, unknown> {
   }
 }
 
-function buildJudgmentPrompt(input: UnifiedJudgmentInput): string {
+export function buildJudgmentPrompt(input: UnifiedJudgmentInput): string {
   const chips = input.displayedChips.length > 0
     ? input.displayedChips.slice(0, 6).join(", ")
     : "없음"
@@ -162,7 +162,7 @@ function buildJudgmentPrompt(input: UnifiedJudgmentInput): string {
 JSON: {"userState":"","confusedAbout":null,"messageKind":"","frameRelation":"","intentShift":"","domainRelevance":"","intentAction":"","questionShape":"","extractedAnswer":null,"signalStrength":"","isQuotedText":false}`
 }
 
-const DEFAULT_JUDGMENT: UnifiedJudgment = {
+export const DEFAULT_JUDGMENT: UnifiedJudgment = {
   userState: "clear",
   confusedAbout: null,
   messageKind: "direct_command",
