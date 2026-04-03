@@ -118,13 +118,11 @@ describe("fluteCount variance — all should parse to fluteCount with value 2", 
     expect(parsedRawValue(FIELD, answer)).toBe(EXPECTED)
   })
 
-  // TODO: system doesn't handle English word numbers
-  it.skip("two flute → 2", () => {
+  it("two flute → 2", () => {
     expect(parsedRawValue(FIELD, "two flute")).toBe(EXPECTED)
   })
 
-  // TODO: system doesn't handle reversed order
-  it.skip("날 2개 → 2", () => {
+  it("날 2개 → 2", () => {
     expect(parsedRawValue(FIELD, "날 2개")).toBe(EXPECTED)
   })
 
@@ -404,8 +402,7 @@ describe("country variance — all should canonicalize to uppercase", () => {
     expect(parsedRawValue(FIELD, answer)).toBe(expected)
   })
 
-  // TODO: system doesn't translate 한국 → KR
-  it.skip("한국 → KR", () => {
+  it("한국 → KR", () => {
     expect(parsedRawValue(FIELD, "한국")).toBe("KR")
   })
 
@@ -416,8 +413,7 @@ describe("country variance — all should canonicalize to uppercase", () => {
     expect(parsedRawValue(FIELD, answer)).toBe(expected)
   })
 
-  // TODO: system doesn't translate 미국 → US
-  it.skip("미국 → US", () => {
+  it("미국 → US", () => {
     expect(parsedRawValue(FIELD, "미국")).toBe("US")
   })
 
@@ -425,8 +421,7 @@ describe("country variance — all should canonicalize to uppercase", () => {
     expect(parsedRawValue(FIELD, "JP")).toBe("JP")
   })
 
-  // TODO: system doesn't translate 일본 → JP
-  it.skip("일본 → JP", () => {
+  it("일본 → JP", () => {
     expect(parsedRawValue(FIELD, "일본")).toBe("JP")
   })
 })
@@ -446,8 +441,7 @@ describe("inch diameter variance — fractional inch to mm conversion", () => {
     expect(parsedRawValue(FIELD, answer)).toBeCloseTo(9.525, 2)
   })
 
-  // TODO: system doesn't handle 인치 Korean suffix
-  it.skip("3/8인치 → 9.525mm", () => {
+  it("3/8인치 → 9.525mm", () => {
     expect(parsedRawValue(FIELD, "3/8인치")).toBeCloseTo(9.525, 2)
   })
 

@@ -128,9 +128,9 @@ function parseFractionalInchToMm(value: string): number | null {
 
   // Pattern: optional whole number + fraction + optional inch indicator
   // Matches: "3/8\"", "3/8"", "3/8 inch", "1-1/2\"", "1 1/2\"", "1-1/2 inch", "1\"", "2\""
-  const fractionPattern = /^(\d+)[\s-]+(\d+)\s*\/\s*(\d+)\s*(?:"|"|"|''|inch|in)?$/i
-  const simpleFractionPattern = /^(\d+)\s*\/\s*(\d+)\s*(?:"|"|"|''|inch|in)?$/i
-  const wholeInchPattern = /^(\d+(?:\.\d+)?)\s*(?:"|"|"|''|inch|in)$/i
+  const fractionPattern = /^(\d+)[\s-]+(\d+)\s*\/\s*(\d+)\s*(?:"|"|"|''|inch|in|인치)?$/i
+  const simpleFractionPattern = /^(\d+)\s*\/\s*(\d+)\s*(?:"|"|"|''|inch|in|인치)?$/i
+  const wholeInchPattern = /^(\d+(?:\.\d+)?)\s*(?:"|"|"|''|inch|in|인치)$/i
 
   let inches: number | null = null
 
@@ -540,6 +540,16 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     canonicalizeRawValue: (rawValue) => {
       // Strip Korean particles from flute expressions: "2날이요" → "2날" → 2
       const s = stripKoreanParticles(String(rawValue).trim())
+      // English word numbers: "two flute" → 2, "four flute" → 4
+      const WORD_NUMBERS: Record<string, number> = {
+        one: 1, two: 2, three: 3, four: 4, five: 5, six: 6,
+        seven: 7, eight: 8, nine: 9, ten: 10,
+      }
+      const wordMatch = s.toLowerCase().match(/^(one|two|three|four|five|six|seven|eight|nine|ten)\b/)
+      if (wordMatch) return WORD_NUMBERS[wordMatch[1]] ?? rawValue
+      // Reversed Korean order: "날 2개" → 2
+      const reversedMatch = s.match(/^날\s*(\d+)\s*개?$/)
+      if (reversedMatch) return parseInt(reversedMatch[1], 10)
       return extractNumericValue(s) ?? rawValue
     },
     setInput: (input, filter) => ({ ...input, flutePreference: firstFilterNumberValue(filter) }),

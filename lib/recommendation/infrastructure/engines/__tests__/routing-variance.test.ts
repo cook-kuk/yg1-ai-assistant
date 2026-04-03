@@ -81,9 +81,7 @@ describe("revision intent variance (should return unresolved)", () => {
     expect(result.kind).toBe("unresolved")
   })
 
-  // "switch to Radius" has no Korean revision signal - may not be caught
-  // TODO: English revision signals ("change X to Y", "switch to X") are not in REVISION_SIGNAL_PATTERN
-  it.skip('"switch to Radius" -> unresolved (English revision, not yet supported)', () => {
+  it('"switch to Radius" -> unresolved (English revision)', () => {
     const state = makeState({
       lastAskedField: "toolSubtype",
       displayedOptions: subtypeOptions,
@@ -102,9 +100,7 @@ describe("revision intent variance (should return unresolved)", () => {
     expect(result.kind).toBe("unresolved")
   })
 
-  // "Ball ㄴㄴ Radius로" uses internet slang - not in REVISION_SIGNAL_PATTERN
-  // TODO: Internet slang "ㄴㄴ" (meaning "no no") not recognized as revision signal
-  it.skip('"Ball ㄴㄴ Radius로" -> unresolved (internet slang, not yet supported)', () => {
+  it('"Ball ㄴㄴ Radius로" -> unresolved (internet slang)', () => {
     const state = makeState({
       lastAskedField: "toolSubtype",
       displayedOptions: subtypeOptions,
@@ -284,9 +280,7 @@ describe("valid pending answer variance (should return resolved)", () => {
       }
     })
 
-    // "10밀리" - Korean unit suffix, may not be parsed
-    // TODO: Korean unit suffix "밀리" not recognized by parseAnswerToFilter
-    it.skip('"10밀리" -> resolved as diameterMm (Korean unit suffix not yet supported)', () => {
+    it('"10밀리" -> resolved as diameterMm (Korean unit suffix)', () => {
       const state = makeState({
         lastAskedField: "diameterMm",
         displayedChips: diameterChips,
