@@ -1460,9 +1460,12 @@ async function handleServeExplorationInner(
     }
 
     // ── Single-Call Router (feature-flagged) ──────────────────
-    // Skip if: pending selection resolved, pending question active (chip click), or comparison detected
+    // Use Single-Call when: multi-condition message detected (2+ filter hints)
+    // Skip when: simple chip click, side question, or pending selection early
     const pendingAlreadyResolved = pendingQuestionReply.kind === "resolved" || pendingQuestionReply.kind === "side_question"
-    if (USE_SINGLE_CALL_ROUTER && !shouldResolvePendingSelectionEarly && !pendingAlreadyResolved && lastUserMsg && messages.length > 0) {
+    const hasMultipleConditions = lastUserMsg && /\d+날.*(?:TiAlN|AlCrN|DLC|Square|Ball|Radius|Roughing|코팅|형상)|(?:TiAlN|AlCrN|DLC|Square|Ball|Radius|Roughing).*\d+날/i.test(lastUserMsg.text)
+    const shouldUseSingleCall = USE_SINGLE_CALL_ROUTER && !shouldResolvePendingSelectionEarly && lastUserMsg && messages.length > 0 && (!pendingAlreadyResolved || hasMultipleConditions)
+    if (shouldUseSingleCall) {
       const singleResult = await routeSingleCall(lastUserMsg.text, prevState, provider)
 
       if (singleResult.actions.length > 0) {
@@ -1534,8 +1537,11 @@ async function handleServeExplorationInner(
           }
         }
 
-        // If filters changed, set up continue_narrowing action
+        // If filters changed, set up continue_narrowing action and clear pending
         if (singleResult.actions.some(a => ["apply_filter", "remove_filter", "replace_filter"].includes(a.type))) {
+          // Override pending selection — Single-Call Router handled it
+          pendingSelectionAction = null
+          pendingSelectionOrchestratorResult = null
           bridgedV2Action = { type: "continue_narrowing", filter: filters[filters.length - 1] }
           bridgedV2OrchestratorResult = {
             action: bridgedV2Action,

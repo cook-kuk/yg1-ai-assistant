@@ -89,10 +89,32 @@ const CATEGORY_SHAPE_MAP: Record<string, Set<string>> = {
   Threading: THREADING_SHAPES,
 }
 
+// ── Cross-category metadata keywords ────────────────────────
+// Products mis-categorised in DB (e.g. edp_root_category='Milling' for TAPs)
+// are caught by checking toolSubtype / productName / seriesName.
+const THREADING_METADATA_RE = /\b(tap|thread|threading|tapping|spiral\s*flute|point\s*tap|roll\s*tap)\b|(?:스파이럴\s*탭|포인트\s*탭|롤\s*탭|전조\s*탭|핸드\s*탭|너트\s*탭|관용\s*탭|탭)/i
+
+/** Keywords that indicate a product belongs to a *different* category. */
+const CROSS_CATEGORY_INDICATORS: Record<string, RegExp> = {
+  Milling: THREADING_METADATA_RE,       // Milling should exclude TAP/Thread
+  Holemaking: THREADING_METADATA_RE,    // Holemaking should exclude TAP/Thread
+}
+
 /** Returns true if the product has at least one shape belonging to the given category, or has no shapes at all (unknown). */
 function productMatchesMachiningCategory(shapes: string[], categoryShapes: Set<string>): boolean {
   if (shapes.length === 0) return true  // no shape data → don't exclude
   return shapes.some(s => categoryShapes.has(s))
+}
+
+/** Returns true if product metadata (toolSubtype, productName, seriesName) matches a foreign category's indicators. */
+function hasForegnCategoryMetadata(
+  product: { toolSubtype: string | null; productName: string | null; seriesName: string | null },
+  machiningCategory: string,
+): boolean {
+  const pattern = CROSS_CATEGORY_INDICATORS[machiningCategory]
+  if (!pattern) return false
+  const text = [product.toolSubtype, product.productName, product.seriesName].filter(Boolean).join(" ")
+  return pattern.test(text)
 }
 
 function normalizeToolSubtype(value: string | null | undefined): string | null {
@@ -320,11 +342,13 @@ export async function runHybridRetrieval(
 
     // Hard filter: machining category — exclude products from wrong category
     // e.g. when searching Milling, exclude TAP products whose shapes are only Threading
+    // Two-pronged: (1) applicationShapes check, (2) metadata keyword check for mis-categorised products
     if (input.machiningCategory) {
       const categoryShapes = CATEGORY_SHAPE_MAP[input.machiningCategory]
       if (categoryShapes) {
         const catFiltered = candidates.filter(p =>
-          productMatchesMachiningCategory(p.applicationShapes, categoryShapes)
+          productMatchesMachiningCategory(p.applicationShapes, categoryShapes) &&
+          !hasForegnCategoryMetadata(p, input.machiningCategory!)
         )
         if (catFiltered.length > 0) {
           console.log(`[hybrid-retrieval] machiningCategory filter: ${input.machiningCategory} → ${candidates.length} → ${catFiltered.length} candidates`)

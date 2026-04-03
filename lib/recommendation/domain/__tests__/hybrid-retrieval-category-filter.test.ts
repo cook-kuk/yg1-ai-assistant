@@ -222,4 +222,99 @@ describe("hybrid-retrieval machining category filter", () => {
     const codes = result.candidates.map(c => c.product.normalizedCode)
     expect(codes).toContain("TAP002")
   })
+
+  // ── Metadata-based cross-category filtering (mis-categorised edp_root_category) ──
+
+  it("excludes TAP product with empty applicationShapes but TAP toolSubtype from Milling", async () => {
+    const millingProduct = makeProduct({
+      normalizedCode: "MILL010",
+      displayCode: "MILL-010",
+      toolSubtype: "Square",
+      diameterMm: 10,
+      applicationShapes: ["Side_Milling"],
+    })
+    const misCategorisedTap = makeProduct({
+      normalizedCode: "TAP010",
+      displayCode: "TAP-010",
+      toolSubtype: "Spiral Flute",
+      diameterMm: 10,
+      applicationShapes: [],  // empty → would pass shape check alone
+    })
+
+    mockProducts.push(millingProduct, misCategorisedTap)
+
+    const result = await runHybridRetrieval(makeInput(), [])
+
+    const codes = result.candidates.map(c => c.product.normalizedCode)
+    expect(codes).toContain("MILL010")
+    expect(codes).not.toContain("TAP010")
+  })
+
+  it("excludes TAP product with 'Thread' in productName from Milling", async () => {
+    const millingProduct = makeProduct({
+      normalizedCode: "MILL011",
+      displayCode: "MILL-011",
+      diameterMm: 10,
+      applicationShapes: ["Slotting"],
+    })
+    const threadProduct = makeProduct({
+      normalizedCode: "THREAD011",
+      displayCode: "THREAD-011",
+      productName: "Thread Milling Cutter",
+      diameterMm: 10,
+      applicationShapes: [],
+    })
+
+    mockProducts.push(millingProduct, threadProduct)
+
+    const result = await runHybridRetrieval(makeInput(), [])
+
+    const codes = result.candidates.map(c => c.product.normalizedCode)
+    expect(codes).toContain("MILL011")
+    expect(codes).not.toContain("THREAD011")
+  })
+
+  it("excludes TAP product with Korean '탭' in seriesName from Milling", async () => {
+    const millingProduct = makeProduct({
+      normalizedCode: "MILL012",
+      displayCode: "MILL-012",
+      diameterMm: 10,
+      applicationShapes: ["Facing"],
+    })
+    const koreanTap = makeProduct({
+      normalizedCode: "KTAP012",
+      displayCode: "KTAP-012",
+      seriesName: "스파이럴 탭 SUS용",
+      diameterMm: 10,
+      applicationShapes: [],
+    })
+
+    mockProducts.push(millingProduct, koreanTap)
+
+    const result = await runHybridRetrieval(makeInput(), [])
+
+    const codes = result.candidates.map(c => c.product.normalizedCode)
+    expect(codes).toContain("MILL012")
+    expect(codes).not.toContain("KTAP012")
+  })
+
+  it("keeps TAP product when machiningCategory is Threading", async () => {
+    const tapProduct = makeProduct({
+      normalizedCode: "TAP020",
+      displayCode: "TAP-020",
+      toolSubtype: "Spiral Flute",
+      diameterMm: 10,
+      applicationShapes: ["Threading_Blind"],
+    })
+
+    mockProducts.push(tapProduct)
+
+    const result = await runHybridRetrieval(
+      makeInput({ machiningCategory: "Threading" }),
+      [],
+    )
+
+    const codes = result.candidates.map(c => c.product.normalizedCode)
+    expect(codes).toContain("TAP020")
+  })
 })
