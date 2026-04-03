@@ -954,6 +954,27 @@ export async function resolveExplicitRevisionRequest(
 
   if (activeFilters.length === 0) return null
 
+  // ── Fast path: "N날로 바꿔줘" 패턴을 deterministic하게 fluteCount revision으로 처리 ──
+  const fluteRevisionMatch = raw.match(/(\d+)\s*날\s*(?:로|으로)\s*(?:바꿔|변경|교체)/)
+  if (fluteRevisionMatch) {
+    const newFluteValue = parseInt(fluteRevisionMatch[1], 10)
+    const existingFluteFilter = activeFilters.find(f => f.field === "fluteCount" && f.op !== "skip")
+    const existingFluteNum = existingFluteFilter ? parseInt(String(existingFluteFilter.rawValue ?? existingFluteFilter.value), 10) : NaN
+    if (existingFluteFilter && newFluteValue > 0 && newFluteValue <= 12 && newFluteValue !== existingFluteNum) {
+      const nextFilter = buildAppliedFilterFromValue("fluteCount", newFluteValue, existingFluteFilter.appliedAt ?? 0)
+      if (nextFilter) {
+        return {
+          kind: "resolved",
+          request: {
+            targetField: "fluteCount",
+            previousValue: String(existingFluteFilter.value),
+            nextFilter,
+          },
+        }
+      }
+    }
+  }
+
   const parsedText = await parseExplicitRevisionText(raw, activeFilters.map(filter => filter.field), provider)
   const { previousText, valueCandidates: nextValues } = parsedText
   if (nextValues.length === 0) return null
