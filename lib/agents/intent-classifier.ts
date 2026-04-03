@@ -22,6 +22,7 @@ import {
   extractDiameter,
   extractFluteCount,
 } from "@/lib/recommendation/shared/patterns"
+import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
 
 const INTENT_CLASSIFIER_MODEL = resolveModel("opus", "intent-classifier")
 
@@ -75,6 +76,40 @@ export async function classifyIntent(
 ): Promise<IntentClassification> {
   const clean = message.trim().toLowerCase()
   const startMs = Date.now()
+
+  // ── 0. LLM Free Interpretation — deterministic 스킵, LLM 직행 ──
+  if (LLM_FREE_INTERPRETATION) {
+    // 빈 메시지와 리셋만 deterministic으로 처리 (안전)
+    if (!clean || NONSENSE_PATTERNS.some(p => p.test(clean))) {
+      return { intent: "OUT_OF_SCOPE", confidence: 0.95, modelUsed: INTENT_CLASSIFIER_MODEL }
+    }
+    if (RESET_PATTERNS.some(p => clean.includes(p))) {
+      return { intent: "RESET_SESSION", confidence: 0.98, modelUsed: INTENT_CLASSIFIER_MODEL }
+    }
+    // 칩 매칭은 유지 (UI 클릭은 deterministic이 정확)
+    if (sessionState) {
+      const chipClean = clean.replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
+      const metaChips = ["상관없음", "⟵ 이전 단계", "처음부터 다시", "추천해주세요", "추천 이어서", "비교해줘", "절삭조건 문의"]
+      if (!metaChips.includes(chipClean) && sessionState.displayedOptions?.length > 0) {
+        for (const opt of sessionState.displayedOptions) {
+          const optVal = opt.value.toLowerCase()
+          const optLabel = opt.label.toLowerCase().replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
+          if (chipClean === optVal || chipClean === optLabel || clean.startsWith(optVal) || clean.startsWith(optLabel)) {
+            return { intent: "SELECT_OPTION", confidence: 0.98, extractedValue: opt.value, reasoning: `Chip match: ${opt.label}`, modelUsed: INTENT_CLASSIFIER_MODEL }
+          }
+        }
+      }
+    }
+    // 나머지 전부 LLM에 위임
+    if (provider.available()) {
+      try {
+        return await classifyWithHaiku(message, sessionState, provider)
+      } catch (e) {
+        console.warn("[intent-classifier] LLM-free-interpretation fallback failed:", e)
+      }
+    }
+    // LLM 실패 시 fallthrough to deterministic below
+  }
 
   // ── 1. Nonsense ──
   if (!clean || NONSENSE_PATTERNS.some(p => p.test(clean))) {

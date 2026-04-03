@@ -47,6 +47,17 @@ export function isSingleCallRouterEnabled(): boolean {
 }
 export const USE_SINGLE_CALL_ROUTER = false
 
+/**
+ * LLM Free Interpretation — deterministic regex 게이트를 끄고 LLM이 자유 해석.
+ * ON이면:
+ *   1) intent-classifier: deterministic 패턴 스킵 → LLM 직행
+ *   2) single-call router: filterHints 조건 스킵 → 항상 Sonnet 라우팅
+ *   3) simple-chat: 무조건 LLM 해석 우선
+ * 개떡같이 말해도 찰떡같이 알아먹게.
+ * Set LLM_FREE_INTERPRETATION=true to enable.
+ */
+export const LLM_FREE_INTERPRETATION = envFlag("LLM_FREE_INTERPRETATION", false)
+
 /** Use V2 turn orchestrator (new recommendation pipeline). Defaults to true — V2 is the primary pipeline. Set USE_NEW_ORCHESTRATOR=false to revert to legacy. */
 export const USE_NEW_ORCHESTRATOR = process.env.USE_NEW_ORCHESTRATOR !== "false"
 

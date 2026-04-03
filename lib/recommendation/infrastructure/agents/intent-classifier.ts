@@ -16,6 +16,7 @@ import {
   NONSENSE_PATTERNS as SHARED_NONSENSE_PATTERNS,
   isSkipToken,
 } from "@/lib/recommendation/shared/patterns"
+import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
 
 const INTENT_CLASSIFIER_MODEL = resolveModel("opus", "intent-classifier")
 
@@ -57,6 +58,35 @@ export async function classifyIntent(
 ): Promise<IntentClassification> {
   const clean = message.trim().toLowerCase()
   const startMs = Date.now()
+
+  // ── 0. LLM Free Interpretation — deterministic 스킵, LLM 직행 ──
+  if (LLM_FREE_INTERPRETATION) {
+    if (!clean || NONSENSE_PATTERNS.some(p => p.test(clean))) {
+      return { intent: "OUT_OF_SCOPE", confidence: 0.95, modelUsed: INTENT_CLASSIFIER_MODEL }
+    }
+    if (isExplicitResetIntent(clean)) {
+      return { intent: "RESET_SESSION", confidence: 0.98, modelUsed: INTENT_CLASSIFIER_MODEL }
+    }
+    // 칩 매칭만 유지 (UI 클릭)
+    if (sessionState?.displayedOptions?.length) {
+      const chipClean = clean.replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
+      for (const opt of sessionState.displayedOptions) {
+        const optVal = opt.value.toLowerCase()
+        const optLabel = opt.label.toLowerCase().replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
+        if (chipClean === optVal || chipClean === optLabel) {
+          return { intent: "SELECT_OPTION", confidence: 0.98, extractedValue: opt.value, reasoning: `Chip match`, modelUsed: INTENT_CLASSIFIER_MODEL }
+        }
+      }
+    }
+    // LLM 직행
+    if (provider.available()) {
+      try {
+        return await classifyWithHaiku(message, sessionState, provider)
+      } catch (e) {
+        console.warn("[intent-classifier] LLM-free-interpretation fallback failed:", e)
+      }
+    }
+  }
 
   // ── 1. Nonsense ──
   if (!clean || NONSENSE_PATTERNS.some(p => p.test(clean))) {

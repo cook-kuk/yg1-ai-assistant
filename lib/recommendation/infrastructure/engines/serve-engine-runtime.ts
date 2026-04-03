@@ -1558,7 +1558,9 @@ async function handleServeExplorationInner(
       }
     }
 
-    const shouldUseSingleCall = isSingleCallRouterEnabled() && lastUserMsg && messages.length > 0 && !hasNegationPattern && (hasMultipleConditions || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
+    const { LLM_FREE_INTERPRETATION } = await import("@/lib/feature-flags")
+    // LLM_FREE_INTERPRETATION ON → filterHints 조건 무시, 항상 Sonnet 라우팅
+    const shouldUseSingleCall = (isSingleCallRouterEnabled() || LLM_FREE_INTERPRETATION) && lastUserMsg && messages.length > 0 && !hasNegationPattern && (LLM_FREE_INTERPRETATION || hasMultipleConditions || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
     if (shouldUseSingleCall) {
       const singleResult = await routeSingleCall(lastUserMsg.text, prevState, provider)
       // Temporary debug: log SCR result to trace
