@@ -913,6 +913,7 @@ function buildCandidateBasedRefinementChips(
   if (valueCounts.size === 0) return []
 
   const sorted = [...valueCounts.entries()]
+    .filter(([, count]) => count > 0)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
 

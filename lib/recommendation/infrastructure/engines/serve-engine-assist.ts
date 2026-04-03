@@ -1485,7 +1485,7 @@ function buildFieldDataContext(field: string, candidates: ScoredProduct[]): stri
       if (counts.size > 0) {
         lines.push(`현재 후보의 코팅 분포:`)
         for (const [coating, count] of Array.from(counts.entries()).sort((a, b) => b[1] - a[1])) {
-          lines.push(`• ${coating}: ${count}개`)
+          if (count > 0) lines.push(`• ${coating}: ${count}개`)
         }
       }
       break
@@ -1495,7 +1495,7 @@ function buildFieldDataContext(field: string, candidates: ScoredProduct[]): stri
       if (counts.size > 0) {
         lines.push(`현재 후보의 날수 분포:`)
         for (const [flute, count] of Array.from(counts.entries()).sort((a, b) => b[1] - a[1])) {
-          lines.push(`• ${flute}날: ${count}개`)
+          if (count > 0) lines.push(`• ${flute}날: ${count}개`)
         }
       }
       break
@@ -1514,7 +1514,7 @@ function buildFieldDataContext(field: string, candidates: ScoredProduct[]): stri
       if (counts.size > 0) {
         lines.push(`현재 후보의 형상 분포:`)
         for (const [subtype, count] of Array.from(counts.entries()).sort((a, b) => b[1] - a[1])) {
-          lines.push(`• ${subtype}: ${count}개`)
+          if (count > 0) lines.push(`• ${subtype}: ${count}개`)
         }
       }
       break
@@ -1524,7 +1524,7 @@ function buildFieldDataContext(field: string, candidates: ScoredProduct[]): stri
       if (counts.size > 0) {
         lines.push(`현재 후보의 공구 소재 분포:`)
         for (const [mat, count] of Array.from(counts.entries()).sort((a, b) => b[1] - a[1])) {
-          lines.push(`• ${mat}: ${count}개`)
+          if (count > 0) lines.push(`• ${mat}: ${count}개`)
         }
       }
       break

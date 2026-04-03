@@ -230,6 +230,7 @@ function buildFluteQuestion(input: RecommendationInput, candidates: ScoredProduc
 
   const gain = computeEntropy(fluteCounts, candidates.length)
   const chips = [...fluteCounts.entries()]
+    .filter(([, count]) => count > 0)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 4)
     .map(([value, count]) => `${value}날 (${count}개)`)
@@ -325,6 +326,7 @@ function buildCoatingQuestion(input: RecommendationInput, candidates: ScoredProd
 
   // Step 4: build chips — top 5 groups, with Korean description
   const chips = [...grouped.entries()]
+    .filter(([, count]) => count > 0)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
     .map(([group, count]) => {
@@ -360,7 +362,7 @@ function buildSeriesQuestion(candidates: ScoredProduct[]): FieldAnalysis | null 
 
   const gain = computeEntropy(series, candidates.length)
   const chips = [...series.entries()]
-    .filter(([value]) => value !== "미확인")
+    .filter(([value, count]) => value !== "미확인" && count > 0)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 4)
     .map(([value, count]) => {
@@ -391,7 +393,7 @@ function buildToolSubtypeQuestion(input: RecommendationInput, candidates: Scored
 
   const gain = computeEntropy(subtypes, candidates.length)
   const chips = [...subtypes.entries()]
-    .filter(([value]) => value !== "미확인")
+    .filter(([value, count]) => value !== "미확인" && count > 0)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 4)
     .map(([value, count]) => `${value} (${count}개)`)
@@ -430,6 +432,7 @@ function buildDiameterQuestion(input: RecommendationInput, candidates: ScoredPro
 
   const gain = computeEntropy(diameterCounts, candidates.length)
   const chips = [...diameterCounts.entries()]
+    .filter(([, count]) => count > 0)
     .sort((a, b) => b[1] - a[1] || a[0] - b[0])
     .slice(0, 5)
     .map(([value, count]) => `${value}mm (${count}개)`)

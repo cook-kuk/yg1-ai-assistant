@@ -373,10 +373,15 @@ async function buildWorkPieceQuestion(
   const relevantNames = relevantEntries.map(entry => entry.name)
 
   const materialLabel = getMaterialDisplay(isoGroup).ko
-  const chips = relevantNames.slice(0, 10).map(name => {
-    const count = workPieceCounts?.get(name)
-    return count != null ? `${name} (${count}개)` : name
-  })
+  const chips = relevantNames
+    .filter(name => {
+      const count = workPieceCounts?.get(name)
+      return count == null || count > 0
+    })
+    .slice(0, 10).map(name => {
+      const count = workPieceCounts?.get(name)
+      return count != null ? `${name} (${count}개)` : name
+    })
   if (unmappedCandidateCount > 0) {
     chips.push(`ETC (${unmappedCandidateCount}개)`)
   }

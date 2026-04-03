@@ -175,6 +175,7 @@ function buildZeroResultWithAlternatives(
   if (distribution && distribution.size > 0) {
     // Sort by count descending, take top alternatives
     const sorted = [...distribution.entries()]
+      .filter(([, count]) => count > 0)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 8)
 
@@ -550,6 +551,11 @@ function inferRevisionTargetFields(
   const filteredHintedFields = hintedFields.filter(field => activeFieldSet.has(field))
 
   if (filteredHintedFields.length > 0) return filteredHintedFields
+
+  // hintedFields가 있지만 activeFilters에 없는 경우 → 새 필드 적용 (리비전이 아닌 신규 필터)
+  // 예: pending=coating인데 "Ball로 바꿔주세요" → hintedFields=["toolSubtype"]
+  // toolSubtype이 activeFilters에 없어도 힌트 필드를 신뢰해야 함
+  if (hintedFields.length > 0) return [...new Set(hintedFields)]
 
   const lastAskedField = sessionState?.lastAskedField
   if (lastAskedField && activeFieldSet.has(lastAskedField)) {
@@ -2302,8 +2308,7 @@ async function handleServeExplorationInner(
           undefined,
           prevState.stageHistory,
           undefined,
-          replayField,
-          "현재 질문에 대한 답변으로 인식하지 못했습니다. 아래 선택지 중에서 골라주시거나, 필요한 값이 있으면 형식에 맞게 직접 입력해주세요."
+          "현재 질문에 대한 답변으로 인식하지 못했습니다. 아래 선택지 중에서 골라주시거나, 필요한 값이 있으면 형식에 맞게 직접 입력해주세요.",
         )
       }
     } else if (hasActivePendingQuestion && pendingQuestionReply.kind === "unresolved" && earlyAction) {
