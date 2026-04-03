@@ -758,7 +758,7 @@ export function resolvePendingQuestionReply(
     console.log(`[pending-selection] Detected revision signal in "${raw.slice(0, 30)}" — deferring to revision resolver`)
     return { kind: "unresolved", pendingField, raw }
   }
-  if (/뭐야|뭔지|설명|차이|왜|어떻게|몇개|종류|비교|추천|결과|처음부터|이전 단계|줘|알려|궁금|공장|영업소|연락|번호|정보|회사|사장|회장|매출|주주|지점|사우디|해외|국가|나라|도시|어디|재고|납기|가격|배송|리드\s*타임|stock|inventory|price|lead\s*time|적합|카탈로그|스펙/u.test(raw)) {
+  if (/뭐야|뭔지|설명|차이|왜|어떻게|몇개|종류|비교|추천|결과|처음부터|이전 단계|알려줘|알려|궁금|공장|영업소|연락|번호|정보|회사|사장|회장|매출|주주|지점|사우디|해외|국가|나라|도시|어디|재고|납기|가격|배송|리드\s*타임|stock|inventory|price|lead\s*time|적합|카탈로그|스펙|알아서/u.test(raw)) {
     return { kind: "side_question", pendingField, raw }
   }
   // Product code + additional text → side question about a specific product (e.g., "G8A59080의 재고 수")
@@ -822,7 +822,19 @@ export function resolvePendingQuestionReply(
     return normalizedChip && (clean === normalizedChip || clean.startsWith(normalizedChip) || normalizedChip.startsWith(clean))
   })
 
-  const selectedOption = optionMatch ?? chipMatch ?? null
+  // Try canonicalized matching: e.g. "스퀘어" → "Square" via field's canonicalizeRawValue
+  // Only attempt for single-token inputs to avoid partial matches in phrases like "change Ball to Radius"
+  const canonicalMatch = (!optionMatch && !chipMatch && !/\s/.test(raw.trim())) ? (() => {
+    const fieldDef = getFilterFieldDefinition(resolvedField)
+    if (!fieldDef?.canonicalizeRawValue) return null
+    const canonicalized = fieldDef.canonicalizeRawValue(raw.trim())
+    if (!canonicalized) return null
+    const canonicalClean = normalizePendingSelectionText(String(canonicalized))
+    if (!canonicalClean || canonicalClean === clean) return null
+    return optionsForPendingField.find(option => matchesPendingOptionValue(canonicalClean, option))
+  })() : null
+
+  const selectedOption = optionMatch ?? chipMatch ?? canonicalMatch ?? null
   const selectedValue = selectedOption?.value ?? null
   const diameterFields = ["diameterMm", "diameterRefine"]
   const supportsDirectFreeformAnswer = diameterFields.includes(pendingField) || diameterFields.includes(resolvedField)

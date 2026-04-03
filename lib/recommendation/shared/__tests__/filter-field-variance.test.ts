@@ -46,8 +46,7 @@ describe("diameter variance — all should parse to diameterMm with value 10", (
     expect(parsedRawValue(FIELD, answer)).toBe(EXPECTED)
   })
 
-  // TODO: system doesn't handle Korean unit aliases yet
-  it.skip.each([
+  it.each([
     ["10밀리"],
     ["10미리"],
   ])("Korean unit alias: %j → 10", (answer) => {
@@ -61,8 +60,7 @@ describe("diameter variance — all should parse to diameterMm with value 10", (
     expect(parsedRawValue(FIELD, answer)).toBe(EXPECTED)
   })
 
-  // TODO: system doesn't handle 파이 prefix natively
-  it.skip("파이10 → 10", () => {
+  it("파이10 → 10", () => {
     expect(parsedRawValue(FIELD, "파이10")).toBe(EXPECTED)
   })
 
@@ -107,8 +105,7 @@ describe("fluteCount variance — all should parse to fluteCount with value 2", 
     expect(parsedRawValue(FIELD, answer)).toBe(EXPECTED)
   })
 
-  // TODO: system doesn't handle these particle/polite forms
-  it.skip.each([
+  it.each([
     ["2날이요"],
     ["2날로"],
   ])("Korean with particles: %j → 2", (answer) => {
@@ -164,8 +161,7 @@ describe("coating variance — canonicalization and parsing", () => {
     expect(raw).toBe(expectedRaw)
   })
 
-  // TODO: system doesn't handle hyphenated chemical notation
-  it.skip("Ti-Al-N → TiAlN", () => {
+  it("Ti-Al-N → TiAlN", () => {
     expect(canonicalize(FIELD, "Ti-Al-N")).toBe("TiAlN")
   })
 
@@ -214,8 +210,7 @@ describe("coating variance — canonicalization and parsing", () => {
     expect(canonicalize(FIELD, answer)).toBe(expected)
   })
 
-  // TODO: system doesn't handle 코팅없음 (only 코팅없)
-  it.skip("코팅없음 → Uncoated", () => {
+  it("코팅없음 → Uncoated", () => {
     expect(canonicalize(FIELD, "코팅없음")).toBe("Uncoated")
   })
 
@@ -267,13 +262,11 @@ describe("toolSubtype variance", () => {
     expect(canonicalize(FIELD, answer)).toBe(expected)
   })
 
-  // TODO: system doesn't handle Korean particle on Korean alias for canonicalize
-  it.skip("스퀘어로 → Square", () => {
+  it("스퀘어로 → Square", () => {
     expect(canonicalize(FIELD, "스퀘어로")).toBe("Square")
   })
 
-  // TODO: system doesn't handle 평엔드밀
-  it.skip("평엔드밀 → Square", () => {
+  it("평엔드밀 → Square", () => {
     expect(canonicalize(FIELD, "평엔드밀")).toBe("Square")
   })
 
@@ -286,8 +279,7 @@ describe("toolSubtype variance", () => {
     expect(canonicalize(FIELD, answer)).toBe(expected)
   })
 
-  // TODO: system doesn't handle compound Korean terms with 엔드밀
-  it.skip.each([
+  it.each([
     ["볼엔드밀", "Ball"],
     ["볼 엔드밀", "Ball"],
   ])("Ball Korean compound: %j → %j", (answer, expected) => {
@@ -305,8 +297,7 @@ describe("toolSubtype variance", () => {
     expect(canonicalize(FIELD, answer)).toBe(expected)
   })
 
-  // TODO: system doesn't handle R엔드밀
-  it.skip("R엔드밀 → Radius", () => {
+  it("R엔드밀 → Radius", () => {
     expect(canonicalize(FIELD, "R엔드밀")).toBe("Radius")
   })
 
@@ -319,8 +310,7 @@ describe("toolSubtype variance", () => {
     expect(canonicalize(FIELD, answer)).toBe(expected)
   })
 
-  // TODO: system doesn't handle 러프/러핑 aliases
-  it.skip.each([
+  it.each([
     ["러프", "Roughing"],
     ["러핑", "Roughing"],
   ])("Roughing Korean aliases: %j → %j", (answer, expected) => {
@@ -353,8 +343,7 @@ describe("toolSubtype variance", () => {
     expect(canonicalize(FIELD, answer)).toBe(expected)
   })
 
-  // TODO: system doesn't handle "high feed" (space, no hyphen)
-  it.skip("high feed → High-Feed", () => {
+  it("high feed → High-Feed", () => {
     expect(canonicalize(FIELD, "high feed")).toBe("High-Feed")
   })
 })
@@ -375,8 +364,7 @@ describe("workPieceName variance", () => {
     expect(parsedField(FIELD, answer)).toBe("workPieceName")
   })
 
-  // TODO: system doesn't strip Korean particles from pure-Korean workpiece names
-  it.skip("알루미늄으로 → 알루미늄", () => {
+  it("알루미늄으로 → 알루미늄", () => {
     const raw = parsedRawValue("workPieceName", "알루미늄으로")
     expect(raw).not.toBeNull()
   })
@@ -389,8 +377,7 @@ describe("workPieceName variance", () => {
     expect(parsedRawValue(FIELD, answer)).not.toBeNull()
   })
 
-  // TODO: system doesn't handle 스텐 (abbreviated Korean)
-  it.skip("스텐 → parses as stainless", () => {
+  it("스텐 → parses as stainless", () => {
     expect(parsedRawValue(FIELD, "스텐")).not.toBeNull()
   })
 
@@ -450,12 +437,8 @@ describe("country variance — all should canonicalize to uppercase", () => {
 describe("inch diameter variance — fractional inch to mm conversion", () => {
   const FIELD = "diameterMm"
 
-  // TODO: parseAnswerToFilter splits fractions on "/" via MULTI_VALUE_SEPARATOR_PATTERN
-  // before canonicalizeRawValue (parseFractionalInchToMm) can process them.
-  // The inch conversion works at the canonicalize level but not through parseAnswerToFilter.
-
   // 3/8" = 9.525mm
-  it.skip.each([
+  it.each([
     ['3/8"'],
     ["3/8 inch"],
   ])('3/8 inch: %j → 9.525mm', (answer) => {
@@ -469,7 +452,7 @@ describe("inch diameter variance — fractional inch to mm conversion", () => {
   })
 
   // 1/2" = 12.7mm
-  it.skip.each([
+  it.each([
     ['1/2"'],
     ["1/2 inch"],
   ])('1/2 inch: %j → 12.7mm', (answer) => {
@@ -482,7 +465,7 @@ describe("inch diameter variance — fractional inch to mm conversion", () => {
   })
 
   // 1/4" = 6.35mm
-  it.skip.each([
+  it.each([
     ['1/4"'],
     ["1/4 inch"],
   ])('1/4 inch: %j → 6.35mm', (answer) => {
@@ -490,7 +473,7 @@ describe("inch diameter variance — fractional inch to mm conversion", () => {
   })
 
   // 3/4" = 19.05mm
-  it.skip.each([
+  it.each([
     ['3/4"'],
     ["3/4 inch"],
   ])('3/4 inch: %j → 19.05mm', (answer) => {
@@ -506,8 +489,7 @@ describe("inch diameter variance — fractional inch to mm conversion", () => {
   })
 
   // 1-1/2" = 38.1mm
-  // TODO: fraction split issue same as above
-  it.skip('1-1/2" → 38.1mm', () => {
+  it('1-1/2" → 38.1mm', () => {
     expect(parsedRawValue(FIELD, '1-1/2"')).toBeCloseTo(38.1, 2)
   })
 })
@@ -527,15 +509,14 @@ describe("skip token variance — all should return null", () => {
     expect(parseAnswerToFilter(FIELD, answer)).toBeNull()
   })
 
-  // TODO: system only recognizes 4 skip tokens — these are not handled
-  it.skip.each([
+  it.each([
     ["아무거나"],
     ["패스"],
     ["스킵"],
     ["넘어가"],
     ["다 괜찮아"],
     ["뭐든 상관없어"],
-  ])("unrecognized skip variant: %j → should be null", (answer) => {
+  ])("extended skip variant: %j → null", (answer) => {
     expect(parseAnswerToFilter(FIELD, answer)).toBeNull()
   })
 })
@@ -552,13 +533,11 @@ describe("mixed and noisy input variance", () => {
     expect(parsedRawValue("diameterMm", "10mm입니다")).toBe(10)
   })
 
-  // TODO: system doesn't strip 약 prefix
-  it.skip("approximate prefix: '약 10mm' → 10", () => {
+  it("approximate prefix: '약 10mm' → 10", () => {
     expect(parsedRawValue("diameterMm", "약 10mm")).toBe(10)
   })
 
-  // TODO: system doesn't strip 한 ... 쯤 wrapper
-  it.skip("approximate wrapper: '한 10mm쯤' → 10", () => {
+  it("approximate wrapper: '한 10mm쯤' → 10", () => {
     expect(parsedRawValue("diameterMm", "한 10mm쯤")).toBe(10)
   })
 

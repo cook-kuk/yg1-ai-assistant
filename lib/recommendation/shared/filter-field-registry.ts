@@ -30,7 +30,13 @@ interface FilterFieldDefinition {
   buildDbClause?: DbClauseBuilder
 }
 
-const SKIP_TOKENS = new Set(["상관없음", "상관 없음", "모름", "skip"])
+const SKIP_TOKENS = new Set([
+  "상관없음", "상관 없음", "모름", "skip",
+  "패스", "스킵", "아무거나", "아무거나요",
+  "넘어가", "넘어가줘", "넘어갈게",
+  "모르겠어", "모르겠어요",
+  "다 괜찮아", "다괜찮아", "뭐든 상관없어", "뭐든상관없어",
+])
 const MULTI_VALUE_SEPARATOR_PATTERN = /\s*(?:,|\/|\||또는|아니면| and | or |(?<=[0-9A-Za-z가-힣])(?:이나|과|와)(?=\s*[0-9A-Za-z가-힣]))\s*/iu
 
 function unwrapRecord(record: FilterRecord): Record<string, unknown> {
@@ -77,8 +83,37 @@ function stripLeadingFieldPhrase(answer: string, aliases: string[] | undefined):
   return clean
 }
 
+/**
+ * Strip Korean approximate prefixes/suffixes before numeric extraction:
+ * "약 10mm" → "10mm", "한 10mm쯤" → "10mm", "10mm정도" → "10mm"
+ */
+function stripApproximateAffixes(value: string): string {
+  return value
+    .replace(/^(?:약|한)\s+/u, "")
+    .replace(/(?:쯤|정도)\s*$/u, "")
+}
+
+/**
+ * Strip Korean unit aliases for diameter:
+ * "10밀리" → "10", "10미리" → "10", "파이10" → "10", "Φ10" → "10"
+ */
+function stripKoreanDiameterAliases(value: string): string {
+  return value
+    .replace(/^(?:파이)\s*/u, "")
+    .replace(/(?:밀리|미리)\s*$/u, "")
+}
+
+/**
+ * Strip trailing Korean particles from values:
+ * "알루미늄으로" → "알루미늄", "2날이요" → "2날"
+ */
+function stripKoreanParticles(value: string): string {
+  return value.replace(/(?:이요|으로|이랑|에서|한테|부터|까지|로|은|는|이|가|을|를|요)\s*$/u, "")
+}
+
 function extractNumericValue(value: string): number | null {
-  const match = value.match(/([-+]?\d+(?:\.\d+)?)/)
+  const cleaned = stripApproximateAffixes(value)
+  const match = cleaned.match(/([-+]?\d+(?:\.\d+)?)/)
   if (!match) return null
   const parsed = parseFloat(match[1])
   return Number.isNaN(parsed) ? null : parsed
@@ -276,8 +311,9 @@ const COATING_KO_ALIASES: Record<string, string> = {
 }
 
 function canonicalizeCoatingRawValue(rawValue: string | number | boolean): string | null {
-  const normalized = String(rawValue)
-    .trim()
+  // Strip Korean particles first: "TiAlN으로" → "TiAlN"
+  const stripped = stripKoreanParticles(String(rawValue).trim())
+  const normalized = stripped
     .toLowerCase()
     .replace(/[\s\-_]+/g, "")
 
@@ -289,12 +325,19 @@ function canonicalizeCoatingRawValue(rawValue: string | number | boolean): strin
     }
   }
 
-  return String(rawValue).trim() || null
+  // For hyphenated chemical notation: "Ti-Al-N" → "TiAlN", "Al-Cr-N" → "AlCrN"
+  // Return the dehyphenated form if the original had hyphens between elements
+  if (/[A-Za-z]+-[A-Za-z]/.test(stripped)) {
+    return stripped.replace(/-/g, "")
+  }
+
+  return stripped || null
 }
 
 function canonicalizeToolSubtypeRawValue(rawValue: string | number | boolean): string | null {
-  const normalized = String(rawValue)
-    .trim()
+  // Strip Korean particles first: "스퀘어로" → "스퀘어"
+  const stripped = stripKoreanParticles(String(rawValue).trim())
+  const normalized = stripped
     .toLowerCase()
     .replace(/[()\s_-]+/g, "")
 
@@ -313,8 +356,10 @@ function canonicalizeToolSubtypeRawValue(rawValue: string | number | boolean): s
     rough: "Roughing",
     황삭: "Roughing",
     러핑: "Roughing",
+    러프: "Roughing",
     볼엔드밀: "Ball",
     평엔드밀: "Square",
+    r엔드밀: "Radius",
     taper: "Taper",
     테이퍼: "Taper",
     chamfer: "Chamfer",
@@ -327,7 +372,7 @@ function canonicalizeToolSubtypeRawValue(rawValue: string | number | boolean): s
     if (normalized.includes(alias)) return canonical
   }
 
-  return String(rawValue).trim() || null
+  return stripped || null
 }
 
 function firstNumberFromColumns(columns: string[]): string {
@@ -419,9 +464,13 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     op: "eq",
     unit: "mm",
     canonicalizeRawValue: (rawValue) => {
-      const inchMm = parseFractionalInchToMm(String(rawValue))
+      let s = stripApproximateAffixes(String(rawValue).trim())
+      s = stripKoreanDiameterAliases(s)
+      // Strip Φ/φ prefix
+      s = s.replace(/^[Φφ]\s*/u, "")
+      const inchMm = parseFractionalInchToMm(s)
       if (inchMm != null) return inchMm
-      return rawValue
+      return extractNumericValue(s) ?? rawValue
     },
     setInput: (input, filter) => ({ ...input, diameterMm: firstFilterNumberValue(filter) }),
     clearInput: input => ({ ...input, diameterMm: undefined }),
@@ -438,9 +487,12 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     op: "eq",
     unit: "mm",
     canonicalizeRawValue: (rawValue) => {
-      const inchMm = parseFractionalInchToMm(String(rawValue))
+      let s = stripApproximateAffixes(String(rawValue).trim())
+      s = stripKoreanDiameterAliases(s)
+      s = s.replace(/^[Φφ]\s*/u, "")
+      const inchMm = parseFractionalInchToMm(s)
       if (inchMm != null) return inchMm
-      return rawValue
+      return extractNumericValue(s) ?? rawValue
     },
     setInput: (input, filter) => ({ ...input, diameterMm: firstFilterNumberValue(filter) }),
     clearInput: input => ({ ...input, diameterMm: undefined }),
@@ -468,8 +520,10 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
         스테인리스: "stainless",
         스테인레스: "stainless",
       }
-      const normalized = String(rawValue).trim().toLowerCase().replace(/\s+/g, "")
-      return WORKPIECE_KO_ALIASES[normalized] ?? (String(rawValue).trim() || null)
+      // Strip Korean particles first: "알루미늄으로" → "알루미늄"
+      const stripped = stripKoreanParticles(String(rawValue).trim())
+      const normalized = stripped.toLowerCase().replace(/\s+/g, "")
+      return WORKPIECE_KO_ALIASES[normalized] ?? (stripped || null)
     },
     setInput: (input, filter) => ({ ...input, workPieceName: joinedFilterStringValue(filter) }),
     clearInput: input => ({ ...input, workPieceName: undefined }),
@@ -481,6 +535,11 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "number",
     op: "eq",
     unit: "날",
+    canonicalizeRawValue: (rawValue) => {
+      // Strip Korean particles from flute expressions: "2날이요" → "2날" → 2
+      const s = stripKoreanParticles(String(rawValue).trim())
+      return extractNumericValue(s) ?? rawValue
+    },
     setInput: (input, filter) => ({ ...input, flutePreference: firstFilterNumberValue(filter) }),
     clearInput: input => ({ ...input, flutePreference: undefined }),
     extractValues: record => extractPrimitiveValues(record, "fluteCount"),
@@ -920,6 +979,15 @@ export function parseFieldAnswerToFilter(field: string, answer: string): Applied
   const clean = stripLeadingFieldPhrase(answer, getFilterFieldQueryAliases(field))
   if (!clean) return null
   if (SKIP_TOKENS.has(clean.toLowerCase())) return null
+
+  // For numeric fields, try fractional inch conversion BEFORE multi-value splitting
+  // so that "3/8\"" doesn't get split on "/" by MULTI_VALUE_SEPARATOR_PATTERN.
+  if (definition.kind === "number") {
+    const inchMm = parseFractionalInchToMm(clean)
+    if (inchMm != null) {
+      return buildAppliedFilterFromValue(field, inchMm, 0)
+    }
+  }
 
   return buildAppliedFilterFromValue(field, clean, 0)
 }

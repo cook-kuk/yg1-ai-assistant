@@ -92,9 +92,8 @@ describe("revision intent variance (should return unresolved)", () => {
     expect(result.kind).toBe("unresolved")
   })
 
-  // "Ball 아니고 Radius로" - 아니고 pattern is corrupted in REVISION_SIGNAL_PATTERN regex
-  // TODO: REVISION_SIGNAL_PATTERN has encoding issue with 아니고 — "Ball 아니고 Radius로" resolves as "Ball" instead of revision
-  it.skip('"Ball 아니고 Radius로" -> unresolved (아니고 pattern corrupted in regex)', () => {
+  // "Ball 아니고 Radius로" - 아니고 pattern fixed in REVISION_SIGNAL_PATTERN regex
+  it('"Ball 아니고 Radius로" -> unresolved (아니고 pattern fixed in regex)', () => {
     const state = makeState({
       lastAskedField: "toolSubtype",
       displayedOptions: subtypeOptions,
@@ -192,14 +191,12 @@ describe("side question variance (should return side_question)", () => {
     expect(result.kind).toBe("side_question")
   })
 
-  // TODO: "어떤 소재에 적합해" has no keyword match in side_question regex (적합 not listed)
-  it.skip('"어떤 소재에 적합해" -> side_question (적합 keyword not in side_question regex)', () => {
+  it('"어떤 소재에 적합해" -> side_question (적합 keyword in side_question regex)', () => {
     const state = makeState({ lastAskedField: "toolSubtype", displayedOptions: subtypeOptions })
     expect(resolvePendingQuestionReply(state, "어떤 소재에 적합해").kind).toBe("side_question")
   })
 
-  // TODO: "카탈로그 있어" has no keyword match (카탈로그 not listed in side_question regex)
-  it.skip('"카탈로그 있어" -> side_question (카탈로그 keyword not in side_question regex)', () => {
+  it('"카탈로그 있어" -> side_question (카탈로그 keyword in side_question regex)', () => {
     const state = makeState({ lastAskedField: "toolSubtype", displayedOptions: subtypeOptions })
     expect(resolvePendingQuestionReply(state, "카탈로그 있어").kind).toBe("side_question")
   })
@@ -232,9 +229,8 @@ describe("valid pending answer variance (should return resolved)", () => {
       }
     })
 
-    // "스퀘어" is a Korean phonetic spelling - not likely to match "Square" without alias mapping
-    // TODO: Korean phonetic aliases (스퀘어->Square, 볼->Ball, 래디우스->Radius) not supported
-    it.skip('"스퀘어" -> resolved as toolSubtype (Korean phonetic alias not supported)', () => {
+    // "스퀘어" is a Korean phonetic spelling — matched via canonicalized value lookup
+    it('"스퀘어" -> resolved as toolSubtype (Korean phonetic alias via canonicalization)', () => {
       const state = makeState({
         lastAskedField: "toolSubtype",
         displayedOptions: subtypeOptions,
@@ -243,10 +239,8 @@ describe("valid pending answer variance (should return resolved)", () => {
       expect(result.kind).toBe("resolved")
     })
 
-    // "Square 엔드밀로 해줘" - contains revision-like suffix "해줘" but is actually an answer
-    // The "줘" keyword triggers side_question detection in the regex
-    // TODO: "Square 엔드밀로 해줘" is classified as side_question due to 줘 keyword
-    it.skip('"Square 엔드밀로 해줘" -> resolved (verbose answer, blocked by side_question 줘 keyword)', () => {
+    // "Square 엔드밀로 해줘" - contains "해줘" but "줘" removed from side_question regex
+    it('"Square 엔드밀로 해줘" -> resolved (verbose answer, 줘 removed from side_question regex)', () => {
       const state = makeState({
         lastAskedField: "toolSubtype",
         displayedOptions: subtypeOptions,
@@ -330,17 +324,16 @@ describe("skip variation variance (should return resolved with op=skip)", () => 
     }
   })
 
-  // These are NOT in the isSkipSelectionValue list
-  const unsupportedSkipCases: Array<[string, string]> = [
+  // Extended skip tokens — now recognized by isSkipSelectionValue
+  const extendedSkipCases: Array<[string, string]> = [
     ["아무거나", "anything"],
     ["아무거나요", "anything polite"],
     ["모르겠어", "don't know casual"],
     ["넘어가줘", "move on"],
   ]
 
-  // TODO: "아무거나", "아무거나요", "모르겠어", "넘어가줘" not recognized as skip signals
-  unsupportedSkipCases.forEach(([msg, desc]) => {
-    it.skip(`"${msg}" (${desc}) -> resolved with op=skip (not yet in skip list)`, () => {
+  extendedSkipCases.forEach(([msg, desc]) => {
+    it(`"${msg}" (${desc}) -> resolved with op=skip`, () => {
       const state = makeState({
         lastAskedField: "toolSubtype",
         displayedOptions: subtypeOptions,
