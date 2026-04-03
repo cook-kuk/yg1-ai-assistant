@@ -1789,6 +1789,20 @@ async function handleServeExplorationInner(
 
       const v2State = convertToV2State(prevState)
 
+      // 첫 턴(prevState=null)에서 user message로부터 deterministic 힌트를 V2 constraints에 주입
+      if (!prevState && lastUserMsg) {
+        const { extractMaterial, extractOperation, extractDiameter } = await import("@/lib/recommendation/domain/input-normalizer")
+        const hintMaterial = extractMaterial(lastUserMsg.text)
+        const hintOperation = extractOperation(lastUserMsg.text)
+        const hintDiameter = extractDiameter(lastUserMsg.text)
+        if (hintMaterial) v2State.constraints.base.material = hintMaterial
+        if (hintOperation) v2State.constraints.base.operation = hintOperation
+        if (hintDiameter) v2State.constraints.base.diameter = hintDiameter
+        if (hintMaterial || hintOperation || hintDiameter) {
+          console.log(`[runtime:v2-hint] material=${hintMaterial}, op=${hintOperation}, dia=${hintDiameter}`)
+        }
+      }
+
       // Extract recent conversation turns for V2 single-call context
       const v2RecentTurns = messages.slice(-6).map(m => ({
         role: (m.role === "ai" ? "assistant" : m.role) as "user" | "assistant",
@@ -1833,6 +1847,28 @@ async function handleServeExplorationInner(
         perf.endStep("v2_orchestrator")
         perf.recordLlmCall()
         perf.finish()
+
+        // 0건이면 recommendation 대신 question 모드로 fallback — 조건 축소를 유도한다.
+        if (isResultPhase && totalCandidateCount === 0 && (legacyState.appliedFilters ?? []).length === 0) {
+          console.log("[runtime:v2] 0 candidates with no filters → fallback to question mode")
+          legacyState.currentMode = "question"
+          return deps.buildQuestionResponse(
+            form,
+            result.searchPayload.candidates,
+            result.searchPayload.evidenceMap,
+            totalCandidateCount,
+            paginationDto(totalCandidateCount),
+            displayPage.candidates,
+            displayPage.evidenceMap,
+            v2ResolvedInput,
+            legacyState.narrowingHistory ?? [],
+            legacyState.appliedFilters ?? [],
+            legacyState.turnCount,
+            messages,
+            provider,
+            language,
+          )
+        }
 
         if (isResultPhase) {
           return deps.buildRecommendationResponse(
@@ -1883,11 +1919,17 @@ async function handleServeExplorationInner(
         console.log(`[runtime:v2-bridge] ${v2Action} -> legacy ${bridgeAction.type}`)
       } else {
         perf.finish()
+        // 0건 + 필터 없음이면 recommendation이어도 question으로 내린다.
+        const downgradeToQuestion = isResultPhase && (legacyState.candidateCount ?? 0) === 0 && (legacyState.appliedFilters ?? []).length === 0
+        if (downgradeToQuestion) {
+          console.log("[runtime:v2-bridge] 0 candidates with no filters → downgrade to question")
+          legacyState.currentMode = "question"
+        }
         return deps.jsonRecommendationResponse({
           text: result.answer,
-          purpose: isResultPhase ? "recommendation" : "question",
+          purpose: (isResultPhase && !downgradeToQuestion) ? "recommendation" : "question",
           chips: result.chips,
-          isComplete: isResultPhase,
+          isComplete: isResultPhase && !downgradeToQuestion,
           recommendation: null,
           sessionState: legacyState,
           evidenceSummaries: null,
