@@ -74,6 +74,27 @@ const OPERATION_TOOL_SHAPE_COMPATIBILITY: Record<string, Record<string, number>>
 
 const GENERIC_MACHINING_CATEGORIES = new Set(["Milling", "Holemaking", "Threading", "Turning"])
 
+// ── Machining-category shape sets for cross-category filtering ──
+const MILLING_SHAPES = new Set([
+  "Side_Milling", "Slotting", "Profiling", "Facing", "Die-Sinking",
+  "Trochoidal", "Helical_Interpolation", "Corner_Radius", "Taper_Side_Milling",
+  "Small_Part", "Ramping", "Plunging", "Chamfering",
+])
+const HOLEMAKING_SHAPES = new Set(["Drilling", "Reaming_Blind", "Reaming_Through"])
+const THREADING_SHAPES = new Set(["Threading_Blind", "Threading_Through"])
+
+const CATEGORY_SHAPE_MAP: Record<string, Set<string>> = {
+  Milling: MILLING_SHAPES,
+  Holemaking: HOLEMAKING_SHAPES,
+  Threading: THREADING_SHAPES,
+}
+
+/** Returns true if the product has at least one shape belonging to the given category, or has no shapes at all (unknown). */
+function productMatchesMachiningCategory(shapes: string[], categoryShapes: Set<string>): boolean {
+  if (shapes.length === 0) return true  // no shape data → don't exclude
+  return shapes.some(s => categoryShapes.has(s))
+}
+
 function normalizeToolSubtype(value: string | null | undefined): string | null {
   const normalized = value?.trim().toLowerCase()
   return normalized ? normalized : null
@@ -294,6 +315,21 @@ export async function runHybridRetrieval(
           rawValue: input.diameterMm,
           appliedAt: 0,
         })
+      }
+    }
+
+    // Hard filter: machining category — exclude products from wrong category
+    // e.g. when searching Milling, exclude TAP products whose shapes are only Threading
+    if (input.machiningCategory) {
+      const categoryShapes = CATEGORY_SHAPE_MAP[input.machiningCategory]
+      if (categoryShapes) {
+        const catFiltered = candidates.filter(p =>
+          productMatchesMachiningCategory(p.applicationShapes, categoryShapes)
+        )
+        if (catFiltered.length > 0) {
+          console.log(`[hybrid-retrieval] machiningCategory filter: ${input.machiningCategory} → ${candidates.length} → ${catFiltered.length} candidates`)
+          candidates = catFiltered
+        }
       }
     }
 

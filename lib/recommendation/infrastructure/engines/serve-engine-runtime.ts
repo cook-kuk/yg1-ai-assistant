@@ -1447,15 +1447,42 @@ async function handleServeExplorationInner(
     }
 
     if (!shouldResolvePendingSelectionEarly) {
+      // Step 1: Synchronous comparison check (no LLM, instant)
       explicitComparisonAction = resolveExplicitComparisonAction(prevState, lastUserMsg.text)
       if (explicitComparisonAction?.type === "compare_products") {
         explicitComparisonOrchestratorResult = buildExplicitComparisonOrchestratorResult(explicitComparisonAction.targets)
         console.log(`[runtime:explicit-compare] targets=${explicitComparisonAction.targets.join(", ")}`)
       }
+
+      // Step 2: If no comparison, run 4 LLM checks in parallel
       if (!explicitComparisonAction) {
-        explicitRevisionResolution = await resolveExplicitRevisionRequest(prevState, lastUserMsg.text, provider)
-        if (explicitRevisionResolution?.kind === "resolved") {
-          const explicitRevisionRequest = explicitRevisionResolution.request
+        const [revisionSettled, filterSettled, judgmentSettled, preSearchSettled] = await Promise.allSettled([
+          resolveExplicitRevisionRequest(prevState, lastUserMsg.text, provider),
+          resolveExplicitFilterRequest(prevState, lastUserMsg.text, provider),
+          prevState ? performUnifiedJudgment({
+            userMessage: lastUserMsg.text,
+            assistantText: null,
+            pendingField: prevState.lastAskedField ?? null,
+            currentMode: prevState.currentMode ?? null,
+            displayedChips: prevState.displayedChips ?? [],
+            filterCount: filters.length,
+            candidateCount: prevState.candidateCount ?? 0,
+            hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
+          }, provider) : Promise.resolve(null),
+          classifyPreSearchRoute(lastUserMsg.text, prevState, provider),
+        ])
+
+        const revisionResult = revisionSettled.status === "fulfilled" ? revisionSettled.value : null
+        const filterResult = filterSettled.status === "fulfilled" ? filterSettled.value : null
+        const judgmentResult = judgmentSettled.status === "fulfilled" ? judgmentSettled.value : null
+        const preSearchResult = preSearchSettled.status === "fulfilled" ? preSearchSettled.value : null
+
+        // Apply by priority: revision > filter > judgment > preSearch
+
+        // 1. Revision resolved
+        if (revisionResult?.kind === "resolved") {
+          explicitRevisionResolution = revisionResult
+          const explicitRevisionRequest = revisionResult.request
           explicitRevisionAction = {
             type: "replace_existing_filter",
             targetField: explicitRevisionRequest.targetField,
@@ -1472,125 +1499,116 @@ async function handleServeExplorationInner(
             `[runtime:explicit-revision] field=${explicitRevisionRequest.targetField} ${explicitRevisionRequest.previousValue} -> ${explicitRevisionRequest.nextFilter.value}`
           )
         }
-      }
-      if (!explicitComparisonAction && !explicitRevisionResolution) {
-        explicitFilterResolution = await resolveExplicitFilterRequest(prevState, lastUserMsg.text, provider)
-        if (explicitFilterResolution?.kind === "resolved") {
+
+        // 2. Revision ambiguous → clarification early return
+        if (revisionResult?.kind === "ambiguous" && prevState) {
+          return buildRevisionClarificationResponse(
+            deps,
+            prevState,
+            form,
+            filters,
+            narrowingHistory,
+            currentInput,
+            turnCount,
+            revisionResult.question,
+            requestPrep
+          )
+        }
+
+        // 3. Filter resolved (only if no revision)
+        if (!revisionResult && filterResult?.kind === "resolved") {
+          explicitFilterResolution = filterResult
           explicitFilterAction = {
             type: "continue_narrowing",
-            filter: explicitFilterResolution.filter,
+            filter: filterResult.filter,
           }
           explicitFilterOrchestratorResult = {
             action: explicitFilterAction,
-            reasoning: `explicit_filter:${explicitFilterResolution.filter.field}:${explicitFilterResolution.filter.value}`,
+            reasoning: `explicit_filter:${filterResult.filter.field}:${filterResult.filter.value}`,
             agentsInvoked: [{ agent: "explicit-filter-resolver", model: "haiku", durationMs: 0 }],
             escalatedToOpus: false,
           }
           console.log(
-            `[runtime:explicit-filter] field=${explicitFilterResolution.filter.field} value=${explicitFilterResolution.filter.value}`
+            `[runtime:explicit-filter] field=${filterResult.filter.field} value=${filterResult.filter.value}`
           )
         }
-      }
-    }
 
-    if (prevState && explicitRevisionResolution?.kind === "ambiguous") {
-      return buildRevisionClarificationResponse(
-        deps,
-        prevState,
-        form,
-        filters,
-        narrowingHistory,
-        currentInput,
-        turnCount,
-        explicitRevisionResolution.question,
-        requestPrep
-      )
-    }
-    if (prevState && explicitFilterResolution?.kind === "ambiguous") {
-      return buildRevisionClarificationResponse(
-        deps,
-        prevState,
-        form,
-        filters,
-        narrowingHistory,
-        currentInput,
-        turnCount,
-        explicitFilterResolution.question,
-        requestPrep
-      )
-    }
+        // 4. Filter ambiguous → clarification early return (only if no revision)
+        if (!revisionResult && filterResult?.kind === "ambiguous" && prevState) {
+          return buildRevisionClarificationResponse(
+            deps,
+            prevState,
+            form,
+            filters,
+            narrowingHistory,
+            currentInput,
+            turnCount,
+            filterResult.question,
+            requestPrep
+          )
+        }
 
-    if (!shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution && prevState) {
-      const explanationJudgment = await performUnifiedJudgment({
-        userMessage: lastUserMsg.text,
-        assistantText: null,
-        pendingField: prevState.lastAskedField ?? null,
-        currentMode: prevState.currentMode ?? null,
-        displayedChips: prevState.displayedChips ?? [],
-        filterCount: filters.length,
-        candidateCount: prevState.candidateCount ?? 0,
-        hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
-      }, provider)
+        // 5. Judgment explain route (only if no revision, no filter)
+        if (!revisionResult && !filterResult && judgmentResult && prevState) {
+          const isExplainQuestion = judgmentResult.intentAction === "explain" || /[?？]$/.test(lastUserMsg.text.trim())
+          if (
+            isExplainQuestion &&
+            (
+              judgmentResult.domainRelevance === "cutting_condition" ||
+              isToolDomainQuestion(lastUserMsg.text)
+            )
+          ) {
+            console.log(`[runtime:explain-route] ${judgmentResult.domainRelevance} -> answer_general before V2`)
+            return handleServeGeneralChatAction({
+              deps,
+              action: { type: "answer_general", message: lastUserMsg.text },
+              orchResult: buildPreSearchOrchestratorResult(lastUserMsg.text, `tool_explain:${judgmentResult.domainRelevance}`),
+              provider,
+              form,
+              messages,
+              prevState,
+              filters,
+              narrowingHistory,
+              currentInput,
+              candidates: [],
+              evidenceMap: new Map(),
+              turnCount,
+            })
+          }
+        }
 
-      const isExplainQuestion = explanationJudgment.intentAction === "explain" || /[?？]$/.test(lastUserMsg.text.trim())
-      if (
-        isExplainQuestion &&
-        (
-          explanationJudgment.domainRelevance === "cutting_condition" ||
-          isToolDomainQuestion(lastUserMsg.text)
-        )
-      ) {
-        console.log(`[runtime:explain-route] ${explanationJudgment.domainRelevance} -> answer_general before V2`)
-        return handleServeGeneralChatAction({
-          deps,
-          action: { type: "answer_general", message: lastUserMsg.text },
-          orchResult: buildPreSearchOrchestratorResult(lastUserMsg.text, `tool_explain:${explanationJudgment.domainRelevance}`),
-          provider,
-          form,
-          messages,
-          prevState,
-          filters,
-          narrowingHistory,
-          currentInput,
-          candidates: [],
-          evidenceMap: new Map(),
-          turnCount,
-        })
-      }
-    }
-
-    if (!shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution) {
-      const preSearchRoute = await classifyPreSearchRoute(lastUserMsg.text, prevState, provider)
-      if (preSearchRoute.kind !== "recommendation_action") {
-        console.log(`[runtime:pre-route] ${preSearchRoute.kind} -> answer_general (${preSearchRoute.reason})`)
-        const generalChatState = prevState ?? buildSessionState({
-          candidateCount: 0,
-          appliedFilters: filters,
-          narrowingHistory,
-          stageHistory: [],
-          resolutionStatus: "narrowing",
-          resolvedInput: currentInput,
-          turnCount,
-          displayedCandidates: [],
-          displayedChips: [],
-          displayedOptions: [],
-          currentMode: "question",
-        })
-        return handleServeGeneralChatAction({
-          deps,
-          action: { type: "answer_general", message: lastUserMsg.text },
-          orchResult: buildPreSearchOrchestratorResult(lastUserMsg.text, preSearchRoute.reason),
-          provider,
-          form,
-          messages,
-          prevState: generalChatState,
-          filters,
-          narrowingHistory,
-          currentInput,
-          candidates: [],
-          evidenceMap: new Map(),
-          turnCount,
-        })
+        // 6. PreSearch non-recommendation route (only if no revision, no filter)
+        if (!revisionResult && !filterResult && preSearchResult && preSearchResult.kind !== "recommendation_action") {
+          console.log(`[runtime:pre-route] ${preSearchResult.kind} -> answer_general (${preSearchResult.reason})`)
+          const generalChatState = prevState ?? buildSessionState({
+            candidateCount: 0,
+            appliedFilters: filters,
+            narrowingHistory,
+            stageHistory: [],
+            resolutionStatus: "narrowing",
+            resolvedInput: currentInput,
+            turnCount,
+            displayedCandidates: [],
+            displayedChips: [],
+            displayedOptions: [],
+            currentMode: "question",
+          })
+          return handleServeGeneralChatAction({
+            deps,
+            action: { type: "answer_general", message: lastUserMsg.text },
+            orchResult: buildPreSearchOrchestratorResult(lastUserMsg.text, preSearchResult.reason),
+            provider,
+            form,
+            messages,
+            prevState: generalChatState,
+            filters,
+            narrowingHistory,
+            currentInput,
+            candidates: [],
+            evidenceMap: new Map(),
+            turnCount,
+          })
+        }
       }
     }
   }
@@ -2507,7 +2525,7 @@ async function handleServeExplorationInner(
       const comparisonOptionState = buildComparisonOptionState()
 
       const sessionState = carryForwardState(prevState, {
-        candidateCount: candidates.length,
+        candidateCount: prevState.candidateCount ?? candidates.length,
         appliedFilters: filters,
         narrowingHistory,
         resolutionStatus: prevState.resolutionStatus ?? "broad",

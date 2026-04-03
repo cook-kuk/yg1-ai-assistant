@@ -572,10 +572,20 @@ export async function runChatConversation(
   const toolResults: { name: string; result: string }[] = []
 
   // Pre-search 결과를 toolResults에도 추가 (reference 추적용)
+  let preSearchHasSufficientResults = false
   if (preSearchResult) {
     toolsUsed.push("search_products")
     toolResults.push({ name: "search_products", result: preSearchResult })
+    // pre-search로 충분한 결과가 이미 있으면 LLM이 중복 search_products 호출하지 않도록 제거
+    try {
+      const parsed = JSON.parse(preSearchResult)
+      preSearchHasSufficientResults = (parsed.totalMatched ?? 0) >= 10
+    } catch { /* ignore parse errors */ }
   }
+
+  const effectiveTools = preSearchHasSufficientResults
+    ? CHAT_TOOLS.filter(t => t.name !== "search_products")
+    : CHAT_TOOLS
 
   const startedAt = Date.now()
   let llmResponse = await createAnthropicMessageWithLogging({
@@ -586,7 +596,7 @@ export async function runChatConversation(
       model: deps.model as Parameters<typeof deps.client.messages.create>[0]["model"],
       max_tokens: 2048,
       system: systemPrompt,
-      tools: CHAT_TOOLS,
+      tools: effectiveTools,
       messages: currentMessages,
     },
   })
@@ -636,7 +646,7 @@ export async function runChatConversation(
         model: deps.model as Parameters<typeof deps.client.messages.create>[0]["model"],
         max_tokens: 2048,
         system: systemPrompt,
-        tools: CHAT_TOOLS,
+        tools: effectiveTools,
         messages: currentMessages,
       },
     })
