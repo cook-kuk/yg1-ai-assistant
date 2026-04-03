@@ -1444,6 +1444,7 @@ async function handleServeExplorationInner(
     pendingSelectionOrchestratorResult = buildPendingSelectionOrchestratorResult(pendingSelectionFilter)
   }
 
+  let singleCallHandled = false
   if (messages.length > 0 && lastUserMsg) {
     if (prevState?.pendingAction) {
       const pendingCheck = shouldExecutePendingAction(
@@ -1603,6 +1604,7 @@ async function handleServeExplorationInner(
             agentsInvoked: [{ agent: "single-call-router", model: "sonnet" as const, durationMs: 0 }],
             escalatedToOpus: false,
           }
+          singleCallHandled = true
         }
       }
       // Empty actions = fallthrough to legacy routing below
@@ -1780,7 +1782,7 @@ async function handleServeExplorationInner(
   // On error, automatically falls back to legacy path.
   const currentPhase = prevState?.currentMode ?? "intake"
   perf.startStep("v2_orchestrator")
-  if (shouldUseV2ForPhase(currentPhase) && lastUserMsg && !hasActivePendingQuestion && !shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution) {
+  if (shouldUseV2ForPhase(currentPhase) && lastUserMsg && !hasActivePendingQuestion && !shouldResolvePendingSelectionEarly && !explicitComparisonAction && !explicitRevisionResolution && !explicitFilterResolution && !singleCallHandled) {
     try {
       const { orchestrateTurnV2 } = await import("@/lib/recommendation/core/turn-orchestrator")
       const { convertToV2State, convertFromV2State } = await import("@/lib/recommendation/core/state-adapter")
