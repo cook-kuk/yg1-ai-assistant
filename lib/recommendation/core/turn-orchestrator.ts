@@ -84,8 +84,34 @@ function getDefaultDecision(snapshot: TurnSnapshot): LlmTurnDecision {
 }
 
 const TURN_DECISION_SYSTEM = `YG-1 cutting tool recommendation assistant. You make routing decisions AND generate the user-facing answer in a single call.
-Your answer must be natural Korean. Generate actionable chips (suggestedChips) that help the user proceed.
-Return JSON only — no markdown fences.`
+Return JSON only — no markdown fences.
+
+═══ LANGUAGE RULE (HIGHEST PRIORITY) ═══
+Detect the language of the user's LAST message:
+- Korean → answerDraft 전체를 한국어로. 제품 코드/브랜드명 외 영어 금지.
+- English → answerDraft entirely in English. Zero Korean characters.
+This rule is absolute.
+
+═══ 대명사/지시어 해소 ═══
+사용자가 아래 표현을 쓰면 [ConversationHistory]와 [Products]에서 참조 대상을 찾아라:
+- "그거", "이거", "저거" → 가장 최근 언급된 제품/시리즈/옵션
+- "걔네", "그것들", "둘 다" → 직전 턴에서 제시된 복수 옵션
+- "아까 그거" → 2-3턴 전에 나온 제품/시리즈
+- "이전 거", "원래 거" → 변경 전 상태/제품
+- "나머지", "다른 거" → 현재 보여진 것 제외한 나머지
+- "비슷한 거" → 현재 맥락의 유사 제품
+- "더 좋은 거" → 현재 기준에서 상위 스펙
+- "큰 거/작은 거" → 직경/길이 기준
+해석이 모호하면: 가장 likely한 해석으로 실행 + "~를 말씀하시는 게 맞으시죠?" 한 줄 추가.
+
+═══ 비정형 입력 ═══
+"ㅇㅇ"/"응"/"네"/"좋아" → pending question 수락
+"ㄴㄴ"/"아니"/"다른 거" → pending 거부, 대안
+"됐어"/"그만" → 흐름 중단
+"처음부터"/"리셋" → reset_session
+"이전"/"뒤로" → go_back
+"상관없어"/"아무거나"/"몰라" → skip_field
+"그냥"/"빨리"/"알아서" → 즉시 추천 (추가 질문 금지)`
 
 function buildTurnDecisionPrompt(snapshot: TurnSnapshot): string {
   // Constraints summary
@@ -109,11 +135,11 @@ function buildTurnDecisionPrompt(snapshot: TurnSnapshot): string {
     ? snapshot.recentTurns.map(t => `${t.role}: ${t.text.slice(0, 120)}`).join("\n")
     : "none"
 
-  // Displayed products summary
+  // Displayed products summary (also used as pronoun resolution context)
   const hasResults = snapshot.displayedProducts.length > 0
   const productSummary = hasResults
-    ? snapshot.displayedProducts.slice(0, 5).map(p =>
-        `${p.displayCode} (${p.seriesName ?? "?"}, score=${p.score.toFixed(2)})`
+    ? snapshot.displayedProducts.slice(0, 5).map((p, i) =>
+        `${i + 1}. ${p.displayCode} (${p.seriesName ?? "?"}, score=${p.score.toFixed(2)})`
       ).join("; ")
     : "none"
 
@@ -130,7 +156,7 @@ PendingAction: ${pendingA}
 SideThread: ${snapshot.sideThreadActive}
 RecentRevisions: ${revisionStr}
 
-[Products]
+[Products — 대명사("그거","이거","1번") 해소 시 아래 목록 참조]
 Displayed: ${hasResults ? `${snapshot.displayedProducts.length} products` : "none"}
 TopProducts: ${productSummary}
 

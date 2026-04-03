@@ -665,3 +665,690 @@ describe("parseFieldAnswerToFilter — edge cases", () => {
     expect(f!.rawValue).toBe("TiAlN")
   })
 })
+
+// ═══════════════════════════════════════════════════════════
+//  5. Creative combination tests (50 cases)
+//     - Multi-filter apply + change
+//     - 5 filters → remove 3
+//     - Skip all → revise one
+//     - diameterRefine chain
+//     - material → workPieceName dependency
+// ═══════════════════════════════════════════════════════════
+
+describe("creative combination: 2 filters applied → change both → verify both changed", () => {
+  it("coating + fluteCount → replace both", () => {
+    const base = makeBaseInput()
+    let filters: AppliedFilter[] = []
+    let input = base
+
+    // Apply coating=TiAlN
+    const f1 = af("coating", "includes", "TiAlN", "TiAlN", 1)
+    const r1 = replaceFieldFilter(input, filters, f1, applyFilterToInput)
+    filters = r1.nextFilters
+    input = r1.nextInput
+
+    // Apply fluteCount=2
+    const f2 = af("fluteCount", "eq", "2날", 2, 2)
+    const r2 = replaceFieldFilter(input, filters, f2, applyFilterToInput)
+    filters = r2.nextFilters
+    input = r2.nextInput
+
+    expect(input.coatingPreference).toBe("TiAlN")
+    expect(input.flutePreference).toBe(2)
+
+    // Change coating → AlCrN
+    const f3 = af("coating", "includes", "AlCrN", "AlCrN", 3)
+    const r3 = replaceFieldFilter(base, filters, f3, applyFilterToInput)
+    filters = r3.nextFilters
+    input = r3.nextInput
+
+    // Change fluteCount → 4
+    const f4 = af("fluteCount", "eq", "4날", 4, 4)
+    const r4 = replaceFieldFilter(base, filters, f4, applyFilterToInput)
+    filters = r4.nextFilters
+    input = r4.nextInput
+
+    expect(r3.replacedExisting).toBe(true)
+    expect(r4.replacedExisting).toBe(true)
+    expect(input.coatingPreference).toBe("AlCrN")
+    expect(input.flutePreference).toBe(4)
+    expect(filters.length).toBe(2)
+  })
+
+  it("diameterMm + coating → replace both simultaneously", () => {
+    const base = makeBaseInput()
+    let filters: AppliedFilter[] = []
+
+    const f1 = af("diameterMm", "eq", "10mm", 10, 1)
+    const r1 = replaceFieldFilter(base, filters, f1, applyFilterToInput)
+    filters = r1.nextFilters
+
+    const f2 = af("coating", "includes", "DLC", "DLC", 2)
+    const r2 = replaceFieldFilter(base, filters, f2, applyFilterToInput)
+    filters = r2.nextFilters
+
+    // Replace diameter
+    const f3 = af("diameterMm", "eq", "8mm", 8, 3)
+    const r3 = replaceFieldFilter(base, filters, f3, applyFilterToInput)
+    filters = r3.nextFilters
+
+    // Replace coating
+    const f4 = af("coating", "includes", "TiN", "TiN", 4)
+    const r4 = replaceFieldFilter(base, filters, f4, applyFilterToInput)
+    filters = r4.nextFilters
+
+    expect(r4.nextInput.diameterMm).toBe(8)
+    expect(r4.nextInput.coatingPreference).toBe("TiN")
+  })
+
+  it("material + toolSubtype → replace both", () => {
+    const base = makeBaseInput()
+    let filters: AppliedFilter[] = []
+
+    const f1 = af("material", "eq", "일반강", "일반강", 1)
+    const r1 = replaceFieldFilter(base, filters, f1, applyFilterToInput)
+    filters = r1.nextFilters
+
+    const f2 = af("toolSubtype", "includes", "Square", "Square", 2)
+    const r2 = replaceFieldFilter(base, filters, f2, applyFilterToInput)
+    filters = r2.nextFilters
+
+    const f3 = af("material", "eq", "스테인리스강", "스테인리스강", 3)
+    const r3 = replaceFieldFilter(base, filters, f3, applyFilterToInput)
+    filters = r3.nextFilters
+
+    const f4 = af("toolSubtype", "includes", "Ball", "Ball", 4)
+    const r4 = replaceFieldFilter(base, filters, f4, applyFilterToInput)
+    filters = r4.nextFilters
+
+    expect(r4.nextInput.material).toBe("스테인리스강")
+    expect(r4.nextInput.toolSubtype).toBe("Ball")
+    expect(filters.length).toBe(2)
+  })
+})
+
+describe("creative combination: 5 filters → remove 3 → verify 2 remain", () => {
+  it("apply 5 filters then skip 3 of them", () => {
+    const base = makeBaseInput()
+    let filters: AppliedFilter[] = []
+    let input = base
+
+    // Apply 5 filters
+    const f1 = af("coating", "includes", "TiAlN", "TiAlN", 1)
+    const f2 = af("fluteCount", "eq", "4날", 4, 2)
+    const f3 = af("toolSubtype", "includes", "Square", "Square", 3)
+    const f4 = af("lengthOfCutMm", "eq", "20mm", 20, 4)
+    const f5 = af("helixAngleDeg", "eq", "35°", 35, 5)
+
+    for (const f of [f1, f2, f3, f4, f5]) {
+      const r = replaceFieldFilter(base, filters, f, applyFilterToInput)
+      filters = r.nextFilters
+      input = r.nextInput
+    }
+    expect(filters.length).toBe(5)
+
+    // Skip 3 (coating, toolSubtype, helixAngleDeg)
+    const skip1: AppliedFilter = { field: "coating", op: "skip", value: "상관없음", rawValue: "skip", appliedAt: 6 }
+    const skip2: AppliedFilter = { field: "toolSubtype", op: "skip", value: "상관없음", rawValue: "skip", appliedAt: 7 }
+    const skip3: AppliedFilter = { field: "helixAngleDeg", op: "skip", value: "상관없음", rawValue: "skip", appliedAt: 8 }
+
+    for (const s of [skip1, skip2, skip3]) {
+      const r = replaceFieldFilter(base, filters, s, applyFilterToInput)
+      filters = r.nextFilters
+      input = r.nextInput
+    }
+
+    // Should have 5 filters (3 skipped + 2 real)
+    expect(filters.length).toBe(5)
+    // Real values remain
+    expect(input.flutePreference).toBe(4)
+    expect(input.lengthOfCutMm).toBe(20)
+    // Skipped values cleared
+    expect(input.coatingPreference).toBeUndefined()
+    expect(input.toolSubtype).toBeUndefined()
+    expect(input.helixAngleDeg).toBeUndefined()
+  })
+
+  it("apply 5 numeric filters, remove 3 via skip, remaining 2 persist", () => {
+    const base = makeBaseInput()
+    let filters: AppliedFilter[] = []
+
+    const f1 = af("diameterMm", "eq", "10mm", 10, 1)
+    const f2 = af("fluteCount", "eq", "2날", 2, 2)
+    const f3 = af("lengthOfCutMm", "eq", "15mm", 15, 3)
+    const f4 = af("overallLengthMm", "eq", "75mm", 75, 4)
+    const f5 = af("helixAngleDeg", "eq", "30°", 30, 5)
+
+    for (const f of [f1, f2, f3, f4, f5]) {
+      const r = replaceFieldFilter(base, filters, f, applyFilterToInput)
+      filters = r.nextFilters
+    }
+
+    // Remove diameter, LOC, helix
+    const skips = [
+      { field: "diameterMm", op: "skip", value: "상관없음", rawValue: "skip", appliedAt: 6 } as AppliedFilter,
+      { field: "lengthOfCutMm", op: "skip", value: "상관없음", rawValue: "skip", appliedAt: 7 } as AppliedFilter,
+      { field: "helixAngleDeg", op: "skip", value: "상관없음", rawValue: "skip", appliedAt: 8 } as AppliedFilter,
+    ]
+    for (const s of skips) {
+      const r = replaceFieldFilter(base, filters, s, applyFilterToInput)
+      filters = r.nextFilters
+    }
+
+    const finalInput = filters.reduce((inp, f) => applyFilterToInput(inp, f), base)
+    expect(finalInput.flutePreference).toBe(2)
+    expect(finalInput.overallLengthMm).toBe(75)
+    expect(finalInput.diameterMm).toBeUndefined()
+    expect(finalInput.lengthOfCutMm).toBeUndefined()
+    expect(finalInput.helixAngleDeg).toBeUndefined()
+  })
+})
+
+describe("creative combination: skip all fields → revise one → verify only that one set", () => {
+  it("skip coating, fluteCount, toolSubtype then revise fluteCount only", () => {
+    const base = makeBaseInput()
+    let filters: AppliedFilter[] = []
+
+    // Skip all three
+    const skipCoating: AppliedFilter = { field: "coating", op: "skip", value: "상관없음", rawValue: "skip", appliedAt: 1 }
+    const skipFlute: AppliedFilter = { field: "fluteCount", op: "skip", value: "상관없음", rawValue: "skip", appliedAt: 2 }
+    const skipSubtype: AppliedFilter = { field: "toolSubtype", op: "skip", value: "상관없음", rawValue: "skip", appliedAt: 3 }
+
+    for (const s of [skipCoating, skipFlute, skipSubtype]) {
+      const r = replaceFieldFilter(base, filters, s, applyFilterToInput)
+      filters = r.nextFilters
+    }
+
+    let input = filters.reduce((inp, f) => applyFilterToInput(inp, f), base)
+    expect(input.coatingPreference).toBeUndefined()
+    expect(input.flutePreference).toBeUndefined()
+    expect(input.toolSubtype).toBeUndefined()
+
+    // Now revise fluteCount to 4
+    const reviseFlute = af("fluteCount", "eq", "4날", 4, 4)
+    const r = replaceFieldFilter(base, filters, reviseFlute, applyFilterToInput)
+    filters = r.nextFilters
+    input = r.nextInput
+
+    expect(input.flutePreference).toBe(4)
+    expect(input.coatingPreference).toBeUndefined()
+    expect(input.toolSubtype).toBeUndefined()
+  })
+
+  it("skip all 4 fields → revise diameter only → others remain cleared", () => {
+    const base = makeBaseInput()
+    let filters: AppliedFilter[] = []
+
+    const skips = [
+      { field: "diameterMm", op: "skip", value: "상관없음", rawValue: "skip", appliedAt: 1 } as AppliedFilter,
+      { field: "coating", op: "skip", value: "상관없음", rawValue: "skip", appliedAt: 2 } as AppliedFilter,
+      { field: "fluteCount", op: "skip", value: "상관없음", rawValue: "skip", appliedAt: 3 } as AppliedFilter,
+      { field: "toolSubtype", op: "skip", value: "상관없음", rawValue: "skip", appliedAt: 4 } as AppliedFilter,
+    ]
+    for (const s of skips) {
+      const r = replaceFieldFilter(base, filters, s, applyFilterToInput)
+      filters = r.nextFilters
+    }
+
+    const reviseDia = af("diameterMm", "eq", "6mm", 6, 5)
+    const r = replaceFieldFilter(base, filters, reviseDia, applyFilterToInput)
+
+    expect(r.nextInput.diameterMm).toBe(6)
+    expect(r.nextInput.coatingPreference).toBeUndefined()
+    expect(r.nextInput.flutePreference).toBeUndefined()
+    expect(r.nextInput.toolSubtype).toBeUndefined()
+  })
+})
+
+describe("creative combination: diameterRefine chain — 5 consecutive changes", () => {
+  it("10 → 9.95 → 10.05 → 8 → 12", () => {
+    const base = makeBaseInput()
+    let filters: AppliedFilter[] = []
+
+    const diameters = [10, 9.95, 10.05, 8, 12]
+    for (let i = 0; i < diameters.length; i++) {
+      const f = af("diameterRefine", "eq", `${diameters[i]}mm`, diameters[i], i + 1)
+      const r = replaceFieldFilter(base, filters, f, applyFilterToInput)
+      filters = r.nextFilters
+
+      // Each step should have exactly 1 filter
+      expect(filters.length).toBe(1)
+      expect(r.nextInput.diameterMm).toBe(diameters[i])
+      if (i > 0) expect(r.replacedExisting).toBe(true)
+    }
+  })
+
+  it("chain: 6 → 6.5 → 5 → 5.5 → 20", () => {
+    const base = makeBaseInput()
+    let filters: AppliedFilter[] = []
+
+    for (const dia of [6, 6.5, 5, 5.5, 20]) {
+      const f = af("diameterRefine", "eq", `${dia}mm`, dia, Date.now())
+      const r = replaceFieldFilter(base, filters, f, applyFilterToInput)
+      filters = r.nextFilters
+      expect(r.nextInput.diameterMm).toBe(dia)
+    }
+    expect(filters.length).toBe(1)
+  })
+
+  it("diameterMm then diameterRefine replaces it (canonical field match)", () => {
+    const base = makeBaseInput()
+    const f1 = af("diameterMm", "eq", "10mm", 10, 1)
+    const r1 = replaceFieldFilter(base, [], f1, applyFilterToInput)
+
+    const f2 = af("diameterRefine", "eq", "8mm", 8, 2)
+    const r2 = replaceFieldFilter(base, r1.nextFilters, f2, applyFilterToInput)
+
+    expect(r2.replacedExisting).toBe(true)
+    expect(r2.nextInput.diameterMm).toBe(8)
+    expect(r2.nextFilters.length).toBe(1)
+  })
+
+  it("alternating diameterMm and diameterRefine 4 times", () => {
+    const base = makeBaseInput()
+    let filters: AppliedFilter[] = []
+    const sequence = [
+      { field: "diameterMm", val: 10 },
+      { field: "diameterRefine", val: 9 },
+      { field: "diameterMm", val: 11 },
+      { field: "diameterRefine", val: 12 },
+    ] as const
+
+    for (let i = 0; i < sequence.length; i++) {
+      const { field, val } = sequence[i]
+      const f = af(field, "eq", `${val}mm`, val, i + 1)
+      const r = replaceFieldFilter(base, filters, f, applyFilterToInput)
+      filters = r.nextFilters
+      expect(r.nextInput.diameterMm).toBe(val)
+    }
+    expect(filters.length).toBe(1)
+  })
+})
+
+describe("creative combination: material change → workPieceName clear → re-add → material change", () => {
+  it("material change clears workPieceName, re-add workPieceName, then material change again clears it", () => {
+    const base = makeBaseInput()
+    let filters: AppliedFilter[] = []
+    let input = base
+
+    // Set workPieceName
+    const wp1 = af("workPieceName", "includes", "ADC12", "ADC12", 1)
+    let r = replaceFieldFilter(base, filters, wp1, applyFilterToInput)
+    filters = r.nextFilters
+    input = r.nextInput
+    expect(input.workPieceName).toBe("ADC12")
+
+    // Change material → should clear workPieceName
+    const mat1 = af("material", "eq", "주철", "주철", 2)
+    r = replaceFieldFilter(base, filters, mat1, applyFilterToInput)
+    filters = r.nextFilters
+    input = r.nextInput
+    expect(input.material).toBe("주철")
+    expect(input.workPieceName).toBeUndefined()
+
+    // Re-add workPieceName
+    const wp2 = af("workPieceName", "includes", "FC300", "FC300", 3)
+    r = replaceFieldFilter(base, filters, wp2, applyFilterToInput)
+    filters = r.nextFilters
+    input = r.nextInput
+    expect(input.workPieceName).toBe("FC300")
+
+    // Change material again → should clear workPieceName again
+    const mat2 = af("material", "eq", "알루미늄", "알루미늄", 4)
+    r = replaceFieldFilter(base, filters, mat2, applyFilterToInput)
+    filters = r.nextFilters
+    input = r.nextInput
+    expect(input.material).toBe("알루미늄")
+    expect(input.workPieceName).toBeUndefined()
+  })
+
+  it("3 cycles of material + workPieceName dependency clearing", () => {
+    const base = makeBaseInput()
+    let filters: AppliedFilter[] = []
+
+    const cycles = [
+      { material: "일반강", wp: "SCM440" },
+      { material: "스테인리스강", wp: "SUS304" },
+      { material: "알루미늄", wp: "A7075" },
+    ]
+
+    for (const cycle of cycles) {
+      const matF = af("material", "eq", cycle.material, cycle.material, Date.now())
+      let r = replaceFieldFilter(base, filters, matF, applyFilterToInput)
+      filters = r.nextFilters
+      // workPieceName should be cleared after material change
+      expect(r.nextInput.workPieceName).toBeUndefined()
+
+      const wpF = af("workPieceName", "includes", cycle.wp, cycle.wp, Date.now())
+      r = replaceFieldFilter(base, filters, wpF, applyFilterToInput)
+      filters = r.nextFilters
+      expect(r.nextInput.workPieceName).toBe(cycle.wp)
+      expect(r.nextInput.material).toBe(cycle.material)
+    }
+  })
+})
+
+describe("creative: multi-field stress — apply 8 filters sequentially", () => {
+  it("apply all 8 different fields and verify final state", () => {
+    const base = makeBaseInput()
+    let filters: AppliedFilter[] = []
+    let input = base
+
+    const sequence: AppliedFilter[] = [
+      af("diameterMm", "eq", "10mm", 10, 1),
+      af("coating", "includes", "TiAlN", "TiAlN", 2),
+      af("fluteCount", "eq", "4날", 4, 3),
+      af("toolSubtype", "includes", "Ball", "Ball", 4),
+      af("lengthOfCutMm", "eq", "20mm", 20, 5),
+      af("overallLengthMm", "eq", "75mm", 75, 6),
+      af("helixAngleDeg", "eq", "35°", 35, 7),
+      af("material", "eq", "주철", "주철", 8),
+    ]
+
+    for (const f of sequence) {
+      const r = replaceFieldFilter(base, filters, f, applyFilterToInput)
+      filters = r.nextFilters
+      input = r.nextInput
+    }
+
+    expect(filters.length).toBe(8)
+    expect(input.diameterMm).toBe(10)
+    expect(input.coatingPreference).toBe("TiAlN")
+    expect(input.flutePreference).toBe(4)
+    expect(input.toolSubtype).toBe("Ball")
+    expect(input.lengthOfCutMm).toBe(20)
+    expect(input.overallLengthMm).toBe(75)
+    expect(input.helixAngleDeg).toBe(35)
+    expect(input.material).toBe("주철")
+  })
+
+  it("apply 8 filters then replace all 8 with new values", () => {
+    const base = makeBaseInput()
+    let filters: AppliedFilter[] = []
+
+    const original: AppliedFilter[] = [
+      af("diameterMm", "eq", "10mm", 10, 1),
+      af("coating", "includes", "TiAlN", "TiAlN", 2),
+      af("fluteCount", "eq", "4날", 4, 3),
+      af("toolSubtype", "includes", "Ball", "Ball", 4),
+      af("lengthOfCutMm", "eq", "20mm", 20, 5),
+      af("overallLengthMm", "eq", "75mm", 75, 6),
+      af("helixAngleDeg", "eq", "35°", 35, 7),
+      af("material", "eq", "주철", "주철", 8),
+    ]
+
+    for (const f of original) {
+      const r = replaceFieldFilter(base, filters, f, applyFilterToInput)
+      filters = r.nextFilters
+    }
+
+    // Replace all with new values
+    const replacements: AppliedFilter[] = [
+      af("diameterMm", "eq", "6mm", 6, 9),
+      af("coating", "includes", "AlCrN", "AlCrN", 10),
+      af("fluteCount", "eq", "2날", 2, 11),
+      af("toolSubtype", "includes", "Square", "Square", 12),
+      af("lengthOfCutMm", "eq", "15mm", 15, 13),
+      af("overallLengthMm", "eq", "50mm", 50, 14),
+      af("helixAngleDeg", "eq", "45°", 45, 15),
+      af("material", "eq", "알루미늄", "알루미늄", 16),
+    ]
+
+    for (const f of replacements) {
+      const r = replaceFieldFilter(base, filters, f, applyFilterToInput)
+      filters = r.nextFilters
+      expect(r.replacedExisting).toBe(true)
+    }
+
+    const finalInput = filters.reduce((inp, f) => applyFilterToInput(inp, f), base)
+    expect(filters.length).toBe(8)
+    expect(finalInput.diameterMm).toBe(6)
+    expect(finalInput.coatingPreference).toBe("AlCrN")
+    expect(finalInput.flutePreference).toBe(2)
+    expect(finalInput.toolSubtype).toBe("Square")
+    expect(finalInput.lengthOfCutMm).toBe(15)
+    expect(finalInput.overallLengthMm).toBe(50)
+    expect(finalInput.helixAngleDeg).toBe(45)
+    expect(finalInput.material).toBe("알루미늄")
+  })
+})
+
+describe("creative: rapid-fire same field replacement — 10 consecutive values", () => {
+  it("coating changed 10 times — only last value survives", () => {
+    const base = makeBaseInput()
+    let filters: AppliedFilter[] = []
+    const coatings = ["TiAlN", "AlCrN", "DLC", "TiN", "TiCN", "Blue", "Black", "Diamond", "Bright", "Uncoated"]
+
+    for (let i = 0; i < coatings.length; i++) {
+      const f = af("coating", "includes", coatings[i], coatings[i], i + 1)
+      const r = replaceFieldFilter(base, filters, f, applyFilterToInput)
+      filters = r.nextFilters
+    }
+
+    expect(filters.length).toBe(1)
+    const finalInput = filters.reduce((inp, f) => applyFilterToInput(inp, f), base)
+    expect(finalInput.coatingPreference).toBe("Uncoated")
+  })
+
+  it("fluteCount changed 6 times", () => {
+    const base = makeBaseInput()
+    let filters: AppliedFilter[] = []
+    const fluteCounts = [2, 3, 4, 6, 8, 2]
+
+    for (let i = 0; i < fluteCounts.length; i++) {
+      const f = af("fluteCount", "eq", `${fluteCounts[i]}날`, fluteCounts[i], i + 1)
+      const r = replaceFieldFilter(base, filters, f, applyFilterToInput)
+      filters = r.nextFilters
+    }
+
+    expect(filters.length).toBe(1)
+    const finalInput = filters.reduce((inp, f) => applyFilterToInput(inp, f), base)
+    expect(finalInput.flutePreference).toBe(2)
+  })
+})
+
+describe("creative: interleaved add-and-skip pattern", () => {
+  it("add A, add B, skip A, add C, skip B → only C remains active", () => {
+    const base = makeBaseInput()
+    let filters: AppliedFilter[] = []
+
+    // Add coating
+    let r = replaceFieldFilter(base, filters, af("coating", "includes", "TiAlN", "TiAlN", 1), applyFilterToInput)
+    filters = r.nextFilters
+
+    // Add fluteCount
+    r = replaceFieldFilter(base, filters, af("fluteCount", "eq", "4날", 4, 2), applyFilterToInput)
+    filters = r.nextFilters
+
+    // Skip coating
+    r = replaceFieldFilter(base, filters, { field: "coating", op: "skip", value: "상관없음", rawValue: "skip", appliedAt: 3 } as AppliedFilter, applyFilterToInput)
+    filters = r.nextFilters
+
+    // Add toolSubtype
+    r = replaceFieldFilter(base, filters, af("toolSubtype", "includes", "Ball", "Ball", 4), applyFilterToInput)
+    filters = r.nextFilters
+
+    // Skip fluteCount
+    r = replaceFieldFilter(base, filters, { field: "fluteCount", op: "skip", value: "상관없음", rawValue: "skip", appliedAt: 5 } as AppliedFilter, applyFilterToInput)
+    filters = r.nextFilters
+
+    const finalInput = filters.reduce((inp, f) => applyFilterToInput(inp, f), base)
+    expect(finalInput.coatingPreference).toBeUndefined()
+    expect(finalInput.flutePreference).toBeUndefined()
+    expect(finalInput.toolSubtype).toBe("Ball")
+  })
+
+  it("skip then immediately un-skip (replace skip with real value)", () => {
+    const base = makeBaseInput()
+    let filters: AppliedFilter[] = []
+
+    // Apply real value
+    let r = replaceFieldFilter(base, filters, af("coating", "includes", "TiAlN", "TiAlN", 1), applyFilterToInput)
+    filters = r.nextFilters
+
+    // Skip it
+    r = replaceFieldFilter(base, filters, { field: "coating", op: "skip", value: "상관없음", rawValue: "skip", appliedAt: 2 } as AppliedFilter, applyFilterToInput)
+    filters = r.nextFilters
+    expect(r.nextInput.coatingPreference).toBeUndefined()
+
+    // Immediately un-skip by applying new value
+    r = replaceFieldFilter(base, filters, af("coating", "includes", "AlCrN", "AlCrN", 3), applyFilterToInput)
+    filters = r.nextFilters
+    expect(r.nextInput.coatingPreference).toBe("AlCrN")
+    expect(r.replacedExisting).toBe(true)
+  })
+})
+
+describe("creative: buildAppliedFilterFromValue edge cases", () => {
+  it("TiAlN/AlCrN — slash separated coating", () => {
+    const f = buildAppliedFilterFromValue("coating", "TiAlN/AlCrN")
+    expect(f).not.toBeNull()
+    // Slash is a multi-value separator
+    expect(Array.isArray(f!.rawValue)).toBe(true)
+    expect((f!.rawValue as string[]).length).toBe(2)
+  })
+
+  it("coolantHole with '있음'", () => {
+    const f = buildAppliedFilterFromValue("coolantHole", "있음")
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBe(true)
+  })
+
+  it("coolantHole with '없음'", () => {
+    const f = buildAppliedFilterFromValue("coolantHole", "없음")
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBe(false)
+  })
+
+  it("coolantHole with true", () => {
+    const f = buildAppliedFilterFromValue("coolantHole", true)
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBe(true)
+  })
+
+  it("coolantHole with false", () => {
+    const f = buildAppliedFilterFromValue("coolantHole", false)
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBe(false)
+  })
+
+  it("coolantHole with 'yes'", () => {
+    const f = buildAppliedFilterFromValue("coolantHole", "yes")
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBe(true)
+  })
+
+  it("coolantHole with 'no'", () => {
+    const f = buildAppliedFilterFromValue("coolantHole", "no")
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBe(false)
+  })
+
+  it("diameterMm with 0 returns filter with 0", () => {
+    const f = buildAppliedFilterFromValue("diameterMm", 0)
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBe(0)
+  })
+
+  it("diameterMm with 999 returns filter with 999", () => {
+    const f = buildAppliedFilterFromValue("diameterMm", 999)
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBe(999)
+  })
+
+  it("diameterMm with negative value -1 extracts -1", () => {
+    const f = buildAppliedFilterFromValue("diameterMm", "-1mm")
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBe(-1)
+  })
+})
+
+describe("creative: parseFieldAnswerToFilter field name variations", () => {
+  it("fluteCount from '2날'", () => {
+    const f = parseFieldAnswerToFilter("fluteCount", "2날")
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBe(2)
+  })
+
+  it("fluteCount from 'four flute'", () => {
+    const f = parseFieldAnswerToFilter("fluteCount", "four flute")
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBe(4)
+  })
+
+  it("fluteCount from '날 3개'", () => {
+    const f = parseFieldAnswerToFilter("fluteCount", "날 3개")
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBe(3)
+  })
+
+  it("fluteCount from 'flute 6'", () => {
+    const f = parseFieldAnswerToFilter("fluteCount", "flute 6")
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBe(6)
+  })
+
+  it("diameterMm from '파이10'", () => {
+    const f = parseFieldAnswerToFilter("diameterMm", "파이10")
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBe(10)
+  })
+
+  it("diameterMm from 'φ6.5mm'", () => {
+    const f = parseFieldAnswerToFilter("diameterMm", "φ6.5mm")
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBe(6.5)
+  })
+
+  it("coating from '블루코팅' → Blue", () => {
+    const f = parseFieldAnswerToFilter("coating", "블루코팅")
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBe("Blue")
+  })
+
+  it("toolSubtype from '스퀘어' → Square", () => {
+    const f = parseFieldAnswerToFilter("toolSubtype", "스퀘어")
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBe("Square")
+  })
+
+  it("toolSubtype from '황삭' → Roughing", () => {
+    const f = parseFieldAnswerToFilter("toolSubtype", "황삭")
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBe("Roughing")
+  })
+
+  it("material via parseFieldAnswerToFilter('material', '주철')", () => {
+    const f = parseFieldAnswerToFilter("material", "주철")
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBe("주철")
+  })
+})
+
+describe("creative: country canonicalization", () => {
+  it.each([
+    ["한국", "KOR"],
+    ["korea", "KOR"],
+    ["미국", "USA"],
+    ["usa", "USA"],
+    ["일본", "JPN"],
+    ["독일", "DEU"],
+    ["germany", "DEU"],
+  ])("buildAppliedFilterFromValue('country', %j) rawValue → %j", (input, expected) => {
+    const f = buildAppliedFilterFromValue("country", input)
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBe(expected)
+  })
+
+  it("region '아시아' expands to multiple codes", () => {
+    const f = buildAppliedFilterFromValue("country", "아시아")
+    expect(f).not.toBeNull()
+    // Should contain comma-separated values split into array
+    const raw = f!.rawValue
+    if (typeof raw === "string") {
+      expect(raw).toContain("KOR")
+    } else if (Array.isArray(raw)) {
+      expect(raw).toContain("KOR")
+    }
+  })
+})

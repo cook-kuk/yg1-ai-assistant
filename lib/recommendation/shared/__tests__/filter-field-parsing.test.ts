@@ -693,3 +693,271 @@ describe("additional string fields", () => {
     expect(filter!.field).toBe("toolType")
   })
 })
+
+// ===========================================================================
+// 21. Parsing robustness: special characters in values (10 cases)
+// ===========================================================================
+describe("parsing robustness — special characters in values", () => {
+  it("coating 'TiAlN' straight pass", () => {
+    expect(parseRaw("coating", "TiAlN")).toBe("TiAlN")
+  })
+
+  it("coating with hyphen 'Ti-Al-N' dehyphenated", () => {
+    expect(canonicalize("coating", "Ti-Al-N")).toBe("TiAlN")
+  })
+
+  it("coating with hyphen 'Al-Cr-N' dehyphenated", () => {
+    expect(canonicalize("coating", "Al-Cr-N")).toBe("AlCrN")
+  })
+
+  it("toolSubtype 'Square' canonical", () => {
+    expect(canonicalize("toolSubtype", "Square")).toBe("Square")
+  })
+
+  it("toolSubtype 'Ball' canonical", () => {
+    expect(canonicalize("toolSubtype", "Ball")).toBe("Ball")
+  })
+
+  it("toolSubtype 'Corner Radius' from 코너레디우스", () => {
+    expect(canonicalize("toolSubtype", "코너레디우스")).toBe("Radius")
+  })
+
+  it("toolSubtype 'Roughing' from '러핑'", () => {
+    expect(canonicalize("toolSubtype", "러핑")).toBe("Roughing")
+  })
+
+  it("material with Korean particle '알루미늄으로' still parses", () => {
+    const filter = parseAnswerToFilter("material", "알루미늄으로")
+    expect(filter).not.toBeNull()
+    // After strip, should get clean value
+    expect(filter!.rawValue).toBeTruthy()
+  })
+
+  it("workPieceName '스텐' → stainless", () => {
+    expect(canonicalize("workPieceName", "스텐")).toBe("stainless")
+  })
+
+  it("workPieceName '스테인리스' → stainless", () => {
+    expect(canonicalize("workPieceName", "스테인리스")).toBe("stainless")
+  })
+})
+
+// ===========================================================================
+// 22. fluteCount field alias variations (10 cases)
+// ===========================================================================
+describe("fluteCount alias handling", () => {
+  it("'2날' → 2", () => {
+    expect(parseRaw("fluteCount", "2날")).toBe(2)
+  })
+
+  it("'4' → 4", () => {
+    expect(parseRaw("fluteCount", "4")).toBe(4)
+  })
+
+  it("'two flute' → 2 (English word number)", () => {
+    expect(parseRaw("fluteCount", "two flute")).toBe(2)
+  })
+
+  it("'four flute' → 4", () => {
+    expect(parseRaw("fluteCount", "four flute")).toBe(4)
+  })
+
+  it("'날 2개' reversed Korean → 2", () => {
+    expect(parseRaw("fluteCount", "날 2개")).toBe(2)
+  })
+
+  it("'날 6개' → 6", () => {
+    expect(parseRaw("fluteCount", "날 6개")).toBe(6)
+  })
+
+  it("'six flute' → 6", () => {
+    expect(parseRaw("fluteCount", "six flute")).toBe(6)
+  })
+
+  it("'three flute' → 3", () => {
+    expect(parseRaw("fluteCount", "three flute")).toBe(3)
+  })
+
+  it("'10' → 10", () => {
+    expect(parseRaw("fluteCount", "10")).toBe(10)
+  })
+
+  it("'날수 4' with leading alias → 4", () => {
+    expect(parseRaw("fluteCount", "날수 4")).toBe(4)
+  })
+})
+
+// ===========================================================================
+// 23. Numeric edge cases: 0mm, negative, large diameter (10 cases)
+// ===========================================================================
+describe("numeric edge cases for diameterMm", () => {
+  it("0 → 0", () => {
+    expect(parseRaw("diameterMm", "0")).toBe(0)
+  })
+
+  it("0mm → 0", () => {
+    expect(parseRaw("diameterMm", "0mm")).toBe(0)
+  })
+
+  it("0.5mm → 0.5", () => {
+    expect(parseRaw("diameterMm", "0.5mm")).toBe(0.5)
+  })
+
+  it("-1mm → -1 (negative accepted by parser)", () => {
+    expect(parseRaw("diameterMm", "-1mm")).toBe(-1)
+  })
+
+  it("999mm → 999", () => {
+    expect(parseRaw("diameterMm", "999mm")).toBe(999)
+  })
+
+  it("100 → 100", () => {
+    expect(parseRaw("diameterMm", "100")).toBe(100)
+  })
+
+  it("0.01mm → 0.01", () => {
+    expect(parseRaw("diameterMm", "0.01mm")).toBe(0.01)
+  })
+
+  it("50.123mm → 50.123", () => {
+    expect(parseRaw("diameterMm", "50.123mm")).toBe(50.123)
+  })
+
+  it("약 10mm (approximate prefix stripped) → 10", () => {
+    expect(parseRaw("diameterMm", "약 10mm")).toBe(10)
+  })
+
+  it("10mm쯤 (approximate suffix stripped) → 10", () => {
+    expect(parseRaw("diameterMm", "10mm쯤")).toBe(10)
+  })
+})
+
+// ===========================================================================
+// 24. Boolean field: coolantHole true/false/있음/없음 (10 cases)
+// ===========================================================================
+describe("coolantHole boolean parsing", () => {
+  it("'true' → true", () => {
+    expect(parseRaw("coolantHole", "true")).toBe(true)
+  })
+
+  it("'false' → false", () => {
+    expect(parseRaw("coolantHole", "false")).toBe(false)
+  })
+
+  it("'있음' → true", () => {
+    expect(parseRaw("coolantHole", "있음")).toBe(true)
+  })
+
+  it("'없음' → false", () => {
+    expect(parseRaw("coolantHole", "없음")).toBe(false)
+  })
+
+  it("'yes' → true", () => {
+    expect(parseRaw("coolantHole", "yes")).toBe(true)
+  })
+
+  it("'no' → false", () => {
+    expect(parseRaw("coolantHole", "no")).toBe(false)
+  })
+
+  it("'유' → true", () => {
+    expect(parseRaw("coolantHole", "유")).toBe(true)
+  })
+
+  it("'무' → false", () => {
+    expect(parseRaw("coolantHole", "무")).toBe(false)
+  })
+
+  it("'Y' parsed as truthy", () => {
+    expect(parseRaw("coolantHole", "Y")).toBe(true)
+  })
+
+  it("'N' parsed as falsy", () => {
+    expect(parseRaw("coolantHole", "N")).toBe(false)
+  })
+})
+
+// ===========================================================================
+// 25. Concurrent filter + revision in same test (5 cases)
+// ===========================================================================
+describe("concurrent filter and revision scenarios", () => {
+  it("parse coating then immediately parse different coating", () => {
+    const f1 = parseAnswerToFilter("coating", "TiAlN")
+    const f2 = parseAnswerToFilter("coating", "AlCrN")
+    expect(f1!.rawValue).toBe("TiAlN")
+    expect(f2!.rawValue).toBe("AlCrN")
+  })
+
+  it("parse diameterMm and fluteCount simultaneously", () => {
+    const dia = parseAnswerToFilter("diameterMm", "10mm")
+    const flute = parseAnswerToFilter("fluteCount", "4날")
+    expect(dia!.rawValue).toBe(10)
+    expect(flute!.rawValue).toBe(4)
+  })
+
+  it("parse all major fields in one burst", () => {
+    const results = {
+      dia: parseAnswerToFilter("diameterMm", "8mm"),
+      coat: parseAnswerToFilter("coating", "DLC"),
+      flute: parseAnswerToFilter("fluteCount", "2날"),
+      sub: parseAnswerToFilter("toolSubtype", "Ball"),
+      mat: parseAnswerToFilter("material", "알루미늄"),
+    }
+    expect(results.dia!.rawValue).toBe(8)
+    expect(results.coat!.rawValue).toBe("DLC")
+    expect(results.flute!.rawValue).toBe(2)
+    expect(results.sub!.rawValue).toBe("Ball")
+    expect(results.mat!.rawValue).toBe("알루미늄")
+  })
+
+  it("parse same value for two different numeric fields", () => {
+    const dia = parseAnswerToFilter("diameterMm", "10")
+    const loc = parseAnswerToFilter("lengthOfCutMm", "10")
+    expect(dia!.field).toBe("diameterMm")
+    expect(loc!.field).toBe("lengthOfCutMm")
+    expect(dia!.rawValue).toBe(10)
+    expect(loc!.rawValue).toBe(10)
+  })
+
+  it("parse coolantHole boolean alongside numeric field", () => {
+    const cool = parseAnswerToFilter("coolantHole", "있음")
+    const dia = parseAnswerToFilter("diameterMm", "12mm")
+    expect(cool!.rawValue).toBe(true)
+    expect(dia!.rawValue).toBe(12)
+  })
+})
+
+// ===========================================================================
+// 26. Fractional inch parsing for diameterMm (5 cases)
+// ===========================================================================
+describe("fractional inch parsing", () => {
+  it("3/8 inch → ~9.525mm", () => {
+    const f = parseAnswerToFilter("diameterMm", '3/8"')
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBeCloseTo(9.525, 2)
+  })
+
+  it("1/2 inch → ~12.7mm", () => {
+    const f = parseAnswerToFilter("diameterMm", '1/2"')
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBeCloseTo(12.7, 2)
+  })
+
+  it("1/4 inch → ~6.35mm", () => {
+    const f = parseAnswerToFilter("diameterMm", '1/4 inch')
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBeCloseTo(6.35, 2)
+  })
+
+  it("1 inch → 25.4mm", () => {
+    const f = parseAnswerToFilter("diameterMm", '1"')
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBeCloseTo(25.4, 2)
+  })
+
+  it("1-1/2 inch → ~38.1mm", () => {
+    const f = parseAnswerToFilter("diameterMm", '1-1/2"')
+    expect(f).not.toBeNull()
+    expect(f!.rawValue).toBeCloseTo(38.1, 2)
+  })
+})

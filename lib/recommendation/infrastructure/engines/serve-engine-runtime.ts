@@ -44,7 +44,7 @@ import { classifyPreSearchRoute } from "@/lib/recommendation/infrastructure/engi
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
 import { shouldExecutePendingAction, pendingActionToFilter } from "@/lib/recommendation/domain/context/pending-action-resolver"
 import { TurnPerfLogger, setCurrentPerfLogger } from "@/lib/recommendation/infrastructure/perf/turn-perf-logger"
-import { buildAppliedFilterFromValue, buildFilterValueScope, extractFilterFieldValueMap, getFilterFieldDefinition, getFilterFieldLabel, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
+import { buildAppliedFilterFromValue, buildFilterValueScope, extractFilterFieldValueMap, getFilterFieldDefinition, getFilterFieldLabel, getFilterFieldQueryAliases, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
 import {
   buildConstraintClarificationQuestion,
   hasExplicitFilterIntent,
@@ -956,11 +956,19 @@ export async function resolveExplicitRevisionRequest(
   const candidateFields = inferRevisionTargetFields(parsedText.hintedFields, prioritizedFilters, sessionState)
   const matchedRequests: ExplicitRevisionRequest[] = []
 
+
   for (const field of candidateFields) {
     const matchingFilters = prioritizedFilters.filter(filter => filter.field === field)
     if (matchingFilters.length === 0) continue
 
     for (const nextValue of nextValues) {
+      // Skip value candidates that are purely field-label aliases (e.g. "형상" for toolSubtype, "코팅" for coating)
+      // but NOT value aliases that also serve as valid values (e.g. "Ball", "Square", "TiAlN")
+      const fieldDef = getFilterFieldDefinition(field)
+      const labelAliases = [field, fieldDef?.label ?? ""].filter(Boolean).map(a => a.toLowerCase().replace(/\s+/g, ""))
+      const normalizedValue = nextValue.toLowerCase().replace(/\s+/g, "")
+      if (labelAliases.includes(normalizedValue)) continue
+
       const sanitizedNextValue = sanitizeRevisionValueForField(field, nextValue, sessionState)
       const parsed = parseAnswerToFilter(field, sanitizedNextValue)
       if (!parsed) continue

@@ -201,6 +201,21 @@ function buildRevisionValueCandidates(raw: string): { previousText: string | nul
     }
   }
 
+  // "X에서 Y으로 바꿔" pattern — Korean from-to revision
+  const fromToMatch = raw.match(/(.+?)에서\s*(.+?)(?:로|으로)\s*(?:변경|바꿔|바꿀게|바꿔줘|수정|교체)/u)
+  if (fromToMatch) {
+    const previousSlot = extractValueSpansAroundFieldMentions(fromToMatch[1], undefined, REVISION_INTENT_PATTERNS)
+    const nextSlot = extractValueSpansAroundFieldMentions(fromToMatch[2], undefined, REVISION_INTENT_PATTERNS)
+    return {
+      previousText: previousSlot.valueCandidates[0]
+        ?? stripValueAffixes(stripLeadingParticles(stripByPatterns(fromToMatch[1], REVISION_INTENT_PATTERNS))),
+      nextValues: uniqueStrings([
+        ...nextSlot.valueCandidates.map(stripTrailingKoreanParticles),
+        stripTrailingKoreanParticles(stripLeadingParticles(stripByPatterns(fromToMatch[2], REVISION_INTENT_PATTERNS))),
+      ]),
+    }
+  }
+
   const directChangeMatch = raw.match(/(.+?)(?:로|으로)\s*(?:변경|바꿔|바꿀게|바꿔줘|수정)/u)
   const directSlot = extractValueSpansAroundFieldMentions(raw, undefined, REVISION_INTENT_PATTERNS)
   return {
