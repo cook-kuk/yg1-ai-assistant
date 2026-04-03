@@ -112,7 +112,7 @@ export function validateSurfaceV2(
   // 6. Price/availability/spec hallucination guard
   // LLM이 DB에 없는 가격, 납기, 경도 등을 생성하면 경고 면책 추가
   if (isRecommendationTopic) {
-    const pricePattern = /(\d[\d,]*)\s*원|가격[은는이가]?\s*\d|단���[은는이가]?\s*\d|비용[은는이가]?\s*\d/
+    const pricePattern = /(\d[\d,]*)\s*원|가격[은는이가]?\s*\d|단가[은는이가]?\s*\d|비용[은는이가]?\s*\d/
     const availPattern = /즉시\s*출고|바로\s*배송|당일\s*(출고|배송)|내일\s*(출고|배송)/
     const unverifiedSpecPattern = /경도[은는이가]?\s*H[Rr][Cc]\s*\d|인장강도[은는이가]?\s*\d|토크[은는이가]?\s*\d/
 
@@ -122,12 +122,12 @@ export function validateSurfaceV2(
       rewrites.push("added_price_disclaimer")
     }
     if (availPattern.test(answer)) {
-      answer = answer + "\n\n※ 출���/배송 정보는 실시간 재고��� 다를 수 있습니다. 정확한 납기는 별도 확인이 필요합니다."
+      answer = answer + "\n\n※ 출고/배송 정보는 실시간 재고와 다를 수 있습니다. 정확한 납기는 별도 확인이 필요합니다."
       warnings.push("Availability hallucination detected in answer")
       rewrites.push("added_availability_disclaimer")
     }
     if (unverifiedSpecPattern.test(answer)) {
-      answer = answer + "\n\n※ 위 기��� 스펙은 AI 추론입니다. 정확한 수치는 카탈로그를 확인하세요."
+      answer = answer + "\n\n※ 위 기술 스펙은 AI 추론입니다. 정확한 수치는 카탈로그를 확인하세요."
       warnings.push("Unverified spec claim detected in answer")
       rewrites.push("added_spec_disclaimer")
     }

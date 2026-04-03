@@ -771,7 +771,7 @@ export function resolvePendingQuestionReply(
     }
     return { kind: "resolved", filter: skipFilter }
   }
-  if (/뭐야|뭔지|설명|차��|왜|어떻게|몇개|종류|비교|결과|처음부터|이전 단계|알려줘|��려|궁금|공장|영업소|연락|번호|정보|회사|사장|회장|매출|주주|지점|사우디|해외|국가|��라|도시|어디|재고|납기|가격|배송|리드\s*타임|stock|inventory|price|lead\s*time|적합|카탈로그|스펙/u.test(raw)) {
+  if (/뭐야|뭔지|설명|차이|왜|어떻게|몇개|종류|비교|결과|처음부터|이전 단계|알려줘|알려|궁금|공장|영업소|연락|번호|정보|회사|사장|회장|매출|주주|지점|사우디|해외|국가|나라|도시|어디|재고|납기|가격|배송|리드\s*타임|stock|inventory|price|lead\s*time|적합|카탈로그|스펙/u.test(raw)) {
     return { kind: "side_question", pendingField, raw }
   }
   // Product code + additional text → side question about a specific product (e.g., "G8A59080의 재고 수")
