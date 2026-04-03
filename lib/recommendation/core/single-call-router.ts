@@ -210,7 +210,7 @@ function buildSystemPrompt(state: ExplorationSessionState | null): string {
 
 // ── Main function ─────────────────────────────────────────────
 
-const SINGLE_CALL_ROUTER_MODEL = "sonnet" as const
+const SINGLE_CALL_ROUTER_MODEL = "haiku" as const
 
 export async function routeSingleCall(
   userMessage: string,
