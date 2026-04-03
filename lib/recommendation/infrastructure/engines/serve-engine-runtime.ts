@@ -1465,8 +1465,10 @@ async function handleServeExplorationInner(
     const pendingAlreadyResolved = pendingQuestionReply.kind === "resolved" || pendingQuestionReply.kind === "side_question"
     const hasMultipleConditions = lastUserMsg && /\d+날.*(?:TiAlN|AlCrN|DLC|Square|Ball|Radius|Roughing|코팅|형상)|(?:TiAlN|AlCrN|DLC|Square|Ball|Radius|Roughing).*\d+날/i.test(lastUserMsg.text)
     const shouldUseSingleCall = isSingleCallRouterEnabled() && lastUserMsg && messages.length > 0 && (hasMultipleConditions || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
+    console.log(`[SCR-gate] shouldUse=${shouldUseSingleCall} hasMulti=${hasMultipleConditions} pendingEarly=${shouldResolvePendingSelectionEarly} pendingResolved=${pendingAlreadyResolved} enabled=${isSingleCallRouterEnabled()}`)
     if (shouldUseSingleCall) {
       const singleResult = await routeSingleCall(lastUserMsg.text, prevState, provider)
+      console.log(`[SCR-result] actions=${singleResult.actions.length} reasoning=${singleResult.reasoning} answer=${singleResult.answer?.slice(0,50)}`)
 
       if (singleResult.actions.length > 0) {
         for (const action of singleResult.actions) {
