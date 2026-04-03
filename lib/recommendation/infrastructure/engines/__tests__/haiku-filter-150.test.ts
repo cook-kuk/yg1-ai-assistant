@@ -246,9 +246,9 @@ describe("filter — coating (30)", () => {
     expect(r).toMatchObject({ kind: "resolved", filter: { field: "coating", value: "AlCrN" } })
   })
 
-  it('"코팅을 X-Coating으로 필터링" → ambiguous (X-Coating matches multiple fields)', async () => {
+  it('"코팅을 X-Coating으로 필터링" → resolved coating (field hint "코팅" disambiguates)', async () => {
     const r = await resolveExplicitFilterRequest(coatState, "코팅을 X-Coating으로 필터링", provider)
-    expect(r).toMatchObject({ kind: "ambiguous" })
+    expect(r).toMatchObject({ kind: "resolved", filter: { field: "coating" } })
   })
 
   it('"코팅 종류를 TiAlN으로 좁혀주세요" → coating=TiAlN', async () => {
@@ -291,9 +291,9 @@ describe("filter — coating (30)", () => {
     expect(r).toMatchObject({ kind: "resolved", filter: { field: "coating", value: "TiAlN" } })
   })
 
-  it('"코팅을 Y-Coating으로 필터링" → ambiguous (Y-Coating matches multiple fields)', async () => {
+  it('"코팅을 Y-Coating으로 필터링" → resolved coating (field hint "코팅" disambiguates)', async () => {
     const r = await resolveExplicitFilterRequest(coatState, "코팅을 Y-Coating으로 필터링", provider)
-    expect(r).toMatchObject({ kind: "ambiguous" })
+    expect(r).toMatchObject({ kind: "resolved", filter: { field: "coating" } })
   })
 
   it('"Blue-Coating 코팅으로 좁혀줘" → coating=Blue-Coating', async () => {
@@ -306,9 +306,9 @@ describe("filter — coating (30)", () => {
     expect(r).toMatchObject({ kind: "resolved", filter: { field: "coating", value: "Uncoated" } })
   })
 
-  it('"코팅 X-Coating 제품만 보여줘" → ambiguous (X-Coating matches multiple fields)', async () => {
+  it('"코팅 X-Coating 제품만 보여줘" → resolved coating (field hint "코팅" disambiguates)', async () => {
     const r = await resolveExplicitFilterRequest(coatState, "코팅 X-Coating 제품만 보여줘", provider)
-    expect(r).toMatchObject({ kind: "ambiguous" })
+    expect(r).toMatchObject({ kind: "resolved", filter: { field: "coating" } })
   })
 
   it('"코팅 Bright Finish로 좁혀" → coating=Bright Finish', async () => {
@@ -316,9 +316,9 @@ describe("filter — coating (30)", () => {
     expect(r).toMatchObject({ kind: "resolved", filter: { field: "coating", value: "Bright Finish" } })
   })
 
-  it('"코팅 Y-Coating만 보여줘" → ambiguous (Y-Coating matches multiple fields)', async () => {
+  it('"코팅 Y-Coating만 보여줘" → resolved coating (field hint "코팅" disambiguates)', async () => {
     const r = await resolveExplicitFilterRequest(coatState, "코팅 Y-Coating만 보여줘", provider)
-    expect(r).toMatchObject({ kind: "ambiguous" })
+    expect(r).toMatchObject({ kind: "resolved", filter: { field: "coating" } })
   })
 
   it('"코팅을 DLC로 필터링해주세요" → coating=DLC', async () => {
@@ -351,9 +351,9 @@ describe("filter — coating (30)", () => {
     expect(r).toMatchObject({ kind: "resolved", filter: { field: "coating", value: "Uncoated" } })
   })
 
-  it('"코팅을 X-Coating으로 좁혀줘" → ambiguous (X-Coating matches multiple fields)', async () => {
+  it('"코팅을 X-Coating으로 좁혀줘" → resolved coating (field hint "코팅" disambiguates)', async () => {
     const r = await resolveExplicitFilterRequest(coatState, "코팅을 X-Coating으로 좁혀줘", provider)
-    expect(r).toMatchObject({ kind: "ambiguous" })
+    expect(r).toMatchObject({ kind: "resolved", filter: { field: "coating" } })
   })
 
   it('"DLC 코팅 제품만 보여줘" → coating=DLC', async () => {

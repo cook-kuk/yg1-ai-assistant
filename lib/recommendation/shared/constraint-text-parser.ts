@@ -139,7 +139,13 @@ function collectFieldMentions(raw: string, candidateFields?: Set<string>): Array
       for (const match of raw.matchAll(pattern)) {
         const index = match.index ?? -1
         if (index < 0) continue
-        mentions.push({ field, alias, index, end: index + match[0].length })
+        const end = index + match[0].length
+        // Reject partial-word matches: if the character after the match is a word char
+        // (Latin letter) AND the alias ends with a Latin letter, this is a substring match
+        // (e.g. "rough" matching inside "Roughing"). Skip it.
+        if (end < raw.length && /[a-zA-Z]/.test(raw[end]) && /[a-zA-Z]$/.test(alias)) continue
+        if (index > 0 && /[a-zA-Z]/.test(raw[index - 1]) && /^[a-zA-Z]/.test(alias)) continue
+        mentions.push({ field, alias, index, end })
       }
     }
   }
