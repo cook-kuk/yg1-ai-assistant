@@ -8,7 +8,7 @@ export interface VideoEntry {
   title: string
   url: string
   language: "ko" | "en" | "both"
-  category: "Milling" | "Holemaking" | "Threading" | "Turning" | "Tooling"
+  category: "Milling" | "Holemaking" | "Threading" | "Turning" | "Tooling" | "Company"
   /** Keywords to match against series name, description, or brand (lowercase) */
   matchKeywords: string[]
 }
@@ -78,14 +78,37 @@ export const VIDEO_LIST: VideoEntry[] = [
   { title: "쓰레드밀", url: "https://youtu.be/eUkeehLQgBY", language: "ko", category: "Threading", matchKeywords: ["thread mill", "쓰레드밀"] },
   { title: "YG TAP Chip Breaker", url: "https://youtu.be/HQOfsa07oR4", language: "en", category: "Threading", matchKeywords: ["tap chip breaker"] },
 
+  { title: "CFRP Drill (Remastered)", url: "https://youtu.be/DVT_IAmBfRM", language: "en", category: "Holemaking", matchKeywords: ["cfrp drill", "cfrp", "rti", "guf", "gug"] },
+
   // ═══ Turning ═══
   { title: "YG-1 Turning Insert Grades Lineup 2025", url: "https://youtu.be/ksJF0Nuf_8A", language: "en", category: "Turning", matchKeywords: ["turning", "yg turn"] },
   { title: "YG TURN", url: "https://youtu.be/NL0gbhaBq8g", language: "en", category: "Turning", matchKeywords: ["turning", "yg turn"] },
   { title: "YG TURN - 터닝 재종 라인업", url: "https://youtu.be/NL0gbhaBq8g", language: "ko", category: "Turning", matchKeywords: ["turning", "터닝"] },
   { title: "NanoCut", url: "https://youtu.be/-ujx_4spMH8", language: "en", category: "Turning", matchKeywords: ["nanocut", "nano cut"] },
+  { title: "YG TURN - YG3020", url: "https://youtu.be/ljc6C5-333w", language: "en", category: "Turning", matchKeywords: ["yg3020", "yg turn", "turning"] },
+  { title: "YG TURN - CNMG", url: "https://youtu.be/XE2q3DYjAPk", language: "en", category: "Turning", matchKeywords: ["cnmg", "yg turn", "turning"] },
+  { title: "YG TURN - YG3020 재종", url: "https://youtu.be/nOQ1WEUfaB4", language: "ko", category: "Turning", matchKeywords: ["yg3020", "yg turn", "터닝"] },
 
   // ═══ Tooling ═══
   { title: "YG-1 Power E-Hydro Chuck", url: "https://youtu.be/gBjH7h22TrI", language: "en", category: "Tooling", matchKeywords: ["hydro chuck", "e-hydro"] },
+
+  // ═══ Company ═══
+  { title: "YG-1 Corporate Video (English)", url: "https://youtu.be/L_hg-FMq3do", language: "en", category: "Company", matchKeywords: ["yg-1", "yg1", "회사", "corporate"] },
+  { title: "YG-1 Corporate Video (Hungarian)", url: "https://youtu.be/ImE1rzfq0SA", language: "en", category: "Company", matchKeywords: ["yg-1", "corporate"] },
+  { title: "YG-1 Corporate Video (Polish)", url: "https://youtu.be/UO-FrigX4EE", language: "en", category: "Company", matchKeywords: ["yg-1", "corporate"] },
+  { title: "YG-1 Corporate Video (Vietnamese)", url: "https://youtu.be/NiadlgLpL0Y", language: "en", category: "Company", matchKeywords: ["yg-1", "corporate"] },
+  { title: "YG-1 Corporate Video (Thai)", url: "https://youtu.be/YtCqo6YzRdk", language: "en", category: "Company", matchKeywords: ["yg-1", "corporate"] },
+  { title: "YG-1 Corporate Video (German)", url: "https://youtu.be/XCwJxfd_v7w", language: "en", category: "Company", matchKeywords: ["yg-1", "corporate"] },
+  { title: "YG-1 Corporate Video (Turkish)", url: "https://youtu.be/J4RwRL6r_zA", language: "en", category: "Company", matchKeywords: ["yg-1", "corporate"] },
+  { title: "YG-1 Corporate Video (Russian)", url: "https://youtu.be/XutAfSd2r_4", language: "en", category: "Company", matchKeywords: ["yg-1", "corporate"] },
+  { title: "YG-1 Corporate Video (French)", url: "https://youtu.be/oqOiR0cHVsw", language: "en", category: "Company", matchKeywords: ["yg-1", "corporate"] },
+  { title: "YG-1 Corporate Video (Portugal)", url: "https://youtu.be/Fert3-lDN9o", language: "en", category: "Company", matchKeywords: ["yg-1", "corporate"] },
+  { title: "YG-1 Corporate Video (Italian)", url: "https://youtu.be/GlrgFHwjIKM", language: "en", category: "Company", matchKeywords: ["yg-1", "corporate"] },
+  { title: "YG-1 Corporate Video (Spanish)", url: "https://youtu.be/hSXE1ueXw-4", language: "en", category: "Company", matchKeywords: ["yg-1", "corporate"] },
+  { title: "YG-1 Corporate Video (Japanese)", url: "https://youtu.be/EBSa0MjhD04", language: "en", category: "Company", matchKeywords: ["yg-1", "corporate"] },
+  { title: "YG-1 Corporate Video (Chinese)", url: "https://youtu.be/kIMRz5joy4g", language: "en", category: "Company", matchKeywords: ["yg-1", "corporate"] },
+  { title: "New Global Head Office", url: "https://youtu.be/7zdtWInQgqc", language: "en", category: "Company", matchKeywords: ["yg-1", "본사", "head office"] },
+  { title: "YG-1 Cutting Tool Company", url: "https://youtu.be/vr8C-nMWC5U", language: "en", category: "Company", matchKeywords: ["yg-1", "yg1", "corporate"] },
 ]
 
 /**
