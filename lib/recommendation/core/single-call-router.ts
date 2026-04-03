@@ -163,7 +163,25 @@ Given the user's Korean message and the current session state, determine what ac
 - coating values: TiAlN, AlCrN, DLC, TiCN, Bright Finish, Blue-Coating, X-Coating, Y-Coating, Uncoated
 - diameterMm values: numbers only (e.g., 10, 8, 6.35)
 
-## Response Format (strict JSON only, no markdown)
+## Available filter fields
+- toolSubtype: tool shape (Square, Ball, Radius, Roughing, Taper, Chamfer, High-Feed)
+- fluteCount: number of flutes (2, 3, 4, 5, 6)
+- coating: coating type (TiAlN, AlCrN, DLC, TiCN, Bright Finish, Blue-Coating, Uncoated)
+- diameterMm: tool diameter in mm (number)
+- workPieceName: material name (알루미늄, 스테인리스강, 탄소강, 주철, 고경도강)
+- material: material group (P, M, K, N, S, H)
+
+## Examples
+User: "4날 TiAlN Square 추천해줘"
+→ {"actions":[{"type":"apply_filter","field":"fluteCount","value":4,"op":"eq"},{"type":"apply_filter","field":"coating","value":"TiAlN","op":"eq"},{"type":"apply_filter","field":"toolSubtype","value":"Square","op":"eq"}],"answer":"","reasoning":"3 filters from single message"}
+
+User: "Square 빼고"
+→ {"actions":[{"type":"apply_filter","field":"toolSubtype","value":"Square","op":"neq"}],"answer":"","reasoning":"exclude Square"}
+
+User: "TiAlN이 뭐야?"
+→ {"actions":[],"answer":"TiAlN은 내열성 코팅입니다.","reasoning":"question, no filter change"}
+
+## Response Format (strict JSON only, no markdown, no code blocks)
 {
   "actions": [ { "type": "...", ... } ],
   "answer": "",
@@ -202,24 +220,33 @@ export async function routeSingleCall(
 
     const result = validateAndCleanResult(parsed)
 
-    // Canonicalize all action values through filter-field-registry
+    // Canonicalize ALL action values through filter-field-registry
+    // This ensures Korean values from LLM (스퀘어→Square, 4날→4) are normalized
+    const canonicalizedActions: SingleCallAction[] = []
     for (const action of result.actions) {
-      if ((action.type === "apply_filter" || action.type === "replace_filter") && action.field && action.value != null) {
-        const targetValue = action.type === "replace_filter" ? action.to : action.value
-        if (targetValue != null) {
-          const filter = buildAppliedFilterFromValue(action.field, targetValue)
-          if (filter) {
-            if (action.type === "replace_filter") {
-              action.to = String(filter.rawValue)
-            } else {
-              action.value = filter.rawValue as string | number
-            }
-          }
+      if (action.type === "apply_filter" && action.field && action.value != null) {
+        const filter = buildAppliedFilterFromValue(action.field, action.value)
+        if (filter) {
+          canonicalizedActions.push({ ...action, field: filter.field, value: filter.rawValue as string | number })
+        } else {
+          console.warn(`[single-call-router] canonicalize failed: field=${action.field} value=${action.value}`)
         }
+      } else if (action.type === "replace_filter" && action.field && action.to != null) {
+        const filter = buildAppliedFilterFromValue(action.field, action.to)
+        if (filter) {
+          canonicalizedActions.push({ ...action, field: filter.field, to: String(filter.rawValue) })
+        } else {
+          console.warn(`[single-call-router] canonicalize replace failed: field=${action.field} to=${action.to}`)
+        }
+      } else {
+        // skip, reset, go_back, compare, answer, remove_filter, show_recommendation — pass through
+        canonicalizedActions.push(action)
       }
     }
 
-    return result
+    console.log(`[single-call-router] ${canonicalizedActions.length} actions: ${canonicalizedActions.map(a => `${a.type}(${a.field ?? ""}=${a.value ?? a.to ?? ""})`).join(", ")}`)
+
+    return { actions: canonicalizedActions, answer: result.answer, reasoning: result.reasoning }
   } catch (err) {
     console.error("[single-call-router] LLM call failed:", err)
     return { actions: [], answer: "", reasoning: "llm_error" }
