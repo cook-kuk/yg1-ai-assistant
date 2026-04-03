@@ -1472,7 +1472,9 @@ async function handleServeExplorationInner(
       /\d+mm|\d+밀리|직경/i.test(msg),
     ].filter(Boolean).length
     const hasMultipleConditions = filterHints >= 2
-    const shouldUseSingleCall = isSingleCallRouterEnabled() && lastUserMsg && messages.length > 0 && (hasMultipleConditions || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
+    // Negation patterns also need Single-Call Router (빼고, 제외, 아닌, 없는)
+    const hasNegationPattern = /빼고|제외|아닌\s*것|없는\s*거|말고\s*다른/u.test(msg)
+    const shouldUseSingleCall = isSingleCallRouterEnabled() && lastUserMsg && messages.length > 0 && (hasMultipleConditions || hasNegationPattern || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
     if (shouldUseSingleCall) {
       const singleResult = await routeSingleCall(lastUserMsg.text, prevState, provider)
 
