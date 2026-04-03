@@ -36,7 +36,7 @@ import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-t
 import { TraceCollector, isDebugEnabled } from "@/lib/debug/agent-trace"
 import { normalizePlannerResult, validatePlannerResult, buildExecutorSummary } from "@/lib/recommendation/core/turn-boundaries"
 import { dryRunReduce, reduce, compareReducerVsActual, type ReducerAction } from "@/lib/recommendation/core/state-reducer"
-import { USE_STATE_REDUCER, USE_CHIP_SYSTEM, USE_SINGLE_CALL_ROUTER } from "@/lib/feature-flags"
+import { USE_STATE_REDUCER, USE_CHIP_SYSTEM, isSingleCallRouterEnabled } from "@/lib/feature-flags"
 import { routeSingleCall } from "@/lib/recommendation/core/single-call-router"
 import { deriveChips, toChipState, compareChips, safeApplyChips } from "@/lib/recommendation/core/chip-system"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
@@ -1464,7 +1464,7 @@ async function handleServeExplorationInner(
     // Skip when: simple chip click, side question, or pending selection early
     const pendingAlreadyResolved = pendingQuestionReply.kind === "resolved" || pendingQuestionReply.kind === "side_question"
     const hasMultipleConditions = lastUserMsg && /\d+날.*(?:TiAlN|AlCrN|DLC|Square|Ball|Radius|Roughing|코팅|형상)|(?:TiAlN|AlCrN|DLC|Square|Ball|Radius|Roughing).*\d+날/i.test(lastUserMsg.text)
-    const shouldUseSingleCall = USE_SINGLE_CALL_ROUTER && !shouldResolvePendingSelectionEarly && lastUserMsg && messages.length > 0 && (!pendingAlreadyResolved || hasMultipleConditions)
+    const shouldUseSingleCall = isSingleCallRouterEnabled() && !shouldResolvePendingSelectionEarly && lastUserMsg && messages.length > 0 && (!pendingAlreadyResolved || hasMultipleConditions)
     if (shouldUseSingleCall) {
       const singleResult = await routeSingleCall(lastUserMsg.text, prevState, provider)
 

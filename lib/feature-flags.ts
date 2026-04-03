@@ -42,7 +42,11 @@ export const USE_STATE_REDUCER = envFlag("USE_STATE_REDUCER", false)
 export const USE_CHIP_SYSTEM = envFlag("USE_CHIP_SYSTEM", false)
 
 /** Use single Sonnet call for routing instead of multiple parallel Haiku calls. Defaults to false. Set USE_SINGLE_CALL_ROUTER=true to activate. */
-export const USE_SINGLE_CALL_ROUTER = process.env.USE_SINGLE_CALL_ROUTER === "true"
+// Getter function to read at runtime (not import-time) for serverless env var changes
+export function isSingleCallRouterEnabled(): boolean {
+  return process.env.USE_SINGLE_CALL_ROUTER === "true"
+}
+export const USE_SINGLE_CALL_ROUTER = true // Read via isSingleCallRouterEnabled() for runtime check
 
 /** Use V2 turn orchestrator (new recommendation pipeline). Defaults to true — V2 is the primary pipeline. Set USE_NEW_ORCHESTRATOR=false to revert to legacy. */
 export const USE_NEW_ORCHESTRATOR = process.env.USE_NEW_ORCHESTRATOR !== "false"
