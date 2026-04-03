@@ -102,6 +102,9 @@ function summarizeAction(value: unknown): Record<string, unknown> | null {
   }
   if (record.type === "filter_by_stock" && typeof record.stockFilter === "string") {
     summary.stockFilter = record.stockFilter
+    if (typeof record.stockThreshold === "number") {
+      summary.stockThreshold = record.stockThreshold
+    }
   }
   return summary
 }

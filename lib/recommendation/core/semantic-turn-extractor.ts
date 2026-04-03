@@ -55,6 +55,7 @@ interface RawSemanticTurnResult {
   compareTargets?: unknown
   refineField?: unknown
   stockFilter?: unknown
+  stockThreshold?: unknown
   replyRoute?: unknown
   directContext?: unknown
   confidence?: unknown
@@ -384,6 +385,7 @@ function buildSystemPrompt(repairFeedback: string | null): string {
 7. pendingField가 존재하고 사용자가 값만 답한 경우, 그 field를 명시해서 반환한다.
 8. "이전 단계", "뒤로"는 action="go_back_one_step" 으로 반환한다.
 9. "재고 있는 것만"은 action="filter_by_stock" + stockFilter="instock" 으로 반환한다.
+9-1. "재고 50개 이상", "재고 100개 넘는 것만" 등 숫자 기준 재고 필터는 action="filter_by_stock" + stockFilter="instock" + stockThreshold=숫자 로 반환한다.
 10. "다른 직경/소재/코팅/형상/날수로"는 action="refine_condition" + refineField를 설정한다.
 11. 불확실하면 action="none" 으로 반환한다.
 9. DB성 질문이면 directContext에 실행 힌트를 함께 넣는다.
@@ -421,6 +423,7 @@ JSON 형식:
   "compareTargets": ["A","B"],
   "refineField": "material|diameter|coating|fluteCount|toolSubtype|null",
   "stockFilter": "instock|limited|all|null",
+  "stockThreshold": "number|null",
   "replyRoute": "inventory|product_info|entity_profile|brand_reference|cutting_conditions|general_chat|null",
   "directContext": {
     "lookupCode": "E5E8310045",
@@ -464,6 +467,9 @@ function validateSemanticTurnResult(
   const replyRoute = validateReplyRoute(parsed.replyRoute)
   const refineField = validateRefineField(parsed.refineField)
   const stockFilter = validateStockFilter(parsed.stockFilter)
+  const stockThreshold = typeof parsed.stockThreshold === "number" && parsed.stockThreshold > 0
+    ? parsed.stockThreshold
+    : null
   const directContext = validateDirectContext(parsed.directContext)
   const reasoning = typeof parsed.reasoning === "string" ? parsed.reasoning.trim() : "semantic_turn"
 
@@ -568,7 +574,7 @@ function validateSemanticTurnResult(
     }
     return {
       decision: {
-        action: { type: "filter_by_stock", stockFilter },
+        action: { type: "filter_by_stock", stockFilter, stockThreshold },
         extraFilters: [],
         replyRoute,
         directContext,

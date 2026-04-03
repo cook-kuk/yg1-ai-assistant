@@ -662,7 +662,11 @@ export function resolvePendingQuestionReply(
     console.log(`[pending-selection] Detected revision signal in "${raw.slice(0, 30)}" — deferring to revision resolver`)
     return { kind: "unresolved", pendingField, raw }
   }
-  if (/뭐야|뭔지|설명|차이|왜|어떻게|몇개|종류|비교|추천|결과|처음부터|이전 단계|줘|알려|궁금|공장|영업소|연락|번호|정보|회사|사장|회장|매출|주주|지점|사우디|해외|국가|나라|도시|어디/u.test(raw)) {
+  if (/뭐야|뭔지|설명|차이|왜|어떻게|몇개|종류|비교|추천|결과|처음부터|이전 단계|줘|알려|궁금|공장|영업소|연락|번호|정보|회사|사장|회장|매출|주주|지점|사우디|해외|국가|나라|도시|어디|재고|납기|가격|배송|리드\s*타임|stock|inventory|price|lead\s*time/u.test(raw)) {
+    return { kind: "side_question", pendingField, raw }
+  }
+  // Product code + additional text → side question about a specific product (e.g., "G8A59080의 재고 수")
+  if (/\b[A-Z]{1,5}\d[A-Z]?\d{3,}\b/i.test(raw) && raw.trim() !== (raw.match(/\b[A-Z]{1,5}\d[A-Z]?\d{3,}\b/i)?.[0] ?? "")) {
     return { kind: "side_question", pendingField, raw }
   }
 
@@ -2147,6 +2151,7 @@ async function handleServeExplorationInner(
       // Uses prevState.displayedCandidates snapshots to avoid re-running full search.
       let prevCandidates = prevState?.displayedCandidates ?? []
       const stockFilter = action.stockFilter
+      const stockThreshold = action.stockThreshold ?? null
 
       // Fallback: if no displayed candidates, use full candidates from current search
       if (prevCandidates.length === 0 && candidates.length > 0) {
@@ -2154,7 +2159,10 @@ async function handleServeExplorationInner(
       }
 
       let filteredSnapshots: CandidateSnapshot[]
-      if (stockFilter === "instock") {
+      if (stockThreshold != null && stockThreshold > 0) {
+        // Numeric threshold: "재고 50개 이상" → totalStock >= 50
+        filteredSnapshots = prevCandidates.filter(c => (c.totalStock ?? 0) >= stockThreshold)
+      } else if (stockFilter === "instock") {
         filteredSnapshots = prevCandidates.filter(c => (c.totalStock ?? 0) > 0)
       } else if (stockFilter === "limited") {
         filteredSnapshots = prevCandidates.filter(c => c.stockStatus === "instock" || c.stockStatus === "limited")
@@ -2164,7 +2172,9 @@ async function handleServeExplorationInner(
 
       if (filteredSnapshots.length === 0) {
         // No candidates match stock filter — inform user
-        const stockLabel = stockFilter === "instock" ? "재고 있는" : "재고 제한적 이상인"
+        const stockLabel = stockThreshold != null
+          ? `재고 ${stockThreshold}개 이상인`
+          : stockFilter === "instock" ? "재고 있는" : "재고 제한적 이상인"
         const noStockChips = ["⟵ 이전 단계", "처음부터 다시"]
         if (prevCandidates.length > 0) {
           noStockChips.unshift(`전체 ${prevCandidates.length}개 보기`)
@@ -2221,9 +2231,18 @@ async function handleServeExplorationInner(
         currentMode: prevState.currentMode ?? "recommendation",
         lastAction: "filter_by_stock",
       })
-      const stockLabel = stockFilter === "instock" ? "재고 있는" : stockFilter === "limited" ? "재고 제한적 이상인" : "전체"
+      const stockLabel = stockThreshold != null
+        ? `재고 ${stockThreshold}개 이상인`
+        : stockFilter === "instock" ? "재고 있는" : stockFilter === "limited" ? "재고 제한적 이상인" : "전체"
+      // Build deterministic stock summary per candidate to prevent LLM hallucination
+      const stockDetails = filteredSnapshots
+        .map(c => `- ${c.displayCode}: 재고 ${c.totalStock ?? 0}개`)
+        .join("\n")
+      const responseText = stockDetails
+        ? `${stockLabel} 후보 ${filteredSnapshots.length}개입니다.\n\n${stockDetails}`
+        : `${stockLabel} 후보 ${filteredSnapshots.length}개입니다.`
       return deps.jsonRecommendationResponse({
-        text: `${stockLabel} 후보 ${filteredSnapshots.length}개입니다.`,
+        text: responseText,
         purpose: "recommendation",
         chips: stockChips,
         isComplete: true,

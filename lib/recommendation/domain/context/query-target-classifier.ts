@@ -39,7 +39,7 @@ export interface QueryTarget {
 
 const SERIES_NAME_PATTERN = /\b(ALU[-\s]?CUT(?:\s+(?:POWER|HPC|for\s+Korean\s+Market))?|TANK[-\s]?POWER|X[-\s]?POWER|I[-\s]?POWER|V[-\s]?POWER|ALU[-\s]?MILL|ALU[-\s]?POWER(?:\s+HPC)?|INOX[-\s]?POWER|X\d{4,}|E\d[A-Z]\d+|GAA\d+|GEE\d+|JAH\d+|ALM\d+|EI\d+|[A-Z]{2,5}\d{2,4}[A-Z]?|[A-Z]{1,4}\d[A-Z]{1,3}\d{2,4}[A-Z]?)\b/gi
 const BRAND_NAME_PATTERN = /\b(E[·∙ㆍ.]?\s*FORCE(?:\s+BLUE)?(?:\s+for\s+Korean\s+Market)?|4G\s*MILLS(?:\s*-\s*KOR)?|SUPER\s+ALLOY|X5070\s*S)\b/gi
-const PRODUCT_CODE_PATTERN = /\b[A-Z]{2,5}\d{4,}[A-Z]*\d*\b/g
+const PRODUCT_CODE_PATTERN = /\b(?:[A-Z]{2,5}\d{4,}[A-Z]*\d*|[A-Z]\d[A-Z]\d{4,}[A-Z]?)\b/g
 const COMPARISON_PATTERN = /차이|비교|vs|대비|어떤.*게.*낫|뭐가.*다른|뭐가.*좋|어떤.*게.*좋/i
 const SERIES_INFO_PATTERN = /시리즈|특징|장점|단점|용도|적합/i
 const COUNT_PATTERN = /몇\s*개|갯수|분포|몇\s*종/i

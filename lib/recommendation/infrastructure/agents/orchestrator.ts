@@ -577,7 +577,7 @@ const NARROWING_TOOLS: LLMTool[] = [
   },
   {
     name: "filter_stock",
-    description: "사용자가 재고/납기 기준으로 필터링을 요청할 때 호출. '재고 있는 거로', '재고 있는 제품만', '납기 빠른 거로', '즉시 구매 가능한 거' 등. 이미 추천 결과가 있는 상태에서 재고 기준 2차 필터링.",
+    description: "사용자가 재고/납기 기준으로 필터링을 요청할 때 호출. '재고 있는 거로', '재고 50개 이상', '재고 100개 넘는 것만' 등. 이미 추천 결과가 있는 상태에서 재고 기준 2차 필터링. 숫자 기준이면 threshold에 숫자를 넣는다.",
     input_schema: {
       type: "object",
       properties: {
@@ -585,6 +585,10 @@ const NARROWING_TOOLS: LLMTool[] = [
           type: "string",
           enum: ["instock", "limited", "all"],
           description: "instock=재고 있는 것만, limited=제한적 포함, all=전체"
+        },
+        threshold: {
+          type: "number",
+          description: "숫자 기준 재고 필터. 예: '재고 50개 이상' → 50. 숫자 언급이 없으면 생략."
         }
       },
       required: ["filter"]
@@ -660,6 +664,7 @@ ${candidatesDesc}
 
 ═══ 재고/납기 필터링 ═══
 - "재고 있는 거로", "재고 있는 제품만", "즉시 구매 가능한 거" → filter_stock(filter="instock")
+- "재고 50개 이상", "재고 100개 넘는 것만" → filter_stock(filter="instock", threshold=50 또는 100)
 - "납기 빠른 거", "재고 제한적이어도 괜찮아" → filter_stock(filter="limited")
 - "전부 다 보여줘", "재고 무관" → filter_stock(filter="all")
 
@@ -788,7 +793,10 @@ function mapToolUseToAction(
       const stockFilter = validValues.includes(stockValue as any)
         ? (stockValue as "instock" | "limited" | "all")
         : "instock"
-      return { type: "filter_by_stock", stockFilter }
+      const stockThreshold = typeof input.threshold === "number" && input.threshold > 0
+        ? input.threshold
+        : null
+      return { type: "filter_by_stock", stockFilter, stockThreshold }
     }
 
     case "reset_session":

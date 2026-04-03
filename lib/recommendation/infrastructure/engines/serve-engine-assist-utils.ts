@@ -4,10 +4,10 @@ import type { ScoredProduct } from "@/lib/recommendation/domain/types"
 
 export const TOOL_DOMAIN_PATTERN = /slot|milling|side.?mill|shoulder|plunge|ball|taper|square|corner.?r|radius|flute|날수|날 수|날.*형|coating|코팅|dlc|tialn|alcrn|rpm|feed|이송|절삭|ap |ae |vc |fz |추천.*이유|왜.*추천|어떤.*형상|뭐가.*좋|뭐가.*맞|차이점|형상|가공|황삭|정삭|엔드밀|드릴|탭|인서트|시리즈|제품/i
 
-export const DIRECT_PRODUCT_CODE_PATTERN = /\b([A-Z]{2,5}\d{3,}[A-Z0-9-]*)\b/i
-export const DIRECT_SERIES_CODE_PATTERN = /\b([A-Z]\d[A-Z]\d{2,}[A-Z]?)\b/i
-export const DIRECT_PRODUCT_CODE_GLOBAL_PATTERN = /\b([A-Z]{2,5}\d{3,}[A-Z0-9-]*)\b/gi
-export const DIRECT_SERIES_CODE_GLOBAL_PATTERN = /\b([A-Z]\d[A-Z]\d{2,}[A-Z]?)\b/gi
+export const DIRECT_PRODUCT_CODE_PATTERN = /\b([A-Z]{2,5}\d{3,}[A-Z0-9-]*|[A-Z]\d[A-Z]\d{4,}[A-Z]?)\b/i
+export const DIRECT_SERIES_CODE_PATTERN = /\b([A-Z]\d[A-Z]\d{2,3}[A-Z]?)\b/i
+export const DIRECT_PRODUCT_CODE_GLOBAL_PATTERN = /\b([A-Z]{2,5}\d{3,}[A-Z0-9-]*|[A-Z]\d[A-Z]\d{4,}[A-Z]?)\b/gi
+export const DIRECT_SERIES_CODE_GLOBAL_PATTERN = /\b([A-Z]\d[A-Z]\d{2,3}[A-Z]?)\b/gi
 export const CUTTING_CONDITION_QUERY_PATTERN = /절삭조건|가공조건|vc|fz|이송|회전수|rpm|feed/i
 export const INVENTORY_QUERY_PATTERN = /재고|stock|inventory|available|availability|수량|남았/i
 export const PRODUCT_INFO_TRIGGER_PATTERN = /공구\s*소재|재질|코팅|직경|지름|날\s*수|날수|플루트|형상|스퀘어|볼|라디우스|테이퍼|생크|절삭길이|날길이|전장|헬릭스|쿨런트|제품명|품명|스펙|사양|전체\s*사양|상세\s*사양|전체\s*정보|상세\s*정보|무슨\s*제품|어떤\s*제품|뭐야|뭐예요|알려/i

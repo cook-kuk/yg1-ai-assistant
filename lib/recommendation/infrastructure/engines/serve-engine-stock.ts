@@ -25,9 +25,13 @@ export function handleFilterByStock(
   // Uses prevState.displayedCandidates snapshots to avoid re-running full search.
   const prevCandidates = prevState?.displayedCandidates ?? []
   const stockFilter = action.stockFilter
+  const stockThreshold = action.stockThreshold ?? null
 
   let filteredSnapshots: CandidateSnapshot[]
-  if (stockFilter === "instock") {
+  if (stockThreshold != null && stockThreshold > 0) {
+    // Numeric threshold: "재고 50개 이상" → totalStock >= 50
+    filteredSnapshots = prevCandidates.filter(c => (c.totalStock ?? 0) >= stockThreshold)
+  } else if (stockFilter === "instock") {
     filteredSnapshots = prevCandidates.filter(c => (c.totalStock ?? 0) > 0)
   } else if (stockFilter === "limited") {
     filteredSnapshots = prevCandidates.filter(c => c.stockStatus === "instock" || c.stockStatus === "limited")
@@ -37,7 +41,9 @@ export function handleFilterByStock(
 
   if (filteredSnapshots.length === 0) {
     // No candidates match stock filter — inform user
-    const stockLabel = stockFilter === "instock" ? "재고 있는" : "재고 제한적 이상인"
+    const stockLabel = stockThreshold != null
+      ? `재고 ${stockThreshold}개 이상인`
+      : stockFilter === "instock" ? "재고 있는" : "재고 제한적 이상인"
     const noStockChips = ["⟵ 이전 단계", "처음부터 다시"]
     if (prevCandidates.length > 0) {
       noStockChips.unshift(`전체 ${prevCandidates.length}개 보기`)
@@ -94,9 +100,18 @@ export function handleFilterByStock(
     currentMode: prevState.currentMode ?? "recommendation",
     lastAction: "filter_by_stock",
   })
-  const stockLabel = stockFilter === "instock" ? "재고 있는" : stockFilter === "limited" ? "재고 제한적 이상인" : "전체"
+  const stockLabel = stockThreshold != null
+    ? `재고 ${stockThreshold}개 이상인`
+    : stockFilter === "instock" ? "재고 있는" : stockFilter === "limited" ? "재고 제한적 이상인" : "전체"
+  // Build deterministic stock summary per candidate to prevent LLM hallucination
+  const stockDetails = filteredSnapshots
+    .map(c => `- ${c.displayCode}: 재고 ${c.totalStock ?? 0}개`)
+    .join("\n")
+  const responseText = stockDetails
+    ? `${stockLabel} 후보 ${filteredSnapshots.length}개입니다.\n\n${stockDetails}`
+    : `${stockLabel} 후보 ${filteredSnapshots.length}개입니다.`
   return jsonRecommendationResponse({
-    text: `${stockLabel} 후보 ${filteredSnapshots.length}개입니다.`,
+    text: responseText,
     purpose: "recommendation",
     chips: stockChips,
     isComplete: true,

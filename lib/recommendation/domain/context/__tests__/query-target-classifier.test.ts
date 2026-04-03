@@ -86,7 +86,7 @@ describe("query-target: entity comparison detection", () => {
       "coating"
     )
 
-    expect(result.type).toBe("series_comparison")
+    expect(result.type).toBe("product_comparison")
     expect(result.entities).toContain("E5E84200B")
     expect(result.entities).toContain("E5E84200")
   })

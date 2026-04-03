@@ -81,7 +81,7 @@ export type OrchestratorAction =
   | { type: "answer_general"; message: string; preGenerated?: boolean }
   | { type: "refine_condition"; field: string }
   | { type: "redirect_off_topic" }
-  | { type: "filter_by_stock"; stockFilter: "instock" | "limited" | "all" }
+  | { type: "filter_by_stock"; stockFilter: "instock" | "limited" | "all"; stockThreshold?: number | null }
 
 export interface OrchestratorResult {
   action: OrchestratorAction
