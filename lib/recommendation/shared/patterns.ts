@@ -127,6 +127,7 @@ export const DIAMETER_PATTERNS: RegExp[] = [
   /D(\d+(?:\.\d+)?)/i,
   /([0-9]+(?:\.[0-9]+)?)\s*[Pp]/,
   /([\d.]+)\s*밀리/,
+  /([\d.]+)\s*미리/,
 ]
 
 export const FLUTE_PATTERNS: RegExp[] = [
