@@ -1471,6 +1471,9 @@ async function handleServeExplorationInner(
             case "apply_filter": {
               const filter = buildAppliedFilterFromValue(action.field!, action.value!, turnCount)
               if (filter) {
+                // Remove existing skip filter for same field before applying
+                const skipIdx = filters.findIndex(f => f.field === filter.field && f.op === "skip")
+                if (skipIdx >= 0) filters.splice(skipIdx, 1)
                 const result = replaceFieldFilter(baseInput, filters, filter, deps.applyFilterToInput)
                 filters.splice(0, filters.length, ...result.nextFilters)
                 currentInput = result.nextInput

@@ -7,6 +7,7 @@
 
 import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import type { ExplorationSessionState } from "@/lib/recommendation/domain/types"
+import { buildAppliedFilterFromValue } from "@/lib/recommendation/shared/filter-field-registry"
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -154,6 +155,14 @@ Given the user's Korean message and the current session state, determine what ac
 - Question ending with ? -> answer (no filter change)
 - Multiple conditions in one message -> multiple actions
 
+## CRITICAL: Field value rules
+- toolSubtype values MUST be English only: Square, Ball, Radius, Roughing, Taper, Chamfer, High-Feed
+  NEVER return Korean (스퀘어, 볼, 라디우스, 황삭). Always use English canonical names.
+- fluteCount values MUST be numbers only: 2, 3, 4, 5, 6
+  NEVER return "2날" or "4날". Just the number.
+- coating values: TiAlN, AlCrN, DLC, TiCN, Bright Finish, Blue-Coating, X-Coating, Y-Coating, Uncoated
+- diameterMm values: numbers only (e.g., 10, 8, 6.35)
+
 ## Response Format (strict JSON only, no markdown)
 {
   "actions": [ { "type": "...", ... } ],
@@ -191,7 +200,26 @@ export async function routeSingleCall(
       return { actions: [], answer: "", reasoning: "parse_failure" }
     }
 
-    return validateAndCleanResult(parsed)
+    const result = validateAndCleanResult(parsed)
+
+    // Canonicalize all action values through filter-field-registry
+    for (const action of result.actions) {
+      if ((action.type === "apply_filter" || action.type === "replace_filter") && action.field && action.value != null) {
+        const targetValue = action.type === "replace_filter" ? action.to : action.value
+        if (targetValue != null) {
+          const filter = buildAppliedFilterFromValue(action.field, targetValue)
+          if (filter) {
+            if (action.type === "replace_filter") {
+              action.to = String(filter.rawValue)
+            } else {
+              action.value = filter.rawValue as string | number
+            }
+          }
+        }
+      }
+    }
+
+    return result
   } catch (err) {
     console.error("[single-call-router] LLM call failed:", err)
     return { actions: [], answer: "", reasoning: "llm_error" }
