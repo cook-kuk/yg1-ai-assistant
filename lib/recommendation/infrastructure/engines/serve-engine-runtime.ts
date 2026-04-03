@@ -1463,7 +1463,15 @@ async function handleServeExplorationInner(
     // Use Single-Call when: multi-condition message detected (2+ filter hints)
     // Skip when: simple chip click, side question, or pending selection early
     const pendingAlreadyResolved = pendingQuestionReply.kind === "resolved" || pendingQuestionReply.kind === "side_question"
-    const hasMultipleConditions = lastUserMsg && /\d+날.*(?:TiAlN|AlCrN|DLC|Square|Ball|Radius|Roughing|코팅|형상)|(?:TiAlN|AlCrN|DLC|Square|Ball|Radius|Roughing).*\d+날/i.test(lastUserMsg.text)
+    // Detect 2+ filter hints in a single message: flute+coating, flute+subtype, coating+subtype, etc.
+    const msg = lastUserMsg?.text ?? ""
+    const filterHints = [
+      /\d+날|\d+flute|\d+플루트/i.test(msg),
+      /TiAlN|AlCrN|DLC|TiCN|Bright|Blue|코팅|무코팅|블루코팅/i.test(msg),
+      /Square|Ball|Radius|Roughing|Taper|Chamfer|스퀘어|볼|라디우스|황삭|코너/i.test(msg),
+      /\d+mm|\d+밀리|직경/i.test(msg),
+    ].filter(Boolean).length
+    const hasMultipleConditions = filterHints >= 2
     const shouldUseSingleCall = isSingleCallRouterEnabled() && lastUserMsg && messages.length > 0 && (hasMultipleConditions || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
     console.log(`[SCR-gate] shouldUse=${shouldUseSingleCall} hasMulti=${hasMultipleConditions} pendingEarly=${shouldResolvePendingSelectionEarly} pendingResolved=${pendingAlreadyResolved} enabled=${isSingleCallRouterEnabled()}`)
     if (shouldUseSingleCall) {
