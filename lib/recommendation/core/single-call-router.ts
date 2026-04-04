@@ -152,12 +152,17 @@ Given the user's Korean message and the current session state, determine what ac
 - reset: User wants to start over.
 - go_back: User wants to undo the last step.
 
+## IMPORTANT: Filter deduplication
+If a filter already exists in Applied filters, do NOT re-apply the same value.
+If user restates an already-applied condition, just skip that filter action.
+
 ## Korean Intent Patterns
 - "빼고/제외/아닌것/없는거" → If the field already has a filter, use remove_filter. If no existing filter, use apply_filter with op:"neq"
   CRITICAL: "X 빼고" means REMOVE X, NOT add X. "Square 빼고" = remove Square filter.
 - "바꿔/변경/대신/말고" -> replace_filter
-- "상관없음/아무거나/패스" -> skip
+- "상관없음/아무거나/패스/넘어가/알아서" -> skip
 - Question ending with ? -> answer (no filter change)
+- "추천해줘/보여줘/제품 보기/지금 바로" -> show_recommendation
 - Multiple conditions in one message -> multiple actions
 
 ## CRITICAL: Field value rules
