@@ -319,6 +319,12 @@ User: "파란색 코팅 제품 있어?" (color → coating mapping)
 User: "DLC 빼고 TiAlN으로" (remove + add in one message, when coating=DLC exists)
 → {"actions":[{"type":"remove_filter","field":"coating"},{"type":"apply_filter","field":"coating","value":"TiAlN","op":"eq"}],"answer":"","reasoning":"remove DLC, add TiAlN"}
 
+User: "SEM81010035이 알루미늄 가공에 적합할까?" (product code + question)
+→ {"actions":[],"answer":"해당 제품의 소재 적합도를 확인하겠습니다.","reasoning":"question about specific product, no filter change"}
+
+User: "GMG55100과 GMG40100 비교해줘" (product comparison)
+→ {"actions":[{"type":"compare","targets":["GMG55100","GMG40100"]}],"answer":"","reasoning":"compare two specific products"}
+
 ## Response Format (strict JSON only, no markdown, no code blocks)
 {
   "actions": [ { "type": "...", ... } ],
