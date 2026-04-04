@@ -1,3 +1,13 @@
-15:34\t1835/1835\tskipped 9→0: 인치/밀리/한국어국가/영어revision/ㄴㄴ슬랭/two flute/날2개
-15:57\t1878/1878\tAutoAgent Round 2: feedback 272건 분석, 46 테스트 생성, RF 4건 진단
-20:41\t4321/4321\tAutoAgent: 피드백 194건 분석, 0 새 버그, Haiku 0 actionable
+15:34	1835/1835	skipped 9→0: 인치/밀리/한국어국가/영어revision/ㄴㄴ슬랭/two flute/날2개
+15:57	1878/1878	AutoAgent Round 2: feedback 272건 분석, 46 테스트 생성, RF 4건 진단
+20:41	4321/4321	AutoAgent: 피드백 194건 분석, 0 새 버그, Haiku 0 actionable
+14:15	5893/5893	Round 7: CRX-S materialRatingScore boost + workPieceName 매핑 (+9 tests)
+14:25	5893/5893	Round 8: SCR few-shot 10개 + isSingleCallRouterEnabled=true + 500 방어
+14:34	5897/5897	Round 9: 한국어 숫자 (열미리/두날/네날) + 테스트 4개
+14:36	5932/5932	Round 10: toolSubtype alias 5개 + feedback-derived 39개
+14:39	5953/5953	Round 11: SCR 중복 방지 + 부정/교체 테스트 21개
+14:42	5953/5953	Round 12: SYSTEM_PROMPT_FREE few-shot + 필드정보 주입
+14:45	5953/5953	Round 13: 구체 강종 DB 매핑 (SUS304/S45C/SKD11)
+14:47	5953/5953	Round 14: SCR few-shot 3개 (SUS304/show/skip)
+14:59	5978/5978	Round 15: 창의적 시나리오 25개 테스트
+15:01	5978/5978	Round 16: SM45C/SCM440 MATERIAL_KEYWORDS alias
