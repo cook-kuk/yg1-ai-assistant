@@ -678,6 +678,49 @@ export async function resolveExplicitFilterRequest(
   }
 }
 
+/**
+ * Extract the value being negated from a message like "TiAlN 빼고 나머지요".
+ * Dynamically uses all registered filter fields — no hardcoding.
+ * Returns { field, rawValue, displayValue } if found, null otherwise.
+ */
+function extractNegatedValue(msg: string): { field: string; rawValue: string | number; displayValue: string } | null {
+  // Strip negation suffixes to isolate the value
+  const cleaned = msg
+    .replace(/\s*(빼고|제외|말고|없이|아닌\s*것|없는\s*거|만\s*아니면\s*(?:돼|된다니까|됩니다)?|아닌\s*거|말고\s*다른).*$/u, "")
+    .replace(/^(?:아니\s*)?/u, "")
+    .trim()
+
+  if (!cleaned) return null
+
+  // Try buildAppliedFilterFromValue with each registered field
+  const fieldsToTry = ["coating", "toolSubtype", "fluteCount", "diameterMm", "workPieceName", "material"]
+  for (const field of fieldsToTry) {
+    const filter = buildAppliedFilterFromValue(field, cleaned)
+    if (filter) {
+      return {
+        field: filter.field,
+        rawValue: typeof filter.rawValue === "object" ? String(filter.rawValue) : filter.rawValue,
+        displayValue: String(filter.rawValue),
+      }
+    }
+  }
+
+  // Fallback: try all registered fields
+  for (const field of getRegisteredFilterFields()) {
+    if (fieldsToTry.includes(field)) continue
+    const filter = buildAppliedFilterFromValue(field, cleaned)
+    if (filter) {
+      return {
+        field: filter.field,
+        rawValue: typeof filter.rawValue === "object" ? String(filter.rawValue) : filter.rawValue,
+        displayValue: String(filter.rawValue),
+      }
+    }
+  }
+
+  return null
+}
+
 function rebuildResolvedInputFromFilters(
   form: ProductIntakeForm,
   filters: AppliedFilter[],
@@ -686,7 +729,7 @@ function rebuildResolvedInputFromFilters(
   let nextInput = deps.mapIntakeToInput(form)
 
   for (const filter of filters) {
-    if (filter.op === "skip") continue
+    if (filter.op === "skip" || filter.op === "neq") continue
     nextInput = deps.applyFilterToInput(nextInput, filter)
   }
 
@@ -1583,37 +1626,61 @@ async function handleServeExplorationInner(
     // Skip when: simple chip click, side question, or pending selection early
     const pendingAlreadyResolved = pendingQuestionReply.kind === "resolved" || pendingQuestionReply.kind === "side_question"
     const msg = lastUserMsg?.text ?? ""
-    // ── Deterministic negation handling (빼고/제외/아닌것) ──
-    // Detect "X 빼고", "X 제외", "X 아닌 것" and remove matching filter WITHOUT LLM
-    const hasNegationPattern = /빼고|제외|아닌\s*것|없는\s*거|말고\s*다른/u.test(msg)
-    if (hasNegationPattern && filters.length > 0) {
+    // ── Deterministic negation handling (빼고/제외/아닌것/만 아니면/없이) ──
+    const hasNegationPattern = /빼고|제외|아닌\s*것|없는\s*거|말고\s*다른|만\s*아니면|없이|아닌\s*거/u.test(msg)
+    if (hasNegationPattern) {
       const msgLower = msg.toLowerCase()
       let negationHandled = false
-      for (const existingFilter of [...filters]) {
-        const filterValue = String(existingFilter.rawValue ?? existingFilter.value).toLowerCase()
-        if (msgLower.includes(filterValue) && existingFilter.op !== "skip") {
-          // Found: "Square 빼고" matches existing toolSubtype=Square filter
-          const idx = filters.indexOf(existingFilter)
-          if (idx >= 0) {
-            filters.splice(idx, 1)
-            currentInput = rebuildResolvedInputFromFilters(form, filters, deps)
-            console.log(`[negation-deterministic] Removed ${existingFilter.field}=${existingFilter.value} filter`)
-            negationHandled = true
+
+      // Track 1: Remove existing filter if value matches
+      if (filters.length > 0) {
+        for (const existingFilter of [...filters]) {
+          const filterValue = String(existingFilter.rawValue ?? existingFilter.value).toLowerCase()
+          if (msgLower.includes(filterValue) && existingFilter.op !== "skip") {
+            const idx = filters.indexOf(existingFilter)
+            if (idx >= 0) {
+              filters.splice(idx, 1)
+              currentInput = rebuildResolvedInputFromFilters(form, filters, deps)
+              console.log(`[negation-deterministic] Removed ${existingFilter.field}=${existingFilter.value} filter`)
+              negationHandled = true
+            }
           }
         }
       }
+
+      // Track 2: No matching filter found → create NEQ exclusion filter
+      // "TiAlN 빼고 나머지요" when no coating filter exists → coating != TiAlN
+      if (!negationHandled) {
+        // Extract the value being negated by trying all registered fields
+        const negatedValue = extractNegatedValue(msg)
+        if (negatedValue) {
+          const neqFilter: AppliedFilter = {
+            field: negatedValue.field,
+            op: "neq",
+            value: `${negatedValue.displayValue} 제외`,
+            rawValue: negatedValue.rawValue,
+            appliedAt: turnCount,
+          }
+          // Remove any existing filter on same field, then add NEQ
+          const existingIdx = filters.findIndex(f => f.field === neqFilter.field)
+          if (existingIdx >= 0) filters.splice(existingIdx, 1)
+          filters.push(neqFilter)
+          currentInput = rebuildResolvedInputFromFilters(form, filters, deps)
+          console.log(`[negation-deterministic] Created NEQ filter: ${neqFilter.field} != ${neqFilter.rawValue}`)
+          negationHandled = true
+        }
+      }
+
       if (negationHandled) {
-        // Skip pending selection — we already handled the message
         pendingSelectionAction = null
         pendingSelectionOrchestratorResult = null
         bridgedV2Action = { type: "continue_narrowing", filter: filters[filters.length - 1] ?? { field: "none", op: "skip", value: "", rawValue: "", appliedAt: turnCount } as AppliedFilter }
         bridgedV2OrchestratorResult = {
           action: bridgedV2Action,
-          reasoning: `negation_deterministic:removed_filter`,
+          reasoning: `negation_deterministic:${filters[filters.length - 1]?.op === "neq" ? "neq_filter" : "removed_filter"}`,
           agentsInvoked: [],
           escalatedToOpus: false,
         }
-        // Skip Single-Call Router — already handled
       }
     }
 

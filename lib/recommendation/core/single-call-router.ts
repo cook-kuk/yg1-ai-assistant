@@ -480,10 +480,53 @@ export async function routeSingleCall(
 
     console.log(`[single-call-router] ${canonicalizedActions.length} actions: ${canonicalizedActions.map(a => `${a.type}(${a.field ?? ""}=${a.value ?? a.to ?? ""})`).join(", ")}`)
 
+    // Fallback: if actions empty but reasoning contains field=value patterns, re-extract
+    if (canonicalizedActions.length === 0 && result.reasoning) {
+      const rescued = rescueActionsFromReasoning(result.reasoning)
+      if (rescued.length > 0) {
+        console.log(`[SCR] Rescued ${rescued.length} actions from reasoning: ${rescued.map(a => `${a.type}(${a.field}=${a.value})`).join(", ")}`)
+        return { actions: rescued, answer: result.answer, reasoning: `${result.reasoning} [rescued]` }
+      }
+    }
+
     return { actions: canonicalizedActions, answer: result.answer, reasoning: result.reasoning }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
     console.error(`[SCR] ERROR: ${errMsg}`)
     return { actions: [], answer: "", reasoning: `llm_error:${errMsg.slice(0, 100)}` }
   }
+}
+
+/**
+ * Rescue actions from SCR reasoning text when actions array is empty.
+ * Dynamically extracts field=value patterns using registered filter fields.
+ */
+function rescueActionsFromReasoning(reasoning: string): SingleCallAction[] {
+  const actions: SingleCallAction[] = []
+  // Match patterns like "fieldName=value" or "fieldName: value" in reasoning
+  const fieldNames = getRegisteredFilterFields()
+  for (const field of fieldNames) {
+    const patterns = [
+      new RegExp(`${field}\\s*[=:]\\s*"?([^",\\s}]+)"?`, "i"),
+      new RegExp(`${field}\\s*[=:]\\s*([0-9]+)`, "i"),
+    ]
+    for (const pattern of patterns) {
+      const match = reasoning.match(pattern)
+      if (match?.[1]) {
+        const rawValue = match[1]
+        const filter = buildAppliedFilterFromValue(field, rawValue)
+        if (filter) {
+          // Avoid duplicates
+          if (!actions.some(a => a.field === filter.field)) {
+            actions.push({
+              type: "apply_filter",
+              field: filter.field,
+              value: filter.rawValue as string | number,
+            })
+          }
+        }
+      }
+    }
+  }
+  return actions
 }
