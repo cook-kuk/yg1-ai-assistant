@@ -313,6 +313,12 @@ User: "고경도강에 추천하는 가공방식은 어떤게 있어?" (question
 User: "국내용 제품으로만 추천해줄래?" (region filter request)
 → {"actions":[{"type":"apply_filter","field":"country","value":"KR","op":"eq"}],"answer":"","reasoning":"user wants Korea-only products"}
 
+User: "파란색 코팅 제품 있어?" (color → coating mapping)
+→ {"actions":[{"type":"apply_filter","field":"coating","value":"Blue-Coating","op":"eq"}],"answer":"","reasoning":"파란색=Blue-Coating (X5070 brand)"}
+
+User: "DLC 빼고 TiAlN으로" (remove + add in one message, when coating=DLC exists)
+→ {"actions":[{"type":"remove_filter","field":"coating"},{"type":"apply_filter","field":"coating","value":"TiAlN","op":"eq"}],"answer":"","reasoning":"remove DLC, add TiAlN"}
+
 ## Response Format (strict JSON only, no markdown, no code blocks)
 {
   "actions": [ { "type": "...", ... } ],
