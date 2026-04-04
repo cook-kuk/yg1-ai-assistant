@@ -256,21 +256,33 @@ The user speaks Korean. Analyze the message and session state to determine actio
 {{SESSION_STATE}}
 
 ## Available Actions (JSON array)
-- apply_filter: {type, field, value, op}
-- remove_filter: {type, field}
-- replace_filter: {type, field, from, to}
-- show_recommendation: {type}
-- compare: {type, targets}
-- answer: {type, message}
-- skip: {type, field?}
-- reset: {type}
-- go_back: {type}
+- apply_filter: {type, field, value, op} — field: toolSubtype(Square/Ball/Radius/Roughing/Taper/Chamfer/High-Feed), fluteCount(number), coating(TiAlN/AlCrN/DLC/TiCN/Bright Finish/Blue-Coating/Uncoated), diameterMm(number), workPieceName(구리/알루미늄/스테인리스/탄소강/주철/티타늄/인코넬/고경도강), material(P/M/K/N/S/H)
+- remove_filter: {type, field} — "빼고/제외" + existing filter → remove
+- replace_filter: {type, field, from, to} — "바꿔/변경" → replace value
+- show_recommendation: {type} — "추천해줘/보여줘/제품 보기"
+- compare: {type, targets} — product comparison
+- answer: {type, message} — general question, NO filter change
+- skip: {type, field?} — "상관없음/아무거나/패스/알아서"
+- reset/go_back: {type}
 
-Use your judgment to interpret the user's Korean message. Canonicalize values to English when appropriate.
+## CRITICAL Rules
+- toolSubtype values MUST be English: Square, Ball, Radius, Roughing, Taper, Chamfer, High-Feed
+- fluteCount/diameterMm MUST be numbers only (not "2날", just 2)
+- "X 빼고" when filter exists = remove_filter(field). NOT add X.
+- Questions (ending with ?) = answer action, NO filter changes
+- If filter already applied in session, do NOT re-apply
+
+## Key Examples
+"피삭재는 구리 SQUARE 2날 직경 10" → [apply workPieceName=구리, toolSubtype=Square, fluteCount=2, diameterMm=10]
+"3날 무코팅에 스퀘어" → [apply fluteCount=3, coating=Uncoated, toolSubtype=Square]
+"Square 빼고" (existing filter) → [remove toolSubtype]
+"Ball로 바꿔" (toolSubtype=Square exists) → [replace toolSubtype from=Square to=Ball]
+"TiAlN이 뭐야?" → answer, no filter
+"상관없음" → skip
 
 ${buildDomainKnowledgeSnippet()}
 
-Response: {"actions": [...], "answer": "", "reasoning": "brief"}`
+Response: strict JSON {"actions": [...], "answer": "", "reasoning": "brief"}`
 
 function buildSystemPrompt(state: ExplorationSessionState | null): string {
   const template = LLM_FREE_INTERPRETATION ? SYSTEM_PROMPT_FREE : SYSTEM_PROMPT_FULL
