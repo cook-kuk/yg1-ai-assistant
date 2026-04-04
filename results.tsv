@@ -12,3 +12,7 @@
 14:59	5978/5978	Round 15: 창의적 시나리오 25개 테스트
 15:01	5978/5978	Round 16: SM45C/SCM440 MATERIAL_KEYWORDS alias
 15:40	5980/5980	Round 20: SCR 필터 확장 (lengthOfCut/overallLength) + E2E 41/43 (95.3%)
+16:09	6009/6009	Round 22-24: 오타alias + Q&A자동기록 + 장기메모리 SCR주입
+16:35	6016/6016	Round 25: 메모리 통합 테스트 7개
+16:37	6016/6016	Round 26-28: 색상코팅 + 제품코드 + 복합사양 few-shot
+16:40	6080/6080	Round 29: SCR few-shot 전수 검증 64개
