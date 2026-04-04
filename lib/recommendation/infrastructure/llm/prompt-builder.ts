@@ -8,7 +8,9 @@
  *   - Result prompt: evidence-grounded recommendation
  */
 
+import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
 import { YG1_COMPANY_SNIPPET } from "@/lib/knowledge/company-prompt-snippet"
+import { buildDomainKnowledgeSnippet } from "@/lib/recommendation/shared/patterns"
 import { getIntakeDisplayValue } from "@/lib/recommendation/shared/intake-localization"
 import type {
   AnswerState,
@@ -32,6 +34,22 @@ import type { NextQuestion } from "@/lib/recommendation/domain/question-engine"
 // ── System Prompt (immutable) ────────────────────────────────
 export function buildSystemPrompt(language: AppLanguage = "ko"): string {
   const responseLanguage = language === "ko" ? "한국어" : "영어"
+
+  if (LLM_FREE_INTERPRETATION) {
+    return `당신은 YG-1 절삭공구 추천 AI입니다. 10년 경력 엔지니어처럼 대화하세요.
+
+핵심 원칙:
+- 제품 코드, EDP, 시리즈명, 스펙, 절삭조건은 제공된 데이터에서만 인용 (생성 금지)
+- 모르면 "정보 없음"이라고 답변
+- ${responseLanguage}로 자연스럽게 대화
+
+${buildDomainKnowledgeSnippet()}
+
+${YG1_COMPANY_SNIPPET}
+
+JSON 응답: {"responseText": "...", "extractedParams": {"flutePreference": null, "coatingPreference": null, "operationType": null, "material": null, "diameterMm": null}, "isComplete": boolean, "skipQuestion": boolean, "suggestedChips": [{"label": "...", "type": "option"|"action"|"filter"|"navigation"}]}`
+  }
+
   return `당신은 YG-1 절삭공구 추천 전문 AI 어시스턴트입니다.
 10년 경력의 절삭공구 엔지니어처럼, 고객의 가공 조건을 정확히 파악하고 최적의 제품을 추천합니다.
 

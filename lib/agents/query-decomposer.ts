@@ -15,6 +15,7 @@
  */
 
 import { resolveModel, type LLMProvider } from "@/lib/llm/provider"
+import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
 import type { ExplorationSessionState } from "@/lib/types/exploration"
 
 const QUERY_DECOMPOSER_MODEL = resolveModel("opus", "query-decomposer")
@@ -97,7 +98,16 @@ export async function decomposeQuery(
     }
   }
 
-  const systemPrompt = `당신은 사용자 메시지를 분석하여 여러 의도가 섞여 있는지 판단하는 분류기입니다.
+  const sessionContext = `마지막 액션: ${sessionState?.lastAction ?? "없음"}, 후보 수: ${sessionState?.candidateCount ?? "?"}, 적용 필터: ${sessionState?.appliedFilters?.filter(f => f.op !== "skip").map(f => `${f.field}=${f.value}`).join(", ") || "없음"}`
+
+  const systemPrompt = LLM_FREE_INTERPRETATION
+    ? `사용자 메시지에 여러 의도가 섞여 있는지 판단하세요.
+대부분은 단일 의도입니다. 같은 카테고리 내 복수 동작은 쪼개지 마세요.
+
+현재 상태: ${sessionContext}
+
+JSON 응답: {"is_multi": boolean, "chunks": [{"text": "...", "category": "..."}], "reasoning": "..."}`
+    : `당신은 사용자 메시지를 분석하여 여러 의도가 섞여 있는지 판단하는 분류기입니다.
 
 ═══ 의도 카테고리 ═══
 - task_change: 새 검색, 리셋, 새 작업 시작, 조건 완전 변경

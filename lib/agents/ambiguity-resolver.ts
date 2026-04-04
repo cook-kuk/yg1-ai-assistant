@@ -11,6 +11,7 @@
  */
 
 import { resolveModel, type LLMProvider } from "@/lib/llm/provider"
+import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
 import type { ExplorationSessionState, CandidateSnapshot } from "@/lib/types/exploration"
 import type { NarrowingIntent, AmbiguityResolution } from "./types"
 
@@ -69,7 +70,19 @@ export async function resolveAmbiguity(
     `  Turn ${i + 1}: Q="${h.question}" → A="${h.answer}" (${h.candidateCountBefore}→${h.candidateCountAfter}개)`
   ).join("\n") || "(없음)"
 
-  const systemPrompt = `You are an ambiguity resolver for a Korean industrial cutting tool recommendation system.
+  const systemPrompt = LLM_FREE_INTERPRETATION
+    ? `You are an ambiguity resolver for a Korean cutting tool recommendation system.
+Analyze the session state and conversation to determine what the user actually means.
+
+RESPOND WITH JSON:
+{
+  "resolvedIntent": "<your best interpretation>",
+  "resolvedValue": "<extracted value or null>",
+  "resolvedTargets": [...] or null,
+  "explanation": "<Korean explanation>",
+  "confidence": 0.0-1.0
+}`
+    : `You are an ambiguity resolver for a Korean industrial cutting tool recommendation system.
 
 The user said something ambiguous during an active recommendation session. Your job is to figure out
 what they actually mean by analyzing the full session state, stage history, displayed products, and

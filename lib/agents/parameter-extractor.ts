@@ -6,6 +6,7 @@
  */
 
 import { resolveModel, type LLMProvider } from "@/lib/llm/provider"
+import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
 import type { ExplorationSessionState } from "@/lib/types/exploration"
 import type { ExtractedParameters } from "./types"
 
@@ -103,7 +104,11 @@ async function extractWithHaiku(
 ): Promise<Partial<ExtractedParameters>> {
   const lastField = sessionState?.lastAskedField ?? "unknown"
 
-  const systemPrompt = `You extract cutting tool parameters from Korean user messages.
+  const systemPrompt = LLM_FREE_INTERPRETATION
+    ? `Extract cutting tool parameters from the Korean user message.
+The system asked about: "${lastField}".
+Respond with JSON: {"fluteCount": null, "coating": null, "toolSubtype": null, "seriesName": null, "diameterMm": null, "material": null, "rawValue": "..."}`
+    : `You extract cutting tool parameters from Korean user messages.
 The system just asked about field: "${lastField}".
 Extract any relevant values. Respond with JSON only.
 {"fluteCount": null, "coating": null, "toolSubtype": null, "seriesName": null, "diameterMm": null, "material": null, "rawValue": "the cleaned value"}`

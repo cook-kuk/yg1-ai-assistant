@@ -45,6 +45,8 @@ import { needsOpusResolution, resolveAmbiguity } from "./ambiguity-resolver"
 import { resolveProductReferences } from "./comparison-agent"
 import { parseAnswerToFilter } from "@/lib/recommendation/domain/question-engine"
 import { ENABLE_OPUS_AMBIGUITY, ENABLE_COMPARISON_AGENT } from "@/lib/recommendation/infrastructure/config/recommendation-agent-flags"
+import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
+import { buildDomainKnowledgeSnippet } from "@/lib/recommendation/shared/patterns"
 import { classifySessionAction, detectFilterIntent } from "@/lib/recommendation/domain/session-action-classifier"
 import { buildAppliedFilterFromValue } from "@/lib/recommendation/shared/filter-field-registry"
 
@@ -623,14 +625,7 @@ function buildToolUseSystemPrompt(ctx: TurnContext): string {
     `#${c.rank} ${c.displayCode} | ${c.seriesName ?? "?"} | φ${c.diameterMm ?? "?"}mm | ${c.fluteCount ?? "?"}F | ${c.coating || "정보없음"} | ${c.matchStatus} ${c.score}점`
   ).join("\n") || "없음"
 
-  return `당신은 YG-1 절삭공구 추천 시스템의 대화 라우터입니다.
-
-═══ 역할 ═══
-사용자 메시지를 분석하여:
-1. 적절한 tool을 호출하여 시스템 액션을 실행하거나
-2. tool 없이 직접 텍스트로 답변 (잡담, 수학, 감정 공감, 메타 질문 등)
-
-═══ 현재 세션 상태 ═══
+  const dynamicSessionState = `═══ 현재 세션 상태 ═══
 - 적용된 필터: [${filterDesc}]
 - 후보 수: ${state?.candidateCount ?? "?"}개
 - 상태: ${state?.resolutionStatus ?? "초기"}
@@ -645,7 +640,30 @@ ${optionsDesc}
 ${chipsDesc}
 
 ═══ 표시된 제품 (상위 5개) ═══
-${candidatesDesc}
+${candidatesDesc}`
+
+  if (LLM_FREE_INTERPRETATION) {
+    return `당신은 YG-1 절삭공구 추천 시스템의 대화 라우터입니다.
+
+사용자 메시지를 분석하여 적절한 tool을 호출하거나 직접 텍스트로 답변하세요.
+
+${dynamicSessionState}
+
+${buildDomainKnowledgeSnippet()}
+
+핵심 원칙:
+- 제품 데이터(코드, 스펙)를 생성하지 마세요
+- 한국어로 답변`
+  }
+
+  return `당신은 YG-1 절삭공구 추천 시스템의 대화 라우터입니다.
+
+═══ 역할 ═══
+사용자 메시지를 분석하여:
+1. 적절한 tool을 호출하여 시스템 액션을 실행하거나
+2. tool 없이 직접 텍스트로 답변 (잡담, 수학, 감정 공감, 메타 질문 등)
+
+${dynamicSessionState}
 
 ═══ 규칙 ═══
 1. 사용자가 칩/옵션을 선택하면 → apply_filter 호출 (field는 lastAskedField 또는 옵션의 field 사용)

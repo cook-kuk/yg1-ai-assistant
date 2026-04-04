@@ -9,6 +9,8 @@
 import type { LLMProvider, LLMTool, LLMToolResult } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import type { ExplorationSessionState } from "@/lib/recommendation/domain/types"
 import { buildAppliedFilterFromValue } from "@/lib/recommendation/shared/filter-field-registry"
+import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
+import { buildDomainKnowledgeSnippet } from "@/lib/recommendation/shared/patterns"
 
 // ── Feature flag ─────────────────────────────────────────────
 
@@ -182,7 +184,7 @@ function buildSessionSummary(state: ExplorationSessionState | null): string {
   return parts.join("\n")
 }
 
-const SYSTEM_PROMPT_TEMPLATE = `You are a routing engine for a cutting tool recommendation chatbot (YG-1).
+const SYSTEM_PROMPT_TEMPLATE_FULL = `You are a routing engine for a cutting tool recommendation chatbot (YG-1).
 The user speaks Korean. Given their message and the current session state, choose the right tool to call.
 
 ## Session State
@@ -201,8 +203,19 @@ The user speaks Korean. Given their message and the current session state, choos
 - "상관없음/아무거나/패스" → skip_field
 - Question ending with ? → answer_question`
 
+const SYSTEM_PROMPT_TEMPLATE_FREE = `You are a routing engine for a cutting tool recommendation chatbot (YG-1).
+The user speaks Korean. Choose the right tool based on their message and session state.
+
+## Session State
+{{SESSION_STATE}}
+
+Use your judgment to interpret the user's intent and canonicalize values appropriately.
+
+${buildDomainKnowledgeSnippet()}`
+
 export function buildSystemPrompt(state: ExplorationSessionState | null): string {
-  return SYSTEM_PROMPT_TEMPLATE.replace("{{SESSION_STATE}}", buildSessionSummary(state))
+  const template = LLM_FREE_INTERPRETATION ? SYSTEM_PROMPT_TEMPLATE_FREE : SYSTEM_PROMPT_TEMPLATE_FULL
+  return template.replace("{{SESSION_STATE}}", buildSessionSummary(state))
 }
 
 // ── Tool-use result mapping ──────────────────────────────────

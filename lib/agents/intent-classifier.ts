@@ -168,7 +168,14 @@ async function classifyWithHaiku(
     ? `현재 세션: 후보 ${sessionState.candidateCount}개, 필터 [${sessionState.appliedFilters.map(f => `${f.field}=${f.value}`).join(", ")}], 상태: ${sessionState.resolutionStatus}`
     : "세션 없음"
 
-  const systemPrompt = `You are an intent classifier for an industrial cutting tool recommendation system.
+  const systemPrompt = LLM_FREE_INTERPRETATION
+    ? `You are an intent classifier for a Korean cutting tool recommendation system.
+Analyze the user's message in context and classify their intent.
+
+Session: ${sessionSummary}
+
+Respond: {"intent": "...", "confidence": 0.0-1.0, "extractedValue": "..." or null}`
+    : `You are an intent classifier for an industrial cutting tool recommendation system.
 Classify the user's message into exactly one intent. Respond with JSON only.
 
 Active session context: ${sessionSummary}

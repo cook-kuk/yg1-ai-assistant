@@ -5,6 +5,7 @@
  * Takes the orchestrator's decision + session context → polished Korean response.
  */
 
+import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
 import { resolveModel, type LLMProvider } from "@/lib/llm/provider"
 import type { ExplorationSessionState } from "@/lib/types/exploration"
 import type { OrchestratorAction, ComposedResponse } from "./types"
@@ -62,7 +63,12 @@ export async function composeNarrowingResponse(
     .map(f => `${f.field}=${f.value}`)
     .join(" → ")
 
-  const systemPrompt = `당신은 YG-1 절삭공구 추천 AI입니다. 간결하게 대화하세요.
+  const systemPrompt = LLM_FREE_INTERPRETATION
+    ? `YG-1 절삭공구 추천 AI. 자연스러운 한국어로 대화.
+현재 축소 경로: ${filterPath || "(초기)"}
+현재 후보: ${sessionState.candidateCount}개
+JSON 응답: {"responseText": "..."}`
+    : `당신은 YG-1 절삭공구 추천 AI입니다. 간결하게 대화하세요.
 현재 축소 경로: ${filterPath || "(초기)"}
 현재 후보: ${sessionState.candidateCount}개
 다음 질문을 자연스러운 한국어 1-2문장으로 다듬어주세요. 불필요한 인사/서론 없이 바로 질문.

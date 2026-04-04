@@ -282,3 +282,22 @@ export function matchOperation(text: string): string | null {
 export function stripKoreanParticles(value: string): string {
   return value.replace(/(?:이요|으로|이랑|에서|한테|부터|까지|로|은|는|이|가|을|를|요)\s*$/u, "")
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Domain knowledge snippet for LLM prompts (data-driven, not rules)
+// ═══════════════════════════════════════════════════════════════
+
+/** Returns a concise domain knowledge block for LLM prompt injection. */
+export function buildDomainKnowledgeSnippet(): string {
+  const subtypes = [...new Set(Object.values(TOOL_SUBTYPE_ALIASES))].sort().join(", ")
+  const coatings = ["TiAlN", "AlCrN", "DLC", "TiN", "TiCN", "Diamond", "Bright Finish", "Blue-Coating", "X-Coating", "Y-Coating", "Uncoated"].join(", ")
+  const materials = Object.keys(MATERIAL_KEYWORDS).join(", ")
+  const operations = Object.keys(OPERATION_KEYWORDS).join(", ")
+
+  return `[참고: DB에 존재하는 값]
+- 공구 형상(toolSubtype): ${subtypes}
+- 코팅(coating): ${coatings}
+- 소재(material): ${materials}
+- 가공 종류: ${operations}
+- 필터 필드: diameterMm, fluteCount, coating, toolSubtype, material, seriesName, workPieceName, lengthOfCutMm, overallLengthMm, shankDiameterMm`
+}

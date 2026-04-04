@@ -1,4 +1,6 @@
 import { resolveModel, type LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
+import { buildDomainKnowledgeSnippet } from "@/lib/recommendation/shared/patterns"
 import type { AppliedFilter } from "@/lib/recommendation/domain/types"
 import { parseAnswerToFilter } from "@/lib/recommendation/domain/question-engine"
 import {
@@ -49,7 +51,17 @@ export async function extractFiltersWithLLM(
 
   const systemPrompt = `절삭공구 추천 챗봇 필터 추출기. JSON만 반환.`
 
-  const userPrompt = `사용자 메시지에서 절삭공구 필터를 추출하라. 여러 개 가능.
+  const userPrompt = LLM_FREE_INTERPRETATION
+    ? `사용자 메시지에서 절삭공구 필터를 추출하세요.
+
+현재 적용된 필터: ${currentFilterSummary}
+현재 대기 질문 필드: ${lastAskedField ?? "없음"}
+사용자 메시지: "${userMessage}"
+
+${buildDomainKnowledgeSnippet()}
+
+JSON만 반환: {"extractedFilters": {}, "skippedFields": [], "skipPendingField": false, "isSideQuestion": false, "confidence": 0.9}`
+    : `사용자 메시지에서 절삭공구 필터를 추출하라. 여러 개 가능.
 
 현재 적용된 필터: ${currentFilterSummary}
 현재 대기 질문 필드: ${lastAskedField ?? "없음"}

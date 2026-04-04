@@ -8,6 +8,8 @@
 import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import type { ExplorationSessionState } from "@/lib/recommendation/domain/types"
 import { buildAppliedFilterFromValue } from "@/lib/recommendation/shared/filter-field-registry"
+import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
+import { buildDomainKnowledgeSnippet } from "@/lib/recommendation/shared/patterns"
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -133,7 +135,7 @@ function buildSessionSummary(state: ExplorationSessionState | null): string {
   return parts.join("\n")
 }
 
-const SYSTEM_PROMPT = `You are a routing engine for a cutting tool recommendation chatbot (YG-1).
+const SYSTEM_PROMPT_FULL = `You are a routing engine for a cutting tool recommendation chatbot (YG-1).
 Given the user's Korean message and the current session state, determine what actions to take.
 
 ## Session State
@@ -206,8 +208,32 @@ User: "TiAlN이 뭐야?"
   "reasoning": "brief explanation"
 }`
 
+const SYSTEM_PROMPT_FREE = `You are a routing engine for a cutting tool recommendation chatbot (YG-1).
+The user speaks Korean. Analyze the message and session state to determine actions.
+
+## Session State
+{{SESSION_STATE}}
+
+## Available Actions (JSON array)
+- apply_filter: {type, field, value, op}
+- remove_filter: {type, field}
+- replace_filter: {type, field, from, to}
+- show_recommendation: {type}
+- compare: {type, targets}
+- answer: {type, message}
+- skip: {type, field?}
+- reset: {type}
+- go_back: {type}
+
+Use your judgment to interpret the user's Korean message. Canonicalize values to English when appropriate.
+
+${buildDomainKnowledgeSnippet()}
+
+Response: {"actions": [...], "answer": "", "reasoning": "brief"}`
+
 function buildSystemPrompt(state: ExplorationSessionState | null): string {
-  return SYSTEM_PROMPT.replace("{{SESSION_STATE}}", buildSessionSummary(state))
+  const template = LLM_FREE_INTERPRETATION ? SYSTEM_PROMPT_FREE : SYSTEM_PROMPT_FULL
+  return template.replace("{{SESSION_STATE}}", buildSessionSummary(state))
 }
 
 // ── Main function ─────────────────────────────────────────────
