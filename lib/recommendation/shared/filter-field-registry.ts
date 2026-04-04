@@ -1116,12 +1116,13 @@ export function buildDbWhereClauseForFilter(
   // skip 필터는 DB 쿼리에서 제외 — "상관없음"으로 WHERE 걸리면 0건
   if (filter.op === "skip") return null
 
-  // NEQ 필터: 기존 DB clause를 NOT으로 감싸기
+  // NEQ 필터: 해당 값을 가진 제품만 제외 (NULL/빈값은 포함)
   if (filter.op === "neq") {
     const definition = getFilterFieldDefinition(filter.field)
     if (!definition?.buildDbClause) return null
     const eqClause = definition.buildDbClause({ ...filter, op: "eq" }, next)
     if (!eqClause) return null
+    // NOT (match) but keep rows where the column is NULL/empty (COALESCE handles this)
     return `NOT (${eqClause})`
   }
 

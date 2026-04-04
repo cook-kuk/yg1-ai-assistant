@@ -1628,9 +1628,9 @@ async function handleServeExplorationInner(
     const msg = lastUserMsg?.text ?? ""
     // ── Deterministic negation handling (빼고/제외/아닌것/만 아니면/없이) ──
     const hasNegationPattern = /빼고|제외|아닌\s*것|없는\s*거|말고\s*다른|만\s*아니면|없이|아닌\s*거/u.test(msg)
+    let negationHandled = false
     if (hasNegationPattern) {
       const msgLower = msg.toLowerCase()
-      let negationHandled = false
 
       // Track 1: Remove existing filter if value matches
       if (filters.length > 0) {
@@ -1685,7 +1685,9 @@ async function handleServeExplorationInner(
     }
 
     // LLM_FREE_INTERPRETATION ON → filterHints 조건 무시, 항상 Sonnet 라우팅
-    const shouldUseSingleCall = (isSingleCallRouterEnabled() || LLM_FREE_INTERPRETATION) && lastUserMsg && messages.length > 0 && !hasNegationPattern && (LLM_FREE_INTERPRETATION || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
+    // negation이 있더라도 SCR은 실행 — "DLC 빼고 TiAlN으로 바꿔" 같은 복합 요청 처리
+    const negationFullyHandled = hasNegationPattern && negationHandled
+    const shouldUseSingleCall = (isSingleCallRouterEnabled() || LLM_FREE_INTERPRETATION) && lastUserMsg && messages.length > 0 && !negationFullyHandled && (LLM_FREE_INTERPRETATION || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
     if (shouldUseSingleCall) {
       // Pass recent conversation history so SCR understands references like "아까 거", "그거로"
       const recentConversation = messages.slice(-6) // last 3 turns (AI+User pairs)
