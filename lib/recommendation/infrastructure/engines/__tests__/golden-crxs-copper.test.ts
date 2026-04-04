@@ -114,7 +114,9 @@ describe("Golden: 구리 SQUARE 2날 직경 10 → CRX-S 추천", () => {
     ["10mm", 10],
     ["10밀리", 10],
     ["파이10", 10],
+    ["10파이", 10],
     ["열미리", 10],
+    ["Φ10", 10],
   ])("diameterMm '%s' → %d", (input, expected) => {
     const f = buildAppliedFilterFromValue("diameterMm", input)
     expect(f?.rawValue).toBe(expected)

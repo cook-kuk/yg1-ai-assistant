@@ -101,7 +101,7 @@ function stripApproximateAffixes(value: string): string {
 function stripKoreanDiameterAliases(value: string): string {
   return value
     .replace(/^(?:파이)\s*/u, "")
-    .replace(/(?:밀리|미리)\s*$/u, "")
+    .replace(/(?:밀리|미리|파이)\s*$/u, "")
 }
 
 /**
