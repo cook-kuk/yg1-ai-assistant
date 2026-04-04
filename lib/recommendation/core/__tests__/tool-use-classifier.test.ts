@@ -138,10 +138,10 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("Last asked field: coating")
   })
 
-  it("includes canonicalization rules", () => {
+  it("includes domain knowledge or canonicalization rules", () => {
     const prompt = buildSystemPrompt(null)
-    expect(prompt).toContain("toolSubtype: always English")
-    expect(prompt).toContain("fluteCount: number only")
+    // In FREE mode: domain knowledge snippet; in full mode: canonicalization rules
+    expect(prompt).toMatch(/toolSubtype|공구 형상/)
   })
 })
 

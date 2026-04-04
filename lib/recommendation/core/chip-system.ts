@@ -296,6 +296,29 @@ export function toChipState(prevState: {
   }
 }
 
+/**
+ * Build ChipState with candidate distribution computed from live candidates.
+ * Connects the chip system to actual candidate data for data-driven chips.
+ */
+export function toChipStateWithCandidates(
+  prevState: Parameters<typeof toChipState>[0],
+  candidates: Array<{ product: Record<string, unknown> }>,
+  extractDistribution: (candidates: Array<{ product: Record<string, unknown> }>, fields: string[]) => Map<string, Map<string, number>>
+): ChipState {
+  const base = toChipState(prevState)
+  if (candidates.length === 0) return base
+
+  const distFields = ["toolSubtype", "coating", "fluteCount", "seriesName"]
+  const distMap = extractDistribution(candidates, distFields)
+  const distribution: Array<{ field: string; value: string; count: number }> = []
+  for (const [field, valueCounts] of distMap) {
+    for (const [value, count] of valueCounts) {
+      distribution.push({ field, value, count })
+    }
+  }
+  return { ...base, candidateDistribution: distribution }
+}
+
 // ── Chip Comparison (shadow mode) ──
 
 export interface ChipComparison {

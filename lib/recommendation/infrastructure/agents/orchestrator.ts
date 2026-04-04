@@ -46,7 +46,8 @@ import { resolveProductReferences } from "./comparison-agent"
 import { parseAnswerToFilter } from "@/lib/recommendation/domain/question-engine"
 import { ENABLE_OPUS_AMBIGUITY, ENABLE_COMPARISON_AGENT } from "@/lib/recommendation/infrastructure/config/recommendation-agent-flags"
 import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
-import { buildDomainKnowledgeSnippet } from "@/lib/recommendation/shared/patterns"
+import { buildDomainKnowledgeSnippet, buildCandidateDistributionSnippet } from "@/lib/recommendation/shared/patterns"
+import { extractFilterFieldValueMap } from "@/lib/recommendation/shared/filter-field-registry"
 import { classifySessionAction, detectFilterIntent } from "@/lib/recommendation/domain/session-action-classifier"
 import { buildAppliedFilterFromValue } from "@/lib/recommendation/shared/filter-field-registry"
 
@@ -643,6 +644,12 @@ ${chipsDesc}
 ${candidatesDesc}`
 
   if (LLM_FREE_INTERPRETATION) {
+    const distFields = ["toolSubtype", "coating", "fluteCount", "seriesName", "diameterMm"]
+    const distributions = ctx.currentCandidates?.length
+      ? extractFilterFieldValueMap(ctx.currentCandidates, distFields)
+      : new Map()
+    const distSnippet = buildCandidateDistributionSnippet(distributions, state?.candidateCount ?? 0)
+
     return `당신은 YG-1 절삭공구 추천 시스템의 대화 라우터입니다.
 
 사용자 메시지를 분석하여 적절한 tool을 호출하거나 직접 텍스트로 답변하세요.
@@ -650,10 +657,12 @@ ${candidatesDesc}`
 ${dynamicSessionState}
 
 ${buildDomainKnowledgeSnippet()}
+${distSnippet}
 
 핵심 원칙:
 - 제품 데이터(코드, 스펙)를 생성하지 마세요
-- 한국어로 답변`
+- 한국어로 답변
+- 칩 제안 시 위 분포 데이터를 기반으로 실제 존재하는 값만 제안`
   }
 
   return `당신은 YG-1 절삭공구 추천 시스템의 대화 라우터입니다.

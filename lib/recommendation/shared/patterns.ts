@@ -287,6 +287,35 @@ export function stripKoreanParticles(value: string): string {
 // Domain knowledge snippet for LLM prompts (data-driven, not rules)
 // ═══════════════════════════════════════════════════════════════
 
+/**
+ * Build candidate distribution snippet from live candidates.
+ * Shows actual value counts per field for LLM context.
+ */
+export function buildCandidateDistributionSnippet(
+  distributions: Map<string, Map<string, number>>,
+  candidateCount: number
+): string {
+  if (distributions.size === 0) return ""
+
+  const FIELD_LABELS: Record<string, string> = {
+    toolSubtype: "형상", coating: "코팅", fluteCount: "날 수",
+    material: "소재", seriesName: "시리즈", diameterMm: "직경(mm)",
+    workPieceName: "피삭재",
+  }
+
+  const lines: string[] = [`[현재 후보 ${candidateCount}개 분포]`]
+  for (const [field, dist] of distributions) {
+    const label = FIELD_LABELS[field] ?? field
+    const top = [...dist.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([v, c]) => `${v}(${c})`)
+      .join(", ")
+    lines.push(`- ${label}: ${top}`)
+  }
+  return lines.join("\n")
+}
+
 /** Returns a concise domain knowledge block for LLM prompt injection. */
 export function buildDomainKnowledgeSnippet(): string {
   const subtypes = [...new Set(Object.values(TOOL_SUBTYPE_ALIASES))].sort().join(", ")

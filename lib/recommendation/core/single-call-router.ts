@@ -173,8 +173,8 @@ Given the user's Korean message and the current session state, determine what ac
 - fluteCount: number of flutes (2, 3, 4, 5, 6)
 - coating: coating type (TiAlN, AlCrN, DLC, TiCN, Bright Finish, Blue-Coating, Uncoated)
 - diameterMm: tool diameter in mm (number)
-- workPieceName: material name (알루미늄, 스테인리스강, 탄소강, 주철, 고경도강)
-- material: material group (P, M, K, N, S, H)
+- workPieceName: specific workpiece material (구리/Copper, 알루미늄/Aluminum, 스테인리스/Stainless, 탄소강/Carbon Steel, 주철/Cast Iron, 티타늄/Titanium, 인코넬/Inconel, 고경도강/Hardened Steel). Use this when user mentions a SPECIFIC material name.
+- material: material group code (P, M, K, N, S, H). Use this when user mentions an ISO code.
 
 ## Examples
 User: "4날 TiAlN Square 추천해줘"
@@ -200,6 +200,15 @@ User: "Ball로 변경해주세요" (when toolSubtype=Square filter exists)
 
 User: "TiAlN이 뭐야?"
 → {"actions":[],"answer":"TiAlN은 내열성 코팅입니다.","reasoning":"question, no filter change"}
+
+User: "피삭재는 구리 SQUARE 2날 직경 10 짜리 추천해줘"
+→ {"actions":[{"type":"apply_filter","field":"workPieceName","value":"구리","op":"eq"},{"type":"apply_filter","field":"toolSubtype","value":"Square","op":"eq"},{"type":"apply_filter","field":"fluteCount","value":2,"op":"eq"},{"type":"apply_filter","field":"diameterMm","value":10,"op":"eq"}],"answer":"","reasoning":"4 filters: copper workpiece, square subtype, 2 flutes, 10mm diameter"}
+
+User: "구리 스퀘어 2날 10mm"
+→ {"actions":[{"type":"apply_filter","field":"workPieceName","value":"구리","op":"eq"},{"type":"apply_filter","field":"toolSubtype","value":"Square","op":"eq"},{"type":"apply_filter","field":"fluteCount","value":2,"op":"eq"},{"type":"apply_filter","field":"diameterMm","value":10,"op":"eq"}],"answer":"","reasoning":"4 filters from natural Korean"}
+
+User: "알루미늄 고속가공용 추천해줘"
+→ {"actions":[{"type":"apply_filter","field":"workPieceName","value":"알루미늄","op":"eq"}],"answer":"","reasoning":"aluminum workpiece, high-speed implies finishing intent"}
 
 ## Response Format (strict JSON only, no markdown, no code blocks)
 {

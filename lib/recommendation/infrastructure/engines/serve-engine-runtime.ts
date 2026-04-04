@@ -38,7 +38,7 @@ import { normalizePlannerResult, validatePlannerResult, buildExecutorSummary } f
 import { dryRunReduce, reduce, compareReducerVsActual, type ReducerAction } from "@/lib/recommendation/core/state-reducer"
 import { USE_STATE_REDUCER, USE_CHIP_SYSTEM, isSingleCallRouterEnabled, LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
 import { routeSingleCall } from "@/lib/recommendation/core/single-call-router"
-import { deriveChips, toChipState, compareChips, safeApplyChips } from "@/lib/recommendation/core/chip-system"
+import { deriveChips, toChipState, toChipStateWithCandidates, compareChips, safeApplyChips } from "@/lib/recommendation/core/chip-system"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
 import { classifyPreSearchRoute } from "@/lib/recommendation/infrastructure/engines/pre-search-route"
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
@@ -2154,6 +2154,18 @@ async function handleServeExplorationInner(
     displayCandidates = []
     displayEvidenceMap = new Map()
     console.log(`[recommend] Retrieval SKIPPED for action: ${earlyAction}`)
+  }
+
+  // Compute candidate distribution for chip system + LLM prompts
+  const candidateDistribution: Array<{ field: string; value: string; count: number }> = []
+  if (candidates.length > 0 && LLM_FREE_INTERPRETATION) {
+    const distFields = ["toolSubtype", "coating", "fluteCount", "seriesName"]
+    const distMap = extractFilterFieldValueMap(candidates, distFields)
+    for (const [field, valueCounts] of distMap) {
+      for (const [value, count] of valueCounts) {
+        candidateDistribution.push({ field, value, count })
+      }
+    }
   }
 
   trace.add("search", "search", {
