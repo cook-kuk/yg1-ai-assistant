@@ -343,6 +343,7 @@ function NarrowingChat({
   capabilities,
   onSend,
   onReset,
+  onShowCandidates,
   onFeedback,
   onChipFeedback,
   onRecommendationFeedback,
@@ -352,6 +353,7 @@ function NarrowingChat({
   capabilities: RecommendationCapabilityDto
   onSend: (text: string) => void
   onReset?: () => void
+  onShowCandidates?: () => void
   onFeedback?: (messageIndex: number, feedback: TurnFeedback) => void
   onChipFeedback?: (messageIndex: number, feedback: TurnFeedback) => void
   onRecommendationFeedback?: (messageIndex: number, feedback: TurnFeedback) => void
@@ -417,12 +419,13 @@ function NarrowingChat({
 
               {message.role === "ai" && message.chips && message.chips.length > 0 && !message.isLoading && (() => {
                 const isLatest = index === messages.length - 1 && !isSending
-                const isHiddenCtaChip = (chip: string) => chip.includes("제품 보기") || chip.includes("AI 상세 분석")
-                const normalChips = message.chips.filter(chip => !isHiddenCtaChip(chip))
+                const isCtaChip = (chip: string) => chip.includes("제품 보기") || chip.includes("AI 상세 분석")
+                const normalChips = message.chips.filter(chip => !isCtaChip(chip))
+                const ctaChips = isLatest ? message.chips.filter(chip => isCtaChip(chip)) : []
                 const chipGroups = (message.chipGroups ?? [])
                   .map(group => ({
                     ...group,
-                    chips: group.chips.filter(chip => !isHiddenCtaChip(chip)),
+                    chips: group.chips.filter(chip => !isCtaChip(chip)),
                   }))
                   .filter(group => group.chips.length > 0)
                 console.log("[chip-groups:client:render]", {
@@ -439,6 +442,14 @@ function NarrowingChat({
                     preview: group.chips.slice(0, 4),
                   })),
                 })
+                const handleCtaClick = (chip: string) => {
+                  if (!isLatest || needsFeedback || isSending) return
+                  if (chip.includes("제품 보기") && onShowCandidates) {
+                    onShowCandidates()
+                  } else if (chip.includes("AI 상세 분석")) {
+                    setInput(""); onSend("AI 상세 분석 해줘")
+                  }
+                }
                 const renderChipButton = (chip: string, chipIndex: number) => {
                   const isResetChip = chip === "처음부터 다시" || chip === "처음부터"
                   const isUndoChip = isUndoChipEnabled(chip, capabilities)
@@ -482,6 +493,26 @@ function NarrowingChat({
                     ) : (
                       <div className="flex flex-wrap gap-1.5 mt-1">
                         {normalChips.map((chip, chipIndex) => renderChipButton(chip, chipIndex))}
+                      </div>
+                    )}
+                    {ctaChips.length > 0 && (
+                      <div className="flex gap-2 mt-2">
+                        {ctaChips.map((chip, i) => (
+                          <button
+                            key={`cta-${i}`}
+                            onClick={() => handleCtaClick(chip)}
+                            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-colors ${
+                              needsFeedback
+                                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                : chip.includes("제품 보기")
+                                  ? "bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
+                                  : "bg-purple-600 text-white hover:bg-purple-700 shadow-sm"
+                            }`}
+                          >
+                            {chip.includes("제품 보기") ? <Package size={13} /> : <Sparkles size={13} />}
+                            {chip}
+                          </button>
+                        ))}
                       </div>
                     )}
                   </>
@@ -956,6 +987,7 @@ export function ExplorationScreen({
             capabilities={capabilities}
             onSend={onSend}
             onReset={onReset}
+            onShowCandidates={() => setShowCandidates(true)}
             onFeedback={onFeedback}
             onChipFeedback={onChipFeedback}
             onRecommendationFeedback={onRecommendationFeedback}

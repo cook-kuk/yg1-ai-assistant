@@ -495,7 +495,7 @@ export async function buildQuestionResponse(
   let displayedOptions = questionFieldResult?.displayedOptions ?? []
 
   // Override chips when caller provides explicit alternatives (e.g. 0-result recovery)
-  if (overrideChips && overrideChips.length > 0) {
+  if (overrideChips && Array.isArray(overrideChips) && overrideChips.length > 0) {
     chips = [...overrideChips]
     displayedOptions = buildDisplayedOptions(chips, question?.field ?? "unknown")
   }
@@ -1061,7 +1061,8 @@ export async function buildRecommendationResponse(
   // post-result 칩에서 narrowing 칩(소재/날수/개수 포함 칩) 제거 + CTA 버튼 추가
   const finalRecChips = [
     ...followUpChips.filter(chip =>
-      !chip.includes("개)") || chip.includes("비교") || chip.includes("보기")
+      typeof chip === "string" && chip.trim().length > 1 &&
+      (!chip.includes("개)") || chip.includes("비교") || chip.includes("보기"))
     ),
     `📋 지금 바로 제품 보기 (${totalCandidateCount}개)`,
     `✨ AI 상세 분석`,

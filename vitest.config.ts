@@ -4,6 +4,8 @@ import path from "path"
 export default defineConfig({
   test: {
     globals: true,
+    include: ["lib/**/*.test.ts"],
+    exclude: ["node_modules", ".next", "e2e"],
     server: {
       deps: {
         inline: ["server-only"],
