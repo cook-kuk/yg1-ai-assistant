@@ -26,15 +26,20 @@ export interface NextQuestion {
   expectedInfoGain: number
 }
 
-const QUESTION_FIELD_PRIORITY: Record<string, number> = {
-  diameterMm: 0,
-  diameterRefine: 1,
-  toolSubtype: 2,
-  fluteCount: 3,
-  workPieceName: 4,
-  coating: 5,
-  seriesName: 6,
-  cuttingType: 7,
+/**
+ * Priority boost weights — higher = more important when entropy is similar.
+ * NOT an absolute ordering. Final score = infoGain + (weight * 0.15)
+ * so a field with low entropy can still be beaten by a high-entropy field.
+ */
+const QUESTION_FIELD_WEIGHT: Record<string, number> = {
+  diameterMm: 1.0,
+  diameterRefine: 0.9,
+  toolSubtype: 0.8,
+  fluteCount: 0.7,
+  workPieceName: 0.5,
+  coating: 0.6,
+  seriesName: 0.3,
+  cuttingType: 0.2,
 }
 
 const QUESTION_FIELD_LABELS: Record<string, string> = {
@@ -88,9 +93,9 @@ export function selectNextQuestion(
 
   const fields = analyzeFields(input, candidates, history)
   fields.sort((a, b) => {
-    const priorityDiff = getQuestionFieldPriority(a.field) - getQuestionFieldPriority(b.field)
-    if (priorityDiff !== 0) return priorityDiff
-    return b.infoGain - a.infoGain
+    const scoreA = a.infoGain + getFieldWeight(a.field) * 0.15
+    const scoreB = b.infoGain + getFieldWeight(b.field) * 0.15
+    return scoreB - scoreA
   })
 
   const best = fields[0]
@@ -107,8 +112,15 @@ export function selectNextQuestion(
   }
 }
 
+/** @deprecated Use getFieldWeight instead — kept for backward compat in external callers */
 export function getQuestionFieldPriority(field: string): number {
-  return QUESTION_FIELD_PRIORITY[field] ?? Number.MAX_SAFE_INTEGER
+  // Convert weight (higher=better) to priority (lower=better) for legacy callers
+  const weight = QUESTION_FIELD_WEIGHT[field] ?? 0
+  return weight > 0 ? Math.round((1 - weight) * 10) : Number.MAX_SAFE_INTEGER
+}
+
+export function getFieldWeight(field: string): number {
+  return QUESTION_FIELD_WEIGHT[field] ?? 0
 }
 
 export function selectQuestionForField(
