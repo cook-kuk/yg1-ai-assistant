@@ -1610,7 +1610,9 @@ async function handleServeExplorationInner(
     // LLM_FREE_INTERPRETATION ON → filterHints 조건 무시, 항상 Sonnet 라우팅
     const shouldUseSingleCall = (isSingleCallRouterEnabled() || LLM_FREE_INTERPRETATION) && lastUserMsg && messages.length > 0 && !hasNegationPattern && (LLM_FREE_INTERPRETATION || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
     if (shouldUseSingleCall) {
-      const singleResult = await routeSingleCall(lastUserMsg.text, prevState, provider)
+      // Pass recent conversation history so SCR understands references like "아까 거", "그거로"
+      const recentConversation = messages.slice(-6) // last 3 turns (AI+User pairs)
+      const singleResult = await routeSingleCall(lastUserMsg.text, prevState, provider, recentConversation)
       // Temporary debug: log SCR result to trace
       trace.add("single-call-router", "router", {
         actionCount: singleResult.actions.length,

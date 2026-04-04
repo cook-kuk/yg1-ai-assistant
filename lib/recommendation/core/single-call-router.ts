@@ -5,8 +5,8 @@
  * Feature-flagged behind USE_SINGLE_CALL_ROUTER.
  */
 
-import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
-import type { ExplorationSessionState } from "@/lib/recommendation/domain/types"
+import type { LLMProvider, LLMMessage } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import type { ExplorationSessionState, ChatMessage } from "@/lib/recommendation/domain/types"
 import { buildAppliedFilterFromValue } from "@/lib/recommendation/shared/filter-field-registry"
 import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
 import { buildDomainKnowledgeSnippet } from "@/lib/recommendation/shared/patterns"
@@ -156,6 +156,13 @@ Given the user's Korean message and the current session state, determine what ac
 If a filter already exists in Applied filters, do NOT re-apply the same value.
 If user restates an already-applied condition, just skip that filter action.
 
+## Conversation Memory
+You receive the recent conversation history. Use it to understand:
+- "아까 그거" / "이전에 말한 거" / "그걸로" → reference to previously mentioned condition or product
+- "다시" / "아까 조건으로" → revert to earlier filter state
+- "그 코팅으로" → the coating mentioned in a previous assistant message
+- Context from assistant's previous explanations or questions
+
 ## Korean Intent Patterns
 - "빼고/제외/아닌것/없는거" → If the field already has a filter, use remove_filter. If no existing filter, use apply_filter with op:"neq"
   CRITICAL: "X 빼고" means REMOVE X, NOT add X. "Square 빼고" = remove Square filter.
@@ -253,6 +260,12 @@ User: "추천 제품 보기" / "지금 바로 제품 보기"
 User: "상관없음" / "아무거나 괜찮아" / "알아서 추천해줘"
 → {"actions":[{"type":"skip"}],"answer":"","reasoning":"user skips current question"}
 
+User: "아까 말한 그 코팅으로 해줘" (conversation history mentions TiAlN)
+→ {"actions":[{"type":"apply_filter","field":"coating","value":"TiAlN","op":"eq"}],"answer":"","reasoning":"references TiAlN from conversation history"}
+
+User: "그거로 해줘" / "네 그걸로" (previous assistant suggested Square)
+→ {"actions":[{"type":"apply_filter","field":"toolSubtype","value":"Square","op":"eq"}],"answer":"","reasoning":"agrees with assistant's previous suggestion"}
+
 ## Response Format (strict JSON only, no markdown, no code blocks)
 {
   "actions": [ { "type": "...", ... } ],
@@ -283,6 +296,9 @@ The user speaks Korean. Analyze the message and session state to determine actio
 - Questions (ending with ?) = answer action, NO filter changes
 - If filter already applied in session, do NOT re-apply
 
+## Conversation Memory
+You receive recent conversation history. Use it for references like "아까 그거", "이전에 말한 조건", "그 코팅으로".
+
 ## Key Examples
 "피삭재는 구리 SQUARE 2날 직경 10" → [apply workPieceName=구리, toolSubtype=Square, fluteCount=2, diameterMm=10]
 "3날 무코팅에 스퀘어" → [apply fluteCount=3, coating=Uncoated, toolSubtype=Square]
@@ -304,19 +320,49 @@ function buildSystemPrompt(state: ExplorationSessionState | null): string {
 
 const SINGLE_CALL_ROUTER_MODEL = "haiku" as const
 
+/**
+ * Build conversation memory for SCR — includes recent turns so the LLM can understand
+ * references like "아까 추천한 거", "이전에 말한 조건", "그거로 해줘"
+ */
+function buildConversationMemory(
+  recentMessages: ChatMessage[],
+  userMessage: string,
+  maxTurns = 3
+): LLMMessage[] {
+  const llmMessages: LLMMessage[] = []
+
+  // Include last N turns of conversation (each turn = AI + User pair)
+  const relevantMessages = recentMessages.slice(-(maxTurns * 2))
+  for (const msg of relevantMessages) {
+    llmMessages.push({
+      role: msg.role === "ai" ? "assistant" : "user",
+      content: msg.text.slice(0, 500), // truncate long messages to save tokens
+    })
+  }
+
+  // Always add the current user message as the last one
+  llmMessages.push({ role: "user", content: userMessage })
+
+  return llmMessages
+}
+
 export async function routeSingleCall(
   userMessage: string,
   sessionState: ExplorationSessionState | null,
-  provider: LLMProvider
+  provider: LLMProvider,
+  recentMessages?: ChatMessage[]
 ): Promise<SingleCallResult> {
   const systemPrompt = buildSystemPrompt(sessionState)
+  const llmMessages = recentMessages && recentMessages.length > 0
+    ? buildConversationMemory(recentMessages, userMessage)
+    : [{ role: "user" as const, content: userMessage }]
 
   try {
-    console.log(`[SCR] calling LLM, msg: "${userMessage}", hasState: ${!!sessionState}, candidateCount: ${sessionState?.candidateCount ?? "null"}`)
+    console.log(`[SCR] calling LLM, msg: "${userMessage}", hasState: ${!!sessionState}, candidateCount: ${sessionState?.candidateCount ?? "null"}, historyTurns: ${llmMessages.length}`)
 
     const raw = await provider.complete(
       systemPrompt,
-      [{ role: "user", content: userMessage }],
+      llmMessages,
       2000,
       SINGLE_CALL_ROUTER_MODEL,
       "single-call-router"
