@@ -359,6 +359,7 @@ The user speaks Korean. Analyze the message and session state to determine actio
 - If filter already applied in session, do NOT re-apply
 - IMPORTANT: Extract ALL filters from the message, even if it doesn't directly answer the pending question. "Square 추천해줘" when asked about flute count → [apply toolSubtype=Square], NOT skip.
 - A message can contain BOTH an answer to the pending question AND additional filters. Extract everything.
+- CRITICAL: If message contains filter values NOT yet in session, you MUST emit apply_filter actions BEFORE show_recommendation. Never skip filter extraction just because user said "추천해줘".
 
 ## Conversation Memory
 You receive recent conversation history. Use it for references like "아까 그거", "이전에 말한 조건", "그 코팅으로".
