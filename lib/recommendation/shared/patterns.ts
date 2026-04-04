@@ -179,22 +179,9 @@ export const RESET_KEYWORDS: string[] = [
   "새로 시작", "초기화", "reset",
 ]
 
-export const COMPARE_PATTERNS: RegExp[] = [
-  /비교/, /차이/, /(\d+)번.*(\d+)번/, /상위.*비교/, /위.*비교/, /이\s*중/,
-  /(\d+)\s*번.*이랑/, /(\d+)~(\d+)\s*번/, /(\d+)\s*번.*하고.*(\d+)\s*번/,
-  /둘.*비교/, /셋.*비교/, /전부.*비교/, /다.*비교/,
-  /(\d+)\s*개.*비교/, /상위\s*(\d+)\s*개/,
-]
-
 export const REPLACE_SIGNAL_PATTERNS: RegExp[] = [
   /바꿔/, /변경/, /대신/, /아니고/, /아니라/, /말고/,
   /ㄴㄴ/, /수정/, /교체/, /다시/, /다른\s*걸로/,
-]
-
-export const RECOMMEND_PATTERNS: string[] = [
-  "추천해주세요", "바로 보여주세요", "결과 보기", "추천 받기",
-  "추가 조건 없음", "그냥 줘", "빨리", "알아서", "그냥",
-  "보여줘", "결과", "추천해줘", "추천 해줘", "결과보기",
 ]
 
 export const NONSENSE_PATTERNS: RegExp[] = [/^[ㅋㅎㅠㅜ]+$/, /^[?!.]+$/, /^\s*$/]

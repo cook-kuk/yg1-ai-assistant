@@ -8,7 +8,7 @@
  * Usage: node scripts/e2e-multiturn-50.js
  */
 
-const API_URL = "https://yg1-ai-assistant.vercel.app/api/recommend"
+const API_URL = process.env.API_URL || "https://yg1-ai-assistant.vercel.app/api/recommend"
 const TIMEOUT = 90_000
 const PARALLEL = 2
 
@@ -20,10 +20,8 @@ async function callRecommend(intakeForm, messages, prevEngineState = null) {
   const body = {
     intakeForm,
     messages,
-    session: {
-      publicState: null,
-      engineState: prevEngineState,
-    },
+    sessionState: prevEngineState,
+    displayedProducts: null,
     language: "ko",
   }
 
@@ -50,10 +48,9 @@ async function callRecommend(intakeForm, messages, prevEngineState = null) {
 }
 
 function parseResponse(response) {
-  const engineState = response.session?.engineState || null
-  const publicState = response.session?.publicState || null
-  const filters = engineState?.appliedFilters || publicState?.appliedFilters || []
-  const candidateCount = engineState?.candidateCount || publicState?.candidateCount || 0
+  const sessionState = response.sessionState || null
+  const filters = sessionState?.appliedFilters || []
+  const candidateCount = sessionState?.candidateCount || 0
   return {
     text: response.text || "",
     purpose: response.purpose || "",
@@ -62,12 +59,11 @@ function parseResponse(response) {
     candidates: response.candidates || [],
     isComplete: response.isComplete || false,
     error: response.error || null,
-    engineState,
-    publicState,
+    engineState: sessionState,
     filters,
     candidateCount,
-    resolutionStatus: publicState?.resolutionStatus || engineState?.resolutionStatus || "none",
-    lastAskedField: publicState?.lastAskedField || engineState?.lastAskedField || null,
+    resolutionStatus: sessionState?.resolutionStatus || "none",
+    lastAskedField: sessionState?.lastAskedField || null,
   }
 }
 

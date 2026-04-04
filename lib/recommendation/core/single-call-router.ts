@@ -1,5 +1,5 @@
 /**
- * Single-Call Router — routes user intent via ONE Sonnet call
+ * Single-Call Router — routes user intent via ONE Haiku call
  * instead of multiple parallel Haiku calls.
  *
  * Feature-flagged behind USE_SINGLE_CALL_ROUTER.
@@ -29,6 +29,8 @@ export interface SingleCallAction {
   op?: "eq" | "neq" | "in" | "range"
   targets?: string[]
   message?: string
+  /** Set when canonicalization failed — runtime should fall back to legacy */
+  _canonFailed?: boolean
 }
 
 export interface SingleCallResult {
@@ -252,14 +254,16 @@ export async function routeSingleCall(
         if (filter) {
           canonicalizedActions.push({ ...action, field: filter.field, value: filter.rawValue as string | number })
         } else {
-          console.warn(`[single-call-router] canonicalize failed: field=${action.field} value=${action.value}`)
+          console.warn(`[single-call-router] canonicalize failed: field=${action.field} value=${action.value}, passing through with _canonFailed`)
+          canonicalizedActions.push({ ...action, _canonFailed: true })
         }
       } else if (action.type === "replace_filter" && action.field && action.to != null) {
         const filter = buildAppliedFilterFromValue(action.field, action.to)
         if (filter) {
           canonicalizedActions.push({ ...action, field: filter.field, to: String(filter.rawValue) })
         } else {
-          console.warn(`[single-call-router] canonicalize replace failed: field=${action.field} to=${action.to}`)
+          console.warn(`[single-call-router] canonicalize replace failed: field=${action.field} to=${action.to}, passing through with _canonFailed`)
+          canonicalizedActions.push({ ...action, _canonFailed: true })
         }
       } else {
         // skip, reset, go_back, compare, answer, remove_filter, show_recommendation — pass through

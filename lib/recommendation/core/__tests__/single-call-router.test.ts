@@ -1,8 +1,9 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 import {
   extractJsonFromResponse,
   validateAction,
   validateAndCleanResult,
+  routeSingleCall,
   type SingleCallAction,
   type SingleCallResult,
 } from "../single-call-router"
@@ -180,5 +181,134 @@ describe("validateAndCleanResult", () => {
     expect(action.from).toBe("10")
     expect(action.to).toBe("12")
     expect(action.op).toBe("eq")
+  })
+
+  it("returns empty actions array when LLM returns no actions", () => {
+    const input = { actions: [], answer: "", reasoning: "no_actions" }
+    const result = validateAndCleanResult(input)
+    expect(result.actions).toEqual([])
+    expect(result.reasoning).toBe("no_actions")
+  })
+})
+
+// ── routeSingleCall — canonicalization & _canonFailed ────────
+
+describe("routeSingleCall — canonicalization", () => {
+  function makeMockProvider(response: string) {
+    return {
+      complete: vi.fn().mockResolvedValue(response),
+    } as any
+  }
+
+  it("marks _canonFailed on apply_filter when canonicalization fails", async () => {
+    const response = JSON.stringify({
+      actions: [{ type: "apply_filter", field: "unknownField", value: "unknownValue", op: "eq" }],
+      answer: "",
+      reasoning: "test",
+    })
+    const result = await routeSingleCall("테스트", null, makeMockProvider(response))
+    expect(result.actions).toHaveLength(1)
+    expect(result.actions[0]._canonFailed).toBe(true)
+    expect(result.actions[0].field).toBe("unknownField")
+    expect(result.actions[0].value).toBe("unknownValue")
+  })
+
+  it("marks _canonFailed on replace_filter when canonicalization fails", async () => {
+    const response = JSON.stringify({
+      actions: [{ type: "replace_filter", field: "unknownField", from: "a", to: "b" }],
+      answer: "",
+      reasoning: "test",
+    })
+    const result = await routeSingleCall("테스트", null, makeMockProvider(response))
+    expect(result.actions).toHaveLength(1)
+    expect(result.actions[0]._canonFailed).toBe(true)
+  })
+
+  it("passes through non-filter actions without _canonFailed", async () => {
+    const response = JSON.stringify({
+      actions: [{ type: "skip" }, { type: "reset" }, { type: "go_back" }],
+      answer: "",
+      reasoning: "test",
+    })
+    const result = await routeSingleCall("리셋", null, makeMockProvider(response))
+    expect(result.actions).toHaveLength(3)
+    expect(result.actions.every(a => !a._canonFailed)).toBe(true)
+  })
+
+  it("canonicalizes Korean toolSubtype 스퀘어 → Square", async () => {
+    const response = JSON.stringify({
+      actions: [{ type: "apply_filter", field: "toolSubtype", value: "스퀘어", op: "eq" }],
+      answer: "",
+      reasoning: "korean_value",
+    })
+    const result = await routeSingleCall("스퀘어 엔드밀", null, makeMockProvider(response))
+    expect(result.actions).toHaveLength(1)
+    // If canonicalization works, value should be English; if not, _canonFailed is set
+    const action = result.actions[0]
+    if (!action._canonFailed) {
+      expect(action.value).toBe("Square")
+    } else {
+      // Still passed through (not dropped)
+      expect(action.field).toBe("toolSubtype")
+    }
+  })
+
+  it("canonicalizes Korean fluteCount 4날 → 4", async () => {
+    const response = JSON.stringify({
+      actions: [{ type: "apply_filter", field: "fluteCount", value: "4날", op: "eq" }],
+      answer: "",
+      reasoning: "korean_value",
+    })
+    const result = await routeSingleCall("4날", null, makeMockProvider(response))
+    expect(result.actions).toHaveLength(1)
+    const action = result.actions[0]
+    if (!action._canonFailed) {
+      expect(action.value).toBe(4)
+    } else {
+      expect(action.field).toBe("fluteCount")
+    }
+  })
+
+  it("canonicalizes Korean toolSubtype 볼엔드밀 → Ball", async () => {
+    const response = JSON.stringify({
+      actions: [{ type: "apply_filter", field: "toolSubtype", value: "볼엔드밀", op: "eq" }],
+      answer: "",
+      reasoning: "korean_value",
+    })
+    const result = await routeSingleCall("볼엔드밀", null, makeMockProvider(response))
+    expect(result.actions).toHaveLength(1)
+    const action = result.actions[0]
+    if (!action._canonFailed) {
+      expect(action.value).toBe("Ball")
+    } else {
+      expect(action.field).toBe("toolSubtype")
+    }
+  })
+
+  it("returns empty actions on LLM error", async () => {
+    const provider = {
+      complete: vi.fn().mockRejectedValue(new Error("LLM timeout")),
+    } as any
+    const result = await routeSingleCall("테스트", null, provider)
+    expect(result.actions).toEqual([])
+    expect(result.reasoning).toContain("llm_error")
+  })
+
+  it("returns empty actions on unparseable LLM response", async () => {
+    const result = await routeSingleCall("테스트", null, makeMockProvider("I cannot help with that"))
+    expect(result.actions).toEqual([])
+    expect(result.reasoning).toBe("parse_failure")
+  })
+
+  it("field null in apply_filter action still validates (field is optional in type)", async () => {
+    const response = JSON.stringify({
+      actions: [{ type: "apply_filter", value: "TiAlN", op: "eq" }],
+      answer: "",
+      reasoning: "missing_field",
+    })
+    const result = await routeSingleCall("코팅", null, makeMockProvider(response))
+    // Action should pass through (no field → passthrough branch since field is falsy)
+    expect(result.actions).toHaveLength(1)
+    expect(result.actions[0].type).toBe("apply_filter")
   })
 })

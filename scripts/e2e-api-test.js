@@ -16,7 +16,7 @@ const TIMEOUT = 60000
 // ═══════════════════════════════════════════════════════════════
 
 async function callRecommend(form, messages, prevSession = null) {
-  const body = { intakeForm: form, messages, session: prevSession }
+  const body = { intakeForm: form, messages, sessionState: prevSession, displayedProducts: null, language: "ko" }
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT)
 
@@ -259,10 +259,7 @@ async function runScenario(scenario) {
       const elapsed = Date.now() - startTime
 
       // Update state for next turn
-      const nextSession = (response.session?.publicState || response.session?.engineState)
-        ? response.session
-        : prevState
-      prevState = nextSession
+      prevState = response.sessionState || prevState
       if (response.text) {
         messages = addMessage(messages, "ai", response.text)
       }

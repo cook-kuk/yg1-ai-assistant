@@ -1572,14 +1572,7 @@ async function handleServeExplorationInner(
     // Use Single-Call when: multi-condition message detected (2+ filter hints)
     // Skip when: simple chip click, side question, or pending selection early
     const pendingAlreadyResolved = pendingQuestionReply.kind === "resolved" || pendingQuestionReply.kind === "side_question"
-    // Detect 2+ filter hints — LLM_FREE_INTERPRETATION ON이면 스킵 (Sonnet이 전부 처리)
     const msg = lastUserMsg?.text ?? ""
-    const hasMultipleConditions = !LLM_FREE_INTERPRETATION && [
-      /\d+날|\d+flute|\d+플루트/i.test(msg),
-      /TiAlN|AlCrN|DLC|TiCN|Bright|Blue|코팅|무코팅|블루코팅/i.test(msg),
-      /Square|Ball|Radius|Roughing|Taper|Chamfer|스퀘어|볼|라디우스|황삭|코너/i.test(msg),
-      /\d+mm|\d+밀리|직경/i.test(msg),
-    ].filter(Boolean).length >= 2
     // ── Deterministic negation handling (빼고/제외/아닌것) ──
     // Detect "X 빼고", "X 제외", "X 아닌 것" and remove matching filter WITHOUT LLM
     const hasNegationPattern = /빼고|제외|아닌\s*것|없는\s*거|말고\s*다른/u.test(msg)
@@ -1615,7 +1608,7 @@ async function handleServeExplorationInner(
     }
 
     // LLM_FREE_INTERPRETATION ON → filterHints 조건 무시, 항상 Sonnet 라우팅
-    const shouldUseSingleCall = (isSingleCallRouterEnabled() || LLM_FREE_INTERPRETATION) && lastUserMsg && messages.length > 0 && !hasNegationPattern && (LLM_FREE_INTERPRETATION || hasMultipleConditions || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
+    const shouldUseSingleCall = (isSingleCallRouterEnabled() || LLM_FREE_INTERPRETATION) && lastUserMsg && messages.length > 0 && !hasNegationPattern && (LLM_FREE_INTERPRETATION || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
     if (shouldUseSingleCall) {
       const singleResult = await routeSingleCall(lastUserMsg.text, prevState, provider)
       // Temporary debug: log SCR result to trace
@@ -1626,11 +1619,25 @@ async function handleServeExplorationInner(
         answer: singleResult.answer?.slice(0, 100),
       })
 
-      if (singleResult.actions.length > 0) {
-        for (const action of singleResult.actions) {
+      // Filter out _canonFailed actions — let legacy handle them
+      const hasCanonFailed = singleResult.actions.some(a => a._canonFailed)
+      const executableActions = singleResult.actions.filter(a => !a._canonFailed)
+      if (hasCanonFailed) {
+        console.warn(`[SCR] ${singleResult.actions.length - executableActions.length} action(s) had _canonFailed, will fallthrough to legacy for those`)
+        trace.add("single-call-router-canon-failed", "router", {
+          failedActions: singleResult.actions.filter(a => a._canonFailed).map(a => ({ type: a.type, field: a.field, value: a.value })),
+        })
+      }
+
+      if (executableActions.length > 0) {
+        for (const action of executableActions) {
           switch (action.type) {
             case "apply_filter": {
-              const filter = buildAppliedFilterFromValue(action.field!, action.value!, turnCount)
+              if (!action.field || action.value == null) {
+                console.warn(`[SCR] apply_filter skipped — missing field or value`)
+                break
+              }
+              const filter = buildAppliedFilterFromValue(action.field, action.value, turnCount)
               if (filter) {
                 // Remove existing skip filter for same field before applying
                 const skipIdx = filters.findIndex(f => f.field === filter.field && f.op === "skip")
@@ -1642,13 +1649,21 @@ async function handleServeExplorationInner(
               break
             }
             case "remove_filter": {
+              if (!action.field) {
+                console.warn(`[SCR] remove_filter skipped — missing field`)
+                break
+              }
               const idx = filters.findIndex(f => f.field === action.field)
               if (idx >= 0) filters.splice(idx, 1)
               currentInput = rebuildResolvedInputFromFilters(form, filters, deps)
               break
             }
             case "replace_filter": {
-              const newFilter = buildAppliedFilterFromValue(action.field!, action.to!, turnCount)
+              if (!action.field || action.to == null) {
+                console.warn(`[SCR] replace_filter skipped — missing field or to`)
+                break
+              }
+              const newFilter = buildAppliedFilterFromValue(action.field, action.to, turnCount)
               if (newFilter) {
                 const result = replaceFieldFilter(baseInput, filters, newFilter, deps.applyFilterToInput)
                 filters.splice(0, filters.length, ...result.nextFilters)
@@ -1701,7 +1716,7 @@ async function handleServeExplorationInner(
         }
 
         // If filters changed, set up continue_narrowing action and clear pending
-        if (singleResult.actions.some(a => ["apply_filter", "remove_filter", "replace_filter"].includes(a.type))) {
+        if (executableActions.some(a => ["apply_filter", "remove_filter", "replace_filter"].includes(a.type))) {
           // Override pending selection — Single-Call Router handled it
           pendingSelectionAction = null
           pendingSelectionOrchestratorResult = null
@@ -1715,7 +1730,14 @@ async function handleServeExplorationInner(
           singleCallHandled = true
         }
       }
-      // Empty actions = fallthrough to legacy routing below
+      // Empty actions (or all _canonFailed) = fallthrough to legacy routing below
+      if (executableActions.length === 0 && singleResult.actions.length === 0) {
+        console.log(`[SCR] 0 actions returned — falling through to legacy routing`)
+        trace.add("single-call-router-empty", "router", {
+          reasoning: singleResult.reasoning,
+          answer: singleResult.answer?.slice(0, 100),
+        })
+      }
     }
 
     if (!shouldResolvePendingSelectionEarly && !singleCallHandled) {
@@ -3229,8 +3251,6 @@ async function handleServeExplorationInner(
         )
       }
 
-      const replayPendingField = prevState?.lastAskedField ?? undefined
-      const shouldReplayPendingField = replayPendingField && replayPendingField !== action.targetField
       const revisionResponsePrefix = `알겠습니다. ${action.previousValue} 대신 ${filter.value}로 변경했습니다.`
 
       return deps.buildQuestionResponse(
@@ -3251,8 +3271,7 @@ async function handleServeExplorationInner(
         undefined,
         updatedStages,
         undefined,
-        shouldReplayPendingField ? replayPendingField : undefined,
-        revisionResponsePrefix
+        revisionResponsePrefix,
       )
     }
 
