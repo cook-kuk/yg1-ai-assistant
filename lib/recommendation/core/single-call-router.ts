@@ -325,6 +325,9 @@ User: "SEM81010035이 알루미늄 가공에 적합할까?" (product code + ques
 User: "GMG55100과 GMG40100 비교해줘" (product comparison)
 → {"actions":[{"type":"compare","targets":["GMG55100","GMG40100"]}],"answer":"","reasoning":"compare two specific products"}
 
+User: "코너레디우스 0.5 날장 20이상" (multiple spec requirements)
+→ {"actions":[{"type":"apply_filter","field":"toolSubtype","value":"Radius","op":"eq"},{"type":"apply_filter","field":"lengthOfCutMm","value":20,"op":"range"}],"answer":"","reasoning":"코너레디우스=Radius, 날장=lengthOfCut≥20"}
+
 ## Response Format (strict JSON only, no markdown, no code blocks)
 {
   "actions": [ { "type": "...", ... } ],
