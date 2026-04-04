@@ -53,6 +53,7 @@ import {
   parseExplicitRevisionText,
 } from "@/lib/recommendation/shared/constraint-text-parser"
 
+import { buildMemoryFromSession, recordHighlight, recordQA, recordSkip, recordRevision, recordConfusion } from "@/lib/recommendation/domain/memory/conversation-memory"
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { RecommendationDisplayedProductRequestDto, RecommendationPaginationDto } from "@/lib/contracts/recommendation"
 import type { TurnResult } from "@/lib/recommendation/core/types"
@@ -1552,6 +1553,15 @@ async function handleServeExplorationInner(
     pendingSelectionOrchestratorResult = buildPendingSelectionOrchestratorResult(pendingSelectionFilter)
   }
 
+  // ── Build & Persist Conversation Memory (long-term, across turns) ──
+  if (prevState && !prevState.conversationMemory) {
+    prevState.conversationMemory = buildMemoryFromSession(
+      form as Parameters<typeof buildMemoryFromSession>[0],
+      prevState,
+      turnCount
+    )
+  }
+
   let singleCallHandled = false
   if (messages.length > 0 && lastUserMsg) {
     if (prevState?.pendingAction) {
@@ -1670,6 +1680,8 @@ async function handleServeExplorationInner(
                 const result = replaceFieldFilter(baseInput, filters, newFilter, deps.applyFilterToInput)
                 filters.splice(0, filters.length, ...result.nextFilters)
                 currentInput = result.nextInput
+                // Record revision in long-term memory
+                if (prevState?.conversationMemory) recordRevision(prevState.conversationMemory, action.field)
               }
               break
             }
@@ -1687,6 +1699,8 @@ async function handleServeExplorationInner(
                 appliedAt: turnCount,
               }
               filters.push(skipFilter)
+              // Record skip in long-term memory
+              if (prevState?.conversationMemory) recordSkip(prevState.conversationMemory, skipField)
               break
             }
             case "compare": {

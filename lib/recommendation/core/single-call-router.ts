@@ -132,6 +132,40 @@ function buildSessionSummary(state: ExplorationSessionState | null): string {
   if (state.displayedChips?.length) parts.push(`Displayed chips: ${state.displayedChips.join(", ")}`)
   if (state.resolutionStatus) parts.push(`Resolution: ${state.resolutionStatus}`)
 
+  // ── Long-term Memory (accumulated across turns) ──
+  const mem = state.conversationMemory
+  if (mem) {
+    // User behavioral signals
+    const signals: string[] = []
+    if (mem.userSignals.skippedFields.length > 0) signals.push(`Skipped: ${mem.userSignals.skippedFields.join(", ")}`)
+    if (mem.userSignals.revisedFields.length > 0) signals.push(`Revised: ${mem.userSignals.revisedFields.join(", ")}`)
+    if (mem.userSignals.prefersDelegate) signals.push("Prefers delegation")
+    if (mem.userSignals.prefersExplanation) signals.push("Asks for explanations")
+    if (signals.length > 0) parts.push(`User behavior: ${signals.join("; ")}`)
+
+    // Soft preferences
+    if (mem.softPreferences.length > 0) {
+      parts.push(`Preferences: ${mem.softPreferences.map(p => p.description).join("; ")}`)
+    }
+
+    // Recent Q&A for context continuity
+    if (mem.recentQA.length > 0) {
+      const recent = mem.recentQA.slice(-3)
+      parts.push(`Recent Q&A: ${recent.map(qa => `Q:${qa.question.slice(0, 40)} A:${qa.answer.slice(0, 40)}`).join(" | ")}`)
+    }
+
+    // Recommendation context
+    if (mem.recommendationContext.primaryProductCode) {
+      parts.push(`Last recommended: ${mem.recommendationContext.primarySeriesName ?? ""} ${mem.recommendationContext.primaryProductCode}`)
+    }
+
+    // Conversation highlights (notable moments)
+    if (mem.highlights.length > 0) {
+      const recentHighlights = mem.highlights.slice(-3)
+      parts.push(`Highlights: ${recentHighlights.map(h => `[${h.type}] ${h.summary}`).join("; ")}`)
+    }
+  }
+
   return parts.join("\n")
 }
 
