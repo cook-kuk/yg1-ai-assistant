@@ -357,6 +357,8 @@ The user speaks Korean. Analyze the message and session state to determine actio
 - "X 빼고" when filter exists = remove_filter(field). NOT add X.
 - Questions (ending with ?) = answer action, NO filter changes
 - If filter already applied in session, do NOT re-apply
+- IMPORTANT: Extract ALL filters from the message, even if it doesn't directly answer the pending question. "Square 추천해줘" when asked about flute count → [apply toolSubtype=Square], NOT skip.
+- A message can contain BOTH an answer to the pending question AND additional filters. Extract everything.
 
 ## Conversation Memory
 You receive recent conversation history. Use it for references like "아까 그거", "이전에 말한 조건", "그 코팅으로".
@@ -371,6 +373,9 @@ You receive recent conversation history. Use it for references like "아까 그�
 "탄소강 10mm 4날 Square TiAlN으로 추천해줘" → [apply workPieceName=탄소강, diameterMm=10, fluteCount=4, toolSubtype=Square, coating=TiAlN]
 "스퀘어를 쓰고싶고 구리를 가공하고 싶어" → [apply toolSubtype=Square, workPieceName=구리]
 "copper square 2flute 10mm endmill 추천해줘" → [apply workPieceName=구리, toolSubtype=Square, fluteCount=2, diameterMm=10]
+(pending: fluteCount) "Square 4날 추천해줘" → [apply fluteCount=4, toolSubtype=Square] — answer pending + extract additional
+(pending: coating) "그거로 코팅해줘" (prev turn mentioned TiAlN) → [apply coating=TiAlN] — resolve reference from conversation
+(pending: toolSubtype) "DLC 빼고 TiAlN으로 바꿔" → [replace coating from=DLC to=TiAlN] — negation + replacement
 
 ${buildDomainKnowledgeSnippet()}
 
