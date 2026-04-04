@@ -242,6 +242,15 @@ User: "알루파워라는 브랜드는 왜 추천해주지 않나요?" (question
 User: "T-Coating 설명해줘"
 → {"actions":[],"answer":"","reasoning":"question about coating type, no filter change"}
 
+User: "SUS304 가공인데" (specific steel grade = workPieceName)
+→ {"actions":[{"type":"apply_filter","field":"workPieceName","value":"SUS304","op":"eq"}],"answer":"","reasoning":"SUS304=stainless steel, set as workPieceName"}
+
+User: "추천 제품 보기" / "지금 바로 제품 보기"
+→ {"actions":[{"type":"show_recommendation"}],"answer":"","reasoning":"user wants to see results"}
+
+User: "상관없음" / "아무거나 괜찮아" / "알아서 추천해줘"
+→ {"actions":[{"type":"skip"}],"answer":"","reasoning":"user skips current question"}
+
 ## Response Format (strict JSON only, no markdown, no code blocks)
 {
   "actions": [ { "type": "...", ... } ],
