@@ -56,7 +56,7 @@ export const USE_SINGLE_CALL_ROUTER = false
  * 개떡같이 말해도 찰떡같이 알아먹게.
  * Set LLM_FREE_INTERPRETATION=true to enable.
  */
-export const LLM_FREE_INTERPRETATION = envFlag("LLM_FREE_INTERPRETATION", false)
+export const LLM_FREE_INTERPRETATION = envFlag("LLM_FREE_INTERPRETATION", true)
 
 /** Use V2 turn orchestrator (new recommendation pipeline). Defaults to true — V2 is the primary pipeline. Set USE_NEW_ORCHESTRATOR=false to revert to legacy. */
 export const USE_NEW_ORCHESTRATOR = process.env.USE_NEW_ORCHESTRATOR !== "false"
