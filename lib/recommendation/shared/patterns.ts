@@ -14,7 +14,7 @@ export const MATERIAL_KEYWORDS: Record<string, string[]> = {
   "알루미늄": ["알루미늄", "알루", "aluminum", "aluminium", "AL", "alu"],
   "스테인리스": ["스테인리스", "스테인레스", "스텐", "STS", "sus", "stainless"],
   "주철": ["주철", "cast iron", "GC", "FC"],
-  "탄소강": ["탄소강", "일반강", "합금강", "구조강", "프리하든", "carbon", "carbon steel", "S45C", "scm", "sncm"],
+  "탄소강": ["탄소강", "일반강", "합금강", "구조강", "프리하든", "carbon", "carbon steel", "S45C", "SM45C", "SCM440", "scm", "sncm"],
   "티타늄": ["티타늄", "티타", "titanium", "Ti"],
   "인코넬": ["인코넬", "inconel", "내열합금"],
   "고경도강": ["고경도", "경화강", "hardened", "HRC", "담금질", "die steel", "skd", "공구강"],
