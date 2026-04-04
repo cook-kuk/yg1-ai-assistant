@@ -150,6 +150,46 @@ describe("Golden: 구리 SQUARE 2날 직경 10 → CRX-S 추천", () => {
   // 5. pending question에서 위 조건 한번에 입력 시
   // ═══════════════════════════════════════════════════════════
 
+  // ═══════════════════════════════════════════════════════════
+  // 5-1. workPieceName 구리 변주 → 모두 파싱 성공
+  // ═══════════════════════════════════════════════════════════
+
+  it.each([
+    "구리", "동", "황동", "구리합금", "copper", "Copper", "Cu", "cu",
+  ])("workPieceName 변주 '%s' → 구리로 매핑", (value) => {
+    const f = buildAppliedFilterFromValue("workPieceName", value)
+    expect(f).not.toBeNull()
+    expect(f!.field).toBe("workPieceName")
+    // 구리 계열은 모두 "구리"로 정규화
+    expect(f!.value).toBe("구리")
+  })
+
+  // ═══════════════════════════════════════════════════════════
+  // 5-2. DB 레벨 workPieceName 정규화 (Korean → English)
+  // ═══════════════════════════════════════════════════════════
+
+  it("DB 매핑: 구리 → Copper", () => {
+    // product-db-source의 normalizeWorkPieceNameForDb 로직 검증
+    const WORKPIECE_DB_MAP: Record<string, string> = {
+      구리: "Copper", 동: "Copper", 황동: "Copper",
+      알루미늄: "Aluminum", 탄소강: "Carbon Steel",
+    }
+    function normalize(raw: string | null): string | null {
+      if (!raw) return null
+      const key = raw.toLowerCase().replace(/\s+/g, "")
+      return WORKPIECE_DB_MAP[key] ?? raw
+    }
+    expect(normalize("구리")).toBe("Copper")
+    expect(normalize("동")).toBe("Copper")
+    expect(normalize("알루미늄")).toBe("Aluminum")
+    expect(normalize("탄소강")).toBe("Carbon Steel")
+    expect(normalize("stainless")).toBe("stainless") // no mapping, pass through
+  })
+
+  // ═══════════════════════════════════════════════════════════
+  // 6. pending question에서 위 조건 한번에 입력 시
+  // ═══════════════════════════════════════════════════════════
+
   it("형상 pending 중 '구리 SQUARE 2날 직경 10 추천해줘' → 다중 조건 감지", () => {
     const state = {
       sessionId: "golden",

@@ -540,9 +540,9 @@ describe("workPieceName — full pipeline (15)", () => {
     expect(input.workPieceName).toBe("인코넬")
   })
 
-  it("11: 'aluminum' → workPieceName='aluminum'", () => {
+  it("11: 'aluminum' → workPieceName='알루미늄' (canonicalized)", () => {
     const { input } = runPipeline("workPieceName", "aluminum")
-    expect(input.workPieceName!.toLowerCase()).toContain("aluminum")
+    expect(input.workPieceName).toBe("알루미늄")
   })
 
   it("12: 'carbon steel' → workPieceName='carbon steel'", () => {
@@ -555,9 +555,9 @@ describe("workPieceName — full pipeline (15)", () => {
     expect(input.workPieceName).toBe("구리")
   })
 
-  it("14: '황동' → workPieceName='황동'", () => {
+  it("14: '황동' → workPieceName='구리' (canonicalized to copper group)", () => {
     const { input } = runPipeline("workPieceName", "황동")
-    expect(input.workPieceName).toBe("황동")
+    expect(input.workPieceName).toBe("구리")
   })
 
   it("15: '스테인리스' → workPieceName contains stainless", () => {

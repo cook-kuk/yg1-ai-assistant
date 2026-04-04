@@ -456,6 +456,15 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
         스텐: "stainless",
         스테인리스: "stainless",
         스테인레스: "stainless",
+        copper: "구리",
+        cu: "구리",
+        redcopper: "구리",
+        동: "구리",
+        황동: "구리",
+        구리합금: "구리",
+        aluminum: "알루미늄",
+        alu: "알루미늄",
+        알루: "알루미늄",
       }
       // Strip Korean particles first: "알루미늄으로" → "알루미늄"
       const stripped = stripKoreanParticles(String(rawValue).trim())

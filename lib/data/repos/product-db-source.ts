@@ -15,6 +15,34 @@ import { getOperationShapeSearchTexts } from "@/lib/domain/operation-resolver"
 import { resolveRequestedToolFamily as resolveRequestedToolFamilyInput } from "@/lib/data/repos/product-query-filters"
 import { buildDbWhereClauseForFilter } from "@/lib/recommendation/shared/filter-field-registry"
 
+/**
+ * Map Korean workpiece names to English for DB series_profile_mv.normalized_work_piece_name matching.
+ * Display-level stays Korean; this is only for SQL comparison.
+ */
+const WORKPIECE_DB_MAP: Record<string, string> = {
+  구리: "Copper",
+  동: "Copper",
+  황동: "Copper",
+  구리합금: "Copper",
+  알루미늄: "Aluminum",
+  알루: "Aluminum",
+  스테인리스: "Stainless",
+  스텐: "Stainless",
+  탄소강: "Carbon Steel",
+  일반강: "Carbon Steel",
+  연강: "Carbon Steel",
+  주철: "Cast Iron",
+  티타늄: "Titanium",
+  인코넬: "Inconel",
+  고경도강: "Hardened Steel",
+}
+
+function normalizeWorkPieceNameForDb(raw: string | null): string | null {
+  if (!raw) return null
+  const key = raw.toLowerCase().replace(/\s+/g, "")
+  return WORKPIECE_DB_MAP[key] ?? raw
+}
+
 interface RawProductRow {
   edp_idx: string | null
   edp_no: string | null
@@ -769,7 +797,7 @@ function buildProductDataQuery(
   const queryBase = buildPagedProductQueryBase(where)
   const dataValues = [...values]
   const materialTag = resolveSingleIsoGroup(input?.material)
-  const workPieceName = input?.workPieceName?.trim() || null
+  const workPieceName = normalizeWorkPieceNameForDb(input?.workPieceName?.trim() || null)
   const materialTagParam = `$${dataValues.push(materialTag)}`
   const workPieceNameParam = `$${dataValues.push(workPieceName)}`
   const limitClause = limit != null ? `LIMIT $${dataValues.push(limit)}` : ""
@@ -796,7 +824,14 @@ function buildProductDataQuery(
               WHEN UPPER(COALESCE(status_row.material_rating, '')) = 'GOOD' THEN 'GOOD'
               ELSE 'NULL'
             END AS material_rating,
-            COALESCE(status_row.material_rating_score, 0) AS material_rating_score
+            COALESCE(status_row.material_rating_score, 0)
+              + CASE
+                  WHEN ${workPieceNameParam}::text IS NOT NULL
+                    AND status_row.normalized_work_piece_name = NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '')
+                  THEN 2
+                  ELSE 0
+                END
+              AS material_rating_score
           FROM catalog_app.series_profile_mv sp
           CROSS JOIN LATERAL jsonb_to_recordset(COALESCE(sp.work_piece_statuses, '[]'::jsonb)) AS status_row(
             tag_name text,
