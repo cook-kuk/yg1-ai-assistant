@@ -1710,6 +1710,14 @@ async function handleServeExplorationInner(
             }
             case "answer": {
               if (!prevState) break // first turn — fall through to legacy
+              // Record Q&A in long-term memory
+              if (prevState.conversationMemory) {
+                const questionField = prevState.lastAskedField ?? null
+                recordQA(prevState.conversationMemory, lastUserMsg.text, singleResult.answer || "", questionField, turnCount)
+                recordHighlight(prevState.conversationMemory, turnCount, "question", lastUserMsg.text.slice(0, 50), questionField ?? undefined)
+                // If asking about current pending field → confusion signal
+                if (questionField) recordConfusion(prevState.conversationMemory, questionField)
+              }
               return handleServeGeneralChatAction({
                 deps,
                 action: { type: "answer_general", message: lastUserMsg.text },
