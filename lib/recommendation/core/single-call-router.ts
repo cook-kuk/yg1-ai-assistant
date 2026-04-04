@@ -176,8 +176,10 @@ If user restates an already-applied condition, just skip that filter action.
 ## Available filter fields
 - toolSubtype: tool shape (Square, Ball, Radius, Roughing, Taper, Chamfer, High-Feed)
 - fluteCount: number of flutes (2, 3, 4, 5, 6)
-- coating: coating type (TiAlN, AlCrN, DLC, TiCN, Bright Finish, Blue-Coating, Uncoated)
+- coating: coating type (TiAlN, AlCrN, DLC, TiCN, Bright Finish, Blue-Coating, X-Coating, Y-Coating, Uncoated)
 - diameterMm: tool diameter in mm (number)
+- lengthOfCutMm: length of cut / flute length in mm (number). "긴 가공" implies larger value.
+- overallLengthMm: overall tool length in mm (number)
 - workPieceName: specific workpiece material (구리/Copper, 알루미늄/Aluminum, 스테인리스/Stainless, 탄소강/Carbon Steel, 주철/Cast Iron, 티타늄/Titanium, 인코넬/Inconel, 고경도강/Hardened Steel). Use this when user mentions a SPECIFIC material name.
 - material: material group code (P, M, K, N, S, H). Use this when user mentions an ISO code.
 
