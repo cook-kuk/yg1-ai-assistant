@@ -190,12 +190,19 @@ Given the user's Korean message and the current session state, determine what ac
 If a filter already exists in Applied filters, do NOT re-apply the same value.
 If user restates an already-applied condition, just skip that filter action.
 
-## Conversation Memory
-You receive the recent conversation history. Use it to understand:
-- "아까 그거" / "이전에 말한 거" / "그걸로" → reference to previously mentioned condition or product
-- "다시" / "아까 조건으로" → revert to earlier filter state
+## Conversation Memory (Short-term + Long-term)
+You receive conversation history AND accumulated memory in Session State.
+
+Short-term (recent messages):
+- "아까 그거" / "이전에 말한 거" → reference to previously mentioned condition
 - "그 코팅으로" → the coating mentioned in a previous assistant message
-- Context from assistant's previous explanations or questions
+
+Long-term (accumulated in Session State):
+- "User behavior" shows: which fields user skipped, revised, or found confusing
+- "Preferences" shows: user's soft preferences (coating, speed, etc.)
+- "Recent Q&A" shows: recent questions and answers for continuity
+- "Last recommended" shows: which product/series was recommended
+- Use this to personalize: if user always skips coating → don't ask again about coating
 
 ## Korean Intent Patterns
 - "빼고/제외/아닌것/없는거" → If the field already has a filter, use remove_filter. If no existing filter, use apply_filter with op:"neq"
