@@ -1693,6 +1693,7 @@ async function handleServeExplorationInner(
               break
             }
             case "answer": {
+              if (!prevState) break // first turn — fall through to legacy
               return handleServeGeneralChatAction({
                 deps,
                 action: { type: "answer_general", message: lastUserMsg.text },
@@ -1700,7 +1701,7 @@ async function handleServeExplorationInner(
                 provider,
                 form,
                 messages,
-                prevState: prevState!,
+                prevState,
                 filters,
                 narrowingHistory,
                 currentInput,
@@ -1709,9 +1710,28 @@ async function handleServeExplorationInner(
                 turnCount,
               })
             }
-            case "reset":
-            case "go_back":
-              break // fall through to existing reset/go_back handling below
+            case "reset": {
+              singleCallHandled = true
+              bridgedV2Action = { type: "reset" as any }
+              bridgedV2OrchestratorResult = {
+                action: bridgedV2Action,
+                reasoning: "single_call:reset",
+                agentsInvoked: [{ agent: "single-call-router", model: "haiku" as const, durationMs: 0 }],
+                escalatedToOpus: false,
+              }
+              break
+            }
+            case "go_back": {
+              singleCallHandled = true
+              bridgedV2Action = { type: "go_back" as any }
+              bridgedV2OrchestratorResult = {
+                action: bridgedV2Action,
+                reasoning: "single_call:go_back",
+                agentsInvoked: [{ agent: "single-call-router", model: "haiku" as const, durationMs: 0 }],
+                escalatedToOpus: false,
+              }
+              break
+            }
           }
         }
 
@@ -1720,7 +1740,8 @@ async function handleServeExplorationInner(
           // Override pending selection — Single-Call Router handled it
           pendingSelectionAction = null
           pendingSelectionOrchestratorResult = null
-          bridgedV2Action = { type: "continue_narrowing", filter: filters[filters.length - 1] }
+          const lastFilter = filters[filters.length - 1] ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount }
+          bridgedV2Action = { type: "continue_narrowing", filter: lastFilter }
           bridgedV2OrchestratorResult = {
             action: bridgedV2Action,
             reasoning: `single_call:${singleResult.reasoning}`,

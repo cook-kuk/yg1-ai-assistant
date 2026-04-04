@@ -43,9 +43,9 @@ export const USE_CHIP_SYSTEM = envFlag("USE_CHIP_SYSTEM", false)
 
 /** Use single Sonnet call for routing instead of multiple parallel Haiku calls. */
 export function isSingleCallRouterEnabled(): boolean {
-  return process.env.USE_SINGLE_CALL_ROUTER === "true"
+  return process.env.USE_SINGLE_CALL_ROUTER !== "false"
 }
-export const USE_SINGLE_CALL_ROUTER = false
+export const USE_SINGLE_CALL_ROUTER = true
 
 /**
  * LLM Free Interpretation — deterministic regex 게이트를 끄고 LLM이 자유 해석.
