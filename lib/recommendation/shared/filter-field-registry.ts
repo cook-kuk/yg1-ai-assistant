@@ -110,8 +110,17 @@ function stripKoreanDiameterAliases(value: string): string {
  */
 // stripKoreanParticles는 shared/patterns.ts에서 import
 
+const KOREAN_NUMBERS: Record<string, number> = {
+  한: 1, 두: 2, 세: 3, 네: 4, 다섯: 5, 여섯: 6,
+  일곱: 7, 여덟: 8, 아홉: 9, 열: 10, 스물: 20,
+}
+
 function extractNumericValue(value: string): number | null {
   const cleaned = stripApproximateAffixes(value)
+  // Try Korean number first: "열미리" → 10, "두날" → 2
+  for (const [ko, num] of Object.entries(KOREAN_NUMBERS)) {
+    if (cleaned.startsWith(ko)) return num
+  }
   const match = cleaned.match(/([-+]?\d+(?:\.\d+)?)/)
   if (!match) return null
   const parsed = parseFloat(match[1])
