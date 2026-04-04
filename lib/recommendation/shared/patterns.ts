@@ -106,6 +106,11 @@ export const TOOL_SUBTYPE_ALIASES: Record<string, string> = {
   고이송: "High-Feed",
   플랫: "Square",
   플랫엔드밀: "Square",
+  사각: "Square",
+  각형: "Square",
+  엔드밀볼: "Ball",
+  구형: "Ball",
+  볼형: "Ball",
 }
 
 export function canonicalizeToolSubtype(raw: string): string | null {
