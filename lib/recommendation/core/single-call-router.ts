@@ -267,7 +267,7 @@ The user speaks Korean. Analyze the message and session state to determine actio
 {{SESSION_STATE}}
 
 ## Available Actions (JSON array)
-- apply_filter: {type, field, value, op} — field: toolSubtype(Square/Ball/Radius/Roughing/Taper/Chamfer/High-Feed), fluteCount(number), coating(TiAlN/AlCrN/DLC/TiCN/Bright Finish/Blue-Coating/Uncoated), diameterMm(number), workPieceName(구리/알루미늄/스테인리스/탄소강/주철/티타늄/인코넬/고경도강), material(P/M/K/N/S/H)
+- apply_filter: {type, field, value, op} — field: toolSubtype(Square/Ball/Radius/Roughing/Taper/Chamfer/High-Feed), fluteCount(number), coating(TiAlN/AlCrN/DLC/TiCN/Bright Finish/Blue-Coating/X-Coating/Y-Coating/Uncoated), diameterMm(number), lengthOfCutMm(number), overallLengthMm(number), workPieceName(구리/알루미늄/스테인리스/탄소강/주철/티타늄/인코넬/고경도강), material(P/M/K/N/S/H)
 - remove_filter: {type, field} — "빼고/제외" + existing filter → remove
 - replace_filter: {type, field, from, to} — "바꿔/변경" → replace value
 - show_recommendation: {type} — "추천해줘/보여줘/제품 보기"
