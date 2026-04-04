@@ -16,7 +16,7 @@ export const MATERIAL_KEYWORDS: Record<string, string[]> = {
   "주철": ["주철", "cast iron", "GC", "FC"],
   "탄소강": ["탄소강", "일반강", "합금강", "구조강", "프리하든", "carbon", "carbon steel", "S45C", "SM45C", "SCM440", "scm", "sncm"],
   "티타늄": ["티타늄", "티타", "titanium", "Ti"],
-  "인코넬": ["인코넬", "inconel", "내열합금"],
+  "인코넬": ["인코넬", "inconel", "내열합금", "초내열", "super alloy", "superalloy", "하스텔로이", "hastelloy"],
   "고경도강": ["고경도", "경화강", "hardened", "HRC", "담금질", "die steel", "skd", "공구강"],
   "구리": ["구리", "동", "황동", "copper", "brass"],
   "그라파이트": ["그라파이트", "graphite"],
