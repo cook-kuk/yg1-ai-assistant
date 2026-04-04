@@ -1,4 +1,5 @@
 import { carryForwardState } from "@/lib/recommendation/domain/recommendation-domain"
+import { buildFilterValueScope } from "@/lib/recommendation/shared/filter-field-registry"
 
 import type { OrchestratorAction } from "@/lib/recommendation/infrastructure/agents/types"
 import type { ActionHandlerContext } from "@/lib/recommendation/infrastructure/engines/serve-engine-handler-types"
@@ -83,10 +84,16 @@ export function handleFilterByStock(
 
   // Build response from filtered snapshots without re-running full search
   console.log(`[stock-filter] ${stockFilter}: ${prevCandidates.length} → ${filteredSnapshots.length} candidates (from displayed)`)
-  const stockChips = ["⟵ 이전 단계", "처음부터 다시"]
-  if (filteredSnapshots.length < prevCandidates.length) {
-    stockChips.unshift(`전체 ${prevCandidates.length}개 보기`)
-  }
+
+  // Rebuild filterValueScope from filtered candidates so follow-up filters reflect actual options
+  const filteredValueScope = buildFilterValueScope(filteredSnapshots as unknown as Array<Record<string, unknown>>)
+
+  // Contextual chips: offer useful next actions after stock filtering
+  const stockChips: string[] = []
+  if (filteredSnapshots.length >= 2) stockChips.push("상위 2개 비교")
+  if (filteredSnapshots.length < prevCandidates.length) stockChips.push(`전체 ${prevCandidates.length}개 보기`)
+  stockChips.push("⟵ 이전 단계", "처음부터 다시")
+
   const sessionState = carryForwardState(prevState, {
     candidateCount: filteredSnapshots.length,
     appliedFilters: filters,
@@ -99,6 +106,7 @@ export function handleFilterByStock(
     displayedOptions: [],
     currentMode: prevState.currentMode ?? "recommendation",
     lastAction: "filter_by_stock",
+    filterValueScope: filteredValueScope,
   })
   const stockLabel = stockThreshold != null
     ? `재고 ${stockThreshold}개 이상인`

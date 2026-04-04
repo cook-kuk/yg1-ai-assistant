@@ -1830,7 +1830,73 @@ async function handleServeExplorationInner(
 
         // If filters changed, set up continue_narrowing action and clear pending
         if (executableActions.some(a => ["apply_filter", "remove_filter", "replace_filter"].includes(a.type))) {
-          // Override pending selection — Single-Call Router handled it
+          // Post-result: filter displayedCandidates in-memory instead of DB re-query
+          const prevCandidates = prevState?.displayedCandidates ?? prevState?.fullDisplayedCandidates ?? []
+          if (isPostResultPhase(journeyPhase) && prevCandidates.length > 0) {
+            const appliedFilterActions = executableActions.filter(a => ["apply_filter", "remove_filter", "replace_filter"].includes(a.type))
+            let filtered = prevCandidates as unknown as Array<Record<string, unknown>>
+            for (const fa of appliedFilterActions) {
+              if (fa.type === "apply_filter" && fa.field && fa.value != null) {
+                const f = buildAppliedFilterFromValue(fa.field, fa.value, turnCount)
+                if (f) {
+                  filtered = filtered.filter(c => {
+                    const def = getFilterFieldDefinition(f.field)
+                    if (!def?.matches) return true
+                    return def.matches(c, f) !== false
+                  })
+                }
+              } else if (fa.type === "remove_filter" && fa.field) {
+                // Remove = widen back to all candidates (skip this filter)
+                filtered = prevCandidates as unknown as Array<Record<string, unknown>>
+              }
+            }
+            const filteredSnapshots = filtered as unknown as CandidateSnapshot[]
+            const filteredScope = buildFilterValueScope(filteredSnapshots as unknown as Array<Record<string, unknown>>)
+            const postFilterChips: string[] = []
+            if (filteredSnapshots.length >= 2) postFilterChips.push("상위 2개 비교")
+            if (filteredSnapshots.length < prevCandidates.length) postFilterChips.push(`전체 ${prevCandidates.length}개 보기`)
+            postFilterChips.push("⟵ 이전 단계", "처음부터 다시")
+
+            console.log(`[post-result-filter] ${prevCandidates.length} → ${filteredSnapshots.length} (${appliedFilterActions.map(a => `${a.type}:${a.field}=${a.value??a.to??""}`).join(", ")})`)
+
+            const sessionState = carryForwardState(prevState, {
+              candidateCount: filteredSnapshots.length,
+              appliedFilters: filters,
+              narrowingHistory,
+              resolutionStatus: prevState.resolutionStatus ?? "broad",
+              resolvedInput: currentInput,
+              turnCount,
+              displayedCandidates: filteredSnapshots,
+              displayedChips: postFilterChips,
+              displayedOptions: [],
+              currentMode: "recommendation",
+              lastAction: "post_result_filter",
+              filterValueScope: filteredScope,
+            })
+            const filterSummary = filteredSnapshots.length > 0
+              ? `조건에 맞는 ${filteredSnapshots.length}개 제품입니다.`
+              : `조건에 맞는 제품이 없습니다. 전체 ${prevCandidates.length}개 중 해당 조건을 만족하는 제품이 없어요.`
+            return deps.jsonRecommendationResponse({
+              text: filterSummary,
+              purpose: filteredSnapshots.length > 0 ? "recommendation" : "question",
+              chips: postFilterChips,
+              isComplete: filteredSnapshots.length > 0,
+              recommendation: null,
+              sessionState,
+              evidenceSummaries: null,
+              candidateSnapshot: filteredSnapshots,
+              requestPreparation: null,
+              primaryExplanation: null,
+              primaryFactChecked: null,
+              altExplanations: [],
+              altFactChecked: [],
+              meta: {
+                orchestratorResult: { action: "post_result_filter", agents: [{ agent: "single-call-router", model: "haiku" as const, durationMs: 0 }], opus: false },
+              },
+            })
+          }
+
+          // Pre-result: DB re-query via continue_narrowing
           pendingSelectionAction = null
           pendingSelectionOrchestratorResult = null
           const lastFilter = filters[filters.length - 1] ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount }
