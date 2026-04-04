@@ -300,6 +300,12 @@ User: "아까 말한 그 코팅으로 해줘" (conversation history mentions TiA
 User: "그거로 해줘" / "네 그걸로" (previous assistant suggested Square)
 → {"actions":[{"type":"apply_filter","field":"toolSubtype","value":"Square","op":"eq"}],"answer":"","reasoning":"agrees with assistant's previous suggestion"}
 
+User: "고경도강에 추천하는 가공방식은 어떤게 있어?" (question with material context)
+→ {"actions":[],"answer":"고경도강 가공에는 Side Milling, Profiling 등이 적합합니다.","reasoning":"question about machining methods, no filter change needed"}
+
+User: "국내용 제품으로만 추천해줄래?" (region filter request)
+→ {"actions":[{"type":"apply_filter","field":"country","value":"KR","op":"eq"}],"answer":"","reasoning":"user wants Korea-only products"}
+
 ## Response Format (strict JSON only, no markdown, no code blocks)
 {
   "actions": [ { "type": "...", ... } ],

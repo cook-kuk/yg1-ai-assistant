@@ -206,9 +206,12 @@ export const COATING_KO_ALIASES: Record<string, string> = {
   실버: "Bright",
   실버코팅: "Bright",
   무코팅: "Uncoated",
+  무코닝: "Uncoated",
   비코팅: "Uncoated",
+  비코닝: "Uncoated",
   코팅없: "Uncoated",
   코팅없음: "Uncoated",
+  노코팅: "Uncoated",
   다이아몬드: "Diamond",
   다이아몬드코팅: "Diamond",
   // Korean phonetic spellings of English coating names
