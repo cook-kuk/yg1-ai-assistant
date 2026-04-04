@@ -210,6 +210,33 @@ User: "구리 스퀘어 2날 10mm"
 User: "알루미늄 고속가공용 추천해줘"
 → {"actions":[{"type":"apply_filter","field":"workPieceName","value":"알루미늄","op":"eq"}],"answer":"","reasoning":"aluminum workpiece, high-speed implies finishing intent"}
 
+User: "스퀘어를 쓰고싶고, 구리를 가공하고 싶어."
+→ {"actions":[{"type":"apply_filter","field":"toolSubtype","value":"Square","op":"eq"},{"type":"apply_filter","field":"workPieceName","value":"구리","op":"eq"}],"answer":"","reasoning":"2 filters: square + copper workpiece"}
+
+User: "3날 무코팅에 스퀘어" (feedback: user wanted 3-flute uncoated square)
+→ {"actions":[{"type":"apply_filter","field":"fluteCount","value":3,"op":"eq"},{"type":"apply_filter","field":"coating","value":"Uncoated","op":"eq"},{"type":"apply_filter","field":"toolSubtype","value":"Square","op":"eq"}],"answer":"","reasoning":"3 filters: 3 flutes, uncoated, square"}
+
+User: "고경도강 밀링에 좋은 Solid end mill은 뭐가 있어?" (no filters yet)
+→ {"actions":[{"type":"apply_filter","field":"workPieceName","value":"고경도강","op":"eq"}],"answer":"","reasoning":"hardened steel workpiece, asking for recommendation"}
+
+User: "SUS304 황삭할 건데 뭐가 좋아?"
+→ {"actions":[{"type":"apply_filter","field":"workPieceName","value":"스테인리스","op":"eq"}],"answer":"","reasoning":"SUS304=stainless, roughing intent noted"}
+
+User: "동 가공용 10미리 두날"
+→ {"actions":[{"type":"apply_filter","field":"workPieceName","value":"구리","op":"eq"},{"type":"apply_filter","field":"diameterMm","value":10,"op":"eq"},{"type":"apply_filter","field":"fluteCount","value":2,"op":"eq"}],"answer":"","reasoning":"동=copper, 10미리=10mm, 두날=2 flutes"}
+
+User: "비철 구리 Square 2날 Ø10"
+→ {"actions":[{"type":"apply_filter","field":"workPieceName","value":"구리","op":"eq"},{"type":"apply_filter","field":"toolSubtype","value":"Square","op":"eq"},{"type":"apply_filter","field":"fluteCount","value":2,"op":"eq"},{"type":"apply_filter","field":"diameterMm","value":10,"op":"eq"}],"answer":"","reasoning":"비철 구리=copper, Ø10=diameter 10mm"}
+
+User: "10mm 4날 Square TiAlN 탄소강"
+→ {"actions":[{"type":"apply_filter","field":"diameterMm","value":10,"op":"eq"},{"type":"apply_filter","field":"fluteCount","value":4,"op":"eq"},{"type":"apply_filter","field":"toolSubtype","value":"Square","op":"eq"},{"type":"apply_filter","field":"coating","value":"TiAlN","op":"eq"},{"type":"apply_filter","field":"workPieceName","value":"탄소강","op":"eq"}],"answer":"","reasoning":"5 filters from single message"}
+
+User: "알루파워라는 브랜드는 왜 추천해주지 않나요?" (question about missing brand)
+→ {"actions":[],"answer":"알루파워(ALU-POWER) 시리즈가 후보에 포함되어 있는지 확인하겠습니다.","reasoning":"question about brand, no filter change"}
+
+User: "T-Coating 설명해줘"
+→ {"actions":[],"answer":"","reasoning":"question about coating type, no filter change"}
+
 ## Response Format (strict JSON only, no markdown, no code blocks)
 {
   "actions": [ { "type": "...", ... } ],
