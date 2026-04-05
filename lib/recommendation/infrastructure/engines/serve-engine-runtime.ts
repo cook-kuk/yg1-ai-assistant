@@ -2087,6 +2087,37 @@ async function handleServeExplorationInner(
     }
   }
 
+  // ── First-turn multi-filter extraction (before V2/legacy routing) ──
+  // 첫 턴에서 사용자 메시지의 조건을 resolvedInput + filters에 반영
+  if (!prevState && lastUserMsg) {
+    const { extractMaterial, extractOperation, extractDiameter } = await import("@/lib/recommendation/domain/input-normalizer")
+    const { canonicalizeToolSubtype, extractFluteCount } = await import("@/lib/recommendation/shared/patterns")
+    const msg = lastUserMsg.text
+    const hintMaterial = extractMaterial(msg)
+    const hintDiameter = extractDiameter(msg)
+    const hintSubtype = canonicalizeToolSubtype(msg)
+    const hintFlute = extractFluteCount(msg)
+    // debug log removed
+    if (hintMaterial && !resolvedInput.workPieceName) {
+      resolvedInput.workPieceName = hintMaterial
+      resolvedInput.material = hintMaterial
+      filters.push({ field: "workPieceName", op: "includes", value: hintMaterial, rawValue: hintMaterial, appliedAt: Date.now() })
+    }
+    if (hintDiameter && !resolvedInput.diameterMm) {
+      resolvedInput.diameterMm = hintDiameter
+      filters.push({ field: "diameterMm", op: "eq", value: String(hintDiameter), rawValue: hintDiameter, appliedAt: Date.now() })
+    }
+    if (hintSubtype && !resolvedInput.toolSubtype) {
+      resolvedInput.toolSubtype = hintSubtype
+      filters.push({ field: "toolSubtype", op: "eq", value: hintSubtype, rawValue: hintSubtype, appliedAt: Date.now() })
+    }
+    if (hintFlute && !resolvedInput.flutePreference) {
+      resolvedInput.flutePreference = hintFlute
+      filters.push({ field: "fluteCount", op: "eq", value: String(hintFlute), rawValue: hintFlute, appliedAt: Date.now() })
+    }
+    console.log(`[runtime:first-turn-extract] msg="${msg}" material=${hintMaterial}, dia=${hintDiameter}, subtype=${hintSubtype}, flute=${hintFlute}`)
+  }
+
   // ── V2 Orchestrator Integration ──
   // V2 handles routing decisions (LLM-based), then delegates execution to legacy engines.
   // On error, automatically falls back to legacy path.
