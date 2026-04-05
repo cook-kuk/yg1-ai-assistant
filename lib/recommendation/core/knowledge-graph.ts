@@ -388,7 +388,24 @@ export function tryKGDecision(
   }
 
   // ── 5c. Show results patterns ──
+  // "추천해줘" + entities → extract filters AND show recommendation
   if (SHOW_RESULT_PATTERNS.some(p => p.test(msg))) {
+    const showEntities = extractEntities(msg)
+    if (showEntities.length > 0) {
+      // Entities + show_recommendation → apply filters then show results
+      const primary = showEntities[0]
+      const extras = showEntities.slice(1)
+      const primaryFilter: AppliedFilter = {
+        field: primary.field, op: "eq", value: primary.canonical, rawValue: primary.canonical, appliedAt: 0,
+      }
+      const extraFilters = entitiesToFilters(extras, 0)
+      return {
+        decision: buildDecision({ type: "show_recommendation" }, [primaryFilter, ...extraFilters], 0.92, `KG: show_recommendation + ${showEntities.length} entities`),
+        confidence: 0.92,
+        source: "kg-entity",
+        reason: `show_recommendation + ${showEntities.map(e => `${e.field}=${e.canonical}`).join(", ")}`,
+      }
+    }
     return {
       decision: buildDecision({ type: "show_recommendation" }, [], 0.90, "KG: show recommendation"),
       confidence: 0.90,

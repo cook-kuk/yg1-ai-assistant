@@ -1721,10 +1721,15 @@ async function handleServeExplorationInner(
           singleCallHandled = true
           console.log(`[kg:hit] "${msg}" → ${kgResult.source} (${kgResult.confidence}), ${kgFilters.length} filters applied`)
         } else if (["skip_field", "go_back_one_step", "reset_session", "show_recommendation", "filter_by_stock", "refine_condition"].includes(kgAction.type)) {
-          bridgedV2Action = kgAction
-          bridgedV2OrchestratorResult = { action: kgAction, reasoning: `kg:${kgResult.reason}`, agentsInvoked: [], escalatedToOpus: false }
-          singleCallHandled = true
-          console.log(`[kg:hit] "${msg}" → ${kgResult.source} (${kgResult.confidence}), action=${kgAction.type}`)
+          // Guard: skip_field on first turn with no pending field → don't execute
+          if (kgAction.type === "skip_field" && !prevState?.lastAskedField) {
+            console.log(`[kg:skip-guard] skip_field ignored — no pending field (first turn)`)
+          } else {
+            bridgedV2Action = kgAction
+            bridgedV2OrchestratorResult = { action: kgAction, reasoning: `kg:${kgResult.reason}`, agentsInvoked: [], escalatedToOpus: false }
+            singleCallHandled = true
+            console.log(`[kg:hit] "${msg}" → ${kgResult.source} (${kgResult.confidence}), action=${kgAction.type}`)
+          }
         } else if (kgAction.type === "answer_general") {
           bridgedV2Action = kgAction
           bridgedV2OrchestratorResult = { action: kgAction, reasoning: `kg:${kgResult.reason}`, agentsInvoked: [], escalatedToOpus: false }
@@ -2189,6 +2194,23 @@ async function handleServeExplorationInner(
         }
       }
       console.log(`[runtime:multi-filter-extract] ${hintCount} hints: material=${hintMaterial}, dia=${hintDiameter}, subtype=${hintSubtype}, flute=${hintFlute}`)
+
+      // Multi-filter 추출 성공 → V2 덮어쓰기 방지
+      if (!singleCallHandled && filters.length >= 2) {
+        const hasShowRec = /추천|보여|제품\s*보기|show/iu.test(msg)
+        const lastF = filters[filters.length - 1] ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount }
+        bridgedV2Action = hasShowRec
+          ? { type: "show_recommendation" }
+          : { type: "continue_narrowing", filter: lastF }
+        bridgedV2OrchestratorResult = {
+          action: bridgedV2Action,
+          reasoning: `multi-filter-extract:${hintCount} hints`,
+          agentsInvoked: [],
+          escalatedToOpus: false,
+        }
+        singleCallHandled = true
+        console.log(`[runtime:multi-filter-extract] singleCallHandled=true, bridged=${bridgedV2Action.type}`)
+      }
     }
   }
 
