@@ -13,7 +13,7 @@ import type { CanonicalProduct, RecommendationInput, SourcePriority, SourceType 
 import { resolveMaterialTag } from "@/lib/domain/material-resolver"
 import { getOperationShapeSearchTexts } from "@/lib/domain/operation-resolver"
 import { resolveRequestedToolFamily as resolveRequestedToolFamilyInput } from "@/lib/data/repos/product-query-filters"
-import { buildDbWhereClauseForFilter } from "@/lib/recommendation/shared/filter-field-registry"
+import { buildDbWhereClauseForFilter, getFilterFieldDefinition } from "@/lib/recommendation/shared/filter-field-registry"
 
 /**
  * Map Korean workpiece names to English for DB series_profile_mv.normalized_work_piece_name matching.
@@ -740,12 +740,18 @@ export function buildQueryOptions(options: ProductSearchOptions): { where: strin
       if (tag) materialTags.add(tag)
     }
   }
+  // input에서 이미 WHERE에 추가한 필드는 filter clause를 중복 생성하지 않는다.
+  const inputHandledFields = new Set<string>()
+  if (input?.diameterMm != null) inputHandledFields.add("diameterMm")
+
   for (const filter of flattenActiveFilters(options.filters ?? [])) {
     if (filter.field === "materialTag") {
       for (const part of String(filter.rawValue).split(",").map(s => s.trim().toUpperCase()).filter(Boolean)) {
         if (/^[PMKNSH]$/.test(part)) materialTags.add(part)
       }
     }
+    // input에서 이미 처리한 필드는 filter DB clause 생략 (중복 방지)
+    if (inputHandledFields.has(filter.field) || inputHandledFields.has(getFilterFieldDefinition(filter.field)?.canonicalField ?? "")) continue
     const clause = buildDbWhereClauseForFilter(filter, next)
     if (clause) where.push(clause)
   }
@@ -987,11 +993,14 @@ export async function queryProductsFromDatabase(options: ProductSearchOptions = 
     filterCount: options.filters?.length ?? 0,
   })
   const { where, values, limit, offset } = buildQueryOptions(options)
+  console.log(`[product-db:debug] WHERE clauses:`, JSON.stringify(where))
+  console.log(`[product-db:debug] VALUES:`, JSON.stringify(values))
   const dataQuery = buildProductDataQuery(options.input, where, values, limit, offset)
+  console.log(`[product-db:debug] FINAL VALUES:`, JSON.stringify(dataQuery.values))
 
   const startedAt = Date.now()
   console.log(
-    `[product-db] query:list:start where=${where.length} values=${values.length} limit=${limit ?? "none"} offset=${offset} code=${options.normalizedCode ?? "-"} series=${options.seriesName ?? "-"}`
+    `[product-db] query:list:start where=${where.length} values=${dataQuery.values.length} limit=${limit ?? "none"} offset=${offset} code=${options.normalizedCode ?? "-"} series=${options.seriesName ?? "-"}`
   )
   const result = await executeLoggedQuery<RawProductRow>(dataQuery.query, dataQuery.values, {
     operation: "queryProductsListFromDatabase",

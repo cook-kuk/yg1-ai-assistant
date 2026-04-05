@@ -11,6 +11,7 @@ import {
   traceRecommendation,
   traceRecommendationError,
 } from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
+import { INITIAL_INTAKE_FORM } from "@/lib/types/intake"
 
 interface RecommendationServiceParams {
   engineId?: string
@@ -64,9 +65,12 @@ export class RecommendationService {
     try {
       const engine = this.resolveEngine(params.engineId)
       const messages = params.messages ?? []
-      const response = params.intakeForm
+      // intakeForm이 없어도 messages가 있으면 빈 form으로 exploration 실행
+      // → KG / multi-filter / V2 orchestrator 경로가 동작하도록
+      const form = params.intakeForm ?? (messages.length > 0 ? INITIAL_INTAKE_FORM : null)
+      const response = form
         ? await engine.runSession({
-            form: params.intakeForm,
+            form,
             messages,
             prevState: params.prevState ?? null,
             displayedProducts: params.displayedProducts ?? null,
@@ -82,7 +86,7 @@ export class RecommendationService {
         engineId: engine.engineId,
         status: response.status,
         ok: response.ok,
-        branch: params.intakeForm ? "session" : "legacy-chat",
+        branch: form ? "session" : "legacy-chat",
       })
       return response
     } catch (error) {

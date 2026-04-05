@@ -322,7 +322,7 @@ function canonicalizeToolSubtypeRawValue(rawValue: string | number | boolean): s
 }
 
 function firstNumberFromColumns(columns: string[]): string {
-  const coalesced = `COALESCE(${columns.map(column => `NULLIF(${column}, '')`).join(", ")}, '')`
+  const coalesced = `COALESCE(${columns.map(column => `NULLIF(CAST(${column} AS text), '')`).join(", ")})`
   return `NULLIF(substring(${coalesced} from '[-+]?[0-9]*\\.?[0-9]+'), '')::numeric`
 }
 

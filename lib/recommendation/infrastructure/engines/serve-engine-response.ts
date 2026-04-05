@@ -1315,6 +1315,15 @@ export function getFollowUpChips(
     return chips.slice(0, 6)
   }
 
+  const isApproximate = primary.matchStatus === "approximate"
+  const isNone = primary.matchStatus === "none"
+
+  // Collect distribution data from all candidates
+  const allProducts = [primary, ...alts]
+  const flutes = new Set(allProducts.map(p => p.product?.fluteCount).filter(Boolean))
+  const coatings = new Set(allProducts.map(p => p.product?.coating).filter(Boolean))
+  const series = new Set(allProducts.map(p => p.product?.seriesName).filter(Boolean))
+
   // ── Low-confidence match: suggest compare, broaden, refine ──
   if (isApproximate || isNone) {
     if (altCount > 0) chips.push(`후보 ${altCount + 1}개 비교하기`)

@@ -2166,6 +2166,9 @@ async function handleServeExplorationInner(
     const hintSubtype = canonicalizeToolSubtype(msg)
     const hintFlute = extractFluteCount(msg)
     const hintCount = [hintMaterial, hintDiameter, hintSubtype, hintFlute].filter(Boolean).length
+    console.log(`[runtime:multi-filter-debug] msg="${msg.slice(0,50)}" material=${hintMaterial} dia=${hintDiameter} subtype=${hintSubtype} flute=${hintFlute} count=${hintCount} singleCallHandled=${singleCallHandled}`)
+    // debug: dump char codes for first 30 chars
+    console.log(`[runtime:multi-filter-debug:chars] ${Array.from(msg.slice(0,30)).map(c => c.charCodeAt(0).toString(16)).join(",")}`)
     // 2개 이상 조건이 감지되면 멀티 필터 적용 (단일 조건은 기존 라우팅에 위임)
     if (hintCount >= 2) {
       if (hintMaterial && !resolvedInput.workPieceName) {
@@ -2196,7 +2199,8 @@ async function handleServeExplorationInner(
       console.log(`[runtime:multi-filter-extract] ${hintCount} hints: material=${hintMaterial}, dia=${hintDiameter}, subtype=${hintSubtype}, flute=${hintFlute}`)
 
       // Multi-filter 추출 성공 → V2 덮어쓰기 방지
-      if (!singleCallHandled && filters.length >= 2) {
+      // KG가 1개 잡았어도 (singleCallHandled=true) multi-filter가 나머지를 보충
+      if (filters.length >= 2) {
         const hasShowRec = /추천|보여|제품\s*보기|show/iu.test(msg)
         const lastF = filters[filters.length - 1] ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount }
         bridgedV2Action = hasShowRec
