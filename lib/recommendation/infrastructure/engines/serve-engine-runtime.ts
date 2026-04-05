@@ -2570,6 +2570,38 @@ async function handleServeExplorationInner(
     trace.setRecentTurns(messages.slice(-10).map(m => ({ role: m.role, text: m.text.slice(0, 150) })))
   }
 
+  // ── First-turn bridged action: prevState=null이면 dispatch 블록(line ~2595) 도달 불가 → 여기서 처리 ──
+  if (!prevState && singleCallHandled && bridgedV2Action) {
+    if (bridgedV2Action.type === "show_recommendation" && displayCandidates.length > 0) {
+      return deps.buildRecommendationResponse(
+        form,
+        candidates,
+        evidenceMap,
+        totalCandidateCount,
+        paginationDto(totalCandidateCount),
+        displayCandidates,
+        displayEvidenceMap,
+        currentInput,
+        narrowingHistory,
+        filters,
+        turnCount,
+        messages,
+        provider,
+        language,
+        displayedProducts
+      )
+    }
+    if (bridgedV2Action.type === "continue_narrowing" || bridgedV2Action.type === "show_recommendation") {
+      // Filters applied on first turn but no show_recommendation or 0 candidates → ask next question
+      return deps.buildQuestionResponse(
+        form, candidates, evidenceMap, totalCandidateCount, paginationDto(totalCandidateCount),
+        displayCandidates, displayEvidenceMap, currentInput, narrowingHistory, filters,
+        turnCount, messages, provider, language,
+        undefined, undefined, undefined, undefined, undefined, undefined,
+      )
+    }
+  }
+
   if (messages.length > 0 && prevState && lastUserMsg) {
     // ── PendingAction Lifecycle: check → execute/expire/override → clear ──
     if (prevState.pendingAction) {
