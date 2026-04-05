@@ -10,22 +10,24 @@
 1. [기술 스택](#기술-스택)
 2. [프로젝트 디렉토리 구조](#프로젝트-디렉토리-구조)
 3. [시스템 아키텍처 개요](#시스템-아키텍처-개요)
-4. [멀티 에이전트 오케스트레이터](#멀티-에이전트-오케스트레이터)
-5. [추천 엔진 파이프라인](#추천-엔진-파이프라인)
-6. [챗봇 시스템 (Chat API)](#챗봇-시스템-chat-api)
-7. [LLM 통합 계층](#llm-통합-계층)
-8. [데이터 소스 & 리포지토리](#데이터-소스--리포지토리)
-9. [세션 상태 관리](#세션-상태-관리)
-10. [Feature Flag 시스템](#feature-flag-시스템)
-11. [API 엔드포인트](#api-엔드포인트)
-12. [UI 컴포넌트 구조](#ui-컴포넌트-구조)
-13. [스코어링 기준 (110점 만점)](#스코어링-기준-110점-만점)
-14. [할루시네이션 방지 체계](#할루시네이션-방지-체계)
-15. [추천 엔진 설계 원칙](#추천-엔진-설계-원칙)
-16. [테스트 구조](#테스트-구조)
-17. [환경 변수 설정](#환경-변수-설정)
-18. [실행 & 배포](#실행--배포)
-19. [Git 구조](#git-구조)
+4. [Knowledge Graph (KG) 결정론적 레이어](#knowledge-graph-kg-결정론적-레이어)
+5. [멀티 에이전트 오케스트레이터](#멀티-에이전트-오케스트레이터)
+6. [추천 엔진 파이프라인](#추천-엔진-파이프라인)
+7. [Self-Learning 시스템](#self-learning-시스템)
+8. [챗봇 시스템 (Chat API)](#챗봇-시스템-chat-api)
+9. [LLM 통합 계층](#llm-통합-계층)
+10. [데이터 소스 & 리포지토리](#데이터-소스--리포지토리)
+11. [세션 상태 관리](#세션-상태-관리)
+12. [Feature Flag 시스템](#feature-flag-시스템)
+13. [API 엔드포인트](#api-엔드포인트)
+14. [UI 컴포넌트 구조](#ui-컴포넌트-구조)
+15. [스코어링 기준 (110점 만점)](#스코어링-기준-110점-만점)
+16. [할루시네이션 방지 체계](#할루시네이션-방지-체계)
+17. [추천 엔진 설계 원칙](#추천-엔진-설계-원칙)
+18. [테스트 구조](#테스트-구조)
+19. [환경 변수 설정](#환경-변수-설정)
+20. [실행 & 배포](#실행--배포)
+21. [Git 구조](#git-구조)
 
 ---
 
@@ -59,7 +61,8 @@ YG1_test/
 │   │   └── result/[id]/             # 추천 결과 상세 뷰
 │   ├── admin/                        # 관리자 대시보드
 │   ├── feedback/                     # 피드백 뷰어
-│   ├── knowledge/                    # 지식 베이스 편집기
+│   ├── knowledge/                    # Knowledge Graph 탐색기 + 지식 베이스
+│   ├── learning/                     # Self-Learning 대시보드
 │   ├── inbox/                        # 메시지 인박스
 │   ├── escalation/                   # 에스컬레이션 케이스
 │   ├── executive-demo/               # 영업 데모 모드
@@ -97,7 +100,13 @@ YG1_test/
 │   │   │   ├── engines/              #     실행 엔진들
 │   │   │   ├── http/                 #     HTTP 핸들러
 │   │   │   └── notification/         #     Slack 알림
+│   │   ├── core/                      #   KG 결정론 레이어 & Self-Learning
+│   │   │   ├── knowledge-graph.ts    #     엔티티/의도 추출 (LLM 불필요)
+│   │   │   ├── self-learning.ts      #     패턴 자동 학습
+│   │   │   └── chip-system.ts        #     칩 생성 정책
 │   │   └── shared/                   #   공용 유틸리티
+│   │       ├── filter-field-registry.ts  # 필터 정의 + NEQ/exclude 처리
+│   │       └── patterns.ts           #     Reset/Skip/Replace 패턴
 │   │
 │   ├── agents/                       # 에이전트 타입 & 레거시 오케스트레이터
 │   │   ├── orchestrator.ts           #   → infrastructure/agents로 re-export
@@ -147,6 +156,11 @@ YG1_test/
 ├── e2e/                              # Playwright E2E 테스트
 ├── scripts/                          # 빌드/유틸 스크립트
 ├── public/                           # 정적 에셋
+│
+├── test-results/                     # 통합 테스트 결과
+│   ├── auto-test-runner.js           #   151개 자동 테스트 스크립트
+│   ├── results.tsv                   #   테스트 결과 (탭 구분)
+│   └── final-report.md               #   최종 리포트
 │
 ├── next.config.mjs                   # Next.js 설정
 ├── tailwind.config.ts                # Tailwind CSS 설정
@@ -243,6 +257,96 @@ YG1_test/
 
 ---
 
+## Knowledge Graph (KG) 결정론적 레이어
+
+> **파일**: `lib/recommendation/core/knowledge-graph.ts`
+
+LLM 호출 없이 **결정론적으로** 사용자 의도와 엔티티를 추출하는 최우선 경로. 90%+ 요청을 KG만으로 처리하여 응답 시간을 1~3초로 단축합니다.
+
+### 처리 흐름
+
+```
+사용자 메시지
+    │
+    ▼
+┌─────────────────────────────────┐
+│ tryKGDecision(msg, prevState)   │
+│                                 │
+│ 1. Skip 패턴 ("상관없음", "패스")│  → confidence: 0.95
+│ 2. Back 패턴 ("이전", "돌아가") │  → confidence: 0.95
+│ 3. Reset 패턴 ("초기화", "리셋")│  → confidence: 0.95
+│ 4. Stock 패턴 ("재고 있는 것만")│  → confidence: 0.90
+│ 5. Exclude 패턴 ("빼고", "제외")│  → confidence: 0.90
+│ 6. Entity 추출 (필터 값)        │  → confidence: 0.90~0.92
+│ 7. Show Results 패턴 ("추천해줘")│  → confidence: 0.90
+│ 8. 경쟁사 제품명 감지            │  → confidence: 0.92
+└──────────────┬──────────────────┘
+               │
+        confidence ≥ 0.9?
+        ┌──────┴──────┐
+        │ Yes         │ No
+        ▼             ▼
+   KG 즉시 실행    LLM 경로로 위임
+   (LLM 불필요)    (Haiku → Opus)
+```
+
+### 엔티티 매핑 테이블
+
+KG는 한국어/영어/혼용/구어체를 모두 지원하는 alias 테이블을 사용합니다:
+
+| 필드 | Canonical | Aliases (일부) |
+|------|-----------|---------------|
+| `toolSubtype` | Square | 스퀘어, 평엔드밀, square |
+| `toolSubtype` | Ball | 볼, 볼엔드밀, 볼노즈 |
+| `toolSubtype` | Radius | 라디우스, 레디우스, 코너레디우스, corner radius |
+| `toolSubtype` | Roughing | 황삭, 러핑, roughing |
+| `coating` | TiAlN | 티알엔, tialn |
+| `coating` | AlCrN | 알크롬, alcrn |
+| `coating` | DLC | 디엘씨, dlc |
+| `fluteCount` | (숫자) | N날, N-flute, Nflute |
+| `diameterMm` | (숫자) | Nmm, N파이, ØN, φN, N미리 |
+| `workPieceName` | 계열별 | 구리/copper/동/Cu, 알루미늄/aluminum, SUS304 등 |
+
+### NEQ/제외 필터
+
+부정 표현을 감지하여 `op: "neq"` 필터를 생성합니다:
+
+```
+"TiAlN 빼고"     → { field: "coating", op: "neq", value: "TiAlN" }
+"Square 제외"    → { field: "toolSubtype", op: "neq", value: "Square" }
+"4날 말고 다른거" → { field: "fluteCount", op: "neq", value: 4 }
+"코팅 없는거"    → { field: "coating", op: "eq", value: "Uncoated" }
+```
+
+NEQ 필터는 DB SQL(`NOT (clause)`)과 인메모리 post-filter(match 반전) 양쪽에서 동작합니다.
+
+### 멀티 엔티티 추출
+
+한 문장에서 여러 필터를 동시 추출합니다:
+
+```
+"구리 Square 2날 10mm" → [
+  { field: "workPieceName", value: "Copper" },
+  { field: "toolSubtype", value: "Square" },
+  { field: "fluteCount", value: 2 },
+  { field: "diameterMm", value: 10 }
+]
+```
+
+### materialRatingScore
+
+소재별 시리즈 적합도 점수로, 추천 결과에서 특화 시리즈를 상위에 배치합니다:
+
+| 소재 | 특화 시리즈 | Rating |
+|------|-----------|--------|
+| 구리/Copper | CRX-S | EXCELLENT |
+| 알루미늄/Aluminum | ALU-POWER, ALU-CUT | EXCELLENT |
+| 스테인리스/Stainless | INOX-CUT | EXCELLENT |
+| 탄소강/Carbon Steel | 4G MILL | GOOD |
+| 고경도강/Hard Steel | D-POWER | EXCELLENT |
+
+---
+
 ## 멀티 에이전트 오케스트레이터
 
 시스템의 핵심인 **Multi-Agent Orchestrator**는 Claude 모델을 티어별로 분리 사용하여 비용과 품질을 최적화합니다.
@@ -282,21 +386,32 @@ type NarrowingIntent =
     │
     ▼
 ┌─────────────────────────────────┐
-│ 1. Unified Haiku Judgment       │  ← 1회 Haiku 호출로 의도 + 파라미터 동시 추출
-│    • intent 분류                │
-│    • confidence 점수 (0~1)      │
-│    • 파라미터 추출               │
+│ 0. Knowledge Graph (KG)         │  ← LLM 없이 결정론적 처리 (90%+ 커버)
+│    • 엔티티 추출 (소재, 직경 등) │     confidence ≥ 0.9 → 즉시 실행
+│    • 의도 감지 (reset, back 등)  │     < 0.9 → Step 1로 위임
+│    • NEQ/제외 패턴               │
 └──────────────┬──────────────────┘
                │
-        confidence ≥ 0.5?
+        KG confidence ≥ 0.9?
         ┌──────┴──────┐
         │ Yes         │ No
         ▼             ▼
-┌─────────────┐ ┌──────────────────┐
-│ 확정 라우팅  │ │ Opus 에스컬레이션 │  ← 모호한 입력만 Opus로 보냄 (비용 최적화)
-│             │ │ • 맥락 분석       │
-│             │ │ • 의도 재해석     │
-│             │ │ • 보강된 신뢰도   │
+   KG 즉시 실행   ┌─────────────────────────────────┐
+   (1~3초)       │ 1. Unified Haiku Judgment       │  ← 1회 Haiku 호출로 의도 + 파라미터 동시 추출
+                 │    • intent 분류                │
+                 │    • confidence 점수 (0~1)      │
+                 │    • 파라미터 추출               │
+                 └──────────────┬──────────────────┘
+                                │
+                         confidence ≥ 0.5?
+                         ┌──────┴──────┐
+                         │ Yes         │ No
+                         ▼             ▼
+                 ┌─────────────┐ ┌──────────────────┐
+                 │ 확정 라우팅  │ │ Opus 에스컬레이션 │  ← 모호한 입력만 Opus로 보냄 (비용 최적화)
+                 │             │ │ • 맥락 분석       │
+                 │             │ │ • 의도 재해석     │
+                 │             │ │ • 보강된 신뢰도   │
 └──────┬──────┘ └───────┬──────────┘
        │                │
        └────────┬───────┘
@@ -700,6 +815,59 @@ lib/recommendation/infrastructure/engines/
    ├─ narrowingPath 업데이트 (탐색 이력)
    └─ 세션 상태 업데이트
 ```
+
+---
+
+## Self-Learning 시스템
+
+> **파일**: `lib/recommendation/core/self-learning.ts`
+
+KG가 놓치고 LLM이 해결한 패턴을 자동으로 학습하여, 같은 입력이 재발 시 KG에서 즉시 처리합니다.
+
+### 학습 흐름
+
+```
+사용자: "알루미늄이요"
+    │
+    ▼
+KG: miss (alias에 없음)
+    │
+    ▼
+LLM: "Aluminum" (workPieceName)
+    │
+    ▼
+Self-Learning 기록:
+  trigger: "알루미늄이요"
+  canonical: "Aluminum"
+  field: "workPieceName"
+  confidence: 0.72 (LLM confidence × 0.8)
+    │
+    ▼
+다음 동일 입력 → KG에서 즉시 처리 (LLM 불필요)
+```
+
+### 학습 소스
+
+| 소스 | 신뢰도 | 설명 |
+|------|--------|------|
+| `llm-fallback` | LLM × 0.8 | KG miss → LLM 해결 |
+| `chip-selection` | 0.90 | 사용자가 칩 클릭 |
+| `interaction` | 누적 | 대화 계속 → 이전 결정 정확 |
+| `feedback` | 높음 | 관리자 검증된 패턴 |
+
+### 패턴 파일
+
+```
+data/learning/
+├── patterns.json       # 학습된 패턴 (alias → canonical 매핑)
+└── interactions.json   # 최근 5000건 상호작용 로그
+```
+
+### 통계
+
+- KG hit rate 목표: **90%+**
+- 학습 패턴 confidence ≥ 0.40이면 KG에 반영
+- `runPatternMining()`으로 빈도 기반 자동 승격
 
 ---
 
@@ -1145,7 +1313,7 @@ lib/recommendation/
 
 ## 테스트 구조
 
-### 단위 테스트 (Vitest)
+### 단위 테스트 (Vitest) — 6,106개
 
 ```
 vitest.config.ts
@@ -1153,18 +1321,55 @@ vitest.config.ts
 ├── globals: enabled
 └── mock: server-only module
 
-테스트 파일 위치:
+테스트 파일 위치 (140 파일):
 lib/recommendation/core/__tests__/
 ├── golden-scenarios.test.ts        # 핵심 추천 시나리오
 ├── multi-turn-scenarios.test.ts    # 다중 턴 세션 연속성
 ├── nl-test-runner.test.ts          # 자연어 테스트 하네스
+├── knowledge-graph.test.ts         # KG 엔티티/의도 추출
+├── self-learning.test.ts           # 패턴 학습 검증
+├── side-question.test.ts           # 사이드 질문 격리
 └── response-validator.test.ts      # 출력 검증
 
 lib/recommendation/domain/__tests__/    # 도메인 규칙 테스트
 lib/recommendation/infrastructure/__tests__/  # 인프라 테스트
+├── refinement-and-reset.test.ts       # 필터 교체/리셋 검증
+├── general-chat-guards.test.ts        # 일반 대화 가드
+└── serve-engine-input-material.test.ts # 소재 입력 매핑
 lib/agents/__tests__/                   # 에이전트 로직 테스트
 lib/domain/__tests__/                   # 공통 도메인 테스트
 lib/data/repos/__tests__/              # 리포지토리 테스트
+```
+
+### 통합 테스트 (Auto Test Runner) — 151개
+
+> **파일**: `test-results/auto-test-runner.js`
+
+Node.js http 모듈로 실제 API 서버에 대해 151개 시나리오를 자동 실행합니다.
+
+```
+테스트 카테고리 (23개):
+├── 멀티필터 (10)          # 첫 턴에 2~5개 필터 동시 추출
+├── 필터 변경 (10)          # Ball→Square, 4날→6날 등
+├── 부정/제외 (10)          # "TiAlN 빼고", "말고", "아닌"
+├── 네비게이션 (10)         # "처음부터 다시", "이전", "초기화"
+├── Skip (5)               # "상관없음", "아무거나"
+├── 멀티턴 시나리오 (10)     # 5턴+ 복합 흐름 (A~J)
+├── 추천 기능 (5)           # "추천해줘", "더 보여줘"
+├── 비교 기능 (5)           # 상위 N개 비교, 시리즈 비교
+├── 질문 (10)              # 필터 불변 검증
+├── 복합 자연어 (15)        # "알루미늄 고속가공", "금형 곡면"
+├── CRX-S 구리 변주 (20)    # 한/영/혼용/구어체 20가지
+├── materialRating (5)     # 소재별 특화 시리즈 검증
+├── 도메인 지식 (5)         # "떨림 적은 거", "면조도 좋은 거"
+├── 0건 fallback (5)       # 조건 너무 좁을 때 안내
+├── 인코딩 (5)             # 한국어/영어/Ø10/φ10
+├── 에러 핸들링 (10)        # 빈 메시지, ???, 이모지
+├── 피드백 👎 재현 (12)     # 실제 👎 받은 입력 재현
+└── 응답 시간 (1)           # 30초+ 타임아웃 체크
+
+결과 형식: test-results/results.tsv
+판정: PASS / FAIL / WARN
 ```
 
 ### E2E 테스트 (Playwright)
@@ -1184,9 +1389,12 @@ e2e/
 ### 테스트 실행
 
 ```bash
-# 단위 테스트
+# 단위 테스트 (6,106개)
 pnpm test                # 전체 실행
 pnpm test -- --watch     # 감시 모드
+
+# 통합 테스트 (151개, 실제 서버 필요)
+node test-results/auto-test-runner.js
 
 # E2E 테스트
 pnpm exec playwright test           # 전체
