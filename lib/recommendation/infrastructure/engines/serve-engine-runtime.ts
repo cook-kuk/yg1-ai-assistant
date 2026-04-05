@@ -2597,7 +2597,6 @@ async function handleServeExplorationInner(
         form, candidates, evidenceMap, totalCandidateCount, paginationDto(totalCandidateCount),
         displayCandidates, displayEvidenceMap, currentInput, narrowingHistory, filters,
         turnCount, messages, provider, language,
-        undefined, undefined, undefined, undefined, undefined, undefined,
       )
     }
   }
