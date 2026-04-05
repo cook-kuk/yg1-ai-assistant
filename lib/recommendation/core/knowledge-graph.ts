@@ -38,7 +38,7 @@ const ENTITY_NODES: EntityNode[] = [
   // toolSubtype
   { canonical: "Square", field: "toolSubtype", aliases: ["square", "스퀘어", "스퀘어엔드밀", "평엔드밀"] },
   { canonical: "Ball", field: "toolSubtype", aliases: ["ball", "볼", "볼엔드밀", "볼노즈"] },
-  { canonical: "Radius", field: "toolSubtype", aliases: ["radius", "라디우스", "코너r", "코너알", "코너반경", "corner radius"] },
+  { canonical: "Radius", field: "toolSubtype", aliases: ["radius", "라디우스", "레디우스", "레디어스", "코너r", "코너알", "코너반경", "코너레디우스", "코너레디어스", "코너래디우스", "corner radius"] },
   { canonical: "Roughing", field: "toolSubtype", aliases: ["roughing", "황삭", "러핑", "황삭용"] },
   { canonical: "Taper", field: "toolSubtype", aliases: ["taper", "테이퍼", "테이퍼엔드밀"] },
   { canonical: "Chamfer", field: "toolSubtype", aliases: ["chamfer", "챔퍼", "모따기", "면취"] },
