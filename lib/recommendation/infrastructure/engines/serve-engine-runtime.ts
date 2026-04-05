@@ -1707,7 +1707,8 @@ async function handleServeExplorationInner(
 
         if (kgFilters.length > 0) {
           for (const kf of kgFilters) {
-            const built = buildAppliedFilterFromValue(kf.field, kf.rawValue ?? kf.value, turnCount)
+            const isNeg = kf.op === "exclude" || kf.op === "neq"
+            const built = buildAppliedFilterFromValue(kf.field, kf.rawValue ?? kf.value, turnCount, isNeg ? "neq" : undefined)
             if (built) {
               const skipIdx = filters.findIndex(x => x.field === built.field && x.op === "skip")
               if (skipIdx >= 0) filters.splice(skipIdx, 1)

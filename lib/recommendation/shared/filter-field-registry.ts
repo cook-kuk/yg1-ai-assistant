@@ -931,7 +931,8 @@ export function getRegisteredFilterFields(): string[] {
 export function buildAppliedFilterFromValue(
   field: string,
   rawValue: string | number | boolean | Array<string | number | boolean>,
-  appliedAt = 0
+  appliedAt = 0,
+  opOverride?: string
 ): AppliedFilter | null {
   const definition = getFilterFieldDefinition(field)
   if (!definition) return null
@@ -965,7 +966,7 @@ export function buildAppliedFilterFromValue(
     const rawBooleanValue = parsedValues.length === 1 ? parsedValues[0] : parsedValues
     return {
       field: targetField,
-      op: definition.op,
+      op: opOverride ?? definition.op,
       value: parsedValues.map(value => value ? "true" : "false").join(", "),
       rawValue: rawBooleanValue,
       appliedAt,
@@ -982,7 +983,7 @@ export function buildAppliedFilterFromValue(
     const rawNumberValue = parsedValues.length === 1 ? parsedValues[0] : parsedValues
     return {
       field: targetField,
-      op: definition.op,
+      op: opOverride ?? definition.op,
       value: parsedValues.map(value => `${formatNumericValue(value)}${definition.unit ?? ""}`).join(", "),
       rawValue: rawNumberValue,
       appliedAt,
@@ -996,7 +997,7 @@ export function buildAppliedFilterFromValue(
   const rawStringValue = stringValues.length === 1 ? stringValues[0] : stringValues
   return {
     field: targetField,
-    op: definition.op,
+    op: opOverride ?? definition.op,
     value: stringValues.join(", "),
     rawValue: rawStringValue,
     appliedAt,
@@ -1106,7 +1107,11 @@ export function applyPostFilterToProducts(
   const definition = getFilterFieldDefinition(filter.field)
   if (!definition?.matches) return null
 
-  return products.filter(product => definition.matches?.(product, filter) === true)
+  const isNeg = filter.op === "neq" || filter.op === "exclude"
+  return products.filter(product => {
+    const matched = definition.matches?.(product, filter) === true
+    return isNeg ? !matched : matched
+  })
 }
 
 export function buildDbWhereClauseForFilter(

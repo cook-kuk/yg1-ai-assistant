@@ -179,9 +179,9 @@ export function extractFluteCount(text: string): number | null {
 // ═══════════════════════════════════════════════════════════════
 
 export const RESET_KEYWORDS: string[] = [
-  "처음부터 다시", "다시 시작", "리셋", "처음부터",
+  "처음부터 다시", "다시 처음부터", "다시 시작", "리셋", "처음부터",
   "처음부터 다시 시작", "처음부터 다시 해줘", "리셋해줘",
-  "새로 시작", "초기화", "reset",
+  "새로 시작", "초기화", "reset", "다시 처음부터 시작",
 ]
 
 export const REPLACE_SIGNAL_PATTERNS: RegExp[] = [

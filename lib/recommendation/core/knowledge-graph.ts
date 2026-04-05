@@ -152,7 +152,7 @@ const BACK_PATTERNS = [
 ]
 
 const RESET_PATTERNS = [
-  /(?:처음부터\s*다시|처음으로|초기화|리셋|start\s*over|reset)/iu,
+  /(?:처음부터\s*다시|다시\s*처음부터|처음으로|초기화|리셋|새로\s*시작|start\s*over|reset)/iu,
 ]
 
 const STOCK_PATTERNS = [

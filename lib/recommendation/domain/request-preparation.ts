@@ -104,7 +104,7 @@ export function classifyIntent(
   return { intent: "general_question", confidence: "low" }
 }
 
-const RESET_KEYWORDS = ["처음부터 다시", "처음부터", "다시 시작", "리셋"]
+const RESET_KEYWORDS = ["처음부터 다시", "다시 처음부터", "처음부터", "다시 시작", "리셋", "초기화", "새로 시작", "reset"]
 
 function isExplicitResetCommand(clean: string): boolean {
   if (!RESET_KEYWORDS.some(s => clean.includes(s))) return false
@@ -439,8 +439,11 @@ export function planRoute(
     const clean = message.trim().toLowerCase()
 
     // Reset signal
-    if (["처음부터 다시", "다시 시작", "리셋"].some(s => clean.includes(s))) {
-      return { action: "reset_session", reason: "사용자가 초기화를 요청했습니다", needsLLM: false, riskFlags }
+    if (["처음부터 다시", "다시 처음부터", "다시 시작", "리셋", "초기화", "새로 시작", "처음부터", "reset"].some(s => clean.includes(s))) {
+      // Guard: only treat as reset if the message is short and direct (not meta-question)
+      if (clean.length <= 25 && !/\?|어떻게|왜/.test(clean)) {
+        return { action: "reset_session", reason: "사용자가 초기화를 요청했습니다", needsLLM: false, riskFlags }
+      }
     }
 
     // Undo signals — resolve target from message + session state
@@ -460,8 +463,10 @@ export function planRoute(
     }
   } else if (message) {
     const clean = message.trim().toLowerCase()
-    if (["처음부터 다시", "다시 시작", "리셋"].some(s => clean.includes(s))) {
-      return { action: "reset_session", reason: "사용자가 초기화를 요청했습니다", needsLLM: false, riskFlags }
+    if (["처음부터 다시", "다시 처음부터", "다시 시작", "리셋", "초기화", "새로 시작", "처음부터", "reset"].some(s => clean.includes(s))) {
+      if (clean.length <= 25 && !/\?|어떻게|왜/.test(clean)) {
+        return { action: "reset_session", reason: "사용자가 초기화를 요청했습니다", needsLLM: false, riskFlags }
+      }
     }
   }
 
