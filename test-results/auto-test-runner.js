@@ -987,7 +987,7 @@ async function test23_feedbackReproduction() {
     { input: '공구 형상을 코너레디우스만 보여줘', expect: 'Radius 매핑' },
     { input: '3/8" 직경 제품으로 가공하고자 하며 좀 더 hardend steel 탄소강으로 추천해주실 수 있나요?', expect: '인치→mm 변환+필터' },
     { input: '나는 Aluminum이 아니고 Graphite를 가공하고 싶어요', expect: 'Graphite 소재 변경' },
-    { input: '적층제조를 모르시나요?', expect: '에러 안 남' },
+    { input: '적층제조를 모르시나요?', expect: '에러 안 남', allowZeroCandidates: true },
     { input: '3날 무코팅에 스퀘어', expect: '3날+무코팅+Square' },
   ];
 
@@ -996,7 +996,7 @@ async function test23_feedbackReproduction() {
       const body = buildRequest(c.input);
       const res = await callRecommendAPI(body);
       const info = extractInfo(res);
-      const ok = noError(info) && info.candidateCount > 0;
+      const ok = noError(info) && (c.allowZeroCandidates || info.candidateCount > 0);
       logResult('23.👎재현', c.input.substring(0,40), c.expect,
         `candidates=${info.candidateCount} filters=${info.filterCount} text=${info.text.substring(0,40)}`,
         ok ? 'PASS' : 'FAIL', info.kgConfidence, info.filterCount, info.candidateCount, info.elapsedMs);

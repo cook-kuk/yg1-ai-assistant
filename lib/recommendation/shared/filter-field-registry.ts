@@ -7,6 +7,7 @@ import type {
 import {
   SKIP_TOKENS as SHARED_SKIP_TOKENS,
   COATING_KO_ALIASES as SHARED_COATING_KO_ALIASES,
+  COATING_CHEMICAL_DB_ALIASES,
   canonicalizeCoating as sharedCanonicalizeCoating,
   canonicalizeToolSubtype as sharedCanonicalizeToolSubtype,
   stripKoreanParticles,
@@ -336,6 +337,36 @@ function buildLikeClause(columns: string[], filter: AppliedFilter, next: (value:
   return valueClauses.length === 1 ? valueClauses[0] : `(${valueClauses.join(" OR ")})`
 }
 
+/** 화학명("AlCrN") → DB 내부명("Y-Coating") 확장 LIKE 쿼리 */
+function buildCoatingLikeClause(filter: AppliedFilter, next: (value: unknown) => string): string | null {
+  const rawValues = extractStringFilterRawValues(filter).map(v => v.toLowerCase()).filter(Boolean)
+  if (rawValues.length === 0) return null
+  // 화학명에 해당하는 DB aliases 추가 (e.g., "alcrn" → ["y-coating", "y coating"])
+  const expandedValues = new Set(rawValues)
+  for (const raw of rawValues) {
+    const aliases = COATING_CHEMICAL_DB_ALIASES[raw]
+    if (aliases) for (const alias of aliases) expandedValues.add(alias.toLowerCase())
+  }
+  const columns = ["search_coating"]
+  const valueClauses = [...expandedValues].map(raw => {
+    const param = next(`%${raw}%`)
+    return `(${columns.map(column => `LOWER(COALESCE(${column}, '')) LIKE ${param}`).join(" OR ")})`
+  })
+  return valueClauses.length === 1 ? valueClauses[0] : `(${valueClauses.join(" OR ")})`
+}
+
+/** post-SQL: 화학명↔내부명 교차 매칭 */
+function coatingAliasMatch(record: FilterRecord, filter: AppliedFilter): boolean {
+  const queries = extractStringFilterRawValues(filter).map(v => v.toLowerCase()).filter(Boolean)
+  const productCoating = String(extractPrimitiveValues(record, "coating")[0] ?? "").toLowerCase()
+  if (!productCoating) return false
+  for (const q of queries) {
+    const aliases = COATING_CHEMICAL_DB_ALIASES[q]
+    if (aliases?.some(a => productCoating.includes(a.toLowerCase()))) return true
+  }
+  return false
+}
+
 function buildExactIdentifierClause(columns: string[], filter: AppliedFilter, next: (value: unknown) => string): string | null {
   const rawValues = extractStringFilterRawValues(filter).map(value => normalizeIdentifierText(value)).filter(Boolean)
   if (rawValues.length === 0) return null
@@ -529,8 +560,8 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     setInput: (input, filter) => ({ ...input, coatingPreference: joinedFilterStringValue(filter) }),
     clearInput: input => ({ ...input, coatingPreference: undefined }),
     extractValues: record => extractPrimitiveValues(record, "coating"),
-    matches: (record, filter) => stringMatch(record, filter, "coating"),
-    buildDbClause: (filter, next) => buildLikeClause(["search_coating"], filter, next),
+    matches: (record, filter) => stringMatch(record, filter, "coating") || coatingAliasMatch(record, filter),
+    buildDbClause: (filter, next) => buildCoatingLikeClause(filter, next),
   },
   cuttingType: {
     field: "cuttingType",

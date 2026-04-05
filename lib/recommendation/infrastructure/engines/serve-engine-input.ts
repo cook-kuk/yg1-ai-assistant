@@ -112,5 +112,11 @@ function applySingleFilter(input: RecommendationInput, filter: AppliedFilter): R
     return clearFilterFromRecommendationInput(input, filter.field)
   }
 
+  // NEQ/exclude: 해당 필드를 input에 positive 값으로 설정하면 안 됨
+  // DB WHERE clause (buildDbWhereClauseForFilter)와 post-SQL filter가 exclusion 처리
+  if (filter.op === "neq" || filter.op === "exclude") {
+    return clearFilterFromRecommendationInput(input, filter.field)
+  }
+
   return applyFilterToRecommendationInput(input, filter)
 }

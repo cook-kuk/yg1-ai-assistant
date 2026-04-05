@@ -227,6 +227,19 @@ export const COATING_KO_ALIASES: Record<string, string> = {
   티코팅: "T-Coating",
 }
 
+/**
+ * 화학명 ↔ YG-1 내부 코팅명 양방향 매핑.
+ * DB search_coating 컬럼은 YG-1 내부명("Y Coating", "X-Coating" 등)으로 저장됨.
+ * 사용자가 화학명("AlCrN")으로 검색 시 내부명도 함께 조회해야 매칭 가능.
+ * 소스: knowledge-graph.ts ENTITY_NODES의 coating aliases.
+ */
+export const COATING_CHEMICAL_DB_ALIASES: Record<string, string[]> = {
+  alcrn: ["Y-Coating", "Y Coating"],
+  tialn: ["X-Coating", "X Coating"],
+  ticn: ["C-Coating", "C Coating"],
+  altin: ["Z-Coating", "XC-Coating"],
+}
+
 /** Flat list: English canonical names + Korean aliases — for quick .includes() 검사 */
 export const COATING_KEYWORDS: string[] = [
   "TiAlN", "AlCrN", "DLC", "nACo", "TiN", "AlTiN", "CrN",
