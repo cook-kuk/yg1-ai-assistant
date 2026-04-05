@@ -1,0 +1,169 @@
+번호	카테고리	입력	기대결과	실제결과	판정	KG_conf	필터수	후보수	응답시간ms
+1	1.멀티필터	피삭재는 구리 SQUARE 2날 직경 10 짜리 추천해줘	material+toolSubtype+fluteCount+diameter	filters=0 candidates=-1 	WARN		0	-1	746
+2	1.멀티필터	탄소강 10mm 4날 Square TiAlN 추천해줘	5개 필터	filters=0 candidates=-1 	WARN		0	-1	518
+3	1.멀티필터	스테인리스 8mm Ball 추천	3개 필터	filters=0 candidates=-1 	WARN		0	-1	545
+4	1.멀티필터	알루미늄 12mm Radius	3개 필터	filters=0 candidates=-1 	WARN		0	-1	480
+5	1.멀티필터	구리 2날 10mm	3개 필터	filters=0 candidates=-1 	WARN		0	-1	509
+6	1.멀티필터	copper square 2flute 10mm	영어 4개 필터	filters=0 candidates=-1 	WARN		0	-1	532
+7	1.멀티필터	SUS304 황삭용 추천	소재+가공방식	filters=0 candidates=-1 	WARN		0	-1	473
+8	1.멀티필터	고경도강 6mm 볼 추천	3개 필터	filters=0 candidates=-1 	WARN		0	-1	313
+9	1.멀티필터	주철 4날 Square	3개 필터	filters=0 candidates=-1 	WARN		0	-1	238
+10	1.멀티필터	티타늄 합금 2날 Ball	3개 필터	filters=0 candidates=-1 	WARN		0	-1	220
+11	2.필터변경	Square 4날 10mm 추천 → Ball로 바꿔줘	toolSubtype→Ball	filters=0 candidates=-1 	FAIL		0	-1	533
+12	2.필터변경	Square 4날 10mm → 6날로 변경	fluteCount→6	filters=0 candidates=-1 	FAIL		0	-1	557
+13	2.필터변경	Square 4날 10mm → 8mm로 바꿔	diameterMm→8	filters=0 candidates=-1 	FAIL		0	-1	560
+14	2.필터변경	Square 4날 TiAlN → AlCrN으로	coating→AlCrN	filters=0 candidates=-1 	FAIL		0	-1	209
+15	2.필터변경	탄소강 Square 4날 → 스테인리스로	workPieceName→Stainless	filters=0 candidates=-1 	FAIL		0	-1	222
+16	2.필터변경	Square 4날 12mm → 10mm로 줄여줘	diameterMm→10	filters=0 candidates=-1 	FAIL		0	-1	513
+17	2.필터변경	Square 4날 TiCN → TiAlN으로 교체	coating→TiAlN	filters=0 candidates=-1 	FAIL		0	-1	229
+18	2.필터변경	Square 4날 10mm → Radius로 바꿔	toolSubtype→Radius	filters=0 candidates=-1 	FAIL		0	-1	553
+19	2.필터변경	Square 4날 10mm → 3날로 줄여줘	fluteCount→3	filters=0 candidates=-1 	FAIL		0	-1	558
+20	2.필터변경	Square 4날 10mm → 직경만 6mm로	diameterMm→6	filters=0 candidates=-1 	FAIL		0	-1	235
+21	3.부정제외	TiAlN 빼고 나머지요	TiAlN 제외	filters=0 candidates=-1	FAIL		0	-1	208
+22	3.부정제외	TiAlN만 아니면 돼	TiAlN 제외	filters=0 candidates=-1	FAIL		0	-1	227
+23	3.부정제외	TiAlN 제외하고	TiAlN 제외	filters=0 candidates=-1	FAIL		0	-1	217
+24	3.부정제외	Square 빼고	Square 제외	filters=0 candidates=-1	FAIL		0	-1	554
+25	3.부정제외	4날 말고 다른거	4날 제외	filters=0 candidates=-1	FAIL		0	-1	580
+26	3.부정제외	Ball 아닌것	Ball 제외	filters=0 candidates=-1	FAIL		0	-1	516
+27	3.부정제외	코팅 없는거	Uncoated/Bright	filters=0 candidates=-1	FAIL		0	-1	582
+28	3.부정제외	DLC 빼고 TiAlN으로	DLC제외+TiAlN적용	filters=0 candidates=-1	FAIL		0	-1	519
+29	3.부정제외	아니 TiAlN만 아니면 된다니까	TiAlN 제외	filters=0 candidates=-1	FAIL		0	-1	216
+30	3.부정제외	코팅 없는 걸로	Uncoated	filters=0 candidates=-1	FAIL		0	-1	547
+31	4.네비게이션	처음부터 다시	리셋, 필터0	filters=0 candidates=-1	PASS		0	-1	568
+32	4.네비게이션	이전 단계	필터 1개 제거	before=0 after=0	WARN		0	-1	215
+33	4.네비게이션	3필터→이전→복원	후보수 복원	before=-1 after=-1	PASS		0	-1	220
+34	4.네비게이션	초기화	전체 리셋	filters=0	PASS		0	-1	543
+35	4.네비게이션	리셋→새조건	깨끗한 세션	filters=0 candidates=-1	FAIL		0	-1	228
+36	4.네비게이션	이전x2	2개 필터 제거	r2filters=0 r4filters=0	WARN		0	-1	231
+37	4.네비게이션	다시 처음부터	전체 리셋	filters=0	PASS		0	-1	228
+38	4.네비게이션	5턴후 처음부터	전체 리셋	filters=0	PASS		0	-1	523
+39	4.네비게이션	돌아가	이전 단계	filters=0 candidates=-1	PASS		0	-1	541
+40	4.네비게이션	이전 단계로	필터 제거	before=0 after=0	WARN		0	-1	215
+41	5.skip	상관없음	skip처리+후보유지	candidates=-1 filters=0	FAIL		0	-1	211
+42	5.skip	아무거나	skip처리+후보유지	candidates=-1 filters=0	FAIL		0	-1	456
+43	5.skip	알아서	skip처리+후보유지	candidates=-1 filters=0	FAIL		0	-1	232
+44	5.skip	패스	skip처리+후보유지	candidates=-1 filters=0	FAIL		0	-1	220
+45	5.skip	넘어가	skip처리+후보유지	candidates=-1 filters=0	FAIL		0	-1	216
+46	6.멀티턴A	Square→4날→TiAlN→추천→8mm	정상흐름	candidates=-1	FAIL		0	-1	258
+47	6.멀티턴B	구리2날10mm→추천→Ball	Ball변경	candidates=-1	FAIL		0	-1	523
+48	6.멀티턴C	Square→Ball변경→4날→TiAlN	수정흐름	candidates=-1	FAIL		0	-1	223
+49	6.멀티턴D	상관없음x3→추천	skip연속	candidates=-1	FAIL		0	-1	215
+50	6.멀티턴E	추천→이전→Ball→재추천	수정후추천	candidates=-1	FAIL		0	-1	535
+51	6.멀티턴F	TiAlN제외→Square→4날→추천	제외+정상	candidates=-1	FAIL		0	-1	223
+52	6.멀티턴G	추천→리셋→Ball2날6mm→추천	리셋후추천	candidates=-1	FAIL		0	-1	555
+53	6.멀티턴H	3개→추천→코팅변경→재추천	코팅교체	candidates=-1	FAIL		0	-1	748
+54	6.멀티턴I	구리2날10mm→Ball→재추천	변경후추천	candidates=-1	FAIL		0	-1	538
+55	6.멀티턴J	Square→Radius→Ball→6mm→추천	다중변경	candidates=-1	FAIL		0	-1	573
+56	7.추천	추천해줘	purpose=recommendation+카드	purpose=recommendation candidates=0	FAIL		0	-1	569
+57	7.추천	지금 바로 제품 보기	현재필터 결과	candidates=-1	FAIL		0	-1	235
+58	7.추천	AI 상세 분석	AI분석 응답	text=**브랜드명:** G-CUT for Korean Market | **제품코드:** EIE2	PASS		0	-1	555
+59	7.추천	필터2개→추천	넓은범위 추천	candidates=-1	FAIL		0	-1	229
+60	7.추천	더 보여줘	다음 페이지	candidates=-1	PASS		0	-1	223
+61	8.비교	상위 3개 비교	비교 테이블	purpose=recommendation text=**브랜드명:** 3S MILL | **제품코드:** CG3S4710002
+
+For the	PASS		0	-1	558
+62	8.비교	첫번째 두번째 차이	차이점	purpose=recommendation text=**브랜드명:** 3S MILL | **제품코드:** CG3S4710002
+
+For the	PASS		0	-1	803
+63	8.비교	TiAlN이 좋아 AlCrN이 좋아?	코팅 비교	purpose=question text=어떤 가공 방식이 필요하신가요? (측삭/황삭/고이송 등)	PASS		0	-1	235
+64	8.비교	4G MILL X5070 알려줘	제품 상세	text=X5070 제품 정보를 내부 DB에서 찾지 못했습니다.
+제품코드를 다시 확인해주세요.
+[R	PASS		0	-1	293
+65	8.비교	SEME71 vs SEME72	시리즈 비교	text=SEME71 vs SEME72 시리즈를 내부 DB 기준으로 비교했습니다.
+
+| 항목 | S	PASS		0	-1	365
+66	9.질문	TiAlN이 뭐야?	필터 불변	before=0 after=0 purpose=question	PASS		0	-1	215
+67	9.질문	4날 6날 차이	필터 불변	before=0 after=0 purpose=question	PASS		0	-1	222
+68	9.질문	코너 래디우스가 뭐야?	필터 불변	before=0 after=0 purpose=question	PASS		0	-1	219
+69	9.질문	황삭 정삭 차이	필터 불변	before=0 after=0 purpose=question	PASS		0	-1	223
+70	9.질문	YG-1 어떤 회사?	필터 불변	before=0 after=0 purpose=question	PASS		0	-1	223
+71	9.질문	Square 뭐에 써?	필터 불변	before=0 after=0 purpose=question	PASS		0	-1	218
+72	9.질문	코팅 종류 알려줘	필터 불변	before=0 after=0 purpose=question	PASS		0	-1	220
+73	9.질문	절삭속도가 뭐야?	필터 불변	before=0 after=0 purpose=question	PASS		0	-1	221
+74	9.질문	헬릭스각 중요해?	필터 불변	before=0 after=0 purpose=question	PASS		0	-1	215
+75	9.질문	엔드밀 드릴 차이	필터 불변	before=0 after=0 purpose=question	PASS		0	-1	243
+76	10.자연어	구리 전용 2날 10mm	필터적용+후보>0	filters=0 candidates=-1	WARN		0	-1	513
+77	10.자연어	알루미늄 고속가공	필터적용+후보>0	filters=0 candidates=-1	WARN		0	-1	208
+78	10.자연어	SUS304 황삭	필터적용+후보>0	filters=0 candidates=-1	WARN		0	-1	386
+79	10.자연어	스테인리스 마무리	필터적용+후보>0	filters=0 candidates=-1	WARN		0	-1	368
+80	10.자연어	금형 곡면	필터적용+후보>0	filters=0 candidates=-1	WARN		0	-1	210
+81	10.자연어	티타늄 가공	필터적용+후보>0	filters=0 candidates=-1	WARN		0	-1	236
+82	10.자연어	인코넬용	필터적용+후보>0	filters=0 candidates=-1	WARN		0	-1	229
+83	10.자연어	프리하든강	필터적용+후보>0	filters=0 candidates=-1	WARN		0	-1	240
+84	10.자연어	칩 배출 좋은	필터적용+후보>0	filters=0 candidates=-1	WARN		0	-1	209
+85	10.자연어	진동 적은	필터적용+후보>0	filters=0 candidates=-1	WARN		0	-1	224
+86	10.자연어	긴 가공 깊이	필터적용+후보>0	filters=0 candidates=-1	WARN		0	-1	220
+87	10.자연어	측면 가공	필터적용+후보>0	filters=0 candidates=-1	WARN		0	-1	217
+88	10.자연어	포켓 가공	필터적용+후보>0	filters=0 candidates=-1	WARN		0	-1	218
+89	10.자연어	3D 곡면	필터적용+후보>0	filters=0 candidates=-1	WARN		0	-1	217
+90	10.자연어	깊은 홈	필터적용+후보>0	filters=0 candidates=-1	WARN		0	-1	232
+91	11.CRX-S	구리 스퀘어 2날 10mm	CRX-S 시리즈 상위	candidates=-1 hasCRXS=false	FAIL		0	-1	212
+92	11.CRX-S	copper square 2flute 10mm	CRX-S 시리즈 상위	candidates=-1 hasCRXS=true	FAIL		0	-1	514
+93	11.CRX-S	동 가공용 엔드밀 10mm	CRX-S 시리즈 상위	candidates=-1 hasCRXS=true	FAIL		0	-1	531
+94	11.CRX-S	Cu 소재 Square D10	CRX-S 시리즈 상위	candidates=-1 hasCRXS=true	FAIL		0	-1	544
+95	11.CRX-S	비철 구리 Square 2날 10mm	CRX-S 시리즈 상위	candidates=-1 hasCRXS=true	FAIL		0	-1	514
+96	11.CRX-S	구리 평날 두날 열미리	CRX-S 시리즈 상위	candidates=-1 hasCRXS=false	FAIL		0	-1	215
+97	11.CRX-S	구리 Square 2날 6mm	CRX-S 시리즈 상위	candidates=-1 hasCRXS=true	FAIL		0	-1	545
+98	11.CRX-S	구리 Square 2날 8mm	CRX-S 시리즈 상위	candidates=-1 hasCRXS=true	FAIL		0	-1	530
+99	11.CRX-S	구리 Square 2날 12mm	CRX-S 시리즈 상위	candidates=-1 hasCRXS=true	FAIL		0	-1	485
+100	11.CRX-S	구리 Square 2날 4mm	CRX-S 시리즈 상위	candidates=-1 hasCRXS=true	FAIL		0	-1	588
+101	11.CRX-S	구리 엔드밀 추천해줘	CRX-S 시리즈 상위	candidates=-1 hasCRXS=false	FAIL		0	-1	217
+102	11.CRX-S	동 가공용 추천	CRX-S 시리즈 상위	candidates=-1 hasCRXS=false	FAIL		0	-1	227
+103	11.CRX-S	구리 2날 10mm 추천	CRX-S 시리즈 상위	candidates=-1 hasCRXS=true	FAIL		0	-1	560
+104	11.CRX-S	copper endmill 10mm	CRX-S 시리즈 상위	candidates=-1 hasCRXS=true	FAIL		0	-1	547
+105	11.CRX-S	구리 가공 스퀘어	CRX-S 시리즈 상위	candidates=-1 hasCRXS=false	FAIL		0	-1	271
+106	11.CRX-S	Cu Square 2F 10	CRX-S 시리즈 상위	candidates=-1 hasCRXS=false	FAIL		0	-1	226
+107	11.CRX-S	구리합금 엔드밀	CRX-S 시리즈 상위	candidates=-1 hasCRXS=false	FAIL		0	-1	221
+108	11.CRX-S	동 10파이	CRX-S 시리즈 상위	candidates=-1 hasCRXS=true	FAIL		0	-1	509
+109	11.CRX-S	구리 D10 2날	CRX-S 시리즈 상위	candidates=-1 hasCRXS=true	FAIL		0	-1	520
+110	11.CRX-S	순동 가공	CRX-S 시리즈 상위	candidates=-1 hasCRXS=false	FAIL		0	-1	218
+111	12.소재점수	구리 엔드밀 추천	CRX 시리즈 상위	candidates=-1 hasSeries=false	FAIL		0	-1	228
+112	12.소재점수	알루미늄 엔드밀 추천	ALU 시리즈 상위	candidates=-1 hasSeries=false	FAIL		0	-1	218
+113	12.소재점수	스테인리스 엔드밀 추천	INOX 시리즈 상위	candidates=-1 hasSeries=false	FAIL		0	-1	215
+114	12.소재점수	탄소강 엔드밀 추천	4G 시리즈 상위	candidates=-1 hasSeries=false	FAIL		0	-1	213
+115	12.소재점수	고경도강 엔드밀 추천	D-POWER 시리즈 상위	candidates=-1 hasSeries=false	FAIL		0	-1	217
+116	15.도메인지식	떨림 적은 거	부등분할 4날	text=어떤 소재를 가공할 예정인가요?	PASS		0	-1	213
+117	15.도메인지식	면조도 좋은 거	볼 or 6날	text=어떤 소재를 가공할 예정인가요?	PASS		0	-1	217
+118	15.도메인지식	리브 가공용	테이퍼넥	text=어떤 소재를 가공할 예정인가요?	PASS		0	-1	219
+119	15.도메인지식	황삭 효율 좋은 거	X-SPEED 라핑	text=어떤 소재를 가공할 예정인가요?	PASS		0	-1	216
+120	15.도메인지식	고이송 가공	MMC볼 or 3날	text=어떤 소재를 가공할 예정인가요?	PASS		0	-1	219
+121	16.0건fallback	구리 Square 2날 10mm TiAlN DLC	조건 완화 제안	candidates=-1 msg=**브랜드명:** CRX S | **제품코드:** SGED31100
+
+For these c	PASS		0	-1	527
+122	16.0건fallback	인코넬 16파이 Square 2날 TiAlN DLC	0건 안내	candidates=-1 msg=**브랜드명:** DREAM DRILLS-INOX | **제품코드:** DH452160
+
+	PASS		0	-1	403
+123	16.0건fallback	0건→이전→복귀	후보 복귀	candidates=-1	FAIL		0	-1	579
+124	17.인코딩	스퀘어 4날	한국어 필터	filters=0 candidates=-1	WARN		0	-1	214
+125	17.인코딩	square 4 flute	영어 필터	filters=0 candidates=-1	WARN		0	-1	221
+126	17.인코딩	스퀘어 4flute TiAlN	한영혼용	filters=0 candidates=-1	WARN		0	-1	209
+127	17.인코딩	10	diameter 해석	filters=0 candidates=-1	WARN		0	-1	228
+128	17.인코딩	Ø10	diameter 해석	filters=0 candidates=-1	WARN		0	-1	237
+129	19.에러핸들링		에러 안 남	error=true text=죄송합니다, 처리 중 오류가 발생했습니다. 다시 시도해주세요.	FAIL		0	-1	224
+130	19.에러핸들링	10	에러 안 남	error=false text=어떤 소재를 가공할 예정인가요?	PASS		0	-1	227
+131	19.에러핸들링	???	에러 안 남	error=false text=어떤 소재를 가공할 예정인가요?	PASS		0	-1	224
+132	19.에러핸들링	AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA	긴 메시지 에러 안 남	error=false text=어떤 소재를 가공할 예정인가요?	PASS		0	-1	232
+133	19.에러핸들링	4 flute TiAlN Square	영어 작동	error=false text=어떤 가공 방식이 필요하신가요? (측삭/황삭/고이송 등)	PASS		0	-1	238
+134	19.에러핸들링	ボールエンドミル	일본어 에러 안 남	error=false text=어떤 소재를 가공할 예정인가요?	PASS		0	-1	223
+135	19.에러핸들링	squre	Square 인식	error=false text=어떤 소재를 가공할 예정인가요?	PASS		0	-1	221
+136	19.에러핸들링	ㅎㅎ 아무거나	skip	error=false text=어떤 소재를 가공할 예정인가요?	PASS		0	-1	254
+137	19.에러핸들링	👍	에러 안 남	error=false text=어떤 소재를 가공할 예정인가요?	PASS		0	-1	220
+138	19.에러핸들링	10미리 4날	diameter+flute	error=false text=어떤 소재를 가공할 예정인가요?	PASS		0	-1	225
+139	22.응답시간	timeout check	<30s	타임아웃 0건	PASS		0	0	0
+140	23.👎재현	R1짜리 10파이 추천해줘	Radius R1 10mm 필터	candidates=-1 filters=0 text=**브랜드명:** CRX S | **제품코드:** SGED31100
+
+T	FAIL		0	-1	740
+141	23.👎재현	인코넬 가공하는데 16파이 스퀘어 제품 추천해줘	인코넬 Square 16mm	candidates=-1 filters=0 text=**브랜드명:** TitaNox-Power | **제품코드:** GMG4	FAIL		0	-1	474
+142	23.👎재현	4날이 좋겠고, 가장 인기있는 아이템을 추천해줘	4날 필터 + 추천	candidates=-1 filters=0 text=어떤 소재를 가공할 예정인가요?	FAIL		0	-1	209
+143	23.👎재현	코팅은 상관없고, 소재는 알루미늄입니다	coating skip + 알루미늄	candidates=-1 filters=0 text=어떤 가공 방식이 필요하신가요? (측삭/황삭/고이송 등)	FAIL		0	-1	228
+144	23.👎재현	직경이 10mm인애들 추천해줘	10mm 필터	candidates=-1 filters=0 text=10MM 제품 정보를 내부 DB에서 찾지 못했습니다.
+제품코드를 다시 확	FAIL		0	-1	228
+145	23.👎재현	블루코팅 후보제품군을 5위까지 보여줘	블루코팅 매핑	candidates=-1 filters=0 text=어떤 소재를 가공할 예정인가요?	FAIL		0	-1	216
+146	23.👎재현	ALU-CUT이나 ALU-POWER 으로 추천해줘	시리즈명 인식	candidates=-1 filters=0 text=ALU-POWER 브랜드 프로필을 내부 DB에서 조회했습니다.
+
+| 항목	FAIL		0	-1	291
+147	23.👎재현	공구 형상을 코너레디우스만 보여줘	Radius 매핑	candidates=-1 filters=0 text=어떤 소재를 가공할 예정인가요?	FAIL		0	-1	229
+148	23.👎재현	3/8" 직경 제품으로 가공하고자 하며 좀 더 hardend steel 	인치→mm 변환+필터	candidates=-1 filters=0 text=어떤 가공 방식이 필요하신가요? (측삭/황삭/고이송 등)	FAIL		0	-1	220
+149	23.👎재현	나는 Aluminum이 아니고 Graphite를 가공하고 싶어요	Graphite 소재 변경	candidates=-1 filters=0 text=어떤 가공 방식이 필요하신가요? (측삭/황삭/고이송 등)	FAIL		0	-1	214
+150	23.👎재현	적층제조를 모르시나요?	에러 안 남	candidates=-1 filters=0 text=어떤 소재를 가공할 예정인가요?	PASS		0	-1	214
+151	23.👎재현	3날 무코팅에 스퀘어	3날+무코팅+Square	candidates=-1 filters=0 text=어떤 소재를 가공할 예정인가요?	FAIL		0	-1	224
