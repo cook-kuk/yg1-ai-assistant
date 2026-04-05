@@ -110,8 +110,8 @@ export function jsonRecommendationResponse(
   init?: ResponseInit
 ): Response {
   // 내부 도메인 응답을 프런트 계약 DTO로 변환한 뒤 JSON으로 내보낸다.
-  const dto = buildRecommendationResponseDto(params) as Record<string, unknown>
-  dto._build = "002ebde-0406"
+  const dto = buildRecommendationResponseDto(params)
+  ;(dto as any)._build = "v3-0406"
   traceRecommendation("http.jsonRecommendationResponse:dto", {
     purpose: dto.purpose,
     chipCount: dto.chips.length,
