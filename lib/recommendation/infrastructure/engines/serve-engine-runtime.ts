@@ -686,7 +686,7 @@ export async function resolveExplicitFilterRequest(
 function extractNegatedValue(msg: string): { field: string; rawValue: string | number; displayValue: string } | null {
   // Strip negation suffixes to isolate the value
   const cleaned = msg
-    .replace(/\s*(빼고|제외|말고|없이|아닌\s*것|없는\s*거|만\s*아니면\s*(?:돼|된다니까|됩니다)?|아닌\s*거|말고\s*다른).*$/u, "")
+    .replace(/\s*(빼고|제외|말고|없이|아닌\s*것|없는\s*거로?|만\s*아니면\s*(?:돼|된다니까|됩니다|되잖아)?|아닌\s*거|말고\s*다른|없는\s*걸로).*$/u, "")
     .replace(/^(?:아니\s*)?/u, "")
     .trim()
 
@@ -1627,7 +1627,7 @@ async function handleServeExplorationInner(
     const pendingAlreadyResolved = pendingQuestionReply.kind === "resolved" || pendingQuestionReply.kind === "side_question"
     const msg = lastUserMsg?.text ?? ""
     // ── Deterministic negation handling (빼고/제외/아닌것/만 아니면/없이) ──
-    const hasNegationPattern = /빼고|제외|아닌\s*것|없는\s*거|말고\s*다른|만\s*아니면|없이|아닌\s*거/u.test(msg)
+    const hasNegationPattern = /빼고|제외|아닌\s*것|없는\s*거|말고\s*다른|만\s*아니면|없이|아닌\s*거|없는\s*거로/u.test(msg)
     let negationHandled = false
     if (hasNegationPattern) {
       const msgLower = msg.toLowerCase()
@@ -1681,6 +1681,7 @@ async function handleServeExplorationInner(
           agentsInvoked: [],
           escalatedToOpus: false,
         }
+        singleCallHandled = true // V2가 NEQ 필터를 덮어쓰지 않도록
       }
     }
 
@@ -1896,11 +1897,16 @@ async function handleServeExplorationInner(
             })
           }
 
-          // Pre-result: DB re-query via continue_narrowing
+          // Pre-result: DB re-query
+          // If SCR returned show_recommendation alongside filters, bridge as show_recommendation
+          // so the system skips further questions and shows results immediately
+          const hasShowRecommendation = executableActions.some(a => a.type === "show_recommendation")
           pendingSelectionAction = null
           pendingSelectionOrchestratorResult = null
           const lastFilter = filters[filters.length - 1] ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount }
-          bridgedV2Action = { type: "continue_narrowing", filter: lastFilter }
+          bridgedV2Action = hasShowRecommendation
+            ? { type: "show_recommendation" }
+            : { type: "continue_narrowing", filter: lastFilter }
           bridgedV2OrchestratorResult = {
             action: bridgedV2Action,
             reasoning: `single_call:${singleResult.reasoning}`,
