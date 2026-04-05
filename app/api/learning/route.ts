@@ -11,6 +11,20 @@ import {
   type InteractionLog,
 } from "@/lib/recommendation/core/self-learning"
 import { getKGStats, resolveEntity, extractEntities } from "@/lib/recommendation/core/knowledge-graph"
+import { getSharedPool } from "@/lib/data/shared-pool"
+
+async function getDbSeriesCount(): Promise<number> {
+  const pool = getSharedPool()
+  if (!pool) return 0
+  try {
+    const res = await pool.query(
+      `SELECT COUNT(DISTINCT edp_series_name) AS cnt FROM catalog_app.product_recommendation_mv WHERE edp_series_name IS NOT NULL`
+    )
+    return Number(res.rows[0]?.cnt ?? 0)
+  } catch {
+    return 0
+  }
+}
 
 export async function GET() {
   try {
@@ -18,9 +32,13 @@ export async function GET() {
     const kgStats = getKGStats()
     const patterns = getPatterns()
 
+    // Enrich KG stats with DB series count
+    const seriesCount = await getDbSeriesCount()
+    const enrichedKgStats = { ...kgStats, seriesCount }
+
     return NextResponse.json({
       stats,
-      kgStats,
+      kgStats: enrichedKgStats,
       patterns,
       timestamp: new Date().toISOString(),
     })

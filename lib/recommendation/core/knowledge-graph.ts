@@ -561,17 +561,22 @@ function buildDecision(
 // ── Statistics ──────────────────────────────────────────────────
 
 export function getKGStats() {
+  // Count unique fields as relation types
+  const fieldSet = new Set(ENTITY_NODES.map(n => n.field))
+  // Relations = entity→field mappings + numeric patterns + intent pattern groups
+  const intentGroupCount = [SKIP_PATTERNS, BACK_PATTERNS, RESET_PATTERNS, STOCK_PATTERNS, SHOW_RESULT_PATTERNS, EXCLUDE_PATTERNS].filter(p => p.length > 0).length
+  const totalRelations = ENTITY_NODES.length + NUMERIC_PATTERNS.length + intentGroupCount
+
   return {
-    entityNodes: ENTITY_NODES.length,
-    aliasCount: _entityIndex.size,
-    numericPatterns: NUMERIC_PATTERNS.length,
-    intentPatterns: {
-      skip: SKIP_PATTERNS.length,
-      back: BACK_PATTERNS.length,
-      reset: RESET_PATTERNS.length,
-      stock: STOCK_PATTERNS.length,
-      showResult: SHOW_RESULT_PATTERNS.length,
-      exclude: EXCLUDE_PATTERNS.length,
+    totalEntities: ENTITY_NODES.length,
+    totalRelations,
+    aliases: _entityIndex.size,
+    seriesCount: 0, // populated by API route from DB
+    // detailed breakdown (for debugging)
+    _detail: {
+      fields: fieldSet.size,
+      numericPatterns: NUMERIC_PATTERNS.length,
+      intentGroups: intentGroupCount,
     },
   }
 }
