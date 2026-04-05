@@ -993,10 +993,7 @@ export async function queryProductsFromDatabase(options: ProductSearchOptions = 
     filterCount: options.filters?.length ?? 0,
   })
   const { where, values, limit, offset } = buildQueryOptions(options)
-  console.log(`[product-db:debug] WHERE clauses:`, JSON.stringify(where))
-  console.log(`[product-db:debug] VALUES:`, JSON.stringify(values))
   const dataQuery = buildProductDataQuery(options.input, where, values, limit, offset)
-  console.log(`[product-db:debug] FINAL VALUES:`, JSON.stringify(dataQuery.values))
 
   const startedAt = Date.now()
   console.log(

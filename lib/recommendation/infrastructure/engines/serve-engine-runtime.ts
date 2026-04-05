@@ -2166,9 +2166,6 @@ async function handleServeExplorationInner(
     const hintSubtype = canonicalizeToolSubtype(msg)
     const hintFlute = extractFluteCount(msg)
     const hintCount = [hintMaterial, hintDiameter, hintSubtype, hintFlute].filter(Boolean).length
-    console.log(`[runtime:multi-filter-debug] msg="${msg.slice(0,50)}" material=${hintMaterial} dia=${hintDiameter} subtype=${hintSubtype} flute=${hintFlute} count=${hintCount} singleCallHandled=${singleCallHandled}`)
-    // debug: dump char codes for first 30 chars
-    console.log(`[runtime:multi-filter-debug:chars] ${Array.from(msg.slice(0,30)).map(c => c.charCodeAt(0).toString(16)).join(",")}`)
     // 2개 이상 조건이 감지되면 멀티 필터 적용 (단일 조건은 기존 라우팅에 위임)
     if (hintCount >= 2) {
       if (hintMaterial && !resolvedInput.workPieceName) {
