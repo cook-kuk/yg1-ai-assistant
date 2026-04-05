@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useApp } from "@/lib/store"
+import KnowledgeGraphVisualizer from "@/components/knowledge-graph-visualizer"
 
 const CATEGORY_LABELS: Record<string, string> = {
   product_overview: "제품 개요",
@@ -124,6 +125,7 @@ function KnowledgeGraphTab({ language }: { language: string }) {
   const [kgData, setKgData] = useState<KGData | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedNode, setSelectedNode] = useState<KGNode | null>(null)
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [filterType, setFilterType] = useState<string>("all")
   const [search, setSearch] = useState("")
 
@@ -133,6 +135,16 @@ function KnowledgeGraphTab({ language }: { language: string }) {
       .then(d => { setKgData(d); setLoading(false) })
       .catch(() => setLoading(false))
   }, [])
+
+  const handleSelectNode = useCallback((id: string | null) => {
+    setSelectedNodeId(id)
+    if (id && kgData) {
+      const node = kgData.nodes.find(n => n.id === id) ?? null
+      setSelectedNode(node)
+    } else {
+      setSelectedNode(null)
+    }
+  }, [kgData])
 
   if (loading) {
     return (
@@ -207,6 +219,29 @@ function KnowledgeGraphTab({ language }: { language: string }) {
         {language === "ko" ? "데이터 소스" : "Source"}: {kgData.source} | {language === "ko" ? "동기화" : "Synced"}: {new Date(kgData.syncedAt).toLocaleString()}
       </div>
 
+      {/* Interactive 3D Knowledge Graph */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Network className="h-5 w-5" />
+            {language === "ko" ? "인터랙티브 지식 그래프" : "Interactive Knowledge Graph"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <KnowledgeGraphVisualizer
+            nodes={nodes}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={handleSelectNode}
+            language={language as "ko" | "en"}
+          />
+          <p className="text-xs text-muted-foreground mt-2 text-center">
+            {language === "ko"
+              ? "노드를 클릭하면 연결된 데이터 관계가 하이라이트됩니다. 드래그로 회전, 스크롤로 줌."
+              : "Click a node to highlight connections. Drag to rotate, scroll to zoom."}
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Entity Explorer */}
       <Card>
         <CardHeader>
@@ -258,9 +293,9 @@ function KnowledgeGraphTab({ language }: { language: string }) {
                   <div
                     key={node.id}
                     className={`p-3 rounded-lg border cursor-pointer transition-all hover:shadow-md ${
-                      selectedNode?.id === node.id ? "ring-2 ring-primary bg-primary/5" : "hover:bg-muted/50"
+                      selectedNodeId === node.id ? "ring-2 ring-primary bg-primary/5" : "hover:bg-muted/50"
                     }`}
-                    onClick={() => setSelectedNode(node)}
+                    onClick={() => handleSelectNode(node.id === selectedNodeId ? null : node.id)}
                   >
                     <div className="flex items-center gap-2 mb-1">
                       <span className={`w-2 h-2 rounded-full ${meta.color}`} />
@@ -323,7 +358,7 @@ function KnowledgeGraphTab({ language }: { language: string }) {
                               key={cn.id}
                               variant="outline"
                               className="text-[10px] cursor-pointer hover:bg-muted"
-                              onClick={() => setSelectedNode(cn)}
+                              onClick={() => handleSelectNode(cn.id)}
                             >
                               {language === "ko" ? cn.labelKo : cn.label}
                             </Badge>

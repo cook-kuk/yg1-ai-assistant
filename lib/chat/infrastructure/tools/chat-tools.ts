@@ -9,7 +9,8 @@ import {
   ProductRepo,
 } from "@/lib/chat/infrastructure/repositories/chat-repositories"
 import type { AppliedFilter, CanonicalProduct, RecommendationInput } from "@/lib/chat/domain/types"
-import { resolveYG1Query, buildNotFoundResponse } from "@/lib/knowledge/knowledge-router"
+import { resolveYG1Query, resolveYG1QuerySemantic, buildNotFoundResponse } from "@/lib/knowledge/knowledge-router"
+import { getProvider } from "@/lib/llm/provider"
 
 export const CHAT_TOOLS: Anthropic.Tool[] = [
   {
@@ -206,33 +207,42 @@ interface ChatToolRuntimeDeps {
   route: string
 }
 
-function executeQueryYG1Knowledge(params: { query: string }): string {
-  const result = resolveYG1Query(params.query)
+async function executeQueryYG1Knowledge(params: { query: string }): Promise<string> {
+  // STEP 1: 키워드 검색 (0ms, 무비용)
+  const keywordResult = resolveYG1Query(params.query)
 
-  if (result.source === "internal_kb") {
+  if (keywordResult.source === "internal_kb") {
     return JSON.stringify({
       found: true,
       source: "internal_kb",
-      answer: result.answer,
+      answer: keywordResult.answer,
       badge: "✓ YG-1 공식 정보",
     })
   }
 
-  if (result.needsWebSearch) {
-    return JSON.stringify({
-      found: false,
-      source: "needs_web_search",
-      message: `내부 KB에 "${params.query}" 관련 정보가 없습니다. web_search 도구로 "YG-1 ${params.query}"를 검색해보세요.`,
-      suggestedQuery: `YG-1 와이지원 ${params.query}`,
-    })
+  // STEP 2: 시맨틱 검색 (Haiku, 패러프레이즈 캐치)
+  try {
+    const provider = getProvider()
+    const semanticResult = await resolveYG1QuerySemantic(params.query, provider)
+
+    if (semanticResult.source === "internal_kb") {
+      return JSON.stringify({
+        found: true,
+        source: "internal_kb_semantic",
+        answer: semanticResult.answer,
+        badge: "✓ YG-1 공식 정보 (시맨틱)",
+      })
+    }
+  } catch {
+    // 시맨틱 검색 실패 시 웹 검색으로 폴백
   }
 
-  const notFound = buildNotFoundResponse(params.query)
+  // STEP 3: 둘 다 실패 → 웹 검색 안내
   return JSON.stringify({
     found: false,
-    source: "not_found",
-    answer: notFound.answer,
-    badge: "ℹ 정보 없음",
+    source: "needs_web_search",
+    message: `내부 KB에 "${params.query}" 관련 정보가 없습니다. web_search 도구로 "YG-1 ${params.query}"를 검색해보세요.`,
+    suggestedQuery: `YG-1 와이지원 ${params.query}`,
   })
 }
 
@@ -1240,7 +1250,7 @@ export async function executeChatTool(
           toolInput as Parameters<typeof executeFindYG1Alternative>[0]
         )
       case "query_yg1_knowledge":
-        return executeQueryYG1Knowledge(
+        return await executeQueryYG1Knowledge(
           toolInput as Parameters<typeof executeQueryYG1Knowledge>[0]
         )
       case "web_search":
