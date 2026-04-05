@@ -7,7 +7,7 @@
 
 import type { LLMProvider, LLMMessage } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import type { ExplorationSessionState, ChatMessage } from "@/lib/recommendation/domain/types"
-import { buildAppliedFilterFromValue } from "@/lib/recommendation/shared/filter-field-registry"
+import { buildAppliedFilterFromValue, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
 import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
 import { buildDomainKnowledgeSnippet } from "@/lib/recommendation/shared/patterns"
 
