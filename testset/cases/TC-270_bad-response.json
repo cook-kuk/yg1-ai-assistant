@@ -1,0 +1,124 @@
+{
+  "id": "TC-270",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:38:00.067Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "안녕하세요, YG-1 절삭공구 추천 AI 어시스턴트입니다.\n\n입력하신 조건을 확인했습니다:\n- 소재: 스테인리스강\n- 가공 형상: Profiling\n- 가공 방식: Milling\n- 직경: 6mm\n\n현재 조건으로 **38개의 제품**이 매칭되었습니다.\n\n좀 더 정확한 추천을 위해 몇 가지 여쭤보겠습니다.\n\n**공구 형상 타입이 중요하신가요?**\n\n현재 후보군에는 다음과 같은 형상이 있습니다:\n- **Square (21개)**: 평면 가공, 측면 가공, 슬로팅에 적합한 스퀘어 엔드밀\n- **Ball (13개)**: 곡면 가공, 3D 형상 가���에 적합한 볼 엔드밀\n- **Radius (4개)**: 코너 강도가 강화된 라운드 엔드밀\n\nProfiling 작업의 경우, 가공하실 형상이 평면 위주인지 곡면 위주인지에 따라 적합한 타입이 달라집니다. 형상을 선택하시거나, 특별히 상관없으시면 \"상관없음\"을 선택해주시면 직경 6mm 기준으로 가장 범용적인 제품을 추천해드리겠습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (21개)",
+          "Ball (13개)",
+          "Radius (4개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (38개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-29T23:38:00.067Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "상관없음",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:38:38.007Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "현재 38개 후보가 있습니다. 날 수(flute) 선호가 있으신가요?",
+        "isLoading": false,
+        "chips": [
+          "4날 (21개)",
+          "2날 (11개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (38개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-29T23:38:38.007Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "4날 (21개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:38:57.185Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "선택하신 소재는 ISO M (스테인리스)군입니다. 세부 피삭재를 선택해주세요. (일부 제품은 세부 분류가 없어 \"상관없음\" 선택 시 전체 후보에서 추천합니다)",
+        "isLoading": false,
+        "chips": [
+          "Alloy Steels (21개)",
+          "Hardened Steels(HRc40~45) (21개)",
+          "Hardened Steels(HRc45~55) (21개)",
+          "Prehardened Steels (21개)",
+          "Stainless Steels (21개)",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (21개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-29T23:38:57.185Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: Alloy Steels (21개), Hardened Steels(HRc40~45) (21개), Hardened Steels(HRc45~55) (21개), Prehardened Steels (21개), Stainless Steels (21개), ⟵ 이전 단계, 📋 지금 바로 제품 보기 (21개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "Alloy Steels (21개)",
+      "Hardened Steels(HRc40~45) (21개)",
+      "Hardened Steels(HRc45~55) (21개)",
+      "Prehardened Steels (21개)",
+      "Stainless Steels (21개)",
+      "⟵ 이전 단계",
+      "📋 지금 바로 제품 보기 (21개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-29T23:39:46.400Z",
+    "sessionId": "ses-1774827545401",
+    "turnNumber": 3
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

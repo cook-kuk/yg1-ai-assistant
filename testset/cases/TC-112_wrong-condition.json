@@ -1,0 +1,39 @@
+{
+  "id": "TC-112",
+  "source": "general",
+  "severity": "major",
+  "category": "wrong-condition",
+  "input": {
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 주철\n📐 가공 형상: Side_Milling,Facing\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+    ],
+    "fullConversation": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 주철\n📐 가공 형상: Side_Milling,Facing\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      },
+      {
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (261개), Radius (254개), Ball (85개) 등이 있습니다."
+      }
+    ]
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "공구 세부 타입이 중요한가요? Square (261개), Radius (254개), Ball (85개) 등이 있습니다."
+    ]
+  },
+  "feedback": {
+    "rating": 5,
+    "comment": "추천 전 기본 정보가 너무 광범위 합니다. 하여, 결과물이 너무 많이 나와서 추 후 원하는 제품을 찾기까지 상당한 질문을 해야 할 것으로 판단됩니다.\n그리고 첨부된 스크린샷 조건으로 질문 했을 때...1차 결과물(추천 후보)을 보면 하이스 제품이 추천후보 상위에 링크됩니다.\n\n추측하건데 기존 카탈로그의 추천 절삭조건표를 그대로 사용해서 나온 결과물 같습니다. 근간이 되는 기본데이터? 확인이 필요해 보입니다.",
+    "tags": [
+      "wrong-condition"
+    ],
+    "author": "백은재",
+    "department": "AE팀",
+    "timestamp": "2026-03-30T00:53:51.026Z",
+    "sessionId": "ses-1774828820427"
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

@@ -1,0 +1,40 @@
+{
+  "id": "TC-122",
+  "source": "general",
+  "severity": "major",
+  "category": "slow-response",
+  "input": {
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+    ],
+    "fullConversation": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      },
+      {
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (1024개), Radius (377개), Roughing (136개) 등이 있습니다."
+      }
+    ]
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "공구 세부 타입이 중요한가요? Square (1024개), Radius (377개), Roughing (136개) 등이 있습니다."
+    ]
+  },
+  "feedback": {
+    "rating": 4,
+    "comment": "1. 의견 남기기의 위치가 제품 리스트 다음 페이지 버튼 방해\n2. 첫 조건 확인 후 \"수정\" 버튼을 진행 시 첫페이지로 원복됨.",
+    "tags": [
+      "slow-response",
+      "ui-issue"
+    ],
+    "author": "홍준택",
+    "department": "제품전략팀",
+    "timestamp": "2026-03-29T23:46:44.089Z",
+    "sessionId": "ses-1774827720416"
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

@@ -1,0 +1,188 @@
+{
+  "id": "TC-217",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T07:20:58.783Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (309개), Radius (233개), Ball (96개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (309개)",
+          "Radius (233개)",
+          "Ball (96개)",
+          "Roughing (79개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (733개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-30T07:20:58.783Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "Radius (233개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T07:40:04.017Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "현재 233개 후보가 있습니다. 날 수(flute) 선호가 있으신가요?",
+        "isLoading": false,
+        "chips": [
+          "4날 (147개)",
+          "2날 (78개)",
+          "3날 (8개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (233개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-30T07:40:04.017Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "상관없음",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T07:40:55.457Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "선택하신 소재는 ISO P (일반강)군입니다. 세부 피삭재를 선택해주세요. (일부 제품은 세부 분류가 없어 \"상관없음\" 선택 시 전체 후보에서 추천합니다)",
+        "isLoading": false,
+        "chips": [
+          "Prehardened Steels (213개)",
+          "Hardened Steels(HRc40~45) (211개)",
+          "Hardened Steels(HRc45~55) (199개)",
+          "Alloy Steels (180개)",
+          "Cast Iron (180개)",
+          "Carbon Steels (160개)",
+          "High Hardened Steels(HRc55~70) (53개)",
+          "Stainless Steels (34개)",
+          "Titanium (20개)",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (233개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-30T07:40:55.457Z"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "text": "Hardened Steels(HRc40~45) (211개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T07:44:42.342Z"
+      },
+      {
+        "index": 7,
+        "role": "ai",
+        "text": "알겠습니다. 경화강(HRc40~45) 소재로 필터를 적용했습니다.\n\n현재 211개 제품이 조회되었으며, 모두 Radius 형상의 12mm 엔드밀입니다. 이 중에서 가장 적합한 제품을 추천드리기 위해 **코팅 종류**를 확인하고 싶습니다.\n\n현재 후보군에는 다음과 같은 코팅이 포함되어 있습니다:\n- **AlTiN**: 고경도 소재 가공에 우수한 내열성과 내마모성\n- **T-Coating**: 범용성이 뛰어난 TiAlN 계열 코팅\n- **Bright Finish**: 무코팅, 알루미늄 등 비철금속에 적합\n\n경화강 가공에는 일반적으로 **AlTiN 코팅**이 가장 적합합니다만, 특별한 선호가 있으시거나 상관없으시면 말씀해주세요.",
+        "isLoading": false,
+        "chips": [
+          "Y-Coating (146개)",
+          "T-Coating (73개)",
+          "AlTiN (12개)",
+          "Bright Finish (2개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (233개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-30T07:44:42.342Z"
+      },
+      {
+        "index": 8,
+        "role": "user",
+        "text": "Bright Finish (2개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T07:45:21.000Z"
+      },
+      {
+        "index": 9,
+        "role": "ai",
+        "text": "이 조건이면 E5882120 (E5882)를 먼저 보시면 됩니다. Radius 형상, 3날, φ12mm 기준에 잘 맞고, 코팅은 Bright Finish으로 K군, M군, P군 소재 대응 범위를 확인할 수 있습니다. 재고 정보 없음.",
+        "isLoading": false,
+        "chips": [
+          "상위 2개 비교",
+          "E5882120 상세 정보",
+          "다른 코팅 옵션 보기",
+          "φ12mm 외 다른 직경",
+          "P 가공 팁 보기",
+          "⟵ 이전 단계로 돌아가기",
+          "📋 지금 바로 제품 보기 (2개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-30T07:45:21.000Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: 상위 2개 비교, E5882120 상세 정보, 다른 코팅 옵션 보기, φ12mm 외 다른 직경, P 가공 팁 보기, ⟵ 이전 단계로 돌아가기, 📋 지금 바로 제품 보기 (2개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "상위 2개 비교",
+      "E5882120 상세 정보",
+      "다른 코팅 옵션 보기",
+      "φ12mm 외 다른 직경",
+      "P 가공 팁 보기",
+      "⟵ 이전 단계로 돌아가기",
+      "📋 지금 바로 제품 보기 (2개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-30T07:46:28.496Z",
+    "sessionId": "ses-1774856728529",
+    "turnNumber": 5
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

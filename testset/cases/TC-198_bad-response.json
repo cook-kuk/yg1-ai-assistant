@@ -1,0 +1,179 @@
+{
+  "id": "TC-198",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Slotting\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T00:40:56.953Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "안녕하세요! 탄소강 소재에 슬로팅(Slotting) 가공용 밀링 공구를 찾아드리겠습니다.\n\n현재 조건으로 검색하면 총 7,489개의 제품이 매칭됩니다. 좀 더 정확한 추천을 위해 몇 가지 여쭤보겠습니다.\n\n먼저, **공구 끝 형상(날 타입)**이 중요하신가요?\n\n- **Square (4,301개)**: 평날 엔드밀로, 슬로팅이나 측면 가공에 가장 일반적으로 사용됩니다\n- **Radius (2,202개)**: 코너에 R이 있는 형상으로, 공구 수명이 길고 표면 조도가 좋습니다\n- **Roughing (514개)**: 황삭 전용으로, 빠른 재료 제거에 특화되어 있습니다\n- **Ball (338개)**: 볼 형상으로, 곡면 가공에 사용됩니다\n\n슬로팅 가공의 경우 일반적으로 Square나 Radius 형상을 많이 사용하시는데, 특별히 선호하시는 형상이 있으신가요? 아니면 용도에 따라 제가 추천해드릴까요?",
+        "isLoading": false,
+        "chips": [
+          "Square (4301개)",
+          "Radius (2202개)",
+          "Roughing (514개)",
+          "Ball (338개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (7489개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-31T00:40:56.953Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "Square (4301개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T00:42:51.492Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "현재 4303개 후보가 있습니다. 날 수(flute) 선호가 있으신가요?",
+        "isLoading": false,
+        "chips": [
+          "2날 (2003개)",
+          "4날 (1523개)",
+          "3날 (433개)",
+          "6날 (144개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (4303개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-31T00:42:51.492Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "2날 (2003개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T00:43:26.020Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "네, 2날 엔드밀로 범위를 좁혔습니다. 현재 2003개의 제품이 있습니다.\n\n탄소강(ISO P군) 가공을 위해 세부 피삭재를 선택해주시면 더욱 정확한 추천이 가능합니다.\n\n**세부 피삭재 선택지:**\n- **저탄소강** (C < 0.25%, 연한 소재)\n- **중탄소강** (0.25% ≤ C < 0.6%, 일반 구조용강)\n- **고탄소강** (C ≥ 0.6%, 공구강/금형강)\n- **합금강** (Cr, Ni, Mo 등 첨가)\n- **상관없음** (세부 분류 없이 전체 탄소강 대응 제품 추천)\n\n어떤 소재로 가공하실 예정이신가요?",
+        "isLoading": false,
+        "chips": [
+          "Prehardened Steels (1427개)",
+          "Alloy Steels (1232개)",
+          "Carbon Steels (1062개)",
+          "Cast Iron (962개)",
+          "Aluminum (756개)",
+          "Hardened Steels(HRc40~45) (712개)",
+          "Stainless Steels (646개)",
+          "Hardened Steels(HRc45~55) (599개)",
+          "Acrylic (576개)",
+          "Non-ferrous (576개)",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (2003개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-31T00:43:26.020Z"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "text": "ISO P군엔 Non-alloy, Low alloy Steel 등이 있는걸로 아는데?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T00:54:41.155Z"
+      },
+      {
+        "index": 7,
+        "role": "ai",
+        "text": "정확합니다! ISO P군은 실제로 **비합금강(Non-alloy Steel)**과 **저합금강(Low-alloy Steel)**, **고합금강(High-alloy Steel)**까지 폭넓게 포함합니다.\n\n- **비합금강**: 탄소 함량 0.25% 미만의 저탄소 무합금강\n- **저합금강**: 탄소·망간 외 합금 원소 최대 5% 함유 (크롬, 니켈, 몰리브덴 등)\n- **고합금강**: 5~20% 합금 원소 함유, 경도·강도·인성 우수\n- 최대 400HB까지 경화된 합금과 크롬 12% 이하 스테인리스강도 포함됩니다.\n\n📌 **웹 검색 참고 (내부 DB 외부 정보)**\n\n지금 보신 세부 피삭재 선택지는 **탄소 함량 기준**으로 나눈 것이었는데, 말씀하신 대로 합금 여부로도 구분할 수 있습니다. 구체적인 소재명(예: S45C, SCM440)이나 용도를 알려주시면 더욱 정확한 추천이 가능합니다!",
+        "isLoading": false,
+        "chips": [
+          "쉽게 설명해줘",
+          "추천으로 골라줘",
+          "상관없음",
+          "Prehardened Steels란?",
+          "Alloy Steels란?",
+          "Carbon Steels란?",
+          "Prehardened Steels",
+          "Alloy Steels",
+          "Carbon Steels",
+          "Cast Iron",
+          "Aluminum",
+          "Hardened Steels(HRc40~45)",
+          "Stainless Steels",
+          "Hardened Steels(HRc45~55)",
+          "Acrylic",
+          "Non-ferrous",
+          "undo"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-31T00:54:41.155Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: 쉽게 설명해줘, 추천으로 골라줘, 상관없음, Prehardened Steels란?, Alloy Steels란?, Carbon Steels란?, Prehardened Steels, Alloy Steels, Carbon Steels, Cast Iron, Aluminum, Hardened Steels(HRc40~45), Stainless Steels, Hardened Steels(HRc45~55), Acrylic, Non-ferrous, undo"
+    ],
+    "chips": [
+      "쉽게 설명해줘",
+      "추천으로 골라줘",
+      "상관없음",
+      "Prehardened Steels란?",
+      "Alloy Steels란?",
+      "Carbon Steels란?",
+      "Prehardened Steels",
+      "Alloy Steels",
+      "Carbon Steels",
+      "Cast Iron",
+      "Aluminum",
+      "Hardened Steels(HRc40~45)",
+      "Stainless Steels",
+      "Hardened Steels(HRc45~55)",
+      "Acrylic",
+      "Non-ferrous",
+      "undo"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-31T00:55:26.679Z",
+    "sessionId": "ses-1774917814517",
+    "turnNumber": 4
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

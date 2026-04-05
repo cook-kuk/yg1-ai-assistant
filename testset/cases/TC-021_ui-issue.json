@@ -1,0 +1,26 @@
+{
+  "id": "TC-021",
+  "source": "general",
+  "severity": "critical",
+  "category": "ui-issue",
+  "input": {
+    "userMessages": [],
+    "fullConversation": []
+  },
+  "actualOutput": {
+    "aiResponses": []
+  },
+  "feedback": {
+    "rating": 1,
+    "comment": "공구 직경 선택부분의 막대 그래프가 직경이 커짐에 따라 위로 올라가면 이미지로 되어 있습니다. 길이가  길어지는 것 처럼 보여 적절하지 않은 것 같습니다. 직경이 커지는 이미지이면 좋을 것 같습니다.",
+    "tags": [
+      "ui-issue"
+    ],
+    "author": "김도성",
+    "department": "연구소",
+    "timestamp": "2026-03-30T00:11:12.446Z",
+    "sessionId": null
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

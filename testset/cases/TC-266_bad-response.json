@@ -1,0 +1,189 @@
+{
+  "id": "TC-266",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:50:27.556Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (309개), Radius (233개), Ball (96개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (309개)",
+          "Radius (233개)",
+          "Ball (96개)",
+          "Roughing (79개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (733개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-29T23:50:27.557Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "Radius (233개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:51:16.741Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "네, Radius 형상으로 좁혀서 현재 233개 제품이 있습니다.\n\n이제 날 수(flute)를 선택하시면 더 정확한 추천이 가능합니다.\n\n**현재 후보 분포:**\n- 3날: 약 60개\n- 4날: 약 170개\n\n**[DB 데이터]**\n상위 추천 제품 중:\n- E5882 시리즈: 3날 구성\n- 3S MILL (CG3S37/CG3S47): 4날 구성\n- K-2 CARBIDE (E5C62): 4날 구성\n\n**[AI 보충 의견]**\n탄소강 측면 가공에서는:\n- **4날**: 더 많은 날로 마감면이 우수하고 생산성이 높습니다. 일반적으로 더 선호됩니다.\n- **3날**: 칩 배출 공간이 넓어 깊은 홈 가공이나 칩 배출이 중요한 경우 유리합니다.\n\n날 수 선호가 있으신가요, 아니면 \"상관없음\"으로 하시겠습니까?",
+        "isLoading": false,
+        "chips": [
+          "4날 (147개)",
+          "2날 (78개)",
+          "3날 (8개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (233개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-29T23:51:16.741Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "헤비 컷팅을 하고 싶은데요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:52:02.857Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "\"Roughing\" 조건을 적용했습니다. 현재 필터 기준 후보는 0개입니다. 이전 단계로 돌아가거나 다른 조건을 선택해주세요.",
+        "isLoading": false,
+        "chips": [
+          "⟵ 이전 단계",
+          "처음부터 다시"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-29T23:52:02.857Z"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "text": "아니요. 라핑 말고 절입량을 크게 하고 싶습니다.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:54:00.722Z"
+      },
+      {
+        "index": 7,
+        "role": "ai",
+        "text": "\"High-Feed\" 조건을 적용했습니다. 현재 필터 기준 후보는 0개입니다. 이전 단계로 돌아가거나 다른 조건을 선택해주세요.",
+        "isLoading": false,
+        "chips": [
+          "⟵ 이전 단계",
+          "처음부터 다시"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-29T23:54:00.722Z"
+      },
+      {
+        "index": 8,
+        "role": "user",
+        "text": "라핑, 하이피드 둘 다 아닙니다.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:55:10.974Z"
+      },
+      {
+        "index": 9,
+        "role": "ai",
+        "text": "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요.",
+        "isLoading": false,
+        "chips": [
+          "⟵ 이전 단계",
+          "처음부터 다시",
+          "📋 지금 바로 제품 보기 (0개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-29T23:55:10.974Z"
+      },
+      {
+        "index": 10,
+        "role": "user",
+        "text": "Roughing, High-Feed 둘 다 아니에요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:56:01.971Z"
+      },
+      {
+        "index": 11,
+        "role": "ai",
+        "text": "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요.",
+        "isLoading": false,
+        "chips": [
+          "⟵ 이전 단계",
+          "처음부터 다시",
+          "📋 지금 바로 제품 보기 (0개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-29T23:56:01.971Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: ⟵ 이전 단계, 처음부터 다시, 📋 지금 바로 제품 보기 (0개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "⟵ 이전 단계",
+      "처음부터 다시",
+      "📋 지금 바로 제품 보기 (0개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-29T23:57:49.734Z",
+    "sessionId": "ses-1774828583712",
+    "turnNumber": 6
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

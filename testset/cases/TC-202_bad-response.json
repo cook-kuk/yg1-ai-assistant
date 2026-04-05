@@ -1,0 +1,96 @@
+{
+  "id": "TC-202",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 모름\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 0.01\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T23:36:37.353Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (2979개), Ball (2911개), Radius (2479개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (2979개)",
+          "Ball (2911개)",
+          "Radius (2479개)",
+          "Taper (524개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (8894개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-30T23:36:37.353Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "와이지원 엔드밀중에 O.D 가 가장 작은 제품을 알려주세요",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T23:37:00.717Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "YG-1 엔드밀 중 가장 작은 직경은 **φ0.09mm**입니다. 현재 추천 목록에서 #9 **SEME350009E**와 #10 **SEME350009**가 해당하며, 두 제품 모두 4G MILL 시리즈의 2날 30° 헬릭스 Y-코팅 제품으로 고경도강(H), 주철(K), 스테인리스(M), 탄소강(P) 가공에 사용됩니다.\n\n0.1mm보다 더 작은 마이크로 엔드밀을 찾으신다면, 본사(032-526-0909)에 문의하시면 특수 제품이나 맞춤 솔루션을 안내받으실 수 있습니다.\n\n📌 웹 검색 참고 (내부 DB 외부 정보): 일반 마이크로 엔드밀 시장에서는 0.01mm급도 존재하나, YG-1의 공식 최소 규격은 카탈로그 확인이 필요합니다.\n\n다시 제품 추천으로 돌아갈게요. 공구 세부 타입이 중요한가요? Square (2979개), Ball (2911개), Radius (2479개) 등이 있���니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (2979개)",
+          "Ball (2911개)",
+          "Radius (2479개)",
+          "Taper (524개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (8894개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-30T23:37:00.717Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: Square (2979개), Ball (2911개), Radius (2479개), Taper (524개), 상관없음, 📋 지금 바로 제품 보기 (8894개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "Square (2979개)",
+      "Ball (2911개)",
+      "Radius (2479개)",
+      "Taper (524개)",
+      "상관없음",
+      "📋 지금 바로 제품 보기 (8894개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-30T23:38:41.560Z",
+    "sessionId": "ses-1774913784647",
+    "turnNumber": 2
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

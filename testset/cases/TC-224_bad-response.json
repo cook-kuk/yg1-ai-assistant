@@ -1,0 +1,68 @@
+{
+  "id": "TC-224",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Trochoidal\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T07:08:18.233Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "안녕하세요. 스테인리스강 소재를 Trochoidal 가공 방식으로 밀링하실 φ12mm 제품을 찾고 계시는군요. 현재 조건에 맞는 후보 제품이 **245개** 있습니다.\n\n먼저 공구의 **날 형상**을 좁혀보겠습니다. Trochoidal 가공에서는 일반적으로 Square(평날) 또는 Roughing(거친 가공용) 형상을 많이 사용하십니다.\n\n**어떤 날 형상을 선호하시나요?**\n\n• **Square** (139개): 평날 엔드밀로, 일반적인 홈가공이나 측면 가공에 적합합니다. Trochoidal 경로에서 안정적인 절삭이 가능합니다.\n\n• **Roughing** (72개): 거친 가공 전용으로, 칩 배출이 우수하고 큰 절삭 깊이에서도 절삭 저항이 낮습니다. 황삭 단계에서 효율적입니다.\n\n• **Ball** (23개): 볼 엔드밀로, 곡면 가공이나 3D 형상 가공에 사용됩니다.\n\n• **Radius** (8개): 코너 라운드 형상으로, 모서리 강도를 높이면서도 정밀 가공이 가능합니다.\n\n형상을 선택하시면 더 정확한 추천을 드리겠습니다. 특별한 선호가 없으시면 '상관없음'을 선택하시면 전체 범위에서 최적 제품을 찾아드리겠습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (139개)",
+          "Roughing (72개)",
+          "Ball (23개)",
+          "Radius (8개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (245개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-30T07:08:18.233Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: Square (139개), Roughing (72개), Ball (23개), Radius (8개), 상관없음, 📋 지금 바로 제품 보기 (245개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "Square (139개)",
+      "Roughing (72개)",
+      "Ball (23개)",
+      "Radius (8개)",
+      "상관없음",
+      "📋 지금 바로 제품 보기 (245개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-30T07:08:53.260Z",
+    "sessionId": "ses-1774854483288",
+    "turnNumber": 1
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

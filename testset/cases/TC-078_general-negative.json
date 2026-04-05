@@ -1,0 +1,24 @@
+{
+  "id": "TC-078",
+  "source": "general",
+  "severity": "major",
+  "category": "general-negative",
+  "input": {
+    "userMessages": [],
+    "fullConversation": []
+  },
+  "actualOutput": {
+    "aiResponses": []
+  },
+  "feedback": {
+    "rating": 2,
+    "comment": "DRILL 제품을 찾고 싶은데 DRILLING 이 가공 형상에 없어서 모름으로 체크해야되는 것 맞지 않음. ",
+    "tags": [],
+    "author": "미주팀",
+    "department": "",
+    "timestamp": "2026-03-30T07:51:25.850Z",
+    "sessionId": null
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

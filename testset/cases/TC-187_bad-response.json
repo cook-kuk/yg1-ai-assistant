@@ -1,0 +1,229 @@
+{
+  "id": "TC-187",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T01:32:57.272Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "안녕하세요! 비철금속 밀링 가공용 공구를 찾아드리겠습니다.\n\n현재 조건으로 약 7,124개의 제품이 매칭되는데요, 더 정확한 추천을 위해 몇 가지 여쭤보겠습니다.\n\n먼저 **가공하실 형상**에 대해 알려주시면 좋겠습니다. 평면/측면 가공이 주된 Square 엔드밀(3,500개), 곡면/입체 가공용 Ball 엔드밀(2,066개), 모서리 R 가공용 Radius 엔드밀(985개), 또는 황삭 전용 Roughing 엔드밀(286개) 중 어떤 타입이 필요하신가요?\n\n특별히 정해진 게 없으시면 '상관없음'을 선택하시면, 비철금속에 가장 많이 사용되는 제품 위주로 추천해드리겠습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (3500개)",
+          "Ball (2066개)",
+          "Radius (985개)",
+          "Roughing (286개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (7124개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-31T01:32:57.272Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "Radius (985개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T01:33:03.875Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "네, Radius 엔드밀로 좁혀서 현재 **993개**의 제품이 있습니다.\n\n비철금속(알루미늄 등) 가공에 적합한 Radius 엔드밀들이 준비되어 있는데요, 더 정확한 추천을 위해 몇 가지 조건을 확인하겠습니다.\n\n**날 수(flute) 선호**가 있으신가요?\n- **2날**: 칩 배출이 우수하여 알루미늄 같은 연질 소재의 고속 가공에 유리합니다\n- **3날**: 2날보다 강성이 높아 면조도가 좋고 범용성이 높습니다\n- **4날 이상**: 고경도 비철금속이나 정밀 마감에 적합합니다\n\n아래 칩을 눌러 선택하시거나, \"상관없음\"을 선택하시면 다음 단계로 넘어가겠습니다.",
+        "isLoading": false,
+        "chips": [
+          "3날 (755개)",
+          "2날 (120개)",
+          "4날 (77개)",
+          "6날 (3개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (993개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-31T01:33:03.875Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "상관없음",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T01:33:34.475Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "선택하신 소재는 ISO N (비철)군입니다. 세부 피삭재를 선택해주세요. (일부 제품은 세부 분류가 없어 \"상관없음\" 선택 시 전체 후보에서 추천합니다)",
+        "isLoading": false,
+        "chips": [
+          "Aluminum (885개)",
+          "Copper (261개)",
+          "Non-ferrous (221개)",
+          "Graphite (159개)",
+          "CFRP (91개)",
+          "ETC (15개)",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (993개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-31T01:33:34.475Z"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "text": "Aluminum (885개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T01:34:02.896Z"
+      },
+      {
+        "index": 7,
+        "role": "ai",
+        "text": "코팅 종류 선호가 있으신가요? 후보 중에 Bright Finish, DLC, Diamond 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "DLC (513개)",
+          "Diamond (137개)",
+          "Bright Finish (110개)",
+          "TiCN (31개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (993개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-31T01:34:02.896Z"
+      },
+      {
+        "index": 8,
+        "role": "user",
+        "text": "uncoated로",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T01:34:54.333Z"
+      },
+      {
+        "index": 9,
+        "role": "ai",
+        "text": "어떤 종류의 가공을 하실 예정인가요?",
+        "isLoading": false,
+        "chips": [
+          "Side_Milling",
+          "Facing",
+          "Profiling",
+          "Die-Sinking",
+          "Helical_Interpolation",
+          "Chamfering",
+          "Corner_Radius",
+          "Trochoidal",
+          "Taper Side Milling",
+          "Small Part",
+          "Slotting",
+          "Side Milling",
+          "Helical Interpolation",
+          "Corner Radius",
+          "Taper_Side_Milling",
+          "Small_Part",
+          "Ramping",
+          "Plunging",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (118개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-31T01:34:54.333Z"
+      },
+      {
+        "index": 10,
+        "role": "user",
+        "text": "상관없음",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T01:35:28.023Z"
+      },
+      {
+        "index": 11,
+        "role": "ai",
+        "text": "가장 가까운 후보로는 GED7220050 (E5D72)를 먼저 검토해보시면 됩니다. Radius 형상, 3날, φ20mm 기준에 잘 맞고, 코팅은 Bright Finish으로 N군 소재 대응 범위를 확인할 수 있습니다. 정확 일치 없음 — 근사 후보 표시 중.",
+        "isLoading": false,
+        "chips": [
+          "상위 3개 비교",
+          "GED7220050 상세 정보",
+          "다른 코팅 옵션 보기",
+          "φ20mm 외 다른 직경",
+          "N 가공 팁 보기",
+          "⟵ 이전 단계로 돌아가기",
+          "📋 지금 바로 제품 보기 (118개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-31T01:35:28.023Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: 상위 3개 비교, GED7220050 상세 정보, 다른 코팅 옵션 보기, φ20mm 외 다른 직경, N 가공 팁 보기, ⟵ 이전 단계로 돌아가기, 📋 지금 바로 제품 보기 (118개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "상위 3개 비교",
+      "GED7220050 상세 정보",
+      "다른 코팅 옵션 보기",
+      "φ20mm 외 다른 직경",
+      "N 가공 팁 보기",
+      "⟵ 이전 단계로 돌아가기",
+      "📋 지금 바로 제품 보기 (118개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-31T01:37:01.867Z",
+    "sessionId": "ses-1774920934574",
+    "turnNumber": 6
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

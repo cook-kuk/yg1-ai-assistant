@@ -1,0 +1,3985 @@
+[
+  {
+    "type": "single",
+    "id": "S-000",
+    "rating": 1,
+    "author": "박소영",
+    "comment": "고객사에서 T3P02K54 품목 동일규격에 막힌구멍용을 찾으실 수도 있으실것같은데, 그럴때 질문을 하면 T3P01 시리즈로 안내를 해주면 좋을 것 같습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: ���소강\n📐 가공 형상: Facing\n🛠️ 가공 방식: 모름\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-001",
+    "rating": 2,
+    "author": "차희정",
+    "comment": "내수용 페이지에서 해외용 제품(K-2) 추천\n만약에 고객이 없는 제품에 대해 추천을 요청한다면 없다고 나와야 할 것 같습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Small Part\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-002",
+    "rating": null,
+    "author": "한지희",
+    "comment": "제품의 품번(SG8A4604020)을 가지고 동일한 스펙의 대체품 추천을 요청했음. 해당 품번에 대한 정보는 제대로 알고있지만, 대체품은 추천하지 못함.  대체품을 추천받으려면 AI가 늘 물어보는 날수,형상, 가공방식, 코팅 등에 대한 정보를 새롭게 주어야 하는것으로 보임. 정확한 품번이 주어졌고 제품에 대한 정보를 알고 있다면 비슷한 가공영역대의 제품도 ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강, 고경도강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-003",
+    "rating": 2,
+    "author": "국내영업본부 차희정",
+    "comment": "내열합금강용 엔드밀 추천 요청했을 때 SUPER ALLOY 브랜드 미출력, 3S PLUS 코팅명 오류",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 초내열합금\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-004",
+    "rating": null,
+    "author": "한지희",
+    "comment": "문의에 대해 와이지원 제품이 아닌 것을 답변함.\n-->MIRACLE, TETRAGON, EZONE (보안소프트웨어, 테니스 라켓시리즈라고 하는데,,, 왜 이런 정보를 가져오게 되었는지 모르겠음.)\n와이지원 제품이냐고 다시 물었더니 잘못된 정보라고 대답함.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 2mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-005",
+    "rating": null,
+    "author": "국내영업",
+    "comment": "고경도 강용 제품으로 주로 추천되는 이포스(eforce) 엔드밀,X-5070 S 엔드밀, X1엔드밀이 있음에도  4MILL만을 추천하고 있고 그이후 질문에서 유효길이 있는 타입에 대해 후보군이 없다고 함.  ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 2mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-006",
+    "rating": null,
+    "author": "한지희",
+    "comment": "필요한 가공깊이 정보를 제공하였는데, ai는 저의 질문과 관계없이 본인이 알아야 하는 정보만을 묻고 있음.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Die-Sinking\n🛠️ 가공 방식: Milling\n📏 공구 직경: 2mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-007",
+    "rating": 4,
+    "author": "허윤서",
+    "comment": "Turning 가공 선택 시 accessory가 추천되는 것으로 확인됩니다.\n\nThreading 가공 선택 시 형상에 대해 확인하는 순서로 진행되는데, 당사 공식 카탈로그 명칭과 동일하게 Gun point가 아닌 Spiral Point로 수정하는 것이 어떤지 의견드립니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 모름\n📐 가공 형상: 모름\n🛠️ 가공 방식: Threading\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-008",
+    "rating": 4,
+    "author": "홍건휘",
+    "comment": "추천된 제품 내 국내용/해외용 구분이 있으면 좋을 것 같습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 주철\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-009",
+    "rating": 4,
+    "author": "허윤서",
+    "comment": "가공 방식 선택 후 가공 형상 선택하는 순서가 맞을 것 같습니다. 또한 제품 추천 후 제품 형상(SQ, Radius 등)을 확인하는 것보다 처음부터 확인 후 추천하는 것이 좋을 것 같습니다.\n선택하는 가공 방식 (Milling, Threading, Hole making) 등에 따라 제품 형상 (SQ, Radius, Ball / Spiral Flute, Sp",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-010",
+    "rating": 4,
+    "author": "",
+    "comment": "빠른 응답이 좋은 것 같습니다. 추후 경쟁사 제품 매칭까지 가능하면 유용하게 사용할 것 같습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Facing\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-011",
+    "rating": 2,
+    "author": "박은정",
+    "comment": "초기 화면에서 조건을 클릭클릭하여 제품 추천을 받는 방식이지만, 추가로 AI 에게 바로 질문할 수 있는 방법도 있었으면 좋겠음.\n현재 조건으로는 너무 광범위하게 결과가 나와 제품 검색이 용이하지 않아보임. \n아직 추천 내용이 정확해 보이지 않음 (용도에 맞지 않는 제품들이 Excellent/Good으로 검색되는 등..) \n추천후보에 n개 시리즈/전체n개로 ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강, 고경도강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 3\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-012",
+    "rating": 4,
+    "author": "이나래",
+    "comment": "1. 고객사가 현재 경쟁사 제품 사용하는 공구를 입력하여 대응할 수있어도 좋을 것 같음.\n2. 사용 목적에 대해 입력해도 좋을 것 같음 (비용절감/시간SAVING 등)",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-013",
+    "rating": null,
+    "author": "최광호",
+    "comment": "가공소재의 세분류 추가해야 함\n\nP : Non-alloy Steel, Low Alloy Steel, High Alloy Steel, Tool Steel\n\nK : Grey Cast Iron, Nodular Cast Iron, Malleable Cast Iron",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 주철\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-014",
+    "rating": 1,
+    "author": "최호영",
+    "comment": "드림드릴 제너럴을 찾아 접근 했으나 결과는 나오지 않음. 추천 후보에는 관련툴이 없음. 그리고 접근 방식이 피삭재 탄소강을 선택했으나 문의에서 한번더 선택해야 하고 나중에 엔드밀 가공방법에 대해문의가 생김. 드릴 쪽에서는 좀더 자료가 필ㅇ요 할 것으로 보임",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Holemaking\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-015",
+    "rating": 2,
+    "author": "이준호",
+    "comment": "비철금속과 고경도강 피삭재 동시 선택시 추천 제품이 명확하지 않음. (Aluminum 가공 제품만 추천됨)\n\nMulti Flute 제품의 경우 날수가 명확하게 명시되지 않아 직관적인 확인이 불가함.\n\n피삭재 선택창 세부 정보 기입이 부족함. \nHRC 경도, JIS, DIN,등 규격화된 소재 기입창 필요 \n추가로 유사 소재 추천 가능이 가능하면 좋겠음.\n\nS",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속, 탄소강\n📐 가공 형상: Slotting\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-016",
+    "rating": null,
+    "author": "최광호",
+    "comment": "End Mills 선택 기본 조건 - No. of Flute ( 2F, 4F 등 ) 및 형상( Square, Coner Radius 등) 추가 요망",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Trochoidal\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-017",
+    "rating": 4,
+    "author": "박예진 ",
+    "comment": "고객측에서 오는 견적 문의에 답변을 줄 때나 고객에게  판매 가능성이 높은 제품을 추천해줄 때 유용하게 사용할 수 있을 것으로 보인다. ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-018",
+    "rating": 3,
+    "author": "해외영업본부",
+    "comment": "ChatGPT와 다른 AI 프로그램들과 유사하게 AI를 적용하고자 하는 방향이라면 옵션을 선택하여 제품을 추천해주는 방향보단 각 개인의 prompt를 통해 제품을 조회하는 방향이 더 적합함.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 초내열합금, 고경도강\n📐 가공 형상: Helical_Interpolation,Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-019",
+    "rating": 2,
+    "author": "김명곤",
+    "comment": "직경 4MM를 검색 조건으로 주었는데 정확 매칭에 3MM 제품이 추천함.\n정확 매칭의 근거에 대하여 재 확인 필요",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-020",
+    "rating": 4,
+    "author": "김명곤",
+    "comment": "학습 DB의 문제로 보이며 화면에 보이는 2개의 품목이 동일 제품입니다.\n홈페이지 DB 내용 확인시 T4GRB-040A와 같은 형식의 품번은 현재 ERP 이전 시스템에서 사용되는 품목 코드로 당사 홈페이지 관리 DB상의 중복 코드로 확인 됩니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-021",
+    "rating": 3,
+    "author": "최영근",
+    "comment": "공구의 외경 사이즈만 선택이 가능하고 검색 이후 형상 별 그룹 선택이 가능하지만 그룹 선택 후에도 날수을 추가로 선택해야 하는 번거로움이 있음.\n처음부터 외경 외에도 날수(엔드밀, 드릴, 탭 모두 해당), 형상(볼, 래디우스) 등에 대한 세부 항목도 선택이 가능하면 공구 선정에 좀더 시간이 단축 될 것 같음",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 초내열합금\n📐 가공 형상: Trochoidal\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-022",
+    "rating": 5,
+    "author": "정재원",
+    "comment": "스테인레스강 영역에서, 헬리컬 가공 볼 가공 시,\nV7 PLUS GMG56120으로 1추천으로 나오는데,\n스크린샷에 보시는거와 같이\n해당제품은 국내 재고 관리안하고, 해외에만 재고를 두는거 같음.\n이후 V7 PLUS 국내 카탈로그로 넘어가면 GMH56시리즈로 보임.\n국내 AI 제품 탐색이면, 국내 EDP로 나오게 끔 수정이 필요할 것으로 보임.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Helical_Interpolation\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-023",
+    "rating": 2,
+    "author": "안일환",
+    "comment": "고경도 강용 solid end mill 추천 요청시 당사 Main 신제품인 X1-EH 추천이 바로 되지 않으며, 국내제품 추천기반이라 생각하더라도 X5070S나 E-Force를 추천하지 않습니다.\nAI활용으로 디테일한 가공조건 및 사이즈 추천에 강점이 있겠으나, 당사 주력 제품 라인업에 대한 설명이 부족한 것으로 생각됩니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Ramping\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-024",
+    "rating": 3,
+    "author": "전한솔",
+    "comment": "초기 조건 설정에서 어떠한 가공을 어떻게 할지 자연어 기반의 추천이 진행되면 더 좋을 것 같음.\n 제품 추천 방향이 현재 기준이라면 형상을 또 선택해야 하는 등 단계가 늘어남. 초기 검색 시 필요 조건을 설정후 부가적인 자연거 기반 검색을 추가함으로서 검색 단계를 줄일 필요가 있다고 여겨짐\n",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Helical_Interpolation\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-025",
+    "rating": 3,
+    "author": "전한솔",
+    "comment": "왼쪽 제품 탐색 부근에 현재 검색 조건등을 표기해 놓았는데, 이를 변경하려면 글로 써야함.\n 필터라고 되어있으면 변경할 줄 알텐데 즉각적인 변경이 가능하다면 더 좋을 것 같음.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-026",
+    "rating": 3,
+    "author": "전한솔",
+    "comment": "소재 제시와 가공조건 제시에 따른 검토는 좋음.\n다만 부정적인 답변 이후 조건을 변경했을 때.\n초기로 돌아가야하거나 대응 방식이 아쉬움.\n이전 단계가 아닌 조건의 수정을 요청하는 방식이면 더 좋을 것 같음.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-027",
+    "rating": 2,
+    "author": "전한솔",
+    "comment": "3날 스퀘어 비코팅 제품 추천해 달라고 했는데,\n스탠다드 제품도 아닌 dlc 코팅 제�� 추천이 나옴\nGEE8310055 제품 도출",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-028",
+    "rating": 1,
+    "author": "김도성",
+    "comment": "ONLY ONE 시리즈의 제품소재는 HSS PM소재인데 Carbide로 나옵니다. DB 상 오류로 보입니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-029",
+    "rating": 5,
+    "author": "윤건웅",
+    "comment": "AI 카탈로그의 UI가 굉장히 사용자 친화적이라는 느낌을 받았으며, 요즘 사용하는 SNS처럼 기능들을 한눈에 보기 쉽다는 것이 장점이라고 생각했습니다.\n\n또 사용자가 어떤 피삭재를 어떠한 방법으로 가공할 것을 물음으로써 제품군을 확정하고 그 하위로, 세부적으로 추천 공구를 추려내는 AI 카탈로그의 과정이 매우 인상 깊었습니다.  \n\n재고와 기타 추천 상위 ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 주철\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-030",
+    "rating": null,
+    "author": "유기호",
+    "comment": "트로코이달 밀링 가공 방식에서 JET POWER, K-2 Carbide 추천이 되는데 맞는지 모르겠음.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Trochoidal\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-031",
+    "rating": 4,
+    "author": "영업부",
+    "comment": "END MILL로 테스트 해보았는데,  제품 검색 후 형상을 선택하기 보다는 처음부터 형상을 선택할 수 있게 하는 편이 좋을 것 같습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 주철\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-032",
+    "rating": 3,
+    "author": "미주팀",
+    "comment": "SPECIAL 제품 견적에 대해서도 추천 제품 우선 확인하여 추천하는 것이 좋은 기능.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Trochoidal\n🛠️ 가공 방식: Milling\n📏 공구 직경: 16MM\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-033",
+    "rating": null,
+    "author": "한지희",
+    "comment": "전장 80이상 제품을 추천해달라고 했는데 76mm제품을 추천해주고는 매칭률이 106%라고 함. \n(매칭률이 어떻게 계산되는 건지는 모르겠어요..)",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-034",
+    "rating": 4,
+    "author": "한웅희",
+    "comment": "칩을 끊어줄수 있는 제품으로 Chip Splitter 를 추천한것 까진 완벽하였고 날장 30mm 이상으로 추천 요청하니 32mm를 추천해줘 완벽했습니다. 그러나 처음 제품 추천 필터에서 10mm 제품을 선택했는데 8mm 제품으로만 추천을 받아 아쉬웠습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 초내열합금, 스테인리스강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-035",
+    "rating": 2,
+    "author": "한웅희",
+    "comment": "P그룹을 선택하여 제품 추천 시작했는데 답변 내용에 바로 탄소강을 선택했다고 말합니다. 엄밀히 따지면 P그룹 > 탄소강으로 탄소강은 P그룹 안에 속합니다. 즉 P그룹을 탄소강이라고 말하면 저합금강이나 주강을 놓치게 되는 의미 입니다. 그래서 강철, 스틸, 철계재료 라고 표현해야 더 정확할 것 같습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-036",
+    "rating": 1,
+    "author": "엄홍식",
+    "comment": "1추천제품이 가장 상위에 나와야하는데\n자주 사용하지 않는 롱넥제품이 가장 상단에 검색됨\n\n국내, 해외제품이 모두 검색되어 고객혼란 있을수 있음\n국내용, 해외용 별도 구분 필요함",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-037",
+    "rating": 3,
+    "author": "엄홍식",
+    "comment": "전반적으로 검색속도가 느림\n현재 비철용제품만 검색이 가능한데\n전체 제품 검색하게되면 속도가 더 느려질것으로 예상됨\n\n응답지 평가를 해야 다음단계로 넘어가는 시스템인데 이에대한 안내나 설명없음\n\n모바일로 응답체크후 적정제품이 바로 나타나야하는데 제품검색은 별도카테고리를 찾아가야해서 불편함",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-038",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "SG9E7710015 제품 추천을 받았고 해당 제품의 사진이 제품 정보 옆에 있는데 제품과 제품 사진이 맞지 않습니다.\n(DB 문제일 가능성도 있음.) 그래서 확인차 해당 제품의 사진을 보여달라고 요청했는데 보여주지 못하는 것 같습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-039",
+    "rating": null,
+    "author": "한웅희",
+    "comment": "언어를 한국어로 선택한 상태에서 영어로 답변을 요청했는데 영어로 답변을 아주 잘해주었습니다. 그러나 선택지에 한글로 \"상관없음\" 선택지가 나와서 보완 필요해보입니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-040",
+    "rating": 4,
+    "author": "한웅희",
+    "comment": "요청한 내용에 알맞게 제품 추천을 해주었습니다. 하지만 요청한 제품 치수 중 코너레디우스 치수와 넥길이에 대한 문의는 DB에 없는건지 DB에 있는데 불러오질 못하는건지 확인해주지 못했습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-041",
+    "rating": 1,
+    "author": "김도성",
+    "comment": "고경도강용 제품 중 X5070을 추천해주는지 확인하기 위해 코팅색상인 파란색 제품이 있던데 추천해 달라고 했는데 그 이후 답변은 할루시네이션 답변을 계속 하였음",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-042",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "이 대화에서는 카바이드 엔드밀중 가장 날장이 긴 제품을 알려달라고 했지만, 가장 긴 제품을 추천하지 못하고 적당한 길이의 제품이 가장 길다고 잘못된 정보를 이야기 했고, 이전 대화에서는 가장 작은 직경의 제품을 문의 했지만 0.03mm가 있음에도 0.09mm 제품을 가장 작다고 추천하였습니다 그래서 예시 EDP NO.를 알려주면서 DB에 그 제품들이 없는지",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-043",
+    "rating": null,
+    "author": "박진홍",
+    "comment": "아직 처음 단계라 그렇겠지만, 현재에서 조금 좋아지는 정도로 AI ASSISTANT가 개발이 된다고 하면, 아무도 사용하지 않을 듯 합니다. 이미 고객 등은 AI를 활용해서 다양한 조건 검색, 제품 검색등을 할 수 있는데, 그것에 맞게 개발되지 않으면 안 쓸 듯 합니다.\n개발 하시는 분들이 더 잘 알지 않나요? 현재 상태는 모든 것이 부족해보입니다. \n어려",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Slotting\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-044",
+    "rating": 2,
+    "author": "최호영",
+    "comment": "정보DB 부족",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Facing\n🛠️ 가공 방식: Turning\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-045",
+    "rating": 3,
+    "author": "최호영",
+    "comment": "처음 내용을 추천하면 다양한 제품들이 표기 되는데, 되도록 추천 또는 잘 팔리는, 또는 주력으로 판매되는 제품을 우선으로 두었으면 합니다.\n예를 들어 스틸 계열의 제품을 추천 해줘 했��� 시 스틸 계열의 하이엔드 제품 V7plus, EV Mill, X-Power, 4G Mill 등 우선으로 노출될 수 있도록 되었으면 합니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-046",
+    "rating": 2,
+    "author": "김진오",
+    "comment": "질문에 대한 답변 보다는, 카테고리에서 필터 기능만 적용해서 답변을 줌",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-047",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "Titanium용 가공 절입량을 말하고 제품 추천 요청했는데, 추천 상위 제품 3가지가 모두 없는 제품으로 추천 받음.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 모름\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-048",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "추천 초기에 선택지가 아닌 다른부분을 문의 했음에도 그에 대한 답변이 아니라 준비되어있는 멘트와 문의를 의주로 진행하는 방식 같아 아쉽습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-049",
+    "rating": 3,
+    "author": "김진오",
+    "comment": "1. 일반 고객 입장에서 선택하기 어려운 질문이 있음.\n  예) 선호 코팅 종류가 있느냐? \n  - 고객입장에서는 해당 코팅의 종류나 장단점에 대해 모를 가능성이 높기 때문에 자세한 설명도 있으면 좋을 것 같다는 의견 드립니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 모름\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-050",
+    "rating": 4,
+    "author": "이가은",
+    "comment": "현재 시스템의 응답 속도가 다소 느린 편으로 확인되며, 보다 빠른 속도로 결과를 확인할 수 있도록 개선된다면 전반적인 사용 편의성이 더욱 향상될 것으로 판단됩니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-051",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "알루컷 시리즈에 대해서 간략하게 설명 요청하였는데 설명한 시리즈 중 없는 시리즈도 있고 다른 브랜드 제품을 잘못된 정보로 소개 함. -> 거짓말이 아니냐고 물어보니 같은 내부 DB에 없다고 답변함. -> 내부 DB에 없는 정보를 대답하는 오류가 발생합니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-052",
+    "rating": 5,
+    "author": "이가은",
+    "comment": "제품 추천 결과를 TOP 1~50까지 한눈에 확인할 수 있어 매우 편리하며, 특히 각 제품의 재고 현황과 수량까지 구체적으로 파악할 수 있다는 점이 큰 장점으로 판단됩니다. 또한 해당 정보가 지속적으로 업데이트된다면 실시간 의사결정에 큰 도움이 될 것으로 보입니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-053",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "이미 이야기해준 정보에 대해서 반영하지 않고 다시 물어보는 현상이 지속 발생하고 있습니다. 이번 대화를 예시로 가공깊이, 4날, 스퀘어 엔드밀 추천 하였는데 바로 다음 질문이 스퀘어인지 코너인지 볼인지 물어보고 위에 대답했다고 하니까 알겠다면서 이번에는 바로 날수를 물어보는 등 사용자가 전달한 정보가 제대로 반영되지 않는 것 같습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-054",
+    "rating": 4,
+    "author": "이가은",
+    "comment": "초기 가공 형상 선택 단계 이후, 공구의 형상 및 날 수를 바로 선택할 수 있도록 시스템이 구성된다면, 별도의 채팅을 통한 확인 과정이 생략되어 전반적인 추천 속도와 효율성이 크게 향상될 것으로 판단됩니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-055",
+    "rating": null,
+    "author": "한지희",
+    "comment": "sus304 가공용 드릴 추천받는 상황에서 \n어떤가공방식을 택할지에 대한 선택지가 드릴에 해당하는것만 나오는 것이 아니라 전체 가공방식을 다 보여주고 있어서 개선이 필요",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Holemaking\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-056",
+    "rating": null,
+    "author": "한지희",
+    "comment": "코팅에 대한 매칭이 필요합니다. 와이지원 내부에서 사용 코팅명 (X코팅, Y코팅, C코팅 등등)이 있어서 이부분에서 대한 개선이 필요합니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-057",
+    "rating": null,
+    "author": "한지희",
+    "comment": "첫 조건에서 인선직경 12로 설정했는데, 대화중에  전장 100이상을 조건으로 추가하였음. 두가지 다 만족하는 결과를 보여줘야 하는데 전장 100이상만 추천하였음",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-058",
+    "rating": null,
+    "author": "한지희",
+    "comment": "추천해준 ONLY ONE 시리즈 ,JET-POWER 시리즈는 한국제품인지 물었는데, 문의에 맞는 대답은 하지않고 제품특징을 설명해줌.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-059",
+    "rating": 1,
+    "author": "최홍규",
+    "comment": "엔드밀로  Plunging 가공이 전혀 안되는 것이 아닌데, 당사 엔드밀은 전혀 안되는 것으로 오해할 소지가 있음.\n조금이라도 가능한 제품 추천해주고, 그에 맞는 추천 조건값을 제시하는 것이 좋은 답변이라고 생각됨",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Plunging\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-060",
+    "rating": 4,
+    "author": "김지우",
+    "comment": "복수 조건 선택이 가능한 항목인데 자동으로 아래로 스크롤되어 불편함",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 초내열합금\n📐 가공 형상: Die-Sinking\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-061",
+    "rating": 3,
+    "author": "김성현",
+    "comment": "제품 추천에 있어서 검색이 안되는 것들도 있는듯한데 점차 업데이트가 되어서 대부분의 제품들이 검색이 되었으면 좋겠습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-062",
+    "rating": 1,
+    "author": "송민욱",
+    "comment": "일반적으로 고경도강용 이라고 하면 x5070 / x-1 / 이포스가 \n제 1 추천 입니다.\n3s/x-p 등은 로우 헬릭스라고 하더라도 고경도강용이라고 하기에는 무리가 있습니다. \n적용이 불가한건 아닙니다. \n의견 드리면 적합한 상기 1추천 제품이 첫번째 페이지에 \n검색이 되고 이후 후순위 제품이 배열 되면 좋을것 같습니다. ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-063",
+    "rating": 4,
+    "author": "박정석",
+    "comment": "축척된 데이터를 근거로 용이하게 사용될 것으로 봄.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-064",
+    "rating": 1,
+    "author": "김영택",
+    "comment": "내열합금 계열, side cutting으로 Titanox-Power 예상 하였으나 제품 추천이 안됨. 국내 3s Mill 1개 추천 됨 ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 초내열합금\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-065",
+    "rating": 1,
+    "author": "김영택",
+    "comment": "p계열, 램핑 가공용 추천 못함 ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Ramping\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-066",
+    "rating": null,
+    "author": "한지희",
+    "comment": "조건값에 대해 추천받은 제품을 제외하고 다른제품을 추천해달라고 했는데 후보군이 없다고 함. (실제로는 후보군이 있음)",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-067",
+    "rating": null,
+    "author": "한지희 ",
+    "comment": "X-POWER S 볼 엔드밀(인선직경  1.5  생크직경 4.0 전장 50) 대체품 문의 했는데, 4G MILLS 일반볼 아닌 테이퍼볼을 추천하였음.\n 4G MILLS 일반볼 시리즈에 완전하게 동일한 사이즈의 제품이 있음에도 정확히 일치하는 제품없다고 답변함.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 1.5\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-068",
+    "rating": 1,
+    "author": "한지희",
+    "comment": "가공 형상과 db간 매칭이 아직 완료되지 않은 것 같습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Ramping\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-069",
+    "rating": null,
+    "author": "한지희",
+    "comment": "ISO P (일반강)군의 세부피삭재가 선택지에 잘못되어 있습니다.\n\n(스테인레스강, 티타늄, 주철, 인코넬 등은 P계열이 아닌데, 전체 세부피삭재를 나열하였음) ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Trochoidal\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-070",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "가공 피드를 가장 높게 적용할 수 있는 제품 요청 하였고, Multiple Helix등이 적용되어 있는 High-end 제품을 추천해주면 좋을 것 같은데, 조건을 High-Feed라고 필터링을 하여 추천 제품 0개로 답변 받음.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 주철\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-071",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "국가지정을 하고 해당 국가에 판매하는 제품으로만 먼저 필터링 요청하였으나 추천 제품 0개로 실패함.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-072",
+    "rating": 1,
+    "author": "정종서",
+    "comment": "카바이드 제품만 추천해달라고 했더니 가공 소재를 카바이드로 설정합니다. 그래서 가공 소재를 알루미늄으로 변경해달라고 했는데 적용되지 않았습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-073",
+    "rating": 4,
+    "author": "성능Test팀",
+    "comment": "1. 답변에 따라 선택지를 선별하여 표시해주면 좋을 것 같습니다 (현재는 답변에 상관없이 전체 선택지를 보여주는 것 같음)\n2. 선택지 사이에 중복되는 항목이 존재합니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 모름\n🧱 가공 소재: 주철\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-074",
+    "rating": 3,
+    "author": "영업부",
+    "comment": "피삭재에 대한 정보 입력창 부족,\nEX) 고경도강 소재, Slotting 가공시 날길이 짧을 추천 하는 방향\n과도한 절삭조건 적용시 다른 가공 방식 추천 등 ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Slotting\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-075",
+    "rating": 4,
+    "author": "유동욱",
+    "comment": "Bright Finish 추천을 해달라고 했으나 DLC 코팅 제품을 제 1 추천함.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 모름\n🧱 가공 소재: 비철금속\n📐 가공 형상: Facing\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-076",
+    "rating": 1,
+    "author": "김도성",
+    "comment": "매우 비현실적인 절삭조건을 추천하고 있습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-077",
+    "rating": 3,
+    "author": "송정훈",
+    "comment": "고정된 질문의 경우는 AI 연산 단계로 빼지말고  초기 선택 단계에서 사용자가 선택 또는 모름을 선택할 수 있도록 하면 제품 추천을 받는데 시간이 단축될 것 같습니다.\n\n예) 1번 질문으로  공구 타입 radius/ ball / square  선택 질문 등.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-078",
+    "rating": 3,
+    "author": "송정훈",
+    "comment": "-Y코팅만 53개가 필���링 된 상태에서, 선택지에 T코팅이 등장했음(에러).\n-T코팅을 선택해봤더니   108% (?) 일치한 제품이 도출되었음.(에러)\n-정확 매칭이라는 아이콘이 나타남. (코팅 종류로 보아 해당 매칭은 정확 매칭이 아님)",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 20\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-079",
+    "rating": 3,
+    "author": "송정훈",
+    "comment": "-긴 답변의 경우 문단을 나누어주면 좀 더 가독성이 좋아질 것 같습니다.\n\n-스테인레스 스틸 가공용 추천을 받기로 시작하고 진행중인데 중간 단계에서 세부 피삭재 선택 상황에서   스테인레스 스틸 이외의 피삭재 분류 리스트가 선택지에 나타납니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 20\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-080",
+    "rating": 1,
+    "author": "박경준",
+    "comment": "Chamfering Tool에 Inch 제품만 추천함.\n유럽용 Drill Mill이나, 국내용 Chamfer Mill도 추가되어야 함",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Chamfering\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-081",
+    "rating": 1,
+    "author": "박경준",
+    "comment": "트로코이달 가공에 부적합 제품 추천 => 최적 제품 추천 로직 변경 필요",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Trochoidal\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-082",
+    "rating": 1,
+    "author": "김슬아",
+    "comment": "조건 및 필터를 새로 설정하니 이전에 테스트한 자료들이 날아가서.. 아래 확인된 오류사항 정리했습니다 .\n(오류 사항)\n1) 형상 다시 고르고 싶을때 \"이전단계\" 키워드만 인식함. 이전단계 버튼 계속 유지 필요해보임\n2) 상위제품 비교시 나오는 표 항목에 시리즈 명 > 브랜드명(시리즈) 로 명칭 수정 필요\n3) 철강소재(P)로 상위 3개 추천을 요청했는데 ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 모름\n📐 가공 형상: Profiling,Facing\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-083",
+    "rating": 4,
+    "author": "이지은",
+    "comment": "공구 세부 타입, 날 수, 코팅 정보를 사전에 선택할 수 있으면 제품 제안하는데 소요되는 시간 단축 가능성 있음.\n답변 받기까지 너무 많은 시간이 소요됨.\n조건 및 필터에서 이전에 입력한 정보를 수정 가능하면 더 좋을 거 같음.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-084",
+    "rating": 1,
+    "author": "최정은",
+    "comment": "251개 추천이라고 했다가 253개로 변경이 됨.\n그리고 추가 확인 사항을 한번에 할 수 있을텐데 한단계씩 확인을 하게 되니 대응이 늦고 답답한 것 같음\n\n조건 선택이 많아 AI 추천 방식의 느낌이 아니고, 사용자가 필터링 하면서 축소하는 것 같은데. 조건 선택 보다는 자유로운 질문으로 대응 될 수 있었으면 좋겠음.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-085",
+    "rating": 1,
+    "author": "최정은",
+    "comment": "AI 장점은 질문과 답변을 쉽게 이어 나가는 것인데, 충분한 답변이 되지 않고, 반대로 질문 또는 추가 선택을 요청하는 상황에서 그 답을 하기 위해 매번 응답과 선택지에 대한 평가를 해야만 다름으로 넘어가는  부분이 사용자로 하여금 번거로움을 느끼게 하는 것 같음.\n평가는 충분한 답변이 된 상태에서 마무리 단계에서 하는 것이 좋을 것 같고. 중간 단계에서는",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-086",
+    "rating": 1,
+    "author": "김명곤",
+    "comment": "검색결과상의 추천 제품 순서와 시스템상의 번호가 상이한 것으로 보입니다.\n추천 결과상의 #2,#3번을 비교해 달라고 하였으나 추천 결과상의 #1번,#2번이 비교되어 보여줌.\n이전 #1번과,#2번을 비교해달라고 했을 때는 #4번과 #8번을 비교하여 보여 주었음.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Facing\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-087",
+    "rating": 1,
+    "author": "김명곤",
+    "comment": "제품 추천 로직이 이전 단계의 값으로 검색이 진행되는 것으로 보입니다.\n단지 사용자가 직접 검색 내용을 입력할 때 문장의 내용에 따라 1단계 이전이 아닌 상위 단계에서의 검색 결과값에서 검색이 되도록 보완이 필요해 보입니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Facing\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-088",
+    "rating": 1,
+    "author": "김명곤",
+    "comment": "최종 제품 결과 화면에서 특정 시리즈 제품 전체를 요청하였으나 결과 표시하지 않음.\n위 질문은 이전에 검색했던 결과를 무시하고 특정 제품군을 보여 달라고 한 것이나 이를 이해 하지 못한것으로 판단됨.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Facing\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-089",
+    "rating": 1,
+    "author": "김명곤",
+    "comment": "최종 조회 결과에서 추천 1번과 2번을 비교해 달라고 했으나 비교 제품이 추천 제품 1/2번이 아님.\n그리고 비교한 제품상의 날장과 전장이 상이하나 이에 대한 내용이 없음\n제품의 형상(기본 제원:날부직경,생크직경,날부 길이,전장 길이<-당사 제품군중 가장 중요한 제원 정보임)에 대한 비교가 부족함.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Facing\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-090",
+    "rating": 4,
+    "author": "영업부 ",
+    "comment": "개선사항\n1. 가공소재 선택 시, 피삭재 경도까지 세분화할 필요가 있어보임\n(고경도강 선택 시, 중경도강 제품까지 추천되는 것으로 확인)\n2. 반영이 될 예정인지 모르겠으나, 국가 or 규격을 선택할 수 있는 조건이 필요할 것 같음 \n3. 매번 응답과 선택지를 평가해야 추가 질문, 조건을 작성할 수 있는게 불편함. 제품 추천 완료 후 전체적으로 평가할 수 ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-091",
+    "rating": 1,
+    "author": "최종근",
+    "comment": "제품을 추천하지 못하는데 DB에서 선택하는 로직이 이상한 것인지 형상 선택시 제품 지정이 되지 않습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 초내열합금\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-092",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "초내열합금 선택하면 수백개의 추천제품이 나오는데, 그중 Titanium 조건을 적용하니 추천 제품이 0개로 나오는 문제가 발생합니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 초내열합금\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-093",
+    "rating": 2,
+    "author": "서재성",
+    "comment": "채팅으로 요청 사항을 전달했을 때, 해당 내용에 대한 처리가 매우 미흡하다고 느껴짐 (유첨 캡처 내 재고 필터 해제 요청 등)",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 주철\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-094",
+    "rating": 3,
+    "author": "박봉주 ",
+    "comment": "END MILL 부분은 다른 품목보다 상대적으로 잘 정리된 것으로 보임 \n추천 제품에 대해 클릭 했을 때 해당 품목에 대한 정보 (Online Shop 처럼) 가 Pop Up 되어야 함. 이에 대한 데이터 작업, 구축, AI Searching 연계 필요할 것 같음 ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 주철\n📐 가공 형상: 모름\n🛠️ 가공 방식: Holemaking\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-095",
+    "rating": 1,
+    "author": "박봉주 ",
+    "comment": "인서트 부분에 대해 조건 값이 특성화되어 있지 않고 아직 활성화 되어 있지 않음을 확인하였음 ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 주철\n📐 가공 형상: 모름\n🛠️ 가공 방식: Holemaking\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-096",
+    "rating": 2,
+    "author": "박봉주 ",
+    "comment": "Drill 에 해당되는 가공 조건, Flute 수 등 품목 특성에 맞는 개별 Filter/Selection 기능 보강이 되어야 할 것 같음 \n\nAI Guide 에 따라 Flute(날) 선택하려고 하는데 비활성되어 있는 것 같음.  ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 주철\n📐 가공 형상: 모름\n🛠️ 가공 방식: Holemaking\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-097",
+    "rating": 5,
+    "author": "정단비",
+    "comment": "1. 사용자의 선호도를 파악하고 선택을 돕기 위해 시스템이 부연 설명을 해주는 것이 매우 편리하게 느껴짐. ex) 날 수 선호를 문의하며 각 날의 특징, 유리한 가공 언급 등. \n2. 우측에 추천 제품 브랜드, 이미지 및 재고 정보 등이 확인돼서 도움이됨. \n3. 시스템의 응답/선택지에 매번 positive/negative를 선택해야 다음으로 넘어갈 수 있",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 Inquiry Purpose: New Product Recommendation\n🧱 Workpiece Material: Carbon Steel\n📐 Operation Shape: Helical_Interpolation,Facing,Slotting\n🛠️ Machining Category: Milling\n📏 Tool Diameter: 4mm\n\nPlease recommend suitable YG-1 products based on the conditions above."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-098",
+    "rating": 4,
+    "author": "장민아",
+    "comment": "1. Milling에 대한 가공형상만 제공되고, 그 외 제품군에 대한(예를 들어 Threading의 Through / Blind 홀 가공) 형상은 없음\n\n2. 공구직경-인서트에도 동일하게 적용할 수 있는지 모르겠음.\n\n3. 검색조건에 맞는 검색 결과를 우측의 작은 공간에서만 확인할 수 있어 불편하고, 50개씩만 볼 수 있어서 검색 결과를 새 탭에서 확인할 ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Turning\n📏 공구 직경: 2mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-099",
+    "rating": 1,
+    "author": "izet shin",
+    "comment": "왼쪽하단에 국가 중복, 영어로 문의하였으나 한글로 대답, 선택 가공형상에 smart part? 잘못들어간것 같음.  work material -> 한글 표기됨. ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 Inquiry Purpose: New Product Recommendation\n🧱 Workpiece Material: Non-ferrous\n📐 Operation Shape: Facing\n🛠️ Machining Category: Milling\n📏 Tool Diameter: 6mm\n\nPlease recommend suitable YG-1 products based on the conditions above."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-100",
+    "rating": 4,
+    "author": "박유진",
+    "comment": "- 응답 속도가 보다 빨랐으면 좋겠음\n- 제품탐색 조건 기입 시, 가공 조건 (가공 설비, 작업 방향, 구체적인 가공물 종류)을 추가한다면 보다 매칭 확률이 높을 것으로 생각\n- 추천 제품의 가용 재고 표시가 필요하며, 제품의 최종 구매까지 이어지도록 관련 영업/대리점의 정보가 함께 제공되면 좋을 것 같음",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강, 주철\n📐 가공 형상: Facing,Die-Sinking,Helical_Interpolation\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-101",
+    "rating": 2,
+    "author": "한웅희",
+    "comment": "이번대화에서는 영어로 답변을 듣고 싶다고 말했지만, 영어로 답변을 하다가 한 답변안에서 다시 한국어로 답변을 하여 보완필요해 보입니다. (선택지도 모두 한글로 나옴)",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-102",
+    "rating": null,
+    "author": "최호영 ",
+    "comment": "신규제품 추천으로 선택했지만 \n신규 제품 보다 구 제품들이 먼저 노출 됩니다.\n신규 제품 우선으로 노출 될 수 있는 방향으로 변경이 필요합니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-103",
+    "rating": 1,
+    "author": "최호영 ",
+    "comment": "가공형상을 선택 후 가공 방식에서 Milling 외 선택을 하면 제품을 찾지 못합니다.\n좀전 의견 남겼듯이 가공형상은 Milling에 해당하는 부분입니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Helical_Interpolation\n🛠️ 가공 방식: Threading\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-104",
+    "rating": 2,
+    "author": "한웅희",
+    "comment": "바로 위에 답변에서 영어로 계속 답변해드리겠다고 했는데 다름 답변에서 바로 한국어로 다시 변경되었습니다. ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-105",
+    "rating": 1,
+    "author": "김영택",
+    "comment": "알루미늄 가공에 항공용 Aluminum 고속 가공에 대해\n추천하지 못함",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-106",
+    "rating": 2,
+    "author": "김명곤",
+    "comment": "첫번째 응답 후 일괄 질의가 가능한 항목(공구 형상/날수/피삭재)에 대하여 한번에 선택하여 바로 결과가 표시될 수 있도록 수정 필요",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-107",
+    "rating": 3,
+    "author": "김명곤",
+    "comment": "Radius 제품의 경우 반드시 Radius값이 제품 비교시 보여 주어야 합니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-108",
+    "rating": 2,
+    "author": "박봉주 ",
+    "comment": "더 봐야 하겠지만, 아직 일부 선택 버튼 (Ex. 3-4날 등 추가 선택 Option)이 비활성화되어 있고, 재고 있음에 대해 추가 정보 클릭이 안되는 것 같습니다. 계속 보완/확장해 나갈 계획이신지요 ? 몇가지 사례 더 파악하고 다시 댓글 남기겠습니다 ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Corner_Radius\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-109",
+    "rating": 1,
+    "author": "",
+    "comment": "제원 표기 시, Metric, inch 혼용 표기되어 보기 불편함.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강, 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Holemaking\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-110",
+    "rating": 2,
+    "author": "이택신",
+    "comment": "탄소강 Holemaking Tool 선택 시, 2날 선호하는 것을 선택 후의 추천이 DHM/DH 시리즈가 같은 추천 품목으로 묶어 설명이 되어 있습니다. 유홀/무홀 선호 문의 추가가 필요하다 보며, \nFlat Bottom Drill의 장점(Curve/Incline 진입표면 등에서 우수한 버 억제력 등)이 좀 더 설명된다면 좋겠습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Holemaking\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-111",
+    "rating": 2,
+    "author": "",
+    "comment": "제품 추천 기능의 경우 조건 및 필터 구성이 비교적 단순하여 검색 접근성은 양호한 편. 다만, 동일 조건에서 다수의 제품이 추천되어 사용자 입장에서 어떤 제품이 최적의 선택인지 판단하기 어려움.\n\n또한, 추천 제품 간 차별화 요소(적용 범위, 성능 차이, 추천 우선순위 등)에 대한 추가 정보가 부족하여 실제 선택 과정에서 혼선이 발생할 가능성 有.\n\n현재 ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Threading\n📏 공구 직경: 3/4\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-112",
+    "rating": 1,
+    "author": "김영택",
+    "comment": "주철, slotting 가공 시 구글 AI는 2,3날 추천\n당사 AI는 4,6날 추천함\n일반 상식으로 칩 포켓으로 인해 날수가 작은 제품을 추천\n당사는 잘못 된 제품을 추천함 ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 주철\n📐 가공 형상: Slotting\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-113",
+    "rating": null,
+    "author": "김명곤",
+    "comment": "직경 12mm 로 조회 하였으나 1건은 12mm이고 다른 한건은 10mm 제품임(생크가 12mm)",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-114",
+    "rating": 4,
+    "author": "미주팀",
+    "comment": "코팅에 대한 선호도가 없을 때 후보 군 추천하는 것도 좋은 기능으로 판단되며, 선호도가 없을때 상관 없음.으로 넘어갈 수 있어서 좋음. ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-115",
+    "rating": null,
+    "author": "영업본부 미주팀 ",
+    "comment": "M 가공용 TOOL 이 필요하여 검색했고, HARDENED STEEL이나 CAST IRON 도 추가 옵션으로 선택하게 답변되어 지적했음.\n이에, 해당 옵션이 제공된 사유에 대해서 이해하기 쉽게 설명하고 있음. ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-116",
+    "rating": 2,
+    "author": "김명곤",
+    "comment": "제품 검색 조건에 대한 순서 변경\n- 가공방식(공구종류)이 2번째가 되어야함(엔드밀,드릴,탭,인써트)\n- 아니면 가공 형식을 선택하면 이에 따른 가공방식이 자동 선택이 되어야 함.(당사 홈페이지 Ecatalog 페이지 확인- https://product.yg1.solutions/resource/e_catalog)\n- 공구 종류별 가공할 수 있는 형식이 정해",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-117",
+    "rating": 1,
+    "author": "김영택",
+    "comment": "small part 가공용으로 P 계열, 2MM 제품 추천 요청 하였으나 k-2 판매되지 않은 엉뚱한 비코팅 제품이 추천 됨. \n",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속, 탄소강\n📐 가공 형상: Small Part\n🛠️ 가공 방식: Milling\n📏 공구 직경: 2mm\n\n위 조건에 맞는 YG-1 제품을 ���천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-118",
+    "rating": 1,
+    "author": "김영택",
+    "comment": "제품 비교에 대한 설명 오류 ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Trochoidal\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-119",
+    "rating": 1,
+    "author": "김영택",
+    "comment": "해당 절삭 가공 영역은 V7 Plus 6날을 보통 추천 하지만\nV7 Plus 제품은 추천에 없고 대부분 HSS 쪽 영역\nGeneral carbide를 우선적으로 추천함 ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Trochoidal\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-120",
+    "rating": 1,
+    "author": "김영택",
+    "comment": "T-코팅이나 당사에서 미보유하고 있는 코팅 등 추천 ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 2mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-121",
+    "rating": 1,
+    "author": "김영택",
+    "comment": "고경도강용에 X1이나 기타 상위품목이 아닌 일반 General 영역을 추천함.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 2mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-122",
+    "rating": null,
+    "author": "한지희 ",
+    "comment": "SEM84500616 제품 사이즈(유효길이) 문의했는데 잘못된 정보 제공하고 있습니다. 16mm인데  1.8mm 로 대답함. 그리고 처음에 가격을 물어봤을때 정보를 찾을 수 없으니 대리점이나 본사로 연락달라고 답변하는것이 맞을 것 같습니다. (2번쨰 질문에 그렇게 답변함)\n",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 0.6\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-123",
+    "rating": null,
+    "author": "한지희 ",
+    "comment": "30파이 제품이 없다고 답변하고 있습니다. HSS 엔드밀 제품 중에 추천 가능한 엑스트라 롱 엔드밀이 있었습니다. 인선직경 외 다른길이 정보는 매칭 사이즈가 없다면 유사규격이라도 추천해주면 좋을 것 같습니다. ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 30mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-124",
+    "rating": 3,
+    "author": "이선자",
+    "comment": "대응할 수 있는 적절한 제품을 찾지 못하는 것 같음. 일반적으로 사용하는 형상, 피삭재 선택 후 주요 경쟁사 대응 가능 제품 문의했으나 없는 것으로 나옴",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-125",
+    "rating": null,
+    "author": "한지희 ",
+    "comment": "처음에는 \"SUS-CUT (EHD85): 한국 시장 맞춤형 범용 시리즈\"라고 답변 주었는데, 이후 다시 질문하니 그건 오류였고 현재 DB에서 해당 시리즈나 \"한국\" 시장 특화 제품 정보를 확인할 수 없다고 답변하고 있습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 주철\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-126",
+    "rating": 3,
+    "author": "박재훈",
+    "comment": "코너레디우스 제품 추천을 문의했고, 시리즈까지는 추천을 받았으나  Radius 값에 대해서는 정보가 없다고 안내함.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 초내열합금\n📐 가공 형상: Helical_Interpolation\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-127",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "필터링을 전부 모른다고 입력하니 약 6만 5천개 제품이 필터링 되었고 여기에서 피삭재 SCM440 황삭가공, 10파이에 날장 20mm 이상 추천 요청하였더니, Alloy Steels로 필터링 잘 적용하였으나 추천 제품이 없다고 답변함. -> X-SPEED ROUGER or X-POWER Roughing E/M등 추천 가능한 제품들이 매우 많습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 모름\n📐 가공 형상: 모름\n🛠️ 가공 방식: 모름\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-128",
+    "rating": 1,
+    "author": "김도성",
+    "comment": "열처리된 SKD11 소재를 지정하여 해당 피삭재에 적합한 제품을 추천해달라고 하였음(고경도강용 제품), 고경도에 대한 필터링 부분의 문제가 있는지 정확한 답변을 못하고 있고, 추천제품에 알루미늄은 적합하지 않다고 답하면서도, 추천후보 우선순위에 알루미늄용 공구가 선정되어 있음.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 모름\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-129",
+    "rating": 1,
+    "author": "김도성",
+    "comment": "알루미늄 추천 절삭조건이 비현실적인 값이 추천되고 있습니다.\n혹시 추천 값 중간에 \"~ \" 이 누락된 것이 아닌지 생각됩니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-130",
+    "rating": 3,
+    "author": "정종서",
+    "comment": "데이터베이스 문제로 추정되는데 GMG41과 GMG40의 차이를 문의했을 때 적용 소재에 대한 부분만 언급 됩니다.\n\n두 시리즈의 차이점은 Shank Type 입니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-131",
+    "rating": 2,
+    "author": "한웅희",
+    "comment": "알루파워 E5910060 알루미늄 가공 절삭조건에 대해서 문의 하였고 결과에 \"~\"가 생략되어 나오는 것으로 보입니다. )일부는 소수점 앞 단위 0이 누락되어있음.) 그리고 절삭속도는 카탈로그 기준의 Data가 나오지만 날당이송량이 카탈로그 기준보다 약 2~3배 이상 빠르게 추천 하였습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-132",
+    "rating": 1,
+    "author": "김도성",
+    "comment": "가공할 포켓의 코너가 R1이라면, 단순히 직경 2파이 이하의 스퀘어 엔드밀을 추천할 것이 아니라 날 끝에 R1이 적용된 코너 래디우스(Corner Radius) 제품을 우선적으로 제안해야 합니다. 이때 추천되는 공구는 직경이 2파이 이상이면서도 코너 R값 1mm가 정확히 적용된 모델이어야 하므로, 가공 형상의 R과 공구 자체의 R 규격을 명확히 매칭하여 추",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-133",
+    "rating": 2,
+    "author": "한웅희",
+    "comment": "알루미늄 피삭재 코팅 추천에 TiCN, Bright, DLC는 매우 좋은 추천이지만 Diamond Coating은 일반적으로 추천하지 않습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-134",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "제품 추천까지는 좋았지만, G-CUT의 경우 Aluminum 보단 Graphite 가공에 특화되어 있는 Brand로 Aluminum 고속가공에 특화되어있다는 건 잘못된 정보입니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-135",
+    "rating": 3,
+    "author": "한웅희",
+    "comment": "처음 제품 추천 요청한 직경이 1/2이었습니다. 물론 유사 Size인 12mm 제품으로 추천 받았지만, 1/2 Std.제품이 아주 많은데 아직 인치사이즈 제품에 대해서 추천이 어려운것 같습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 초내열합금\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 1/2\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-136",
+    "rating": 4,
+    "author": "한웅희",
+    "comment": "TitaNox-Power 4Flute 제품 Corner Radius 1mm 제품을 요청했었는데, 추천 받은 제품의 Corner Radius가 1mm로 매우 정확했습니다 그러나, 추천 제품 화면에 Corner Radius 치수가 나와있지 않아 고객의 입장에선 추천 제품의 Corner Radius 가 자신이 요청한 치수로 추천해준건지 확인 하기가 어려웠습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 초내열합금\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 1/2\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-137",
+    "rating": 5,
+    "author": "이명우",
+    "comment": "1. 범용적으로 사용하는 용어가 사용되면 좋겠습니다 \n  STS304 --> SUS304 등.. \n2. 선택한 가공소재 계열과 무관한 소재가 나열됨 ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-138",
+    "rating": null,
+    "author": "이명우",
+    "comment": "1. T-Coating 이 아니라 X-Coating으로 코팅 명이 잘못되어있습니다 \n\n2. Alloy Steel 선택하였으나 비철금속에 적합하다는 설명이 모순된 것 같습니다 \n\n3. EH540040은 코팅 제품인데 Bright로 나옵니다\n\n",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-139",
+    "rating": 4,
+    "author": "연구소",
+    "comment": "제품 시리즈를 불러온 정보에 설명란 내용이 이상함",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 모름\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공�� 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-140",
+    "rating": null,
+    "author": "이명우",
+    "comment": "<br/> 같은 태그가 적용되지 않고 텍스트로 보임 ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Helical_Interpolation\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-141",
+    "rating": null,
+    "author": "이명우",
+    "comment": "적합도 만점이 125점인데 의도한 부분인지 수정해야될 부분인지 궁금합니다! ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Helical_Interpolation\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-142",
+    "rating": null,
+    "author": "이명우",
+    "comment": "가공소재 세부분류 \"상관없음\" 으로 하면 갑자기 후보군이 많아지는 현상이 있습니다 ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Helical_Interpolation\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-143",
+    "rating": 5,
+    "author": "이명우",
+    "comment": "같은 제품인데 Tool Code와 EDP No로 2개로 중복 검색됨 ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-144",
+    "rating": 5,
+    "author": "이명우",
+    "comment": "코팅, 날 수, 형상을 첫 화면부터 선택하면 검색 속도도 빨라질 것 같은데 \n대화로 넘어가서 선택하는 과정이 불편할 것 같습니다 ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-145",
+    "rating": 5,
+    "author": "이명우",
+    "comment": "데모모드 - 도면업로드 자동 판정 오타\n특'주' 타겟 --> 특'수' 타겟",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-146",
+    "rating": 5,
+    "author": "이명우",
+    "comment": "단순히 가공방법/소재/직경이 아니라 Quality에 따른 기준도 있으면 좋을 것 같습니다 \n예를 들면 고정밀 --> X1, 정삭, 중삭, 황삭 등.... ",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-147",
+    "rating": 5,
+    "author": "이명우",
+    "comment": "선택 순서가 바뀌어야할 것 같습니다\n보통 자연스러운 선택은 아래인 것으로 생각합니다 \n(1) 신규 제품 or 대체품 확인\n(2) 공구 선택 (엔드밀, 드릴,...)\n(3) 가공 소재 선택 (P,M, K, ... )\n(4) 가공 방법 선택 (Side milling, drilling 등...)\n\n--> (3)과 (4)는 입장에 따라 바뀔수있다고는 생각힙니다 \n",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-148",
+    "rating": 5,
+    "author": "강해인",
+    "comment": "1. Country 에 ASIA 가 2개로 나옵니다.\n2. Dealer 찾기 중 ASIA 지역 내 인도네시아 법인 누락입니다.\n3. English 로 변경했는데 답변은 한글로 나옵니다.\n4. 제품 추천 시 High-end 품목 우선으로 소개하였으면 합니다. Ex) X1-EH, 4G MILL 등\n",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 Inquiry Purpose: New Product Recommendation\n🧱 Workpiece Material: Carbon Steel\n📐 Operation Shape: Profiling\n🛠️ Machining Category: Milling\n📏 Tool Diameter: 0.5mm\n\nPlease recommend suitable YG-1 products based on the conditions above."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-149",
+    "rating": 5,
+    "author": "백은재",
+    "comment": "추천 전 기본 정보가 너무 광범위 합니다. 하여, 결과물이 너무 많이 나와서 추 후 원하는 제품을 찾기까지 상당한 질문을 해야 할 것으로 판단됩니다.\n그리고 첨부된 스크린샷 조건으로 질문 했을 때...1차 결과물(추천 후보)을 보면 하이스 제품이 추천후보 상위에 링크됩니다.\n\n추측하건데 기존 카탈로그의 추천 절삭조건표를 그대로 사용해서 나온 결과물 같습니다",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 주철\n📐 가공 형상: Side_Milling,Facing\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-150",
+    "rating": 1,
+    "author": "박재훈",
+    "comment": "YG-1 제품중에서 고경도강용 엔드밀에 대�� 3S Mill 말고 다른 제품에 대해 추천해 달라고 했으나, 당사에 없는 시리즈를 추천해 주고 있음.  YG-1에 없는 제품인 Miracle 시리즈, A-POWER 시리즈를 추천해 주고 있어서, 어느회사 제품인지 다시 물어 봤으나, 똑같은 답변을 하고 있음.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 2mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-151",
+    "rating": 3,
+    "author": "차수현",
+    "comment": "조건 및 필터에 Carbide / HSS 정도는 검토할 수 있게 해주는 방향이 좋을 것 같습니다. (모르면 모른다고 누르면 좋을 것 같음)\n\nCarbide를 찾고자 하는데, 추천이 전부다 HSS로 만들어지는 상황이 나왔고, 아직 Radius / Square 등은 추가 추천이 눌러지지 않는건 개발되지 않은 상황인걸로 보고 이부분도 추가되서 지속적으로 커뮤니케",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 2mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-152",
+    "rating": 4,
+    "author": "신오상",
+    "comment": "질문에 대한 답을 받을때마다 평가를 눌러야만 추가 질문이나 조건을 입력할 수 있도록 설계 되어 있습니다.\n해당 기능에 대한 안내가 간단하게 나와있으면 좋을것 같습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-153",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "답변 내용 중 \"상관없음\"을 선택해도 괜찮다고 하였지만 선택사항 중 \"상관없음\" 이 나오지 않습니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-154",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "가공소재 S계열을 선택하여 제품 탐색 했는데, 세부소재 선택에서 선택지에 S계열이 아닌 P의 Alloy Steels, K의 Cast Iron, M의 Stainless Steels이 나옵니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 초내열합금\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-155",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "S계열 제품 추천 요청했는데, 가장 Best Brand인 TitaNox-Power를 추천하지 않고 3S MILL을 추천하여, 이유를 물어보니 DB상에 TitaNox-Power가 3S MILL보다 매칭점수가 낮게 되어 있을 수 있다는 답변을 함.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 초내열합금\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-156",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "고경도강 가공 제품 추천에 전용 Brand인 X1-EH나 X5070을 추천하지 않고, 3S MILL, K2등을 추천함. (참고로 X1-EH나 X5070에 2Flute Ball 제품이 엄청 많은데, DB에 없거나 매칭점수가 낮다는 대답을 하여 보완이 필요해 보임.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 1/4\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-157",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "3S MILL의 Coating을 T-Coating이라고 설명하고 있습니다. (X-Coating임) DB 에 내용이 잘못 표기 되어 있는 오류인지 아니면 잘못된 정보를 답변하는 건지 확인 필요해 보입니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 1/4\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-158",
+    "rating": 5,
+    "author": "송정훈",
+    "comment": "1. padding이 너무 커서 화면에 표시되는 정보의 양이 제한적임.\n2. 작은 텍스트가 많아서 집중이 살짝 분산되는 느낌이 있음.\n3. 긴 답변이 나오면 지금처럼 최하단을 보여주지말고 최상단이 보여야 스크롤을 내리면서 답변을 체크하는게 더 좋을 것 같음.\n4. 여러 선택지가 있을 경우에는 각 선택지의 특징을 함께 이야기해주는게 좋을 것 같음.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 모름\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-159",
+    "rating": 4,
+    "author": "홍준택",
+    "comment": "1. 의견 남기기의 위치가 제품 리스트 다음 페이지 버튼 방해\n2. 첫 조건 확인 후 \"수정\" 버튼을 진행 시 첫페이지로 원복됨.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "single",
+    "id": "S-160",
+    "rating": 5,
+    "author": "이재성",
+    "comment": "원자재 / 날수 선택도 가능하다면 추천 제품의 범위가 압축 될 것으로 보입니다.",
+    "messages": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Trochoidal\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "multi",
+    "id": "M-000",
+    "rating": 1,
+    "author": "박소영",
+    "comment": "고객사에서 T3P02K54 품목 동일규격에 막힌구멍용을 찾으실 수도 있으실것같은데, 그럴때 질문을 하면 T3P01 시리즈로 안내를 해주면 좋을 것 같습니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: ���소강\n📐 가공 형상: Facing\n🛠️ 가공 방식: 모름\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "SEM81010035이 알루미늄 가공에 적합할까?",
+      "T3P02K54에서 막힌홀로 되어있는 것도 있을까?"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-001",
+    "rating": 2,
+    "author": "차희정",
+    "comment": "내수용 페이지에서 해외용 제품(K-2) 추천\n만약에 고객이 없는 제품에 대해 추천을 요청한다면 없다고 나와야 할 것 같습니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Small Part\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Ball (6개)",
+      "국내용 제품으로 추천해줄래?",
+      "X1-EH 는 어때?",
+      "X1-EH 에서 추천할만한 4mm 볼 제품은 없을까?"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-002",
+    "rating": null,
+    "author": "한지희",
+    "comment": "제품의 품번(SG8A4604020)을 가지고 동일한 스펙의 대체품 추천을 요청했음. 해당 품번에 대한 정보는 제대로 알고있지만, 대체품은 추천하지 못함.  대체품을 추천받으려면 AI가 늘 물어보는 날수,형상, 가공방식, 코팅 등에 대한 정보를 새롭게 주어야 하는것으로 보임. 정확한 품번이 주어졌고 제품에 대한 정보를 알고 있다면 비슷한 가공영역대의 제품도 ",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강, 고경도강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "제가 지금 와이지원 SG8A4604020 제품을 사용하고 있어요.  당장 써야 하는데, 재고가 없대요,  대체품 추천해주세요. 제품 스펙은 동일하면 좋겠어요",
+      "위의 제품정보는 맞아요, 그 정보를 기준으로 동일한 스펙으로 대체품을 추천해주세요",
+      "X-5070 로는 재고가 전부 없대요, 다른 제품(브랜드)군에서 추천해주세요"
+    ],
+    "maxTurns": 4
+  },
+  {
+    "type": "multi",
+    "id": "M-003",
+    "rating": 2,
+    "author": "국내영업본부 차희정",
+    "comment": "내열합금강용 엔드밀 추천 요청했을 때 SUPER ALLOY 브랜드 미출력, 3S PLUS 코팅명 오류",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 초내열합금\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "SUPER ALLOY 라는 브랜드도 있는걸로 아는데?",
+      "T-Coating은 뭐야?",
+      "국내 카탈로그에는 Y코팅이라고 나오는데?",
+      "T-Coating 설명해줘"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-004",
+    "rating": null,
+    "author": "한지희",
+    "comment": "문의에 대해 와이지원 제품이 아닌 것을 답변함.\n-->MIRACLE, TETRAGON, EZONE (보안소프트웨어, 테니스 라켓시리즈라고 하는데,,, 왜 이런 정보를 가져오게 되었는지 모르겠음.)\n와이지원 제품이냐고 다시 물었더니 잘못된 정보라고 대답함.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 2mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Radius (2711개)",
+      "날 수는 상관없는데, 유효길이가 있는 타입이면 좋겠어요, 와이지원고경도 강용 제품으로 유효길이 있는 것 추천해주세요",
+      "고경도 강용제품으로 4G MILL 아닌 다른제품도 있지않나요??",
+      "MIRACLE, TETRAGON, EZONE -> 와이지원 제품인가요??"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-005",
+    "rating": null,
+    "author": "국내영업",
+    "comment": "고경도 강용 제품으로 주로 추천되는 이포스(eforce) 엔드밀,X-5070 S 엔드밀, X1엔드밀이 있음에도  4MILL만을 추천하고 있고 그이후 질문에서 유효길이 있는 타입에 대해 후보군이 없다고 함.  ",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 2mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Radius (2711개)",
+      "날 수는 상관없는데, 유효길이가 있는 타입이면 좋겠어요, 와이지원고경도 강용 제품으로 유효길이 있는 것 추천해주세요"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-006",
+    "rating": null,
+    "author": "한지희",
+    "comment": "필요한 가공깊이 정보를 제공하였는데, ai는 저의 질문과 관계없이 본인이 알아야 하는 정보만을 묻고 있음.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Die-Sinking\n🛠️ 가공 방식: Milling\n📏 공구 직경: 2mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Radius (43개)",
+      "가공깊이가 최소 10mm 인데요, 가공에 적합한걸로 추천해주세요"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-008",
+    "rating": 4,
+    "author": "홍건휘",
+    "comment": "추천된 제품 내 국내용/해외용 구분이 있으면 좋을 것 같습니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 주철\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Square (425개)",
+      "4날 (191개)",
+      "Hardened Steels(HRc40~45) (138개)",
+      "Y-Coating (119개)"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-014",
+    "rating": 1,
+    "author": "최호영",
+    "comment": "드림드릴 제너럴을 찾아 접근 했으나 결과는 나오지 않음. 추천 후보에는 관련툴이 없음. 그리고 접근 방식이 피삭재 탄소강을 선택했으나 문의에서 한번더 선택해야 하고 나중에 엔드밀 가공방법에 대해문의가 생김. 드릴 쪽에서는 좀더 자료가 필ㅇ요 할 것으로 보임",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Holemaking\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "2날 (9723개)",
+      "Structural Steels (8888개)",
+      "TiAlN (3087개)"
+    ],
+    "maxTurns": 4
+  },
+  {
+    "type": "multi",
+    "id": "M-019",
+    "rating": 2,
+    "author": "김명곤",
+    "comment": "직경 4MM를 검색 조건으로 주었는데 정확 매칭에 3MM 제품이 추천함.\n정확 매칭의 근거에 대하여 재 확인 필요",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Ball (327개)",
+      "4날 (11개)",
+      "Hardened Steels(HRc40~45) (10개)"
+    ],
+    "maxTurns": 4
+  },
+  {
+    "type": "multi",
+    "id": "M-020",
+    "rating": 4,
+    "author": "김명곤",
+    "comment": "학습 DB의 문제로 보이며 화면에 보이는 2개의 품목이 동일 제품입니다.\n홈페이지 DB 내용 확인시 T4GRB-040A와 같은 형식의 품번은 현재 ERP 이전 시스템에서 사용되는 품목 코드로 당사 홈페이지 관리 DB상의 중복 코드로 확인 됩니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Ball (327개)",
+      "4날 (11개)"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-023",
+    "rating": 2,
+    "author": "안일환",
+    "comment": "고경도 강용 solid end mill 추천 요청시 당사 Main 신제품인 X1-EH 추천이 바로 되지 않으며, 국내제품 추천기반이라 생각하더라도 X5070S나 E-Force를 추천하지 않습니다.\nAI활용으로 디테일한 가공조건 및 사이즈 추천에 강점이 있겠으나, 당사 주력 제품 라인업에 대한 설명이 부족한 것으로 생각됩니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Ramping\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "어떤 부분을 바꿔야 추천이 가능해?",
+      "고경도강 Ramping이 가능한 Tool은 있어?",
+      "고경도강에 추천하는 가공방식은 어떤게 있고 어떤 Tool을 쓸수 있어?",
+      "고경도강 밀링에 좋은 Solid end mill은 뭐가 있어?"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-025",
+    "rating": 3,
+    "author": "전한솔",
+    "comment": "왼쪽 제품 탐색 부근에 현재 검색 조건등을 표기해 놓았는데, 이를 변경하려면 글로 써야함.\n 필터라고 되어있으면 변경할 줄 알텐데 즉각적인 변경이 가능하다면 더 좋을 것 같음.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "스퀘어를 쓰고싶고, 구리를 가공하고 싶어.",
+      "⟵ 이전 단계",
+      "3날 무코닝에 스퀘어",
+      "al70 계열 50mm 깊이 한번에 가공할껀데 어떤 제품을 쓰면 될까"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-026",
+    "rating": 3,
+    "author": "전한솔",
+    "comment": "소재 제시와 가공조건 제시에 따른 검토는 좋음.\n다만 부정적인 답변 이후 조건을 변경했을 때.\n초기로 돌아가야하거나 대응 방식이 아쉬움.\n이전 단계가 아닌 조건의 수정을 요청하는 방식이면 더 좋을 것 같음.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "스퀘어를 쓰고싶고, 구리를 가공하고 싶어.",
+      "⟵ 이전 단계",
+      "3날 무코닝에 스퀘어",
+      "al70 계열 50mm 깊이 한번에 가공할껀데 어떤 제품을 쓰면 될까"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-027",
+    "rating": 2,
+    "author": "전한솔",
+    "comment": "3날 스퀘어 비코팅 제품 추천해 달라고 했는데,\n스탠다드 제품도 아닌 dlc 코팅 제�� 추천이 나옴\nGEE8310055 제품 도출",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "스퀘어를 쓰고싶고, 구리를 가공하고 싶어.",
+      "⟵ 이전 단계",
+      "3날 무코닝에 스퀘어"
+    ],
+    "maxTurns": 4
+  },
+  {
+    "type": "multi",
+    "id": "M-028",
+    "rating": 1,
+    "author": "김도성",
+    "comment": "ONLY ONE 시리즈의 제품소재는 HSS PM소재인데 Carbide로 나옵니다. DB 상 오류로 보입니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Ball (773개)",
+      "추천 제품중에 only one 제품이 있는데 이건 공구소재가 모야?",
+      "ONLY ONE 시리즈는 HSS소재로 알고 있는데"
+    ],
+    "maxTurns": 4
+  },
+  {
+    "type": "multi",
+    "id": "M-029",
+    "rating": 5,
+    "author": "윤건웅",
+    "comment": "AI 카탈로그의 UI가 굉장히 사용자 친화적이라는 느낌을 받았으며, 요즘 사용하는 SNS처럼 기능들을 한눈에 보기 쉽다는 것이 장점이라고 생각했습니다.\n\n또 사용자가 어떤 피삭재를 어떠한 방법으로 가공할 것을 물음으로써 제품군을 확정하고 그 하위로, 세부적으로 추천 공구를 추려내는 AI 카탈로그의 과정이 매우 인상 깊었습니다.  \n\n재고와 기타 추천 상위 ",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 주철\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Square (193개)",
+      "4날 (100개)",
+      "Cast Iron (100개)",
+      "X-Coating (20개)"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-032",
+    "rating": 3,
+    "author": "미주팀",
+    "comment": "SPECIAL 제품 견적에 대해서도 추천 제품 우선 확인하여 추천하는 것이 좋은 기능.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Trochoidal\n🛠️ 가공 방식: Milling\n📏 공구 직경: 16MM\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "It’s a 16MM X 16MM X 32MM X 90MM CARBIDE 6FL SE CC ENDMILL w/ radial coolant holes\nAre you guys able to quote this?",
+      "상관없음",
+      "상관없음"
+    ],
+    "maxTurns": 4
+  },
+  {
+    "type": "multi",
+    "id": "M-033",
+    "rating": null,
+    "author": "한지희",
+    "comment": "전장 80이상 제품을 추천해달라고 했는데 76mm제품을 추천해주고는 매칭률이 106%라고 함. \n(매칭률이 어떻게 계산되는 건지는 모르겠어요..)",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "라핑으로 추천해주세요",
+      "상관없어요",
+      "Alloy Steels (87개)",
+      "상관없음"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-034",
+    "rating": 4,
+    "author": "한웅희",
+    "comment": "칩을 끊어줄수 있는 제품으로 Chip Splitter 를 추천한것 까진 완벽하였고 날장 30mm 이상으로 추천 요청하니 32mm를 추천해줘 완벽했습니다. 그러나 처음 제품 추천 필터에서 10mm 제품을 선택했는데 8mm 제품으로만 추천을 받아 아쉬웠습니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 초내열합금, 스테인리스강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "6날 이상으로 추천해주세요",
+      "상관없음",
+      "나는 칩을 끊어줄수 있는 제품을 찾고 있어요",
+      "Y-Coating (119개)"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-038",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "SG9E7710015 제품 추천을 받았고 해당 제품의 사진이 제품 정보 옆에 있는데 제품과 제품 사진이 맞지 않습니다.\n(DB 문제일 가능성도 있음.) 그래서 확인차 해당 제품의 사진을 보여달라고 요청했는데 보여주지 못하는 것 같습니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "가공 깊이 5mm입니다. 적당한 길이의 4날 스퀘어엔드밀로 추천해주세요",
+      "스퀘어엔드밀로 추천해달라고 위에 말했는데요",
+      "날수는 최대한 많은 제품으로 추천해주세요",
+      "Alloy Steels (721개)"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-039",
+    "rating": null,
+    "author": "한웅희",
+    "comment": "언어를 한국어로 선택한 상태에서 영어로 답변을 요청했는데 영어로 답변을 아주 잘해주었습니다. 그러나 선택지에 한글로 \"상관없음\" 선택지가 나와서 보완 필요해보입니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "i want to find the end mill for s45c",
+      "Please answer in English."
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-040",
+    "rating": 4,
+    "author": "한웅희",
+    "comment": "요청한 내용에 알맞게 제품 추천을 해주었습니다. 하지만 요청한 제품 치수 중 코너레디우스 치수와 넥길이에 대한 문의는 DB에 없는건지 DB에 있는데 불러오질 못하는건지 확인해주지 못했습니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Radius (462개)",
+      "4날 (248개)",
+      "코너레디우스는 0.5 날장은 20이상 전장은 70이상으로 추천해주고요 넥이 30이상으로 있었으면 좋겠어요",
+      "추천해주신 GMG41100 제품이 제가 요청했던 코너레디우스 0.5 날장 20이상 전장 70이상이고 넥이 30이상인게 맞나요?"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-041",
+    "rating": 1,
+    "author": "김도성",
+    "comment": "고경도강용 제품 중 X5070을 추천해주는지 확인하기 위해 코팅색상인 파란색 제품이 있던데 추천해 달라고 했는데 그 이후 답변은 할루시네이션 답변을 계속 하였음",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Ball (3684개)",
+      "HRc60이상 되는 피삭재를 가공할꺼야. 파란색상의 제품이 있던데 그게 고경도강용으로 알고있음 2날 12파이 제품으로 추천해줘",
+      "파란색 제품이 있던데 고경도강용으로",
+      "Blue S 시리즈는 찾아보니 안나오던데?"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-042",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "이 대화에서는 카바이드 엔드밀중 가장 날장이 긴 제품을 알려달라고 했지만, 가장 긴 제품을 추천하지 못하고 적당한 길이의 제품이 가장 길다고 잘못된 정보를 이야기 했고, 이전 대화에서는 가장 작은 직경의 제품을 문의 했지만 0.03mm가 있음에도 0.09mm 제품을 가장 작다고 추천하였습니다 그래서 예시 EDP NO.를 알려주면서 DB에 그 제품들이 없는지",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "와이지원 카바이드 엔드밀 제품 중 제일 날장이 긴 제품을 알려주세요",
+      "K2 BRAND에 G9452200 제품은 날장이 65mm 라서 추천해준 제품들보다 더 긴데 더 긴 제품이 없어?",
+      "X-POWER PRO GM834250 제품은 날장이 92mm인데요 이 제품도 DB에 없나요?"
+    ],
+    "maxTurns": 4
+  },
+  {
+    "type": "multi",
+    "id": "M-043",
+    "rating": null,
+    "author": "박진홍",
+    "comment": "아직 처음 단계라 그렇겠지만, 현재에서 조금 좋아지는 정도로 AI ASSISTANT가 개발이 된다고 하면, 아무도 사용하지 않을 듯 합니다. 이미 고객 등은 AI를 활용해서 다양한 조건 검색, 제품 검색등을 할 수 있는데, 그것에 맞게 개발되지 않으면 안 쓸 듯 합니다.\n개발 하시는 분들이 더 잘 알지 않나요? 현재 상태는 모든 것이 부족해보입니다. \n어려",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Slotting\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "스퀘어 제품, 초경으로, 국내(한국)에서 판매하는 제품을 알려줘",
+      "적용 군 후보가 0개가 말이 안되는데?",
+      "추천으로 골라줘",
+      "조건 값에 맞는 제품이 없다는 게 말이 안되는데...V7 PLUS, 4GMILL, 티타녹스 등등 전부 P계열에 쓸 수 있고 해당 싸이즈도 있는 걸로 아는데"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-044",
+    "rating": 2,
+    "author": "최호영",
+    "comment": "정보DB 부족",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Facing\n🛠️ 가공 방식: Turning\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "인서트는 어떤 제품이 있어?",
+      "YG-1 스틸용 터닝인서트 grade를 추천 해줘"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-045",
+    "rating": 3,
+    "author": "최호영",
+    "comment": "처음 내용을 추천하면 다양한 제품들이 표기 되는데, 되도록 추천 또는 잘 팔리는, 또는 주력으로 판매되는 제품을 우선으로 두었으면 합니다.\n예를 들어 스틸 계열의 제품을 추천 해줘 했��� 시 스틸 계열의 하이엔드 제품 V7plus, EV Mill, X-Power, 4G Mill 등 우선으로 노출될 수 있도록 되었으면 합니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "가장 추천하는 브랜드 별로 구분해줘",
+      "상관없음",
+      "Hardened Steels(HRc45~55) (593개)"
+    ],
+    "maxTurns": 4
+  },
+  {
+    "type": "multi",
+    "id": "M-046",
+    "rating": 2,
+    "author": "김진오",
+    "comment": "질문에 대한 답변 보다는, 카테고리에서 필터 기능만 적용해서 답변을 줌",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Roughing (84개)",
+      "4날을 선호하고, 코팅은 무슨 종류가 있는지 추천해줘"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-047",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "Titanium용 가공 절입량을 말하고 제품 추천 요청했는데, 추천 상위 제품 3가지가 모두 없는 제품으로 추천 받음.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 모름\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Radius (9353개)",
+      "titanium을 radial depth 10mm, axial depth 20mm side cutting 하고 싶은데 제품 추천해주세요"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-049",
+    "rating": 3,
+    "author": "김진오",
+    "comment": "1. 일반 고객 입장에서 선택하기 어려운 질문이 있음.\n  예) 선호 코팅 종류가 있느냐? \n  - 고객입장에서는 해당 코팅의 종류나 장단점에 대해 모를 가능성이 높기 때문에 자세한 설명도 있으면 좋을 것 같다는 의견 드립니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 모름\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Roughing (84개)",
+      "4날을 선호하고, 피삭재는 SCM440 HRc30이야. 이거에 맞는 제품을 추천해줘",
+      "X-Coating (18개)"
+    ],
+    "maxTurns": 4
+  },
+  {
+    "type": "multi",
+    "id": "M-051",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "알루컷 시리즈에 대해서 간략하게 설명 요청하였는데 설명한 시리즈 중 없는 시리즈도 있고 다른 브랜드 제품을 잘못된 정보로 소개 함. -> 거짓말이 아니냐고 물어보니 같은 내부 DB에 없다고 답변함. -> 내부 DB에 없는 정보를 대답하는 오류가 발생합니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "알루컷이라는 브랜드가 성능이 좋다고 들었는데 그 제품에 대해서 설명해주고 스퀘어 제품으로 추천해줘",
+      "알루컷이라는 브랜드가 성능이 좋다고 들었는데 그 제품에 대해서 설명해주고 스퀘어 제품으로 추천해줘",
+      "알루컷 브랜드에 대해서 설명해주고 스퀘어 제품으로 추천해줘",
+      "알루컷 브랜드 설명해줘"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-052",
+    "rating": 5,
+    "author": "이가은",
+    "comment": "제품 추천 결과를 TOP 1~50까지 한눈에 확인할 수 있어 매우 편리하며, 특히 각 제품의 재고 현황과 수량까지 구체적으로 파악할 수 있다는 점이 큰 장점으로 판단됩니다. 또한 해당 정보가 지속적으로 업데이트된다면 실시간 의사결정에 큰 도움이 될 것으로 보입니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Square (3521개)",
+      "2날 (1608개)",
+      "Y-Coating (570개)"
+    ],
+    "maxTurns": 4
+  },
+  {
+    "type": "multi",
+    "id": "M-053",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "이미 이야기해준 정보에 대해서 반영하지 않고 다시 물어보는 현상이 지속 발생하고 있습니다. 이번 대화를 예시로 가공깊이, 4날, 스퀘어 엔드밀 추천 하였는데 바로 다음 질문이 스퀘어인지 코너인지 볼인지 물어보고 위에 대답했다고 하니까 알겠다면서 이번에는 바로 날수를 물어보는 등 사용자가 전달한 정보가 제대로 반영되지 않는 것 같습니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "가공 깊이 5mm입니다. 적당한 길이의 4날 스퀘어엔드밀로 추천해주세요",
+      "스퀘어엔드밀로 추천해달라고 위에 말했는데요"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-054",
+    "rating": 4,
+    "author": "이가은",
+    "comment": "초기 가공 형상 선택 단계 이후, 공구의 형상 및 날 수를 바로 선택할 수 있도록 시스템이 구성된다면, 별도의 채팅을 통한 확인 과정이 생략되어 전반적인 추천 속도와 효율성이 크게 향상될 것으로 판단됩니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Square (3521개)",
+      "2날 (1608개)"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-055",
+    "rating": null,
+    "author": "한지희",
+    "comment": "sus304 가공용 드릴 추천받는 상황에서 \n어떤가공방식을 택할지에 대한 선택지가 드릴에 해당하는것만 나오는 것이 아니라 전체 가공방식을 다 보여주고 있어서 개선이 필요",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Holemaking\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "SUS304 가공이에요!",
+      "코팅 상관없으니 일반적으로 많이 사용하는 걸로 추천해주세요"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-056",
+    "rating": null,
+    "author": "한지희",
+    "comment": "코팅에 대한 매칭이 필요합니다. 와이지원 내부에서 사용 코팅명 (X코팅, Y코팅, C코팅 등등)이 있어서 이부분에서 대한 개선이 필요합니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Square (151개)",
+      "아니요, 상관없어요",
+      "Carbon Steels (77개)",
+      "t코팅이 뭔가요?"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-057",
+    "rating": null,
+    "author": "한지희",
+    "comment": "첫 조건에서 인선직경 12로 설정했는데, 대화중에  전장 100이상을 조건으로 추가하였음. 두가지 다 만족하는 결과를 보여줘야 하는데 전장 100이상만 추천하였음",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "볼제품이  필요해요, 전장은 100이상이면 좋겠습니다.",
+      "상관없음",
+      "High Hardened Steels(HRc55~70) (6개)",
+      "처음에 인선직경 12파이로 요청했는데, 추천 제품은 16파이도 있고 10파이도 있네요 왜그런건가요??\n전장 100이상 조건에 적합한 제품만 추천한건가요??"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-058",
+    "rating": null,
+    "author": "한지희",
+    "comment": "추천해준 ONLY ONE 시리즈 ,JET-POWER 시리즈는 한국제품인지 물었는데, 문의에 맞는 대답은 하지않고 제품특징을 설명해줌.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "라핑제품으로 추천이 가능한가요??",
+      "상관없어요",
+      "Stainless Steels (204개)",
+      "EHD87은 뭔가요>"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-063",
+    "rating": 4,
+    "author": "박정석",
+    "comment": "축척된 데이터를 근거로 용이하게 사용될 것으로 봄.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Ball 로 선택\n피삭재 경도는 HRc60이상 적용",
+      "2날이고 절삭 공구의 날 길이는 롱 타입으로 추천해줘",
+      "AlTiN (35개)"
+    ],
+    "maxTurns": 4
+  },
+  {
+    "type": "multi",
+    "id": "M-066",
+    "rating": null,
+    "author": "한지희",
+    "comment": "조건값에 대해 추천받은 제품을 제외하고 다른제품을 추천해달라고 했는데 후보군이 없다고 함. (실제로는 후보군이 있음)",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Square (151개)",
+      "아니요, 상관없어요",
+      "Carbon Steels (77개)",
+      "t코팅이 뭔가요?"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-067",
+    "rating": null,
+    "author": "한지희 ",
+    "comment": "X-POWER S 볼 엔드밀(인선직경  1.5  생크직경 4.0 전장 50) 대체품 문의 했는데, 4G MILLS 일반볼 아닌 테이퍼볼을 추천하였음.\n 4G MILLS 일반볼 시리즈에 완전하게 동일한 사이즈의 제품이 있음에도 정확히 일치하는 제품없다고 답변함.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 1.5\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "지금 X-POWER S 볼 엔드밀 사용중인데요\n인선직경  1.5  생크직경 4.0 전장 50 짜리요.\n제품을 바꿔볼려고 하는데 비슷한 성능으로 대체할 제품 알려주세요",
+      "추천해준 SEME79는 일반 볼이 아니라 테이퍼볼이라는데요??\n4g mills에 정말 볼 제품이 없나요?"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-069",
+    "rating": null,
+    "author": "한지희",
+    "comment": "ISO P (일반강)군의 세부피삭재가 선택지에 잘못되어 있습니다.\n\n(스테인레스강, 티타늄, 주철, 인코넬 등은 P계열이 아닌데, 전체 세부피삭재를 나열하였음) ",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Trochoidal\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "상관없음",
+      "상관없음",
+      "Alloy Steels (132개)",
+      "X-Coating (25개)"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-072",
+    "rating": 1,
+    "author": "정종서",
+    "comment": "카바이드 제품만 추천해달라고 했더니 가공 소재를 카바이드로 설정합니다. 그래서 가공 소재를 알루미늄으로 변경해달라고 했는데 적용되지 않았습니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "카바이드 제품만 우선 추천해줘",
+      "세부 타입 이전에 초경 제품만 추천해줘.",
+      "가공 소재 Carbide 아니고 알루미늄으로 변경해줘."
+    ],
+    "maxTurns": 4
+  },
+  {
+    "type": "multi",
+    "id": "M-073",
+    "rating": 4,
+    "author": "성능Test팀",
+    "comment": "1. 답변에 따라 선택지를 선별하여 표시해주면 좋을 것 같습니다 (현재는 답변에 상관없이 전체 선택지를 보여주는 것 같음)\n2. 선택지 사이에 중복되는 항목이 존재합니다.",
+    "userMessages": [
+      "🧭 문의 목적: 모름\n🧱 가공 소재: 주철\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Roughing (126개)",
+      "4날 (105개)",
+      "Cast Iron (97개)",
+      "X-Coating (50개)"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-075",
+    "rating": 4,
+    "author": "유동욱",
+    "comment": "Bright Finish 추천을 해달라고 했으나 DLC 코팅 제품을 제 1 추천함.",
+    "userMessages": [
+      "🧭 문의 목적: 모름\n🧱 가공 소재: 비철금속\n📐 가공 형상: Facing\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Radius (75개)",
+      "3날 (71개)",
+      "Aluminum (71개)",
+      "Bright Finish (29개)"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-078",
+    "rating": 3,
+    "author": "송정훈",
+    "comment": "-Y코팅만 53개가 필���링 된 상태에서, 선택지에 T코팅이 등장했음(에러).\n-T코팅을 선택해봤더니   108% (?) 일치한 제품이 도출되었음.(에러)\n-정확 매칭이라는 아이콘이 나타남. (코팅 종류로 보아 해당 매칭은 정확 매칭이 아님)",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 20\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Radius (159개)",
+      "4날 (82개)",
+      "Titanium (53개)",
+      "T-Coating (6개)"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-079",
+    "rating": 3,
+    "author": "송정훈",
+    "comment": "-긴 답변의 경우 문단을 나누어주면 좀 더 가독성이 좋아질 것 같습니다.\n\n-스테인레스 스틸 가공용 추천을 받기로 시작하고 진행중인데 중간 단계에서 세부 피삭재 선택 상황에서   스테인레스 스틸 이외의 피삭재 분류 리스트가 선택지에 나타납니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 20\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Radius (159개)",
+      "4날 (82개)"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-081",
+    "rating": 1,
+    "author": "박경준",
+    "comment": "트로코이달 가공에 부적합 제품 추천 => 최적 제품 추천 로직 변경 필요",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Trochoidal\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "트로코이달 가공이 어떤 가공인지 알아?",
+      "그럼 트로코이달 가공시 엔드밀 날수는 몇날이 적정할까?",
+      "일반적으로 트로코이달 가공은 6날 이상의 다날 제품을 많이 쓰고, 4날까지는 쓸수는 있다 치��라도\n왜 2날로 추천을 했어?",
+      "그럼 적정 공구에 대해 다시 추천해줘"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-083",
+    "rating": 4,
+    "author": "이지은",
+    "comment": "공구 세부 타입, 날 수, 코팅 정보를 사전에 선택할 수 있으면 제품 제안하는데 소요되는 시간 단축 가능성 있음.\n답변 받기까지 너무 많은 시간이 소요됨.\n조건 및 필터에서 이전에 입력한 정보를 수정 가능하면 더 좋을 거 같음.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Ball (105개)",
+      "2날 (96개)",
+      "High Hardened Steels(HRc55~70) (48개)"
+    ],
+    "maxTurns": 4
+  },
+  {
+    "type": "multi",
+    "id": "M-084",
+    "rating": 1,
+    "author": "최정은",
+    "comment": "251개 추천이라고 했다가 253개로 변경이 됨.\n그리고 추가 확인 사항을 한번에 할 수 있을텐데 한단계씩 확인을 하게 되니 대응이 늦고 답답한 것 같음\n\n조건 선택이 많아 AI 추천 방식의 느낌이 아니고, 사용자가 필터링 하면서 축소하는 것 같은데. 조건 선택 보다는 자유로운 질문으로 대응 될 수 있었으면 좋겠음.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Square (251개)",
+      "3날 (99개)"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-086",
+    "rating": 1,
+    "author": "김명곤",
+    "comment": "검색결과상의 추천 제품 순서와 시스템상의 번호가 상이한 것으로 보입니다.\n추천 결과상의 #2,#3번을 비교해 달라고 하였으나 추천 결과상의 #1번,#2번이 비교되어 보여줌.\n이전 #1번과,#2번을 비교해달라고 했을 때는 #4번과 #8번을 비교하여 보여 주었음.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Facing\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Square (151개)",
+      "상관없음",
+      "High Hardened Steels(HRc55~70) (74개)",
+      "상관없음"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-087",
+    "rating": 1,
+    "author": "김명곤",
+    "comment": "제품 추천 로직이 이전 단계의 값으로 검색이 진행되는 것으로 보입니다.\n단지 사용자가 직접 검색 내용을 입력할 때 문장의 내용에 따라 1단계 이전이 아닌 상위 단계에서의 검색 결과값에서 검색이 되도록 보완이 필요해 보입니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Facing\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Square (151개)",
+      "상관없음",
+      "High Hardened Steels(HRc55~70) (74개)",
+      "상관없음"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-088",
+    "rating": 1,
+    "author": "김명곤",
+    "comment": "최종 제품 결과 화면에서 특정 시리즈 제품 전체를 요청하였으나 결과 표시하지 않음.\n위 질문은 이전에 검색했던 결과를 무시하고 특정 제품군을 보여 달라고 한 것이나 이를 이해 하지 못한것으로 판단됨.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Facing\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Square (151개)",
+      "상관없음",
+      "High Hardened Steels(HRc55~70) (74개)",
+      "상관없음"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-089",
+    "rating": 1,
+    "author": "김명곤",
+    "comment": "최종 조회 결과에서 추천 1번과 2번을 비교해 달라고 했으나 비교 제품이 추천 제품 1/2번이 아님.\n그리고 비교한 제품상의 날장과 전장이 상이하나 이에 대한 내용이 없음\n제품의 형상(기본 제원:날부직경,생크직경,날부 길이,전장 길이<-당사 제품군중 가장 중요한 제원 정보임)에 대한 비교가 부족함.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Facing\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Square (151개)",
+      "상관없음",
+      "High Hardened Steels(HRc55~70) (74개)",
+      "상관없음"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-090",
+    "rating": 4,
+    "author": "영업부 ",
+    "comment": "개선사항\n1. 가공소재 선택 시, 피삭재 경도까지 세분화할 필요가 있어보임\n(고경도강 선택 시, 중경도강 제품까지 추천되는 것으로 확인)\n2. 반영이 될 예정인지 모르겠으나, 국가 or 규격을 선택할 수 있는 조건이 필요할 것 같음 \n3. 매번 응답과 선택지를 평가해야 추가 질문, 조건을 작성할 수 있는게 불편함. 제품 추천 완료 후 전체적으로 평가할 수 ",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Ball (11개)",
+      "Carbon Steels (11개)",
+      "TiAlN 코팅이요"
+    ],
+    "maxTurns": 4
+  },
+  {
+    "type": "multi",
+    "id": "M-091",
+    "rating": 1,
+    "author": "최종근",
+    "comment": "제품을 추천하지 못하는데 DB에서 선택하는 로직이 이상한 것인지 형상 선택시 제품 지정이 되지 않습니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 초내열합금\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "인코넬 가공하는데 16파이 스퀘어 제품 추천해줘",
+      "⟵ 이전 단계",
+      "R1짜리 10파이 추천해줘",
+      "코너R 10파이로 추천해줘"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-093",
+    "rating": 2,
+    "author": "서재성",
+    "comment": "채팅으로 요청 사항을 전달했을 때, 해당 내용에 대한 처리가 매우 미흡하다고 느껴짐 (유첨 캡처 내 재고 필터 해제 요청 등)",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 주철\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "이중에 재고가 제일 많은 것 위주로 추려줘",
+      "가격이 저렴한 순으로 알려줘",
+      "스퀘어타입 재고 필터 해제하고 가격이 저렴한 순으로 10품목 선정해줘"
+    ],
+    "maxTurns": 4
+  },
+  {
+    "type": "multi",
+    "id": "M-097",
+    "rating": 5,
+    "author": "정단비",
+    "comment": "1. 사용자의 선호도를 파악하고 선택을 돕기 위해 시스템이 부연 설명을 해주는 것이 매우 편리하게 느껴짐. ex) 날 수 선호를 문의하며 각 날의 특징, 유리한 가공 언급 등. \n2. 우측에 추천 제품 브랜드, 이미지 및 재고 정보 등이 확인돼서 도움이됨. \n3. 시스템의 응답/선택지에 매번 positive/negative를 선택해야 다음으로 넘어갈 수 있",
+    "userMessages": [
+      "🧭 Inquiry Purpose: New Product Recommendation\n🧱 Workpiece Material: Carbon Steel\n📐 Operation Shape: Helical_Interpolation,Facing,Slotting\n🛠️ Machining Category: Milling\n📏 Tool Diameter: 4mm\n\nPlease recommend suitable YG-1 products based on the conditions above.",
+      "Radius (450개)",
+      "4날이 좋겠고, 가장 인기있는 아이템을 추천해줘",
+      "4날 steel 가공용 squre end mill od 6mm에서 가장 popular item이 뭐야"
+    ],
+    "maxTurns": 4
+  },
+  {
+    "type": "multi",
+    "id": "M-101",
+    "rating": 2,
+    "author": "한웅희",
+    "comment": "이번대화에서는 영어로 답변을 듣고 싶다고 말했지만, 영어로 답변을 하다가 한 답변안에서 다시 한국어로 답변을 하여 보완필요해 보입니다. (선택지도 모두 한글로 나옴)",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "i want to find the end mill for s45c",
+      "Please answer in English.",
+      "I am looking for corner radius",
+      "please answer in English, I would like to hear the answer in English in this conversation."
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-104",
+    "rating": 2,
+    "author": "한웅희",
+    "comment": "바로 위에 답변에서 영어로 계속 답변해드리겠다고 했는데 다름 답변에서 바로 한국어로 다시 변경되었습니다. ",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "i want to find the end mill for s45c",
+      "Please answer in English.",
+      "I am looking for corner radius"
+    ],
+    "maxTurns": 4
+  },
+  {
+    "type": "multi",
+    "id": "M-105",
+    "rating": 1,
+    "author": "김영택",
+    "comment": "알루미늄 가공에 항공용 Aluminum 고속 가공에 대해\n추천하지 못함",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Square (252개)",
+      "3날로 추천해주세요, 항공용 Aluminum 소재에 고속 가공용에 적용하려고 하는데 어떤 YG-1 제품이 추천될 수 있을까요?"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-106",
+    "rating": 2,
+    "author": "김명곤",
+    "comment": "첫번째 응답 후 일괄 질의가 가능한 항목(공구 형상/날수/피삭재)에 대하여 한번에 선택하여 바로 결과가 표시될 수 있도록 수정 필요",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Radius (233개)",
+      "상관없음"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-107",
+    "rating": 3,
+    "author": "김명곤",
+    "comment": "Radius 제품의 경우 반드시 Radius값이 제품 비교시 보여 주어야 합니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Radius (233개)",
+      "상관없음",
+      "Hardened Steels(HRc40~45) (211개)",
+      "Bright Finish (2개)"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-113",
+    "rating": null,
+    "author": "김명곤",
+    "comment": "직경 12mm 로 조회 하였으나 1건은 12mm이고 다른 한건은 10mm 제품임(생크가 12mm)",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Radius (233개)",
+      "상관없음",
+      "Hardened Steels(HRc40~45) (211개)",
+      "Bright Finish (2개)"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-114",
+    "rating": 4,
+    "author": "미주팀",
+    "comment": "코팅에 대한 선호도가 없을 때 후보 군 추천하는 것도 좋은 기능으로 판단되며, 선호도가 없을때 상관 없음.으로 넘어갈 수 있어서 좋음. ",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "상관없음",
+      "상관없음",
+      "궁금한게 있는데 왜 m 소재라고 했는데도 hardened steel 등이 들어가 있는거야? 분류 오류야?",
+      "쉽게 설명해줘"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-115",
+    "rating": null,
+    "author": "영업본부 미주팀 ",
+    "comment": "M 가공용 TOOL 이 필요하여 검색했고, HARDENED STEEL이나 CAST IRON 도 추가 옵션으로 선택하게 답변되어 지적했음.\n이에, 해당 옵션이 제공된 사유에 대해서 이해하기 쉽게 설명하고 있음. ",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "상관없음",
+      "상관없음",
+      "궁금한게 있는데 왜 m 소재라고 했는데도 hardened steel 등이 들어가 있는거야? 분류 오류야?"
+    ],
+    "maxTurns": 4
+  },
+  {
+    "type": "multi",
+    "id": "M-117",
+    "rating": 1,
+    "author": "김영택",
+    "comment": "small part 가공용으로 P 계열, 2MM 제품 추천 요청 하였으나 k-2 판매되지 않은 엉뚱한 비코팅 제품이 추천 됨. \n",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속, 탄소강\n📐 가공 형상: Small Part\n🛠️ 가공 방식: Milling\n📏 공구 직경: 2mm\n\n위 조건에 맞는 YG-1 제품을 ���천해 주세요.",
+      "Ball (563개)",
+      "NACO-VG (14개)"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-118",
+    "rating": 1,
+    "author": "김영택",
+    "comment": "제품 비교에 대한 설명 오류 ",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Trochoidal\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "V7 Plus A로는 Trochoidal 가공이 어려운가요?",
+      "왜 그럼 처음엔 V7 Plus A를 추천하지 않았나요? 12mm보다 더 큰 size로 가공하는 것이 유리한가요?",
+      "V7 Plus A와 V7 Inox 차이는 뭐에요?"
+    ],
+    "maxTurns": 4
+  },
+  {
+    "type": "multi",
+    "id": "M-120",
+    "rating": 1,
+    "author": "김영택",
+    "comment": "T-코팅이나 당사에서 미보유하고 있는 코팅 등 추천 ",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 2mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "X1이나 X-5070쪽으로는 해당 영역 가공이 어려운가요?",
+      "Ball (345개)",
+      "2날이요",
+      "High Hardened Steels(HRc55~70) (189개)"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-122",
+    "rating": null,
+    "author": "한지희 ",
+    "comment": "SEM84500616 제품 사이즈(유효길이) 문의했는데 잘못된 정보 제공하고 있습니다. 16mm인데  1.8mm 로 대답함. 그리고 처음에 가격을 물어봤을때 정보를 찾을 수 없으니 대리점이나 본사로 연락달라고 답변하는것이 맞을 것 같습니다. (2번쨰 질문에 그렇게 답변함)\n",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 0.6\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "SEM84500616  이거 얼마에요??",
+      "가격은 알 수 없나보네요, 그럼 이제품 유효길이는요?? 위에는 유효길이가 안나와있어요"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-123",
+    "rating": null,
+    "author": "한지희 ",
+    "comment": "30파이 제품이 없다고 답변하고 있습니다. HSS 엔드밀 제품 중에 추천 가능한 엑스트라 롱 엔드밀이 있었습니다. 인선직경 외 다른길이 정보는 매칭 사이즈가 없다면 유사규격이라도 추천해주면 좋을 것 같습니다. ",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 30mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "저는 엑스트라 롱 엔드밀  30mm,날장180,전장250  제품 찾고 있어요,   날장은 160이상으로 필요해요 \n소재 상관없이 추천해주세요 코팅도 상관없어요",
+      "인선직경이 30인 제품이 없다는건가요?? 인선직경 30, 날장은 160이상 제품 한번더 찾아주세요"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-124",
+    "rating": 3,
+    "author": "이선자",
+    "comment": "대응할 수 있는 적절한 제품을 찾지 못하는 것 같음. 일반적으로 사용하는 형상, 피삭재 선택 후 주요 경쟁사 대응 가능 제품 문의했으나 없는 것으로 나옴",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Ball 형상으로 NS와 경쟁 가능한 제품 추천 요청",
+      "2Flute 추천, Nissin 대응 제품 요청",
+      "일본 NS Tool 대응 제품이 없나요?",
+      "날수 4Flute로 변경해서 추천"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-125",
+    "rating": null,
+    "author": "한지희 ",
+    "comment": "처음에는 \"SUS-CUT (EHD85): 한국 시장 맞춤형 범용 시리즈\"라고 답변 주었는데, 이후 다시 질문하니 그건 오류였고 현재 DB에서 해당 시리즈나 \"한국\" 시장 특화 제품 정보를 확인할 수 없다고 답변하고 있습니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 주철\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "스퀘어 필요해요",
+      "6날 (49개)",
+      "V7 PLUS 를 쓸려면 제품 넘버가 어떻게되나요??",
+      "그럼 이 제품들의 가공조건도 볼 수 있나요?"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-126",
+    "rating": 3,
+    "author": "박재훈",
+    "comment": "코너레디우스 제품 추천을 문의했고, 시리즈까지는 추천을 받았으나  Radius 값에 대해서는 정보가 없다고 안내함.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 초내열합금\n📐 가공 형상: Helical_Interpolation\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "코너레디우스 형상으로 알려줘.  R 0.5 , 4FL 제품으로 추천해 주고, 피삭재는 티타늄 합금이야",
+      "Y 코팅으로 추천해줘",
+      "Radius 값이 R0.5 �� 제품으로 EDP No. 알려줘"
+    ],
+    "maxTurns": 4
+  },
+  {
+    "type": "multi",
+    "id": "M-128",
+    "rating": 1,
+    "author": "김도성",
+    "comment": "열처리된 SKD11 소재를 지정하여 해당 피삭재에 적합한 제품을 추천해달라고 하였음(고경도강용 제품), 고경도에 대한 필터링 부분의 문제가 있는지 정확한 답변을 못하고 있고, 추천제품에 알루미늄은 적합하지 않다고 답하면서도, 추천후보 우선순위에 알루미늄용 공구가 선정되어 있음.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 모름\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "열처리된 SKD11 소재를 가공하려고해 YG-1에서 어떤 브랜드 제품을 선택하는 것이 좋을지?",
+      "SKD 11이면 어떤 소잰지 알거아니야.. 그 소재에 적합한 제품을 추천해줘",
+      "SKD11 소재의 경도를 감안해서 제품추천해줘",
+      "Radius (9353개)"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-130",
+    "rating": 3,
+    "author": "정종서",
+    "comment": "데이터베이스 문제로 추정되는데 GMG41과 GMG40의 차이를 문의했을 때 적용 소재에 대한 부분만 언급 됩니다.\n\n두 시리즈의 차이점은 Shank Type 입니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Radius (462개)",
+      "4날 (248개)",
+      "GMG41과 GMG40의 차이가 무엇인가요?"
+    ],
+    "maxTurns": 4
+  },
+  {
+    "type": "multi",
+    "id": "M-131",
+    "rating": 2,
+    "author": "한웅희",
+    "comment": "알루파워 E5910060 알루미늄 가공 절삭조건에 대해서 문의 하였고 결과에 \"~\"가 생략되어 나오는 것으로 보입니다. )일부는 소수점 앞 단위 0이 누락되어있음.) 그리고 절삭속도는 카탈로그 기준의 Data가 나오지만 날당이송량이 카탈로그 기준보다 약 2~3배 이상 빠르게 추천 하였습니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Ball (338개)",
+      "2날 (218개)",
+      "Aluminum (179개)",
+      "Bright Finish (1개)"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-132",
+    "rating": 1,
+    "author": "김도성",
+    "comment": "가공할 포켓의 코너가 R1이라면, 단순히 직경 2파이 이하의 스퀘어 엔드밀을 추천할 것이 아니라 날 끝에 R1이 적용된 코너 래디우스(Corner Radius) 제품을 우선적으로 제안해야 합니다. 이때 추천되는 공구는 직경이 2파이 이상이면서도 코너 R값 1mm가 정확히 적용된 모델이어야 하므로, 가공 형상의 R과 공구 자체의 R 규격을 명확히 매칭하여 추",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "깊이 20mm, 코너 R값이 1인 포켓 가공을 해야 해. 어떤 규격의 엔드밀을 골라야 하고, 유효장은 어느 정도가 적당할까?",
+      "코너값이 R1이라면 공구 직경이 2파이보다 큰 코너래디우스가 적합하지 않을까?"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-133",
+    "rating": 2,
+    "author": "한웅희",
+    "comment": "알루미늄 피삭재 코팅 추천에 TiCN, Bright, DLC는 매우 좋은 추천이지만 Diamond Coating은 일반적으로 추천하지 않습니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Ball (338개)",
+      "2날 (218개)",
+      "Aluminum (179개)"
+    ],
+    "maxTurns": 4
+  },
+  {
+    "type": "multi",
+    "id": "M-135",
+    "rating": 3,
+    "author": "한웅희",
+    "comment": "처음 제품 추천 요청한 직경이 1/2이었습니다. 물론 유사 Size인 12mm 제품으로 추천 받았지만, 1/2 Std.제품이 아주 많은데 아직 인치사이즈 제품에 대해서 추천이 어려운것 같습니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 초내열합금\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 1/2\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Radius (129개)",
+      "상관없음",
+      "Titanium (117개)",
+      "코너레디우스 치수가 1mm 인 제품을 보여주세요"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-136",
+    "rating": 4,
+    "author": "한웅희",
+    "comment": "TitaNox-Power 4Flute 제품 Corner Radius 1mm 제품을 요청했었는데, 추천 받은 제품의 Corner Radius가 1mm로 매우 정확했습니다 그러나, 추천 제품 화면에 Corner Radius 치수가 나와있지 않아 고객의 입장에선 추천 제품의 Corner Radius 가 자신이 요청한 치수로 추천해준건지 확인 하기가 어려웠습니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 초내열합금\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 1/2\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Radius (129개)",
+      "상관없음",
+      "Titanium (117개)",
+      "코너레디우스 치수가 1mm 인 제품을 보여주세요"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-137",
+    "rating": 5,
+    "author": "이명우",
+    "comment": "1. 범용적으로 사용하는 용어가 사용되면 좋겠습니다 \n  STS304 --> SUS304 등.. \n2. 선택한 가공소재 계열과 무관한 소재가 나열됨 ",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Square (361개)",
+      "4날 (191개)"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-138",
+    "rating": null,
+    "author": "이명우",
+    "comment": "1. T-Coating 이 아니라 X-Coating으로 코팅 명이 잘못되어있습니다 \n\n2. Alloy Steel 선택하였으나 비철금속에 적합하다는 설명이 모순된 것 같습니다 \n\n3. EH540040은 코팅 제품인데 Bright로 나옵니다\n\n",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Square (913개)",
+      "4날 (370개)",
+      "Alloy Steels (370개)"
+    ],
+    "maxTurns": 4
+  },
+  {
+    "type": "multi",
+    "id": "M-139",
+    "rating": 4,
+    "author": "연구소",
+    "comment": "제품 시리즈를 불러온 정보에 설명란 내용이 이상함",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 모름\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공�� 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "상관없음",
+      "4에서 6날",
+      "볼 형상으로 좁혀줘",
+      "V7 PLUS 시리즈가 뭐���"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-140",
+    "rating": null,
+    "author": "이명우",
+    "comment": "<br/> 같은 태그가 적용되지 않고 텍스트로 보임 ",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Helical_Interpolation\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Ball (368개)",
+      "4날 (22개)",
+      "상관없음",
+      "Alloy Steels (356개)"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-141",
+    "rating": null,
+    "author": "이명우",
+    "comment": "적합도 만점이 125점인데 의도한 부분인지 수정해야될 부분인지 궁금합니다! ",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Helical_Interpolation\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Ball (368개)",
+      "4날 (22개)",
+      "상관없음",
+      "Alloy Steels (356개)"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-142",
+    "rating": null,
+    "author": "이명우",
+    "comment": "가공소재 세부분류 \"상관없음\" 으로 하면 갑자기 후보군이 많아지는 현상이 있습니다 ",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Helical_Interpolation\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Ball (368개)",
+      "4날 (22개)",
+      "상관없음"
+    ],
+    "maxTurns": 4
+  },
+  {
+    "type": "multi",
+    "id": "M-143",
+    "rating": 5,
+    "author": "이명우",
+    "comment": "같은 제품인데 Tool Code와 EDP No로 2개로 중복 검색됨 ",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "볼 엔드밀",
+      "4날 (11개)",
+      "Carbon Steels (11개)",
+      "코팅 있는 제품으로 추천"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-144",
+    "rating": 5,
+    "author": "이명우",
+    "comment": "코팅, 날 수, 형상을 첫 화면부터 선택하면 검색 속도도 빨라질 것 같은데 \n대화로 넘어가서 선택하는 과정이 불편할 것 같습니다 ",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Square (361개)",
+      "4날 (191개)"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-148",
+    "rating": 5,
+    "author": "강해인",
+    "comment": "1. Country 에 ASIA 가 2개로 나옵니다.\n2. Dealer 찾기 중 ASIA 지역 내 인도네시아 법인 누락입니다.\n3. English 로 변경했는데 답변은 한글로 나옵니다.\n4. 제품 추천 시 High-end 품목 우선으로 소개하였으면 합니다. Ex) X1-EH, 4G MILL 등\n",
+    "userMessages": [
+      "🧭 Inquiry Purpose: New Product Recommendation\n🧱 Workpiece Material: Carbon Steel\n📐 Operation Shape: Profiling\n🛠️ Machining Category: Milling\n📏 Tool Diameter: 0.5mm\n\nPlease recommend suitable YG-1 products based on the conditions above.",
+      "2날 (98개)",
+      "Hardened Steels(HRc40~45) (98개)"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-150",
+    "rating": 1,
+    "author": "박재훈",
+    "comment": "YG-1 제품중에서 고경도강용 엔드밀에 대�� 3S Mill 말고 다른 제품에 대해 추천해 달라고 했으나, 당사에 없는 시리즈를 추천해 주고 있음.  YG-1에 없는 제품인 Miracle 시리즈, A-POWER 시리즈를 추천해 주고 있어서, 어느회사 제품인지 다시 물어 봤으나, 똑같은 답변을 하고 있음.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 2mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "3s mill 말고 다른 시리즈는 없는지 알아봐줘. 2날 ball 기준으로 알아봐줘",
+      "MIRACLE 시리즈, A-POWER는 어느업체 제품이야?"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-153",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "답변 내용 중 \"상관없음\"을 선택해도 괜찮다고 하였지만 선택사항 중 \"상관없음\" 이 나오지 않습니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "Square (404개)",
+      "4날 (192개)"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-155",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "S계열 제품 추천 요청했는데, 가장 Best Brand인 TitaNox-Power를 추천하지 않고 3S MILL을 추천하여, 이유를 물어보니 DB상에 TitaNox-Power가 3S MILL보다 매칭점수가 낮게 되어 있을 수 있다는 답변을 함.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 초내열합금\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "나는 S계열을 선택했는데 왜 P, K, M의 선택지를 보여주시나요?",
+      "그리고 S계열에 적합한 TitaNox-Power 등을 보여주지 않고 왜 추천 후보에 3S MILL 만 보여주나요?"
+    ],
+    "maxTurns": 3
+  },
+  {
+    "type": "multi",
+    "id": "M-156",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "고경도강 가공 제품 추천에 전용 Brand인 X1-EH나 X5070을 추천하지 않고, 3S MILL, K2등을 추천함. (참고로 X1-EH나 X5070에 2Flute Ball 제품이 엄청 많은데, DB에 없거나 매칭점수가 낮다는 대답을 하여 보완이 필요해 보임.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 1/4\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "가공형상이 Profiling 이면 보통 Square End Mill은 추천하기 어려운거 아닌가요?",
+      "Ball",
+      "2날 (61개)",
+      "High Hardened Steels(HRc55~70) (31개)"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-157",
+    "rating": 1,
+    "author": "한웅희",
+    "comment": "3S MILL의 Coating을 T-Coating이라고 설명하고 있습니다. (X-Coating임) DB 에 내용이 잘못 표기 되어 있는 오류인지 아니면 잘못된 정보를 답변하는 건지 확인 필요해 보입니다.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 1/4\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "가공형상이 Profiling 이면 보통 Square End Mill은 추천하기 어려운거 아닌가요?",
+      "Ball",
+      "2날 (61개)",
+      "High Hardened Steels(HRc55~70) (31개)"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "multi",
+    "id": "M-158",
+    "rating": 5,
+    "author": "송정훈",
+    "comment": "1. padding이 너무 커서 화면에 표시되는 정보의 양이 제한적임.\n2. 작은 텍스트가 많아서 집중이 살짝 분산되는 느낌이 있음.\n3. 긴 답변이 나오면 지금처럼 최하단을 보여주지말고 최상단이 보여야 스크롤을 내리면서 답변을 체크하는게 더 좋을 것 같음.\n4. 여러 선택지가 있을 경우에는 각 선택지의 특징을 함께 이야기해주는게 좋을 것 같음.",
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 모름\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "상관없음",
+      "상관없음",
+      "날 수와 코팅별 특징이나   추천 순서는?",
+      "추천으로 골라줘"
+    ],
+    "maxTurns": 5
+  },
+  {
+    "type": "variant",
+    "id": "V-001",
+    "rating": null,
+    "author": "auto",
+    "comment": "generated variant",
+    "messages": [
+      {
+        "role": "user",
+        "text": "탄소강 엔드밀 Square φ4mm 추천해줘"
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "variant",
+    "id": "V-002",
+    "rating": null,
+    "author": "auto",
+    "comment": "generated variant",
+    "messages": [
+      {
+        "role": "user",
+        "text": "스테인리스 드릴 Ball φ6mm 추천해줘"
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "variant",
+    "id": "V-003",
+    "rating": null,
+    "author": "auto",
+    "comment": "generated variant",
+    "messages": [
+      {
+        "role": "user",
+        "text": "주철 엔드밀 Radius φ8mm 추천해줘"
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "variant",
+    "id": "V-004",
+    "rating": null,
+    "author": "auto",
+    "comment": "generated variant",
+    "messages": [
+      {
+        "role": "user",
+        "text": "알루미늄 드릴 Square φ10mm 추천해줘"
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "variant",
+    "id": "V-005",
+    "rating": null,
+    "author": "auto",
+    "comment": "generated variant",
+    "messages": [
+      {
+        "role": "user",
+        "text": "초내열합금 엔드밀 Ball φ12mm 추천해줘"
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "variant",
+    "id": "V-006",
+    "rating": null,
+    "author": "auto",
+    "comment": "generated variant",
+    "messages": [
+      {
+        "role": "user",
+        "text": "고경도강 드릴 Radius φ4mm 추천해줘"
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "variant",
+    "id": "V-007",
+    "rating": null,
+    "author": "auto",
+    "comment": "generated variant",
+    "messages": [
+      {
+        "role": "user",
+        "text": "탄소강 엔드밀 Square φ6mm 추천해줘"
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "variant",
+    "id": "V-008",
+    "rating": null,
+    "author": "auto",
+    "comment": "generated variant",
+    "messages": [
+      {
+        "role": "user",
+        "text": "스테인리스 드릴 Ball φ8mm 추천해줘"
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "variant",
+    "id": "V-009",
+    "rating": null,
+    "author": "auto",
+    "comment": "generated variant",
+    "messages": [
+      {
+        "role": "user",
+        "text": "주철 엔드밀 Radius φ10mm 추천해줘"
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "variant",
+    "id": "V-010",
+    "rating": null,
+    "author": "auto",
+    "comment": "generated variant",
+    "messages": [
+      {
+        "role": "user",
+        "text": "알루미늄 드릴 Square φ12mm 추천해줘"
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "variant",
+    "id": "V-011",
+    "rating": null,
+    "author": "auto",
+    "comment": "generated variant",
+    "messages": [
+      {
+        "role": "user",
+        "text": "초내열합금 엔드밀 Ball φ4mm 추천해줘"
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "variant",
+    "id": "V-012",
+    "rating": null,
+    "author": "auto",
+    "comment": "generated variant",
+    "messages": [
+      {
+        "role": "user",
+        "text": "고경도강 드릴 Radius φ6mm 추천해줘"
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "variant",
+    "id": "V-013",
+    "rating": null,
+    "author": "auto",
+    "comment": "generated variant",
+    "messages": [
+      {
+        "role": "user",
+        "text": "탄소강 엔드밀 Square φ8mm 추천해줘"
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "variant",
+    "id": "V-014",
+    "rating": null,
+    "author": "auto",
+    "comment": "generated variant",
+    "messages": [
+      {
+        "role": "user",
+        "text": "스테인리스 드릴 Ball φ10mm 추천해줘"
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "variant",
+    "id": "V-015",
+    "rating": null,
+    "author": "auto",
+    "comment": "generated variant",
+    "messages": [
+      {
+        "role": "user",
+        "text": "주철 엔드밀 Radius φ12mm 추천해줘"
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "variant",
+    "id": "V-016",
+    "rating": null,
+    "author": "auto",
+    "comment": "generated variant",
+    "messages": [
+      {
+        "role": "user",
+        "text": "알루미늄 드릴 Square φ4mm 추천해줘"
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "variant",
+    "id": "V-017",
+    "rating": null,
+    "author": "auto",
+    "comment": "generated variant",
+    "messages": [
+      {
+        "role": "user",
+        "text": "초내열합금 엔드밀 Ball φ6mm 추천해줘"
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "variant",
+    "id": "V-018",
+    "rating": null,
+    "author": "auto",
+    "comment": "generated variant",
+    "messages": [
+      {
+        "role": "user",
+        "text": "고경도강 드릴 Radius φ8mm 추천해줘"
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "variant",
+    "id": "V-019",
+    "rating": null,
+    "author": "auto",
+    "comment": "generated variant",
+    "messages": [
+      {
+        "role": "user",
+        "text": "탄소강 엔드밀 Square φ10mm 추천해줘"
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "variant",
+    "id": "V-020",
+    "rating": null,
+    "author": "auto",
+    "comment": "generated variant",
+    "messages": [
+      {
+        "role": "user",
+        "text": "스테인리스 드릴 Ball φ12mm 추천해줘"
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "crossref",
+    "id": "X-001",
+    "rating": null,
+    "author": "auto",
+    "comment": "competitor test",
+    "messages": [
+      {
+        "role": "user",
+        "text": "SECO JS554100E2C.OZ4-SIRA Square 대체품"
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "crossref",
+    "id": "X-002",
+    "rating": null,
+    "author": "auto",
+    "comment": "competitor test",
+    "messages": [
+      {
+        "role": "user",
+        "text": "GUHRING 3727 드릴 φ8mm 대체품"
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "crossref",
+    "id": "X-003",
+    "rating": null,
+    "author": "auto",
+    "comment": "competitor test",
+    "messages": [
+      {
+        "role": "user",
+        "text": "Kennametal HARVI III Ball Nose 대체품"
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "crossref",
+    "id": "X-004",
+    "rating": null,
+    "author": "auto",
+    "comment": "competitor test",
+    "messages": [
+      {
+        "role": "user",
+        "text": "OSG AE-VMS φ10mm 대체품"
+      }
+    ],
+    "maxTurns": 1
+  },
+  {
+    "type": "crossref",
+    "id": "X-005",
+    "rating": null,
+    "author": "auto",
+    "comment": "competitor test",
+    "messages": [
+      {
+        "role": "user",
+        "text": "Sandvik CoroMill 390 스테인리스용 대체품"
+      }
+    ],
+    "maxTurns": 1
+  }
+]

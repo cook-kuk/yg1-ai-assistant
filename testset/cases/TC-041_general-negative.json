@@ -1,0 +1,37 @@
+{
+  "id": "TC-041",
+  "source": "general",
+  "severity": "critical",
+  "category": "general-negative",
+  "input": {
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Ramping\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+    ],
+    "fullConversation": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Ramping\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      },
+      {
+        "role": "ai",
+        "text": "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요."
+      }
+    ]
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요."
+    ]
+  },
+  "feedback": {
+    "rating": 1,
+    "comment": "가공 형상과 db간 매칭이 아직 완료되지 않은 것 같습니다.",
+    "tags": [],
+    "author": "한지희",
+    "department": "국내영업",
+    "timestamp": "2026-03-30T01:04:53.015Z",
+    "sessionId": "ses-1774832627615"
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

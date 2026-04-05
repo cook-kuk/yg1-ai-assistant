@@ -1,0 +1,26 @@
+{
+  "id": "TC-069",
+  "source": "general",
+  "severity": "major",
+  "category": "ui-issue",
+  "input": {
+    "userMessages": [],
+    "fullConversation": []
+  },
+  "actualOutput": {
+    "aiResponses": []
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "아시아, 미주, 유럽이 두 개씩 중복되어 있습니다.",
+    "tags": [
+      "ui-issue"
+    ],
+    "author": "김태리",
+    "department": "제품홍보팀",
+    "timestamp": "2026-03-31T00:00:47.874Z",
+    "sessionId": null
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

@@ -1,0 +1,80 @@
+{
+  "id": "TC-138",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "Square (196개)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T23:41:08.946Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "안녕하세요! 비철금속 소재에 직경 12mm로 측면 가공(Side Milling)용 공구를 찾고 계시는군요.\n\n현재 조건에 맞는 제품이 **333개** 있습니다. 좀 더 정확한 추천을 위해 몇 가지 여쭤보겠습니다.\n\n먼저 **공구 형상**이 중요하신가요?\n\n- **Square (196개)**: 평날 엔드밀로, 측면 가공과 홈 가공에 적합합니다. 날끝이 예리하여 정밀한 직각 가공이 가능합니다.\n- **Radius (77개)**: 코너에 R이 있어 공구 수명이 길고 칩 배출이 좋습니다. 측면 가공 시 모서리 강도가 필요할 때 유리합니다.\n- **Roughing (19개)**: 거친 날 형상으로 황삭 가공에 최적화되어 있습니다. 빠른 재료 제거가 필요할 때 사용합니다.\n- **Drill Mill (8개)**: 드릴링과 밀링을 동시에 할 수 있는 복합 공구입니다.\n\n어떤 형상을 선호하시나요? 특별한 선호가 없으시면 \"상관없음\"을 선택해주세요.",
+        "isLoading": false,
+        "chips": [
+          "Square (196개)",
+          "Radius (77개)",
+          "Roughing (19개)",
+          "Drill Mill (8개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (333개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-31T23:41:08.946Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "Square (196개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T23:41:35.592Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "오류가 발생했습니다. 다시 시도해주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": "bad",
+        "chipFeedback": null,
+        "createdAt": null
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "오류가 발생했습니다. 다시 시도해주세요."
+    ],
+    "chips": []
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-31T23:43:26.071Z",
+    "sessionId": "ses-1775000454210",
+    "turnNumber": 2
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

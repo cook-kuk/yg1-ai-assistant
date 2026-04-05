@@ -1,0 +1,127 @@
+{
+  "id": "TC-264",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 모름\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:58:47.255Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "안녕하세요! Profiling 가공을 위한 밀링 공구를 찾고 계시는군요. 현재 조건에서 2,636개의 제품이 매칭됩니다.\n\n효과적인 추천을 위해 먼저 공구의 형상부터 확인하고 싶습니다. Profiling 가공에서 어떤 형상의 엔드밀이 필요하신가요?\n\n• **Ball (1,750개)**: 곡면 가공, 3D 형상 가공에 최적\n• **Radius (398개)**: 모서리 강도 확보, 범용 가공\n• **Square (365개)**: 평면·측면 가공, 직각 코너 가공\n• **Taper (60개)**: 경사면 가공, 금형 가공\n\n가공하실 형상에 맞는 타입을 선택해주시면, 더 정확한 제품을 추천해드리겠습니다. 형상이 명확하지 않으시면 '상관없음'을 선택하시면 됩니다.",
+        "isLoading": false,
+        "chips": [
+          "Ball (1750개)",
+          "Radius (398개)",
+          "Square (365개)",
+          "Taper (60개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (2636개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-29T23:58:47.256Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "상관없음",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:59:45.583Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "현재 2636개 후보가 있습니다. 날 수(flute) 선호가 있으신가요?",
+        "isLoading": false,
+        "chips": [
+          "2날 (1741개)",
+          "4날 (348개)",
+          "3날 (147개)",
+          "6날 (43개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (2636개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-29T23:59:45.583Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "상관없음",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T00:00:17.958Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "코팅 종류 선호가 있으신가요? 후보 중에 Y-Coating, Diamond, TiCN 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "AlTiN (553개)",
+          "Diamond (408개)",
+          "T-Coating (232개)",
+          "ALTIN (171개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (2636개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-30T00:00:17.958Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: AlTiN (553개), Diamond (408개), T-Coating (232개), ALTIN (171개), 상관없음, ⟵ 이전 단계, 📋 지금 바로 제품 보기 (2636개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "AlTiN (553개)",
+      "Diamond (408개)",
+      "T-Coating (232개)",
+      "ALTIN (171개)",
+      "상관없음",
+      "⟵ 이전 단계",
+      "📋 지금 바로 제품 보기 (2636개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-30T00:00:46.206Z",
+    "sessionId": "ses-1774828825175",
+    "turnNumber": 3
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

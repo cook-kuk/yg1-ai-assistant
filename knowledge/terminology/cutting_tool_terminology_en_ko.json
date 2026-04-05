@@ -1,0 +1,714 @@
+[
+  {
+    "en": "AlCrN",
+    "ko": "AlCrN"
+  },
+  {
+    "en": "Alloy",
+    "ko": "합금"
+  },
+  {
+    "en": "AlTiN",
+    "ko": "AlTiN"
+  },
+  {
+    "en": "Aluminum",
+    "ko": "알루미늄"
+  },
+  {
+    "en": "Aluminum Alloys",
+    "ko": "알루미늄 합금"
+  },
+  {
+    "en": "Aluminum-cast alloy",
+    "ko": "알루미늄 주조 합금"
+  },
+  {
+    "en": "Aluminum-wrought alloy",
+    "ko": "알루미늄 전신재 합금"
+  },
+  {
+    "en": "Annealed",
+    "ko": "어닐링 처리"
+  },
+  {
+    "en": "Ball",
+    "ko": "볼"
+  },
+  {
+    "en": "Ball Nose",
+    "ko": "볼노즈"
+  },
+  {
+    "en": "Black Oxide",
+    "ko": "흑색 산화 처리"
+  },
+  {
+    "en": "Blind Hole",
+    "ko": "막힌홀"
+  },
+  {
+    "en": "Brass",
+    "ko": "황동"
+  },
+  {
+    "en": "Bright Finish",
+    "ko": "브라이트(무처리)"
+  },
+  {
+    "en": "Bronze",
+    "ko": "청동"
+  },
+  {
+    "en": "C-Coating",
+    "ko": "C-Coating"
+  },
+  {
+    "en": "Carbide",
+    "ko": "초경"
+  },
+  {
+    "en": "Cast Iron",
+    "ko": "주철"
+  },
+  {
+    "en": "Cast Steel",
+    "ko": "주강"
+  },
+  {
+    "en": "CBN",
+    "ko": "CBN"
+  },
+  {
+    "en": "Center cutting",
+    "ko": "센터 커팅"
+  },
+  {
+    "en": "Cermet",
+    "ko": "서멧"
+  },
+  {
+    "en": "Chamfer",
+    "ko": "챔퍼"
+  },
+  {
+    "en": "Chilled cast iron",
+    "ko": "칠드 주철"
+  },
+  {
+    "en": "Chip breaking",
+    "ko": "칩 브레이킹"
+  },
+  {
+    "en": "Chip evacuation",
+    "ko": "칩 배출"
+  },
+  {
+    "en": "Coating",
+    "ko": "코팅"
+  },
+  {
+    "en": "Coolant",
+    "ko": "쿨런트"
+  },
+  {
+    "en": "Coolant Holes",
+    "ko": "쿨런트 홀"
+  },
+  {
+    "en": "Copper",
+    "ko": "구리"
+  },
+  {
+    "en": "Copper Alloys",
+    "ko": "구리 합금"
+  },
+  {
+    "en": "Corner Radius",
+    "ko": "코너 래디우스"
+  },
+  {
+    "en": "Countersink",
+    "ko": "카운터싱크"
+  },
+  {
+    "en": "Cutting Condition",
+    "ko": "절삭 조건"
+  },
+  {
+    "en": "Cutting Speed",
+    "ko": "절삭 속도(Vc)"
+  },
+  {
+    "en": "Depth of cut",
+    "ko": "절삭 깊이(Ap)"
+  },
+  {
+    "en": "Diamond Coating",
+    "ko": "다이아몬드 코팅"
+  },
+  {
+    "en": "DLC",
+    "ko": "DLC(다이아몬드 라이크 카본)"
+  },
+  {
+    "en": "Drill",
+    "ko": "드릴"
+  },
+  {
+    "en": "Drilling",
+    "ko": "드릴링"
+  },
+  {
+    "en": "Drilling Depth",
+    "ko": "드릴링 깊이"
+  },
+  {
+    "en": "Drills",
+    "ko": "드릴"
+  },
+  {
+    "en": "Dry Cut",
+    "ko": "건식 절삭"
+  },
+  {
+    "en": "End Mill",
+    "ko": "엔드밀"
+  },
+  {
+    "en": "End Mills",
+    "ko": "엔드밀"
+  },
+  {
+    "en": "Endmill",
+    "ko": "엔드밀"
+  },
+  {
+    "en": "Excellent",
+    "ko": "우수"
+  },
+  {
+    "en": "Extra Long",
+    "ko": "엑스트라 롱"
+  },
+  {
+    "en": "Feed per tooth",
+    "ko": "날당 이송(Fz)"
+  },
+  {
+    "en": "Feed Rate",
+    "ko": "이송 속도(Feed)"
+  },
+  {
+    "en": "Fiber Reinforced Plastic",
+    "ko": "섬유강화플라스틱(FRP)"
+  },
+  {
+    "en": "Finishing",
+    "ko": "정삭"
+  },
+  {
+    "en": "Flat",
+    "ko": "플랫"
+  },
+  {
+    "en": "Flute",
+    "ko": "날"
+  },
+  {
+    "en": "Flute Geometry",
+    "ko": "날 형상"
+  },
+  {
+    "en": "Forming",
+    "ko": "포밍(전조)"
+  },
+  {
+    "en": "General Purpose",
+    "ko": "범용"
+  },
+  {
+    "en": "Good",
+    "ko": "양호"
+  },
+  {
+    "en": "Graphite",
+    "ko": "흑연"
+  },
+  {
+    "en": "Grey cast iron",
+    "ko": "회주철"
+  },
+  {
+    "en": "Hardened cast iron",
+    "ko": "경화 주철"
+  },
+  {
+    "en": "Hardened Steel",
+    "ko": "경화강"
+  },
+  {
+    "en": "Hardslick Coating",
+    "ko": "Hardslick 코팅"
+  },
+  {
+    "en": "Heat Resistant Super Alloys",
+    "ko": "내열 초합금"
+  },
+  {
+    "en": "Helical",
+    "ko": "헬리컬"
+  },
+  {
+    "en": "Helix Angle",
+    "ko": "헬릭스각"
+  },
+  {
+    "en": "High alloyed steel",
+    "ko": "고합금강"
+  },
+  {
+    "en": "High Feed",
+    "ko": "고이송"
+  },
+  {
+    "en": "High Performance",
+    "ko": "고성능"
+  },
+  {
+    "en": "High Precision",
+    "ko": "고정밀"
+  },
+  {
+    "en": "High Speed",
+    "ko": "고속"
+  },
+  {
+    "en": "High Speed Steel",
+    "ko": "고속도강"
+  },
+  {
+    "en": "HSS",
+    "ko": "고속도강(HSS)"
+  },
+  {
+    "en": "HSS-E",
+    "ko": "코발트 고속도강(HSS-E)"
+  },
+  {
+    "en": "HSS-PM",
+    "ko": "분말야금 고속도강(HSS-PM)"
+  },
+  {
+    "en": "HSSCo8",
+    "ko": "코발트8% 고속도강"
+  },
+  {
+    "en": "Inconel",
+    "ko": "인코넬"
+  },
+  {
+    "en": "Insert",
+    "ko": "인서트"
+  },
+  {
+    "en": "Inserts",
+    "ko": "인서트"
+  },
+  {
+    "en": "Internal Cooling",
+    "ko": "내부 냉각"
+  },
+  {
+    "en": "ISO H",
+    "ko": "ISO H (고경도강)"
+  },
+  {
+    "en": "ISO K",
+    "ko": "ISO K (주철)"
+  },
+  {
+    "en": "ISO M",
+    "ko": "ISO M (스테인리스강)"
+  },
+  {
+    "en": "ISO N",
+    "ko": "ISO N (비철금속)"
+  },
+  {
+    "en": "ISO P",
+    "ko": "ISO P (일반강/합금강)"
+  },
+  {
+    "en": "ISO S",
+    "ko": "ISO S (내열합금/티타늄)"
+  },
+  {
+    "en": "Left hand helix",
+    "ko": "좌나선"
+  },
+  {
+    "en": "Long",
+    "ko": "롱"
+  },
+  {
+    "en": "Long Neck",
+    "ko": "롱넥"
+  },
+  {
+    "en": "Long Reach",
+    "ko": "롱넥"
+  },
+  {
+    "en": "Long tool life",
+    "ko": "긴 공구 수명"
+  },
+  {
+    "en": "Low alloy steel",
+    "ko": "저합금강"
+  },
+  {
+    "en": "Low thrust",
+    "ko": "저추력"
+  },
+  {
+    "en": "Machining Center",
+    "ko": "머시닝센터"
+  },
+  {
+    "en": "Malleable Cast Iron",
+    "ko": "가단주철"
+  },
+  {
+    "en": "Metric",
+    "ko": "미터"
+  },
+  {
+    "en": "Metric Coarse",
+    "ko": "미터 코스"
+  },
+  {
+    "en": "Metric Fine",
+    "ko": "미터 파인"
+  },
+  {
+    "en": "Milling",
+    "ko": "밀링"
+  },
+  {
+    "en": "Milling Cutter",
+    "ko": "밀링 커터"
+  },
+  {
+    "en": "Morse Taper",
+    "ko": "모스테이퍼"
+  },
+  {
+    "en": "Multi-Purpose",
+    "ko": "다목적"
+  },
+  {
+    "en": "Negative land",
+    "ko": "네거티브 랜드"
+  },
+  {
+    "en": "Nodular cast iron",
+    "ko": "구상흑연주철"
+  },
+  {
+    "en": "Non metallic materials",
+    "ko": "비금속 재료"
+  },
+  {
+    "en": "Non-alloy steel",
+    "ko": "비합금강"
+  },
+  {
+    "en": "Nonferrous metals",
+    "ko": "비철금속"
+  },
+  {
+    "en": "Normal point",
+    "ko": "노멀 포인트"
+  },
+  {
+    "en": "PCD",
+    "ko": "PCD"
+  },
+  {
+    "en": "Pipe Thread",
+    "ko": "관용 나사"
+  },
+  {
+    "en": "Plunging",
+    "ko": "플런징"
+  },
+  {
+    "en": "Pocketing",
+    "ko": "포켓 가공"
+  },
+  {
+    "en": "Point Angle",
+    "ko": "선단각"
+  },
+  {
+    "en": "Profiling",
+    "ko": "윤곽 가공"
+  },
+  {
+    "en": "Quenched & Tempered",
+    "ko": "조질 처리"
+  },
+  {
+    "en": "R-thinning",
+    "ko": "R-시닝"
+  },
+  {
+    "en": "Radius",
+    "ko": "래디우스"
+  },
+  {
+    "en": "Ramping",
+    "ko": "램핑 가공"
+  },
+  {
+    "en": "RCH-Coating",
+    "ko": "RCH-Coating"
+  },
+  {
+    "en": "Reamer",
+    "ko": "리머"
+  },
+  {
+    "en": "Reamers",
+    "ko": "리머"
+  },
+  {
+    "en": "Reaming",
+    "ko": "리밍"
+  },
+  {
+    "en": "Recommended cutting conditions",
+    "ko": "추천 절삭조건"
+  },
+  {
+    "en": "Regular",
+    "ko": "레귤러"
+  },
+  {
+    "en": "Right hand helix",
+    "ko": "우나선"
+  },
+  {
+    "en": "Roughing",
+    "ko": "황삭"
+  },
+  {
+    "en": "RPM",
+    "ko": "회전수(RPM)"
+  },
+  {
+    "en": "Self centering",
+    "ko": "셀프 센터링"
+  },
+  {
+    "en": "Short",
+    "ko": "쇼트"
+  },
+  {
+    "en": "Side cutting",
+    "ko": "측면 가공"
+  },
+  {
+    "en": "Side Milling",
+    "ko": "측면 가공"
+  },
+  {
+    "en": "Slotting",
+    "ko": "슬로팅"
+  },
+  {
+    "en": "Solid Carbide",
+    "ko": "솔리드 초경"
+  },
+  {
+    "en": "Spade Drill",
+    "ko": "스페이드 드릴"
+  },
+  {
+    "en": "Spiral",
+    "ko": "스파이럴"
+  },
+  {
+    "en": "Spiral Flute",
+    "ko": "스파이럴 날"
+  },
+  {
+    "en": "Spiral Point",
+    "ko": "스파이럴 포인트"
+  },
+  {
+    "en": "Split point",
+    "ko": "스플릿 포인트"
+  },
+  {
+    "en": "Square",
+    "ko": "스퀘어"
+  },
+  {
+    "en": "Stable torque",
+    "ko": "안정적 토크"
+  },
+  {
+    "en": "Stainless Steel",
+    "ko": "스테인리스강"
+  },
+  {
+    "en": "Steam Homo",
+    "ko": "스팀 호모 처리"
+  },
+  {
+    "en": "Steam Oxide",
+    "ko": "스팀 옥사이드 처리"
+  },
+  {
+    "en": "Steam Tempered",
+    "ko": "스팀 템퍼 처리"
+  },
+  {
+    "en": "Steel",
+    "ko": "강"
+  },
+  {
+    "en": "Straight Flute",
+    "ko": "직선 날"
+  },
+  {
+    "en": "Straight Shank",
+    "ko": "스트레이트 생크"
+  },
+  {
+    "en": "Stub",
+    "ko": "스텁"
+  },
+  {
+    "en": "Surface Roughness",
+    "ko": "표면 조도"
+  },
+  {
+    "en": "Surface Treatment",
+    "ko": "표면 처리"
+  },
+  {
+    "en": "Tap",
+    "ko": "탭"
+  },
+  {
+    "en": "Tapered",
+    "ko": "테이퍼"
+  },
+  {
+    "en": "Tapping",
+    "ko": "탭핑"
+  },
+  {
+    "en": "Taps",
+    "ko": "탭"
+  },
+  {
+    "en": "Thread Form",
+    "ko": "나사 규격"
+  },
+  {
+    "en": "Thread Mill",
+    "ko": "스레드밀"
+  },
+  {
+    "en": "Threading",
+    "ko": "나사 가공"
+  },
+  {
+    "en": "Through Coolant",
+    "ko": "쓰루 쿨런트"
+  },
+  {
+    "en": "Through Hole",
+    "ko": "관통홀"
+  },
+  {
+    "en": "TiAlN",
+    "ko": "TiAlN"
+  },
+  {
+    "en": "TiCN",
+    "ko": "TiCN"
+  },
+  {
+    "en": "TiN",
+    "ko": "TiN"
+  },
+  {
+    "en": "Titanium",
+    "ko": "티타늄"
+  },
+  {
+    "en": "Titanium Alloys",
+    "ko": "티타늄 합금"
+  },
+  {
+    "en": "Tool Life",
+    "ko": "공구 수명"
+  },
+  {
+    "en": "Tool steel",
+    "ko": "공구강"
+  },
+  {
+    "en": "Uncoated",
+    "ko": "무코팅"
+  },
+  {
+    "en": "Unified National Coarse",
+    "ko": "유니파이 코스(UNC)"
+  },
+  {
+    "en": "Unified National Fine",
+    "ko": "유니파이 파인(UNF)"
+  },
+  {
+    "en": "Water Soluble",
+    "ko": "수용성"
+  },
+  {
+    "en": "Wave shape",
+    "ko": "웨이브 형상"
+  },
+  {
+    "en": "Wear resistance",
+    "ko": "내마모성"
+  },
+  {
+    "en": "Wet Cut",
+    "ko": "습식 절삭"
+  },
+  {
+    "en": "Width of cut",
+    "ko": "절삭 폭(Ae)"
+  },
+  {
+    "en": "X-Coating",
+    "ko": "X-Coating"
+  },
+  {
+    "en": "XC-Coating",
+    "ko": "XC-Coating"
+  },
+  {
+    "en": "Y-Coating",
+    "ko": "Y-Coating"
+  },
+  {
+    "en": "Z-Coating",
+    "ko": "Z-Coating"
+  }
+]

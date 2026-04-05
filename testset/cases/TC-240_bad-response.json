@@ -1,0 +1,96 @@
+{
+  "id": "TC-240",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 모름\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T05:47:56.001Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (14113개), Radius (9353개), Ball (6194개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (14113개)",
+          "Radius (9353개)",
+          "Ball (6194개)",
+          "Roughing (2097개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (33727개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-30T05:47:56.001Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "열처리된 SKD11 소재를 가공하려고해 YG-1에서 어떤 브랜드 제품을 선택하는 것이 좋을지?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T05:48:38.545Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "요청한 조건에 맞는 reference brand 데이터를 내부 DB에서 찾지 못했습니다.\n\n| 조건 | 값 |\n| --- | --- |\n| ISO | - |\n| 피삭재 | SKD11 |\n| HRC | 50~62 |\n\n[Reference: YG-1 내부 DB]\n\n다시 제품 추천으로 돌아갈게요. 공구 세부 타입이 중요한가요? Square (14113개), Radius (9353개), Ball (6194개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (14113개)",
+          "Radius (9353개)",
+          "Ball (6194개)",
+          "Roughing (2097개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (33727개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-30T05:48:38.545Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: Square (14113개), Radius (9353개), Ball (6194개), Roughing (2097개), 상관없음, 📋 지금 바로 제품 보기 (33727개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "Square (14113개)",
+      "Radius (9353개)",
+      "Ball (6194개)",
+      "Roughing (2097개)",
+      "상관없음",
+      "📋 지금 바로 제품 보기 (33727개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-30T05:49:42.214Z",
+    "sessionId": "ses-1774849661992",
+    "turnNumber": 2
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

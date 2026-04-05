@@ -1,0 +1,37 @@
+{
+  "id": "TC-070",
+  "source": "general",
+  "severity": "critical",
+  "category": "general-negative",
+  "input": {
+    "userMessages": [
+      "🧭 Inquiry Purpose: New Product Recommendation\n🧱 Workpiece Material: Non-ferrous\n📐 Operation Shape: Facing\n🛠️ Machining Category: Milling\n📏 Tool Diameter: 6mm\n\nPlease recommend suitable YG-1 products based on the conditions above."
+    ],
+    "fullConversation": [
+      {
+        "role": "user",
+        "text": "🧭 Inquiry Purpose: New Product Recommendation\n🧱 Workpiece Material: Non-ferrous\n📐 Operation Shape: Facing\n🛠️ Machining Category: Milling\n📏 Tool Diameter: 6mm\n\nPlease recommend suitable YG-1 products based on the conditions above."
+      },
+      {
+        "role": "ai",
+        "text": "안녕하세요, YG-1 절삭공구 전문 상담 AI입니다.\n\n입력하신 조건을 확인했습니다:\n- 소재: 비철금속\n- 가공 형상: Facing\n- 가공 방식: Milling\n- 직경: 6mm\n\n현재 이 조건에 맞는 제품이 **671개** 있습니다.\n\n보다 정확한 추천을 위해 몇 가지 조건을 좁혀가겠습니다.\n\n**공구의 형상 타입**이 중요하신가요?\n\n현재 후보 제품은 다음과 같은 형상으로 분포되어 있습니다:\n- **Square (스퀘어)**: 444개 — 평면 가공, 측면 가공에 주로 사용\n- **Ball (볼)**: 114개 — 곡면 가공, 3D 가공에 적합\n- **Radius (라디우스)**: 55개 — 모서리 강도 향상, 측면+곡면 가공\n- **Roughing (러핑)**: 50개 — 황삭 전용, 빠른 재료 제거\n\n어떤 형상을 원하시나요? 혹은 형상에 상관없이 추천을 원하시면 \"상관없음\"을 선택해주세요."
+      }
+    ]
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "안녕하세요, YG-1 절삭공구 전문 상담 AI입니다.\n\n입력하신 조건을 확인했습니다:\n- 소재: 비철금속\n- 가공 형상: Facing\n- 가공 방식: Milling\n- 직경: 6mm\n\n현재 이 조건에 맞는 제품이 **671개** 있습니다.\n\n보다 정확한 추천을 위해 몇 가지 조건을 좁혀가겠습니다.\n\n**공구의 형상 타입**이 중요하신가요?\n\n현재 후보 제품은 다음과 같은 형상으로 분포되어 있습니다:\n- **Square (스퀘어)**: 444개 — 평면 가공, 측면 가공에 주로 사용\n- **Ball (볼)**: 114개 — 곡면 가공, 3D 가공에 적합\n- **Radius (라디우스)**: 55개 — 모서리 강도 향상, 측면+곡면 가공\n- **Roughing (러핑)**: 50개 — 황삭 전용, 빠른 재료 제거\n\n어떤 형상을 원하시나요? 혹은 형상에 상관없이 추천을 원하시면 \"상관없음\"을 선택해주세요."
+    ]
+  },
+  "feedback": {
+    "rating": 1,
+    "comment": "왼쪽하단에 국가 중복, 영어로 문의하였으나 한글로 대답, 선택 가공형상에 smart part? 잘못들어간것 같음.  work material -> 한글 표기됨. ",
+    "tags": [],
+    "author": "izet shin",
+    "department": "overseas sales department",
+    "timestamp": "2026-03-30T23:48:16.524Z",
+    "sessionId": "ses-1774914337054"
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

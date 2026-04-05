@@ -1,0 +1,26 @@
+{
+  "id": "TC-049",
+  "source": "general",
+  "severity": "major",
+  "category": "ui-issue",
+  "input": {
+    "userMessages": [],
+    "fullConversation": []
+  },
+  "actualOutput": {
+    "aiResponses": []
+  },
+  "feedback": {
+    "rating": 3,
+    "comment": "- 가공 형상을 선택하면 가공 방식 노출 개수가 바뀌어야 합니다. \n예를들어 가공 형상에서 프로파일링을 선택하면 가공 방식에는 밀링과 터닝만 남아야함.",
+    "tags": [
+      "ui-issue"
+    ],
+    "author": "송정훈",
+    "department": "연구소",
+    "timestamp": "2026-03-31T06:24:34.001Z",
+    "sessionId": null
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

@@ -1,0 +1,39 @@
+{
+  "id": "TC-111",
+  "source": "general",
+  "severity": "major",
+  "category": "ui-issue",
+  "input": {
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+    ],
+    "fullConversation": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      },
+      {
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Radius (1082개), Square (913개), Ball (269개) 등이 있습니다."
+      }
+    ]
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "공구 세부 타입이 중요한가요? Radius (1082개), Square (913개), Ball (269개) 등이 있습니다."
+    ]
+  },
+  "feedback": {
+    "rating": 5,
+    "comment": "선택 순서가 바뀌어야할 것 같습니다\n보통 자연스러운 선택은 아래인 것으로 생각합니다 \n(1) 신규 제품 or 대체품 확인\n(2) 공구 선택 (엔드밀, 드릴,...)\n(3) 가공 소재 선택 (P,M, K, ... )\n(4) 가공 방법 선택 (Side milling, drilling 등...)\n\n--> (3)과 (4)는 입장에 따라 바뀔수있다고는 생각힙니다 \n--> 예를 들면 Side milling 을 선택했는데 공구 선택이 드릴, 탭은 맞지 않는 것으로 생각됩니다\n--> 그래서 공구 선택(Endmill, Drill 등..)이 먼저 나와야할 것 같습니다  ",
+    "tags": [
+      "ui-issue"
+    ],
+    "author": "이명우",
+    "department": "Hole Making팀",
+    "timestamp": "2026-03-30T01:06:32.046Z",
+    "sessionId": "ses-1774827335403"
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

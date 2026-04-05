@@ -1,0 +1,32 @@
+# YG TAP STEEL — IB
+**제품명**: HSS-E Tap
+
+## 기본 사양
+- 공구 타입: Tap
+- 서브타입: Spiral Point
+- 공구 재질: HSS-E
+- 코팅: Steam Oxide
+- 깊이비: Max. 3.0xD
+
+## 대응 ISO 그룹
+P
+
+## 대상 피삭재
+- Steel 25-50
+- Steel 6-30
+
+## 특징
+- Spiral Point
+- Max. 3.0xD Through Hole
+
+## 용도
+- Through hole tapping
+
+## 선정 가이드
+- Selection guide for YG TAP STEEL taps by work material hardness range and coating. IB is shown as a Spiral Point HSS-E tap with Steam Oxide coating for through holes up to Max. 3.0xD.
+
+## 상세 정보 (원문 요약)
+- [page_0540] YG TAP STEEL 선택 가이드 페이지로, HSS-E 탭 시리즈의 적용 재질과 코팅을 비교해 보여준다. IB는 Spiral Point 타입의 HSS-E 탭이며 Steam Oxide 코팅으로 표시되어 있고, Through Hole용으로 Max. 3.0xD까지 적용된다. 표의 ◎/○ 표시는 강재 경도 구간별 추천도를 나타낸다.
+
+---
+출처: yu25_split | 페이지: page_0540

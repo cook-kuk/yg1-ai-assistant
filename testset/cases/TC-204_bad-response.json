@@ -1,0 +1,243 @@
+{
+  "id": "TC-204",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Slotting\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T23:25:28.478Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (1383개), Radius (372개), Roughing (88개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (1383개)",
+          "Radius (372개)",
+          "Roughing (88개)",
+          "Corner Rounding (29개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (1906개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-30T23:25:28.478Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "Square (1383개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T23:25:45.885Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "현재 1390개 후보가 있습니다. 날 수(flute) 선호가 있으신가요?",
+        "isLoading": false,
+        "chips": [
+          "2날 (850개)",
+          "3날 (388개)",
+          "4날 (82개)",
+          "1날 (70개)",
+          "상관없음",
+          "⟵ 이전 ���계",
+          "📋 지금 바로 제품 보기 (1390개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-30T23:25:45.885Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "4날 (82개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T23:26:17.605Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "네, 4날 Square 엔드밀로 범위가 82개로 좁혀졌습니다.\n\n현재 후보 제품들은 주로 **TANK-POWER 시리즈(GAA31, GA938 등)**로, 비철금속(알루미늄 합금) 가공에 최적화된 TiAlN 코팅 제품들입니다.\n\n**세부 피삭재 선택이 필요합니다:**\n비철금속(ISO N군) 내에서도 세부 소재에 따라 최적 제품이 달라집니다.\n\n• **알루미늄 합금** → 고속 가공용 고헬릭스각 제품\n• **구리 합금** → 날끝 강도 중시 제품\n• **마그네슘 합금** → 초고속 가공 대응 제품\n\n세부 피삭재를 선택해주시면 82개 중에서 해당 소재에 가장 적합한 제품을 우선 추천드리겠습니다.\n\n**\"상관없음\"을 선택하시면** 현재 82개 전체에서 범용성이 높은 제품을 추천드립니다.",
+        "isLoading": false,
+        "chips": [
+          "Alloy Steels (82개)",
+          "Carbon Steels (82개)",
+          "Prehardened Steels (82개)",
+          "Aluminum (49개)",
+          "Cast Iron (33개)",
+          "Copper (33개)",
+          "Stainless Steels (33개)",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (82개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-30T23:26:17.605Z"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "text": "⟵ 이전 단계",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T23:26:44.676Z"
+      },
+      {
+        "index": 7,
+        "role": "ai",
+        "text": "현재 1390개 후보가 있습니다. 날 수(flute) 선호가 있으신가요?",
+        "isLoading": false,
+        "chips": [
+          "2날 (850개)",
+          "3날 (388개)",
+          "4날 (82개)",
+          "1날 (70개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (1390개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-30T23:26:44.676Z"
+      },
+      {
+        "index": 8,
+        "role": "user",
+        "text": "3날 (388개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T23:27:04.036Z"
+      },
+      {
+        "index": 9,
+        "role": "ai",
+        "text": "네, 3날 엔드밀로 범위를 좁혀 현재 388개의 제품이 매칭됩니다.\n\n비철금속(ISO N군) 가공에 특화된 제품들로, 알루미늄·구리 등 비철 소재의 용착 방지와 빠른 칩 배출에 최적화되어 있습니다.\n\n여기서 더 정확한 추천을 위해 **세부 피삭재**를 선택해주세요:\n\n• **알루미늄** → 가장 흔한 비철 소재 (6061, 7075 등)\n• **구리/구리합금** → 전기전자, 방열 부품 등\n• **알루미늄 주물** → 주조 알루미늄 (AC4C, ADC12 등)\n• **상관없음** → 세부 분류 없이 전체 비철용 제품에서 추천\n\n또는 아래에서 바로 선택하실 수 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Aluminum (379개)",
+          "Copper (14개)",
+          "Non-ferrous (14개)",
+          "ETC (9개)",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (388개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-30T23:27:04.036Z"
+      },
+      {
+        "index": 10,
+        "role": "user",
+        "text": "Aluminum (379개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T23:27:35.285Z"
+      },
+      {
+        "index": 11,
+        "role": "ai",
+        "text": "네, 알루미늄 가공용 3날 Square 엔드밀 379개가 매칭되었습니다.\n\n현재 후보 중 코팅 종류를 선택하시면 더욱 정확한 추천이 가능합니다.\n\n**주요 코팅 옵션 (현재 후보 기준)**\n- **Bright Finish (무코팅)**: 알루미늄 가공 시 가장 일반적. 칩 배출이 우수하고 경제적입니다.\n- **DLC (Diamond-Like Carbon)**: 마찰계수가 낮아 알루미늄 용착 방지에 탁월합니다.\n- **TiCN**: 범용성이 높지만 알루미늄보다는 철계 소재에 더 적합합니다.\n\n코팅 선호가 있으시면 말씀해주세요. \"상관없음\"을 선택하시면 전체 379개 중에서 가장 적합한 제품을 바로 추천드리겠습니다.",
+        "isLoading": false,
+        "chips": [
+          "Bright Finish (326개)",
+          "DLC (24개)",
+          "TiCN (10개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (379개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-30T23:27:35.285Z"
+      },
+      {
+        "index": 12,
+        "role": "user",
+        "text": "Bright Finish (326개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T23:28:00.124Z"
+      },
+      {
+        "index": 13,
+        "role": "ai",
+        "text": "이 조건이면 GEE8312060 (E5E83)를 먼저 보시면 됩니다. Square 형상, 3날, φ12mm 기준에 잘 맞고, 코팅은 Bright Finish으로 N군 소재 대응 범위를 확인할 수 있습니다. 재고 정보 없음.",
+        "isLoading": false,
+        "chips": [
+          "상위 3개 비교",
+          "GEE8312060 상세 정보",
+          "다른 코팅 옵션 보기",
+          "시리즈 차이 설명해줘 (E5E83 vs E5D74)",
+          "φ12mm 외 다른 직경",
+          "N 가공 팁 보기",
+          "📋 지금 바로 제품 보기 (326개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-30T23:28:00.124Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: 상위 3개 비교, GEE8312060 상세 정보, 다른 코팅 옵션 보기, 시리즈 차이 설명해줘 (E5E83 vs E5D74), φ12mm 외 다른 직경, N 가공 팁 보기, 📋 지금 바로 제품 보기 (326개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "상위 3개 비교",
+      "GEE8312060 상세 정보",
+      "다른 코팅 옵션 보기",
+      "시리즈 차이 설명해줘 (E5E83 vs E5D74)",
+      "φ12mm 외 다른 직경",
+      "N 가공 팁 보기",
+      "📋 지금 바로 제품 보기 (326개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-30T23:28:59.994Z",
+    "sessionId": "ses-1774913289539",
+    "turnNumber": 7
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

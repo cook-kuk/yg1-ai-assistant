@@ -1,0 +1,31 @@
+turn,userMessage,latencyMs,httpStatus,purpose,candidateCount,filterCount,turnCount,sessionId,currentMode,lastAskedField,resolutionStatus,displayedChipCount,displayedOptionCount,displayedCandidateCount,hasRecommendation,hasComparison,routeAction,debugTrace,llmCallCount,turnInputTokens,turnOutputTokens,turnCacheReadTokens,turnCacheWriteTokens,turnEstimatedCost,cumulativeEstimatedCost,requestBytes,responseBytes,error
+1,10mm 엔드밀 추천해주세요,309000,0,,0,0,1,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,441,0,fetch failed
+2,4날이면 좋겠어요,307634,0,,0,0,2,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,170,0,fetch failed
+3,코팅은 뭐가 좋을까요?,311320,0,,0,0,3,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,226,0,fetch failed
+4,AlCrN 코팅 제품으로 보여주세요,311038,0,,0,0,4,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,293,0,fetch failed
+5,재고 있는 것만 보여줘,310313,0,,0,0,5,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,349,0,fetch failed
+6,1번이랑 3번 비교해주세요,310971,0,,0,0,6,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,409,0,fetch failed
+7,절삭조건도 알려주세요,312076,0,,0,0,7,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,466,0,fetch failed
+8,이 중에 수명이 긴 건 뭐야?,309154,0,,0,0,8,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,528,0,fetch failed
+9,가격대가 어떻게 돼?,308602,0,,0,0,9,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,581,0,fetch failed
+10,다른 브랜드도 있어?,306542,0,,0,0,10,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,634,0,fetch failed
+11,직경을 8mm로 바꿔볼게,307355,0,,0,0,11,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,689,0,fetch failed
+12,3날은 없어?,310027,0,,0,0,12,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,730,0,fetch failed
+13,슬로팅용은 뭐가 좋아?,309140,0,,0,0,13,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,786,0,fetch failed
+14,긴 날장 제품 있어?,303096,408,,0,0,14,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,837,0,JSON parse error: 
+15,LOC 25mm 이상으로,311346,0,,0,0,15,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,884,0,fetch failed
+16,1번 제품 상세 스펙 알려줘,308553,0,,0,0,16,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,945,0,fetch failed
+17,이 시리즈 다른 사이즈도 보여줘,307826,0,,0,0,17,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,1014,0,fetch failed
+18,SUS304에도 쓸 수 있어?,309529,0,,0,0,18,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,1068,0,fetch failed
+19,황삭용으로는 어떤 게 좋아?,308810,0,,0,0,19,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,1131,0,fetch failed
+20,이송속도 기준 추천해줘,308803,0,,0,0,20,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,1189,0,fetch failed
+21,초경 소재만 보여줘,308951,0,,0,0,21,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,1241,0,fetch failed
+22,전체 후보 몇 개야?,310066,0,,0,0,22,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,1292,0,fetch failed
+23,점수 높은 순으로 정렬해줘,314099,0,,0,0,23,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,1354,0,fetch failed
+24,2번 제품 EDP 번호 알려줘,309927,0,,0,0,24,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,1412,0,fetch failed
+25,비슷한 제품 더 있어?,308474,0,,0,0,25,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,1466,0,fetch failed
+26,처음 추천해준 제품 다시 보여줘,310808,0,,0,0,26,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,1535,0,fetch failed
+27,12mm는 없어?,309536,0,,0,0,27,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,1576,0,fetch failed
+28,결론적으로 뭘 추천해?,310980,0,,0,0,28,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,1632,0,fetch failed
+29,"고마워, 정리해줘",313650,0,,0,0,29,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,1681,0,fetch failed
+30,끝,310612,0,,0,0,30,,,,,0,0,0,false,false,,false,0,0,0,0,0,0,0,1710,0,fetch failed

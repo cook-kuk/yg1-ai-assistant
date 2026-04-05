@@ -1,0 +1,187 @@
+{
+  "meta": {
+    "baseUrl": "http://localhost:3099",
+    "totalTurns": 30,
+    "startedAt": "2026-03-30T08:21:25.891Z",
+    "intakeForm": {
+      "inquiryPurpose": {
+        "status": "known",
+        "value": "new"
+      },
+      "material": {
+        "status": "known",
+        "value": "P"
+      },
+      "operationType": {
+        "status": "known",
+        "value": "Side_Milling"
+      },
+      "machiningIntent": {
+        "status": "unanswered"
+      },
+      "toolTypeOrCurrentProduct": {
+        "status": "known",
+        "value": "Milling"
+      },
+      "diameterInfo": {
+        "status": "known",
+        "value": "10mm"
+      }
+    },
+    "pricing": [
+      {
+        "match": "opus",
+        "input": 15,
+        "output": 75,
+        "cacheRead": 1.5,
+        "cacheWrite": 18.75
+      },
+      {
+        "match": "sonnet",
+        "input": 3,
+        "output": 15,
+        "cacheRead": 0.3,
+        "cacheWrite": 3.75
+      },
+      {
+        "match": "haiku",
+        "input": 0.8,
+        "output": 4,
+        "cacheRead": 0.08,
+        "cacheWrite": 1
+      }
+    ]
+  },
+  "aggregate": {
+    "avgLatencyMs": 309608,
+    "maxLatencyMs": 314099,
+    "minLatencyMs": 303096,
+    "p95LatencyMs": 313650,
+    "errorCount": 30,
+    "purposeDistribution": {
+      "unknown": 30
+    },
+    "totalRequestBytes": 28269,
+    "totalResponseBytes": 0,
+    "totalLlmCalls": 0,
+    "totalInputTokens": 0,
+    "totalOutputTokens": 0,
+    "totalCacheReadTokens": 0,
+    "totalCacheWriteTokens": 0,
+    "totalEstimatedCost": 0,
+    "avgCostPerTurn": 0,
+    "avgLlmCallsPerTurn": 0
+  },
+  "checkpoints": [
+    {
+      "turn": 5,
+      "latencyMs": 310313,
+      "purpose": null,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "resolutionStatus": null,
+      "displayedCandidateCount": 0,
+      "sessionId": null,
+      "currentMode": null,
+      "cumulativeAvgLatencyMs": 309861,
+      "turnLlmCalls": 0,
+      "turnInputTokens": 0,
+      "turnOutputTokens": 0,
+      "turnCacheReadTokens": 0,
+      "turnCacheWriteTokens": 0,
+      "turnEstimatedCost": 0,
+      "cumulativeInputTokens": 0,
+      "cumulativeOutputTokens": 0,
+      "cumulativeLlmCalls": 0,
+      "cumulativeEstimatedCost": 0
+    },
+    {
+      "turn": 10,
+      "latencyMs": 306542,
+      "purpose": null,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "resolutionStatus": null,
+      "displayedCandidateCount": 0,
+      "sessionId": null,
+      "currentMode": null,
+      "cumulativeAvgLatencyMs": 309665,
+      "turnLlmCalls": 0,
+      "turnInputTokens": 0,
+      "turnOutputTokens": 0,
+      "turnCacheReadTokens": 0,
+      "turnCacheWriteTokens": 0,
+      "turnEstimatedCost": 0,
+      "cumulativeInputTokens": 0,
+      "cumulativeOutputTokens": 0,
+      "cumulativeLlmCalls": 0,
+      "cumulativeEstimatedCost": 0
+    },
+    {
+      "turn": 15,
+      "latencyMs": 311346,
+      "purpose": null,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "resolutionStatus": null,
+      "displayedCandidateCount": 0,
+      "sessionId": null,
+      "currentMode": null,
+      "cumulativeAvgLatencyMs": 309174,
+      "turnLlmCalls": 0,
+      "turnInputTokens": 0,
+      "turnOutputTokens": 0,
+      "turnCacheReadTokens": 0,
+      "turnCacheWriteTokens": 0,
+      "turnEstimatedCost": 0,
+      "cumulativeInputTokens": 0,
+      "cumulativeOutputTokens": 0,
+      "cumulativeLlmCalls": 0,
+      "cumulativeEstimatedCost": 0
+    },
+    {
+      "turn": 20,
+      "latencyMs": 308803,
+      "purpose": null,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "resolutionStatus": null,
+      "displayedCandidateCount": 0,
+      "sessionId": null,
+      "currentMode": null,
+      "cumulativeAvgLatencyMs": 309057,
+      "turnLlmCalls": 0,
+      "turnInputTokens": 0,
+      "turnOutputTokens": 0,
+      "turnCacheReadTokens": 0,
+      "turnCacheWriteTokens": 0,
+      "turnEstimatedCost": 0,
+      "cumulativeInputTokens": 0,
+      "cumulativeOutputTokens": 0,
+      "cumulativeLlmCalls": 0,
+      "cumulativeEstimatedCost": 0
+    },
+    {
+      "turn": 30,
+      "latencyMs": 310612,
+      "purpose": null,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "resolutionStatus": null,
+      "displayedCandidateCount": 0,
+      "sessionId": null,
+      "currentMode": null,
+      "cumulativeAvgLatencyMs": 309608,
+      "turnLlmCalls": 0,
+      "turnInputTokens": 0,
+      "turnOutputTokens": 0,
+      "turnCacheReadTokens": 0,
+      "turnCacheWriteTokens": 0,
+      "turnEstimatedCost": 0,
+      "cumulativeInputTokens": 0,
+      "cumulativeOutputTokens": 0,
+      "cumulativeLlmCalls": 0,
+      "cumulativeEstimatedCost": 0
+    }
+  ]
+}

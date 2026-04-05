@@ -1,0 +1,96 @@
+{
+  "id": "TC-135",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-04-01T01:22:45.689Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (3499개), Ball (2066개), Radius (980개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (3499개)",
+          "Ball (2066개)",
+          "Radius (980개)",
+          "Roughing (286개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (7124개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-04-01T01:22:45.689Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "Alu-power 브랜드에서 스퀘어 제품 추천해줘",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-04-01T01:23:12.055Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "안녕하세요! ALU-POWER 브랜드의 스퀘어 엔드밀을 찾고 계시는군요.\n\n현재 ALU-POWER 스퀘어 엔드밀은 총 **301개 제품**이 매칭됩니다. 비철금속(알루미늄) 가공에 최적화된 전문 라인업입니다.\n\n더 정확한 추천을 위해 **날 수(Flute) 선호**를 여쭤보겠습니다:\n\n- **2날**: 칩 배출이 우수해 깊은 홈 가공이나 연질 알루미늄에 유리\n- **3날**: 마무리 품질과 생산성의 균형, 범용적 선택\n- **4날 이상**: 고속 가공, 정밀 마무리에 적합\n\n현재 후보 제품 중:\n- 2날: E5E48 시리즈 (φ10~20mm) — 칩 배출 중시 설계\n- 3날: E5E49/E5E50 시리즈 (φ16~20mm) — 범용 고효율 설계\n\n날 수 선호가 있으신가요? 혹은 **\"상관없음\"**을 선택하시면 현재 조건에서 종합 추천해드리겠습니다.",
+        "isLoading": false,
+        "chips": [
+          "2날 (167개)",
+          "3날 (105개)",
+          "1날 (29개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (301개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-04-01T01:23:12.055Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: 2날 (167개), 3날 (105개), 1날 (29개), 상관없음, ⟵ 이전 단계, 📋 지금 바로 제품 보기 (301개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "2날 (167개)",
+      "3날 (105개)",
+      "1날 (29개)",
+      "상관없음",
+      "⟵ 이전 단계",
+      "📋 지금 바로 제품 보기 (301개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-04-01T01:26:06.891Z",
+    "sessionId": "ses-1775006602140",
+    "turnNumber": 2
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

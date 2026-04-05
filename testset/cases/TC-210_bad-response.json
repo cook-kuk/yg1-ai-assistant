@@ -1,0 +1,76 @@
+{
+  "id": "TC-210",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "인서트는 어떤 제품이 있어?"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Facing\n🛠️ 가공 방식: Turning\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T08:52:25.969Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요.",
+        "isLoading": false,
+        "chips": [
+          "처음부터 다시",
+          "📋 지금 바로 제품 보기 (0개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-30T08:52:25.969Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "인서트는 어떤 제품이 있어?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T08:52:51.583Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "YG-1의 인서트 제품군은 선삭, 밀링, 드릴링 등 다양한 가공에 최적화된 라인업을 보유하고 있습니다.\n\n**주요 인서트 제품:**\n- **선삭 인서트**: CNMG, DNMG, VNMG, WNMG 등 ISO 표준 형상으로 탄소강부터 스테인리스, 주철까지 폭넓게 대응\n- **밀링 인서트**: 정면 밀링(Facing)과 숄더 밀링용 인서트로 고능률 가공 지원\n- **드릴링/보링 인서트**: 구멍 가공 및 확대용 교환식 팁\n- **나사가공 인서트**: 내·외경 나사산 가공 전용\n\n현재 말씀하신 **탄소강(P그룹) Facing 가공**이라면 **밀링 인서트**나 **선삭 인서트(정면 선삭)**가 적합합니다. 구체적인 직경, 절입 깊이, RPM/이송 조건을 알려주시면 더 정확한 제품을 추천드릴 수 있습니다.\n\n📌 **웹 검색 참고 (내부 DB 외부 정보)**: 일반적으로 인서트는 카바이드(초경) 재질 기반이며, CNMG/DNMG 등은 선삭용, 밀링 인서트는 APKT/APMT 등의 코드로 분류됩니다.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": "bad",
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T08:52:51.583Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "YG-1의 인서트 제품군은 선삭, 밀링, 드릴링 등 다양한 가공에 최적화된 라인업을 보유하고 있습니다.\n\n**주요 인서트 제품:**\n- **선삭 인서트**: CNMG, DNMG, VNMG, WNMG 등 ISO 표준 형상으로 탄소강부터 스테인리스, 주철까지 폭넓게 대응\n- **밀링 인서트**: 정면 밀링(Facing)과 숄더 밀링용 인서트로 고능률 가공 지원\n- **드릴링/보링 인서트**: 구멍 가공 및 확대용 교환식 팁\n- **나사가공 인서트**: 내·외경 나사산 가공 전용\n\n현재 말씀하신 **탄소강(P그룹) Facing 가공**이라면 **밀링 인서트**나 **선삭 인서트(정면 선삭)**가 적합합니다. 구체적인 직경, 절입 깊이, RPM/이송 조건을 알려주시면 더 정확한 제품을 추천드릴 수 있습니다.\n\n📌 **웹 검색 참고 (내부 DB 외부 정보)**: 일반적으로 인서트는 카바이드(초경) 재질 기반이며, CNMG/DNMG 등은 선삭용, 밀링 인서트는 APKT/APMT 등의 코드로 분류됩니다."
+    ],
+    "chips": []
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-30T08:54:26.400Z",
+    "sessionId": "ses-1774860745928",
+    "turnNumber": 2
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

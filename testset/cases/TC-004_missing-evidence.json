@@ -1,0 +1,39 @@
+{
+  "id": "TC-004",
+  "source": "general",
+  "severity": "major",
+  "category": "missing-evidence",
+  "input": {
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Trochoidal\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+    ],
+    "fullConversation": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Trochoidal\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      },
+      {
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Radius (228개), Square (206개), Ball (86개) 등이 있습니다."
+      }
+    ]
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "공구 세부 타입이 중요한가요? Radius (228개), Square (206개), Ball (86개) 등이 있습니다."
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "End Mills 선택 기본 조건 - No. of Flute ( 2F, 4F 등 ) 및 형상( Square, Coner Radius 등) 추가 요망",
+    "tags": [
+      "missing-evidence"
+    ],
+    "author": "최광호",
+    "department": "해외영업본부",
+    "timestamp": "2026-04-02T00:38:14.004Z",
+    "sessionId": "ses-1775089870376"
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

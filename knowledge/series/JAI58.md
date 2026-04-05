@@ -1,0 +1,36 @@
+# ALU-POWER — JAI58
+**제품명**: ALU-POWER HPC END MILLS
+
+## 기본 사양
+- 공구 타입: End Mill
+- 서브타입: HPC
+- 날 수: 3
+- 코팅: DLC
+
+## 대응 ISO 그룹
+N
+
+## 대상 피삭재
+- Aluminum-wrought alloy
+- Aluminum-cast, alloyed
+- Copper and Copper Alloys (Bronze / Brass)
+- Non Metallic Materials (Duroplastic)
+
+## 특징
+- 3 FLUTE - PROFILING
+- Recommended cutting conditions page
+- Maximum recommended depth shown
+- Finish cuts typically require reduced feed rates and/or higher spindle speed, with radial width of 2% x D or less
+- Reduce speed and feed recommendations for materials harder than listed
+- Reduce cut depth and feed by 50% for long-flute or long-reach tools
+- Recommendations are based on ideal conditions and should be adjusted for less rigid conditions
+
+## 용도
+- Profiling
+- Side milling
+
+## 상세 정보 (원문 요약)
+- [page_1582] ALU-POWER HPC END MILLS의 추천 절삭조건 페이지로, JAI58/JAI59 시리즈는 DLC 코팅, E5158/E5159 시리즈는 Uncoated로 표기되어 있다. 3날 프로파일링 조건에 대해 알루미늄, 구리/황동, 비금속(듀로플라스틱) 소재별 SFM, IPT, RPM, IPM 값이 제시되어 있다. 하단에는 절삭조건이 목표값이며, 장공구/장돌출 공구는 절삭깊이와 이송을 50% 줄이라는 등의 주의사항과 계산 예시가 포함되어 있다.
+
+---
+출처: yu25_split | 페이지: page_1582

@@ -1,0 +1,223 @@
+# 4G MILL — SEME64
+**제품명**: PLAIN SHANK SEME64 SERIES / CARBIDE, 4 FLUTE MULTIPLE HELIX CORNER RADIUS with EXTENDED NECK
+
+## 기본 사양
+- 공구 타입: End Mill
+- 서브타입: Corner Radius / Extended Neck / Multiple Helix
+- 날 수: 4
+- 공구 재질: CARBIDE
+- 코팅: New coating
+- 헬릭스각: Multiple Helix
+- 생크: Plain Shank
+- 직경 범위: D2.0~D2.5
+- 깊이비: 1.0D
+
+## 대응 ISO 그룹
+P, M, K, N, S, H
+
+## 대상 피삭재
+- Prehardened steel
+- Tool steel
+- High alloyed steel
+- Stainless steel
+- Cast iron
+- Aluminum
+- Copper alloys
+- Titanium alloys
+- Hardened steel
+- Non-alloy steel
+- Low alloy steel
+- Grey cast iron
+- Nodular cast iron
+- Malleable cast iron
+- Aluminum-wrought alloy
+- Aluminum-cast alloyed
+- Copper and Copper Alloys
+- Heat Resistant Super Alloys
+- Titanium Alloys
+- Chilled Cast Iron
+- Hardened Cast Iron
+- Non Metallic Materials
+- High alloy steel
+- Copper and copper alloys
+- Heat resistant super alloys
+- Prehardened steel up to HRc55
+- Prehardened steel up to HRC55
+- Chilled cast iron
+- Hardened cast iron
+- Prehardened steels up to HRC55
+- 합금강
+- 탄소강
+- 프리하든강
+- 고경도강
+- プリハードン鋼
+- HRC55以下
+- Pre-hardened steel HRC55 or below
+- 一般構造用鋼
+- 炭素鋼
+- 低合金鋼
+- 高合金鋼
+- ステンレス鋼
+- ねずみ鋳鉄
+- ノジュラー鋳鉄
+- マリアブル鋳鉄
+- アルミ合金
+- 展伸材
+- 鋳物
+- 銅
+- 銅合金
+- 青銅
+- 真鍮
+- 非鉄金属
+- 耐熱合金
+- チタン合金
+- 焼き入れ鋼
+- チルド鋳鉄
+- 焼き入れ鋳鉄
+- P
+- M
+- K
+- N
+- S
+- H
+- HRC55以下のプリハードン鋼
+- 一般構造用鋼、炭素鋼
+- 高合金鋼, 工具鋼
+- ねずみ鋳鉄, ノジュラー鋳鉄, マリアブル鋳鉄
+- Aluminum-cast alloy
+- tool steel
+
+## 특징
+- New coating and tool geometry applied resulting outstanding cutting abilities and wear resistance.
+- Excellent performance when cutting prehardened steels, up to HRC55 which are used for molds & dies.
+- Multiple Helix for 3.0mm and over 3.0mm diameter endmills minimizing vibration and decreasing wear in cutting.
+- New coating and tool geometry applied resulting outstanding cutting abilities and wear resistance
+- Excellent performance when cutting prehardened steels, up to HRC55, used for molds & dies
+- Multiple helix for 3.0mm and over 3.0mm diameter endmills minimizing vibration and decreasing wear in cutting
+- 경질강 및 금형가공용에 적합
+- 4 flute corner radius end mill
+- side cutting application
+- side cutting
+- 4 flute corner radius tool
+- Side cutting application
+- Ae cutting width diagram shown with 1.0D
+- 4날 코너 라디우스
+- Side cutting용 추천 절삭조건
+- Excellent performance when cutting prehardened steels up to HRC55 used for molds & dies
+- Multiple Helix for 3.0mm and over diameter endmills minimizing vibration and decreasing wear in cutting
+- Extended neck design
+- Corner radius options available
+- Excellent performance when cutting prehardened steels up to HRc55 used for molds & dies
+- Multiple Helix for 3.0mm and over diameter endmills minimizing vibration and decreasing wear
+- Plain shank version available
+- Excellent performance when cutting prehardened steels, up to HRc55, used for molds & dies
+- Multiple Helix for 3.0mm and over 3.0mm diameter endmills minimizing vibration and decreasing wear
+- Excellent performance when cutting prehardened steels up to HRC55 for molds & dies
+- Excellent performance when cutting prehardened steels up to HRc55
+- Stock items marked with ★
+- Corner radius tolerance ±0.02 mm
+- Mill diameter tolerance 0 ~ -0.03 mm
+- Shank diameter tolerance h5
+- Excellent performance when cutting prehardened steels up to HRc55 for molds & dies
+- Corner radius tolerance ±0.02
+- Mill diameter tolerance 0 ~ -0.03
+- Side cutting
+- 4 flute
+- corner radius
+- Side cutting recommended cutting conditions provided
+- Multiple Helix for 3.0mm and over 3.0mm diameter endmills minimizing vibration and decreasing wear in cutting
+- 4 flute corner radius
+- 新プレミアムコーティング、先進刃形により突出した切削性能と耐摩耗性
+- 金型用HRC55以下のプリハードン鋼の加工に最適
+- 刃径3mm以上は不等リード。切削振動、工具磨耗を抑制
+- R公差 ±0.02
+- 刃径公差 0 ~ -0.03
+- シャンク径公差 h5
+- 4刃
+- コーナーラジア
+- 側面切削
+- 側面切削用の推奨切削条件
+- 새로운 코팅과 새로운 공구 형상으로 뛰어난 절삭능력과 내마모성
+- 금형 및 다이에 사용되는 HRC55까지의 프리하든강 가공에 우수한 성능
+- 3.0mm 이상은 Multiple Helix 적용으로 절삭 시 진동을 최소화하고 공구 마모를 감소
+- 새로운 코팅과 새로운 공구 형상으로 우수한 절삭성 및 내마모성
+- 프리하든강 가공에 우수하며, 금형 및 다이용 HRC55까지 대응
+- 3.0mm 이상 직경에서는 Multiple Helix 적용으로 절삭 시 진동을 최소화하고 공구 마모를 감소
+- new coating and new tool geometry provide outstanding cutting ability and wear resistance
+- excellent performance when cutting prehardened steels up to HRC55 used for molds & dies
+- multiple helix for 3.0mm and over diameter end mills minimizes vibration and decreases tool wear
+- corner radius tolerance R ±0.02
+- Side cutting recommended conditions
+- Recommended cutting conditions provided by ISO material group and diameter
+
+## 용도
+- Molds & dies
+- Cutting prehardened steels up to HRC55
+- Prehardened steels up to HRC55
+- General machining of steels and cast irons per ISO recommendation
+- Side cutting
+- side cutting
+- Cutting prehardened steels up to HRc55
+- Cutting prehardened steels
+- General machining of high hardness materials
+- General high-wear milling applications
+- 金型用HRC55以下のプリハードン鋼の加工
+- 金型用HRC55以下のプリハードン鋼加工
+- 金型用プリハードン鋼の加工
+- 側面切削
+- molds & dies
+- prehardened steels up to HRC55
+- 금형 및 다이 가공
+- 프리하든강 절삭
+- cutting prehardened steels
+
+## 선정 가이드
+- Recommended tool holders: END MILL HOLDER for flat shank; HYDRAULIC CHUCK SHRINK FIT HOLDER, POWER MILLING CHUCK, ER COLLET CHUCK, SK SLIM CHUCK for plain shank. ◎ = Excellent, ○ = Good.
+- Recommended tool holders: END MILL HOLDER for Flat Shank; POWER MILLING CHUCK, ER COLLET CHUCK, and SK SLIM CHUCK for Plain Shank. Stock items are marked with ★. Tolerances: corner radius ±0.02 mm, mill dia. 0 ~ -0.03 mm, shank dia. h5.
+- Recommended tool holders: END MILL HOLDER, ER COLLET CHUCK, SK SLIM CHUCK for Flat Shank; HYDRAULIC CHUCK, SHRINK FIT HOLDER, POWER MILLING CHUCK for Plain Shank. Stock items are marked with ★.
+- ◎:最適 ○:適. 技術データでは P/M/K/N/S/H 各ISO材への適用表が掲載されているが、主用途は金型用HRC55以下のプリハードン鋼。
+- ◎: 最適、○: 適。共通の被削材別推奨表では、P/M/K/N/S/H各ISO材に対する適用可否が示されている。
+- ◎ : Excellent, ○ : Good. Recommended materials are shown by ISO group; the page indicates broad applicability across P/M/K/N/S/H material families, with strongest emphasis on hardened/prehardened steels.
+
+## 상세 정보 (원문 요약)
+- [page_1042] PLAIN SHANK SEME64 SERIES는 4날 카바이드 코너 R 엔드밀로, 신코팅과 공구 형상 적용으로 절삭성과 내마모성을 향상시킨 제품이다. Ø3.0mm 이상에서는 불등(멀티) 헬리스를 적용해 진동을 줄이고 절삭 마모를 감소시킨다. 프리하든강(HRC55 이하) 및 금형·다이 가공에 우수하며, 페이지 하단에는 ISO 재질별 추천도와 치수 공차가 함께 수록되어 있다.
+- [page_1050] PLAIN SHANK SEME64 SERIES는 4날 카바이드 불등나선 코너R 엔드밀(연장 넥) 시리즈이다. 신코팅과 공구 형상으로 절삭성과 내마모성을 높였으며, 금형·다이용 예경화강(HRC55 이하) 가공에 우수하다. Ø3.0mm 이상은 불등나선을 적용해 진동을 줄이고 마모를 감소시킨다. 규격은 D12, D16, D20의 일반형과 롱형이 있으며, 코너 R 공차는 ±0.02, 샹크 공차는 h5이다.
+- [page_1119] 4G MILL RECOMMENDED CUTTING CONDITIONS 페이지로, SEME64 SERIES 4 FLUTE CORNER RADIUS - SIDE CUTTING의 추천 절삭조건을 수록하고 있다. 본 페이지는 절삭조건 표 중심이며, ISO P/K/H 재질별로 Non-alloy steel, Low alloy steel, High alloyed steel, Tool steel, Grey cast iron, Hardened steel 등의 가공 조건을 제시한다. 상단에는 Vc, fz, RPM, FEED, Ae 및 LBS(Length Below Shank) 정의가 함께 표시된다.
+- [page_1120] 4G MILL RECOMMENDED CUTTING CONDITIONS 페이지로, SEME64 SERIES 4 FLUTE CORNER RADIUS - SIDE CUTTING의 절삭조건을 제시한다. 본문은 Vc, fz, RPM, FEED, Ae 등의 수치표로 구성되어 있으며, 다양한 직경과 LBS 조건별 권장값이 나열되어 있다. 제품의 기본 정보로는 4날 코너 라디우스 엔드밀이며 side cutting 용도임을 확인할 수 있다.
+- [page_1121] SEME64 SERIES 4 FLUTE CORNER RADIUS - SIDE CUTTING / 4刃 圆鼻- 侧铣削 페이지입니다. 절삭조건 표가 중심이며, Vc, fz, RPM, FEED, Ae 값이 ISO P, K, H 재질군에 대해 제시되어 있습니다. 상단 헤더에서만 시리즈명과 4날 코너 라디우스, 측면 절삭 용도를 확인할 수 있습니다.
+- [page_1122] SEME64 SERIES 4 FLUTE CORNER RADIUS - SIDE CUTTING의 추천 절삭조건 페이지이다. 상단에 Vc, fz, RPM, FEED, Ae, LBS(Length Below Shank) 정의와 함께 4.0~20.0 직경에 대한 절삭조건 표가 수록되어 있다. 하단에는 1.0D와 Ae 절삭폭을 나타내는 도식이 있다.
+- [page_0191] SEME64 시리즈는 4날 코너 라디우스 엔드밀로, Side Cutting 용도의 추천 절삭조건이 제시되어 있다. ISO P/K/H 계열 소재에 대해 비합금강, 저합금강, 고합금강/공구강, 주철류, 경화강 등의 절삭조건이 표로 정리되어 있다. 페이지는 절삭조건 중심이며, 상단 제목 외의 제품 사양 정보는 거의 없다.
+- [page_0192] 4G MILL RECOMMENDED CUTTING CONDITIONS 페이지로, SEME64 SERIES 4 FLUTE CORNER RADIUS - SIDE CUTTING의 추천 절삭조건을 보여준다. 본문은 ISO P/K/H 재질별로 Vc, fz, RPM, FEED, Ae 값을 표로 제시하며, LBS와 직경(Ø) 조합에 따른 조건을 나열한다. 이 페이지는 제품 소개가 아니라 절삭조건 페이지이므로, 제품 지식은 상단 헤더 수준만 포함된다.
+- [page_1252] PLAIN SHANK SEME64 SERIES는 CARBIDE 4날 멀티 헬릭스 코너 라디우스 엔드밀로, 연장 넥(extended neck) 구조를 가진다. 신규 코팅과 공구 형상 적용으로 절삭성과 내마모성이 향상되었으며, 금형·다이용 예경화강(HRC55까지) 가공에 우수하다. Ø3.0mm 이상에서는 Multiple Helix를 적용해 진동을 줄이고 마모를 감소시킨다. 페이지에는 D1.5, D2.0의 치수표와 추천 툴홀더, 재질 적용표가 함께 수록되어 있다.
+- [page_1253] CARBIDE, 4 FLUTE MULTIPLE HELIX CORNER RADIUS with EXTENDED NECK 4G MILL END MILLS | PLAIN SHANK SEME64 SERIES. 신개발 코팅과 공구 형상으로 우수한 절삭성과 내마모성을 가지며, 금형·다이용 예경화강 HRc55까지 우수한 성능을 발휘한다. Ø3.0mm 이상에서는 멀티 헬릭스(M-Helix)를 적용해 진동을 억제하고 공구 마모를 줄인다. D<ø3는 30° HELIX이며, 권장 홀더는 END MILL HOLDER(Flat Shank) 및 HYDRAULIC CHUCK, SHRINK FIT HOLDER, POWER MILLING CHUCK, ER COLLET CHUCK, SK SLIM CHUCK(Plain Shank)이다.
+- [page_1257] SEME64 시리즈는 4G MILL의 plain shank 초경 4날 멀티 헬릭스 코너 R 엔드밀로, extended neck 형상과 새로운 코팅/공구 형상을 적용한 제품이다. 3.0mm 이상에서 멀티 헬릭스로 진동을 줄이고 마모를 감소시키며, 금형·다이용 예경화강 HRc55까지 우수한 절삭 성능을 제공한다. 페이지에는 D3.0 기준 R0.3/R0.5/R1.0 및 다양한 neck length의 규격과 추천 홀더, 적용 재질 표가 함께 수록되어 있다.
+- [page_1258] PLAIN SHANK SEME64 SERIES는 CARBIDE 4날 멀티 헬릭스 코너 R 엔드밀(EXTENDED NECK)이다. 신규 코팅과 공구 형상으로 절삭성과 내마모성을 높였으며, 금형·다이용 예경화강 HRC55까지 우수한 성능을 보인다. 3.0mm 이상에서는 M-Helix로 진동을 억제하고 공구 마모를 줄인다.
+- [page_1259] CARBIDE, 4 FLUTE MULTIPLE HELIX CORNER RADIUS with EXTENDED NECK 시리즈로, 새로운 코팅과 공구 형상 적용으로 절삭성과 내마모성을 향상시킨 엔드밀이다. 3.0mm 이상에서는 멀티 헬릭스(M-Helix)를 적용해 진동을 줄이고 공구 마모를 감소시키며, 금형·다이용 예경화강(HRc55까지) 가공에 우수하다. 기술 치수에는 R0.2/R0.3/R0.5/R1.0와 다양한 L3, L2 조합이 제시되어 있고, 추천 홀더와 ISO P/M/K/N/S/H 적용성이 함께 수록되어 있다.
+- [page_1261] 4G MILL END MILLS의 CARBIDE, 4 FLUTE MULTIPLE HELIX CORNER RADIUS with EXTENDED NECK 시리즈 페이지이다. D<Ø3는 30° HELIX이며, Ø3.0 이상은 Multiple Helix(M-Helix)로 진동을 억제하고 마모를 줄인다고 설명한다. 프리하든강 HRc55까지의 금형·다이 가공에 우수하며, 추천 홀더와 치수 공차, 그리고 D6.0~D10.0의 제품 규격이 수록되어 있다.
+- [page_1331] SEME64 시리즈는 4날 코너 라디우스 엔드밀로, 사이드 커팅용 추천 절삭조건이 수록되어 있다. ISO P, K, H 계열 소재에 대해 비합금강, 저합금강, 고합금강/공구강, 회주철, 구상흑연주철, 가단주철, 경화강, 칠드 주철, 경화 주철의 절삭조건이 제시된다. 본 페이지는 제품 소개가 아니라 절삭조건 표 페이지이며, 숫자 조건은 제외하고 시리즈 및 적용 소재 정보만 포함한다.
+- [page_1332] RECOMMENDED CUTTING CONDITIONS / EMPFOHLENE SCHNEIDPARAMETER 페이지로, SEME64 SERIES 4 FLUTE CORNER RADIUS - SIDE CUTTING의 절삭조건 표가 수록되어 있다. 표에는 Vc, fz, RPM, FEED, Ae와 LBS(Length Below Shank) 값이 지름/VDI 조건별로 제시되어 있으며, 1.2부터 41까지의 조건 구간이 보인다. 하단에는 1.0D와 Ae의 공구 날물림(engagement) 도해가 있다.
+- [page_1333] SEME64 SERIES는 4G MILL END MILLS의 4날 코너 라디우스 측면 절삭용 시리즈입니다. 이 페이지는 추천 절삭조건 표로, ISO P/K/H 재질에 대해 Vc, fz, RPM, FEED, Ae 값을 LBS와 VDI 3323 조건별로 제시합니다. 상단 헤더 외의 정량 절삭조건은 추출하지 않았습니다.
+- [page_1334] SEME64 SERIES 4 FLUTE CORNER RADIUS - SIDE CUTTING의 추천 절삭조건 페이지이다. 4날 코너 라디우스 엔드밀의 사이드 커팅 조건이 제시되어 있으며, Vc, fz, RPM, FEED, Ae 값이 공구 직경과 LBS에 따라 표로 정리되어 있다. 상단에는 절삭조건 기호 설명이 있고, 하단에는 1.0D와 Ae를 나타내는 도식이 있다.
+- [page_0544] CARBIDE, 4 SCHNEIDEN MEHRSPIRAL ECKENRADIUS mit ABGESETZTEM SCHAFTTETL. Neue Beschichtung und neue Werkzeuggeometrie sorgen für hervorragende Schnittleistung und Verschleißfestigkeit. Hervorragende Leistung bei der Zerspanung von vorvergüteten Stählen bis HRC55, welche im Werkzeug- und Formenbau Verwendung finden.
+- [page_0580] SEME64 SERIES는 4날 코너 라디우스 엔드밀로, SIDE CUTTING용 추천 절삭조건 페이지이다. ISO P, K, H 계열 소재에 대해 비합금강, 저합금강, 고합금강/공구강, 주철류, 경화강 등의 절삭조건이 제시되어 있다. 상단에는 Vc, fz, RPM, FEED, Ap, Ae 및 LBS 정의와 함께 1.0D, 1.2D, 1.5D, 2.0D 조건표가 배치되어 있다.
+- [page_0581] SEME64 시리즈의 추천 절삭조건 페이지로, 4날 코너 라디우스 엔드밀의 사이드 커팅 조건을 제시한다. 상단 헤더에 4G MILL END MILLS - RECOMMENDED CUTTING CONDITIONS와 SEME64 SERIES - 4 FLUTE CORNER RADIUS - SIDE CUTTING이 표시되어 있다. 본문은 재질군별(P, K, H 등) Vc, fz, RPM, FEED, Ae 절삭조건 표로 구성되어 있으며, 제품 소개 정보는 헤더 수준만 포함된다.
+- [page_0283] 추천 절삭조건 4G MILLS 페이지로, 4날 롱넥 래디우스 / 4날 테이퍼 넥 래디우스 SEME64 / SEME65 시리즈의 절삭조건을 제시한다. ISO P와 H 소재에 대해 경도별 Vc, Fz, RPM, Feed 값이 표로 정리되어 있으며, Ap는 1.0D, Ae는 0.02D로 안내된다.
+- [page_0106] 超硬, 4刃, ロングネック、コーナーラジアスの4G MILL SEME64シリーズ。新プレミアムコーティングと先進刃形により切削性能と耐摩耗性を高め、金型用HRC55以下のプリハードン鋼加工に最適です。刃径3mm以上は不等リードで、切削振動と工具摩耗を抑制します。
+- [page_0107] 超硬・4刃・ロングネック・コーナーラジアスのSEME64シリーズ。円筒シャンクで、新プレミアムコーティングと先進刃形により切削性能と耐摩耗性を向上し、金型用HRC55以下のプリハードン鋼加工に最適。刃径3mm以上は不等リードで、切削振動と工具磨耗を抑制する。
+- [page_0108] 超硬 4刃 ロングネック コーナーラジアスのSEME64シリーズです。新プレミアムコーティングと先進刃形により切削性能と耐摩耗性を高め、金型用HRC55以下のプリハードン鋼加工に最適です。刃径3mm以上は不等リードで、切削振動と工具磨耗を抑制します。掲載寸法はD2.0とD2.5で、R0.1〜R0.5、首下長や全長のバリエーションがあります。
+- [page_0109] 超硬4刃のロングネック・コーナーラジアスエンドミル「SEME64シリーズ」。新プレミアムコーティングと先進刃形で切削性能と耐摩耗性を向上し、金型用HRC55以下のプリハードン鋼加工に最適です。刃径3mm以上は不等リードで、切削振動と工具磨耗を抑制します。
+- [page_0110] SEME64シリーズは、4G MILLの超硬4刃ロングネック・コーナーラジアスエンドミルです。新プレミアムコーティングと先進刃形により切削性能と耐摩耗性を高め、刃径3mm以上は不等リードで振動と摩耗を抑制します。金型用HRC55以下のプリハードン鋼加工に最適で、ページ下部には被削材・推奨切削条件の適用表も掲載されています。
+- [page_0112] 超硬4刃ロングネック・コーナーラジアスのSEME64シリーズ。新プレミアムコーティングと先進刃形により、切削性能と耐摩耗性を向上させている。金型用HRC55以下のプリハードン鋼加工に最適で、刃径3mm以上は不等リード仕様。
+- [page_0145] SEME64 シリーズの推奨切削条件ページで、4刃・コーナーラジアのエンドミルによる側面切削条件が掲載されている。ISO P/K/H の各被削材に対して、Vc、fz、RPM、FEED、Ae の条件が首下長 LBS 別に示されている。
+- [page_0146] SEME64 シリーズの4刃コーナーラジアエンドミルについて、側面切削の推奨切削条件が掲載されています。ISO別にP、K、H材向けのVc、fz、RPM、FEED、Aeが示されており、刃径はØ2.5からØ20.0までの条件が並んでいます。ページ下部には側面切削時のAeと1.0Dの模式図があり、工具のかみ込み条件を示しています。
+- [page_1178] PLAIN SHANK SEME64 SERIES는 CARBIDE 4날 롱넥 코너 R 엔드밀이다. 새로운 코팅과 새로운 공구 형상으로 절삭능력과 내마모성이 뛰어나며, 금형·다이용 프리하든강 HRC55까지 우수한 성능을 보인다. D1 3.0mm 미만은 30° 헬릭스, 3.0mm 이상은 Multiple Helix 적용으로 진동과 공구 마모를 줄인다.
+- [page_1180] PLAIN SHANK SEME64 SERIES는 CARBIDE 4날 롱넥 코너 R 엔드밀이며 Y Coating과 27°/30° 헬릭스를 적용한 제품이다. 새로운 코팅과 공구 형상으로 절삭성 및 내마모성이 우수하고, 프리하든강 및 금형·다이 가공에서 HRC55까지 대응한다. 3.0mm 이상에서는 Multiple Helix로 진동과 공구 마모를 줄인다.
+- [page_1184] PLAIN SHANK SEME64 SERIES는 CARBIDE 4날 롱넥 코너 라디우스 엔드밀이다. 새로운 코팅과 새로운 공구 형상으로 절삭성 및 내마모성이 우수하며, 금형·다이용 예경화강(HRC55까지) 가공에 적합하다. 3.0mm 이상에서는 Multiple Helix를 적용하여 절삭 시 진동을 줄이고 공구 마모를 감소시킨다.
+- [page_1296] SEME64 시리즈는 4G MILL END MILLS의 4날 코너 라디우스 엔드밀로, SIDE CUTTING용 추천 절삭조건이 제시된 페이지이다. ISO P/K/H 계열 소재에 대해 직경별 SFM, IPT, RPM, IPM, Ae 값이 표로 수록되어 있다. 하단에는 1.0D 도해가 있으며 Ae 치수 방향을 표시한다.
+- [page_1297] 4G MILL END MILLS의 SEME64 시리즈 4날 코너 라디우스 공구에 대한 추천 절삭조건 페이지이다. Side cutting 조건으로 ISO P/K/H 계열 소재별 SFM(Vc), IPT(fz), RPM, IPM(FEED), Ae가 표로 제시되어 있다. 대상 소재는 비합금강, 저합금강, 고합금강/공구강, 회주철, 구상흑연주철, 가단주철, 경화강, 칠드주철, 경화주철이다.
+- [page_1298] SEME64 시리즈는 4날 코너 R 엔드밀로, side cutting용 추천 절삭조건을 제시한 페이지입니다. ISO P, K, H 재질에 대해 비합금강, 저합금강, 고합금강/공구강, 주철류, 경화강 등의 절삭조건이 표로 정리되어 있습니다. 페이지 상단에는 SFM(Vc), IPT(fz), RPM, IPM(Feed) 정의가 함께 표시되어 있습니다.
+- [page_1299] SEME64 SERIES 4 FLUTE CORNER RADIUS - SIDE CUTTING의 추천 절삭조건 페이지이다. ISO P, K, H 재질에 대해 직경별 SFM(Vc), IPT(fz), RPM, IPM(Feed), Ae 값이 표로 제시되어 있으며, 도면에는 1.0D 절입과 Ae 폭 가공이 표시되어 있다. 제품의 상세 사양이나 코팅 정보는 없고, 절삭조건 중심의 페이지이다.
+- [page_1300] SEME64 시리즈 4날 코너 라디우스 엔드밀의 측면절삭 추천 절삭조건 페이지이다. ISO P/K/H 재질군별로 Ø4~Ø20 범위의 절삭조건(SFM, IPT, RPM, IPM, Ae)이 표로 정리되어 있다. 이미지 설명에는 1.0D 절삭깊이와 Ae 방향의 측면절삭 개념이 표시되어 있다.
+
+---
+출처: ya22_split, ya25_oh_yg_catalog_asia_v2, ye24_split, ye25_oh_yg_catalog_europe_v2, yg1_milling_all, yj25_oh_yg_catalog_japan, yu25_split | 페이지: page_1042, page_1050, page_1119, page_1120, page_1121, page_1122, page_0191, page_0192, page_1252, page_1253, page_1257, page_1258, page_1259, page_1261, page_1331, page_1332, page_1333, page_1334, page_0544, page_0580, page_0581, page_0283, page_0106, page_0107, page_0108, page_0109, page_0110, page_0112, page_0145, page_0146, page_1178, page_1180, page_1184, page_1296, page_1297, page_1298, page_1299, page_1300

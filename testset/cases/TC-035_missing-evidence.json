@@ -1,0 +1,39 @@
+{
+  "id": "TC-035",
+  "source": "general",
+  "severity": "critical",
+  "category": "missing-evidence",
+  "input": {
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Plunging\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+    ],
+    "fullConversation": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Plunging\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      },
+      {
+        "role": "ai",
+        "text": "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요."
+      }
+    ]
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요."
+    ]
+  },
+  "feedback": {
+    "rating": 1,
+    "comment": "엔드밀로  Plunging 가공이 전혀 안되는 것이 아닌데, 당사 엔드밀은 전혀 안되는 것으로 오해할 소지가 있음.\n조금이라도 가능한 제품 추천해주고, 그에 맞는 추천 조건값을 제시하는 것이 좋은 답변이라고 생각됨",
+    "tags": [
+      "missing-evidence"
+    ],
+    "author": "최홍규",
+    "department": "국내영업부",
+    "timestamp": "2026-04-01T00:12:21.633Z",
+    "sessionId": "ses-1775001791713"
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

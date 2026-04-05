@@ -1,0 +1,184 @@
+{
+  "id": "TC-237",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "Radius (9353개)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 모름\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T05:47:56.001Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (14113개), Radius (9353개), Ball (6194개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (14113개)",
+          "Radius (9353개)",
+          "Ball (6194개)",
+          "Roughing (2097개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (33727개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-30T05:47:56.001Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "열처리된 SKD11 소재를 가공하려고해 YG-1에서 어떤 브랜드 제품을 선택하는 것이 좋을지?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T05:48:38.545Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "요청한 조건에 맞는 reference brand 데이터를 내부 DB에서 찾지 못했습니다.\n\n| 조건 | 값 |\n| --- | --- |\n| ISO | - |\n| 피삭재 | SKD11 |\n| HRC | 50~62 |\n\n[Reference: YG-1 내부 DB]\n\n다시 제품 추천으로 돌아갈게요. 공구 세부 타입이 중요한가요? Square (14113개), Radius (9353개), Ball (6194개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (14113개)",
+          "Radius (9353개)",
+          "Ball (6194개)",
+          "Roughing (2097개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (33727개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-30T05:48:38.545Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "SKD 11이면 어떤 소잰지 알거아니야.. 그 소재에 적합한 제품을 추천해줘",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T05:49:59.285Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (14113개), Radius (9353개), Ball (6194개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (14113개)",
+          "Radius (9353개)",
+          "Ball (6194개)",
+          "Roughing (2097개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (33727개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-30T05:49:59.285Z"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "text": "SKD11 소재의 경도를 감안해서 제품추천해줘",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T05:51:19.170Z"
+      },
+      {
+        "index": 7,
+        "role": "ai",
+        "text": "SKD11은 냉간금형강으로 HRc 55~62 정도의 고경도를 가지는 소재입니다. 현재 Hardened Steels(HRc45~55) 필터가 적용되어 있는데, SKD11의 실제 경도 범위를 고려하면 더 적합한 조건으로 조정이 필요합니다.\n\n[DB 데이터]\n현재 조회된 33,727개 제품 중 상위에 표시된 ALU-CUT 시리즈는 알루미늄 가공용으로, SKD11 같은 고경도 소재에는 적합하지 않습니다.\n\n[AI 보충 의견]\nSKD11(HRc 55~62) 가공에는 일반적으로 다음 특성의 제품이 필요합니다:\n- 고경도 소재 전용 코팅 (TiAlN, AlCrN 등)\n- 강성이 높은 형상 설계\n- 적절한 날수(2~4날)\n- 고강도 초�� 모재\n\n**추천 방향 제안:**\n1. Square End Mill (평엔드밀) - 일반적인 평면/홈 가공용\n2. Ball End Mill (볼엔드밀) - 곡면/금형 가공용\n3. Radius End Mill (라운드엔드밀) - 강성과 표면조도 모두 필요한 경우\n\n어떤 형상의 가공이 주 목적이신가요? 아니면 제가 SKD11에 가장 범용적으로 사용되는 Square 타입을 중심으로 추천해드릴까요?\n\n참고: 현재 필터는 HRc45~55인데, SKD11은 HRc 55~62이므로 더 높은 경도 범위 제품으로 조정하는 것이 정확합니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (14113개)",
+          "Radius (9353개)",
+          "Ball (6194개)",
+          "Roughing (2097개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (33727개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-30T05:51:19.170Z"
+      },
+      {
+        "index": 8,
+        "role": "user",
+        "text": "Radius (9353개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T05:52:43.522Z"
+      },
+      {
+        "index": 9,
+        "role": "ai",
+        "text": "현재 9370개 후보가 있습니다. 날 수(flute) 선호가 있으신가요?",
+        "isLoading": false,
+        "chips": [
+          "2날 (3502개)",
+          "4날 (3482개)",
+          "3날 (928개)",
+          "6날 (705개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (9370개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-30T05:52:43.522Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "현재 9370개 후보가 있습니다. 날 수(flute) 선호가 있으신가요?"
+    ],
+    "chips": [
+      "2날 (3502개)",
+      "4날 (3482개)",
+      "3날 (928개)",
+      "6날 (705개)",
+      "상관없음",
+      "⟵ 이전 단계",
+      "📋 지금 바로 제품 보기 (9370개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-30T05:53:30.848Z",
+    "sessionId": "ses-1774849977670",
+    "turnNumber": 5
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

@@ -1,0 +1,155 @@
+[
+  {
+    "id": "MT-001",
+    "author": "한웅희",
+    "issue": "SG9E7710015 제품 추천을 받았고 해당 제품의 사진이 제품 정보 옆에 있는데 제품과 제품 사진이 맞지 않습니다.\n(DB 문제일 가능성도 ",
+    "turns": [
+      {
+        "turn": 1,
+        "status": "OK",
+        "userMsg": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Mil",
+        "intent": "product_recommendation",
+        "prodCount": 10,
+        "prod1": "CG3S4510045",
+        "prod1Sub": "Square",
+        "prod1Diam": 10,
+        "prod1Brand": "3S MILL",
+        "chipCount": 3,
+        "textLen": 1226,
+        "textPreview": "**브랜드명:** 3S MILL | **제품코드:** CG3S4510045\n**브랜드명:** 3S MILL "
+      },
+      {
+        "turn": 2,
+        "status": "OK",
+        "userMsg": "가공 깊이 5mm입니다. 적당한 길이의 4날 스퀘어엔드밀로 추천해주세요",
+        "intent": "product_recommendation",
+        "prodCount": 10,
+        "prod1": "CG3S1305040",
+        "prod1Sub": "Square",
+        "prod1Diam": 5,
+        "prod1Brand": "3S MILL",
+        "chipCount": 3,
+        "textLen": 1316,
+        "textPreview": "**브랜드명:** 3S MILL | **제품코드:** CG3S1305040\n**브랜드명:** 3S MILL "
+      },
+      {
+        "turn": 3,
+        "status": "OK",
+        "userMsg": "스퀘어엔드밀로 추천해달라고 위에 말했는데요",
+        "intent": "product_recommendation",
+        "prodCount": 10,
+        "prod1": "CG3S600200114",
+        "prod1Sub": "Radius",
+        "prod1Diam": 2,
+        "prod1Brand": "3S MILL",
+        "chipCount": 3,
+        "textLen": 1269,
+        "textPreview": "**브랜드명:** 3S MILL | **제품코드:** CG3S600200114\n**브랜드명:** 3S MIL"
+      },
+      {
+        "turn": 4,
+        "status": "OK",
+        "userMsg": "날수는 최대한 많은 제품으로 추천해주세요",
+        "intent": "product_recommendation",
+        "prodCount": 10,
+        "prod1": "CG3S4510045",
+        "prod1Sub": "Square",
+        "prod1Diam": 10,
+        "prod1Brand": "3S MILL",
+        "chipCount": 3,
+        "textLen": 1407,
+        "textPreview": "**브랜드명:** 3S MILL | **제품코드:** CG3S4510045\n**브랜드명:** 3S MILL "
+      },
+      {
+        "turn": 5,
+        "status": "OK",
+        "userMsg": "Alloy Steels (721개)",
+        "intent": "product_recommendation",
+        "prodCount": 10,
+        "prod1": "XSEME75100",
+        "prod1Sub": "Square",
+        "prod1Diam": 10,
+        "prod1Brand": "i-SMART",
+        "chipCount": 3,
+        "textLen": 2172,
+        "textPreview": "**브랜드명:** i-SMART | **제품코드:** XSEME75100\n**브랜드명:** 4G MILL |"
+      }
+    ]
+  },
+  {
+    "id": "MT-002",
+    "author": "김명곤",
+    "issue": "검색결과상의 추천 제품 순서와 시스템상의 번호가 상이한 것으로 보입니다.\n추천 결과상의 #2,#3번을 비교해 달라고 하였으나 추천 결과상의 #1",
+    "turns": [
+      {
+        "turn": 1,
+        "status": "OK",
+        "userMsg": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Facing\n🛠️ 가공 방식",
+        "intent": "product_recommendation",
+        "prodCount": 6,
+        "prod1": "CG3S4706002",
+        "prod1Sub": "Radius",
+        "prod1Diam": 6,
+        "prod1Brand": "3S MILL",
+        "chipCount": 3,
+        "textLen": 1177,
+        "textPreview": "**브랜드명:** 3S MILL | **제품코드:** CG3S4706002\n**브랜드명:** 3S MILL "
+      },
+      {
+        "turn": 2,
+        "status": "OK",
+        "userMsg": "Square (151개)",
+        "intent": "product_recommendation",
+        "prodCount": 4,
+        "prod1": "CG3S4506060",
+        "prod1Sub": "Square",
+        "prod1Diam": 6,
+        "prod1Brand": "3S MILL",
+        "chipCount": 3,
+        "textLen": 1404,
+        "textPreview": "**브랜드명:** 3S MILL | **제품코드:** CG3S4506060\n**브랜드명:** 3S MILL "
+      },
+      {
+        "turn": 3,
+        "status": "ERROR",
+        "userMsg": "상관없음"
+      }
+    ]
+  },
+  {
+    "id": "MT-003",
+    "author": "한웅희",
+    "issue": "알루컷 시리즈에 대해서 간략하게 설명 요청하였는데 설명한 시리즈 중 없는 시리즈도 있고 다른 브랜드 제품을 잘못된 정보로 소개 함. -> 거짓말",
+    "turns": [
+      {
+        "turn": 1,
+        "status": "ERROR",
+        "userMsg": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: 모름\n🛠️ 가공 방식: Mi"
+      }
+    ]
+  },
+  {
+    "id": "MT-004",
+    "author": "김도성",
+    "issue": "고경도강용 제품 중 X5070을 추천해주는지 확인하기 위해 코팅색상인 파란색 제품이 있던데 추천해 달라고 했는데 그 이후 답변은 할루시네이션 답",
+    "turns": [
+      {
+        "turn": 1,
+        "status": "ERROR",
+        "userMsg": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Mi"
+      }
+    ]
+  },
+  {
+    "id": "MT-005",
+    "author": "김명곤",
+    "issue": "제품 추천 로직이 이전 단계의 값으로 검색이 진행되는 것으로 보입니다.\n단지 사용자가 직접 검색 내용을 입력할 때 문장의 내용에 따라 1단계 이",
+    "turns": [
+      {
+        "turn": 1,
+        "status": "ERROR",
+        "userMsg": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Facing\n🛠️ 가공 방식"
+      }
+    ]
+  }
+]

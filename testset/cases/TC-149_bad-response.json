@@ -1,0 +1,136 @@
+{
+  "id": "TC-149",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T07:12:35.694Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (843개), Radius (403개), Roughing (201개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (843개)",
+          "Radius (403개)",
+          "Roughing (201개)",
+          "Ball (91개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (1556개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-31T07:12:35.694Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "라핑제품으로 추천이 가능한가요??",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T07:13:19.624Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "현재 204개 후보가 있습니다. 날 수(flute) 선호가 있으신가요?",
+        "isLoading": false,
+        "chips": [
+          "4날 (119개)",
+          "3날 (76개)",
+          "5날 (9개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (204개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-31T07:13:19.624Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "상관없어요",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T07:14:01.389Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "선택하신 소재는 ISO M (스테인리스)군입니다. 세부 피삭재를 선택해주세요. (일부 제품은 세부 분류가 없어 \"상관없음\" 선택 시 전체 후보에서 추천합니다)",
+        "isLoading": false,
+        "chips": [
+          "Stainless Steels (204개)",
+          "Alloy Steels (187개)",
+          "Carbon Steels (184개)",
+          "Prehardened Steels (184개)",
+          "Cast Iron (134개)",
+          "Hardened Steels(HRc40~45) (96개)",
+          "Inconel (78개)",
+          "Titanium (75개)",
+          "Copper (72개)",
+          "Hardened Steels(HRc45~55) (16개)",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (204개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-31T07:14:01.389Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: Stainless Steels (204개), Alloy Steels (187개), Carbon Steels (184개), Prehardened Steels (184개), Cast Iron (134개), Hardened Steels(HRc40~45) (96개), Inconel (78개), Titanium (75개), Copper (72개), Hardened Steels(HRc45~55) (16개), ⟵ 이전 단계, 📋 지금 바로 제품 보기 (204개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "Stainless Steels (204개)",
+      "Alloy Steels (187개)",
+      "Carbon Steels (184개)",
+      "Prehardened Steels (184개)",
+      "Cast Iron (134개)",
+      "Hardened Steels(HRc40~45) (96개)",
+      "Inconel (78개)",
+      "Titanium (75개)",
+      "Copper (72개)",
+      "Hardened Steels(HRc45~55) (16개)",
+      "⟵ 이전 단계",
+      "📋 지금 바로 제품 보기 (204개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-31T07:14:32.754Z",
+    "sessionId": "ses-1774941261839",
+    "turnNumber": 3
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

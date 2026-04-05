@@ -1,0 +1,39 @@
+{
+  "id": "TC-074",
+  "source": "general",
+  "severity": "critical",
+  "category": "missing-evidence",
+  "input": {
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Helical_Interpolation\n🛠️ 가공 방식: Threading\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+    ],
+    "fullConversation": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Helical_Interpolation\n🛠️ 가공 방식: Threading\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      },
+      {
+        "role": "ai",
+        "text": "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요."
+      }
+    ]
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요."
+    ]
+  },
+  "feedback": {
+    "rating": 1,
+    "comment": "가공형상을 선택 후 가공 방식에서 Milling 외 선택을 하면 제품을 찾지 못합니다.\n좀전 의견 남겼듯이 가공형상은 Milling에 해당하는 부분입니다.",
+    "tags": [
+      "missing-evidence"
+    ],
+    "author": "최호영 ",
+    "department": "제품홍보팀",
+    "timestamp": "2026-03-30T23:18:12.534Z",
+    "sessionId": "ses-1774912630492"
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

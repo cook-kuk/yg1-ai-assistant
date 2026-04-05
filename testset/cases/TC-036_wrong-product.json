@@ -1,0 +1,39 @@
+{
+  "id": "TC-036",
+  "source": "general",
+  "severity": "critical",
+  "category": "wrong-product",
+  "input": {
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+    ],
+    "fullConversation": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      },
+      {
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Ball (68개), Square (36개), Radius (35개) 등이 있습니다."
+      }
+    ]
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "공구 세부 타입이 중요한가요? Ball (68개), Square (36개), Radius (35개) 등이 있습니다."
+    ]
+  },
+  "feedback": {
+    "rating": 1,
+    "comment": "일반적으로 고경도강용 이라고 하면 x5070 / x-1 / 이포스가 \n제 1 추천 입니다.\n3s/x-p 등은 로우 헬릭스라고 하더라도 고경도강용이라고 하기에는 무리가 있습니다. \n적용이 불가한건 아닙니다. \n의견 드리면 적합한 상기 1추천 제품이 첫번째 페이지에 \n검색이 되고 이후 후순위 제품이 배열 되면 좋을것 같습니다. ",
+    "tags": [
+      "wrong-product"
+    ],
+    "author": "송민욱",
+    "department": "부산영업소",
+    "timestamp": "2026-03-31T23:28:58.398Z",
+    "sessionId": "ses-1774999336890"
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

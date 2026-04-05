@@ -1,0 +1,130 @@
+{
+  "id": "TC-232",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 0.6\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T06:51:29.693Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Ball (1963개), Square (1950개), Radius (1447개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Ball (1963개)",
+          "Square (1950개)",
+          "Radius (1447개)",
+          "Taper (544개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (5904개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-30T06:51:29.693Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "SEM84500616  이거 얼마에요??",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T06:51:45.059Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "SEM84500616 제품 정보를 내부 DB에서 조회했습니다.\n\n| 항목 | 값 |\n| --- | --- |\n| 제품코드 | SEM84500616 |\n| 브랜드 | 4G MILL |\n| 시리즈 | SEM845 |\n| 제품명 | 4G MILL 2 Flute<br/>30°Helix Rib End mill |\n| 형상 | Square |\n| 직경 | φ0.6mm |\n| 날 수 | 2날 |\n| 코팅 | Y-Coating |\n| 공구 소재 | Carbide |\n| 생크 직경 | φ4mm |\n| 절삭 길이 | 0.9mm |\n| 전장 | 45mm |\n| 헬릭스각 | 30° |\n| 쿨런트 홀 | - |\n| 적용 가공 | Taper_Side_Milling |\n| ISO 소재 | H, K, M, P |\n\n설명: 4G MILL 2 Flute<br/>30°Helix Rib End mill\n특징: ▶Due to new coating and new tool geometry, outstanding cutting ability and wear resistance.\n<br/>▶Excellent for cutting prehardened steels, carbon steels, alloy steels of molds and dies, up to HRc55 and machine parts.\n<br/>▶For 1.0mm and under 1.0mm diameter sizes, designed double neck for increasing tool rigidity and minimizing vibration at working.\n<br/>▶Available various rib processing due to supplying various effective length and overall length products.\n\n[Reference: YG-1 내부 DB]\n\n다시 제품 추천으로 돌아갈게요. 공구 세부 타입이 중요한가요? Ball (1963개), Square (1950개), Radius (1447개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Ball (1963개)",
+          "Square (1950개)",
+          "Radius (1447개)",
+          "Taper (544개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (5904개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-30T06:51:45.059Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "가격은 알 수 없나보네요, 그럼 이제품 유효길이는요?? 위에는 유효길이가 안나와있어요",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T06:52:56.899Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "SEM84500616 제품의 유효길이(절삭날 길이)는 **1.8mm**입니다.\n\n절삭공구에서 유효길이는 실제로 소재를 가공할 수 있는 날의 길이를 의미하며, 이 제품은 φ0.6mm 직경에 1.8mm 유효길이로 정밀 가공에 적합합니다.\n\n가격 정보는 대리점이나 본사(032-526-0909)를 통해 견적 문의하시면 정확한 단가를 확인하실 수 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "쉽게 설명해줘",
+          "추천으로 골라줘",
+          "상관없음",
+          "Radius란?",
+          "Square란?",
+          "Taper란?",
+          "유효길이 정보 누락 설명해줘",
+          "Radius",
+          "Square",
+          "Taper"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-30T06:52:56.899Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: 쉽게 설명해줘, 추천으로 골라줘, 상관없음, Radius란?, Square란?, Taper란?, 유효길이 정보 누락 설명해줘, Radius, Square, Taper"
+    ],
+    "chips": [
+      "쉽게 설명해줘",
+      "추천으로 골라줘",
+      "상관없음",
+      "Radius란?",
+      "Square란?",
+      "Taper란?",
+      "유효길이 정보 누락 설명해줘",
+      "Radius",
+      "Square",
+      "Taper"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-30T06:55:24.270Z",
+    "sessionId": "ses-1774853475482",
+    "turnNumber": 3
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

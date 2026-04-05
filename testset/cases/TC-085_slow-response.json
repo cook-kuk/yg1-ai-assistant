@@ -1,0 +1,27 @@
+{
+  "id": "TC-085",
+  "source": "general",
+  "severity": "critical",
+  "category": "slow-response",
+  "input": {
+    "userMessages": [],
+    "fullConversation": []
+  },
+  "actualOutput": {
+    "aiResponses": []
+  },
+  "feedback": {
+    "rating": 1,
+    "comment": "최초 검색 완료 후 다른 조건으로 진행하였을 경우 기존 검색 데이터 초기화를 한 후 다시 표시하는데 시간이 너무 오래 걸리고 처음부터 다시라는 버튼을 눌러야 초기 화면으로 이동됨.\n기존 검색하였던 내용을 초기화(검색 할 내용 없음)하고 바로 초기 검색 화면으로 이동해야 됨.",
+    "tags": [
+      "slow-response",
+      "ui-issue"
+    ],
+    "author": "김명곤",
+    "department": "전산실",
+    "timestamp": "2026-03-30T08:01:20.066Z",
+    "sessionId": null
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}
