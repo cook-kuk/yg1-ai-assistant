@@ -357,7 +357,7 @@ export default function KnowledgePage() {
 
   // QA state
   const [qaSearch, setQaSearch] = useState("")
-  const [qaCategory, setQaCategory] = useState("")
+  const [qaCategory, setQaCategory] = useState("all")
   const [qaItems, setQaItems] = useState<QAItem[]>([])
   const [qaTotal, setQaTotal] = useState(0)
   const [qaCategories, setQaCategories] = useState<Record<string, number>>({})
@@ -367,7 +367,7 @@ export default function KnowledgePage() {
 
   // Feature state
   const [featSearch, setFeatSearch] = useState("")
-  const [featKey, setFeatKey] = useState("")
+  const [featKey, setFeatKey] = useState("all")
   const [featItems, setFeatItems] = useState<QAItem[]>([])
   const [featTotal, setFeatTotal] = useState(0)
   const [featKeys, setFeatKeys] = useState<Record<string, number>>({})
@@ -390,7 +390,7 @@ export default function KnowledgePage() {
     try {
       const params = new URLSearchParams({ tab: "qa", page: String(qaPage), limit: String(LIMIT) })
       if (debouncedQa) params.set("q", debouncedQa)
-      if (qaCategory) params.set("category", qaCategory)
+      if (qaCategory && qaCategory !== "all") params.set("category", qaCategory)
       const res = await fetch(`/api/knowledge?${params}`)
       const data = await res.json()
       setQaItems(data.items || [])
@@ -405,7 +405,7 @@ export default function KnowledgePage() {
     try {
       const params = new URLSearchParams({ tab: "feature", page: String(featPage), limit: String(LIMIT) })
       if (debouncedFeat) params.set("q", debouncedFeat)
-      if (featKey) params.set("category", featKey)
+      if (featKey && featKey !== "all") params.set("category", featKey)
       const res = await fetch(`/api/knowledge?${params}`)
       const data = await res.json()
       setFeatItems(data.items || [])
@@ -508,7 +508,7 @@ export default function KnowledgePage() {
                       <SelectValue placeholder={language === "ko" ? "전체 카테고리" : "All categories"} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">{language === "ko" ? "전체" : "All"}</SelectItem>
+                      <SelectItem value="all">{language === "ko" ? "전체" : "All"}</SelectItem>
                       {Object.entries(qaCategories).map(([key, count]) => (
                         <SelectItem key={key} value={key}>
                           {CATEGORY_LABELS[key] || key} ({count.toLocaleString()})
@@ -609,7 +609,7 @@ export default function KnowledgePage() {
                     <SelectValue placeholder={language === "ko" ? "전체 분류" : "All types"} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">{language === "ko" ? "전체" : "All"}</SelectItem>
+                    <SelectItem value="all">{language === "ko" ? "전체" : "All"}</SelectItem>
                     {Object.entries(featKeys).map(([key, count]) => (
                       <SelectItem key={key} value={key}>
                         {FEATURE_KEY_LABELS[key] || key} ({count})
