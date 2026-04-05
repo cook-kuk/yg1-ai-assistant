@@ -421,9 +421,13 @@ export async function routeSingleCall(
   userMessage: string,
   sessionState: ExplorationSessionState | null,
   provider: LLMProvider,
-  recentMessages?: ChatMessage[]
+  recentMessages?: ChatMessage[],
+  kgHint?: string
 ): Promise<SingleCallResult> {
-  const systemPrompt = buildSystemPrompt(sessionState)
+  const basePrompt = buildSystemPrompt(sessionState)
+  const systemPrompt = kgHint
+    ? `${basePrompt}\n\n## KG Hint (pre-analyzed entities from Knowledge Graph)\n${kgHint}\nUse these as strong guidance — the entities above are already validated. Emit matching apply_filter actions.`
+    : basePrompt
   const llmMessages = recentMessages && recentMessages.length > 0
     ? buildConversationMemory(recentMessages, userMessage)
     : [{ role: "user" as const, content: userMessage }]
