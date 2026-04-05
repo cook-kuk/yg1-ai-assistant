@@ -134,7 +134,7 @@ const navItems = [
     titleEn: "Learning",
     href: "/learning",
     icon: Brain,
-    roles: ["admin"],
+    roles: ["sales", "rnd", "admin"],
   },
   {
     title: "관리",
