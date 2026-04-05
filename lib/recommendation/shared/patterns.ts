@@ -336,5 +336,32 @@ export function buildDomainKnowledgeSnippet(): string {
 - 코팅(coating): ${coatings}
 - 소재(material): ${materials}
 - 가공 종류: ${operations}
-- 필터 필드: diameterMm, fluteCount, coating, toolSubtype, material, seriesName, workPieceName, lengthOfCutMm, overallLengthMm, shankDiameterMm`
+- 필터 필드: diameterMm, fluteCount, coating, toolSubtype, material, seriesName, workPieceName, lengthOfCutMm, overallLengthMm, shankDiameterMm
+
+## 도메인 지식 (YG-1 제품/소재/가공)
+
+### CRX-S 시리즈 (구리/비철 전용)
+- CRX S SGED31: 구리 전용 DLC 코팅 2날 스퀘어, D1.0~D12.0, 30° 헬릭스
+- CRX S SGED30: 구리 전용 DLC 코팅 2날 스퀘어 롱넥, D1.0~D12.0
+- CRX S SGED27: 구리 전용 DLC 코팅 2날 볼노즈
+
+### 피삭재 → ISO 그룹 + 추천 코팅
+- 구리/동/copper/황동/청동 = ISO N(비철), DLC 코팅 추천
+- 탄소강/SM45C/S45C = ISO P(일반강), TiAlN(X-Coating) 추천
+- 스테인리스/SUS304/SUS316 = ISO M, AlCrN(Y-Coating) 추천
+- 알루미늄/A6061/A7075 = ISO N(비철), 무���팅/DLC 추천
+- 주철/FC/FCD = ISO K, TiAlN/AlCrN 추천
+- 티타늄/Ti6Al4V = ISO S, AlCrN/TiAlN ���천
+- 고경도강/SKD11/SKD61/HRC50+ = ISO H, AlCrN/TiAlN 추천
+- 합금강/SCM440 = ISO P, TiAlN 추천
+- 인코넬/니켈합금 = ISO S, AlCrN 추천
+
+### 가공 목적 → 추천 스펙
+- 떨림 최소화 → 부등분할 4날 스퀘어
+- 면조도 우수 → 6날 45° 래디우스 / 스트레이트 볼
+- 리브/깊은홈 가공 → 테이퍼넥 래디우스 (롱넥)
+- ��삭 효율 → Roughing (멀티플헬���스+코너R)
+- 고이송 가공 → High-Feed / 3날 더블코너 래디우스
+- 강력절삭 → 2날/4날 Edge 스퀘어
+- 칩 배출 중시 ��� 2날 (날수 적을수록 배출 유리)`
 }
