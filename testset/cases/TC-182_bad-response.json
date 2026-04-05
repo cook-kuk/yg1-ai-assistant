@@ -1,0 +1,215 @@
+{
+  "id": "TC-182",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T01:42:37.949Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (544개), Radius (203개), Ball (146개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (544개)",
+          "Radius (203개)",
+          "Ball (146개)",
+          "Roughing (65개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (1043개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-31T01:42:37.949Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "와이지원에서 엔드밀을 만들때 사용하는 소재에 대해서 알려주세요",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T01:43:19.176Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "YG-1 엔드밀의 주요 소재는 **초미립자 초경합금(MG, Micro Grain)**과 **미립자 초경합금(WC, 0.5㎛)**입니다. 초경(Carbide)은 텅스텐 카바이드와 코발트를 소결한 재료로, 입자가 미세할수록 강성과 인성이 우수하며 날끝의 샤프함과 내마모성이 향상됩니다. 초경 외에도 **하이스(HSS)** 엔드밀도 생산하며, 제품에 따라 TiAlN, AlCrN, Diamond, DLC 등 다양한 코팅을 적용해 내열·내마모 성능을 극대화합니다.\n\n📌 **웹 검색 참고 (내부 DB 외부 정보)**  \nYG-1은 초미립자/미립자 초경 원자재를 기반으로 엔드밀을 제작하며, 제품 계열에 따라 무코팅(Bright Finish) 또는 각종 PVD 코팅을 적용합니다.",
+        "isLoading": false,
+        "chips": [
+          "쉽게 설명해줘",
+          "추천으로 골라줘",
+          "상관없음",
+          "Square란?",
+          "Roughing란?",
+          "Radius란?",
+          "Square",
+          "Roughing",
+          "Radius"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-31T01:43:19.176Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "와이지원에서 사용하는 Carbide소재의 Grain Size에 대해서 알려주세요",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T01:44:46.750Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "YG-1에서 사용하는 카바이드(Carbide) 소재의 Grain Size에 대한 구체적인 정보는 제공된 회사 정보에 포함되어 있지 않습니다.\n\n이러한 기술적인 소재 사양에 대해서는 YG-1 본사(032-526-0909)로 직접 문의하시거나, 기술 지원 부서에 연락하시면 정확한 답변을 받으실 수 있습니다.\n\n---\n\n제품 추천을 계속하시겠어요?",
+        "isLoading": false,
+        "chips": [
+          "쉽게 설명해줘",
+          "추천으로 골라줘",
+          "상관없음",
+          "Square란?",
+          "Roughing란?",
+          "Radius란?",
+          "Square",
+          "Roughing",
+          "Radius"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-31T01:44:46.750Z"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "text": "혹시 CBN과 Carbide, HSS 에 대해 각각 장단점을 알려줄수 있어?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T01:45:51.670Z"
+      },
+      {
+        "index": 7,
+        "role": "ai",
+        "text": "공구 소재별 장단점을 알려드릴게요.\n\n## CBN (Cubic Boron Nitride)\n**장점:** 경도가 HRC 95-100으로 매우 높아 HRC60 이상 경화강 가공이 가능하고, 1400-1500℃ 고온을 견디며 초경 대비 5-10배 긴 공구 수명을 제공합니다.\n**단점:** 인성이 부족해 충격에 약하고, 초경보다 구매·유지비용이 비싸며 재연마가 어렵습니다.\n\n## Carbide (초경합금)\n**장점:** 경도 HRC 90-94로 HSS보다 훨씬 단단하고, 높은 절삭 속도와 이송으로 생산성을 최대 40% 향상시키며 고온 내열성이 우수합니다.\n**단점:** 취성이 있어 충격·진동에 의해 치핑이나 파손이 쉽게 발생합니다.\n\n## HSS (High-Speed Steel)\n**장점:** 초경보다 날카로운 날을 유지하고, 다양한 소재에 범용적으로 사용 가능하며 충격·진동을 잘 견뎌 단기 공정에 비용 효율적입니다.\n**단점:** 고속·고이송 작업이 어렵고 과열 시 경도를 잃으며, 초경보다 내마모성이 낮아 교체가 자주 필요합니다.\n\n📌 **웹 검색 참고 (내부 DB 외부 정보)**\n\n비철금속(알루미늄) φ10mm 가공에는 위 추천 제품 중 **E5E84100** 같은 ALU-CUT 시리즈가 초경 소재로 제작되어 고속 가공과 긴 공구 수명을 동시에 얻을 수 있습니다!",
+        "isLoading": false,
+        "chips": [
+          "쉽게 설명해줘",
+          "추천으로 골라줘",
+          "상관없음",
+          "Square란?",
+          "Roughing란?",
+          "Radius란?",
+          "Square",
+          "Roughing",
+          "Radius"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-31T01:45:51.670Z"
+      },
+      {
+        "index": 8,
+        "role": "user",
+        "text": "비철금속중 알루미늄을 가공하는 HSS엔드밀을 추천해줘",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T01:50:00.507Z"
+      },
+      {
+        "index": 9,
+        "role": "ai",
+        "text": "알겠습니다. 알루미늄 가공용 HSS 엔드밀을 찾아드리겠습니다.\n\n현재 직경 10mm 기준으로 15개의 제품이 매칭되었습니다. 가공 형상에 따라 최적의 제품이 달라지는데요, 크게 두 가지 타입이 있습니다:\n\n**1) Square (평날 엔드밀, 10개)**\n- 일반적인 측면/바닥 가공용\n- 대표 제품: CE7659 시리즈(4날), CE7406 시리즈(2날)\n- X-Coating 적용으로 내마모성 향상\n\n**2) Corner Rounding (코너라운딩, 5개)**\n- 모서리 R 가공 전용\n- 대표 제품: E2498 시리즈(4날)\n- Bright Finish 처리\n\n대부분의 알루미늄 밀링 작업에는 Square 타입이 범용적으로 사용됩니다. 만약 특별히 모서리 R 가공이 필요하신 게 아니라면 Square 타입을 추천드립니다.\n\n어떤 타입이 필요하신가요? 아니면 \"상관없음\"을 선택하시면 가장 범용적인 제품 위주로 추천해드리겠습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (10개)",
+          "Corner Rounding (5개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (15개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-31T01:50:00.507Z"
+      },
+      {
+        "index": 10,
+        "role": "user",
+        "text": "Square (10개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T01:51:17.220Z"
+      },
+      {
+        "index": 11,
+        "role": "ai",
+        "text": "이 조건이면 CE7659100 (CE7659)를 먼저 보시면 됩니다. Square 형상, 4날, φ10mm 기준에 잘 맞고, 코팅은 X-Coating으로 N군, P군 소재 대응 범위를 확인할 수 있습니다. 재고 43개 (즉시 출하). 납기 정보 없음.",
+        "isLoading": false,
+        "chips": [
+          "날수로 좁히기 (2날/4날)",
+          "상위 3개 비교",
+          "CE7659100 상세 정보",
+          "다른 코팅 옵션 보기",
+          "시리즈 차이 설명해줘 (CE7659 vs CE7406)",
+          "φ10mm 외 다른 직경",
+          "📋 지금 바로 제품 보기 (10개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-31T01:51:17.220Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: 날수로 좁히기 (2날/4날), 상위 3개 비교, CE7659100 상세 정보, 다른 코팅 옵션 보기, 시리즈 차이 설명해줘 (CE7659 vs CE7406), φ10mm 외 다른 직경, 📋 지금 바로 제품 보기 (10개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "날수로 좁히기 (2날/4날)",
+      "상위 3개 비교",
+      "CE7659100 상세 정보",
+      "다른 코팅 옵션 보기",
+      "시리즈 차이 설명해줘 (CE7659 vs CE7406)",
+      "φ10mm 외 다른 직경",
+      "📋 지금 바로 제품 보기 (10개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-31T01:52:40.485Z",
+    "sessionId": "ses-1774921884408",
+    "turnNumber": 6
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

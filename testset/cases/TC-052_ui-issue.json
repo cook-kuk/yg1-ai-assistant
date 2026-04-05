@@ -1,0 +1,26 @@
+{
+  "id": "TC-052",
+  "source": "general",
+  "severity": "major",
+  "category": "ui-issue",
+  "input": {
+    "userMessages": [],
+    "fullConversation": []
+  },
+  "actualOutput": {
+    "aiResponses": []
+  },
+  "feedback": {
+    "rating": 3,
+    "comment": "1. 조건에 맞는 제품 추천 후, Ball, Square, Roughing등 형상 타입 선택이 안됨 \n2. 추천 제품 여러 제품군 소개 되며 각 제품의 특징 간략하게 설명해주면 좋을 것 같음 \n3. 추가 질문이나 조건 등 입려 하는 칸은 활성화 되는건지 궁금함 (현재 미 활성화로 인해 추가 질문 안 되어 문의 해도 답변이 정확히 되는지 모르겠음) \n4. Tap : JIS & DIN & INCH등 구분해서 선택할 수 있는 란이 있었음 좋겠음 (현재는 검색 시 DIN, JIS 구분 없이 나옴) \n5. 혅재는 기본 정보 선택으로 들어있기는 하나 품목별로 초기 선택란이 세분화 되면 정확한 결과 도출에 도움이 될 것 같음. (날수, 제품 형상 등)  ",
+    "tags": [
+      "ui-issue"
+    ],
+    "author": "전지애",
+    "department": "해외영업부",
+    "timestamp": "2026-03-31T05:13:10.650Z",
+    "sessionId": null
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

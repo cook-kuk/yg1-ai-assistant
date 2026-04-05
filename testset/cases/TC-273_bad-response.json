@@ -1,0 +1,180 @@
+{
+  "id": "TC-273",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:24:04.854Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "안녕하세요. 스테인리스강 측면 가공용 φ6mm 엔드밀 추천을 도와드리겠습니다.\n\n현재 조건으로 461개의 제품이 매칭되었습니다. 보다 정확한 추천을 위해 몇 가지 확인이 필요합니다.\n\n먼저 **공구 날끝 형상**을 선택해주시겠습니까?\n\n- **Square (361개)**: 각진 날끝으로 바닥면 가공 시 직각 모서리가 필요한 경우에 적합합니다. 측면 밀링에서 가장 범용적으로 사용됩니다.\n\n- **Radius (60개)**: 모서리가 둥근 형상으로 공구 수명이 길고 표면조도가 우수합니다. 프로파일 가공이나 3차원 곡면 가공에 유리합니다.\n\n- **Roughing (17개)**: 거친 가공 전용으로 황삭 가공 시 빠른 재료 제거가 필요한 경우에 사용됩니다.\n\n- **Drill Mill (12개)**: 드릴링과 밀링을 동시에 수행할 수 있는 복합 형상입니다.\n\n형상 선택이 중요하지 않으시다면 \"상관없음\"을 선택해주시면 전체 범위에서 추천해드리겠습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (361개)",
+          "Radius (60개)",
+          "Roughing (17개)",
+          "Drill Mill (12개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (461개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-29T23:24:04.854Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "Square (361개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:27:09.183Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "네, 현재 스테인리스강용 Square 엔드밀 361개 제품이 후보로 있습니다.\n\n이 중에서 가장 적합한 제품을 추천해드리기 위해 몇 가지 조건을 확인하겠습니다.\n\n**날 수(Flute) 선호**가 있으신가요?\n\n- **2날(2F)**: 칩 배출이 원활하여 깊은 홈 가공이나 알루미늄 같은 연질 소재에 유리합니다.\n- **3날(3F)**: 2날과 4날의 중간 특성으로, 범용성이 좋고 표면조도와 가공 효율의 균형이 우수합니다.\n- **4날(4F)**: 날당 이송이 적어 표면조도가 우수하고, 강성이 높아 스테인리스강처럼 단단한 소재의 정밀 가공에 적합합니다.\n\n스테인리스강 가공에서는 일반적으로 **4날**이 표면조도와 공구 수명 면에서 유리하지만, 가공 깊이가 깊거나 칩 배출이 중요한 경우 2-3날도 고려할 수 있습니다.\n\n현재 후보 분포:\n- 2날: 약 90개\n- 3날: 약 85개  \n- 4날: 약 186개\n\n특정 날 수를 선호하시거나, 아니면 제가 스테인리스강에 최적화된 제품을 바로 추천해드릴까요?",
+        "isLoading": false,
+        "chips": [
+          "4날 (191개)",
+          "2날 (134개)",
+          "3날 (36개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (361개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-29T23:27:09.183Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "날수는 Size와 상관없이 제품군의 디자인이야?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:28:17.453Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "선택하신 소재는 ISO M (스테인리스)군입니다. 세부 피삭재를 선택해주세요. (일부 제품은 세부 분류가 없어 \"상관없음\" 선택 시 전체 후보에서 추천합니다)",
+        "isLoading": false,
+        "chips": [
+          "Alloy Steels (361개)",
+          "Carbon Steels (361개)",
+          "Cast Iron (361개)",
+          "Prehardened Steels (361개)",
+          "Stainless Steels (361개)",
+          "Hardened Steels(HRc40~45) (233개)",
+          "Hardened Steels(HRc45~55) (199개)",
+          "Copper (15개)",
+          "Inconel (15개)",
+          "Titanium (15개)",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (361개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-29T23:28:17.453Z"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "text": "그니까 2날/ 3날/ 4날 이게 각 다른 브랜드로 구성되어 있는지가 궁금해",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:28:57.879Z"
+      },
+      {
+        "index": 7,
+        "role": "ai",
+        "text": "아니요, 날 수는 브랜드와 별개입니다. **같은 브랜드 안에서도 2날/3날/4날이 모두 존재**합니다.\n\n예를 들어 현재 후보 제품을 보면:\n- **TANK-POWER 브랜드**: GAA29(2날), GAA31(4날), GA938(4날) 등 2날과 4날 모두 있습니다\n- **GENERAL CARBIDE 브랜드**: G9B50(2날), E5415(3날), EH540(4날) 등 2~4날 전부 있습니다\n\n날 수는 **가공 조건에 따른 설계 차이**입니다. 2날은 칩 배출 공간이 넓어 깊은 홈이나 연질재에, 4날은 날당 이송이 줄어 면조도가 좋고 강성이 필요한 가공에 적합합니다. 스테인리스강 측면 가공에서는 보통 **4날**이 가장 많이 쓰입니다.",
+        "isLoading": false,
+        "chips": [
+          "쉽게 설명해줘",
+          "추천으로 골라줘",
+          "상관없음",
+          "Alloy Steels란?",
+          "Carbon Steels란?",
+          "Cast Iron란?",
+          "날수별 브랜드 구성 설명해줘",
+          "Alloy Steels",
+          "Carbon Steels",
+          "Cast Iron",
+          "Prehardened Steels",
+          "Stainless Steels",
+          "Hardened Steels(HRc40~45)",
+          "Hardened Steels(HRc45~55)",
+          "Copper",
+          "Inconel",
+          "Titanium",
+          "undo"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-29T23:28:57.879Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: 쉽게 설명해줘, 추천으로 골라줘, 상관없음, Alloy Steels란?, Carbon Steels란?, Cast Iron란?, 날수별 브랜드 구성 설명해줘, Alloy Steels, Carbon Steels, Cast Iron, Prehardened Steels, Stainless Steels, Hardened Steels(HRc40~45), Hardened Steels(HRc45~55), Copper, Inconel, Titanium, undo"
+    ],
+    "chips": [
+      "쉽게 설명해줘",
+      "추천으로 골라줘",
+      "상관없음",
+      "Alloy Steels란?",
+      "Carbon Steels란?",
+      "Cast Iron란?",
+      "날수별 브랜드 구성 설명해줘",
+      "Alloy Steels",
+      "Carbon Steels",
+      "Cast Iron",
+      "Prehardened Steels",
+      "Stainless Steels",
+      "Hardened Steels(HRc40~45)",
+      "Hardened Steels(HRc45~55)",
+      "Copper",
+      "Inconel",
+      "Titanium",
+      "undo"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-29T23:29:29.761Z",
+    "sessionId": "ses-1774826904063",
+    "turnNumber": 4
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

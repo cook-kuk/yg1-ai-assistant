@@ -1,0 +1,37 @@
+{
+  "id": "TC-056",
+  "source": "general",
+  "severity": "critical",
+  "category": "general-negative",
+  "input": {
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+    ],
+    "fullConversation": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      },
+      {
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (251개), Radius (75개), Roughing (28개) 등이 있습니다."
+      }
+    ]
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "공구 세부 타입이 중요한가요? Square (251개), Radius (75개), Roughing (28개) 등이 있습니다."
+    ]
+  },
+  "feedback": {
+    "rating": 1,
+    "comment": "AI 장점은 질문과 답변을 쉽게 이어 나가는 것인데, 충분한 답변이 되지 않고, 반대로 질문 또는 추가 선택을 요청하는 상황에서 그 답을 하기 위해 매번 응답과 선택지에 대한 평가를 해야만 다름으로 넘어가는  부분이 사용자로 하여금 번거로움을 느끼게 하는 것 같음.\n평가는 충분한 답변이 된 상태에서 마무리 단계에서 하는 것이 좋을 것 같고. 중간 단계에서는 평가 없이 다름 단계로 넘어갈 수 있어야 함 ",
+    "tags": [],
+    "author": "최정은",
+    "department": "제풐홍보팀",
+    "timestamp": "2026-03-31T02:43:52.385Z",
+    "sessionId": "ses-1774924682280"
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

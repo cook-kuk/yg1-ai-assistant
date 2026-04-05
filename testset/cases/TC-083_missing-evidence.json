@@ -1,0 +1,27 @@
+{
+  "id": "TC-083",
+  "source": "general",
+  "severity": "major",
+  "category": "missing-evidence",
+  "input": {
+    "userMessages": [],
+    "fullConversation": []
+  },
+  "actualOutput": {
+    "aiResponses": []
+  },
+  "feedback": {
+    "rating": 3,
+    "comment": "End Mill 추천 요청시 최초에 Shape 를 확인하였는데\n이후에 다시 Shape를 묻는 질문을 하는 오류가 있었음.\n또한 티타늄 난삭재 가공 Tool 추천 요청하였는데, K-2 (General Purpose) 도 추천 목록에 포함되어 있는 걸 확인하였음. General Puspose 제품의 경우 난삭재 가공에는 신중히 추천필요할 것으로 보이는데 고객은 알기 어려울 수 있으니 이러한 부분은 개선할 수 있으면 좋겠습니다.",
+    "tags": [
+      "slow-response",
+      "missing-evidence"
+    ],
+    "author": "안일환",
+    "department": "유럽팀",
+    "timestamp": "2026-03-30T08:17:34.186Z",
+    "sessionId": null
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

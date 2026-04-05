@@ -1,0 +1,311 @@
+{
+  "id": "TC-251",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T02:21:30.991Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (404개), Radius (333개), Ball (121개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (404개)",
+          "Radius (333개)",
+          "Ball (121개)",
+          "Roughing (83개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (954개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-30T02:21:30.991Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "square",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T02:22:17.504Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "현재 408개 후보가 있습니다. 날 수(flute) 선호가 있으신가요?",
+        "isLoading": false,
+        "chips": [
+          "4날 (192개)",
+          "2날 (133개)",
+          "3날 (50개)",
+          "6날 (33개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (408개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-30T02:22:17.504Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "4날 (192개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T02:22:52.812Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "네, 4날 스퀘어 엔드밀로 192개 제품이 매칭되었습니다.\n\n현재 탄소강(ISO P) 가공용 제품들이 선별되어 있는데요, 더 정확한 추천을 위해 **세부 피삭재**를 선택해주시겠습니까?\n\n탄소강은 크게 세 가지로 나뉩니다:\n\n**1. 저탄소강 (P1.1-P1.3)** - 0.25% 이하, 일반 구조용강  \n**2. 중탄소강 (P2.1-P2.3)** - 0.25~0.6%, 기계부품용강  \n**3. 고탄소강 (P3.1-P3.3)** - 0.6% 이상, 공구강·금형강\n\n세부 분류를 선택하시면 해당 경도대에 최적화된 제품을 우선 추천드립니다. 다만 일부 제품은 세부 분류 데이터가 없어, **\"상관없음\"을 선택하시면 현재 192개 전체**에서 추천드립니다.\n\n어떻게 하시겠습니까?",
+        "isLoading": false,
+        "chips": [
+          "Alloy Steels (192개)",
+          "Prehardened Steels (192개)",
+          "Carbon Steels (159개)",
+          "Cast Iron (124개)",
+          "Stainless Steels (118개)",
+          "Hardened Steels(HRc40~45) (113개)",
+          "Hardened Steels(HRc45~55) (99개)",
+          "High Hardened Steels(HRc55~70) (33개)",
+          "Aluminum (26개)",
+          "Inconel (15개)",
+          "⟵ 이전 ���계",
+          "📋 지금 바로 제품 보기 (192개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-30T02:22:52.812Z"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "text": "중탄소강",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T02:23:48.958Z"
+      },
+      {
+        "index": 7,
+        "role": "ai",
+        "text": "중탄소강 조건을 반영하여 159개의 제품으로 좁혀졌습니다.\n\n현재 조건:\n- 형상: Square 엔드밀\n- 날수: 4날\n- 소재: 중탄소강(Carbon Steels)\n- 직경: φ10mm\n\n이제 코팅 선호도를 여쭙겠습니다. 현재 후보 제품들은 다음과 같은 코팅 옵션이 있습니다:\n\n**1) X-Coating** (약 50개)\n- 내마모성과 내열성이 우수한 다층 코팅\n- 고속 가공 및 건식 가공에 유리\n- 대표 시리즈: GAC25, GA932\n\n**2) TiAlN** (약 40개)\n- 티타늄알루미늄질화물 코팅\n- 고온 안정성이 뛰어나 고속/고능률 가공에 적합\n- 대표 시리즈: GAA31, GA938\n\n**3) Bright Finish / 무코팅** (약 60개)\n- 표면 조도가 우수하여 정밀 가공에 유리\n- 칩 배출이 원활하고 재연마 가능\n- 대표 시리즈: EH540, E5540, E5595\n\n**4) AlTiN** (약 9개)\n- 알루미늄티타늄질화물 코팅\n- TiAlN보다 내열성이 더 높아 고속 가공에 최적\n- 대표 시리즈: E5C54\n\n어떤 코팅을 선호하시나요? 특별한 선호가 없으시면 \"상관없음\"을 선택하시면 전체 후보에서 최적 제품을 추천해드리겠습니다.",
+        "isLoading": false,
+        "chips": [
+          "Y-Coating (60개)",
+          "Bright Finish (55개)",
+          "X-Coating (26개)",
+          "TiAlN (11개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (159개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-30T02:23:48.958Z"
+      },
+      {
+        "index": 8,
+        "role": "user",
+        "text": "Carbide, X Coating",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T02:24:46.899Z"
+      },
+      {
+        "index": 9,
+        "role": "ai",
+        "text": "이 조건이면 SG9E7610030 (SG9E76)를 먼저 보시면 됩니다. Square 형상, 4날, φ10mm 기준에 잘 맞고, 코팅은 X-Coating으로 H군, K군, P군 소재 대응 범위를 확인할 수 있습니다. 재고 정보 없음.",
+        "isLoading": false,
+        "chips": [
+          "상위 3개 비교",
+          "SG9E7610030 상세 정보",
+          "다른 코팅 옵션 보기",
+          "φ10mm 외 다른 직경",
+          "P 가공 팁 보기",
+          "⟵ 이전 단계로 돌아가기",
+          "📋 지금 바로 제품 보기 (6개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-30T02:24:46.899Z"
+      },
+      {
+        "index": 10,
+        "role": "user",
+        "text": "h군/k군/p군 에 대해서 설명해봐",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T02:26:18.600Z"
+      },
+      {
+        "index": 11,
+        "role": "ai",
+        "text": "절삭공구에서 **H군, K군, P군**은 ISO 6987 피삭재 분류 기호입니다. 수학의 군론과는 다른 개념이에요.\n\n**P군(파란색)**: 탄소강, 합금강, 공구강처럼 긴 칩이 나오는 철계 소재입니다. 현재 선택하신 중탄소강이 바로 P군에 속하죠.\n\n**K군(빨간색)**: 주철, CGI(Compacted Graphite Iron)처럼 짧고 부서지는 칩이 나오며, 연속 절삭보다 단속 절삭이 많아 열충격에 강한 공구가 필요합니다.\n\n**H군(회색)**: 고경도강(HRc 40~65)으로 열처리된 금형강이나 소부품에 쓰이며, 내마모 코팅과 고강도 모재가 필수입니다.\n\n지금 추천된 SG9E76 시리즈는 **H/K/P 3종 대응**이라 중탄소강 외에도 주철, 경화강 가공까지 커버할 수 있습니다.\n\n📌 웹 검색 참고 (내부 DB 외부 정보): 수학의 p-군(유한군론), K-군(대수적 K-이론), H-공간(위상수학 호모토피)은 절삭공구 분류와 무관합니다.",
+        "isLoading": false,
+        "chips": [
+          "쉽게 설명해줘",
+          "추천으로 골라줘",
+          "상관없음",
+          "h군/k군/p군 설명해줘"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-30T02:26:18.600Z"
+      },
+      {
+        "index": 12,
+        "role": "user",
+        "text": "추천으로 골라줘",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T02:28:14.842Z"
+      },
+      {
+        "index": 13,
+        "role": "ai",
+        "text": "이 조건이면 SG9E7610030 (SG9E76)를 먼저 보시면 됩니다. Square 형상, 4날, φ10mm 기준에 잘 맞고, 코팅은 X-Coating으로 H군, K군, P군 소재 대응 범위를 확인할 수 있습니다. 재고 정보 없음.",
+        "isLoading": false,
+        "chips": [
+          "상위 3개 비교",
+          "SG9E7610030 상세 정보",
+          "다른 코팅 옵션 보기",
+          "φ10mm 외 다른 직경",
+          "P 가공 팁 보기",
+          "⟵ 이전 단계로 돌아가기",
+          "📋 지금 바로 제품 보기 (6개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-30T02:28:14.842Z"
+      },
+      {
+        "index": 14,
+        "role": "user",
+        "text": "4G Mill이 유일하니? 비교좀 해보게 다른 브랜드도 추천해줄래?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T02:29:24.596Z"
+      },
+      {
+        "index": 15,
+        "role": "ai",
+        "text": "아니요, YG-1 내부에도 여러 시리즈가 있습니다. 현재 조건(φ10mm, 4날, Carbide, X-Coating, 탄소강)에서는 **4G MILL(SG9E76)** 시리즈가 가장 정확히 매칭되어 상위에 올라왔지만, YG-1의 다른 라인도 충분히 비교 가능합니다.\n\n**타사 제품 비교**는 저희 내부 DB 범위를 벗어나 정확한 스펙 대조가 어렵습니다. 다만 일반적으로 OSG(WXL), Mitsubishi(MS), Sandvik Coromant, Kennametal 등이 유사 조건 제품군을 운영하고 있으며, 코팅·날수·헬릭스각 차이로 성능이 갈립니다. 구체적 비교를 원하시면 각 브랜드 카탈로그를 직접 확인하시거나, YG-1 본사(032-526-0909) 영업팀에 경쟁 제품 대비 자료를 요청하시는 것이 정확합니다.\n\n지금 추천된 4G MILL은 20° 헬릭스 황삭용으로 H/K/P군 범용성이 강점이며, X-Coating으로 내마모성을 확보한 구성입니다.",
+        "isLoading": false,
+        "chips": [
+          "쉽게 설명해줘",
+          "추천으로 골라줘",
+          "상관없음"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-30T02:29:24.596Z"
+      },
+      {
+        "index": 16,
+        "role": "user",
+        "text": "YG-1에는 4G Mill이 유일하다고 판다해도 되겠니?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T02:30:58.711Z"
+      },
+      {
+        "index": 17,
+        "role": "ai",
+        "text": "4G MILL은 YG-1의 독자적인 Y-Coating 기술을 적용하여 HRc55까지의 Pre-Hardened Steel 고속 가공에 최적화된 초경 엔드밀 브랜드입니다. 독특한 플루트 설계로 칩 배출과 진동 감소가 우수하며, 강화된 End Tooth 설계로 플런지 밀링과 포켓 밀링 작업이 가능합니다. 2날부터 6날까지 다양한 날 수와 48개의 시리즈를 보유하고 있어 경화강, 합금강, 주철 등 다양한 소재의 황삭부터 정삭까지 폭넓게 적용할 수 있습니다.\n\n4G MILL 브랜드 프로필을 내부 DB에서 조회했습니다.\n\n| 항목 | 값 |\n| --- | --- |\n| 브랜드 | 4G MILL |\n| 설명 | ?  YG-1’s “Y” technology coating<br/>?  High speed Machining for Pre-Hardened Steel up to HRc55<br/>?  Unique flute design for excellent chip evacuation and vibration reduction.<br/>?  Optimal roughing tooth profile to reduce cutting forces.<br/>?  Special tool geometry for high feed rate and heavy cutting.<br/>?  Strong end tooth design for plunge and pocket milling.<br/>?  Custom engineered coating to allow long tool life and excellent chip evacuation. |\n| 적용 소재 설명 | For Pre-Hardened Steels up to HRc55 |\n| 대표 시리즈 | GMF15, GMF16, GMF17, GMF18, GMF19 외 43개 |\n| 시리즈 수 | 48개 |\n| 가공 타입 | Solid, undefined, Plain |\n| 형상 | AMERICA, Corner_Radius,Die-Sinking,Facing,Helical_Interpolation,Side_Milling,Slotting,Small_Part, Die-Sinking,Facing,Side_Milling,Slotting,Small_Part, Profiling, Profiling,Die-Sinking,Corner_Radius 외 31개 |\n| 날 수 | 2날, 3날, 4날, 5날, 6날 |\n| 코팅 | AlTiN, TiAlN, X-Coating, Y-Coating |\n| 공구 소재 | Carbide |\n| 직경 범위 | φ0~2692.4mm |\n| ISO | - |\n| 피삭재 | Alloy Steels, Carbon Steels, Cast Iron, Hardened Steels(HRc40~45), Hardened Steels(HRc45~55) 외 3개 |\n| HRC | - |\n| 국가 | AMERICA, EUROPE, KOREA |\n| EDP 수 | 14492개 |\n\n[Reference: YG-1 내부 DB]",
+        "isLoading": false,
+        "chips": [
+          "다른 브랜드 비교",
+          "시리즈 차이 보기",
+          "추천 제품 보기"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-30T02:30:58.711Z"
+      },
+      {
+        "index": 18,
+        "role": "user",
+        "text": "4G Mill의 코발트 함량은 어떻게 되니?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T02:32:19.677Z"
+      },
+      {
+        "index": 19,
+        "role": "ai",
+        "text": "4G MILL은 YG-1의 Y-코팅 기술을 적용한 고속가공용 브랜드로, HRc55까지의 프리하드닝강 가공에 특화되어 있습니다. 독특한 홈 설계로 우수한 칩 배출과 진동 감소를 실현하며, 최적화된 러핑 날 형상으로 절삭력을 줄이고 높은 이송속도와 중절삭이 가능한 특수 지오메트리를 갖추고 있습니다. 강화된 엔드 날 설계로 플런지 및 포켓 가공에 유리하며, 2날부터 6날까지 다양한 날 수와 48개 시리즈로 구성되어 합금강, 탄소강, 주철, 경화강 등 폭넓은 소재 가공에 적용됩니다. AlTiN, TiAlN을 포함한 다양한 코팅 옵션과 코너 라운드, 다이싱킹, 페이싱, 슬로팅 등 다목적 형상으로 장수명과 효율적인 칩 배출을 보장합니다.\n\n4G MILL 브랜드 프로필을 내부 DB에서 조회했습니다.\n\n| 항목 | 값 |\n| --- | --- |\n| 브랜드 | 4G MILL |\n| 설명 | ?  YG-1’s “Y” technology coating<br/>?  High speed Machining for Pre-Hardened Steel up to HRc55<br/>?  Unique flute design for excellent chip evacuation and vibration reduction.<br/>?  Optimal roughing tooth profile to reduce cutting forces.<br/>?  Special tool geometry for high feed rate and heavy cutting.<br/>?  Strong end tooth design for plunge and pocket milling.<br/>?  Custom engineered coating to allow long tool life and excellent chip evacuation. |\n| 적용 소재 설명 | For Pre-Hardened Steels up to HRc55 |\n| 대표 시리즈 | GMF15, GMF16, GMF17, GMF18, GMF19 외 43개 |\n| 시리즈 수 | 48개 |\n| 가공 타입 | Solid, undefined, Plain |\n| 형상 | AMERICA, Corner_Radius,Die-Sinking,Facing,Helical_Interpolation,Side_Milling,Slotting,Small_Part, Die-Sinking,Facing,Side_Milling,Slotting,Small_Part, Profiling, Profiling,Die-Sinking,Corner_Radius 외 31개 |\n| 날 수 | 2날, 3날, 4날, 5날, 6날 |\n| 코팅 | AlTiN, TiAlN, X-Coating, Y-Coating |\n| 공구 소재 | Carbide |\n| 직경 범위 | φ0~2692.4mm |\n| ISO | - |\n| 피삭재 | Alloy Steels, Carbon Steels, Cast Iron, Hardened Steels(HRc40~45), Hardened Steels(HRc45~55) 외 3개 |\n| HRC | - |\n| 국가 | AMERICA, EUROPE, KOREA |\n| EDP 수 | 14492개 |\n\n[Reference: YG-1 내부 DB]",
+        "isLoading": false,
+        "chips": [
+          "다른 브랜드 비교",
+          "시리즈 차이 보기",
+          "추천 제품 보기"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-30T02:32:19.677Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: 다른 브랜드 비교, 시리즈 차이 보기, 추천 제품 보기"
+    ],
+    "chips": [
+      "다른 브랜드 비교",
+      "시리즈 차이 보기",
+      "추천 제품 보기"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-30T02:33:16.457Z",
+    "sessionId": "ses-1774837698322",
+    "turnNumber": 10
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

@@ -1,0 +1,450 @@
+{
+  "timestamp": "2026-04-05T00:27:19.636Z",
+  "rounds": 1,
+  "total": 12,
+  "pass": 9,
+  "fail": 3,
+  "passRate": 75,
+  "newFewShots": [
+    "User: \"탄소강 10mm 4날 Square TiAlN��로 추천해줘\"\n→ {\"actions\":[{\"type\":\"apply_filter\",\"field\":\"workPieceName\",\"value\":\"탄소강\"},{\"type\":\"apply_filter\",\"field\":\"diameterMm\",\"value\":10},{\"type\":\"apply_filter\",\"field\":\"fluteCount\",\"value\":4},{\"type\":\"apply_filter\",\"field\":\"toolSubtype\",\"value\":\"Square\"},{\"type\":\"apply_filter\",\"field\":\"coating\",\"value\":\"TiAlN\"}],\"answer\":\"\",\"reasoning\":\"한 문장에 5개 조건 동시 추출\"}",
+    "User: \"DLC 빼고 TiAlN으로 바꿔\"\n→ {\"actions\":[{\"type\":\"replace_filter\",\"field\":\"coating\",\"value\":\"TiAlN\"}],\"answer\":\"\",\"reasoning\":\"기존 코팅 제거 + 새 코팅 적용\"}",
+    "User: \"copper square 2flute 10mm endmill 추천해줘\"\n→ {\"actions\":[{\"type\":\"apply_filter\",\"field\":\"workPieceName\",\"value\":\"구리\"},{\"type\":\"apply_filter\",\"field\":\"toolSubtype\",\"value\":\"Square\"},{\"type\":\"apply_filter\",\"field\":\"fluteCount\",\"value\":2},{\"type\":\"apply_filter\",\"field\":\"diameterMm\",\"value\":10}],\"answer\":\"\",\"reasoning\":\"한영 혼용 — copper→구리, square→Square, 2flute→fluteCount=2\"}"
+  ],
+  "results": [
+    {
+      "scenario": "이전 턴 참조 — '아까 그거'",
+      "difficulty": "hard",
+      "pass": true,
+      "score": 3,
+      "maxScore": 3,
+      "scores": {
+        "no_error": 1,
+        "assertion": 1,
+        "has_response": 1
+      },
+      "failureReason": null,
+      "turnDetails": [
+        {
+          "user": "Square 엔드밀 추천해줘",
+          "purpose": "question",
+          "filters": [
+            "fluteCount=상관없음"
+          ],
+          "cands": 267,
+          "error": null
+        },
+        {
+          "user": "TiAlN 코팅이 뭐야?",
+          "purpose": "question",
+          "filters": [
+            "fluteCount=상관없음"
+          ],
+          "cands": 267,
+          "error": null
+        },
+        {
+          "user": "그거로 코팅해줘",
+          "purpose": "recommendation",
+          "filters": [
+            "fluteCount=상관없음",
+            "coating=TiAlN"
+          ],
+          "cands": 8,
+          "error": null
+        }
+      ]
+    },
+    {
+      "scenario": "복합 자연어 — 한 문장에 5개 조건",
+      "difficulty": "hard",
+      "pass": false,
+      "score": 2,
+      "maxScore": 3,
+      "scores": {
+        "no_error": 1,
+        "assertion": 0,
+        "has_response": 1
+      },
+      "failureReason": "Only 0/3 filters (need ≥2). ri: subtype=undefined, flute=undefined, coat=undefined",
+      "turnDetails": [
+        {
+          "user": "탄소강 10mm 4날 Square TiAlN으로 추천해줘",
+          "purpose": "question",
+          "filters": [
+            "fluteCount=상관없음"
+          ],
+          "cands": 267,
+          "error": null
+        }
+      ]
+    },
+    {
+      "scenario": "조건 교체 + 되돌리기",
+      "difficulty": "hard",
+      "pass": true,
+      "score": 3,
+      "maxScore": 3,
+      "scores": {
+        "no_error": 1,
+        "assertion": 1,
+        "has_response": 1
+      },
+      "failureReason": null,
+      "turnDetails": [
+        {
+          "user": "Square 4날 추천해줘",
+          "purpose": "question",
+          "filters": [
+            "fluteCount=상관없음"
+          ],
+          "cands": 267,
+          "error": null
+        },
+        {
+          "user": "Ball로 바꿔줘",
+          "purpose": "question",
+          "filters": [
+            "fluteCount=상관없음",
+            "toolSubtype=Ball"
+          ],
+          "cands": 38,
+          "error": null
+        },
+        {
+          "user": "아니 아까 Square가 나았어. 되돌려줘",
+          "purpose": "recommendation",
+          "filters": [
+            "fluteCount=상관없음",
+            "toolSubtype=Square"
+          ],
+          "cands": 101,
+          "error": null
+        }
+      ]
+    },
+    {
+      "scenario": "부정 + 추가 동시",
+      "difficulty": "medium",
+      "pass": false,
+      "score": 2,
+      "maxScore": 3,
+      "scores": {
+        "no_error": 1,
+        "assertion": 0,
+        "has_response": 1
+      },
+      "failureReason": "TiAlN=false, DLC=true. ri.coating=undefined",
+      "turnDetails": [
+        {
+          "user": "DLC 코팅으로 추천해줘",
+          "purpose": "question",
+          "filters": [
+            "fluteCount=상관없음"
+          ],
+          "cands": 267,
+          "error": null
+        },
+        {
+          "user": "DLC 빼고 TiAlN으로 바꿔",
+          "purpose": "question",
+          "filters": [
+            "fluteCount=상관없음",
+            "coating=DLC 제외"
+          ],
+          "cands": 0,
+          "error": null
+        }
+      ]
+    },
+    {
+      "scenario": "질문 후 필터 유지",
+      "difficulty": "medium",
+      "pass": true,
+      "score": 3,
+      "maxScore": 3,
+      "scores": {
+        "no_error": 1,
+        "assertion": 1,
+        "has_response": 1
+      },
+      "failureReason": null,
+      "turnDetails": [
+        {
+          "user": "4날 Square 추천해줘",
+          "purpose": "question",
+          "filters": [
+            "fluteCount=상관없음"
+          ],
+          "cands": 267,
+          "error": null
+        },
+        {
+          "user": "TiAlN이랑 AlCrN 차이가 뭐야?",
+          "purpose": "question",
+          "filters": [
+            "fluteCount=4날",
+            "toolSubtype=Square"
+          ],
+          "cands": 47,
+          "error": null
+        },
+        {
+          "user": "추천 제품 보여줘",
+          "purpose": "question",
+          "filters": [
+            "fluteCount=4날",
+            "toolSubtype=Square"
+          ],
+          "cands": 47,
+          "error": null
+        }
+      ]
+    },
+    {
+      "scenario": "오타 + 구어체",
+      "difficulty": "medium",
+      "pass": true,
+      "score": 3,
+      "maxScore": 3,
+      "scores": {
+        "no_error": 1,
+        "assertion": 1,
+        "has_response": 1
+      },
+      "failureReason": null,
+      "turnDetails": [
+        {
+          "user": "스퀘어를 쓰고싶고 구리를 가공하고 싶어",
+          "purpose": "question",
+          "filters": [
+            "material=구리"
+          ],
+          "cands": 129,
+          "error": null
+        }
+      ]
+    },
+    {
+      "scenario": "skip 연속 후 추천",
+      "difficulty": "medium",
+      "pass": true,
+      "score": 3,
+      "maxScore": 3,
+      "scores": {
+        "no_error": 1,
+        "assertion": 1,
+        "has_response": 1
+      },
+      "failureReason": null,
+      "turnDetails": [
+        {
+          "user": "상관없음",
+          "purpose": "question",
+          "filters": [
+            "fluteCount=상관없음"
+          ],
+          "cands": 267,
+          "error": null
+        },
+        {
+          "user": "아무거나",
+          "purpose": "question",
+          "filters": [
+            "fluteCount=상관없음",
+            "toolSubtype=상관없음"
+          ],
+          "cands": 267,
+          "error": null
+        },
+        {
+          "user": "알아서 해줘",
+          "purpose": "recommendation",
+          "filters": [
+            "fluteCount=상관없음",
+            "toolSubtype=상관없음",
+            "coating=상관없음"
+          ],
+          "cands": 267,
+          "error": null
+        },
+        {
+          "user": "추천해줘",
+          "purpose": "recommendation",
+          "filters": [
+            "toolSubtype=skip",
+            "fluteCount=skip",
+            "coating=skip"
+          ],
+          "cands": 0,
+          "error": null
+        }
+      ]
+    },
+    {
+      "scenario": "제품 코드 비교 요청",
+      "difficulty": "medium",
+      "pass": true,
+      "score": 3,
+      "maxScore": 3,
+      "scores": {
+        "no_error": 1,
+        "assertion": 1,
+        "has_response": 1
+      },
+      "failureReason": null,
+      "turnDetails": [
+        {
+          "user": "Square 4날 10mm 추천해줘",
+          "purpose": "question",
+          "filters": [
+            "fluteCount=상관없음"
+          ],
+          "cands": 267,
+          "error": null
+        },
+        {
+          "user": "1번이랑 2번 비교해줘",
+          "purpose": "comparison",
+          "filters": [
+            "fluteCount=상관없음"
+          ],
+          "cands": 267,
+          "error": null
+        }
+      ]
+    },
+    {
+      "scenario": "소재 변경 — P → M",
+      "difficulty": "hard",
+      "pass": true,
+      "score": 3,
+      "maxScore": 3,
+      "scores": {
+        "no_error": 1,
+        "assertion": 1,
+        "has_response": 1
+      },
+      "failureReason": null,
+      "turnDetails": [
+        {
+          "user": "탄소강 Square 추천해줘",
+          "purpose": "question",
+          "filters": [
+            "fluteCount=상관없음"
+          ],
+          "cands": 267,
+          "error": null
+        },
+        {
+          "user": "아 잠깐 소재를 스테인리스로 바꿔줘",
+          "purpose": "question",
+          "filters": [
+            "fluteCount=상관없음",
+            "workPieceName=stainless"
+          ],
+          "cands": 267,
+          "error": null
+        }
+      ]
+    },
+    {
+      "scenario": "긴 자연어 + 도메인 지식",
+      "difficulty": "hard",
+      "pass": true,
+      "score": 3,
+      "maxScore": 3,
+      "scores": {
+        "no_error": 1,
+        "assertion": 1,
+        "has_response": 1
+      },
+      "failureReason": null,
+      "turnDetails": [
+        {
+          "user": "SUS304 스테인리스를 측면 밀링으로 황삭할건데, 진동이 적고 칩 배출이 좋은 엔드밀 추천해줘. 직경은 10mm 정도면 좋겠어.",
+          "purpose": "question",
+          "filters": [
+            "fluteCount=상관없음"
+          ],
+          "cands": 267,
+          "error": null
+        }
+      ]
+    },
+    {
+      "scenario": "형상 변경 연속 3회",
+      "difficulty": "hard",
+      "pass": true,
+      "score": 3,
+      "maxScore": 3,
+      "scores": {
+        "no_error": 1,
+        "assertion": 1,
+        "has_response": 1
+      },
+      "failureReason": null,
+      "turnDetails": [
+        {
+          "user": "Square로 추천해줘",
+          "purpose": "question",
+          "filters": [
+            "toolSubtype=Square"
+          ],
+          "cands": 101,
+          "error": null
+        },
+        {
+          "user": "Radius로 바꿔",
+          "purpose": "recommendation",
+          "filters": [
+            "toolSubtype=Radius"
+          ],
+          "cands": 107,
+          "error": null
+        },
+        {
+          "user": "아니 Ball로 변경해줘",
+          "purpose": "recommendation",
+          "filters": [
+            "toolSubtype=Ball"
+          ],
+          "cands": 50,
+          "error": null
+        },
+        {
+          "user": "직경 줄여줘 6mm로",
+          "purpose": "recommendation",
+          "filters": [
+            "toolSubtype=Ball"
+          ],
+          "cands": 50,
+          "error": null
+        }
+      ]
+    },
+    {
+      "scenario": "한영 혼용",
+      "difficulty": "medium",
+      "pass": false,
+      "score": 2,
+      "maxScore": 3,
+      "scores": {
+        "no_error": 1,
+        "assertion": 0,
+        "has_response": 1
+      },
+      "failureReason": "Square=false, 2flute=false. ri: undefined, undefined",
+      "turnDetails": [
+        {
+          "user": "copper square 2flute 10mm endmill 추천해줘",
+          "purpose": "question",
+          "filters": [
+            "fluteCount=상관없음"
+          ],
+          "cands": 267,
+          "error": null
+        }
+      ]
+    }
+  ]
+}

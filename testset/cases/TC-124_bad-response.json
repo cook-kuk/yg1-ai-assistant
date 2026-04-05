@@ -1,0 +1,68 @@
+{
+  "id": "TC-124",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Trochoidal\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Trochoidal\n🛠️ 가공 방식: Milling\n📏 공구 직경: 4mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-04-02T00:31:25.613Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Radius (228개), Square (206개), Ball (86개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Radius (228개)",
+          "Square (206개)",
+          "Ball (86개)",
+          "Roughing (13개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (533개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": null,
+        "createdAt": "2026-04-02T00:31:25.613Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "공구 세부 타입이 중요한가요? Radius (228개), Square (206개), Ball (86개) 등이 있습니다."
+    ],
+    "chips": [
+      "Radius (228개)",
+      "Square (206개)",
+      "Ball (86개)",
+      "Roughing (13개)",
+      "상관없음",
+      "📋 지금 바로 제품 보기 (533개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-04-02T00:34:03.192Z",
+    "sessionId": "ses-1775089870376",
+    "turnNumber": 1
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

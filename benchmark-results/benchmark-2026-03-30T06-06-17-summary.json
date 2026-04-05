@@ -1,0 +1,188 @@
+{
+  "meta": {
+    "baseUrl": "http://20.119.98.136:3000",
+    "totalTurns": 30,
+    "startedAt": "2026-03-30T06:06:17.526Z",
+    "intakeForm": {
+      "inquiryPurpose": {
+        "status": "known",
+        "value": "new"
+      },
+      "material": {
+        "status": "known",
+        "value": "P"
+      },
+      "operationType": {
+        "status": "known",
+        "value": "Side_Milling"
+      },
+      "machiningIntent": {
+        "status": "unanswered"
+      },
+      "toolTypeOrCurrentProduct": {
+        "status": "known",
+        "value": "Milling"
+      },
+      "diameterInfo": {
+        "status": "known",
+        "value": "10mm"
+      }
+    },
+    "pricing": [
+      {
+        "match": "opus",
+        "input": 15,
+        "output": 75,
+        "cacheRead": 1.5,
+        "cacheWrite": 18.75
+      },
+      {
+        "match": "sonnet",
+        "input": 3,
+        "output": 15,
+        "cacheRead": 0.3,
+        "cacheWrite": 3.75
+      },
+      {
+        "match": "haiku",
+        "input": 0.8,
+        "output": 4,
+        "cacheRead": 0.08,
+        "cacheWrite": 1
+      }
+    ]
+  },
+  "aggregate": {
+    "avgLatencyMs": 1422,
+    "maxLatencyMs": 33874,
+    "minLatencyMs": 197,
+    "p95LatencyMs": 2264,
+    "errorCount": 0,
+    "purposeDistribution": {
+      "question": 29,
+      "general_chat": 1
+    },
+    "totalRequestBytes": 413224,
+    "totalResponseBytes": 1198299,
+    "totalLlmCalls": 0,
+    "totalInputTokens": 0,
+    "totalOutputTokens": 0,
+    "totalCacheReadTokens": 0,
+    "totalCacheWriteTokens": 0,
+    "totalEstimatedCost": 0,
+    "avgCostPerTurn": 0,
+    "avgLlmCallsPerTurn": 0
+  },
+  "checkpoints": [
+    {
+      "turn": 5,
+      "latencyMs": 206,
+      "purpose": "question",
+      "candidateCount": 0,
+      "filterCount": 0,
+      "resolutionStatus": null,
+      "displayedCandidateCount": 0,
+      "sessionId": null,
+      "currentMode": null,
+      "cumulativeAvgLatencyMs": 7359,
+      "turnLlmCalls": 0,
+      "turnInputTokens": 0,
+      "turnOutputTokens": 0,
+      "turnCacheReadTokens": 0,
+      "turnCacheWriteTokens": 0,
+      "turnEstimatedCost": 0,
+      "cumulativeInputTokens": 0,
+      "cumulativeOutputTokens": 0,
+      "cumulativeLlmCalls": 0,
+      "cumulativeEstimatedCost": 0
+    },
+    {
+      "turn": 10,
+      "latencyMs": 225,
+      "purpose": "question",
+      "candidateCount": 0,
+      "filterCount": 0,
+      "resolutionStatus": null,
+      "displayedCandidateCount": 0,
+      "sessionId": null,
+      "currentMode": null,
+      "cumulativeAvgLatencyMs": 3796,
+      "turnLlmCalls": 0,
+      "turnInputTokens": 0,
+      "turnOutputTokens": 0,
+      "turnCacheReadTokens": 0,
+      "turnCacheWriteTokens": 0,
+      "turnEstimatedCost": 0,
+      "cumulativeInputTokens": 0,
+      "cumulativeOutputTokens": 0,
+      "cumulativeLlmCalls": 0,
+      "cumulativeEstimatedCost": 0
+    },
+    {
+      "turn": 15,
+      "latencyMs": 445,
+      "purpose": "question",
+      "candidateCount": 0,
+      "filterCount": 0,
+      "resolutionStatus": null,
+      "displayedCandidateCount": 0,
+      "sessionId": null,
+      "currentMode": null,
+      "cumulativeAvgLatencyMs": 2622,
+      "turnLlmCalls": 0,
+      "turnInputTokens": 0,
+      "turnOutputTokens": 0,
+      "turnCacheReadTokens": 0,
+      "turnCacheWriteTokens": 0,
+      "turnEstimatedCost": 0,
+      "cumulativeInputTokens": 0,
+      "cumulativeOutputTokens": 0,
+      "cumulativeLlmCalls": 0,
+      "cumulativeEstimatedCost": 0
+    },
+    {
+      "turn": 20,
+      "latencyMs": 197,
+      "purpose": "question",
+      "candidateCount": 0,
+      "filterCount": 0,
+      "resolutionStatus": null,
+      "displayedCandidateCount": 0,
+      "sessionId": null,
+      "currentMode": null,
+      "cumulativeAvgLatencyMs": 2017,
+      "turnLlmCalls": 0,
+      "turnInputTokens": 0,
+      "turnOutputTokens": 0,
+      "turnCacheReadTokens": 0,
+      "turnCacheWriteTokens": 0,
+      "turnEstimatedCost": 0,
+      "cumulativeInputTokens": 0,
+      "cumulativeOutputTokens": 0,
+      "cumulativeLlmCalls": 0,
+      "cumulativeEstimatedCost": 0
+    },
+    {
+      "turn": 30,
+      "latencyMs": 198,
+      "purpose": "question",
+      "candidateCount": 0,
+      "filterCount": 0,
+      "resolutionStatus": null,
+      "displayedCandidateCount": 0,
+      "sessionId": null,
+      "currentMode": null,
+      "cumulativeAvgLatencyMs": 1422,
+      "turnLlmCalls": 0,
+      "turnInputTokens": 0,
+      "turnOutputTokens": 0,
+      "turnCacheReadTokens": 0,
+      "turnCacheWriteTokens": 0,
+      "turnEstimatedCost": 0,
+      "cumulativeInputTokens": 0,
+      "cumulativeOutputTokens": 0,
+      "cumulativeLlmCalls": 0,
+      "cumulativeEstimatedCost": 0
+    }
+  ]
+}

@@ -1,0 +1,96 @@
+{
+  "id": "TC-132",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-04-01T05:20:34.335Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Radius (761개), Square (587개), Ball (268개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Radius (761개)",
+          "Square (587개)",
+          "Ball (268개)",
+          "Roughing (71개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (1705개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-04-01T05:20:34.335Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "고경도강에 초록색제품이 좋다고 들었는데 와이지원 제품인가?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-04-01T05:20:58.187Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "고경도강 가공에는 YG-1의 **파란색 Blue-Coating 제품**(E·FORCE BLUE 시리즈)이 전문 솔루션입니다. HRc50 이상 고경도강에 최적화되어 있으며, 위 추천 제품 중 **#5 SG8A4612040, #6 SG8A46120**이 Blue-Coating 볼 엔드밀입니다.\n\n초록색은 일반적으로 **알루미늄·비철금속(ISO N) 전용 코팅**을 의미하며, YG-1에서는 고경도강에 초록색 제품을 권장하지 않습니다. Y-Coating(황금색)도 고경도강에 사용 가능하지만, Blue-Coating이 내마모성과 내열성에서 더 우수합니다.\n\n📌 **웹 검색 참고 (내부 DB 외부 정보)**: E·FORCE BLUE는 신규 형상과 BLUE코팅으로 고경도강 가공성을 극대화했으며, Y-Coating도 내열성이 뛰어나지만 주로 BLUE 계열이 권장됩니다.\n\n공구 형상(Square/Ball/Radius)을 정해주시면 더 정밀하게 추천해드릴게요!\n\n다시 제품 추천으로 돌아갈게요. 공구 세부 타입이 중요한가요? Radius (761개), Square (587개), Ball (268개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Radius (761개)",
+          "Square (587개)",
+          "Ball (268개)",
+          "Roughing (71개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (1705개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-04-01T05:20:58.187Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: Radius (761개), Square (587개), Ball (268개), Roughing (71개), 상관없음, 📋 지금 바로 제품 보기 (1705개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "Radius (761개)",
+      "Square (587개)",
+      "Ball (268개)",
+      "Roughing (71개)",
+      "상관없음",
+      "📋 지금 바로 제품 보기 (1705개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-04-01T05:22:11.962Z",
+    "sessionId": "ses-1775020820979",
+    "turnNumber": 2
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

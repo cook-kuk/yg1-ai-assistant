@@ -1,0 +1,107 @@
+{
+  "id": "TC-129",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Ramping\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-04-01T23:36:52.373Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요.",
+        "isLoading": false,
+        "chips": [
+          "처음부터 다시",
+          "📋 지금 바로 제품 보기 (0개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-04-01T23:36:52.373Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "어떤 부분을 바꿔야 추천이 가능해?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-04-01T23:37:22.449Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "현재 **고경도강(H계열) + Ramping + 12mm** 조건으로는 데이터베이스에서 직접 매칭되는 제품이 없습니다. 추천이 가능하려면 다음 중 하나를 조정해보세요:\n\n**1. 직경 변경**: 12mm 대신 10mm 또는 16mm 등 다른 직경대 고려  \n**2. 가공 형상 확장**: Ramping 외에 Side Milling, Slotting 등 일반 황삭/정삭 조건으로 범위 넓히기  \n**3. 소재 재확인**: 실제 가공 소재가 H계열(HRc 40~65) 고경도강인지, 혹은 P계열(합금강) 또는 M계열(경화 SUS)에 더 가까운지 점검  \n\n위 조건 중 조정 가능한 부분을 알려주시면 다시 검색해드리겠습니다.",
+        "isLoading": false,
+        "chips": [
+          "쉽게 설명해줘",
+          "추천으로 골라줘",
+          "상관없음",
+          "추천을 위해 변경해야 할 조건/필드 설명해줘"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-04-01T23:37:22.449Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "고경도강 Ramping이 가능한 Tool은 있어?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-04-01T23:51:05.965Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "\"고경도강\" 조건을 적용했습니다. 현재 필터 기준 후보는 0개입니다. 이전 단계로 돌아가거나 다른 조건을 선택해주세요.",
+        "isLoading": false,
+        "chips": [
+          "⟵ 이전 단계",
+          "처음부터 다시"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-04-01T23:51:05.965Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: ⟵ 이전 단계, 처음부터 다시"
+    ],
+    "chips": [
+      "⟵ 이전 단계",
+      "처음부터 다시"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-04-01T23:52:17.545Z",
+    "sessionId": "ses-1775087469319",
+    "turnNumber": 3
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

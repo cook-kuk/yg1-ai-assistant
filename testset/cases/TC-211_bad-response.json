@@ -1,0 +1,60 @@
+{
+  "id": "TC-211",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(추천 결과 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Facing\n🛠️ 가공 방식: Turning\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T08:52:25.969Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요.",
+        "isLoading": false,
+        "chips": [
+          "처음부터 다시",
+          "📋 지금 바로 제품 보기 (0개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-30T08:52:25.969Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "추천: N/A"
+    ],
+    "chips": [
+      "처음부터 다시",
+      "📋 지금 바로 제품 보기 (0개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-30T08:52:43.396Z",
+    "sessionId": "ses-1774860745928",
+    "turnNumber": 1
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

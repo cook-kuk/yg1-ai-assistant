@@ -1,0 +1,49 @@
+# YG TAP STEEL — BV
+**제품명**: BV
+
+## 기본 사양
+- 공구 타입: Tap
+- 서브타입: Spiral Flute
+- 공구 재질: HSS-E
+- 코팅: Hardslick
+- 헬릭스각: R45
+- 깊이비: Max. 2.5xD
+
+## 대응 ISO 그룹
+P, M, S
+
+## 대상 피삭재
+- Non-alloy steel
+- Low alloy steel
+- High alloyed steel, and tool steel
+- Stainless steel
+- Heat Resistant Super Alloys
+- High alloyed steel
+- Tool steel
+
+## 특징
+- Blind hole용
+- Max. 2.5xD
+- Spiral Flute
+- R45 spiral flute angle
+- For Carbon and Alloy Steel
+- Max. 2.5xD Blind Hole
+- Chamfer lead 2P-3P
+- Spiral flute type
+- Spiral flute angle R45
+
+## 용도
+- M 계열 나사 가공
+- Threading for carbon steel and alloy steel
+- Blind hole tapping up to 2.5xD
+
+## 선정 가이드
+- Blind hole용 Max. 2.5xD 조건에서 HSS-E, Spiral Flute, R45 사양의 탭 선택 가이드. BV는 Hardslick 코팅이며, M 계열에 배치되어 있다.
+- For M/MF applications, BV is shown with Hardslick coating. In the material application table, the series group is rated mainly for P2-P8 and partially for P9-P11 depending on the specific model.
+
+## 상세 정보 (원문 요약)
+- [page_0539] YG TAP STEEL 선택 가이드 페이지로, Max. 2.5xD Blind Hole용 HSS-E Spiral Flute 탭의 적용 시리즈를 보여준다. BV는 M 계열에 배치되어 있으며, HSS-E, Spiral Flute, R45, Hardslick 사양이다. 재질별로는 P, M, S 계열 소재에 대해 ◎/○ 등급과 권장 절삭 범위가 제시되어 있다.
+- [page_0673] HSS-E YG TAP STEEL은 탄소강 및 합금강용 스파이럴 플루트 탭이며, 최대 2.5xD 블라인드 홀에 적용된다. TOOL MATERIAL은 HSS-E, CHAMFER LEAD는 2P-3P, SPIRAL FLUTE ANGLE는 R45로 표기되어 있다. M/MF 계열에서는 BU, BV, E2, D3, E0 등의 시리즈가 함께 제시되며, BV는 Hardslick 코팅으로 표시된다. 재질 적용표에서는 P계열 강재에 대해 ◎/○ 등급으로 적용 범위가 안내된다.
+
+---
+출처: yu25_split | 페이지: page_0539, page_0673

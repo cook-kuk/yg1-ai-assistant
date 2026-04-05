@@ -1,0 +1,96 @@
+{
+  "id": "TC-226",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 1.5\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T07:00:34.727Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (2314개), Ball (2211개), Radius (1765개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (2314개)",
+          "Ball (2211개)",
+          "Radius (1765개)",
+          "Taper (561개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (6851개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-30T07:00:34.727Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "지금 X-POWER S 볼 엔드밀 사용중인데요\n인선직경  1.5  생크직경 4.0 전장 50 짜리요.\n제품을 바꿔볼려고 하는데 비슷한 성능으로 대체할 제품 알려주세요",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T07:03:00.438Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "현재 사용 중인 X-POWER S 볼 엔드밀(φ1.5, 생크 φ4.0, 전장 50mm)과 유사한 스펙의 YG-1 제품을 찾아봤는데, 안타깝게도 지금 추천 목록에는 Ball 타입이 단 2개(SEME7901510, SEME7901507)뿐이며 전장이 각각 35mm, 46mm로 50mm와 정확히 일치하지 않습니다.\n\n**대안으로는 4G MILL 시리즈의 SEME79(2날 볼 엔드밀)를 우선 검토해보시고**, 전장 50mm에 정확히 맞는 모델이 필요하시다면 YG-1 본사(032-526-0909)에 직접 문의하셔서 X-POWER S와 동급의 Ball 엔드밀 전체 라인업을 확인하시길 권장합니다. 현재 표시된 제품들은 대부분 Taper, Radius, Square 타입이라 Ball 전용으로는 선택지가 제한적입니다.\n\n📌 **웹 검색 참고 (내부 DB 외부 정보)**: YG-1의 X-POWER 시리즈는 OSG 대비 유사 성능에 약 절반 가격이며, Seco와도 동등한 성능을 훨씬 저렴하게 제공한다는 평가가 있습니다. 경화강 가공에는 X5070 시리즈(6날 코너 반경형)도 예산 친화적인 옵션으로 알려져 있습니다.\n\n다시 제품 추천으로 돌아갈게요. 공구 세부 타입이 중요한가요? Square (2314개), Ball (2211개), Radius (1765개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (2314개)",
+          "Ball (2211개)",
+          "Radius (1765개)",
+          "Taper (561개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (6851개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-30T07:03:00.438Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: Square (2314개), Ball (2211개), Radius (1765개), Taper (561개), 상관없음, 📋 지금 바로 제품 보기 (6851개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "Square (2314개)",
+      "Ball (2211개)",
+      "Radius (1765개)",
+      "Taper (561개)",
+      "상관없음",
+      "📋 지금 바로 제품 보기 (6851개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-30T07:05:35.249Z",
+    "sessionId": "ses-1774854021078",
+    "turnNumber": 2
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

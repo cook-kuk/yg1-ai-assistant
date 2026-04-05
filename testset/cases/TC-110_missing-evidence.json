@@ -1,0 +1,39 @@
+{
+  "id": "TC-110",
+  "source": "general",
+  "severity": "major",
+  "category": "missing-evidence",
+  "input": {
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+    ],
+    "fullConversation": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 스테인리스강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      },
+      {
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (361개), Radius (60개), Roughing (17개) 등이 있습니다."
+      }
+    ]
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "공구 세부 타입이 중요한가요? Square (361개), Radius (60개), Roughing (17개) 등이 있습니다."
+    ]
+  },
+  "feedback": {
+    "rating": 5,
+    "comment": "단순히 가공방법/소재/직경이 아니라 Quality에 따른 기준도 있으면 좋을 것 같습니다 \n예를 들면 고정밀 --> X1, 정삭, 중삭, 황삭 등.... ",
+    "tags": [
+      "missing-evidence"
+    ],
+    "author": "이명우",
+    "department": "Hole Making팀",
+    "timestamp": "2026-03-30T01:08:44.394Z",
+    "sessionId": "ses-1774832857151"
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

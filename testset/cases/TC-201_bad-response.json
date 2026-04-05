@@ -1,0 +1,170 @@
+{
+  "id": "TC-201",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 주철\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T00:26:08.719Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "안녕하세요! 주철 소재의 프로파일링 가공을 위한 φ10mm 밀링 공구를 찾고 계시는군요.\n\n현재 조건에서 **170개의 제품**이 매칭되었습니다.\n\n보다 정확한 추천을 위해 몇 가지 여쭤보겠습니다.\n\n**공구의 형상 타입이 중요하신가요?**\n\n프로파일링 작업의 특성에 따라 적합한 형상이 달라집니다:\n\n• **Ball (87개)**: 곡면 가공, R 형상 프로파일링에 적합합니다. 날끝이 반구 형태로 3차원 곡면 창성에 유리합니다.\n\n• **Radius (61개)**: 코너 R이 있는 형상으로, 직선과 곡면이 혼합된 프로파일에 적합합니다. Ball보다 강성이 우수하고 Square보다 날끝 강도가 높습니다.\n\n• **Square (22개)**: 평면과 직각 가공에 최적화되어 있습니다. 직선 위주의 프로파일링에 적합합니다.\n\n가공하실 형상의 특성을 고려하여 선택해주시면, 더 정확한 제품을 추천드리겠습니다. 특별히 형상 타입이 중요하지 않으시다면 \"상관없음\"을 선택해주세요.",
+        "isLoading": false,
+        "chips": [
+          "Ball (87개)",
+          "Radius (61개)",
+          "Square (22개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (170개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-31T00:26:08.720Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "Radius (61개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T00:26:31.802Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "네, Radius 엔드밀로 범위를 좁혀 61개 제품이 남았습니다.\n\n현재 주철(ISO K) 가공에 적합한 Radius 엔드밀 중에서, 주철의 세부 종류에 따라 최적의 제품을 추천드릴 수 있습니다.\n\n**주철 세부 종류를 선택해주세요:**\n\n• **회주철(GCI)** - 일반 주철, 가장 흔한 타입\n• **구상흑연주철(GGG)** - 연성주철, 강도가 높음\n• **칠드주철** - 표면 경화 처리된 주철\n• **가단주철** - 열처리로 인성을 높인 주철\n• **상관없음** - 세부 구분 없이 주철 전체 대응 제품 추천\n\n세부 피삭재 정보가 없으면 \"상관없음\"을 선택하시면, 주철 전반에 적용 가능한 제품을 추천드리겠습니다.\n\n참고로 현재 상위 제품들은:\n- **X-POWER S (SEM818)**: 2날, AlTiN 코팅, H/K/P 소재 대응\n- **i-Xmill (XMR120C)**: AlTiN 코팅, H/K/P 소재 대응\n- **i-Xmill (XMR110A)**: AlTiN 코팅, K/M/P 소재 대응\n\n모두 주철 가공에 적합한 시리즈입니다.",
+        "isLoading": false,
+        "chips": [
+          "Alloy Steels (61개)",
+          "Carbon Steels (61개)",
+          "Prehardened Steels (44개)",
+          "Cast Iron (39개)",
+          "Hardened Steels(HRc40~45) (39개)",
+          "Stainless Steels (22개)",
+          "Hardened Steels(HRc45~55) (17개)",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (61개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-31T00:26:31.802Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "구상흑연주철",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T00:27:37.358Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "이 조건이면 SEM81810002 (SEM818)를 먼저 보시면 됩니다. Radius 형상, 2날, φ10mm 기준에 잘 맞고, 코팅은 AlTiN으로 H군, K군, P군 소재 대응 범위를 확인할 수 있습니다. 재고 정보 없음.",
+        "isLoading": false,
+        "chips": [
+          "상위 3개 비교",
+          "SEM81810002 상세 정보",
+          "다른 코팅 옵��� 보기",
+          "φ10mm 외 다른 직경",
+          "K 가공 팁 보기",
+          "⟵ 이전 단계로 돌아가기",
+          "📋 지금 바로 제품 보기 (39개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-31T00:27:37.358Z"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "text": "X-POWER는 초경이니? 하이스니?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T00:28:22.770Z"
+      },
+      {
+        "index": 7,
+        "role": "ai",
+        "text": "X-POWER는 **초경(超硬)** 소재입니다.\n\nX-POWER S 시리즈는 초미립자 초경합금(MG)으로 제작되며, 경도가 약 90 근방으로 하이스(고속도강, 경도 60 수준)보다 훨씬 높습니다. AlTiN 코팅이 적용되어 HRc50 이하 소재 및 프리하든강, 합금강, 탄소강 등 다양한 피삭재 가공에 사용됩니다.\n\n지금 추천해드린 SEM818 시리즈도 모두 초경 엔드밀입니다.\n\n📌 웹 검색 참고 (내부 DB 외부 정보)",
+        "isLoading": false,
+        "chips": [
+          "쉽게 설명해줘",
+          "추천으로 골라줘",
+          "상관없음",
+          "X-POWER 시리즈의 재질(초경/하이스) 설명해줘"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-31T00:28:22.770Z"
+      },
+      {
+        "index": 8,
+        "role": "user",
+        "text": "주철인데 HSS로 추천해주면 안되겠니?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T00:29:20.971Z"
+      },
+      {
+        "index": 9,
+        "role": "ai",
+        "text": "\"Cast Iron\" 조건을 적용했습니다. 현재 필터 기준 후보는 0개입니다. 이전 단계로 돌아가거나 다른 조건을 선택해주세요.",
+        "isLoading": false,
+        "chips": [
+          "⟵ 이전 단계",
+          "처음부터 다시"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-31T00:29:20.971Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: ⟵ 이전 단계, 처음부터 다시"
+    ],
+    "chips": [
+      "⟵ 이전 단계",
+      "처음부터 다시"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-31T00:29:50.706Z",
+    "sessionId": "ses-1774916968036",
+    "turnNumber": 5
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

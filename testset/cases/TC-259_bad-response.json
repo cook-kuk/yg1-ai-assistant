@@ -1,0 +1,157 @@
+{
+  "id": "TC-259",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T01:05:31.327Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Radius (200개), Square (151개), Ball (63개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Radius (200개)",
+          "Square (151개)",
+          "Ball (63개)",
+          "Roughing (2개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (416개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-30T01:05:31.327Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "Square (151개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T01:05:51.298Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "현재 153개 후보가 있습니다. 날 수(flute) 선호가 있으신가요?",
+        "isLoading": false,
+        "chips": [
+          "2날 (67개)",
+          "4날 (67개)",
+          "6날 (14개)",
+          "3날 (5개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (153개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-30T01:05:51.298Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "아니요, 상관없어요",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T01:06:33.928Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "선택하신 소재는 ISO H (고경도)군입니다. 세부 피삭재를 선택해주세요. (일부 제품은 세부 분류가 없어 \"상관없음\" 선택 시 전체 후보에서 추천합니다)",
+        "isLoading": false,
+        "chips": [
+          "Hardened Steels(HRc40~45) (153개)",
+          "Hardened Steels(HRc45~55) (153개)",
+          "Prehardened Steels (153개)",
+          "Alloy Steels (141개)",
+          "Cast Iron (89개)",
+          "Carbon Steels (77개)",
+          "High Hardened Steels(HRc55~70) (64개)",
+          "Stainless Steels (55개)",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (153개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-30T01:06:33.928Z"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "text": "Carbon Steels (77개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T01:07:07.073Z"
+      },
+      {
+        "index": 7,
+        "role": "ai",
+        "text": "네, Carbon Steels 소재에 맞는 제품으로 범위를 좁혔습니다. 현재 153개의 후보 중 상위 제품들을 살펴보니, **3S MILL 시리즈**가 주를 이루고 있습니다.\n\n상위 추천 제품들을 보면:\n- **CG3S45** (2날, 고강성형) - 측면/단차 가공에 강점\n- **CG3S13** (4날, 범용형) - 다목적 가공에 적합\n- **CG3S11** (2날, 표준형) - 일반 측면 가공용\n\n모두 **T-Coating (티타늄 계열 코팅)**이 적용되어 있어 탄소강 가공 시 우수한 내마모성을 제공합니다.\n\n**코팅에 대한 선호가 있으신가요?**\n현재 후보 중에는 T-Coating 외에도 X-Coating, Y-Coating 등 다양한 코팅 옵션이 있습니다. 특별한 선호가 없으시면 T-Coating 제품으로 바로 추천해드릴 수 있습니다.\n\n또는 **날수(2날 vs 4날)** 기준으로 좁혀드릴까요?\n- **2날**: 칩 배출 우수, 거친 가공/깊은 홈 가공에 유리\n- **4날**: 가공면 품질 우수, 정밀 가공/마무리 가공에 유리",
+        "isLoading": false,
+        "chips": [
+          "T-Coating (75개)",
+          "Y-Coating (69개)",
+          "X-Coating (9개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (153개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-30T01:07:07.073Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: T-Coating (75개), Y-Coating (69개), X-Coating (9개), 상관없음, ⟵ 이전 단계, 📋 지금 바로 제품 보기 (153개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "T-Coating (75개)",
+      "Y-Coating (69개)",
+      "X-Coating (9개)",
+      "상관없음",
+      "⟵ 이전 단계",
+      "📋 지금 바로 제품 보기 (153개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-30T01:07:58.051Z",
+    "sessionId": "ses-1774832836285",
+    "turnNumber": 4
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

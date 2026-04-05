@@ -1,0 +1,136 @@
+{
+  "id": "TC-271",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Facing\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:29:23.490Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (804개), Radius (266개), Ball (134개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (804개)",
+          "Radius (266개)",
+          "Ball (134개)",
+          "Roughing (107개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (1340개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-29T23:29:23.490Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "Square",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:29:49.987Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "현재 371개 후보가 있습니다. 날 수(flute) 선호가 있으신가요?",
+        "isLoading": false,
+        "chips": [
+          "2날 (283개)",
+          "4날 (85개)",
+          "3날 (3개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (371개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-29T23:29:49.987Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "상관없음",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:30:31.213Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "선택하신 소재는 ISO P (일반강)군입니다. 세부 피삭재를 선택해주세요. (일부 제품은 세부 분류가 없어 \"상관없음\" 선택 시 전체 후보에서 추천합니다)",
+        "isLoading": false,
+        "chips": [
+          "Aluminum (256개)",
+          "Prehardened Steels (231개)",
+          "Alloy Steels (224개)",
+          "Carbon Steels (154개)",
+          "Acrylic (117개)",
+          "Non-ferrous (117개)",
+          "Hardened Steels(HRc40~45) (100개)",
+          "Hardened Steels(HRc45~55) (100개)",
+          "High Hardened Steels(HRc55~70) (70개)",
+          "Cast Iron (45개)",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (371개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-29T23:30:31.213Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: Aluminum (256개), Prehardened Steels (231개), Alloy Steels (224개), Carbon Steels (154개), Acrylic (117개), Non-ferrous (117개), Hardened Steels(HRc40~45) (100개), Hardened Steels(HRc45~55) (100개), High Hardened Steels(HRc55~70) (70개), Cast Iron (45개), ⟵ 이전 단계, 📋 지금 바로 제품 보기 (371개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "Aluminum (256개)",
+      "Prehardened Steels (231개)",
+      "Alloy Steels (224개)",
+      "Carbon Steels (154개)",
+      "Acrylic (117개)",
+      "Non-ferrous (117개)",
+      "Hardened Steels(HRc40~45) (100개)",
+      "Hardened Steels(HRc45~55) (100개)",
+      "High Hardened Steels(HRc55~70) (70개)",
+      "Cast Iron (45개)",
+      "⟵ 이전 단계",
+      "📋 지금 바로 제품 보기 (371개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-29T23:31:06.776Z",
+    "sessionId": "ses-1774827040238",
+    "turnNumber": 3
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

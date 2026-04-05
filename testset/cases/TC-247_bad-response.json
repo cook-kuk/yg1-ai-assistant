@@ -1,0 +1,127 @@
+{
+  "id": "TC-247",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 2mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T05:04:30.287Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "안녕하세요! 고경도강(HRC 45-65) 소재를 φ2mm 밀링 공구로 가공하시려는 것으로 확인됩니다.\n\n현재 조건에서 총 8,839개의 제품 후보가 있습니다. 보다 정확한 추천을 위해 몇 가지 추가 조건을 여쭤보겠습니다.\n\n먼저, **공구의 세부 형상(타입)**이 중요하신가요?\n\n고경도강 가공에서는 형상에 따라 적합한 용도가 다릅니다:\n- **Radius(R형)**: 3,848개 — 모서리에 R을 준 형태로, 날 강도가 높아 고경도강 황삭/중삭에 유리하며, 측면 가공 시 표면 품질이 우수합니다.\n- **Square(평날)**: 2,275개 — 날끝이 예리한 직각 형상으로, 정밀한 직각 가공이나 포켓 가공에 적합합니다.\n- **Ball(볼)**: 2,129개 — 반구형 날로, 3D 곡면이나 금형 가공에 주로 사용됩니다.\n- **Taper(테이퍼)**: 578개 — 경사진 형상으로, 금형의 깊은 리브나 좁은 홈 가공에 적합합니다.\n\n가공하실 형상이 정해져 있으시면 해당 타입을 선택해주시고, 아직 특정 형상이 없으시거나 범용으로 사용하실 거라면 **'상관없음'**을 선택해주세요.",
+        "isLoading": false,
+        "chips": [
+          "Radius (3848개)",
+          "Square (2275개)",
+          "Ball (2129개)",
+          "Taper (578개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (8839개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-30T05:04:30.287Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "나는 플렛생크 제품을 사용하고 싶어요",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T05:05:01.273Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "현재 2276개 후보가 있습니다. 날 수(flute) 선호가 있으신가요?",
+        "isLoading": false,
+        "chips": [
+          "2날 (1633개)",
+          "4날 (618개)",
+          "3날 (20개)",
+          "6날 (5개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (2276개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-30T05:05:01.273Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "경도 HRc60에 엄청나게 정밀한 가공을 해야 해요 가장 비싼 제품으로 추천해주세요",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T05:06:09.879Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "현재 2276개 후보가 있습니다. 날 수(flute) 선호가 있으신가요?",
+        "isLoading": false,
+        "chips": [
+          "2날 (1633개)",
+          "4날 (618개)",
+          "3날 (20개)",
+          "6날 (5개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (2276개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-30T05:06:09.879Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: 2날 (1633개), 4날 (618개), 3날 (20개), 6날 (5개), 상관없음, ⟵ 이전 단계, 📋 지금 바로 제품 보기 (2276개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "2날 (1633개)",
+      "4날 (618개)",
+      "3날 (20개)",
+      "6날 (5개)",
+      "상관없음",
+      "⟵ 이전 단계",
+      "📋 지금 바로 제품 보기 (2276개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-30T05:07:37.828Z",
+    "sessionId": "ses-1774847178532",
+    "turnNumber": 3
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

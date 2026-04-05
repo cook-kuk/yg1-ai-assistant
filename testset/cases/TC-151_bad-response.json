@@ -1,0 +1,139 @@
+{
+  "id": "TC-151",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T07:09:32.434Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "안녕하세요! 비철금속 소재를 φ10mm 밀링 가공하실 공구를 찾고 계시는군요. 현재 조건으로 1,043개의 YG-1 제품이 매칭됩니다.\n\n비철금속 가공에서는 공구의 형상이 가공 품질과 효율에 큰 영향을 미칩니다. 어떤 형상의 공구가 필요하신가요?\n\n• **Square (544개)**: 바닥면이 평평한 표준 스퀘어 엔드밀 — 평면 가공, 측면 가공, 홈 가공 등 범용적 용도\n• **Radius (203개)**: 모서리에 라운드가 있는 라디우스 엔드밀 — 공구 강성 향상, 칩핑 방지, 3D 곡면 가공\n• **Ball (146개)**: 볼 형상 엔드밀 — 3D 곡면, 금형 가공, R 형상 가공\n• **Roughing (65개)**: 거친 가공용 엔드밀 — 높은 절삭량, 빠른 재료 제거\n\n가공하실 형상이나 용도를 알려주시면 더 정확한 추천이 가능합니다. 형상이 확실하지 않으시면 '상관없음'을 선택해주시면 다른 조건이 필요하시면 말씀해주세요 좁혀드리겠습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (544개)",
+          "Radius (203개)",
+          "Ball (146개)",
+          "Roughing (65개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (1043개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-31T07:09:32.434Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "알루컷이라는 브랜드가 성능이 좋다고 들었는데 그 제품에 대해서 설명해주고 스퀘어 제품으로 추천해줘",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T07:10:01.457Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "현재 1043개 후보가 있습니다. 날 수(flute) 선호가 있으신가요?",
+        "isLoading": false,
+        "chips": [
+          "2날 (393개)",
+          "3날 (340개)",
+          "4날 (198개)",
+          "1날 (35개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (1043개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-31T07:10:01.457Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "알루컷이라는 브랜드가 성능이 좋다고 들었는데 그 제품에 대해서 설명해주고 스퀘어 제품으로 추천해줘",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T07:11:40.544Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "선택하신 소재는 ISO N (비철)군입니다. 세부 피삭재를 선택해주세요. (일부 제품은 세부 분류�� 없어 \"상관없음\" 선택 시 전체 후보에서 추천합니다)",
+        "isLoading": false,
+        "chips": [
+          "Aluminum (845개)",
+          "Non-ferrous (506개)",
+          "Acrylic (387개)",
+          "CFRP (184개)",
+          "Copper (171개)",
+          "Graphite (138개)",
+          "Alloy Steels (106개)",
+          "Carbon Steels (76개)",
+          "Prehardened Steels (62개)",
+          "Cast Iron (53개)",
+          "ETC (12개)",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (1043개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-31T07:11:40.544Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: Aluminum (845개), Non-ferrous (506개), Acrylic (387개), CFRP (184개), Copper (171개), Graphite (138개), Alloy Steels (106개), Carbon Steels (76개), Prehardened Steels (62개), Cast Iron (53개), ETC (12개), ⟵ 이전 단계, 📋 지금 바로 제품 보기 (1043개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "Aluminum (845개)",
+      "Non-ferrous (506개)",
+      "Acrylic (387개)",
+      "CFRP (184개)",
+      "Copper (171개)",
+      "Graphite (138개)",
+      "Alloy Steels (106개)",
+      "Carbon Steels (76개)",
+      "Prehardened Steels (62개)",
+      "Cast Iron (53개)",
+      "ETC (12개)",
+      "⟵ 이전 단계",
+      "📋 지금 바로 제품 보기 (1043개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-31T07:11:57.729Z",
+    "sessionId": "ses-1774941107682",
+    "turnNumber": 3
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

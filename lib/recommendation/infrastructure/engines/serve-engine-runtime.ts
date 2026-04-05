@@ -1497,7 +1497,7 @@ async function handleServeExplorationInner(
   trace: TraceCollector = new TraceCollector()
 ): Promise<Response> {
   console.log(
-    `[recommend] request start hasPrevState=${!!prevState} messages=${messages.length} displayedProducts=${displayedProducts?.length ?? 0}`
+    `[recommend] request start hasPrevState=${!!prevState} messages=${messages.length} displayedProducts=${displayedProducts?.length ?? 0} BUILD=002ebde`
   )
 
   // ── DebugTrace: snapshot stateBefore ──

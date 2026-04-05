@@ -1,0 +1,24 @@
+{
+  "id": "TC-058",
+  "source": "general",
+  "severity": "major",
+  "category": "general-negative",
+  "input": {
+    "userMessages": [],
+    "fullConversation": []
+  },
+  "actualOutput": {
+    "aiResponses": []
+  },
+  "feedback": {
+    "rating": 2,
+    "comment": "기본 정보를 선택할 때 혼선이 없도록 단계별 선택 항목이 축소되어야 할 것 같음.\n예로 신제품 추천->N->사이드 커팅까지 클릭을 했는데 다른 선택 조건이 밀링, 드릴링, 쓰레딩, 터닝이 선택 조건에 나오는 것이 모순임. 이미 사이드 커팅에서 밀링으로 축소 되었어야 함",
+    "tags": [],
+    "author": "최정은",
+    "department": "제품홍보팀",
+    "timestamp": "2026-03-31T02:27:20.951Z",
+    "sessionId": null
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

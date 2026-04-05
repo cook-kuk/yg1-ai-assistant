@@ -1,0 +1,180 @@
+{
+  "id": "TC-242",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T05:22:58.424Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (415개), Radius (161개), Ball (100개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (415개)",
+          "Radius (161개)",
+          "Ball (100개)",
+          "Roughing (56개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (794개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-30T05:22:58.424Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "가공피삭재가 CFRP인데 제품 추천해주세요",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T05:23:11.766Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Ball (37개), Square (24개), Radius (20개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Ball (37개)",
+          "Square (24개)",
+          "Radius (20개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (123개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-30T05:23:11.766Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "가공피삭재가 CFRP인데 제품 추천해주세요",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T05:23:51.493Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Ball (37개), Square (24개), Radius (20개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Ball (37개)",
+          "Square (24개)",
+          "Radius (20개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (123개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-30T05:23:51.493Z"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "text": "가공피삭재가 CFRP인데 제품 추천해주세요",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T05:24:50.102Z"
+      },
+      {
+        "index": 7,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Ball (37개), Square (24개), Radius (20개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Ball (37개)",
+          "Square (24개)",
+          "Radius (20개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (123개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-30T05:24:50.102Z"
+      },
+      {
+        "index": 8,
+        "role": "user",
+        "text": "Square (24개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T05:25:32.281Z"
+      },
+      {
+        "index": 9,
+        "role": "ai",
+        "text": "네, Square 형상으로 24개의 제품이 매칭되었습니다.\n\n현재 CFRP(탄소섬유강화플라스틱) 가공용 Square 엔드밀 φ12mm 제품군이 확인되고 있습니다. 모든 제품이 Diamond 코팅이 적용되어 있어 CFRP의 높은 연마성에 대응할 수 있습니다.\n\n【현재 후보 분포】\n- 2날(Flute): EIE25, EIE37 시리즈\n- 4날: EIE26 시리즈  \n- 6날: EIE27 시리즈\n\n【날 수 선택 가이드】\n• **2날**: 칩 배출이 용이하여 깊은 홈 가공이나 두꺼운 CFRP 적층재에 적합합니다. 절삭 저항이 낮아 공구 수명이 길지만 가공 속도는 다소 느립니다.\n\n• **4날**: 2날과 6날의 중간 특성으로, 범용 가공에 적합합니다. 절삭 저항과 칩 배출의 균형이 좋아 대부분의 CFRP 가공에 무난하게 사용됩니다.\n\n• **6날**: 다날 설계로 가공 속도가 빠르고 표면조도가 우수합니다. 얇은 CFRP 판재나 정밀 마무리 가공에 유리하지만, 칩 배출 공간이 작아 깊은 홈 가공에는 부적합합니다.\n\nCFRP는 섬유 방향성과 적층 구조 때문에 날 수에 따라 가공 품질�� 크게 달라집니다. 가공 깊이와 요구 표면조도를 고려하여 날 수를 선택하시면 최적의 결과를 얻으실 수 있습니다.\n\n선호하시는 날 수가 있으신가요? 아니면 가공 조건(가공 깊이, 표면조도 요구사항 등)을 알려주시면 더 정확한 추천이 가능합니다.",
+        "isLoading": false,
+        "chips": [
+          "2날 (14개)",
+          "4날 (6개)",
+          "6날 (4개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (24개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-30T05:25:32.281Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: 2날 (14개), 4날 (6개), 6날 (4개), 상관없음, ⟵ 이전 단계, 📋 지금 바로 제품 보기 (24개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "2날 (14개)",
+      "4날 (6개)",
+      "6날 (4개)",
+      "상관없음",
+      "⟵ 이전 단계",
+      "📋 지금 바로 제품 보기 (24개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-30T05:26:33.039Z",
+    "sessionId": "ses-1774848339471",
+    "turnNumber": 5
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

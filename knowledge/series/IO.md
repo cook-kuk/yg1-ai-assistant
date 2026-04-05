@@ -1,0 +1,33 @@
+# YG TAP INOX — IO
+**제품명**: YG TAP INOX
+
+## 기본 사양
+- 공구 타입: Tap
+- 서브타입: Spiral Point
+- 날 수: 4P-5P
+- 공구 재질: HSS-E
+- 코팅: SteamOxide
+- 깊이비: Max. 3.0xD
+
+## 대응 ISO 그룹
+M
+
+## 대상 피삭재
+- M
+- MF
+
+## 특징
+- Max. 3.0xD Through Hole
+- Spiral Point
+
+## 용도
+- Through hole tapping
+
+## 선정 가이드
+- Selection guide for YG TAP INOX series by hole type, tap type, coating, and target material. IO is positioned for through-hole tapping up to 3.0xD with HSS-E spiral point construction.
+
+## 상세 정보 (원문 요약)
+- [page_0694] YG TAP INOX 선택 가이드 페이지로, 스테인리스 가공용 탭 시리즈들의 적용 범위를 정리하고 있다. IO는 Max. 3.0xD 관통홀용 HSS-E 4P-5P Spiral Point 탭으로 표시되며, M/MF 계열에 대응한다. 페이지에는 HSS-PM Spiral Flute(L15), HSS-E Spiral Flute(R40) 계열과 함께 여러 나사 규격(UNC, UNF, NPT, NPS 등) 및 코팅(SteamOxide, TiN, Hardslick, TiCN, Gold & Black)이 함께 제시된다.
+
+---
+출처: yu25_split | 페이지: page_0694

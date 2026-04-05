@@ -1,0 +1,26 @@
+{
+  "id": "TC-121",
+  "source": "general",
+  "severity": "major",
+  "category": "ui-issue",
+  "input": {
+    "userMessages": [],
+    "fullConversation": []
+  },
+  "actualOutput": {
+    "aiResponses": []
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "가공 형상 아이콘 및 글씨가 너무 작습니다. 그림 및 폰트를 키우면 좋을것 같습니다.",
+    "tags": [
+      "ui-issue"
+    ],
+    "author": "연구소",
+    "department": "",
+    "timestamp": "2026-03-30T00:10:49.600Z",
+    "sessionId": null
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

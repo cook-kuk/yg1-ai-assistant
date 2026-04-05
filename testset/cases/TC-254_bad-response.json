@@ -1,0 +1,246 @@
+{
+  "id": "TC-254",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 주철\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 2mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:31:22.481Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "안녕하세요! 주철 소재에 프로파일링 가공을 위한 직경 2mm 엔드밀을 찾고 계시는군요.\n\n현재 입력하신 조건으로 **613개의 제품**이 매칭됩니다. 보다 정확한 추천을 위해 몇 가지 추가 조건을 확인하겠습니다.\n\n먼저, **공구의 날 끝 형상**이 중요하신가요? 프로파일링 가공의 특성에 따라 다음과 같은 선택지가 있습니다:\n\n- **Ball (577개)**: 볼 엔드밀, 곡면 가공에 적합\n- **Radius (23개)**: 코너 R이 있는 형상, 내구성과 표면조도 개선\n- **Square (13개)**: 평날 형상, 직각 가공에 적합\n\n어떤 형상을 선호하시나요? 특별한 선호가 없으시면 '상관없음'을 선택해주시면 전체 범위에서 추천드리겠습니다.",
+        "isLoading": false,
+        "chips": [
+          "Ball (577개)",
+          "Radius (23개)",
+          "Square (13개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (613개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-29T23:31:22.482Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "보통 주철에서 프로파일링을 한다면 어떤 포인트 형상을 사용해야해?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:32:13.906Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "주철 프로파일링 가공에서는 **Ball 또는 Radius 형상**이 일반적으로 권장됩니다.\n\n**Ball 엔드밀**은 3차원 곡면 가공에 적합하고, **Radius 엔드밀**은 코너 강도를 높여 치핑(chipping)을 방지하면서도 직선 구간과 모서리 가공을 동시에 처리할 수 있어 프로파일링에 유리합니다. 주철은 칩이 짧게 부러지는 특성이 있어 중립~부의 레이크 각을 가진 공구가 적합하며, 황삭에서는 1.2mm 이상의 큰 코너 반경으로 고이송을 허용하고, 정삭에서는 0.8mm 이하의 작은 반경으로 표면 조도를 개선합니다.\n\n현재 추천된 제품 중에는 **Ball 형상(G9B52, E5C60 등)**이 다수이며, 보다 강건한 가공을 원하시면 **Radius 형상**도 고려해보시기 바랍니다.\n\n📌 **웹 검색 참고 (내부 DB 외부 정보)**: 주철 프로파일링에서는 큰 코너 반경으로 치핑 방지 및 출구 버 감소 효과가 있으며, 다이아몬드 형상은 예각으로 약하므로 경삭 전용으로만 사용됩니다.\n\n다시 제품 추천으로 돌아갈게요. 안녕하세요! 주철 소재에 프로파일링 가공을 위한 직경 2mm 엔드밀을 찾고 계시는군요.\n\n현재 입력하신 조건으로 **613개의 제품**이 매칭됩니다. 보다 정확한 추천을 위해 몇 가지 추가 조건을 확인하겠습니다.\n\n먼저, **공구의 날 끝 형상**이 중요하신가요? 프로파일링 가공의 특성에 따라 다음과 같은 선택지가 있습니다:\n\n- **Ball (577개)**: 볼 엔드밀, 곡면 가공에 적합\n- **Radius (23개)**: 코너 R이 있는 형상, 내구성과 표면조도 개선\n- **Square (13개)**: 평날 형상, 직각 가공에 적합\n\n어떤 형상을 선호하시나요? 특별한 선호가 없으시면 '상관없음'을 선택해주시면 전체 범위에서 추천드리겠습니다.",
+        "isLoading": false,
+        "chips": [
+          "Ball (577개)",
+          "Radius (23개)",
+          "Square (13개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (613개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-29T23:32:13.906Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "그러면 Ball 제품으로 추천해줘봐 2.0 mm 가 577 개가 있다면 내가 어떻게 선택을 해야해",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:33:48.244Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "\"Ball\" 조건을 적용했습니다. 현재 필터 기준 후보는 0개입니다. 이전 단계로 돌아가거나 다른 조건을 선택해주세요.",
+        "isLoading": false,
+        "chips": [
+          "⟵ 이전 단계",
+          "처음부터 다시"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-29T23:33:48.244Z"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "text": "Ball 형상의 2.0mm 는 없는거야?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:34:47.740Z"
+      },
+      {
+        "index": 7,
+        "role": "ai",
+        "text": "네, 현재 DB 조회 결과 **주철 소재, 프로파일링 가공, 직경 2.0mm, Ball 형상**을 모두 만족하는 제품은 없습니다.\n\n이전 단계에서 확인한 **613개 제품**은 직경 2.0mm 조건만 적용된 결과였고, 그중 Ball 형상으로 필터링하니 매칭되는 제품이 사라진 것으로 보입니다. YG-1의 2.0mm 소형 공구 라인업에서는 Square나 Radius 형상이 주를 이루며, Ball 엔드밀은 일반적으로 3mm 이상 직경부터 제공되는 경우가 많습니다.\n\n**대안 제안**:\n1. **Radius 엔드밀** 검토: 코너 R값이 작은 제품으로 Ball과 유사한 곡면 가공 가능\n2. **직경 확대**: 3mm 이상 Ball 엔드밀 검토\n3. 본사 기술지원팀(032-526-0909)에 특수 사양 문의\n\n어떤 방향으로 진행하시겠습니까?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": "good",
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:34:47.740Z"
+      },
+      {
+        "index": 8,
+        "role": "user",
+        "text": "2.0 짜리 Ball이 왜 없어? YG-1에서 안만들어??? 못만들어??",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:38:22.697Z"
+      },
+      {
+        "index": 9,
+        "role": "ai",
+        "text": "아, 중요한 포인트를 놓쳤네요! **볼엔드밀은 직경이 아닌 반지름(R)으로 표기**합니다.\n\n📌 **웹 검색 참고 (내부 DB 외부 정보)**  \n\"2.0mm 볼엔드밀\"이라는 표현 자체가 규격상 존재하지 않습니다. 직경 2mm가 필요하시면 **R1.0**, 직경 4mm가 필요하시면 **R2.0**을 찾으셔야 합니다. YG-1은 R0.05부터 R10까지 다양한 볼엔드밀을 생산하고 있으니, 못 만드는 게 아니라 규격 표기 방식의 차이입니다.\n\n혹시 **직경 2mm (R1.0)** 또는 **직경 4mm (R2.0)** 중 어느 것을 찾으시는지 확인해주시면, 주철 프로파일링용으로 정확히 추천해드리겠습니다!",
+        "isLoading": false,
+        "chips": [
+          "쉽게 설명해줘",
+          "추천으로 골라줘",
+          "상관없음",
+          "Ball 형상 2.0mm 제품 미존재 이유 설명해줘"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-29T23:38:22.697Z"
+      },
+      {
+        "index": 10,
+        "role": "user",
+        "text": "R1.0",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:40:21.107Z"
+      },
+      {
+        "index": 11,
+        "role": "ai",
+        "text": "\"1\" 조건을 적용했습니다. 현재 필터 기준 후보는 0개입니다. 이전 단계로 돌아가거나 다른 조건을 선택해주세요.",
+        "isLoading": false,
+        "chips": [
+          "⟵ 이전 단계",
+          "처음부터 다시"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-29T23:40:21.107Z"
+      },
+      {
+        "index": 12,
+        "role": "user",
+        "text": "그러면 Profile을 하기위한 Ball은 R1.0이 없는거네? Corner Radius 제품으로는 있어?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:41:13.480Z"
+      },
+      {
+        "index": 13,
+        "role": "ai",
+        "text": "네, 현재 DB 조회 결과상으로는 **주철 프로파일링용 Ball R1.0** 제품이 확인되지 않습니다. \n\n**Corner Radius 제품**은 바닥이 평평하고 모서리만 둥근 형상이라 Ball과는 용도가 다릅니다. 주철 가공에서 모서리 필렛이 필요하다면 Corner Radius도 선택지가 될 수 있지만, 3D 프로파일링이 목적이시라면 Ball 형상이 더 적합합니다.\n\n📌 **웹 검색 참고 (내부 DB 외부 정보)**  \n일반적으로 R1.0 Ball 엔드밀은 시판되고 있으며, Corner Radius 제품으로도 R1 사이즈가 존재합니다. YG-1 본사(032-526-0909)에 문의하시면 주철 전용 코팅이 적용된 Ball R1.0 재고 여부를 확인하실 수 있습니다.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": "good",
+        "chipFeedback": null,
+        "createdAt": "2026-03-29T23:41:13.480Z"
+      },
+      {
+        "index": 14,
+        "role": "user",
+        "text": "그러면 피삭재 고경도강용 엔드밀에서 Ball 2.0mm 제품 추천해봐",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T01:50:10.900Z"
+      },
+      {
+        "index": 15,
+        "role": "ai",
+        "text": "\"Ball\" 조건을 적용했습니다. 현재 필터 기준 후보는 0개입니다. 이전 단계로 돌아가거나 다른 조건을 선택해주세요.",
+        "isLoading": false,
+        "chips": [
+          "⟵ 이전 단계",
+          "처음부터 다시"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-30T01:50:10.900Z"
+      },
+      {
+        "index": 16,
+        "role": "user",
+        "text": "모든 엔드밀에서 Ball 2.0mm 검색해",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T01:50:36.865Z"
+      },
+      {
+        "index": 17,
+        "role": "ai",
+        "text": "\"Ball\" 조건을 적용했습니다. 현재 필터 기준 후보는 0개입니다. 이전 단계로 돌아가거나 다른 조건을 선택해주세요.",
+        "isLoading": false,
+        "chips": [
+          "⟵ 이전 단계",
+          "처음부터 다시"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-30T01:50:36.865Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: ⟵ 이전 단계, 처음부터 다시"
+    ],
+    "chips": [
+      "⟵ 이전 단계",
+      "처음부터 다시"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-30T01:50:45.857Z",
+    "sessionId": "ses-1774835441103",
+    "turnNumber": 9
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

@@ -1,0 +1,26 @@
+{
+  "id": "TC-048",
+  "source": "general",
+  "severity": "major",
+  "category": "ui-issue",
+  "input": {
+    "userMessages": [],
+    "fullConversation": []
+  },
+  "actualOutput": {
+    "aiResponses": []
+  },
+  "feedback": {
+    "rating": 3,
+    "comment": "가공 형상 클릭 시  자동으로 스크롤 다운이 되는 현상이 있습니다. 가공 형상을 더 선택하고싶은데 스크롤이 계속 내려가 UX가 좋지 않습니다.",
+    "tags": [
+      "ui-issue"
+    ],
+    "author": "송정훈",
+    "department": "연구소",
+    "timestamp": "2026-03-31T06:25:54.719Z",
+    "sessionId": null
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

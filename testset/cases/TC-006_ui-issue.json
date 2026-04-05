@@ -1,0 +1,39 @@
+{
+  "id": "TC-006",
+  "source": "general",
+  "severity": "major",
+  "category": "ui-issue",
+  "input": {
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 초내열합금\n📐 가공 형상: Trochoidal\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+    ],
+    "fullConversation": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 초내열합금\n📐 가공 형상: Trochoidal\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      },
+      {
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (58개), Ball (11개), Radius (9개) 등이 있습니다."
+      }
+    ]
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "공구 세부 타입이 중요한가요? Square (58개), Ball (11개), Radius (9개) 등이 있습니다."
+    ]
+  },
+  "feedback": {
+    "rating": 3,
+    "comment": "공구의 외경 사이즈만 선택이 가능하고 검색 이후 형상 별 그룹 선택이 가능하지만 그룹 선택 후에도 날수을 추가로 선택해야 하는 번거로움이 있음.\n처음부터 외경 외에도 날수(엔드밀, 드릴, 탭 모두 해당), 형상(볼, 래디우스) 등에 대한 세부 항목도 선택이 가능하면 공구 선정에 좀더 시간이 단축 될 것 같음",
+    "tags": [
+      "ui-issue"
+    ],
+    "author": "최영근",
+    "department": "영업부",
+    "timestamp": "2026-04-02T00:15:41.711Z",
+    "sessionId": "ses-1775088729115"
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

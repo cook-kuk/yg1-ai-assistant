@@ -1,0 +1,26 @@
+{
+  "id": "TC-020",
+  "source": "general",
+  "severity": "critical",
+  "category": "ui-issue",
+  "input": {
+    "userMessages": [],
+    "fullConversation": []
+  },
+  "actualOutput": {
+    "aiResponses": []
+  },
+  "feedback": {
+    "rating": 1,
+    "comment": "추천 전 기본 정보 확인 페이지에서 \n가공방식(공구선택)이 가장 우선되어야 할 것 같습니다.\n(현재는 4번에 위치해있음)\n제품 검색 시 공구계열선택이 가장 우선순위 입니다.\n",
+    "tags": [
+      "ui-issue"
+    ],
+    "author": "김도성",
+    "department": "연구소",
+    "timestamp": "2026-03-30T00:09:28.954Z",
+    "sessionId": null
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

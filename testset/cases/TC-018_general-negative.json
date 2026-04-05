@@ -1,0 +1,147 @@
+{
+  "id": "TC-018",
+  "source": "general",
+  "severity": "critical",
+  "category": "general-negative",
+  "input": {
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "가공 깊이 5mm입니다. 적당한 길이의 4날 스퀘어엔드밀로 추천해주세요",
+      "스퀘어엔드밀로 추천해달라고 위에 말했는데요",
+      "날수는 최대한 많은 제품으로 추천해주세요",
+      "Alloy Steels (721개)",
+      "상관없음",
+      "상관없음",
+      "날수 많은 제품으로 추천해줘",
+      "SEME75100E 제품 사진이 잘못된거 같은데 맞나요?",
+      "SG9E7710015 제품은 Roughing 인데 사진이 이상해요 확인해주세요",
+      "SG9E7710015 전체 사양 알려줘",
+      "이제품의 사진보여주세요"
+    ],
+    "fullConversation": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      },
+      {
+        "role": "ai",
+        "text": "안녕하세요! 탄소강 소재를 φ10mm로 밀링 가공하시는군요. 현재 조건에 맞는 YG-1 제품이 3,772개 있습니다.\n\n먼저 공구 형상부터 여쭤보겠습니다. 어떤 타입의 엔드밀이 필요하신가요?\n\n• **Square (1,713개)**: 평면/측면 가공, 홈/슬롯 가공에 적합한 스퀘어형\n• **Radius (1,141개)**: 모서리에 라운드가 있어 공구 수명이 길고 안정적인 가공에 유리\n• **Ball (470개)**: 곡면/3D 형상 가공에 적합한 볼엔드밀\n• **Roughing (365개)**: 황삭용으로 빠른 재료 제거에 최적화\n\n가공하실 형상이나 용도를 알려주시면 더 정확한 추천이 가능합니다. 특별한 선호가 없으시면 \"상관없음\"을 선택해주세요."
+      },
+      {
+        "role": "user",
+        "text": "가공 깊이 5mm입니다. 적당한 길이의 4날 스퀘어엔드밀로 추천해주세요"
+      },
+      {
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (1713개), Radius (1141개), Ball (470개) 등이 있습니다."
+      },
+      {
+        "role": "user",
+        "text": "스퀘어엔드밀로 추천해달라고 위에 말했는데요"
+      },
+      {
+        "role": "ai",
+        "text": "네, 맞습니다. 고객님께서 입력하신 조건에 따라 스퀘어엔드밀(Square End Mill)로 필터를 적용한 상태입니다.\n\n현재 **탄소강(P) 소재용 φ10mm 스퀘어엔드밀 1,722개**가 후보에 있습니다.\n\n이 중에서 최적의 제품을 찾기 위해 몇 가지 조건을 더 확인하겠습니다.\n\n**날 수(Flute) 선호**가 있으신가요?\n\n- **4날(4F)**: 범용성이 좋고 칩 배출이 원활하며, 일반적인 밀링 작업에 적합합니다. 표면조도와 가공 안정성의 균형이 우수합니다.\n- **6날(6F)**: 생산성이 높고 표면조도가 우수하며, 고속 가공이나 마무리 가공에 유리합니다. 다만 칩 배출 공간이 작아 깊은 홈 가공에는 부적합할 수 있습니다.\n- **2날(2F)**: 칩 배출이 매우 좋아 깊은 홈 가공이나 연질 소재 가공에 적합합니다.\n\n현재 상위 제품을 보면:\n- **SG9E77, SG9E76 시리즈**: 4날(4F) 제품으로, 탄소강 범용 가공에 최적화\n- **SEME75 시리즈**: 6"
+      },
+      {
+        "role": "user",
+        "text": "날수는 최대한 많은 제품으로 추천해주세요"
+      },
+      {
+        "role": "ai",
+        "text": "선택하신 소재는 ISO P (일반강)군입니다. 세부 피삭재를 선택해주세요. (일부 제품은 세부 분류가 없어 \"상관없음\" 선택 시 전체 후보에서 추천합니다)"
+      },
+      {
+        "role": "user",
+        "text": "Alloy Steels (721개)"
+      },
+      {
+        "role": "ai",
+        "text": "네, Alloy Steels(합금강) 가공용으로 범위를 좁혔습니다. 현재 721개의 제품이 후보에 있습니다.\n\n이제 코팅 종류를 선택하시면 더욱 정확한 추천이 가능합니다. 현재 후보군에는 다음과 같은 코팅들이 있습니다:\n\n**[DB 데이터]**\n- **X-Coating**: 고경도 코팅으로 내마모성이 우수하며, 고속 가공과 건식 가공에 적합합니다. 합금강 가공 시 공구 수명 연장에 효과적입니다.\n- **Y-Coating**: 범용 코팅으로 다양한 소재에 안정적인 성능을 제공하며, 절삭 저항이 낮아 정밀 가공에도 유리합니다.\n- **TiAlN 계열**: 고온 안정성이 뛰어나 고속/고이송 가공에 적합하며, 합금강의 경화층 가공에도 효과적입니다.\n\n**[AI 보충 의견]**\n합금강 가공의 경우:\n- **고속/고효율 가공**을 원하시면 → X-Coating 또는 TiAlN 계열 추천\n- **범용/안정적 가공**을 원하시면 → Y-Coating 추천\n- **특별한 선호가 없으시면** → \"상"
+      },
+      {
+        "role": "user",
+        "text": "상관없음"
+      },
+      {
+        "role": "ai",
+        "text": "어떤 종류의 가공을 하실 예정인가요?"
+      },
+      {
+        "role": "user",
+        "text": "상관없음"
+      },
+      {
+        "role": "ai",
+        "text": "이 조건이면 SG9E7710015 (SG9E77)를 먼저 보시면 됩니다. Square 형상, 4날, φ10mm 기준에 잘 맞고, 코팅은 X-Coating으로 H군, K군, P군 소재 대응 범위를 확인할 수 있습니다. 재고 212개 (즉시 출하). 납기 정보 없음."
+      },
+      {
+        "role": "user",
+        "text": "날수 많은 제품으로 추천해줘"
+      },
+      {
+        "role": "ai",
+        "text": "이 조건이면 SEME75100E (SEME75)를 먼저 보시면 됩니다. Square 형상, 6날, φ10mm 기준에 잘 맞고, 코팅은 Y-Coating으로 H군, K군, P군 소재 대응 범위를 확인할 수 있습니다. 재고 정보 없음."
+      },
+      {
+        "role": "user",
+        "text": "SEME75100E 제품 사진이 잘못된거 같은데 맞나요?"
+      },
+      {
+        "role": "ai",
+        "text": "SEME75100E 제품 정보를 내부 DB에서 조회했습니다.\n\n| 항목 | 값 |\n| --- | --- |\n| 제품코드 | SEME75100E |\n| 브랜드 | 4G MILL |\n| 시리즈 | SEME75 |\n| 제품명 | 4G MILL 6 Flute<br/>45°Helix End mill |\n| 형상 | Square |\n| 직경 | φ10mm |\n| 날 수 | 6날 |\n| 코팅 | Y-Coating |\n| 공구 소재 | Carbide |\n| 생크 직경 | φ10mm |\n| 절삭 길이 | 25mm |\n| 전장 | 75mm |\n| 헬릭스각 | 45° |\n| 쿨런트 홀 | - |\n| 적용 가공 | Taper_Side_Milling |\n| ISO 소재 | H, K, P |\n\n설명: 4G MILL 6 Flute<br/>45°Helix End mill\n특징: ▶ Due to new coating and new tool geometry, outstanding cutting ability and"
+      },
+      {
+        "role": "user",
+        "text": "SG9E7710015 제품은 Roughing 인데 사진이 이상해요 확인해주세요"
+      },
+      {
+        "role": "ai",
+        "text": "SG9E7710015의 형상는 Square입니다.\n\n| 항목 | 값 |\n| --- | --- |\n| 제품코드 | SG9E7710015 |\n| 브랜드 | 4G MILL |\n| 시리즈 | SG9E77 |\n| 형상 | Square |\n\n[Reference: YG-1 내부 DB]"
+      },
+      {
+        "role": "user",
+        "text": "SG9E7710015 전체 사양 알려줘"
+      },
+      {
+        "role": "ai",
+        "text": "SG9E7710015 제품 정보를 내부 DB에서 조회했습니다.\n\n| 항목 | 값 |\n| --- | --- |\n| 제품코드 | SG9E7710015 |\n| 브랜드 | 4G MILL |\n| 시리즈 | SG9E77 |\n| 제품명 | 4G MILL X-SPEED Multi Flute<br/>Multiple Helix Roughing<br/>Corner Radius End mill |\n| 형상 | Square |\n| 직경 | φ10mm |\n| 날 수 | 4날 |\n| 코팅 | X-Coating |\n| 공구 소재 | Carbide |\n| 생크 직경 | φ10mm |\n| 절삭 길이 | 15mm |\n| 전장 | 65mm |\n| 헬릭스각 | - |\n| 쿨런트 홀 | - |\n| 적용 가공 | Helical_Interpolation |\n| ISO 소재 | H, K, P |\n\n설명: 4G MILL X-SPEED Multi Flute<br/>Multiple Helix Roughing<br/>Corner Ra"
+      },
+      {
+        "role": "user",
+        "text": "이제품의 사진보여주세요"
+      },
+      {
+        "role": "ai",
+        "text": "SG9E7710015 제품 정보를 내부 DB에서 조회했습니다.\n\n| 항목 | 값 |\n| --- | --- |\n| 제품코드 | SG9E7710015 |\n| 브랜드 | 4G MILL |\n| 시리즈 | SG9E77 |\n| 제품명 | 4G MILL X-SPEED Multi Flute<br/>Multiple Helix Roughing<br/>Corner Radius End mill |\n| 형상 | Square |\n| 직경 | φ10mm |\n| 날 수 | 4날 |\n| 코팅 | X-Coating |\n| 공구 소재 | Carbide |\n| 생크 직경 | φ10mm |\n| 절삭 길이 | 15mm |\n| 전장 | 65mm |\n| 헬릭스각 | - |\n| 쿨런트 홀 | - |\n| 적용 가공 | Helical_Interpolation |\n| ISO 소재 | H, K, P |\n\n설명: 4G MILL X-SPEED Multi Flute<br/>Multiple Helix Roughing<br/>Corner Ra"
+      }
+    ]
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "안녕하세요! 탄소강 소재를 φ10mm로 밀링 가공하시는군요. 현재 조건에 맞는 YG-1 제품이 3,772개 있습니다.\n\n먼저 공구 형상부터 여쭤보겠습니다. 어떤 타입의 엔드밀이 필요하신가요?\n\n• **Square (1,713개)**: 평면/측면 가공, 홈/슬롯 가공에 적합한 스퀘어형\n• **Radius (1,141개)**: 모서리에 라운드가 있어 공구 수명이 길고 안정적인 가공에 유리\n• **Ball (470개)**: 곡면/3D 형상 가공에 적합한 볼엔드밀\n• **Roughing (365개)**: 황삭용으로 빠른 재료 제거에 최적화\n\n가공하실 형상이나 용도를 알려주시면 더 정확한 추천이 가능합니다. 특별한 선호가 없으시면 \"상관없음\"을 선택해주세요.",
+      "공구 세부 타입이 중요한가요? Square (1713개), Radius (1141개), Ball (470개) 등이 있습니다.",
+      "네, 맞습니다. 고객님께서 입력하신 조건에 따라 스퀘어엔드밀(Square End Mill)로 필터를 적용한 상태입니다.\n\n현재 **탄소강(P) 소재용 φ10mm 스퀘어엔드밀 1,722개**가 후보에 있습니다.\n\n이 중에서 최적의 제품을 찾기 위해 몇 가지 조건을 더 확인하겠습니다.\n\n**날 수(Flute) 선호**가 있으신가요?\n\n- **4날(4F)**: 범용성이 좋고 칩 배출이 원활하며, 일반적인 밀링 작업에 적합합니다. 표면조도와 가공 안정성의 균형이 우수합니다.\n- **6날(6F)**: 생산성이 높고 표면조도가 우수하며, 고속 가공이나 마무리 가공에 유리합니다. 다만 칩 배출 공간이 작아 깊은 홈 가공에는 부적합할 수 있습니다.\n- **2날(2F)**: 칩 배출이 매우 좋아 깊은 홈 가공이나 연질 소재 가공에 적합합니다.\n\n현재 상위 제품을 보면:\n- **SG9E77, SG9E76 시리즈**: 4날(4F) 제품으로, 탄소강 범용 가공에 최적화\n- **SEME75 시리즈**: 6",
+      "선택하신 소재는 ISO P (일반강)군입니다. 세부 피삭재를 선택해주세요. (일부 제품은 세부 분류가 없어 \"상관없음\" 선택 시 전체 후보에서 추천합니다)",
+      "네, Alloy Steels(합금강) 가공용으로 범위를 좁혔습니다. 현재 721개의 제품이 후보에 있습니다.\n\n이제 코팅 종류를 선택하시면 더욱 정확한 추천이 가능합니다. 현재 후보군에는 다음과 같은 코팅들이 있습니다:\n\n**[DB 데이터]**\n- **X-Coating**: 고경도 코팅으로 내마모성이 우수하며, 고속 가공과 건식 가공에 적합합니다. 합금강 가공 시 공구 수명 연장에 효과적입니다.\n- **Y-Coating**: 범용 코팅으로 다양한 소재에 안정적인 성능을 제공하며, 절삭 저항이 낮아 정밀 가공에도 유리합니다.\n- **TiAlN 계열**: 고온 안정성이 뛰어나 고속/고이송 가공에 적합하며, 합금강의 경화층 가공에도 효과적입니다.\n\n**[AI 보충 의견]**\n합금강 가공의 경우:\n- **고속/고효율 가공**을 원하시면 → X-Coating 또는 TiAlN 계열 추천\n- **범용/안정적 가공**을 원하시면 → Y-Coating 추천\n- **특별한 선호가 없으시면** → \"상",
+      "어떤 종류의 가공을 하실 예정인가요?",
+      "이 조건이면 SG9E7710015 (SG9E77)를 먼저 보시면 됩니다. Square 형상, 4날, φ10mm 기준에 잘 맞고, 코팅은 X-Coating으로 H군, K군, P군 소재 대응 범위를 확인할 수 있습니다. 재고 212개 (즉시 출하). 납기 정보 없음.",
+      "이 조건이면 SEME75100E (SEME75)를 먼저 보시면 됩니다. Square 형상, 6날, φ10mm 기준에 잘 맞고, 코팅은 Y-Coating으로 H군, K군, P군 소재 대응 범위를 확인할 수 있습니다. 재고 정보 없음.",
+      "SEME75100E 제품 정보를 내부 DB에서 조회했습니다.\n\n| 항목 | 값 |\n| --- | --- |\n| 제품코드 | SEME75100E |\n| 브랜드 | 4G MILL |\n| 시리즈 | SEME75 |\n| 제품명 | 4G MILL 6 Flute<br/>45°Helix End mill |\n| 형상 | Square |\n| 직경 | φ10mm |\n| 날 수 | 6날 |\n| 코팅 | Y-Coating |\n| 공구 소재 | Carbide |\n| 생크 직경 | φ10mm |\n| 절삭 길이 | 25mm |\n| 전장 | 75mm |\n| 헬릭스각 | 45° |\n| 쿨런트 홀 | - |\n| 적용 가공 | Taper_Side_Milling |\n| ISO 소재 | H, K, P |\n\n설명: 4G MILL 6 Flute<br/>45°Helix End mill\n특징: ▶ Due to new coating and new tool geometry, outstanding cutting ability and",
+      "SG9E7710015의 형상는 Square입니다.\n\n| 항목 | 값 |\n| --- | --- |\n| 제품코드 | SG9E7710015 |\n| 브랜드 | 4G MILL |\n| 시리즈 | SG9E77 |\n| 형상 | Square |\n\n[Reference: YG-1 내부 DB]",
+      "SG9E7710015 제품 정보를 내부 DB에서 조회했습니다.\n\n| 항목 | 값 |\n| --- | --- |\n| 제품코드 | SG9E7710015 |\n| 브랜드 | 4G MILL |\n| 시리즈 | SG9E77 |\n| 제품명 | 4G MILL X-SPEED Multi Flute<br/>Multiple Helix Roughing<br/>Corner Radius End mill |\n| 형상 | Square |\n| 직경 | φ10mm |\n| 날 수 | 4날 |\n| 코팅 | X-Coating |\n| 공구 소재 | Carbide |\n| 생크 직경 | φ10mm |\n| 절삭 길이 | 15mm |\n| 전장 | 65mm |\n| 헬릭스각 | - |\n| 쿨런트 홀 | - |\n| 적용 가공 | Helical_Interpolation |\n| ISO 소재 | H, K, P |\n\n설명: 4G MILL X-SPEED Multi Flute<br/>Multiple Helix Roughing<br/>Corner Ra",
+      "SG9E7710015 제품 정보를 내부 DB에서 조회했습니다.\n\n| 항목 | 값 |\n| --- | --- |\n| 제품코드 | SG9E7710015 |\n| 브랜드 | 4G MILL |\n| 시리즈 | SG9E77 |\n| 제품명 | 4G MILL X-SPEED Multi Flute<br/>Multiple Helix Roughing<br/>Corner Radius End mill |\n| 형상 | Square |\n| 직경 | φ10mm |\n| 날 수 | 4날 |\n| 코팅 | X-Coating |\n| 공구 소재 | Carbide |\n| 생크 직경 | φ10mm |\n| 절삭 길이 | 15mm |\n| 전장 | 65mm |\n| 헬릭스각 | - |\n| 쿨런트 홀 | - |\n| 적용 가공 | Helical_Interpolation |\n| ISO 소재 | H, K, P |\n\n설명: 4G MILL X-SPEED Multi Flute<br/>Multiple Helix Roughing<br/>Corner Ra"
+    ]
+  },
+  "feedback": {
+    "rating": 1,
+    "comment": "SG9E7710015 제품 추천을 받았고 해당 제품의 사진이 제품 정보 옆에 있는데 제품과 제품 사진이 맞지 않습니다.\n(DB 문제일 가능성도 있음.) 그래서 확인차 해당 제품의 사진을 보여달라고 요청했는데 보여주지 못하는 것 같습니다.",
+    "tags": [],
+    "author": "한웅희",
+    "department": "연구소",
+    "timestamp": "2026-04-01T03:59:08.413Z",
+    "sessionId": "ses-1775011662854"
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

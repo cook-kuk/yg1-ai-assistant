@@ -1,0 +1,96 @@
+{
+  "id": "TC-137",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T23:16:15.692Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "안녕하세요! 탄소강 소재를 φ10mm로 밀링 가공하시는군요. 현재 조건에 맞는 YG-1 제품이 3,772개 있습니다.\n\n먼저 공구 형상부터 여쭤보겠습니다. 어떤 타입의 엔드밀이 필요하신가요?\n\n• **Square (1,713개)**: 평면/측면 가공, 홈/슬롯 가공에 적합한 스퀘어형\n• **Radius (1,141개)**: 모서리에 라운드가 있어 공구 수명이 길고 안정적인 가공에 유리\n• **Ball (470개)**: 곡면/3D 형상 가공에 적합한 볼엔드밀\n• **Roughing (365개)**: 황삭용으로 빠른 재료 제거에 최적화\n\n가공하실 형상이나 용도를 알려주시면 더 정확한 추천이 가능합니다. 특별한 선호가 없으시면 \"상관없음\"을 선택해주세요.",
+        "isLoading": false,
+        "chips": [
+          "Square (1713개)",
+          "Radius (1141개)",
+          "Ball (470개)",
+          "Roughing (365개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (3772개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-31T23:16:15.692Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "가공 깊이 5mm입니다. 적당한 길이의 4날 스퀘어엔드밀로 추천해주세요",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T23:44:46.331Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (1713개), Radius (1141개), Ball (470개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (1713개)",
+          "Radius (1141개)",
+          "Ball (470개)",
+          "Roughing (365개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (3772개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-31T23:44:46.331Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: Square (1713개), Radius (1141개), Ball (470개), Roughing (365개), 상관없음, 📋 지금 바로 제품 보기 (3772개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "Square (1713개)",
+      "Radius (1141개)",
+      "Ball (470개)",
+      "Roughing (365개)",
+      "상관없음",
+      "📋 지금 바로 제품 보기 (3772개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-31T23:45:31.388Z",
+    "sessionId": "ses-1775000697350",
+    "turnNumber": 2
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

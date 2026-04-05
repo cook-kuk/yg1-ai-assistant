@@ -1,0 +1,68 @@
+{
+  "id": "TC-196",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T01:17:49.425Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Radius (539개), Square (362개), Ball (162개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Radius (539개)",
+          "Square (362개)",
+          "Ball (162개)",
+          "Roughing (2개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (1065개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-31T01:17:49.425Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: Radius (539개), Square (362개), Ball (162개), Roughing (2개), 상관없음, 📋 지금 바로 제품 보기 (1065개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "Radius (539개)",
+      "Square (362개)",
+      "Ball (162개)",
+      "Roughing (2개)",
+      "상관없음",
+      "📋 지금 바로 제품 보기 (1065개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-31T01:18:22.714Z",
+    "sessionId": "ses-1774919853550",
+    "turnNumber": 1
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

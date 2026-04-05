@@ -1,0 +1,115 @@
+{
+  "id": "TC-218",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공��� 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T07:21:50.355Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (252개), Radius (95개), Roughing (24개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (252개)",
+          "Radius (95개)",
+          "Roughing (24개)",
+          "Drill Mill (8개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (424개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-30T07:21:50.355Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "Square (252개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T07:22:09.061Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "네, Square 형상으로 진행하겠습니다.\n\n현재 Square 형상의 비철금속용 엔드밀이 256개 매칭되었습니다. 이 중에서 고객님께 최적의 제품을 추천하기 위해 몇 가지 조건을 더 확인하겠습니다.\n\n**날 수(Flute) 선호도를 알려주시겠습니까?**\n\n비철금속 가공에서는 일반적으로:\n- **2날**: 칩 배출이 우수하여 알루미늄 같은 연질 소재의 고속 가공에 적합합니다. 특히 깊은 홈 가공이나 슬로팅에 유리합니다.\n- **3날**: 2날과 4날의 중간 특성으로, 칩 배출과 가공 안정성의 균형이 좋습니다. 범용적으로 사용 가능합니다.\n- **4날 이상**: 더 많은 날이 동시에 절삭하여 표면조도가 우수하고, 공구 수명이 길어집니다. 마무리 가공이나 정밀 가공에 적합합니다.\n\n현재 표시된 상위 10개 제품은 모두 **3날(3F)** 제품입니다. 3날이 적합하시다면 바로 이 제품들 중에서 추천해드릴 수 있으며, 다른 날 수를 원하시면 필터를 조정하겠습니다.\n\n날 수 선호도를 알려주시거나, \"상관없음\"을 선택하시면 현재 조건으로 최적 제품을 추천해드리겠습니다.",
+        "isLoading": false,
+        "chips": [
+          "4날 (127개)",
+          "3날 (103개)",
+          "2날 (22개)",
+          "1날 (4개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (256개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-30T07:22:09.061Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "3날로 추천해주세요, 항공용 Aluminum 소재에 고속 가공용에 적용하려고 하는데 어떤 YG-1 제품이 추천될 수 있을까요?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T07:23:39.446Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "\"3\" 조건을 적용했습니다. 현재 필터 기준 후보는 0개입니다. 이전 단계로 돌아가거나 다른 조건을 선택해주세요.",
+        "isLoading": false,
+        "chips": [
+          "⟵ 이전 단계",
+          "처음부터 다시"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-30T07:23:39.446Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: ⟵ 이전 단계, 처음부터 다시"
+    ],
+    "chips": [
+      "⟵ 이전 단계",
+      "처음부터 다시"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-30T07:26:48.145Z",
+    "sessionId": "ses-1774855431290",
+    "turnNumber": 3
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

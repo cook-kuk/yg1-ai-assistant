@@ -1,0 +1,68 @@
+{
+  "id": "TC-230",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 1.5\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T07:00:34.727Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (2314개), Ball (2211개), Radius (1765개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (2314개)",
+          "Ball (2211개)",
+          "Radius (1765개)",
+          "Taper (561개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (6851개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-30T07:00:34.727Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: Square (2314개), Ball (2211개), Radius (1765개), Taper (561개), 상관없음, 📋 지금 바로 제품 보기 (6851개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "Square (2314개)",
+      "Ball (2211개)",
+      "Radius (1765개)",
+      "Taper (561개)",
+      "상관없음",
+      "📋 지금 바로 제품 보기 (6851개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-30T07:00:37.699Z",
+    "sessionId": "ses-1774854021078",
+    "turnNumber": 1
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

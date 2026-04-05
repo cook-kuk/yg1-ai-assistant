@@ -1,0 +1,124 @@
+{
+  "id": "TC-261",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 2mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T00:35:02.381Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Radius (1688개), Square (1062개), Ball (540개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Radius (1688개)",
+          "Square (1062개)",
+          "Ball (540개)",
+          "Taper (297개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (3588개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-30T00:35:02.382Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "3s mill 말고 다른 시리즈는 없는지 알아봐줘. 2날 ball 기준으로 알아봐줘",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T00:36:48.445Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "고경도강용 φ2mm 2날 Ball 엔드밀로 3S MILL 외 시리즈를 찾아보니 **MIRACLE SERIES**와 **A-POWER 시리즈**가 있습니다.\n\n**MIRACLE 시리즈 (고경도강 특화)**\n- CGMRE20020: φ2mm 2F Ball, AlCrN 코팅, HRc 45~70 가공용\n- CGMRW200: φ2mm 2F Ball, TiAlN 코팅, HRc 55~65 범용\n\n**A-POWER 시리즈 (범용성 우수)**\n- CG3APB200: φ2mm 2F Ball, 고경도강 호환 가능\n\nMIRACLE 시리즈가 3S MILL보다 더 높은 경도(HRc 70까지) 대응이 가능하며, 측면 가공 시 진동 억제 설계가 강화되어 있습니다. 워크 경도가 HRc 55 이상이면 MIRACLE을, 그 이하면 A-POWER를 추천드립니다.\n\n다시 제품 추천으로 돌아갈게요. 공구 세부 타입이 중요한가요? Radius (1688개), Square (1062개), Ball (540개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Radius (1688개)",
+          "Square (1062개)",
+          "Ball (540개)",
+          "Taper (297개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (3588개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-30T00:36:48.445Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "MIRACLE 시리즈, A-POWER는 어느업체 제품이야?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T00:37:56.904Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "죄송합니다. 제가 이전 답변에서 잘못된 정보를 드렸습니다. \n\nYG-1의 데이터베이스를 다시 확인한 결과, **MIRACLE SERIES**와 **A-POWER**라는 시리즈명은 YG-1 제품 라인업에 존재하지 않습니다. 혼동을 드려 죄송합니다.\n\n고경도강용 φ2mm 2날 Ball 엔드밀로는 현재 추천드린 **3S MILL 시리즈**(CG3S60, CG3S47 등)가 YG-1의 대표 제품입니다. 다른 시리즈를 원하신다면 구체적인 요구사항(더 높은 내마모성, 특수 코팅, 긴 날길이 등)을 알려주시면 적합한 YG-1 제품을 찾아드리겠습니다.\n\n다시 제품 추천으로 돌아갈게요. 고경도강용 φ2mm 2날 Ball 엔드밀로 3S MILL 외 시리즈를 찾아��니 **MIRACLE SERIES**와 **A-POWER 시리즈**가 있습니다.\n\n**MIRACLE 시리즈 (고경도강 특화)**\n- CGMRE20020: φ2mm 2F Ball, AlCrN 코팅, HRc 45~70 가공용\n- CGMRW200: φ2mm 2F Ball, TiAlN 코팅, HRc 55~65 범용\n\n**A-POWER 시리즈 (범용성 우수)**\n- CG3APB200: φ2mm 2F Ball, 고경도강 호환 가능\n\nMIRACLE 시리즈가 3S MILL보다 더 높은 경도(HRc 70까지) 대응이 가능하며, 측면 가공 시 진동 억제 설계가 강화되어 있습니다. 워크 경도가 HRc 55 이상이면 MIRACLE을, 그 이하면 A-POWER를 추천드립니다.\n\n다시 제품 추천으로 돌아갈게요. 공구 세부 타입이 중요한가요? Radius (1688개), Square (1062개), Ball (540개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Radius (1688개)",
+          "Square (1062개)",
+          "Ball (540개)",
+          "Taper (297개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (3588개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-30T00:37:56.904Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: Radius (1688개), Square (1062개), Ball (540개), Taper (297개), 상관없음, 📋 지금 바로 제품 보기 (3588개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "Radius (1688개)",
+      "Square (1062개)",
+      "Ball (540개)",
+      "Taper (297개)",
+      "상관없음",
+      "📋 지금 바로 제품 보기 (3588개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-30T00:40:59.898Z",
+    "sessionId": "ses-1774830887478",
+    "turnNumber": 3
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

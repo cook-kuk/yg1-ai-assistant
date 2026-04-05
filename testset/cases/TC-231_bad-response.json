@@ -1,0 +1,80 @@
+{
+  "id": "TC-231",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "3/8\" 직경 제품으로 가���하고자 하며 좀 더 hardend steel 탄소강으로 추천해주실 수 있나요?"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 8mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T02:59:33.417Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "안녕하세요! 탄소강 소재에 직경 8mm로 Side Milling 가공용 제품을 찾아드리겠습니다.\n\n현재 조건으로 **1,035개의 제품**이 매칭되었습니다. 좀 더 정확한 추천을 위해 몇 가지 여쭤보겠습니다.\n\n**공구 형상(엔드밀 날 끝 모양)**이 중요하신가요?\n\n- **Square (463개)**: 평날 — 일반적인 측면/홈 가공, 90° 코너 가공\n- **Radius (338개)**: 코너R — 공구 수명 향상, 코너 치핑 방지\n- **Ball (127개)**: 볼노즈 — 곡면/3D 가공\n- **Roughing (85개)**: 황삭용 — 거친 가공, 큰 절삭량\n\n특정 형상이 필요하시면 선택해주시고, 형상에 구애받지 않으시면 '상관없음'을 눌러주세요. 그러면 다른 조건이 필요하시면 말씀해주세요 좁혀드리겠습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (463개)",
+          "Radius (338개)",
+          "Ball (127개)",
+          "Roughing (85개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (1035개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "neutral",
+        "createdAt": "2026-03-30T02:59:33.418Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "3/8\" 직경 제품으로 가공하고자 하며 좀 더 hardend steel 탄소강으로 추천해주실 수 있나요?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T06:57:56.151Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "오류가 발생했습니다. 다시 시도해주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": "bad",
+        "chipFeedback": null,
+        "createdAt": null
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "오류가 발생했습니다. 다시 시도해주세요."
+    ],
+    "chips": []
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-30T06:58:11.059Z",
+    "sessionId": "ses-1774839561149",
+    "turnNumber": 2
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

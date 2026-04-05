@@ -1,0 +1,93 @@
+{
+  "id": "TC-228",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Profiling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 2mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T06:59:34.824Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Ball (345개), Square (25개), Radius (23개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Ball (345개)",
+          "Square (25개)",
+          "Radius (23개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (393개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-30T06:59:34.825Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "X1이나 X-5070쪽으로는 해당 영역 가공이 어려운가요?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T07:01:58.882Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "X5070은 고경도강(HRc 50~70) 가공에 특화된 초경 엔드밀 브랜드로, YG-1의 실리콘 기반 Blue-Coating 기술이 적용되어 고속가공 및 건식 절삭이 가능합니다. 2날부터 8날까지 다양한 날 수 구성과 φ0.1~127mm의 광범위한 직경 범위를 보유하고 있으며, 코너 래디어스, 다이싱킹, 슬로팅, 트로코이달 등 다양한 가공 형상에 적용됩니다. G826, G850, G851, G854, G859 등 총 28개 시리즈로 구성되어 있으며, 예열처리강부터 HRc 70까지의 고경도 소재 가공에 최적화되어 있습니다.\n\nX5070 브랜드 프로필을 내부 DB에서 조회했습니다.\n\n| 항목 | 값 |\n| --- | --- |\n| 브랜드 | X5070 |\n| 설명 | ?  For High Hardened Steel(HRc50~70)<br/>?  High Speed Machining, Dry Cutting<br/>?  YG-1’s silicon based technology coating |\n| 적용 소재 설명 | For High Hardened Steel HRc 50~70 |\n| 대표 시리즈 | G826, G850, G851, G854, G859 외 23개 |\n| 시리즈 수 | 28개 |\n| 가공 타입 | Solid, undefined |\n| 형상 | Corner_Radius,Die-Sinking,Facing,Helical_Interpolation,Side_Milling,Slotting, Corner_Radius,Facing,Helical_Interpolation,Side_Milling,Trochoidal, Side_Milling,Corner_Radius,Small_Part,Facing,Trochoidal,Helical_Interpolation, Side_Milling,Profiling, Side_Milling,Profiling,Small_Part 외 5개 |\n| 날 수 | 2날, 3날, 4날, 6날, 8날 |\n| 코팅 | Blue-Coating |\n| 공구 소재 | Carbide, NGHM |\n| 직경 범위 | φ0.1~127mm |\n| ISO | - |\n| 피삭재 | Hardened Steels(HRc40~45), Hardened Steels(HRc45~55), High Hardened Steels(HRc55~70), Prehardened Steels |\n| HRC | - |\n| 국가 | AMERICA, ASIA, EUROPE |\n| EDP 수 | 1391개 |\n\n일부 이름은 뷰에서 찾지 못했습니다: X1\n\n[Reference: YG-1 내부 DB]\n\n다시 제품 추천으로 돌아갈게요. 공구 세부 타입이 중요한가요? Ball (345개), Square (25개), Radius (23개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Ball (345개)",
+          "Square (25개)",
+          "Radius (23개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (393개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-30T07:01:58.882Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: Ball (345개), Square (25개), Radius (23개), 상관없음, 📋 지금 바로 제품 보기 (393개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "Ball (345개)",
+      "Square (25개)",
+      "Radius (23개)",
+      "상관없음",
+      "📋 지금 바로 제품 보기 (393개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-30T07:03:19.442Z",
+    "sessionId": "ses-1774853960787",
+    "turnNumber": 2
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

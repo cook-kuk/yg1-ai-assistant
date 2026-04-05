@@ -1,0 +1,124 @@
+{
+  "id": "TC-244",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 비철금속\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T05:22:58.424Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (415개), Radius (161개), Ball (100개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (415개)",
+          "Radius (161개)",
+          "Ball (100개)",
+          "Roughing (56개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (794개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-30T05:22:58.424Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "가공피삭재가 CFRP인데 제품 추천해주세요",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T05:23:11.766Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Ball (37개), Square (24개), Radius (20개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Ball (37개)",
+          "Square (24개)",
+          "Radius (20개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (123개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-30T05:23:11.766Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "가공피삭재가 CFRP인데 제품 추천해주세요",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-30T05:23:51.493Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Ball (37개), Square (24개), Radius (20개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Ball (37개)",
+          "Square (24개)",
+          "Radius (20개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (123개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-30T05:23:51.493Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: Ball (37개), Square (24개), Radius (20개), 상관없음, ⟵ 이전 단계, 📋 지금 바로 제품 보기 (123개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "Ball (37개)",
+      "Square (24개)",
+      "Radius (20개)",
+      "상관없음",
+      "⟵ 이전 단계",
+      "📋 지금 바로 제품 보기 (123개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-30T05:24:48.905Z",
+    "sessionId": "ses-1774848237337",
+    "turnNumber": 3
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

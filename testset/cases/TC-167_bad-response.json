@@ -1,0 +1,68 @@
+{
+  "id": "TC-167",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Trochoidal\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T05:26:49.753Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "안녕하세요! 탄소강 소재를 10mm 직경으로 트로코이달 가공하시는군요. 현재 조건에서 442개의 제품이 매칭됩니다.\n\n트로코이달 가공의 특성상 공구 형상이 중요한데요, 어떤 타입을 선호하시나요?\n\n**Square (247개)**: 일반적인 평날 엔드밀로 벽면 마무리와 슬롯 가공에 적합합니다.\n**Roughing (108개)**: 거친 날 형상으로 고효율 황삭에 최적화되어 있습니다. 칩 배출이 우수하고 절삭 저항이 낮아 트로코이달 가공에서 생산성이 뛰어납니다.\n**Ball (61개)**: 반구형 날끝으로 3D 곡면이나 R 형상 가공에 사용됩니다.\n**Radius (23개)**: 코너에 R이 있어 날 강도를 높이면서도 벽면 가공이 가능합니다.\n\n트로코이달 가공은 주로 황삭 단계에서 사용되므로, Roughing 타입이 가장 효율적이지만 고객님의 후속 공정 계획에 따라 Square나 Radius도 좋은 선택이 될 수 있습니다. 어떤 형상을 원하시나요?",
+        "isLoading": false,
+        "chips": [
+          "Square (247개)",
+          "Roughing (108개)",
+          "Ball (61개)",
+          "Radius (23개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (442개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-31T05:26:49.754Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: Square (247개), Roughing (108개), Ball (61개), Radius (23개), 상관없음, 📋 지금 바로 제품 보기 (442개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "Square (247개)",
+      "Roughing (108개)",
+      "Ball (61개)",
+      "Radius (23개)",
+      "상관없음",
+      "📋 지금 바로 제품 보기 (442개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-31T05:27:09.969Z",
+    "sessionId": "ses-1774934794117",
+    "turnNumber": 1
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

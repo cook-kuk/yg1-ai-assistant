@@ -1,0 +1,26 @@
+{
+  "id": "TC-026",
+  "source": "general",
+  "severity": "major",
+  "category": "missing-evidence",
+  "input": {
+    "userMessages": [],
+    "fullConversation": []
+  },
+  "actualOutput": {
+    "aiResponses": []
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "가공형상은 Milling 가공에 사용되는 부분입니다.\nMilling 가공 선택시 나오도록 하는건 좋을 것으로 보입니다.\n가공 형상 선택 후 Milling 외에 다른 방식 결과물에 영향이 있을 수 있을까요?",
+    "tags": [
+      "missing-evidence"
+    ],
+    "author": "최호영",
+    "department": "제품홍보팀",
+    "timestamp": "2026-03-30T23:15:48.387Z",
+    "sessionId": null
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

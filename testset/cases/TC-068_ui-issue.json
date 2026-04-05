@@ -1,0 +1,70 @@
+{
+  "id": "TC-068",
+  "source": "general",
+  "severity": "major",
+  "category": "ui-issue",
+  "input": {
+    "userMessages": [
+      "🧭 Inquiry Purpose: New Product Recommendation\n🧱 Workpiece Material: Carbon Steel\n📐 Operation Shape: Helical_Interpolation,Facing,Slotting\n🛠️ Machining Category: Milling\n📏 Tool Diameter: 4mm\n\nPlease recommend suitable YG-1 products based on the conditions above.",
+      "Radius (450개)",
+      "4날이 좋겠고, 가장 인기있는 아이템을 추천해줘",
+      "4날 steel 가공용 squre end mill od 6mm에서 가장 popular item이 뭐야"
+    ],
+    "fullConversation": [
+      {
+        "role": "user",
+        "text": "🧭 Inquiry Purpose: New Product Recommendation\n🧱 Workpiece Material: Carbon Steel\n📐 Operation Shape: Helical_Interpolation,Facing,Slotting\n🛠️ Machining Category: Milling\n📏 Tool Diameter: 4mm\n\nPlease recommend suitable YG-1 products based on the conditions above."
+      },
+      {
+        "role": "ai",
+        "text": "안녕하세요! 탄소강 소재에 직경 4mm 엔드밀을 찾고 계시는군요. 현재 조건에서 1,756개의 제품이 매칭됩니다.\n\n가공에 적합한 제품을 추천하기 위해 몇 가지 확인이 필요합니다. 먼저, **공구 형상**이 중요하신가요?\n\n현재 후보군 분포는 다음과 같습니다:\n- **Square (스퀘어)**: 960개 — 평면 가공, 슬로팅, 헬리컬 인터폴레이션에 범용적\n- **Radius (라운드)**: 450개 — 모서리 강도 향상, 공구 수명 연장\n- **Ball (볼)**: 263개 — 3D 곡면 가공, 윤곽 가공\n- **Roughing (러핑)**: 42개 — 황삭 전용, 고속 재료 제거\n\n말씀하신 가공 형상(헬리컬 인터폴레이션, Facing, 슬로팅)을 고려하면 Square가 가장 적합하지만, 특정 형상이 필요하시거나 상관없으시면 말씀해주세요."
+      },
+      {
+        "role": "user",
+        "text": "Radius (450개)"
+      },
+      {
+        "role": "ai",
+        "text": "네, 현재 Radius 형상 제품 450개가 매칭되었습니다.\n\n탄소강(P소재) 가공에서 직경 4mm Radius 엔드밀은 코너 작업, 곡면 가공, 슬로팅에 모두 적합한 선택입니다. 다만 450개는 범위가 넓으니 조건을 좁히겠습니다.\n\n**날 수(Flute) 선호가 있으신가요?**\n\n현재 후보 분포:\n- 2날: 범용성 좋고 칩 배출 원활 → 슬로팅/깊은 홈 가공에 유리\n- 3날: 균형형 → 일반 가공에 무난\n- 4날: 마감 품질 우수, 고속 가공 가능 → 면 가공/정밀 가공에 유리\n\n탄소강 가공에서는 **4날**이 표면조도와 생산성 측면에서 추천되지만, 슬로팅 비중이 크다면 2날도 좋은 선택입니다.\n\n선호하시는 날 수를 말씀해주시거나, \"상관없음\"을 선택하시면 다른 조건이 필요하시면 말씀해주세요 좁히겠습니다."
+      },
+      {
+        "role": "user",
+        "text": "4날이 좋겠고, 가장 인기있는 아이템을 추천해줘"
+      },
+      {
+        "role": "ai",
+        "text": "선택하신 소재는 ISO P (일반강)군입니다. 세부 피삭재를 선택해주세요. (일부 제품은 세부 분류가 없어 \"상관없음\" 선택 시 전체 후보에서 추천합니다)"
+      },
+      {
+        "role": "user",
+        "text": "4날 steel 가공용 squre end mill od 6mm에서 가장 popular item이 뭐야"
+      },
+      {
+        "role": "ai",
+        "text": "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요."
+      }
+    ]
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "안녕하세요! 탄소강 소재에 직경 4mm 엔드밀을 찾고 계시는군요. 현재 조건에서 1,756개의 제품이 매칭됩니다.\n\n가공에 적합한 제품을 추천하기 위해 몇 가지 확인이 필요합니다. 먼저, **공구 형상**이 중요하신가요?\n\n현재 후보군 분포는 다음과 같습니다:\n- **Square (스퀘어)**: 960개 — 평면 가공, 슬로팅, 헬리컬 인터폴레이션에 범용적\n- **Radius (라운드)**: 450개 — 모서리 강도 향상, 공구 수명 연장\n- **Ball (볼)**: 263개 — 3D 곡면 가공, 윤곽 가공\n- **Roughing (러핑)**: 42개 — 황삭 전용, 고속 재료 제거\n\n말씀하신 가공 형상(헬리컬 인터폴레이션, Facing, 슬로팅)을 고려하면 Square가 가장 적합하지만, 특정 형상이 필요하시거나 상관없으시면 말씀해주세요.",
+      "네, 현재 Radius 형상 제품 450개가 매칭되었습니다.\n\n탄소강(P소재) 가공에서 직경 4mm Radius 엔드밀은 코너 작업, 곡면 가공, 슬로팅에 모두 적합한 선택입니다. 다만 450개는 범위가 넓으니 조건을 좁히겠습니다.\n\n**날 수(Flute) 선호가 있으신가요?**\n\n현재 후보 분포:\n- 2날: 범용성 좋고 칩 배출 원활 → 슬로팅/깊은 홈 가공에 유리\n- 3날: 균형형 → 일반 가공에 무난\n- 4날: 마감 품질 우수, 고속 가공 가능 → 면 가공/정밀 가공에 유리\n\n탄소강 가공에서는 **4날**이 표면조도와 생산성 측면에서 추천되지만, 슬로팅 비중이 크다면 2날도 좋은 선택입니다.\n\n선호하시는 날 수를 말씀해주시거나, \"상관없음\"을 선택하시면 다른 조건이 필요하시면 말씀해주세요 좁히겠습니다.",
+      "선택하신 소재는 ISO P (일반강)군입니다. 세부 피삭재를 선택해주세요. (일부 제품은 세부 분류가 없어 \"상관없음\" 선택 시 전체 후보에서 추천합니다)",
+      "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요."
+    ]
+  },
+  "feedback": {
+    "rating": 5,
+    "comment": "1. 사용자의 선호도를 파악하고 선택을 돕기 위해 시스템이 부연 설명을 해주는 것이 매우 편리하게 느껴짐. ex) 날 수 선호를 문의하며 각 날의 특징, 유리한 가공 언급 등. \n2. 우측에 추천 제품 브랜드, 이미지 및 재고 정보 등이 확인돼서 도움이됨. \n3. 시스템의 응답/선택지에 매번 positive/negative를 선택해야 다음으로 넘어갈 수 있는 것이 조금 번거롭게 느껴짐. 채팅으로 바로 내 피드백을 줄 수 있으면 좋겠음.\n4. 영문페이지인데 가공피삭재가 한국어로 표시됨. ",
+    "tags": [
+      "ui-issue",
+      "good-result"
+    ],
+    "author": "정단비",
+    "department": "해외영업본부 유럽팀",
+    "timestamp": "2026-03-31T00:16:06.637Z",
+    "sessionId": "ses-1774913950291"
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

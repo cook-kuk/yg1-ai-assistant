@@ -1,0 +1,32 @@
+# YG-1 — TCE01
+**제품명**: Bright TCE01 SERIES / COMBO TAP / Unified coarse threads UNC
+
+## 기본 사양
+- 공구 타입: Tap
+- 서브타입: Machine tap
+- 날 수: 3
+- 공구 재질: HSS-E
+- 코팅: Bright
+- 생크: DIN 371/376
+- 직경 범위: #4~1
+
+## 대상 피삭재
+- MU
+
+## 특징
+- For using multi-purpose and correct thread profiles
+- Long tool life due to special tap geometry
+- YG-1 company has a patent
+- Bright / TiN coating options shown for the series
+- DIN 371(#4~3/8) and DIN 376(7/16~1)
+- Surface treatment Steam Homo available on request
+
+## 용도
+- Unified coarse threads UNC
+- Machine tapping
+
+## 상세 정보 (원문 요약)
+- [page_0289] COMBO TAP의 Unified coarse threads(UNC)용 머신 탭 시리즈이다. 특수한 탭 형상으로 다양한 용도에 맞는 정확한 나사 형상과 긴 공구 수명을 제공하며, YG-1 특허 제품이라고 설명한다. TCE01은 Bright 시리즈이며 TDE01 TiN 시리즈와 함께 제시되고, #4부터 1까지의 규격과 각 치수/드릴 직경이 표로 수록되어 있다.
+
+---
+출처: ye25_oh_yg_catalog_europe_v2 | 페이지: page_0289

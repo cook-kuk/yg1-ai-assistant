@@ -1,0 +1,152 @@
+{
+  "id": "TC-185",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 모름\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T01:30:35.203Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (12286개), Radius (7364개), Ball (5427개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (12286개)",
+          "Radius (7364개)",
+          "Ball (5427개)",
+          "Roughing (1845개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (28223개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-31T01:30:35.203Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "와이지원 카바이드 엔드밀 제품 중 제일 날장이 긴 제품을 알려주세요",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T01:31:43.037Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "📌 **웹 검색 참고 (내부 DB 외부 정보)**\n\n와이지원 카바이드 엔드밀 중 **초경 4날 X-POWER S 롱 엔드밀** 제품군의 **Ø20mm 모델**과 **Ø16mm 모델**이 날장 **60mm**로 가장 긴 것으로 확인됩니다. 또한 **초경 2날 X-POWER S 롱 엔드밀 Ø10mm** 모델도 날장 **55mm**를 제공합니다.\n\n참고로 HSS Co8 재질까지 포함하면 **롱 라핑 엔드밀(E2759) Ø40mm** 모델이 날장 **125mm**로 가장 깁니다.\n\n탄소강 가공용으로는 X-POWER S 롱 엔드밀 시리즈가 깊은 절입과 긴 가공 깊이가 필요한 작업에 적합합니다. 직경과 용도에 맞춰 선택하시면 됩니다!\n\n다시 제품 추천으로 돌아갈게요. 공구 세부 타입이 중요한가요? Square (12286개), Radius (7364개), Ball (5427개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (12286개)",
+          "Radius (7364개)",
+          "Ball (5427개)",
+          "Roughing (1845개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (28223개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-31T01:31:43.037Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "K2 BRAND에 G9452200 제품은 날장이 65mm 라서 추천해준 제품들보다 더 긴데 더 긴 제품이 없어?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T01:36:04.188Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "G9452200 제품 정보를 내부 DB에서 찾지 못했습니다.\n현재 후보 제품의 제품코드로 다시 물어보시면 해당 제품 정보를 조회해드릴 수 있습니다.\n[Reference: YG-1 내부 DB]\n\n다시 제품 추천으로 돌아갈게요. 📌 **웹 검색 참고 (내부 DB 외부 정보)**\n\n와이지원 카바이드 엔드밀 중 **초경 4날 X-POWER S 롱 엔드밀** 제품군의 **Ø20mm 모델**과 **Ø16mm 모델**이 날장 **60mm**로 가장 긴 것으로 확인됩니다. 또한 **초경 2날 X-POWER S 롱 엔드밀 Ø10mm** 모델도 날장 **55mm**를 제공합니다.\n\n참고로 HSS Co8 재질까지 포함하면 **롱 라핑 엔드밀(E2759) Ø40mm** 모델이 날장 **125mm**로 가장 깁니다.\n\n탄소강 가공용으로는 X-POWER S 롱 엔드밀 시리즈가 깊은 절입과 긴 가공 깊이가 필요한 작업에 적합합니다. 직경과 용도에 맞춰 선택하시면 됩니다!\n\n다시 제품 추천으로 돌아갈게요. 공구 세부 타입이 중요한가요? Square (12286개), Radius (7364개), Ball (5427개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (12286개)",
+          "Radius (7364개)",
+          "Ball (5427개)",
+          "Roughing (1845개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (28223개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-31T01:36:04.188Z"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "text": "X-POWER PRO GM834250 제품은 날장이 92mm인데요 이 제품도 DB에 없나요?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T01:37:42.839Z"
+      },
+      {
+        "index": 7,
+        "role": "ai",
+        "text": "GM834250의 절삭 길이는 92mm입니다.\n\n| 항목 | 값 |\n| --- | --- |\n| 제품코드 | GM834250 |\n| 브랜드 | X-POWER PRO |\n| 시리즈 | GM834 |\n| 절삭 길이 | 92mm |\n\n[Reference: YG-1 내부 DB]\n\n다시 제품 추천으로 돌아갈게요. G9452200 제품 정보를 내부 DB에서 찾지 못했습니다.\n현재 후보 제품의 제품코드로 다시 물어보시면 해당 제품 정보를 조회해드릴 수 있습니다.\n[Reference: YG-1 내부 DB]\n\n다시 제품 추천으로 돌아갈게요. 📌 **웹 검색 참고 (내부 DB 외부 정보)**\n\n와이지원 카바이드 엔드밀 중 **초경 4날 X-POWER S 롱 엔드밀** 제품군의 **Ø20mm 모델**과 **Ø16mm 모델**이 날장 **60mm**로 가장 긴 것으로 확인됩니다. 또한 **초경 2날 X-POWER S 롱 엔드밀 Ø10mm** 모델도 날장 **55mm**를 제공합니다.\n\n참고로 HSS Co8 재질까지 포함하면 **롱 라핑 엔드밀(E2759) Ø40mm** 모델이 날장 **125mm**로 가장 깁니다.\n\n탄소강 가공용으로는 X-POWER S 롱 엔드밀 시리즈가 깊은 절입과 긴 가공 깊이가 필요한 작업에 적합합니다. 직경과 용도에 맞춰 선택하시면 됩니다!\n\n다시 제품 추천으로 돌아갈게요. 공구 세부 타입이 중요한가요? Square (12286개), Radius (7364개), Ball (5427개) 등이 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "Square (12286개)",
+          "Radius (7364개)",
+          "Ball (5427개)",
+          "Roughing (1845개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (28223개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-31T01:37:42.839Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: Square (12286개), Radius (7364개), Ball (5427개), Roughing (1845개), 상관없음, 📋 지금 바로 제품 보기 (28223개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "Square (12286개)",
+      "Radius (7364개)",
+      "Ball (5427개)",
+      "Roughing (1845개)",
+      "상관없음",
+      "📋 지금 바로 제품 보기 (28223개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-31T01:38:28.244Z",
+    "sessionId": "ses-1774920621999",
+    "turnNumber": 4
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

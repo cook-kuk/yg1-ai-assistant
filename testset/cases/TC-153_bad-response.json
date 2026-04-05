@@ -1,0 +1,198 @@
+{
+  "id": "TC-153",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: 모름\n🛠️ 가공 방식: Milling\n📏 공구 직경: 2mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T06:58:52.994Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "안녕하세요, YG-1 절삭공구 추천 시스템입니다.\n\n고경도강 소재를 밀링 가공하실 φ2mm 공구를 찾고 계시군요. 현재 조건에 맞는 제품이 **8,839개**가 검색되었습니다.\n\n보다 정확한 추천을 위해 몇 가지 여쭤보겠습니다.\n\n먼저, **공구의 형상(날 끝 형태)**이 중요하신가요?\n\n- **Radius**: R형 코너 (3,848개) - 코너 강도가 우수하고 표면조도 개선에 유리\n- **Square**: 평날 (2,275개) - 직각 가공, 바닥면 평탄도가 중요한 경우\n- **Ball**: 볼 엔드밀 (2,129개) - 곡면 가공, 3D 형상 가공에 적합\n- **Taper**: 테이퍼 (578개) - 경사면 가공, 금형 가공에 주로 사용\n\n가공하실 형상에 따라 선택해주시거나, 특별히 정해진 게 없으시면 '상관없음'을 선택해주시면 다른 조건이 필요하시면 말씀해주세요 좁혀드리겠습니다.",
+        "isLoading": false,
+        "chips": [
+          "Radius (3848개)",
+          "Square (2275개)",
+          "Ball (2129개)",
+          "Taper (578개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (8839개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-31T06:58:52.994Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "Ball (2129개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T06:59:02.225Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "현재 2133개 후보가 있습니다. 날 수(flute) 선호가 있으신가요?",
+        "isLoading": false,
+        "chips": [
+          "2날 (2091개)",
+          "4날 (35개)",
+          "3날 (7개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (2133개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-31T06:59:02.225Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "날수가 최대 몇날까지 있나요?",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T06:59:48.633Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "현재 조건(고경도강 + φ2mm Ball 엔드밀)에서는 **최대 4날**까지 있습니다.\n\n- **2날**: 2,091개 (주력, 칩 배출 우수)\n- **3날**: 7개\n- **4���**: 35개 (면조도 향상, 진동 감소)\n\n고경도강은 절삭 부하가 크기 때문에 **2날이 가장 안정적**이며, 4날은 정삭이나 면조도가 중요한 경우에 적합합니다. 어떤 날수를 원하시나요?\n\n다시 제품 추천으로 돌아갈게요. 현재 2133개 후보가 있습니다. 날 수(flute) 선호가 있으신가요?",
+        "isLoading": false,
+        "chips": [
+          "2날 (2091개)",
+          "4날 (35개)",
+          "3날 (7개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (2133개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-31T06:59:48.633Z"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "text": "면조도가 중요해요 4날제품으로 추천해주세요",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T07:00:49.772Z"
+      },
+      {
+        "index": 7,
+        "role": "ai",
+        "text": "**면조도 중심 추천 — 4날 Ball 엔드밀 (φ2mm)**\n\n고경도강 가공에서 면조도를 우선시하시는군요. 4날 Ball 엔드밀은 날수가 많아 이송 속도 대비 절삭 마크가 촘촘해지므로 면조도 향상에 유리합니다.\n\n현재 35개 제품 중 상위 추천 3개를 비교해드리겠습니다.\n\n---\n\n## [DB 데이터]\n\n### #1. SEME60020 (4G MILL 시리즈)\n- **코팅**: Y-Coating (고경도 내열 코팅)\n- **적합 소재**: H(고경도강), K(주철), P(탄소강)\n- **특징**: 4G MILL은 고속 가공 + 고면조도 전용 시리즈\n- **재고**: 재고 있음 (243개)\n\n### #2. GM815020 (X-POWER PRO 시리즈)\n- **코팅**: Y-Coating\n- **적합 소재**: H(고경도강), K(주철), P(탄소강)\n- **특징**: X-POWER PRO는 고강성 + 범용성 우수\n- **재고**: 재고 있음 (85개)\n\n### #3. G9634020 (K-2 CARBIDE 시리즈)\n- **코팅**: TiAlN (내열·내마모 코팅)\n- **적합 소재**: H(고경도강), K(주철), M(스테인리스), P(탄소강), S(내열합금)\n- **특징**: K-2는 고경도강 전용 설계 + 소재 커버리지 가장 넓음\n- **재고**: 재고 있음 (49개)\n\n---\n\n## [AI 보충 의견]\n\n### 면조도 우선 선택 가이드\n\n**1순위: SEME60020 (4G MILL)**\n→ 시리즈 이름부터 \"고급 밀링(4G MILL)\"으로, 면조도가 핵심 설계 목표입니다.\n→ Y-Coating은 고경도강 가공 시 마찰 저감 + 열전도 우수\n→ 재고 243개로 즉시 출고 가능\n\n**2순위: G9634020 (K-2 CARBIDE)**\n→ K-2는 \"Tungsten Carbide 고경도 전용\"으로 내마모성이 뛰어남\n→ TiAlN 코팅은 고속 가공 시 열 안정성 우수 (장시간 작업 시 유리)\n→ 소재 커버리지가 가장 넓어, 향후 다른 소재 가공에도 활용 가능\n\n**3순위: GM815020 (X-POWER PRO)**\n→ \"PRO\" 라인은 범용성 + 내구성 균형\n→ 면조도는 SEME60보다 약간 아래지만, 공구 수명이 길어 경제적\n\n---\n\n### 면조도 추가 향상 팁 (참고)\n- **절삭속도(Vc)**: 80~120 m/min (고속일수록 면조도 향상, 단 공구 수명 단축)\n- **이송(fz)**: 0.02~0.04 mm/tooth (낮을수록 마크 촘촘, 단 시간 증가)\n- **냉각**: 충분한 절삭유 공급 (열 축적 방지 → 표면 산화 최소화)\n\n---\n\n지금 바로 추천을 확정하시겠습니까? 아니면 세부 피삭재 정보(예: SKD11, NAK80 등)를 입력하시면 더 정밀한 절삭조건까지 제공해드립니다.",
+        "isLoading": false,
+        "chips": [
+          "Hardened Steels(HRc40~45) (35개)",
+          "Prehardened Steels (35개)",
+          "Alloy Steels (33개)",
+          "Carbon Steels (33개)",
+          "Cast Iron (33개)",
+          "Hardened Steels(HRc45~55) (20개)",
+          "High Hardened Steels(HRc55~70) (14개)",
+          "Inconel (9개)",
+          "Stainless Steels (9개)",
+          "Titanium (9개)",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (35개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-31T07:00:49.772Z"
+      },
+      {
+        "index": 8,
+        "role": "user",
+        "text": "x5070 4날 볼 제일 작은 직경 제품이 뭔가요",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T07:02:51.489Z"
+      },
+      {
+        "index": 9,
+        "role": "ai",
+        "text": "X5070 제품 정보를 내부 DB에서 찾지 못했습니다.\n현재 후보 제품의 제품코드로 다시 물어보시면 해당 제품 정보를 조회해드릴 수 있습니다.\n[Reference: YG-1 내부 DB]\n\n다시 제품 추천으로 돌아갈게요. **면조도 중심 추천 — 4날 Ball 엔드밀 (φ2mm)**\n\n고경도강 가공에서 면조도를 우선시하시는군요. 4날 Ball 엔드밀은 날수가 많아 이송 속도 대비 절삭 마크가 촘촘해지므로 면조도 향상에 유리합니다.\n\n현재 35개 제품 중 상위 추천 3개를 비교해드리겠습니다.\n\n---\n\n## [DB 데이터]\n\n### #1. SEME60020 (4G MILL 시리즈)\n- **코팅**: Y-Coating (고경도 내열 코팅)\n- **적합 소재**: H(고경도강), K(주철), P(탄소강)\n- **특징**: 4G MILL은 고속 가공 + 고면조도 전용 시리즈\n- **재고**: 재고 있음 (243개)\n\n### #2. GM815020 (X-POWER PRO 시리즈)\n- **코팅**: Y-Coating\n- **적합 소재**: H(고경도강), K(주철), P(탄소강)\n- **특징**: X-POWER PRO는 고강성 + 범용성 우수\n- **재고**: 재고 있음 (85개)\n\n### #3. G9634020 (K-2 CARBIDE 시리즈)\n- **코팅**: TiAlN (내열·내마모 코팅)\n- **적합 소재**: H(고경도강), K(주철), M(스테인리스), P(탄소강), S(내열합금)\n- **특징**: K-2는 고경도강 전용 설계 + 소재 커버리지 가장 넓음\n- **재고**: 재고 있음 (49개)\n\n---\n\n## [AI 보충 의견]\n\n### 면조도 우선 선택 가이드\n\n**1순위: SEME60020 (4G MILL)**\n→ 시리즈 이름부터 \"고급 밀링(4G MILL)\"으로, 면조도가 핵심 설계 목표입니다.\n→ Y-Coating은 고경도강 가공 시 마찰 저감 + 열전도 우수\n→ 재고 243개로 즉시 출고 가능\n\n**2순위: G9634020 (K-2 CARBIDE)**\n→ K-2는 \"Tungsten Carbide 고경도 전용\"으로 내마모성이 뛰어남\n→ TiAlN 코팅은 고속 가공 시 열 안정성 우수 (장시간 작업 시 유리)\n→ 소재 커버리지가 가장 넓어, 향후 다른 소재 가공에도 활용 가능\n\n**3순위: GM815020 (X-POWER PRO)**\n→ \"PRO\" 라인은 범용성 + 내구성 균형\n→ 면조도는 SEME60보다 약간 아래지만, 공구 수명이 길어 경제적\n\n---\n\n### 면조도 추가 향상 팁 (참고)\n- **절삭속도(Vc)**: 80~120 m/min (고속일수록 면조도 향상, 단 공구 수명 단축)\n- **이송(fz)**: 0.02~0.04 mm/tooth (낮을수록 마크 촘촘, 단 시간 증가)\n- **냉각**: 충분한 절삭유 공급 (열 축적 방지 → 표면 산화 최소화)\n\n---\n\n지금 바로 추천을 확정하시겠습니까? 아니면 세부 피삭재 정보(예: SKD11, NAK80 등)를 입력하시면 더 정밀한 절삭조건까지 제공해드립니다.",
+        "isLoading": false,
+        "chips": [
+          "Hardened Steels(HRc40~45) (35개)",
+          "Prehardened Steels (35개)",
+          "Alloy Steels (33개)",
+          "Carbon Steels (33개)",
+          "Cast Iron (33개)",
+          "Hardened Steels(HRc45~55) (20개)",
+          "High Hardened Steels(HRc55~70) (14개)",
+          "Inconel (9개)",
+          "Stainless Steels (9개)",
+          "Titanium (9개)",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (35개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "bad",
+        "createdAt": "2026-03-31T07:02:51.489Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: Hardened Steels(HRc40~45) (35개), Prehardened Steels (35개), Alloy Steels (33개), Carbon Steels (33개), Cast Iron (33개), Hardened Steels(HRc45~55) (20개), High Hardened Steels(HRc55~70) (14개), Inconel (9개), Stainless Steels (9개), Titanium (9개), ⟵ 이전 단계, 📋 지금 바로 제품 보기 (35개), ✨ AI 상세 분석"
+    ],
+    "chips": [
+      "Hardened Steels(HRc40~45) (35개)",
+      "Prehardened Steels (35개)",
+      "Alloy Steels (33개)",
+      "Carbon Steels (33개)",
+      "Cast Iron (33개)",
+      "Hardened Steels(HRc45~55) (20개)",
+      "High Hardened Steels(HRc55~70) (14개)",
+      "Inconel (9개)",
+      "Stainless Steels (9개)",
+      "Titanium (9개)",
+      "⟵ 이전 단계",
+      "📋 지금 바로 제품 보기 (35개)",
+      "✨ AI 상세 분석"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-31T07:03:11.871Z",
+    "sessionId": "ses-1774940459662",
+    "turnNumber": 5
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

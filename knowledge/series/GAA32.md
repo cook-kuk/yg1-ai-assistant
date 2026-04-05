@@ -1,0 +1,41 @@
+# TANK-POWER — GAA32
+**제품명**: HSS-PM END MILLS / 2 FLUTE BALL NOSE
+
+## 기본 사양
+- 공구 타입: End Mill
+- 서브타입: Ball Nose
+- 날 수: 2
+- 공구 재질: HSS-PM
+- 직경 범위: D3.0~D25.0
+- 깊이비: 0.5D / 0.2D
+
+## 대응 ISO 그룹
+P, M, K
+
+## 대상 피삭재
+- Non-alloy steel
+- Low alloy steel
+- High alloyed steel
+- Tool steel
+- Stainless steel
+- Grey cast iron
+- Nodular cast iron
+- Malleable cast iron
+
+## 특징
+- Recommended cutting conditions page
+- 2刃球头
+- 2날 볼노즈 시리즈
+- Recommended cutting conditions provided for multiple ISO material groups
+- Ap = 0.2D, Ae = 0.5D conditions shown
+
+## 용도
+- Recommended cutting conditions for ball nose end milling
+
+## 상세 정보 (원문 요약)
+- [page_1429] TANK-POWER HSS-PM END MILLS 推荐加工参数页，标题为 GA940, GAA32 SERIES 2 FLUTE BALL NOSE 2刃球头。页面主要是切削条件表，列出不同刀径 D3.0~D25.0 在 P/M/K 材料组中的 Vc、fz、RPM、FEED 建议值。备注说明长刃和超长刃型的 FEED 需约减 50%。
+- [page_1697] GA940, GAA32 SERIES 2 FLUTE BALL NOSE의 추천 절삭조건 페이지이다. TANK-POWER END MILLS 아래에 표시되어 있으며, ISO P/M/K 재질군별로 Vc, fz, RPM, FEED 값이 D3.0~D25.0에 대해 제시되어 있다. Ap는 0.2D, Ae는 0.5D 조건으로 표기되어 있고, 롱/엑스트라 롱 타입은 FEED를 약 50% 줄이라고 안내한다.
+- [page_0763] GAA32 시리즈 2날 볼노즈의 추천 절삭조건이 수록된 페이지입니다. ISO P/M/K 재질별로 Vc, fz, RPM, FEED가 지름 3.0~25.0에 대해 제시되어 있으며, 장/초장 타입은 FEED를 약 50% 줄이라고 안내합니다.
+
+---
+출처: ya22_split, ye24_split, ye25_oh_yg_catalog_europe_v2 | 페이지: page_1429, page_1697, page_0763

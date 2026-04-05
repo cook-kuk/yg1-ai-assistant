@@ -1,0 +1,49 @@
+{
+  "id": "TC-050",
+  "source": "general",
+  "severity": "critical",
+  "category": "wrong-product",
+  "input": {
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Chamfering\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+      "유럽용 METRIC 제품이나, 국내용 제품은 없어?"
+    ],
+    "fullConversation": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Chamfering\n🛠️ 가공 방식: Milling\n📏 공구 직경: 10mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      },
+      {
+        "role": "ai",
+        "text": "안녕하세요! 탄소강 소재의 Chamfering 가공을 위한 φ10mm 밀링 공구를 찾고 계시는군요.\n\n현재 조건에서 총 6개의 제품이 매칭되었습니다. 모두 YGBASIX 시리즈의 Drill Mill 제품으로, φ9.52mm 및 φ11.11mm 직경의 제품들이 포함되어 있습니다.\n\n최적의 제품을 추천해드리기 위해 몇 가지 확인하고 싶습니다. 우선 **날 수(flute) 선호**가 있으신가요?\n\n- **2날**: 칩 배출이 원활하고 절삭 저항이 낮아 소재 제거율이 높습니다 (4개 제품)\n- **4날**: 마무리 품질이 우수하고 가공 안정성이 높습니다 (2개 제품)\n- **상관없음**: 다른 조건을 우선으로 추천해드리겠습니다\n\n어떤 것을 선호하시나요?"
+      },
+      {
+        "role": "user",
+        "text": "유럽용 METRIC 제품이나, 국내용 제품은 없어?"
+      },
+      {
+        "role": "ai",
+        "text": "현재 추천드린 제품들은 모두 **YGBASIX 시리즈의 Drill Mill**로, 인치 규격(φ9.52mm = 3/8\", φ11.11mm = 7/16\")입니다. \n\n요청하신 **유럽용 METRIC 제품**(미터법 기반, 예: φ10mm 정확)이나 **국내용 표준 제품**은 현재 조건(탄소강 Chamfering)으로는 매칭되지 않았습니다. YG-1의 METRIC 제품군(예: Solid Carbide End Mill, Chamfer Mill 등)에 해당 규격이 있을 가능성이 있으니, 공구 타입을 **\"Chamfer Mill\"** 또는 **\"Countersink\"**로 좁혀서 다시 검색해보시겠어요? \n\n📌 **웹 검색 참고 (내부 DB 외부 정보)**: \"METRIC\"은 미터법 단위 체계를 의미하며, 유럽/한국에서는 mm 단위 공구가 표준입니다. 인치 규격은 주로 미국/일본 시장용입니다.\n\n다시 제품 추천으로 돌아갈게요. 안녕하세요! 탄소강 소재의 Chamfering 가공을 위한 φ10"
+      }
+    ]
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "안녕하세요! 탄소강 소재의 Chamfering 가공을 위한 φ10mm 밀링 공구를 찾고 계시는군요.\n\n현재 조건에서 총 6개의 제품이 매칭되었습니다. 모두 YGBASIX 시리즈의 Drill Mill 제품으로, φ9.52mm 및 φ11.11mm 직경의 제품들이 포함되어 있습니다.\n\n최적의 제품을 추천해드리기 위해 몇 가지 확인하고 싶습니다. 우선 **날 수(flute) 선호**가 있으신가요?\n\n- **2날**: 칩 배출이 원활하고 절삭 저항이 낮아 소재 제거율이 높습니다 (4개 제품)\n- **4날**: 마무리 품질이 우수하고 가공 안정성이 높습니다 (2개 제품)\n- **상관없음**: 다른 조건을 우선으로 추천해드리겠습니다\n\n어떤 것을 선호하시나요?",
+      "현재 추천드린 제품들은 모두 **YGBASIX 시리즈의 Drill Mill**로, 인치 규격(φ9.52mm = 3/8\", φ11.11mm = 7/16\")입니다. \n\n요청하신 **유럽용 METRIC 제품**(미터법 기반, 예: φ10mm 정확)이나 **국내용 표준 제품**은 현재 조건(탄소강 Chamfering)으로는 매칭되지 않았습니다. YG-1의 METRIC 제품군(예: Solid Carbide End Mill, Chamfer Mill 등)에 해당 규격이 있을 가능성이 있으니, 공구 타입을 **\"Chamfer Mill\"** 또는 **\"Countersink\"**로 좁혀서 다시 검색해보시겠어요? \n\n📌 **웹 검색 참고 (내부 DB 외부 정보)**: \"METRIC\"은 미터법 단위 체계를 의미하며, 유럽/한국에서는 mm 단위 공구가 표준입니다. 인치 규격은 주로 미국/일본 시장용입니다.\n\n다시 제품 추천으로 돌아갈게요. 안녕하세요! 탄소강 소재의 Chamfering 가공을 위한 φ10"
+    ]
+  },
+  "feedback": {
+    "rating": 1,
+    "comment": "Chamfering Tool에 Inch 제품만 추천함.\n유럽용 Drill Mill이나, 국내용 Chamfer Mill도 추가되어야 함",
+    "tags": [
+      "wrong-product"
+    ],
+    "author": "박경준",
+    "department": "연구개발팀",
+    "timestamp": "2026-03-31T05:47:25.172Z",
+    "sessionId": "ses-1774935527883"
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

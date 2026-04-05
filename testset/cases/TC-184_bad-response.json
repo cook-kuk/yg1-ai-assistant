@@ -1,0 +1,208 @@
+{
+  "id": "TC-184",
+  "source": "turn_feedback",
+  "severity": "major",
+  "category": "bad-response",
+  "input": {
+    "userMessages": [
+      "(선택지 평가)"
+    ],
+    "fullConversation": [
+      {
+        "index": 0,
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 고경도강\n📐 가공 형상: Facing\n🛠️ 가공 방식: Milling\n📏 공구 직경: 6mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요.",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T01:29:41.233Z"
+      },
+      {
+        "index": 1,
+        "role": "ai",
+        "text": "안녕하세요! 고경도강 소재에 φ6mm 직경의 페이싱 가공용 밀링 공구를 찾으시는군요.\n\n현재 입력하신 조건으로 **388개의 제품**이 매칭됩니다. 최적의 공구를 추천해드리기 위해 몇 가지 추가 조건을 확인하겠습니다.\n\n먼저, **공구의 형상 타입**이 중요하신가요? 페이싱 가공 특성상 여러 형상을 사용할 수 있는데요:\n\n• **Radius (223개)** - 모서리에 R이 있어 표면조도가 우수하고 공구 수명이 깁니다\n• **Square (151개)** - 날끝이 직각으로 정밀한 직각 가공에 적합합니다\n• **Ball (8개)** - 반구형 날끝으로 곡면 가공에 사용됩니다\n• **Roughing (6개)** - 거친 가공용으로 큰 절삭량 제거에 효과적입니다\n\n어떤 형상을 선호하시나요? 또는 특별한 선호가 없으시면 \"상관없음\"을 선택해주세요.",
+        "isLoading": false,
+        "chips": [
+          "Radius (223개)",
+          "Square (151개)",
+          "Ball (8개)",
+          "Roughing (6개)",
+          "상관없음",
+          "📋 지금 바로 제품 보기 (388개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-31T01:29:41.233Z"
+      },
+      {
+        "index": 2,
+        "role": "user",
+        "text": "Square (151개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T01:32:29.458Z"
+      },
+      {
+        "index": 3,
+        "role": "ai",
+        "text": "네, 현재 고경도강 가공용 Square 엔드밀이 151개 있습니다.\n\n이 중에서 최적의 제품을 추천해드리기 위해 몇 가지 조건을 확인하겠습니다.\n\n**날 수(flute) 선호가 있으신가요?**\n\n고경도강 가공 시:\n- **2날**: 칩 배출이 우수하여 ��은 홈 가공이나 고이송 가공에 유리합니다. 절삭력이 낮아 공구 부담이 적습니다.\n- **4날**: 가공면 품질이 우수하고 공구 수명이 길어 정밀 마감이나 연속 가공에 적합합니다.\n\nFacing 작업이시라면, 가공 깊이와 마감 품질 요구사항에 따라 선택이 달라집니다.\n\n현재 후보 분포:\n- 2날 제품: 약 90개\n- 4날 제품: 약 61개\n\n특별한 선호가 없으시다면 양쪽 모두 포함하여 추천해드릴 수 있습니다.",
+        "isLoading": false,
+        "chips": [
+          "2날 (93개)",
+          "4날 (56개)",
+          "6날 (2개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (151개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-31T01:32:29.458Z"
+      },
+      {
+        "index": 4,
+        "role": "user",
+        "text": "상관없음",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T01:33:31.951Z"
+      },
+      {
+        "index": 5,
+        "role": "ai",
+        "text": "선택하신 소재는 ISO H (고경도)군입니다. 세부 피삭재를 선택해주세요. (일부 제품은 세부 분류가 없어 \"상관없음\" 선택 시 전체 후보에서 추천합니다)",
+        "isLoading": false,
+        "chips": [
+          "Hardened Steels(HRc40~45) (151개)",
+          "Prehardened Steels (151개)",
+          "Alloy Steels (121개)",
+          "Hardened Steels(HRc45~55) (106개)",
+          "Cast Iron (77개)",
+          "High Hardened Steels(HRc55~70) (74개)",
+          "Carbon Steels (45개)",
+          "Stainless Steels (45개)",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (151개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "neutral",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-31T01:33:31.951Z"
+      },
+      {
+        "index": 6,
+        "role": "user",
+        "text": "High Hardened Steels(HRc55~70) (74개)",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T01:35:01.534Z"
+      },
+      {
+        "index": 7,
+        "role": "ai",
+        "text": "고경도강(HRc55~70) 가공용으로 좁혀서 현재 **74개의 제품**이 후보에 있습니다.\n\n고경도강은 일반 강재보다 훨씬 높은 경도를 가지고 있어, 공구의 내마모성과 인성이 매우 중요합니다. 따라서 코팅 종류가 가공 성능과 공구 수명에 큰 영향을 미칩니다.\n\n현재 후보 중에서 주요 코팅 종류와 특징을 설명드리겠습니다:\n\n**1. T-Coating (TiCN계 다층코팅)**\n- 고경도강 가공에 최적화된 YG-1의 대표 코팅\n- 우수한 내마모성과 인성의 균형\n- 안정적인 가공 성능\n- 현재 후보 중 가장 많은 제품군 보유\n\n**2. AlTiN (알루미늄-티타늄 질화물)**\n- 고속·고온 가공에 강함\n- 경화 가공 시 우수한 내열성\n- 고경도강의 고속 가공에 적합\n\n**3. TiAlN (티타늄-알루미늄 질화물)**\n- AlTiN과 유사하나 조성비가 다름\n- 내산화성과 내열성 우수\n- 건식 가공에도 유리\n\n**4. Uncoated (무코팅)**\n- 날카로운 날끝 유지 가능\n- 특수 정밀 가공에 사용\n- 일반적으로 고경도강에는 코팅 제품 권장\n\n고경도강 가공 시에는 **T-Coating 또는 AlTiN 코팅**을 가장 많이 선택하십니다. 특별한 선호가 없으시다면 범용성이 높은 T-Coating 제품을 먼저 보여드릴 수 있습니다.\n\n**코팅 종류를 선택하시겠습니까, 아니면 전문가 추천(T-Coating 우선)으로 진행하시겠습니까?**",
+        "isLoading": false,
+        "chips": [
+          "T-Coating (99개)",
+          "AlTiN (22개)",
+          "TiAlN (16개)",
+          "Bright Finish (9개)",
+          "상관없음",
+          "⟵ 이전 단계",
+          "📋 지금 바로 제품 보기 (151개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-31T01:35:01.534Z"
+      },
+      {
+        "index": 8,
+        "role": "user",
+        "text": "상관없음",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T01:35:53.784Z"
+      },
+      {
+        "index": 9,
+        "role": "ai",
+        "text": "이 조건이면 CG3S4506060 (CG3S45)를 먼저 보시면 됩니다. Square 형상, 2날, φ6mm 기준에 잘 맞고, 코팅은 T-Coating으로 H군, K군, P군 소재 대응 범위를 확인할 수 있습니다. 재고 정보 없음.",
+        "isLoading": false,
+        "chips": [
+          "날수로 좁히기 (2날/4날/6날)",
+          "상위 3개 비교",
+          "CG3S4506060 상세 정보",
+          "시리즈 차이 설명해줘 (CG3S45 vs E5C58)",
+          "φ6mm 외 다른 직경",
+          "H 가공 팁 보기",
+          "📋 지금 바로 제품 보기 (151개)",
+          "✨ AI 상세 분석"
+        ],
+        "feedback": "good",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-31T01:35:53.784Z"
+      },
+      {
+        "index": 10,
+        "role": "user",
+        "text": "#1번고 #2번 비교",
+        "isLoading": false,
+        "chips": [],
+        "feedback": null,
+        "chipFeedback": null,
+        "createdAt": "2026-03-31T01:38:09.401Z"
+      },
+      {
+        "index": 11,
+        "role": "ai",
+        "text": "# YG-1 절삭공구 비교 분석\n\n## 제품 비교표\n\n| 비교 항목 | CG3S1306045 | CG3S1306025 |\n|---------|-------------|-------------|\n| **제품코드** | CG3S1306045 | CG3S1306025 |\n| **시리즈** | CG3S13 (3S MILL) | CG3S13 (3S MILL) |\n| **직경** | 6mm | 6mm |\n| **날수** | 4날 | 4날 |\n| **헬릭스각** | 30° | 30° |\n| **타입** | Long End mill | Long End mill |\n| **코팅** | T-Coating | T-Coating |\n| **적합 소재** | H(경화강), P(일반강) | H(경화강), P(일반강) |\n| **매칭 점수** | exact (106점) | exact (106점) |\n| **재고 현황** | ✅ 재고 있음 (12개) | ❓ 재고 불명 |\n| **절삭조건** | 없음 | 없음 |\n\n## 제품별 특징\n\n### CG3S1306045\n- **강점**: 재고 확보 상태(12개), 즉시 사용 가능\n- **약점**: 절삭조건 정보 부재로 초기 세팅 시 시행착오 가능\n\n### CG3S1306025\n- **강점**: 동일 스펙의 대체 옵션\n- **약점**: 재고 현황 불명확, 수급 시간 불확실\n\n## 추천 결론\n\n두 제품은 **제품코드를 제외하고 동일한 스펙**을 가진 같은 시리즈 공구입니다. \n\n✅ **즉시 사용이 필요한 경우**: **CG3S1306045** 선택 (재고 확보 상태)  \n⏱️ **납기에 여유가 있는 경우**: 두 제품 모두 동일 성능으로 재고 확인 후 선택 가능\n\n**참고**: 두 제품 모두 경화강(H)과 일반강(P) 가공에 적합한 4날 롱 엔드밀로, 30° 헬릭스각으로 안정적인 칩 배출이 가능합니다.\n\n[Reference: YG-1 내부 DB]",
+        "isLoading": false,
+        "chips": [
+          "추천해주세요",
+          "다른 조건으로",
+          "⟵ 이전 단계",
+          "처음부터 다시"
+        ],
+        "feedback": "bad",
+        "chipFeedback": "good",
+        "createdAt": "2026-03-31T01:38:09.401Z"
+      }
+    ],
+    "mode": null
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "칩: 추천해주세요, 다른 조건으로, ⟵ 이전 단계, 처음부터 다시"
+    ],
+    "chips": [
+      "추천해주세요",
+      "다른 조건으로",
+      "⟵ 이전 단계",
+      "처음부터 다시"
+    ]
+  },
+  "feedback": {
+    "rating": null,
+    "comment": "",
+    "tags": [],
+    "author": "",
+    "department": "",
+    "timestamp": "2026-03-31T01:48:19.942Z",
+    "sessionId": "ses-1774920960706",
+    "turnNumber": 6
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}

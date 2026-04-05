@@ -1,0 +1,39 @@
+{
+  "id": "TC-088",
+  "source": "general",
+  "severity": "major",
+  "category": "wrong-product",
+  "input": {
+    "userMessages": [
+      "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+    ],
+    "fullConversation": [
+      {
+        "role": "user",
+        "text": "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n📐 가공 형상: Side_Milling\n🛠️ 가공 방식: Milling\n📏 공구 직경: 12mm\n\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+      },
+      {
+        "role": "ai",
+        "text": "공구 세부 타입이 중요한가요? Square (309개), Radius (233개), Ball (96개) 등이 있습니다."
+      }
+    ]
+  },
+  "actualOutput": {
+    "aiResponses": [
+      "공구 세부 타입이 중요한가요? Square (309개), Radius (233개), Ball (96개) 등이 있습니다."
+    ]
+  },
+  "feedback": {
+    "rating": 2,
+    "comment": "제품 검색 조건에 대한 순서 변경\n- 가공방식(공구종류)이 2번째가 되어야함(엔드밀,드릴,탭,인써트)\n- 아니면 가공 형식을 선택하면 이에 따른 가공방식이 자동 선택이 되어야 함.(당사 홈페이지 Ecatalog 페이지 확인- https://product.yg1.solutions/resource/e_catalog)\n- 공구 종류별 가공할 수 있는 형식이 정해져 있음.",
+    "tags": [
+      "wrong-product"
+    ],
+    "author": "김명곤",
+    "department": "전산실 ",
+    "timestamp": "2026-03-30T07:36:12.653Z",
+    "sessionId": "ses-1774855246423"
+  },
+  "expectedBehavior": null,
+  "debugNotes": null
+}
