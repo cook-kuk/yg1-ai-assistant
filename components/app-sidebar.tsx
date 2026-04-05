@@ -22,6 +22,7 @@ import {
   Globe,
   MapPin,
   Calculator,
+  Brain,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/lib/store"
@@ -124,10 +125,16 @@ const navItems = [
   {
     title: "지식 베이스",
     titleEn: "Knowledge",
-    href: "/admin/knowledge",
+    href: "/knowledge",
     icon: BookOpen,
+    roles: ["sales", "rnd", "admin"],
+  },
+  {
+    title: "자가 학습",
+    titleEn: "Learning",
+    href: "/learning",
+    icon: Brain,
     roles: ["admin"],
-    disabled: true,
   },
   {
     title: "관리",

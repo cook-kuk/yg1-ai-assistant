@@ -1,41 +1,25 @@
 "use client"
 
-import { useState } from "react"
-import { 
-  Search, 
-  BookOpen, 
-  FileText, 
-  MessageSquare, 
-  Tag, 
-  Calendar,
-  ThumbsUp,
-  Eye,
-  Plus,
-  Filter,
+import { useState, useEffect, useCallback } from "react"
+import {
+  Search,
+  BookOpen,
+  FileText,
+  MessageSquare,
+  Tag,
+  ChevronLeft,
   ChevronRight,
+  Loader2,
+  Languages,
+  Filter,
   Lightbulb,
-  Wrench,
-  HelpCircle,
-  CheckCircle,
-  Star,
-  ExternalLink,
-  Clock,
-  User
+  Hash,
 } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 import {
   Select,
   SelectContent,
@@ -43,440 +27,298 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
-import { cn } from "@/lib/utils"
 import { useApp } from "@/lib/store"
 
-// Mock knowledge data
-const knowledgeNotes = [
-  {
-    id: "KN001",
-    title: "SUS304 스테인리스 가공 시 채터링 방지 가이드",
-    category: "가공 가이드",
-    tags: ["스테인리스", "SUS304", "채터링", "엔드밀"],
-    content: "SUS304 가공 시 채터링이 발생하는 주요 원인과 해결책:\n\n1. 절삭 속도 조정: Vc 80-120 m/min 권장\n2. 이송속도: fz 0.05-0.1mm/tooth\n3. 절입깊이: Ap는 공구 직경의 0.5-1배\n4. 쿨런트: 고압 쿨런트 적용 시 효과적\n5. 공구 선택: 4날 이상 엔드밀 권장, TiAlN 코팅\n\n관련 제품: V7 Plus 4F, I-Xmill 4F",
-    author: "김기술",
-    createdAt: "2024-01-15",
-    updatedAt: "2024-02-20",
-    views: 328,
-    likes: 45,
-    linkedInquiries: ["INQ-003", "INQ-008"],
-    helpful: true
-  },
-  {
-    id: "KN002",
-    title: "알루미늄 고속가공 최적 조건",
-    category: "가공 가이드",
-    tags: ["알루미늄", "고속가공", "HSC", "엔드밀"],
-    content: "알루미늄 고속가공(HSC) 시 최적 조건:\n\n1. 절삭 속도: Vc 500-2000 m/min\n2. 이송속도: fz 0.1-0.3mm/tooth\n3. 절입깊이: 얕은 절입 (Ap 0.1-0.5 x D)\n4. 공구: 2-3날 엔드밀, DLC 또는 무코팅\n5. 날각: 45도 이상 고헬릭스\n\n칩 배출이 핵심 - 에어블로우 필수",
-    author: "박연구",
-    createdAt: "2024-01-20",
-    updatedAt: "2024-01-20",
-    views: 256,
-    likes: 38,
-    linkedInquiries: ["INQ-005"],
-    helpful: true
-  },
-  {
-    id: "KN003",
-    title: "인코넬 718 가공 시 공구 수명 연장 방법",
-    category: "가공 가이드",
-    tags: ["인코넬", "난삭재", "공구수명", "내열합금"],
-    content: "인코넬 718은 대표적인 난삭재입니다.\n\n공구 수명 연장을 위한 핵심 포인트:\n1. 절삭 속도 낮추기: Vc 20-40 m/min\n2. 안정적인 절입: 진동 최소화\n3. 쿨런트: 고압 절삭유 필수 (70bar 이상)\n4. 코팅: AlCrN 또는 TiAlN 권장\n5. 공구 교체 주기: 플랭크 마모 0.2mm 이전\n\n가공 시작 전 예열 효과 고려 필요",
-    author: "이전문",
-    createdAt: "2024-02-01",
-    updatedAt: "2024-02-15",
-    views: 189,
-    likes: 29,
-    linkedInquiries: ["INQ-007"],
-    helpful: true
-  },
-  {
-    id: "KN004",
-    title: "경쟁사 제품 대응표 - OSG vs YG-1",
-    category: "경쟁사 비교",
-    tags: ["OSG", "경쟁사", "제품매칭"],
-    content: "OSG 주요 제품군 대응 YG-1 제품:\n\n- OSG A-SFT → YG-1 V7 Plus\n- OSG WX-EMS → YG-1 X5070\n- OSG ADO-SUS → YG-1 Dream Drill Inox\n- OSG A-TAP → YG-1 Combo Tap\n\n가격 경쟁력: YG-1 평균 15-20% 우위\n품질: 동등 수준 (일부 항목 YG-1 우위)",
-    author: "최영업",
-    createdAt: "2024-02-10",
-    updatedAt: "2024-02-10",
-    views: 412,
-    likes: 67,
-    linkedInquiries: ["INQ-002", "INQ-006"],
-    helpful: true
-  },
-  {
-    id: "KN005",
-    title: "금형강(SKD11) 정삭 가공 볼엔드밀 선택 가이드",
-    category: "제품 선택",
-    tags: ["금형강", "SKD11", "볼엔드밀", "정삭"],
-    content: "SKD11 금형강 정삭 시 볼엔드밀 선택 기준:\n\n경도별 권장 제품:\n- HRC 40-50: X5070 Ball\n- HRC 50-55: Alu-Power Ball\n- HRC 55-62: V7 Ball 2F\n\n형상별 선택:\n- 깊은 리브: 롱넥 타입\n- 넓은 곡면: 숏넥 고강성\n- 코너R: 테이퍼볼 고려\n\n표면조도 Ra 0.8 이하 목표 시 스텝오버 5% 이하",
-    author: "김기술",
-    createdAt: "2024-02-15",
-    updatedAt: "2024-02-18",
-    views: 278,
-    likes: 41,
-    linkedInquiries: ["INQ-004"],
-    helpful: true
-  },
-  {
-    id: "KN006",
-    title: "납기 단축 가능 품목 리스트 (2024년 1분기)",
-    category: "납기/재고",
-    tags: ["납기", "재고", "긴급"],
-    content: "긴급 납기 대응 가능 품목 (국내 재고 보유):\n\n엔드밀:\n- V7 Plus 4F: 6, 8, 10, 12mm\n- X5070 4F: 6, 8, 10mm\n- Alu-Power 3F: 8, 10, 12mm\n\n드릴:\n- Dream Drill: 전 규격\n- Dream Drill Inox: 6, 8, 10mm\n\n탭:\n- Combo Tap: M6, M8, M10\n\n재고 외 품목: 영업일 기준 3-5일 (국내 생산)\n특수 사양: 2-3주 (해외 생산)",
-    author: "박물류",
-    createdAt: "2024-01-05",
-    updatedAt: "2024-03-01",
-    views: 567,
-    likes: 89,
-    linkedInquiries: [],
-    helpful: true
-  }
-]
+const CATEGORY_LABELS: Record<string, string> = {
+  product_overview: "제품 개요",
+  material_target: "소재 적합",
+  feature: "특징",
+  tool_shape: "형상/사양",
+  application: "용도",
+  selection: "제품 선택",
+  coating_material: "코팅/재질",
+  brand_overview: "브랜드 개요",
+  brand_lineup: "브랜드 라인업",
+  brand_application: "브랜드 용도",
+}
 
-const faqItems = [
-  {
-    id: "FAQ001",
-    question: "SUS304와 SUS316 가공에 같은 공구를 사용해도 되나요?",
-    answer: "기본적으로 같은 공구 사용 가능합니다. 단, SUS316은 Mo 함유로 인해 더 난삭성이 높아 절삭 속도를 10-15% 낮추는 것을 권장합니다. 장시간 가공 시에는 SUS316 전용 코팅(AlCrN) 제품 고려가 좋습니다.",
-    category: "소재",
-    views: 234
-  },
-  {
-    id: "FAQ002",
-    question: "엔드밀 날수는 어떻게 선택하나요?",
-    answer: "일반적인 기준:\n- 2날: 알루미늄, 플라스틱 (칩 배출 우선)\n- 3날: 범용, 중간 소재\n- 4날 이상: 강재, 스테인리스 (강성 우선)\n\n황삭은 날수 적게, 정삭은 날수 많게 선택하는 것이 일반적입니다.",
-    category: "공구 선택",
-    views: 456
-  },
-  {
-    id: "FAQ003",
-    question: "TiAlN과 AlCrN 코팅의 차이점은?",
-    answer: "TiAlN: 범용성 우수, 내열성 800도, 일반강/스테인리스에 적합\nAlCrN: 고온 안정성 우수, 내열성 1100도, 난삭재/고경도강에 적합\n\n가격은 AlCrN이 약 10-15% 높지만, 난삭재 가공 시 공구 수명 30-50% 향상 효과가 있습니다.",
-    category: "코팅",
-    views: 389
-  },
-  {
-    id: "FAQ004",
-    question: "최소 주문 수량(MOQ)은 어떻게 되나요?",
-    answer: "표준품: MOQ 1개 (단, 운송비 별도 적용 가능)\n특수 사양: MOQ 5-10개 (제품에 따라 상이)\n대량 주문: 별도 협의 (가격 할인 적용)\n\n자세한 사항은 담당 영업에게 문의해 주세요.",
-    category: "주문/납기",
-    views: 278
-  },
-  {
-    id: "FAQ005",
-    question: "도면 없이 가공 조건만으로 추천 가능한가요?",
-    answer: "가능합니다. 최소 필요 정보:\n1. 피삭재 종류 및 경도\n2. 가공 방식 (황삭/정삭/홀가공 등)\n3. 원하는 공구 직경\n\n도면이 있으면 더 정확한 추천이 가능하며, 특히 복잡한 형상이나 정밀 가공 시에는 도면 제공을 권장합니다.",
-    category: "문의 방법",
-    views: 167
-  }
-]
+const FEATURE_KEY_LABELS: Record<string, string> = {
+  target_material: "소재별",
+  application: "용도별",
+  iso_group: "ISO 그룹별",
+  tool_subtype: "형상별",
+  flute_count: "날수별",
+  coating: "코팅별",
+  "material+tool_type": "소재+공구타입",
+  "material+flute_count": "소재+날수",
+  "iso+tool_subtype": "ISO+형상",
+}
 
-const productGuides = [
-  {
-    id: "PG001",
-    title: "엔드밀 선택 플로우차트",
-    description: "소재 → 가공방식 → 직경 순서로 최적 엔드밀 찾기",
-    icon: Wrench,
-    steps: [
-      "1단계: 피삭재 확인 (철/비철/난삭재)",
-      "2단계: 가공 방식 결정 (황삭/정삭/고속)",
-      "3단계: 필요 직경 및 날 길이 확인",
-      "4단계: 코팅 선택 (소재별 최적 코팅)",
-      "5단계: 가공 조건표 참조하여 조건 설정"
-    ]
-  },
-  {
-    id: "PG002",
-    title: "드릴 선택 가이드",
-    description: "홀 가공 조건에 따른 드릴 타입 선택",
-    icon: Lightbulb,
-    steps: [
-      "1단계: 홀 깊이 확인 (3D 이하/5D/10D 이상)",
-      "2단계: 피삭재 종류 및 경도",
-      "3단계: 센터링 필요 여부",
-      "4단계: 정밀도 요구 수준",
-      "5단계: 칩 배출 방식 선택"
-    ]
-  },
-  {
-    id: "PG003",
-    title: "탭 선택 가이드",
-    description: "나사 가공 조건별 탭 종류 선택",
-    icon: HelpCircle,
-    steps: [
-      "1단계: 나사 규격 확인 (M, UNC, UNF 등)",
-      "2단계: 관통홀/막힘홀 구분",
-      "3단계: 피삭재 종류",
-      "4단계: 기계 타입 (머시닝센터/탭핑센터)",
-      "5단계: 동기/비동기 탭핑 확인"
-    ]
-  }
-]
+interface QAItem {
+  question: string
+  answer: string
+  series?: string
+  brand?: string
+  category: string
+  feature_key?: string
+  feature_value?: string
+  matched_count?: number
+}
 
-const categories = ["전체", "가공 가이드", "제품 선택", "경쟁사 비교", "납기/재고"]
+interface TermItem {
+  en: string
+  ko: string
+}
+
+function useDebounce(value: string, delay: number) {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(t)
+  }, [value, delay])
+  return debounced
+}
 
 export default function KnowledgePage() {
   const { language } = useApp()
-  const [searchQuery, setSearchQuery] = useState("")
-  const [selectedCategory, setSelectedCategory] = useState("전체")
-  const [selectedNote, setSelectedNote] = useState<typeof knowledgeNotes[0] | null>(null)
-  const [isAddNoteOpen, setIsAddNoteOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState("qa")
 
-  const filteredNotes = knowledgeNotes.filter(note => {
-    const matchesSearch = searchQuery === "" || 
-      note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      note.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      note.content.toLowerCase().includes(searchQuery.toLowerCase())
-    
-    const matchesCategory = selectedCategory === "전체" || note.category === selectedCategory
-    
-    return matchesSearch && matchesCategory
-  })
+  // QA state
+  const [qaSearch, setQaSearch] = useState("")
+  const [qaCategory, setQaCategory] = useState("")
+  const [qaItems, setQaItems] = useState<QAItem[]>([])
+  const [qaTotal, setQaTotal] = useState(0)
+  const [qaCategories, setQaCategories] = useState<Record<string, number>>({})
+  const [qaPage, setQaPage] = useState(1)
+  const [qaLoading, setQaLoading] = useState(false)
+  const [qaSelected, setQaSelected] = useState<QAItem | null>(null)
+
+  // Feature state
+  const [featSearch, setFeatSearch] = useState("")
+  const [featKey, setFeatKey] = useState("")
+  const [featItems, setFeatItems] = useState<QAItem[]>([])
+  const [featTotal, setFeatTotal] = useState(0)
+  const [featKeys, setFeatKeys] = useState<Record<string, number>>({})
+  const [featPage, setFeatPage] = useState(1)
+  const [featLoading, setFeatLoading] = useState(false)
+
+  // Terminology state
+  const [termSearch, setTermSearch] = useState("")
+  const [terms, setTerms] = useState<TermItem[]>([])
+  const [termLoading, setTermLoading] = useState(false)
+
+  const debouncedQa = useDebounce(qaSearch, 300)
+  const debouncedFeat = useDebounce(featSearch, 300)
+  const debouncedTerm = useDebounce(termSearch, 300)
+
+  const LIMIT = 20
+
+  // Fetch QA
+  const fetchQA = useCallback(async () => {
+    setQaLoading(true)
+    try {
+      const params = new URLSearchParams({ tab: "qa", page: String(qaPage), limit: String(LIMIT) })
+      if (debouncedQa) params.set("q", debouncedQa)
+      if (qaCategory) params.set("category", qaCategory)
+      const res = await fetch(`/api/knowledge?${params}`)
+      const data = await res.json()
+      setQaItems(data.items || [])
+      setQaTotal(data.total || 0)
+      if (data.categories) setQaCategories(data.categories)
+    } catch { /* ignore */ }
+    setQaLoading(false)
+  }, [debouncedQa, qaCategory, qaPage])
+
+  // Fetch Feature
+  const fetchFeature = useCallback(async () => {
+    setFeatLoading(true)
+    try {
+      const params = new URLSearchParams({ tab: "feature", page: String(featPage), limit: String(LIMIT) })
+      if (debouncedFeat) params.set("q", debouncedFeat)
+      if (featKey) params.set("category", featKey)
+      const res = await fetch(`/api/knowledge?${params}`)
+      const data = await res.json()
+      setFeatItems(data.items || [])
+      setFeatTotal(data.total || 0)
+      if (data.featureKeys) setFeatKeys(data.featureKeys)
+    } catch { /* ignore */ }
+    setFeatLoading(false)
+  }, [debouncedFeat, featKey, featPage])
+
+  // Fetch Terminology
+  const fetchTerminology = useCallback(async () => {
+    setTermLoading(true)
+    try {
+      const params = new URLSearchParams({ tab: "terminology" })
+      if (debouncedTerm) params.set("q", debouncedTerm)
+      const res = await fetch(`/api/knowledge?${params}`)
+      const data = await res.json()
+      setTerms(data.items || [])
+    } catch { /* ignore */ }
+    setTermLoading(false)
+  }, [debouncedTerm])
+
+  useEffect(() => { fetchQA() }, [fetchQA])
+  useEffect(() => { fetchFeature() }, [fetchFeature])
+  useEffect(() => { fetchTerminology() }, [fetchTerminology])
+
+  // Reset page on filter change
+  useEffect(() => { setQaPage(1) }, [debouncedQa, qaCategory])
+  useEffect(() => { setFeatPage(1) }, [debouncedFeat, featKey])
+
+  const qaMaxPage = Math.max(1, Math.ceil(qaTotal / LIMIT))
+  const featMaxPage = Math.max(1, Math.ceil(featTotal / LIMIT))
 
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="border-b bg-card p-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-2">
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <BookOpen className="h-6 w-6 text-primary" />
-              {language === 'ko' ? '지식/가이드' : 'Knowledge / Guide'}
+              {language === "ko" ? "지식 베이스" : "Knowledge Base"}
             </h1>
             <p className="text-muted-foreground mt-1">
-              {language === 'ko' ? '제품 선택 가이드, 가공 노하우, 자주 묻는 질문' : 'Product selection guides, machining know-how, FAQs'}
+              {language === "ko"
+                ? `제품 QA ${qaTotal > 0 ? qaTotal.toLocaleString() + "건" : ""} / 소재별 추천 / 용어 사전`
+                : `Product QA${qaTotal > 0 ? " (" + qaTotal.toLocaleString() + ")" : ""} / Material Recommendations / Terminology`}
             </p>
           </div>
-          <Dialog open={isAddNoteOpen} onOpenChange={setIsAddNoteOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="h-4 w-4" />
-                {language === 'ko' ? '지식 노트 추가' : 'Add Knowledge Note'}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>{language === 'ko' ? '새 지식 노트 작성' : 'Create New Knowledge Note'}</DialogTitle>
-                <DialogDescription>
-                  {language === 'ko' ? '가공 노하우, 제품 선택 기준, 고객 대응 팁 등을 기록하세요.' : 'Record machining know-how, product selection criteria, customer handling tips, etc.'}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">{language === 'ko' ? '제목' : 'Title'}</label>
-                  <Input placeholder={language === 'ko' ? "예: SUS304 황삭 시 채터링 방지 방법" : "e.g. SUS304 roughing chatter prevention"} />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">{language === 'ko' ? '카테고리' : 'Category'}</label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder={language === 'ko' ? "선택" : "Select"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.filter(c => c !== "전체").map(cat => (
-                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">{language === 'ko' ? '태그' : 'Tags'}</label>
-                    <Input placeholder={language === 'ko' ? "쉼표로 구분 (예: 스테인리스, 엔드밀)" : "Comma-separated (e.g. stainless, endmill)"} />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">{language === 'ko' ? '내용' : 'Content'}</label>
-                  <Textarea
-                    placeholder={language === 'ko' ? "상세 내용을 작성하세요..." : "Write detailed content..."}
-                    className="min-h-[200px]"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">{language === 'ko' ? '관련 문의 연결 (선택)' : 'Link Related Inquiries (optional)'}</label>
-                  <Input placeholder={language === 'ko' ? "문의 번호 입력 (예: INQ-001, INQ-002)" : "Enter inquiry numbers (e.g. INQ-001, INQ-002)"} />
-                </div>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setIsAddNoteOpen(false)}>
-                  {language === 'ko' ? '취소' : 'Cancel'}
-                </Button>
-                <Button onClick={() => setIsAddNoteOpen(false)}>
-                  {language === 'ko' ? '저장' : 'Save'}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        {/* Search */}
-        <div className="flex gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder={language === 'ko' ? "키워드로 검색 (예: 스테인리스, 채터링, OSG)" : "Search by keyword (e.g. stainless, chatter, OSG)"}
-              className="pl-10"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-40">
-              <Filter className="h-4 w-4 mr-2" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {categories.map(cat => (
-                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </div>
       </div>
 
-      {/* Content */}
+      {/* Tabs */}
       <div className="flex-1 overflow-hidden">
-        <Tabs defaultValue="notes" className="h-full flex flex-col">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
           <div className="border-b px-6">
             <TabsList className="h-12">
-              <TabsTrigger value="notes" className="gap-2">
-                <FileText className="h-4 w-4" />
-                {language === 'ko' ? '지식 노트' : 'Knowledge Notes'}
-                <Badge variant="secondary" className="ml-1">{filteredNotes.length}</Badge>
-              </TabsTrigger>
-              <TabsTrigger value="faq" className="gap-2">
+              <TabsTrigger value="qa" className="gap-2">
                 <MessageSquare className="h-4 w-4" />
-                {language === 'ko' ? '자주 묻는 질문' : 'FAQ'}
-                <Badge variant="secondary" className="ml-1">{faqItems.length}</Badge>
+                {language === "ko" ? "제품 QA" : "Product QA"}
+                <Badge variant="secondary" className="ml-1">{qaTotal.toLocaleString()}</Badge>
               </TabsTrigger>
-              <TabsTrigger value="guides" className="gap-2">
+              <TabsTrigger value="feature" className="gap-2">
                 <Lightbulb className="h-4 w-4" />
-                {language === 'ko' ? '제품 선택 가이드' : 'Product Selection Guide'}
+                {language === "ko" ? "조건별 추천" : "Recommendations"}
+                <Badge variant="secondary" className="ml-1">{featTotal.toLocaleString()}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="terminology" className="gap-2">
+                <Languages className="h-4 w-4" />
+                {language === "ko" ? "용어 사전" : "Terminology"}
+                <Badge variant="secondary" className="ml-1">{terms.length}</Badge>
               </TabsTrigger>
             </TabsList>
           </div>
 
-          {/* Knowledge Notes Tab */}
-          <TabsContent value="notes" className="flex-1 overflow-hidden m-0">
+          {/* ─── QA Tab ─── */}
+          <TabsContent value="qa" className="flex-1 overflow-hidden m-0">
             <div className="flex h-full">
-              {/* Notes List */}
-              <div className="w-1/2 border-r overflow-y-auto">
-                <div className="p-4 space-y-3">
-                  {filteredNotes.map(note => (
-                    <Card 
-                      key={note.id}
-                      className={cn(
-                        "cursor-pointer transition-colors hover:bg-muted/50",
-                        selectedNote?.id === note.id && "ring-2 ring-primary"
-                      )}
-                      onClick={() => setSelectedNote(note)}
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <h3 className="font-medium line-clamp-2">{note.title}</h3>
-                          <Badge variant="outline" className="shrink-0 text-xs">
-                            {note.category}
-                          </Badge>
-                        </div>
-                        <div className="flex flex-wrap gap-1 mb-3">
-                          {note.tags.slice(0, 3).map(tag => (
-                            <Badge key={tag} variant="secondary" className="text-xs">
-                              {tag}
+              {/* List */}
+              <div className="w-1/2 border-r flex flex-col">
+                <div className="p-4 border-b space-y-2">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder={language === "ko" ? "시리즈명, 브랜드, 키워드 검색..." : "Search series, brand, keyword..."}
+                      className="pl-10"
+                      value={qaSearch}
+                      onChange={e => setQaSearch(e.target.value)}
+                    />
+                  </div>
+                  <Select value={qaCategory} onValueChange={setQaCategory}>
+                    <SelectTrigger className="w-full">
+                      <Filter className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder={language === "ko" ? "전체 카테고리" : "All categories"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">{language === "ko" ? "전체" : "All"}</SelectItem>
+                      {Object.entries(qaCategories).map(([key, count]) => (
+                        <SelectItem key={key} value={key}>
+                          {CATEGORY_LABELS[key] || key} ({count.toLocaleString()})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                  {qaLoading ? (
+                    <div className="flex items-center justify-center h-32">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : qaItems.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">
+                      {language === "ko" ? "결과 없음" : "No results"}
+                    </p>
+                  ) : (
+                    qaItems.map((item, i) => (
+                      <Card
+                        key={`${item.series}-${item.category}-${i}`}
+                        className={`cursor-pointer transition-colors hover:bg-muted/50 ${
+                          qaSelected === item ? "ring-2 ring-primary" : ""
+                        }`}
+                        onClick={() => setQaSelected(item)}
+                      >
+                        <CardContent className="p-3">
+                          <p className="font-medium text-sm line-clamp-2">{item.question}</p>
+                          <div className="flex items-center gap-2 mt-2">
+                            {item.brand && (
+                              <Badge variant="outline" className="text-xs">{item.brand}</Badge>
+                            )}
+                            {item.series && (
+                              <Badge variant="secondary" className="text-xs">{item.series}</Badge>
+                            )}
+                            <Badge className="text-xs">
+                              {CATEGORY_LABELS[item.category] || item.category}
                             </Badge>
-                          ))}
-                          {note.tags.length > 3 && (
-                            <Badge variant="secondary" className="text-xs">
-                              +{note.tags.length - 3}
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center justify-between text-xs text-muted-foreground">
-                          <div className="flex items-center gap-3">
-                            <span className="flex items-center gap-1">
-                              <Eye className="h-3 w-3" />
-                              {note.views}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <ThumbsUp className="h-3 w-3" />
-                              {note.likes}
-                            </span>
                           </div>
-                          <span>{note.author} / {note.updatedAt}</span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                </div>
+
+                {/* Pagination */}
+                <div className="p-3 border-t flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    {qaTotal.toLocaleString()}건 중 {((qaPage - 1) * LIMIT) + 1}-{Math.min(qaPage * LIMIT, qaTotal)}
+                  </span>
+                  <div className="flex gap-1">
+                    <Button variant="outline" size="sm" disabled={qaPage <= 1} onClick={() => setQaPage(p => p - 1)}>
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="px-2 py-1">{qaPage}/{qaMaxPage}</span>
+                    <Button variant="outline" size="sm" disabled={qaPage >= qaMaxPage} onClick={() => setQaPage(p => p + 1)}>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
 
-              {/* Note Detail */}
+              {/* Detail */}
               <div className="w-1/2 overflow-y-auto">
-                {selectedNote ? (
+                {qaSelected ? (
                   <div className="p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <Badge className="mb-2">{selectedNote.category}</Badge>
-                        <h2 className="text-xl font-bold">{selectedNote.title}</h2>
-                      </div>
-                      <Button variant="outline" size="sm" className="gap-1 bg-transparent">
-                        <ThumbsUp className="h-4 w-4" />
-                        {language === 'ko' ? `도움됨 (${selectedNote.likes})` : `Helpful (${selectedNote.likes})`}
-                      </Button>
+                    <div className="flex items-center gap-2 mb-3">
+                      {qaSelected.brand && <Badge>{qaSelected.brand}</Badge>}
+                      {qaSelected.series && <Badge variant="outline">{qaSelected.series}</Badge>}
+                      <Badge variant="secondary">
+                        {CATEGORY_LABELS[qaSelected.category] || qaSelected.category}
+                      </Badge>
                     </div>
-
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground mb-6">
-                      <span className="flex items-center gap-1">
-                        <User className="h-4 w-4" />
-                        {selectedNote.author}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Calendar className="h-4 w-4" />
-                        {selectedNote.updatedAt} {language === 'ko' ? '수정' : 'updated'}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Eye className="h-4 w-4" />
-                        {selectedNote.views}{language === 'ko' ? '회 조회' : ' views'}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap gap-1 mb-6">
-                      {selectedNote.tags.map(tag => (
-                        <Badge key={tag} variant="secondary">
-                          <Tag className="h-3 w-3 mr-1" />
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-
-                    <div className="prose prose-sm max-w-none mb-6">
-                      <pre className="whitespace-pre-wrap font-sans bg-muted p-4 rounded-lg text-sm">
-                        {selectedNote.content}
+                    <h2 className="text-lg font-bold mb-4">{qaSelected.question}</h2>
+                    <div className="bg-muted p-4 rounded-lg">
+                      <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
+                        {qaSelected.answer}
                       </pre>
                     </div>
-
-                    {selectedNote.linkedInquiries.length > 0 && (
-                      <div className="border-t pt-4">
-                        <h4 className="font-medium mb-2 flex items-center gap-2">
-                          <ExternalLink className="h-4 w-4" />
-                          {language === 'ko' ? '연결된 문의' : 'Linked Inquiries'}
-                        </h4>
-                        <div className="flex gap-2">
-                          {selectedNote.linkedInquiries.map(inq => (
-                            <Button key={inq} variant="outline" size="sm" asChild>
-                              <a href={`/inbox/${inq}`}>{inq}</a>
-                            </Button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 ) : (
                   <div className="flex items-center justify-center h-full text-muted-foreground">
                     <div className="text-center">
                       <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                      <p>{language === 'ko' ? '노트를 선택하세요' : 'Select a note'}</p>
+                      <p>{language === "ko" ? "QA를 선택하세요" : "Select a QA item"}</p>
                     </div>
                   </div>
                 )}
@@ -484,122 +326,124 @@ export default function KnowledgePage() {
             </div>
           </TabsContent>
 
-          {/* FAQ Tab */}
-          <TabsContent value="faq" className="flex-1 overflow-y-auto m-0 p-6">
-            <div className="max-w-3xl mx-auto space-y-4">
-              {faqItems.map(faq => (
-                <Card key={faq.id}>
-                  <CardHeader className="pb-2">
-                    <div className="flex items-start justify-between">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <HelpCircle className="h-5 w-5 text-primary shrink-0" />
-                        {faq.question}
-                      </CardTitle>
-                      <Badge variant="outline">{faq.category}</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <pre className="whitespace-pre-wrap font-sans text-sm text-muted-foreground bg-muted p-3 rounded-lg">
-                      {faq.answer}
-                    </pre>
-                    <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Eye className="h-3 w-3" />
-                        {faq.views}{language === 'ko' ? '회 조회' : ' views'}
-                      </span>
-                      <Button variant="ghost" size="sm" className="h-7 text-xs gap-1">
-                        <ThumbsUp className="h-3 w-3" />
-                        {language === 'ko' ? '도움됨' : 'Helpful'}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+          {/* ─── Feature Recommendations Tab ─── */}
+          <TabsContent value="feature" className="flex-1 overflow-y-auto m-0 p-6">
+            <div className="max-w-4xl mx-auto space-y-4">
+              <div className="flex gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder={language === "ko" ? "소재, 형상, 코팅 등 검색..." : "Search material, shape, coating..."}
+                    className="pl-10"
+                    value={featSearch}
+                    onChange={e => setFeatSearch(e.target.value)}
+                  />
+                </div>
+                <Select value={featKey} onValueChange={setFeatKey}>
+                  <SelectTrigger className="w-48">
+                    <Tag className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder={language === "ko" ? "전체 분류" : "All types"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">{language === "ko" ? "전체" : "All"}</SelectItem>
+                    {Object.entries(featKeys).map(([key, count]) => (
+                      <SelectItem key={key} value={key}>
+                        {FEATURE_KEY_LABELS[key] || key} ({count})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {featLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {featItems.map((item, i) => (
+                    <Card key={`${item.feature_key}-${item.feature_value}-${i}`}>
+                      <CardHeader className="pb-2">
+                        <div className="flex items-start justify-between">
+                          <CardTitle className="text-base">{item.question}</CardTitle>
+                          <div className="flex gap-1 shrink-0">
+                            <Badge variant="outline">
+                              {FEATURE_KEY_LABELS[item.feature_key || ""] || item.feature_key}
+                            </Badge>
+                            {item.matched_count && (
+                              <Badge variant="secondary">
+                                <Hash className="h-3 w-3 mr-1" />
+                                {item.matched_count}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <pre className="whitespace-pre-wrap font-sans text-sm text-muted-foreground bg-muted p-3 rounded-lg max-h-48 overflow-y-auto">
+                          {item.answer}
+                        </pre>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {/* Pagination */}
+              <div className="flex items-center justify-between text-sm pt-2">
+                <span className="text-muted-foreground">{featTotal}건</span>
+                <div className="flex gap-1">
+                  <Button variant="outline" size="sm" disabled={featPage <= 1} onClick={() => setFeatPage(p => p - 1)}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="px-2 py-1">{featPage}/{featMaxPage}</span>
+                  <Button variant="outline" size="sm" disabled={featPage >= featMaxPage} onClick={() => setFeatPage(p => p + 1)}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
             </div>
           </TabsContent>
 
-          {/* Product Guides Tab */}
-          <TabsContent value="guides" className="flex-1 overflow-y-auto m-0 p-6">
-            <div className="max-w-4xl mx-auto">
-              <div className="grid gap-6 md:grid-cols-3 mb-8">
-                {productGuides.map(guide => (
-                  <Card key={guide.id} className="hover:shadow-md transition-shadow">
-                    <CardHeader>
-                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary mb-2">
-                        <guide.icon className="h-6 w-6" />
-                      </div>
-                      <CardTitle className="text-lg">{guide.title}</CardTitle>
-                      <CardDescription>{guide.description}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <ul className="space-y-2">
-                        {guide.steps.map((step, idx) => (
-                          <li key={idx} className="flex items-start gap-2 text-sm">
-                            <CheckCircle className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                            <span>{step}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                  </Card>
-                ))}
+          {/* ─── Terminology Tab ─── */}
+          <TabsContent value="terminology" className="flex-1 overflow-y-auto m-0 p-6">
+            <div className="max-w-3xl mx-auto space-y-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder={language === "ko" ? "영문 또는 한글로 검색..." : "Search in English or Korean..."}
+                  className="pl-10"
+                  value={termSearch}
+                  onChange={e => setTermSearch(e.target.value)}
+                />
               </div>
 
-              {/* Quick Reference */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Star className="h-5 w-5 text-yellow-500" />
-                    {language === 'ko' ? '빠른 참조 - 소재별 추천 공구' : 'Quick Reference - Recommended Tools by Material'}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left py-2 px-3 font-medium">{language === 'ko' ? '소재' : 'Material'}</th>
-                          <th className="text-left py-2 px-3 font-medium">{language === 'ko' ? '추천 엔드밀' : 'Recommended Endmill'}</th>
-                          <th className="text-left py-2 px-3 font-medium">{language === 'ko' ? '추천 코팅' : 'Recommended Coating'}</th>
-                          <th className="text-left py-2 px-3 font-medium">{language === 'ko' ? '절삭속도 (Vc)' : 'Cutting Speed (Vc)'}</th>
+              {termLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/50">
+                        <th className="text-left py-3 px-4 font-medium w-1/2">English</th>
+                        <th className="text-left py-3 px-4 font-medium w-1/2">
+                          {language === "ko" ? "한국어" : "Korean"}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {terms.map((t, i) => (
+                        <tr key={i} className="border-b last:border-b-0 hover:bg-muted/30">
+                          <td className="py-2 px-4 font-mono">{t.en}</td>
+                          <td className="py-2 px-4">{t.ko}</td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        <tr className="border-b">
-                          <td className="py-2 px-3">일반강 (S45C)</td>
-                          <td className="py-2 px-3">V7 Plus 4F</td>
-                          <td className="py-2 px-3">TiAlN</td>
-                          <td className="py-2 px-3">100-150 m/min</td>
-                        </tr>
-                        <tr className="border-b">
-                          <td className="py-2 px-3">스테인리스 (SUS304)</td>
-                          <td className="py-2 px-3">I-Xmill 4F</td>
-                          <td className="py-2 px-3">TiAlN / AlCrN</td>
-                          <td className="py-2 px-3">80-120 m/min</td>
-                        </tr>
-                        <tr className="border-b">
-                          <td className="py-2 px-3">알루미늄 (AL6061)</td>
-                          <td className="py-2 px-3">Alu-Power 3F</td>
-                          <td className="py-2 px-3">DLC / 무코팅</td>
-                          <td className="py-2 px-3">500-2000 m/min</td>
-                        </tr>
-                        <tr className="border-b">
-                          <td className="py-2 px-3">금형강 (SKD11)</td>
-                          <td className="py-2 px-3">X5070 4F</td>
-                          <td className="py-2 px-3">AlCrN</td>
-                          <td className="py-2 px-3">60-100 m/min</td>
-                        </tr>
-                        <tr>
-                          <td className="py-2 px-3">인코넬 (718)</td>
-                          <td className="py-2 px-3">I-Xmill 4F</td>
-                          <td className="py-2 px-3">AlCrN</td>
-                          <td className="py-2 px-3">20-40 m/min</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </TabsContent>
         </Tabs>
