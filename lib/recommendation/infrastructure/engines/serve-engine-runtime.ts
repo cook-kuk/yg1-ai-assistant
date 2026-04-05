@@ -38,6 +38,7 @@ import { normalizePlannerResult, validatePlannerResult, buildExecutorSummary } f
 import { dryRunReduce, reduce, compareReducerVsActual, type ReducerAction } from "@/lib/recommendation/core/state-reducer"
 import { USE_STATE_REDUCER, USE_CHIP_SYSTEM, isSingleCallRouterEnabled, LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
 import { routeSingleCall } from "@/lib/recommendation/core/single-call-router"
+import { tryKGDecision, extractEntities } from "@/lib/recommendation/core/knowledge-graph"
 import { deriveChips, toChipState, toChipStateWithCandidates, compareChips, safeApplyChips } from "@/lib/recommendation/core/chip-system"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
 import { classifyPreSearchRoute } from "@/lib/recommendation/infrastructure/engines/pre-search-route"
@@ -686,7 +687,7 @@ export async function resolveExplicitFilterRequest(
 function extractNegatedValue(msg: string): { field: string; rawValue: string | number; displayValue: string } | null {
   // Strip negation suffixes to isolate the value
   const cleaned = msg
-    .replace(/\s*(빼고|제외|말고|없이|아닌\s*것|없는\s*거|만\s*아니면\s*(?:돼|된다니까|됩니다)?|아닌\s*거|말고\s*다른).*$/u, "")
+    .replace(/\s*(빼고|제외|말고|없이|아닌\s*것|없는\s*거로?|만\s*아니면\s*(?:돼|된다니까|됩니다|되잖아)?|아닌\s*거|말고\s*다른|없는\s*걸로).*$/u, "")
     .replace(/^(?:아니\s*)?/u, "")
     .trim()
 
@@ -1627,7 +1628,7 @@ async function handleServeExplorationInner(
     const pendingAlreadyResolved = pendingQuestionReply.kind === "resolved" || pendingQuestionReply.kind === "side_question"
     const msg = lastUserMsg?.text ?? ""
     // ── Deterministic negation handling (빼고/제외/아닌것/만 아니면/없이) ──
-    const hasNegationPattern = /빼고|제외|아닌\s*것|없는\s*거|말고\s*다른|만\s*아니면|없이|아닌\s*거/u.test(msg)
+    const hasNegationPattern = /빼고|제외|아닌\s*것|없는\s*거|말고\s*다른|만\s*아니면|없이|아닌\s*거|없는\s*거로/u.test(msg)
     let negationHandled = false
     if (hasNegationPattern) {
       const msgLower = msg.toLowerCase()
@@ -1681,17 +1682,74 @@ async function handleServeExplorationInner(
           agentsInvoked: [],
           escalatedToOpus: false,
         }
+        singleCallHandled = true // V2가 NEQ 필터를 덮어쓰지 않도록
       }
+    }
+
+    // ── Knowledge Graph (deterministic, 0 LLM calls) ──────────
+    let kgHint: string | undefined
+    if (!singleCallHandled && lastUserMsg) {
+      const kgResult = tryKGDecision(msg, prevState)
+      trace.add("knowledge-graph", "router", { confidence: kgResult.confidence, source: kgResult.source, reason: kgResult.reason })
+
+      if (kgResult.decision && kgResult.confidence >= 0.9) {
+        // High confidence → execute deterministically, skip LLM
+        const kgAction = kgResult.decision.action
+        const kgFilters: AppliedFilter[] = []
+
+        // Collect filters from action + extraFilters
+        if (kgAction.type === "continue_narrowing" && (kgAction as any).filter) {
+          kgFilters.push((kgAction as any).filter)
+        }
+        if (kgResult.decision.extraFilters?.length) {
+          kgFilters.push(...kgResult.decision.extraFilters)
+        }
+
+        if (kgFilters.length > 0) {
+          for (const kf of kgFilters) {
+            const built = buildAppliedFilterFromValue(kf.field, kf.rawValue ?? kf.value, turnCount)
+            if (built) {
+              const skipIdx = filters.findIndex(x => x.field === built.field && x.op === "skip")
+              if (skipIdx >= 0) filters.splice(skipIdx, 1)
+              const result = replaceFieldFilter(baseInput, filters, built, deps.applyFilterToInput)
+              filters.splice(0, filters.length, ...result.nextFilters)
+              currentInput = result.nextInput
+            }
+          }
+          bridgedV2Action = kgAction
+          bridgedV2OrchestratorResult = { action: kgAction, reasoning: `kg:${kgResult.reason}`, agentsInvoked: [], escalatedToOpus: false }
+          singleCallHandled = true
+          console.log(`[kg:hit] "${msg}" → ${kgResult.source} (${kgResult.confidence}), ${kgFilters.length} filters applied`)
+        } else if (["skip_field", "go_back_one_step", "reset_session", "show_recommendation", "filter_by_stock", "refine_condition"].includes(kgAction.type)) {
+          bridgedV2Action = kgAction
+          bridgedV2OrchestratorResult = { action: kgAction, reasoning: `kg:${kgResult.reason}`, agentsInvoked: [], escalatedToOpus: false }
+          singleCallHandled = true
+          console.log(`[kg:hit] "${msg}" → ${kgResult.source} (${kgResult.confidence}), action=${kgAction.type}`)
+        } else if (kgAction.type === "answer_general") {
+          bridgedV2Action = kgAction
+          bridgedV2OrchestratorResult = { action: kgAction, reasoning: `kg:${kgResult.reason}`, agentsInvoked: [], escalatedToOpus: false }
+          singleCallHandled = true
+          console.log(`[kg:hit] "${msg}" → ${kgResult.source} (${kgResult.confidence}), answer_general`)
+        }
+      } else if (kgResult.confidence >= 0.5) {
+        // Medium confidence → pass as hint to SCR
+        const entities = extractEntities(msg)
+        if (entities.length > 0) {
+          kgHint = entities.map(e => `${e.field}=${e.canonical}`).join(", ")
+          console.log(`[kg:hint] "${msg}" → ${kgResult.source} (${kgResult.confidence}), hint: ${kgHint}`)
+        }
+      }
+      // < 0.5 → no KG involvement, fall through to SCR
     }
 
     // LLM_FREE_INTERPRETATION ON → filterHints 조건 무시, 항상 Sonnet 라우팅
     // negation이 있더라도 SCR은 실행 — "DLC 빼고 TiAlN으로 바꿔" 같은 복합 요청 처리
     const negationFullyHandled = hasNegationPattern && negationHandled
-    const shouldUseSingleCall = (isSingleCallRouterEnabled() || LLM_FREE_INTERPRETATION) && lastUserMsg && messages.length > 0 && !negationFullyHandled && (LLM_FREE_INTERPRETATION || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
+    const shouldUseSingleCall = (isSingleCallRouterEnabled() || LLM_FREE_INTERPRETATION) && lastUserMsg && messages.length > 0 && !negationFullyHandled && !singleCallHandled && (LLM_FREE_INTERPRETATION || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
     if (shouldUseSingleCall) {
       // Pass recent conversation history so SCR understands references like "아까 거", "그거로"
       const recentConversation = messages.slice(-6) // last 3 turns (AI+User pairs)
-      const singleResult = await routeSingleCall(lastUserMsg.text, prevState, provider, recentConversation)
+      const singleResult = await routeSingleCall(lastUserMsg.text, prevState, provider, recentConversation, kgHint)
       // Temporary debug: log SCR result to trace
       trace.add("single-call-router", "router", {
         actionCount: singleResult.actions.length,
@@ -1896,11 +1954,16 @@ async function handleServeExplorationInner(
             })
           }
 
-          // Pre-result: DB re-query via continue_narrowing
+          // Pre-result: DB re-query
+          // If SCR returned show_recommendation alongside filters, bridge as show_recommendation
+          // so the system skips further questions and shows results immediately
+          const hasShowRecommendation = executableActions.some(a => a.type === "show_recommendation")
           pendingSelectionAction = null
           pendingSelectionOrchestratorResult = null
           const lastFilter = filters[filters.length - 1] ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount }
-          bridgedV2Action = { type: "continue_narrowing", filter: lastFilter }
+          bridgedV2Action = hasShowRecommendation
+            ? { type: "show_recommendation" }
+            : { type: "continue_narrowing", filter: lastFilter }
           bridgedV2OrchestratorResult = {
             action: bridgedV2Action,
             reasoning: `single_call:${singleResult.reasoning}`,
