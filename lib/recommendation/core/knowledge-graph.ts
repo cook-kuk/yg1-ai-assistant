@@ -478,7 +478,7 @@ export function tryKGDecision(
     }
   }
 
-  // ── 8. Multi-entity extraction (e.g., "4날 스퀘어") ──
+  // ── 8. Multi-entity extraction (e.g., "4날 스퀘어", "10mm") ──
   const entities = extractEntities(msg)
   if (entities.length > 0 && !COMPANY_PATTERNS.some(p => p.test(msg))) {
     const primary = entities[0]
@@ -491,9 +491,15 @@ export function tryKGDecision(
       appliedAt: 0,
     }
     const extraFilters = entitiesToFilters(extras, 0)
+    // 숫자 필드(직경, 날수 등)는 regex 추출이므로 오탐 위험이 거의 없음 → 0.92
+    // 문자열 필드(코팅, 형상 등)는 alias 매칭이므로 0.90
+    // 복합 엔티티(2개+)는 결합 정확도가 높으므로 0.92
+    const NUMERIC_FIELDS = new Set(["diameterMm", "fluteCount", "shankDiameterMm", "lengthOfCutMm", "overallLengthMm"])
+    const hasNumericField = entities.some(e => NUMERIC_FIELDS.has(e.field))
+    const confidence = entities.length >= 2 ? 0.92 : hasNumericField ? 0.92 : 0.90
     return {
-      decision: buildDecision({ type: "continue_narrowing", filter } as OrchestratorAction, extraFilters, 0.80, `KG: multi-entity ${entities.map(e => e.canonical).join(", ")}`),
-      confidence: 0.80,
+      decision: buildDecision({ type: "continue_narrowing", filter } as OrchestratorAction, extraFilters, confidence, `KG: multi-entity ${entities.map(e => e.canonical).join(", ")}`),
+      confidence,
       source: "kg-entity",
       reason: `multi-entity: ${entities.map(e => `${e.field}=${e.canonical}`).join(", ")}`,
     }
