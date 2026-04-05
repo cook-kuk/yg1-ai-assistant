@@ -2087,35 +2087,46 @@ async function handleServeExplorationInner(
     }
   }
 
-  // ── First-turn multi-filter extraction (before V2/legacy routing) ──
-  // 첫 턴에서 사용자 메시지의 조건을 resolvedInput + filters에 반영
-  if (!prevState && lastUserMsg) {
-    const { extractMaterial, extractOperation, extractDiameter } = await import("@/lib/recommendation/domain/input-normalizer")
+  // ── Multi-filter extraction from user message (before V2/legacy routing) ──
+  // 메시지에 2개 이상 필터 힌트가 있으면 deterministic 추출하여 즉시 적용
+  if (lastUserMsg) {
+    const { extractMaterial, extractDiameter } = await import("@/lib/recommendation/domain/input-normalizer")
     const { canonicalizeToolSubtype, extractFluteCount } = await import("@/lib/recommendation/shared/patterns")
     const msg = lastUserMsg.text
     const hintMaterial = extractMaterial(msg)
     const hintDiameter = extractDiameter(msg)
     const hintSubtype = canonicalizeToolSubtype(msg)
     const hintFlute = extractFluteCount(msg)
-    // debug log removed
-    if (hintMaterial && !resolvedInput.workPieceName) {
-      resolvedInput.workPieceName = hintMaterial
-      resolvedInput.material = hintMaterial
-      filters.push({ field: "workPieceName", op: "includes", value: hintMaterial, rawValue: hintMaterial, appliedAt: Date.now() })
+    const hintCount = [hintMaterial, hintDiameter, hintSubtype, hintFlute].filter(Boolean).length
+    // 2개 이상 조건이 감지되면 멀티 필터 적용 (단일 조건은 기존 라우팅에 위임)
+    if (hintCount >= 2) {
+      if (hintMaterial && !resolvedInput.workPieceName) {
+        resolvedInput.workPieceName = hintMaterial
+        resolvedInput.material = hintMaterial
+        if (!filters.some(f => f.field === "workPieceName")) {
+          filters.push({ field: "workPieceName", op: "includes", value: hintMaterial, rawValue: hintMaterial, appliedAt: Date.now() })
+        }
+      }
+      if (hintDiameter && !resolvedInput.diameterMm) {
+        resolvedInput.diameterMm = hintDiameter
+        if (!filters.some(f => f.field === "diameterMm")) {
+          filters.push({ field: "diameterMm", op: "eq", value: String(hintDiameter), rawValue: hintDiameter, appliedAt: Date.now() })
+        }
+      }
+      if (hintSubtype && !resolvedInput.toolSubtype) {
+        resolvedInput.toolSubtype = hintSubtype
+        if (!filters.some(f => f.field === "toolSubtype")) {
+          filters.push({ field: "toolSubtype", op: "eq", value: hintSubtype, rawValue: hintSubtype, appliedAt: Date.now() })
+        }
+      }
+      if (hintFlute && !resolvedInput.flutePreference) {
+        resolvedInput.flutePreference = hintFlute
+        if (!filters.some(f => f.field === "fluteCount")) {
+          filters.push({ field: "fluteCount", op: "eq", value: String(hintFlute), rawValue: hintFlute, appliedAt: Date.now() })
+        }
+      }
+      console.log(`[runtime:multi-filter-extract] ${hintCount} hints: material=${hintMaterial}, dia=${hintDiameter}, subtype=${hintSubtype}, flute=${hintFlute}`)
     }
-    if (hintDiameter && !resolvedInput.diameterMm) {
-      resolvedInput.diameterMm = hintDiameter
-      filters.push({ field: "diameterMm", op: "eq", value: String(hintDiameter), rawValue: hintDiameter, appliedAt: Date.now() })
-    }
-    if (hintSubtype && !resolvedInput.toolSubtype) {
-      resolvedInput.toolSubtype = hintSubtype
-      filters.push({ field: "toolSubtype", op: "eq", value: hintSubtype, rawValue: hintSubtype, appliedAt: Date.now() })
-    }
-    if (hintFlute && !resolvedInput.flutePreference) {
-      resolvedInput.flutePreference = hintFlute
-      filters.push({ field: "fluteCount", op: "eq", value: String(hintFlute), rawValue: hintFlute, appliedAt: Date.now() })
-    }
-    console.log(`[runtime:first-turn-extract] msg="${msg}" material=${hintMaterial}, dia=${hintDiameter}, subtype=${hintSubtype}, flute=${hintFlute}`)
   }
 
   // ── V2 Orchestrator Integration ──
