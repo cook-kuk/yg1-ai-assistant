@@ -1717,7 +1717,7 @@ async function handleServeExplorationInner(
               // KG extracted a real filter for the pending field → cancel pending skip
               // (e.g., user said "2날 직경 10 추천해줘" while pending=diameterMm;
               //  delegation regex matched "추천해줘" as skip, but KG found diameterMm=10)
-              if (built.field === pendingField && pendingSelectionAction?.type === "skip_field") {
+              if (built.field === pendingSelectionFilter?.field && pendingSelectionAction?.type === "skip_field") {
                 pendingSelectionAction = null
                 pendingSelectionOrchestratorResult = null
                 console.log(`[kg:override-pending] KG filter ${built.field}=${built.value} overrides pending skip_field`)
