@@ -45,11 +45,95 @@ const DB_COL_TO_FILTER_FIELD: Record<string, string> = {
 // Navigation pseudo-fields
 const NAV_FIELDS = new Set(["_skip", "_reset", "_back"])
 
+// ── Column Descriptions (derived from DB spec) ─────────────
+// MV column → Korean description for LLM context
+
+const COL_DESCRIPTIONS: Record<string, string> = {
+  // EDP 기본
+  edp_idx: "EDP 고유 인덱스",
+  edp_no: "EDP 제품 번호",
+  edp_brand_name: "브랜드명 (YG-1, CRX-S, etc.)",
+  edp_series_name: "시리즈명",
+  edp_series_idx: "시리즈 인덱스",
+  edp_root_category: "최상위 카테고리 (Milling, Holemaking, Threading, Tooling, Turning)",
+  edp_unit: "단위 (Metric/Inch)",
+  // 검색 인덱스 (통합)
+  search_diameter_mm: "직경 (mm, 숫자)",
+  search_coating: "코팅 (TiAlN, AlCrN, DLC, Diamond, Uncoated 등)",
+  search_subtype: "공구 형상 (Square, Ball, Radius, Roughing, Taper, Chamfer, High-Feed 등)",
+  search_flute_count: "날수 (숫자)",
+  // 공통 옵션
+  option_z: "날수 (Z)",
+  option_numberofflute: "날수",
+  option_drill_diameter: "드릴 직경",
+  option_d1: "직경 D1",
+  option_dc: "절삭 직경 Dc",
+  option_d: "직경 D",
+  option_shank_diameter: "생크 직경",
+  option_dcon: "연결부 직경",
+  option_flute_length: "홈 길이",
+  option_loc: "절삭 길이 (LOC)",
+  option_overall_length: "전체 길이 (OAL)",
+  option_oal: "전체 길이",
+  option_r: "반경 R",
+  option_re: "코너 반경 RE",
+  option_taperangle: "테이퍼 각도",
+  option_coolanthole: "쿨런트홀 유무",
+  // Milling 전용
+  milling_outside_dia: "밀링 외경",
+  milling_number_of_flute: "밀링 날수",
+  milling_coating: "밀링 코팅",
+  milling_tool_material: "밀링 공구 소재 (Carbide, HSS, CBN 등)",
+  milling_shank_dia: "밀링 생크 직경",
+  milling_length_of_cut: "밀링 절삭 길이",
+  milling_overall_length: "밀링 전체 길이",
+  milling_helix_angle: "밀링 헬릭스 각도",
+  milling_ball_radius: "밀링 볼 반경",
+  milling_taper_angle: "밀링 테이퍼 각도",
+  milling_coolant_hole: "밀링 쿨런트홀",
+  milling_cutting_edge_shape: "밀링 절삭 모서리 형상",
+  milling_cutter_shape: "밀링 커터 형상",
+  // Holemaking 전용
+  holemaking_outside_dia: "홀메이킹 외경",
+  holemaking_number_of_flute: "홀메이킹 날수",
+  holemaking_coating: "홀메이킹 코팅",
+  holemaking_tool_material: "홀메이킹 공구 소재",
+  holemaking_shank_dia: "홀메이킹 생크 직경",
+  holemaking_flute_length: "홀메이킹 홈 길이",
+  holemaking_overall_length: "홀메이킹 전체 길이",
+  holemaking_helix_angle: "홀메이킹 헬릭스 각도",
+  holemaking_coolant_hole: "홀메이킹 쿨런트홀",
+  // Threading 전용
+  threading_outside_dia: "쓰레딩 외경",
+  threading_number_of_flute: "쓰레딩 날수",
+  threading_coating: "쓰레딩 코팅",
+  threading_tool_material: "쓰레딩 공구 소재",
+  threading_shank_dia: "쓰레딩 생크 직경",
+  threading_thread_length: "쓰레딩 나사 길이",
+  threading_overall_length: "쓰레딩 전체 길이",
+  threading_coolant_hole: "쓰레딩 쿨런트홀",
+  threading_flute_type: "쓰레딩 홈 타입",
+  threading_thread_shape: "쓰레딩 나사 형상",
+  // Series 정보
+  series_brand_name: "시리즈 브랜드명",
+  series_description: "시리즈 설명",
+  series_feature: "시리즈 특징",
+  series_tool_type: "시리즈 툴타입",
+  series_product_type: "시리즈 제품타입",
+  series_application_shape: "시리즈 적용공법",
+  series_cutting_edge_shape: "시리즈 모서리 절삭모양",
+}
+
 // ── System Prompt Builder ────────────────────────────────────
 
 function buildSystemPrompt(schema: DbSchema, existingFilters: AppliedFilter[]): string {
   const colList = schema.columns
-    .map(c => `  ${c.column_name} (${c.data_type})`)
+    .map(c => {
+      const desc = COL_DESCRIPTIONS[c.column_name]
+      return desc
+        ? `  ${c.column_name} (${c.data_type}) — ${desc}`
+        : `  ${c.column_name} (${c.data_type})`
+    })
     .join("\n")
 
   const sampleList = Object.entries(schema.sampleValues)
@@ -88,18 +172,11 @@ Extract filter conditions from user message as JSON array:
 [{"field":"column_name","op":"eq|neq|like|gte|lte|between","value":"...","display":"한국어 설명"}]
 
 Rules:
-- field MUST be actual column_name from schema or "_workPieceName" for workpiece or "_skip"/"_reset"/"_back" for navigation
-- 구리/copper/동 → {"field":"_workPieceName","op":"eq","value":"Copper","display":"피삭재: 구리"}
-- 스퀘어/square → search_subtype LIKE '%Square%'
-- 직경 10 → search_diameter_mm = 10
-- 4날/4 flute → search_flute_count = 4 or option_z = '4'
-- TiAlN/코팅 → search_coating LIKE '%TiAlN%'
-- 빼고/말고/제외/아닌것 → op="neq"
-- 상관없음/패스/넘어가 → [{"field":"_skip","op":"skip","value":"skip"}]
-- 처음부터/초기화 → [{"field":"_reset","op":"reset","value":"reset"}]
-- 이전/돌아가 → [{"field":"_back","op":"back","value":"back"}]
-- 질문(뭐야?/차이/알려줘) → [] (empty = no filter change)
-- Brand search: "CRX-S" → edp_brand_name LIKE '%CRX%'
+- field MUST be actual column_name from schema, or "_workPieceName" for workpiece materials, or "_skip"/"_reset"/"_back" for navigation
+- Use column descriptions and sample values to determine the correct column for the user's intent
+- For exclusion/negation (빼고/말고/제외/아닌것 etc.) → op="neq"
+- For navigation: skip(상관없음/패스) → _skip, reset(처음부터/초기화) → _reset, back(이전/돌아가) → _back
+- For questions or non-filter messages → [] (empty array)
 - ALWAYS respond with valid JSON array only. No explanation.`
 }
 
