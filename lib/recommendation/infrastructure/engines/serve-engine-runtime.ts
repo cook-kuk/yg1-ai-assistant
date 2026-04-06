@@ -698,7 +698,8 @@ function extractNegatedValue(msg: string): { field: string; rawValue: string | n
   if (!cleaned) return null
 
   // Try buildAppliedFilterFromValue with each registered field
-  const fieldsToTry = ["coating", "toolSubtype", "fluteCount", "diameterMm", "workPieceName", "material"]
+  // brand/seriesName first — "TANK-POWER 빼고" ���은 브랜드 제외�� 코팅보다 먼저 잡아야 함
+  const fieldsToTry = ["brand", "seriesName", "coating", "toolSubtype", "fluteCount", "diameterMm", "workPieceName", "material"]
   for (const field of fieldsToTry) {
     const filter = buildAppliedFilterFromValue(field, cleaned)
     if (filter) {
