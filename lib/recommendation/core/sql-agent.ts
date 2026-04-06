@@ -13,7 +13,7 @@ import type { AppliedFilter } from "@/lib/types/exploration"
 
 export interface AgentFilter {
   field: string
-  op: "eq" | "neq" | "like" | "gte" | "lte" | "between" | "skip" | "reset" | "back"
+  op: "eq" | "neq" | "like" | "skip" | "reset" | "back"
   value: string
   display?: string
 }
@@ -34,7 +34,7 @@ const DB_COL_TO_FILTER_FIELD: Record<string, string> = {
   option_z: "fluteCount",
   edp_brand_name: "brand",
   edp_series_name: "seriesName",
-  edp_root_category: "toolFamily",
+  edp_root_category: "toolType",
   milling_tool_material: "toolMaterial",
   holemaking_tool_material: "toolMaterial",
   threading_tool_material: "toolMaterial",
@@ -169,7 +169,7 @@ ${filterList}
 
 ## Instructions
 Extract filter conditions from user message as JSON array:
-[{"field":"column_name","op":"eq|neq|like|gte|lte|between","value":"...","display":"한국어 설명"}]
+[{"field":"column_name","op":"eq|neq|like","value":"...","display":"한국어 설명"}]
 
 Rules:
 - field MUST be actual column_name from schema, or "_workPieceName" for workpiece materials, or "_skip"/"_reset"/"_back" for navigation

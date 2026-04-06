@@ -1721,7 +1721,8 @@ async function handleServeExplorationInner(
           trace.add("sql-agent", "router", { filterCount: agentResult.filters.length, raw: agentResult.raw.slice(0, 200) })
 
           if (agentResult.filters.length > 0) {
-            const metaAction = agentResult.filters.find(f => f.field.startsWith("_"))
+            const META_FIELDS = new Set(["_skip", "_reset", "_back"])
+            const metaAction = agentResult.filters.find(f => META_FIELDS.has(f.field))
             if (metaAction) {
               if (metaAction.op === "reset") {
                 bridgedV2Action = { type: "reset_session" }
