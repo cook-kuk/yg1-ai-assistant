@@ -38,6 +38,8 @@ import { normalizePlannerResult, validatePlannerResult, buildExecutorSummary } f
 import { dryRunReduce, reduce, compareReducerVsActual, type ReducerAction } from "@/lib/recommendation/core/state-reducer"
 import { USE_STATE_REDUCER, USE_CHIP_SYSTEM, isSingleCallRouterEnabled, LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
 import { routeSingleCall } from "@/lib/recommendation/core/single-call-router"
+import { naturalLanguageToFilters, buildAppliedFilterFromAgentFilter } from "@/lib/recommendation/core/sql-agent"
+import { getDbSchemaSync, getDbSchema } from "@/lib/recommendation/core/sql-agent-schema-cache"
 import { tryKGDecision, extractEntities } from "@/lib/recommendation/core/knowledge-graph"
 import { deriveChips, toChipState, toChipStateWithCandidates, compareChips, safeApplyChips } from "@/lib/recommendation/core/chip-system"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
@@ -1498,6 +1500,9 @@ async function handleServeExplorationInner(
   pagination: CandidatePaginationRequest | null = null,
   trace: TraceCollector = new TraceCollector()
 ): Promise<Response> {
+  // SQL Agent 스키마 워밍업 (첫 호출 시 비동�� 로드)
+  getDbSchema().catch(() => {})
+
   console.log(
     `[recommend] request start hasPrevState=${!!prevState} messages=${messages.length} displayedProducts=${displayedProducts?.length ?? 0} BUILD=002ebde`
   )
@@ -1761,6 +1766,75 @@ async function handleServeExplorationInner(
         }
       }
       // < 0.5 → no KG involvement, fall through to SCR
+    }
+
+    // ── SQL Agent (Haiku 1회, schema-aware filter extraction) ──
+    if (!singleCallHandled && lastUserMsg) {
+      try {
+        const schema = getDbSchemaSync()
+        if (schema) {
+          const agentResult = await naturalLanguageToFilters(msg, schema, filters, provider)
+          trace.add("sql-agent", "router", { filterCount: agentResult.filters.length, raw: agentResult.raw.slice(0, 200) })
+
+          if (agentResult.filters.length > 0) {
+            const metaAction = agentResult.filters.find(f => f.field.startsWith("_"))
+            if (metaAction) {
+              if (metaAction.op === "reset") {
+                bridgedV2Action = { type: "reset_session" }
+              } else if (metaAction.op === "back") {
+                bridgedV2Action = { type: "go_back_one_step" }
+              } else if (metaAction.op === "skip") {
+                if (!prevState?.lastAskedField) {
+                  console.log(`[sql-agent:skip-guard] skip_field ignored — no pending field`)
+                } else {
+                  bridgedV2Action = { type: "skip_field" }
+                }
+              }
+              if (bridgedV2Action) {
+                bridgedV2OrchestratorResult = { action: bridgedV2Action, reasoning: `sql-agent:${metaAction.op}`, agentsInvoked: [], escalatedToOpus: false }
+                singleCallHandled = true
+                if (bridgedV2Action.type === "reset_session" || bridgedV2Action.type === "go_back_one_step") {
+                  pendingSelectionAction = null
+                  pendingSelectionOrchestratorResult = null
+                }
+                console.log(`[sql-agent] meta action: ${metaAction.op}`)
+              }
+            } else {
+              // 필터 적용
+              for (const af of agentResult.filters) {
+                const built = buildAppliedFilterFromAgentFilter(af, turnCount)
+                if (built) {
+                  const skipIdx = filters.findIndex(x => x.field === built.field && x.op === "skip")
+                  if (skipIdx >= 0) filters.splice(skipIdx, 1)
+                  const result = replaceFieldFilter(baseInput, filters, built, deps.applyFilterToInput)
+                  filters.splice(0, filters.length, ...result.nextFilters)
+                  currentInput = result.nextInput
+                  if (built.field === pendingSelectionFilter?.field && pendingSelectionAction?.type === "skip_field") {
+                    pendingSelectionAction = null
+                    pendingSelectionOrchestratorResult = null
+                  }
+                }
+              }
+
+              const hasShowRec = /추천|보여|제품\s*보기|show/iu.test(msg)
+              const lastF = filters[filters.length - 1] ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount }
+              bridgedV2Action = hasShowRec
+                ? { type: "show_recommendation" }
+                : { type: "continue_narrowing", filter: lastF }
+              bridgedV2OrchestratorResult = {
+                action: bridgedV2Action,
+                reasoning: `sql-agent:${agentResult.filters.map(f => `${f.field}=${f.value}`).join(",")}`,
+                agentsInvoked: [],
+                escalatedToOpus: false,
+              }
+              singleCallHandled = true
+              console.log(`[sql-agent] ${agentResult.filters.length} filters: ${agentResult.filters.map(f => `${f.field}${f.op}${f.value}`).join(", ")}`)
+            }
+          }
+        }
+      } catch (e) {
+        console.error(`[sql-agent] error, falling back to SCR:`, e)
+      }
     }
 
     // LLM_FREE_INTERPRETATION ON → filterHints 조건 무시, 항상 Sonnet 라우팅
