@@ -93,22 +93,37 @@ for (const node of ENTITY_NODES) {
 
 // ── Numeric Extraction Patterns ────────────────────────────────
 
+// Korean number → digit mapping for "열미리", "두날" etc.
+const KO_NUM: Record<string, number> = {
+  한: 1, 두: 2, 세: 3, 네: 4, 다섯: 5, 여섯: 6,
+  일곱: 7, 여덟: 8, 아홉: 9, 열: 10, 스물: 20,
+}
+const KO_NUM_KEYS = Object.keys(KO_NUM).sort((a, b) => b.length - a.length).join("|")
+
 const NUMERIC_PATTERNS: Array<{ field: string; patterns: RegExp[]; extract: (m: RegExpMatchArray) => number }> = [
   {
     field: "diameterMm",
     patterns: [
       /(?:직경|지름|파이|φ|Φ|ø|dia(?:meter)?)\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
       /(\d+(?:\.\d+)?)\s*(?:mm|파이)\b/i,
+      new RegExp(`(${KO_NUM_KEYS})\\s*(?:미리|밀리|파이|mm)`, "i"),
     ],
-    extract: (m) => parseFloat(m[1]),
+    extract: (m) => {
+      if (KO_NUM[m[1]]) return KO_NUM[m[1]]
+      return parseFloat(m[1])
+    },
   },
   {
     field: "fluteCount",
     patterns: [
       /(\d+)\s*(?:날|f|플루트|flute)/i,
       /(?:날\s*수|플루트|flute)\s*(\d+)/i,
+      new RegExp(`(${KO_NUM_KEYS})\\s*날`, "i"),
     ],
-    extract: (m) => parseInt(m[1]),
+    extract: (m) => {
+      if (KO_NUM[m[1]]) return KO_NUM[m[1]]
+      return parseInt(m[1])
+    },
   },
   {
     field: "shankDiameterMm",
@@ -363,6 +378,24 @@ export function tryKGDecision(
     }
   }
 
+  // ── 4c. Question patterns ("X가 뭐야?", "X란?", "X 알려줘") → answer_general ──
+  // Must come BEFORE entity extraction to prevent "TiAlN이 뭐야?" from becoming a coating filter
+  const QUESTION_PATTERNS = [
+    /(?:뭐야|뭐예요|뭐에요|뭘까|뭔가요|무엇|무슨\s*뜻|알려줘|알려\s*주세요|설명|차이가?\s*뭐|어떤\s*거야|란\s*뭐|이란|이\s*뭐)/iu,
+    /(?:what\s*is|explain|tell\s*me\s*about|difference\s*between)/iu,
+  ]
+  if (QUESTION_PATTERNS.some(p => p.test(msg)) && msg.length < 60) {
+    return {
+      decision: buildDecision(
+        { type: "answer_general", message: msg, preGenerated: false } as OrchestratorAction,
+        [], 0.90, "KG: question pattern → answer_general"
+      ),
+      confidence: 0.90,
+      source: "kg-intent",
+      reason: "question pattern",
+    }
+  }
+
   // ── 5a. Comparative/superlative patterns → answer_general for LLM with product context ──
   // Superlatives: "가장 큰", "제일 작은", "최대"
   // Comparatives: "더 큰", "좀더 작은", "좀 긴", "더 짧은", "약간 큰"
@@ -455,6 +488,30 @@ export function tryKGDecision(
         confidence: 0.90,
         source: "kg-entity",
         reason: `entity ${entity.field}=${entity.canonical}`,
+      }
+    }
+
+    // Bare number for numeric pending fields (e.g., "10" when asking diameter)
+    const NUMERIC_PENDING_FIELDS = new Set(["diameterMm", "fluteCount", "shankDiameterMm", "lengthOfCutMm", "overallLengthMm"])
+    if (NUMERIC_PENDING_FIELDS.has(pendingField)) {
+      const bareNum = msg.match(/^(\d+(?:\.\d+)?)\s*$/)
+      if (bareNum) {
+        const numVal = parseFloat(bareNum[1])
+        if (!isNaN(numVal) && numVal > 0) {
+          const filter: AppliedFilter = {
+            field: pendingField,
+            op: "eq",
+            value: String(numVal),
+            rawValue: msg,
+            appliedAt: 0,
+          }
+          return {
+            decision: buildDecision({ type: "continue_narrowing", filter } as OrchestratorAction, [], 0.92, `KG: bare number ${numVal} for pending ${pendingField}`),
+            confidence: 0.92,
+            source: "kg-entity",
+            reason: `bare number ${numVal} → ${pendingField}`,
+          }
+        }
       }
     }
 

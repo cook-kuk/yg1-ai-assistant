@@ -244,7 +244,8 @@ async function loadSeriesMaterialRatings(
   candidates: CandidateSnapshot[],
   input: RecommendationInput
 ): Promise<Map<string, SeriesMaterialStatusValue>> {
-  const isoGroup = resolveSingleIsoGroup(input.material)
+  // material이 없으면 workPieceName으로 ISO 그룹 resolve fallback
+  const isoGroup = resolveSingleIsoGroup(input.material) ?? resolveSingleIsoGroup(input.workPieceName)
   if (!isoGroup) return new Map()
 
   const seriesNames = Array.from(
