@@ -691,7 +691,7 @@ export async function resolveExplicitFilterRequest(
 function extractNegatedValue(msg: string): { field: string; rawValue: string | number; displayValue: string } | null {
   // Strip negation suffixes to isolate the value
   const cleaned = msg
-    .replace(/\s*(빼고|제외|말고|없이|아닌\s*것|없는\s*거로?|만\s*아니면\s*(?:돼|된다니까|됩니다|되잖아)?|아닌\s*거|말고\s*다른|없는\s*걸로).*$/u, "")
+    .replace(/\s*(빼고|뺴고|빼구|제외|말고|없이|아닌\s*것|없는\s*거로?|만\s*아니면\s*(?:돼|된다니까|됩니다|되잖아)?|아닌\s*거|말고\s*다른|없는\s*걸로).*$/u, "")
     .replace(/^(?:아니\s*)?/u, "")
     .trim()
 
@@ -1501,8 +1501,8 @@ async function handleServeExplorationInner(
   pagination: CandidatePaginationRequest | null = null,
   trace: TraceCollector = new TraceCollector()
 ): Promise<Response> {
-  // SQL Agent 스키마 워밍업 (첫 호출 시 비동�� 로드)
-  getDbSchema().catch(() => {})
+  // SQL Agent 스키마 로드 (첫 호출 시 await, 이후 캐시)
+  await getDbSchema().catch(() => {})
 
   console.log(
     `[recommend] request start hasPrevState=${!!prevState} messages=${messages.length} displayedProducts=${displayedProducts?.length ?? 0} BUILD=002ebde`
@@ -1635,7 +1635,7 @@ async function handleServeExplorationInner(
     // Skip when: simple chip click, side question, or pending selection early
     const pendingAlreadyResolved = pendingQuestionReply.kind === "resolved" || pendingQuestionReply.kind === "side_question"
     const msg = lastUserMsg?.text ?? ""
-    const hasNegationPattern = /빼고|제외|아닌\s*것|없는\s*거|말고\s*다른|만\s*아니면|없이|아닌\s*거|없는\s*거로/u.test(msg)
+    const hasNegationPattern = /빼고|뺴고|빼구|제외|아닌\s*것|없는\s*거|말고\s*다른|만\s*아니면|없이|아닌\s*거|없는\s*거로/u.test(msg)
     let negationHandled = false
 
     // ══════════════════════════════════════════════════════════
