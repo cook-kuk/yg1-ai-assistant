@@ -12,6 +12,7 @@ import {
   getRegisteredFilterFields,
   getFilterFieldQueryAliases,
 } from "@/lib/recommendation/shared/filter-field-registry"
+import { getDbSchemaSync } from "./sql-agent-schema-cache"
 import type { AppliedFilter, ExplorationSessionState } from "@/lib/recommendation/domain/types"
 import type { OrchestratorAction } from "@/lib/recommendation/infrastructure/agents/types"
 import type { SemanticReplyRoute, SemanticDirectContext, SemanticTurnDecision } from "./semantic-turn-extractor"
@@ -278,6 +279,21 @@ export function extractEntities(message: string): Array<{ field: string; value: 
       if (match) {
         results.push({ field: np.field, value: match[0], canonical: String(np.extract(match)) })
         break
+      }
+    }
+  }
+
+  // 3. Dynamic brand matching from DB schema cache (no hardcoding)
+  if (!results.some(r => r.field === "brand")) {
+    const schema = getDbSchemaSync()
+    if (schema?.brands) {
+      for (const brand of schema.brands) {
+        const brandLower = brand.toLowerCase()
+        // Exact or partial match — brand names are typically uppercase identifiers
+        if (matchesAsWord(lower, brandLower) || lower.includes(brandLower)) {
+          results.push({ field: "brand", value: brand, canonical: brand })
+          break
+        }
       }
     }
   }
