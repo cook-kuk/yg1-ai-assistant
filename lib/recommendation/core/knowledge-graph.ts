@@ -195,6 +195,8 @@ const COMPARE_PATTERNS = [
 ]
 
 const EXCLUDE_PATTERNS = [
+  // "square 타입 말고" → capture "square" (skip 타입/종류/형상 suffixes)
+  /(\S+)\s+(?:타입|종류|형상|코팅|계열)\s*(?:말고|빼고|제외|외에)/iu,
   /(\S+)\s*(?:말고|빼고|제외|외에)/iu,
   /(\S+?)(?:이|가|을|를)\s*(?:아닌|않은|아니고)/iu,
   /(\S+)\s+(?:아닌|않은|아니고)/iu,
