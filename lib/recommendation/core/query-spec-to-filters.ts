@@ -32,16 +32,23 @@ const QUERY_FIELD_TO_FILTER_FIELD: Record<QueryField, string> = {
 
 // ── QueryOp → AppliedFilter op mapping ──────────────────────
 
-function mapOp(qop: QueryOp): AppliedFilter["op"] {
+// Bridge 손실 추적: between/gte/lte → eq 뭉개짐
+// Phase 2에서 AppliedFilter를 확장하거나 ConstraintState 도입 시 해소 예정
+const LOSSY_OPS = new Set(["in", "not_in", "gte", "lte", "between"])
+
+function mapOp(qop: QueryOp, field?: string): AppliedFilter["op"] {
+  if (LOSSY_OPS.has(qop)) {
+    console.warn(`[query-spec-bridge] lossy op conversion: ${field ?? "?"} ${qop} → eq/neq (semantic loss)`)
+  }
   switch (qop) {
     case "eq": return "eq"
     case "neq": return "neq"
     case "contains": return "includes"
-    case "in": return "eq"       // TODO: "in" 연산은 AppliedFilter에 없음. 첫 번째 값만 eq로 매핑.
-    case "not_in": return "neq"  // TODO: "not_in" 연산은 첫 번째 값만 neq로 매핑.
-    case "gte": return "eq"      // TODO: range 연산은 AppliedFilter에서 미지원. 임시로 eq.
-    case "lte": return "eq"      // TODO: range 연산은 AppliedFilter에서 미지원.
-    case "between": return "eq"  // TODO: range 연산은 AppliedFilter에서 미지원.
+    case "in": return "eq"       // TODO(Phase 2): "in" 연산은 AppliedFilter에 없음. 첫 번째 값만 eq로 매핑.
+    case "not_in": return "neq"  // TODO(Phase 2): "not_in" 연산은 첫 번째 값만 neq로 매핑.
+    case "gte": return "eq"      // TODO(Phase 2): range 연산은 AppliedFilter에서 미지원. 임시로 eq.
+    case "lte": return "eq"      // TODO(Phase 2): range 연산은 AppliedFilter에서 미지원.
+    case "between": return "eq"  // TODO(Phase 2): range 연산은 AppliedFilter에서 미지원.
     default: return "eq"
   }
 }
@@ -82,7 +89,7 @@ export function querySpecToAppliedFilters(
       // buildAppliedFilterFromValue가 실패하면 raw로 생성
       results.push({
         field: filterField,
-        op: mapOp(constraint.op),
+        op: mapOp(constraint.op, constraint.field),
         value: constraint.display ?? String(rawValue),
         rawValue,
         appliedAt: turnCount,

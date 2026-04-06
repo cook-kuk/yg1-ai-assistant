@@ -268,6 +268,13 @@ export function extractEntities(message: string): Array<{ field: string; value: 
     }
   }
 
+  // 0b. Material group pattern: "P소재", "M소재" → single alpha ISO code
+  const materialGroupMatch = lower.match(/^([pmknsh])\s*소재/i) || lower.match(/([pmknsh])\s*소재\b/i)
+  if (materialGroupMatch && !results.some(r => r.field === "material")) {
+    const code = materialGroupMatch[1].toUpperCase()
+    results.push({ field: "material", value: code, canonical: code })
+  }
+
   // 1. Check learned patterns first (self-supervised)
   try {
     const { getLearnedEntityIndex } = require("./self-learning")
@@ -311,13 +318,16 @@ export function extractEntities(message: string): Array<{ field: string; value: 
   }
 
   // 3. Dynamic brand matching from DB schema cache (no hardcoding)
+  //    Normalize hyphens/spaces: "CRX-S" ↔ "CRX S" ↔ "CRXS"
   if (!results.some(r => r.field === "brand")) {
     const schema = getDbSchemaSync()
     if (schema?.brands) {
+      const normMsg = lower.replace(/[-\s]/g, "")
       for (const brand of schema.brands) {
         const brandLower = brand.toLowerCase()
-        // Exact or partial match — brand names are typically uppercase identifiers
-        if (matchesAsWord(lower, brandLower) || lower.includes(brandLower)) {
+        const normBrand = brandLower.replace(/[-\s]/g, "")
+        if (matchesAsWord(lower, brandLower) || lower.includes(brandLower)
+          || (normBrand.length >= 3 && normMsg.includes(normBrand))) {
           results.push({ field: "brand", value: brand, canonical: brand })
           break
         }

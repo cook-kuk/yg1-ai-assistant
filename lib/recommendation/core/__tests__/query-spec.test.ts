@@ -383,6 +383,26 @@ describe("KG golden cases", () => {
       expect(action.filter.field).toBe("workPieceName")
     }
   })
+
+  it('"P소재로 해줘" → material=P (ISO group, not workpiece)', () => {
+    const result = tryKGDecision("P소재로 해줘", null)
+    expect(result.confidence).toBeGreaterThanOrEqual(0.9)
+    const action = result.decision?.action as any
+    // P should be recognized as material group, not workPieceName="P"
+    if (action?.filter) {
+      expect(action.filter.field).toBe("material")
+      expect(action.filter.rawValue ?? action.filter.value).toBe("P")
+    }
+  })
+
+  it('"M소재" → material=M', () => {
+    const result = tryKGDecision("M소재", null)
+    expect(result.confidence).toBeGreaterThanOrEqual(0.9)
+    const action = result.decision?.action as any
+    if (action?.filter) {
+      expect(action.filter.field).toBe("material")
+    }
+  })
 })
 
 // ══════════════════════════════════════════════════════════════
