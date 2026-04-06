@@ -3,7 +3,7 @@
 
 import { resolveModel, type LLMProvider } from "@/lib/llm/provider"
 
-const KB_SEMANTIC_MODEL = resolveModel("haiku")
+const KB_SEMANTIC_MODEL = resolveModel("sonnet")
 
 export const YG1_KB = {
   // ── 1. 회사 기본 정보 ──────────────────────────────

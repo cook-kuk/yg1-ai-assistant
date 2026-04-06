@@ -211,5 +211,14 @@ export function isLikelyLookupPhrase(value: string): boolean {
 
 export function isLikelyProductLookupCandidate(value: string): boolean {
   const trimmed = value.trim()
-  return trimmed.length >= 3 && !/\s/.test(trimmed) && /[A-Za-z]/.test(trimmed) && /\d/.test(trimmed)
+  if (trimmed.length < 3 || /\s/.test(trimmed) || !/[A-Za-z]/.test(trimmed) || !/\d/.test(trimmed)) return false
+  // Reject measurement patterns: 10mm, 8MM, 12.5mm, 3파이, 10인치, etc.
+  if (/^\d+(?:\.\d+)?(?:mm|파이|인치|inch|cm|°|deg)$/i.test(trimmed)) return false
+  // Reject fraction-like patterns: 3/8", 1/4inch
+  if (/^\d+\/\d+[""]?$/i.test(trimmed)) return false
+  // Reject pure unit tokens: mm, cm
+  if (/^[a-z]{1,3}$/i.test(trimmed)) return false
+  // Must start with a letter (product codes like EIE2610050, SGED31100 always start with letters)
+  if (!/^[A-Za-z]/.test(trimmed)) return false
+  return true
 }

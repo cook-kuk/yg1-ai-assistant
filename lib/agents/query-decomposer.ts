@@ -18,7 +18,7 @@ import { resolveModel, type LLMProvider } from "@/lib/llm/provider"
 import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
 import type { ExplorationSessionState } from "@/lib/types/exploration"
 
-const QUERY_DECOMPOSER_MODEL = resolveModel("opus", "query-decomposer")
+const QUERY_DECOMPOSER_MODEL = resolveModel("sonnet", "query-decomposer")
 
 // ── Types ────────────────────────────────────────────────────────
 

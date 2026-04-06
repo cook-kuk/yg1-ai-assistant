@@ -16,7 +16,7 @@ import {
 } from "@/lib/recommendation/shared/patterns"
 import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
 
-const INTENT_CLASSIFIER_MODEL = resolveModel("opus", "intent-classifier")
+const INTENT_CLASSIFIER_MODEL = resolveModel("sonnet", "intent-classifier")
 
 // ── Deterministic Patterns (fast path, no LLM) ──────────────
 // 공유 패턴은 shared/patterns.ts에서 import

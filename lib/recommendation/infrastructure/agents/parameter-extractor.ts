@@ -97,12 +97,37 @@ function extractDeterministicParameters(clean: string): Partial<ExtractedParamet
   const fluteMatch = clean.match(/(\d+)\s*날/)
   if (fluteMatch) params.fluteCount = parseInt(fluteMatch[1])
 
-  const diamMatch = clean.match(/([\d.]+)\s*mm/)
+  const diamMatch = clean.match(/([\d.]+)\s*(?:mm|미리|밀리|파이)/)
   if (diamMatch) params.diameterMm = parseFloat(diamMatch[1])
+
+  // Fractional inch → mm: "3/8\"", "3/8"", "1/2 inch", "1-1/2\""
+  if (params.diameterMm == null) {
+    const fractionMatch = clean.match(/(\d+)\s*\/\s*(\d+)\s*(?:"|"|"|''|inch|in|인치)/)
+    if (fractionMatch) {
+      const num = parseInt(fractionMatch[1], 10)
+      const den = parseInt(fractionMatch[2], 10)
+      if (den !== 0) params.diameterMm = Math.round(num / den * 25.4 * 10000) / 10000
+    }
+    // Mixed number: "1-1/2""
+    if (params.diameterMm == null) {
+      const mixedMatch = clean.match(/(\d+)[\s-]+(\d+)\s*\/\s*(\d+)\s*(?:"|"|"|''|inch|in|인치)/)
+      if (mixedMatch) {
+        const whole = parseInt(mixedMatch[1], 10)
+        const num = parseInt(mixedMatch[2], 10)
+        const den = parseInt(mixedMatch[3], 10)
+        if (den !== 0) params.diameterMm = Math.round((whole + num / den) * 25.4 * 10000) / 10000
+      }
+    }
+  }
 
   const coatingMap: Record<string, string> = {
     "altin": "AlTiN", "tialn": "TiAlN", "dlc": "DLC",
-    "무코팅": "Uncoated", "y-코팅": "Y-Coating", "y코팅": "Y-Coating", "ticn": "TiCN",
+    "alcrn": "AlCrN", "ticn": "TiCN",
+    "무코팅": "Uncoated", "코팅 없": "Uncoated", "코팅없": "Uncoated", "노코팅": "Uncoated", "uncoated": "Uncoated",
+    "bright finish": "Bright Finish", "브라이트": "Bright Finish",
+    "블루코팅": "Blue-Coating", "blue-coating": "Blue-Coating", "블루": "Blue-Coating",
+    "y-코팅": "Y-Coating", "y코팅": "Y-Coating",
+    "x-코팅": "X-Coating", "x코팅": "X-Coating",
   }
   for (const [key, val] of Object.entries(coatingMap)) {
     if (clean.includes(key)) { params.coating = val; break }
@@ -118,6 +143,22 @@ function extractDeterministicParameters(clean: string): Partial<ExtractedParamet
   }
   for (const [key, val] of Object.entries(subtypeMap)) {
     if (chipClean.includes(key) || clean.includes(key)) { params.toolSubtype = val; break }
+  }
+
+  // Material extraction
+  const materialMap: Record<string, string> = {
+    "탄소강": "Carbon Steel", "carbon steel": "Carbon Steel",
+    "스테인리스": "Stainless Steel", "stainless": "Stainless Steel", "sus": "Stainless Steel",
+    "알루미늄": "Aluminum", "aluminum": "Aluminum", "aluminium": "Aluminum",
+    "구리": "Copper", "copper": "Copper", "동": "Copper", "cu": "Copper",
+    "티타늄": "Titanium", "titanium": "Titanium",
+    "인코넬": "Inconel", "inconel": "Inconel",
+    "고경도강": "Hardened Steel", "hardened steel": "Hardened Steel", "hardend steel": "Hardened Steel",
+    "주철": "Cast Iron", "cast iron": "Cast Iron",
+    "graphite": "Graphite", "흑연": "Graphite",
+  }
+  for (const [key, val] of Object.entries(materialMap)) {
+    if (clean.includes(key)) { params.material = val; break }
   }
 
   const seriesMatch = clean.match(/(ce\d+[a-z]*\d*|gnx\d+|sem[a-z]*\d+|e\d+[a-z]\d+)/i)

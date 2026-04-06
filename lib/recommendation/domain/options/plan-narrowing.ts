@@ -128,6 +128,50 @@ function computeEntropy(distribution: Map<string, number>, total: number): numbe
   return maxEntropy > 0 ? entropy / maxEntropy : 0
 }
 
+/** DB 영어값 → 한국어(영어) 병기 레이블 */
+const DISPLAY_LABEL_KO: Record<string, Record<string, string>> = {
+  workPieceName: {
+    "Alloy Steels": "합금강(Alloy Steels)",
+    "Carbon Steels": "탄소강(Carbon Steels)",
+    "Structural Steels": "구조용강(Structural Steels)",
+    "Stainless Steels": "스테인리스(Stainless Steels)",
+    "Cast Iron": "주철(Cast Iron)",
+    "Tool Steels": "공구강(Tool Steels)",
+    "Hardened Steels(HRc45~55)": "고경도강 HRc45~55",
+    "Hardened Steels(HRc55~70)": "고경도강 HRc55~70",
+    "High Alloyed": "고합금강(High Alloyed)",
+    "High Carbon Steels": "고탄소강(High Carbon Steels)",
+    "Aluminum": "알루미늄(Aluminum)",
+    "Aluminum Alloy": "알루미늄합금(Al Alloy)",
+    "Copper": "구리(Copper)",
+    "Copper Alloy": "구리합금(Cu Alloy)",
+    "Graphite": "그라파이트(Graphite)",
+    "Titanium": "티타늄(Titanium)",
+    "Titanium Alloy": "티타늄합금(Ti Alloy)",
+    "Inconel": "인코넬(Inconel)",
+    "Nickel Alloy": "니켈합금(Ni Alloy)",
+    "Heat Resistant Alloy": "내열합금(Heat Resistant)",
+  },
+  coating: {
+    "Uncoated": "무코팅(Uncoated)",
+    "Bright": "브라이트(무코팅)",
+    "Bright Finish": "브라이트(무코팅)",
+  },
+  toolSubtype: {
+    "Square": "스퀘어(Square)",
+    "Ball": "볼(Ball)",
+    "Radius": "코너R(Radius)",
+    "Roughing": "황삭(Roughing)",
+    "Taper": "테이퍼(Taper)",
+    "Chamfer": "챔퍼(Chamfer)",
+    "High-Feed": "하이피드(High-Feed)",
+  },
+}
+
+function localizeValue(field: string, value: string): string {
+  return DISPLAY_LABEL_KO[field]?.[value] ?? value
+}
+
 function formatNarrowingLabel(field: string, value: string, count: number): string {
   const fieldNames: Record<string, string> = {
     fluteCount: "날 수",
@@ -138,5 +182,5 @@ function formatNarrowingLabel(field: string, value: string, count: number): stri
     workPieceName: "세부 피삭재",
   }
   const fieldLabel = fieldNames[field] ?? field
-  return `${value} (${count}개)`
+  return `${localizeValue(field, value)} (${count}개)`
 }
