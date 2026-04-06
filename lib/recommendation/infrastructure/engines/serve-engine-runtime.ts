@@ -1635,66 +1635,14 @@ async function handleServeExplorationInner(
     // Skip when: simple chip click, side question, or pending selection early
     const pendingAlreadyResolved = pendingQuestionReply.kind === "resolved" || pendingQuestionReply.kind === "side_question"
     const msg = lastUserMsg?.text ?? ""
-    // ── Deterministic negation handling (빼고/제외/아닌것/만 아니면/없이) ──
     const hasNegationPattern = /빼고|제외|아닌\s*것|없는\s*거|말고\s*다른|만\s*아니면|없이|아닌\s*거|없는\s*거로/u.test(msg)
     let negationHandled = false
-    if (hasNegationPattern) {
-      const msgLower = msg.toLowerCase()
 
-      // Track 1: Remove existing filter if value matches
-      if (filters.length > 0) {
-        for (const existingFilter of [...filters]) {
-          const filterValue = String(existingFilter.rawValue ?? existingFilter.value).toLowerCase()
-          if (msgLower.includes(filterValue) && existingFilter.op !== "skip") {
-            const idx = filters.indexOf(existingFilter)
-            if (idx >= 0) {
-              filters.splice(idx, 1)
-              currentInput = rebuildResolvedInputFromFilters(form, filters, deps)
-              console.log(`[negation-deterministic] Removed ${existingFilter.field}=${existingFilter.value} filter`)
-              negationHandled = true
-            }
-          }
-        }
-      }
+    // ══════════════════════════════════════════════════════════
+    // Router priority: KG(0.9+) → SQL Agent(primary) → negation(fallback) → KG(hint) → SCR
+    // ══════════════════════════════════════════════════════════
 
-      // Track 2: No matching filter found → create NEQ exclusion filter
-      // "TiAlN 빼고 나머지요" when no coating filter exists → coating != TiAlN
-      if (!negationHandled) {
-        // Extract the value being negated by trying all registered fields
-        const negatedValue = extractNegatedValue(msg)
-        if (negatedValue) {
-          const neqFilter: AppliedFilter = {
-            field: negatedValue.field,
-            op: "neq",
-            value: `${negatedValue.displayValue} 제외`,
-            rawValue: negatedValue.rawValue,
-            appliedAt: turnCount,
-          }
-          // Remove any existing filter on same field, then add NEQ
-          const existingIdx = filters.findIndex(f => f.field === neqFilter.field)
-          if (existingIdx >= 0) filters.splice(existingIdx, 1)
-          filters.push(neqFilter)
-          currentInput = rebuildResolvedInputFromFilters(form, filters, deps)
-          console.log(`[negation-deterministic] Created NEQ filter: ${neqFilter.field} != ${neqFilter.rawValue}`)
-          negationHandled = true
-        }
-      }
-
-      if (negationHandled) {
-        pendingSelectionAction = null
-        pendingSelectionOrchestratorResult = null
-        bridgedV2Action = { type: "continue_narrowing", filter: filters[filters.length - 1] ?? { field: "none", op: "skip", value: "", rawValue: "", appliedAt: turnCount } as AppliedFilter }
-        bridgedV2OrchestratorResult = {
-          action: bridgedV2Action,
-          reasoning: `negation_deterministic:${filters[filters.length - 1]?.op === "neq" ? "neq_filter" : "removed_filter"}`,
-          agentsInvoked: [],
-          escalatedToOpus: false,
-        }
-        singleCallHandled = true // V2가 NEQ 필터를 덮어쓰지 않도록
-      }
-    }
-
-    // ── Knowledge Graph (deterministic, 0 LLM calls) ──────────
+    // ── 1. Knowledge Graph: high confidence only (deterministic, 0 LLM calls, ~0.01s) ──
     let kgHint: string | undefined
     if (!singleCallHandled && lastUserMsg) {
       const kgResult = tryKGDecision(msg, prevState)
@@ -1723,9 +1671,6 @@ async function handleServeExplorationInner(
               const result = replaceFieldFilter(baseInput, filters, built, deps.applyFilterToInput)
               filters.splice(0, filters.length, ...result.nextFilters)
               currentInput = result.nextInput
-              // KG extracted a real filter for the pending field → cancel pending skip
-              // (e.g., user said "2날 직경 10 추천해줘" while pending=diameterMm;
-              //  delegation regex matched "추천해줘" as skip, but KG found diameterMm=10)
               if (built.field === pendingSelectionFilter?.field && pendingSelectionAction?.type === "skip_field") {
                 pendingSelectionAction = null
                 pendingSelectionOrchestratorResult = null
@@ -1738,14 +1683,12 @@ async function handleServeExplorationInner(
           singleCallHandled = true
           console.log(`[kg:hit] "${msg}" → ${kgResult.source} (${kgResult.confidence}), ${kgFilters.length} filters applied`)
         } else if (["skip_field", "go_back_one_step", "reset_session", "show_recommendation", "filter_by_stock", "refine_condition"].includes(kgAction.type)) {
-          // Guard: skip_field on first turn with no pending field → don't execute
           if (kgAction.type === "skip_field" && !prevState?.lastAskedField) {
             console.log(`[kg:skip-guard] skip_field ignored — no pending field (first turn)`)
           } else {
             bridgedV2Action = kgAction
             bridgedV2OrchestratorResult = { action: kgAction, reasoning: `kg:${kgResult.reason}`, agentsInvoked: [], escalatedToOpus: false }
             singleCallHandled = true
-            // reset/back 등 네비게이션 액션은 pending selection을 무효화
             if (kgAction.type === "reset_session" || kgAction.type === "go_back_one_step") {
               pendingSelectionAction = null
               pendingSelectionOrchestratorResult = null
@@ -1759,17 +1702,17 @@ async function handleServeExplorationInner(
           console.log(`[kg:hit] "${msg}" → ${kgResult.source} (${kgResult.confidence}), answer_general`)
         }
       } else if (kgResult.confidence >= 0.5) {
-        // Medium confidence → pass as hint to SCR
+        // Medium confidence → pass as hint to SCR (used later if SQL Agent also fails)
         const entities = extractEntities(msg)
         if (entities.length > 0) {
           kgHint = entities.map(e => `${e.field}=${e.canonical}`).join(", ")
           console.log(`[kg:hint] "${msg}" → ${kgResult.source} (${kgResult.confidence}), hint: ${kgHint}`)
         }
       }
-      // < 0.5 → no KG involvement, fall through to SCR
     }
 
-    // ── SQL Agent (Haiku 1회, schema-aware filter extraction) ──
+    // ── 2. SQL Agent: primary handler (Haiku 1회, schema-aware, ~0.5s) ──
+    // Handles filters + negation + navigation — replaces deterministic negation handler
     if (!singleCallHandled && lastUserMsg) {
       try {
         const schema = getDbSchemaSync()
@@ -1801,10 +1744,15 @@ async function handleServeExplorationInner(
                 console.log(`[sql-agent] meta action: ${metaAction.op}`)
               }
             } else {
-              // 필터 적용
+              // 필터 적용 (eq + neq 모두 처리)
               for (const af of agentResult.filters) {
                 const built = buildAppliedFilterFromAgentFilter(af, turnCount)
                 if (built) {
+                  // NEQ: 기존 같은 필드 필터 제거 �� 추가
+                  if (af.op === "neq") {
+                    const existingIdx = filters.findIndex(f => f.field === built.field && f.op !== "neq")
+                    if (existingIdx >= 0) filters.splice(existingIdx, 1)
+                  }
                   const skipIdx = filters.findIndex(x => x.field === built.field && x.op === "skip")
                   if (skipIdx >= 0) filters.splice(skipIdx, 1)
                   const result = replaceFieldFilter(baseInput, filters, built, deps.applyFilterToInput)
@@ -1824,22 +1772,76 @@ async function handleServeExplorationInner(
                 : { type: "continue_narrowing", filter: lastF }
               bridgedV2OrchestratorResult = {
                 action: bridgedV2Action,
-                reasoning: `sql-agent:${agentResult.filters.map(f => `${f.field}=${f.value}`).join(",")}`,
+                reasoning: `sql-agent:${agentResult.filters.map(f => `${f.field}=${f.op}${f.value}`).join(",")}`,
                 agentsInvoked: [],
                 escalatedToOpus: false,
               }
               singleCallHandled = true
+              negationHandled = hasNegationPattern // SQL Agent가 negation도 처리했으므로
               console.log(`[sql-agent] ${agentResult.filters.length} filters: ${agentResult.filters.map(f => `${f.field}${f.op}${f.value}`).join(", ")}`)
             }
           }
         }
       } catch (e) {
-        console.error(`[sql-agent] error, falling back to SCR:`, e)
+        console.error(`[sql-agent] error, falling back to negation/SCR:`, e)
       }
     }
 
-    // LLM_FREE_INTERPRETATION ON → filterHints 조건 무시, 항상 Sonnet 라우팅
-    // negation이 있더라도 SCR은 실행 — "DLC 빼고 TiAlN으로 바꿔" 같은 복합 요청 처리
+    // ── 3. Deterministic negation fallback (SQL Agent 실패 시에만) ──
+    if (!singleCallHandled && hasNegationPattern) {
+      const msgLower = msg.toLowerCase()
+
+      // Track 1: Remove existing filter if value matches
+      if (filters.length > 0) {
+        for (const existingFilter of [...filters]) {
+          const filterValue = String(existingFilter.rawValue ?? existingFilter.value).toLowerCase()
+          if (msgLower.includes(filterValue) && existingFilter.op !== "skip") {
+            const idx = filters.indexOf(existingFilter)
+            if (idx >= 0) {
+              filters.splice(idx, 1)
+              currentInput = rebuildResolvedInputFromFilters(form, filters, deps)
+              console.log(`[negation-deterministic] Removed ${existingFilter.field}=${existingFilter.value} filter`)
+              negationHandled = true
+            }
+          }
+        }
+      }
+
+      // Track 2: No matching filter found → create NEQ exclusion filter
+      if (!negationHandled) {
+        const negatedValue = extractNegatedValue(msg)
+        if (negatedValue) {
+          const neqFilter: AppliedFilter = {
+            field: negatedValue.field,
+            op: "neq",
+            value: `${negatedValue.displayValue} 제외`,
+            rawValue: negatedValue.rawValue,
+            appliedAt: turnCount,
+          }
+          const existingIdx = filters.findIndex(f => f.field === neqFilter.field)
+          if (existingIdx >= 0) filters.splice(existingIdx, 1)
+          filters.push(neqFilter)
+          currentInput = rebuildResolvedInputFromFilters(form, filters, deps)
+          console.log(`[negation-deterministic] Created NEQ filter: ${neqFilter.field} != ${neqFilter.rawValue}`)
+          negationHandled = true
+        }
+      }
+
+      if (negationHandled) {
+        pendingSelectionAction = null
+        pendingSelectionOrchestratorResult = null
+        bridgedV2Action = { type: "continue_narrowing", filter: filters[filters.length - 1] ?? { field: "none", op: "skip", value: "", rawValue: "", appliedAt: turnCount } as AppliedFilter }
+        bridgedV2OrchestratorResult = {
+          action: bridgedV2Action,
+          reasoning: `negation_deterministic:${filters[filters.length - 1]?.op === "neq" ? "neq_filter" : "removed_filter"}`,
+          agentsInvoked: [],
+          escalatedToOpus: false,
+        }
+        singleCallHandled = true
+      }
+    }
+
+    // ── 4. SCR: 최후 fallback ──
     const negationFullyHandled = hasNegationPattern && negationHandled
     const shouldUseSingleCall = (isSingleCallRouterEnabled() || LLM_FREE_INTERPRETATION) && lastUserMsg && messages.length > 0 && !negationFullyHandled && !singleCallHandled && (LLM_FREE_INTERPRETATION || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
     if (shouldUseSingleCall) {
