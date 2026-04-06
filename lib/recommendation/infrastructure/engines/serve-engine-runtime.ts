@@ -40,6 +40,8 @@ import { USE_STATE_REDUCER, USE_CHIP_SYSTEM, isSingleCallRouterEnabled, LLM_FREE
 import { routeSingleCall } from "@/lib/recommendation/core/single-call-router"
 import { naturalLanguageToFilters, buildAppliedFilterFromAgentFilter } from "@/lib/recommendation/core/sql-agent"
 import { getDbSchemaSync, getDbSchema } from "@/lib/recommendation/core/sql-agent-schema-cache"
+import { naturalLanguageToQuerySpec } from "@/lib/recommendation/core/query-planner"
+import { querySpecToAppliedFilters, appliedFiltersToConstraints } from "@/lib/recommendation/core/query-spec-to-filters"
 import { tryKGDecision, extractEntities } from "@/lib/recommendation/core/knowledge-graph"
 import { deriveChips, toChipState, toChipStateWithCandidates, compareChips, safeApplyChips } from "@/lib/recommendation/core/chip-system"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
@@ -1785,6 +1787,29 @@ async function handleServeExplorationInner(
         }
       } catch (e) {
         console.error(`[sql-agent] error, falling back to negation/SCR:`, e)
+      }
+    }
+
+    // ── 2b. QuerySpec Planner (shadow mode — trace only, 기존 경로 미변경) ──
+    // Phase 1: 기존 SQL Agent와 병행 실행, 결과 비교만 trace에 기록
+    if (lastUserMsg) {
+      try {
+        const currentConstraints = appliedFiltersToConstraints(filters)
+        const plannerResult = await naturalLanguageToQuerySpec(msg, currentConstraints, provider)
+        const shadowFilters = querySpecToAppliedFilters(plannerResult.spec, turnCount)
+        trace.add("query-planner-shadow", "router", {
+          intent: plannerResult.spec.intent,
+          navigation: plannerResult.spec.navigation,
+          constraintCount: plannerResult.spec.constraints.length,
+          constraints: plannerResult.spec.constraints.map(c => `${c.field}${c.op}${c.value}`),
+          shadowFilterCount: shadowFilters.length,
+          shadowFilters: shadowFilters.map(f => `${f.field}${f.op}${f.rawValue ?? f.value}`),
+          latencyMs: plannerResult.latencyMs,
+          reasoning: plannerResult.spec.reasoning,
+        })
+        console.log(`[query-planner:shadow] ${plannerResult.spec.intent}/${plannerResult.spec.navigation} constraints=${plannerResult.spec.constraints.length} latency=${plannerResult.latencyMs}ms`)
+      } catch (e) {
+        console.warn(`[query-planner:shadow] error (non-blocking):`, e)
       }
     }
 

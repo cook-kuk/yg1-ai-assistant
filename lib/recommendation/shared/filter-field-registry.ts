@@ -1159,6 +1159,7 @@ export function buildDbWhereClauseForFilter(
   if (filter.op === "skip") return null
 
   // SQL Agent rawSqlField → whitelist + 스키마 검증 후 직접 WHERE절 생성
+  // rawSqlField는 임시 브릿지: 장기적으로 QuerySpec + Compiler로 대체 예정
   if (filter.rawSqlField) {
     const ALLOWED_RAW_SQL_COLUMNS = new Set([
       "edp_brand_name",
@@ -1170,12 +1171,24 @@ export function buildDbWhereClauseForFilter(
       "shank_type",
       "search_helix_angle",
     ])
+    // numeric 비교(gte/lte/between)는 numeric-safe 컬럼에서만 허용
+    const NUMERIC_SAFE_COLUMNS = new Set([
+      "search_diameter_mm",
+      "search_flute_count",
+      "search_helix_angle",
+    ])
     if (!ALLOWED_RAW_SQL_COLUMNS.has(filter.rawSqlField)) return null
 
-    switch (filter.rawSqlOp) {
+    const op = filter.rawSqlOp
+    const isNumericOp = op === "gte" || op === "lte" || op === "between"
+    if (isNumericOp && !NUMERIC_SAFE_COLUMNS.has(filter.rawSqlField)) return null
+
+    switch (op) {
       case "eq": return `${filter.rawSqlField} = ${next(filter.rawValue)}`
       case "neq": return `${filter.rawSqlField} != ${next(filter.rawValue)}`
       case "like": return `LOWER(COALESCE(${filter.rawSqlField}, '')) LIKE ${next("%" + String(filter.rawValue).toLowerCase() + "%")}`
+      case "gte": return `${filter.rawSqlField} >= ${next(filter.rawValue)}`
+      case "lte": return `${filter.rawSqlField} <= ${next(filter.rawValue)}`
       default: return null
     }
   }
