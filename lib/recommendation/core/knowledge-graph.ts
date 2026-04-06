@@ -484,19 +484,26 @@ export function tryKGDecision(
     if (match) {
       const excludeRaw = (match[1] || match[2]).toLowerCase()
       const entity = resolveEntity(excludeRaw)
-      if (entity) {
+      // resolveEntity 실패 시 숫자 패턴으로 fallback ("4날 말고" → fluteCount=4)
+      const resolved = entity
+        ? { field: entity.field, canonical: entity.canonical }
+        : (() => {
+            const numEntities = extractEntities(excludeRaw)
+            return numEntities.length > 0 ? { field: numEntities[0].field, canonical: numEntities[0].canonical } : null
+          })()
+      if (resolved) {
         const filter: AppliedFilter = {
-          field: entity.field,
+          field: resolved.field,
           op: "exclude",
-          value: entity.canonical,
-          rawValue: entity.canonical,
+          value: resolved.canonical,
+          rawValue: resolved.canonical,
           appliedAt: 0,
         }
         return {
-          decision: buildDecision({ type: "continue_narrowing", filter } as OrchestratorAction, [], 0.95, `KG: exclude ${entity.canonical}`),
+          decision: buildDecision({ type: "continue_narrowing", filter } as OrchestratorAction, [], 0.95, `KG: exclude ${resolved.canonical}`),
           confidence: 0.95,
           source: "kg-exclude",
-          reason: `exclude ${entity.field}=${entity.canonical}`,
+          reason: `exclude ${resolved.field}=${resolved.canonical}`,
         }
       }
     }
@@ -569,11 +576,13 @@ export function tryKGDecision(
   // ── 8. Multi-entity extraction (e.g., "4날 스퀘어", "10mm") ──
   const entities = extractEntities(msg)
   if (entities.length > 0 && !COMPANY_PATTERNS.some(p => p.test(msg))) {
+    // Negation check: "4날 말고", "TiAlN 빼고" 등 → op: "exclude"
+    const isNegation = /빼고|제외|아닌\s*것|없는\s*거|말고\s*다른|만\s*아니면|없이|아닌\s*거|없는\s*거로/u.test(msg)
     const primary = entities[0]
     const extras = entities.slice(1)
     const filter: AppliedFilter = {
       field: primary.field,
-      op: "eq",
+      op: isNegation ? "exclude" : "eq",
       value: primary.canonical,
       rawValue: primary.canonical,
       appliedAt: 0,
