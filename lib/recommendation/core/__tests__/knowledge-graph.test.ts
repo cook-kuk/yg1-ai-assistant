@@ -54,10 +54,11 @@ describe("knowledge-graph", () => {
       expect(result.decision).not.toBeNull()
     })
 
-    it('KG miss ("금형 곡면 가공") → null 반환', () => {
+    it('KG application ("금형 곡면 가공") → Ball 필터', () => {
       const result = tryKGDecision("금형 곡면 가공", null)
-      expect(result.decision).toBeNull()
-      expect(result.source).toBe("none")
+      expect(result.decision).not.toBeNull()
+      expect(result.source).toBe("kg-entity")
+      expect(result.reason).toContain("toolSubtype=Ball")
     })
   })
 })
