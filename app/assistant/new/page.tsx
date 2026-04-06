@@ -490,8 +490,9 @@ export default function AssistantNewPage() {
                   {msg.chips && (() => {
                     const lastAiMsg = [...messages].reverse().find(m => m.role === "ai")
                     const isLatestAi = lastAiMsg?.id === msg.id
-                    const isHiddenCtaChip = (chip: string) => chip.includes("제품 보기") || chip.includes("AI 상세 분석")
-                    const normalChips = msg.chips.filter(chip => !isHiddenCtaChip(chip))
+                    const isCtaChip = (chip: string) => chip.includes("제품 보기") || chip.includes("AI 상세 분석")
+                    const normalChips = msg.chips.filter(chip => !isCtaChip(chip))
+                    const ctaChips = isLatestAi ? msg.chips.filter(chip => isCtaChip(chip)) : []
                     return (
                       <>
                         <div className="mt-3 flex flex-wrap gap-1.5">
@@ -513,6 +514,23 @@ export default function AssistantNewPage() {
                             </Button>
                           ))}
                         </div>
+                        {ctaChips.length > 0 && (
+                          <div className="flex gap-2 mt-2">
+                            {ctaChips.map((chip, i) => (
+                              <button
+                                key={`cta-${i}`}
+                                onClick={() => handleSend(chip)}
+                                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-colors ${
+                                  chip.includes("제품 보기")
+                                    ? "bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
+                                    : "bg-purple-600 text-white hover:bg-purple-700 shadow-sm"
+                                }`}
+                              >
+                                {chip}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </>
                     )
                   })()}
