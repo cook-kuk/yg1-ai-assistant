@@ -697,6 +697,7 @@ function mapRowToProduct(row: RawProductRow): CanonicalProduct {
     featureText: firstNonEmpty(row.series_feature),
     seriesIconUrl: resolveSeriesIconUrl(row.edp_series_name),
     materialRatingScore: typeof row.material_rating_score === "number" ? row.material_rating_score : null,
+    workpieceMatched: row.workpiece_name_matched === true,
     sourceConfidence: "medium",
     evidenceRefs: [],
   }
@@ -829,6 +830,7 @@ function buildProductDataQuery(
           deduped_products.*,
           status_lookup.material_rating,
           COALESCE(status_lookup.material_rating_score, 0) AS material_rating_score,
+          COALESCE(status_lookup.workpiece_name_matched, FALSE) AS workpiece_name_matched,
           COALESCE(
             NULLIF(BTRIM(deduped_products.milling_tool_material), ''),
             NULLIF(BTRIM(deduped_products.holemaking_tool_material), ''),
@@ -846,10 +848,16 @@ function buildProductDataQuery(
               + CASE
                   WHEN ${workPieceNameParam}::text IS NOT NULL
                     AND status_row.normalized_work_piece_name = NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '')
-                  THEN 2
+                  THEN 10
                   ELSE 0
                 END
-              AS material_rating_score
+              AS material_rating_score,
+            CASE
+              WHEN ${workPieceNameParam}::text IS NOT NULL
+                AND status_row.normalized_work_piece_name = NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '')
+              THEN TRUE
+              ELSE FALSE
+            END AS workpiece_name_matched
           FROM catalog_app.series_profile_mv sp
           CROSS JOIN LATERAL jsonb_to_recordset(COALESCE(sp.work_piece_statuses, '[]'::jsonb)) AS status_row(
             tag_name text,

@@ -502,10 +502,19 @@ export async function runHybridRetrieval(
     // materialRatingScore from DB series_profile_mv — higher = better fit for the requested material
     const ratingScore = product.materialRatingScore
     if (ratingScore != null && ratingScore > 0 && materialTags.length > 0) {
-      // Normalize to 0–10 bonus points (DB scores typically 0–100 range)
-      const ratingBonus = Math.round(Math.min(ratingScore / 10, 1) * WEIGHTS.evidence)
-      matScore += ratingBonus
-      matDetail += ` +소재전용(${ratingBonus})`
+      if (input.workPieceName) {
+        // When specific workpiece specified (e.g. Copper), amplify the score difference
+        // DB encodes workpiece affinity with +10 bonus for matching workpiece name
+        // Use higher weight so products designed for the specific workpiece rank significantly higher
+        const ratingBonus = Math.round(Math.min(ratingScore / 10, 1) * 20)
+        matScore += ratingBonus
+        matDetail += ` +피삭재전용(${ratingBonus})`
+      } else {
+        // Generic material matching — moderate bonus
+        const ratingBonus = Math.round(Math.min(ratingScore / 10, 1) * WEIGHTS.evidence)
+        matScore += ratingBonus
+        matDetail += ` +소재전용(${ratingBonus})`
+      }
     }
 
     let opScore = 0
