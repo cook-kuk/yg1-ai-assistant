@@ -199,7 +199,7 @@ export function buildAppliedFilterFromAgentFilter(
     }
   }
 
-  // Unknown DB column → store as rawSql for direct WHERE injection
+  // Unknown DB column → store as rawSqlField for direct WHERE injection
   return {
     field: agentFilter.field,
     op,
@@ -207,7 +207,8 @@ export function buildAppliedFilterFromAgentFilter(
     rawValue: agentFilter.value,
     appliedAt: turnCount,
     rawSqlField: agentFilter.field,
-  } as AppliedFilter & { rawSqlField: string }
+    rawSqlOp: agentFilter.op,
+  }
 }
 
 // ── Helpers ──────────────────────────────────────────────────

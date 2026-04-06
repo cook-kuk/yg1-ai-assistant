@@ -4,6 +4,7 @@ import type {
   RecommendationInput,
   ScoredProduct,
 } from "@/lib/recommendation/domain/types"
+import { getDbSchemaSync } from "@/lib/recommendation/core/sql-agent-schema-cache"
 import {
   SKIP_TOKENS as SHARED_SKIP_TOKENS,
   COATING_KO_ALIASES as SHARED_COATING_KO_ALIASES,
@@ -1157,6 +1158,22 @@ export function buildDbWhereClauseForFilter(
 ): string | null {
   // skip 필터는 DB 쿼리에서 제외 — "상관없음"으로 WHERE 걸리면 0건
   if (filter.op === "skip") return null
+
+  // SQL Agent rawSqlField → 스키마 검증 후 직접 WHERE절 생성
+  if (filter.rawSqlField) {
+    const schema = getDbSchemaSync()
+    const validColumn = schema?.columns.find(c => c.column_name === filter.rawSqlField)
+    if (!validColumn) return null // 존재하지 않는 컬럼 → 무시 (안전)
+
+    switch (filter.rawSqlOp) {
+      case "eq": return `${filter.rawSqlField} = ${next(filter.rawValue)}`
+      case "neq": return `${filter.rawSqlField} != ${next(filter.rawValue)}`
+      case "like": return `LOWER(COALESCE(${filter.rawSqlField}, '')) LIKE ${next("%" + String(filter.rawValue).toLowerCase() + "%")}`
+      case "gte": return `CAST(${filter.rawSqlField} AS numeric) >= ${next(Number(filter.rawValue))}`
+      case "lte": return `CAST(${filter.rawSqlField} AS numeric) <= ${next(Number(filter.rawValue))}`
+      default: return null
+    }
+  }
 
   // NEQ 필터: 해당 값을 가진 제품만 제외 (NULL/빈값은 포함)
   if (filter.op === "neq") {

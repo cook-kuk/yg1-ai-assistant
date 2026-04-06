@@ -32,6 +32,8 @@ export interface AppliedFilter {
   value: string            // display value (e.g. "4날", "AlTiN")
   rawValue: string | number | boolean | Array<string | number | boolean> // actual filter value(s)
   appliedAt: number        // narrowing turn index
+  rawSqlField?: string     // SQL Agent가 직접 지정한 DB 컬럼명
+  rawSqlOp?: string        // eq, neq, like, gte, lte
 }
 
 // ── Narrowing Turn ───────────────────────────────────────────
