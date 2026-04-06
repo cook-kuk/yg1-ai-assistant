@@ -495,12 +495,12 @@ export function tryKGDecision(
   }
 
   // ── 6. Exclude patterns ("X 말고", "except X") ──
+  // Also handles "X 말고 Y로" → apply Y as eq (not just exclude X)
   for (const pattern of EXCLUDE_PATTERNS) {
     const match = msg.match(pattern)
     if (match) {
       const excludeRaw = (match[1] || match[2]).toLowerCase()
       const entity = resolveEntity(excludeRaw)
-      // resolveEntity 실패 시 숫자 패턴으로 fallback ("4날 말고" → fluteCount=4)
       const resolved = entity
         ? { field: entity.field, canonical: entity.canonical }
         : (() => {
@@ -508,6 +508,30 @@ export function tryKGDecision(
             return numEntities.length > 0 ? { field: numEntities[0].field, canonical: numEntities[0].canonical } : null
           })()
       if (resolved) {
+        // Check if there's a replacement entity in the rest of the message
+        // "2날 말고 4날로", "Square 빼고 Ball로", "TiAlN 말고 DLC" etc.
+        const afterExclude = msg.slice(match.index! + match[0].length)
+        const replacementEntities = extractEntities(afterExclude)
+        const replacement = replacementEntities.find(e => e.field === resolved.field)
+
+        if (replacement) {
+          // "X 말고 Y로" → apply Y as eq (user wants Y, not just "not X")
+          const filter: AppliedFilter = {
+            field: replacement.field,
+            op: "eq",
+            value: replacement.canonical,
+            rawValue: replacement.canonical,
+            appliedAt: 0,
+          }
+          return {
+            decision: buildDecision({ type: "continue_narrowing", filter } as OrchestratorAction, [], 0.95, `KG: replace ${resolved.canonical} → ${replacement.canonical}`),
+            confidence: 0.95,
+            source: "kg-exclude",
+            reason: `replace ${resolved.field}: ${resolved.canonical} → ${replacement.canonical}`,
+          }
+        }
+
+        // No replacement → pure exclusion
         const filter: AppliedFilter = {
           field: resolved.field,
           op: "exclude",
