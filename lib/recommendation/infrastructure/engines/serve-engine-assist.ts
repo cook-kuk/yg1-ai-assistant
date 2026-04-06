@@ -1653,8 +1653,8 @@ export async function handleGeneralChat(
     ? `현재 ${candidateCount}개 후보 제품이 검색되어 있습니다.`
     : ""
 
-  const formContext = form.material.status === "known" || form.operationType.status === "known"
-    ? `사용자 입력 조건: 소재=${getIntakeDisplayValue("material", form.material, "ko")}, 가공=${form.operationType.status === "known" ? form.operationType.value : "미지정"}`
+  const formContext = form?.material?.status === "known" || form?.operationType?.status === "known"
+    ? `사용자 입력 조건: 소재=${getIntakeDisplayValue("material", form.material, "ko")}, 가공=${form?.operationType?.status === "known" ? form.operationType.value : "미지정"}`
     : ""
 
   const displayedContext = displayedCandidatesContext && displayedCandidatesContext.length > 0
