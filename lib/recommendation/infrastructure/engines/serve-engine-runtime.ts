@@ -161,9 +161,11 @@ function buildZeroResultWithAlternatives(
   const valueMap = extractFilterFieldValueMap(currentCandidates, [failedFilter.field])
   const distribution = valueMap.get(failedFilter.field)
 
-  // Build condition summary
+  // Build condition summary (exclude failedFilter's field from active to avoid duplicates)
   const allConditions = [
-    ...activeFilters.map(f => `${getFilterFieldLabel(f.field)}: ${f.value}`),
+    ...activeFilters
+      .filter(f => f.field !== failedFilter.field)
+      .map(f => `${getFilterFieldLabel(f.field)}: ${f.value}`),
     `${failedLabel}: ${failedValue}`,
   ]
   const conditionSummary = allConditions.join(" + ")
