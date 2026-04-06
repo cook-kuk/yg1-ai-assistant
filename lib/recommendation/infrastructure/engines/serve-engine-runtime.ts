@@ -1790,26 +1790,94 @@ async function handleServeExplorationInner(
       }
     }
 
-    // ── 2b. QuerySpec Planner (shadow mode — trace only, 기존 경로 미변경) ──
-    // Phase 1: 기존 SQL Agent와 병행 실행, 결과 비교만 trace에 기록
+    // ── 2b. QuerySpec Planner (shadow + selective override) ──
+    // Shadow: 항상 trace 기록
+    // Override: 단일 constraint + safe 필드일 때만 production에 적용
     if (lastUserMsg) {
       try {
         const currentConstraints = appliedFiltersToConstraints(filters)
         const plannerResult = await naturalLanguageToQuerySpec(msg, currentConstraints, provider)
         const shadowFilters = querySpecToAppliedFilters(plannerResult.spec, turnCount)
-        trace.add("query-planner-shadow", "router", {
-          intent: plannerResult.spec.intent,
-          navigation: plannerResult.spec.navigation,
-          constraintCount: plannerResult.spec.constraints.length,
-          constraints: plannerResult.spec.constraints.map(c => `${c.field}${c.op}${c.value}`),
+
+        // Safe override 조건 판별
+        const SAFE_OVERRIDE_FIELDS = new Set(["shankType", "brand", "seriesName"])
+        const spec = plannerResult.spec
+        const isSingleConstraint = spec.constraints.length === 1
+        const singleField = isSingleConstraint ? spec.constraints[0].field : null
+        const singleOp = isSingleConstraint ? spec.constraints[0].op : null
+        const isSafeField = singleField !== null && SAFE_OVERRIDE_FIELDS.has(singleField)
+        const isSafeNeq = isSingleConstraint && singleOp === "neq"
+        const isNavigationOnly = spec.constraints.length === 0 && spec.navigation !== "none"
+        const canOverride = !singleCallHandled && (isSafeField || isSafeNeq || isNavigationOnly)
+
+        // Override 적용
+        let plannerOverrideApplied = false
+        if (canOverride) {
+          if (isNavigationOnly) {
+            // Navigation override: skip/back/reset
+            if (spec.navigation === "reset") bridgedV2Action = { type: "reset_session" }
+            else if (spec.navigation === "back") bridgedV2Action = { type: "go_back_one_step" }
+            else if (spec.navigation === "skip" && prevState?.lastAskedField) bridgedV2Action = { type: "skip_field" }
+
+            if (bridgedV2Action) {
+              bridgedV2OrchestratorResult = { action: bridgedV2Action, reasoning: `planner-override:${spec.navigation}`, agentsInvoked: [], escalatedToOpus: false }
+              singleCallHandled = true
+              plannerOverrideApplied = true
+              if (bridgedV2Action.type === "reset_session" || bridgedV2Action.type === "go_back_one_step") {
+                pendingSelectionAction = null
+                pendingSelectionOrchestratorResult = null
+              }
+            }
+          } else if (shadowFilters.length > 0) {
+            // Single constraint override: shankType, brand, seriesName, or single neq
+            for (const sf of shadowFilters) {
+              const skipIdx = filters.findIndex(x => x.field === sf.field && x.op === "skip")
+              if (skipIdx >= 0) filters.splice(skipIdx, 1)
+              if (sf.op === "neq") {
+                const existingIdx = filters.findIndex(f => f.field === sf.field && f.op !== "neq")
+                if (existingIdx >= 0) filters.splice(existingIdx, 1)
+              }
+              const result = replaceFieldFilter(baseInput, filters, sf, deps.applyFilterToInput)
+              filters.splice(0, filters.length, ...result.nextFilters)
+              currentInput = result.nextInput
+            }
+
+            const hasShowRec = spec.intent === "show_recommendation" || /추천|보여|제품\s*보기|show/iu.test(msg)
+            const lastF = filters[filters.length - 1] ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount }
+            bridgedV2Action = hasShowRec
+              ? { type: "show_recommendation" }
+              : { type: "continue_narrowing", filter: lastF }
+            bridgedV2OrchestratorResult = {
+              action: bridgedV2Action,
+              reasoning: `planner-override:${spec.constraints.map(c => `${c.field}=${c.op}${c.value}`).join(",")}`,
+              agentsInvoked: [],
+              escalatedToOpus: false,
+            }
+            singleCallHandled = true
+            plannerOverrideApplied = true
+            negationHandled = hasNegationPattern && singleOp === "neq"
+          }
+        }
+
+        const overrideReason = plannerOverrideApplied
+          ? `APPLIED (${isNavigationOnly ? "navigation" : isSafeNeq ? "safe-neq" : `safe-field:${singleField}`})`
+          : `shadow-only (${spec.constraints.length > 1 ? "multi-constraint" : !isSafeField && !isSafeNeq ? "unsafe-field" : "already-handled"})`
+
+        trace.add("query-planner", "router", {
+          intent: spec.intent,
+          navigation: spec.navigation,
+          constraintCount: spec.constraints.length,
+          constraints: spec.constraints.map(c => `${c.field}${c.op}${c.value}`),
           shadowFilterCount: shadowFilters.length,
           shadowFilters: shadowFilters.map(f => `${f.field}${f.op}${f.rawValue ?? f.value}`),
           latencyMs: plannerResult.latencyMs,
-          reasoning: plannerResult.spec.reasoning,
+          reasoning: spec.reasoning,
+          override: plannerOverrideApplied,
+          overrideReason,
         })
-        console.log(`[query-planner:shadow] ${plannerResult.spec.intent}/${plannerResult.spec.navigation} constraints=${plannerResult.spec.constraints.length} latency=${plannerResult.latencyMs}ms`)
+        console.log(`[query-planner] ${overrideReason} | ${spec.intent}/${spec.navigation} constraints=${spec.constraints.length} latency=${plannerResult.latencyMs}ms`)
       } catch (e) {
-        console.warn(`[query-planner:shadow] error (non-blocking):`, e)
+        console.warn(`[query-planner] error (non-blocking):`, e)
       }
     }
 
