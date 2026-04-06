@@ -420,7 +420,36 @@ export function tryKGDecision(
     }
   }
 
-  // ── 5c. Show results patterns ──
+  // ── 5c. Application purpose → concrete filter (domain knowledge mapping) ──
+  // 가공 목적에서 toolSubtype/fluteCount를 결정적으로 추출
+  const APPLICATION_FILTER_MAP: Array<{ pattern: RegExp; filters: Array<{ field: string; value: string }> }> = [
+    { pattern: /(?:곡면|3d|서피스|surface|contouring|구면)/iu, filters: [{ field: "toolSubtype", value: "Ball" }] },
+    { pattern: /(?:포켓|pocket)/iu, filters: [{ field: "toolSubtype", value: "Square" }] },
+    { pattern: /(?:칩\s*배출|chip\s*evacuation)/iu, filters: [{ field: "fluteCount", value: "2" }] },
+    { pattern: /(?:깊은\s*홈|깊은\s*슬롯|deep\s*slot)/iu, filters: [{ field: "toolSubtype", value: "Square" }] },
+    { pattern: /(?:리브|rib)/iu, filters: [{ field: "toolSubtype", value: "Taper" }] },
+    { pattern: /(?:진동|떨림|vibration|채터|chatter)/iu, filters: [{ field: "fluteCount", value: "4" }] },
+    { pattern: /(?:긴\s*가공|깊은\s*가공|deep\s*cut|long\s*reach|롱넥|롱리치|long\s*neck)/iu, filters: [{ field: "toolSubtype", value: "Taper" }] },
+  ]
+  for (const { pattern, filters: appFilters } of APPLICATION_FILTER_MAP) {
+    if (pattern.test(msg)) {
+      const primary = appFilters[0]
+      const primaryFilter: AppliedFilter = {
+        field: primary.field, op: "eq", value: primary.value, rawValue: primary.value, appliedAt: 0,
+      }
+      const extraFilters = appFilters.slice(1).map(f => ({
+        field: f.field, op: "eq" as const, value: f.value, rawValue: f.value, appliedAt: 0,
+      }))
+      return {
+        decision: buildDecision({ type: "continue_narrowing", filter: primaryFilter } as OrchestratorAction, extraFilters, 0.85, `KG: application purpose → ${appFilters.map(f => `${f.field}=${f.value}`).join(", ")}`),
+        confidence: 0.85,
+        source: "kg-entity",
+        reason: `application: ${appFilters.map(f => `${f.field}=${f.value}`).join(", ")}`,
+      }
+    }
+  }
+
+  // ── 5d. Show results patterns ──
   // "추천해줘" + entities → extract filters AND show recommendation
   if (SHOW_RESULT_PATTERNS.some(p => p.test(msg))) {
     const showEntities = extractEntities(msg)

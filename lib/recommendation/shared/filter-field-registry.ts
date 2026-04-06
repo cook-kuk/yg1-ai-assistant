@@ -347,7 +347,7 @@ function buildCoatingLikeClause(filter: AppliedFilter, next: (value: unknown) =>
     const aliases = COATING_CHEMICAL_DB_ALIASES[raw]
     if (aliases) for (const alias of aliases) expandedValues.add(alias.toLowerCase())
   }
-  const columns = ["search_coating"]
+  const columns = ["search_coating", "milling_coating"]
   const valueClauses = [...expandedValues].map(raw => {
     const param = next(`%${raw}%`)
     return `(${columns.map(column => `LOWER(COALESCE(${column}, '')) LIKE ${param}`).join(" OR ")})`
