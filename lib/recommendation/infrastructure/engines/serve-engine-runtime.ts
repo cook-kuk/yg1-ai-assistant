@@ -36,12 +36,13 @@ import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-t
 import { TraceCollector, isDebugEnabled } from "@/lib/debug/agent-trace"
 import { normalizePlannerResult, validatePlannerResult, buildExecutorSummary } from "@/lib/recommendation/core/turn-boundaries"
 import { dryRunReduce, reduce, compareReducerVsActual, type ReducerAction } from "@/lib/recommendation/core/state-reducer"
-import { USE_STATE_REDUCER, USE_CHIP_SYSTEM, isSingleCallRouterEnabled, LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
+import { USE_STATE_REDUCER, USE_CHIP_SYSTEM, isSingleCallRouterEnabled, LLM_FREE_INTERPRETATION, ENABLE_PLANNER_DECISION } from "@/lib/feature-flags"
 import { routeSingleCall } from "@/lib/recommendation/core/single-call-router"
 import { naturalLanguageToFilters, buildAppliedFilterFromAgentFilter } from "@/lib/recommendation/core/sql-agent"
 import { getDbSchemaSync, getDbSchema } from "@/lib/recommendation/core/sql-agent-schema-cache"
 import { naturalLanguageToQuerySpec } from "@/lib/recommendation/core/query-planner"
 import { querySpecToAppliedFilters, appliedFiltersToConstraints } from "@/lib/recommendation/core/query-spec-to-filters"
+import { decidePlannerOverride } from "@/lib/recommendation/core/planner-decision"
 import { tryKGDecision, extractEntities } from "@/lib/recommendation/core/knowledge-graph"
 import { deriveChips, toChipState, toChipStateWithCandidates, compareChips, safeApplyChips } from "@/lib/recommendation/core/chip-system"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
@@ -1790,46 +1791,43 @@ async function handleServeExplorationInner(
       }
     }
 
-    // ── 2b. QuerySpec Planner (shadow + selective override) ──
-    // Shadow: 항상 trace 기록
-    // Override: 단일 constraint + safe 필드일 때만 production에 적용
+    // ── 2b. QuerySpec Planner + Decision Layer ──
+    // 1) planner 항상 실행 → shadow filters 생성
+    // 2) decision layer가 production vs planner confidence 비교
+    // 3) planner가 충분히 높으면 override, 아니면 production 유지
+    // Feature flag: ENABLE_PLANNER_DECISION=false → shadow trace only
     if (lastUserMsg) {
       try {
         const currentConstraints = appliedFiltersToConstraints(filters)
         const plannerResult = await naturalLanguageToQuerySpec(msg, currentConstraints, provider)
-        const shadowFilters = querySpecToAppliedFilters(plannerResult.spec, turnCount)
-
-        // Safe override 조건 판별
-        const SAFE_OVERRIDE_FIELDS = new Set(["shankType", "brand", "seriesName"])
         const spec = plannerResult.spec
-        const isSingleConstraint = spec.constraints.length === 1
-        const singleField = isSingleConstraint ? spec.constraints[0].field : null
-        const singleOp = isSingleConstraint ? spec.constraints[0].op : null
-        const isSafeField = singleField !== null && SAFE_OVERRIDE_FIELDS.has(singleField)
-        const isSafeNeq = isSingleConstraint && singleOp === "neq"
-        const isNavigationOnly = spec.constraints.length === 0 && spec.navigation !== "none"
-        const canOverride = !singleCallHandled && (isSafeField || isSafeNeq || isNavigationOnly)
+        const shadowFilters = querySpecToAppliedFilters(spec, turnCount)
 
-        // Override 적용
-        let plannerOverrideApplied = false
-        if (canOverride) {
-          if (isNavigationOnly) {
-            // Navigation override: skip/back/reset
+        // Decision layer: confidence-based selection
+        const kgHandled = singleCallHandled && bridgedV2OrchestratorResult?.reasoning?.startsWith("kg:")
+        const sqlAgentHandled = singleCallHandled && bridgedV2OrchestratorResult?.reasoning?.startsWith("sql-agent:")
+        const decision = decidePlannerOverride(spec, shadowFilters, filters, !!kgHandled, !!sqlAgentHandled)
+
+        let plannerApplied = false
+        if (ENABLE_PLANNER_DECISION && decision.winner === "planner" && !singleCallHandled) {
+          // Navigation override
+          if (spec.constraints.length === 0 && spec.navigation !== "none") {
             if (spec.navigation === "reset") bridgedV2Action = { type: "reset_session" }
             else if (spec.navigation === "back") bridgedV2Action = { type: "go_back_one_step" }
             else if (spec.navigation === "skip" && prevState?.lastAskedField) bridgedV2Action = { type: "skip_field" }
 
             if (bridgedV2Action) {
-              bridgedV2OrchestratorResult = { action: bridgedV2Action, reasoning: `planner-override:${spec.navigation}`, agentsInvoked: [], escalatedToOpus: false }
+              bridgedV2OrchestratorResult = { action: bridgedV2Action, reasoning: `planner-decision:${spec.navigation}`, agentsInvoked: [], escalatedToOpus: false }
               singleCallHandled = true
-              plannerOverrideApplied = true
+              plannerApplied = true
               if (bridgedV2Action.type === "reset_session" || bridgedV2Action.type === "go_back_one_step") {
                 pendingSelectionAction = null
                 pendingSelectionOrchestratorResult = null
               }
             }
-          } else if (shadowFilters.length > 0) {
-            // Single constraint override: shankType, brand, seriesName, or single neq
+          }
+          // Single constraint override
+          else if (shadowFilters.length > 0 && spec.constraints.length === 1) {
             for (const sf of shadowFilters) {
               const skipIdx = filters.findIndex(x => x.field === sf.field && x.op === "skip")
               if (skipIdx >= 0) filters.splice(skipIdx, 1)
@@ -1849,19 +1847,15 @@ async function handleServeExplorationInner(
               : { type: "continue_narrowing", filter: lastF }
             bridgedV2OrchestratorResult = {
               action: bridgedV2Action,
-              reasoning: `planner-override:${spec.constraints.map(c => `${c.field}=${c.op}${c.value}`).join(",")}`,
+              reasoning: `planner-decision:${spec.constraints.map(c => `${c.field}=${c.op}${c.value}`).join(",")}`,
               agentsInvoked: [],
               escalatedToOpus: false,
             }
             singleCallHandled = true
-            plannerOverrideApplied = true
-            negationHandled = hasNegationPattern && singleOp === "neq"
+            plannerApplied = true
+            negationHandled = hasNegationPattern && spec.constraints[0]?.op === "neq"
           }
         }
-
-        const overrideReason = plannerOverrideApplied
-          ? `APPLIED (${isNavigationOnly ? "navigation" : isSafeNeq ? "safe-neq" : `safe-field:${singleField}`})`
-          : `shadow-only (${spec.constraints.length > 1 ? "multi-constraint" : !isSafeField && !isSafeNeq ? "unsafe-field" : "already-handled"})`
 
         trace.add("query-planner", "router", {
           intent: spec.intent,
@@ -1869,13 +1863,20 @@ async function handleServeExplorationInner(
           constraintCount: spec.constraints.length,
           constraints: spec.constraints.map(c => `${c.field}${c.op}${c.value}`),
           shadowFilterCount: shadowFilters.length,
-          shadowFilters: shadowFilters.map(f => `${f.field}${f.op}${f.rawValue ?? f.value}`),
           latencyMs: plannerResult.latencyMs,
           reasoning: spec.reasoning,
-          override: plannerOverrideApplied,
-          overrideReason,
+          decision: {
+            winner: decision.winner,
+            plannerScore: decision.plannerScore.score,
+            plannerFactors: decision.plannerScore.factors,
+            productionScore: decision.productionScore.score,
+            productionFactors: decision.productionScore.factors,
+            margin: decision.margin,
+            reason: decision.reason,
+          },
+          applied: plannerApplied,
         })
-        console.log(`[query-planner] ${overrideReason} | ${spec.intent}/${spec.navigation} constraints=${spec.constraints.length} latency=${plannerResult.latencyMs}ms`)
+        console.log(`[planner-decision] winner=${decision.winner} planner=${decision.plannerScore.score.toFixed(2)} prod=${decision.productionScore.score.toFixed(2)} margin=${decision.margin.toFixed(2)} applied=${plannerApplied} | ${spec.constraints.length}c ${plannerResult.latencyMs}ms`)
       } catch (e) {
         console.warn(`[query-planner] error (non-blocking):`, e)
       }

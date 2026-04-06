@@ -58,6 +58,9 @@ export const USE_SINGLE_CALL_ROUTER = true
  */
 export const LLM_FREE_INTERPRETATION = envFlag("LLM_FREE_INTERPRETATION", true)
 
+/** Use planner decision layer for single-constraint override. Defaults to true. Set ENABLE_PLANNER_DECISION=false to disable. */
+export const ENABLE_PLANNER_DECISION = envFlag("ENABLE_PLANNER_DECISION", true)
+
 /** Use V2 turn orchestrator (new recommendation pipeline). Defaults to true — V2 is the primary pipeline. Set USE_NEW_ORCHESTRATOR=false to revert to legacy. */
 export const USE_NEW_ORCHESTRATOR = process.env.USE_NEW_ORCHESTRATOR !== "false"
 
