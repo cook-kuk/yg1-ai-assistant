@@ -51,7 +51,7 @@ const ENTITY_NODES: EntityNode[] = [
   { canonical: "TiN", field: "coating", aliases: ["tin", "티엔"] },
   { canonical: "DLC", field: "coating", aliases: ["dlc", "디엘씨", "다이아몬드라이크카본"] },
   { canonical: "Diamond", field: "coating", aliases: ["diamond", "다이아몬드코팅", "다이아몬드"] },
-  { canonical: "Uncoated", field: "coating", aliases: ["uncoated", "무코팅", "브라이트", "bright", "bright finish"] },
+  { canonical: "Uncoated", field: "coating", aliases: ["uncoated", "무코팅", "브라이트", "bright", "bright finish", "코팅 없", "코팅���"] },
   { canonical: "Z-Coating", field: "coating", aliases: ["z-coating", "z코팅", "지코팅"] },
   { canonical: "XC-Coating", field: "coating", aliases: ["xc-coating", "xc코팅"] },
   { canonical: "RCH-Coating", field: "coating", aliases: ["rch-coating", "rch코팅"] },
