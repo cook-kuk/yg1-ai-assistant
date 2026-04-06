@@ -759,6 +759,26 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
       0.5
     ),
   },
+  shankType: {
+    field: "shankType",
+    label: "생크 타입",
+    queryAliases: ["생크 타입", "싱크 타입", "shank type"],
+    kind: "text",
+    op: "eq",
+    setInput: (input, filter) => input, // shankType은 RecommendationInput에 없으므로 pass-through
+    clearInput: input => input,
+    extractValues: record => extractPrimitiveValues(record, "shank_type"),
+    matches: (record, filter) => {
+      const val = String((record as Record<string, unknown>).shank_type ?? "").toLowerCase()
+      const target = String(filter.rawValue ?? filter.value).toLowerCase()
+      if (filter.op === "neq") return !val.includes(target)
+      return val.includes(target)
+    },
+    buildDbClause: (filter, next) => {
+      const target = String(filter.rawValue ?? filter.value).toLowerCase()
+      return `LOWER(COALESCE(shank_type, '')) LIKE ${next("%" + target + "%")}`
+    },
+  },
   lengthOfCutMm: {
     field: "lengthOfCutMm",
     label: "절삭 길이",

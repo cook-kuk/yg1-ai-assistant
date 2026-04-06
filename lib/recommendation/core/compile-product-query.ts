@@ -39,6 +39,7 @@ const FIELD_TO_COLUMN: Record<QueryField, ColumnMapping> = {
   seriesName:      { column: "edp_series_name", type: "text" },
   operationType:   { column: "series_application_shape", type: "text" },
   operationShape:  { column: "milling_cutter_shape", type: "text" },
+  shankType:       { column: "shank_type", type: "text" },
   country:         { column: "country", type: "text" },
 }
 

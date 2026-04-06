@@ -46,6 +46,9 @@ Respond ONLY with a JSON object:
 - For side questions (뭐야/무엇/설명) with no filter intent → intent="question", constraints=[]
 - For "추천해줘/보여줘" with constraints → intent="show_recommendation"
 - Value should be in the canonical form from examples when possible
+- "싱크 타입", "생크 타입" → shankType (NOT brand, NOT toolSubtype)
+- "스퀘어 타입", "볼 타입" → toolSubtype
+- P/M/K/N/S/H 단일 알파벳 → materialGroup, 구체적 소재명(구리/스테인리스) → workpiece
 - JSON only, no explanation outside the object`
 }
 
@@ -56,7 +59,7 @@ const PLANNER_MODEL = resolveModel("haiku")
 const VALID_FIELDS = new Set<string>([
   "materialGroup", "workpiece", "toolFamily", "toolSubtype", "diameterMm",
   "fluteCount", "coating", "brand", "seriesName", "operationType",
-  "operationShape", "country",
+  "operationShape", "shankType", "country",
 ])
 
 const VALID_OPS = new Set<string>([

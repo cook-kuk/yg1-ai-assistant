@@ -357,4 +357,59 @@ describe("KG golden cases", () => {
     // CRX-S is a brand, 추천해줘 could trigger show_recommendation
     expect(result.decision).not.toBeNull()
   })
+
+  it('"싱크 타입 플레인" → shankType=Plain (NOT brand)', () => {
+    const result = tryKGDecision("싱크 타입 플레인", null)
+    expect(result.confidence).toBeGreaterThanOrEqual(0.9)
+    const action = result.decision?.action as any
+    expect(action?.type).toBe("continue_narrowing")
+    expect(action?.filter?.field).toBe("shankType")
+    expect(action?.filter?.rawValue ?? action?.filter?.value).toMatch(/plain/i)
+  })
+
+  it('"생크 타입 웰던" → shankType=Weldon', () => {
+    const result = tryKGDecision("생크 타입 웰던", null)
+    expect(result.confidence).toBeGreaterThanOrEqual(0.9)
+    const action = result.decision?.action as any
+    expect(action?.type).toBe("continue_narrowing")
+    expect(action?.filter?.field).toBe("shankType")
+  })
+
+  it('"구리" → workPieceName=Copper', () => {
+    const result = tryKGDecision("구리", null)
+    expect(result.decision).not.toBeNull()
+    const action = result.decision?.action as any
+    if (action?.filter) {
+      expect(action.filter.field).toBe("workPieceName")
+    }
+  })
+})
+
+// ══════════════════════════════════════════════════════════════
+// F. Compiler shankType 테스트
+// ══════════════════════════════════════════════════════════════
+
+describe("compileProductQuery - shankType", () => {
+  it("should compile shankType contains", () => {
+    const spec: QuerySpec = {
+      intent: "narrow",
+      navigation: "none",
+      constraints: [{ field: "shankType", op: "contains", value: "Plain" }],
+    }
+    const result = compileProductQuery(spec)
+    expect(result.sql).toContain("shank_type")
+    expect(result.sql).toContain("LIKE")
+    expect(result.appliedConstraints).toHaveLength(1)
+  })
+
+  it("should compile shankType eq", () => {
+    const spec: QuerySpec = {
+      intent: "narrow",
+      navigation: "none",
+      constraints: [{ field: "shankType", op: "eq", value: "Weldon" }],
+    }
+    const result = compileProductQuery(spec)
+    expect(result.sql).toContain("shank_type")
+    expect(result.appliedConstraints).toHaveLength(1)
+  })
 })

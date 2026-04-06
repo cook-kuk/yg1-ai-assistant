@@ -71,6 +71,10 @@ const ENTITY_NODES: EntityNode[] = [
   { canonical: "Cast Steel", field: "workPieceName", aliases: ["주강", "cast steel"] },
   { canonical: "Graphite", field: "workPieceName", aliases: ["흑연", "graphite", "카본"] },
   { canonical: "FRP", field: "workPieceName", aliases: ["frp", "섬유강화플라스틱", "cfrp", "gfrp", "복합재"] },
+  // shankType
+  { canonical: "Plain", field: "shankType", aliases: ["플레인", "plain", "일반생크", "스트레이트생크", "straight shank"] },
+  { canonical: "Weldon", field: "shankType", aliases: ["웰던", "weldon", "웰돈"] },
+  { canonical: "HA", field: "shankType", aliases: ["ha생크", "ha shank"] },
   // Boolean: coolantHole
   { canonical: "true", field: "coolantHole", aliases: ["쿨런트", "쿨런트홀", "절삭유홀", "coolant", "coolant hole", "내부급유", "내부냉각", "쓰루쿨런트", "through coolant"] },
   // Countries
@@ -248,6 +252,21 @@ function matchesAsWord(message: string, alias: string): boolean {
 export function extractEntities(message: string): Array<{ field: string; value: string; canonical: string }> {
   const results: Array<{ field: string; value: string; canonical: string }> = []
   const lower = message.toLowerCase()
+
+  // 0. Compound patterns: "싱크/생크 타입 X" → shankType=X
+  const shankTypeMatch = lower.match(/(?:싱크|생크|shank)\s*(?:타입|type)\s*(\S+)/i)
+  if (shankTypeMatch) {
+    const rawVal = shankTypeMatch[1]
+    // resolve through entity index or use raw
+    const entity = _entityIndex.get(rawVal)
+    if (entity?.field === "shankType") {
+      results.push({ field: "shankType", value: rawVal, canonical: entity.canonical })
+    } else {
+      // capitalize first letter for DB value
+      const canonical = rawVal.charAt(0).toUpperCase() + rawVal.slice(1).toLowerCase()
+      results.push({ field: "shankType", value: rawVal, canonical })
+    }
+  }
 
   // 1. Check learned patterns first (self-supervised)
   try {

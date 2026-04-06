@@ -26,6 +26,7 @@ const QUERY_FIELD_TO_FILTER_FIELD: Record<QueryField, string> = {
   seriesName: "seriesName",
   operationType: "operationType",
   operationShape: "operationShape",
+  shankType: "shankType",
   country: "country",
 }
 

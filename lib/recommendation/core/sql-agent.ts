@@ -38,6 +38,7 @@ const DB_COL_TO_FILTER_FIELD: Record<string, string> = {
   milling_tool_material: "toolMaterial",
   holemaking_tool_material: "toolMaterial",
   threading_tool_material: "toolMaterial",
+  shank_type: "shankType",
   // workpiece is handled specially via _workPieceName
   _workPieceName: "workPieceName",
 }
