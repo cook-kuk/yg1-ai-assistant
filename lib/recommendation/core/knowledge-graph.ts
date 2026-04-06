@@ -50,7 +50,7 @@ const ENTITY_NODES: EntityNode[] = [
   { canonical: "AlCrN", field: "coating", aliases: ["alcrn", "알크롬", "y-coating", "y코팅", "와이코팅"] },
   { canonical: "TiCN", field: "coating", aliases: ["ticn", "티씨엔", "c-coating", "c코팅", "씨코팅"] },
   { canonical: "TiN", field: "coating", aliases: ["tin", "티엔"] },
-  { canonical: "DLC", field: "coating", aliases: ["dlc", "디엘씨", "다이아몬드라이크카본"] },
+  { canonical: "DLC", field: "coating", aliases: ["dlc", "dlc코팅", "디엘씨", "다이아몬드라이크카본"] },
   { canonical: "Diamond", field: "coating", aliases: ["diamond", "다이아몬드코팅", "다이아몬드"] },
   { canonical: "Uncoated", field: "coating", aliases: ["uncoated", "무코팅", "브라이트", "bright", "bright finish", "코팅 없", "코팅���"] },
   { canonical: "Z-Coating", field: "coating", aliases: ["z-coating", "z코팅", "지코팅"] },
@@ -261,15 +261,23 @@ export function extractEntities(message: string): Array<{ field: string; value: 
   } catch { /* self-learning module not available */ }
 
   // 2. Static entity node matching (with word boundary check)
+  // Collect all candidates per field, then pick the longest alias match to avoid
+  // short-alias false positives (e.g., "c코팅" matching inside "dlc코팅")
+  const fieldCandidates = new Map<string, { node: EntityNode; alias: string }>()
   for (const node of ENTITY_NODES) {
-    // Skip if already matched by learned patterns
     if (results.some(r => r.field === node.field)) continue
     for (const alias of node.aliases) {
       if (matchesAsWord(lower, alias)) {
-        results.push({ field: node.field, value: alias, canonical: node.canonical })
-        break // one match per node
+        const existing = fieldCandidates.get(node.field)
+        if (!existing || alias.length > existing.alias.length) {
+          fieldCandidates.set(node.field, { node, alias })
+        }
+        break
       }
     }
+  }
+  for (const [, { node, alias }] of fieldCandidates) {
+    results.push({ field: node.field, value: alias, canonical: node.canonical })
   }
 
   // Numeric pattern matching
@@ -399,7 +407,7 @@ export function tryKGDecision(
   // ── 4c. Question patterns ("X가 뭐야?", "X란?", "X 알려줘") → answer_general ──
   // Must come BEFORE entity extraction to prevent "TiAlN이 뭐야?" from becoming a coating filter
   const QUESTION_PATTERNS = [
-    /(?:뭐야|뭐예요|뭐에요|뭘까|뭔가요|무엇|무슨\s*뜻|알려줘|알려\s*주세요|설명|차이가?\s*뭐|어떤\s*거야|란\s*뭐|이란|이\s*뭐)/iu,
+    /(?:뭐야|뭐예요|뭐에요|뭘까|뭔가요|무엇|무슨\s*뜻|알려줘|알려\s*주세요|설명|차이가?\s*뭐|차이$|차이점|어떤\s*거야|란\s*뭐|이란|이\s*뭐|중요해|중요한가|필요해)/iu,
     /(?:what\s*is|explain|tell\s*me\s*about|difference\s*between)/iu,
   ]
   if (QUESTION_PATTERNS.some(p => p.test(msg)) && msg.length < 60) {
