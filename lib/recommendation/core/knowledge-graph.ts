@@ -428,6 +428,8 @@ export function tryKGDecision(
     { pattern: /(?:칩\s*배출|chip\s*evacuation)/iu, filters: [{ field: "fluteCount", value: "2" }] },
     { pattern: /(?:깊은\s*홈|깊은\s*슬롯|deep\s*slot)/iu, filters: [{ field: "toolSubtype", value: "Square" }] },
     { pattern: /(?:리브|rib)/iu, filters: [{ field: "toolSubtype", value: "Taper" }] },
+    { pattern: /(?:진동|떨림|vibration|채터|chatter)/iu, filters: [{ field: "fluteCount", value: "4" }] },
+    { pattern: /(?:긴\s*가공|깊은\s*가공|deep\s*cut|long\s*reach|롱넥|롱리치|long\s*neck)/iu, filters: [{ field: "toolSubtype", value: "Taper" }] },
   ]
   for (const { pattern, filters: appFilters } of APPLICATION_FILTER_MAP) {
     if (pattern.test(msg)) {
