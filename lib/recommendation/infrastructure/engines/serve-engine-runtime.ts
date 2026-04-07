@@ -45,6 +45,7 @@ import { querySpecToAppliedFilters, appliedFiltersToConstraints } from "@/lib/re
 import { decidePlannerOverride } from "@/lib/recommendation/core/planner-decision"
 import { logPatternMiningEntry } from "@/lib/recommendation/core/pattern-mining/logger"
 import { tryKGDecision, extractEntities } from "@/lib/recommendation/core/knowledge-graph"
+import { hasEditSignal, parseEditIntent, applyEditIntent } from "@/lib/recommendation/core/edit-intent"
 import { deriveChips, toChipState, toChipStateWithCandidates, compareChips, safeApplyChips } from "@/lib/recommendation/core/chip-system"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
 import { classifyPreSearchRoute } from "@/lib/recommendation/infrastructure/engines/pre-search-route"
@@ -1643,10 +1644,77 @@ async function handleServeExplorationInner(
     let negationHandled = false
 
     // ══════════════════════════════════════════════════════════
-    // Router priority: KG(0.9+) → SQL Agent(primary) → negation(fallback) → KG(hint) → SCR
+    // Router priority: Edit-Intent(수정동사) → KG(entity match) → SQL Agent → negation(fallback) → SCR
+    // edit-intent가 맡아야 할 문장(말고/빼고/제외/상관없/바꿔 등)은 KG보다 먼저 처리
     // ══════════════════════════════════════════════════════════
 
-    // ── 1. Knowledge Graph: high confidence only (deterministic, 0 LLM calls, ~0.01s) ──
+    // ── 1. Edit-Intent Layer: state modification (deterministic, 0 LLM calls) ──
+    // Handles replace/exclude/clear/go_back/reset — runs BEFORE KG so edit
+    // expressions are not intercepted by KG's exclude patterns.
+    if (!singleCallHandled && lastUserMsg && hasEditSignal(msg)) {
+      const editResult = parseEditIntent(msg, filters)
+      if (editResult && editResult.confidence >= 0.9) {
+        const mutation = applyEditIntent(editResult.intent, filters, turnCount)
+        trace.add("edit-intent", "router", { type: editResult.intent.type, reason: editResult.reason, confidence: editResult.confidence })
+
+        if (editResult.intent.type === "reset_all") {
+          bridgedV2Action = { type: "reset_session" }
+          bridgedV2OrchestratorResult = { action: bridgedV2Action, reasoning: `edit-intent:reset_all`, agentsInvoked: [], escalatedToOpus: false }
+          singleCallHandled = true
+          pendingSelectionAction = null
+          pendingSelectionOrchestratorResult = null
+          console.log(`[edit-intent] reset_all`)
+        } else {
+          // Handle go_back first
+          if (mutation.goBack) {
+            bridgedV2Action = { type: "go_back_one_step" }
+            bridgedV2OrchestratorResult = { action: bridgedV2Action, reasoning: `edit-intent:go_back`, agentsInvoked: [], escalatedToOpus: false }
+            pendingSelectionAction = null
+            pendingSelectionOrchestratorResult = null
+          }
+
+          // Apply removals (reverse order to keep indices valid)
+          for (const idx of [...mutation.removeIndices].sort((a, b) => b - a)) {
+            filters.splice(idx, 1)
+          }
+
+          // Apply addition
+          if (mutation.addFilter) {
+            const built = buildAppliedFilterFromValue(
+              mutation.addFilter.field,
+              mutation.addFilter.rawValue,
+              turnCount,
+              mutation.addFilter.op === "neq" ? "neq" : undefined,
+            )
+            if (built) {
+              const skipIdx = filters.findIndex(x => x.field === built.field && x.op === "skip")
+              if (skipIdx >= 0) filters.splice(skipIdx, 1)
+              const result = replaceFieldFilter(baseInput, filters, built, deps.applyFilterToInput)
+              filters.splice(0, filters.length, ...result.nextFilters)
+              currentInput = result.nextInput
+            } else {
+              // buildAppliedFilterFromValue failed (e.g. brand not in registry) — apply raw filter directly
+              const skipIdx = filters.findIndex(x => x.field === mutation.addFilter!.field && x.op === "skip")
+              if (skipIdx >= 0) filters.splice(skipIdx, 1)
+              filters.push(mutation.addFilter)
+            }
+          }
+
+          if (!bridgedV2Action) {
+            const lastF = mutation.addFilter ?? filters[filters.length - 1] ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount }
+            bridgedV2Action = { type: "continue_narrowing", filter: lastF }
+          }
+          if (!bridgedV2OrchestratorResult) {
+            bridgedV2OrchestratorResult = { action: bridgedV2Action, reasoning: `edit-intent:${editResult.reason}`, agentsInvoked: [], escalatedToOpus: false }
+          }
+          singleCallHandled = true
+          negationHandled = editResult.intent.type === "exclude_field"
+          console.log(`[edit-intent] ${editResult.intent.type}: ${editResult.reason}`)
+        }
+      }
+    }
+
+    // ── 2. Knowledge Graph: entity match + navigation (deterministic, 0 LLM calls, ~0.01s) ──
     let kgHint: string | undefined
     if (!singleCallHandled && lastUserMsg) {
       const kgResult = tryKGDecision(msg, prevState)
@@ -1715,7 +1783,7 @@ async function handleServeExplorationInner(
       }
     }
 
-    // ── 2. SQL Agent: primary handler (Haiku 1회, schema-aware, ~0.5s) ──
+    // ── 3. SQL Agent: primary handler (Haiku 1회, schema-aware, ~0.5s) ──
     // Handles filters + negation + navigation — replaces deterministic negation handler
     if (!singleCallHandled && lastUserMsg) {
       try {
@@ -1792,7 +1860,7 @@ async function handleServeExplorationInner(
       }
     }
 
-    // ── 2b. QuerySpec Planner + Decision Layer ──
+    // ── 3b. QuerySpec Planner + Decision Layer ──
     // 1) planner 항상 실행 → shadow filters 생성
     // 2) decision layer가 production vs planner confidence 비교
     // 3) planner가 충분히 높으면 override, 아니면 production 유지
@@ -1906,7 +1974,9 @@ async function handleServeExplorationInner(
         console.log(`[planner-decision] winner=${decision.winner} planner=${decision.plannerScore.score.toFixed(2)} prod=${decision.productionScore.score.toFixed(2)} margin=${decision.margin.toFixed(2)} applied=${plannerApplied} | ${spec.constraints.length}c ${plannerResult.latencyMs}ms`)
 
         // ── Pattern Mining Log (non-blocking, fire-and-forget) ──
-        const prodSource = kgHandled ? "kg" as const
+        const editIntentHandled = singleCallHandled && bridgedV2OrchestratorResult?.reasoning?.startsWith("edit-intent:")
+        const prodSource = editIntentHandled ? "edit-intent" as const
+          : kgHandled ? "kg" as const
           : sqlAgentHandled ? "sql-agent" as const
           : negationHandled ? "negation" as const
           : singleCallHandled ? "scr" as const
@@ -1940,7 +2010,7 @@ async function handleServeExplorationInner(
       }
     }
 
-    // ── 3. Deterministic negation fallback (SQL Agent 실패 시에만) ──
+    // ── 4. Deterministic negation fallback (SQL Agent 실패 시에만) ──
     if (!singleCallHandled && hasNegationPattern) {
       const msgLower = msg.toLowerCase()
 
@@ -1994,7 +2064,7 @@ async function handleServeExplorationInner(
       }
     }
 
-    // ── 4. SCR: 최후 fallback ──
+    // ── 5. SCR: 최후 fallback ──
     const negationFullyHandled = hasNegationPattern && negationHandled
     const shouldUseSingleCall = (isSingleCallRouterEnabled() || LLM_FREE_INTERPRETATION) && lastUserMsg && messages.length > 0 && !negationFullyHandled && !singleCallHandled && (LLM_FREE_INTERPRETATION || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
     if (shouldUseSingleCall) {
