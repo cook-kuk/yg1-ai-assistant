@@ -35,3 +35,29 @@ __pycache__/
 
 # claude worktrees
 .claude/worktrees/
+
+# golden set — 비공개 홀드아웃 (외부 유출 금지)
+test-results/골든셋_비공개_HOLDOUT.xlsx
+test-results/golden-set-split-mapping.json
+
+# scratch curl/test outputs at repo root
+/_*.json
+
+# test-results: scratch outputs (xlsx 리포트, json 덤프, tsv)
+test-results/*.xlsx
+test-results/*.xlsb
+test-results/*.tsv
+test-results/*-results.json
+test-results/*-dump.json
+test-results/feedback-*.json
+test-results/_recent_extract.json
+test-results/all-user-messages.json
+test-results/issue-tracker.json
+test-results/test-cases*.json
+test-results/our-vercel-results.json
+test-results/demo-e2e-results.json
+test-results/thread-results.json
+test-results/vp-results.json
+
+# pattern mining logs
+data/pattern-mining-logs.jsonl
