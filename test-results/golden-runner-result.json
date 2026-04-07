@@ -1,0 +1,485 @@
+{
+  "pass": 22,
+  "fail": 8,
+  "error": 0,
+  "skip": 0,
+  "details": [
+    {
+      "id": "M01",
+      "verdict": "PASS",
+      "detail": "strict:OutsideDia",
+      "elapsedMs": 13389,
+      "filters": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "10mm",
+          "rawValue": 10,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M02",
+      "verdict": "PASS",
+      "detail": "strict:OutsideDia",
+      "elapsedMs": 11126,
+      "filters": [
+        {
+          "field": "toolSubtype",
+          "op": "includes",
+          "value": "Ball",
+          "rawValue": "Ball",
+          "appliedAt": 0
+        },
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "6mm",
+          "rawValue": 6,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M03",
+      "verdict": "PASS",
+      "detail": "strict:OutsideDia",
+      "elapsedMs": 11958,
+      "filters": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "8mm",
+          "rawValue": 8,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M04",
+      "verdict": "PASS",
+      "detail": "strict:OutsideDia",
+      "elapsedMs": 10364,
+      "filters": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "20mm",
+          "rawValue": 20,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M05",
+      "verdict": "PASS",
+      "detail": "strict:OverAllLength",
+      "elapsedMs": 2418,
+      "filters": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "100mm",
+          "rawValue": 100,
+          "appliedAt": 0
+        },
+        {
+          "field": "overallLengthMm",
+          "op": "eq",
+          "value": "100mm",
+          "rawValue": 100,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M06",
+      "verdict": "PASS",
+      "detail": "strict:LengthofCut",
+      "elapsedMs": 1694,
+      "filters": [
+        {
+          "field": "diameterMm",
+          "op": "between",
+          "value": "직경 30mm~50mm",
+          "rawValue": 30,
+          "appliedAt": 0
+        },
+        {
+          "field": "lengthOfCutMm",
+          "op": "eq",
+          "value": "30mm",
+          "rawValue": 30,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M07",
+      "verdict": "PASS",
+      "detail": "strict:ShankDia",
+      "elapsedMs": 11937,
+      "filters": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "6mm",
+          "rawValue": 6,
+          "appliedAt": 0
+        },
+        {
+          "field": "shankDiameterMm",
+          "op": "eq",
+          "value": "6mm",
+          "rawValue": 6,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M08",
+      "verdict": "FAIL",
+      "detail": "strict:NeckDiameter≠diameterMm",
+      "elapsedMs": 1554,
+      "filters": [
+        {
+          "field": "diameterMm",
+          "op": "lte",
+          "value": "넥 직경 4mm 이하",
+          "rawValue": 4,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M09",
+      "verdict": "FAIL",
+      "detail": "strict:RadiusAll≠diameterMm,toolSubtype",
+      "elapsedMs": 16341,
+      "filters": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "0.5mm",
+          "rawValue": 0.5,
+          "appliedAt": 0
+        },
+        {
+          "field": "toolSubtype",
+          "op": "eq",
+          "value": "Radius",
+          "rawValue": "Radius",
+          "appliedAt": 1775537317860
+        }
+      ]
+    },
+    {
+      "id": "M10",
+      "verdict": "FAIL",
+      "detail": "strict:Cutter_Diameter≠diameterMm",
+      "elapsedMs": 12258,
+      "filters": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "50mm",
+          "rawValue": 50,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M11",
+      "verdict": "PASS",
+      "detail": "strict:NumberofFlute",
+      "elapsedMs": 1179,
+      "filters": [
+        {
+          "field": "fluteCount",
+          "op": "gte",
+          "value": "날수 4개 이상",
+          "rawValue": 4,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M12",
+      "verdict": "PASS",
+      "detail": "strict:NumberofFlute",
+      "elapsedMs": 1353,
+      "filters": [
+        {
+          "field": "fluteCount",
+          "op": "between",
+          "value": "날수 2개~6개",
+          "rawValue": 2,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M13",
+      "verdict": "PASS",
+      "detail": "strict:NumberofFlute",
+      "elapsedMs": 1712,
+      "filters": [
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "100날",
+          "rawValue": 100,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M14",
+      "verdict": "FAIL",
+      "detail": "strict:HelixAngle≠helix_angle",
+      "elapsedMs": 21925,
+      "filters": [
+        {
+          "field": "helix_angle",
+          "op": "includes",
+          "value": "헬릭스 각 30도에서 45도 사이",
+          "rawValue": "30~45",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M15",
+      "verdict": "FAIL",
+      "detail": "strict:TaperAngle≠toolSubtype",
+      "elapsedMs": 12378,
+      "filters": [
+        {
+          "field": "toolSubtype",
+          "op": "includes",
+          "value": "Taper",
+          "rawValue": "Taper",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M16",
+      "verdict": "FAIL",
+      "detail": "strict:SingleDoubleEnd≠fluteCount",
+      "elapsedMs": 11247,
+      "filters": [
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "날수 1날 (싱글엔드)",
+          "rawValue": 1,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M17",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 21101,
+      "filters": []
+    },
+    {
+      "id": "M18",
+      "verdict": "FAIL",
+      "detail": "strict:RoughingFinishtype≠toolSubtype",
+      "elapsedMs": 11444,
+      "filters": [
+        {
+          "field": "toolSubtype",
+          "op": "includes",
+          "value": "Roughing",
+          "rawValue": "Roughing",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M19",
+      "verdict": "PASS",
+      "detail": "strict:CutterShape",
+      "elapsedMs": 12133,
+      "filters": [
+        {
+          "field": "toolSubtype",
+          "op": "includes",
+          "value": "Ball",
+          "rawValue": "Ball",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M20",
+      "verdict": "PASS",
+      "detail": "strict:CFRP",
+      "elapsedMs": 6172,
+      "filters": [
+        {
+          "field": "workPieceName",
+          "op": "includes",
+          "value": "FRP",
+          "rawValue": "FRP",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M21",
+      "verdict": "PASS",
+      "detail": "strict:OutsideDia",
+      "elapsedMs": 16238,
+      "filters": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "10mm",
+          "rawValue": 10,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M22",
+      "verdict": "PASS",
+      "detail": "strict:OutsideDia",
+      "elapsedMs": 1365,
+      "filters": [
+        {
+          "field": "diameterMm",
+          "op": "gte",
+          "value": "직경 8mm 초과",
+          "rawValue": 8.01,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M23",
+      "verdict": "PASS",
+      "detail": "strict:OutsideDia",
+      "elapsedMs": 1490,
+      "filters": [
+        {
+          "field": "diameterMm",
+          "op": "gte",
+          "value": "직경 12mm 이상",
+          "rawValue": 12,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M24",
+      "verdict": "PASS",
+      "detail": "strict:OutsideDia",
+      "elapsedMs": 1414,
+      "filters": [
+        {
+          "field": "diameterMm",
+          "op": "lte",
+          "value": "직경 5mm 이하",
+          "rawValue": 5,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M25",
+      "verdict": "PASS",
+      "detail": "strict:OutsideDia",
+      "elapsedMs": 1450,
+      "filters": [
+        {
+          "field": "diameterMm",
+          "op": "lte",
+          "value": "직경 4mm 이하",
+          "rawValue": 4,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M26",
+      "verdict": "PASS",
+      "detail": "strict:OutsideDia",
+      "elapsedMs": 2229,
+      "filters": [
+        {
+          "field": "diameterMm",
+          "op": "between",
+          "value": "직경 6~10mm",
+          "rawValue": 6,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M27",
+      "verdict": "PASS",
+      "detail": "strict:OutsideDia",
+      "elapsedMs": 14319,
+      "filters": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "10mm",
+          "rawValue": 10,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M28",
+      "verdict": "PASS",
+      "detail": "strict:OutsideDia",
+      "elapsedMs": 12263,
+      "filters": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "8mm",
+          "rawValue": 8,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M29",
+      "verdict": "PASS",
+      "detail": "strict:OutsideDia",
+      "elapsedMs": 11670,
+      "filters": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "6mm",
+          "rawValue": 6,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M30",
+      "verdict": "PASS",
+      "detail": "strict:OutsideDia",
+      "elapsedMs": 9720,
+      "filters": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "6.35mm",
+          "rawValue": 6.35,
+          "appliedAt": 0
+        }
+      ]
+    }
+  ]
+}

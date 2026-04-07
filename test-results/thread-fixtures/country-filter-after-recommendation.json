@@ -1,0 +1,26 @@
+{
+  "name": "country_filter_after_recommendation",
+  "description": "추천 후 country=KOREA 필터 적용",
+  "severity": "critical",
+  "initial": { "language": "ko" },
+  "turns": [
+    {
+      "input": "초내열합금 Helical 직경 10 추천해줘",
+      "expect": {
+        "stateContains": [
+          { "field": "diameterMm", "op": "eq", "value": 10 }
+        ],
+        "candidateCount": { "min": 1 },
+        "topCard": { "exists": true }
+      }
+    },
+    {
+      "input": "국내제품으로만 추천해줘",
+      "expect": {
+        "stateContains": [
+          { "field": "country", "op": "includes", "value": "KOR" }
+        ]
+      }
+    }
+  ]
+}
