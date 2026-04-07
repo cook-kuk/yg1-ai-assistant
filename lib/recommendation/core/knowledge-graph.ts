@@ -12,6 +12,7 @@ import {
   getRegisteredFilterFields,
   getFilterFieldQueryAliases,
 } from "@/lib/recommendation/shared/filter-field-registry"
+import { getDbSchemaSync } from "./sql-agent-schema-cache"
 import type { AppliedFilter, ExplorationSessionState } from "@/lib/recommendation/domain/types"
 import type { OrchestratorAction } from "@/lib/recommendation/infrastructure/agents/types"
 import type { SemanticReplyRoute, SemanticDirectContext, SemanticTurnDecision } from "./semantic-turn-extractor"
@@ -49,7 +50,7 @@ const ENTITY_NODES: EntityNode[] = [
   { canonical: "AlCrN", field: "coating", aliases: ["alcrn", "알크롬", "y-coating", "y코팅", "와이코팅"] },
   { canonical: "TiCN", field: "coating", aliases: ["ticn", "티씨엔", "c-coating", "c코팅", "씨코팅"] },
   { canonical: "TiN", field: "coating", aliases: ["tin", "티엔"] },
-  { canonical: "DLC", field: "coating", aliases: ["dlc", "디엘씨", "다이아몬드라이크카본"] },
+  { canonical: "DLC", field: "coating", aliases: ["dlc", "dlc코팅", "디엘씨", "다이아몬드라이크카본"] },
   { canonical: "Diamond", field: "coating", aliases: ["diamond", "다이아몬드코팅", "다이아몬드"] },
   { canonical: "Uncoated", field: "coating", aliases: ["uncoated", "무코팅", "브라이트", "bright", "bright finish", "코팅 없", "코팅���"] },
   { canonical: "Z-Coating", field: "coating", aliases: ["z-coating", "z코팅", "지코팅"] },
@@ -70,10 +71,14 @@ const ENTITY_NODES: EntityNode[] = [
   { canonical: "Cast Steel", field: "workPieceName", aliases: ["주강", "cast steel"] },
   { canonical: "Graphite", field: "workPieceName", aliases: ["흑연", "graphite", "카본"] },
   { canonical: "FRP", field: "workPieceName", aliases: ["frp", "섬유강화플라스틱", "cfrp", "gfrp", "복합재"] },
+  // shankType
+  { canonical: "Plain", field: "shankType", aliases: ["플레인", "plain", "일반생크", "스트레이트생크", "straight shank"] },
+  { canonical: "Weldon", field: "shankType", aliases: ["웰던", "weldon", "웰돈"] },
+  { canonical: "HA", field: "shankType", aliases: ["ha생크", "ha shank"] },
   // Boolean: coolantHole
   { canonical: "true", field: "coolantHole", aliases: ["쿨런트", "쿨런트홀", "절삭유홀", "coolant", "coolant hole", "내부급유", "내부냉각", "쓰루쿨런트", "through coolant"] },
   // Countries
-  { canonical: "KOREA", field: "country", aliases: ["한국", "korea", "국내", "코리아"] },
+  { canonical: "KOREA", field: "country", aliases: ["한국", "korea", "국내", "코리아", "국내제품", "국내산", "국산", "국내용", "국내전용"] },
   { canonical: "USA", field: "country", aliases: ["미국", "usa", "us", "america", "미합중국"] },
   { canonical: "CHINA", field: "country", aliases: ["중국", "china", "차이나"] },
   { canonical: "JAPAN", field: "country", aliases: ["일본", "japan"] },
@@ -248,6 +253,28 @@ export function extractEntities(message: string): Array<{ field: string; value: 
   const results: Array<{ field: string; value: string; canonical: string }> = []
   const lower = message.toLowerCase()
 
+  // 0. Compound patterns: "싱크/생크 타입 X" → shankType=X
+  const shankTypeMatch = lower.match(/(?:싱크|생크|shank)\s*(?:타입|type)\s*(\S+)/i)
+  if (shankTypeMatch) {
+    const rawVal = shankTypeMatch[1]
+    // resolve through entity index or use raw
+    const entity = _entityIndex.get(rawVal)
+    if (entity?.field === "shankType") {
+      results.push({ field: "shankType", value: rawVal, canonical: entity.canonical })
+    } else {
+      // capitalize first letter for DB value
+      const canonical = rawVal.charAt(0).toUpperCase() + rawVal.slice(1).toLowerCase()
+      results.push({ field: "shankType", value: rawVal, canonical })
+    }
+  }
+
+  // 0b. Material group pattern: "P소재", "M소재" → single alpha ISO code
+  const materialGroupMatch = lower.match(/^([pmknsh])\s*소재/i) || lower.match(/([pmknsh])\s*소재\b/i)
+  if (materialGroupMatch && !results.some(r => r.field === "material")) {
+    const code = materialGroupMatch[1].toUpperCase()
+    results.push({ field: "material", value: code, canonical: code })
+  }
+
   // 1. Check learned patterns first (self-supervised)
   try {
     const { getLearnedEntityIndex } = require("./self-learning")
@@ -260,15 +287,23 @@ export function extractEntities(message: string): Array<{ field: string; value: 
   } catch { /* self-learning module not available */ }
 
   // 2. Static entity node matching (with word boundary check)
+  // Collect all candidates per field, then pick the longest alias match to avoid
+  // short-alias false positives (e.g., "c코팅" matching inside "dlc코팅")
+  const fieldCandidates = new Map<string, { node: EntityNode; alias: string }>()
   for (const node of ENTITY_NODES) {
-    // Skip if already matched by learned patterns
     if (results.some(r => r.field === node.field)) continue
     for (const alias of node.aliases) {
       if (matchesAsWord(lower, alias)) {
-        results.push({ field: node.field, value: alias, canonical: node.canonical })
-        break // one match per node
+        const existing = fieldCandidates.get(node.field)
+        if (!existing || alias.length > existing.alias.length) {
+          fieldCandidates.set(node.field, { node, alias })
+        }
+        break
       }
     }
+  }
+  for (const [, { node, alias }] of fieldCandidates) {
+    results.push({ field: node.field, value: alias, canonical: node.canonical })
   }
 
   // Numeric pattern matching
@@ -278,6 +313,24 @@ export function extractEntities(message: string): Array<{ field: string; value: 
       if (match) {
         results.push({ field: np.field, value: match[0], canonical: String(np.extract(match)) })
         break
+      }
+    }
+  }
+
+  // 3. Dynamic brand matching from DB schema cache (no hardcoding)
+  //    Normalize hyphens/spaces: "CRX-S" ↔ "CRX S" ↔ "CRXS"
+  if (!results.some(r => r.field === "brand")) {
+    const schema = getDbSchemaSync()
+    if (schema?.brands) {
+      const normMsg = lower.replace(/[-\s]/g, "")
+      for (const brand of schema.brands) {
+        const brandLower = brand.toLowerCase()
+        const normBrand = brandLower.replace(/[-\s]/g, "")
+        if (matchesAsWord(lower, brandLower) || lower.includes(brandLower)
+          || (normBrand.length >= 3 && normMsg.includes(normBrand))) {
+          results.push({ field: "brand", value: brand, canonical: brand })
+          break
+        }
       }
     }
   }
@@ -383,7 +436,7 @@ export function tryKGDecision(
   // ── 4c. Question patterns ("X가 뭐야?", "X란?", "X 알려줘") → answer_general ──
   // Must come BEFORE entity extraction to prevent "TiAlN이 뭐야?" from becoming a coating filter
   const QUESTION_PATTERNS = [
-    /(?:뭐야|뭐예요|뭐에요|뭘까|뭔가요|무엇|무슨\s*뜻|알려줘|알려\s*주세요|설명|차이가?\s*뭐|어떤\s*거야|란\s*뭐|이란|이\s*뭐)/iu,
+    /(?:뭐야|뭐예요|뭐에요|뭘까|뭔가요|무엇|무슨\s*뜻|알려줘|알려\s*주세요|설명|차이가?\s*뭐|차이$|차이점|어떤\s*거야|란\s*뭐|이란|이\s*뭐|중요해|중요한가|필요해)/iu,
     /(?:what\s*is|explain|tell\s*me\s*about|difference\s*between)/iu,
   ]
   if (QUESTION_PATTERNS.some(p => p.test(msg)) && msg.length < 60) {
@@ -413,7 +466,9 @@ export function tryKGDecision(
   }
 
   // ── 5b. Competitor patterns (must check BEFORE show_recommendation) ──
-  if (COMPETITOR_PATTERNS.some(p => p.test(msg))) {
+  // "CRX S 말고 다른 브랜드" = exclude, not competitor query → negation이면 skip
+  const hasNegSignal = /빼고|제외|말고|아닌|않은/u.test(msg)
+  if (COMPETITOR_PATTERNS.some(p => p.test(msg)) && !hasNegSignal) {
     return {
       decision: buildDecision({ type: "answer_general", message: msg } as OrchestratorAction, [], 0.92, "KG: competitor query → answer_general with web search"),
       confidence: 0.92,
@@ -479,24 +534,55 @@ export function tryKGDecision(
   }
 
   // ── 6. Exclude patterns ("X 말고", "except X") ──
+  // Also handles "X 말고 Y로" → apply Y as eq (not just exclude X)
   for (const pattern of EXCLUDE_PATTERNS) {
     const match = msg.match(pattern)
     if (match) {
       const excludeRaw = (match[1] || match[2]).toLowerCase()
       const entity = resolveEntity(excludeRaw)
-      if (entity) {
+      const resolved = entity
+        ? { field: entity.field, canonical: entity.canonical }
+        : (() => {
+            const numEntities = extractEntities(excludeRaw)
+            return numEntities.length > 0 ? { field: numEntities[0].field, canonical: numEntities[0].canonical } : null
+          })()
+      if (resolved) {
+        // Check if there's a replacement entity in the rest of the message
+        // "2날 말고 4날로", "Square 빼고 Ball로", "TiAlN 말고 DLC" etc.
+        const afterExclude = msg.slice(match.index! + match[0].length)
+        const replacementEntities = extractEntities(afterExclude)
+        const replacement = replacementEntities.find(e => e.field === resolved.field)
+
+        if (replacement) {
+          // "X 말고 Y로" → apply Y as eq (user wants Y, not just "not X")
+          const filter: AppliedFilter = {
+            field: replacement.field,
+            op: "eq",
+            value: replacement.canonical,
+            rawValue: replacement.canonical,
+            appliedAt: 0,
+          }
+          return {
+            decision: buildDecision({ type: "continue_narrowing", filter } as OrchestratorAction, [], 0.95, `KG: replace ${resolved.canonical} → ${replacement.canonical}`),
+            confidence: 0.95,
+            source: "kg-exclude",
+            reason: `replace ${resolved.field}: ${resolved.canonical} → ${replacement.canonical}`,
+          }
+        }
+
+        // No replacement → pure exclusion
         const filter: AppliedFilter = {
-          field: entity.field,
+          field: resolved.field,
           op: "exclude",
-          value: entity.canonical,
-          rawValue: entity.canonical,
+          value: resolved.canonical,
+          rawValue: resolved.canonical,
           appliedAt: 0,
         }
         return {
-          decision: buildDecision({ type: "continue_narrowing", filter } as OrchestratorAction, [], 0.95, `KG: exclude ${entity.canonical}`),
+          decision: buildDecision({ type: "continue_narrowing", filter } as OrchestratorAction, [], 0.95, `KG: exclude ${resolved.canonical}`),
           confidence: 0.95,
           source: "kg-exclude",
-          reason: `exclude ${entity.field}=${entity.canonical}`,
+          reason: `exclude ${resolved.field}=${resolved.canonical}`,
         }
       }
     }
@@ -569,11 +655,13 @@ export function tryKGDecision(
   // ── 8. Multi-entity extraction (e.g., "4날 스퀘어", "10mm") ──
   const entities = extractEntities(msg)
   if (entities.length > 0 && !COMPANY_PATTERNS.some(p => p.test(msg))) {
+    // Negation check: "4날 말고", "TiAlN 빼고" 등 → op: "exclude"
+    const isNegation = /빼고|제외|아닌\s*것|아닌\s*걸|아닌걸|없는\s*거|말고|만\s*아니면|없이|아닌\s*거|없는\s*거로|가\s*아닌|이\s*아닌/u.test(msg)
     const primary = entities[0]
     const extras = entities.slice(1)
     const filter: AppliedFilter = {
       field: primary.field,
-      op: "eq",
+      op: isNegation ? "exclude" : "eq",
       value: primary.canonical,
       rawValue: primary.canonical,
       appliedAt: 0,

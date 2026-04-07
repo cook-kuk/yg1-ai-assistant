@@ -65,9 +65,10 @@ export class RecommendationService {
     try {
       const engine = this.resolveEngine(params.engineId)
       const messages = params.messages ?? []
-      // intakeForm이 없어도 messages가 있으면 빈 form으로 exploration 실행
-      // → KG / multi-filter / V2 orchestrator 경로가 동작하도록
-      const form = params.intakeForm ?? (messages.length > 0 ? INITIAL_INTAKE_FORM : null)
+      // intakeForm이 없거나 빈 객체면 INITIAL_INTAKE_FORM으로 대체
+      const rawForm = params.intakeForm
+      const isEmptyForm = !rawForm || (typeof rawForm === "object" && Object.keys(rawForm).length === 0)
+      const form = isEmptyForm ? (messages.length > 0 ? INITIAL_INTAKE_FORM : null) : rawForm
       const response = form
         ? await engine.runSession({
             form,

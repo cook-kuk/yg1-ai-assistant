@@ -81,6 +81,7 @@ export const CanonicalProductSchema = z.object({
 
   // Material fitness (from series_profile_mv)
   materialRatingScore: z.number().nullable(),  // DB series-level material fitness score; higher = better match
+  workpieceMatched: z.boolean().optional(),     // true when series supports the requested workpiece name
 
   // Quality
   sourceConfidence: z.string().nullable(),  // high/medium/low

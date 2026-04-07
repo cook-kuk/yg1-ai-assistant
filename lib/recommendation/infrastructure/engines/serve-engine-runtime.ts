@@ -36,9 +36,16 @@ import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-t
 import { TraceCollector, isDebugEnabled } from "@/lib/debug/agent-trace"
 import { normalizePlannerResult, validatePlannerResult, buildExecutorSummary } from "@/lib/recommendation/core/turn-boundaries"
 import { dryRunReduce, reduce, compareReducerVsActual, type ReducerAction } from "@/lib/recommendation/core/state-reducer"
-import { USE_STATE_REDUCER, USE_CHIP_SYSTEM, isSingleCallRouterEnabled, LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
+import { USE_STATE_REDUCER, USE_CHIP_SYSTEM, isSingleCallRouterEnabled, LLM_FREE_INTERPRETATION, ENABLE_PLANNER_DECISION } from "@/lib/feature-flags"
 import { routeSingleCall } from "@/lib/recommendation/core/single-call-router"
+import { naturalLanguageToFilters, buildAppliedFilterFromAgentFilter } from "@/lib/recommendation/core/sql-agent"
+import { getDbSchemaSync, getDbSchema } from "@/lib/recommendation/core/sql-agent-schema-cache"
+import { naturalLanguageToQuerySpec } from "@/lib/recommendation/core/query-planner"
+import { querySpecToAppliedFilters, appliedFiltersToConstraints } from "@/lib/recommendation/core/query-spec-to-filters"
+import { decidePlannerOverride } from "@/lib/recommendation/core/planner-decision"
+import { logPatternMiningEntry } from "@/lib/recommendation/core/pattern-mining/logger"
 import { tryKGDecision, extractEntities } from "@/lib/recommendation/core/knowledge-graph"
+import { hasEditSignal, parseEditIntent, applyEditIntent } from "@/lib/recommendation/core/edit-intent"
 import { deriveChips, toChipState, toChipStateWithCandidates, compareChips, safeApplyChips } from "@/lib/recommendation/core/chip-system"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
 import { classifyPreSearchRoute } from "@/lib/recommendation/infrastructure/engines/pre-search-route"
@@ -201,8 +208,10 @@ function buildZeroResultWithAlternatives(
     chips.unshift(`${previousValue}로 돌아가기`)
   }
 
-  // Always add navigation options
+  // Always add navigation + reset escape hatch (BUG-2 0-result fallback)
+  // "처음부터 다시" 는 edit-intent의 reset_all 패턴에 매핑되어 안전하게 동작
   if (!chips.some(c => c.includes("이전 단계"))) chips.push("⟵ 이전 단계")
+  if (!chips.some(c => c.includes("처음부터"))) chips.push("↻ 처음부터 다시")
 
   return { message: lines.join("\n"), chips }
 }
@@ -689,14 +698,15 @@ export async function resolveExplicitFilterRequest(
 function extractNegatedValue(msg: string): { field: string; rawValue: string | number; displayValue: string } | null {
   // Strip negation suffixes to isolate the value
   const cleaned = msg
-    .replace(/\s*(빼고|제외|말고|없이|아닌\s*것|없는\s*거로?|만\s*아니면\s*(?:돼|된다니까|됩니다|되잖아)?|아닌\s*거|말고\s*다른|없는\s*걸로).*$/u, "")
+    .replace(/\s*(빼고|뺴고|빼구|제외|말고|없이|아닌\s*것|없는\s*거로?|만\s*아니면\s*(?:돼|된다니까|됩니다|되잖아)?|아닌\s*거|말고\s*다른|없는\s*걸로).*$/u, "")
     .replace(/^(?:아니\s*)?/u, "")
     .trim()
 
   if (!cleaned) return null
 
   // Try buildAppliedFilterFromValue with each registered field
-  const fieldsToTry = ["coating", "toolSubtype", "fluteCount", "diameterMm", "workPieceName", "material"]
+  // brand/seriesName first — "TANK-POWER 빼고" ���은 브랜드 제외�� 코팅보다 먼저 잡아야 함
+  const fieldsToTry = ["brand", "seriesName", "coating", "toolSubtype", "fluteCount", "diameterMm", "workPieceName", "material"]
   for (const field of fieldsToTry) {
     const filter = buildAppliedFilterFromValue(field, cleaned)
     if (filter) {
@@ -813,7 +823,9 @@ export function resolvePendingQuestionReply(
     return { kind: "unresolved", pendingField, raw }
   }
   // 위임 표현 → skip으로 처리 (추천해줘, 알아서 해줘, 아무거나 한개 등)
-  if (/^(?:.*(?:추천해|골라|알아서|너가|니가|한개|하나만|아무거나).*(?:줘|해줘|해|주세요|요)?|추천으로\s*골라줘)$/u.test(raw)) {
+  // 단, 메시지에 새 필터 의도(KG entity, 예: "국내제품", "4날", "10mm")가 있으면 위임이 아님 — 다음 레이어로 넘김
+  if (/^(?:.*(?:추천해|골라|알아서|너가|니가|한개|하나만|아무거나).*(?:줘|해줘|해|주세요|요)?|추천으로\s*골라줘)$/u.test(raw)
+      && extractEntities(raw).length === 0) {
     console.log(`[pending-selection] Delegation detected: "${raw.slice(0, 30)}" → treating as skip`)
     const skipFilter: AppliedFilter = {
       field: pendingField,
@@ -1498,6 +1510,9 @@ async function handleServeExplorationInner(
   pagination: CandidatePaginationRequest | null = null,
   trace: TraceCollector = new TraceCollector()
 ): Promise<Response> {
+  // SQL Agent 스키마 로드 (첫 호출 시 await, 이후 캐시)
+  await getDbSchema().catch(() => {})
+
   console.log(
     `[recommend] request start hasPrevState=${!!prevState} messages=${messages.length} displayedProducts=${displayedProducts?.length ?? 0} BUILD=002ebde`
   )
@@ -1629,66 +1644,92 @@ async function handleServeExplorationInner(
     // Skip when: simple chip click, side question, or pending selection early
     const pendingAlreadyResolved = pendingQuestionReply.kind === "resolved" || pendingQuestionReply.kind === "side_question"
     const msg = lastUserMsg?.text ?? ""
-    // ── Deterministic negation handling (빼고/제외/아닌것/만 아니면/없이) ──
-    const hasNegationPattern = /빼고|제외|아닌\s*것|없는\s*거|말고\s*다른|만\s*아니면|없이|아닌\s*거|없는\s*거로/u.test(msg)
+    const hasNegationPattern = /빼고|뺴고|빼구|제외|아닌\s*것|아닌\s*걸|아닌걸|없는\s*거|말고|만\s*아니면|없이|아닌\s*거|없는\s*거로|가\s*아닌|이\s*아닌/u.test(msg)
     let negationHandled = false
-    if (hasNegationPattern) {
-      const msgLower = msg.toLowerCase()
 
-      // Track 1: Remove existing filter if value matches
-      if (filters.length > 0) {
-        for (const existingFilter of [...filters]) {
-          const filterValue = String(existingFilter.rawValue ?? existingFilter.value).toLowerCase()
-          if (msgLower.includes(filterValue) && existingFilter.op !== "skip") {
-            const idx = filters.indexOf(existingFilter)
-            if (idx >= 0) {
-              filters.splice(idx, 1)
-              currentInput = rebuildResolvedInputFromFilters(form, filters, deps)
-              console.log(`[negation-deterministic] Removed ${existingFilter.field}=${existingFilter.value} filter`)
-              negationHandled = true
+    // ══════════════════════════════════════════════════════════
+    // Router priority: Edit-Intent(수정동사) → KG(entity match) → SQL Agent → negation(fallback) → SCR
+    // edit-intent가 맡아야 할 문장(말고/빼고/제외/상관없/바꿔 등)은 KG보다 먼저 처리
+    // ══════════════════════════════════════════════════════════
+
+    // ── 1. Edit-Intent Layer: state modification (deterministic, 0 LLM calls) ──
+    // Handles replace/exclude/clear/go_back/reset — runs BEFORE KG so edit
+    // expressions are not intercepted by KG's exclude patterns.
+    if (!singleCallHandled && lastUserMsg && hasEditSignal(msg)) {
+      const editResult = parseEditIntent(msg, filters)
+      if (editResult && editResult.confidence >= 0.9) {
+        const mutation = applyEditIntent(editResult.intent, filters, turnCount)
+        trace.add("edit-intent", "router", { type: editResult.intent.type, reason: editResult.reason, confidence: editResult.confidence })
+
+        if (editResult.intent.type === "reset_all") {
+          bridgedV2Action = { type: "reset_session" }
+          bridgedV2OrchestratorResult = { action: bridgedV2Action, reasoning: `edit-intent:reset_all`, agentsInvoked: [], escalatedToOpus: false }
+          singleCallHandled = true
+          pendingSelectionAction = null
+          pendingSelectionOrchestratorResult = null
+          console.log(`[edit-intent] reset_all`)
+        } else {
+          // Handle go_back first — pass the addFilter as followUpFilter so the
+          // go_back handler applies it AFTER restoring the previous state.
+          if (mutation.goBack) {
+            const followUp = mutation.addFilter
+              ? buildAppliedFilterFromValue(
+                  mutation.addFilter.field,
+                  mutation.addFilter.rawValue,
+                  turnCount,
+                  mutation.addFilter.op === "neq" ? "neq" : undefined,
+                ) ?? mutation.addFilter
+              : undefined
+            bridgedV2Action = { type: "go_back_one_step", followUpFilter: followUp }
+            bridgedV2OrchestratorResult = { action: bridgedV2Action, reasoning: `edit-intent:go_back`, agentsInvoked: [], escalatedToOpus: false }
+            pendingSelectionAction = null
+            pendingSelectionOrchestratorResult = null
+            // Skip the addFilter application below — go_back handler will apply it.
+            mutation.addFilter = null
+          }
+
+          // Apply removals (reverse order to keep indices valid)
+          for (const idx of [...mutation.removeIndices].sort((a, b) => b - a)) {
+            filters.splice(idx, 1)
+          }
+
+          // Apply addition
+          if (mutation.addFilter) {
+            const built = buildAppliedFilterFromValue(
+              mutation.addFilter.field,
+              mutation.addFilter.rawValue,
+              turnCount,
+              mutation.addFilter.op === "neq" ? "neq" : undefined,
+            )
+            if (built) {
+              const skipIdx = filters.findIndex(x => x.field === built.field && x.op === "skip")
+              if (skipIdx >= 0) filters.splice(skipIdx, 1)
+              const result = replaceFieldFilter(baseInput, filters, built, deps.applyFilterToInput)
+              filters.splice(0, filters.length, ...result.nextFilters)
+              currentInput = result.nextInput
+            } else {
+              // buildAppliedFilterFromValue failed (e.g. brand not in registry) — apply raw filter directly
+              const skipIdx = filters.findIndex(x => x.field === mutation.addFilter!.field && x.op === "skip")
+              if (skipIdx >= 0) filters.splice(skipIdx, 1)
+              filters.push(mutation.addFilter)
             }
           }
-        }
-      }
 
-      // Track 2: No matching filter found → create NEQ exclusion filter
-      // "TiAlN 빼고 나머지요" when no coating filter exists → coating != TiAlN
-      if (!negationHandled) {
-        // Extract the value being negated by trying all registered fields
-        const negatedValue = extractNegatedValue(msg)
-        if (negatedValue) {
-          const neqFilter: AppliedFilter = {
-            field: negatedValue.field,
-            op: "neq",
-            value: `${negatedValue.displayValue} 제외`,
-            rawValue: negatedValue.rawValue,
-            appliedAt: turnCount,
+          if (!bridgedV2Action) {
+            const lastF = mutation.addFilter ?? filters[filters.length - 1] ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount }
+            bridgedV2Action = { type: "continue_narrowing", filter: lastF }
           }
-          // Remove any existing filter on same field, then add NEQ
-          const existingIdx = filters.findIndex(f => f.field === neqFilter.field)
-          if (existingIdx >= 0) filters.splice(existingIdx, 1)
-          filters.push(neqFilter)
-          currentInput = rebuildResolvedInputFromFilters(form, filters, deps)
-          console.log(`[negation-deterministic] Created NEQ filter: ${neqFilter.field} != ${neqFilter.rawValue}`)
-          negationHandled = true
+          if (!bridgedV2OrchestratorResult) {
+            bridgedV2OrchestratorResult = { action: bridgedV2Action, reasoning: `edit-intent:${editResult.reason}`, agentsInvoked: [], escalatedToOpus: false }
+          }
+          singleCallHandled = true
+          negationHandled = editResult.intent.type === "exclude_field"
+          console.log(`[edit-intent] ${editResult.intent.type}: ${editResult.reason}`)
         }
-      }
-
-      if (negationHandled) {
-        pendingSelectionAction = null
-        pendingSelectionOrchestratorResult = null
-        bridgedV2Action = { type: "continue_narrowing", filter: filters[filters.length - 1] ?? { field: "none", op: "skip", value: "", rawValue: "", appliedAt: turnCount } as AppliedFilter }
-        bridgedV2OrchestratorResult = {
-          action: bridgedV2Action,
-          reasoning: `negation_deterministic:${filters[filters.length - 1]?.op === "neq" ? "neq_filter" : "removed_filter"}`,
-          agentsInvoked: [],
-          escalatedToOpus: false,
-        }
-        singleCallHandled = true // V2가 NEQ 필터를 덮어쓰지 않도록
       }
     }
 
-    // ── Knowledge Graph (deterministic, 0 LLM calls) ──────────
+    // ── 2. Knowledge Graph: entity match + navigation (deterministic, 0 LLM calls, ~0.01s) ──
     let kgHint: string | undefined
     if (!singleCallHandled && lastUserMsg) {
       const kgResult = tryKGDecision(msg, prevState)
@@ -1717,9 +1758,6 @@ async function handleServeExplorationInner(
               const result = replaceFieldFilter(baseInput, filters, built, deps.applyFilterToInput)
               filters.splice(0, filters.length, ...result.nextFilters)
               currentInput = result.nextInput
-              // KG extracted a real filter for the pending field → cancel pending skip
-              // (e.g., user said "2날 직경 10 추천해줘" while pending=diameterMm;
-              //  delegation regex matched "추천해줘" as skip, but KG found diameterMm=10)
               if (built.field === pendingSelectionFilter?.field && pendingSelectionAction?.type === "skip_field") {
                 pendingSelectionAction = null
                 pendingSelectionOrchestratorResult = null
@@ -1732,14 +1770,12 @@ async function handleServeExplorationInner(
           singleCallHandled = true
           console.log(`[kg:hit] "${msg}" → ${kgResult.source} (${kgResult.confidence}), ${kgFilters.length} filters applied`)
         } else if (["skip_field", "go_back_one_step", "reset_session", "show_recommendation", "filter_by_stock", "refine_condition"].includes(kgAction.type)) {
-          // Guard: skip_field on first turn with no pending field → don't execute
           if (kgAction.type === "skip_field" && !prevState?.lastAskedField) {
             console.log(`[kg:skip-guard] skip_field ignored — no pending field (first turn)`)
           } else {
             bridgedV2Action = kgAction
             bridgedV2OrchestratorResult = { action: kgAction, reasoning: `kg:${kgResult.reason}`, agentsInvoked: [], escalatedToOpus: false }
             singleCallHandled = true
-            // reset/back 등 네비게이션 액션은 pending selection을 무효화
             if (kgAction.type === "reset_session" || kgAction.type === "go_back_one_step") {
               pendingSelectionAction = null
               pendingSelectionOrchestratorResult = null
@@ -1753,18 +1789,297 @@ async function handleServeExplorationInner(
           console.log(`[kg:hit] "${msg}" → ${kgResult.source} (${kgResult.confidence}), answer_general`)
         }
       } else if (kgResult.confidence >= 0.5) {
-        // Medium confidence → pass as hint to SCR
+        // Medium confidence → pass as hint to SCR (used later if SQL Agent also fails)
         const entities = extractEntities(msg)
         if (entities.length > 0) {
           kgHint = entities.map(e => `${e.field}=${e.canonical}`).join(", ")
           console.log(`[kg:hint] "${msg}" → ${kgResult.source} (${kgResult.confidence}), hint: ${kgHint}`)
         }
       }
-      // < 0.5 → no KG involvement, fall through to SCR
     }
 
-    // LLM_FREE_INTERPRETATION ON → filterHints 조건 무시, 항상 Sonnet 라우팅
-    // negation이 있더라도 SCR은 실행 — "DLC 빼고 TiAlN으로 바꿔" 같은 복합 요청 처리
+    // ── 3. SQL Agent: primary handler (Haiku 1회, schema-aware, ~0.5s) ──
+    // Handles filters + negation + navigation — replaces deterministic negation handler
+    if (!singleCallHandled && lastUserMsg) {
+      try {
+        const schema = getDbSchemaSync()
+        if (schema) {
+          const agentResult = await naturalLanguageToFilters(msg, schema, filters, provider)
+          trace.add("sql-agent", "router", { filterCount: agentResult.filters.length, raw: agentResult.raw.slice(0, 200) })
+
+          if (agentResult.filters.length > 0) {
+            const META_FIELDS = new Set(["_skip", "_reset", "_back"])
+            const metaAction = agentResult.filters.find(f => META_FIELDS.has(f.field))
+            if (metaAction) {
+              if (metaAction.op === "reset") {
+                bridgedV2Action = { type: "reset_session" }
+              } else if (metaAction.op === "back") {
+                bridgedV2Action = { type: "go_back_one_step" }
+              } else if (metaAction.op === "skip") {
+                if (!prevState?.lastAskedField) {
+                  console.log(`[sql-agent:skip-guard] skip_field ignored — no pending field`)
+                } else {
+                  bridgedV2Action = { type: "skip_field" }
+                }
+              }
+              if (bridgedV2Action) {
+                bridgedV2OrchestratorResult = { action: bridgedV2Action, reasoning: `sql-agent:${metaAction.op}`, agentsInvoked: [], escalatedToOpus: false }
+                singleCallHandled = true
+                if (bridgedV2Action.type === "reset_session" || bridgedV2Action.type === "go_back_one_step") {
+                  pendingSelectionAction = null
+                  pendingSelectionOrchestratorResult = null
+                }
+                console.log(`[sql-agent] meta action: ${metaAction.op}`)
+              }
+            } else {
+              // 필터 적용 (eq + neq 모두 처리)
+              for (const af of agentResult.filters) {
+                const built = buildAppliedFilterFromAgentFilter(af, turnCount)
+                if (built) {
+                  // NEQ: 기존 같은 필드 필터 제거 �� 추가
+                  if (af.op === "neq") {
+                    const existingIdx = filters.findIndex(f => f.field === built.field && f.op !== "neq")
+                    if (existingIdx >= 0) filters.splice(existingIdx, 1)
+                  }
+                  const skipIdx = filters.findIndex(x => x.field === built.field && x.op === "skip")
+                  if (skipIdx >= 0) filters.splice(skipIdx, 1)
+                  const result = replaceFieldFilter(baseInput, filters, built, deps.applyFilterToInput)
+                  filters.splice(0, filters.length, ...result.nextFilters)
+                  currentInput = result.nextInput
+                  if (built.field === pendingSelectionFilter?.field && pendingSelectionAction?.type === "skip_field") {
+                    pendingSelectionAction = null
+                    pendingSelectionOrchestratorResult = null
+                  }
+                }
+              }
+
+              const hasShowRec = /추천|보여|제품\s*보기|show/iu.test(msg)
+              const lastF = filters[filters.length - 1] ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount }
+              bridgedV2Action = hasShowRec
+                ? { type: "show_recommendation" }
+                : { type: "continue_narrowing", filter: lastF }
+              bridgedV2OrchestratorResult = {
+                action: bridgedV2Action,
+                reasoning: `sql-agent:${agentResult.filters.map(f => `${f.field}=${f.op}${f.value}`).join(",")}`,
+                agentsInvoked: [],
+                escalatedToOpus: false,
+              }
+              singleCallHandled = true
+              negationHandled = hasNegationPattern // SQL Agent가 negation도 처리했으므로
+              console.log(`[sql-agent] ${agentResult.filters.length} filters: ${agentResult.filters.map(f => `${f.field}${f.op}${f.value}`).join(", ")}`)
+            }
+          }
+        }
+      } catch (e) {
+        console.error(`[sql-agent] error, falling back to negation/SCR:`, e)
+      }
+    }
+
+    // ── 3b. QuerySpec Planner + Decision Layer ──
+    // 1) planner 항상 실행 → shadow filters 생성
+    // 2) decision layer가 production vs planner confidence 비교
+    // 3) planner가 충분히 높으면 override, 아니면 production 유지
+    // Feature flag: ENABLE_PLANNER_DECISION=false → shadow trace only
+    if (lastUserMsg) {
+      try {
+        const currentConstraints = appliedFiltersToConstraints(filters)
+        const plannerResult = await naturalLanguageToQuerySpec(msg, currentConstraints, provider)
+        const spec = plannerResult.spec
+        const shadowFilters = querySpecToAppliedFilters(spec, turnCount)
+
+        // Decision layer: confidence-based selection
+        const kgHandled = singleCallHandled && bridgedV2OrchestratorResult?.reasoning?.startsWith("kg:")
+        const sqlAgentHandled = singleCallHandled && bridgedV2OrchestratorResult?.reasoning?.startsWith("sql-agent:")
+        const decision = decidePlannerOverride(spec, shadowFilters, filters, !!kgHandled, !!sqlAgentHandled)
+
+        let plannerApplied = false
+        // Phase 2: semantic loss correction — KG가 eq로 뭉갠 range를 planner가 보정
+        // decision.winner와 무관하게, planner가 range op이고 production이 eq면 보정
+        const isSemanticLossCorrection = ENABLE_PLANNER_DECISION
+          && singleCallHandled
+          && spec.constraints.length === 1
+          && ["gte", "lte", "between"].includes(spec.constraints[0].op)
+          && shadowFilters.length > 0
+          && filters.some(f => f.field === shadowFilters[0]?.field && f.op === "eq")
+        if (isSemanticLossCorrection) {
+          // 기존 eq 필터를 planner의 range 필터로 교체
+          const sf = shadowFilters[0]
+          const eqIdx = filters.findIndex(f => f.field === sf.field && f.op === "eq")
+          if (eqIdx >= 0) {
+            filters[eqIdx] = sf
+            currentInput = rebuildResolvedInputFromFilters(form, filters, deps)
+            plannerApplied = true
+            console.log(`[planner-decision] semantic-loss-correction: ${sf.field} eq→${sf.op} ${sf.rawValue}${sf.rawValue2 ? `~${sf.rawValue2}` : ""}`)
+          }
+        }
+        if (ENABLE_PLANNER_DECISION && decision.winner === "planner" && !singleCallHandled) {
+          // Navigation override
+          if (spec.constraints.length === 0 && spec.navigation !== "none") {
+            if (spec.navigation === "reset") bridgedV2Action = { type: "reset_session" }
+            else if (spec.navigation === "back") bridgedV2Action = { type: "go_back_one_step" }
+            else if (spec.navigation === "skip" && prevState?.lastAskedField) bridgedV2Action = { type: "skip_field" }
+
+            if (bridgedV2Action) {
+              bridgedV2OrchestratorResult = { action: bridgedV2Action, reasoning: `planner-decision:${spec.navigation}`, agentsInvoked: [], escalatedToOpus: false }
+              singleCallHandled = true
+              plannerApplied = true
+              if (bridgedV2Action.type === "reset_session" || bridgedV2Action.type === "go_back_one_step") {
+                pendingSelectionAction = null
+                pendingSelectionOrchestratorResult = null
+              }
+            }
+          }
+          // Single constraint override
+          else if (shadowFilters.length > 0 && spec.constraints.length === 1) {
+            for (const sf of shadowFilters) {
+              const skipIdx = filters.findIndex(x => x.field === sf.field && x.op === "skip")
+              if (skipIdx >= 0) filters.splice(skipIdx, 1)
+              if (sf.op === "neq") {
+                const existingIdx = filters.findIndex(f => f.field === sf.field && f.op !== "neq")
+                if (existingIdx >= 0) filters.splice(existingIdx, 1)
+              }
+              const result = replaceFieldFilter(baseInput, filters, sf, deps.applyFilterToInput)
+              filters.splice(0, filters.length, ...result.nextFilters)
+              currentInput = result.nextInput
+            }
+
+            const hasShowRec = spec.intent === "show_recommendation" || /추천|보여|제품\s*보기|show/iu.test(msg)
+            const lastF = filters[filters.length - 1] ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount }
+            bridgedV2Action = hasShowRec
+              ? { type: "show_recommendation" }
+              : { type: "continue_narrowing", filter: lastF }
+            bridgedV2OrchestratorResult = {
+              action: bridgedV2Action,
+              reasoning: `planner-decision:${spec.constraints.map(c => `${c.field}=${c.op}${c.value}`).join(",")}`,
+              agentsInvoked: [],
+              escalatedToOpus: false,
+            }
+            singleCallHandled = true
+            plannerApplied = true
+            negationHandled = hasNegationPattern && spec.constraints[0]?.op === "neq"
+          }
+        }
+
+        const plannerOps = spec.constraints.map(c => c.op)
+        const productionOps = filters.map(f => f.op)
+        const hasSemanticLoss = plannerOps.some(op => op === "gte" || op === "lte" || op === "between") && productionOps.every(op => op === "eq" || op === "includes" || op === "skip")
+
+        trace.add("query-planner", "router", {
+          intent: spec.intent,
+          navigation: spec.navigation,
+          constraintCount: spec.constraints.length,
+          constraints: spec.constraints.map(c => `${c.field}${c.op}${c.value}`),
+          shadowFilterCount: shadowFilters.length,
+          plannerOps,
+          productionOps,
+          semanticLoss: hasSemanticLoss,
+          latencyMs: plannerResult.latencyMs,
+          reasoning: spec.reasoning,
+          decision: {
+            winner: decision.winner,
+            plannerScore: decision.plannerScore.score,
+            plannerFactors: decision.plannerScore.factors,
+            productionScore: decision.productionScore.score,
+            productionFactors: decision.productionScore.factors,
+            margin: decision.margin,
+            reason: decision.reason,
+          },
+          applied: plannerApplied,
+        })
+        console.log(`[planner-decision] winner=${decision.winner} planner=${decision.plannerScore.score.toFixed(2)} prod=${decision.productionScore.score.toFixed(2)} margin=${decision.margin.toFixed(2)} applied=${plannerApplied} | ${spec.constraints.length}c ${plannerResult.latencyMs}ms`)
+
+        // ── Pattern Mining Log (non-blocking, fire-and-forget) ──
+        const editIntentHandled = singleCallHandled && bridgedV2OrchestratorResult?.reasoning?.startsWith("edit-intent:")
+        const prodSource = editIntentHandled ? "edit-intent" as const
+          : kgHandled ? "kg" as const
+          : sqlAgentHandled ? "sql-agent" as const
+          : negationHandled ? "negation" as const
+          : singleCallHandled ? "scr" as const
+          : "none" as const
+        logPatternMiningEntry({
+          userText: msg,
+          production: {
+            source: prodSource,
+            constraints: filters.map(f => ({ field: f.field, op: f.op, value: f.rawValue ?? f.value })),
+            handled: singleCallHandled,
+          },
+          planner: {
+            constraints: spec.constraints.map(c => ({ field: c.field, op: c.op, value: c.value })),
+            navigation: spec.navigation,
+            intent: spec.intent,
+            confidence: decision.plannerScore.score,
+            reasoning: spec.reasoning,
+          },
+          decision: {
+            winner: decision.winner,
+            plannerScore: decision.plannerScore.score,
+            productionScore: decision.productionScore.score,
+            margin: decision.margin,
+            reason: decision.reason,
+            applied: plannerApplied,
+          },
+          finalFilters: filters.map(f => ({ field: f.field, op: f.op, value: f.rawValue ?? f.value })),
+        })
+      } catch (e) {
+        console.warn(`[query-planner] error (non-blocking):`, e)
+      }
+    }
+
+    // ── 4. Deterministic negation fallback (SQL Agent 실패 시에만) ──
+    if (!singleCallHandled && hasNegationPattern) {
+      const msgLower = msg.toLowerCase()
+
+      // Track 1: Remove existing filter if value matches
+      if (filters.length > 0) {
+        for (const existingFilter of [...filters]) {
+          const filterValue = String(existingFilter.rawValue ?? existingFilter.value).toLowerCase()
+          if (msgLower.includes(filterValue) && existingFilter.op !== "skip") {
+            const idx = filters.indexOf(existingFilter)
+            if (idx >= 0) {
+              filters.splice(idx, 1)
+              currentInput = rebuildResolvedInputFromFilters(form, filters, deps)
+              console.log(`[negation-deterministic] Removed ${existingFilter.field}=${existingFilter.value} filter`)
+              negationHandled = true
+            }
+          }
+        }
+      }
+
+      // Track 2: No matching filter found → create NEQ exclusion filter
+      if (!negationHandled) {
+        const negatedValue = extractNegatedValue(msg)
+        if (negatedValue) {
+          const neqFilter: AppliedFilter = {
+            field: negatedValue.field,
+            op: "neq",
+            value: `${negatedValue.displayValue} 제외`,
+            rawValue: negatedValue.rawValue,
+            appliedAt: turnCount,
+          }
+          const existingIdx = filters.findIndex(f => f.field === neqFilter.field)
+          if (existingIdx >= 0) filters.splice(existingIdx, 1)
+          filters.push(neqFilter)
+          currentInput = rebuildResolvedInputFromFilters(form, filters, deps)
+          console.log(`[negation-deterministic] Created NEQ filter: ${neqFilter.field} != ${neqFilter.rawValue}`)
+          negationHandled = true
+        }
+      }
+
+      if (negationHandled) {
+        pendingSelectionAction = null
+        pendingSelectionOrchestratorResult = null
+        bridgedV2Action = { type: "continue_narrowing", filter: filters[filters.length - 1] ?? { field: "none", op: "skip", value: "", rawValue: "", appliedAt: turnCount } as AppliedFilter }
+        bridgedV2OrchestratorResult = {
+          action: bridgedV2Action,
+          reasoning: `negation_deterministic:${filters[filters.length - 1]?.op === "neq" ? "neq_filter" : "removed_filter"}`,
+          agentsInvoked: [],
+          escalatedToOpus: false,
+        }
+        singleCallHandled = true
+      }
+    }
+
+    // ── 5. SCR: 최후 fallback ──
     const negationFullyHandled = hasNegationPattern && negationHandled
     const shouldUseSingleCall = (isSingleCallRouterEnabled() || LLM_FREE_INTERPRETATION) && lastUserMsg && messages.length > 0 && !negationFullyHandled && !singleCallHandled && (LLM_FREE_INTERPRETATION || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
     if (shouldUseSingleCall) {
@@ -2930,9 +3245,26 @@ async function handleServeExplorationInner(
         ? restoreToBeforeFilter(prevState, action.filterValue ?? "", action.filterField, baseInput, deps.applyFilterToInput)
         : restoreOnePreviousStep(prevState, baseInput, deps.applyFilterToInput)
 
+      // Edit-intent "이전으로 돌아가서 X 제외": apply followUpFilter on top of restored state.
+      const followUpFilter = action.type === "go_back_one_step" ? action.followUpFilter : undefined
+      let restoredFilters = restoreResult.remainingFilters
+      let restoredInput = restoreResult.rebuiltInput
+      if (followUpFilter) {
+        // Drop existing same-field eq filter (replaced by neq), then add followUp.
+        restoredFilters = restoredFilters.filter(f =>
+          !(f.field === followUpFilter.field && f.op !== "neq" && f.op !== "skip")
+        )
+        restoredFilters = [...restoredFilters, followUpFilter]
+        // For neq filters, do NOT mutate input (input is for inclusion filters).
+        if (followUpFilter.op !== "neq" && followUpFilter.op !== "skip") {
+          restoredInput = deps.applyFilterToInput(restoredInput, followUpFilter)
+        }
+        console.log(`[edit-intent:go_back] applied followUpFilter ${followUpFilter.field}=${followUpFilter.rawValue}(${followUpFilter.op}) after restore`)
+      }
+
       const undoResult = await runHybridRetrieval(
-        restoreResult.rebuiltInput,
-        restoreResult.remainingFilters.filter(filter => filter.op !== "skip"),
+        restoredInput,
+        restoredFilters.filter(filter => filter.op !== "skip"),
         0,
         null
       )
@@ -2950,9 +3282,9 @@ async function handleServeExplorationInner(
         paginationDto(undoResult.totalConsidered),
         undoDisplayPage.candidates,
         undoDisplayPage.evidenceMap,
-        restoreResult.rebuiltInput,
+        restoredInput,
         restoreResult.remainingHistory,
-        restoreResult.remainingFilters,
+        restoredFilters,
         restoreResult.undoTurnCount,
         messages,
         provider,

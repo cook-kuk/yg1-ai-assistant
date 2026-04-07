@@ -15,7 +15,7 @@ import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
 import type { ExplorationSessionState, CandidateSnapshot } from "@/lib/types/exploration"
 import type { NarrowingIntent, AmbiguityResolution } from "./types"
 
-const AMBIGUITY_RESOLVER_MODEL = resolveModel("opus", "ambiguity-resolver")
+const AMBIGUITY_RESOLVER_MODEL = resolveModel("sonnet", "ambiguity-resolver")
 
 /**
  * Escalation threshold — when to invoke Opus instead of handling deterministically.

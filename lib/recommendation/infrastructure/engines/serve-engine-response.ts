@@ -878,8 +878,8 @@ export async function buildRecommendationResponse(
   const warnings = primary ? buildWarnings(primary, input) : ["조건에 맞는 제품을 찾지 못했습니다"]
   const rationale = primary ? buildRationale(primary, input) : []
 
-  if (form.material.status === "unknown") warnings.push("소재 미지정 — 전체 소재 대상 검색")
-  if (form.diameterInfo.status === "unknown") warnings.push("직경 미지정 — 직경 기준 필터 없음")
+  if (form.material?.status === "unknown") warnings.push("소재 미지정 — 전체 소재 대상 검색")
+  if (form.diameterInfo?.status === "unknown") warnings.push("직경 미지정 — 직경 기준 필터 없음")
 
   const deterministicSummary = buildDeterministicSummary({
     status,

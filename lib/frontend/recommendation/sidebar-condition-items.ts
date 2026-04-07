@@ -82,6 +82,10 @@ function getFilterFieldLabel(field: string, language: "ko" | "en"): string {
     case "diameterRefine":
     case "diameterMm":
       return language === "ko" ? "직경" : "Diameter"
+    case "brand":
+      return language === "ko" ? "브랜드" : "Brand"
+    case "toolMaterial":
+      return language === "ko" ? "공구 소재" : "Tool Material"
     default:
       return localizeIntakeText(field, language)
   }
@@ -104,6 +108,10 @@ function getFilterFieldEmoji(field: string): string {
     case "diameterRefine":
     case "diameterMm":
       return "📏"
+    case "brand":
+      return "🏭"
+    case "toolMaterial":
+      return "🔧"
     default:
       return "🏷️"
   }

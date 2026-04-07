@@ -14,7 +14,7 @@ import { resolveModel, type LLMProvider } from "@/lib/recommendation/infrastruct
 import type { CandidateSnapshot, ExplorationSessionState } from "@/lib/recommendation/domain/types"
 import type { NarrowingIntent, AmbiguityResolution } from "./types"
 
-const AMBIGUITY_RESOLVER_MODEL = resolveModel("opus", "ambiguity-resolver")
+const AMBIGUITY_RESOLVER_MODEL = resolveModel("sonnet", "ambiguity-resolver")
 
 /**
  * Escalation threshold — when to invoke Opus instead of handling deterministically.

@@ -516,6 +516,12 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     },
     setInput: (input, filter) => ({ ...input, workPieceName: joinedFilterStringValue(filter) }),
     clearInput: input => ({ ...input, workPieceName: undefined }),
+    matches: (record, _filter) => {
+      // DB에서 workpiece_name_matched 플래그로 판별: 해당 시리즈가 요청 피삭재를 지원하는지
+      // workpieceMatched가 없는 경우(DB 미조회) → 통과시킴 (false negative 방지)
+      if (record.workpieceMatched === undefined) return true
+      return record.workpieceMatched === true
+    },
   },
   fluteCount: {
     field: "fluteCount",
@@ -752,6 +758,26 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
       next,
       0.5
     ),
+  },
+  shankType: {
+    field: "shankType",
+    label: "생크 타입",
+    queryAliases: ["생크 타입", "싱크 타입", "shank type"],
+    kind: "text",
+    op: "eq",
+    setInput: (input, filter) => input, // shankType은 RecommendationInput에 없으므로 pass-through
+    clearInput: input => input,
+    extractValues: record => extractPrimitiveValues(record, "shank_type"),
+    matches: (record, filter) => {
+      const val = String((record as Record<string, unknown>).shank_type ?? "").toLowerCase()
+      const target = String(filter.rawValue ?? filter.value).toLowerCase()
+      if (filter.op === "neq") return !val.includes(target)
+      return val.includes(target)
+    },
+    buildDbClause: (filter, next) => {
+      const target = String(filter.rawValue ?? filter.value).toLowerCase()
+      return `LOWER(COALESCE(shank_type, '')) LIKE ${next("%" + target + "%")}`
+    },
   },
   lengthOfCutMm: {
     field: "lengthOfCutMm",
@@ -1152,14 +1178,71 @@ export function buildDbWhereClauseForFilter(
   // skip 필터는 DB 쿼리에서 제외 — "상관없음"으로 WHERE 걸리면 0건
   if (filter.op === "skip") return null
 
+  // SQL Agent rawSqlField → whitelist + 스키마 검증 후 직접 WHERE절 생성
+  // rawSqlField는 임시 브릿지: 장기적으로 QuerySpec + Compiler로 대체 예정
+  if (filter.rawSqlField) {
+    const ALLOWED_RAW_SQL_COLUMNS = new Set([
+      "edp_brand_name",
+      "edp_series_name",
+      "search_subtype",
+      "search_coating",
+      "search_diameter_mm",
+      "search_flute_count",
+      "shank_type",
+      "search_helix_angle",
+    ])
+    // numeric 비교(gte/lte/between)는 numeric-safe 컬럼에서만 허용
+    const NUMERIC_SAFE_COLUMNS = new Set([
+      "search_diameter_mm",
+      "search_flute_count",
+      "search_helix_angle",
+    ])
+    if (!ALLOWED_RAW_SQL_COLUMNS.has(filter.rawSqlField)) return null
+
+    const op = filter.rawSqlOp
+    const isNumericOp = op === "gte" || op === "lte" || op === "between"
+    if (isNumericOp && !NUMERIC_SAFE_COLUMNS.has(filter.rawSqlField)) return null
+
+    switch (op) {
+      case "eq": return `${filter.rawSqlField} = ${next(filter.rawValue)}`
+      case "neq": return `${filter.rawSqlField} != ${next(filter.rawValue)}`
+      case "like": return `LOWER(COALESCE(${filter.rawSqlField}, '')) LIKE ${next("%" + String(filter.rawValue).toLowerCase() + "%")}`
+      case "gte": return `${filter.rawSqlField} >= ${next(filter.rawValue)}`
+      case "lte": return `${filter.rawSqlField} <= ${next(filter.rawValue)}`
+      default: return null
+    }
+  }
+
   // NEQ 필터: 해당 값을 가진 제품만 제외 (NULL/빈값은 포함)
   if (filter.op === "neq") {
     const definition = getFilterFieldDefinition(filter.field)
     if (!definition?.buildDbClause) return null
     const eqClause = definition.buildDbClause({ ...filter, op: "eq" }, next)
     if (!eqClause) return null
-    // NOT (match) but keep rows where the column is NULL/empty (COALESCE handles this)
     return `NOT (${eqClause})`
+  }
+
+  // Range ops (Phase 2): gte/lte/between → numeric 필드에서만 허용
+  if (filter.op === "gte" || filter.op === "lte" || filter.op === "between") {
+    const definition = getFilterFieldDefinition(filter.field)
+    if (!definition || definition.kind !== "number") return null
+    // buildDbClause에서 eq 기준 컬럼을 추출하여 range로 변환
+    const eqClause = definition.buildDbClause({ ...filter, op: "eq" }, next)
+    if (!eqClause) return null
+    // eq clause에서 컬럼 표현식을 추출 (COALESCE(...) = $N 패턴)
+    // 대신 rawValue를 직접 사용하여 range clause 생성
+    const numVal = Number(filter.rawValue)
+    if (isNaN(numVal)) return null
+    // numeric 필드의 DB 컬럼 추출: eq clause의 "= $N" 앞부분
+    const colExpr = eqClause.replace(/\s*=\s*\$\d+\s*$/, "").trim()
+    if (!colExpr || colExpr === eqClause) return null // 파싱 실패 → fallback to eq
+
+    if (filter.op === "gte") return `${colExpr} >= ${next(numVal)}`
+    if (filter.op === "lte") return `${colExpr} <= ${next(numVal)}`
+    if (filter.op === "between") {
+      const numVal2 = Number((filter as any).rawValue2 ?? filter.rawValue)
+      return `${colExpr} BETWEEN ${next(numVal)} AND ${next(numVal2)}`
+    }
   }
 
   const definition = getFilterFieldDefinition(filter.field)
