@@ -383,6 +383,28 @@ function buildNumericEqualityClause(
   const rawValues = extractNumericFilterRawValues(filter)
   if (rawValues.length === 0) return null
   const numericExpr = firstNumberFromColumns(columns)
+
+  // Range ops: gte / lte / between are handled here so each numeric field
+  // automatically supports range filters without needing to know columns
+  // outside this helper. (Previously a separate range handler in
+  // buildDbWhereClauseForFilter tried to regex-parse the eq clause to extract
+  // the column expression — that silently failed because the eq clause uses
+  // ABS(expr - $) <= tol, not `col = $N`.)
+  if (filter.op === "gte" || filter.op === "lte") {
+    const numVal = Number(rawValues[0])
+    if (!Number.isFinite(numVal)) return null
+    const param = next(numVal)
+    const cmp = filter.op === "gte" ? ">=" : "<="
+    return `${numericExpr} IS NOT NULL AND ${numericExpr} ${cmp} ${param}`
+  }
+  if (filter.op === "between") {
+    const lo = Number(rawValues[0])
+    const hi = Number((filter as { rawValue2?: unknown }).rawValue2 ?? rawValues[1] ?? rawValues[0])
+    if (!Number.isFinite(lo) || !Number.isFinite(hi)) return null
+    const [lowVal, highVal] = lo <= hi ? [lo, hi] : [hi, lo]
+    return `${numericExpr} IS NOT NULL AND ${numericExpr} BETWEEN ${next(lowVal)} AND ${next(highVal)}`
+  }
+
   const clauses = rawValues.map(raw => {
     const param = next(raw)
     if (tolerance <= 0) {
@@ -1222,27 +1244,13 @@ export function buildDbWhereClauseForFilter(
     return `NOT (${eqClause})`
   }
 
-  // Range ops (Phase 2): gte/lte/between → numeric 필드에서만 허용
+  // Range ops (gte/lte/between): numeric 필드만 허용. buildNumericEqualityClause
+  // 가 filter.op를 직접 보고 range SQL을 만들어주므로 그대로 위임한다.
   if (filter.op === "gte" || filter.op === "lte" || filter.op === "between") {
     const definition = getFilterFieldDefinition(filter.field)
     if (!definition || definition.kind !== "number") return null
-    // buildDbClause에서 eq 기준 컬럼을 추출하여 range로 변환
-    const eqClause = definition.buildDbClause({ ...filter, op: "eq" }, next)
-    if (!eqClause) return null
-    // eq clause에서 컬럼 표현식을 추출 (COALESCE(...) = $N 패턴)
-    // 대신 rawValue를 직접 사용하여 range clause 생성
-    const numVal = Number(filter.rawValue)
-    if (isNaN(numVal)) return null
-    // numeric 필드의 DB 컬럼 추출: eq clause의 "= $N" 앞부분
-    const colExpr = eqClause.replace(/\s*=\s*\$\d+\s*$/, "").trim()
-    if (!colExpr || colExpr === eqClause) return null // 파싱 실패 → fallback to eq
-
-    if (filter.op === "gte") return `${colExpr} >= ${next(numVal)}`
-    if (filter.op === "lte") return `${colExpr} <= ${next(numVal)}`
-    if (filter.op === "between") {
-      const numVal2 = Number((filter as any).rawValue2 ?? filter.rawValue)
-      return `${colExpr} BETWEEN ${next(numVal)} AND ${next(numVal2)}`
-    }
+    if (!definition.buildDbClause) return null
+    return definition.buildDbClause(filter, next)
   }
 
   const definition = getFilterFieldDefinition(filter.field)
