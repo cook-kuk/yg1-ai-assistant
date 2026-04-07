@@ -307,7 +307,26 @@ export function extractEntities(message: string): Array<{ field: string; value: 
   }
 
   // Numeric pattern matching
-  for (const np of NUMERIC_PATTERNS) {
+  // Guard: if message mentions a length/shank/helix keyword, the bare "<num>mm"
+  // diameter fallback is too greedy ("전체 길이 100mm" was matching diameter=100).
+  // Run length-specific fields first; only run diameter fallback when no other
+  // length-context word is present.
+  const hasLengthContext = /(?:전장|전체\s*길이|총\s*길이|날장|절삭\s*길이|생크|샹크|shank|oal|loc|헬릭스|나선각|helix)/i.test(message)
+  const orderedPatterns = hasLengthContext
+    ? [
+        // length-specific fields first
+        ...NUMERIC_PATTERNS.filter(np => np.field !== "diameterMm"),
+        // diameter only via explicit keyword patterns (skip bare-mm fallback)
+        {
+          field: "diameterMm",
+          patterns: [
+            /(?:직경|지름|파이|φ|Φ|ø|dia(?:meter)?)\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
+          ],
+          extract: (m: RegExpMatchArray) => parseFloat(m[1]),
+        },
+      ]
+    : NUMERIC_PATTERNS
+  for (const np of orderedPatterns) {
     for (const pattern of np.patterns) {
       const match = message.match(pattern)
       if (match) {
