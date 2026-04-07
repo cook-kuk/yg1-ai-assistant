@@ -26,9 +26,11 @@ export interface SingleCallAction {
     | "go_back"
   field?: string
   value?: string | number
+  /** Second value for between op (range upper bound) */
+  value2?: string | number
   from?: string
   to?: string
-  op?: "eq" | "neq" | "in" | "range"
+  op?: "eq" | "neq" | "in" | "range" | "gte" | "lte" | "between"
   targets?: string[]
   message?: string
   /** Set when canonicalization failed — runtime should fall back to legacy */
@@ -55,7 +57,7 @@ const VALID_ACTION_TYPES = new Set([
   "go_back",
 ])
 
-const VALID_OPS = new Set(["eq", "neq", "in", "range"])
+const VALID_OPS = new Set(["eq", "neq", "in", "range", "gte", "lte", "between"])
 
 export function validateAction(action: unknown): action is SingleCallAction {
   if (!action || typeof action !== "object") return false
@@ -176,7 +178,13 @@ Given the user's Korean message and the current session state, determine what ac
 {{SESSION_STATE}}
 
 ## Available Actions (return as JSON array)
-- apply_filter: Add a new filter. Requires field, value, op (eq|neq|in|range).
+- apply_filter: Add a new filter. Requires field, value, op.
+  Ops: eq (default, exact match), neq (exclude), gte (≥), lte (≤), between (range, requires value2 as upper bound).
+  Range cues in Korean → use gte/lte/between, NOT eq:
+    - "이상", "넘는", "초과", "그 이상" → op:"gte"
+    - "이하", "미만", "넘지 않는" → op:"lte"
+    - "A에서 B 사이", "A~B", "A에서 B까지" → op:"between" with value=A, value2=B
+  Range ops apply ONLY to numeric fields: diameterMm, fluteCount, lengthOfCutMm, overallLengthMm, helixAngleDeg, shankDiameterMm, ballRadiusMm, taperAngleDeg.
 - remove_filter: Remove an existing filter. Requires field.
 - replace_filter: Change an existing filter value. Requires field, from, to.
 - show_recommendation: User wants to see results now.
@@ -285,6 +293,27 @@ User: "비철 구리 Square 2날 Ø10"
 
 User: "10mm 4날 Square TiAlN 탄소강"
 → {"actions":[{"type":"apply_filter","field":"diameterMm","value":10,"op":"eq"},{"type":"apply_filter","field":"fluteCount","value":4,"op":"eq"},{"type":"apply_filter","field":"toolSubtype","value":"Square","op":"eq"},{"type":"apply_filter","field":"coating","value":"TiAlN","op":"eq"},{"type":"apply_filter","field":"workPieceName","value":"탄소강","op":"eq"}],"answer":"","reasoning":"5 filters from single message"}
+
+User: "전체 길이 100mm 이상인 것만"
+→ {"actions":[{"type":"apply_filter","field":"overallLengthMm","value":100,"op":"gte"}],"answer":"","reasoning":"OAL ≥ 100mm"}
+
+User: "전장 80mm 이하 짧은 거"
+→ {"actions":[{"type":"apply_filter","field":"overallLengthMm","value":80,"op":"lte"}],"answer":"","reasoning":"OAL ≤ 80mm"}
+
+User: "날수 5개 이상"
+→ {"actions":[{"type":"apply_filter","field":"fluteCount","value":5,"op":"gte"}],"answer":"","reasoning":"flute count ≥ 5"}
+
+User: "헬릭스 각도 45도 이상"
+→ {"actions":[{"type":"apply_filter","field":"helixAngleDeg","value":45,"op":"gte"}],"answer":"","reasoning":"helix angle ≥ 45"}
+
+User: "샹크 직경 6에서 10 사이"
+→ {"actions":[{"type":"apply_filter","field":"shankDiameterMm","value":6,"value2":10,"op":"between"}],"answer":"","reasoning":"shank diameter range 6-10mm"}
+
+User: "절삭 길이(날장) 20mm 이상"
+→ {"actions":[{"type":"apply_filter","field":"lengthOfCutMm","value":20,"op":"gte"}],"answer":"","reasoning":"length of cut ≥ 20mm"}
+
+User: "직경 8mm 이상 12mm 이하 제품만 보여줘"
+→ {"actions":[{"type":"apply_filter","field":"diameterMm","value":8,"value2":12,"op":"between"}],"answer":"","reasoning":"diameter range 8-12mm"}
 
 User: "알루파워라는 브랜드는 왜 추천해주지 않나요?" (question about missing brand)
 → {"actions":[],"answer":"알루파워(ALU-POWER) 시리즈가 후보에 포함되어 있는지 확인하겠습니다.","reasoning":"question about brand, no filter change"}
@@ -461,9 +490,20 @@ export async function routeSingleCall(
     const canonicalizedActions: SingleCallAction[] = []
     for (const action of result.actions) {
       if (action.type === "apply_filter" && action.field && action.value != null) {
-        const filter = buildAppliedFilterFromValue(action.field, action.value)
+        // For between, pass [lo, hi] as array so registry stores rawValue as array.
+        const isBetween = action.op === "between" && action.value2 != null
+        const inputValue: string | number | Array<string | number> = isBetween
+          ? [action.value, action.value2 as string | number]
+          : action.value
+        const filter = buildAppliedFilterFromValue(action.field, inputValue, 0, action.op)
         if (filter) {
-          canonicalizedActions.push({ ...action, field: filter.field, value: filter.rawValue as string | number })
+          canonicalizedActions.push({
+            ...action,
+            field: filter.field,
+            value: Array.isArray(filter.rawValue) ? (filter.rawValue[0] as string | number) : (filter.rawValue as string | number),
+            value2: Array.isArray(filter.rawValue) ? (filter.rawValue[1] as string | number) : action.value2,
+            op: action.op,
+          })
         } else {
           console.warn(`[single-call-router] canonicalize failed: field=${action.field} value=${action.value}, passing through with _canonFailed`)
           canonicalizedActions.push({ ...action, _canonFailed: true })

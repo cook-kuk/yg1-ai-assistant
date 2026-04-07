@@ -2114,7 +2114,12 @@ async function handleServeExplorationInner(
                 console.warn(`[SCR] apply_filter skipped — missing field or value`)
                 break
               }
-              const filter = buildAppliedFilterFromValue(action.field, action.value, turnCount)
+              // Range ops (gte/lte/between) need op override; between also needs value2.
+              const isBetween = action.op === "between" && action.value2 != null
+              const filterInputValue: string | number | Array<string | number> = isBetween
+                ? [action.value, action.value2 as string | number]
+                : action.value
+              const filter = buildAppliedFilterFromValue(action.field, filterInputValue, turnCount, action.op)
               if (filter) {
                 // Remove existing skip filter for same field before applying
                 const skipIdx = filters.findIndex(f => f.field === filter.field && f.op === "skip")
