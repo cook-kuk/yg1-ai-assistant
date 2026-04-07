@@ -29,7 +29,7 @@ describe("recommendation card highlights", () => {
       lengthOfCutMm: 20,
       overallLengthMm: 100,
       helixAngleDeg: 45,
-    }, "ko")).toEqual(["형상 Square", "Carbide", "Shank 8mm", "CL 20mm", "OAL 100mm", "45°"])
+    }, "ko")).toEqual(["형상 Square", "날장 20mm", "Carbide", "Shank 8mm", "OAL 100mm", "45°"])
   })
 
   it("falls back to diameter, flute, and coating summary", () => {

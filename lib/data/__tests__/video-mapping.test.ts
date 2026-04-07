@@ -59,15 +59,16 @@ describe("findVideosForProduct", () => {
   })
 
   // ── Series-based matching ──
-  it("matches X5070 video via seriesName containing 'G8A' prefix (en)", () => {
-    const results = findVideosForProduct("G8A59", null, null, "en")
+  // 2026-04-07 cross-link fix: 시리즈 substring 매칭 최소 길이 5 — 짧은 prefix는
+  // brand 매칭 경로로 보장. 아래 테스트들은 brand를 함께 전달한다.
+  it("matches X5070 video via brand='X5070' + seriesName (en)", () => {
+    const results = findVideosForProduct("G8A59", null, "X5070", "en")
     const urls = results.map(v => v.url)
-    // keyword "g8a" is in X5070 entry; seriesNorm "g8a59" includes "g8a"
     expect(urls).toContain("https://youtu.be/bTJB0cxpILE")
   })
 
-  it("matches Dream Drill via seriesName='DGE510' (en)", () => {
-    const results = findVideosForProduct("DGE510", null, null, "en")
+  it("matches Dream Drill via brand='Dream Drill' (en)", () => {
+    const results = findVideosForProduct("DGE510", null, "Dream Drill", "en")
     expect(results.length).toBeGreaterThanOrEqual(1)
     const titles = results.map(v => v.title)
     expect(titles.some(t => t.toLowerCase().includes("dream"))).toBe(true)
@@ -182,8 +183,8 @@ describe("findVideosForProduct", () => {
     expect(results.length).toBeGreaterThanOrEqual(1)
   })
 
-  it("matches case-insensitively on seriesName (dge510 lowercase)", () => {
-    const results = findVideosForProduct("dge510", null, null, "en")
+  it("matches case-insensitively on brand (dream drill lowercase)", () => {
+    const results = findVideosForProduct("dge510", null, "dream drill", "en")
     expect(results.length).toBeGreaterThanOrEqual(1)
   })
 
@@ -194,19 +195,19 @@ describe("findVideosForProduct", () => {
   })
 
   // ── i-Xmill matching ──
-  it("matches i-Xmill via series prefix XB1 (en)", () => {
-    const results = findVideosForProduct("XB1200", null, null, "en")
+  it("matches i-Xmill via brand='i-Xmill' (en)", () => {
+    const results = findVideosForProduct("XB1200", null, "i-Xmill", "en")
     expect(results.some(v => v.title.toLowerCase().includes("xmill"))).toBe(true)
   })
 
-  it("matches i-Xmill via series prefix XMB (en)", () => {
-    const results = findVideosForProduct("XMB300", null, null, "en")
+  it("matches i-Xmill via brand='i-Xmill' XMB series (en)", () => {
+    const results = findVideosForProduct("XMB300", null, "i-Xmill", "en")
     expect(results.some(v => v.title.toLowerCase().includes("xmill"))).toBe(true)
   })
 
   // ── ONLY ONE matching ──
-  it("matches ONLY ONE via series prefix GYF (en)", () => {
-    const results = findVideosForProduct("GYF400", null, null, "en")
+  it("matches ONLY ONE via brand='ONLY ONE' (en)", () => {
+    const results = findVideosForProduct("GYF400", null, "ONLY ONE", "en")
     expect(results.some(v => v.title.includes("ONLY ONE"))).toBe(true)
   })
 
@@ -217,8 +218,8 @@ describe("findVideosForProduct", () => {
   })
 
   // ── Thread Mill matching ──
-  it("matches Thread Mill via series L111 (en)", () => {
-    const results = findVideosForProduct("L111200", null, null, "en")
+  it("matches Thread Mill via brand='Thread Mill' (en)", () => {
+    const results = findVideosForProduct("L111200", null, "Thread Mill", "en")
     expect(results.some(v => v.title.includes("THREAD"))).toBe(true)
   })
 
@@ -229,8 +230,8 @@ describe("findVideosForProduct", () => {
   })
 
   // ── Dream Drill flat bottom ──
-  it("matches flat bottom drill via series DH3 (en)", () => {
-    const results = findVideosForProduct("DH3100", null, null, "en")
+  it("matches flat bottom drill via brand='flat bottom' (en)", () => {
+    const results = findVideosForProduct("DH3100", null, "flat bottom drill", "en")
     expect(results.some(v => v.title.toLowerCase().includes("flat bottom"))).toBe(true)
   })
 
@@ -255,8 +256,8 @@ describe("findVideosForProduct", () => {
   })
 
   // ── CFRP matching ──
-  it("matches CFRP drill via keyword (en)", () => {
-    const results = findVideosForProduct("RTI500", null, null, "en")
+  it("matches CFRP drill via brand='CFRP Drill' (en)", () => {
+    const results = findVideosForProduct("RTI500", null, "CFRP Drill", "en")
     expect(results.some(v => v.title.toLowerCase().includes("cfrp"))).toBe(true)
   })
 
@@ -293,8 +294,8 @@ describe("findVideosForProduct", () => {
   })
 
   // ── Synchro tap ──
-  it("matches synchro tap via series TKS (en)", () => {
-    const results = findVideosForProduct("TKS500", null, null, "en")
+  it("matches synchro tap via brand='Synchro Taps' (en)", () => {
+    const results = findVideosForProduct("TKS500", null, "Synchro Taps", "en")
     expect(results.some(v => v.title.includes("SYNCHRO"))).toBe(true)
   })
 
