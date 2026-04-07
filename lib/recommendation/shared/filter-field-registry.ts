@@ -415,6 +415,32 @@ function buildNumericEqualityClause(
   return clauses.length === 1 ? clauses[0] : `(${clauses.join(" OR ")})`
 }
 
+/**
+ * Boolean-as-text columns (Y/N/Yes/No/Coolant/Through/Null).
+ * filter.value: true  → any column matches truthy text
+ *               false → all present columns are falsy (or all null)
+ * Uses COALESCE(LOWER(col),'') IN (...) for cross-DB safety.
+ */
+function buildBooleanStringClause(
+  columns: string[],
+  filter: AppliedFilter,
+): string | null {
+  const wants = extractBooleanFilterRawValues(filter)
+  if (wants.length === 0 || columns.length === 0) return null
+  const want = wants[0]
+  const TRUE_SET = "('y','yes','true','1','coolant','through')"
+  const FALSE_SET = "('n','no','false','0')"
+  const set = want ? TRUE_SET : FALSE_SET
+  const perColumn = columns.map(col =>
+    `LOWER(COALESCE(CAST(${col} AS text), '')) IN ${set}`
+  )
+  // true: ANY column truthy → OR
+  // false: EVERY non-null column falsy → AND (NULL treated as unknown-excluded)
+  return want
+    ? `(${perColumn.join(" OR ")})`
+    : `(${perColumn.join(" AND ")})`
+}
+
 function extractPrimitiveValues(record: FilterRecord, key: string): Array<string | number | boolean> {
   const source = unwrapRecord(record)
   const value = source[key]
@@ -901,6 +927,10 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     clearInput: input => ({ ...input, coolantHole: undefined }),
     extractValues: record => extractPrimitiveValues(record, "coolantHole"),
     matches: (record, filter) => booleanMatch(record, filter, "coolantHole"),
+    buildDbClause: (filter) => buildBooleanStringClause(
+      ["milling_coolant_hole", "holemaking_coolant_hole", "threading_coolant_hole", "option_coolanthole"],
+      filter,
+    ),
   },
   stockStatus: {
     field: "stockStatus",
