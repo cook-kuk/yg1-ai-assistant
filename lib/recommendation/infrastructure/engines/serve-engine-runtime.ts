@@ -1810,6 +1810,25 @@ async function handleServeExplorationInner(
         const decision = decidePlannerOverride(spec, shadowFilters, filters, !!kgHandled, !!sqlAgentHandled)
 
         let plannerApplied = false
+        // Phase 2: semantic loss correction — KG가 eq로 뭉갠 range를 planner가 보정
+        const isSemanticLossCorrection = ENABLE_PLANNER_DECISION
+          && decision.winner === "planner"
+          && singleCallHandled
+          && spec.constraints.length === 1
+          && ["gte", "lte", "between"].includes(spec.constraints[0].op)
+          && shadowFilters.length > 0
+          && filters.some(f => f.field === shadowFilters[0]?.field && f.op === "eq")
+        if (isSemanticLossCorrection) {
+          // 기존 eq 필터를 planner의 range 필터로 교체
+          const sf = shadowFilters[0]
+          const eqIdx = filters.findIndex(f => f.field === sf.field && f.op === "eq")
+          if (eqIdx >= 0) {
+            filters[eqIdx] = sf
+            currentInput = rebuildResolvedInputFromFilters(form, filters, deps)
+            plannerApplied = true
+            console.log(`[planner-decision] semantic-loss-correction: ${sf.field} eq→${sf.op} ${sf.rawValue}${sf.rawValue2 ? `~${sf.rawValue2}` : ""}`)
+          }
+        }
         if (ENABLE_PLANNER_DECISION && decision.winner === "planner" && !singleCallHandled) {
           // Navigation override
           if (spec.constraints.length === 0 && spec.navigation !== "none") {
