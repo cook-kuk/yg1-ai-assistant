@@ -22,10 +22,15 @@ const MAX_LOG_SIZE_MB = 50
  * 동일 패턴 집계용 키 생성.
  * 같은 의미의 다른 표현을 묶기 위해 field+op+value 조합으로 만듦.
  */
+/** range ops는 value 무시 — "직경 10 이상"과 "직경 8 이상"을 같은 그룹으로 */
+const RANGE_OPS = new Set(["gte", "lte", "between"])
+
 function buildGroupKey(constraints: PatternMiningConstraint[]): string {
   if (constraints.length === 0) return "_empty"
   return constraints
-    .map(c => `${c.field}:${c.op}:${String(c.value).toLowerCase()}`)
+    .map(c => RANGE_OPS.has(c.op)
+      ? `${c.field}:${c.op}`
+      : `${c.field}:${c.op}:${String(c.value).toLowerCase()}`)
     .sort()
     .join("|")
 }

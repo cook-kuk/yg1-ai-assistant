@@ -28,6 +28,10 @@ const MIN_SUPPORT_COUNT = 3
 const MIN_CONSISTENCY = 0.8
 /** KG 승격 금지 op 목록 */
 const NON_PROMOTABLE_OPS = new Set(["gte", "lte", "between"])
+/** 숫자 성격 필드 — alias 후보에서 제외 */
+const NUMERIC_FIELDS = new Set(["diameterMm", "fluteCount", "shankDiameterMm", "lengthOfCutMm", "overallLengthMm", "helixAngleDeg"])
+/** range ops — groupKey에서 value 무시 */
+const RANGE_OPS = new Set(["gte", "lte", "between"])
 
 // ── Pattern Candidate Miner ─────────────────────────────────
 
@@ -56,10 +60,13 @@ export async function minePatternCandidates(): Promise<PatternCandidate[]> {
   )
 
   // Step 2: planner constraint 기준으로 그룹핑
+  // range ops는 value 무시 → 같은 field:op끼리 묶어서 support 집계
   const groups = new Map<string, GroupedPattern>()
   for (const log of plannerOnlyLogs) {
     for (const c of log.planner.constraints) {
-      const key = `${c.field}:${c.op}:${String(c.value).toLowerCase()}`
+      const key = RANGE_OPS.has(c.op)
+        ? `${c.field}:${c.op}`
+        : `${c.field}:${c.op}:${String(c.value).toLowerCase()}`
       const existing = groups.get(key)
       if (existing) {
         existing.inputs.push(log.normalizedText)
@@ -83,7 +90,9 @@ export async function minePatternCandidates(): Promise<PatternCandidate[]> {
   for (const log of logs) {
     if (log.production.handled) {
       for (const c of log.production.constraints) {
-        const key = `${c.field}:${c.op}:${String(c.value).toLowerCase()}`
+        const key = RANGE_OPS.has(c.op)
+          ? `${c.field}:${c.op}`
+          : `${c.field}:${c.op}:${String(c.value).toLowerCase()}`
         const group = groups.get(key)
         if (group) group.total++
       }
@@ -158,6 +167,8 @@ export async function mineAliasCandidates(): Promise<AliasCandidate[]> {
       : log.production.constraints
 
     for (const c of constraints) {
+      // 숫자 필드는 alias 후보 대상 아님
+      if (NUMERIC_FIELDS.has(c.field)) continue
       const key = `${c.field}:${String(c.value).toLowerCase()}`
       const existing = valueInputs.get(key)
       if (existing) {
