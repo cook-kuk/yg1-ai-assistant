@@ -2783,6 +2783,25 @@ async function handleServeExplorationInner(
     candidates = hybridResult.candidates
     evidenceMap = hybridResult.evidenceMap
     totalCandidateCount = hybridResult.totalConsidered
+
+    // ── Knowledge fallback ──
+    // DB에 일부 시리즈(SUPER ALLOY, TITANOX, X-POWER 등)가 누락돼 0건이 나오는 경우,
+    // data/series-knowledge.json (PDF에서 추출한 2134 시리즈)에서 매칭을 시도한다.
+    // 평소 경로에는 영향 없음 — DB가 ≥1건이면 이 블록은 실행되지 않는다.
+    if (candidates.length === 0) {
+      try {
+        const { searchKnowledgeFallback } = await import("@/lib/recommendation/infrastructure/knowledge/knowledge-fallback")
+        const kbCandidates = searchKnowledgeFallback(resolvedInput, filters)
+        if (kbCandidates.length > 0) {
+          candidates = kbCandidates
+          totalCandidateCount = kbCandidates.length
+          console.log(`[recommend] Knowledge fallback engaged: ${kbCandidates.length} series from catalog JSON`)
+        }
+      } catch (kbErr) {
+        console.warn(`[recommend] Knowledge fallback error:`, (kbErr as Error).message)
+      }
+    }
+
     const displayPage = sliceCandidatesForPage(candidates, evidenceMap, resolvedPagination)
     displayCandidates = displayPage.candidates
     displayEvidenceMap = displayPage.evidenceMap
