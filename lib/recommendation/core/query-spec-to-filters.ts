@@ -28,6 +28,11 @@ const QUERY_FIELD_TO_FILTER_FIELD: Record<QueryField, string> = {
   operationShape: "operationShape",
   shankType: "shankType",
   country: "country",
+  overallLengthMm: "overallLengthMm",
+  lengthOfCutMm: "lengthOfCutMm",
+  shankDiameterMm: "shankDiameterMm",
+  helixAngleDeg: "helixAngleDeg",
+  coolantHole: "coolantHole",
 }
 
 // ── QueryOp → AppliedFilter op mapping ──────────────────────

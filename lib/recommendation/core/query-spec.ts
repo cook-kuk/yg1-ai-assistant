@@ -32,6 +32,11 @@ export type QueryField =
   | "operationShape"   // 가공 형상: pocket, wall, ...
   | "shankType"        // 생크 타입: Plain, Weldon, HA, ...
   | "country"          // 생산국
+  | "overallLengthMm"  // 전장 OAL
+  | "lengthOfCutMm"    // 날장 LOC / CL
+  | "shankDiameterMm"  // 샹크 직경
+  | "helixAngleDeg"    // 헬릭스 각도
+  | "coolantHole"      // 쿨런트홀 (boolean)
 
 // ── Operators ────────────────────────────────────────────────
 

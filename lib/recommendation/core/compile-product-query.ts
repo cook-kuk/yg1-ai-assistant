@@ -27,7 +27,8 @@ interface ColumnMapping {
   semantic?: "workpiece"
 }
 
-const FIELD_TO_COLUMN: Record<QueryField, ColumnMapping> = {
+// Partial: 미지원 필드는 caller가 dropReason="unknown field"로 처리
+const FIELD_TO_COLUMN: Partial<Record<QueryField, ColumnMapping>> = {
   materialGroup:   { column: "material_group", type: "text" },
   workpiece:       { column: "work_piece_name", type: "text", semantic: "workpiece" },
   toolFamily:      { column: "edp_root_category", type: "text" },
@@ -41,6 +42,11 @@ const FIELD_TO_COLUMN: Record<QueryField, ColumnMapping> = {
   operationShape:  { column: "milling_cutter_shape", type: "text" },
   shankType:       { column: "shank_type", type: "text" },
   country:         { column: "country", type: "text" },
+  overallLengthMm: { column: "option_overall_length", type: "numeric" },
+  lengthOfCutMm:   { column: "option_loc", type: "numeric" },
+  shankDiameterMm: { column: "option_shank_diameter", type: "numeric" },
+  helixAngleDeg:   { column: "milling_helix_angle", type: "numeric" },
+  // coolantHole: boolean — compile-product-query는 text/numeric만 지원, registry path로 위임
 }
 
 // ── Core Compiler ───────────────────────────────────────────
