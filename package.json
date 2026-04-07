@@ -16,7 +16,10 @@
     "test:all": "vitest run && node scripts/test-multiturn-all.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "benchmark:turns": "node scripts/benchmark-turns.mjs"
+    "benchmark:turns": "node scripts/benchmark-turns.mjs",
+    "metrics:update": "node scripts/update-readme-metrics.js",
+    "hooks:install": "node scripts/install-git-hooks.js",
+    "premerge": "node scripts/update-readme-metrics.js && git add README.md reports/latest-metrics.xlsx"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

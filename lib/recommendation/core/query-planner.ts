@@ -60,6 +60,14 @@ const VALID_FIELDS = new Set<string>([
   "materialGroup", "workpiece", "toolFamily", "toolSubtype", "diameterMm",
   "fluteCount", "coating", "brand", "seriesName", "operationType",
   "operationShape", "shankType", "country",
+  // Numeric range-capable fields (must match QUERY_FIELD_MANIFEST entries)
+  "overallLengthMm", "lengthOfCutMm", "shankDiameterMm", "helixAngleDeg", "coolantHole",
+])
+
+// Numeric fields that should coerce eq/neq/gte/lte values to Number.
+const NUMERIC_FIELDS = new Set<string>([
+  "diameterMm", "fluteCount", "overallLengthMm", "lengthOfCutMm",
+  "shankDiameterMm", "helixAngleDeg",
 ])
 
 const VALID_OPS = new Set<string>([
@@ -171,7 +179,7 @@ function validateConstraint(obj: Record<string, unknown>): QueryConstraint | nul
   let value: string | number | [number, number]
   if (op === "between" && Array.isArray(obj.value) && obj.value.length === 2) {
     value = [Number(obj.value[0]), Number(obj.value[1])]
-  } else if (["eq", "neq", "gte", "lte"].includes(op) && (field === "diameterMm" || field === "fluteCount")) {
+  } else if (["eq", "neq", "gte", "lte"].includes(op) && NUMERIC_FIELDS.has(field)) {
     const n = Number(obj.value)
     value = isNaN(n) ? String(obj.value ?? "") : n
   } else {
