@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto"
 import { Pool, type QueryResult, type QueryResultRow } from "pg"
 import { notifyDbQuery } from "@/lib/slack-notifier"
 import { appendRuntimeLog, logRuntimeError } from "@/lib/runtime-logger"
+import { isPrecisionMode } from "@/lib/recommendation/runtime-flags"
 import {
   traceRecommendation,
   traceRecommendationError,
@@ -729,9 +730,14 @@ export function buildQueryOptions(options: ProductSearchOptions): { where: strin
   }
 
   if (input?.diameterMm != null) {
-    const min = next(input.diameterMm - 2)
-    const max = next(input.diameterMm + 2)
-    where.push(`search_diameter_mm IS NOT NULL AND search_diameter_mm BETWEEN ${min} AND ${max}`)
+    if (isPrecisionMode()) {
+      const eq = next(input.diameterMm)
+      where.push(`search_diameter_mm = ${eq}`)
+    } else {
+      const min = next(input.diameterMm - 2)
+      const max = next(input.diameterMm + 2)
+      where.push(`search_diameter_mm IS NOT NULL AND search_diameter_mm BETWEEN ${min} AND ${max}`)
+    }
   }
 
   const materialTags = new Set<string>()

@@ -287,6 +287,32 @@ export async function handleRecommendationPost(req: Request): Promise<Response> 
   try {
     // 1. 요청 본문을 읽고
     const rawBody = await req.json()
+    // Precision mode opt-in: header `x-precision-match: 1` OR body.precisionMode === true.
+    // Used by test runners to get exact DB-count matching (skips diameter fuzzy ±2 + knowledge fallback).
+    const precisionMode = req.headers.get("x-precision-match") === "1"
+      || (rawBody && typeof rawBody === "object" && (rawBody as Record<string, unknown>).precisionMode === true)
+    const { runWithRuntimeFlags } = await import("@/lib/recommendation/runtime-flags")
+    return runWithRuntimeFlags({ precisionMode }, () => handleRecommendationPostInner(req, rawBody))
+  } catch (err) {
+    traceRecommendationError("http.handleRecommendationPost:error", err)
+    console.error("[recommend] Error:", err)
+    return jsonRecommendationResponse({
+      error: "internal_error",
+      detail: err instanceof Error ? err.message : "Unknown error",
+      text: "죄송합니다, 처리 중 오류가 발생했습니다. 다시 시도해주세요.",
+      purpose: "question",
+      chips: ["처음부터 다시", "소재 입력", "직경 입력"],
+      isComplete: false,
+      recommendation: null,
+      sessionState: null,
+      evidenceSummaries: null,
+      candidateSnapshot: null,
+    }, { status: 500 })
+  }
+}
+
+async function handleRecommendationPostInner(req: Request, rawBody: unknown): Promise<Response> {
+  try {
     traceRecommendation("http.handleRecommendationPost:input", {
       method: "POST",
       url: req.url,
