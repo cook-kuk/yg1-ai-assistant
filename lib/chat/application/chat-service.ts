@@ -41,7 +41,12 @@ export interface ChatServiceResult {
 
 import type { ChatProductDto } from "@/lib/contracts/chat"
 
-const MAX_TOOL_ROUNDS = 5
+// Cap LLM tool rounds. Each round = full Anthropic call with growing message
+// history (~10-15s on Sonnet). 5 rounds × 15s = 75s — pushed comparison /
+// explanation queries (PUB-062 etc.) past the 60s timeout. Pre-search + cache
+// already gives the LLM plenty of context, so 3 rounds is sufficient in
+// practice and caps worst-case at ~45s.
+const MAX_TOOL_ROUNDS = 3
 
 async function extractProductsFromToolResults(
   toolResults: { name: string; result: string }[],
