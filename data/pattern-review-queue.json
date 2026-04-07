@@ -1,6 +1,118 @@
 {
-  "pending": [],
+  "pending": [
+    {
+      "id": "pat_shankType_i915tw",
+      "candidateType": "regex-pattern",
+      "targetField": "shankType",
+      "targetValueExamples": [
+        "Weldon"
+      ],
+      "supportCount": 4,
+      "confidence": 1,
+      "risk": "low",
+      "exampleInputs": [
+        "shank type weldon",
+        "생크 타입 웰던",
+        "웰던 생크",
+        "싱크타입 웰던"
+      ],
+      "createdAt": "2026-04-07T00:24:30.169Z",
+      "lastSeenAt": "2026-04-07T00:24:30.169Z"
+    },
+    {
+      "id": "pat_diameterMm_j4pwr",
+      "candidateType": "do-not-promote",
+      "targetField": "diameterMm",
+      "targetValueExamples": [
+        "10"
+      ],
+      "supportCount": 4,
+      "confidence": 1,
+      "risk": "low",
+      "exampleInputs": [
+        "직경 10 이상",
+        "직경 12 이상으로",
+        "지름 8mm 이상",
+        "20mm 이상 짜리"
+      ],
+      "createdAt": "2026-04-07T00:24:30.169Z",
+      "lastSeenAt": "2026-04-07T00:24:30.169Z"
+    },
+    {
+      "id": "pat_fluteCount_h37zmb",
+      "candidateType": "do-not-promote",
+      "targetField": "fluteCount",
+      "targetValueExamples": [
+        "6"
+      ],
+      "supportCount": 3,
+      "confidence": 1,
+      "risk": "low",
+      "exampleInputs": [
+        "날수 6개 이상",
+        "3날 이상으로",
+        "4날 이상"
+      ],
+      "createdAt": "2026-04-07T00:24:30.169Z",
+      "lastSeenAt": "2026-04-07T00:24:30.169Z"
+    },
+    {
+      "id": "pat_brand_nc8r84",
+      "candidateType": "regex-pattern",
+      "targetField": "brand",
+      "targetValueExamples": [
+        "CRX-S"
+      ],
+      "supportCount": 3,
+      "confidence": 1,
+      "risk": "low",
+      "exampleInputs": [
+        "crx s 제품",
+        "crxs 시리즈",
+        "crx-s 보여줘"
+      ],
+      "createdAt": "2026-04-07T00:24:30.169Z",
+      "lastSeenAt": "2026-04-07T00:24:30.169Z"
+    },
+    {
+      "id": "pat_diameterMm_fe7puj",
+      "candidateType": "do-not-promote",
+      "targetField": "diameterMm",
+      "targetValueExamples": [
+        "8~12"
+      ],
+      "supportCount": 3,
+      "confidence": 1,
+      "risk": "low",
+      "exampleInputs": [
+        "직경 8에서 12 사이",
+        "10에서 20mm 사이 직경",
+        "diameter between 6 and 10"
+      ],
+      "createdAt": "2026-04-07T00:24:30.169Z",
+      "lastSeenAt": "2026-04-07T00:24:30.169Z"
+    },
+    {
+      "id": "alias_brand_12cf2n",
+      "candidateType": "alias",
+      "canonical": "CRX-S",
+      "aliases": [
+        "crx"
+      ],
+      "targetField": "brand",
+      "supportCount": 4,
+      "confidence": 0.7799999999999999,
+      "exampleInputs": [
+        "crx-s 추천해줘",
+        "crx s 제품",
+        "crxs 시리즈",
+        "crx-s 보여줘"
+      ],
+      "createdAt": "2026-04-07T00:24:30.172Z",
+      "lastSeenAt": "2026-04-07T00:24:30.172Z"
+    }
+  ],
   "approved": [],
   "rejected": [],
-  "lastUpdated": "2026-04-07T00:00:00.000Z"
+  "lastUpdated": "2026-04-07T00:24:30.198Z"
 }
