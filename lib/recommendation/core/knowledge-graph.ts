@@ -654,7 +654,7 @@ export function tryKGDecision(
   const entities = extractEntities(msg)
   if (entities.length > 0 && !COMPANY_PATTERNS.some(p => p.test(msg))) {
     // Negation check: "4날 말고", "TiAlN 빼고" 등 → op: "exclude"
-    const isNegation = /빼고|제외|아닌\s*것|없는\s*거|말고\s*다른|만\s*아니면|없이|아닌\s*거|없는\s*거로/u.test(msg)
+    const isNegation = /빼고|제외|아닌\s*것|아닌\s*걸|아닌걸|없는\s*거|말고\s*다른|만\s*아니면|없이|아닌\s*거|없는\s*거로|가\s*아닌|이\s*아닌/u.test(msg)
     const primary = entities[0]
     const extras = entities.slice(1)
     const filter: AppliedFilter = {
