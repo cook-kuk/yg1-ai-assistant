@@ -41,7 +41,12 @@ const FIELD_TO_COLUMN: Partial<Record<QueryField, ColumnMapping>> = {
   operationType:   { column: "series_application_shape", type: "text" },
   operationShape:  { column: "milling_cutter_shape", type: "text" },
   shankType:       { column: "shank_type", type: "text" },
-  country:         { column: "country", type: "text" },
+  // country: intentionally omitted — DB column is `country_codes` (text[]), not a scalar `country`.
+  //   This simple scalar compiler cannot emit the `country_codes && ARRAY[...]::text[]` clause
+  //   it would need, and routing for country lives in the registry path (filter-field-registry)
+  //   which already has a correct buildDbClause. Dropping it here lets the planner spec fall
+  //   through to the registry path via serve-engine's filter bridge instead of producing SQL
+  //   against a non-existent column.
   overallLengthMm: { column: "option_overall_length", type: "numeric" },
   lengthOfCutMm:   { column: "option_loc", type: "numeric" },
   shankDiameterMm: { column: "option_shank_diameter", type: "numeric" },

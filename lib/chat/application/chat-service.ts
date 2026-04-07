@@ -10,6 +10,7 @@ import {
   type RetrievalMemory,
 } from "@/lib/chat/domain/conversation-state"
 import { createAnthropicMessageWithLogging } from "@/lib/chat/infrastructure/llm/chat-llm"
+import { buildAppliedFilterFromValue } from "@/lib/recommendation/shared/filter-field-registry"
 
 import { buildSystemPrompt } from "./chat-prompt"
 import {
@@ -476,15 +477,19 @@ function fastExtractParams(text: string): Record<string, unknown> {
   const fluteMatch = text.match(/(\d+)\s*날/)
   if (fluteMatch) params.flute_count = parseInt(fluteMatch[1])
 
-  // country (free-form — overridable by intake)
+  // country (free-form — overridable by intake).
+  // Delegates canonicalization to filter-field-registry so 국내/한국/korea/독일/유럽/...
+  // all share the same data-driven mapping (see country.canonicalizeRawValue).
   const countrySource = intakeCountry || lower
-  const cs = countrySource.toLowerCase()
-  if (/국내|국산|한국|대한민국|\bkorea\b|\bkor\b/.test(cs)) params.country = "KOR"
-  else if (/미국|\busa\b|\bus\b\s|america/.test(cs)) params.country = "USA"
-  else if (/일본|japan|\bjp\b/.test(cs)) params.country = "JPN"
-  else if (/중국|china|\bcn\b/.test(cs)) params.country = "CHN"
-  else if (/독일|germany|\bde\b/.test(cs)) params.country = "DEU"
-  else if (intakeCountry && intakeCountry !== "ALL") params.country = intakeCountry.toUpperCase()
+  if (countrySource) {
+    const canon = buildAppliedFilterFromValue("country", countrySource)
+    const rawValue = canon?.rawValue != null ? String(canon.rawValue).toUpperCase() : null
+    if (rawValue && rawValue !== "ALL") {
+      params.country = rawValue
+    } else if (intakeCountry && intakeCountry !== "ALL") {
+      params.country = intakeCountry.toUpperCase()
+    }
+  }
 
   // tool material (carbide vs HSS) — explicit "초경/하이스" cue
   if (/초경|카바이드|carbide|cemented/i.test(lower)) params.tool_material = "carbide"
