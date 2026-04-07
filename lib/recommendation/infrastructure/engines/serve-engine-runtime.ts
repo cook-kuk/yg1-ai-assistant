@@ -1811,8 +1811,8 @@ async function handleServeExplorationInner(
 
         let plannerApplied = false
         // Phase 2: semantic loss correction — KG가 eq로 뭉갠 range를 planner가 보정
+        // decision.winner와 무관하게, planner가 range op이고 production이 eq면 보정
         const isSemanticLossCorrection = ENABLE_PLANNER_DECISION
-          && decision.winner === "planner"
           && singleCallHandled
           && spec.constraints.length === 1
           && ["gte", "lte", "between"].includes(spec.constraints[0].op)
