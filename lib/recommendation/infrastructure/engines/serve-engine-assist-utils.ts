@@ -143,6 +143,32 @@ export function formatLengthValue(value: number | null | undefined): string {
   return value == null ? "-" : `${value}mm`
 }
 
+// 인치 제품(diameterInch != null)일 때는 inch 단위로 표시.
+// mm 변환 값(diameterMm)이 동시에 있으면 괄호로 병기.
+// 한웅희 피드백(2026-04-06): 인치 사이즈 제품에 mm suffix가 잘못 붙던 문제 해결.
+export function formatDiameterDual(
+  diameterMm: number | null | undefined,
+  diameterInch: number | null | undefined
+): string {
+  if (diameterInch != null) {
+    if (diameterMm != null) return `φ${diameterInch}″ (${diameterMm}mm)`
+    return `φ${diameterInch}″`
+  }
+  return formatMmValue(diameterMm)
+}
+
+export function formatLengthDual(
+  lengthMm: number | null | undefined,
+  isInch: boolean
+): string {
+  if (lengthMm == null) return "-"
+  if (isInch) {
+    const inchValue = Number((lengthMm / 25.4).toFixed(3))
+    return `${inchValue}″ (${lengthMm}mm)`
+  }
+  return `${lengthMm}mm`
+}
+
 export function formatAngleValue(value: number | null | undefined): string {
   return value == null ? "-" : `${value}°`
 }

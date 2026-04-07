@@ -238,9 +238,15 @@ export function buildSessionContext(
   displayedProducts?: { rank: number; code: string; brand: string | null; series: string | null; toolSubtype: string | null; diameter: number | null; flute: number | null; coating: string | null; materialTags: string[]; score: number; matchStatus: string }[] | null
 ): string {
   const intakeSummary = buildIntakeSummaryText(intakeForm)
-  const filterSummary = sessionState
-    ? sessionState.appliedFilters.map(f => `  - ${f.field}: ${f.value}`).join("\n")
-    : "(없음)"
+  const appliedFilters = sessionState?.appliedFilters ?? []
+  // 정종서 피드백(2026-04-06): LLM이 빈 필터 리스트에도 "이미 적용되어 있습니다"라고
+  // 거짓 답변하던 문제. 명시적으로 0건을 알리고 거짓 단언을 금지한다.
+  const filterSummary = appliedFilters.length > 0
+    ? appliedFilters.map(f => `  - ${f.field}: ${f.value}`).join("\n")
+    : "  (적용된 필터 없음 — 어떤 필터도 적용되지 않은 상태)"
+  const filterTruthGuard = appliedFilters.length === 0
+    ? "\n[중요] 위 필터 리스트가 비어있다. 사용자가 이전에 어떤 단어를 말했더라도, 그 단어가 필터로 \"적용/반영/저장됨\"이라고 절대 답하지 마라. 추출되었지만 아직 적용되지 않은 상태일 수 있으며, 사용자가 명시적으로 다시 말해 필터로 등록되어야 한다.\n"
+    : ""
 
   const histSummary = sessionState?.narrowingHistory?.length
     ? sessionState.narrowingHistory.map((h, i) =>
@@ -269,7 +275,7 @@ ${intakeSummary}
 
 [적용된 필터]
 ${filterSummary}
-
+${filterTruthGuard}
 [축소 대화 이력]
 ${histSummary}
 
