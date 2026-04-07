@@ -623,7 +623,10 @@ export async function runChatConversation(
     // pre-search로 충분한 결과가 이미 있으면 LLM이 중복 search_products 호출하지 않도록 제거
     try {
       const parsed = JSON.parse(preSearchResult)
-      preSearchHasSufficientResults = (parsed.totalMatched ?? 0) >= 10
+      // 임계값 1: pre-search가 명시적 사용자 파라미터로 1건이라도 찾으면 정답으로
+      // 인정하고 LLM이 자기 판단으로 search_products를 다시 호출해 환각 제품을
+      // 끌어오지 못하도록 차단한다.
+      preSearchHasSufficientResults = (parsed.totalMatched ?? 0) >= 1
     } catch { /* ignore parse errors */ }
   }
 
