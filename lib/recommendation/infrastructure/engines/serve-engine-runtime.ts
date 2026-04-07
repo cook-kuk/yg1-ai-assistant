@@ -4027,12 +4027,29 @@ async function handleServeExplorationInner(
 
       filter = await enrichWorkPieceFilterWithSeriesScope(filter, currentInput)
 
-      const nextFilterState = replaceFieldFilter(
-        baseInput,
-        baseFiltersForNext,
-        filter,
-        deps.applyFilterToInput
-      )
+      // NEQ/exclude는 input에 positive 값을 추가하지 않으므로 (DB SQL의 NOT 절로만 작동)
+      // baseInput부터 재구성하면 다른 필드들의 input round-trip 손실 리스크가 있음.
+      // currentInput을 그대로 두고 필터 배열에만 추가하여 회귀 방지.
+      let nextFilterState: ReturnType<typeof replaceFieldFilter>
+      if (filter.op === "neq" || filter.op === "exclude") {
+        const dedupedFilters = baseFiltersForNext.filter(f => !(
+          f.field === filter.field &&
+          f.op === filter.op &&
+          String(f.rawValue ?? f.value) === String(filter.rawValue ?? filter.value)
+        ))
+        nextFilterState = {
+          replacedExisting: dedupedFilters.length !== baseFiltersForNext.length,
+          nextFilters: [...dedupedFilters, filter],
+          nextInput: currentInput,
+        }
+      } else {
+        nextFilterState = replaceFieldFilter(
+          baseInput,
+          baseFiltersForNext,
+          filter,
+          deps.applyFilterToInput
+        )
+      }
       const testInput = nextFilterState.nextInput
       const testFilters = nextFilterState.nextFilters
       console.log(`[chip-filter-debug] (apply) filter=${JSON.stringify(filter)} testInput.diameterMm=${testInput.diameterMm} testFilters=${JSON.stringify(testFilters.map(f=>f.field+'='+f.value))}`)
