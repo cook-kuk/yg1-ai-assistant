@@ -43,12 +43,23 @@ import type { ChatProductDto } from "@/lib/contracts/chat"
 
 const MAX_TOOL_ROUNDS = 5
 
-async function extractProductsFromToolResults(toolResults: { name: string; result: string }[]): Promise<ChatProductDto[]> {
+async function extractProductsFromToolResults(
+  toolResults: { name: string; result: string }[],
+  options: { trustOnlyFirstSearch?: boolean } = {},
+): Promise<ChatProductDto[]> {
   const { InventoryRepo } = await import("@/lib/data/repos/inventory-repo")
   const products: ChatProductDto[] = []
   const seen = new Set<string>()
 
-  for (const tr of toolResults) {
+  // pre-search 결과가 있으면 그것만 신뢰. LLM이 추가로 호출한
+  // get_product_detail/find_yg1_alternative 등은 환각 코드일 수 있어 무시.
+  const firstSearchIdx = options.trustOnlyFirstSearch
+    ? toolResults.findIndex(tr => tr.name === "search_products")
+    : -1
+
+  for (let i = 0; i < toolResults.length; i++) {
+    const tr = toolResults[i]
+    if (firstSearchIdx >= 0 && i !== firstSearchIdx) continue
     if (tr.name !== "search_products" && tr.name !== "get_competitor_mapping" && tr.name !== "get_product_detail") continue
     try {
       const data = JSON.parse(tr.result)
@@ -718,8 +729,11 @@ export async function runChatConversation(
   const references = extractReferences(toolResults)
   const brandProducts = extractBrandInfo(toolResults)
 
-  // Extract structured product data from tool results
-  const recommendedProducts = await extractProductsFromToolResults(toolResults)
+  // Extract structured product data. preSearchHasSufficientResults=true 이면
+  // pre-search 결과만 인정 (LLM이 추가 호출한 detail/alternative는 환각 위험).
+  const recommendedProducts = await extractProductsFromToolResults(toolResults, {
+    trustOnlyFirstSearch: preSearchHasSufficientResults,
+  })
 
   // 1) 브랜드 헤더 주입
   const withBrand =
