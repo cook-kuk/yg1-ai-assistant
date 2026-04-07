@@ -466,7 +466,9 @@ export function tryKGDecision(
   }
 
   // ── 5b. Competitor patterns (must check BEFORE show_recommendation) ──
-  if (COMPETITOR_PATTERNS.some(p => p.test(msg))) {
+  // "CRX S 말고 다른 브랜드" = exclude, not competitor query → negation이면 skip
+  const hasNegSignal = /빼고|제외|말고|아닌|않은/u.test(msg)
+  if (COMPETITOR_PATTERNS.some(p => p.test(msg)) && !hasNegSignal) {
     return {
       decision: buildDecision({ type: "answer_general", message: msg } as OrchestratorAction, [], 0.92, "KG: competitor query → answer_general with web search"),
       confidence: 0.92,
