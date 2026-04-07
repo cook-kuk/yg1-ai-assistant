@@ -56,13 +56,15 @@ describe("scorePlanner", () => {
     expect(score.score).toBeLessThanOrEqual(0.3)
   })
 
-  it("should score excluded ops (between/gte/lte) low", () => {
+  it("Phase 2: should score between with bonus", () => {
     const spec: QuerySpec = {
       intent: "narrow", navigation: "none",
       constraints: [{ field: "diameterMm", op: "between", value: [8, 12] }],
     }
-    const score = scorePlanner(spec, [])
-    expect(score.score).toBeLessThanOrEqual(0.2)
+    const score = scorePlanner(spec, [{ field: "diameterMm", op: "between" as const, value: "8~12", rawValue: 8, appliedAt: 0 }])
+    // standard-field(0.5) + between-bonus(0.2) + bridge-ok(0.05) = 0.75
+    expect(score.score).toBeGreaterThanOrEqual(0.7)
+    expect(score.factors).toContainEqual(expect.stringContaining("between"))
   })
 
   it("should score navigation high", () => {
@@ -127,10 +129,46 @@ describe("decidePlannerOverride", () => {
     expect(decision.winner).not.toBe("planner")
   })
 
-  it("should not choose planner for range ops", () => {
+  it("Phase 2: should choose planner for gte when production missed", () => {
     const spec: QuerySpec = {
       intent: "narrow", navigation: "none",
       constraints: [{ field: "diameterMm", op: "gte", value: 10 }],
+    }
+    const shadowFilters = [{ field: "diameterMm", op: "gte" as const, value: "10mm 이상", rawValue: 10, appliedAt: 0 }]
+    const decision = decidePlannerOverride(spec, shadowFilters, [], false, false)
+    expect(decision.winner).toBe("planner")
+    expect(decision.plannerScore.factors).toContainEqual(expect.stringContaining("range-gte"))
+  })
+
+  it("Phase 2: should choose planner for between when production has eq (semantic loss)", () => {
+    const spec: QuerySpec = {
+      intent: "narrow", navigation: "none",
+      constraints: [{ field: "diameterMm", op: "between", value: [8, 12] }],
+    }
+    const shadowFilters = [{ field: "diameterMm", op: "between" as const, value: "직경: 8~12", rawValue: 8, rawValue2: 12, appliedAt: 0 }]
+    const prodFilters = [{ field: "diameterMm", op: "eq" as const, value: "8mm", rawValue: 8, appliedAt: 0 }]
+    const decision = decidePlannerOverride(spec, shadowFilters, prodFilters, true, false)
+    // KG hit(0.9) - semantic loss(-0.2) = 0.7 vs planner standard(0.5) + between(0.2) + bridge(0.05) = 0.75
+    expect(decision.plannerScore.score).toBeGreaterThan(decision.productionScore.score)
+    expect(decision.productionScore.factors).toContainEqual(expect.stringContaining("semantic-loss"))
+  })
+
+  it("should not choose planner for in/not_in ops", () => {
+    const spec: QuerySpec = {
+      intent: "narrow", navigation: "none",
+      constraints: [{ field: "coating", op: "in", value: "TiAlN,AlCrN" }],
+    }
+    const decision = decidePlannerOverride(spec, [], [], false, false)
+    expect(decision.winner).not.toBe("planner")
+  })
+
+  it("should not override multi-constraint even with rich ops", () => {
+    const spec: QuerySpec = {
+      intent: "narrow", navigation: "none",
+      constraints: [
+        { field: "workpiece", op: "eq", value: "Copper" },
+        { field: "diameterMm", op: "gte", value: 10 },
+      ],
     }
     const decision = decidePlannerOverride(spec, [], [], false, false)
     expect(decision.winner).not.toBe("planner")

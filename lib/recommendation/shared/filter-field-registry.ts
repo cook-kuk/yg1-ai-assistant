@@ -1219,8 +1219,30 @@ export function buildDbWhereClauseForFilter(
     if (!definition?.buildDbClause) return null
     const eqClause = definition.buildDbClause({ ...filter, op: "eq" }, next)
     if (!eqClause) return null
-    // NOT (match) but keep rows where the column is NULL/empty (COALESCE handles this)
     return `NOT (${eqClause})`
+  }
+
+  // Range ops (Phase 2): gte/lte/between → numeric 필드에서만 허용
+  if (filter.op === "gte" || filter.op === "lte" || filter.op === "between") {
+    const definition = getFilterFieldDefinition(filter.field)
+    if (!definition || definition.kind !== "number") return null
+    // buildDbClause에서 eq 기준 컬럼을 추출하여 range로 변환
+    const eqClause = definition.buildDbClause({ ...filter, op: "eq" }, next)
+    if (!eqClause) return null
+    // eq clause에서 컬럼 표현식을 추출 (COALESCE(...) = $N 패턴)
+    // 대신 rawValue를 직접 사용하여 range clause 생성
+    const numVal = Number(filter.rawValue)
+    if (isNaN(numVal)) return null
+    // numeric 필드의 DB 컬럼 추출: eq clause의 "= $N" 앞부분
+    const colExpr = eqClause.replace(/\s*=\s*\$\d+\s*$/, "").trim()
+    if (!colExpr || colExpr === eqClause) return null // 파싱 실패 → fallback to eq
+
+    if (filter.op === "gte") return `${colExpr} >= ${next(numVal)}`
+    if (filter.op === "lte") return `${colExpr} <= ${next(numVal)}`
+    if (filter.op === "between") {
+      const numVal2 = Number((filter as any).rawValue2 ?? filter.rawValue)
+      return `${colExpr} BETWEEN ${next(numVal)} AND ${next(numVal2)}`
+    }
   }
 
   const definition = getFilterFieldDefinition(filter.field)

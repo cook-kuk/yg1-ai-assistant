@@ -43,6 +43,7 @@ import { getDbSchemaSync, getDbSchema } from "@/lib/recommendation/core/sql-agen
 import { naturalLanguageToQuerySpec } from "@/lib/recommendation/core/query-planner"
 import { querySpecToAppliedFilters, appliedFiltersToConstraints } from "@/lib/recommendation/core/query-spec-to-filters"
 import { decidePlannerOverride } from "@/lib/recommendation/core/planner-decision"
+import { logPatternMiningEntry } from "@/lib/recommendation/core/pattern-mining/logger"
 import { tryKGDecision, extractEntities } from "@/lib/recommendation/core/knowledge-graph"
 import { deriveChips, toChipState, toChipStateWithCandidates, compareChips, safeApplyChips } from "@/lib/recommendation/core/chip-system"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
@@ -1857,12 +1858,19 @@ async function handleServeExplorationInner(
           }
         }
 
+        const plannerOps = spec.constraints.map(c => c.op)
+        const productionOps = filters.map(f => f.op)
+        const hasSemanticLoss = plannerOps.some(op => op === "gte" || op === "lte" || op === "between") && productionOps.every(op => op === "eq" || op === "includes" || op === "skip")
+
         trace.add("query-planner", "router", {
           intent: spec.intent,
           navigation: spec.navigation,
           constraintCount: spec.constraints.length,
           constraints: spec.constraints.map(c => `${c.field}${c.op}${c.value}`),
           shadowFilterCount: shadowFilters.length,
+          plannerOps,
+          productionOps,
+          semanticLoss: hasSemanticLoss,
           latencyMs: plannerResult.latencyMs,
           reasoning: spec.reasoning,
           decision: {
@@ -1877,6 +1885,37 @@ async function handleServeExplorationInner(
           applied: plannerApplied,
         })
         console.log(`[planner-decision] winner=${decision.winner} planner=${decision.plannerScore.score.toFixed(2)} prod=${decision.productionScore.score.toFixed(2)} margin=${decision.margin.toFixed(2)} applied=${plannerApplied} | ${spec.constraints.length}c ${plannerResult.latencyMs}ms`)
+
+        // ── Pattern Mining Log (non-blocking, fire-and-forget) ──
+        const prodSource = kgHandled ? "kg" as const
+          : sqlAgentHandled ? "sql-agent" as const
+          : negationHandled ? "negation" as const
+          : singleCallHandled ? "scr" as const
+          : "none" as const
+        logPatternMiningEntry({
+          userText: msg,
+          production: {
+            source: prodSource,
+            constraints: filters.map(f => ({ field: f.field, op: f.op, value: f.rawValue ?? f.value })),
+            handled: singleCallHandled,
+          },
+          planner: {
+            constraints: spec.constraints.map(c => ({ field: c.field, op: c.op, value: c.value })),
+            navigation: spec.navigation,
+            intent: spec.intent,
+            confidence: decision.plannerScore.score,
+            reasoning: spec.reasoning,
+          },
+          decision: {
+            winner: decision.winner,
+            plannerScore: decision.plannerScore.score,
+            productionScore: decision.productionScore.score,
+            margin: decision.margin,
+            reason: decision.reason,
+            applied: plannerApplied,
+          },
+          finalFilters: filters.map(f => ({ field: f.field, op: f.op, value: f.rawValue ?? f.value })),
+        })
       } catch (e) {
         console.warn(`[query-planner] error (non-blocking):`, e)
       }

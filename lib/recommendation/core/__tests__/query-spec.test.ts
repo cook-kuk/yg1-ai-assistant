@@ -209,6 +209,42 @@ describe("querySpecToAppliedFilters", () => {
     expect(filters[0].op).toBe("neq")
   })
 
+  it("Phase 2: should preserve gte op", () => {
+    const spec: QuerySpec = {
+      intent: "narrow",
+      navigation: "none",
+      constraints: [{ field: "diameterMm", op: "gte", value: 10 }],
+    }
+    const filters = querySpecToAppliedFilters(spec, 0)
+    expect(filters).toHaveLength(1)
+    expect(filters[0].op).toBe("gte")
+    expect(filters[0].rawValue).toBe(10)
+  })
+
+  it("Phase 2: should preserve between op with rawValue2", () => {
+    const spec: QuerySpec = {
+      intent: "narrow",
+      navigation: "none",
+      constraints: [{ field: "diameterMm", op: "between", value: [8, 12] }],
+    }
+    const filters = querySpecToAppliedFilters(spec, 0)
+    expect(filters).toHaveLength(1)
+    expect(filters[0].op).toBe("between")
+    expect(filters[0].rawValue).toBe(8)
+    expect(filters[0].rawValue2).toBe(12)
+  })
+
+  it("Phase 2: should preserve lte op", () => {
+    const spec: QuerySpec = {
+      intent: "narrow",
+      navigation: "none",
+      constraints: [{ field: "fluteCount", op: "lte", value: 4 }],
+    }
+    const filters = querySpecToAppliedFilters(spec, 0)
+    expect(filters).toHaveLength(1)
+    expect(filters[0].op).toBe("lte")
+  })
+
   it("should skip unknown fields", () => {
     const spec: QuerySpec = {
       intent: "narrow",

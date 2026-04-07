@@ -28,9 +28,10 @@ export type ResolutionStatus =
 // ── Applied Filter ───────────────────────────────────────────
 export interface AppliedFilter {
   field: string            // e.g. "fluteCount", "coating", "cuttingType"
-  op: string               // "eq", "includes", "range"
+  op: string               // "eq", "neq", "gte", "lte", "between", "includes", "skip"
   value: string            // display value (e.g. "4날", "AlTiN")
   rawValue: string | number | boolean | Array<string | number | boolean> // actual filter value(s)
+  rawValue2?: string | number  // between의 상한값 (Phase 2)
   appliedAt: number        // narrowing turn index
   rawSqlField?: string     // SQL Agent가 직접 지정한 DB 컬럼명
   rawSqlOp?: string        // eq, neq, like, gte, lte

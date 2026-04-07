@@ -35,7 +35,8 @@ const MEDIUM_CONFIDENCE_FIELDS = new Set([
   "toolSubtype", "coating", "workpiece",
 ])
 
-const EXCLUDED_OPS = new Set(["between", "gte", "lte", "in", "not_in"])
+// Phase 2: gte/lte/between은 이제 지원. in/not_in만 excluded.
+const EXCLUDED_OPS = new Set(["in", "not_in"])
 
 // ── Score Constants ─────────────────────────────────────────
 
@@ -47,6 +48,7 @@ export function scoreProduction(
   productionFilters: AppliedFilter[],
   kgHit: boolean,
   sqlAgentHit: boolean,
+  plannerSpec?: QuerySpec,
 ): DecisionScore {
   const factors: string[] = []
   let score = 0
@@ -65,7 +67,27 @@ export function scoreProduction(
     factors.push("no-production-result(+0.1)")
   }
 
+  // Semantic loss penalty: production이 eq로 뭉갠 경우 감점
+  if (plannerSpec && plannerSpec.constraints.length === 1) {
+    const plannerOp = plannerSpec.constraints[0].op
+    const isRichOp = plannerOp === "gte" || plannerOp === "lte" || plannerOp === "between"
+    if (isRichOp && productionFilters.some(f => f.field === FIELD_REVERSE_MAP[plannerSpec.constraints[0].field] && f.op === "eq")) {
+      score -= 0.2
+      factors.push("semantic-loss-penalty(-0.2)")
+    }
+  }
+
   return { score, factors }
+}
+
+// QueryField → filter field reverse lookup for penalty check
+const FIELD_REVERSE_MAP: Record<string, string> = {
+  diameterMm: "diameterMm",
+  fluteCount: "fluteCount",
+  workpiece: "workPieceName",
+  toolSubtype: "toolSubtype",
+  coating: "coating",
+  brand: "brand",
 }
 
 // ── Planner Score ───────────────────────────────────────────
@@ -118,10 +140,16 @@ export function scorePlanner(
     factors.push(`standard-field:${c.field}(+0.5)`)
   }
 
-  // neq bonus: planner neq parsing is verified 100% accurate
+  // Op-specific bonuses (Phase 2)
   if (c.op === "neq") {
     score += 0.1
     factors.push("neq-bonus(+0.1)")
+  } else if (c.op === "gte" || c.op === "lte") {
+    score += 0.15
+    factors.push(`range-${c.op}-bonus(+0.15)`)
+  } else if (c.op === "between") {
+    score += 0.2
+    factors.push("between-bonus(+0.2)")
   }
 
   // Bridge-safe: filter was successfully built
@@ -142,7 +170,7 @@ export function decidePlannerOverride(
   kgHit: boolean,
   sqlAgentHit: boolean,
 ): PlannerDecision {
-  const productionScore = scoreProduction(productionFilters, kgHit, sqlAgentHit)
+  const productionScore = scoreProduction(productionFilters, kgHit, sqlAgentHit, spec)
   const plannerScore = scorePlanner(spec, shadowFilters)
   const margin = plannerScore.score - productionScore.score
 

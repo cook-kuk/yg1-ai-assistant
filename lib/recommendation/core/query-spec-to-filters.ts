@@ -32,23 +32,23 @@ const QUERY_FIELD_TO_FILTER_FIELD: Record<QueryField, string> = {
 
 // ── QueryOp → AppliedFilter op mapping ──────────────────────
 
-// Bridge 손실 추적: between/gte/lte → eq 뭉개짐
-// Phase 2에서 AppliedFilter를 확장하거나 ConstraintState 도입 시 해소 예정
-const LOSSY_OPS = new Set(["in", "not_in", "gte", "lte", "between"])
+// Phase 2: gte/lte/between을 AppliedFilter에서 직접 지원
+// in/not_in은 아직 lossy (첫 번째 값만 사용)
+const STILL_LOSSY_OPS = new Set(["in", "not_in"])
 
 function mapOp(qop: QueryOp, field?: string): AppliedFilter["op"] {
-  if (LOSSY_OPS.has(qop)) {
-    console.warn(`[query-spec-bridge] lossy op conversion: ${field ?? "?"} ${qop} → eq/neq (semantic loss)`)
+  if (STILL_LOSSY_OPS.has(qop)) {
+    console.warn(`[query-spec-bridge] lossy op: ${field ?? "?"} ${qop} → eq/neq (in/not_in 미지원)`)
   }
   switch (qop) {
     case "eq": return "eq"
     case "neq": return "neq"
     case "contains": return "includes"
-    case "in": return "eq"       // TODO(Phase 2): "in" 연산은 AppliedFilter에 없음. 첫 번째 값만 eq로 매핑.
-    case "not_in": return "neq"  // TODO(Phase 2): "not_in" 연산은 첫 번째 값만 neq로 매핑.
-    case "gte": return "eq"      // TODO(Phase 2): range 연산은 AppliedFilter에서 미지원. 임시로 eq.
-    case "lte": return "eq"      // TODO(Phase 2): range 연산은 AppliedFilter에서 미지원.
-    case "between": return "eq"  // TODO(Phase 2): range 연산은 AppliedFilter에서 미지원.
+    case "gte": return "gte"
+    case "lte": return "lte"
+    case "between": return "between"
+    case "in": return "eq"       // TODO: "in" → 첫 번째 값만 eq
+    case "not_in": return "neq"  // TODO: "not_in" → 첫 번째 값만 neq
     default: return "eq"
   }
 }
@@ -68,10 +68,29 @@ export function querySpecToAppliedFilters(
       continue
     }
 
+    const mappedOp = mapOp(constraint.op, constraint.field)
     const rawValue = extractRawValue(constraint)
     const isNeg = constraint.op === "neq" || constraint.op === "not_in"
 
-    // buildAppliedFilterFromValue 사용 (canonicalization 포함)
+    // Range ops (gte/lte/between): 직접 AppliedFilter 생성 (Phase 2)
+    if (mappedOp === "gte" || mappedOp === "lte" || mappedOp === "between") {
+      const filter: AppliedFilter = {
+        field: filterField,
+        op: mappedOp,
+        value: constraint.display ?? `${filterField} ${mappedOp} ${rawValue}`,
+        rawValue,
+        appliedAt: turnCount,
+      }
+      if (mappedOp === "between" && Array.isArray(constraint.value)) {
+        filter.rawValue = constraint.value[0]
+        filter.rawValue2 = constraint.value[1]
+        filter.value = constraint.display ?? `${filterField}: ${constraint.value[0]}~${constraint.value[1]}`
+      }
+      results.push(filter)
+      continue
+    }
+
+    // eq/neq/contains: buildAppliedFilterFromValue 사용 (canonicalization 포함)
     const built = buildAppliedFilterFromValue(
       filterField,
       rawValue,
@@ -80,16 +99,12 @@ export function querySpecToAppliedFilters(
     )
 
     if (built) {
-      // display가 있으면 override
-      if (constraint.display) {
-        built.value = constraint.display
-      }
+      if (constraint.display) built.value = constraint.display
       results.push(built)
     } else {
-      // buildAppliedFilterFromValue가 실패하면 raw로 생성
       results.push({
         field: filterField,
-        op: mapOp(constraint.op, constraint.field),
+        op: mappedOp,
         value: constraint.display ?? String(rawValue),
         rawValue,
         appliedAt: turnCount,
