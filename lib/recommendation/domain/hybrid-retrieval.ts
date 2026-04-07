@@ -28,7 +28,7 @@ import {
 import { ENABLE_POST_SQL_CANDIDATE_FILTERS } from "@/lib/feature-flags"
 import { resolveMaterialTag } from "@/lib/recommendation/domain/material-resolver"
 import { getAppShapesForOperation } from "@/lib/recommendation/domain/operation-resolver"
-import { applyPostFilterToProducts } from "@/lib/recommendation/shared/filter-field-registry"
+import { applyPostFilterToProducts, getFilterFieldDefinition } from "@/lib/recommendation/shared/filter-field-registry"
 import { traceRecommendation } from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
 
 // ── Result type ──────────────────────────────────────────────
@@ -669,6 +669,42 @@ export async function runHybridRetrieval(
     qualifiedCandidates.splice(0, qualifiedCandidates.length, ...diversified, ...deferred)
   }
 
+  // ── stockStatus pre-filter path ────────────────────────────
+  // stockStatus는 mv에 없고 InventoryRepo runtime join 이므로 DB 단계에서
+  // 못 걸리고, 기본 경로는 topCandidates 상위 100개만 enrich하고 post-filter도
+  // 안 함 → "재고 있는 것만" 케이스가 실제 DB 매칭과 동떨어진 과소/0건을 냄.
+  //
+  // 안전한 확장: stockStatus 필터가 있을 때만 qualifiedCandidates를 최대
+  // STOCK_FILTER_ENRICH_CAP까지 enrich 후 matches()로 post-filter. 기본 경로는
+  // 기존 동작 그대로 유지(성능 회귀 없음).
+  const hasStockFilter = filters.some(f => f.field === "stockStatus" && f.op !== "skip")
+  const STOCK_FILTER_ENRICH_CAP = 2000
+
+  if (hasStockFilter) {
+    const stockFilter = filters.find(f => f.field === "stockStatus")!
+    const enrichPool = qualifiedCandidates.slice(0, STOCK_FILTER_ENRICH_CAP)
+    await Promise.all(
+      enrichPool.map(async (c) => {
+        const inv = await InventoryRepo.getEnrichedAsync(c.product.normalizedCode)
+        c.inventory = inv.snapshots
+        c.totalStock = inv.totalStock
+        c.stockStatus = inv.stockStatus
+        c.leadTimes = LeadTimeRepo.getByEdp(c.product.normalizedCode)
+        c.minLeadTimeDays = LeadTimeRepo.minLeadTime(c.product.normalizedCode)
+      })
+    )
+    const stockDef = getFilterFieldDefinition("stockStatus")
+    const isNeg = stockFilter.op === "neq" || stockFilter.op === "exclude"
+    const survivors = enrichPool.filter(c => {
+      if (!stockDef?.matches) return true
+      const matched = stockDef.matches(c as unknown as Record<string, unknown>, stockFilter) === true
+      return isNeg ? !matched : matched
+    })
+    // 남은 (아직 enrich 안 된 꼬리)는 버림 — cap 도달 시 정확도 vs 비용 trade.
+    qualifiedCandidates.splice(0, qualifiedCandidates.length, ...survivors)
+    console.log(`[hybrid:stage] stage=stock_filter enriched=${enrichPool.length} survived=${survivors.length}`)
+  }
+
   const topCandidates = topN > 0
     ? qualifiedCandidates.slice(0, topN)
     : qualifiedCandidates
@@ -676,17 +712,20 @@ export async function runHybridRetrieval(
     `[hybrid:stage] stage=final count=${topCandidates.length} total=${totalConsidered} sourceTotal=${initialCandidateCount} edps=${formatScoredEdpList(topCandidates)}`
   )
 
-  // Enrich top candidates with inventory + lead time (deferred for performance)
-  await Promise.all(
-    topCandidates.slice(0, 100).map(async (c) => {
-      const inv = await InventoryRepo.getEnrichedAsync(c.product.normalizedCode)
-      c.inventory = inv.snapshots
-      c.totalStock = inv.totalStock
-      c.stockStatus = inv.stockStatus
-      c.leadTimes = LeadTimeRepo.getByEdp(c.product.normalizedCode)
-      c.minLeadTimeDays = LeadTimeRepo.minLeadTime(c.product.normalizedCode)
-    })
-  )
+  // Enrich top candidates with inventory + lead time (deferred for performance).
+  // hasStockFilter 경로는 위에서 이미 enrich 됐으므로 skip (idempotent해도 RTT 낭비).
+  if (!hasStockFilter) {
+    await Promise.all(
+      topCandidates.slice(0, 100).map(async (c) => {
+        const inv = await InventoryRepo.getEnrichedAsync(c.product.normalizedCode)
+        c.inventory = inv.snapshots
+        c.totalStock = inv.totalStock
+        c.stockStatus = inv.stockStatus
+        c.leadTimes = LeadTimeRepo.getByEdp(c.product.normalizedCode)
+        c.minLeadTimeDays = LeadTimeRepo.minLeadTime(c.product.normalizedCode)
+      })
+    )
+  }
 
   // ── Stage 3: Evidence Retrieval (parallelized) ─────────────
   const evidenceMap = new Map<string, EvidenceSummary>()
