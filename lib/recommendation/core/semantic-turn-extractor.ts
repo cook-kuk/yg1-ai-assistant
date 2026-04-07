@@ -8,7 +8,7 @@ import {
   getRegisteredFilterFields,
 } from "@/lib/recommendation/shared/filter-field-registry"
 
-const SEMANTIC_TURN_MODEL = resolveModel("opus", "semantic-turn-extractor")
+const SEMANTIC_TURN_MODEL = resolveModel("sonnet", "semantic-turn-extractor")
 const MIN_CONFIDENCE = 0.55
 const MAX_SEMANTIC_ATTEMPTS = 3
 

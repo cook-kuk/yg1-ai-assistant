@@ -51,10 +51,10 @@ import { extractFilterFieldValueMap } from "@/lib/recommendation/shared/filter-f
 import { classifySessionAction, detectFilterIntent } from "@/lib/recommendation/domain/session-action-classifier"
 import { buildAppliedFilterFromValue } from "@/lib/recommendation/shared/filter-field-registry"
 
-const UNIFIED_JUDGMENT_MODEL = resolveModel("opus", "unified-judgment")
+const UNIFIED_JUDGMENT_MODEL = resolveModel("sonnet", "unified-judgment")
 const INTENT_CLASSIFIER_MODEL = resolveModel("sonnet", "intent-classifier")
 const PARAMETER_EXTRACTOR_MODEL = resolveModel("haiku", "parameter-extractor")
-const AMBIGUITY_RESOLVER_MODEL = resolveModel("opus", "ambiguity-resolver")
+const AMBIGUITY_RESOLVER_MODEL = resolveModel("sonnet", "ambiguity-resolver")
 const TOOL_USE_ROUTER_MODEL = resolveModel("sonnet", "tool-use-router")
 
 // ════════════════════════════════════════════════════════════════

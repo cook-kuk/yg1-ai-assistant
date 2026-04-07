@@ -29,7 +29,7 @@ import {
 import { refineResults, buildRefinementOptions } from "./result-refiner"
 import { isUnfilterableChip } from "@/lib/recommendation/domain/options/llm-chip-pipeline"
 
-const TURN_DECISION_MODEL = resolveModel("opus", "turn-orchestrator")
+const TURN_DECISION_MODEL = resolveModel("sonnet", "turn-orchestrator")
 
 // Step 1: Build snapshot from current state + user message
 function buildTurnSnapshot(
