@@ -208,8 +208,10 @@ function buildZeroResultWithAlternatives(
     chips.unshift(`${previousValue}로 돌아가기`)
   }
 
-  // Always add navigation options
+  // Always add navigation + reset escape hatch (BUG-2 0-result fallback)
+  // "처음부터 다시" 는 edit-intent의 reset_all 패턴에 매핑되어 안전하게 동작
   if (!chips.some(c => c.includes("이전 단계"))) chips.push("⟵ 이전 단계")
+  if (!chips.some(c => c.includes("처음부터"))) chips.push("↻ 처음부터 다시")
 
   return { message: lines.join("\n"), chips }
 }

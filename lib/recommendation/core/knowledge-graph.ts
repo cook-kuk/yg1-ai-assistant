@@ -78,7 +78,7 @@ const ENTITY_NODES: EntityNode[] = [
   // Boolean: coolantHole
   { canonical: "true", field: "coolantHole", aliases: ["쿨런트", "쿨런트홀", "절삭유홀", "coolant", "coolant hole", "내부급유", "내부냉각", "쓰루쿨런트", "through coolant"] },
   // Countries
-  { canonical: "KOREA", field: "country", aliases: ["한국", "korea", "국내", "코리아"] },
+  { canonical: "KOREA", field: "country", aliases: ["한국", "korea", "국내", "코리아", "국내제품", "국내산", "국산", "국내용", "국내전용"] },
   { canonical: "USA", field: "country", aliases: ["미국", "usa", "us", "america", "미합중국"] },
   { canonical: "CHINA", field: "country", aliases: ["중국", "china", "차이나"] },
   { canonical: "JAPAN", field: "country", aliases: ["일본", "japan"] },
