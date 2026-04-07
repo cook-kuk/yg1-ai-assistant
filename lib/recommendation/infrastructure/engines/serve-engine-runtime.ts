@@ -1665,12 +1665,23 @@ async function handleServeExplorationInner(
           pendingSelectionOrchestratorResult = null
           console.log(`[edit-intent] reset_all`)
         } else {
-          // Handle go_back first
+          // Handle go_back first — pass the addFilter as followUpFilter so the
+          // go_back handler applies it AFTER restoring the previous state.
           if (mutation.goBack) {
-            bridgedV2Action = { type: "go_back_one_step" }
+            const followUp = mutation.addFilter
+              ? buildAppliedFilterFromValue(
+                  mutation.addFilter.field,
+                  mutation.addFilter.rawValue,
+                  turnCount,
+                  mutation.addFilter.op === "neq" ? "neq" : undefined,
+                ) ?? mutation.addFilter
+              : undefined
+            bridgedV2Action = { type: "go_back_one_step", followUpFilter: followUp }
             bridgedV2OrchestratorResult = { action: bridgedV2Action, reasoning: `edit-intent:go_back`, agentsInvoked: [], escalatedToOpus: false }
             pendingSelectionAction = null
             pendingSelectionOrchestratorResult = null
+            // Skip the addFilter application below — go_back handler will apply it.
+            mutation.addFilter = null
           }
 
           // Apply removals (reverse order to keep indices valid)
@@ -3230,9 +3241,26 @@ async function handleServeExplorationInner(
         ? restoreToBeforeFilter(prevState, action.filterValue ?? "", action.filterField, baseInput, deps.applyFilterToInput)
         : restoreOnePreviousStep(prevState, baseInput, deps.applyFilterToInput)
 
+      // Edit-intent "이전으로 돌아가서 X 제외": apply followUpFilter on top of restored state.
+      const followUpFilter = action.type === "go_back_one_step" ? action.followUpFilter : undefined
+      let restoredFilters = restoreResult.remainingFilters
+      let restoredInput = restoreResult.rebuiltInput
+      if (followUpFilter) {
+        // Drop existing same-field eq filter (replaced by neq), then add followUp.
+        restoredFilters = restoredFilters.filter(f =>
+          !(f.field === followUpFilter.field && f.op !== "neq" && f.op !== "skip")
+        )
+        restoredFilters = [...restoredFilters, followUpFilter]
+        // For neq filters, do NOT mutate input (input is for inclusion filters).
+        if (followUpFilter.op !== "neq" && followUpFilter.op !== "skip") {
+          restoredInput = deps.applyFilterToInput(restoredInput, followUpFilter)
+        }
+        console.log(`[edit-intent:go_back] applied followUpFilter ${followUpFilter.field}=${followUpFilter.rawValue}(${followUpFilter.op}) after restore`)
+      }
+
       const undoResult = await runHybridRetrieval(
-        restoreResult.rebuiltInput,
-        restoreResult.remainingFilters.filter(filter => filter.op !== "skip"),
+        restoredInput,
+        restoredFilters.filter(filter => filter.op !== "skip"),
         0,
         null
       )
@@ -3250,9 +3278,9 @@ async function handleServeExplorationInner(
         paginationDto(undoResult.totalConsidered),
         undoDisplayPage.candidates,
         undoDisplayPage.evidenceMap,
-        restoreResult.rebuiltInput,
+        restoredInput,
         restoreResult.remainingHistory,
-        restoreResult.remainingFilters,
+        restoredFilters,
         restoreResult.undoTurnCount,
         messages,
         provider,

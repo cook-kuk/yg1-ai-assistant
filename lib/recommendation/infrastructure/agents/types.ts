@@ -73,7 +73,7 @@ export type OrchestratorAction =
   | { type: "replace_existing_filter"; targetField: string; previousValue: string; nextFilter: AppliedFilter }
   | { type: "skip_field" }
   | { type: "show_recommendation" }
-  | { type: "go_back_one_step" }
+  | { type: "go_back_one_step"; followUpFilter?: AppliedFilter }
   | { type: "go_back_to_filter"; filterValue: string; filterField?: string }
   | { type: "reset_session" }
   | { type: "compare_products"; targets: string[] }
