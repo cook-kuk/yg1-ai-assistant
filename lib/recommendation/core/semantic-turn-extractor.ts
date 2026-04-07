@@ -412,12 +412,13 @@ function buildSystemPrompt(repairFeedback: string | null): string {
 4. 여러 필터가 있으면 filters 배열에 모두 넣는다.
 5. filters[].field 는 아래 허용 필드 중 하나만 사용한다.
 6. filters[].value 는 canonical value를 우선 사용한다. 예: Square, Ball, Radius, Roughing, Taper, Chamfer, High-Feed, Bright Finish.
-6-1. filters[].op 는 비교 연산자다. 생략시 "eq". 허용값:
-     - "eq" 정확값 (기본)
-     - "neq" 제외/아닌
-     - "gte" 이상/넘는/초과/이상으로/N부터/N 이상의
-     - "lte" 이하/미만/이하의/N까지/N 이하의
-     - "between" 범위. value 는 [min, max] 형태. "8~12mm", "8mm 이상 12mm 이하", "8 to 12"
+6-1. filters[].op 는 비교 연산자다. 생략시 "eq". 매우 중요: 사용자 발화에 비교 표현이 있으면 반드시 op를 명시한다.
+     - "eq" 정확값 (기본). 표현: "10mm", "4날", "T-Coating"
+     - "neq" 제외/아닌. 표현: "X 말고", "X 빼고", "X 제외"
+     - "gte" 이상/넘는/초과/N부터. 표현: "100mm 이상", "45도 이상", "5개 이상", "100 넘는", "100 이상의 것만"
+     - "lte" 이하/미만/N까지. 표현: "80mm 이하", "30도 이하", "100 미만", "80 이하인 것만"
+     - "between" 범위. value 는 반드시 [min, max] 형태의 배열. 표현: "8~12mm", "8mm 이상 12mm 이하", "8 to 12", "6에서 10 사이", "직경 8과 12 사이"
+     주의: "이상" 또는 "이하" 단어가 단위 뒤에 붙는 경우(45도 이상, 100mm 이하)에도 반드시 gte/lte를 사용해야 한다. 단순 eq로 응답하지 말 것.
 6-2. 중복 추출 금지: 같은 숫자를 두 필드에 동시에 넣지 않는다.
      예: "전체 길이 100mm 이상" → overallLengthMm gte 100 만. diameterMm 100 추가 금지.
      예: "직경 10mm" → diameterMm eq 10 만. overallLengthMm 추가 금지.

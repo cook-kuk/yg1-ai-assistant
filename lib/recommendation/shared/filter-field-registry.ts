@@ -866,7 +866,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
   helixAngleDeg: {
     field: "helixAngleDeg",
     label: "헬릭스각",
-    queryAliases: ["헬릭스", "나선각", "helix"],
+    queryAliases: ["헬릭스", "헬릭스각", "헬릭스 각", "헬릭스 각도", "나선각", "나선 각도", "helix", "helixAngle", "helix angle"],
     kind: "number",
     op: "eq",
     unit: "°",
