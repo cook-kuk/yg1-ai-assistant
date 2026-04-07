@@ -651,13 +651,18 @@ export async function runChatConversation(
     : CHAT_TOOLS
 
   const startedAt = Date.now()
+  // Tool rounds use 1024 tokens (decision/short reasoning only); the FINAL
+  // user-facing response below uses 2048. This halves per-round LLM time on
+  // long comparison/explanation queries (PUB-062 was 25s/round → ~12s).
+  const TOOL_ROUND_MAX_TOKENS = 1024
+  const FINAL_MAX_TOKENS = 2048
   let llmResponse = await createAnthropicMessageWithLogging({
     client: deps.client,
     route: deps.route,
     operation: "chat.initial",
     request: {
       model: deps.model as Parameters<typeof deps.client.messages.create>[0]["model"],
-      max_tokens: 2048,
+      max_tokens: TOOL_ROUND_MAX_TOKENS,
       system: systemPrompt,
       tools: effectiveTools,
       messages: currentMessages,
@@ -701,13 +706,16 @@ export async function runChatConversation(
       { role: "user", content: toolResultMessages },
     ]
 
+    // Final round (no more tool rounds after this) gets full token budget so
+    // the user-facing response is not truncated mid-explanation.
+    const isFinalRound = round + 1 >= MAX_TOOL_ROUNDS
     llmResponse = await createAnthropicMessageWithLogging({
       client: deps.client,
       route: deps.route,
       operation: `chat.tool_round.${round + 1}`,
       request: {
         model: deps.model as Parameters<typeof deps.client.messages.create>[0]["model"],
-        max_tokens: 2048,
+        max_tokens: isFinalRound ? FINAL_MAX_TOKENS : TOOL_ROUND_MAX_TOKENS,
         system: systemPrompt,
         tools: effectiveTools,
         messages: currentMessages,
