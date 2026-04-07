@@ -10,6 +10,7 @@ import { InventoryRepo } from "@/lib/data/repos/inventory-repo"
 import { LeadTimeRepo } from "@/lib/data/repos/lead-time-repo"
 import { resolveMaterialTag } from "@/lib/domain/material-resolver"
 import { getAppShapesForOperation } from "@/lib/domain/operation-resolver"
+import { getPreferredSeriesBoost } from "@/lib/domain/preferred-series"
 
 // ── Scoring weights ───────────────────────────────────────────
 const WEIGHTS = {
@@ -186,7 +187,7 @@ export async function runMatchEngine(input: RecommendationInput, topN = 5, isCro
       ? { ...product, materialTags: enrichMaterialTags(product) }
       : product
 
-    const score =
+    const baseScore =
       scoreDiameter(enrichedProduct, input.diameterMm) +
       scoreShape(enrichedProduct, input.toolSubtype, w.shape) +
       scoreFlutes(enrichedProduct, input.flutePreference) +
@@ -194,6 +195,9 @@ export async function runMatchEngine(input: RecommendationInput, topN = 5, isCro
       scoreOperation(enrichedProduct, input.operationType) +
       scoreCoating(enrichedProduct, input.coatingPreference) +
       Math.round(enrichedProduct.dataCompletenessScore * w.completeness)
+
+    // 박소영 피드백(2026-04-06): 관리 시리즈(data/preferred-series.json) 부스트
+    const score = baseScore + getPreferredSeriesBoost(enrichedProduct.seriesName, enrichedProduct.brand)
 
     const status = determineMatchStatus(score, maxScore, input)
     const fields = matchedFields(product, input)

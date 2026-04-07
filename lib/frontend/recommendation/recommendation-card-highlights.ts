@@ -39,11 +39,13 @@ export function buildCandidateSpecFallback(candidate: CandidateHighlightInput): 
 
 
 export function buildSubtypeFirstSummary(candidate: CandidateHighlightInput, language: "ko" | "en"): string[] {
+  // 설일석 피드백(2026-04-07): 가공깊이 구분용 "날장(flute length)"을 카드 헤더에 노출.
+  // CL → 날장 으로 라벨 변경하고 형상 바로 다음에 배치한다.
   return [
     candidate.toolSubtype ? `${language === "ko" ? "형상" : "Subtype"} ${candidate.toolSubtype}` : null,
+    candidate.lengthOfCutMm != null ? `${language === "ko" ? "날장" : "LOC"} ${candidate.lengthOfCutMm}mm` : null,
     candidate.toolMaterial ?? null,
     candidate.shankDiameterMm != null ? `Shank ${candidate.shankDiameterMm}mm` : null,
-    candidate.lengthOfCutMm != null ? `CL ${candidate.lengthOfCutMm}mm` : null,
     candidate.overallLengthMm != null ? `OAL ${candidate.overallLengthMm}mm` : null,
     candidate.helixAngleDeg != null ? `${candidate.helixAngleDeg}°` : null,
   ].filter((value): value is string => Boolean(value))

@@ -27,7 +27,9 @@ import {
 import { createClientEventId } from "@/lib/frontend/recommendation/client-event-id"
 
 export type Phase = "intake" | "summary" | "loading" | "explore"
-const DEFAULT_PAGE_SIZE = 50
+// 설일석 피드백(2026-04-07): "추천 제품 종류가 너무 많아 고객이 혼란".
+// 50→20으로 축소. 더 보고 싶을 때 페이지네이션으로 추가 로드 가능.
+const DEFAULT_PAGE_SIZE = 20
 
 function buildCandidateHighlights(candidates: RecommendationCandidateDto[] | null) {
   return (candidates ?? []).map(candidate => ({

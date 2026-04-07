@@ -608,7 +608,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
   toolMaterial: {
     field: "toolMaterial",
     label: "공구 소재",
-    queryAliases: ["공구 소재", "tool material", "초경", "카바이드", "hss"],
+    queryAliases: ["공구 소재", "tool material", "초경", "카바이드", "carbide", "hss", "하이스", "고속도강", "high speed steel"],
     kind: "string",
     op: "includes",
     setInput: (input, filter) => ({ ...input, toolMaterial: joinedFilterStringValue(filter) }),
