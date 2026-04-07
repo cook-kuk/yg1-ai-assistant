@@ -909,7 +909,62 @@ function buildProductDataQuery(
   }
 }
 
+// ── In-process TTL cache to dedupe identical product queries ──
+// LLM tool loops in chat-service repeatedly call ProductRepo.search with the same
+// params; that hammered the DB with 15+ identical 700ms queries per request and
+// pushed comparison/explanation requests over the 60s timeout (PUB-062 etc.).
+// 10s TTL absorbs the spam without staling user-facing data.
+type CacheEntry<T> = { value: T; expiresAt: number }
+const PRODUCT_QUERY_CACHE_TTL_MS = 10_000
+const PRODUCT_QUERY_CACHE_MAX = 256
+const productQueryCache = new Map<string, CacheEntry<unknown>>()
+
+function buildProductQueryCacheKey(prefix: string, options: ProductSearchOptions): string {
+  // Stable key: sort top-level options keys, JSON-serialize filters as-is.
+  const norm: Record<string, unknown> = {}
+  for (const k of Object.keys(options).sort()) {
+    const v = (options as Record<string, unknown>)[k]
+    if (v !== undefined) norm[k] = v
+  }
+  return prefix + ":" + JSON.stringify(norm)
+}
+
+function readProductQueryCache<T>(key: string): T | undefined {
+  const e = productQueryCache.get(key)
+  if (!e) return undefined
+  if (e.expiresAt <= Date.now()) {
+    productQueryCache.delete(key)
+    return undefined
+  }
+  // LRU touch
+  productQueryCache.delete(key)
+  productQueryCache.set(key, e)
+  return e.value as T
+}
+
+function writeProductQueryCache<T>(key: string, value: T): void {
+  if (productQueryCache.size >= PRODUCT_QUERY_CACHE_MAX) {
+    const oldestKey = productQueryCache.keys().next().value
+    if (oldestKey !== undefined) productQueryCache.delete(oldestKey)
+  }
+  productQueryCache.set(key, { value, expiresAt: Date.now() + PRODUCT_QUERY_CACHE_TTL_MS })
+}
+
 export async function queryProductsPageFromDatabase(options: ProductSearchOptions = {}): Promise<ProductSearchPageResult> {
+  const cacheKey = buildProductQueryCacheKey("page", options)
+  const cached = readProductQueryCache<ProductSearchPageResult>(cacheKey)
+  if (cached) {
+    if (shouldLogTimings()) {
+      console.log(`[product-db] cache:hit op=page rows=${cached.products.length} total=${cached.totalCount}`)
+    }
+    return cached
+  }
+  const result = await queryProductsPageFromDatabaseUncached(options)
+  writeProductQueryCache(cacheKey, result)
+  return result
+}
+
+async function queryProductsPageFromDatabaseUncached(options: ProductSearchOptions = {}): Promise<ProductSearchPageResult> {
   traceRecommendation("db.product.queryProductsPageFromDatabase:input", {
     normalizedCode: options.normalizedCode ?? null,
     seriesName: options.seriesName ?? null,
@@ -991,6 +1046,20 @@ export async function queryProductsPageFromDatabase(options: ProductSearchOption
 }
 
 export async function queryProductsFromDatabase(options: ProductSearchOptions = {}): Promise<CanonicalProduct[]> {
+  const cacheKey = buildProductQueryCacheKey("list", options)
+  const cached = readProductQueryCache<CanonicalProduct[]>(cacheKey)
+  if (cached) {
+    if (shouldLogTimings()) {
+      console.log(`[product-db] cache:hit op=list rows=${cached.length}`)
+    }
+    return cached
+  }
+  const result = await queryProductsFromDatabaseUncached(options)
+  writeProductQueryCache(cacheKey, result)
+  return result
+}
+
+async function queryProductsFromDatabaseUncached(options: ProductSearchOptions = {}): Promise<CanonicalProduct[]> {
   traceRecommendation("db.product.queryProductsFromDatabase:input", {
     normalizedCode: options.normalizedCode ?? null,
     seriesName: options.seriesName ?? null,
