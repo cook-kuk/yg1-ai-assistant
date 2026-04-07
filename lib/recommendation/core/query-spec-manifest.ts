@@ -184,6 +184,24 @@ export const QUERY_FIELD_MANIFEST: FieldManifestEntry[] = [
     valueType: "string",
     examples: ["true", "false"],
   },
+  {
+    field: "pointAngleDeg",
+    label: "드릴 포인트 각도",
+    description: "드릴 팁 포인트 각도(°). '포인트 각도', '드릴 각도', 'point angle'. 홀메이킹 전용.",
+    allowedOps: ["eq", "neq", "gte", "lte", "between"],
+    aliases: ["포인트 각도", "드릴 각도", "point angle", "드릴 포인트"],
+    valueType: "number",
+    examples: ["118", "140", "≥135"],
+  },
+  {
+    field: "threadPitchMm",
+    label: "나사 피치",
+    description: "탭/나사 가공의 피치(mm). '피치', 'pitch', 'P1.5', 'M10 P1.5'. 쓰레딩 전용.",
+    allowedOps: ["eq", "neq", "gte", "lte", "between"],
+    aliases: ["피치", "pitch", "나사 피치"],
+    valueType: "number",
+    examples: ["1.5", "1.0", "0.5"],
+  },
 ]
 
 // ── Helpers ─────────────────────────────────────────────────

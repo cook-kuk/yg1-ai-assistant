@@ -247,8 +247,22 @@ function buildValidatedFilters(
       continue
     }
 
-    const op = normalizeFilterOp(item?.op) ?? undefined
-    const filter = buildAppliedFilterFromValue(resolvedField, rawValue as any, 0, op)
+    let op = normalizeFilterOp(item?.op) ?? undefined
+    // Coerce: op=between with string value → extract two numbers
+    let coercedValue: typeof rawValue = rawValue
+    if (op === "between" && typeof rawValue === "string") {
+      const nums = rawValue.match(/-?\d+(?:\.\d+)?/g)
+      if (nums && nums.length >= 2) {
+        const a = Number(nums[0]); const b = Number(nums[1])
+        if (Number.isFinite(a) && Number.isFinite(b)) {
+          coercedValue = [Math.min(a, b), Math.max(a, b)] as any
+        }
+      } else {
+        // Single number for between → treat as eq
+        op = "eq"
+      }
+    }
+    const filter = buildAppliedFilterFromValue(resolvedField, coercedValue as any, 0, op)
     if (!filter) {
       errors.push(`failed to canonicalize ${resolvedField}=${String(rawValue)}`)
       continue

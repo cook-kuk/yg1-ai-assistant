@@ -51,6 +51,9 @@ const FIELD_TO_COLUMN: Partial<Record<QueryField, ColumnMapping>> = {
   lengthOfCutMm:   { column: "option_loc", type: "numeric" },
   shankDiameterMm: { column: "option_shank_diameter", type: "numeric" },
   helixAngleDeg:   { column: "milling_helix_angle", type: "numeric" },
+  // pointAngleDeg / threadPitchMm: text columns in mv, registry path handles
+  //   numeric-safe extraction via firstNumberFromColumns. Keep out of the
+  //   scalar compiler to avoid type-mismatch SQL.
   // coolantHole: boolean — compile-product-query는 text/numeric만 지원, registry path로 위임
 }
 

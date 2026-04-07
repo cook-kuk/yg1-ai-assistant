@@ -122,6 +122,9 @@ interface RawProductRow {
   threading_coolant_hole: string | null
   threading_flute_type: string | null
   threading_thread_shape: string | null
+  holemaking_point_angle: string | null
+  threading_pitch: string | null
+  threading_tpi: string | null
   search_diameter_mm: number | null
   search_coating: string | null
   search_subtype: string | null
@@ -279,6 +282,9 @@ SELECT
   threading_coolant_hole,
   threading_flute_type,
   threading_thread_shape,
+  holemaking_point_angle,
+  threading_pitch,
+  threading_tpi,
   search_diameter_mm,
   search_coating,
   search_subtype
@@ -691,6 +697,9 @@ function mapRowToProduct(row: RawProductRow): CanonicalProduct {
     ballRadiusMm: parseNumber(firstNonEmpty(row.milling_ball_radius, row.option_r, row.option_re)),
     taperAngleDeg: parseNumber(firstNonEmpty(row.milling_taper_angle, row.option_taperangle)),
     coolantHole: parseBoolean(firstNonEmpty(row.milling_coolant_hole, row.holemaking_coolant_hole, row.threading_coolant_hole, row.option_coolanthole)),
+    pointAngleDeg: parseNumber(row.holemaking_point_angle),
+    threadPitchMm: parseNumber(row.threading_pitch),
+    threadTpi: parseNumber(row.threading_tpi),
     applicationShapes: normalizeApplicationShapes(row.series_application_shape),
     materialTags: normalizeMaterialTags(row.material_tags),
     country: null,

@@ -68,6 +68,9 @@ export const CanonicalProductSchema = z.object({
   ballRadiusMm: z.number().nullable(),
   taperAngleDeg: z.number().nullable(),
   coolantHole: z.boolean().nullable(),
+  pointAngleDeg: z.number().nullable().optional(),
+  threadPitchMm: z.number().nullable().optional(),
+  threadTpi: z.number().nullable().optional(),
 
   // Application
   applicationShapes: z.array(z.string()),  // Side_Milling, Slotting, etc.

@@ -62,12 +62,13 @@ const VALID_FIELDS = new Set<string>([
   "operationShape", "shankType", "country",
   // Numeric range-capable fields (must match QUERY_FIELD_MANIFEST entries)
   "overallLengthMm", "lengthOfCutMm", "shankDiameterMm", "helixAngleDeg", "coolantHole",
+  "pointAngleDeg", "threadPitchMm",
 ])
 
 // Numeric fields that should coerce eq/neq/gte/lte values to Number.
 const NUMERIC_FIELDS = new Set<string>([
   "diameterMm", "fluteCount", "overallLengthMm", "lengthOfCutMm",
-  "shankDiameterMm", "helixAngleDeg",
+  "shankDiameterMm", "helixAngleDeg", "pointAngleDeg", "threadPitchMm",
 ])
 
 const VALID_OPS = new Set<string>([

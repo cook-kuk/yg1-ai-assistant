@@ -37,6 +37,8 @@ export type QueryField =
   | "shankDiameterMm"  // 샹크 직경
   | "helixAngleDeg"    // 헬릭스 각도
   | "coolantHole"      // 쿨런트홀 (boolean)
+  | "pointAngleDeg"    // 드릴 포인트 각도
+  | "threadPitchMm"    // 탭 나사 피치 (mm)
 
 // ── Operators ────────────────────────────────────────────────
 

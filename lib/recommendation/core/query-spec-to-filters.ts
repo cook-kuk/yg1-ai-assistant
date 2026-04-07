@@ -33,6 +33,8 @@ const QUERY_FIELD_TO_FILTER_FIELD: Record<QueryField, string> = {
   shankDiameterMm: "shankDiameterMm",
   helixAngleDeg: "helixAngleDeg",
   coolantHole: "coolantHole",
+  pointAngleDeg: "pointAngleDeg",
+  threadPitchMm: "threadPitchMm",
 }
 
 // ── QueryOp → AppliedFilter op mapping ──────────────────────

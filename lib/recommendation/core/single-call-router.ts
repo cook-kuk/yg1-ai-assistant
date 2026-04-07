@@ -188,7 +188,9 @@ Given the user's Korean message and the current session state, determine what ac
     - "이상", "넘는", "초과", "그 이상" → op:"gte"
     - "이하", "미만", "넘지 않는" → op:"lte"
     - "A에서 B 사이", "A~B", "A에서 B까지" → op:"between" with value=A, value2=B
-  Range ops apply ONLY to numeric fields: diameterMm, fluteCount, lengthOfCutMm, overallLengthMm, helixAngleDeg, shankDiameterMm, ballRadiusMm, taperAngleDeg.
+  Range ops apply ONLY to numeric fields: diameterMm, fluteCount, lengthOfCutMm, overallLengthMm, helixAngleDeg, shankDiameterMm, ballRadiusMm, taperAngleDeg, pointAngleDeg, threadPitchMm.
+- pointAngleDeg: drill tip point angle in degrees (number). Triggers: "포인트 각도", "드릴 각도", "point angle". Example: "포인트 각도 140도" → pointAngleDeg=140 op:eq.
+- threadPitchMm: tap/thread pitch in mm (number). Triggers: "피치", "P1.5", "pitch". "M10 P1.5 관통탭" → threadPitchMm=1.5 (plus toolType=tap etc).
 - remove_filter: Remove an existing filter. Requires field.
 - replace_filter: Change an existing filter value. Requires field, from, to.
 - show_recommendation: User wants to see results now.
