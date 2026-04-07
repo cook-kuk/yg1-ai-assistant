@@ -63,6 +63,8 @@ import {
   formatNullableValue,
   formatMmValue,
   formatLengthValue,
+  formatDiameterDual,
+  formatLengthDual,
   formatAngleValue,
   countValues,
   buildProductInfoChips,
@@ -184,13 +186,13 @@ function getProductFieldValue(
     case "toolSubtype":
       return formatNullableValue(product.toolSubtype)
     case "diameterMm":
-      return formatMmValue(product.diameterMm)
+      return formatDiameterDual(product.diameterMm, product.diameterInch)
     case "shankDiameterMm":
       return formatMmValue(product.shankDiameterMm)
     case "lengthOfCutMm":
-      return formatLengthValue(product.lengthOfCutMm)
+      return formatLengthDual(product.lengthOfCutMm, product.diameterInch != null)
     case "overallLengthMm":
-      return formatLengthValue(product.overallLengthMm)
+      return formatLengthDual(product.overallLengthMm, product.diameterInch != null)
     case "helixAngleDeg":
       return formatAngleValue(product.helixAngleDeg)
     case "coolantHole":
@@ -773,13 +775,13 @@ export async function handleDirectProductInfoQuestion(
       ["시리즈", product.seriesName],
       ["제품명", product.productName],
       ["형상", product.toolSubtype],
-      ["직경", formatMmValue(product.diameterMm)],
+      ["직경", formatDiameterDual(product.diameterMm, product.diameterInch)],
       ["날 수", product.fluteCount == null ? "-" : `${product.fluteCount}날`],
       ["코팅", product.coating],
       ["공구 소재", product.toolMaterial],
       ["생크 직경", formatMmValue(product.shankDiameterMm)],
-      ["절삭 길이", formatLengthValue(product.lengthOfCutMm)],
-      ["전장", formatLengthValue(product.overallLengthMm)],
+      ["절삭 길이", formatLengthDual(product.lengthOfCutMm, product.diameterInch != null)],
+      ["전장", formatLengthDual(product.overallLengthMm, product.diameterInch != null)],
       ["헬릭스각", formatAngleValue(product.helixAngleDeg)],
       ["쿨런트 홀", product.coolantHole == null ? "-" : product.coolantHole ? "있음" : "없음"],
       ["적용 가공", compactList(product.applicationShapes)],

@@ -55,6 +55,14 @@ export const CHAT_TOOLS: Anthropic.Tool[] = [
           description:
             "일반 키워드 검색 (시리즈명, 특성 등). 예: 'ALU-POWER', 'V7', '고이송'",
         },
+        country: {
+          type: "string",
+          description: "국가/시장 (ISO alpha-3 또는 한글). 사용자가 '국내제품', '국산', '한국'을 명시한 경우 'KOR'. '미국' → 'USA' 등.",
+        },
+        tool_material: {
+          type: "string",
+          description: "공구 본체 재질. 'carbide' (초경/카바이드) 또는 'hss' (하이스/고속도강). 사용자가 명시한 경우에만.",
+        },
         show_all: {
           type: "boolean",
           description: "true면 전체 결과 반환 (사용자가 '더 보여줘', '전체 보기', '나머지도' 요청 시). 기본 false.",
@@ -390,6 +398,21 @@ function resolveToolSubtype(raw: string | undefined): string | null {
   return TOOL_SUBTYPE_CANON[raw.toLowerCase()] ?? null
 }
 
+const COUNTRY_NAME_TO_ISO: Record<string, string> = {
+  국내: "KOR", 국내제품: "KOR", 국산: "KOR", 한국: "KOR", 대한민국: "KOR", korea: "KOR", kor: "KOR", kr: "KOR",
+  미국: "USA", usa: "USA", us: "USA", america: "USA",
+  일본: "JPN", japan: "JPN", jp: "JPN",
+  중국: "CHN", china: "CHN", cn: "CHN",
+  독일: "DEU", germany: "DEU", de: "DEU",
+}
+function resolveCountry(raw: string | undefined): string | null {
+  if (!raw) return null
+  const trimmed = String(raw).trim()
+  if (!trimmed) return null
+  const lower = trimmed.toLowerCase()
+  return COUNTRY_NAME_TO_ISO[lower] ?? COUNTRY_NAME_TO_ISO[trimmed] ?? trimmed.toUpperCase()
+}
+
 function buildProductSearchOptions(params: {
   material?: string
   diameter_mm?: number
@@ -399,6 +422,8 @@ function buildProductSearchOptions(params: {
   keyword?: string
   tool_type?: string
   tool_subtype?: string
+  country?: string
+  tool_material?: string
 }): { input: RecommendationInput; filters: AppliedFilter[] } {
   const input: RecommendationInput = {
     manufacturerScope: "yg1-only",
@@ -408,6 +433,10 @@ function buildProductSearchOptions(params: {
   if (params.material) input.material = params.material
   if (params.diameter_mm != null) input.diameterMm = params.diameter_mm
   if (params.operation_type) input.operationType = params.operation_type
+
+  const country = resolveCountry(params.country)
+  if (country && country !== "ALL") input.country = country
+  if (params.tool_material) input.toolMaterial = params.tool_material
 
   // tool_type → edp_root_category mapping
   const rootCategory = resolveToolType(params.tool_type)
@@ -445,12 +474,27 @@ async function executeSearchProducts(params: {
   keyword?: string
   tool_type?: string
   tool_subtype?: string
+  country?: string
+  tool_material?: string
   show_all?: boolean
   offset?: number
 }): Promise<string> {
   const { input, filters } = buildProductSearchOptions(params)
   let results = await ProductRepo.search(input, filters, 200)
   const canonSubtype = resolveToolSubtype(params.tool_subtype)
+
+  // ── Hard filter: tool_material (carbide vs HSS) ──
+  if (params.tool_material) {
+    const wanted = params.tool_material.toLowerCase()
+    const filtered = results.filter(p => {
+      const tm = (p.toolMaterial ?? "").toLowerCase()
+      if (!tm) return false
+      if (wanted === "carbide") return tm.includes("carbide") || tm.includes("초경") || tm.includes("cemented")
+      if (wanted === "hss") return tm.includes("hss") || tm.includes("high speed") || tm.includes("하이스") || tm.includes("고속도")
+      return tm.includes(wanted)
+    })
+    if (filtered.length > 0) results = filtered
+  }
 
   // ── Hard filter 1: material ──
   if (params.material) {

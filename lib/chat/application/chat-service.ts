@@ -43,12 +43,23 @@ import type { ChatProductDto } from "@/lib/contracts/chat"
 
 const MAX_TOOL_ROUNDS = 5
 
-async function extractProductsFromToolResults(toolResults: { name: string; result: string }[]): Promise<ChatProductDto[]> {
+async function extractProductsFromToolResults(
+  toolResults: { name: string; result: string }[],
+  options: { trustOnlyFirstSearch?: boolean } = {},
+): Promise<ChatProductDto[]> {
   const { InventoryRepo } = await import("@/lib/data/repos/inventory-repo")
   const products: ChatProductDto[] = []
   const seen = new Set<string>()
 
-  for (const tr of toolResults) {
+  // pre-search 결과가 있으면 그것만 신뢰. LLM이 추가로 호출한
+  // get_product_detail/find_yg1_alternative 등은 환각 코드일 수 있어 무시.
+  const firstSearchIdx = options.trustOnlyFirstSearch
+    ? toolResults.findIndex(tr => tr.name === "search_products")
+    : -1
+
+  for (let i = 0; i < toolResults.length; i++) {
+    const tr = toolResults[i]
+    if (firstSearchIdx >= 0 && i !== firstSearchIdx) continue
     if (tr.name !== "search_products" && tr.name !== "get_competitor_mapping" && tr.name !== "get_product_detail") continue
     try {
       const data = JSON.parse(tr.result)
@@ -378,6 +389,9 @@ function mergeSearchProductsInput(
     if (preSearchParams.coating && !merged.coating) merged.coating = preSearchParams.coating
     if (preSearchParams.keyword && !merged.keyword) merged.keyword = preSearchParams.keyword
     if (preSearchParams.operation_type && !merged.operation_type) merged.operation_type = preSearchParams.operation_type
+    // Hard enforcement: country and tool_material — explicit user intent must not be silently dropped
+    if (preSearchParams.country && !merged.country) merged.country = preSearchParams.country
+    if (preSearchParams.tool_material && !merged.tool_material) merged.tool_material = preSearchParams.tool_material
   }
 
   console.log(
@@ -432,18 +446,51 @@ function fastExtractParams(text: string): Record<string, unknown> {
   const params: Record<string, unknown> = {}
   const lower = text.toLowerCase()
 
-  // diameter
-  const diamMatch = text.match(/(?:φ|ø|직경\s*)(\d+(?:\.\d+)?)\s*mm/i) ?? text.match(/(\d+(?:\.\d+)?)\s*mm/)
-  if (diamMatch) params.diameter_mm = parseFloat(diamMatch[1])
+  // intake form labels first (🌐 국가: KOREA, 🧱 가공 소재: 초내열합금, etc.)
+  const intakeCountry = text.match(/국가\s*:\s*([^\n]+)/)?.[1]?.trim()
+  const intakeMaterial = text.match(/가공\s*소재\s*:\s*([^\n]+)/)?.[1]?.trim()
+  const intakeShape = text.match(/가공\s*형상\s*:\s*([^\n]+)/)?.[1]?.trim()
+  const intakeMethod = text.match(/가공\s*방식\s*:\s*([^\n]+)/)?.[1]?.trim()
+  const intakeDia = text.match(/공구\s*직경\s*:\s*(\d+(?:\.\d+)?)/)?.[1]
+  if (intakeDia) params.diameter_mm = parseFloat(intakeDia)
+  if (intakeShape && intakeShape !== "모름") params.operation_type = intakeShape
+  if (intakeMethod) {
+    const m = intakeMethod.toLowerCase()
+    if (m.includes("mill")) params.tool_type = "endmill"
+    else if (m.includes("drill")) params.tool_type = "drill"
+    else if (m.includes("tap")) params.tool_type = "tap"
+  }
+
+  // diameter (free-form fallback)
+  if (params.diameter_mm == null) {
+    const diamMatch = text.match(/(?:φ|ø|직경\s*)(\d+(?:\.\d+)?)\s*mm?/i) ?? text.match(/(\d+(?:\.\d+)?)\s*mm/)
+    if (diamMatch) params.diameter_mm = parseFloat(diamMatch[1])
+  }
 
   // flute count
   const fluteMatch = text.match(/(\d+)\s*날/)
   if (fluteMatch) params.flute_count = parseInt(fluteMatch[1])
 
-  // tool type
-  if (/드릴|drill/i.test(lower)) params.tool_type = "drill"
-  else if (/엔드밀|endmill|end mill/i.test(lower)) params.tool_type = "endmill"
-  else if (/탭|tap/i.test(lower)) params.tool_type = "tap"
+  // country (free-form — overridable by intake)
+  const countrySource = intakeCountry || lower
+  const cs = countrySource.toLowerCase()
+  if (/국내|국산|한국|대한민국|\bkorea\b|\bkor\b/.test(cs)) params.country = "KOR"
+  else if (/미국|\busa\b|\bus\b\s|america/.test(cs)) params.country = "USA"
+  else if (/일본|japan|\bjp\b/.test(cs)) params.country = "JPN"
+  else if (/중국|china|\bcn\b/.test(cs)) params.country = "CHN"
+  else if (/독일|germany|\bde\b/.test(cs)) params.country = "DEU"
+  else if (intakeCountry && intakeCountry !== "ALL") params.country = intakeCountry.toUpperCase()
+
+  // tool material (carbide vs HSS) — explicit "초경/하이스" cue
+  if (/초경|카바이드|carbide|cemented/i.test(lower)) params.tool_material = "carbide"
+  else if (/하이스|고속도강|\bhss\b|high.?speed/i.test(lower)) params.tool_material = "hss"
+
+  // tool type — only set if not already from intake form
+  if (!params.tool_type) {
+    if (/엔드밀|endmill|end mill/i.test(lower)) params.tool_type = "endmill"
+    else if (/드릴|drill/i.test(lower)) params.tool_type = "drill"
+    else if (/탭|\btap\b/i.test(lower)) params.tool_type = "tap"
+  }
 
   // tool subtype
   if (/square|스퀘어/i.test(lower)) params.tool_subtype = "square"
@@ -478,9 +525,15 @@ async function extractParamsAndPreSearch(
       .join("\n")
 
     const lastUserText = [...messages].reverse().find(m => m.role === "user")?.text ?? ""
+    // Combine all user messages so intake form labels (sent in an earlier turn)
+    // are still visible to the regex extractor along with the latest free-form ask.
+    const allUserText = messages
+      .filter(m => m.role === "user")
+      .map(m => m.text)
+      .join("\n")
 
     // ── Fast path: regex extraction (skip LLM if 2+ params found) ──
-    const fastParams = fastExtractParams(lastUserText)
+    const fastParams = fastExtractParams(allUserText || lastUserText)
     const fastParamCount = Object.keys(fastParams).length
 
     let extractedParams: Record<string, unknown>
@@ -519,6 +572,8 @@ async function extractParamsAndPreSearch(
       if (params.keyword) extractedParams.keyword = params.keyword
       if (params.tool_type) extractedParams.tool_type = params.tool_type
       if (params.tool_subtype) extractedParams.tool_subtype = params.tool_subtype
+      if (params.country) extractedParams.country = params.country
+      if (params.tool_material) extractedParams.tool_material = params.tool_material
 
       // Merge fast params for fields LLM missed
       for (const [k, v] of Object.entries(fastParams)) {
@@ -579,7 +634,10 @@ export async function runChatConversation(
     // pre-search로 충분한 결과가 이미 있으면 LLM이 중복 search_products 호출하지 않도록 제거
     try {
       const parsed = JSON.parse(preSearchResult)
-      preSearchHasSufficientResults = (parsed.totalMatched ?? 0) >= 10
+      // 임계값 1: pre-search가 명시적 사용자 파라미터로 1건이라도 찾으면 정답으로
+      // 인정하고 LLM이 자기 판단으로 search_products를 다시 호출해 환각 제품을
+      // 끌어오지 못하도록 차단한다.
+      preSearchHasSufficientResults = (parsed.totalMatched ?? 0) >= 1
     } catch { /* ignore parse errors */ }
   }
 
@@ -671,8 +729,11 @@ export async function runChatConversation(
   const references = extractReferences(toolResults)
   const brandProducts = extractBrandInfo(toolResults)
 
-  // Extract structured product data from tool results
-  const recommendedProducts = await extractProductsFromToolResults(toolResults)
+  // Extract structured product data. preSearchHasSufficientResults=true 이면
+  // pre-search 결과만 인정 (LLM이 추가 호출한 detail/alternative는 환각 위험).
+  const recommendedProducts = await extractProductsFromToolResults(toolResults, {
+    trustOnlyFirstSearch: preSearchHasSufficientResults,
+  })
 
   // 1) 브랜드 헤더 주입
   const withBrand =

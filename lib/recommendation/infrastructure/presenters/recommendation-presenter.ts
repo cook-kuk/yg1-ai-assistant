@@ -251,8 +251,25 @@ export function buildRecommendationResponseDto(
       ? (params.candidateSnapshot ?? sessionState?.lastRecommendationArtifact ?? null)
       : (sessionState?.lastRecommendationArtifact ?? params.candidateSnapshot ?? null)
 
+  // ── LLM 환각 시리즈명 감지 ──
+  // LLM이 카탈로그에 없는 시리즈명(예: "3S MILL")을 만들어낼 경우 disclaimer 추가.
+  // knowledge JSON 기반 known-set과 대조. 텍스트 자체는 수정하지 않음.
+  let finalText = params.text
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { findHallucinatedSeries } = require("@/lib/recommendation/infrastructure/knowledge/series-validator") as typeof import("@/lib/recommendation/infrastructure/knowledge/series-validator")
+    const hits = findHallucinatedSeries(finalText)
+    if (hits.length > 0) {
+      const names = hits.map(h => h.raw).join(", ")
+      console.warn(`[series-validator] hallucinated series in response: ${names}`)
+      finalText = `${finalText}\n\n> ⚠️ 안내: 위 응답에 카탈로그에서 확인되지 않은 시리즈명(${names})이 포함되어 있을 수 있습니다. 정확한 제품명은 YG-1 본사(032-526-0909)로 확인 부탁드립니다.`
+    }
+  } catch (e) {
+    console.warn(`[series-validator] check failed:`, (e as Error).message)
+  }
+
   const dto: RecommendationResponseDto = {
-    text: params.text,
+    text: finalText,
     purpose: params.purpose,
     chips: params.chips ?? [],
     chipGroups: params.chipGroups,

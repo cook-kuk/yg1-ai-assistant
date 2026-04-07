@@ -7,7 +7,7 @@
 JSON만 출력. 다른 텍스트 절대 금지:
 
 ```json
-{"material":"P","diameter_mm":10,"operation_type":"Side_Milling","flute_count":4,"coating":"TiAlN","keyword":null,"tool_type":"endmill","tool_subtype":"square"}
+{"material":"P","diameter_mm":10,"operation_type":"Side_Milling","flute_count":4,"coating":"TiAlN","keyword":null,"tool_type":"endmill","tool_subtype":"square","country":"KOR","tool_material":"carbide"}
 ```
 
 모르면 null. 추측 금지.
@@ -77,6 +77,27 @@ JSON만 출력. 다른 텍스트 절대 금지:
 | Reaming_Through | 리밍 쓰루 |
 | Threading_Blind | 나사 블라인드, 탭 블라인드 |
 | Threading_Through | 나사 쓰루, 탭 쓰루 |
+
+## 국가 (country) — ISO 3166-1 alpha-3
+
+| 값 | 사용자 표현 |
+|---|---|
+| KOR | 국내, 국내제품, 국산, 한국, 대한민국, korea |
+| USA | 미국, USA, america |
+| JPN | 일본, japan |
+| CHN | 중국, china |
+| DEU | 독일, germany |
+
+intake form에 "🌐 국가: ALL" 이면 country는 null. 명시되지 않으면 null.
+
+## 공구 본체 재질 (tool_material)
+
+| 값 | 사용자 표현 |
+|---|---|
+| carbide | 초경, 카바이드, carbide, cemented carbide |
+| hss | 하이스, 고속도강, HSS, high speed steel |
+
+사용자가 "초경 엔드밀로만", "하이스 빼고" 처럼 명시한 경우에만 채운다. 추측 금지.
 
 ## 코팅 매핑
 

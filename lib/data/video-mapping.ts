@@ -40,7 +40,10 @@ export const VIDEO_LIST: VideoEntry[] = [
   { title: "YG FM10 MILL - PNMU", url: "https://youtu.be/juwzl28bBE4", language: "ko", category: "Milling", matchKeywords: ["pnmu", "fm10"] },
   { title: "YG TM4 MILL LNKU & LNHU", url: "https://youtu.be/kYAF9Gd2sIg", language: "en", category: "Milling", matchKeywords: ["lnku", "lnhu", "tm4"] },
   { title: "YG SM3 MILL TPKT", url: "https://youtu.be/XePP_vsmCXE", language: "en", category: "Milling", matchKeywords: ["tpkt", "sm3"] },
-  { title: "E-FORCE BLUE", url: "https://youtu.be/mgTel2Uvmnc", language: "ko", category: "Milling", matchKeywords: ["e-force", "eforce", "e5e", "e5h", "e5i"] },
+  // E-FORCE: prefix 키워드(e5e/e5h/e5i)는 ALU-CUT/WIDE-CUT/YG-1 등 다른 브랜드와
+  // 시리즈명을 공유해 cross-link 버그(유동욱 피드백 2026-04-05)를 일으켰음.
+  // 브랜드명 매칭만 사용한다.
+  { title: "E-FORCE BLUE", url: "https://youtu.be/mgTel2Uvmnc", language: "ko", category: "Milling", matchKeywords: ["e-force", "eforce"] },
   { title: "포지밀", url: "https://youtu.be/IO1z-VmtbsQ", language: "ko", category: "Milling", matchKeywords: ["apmt", "apxt"] },
   { title: "CFRP Compression Router", url: "https://youtu.be/P7Fzw45xmfs", language: "en", category: "Milling", matchKeywords: ["cfrp", "compression router", "urt5"] },
   { title: "Compression Router with Chip Breakers", url: "https://youtu.be/VH9VVl3ifcw", language: "en", category: "Milling", matchKeywords: ["compression router", "urt5"] },
@@ -136,16 +139,27 @@ export function findVideosForProduct(
   const seriesNorm = (seriesName ?? "").toLowerCase().replace(/[-_\s]/g, "")
   const brandNorm = (brand ?? "").toLowerCase().replace(/[-_\s]/g, "")
 
-  const matched = VIDEO_LIST.filter(video => {
-    // 언어 필터: preferredLanguage 또는 "both"만 허용
+  const matchVideo = (video: VideoEntry, requireBrandMatch: boolean): boolean => {
     if (video.language !== preferredLanguage && video.language !== "both") return false
-
     return video.matchKeywords.some(kw => {
       const kwNorm = kw.replace(/[-_\s]/g, "")
-      if (kwNorm.length < 3) return false // 짧은 키워드 오매칭 방지
-      return seriesNorm.includes(kwNorm) || brandNorm.includes(kwNorm) || (kwNorm.includes(seriesNorm) && seriesNorm.length >= 3)
+      if (kwNorm.length < 3) return false
+      // 1순위: 브랜드 매칭 (가장 신뢰도 높음)
+      if (brandNorm.length >= 3 && (brandNorm.includes(kwNorm) || kwNorm.includes(brandNorm))) return true
+      if (requireBrandMatch) return false
+      // 2순위: 시리즈 매칭 (브랜드 매칭이 하나도 없을 때만)
+      // prefix substring 매칭은 브랜드 간 시리즈 공유(e5e88=WIDE-CUT vs e5e83=ALU-CUT)로 인한
+      // cross-link 버그를 유발하므로, kwNorm 길이 5 이상일 때만 허용한다.
+      if (kwNorm.length >= 5 && seriesNorm.includes(kwNorm)) return true
+      if (kwNorm.includes(seriesNorm) && seriesNorm.length >= 5) return true
+      return false
     })
-  })
+  }
+
+  // 1차: 브랜드 매칭만 시도
+  let matched = VIDEO_LIST.filter(v => matchVideo(v, true))
+  // 브랜드 매칭이 0건일 때만 2차(시리즈 매칭) 허용
+  if (matched.length === 0) matched = VIDEO_LIST.filter(v => matchVideo(v, false))
 
   // Deduplicate by URL
   const seen = new Set<string>()

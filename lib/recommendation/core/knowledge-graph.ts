@@ -1,7 +1,7 @@
 /**
  * Knowledge Graph — Deterministic Intent & Entity Resolution
  *
- * Replaces LLM calls (semantic-turn-extractor, llm-filter-extractor, unified-judgment)
+ * Replaces LLM calls (semantic-turn-extractor, unified-judgment)
  * with graph-based pattern matching for ~90% of user inputs.
  *
  * Fallback chain: KG lookup → regex → LLM (only if confidence < threshold)

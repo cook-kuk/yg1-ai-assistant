@@ -52,7 +52,8 @@ import { classifyPreSearchRoute } from "@/lib/recommendation/infrastructure/engi
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
 import { shouldExecutePendingAction, pendingActionToFilter } from "@/lib/recommendation/domain/context/pending-action-resolver"
 import { TurnPerfLogger, setCurrentPerfLogger } from "@/lib/recommendation/infrastructure/perf/turn-perf-logger"
-import { buildAppliedFilterFromValue, buildFilterValueScope, extractFilterFieldValueMap, getFilterFieldDefinition, getFilterFieldLabel, getFilterFieldQueryAliases, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
+import { applyPostFilterToProducts, buildAppliedFilterFromValue, buildFilterValueScope, extractFilterFieldValueMap, getFilterFieldDefinition, getFilterFieldLabel, getFilterFieldQueryAliases, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
+import type { CanonicalProduct } from "@/lib/recommendation/domain/types"
 import {
   buildConstraintClarificationQuestion,
   hasExplicitFilterIntent,
@@ -2783,6 +2784,36 @@ async function handleServeExplorationInner(
     candidates = hybridResult.candidates
     evidenceMap = hybridResult.evidenceMap
     totalCandidateCount = hybridResult.totalConsidered
+
+    // ── Knowledge fallback ──
+    // DB에 일부 시리즈(SUPER ALLOY, TITANOX, X-POWER 등)가 누락돼 0건이 나오는 경우,
+    // data/series-knowledge.json (PDF에서 추출한 2134 시리즈)에서 매칭을 시도한다.
+    // 평소 경로에는 영향 없음 — DB가 ≥1건이면 이 블록은 실행되지 않는다.
+    if (candidates.length === 0) {
+      try {
+        const { searchKnowledgeFallback } = await import("@/lib/recommendation/infrastructure/knowledge/knowledge-fallback")
+        let kbCandidates = searchKnowledgeFallback(resolvedInput, filters)
+        // Knowledge fallback의 entryMatches는 negation(neq/exclude) 필터를 처리하지 않음.
+        // → fallback 결과에 post-filter를 다시 적용해서 brand/series 제외 의도가 보존되도록 함.
+        if (kbCandidates.length > 0) {
+          for (const filter of filters) {
+            if (filter.op !== "neq" && filter.op !== "exclude") continue
+            const filtered = applyPostFilterToProducts(kbCandidates as unknown as CanonicalProduct[], filter)
+            if (filtered != null) {
+              kbCandidates = filtered as unknown as typeof kbCandidates
+            }
+          }
+        }
+        if (kbCandidates.length > 0) {
+          candidates = kbCandidates
+          totalCandidateCount = kbCandidates.length
+          console.log(`[recommend] Knowledge fallback engaged: ${kbCandidates.length} series from catalog JSON`)
+        }
+      } catch (kbErr) {
+        console.warn(`[recommend] Knowledge fallback error:`, (kbErr as Error).message)
+      }
+    }
+
     const displayPage = sliceCandidatesForPage(candidates, evidenceMap, resolvedPagination)
     displayCandidates = displayPage.candidates
     displayEvidenceMap = displayPage.evidenceMap
@@ -4008,12 +4039,29 @@ async function handleServeExplorationInner(
 
       filter = await enrichWorkPieceFilterWithSeriesScope(filter, currentInput)
 
-      const nextFilterState = replaceFieldFilter(
-        baseInput,
-        baseFiltersForNext,
-        filter,
-        deps.applyFilterToInput
-      )
+      // NEQ/exclude는 input에 positive 값을 추가하지 않으므로 (DB SQL의 NOT 절로만 작동)
+      // baseInput부터 재구성하면 다른 필드들의 input round-trip 손실 리스크가 있음.
+      // currentInput을 그대로 두고 필터 배열에만 추가하여 회귀 방지.
+      let nextFilterState: ReturnType<typeof replaceFieldFilter>
+      if (filter.op === "neq" || filter.op === "exclude") {
+        const dedupedFilters = baseFiltersForNext.filter(f => !(
+          f.field === filter.field &&
+          f.op === filter.op &&
+          String(f.rawValue ?? f.value) === String(filter.rawValue ?? filter.value)
+        ))
+        nextFilterState = {
+          replacedExisting: dedupedFilters.length !== baseFiltersForNext.length,
+          nextFilters: [...dedupedFilters, filter],
+          nextInput: currentInput,
+        }
+      } else {
+        nextFilterState = replaceFieldFilter(
+          baseInput,
+          baseFiltersForNext,
+          filter,
+          deps.applyFilterToInput
+        )
+      }
       const testInput = nextFilterState.nextInput
       const testFilters = nextFilterState.nextFilters
       console.log(`[chip-filter-debug] (apply) filter=${JSON.stringify(filter)} testInput.diameterMm=${testInput.diameterMm} testFilters=${JSON.stringify(testFilters.map(f=>f.field+'='+f.value))}`)
