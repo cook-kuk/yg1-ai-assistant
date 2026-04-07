@@ -52,7 +52,8 @@ import { classifyPreSearchRoute } from "@/lib/recommendation/infrastructure/engi
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
 import { shouldExecutePendingAction, pendingActionToFilter } from "@/lib/recommendation/domain/context/pending-action-resolver"
 import { TurnPerfLogger, setCurrentPerfLogger } from "@/lib/recommendation/infrastructure/perf/turn-perf-logger"
-import { buildAppliedFilterFromValue, buildFilterValueScope, extractFilterFieldValueMap, getFilterFieldDefinition, getFilterFieldLabel, getFilterFieldQueryAliases, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
+import { applyPostFilterToProducts, buildAppliedFilterFromValue, buildFilterValueScope, extractFilterFieldValueMap, getFilterFieldDefinition, getFilterFieldLabel, getFilterFieldQueryAliases, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
+import type { CanonicalProduct } from "@/lib/recommendation/domain/types"
 import {
   buildConstraintClarificationQuestion,
   hasExplicitFilterIntent,
@@ -2791,7 +2792,18 @@ async function handleServeExplorationInner(
     if (candidates.length === 0) {
       try {
         const { searchKnowledgeFallback } = await import("@/lib/recommendation/infrastructure/knowledge/knowledge-fallback")
-        const kbCandidates = searchKnowledgeFallback(resolvedInput, filters)
+        let kbCandidates = searchKnowledgeFallback(resolvedInput, filters)
+        // Knowledge fallback의 entryMatches는 negation(neq/exclude) 필터를 처리하지 않음.
+        // → fallback 결과에 post-filter를 다시 적용해서 brand/series 제외 의도가 보존되도록 함.
+        if (kbCandidates.length > 0) {
+          for (const filter of filters) {
+            if (filter.op !== "neq" && filter.op !== "exclude") continue
+            const filtered = applyPostFilterToProducts(kbCandidates as unknown as CanonicalProduct[], filter)
+            if (filtered != null) {
+              kbCandidates = filtered as unknown as typeof kbCandidates
+            }
+          }
+        }
         if (kbCandidates.length > 0) {
           candidates = kbCandidates
           totalCandidateCount = kbCandidates.length
