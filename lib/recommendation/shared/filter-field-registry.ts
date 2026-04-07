@@ -686,7 +686,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
       /** Natural-language → ISO 3166-1 alpha-3 (DB standard) */
       const COUNTRY_NAME_MAP: Record<string, string> = {
         // Korean names
-        한국: "KOR", 대한민국: "KOR",
+        한국: "KOR", 대한민국: "KOR", 국내: "KOR", 국산: "KOR", 내수: "KOR",
         미국: "USA",
         일본: "JPN",
         중국: "CHN",
