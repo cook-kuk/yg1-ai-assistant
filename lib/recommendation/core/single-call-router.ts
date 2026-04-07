@@ -244,6 +244,7 @@ Long-term (accumulated in Session State):
 - material: material group code (P, M, K, N, S, H). Use this when user mentions an ISO code.
 - country: sales region / country of sale. Use ISO-3 codes or Korean/English natural names — the system canonicalizes them. Examples: "국내"/"국산"/"내수"/"한국" → "국내", "유럽"/"유럽용"/"유럽판매용"/"europe" → "유럽", "독일" → "독일", "일본" → "일본". "수입품 제외" / "해외 제품 제외" → country="국내" (op:"eq"). "국내 제품 말고" → country="국내" (op:"neq").
 - ballRadiusMm: corner radius / ball nose radius in mm (number). Triggers: "라디우스 0.3", "코너R 0.5", "R0.2". When user gives a numeric radius value, emit BOTH toolSubtype="Radius" AND ballRadiusMm=<value>.
+- coolantHole: presence of internal coolant through-hole (boolean). Triggers: "쿨런트홀", "쿨런트 구멍", "내부 냉각", "coolant hole", "internal coolant". Use value:true for "있는 거/되는 거", value:false for "없는 거/없이".
 - brand: series/brand name (string, pass-through). The canonical list of brands that actually exist in DB is injected below under "## Known DB Values". ONLY emit brand values from that list (closest match if user uses a variant spelling). Triggers: "브랜드 <name>", "<name>로", "<name> 시리즈". If user says "브랜드를 X로 바꿔줘" and NO brand filter exists yet → apply_filter(brand=X). If brand filter already exists → replace_filter(brand, from=<current>, to=X).
 
 ## Examples
@@ -321,6 +322,9 @@ User: "절삭 길이(날장) 20mm 이상"
 
 User: "직경 8mm 이상 12mm 이하 제품만 보여줘"
 → {"actions":[{"type":"apply_filter","field":"diameterMm","value":8,"value2":12,"op":"between"}],"answer":"","reasoning":"diameter range 8-12mm"}
+
+User: "전장 100 이상이고 쿨런트홀 있는 거"
+→ {"actions":[{"type":"apply_filter","field":"overallLengthMm","value":100,"op":"gte"},{"type":"apply_filter","field":"coolantHole","value":true,"op":"eq"}],"answer":"","reasoning":"OAL ≥100 + internal coolant through-hole"}
 
 User: "알루파워라는 브랜드는 왜 추천해주지 않나요?" (question about missing brand)
 → {"actions":[],"answer":"알루파워(ALU-POWER) 시리즈가 후보에 포함되어 있는지 확인하겠습니다.","reasoning":"question about brand, no filter change"}
@@ -471,10 +475,9 @@ function buildDbValuesSnippet(): string {
     parts.push(`Workpieces: ${wpList}`)
   }
 
-  // Country codes — from distinct country_codes sample if cached
-  const countrySample = schema.sampleValues?.country_codes ?? schema.sampleValues?.country_code
-  if (countrySample && countrySample.length > 0) {
-    parts.push(`Country codes in DB: ${countrySample.slice(0, 30).join(", ")}`)
+  // Country codes — unnested from text[] column in schema cache
+  if (schema.countries && schema.countries.length > 0) {
+    parts.push(`Country codes in DB: ${schema.countries.join(", ")}`)
   }
 
   return parts.length > 0 ? parts.join("\n") : "(DB schema cache empty)"

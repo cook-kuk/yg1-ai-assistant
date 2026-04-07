@@ -13,6 +13,8 @@ export interface DbSchema {
   sampleValues: Record<string, string[]>
   workpieces: { tag_name: string; normalized_work_piece_name: string }[]
   brands: string[]
+  /** Distinct country codes from product_recommendation_mv.country_codes (text[] array, unnested) */
+  countries: string[]
   loadedAt: number
 }
 
@@ -99,8 +101,22 @@ export async function getDbSchema(): Promise<DbSchema> {
   `)
   const brands = brandRes.rows.map(r => r.v)
 
-  cached = { columns, sampleValues, workpieces, brands, loadedAt: Date.now() }
-  console.log(`[sql-agent-schema] loaded: ${columns.length} columns, ${workpieces.length} workpieces, ${brands.length} brands`)
+  // 5. Country codes (unnest text[] column — text filter would miss ARRAY columns)
+  let countries: string[] = []
+  try {
+    const countryRes = await pool.query<{ v: string }>(`
+      SELECT DISTINCT unnest(country_codes) AS v
+      FROM catalog_app.product_recommendation_mv
+      WHERE country_codes IS NOT NULL
+      ORDER BY v
+    `)
+    countries = countryRes.rows.map(r => r.v).filter(Boolean)
+  } catch {
+    // Column may not exist in older schemas — fall back silently.
+  }
+
+  cached = { columns, sampleValues, workpieces, brands, countries, loadedAt: Date.now() }
+  console.log(`[sql-agent-schema] loaded: ${columns.length} columns, ${workpieces.length} workpieces, ${brands.length} brands, ${countries.length} countries`)
   return cached
 }
 
