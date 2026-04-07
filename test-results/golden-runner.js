@@ -32,7 +32,7 @@ const FIELD_ALIAS = {
   OverAllLength: ['overallLengthMm', 'oal'],
   LengthofCut: ['lengthOfCutMm', 'loc'],
   NumberofFlute: ['fluteCount', 'numberOfFlute'],
-  HelixAngle: ['helixAngleDeg', 'helixAngle'],
+  HelixAngle: ['helixAngleDeg', 'helixAngle', 'helix_angle'],
   TaperAngle: ['taperAngleDeg', 'taperAngle'],
   RadiusAll: ['cornerRadiusMm', 'ballRadiusMm', 'radiusAll'],
   RadiusofBallNose: ['ballNoseRadiusMm', 'ballRadiusMm', 'radiusOfBallNose'],
