@@ -10,6 +10,7 @@ import {
   runHybridRetrieval,
 } from "@/lib/recommendation/domain/recommendation-domain"
 import { BrandReferenceRepo } from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
+import { isPrecisionMode } from "@/lib/recommendation/runtime-flags"
 import { getSessionCache } from "@/lib/recommendation/infrastructure/cache/session-cache"
 import { resolveMaterialTag } from "@/lib/recommendation/domain/material-resolver"
 import { parseAnswerToFilter } from "@/lib/recommendation/domain/question-engine"
@@ -2789,7 +2790,7 @@ async function handleServeExplorationInner(
     // DB에 일부 시리즈(SUPER ALLOY, TITANOX, X-POWER 등)가 누락돼 0건이 나오는 경우,
     // data/series-knowledge.json (PDF에서 추출한 2134 시리즈)에서 매칭을 시도한다.
     // 평소 경로에는 영향 없음 — DB가 ≥1건이면 이 블록은 실행되지 않는다.
-    if (candidates.length === 0) {
+    if (candidates.length === 0 && !isPrecisionMode()) {
       try {
         const { searchKnowledgeFallback } = await import("@/lib/recommendation/infrastructure/knowledge/knowledge-fallback")
         let kbCandidates = searchKnowledgeFallback(resolvedInput, filters)
