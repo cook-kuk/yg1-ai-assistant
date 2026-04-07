@@ -23,7 +23,7 @@ import {
   traceRecommendationError,
 } from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
 
-const UNIFIED_JUDGMENT_MODEL = resolveModel("opus", "unified-judgment")
+const UNIFIED_JUDGMENT_MODEL = resolveModel("sonnet", "unified-judgment")
 
 export interface UnifiedJudgment {
   // 기존 5가지
