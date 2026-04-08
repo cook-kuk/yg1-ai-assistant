@@ -2803,6 +2803,24 @@ async function handleServeExplorationInner(
     earlyAction = earlyResult.action.type
   }
 
+  // filter_by_stock 액션이지만 prevState 에 displayedCandidates 가 없으면
+  // post-filter할 대상이 없어서 0건 응답이 됨. 이 경우 stockStatus 필터를 주입하고
+  // 정상 retrieval 을 돌려서 SQL EXISTS subquery 가 inventory_summary_mv 와 join.
+  const isFirstTurnStockFilter =
+    earlyAction === "filter_by_stock"
+    && (!prevState?.displayedCandidates || prevState.displayedCandidates.length === 0)
+  if (isFirstTurnStockFilter) {
+    const existing = filters.find(f => f.field === "stockStatus")
+    if (!existing) {
+      const stockFilter = buildAppliedFilterFromValue("stockStatus", "instock", 0, "eq")
+      if (stockFilter) {
+        filters.push(stockFilter)
+        console.log("[runtime:stock] first-turn filter_by_stock → injected stockStatus=instock filter and run retrieval")
+      }
+    }
+    earlyAction = null  // 더 이상 SKIP 하지 않음
+  }
+
   const needsRetrieval = !earlyAction || !SKIP_RETRIEVAL_ACTIONS.has(earlyAction)
   let candidates: ScoredProduct[]
   let evidenceMap: Map<string, EvidenceSummary>
