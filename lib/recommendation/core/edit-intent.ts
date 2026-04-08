@@ -90,11 +90,22 @@ export function parseEditIntent(
   }
 
   // ── 2. go_back_then_apply ("이전으로 돌아가서 X 제외") ──
-  const goBackApplyMatch = lower.match(
-    /(?:이전|뒤로|돌아가)\S*\s+(?:.*?)(.+?)\s*(?:제외|빼고|말고|없이)/u
+  // 이전 regex 는 lazy 매칭으로 "돌아가서" 가 capture 에 섞여서 entity 해석 실패.
+  // 두 패턴으로 분리: (A) "이전/뒤로 (돌아가서)? X 제외" (B) "돌아가서? X 제외".
+  let goBackTokenCapture: string | null = null
+  const goBackA = lower.match(
+    /^(?:이전|뒤로)\S*(?:\s+돌아가\S*)?\s+(.+?)\s*(?:제외|빼고|말고|없이)\s*$/u
   )
-  if (goBackApplyMatch) {
-    const innerIntent = parseExcludeFromToken(goBackApplyMatch[1].trim(), existingFilters)
+  if (goBackA) {
+    goBackTokenCapture = goBackA[1]
+  } else {
+    const goBackB = lower.match(
+      /^돌아가\S*\s+(.+?)\s*(?:제외|빼고|말고|없이)\s*$/u
+    )
+    if (goBackB) goBackTokenCapture = goBackB[1]
+  }
+  if (goBackTokenCapture) {
+    const innerIntent = parseExcludeFromToken(goBackTokenCapture.trim(), existingFilters)
     if (innerIntent) {
       return {
         intent: { type: "go_back_then_apply", inner: innerIntent.intent },

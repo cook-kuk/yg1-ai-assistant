@@ -565,9 +565,20 @@ export function parseDeterministic(message: string): DeterministicAction[] {
 
   // 5) Coating
   if (!seen.has("coating")) {
-    const v = findValueIn(text, COATING_VALUES)
+    // "Y 코팅", "T코팅", "x coating" 등 한글/공백 변형을 canonical 하이픈 형태로 pre-match.
+    // 이전: findValueIn(text, ["Y-Coating",...]) 이 "Y 코팅" 을 놓쳐서 SCR LLM 으로 빠졌다가
+    // "Y" 를 yes/whatever 로 오해석해 coating=상관없음 할루시네이션 발생 (J06 버그).
+    let v: string | null = null
+    const letterCoatingMatch = text.match(/\b([YTXZH])[\s-]*(?:코팅|coating)/i)
+    if (letterCoatingMatch) {
+      v = `${letterCoatingMatch[1].toUpperCase()}-Coating`
+    } else {
+      v = findValueIn(text, COATING_VALUES)
+    }
     if (v) {
-      const isNeg = NEG_MARKERS.test(text.slice(text.toLowerCase().indexOf(v.toLowerCase()) + v.length, text.toLowerCase().indexOf(v.toLowerCase()) + v.length + 8))
+      const idx = text.toLowerCase().indexOf(v.slice(0, 1).toLowerCase())
+      const neighborhood = idx >= 0 ? text.slice(idx, idx + v.length + 12) : text
+      const isNeg = NEG_MARKERS.test(neighborhood)
       actions.push({ type: "apply_filter", field: "coating", value: v, op: isNeg ? "neq" : "eq", source: "deterministic" })
       seen.add("coating")
     } else if (/(코팅\s*없는|무\s*코팅|uncoated|bright\s*finish)/i.test(text)) {
