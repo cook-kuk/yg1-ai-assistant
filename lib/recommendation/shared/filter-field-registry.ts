@@ -11,6 +11,7 @@ import {
   canonicalizeCoating as sharedCanonicalizeCoating,
   canonicalizeToolSubtype as sharedCanonicalizeToolSubtype,
   stripKoreanParticles,
+  inferIsoGroupsFromText,
 } from "@/lib/recommendation/shared/patterns"
 
 type FilterPrimitive = string | number | boolean
@@ -530,10 +531,25 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     queryAliases: ["소재", "재질", "material"],
     kind: "string",
     op: "eq",
-    // Do NOT cascade-clear workPieceName: the two can coexist (material=ISO group,
-    // workPieceName=specific name). Clearing workPieceName here caused silent filter
-    // drops when both material and workPieceName filters were active in the same turn.
-    setInput: (input, filter) => ({ ...input, material: joinedFilterStringValue(filter) }),
+    // 새 material 이 들어오면 stale workPieceName(이전 턴에서 다른 ISO 그룹으로
+    // 박힌 값) 도 같이 클리어. 두 값이 같은 ISO 그룹에 속하면 보존.
+    // (이전엔 무조건 보존 → "스테인리스" 입력해도 workPieceName=경화강 carryover 버그)
+    setInput: (input, filter) => {
+      const newMaterial = joinedFilterStringValue(filter)
+      const next = { ...input, material: newMaterial }
+      const stale = input.workPieceName
+      if (stale && newMaterial) {
+        const newIso = inferIsoGroupsFromText(newMaterial)
+        const staleIso = inferIsoGroupsFromText(String(stale))
+        // 교집합 0 → 다른 그룹 → 클리어. 한쪽이 비면 (불명확) → 보존.
+        if (newIso.size > 0 && staleIso.size > 0) {
+          let overlap = false
+          for (const g of newIso) if (staleIso.has(g)) { overlap = true; break }
+          if (!overlap) next.workPieceName = undefined
+        }
+      }
+      return next
+    },
     clearInput: input => ({ ...input, material: undefined }),
   },
   workPieceName: {
