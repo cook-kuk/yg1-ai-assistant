@@ -894,14 +894,22 @@ function buildProductDataQuery(
             COALESCE(status_row.material_rating_score, 0)
               + CASE
                   WHEN ${workPieceNameParam}::text IS NOT NULL
-                    AND status_row.normalized_work_piece_name = NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '[\\s\\-·ㆍ\\./(),]+', '', 'g'), '')
+                    AND (
+                      status_row.normalized_work_piece_name = NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '')
+                      OR status_row.normalized_work_piece_name LIKE '%' || NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '') || '%'
+                      OR NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '') LIKE '%' || status_row.normalized_work_piece_name || '%'
+                    )
                   THEN 10
                   ELSE 0
                 END
               AS material_rating_score,
             CASE
               WHEN ${workPieceNameParam}::text IS NOT NULL
-                AND status_row.normalized_work_piece_name = NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '[\\s\\-·ㆍ\\./(),]+', '', 'g'), '')
+                AND (
+                  status_row.normalized_work_piece_name = NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '')
+                  OR status_row.normalized_work_piece_name LIKE '%' || NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '') || '%'
+                  OR NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '') LIKE '%' || status_row.normalized_work_piece_name || '%'
+                )
               THEN TRUE
               ELSE FALSE
             END AS workpiece_name_matched
@@ -923,7 +931,11 @@ function buildProductDataQuery(
           ORDER BY
             CASE
               WHEN ${workPieceNameParam}::text IS NOT NULL
-                AND status_row.normalized_work_piece_name = NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '[\\s\\-·ㆍ\\./(),]+', '', 'g'), '')
+                AND (
+                  status_row.normalized_work_piece_name = NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '')
+                  OR status_row.normalized_work_piece_name LIKE '%' || NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '') || '%'
+                  OR NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '') LIKE '%' || status_row.normalized_work_piece_name || '%'
+                )
               THEN 0
               ELSE 1
             END ASC,
