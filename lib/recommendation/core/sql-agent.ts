@@ -187,17 +187,6 @@ function buildSystemPrompt(schema: DbSchema, existingFilters: AppliedFilter[]): 
     .map(([col, vals]) => `  ${col}: ${vals.slice(0, 20).join(", ")}`)
     .join("\n")
 
-  // Turning MV lives separately — 1,940 turning EDPs have no row in prod_edp
-  // so they are invisible to product_recommendation_mv. Expose turning columns
-  // so the LLM can emit turning_* filters that the executor will route via
-  // catalog_app.product_turning_options_mv.
-  const turningColList = (schema.turningColumns ?? [])
-    .map(c => `  ${c.column_name} (${c.data_type})`)
-    .join("\n")
-  const turningSampleList = Object.entries(schema.turningSampleValues ?? {})
-    .map(([col, vals]) => `  ${col}: ${vals.slice(0, 15).join(", ")}`)
-    .join("\n")
-
   const wpList = schema.workpieces
     .map(w => `  ${w.tag_name} → ${w.normalized_work_piece_name}`)
     .join("\n")
@@ -215,12 +204,6 @@ ${colList}
 
 ## Sample Values per Column
 ${sampleList}
-
-## DB Schema (catalog_app.product_turning_options_mv — turning inserts/grades, joined LEFT ON edp_no)
-${turningColList || "  (unavailable)"}
-
-## Sample Values per Turning Column
-${turningSampleList || "  (unavailable)"}
 
 ## Workpiece Materials (from series_profile_mv)
 ${wpList}

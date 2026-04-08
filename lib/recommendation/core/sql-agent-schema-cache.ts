@@ -11,14 +11,6 @@ import { Pool } from "pg"
 export interface DbSchema {
   columns: { column_name: string; data_type: string }[]
   sampleValues: Record<string, string[]>
-  /**
-   * product_turning_options_mv columns — turning EDPs are NOT in
-   * product_recommendation_mv (1,940 of 3,488 turning EDPs have no row in
-   * prod_edp at all). SQL agent should LEFT JOIN this MV on edp_no when
-   * turning-related filters (grade, chip_breaker, work_piece, IC) are in play.
-   */
-  turningColumns: { column_name: string; data_type: string }[]
-  turningSampleValues: Record<string, string[]>
   workpieces: { tag_name: string; normalized_work_piece_name: string }[]
   brands: string[]
   /** Distinct country codes from product_recommendation_mv.country_codes (text[] array, unnested) */
@@ -143,50 +135,11 @@ export async function getDbSchema(): Promise<DbSchema> {
     // Column may not exist in older schemas — fall back silently.
   }
 
-  // 6. product_turning_options_mv columns + sample values (separate MV — 1,940
-  //    turning EDPs are not in product_recommendation_mv at all).
-  let turningColumns: { column_name: string; data_type: string }[] = []
-  const turningSampleValues: Record<string, string[]> = {}
-  try {
-    const tcolRes = await pool.query<{ column_name: string; data_type: string }>(`
-      SELECT attname AS column_name, format_type(atttypid, atttypmod) AS data_type
-      FROM pg_attribute
-      WHERE attrelid = 'catalog_app.product_turning_options_mv'::regclass
-        AND attnum > 0 AND NOT attisdropped
-      ORDER BY attnum
-    `)
-    turningColumns = tcolRes.rows
-    const tTextCols = turningColumns
-      .filter(c => c.data_type.startsWith("character") || c.data_type === "text")
-      .map(c => c.column_name)
-      .slice(0, 20)
-    for (const col of tTextCols) {
-      try {
-        const res = await pool.query<{ v: string }>(
-          `SELECT DISTINCT ${quoteIdent(col)} AS v
-           FROM catalog_app.product_turning_options_mv
-           WHERE ${quoteIdent(col)} IS NOT NULL
-             AND BTRIM(${quoteIdent(col)}) <> ''
-             AND length(${quoteIdent(col)}) <= 64
-           ORDER BY v LIMIT 200`
-        )
-        turningSampleValues[col] = res.rows.map(r => r.v)
-      } catch { /* skip */ }
-    }
-  } catch {
-    // MV may not exist yet on older deployments — tolerate.
-  }
-
-  // 7. Build value→column reverse index for unqualified-token routing.
-  //    Turning sample values route to their own columns so deterministic SCR
-  //    can detect turning intent from unqualified tokens.
+  // 6. Build value→column reverse index for unqualified-token routing.
   const valueIndex = buildValueIndex({ sampleValues, brands, countries, workpieces })
-  for (const [col, values] of Object.entries(turningSampleValues)) {
-    for (const v of values) addIndexEntry(valueIndex, v, col)
-  }
 
-  cached = { columns, sampleValues, turningColumns, turningSampleValues, workpieces, brands, countries, valueIndex, loadedAt: Date.now() }
-  console.log(`[sql-agent-schema] loaded: ${columns.length} columns, ${turningColumns.length} turning cols, ${workpieces.length} workpieces, ${brands.length} brands, ${countries.length} countries, ${Object.keys(valueIndex).length} indexed values`)
+  cached = { columns, sampleValues, workpieces, brands, countries, valueIndex, loadedAt: Date.now() }
+  console.log(`[sql-agent-schema] loaded: ${columns.length} columns, ${workpieces.length} workpieces, ${brands.length} brands, ${countries.length} countries, ${Object.keys(valueIndex).length} indexed values`)
   return cached
 }
 
