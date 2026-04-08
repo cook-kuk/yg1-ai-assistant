@@ -935,7 +935,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
   pointAngleDeg: {
     field: "pointAngleDeg",
     label: "포인트 각도",
-    queryAliases: ["포인트 각도", "드릴 포인트", "point angle"],
+    queryAliases: ["포인트 각도", "포인트각도", "포인트 앵글", "드릴 포인트", "드릴 각도", "드릴 끝 각도", "drill point", "point angle", "point_angle"],
     kind: "number",
     op: "eq",
     unit: "°",
@@ -952,7 +952,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
   threadPitchMm: {
     field: "threadPitchMm",
     label: "나사 피치",
-    queryAliases: ["피치", "thread pitch", "pitch"],
+    queryAliases: ["피치", "나사 피치", "나사피치", "스레드 피치", "thread pitch", "thread_pitch", "pitch"],
     kind: "number",
     op: "eq",
     unit: "mm",
@@ -968,8 +968,10 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
   },
   stockStatus: {
     field: "stockStatus",
+    label: "재고",
+    queryAliases: ["재고", "재고 있는", "재고있는", "재고 있음", "instock", "in stock", "stock", "납기"],
     kind: "string",
-    op: "includes",
+    op: "eq",
     extractValues: record => {
       if (record && typeof record === "object" && "stockStatus" in record) {
         const value = (record as Record<string, unknown>).stockStatus
@@ -980,6 +982,24 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     matches: (record, filter) => {
       if (!(record && typeof record === "object" && "stockStatus" in record)) return null
       return stringMatch(record, filter, "stockStatus")
+    },
+    // SQL: catalog_app.product_inventory_summary_mv 와 EXISTS join 으로 재고 검사
+    // value="instock" 또는 truthy 면 quantity > 0
+    buildDbClause: (filter, next) => {
+      const raw = String((filter as { rawValue?: unknown }).rawValue ?? filter.value ?? "").trim().toLowerCase()
+      const wantInStock = raw === "instock" || raw === "in_stock" || raw === "true" || raw === "재고있음" || raw === "재고 있음" || raw === "있음"
+      // 숫자 임계값 (예: "재고 50개 이상")
+      const numMatch = raw.match(/^\d+/)
+      if (numMatch) {
+        const threshold = parseInt(numMatch[0], 10)
+        const param = next(threshold)
+        // 외부 FROM은 unaliased mv, EXISTS 내부에서 bare edp_no 가 outer 컬럼을 가리킴
+        return `EXISTS (SELECT 1 FROM catalog_app.product_inventory_summary_mv inv WHERE inv.edp = edp_no AND inv.total_stock >= ${param})`
+      }
+      if (wantInStock || filter.op === "eq") {
+        return `EXISTS (SELECT 1 FROM catalog_app.product_inventory_summary_mv inv WHERE inv.edp = edp_no AND inv.total_stock > 0)`
+      }
+      return null
     },
   },
   applicationShapes: {
