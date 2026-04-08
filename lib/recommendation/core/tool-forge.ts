@@ -143,7 +143,7 @@ export async function forgeAndExecute(
   let tool: ToolEntry | null = null
   if (verified) {
     tool = await addTool({
-      name: deriveToolName(parsed.description),
+      name: deriveToolName(userMessage, parsed.triggerPatterns),
       description: parsed.description,
       triggerPatterns: parsed.triggerPatterns,
       sqlTemplate: parsed.sql,
@@ -238,7 +238,10 @@ async function verifyResults(userMessage: string, sampleRows: Record<string, unk
 Result sample (${sampleRows.length} rows):
 ${JSON.stringify(sampleRows, null, 2).slice(0, 2000)}
 
-Does this result match the user's intent? Reply with exactly YES or NO.`
+Does this result faithfully address the user's literal question above?
+- YES only if the rows clearly relate to the user's stated keywords/intent.
+- NO if the result is a generic catalog dump that ignores the user's specific words (e.g. user asked about vibration reduction but rows are random end mills).
+Reply with exactly YES or NO.`
   try {
     const raw = await provider.complete(prompt, [{ role: "user", content: "verify" }], 10, VERIFY_MODEL)
     return raw.trim().toUpperCase().startsWith("YES")
@@ -290,6 +293,9 @@ function buildForgePrompt(userMessage: string, schema: DbSchema, existingFilters
 
   return `You are a SQL expert for the YG-1 cutting tool catalog. Generate a SAFE parameterized SELECT query that answers the user's question.
 
+## User question (verbatim — your SQL MUST address this literal intent, do not substitute your own topic)
+"${userMessage}"
+
 ## Main table: catalog_app.product_recommendation_mv
 ${colList}
 
@@ -302,10 +308,20 @@ ${numericSnippet}
 ## Auxiliary tables
 ${auxSnippet || "(none)"}
 
+### How to pick the right table
+- Product spec / 직경 / 날수 / 코팅 / 형상 → catalog_app.product_recommendation_mv
+- 절삭조건 / RPM / 회전수 / 이송속도 / 절입깊이 / cutting speed / feed rate → raw_catalog.cutting_condition_table (JOIN with product_recommendation_mv on series_name when product info is also requested)
+- 재고 / stock / 납기 → catalog_app.product_inventory_summary_mv (JOIN on edp = edp_no)
+- 시리즈 메타데이터 / 적용 피삭재 → catalog_app.series_profile_mv
+
+### Free-text features (진동/저감/고속/내마모/내열 등)
+- The user is talking about a series characteristic. These live in series_description / series_feature columns of product_recommendation_mv. Use ILIKE '%키워드%' on those columns. Do NOT pivot to coating/material/subtype filters that the user didn't mention.
+
 ## Currently applied filters
 ${filterList}
 
 ## Hard rules
+- The query MUST literally serve the user question above. If the user asked about "vibration reduction series" your WHERE clause MUST mention vibration/저감 in series_feature/series_description, NOT some other random property.
 - SELECT only. NEVER write INSERT/UPDATE/DELETE/DROP/ALTER/CREATE/TRUNCATE.
 - Use \$1, \$2, ... for every literal value (parameterized query). Never inline strings/numbers.
 - Only reference tables in schemas: catalog_app, raw_catalog.
@@ -315,12 +331,16 @@ ${filterList}
 - For text matching prefer ILIKE with % wildcards.
 - For approximate numbers ("정도", "근처", "around") use BETWEEN with ±10%.
 
+## description / triggerPatterns rules
+- description MUST mention the literal user intent (e.g. "진동 저감 시리즈 검색", "X-POWER 절삭조건 조회"). Do NOT generalize to "Milling category ball end mill".
+- triggerPatterns MUST contain the user's distinctive nouns/verbs (e.g. ["진동", "저감", "시리즈"]). Do NOT pad with generic stop words.
+
 ## Response format (strict JSON, no markdown)
 {
   "sql": "SELECT ... FROM ... WHERE ... LIMIT ${MAX_LIMIT}",
   "params": [...],
-  "description": "한국어로 이 쿼리가 하는 일을 1문장",
-  "triggerPatterns": ["이", "쿼리를", "트리거하는", "한국어", "키워드들"]
+  "description": "한국어로 사용자 의도를 그대로 옮긴 1문장",
+  "triggerPatterns": ["사용자", "메시지의", "핵심", "단어들"]
 }`
 }
 
@@ -370,15 +390,26 @@ function parseForgeResponse(raw: string): ParsedForgeResponse | null {
 
 // ── Helpers ──────────────────────────────────────────────────
 
-function deriveToolName(description: string): string {
-  const slug = description
+function deriveToolName(userMessage: string, triggerPatterns: string[]): string {
+  // Prefer user-message tokens over LLM-generated description so a drifted
+  // description can't poison the registry name. Fall back to triggerPatterns.
+  const tokens = userMessage
     .toLowerCase()
-    .replace(/[^a-z0-9가-힣\s]/g, "")
+    .replace(/[^a-z0-9가-힣\s]/g, " ")
     .split(/\s+/)
+    .filter(t => t.length >= 2)
+  const distinctive = tokens.filter(t => !STOP_TOKENS.has(t))
+  const picked = (distinctive.length > 0 ? distinctive : triggerPatterns.map(s => s.toLowerCase()))
     .slice(0, 4)
     .join("_")
-  return slug || `tool_${Date.now()}`
+  return picked || `tool_${Date.now()}`
 }
+
+const STOP_TOKENS = new Set([
+  "추천", "추천해줘", "해줘", "주세요", "부탁드려요", "부탁", "알려줘", "보여줘", "찾아줘",
+  "있어", "있나요", "있어요", "있는", "있는거", "그리고", "또는", "혹시", "좀", "조금",
+  "the", "a", "an", "for", "to", "of", "with", "in", "on", "is", "are", "and", "or", "please",
+])
 
 function extractFromTable(sql: string): string {
   const m = sql.match(/\bfrom\s+([a-z_][a-z0-9_]*)\.([a-z_][a-z0-9_]*)/i)
