@@ -21,6 +21,7 @@ import {
 } from "lucide-react"
 
 import { Markdown } from "@/components/ui/markdown"
+import { TypewriterText } from "@/lib/frontend/recommendation/typewriter-text"
 import { Button } from "@/components/ui/button"
 import {
   type RecommendationCapabilityDto,
@@ -405,7 +406,18 @@ function NarrowingChat({
                     ? "bg-blue-600 text-white rounded-br-sm whitespace-pre-wrap"
                     : "bg-gray-100 text-gray-800 rounded-bl-sm"
                 }`}>
-                  {message.role === "ai" ? <Markdown stripDoubleTilde disableStrikethrough>{message.text}</Markdown> : message.text}
+                  {message.role === "ai" ? (
+                    // Typewriter only on the latest AI message; older messages render instantly
+                    // so scrolling back doesn't re-animate. See typewriter-text.tsx for
+                    // streaming-B/C TODOs (progressive cards + true token streaming).
+                    <TypewriterText
+                      text={message.text}
+                      instant={index !== messages.length - 1 || isSending}
+                      render={partial => (
+                        <Markdown stripDoubleTilde disableStrikethrough>{partial}</Markdown>
+                      )}
+                    />
+                  ) : message.text}
                 </div>
               )}
 
