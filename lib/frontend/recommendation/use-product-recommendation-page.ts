@@ -251,6 +251,11 @@ export function useProductRecommendationPage({
           })
         },
         onCards: partial => {
+          // Populate the right-side "추천 후보" panel as soon as the cards
+          // arrive — without this it only updates after the LLM narrative
+          // (and the awaited final DTO) finishes.
+          if (partial.candidates) setCandidateSnapshot(partial.candidates)
+          if (partial.pagination) setCandidatePagination(partial.pagination)
           setChatMessages(prev => {
             const updated = [...prev]
             const lastIndex = updated.length - 1
@@ -360,6 +365,11 @@ export function useProductRecommendationPage({
           })
         },
         onCards: partial => {
+          // Populate the right-side "추천 후보" panel as soon as the cards
+          // arrive — without this it only updates after the LLM narrative
+          // (and the awaited final DTO) finishes.
+          if (partial.candidates) setCandidateSnapshot(partial.candidates)
+          if (partial.pagination) setCandidatePagination(partial.pagination)
           setChatMessages(prev => {
             const updated = [...prev]
             const lastIndex = updated.length - 1
@@ -479,6 +489,11 @@ export function useProductRecommendationPage({
           })
         },
         onCards: partial => {
+          // Populate the right-side "추천 후보" panel as soon as the cards
+          // arrive — without this it only updates after the LLM narrative
+          // (and the awaited final DTO) finishes.
+          if (partial.candidates) setCandidateSnapshot(partial.candidates)
+          if (partial.pagination) setCandidatePagination(partial.pagination)
           setChatMessages(prev => {
             const updated = [...prev]
             const lastIndex = updated.length - 1
@@ -576,6 +591,29 @@ export function useProductRecommendationPage({
     } finally {
       setIsChatSending(false)
     }
+  }
+
+  /**
+   * "📋 지금 바로 제품 보기" CTA — instead of opening the right-side panel,
+   * pour the current candidate snapshot into the chat as a new AI message so
+   * the cards live inside the conversation flow.
+   */
+  const handleShowProductCards = () => {
+    if (!candidateSnapshot || candidateSnapshot.length === 0) return
+    const cards = candidateSnapshot
+    const totalCount = candidatePagination?.totalItems ?? cards.length
+    setChatMessages(prev => [
+      ...prev,
+      {
+        role: "ai",
+        text: language === "ko"
+          ? `현재 후보 ${cards.length}개${totalCount > cards.length ? ` (전체 ${totalCount}개 중)` : ""}입니다.`
+          : `Showing ${cards.length} candidate${cards.length === 1 ? "" : "s"}${totalCount > cards.length ? ` (out of ${totalCount})` : ""}.`,
+        candidateCards: cards,
+        createdAt: new Date().toISOString(),
+        feedbackGroupId: createClientEventId(),
+      },
+    ])
   }
 
   const handleReset = () => {
@@ -757,6 +795,7 @@ export function useProductRecommendationPage({
     runRecommendation,
     runRecommendationWithForm,
     handleChatSend,
+    handleShowProductCards,
     loadCandidatePage,
     handleReset,
     handleFeedback,

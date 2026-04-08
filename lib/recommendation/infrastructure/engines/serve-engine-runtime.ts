@@ -1626,6 +1626,63 @@ export async function handleServeExploration(
  * Deliberately deterministic — no LLM call. Looks at the field name + op + value
  * and assembles 1-2 short sentences. Returns null when nothing useful to say.
  */
+/**
+ * Real LLM-generated CoT for paths that don't go through sql-agent
+ * (chip clicks via det-SCR / KG / v2-bridge). Streams via onThinking
+ * delta=true so the UI types it out token-by-token. Falls back silently
+ * on error — never blocks the runtime.
+ */
+async function streamLLMReasoningForChipPath(params: {
+  provider: ReturnType<typeof getProvider>
+  userText: string
+  prevFilters: AppliedFilter[]
+  newFilters: AppliedFilter[]
+  candidateCountBefore: number | null
+  candidateCountAfter: number | null
+  onThinking?: (text: string, opts?: { delta?: boolean }) => void
+}): Promise<string | null> {
+  const { provider, userText, prevFilters, newFilters, candidateCountBefore, candidateCountAfter, onThinking } = params
+  const fmt = (fs: AppliedFilter[]) => fs.filter(f => f.op !== "skip").map(f => `${f.field}=${f.value}`).join(", ") || "(none)"
+  const sys = `당신은 YG-1 절삭공구 추천 엔진의 추론 과정을 기록하는 역할입니다. 사용자가 방금 한 입력과 필터 변화를 보고, 실제로 고민하고 마음을 바꾸고 다시 결정하는 사고 과정을 5-8문장 한국어로 자유롭게 적으세요.
+
+반드시 다음을 포함하세요:
+- 사용자가 무엇을 원하는지 풀어 해석 ("음, 사용자는 ~를 원하는 것 같다")
+- 가능한 다른 해석/옵션 비교 ("~일 수도 있고 ~일 수도 있는데")
+- 한 번 결론을 내리고 다시 의심 ("처음엔 X로 가려 했는데, 다시 보니...")
+- 최종 결정과 그 근거
+
+"잠깐", "근데", "다시 생각해보면", "아니다" 같은 표현으로 마음을 바꾸는 과정을 드러내세요. 한 줄 요약 금지. 디버깅용이므로 길고 솔직할수록 좋습니다. JSON이나 마크다운 없이 평문으로만 응답하세요.`
+  const user = `사용자 입력: "${userText}"
+직전 필터: ${fmt(prevFilters)}
+현재 필터: ${fmt(newFilters)}
+후보 수: ${candidateCountBefore ?? "?"}개 → ${candidateCountAfter ?? "?"}개
+
+위 변화에 대한 사고 과정을 적어줘.`
+
+  const model = "haiku" as const
+  try {
+    let full = ""
+    if (provider.stream) {
+      for await (const chunk of provider.stream(sys, [{ role: "user", content: user }], 1024, model)) {
+        full += chunk
+        if (onThinking && chunk) {
+          try { onThinking(chunk, { delta: true }) } catch { /* noop */ }
+        }
+      }
+    } else {
+      full = await provider.complete(sys, [{ role: "user", content: user }], 1024, model)
+      if (onThinking && full) {
+        try { onThinking(full) } catch { /* noop */ }
+      }
+    }
+    console.log(`[chip-CoT] user="${userText}" before=${candidateCountBefore} after=${candidateCountAfter}\n${full}`)
+    return full.trim() || null
+  } catch (err) {
+    console.warn("[chip-CoT] failed:", (err as Error).message)
+    return null
+  }
+}
+
 function buildSyntheticThinkingFromFilters(filters: AppliedFilter[]): string | null {
   const meaningful = filters.filter(f => f.op !== "skip")
   if (meaningful.length === 0) return null
@@ -3066,11 +3123,22 @@ async function handleServeExplorationInner(
       try {
         const v2Filters = legacyState.appliedFilters ?? []
         if (v2Filters.length > 0 && !legacyState.thinkingProcess) {
-          const synthetic = buildSyntheticThinkingFromFilters(v2Filters)
-          if (synthetic) {
-            legacyState.thinkingProcess = synthetic
-            if (deps.onThinking) {
-              try { deps.onThinking(synthetic) } catch { /* never block runtime */ }
+          const lastUserText = [...messages].reverse().find(m => m.role === "user")?.text ?? ""
+          const llmCot = await streamLLMReasoningForChipPath({
+            provider,
+            userText: lastUserText,
+            prevFilters: prevState?.appliedFilters ?? [],
+            newFilters: v2Filters,
+            candidateCountBefore: prevState?.candidateCount ?? null,
+            candidateCountAfter: legacyState.candidateCount ?? null,
+            onThinking: deps.onThinking,
+          })
+          const cot = llmCot ?? buildSyntheticThinkingFromFilters(v2Filters)
+          if (cot) {
+            legacyState.thinkingProcess = cot
+            // synthetic fallback wasn't streamed — push it now so UI gets it
+            if (!llmCot && deps.onThinking) {
+              try { deps.onThinking(cot) } catch { /* never block runtime */ }
             }
           }
         }
@@ -3318,11 +3386,21 @@ async function handleServeExplorationInner(
   // First-turn requests have prevState=null, so we MUST not gate on it —
   // the SSE 'thinking' frame is still useful even when there's no session yet.
   if ((!prevState?.thinkingProcess) && filters.length > 0) {
-    const synthetic = buildSyntheticThinkingFromFilters(filters)
-    if (synthetic) {
-      if (prevState) prevState.thinkingProcess = synthetic
-      if (deps.onThinking) {
-        try { deps.onThinking(synthetic) } catch { /* never block runtime */ }
+    const lateUserText = [...messages].reverse().find(m => m.role === "user")?.text ?? ""
+    const llmCot = await streamLLMReasoningForChipPath({
+      provider,
+      userText: lateUserText,
+      prevFilters: prevState?.appliedFilters ?? [],
+      newFilters: filters,
+      candidateCountBefore: prevState?.candidateCount ?? null,
+      candidateCountAfter: null,
+      onThinking: deps.onThinking,
+    })
+    const cot = llmCot ?? buildSyntheticThinkingFromFilters(filters)
+    if (cot) {
+      if (prevState) prevState.thinkingProcess = cot
+      if (!llmCot && deps.onThinking) {
+        try { deps.onThinking(cot) } catch { /* never block runtime */ }
       }
     }
   }
