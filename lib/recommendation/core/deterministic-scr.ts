@@ -67,14 +67,110 @@ const COATING_VALUES = [
   "Blue-Coating", "Uncoated", "Non-Coating",
 ]
 
-// Brand values (대표적인 것들 — runtime 시 registry에서 가져오면 더 정확)
+// Brand values — sample of clean YG-1 brands from prod_brand.brand_name (421 distinct, dumped 2026-04-08).
+// Noisy entries (TEST/cyr/excel/digit-only) filtered. Add more as encountered; runtime registry merge possible later.
 const BRAND_VALUES = [
   "X-POWER", "X-POWER PRO", "TitaNox-Power", "TitaNox", "CRX-S", "CRX S",
-  "ALU-POWER", "3S MILL", "ONLY ONE", "K2 CARBIDE", "K-2 CARBIDE",
+  "ALU-POWER", "3S MILL", "3S PLUS", "ONLY ONE", "K2 CARBIDE", "K-2 CARBIDE",
   "TANK-POWER", "JET-POWER", "X1-EH", "X5070", "X5070S", "E-FORCE",
   "V7", "V7 PLUS", "V7 PLUS A", "V7 INOX", "GMG", "GAA29", "SUS-CUT",
-  "SUPER ALLOY", "BASIX",
+  "SUPER ALLOY", "BASIX", "4G MILL", "4G MILLS",
 ]
+
+// ── DB meta constants (source: scripts/dump-meta.mjs → test-results/db-meta.json, 2026-04-08) ──
+// DB가 확장될 일 없어서 정적 하드코딩. 정제 규칙: TEST/cyr/excel/단일문자/경로/숫자만 제거.
+
+// ISO 가공재질 코드 (P/M/K/N/S/H/O). prod_work_piece_by_category 34건을 ISO로 매핑.
+const WORK_MATERIAL_VALUES = ["P", "M", "K", "N", "S", "H", "O"] as const
+
+// 자연어 → ISO workMaterial 코드 매핑
+const WORK_MATERIAL_CUES: Array<{ pattern: RegExp; value: string }> = [
+  { pattern: /(스테인리스|스텐|스뎅|sus\b|stainless|inox)/i, value: "M" },
+  { pattern: /(티타늄|titanium|\bti\b|타이태늄)/i, value: "S" },
+  { pattern: /(인코넬|inconel|하스텔로이|hastelloy|내열\s*합금|heat[\s-]?resistant|hrsa|nimonic|waspaloy)/i, value: "S" },
+  { pattern: /(알루미늄|알미늄|aluminum|aluminium|\bal\b)/i, value: "N" },
+  { pattern: /(구리|동\b|copper|황동|brass|청동|bronze)/i, value: "N" },
+  { pattern: /(주철|cast\s*iron|덕타일|ductile|fcd|\bfc\b\d*)/i, value: "K" },
+  { pattern: /(고경도|경화강|hardened|HRc?\s*\d|hrc)/i, value: "H" },
+  { pattern: /(탄소강|carbon\s*steel|sm45c|s45c|s50c|구조용\s*강|structural\s*steel|합금강|alloy\s*steel|공구강|tool\s*steel|prehardened)/i, value: "P" },
+  { pattern: /(cfrp|gfrp|kfrp|복합재|honeycomb|허니컴|아크릴|acrylic|플라스틱|plastic|graphite|그라파이트)/i, value: "O" },
+]
+
+// prod_edp_option_turning.option_turning_grade (23 distinct, cleaned)
+const GRADE_VALUES = [
+  "YBN50", "YBN65", "YBN65A", "YBN90",
+  "YG10", "YG100", "YG1001", "YG1010", "YG2025",
+  "YG211", "YG213", "YG214",
+  "YG3010", "YG3015", "YG3020", "YG3030", "YG3115",
+  "YG401", "YG602", "YG602G", "YG603", "YG801", "YT100",
+] as const
+
+// turning + milling chip_breaker distinct 값을 합친 정제 셋
+const CHIP_BREAKER_VALUES = [
+  "-AL", "-GL", "-GM", "-GN", "-GW", "-KR", "-M", "-MF", "-MM", "-MR",
+  "-N", "-P", "-PW", "-RG", "-SF", "-ST", "-TR", "-UC", "-UF", "-UG",
+  "-UL", "-UM", "-UR", "-Y",
+  "AL", "GENERAL", "GL", "GM", "KR", "MA", "MF", "MG", "MM", "MR",
+  "PF", "PM", "PSF", "PWM", "RG", "SF", "ST", "TR", "Wiper",
+] as const
+
+// ISO 인서트 형상 코드 (DB dump엔 IC만 있어 ISO 표준에서 직접). prefix가 형상.
+const INSERT_SHAPE_VALUES = [
+  "CNMG", "CNMA", "CCMT", "CCGT",
+  "WNMG", "WNMA",
+  "DNMG", "DNMA", "DCMT", "DCGT",
+  "TNMG", "TNMA", "TCMT",
+  "SNMG", "SNMA",
+  "VNMG", "VNMA", "VCMT", "VBMT",
+  "RCMT", "RCGT",
+] as const
+
+// prod_edp_option_threading 정제 셋 (threadshape/threaddirection/internal_external + TPI 표현)
+const THREAD_SHAPE_VALUES = [
+  "M", "MF", "M/MF", "UN", "UNC", "UNF", "UNEF", "UNS",
+  "G", "G(BSP)", "BSPT", "PT", "PF", "PF(G)", "PS",
+  "NPT", "NPTF", "NPS", "NPSF", "W",
+] as const
+const THREAD_DIRECTION_VALUES = ["RH Thread", "LH Thread", "RH / LH Thread"] as const
+const THREAD_INT_EXT_VALUES = ["INTERNAL", "EXTERNAL", "INTERNAL/EXTERNAL"] as const
+
+// prod_edp_option_holemaking 정제
+const DRILL_TYPE_VALUES = [
+  "ANSI", "JIS", "KS (JIS)", "NAS 907/D", "YG STD",
+  "DIN 333", "DIN 338", "DIN 340", "DIN 341", "DIN 345",
+  "DIN 1869/1", "DIN 1869/2", "DIN 1869/3",
+  "DIN 1870/1", "DIN 1870/2", "DIN 1897",
+  "DIN 6537", "DIN 6539",
+] as const
+const HOLE_SHAPE_VALUES = ["Blind", "Through", "Blind / Through"] as const
+
+// 냉각 방식 (자연어 표현 — tooling.coolant_system 코드는 사용자가 부르지 않음)
+const COOLANT_SYSTEM_VALUES = [
+  "Wet", "Dry", "Oil mist", "Air blow", "MQL",
+  "Through coolant", "External coolant",
+] as const
+
+// 가공조건 (황삭/중삭/정삭) — DB 컬럼은 노이즈가 심해 ISO 카테고리만
+const MACHINING_CONDITION_VALUES = ["Roughing", "Medium", "Finishing"] as const
+const MACHINING_CONDITION_CUES: Array<{ pattern: RegExp; value: string }> = [
+  { pattern: /(황삭|거친\s*가공|roughing|rough\b)/i, value: "Roughing" },
+  { pattern: /(중삭|medium\s*cut|중간\s*가공)/i, value: "Medium" },
+  { pattern: /(정삭|마무리|finishing|finish\s*cut)/i, value: "Finishing" },
+]
+
+// 가공 형상 (prod_series.application_shape 콤마결합 → atom 분해 후 정제)
+const APPLICATION_SHAPE_VALUES = [
+  "Corner_Radius", "Die-Sinking", "Facing", "Helical_Interpolation",
+  "Side_Milling", "Slotting", "Trochoidal", "Small_Part",
+  "Taper_Side_Milling", "Profiling", "Ramping", "Plunging",
+  "Chamfering", "Center_Drill",
+] as const
+
+// TODO: MV 확장 후 연결 — tooling 클램핑 범위 (현재 dump엔 cryptic 코드만, NL match 무의미)
+const CLAMPING_RANGE_VALUES: readonly string[] = []
+
+// TODO: MV 확장 후 연결 — prod_series_work_material_statu (시리즈-재질 적합도). CRX-S scoring source.
+const SERIES_WORK_MATERIAL_VALUES: readonly string[] = []
 
 // 코팅 / 브랜드 표시 정규화
 function findValueIn(text: string, values: string[]): string | null {
@@ -174,6 +270,175 @@ const COUNTRY_PATTERNS: Array<{ pattern: RegExp; value: string }> = [
   { pattern: /미국|usa|america/i, value: "미국" },
   { pattern: /중국|china/i, value: "중국" },
 ]
+
+// ── Extended extractors (workMaterial / grade / chipBreaker / insertShape / thread / drill / coolantSystem / machiningCondition / applicationShape) ──
+// 모두 동일한 시그니처: (text) → DeterministicAction[] (0개 또는 1개+).
+// NEG_MARKERS 인접 시 op = "neq". MV 미연결 카테고리는 호출되어도 no-op이 되도록 _VALUES 비어있으면 skip.
+
+function negNear(text: string, idx: number, len: number): boolean {
+  const ctx = text.slice(Math.max(0, idx - 8), idx + len + 12)
+  return NEG_MARKERS.test(ctx)
+}
+
+function findValueWithPos(text: string, values: readonly string[]): { value: string; idx: number } | null {
+  const lower = text.toLowerCase()
+  const sorted = [...values].sort((a, b) => b.length - a.length)
+  for (const v of sorted) {
+    const i = lower.indexOf(v.toLowerCase())
+    if (i >= 0) return { value: v, idx: i }
+  }
+  return null
+}
+
+export function extractWorkMaterial(text: string): DeterministicAction | null {
+  for (const { pattern, value } of WORK_MATERIAL_CUES) {
+    const m = text.match(pattern)
+    if (m && m.index != null) {
+      const op = negNear(text, m.index, m[0].length) ? "neq" : "eq"
+      return { type: "apply_filter", field: "workMaterial", value, op, source: "deterministic" }
+    }
+  }
+  return null
+}
+
+export function extractGrade(text: string): DeterministicAction | null {
+  // 1) 정확 등급 코드 (YG3010 등)
+  const hit = findValueWithPos(text, GRADE_VALUES)
+  if (hit) {
+    const op = negNear(text, hit.idx, hit.value.length) ? "neq" : "eq"
+    return { type: "apply_filter", field: "grade", value: hit.value, op, source: "deterministic" }
+  }
+  // 2) cue만 있고 값 없음 — 추출 안 함 (질문 트리거는 LLM이 처리)
+  return null
+}
+
+export function extractChipBreaker(text: string): DeterministicAction | null {
+  const hit = findValueWithPos(text, CHIP_BREAKER_VALUES)
+  if (hit) {
+    const op = negNear(text, hit.idx, hit.value.length) ? "neq" : "eq"
+    return { type: "apply_filter", field: "chipBreaker", value: hit.value, op, source: "deterministic" }
+  }
+  return null
+}
+
+export function extractInsertShape(text: string): DeterministicAction | null {
+  // ISO 인서트 코드 (4-6자, 대문자) — 단어 경계로
+  const re = /\b(C[CN]M[AGT]|W[CN]M[AGT]|D[CN]M[AGT]|T[CN]M[AGT]|S[CN]M[AGT]|V[CN]M[AGT]|VBMT|RC[GM]T)\b/i
+  const m = text.match(re)
+  if (m && m.index != null) {
+    const v = m[1].toUpperCase()
+    const op = negNear(text, m.index, m[0].length) ? "neq" : "eq"
+    return { type: "apply_filter", field: "insertShape", value: v, op, source: "deterministic" }
+  }
+  return null
+}
+
+export function extractThreadShape(text: string): DeterministicAction | null {
+  // M10 / UNC / NPT 등. M+숫자는 diameter 추출에서 별도 잡으므로 thread shape는 단어 단위.
+  const hit = findValueWithPos(text, THREAD_SHAPE_VALUES)
+  if (hit) {
+    // M 단독은 너무 흔해서 길이 1짜리는 스킵
+    if (hit.value.length < 2) return null
+    const op = negNear(text, hit.idx, hit.value.length) ? "neq" : "eq"
+    return { type: "apply_filter", field: "threadShape", value: hit.value, op, source: "deterministic" }
+  }
+  return null
+}
+
+export function extractThreadDirection(text: string): DeterministicAction | null {
+  if (/\b(LH|left[-\s]?hand|왼나사|역나사)\b/i.test(text)) {
+    return { type: "apply_filter", field: "threadDirection", value: "LH Thread", op: "eq", source: "deterministic" }
+  }
+  if (/\b(RH|right[-\s]?hand|오른나사|정나사)\b/i.test(text)) {
+    return { type: "apply_filter", field: "threadDirection", value: "RH Thread", op: "eq", source: "deterministic" }
+  }
+  return null
+}
+
+export function extractThreadIntExt(text: string): DeterministicAction | null {
+  if (/(내경|내부|internal|암나사)/i.test(text)) {
+    return { type: "apply_filter", field: "threadInternalExternal", value: "INTERNAL", op: "eq", source: "deterministic" }
+  }
+  if (/(외경|외부|external|수나사)/i.test(text)) {
+    return { type: "apply_filter", field: "threadInternalExternal", value: "EXTERNAL", op: "eq", source: "deterministic" }
+  }
+  return null
+}
+
+export function extractDrillType(text: string): DeterministicAction | null {
+  // DIN xxx / ANSI / JIS 표준 코드
+  const hit = findValueWithPos(text, DRILL_TYPE_VALUES)
+  if (hit) {
+    const op = negNear(text, hit.idx, hit.value.length) ? "neq" : "eq"
+    return { type: "apply_filter", field: "drillType", value: hit.value, op, source: "deterministic" }
+  }
+  return null
+}
+
+export function extractHoleShape(text: string): DeterministicAction | null {
+  if (/(관통|through|뚫린)/i.test(text) && /(막힌|blind|장님)/i.test(text)) {
+    return { type: "apply_filter", field: "holeShape", value: "Blind / Through", op: "eq", source: "deterministic" }
+  }
+  if (/(관통|through|뚫린)/i.test(text)) {
+    return { type: "apply_filter", field: "holeShape", value: "Through", op: "eq", source: "deterministic" }
+  }
+  if (/(막힌|blind|장님|블라인드)/i.test(text)) {
+    return { type: "apply_filter", field: "holeShape", value: "Blind", op: "eq", source: "deterministic" }
+  }
+  return null
+}
+
+export function extractCoolantSystem(text: string): DeterministicAction | null {
+  if (/(mql|미스트|oil\s*mist|미세\s*분무)/i.test(text))
+    return { type: "apply_filter", field: "coolantSystem", value: "Oil mist", op: "eq", source: "deterministic" }
+  if (/(에어\s*블로|air\s*blow|공기\s*분사)/i.test(text))
+    return { type: "apply_filter", field: "coolantSystem", value: "Air blow", op: "eq", source: "deterministic" }
+  if (/(through\s*coolant|내부\s*냉각|쓰루\s*쿨런트)/i.test(text))
+    return { type: "apply_filter", field: "coolantSystem", value: "Through coolant", op: "eq", source: "deterministic" }
+  if (/(건식|dry\s*cut|드라이)/i.test(text))
+    return { type: "apply_filter", field: "coolantSystem", value: "Dry", op: "eq", source: "deterministic" }
+  if (/(습식|wet\s*cut|쿨런트\s*사용)/i.test(text))
+    return { type: "apply_filter", field: "coolantSystem", value: "Wet", op: "eq", source: "deterministic" }
+  return null
+}
+
+export function extractMachiningCondition(text: string): DeterministicAction | null {
+  for (const { pattern, value } of MACHINING_CONDITION_CUES) {
+    const m = text.match(pattern)
+    if (m && m.index != null) {
+      const op = negNear(text, m.index, m[0].length) ? "neq" : "eq"
+      return { type: "apply_filter", field: "machiningCondition", value, op, source: "deterministic" }
+    }
+  }
+  return null
+}
+
+export function extractApplicationShape(text: string): DeterministicAction | null {
+  // 한글 cue → 영문 atom 매핑
+  const cues: Array<{ pattern: RegExp; value: string }> = [
+    { pattern: /(코너\s*r|corner\s*radius)/i, value: "Corner_Radius" },
+    { pattern: /(다이\s*싱킹|die[\s-]?sinking|금형|몰드)/i, value: "Die-Sinking" },
+    { pattern: /(페이싱|facing|면\s*가공)/i, value: "Facing" },
+    { pattern: /(헬리컬|helical\s*interpolation)/i, value: "Helical_Interpolation" },
+    { pattern: /(사이드\s*밀링|side\s*milling|측면\s*가공)/i, value: "Side_Milling" },
+    { pattern: /(슬로팅|slotting|슬롯\s*가공|홈\s*가공)/i, value: "Slotting" },
+    { pattern: /(트로코이달|trochoidal)/i, value: "Trochoidal" },
+    { pattern: /(테이퍼\s*사이드|taper\s*side)/i, value: "Taper_Side_Milling" },
+    { pattern: /(프로파일링|profiling|윤곽\s*가공)/i, value: "Profiling" },
+    { pattern: /(램핑|ramping|경사\s*진입)/i, value: "Ramping" },
+    { pattern: /(플런징|plunging|수직\s*진입)/i, value: "Plunging" },
+    { pattern: /(챔퍼|chamfer)/i, value: "Chamfering" },
+    { pattern: /(센터\s*드릴|center\s*drill)/i, value: "Center_Drill" },
+  ]
+  for (const { pattern, value } of cues) {
+    const m = text.match(pattern)
+    if (m && m.index != null) {
+      const op = negNear(text, m.index, m[0].length) ? "neq" : "eq"
+      return { type: "apply_filter", field: "applicationShape", value, op, source: "deterministic" }
+    }
+  }
+  return null
+}
 
 // ── Main parser ──────────────────────────────────────────────
 export function parseDeterministic(message: string): DeterministicAction[] {
@@ -306,6 +571,32 @@ export function parseDeterministic(message: string): DeterministicAction[] {
         seen.add("country")
         break
       }
+    }
+  }
+
+  // ── Extended fields (workMaterial / grade / chipBreaker / insertShape / thread / drill / coolant / machining / applicationShape) ──
+  // Each helper returns 0 or 1 action; dedup by field via `seen`.
+  // TODO: MV 확장 후 turning/tooling/threading/holemaking 필드는 실 쿼리로 연결.
+  const extraExtractors: Array<{ field: string; fn: (t: string) => DeterministicAction | null }> = [
+    { field: "workMaterial", fn: extractWorkMaterial },
+    { field: "grade", fn: extractGrade },
+    { field: "chipBreaker", fn: extractChipBreaker },
+    { field: "insertShape", fn: extractInsertShape },
+    { field: "threadShape", fn: extractThreadShape },
+    { field: "threadDirection", fn: extractThreadDirection },
+    { field: "threadInternalExternal", fn: extractThreadIntExt },
+    { field: "drillType", fn: extractDrillType },
+    { field: "holeShape", fn: extractHoleShape },
+    { field: "coolantSystem", fn: extractCoolantSystem },
+    { field: "machiningCondition", fn: extractMachiningCondition },
+    { field: "applicationShape", fn: extractApplicationShape },
+  ]
+  for (const { field, fn } of extraExtractors) {
+    if (seen.has(field)) continue
+    const a = fn(text)
+    if (a) {
+      actions.push(a)
+      seen.add(field)
     }
   }
 
