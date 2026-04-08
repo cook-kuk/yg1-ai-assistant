@@ -160,7 +160,11 @@ export const BrandReferenceRepo = {
       SELECT DISTINCT brand_name
       FROM catalog_app.brand_reference
       WHERE UPPER(tag_name) = $1
-        AND normalized_work_piece_name = regexp_replace(UPPER($2), '\\s+', '', 'g')
+        AND (
+          normalized_work_piece_name = regexp_replace(UPPER($2), '\\s+', '', 'g')
+          OR normalized_work_piece_name LIKE '%' || regexp_replace(UPPER($2), '\\s+', '', 'g') || '%'
+          OR regexp_replace(UPPER($2), '\\s+', '', 'g') LIKE '%' || normalized_work_piece_name || '%'
+        )
         AND brand_name IS NOT NULL
         AND BTRIM(brand_name) <> ''
       ORDER BY brand_name ASC
@@ -207,7 +211,11 @@ export const BrandReferenceRepo = {
       SELECT DISTINCT series_name
       FROM catalog_app.brand_reference
       WHERE UPPER(tag_name) = $1
-        AND normalized_work_piece_name = regexp_replace(UPPER($2), '\\s+', '', 'g')
+        AND (
+          normalized_work_piece_name = regexp_replace(UPPER($2), '\\s+', '', 'g')
+          OR normalized_work_piece_name LIKE '%' || regexp_replace(UPPER($2), '\\s+', '', 'g') || '%'
+          OR regexp_replace(UPPER($2), '\\s+', '', 'g') LIKE '%' || normalized_work_piece_name || '%'
+        )
         AND series_name IS NOT NULL
         AND BTRIM(series_name) <> ''
       ORDER BY series_name ASC
