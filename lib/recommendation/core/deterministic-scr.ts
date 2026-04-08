@@ -172,6 +172,96 @@ const CLAMPING_RANGE_VALUES: readonly string[] = []
 // TODO: MV 확장 후 연결 — prod_series_work_material_statu (시리즈-재질 적합도). CRX-S scoring source.
 const SERIES_WORK_MATERIAL_VALUES: readonly string[] = []
 
+// ── 추가 NL 패턴 (Phase 2 expansion) ──────────────────────────
+// 현장 사용 표현 / DB 컬럼 추가 매핑.
+
+// 툴홀더 타입 (BT/HSK/HSK-A/HSK-E/SK/CAT/ER/SLN/SDS/CTH/Capto)
+// option_tooling_producttype, option_tooling_shanktype, option_tooling_taper_no
+const TOOL_HOLDER_VALUES = [
+  "BT30", "BT40", "BT50",
+  "HSK32", "HSK40", "HSK50", "HSK63", "HSK80", "HSK100",
+  "HSK-A40", "HSK-A50", "HSK-A63", "HSK-A100",
+  "HSK-E25", "HSK-E32", "HSK-E40",
+  "HSK-F40", "HSK-F50", "HSK-F63",
+  "SK30", "SK40", "SK50",
+  "CAT40", "CAT50",
+  "ISO30", "ISO40", "ISO50",
+  "ER8", "ER11", "ER16", "ER20", "ER25", "ER32", "ER40", "ER50",
+  "DIN 69871", "MAS-BT", "Capto C3", "Capto C4", "Capto C5", "Capto C6", "Capto C8",
+] as const
+
+// ISO 인서트 정밀 지정 (CNMG120408 같은 풀 코드의 inscribed circle / thickness / corner R 부분만)
+// 풀 코드 매칭은 별도 함수에서.
+const INSERT_FULL_CODE_RE = /\b([CDSTVWR][CN]M[AGT])(\d{2})(\d{2})(\d{2})(?:[A-Z]{1,2})?\b/i
+
+// 나사 사이즈 패턴 (M8x1.25, M10×1.5, 1/4-20 UNC, 3/8-16 UNF, M6x0.75 등)
+const THREAD_SIZE_METRIC_RE = /\bM(\d+(?:\.\d+)?)\s*[x×*]\s*(\d+(?:\.\d+)?)\b/i
+const THREAD_SIZE_INCH_RE = /\b(\d+\/\d+)\s*[-]\s*(\d+)\s*(UNC|UNF|UNEF)\b/i
+const THREAD_SIZE_NUMBER_RE = /\b#(\d+)\s*[-]\s*(\d+)\s*(UNC|UNF)\b/i
+
+// 정밀도 클래스 (h6/h7/h8/H7/H8/IT6/IT7)
+const PRECISION_CLASS_RE = /\b(h[5-9]|H[5-9]|h1[0-2]|H1[0-2]|IT[5-9]|IT1[0-2])\b/
+
+// 탭 정밀도 (6H, 6G, 7H, 6HX 등)
+const TAP_TOLERANCE_RE = /\b([4-7])\s*([HGX])\b/
+
+// 표면 거칠기 / 마무리 (Ra, mirror, 미러)
+const SURFACE_FINISH_PATTERNS: Array<{ pattern: RegExp; value: string }> = [
+  { pattern: /(미러|mirror|경면|거울)/i, value: "Mirror" },
+  { pattern: /\bRa\s*0?\.?\d+/i, value: "Polished" },
+  { pattern: /(폴리시|polished|광택)/i, value: "Polished" },
+]
+
+// 추가 재질 (기존 WORK_MATERIAL_CUES 보강)
+const EXTRA_MATERIAL_CUES: Array<{ pattern: RegExp; value: string }> = [
+  // 인코넬/하스텔로이 특정 그레이드
+  { pattern: /(inconel\s*718|inco\s*718|in718|니켈\s*718)/i, value: "S" },
+  { pattern: /(inconel\s*625|inconel\s*600|inconel\s*825)/i, value: "S" },
+  { pattern: /(hastelloy\s*[a-z]?-?\d*|monel|stellite|\bnimonic\b|\bwaspaloy\b)/i, value: "S" },
+  // 스테인리스 강종 별
+  { pattern: /(sus\s*?304|sus\s*?316l?|sus\s*?420|sus\s*?630|sts\s*?304|17[\-\s]?4\s*ph|duplex)/i, value: "M" },
+  // 탄소강 강종 별
+  { pattern: /(s[ck]\s*?45c?|s[ck]\s*?50c?|sm45c|s50c|aisi\s*?10\d{2}|c45|ck45)/i, value: "P" },
+  // 합금강 SCM/SKD/SKH
+  { pattern: /(scm\s*?4\d{2}|skd\s*?\d+|skh\s*?\d+|h13|d2\b|m2\b|cr-?mo|크롬몰리)/i, value: "P" },
+  // 금형강 (경화강 분기)
+  { pattern: /(p20\b|nak80|stavax|hpm|kp4m|금형강|mold\s*steel|die\s*steel)/i, value: "H" },
+  // 알루미늄 합금
+  { pattern: /(a\s*?6061|a\s*?7075|a\s*?5052|a\s*?2024|al7075|al6061|두랄루민|duralumin|alloy\s*70[0-9]{2})/i, value: "N" },
+  // 황동/청동 세분
+  { pattern: /(c\s*?36000|c360|naval\s*brass|leaded\s*brass|free[\s-]?cutting\s*brass)/i, value: "N" },
+  // 마그네슘
+  { pattern: /(magnesium|az31|az91|마그네슘|마그네)/i, value: "N" },
+  // 그라파이트/세라믹
+  { pattern: /(graphite|그라파이트|carbon\s*graphite)/i, value: "O" },
+  { pattern: /(ceramic|세라믹|sialon|silicon\s*nitride|si3n4)/i, value: "K" },
+  // 강 hardness 표현
+  { pattern: /\bHRC\s*[3-7]\d|로크웰\s*[3-7]\d|\bhrb\s*\d+/i, value: "H" },
+]
+
+// 가공 작업 추가 (counterbore, countersink, spot, peck, deep, high-feed)
+const EXTRA_OPERATION_CUES: Array<{ pattern: RegExp; value: string }> = [
+  { pattern: /(카운터\s*보어|counter\s*bore|cbore|c\.b\.)/i, value: "Counterbore" },
+  { pattern: /(카운터\s*싱크|counter\s*sink|csk|c\.s\.k)/i, value: "Countersink" },
+  { pattern: /(스팟\s*드릴|spot\s*drill|중심\s*드릴|센터링)/i, value: "Spot_Drill" },
+  { pattern: /(펙\s*드릴|peck\s*drill|단계\s*드릴|peck\s*cycle)/i, value: "Peck_Drill" },
+  { pattern: /(딥\s*드릴|deep\s*hole|건드릴|gun\s*drill|심공)/i, value: "Deep_Hole" },
+  { pattern: /(하이\s*피드|high[\s-]?feed|고이송)/i, value: "High_Feed" },
+  { pattern: /(보링|boring|내경\s*가공)/i, value: "Boring" },
+  { pattern: /(리밍|reaming|reamer|리머)/i, value: "Reaming" },
+  { pattern: /(탭핑|tapping|탭\s*가공)/i, value: "Tapping" },
+  { pattern: /(롤링|roll\s*tap|롤탭)/i, value: "Roll_Tap" },
+  { pattern: /(쓰레드\s*밀|thread\s*mill|나사\s*밀)/i, value: "Thread_Mill" },
+  { pattern: /(엔그레이빙|engraving|각인)/i, value: "Engraving" },
+]
+
+// 칩 배출 / 쿨란트 압력
+const CHIP_EVACUATION_CUES: Array<{ pattern: RegExp; value: string }> = [
+  { pattern: /(고압\s*쿨런트|high\s*pressure\s*coolant|hpc\b)/i, value: "HighPressureCoolant" },
+  { pattern: /(저압\s*쿨런트|low\s*pressure)/i, value: "LowPressureCoolant" },
+  { pattern: /(칩\s*배출|chip\s*evacuation|칩\s*제거)/i, value: "ChipEvacuation" },
+]
+
 // 코팅 / 브랜드 표시 정규화
 function findValueIn(text: string, values: string[]): string | null {
   const t = text.toLowerCase()
@@ -483,6 +573,115 @@ export function extractApplicationShape(text: string): DeterministicAction | nul
   return null
 }
 
+// ── Phase 2 extractors ──────────────────────────────────────
+export function extractToolHolder(text: string): DeterministicAction | null {
+  const hit = findValueWithPos(text, TOOL_HOLDER_VALUES as unknown as string[])
+  if (hit) {
+    const op = negNear(text, hit.idx, hit.value.length) ? "neq" : "eq"
+    return { type: "apply_filter", field: "toolHolderType", value: hit.value, op, source: "deterministic" }
+  }
+  return null
+}
+
+export function extractInsertFullCode(text: string): DeterministicAction | null {
+  const m = text.match(INSERT_FULL_CODE_RE)
+  if (m && m.index != null) {
+    // m[1] = 형상 (CNMG), m[2] = inscribed circle*10, m[3] = thickness*10, m[4] = corner R*100
+    const fullCode = m[0].toUpperCase()
+    const op = negNear(text, m.index, m[0].length) ? "neq" : "eq"
+    return { type: "apply_filter", field: "insertFullCode", value: fullCode, op, source: "deterministic" }
+  }
+  return null
+}
+
+export function extractThreadSize(text: string): DeterministicAction[] {
+  const out: DeterministicAction[] = []
+  // Metric: M8x1.25
+  const mm = text.match(THREAD_SIZE_METRIC_RE)
+  if (mm) {
+    const dia = parseFloat(mm[1]); const pitch = parseFloat(mm[2])
+    if (Number.isFinite(dia)) out.push({ type: "apply_filter", field: "threadDiameterMm", value: dia, op: "eq", source: "deterministic" })
+    if (Number.isFinite(pitch)) out.push({ type: "apply_filter", field: "threadPitchMm", value: pitch, op: "eq", source: "deterministic" })
+    return out
+  }
+  // Inch: 1/4-20 UNC
+  const im = text.match(THREAD_SIZE_INCH_RE)
+  if (im) {
+    out.push({ type: "apply_filter", field: "threadSize", value: `${im[1]}-${im[2]} ${im[3].toUpperCase()}`, op: "eq", source: "deterministic" })
+    out.push({ type: "apply_filter", field: "threadShape", value: im[3].toUpperCase(), op: "eq", source: "deterministic" })
+    return out
+  }
+  // Number: #10-32 UNF
+  const nm = text.match(THREAD_SIZE_NUMBER_RE)
+  if (nm) {
+    out.push({ type: "apply_filter", field: "threadSize", value: `#${nm[1]}-${nm[2]} ${nm[3].toUpperCase()}`, op: "eq", source: "deterministic" })
+    out.push({ type: "apply_filter", field: "threadShape", value: nm[3].toUpperCase(), op: "eq", source: "deterministic" })
+    return out
+  }
+  return out
+}
+
+export function extractPrecisionClass(text: string): DeterministicAction | null {
+  const m = text.match(PRECISION_CLASS_RE)
+  if (m && m.index != null) {
+    const op = negNear(text, m.index, m[0].length) ? "neq" : "eq"
+    return { type: "apply_filter", field: "tolClass", value: m[1].toLowerCase(), op, source: "deterministic" }
+  }
+  return null
+}
+
+export function extractTapTolerance(text: string): DeterministicAction | null {
+  // Only fire if context suggests tap (탭/tap/threading) — avoid false-positive on "4H" elsewhere
+  if (!/(탭\b|tap\b|tapping|나사|thread)/i.test(text)) return null
+  const m = text.match(TAP_TOLERANCE_RE)
+  if (m && m.index != null) {
+    return { type: "apply_filter", field: "tapTolerance", value: `${m[1]}${m[2].toUpperCase()}`, op: "eq", source: "deterministic" }
+  }
+  return null
+}
+
+export function extractSurfaceFinish(text: string): DeterministicAction | null {
+  for (const { pattern, value } of SURFACE_FINISH_PATTERNS) {
+    const m = text.match(pattern)
+    if (m && m.index != null) {
+      return { type: "apply_filter", field: "surfaceFinish", value, op: "eq", source: "deterministic" }
+    }
+  }
+  return null
+}
+
+export function extractExtraMaterial(text: string): DeterministicAction | null {
+  for (const { pattern, value } of EXTRA_MATERIAL_CUES) {
+    const m = text.match(pattern)
+    if (m && m.index != null) {
+      const op = negNear(text, m.index, m[0].length) ? "neq" : "eq"
+      return { type: "apply_filter", field: "workMaterial", value, op, source: "deterministic" }
+    }
+  }
+  return null
+}
+
+export function extractExtraOperation(text: string): DeterministicAction | null {
+  for (const { pattern, value } of EXTRA_OPERATION_CUES) {
+    const m = text.match(pattern)
+    if (m && m.index != null) {
+      const op = negNear(text, m.index, m[0].length) ? "neq" : "eq"
+      return { type: "apply_filter", field: "operationType", value, op, source: "deterministic" }
+    }
+  }
+  return null
+}
+
+export function extractChipEvacuation(text: string): DeterministicAction | null {
+  for (const { pattern, value } of CHIP_EVACUATION_CUES) {
+    const m = text.match(pattern)
+    if (m && m.index != null) {
+      return { type: "apply_filter", field: "coolantPressure", value, op: "eq", source: "deterministic" }
+    }
+  }
+  return null
+}
+
 // ── Main parser ──────────────────────────────────────────────
 export function parseDeterministic(message: string): DeterministicAction[] {
   if (!message || message.trim().length === 0) return []
@@ -653,6 +852,46 @@ export function parseDeterministic(message: string): DeterministicAction[] {
       actions.push(a)
       seen.add(field)
     }
+  }
+
+  // ── Phase 2 추가 추출기 (extra material/operation/holder/insert/thread/precision/finish) ──
+  // workMaterial은 이미 ISO 매핑 됐으면 EXTRA로 또 잡지 않음 (extra는 더 구체적인 강종 매핑)
+  if (!seen.has("workMaterial")) {
+    const a = extractExtraMaterial(text)
+    if (a) { actions.push(a); seen.add("workMaterial") }
+  }
+  if (!seen.has("operationType")) {
+    const a = extractExtraOperation(text)
+    if (a) { actions.push(a); seen.add("operationType") }
+  }
+  if (!seen.has("toolHolderType")) {
+    const a = extractToolHolder(text)
+    if (a) { actions.push(a); seen.add("toolHolderType") }
+  }
+  if (!seen.has("insertFullCode")) {
+    const a = extractInsertFullCode(text)
+    if (a) { actions.push(a); seen.add("insertFullCode") }
+  }
+  // Thread size emits up to 2 actions (diameter + pitch). Don't dedup on a single field.
+  for (const a of extractThreadSize(text)) {
+    if (seen.has(a.field)) continue
+    actions.push(a); seen.add(a.field)
+  }
+  if (!seen.has("tolClass")) {
+    const a = extractPrecisionClass(text)
+    if (a) { actions.push(a); seen.add("tolClass") }
+  }
+  if (!seen.has("tapTolerance")) {
+    const a = extractTapTolerance(text)
+    if (a) { actions.push(a); seen.add("tapTolerance") }
+  }
+  if (!seen.has("surfaceFinish")) {
+    const a = extractSurfaceFinish(text)
+    if (a) { actions.push(a); seen.add("surfaceFinish") }
+  }
+  if (!seen.has("coolantPressure")) {
+    const a = extractChipEvacuation(text)
+    if (a) { actions.push(a); seen.add("coolantPressure") }
   }
 
   return actions
