@@ -894,13 +894,16 @@ export async function buildRecommendationResponse(
     totalCandidatesConsidered: totalCandidateCount,
   })
 
+  const evidenceLookup = (p: ScoredProduct): EvidenceSummary | undefined =>
+    evidenceMap.get(p.product.normalizedCode) ?? evidenceMap.get(p.product.displayCode)
+
   const evidenceSummaries: EvidenceSummary[] = []
   if (primary) {
-    const primarySummary = evidenceMap.get(primary.product.normalizedCode)
+    const primarySummary = evidenceLookup(primary)
     if (primarySummary) evidenceSummaries.push(primarySummary)
   }
   for (const alt of alternatives) {
-    const summary = evidenceMap.get(alt.product.normalizedCode)
+    const summary = evidenceLookup(alt)
     if (summary) evidenceSummaries.push(summary)
   }
 
@@ -910,12 +913,12 @@ export async function buildRecommendationResponse(
   const altFactChecked: FactCheckedRecommendation[] = []
 
   if (primary) {
-    const primaryEvidence = evidenceMap.get(primary.product.normalizedCode) ?? null
+    const primaryEvidence = evidenceLookup(primary) ?? null
     primaryExplanation = buildExplanation(primary, input, primaryEvidence)
     primaryFactChecked = await runFactCheck(primary, input, primaryEvidence, primaryExplanation)
 
     for (const alt of alternatives) {
-      const altEvidence = evidenceMap.get(alt.product.normalizedCode) ?? null
+      const altEvidence = evidenceLookup(alt) ?? null
       const altExplanation = buildExplanation(alt, input, altEvidence)
       altExplanations.push(altExplanation)
       altFactChecked.push(await runFactCheck(alt, input, altEvidence, altExplanation))
@@ -1126,7 +1129,7 @@ export function buildCandidateSnapshot(
   evidenceMap: Map<string, EvidenceSummary>
 ): CandidateSnapshot[] {
   return candidates.map((candidate, index) => {
-    const evidence = evidenceMap.get(candidate.product.normalizedCode)
+    const evidence = evidenceMap.get(candidate.product.normalizedCode) ?? evidenceMap.get(candidate.product.displayCode)
     const inventoryLocations = Array.from(
       candidate.inventory.reduce((acc, row) => {
         if (row.quantity === null || row.quantity <= 0) return acc

@@ -321,8 +321,8 @@ function buildV2BridgeAction(
   switch (result.trace.action) {
     case "compare_products": {
       const availableCount =
-        prevState?.displayedCandidates?.length
-        ?? result.sessionState.resultContext?.candidates.length
+        result.sessionState.resultContext?.candidates.length
+        ?? prevState?.displayedCandidates?.length
         ?? 0
       const topN = Math.min(3, availableCount)
       return topN >= 2
