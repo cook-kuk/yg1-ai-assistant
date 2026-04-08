@@ -1390,6 +1390,7 @@ function buildRevisionClarificationResponse(
   question: string,
   requestPreparation: ReturnType<typeof prepareRequest> | null,
   chipsOverride?: string[],
+  pendingClarification?: ExplorationSessionState["pendingClarification"],
 ) {
   const defaultChips = filters.length > 0 ? ["⟵ 이전 단계", "처음부터 다시"] : ["처음부터 다시"]
   const chips = chipsOverride && chipsOverride.length > 0
@@ -1406,6 +1407,7 @@ function buildRevisionClarificationResponse(
     currentMode: "question",
     lastAction: "ask_clarification",
     pendingAction: null,
+    pendingClarification: pendingClarification ?? null,
   })
 
   return deps.jsonRecommendationResponse({
@@ -2222,13 +2224,39 @@ async function handleServeExplorationInner(
     const negationFullyHandled = hasNegationPattern && negationHandled
     const shouldUseSingleCall = (isSingleCallRouterEnabled() || LLM_FREE_INTERPRETATION) && lastUserMsg && messages.length > 0 && !negationFullyHandled && !singleCallHandled && (LLM_FREE_INTERPRETATION || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
     if (shouldUseSingleCall) {
+      // ── Pending clarification round-trip ──
+      // 직전 턴에서 ambiguity chip을 보였고 사용자가 그 chip을 클릭(=동일 텍스트
+      // 전송)했으면 SCR/LLM 호출 없이 synthetic apply_filter로 우회.
+      // SCR 결과를 만들어 기존 executableActions 경로로 흘려보낸다.
+      let scrOverride: Awaited<ReturnType<typeof routeSingleCall>> | null = null
+      if (prevState?.pendingClarification?.chipResolution) {
+        const userText = lastUserMsg.text.trim()
+        const resolution = prevState.pendingClarification.chipResolution[userText]
+        if (resolution) {
+          console.log(`[SCR:clarify-resolve] chip="${userText}" → ${resolution.field}=${resolution.value}`)
+          scrOverride = {
+            actions: [{
+              type: "apply_filter",
+              field: resolution.field,
+              value: resolution.value,
+              op: "eq",
+            }],
+            answer: "",
+            reasoning: `clarify_resolve:${resolution.field}=${resolution.value}`,
+          }
+          // Clear pendingClarification so it doesn't re-fire on subsequent turns.
+          prevState.pendingClarification = null
+        }
+      }
+
       // Pass recent conversation history so SCR understands references like "아까 거", "그거로"
       const recentConversation = messages.slice(-6) // last 3 turns (AI+User pairs)
       // Per-agent provider override: if AGENT_SINGLE_CALL_ROUTER_PROVIDER is set,
       // route this LLM call to OpenAI-compatible (GPT/Groq/Gemini/local).
       // Falls back to Claude default when env not set.
       const scrProvider = getProviderForAgent("single-call-router")
-      const singleResult = await routeSingleCall(lastUserMsg.text, prevState, scrProvider, recentConversation, kgHint)
+      const singleResult = scrOverride
+        ?? await routeSingleCall(lastUserMsg.text, prevState, scrProvider, recentConversation, kgHint)
       // Temporary debug: log SCR result to trace
       trace.add("single-call-router", "router", {
         actionCount: singleResult.actions.length,
@@ -2248,6 +2276,17 @@ async function handleServeExplorationInner(
           question: singleResult.clarification.question,
           chips: singleResult.clarification.chips,
         })
+        // Build chipResolution: chip label → { field, value }. The chip
+        // text is "<label>로 적용 (<token>)"; recover the token from the
+        // parenthesis to use as the filter value.
+        const chipResolution: Record<string, { field: string; value: string }> = {}
+        for (const chip of singleResult.clarification.chips) {
+          const field = singleResult.clarification.chipFieldMap[chip]
+          if (!field) continue
+          const m = chip.match(/\(([^)]+)\)\s*$/)
+          const value = m ? m[1] : chip
+          chipResolution[chip] = { field, value }
+        }
         return buildRevisionClarificationResponse(
           deps,
           prevState,
@@ -2259,6 +2298,7 @@ async function handleServeExplorationInner(
           singleResult.clarification.question,
           requestPrep,
           singleResult.clarification.chips,
+          { chipResolution },
         )
       }
 

@@ -192,6 +192,18 @@ export interface ExplorationSessionState {
   /** Pending proposed action — "응/예/네"로 수락 가능한 제안 */
   pendingAction?: PendingAction | null
 
+  /**
+   * Pending MV-reverse-index clarification — set when SCR detected an
+   * unqualified token that mapped to multiple slots and asked the user to
+   * pick one. On the next turn the runtime intercepts user input matching
+   * one of the chip labels and resolves directly to (field, value) without
+   * re-running SCR.
+   */
+  pendingClarification?: {
+    /** chip label → { field, value } to apply when the user picks the chip */
+    chipResolution: Record<string, { field: string; value: string }>
+  } | null
+
   // ── Persistent Conversation Memory (accumulates across turns) ──
   conversationMemory?: import("@/lib/recommendation/domain/memory/conversation-memory").ConversationMemory
   /** Full conversation log — all prompts + UI outputs, auto-compressed */

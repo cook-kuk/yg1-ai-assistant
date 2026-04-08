@@ -68,6 +68,7 @@ interface BuildSessionStateParams {
   taskHistory?: ArchivedTask[]
   pendingIntents?: Array<{ text: string; category: string }>
   pendingAction?: ExplorationSessionState["pendingAction"]
+  pendingClarification?: ExplorationSessionState["pendingClarification"]
   suspendedFlow?: ExplorationSessionState["suspendedFlow"]
   conversationMemory?: import("@/lib/recommendation/domain/memory/conversation-memory").ConversationMemory
   conversationLog?: import("@/lib/recommendation/domain/memory/memory-compressor").ConversationLog
@@ -106,6 +107,7 @@ export function buildSessionState(params: BuildSessionStateParams): ExplorationS
     taskHistory: params.taskHistory ?? [],
     pendingIntents: params.pendingIntents,
     pendingAction: params.pendingAction ?? null,
+    pendingClarification: params.pendingClarification ?? null,
     suspendedFlow: params.suspendedFlow ?? null,
     conversationMemory: params.conversationMemory,
     conversationLog: params.conversationLog,
@@ -174,6 +176,9 @@ export function carryForwardState(
     taskHistory: overrides.taskHistory ?? prev.taskHistory ?? [],
     pendingIntents: overrides.pendingIntents ?? prev.pendingIntents,
     pendingAction: overrides.pendingAction ?? prev.pendingAction ?? null,
+    pendingClarification: "pendingClarification" in overrides
+      ? overrides.pendingClarification ?? null
+      : prev.pendingClarification ?? null,
     suspendedFlow: "suspendedFlow" in overrides ? overrides.suspendedFlow ?? null : prev.suspendedFlow ?? null,
     conversationMemory: overrides.conversationMemory ?? prev.conversationMemory,
     conversationLog: overrides.conversationLog ?? prev.conversationLog,
