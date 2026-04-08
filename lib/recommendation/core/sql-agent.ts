@@ -23,6 +23,8 @@ export interface AgentFilter {
 export interface SqlAgentResult {
   filters: AgentFilter[]
   raw: string
+  /** 한국어 추론 과정 — UI 의 "추론 과정 보기" 접이식에 표시. */
+  reasoning?: string
 }
 
 // ── Column → filter-field-registry field mapping ─────────────
@@ -153,8 +155,10 @@ If the user asks about cutting conditions / RPM / feed rate / 절삭조건 / 회
 ${filterList}
 
 ## Instructions
-Extract filter conditions from user message as JSON array:
-[{"field":"column_name","op":"eq|neq|like|gte|lte|between","value":"...","value2":"upper_bound_for_between","display":"한국어 설명"}]
+Extract filter conditions and a short Korean reasoning trail from the user message as a JSON object:
+{"reasoning":"한국어 추론 과정 (2-4문장, 사용자 의도 → 컬럼 선택 이유 → 값 매핑 순서)","filters":[{"field":"column_name","op":"eq|neq|like|gte|lte|between","value":"...","value2":"upper_bound_for_between","display":"한국어 설명"}]}
+
+The "filters" array must always be present (use [] when there is nothing to extract). The "reasoning" string is shown to the end user as a "추론 과정 보기" — write it like a senior engineer explaining their thought process, not like a JSON dump. Use phrases like "~로 판단됩니다", "~가 적합합니다". 2-4 sentences max. If the message is purely a question or trivial, set reasoning to a one-line explanation of why no filters were emitted.
 
 Rules:
 - field MUST be one of the actual column_names listed above (product_recommendation_mv only), or "_workPieceName" for workpiece materials, or "_skip"/"_reset"/"_back" for navigation. NEVER invent a column name.
@@ -183,7 +187,10 @@ NEVER use eq when the user expressed a range:
 
 ## Examples
 User: "스테인리스 가공할건데 4날 스퀘어 10mm"
-→ [{"field":"_workPieceName","op":"eq","value":"스테인리스","display":"피삭재: 스테인리스"},{"field":"search_subtype","op":"eq","value":"Square","display":"형상: 스퀘어"},{"field":"search_flute_count","op":"eq","value":"4","display":"날수: 4날"},{"field":"search_diameter_mm","op":"eq","value":"10","display":"직경: 10mm"}]
+→ {"reasoning":"스테인리스(ISO M군) 가공용 4날 스퀘어 엔드밀 직경 10mm 조건으로 검색합니다. 스테인리스에는 내열성 높은 AlCrN(Y-Coating) 계열이 적합합니다.","filters":[{"field":"_workPieceName","op":"eq","value":"스테인리스","display":"피삭재: 스테인리스"},{"field":"search_subtype","op":"eq","value":"Square","display":"형상: 스퀘어"},{"field":"search_flute_count","op":"eq","value":"4","display":"날수: 4날"},{"field":"search_diameter_mm","op":"eq","value":"10","display":"직경: 10mm"}]}
+
+User: "구리 비슷한 소재 가공할건데 떨림 적은 거"
+→ {"reasoning":"구리와 유사한 비철금속(ISO N군)으로 판단됩니다. 떨림을 줄이려면 부등분할 4날 스퀘어 엔드밀이 안정적이며, 비철금속에는 DLC 코팅이 칩 부착을 방지합니다.","filters":[{"field":"_workPieceName","op":"eq","value":"구리","display":"피삭재: 구리(비철금속)"},{"field":"search_flute_count","op":"eq","value":"4","display":"날수: 4날(떨림 방지)"},{"field":"search_subtype","op":"eq","value":"Square","display":"형상: 스퀘어"}]}
 
 User: "초경 카바이드 소재로만"
 → [{"field":"milling_tool_material","op":"like","value":"Carbide","display":"공구소재: 초경(Carbide)"}]
@@ -209,7 +216,7 @@ User: "상관없음"
 User: "X-POWER 시리즈의 SUS304 절삭조건 알려줘"
 → []   (cutting conditions live in an aux table — let tool-forge handle it)
 
-ALWAYS respond with valid JSON array only. No explanation.`
+ALWAYS respond with a single valid JSON object {"reasoning":"...","filters":[...]} — no markdown fences, no prose outside JSON.`
 }
 
 // ── Core: Natural Language → Filters ─────────────────────────
@@ -230,33 +237,56 @@ export async function naturalLanguageToFilters(
     SQL_AGENT_MODEL,
   )
 
-  const filters = parseAgentResponse(raw)
-  return { filters, raw }
+  const { filters, reasoning } = parseAgentResponse(raw)
+  return { filters, raw, reasoning }
 }
 
 // ── Response Parser ──────────────────────────────────────────
 
-function parseAgentResponse(raw: string): AgentFilter[] {
+function parseAgentResponse(raw: string): { filters: AgentFilter[]; reasoning?: string } {
   const trimmed = raw.trim()
 
-  // Try direct JSON parse
+  // New format: {"reasoning":"...","filters":[...]}
+  // Old format: [...]
+  // Try direct JSON parse first
   try {
     const parsed = JSON.parse(trimmed)
-    if (Array.isArray(parsed)) return validateFilters(parsed)
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && Array.isArray((parsed as { filters?: unknown }).filters)) {
+      const obj = parsed as { reasoning?: unknown; filters: unknown[] }
+      return {
+        filters: validateFilters(obj.filters),
+        reasoning: typeof obj.reasoning === "string" && obj.reasoning.trim() ? obj.reasoning.trim() : undefined,
+      }
+    }
+    if (Array.isArray(parsed)) return { filters: validateFilters(parsed) }
   } catch { /* fall through */ }
 
-  // Try extracting [...] from response
-  const match = trimmed.match(/\[[\s\S]*\]/)
-  if (match) {
+  // Try extracting {...filters...} object
+  const objMatch = trimmed.match(/\{[\s\S]*"filters"[\s\S]*\}/)
+  if (objMatch) {
     try {
-      const parsed = JSON.parse(match[0])
-      if (Array.isArray(parsed)) return validateFilters(parsed)
+      const parsed = JSON.parse(objMatch[0])
+      if (parsed && typeof parsed === "object" && Array.isArray(parsed.filters)) {
+        return {
+          filters: validateFilters(parsed.filters),
+          reasoning: typeof parsed.reasoning === "string" && parsed.reasoning.trim() ? parsed.reasoning.trim() : undefined,
+        }
+      }
+    } catch { /* fall through */ }
+  }
+
+  // Try extracting [...] from response (legacy)
+  const arrMatch = trimmed.match(/\[[\s\S]*\]/)
+  if (arrMatch) {
+    try {
+      const parsed = JSON.parse(arrMatch[0])
+      if (Array.isArray(parsed)) return { filters: validateFilters(parsed) }
     } catch { /* fall through */ }
   }
 
   // Graceful fallback: empty array
   console.warn("[sql-agent] failed to parse LLM response, returning empty filters:", trimmed.slice(0, 200))
-  return []
+  return { filters: [] }
 }
 
 const VALID_AGENT_OPS = new Set(["eq", "neq", "like", "skip", "reset", "back", "gte", "lte", "between"])

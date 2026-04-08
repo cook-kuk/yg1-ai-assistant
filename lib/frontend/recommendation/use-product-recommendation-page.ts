@@ -277,6 +277,7 @@ export function useProductRecommendationPage({
           createdAt: updated[lastIndex].createdAt ?? new Date().toISOString(),
           feedbackGroupId: aiPlaceholderId,
           debugTrace: (data as any).meta?.debugTrace ?? null,
+          thinkingProcess: data.thinkingProcess ?? null,
         }
         return updated
       })
@@ -365,6 +366,7 @@ export function useProductRecommendationPage({
           createdAt: updated[lastIndex].createdAt ?? new Date().toISOString(),
           feedbackGroupId: aiPlaceholderId,
           debugTrace: (data as any).meta?.debugTrace ?? null,
+          thinkingProcess: data.thinkingProcess ?? null,
         }
         return updated
       })
@@ -485,6 +487,7 @@ export function useProductRecommendationPage({
           createdAt: prev[updated.length - 1]?.createdAt ?? new Date().toISOString(),
           feedbackGroupId: prev[updated.length - 1]?.feedbackGroupId ?? createClientEventId(),
           debugTrace: (data as any).meta?.debugTrace ?? null,
+          thinkingProcess: data.thinkingProcess ?? null,
         }
         console.log("[chip-groups:client:store]", {
           messageIndex: updated.length - 1,

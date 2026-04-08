@@ -29,4 +29,6 @@ export interface ChatMsg {
   feedbackGroupId?: string
   /** Developer debug trace — only populated when DEV_AGENT_DEBUG=true */
   debugTrace?: import("@/lib/debug/agent-trace").TurnDebugTrace | null
+  /** Server-emitted reasoning trail — Claude-style "추론 과정 보기" collapsible. */
+  thinkingProcess?: string | null
 }

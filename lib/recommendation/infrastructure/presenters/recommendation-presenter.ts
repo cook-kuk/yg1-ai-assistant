@@ -243,6 +243,7 @@ interface BuildRecommendationResponseDtoParams {
   altExplanations?: RecommendationExplanation[]
   altFactChecked?: Array<Record<string, unknown>>
   meta?: RecommendationResponseMetaDto
+  thinkingProcess?: string | null
   error?: string
   detail?: string
 }
@@ -294,6 +295,9 @@ export function buildRecommendationResponseDto(
     altFactChecked: params.altFactChecked ?? [],
     capabilities,
     meta: params.meta,
+    // Prefer explicit param, fall back to whatever the runtime stashed on the
+    // session (sql-agent reasoning, etc.) so every code path can surface it.
+    thinkingProcess: params.thinkingProcess ?? sessionState?.thinkingProcess ?? null,
     error: params.error,
     detail: params.detail,
   }

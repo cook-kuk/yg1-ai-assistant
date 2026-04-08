@@ -1979,7 +1979,7 @@ async function handleServeExplorationInner(
           const { lookupCache: lookupSemanticCache, storeCache: storeSemanticCache } = await import("@/lib/recommendation/core/semantic-cache")
           const semanticHit = lookupSemanticCache(msg, filters)
 
-          let agentResult: { filters: import("@/lib/recommendation/core/sql-agent").AgentFilter[]; raw: string }
+          let agentResult: { filters: import("@/lib/recommendation/core/sql-agent").AgentFilter[]; raw: string; reasoning?: string }
           if (semanticHit && semanticHit.source === "sql-agent") {
             agentResult = {
               filters: semanticHit.actions as unknown as import("@/lib/recommendation/core/sql-agent").AgentFilter[],
@@ -1997,6 +1997,13 @@ async function handleServeExplorationInner(
             }
           }
           trace.add("sql-agent", "router", { filterCount: agentResult.filters.length, raw: agentResult.raw.slice(0, 200) })
+
+          // Surface SQL-agent reasoning to the UI as a Claude-style "추론 과정"
+          // collapsible. We stash it on prevState so the presenter (which reads
+          // sessionState) picks it up regardless of which response builder fires.
+          if (agentResult.reasoning && prevState) {
+            (prevState as ExplorationSessionState).thinkingProcess = agentResult.reasoning
+          }
 
           if (agentResult.filters.length > 0) {
             const META_FIELDS = new Set(["_skip", "_reset", "_back"])

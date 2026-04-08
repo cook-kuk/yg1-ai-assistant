@@ -72,6 +72,7 @@ interface BuildSessionStateParams {
   suspendedFlow?: ExplorationSessionState["suspendedFlow"]
   conversationMemory?: import("@/lib/recommendation/domain/memory/conversation-memory").ConversationMemory
   conversationLog?: import("@/lib/recommendation/domain/memory/memory-compressor").ConversationLog
+  thinkingProcess?: string | null
 }
 
 export function buildSessionState(params: BuildSessionStateParams): ExplorationSessionState {
@@ -111,6 +112,7 @@ export function buildSessionState(params: BuildSessionStateParams): ExplorationS
     suspendedFlow: params.suspendedFlow ?? null,
     conversationMemory: params.conversationMemory,
     conversationLog: params.conversationLog,
+    thinkingProcess: params.thinkingProcess ?? null,
   }
 }
 
@@ -182,6 +184,7 @@ export function carryForwardState(
     suspendedFlow: "suspendedFlow" in overrides ? overrides.suspendedFlow ?? null : prev.suspendedFlow ?? null,
     conversationMemory: overrides.conversationMemory ?? prev.conversationMemory,
     conversationLog: overrides.conversationLog ?? prev.conversationLog,
+    thinkingProcess: "thinkingProcess" in overrides ? overrides.thinkingProcess ?? null : prev.thinkingProcess ?? null,
   })
 }
 

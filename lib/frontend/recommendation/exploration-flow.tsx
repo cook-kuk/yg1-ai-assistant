@@ -429,6 +429,17 @@ function NarrowingChat({
                 </div>
               )}
 
+              {message.role === "ai" && message.thinkingProcess && !message.isLoading && (
+                <details className="mt-1">
+                  <summary className="text-[11px] text-gray-500 cursor-pointer hover:text-gray-700 select-none">
+                    {language === "ko" ? "추론 과정 보기" : "Show reasoning"}
+                  </summary>
+                  <div className="mt-1 p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-900 leading-relaxed whitespace-pre-wrap">
+                    {message.thinkingProcess}
+                  </div>
+                </details>
+              )}
+
               {message.role === "ai" && message.chips && message.chips.length > 0 && !message.isLoading && (() => {
                 const isLatest = index === messages.length - 1 && !isSending
                 const isCtaChip = (chip: string) => chip.includes("제품 보기") || chip.includes("AI 상세 분석")

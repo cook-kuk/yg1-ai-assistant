@@ -227,6 +227,8 @@ export interface RecommendationResponseDto {
   altFactChecked: Array<Record<string, unknown>>
   capabilities: RecommendationCapabilityDto
   meta?: RecommendationResponseMetaDto
+  /** 추론 과정 — Claude thinking 처럼 유저에게 "이렇게 이해했습니다" 보여주기 위한 한국어 자연어. */
+  thinkingProcess?: string | null
   error?: string
   detail?: string
 }
@@ -457,6 +459,7 @@ export const recommendationResponseSchema = z.object({
   altFactChecked: z.array(z.record(z.unknown())),
   capabilities: recommendationCapabilitySchema,
   meta: recommendationResponseMetaSchema.optional(),
+  thinkingProcess: z.string().nullable().optional(),
   error: z.string().optional(),
   detail: z.string().optional(),
 }).passthrough()

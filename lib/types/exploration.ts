@@ -204,6 +204,14 @@ export interface ExplorationSessionState {
     chipResolution: Record<string, { field: string; value: string }>
   } | null
 
+  /**
+   * Last-turn reasoning trail — short Korean natural-language explanation of
+   * how the system interpreted the user's message (intent → column choice →
+   * value mapping). Surfaced to the UI as a Claude-style "추론 과정 보기"
+   * collapsible. Reset every turn — never accumulated.
+   */
+  thinkingProcess?: string | null
+
   // ── Persistent Conversation Memory (accumulates across turns) ──
   conversationMemory?: import("@/lib/recommendation/domain/memory/conversation-memory").ConversationMemory
   /** Full conversation log — all prompts + UI outputs, auto-compressed */
