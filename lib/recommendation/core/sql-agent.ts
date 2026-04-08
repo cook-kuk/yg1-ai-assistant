@@ -243,7 +243,7 @@ export async function naturalLanguageToFilters(
   const raw = await provider.complete(
     systemPrompt,
     [{ role: "user", content: userMessage }],
-    1536,
+    4096,
     SQL_AGENT_MODEL,
   )
 
@@ -347,7 +347,7 @@ export async function naturalLanguageToFiltersStreaming(
     for await (const chunk of provider.stream(
       systemPrompt,
       [{ role: "user", content: userMessage }],
-      1536,
+      4096,
       SQL_AGENT_MODEL,
     )) {
       raw += chunk

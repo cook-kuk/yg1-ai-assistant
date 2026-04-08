@@ -230,13 +230,18 @@ export function useProductRecommendationPage({
       setPhase("explore")
 
       const data = await streamRecommendation(requestPayload, {
-        onThinking: text => {
+        onThinking: (text, opts) => {
           setChatMessages(prev => {
             const updated = [...prev]
             const lastIndex = updated.length - 1
             const last = updated[lastIndex]
             if (!last || last.role !== "ai") return prev
-            updated[lastIndex] = { ...last, thinkingProcess: text }
+            // delta=true → append (true token streaming).
+            // delta=false/undefined → replace (synthetic / non-streaming source).
+            const nextText = opts?.delta
+              ? ((last.thinkingProcess ?? "") + text)
+              : text
+            updated[lastIndex] = { ...last, thinkingProcess: nextText }
             return updated
           })
         },
@@ -287,7 +292,7 @@ export function useProductRecommendationPage({
           createdAt: updated[lastIndex].createdAt ?? new Date().toISOString(),
           feedbackGroupId: aiPlaceholderId,
           debugTrace: (data as any).meta?.debugTrace ?? null,
-          thinkingProcess: data.thinkingProcess ?? null,
+          thinkingProcess: data.thinkingProcess || updated[lastIndex].thinkingProcess || null,
         }
         return updated
       })
@@ -329,13 +334,18 @@ export function useProductRecommendationPage({
       setPhase("explore")
 
       const data = await streamRecommendation(requestPayload, {
-        onThinking: text => {
+        onThinking: (text, opts) => {
           setChatMessages(prev => {
             const updated = [...prev]
             const lastIndex = updated.length - 1
             const last = updated[lastIndex]
             if (!last || last.role !== "ai") return prev
-            updated[lastIndex] = { ...last, thinkingProcess: text }
+            // delta=true → append (true token streaming).
+            // delta=false/undefined → replace (synthetic / non-streaming source).
+            const nextText = opts?.delta
+              ? ((last.thinkingProcess ?? "") + text)
+              : text
+            updated[lastIndex] = { ...last, thinkingProcess: nextText }
             return updated
           })
         },
@@ -386,7 +396,7 @@ export function useProductRecommendationPage({
           createdAt: updated[lastIndex].createdAt ?? new Date().toISOString(),
           feedbackGroupId: aiPlaceholderId,
           debugTrace: (data as any).meta?.debugTrace ?? null,
-          thinkingProcess: data.thinkingProcess ?? null,
+          thinkingProcess: data.thinkingProcess || updated[lastIndex].thinkingProcess || null,
         }
         return updated
       })
@@ -438,13 +448,18 @@ export function useProductRecommendationPage({
       // narrative arrives so cards render immediately. onCards updates the
       // pending AI message in place; the awaited result is still the final DTO.
       const data = await streamRecommendation(requestPayload, {
-        onThinking: text => {
+        onThinking: (text, opts) => {
           setChatMessages(prev => {
             const updated = [...prev]
             const lastIndex = updated.length - 1
             const last = updated[lastIndex]
             if (!last || last.role !== "ai") return prev
-            updated[lastIndex] = { ...last, thinkingProcess: text }
+            // delta=true → append (true token streaming).
+            // delta=false/undefined → replace (synthetic / non-streaming source).
+            const nextText = opts?.delta
+              ? ((last.thinkingProcess ?? "") + text)
+              : text
+            updated[lastIndex] = { ...last, thinkingProcess: nextText }
             return updated
           })
         },
@@ -517,7 +532,7 @@ export function useProductRecommendationPage({
           createdAt: prev[updated.length - 1]?.createdAt ?? new Date().toISOString(),
           feedbackGroupId: prev[updated.length - 1]?.feedbackGroupId ?? createClientEventId(),
           debugTrace: (data as any).meta?.debugTrace ?? null,
-          thinkingProcess: data.thinkingProcess ?? null,
+          thinkingProcess: data.thinkingProcess || prev[updated.length - 1]?.thinkingProcess || null,
         }
         console.log("[chip-groups:client:store]", {
           messageIndex: updated.length - 1,
