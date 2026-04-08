@@ -1310,6 +1310,13 @@ export interface ServeEngineRuntimeDependencies {
     language: AppLanguage,
     displayedProducts?: RecommendationDisplayedProductRequestDto[] | null
   ) => Promise<Response>
+  /**
+   * Optional hook fired the moment the SQL agent (or any other source) produces
+   * a Korean reasoning trail. The /api/recommend/stream endpoint wires this to
+   * an SSE "thinking" event so the UI can render it Claude-style before the
+   * filter result and narrative arrive.
+   */
+  onThinking?: (text: string) => void
   buildCandidateSnapshot: (
     candidates: ScoredProduct[],
     evidenceMap: Map<string, EvidenceSummary>
@@ -2087,6 +2094,17 @@ async function handleServeExplorationInner(
       try {
         const schemaForForge = getDbSchemaSync()
         if (schemaForForge) {
+          // Semantic cache wraps forge too — identical/synonymous follow-up queries
+          // skip the entire forge LLM dance (Sonnet + relax + verify, ~7-15s) and
+          // replay the captured rows directly from cache.
+          const { lookupCache: lookupForgeCache, storeCache: storeForgeCache } = await import("@/lib/recommendation/core/semantic-cache")
+          const forgeCacheHit = lookupForgeCache(msg, filters)
+          if (forgeCacheHit && forgeCacheHit.source === "forge" && Array.isArray(forgeCacheHit.rows)) {
+            const cachedRows = forgeCacheHit.rows
+            forgedFallbackRows = cachedRows
+            console.log(`[semantic-cache:hit:forge] "${msg.slice(0, 60)}" → ${cachedRows.length} cached rows`)
+            trace.add("semantic-cache", "router", { query: msg.slice(0, 80) }, { hit: true, source: "forge", rowCount: cachedRows.length }, "forge cache hit")
+          } else {
           const { findMatchingTool } = await import("@/lib/recommendation/core/tool-registry")
           const { forgeAndExecute, executeRegistryTool } = await import("@/lib/recommendation/core/tool-forge")
 
@@ -2099,7 +2117,10 @@ async function handleServeExplorationInner(
             const { rows } = await executeRegistryTool(cachedTool, msg, pool, provider)
             console.log(`[tool-registry:hit] "${msg.slice(0, 60)}" → ${cachedTool.name} (${rows.length} rows, ${Date.now() - t0}ms)`)
             trace.add("tool-registry", "router", { tool: cachedTool.name, rowCount: rows.length, durationMs: Date.now() - t0 })
-            if (rows.length > 0) forgedFallbackRows = rows
+            if (rows.length > 0) {
+              forgedFallbackRows = rows
+              storeForgeCache(msg, filters, { source: "forge", actions: [], rows })
+            }
           } else {
             // Live forge — slow but only on novel patterns
             const forgeResult = await forgeAndExecute(msg, schemaForForge, filters, provider, pool)
@@ -2111,8 +2132,12 @@ async function handleServeExplorationInner(
               durationMs: forgeResult.totalDurationMs,
               registeredTool: forgeResult.tool?.name ?? null,
             })
-            if (forgeResult.success && forgeResult.rows.length > 0) forgedFallbackRows = forgeResult.rows
+            if (forgeResult.success && forgeResult.rows.length > 0) {
+              forgedFallbackRows = forgeResult.rows
+              storeForgeCache(msg, filters, { source: "forge", actions: [], rows: forgeResult.rows })
+            }
           }
+          } // end forge cache miss branch
         }
       } catch (e) {
         console.error(`[tool-forge] error (non-fatal):`, e instanceof Error ? e.message : String(e))

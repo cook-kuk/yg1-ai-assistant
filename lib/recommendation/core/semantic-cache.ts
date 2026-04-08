@@ -27,10 +27,14 @@ export interface CachedAction {
 }
 
 export interface CachedResult {
-  source: "scr" | "sql-agent" | "det-scr"
+  source: "scr" | "sql-agent" | "det-scr" | "forge"
   actions: CachedAction[]
   reasoning?: string
   answer?: string
+  /** For forge cache: the raw DB rows that the forge agent returned. Replayed
+   *  directly into the candidates pipeline on cache hit, skipping the entire
+   *  Sonnet+relax+verify forge cycle (~7-15s). */
+  rows?: Record<string, unknown>[]
 }
 
 interface CacheEntry {
