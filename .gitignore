@@ -58,6 +58,12 @@ test-results/our-vercel-results.json
 test-results/demo-e2e-results.json
 test-results/thread-results.json
 test-results/vp-results.json
+test-results/_*
+test-results/update-env-remote.py
+test-results/*.log
+test-results/*.mjs
+test-results/*.py
+test-results/golden-runner-progress.jsonl
 
 # pattern mining logs
 data/pattern-mining-logs.jsonl

@@ -3629,7 +3629,7 @@ async function handleServeExplorationInner(
             askedField: prevState.lastAskedField,
             answer: lastUserMsg.text,
             extractedFilters: [filter],
-            candidateCountBefore: totalCandidateCount,
+            candidateCountBefore: prevState?.candidateCount ?? totalCandidateCount,
             candidateCountAfter: testResult.totalConsidered,
           }))
           turnCount++
@@ -4414,7 +4414,7 @@ async function handleServeExplorationInner(
         askedField: skipField,
         answer: lastUserMsg.text,
         extractedFilters: [skipFilter],
-        candidateCountBefore: totalCandidateCount,
+        candidateCountBefore: prevState?.candidateCount ?? totalCandidateCount,
         candidateCountAfter: newResult.totalConsidered,
       }))
       turnCount += 1
@@ -4477,7 +4477,7 @@ async function handleServeExplorationInner(
       currentInput = restoreResult.rebuiltInput
 
       const filterAppliedAt = restoreResult.undoTurnCount
-      const candidateCountBeforeFilter = restoreResult.remainingStages.at(-1)?.candidateCount ?? totalCandidateCount
+      const candidateCountBeforeFilter = restoreResult.remainingStages.at(-1)?.candidateCount ?? prevState?.candidateCount ?? totalCandidateCount
 
       let filter = { ...action.nextFilter, appliedAt: filterAppliedAt }
       if (filter.field === "material") {
@@ -4634,7 +4634,14 @@ async function handleServeExplorationInner(
       let baseFiltersForNext = filters
       let baseStageHistoryForNext = prevState.stageHistory ?? []
       let baseHistoryForNext = narrowingHistory
-      let candidateCountBeforeFilter = totalCandidateCount
+      // ── Narrowing-history "before" count fix ──
+      // totalCandidateCount comes from runHybridRetrieval(filters) where the
+      // upstream v2-bridge / SCR / sql-agent paths have ALREADY merged the new
+      // chip filter into `filters`. So totalCandidateCount is the post-filter
+      // count, not the pre-filter count. Use prevState.candidateCount (the
+      // resolved count from the previous turn) as the true "before" value, so
+      // narrowing history shows e.g. 33727→1669 instead of 1669→1669.
+      let candidateCountBeforeFilter = prevState?.candidateCount ?? totalCandidateCount
 
       let filter = { ...action.filter, appliedAt: filterAppliedAt }
       if (filter.field === "material") {
