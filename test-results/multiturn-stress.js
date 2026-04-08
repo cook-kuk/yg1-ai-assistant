@@ -116,7 +116,7 @@ async function runCase(test, mode) {
   try {
     const r = await fetch(`${ENDPOINT}/api/recommend`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-precision-match": "1", "x-disable-kg": "1" },
+      headers: { "Content-Type": "application/json", "x-precision-match": "1" },
       body: JSON.stringify(turn0Payload),
     })
     turn0Resp = await r.json()
@@ -160,7 +160,7 @@ async function runCase(test, mode) {
     try {
       const r = await fetch(`${ENDPOINT}/api/recommend`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-precision-match": "1", "x-disable-kg": "1" },
+        headers: { "Content-Type": "application/json", "x-precision-match": "1" },
         body: JSON.stringify(payload),
       })
       resp = await r.json()

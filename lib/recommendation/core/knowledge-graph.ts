@@ -306,35 +306,13 @@ export function extractEntities(message: string): Array<{ field: string; value: 
     results.push({ field: node.field, value: alias, canonical: node.canonical })
   }
 
-  // Numeric pattern matching
-  // Guard: if message mentions a length/shank/helix keyword, the bare "<num>mm"
-  // diameter fallback is too greedy ("전체 길이 100mm" was matching diameter=100).
-  // Run length-specific fields first; only run diameter fallback when no other
-  // length-context word is present.
-  const hasLengthContext = /(?:전장|전체\s*길이|총\s*길이|날장|절삭\s*길이|생크|샹크|shank|oal|loc|헬릭스|나선각|helix)/i.test(message)
-  const orderedPatterns = hasLengthContext
-    ? [
-        // length-specific fields first
-        ...NUMERIC_PATTERNS.filter(np => np.field !== "diameterMm"),
-        // diameter only via explicit keyword patterns (skip bare-mm fallback)
-        {
-          field: "diameterMm",
-          patterns: [
-            /(?:직경|지름|파이|φ|Φ|ø|dia(?:meter)?)\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
-          ],
-          extract: (m: RegExpMatchArray) => parseFloat(m[1]),
-        },
-      ]
-    : NUMERIC_PATTERNS
-  for (const np of orderedPatterns) {
-    for (const pattern of np.patterns) {
-      const match = message.match(pattern)
-      if (match) {
-        results.push({ field: np.field, value: match[0], canonical: String(np.extract(match)) })
-        break
-      }
-    }
-  }
+  // Numeric pattern matching is intentionally disabled — sql-agent + SCR are
+  // schema-aware and handle numeric extraction with proper range ops (gte/lte/
+  // between). KG's regex-based numeric extraction was causing field hijacks
+  // (bare "<num>mm" stealing from OAL/CL/shank/helix contexts) and producing
+  // eq-only filters that overrode proper range filters from sql-agent.
+  // KG remains responsible for: brand matching, operation routing, fluteCount
+  // entity match, and intent classification (skip/back/reset/show/exclude).
 
   // 3. Dynamic brand matching from DB schema cache (no hardcoding)
   //    Normalize hyphens/spaces: "CRX-S" ↔ "CRX S" ↔ "CRXS"
