@@ -670,9 +670,13 @@ export function tryKGDecision(
     }
   }
 
-  // ── 8. Multi-entity extraction (e.g., "4날 스퀘어", "10mm") ──
+  // ── 8. Single-entity short-text extraction ──
+  // 멀티 entity 자유 텍스트 (예: "4날 TiAlN Square", "탄소강 8mm 4날 황삭") 는
+  // KG 가 부분만 잡아 deterministic-scr/LLM 의 풀 추출을 가로채는 문제가 있어
+  // 2026-04-09 부터 entities.length === 1 (단일 토큰/단어) 만 KG 에서 dispatch.
+  // 멀티는 deterministic-scr → LLM semantic-extractor 경로로 위임.
   const entities = extractEntities(msg)
-  if (entities.length > 0 && !COMPANY_PATTERNS.some(p => p.test(msg))) {
+  if (entities.length === 1 && !COMPANY_PATTERNS.some(p => p.test(msg))) {
     // Negation check: "4날 말고", "TiAlN 빼고" 등 → op: "exclude"
     const isNegation = /빼고|제외|아닌\s*것|아닌\s*걸|아닌걸|없는\s*거|말고|만\s*아니면|없이|아닌\s*거|없는\s*거로|가\s*아닌|이\s*아닌/u.test(msg)
     const primary = entities[0]
