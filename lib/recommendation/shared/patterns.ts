@@ -308,8 +308,8 @@ export function canonicalizeCoating(raw: string): string | null {
   // "코팅없는걸로", "코팅없는거", "없는거" 등 → Uncoated
   if (/코팅없|(?:^|\s)없는/.test(normalized)) return "Uncoated"
 
-  // "Ti-Al-N" → "TiAlN"
-  if (/[A-Za-z]+-[A-Za-z]/.test(stripped)) {
+  // "Ti-Al-N" → "TiAlN" (단, "Y-Coating"/"X-Coating" 등 YG-1 내부명은 하이픈 보존)
+  if (/[A-Za-z]+-[A-Za-z]/.test(stripped) && !/-coating\b/i.test(stripped)) {
     return stripped.replace(/-/g, "")
   }
 
