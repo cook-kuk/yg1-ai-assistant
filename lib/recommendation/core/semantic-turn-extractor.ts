@@ -7,6 +7,8 @@ import {
   getFilterFieldQueryAliases,
   getRegisteredFilterFields,
 } from "@/lib/recommendation/shared/filter-field-registry"
+import { getDbSchemaSync } from "@/lib/recommendation/core/sql-agent-schema-cache"
+import { DB_COL_TO_FILTER_FIELD } from "@/lib/recommendation/core/sql-agent"
 
 const SEMANTIC_TURN_MODEL = resolveModel("sonnet", "semantic-turn-extractor")
 const MIN_CONFIDENCE = 0.55
@@ -400,6 +402,43 @@ function buildSessionSummary(sessionState: ExplorationSessionState | null): stri
   ].join("\n")
 }
 
+/**
+ * Build a "filter field → DB-actual values" snippet from the startup schema cache.
+ * Same idea as the orchestrator's buildDbFilterValueSnippet — gives the SCR LLM the
+ * canonical vocabulary so it can map "카바이드/하이스/티알엔" to real values without
+ * hardcoded aliases. Returns "" before the cache warms up.
+ */
+function buildDbFilterValueCatalog(): string {
+  const schema = getDbSchemaSync()
+  if (!schema) return ""
+
+  const valuesByField = new Map<string, Set<string>>()
+  for (const [col, field] of Object.entries(DB_COL_TO_FILTER_FIELD)) {
+    const samples = schema.sampleValues[col]
+    if (!samples || samples.length === 0) continue
+    const slot = valuesByField.get(field) ?? new Set<string>()
+    for (const v of samples) {
+      const trimmed = v.trim()
+      if (trimmed && trimmed.length <= 40) slot.add(trimmed)
+    }
+    valuesByField.set(field, slot)
+  }
+  if (schema.brands.length > 0) valuesByField.set("brand", new Set(schema.brands))
+  if (schema.countries.length > 0) valuesByField.set("country", new Set(schema.countries))
+
+  if (valuesByField.size === 0) return ""
+
+  const lines: string[] = []
+  for (const [field, set] of valuesByField) {
+    const values = Array.from(set).slice(0, 40)
+    if (values.length === 0) continue
+    lines.push(`- ${field}: ${values.join(", ")}`)
+  }
+  if (lines.length === 0) return ""
+
+  return `\nDB 실측 값 (시작 시 1회 로드, canonical):\n${lines.join("\n")}\n사용자 한글 표현(카바이드/하이스/티알엔/볼/스퀘어 등)은 위 영문 canonical 값으로 매핑해 filters[].value 에 그대로 넣는다. 위에 없는 값은 만들지 말 것.\n`
+}
+
 function buildSystemPrompt(repairFeedback: string | null): string {
   return `당신은 절삭공구 추천 시스템의 의미 해석기입니다.
 최신 사용자 발화를 세션 맥락과 함께 읽고, 실행 가능한 JSON만 반환하세요.
@@ -455,6 +494,7 @@ replyRoute 허용값:
 
 허용 필드:
 ${buildFieldCatalog()}
+${buildDbFilterValueCatalog()}
 ${repairFeedback ? `\n이전 응답 검증 실패 사유:\n${repairFeedback}\n위 오류를 수정한 JSON만 다시 출력하세요.` : ""}
 
 JSON 형식:
