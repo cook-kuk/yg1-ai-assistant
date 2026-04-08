@@ -2849,6 +2849,32 @@ async function handleServeExplorationInner(
     earlyAction = null  // 더 이상 SKIP 하지 않음
   }
 
+  // ── First-turn empty-intake guard ─────────────────────────────
+  // 빈 intake (소재/직경/가공방식/공구타입/공작물 모두 모름) + 첫 턴이면
+  // SQL 으로 random 30개 뽑지 말고 chat-first로 입력 요청. (수찬님 :2999 와 동일 동작)
+  const isFirstTurn = !prevState || (prevState.displayedCandidates?.length ?? 0) === 0
+  const intakeIsEmpty =
+    !resolvedInput?.material
+    && !resolvedInput?.diameterMm
+    && !resolvedInput?.workPieceName
+    && !resolvedInput?.operationType
+    && !resolvedInput?.toolType
+    && filters.length === 0
+  if (isFirstTurn && intakeIsEmpty && !earlyAction) {
+    console.log("[runtime:first-turn-guard] empty intake → chat-first, skip retrieval")
+    return deps.jsonRecommendationResponse({
+      text: "제품을 추천해 드리기 위해 몇 가지 정보가 필요합니다:\n\n1. **피삭재(소재)** — 예: 탄소강, 합금강, 스테인리스강, 주철, 알루미늄, 티타늄, 인코넬\n2. **공구 직경** — 예: 6mm, 10mm, 12mm\n3. **가공 방식** — 예: 밀링/드릴링/탭핑/선삭, 황삭/정삭, 슬로팅\n4. **(선택) 날수** — 2날, 4날, 6날 등\n5. **(선택) 코팅** — TiAlN, AlCrN, DLC 등\n\n위 항목 중 아는 것만 알려주셔도 검색을 시작할 수 있습니다.",
+      purpose: "question",
+      chips: ["스테인리스 10mm 4날", "탄소강 8mm 황삭", "알루미늄 6mm", "티타늄 가공", "처음부터 다시"],
+      isComplete: false,
+      recommendation: null,
+      sessionState: null,
+      evidenceSummaries: null,
+      candidateSnapshot: null,
+      requestPreparation: requestPrep ?? null,
+    })
+  }
+
   const needsRetrieval = !earlyAction || !SKIP_RETRIEVAL_ACTIONS.has(earlyAction)
   let candidates: ScoredProduct[]
   let evidenceMap: Map<string, EvidenceSummary>
