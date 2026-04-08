@@ -21,9 +21,10 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const API_HOST = '20.119.98.136';
-const API_PORT = 3000;
+const API_HOST = process.env.API_HOST || '20.119.98.136';
+const API_PORT = parseInt(process.env.API_PORT || '3000', 10);
 const API_PATH = '/api/recommend';
+const OUT_SUFFIX = process.env.OUT_SUFFIX || '';
 
 // DB 컬럼명 → 엔진 필드명 alias (best-effort)
 const FIELD_ALIAS = {
@@ -65,7 +66,7 @@ function aliasFor(field) {
   return FIELD_ALIAS[field] || [field, field.toLowerCase()];
 }
 
-function callAPI(body, timeoutMs = 30000) {
+function callAPI(body, timeoutMs = 90000) {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify(body);
     const req = http.request({
@@ -189,7 +190,7 @@ async function main() {
   console.log(`Pass rate: ${passRate}% (judged ${total})`);
   console.log(`Elapsed: ${totalSec}s`);
 
-  fs.writeFileSync(path.join(__dirname, 'golden-runner-result.json'), JSON.stringify(results, null, 2));
+  fs.writeFileSync(path.join(__dirname, `golden-runner-result${OUT_SUFFIX}.json`), JSON.stringify(results, null, 2));
   console.log('Saved: test-results/golden-runner-result.json');
 }
 

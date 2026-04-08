@@ -530,8 +530,11 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     queryAliases: ["소재", "재질", "material"],
     kind: "string",
     op: "eq",
-    setInput: (input, filter) => ({ ...input, material: joinedFilterStringValue(filter), workPieceName: undefined }),
-    clearInput: input => ({ ...input, material: undefined, workPieceName: undefined }),
+    // Do NOT cascade-clear workPieceName: the two can coexist (material=ISO group,
+    // workPieceName=specific name). Clearing workPieceName here caused silent filter
+    // drops when both material and workPieceName filters were active in the same turn.
+    setInput: (input, filter) => ({ ...input, material: joinedFilterStringValue(filter) }),
+    clearInput: input => ({ ...input, material: undefined }),
   },
   workPieceName: {
     field: "workPieceName",
