@@ -689,8 +689,13 @@ export async function runHybridRetrieval(
   const STOCK_FILTER_ENRICH_CAP = 2000
 
   if (hasStockFilter) {
+    // SQL builder가 stockStatus.buildDbClause로 inventory_summary_mv 와 EXISTS join
+    // 했으면 qualifiedCandidates 는 이미 정확. post-filter 로 또 거르면 candidate
+    // 객체에 stockStatus 필드가 비어서 모두 reject 됨 → SQL 결과 무효화.
+    // SQL 단계 필터링이 신뢰할 수 있으므로 enrich + matches post-filter 를 우회.
     const stockFilter = filters.find(f => f.field === "stockStatus")!
     const enrichPool = qualifiedCandidates.slice(0, STOCK_FILTER_ENRICH_CAP)
+    // Display 용으로만 enrichment (post-filter는 안 함)
     await Promise.all(
       enrichPool.map(async (c) => {
         const inv = await InventoryRepo.getEnrichedAsync(c.product.normalizedCode)
@@ -701,14 +706,10 @@ export async function runHybridRetrieval(
         c.minLeadTimeDays = LeadTimeRepo.minLeadTime(c.product.normalizedCode)
       })
     )
-    const stockDef = getFilterFieldDefinition("stockStatus")
     const isNeg = stockFilter.op === "neq" || stockFilter.op === "exclude"
-    const survivors = enrichPool.filter(c => {
-      if (!stockDef?.matches) return true
-      const matched = stockDef.matches(c as unknown as Record<string, unknown>, stockFilter) === true
-      return isNeg ? !matched : matched
-    })
-    // 남은 (아직 enrich 안 된 꼬리)는 버림 — cap 도달 시 정확도 vs 비용 trade.
+    const survivors = isNeg
+      ? enrichPool.filter(c => (c.totalStock ?? 0) === 0)
+      : enrichPool.filter(c => (c.totalStock ?? 0) > 0)
     qualifiedCandidates.splice(0, qualifiedCandidates.length, ...survivors)
     console.log(`[hybrid:stage] stage=stock_filter enriched=${enrichPool.length} survived=${survivors.length}`)
   }
