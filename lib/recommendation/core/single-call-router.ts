@@ -247,6 +247,7 @@ Long-term (accumulated in Session State):
 - country: sales region / country of sale. Use ISO-3 codes or Korean/English natural names — the system canonicalizes them. Examples: "국내"/"국산"/"내수"/"한국" → "국내", "유럽"/"유럽용"/"유럽판매용"/"europe" → "유럽", "독일" → "독일", "일본" → "일본". "수입품 제외" / "해외 제품 제외" → country="국내" (op:"eq"). "국내 제품 말고" → country="국내" (op:"neq").
 - ballRadiusMm: corner radius / ball nose radius in mm (number). Triggers: "라디우스 0.3", "코너R 0.5", "R0.2". When user gives a numeric radius value, emit BOTH toolSubtype="Radius" AND ballRadiusMm=<value>.
 - coolantHole: presence of internal coolant through-hole (boolean). Triggers: "쿨런트홀", "쿨런트 구멍", "내부 냉각", "coolant hole", "internal coolant". Use value:true for "있는 거/되는 거", value:false for "없는 거/없이".
+- stockStatus: in-stock filter (string). Triggers: "재고 있는 거", "재고만", "재고 있는 것만", "재고있음", "instock", "납기 빠른", "즉시 출하". Use value:"instock" with op:"eq". For numeric threshold ("재고 50개 이상"), use value:"50" or include the number in value as text.
 - brand: series/brand name (string, pass-through). The canonical list of brands that actually exist in DB is injected below under "## Known DB Values". ONLY emit brand values from that list (closest match if user uses a variant spelling). Triggers: "브랜드 <name>", "<name>로", "<name> 시리즈". If user says "브랜드를 X로 바꿔줘" and NO brand filter exists yet → apply_filter(brand=X). If brand filter already exists → replace_filter(brand, from=<current>, to=X).
 
 ## Examples
@@ -327,6 +328,21 @@ User: "직경 8mm 이상 12mm 이하 제품만 보여줘"
 
 User: "전장 100 이상이고 쿨런트홀 있는 거"
 → {"actions":[{"type":"apply_filter","field":"overallLengthMm","value":100,"op":"gte"},{"type":"apply_filter","field":"coolantHole","value":true,"op":"eq"}],"answer":"","reasoning":"OAL ≥100 + internal coolant through-hole"}
+
+User: "재고 있는 거만 보여줘"
+→ {"actions":[{"type":"apply_filter","field":"stockStatus","value":"instock","op":"eq"}],"answer":"","reasoning":"in-stock filter"}
+
+User: "재고 있고 빠른 납기 가능한 거"
+→ {"actions":[{"type":"apply_filter","field":"stockStatus","value":"instock","op":"eq"}],"answer":"","reasoning":"in-stock filter (fast delivery implies in stock)"}
+
+User: "한국 재고로 4날 TiAlN 전장 100 이상"
+→ {"actions":[{"type":"apply_filter","field":"country","value":"한국","op":"eq"},{"type":"apply_filter","field":"stockStatus","value":"instock","op":"eq"},{"type":"apply_filter","field":"fluteCount","value":4,"op":"eq"},{"type":"apply_filter","field":"coating","value":"TiAlN","op":"eq"},{"type":"apply_filter","field":"overallLengthMm","value":100,"op":"gte"}],"answer":"","reasoning":"5 filters: KR + stock + 4F + TiAlN + OAL≥100"}
+
+User: "M10 P1.5 관통탭"
+→ {"actions":[{"type":"apply_filter","field":"diameterMm","value":10,"op":"eq"},{"type":"apply_filter","field":"threadPitchMm","value":1.5,"op":"eq"}],"answer":"","reasoning":"Tap M10 with pitch 1.5mm"}
+
+User: "포인트 각도 140도"
+→ {"actions":[{"type":"apply_filter","field":"pointAngleDeg","value":140,"op":"eq"}],"answer":"","reasoning":"drill point angle 140 degrees"}
 
 User: "알루파워라는 브랜드는 왜 추천해주지 않나요?" (question about missing brand)
 → {"actions":[],"answer":"알루파워(ALU-POWER) 시리즈가 후보에 포함되어 있는지 확인하겠습니다.","reasoning":"question about brand, no filter change"}
@@ -411,7 +427,7 @@ The user speaks Korean. Analyze the message and session state to determine actio
 {{DB_VALUES}}
 
 ## Available Actions (JSON array)
-- apply_filter: {type, field, value, op} — field: toolSubtype(Square/Ball/Radius/Roughing/Taper/Chamfer/High-Feed), fluteCount(number), coating(TiAlN/AlCrN/DLC/TiCN/Bright Finish/Blue-Coating/X-Coating/Y-Coating/Uncoated), diameterMm(number), lengthOfCutMm(number), overallLengthMm(number), ballRadiusMm(number, corner R/라디우스), brand(X-POWER/TitaNox-Power/CRX S/ALU-POWER/3S MILL/ONLY ONE — "브랜드를 X로 바꿔"시 기존 brand 필터 있으면 replace, 없으면 apply), workPieceName(구리/알루미늄/스테인리스/탄소강/주철/티타늄/인코넬/고경도강), material(P/M/K/N/S/H), country(국내/유럽/독일/일본/한국 — "국내제품"/"수입품 제외"→country=국내, "유럽판매용"→country=유럽)
+- apply_filter: {type, field, value, op} — field: toolSubtype(Square/Ball/Radius/Roughing/Taper/Chamfer/High-Feed), fluteCount(number), coating(TiAlN/AlCrN/DLC/TiCN/Bright Finish/Blue-Coating/X-Coating/Y-Coating/Uncoated), diameterMm(number), lengthOfCutMm(number), overallLengthMm(number), shankDiameterMm(number, "샹크 직경"/"shank diameter"), helixAngleDeg(number, "헬릭스"/"나선각"/"helix"), ballRadiusMm(number, corner R/라디우스), pointAngleDeg(number, drill point angle 140/118/135), threadPitchMm(number, "M10 P1.5"→1.5/"피치"), coolantHole(boolean, "쿨런트홀"), stockStatus(string "instock", "재고"/"납기"), brand(X-POWER/TitaNox-Power/CRX S/ALU-POWER/3S MILL/ONLY ONE — "브랜드를 X로 바꿔"시 기존 brand 필터 있으면 replace, 없으면 apply), workPieceName(구리/알루미늄/스테인리스/탄소강/주철/티타늄/인코넬/고경도강), material(P/M/K/N/S/H), country(국내/유럽/독일/일본/한국 — "국내제품"/"수입품 제외"→country=국내, "유럽판매용"→country=유럽)
 - remove_filter: {type, field} — "빼고/제외" + existing filter → remove
 - replace_filter: {type, field, from, to} — "바꿔/변경" → replace value
 - show_recommendation: {type} — "추천해줘/보여줘/제품 보기"
