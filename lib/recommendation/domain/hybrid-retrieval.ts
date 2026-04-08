@@ -432,6 +432,13 @@ export async function runHybridRetrieval(
   // Once a filter is selected, it MUST be enforced. No silent skipping.
   // The zero-candidate guard is in route.ts BEFORE the filter reaches here.
   for (const filter of flattenActiveFilters(filters)) {
+    // stockStatus 는 SQL 단계에서 이미 inventory_summary_mv EXISTS join 으로 적용됨.
+    // post-filter 로 또 검사하면 candidate 객체에 stockStatus 필드가 비어서 모두 reject.
+    // (post-filter 는 line 691 의 stockStatus pre-filter 경로에서 enrichment 후 별도 처리)
+    if (filter.field === "stockStatus") {
+      appliedFilters.push(filter)
+      continue
+    }
     const before = candidates.length
     const filtered = applyPostFilterToProducts(candidates, filter)
 
