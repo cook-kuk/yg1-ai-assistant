@@ -429,13 +429,22 @@ function NarrowingChat({
                 </div>
               )}
 
-              {message.role === "ai" && message.thinkingProcess && !message.isLoading && (
-                <details className="mt-1">
-                  <summary className="text-[11px] text-gray-500 cursor-pointer hover:text-gray-700 select-none">
-                    {language === "ko" ? "추론 과정 보기" : "Show reasoning"}
+              {message.role === "ai" && message.thinkingProcess && (
+                <details className="mt-1" open={message.isLoading}>
+                  <summary className="text-[11px] text-gray-500 cursor-pointer hover:text-gray-700 select-none flex items-center gap-1">
+                    <span className={message.isLoading ? "animate-pulse" : ""}>
+                      {message.isLoading
+                        ? (language === "ko" ? "추론 중…" : "Thinking…")
+                        : (language === "ko" ? "추론 과정 보기" : "Show reasoning")}
+                    </span>
                   </summary>
                   <div className="mt-1 p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-900 leading-relaxed whitespace-pre-wrap">
-                    {message.thinkingProcess}
+                    {/* Claude-style typewriter while loading; instant when settled */}
+                    {index === messages.length - 1 && message.isLoading ? (
+                      <TypewriterText text={message.thinkingProcess} instant={false} />
+                    ) : (
+                      message.thinkingProcess
+                    )}
                   </div>
                 </details>
               )}

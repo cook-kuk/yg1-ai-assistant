@@ -2010,6 +2010,11 @@ async function handleServeExplorationInner(
           // sessionState) picks it up regardless of which response builder fires.
           if (agentResult.reasoning && prevState) {
             (prevState as ExplorationSessionState).thinkingProcess = agentResult.reasoning
+            // Real-time hook: SSE endpoint flushes a "thinking" frame immediately
+            // so the UI starts rendering before filter retrieval / narrative finish.
+            if (deps.onThinking) {
+              try { deps.onThinking(agentResult.reasoning) } catch { /* never block runtime */ }
+            }
           }
 
           if (agentResult.filters.length > 0) {

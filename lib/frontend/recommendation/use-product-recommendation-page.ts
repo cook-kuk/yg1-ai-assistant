@@ -230,6 +230,16 @@ export function useProductRecommendationPage({
       setPhase("explore")
 
       const data = await streamRecommendation(requestPayload, {
+        onThinking: text => {
+          setChatMessages(prev => {
+            const updated = [...prev]
+            const lastIndex = updated.length - 1
+            const last = updated[lastIndex]
+            if (!last || last.role !== "ai") return prev
+            updated[lastIndex] = { ...last, thinkingProcess: text }
+            return updated
+          })
+        },
         onCards: partial => {
           setChatMessages(prev => {
             const updated = [...prev]
@@ -319,6 +329,16 @@ export function useProductRecommendationPage({
       setPhase("explore")
 
       const data = await streamRecommendation(requestPayload, {
+        onThinking: text => {
+          setChatMessages(prev => {
+            const updated = [...prev]
+            const lastIndex = updated.length - 1
+            const last = updated[lastIndex]
+            if (!last || last.role !== "ai") return prev
+            updated[lastIndex] = { ...last, thinkingProcess: text }
+            return updated
+          })
+        },
         onCards: partial => {
           setChatMessages(prev => {
             const updated = [...prev]
@@ -418,6 +438,16 @@ export function useProductRecommendationPage({
       // narrative arrives so cards render immediately. onCards updates the
       // pending AI message in place; the awaited result is still the final DTO.
       const data = await streamRecommendation(requestPayload, {
+        onThinking: text => {
+          setChatMessages(prev => {
+            const updated = [...prev]
+            const lastIndex = updated.length - 1
+            const last = updated[lastIndex]
+            if (!last || last.role !== "ai") return prev
+            updated[lastIndex] = { ...last, thinkingProcess: text }
+            return updated
+          })
+        },
         onCards: partial => {
           setChatMessages(prev => {
             const updated = [...prev]

@@ -86,6 +86,15 @@ export async function POST(req: Request): Promise<Response> {
       // Initial "started" ping so the client knows the connection is live.
       safeEnqueue(sseFrame("started", { ok: true }))
 
+      // Real-time CoT: SQL agent reasoning is flushed the moment it's parsed,
+      // before retrieval. The client renders it Claude-style as the message
+      // streams in. Multiple thinking events allowed (later sources can append).
+      const onThinking = (text: string) => {
+        if (!text || !text.trim()) return
+        try { safeEnqueue(sseFrame("thinking", { text })) }
+        catch (err) { traceRecommendationError("http.stream.thinking:enqueue-error", err) }
+      }
+
       const onEarlyFlush = (payload: EarlyRecommendationFlush) => {
         // Build a partial DTO so the client can reuse parseRecommendationResponse.
         // text is empty (LLM narrative still pending); recommendation/explanations
@@ -109,7 +118,7 @@ export async function POST(req: Request): Promise<Response> {
       }
 
       try {
-        const runtimeDeps = createServeRuntimeDependencies({ onEarlyFlush })
+        const runtimeDeps = createServeRuntimeDependencies({ onEarlyFlush, onThinking })
 
         const language = body.language === "en" ? "en" : "ko"
         const intakeForm = body.intakeForm as ProductIntakeForm | undefined

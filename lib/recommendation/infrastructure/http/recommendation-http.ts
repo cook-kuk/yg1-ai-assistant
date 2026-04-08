@@ -156,6 +156,13 @@ export interface ServeRuntimeDependenciesOptions {
    * cards before the narrative text is generated.
    */
   onEarlyFlush?: (payload: import("@/lib/recommendation/infrastructure/engines/serve-engine-response").EarlyRecommendationFlush) => void
+  /**
+   * Real-time reasoning flush. Fires the moment the SQL agent (or any other
+   * reasoning source) produces a Korean explanation, before retrieval / LLM
+   * narrative finish. SSE endpoint forwards this as a "thinking" event so the
+   * UI can render it Claude-style.
+   */
+  onThinking?: (text: string) => void
 }
 
 export function createServeRuntimeDependencies(
@@ -243,6 +250,7 @@ export function createServeRuntimeDependencies(
       language,
       displayedProducts,
     ),
+    onThinking: options.onThinking,
     buildCandidateSnapshot,
     handleDirectInventoryQuestion,
     // provider 생성 시점은 요청 처리 직전으로 늦춰, 테스트/런타임 교체를 쉽게 한다.
@@ -337,8 +345,10 @@ async function handleRecommendationPostInner(req: Request, rawBody: unknown): Pr
     const recommendationService = getRecommendationService()
 
     // 3. 공개 DTO를 내부 command 형태로 바꿔 서비스에 넘긴다.
-    const response = await runWithBenchmark(() =>
-      recommendationService.handleRequest({
+    // benchmark usage MUST be collected inside the runWithBenchmark scope —
+    // AsyncLocalStorage context is gone the moment storage.run() returns.
+    const { response, benchmarkUsage } = await runWithBenchmark(async () => {
+      const r = await recommendationService.handleRequest({
         engineId: body.engine,
         intakeForm: body.intakeForm as ProductIntakeForm | undefined,
         messages: body.messages ?? [],
@@ -348,10 +358,8 @@ async function handleRecommendationPostInner(req: Request, rawBody: unknown): Pr
         language: body.language === "en" ? "en" : "ko",
         mode: body.mode ?? "simple",
       })
-    )
-
-    // Inject benchmark LLM usage into response meta
-    const benchmarkUsage = getBenchmarkTurnUsage()
+      return { response: r, benchmarkUsage: getBenchmarkTurnUsage() }
+    })
     if (benchmarkUsage) {
       try {
         const json = await response.json()

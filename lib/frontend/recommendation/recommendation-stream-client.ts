@@ -21,6 +21,8 @@ import type {
  */
 export interface StreamRecommendationCallbacks {
   onCards?: (dto: RecommendationResponseDto) => void
+  /** Real-time reasoning flushes from the server (Claude-style "thinking"). */
+  onThinking?: (text: string) => void
 }
 
 export interface StreamRecommendationOptions extends StreamRecommendationCallbacks {
@@ -32,7 +34,7 @@ export async function streamRecommendation(
   payload: RecommendationRequestDto,
   options: StreamRecommendationOptions = {}
 ): Promise<RecommendationResponseDto> {
-  const { onCards, signal, timeoutMs = 55_000 } = options
+  const { onCards, onThinking, signal, timeoutMs = 55_000 } = options
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
@@ -76,6 +78,12 @@ export async function streamRecommendation(
         if (!onCards) return
         try { onCards(parseRecommendationResponse(parsed)) }
         catch { /* malformed partial — ignore, final will arrive */ }
+      } else if (event === "thinking") {
+        if (!onThinking) return
+        const text = (parsed as { text?: unknown } | null)?.text
+        if (typeof text === "string" && text.trim()) {
+          try { onThinking(text) } catch { /* never block stream */ }
+        }
       } else if (event === "final") {
         try { finalDto = parseRecommendationResponse(parsed) }
         catch (err) { streamErrorMessage = err instanceof Error ? err.message : "parse error" }
