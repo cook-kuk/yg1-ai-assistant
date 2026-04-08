@@ -830,7 +830,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     field: "shankType",
     label: "생크 타입",
     queryAliases: ["생크 타입", "싱크 타입", "shank type"],
-    kind: "text",
+    kind: "string",
     op: "eq",
     setInput: (input, filter) => input, // shankType은 RecommendationInput에 없으므로 pass-through
     clearInput: input => input,

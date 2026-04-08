@@ -797,8 +797,13 @@ export function buildQueryOptions(options: ProductSearchOptions): { where: strin
   }
 
   if (input?.country && input.country !== "ALL") {
-    const param = next(input.country)
-    where.push(`COALESCE(country_codes, ARRAY[]::text[]) @> ARRAY[${param}]::text[]`)
+    // Region/multi-country: input.country can be comma-separated (e.g. "ENG,DEU,...")
+    // from country.setInput(joinedFilterStringValue). Split → array overlap check.
+    const codes = input.country.split(",").map(c => c.trim().toUpperCase()).filter(Boolean)
+    if (codes.length > 0) {
+      const param = next(codes)
+      where.push(`COALESCE(country_codes, ARRAY[]::text[]) && ${param}::text[]`)
+    }
   }
 
   const requestedToolFamily = resolveRequestedToolFamilyInput(input?.toolType)
