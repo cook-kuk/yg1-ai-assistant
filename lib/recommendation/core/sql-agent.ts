@@ -176,8 +176,9 @@ NEVER use eq when the user expressed a range:
 - Pick the column whose name matches the user's label (직경→diameter, 전장/OAL→overall_length, 날장/LOC→length_of_cut, 샹크→shank, 헬릭스→helix, 날수→flute, etc.) AND whose min/max range contains the user's number. Do not emit duplicate eq filters for the same number on different columns.
 
 ## Korean → English semantic hints (use op:like when the chemical/internal name may differ)
-- 공구 소재: 초경/카바이드/솔리드/Carbide → like "Carbide" · 하이스/HSS/고속도강 → like "HSS" · 코발트하이스/HSS-Co → like "HSS-Co" · 서멧/PCD/CBN → like that token
-- 코팅: TiAlN/X코팅 → like "TiAlN" or "X-Coating" · AlCrN/Y코팅 → like "AlCrN" or "Y-Coating" · DLC → like "DLC" · 무코팅/비코팅 → like "Uncoated" or "Bright"
+- 공구 소재: 초경/카바이드/솔리드/Carbide/cemented → like "Carbide" · 하이스/HSS/고속도강/high speed steel → like "HSS" · 코발트하이스/HSS-Co/HSS-CO/분말 하이스/PM HSS → like "HSS-Co" · 서멧/Cermet → like "Cermet" · PCD/diamond → like "PCD" · CBN → like "CBN" · 다이아몬드 → like "Diamond"
+- 코팅: TiAlN/X코팅 → like "TiAlN" or "X-Coating" · AlCrN/Y코팅 → like "AlCrN" or "Y-Coating" · DLC → like "DLC" · 무코팅/비코팅/uncoated/bright → like "Uncoated" or "Bright" · nACo → like "nACo" · CrN → like "CrN" · TiN → like "TiN" · TiCN → like "TiCN" · ZrN → like "ZrN" · "코팅된 거"/"코팅 있는 거"/"코팅 엔드밀" → search_coating neq "Bright" (코팅 존재 여부 필터)
+- 영어 형상 변형: flat/flat endmill → "Square" · bull nose/bullnose → "Radius" or "Corner Radius" · ball nose/ballnose → "Ball" · 4 teeth/4 flute/4-flute → search_flute_count eq 4
 - 피삭재 (use _workPieceName eq): 스테인리스/스텐/SUS → "스테인리스" · 티타늄/Ti → "티타늄" · 알루미늄/AL → "알루미늄" · 주철/FC/FCD → "주철" · 탄소강/SM45C → "탄소강" · 고경도강/SKD11 → "고경도강" · 인코넬/내열합금 → "인코넬" · 구리/동/황동 → "구리" · 합금강/SCM440 → "합금강" · 복합재/CFRP → "복합재" · 흑연 → "흑연"
 - 공구 형상: 스퀘어/평날 → search_subtype eq "Square" · 볼/볼엔드밀 → "Ball" · 라디우스/코너R → like "Radius" · 러핑/황삭 → "Roughing" · 테이퍼 → "Taper" · 챔퍼/모따기 → "Chamfer" · 하이피드/고이송 → like "High-Feed"
 - 가공 형상: 측면가공 → series_application_shape like "side" · 포켓 → like "pocket" · 곡면 → like "contour"
