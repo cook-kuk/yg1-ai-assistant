@@ -728,70 +728,47 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "string",
     matchPolicy: "strict_identifier",
     canonicalizeRawValue: rawValue => {
-      /** Natural-language → ISO 3166-1 alpha-3 (DB standard) */
+      /**
+       * Natural-language → catalog_app.product_recommendation_mv.country_codes 실값.
+       * MV는 region 단위로만 저장: KOREA / AMERICA / EUROPE / ASIA
+       * (대소문자 혼재 더러움은 buildDbClause의 case-insensitive overlap에서 흡수)
+       */
       const COUNTRY_NAME_MAP: Record<string, string> = {
-        // Korean names
-        한국: "KOR", 대한민국: "KOR", 국내: "KOR", 국산: "KOR", 내수: "KOR",
-        미국: "USA",
-        일본: "JPN",
-        중국: "CHN",
-        독일: "DEU",
-        영국: "ENG",
-        프랑스: "FRA",
-        이탈리아: "ITA",
-        스페인: "ESP",
-        러시아: "RUS",
-        태국: "THA",
-        베트남: "VNM",
-        폴란드: "POL",
-        헝가리: "HUN",
-        튀르키예: "TUR", 터키: "TUR",
-        체코: "CZE",
-        포르투갈: "PRT",
-        // English names
-        korea: "KOR", "south korea": "KOR",
-        usa: "USA", "united states": "USA", america: "USA",
-        japan: "JPN",
-        china: "CHN",
-        germany: "DEU",
-        england: "ENG", uk: "ENG", "united kingdom": "ENG", britain: "ENG",
-        france: "FRA",
-        italy: "ITA",
-        spain: "ESP",
-        russia: "RUS",
-        thailand: "THA",
-        vietnam: "VNM",
-        poland: "POL",
-        hungary: "HUN",
-        turkey: "TUR", türkiye: "TUR",
-        czech: "CZE", czechia: "CZE", "czech republic": "CZE",
-        portugal: "PRT",
-        // Old alpha-2 backward compat
-        kr: "KOR",
-        us: "USA",
-        jp: "JPN",
-        cn: "CHN",
-        de: "DEU",
-        // Uppercase canonical forms (from knowledge-graph.ts)
-        KOREA: "KOR", USA: "USA", CHINA: "CHN", JAPAN: "JPN", GERMANY: "DEU",
-        INDIA: "IND", TURKEY: "TUR", MEXICO: "MEX", THAILAND: "THA", VIETNAM: "VNM",
-        ENGLAND: "ENG", FRANCE: "FRA", ITALY: "ITA", SPAIN: "ESP", POLAND: "POL",
-        RUSSIA: "RUS", BRAZIL: "BRA", HUNGARY: "HUN", CZECH: "CZE", PORTUGAL: "PRT",
+        // KOREA (단일 국가지만 별도 토큰)
+        한국: "KOREA", 대한민국: "KOREA", 국내: "KOREA", 국산: "KOREA", 내수: "KOREA",
+        korea: "KOREA", "south korea": "KOREA", kr: "KOREA", kor: "KOREA",
+        // AMERICA
+        미국: "AMERICA", usa: "AMERICA", "united states": "AMERICA", america: "AMERICA",
+        us: "AMERICA", "north america": "AMERICA",
+        // ASIA (Korea 외 아시아 국가는 ASIA로 매핑)
+        일본: "ASIA", japan: "ASIA", jp: "ASIA", jpn: "ASIA",
+        중국: "ASIA", china: "ASIA", cn: "ASIA", chn: "ASIA",
+        태국: "ASIA", thailand: "ASIA", tha: "ASIA",
+        베트남: "ASIA", vietnam: "ASIA", vnm: "ASIA",
+        인도: "ASIA", india: "ASIA", ind: "ASIA",
+        // EUROPE
+        독일: "EUROPE", germany: "EUROPE", de: "EUROPE", deu: "EUROPE",
+        영국: "EUROPE", england: "EUROPE", uk: "EUROPE", "united kingdom": "EUROPE", britain: "EUROPE", eng: "EUROPE",
+        프랑스: "EUROPE", france: "EUROPE", fra: "EUROPE",
+        이탈리아: "EUROPE", italy: "EUROPE", ita: "EUROPE",
+        스페인: "EUROPE", spain: "EUROPE", esp: "EUROPE",
+        러시아: "EUROPE", russia: "EUROPE", rus: "EUROPE",
+        폴란드: "EUROPE", poland: "EUROPE", pol: "EUROPE",
+        헝가리: "EUROPE", hungary: "EUROPE", hun: "EUROPE",
+        튀르키예: "EUROPE", 터키: "EUROPE", turkey: "EUROPE", türkiye: "EUROPE", tur: "EUROPE",
+        체코: "EUROPE", czech: "EUROPE", czechia: "EUROPE", "czech republic": "EUROPE", cze: "EUROPE",
+        포르투갈: "EUROPE", portugal: "EUROPE", prt: "EUROPE",
       }
-      /** Region → multiple country codes (comma-separated for downstream split) */
+      /** Region 직접 입력 */
       const REGION_MAP: Record<string, string> = {
-        아시아: "KOR,JPN,CHN,THA,VNM",
-        유럽: "ENG,DEU,ESP,FRA,HUN,ITA,POL,PRT,RUS,TUR,CZE",
-        asia: "KOR,JPN,CHN,THA,VNM",
-        europe: "ENG,DEU,ESP,FRA,HUN,ITA,POL,PRT,RUS,TUR,CZE",
+        아시아: "ASIA", asia: "ASIA",
+        유럽: "EUROPE", europe: "EUROPE",
+        미주: "AMERICA", 북미: "AMERICA",
       }
       const trimmed = String(rawValue).trim()
       const lower = trimmed.toLowerCase()
-      // Check region first
-      if (REGION_MAP[lower] || REGION_MAP[trimmed]) {
-        return REGION_MAP[lower] ?? REGION_MAP[trimmed]
-      }
-      return COUNTRY_NAME_MAP[lower] ?? COUNTRY_NAME_MAP[trimmed] ?? (trimmed.toUpperCase() || null)
+      if (REGION_MAP[lower]) return REGION_MAP[lower]
+      return COUNTRY_NAME_MAP[lower] ?? (trimmed.toUpperCase() || null)
     },
     op: "includes",
     setInput: (input, filter) => {
@@ -810,7 +787,8 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
         .filter(Boolean)
       if (normalized.length === 0) return null
       const param = next(normalized)
-      return `COALESCE(country_codes, ARRAY[]::text[]) && ${param}::text[]`
+      // Case-insensitive array overlap: MV에 'KOREA'/'Korea'/'korea' 혼재해도 매치
+      return `EXISTS (SELECT 1 FROM unnest(COALESCE(country_codes, ARRAY[]::text[])) AS _c WHERE upper(_c) = ANY(${param}::text[]))`
     },
   },
   shankDiameterMm: {
