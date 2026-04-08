@@ -453,7 +453,14 @@ function NarrowingChat({
                 const isLatest = index === messages.length - 1 && !isSending
                 const isCtaChip = (chip: string) => chip.includes("제품 보기") || chip.includes("AI 상세 분석")
                 const normalChips = message.chips.filter(chip => !isCtaChip(chip))
-                const ctaChips = isLatest ? message.chips.filter(chip => isCtaChip(chip)) : []
+                // "제품 보기" CTA is a UI action (open candidate panel) and should remain
+                // clickable on the latest AI message even if the user has already clicked it once.
+                // "AI 상세 분석" only renders on the latest message because it sends a chat turn.
+                const ctaChips = message.chips.filter(chip => {
+                  if (!isCtaChip(chip)) return false
+                  if (chip.includes("제품 보기")) return isLatest
+                  return isLatest
+                })
                 const chipGroups = (message.chipGroups ?? [])
                   .map(group => ({
                     ...group,
@@ -968,9 +975,13 @@ export function ExplorationScreen({
   const candidatePanelRef = useRef<HTMLDivElement>(null)
   const handleShowCandidates = () => {
     setShowCandidates(true)
-    candidatePanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
     setPulseCandidates(true)
-    window.setTimeout(() => setPulseCandidates(false), 1200)
+    // Defer scroll until after the panel becomes visible (it may be display:none on small screens
+    // until showCandidates flips). rAF ensures the DOM has been updated before scrollIntoView.
+    requestAnimationFrame(() => {
+      candidatePanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    })
+    window.setTimeout(() => setPulseCandidates(false), 1800)
   }
 
   return (
@@ -1040,7 +1051,7 @@ export function ExplorationScreen({
           />
         </div>
 
-        <div ref={candidatePanelRef} className={`w-80 border-l bg-white flex-shrink-0 overflow-y-auto transition-all ${showCandidates ? "block" : "hidden"} lg:block ${pulseCandidates ? "ring-2 ring-blue-400 ring-inset" : ""}`}>
+        <div ref={candidatePanelRef} className={`w-80 border-l bg-white flex-shrink-0 overflow-y-auto transition-all ${showCandidates ? "block" : "hidden"} lg:block ${pulseCandidates ? "ring-4 ring-blue-500 ring-inset shadow-[0_0_24px_rgba(59,130,246,0.55)] animate-pulse" : ""}`}>
           <CandidatePanel
             candidates={candidateSnapshot}
             pagination={candidatePagination}
