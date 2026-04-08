@@ -15,6 +15,41 @@ import Anthropic from "@anthropic-ai/sdk"
 
 export interface LLMMessage { role: "user" | "assistant"; content: string }
 
+/**
+ * Anthropic prefix caching helper.
+ *
+ * Splits a system prompt into static (cached) and dynamic (per-request) blocks.
+ * Static text gets cache_control: ephemeral so subsequent calls within ~5 min
+ * pay 90% less for the cached prefix tokens.
+ *
+ * Convention: callers insert "===DYNAMIC===" between the static prefix and the
+ * dynamic suffix. If the marker is absent, the entire prompt is treated as a
+ * single cacheable block (best-effort caching for legacy callers).
+ */
+const PREFIX_CACHE_MARKER = "===DYNAMIC==="
+const MIN_CACHEABLE_LENGTH = 1024 // Anthropic requires ≥1024 input tokens for caching; ~4 chars/token
+function buildCacheableSystem(systemPrompt: string): Array<{ type: "text"; text: string; cache_control?: { type: "ephemeral" } }> {
+  const idx = systemPrompt.indexOf(PREFIX_CACHE_MARKER)
+  if (idx < 0) {
+    if (systemPrompt.length < MIN_CACHEABLE_LENGTH) {
+      return [{ type: "text", text: systemPrompt }]
+    }
+    return [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }]
+  }
+  const staticPart = systemPrompt.slice(0, idx).trim()
+  const dynamicPart = systemPrompt.slice(idx + PREFIX_CACHE_MARKER.length).trim()
+  const blocks: Array<{ type: "text"; text: string; cache_control?: { type: "ephemeral" } }> = []
+  if (staticPart) {
+    if (staticPart.length >= MIN_CACHEABLE_LENGTH) {
+      blocks.push({ type: "text", text: staticPart, cache_control: { type: "ephemeral" } })
+    } else {
+      blocks.push({ type: "text", text: staticPart })
+    }
+  }
+  if (dynamicPart) blocks.push({ type: "text", text: dynamicPart })
+  return blocks
+}
+
 export interface LLMTool {
   name: string
   description: string
@@ -112,13 +147,25 @@ function isModelTier(value: string): value is ModelTier {
   return value === "haiku" || value === "sonnet" || value === "opus"
 }
 
-/** Resolve model ID from tier, with optional agent-level override */
+/** Resolve model ID from tier, with optional agent-level override.
+ *
+ *  IMPORTANT: AGENT_<NAME>_MODEL is only honored when AGENT_<NAME>_PROVIDER
+ *  is anthropic/empty. Otherwise that env var holds an OpenAI model id like
+ *  "gpt-5.4-mini" — we must NOT pass it to the Anthropic API or it 404s.
+ *  This came up in shadow mode where Claude and OpenAI are both invoked for
+ *  the same agent, so the Claude side hit the OpenAI model id by mistake.
+ */
 export function resolveModel(tier?: ModelTier, agentName?: AgentName): string {
-  // 1. Agent-specific override (highest priority)
+  // 1. Agent-specific override — only when this agent is anthropic-routed.
   if (agentName) {
     const envKey = AGENT_MODEL_ENV[agentName]
-    const agentModel = envKey ? process.env[envKey] : undefined
-    if (agentModel) return agentModel
+    const providerKey = `AGENT_${agentName.toUpperCase().replace(/-/g, "_")}_PROVIDER`
+    const agentProvider = (process.env[providerKey] || "").toLowerCase()
+    const isAnthropic = !agentProvider || agentProvider === "anthropic" || agentProvider === "claude"
+    if (isAnthropic) {
+      const agentModel = envKey ? process.env[envKey] : undefined
+      if (agentModel) return agentModel
+    }
   }
 
   // 2. Tier-level default
@@ -162,7 +209,7 @@ export function createClaudeProvider(): LLMProvider {
           request: {
             model: resolvedModel as Parameters<typeof client.messages.create>[0]["model"],
             max_tokens: maxTokens,
-            system: systemPrompt,
+            system: buildCacheableSystem(systemPrompt) as Parameters<typeof client.messages.create>[0]["system"],
             messages: messages as Parameters<typeof client.messages.create>[0]["messages"],
           },
         })
@@ -188,6 +235,7 @@ export function createClaudeProvider(): LLMProvider {
           recordBenchmarkLlmCall({
             agent: agentName ?? null,
             model: resolvedModel,
+            provider: "anthropic",
             inputTokens: u?.input_tokens ?? 0,
             outputTokens: u?.output_tokens ?? 0,
             cacheReadTokens: u?.cache_read_input_tokens ?? 0,
@@ -287,6 +335,7 @@ export function createClaudeProvider(): LLMProvider {
           recordBenchmarkLlmCall({
             agent: agentName ?? null,
             model: resolvedModel,
+            provider: "anthropic",
             inputTokens: u?.input_tokens ?? 0,
             outputTokens: u?.output_tokens ?? 0,
             cacheReadTokens: u?.cache_read_input_tokens ?? 0,
@@ -451,6 +500,7 @@ export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
           recordBenchmarkLlmCall({
             agent: agentNameArg ?? agentName ?? null,
             model: cfg.model,
+            provider: "openai-compatible",
             inputTokens: json.usage?.prompt_tokens ?? 0,
             outputTokens: json.usage?.completion_tokens ?? 0,
             cacheReadTokens: 0,
@@ -499,6 +549,55 @@ export function createAzureProvider(): LLMProvider {
 }
 
 // ── Auto-select best available provider ───────────────────────
+
+/**
+ * Shadow wrapper: production response from `primary` (Claude). The `shadow`
+ * provider (OpenAI) is fired in parallel and the paired outputs are appended
+ * to test-results/_shadow-dump.jsonl for offline accuracy diff. Shadow errors
+ * are swallowed and never affect the main response.
+ */
+function createShadowProvider(agentName: AgentName | undefined, primary: LLMProvider, shadow: LLMProvider): LLMProvider {
+  return {
+    available() { return primary.available() },
+    async complete(systemPrompt, messages, maxTokens, model, agentNameArg) {
+      const agent = agentNameArg ?? agentName ?? null
+      const primaryStart = Date.now()
+      const primaryPromise = primary.complete(systemPrompt, messages, maxTokens, model, agentNameArg)
+        .then(out => ({ output: out, durMs: Date.now() - primaryStart, error: undefined as string | undefined }))
+        .catch(err => ({ output: "", durMs: Date.now() - primaryStart, error: (err as Error).message }))
+      const shadowStart = Date.now()
+      const shadowPromise = shadow.complete(systemPrompt, messages, maxTokens, model, agentNameArg)
+        .then(out => ({ output: out, durMs: Date.now() - shadowStart, error: undefined as string | undefined }))
+        .catch(err => ({ output: "", durMs: Date.now() - shadowStart, error: (err as Error).message }))
+
+      const primaryResult = await primaryPromise
+
+      void (async () => {
+        try {
+          const shadowResult = await shadowPromise
+          const { hashInput, appendShadowEntry } = await import("@/lib/llm/shadow-dump")
+          const claudeModel = resolveModelInput(model, agentNameArg)
+          const openaiEnvKey = agent ? agent.toUpperCase().replace(/-/g, "_") : ""
+          const openaiModel = (openaiEnvKey && process.env[`AGENT_${openaiEnvKey}_MODEL`]) || "openai"
+          await appendShadowEntry({
+            ts: new Date().toISOString(),
+            agent,
+            inputHash: hashInput(systemPrompt, messages),
+            claude: { model: claudeModel, output: primaryResult.output, durMs: primaryResult.durMs, error: primaryResult.error },
+            openai: { model: openaiModel, output: shadowResult.output, durMs: shadowResult.durMs, error: shadowResult.error },
+          })
+        } catch { /* swallow */ }
+      })()
+
+      if (primaryResult.error) throw new Error(primaryResult.error)
+      return primaryResult.output
+    },
+    async completeWithTools(systemPrompt, messages, tools, maxTokens, model, agentNameArg) {
+      return primary.completeWithTools(systemPrompt, messages, tools, maxTokens, model, agentNameArg)
+    },
+  }
+}
+
 /** Per-agent provider selection.
  *  AGENT_<NAME>_PROVIDER 가 anthropic 외 값이면 OpenAI-호환 사용.
  *  미설정 시 LLM_PROVIDER 글로벌 default 확인. 둘 다 없으면 Claude.
@@ -511,9 +610,46 @@ export function getProviderForAgent(agentName?: AgentName): LLMProvider {
     || ""
   ).toLowerCase()
 
-  if (explicitProvider && explicitProvider !== "anthropic" && explicitProvider !== "claude") {
+  // Shadow mode (OPENAI_SHADOW=true): primary=Claude (production response),
+  // secondary=OpenAI (logged for accuracy diff). Overrides A/B ratio because
+  // we want EVERY openai-routed call to dump a paired sample.
+  if (explicitProvider && explicitProvider !== "anthropic" && explicitProvider !== "claude"
+      && process.env.OPENAI_SHADOW === "true") {
     const openai = createOpenAIProvider(agentName)
-    if (openai.available()) return openai
+    const claude = createClaudeProvider()
+    if (openai.available() && claude.available()) {
+      traceRecommendation("llm.getProviderForAgent:shadow", { agentName: agentName ?? null })
+      return createShadowProvider(agentName, claude, openai)
+    }
+  }
+
+  if (explicitProvider && explicitProvider !== "anthropic" && explicitProvider !== "claude") {
+    // A/B traffic split: AGENT_<NAME>_OPENAI_RATIO (per-agent) or OPENAI_AB_RATIO (global).
+    // Value in [0,1]. 1.0 = 100% openai (default when not set), 0.5 = half traffic to claude.
+    // Random per call — aggregated stats over enough calls give the comparison.
+    const ratioStr =
+      (agentEnvKey && process.env[`AGENT_${agentEnvKey}_OPENAI_RATIO`])
+      || process.env.OPENAI_AB_RATIO
+      || ""
+    const ratio = ratioStr ? parseFloat(ratioStr) : 1.0
+    if (Number.isFinite(ratio) && ratio < 1.0 && Math.random() >= ratio) {
+      traceRecommendation("llm.getProviderForAgent:ab-route", {
+        agentName: agentName ?? null,
+        chosen: "anthropic",
+        ratio,
+      })
+      return getProvider() // Anthropic side of the A/B
+    }
+
+    const openai = createOpenAIProvider(agentName)
+    if (openai.available()) {
+      traceRecommendation("llm.getProviderForAgent:ab-route", {
+        agentName: agentName ?? null,
+        chosen: "openai",
+        ratio,
+      })
+      return openai
+    }
     traceRecommendation("llm.getProviderForAgent:fallback", {
       reason: `provider=${explicitProvider} not available (model/key missing)`,
       agentName: agentName ?? null,

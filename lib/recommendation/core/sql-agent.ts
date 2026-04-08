@@ -147,6 +147,8 @@ ${auxList || "  (none loaded)"}
 
 If the user asks about cutting conditions / RPM / feed rate / 절삭조건 / 회전수 / 이송속도 / 절입깊이, those numbers live in raw_catalog.cutting_condition_table — return [] here so the upstream tool-forge handles the join. Do NOT invent product-MV columns for those.
 
+===DYNAMIC===
+
 ## Currently Applied Filters
 ${filterList}
 

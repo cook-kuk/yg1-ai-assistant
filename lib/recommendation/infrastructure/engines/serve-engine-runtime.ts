@@ -1970,11 +1970,32 @@ async function handleServeExplorationInner(
 
     // ── 3. SQL Agent: primary handler (Haiku 1회, schema-aware, ~0.5s) ──
     // Handles filters + negation + navigation — replaces deterministic negation handler
+    // Wrapped in semantic-cache: identical/synonymous queries with the same filter
+    // context replay the cached agent result and skip the LLM call entirely.
     if (!singleCallHandled && lastUserMsg) {
       try {
         const schema = getDbSchemaSync()
         if (schema) {
-          const agentResult = await naturalLanguageToFilters(msg, schema, filters, provider)
+          const { lookupCache: lookupSemanticCache, storeCache: storeSemanticCache } = await import("@/lib/recommendation/core/semantic-cache")
+          const semanticHit = lookupSemanticCache(msg, filters)
+
+          let agentResult: { filters: import("@/lib/recommendation/core/sql-agent").AgentFilter[]; raw: string }
+          if (semanticHit && semanticHit.source === "sql-agent") {
+            agentResult = {
+              filters: semanticHit.actions as unknown as import("@/lib/recommendation/core/sql-agent").AgentFilter[],
+              raw: "",
+            }
+            trace.add("semantic-cache", "router", { query: msg.slice(0, 80) }, { hit: true, source: "sql-agent", filterCount: agentResult.filters.length }, "semantic-cache hit")
+          } else {
+            agentResult = await naturalLanguageToFilters(msg, schema, filters, provider)
+            // Store in semantic cache for next time (only meaningful results)
+            if (agentResult.filters.length > 0) {
+              storeSemanticCache(msg, filters, {
+                source: "sql-agent",
+                actions: agentResult.filters as unknown as import("@/lib/recommendation/core/semantic-cache").CachedAction[],
+              })
+            }
+          }
           trace.add("sql-agent", "router", { filterCount: agentResult.filters.length, raw: agentResult.raw.slice(0, 200) })
 
           if (agentResult.filters.length > 0) {
