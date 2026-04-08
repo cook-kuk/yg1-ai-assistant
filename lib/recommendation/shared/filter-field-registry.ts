@@ -818,16 +818,18 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     op: "eq",
     setInput: (input, filter) => input, // shankType은 RecommendationInput에 없으므로 pass-through
     clearInput: input => input,
-    extractValues: record => extractPrimitiveValues(record, "shank_type"),
+    extractValues: record => extractPrimitiveValues(record, "shankType"),
     matches: (record, filter) => {
-      const val = String((record as Record<string, unknown>).shank_type ?? "").toLowerCase()
+      const val = String((record as Record<string, unknown>).shankType ?? "").toLowerCase()
       const target = String(filter.rawValue ?? filter.value).toLowerCase()
       if (filter.op === "neq") return !val.includes(target)
       return val.includes(target)
     },
     buildDbClause: (filter, next) => {
       const target = String(filter.rawValue ?? filter.value).toLowerCase()
-      return `LOWER(COALESCE(shank_type, '')) LIKE ${next("%" + target + "%")}`
+      // Real columns in product_recommendation_mv: search_shank_type, milling_shank_type, series_shank_type, tooling_shank_type
+      const param = next("%" + target + "%")
+      return `(LOWER(COALESCE(search_shank_type, '')) LIKE ${param} OR LOWER(COALESCE(milling_shank_type, '')) LIKE ${param} OR LOWER(COALESCE(series_shank_type, '')) LIKE ${param} OR LOWER(COALESCE(tooling_shank_type, '')) LIKE ${param})`
     },
   },
   lengthOfCutMm: {
@@ -1296,15 +1298,16 @@ export function buildDbWhereClauseForFilter(
       "search_subtype",
       "search_coating",
       "search_diameter_mm",
-      "search_flute_count",
-      "shank_type",
-      "search_helix_angle",
+      // Removed: search_flute_count, search_helix_angle, shank_type
+      // These columns do not exist in catalog_app.product_recommendation_mv.
+      // Allowing them produced SQL errors when sql-agent emitted them as rawSqlField.
+      // For these fields, route through the canonical filter path
+      // (fluteCount / helixAngleDeg / shankType in DB_COL_TO_FILTER_FIELD)
+      // which uses firstNumberFromColumns() to pick the right real column.
     ])
     // numeric 비교(gte/lte/between)는 numeric-safe 컬럼에서만 허용
     const NUMERIC_SAFE_COLUMNS = new Set([
       "search_diameter_mm",
-      "search_flute_count",
-      "search_helix_angle",
     ])
     if (!ALLOWED_RAW_SQL_COLUMNS.has(filter.rawSqlField)) return null
 
