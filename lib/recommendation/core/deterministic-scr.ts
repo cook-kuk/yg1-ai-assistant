@@ -372,6 +372,13 @@ const COOLANT_PATTERNS = [
   /쿨런트\s*홀/, /쿨런트\s*구멍/, /coolant\s*hole/i, /내부\s*냉각/,
 ]
 
+// 공구 소재 (tool material) — registry queryAliases (filter-field-registry.ts:704) 와 동기화.
+// DB 값은 영문 (Carbide / HSS) 이라 한국어 별칭은 canonical 영문으로 매핑한다.
+const TOOL_MATERIAL_PATTERNS: Array<{ pattern: RegExp; value: string }> = [
+  { pattern: /카바이드|초경|carbide/i, value: "Carbide" },
+  { pattern: /하이스|고속도강|high\s*speed\s*steel|\bhss\b/i, value: "HSS" },
+]
+
 // 국가
 const COUNTRY_PATTERNS: Array<{ pattern: RegExp; value: string }> = [
   { pattern: /한국|국내|국산|내수|korea/i, value: "한국" },
@@ -1014,6 +1021,20 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
       if (pattern.test(text)) {
         actions.push({ type: "apply_filter", field: "country", value, op: "eq", source: "deterministic" })
         seen.add("country")
+        break
+      }
+    }
+  }
+
+  // 10) 공구 소재 (toolMaterial) — 한국어 별칭("카바이드","초경","하이스")을 canonical 영문 DB값으로 매핑.
+  // 별도 extractor가 없으면 LLM SCR 게이트가 false일 때 골든 C10 같은 케이스를 놓친다.
+  if (!seen.has("toolMaterial")) {
+    for (const { pattern, value } of TOOL_MATERIAL_PATTERNS) {
+      const m = text.match(pattern)
+      if (m && m.index != null) {
+        const isNeg = negNear(text, m.index, m[0].length)
+        actions.push({ type: "apply_filter", field: "toolMaterial", value, op: isNeg ? "neq" : "eq", source: "deterministic" })
+        seen.add("toolMaterial")
         break
       }
     }
