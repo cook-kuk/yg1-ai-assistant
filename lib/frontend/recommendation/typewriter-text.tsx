@@ -24,6 +24,21 @@ import { useEffect, useRef, useState } from "react"
  *   partial state, plus a new streaming client hook replacing the current
  *   fetch-then-setState flow in exploration-flow.tsx.
  */
+/** Chars revealed per tick for a given cps. At least 1. */
+export function computeTypewriterStep(cps: number): number {
+  return Math.max(1, Math.floor(cps / 60))
+}
+
+/** Interval between ticks in ms. At least 4ms. */
+export function computeTypewriterIntervalMs(cps: number): number {
+  return Math.max(4, Math.floor(1000 / cps))
+}
+
+/** Advance the reveal cursor by one tick, clamped to text.length. */
+export function advanceTypewriter(cursor: number, textLength: number, step: number): number {
+  return Math.min(textLength, cursor + step)
+}
+
 interface TypewriterTextProps {
   text: string
   /** Characters per second. Default 120 (~ChatGPT feel). */
@@ -56,12 +71,12 @@ export function TypewriterText({ text, cps = 120, instant, onDone, render }: Typ
 
     if (!text) return
 
-    const intervalMs = Math.max(4, Math.floor(1000 / cps))
+    const intervalMs = computeTypewriterIntervalMs(cps)
+    const step = computeTypewriterStep(cps)
     let i = 0
     const timer = setInterval(() => {
       // Reveal in small chunks on each tick so slower devices don't lag.
-      const step = Math.max(1, Math.floor(cps / 60))
-      i = Math.min(text.length, i + step)
+      i = advanceTypewriter(i, text.length, step)
       setShown(text.slice(0, i))
       if (i >= text.length) {
         clearInterval(timer)
