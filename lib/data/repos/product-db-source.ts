@@ -663,7 +663,7 @@ function createFallbackId(): string {
   return randomBytes(8).toString("hex")
 }
 
-function mapRowToProduct(row: RawProductRow): CanonicalProduct {
+export function mapRowToProduct(row: RawProductRow): CanonicalProduct {
   const rawDiameter = firstNonEmpty(
     row.milling_outside_dia,
     row.holemaking_outside_dia,

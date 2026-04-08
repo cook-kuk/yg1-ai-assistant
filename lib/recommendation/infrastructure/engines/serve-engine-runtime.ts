@@ -1698,6 +1698,9 @@ async function handleServeExplorationInner(
   }
 
   let singleCallHandled = false
+  // Phase 4.5 — tool-forge fallback rows captured for the retrieval stage to
+  // promote into candidates if hybrid retrieval + knowledge fallback both miss.
+  let forgedFallbackRows: Record<string, unknown>[] = []
   if (messages.length > 0 && lastUserMsg) {
     if (prevState?.pendingAction) {
       const pendingCheck = shouldExecutePendingAction(
@@ -2042,6 +2045,7 @@ async function handleServeExplorationInner(
             const { rows } = await executeRegistryTool(cachedTool, msg, pool, provider)
             console.log(`[tool-registry:hit] "${msg.slice(0, 60)}" → ${cachedTool.name} (${rows.length} rows, ${Date.now() - t0}ms)`)
             trace.add("tool-registry", "router", { tool: cachedTool.name, rowCount: rows.length, durationMs: Date.now() - t0 })
+            if (rows.length > 0) forgedFallbackRows = rows
           } else {
             // Live forge — slow but only on novel patterns
             const forgeResult = await forgeAndExecute(msg, schemaForForge, filters, provider, pool)
@@ -2053,6 +2057,7 @@ async function handleServeExplorationInner(
               durationMs: forgeResult.totalDurationMs,
               registeredTool: forgeResult.tool?.name ?? null,
             })
+            if (forgeResult.success && forgeResult.rows.length > 0) forgedFallbackRows = forgeResult.rows
           }
         }
       } catch (e) {
@@ -3120,6 +3125,42 @@ async function handleServeExplorationInner(
         }
       } catch (kbErr) {
         console.warn(`[recommend] Knowledge fallback error:`, (kbErr as Error).message)
+      }
+    }
+
+    // Phase 4.5 — tool-forge fallback: hybrid + KB 모두 0건이면 forge 가 가져온
+    // raw row 를 mapRowToProduct 로 canonical 로 매핑해 candidates 에 주입한다.
+    if (candidates.length === 0 && forgedFallbackRows.length > 0) {
+      try {
+        const { mapRowToProduct } = await import("@/lib/data/repos/product-db-source")
+        const mapped: ScoredProduct[] = []
+        for (let i = 0; i < forgedFallbackRows.length; i++) {
+          try {
+            const row = forgedFallbackRows[i] as unknown as Parameters<typeof mapRowToProduct>[0]
+            const product = mapRowToProduct(row)
+            if (!product?.normalizedCode) continue
+            mapped.push({
+              product,
+              score: 100 - i,
+              scoreBreakdown: null,
+              matchedFields: [],
+              matchStatus: "approximate",
+              inventory: [],
+              leadTimes: [],
+              evidence: [],
+              stockStatus: "unknown",
+              totalStock: null,
+              minLeadTimeDays: null,
+            })
+          } catch { /* skip bad row */ }
+        }
+        if (mapped.length > 0) {
+          candidates = mapped
+          totalCandidateCount = mapped.length
+          console.log(`[recommend] tool-forge fallback engaged: ${mapped.length} products from forged rows`)
+        }
+      } catch (forgeErr) {
+        console.warn(`[recommend] tool-forge fallback mapping error:`, (forgeErr as Error).message)
       }
     }
 
