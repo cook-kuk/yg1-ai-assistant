@@ -178,6 +178,8 @@ const RESET_PATTERNS = [
 const STOCK_PATTERNS = [
   /(?:재고\s*(?:있|만|확인|된)|즉시\s*구매|바로\s*구매|in\s*stock)/iu,
 ]
+// 숫자 임계값: "재고 200개 이상", "재고 50개 넘는", "stock >= 100", "재고 100 이상만" 등
+const STOCK_THRESHOLD_PATTERN = /(?:재고|stock)\s*(?:>=?|≥)?\s*(\d+)\s*(?:개)?\s*(?:이상|넘는|초과|over|more)?/iu
 
 const COMPETITOR_PATTERNS = [
   /경쟁사/iu,
@@ -405,6 +407,25 @@ export function tryKGDecision(
   }
 
   // ── 4. Stock filter patterns ──
+  // 숫자 임계값 ("재고 200개 이상") 우선 확인 — STOCK_PATTERNS 보다 먼저 매칭하여
+  // threshold 가 누락된 채 instock 으로 떨어지는 것을 막는다.
+  const stockThresholdMatch = msg.match(STOCK_THRESHOLD_PATTERN)
+  if (stockThresholdMatch) {
+    const threshold = parseInt(stockThresholdMatch[1], 10)
+    if (Number.isFinite(threshold) && threshold > 0) {
+      return {
+        decision: buildDecision(
+          { type: "filter_by_stock", stockFilter: "instock", stockThreshold: threshold } as OrchestratorAction,
+          [],
+          0.92,
+          `KG: stock threshold ${threshold}`,
+        ),
+        confidence: 0.92,
+        source: "kg-intent",
+        reason: `stock threshold ${threshold}`,
+      }
+    }
+  }
   if (STOCK_PATTERNS.some(p => p.test(msg))) {
     return {
       decision: buildDecision({ type: "filter_by_stock", stockFilter: "instock" } as OrchestratorAction, [], 0.90, "KG: stock filter"),
