@@ -45,6 +45,48 @@ export function matchMaterial(text: string): string | null {
   return null
 }
 
+/**
+ * Canonical material name → ISO turning group (P/M/K/N/S/H).
+ * Single source so any consumer that needs an ISO group can derive it from
+ * MATERIAL_KEYWORDS alone. Keep keys in sync with MATERIAL_KEYWORDS entries.
+ */
+export const MATERIAL_ISO_GROUP: Record<string, "P" | "M" | "K" | "N" | "S" | "H"> = {
+  "탄소강": "P",
+  "스테인리스": "M",
+  "주철": "K",
+  "알루미늄": "N",
+  "구리": "N",
+  "비철금속": "N",
+  "그라파이트": "N",
+  "CFRP": "N",
+  "티타늄": "S",
+  "인코넬": "S",
+  "고경도강": "H",
+}
+
+/**
+ * Extract all ISO turning groups implied by a free-form material text.
+ * Iterates every MATERIAL_KEYWORDS entry so multi-material phrases like
+ * "구리, 알루미늄 가공" produce the full set.
+ */
+export function inferIsoGroupsFromText(text: string): Set<string> {
+  const lower = text.toLowerCase()
+  const groups = new Set<string>()
+  for (const [mat, keywords] of Object.entries(MATERIAL_KEYWORDS)) {
+    const hit = keywords.some(k => {
+      const kl = k.toLowerCase()
+      if (kl.length <= 2) {
+        return new RegExp(`(?:^|[^a-z])${kl}(?:$|[^a-z])`, "i").test(text)
+      }
+      return lower.includes(kl)
+    })
+    if (!hit) continue
+    const iso = MATERIAL_ISO_GROUP[mat]
+    if (iso) groups.add(iso)
+  }
+  return groups
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 2. Skip / don't-care tokens
 // ═══════════════════════════════════════════════════════════════

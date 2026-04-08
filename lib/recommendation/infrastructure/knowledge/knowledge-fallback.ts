@@ -12,7 +12,7 @@ import fs from "fs"
 import path from "path"
 
 import type { CanonicalProduct, RecommendationInput, ScoredProduct } from "@/lib/types/canonical"
-import { TOOL_SUBTYPE_ALIASES, canonicalizeToolSubtype } from "@/lib/recommendation/shared/patterns"
+import { TOOL_SUBTYPE_ALIASES, canonicalizeToolSubtype, inferIsoGroupsFromText } from "@/lib/recommendation/shared/patterns"
 import { getDbSchemaSync } from "@/lib/recommendation/core/sql-agent-schema-cache"
 
 interface KnowledgeEntry {
@@ -54,19 +54,11 @@ function loadOnce(): KnowledgeEntry[] {
   return cache
 }
 
-// Map natural-language material text → ISO turning groups (P/M/K/N/S/H).
-function inferIsoGroups(text: string): Set<string> {
-  const s = text.toLowerCase()
-  const groups = new Set<string>()
-  if (/super\s*alloy|inconel|hastelloy|nimonic|초내열|내열\s*합금|니켈|nickel|heat\s*resistant/.test(s)) groups.add("S")
-  if (/titanium|티타늄|타이타늄/.test(s)) groups.add("S")
-  if (/stainless|sus|스테인|sts/.test(s)) groups.add("M")
-  if (/탄소강|carbon\s*steel|구조용강|alloy\s*steel|합금강|tool\s*steel|공구강/.test(s)) groups.add("P")
-  if (/주철|cast\s*iron|gcd|fc/.test(s)) groups.add("K")
-  if (/alumin|알루미|비철|non.?ferrous|구리|copper|brass|황동|마그네슘|magnesium/.test(s)) groups.add("N")
-  if (/경화강|hardened|hrc/.test(s)) groups.add("H")
-  return groups
-}
+// ISO turning group inference is now delegated to patterns.inferIsoGroupsFromText,
+// which iterates MATERIAL_KEYWORDS (the single canonical Korean-material alias
+// table) and maps each hit through MATERIAL_ISO_GROUP. Kept as a local alias so
+// the call sites below read the same as before.
+const inferIsoGroups = inferIsoGroupsFromText
 
 interface SimpleFilter {
   field?: string
