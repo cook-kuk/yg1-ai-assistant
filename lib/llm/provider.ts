@@ -293,7 +293,7 @@ export function createClaudeProvider(): LLMProvider {
         const resp = await client.messages.create({
           model: resolvedModel as Parameters<typeof client.messages.create>[0]["model"],
           max_tokens: maxTokens,
-          system: systemPrompt,
+          system: buildCacheableSystem(systemPrompt) as Parameters<typeof client.messages.create>[0]["system"],
           messages,
           tools: tools as Parameters<typeof client.messages.create>[0]["tools"],
           tool_choice: { type: "auto" },
@@ -454,10 +454,14 @@ export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
       const url = cfg.baseURL.replace(/\/$/, "") + "/chat/completions"
       // gpt-5.x / o1 / o3 families require max_completion_tokens and reject custom temperature
       const isReasoningModel = /^(gpt-5|o1|o3|o4)/i.test(cfg.model)
+      // Strip the Anthropic prefix-cache marker — OpenAI doesn't understand it
+      // and would otherwise leak the literal "===DYNAMIC===" string into the
+      // model's context as noise.
+      const cleanedSystem = systemPrompt.replace(/\s*===DYNAMIC===\s*/g, "\n\n")
       const body: Record<string, unknown> = {
         model: cfg.model,
         messages: [
-          { role: "system", content: systemPrompt },
+          { role: "system", content: cleanedSystem },
           ...messages.map(m => ({ role: m.role, content: m.content })),
         ],
       }
@@ -660,6 +664,16 @@ export function getProviderForAgent(agentName?: AgentName): LLMProvider {
 }
 
 export function getProvider(): LLMProvider {
+  // Global override: when LLM_PROVIDER=openai (or any non-anthropic) and an
+  // OpenAI-compatible config is reachable, route the default getProvider()
+  // path through it too. Without this, agents that call getProvider() directly
+  // (sql-agent, llm-chip-*, semantic-turn-extractor, etc.) stay on Claude.
+  const globalProvider = (process.env.LLM_PROVIDER || "").toLowerCase()
+  if (globalProvider && globalProvider !== "anthropic" && globalProvider !== "claude") {
+    const openai = createOpenAIProvider()
+    if (openai.available()) return openai
+  }
+
   const claude = createClaudeProvider()
   if (claude.available()) return claude
 
