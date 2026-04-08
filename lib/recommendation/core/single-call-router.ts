@@ -540,7 +540,20 @@ function buildConversationMemory(
 }
 
 // Hybrid: deterministic parser first, LLM fallback for unmatched
-import { parseDeterministic } from "./deterministic-scr"
+import { parseDeterministic, type DeterministicMeta, type MvAmbiguity } from "./deterministic-scr"
+import { getFilterFieldDefinition } from "@/lib/recommendation/shared/filter-field-registry"
+
+/**
+ * Build a Korean clarification question for an ambiguous token.
+ * Uses registry labels when available, falls back to the field id.
+ */
+function buildAmbiguityClarification(amb: MvAmbiguity): string {
+  const labels = amb.fields.map(f => {
+    const def = getFilterFieldDefinition(f)
+    return def?.label ?? f
+  })
+  return `'${amb.token}'은(는) ${labels.join(" / ")} 중 어디에 적용할까요?`
+}
 
 const DET_SCR_ENABLED = process.env.DETERMINISTIC_SCR !== "0"
 const DET_SCR_LLM_AUGMENT = process.env.DETERMINISTIC_SCR_LLM_AUGMENT === "1"
@@ -554,7 +567,11 @@ export async function routeSingleCall(
 ): Promise<SingleCallResult> {
   // ── 0. Deterministic SCR (DB-driven NL parser, no LLM) ──
   if (DET_SCR_ENABLED) {
-    const detActions = parseDeterministic(userMessage)
+    const detMeta: DeterministicMeta = { ambiguities: [] }
+    const detActions = parseDeterministic(userMessage, detMeta)
+    if (detMeta.ambiguities.length > 0) {
+      console.log(`[SCR:det] ${detMeta.ambiguities.length} ambiguities detected: ${detMeta.ambiguities.map(a => `${a.token}→[${a.fields.join("|")}]`).join(", ")}`)
+    }
     if (detActions.length > 0) {
       console.log(`[SCR:det] ${detActions.length} actions extracted deterministically: ${detActions.map(a => `${a.field}=${a.value}${a.value2 != null ? '..' + a.value2 : ''}/${a.op}`).join(", ")}`)
       // Canonicalize via filter-field-registry (same path as LLM actions)
@@ -576,12 +593,29 @@ export async function routeSingleCall(
         }
       }
       if (canonicalized.length > 0 && !DET_SCR_LLM_AUGMENT) {
-        // Pure deterministic: skip LLM entirely
+        // Pure deterministic: skip LLM entirely.
+        // 모호 토큰이 있으면 unambiguous 필터는 그대로 적용하고 추가로
+        // clarification 질문을 answer에 실어 사용자에게 묻는다.
+        const clarification = detMeta.ambiguities
+          .map(buildAmbiguityClarification)
+          .join("\n")
         return {
           actions: canonicalized,
-          answer: "",
-          reasoning: `deterministic: ${canonicalized.length} actions`,
+          answer: clarification,
+          reasoning: detMeta.ambiguities.length > 0
+            ? `deterministic: ${canonicalized.length} actions + ${detMeta.ambiguities.length} clarification(s)`
+            : `deterministic: ${canonicalized.length} actions`,
         }
+      }
+    } else if (detMeta.ambiguities.length > 0) {
+      // 결정론적 액션이 하나도 없지만 모호 토큰이 있는 경우 — 질문만 던진다.
+      const clarification = detMeta.ambiguities
+        .map(buildAmbiguityClarification)
+        .join("\n")
+      return {
+        actions: [],
+        answer: clarification,
+        reasoning: `deterministic: 0 actions + ${detMeta.ambiguities.length} clarification(s)`,
       }
     }
   }

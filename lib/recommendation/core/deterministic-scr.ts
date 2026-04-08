@@ -25,6 +25,23 @@ export interface DeterministicAction {
   source: "deterministic"
 }
 
+/**
+ * An ambiguity surfaced by the MV reverse-index extractor: a single user
+ * token resolved to multiple distinct registry fields, so we cannot pick
+ * a slot deterministically. The router converts these into a clarification
+ * question instead of guessing.
+ */
+export interface MvAmbiguity {
+  /** The user-supplied token (lowercased, particle-stripped) */
+  token: string
+  /** Candidate registry fields the token could belong to */
+  fields: string[]
+}
+
+export interface DeterministicMeta {
+  ambiguities: MvAmbiguity[]
+}
+
 // ── Field cue patterns (한국어 + 영어). 우선순위 순 ──────────────
 // 더 구체적인 패턴이 먼저 와야 함 (전체 길이 → overallLength 가 직경보다 우선)
 const FIELD_CUES: Array<{ pattern: RegExp; field: string; numeric: boolean }> = [
@@ -782,7 +799,11 @@ function resolveFieldForColumn(col: string): string | null {
   return DB_COL_TO_FILTER_FIELD[col] ?? inferFieldFromColumnName(col)
 }
 
-export function extractFromMvIndex(text: string, alreadySeen: Set<string>): DeterministicAction[] {
+export function extractFromMvIndex(
+  text: string,
+  alreadySeen: Set<string>,
+  meta?: DeterministicMeta
+): DeterministicAction[] {
   const tokens = tokenizeForMvIndex(text)
   if (tokens.length === 0) return []
 
@@ -799,7 +820,19 @@ export function extractFromMvIndex(text: string, alreadySeen: Set<string>): Dete
       const field = resolveFieldForColumn(col)
       if (field) fields.add(field)
     }
-    if (fields.size !== 1) continue // ambiguous (multi-slot) or unmapped — skip
+    if (fields.size === 0) continue // unmapped — schema knows the value but we have no field for it
+    if (fields.size > 1) {
+      // 다중 슬롯 후보 → 추측 금지. clarification으로 위임.
+      // 이미 다른 추출기로 잡힌 후보는 제거 (사용자가 그 슬롯을 명시했을 가능성).
+      const candidates = [...fields].filter(f => !alreadySeen.has(f) && !localSeen.has(f))
+      if (candidates.length >= 2 && meta) {
+        // dedup ambiguity by token
+        if (!meta.ambiguities.some(a => a.token === token)) {
+          meta.ambiguities.push({ token, fields: candidates })
+        }
+      }
+      continue
+    }
 
     const field = fields.values().next().value as string
     if (alreadySeen.has(field) || localSeen.has(field)) continue
@@ -825,7 +858,7 @@ export function extractFromMvIndex(text: string, alreadySeen: Set<string>): Dete
 }
 
 // ── Main parser ──────────────────────────────────────────────
-export function parseDeterministic(message: string): DeterministicAction[] {
+export function parseDeterministic(message: string, meta?: DeterministicMeta): DeterministicAction[] {
   if (!message || message.trim().length === 0) return []
   const text = message.trim()
   const actions: DeterministicAction[] = []
@@ -1040,7 +1073,7 @@ export function parseDeterministic(message: string): DeterministicAction[] {
   // 위 정형 추출기로 잡히지 않은 토큰을 MV 컬럼 값 역인덱스로 자동 라우팅.
   // 사용자가 필드명 안 말해도 단일 슬롯에만 매치되면 해당 필드로 emit.
   // schema cache 콜드면 no-op.
-  for (const a of extractFromMvIndex(text, seen)) {
+  for (const a of extractFromMvIndex(text, seen, meta)) {
     if (seen.has(a.field)) continue
     actions.push(a)
     seen.add(a.field)
