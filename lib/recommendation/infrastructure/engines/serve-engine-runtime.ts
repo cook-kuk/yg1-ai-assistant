@@ -3635,7 +3635,60 @@ async function handleServeExplorationInner(
       }
       console.log(`[runtime:stock] filter_by_stock → injecting stockStatus=${stockValue}, re-running retrieval`)
 
-      const stockResult = await runHybridRetrieval(currentInput, filters, 0, null)
+      // Defensive: if SQL EXISTS clause throws (missing MV, schema mismatch, etc.)
+      // fall back to in-memory filtering of prevState.displayedCandidates so the
+      // user still sees a useful response instead of a generic "오류 발생" toast.
+      let stockResult: Awaited<ReturnType<typeof runHybridRetrieval>>
+      try {
+        stockResult = await runHybridRetrieval(currentInput, filters, 0, null)
+      } catch (err) {
+        console.error("[runtime:stock] hybrid retrieval failed, falling back to in-memory filter:", err)
+        // Roll back the injected filter (won't be re-runnable as SQL anyway)
+        for (let i = filters.length - 1; i >= 0; i--) {
+          if (filters[i].field === "stockStatus") filters.splice(i, 1)
+        }
+        const prevCandidates = prevState?.displayedCandidates ?? []
+        const filtered = stockThreshold != null && stockThreshold > 0
+          ? prevCandidates.filter(c => (c.totalStock ?? 0) >= stockThreshold)
+          : prevCandidates.filter(c => (c.totalStock ?? 0) > 0)
+        const fallbackChips = ["⟵ 이전 단계", "처음부터 다시"]
+        if (prevCandidates.length > 0) fallbackChips.unshift(`전체 ${prevCandidates.length}개 보기`)
+        const sessionState = carryForwardState(prevState, {
+          candidateCount: filtered.length,
+          appliedFilters: filters,
+          narrowingHistory,
+          resolutionStatus: prevState?.resolutionStatus ?? "broad",
+          resolvedInput: currentInput,
+          turnCount,
+          displayedCandidates: filtered,
+          displayedChips: fallbackChips,
+          displayedOptions: [],
+          currentMode: prevState?.currentMode ?? "recommendation",
+          lastAction: "filter_by_stock",
+          pendingAction: null,
+        })
+        const fallbackText = filtered.length > 0
+          ? `${stockLabel} 후보 ${filtered.length}개입니다 (이전 결과에서 필터링).`
+          : `${stockLabel} 후보가 없습니다. 재고 조건을 완화해 보세요.`
+        return deps.jsonRecommendationResponse({
+          text: fallbackText,
+          purpose: filtered.length > 0 ? "recommendation" : "question",
+          chips: fallbackChips,
+          isComplete: filtered.length > 0,
+          recommendation: null,
+          sessionState,
+          evidenceSummaries: null,
+          candidateSnapshot: filtered,
+          requestPreparation: null,
+          primaryExplanation: null,
+          primaryFactChecked: null,
+          altExplanations: [],
+          altFactChecked: [],
+          meta: {
+            orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus, stockFallbackReason: err instanceof Error ? err.message : String(err) },
+          },
+        })
+      }
 
       if (stockResult.totalConsidered === 0) {
         const prevCandidates = prevState?.displayedCandidates ?? []

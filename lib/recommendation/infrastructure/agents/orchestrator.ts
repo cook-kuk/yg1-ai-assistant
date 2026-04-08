@@ -821,9 +821,20 @@ function mapToolUseToAction(
       const stockFilter = validValues.includes(stockValue as any)
         ? (stockValue as "instock" | "limited" | "all")
         : "instock"
-      const stockThreshold = typeof input.threshold === "number" && input.threshold > 0
-        ? input.threshold
-        : null
+      // LLM tool-use sometimes returns threshold as a string ("30") instead of
+      // a number (30). Coerce defensively so "재고 30개 이상" doesn't silently
+      // collapse to plain instock filtering.
+      const rawThreshold = input.threshold
+      const numericThreshold =
+        typeof rawThreshold === "number"
+          ? rawThreshold
+          : typeof rawThreshold === "string" && rawThreshold.trim() !== ""
+            ? Number(rawThreshold)
+            : NaN
+      const stockThreshold =
+        Number.isFinite(numericThreshold) && numericThreshold > 0
+          ? Math.floor(numericThreshold)
+          : null
       return { type: "filter_by_stock", stockFilter, stockThreshold }
     }
 
