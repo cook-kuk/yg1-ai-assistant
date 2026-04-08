@@ -45,6 +45,26 @@ export interface HybridRetrievalPagination {
   pageSize: number
 }
 
+/**
+ * Stock filter post-SQL survivor selection.
+ *
+ * 정상: SQL builder가 stockStatus EXISTS join 으로 inventory_summary_mv 와 매칭
+ * 하여 qualifiedCandidates 를 반환. 후처리에서는 enrichment 로 채워진 `totalStock`
+ * 숫자 값만 본다.
+ *
+ * 회귀 방어: 이전 버그는 stockStatus 문자열 필드 (null/빈값)를 stringMatch 로
+ * 비교해서 SQL 통과한 547개가 전부 reject 됨. 숫자 체크로 전환 (1a0c102).
+ * 이 함수는 항상 totalStock numeric 체크만 수행해야 함.
+ */
+export function selectStockSurvivors<T extends { totalStock?: number | null }>(
+  candidates: T[],
+  isNegation: boolean
+): T[] {
+  return isNegation
+    ? candidates.filter(c => (c.totalStock ?? 0) === 0)
+    : candidates.filter(c => (c.totalStock ?? 0) > 0)
+}
+
 // ── Scoring weights (same as match-engine.ts) ────────────────
 const WEIGHTS = {
   diameter: 40,
@@ -714,9 +734,7 @@ export async function runHybridRetrieval(
       })
     )
     const isNeg = stockFilter.op === "neq" || stockFilter.op === "exclude"
-    const survivors = isNeg
-      ? enrichPool.filter(c => (c.totalStock ?? 0) === 0)
-      : enrichPool.filter(c => (c.totalStock ?? 0) > 0)
+    const survivors = selectStockSurvivors(enrichPool, isNeg)
     qualifiedCandidates.splice(0, qualifiedCandidates.length, ...survivors)
     console.log(`[hybrid:stage] stage=stock_filter enriched=${enrichPool.length} survived=${survivors.length}`)
   }

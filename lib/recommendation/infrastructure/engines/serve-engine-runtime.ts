@@ -219,6 +219,33 @@ function buildZeroResultWithAlternatives(
   return { message: lines.join("\n"), chips }
 }
 
+/**
+ * 첫 턴 filter_by_stock 액션 처리 결정.
+ *
+ * 회귀 방어: KG orchestrator 가 "재고 있는 거만" 메시지를 filter_by_stock 으로
+ * 분류하면 기본 경로는 retrieval 을 SKIP 하고 prevState.displayedCandidates 에
+ * post-filter 를 적용한다. 첫 턴엔 displayedCandidates 가 비어 있어서 0건 응답
+ * 이 됨. 수정 (564c7cd): 첫 턴이면 stockStatus=instock 필터를 주입하고 정상
+ * retrieval 수행.
+ *
+ * 반환값:
+ * - "noop" — 정상 경로 (filter_by_stock 이 아니거나 displayedCandidates 존재)
+ * - "injectAndClear" — stockStatus 필터 주입 후 earlyAction 해제
+ * - "clearEarlyAction" — stockStatus 필터 이미 존재, earlyAction 만 해제
+ */
+export type FirstTurnStockFilterDecision = "noop" | "injectAndClear" | "clearEarlyAction"
+
+export function computeFirstTurnStockFilterDecision(args: {
+  earlyAction: string | null | undefined
+  prevDisplayedCount: number
+  hasStockStatusFilter: boolean
+}): FirstTurnStockFilterDecision {
+  const isFirstTurnStock =
+    args.earlyAction === "filter_by_stock" && args.prevDisplayedCount === 0
+  if (!isFirstTurnStock) return "noop"
+  return args.hasStockStatusFilter ? "clearEarlyAction" : "injectAndClear"
+}
+
 export function shouldReplayUnresolvedPendingQuestion(
   pendingReplyKind: PendingQuestionReplyResolution["kind"],
   earlyAction: string | null
@@ -2806,12 +2833,13 @@ async function handleServeExplorationInner(
   // filter_by_stock 액션이지만 prevState 에 displayedCandidates 가 없으면
   // post-filter할 대상이 없어서 0건 응답이 됨. 이 경우 stockStatus 필터를 주입하고
   // 정상 retrieval 을 돌려서 SQL EXISTS subquery 가 inventory_summary_mv 와 join.
-  const isFirstTurnStockFilter =
-    earlyAction === "filter_by_stock"
-    && (!prevState?.displayedCandidates || prevState.displayedCandidates.length === 0)
-  if (isFirstTurnStockFilter) {
-    const existing = filters.find(f => f.field === "stockStatus")
-    if (!existing) {
+  const firstTurnStockDecision = computeFirstTurnStockFilterDecision({
+    earlyAction,
+    prevDisplayedCount: prevState?.displayedCandidates?.length ?? 0,
+    hasStockStatusFilter: filters.some(f => f.field === "stockStatus"),
+  })
+  if (firstTurnStockDecision !== "noop") {
+    if (firstTurnStockDecision === "injectAndClear") {
       const stockFilter = buildAppliedFilterFromValue("stockStatus", "instock", 0, "eq")
       if (stockFilter) {
         filters.push(stockFilter)
