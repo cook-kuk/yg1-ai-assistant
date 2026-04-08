@@ -3314,10 +3314,13 @@ async function handleServeExplorationInner(
   // turn produced filters, generate a brief Korean explanation from the
   // actual filters and fire onThinking so the UI still gets a Claude-style
   // reasoning frame in real time.
-  if (prevState && !prevState.thinkingProcess && filters.length > 0) {
+  //
+  // First-turn requests have prevState=null, so we MUST not gate on it —
+  // the SSE 'thinking' frame is still useful even when there's no session yet.
+  if ((!prevState?.thinkingProcess) && filters.length > 0) {
     const synthetic = buildSyntheticThinkingFromFilters(filters)
     if (synthetic) {
-      prevState.thinkingProcess = synthetic
+      if (prevState) prevState.thinkingProcess = synthetic
       if (deps.onThinking) {
         try { deps.onThinking(synthetic) } catch { /* never block runtime */ }
       }
