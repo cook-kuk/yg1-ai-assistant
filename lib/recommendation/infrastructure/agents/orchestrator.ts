@@ -51,6 +51,8 @@ import { buildDomainKnowledgeSnippet, buildCandidateDistributionSnippet } from "
 import { extractFilterFieldValueMap } from "@/lib/recommendation/shared/filter-field-registry"
 import { classifySessionAction, detectFilterIntent } from "@/lib/recommendation/domain/session-action-classifier"
 import { buildAppliedFilterFromValue } from "@/lib/recommendation/shared/filter-field-registry"
+import { getDbSchemaSync } from "@/lib/recommendation/core/sql-agent-schema-cache"
+import { DB_COL_TO_FILTER_FIELD } from "@/lib/recommendation/core/sql-agent"
 
 const UNIFIED_JUDGMENT_MODEL = resolveModel("sonnet", "unified-judgment")
 const INTENT_CLASSIFIER_MODEL = resolveModel("sonnet", "intent-classifier")
@@ -613,6 +615,56 @@ const NARROWING_TOOLS: LLMTool[] = [
   },
 ]
 
+/**
+ * Build a "filter field → distinct DB values" snippet from the startup schema cache.
+ *
+ * Why: previously the LLM only knew filter values we hardcoded in prose ("Y-Coating",
+ * "Carbide" etc.) — anything not mentioned silently failed (e.g. "카바이드 소재" was
+ * dropped). The schema cache (sql-agent-schema-cache.ts) already loads every distinct
+ * value at startup; we just surface it to the orchestrator prompt grouped by filter
+ * field via DB_COL_TO_FILTER_FIELD. Adding a new MV column → automatic LLM coverage,
+ * no code change.
+ *
+ * Returns "" when the cache is cold (first request before warmup) — the orchestrator
+ * still works, it just falls back to its general knowledge until the cache fills.
+ */
+function buildDbFilterValueSnippet(): string {
+  const schema = getDbSchemaSync()
+  if (!schema) return ""
+
+  const valuesByFilterField = new Map<string, Set<string>>()
+  for (const [col, field] of Object.entries(DB_COL_TO_FILTER_FIELD)) {
+    const samples = schema.sampleValues[col]
+    if (!samples || samples.length === 0) continue
+    const slot = valuesByFilterField.get(field) ?? new Set<string>()
+    for (const v of samples) {
+      const trimmed = v.trim()
+      if (trimmed && trimmed.length <= 40) slot.add(trimmed)
+    }
+    valuesByFilterField.set(field, slot)
+  }
+
+  // Brands and countries live in dedicated arrays, not sampleValues
+  if (schema.brands.length > 0) {
+    valuesByFilterField.set("brand", new Set(schema.brands))
+  }
+  if (schema.countries.length > 0) {
+    valuesByFilterField.set("country", new Set(schema.countries))
+  }
+
+  if (valuesByFilterField.size === 0) return ""
+
+  const lines: string[] = []
+  for (const [field, set] of valuesByFilterField) {
+    const values = Array.from(set).slice(0, 40)
+    if (values.length === 0) continue
+    lines.push(`- ${field}: ${values.join(", ")}`)
+  }
+  if (lines.length === 0) return ""
+
+  return `\n═══ 사용 가능한 필터 값 (DB 실측, 시작 시 1회 로드) ═══\n${lines.join("\n")}\n주의: 위 값은 실제 DB에 존재하는 distinct 값. 사용자 한글 표현(카바이드/하이스/티알엔 등)은 위 영문 canonical 값으로 매핑해 apply_filter 의 value 에 그대로 넣어라. 위 목록에 없는 값은 임의로 만들지 말 것.\n`
+}
+
 function buildToolUseSystemPrompt(ctx: TurnContext): string {
   const state = ctx.unifiedTurnContext?.sessionState ?? ctx.sessionState
   const filterDesc = state?.appliedFilters
@@ -661,7 +713,7 @@ ${candidatesDesc}`
 사용자 메시지를 분석하여 적절한 tool을 호출하거나 직접 텍스트로 답변하세요.
 
 ${dynamicSessionState}
-
+${buildDbFilterValueSnippet()}
 ${buildDomainKnowledgeSnippet()}
 ${distSnippet}
 
@@ -679,7 +731,7 @@ ${distSnippet}
 2. tool 없이 직접 텍스트로 답변 (잡담, 수학, 감정 공감, 메타 질문 등)
 
 ${dynamicSessionState}
-
+${buildDbFilterValueSnippet()}
 ═══ 규칙 ═══
 1. 사용자가 칩/옵션을 선택하면 → apply_filter 호출 (field는 lastAskedField 또는 옵션의 field 사용)
 2. "N번" 입력 → 해당 번호의 옵션 값으로 apply_filter 호출
