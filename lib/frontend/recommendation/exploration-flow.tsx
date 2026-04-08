@@ -446,8 +446,14 @@ function NarrowingChat({
                   if (isSending) return
                   if (chip.includes("제품 보기") && !isLatest) return
                   if (chip.includes("AI 상세 분석") && (!isLatest || needsFeedback)) return
-                  if (chip.includes("제품 보기") && onShowCandidates) {
-                    onShowCandidates()
+                  if (chip.includes("제품 보기")) {
+                    // 백엔드가 'show_recommendation' 으로 라우팅해 제품 리스트를 재응답하도록
+                    // chip 텍스트를 사용자 메시지로 전송 (수찬님 브랜치 동일 패턴).
+                    // 데스크탑에서 sidebar 는 lg:block 으로 항상 열려있어 onShowCandidates
+                    // 만으로는 아무 일도 안 일어나는 버그가 있었음 (71b43d9 regression).
+                    setInput("")
+                    onSend(chip)
+                    if (onShowCandidates) onShowCandidates()
                   } else if (chip.includes("AI 상세 분석")) {
                     setInput(""); onSend("AI 상세 분석 해줘")
                   }
