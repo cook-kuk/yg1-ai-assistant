@@ -62,6 +62,7 @@ export const CanonicalProductSchema = z.object({
   coating: z.string().nullable(),
   toolMaterial: z.string().nullable(),
   shankDiameterMm: z.number().nullable(),
+  shankType: z.string().nullable().optional(),       // e.g. "Plain", "Weldon", "HA", "Flat (DIN 1835B)"
   lengthOfCutMm: z.number().nullable(),
   overallLengthMm: z.number().nullable(),
   helixAngleDeg: z.number().nullable(),

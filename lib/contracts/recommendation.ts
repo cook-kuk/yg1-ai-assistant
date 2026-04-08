@@ -162,9 +162,15 @@ export interface RecommendationCandidateDto {
   toolSubtype?: string | null
   toolMaterial: string | null
   shankDiameterMm: number | null
+  shankType?: string | null
   lengthOfCutMm: number | null
   overallLengthMm: number | null
   helixAngleDeg: number | null
+  coolantHole?: boolean | null
+  ballRadiusMm?: number | null
+  taperAngleDeg?: number | null
+  pointAngleDeg?: number | null
+  threadPitchMm?: number | null
   description: string | null
   featureText: string | null
   materialTags: string[]
@@ -385,9 +391,15 @@ export const recommendationCandidateSchema = z.object({
   toolSubtype: z.string().nullable().optional(),
   toolMaterial: z.string().nullable(),
   shankDiameterMm: z.number().nullable(),
+  shankType: z.string().nullable().optional(),
   lengthOfCutMm: z.number().nullable(),
   overallLengthMm: z.number().nullable(),
   helixAngleDeg: z.number().nullable(),
+  coolantHole: z.boolean().nullable().optional(),
+  ballRadiusMm: z.number().nullable().optional(),
+  taperAngleDeg: z.number().nullable().optional(),
+  pointAngleDeg: z.number().nullable().optional(),
+  threadPitchMm: z.number().nullable().optional(),
   description: z.string().nullable(),
   featureText: z.string().nullable(),
   materialTags: z.array(z.string()),

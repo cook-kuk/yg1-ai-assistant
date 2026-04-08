@@ -1,13 +1,17 @@
 export interface CandidateHighlightInput {
   ballRadiusMm?: number | null
   coating?: string | null
+  coolantHole?: boolean | null
   diameterMm?: number | null
   fluteCount?: number | null
   helixAngleDeg?: number | null
   lengthOfCutMm?: number | null
   overallLengthMm?: number | null
+  pointAngleDeg?: number | null
   shankDiameterMm?: number | null
+  shankType?: string | null
   taperAngleDeg?: number | null
+  threadPitchMm?: number | null
   toolMaterial?: string | null
   toolSubtype?: string | null
 }
@@ -33,6 +37,22 @@ export function buildCandidateDetailBadges(
     })
   }
 
+  const shankType = candidate.shankType?.trim()
+  if (shankType) {
+    badges.push({
+      label: language === "ko" ? "생크" : "Shank",
+      value: shankType,
+    })
+  }
+
+  const toolMaterial = candidate.toolMaterial?.trim()
+  if (toolMaterial) {
+    badges.push({
+      label: language === "ko" ? "소재" : "Material",
+      value: toolMaterial,
+    })
+  }
+
   if (candidate.fluteCount != null) {
     badges.push({
       label: language === "ko" ? "날수" : "Flutes",
@@ -51,6 +71,37 @@ export function buildCandidateDetailBadges(
     badges.push({
       label: language === "ko" ? "테이퍼" : "Taper",
       value: `${candidate.taperAngleDeg}°`,
+    })
+  }
+
+  if (candidate.helixAngleDeg != null) {
+    badges.push({
+      label: language === "ko" ? "헬릭스" : "Helix",
+      value: `${candidate.helixAngleDeg}°`,
+    })
+  }
+
+  // 드릴 전용: 포인트 각도
+  if (candidate.pointAngleDeg != null) {
+    badges.push({
+      label: language === "ko" ? "포인트각" : "Point",
+      value: `${candidate.pointAngleDeg}°`,
+    })
+  }
+
+  // 탭 전용: 나사 피치
+  if (candidate.threadPitchMm != null) {
+    badges.push({
+      label: language === "ko" ? "피치" : "Pitch",
+      value: `${formatBadgeValue(candidate.threadPitchMm)}mm`,
+    })
+  }
+
+  // 쿨런트홀: true 일 때만 (false/null 은 숨김)
+  if (candidate.coolantHole === true) {
+    badges.push({
+      label: language === "ko" ? "쿨런트홀" : "Coolant",
+      value: language === "ko" ? "있음" : "Yes",
     })
   }
 

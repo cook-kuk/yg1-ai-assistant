@@ -238,9 +238,15 @@ export interface CandidateSnapshot {
   toolSubtype?: string | null
   toolMaterial: string | null
   shankDiameterMm: number | null
+  shankType?: string | null
   lengthOfCutMm: number | null
   overallLengthMm: number | null
   helixAngleDeg: number | null
+  coolantHole?: boolean | null
+  ballRadiusMm?: number | null
+  taperAngleDeg?: number | null
+  pointAngleDeg?: number | null
+  threadPitchMm?: number | null
   description: string | null       // series_description
   featureText: string | null        // series_feature
   materialTags: string[]

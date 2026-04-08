@@ -128,6 +128,7 @@ interface RawProductRow {
   search_diameter_mm: number | null
   search_coating: string | null
   search_subtype: string | null
+  shank_type: string | null
   // Injected by ranked_products CTE (not in base table)
   material_rating_score?: number | null
 }
@@ -287,7 +288,8 @@ SELECT
   threading_tpi,
   search_diameter_mm,
   search_coating,
-  search_subtype
+  search_subtype,
+  shank_type
 FROM catalog_app.product_recommendation_mv
 `
 
@@ -691,6 +693,7 @@ function mapRowToProduct(row: RawProductRow): CanonicalProduct {
     coating: firstNonEmpty(row.milling_coating, row.holemaking_coating, row.threading_coating, row.search_coating),
     toolMaterial: firstNonEmpty(row.milling_tool_material, row.holemaking_tool_material, row.threading_tool_material),
     shankDiameterMm: parseNumber(firstNonEmpty(row.milling_shank_dia, row.holemaking_shank_dia, row.threading_shank_dia, row.option_shank_diameter, row.option_dcon)),
+    shankType: firstNonEmpty(row.shank_type),
     lengthOfCutMm: parseNumber(firstNonEmpty(row.milling_length_of_cut, row.holemaking_flute_length, row.threading_thread_length, row.option_flute_length, row.option_loc)),
     overallLengthMm: parseNumber(firstNonEmpty(row.milling_overall_length, row.holemaking_overall_length, row.threading_overall_length, row.option_overall_length, row.option_oal)),
     helixAngleDeg: parseNumber(firstNonEmpty(row.milling_helix_angle, row.holemaking_helix_angle)),
