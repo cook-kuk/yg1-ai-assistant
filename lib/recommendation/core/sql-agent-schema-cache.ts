@@ -11,6 +11,8 @@ import { Pool } from "pg"
 export interface DbSchema {
   columns: { column_name: string; data_type: string }[]
   sampleValues: Record<string, string[]>
+  /** Numeric column stats (min/max/distinct samples) — drives range matching without hardcoded labels */
+  numericStats: Record<string, { min: number; max: number; samples: number[] }>
   workpieces: { tag_name: string; normalized_work_piece_name: string }[]
   brands: string[]
   /** Distinct country codes from product_recommendation_mv.country_codes (text[] array, unnested) */
@@ -76,18 +78,14 @@ export async function getDbSchema(): Promise<DbSchema> {
   `)
   const columns = colRes.rows
 
-  // 2. Sample values for text columns (top 20 each)
+  // 2. Sample values for ALL text columns (no cap — every column the DB has must be visible to the LLM)
   const textCols = columns
     .filter(c => c.data_type.startsWith("character") || c.data_type === "text")
     .map(c => c.column_name)
-    .slice(0, 30) // cap to avoid too many queries
 
   const sampleValues: Record<string, string[]> = {}
   for (const col of textCols) {
     try {
-      // Pull up to 500 distinct short values per text column. The cap on
-      // length(<=64) skips long descriptions/codes that would only bloat
-      // the reverse index without being NL-recognizable tokens.
       const res = await pool.query<{ v: string }>(
         `SELECT DISTINCT ${quoteIdent(col)} AS v
          FROM catalog_app.product_recommendation_mv
@@ -98,6 +96,32 @@ export async function getDbSchema(): Promise<DbSchema> {
       )
       sampleValues[col] = res.rows.map(r => r.v)
     } catch { /* skip columns that fail */ }
+  }
+
+  // 2b. Numeric column stats (min/max/sample) — lets LLM pick the right numeric column without hardcoded labels
+  const numericCols = columns
+    .filter(c => /int|numeric|double|real|decimal|float/i.test(c.data_type))
+    .map(c => c.column_name)
+
+  const numericStats: Record<string, { min: number; max: number; samples: number[] }> = {}
+  for (const col of numericCols) {
+    try {
+      const res = await pool.query<{ mn: number | null; mx: number | null }>(
+        `SELECT MIN(${quoteIdent(col)})::float8 AS mn, MAX(${quoteIdent(col)})::float8 AS mx
+         FROM catalog_app.product_recommendation_mv
+         WHERE ${quoteIdent(col)} IS NOT NULL`
+      )
+      const mn = res.rows[0]?.mn
+      const mx = res.rows[0]?.mx
+      if (mn == null || mx == null) continue
+      const sampleRes = await pool.query<{ v: number }>(
+        `SELECT DISTINCT ${quoteIdent(col)}::float8 AS v
+         FROM catalog_app.product_recommendation_mv
+         WHERE ${quoteIdent(col)} IS NOT NULL
+         ORDER BY v LIMIT 12`
+      )
+      numericStats[col] = { min: Number(mn), max: Number(mx), samples: sampleRes.rows.map(r => Number(r.v)) }
+    } catch { /* skip */ }
   }
 
   // 3. Workpiece materials from series_profile_mv
@@ -138,8 +162,8 @@ export async function getDbSchema(): Promise<DbSchema> {
   // 6. Build value→column reverse index for unqualified-token routing.
   const valueIndex = buildValueIndex({ sampleValues, brands, countries, workpieces })
 
-  cached = { columns, sampleValues, workpieces, brands, countries, valueIndex, loadedAt: Date.now() }
-  console.log(`[sql-agent-schema] loaded: ${columns.length} columns, ${workpieces.length} workpieces, ${brands.length} brands, ${countries.length} countries, ${Object.keys(valueIndex).length} indexed values`)
+  cached = { columns, sampleValues, numericStats, workpieces, brands, countries, valueIndex, loadedAt: Date.now() }
+  console.log(`[sql-agent-schema] loaded: ${columns.length} cols, ${Object.keys(sampleValues).length} text-sampled, ${Object.keys(numericStats).length} numeric-sampled, ${workpieces.length} wp, ${brands.length} brands, ${countries.length} countries, ${Object.keys(valueIndex).length} indexed`)
   return cached
 }
 

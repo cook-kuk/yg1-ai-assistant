@@ -92,99 +92,23 @@ export const DB_COL_TO_FILTER_FIELD: Record<string, string> = {
 // Navigation pseudo-fields
 const NAV_FIELDS = new Set(["_skip", "_reset", "_back"])
 
-// ── Column Descriptions (derived from DB spec) ─────────────
-// MV column → Korean description for LLM context
-
-const COL_DESCRIPTIONS: Record<string, string> = {
-  // EDP 기본
-  edp_idx: "EDP 고유 인덱스",
-  edp_no: "EDP 제품 번호",
-  edp_brand_name: "브랜드명 (YG-1, CRX-S, etc.)",
-  edp_series_name: "시리즈명",
-  edp_series_idx: "시리즈 인덱스",
-  edp_root_category: "최상위 카테고리 (Milling, Holemaking, Threading, Tooling, Turning)",
-  edp_unit: "단위 (Metric/Inch)",
-  // 검색 인덱스 (통합)
-  search_diameter_mm: "직경 (mm, 숫자)",
-  search_coating: "코팅 (TiAlN, AlCrN, DLC, Diamond, Uncoated 등)",
-  search_subtype: "공구 형상 (Square, Ball, Radius, Roughing, Taper, Chamfer, High-Feed 등)",
-  search_flute_count: "날수 (숫자)",
-  // 공통 옵션
-  option_z: "날수 (Z)",
-  option_numberofflute: "날수",
-  option_drill_diameter: "드릴 직경",
-  option_d1: "직경 D1",
-  option_dc: "절삭 직경 Dc — 커터 직경/cutter diameter (페이스밀 등)",
-  option_d: "직경 D",
-  option_shank_diameter: "생크 직경 / 자루경 / shank diameter",
-  option_dcon: "연결부 직경",
-  option_flute_length: "홈 길이",
-  option_loc: "절삭 길이 LOC / 날길이 / cutting length",
-  option_overall_length: "전체 길이 OAL / 전장 / overall length",
-  option_oal: "전체 길이 OAL / 전장",
-  option_r: "반경 R",
-  option_re: "코너 반경 RE / 코너 R / corner radius",
-  option_taperangle: "테이퍼 각도 / 테이퍼 각 / taper angle (도/degree)",
-  option_coolanthole: "쿨런트홀 유무 / through coolant",
-  // Milling 전용
-  milling_outside_dia: "밀링 외경 / 직경 / Ø",
-  milling_number_of_flute: "밀링 날수 / flute count",
-  milling_coating: "밀링 코팅",
-  milling_tool_material: "밀링 공구 소재 (Carbide, HSS, CBN 등)",
-  milling_shank_dia: "밀링 생크 직경 / 자루경",
-  milling_length_of_cut: "밀링 절삭 길이 / 날길이 / LOC",
-  milling_overall_length: "밀링 전체 길이 / 전장 / OAL",
-  milling_helix_angle: "밀링 헬릭스 각도 / 비틀림각 / helix angle",
-  milling_ball_radius: "밀링 볼 반경 / 볼노즈 R / 코너 R",
-  milling_taper_angle: "밀링 테이퍼 각도 / 테이퍼 각",
-  milling_coolant_hole: "밀링 쿨런트홀",
-  milling_cutting_edge_shape: "밀링 절삭 모서리 형상",
-  milling_cutter_shape: "밀링 커터 형상",
-  // Holemaking 전용
-  holemaking_outside_dia: "홀메이킹 외경",
-  holemaking_number_of_flute: "홀메이킹 날수",
-  holemaking_coating: "홀메이킹 코팅",
-  holemaking_tool_material: "홀메이킹 공구 소재",
-  holemaking_shank_dia: "홀메이킹 생크 직경",
-  holemaking_flute_length: "홀메이킹 홈 길이",
-  holemaking_overall_length: "홀메이킹 전체 길이",
-  holemaking_helix_angle: "홀메이킹 헬릭스 각도",
-  holemaking_coolant_hole: "홀메이킹 쿨런트홀",
-  // Threading 전용
-  threading_outside_dia: "쓰레딩 외경",
-  threading_number_of_flute: "쓰레딩 날수",
-  threading_coating: "쓰레딩 코팅",
-  threading_tool_material: "쓰레딩 공구 소재",
-  threading_shank_dia: "쓰레딩 생크 직경",
-  threading_thread_length: "쓰레딩 나사 길이",
-  threading_overall_length: "쓰레딩 전체 길이",
-  threading_coolant_hole: "쓰레딩 쿨런트홀",
-  threading_flute_type: "쓰레딩 홈 타입",
-  threading_thread_shape: "쓰레딩 나사 형상",
-  // Series 정보
-  series_brand_name: "시리즈 브랜드명",
-  series_description: "시리즈 설명",
-  series_feature: "시리즈 특징",
-  series_tool_type: "시리즈 툴타입",
-  series_product_type: "시리즈 제품타입",
-  series_application_shape: "시리즈 적용공법",
-  series_cutting_edge_shape: "시리즈 모서리 절삭모양",
-}
-
 // ── System Prompt Builder ────────────────────────────────────
+// NO hardcoded column descriptions. The LLM reads column names + sample values
+// directly from the DB schema and matches user intent itself. Adding a new
+// column to the MV requires zero code changes — it shows up automatically.
 
 function buildSystemPrompt(schema: DbSchema, existingFilters: AppliedFilter[]): string {
   const colList = schema.columns
-    .map(c => {
-      const desc = COL_DESCRIPTIONS[c.column_name]
-      return desc
-        ? `  ${c.column_name} (${c.data_type}) — ${desc}`
-        : `  ${c.column_name} (${c.data_type})`
-    })
+    .map(c => `  ${c.column_name} (${c.data_type})`)
     .join("\n")
 
   const sampleList = Object.entries(schema.sampleValues)
-    .map(([col, vals]) => `  ${col}: ${vals.slice(0, 20).join(", ")}`)
+    .filter(([, vals]) => vals.length > 0)
+    .map(([col, vals]) => `  ${col}: ${vals.slice(0, 30).join(", ")}`)
+    .join("\n")
+
+  const numericList = Object.entries(schema.numericStats)
+    .map(([col, s]) => `  ${col}: min=${s.min} max=${s.max} examples=[${s.samples.slice(0, 8).join(", ")}]`)
     .join("\n")
 
   const wpList = schema.workpieces
@@ -202,8 +126,11 @@ function buildSystemPrompt(schema: DbSchema, existingFilters: AppliedFilter[]): 
 ## DB Schema (catalog_app.product_recommendation_mv)
 ${colList}
 
-## Sample Values per Column
+## Text Column Sample Values
 ${sampleList}
+
+## Numeric Column Stats (min/max/examples)
+${numericList}
 
 ## Workpiece Materials (from series_profile_mv)
 ${wpList}
@@ -219,26 +146,20 @@ Extract filter conditions from user message as JSON array:
 [{"field":"column_name","op":"eq|neq|like|gte|lte|between","value":"...","value2":"upper_bound_for_between","display":"한국어 설명"}]
 
 Rules:
-- field MUST be actual column_name from schema, or "_workPieceName" for workpiece materials, or "_skip"/"_reset"/"_back" for navigation
-- Use column descriptions and sample values to determine the correct column for the user's intent
-- For exclusion/negation (빼고/말고/제외/아닌것 etc.) → op="neq"
+- field MUST be one of the actual column_names listed above, or "_workPieceName" for workpiece materials, or "_skip"/"_reset"/"_back" for navigation. NEVER invent a column name.
+- Match user intent to columns by reading the column name AND its sample values. The column name is in English; map Korean/Japanese/etc. terms to it semantically. If multiple columns plausibly match (e.g. milling_* vs holemaking_*), prefer the one whose sample values or numeric range fits the user's number.
+- For exclusion/negation (빼고/말고/제외/아닌것 등) → op="neq"
 - For navigation: skip(상관없음/패스) → _skip, reset(처음부터/초기화) → _reset, back(이전/돌아가) → _back
-- For questions or non-filter messages → [] (empty array)
+- For pure questions or non-filter messages → [] (empty array)
 
-## CRITICAL — Range/Comparison Operators
-Numeric columns (diameter, length, flute count, helix angle, shank diameter, etc.) support range ops. NEVER use eq when the user expressed a range:
-- "이상", "넘는", "초과", "그 이상", "최소" → op="gte"
-- "이하", "미만", "최대", "넘지 않는" → op="lte"
-- "A에서 B 사이", "A~B", "A부터 B까지", "A에서 B mm" → op="between" with value=A, value2=B
-- Pick the column based on the surrounding label, NEVER from the bare number alone:
-  · "전체 길이/전장/OAL 100mm 이상" → milling_overall_length(or option_overall_length) gte 100
-  · "절삭 길이/날장/LOC 20mm 이상"   → milling_length_of_cut(or option_loc) gte 20
-  · "샹크 6에서 10 사이"             → option_shank_diameter between 6,10
-  · "헬릭스 45도 이상"               → milling_helix_angle gte 45
-  · "날수 5개 이상"                  → search_flute_count gte 5
-  · "직경 8~12mm"                    → search_diameter_mm between 8,12
-- Do NOT emit a duplicate eq filter for the same number on a different column. The label that immediately precedes the number decides the column.
-- ALWAYS respond with valid JSON array only. No explanation.`
+## Range/Comparison Operators (numeric columns)
+NEVER use eq when the user expressed a range:
+- "이상/넘는/초과/최소" → gte
+- "이하/미만/최대/넘지 않는" → lte
+- "A~B / A에서 B 사이 / A부터 B까지" → between with value=A, value2=B
+- Pick the column whose name matches the user's label (직경→diameter, 전장/OAL→overall_length, 날장/LOC→length_of_cut, 샹크→shank, 헬릭스→helix, 날수→flute, etc.) AND whose min/max range contains the user's number. Do not emit duplicate eq filters for the same number on different columns.
+
+ALWAYS respond with valid JSON array only. No explanation.`
 }
 
 // ── Core: Natural Language → Filters ─────────────────────────
