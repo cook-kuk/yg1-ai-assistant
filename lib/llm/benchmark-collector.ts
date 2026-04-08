@@ -12,6 +12,7 @@ import { AsyncLocalStorage } from "node:async_hooks"
 export interface BenchmarkLlmCall {
   agent: string | null
   model: string
+  provider?: "anthropic" | "openai-compatible" | null
   inputTokens: number
   outputTokens: number
   cacheReadTokens: number
@@ -28,7 +29,15 @@ export interface BenchmarkTurnUsage {
   totalCacheWriteTokens: number
 }
 
-const storage = new AsyncLocalStorage<BenchmarkLlmCall[]>()
+// Pin on globalThis: under Next.js/Turbopack dev, this module can be
+// instantiated multiple times across the bundle graph. Without a singleton,
+// runWithBenchmark and recordBenchmarkLlmCall end up touching different
+// storage instances and the recorded calls vanish.
+const GLOBAL_KEY = "__yg1_benchmark_storage__"
+type Globals = typeof globalThis & { [GLOBAL_KEY]?: AsyncLocalStorage<BenchmarkLlmCall[]> }
+const g = globalThis as Globals
+const storage: AsyncLocalStorage<BenchmarkLlmCall[]> =
+  g[GLOBAL_KEY] ?? (g[GLOBAL_KEY] = new AsyncLocalStorage<BenchmarkLlmCall[]>())
 
 export function isBenchmarkEnabled(): boolean {
   return process.env.BENCHMARK_TRACE === "true"

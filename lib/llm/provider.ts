@@ -90,6 +90,14 @@ export interface LLMProvider {
     model?: ModelSpecifier,
     agentName?: AgentName
   ): Promise<{ text: string | null; toolUse: LLMToolResult | null }>
+  /**
+   * Optional: yield raw text deltas as the model produces them. Used for true
+   * token-by-token streaming (Claude-style). Callers should fall back to
+   * complete() when this is absent. Implementations are free to skip benchmark
+   * recording on this path — the streaming surface is for UI realtime, the
+   * non-streaming complete() path remains the source of truth for telemetry.
+   */
+  stream?(systemPrompt: string, messages: LLMMessage[], maxTokens?: number, model?: ModelSpecifier, agentName?: AgentName): AsyncIterable<string>
   available(): boolean
 }
 
@@ -268,6 +276,52 @@ export function createClaudeProvider(): LLMProvider {
             model: resolvedModel,
             maxTokens,
           },
+        })
+        throw error
+      }
+    },
+
+    async *stream(systemPrompt, messages, maxTokens = 1500, model?, agentName?) {
+      if (!this.available()) throw new Error("No ANTHROPIC_API_KEY")
+      const resolvedModel = resolveModelInput(model, agentName)
+      if (!resolvedModel) throw new Error("No Anthropic model configured in environment")
+      const startMs = Date.now()
+      traceRecommendation("llm.provider.stream:input", {
+        model: resolvedModel,
+        agentName: agentName ?? null,
+        maxTokens,
+        systemPromptLength: systemPrompt.length,
+        messages: summarizeMessages(messages),
+      })
+      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+      let accumulated = ""
+      try {
+        const stream = client.messages.stream({
+          model: resolvedModel as Parameters<typeof client.messages.create>[0]["model"],
+          max_tokens: maxTokens,
+          system: buildCacheableSystem(systemPrompt) as Parameters<typeof client.messages.create>[0]["system"],
+          messages: messages as Parameters<typeof client.messages.create>[0]["messages"],
+        })
+        for await (const event of stream) {
+          if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+            const chunk = event.delta.text
+            if (chunk) {
+              accumulated += chunk
+              yield chunk
+            }
+          }
+        }
+        traceRecommendation("llm.provider.stream:output", {
+          model: resolvedModel,
+          agentName: agentName ?? null,
+          durationMs: Date.now() - startMs,
+          textLength: accumulated.length,
+          textPreview: accumulated.slice(0, 180),
+        })
+      } catch (error) {
+        traceRecommendationError("llm.provider.stream:error", error, {
+          model: resolvedModel,
+          agentName: agentName ?? null,
         })
         throw error
       }
@@ -553,8 +607,233 @@ export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
         throw error
       }
     },
-    async completeWithTools() {
-      throw new Error("openai-compatible completeWithTools not implemented (use Claude provider for tool use)")
+    async *stream(systemPrompt, messages, maxTokens = 1500, _model, agentNameArg) {
+      const cfg = resolveOpenAICompatibleConfig(agentNameArg ?? agentName)
+      if (!cfg) throw new Error("OpenAI-compatible provider not configured")
+      const startMs = Date.now()
+      const url = cfg.baseURL.replace(/\/$/, "") + "/chat/completions"
+      const isReasoningModel = /^(gpt-5|o1|o3|o4)/i.test(cfg.model)
+      const cleanedSystem = systemPrompt.replace(/\s*===DYNAMIC===\s*/g, "\n\n")
+      const body: Record<string, unknown> = {
+        model: cfg.model,
+        stream: true,
+        messages: [
+          { role: "system", content: cleanedSystem },
+          ...messages.map(m => ({ role: m.role, content: m.content })),
+        ],
+      }
+      const cacheKey = (agentNameArg ?? agentName)
+      if (cacheKey) body.prompt_cache_key = `yg1:${cacheKey}`
+      if (isReasoningModel) {
+        body.max_completion_tokens = maxTokens
+      } else {
+        body.max_tokens = maxTokens
+        body.temperature = 0.1
+      }
+      traceRecommendation("llm.provider.stream:input", {
+        provider: "openai-compatible",
+        model: cfg.model,
+        agentName: agentNameArg ?? agentName ?? null,
+        maxTokens,
+        systemPromptLength: systemPrompt.length,
+      })
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${cfg.apiKey}`,
+        },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok || !res.body) {
+        const errText = await res.text().catch(() => "")
+        throw new Error(`openai-compatible stream HTTP ${res.status}: ${errText.slice(0, 400)}`)
+      }
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = ""
+      let accumulated = ""
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buf += decoder.decode(value, { stream: true })
+          // SSE frames are separated by blank lines; data lines start with "data: "
+          let idx: number
+          while ((idx = buf.indexOf("\n")) >= 0) {
+            const line = buf.slice(0, idx).trim()
+            buf = buf.slice(idx + 1)
+            if (!line.startsWith("data:")) continue
+            const data = line.slice(5).trim()
+            if (data === "[DONE]") {
+              traceRecommendation("llm.provider.stream:output", {
+                provider: "openai-compatible",
+                model: cfg.model,
+                agentName: agentNameArg ?? agentName ?? null,
+                durationMs: Date.now() - startMs,
+                textLength: accumulated.length,
+              })
+              return
+            }
+            try {
+              const json = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> }
+              const chunk = json.choices?.[0]?.delta?.content
+              if (chunk) {
+                accumulated += chunk
+                yield chunk
+              }
+            } catch { /* ignore malformed frame */ }
+          }
+        }
+        traceRecommendation("llm.provider.stream:output", {
+          provider: "openai-compatible",
+          model: cfg.model,
+          agentName: agentNameArg ?? agentName ?? null,
+          durationMs: Date.now() - startMs,
+          textLength: accumulated.length,
+        })
+      } catch (error) {
+        traceRecommendationError("llm.provider.stream:error", error, {
+          provider: "openai-compatible",
+          model: cfg.model,
+          agentName: agentNameArg ?? agentName ?? null,
+        })
+        throw error
+      }
+    },
+    async completeWithTools(systemPrompt, messages, tools, maxTokens = 1500, _model, agentNameArg) {
+      const cfg = resolveOpenAICompatibleConfig(agentNameArg ?? agentName)
+      if (!cfg) throw new Error("OpenAI-compatible provider not configured")
+      const startMs = Date.now()
+      const url = cfg.baseURL.replace(/\/$/, "") + "/chat/completions"
+      const isReasoningModel = /^(gpt-5|o1|o3|o4)/i.test(cfg.model)
+      const cleanedSystem = systemPrompt.replace(/\s*===DYNAMIC===\s*/g, "\n\n")
+      // Anthropic LLMTool → OpenAI function tool
+      const openaiTools = tools.map(t => ({
+        type: "function" as const,
+        function: {
+          name: t.name,
+          description: t.description,
+          parameters: t.input_schema,
+        },
+      }))
+      const body: Record<string, unknown> = {
+        model: cfg.model,
+        messages: [
+          { role: "system", content: cleanedSystem },
+          ...messages.map(m => ({ role: m.role, content: m.content })),
+        ],
+        tools: openaiTools,
+        tool_choice: "auto",
+      }
+      const cacheKey = (agentNameArg ?? agentName)
+      if (cacheKey) body.prompt_cache_key = `yg1:${cacheKey}`
+      if (isReasoningModel) {
+        body.max_completion_tokens = maxTokens
+      } else {
+        body.max_tokens = maxTokens
+        body.temperature = 0.1
+      }
+      traceRecommendation("llm.provider.completeWithTools:input", {
+        provider: "openai-compatible",
+        baseURL: cfg.baseURL,
+        model: cfg.model,
+        agentName: agentNameArg ?? agentName ?? null,
+        maxTokens,
+        systemPromptPreview: systemPrompt.slice(0, 180),
+        systemPromptLength: systemPrompt.length,
+        messages: summarizeMessages(messages),
+        toolCount: tools.length,
+        toolNames: tools.map(t => t.name),
+      })
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${cfg.apiKey}`,
+          },
+          body: JSON.stringify(body),
+        })
+        if (!res.ok) {
+          const errText = await res.text().catch(() => "")
+          throw new Error(`openai-compatible HTTP ${res.status}: ${errText.slice(0, 400)}`)
+        }
+        const json = await res.json() as {
+          choices?: Array<{
+            message?: {
+              content?: string | null
+              tool_calls?: Array<{
+                id?: string
+                type?: string
+                function?: { name?: string; arguments?: string }
+              }>
+            }
+          }>
+          usage?: {
+            prompt_tokens?: number
+            completion_tokens?: number
+            prompt_tokens_details?: { cached_tokens?: number }
+          }
+        }
+        const msg = json.choices?.[0]?.message
+        const content = msg?.content ?? null
+        let toolUse: LLMToolResult | null = null
+        const firstCall = msg?.tool_calls?.[0]
+        if (firstCall?.function?.name) {
+          let parsed: Record<string, unknown> = {}
+          const rawArgs = firstCall.function.arguments ?? "{}"
+          try {
+            parsed = JSON.parse(rawArgs) as Record<string, unknown>
+          } catch {
+            // Some models occasionally emit non-JSON arguments; surface as _raw
+            // so callers can recover instead of silently dropping the call.
+            parsed = { _raw: rawArgs }
+          }
+          toolUse = { toolName: firstCall.function.name, input: parsed }
+        }
+        const durationMs = Date.now() - startMs
+        const cachedTokens = json.usage?.prompt_tokens_details?.cached_tokens ?? 0
+        if (isBenchmarkEnabled()) {
+          recordBenchmarkLlmCall({
+            agent: agentNameArg ?? agentName ?? null,
+            model: cfg.model,
+            provider: "openai-compatible",
+            inputTokens: json.usage?.prompt_tokens ?? 0,
+            outputTokens: json.usage?.completion_tokens ?? 0,
+            cacheReadTokens: cachedTokens,
+            cacheWriteTokens: 0,
+            durationMs,
+          })
+        }
+        if (cachedTokens > 0) {
+          console.log(`[openai:cache-hit] agent=${cacheKey ?? "?"} cached=${cachedTokens}/${json.usage?.prompt_tokens ?? 0} tokens (${durationMs}ms) [tools]`)
+        }
+        traceRecommendation("llm.provider.completeWithTools:output", {
+          provider: "openai-compatible",
+          model: cfg.model,
+          agentName: agentNameArg ?? agentName ?? null,
+          durationMs,
+          textPreview: (content ?? "").slice(0, 180),
+          textLength: (content ?? "").length,
+          toolUse: toolUse ? { name: toolUse.toolName, inputPreview: JSON.stringify(toolUse.input).slice(0, 200) } : null,
+        })
+        return { text: content, toolUse }
+      } catch (error) {
+        traceRecommendationError("llm.provider.completeWithTools:error", error, {
+          provider: "openai-compatible",
+          baseURL: cfg.baseURL,
+          model: cfg.model,
+          agentName: agentNameArg ?? agentName ?? null,
+        })
+        await logRuntimeError({
+          category: "llm",
+          event: "provider.completeWithTools.error",
+          error,
+          context: { route: "/api/recommend", provider: "openai-compatible", model: cfg.model },
+        })
+        throw error
+      }
     },
   }
 }
@@ -615,6 +894,11 @@ function createShadowProvider(agentName: AgentName | undefined, primary: LLMProv
     async completeWithTools(systemPrompt, messages, tools, maxTokens, model, agentNameArg) {
       return primary.completeWithTools(systemPrompt, messages, tools, maxTokens, model, agentNameArg)
     },
+    // Streaming bypasses the shadow comparison — UI realtime path uses primary only.
+    stream: primary.stream
+      ? (systemPrompt, messages, maxTokens, model, agentNameArg) =>
+          primary.stream!(systemPrompt, messages, maxTokens, model, agentNameArg)
+      : undefined,
   }
 }
 

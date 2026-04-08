@@ -162,7 +162,7 @@ export interface ServeRuntimeDependenciesOptions {
    * narrative finish. SSE endpoint forwards this as a "thinking" event so the
    * UI can render it Claude-style.
    */
-  onThinking?: (text: string) => void
+  onThinking?: (text: string, opts?: { delta?: boolean }) => void
 }
 
 export function createServeRuntimeDependencies(
