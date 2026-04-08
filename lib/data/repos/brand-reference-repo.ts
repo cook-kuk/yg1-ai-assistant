@@ -161,9 +161,9 @@ export const BrandReferenceRepo = {
       FROM catalog_app.brand_reference
       WHERE UPPER(tag_name) = $1
         AND (
-          normalized_work_piece_name = regexp_replace(UPPER($2), '\\s+', '', 'g')
-          OR normalized_work_piece_name LIKE '%' || regexp_replace(UPPER($2), '\\s+', '', 'g') || '%'
-          OR regexp_replace(UPPER($2), '\\s+', '', 'g') LIKE '%' || normalized_work_piece_name || '%'
+          normalized_work_piece_name = regexp_replace(UPPER($2), '[[:space:]]+', '', 'g')
+          OR normalized_work_piece_name LIKE '%' || regexp_replace(UPPER($2), '[[:space:]]+', '', 'g') || '%'
+          OR regexp_replace(UPPER($2), '[[:space:]]+', '', 'g') LIKE '%' || normalized_work_piece_name || '%'
         )
         AND brand_name IS NOT NULL
         AND BTRIM(brand_name) <> ''
@@ -212,9 +212,9 @@ export const BrandReferenceRepo = {
       FROM catalog_app.brand_reference
       WHERE UPPER(tag_name) = $1
         AND (
-          normalized_work_piece_name = regexp_replace(UPPER($2), '\\s+', '', 'g')
-          OR normalized_work_piece_name LIKE '%' || regexp_replace(UPPER($2), '\\s+', '', 'g') || '%'
-          OR regexp_replace(UPPER($2), '\\s+', '', 'g') LIKE '%' || normalized_work_piece_name || '%'
+          normalized_work_piece_name = regexp_replace(UPPER($2), '[[:space:]]+', '', 'g')
+          OR normalized_work_piece_name LIKE '%' || regexp_replace(UPPER($2), '[[:space:]]+', '', 'g') || '%'
+          OR regexp_replace(UPPER($2), '[[:space:]]+', '', 'g') LIKE '%' || normalized_work_piece_name || '%'
         )
         AND series_name IS NOT NULL
         AND BTRIM(series_name) <> ''
@@ -321,7 +321,7 @@ export const BrandReferenceRepo = {
       WHERE ($1::text IS NULL OR UPPER(tag_name) = $1)
         AND (
           $2::text IS NULL
-          OR normalized_work_piece_name LIKE '%' || regexp_replace(UPPER($2), '\\s+', '', 'g') || '%'
+          OR normalized_work_piece_name LIKE '%' || regexp_replace(UPPER($2), '[[:space:]]+', '', 'g') || '%'
         )
         AND (
           ($3::numeric IS NULL AND $4::numeric IS NULL)
@@ -333,7 +333,7 @@ export const BrandReferenceRepo = {
       ORDER BY
         CASE
           WHEN $2::text IS NOT NULL
-            AND normalized_work_piece_name = regexp_replace(UPPER($2), '\\s+', '', 'g')
+            AND normalized_work_piece_name = regexp_replace(UPPER($2), '[[:space:]]+', '', 'g')
           THEN 0
           ELSE 1
         END,

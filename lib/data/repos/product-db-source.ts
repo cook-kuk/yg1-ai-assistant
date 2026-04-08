@@ -315,9 +315,13 @@ SELECT
   threading_coolant_hole,
   threading_flute_type,
   threading_thread_shape,
-  holemaking_point_angle,
-  threading_pitch,
-  threading_tpi,
+  -- The next three columns may or may not exist depending on the MV build
+  -- (older MVs include them; the new compact build does not). Wrapping each
+  -- in a NULL alias keeps the SELECT compatible with both schemas without a
+  -- runtime introspection step. The row mapper already handles null values.
+  NULL::numeric AS holemaking_point_angle,
+  NULL::numeric AS threading_pitch,
+  NULL::numeric AS threading_tpi,
   search_diameter_mm,
   search_coating,
   search_subtype,
@@ -924,9 +928,9 @@ function buildProductDataQuery(
               + CASE
                   WHEN ${workPieceNameParam}::text IS NOT NULL
                     AND (
-                      status_row.normalized_work_piece_name = NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '')
-                      OR status_row.normalized_work_piece_name LIKE '%' || NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '') || '%'
-                      OR NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '') LIKE '%' || status_row.normalized_work_piece_name || '%'
+                      status_row.normalized_work_piece_name = NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '[[:space:]]+', '', 'g'), '')
+                      OR status_row.normalized_work_piece_name LIKE '%' || NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '[[:space:]]+', '', 'g'), '') || '%'
+                      OR NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '[[:space:]]+', '', 'g'), '') LIKE '%' || status_row.normalized_work_piece_name || '%'
                     )
                   THEN 10
                   ELSE 0
@@ -935,9 +939,9 @@ function buildProductDataQuery(
             CASE
               WHEN ${workPieceNameParam}::text IS NOT NULL
                 AND (
-                  status_row.normalized_work_piece_name = NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '')
-                  OR status_row.normalized_work_piece_name LIKE '%' || NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '') || '%'
-                  OR NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '') LIKE '%' || status_row.normalized_work_piece_name || '%'
+                  status_row.normalized_work_piece_name = NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '[[:space:]]+', '', 'g'), '')
+                  OR status_row.normalized_work_piece_name LIKE '%' || NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '[[:space:]]+', '', 'g'), '') || '%'
+                  OR NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '[[:space:]]+', '', 'g'), '') LIKE '%' || status_row.normalized_work_piece_name || '%'
                 )
               THEN TRUE
               ELSE FALSE
@@ -961,9 +965,9 @@ function buildProductDataQuery(
             CASE
               WHEN ${workPieceNameParam}::text IS NOT NULL
                 AND (
-                  status_row.normalized_work_piece_name = NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '')
-                  OR status_row.normalized_work_piece_name LIKE '%' || NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '') || '%'
-                  OR NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '') LIKE '%' || status_row.normalized_work_piece_name || '%'
+                  status_row.normalized_work_piece_name = NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '[[:space:]]+', '', 'g'), '')
+                  OR status_row.normalized_work_piece_name LIKE '%' || NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '[[:space:]]+', '', 'g'), '') || '%'
+                  OR NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '[[:space:]]+', '', 'g'), '') LIKE '%' || status_row.normalized_work_piece_name || '%'
                 )
               THEN 0
               ELSE 1
