@@ -944,6 +944,14 @@ export function ExplorationScreen({
   const [showSidebar, setShowSidebar] = useState(false)
   const [showCandidates, setShowCandidates] = useState(false)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [pulseCandidates, setPulseCandidates] = useState(false)
+  const candidatePanelRef = useRef<HTMLDivElement>(null)
+  const handleShowCandidates = () => {
+    setShowCandidates(true)
+    candidatePanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    setPulseCandidates(true)
+    window.setTimeout(() => setPulseCandidates(false), 1200)
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -1005,14 +1013,14 @@ export function ExplorationScreen({
             capabilities={capabilities}
             onSend={onSend}
             onReset={onReset}
-            onShowCandidates={() => setShowCandidates(true)}
+            onShowCandidates={handleShowCandidates}
             onFeedback={onFeedback}
             onChipFeedback={onChipFeedback}
             onRecommendationFeedback={onRecommendationFeedback}
           />
         </div>
 
-        <div className={`w-80 border-l bg-white flex-shrink-0 overflow-y-auto transition-all ${showCandidates ? "block" : "hidden"} lg:block`}>
+        <div ref={candidatePanelRef} className={`w-80 border-l bg-white flex-shrink-0 overflow-y-auto transition-all ${showCandidates ? "block" : "hidden"} lg:block ${pulseCandidates ? "ring-2 ring-blue-400 ring-inset" : ""}`}>
           <CandidatePanel
             candidates={candidateSnapshot}
             pagination={candidatePagination}
