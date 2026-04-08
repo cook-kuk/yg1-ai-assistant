@@ -1607,6 +1607,81 @@ export async function handleServeExploration(
   return response
 }
 
+/**
+ * Generate a short Korean reasoning sentence from a turn's applied filters.
+ *
+ * Used as a CoT fallback when SQL agent (which produces real natural-language
+ * reasoning) didn't run on this turn — e.g. det-SCR / KG / tool-use orchestrator
+ * paths only emit technical strings. Result feeds the SSE "thinking" channel so
+ * the UI still gets a Claude-style reasoning frame.
+ *
+ * Deliberately deterministic — no LLM call. Looks at the field name + op + value
+ * and assembles 1-2 short sentences. Returns null when nothing useful to say.
+ */
+function buildSyntheticThinkingFromFilters(filters: AppliedFilter[]): string | null {
+  const meaningful = filters.filter(f => f.op !== "skip")
+  if (meaningful.length === 0) return null
+
+  const FIELD_LABEL: Record<string, string> = {
+    workPieceName: "피삭재",
+    material: "ISO 소재군",
+    diameterMm: "공구 직경",
+    fluteCount: "날수",
+    coating: "코팅",
+    toolSubtype: "공구 형상",
+    toolMaterial: "공구 재질",
+    seriesName: "시리즈",
+    brand: "브랜드",
+    cuttingType: "가공 방식",
+    overallLengthMm: "전체 길이",
+    lengthOfCutMm: "날장 길이",
+    shankDiameterMm: "생크 직경",
+    helixAngleDeg: "헬릭스각",
+    taperAngleDeg: "테이퍼각",
+    ballRadiusMm: "코너/볼 R",
+    pointAngleDeg: "포인트 각도",
+    threadPitchMm: "나사 피치",
+    stockStatus: "재고",
+    country: "생산국",
+    toolType: "공구 종류",
+    applicationShapes: "적용 형상",
+    materialTags: "ISO 소재 분류",
+  }
+  const OP_PHRASE: Record<string, (v: string) => string> = {
+    eq: v => v,
+    neq: v => `${v} 제외`,
+    gte: v => `${v} 이상`,
+    lte: v => `${v} 이하`,
+    between: v => `${v} 범위`,
+    includes: v => v,
+    like: v => v,
+  }
+
+  const parts = meaningful.map(f => {
+    const label = FIELD_LABEL[f.field] ?? f.field
+    const valueStr = String(f.value ?? f.rawValue ?? "")
+    const phrase = (OP_PHRASE[f.op] ?? OP_PHRASE.eq)(valueStr)
+    return `${label} ${phrase}`
+  })
+
+  // Highlight the dominant intent (workpiece > material > diameter > rest)
+  const priority = ["workPieceName", "material", "materialTags", "diameterMm", "fluteCount", "toolSubtype", "coating"]
+  const sorted = [...meaningful].sort((a, b) => {
+    const ia = priority.indexOf(a.field)
+    const ib = priority.indexOf(b.field)
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
+  })
+  const lead = sorted[0]
+  const leadLabel = FIELD_LABEL[lead.field] ?? lead.field
+  const leadValue = String(lead.value ?? lead.rawValue ?? "")
+
+  // Two sentences: intent + extracted slots
+  const intentSentence = `사용자 요청에서 ${leadLabel} '${leadValue}' 을(를) 핵심 조건으로 파악했습니다.`
+  const slotsSentence = `다음 조건으로 필터링합니다: ${parts.join(", ")}.`
+
+  return `${intentSentence} ${slotsSentence}`
+}
+
 async function handleServeExplorationInner(
   deps: ServeEngineRuntimeDependencies,
   form: ProductIntakeForm,
@@ -3161,6 +3236,23 @@ async function handleServeExplorationInner(
       candidateSnapshot: null,
       requestPreparation: requestPrep ?? null,
     })
+  }
+
+  // ── CoT: synthetic Korean reasoning fallback ─────────────────
+  // SQL agent path sets prevState.thinkingProcess upstream. Det-SCR / KG /
+  // tool-use orchestrator paths produce technical reasoning strings that are
+  // not user-friendly. If nothing has populated thinkingProcess yet but the
+  // turn produced filters, generate a brief Korean explanation from the
+  // actual filters and fire onThinking so the UI still gets a Claude-style
+  // reasoning frame in real time.
+  if (prevState && !prevState.thinkingProcess && filters.length > 0) {
+    const synthetic = buildSyntheticThinkingFromFilters(filters)
+    if (synthetic) {
+      prevState.thinkingProcess = synthetic
+      if (deps.onThinking) {
+        try { deps.onThinking(synthetic) } catch { /* never block runtime */ }
+      }
+    }
   }
 
   const needsRetrieval = !earlyAction || !SKIP_RETRIEVAL_ACTIONS.has(earlyAction)
