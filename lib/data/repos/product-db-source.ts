@@ -25,29 +25,58 @@ const WORKPIECE_DB_MAP: Record<string, string> = {
   동: "Copper",
   황동: "Copper",
   구리합금: "Copper",
+  copper: "Copper",
   알루미늄: "Aluminum",
   알루: "Aluminum",
+  aluminum: "Aluminum",
+  aluminium: "Aluminum",
   스테인리스: "Stainless",
   스텐: "Stainless",
   stainless: "Stainless",
+  // det-SCR / human variants emit English plural / longer forms — fold them all
+  // back to the DB-canonical singular so workpiece-match SQL hits.
+  // Without these, "스테인리스 10mm" returned 0 candidates because the SQL bound
+  // the literal "Stainless Steels" while the DB had "Stainless".
+  stainlesssteel: "Stainless",
+  stainlesssteels: "Stainless",
   sus304: "Stainless",
   sus316: "Stainless",
   sts: "Stainless",
   탄소강: "Carbon Steel",
   일반강: "Carbon Steel",
   연강: "Carbon Steel",
+  carbonsteel: "Carbon Steel",
+  carbonsteels: "Carbon Steel",
   s45c: "Carbon Steel",
   sm45c: "Carbon Steel",
   scm: "Carbon Steel",
   주철: "Cast Iron",
+  castiron: "Cast Iron",
   티타늄: "Titanium",
+  titanium: "Titanium",
   인코넬: "Inconel",
+  inconel: "Inconel",
   초내열합금: "Inconel",
   내열합금: "Inconel",
   고경도강: "Hardened Steel",
+  hardenedsteel: "Hardened Steel",
+  hardenedsteels: "Hardened Steel",
   skd: "Hardened Steel",
   skd11: "Hardened Steel",
   skd61: "Hardened Steel",
+  // Alloy Steels — det-SCR canonical
+  합금강: "Alloy Steel",
+  alloysteel: "Alloy Steel",
+  alloysteels: "Alloy Steel",
+  // Prehardened
+  prehardenedsteel: "Prehardened Steel",
+  prehardenedsteels: "Prehardened Steel",
+  // FRP / composite
+  frp: "FRP",
+  cfrp: "FRP",
+  // Graphite
+  흑연: "Graphite",
+  graphite: "Graphite",
 }
 
 function normalizeWorkPieceNameForDb(raw: string | null): string | null {
