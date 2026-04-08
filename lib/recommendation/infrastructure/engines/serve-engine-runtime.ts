@@ -1763,6 +1763,27 @@ async function handleServeExplorationInner(
   const requestPrep = prepareRequest(form, messages, prevState, resolvedInput, prevState?.candidateCount ?? 0)
   console.log(`[recommend] Intent: ${requestPrep.intent} (${requestPrep.intentConfidence}), Route: ${requestPrep.route.action}`)
 
+  // Sanitize garbled UTF-8 input. Some clients (Windows curl, certain SSE
+  // proxies) mangle Korean bytes into U+FFFD replacement chars. If we let that
+  // through, the answer LLM will write apologetic "encoding error" prose and
+  // the chip extractor will surface fragments of that prose as user-facing
+  // chip options. Replace the message body with a clean clarification BEFORE
+  // any LLM ever sees it.
+  for (const m of messages) {
+    if (m.role !== "user" || typeof m.text !== "string" || m.text.length === 0) continue
+    const text = m.text
+    // Count replacement chars + non-printable bytes; over 30% = garbled
+    let badCount = 0
+    for (const ch of text) {
+      const code = ch.charCodeAt(0)
+      if (code === 0xFFFD || (code < 0x20 && code !== 0x0A && code !== 0x0D && code !== 0x09)) badCount++
+    }
+    if (badCount > 0 && badCount / text.length >= 0.2) {
+      console.warn(`[input:garbled] replacement chars ${badCount}/${text.length} → sanitizing`)
+      m.text = "메시지 내용을 다시 입력해주세요."
+    }
+  }
+
   const lastUserMsg = messages.length > 0
     ? [...messages].reverse().find(message => message.role === "user")
     : null

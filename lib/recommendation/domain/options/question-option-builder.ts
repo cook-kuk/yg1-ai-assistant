@@ -476,8 +476,14 @@ export function buildConfusionHelperOptions(
     }
   }
 
-  // If confused about a specific thing
-  if (confusedAbout && (!question?.extractedOptions?.includes(confusedAbout))) {
+  // If confused about a specific thing — but only emit when the topic looks
+  // like a real concept, not a sentence fragment. Long phrases or
+  // error-meta phrases (인코딩/오류/메시지/읽을 수 없음) come from garbled
+  // input echoing through the answer LLM and must never become a chip.
+  const SENTENCE_CHARS = /[\s.,!?·]/
+  const META_NOISE = /(인코딩|오류|읽을\s*수\s*없음|메시지\s*내용|encoding|error)/i
+  const isCleanTopic = (s: string) => s.length > 0 && s.length <= 20 && !META_NOISE.test(s) && (s.match(SENTENCE_CHARS) ?? []).length <= 1
+  if (confusedAbout && isCleanTopic(confusedAbout) && (!question?.extractedOptions?.includes(confusedAbout))) {
     options.push({
       id: nextQuestionOptionId("explain_specific"),
       family: "explore",
