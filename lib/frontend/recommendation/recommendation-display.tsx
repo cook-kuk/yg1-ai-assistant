@@ -408,6 +408,8 @@ function ProductCard({
           <div className="bg-gray-50 rounded-lg p-3">
             <SpecRow label={language === "ko" ? "공구 타입" : "Subtype"} value={product.toolSubtype} />
             <SpecRow label={language === "ko" ? "공구 재질" : "Tool Material"} value={product.toolMaterial} />
+            <SpecRow label={language === "ko" ? "공구 직경" : "Tool Dia."} value={product.diameterMm != null ? `${product.diameterMm}mm` : null} />
+            <SpecRow label={language === "ko" ? "생크 타입" : "Shank Type"} value={product.shankType ?? null} />
             <SpecRow label={language === "ko" ? "생크 직경" : "Shank Dia."} value={product.shankDiameterMm != null ? `${product.shankDiameterMm}mm` : null} />
             <SpecRow label={language === "ko" ? "날장 길이" : "LOC"} value={product.lengthOfCutMm != null ? `${product.lengthOfCutMm}mm` : null} />
             <SpecRow label={language === "ko" ? "전체 길이" : "OAL"} value={product.overallLengthMm != null ? `${product.overallLengthMm}mm` : null} />
