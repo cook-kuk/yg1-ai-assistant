@@ -125,7 +125,16 @@ export function findHallucinatedSeries(text: string): HallucinationHit[] {
     if (seen.has(key)) continue
     if (!/[A-Z]/.test(key) || !/[0-9]/.test(key)) continue // 영+숫자 혼합만
     seen.add(key)
-    if (!tokens.has(key)) hits.push({ raw: tok, normalized: key })
+    if (tokens.has(key)) continue
+    // EDP code 는 "<series><digits>" 형태 (예: SGED31020 = SGED31 시리즈 + 020).
+    // 토큰의 prefix 가 known series 면 환각 아님으로 처리.
+    let prefixOk = false
+    for (let len = key.length - 1; len >= 4; len--) {
+      const prefix = key.slice(0, len)
+      if (tokens.has(prefix)) { prefixOk = true; break }
+    }
+    if (prefixOk) continue
+    hits.push({ raw: tok, normalized: key })
   }
 
   return hits

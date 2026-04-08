@@ -447,11 +447,10 @@ function NarrowingChat({
                   if (chip.includes("제품 보기") && !isLatest) return
                   if (chip.includes("AI 상세 분석") && (!isLatest || needsFeedback)) return
                   if (chip.includes("제품 보기")) {
-                    // 라우터가 emoji+카운트 포함 chip 텍스트("📋 지금 바로 제품 보기 (12개)")를
-                    // show_recommendation 으로 분류하지 못하고 좁히기 질문을 다시 던지는 버그가 있어,
-                    // 카논 문구로 정규화해서 전송한다.
+                    // "제품 보기"는 후보 패널을 여는 UI 액션. 챗 라우터로 보내면
+                    // 동일 추천이 재생성되거나 좁히기 질문이 다시 뜨는 버그가 있어
+                    // chat 호출 없이 패널만 연다.
                     setInput("")
-                    onSend("지금 바로 제품 보기")
                     if (onShowCandidates) onShowCandidates()
                   } else if (chip.includes("AI 상세 분석")) {
                     setInput(""); onSend("AI 상세 분석 해줘")

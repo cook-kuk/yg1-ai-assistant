@@ -1772,8 +1772,15 @@ async function handleServeExplorationInner(
     // Handles replace/exclude/clear/go_back/reset — runs BEFORE KG so edit
     // expressions are not intercepted by KG's exclude patterns.
     if (!singleCallHandled && lastUserMsg && hasEditSignal(msg)) {
-      const editResult = parseEditIntent(msg, filters)
+      let editResult: ReturnType<typeof parseEditIntent> = null
+      try {
+        editResult = parseEditIntent(msg, filters)
+      } catch (err) {
+        // Defensive: edit-intent must never crash the request — fall through to KG/LLM.
+        console.warn(`[edit-intent] parse failed for "${msg.slice(0, 80)}":`, (err as Error).message)
+      }
       if (editResult && editResult.confidence >= 0.9) {
+        try {
         const mutation = applyEditIntent(editResult.intent, filters, turnCount)
         trace.add("edit-intent", "router", { type: editResult.intent.type, reason: editResult.reason, confidence: editResult.confidence })
 
@@ -1841,6 +1848,14 @@ async function handleServeExplorationInner(
           singleCallHandled = true
           negationHandled = editResult.intent.type === "exclude_field"
           console.log(`[edit-intent] ${editResult.intent.type}: ${editResult.reason}`)
+        }
+        } catch (err) {
+          // Defensive: any throw inside apply (filter registry, replaceFieldFilter,
+          // applyFilterToInput) must not 500 the request — log and fall through.
+          console.warn(`[edit-intent] apply failed for "${msg.slice(0, 80)}":`, (err as Error).message)
+          singleCallHandled = false
+          bridgedV2Action = null
+          bridgedV2OrchestratorResult = null
         }
       }
     }
@@ -3526,55 +3541,56 @@ async function handleServeExplorationInner(
     }
 
     if (action.type === "filter_by_stock") {
-      // ── Post-scoring stock filter ──
-      // Filters from already-displayed candidates (no re-retrieval).
-      // Uses prevState.displayedCandidates snapshots to avoid re-running full search.
-      let prevCandidates = prevState?.displayedCandidates ?? []
-      const stockFilter = action.stockFilter
+      // ── Stock filter via re-retrieval ──
+      // Inject stockStatus filter into the standard recommendation pipeline so the
+      // response carries full primary/alt explanations and renders proper product cards
+      // (not just a text summary). Replaces previous post-snapshot filter which only
+      // returned a text response without recommendation cards.
       const stockThreshold = action.stockThreshold ?? null
+      const stockFilterMode = action.stockFilter
+      const stockValue = stockThreshold != null && stockThreshold > 0
+        ? String(stockThreshold)
+        : "instock"
+      const stockLabel = stockThreshold != null
+        ? `재고 ${stockThreshold}개 이상인`
+        : stockFilterMode === "instock" ? "재고 있는" : stockFilterMode === "limited" ? "재고 제한적 이상인" : "전체"
 
-      // Fallback: if no displayed candidates, use full candidates from current search
-      if (prevCandidates.length === 0 && candidates.length > 0) {
-        prevCandidates = deps.buildCandidateSnapshot(candidates, evidenceMap)
+      const stockFilterEntry = buildAppliedFilterFromValue("stockStatus", stockValue, turnCount, "eq")
+      if (stockFilterEntry) {
+        // Replace any existing stockStatus filter rather than stacking
+        for (let i = filters.length - 1; i >= 0; i--) {
+          if (filters[i].field === "stockStatus") filters.splice(i, 1)
+        }
+        filters.push(stockFilterEntry)
       }
+      console.log(`[runtime:stock] filter_by_stock → injecting stockStatus=${stockValue}, re-running retrieval`)
 
-      let filteredSnapshots: CandidateSnapshot[]
-      if (stockThreshold != null && stockThreshold > 0) {
-        // Numeric threshold: "재고 50개 이상" → totalStock >= 50
-        filteredSnapshots = prevCandidates.filter(c => (c.totalStock ?? 0) >= stockThreshold)
-      } else if (stockFilter === "instock") {
-        filteredSnapshots = prevCandidates.filter(c => (c.totalStock ?? 0) > 0)
-      } else if (stockFilter === "limited") {
-        filteredSnapshots = prevCandidates.filter(c => c.stockStatus === "instock" || c.stockStatus === "limited")
-      } else {
-        filteredSnapshots = prevCandidates // "all" = no filter
-      }
+      const stockResult = await runHybridRetrieval(currentInput, filters, 0, null)
 
-      if (filteredSnapshots.length === 0) {
-        // No candidates match stock filter — inform user
-        const stockLabel = stockThreshold != null
-          ? `재고 ${stockThreshold}개 이상인`
-          : stockFilter === "instock" ? "재고 있는" : "재고 제한적 이상인"
+      if (stockResult.totalConsidered === 0) {
+        const prevCandidates = prevState?.displayedCandidates ?? []
         const noStockChips = ["⟵ 이전 단계", "처음부터 다시"]
-        if (prevCandidates.length > 0) {
-          noStockChips.unshift(`전체 ${prevCandidates.length}개 보기`)
+        if (prevCandidates.length > 0) noStockChips.unshift(`전체 ${prevCandidates.length}개 보기`)
+        // Roll back the injected filter so the user can retry
+        for (let i = filters.length - 1; i >= 0; i--) {
+          if (filters[i].field === "stockStatus") filters.splice(i, 1)
         }
         const sessionState = carryForwardState(prevState, {
-          candidateCount: prevState.candidateCount ?? prevCandidates.length,
+          candidateCount: prevState?.candidateCount ?? prevCandidates.length,
           appliedFilters: filters,
           narrowingHistory,
-          resolutionStatus: prevState.resolutionStatus ?? "broad",
+          resolutionStatus: prevState?.resolutionStatus ?? "broad",
           resolvedInput: currentInput,
           turnCount,
           displayedCandidates: prevCandidates,
           displayedChips: noStockChips,
           displayedOptions: [],
-          currentMode: prevState.currentMode ?? "recommendation",
+          currentMode: prevState?.currentMode ?? "recommendation",
           lastAction: "filter_by_stock",
           pendingAction: null,
         })
         return deps.jsonRecommendationResponse({
-          text: `${stockLabel} 후보가 없습니다. 현재 ${prevCandidates.length}개 후보 중 재고 조건에 맞는 제품이 없어요.\n재고 조건을 완화하거나 '전체 보기'를 선택해주세요.`,
+          text: `${stockLabel} 후보가 없습니다. 재고 조건을 완화하거나 '이전 단계'를 선택해주세요.`,
           purpose: "question",
           chips: noStockChips,
           isComplete: false,
@@ -3593,54 +3609,24 @@ async function handleServeExplorationInner(
         })
       }
 
-      // Build response from filtered snapshots without re-running full search
-      console.log(`[stock-filter] ${stockFilter}: ${prevCandidates.length} → ${filteredSnapshots.length} candidates (from displayed)`)
-      const stockChips = ["⟵ 이전 단계", "처음부터 다시"]
-      if (filteredSnapshots.length < prevCandidates.length) {
-        stockChips.unshift(`전체 ${prevCandidates.length}개 보기`)
-      }
-      const sessionState = carryForwardState(prevState, {
-        candidateCount: filteredSnapshots.length,
-        appliedFilters: filters,
+      const stockDisplayPage = sliceCandidatesForPage(stockResult.candidates, stockResult.evidenceMap, resolvedPagination)
+      return deps.buildRecommendationResponse(
+        form,
+        stockResult.candidates,
+        stockResult.evidenceMap,
+        stockResult.totalConsidered,
+        paginationDto(stockResult.totalConsidered),
+        stockDisplayPage.candidates,
+        stockDisplayPage.evidenceMap,
+        currentInput,
         narrowingHistory,
-        resolutionStatus: prevState.resolutionStatus ?? "broad",
-        resolvedInput: currentInput,
+        filters,
         turnCount,
-        displayedCandidates: filteredSnapshots,
-        displayedChips: stockChips,
-        displayedOptions: [],
-        currentMode: prevState.currentMode ?? "recommendation",
-        lastAction: "filter_by_stock",
-        pendingAction: null,
-      })
-      const stockLabel = stockThreshold != null
-        ? `재고 ${stockThreshold}개 이상인`
-        : stockFilter === "instock" ? "재고 있는" : stockFilter === "limited" ? "재고 제한적 이상인" : "전체"
-      // Build deterministic stock summary per candidate to prevent LLM hallucination
-      const stockDetails = filteredSnapshots
-        .map(c => `- ${c.displayCode}: 재고 ${c.totalStock ?? 0}개`)
-        .join("\n")
-      const responseText = stockDetails
-        ? `${stockLabel} 후보 ${filteredSnapshots.length}개입니다.\n\n${stockDetails}`
-        : `${stockLabel} 후보 ${filteredSnapshots.length}개입니다.`
-      return deps.jsonRecommendationResponse({
-        text: responseText,
-        purpose: "recommendation",
-        chips: stockChips,
-        isComplete: true,
-        recommendation: null,
-        sessionState,
-        evidenceSummaries: null,
-        candidateSnapshot: filteredSnapshots,
-        requestPreparation: null,
-        primaryExplanation: null,
-        primaryFactChecked: null,
-        altExplanations: [],
-        altFactChecked: [],
-        meta: {
-          orchestratorResult: { action: action.type, agents: orchResult.agentsInvoked, opus: orchResult.escalatedToOpus },
-        },
-      })
+        messages,
+        provider,
+        language,
+        displayedProducts
+      )
     }
 
     if (action.type === "refine_condition") {
