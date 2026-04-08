@@ -15,6 +15,15 @@ import type { CanonicalProduct, RecommendationInput, ScoredProduct } from "@/lib
 import { TOOL_SUBTYPE_ALIASES, canonicalizeToolSubtype, inferIsoGroupsFromText } from "@/lib/recommendation/shared/patterns"
 import { getDbSchemaSync } from "@/lib/recommendation/core/sql-agent-schema-cache"
 
+// Knowledge fallback 도 product-db-source.resolveSeriesIconUrl 와 동일한 매핑 사용.
+// 1469개 시리즈 jpg 가 public/images/series 에 있으므로, 시리즈 코드 그대로 매핑하면
+// 대부분 hit. 없으면 placeholder 로 fallback (frontend 가 onError 처리).
+const FALLBACK_TODO_PLACEHOLDER = "/images/series/todo-placeholder.svg"
+function resolveFallbackSeriesIconUrl(seriesName: string | null | undefined): string {
+  if (!seriesName || !seriesName.trim()) return FALLBACK_TODO_PLACEHOLDER
+  return `/images/series/${seriesName.trim()}.jpg`
+}
+
 interface KnowledgeEntry {
   series?: string
   brand?: string
@@ -182,7 +191,7 @@ function entryToScoredProduct(entry: KnowledgeEntry, idx: number): ScoredProduct
     country: null,
     description: (entry.features ?? []).slice(0, 3).join(" / ") || null,
     featureText: (entry.features ?? []).join(" / ") || null,
-    seriesIconUrl: null,
+    seriesIconUrl: resolveFallbackSeriesIconUrl(series),
     materialRatingScore: null,
     workpieceMatched: undefined,
     sourceConfidence: "medium",
