@@ -43,6 +43,7 @@ export type AgentName =
   | "turn-orchestrator"
   | "tool-use-router"
   | "single-call-router"
+  | "query-planner"
 
 export interface LLMProvider {
   complete(systemPrompt: string, messages: LLMMessage[], maxTokens?: number, model?: ModelSpecifier, agentName?: AgentName): Promise<string>
@@ -104,6 +105,7 @@ const AGENT_MODEL_ENV: Record<AgentName, string> = {
   "turn-orchestrator":       "AGENT_TURN_ORCHESTRATOR_MODEL",
   "tool-use-router":         "AGENT_TOOL_USE_ROUTER_MODEL",
   "single-call-router":      "AGENT_SINGLE_CALL_ROUTER_MODEL",
+  "query-planner":           "AGENT_QUERY_PLANNER_MODEL",
 }
 
 function isModelTier(value: string): value is ModelTier {
@@ -401,14 +403,20 @@ export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
       if (!cfg) throw new Error("OpenAI-compatible provider not configured")
       const startMs = Date.now()
       const url = cfg.baseURL.replace(/\/$/, "") + "/chat/completions"
-      const body = {
+      // gpt-5.x / o1 / o3 families require max_completion_tokens and reject custom temperature
+      const isReasoningModel = /^(gpt-5|o1|o3|o4)/i.test(cfg.model)
+      const body: Record<string, unknown> = {
         model: cfg.model,
-        max_tokens: maxTokens,
         messages: [
           { role: "system", content: systemPrompt },
           ...messages.map(m => ({ role: m.role, content: m.content })),
         ],
-        temperature: 0.1,
+      }
+      if (isReasoningModel) {
+        body.max_completion_tokens = maxTokens
+      } else {
+        body.max_tokens = maxTokens
+        body.temperature = 0.1
       }
       traceRecommendation("llm.provider.complete:input", {
         provider: "openai-compatible",

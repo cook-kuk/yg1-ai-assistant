@@ -1889,7 +1889,7 @@ async function handleServeExplorationInner(
     if (lastUserMsg) {
       try {
         const currentConstraints = appliedFiltersToConstraints(filters)
-        const plannerResult = await naturalLanguageToQuerySpec(msg, currentConstraints, provider)
+        const plannerResult = await naturalLanguageToQuerySpec(msg, currentConstraints, getProviderForAgent("query-planner"))
         const spec = plannerResult.spec
         const shadowFilters = querySpecToAppliedFilters(spec, turnCount)
 

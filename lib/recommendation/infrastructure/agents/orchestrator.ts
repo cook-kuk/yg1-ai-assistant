@@ -19,6 +19,7 @@ import type {
   LLMToolResult,
 } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import { resolveModel } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import { getProviderForAgent } from "@/lib/llm/provider"
 import type {
   AppliedFilter,
   CandidateSnapshot,
@@ -84,7 +85,7 @@ export async function orchestrateTurn(
   // 통합 판단 → NarrowingIntent 매핑
   const intentResult: IntentClassification = judgment.fromLLM
     ? mapJudgmentToIntent(judgment, ctx)
-    : await classifyIntent(ctx.userMessage, ctx.sessionState, provider)
+    : await classifyIntent(ctx.userMessage, ctx.sessionState, getProviderForAgent("intent-classifier"))
   agents.push({
     agent: judgment.fromLLM ? "unified-judgment" : "intent-classifier",
     model: judgment.fromLLM ? UNIFIED_JUDGMENT_MODEL : INTENT_CLASSIFIER_MODEL,
@@ -112,7 +113,7 @@ export async function orchestrateTurn(
       ctx.userMessage,
       ctx.sessionState,
       ctx.displayedProducts,
-      provider
+      getProviderForAgent("ambiguity-resolver")
     )
     agents.push({ agent: "ambiguity-resolver", model: AMBIGUITY_RESOLVER_MODEL, durationMs: Date.now() - opusStart })
 
@@ -127,7 +128,7 @@ export async function orchestrateTurn(
   let extractedParams: ExtractedParameters | null = null
   if (finalIntent === "SET_PARAMETER" || finalIntent === "SELECT_OPTION") {
     const paramStart = Date.now()
-    extractedParams = await extractParameters(ctx.userMessage, ctx.sessionState, provider)
+    extractedParams = await extractParameters(ctx.userMessage, ctx.sessionState, getProviderForAgent("parameter-extractor"))
     agents.push({ agent: "parameter-extractor", model: PARAMETER_EXTRACTOR_MODEL, durationMs: Date.now() - paramStart })
 
     console.log(`[orchestrator] Extracted: ${JSON.stringify(extractedParams)}`)
@@ -156,7 +157,7 @@ export async function orchestrateTurn(
             finalValue = filterIntent.value
             if (!extractedParams) {
               const paramStart = Date.now()
-              extractedParams = await extractParameters(ctx.userMessage, ctx.sessionState, provider)
+              extractedParams = await extractParameters(ctx.userMessage, ctx.sessionState, getProviderForAgent("parameter-extractor"))
               agents.push({ agent: "parameter-extractor", model: "haiku", durationMs: Date.now() - paramStart })
             }
             console.log(`[orchestrator:session-action] Overriding to replace_existing_filter: ${filterIntent.field} ${existingFilter.value} → ${filterIntent.value}`)
