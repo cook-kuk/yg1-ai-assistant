@@ -12,6 +12,8 @@ import fs from "fs"
 import path from "path"
 
 import type { CanonicalProduct, RecommendationInput, ScoredProduct } from "@/lib/types/canonical"
+import { TOOL_SUBTYPE_ALIASES, canonicalizeToolSubtype } from "@/lib/recommendation/shared/patterns"
+import { getDbSchemaSync } from "@/lib/recommendation/core/sql-agent-schema-cache"
 
 interface KnowledgeEntry {
   series?: string
@@ -121,16 +123,17 @@ function entryMatches(
   if (wantSubtype && (entry.tool_subtype || entry.applications?.length)) {
     const subs = (entry.tool_subtype ?? "").toLowerCase()
     const apps = (entry.applications ?? []).join(" ").toLowerCase()
-    const subAliases: Record<string, string[]> = {
-      "corner_radius": ["corner radius", "round", "radius", "라디우스", "코너 라디우스"],
-      "corner radius": ["corner radius", "round", "radius", "라디우스"],
-      "round": ["corner radius", "round", "radius"],
-      "ball": ["ball"],
-      "square": ["square", "flat"],
-      "roughing": ["roughing", "rougher", "라핑"],
+    // Delegate subtype alias resolution to patterns.TOOL_SUBTYPE_ALIASES (single source).
+    // Collect every alias that canonicalizes to the same subtype as wantSubtype.
+    const canonWant = canonicalizeToolSubtype(wantSubtype)?.toLowerCase() ?? null
+    const variants = new Set<string>([wantSubtype])
+    if (canonWant) {
+      variants.add(canonWant)
+      for (const [alias, canon] of Object.entries(TOOL_SUBTYPE_ALIASES)) {
+        if (canon.toLowerCase() === canonWant) variants.add(alias.toLowerCase())
+      }
     }
-    const variants = [wantSubtype, ...(subAliases[wantSubtype] ?? [])]
-    const hit = variants.some(v => subs.includes(v) || apps.includes(v))
+    const hit = Array.from(variants).some(v => subs.includes(v) || apps.includes(v))
     if (!hit) return false
   }
 
@@ -258,8 +261,13 @@ export function searchKnowledgeFallback(
   // 사용자 발화에서 시리즈/브랜드 키워드 추출 (SUPER ALLOY, V7 PLUS, X-POWER 등)
   const allText = [input.queryText, input.material, input.workPieceName, input.seriesName, input.brand]
     .filter(Boolean).join(" ").toLowerCase()
-  const brandHints = ["super alloy", "v7 plus", "titanox", "x-power", "wide-cut", "e-force", "3s mill", "cgm3s37", "e5k4", "alu-cut", "alu-power"]
-  const wantBrand = brandHints.find(b => allText.includes(b)) ?? ""
+  // Brand hints come from the live DB schema cache (sql-agent-schema-cache.brands).
+  // Falls back to the knowledge-entry brand column itself if the cache is cold.
+  const dbBrands = getDbSchemaSync()?.brands ?? []
+  const brandHints = dbBrands.length > 0
+    ? dbBrands.map(b => b.toLowerCase())
+    : Array.from(new Set(all.map(e => (e.brand ?? "").toLowerCase()).filter(Boolean)))
+  const wantBrand = brandHints.find(b => b && allText.includes(b)) ?? ""
 
   const candidates: Array<{ entry: KnowledgeEntry; idx: number; rank: number }> = []
   for (let i = 0; i < all.length; i++) {
