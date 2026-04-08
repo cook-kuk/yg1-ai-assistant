@@ -733,6 +733,55 @@ function tokenizeForMvIndex(text: string): string[] {
   return Array.from(out)
 }
 
+/**
+ * Heuristic column-name → registry-field fallback. DB_COL_TO_FILTER_FIELD only
+ * covers known recommendation MV columns; turning_options_mv and any future MVs
+ * carry novel column names. Pattern matching keeps the routing data-driven
+ * without requiring an exhaustive enumeration.
+ *
+ * Order matters: more specific patterns first.
+ */
+function inferFieldFromColumnName(col: string): string | null {
+  const c = col.toLowerCase()
+  // Compound shapes / very specific first
+  if (/work[_\s]?piece/.test(c)) return "workPieceName"
+  if (/chip[_\s]?breaker/.test(c)) return "chipBreaker"
+  if (/insert[_\s]?shape|insert[_\s]?type/.test(c)) return "insertShape"
+  if (/thread[_\s]?direction/.test(c)) return "threadDirection"
+  if (/internal[_\s]?external|int[_\s]?ext/.test(c)) return "threadInternalExternal"
+  if (/thread[_\s]?shape|thread[_\s]?form/.test(c)) return "threadShape"
+  if (/thread[_\s]?pitch|^pitch$|_pitch$/.test(c)) return "threadPitchMm"
+  if (/drill[_\s]?type/.test(c)) return "drillType"
+  if (/hole[_\s]?shape/.test(c)) return "holeShape"
+  if (/coolant[_\s]?hole/.test(c)) return "coolantHole"
+  if (/coolant[_\s]?system|coolant[_\s]?type/.test(c)) return "coolantSystem"
+  if (/point[_\s]?angle/.test(c)) return "pointAngleDeg"
+  if (/helix[_\s]?angle/.test(c)) return "helixAngleDeg"
+  if (/taper[_\s]?angle/.test(c)) return "taperAngleDeg"
+  if (/ball[_\s]?radius|corner[_\s]?r/.test(c)) return "ballRadiusMm"
+  if (/shank[_\s]?dia/.test(c)) return "shankDiameterMm"
+  if (/shank[_\s]?type/.test(c)) return "shankType"
+  if (/length[_\s]?of[_\s]?cut|^loc$|_loc$/.test(c)) return "lengthOfCutMm"
+  if (/overall[_\s]?length|^oal$|_oal$/.test(c)) return "overallLengthMm"
+  if (/tool[_\s]?material/.test(c)) return "toolMaterial"
+  if (/tool[_\s]?type|tool[_\s]?category/.test(c)) return "toolType"
+  // Generic last
+  if (/(?:^|_)grade(?:$|_)/.test(c)) return "grade"
+  if (/coating/.test(c)) return "coating"
+  if (/brand/.test(c)) return "brand"
+  if (/country/.test(c)) return "country"
+  if (/series[_\s]?name/.test(c)) return "seriesName"
+  if (/flute/.test(c)) return "fluteCount"
+  if (/diameter|^dia$|_dia$|^d1?$|_d1?$/.test(c)) return "diameterMm"
+  if (/stock|inventory/.test(c)) return "stockStatus"
+  if (/application[_\s]?shape|operation[_\s]?type/.test(c)) return "applicationShape"
+  return null
+}
+
+function resolveFieldForColumn(col: string): string | null {
+  return DB_COL_TO_FILTER_FIELD[col] ?? inferFieldFromColumnName(col)
+}
+
 export function extractFromMvIndex(text: string, alreadySeen: Set<string>): DeterministicAction[] {
   const tokens = tokenizeForMvIndex(text)
   if (tokens.length === 0) return []
@@ -744,10 +793,10 @@ export function extractFromMvIndex(text: string, alreadySeen: Set<string>): Dete
     const cols = findColumnsForToken(token)
     if (cols.length === 0) continue
 
-    // Map columns → registry fields, dedup
+    // Map columns → registry fields (explicit map first, heuristic fallback), dedup
     const fields = new Set<string>()
     for (const col of cols) {
-      const field = DB_COL_TO_FILTER_FIELD[col]
+      const field = resolveFieldForColumn(col)
       if (field) fields.add(field)
     }
     if (fields.size !== 1) continue // ambiguous (multi-slot) or unmapped — skip
