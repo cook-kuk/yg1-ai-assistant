@@ -156,9 +156,18 @@ ${filterList}
 
 ## Instructions
 Extract filter conditions and a short Korean reasoning trail from the user message as a JSON object:
-{"reasoning":"한국어 추론 과정 (2-4문장, 사용자 의도 → 컬럼 선택 이유 → 값 매핑 순서)","filters":[{"field":"column_name","op":"eq|neq|like|gte|lte|between","value":"...","value2":"upper_bound_for_between","display":"한국어 설명"}]}
+{"reasoning":"한국어 사고 과정 (실제 deliberation, 5-10문장)","filters":[{"field":"column_name","op":"eq|neq|like|gte|lte|between","value":"...","value2":"upper_bound_for_between","display":"한국어 설명"}]}
 
-The "filters" array must always be present (use [] when there is nothing to extract). The "reasoning" string is shown to the end user as a "추론 과정 보기" — write it like a senior engineer explaining their thought process, not like a JSON dump. Use phrases like "~로 판단됩니다", "~가 적합합니다". 2-4 sentences max. If the message is purely a question or trivial, set reasoning to a one-line explanation of why no filters were emitted.
+"reasoning"은 단순 요약이 아니라 **실제 사고 과정**입니다. 다음 흐름을 따라 작성하세요 (5-10문장):
+1. 사용자가 무엇을 원하는지 풀어 해석 ("음, 사용자는 ~를 원하는 것 같다")
+2. 후보 컬럼/값 여러 개를 떠올리고 비교 ("milling_outside_dia 일까 option_dc 일까... 둘 다 가능한데")
+3. 한 번 결론을 내렸다가 다시 의심해보고 재고 ("처음엔 X로 가려 했는데, sample value를 다시 보니 Y가 더 맞겠다")
+4. 현재 적용된 필터와의 충돌/중복 점검
+5. 최종 결정과 그 근거
+
+반드시 "잠깐", "근데", "다시 생각해보면", "아니다", "~가 더 맞을 것 같다" 같은 표현으로 **마음을 바꾸는 과정**을 드러내세요. 한 번에 정답을 말하지 말고, 고민하고 번복하고 확정하는 과정을 그대로 적으세요. 디버깅용이므로 길고 구체적일수록 좋습니다.
+
+"filters" 배열은 항상 존재해야 합니다 (없으면 []).
 
 Rules:
 - field MUST be one of the actual column_names listed above (product_recommendation_mv only), or "_workPieceName" for workpiece materials, or "_skip"/"_reset"/"_back" for navigation. NEVER invent a column name.
@@ -234,11 +243,135 @@ export async function naturalLanguageToFilters(
   const raw = await provider.complete(
     systemPrompt,
     [{ role: "user", content: userMessage }],
-    512,
+    1536,
     SQL_AGENT_MODEL,
   )
 
   const { filters, reasoning } = parseAgentResponse(raw)
+  console.log("\n[sql-agent:CoT] ────────────────────────────────")
+  console.log(`[sql-agent:CoT] user: ${userMessage}`)
+  console.log(`[sql-agent:CoT] existing filters: ${existingFilters.map(f => `${f.field}=${f.value}`).join(", ") || "(none)"}`)
+  console.log(`[sql-agent:CoT] reasoning:\n${reasoning ?? "(none)"}`)
+  console.log(`[sql-agent:CoT] filters: ${JSON.stringify(filters)}`)
+  console.log(`[sql-agent:CoT] raw(${raw.length}b): ${raw.slice(0, 800)}${raw.length > 800 ? "…" : ""}`)
+  console.log("[sql-agent:CoT] ────────────────────────────────\n")
+  return { filters, raw, reasoning }
+}
+
+// ── Streaming variant ────────────────────────────────────────
+//
+// Uses provider.stream() and incrementally extracts the JSON `"reasoning"`
+// field as it arrives, firing onReasoningDelta(decodedChunk) so the UI can
+// type the reasoning out token-by-token (Claude/GPT-5.4 web style).
+//
+// The extractor is a small state machine that scans for `"reasoning"` followed
+// by `: "..."`, then emits decoded characters until the closing quote — handling
+// JSON escapes (\n, \", \\, \uXXXX) so the UI never sees raw escape sequences.
+// When provider.stream is unavailable (deterministic fallback / unimplemented
+// providers), we transparently fall back to the non-streaming path.
+
+class ReasoningExtractor {
+  private state: "seek" | "in_value" | "done" = "seek"
+  private buf = ""
+  private cursor = 0
+  private escape = false
+
+  feed(chunk: string): string {
+    this.buf += chunk
+    let out = ""
+    while (this.cursor < this.buf.length && this.state !== "done") {
+      if (this.state === "seek") {
+        const keyIdx = this.buf.indexOf('"reasoning"', this.cursor)
+        if (keyIdx < 0) {
+          // Keep enough tail to recognise a key that straddles a chunk boundary.
+          this.cursor = Math.max(this.cursor, this.buf.length - 12)
+          return out
+        }
+        let i = keyIdx + '"reasoning"'.length
+        while (i < this.buf.length && /\s/.test(this.buf[i]!)) i++
+        if (i >= this.buf.length) { this.cursor = keyIdx; return out }
+        if (this.buf[i] !== ":") { this.cursor = keyIdx + 1; continue }
+        i++
+        while (i < this.buf.length && /\s/.test(this.buf[i]!)) i++
+        if (i >= this.buf.length) { this.cursor = keyIdx; return out }
+        if (this.buf[i] !== '"') { this.cursor = keyIdx + 1; continue }
+        i++
+        this.cursor = i
+        this.state = "in_value"
+        continue
+      }
+      // in_value
+      const c = this.buf[this.cursor]!
+      if (this.escape) {
+        let decoded = c
+        if (c === "n") decoded = "\n"
+        else if (c === "t") decoded = "\t"
+        else if (c === "r") decoded = "\r"
+        else if (c === '"') decoded = '"'
+        else if (c === "\\") decoded = "\\"
+        else if (c === "/") decoded = "/"
+        else if (c === "u") {
+          if (this.cursor + 4 >= this.buf.length) return out // wait for more bytes
+          const hex = this.buf.slice(this.cursor + 1, this.cursor + 5)
+          decoded = String.fromCharCode(parseInt(hex, 16))
+          this.cursor += 4
+        }
+        out += decoded
+        this.escape = false
+        this.cursor++
+        continue
+      }
+      if (c === "\\") { this.escape = true; this.cursor++; continue }
+      if (c === '"') { this.state = "done"; this.cursor++; return out }
+      out += c
+      this.cursor++
+    }
+    return out
+  }
+}
+
+export async function naturalLanguageToFiltersStreaming(
+  userMessage: string,
+  schema: DbSchema,
+  existingFilters: AppliedFilter[],
+  provider: LLMProvider,
+  onReasoningDelta?: (delta: string) => void,
+): Promise<SqlAgentResult> {
+  if (!provider.stream) {
+    return naturalLanguageToFilters(userMessage, schema, existingFilters, provider)
+  }
+  const systemPrompt = buildSystemPrompt(schema, existingFilters)
+  const extractor = new ReasoningExtractor()
+  let raw = ""
+  try {
+    for await (const chunk of provider.stream(
+      systemPrompt,
+      [{ role: "user", content: userMessage }],
+      1536,
+      SQL_AGENT_MODEL,
+    )) {
+      raw += chunk
+      if (onReasoningDelta) {
+        const delta = extractor.feed(chunk)
+        if (delta) {
+          try { onReasoningDelta(delta) } catch { /* never block runtime */ }
+        }
+      }
+    }
+  } catch (err) {
+    // If streaming fails mid-flight, fall back to non-streaming so we still
+    // produce a result for the rest of the pipeline.
+    console.warn("[sql-agent:stream] failed, falling back to complete():", (err as Error).message)
+    return naturalLanguageToFilters(userMessage, schema, existingFilters, provider)
+  }
+  const { filters, reasoning } = parseAgentResponse(raw)
+  console.log("\n[sql-agent:CoT:stream] ────────────────────────")
+  console.log(`[sql-agent:CoT:stream] user: ${userMessage}`)
+  console.log(`[sql-agent:CoT:stream] existing filters: ${existingFilters.map(f => `${f.field}=${f.value}`).join(", ") || "(none)"}`)
+  console.log(`[sql-agent:CoT:stream] reasoning:\n${reasoning ?? "(none)"}`)
+  console.log(`[sql-agent:CoT:stream] filters: ${JSON.stringify(filters)}`)
+  console.log(`[sql-agent:CoT:stream] raw(${raw.length}b): ${raw.slice(0, 800)}${raw.length > 800 ? "…" : ""}`)
+  console.log("[sql-agent:CoT:stream] ────────────────────────\n")
   return { filters, raw, reasoning }
 }
 
