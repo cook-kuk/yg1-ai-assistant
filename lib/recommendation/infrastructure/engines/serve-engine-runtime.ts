@@ -2016,6 +2016,50 @@ async function handleServeExplorationInner(
       }
     }
 
+    // ── 3a-bis. Tool Forge fallback ─────────────────────────────
+    // Runs ONLY when det-SCR / KG / SQL-agent all failed to handle the message
+    // (singleCallHandled still false). First checks the registry for a cached
+    // forged tool; on miss, falls back to live LLM forge. Both paths persist
+    // discovered patterns so the next request hits the registry in <50ms.
+    //
+    // NOTE: Phase 4 MVP — this populates the registry and logs forge results
+    // for new patterns (절삭조건 / RPM / 유사제품 등). Row-to-canonical-candidate
+    // injection is intentionally deferred to Phase 4.5 to avoid breaking the
+    // existing scoring pipeline with mismatched product shapes.
+    if (!singleCallHandled && lastUserMsg) {
+      try {
+        const schemaForForge = getDbSchemaSync()
+        if (schemaForForge) {
+          const { findMatchingTool } = await import("@/lib/recommendation/core/tool-registry")
+          const { forgeAndExecute, executeRegistryTool } = await import("@/lib/recommendation/core/tool-forge")
+
+          const pool = (globalThis as { __yg1ProductDbPool?: import("pg").Pool }).__yg1ProductDbPool
+          if (!pool) throw new Error("product DB pool not initialized")
+          const cachedTool = await findMatchingTool(msg)
+
+          if (cachedTool) {
+            const t0 = Date.now()
+            const { rows } = await executeRegistryTool(cachedTool, msg, pool, provider)
+            console.log(`[tool-registry:hit] "${msg.slice(0, 60)}" → ${cachedTool.name} (${rows.length} rows, ${Date.now() - t0}ms)`)
+            trace.add("tool-registry", "router", { tool: cachedTool.name, rowCount: rows.length, durationMs: Date.now() - t0 })
+          } else {
+            // Live forge — slow but only on novel patterns
+            const forgeResult = await forgeAndExecute(msg, schemaForForge, filters, provider, pool)
+            console.log(`[tool-forge] "${msg.slice(0, 60)}" success=${forgeResult.success} rows=${forgeResult.rows.length} attempts=${forgeResult.attempts.length} ${forgeResult.totalDurationMs}ms${forgeResult.tool ? ` → registered ${forgeResult.tool.name}` : ""}`)
+            trace.add("tool-forge", "router", {
+              success: forgeResult.success,
+              rowCount: forgeResult.rows.length,
+              attempts: forgeResult.attempts.length,
+              durationMs: forgeResult.totalDurationMs,
+              registeredTool: forgeResult.tool?.name ?? null,
+            })
+          }
+        }
+      } catch (e) {
+        console.error(`[tool-forge] error (non-fatal):`, e instanceof Error ? e.message : String(e))
+      }
+    }
+
     // ── 3b. QuerySpec Planner + Decision Layer ──
     // 1) planner 항상 실행 → shadow filters 생성
     // 2) decision layer가 production vs planner confidence 비교
