@@ -539,6 +539,12 @@ function buildConversationMemory(
   return llmMessages
 }
 
+// Hybrid: deterministic parser first, LLM fallback for unmatched
+import { parseDeterministic } from "./deterministic-scr"
+
+const DET_SCR_ENABLED = process.env.DETERMINISTIC_SCR !== "0"
+const DET_SCR_LLM_AUGMENT = process.env.DETERMINISTIC_SCR_LLM_AUGMENT === "1"
+
 export async function routeSingleCall(
   userMessage: string,
   sessionState: ExplorationSessionState | null,
@@ -546,6 +552,40 @@ export async function routeSingleCall(
   recentMessages?: ChatMessage[],
   kgHint?: string
 ): Promise<SingleCallResult> {
+  // ── 0. Deterministic SCR (DB-driven NL parser, no LLM) ──
+  if (DET_SCR_ENABLED) {
+    const detActions = parseDeterministic(userMessage)
+    if (detActions.length > 0) {
+      console.log(`[SCR:det] ${detActions.length} actions extracted deterministically: ${detActions.map(a => `${a.field}=${a.value}${a.value2 != null ? '..' + a.value2 : ''}/${a.op}`).join(", ")}`)
+      // Canonicalize via filter-field-registry (same path as LLM actions)
+      const canonicalized: SingleCallAction[] = []
+      for (const action of detActions) {
+        const isBetween = action.op === "between" && action.value2 != null
+        const inputValue: string | number | Array<string | number> = isBetween
+          ? [action.value as string | number, action.value2 as string | number]
+          : action.value
+        const filter = buildAppliedFilterFromValue(action.field, inputValue, 0, action.op)
+        if (filter) {
+          canonicalized.push({
+            type: "apply_filter",
+            field: filter.field,
+            value: Array.isArray(filter.rawValue) ? (filter.rawValue[0] as string | number) : (filter.rawValue as string | number),
+            value2: Array.isArray(filter.rawValue) ? (filter.rawValue[1] as string | number) : action.value2,
+            op: action.op,
+          })
+        }
+      }
+      if (canonicalized.length > 0 && !DET_SCR_LLM_AUGMENT) {
+        // Pure deterministic: skip LLM entirely
+        return {
+          actions: canonicalized,
+          answer: "",
+          reasoning: `deterministic: ${canonicalized.length} actions`,
+        }
+      }
+    }
+  }
+
   const basePrompt = buildSystemPrompt(sessionState)
   const systemPrompt = kgHint
     ? `${basePrompt}\n\n## KG Hint (pre-analyzed entities from Knowledge Graph)\n${kgHint}\nUse these as strong guidance — the entities above are already validated. Emit matching apply_filter actions.`
