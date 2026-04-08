@@ -82,6 +82,13 @@ export interface EarlyRecommendationFlush {
   altExplanations: RecommendationExplanation[]
   altFactChecked: FactCheckedRecommendation[]
   evidenceSummaries: EvidenceSummary[] | null
+  /**
+   * Snapshot of the candidates that should populate the right-side
+   * "추천 후보" panel as soon as the cards arrive — without this the panel
+   * waits for the LLM narrative to finish.
+   */
+  candidates: CandidateSnapshot[]
+  pagination: RecommendationPaginationDto | null
 }
 
 export interface ServeResponseBuilderDependencies {
@@ -507,6 +514,11 @@ export async function buildQuestionResponse(
   const snapshotCandidates = displayCandidates ?? candidates
   const snapshotEvidenceMap = displayEvidenceMap ?? evidenceMap
   const candidateSnapshot = buildCandidateSnapshot(snapshotCandidates, snapshotEvidenceMap)
+  // Full narrowed pool snapshot — used by post-narrowing filters (e.g. stock) so they
+  // can re-rank across the entire candidate pool, not just the top-N currently displayed.
+  const fullCandidateSnapshot = candidates !== snapshotCandidates
+    ? buildCandidateSnapshot(candidates, evidenceMap)
+    : candidateSnapshot
   const filterValueScope = buildFilterValueScope(candidates as unknown as Array<Record<string, unknown>>)
 
   // ── Option-first: question engine provides field + candidate data ──
@@ -558,6 +570,7 @@ export async function buildQuestionResponse(
     uiNarrowingPath: buildUINarrowingPath(filters, history, totalCandidateCount),
     currentMode: messages.length === 0 ? "question" : "narrowing",
     displayedCandidates: candidateSnapshot,
+    fullDisplayedCandidates: fullCandidateSnapshot,
     filterValueScope,
     displayedChips: chips,
     displayedOptions,
@@ -994,6 +1007,12 @@ export async function buildRecommendationResponse(
   // Errors here must never break the main flow.
   if (deps.onEarlyFlush) {
     try {
+      // Compute the same candidate snapshot the final response will emit so
+      // the right-side "추천 후보" panel can populate immediately rather than
+      // waiting for the LLM narrative.
+      const earlySnapshotCandidates = displayCandidates ?? candidates
+      const earlySnapshotEvidenceMap = displayEvidenceMap ?? evidenceMap
+      const earlyCandidateSnapshot = buildCandidateSnapshot(earlySnapshotCandidates, earlySnapshotEvidenceMap)
       deps.onEarlyFlush({
         recommendation,
         primaryExplanation,
@@ -1001,6 +1020,8 @@ export async function buildRecommendationResponse(
         altExplanations,
         altFactChecked,
         evidenceSummaries: evidenceSummaries.length > 0 ? evidenceSummaries : null,
+        candidates: earlyCandidateSnapshot,
+        pagination,
       })
     } catch (err) {
       console.warn("[recommend] onEarlyFlush failed (ignored):", err)
@@ -1098,6 +1119,7 @@ export async function buildRecommendationResponse(
     uiNarrowingPath: buildUINarrowingPath(filters, history, totalCandidateCount),
     currentMode: "recommendation",
     displayedCandidates: candidateSnapshot,
+    fullDisplayedCandidates: fullCandidateSnapshot,
     filterValueScope,
     displayedChips: followUpChips,
     displayedOptions: postRecDisplayedOptions,

@@ -22,9 +22,15 @@ export function handleFilterByStock(
   } = ctx
 
   // ── Post-scoring stock filter ──
-  // Filters from already-displayed candidates (no re-retrieval).
-  // Uses prevState.displayedCandidates snapshots to avoid re-running full search.
-  const prevCandidates = prevState?.displayedCandidates ?? []
+  // Operates on the FULL narrowed pool (fullDisplayedCandidates), not just the top-N
+  // currently rendered. This way "재고 제일 많은거" can re-rank across alternates and
+  // promote a previously hidden candidate into the #1 slot. Falls back to the displayed
+  // set when the full pool isn't available (older sessions / non-recommendation flows).
+  const displayedOnly = prevState?.displayedCandidates ?? []
+  const prevCandidates: CandidateSnapshot[] =
+    (prevState?.fullDisplayedCandidates && prevState.fullDisplayedCandidates.length > 0)
+      ? prevState.fullDisplayedCandidates
+      : displayedOnly
   const stockFilter = action.stockFilter
   const stockThreshold = action.stockThreshold ?? null
 
@@ -39,6 +45,15 @@ export function handleFilterByStock(
   } else {
     filteredSnapshots = prevCandidates // "all" = no filter
   }
+
+  // Re-rank by stock desc so the highest-stock candidate becomes #1, even if it was
+  // previously an alternate. Stable secondary order = preserved input order.
+  filteredSnapshots = [...filteredSnapshots].sort((a, b) => (b.totalStock ?? 0) - (a.totalStock ?? 0))
+
+  // Cap displayed set to top-N (matches retrieval default of 3)
+  const DISPLAY_TOP_N = 3
+  const fullFilteredSnapshots = filteredSnapshots
+  const displayedFilteredSnapshots = filteredSnapshots.slice(0, DISPLAY_TOP_N)
 
   if (filteredSnapshots.length === 0) {
     // No candidates match stock filter — inform user
@@ -83,25 +98,26 @@ export function handleFilterByStock(
   }
 
   // Build response from filtered snapshots without re-running full search
-  console.log(`[stock-filter] ${stockFilter}: ${prevCandidates.length} → ${filteredSnapshots.length} candidates (from displayed)`)
+  console.log(`[stock-filter] ${stockFilter}: ${prevCandidates.length} → ${fullFilteredSnapshots.length} candidates (re-ranked across full pool, top ${displayedFilteredSnapshots.length} shown)`)
 
   // Rebuild filterValueScope from filtered candidates so follow-up filters reflect actual options
-  const filteredValueScope = buildFilterValueScope(filteredSnapshots as unknown as Array<Record<string, unknown>>)
+  const filteredValueScope = buildFilterValueScope(fullFilteredSnapshots as unknown as Array<Record<string, unknown>>)
 
   // Contextual chips: offer useful next actions after stock filtering
   const stockChips: string[] = []
-  if (filteredSnapshots.length >= 2) stockChips.push("상위 2개 비교")
-  if (filteredSnapshots.length < prevCandidates.length) stockChips.push(`전체 ${prevCandidates.length}개 보기`)
+  if (displayedFilteredSnapshots.length >= 2) stockChips.push("상위 2개 비교")
+  if (fullFilteredSnapshots.length > displayedFilteredSnapshots.length) stockChips.push(`전체 ${fullFilteredSnapshots.length}개 보기`)
   stockChips.push("⟵ 이전 단계", "처음부터 다시")
 
   const sessionState = carryForwardState(prevState, {
-    candidateCount: filteredSnapshots.length,
+    candidateCount: fullFilteredSnapshots.length,
     appliedFilters: filters,
     narrowingHistory,
     resolutionStatus: prevState.resolutionStatus ?? "broad",
     resolvedInput: currentInput,
     turnCount,
-    displayedCandidates: filteredSnapshots,
+    displayedCandidates: displayedFilteredSnapshots,
+    fullDisplayedCandidates: fullFilteredSnapshots,
     displayedChips: stockChips,
     displayedOptions: [],
     currentMode: prevState.currentMode ?? "recommendation",
@@ -111,13 +127,16 @@ export function handleFilterByStock(
   const stockLabel = stockThreshold != null
     ? `재고 ${stockThreshold}개 이상인`
     : stockFilter === "instock" ? "재고 있는" : stockFilter === "limited" ? "재고 제한적 이상인" : "전체"
-  // Build deterministic stock summary per candidate to prevent LLM hallucination
-  const stockDetails = filteredSnapshots
+  // Build deterministic stock summary per candidate (top-N) to prevent LLM hallucination
+  const stockDetails = displayedFilteredSnapshots
     .map(c => `- ${c.displayCode}: 재고 ${c.totalStock ?? 0}개`)
     .join("\n")
+  const headerText = fullFilteredSnapshots.length > displayedFilteredSnapshots.length
+    ? `${stockLabel} 후보 ${fullFilteredSnapshots.length}개 중 재고 많은 순 상위 ${displayedFilteredSnapshots.length}개입니다.`
+    : `${stockLabel} 후보 ${fullFilteredSnapshots.length}개입니다.`
   const responseText = stockDetails
-    ? `${stockLabel} 후보 ${filteredSnapshots.length}개입니다.\n\n${stockDetails}`
-    : `${stockLabel} 후보 ${filteredSnapshots.length}개입니다.`
+    ? `${headerText}\n\n${stockDetails}`
+    : headerText
   return jsonRecommendationResponse({
     text: responseText,
     purpose: "recommendation",
@@ -126,7 +145,7 @@ export function handleFilterByStock(
     recommendation: null,
     sessionState,
     evidenceSummaries: null,
-    candidateSnapshot: filteredSnapshots,
+    candidateSnapshot: displayedFilteredSnapshots,
     requestPreparation: null,
     primaryExplanation: null,
     primaryFactChecked: null,
