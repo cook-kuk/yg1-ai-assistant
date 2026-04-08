@@ -62,7 +62,19 @@ export function getFilterDisplayValue(
   if (filter.op === "skip") {
     return language === "ko" ? "상관없음" : "No Preference"
   }
-  return localizeIntakeText(filter.value, language)
+  const baseValue = localizeIntakeText(filter.value, language)
+  // Surface comparison operators in the chip so users see "10mm 이상" not "10mm".
+  // The eq case is the common path and gets no suffix.
+  switch (filter.op) {
+    case "gte":
+      return language === "ko" ? `${baseValue} 이상` : `≥ ${baseValue}`
+    case "lte":
+      return language === "ko" ? `${baseValue} 이하` : `≤ ${baseValue}`
+    case "between":
+      return language === "ko" ? `${baseValue} 사이` : `${baseValue} range`
+    default:
+      return baseValue
+  }
 }
 
 function getFilterFieldLabel(field: string, language: "ko" | "en"): string {
