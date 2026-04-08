@@ -1,4 +1,5 @@
 export interface CandidateHighlightInput {
+  ballRadiusMm?: number | null
   coating?: string | null
   diameterMm?: number | null
   fluteCount?: number | null
@@ -6,8 +7,54 @@ export interface CandidateHighlightInput {
   lengthOfCutMm?: number | null
   overallLengthMm?: number | null
   shankDiameterMm?: number | null
+  taperAngleDeg?: number | null
   toolMaterial?: string | null
   toolSubtype?: string | null
+}
+
+function formatBadgeValue(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, "")
+}
+
+export function buildCandidateDetailBadges(
+  candidate: CandidateHighlightInput,
+  language: "ko" | "en"
+): CandidateHighlightBadge[] {
+  const badges: CandidateHighlightBadge[] = []
+
+  const subtype = buildCandidateSubtypeHighlight(candidate, language)
+  if (subtype) badges.push(subtype)
+
+  const coating = candidate.coating?.trim()
+  if (coating) {
+    badges.push({
+      label: language === "ko" ? "코팅" : "Coating",
+      value: coating,
+    })
+  }
+
+  if (candidate.fluteCount != null) {
+    badges.push({
+      label: language === "ko" ? "날수" : "Flutes",
+      value: `${candidate.fluteCount}`,
+    })
+  }
+
+  if (candidate.ballRadiusMm != null) {
+    badges.push({
+      label: "R",
+      value: formatBadgeValue(candidate.ballRadiusMm),
+    })
+  }
+
+  if (candidate.taperAngleDeg != null) {
+    badges.push({
+      label: language === "ko" ? "테이퍼" : "Taper",
+      value: `${candidate.taperAngleDeg}°`,
+    })
+  }
+
+  return badges
 }
 
 export interface CandidateHighlightBadge {

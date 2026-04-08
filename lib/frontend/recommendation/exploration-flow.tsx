@@ -443,7 +443,9 @@ function NarrowingChat({
                   })),
                 })
                 const handleCtaClick = (chip: string) => {
-                  if (!isLatest || needsFeedback || isSending) return
+                  if (isSending) return
+                  if (chip.includes("제품 보기") && !isLatest) return
+                  if (chip.includes("AI 상세 분석") && (!isLatest || needsFeedback)) return
                   if (chip.includes("제품 보기") && onShowCandidates) {
                     onShowCandidates()
                   } else if (chip.includes("AI 상세 분석")) {
@@ -502,10 +504,10 @@ function NarrowingChat({
                             key={`cta-${i}`}
                             onClick={() => handleCtaClick(chip)}
                             className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-colors ${
-                              needsFeedback
-                                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                : chip.includes("제품 보기")
-                                  ? "bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
+                              chip.includes("제품 보기")
+                                ? "bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
+                                : needsFeedback
+                                  ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                                   : "bg-purple-600 text-white hover:bg-purple-700 shadow-sm"
                             }`}
                           >

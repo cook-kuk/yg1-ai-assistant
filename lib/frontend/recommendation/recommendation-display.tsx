@@ -24,6 +24,7 @@ import { useApp } from "@/lib/frontend/app-context"
 import { findVideosForProduct } from "@/lib/data/video-mapping"
 import { findCatalogsForProduct } from "@/lib/data/catalog-mapping"
 import {
+  buildCandidateDetailBadges,
   buildCandidateSpecFallback,
   buildCandidateSubtypeHighlight,
   buildSubtypeFirstSummary,
@@ -346,6 +347,7 @@ function ProductCard({
   const bestCondition = evidenceSummary?.bestCondition ?? null
   const inventoryLocations = useMemo(() => summarizeInventoryLocations(scored.inventory), [scored.inventory])
   const inventorySnapshotDate = useMemo(() => summarizeInventorySnapshotDate(scored.inventory), [scored.inventory])
+  const detailBadges = buildCandidateDetailBadges(product, language)
 
   return (
     <Card className={`border ${isAlternative ? "border-gray-200" : "border-blue-200 shadow-sm"}`}>
@@ -373,6 +375,21 @@ function ProductCard({
             <div className="text-[11px] text-gray-600 mt-1 leading-relaxed font-medium">
               {buildSubtypeFirstSummary(product, language).join(" · ")}
             </div>
+            {detailBadges.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {detailBadges.map(badge => (
+                  <div
+                    key={`${badge.label}-${badge.value}`}
+                    className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900 shadow-sm"
+                  >
+                    <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-amber-600">
+                      {badge.label}
+                    </span>
+                    <span>{badge.value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             {product.materialTags.length > 0 && (
               <div className="text-[10px] text-gray-400 mt-0.5">{product.materialTags.join("/")}군</div>
             )}
