@@ -975,8 +975,25 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
   }
 
   // 7) 재고
+  // "재고 30개 이상", "재고 50 이상", "stock >= 100" 같이 숫자 임계값이 있으면
+  // value=숫자, op=gte 로 보내고, filter-field-registry SQL 빌더가
+  // total_stock >= N 절을 만든다. 숫자가 없으면 단순 in-stock 필터.
   if (!seen.has("stockStatus")) {
-    if (STOCK_PATTERNS.some(p => p.test(text))) {
+    const numMatch = text.match(/(?:재고|stock)\s*(\d+)\s*(?:개)?\s*(?:이상|over|이상\s*만|만)?/i)
+    if (numMatch) {
+      const n = parseInt(numMatch[1], 10)
+      if (Number.isFinite(n) && n > 0) {
+        actions.push({
+          type: "apply_filter",
+          field: "stockStatus",
+          value: String(n),
+          op: "gte",
+          source: "deterministic",
+        })
+        seen.add("stockStatus")
+      }
+    }
+    if (!seen.has("stockStatus") && STOCK_PATTERNS.some(p => p.test(text))) {
       actions.push({ type: "apply_filter", field: "stockStatus", value: "instock", op: "eq", source: "deterministic" })
       seen.add("stockStatus")
     }
