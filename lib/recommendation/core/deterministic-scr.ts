@@ -290,6 +290,49 @@ function findValueWithPos(text: string, values: readonly string[]): { value: str
   return null
 }
 
+// ── workPieceName patterns (14 canonical groups, mirrors knowledge-graph.ts) ─
+// Order matters: more specific groups first (e.g., Hardened/Prehardened before Alloy),
+// and grade-level aliases are included to route to the correct group.
+const WORKPIECE_PATTERNS: Array<{ pattern: RegExp; value: string }> = [
+  // Hardened Steels (HRC / SKD / 경화강) — before Alloy Steels to avoid SKD → alloy
+  { pattern: /(경화강|열처리강|고경도강|다이스강|die\s*steel|hardened|\bskd\s*\d*|\bhrc\s*\d*)/i, value: "Hardened Steels" },
+  // Prehardened Steels — before Alloy
+  { pattern: /(조질강|프리하든|prehardened|nakhrc|hp\s*강)/i, value: "Prehardened Steels" },
+  // Stainless Steels
+  { pattern: /(스테인리스|스테인레스|스텐|\bsus\s*\d*|\bsts\s*\d*|stainless|inox)/i, value: "Stainless Steels" },
+  // Titanium (before Alloy; before general Ti6Al4V)
+  { pattern: /(티타늄|티타늄합금|titanium|ti6al4v|\bti-6al-4v\b|초내열합금|내열초합금|내열합금)/i, value: "Titanium" },
+  // Inconel / Nickel alloys
+  { pattern: /(인코넬|inconel|니켈합금|nickel\s*alloy|하스텔로이|hastelloy)/i, value: "Inconel" },
+  // Aluminum
+  { pattern: /(알루미늄|알미늄|알루미늄합금|aluminum|aluminium|두랄루민|\ba[\s-]?(?:6061|7075|5052)\b)/i, value: "Aluminum" },
+  // Copper / Brass / Bronze
+  { pattern: /(구리|구리합금|황동|청동|copper|brass|bronze|redcopper|\bcu\b)/i, value: "Copper" },
+  // Cast Iron (주철 / FC / FCD)
+  { pattern: /(주철|회주철|구상흑연주철|가단주철|칠드주철|cast\s*iron|\bfcd\s*\d*|\bfc\s*\d+)/i, value: "Cast Iron" },
+  // Cast Steel
+  { pattern: /(주강|cast\s*steel)/i, value: "Cast Steel" },
+  // Alloy Steels (SCM / SNCM / SUJ / 합금강 / 공구강)
+  { pattern: /(합금강|고합금강|저합금강|금형강|구조용강|공구강|alloy\s*steel|\bscm\s*\d+|\bsncm\s*\d+|\bsuj\s*\d*)/i, value: "Alloy Steels" },
+  // Carbon Steels (S45C / SK / SM45C / 탄소강)
+  { pattern: /(탄소강|비합금강|일반강|carbon\s*steel|\bs\s*\d{2}c\b|\bsm\s*\d{2}c\b|\bsk\s*\d\b)/i, value: "Carbon Steels" },
+  // Graphite
+  { pattern: /(흑연|graphite)/i, value: "Graphite" },
+  // FRP
+  { pattern: /(\bfrp\b|\bcfrp\b|\bgfrp\b|섬유강화플라스틱|복합재)/i, value: "FRP" },
+]
+
+export function extractWorkPieceName(text: string): DeterministicAction | null {
+  for (const { pattern, value } of WORKPIECE_PATTERNS) {
+    const m = text.match(pattern)
+    if (m && m.index != null) {
+      const op = negNear(text, m.index, m[0].length) ? "neq" : "eq"
+      return { type: "apply_filter", field: "workPieceName", value, op, source: "deterministic" }
+    }
+  }
+  return null
+}
+
 export function extractWorkMaterial(text: string): DeterministicAction | null {
   for (const { pattern, value } of WORK_MATERIAL_CUES) {
     const m = text.match(pattern)
@@ -578,6 +621,7 @@ export function parseDeterministic(message: string): DeterministicAction[] {
   // Each helper returns 0 or 1 action; dedup by field via `seen`.
   // TODO: MV 확장 후 turning/tooling/threading/holemaking 필드는 실 쿼리로 연결.
   const extraExtractors: Array<{ field: string; fn: (t: string) => DeterministicAction | null }> = [
+    { field: "workPieceName", fn: extractWorkPieceName },
     { field: "workMaterial", fn: extractWorkMaterial },
     { field: "grade", fn: extractGrade },
     { field: "chipBreaker", fn: extractChipBreaker },
