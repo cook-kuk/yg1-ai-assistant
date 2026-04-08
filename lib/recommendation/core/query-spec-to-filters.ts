@@ -143,10 +143,21 @@ export function appliedFiltersToConstraints(filters: AppliedFilter[]): QueryCons
     .map(f => {
       const queryField = FILTER_FIELD_TO_QUERY_FIELD[f.field]
       if (!queryField) return null
+      const op: QueryOp =
+        f.op === "neq" ? "neq"
+        : f.op === "includes" ? "contains"
+        : f.op === "gte" ? "gte"
+        : f.op === "lte" ? "lte"
+        : f.op === "between" ? "between"
+        : "eq"
+      const value: QueryConstraint["value"] =
+        op === "between" && f.rawValue2 != null
+          ? [Number(f.rawValue), Number(f.rawValue2)]
+          : ((f.rawValue ?? f.value) as string | number)
       return {
         field: queryField,
-        op: (f.op === "neq" ? "neq" : f.op === "includes" ? "contains" : "eq") as QueryOp,
-        value: f.rawValue ?? f.value,
+        op,
+        value,
         display: f.value,
       } satisfies QueryConstraint
     })
