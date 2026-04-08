@@ -1400,6 +1400,7 @@ function buildRevisionClarificationResponse(
     displayedOptions: [],
     currentMode: "question",
     lastAction: "ask_clarification",
+    pendingAction: null,
   })
 
   return deps.jsonRecommendationResponse({
@@ -3521,6 +3522,7 @@ async function handleServeExplorationInner(
           displayedOptions: [],
           currentMode: prevState.currentMode ?? "recommendation",
           lastAction: "filter_by_stock",
+          pendingAction: null,
         })
         return deps.jsonRecommendationResponse({
           text: `${stockLabel} 후보가 없습니다. 현재 ${prevCandidates.length}개 후보 중 재고 조건에 맞는 제품이 없어요.\n재고 조건을 완화하거나 '전체 보기'를 선택해주세요.`,
@@ -3560,6 +3562,7 @@ async function handleServeExplorationInner(
         displayedOptions: [],
         currentMode: prevState.currentMode ?? "recommendation",
         lastAction: "filter_by_stock",
+        pendingAction: null,
       })
       const stockLabel = stockThreshold != null
         ? `재고 ${stockThreshold}개 이상인`
