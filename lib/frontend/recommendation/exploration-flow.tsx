@@ -447,12 +447,11 @@ function NarrowingChat({
                   if (chip.includes("제품 보기") && !isLatest) return
                   if (chip.includes("AI 상세 분석") && (!isLatest || needsFeedback)) return
                   if (chip.includes("제품 보기")) {
-                    // 백엔드가 'show_recommendation' 으로 라우팅해 제품 리스트를 재응답하도록
-                    // chip 텍스트를 사용자 메시지로 전송 (수찬님 브랜치 동일 패턴).
-                    // 데스크탑에서 sidebar 는 lg:block 으로 항상 열려있어 onShowCandidates
-                    // 만으로는 아무 일도 안 일어나는 버그가 있었음 (71b43d9 regression).
+                    // 라우터가 emoji+카운트 포함 chip 텍스트("📋 지금 바로 제품 보기 (12개)")를
+                    // show_recommendation 으로 분류하지 못하고 좁히기 질문을 다시 던지는 버그가 있어,
+                    // 카논 문구로 정규화해서 전송한다.
                     setInput("")
-                    onSend(chip)
+                    onSend("지금 바로 제품 보기")
                     if (onShowCandidates) onShowCandidates()
                   } else if (chip.includes("AI 상세 분석")) {
                     setInput(""); onSend("AI 상세 분석 해줘")
