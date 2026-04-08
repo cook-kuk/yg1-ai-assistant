@@ -1012,6 +1012,32 @@ export function resolvePendingQuestionReply(
     return { kind: "resolved", filter }
   }
 
+  // J06 fix: before declaring unresolved, ask deterministic SCR if it has any
+  // filter actions for this message. "Y 코팅으로 추천해줘" parses cleanly to
+  // coating=Y-Coating in det-SCR but never matched a chip/option above, so we
+  // would have dropped it. Prefer an action targeting the current pendingField,
+  // otherwise take the first apply_filter action.
+  try {
+    const detActions = parseDeterministic(raw)
+    const filterActions = detActions.filter(a => a.type === "apply_filter") as Array<{
+      type: "apply_filter"
+      field: string
+      value: string | number
+      op: string
+    }>
+    if (filterActions.length > 0) {
+      const pendingHit = filterActions.find(a => a.field === pendingField || a.field === resolvedField)
+      const chosen = pendingHit ?? filterActions[0]
+      const built = buildAppliedFilterFromValue(chosen.field, chosen.value, sessionState.turnCount ?? 0, chosen.op)
+      if (built) {
+        console.log(`[pending-selection] Resolved via det-SCR fallback field="${built.field}" value="${built.value}" (pending="${pendingField}")`)
+        return { kind: "resolved", filter: built }
+      }
+    }
+  } catch (err) {
+    console.warn("[pending-selection] det-SCR fallback failed:", (err as Error).message)
+  }
+
   console.log(`[pending-selection] Unresolved reply for field="${resolvedField}" raw="${raw.slice(0, 30)}"`)
   return { kind: "unresolved", pendingField, raw }
 }
