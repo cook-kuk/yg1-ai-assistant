@@ -47,6 +47,7 @@ import { querySpecToAppliedFilters, appliedFiltersToConstraints } from "@/lib/re
 import { decidePlannerOverride } from "@/lib/recommendation/core/planner-decision"
 import { logPatternMiningEntry } from "@/lib/recommendation/core/pattern-mining/logger"
 import { tryKGDecision, extractEntities } from "@/lib/recommendation/core/knowledge-graph"
+import { parseDeterministic } from "@/lib/recommendation/core/deterministic-scr"
 import { hasEditSignal, parseEditIntent, applyEditIntent } from "@/lib/recommendation/core/edit-intent"
 import { deriveChips, toChipState, toChipStateWithCandidates, compareChips, safeApplyChips } from "@/lib/recommendation/core/chip-system"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
@@ -884,9 +885,13 @@ export function resolvePendingQuestionReply(
     return { kind: "unresolved", pendingField, raw }
   }
   // 위임 표현 → skip으로 처리 (추천해줘, 알아서 해줘, 아무거나 한개 등)
-  // 단, 메시지에 새 필터 의도(KG entity, 예: "국내제품", "4날", "10mm")가 있으면 위임이 아님 — 다음 레이어로 넘김
+  // 단, 메시지에 새 필터 의도(KG entity 또는 deterministic SCR action)가 있으면
+  // 위임이 아님 — 다음 레이어로 넘김. det-SCR 추가는 J06 ("Y 코팅으로 추천해줘")
+  // 같은 케이스 방어: KG 가 "Y 코팅" 별칭을 모르고 entity 0개를 반환해도, det-SCR 의
+  // letterCoatingMatch 가 Y-Coating 으로 잡으므로 위임이 아니라 코팅 지정으로 해석.
   if (/^(?:.*(?:추천해|골라|알아서|너가|니가|한개|하나만|아무거나).*(?:줘|해줘|해|주세요|요)?|추천으로\s*골라줘)$/u.test(raw)
-      && extractEntities(raw).length === 0) {
+      && extractEntities(raw).length === 0
+      && parseDeterministic(raw).length === 0) {
     console.log(`[pending-selection] Delegation detected: "${raw.slice(0, 30)}" → treating as skip`)
     const skipFilter: AppliedFilter = {
       field: pendingField,
