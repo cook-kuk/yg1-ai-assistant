@@ -787,14 +787,18 @@ export function buildQueryOptions(options: ProductSearchOptions): { where: strin
     where.push(`LOWER(BTRIM(COALESCE(edp_root_category, ''))) = LOWER(BTRIM(${categoryParam}))`)
   }
 
-  const operationShapeTexts = input?.operationType ? getOperationShapeSearchTexts(input.operationType) : []
-  if (operationShapeTexts.length > 0) {
-    const clauses: string[] = []
-    for (const shape of operationShapeTexts) {
-      const param = next(`%${shape.toLowerCase()}%`)
-      clauses.push(`LOWER(COALESCE(series_application_shape, '')) LIKE ${param}`)
+  // operationType은 application_shape LIKE 필터로 잡으면 DB ground truth와
+  // 안 맞음 (Suchan finder는 operationType 안 씀). precisionMode에서는 skip.
+  if (!isPrecisionMode()) {
+    const operationShapeTexts = input?.operationType ? getOperationShapeSearchTexts(input.operationType) : []
+    if (operationShapeTexts.length > 0) {
+      const clauses: string[] = []
+      for (const shape of operationShapeTexts) {
+        const param = next(`%${shape.toLowerCase()}%`)
+        clauses.push(`LOWER(COALESCE(series_application_shape, '')) LIKE ${param}`)
+      }
+      where.push(`(${clauses.join(" OR ")})`)
     }
-    where.push(`(${clauses.join(" OR ")})`)
   }
 
   const limit = typeof options.limit === "number" && options.limit > 0 ? options.limit : undefined
