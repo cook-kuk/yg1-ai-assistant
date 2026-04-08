@@ -53,11 +53,19 @@ export async function getDbSchema(): Promise<DbSchema> {
   const pool = getPool()
 
   // 1. Column metadata
+  // NOTE: product_recommendation_mv is a MATERIALIZED VIEW, which information_schema.columns
+  // does NOT include (only base tables / regular views). We must read from pg_attribute
+  // directly. Earlier this query returned 0 rows, leaving the LLM without any column
+  // knowledge and causing hallucinated column names like `milling_point_angle`.
   const colRes = await pool.query<{ column_name: string; data_type: string }>(`
-    SELECT column_name, data_type
-    FROM information_schema.columns
-    WHERE table_schema = 'catalog_app' AND table_name = 'product_recommendation_mv'
-    ORDER BY ordinal_position
+    SELECT
+      attname AS column_name,
+      format_type(atttypid, atttypmod) AS data_type
+    FROM pg_attribute
+    WHERE attrelid = 'catalog_app.product_recommendation_mv'::regclass
+      AND attnum > 0
+      AND NOT attisdropped
+    ORDER BY attnum
   `)
   const columns = colRes.rows
 
