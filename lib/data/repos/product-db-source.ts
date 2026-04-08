@@ -776,6 +776,7 @@ export function buildQueryOptions(options: ProductSearchOptions): { where: strin
       if (tag) materialTags.add(tag)
     }
   }
+  console.log(`[DBG-mat] input.material=${JSON.stringify(input?.material)} resolvedTags=${JSON.stringify([...materialTags])}`)
   // input에서 이미 WHERE에 추가한 필드는 filter clause를 중복 생성하지 않는다.
   const inputHandledFields = new Set<string>()
   if (input?.diameterMm != null) inputHandledFields.add("diameterMm")
