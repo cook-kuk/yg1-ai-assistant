@@ -291,8 +291,10 @@ export async function handleRecommendationPost(req: Request): Promise<Response> 
     // Used by test runners to get exact DB-count matching (skips diameter fuzzy ±2 + knowledge fallback).
     const precisionMode = req.headers.get("x-precision-match") === "1"
       || (rawBody && typeof rawBody === "object" && (rawBody as Record<string, unknown>).precisionMode === true)
+    const disableKg = req.headers.get("x-disable-kg") === "1"
+      || (rawBody && typeof rawBody === "object" && (rawBody as Record<string, unknown>).disableKg === true)
     const { runWithRuntimeFlags } = await import("@/lib/recommendation/runtime-flags")
-    return runWithRuntimeFlags({ precisionMode }, () => handleRecommendationPostInner(req, rawBody))
+    return runWithRuntimeFlags({ precisionMode, disableKg }, () => handleRecommendationPostInner(req, rawBody))
   } catch (err) {
     traceRecommendationError("http.handleRecommendationPost:error", err)
     console.error("[recommend] Error:", err)
