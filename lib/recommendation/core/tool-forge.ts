@@ -23,7 +23,7 @@ import type { LLMProvider } from "@/lib/llm/provider"
 import type { AppliedFilter } from "@/lib/recommendation/domain/types"
 import type { DbSchema } from "./sql-agent-schema-cache"
 import { addTool, incrementUseCount, type ToolEntry } from "./tool-registry"
-import { resolveModel } from "@/lib/llm/model-resolver"
+import { resolveModel } from "@/lib/llm/provider"
 
 // ── Types ────────────────────────────────────────────────────
 
