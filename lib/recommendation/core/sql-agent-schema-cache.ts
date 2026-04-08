@@ -15,6 +15,13 @@ export interface DbSchema {
   brands: string[]
   /** Distinct country codes from product_recommendation_mv.country_codes (text[] array, unnested) */
   countries: string[]
+  /**
+   * Reverse index: lowercased value → MV column names that contain it.
+   * Built from sampleValues + brands + countries + workpieces. Used by
+   * deterministic SCR to auto-resolve unqualified tokens (e.g. "titanium")
+   * to a filter slot without the user naming the field.
+   */
+  valueIndex: Record<string, string[]>
   loadedAt: number
 }
 
@@ -78,11 +85,16 @@ export async function getDbSchema(): Promise<DbSchema> {
   const sampleValues: Record<string, string[]> = {}
   for (const col of textCols) {
     try {
+      // Pull up to 500 distinct short values per text column. The cap on
+      // length(<=64) skips long descriptions/codes that would only bloat
+      // the reverse index without being NL-recognizable tokens.
       const res = await pool.query<{ v: string }>(
         `SELECT DISTINCT ${quoteIdent(col)} AS v
          FROM catalog_app.product_recommendation_mv
-         WHERE ${quoteIdent(col)} IS NOT NULL AND BTRIM(${quoteIdent(col)}) <> ''
-         ORDER BY v LIMIT 20`
+         WHERE ${quoteIdent(col)} IS NOT NULL
+           AND BTRIM(${quoteIdent(col)}) <> ''
+           AND length(${quoteIdent(col)}) <= 64
+         ORDER BY v LIMIT 500`
       )
       sampleValues[col] = res.rows.map(r => r.v)
     } catch { /* skip columns that fail */ }
@@ -123,9 +135,25 @@ export async function getDbSchema(): Promise<DbSchema> {
     // Column may not exist in older schemas — fall back silently.
   }
 
-  cached = { columns, sampleValues, workpieces, brands, countries, loadedAt: Date.now() }
-  console.log(`[sql-agent-schema] loaded: ${columns.length} columns, ${workpieces.length} workpieces, ${brands.length} brands, ${countries.length} countries`)
+  // 6. Build value→column reverse index for unqualified-token routing.
+  const valueIndex = buildValueIndex({ sampleValues, brands, countries, workpieces })
+
+  cached = { columns, sampleValues, workpieces, brands, countries, valueIndex, loadedAt: Date.now() }
+  console.log(`[sql-agent-schema] loaded: ${columns.length} columns, ${workpieces.length} workpieces, ${brands.length} brands, ${countries.length} countries, ${Object.keys(valueIndex).length} indexed values`)
   return cached
+}
+
+/**
+ * Returns the MV column names where `token` appears as a distinct value.
+ * Sync — relies on the in-memory cache. Empty array if cache cold or no match.
+ * Particles/whitespace are normalized; caller may pass either raw user token
+ * or a pre-normalized form.
+ */
+export function findColumnsForToken(token: string): string[] {
+  if (!cached) return []
+  const key = normalizeIndexKey(token)
+  if (!key) return []
+  return cached.valueIndex[key] ?? []
 }
 
 export function getDbSchemaSync(): DbSchema | null {
@@ -138,4 +166,45 @@ export function getDbSchemaSync(): DbSchema | null {
 function quoteIdent(name: string): string {
   // simple identifier quoting — prevents SQL injection in column names
   return `"${name.replace(/"/g, '""')}"`
+}
+
+// ── Reverse index helpers ────────────────────────────────────
+
+/** Lowercase, trim, collapse whitespace. Index keys and lookup keys go through here. */
+function normalizeIndexKey(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ")
+}
+
+function addIndexEntry(index: Record<string, string[]>, value: string, column: string): void {
+  const key = normalizeIndexKey(value)
+  if (!key || key.length < 2) return
+  // Skip pure numeric / single-char tokens — too noisy as NL routing keys.
+  if (/^-?\d+(?:\.\d+)?$/.test(key)) return
+  const cols = index[key]
+  if (!cols) {
+    index[key] = [column]
+  } else if (!cols.includes(column)) {
+    cols.push(column)
+  }
+}
+
+function buildValueIndex(args: {
+  sampleValues: Record<string, string[]>
+  brands: string[]
+  countries: string[]
+  workpieces: { tag_name: string; normalized_work_piece_name: string }[]
+}): Record<string, string[]> {
+  const index: Record<string, string[]> = {}
+  for (const [col, values] of Object.entries(args.sampleValues)) {
+    for (const v of values) addIndexEntry(index, v, col)
+  }
+  for (const b of args.brands) addIndexEntry(index, b, "edp_brand_name")
+  for (const c of args.countries) addIndexEntry(index, c, "country_codes")
+  // Workpieces map to the canonical workPieceName slot — stored under a
+  // synthetic column that DB_COL_TO_FILTER_FIELD will resolve to workPieceName.
+  for (const wp of args.workpieces) {
+    addIndexEntry(index, wp.tag_name, "_workPieceName")
+    addIndexEntry(index, wp.normalized_work_piece_name, "_workPieceName")
+  }
+  return index
 }

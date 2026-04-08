@@ -12,6 +12,10 @@
  * Output shape: single-call-router.ts 의 SingleCallAction 과 동일.
  */
 
+import { findColumnsForToken } from "./sql-agent-schema-cache"
+import { DB_COL_TO_FILTER_FIELD } from "./sql-agent"
+import { stripKoreanParticles } from "@/lib/recommendation/shared/patterns"
+
 export interface DeterministicAction {
   type: "apply_filter"
   field: string
@@ -682,6 +686,95 @@ export function extractChipEvacuation(text: string): DeterministicAction | null 
   return null
 }
 
+// ── MV reverse-index extractor (data-driven, no hardcoded value lists) ──
+//
+// 사용자가 필드명을 같이 말하지 않은 단일 토큰("티타늄으로 바꿔줘")이라도
+// MV 컬럼 값 역인덱스로 어느 슬롯인지 자동 결정.
+//
+// 동작:
+//  1) 텍스트를 토큰/2-3그램으로 쪼갠다 (한국어 조사 제거, lowercase)
+//  2) 각 토큰을 schema-cache.findColumnsForToken 으로 조회
+//  3) 매치된 컬럼들을 DB_COL_TO_FILTER_FIELD 로 registry field에 매핑
+//  4) 한 토큰이 단일 field에만 매핑되면 → action emit (모호하면 skip,
+//     LLM/clarification 단계가 처리)
+//  5) 이미 seen된 field는 건드리지 않음 (정형 추출기 우선)
+//
+// schema cache 콜드 상태(getDbSchemaSync null)면 silently no-op.
+
+const MV_INDEX_SKIP_TOKENS = new Set([
+  "the", "and", "or", "for", "with", "from", "to", "of", "in", "on", "at",
+  "이거", "저거", "그거", "이것", "저것", "그것", "바꿔", "바꿔줘", "변경",
+  "추천", "해줘", "주세요", "쓸", "쓰는", "사용", "필요", "있어", "없어",
+  "이거로", "저거로", "그거로",
+])
+
+function tokenizeForMvIndex(text: string): string[] {
+  // 1) split on whitespace + common punctuation
+  const raw = text.split(/[\s,./;:!?()"'`~+\-=*&^%$#@[\]{}<>|\\]+/u).filter(Boolean)
+  const out = new Set<string>()
+  // unigrams
+  for (const w of raw) {
+    const stripped = stripKoreanParticles(w).toLowerCase().trim()
+    if (!stripped || stripped.length < 2) continue
+    if (MV_INDEX_SKIP_TOKENS.has(stripped)) continue
+    if (/^-?\d+(?:\.\d+)?$/.test(stripped)) continue
+    out.add(stripped)
+  }
+  // bigrams + trigrams (DB values like "RH Thread" / "Carbon Steels")
+  for (let i = 0; i < raw.length - 1; i++) {
+    const a = stripKoreanParticles(raw[i]).toLowerCase().trim()
+    const b = stripKoreanParticles(raw[i + 1]).toLowerCase().trim()
+    if (a && b) out.add(`${a} ${b}`)
+    if (i < raw.length - 2) {
+      const c = stripKoreanParticles(raw[i + 2]).toLowerCase().trim()
+      if (a && b && c) out.add(`${a} ${b} ${c}`)
+    }
+  }
+  return Array.from(out)
+}
+
+export function extractFromMvIndex(text: string, alreadySeen: Set<string>): DeterministicAction[] {
+  const tokens = tokenizeForMvIndex(text)
+  if (tokens.length === 0) return []
+
+  const actions: DeterministicAction[] = []
+  const localSeen = new Set<string>()
+
+  for (const token of tokens) {
+    const cols = findColumnsForToken(token)
+    if (cols.length === 0) continue
+
+    // Map columns → registry fields, dedup
+    const fields = new Set<string>()
+    for (const col of cols) {
+      const field = DB_COL_TO_FILTER_FIELD[col]
+      if (field) fields.add(field)
+    }
+    if (fields.size !== 1) continue // ambiguous (multi-slot) or unmapped — skip
+
+    const field = fields.values().next().value as string
+    if (alreadySeen.has(field) || localSeen.has(field)) continue
+
+    // Find token position to detect negation context
+    const idx = text.toLowerCase().indexOf(token)
+    const op: "eq" | "neq" =
+      idx >= 0 && negNear(text, idx, token.length) ? "neq" : "eq"
+
+    actions.push({
+      type: "apply_filter",
+      field,
+      // Pass the matched token as the raw value — registry canonicalizers
+      // (e.g. country, coating) will normalize to the canonical DB form.
+      value: token,
+      op,
+      source: "deterministic",
+    })
+    localSeen.add(field)
+  }
+
+  return actions
+}
+
 // ── Main parser ──────────────────────────────────────────────
 export function parseDeterministic(message: string): DeterministicAction[] {
   if (!message || message.trim().length === 0) return []
@@ -892,6 +985,16 @@ export function parseDeterministic(message: string): DeterministicAction[] {
   if (!seen.has("coolantPressure")) {
     const a = extractChipEvacuation(text)
     if (a) { actions.push(a); seen.add("coolantPressure") }
+  }
+
+  // ── MV reverse-index fallback ────────────────────────────────
+  // 위 정형 추출기로 잡히지 않은 토큰을 MV 컬럼 값 역인덱스로 자동 라우팅.
+  // 사용자가 필드명 안 말해도 단일 슬롯에만 매치되면 해당 필드로 emit.
+  // schema cache 콜드면 no-op.
+  for (const a of extractFromMvIndex(text, seen)) {
+    if (seen.has(a.field)) continue
+    actions.push(a)
+    seen.add(a.field)
   }
 
   return actions

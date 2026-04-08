@@ -27,7 +27,7 @@ export interface SqlAgentResult {
 
 // ── Column → filter-field-registry field mapping ─────────────
 
-const DB_COL_TO_FILTER_FIELD: Record<string, string> = {
+export const DB_COL_TO_FILTER_FIELD: Record<string, string> = {
   search_subtype: "toolSubtype",
   search_coating: "coating",
   search_diameter_mm: "diameterMm",
@@ -85,6 +85,8 @@ const DB_COL_TO_FILTER_FIELD: Record<string, string> = {
   threading_tpi: "threadPitchMm",
   // workpiece is handled specially via _workPieceName
   _workPieceName: "workPieceName",
+  // Country codes are stored as text[] (unnested by schema cache for indexing).
+  country_codes: "country",
 }
 
 // Navigation pseudo-fields
