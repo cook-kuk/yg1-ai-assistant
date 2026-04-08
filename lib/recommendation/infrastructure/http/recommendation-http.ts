@@ -148,9 +148,21 @@ export function jsonRecommendationResponse(
   }, init)
 }
 
-function createServeRuntimeDependencies(): ServeEngineRuntimeDependencies {
+export interface ServeRuntimeDependenciesOptions {
+  /**
+   * Progressive streaming hook (TODO-B). When present, the callback fires
+   * once during buildRecommendationResponse, right before the LLM summary
+   * call. Used by the /api/recommend/stream SSE endpoint to flush product
+   * cards before the narrative text is generated.
+   */
+  onEarlyFlush?: (payload: import("@/lib/recommendation/infrastructure/engines/serve-engine-response").EarlyRecommendationFlush) => void
+}
+
+export function createServeRuntimeDependencies(
+  options: ServeRuntimeDependenciesOptions = {}
+): ServeEngineRuntimeDependencies {
   // 런타임이 직접 import하지 않도록, 응답/보조 기능들을 의존성으로 묶어 주입한다.
-  const responseDeps = { jsonRecommendationResponse }
+  const responseDeps = { jsonRecommendationResponse, onEarlyFlush: options.onEarlyFlush }
 
   return {
     mapIntakeToInput,

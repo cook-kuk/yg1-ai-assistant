@@ -70,8 +70,33 @@ type JsonRecommendationResponse = (
   init?: ResponseInit
 ) => Response
 
+/**
+ * Minimal payload flushed to a streaming client right before the final LLM
+ * summary call. Contains everything needed to render product cards, but no
+ * answer text yet. Used by /api/recommend/stream (TODO-B progressive cards).
+ */
+export interface EarlyRecommendationFlush {
+  status: string
+  primaryProduct: unknown
+  alternatives: unknown[]
+  warnings: string[]
+  rationale: string[]
+  totalCandidatesConsidered: number
+  evidenceSummaries: EvidenceSummary[] | null
+}
+
 export interface ServeResponseBuilderDependencies {
   jsonRecommendationResponse: JsonRecommendationResponse
+  /**
+   * Optional — when present, buildRecommendationResponse calls this exactly
+   * once, right before the (slow) LLM summary call, with the fully-resolved
+   * primary/alternatives. The stream endpoint writes this as an SSE frame so
+   * product cards appear before the narrative text is generated.
+   *
+   * Must be synchronous and non-throwing — errors are swallowed to protect
+   * the main recommendation flow. See TODO-B in project_streaming_todo.md.
+   */
+  onEarlyFlush?: (payload: EarlyRecommendationFlush) => void
 }
 
 export function buildPaginationDto(page: number, pageSize: number, totalItems: number): RecommendationPaginationDto {
@@ -936,6 +961,25 @@ export async function buildRecommendationResponse(
     deterministicSummary,
     llmSummary: null,
     totalCandidatesConsidered: totalCandidateCount,
+  }
+
+  // Progressive streaming hook (TODO-B): flush cards now, before the LLM
+  // summary call — the client renders product cards while waiting for text.
+  // Errors here must never break the main flow.
+  if (deps.onEarlyFlush) {
+    try {
+      deps.onEarlyFlush({
+        status,
+        primaryProduct: primary,
+        alternatives,
+        warnings,
+        rationale,
+        totalCandidatesConsidered: totalCandidateCount,
+        evidenceSummaries: evidenceSummaries.length > 0 ? evidenceSummaries : null,
+      })
+    } catch (err) {
+      console.warn("[recommend] onEarlyFlush failed (ignored):", err)
+    }
   }
 
   if (provider.available() && primary && primaryFactChecked && primaryExplanation) {
