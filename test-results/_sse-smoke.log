@@ -1,0 +1,11 @@
+status 200 + 66 ms
+[+67ms] started dataLen= 11
+[+6994ms] cards dataLen= 881
+   purpose= recommendation textLen= 0 primary= null alts= 0
+[+6995ms] final dataLen= 12510
+   purpose= recommendation textLen= 40 primary= null alts= 0
+
+=== summary ===
+cards: +6994ms
+final: +6995ms
+perceived speedup: 1 ms (cards arrived this much earlier than final)

@@ -1,0 +1,13 @@
+fix(scr): 재고 N개 이상 — extract numeric stock threshold
+
+Deterministic SCR was always pushing stockStatus="instock" regardless of
+whether the user said "재고 있어" or "재고 30개 이상만". The SQL filter
+builder in filter-field-registry already supports a numeric threshold
+when rawValue starts with digits (translates to total_stock >= N), but
+SCR never produced that shape.
+
+Now matches "재고 30개 이상" / "재고 50 이상" / "stock >= 100" first and
+emits {field: stockStatus, value: "30", op: gte}; falls back to the
+plain in-stock filter only when no number is present.
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>

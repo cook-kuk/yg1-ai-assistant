@@ -1,0 +1,17 @@
+From github.com:csp-digital/yg1-ai-catalog
+   c0fe39b..f087279  main       -> origin/main
+Updating c0fe39b..f087279
+Fast-forward
+ lib/recommendation/shared/filter-field-registry.ts | 26 +++++++++++++++---
+ test-results/create-inventory-mv.js                | 31 ++++++++++++++++++++++
+ 2 files changed, 54 insertions(+), 3 deletions(-)
+ create mode 100644 test-results/create-inventory-mv.js
+
+#20 resolving provenance for metadata file
+#20 DONE 0.0s
+ Image yg1-ai-catalog-dev-app Built 
+ Container yg1-ai-catalog-app-dev Recreate 
+ Container yg1-ai-catalog-app-dev Recreated 
+ Container yg1-ai-catalog-app-dev Starting 
+ Container yg1-ai-catalog-app-dev Started 
+

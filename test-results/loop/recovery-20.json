@@ -1,0 +1,213 @@
+{
+  "label": "recovery-20",
+  "endpoint": "http://20.119.98.136:3000",
+  "runAt": "2026-04-07T18:45:20.193Z",
+  "tally": {
+    "PASS": 0,
+    "FAIL": 0,
+    "ERROR": 20
+  },
+  "passPct": "0.0",
+  "results": [
+    {
+      "id": "fb-fb-1775518137030-4db18406",
+      "name": "SUPER ALLOY 시리즈에 대한 정보가 거의 안 들어가 있는 것 같습",
+      "source": "chat",
+      "verdict": "ERROR",
+      "reason": "API 500 ",
+      "txt": "",
+      "products": 0,
+      "ms": 586
+    },
+    {
+      "id": "fb-fb-1774827247930-4e35e357",
+      "name": "고경도강 가공 제품 추천에 전용 Brand인 X1-EH나 X5070을 추",
+      "source": "chat",
+      "verdict": "ERROR",
+      "reason": "API 500 ",
+      "txt": "",
+      "products": 0,
+      "ms": 565
+    },
+    {
+      "id": "fb-fb-1774925613458-64d09e09",
+      "name": "251개 추천이라고 했다가 253개로 변경이 됨.\n그리고 추가 확인 사항",
+      "source": "chat",
+      "verdict": "ERROR",
+      "reason": "API 500 ",
+      "txt": "",
+      "products": 0,
+      "ms": 488
+    },
+    {
+      "id": "fb-fb-1774836324688-41df5ab0",
+      "name": "알루미늄 추천 절삭조건이 비현실적인 값이 추천되고 있습니다.\n혹시 추천 ",
+      "source": "chat",
+      "verdict": "ERROR",
+      "reason": "API 500 ",
+      "txt": "",
+      "products": 0,
+      "ms": 490
+    },
+    {
+      "id": "fb-fb-1774845877377-2e02f994",
+      "name": "가공할 포켓의 코너가 R1이라면, 단순히 직경 2파이 이하의 스퀘어 엔드",
+      "source": "chat",
+      "verdict": "ERROR",
+      "reason": "API 500 ",
+      "txt": "",
+      "products": 0,
+      "ms": 540
+    },
+    {
+      "id": "fb-fb-1774920390895-48d4dfec",
+      "name": "개선사항\n1. 가공소재 선택 시, 피삭재 경도까지 세분화할 필요가 있어보",
+      "source": "chat",
+      "verdict": "ERROR",
+      "reason": "API 500 ",
+      "txt": "",
+      "products": 0,
+      "ms": 277
+    },
+    {
+      "id": "fb-fb-1774918567413-a27192d1",
+      "name": "채팅으로 요청 사항을 전달했을 때, 해당 내용에 대한 처리가 매우 미흡하",
+      "source": "chat",
+      "verdict": "ERROR",
+      "reason": "API 500 ",
+      "txt": "",
+      "products": 0,
+      "ms": 436
+    },
+    {
+      "id": "fb-fb-1774835754980-00f3994d",
+      "name": "<br/> 같은 태그가 적용되지 않고 텍스트로 보임 ",
+      "source": "chat",
+      "verdict": "ERROR",
+      "reason": "API 500 ",
+      "txt": "",
+      "products": 0,
+      "ms": 395
+    },
+    {
+      "id": "fb-fb-1774920347147-8ea1f32b",
+      "name": "제품을 추천하지 못하는데 DB에서 선택하는 로직이 이상한 것인지 형상 선",
+      "source": "chat",
+      "verdict": "ERROR",
+      "reason": "API 500 ",
+      "txt": "",
+      "products": 0,
+      "ms": 307
+    },
+    {
+      "id": "fb-fb-1774827944133-bd6dd71f",
+      "name": "3S MILL의 Coating을 T-Coating이라고 설명하고 있습니다",
+      "source": "chat",
+      "verdict": "ERROR",
+      "reason": "API 500 ",
+      "txt": "",
+      "products": 0,
+      "ms": 241
+    },
+    {
+      "id": "fb-fb-1774850124337-4a3331c1",
+      "name": "열처리된 SKD11 소재를 지정하여 해당 피삭재에 적합한 제품을 추천해달",
+      "source": "chat",
+      "verdict": "ERROR",
+      "reason": "API 500 ",
+      "txt": "",
+      "products": 0,
+      "ms": 333
+    },
+    {
+      "id": "fb-fb-1774311073396-aa60d6e1",
+      "name": "Inch Size 제품들의 정보 가 Metric 단위로 환산 되어 표현하",
+      "source": "chat",
+      "verdict": "ERROR",
+      "reason": "API 500 ",
+      "txt": "",
+      "products": 0,
+      "ms": 288
+    },
+    {
+      "id": "fb-fb-1774920300689-e81a90a0",
+      "name": "초내열합금 선택하면 수백개의 추천제품이 나오는데, 그중 Titanium ",
+      "source": "chat",
+      "verdict": "ERROR",
+      "reason": "API 500 ",
+      "txt": "",
+      "products": 0,
+      "ms": 273
+    },
+    {
+      "id": "fb-fb-1774835610721-8a9eab48",
+      "name": "적합도 만점이 125점인데 의도한 부분인지 수정해야될 부분인지 궁금합니다",
+      "source": "chat",
+      "verdict": "ERROR",
+      "reason": "API 500 ",
+      "txt": "",
+      "products": 0,
+      "ms": 247
+    },
+    {
+      "id": "fb-fb-1774855742501-0b87df72",
+      "name": "알루미늄 가공에 항공용 Aluminum 고속 가공에 대해\n추천하지 못함",
+      "source": "chat",
+      "verdict": "ERROR",
+      "reason": "API 500 ",
+      "txt": "",
+      "products": 0,
+      "ms": 292
+    },
+    {
+      "id": "fb-fb-1774922407028-bc407400",
+      "name": "제품 추천 로직이 이전 단계의 값으로 검색이 진행되는 것으로 보입니다.\n",
+      "source": "chat",
+      "verdict": "ERROR",
+      "reason": "API 500 ",
+      "txt": "",
+      "products": 0,
+      "ms": 337
+    },
+    {
+      "id": "fb-fb-1774857296356-b4527a88",
+      "name": "Radius 제품의 경우 반드시 Radius값이 제품 비교시 보여 주어야",
+      "source": "chat",
+      "verdict": "ERROR",
+      "reason": "API 500 ",
+      "txt": "",
+      "products": 0,
+      "ms": 411
+    },
+    {
+      "id": "fb-fb-1774852887491-4572e4f5",
+      "name": "대응할 수 있는 적절한 제품을 찾지 못하는 것 같음. 일반적으로 사용하는",
+      "source": "chat",
+      "verdict": "ERROR",
+      "reason": "API 500 ",
+      "txt": "",
+      "products": 0,
+      "ms": 332
+    },
+    {
+      "id": "fb-fb-1775176423494-0ae4fc88",
+      "name": "Inch Size에 대한 필터링 문제인지, 피삭재에 대한 필터링 문제인지",
+      "source": "chat",
+      "verdict": "ERROR",
+      "reason": "API 500 ",
+      "txt": "",
+      "products": 0,
+      "ms": 274
+    },
+    {
+      "id": "fb-fb-1774920700508-b708ca29",
+      "name": "sus304 가공용 드릴 추천받는 상황에서 \n어떤가공방식을 택할지에 대한",
+      "source": "chat",
+      "verdict": "ERROR",
+      "reason": "API 500 ",
+      "txt": "",
+      "products": 0,
+      "ms": 526
+    }
+  ]
+}

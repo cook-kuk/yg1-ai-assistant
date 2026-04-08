@@ -1,0 +1,673 @@
+[
+  {
+    "fixture": "brand_exclusion_after_recommendation",
+    "severity": "critical",
+    "pass": false,
+    "turns": [
+      {
+        "turn": 1,
+        "input": "알루미늄 Square 2날 직경 10 추천해줘",
+        "pass": true,
+        "reasons": [],
+        "elapsedMs": 15906,
+        "beforeFilters": [],
+        "afterFilters": [
+          {
+            "field": "toolSubtype",
+            "op": "includes",
+            "value": "Square"
+          },
+          {
+            "field": "workPieceName",
+            "op": "includes",
+            "value": "알루미늄"
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": 10
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": 2
+          }
+        ],
+        "candidateCount": 50,
+        "topCard": {
+          "brand": "ALU-CUT for Korean Market",
+          "series": "E5D71",
+          "edp": "E5D7110035"
+        }
+      },
+      {
+        "turn": 2,
+        "input": "CRX S 가 아닌걸로",
+        "pass": false,
+        "reasons": [
+          "top card missing"
+        ],
+        "elapsedMs": 5849,
+        "beforeFilters": [
+          {
+            "field": "toolSubtype",
+            "op": "includes",
+            "value": "Square"
+          },
+          {
+            "field": "workPieceName",
+            "op": "includes",
+            "value": "알루미늄"
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": 10
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": 2
+          }
+        ],
+        "afterFilters": [
+          {
+            "field": "toolSubtype",
+            "op": "includes",
+            "value": "Square"
+          },
+          {
+            "field": "workPieceName",
+            "op": "includes",
+            "value": "알루미늄"
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": 10
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": 2
+          },
+          {
+            "field": "brand",
+            "op": "neq",
+            "value": "CRX S"
+          }
+        ],
+        "candidateCount": 0,
+        "topCard": null
+      }
+    ]
+  },
+  {
+    "fixture": "brand_exclusion_variant",
+    "severity": "critical",
+    "pass": false,
+    "turns": [
+      {
+        "turn": 1,
+        "input": "주철 Square 4날 직경 6 추천해줘",
+        "pass": true,
+        "reasons": [],
+        "elapsedMs": 14585,
+        "beforeFilters": [],
+        "afterFilters": [
+          {
+            "field": "toolSubtype",
+            "op": "includes",
+            "value": "Square"
+          },
+          {
+            "field": "workPieceName",
+            "op": "includes",
+            "value": "Cast Iron"
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": 6
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": 4
+          }
+        ],
+        "candidateCount": 50,
+        "topCard": {
+          "brand": "ONLY ONE",
+          "series": "GYG02",
+          "edp": "GYG02060"
+        }
+      },
+      {
+        "turn": 2,
+        "input": "CRX S 말고 다른 브랜드",
+        "pass": false,
+        "reasons": [
+          "top card missing"
+        ],
+        "elapsedMs": 4497,
+        "beforeFilters": [
+          {
+            "field": "toolSubtype",
+            "op": "includes",
+            "value": "Square"
+          },
+          {
+            "field": "workPieceName",
+            "op": "includes",
+            "value": "Cast Iron"
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": 6
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": 4
+          }
+        ],
+        "afterFilters": [
+          {
+            "field": "toolSubtype",
+            "op": "includes",
+            "value": "Square"
+          },
+          {
+            "field": "workPieceName",
+            "op": "includes",
+            "value": "Cast Iron"
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": 6
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": 4
+          },
+          {
+            "field": "brand",
+            "op": "neq",
+            "value": "CRX S"
+          }
+        ],
+        "candidateCount": 0,
+        "topCard": null
+      }
+    ]
+  },
+  {
+    "fixture": "clear_brand_after_recommendation",
+    "severity": "normal",
+    "pass": true,
+    "turns": [
+      {
+        "turn": 1,
+        "input": "알루미늄 Square 2날 직경 10 CRX S로 추천해줘",
+        "pass": true,
+        "reasons": [],
+        "elapsedMs": 2991,
+        "beforeFilters": [],
+        "afterFilters": [
+          {
+            "field": "toolSubtype",
+            "op": "includes",
+            "value": "Square"
+          },
+          {
+            "field": "workPieceName",
+            "op": "includes",
+            "value": "알루미늄"
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": 10
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": 2
+          },
+          {
+            "field": "brand",
+            "op": "includes",
+            "value": "CRX S"
+          }
+        ],
+        "candidateCount": 2,
+        "topCard": {
+          "brand": "CRX S",
+          "series": "SGED31",
+          "edp": "SGED31100"
+        }
+      },
+      {
+        "turn": 2,
+        "input": "브랜드는 상관없음",
+        "pass": true,
+        "reasons": [],
+        "elapsedMs": 2871,
+        "beforeFilters": [
+          {
+            "field": "toolSubtype",
+            "op": "includes",
+            "value": "Square"
+          },
+          {
+            "field": "workPieceName",
+            "op": "includes",
+            "value": "알루미늄"
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": 10
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": 2
+          },
+          {
+            "field": "brand",
+            "op": "includes",
+            "value": "CRX S"
+          }
+        ],
+        "afterFilters": [
+          {
+            "field": "toolSubtype",
+            "op": "includes",
+            "value": "Square"
+          },
+          {
+            "field": "workPieceName",
+            "op": "includes",
+            "value": "알루미늄"
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": 10
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": 2
+          }
+        ],
+        "candidateCount": 0,
+        "topCard": null
+      }
+    ]
+  },
+  {
+    "fixture": "country_filter_after_recommendation",
+    "severity": "critical",
+    "pass": true,
+    "turns": [
+      {
+        "turn": 1,
+        "input": "초내열합금 Helical 직경 10 추천해줘",
+        "pass": true,
+        "reasons": [],
+        "elapsedMs": 20434,
+        "beforeFilters": [],
+        "afterFilters": [
+          {
+            "field": "workPieceName",
+            "op": "includes",
+            "value": "Titanium"
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": 10
+          }
+        ],
+        "candidateCount": 50,
+        "topCard": {
+          "brand": "SUS-CUT for Korean Market",
+          "series": "EHD87",
+          "edp": "EHD87100"
+        }
+      },
+      {
+        "turn": 2,
+        "input": "국내제품으로만 추천해줘",
+        "pass": true,
+        "reasons": [],
+        "elapsedMs": 3569,
+        "beforeFilters": [
+          {
+            "field": "workPieceName",
+            "op": "includes",
+            "value": "Titanium"
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": 10
+          }
+        ],
+        "afterFilters": [
+          {
+            "field": "workPieceName",
+            "op": "includes",
+            "value": "Titanium"
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": 10
+          },
+          {
+            "field": "country",
+            "op": "includes",
+            "value": "KOR"
+          }
+        ],
+        "candidateCount": 0,
+        "topCard": null
+      }
+    ]
+  },
+  {
+    "fixture": "flute_replace_after_recommendation",
+    "severity": "critical",
+    "pass": true,
+    "turns": [
+      {
+        "turn": 1,
+        "input": "알루미늄 Square 2날 직경 10 추천해줘",
+        "pass": true,
+        "reasons": [],
+        "elapsedMs": 16438,
+        "beforeFilters": [],
+        "afterFilters": [
+          {
+            "field": "toolSubtype",
+            "op": "includes",
+            "value": "Square"
+          },
+          {
+            "field": "workPieceName",
+            "op": "includes",
+            "value": "알루미늄"
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": 10
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": 2
+          }
+        ],
+        "candidateCount": 50,
+        "topCard": {
+          "brand": "ALU-CUT for Korean Market",
+          "series": "E5D71",
+          "edp": "E5D7110035"
+        }
+      },
+      {
+        "turn": 2,
+        "input": "2날 말고 4날로",
+        "pass": true,
+        "reasons": [],
+        "elapsedMs": 2724,
+        "beforeFilters": [
+          {
+            "field": "toolSubtype",
+            "op": "includes",
+            "value": "Square"
+          },
+          {
+            "field": "workPieceName",
+            "op": "includes",
+            "value": "알루미늄"
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": 10
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": 2
+          }
+        ],
+        "afterFilters": [
+          {
+            "field": "toolSubtype",
+            "op": "includes",
+            "value": "Square"
+          },
+          {
+            "field": "workPieceName",
+            "op": "includes",
+            "value": "알루미늄"
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": 10
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": 4
+          }
+        ],
+        "candidateCount": 0,
+        "topCard": null
+      }
+    ]
+  },
+  {
+    "fixture": "go_back_then_exclude_brand",
+    "severity": "normal",
+    "pass": true,
+    "turns": [
+      {
+        "turn": 1,
+        "input": "주철 Square 4날 직경 6 추천해줘",
+        "pass": true,
+        "reasons": [],
+        "elapsedMs": 12582,
+        "beforeFilters": [],
+        "afterFilters": [
+          {
+            "field": "toolSubtype",
+            "op": "includes",
+            "value": "Square"
+          },
+          {
+            "field": "workPieceName",
+            "op": "includes",
+            "value": "Cast Iron"
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": 6
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": 4
+          }
+        ],
+        "candidateCount": 50,
+        "topCard": {
+          "brand": "ONLY ONE",
+          "series": "GYG02",
+          "edp": "GYG02060"
+        }
+      },
+      {
+        "turn": 2,
+        "input": "이전으로 돌아가서 CRX S 제외",
+        "pass": true,
+        "reasons": [],
+        "elapsedMs": 2750,
+        "beforeFilters": [
+          {
+            "field": "toolSubtype",
+            "op": "includes",
+            "value": "Square"
+          },
+          {
+            "field": "workPieceName",
+            "op": "includes",
+            "value": "Cast Iron"
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": 6
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": 4
+          }
+        ],
+        "afterFilters": [
+          {
+            "field": "toolSubtype",
+            "op": "includes",
+            "value": "Square"
+          },
+          {
+            "field": "workPieceName",
+            "op": "includes",
+            "value": "Cast Iron"
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": 6
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": 4
+          }
+        ],
+        "candidateCount": 0,
+        "topCard": null
+      }
+    ]
+  },
+  {
+    "fixture": "range_request",
+    "severity": "normal",
+    "pass": true,
+    "turns": [
+      {
+        "turn": 1,
+        "input": "알루미늄 Square 2날 직경 10 추천해줘",
+        "pass": true,
+        "reasons": [],
+        "elapsedMs": 18718,
+        "beforeFilters": [],
+        "afterFilters": [
+          {
+            "field": "toolSubtype",
+            "op": "includes",
+            "value": "Square"
+          },
+          {
+            "field": "workPieceName",
+            "op": "includes",
+            "value": "알루미늄"
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": 10
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": 2
+          }
+        ],
+        "candidateCount": 50,
+        "topCard": {
+          "brand": "ALU-CUT for Korean Market",
+          "series": "E5D71",
+          "edp": "E5D7110035"
+        }
+      },
+      {
+        "turn": 2,
+        "input": "직경 10 이상",
+        "pass": true,
+        "reasons": [],
+        "elapsedMs": 3724,
+        "beforeFilters": [
+          {
+            "field": "toolSubtype",
+            "op": "includes",
+            "value": "Square"
+          },
+          {
+            "field": "workPieceName",
+            "op": "includes",
+            "value": "알루미늄"
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": 10
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": 2
+          }
+        ],
+        "afterFilters": [
+          {
+            "field": "toolSubtype",
+            "op": "includes",
+            "value": "Square"
+          },
+          {
+            "field": "workPieceName",
+            "op": "includes",
+            "value": "알루미늄"
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": 2
+          },
+          {
+            "field": "diameterMm",
+            "op": "gte",
+            "value": 10
+          }
+        ],
+        "candidateCount": 0,
+        "topCard": null
+      }
+    ]
+  }
+]

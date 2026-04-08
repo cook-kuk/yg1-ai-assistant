@@ -1,0 +1,15 @@
+From github.com:csp-digital/yg1-ai-catalog
+   1a0c102..06b7c53  main       -> origin/main
+Updating 1a0c102..06b7c53
+Fast-forward
+ lib/frontend/recommendation/exploration-flow.tsx   | 12 +++---
+ .../recommendation-card-highlights.ts              | 47 ++++++++++++++++++++++
+ .../recommendation/recommendation-display.tsx      | 17 ++++++++
+ lib/recommendation/domain/hybrid-retrieval.ts      |  7 ++++
+ 4 files changed, 78 insertions(+), 5 deletions(-)
+#20 DONE 0.0s
+ Image yg1-ai-catalog-dev-app Built 
+ Container yg1-ai-catalog-app-dev Recreate 
+ Container yg1-ai-catalog-app-dev Error response from daemon: Conflict. The container name "/35933f73518f_yg1-ai-catalog-app-dev" is already in use by container "a40a77044453ce381d72375fcc8d01dc52c9a5aa99d4f924ddcf6826fb12ca11". You have to remove (or rename) that container to be able to reuse that name. 
+Error response from daemon: Conflict. The container name "/35933f73518f_yg1-ai-catalog-app-dev" is already in use by container "a40a77044453ce381d72375fcc8d01dc52c9a5aa99d4f924ddcf6826fb12ca11". You have to remove (or rename) that container to be able to reuse that name.
+

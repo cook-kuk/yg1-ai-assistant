@@ -1,0 +1,169 @@
+{
+  "label": "patch4-fixed",
+  "endpoint": "http://20.119.98.136:3000",
+  "runAt": "2026-04-07T16:55:58.389Z",
+  "n": 13,
+  "passed": 1,
+  "failed": 2,
+  "warn": 10,
+  "ms": 145665,
+  "results": [
+    {
+      "id": 1,
+      "name": "P 슬로팅 10mm 베이스",
+      "nl": "어떤 게 좋아?",
+      "db": 290,
+      "ep": 1037,
+      "filters": [],
+      "ms": 48140,
+      "verdict": "⚠️과다"
+    },
+    {
+      "id": 3,
+      "name": "직경 8~12mm",
+      "nl": "8~12mm 사이",
+      "db": 1037,
+      "ep": 279,
+      "filters": [
+        "diameterMm:between:8"
+      ],
+      "ms": 33088,
+      "verdict": "⚠️과소"
+    },
+    {
+      "id": 4,
+      "name": "OAL ≥100",
+      "nl": "전체 길이 100mm 이상",
+      "db": 113,
+      "ep": 30,
+      "filters": [
+        "overallLengthMm:gte:100"
+      ],
+      "ms": 15040,
+      "verdict": "⚠️과소"
+    },
+    {
+      "id": 5,
+      "name": "OAL ≤80",
+      "nl": "전장 80 미만",
+      "db": 131,
+      "ep": 30,
+      "filters": [
+        "overallLengthMm:lte:80"
+      ],
+      "ms": 17944,
+      "verdict": "⚠️과소"
+    },
+    {
+      "id": 6,
+      "name": "4F 고정",
+      "nl": "4 flute 정확히",
+      "db": 162,
+      "ep": 546,
+      "filters": [
+        "fluteCount:eq:4"
+      ],
+      "ms": 26334,
+      "verdict": "⚠️과다"
+    },
+    {
+      "id": 7,
+      "name": "5F 이상 S 12mm",
+      "nl": "5 flute 넘게",
+      "db": 32,
+      "ep": 30,
+      "filters": [
+        "fluteCount:gte:5"
+      ],
+      "ms": 12792,
+      "verdict": "✅"
+    },
+    {
+      "id": 9,
+      "name": "uncoated N 6mm",
+      "nl": "코팅 안 된 거",
+      "db": 95,
+      "ep": 30,
+      "filters": [
+        "coating:eq:"
+      ],
+      "ms": 18928,
+      "verdict": "⚠️과소"
+    },
+    {
+      "id": 14,
+      "name": "4중 φ10 OAL≥100 4F TiAlN",
+      "nl": "10mm 4날 전장 100+ TiAlN",
+      "db": 1,
+      "ep": 30,
+      "filters": [
+        "diameterMm:eq:10",
+        "fluteCount:eq:4",
+        "overallLengthMm:gte:100",
+        "milling_coating:eq:TiAlN"
+      ],
+      "ms": 19004,
+      "verdict": "⚠️과다"
+    },
+    {
+      "id": 16,
+      "name": "헬릭스 ≥45°",
+      "nl": "헬릭스 45도 이상",
+      "db": 17,
+      "ep": 30,
+      "filters": [
+        "helixAngleDeg:gte:45"
+      ],
+      "ms": 16683,
+      "verdict": "⚠️과다"
+    },
+    {
+      "id": 17,
+      "name": "Shank 6~10",
+      "nl": "shank 6 이상 10 이하",
+      "db": 280,
+      "ep": 30,
+      "filters": [
+        "shankDiameterMm:between:6"
+      ],
+      "ms": 17435,
+      "verdict": "⚠️과소"
+    },
+    {
+      "id": 22,
+      "name": "999mm (음의 케이스)",
+      "nl": "999mm짜리",
+      "db": 0,
+      "ep": 30,
+      "filters": [
+        "diameterMm:eq:999"
+      ],
+      "ms": 13607,
+      "verdict": "❌오탐"
+    },
+    {
+      "id": 23,
+      "name": "모순 ≥20 ≤5",
+      "nl": "직경 20 이상이면서 5 이하",
+      "db": 0,
+      "ep": 1037,
+      "filters": [],
+      "ms": 30350,
+      "verdict": "❌오탐"
+    },
+    {
+      "id": 25,
+      "name": "KOREA 풀필터",
+      "nl": "KOREA 4F TiAlN OAL 100+",
+      "db": 1,
+      "ep": 30,
+      "filters": [
+        "fluteCount:eq:4",
+        "milling_coating:eq:TiAlN",
+        "overallLengthMm:gte:100"
+      ],
+      "ms": 16299,
+      "verdict": "⚠️과다"
+    }
+  ]
+}

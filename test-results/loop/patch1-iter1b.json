@@ -1,0 +1,161 @@
+{
+  "label": "patch1-iter1b",
+  "endpoint": "http://20.119.98.136:3000",
+  "runAt": "2026-04-07T16:08:26.928Z",
+  "n": 12,
+  "passed": 2,
+  "failed": 3,
+  "warn": 7,
+  "ms": 152785,
+  "results": [
+    {
+      "id": 11,
+      "name": "재고 M 8mm",
+      "nl": "stock 있는 거",
+      "db": 87,
+      "ep": 704,
+      "filters": [
+        "stock_status:neq:"
+      ],
+      "ms": 29013,
+      "verdict": "⚠️과다"
+    },
+    {
+      "id": 19,
+      "name": "Drill point 140°",
+      "nl": "point angle 140",
+      "db": 0,
+      "ep": 20,
+      "filters": [
+        "toolSubtype:includes:Point Angle 140"
+      ],
+      "ms": 26631,
+      "verdict": "❌오탐"
+    },
+    {
+      "id": 6,
+      "name": "4F 고정",
+      "nl": "4날만",
+      "db": 162,
+      "ep": 546,
+      "filters": [
+        "fluteCount:eq:4"
+      ],
+      "ms": 31092,
+      "verdict": "⚠️과다"
+    },
+    {
+      "id": 16,
+      "name": "헬릭스 ≥45°",
+      "nl": "45° 이상 헬릭스",
+      "db": 17,
+      "ep": 30,
+      "filters": [
+        "helixAngleDeg:gte:45"
+      ],
+      "ms": 16441,
+      "verdict": "⚠️과다"
+    },
+    {
+      "id": 24,
+      "name": "1/4인치 6.35mm",
+      "nl": "1/4인치 4날",
+      "db": 2,
+      "ep": 2,
+      "filters": [
+        "diameterMm:eq:6.35",
+        "fluteCount:eq:4"
+      ],
+      "ms": 17873,
+      "verdict": "✅"
+    },
+    {
+      "id": 9,
+      "name": "uncoated N 6mm",
+      "nl": "코팅 안 된 거",
+      "db": 95,
+      "ep": 30,
+      "filters": [
+        "coating:eq:"
+      ],
+      "ms": 20393,
+      "verdict": "⚠️과소"
+    },
+    {
+      "id": 25,
+      "name": "KOREA 풀필터",
+      "nl": "KOREA 4F TiAlN OAL 100+",
+      "db": 1,
+      "ep": 30,
+      "filters": [
+        "brand:includes:KOREA",
+        "fluteCount:eq:4",
+        "coating:includes:TiAlN",
+        "overallLengthMm:gte:100"
+      ],
+      "ms": 23471,
+      "verdict": "⚠️과다"
+    },
+    {
+      "id": 8,
+      "name": "T-Coating P 8mm",
+      "nl": "코팅 T-Coating",
+      "db": 62,
+      "ep": 77,
+      "filters": [
+        "coating:eq:X-Coating"
+      ],
+      "ms": 29894,
+      "verdict": "🟡차이"
+    },
+    {
+      "id": 23,
+      "name": "모순 ≥20 ≤5",
+      "nl": "직경 20 이상이면서 5 이하",
+      "db": 0,
+      "ep": 245,
+      "filters": [
+        "diameterMm:eq:20"
+      ],
+      "ms": 26551,
+      "verdict": "❌오탐"
+    },
+    {
+      "id": 22,
+      "name": "999mm (음의 케이스)",
+      "nl": "직경 999mm 추천",
+      "db": 0,
+      "ep": 30,
+      "filters": [
+        "diameterMm:eq:999"
+      ],
+      "ms": 13725,
+      "verdict": "❌오탐"
+    },
+    {
+      "id": 4,
+      "name": "OAL ≥100",
+      "nl": "전체 길이 100mm 이상",
+      "db": 113,
+      "ep": 30,
+      "filters": [
+        "diameterMm:gte:100",
+        "overallLengthMm:eq:100"
+      ],
+      "ms": 16097,
+      "verdict": "⚠️과소"
+    },
+    {
+      "id": 17,
+      "name": "Shank 6~10",
+      "nl": "shank 6 이상 10 이하",
+      "db": 280,
+      "ep": 274,
+      "filters": [
+        "shankDiameterMm:eq:6"
+      ],
+      "ms": 31007,
+      "verdict": "✅"
+    }
+  ]
+}

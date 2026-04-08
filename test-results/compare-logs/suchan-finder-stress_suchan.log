@@ -1,0 +1,36 @@
+
+[suchan-finder-stress] target=http://20.119.98.136:2999/api/recommend
+
+[01/25] 베이스: 탄소강 슬로팅 밀링 10mm ... 200 74785ms cand=50 purpose=question/null
+[02/25] 다중소재: P+M+K, 6mm, 4G MILLS ... 200 253543ms cand=50 purpose=question/null
+[03/25] 직경 범위: 8~12mm 슬로팅 ... 200 31820ms cand=50 purpose=question/null
+[04/25] OAL ≥100mm ... 200 14739ms cand=50 purpose=question/null
+[05/25] OAL ≤80mm ... 200 30724ms cand=50 purpose=question/null
+[06/25] 4날 고정 ... 500 77441ms cand=null purpose=null/null ERR=Unexpected end of JSON input
+[07/25] 날수 ≥5 ... 500 453ms cand=null purpose=null/null ERR=Unexpected end of JSON input
+[08/25] T-Coating 한정 ... 500 585ms cand=null purpose=null/null ERR=Unexpected end of JSON input
+[09/25] 코팅 없는 것 (bright finish) ... 500 250ms cand=null purpose=null/null ERR=Unexpected end of JSON input
+[10/25] 재고 있는 것만 ... 500 316ms cand=null purpose=null/null ERR=Unexpected end of JSON input
+[11/25] 재고 즉시 출하 ... 500 225ms cand=null purpose=null/null ERR=Unexpected end of JSON input
+[12/25] X5070 브랜드만 ... 500 212ms cand=null purpose=null/null ERR=Unexpected end of JSON input
+[13/25] ALU-POWER 제외 ... 500 247ms cand=null purpose=null/null ERR=Unexpected end of JSON input
+[14/25] 4중: φ10 OAL≥100 4F TiAlN ... 500 367ms cand=null purpose=null/null ERR=Unexpected end of JSON input
+[15/25] 5중+범위: φ8~12 OAL≥80 4F P/M N-coat 재고 ... 500 259ms cand=null purpose=null/null ERR=Unexpected end of JSON input
+[16/25] 헬릭스 ≥45° ... 500 226ms cand=null purpose=null/null ERR=Unexpected end of JSON input
+[17/25] Shank 6~10 ... 500 225ms cand=null purpose=null/null ERR=Unexpected end of JSON input
+[18/25] CL ≥20mm ... 500 517ms cand=null purpose=null/null ERR=Unexpected end of JSON input
+[19/25] Drill point angle 140° ... 500 261ms cand=null purpose=null/null ERR=Unexpected end of JSON input
+[20/25] Drill OAL≥100 + 쿨런트홀 ... 200 38279ms cand=null purpose=question/no_results
+[21/25] Tap M10 1.5pitch ... 200 77248ms cand=null purpose=question/no_results
+[22/25] 터무니없는 직경 999mm ... 500 12504ms cand=null purpose=null/null ERR=Unexpected end of JSON input
+[23/25] 모순: 직경 ≥20 ≤5 ... 0 3471ms cand=null purpose=null/null ERR=fetch failed
+[24/25] 1/4인치 (6.35mm) ... 0 191787ms cand=null purpose=null/null ERR=fetch failed
+[25/25] KOREA + φ10 4F P TiAlN OAL≥100 재고 ... 0 5ms cand=null purpose=null/null ERR=fetch failed
+
+--- 요약 ---
+HTTP 200: 7/25
+candidates>0: 5/25
+avg latency: 32420ms
+
+결과 → C:\Users\kuksh\Downloads\YG1_test\test-results\suchan-finder-stress-2026-04-07T09-56-24-166Z.json
+TSV   → C:\Users\kuksh\Downloads\YG1_test\test-results\suchan-finder-stress-2026-04-07T09-56-24-166Z.tsv

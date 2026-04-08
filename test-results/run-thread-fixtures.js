@@ -7,7 +7,8 @@ const https = require("https");
 const API_BASE = process.env.API_BASE || "http://20.119.98.136:3000";
 const API_PATH = "/api/recommend";
 const FIXTURE_DIR = path.join(__dirname, "thread-fixtures");
-const OUTPUT_PATH = path.join(__dirname, "thread-results.json");
+const OUT_SUFFIX = process.env.OUT_SUFFIX || "";
+const OUTPUT_PATH = path.join(__dirname, `thread-results${OUT_SUFFIX}.json`);
 
 function normalizeValue(v) {
   if (v == null) return "";

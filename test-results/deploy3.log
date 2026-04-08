@@ -1,0 +1,82 @@
+ Image yg1-ai-catalog-dev-app Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 518B done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile:
+#2 transferring dockerfile: 825B done
+#2 DONE 0.1s
+
+#3 resolve image config for docker-image://docker.io/docker/dockerfile:1.7
+#3 DONE 0.2s
+
+#4 docker-image://docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
+#4 resolve docker.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e 0.1s done
+#4 CACHED
+
+#5 [internal] load metadata for docker.io/library/node:22-alpine
+#5 DONE 0.1s
+
+#6 [internal] load .dockerignore
+#6 transferring context: 148B done
+#6 DONE 0.1s
+
+#7 [runner 1/6] FROM docker.io/library/node:22-alpine@sha256:4d64b49e6c891c8fc821007cb1cdc6c0db7773110ac2c34bf2e6960adef62ed3
+#7 resolve docker.io/library/node:22-alpine@sha256:4d64b49e6c891c8fc821007cb1cdc6c0db7773110ac2c34bf2e6960adef62ed3 0.1s done
+#7 DONE 0.1s
+
+#8 [internal] load build context
+#8 transferring context: 312.85kB 0.2s done
+#8 DONE 0.3s
+
+#9 [runner 3/6] COPY --from=builder /app/.next/standalone ./
+#9 CACHED
+
+#10 [runner 5/6] COPY --from=builder /app/public ./public
+#10 CACHED
+
+#11 [builder 4/5] COPY . .
+#11 CACHED
+
+#12 [builder 5/5] RUN --mount=type=cache,target=/app/.next/cache     npm run build
+#12 CACHED
+
+#13 [runner 4/6] COPY --from=builder /app/.next/static ./.next/static
+#13 CACHED
+
+#14 [builder 3/5] COPY --from=deps /app/node_modules ./node_modules
+#14 CACHED
+
+#15 [runner 2/6] WORKDIR /app
+#15 CACHED
+
+#16 [deps 3/4] COPY package.json package-lock.json ./
+#16 CACHED
+
+#17 [deps 4/4] RUN --mount=type=cache,target=/root/.npm     npm ci --cache=/root/.npm --prefer-offline --no-audit --progress=false
+#17 CACHED
+
+#18 [runner 6/6] COPY --from=builder /app/data ./data
+#18 CACHED
+
+#19 exporting to image
+#19 exporting layers done
+#19 exporting manifest sha256:0b3f75306c151ec321b80b2c62b9591be744c3b08315dd3c582b6da0250df56c 0.0s done
+#19 exporting config sha256:89673f0607f0fac222053dc9b09e25347c5c9017b1d79ebb248067e658ad14a9
+#19 exporting config sha256:89673f0607f0fac222053dc9b09e25347c5c9017b1d79ebb248067e658ad14a9 0.0s done
+#19 exporting attestation manifest sha256:454316646132b9c91776709dc1da09cefbcd009975cf5307b12fdc59d7e46055 0.1s done
+#19 exporting manifest list sha256:b19b723b383993a51636db8622d06a146c512ec7eebc5678a5ff05ad812ae0e4
+#19 exporting manifest list sha256:b19b723b383993a51636db8622d06a146c512ec7eebc5678a5ff05ad812ae0e4 0.1s done
+#19 naming to docker.io/library/yg1-ai-catalog-dev-app:latest 0.0s done
+#19 unpacking to docker.io/library/yg1-ai-catalog-dev-app:latest 0.0s done
+#19 DONE 0.3s
+
+#20 resolving provenance for metadata file
+#20 DONE 0.0s
+ Image yg1-ai-catalog-dev-app Built 
+ Container yg1-ai-catalog-app-dev Recreate 
+ Container yg1-ai-catalog-app-dev Recreated 
+ Container yg1-ai-catalog-app-dev Starting 
+ Container yg1-ai-catalog-app-dev Started 
+

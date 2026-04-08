@@ -1,0 +1,36 @@
+
+[suchan-finder-stress] target=http://20.119.98.136:3000/api/recommend
+
+[01/25] 베이스: 탄소강 슬로팅 밀링 10mm ... 200 16828ms cand=290 purpose=question/null
+[02/25] 다중소재: P+M+K, 6mm, 4G MILLS ... 200 53887ms cand=1000 purpose=question/null
+[03/25] 직경 범위: 8~12mm 슬로팅 ... 200 1661ms cand=0 purpose=recommendation/null
+[04/25] OAL ≥100mm ... 200 1332ms cand=0 purpose=recommendation/null
+[05/25] OAL ≤80mm ... 200 1470ms cand=0 purpose=recommendation/null
+[06/25] 4날 고정 ... 200 13707ms cand=162 purpose=question/null
+[07/25] 날수 ≥5 ... 200 12844ms cand=12 purpose=question/null
+[08/25] T-Coating 한정 ... 200 15258ms cand=200 purpose=question/null
+[09/25] 코팅 없는 것 (bright finish) ... 200 10963ms cand=111 purpose=question/null
+[10/25] 재고 있는 것만 ... 200 1729ms cand=0 purpose=recommendation/null
+[11/25] 재고 즉시 출하 ... 200 2045ms cand=0 purpose=recommendation/null
+[12/25] X5070 브랜드만 ... 200 13771ms cand=12 purpose=question/null
+[13/25] ALU-POWER 제외 ... 200 10721ms cand=110 purpose=question/null
+[14/25] 4중: φ10 OAL≥100 4F TiAlN ... 0 2956ms cand=null purpose=null/null ERR=fetch failed
+[15/25] 5중+범위: φ8~12 OAL≥80 4F P/M N-coat 재고 ... 200 3786ms cand=0 purpose=recommendation/null
+[16/25] 헬릭스 ≥45° ... 200 18583ms cand=267 purpose=question/null
+[17/25] Shank 6~10 ... 200 1715ms cand=0 purpose=recommendation/null
+[18/25] CL ≥20mm ... 200 2247ms cand=0 purpose=recommendation/null
+[19/25] Drill point angle 140° ... 200 21427ms cand=1000 purpose=question/null
+[20/25] Drill OAL≥100 + 쿨런트홀 ... 200 2095ms cand=0 purpose=recommendation/null
+[21/25] Tap M10 1.5pitch ... 200 44250ms cand=1000 purpose=question/null
+[22/25] 터무니없는 직경 999mm ... 200 1383ms cand=0 purpose=recommendation/null
+[23/25] 모순: 직경 ≥20 ≤5 ... 200 1579ms cand=0 purpose=recommendation/null
+[24/25] 1/4인치 (6.35mm) ... 200 2276ms cand=2 purpose=recommendation/null
+[25/25] KOREA + φ10 4F P TiAlN OAL≥100 재고 ... 200 2564ms cand=0 purpose=recommendation/null
+
+--- 요약 ---
+HTTP 200: 24/25
+candidates>0: 12/25
+avg latency: 10443ms
+
+결과 → C:\Users\kuksh\Downloads\YG1_test\test-results\suchan-finder-stress-2026-04-07T23-26-27-008Z.json
+TSV   → C:\Users\kuksh\Downloads\YG1_test\test-results\suchan-finder-stress-2026-04-07T23-26-27-008Z.tsv

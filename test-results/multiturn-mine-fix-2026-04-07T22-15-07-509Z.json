@@ -1,0 +1,1443 @@
+{
+  "endpoint": "http://20.119.98.136:3000",
+  "mode": "C",
+  "runAt": "2026-04-07T22:29:31.387Z",
+  "results": [
+    {
+      "name": "베이스: 탄소강 슬로팅 밀링 10mm",
+      "ms": 22573,
+      "turns": [
+        {
+          "turn": 0,
+          "candidateCount": 1037,
+          "candidatesLen": 1000,
+          "purpose": "greeting",
+          "aiPreview": "탄소강 소재, 슬로팅 가공, 직경 10mm 엔드밀을 찾고 계시는군요. 현재 조건에 맞는 후보가 1037개 있습니다.\n\n코팅 종류에 대한 선호가 "
+        }
+      ],
+      "finalCandidateCount": 1037,
+      "finalCandidatesLen": 1000,
+      "finalAppliedFilters": [],
+      "caseIndex": 1
+    },
+    {
+      "name": "다중소재: P+M+K, 6mm, 4G MILLS",
+      "ms": 50459,
+      "turns": [
+        {
+          "turn": 0,
+          "candidateCount": 1471,
+          "candidatesLen": 1000,
+          "purpose": "greeting",
+          "aiPreview": "탄소강, 스테인리스강, 주철 소재에 대해 6mm 측면 가공용 공구를 찾으시는군요. 현재 1,471개의 후보가 있습니다.\n\n코팅 종류에 선호가 있"
+        },
+        {
+          "turn": 1,
+          "nl": "다양한 소재 다 가능한 거 추천",
+          "candidateCount": 1471,
+          "candidatesLen": 1000,
+          "appliedFilters": [],
+          "purpose": "question",
+          "aiPreview": "어떤 조건을 \"다양한 소재\"로 바꾸실지 다시 말씀해주세요. 현재 문장만으로는 소재, 피삭재 중 무엇을 바꾸려는지 모호합니다.",
+          "sampleProducts": [
+            {
+              "brand": "GENERAL CARBIDE",
+              "oal": null,
+              "cl": null,
+              "coating": "Bright Finish"
+            },
+            {
+              "brand": "GENERAL CARBIDE",
+              "oal": null,
+              "cl": null,
+              "coating": "Bright Finish"
+            },
+            {
+              "brand": "GENERAL CARBIDE",
+              "oal": null,
+              "cl": null,
+              "coating": "Bright Finish"
+            }
+          ]
+        }
+      ],
+      "finalCandidateCount": 1471,
+      "finalCandidatesLen": 1000,
+      "finalAppliedFilters": [],
+      "caseIndex": 2
+    },
+    {
+      "name": "직경 범위: 8~12mm 슬로팅",
+      "ms": 99805,
+      "turns": [
+        {
+          "turn": 0,
+          "candidateCount": 1037,
+          "candidatesLen": 1000,
+          "purpose": "greeting",
+          "aiPreview": "탄소강 소재 슬롯 가공용 φ10mm 엔드밀 추천을 도와드리겠습니다. 현재 조건에 맞는 후보가 1037개 있습니다.\n\n코팅 종류 선호가 있으신가요"
+        },
+        {
+          "turn": 1,
+          "nl": "직경 8mm 이상 12mm 이하 제품만 보여줘",
+          "candidateCount": 279,
+          "candidatesLen": 279,
+          "appliedFilters": [
+            {
+              "field": "diameterMm",
+              "op": "between",
+              "value": "직경 8~12mm",
+              "rawValue": 8,
+              "appliedAt": 0
+            }
+          ],
+          "purpose": "question",
+          "aiPreview": "현재 질문에 대한 답변으로 인식하지 못했습니다. 아래 선택지 중에서 골라주시거나, 필요한 값이 있으면 형식에 맞게 직접 입력해주세요.\n\n네, 직",
+          "sampleProducts": [
+            {
+              "brand": "ONLY ONE",
+              "oal": null,
+              "cl": null,
+              "coating": "Y-Coating"
+            },
+            {
+              "brand": "ONLY ONE",
+              "oal": null,
+              "cl": null,
+              "coating": "Y-Coating"
+            },
+            {
+              "brand": "V7 PLUS",
+              "oal": null,
+              "cl": null,
+              "coating": "Y-Coating"
+            }
+          ]
+        }
+      ],
+      "finalCandidateCount": 279,
+      "finalCandidatesLen": 279,
+      "finalAppliedFilters": [
+        {
+          "field": "diameterMm",
+          "op": "between",
+          "value": "직경 8~12mm",
+          "rawValue": 8,
+          "appliedAt": 0
+        }
+      ],
+      "caseIndex": 3
+    },
+    {
+      "name": "OAL ≥100mm",
+      "ms": 23610,
+      "turns": [
+        {
+          "turn": 0,
+          "candidateCount": 954,
+          "candidatesLen": 954,
+          "purpose": "greeting",
+          "aiPreview": "탄소강 측면가공용 φ10mm 밀링커터를 찾으시는군요. 현재 954개 후보가 있습니다.\n\n날 수(flute) 선호가 있으신가요? 날 수에 따라 칩"
+        },
+        {
+          "turn": 1,
+          "nl": "전체 길이 100mm 이상인 것만",
+          "candidateCount": 30,
+          "candidatesLen": 30,
+          "appliedFilters": [
+            {
+              "field": "overallLengthMm",
+              "op": "gte",
+              "value": "전체 길이 100mm 이상",
+              "rawValue": 100,
+              "appliedAt": 0
+            }
+          ],
+          "purpose": "question",
+          "aiPreview": "전장: 전체 길이 100mm 이상 조건을 모두 적용하면 후보가 없습니다.\n전장 조건을 변경하거나 '상관없음'을 선택해주세요.",
+          "sampleProducts": [
+            {
+              "brand": "ALU-CUT",
+              "oal": null,
+              "cl": null,
+              "coating": ""
+            },
+            {
+              "brand": "ALU-CUT",
+              "oal": null,
+              "cl": null,
+              "coating": "ALU-CUT"
+            },
+            {
+              "brand": "ALU-CUT",
+              "oal": null,
+              "cl": null,
+              "coating": "Uncoated"
+            }
+          ]
+        }
+      ],
+      "finalCandidateCount": 30,
+      "finalCandidatesLen": 30,
+      "finalAppliedFilters": [
+        {
+          "field": "overallLengthMm",
+          "op": "gte",
+          "value": "전체 길이 100mm 이상",
+          "rawValue": 100,
+          "appliedAt": 0
+        }
+      ],
+      "caseIndex": 4
+    },
+    {
+      "name": "OAL ≤80mm",
+      "ms": 22212,
+      "turns": [
+        {
+          "turn": 0,
+          "candidateCount": 954,
+          "candidatesLen": 954,
+          "purpose": "greeting",
+          "aiPreview": "탄소강 측면 가공용 φ10mm 엔드밀 추천을 도와드리겠습니다.\n\n현재 조건에 맞는 후보가 954개 있습니다. 날 수(flute) 선호가 있으신가"
+        },
+        {
+          "turn": 1,
+          "nl": "전체 길이 80mm 이하 짧은 거",
+          "candidateCount": 30,
+          "candidatesLen": 30,
+          "appliedFilters": [
+            {
+              "field": "overallLengthMm",
+              "op": "lte",
+              "value": "전장 80mm 이하",
+              "rawValue": 80,
+              "appliedAt": 0
+            }
+          ],
+          "purpose": "question",
+          "aiPreview": "전장: 전장 80mm 이하 조건을 모두 적용하면 후보가 없습니다.\n전장 조건을 변경하거나 '상관없음'을 선택해주세요.",
+          "sampleProducts": [
+            {
+              "brand": "ALU-CUT",
+              "oal": null,
+              "cl": null,
+              "coating": ""
+            },
+            {
+              "brand": "ALU-CUT",
+              "oal": null,
+              "cl": null,
+              "coating": "ALU-CUT"
+            },
+            {
+              "brand": "ALU-CUT",
+              "oal": null,
+              "cl": null,
+              "coating": "Uncoated"
+            }
+          ]
+        }
+      ],
+      "finalCandidateCount": 30,
+      "finalCandidatesLen": 30,
+      "finalAppliedFilters": [
+        {
+          "field": "overallLengthMm",
+          "op": "lte",
+          "value": "전장 80mm 이하",
+          "rawValue": 80,
+          "appliedAt": 0
+        }
+      ],
+      "caseIndex": 5
+    },
+    {
+      "name": "4날 고정",
+      "ms": 45709,
+      "turns": [
+        {
+          "turn": 0,
+          "candidateCount": 1037,
+          "candidatesLen": 1000,
+          "purpose": "greeting",
+          "aiPreview": "탄소강 소재에 φ10mm 슬롯 가공용 엔드밀을 찾고 계시는군요. 현재 조건에 맞는 후보가 1037개 있습니다.\n\n코팅 종류에 선호가 있으신가요?"
+        },
+        {
+          "turn": 1,
+          "nl": "4날만",
+          "candidateCount": 546,
+          "candidatesLen": 546,
+          "appliedFilters": [
+            {
+              "field": "fluteCount",
+              "op": "eq",
+              "value": "4",
+              "rawValue": "4",
+              "appliedAt": 0
+            }
+          ],
+          "purpose": "question",
+          "aiPreview": "4날 엔드밀로 좁혀드렸습니다. 현재 546개 제품이 있습니다.\n\n탄소강 슬롯 가공에는 공구 형상이 중요합니다. Square는 직각 모서리로 깊은",
+          "sampleProducts": [
+            {
+              "brand": "ONLY ONE",
+              "oal": null,
+              "cl": null,
+              "coating": "Y-Coating"
+            },
+            {
+              "brand": "V7 PLUS",
+              "oal": null,
+              "cl": null,
+              "coating": "Y-Coating"
+            },
+            {
+              "brand": "V7 PLUS",
+              "oal": null,
+              "cl": null,
+              "coating": "Y-Coating"
+            }
+          ]
+        }
+      ],
+      "finalCandidateCount": 546,
+      "finalCandidatesLen": 546,
+      "finalAppliedFilters": [
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "4",
+          "rawValue": "4",
+          "appliedAt": 0
+        }
+      ],
+      "caseIndex": 6
+    },
+    {
+      "name": "날수 ≥5",
+      "ms": 26320,
+      "turns": [
+        {
+          "turn": 0,
+          "candidateCount": 266,
+          "candidatesLen": 266,
+          "purpose": "greeting",
+          "aiPreview": "현재 266개 후보가 있습니다. 날 수(flute) 선호가 있으신가요?"
+        },
+        {
+          "turn": 1,
+          "nl": "날수 5개 이상",
+          "candidateCount": 30,
+          "candidatesLen": 30,
+          "appliedFilters": [
+            {
+              "field": "fluteCount",
+              "op": "gte",
+              "value": "5날 이상",
+              "rawValue": 5,
+              "appliedAt": 0
+            }
+          ],
+          "purpose": "question",
+          "aiPreview": "날 수: 5날 이상 조건을 모두 적용하면 후보가 없습니다.\n현재 조건에서 선택 가능한 날 수: 3 , 2 , 4",
+          "sampleProducts": [
+            {
+              "brand": "ALU-CUT",
+              "oal": null,
+              "cl": null,
+              "coating": ""
+            },
+            {
+              "brand": "ALU-CUT",
+              "oal": null,
+              "cl": null,
+              "coating": "ALU-CUT"
+            },
+            {
+              "brand": "ALU-CUT",
+              "oal": null,
+              "cl": null,
+              "coating": "Uncoated"
+            }
+          ]
+        }
+      ],
+      "finalCandidateCount": 30,
+      "finalCandidatesLen": 30,
+      "finalAppliedFilters": [
+        {
+          "field": "fluteCount",
+          "op": "gte",
+          "value": "5날 이상",
+          "rawValue": 5,
+          "appliedAt": 0
+        }
+      ],
+      "caseIndex": 7
+    },
+    {
+      "name": "T-Coating 한정",
+      "ms": 43663,
+      "turns": [
+        {
+          "turn": 0,
+          "candidateCount": 1035,
+          "candidatesLen": 1000,
+          "purpose": "greeting",
+          "aiPreview": "현재 1035개 후보가 있습니다. 날 수(flute) 선호가 있으신가요?"
+        },
+        {
+          "turn": 1,
+          "nl": "T-Coating만",
+          "candidateCount": 77,
+          "candidatesLen": 77,
+          "appliedFilters": [
+            {
+              "field": "coating",
+              "op": "eq",
+              "value": "X-Coating",
+              "rawValue": "X-Coating",
+              "appliedAt": 0
+            }
+          ],
+          "purpose": "question",
+          "aiPreview": "공구 세부 타입이 중요한가요? Square (35개), Roughing (28개), Drill Mill (12개) 등이 있습니다.",
+          "sampleProducts": [
+            {
+              "brand": "TANK-POWER",
+              "oal": null,
+              "cl": null,
+              "coating": "X-Coating"
+            },
+            {
+              "brand": "TANK-POWER",
+              "oal": null,
+              "cl": null,
+              "coating": "X-Coating"
+            },
+            {
+              "brand": "GENERAL HSS END MILLS",
+              "oal": null,
+              "cl": null,
+              "coating": "X-Coating"
+            }
+          ]
+        }
+      ],
+      "finalCandidateCount": 77,
+      "finalCandidatesLen": 77,
+      "finalAppliedFilters": [
+        {
+          "field": "coating",
+          "op": "eq",
+          "value": "X-Coating",
+          "rawValue": "X-Coating",
+          "appliedAt": 0
+        }
+      ],
+      "caseIndex": 8
+    },
+    {
+      "name": "코팅 없는 것 (bright finish)",
+      "ms": 27523,
+      "turns": [
+        {
+          "turn": 0,
+          "candidateCount": 405,
+          "candidatesLen": 405,
+          "purpose": "greeting",
+          "aiPreview": "비철금속 측면 가공용 φ6mm 엔드밀을 찾으시는군요. 현재 405개 후보가 있습니다.\n\n날 수(flute) 선호가 있으신가요? 날 수에 따라 칩"
+        },
+        {
+          "turn": 1,
+          "nl": "비철용인데 코팅 없는 거 (bright finish)",
+          "candidateCount": 405,
+          "candidatesLen": 405,
+          "appliedFilters": [
+            {
+              "field": "coating",
+              "op": "neq",
+              "value": "Uncoated",
+              "rawValue": "Uncoated",
+              "appliedAt": 0
+            }
+          ],
+          "purpose": "question",
+          "aiPreview": "코팅: X-Coating 조건을 모두 적용하면 후보가 없습니다.\n현재 조건에서 선택 가능한 코팅: Bright Finish , X-Coating",
+          "sampleProducts": [
+            {
+              "brand": "ALU-CUT for Korean Market",
+              "oal": null,
+              "cl": null,
+              "coating": "Bright Finish"
+            },
+            {
+              "brand": "ALU-CUT for Korean Market",
+              "oal": null,
+              "cl": null,
+              "coating": "Bright Finish"
+            },
+            {
+              "brand": "ALU-CUT for Korean Market",
+              "oal": null,
+              "cl": null,
+              "coating": "Bright Finish"
+            }
+          ]
+        }
+      ],
+      "finalCandidateCount": 405,
+      "finalCandidatesLen": 405,
+      "finalAppliedFilters": [
+        {
+          "field": "coating",
+          "op": "neq",
+          "value": "Uncoated",
+          "rawValue": "Uncoated",
+          "appliedAt": 0
+        }
+      ],
+      "caseIndex": 9
+    },
+    {
+      "name": "재고 있는 것만",
+      "ms": 32189,
+      "turns": [
+        {
+          "turn": 0,
+          "candidateCount": 1037,
+          "candidatesLen": 1000,
+          "purpose": "greeting",
+          "aiPreview": "탄소강 소재, 슬롯 가공, φ10mm 밀링 조건으로 확인했습니다. 현재 1,037개 제품이 후보에 있습니다.\n\n코팅 종류에 선호가 있으신가요? "
+        },
+        {
+          "turn": 1,
+          "nl": "재고 있는 거만 보여줘",
+          "candidateCount": 37,
+          "candidatesLen": 37,
+          "appliedFilters": [],
+          "purpose": "recommendation",
+          "aiPreview": "재고 있는 후보 37개입니다.\n\n- GYF99100: 재고 18개\n- GMH57100: 재고 31개\n- GMG12100: 재고 4개\n- GMF6",
+          "sampleProducts": [
+            {
+              "brand": "ONLY ONE",
+              "oal": null,
+              "cl": null,
+              "coating": "Y-Coating"
+            },
+            {
+              "brand": "V7 PLUS",
+              "oal": null,
+              "cl": null,
+              "coating": "Y-Coating"
+            },
+            {
+              "brand": "V7 PLUS",
+              "oal": null,
+              "cl": null,
+              "coating": "Y-Coating"
+            }
+          ]
+        }
+      ],
+      "finalCandidateCount": 37,
+      "finalCandidatesLen": 37,
+      "finalAppliedFilters": [],
+      "caseIndex": 10
+    },
+    {
+      "name": "재고 즉시 출하",
+      "ms": 26499,
+      "turns": [
+        {
+          "turn": 0,
+          "candidateCount": 704,
+          "candidatesLen": 704,
+          "purpose": "greeting",
+          "aiPreview": "스테인리스강 8mm 슬롯 가공용 엔드밀 추천 요청 확인했습니다. 현재 704개 후보가 있습니다.\n\n코팅 종류 선호가 있으신가요? 후보 중에 Y-"
+        },
+        {
+          "turn": 1,
+          "nl": "재고 있고 빠른 납기 가능한 거",
+          "candidateCount": 47,
+          "candidatesLen": 47,
+          "appliedFilters": [],
+          "purpose": "recommendation",
+          "aiPreview": "재고 있는 후보 47개입니다.\n\n- GYG02080: 재고 56개\n- GMH57080: 재고 7개\n- GMG26080: 재고 217개\n- GMG",
+          "sampleProducts": [
+            {
+              "brand": "ONLY ONE",
+              "oal": null,
+              "cl": null,
+              "coating": "Y-Coating"
+            },
+            {
+              "brand": "V7 PLUS",
+              "oal": null,
+              "cl": null,
+              "coating": "Y-Coating"
+            },
+            {
+              "brand": "TitaNox-Power",
+              "oal": null,
+              "cl": null,
+              "coating": "Y-Coating"
+            }
+          ]
+        }
+      ],
+      "finalCandidateCount": 47,
+      "finalCandidatesLen": 47,
+      "finalAppliedFilters": [],
+      "caseIndex": 11
+    },
+    {
+      "name": "X5070 브랜드만",
+      "ms": 32532,
+      "turns": [
+        {
+          "turn": 0,
+          "candidateCount": 1037,
+          "candidatesLen": 1000,
+          "purpose": "greeting",
+          "aiPreview": "탄소강 소재 슬롯 가공용 φ10mm 엔드밀을 찾으시는군요. 현재 조건에 맞는 후보가 1037개 있습니다.\n\n코팅 종류에 선호가 있으신가요? 탄소"
+        },
+        {
+          "turn": 1,
+          "nl": "X5070 브랜드로만",
+          "candidateCount": 36,
+          "candidatesLen": 36,
+          "appliedFilters": [
+            {
+              "field": "brand",
+              "op": "eq",
+              "value": "X5070",
+              "rawValue": "X5070",
+              "appliedAt": 0
+            }
+          ],
+          "purpose": "question",
+          "aiPreview": "공구 세부 타입이 중요한가요? Radius (23개), Ball (7개), Square (6개) 등이 있습니다.",
+          "sampleProducts": [
+            {
+              "brand": "X5070",
+              "oal": null,
+              "cl": null,
+              "coating": "Blue-Coating"
+            },
+            {
+              "brand": "X5070",
+              "oal": null,
+              "cl": null,
+              "coating": "Blue-Coating"
+            },
+            {
+              "brand": "X5070",
+              "oal": null,
+              "cl": null,
+              "coating": "Blue-Coating"
+            }
+          ]
+        }
+      ],
+      "finalCandidateCount": 36,
+      "finalCandidatesLen": 36,
+      "finalAppliedFilters": [
+        {
+          "field": "brand",
+          "op": "eq",
+          "value": "X5070",
+          "rawValue": "X5070",
+          "appliedAt": 0
+        }
+      ],
+      "caseIndex": 12
+    },
+    {
+      "name": "ALU-POWER 제외",
+      "ms": 39259,
+      "turns": [
+        {
+          "turn": 0,
+          "candidateCount": 406,
+          "candidatesLen": 406,
+          "purpose": "greeting",
+          "aiPreview": "비철금속 8mm 측면가공용 엔드밀 찾으시는군요. 현재 406개 후보가 있습니다.\n\n날 수(flute) 선호가 있으신가요? 칩 배출과 면조도 중 "
+        },
+        {
+          "turn": 1,
+          "nl": "ALU-POWER는 빼고",
+          "candidateCount": 367,
+          "candidatesLen": 367,
+          "appliedFilters": [
+            {
+              "field": "brand",
+              "op": "neq",
+              "value": "ALU-POWER 제외",
+              "rawValue": "ALU-POWER",
+              "appliedAt": 0
+            }
+          ],
+          "purpose": "question",
+          "aiPreview": "알겠습니다. ALU-POWER 시리즈는 제외하고 진행하겠습니다.\n\n코팅 종류에 대한 선호가 있으신가요? 현재 후보 중에는 Bright Finis",
+          "sampleProducts": [
+            {
+              "brand": "ALU-CUT for Korean Market",
+              "oal": null,
+              "cl": null,
+              "coating": "Bright Finish"
+            },
+            {
+              "brand": "ALU-CUT for Korean Market",
+              "oal": null,
+              "cl": null,
+              "coating": "Bright Finish"
+            },
+            {
+              "brand": "ALU-CUT for Korean Market",
+              "oal": null,
+              "cl": null,
+              "coating": "Bright Finish"
+            }
+          ]
+        }
+      ],
+      "finalCandidateCount": 367,
+      "finalCandidatesLen": 367,
+      "finalAppliedFilters": [
+        {
+          "field": "brand",
+          "op": "neq",
+          "value": "ALU-POWER 제외",
+          "rawValue": "ALU-POWER",
+          "appliedAt": 0
+        }
+      ],
+      "caseIndex": 13
+    },
+    {
+      "name": "4중: φ10 OAL≥100 4F TiAlN",
+      "ms": 22721,
+      "turns": [
+        {
+          "turn": 0,
+          "candidateCount": 954,
+          "candidatesLen": 954,
+          "purpose": "greeting",
+          "aiPreview": "현재 954개 후보가 있습니다. 날 수(flute) 선호가 있으신가요?"
+        },
+        {
+          "turn": 1,
+          "nl": "직경 10mm 4날 전장 100 이상 TiAlN 코팅",
+          "candidateCount": 30,
+          "candidatesLen": 30,
+          "appliedFilters": [
+            {
+              "field": "diameterMm",
+              "op": "eq",
+              "value": "직경 10mm",
+              "rawValue": 10,
+              "appliedAt": 0
+            },
+            {
+              "field": "fluteCount",
+              "op": "eq",
+              "value": "4날",
+              "rawValue": 4,
+              "appliedAt": 0
+            },
+            {
+              "field": "overallLengthMm",
+              "op": "gte",
+              "value": "전장 100mm 이상",
+              "rawValue": 100,
+              "appliedAt": 0
+            },
+            {
+              "field": "milling_coating",
+              "op": "eq",
+              "value": "TiAlN 코팅",
+              "rawValue": "TiAlN",
+              "appliedAt": 0
+            }
+          ],
+          "purpose": "question",
+          "aiPreview": "직경: 직경 10mm + 날 수: 4날 + 전장: 전장 100mm 이상 + milling_coating: TiAlN 코팅 조건을 모두 적용하면 ",
+          "sampleProducts": [
+            {
+              "brand": "DREAM DRILLS",
+              "oal": null,
+              "cl": null,
+              "coating": ""
+            },
+            {
+              "brand": "DREAM DRILLS",
+              "oal": null,
+              "cl": null,
+              "coating": null
+            },
+            {
+              "brand": "DREAM DRILLS",
+              "oal": null,
+              "cl": null,
+              "coating": null
+            }
+          ]
+        }
+      ],
+      "finalCandidateCount": 30,
+      "finalCandidatesLen": 30,
+      "finalAppliedFilters": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "직경 10mm",
+          "rawValue": 10,
+          "appliedAt": 0
+        },
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "4날",
+          "rawValue": 4,
+          "appliedAt": 0
+        },
+        {
+          "field": "overallLengthMm",
+          "op": "gte",
+          "value": "전장 100mm 이상",
+          "rawValue": 100,
+          "appliedAt": 0
+        },
+        {
+          "field": "milling_coating",
+          "op": "eq",
+          "value": "TiAlN 코팅",
+          "rawValue": "TiAlN",
+          "appliedAt": 0
+        }
+      ],
+      "caseIndex": 14
+    },
+    {
+      "name": "5중+범위: φ8~12 OAL≥80 4F P/M N-coat 재고",
+      "ms": 27586,
+      "turns": [
+        {
+          "turn": 0,
+          "candidateCount": 1051,
+          "candidatesLen": 1000,
+          "purpose": "greeting",
+          "aiPreview": "탄소강과 스테인리스강 소재에 직경 10mm로 슬롯 가공하시는군요. 현재 조건에 맞는 후보가 1051개 있습니다.\n\n코팅 종류에 선호가 있으신가요"
+        },
+        {
+          "turn": 1,
+          "nl": "직경 8~12mm, 전장 80 이상, 4날, TiAlN 코팅, 재고 있는 거",
+          "candidateCount": 30,
+          "candidatesLen": 30,
+          "appliedFilters": [
+            {
+              "field": "diameterMm",
+              "op": "between",
+              "value": "직경 8~12mm",
+              "rawValue": 8,
+              "appliedAt": 0
+            },
+            {
+              "field": "overallLengthMm",
+              "op": "gte",
+              "value": "전장 80mm 이상",
+              "rawValue": 80,
+              "appliedAt": 0
+            },
+            {
+              "field": "fluteCount",
+              "op": "eq",
+              "value": "4날",
+              "rawValue": 4,
+              "appliedAt": 0
+            },
+            {
+              "field": "milling_coating",
+              "op": "eq",
+              "value": "TiAlN 코팅",
+              "rawValue": "TiAlN",
+              "appliedAt": 0
+            },
+            {
+              "field": "stockOnly",
+              "op": "eq",
+              "value": "재고 있음",
+              "rawValue": "true",
+              "appliedAt": 0
+            }
+          ],
+          "purpose": "question",
+          "aiPreview": "직경: 직경 8~12mm + 전장: 전장 80mm 이상 + 날 수: 4날 + milling_coating: TiAlN 코팅 + stockOnly",
+          "sampleProducts": [
+            {
+              "brand": "DREAM DRILLS",
+              "oal": null,
+              "cl": null,
+              "coating": ""
+            },
+            {
+              "brand": "DREAM DRILLS",
+              "oal": null,
+              "cl": null,
+              "coating": null
+            },
+            {
+              "brand": "DREAM DRILLS",
+              "oal": null,
+              "cl": null,
+              "coating": null
+            }
+          ]
+        }
+      ],
+      "finalCandidateCount": 30,
+      "finalCandidatesLen": 30,
+      "finalAppliedFilters": [
+        {
+          "field": "diameterMm",
+          "op": "between",
+          "value": "직경 8~12mm",
+          "rawValue": 8,
+          "appliedAt": 0
+        },
+        {
+          "field": "overallLengthMm",
+          "op": "gte",
+          "value": "전장 80mm 이상",
+          "rawValue": 80,
+          "appliedAt": 0
+        },
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "4날",
+          "rawValue": 4,
+          "appliedAt": 0
+        },
+        {
+          "field": "milling_coating",
+          "op": "eq",
+          "value": "TiAlN 코팅",
+          "rawValue": "TiAlN",
+          "appliedAt": 0
+        },
+        {
+          "field": "stockOnly",
+          "op": "eq",
+          "value": "재고 있음",
+          "rawValue": "true",
+          "appliedAt": 0
+        }
+      ],
+      "caseIndex": 15
+    },
+    {
+      "name": "헬릭스 ≥45°",
+      "ms": 43680,
+      "turns": [
+        {
+          "turn": 0,
+          "candidateCount": 954,
+          "candidatesLen": 954,
+          "purpose": "greeting",
+          "aiPreview": "탄소강 측면가공용 φ10mm 밀링 공구를 찾으시는군요. 현재 954개 후보가 있습니다.\n\n날 수(flute) 선호가 있으신가요? 날 수에 따라 "
+        },
+        {
+          "turn": 1,
+          "nl": "헬릭스 각도 45도 이상",
+          "candidateCount": 30,
+          "candidatesLen": 30,
+          "appliedFilters": [
+            {
+              "field": "helixAngleDeg",
+              "op": "gte",
+              "value": "헬릭스 45° 이상",
+              "rawValue": 45,
+              "appliedAt": 0
+            }
+          ],
+          "purpose": "question",
+          "aiPreview": "헬릭스각: 헬릭스 45° 이상 조건을 모두 적용하면 후보가 없습니다.\n현재 조건에서 선택 가능한 헬릭스각: 45 (3개), 140 (2개), 3",
+          "sampleProducts": [
+            {
+              "brand": "ALU-CUT",
+              "oal": null,
+              "cl": null,
+              "coating": ""
+            },
+            {
+              "brand": "ALU-CUT",
+              "oal": null,
+              "cl": null,
+              "coating": "ALU-CUT"
+            },
+            {
+              "brand": "ALU-CUT",
+              "oal": null,
+              "cl": null,
+              "coating": "Uncoated"
+            }
+          ]
+        }
+      ],
+      "finalCandidateCount": 30,
+      "finalCandidatesLen": 30,
+      "finalAppliedFilters": [
+        {
+          "field": "helixAngleDeg",
+          "op": "gte",
+          "value": "헬릭스 45° 이상",
+          "rawValue": 45,
+          "appliedAt": 0
+        }
+      ],
+      "caseIndex": 16
+    },
+    {
+      "name": "Shank 6~10",
+      "ms": 32227,
+      "turns": [
+        {
+          "turn": 0,
+          "candidateCount": 1123,
+          "candidatesLen": 1000,
+          "purpose": "greeting",
+          "aiPreview": "안녕하세요, YG-1입니다.\n\n탄소강 소재에 직경 8mm 슬롯 가공용 엔드밀을 찾으시는군요. 현재 조건에 맞는 후보가 1,123개 있습니다.\n\n"
+        },
+        {
+          "turn": 1,
+          "nl": "샹크 직경 6에서 10 사이",
+          "candidateCount": 30,
+          "candidatesLen": 30,
+          "appliedFilters": [
+            {
+              "field": "shankDiameterMm",
+              "op": "between",
+              "value": "샹크 직경 6~10mm",
+              "rawValue": 6,
+              "appliedAt": 0
+            }
+          ],
+          "purpose": "question",
+          "aiPreview": "생크 직경: 샹크 직경 6~10mm 조건을 모두 적용하면 후보가 없습니다.\n생크 직경 조건을 변경하거나 '상관없음'을 선택해주세요.",
+          "sampleProducts": [
+            {
+              "brand": "ALU-CUT",
+              "oal": null,
+              "cl": null,
+              "coating": ""
+            },
+            {
+              "brand": "ALU-CUT",
+              "oal": null,
+              "cl": null,
+              "coating": "ALU-CUT"
+            },
+            {
+              "brand": "ALU-CUT",
+              "oal": null,
+              "cl": null,
+              "coating": "Uncoated"
+            }
+          ]
+        }
+      ],
+      "finalCandidateCount": 30,
+      "finalCandidatesLen": 30,
+      "finalAppliedFilters": [
+        {
+          "field": "shankDiameterMm",
+          "op": "between",
+          "value": "샹크 직경 6~10mm",
+          "rawValue": 6,
+          "appliedAt": 0
+        }
+      ],
+      "caseIndex": 17
+    },
+    {
+      "name": "CL ≥20mm",
+      "ms": 30488,
+      "turns": [
+        {
+          "turn": 0,
+          "candidateCount": 1037,
+          "candidatesLen": 1000,
+          "purpose": "greeting",
+          "aiPreview": "탄소강 소재에 직경 10mm 슬롯 가공용 엔드밀을 찾으시는군요. 현재 조건에 맞는 후보가 1037개 있습니다.\n\n코팅 종류에 선호가 있으신가요?"
+        },
+        {
+          "turn": 1,
+          "nl": "절삭 길이(날장) 20mm 이상",
+          "candidateCount": 30,
+          "candidatesLen": 30,
+          "appliedFilters": [
+            {
+              "field": "lengthOfCutMm",
+              "op": "gte",
+              "value": "절삭 길이 20mm 이상",
+              "rawValue": 20,
+              "appliedAt": 0
+            }
+          ],
+          "purpose": "question",
+          "aiPreview": "절삭 길이: 절삭 길이 20mm 이상 조건을 모두 적용하면 후보가 없습니다.\n절삭 길이 조건을 변경하거나 '상관없음'을 선택해주세요.",
+          "sampleProducts": [
+            {
+              "brand": "ALU-CUT",
+              "oal": null,
+              "cl": null,
+              "coating": ""
+            },
+            {
+              "brand": "ALU-CUT",
+              "oal": null,
+              "cl": null,
+              "coating": "ALU-CUT"
+            },
+            {
+              "brand": "ALU-CUT",
+              "oal": null,
+              "cl": null,
+              "coating": "Uncoated"
+            }
+          ]
+        }
+      ],
+      "finalCandidateCount": 30,
+      "finalCandidatesLen": 30,
+      "finalAppliedFilters": [
+        {
+          "field": "lengthOfCutMm",
+          "op": "gte",
+          "value": "절삭 길이 20mm 이상",
+          "rawValue": 20,
+          "appliedAt": 0
+        }
+      ],
+      "caseIndex": 18
+    },
+    {
+      "name": "Drill point angle 140°",
+      "ms": 51030,
+      "turns": [
+        {
+          "turn": 0,
+          "candidateCount": 8462,
+          "candidatesLen": 1000,
+          "purpose": "greeting",
+          "aiPreview": "탄소강 소재, 8mm 직경 드릴링 가공용 공구를 찾고 계시는군요. 현재 8,462개 후보가 있습니다.\n\n먼저 코팅 종류 선호가 있으신가요? 후보"
+        },
+        {
+          "turn": 1,
+          "nl": "포인트 각도 140도",
+          "candidateCount": 8462,
+          "candidatesLen": 0,
+          "appliedFilters": [],
+          "purpose": "recommendation",
+          "aiPreview": "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요.",
+          "sampleProducts": []
+        }
+      ],
+      "finalCandidateCount": 8462,
+      "finalCandidatesLen": 0,
+      "finalAppliedFilters": [],
+      "caseIndex": 19
+    },
+    {
+      "name": "Drill OAL≥100 + 쿨런트홀",
+      "ms": 48552,
+      "turns": [
+        {
+          "turn": 0,
+          "candidateCount": 7953,
+          "candidatesLen": 1000,
+          "purpose": "greeting",
+          "aiPreview": "탄소강 소재에 직경 10mm 드릴 공구를 찾고 계시는군요. 현재 조건에 맞는 후보가 7,953개 있습니다.\n\n코팅 종류에 대한 선호가 있으신가요"
+        },
+        {
+          "turn": 1,
+          "nl": "전장 100 이상이고 쿨런트홀 있는 거",
+          "candidateCount": 30,
+          "candidatesLen": 30,
+          "appliedFilters": [
+            {
+              "field": "overallLengthMm",
+              "op": "gte",
+              "value": "전장 100mm 이상",
+              "rawValue": 100,
+              "appliedAt": 0
+            },
+            {
+              "field": "search_coolant_type",
+              "op": "neq",
+              "value": "쿨런트홀 있음",
+              "rawValue": "",
+              "appliedAt": 0
+            }
+          ],
+          "purpose": "question",
+          "aiPreview": "전장: 전장 100mm 이상 + search_coolant_type: 쿨런트홀 있음 조건을 모두 적용하면 후보가 없습니다.\nsearch_cool",
+          "sampleProducts": [
+            {
+              "brand": "ALU-CUT",
+              "oal": null,
+              "cl": null,
+              "coating": ""
+            },
+            {
+              "brand": "ALU-CUT",
+              "oal": null,
+              "cl": null,
+              "coating": "ALU-CUT"
+            },
+            {
+              "brand": "ALU-CUT",
+              "oal": null,
+              "cl": null,
+              "coating": "Uncoated"
+            }
+          ]
+        }
+      ],
+      "finalCandidateCount": 30,
+      "finalCandidatesLen": 30,
+      "finalAppliedFilters": [
+        {
+          "field": "overallLengthMm",
+          "op": "gte",
+          "value": "전장 100mm 이상",
+          "rawValue": 100,
+          "appliedAt": 0
+        },
+        {
+          "field": "search_coolant_type",
+          "op": "neq",
+          "value": "쿨런트홀 있음",
+          "rawValue": "",
+          "appliedAt": 0
+        }
+      ],
+      "caseIndex": 20
+    },
+    {
+      "name": "Tap M10 1.5pitch",
+      "error": "Turn 0: fetch failed",
+      "ms": 2980,
+      "caseIndex": 21
+    },
+    {
+      "name": "터무니없는 직경 999mm",
+      "error": "Turn 0: fetch failed",
+      "ms": 2993,
+      "caseIndex": 22
+    },
+    {
+      "name": "모순: 직경 ≥20 ≤5",
+      "error": "Turn 0: terminated",
+      "ms": 17712,
+      "caseIndex": 23
+    },
+    {
+      "name": "1/4인치 (6.35mm)",
+      "ms": 59966,
+      "turns": [
+        {
+          "turn": 0,
+          "candidateCount": 981,
+          "candidatesLen": 981,
+          "purpose": "greeting",
+          "aiPreview": "현재 981개 후보가 있습니다. 날 수(flute) 선호가 있으신가요?"
+        },
+        {
+          "turn": 1,
+          "nl": "1/4인치 4날 추천",
+          "candidateCount": 981,
+          "candidatesLen": 981,
+          "appliedFilters": [
+            {
+              "field": "shaft_dia",
+              "op": "eq",
+              "value": "1/4인치 샤프트",
+              "rawValue": "1/4",
+              "appliedAt": 0
+            },
+            {
+              "field": "flutes",
+              "op": "eq",
+              "value": "4날",
+              "rawValue": "4",
+              "appliedAt": 0
+            }
+          ],
+          "purpose": "question",
+          "aiPreview": "현재 질문에 대한 답변으로 인식하지 못했습니다. 아래 선택지 중에서 골라주시거나, 필요한 값이 있으면 형식에 맞게 직접 입력해주세요.\n\n현재 9",
+          "sampleProducts": [
+            {
+              "brand": "YGBASIX",
+              "oal": null,
+              "cl": null,
+              "coating": "X-Coating"
+            },
+            {
+              "brand": "YGBASIX",
+              "oal": null,
+              "cl": null,
+              "coating": "X-Coating"
+            },
+            {
+              "brand": "YGBASIX",
+              "oal": null,
+              "cl": null,
+              "coating": "X-Coating"
+            }
+          ]
+        }
+      ],
+      "finalCandidateCount": 981,
+      "finalCandidatesLen": 981,
+      "finalAppliedFilters": [
+        {
+          "field": "shaft_dia",
+          "op": "eq",
+          "value": "1/4인치 샤프트",
+          "rawValue": "1/4",
+          "appliedAt": 0
+        },
+        {
+          "field": "flutes",
+          "op": "eq",
+          "value": "4날",
+          "rawValue": "4",
+          "appliedAt": 0
+        }
+      ],
+      "caseIndex": 24
+    },
+    {
+      "name": "KOREA + φ10 4F P TiAlN OAL≥100 재고",
+      "ms": 31540,
+      "turns": [
+        {
+          "turn": 0,
+          "candidateCount": 454,
+          "candidatesLen": 454,
+          "purpose": "greeting",
+          "aiPreview": "탄소강 소재, 슬롯 가공용 φ10mm 엔드밀 추천 시작하겠습니다.\n\n현재 조건에 맞는 후보가 454개 있습니다. 날 수(flute) 선호가 있으"
+        },
+        {
+          "turn": 1,
+          "nl": "한국 재고로 4날 TiAlN 전장 100 이상",
+          "candidateCount": 30,
+          "candidatesLen": 30,
+          "appliedFilters": [
+            {
+              "field": "workPieceName",
+              "op": "includes",
+              "value": "티타늄 재료",
+              "rawValue": "TITANIUM",
+              "appliedAt": 0
+            },
+            {
+              "field": "brand_name",
+              "op": "includes",
+              "value": "TiAlN 코팅",
+              "rawValue": "TiAlN",
+              "appliedAt": 0
+            },
+            {
+              "field": "flute_count",
+              "op": "eq",
+              "value": "4날",
+              "rawValue": "4",
+              "appliedAt": 0
+            },
+            {
+              "field": "coating_length",
+              "op": "eq",
+              "value": "전장 100 이상",
+              "rawValue": "100",
+              "appliedAt": 0
+            },
+            {
+              "field": "region_code",
+              "op": "eq",
+              "value": "한국 재고",
+              "rawValue": "KR",
+              "appliedAt": 0
+            }
+          ],
+          "purpose": "question",
+          "aiPreview": "피삭재: 티타늄 재료 + brand_name: TiAlN 코팅 + flute_count: 4날 + coating_length: 전장 100 이상",
+          "sampleProducts": [
+            {
+              "brand": "TitaNox-POWER",
+              "oal": null,
+              "cl": null,
+              "coating": ""
+            },
+            {
+              "brand": "YG TAP Ti Ni",
+              "oal": null,
+              "cl": null,
+              "coating": "TiAlN"
+            },
+            {
+              "brand": "Super Alloy",
+              "oal": null,
+              "cl": null,
+              "coating": null
+            }
+          ]
+        }
+      ],
+      "finalCandidateCount": 30,
+      "finalCandidatesLen": 30,
+      "finalAppliedFilters": [
+        {
+          "field": "workPieceName",
+          "op": "includes",
+          "value": "티타늄 재료",
+          "rawValue": "TITANIUM",
+          "appliedAt": 0
+        },
+        {
+          "field": "brand_name",
+          "op": "includes",
+          "value": "TiAlN 코팅",
+          "rawValue": "TiAlN",
+          "appliedAt": 0
+        },
+        {
+          "field": "flute_count",
+          "op": "eq",
+          "value": "4날",
+          "rawValue": "4",
+          "appliedAt": 0
+        },
+        {
+          "field": "coating_length",
+          "op": "eq",
+          "value": "전장 100 이상",
+          "rawValue": "100",
+          "appliedAt": 0
+        },
+        {
+          "field": "region_code",
+          "op": "eq",
+          "value": "한국 재고",
+          "rawValue": "KR",
+          "appliedAt": 0
+        }
+      ],
+      "caseIndex": 25
+    }
+  ]
+}

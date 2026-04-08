@@ -314,7 +314,10 @@
         END AS search_diameter_mm,
     COALESCE(NULLIF(pm.option_milling_coating, ''::text), NULLIF(ph.option_holemaking_coating, ''::text), NULLIF(pt.option_threading_coating, ''::text)) AS search_coating,
     COALESCE(NULLIF(pm.option_milling_cuttingedgeshape, ''::text), NULLIF(ps.cutting_edge_shape, ''::text), NULLIF(pm.option_milling_cuttershape, ''::text), NULLIF(pt.option_threading_flutetype, ''::text), NULLIF(pt.option_threading_threadshape, ''::text)) AS search_subtype,
-    COALESCE(NULLIF(pm.option_milling_shanktype, ''::text), NULLIF(ptool.option_tooling_shanktype, ''::text), NULLIF(ps.shank_type, ''::text)) AS search_shank_type
+    COALESCE(NULLIF(pm.option_milling_shanktype, ''::text), NULLIF(ptool.option_tooling_shanktype, ''::text), NULLIF(ps.shank_type, ''::text)) AS search_shank_type,
+    ph.option_holemaking_pointangle AS holemaking_point_angle,
+    pt.option_threading_pitch AS threading_pitch,
+    pt.option_threading_tpi AS threading_tpi
    FROM dedup_edp pe
      LEFT JOIN raw_catalog.prod_series ps ON ps.idx = pe.series_idx
      LEFT JOIN series_materials sm ON sm.prod_series_idx = pe.series_idx

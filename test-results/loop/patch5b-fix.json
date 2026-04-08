@@ -1,0 +1,183 @@
+{
+  "label": "patch5b-fix",
+  "endpoint": "http://20.119.98.136:3000",
+  "runAt": "2026-04-07T17:16:27.841Z",
+  "tally": {
+    "PASS": 15,
+    "FAIL": 2,
+    "ERROR": 0
+  },
+  "passPct": "88.2",
+  "results": [
+    {
+      "id": "S01",
+      "name": "탄소강 P 슬로팅 10mm",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4510045\n**브랜드명:** 3S MILL | **제품코드:** CG3S3710020\n**브랜드명:** 3S MIL",
+      "products": 10,
+      "ms": 20039
+    },
+    {
+      "id": "S02",
+      "name": "비철 N 6mm side",
+      "source": "chat",
+      "verdict": "FAIL",
+      "reason": "추천 인텐트인데 0개",
+      "txt": "조건 없이 비철금속용 엔드밀을 전체적으로 검색해보겠습니다.\n\n📋 Reference: YG-1 내부 DB",
+      "products": 0,
+      "ms": 15484
+    },
+    {
+      "id": "S03",
+      "name": "스테인리스 M 8mm",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** ONLY ONE | **제품코드:** GYG76080\n**브랜드명:** ONLY ONE | **제품코드:** GYG72080\n**브랜드명:** ONLY ONE |",
+      "products": 10,
+      "ms": 19417
+    },
+    {
+      "id": "S04",
+      "name": "초내열 S 12mm",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "1개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S3712020\n\n사전 검색 결과를 바탕으로 초내열합금(고온합금) 가공에 최적화된 제품을 추천드리겠습니다.\n\n## 추천 ",
+      "products": 1,
+      "ms": 14352
+    },
+    {
+      "id": "S05",
+      "name": "주철 K 10mm",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4510045\n**브랜드명:** 3S MILL | **제품코드:** CG3S3710020\n**브랜드명:** ONLY O",
+      "products": 10,
+      "ms": 18766
+    },
+    {
+      "id": "M01",
+      "name": "Multi: 베이스 → 4날",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S3710020\n**브랜드명:** 3S MILL | **제품코드:** CG3S1310060\n**브랜드명:** 3S MIL",
+      "products": 10,
+      "ms": 32078
+    },
+    {
+      "id": "M02",
+      "name": "Multi: OAL→TiAlN",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 4G MILL | **제품코드:** SG9E7610030\n**브랜드명:** GENERAL CARBIDE | **제품코드:** G9B52100\n**브랜드명:** G",
+      "products": 10,
+      "ms": 44235
+    },
+    {
+      "id": "M03",
+      "name": "Multi: brand 제외",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "좋습니다! **CE7659908**은 YG-1 정규 제품으로 **재고 확인 가능**합니다.\n\n---\n\n## ✅ 재고 확인 가능 제품\n\n### **CE7659908 (GENERAL ",
+      "products": 10,
+      "ms": 90011
+    },
+    {
+      "id": "M04",
+      "name": "Multi: 단일 series",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S3710020\n**브랜드명:** 3S MILL | **제품코드:** CG3S1310060\n**브랜드명:** 3S MIL",
+      "products": 10,
+      "ms": 37052
+    },
+    {
+      "id": "M05",
+      "name": "Multi: 헬릭스 + cl",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4510045\n**브랜드명:** 3S MILL | **제품코드:** CG3S3710020\n**브랜드명:** 3S MIL",
+      "products": 10,
+      "ms": 33698
+    },
+    {
+      "id": "E01",
+      "name": "999mm (음의 케이스)",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4510045\n**브랜드명:** 3S MILL | **제품코드:** CG3S3710020\n**브랜드명:** 3S MIL",
+      "products": 10,
+      "ms": 20801
+    },
+    {
+      "id": "E02",
+      "name": "모순 ≥20 ≤5",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4510045\n**브랜드명:** 3S MILL | **제품코드:** CG3S3710020\n**브랜드명:** 3S MIL",
+      "products": 10,
+      "ms": 17635
+    },
+    {
+      "id": "H01",
+      "name": "초내열 누락 지적",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "1개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S3710020\n\n아, 제가 혼동을 드려 죄송합니다! \n\n**실제로 초내열합금(ISO-S) 가공용으로 추천드린 제품이 맞",
+      "products": 1,
+      "ms": 15815
+    },
+    {
+      "id": "H02",
+      "name": "단종 지적",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4510045\n**브랜드명:** 3S MILL | **제품코드:** CG3S3710020\n**브랜드명:** 3S MIL",
+      "products": 10,
+      "ms": 17048
+    },
+    {
+      "id": "H03",
+      "name": "Chip Splitter 없는 거",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** TitaNox-Power | **제품코드:** GMG41100\n**브랜드명:** TitaNox-Power | **제품코드:** GMG40100\n**브랜드명:** ",
+      "products": 10,
+      "ms": 19292
+    },
+    {
+      "id": "H04",
+      "name": "초경만",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4510045\n**브랜드명:** 3S MILL | **제품코드:** CG3S3710020\n**브랜드명:** 3S MIL",
+      "products": 10,
+      "ms": 18701
+    },
+    {
+      "id": "H05",
+      "name": "국내 한정",
+      "source": "chat",
+      "verdict": "FAIL",
+      "reason": "추천 인텐트인데 0개",
+      "txt": "초내열합금 키워드로 다시 검색해보겠습니다.\n\n📋 Reference: YG-1 내부 DB",
+      "products": 0,
+      "ms": 16298
+    }
+  ]
+}

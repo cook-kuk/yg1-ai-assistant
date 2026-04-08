@@ -1,0 +1,217 @@
+{
+  "label": "recommend-after-fix",
+  "endpoint": "http://20.119.98.136:3000",
+  "runAt": "2026-04-07T22:16:31.151Z",
+  "tally": {
+    "PASS": 9,
+    "FAIL": 6,
+    "ERROR": 0
+  },
+  "passPct": "60.0",
+  "results": [
+    {
+      "id": "M02",
+      "name": "Multi: OAL → TiAlN",
+      "verdict": "FAIL",
+      "reason": "0 후보 (텍스트)",
+      "cand": 30,
+      "candLen": 30,
+      "purpose": "question",
+      "txt": "전장: 전체 길이 100mm 이상 + 코팅: TiAlN 조건을 모두 적용하면 후보가 없습니다.\n현재 조건에서 선택 가능한 코팅: , TiAlN ",
+      "appliedFilters": [
+        "overallLengthMm:gte:100",
+        "coating:includes:TiAlN"
+      ],
+      "ms": 43741
+    },
+    {
+      "id": "S02",
+      "name": "비철 N 6mm side",
+      "verdict": "FAIL",
+      "reason": "0 후보 (텍스트)",
+      "cand": 276,
+      "candLen": 0,
+      "purpose": "recommendation",
+      "txt": "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요.",
+      "appliedFilters": [],
+      "ms": 37073
+    },
+    {
+      "id": "M03",
+      "name": "Multi: brand 제외",
+      "verdict": "PASS",
+      "reason": "367건 narrowing, 367건 표시",
+      "cand": 367,
+      "candLen": 367,
+      "purpose": "question",
+      "txt": "네, ALU-POWER 시리즈는 제외하고 진행하겠습니다.\n\n현재 비철금속용 φ8mm 측면가공 엔드밀 367개 후보가 있습니다.\n\n코팅 종류 선호",
+      "appliedFilters": [
+        "brand:neq:ALU-POWER"
+      ],
+      "ms": 44095
+    },
+    {
+      "id": "E01",
+      "name": "999mm (음의 케이스)",
+      "verdict": "PASS",
+      "reason": "30건 narrowing, 30건 표시",
+      "cand": 30,
+      "candLen": 30,
+      "purpose": "question",
+      "txt": "현재 질문에 대한 답변으로 인식하지 못했습니다. 아래 선택지 중에서 골라주시거나, 필요한 값이 있으면 형식에 맞게 직접 입력해주세요.\n\n네, 탄",
+      "appliedFilters": [],
+      "ms": 31479
+    },
+    {
+      "id": "S01",
+      "name": "탄소강 P 슬로팅 10mm",
+      "verdict": "PASS",
+      "reason": "1037건 narrowing, 1000건 표시",
+      "cand": 1037,
+      "candLen": 1000,
+      "purpose": "question",
+      "txt": "현재 1037개 후보가 있습니다. 날 수(flute) 선호가 있으신가요?",
+      "appliedFilters": [
+        "coating:skip:skip"
+      ],
+      "ms": 44200
+    },
+    {
+      "id": "S04",
+      "name": "초내열 S 12mm",
+      "verdict": "FAIL",
+      "reason": "0 후보 (텍스트)",
+      "cand": 30,
+      "candLen": 30,
+      "purpose": "question",
+      "txt": "피삭재: 고온합금(HRSA) 조건을 모두 적용하면 후보가 없습니다.\n피삭재 조건을 변경하거나 '상관없음'을 선택해주세요.",
+      "appliedFilters": [
+        "workPieceName:eq:HEAT-RESISTANTSUPERALLOY(HRSA)"
+      ],
+      "ms": 6908
+    },
+    {
+      "id": "M01",
+      "name": "Multi: 베이스 → 4날",
+      "verdict": "PASS",
+      "reason": "546건 narrowing, 546건 표시",
+      "cand": 546,
+      "candLen": 546,
+      "purpose": "question",
+      "txt": "4날 엔드밀로 범위를 좁혔습니다. 현재 546개 제품이 있습니다.\n\n탄소강 슬롯 가공에서 공구 형상에 따라 성능이 달라집니다:\n\n• **Squa",
+      "appliedFilters": [
+        "fluteCount:eq:4"
+      ],
+      "ms": 53595
+    },
+    {
+      "id": "H03",
+      "name": "Chip Splitter 없는 거",
+      "verdict": "PASS",
+      "reason": "2704건 narrowing, 1000건 표시",
+      "cand": 2704,
+      "candLen": 1000,
+      "purpose": "question",
+      "txt": "죄송합니다만, YG-1 내부 DB에는 \"Chip Splitter\" 유무를 명시하는 필드가 없어 해당 조건으로 필터링이 어렵습니다.\n\n📌 **웹",
+      "appliedFilters": [],
+      "ms": 77895
+    },
+    {
+      "id": "H04",
+      "name": "초경만",
+      "verdict": "PASS",
+      "reason": "954건 narrowing, 954건 표시",
+      "cand": 954,
+      "candLen": 954,
+      "purpose": "question",
+      "txt": "코팅 종류 선호가 있으신가요? 후보 중에 Y-Coating, Bright Finish, T-Coating 등이 있습니다.",
+      "appliedFilters": [
+        "fluteCount:skip:skip"
+      ],
+      "ms": 39494
+    },
+    {
+      "id": "E02",
+      "name": "모순 ≥20 ≤5",
+      "verdict": "FAIL",
+      "reason": "0 후보 (텍스트)",
+      "cand": 1037,
+      "candLen": 0,
+      "purpose": "recommendation",
+      "txt": "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요.",
+      "appliedFilters": [],
+      "ms": 60649
+    },
+    {
+      "id": "H01",
+      "name": "초내열 누락 지적",
+      "verdict": "PASS",
+      "reason": "31건 narrowing, 31건 표시",
+      "cand": 31,
+      "candLen": 31,
+      "purpose": "recommendation",
+      "txt": "이 조건이면 CG3S3710020 (CG3S37)를 먼저 보시면 됩니다. Radius 형상, 4날, φ10mm 기준에 잘 맞고, 코팅은 T-Co",
+      "appliedFilters": [
+        "workPieceName:eq:Titanium"
+      ],
+      "ms": 5635
+    },
+    {
+      "id": "S03",
+      "name": "스테인리스 M 8mm",
+      "verdict": "FAIL",
+      "reason": "0 후보 (텍스트)",
+      "cand": 30,
+      "candLen": 30,
+      "purpose": "question",
+      "txt": "직경: 8mm + 피삭재: stainless 조건을 모두 적용하면 후보가 없습니다.\n피삭재 조건을 변경하거나 '상관없음'을 선택해주세요.",
+      "appliedFilters": [
+        "diameterMm:eq:8",
+        "workPieceName:includes:stainless"
+      ],
+      "ms": 43117
+    },
+    {
+      "id": "M04",
+      "name": "Multi: 단일 series",
+      "verdict": "PASS",
+      "reason": "36건 narrowing, 36건 표시",
+      "cand": 36,
+      "candLen": 36,
+      "purpose": "question",
+      "txt": "공구 세부 타입이 중요한가요? Radius (23개), Ball (7개), Square (6개) 등이 있습니다.",
+      "appliedFilters": [
+        "brand:eq:X5070"
+      ],
+      "ms": 39648
+    },
+    {
+      "id": "S05",
+      "name": "주철 K 10mm",
+      "verdict": "PASS",
+      "reason": "591건 narrowing, 591건 표시",
+      "cand": 591,
+      "candLen": 591,
+      "purpose": "question",
+      "txt": "네, 주철 가공용 φ10mm 엔드밀을 찾고 계시는군요.\n\n현재 591개 후보가 있습니다. 주철은 칩 배출이 중요한데, **날 수(flute)**",
+      "appliedFilters": [
+        "series_workpiece_material:includes:CASTIRON"
+      ],
+      "ms": 49358
+    },
+    {
+      "id": "M05",
+      "name": "Multi: 헬릭스 + cl",
+      "verdict": "FAIL",
+      "reason": "0 후보 (텍스트)",
+      "cand": 30,
+      "candLen": 30,
+      "purpose": "question",
+      "txt": "헬릭스각: 헬릭스 45도 이상 조건을 모두 적용하면 후보가 없습니다.\n현재 조건에서 선택 가능한 헬릭스각: 45 (3개), 140 (2개), 3",
+      "appliedFilters": [
+        "helixAngleDeg:gte:45"
+      ],
+      "ms": 49608
+    }
+  ]
+}

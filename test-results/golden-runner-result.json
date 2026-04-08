@@ -1,485 +1,793 @@
 {
-  "pass": 22,
-  "fail": 8,
-  "error": 0,
+  "pass": 8,
+  "fail": 0,
+  "error": 2,
   "skip": 0,
   "details": [
     {
-      "id": "M01",
+      "id": "J01",
       "verdict": "PASS",
-      "detail": "strict:OutsideDia",
-      "elapsedMs": 13389,
-      "filters": [
-        {
-          "field": "diameterMm",
-          "op": "eq",
-          "value": "10mm",
-          "rawValue": 10,
-          "appliedAt": 0
-        }
-      ]
+      "detail": "4turns",
+      "elapsedMs": 77792,
+      "runResult": {
+        "lastFilters": [
+          {
+            "field": "workPieceName",
+            "op": "eq",
+            "value": "Stainless Steels",
+            "rawValue": "Stainless Steels",
+            "appliedAt": 0
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": "10",
+            "rawValue": 10,
+            "appliedAt": 1775639216010
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": "4날",
+            "rawValue": 4,
+            "appliedAt": 0
+          },
+          {
+            "field": "brand",
+            "op": "neq",
+            "value": "CRX S 제외",
+            "rawValue": "CRX S",
+            "appliedAt": 1
+          },
+          {
+            "field": "toolSubtype",
+            "op": "skip",
+            "value": "상관없음",
+            "rawValue": "skip",
+            "appliedAt": 2
+          }
+        ],
+        "turnResults": [
+          {
+            "text": "스테인리스강 측면가공 10mm 엔드밀",
+            "filters": [
+              {
+                "field": "workPieceName",
+                "op": "eq",
+                "value": "Stainless Steels",
+                "rawValue": "Stainless Steels",
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775639216010
+              }
+            ],
+            "expected": null
+          },
+          {
+            "text": "4날",
+            "filters": [
+              {
+                "field": "workPieceName",
+                "op": "eq",
+                "value": "Stainless Steels",
+                "rawValue": "Stainless Steels",
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775639216010
+              },
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              }
+            ],
+            "expected": [
+              "fluteCount=4"
+            ]
+          },
+          {
+            "text": "CRX S 빼고",
+            "filters": [
+              {
+                "field": "workPieceName",
+                "op": "eq",
+                "value": "Stainless Steels",
+                "rawValue": "Stainless Steels",
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775639216010
+              },
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              },
+              {
+                "field": "brand",
+                "op": "neq",
+                "value": "CRX S 제외",
+                "rawValue": "CRX S",
+                "appliedAt": 1
+              }
+            ],
+            "expected": [
+              "brand=CRX S(neq)"
+            ]
+          },
+          {
+            "text": "추천해줘",
+            "filters": [
+              {
+                "field": "workPieceName",
+                "op": "eq",
+                "value": "Stainless Steels",
+                "rawValue": "Stainless Steels",
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775639216010
+              },
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              },
+              {
+                "field": "brand",
+                "op": "neq",
+                "value": "CRX S 제외",
+                "rawValue": "CRX S",
+                "appliedAt": 1
+              },
+              {
+                "field": "toolSubtype",
+                "op": "skip",
+                "value": "상관없음",
+                "rawValue": "skip",
+                "appliedAt": 2
+              }
+            ],
+            "expected": null
+          }
+        ]
+      }
     },
     {
-      "id": "M02",
+      "id": "J02",
       "verdict": "PASS",
-      "detail": "strict:OutsideDia",
-      "elapsedMs": 11126,
-      "filters": [
-        {
-          "field": "toolSubtype",
-          "op": "includes",
-          "value": "Ball",
-          "rawValue": "Ball",
-          "appliedAt": 0
-        },
-        {
-          "field": "diameterMm",
-          "op": "eq",
-          "value": "6mm",
-          "rawValue": 6,
-          "appliedAt": 0
-        }
-      ]
+      "detail": "2turns",
+      "elapsedMs": 28886,
+      "runResult": {
+        "lastFilters": [
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": "10",
+            "rawValue": 10,
+            "appliedAt": 1775639290353
+          },
+          {
+            "field": "toolSubtype",
+            "op": "eq",
+            "value": "Square",
+            "rawValue": "Square",
+            "appliedAt": 1775639290353
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": "4날",
+            "rawValue": 4,
+            "appliedAt": 0
+          }
+        ],
+        "turnResults": [
+          {
+            "text": "Square 2날 10mm",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "2날",
+                "rawValue": 2,
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775639290353
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 1775639290353
+              }
+            ],
+            "expected": null
+          },
+          {
+            "text": "2날 말고 4날로",
+            "filters": [
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775639290353
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 1775639290353
+              },
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              }
+            ],
+            "expected": [
+              "fluteCount=4(eq)"
+            ]
+          }
+        ]
+      }
     },
     {
-      "id": "M03",
+      "id": "J03",
       "verdict": "PASS",
-      "detail": "strict:OutsideDia",
-      "elapsedMs": 11958,
-      "filters": [
-        {
-          "field": "diameterMm",
-          "op": "eq",
-          "value": "8mm",
-          "rawValue": 8,
-          "appliedAt": 0
-        }
-      ]
+      "detail": "smoke:seq",
+      "elapsedMs": 14447,
+      "runResult": {
+        "lastFilters": [],
+        "turnResults": [
+          {
+            "text": "Square 4날 CRX-S",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              },
+              {
+                "field": "brand",
+                "op": "eq",
+                "value": "CRX-S",
+                "rawValue": "CRX-S",
+                "appliedAt": 0
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 1775639319280
+              }
+            ],
+            "expected": null
+          },
+          {
+            "text": "처음부터",
+            "filters": [],
+            "expected": []
+          }
+        ]
+      }
     },
     {
-      "id": "M04",
+      "id": "J04",
       "verdict": "PASS",
-      "detail": "strict:OutsideDia",
-      "elapsedMs": 10364,
-      "filters": [
-        {
-          "field": "diameterMm",
-          "op": "eq",
-          "value": "20mm",
-          "rawValue": 20,
-          "appliedAt": 0
-        }
-      ]
+      "detail": "2turns",
+      "elapsedMs": 33258,
+      "runResult": {
+        "lastFilters": [
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": "2날",
+            "rawValue": 2,
+            "appliedAt": 0
+          },
+          {
+            "field": "brand",
+            "op": "neq",
+            "value": "CRX S",
+            "rawValue": "CRX S",
+            "appliedAt": 0
+          }
+        ],
+        "turnResults": [
+          {
+            "text": "Square 2날 CRX-S",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "2날",
+                "rawValue": 2,
+                "appliedAt": 0
+              },
+              {
+                "field": "brand",
+                "op": "eq",
+                "value": "CRX-S",
+                "rawValue": "CRX-S",
+                "appliedAt": 0
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 1775639334231
+              }
+            ],
+            "expected": null
+          },
+          {
+            "text": "이전으로 돌아가서 CRX S 제외",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "2날",
+                "rawValue": 2,
+                "appliedAt": 0
+              },
+              {
+                "field": "brand",
+                "op": "neq",
+                "value": "CRX S",
+                "rawValue": "CRX S",
+                "appliedAt": 0
+              }
+            ],
+            "expected": [
+              "brand=CRX S(neq)"
+            ]
+          }
+        ]
+      }
     },
     {
-      "id": "M05",
+      "id": "J05",
       "verdict": "PASS",
-      "detail": "strict:OverAllLength",
-      "elapsedMs": 2418,
-      "filters": [
-        {
-          "field": "diameterMm",
-          "op": "eq",
-          "value": "100mm",
-          "rawValue": 100,
-          "appliedAt": 0
-        },
-        {
-          "field": "overallLengthMm",
-          "op": "eq",
-          "value": "100mm",
-          "rawValue": 100,
-          "appliedAt": 0
-        }
-      ]
+      "detail": "smoke:seq",
+      "elapsedMs": 16039,
+      "runResult": {
+        "lastFilters": [
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": "2날",
+            "rawValue": 2,
+            "appliedAt": 0
+          },
+          {
+            "field": "workPieceName",
+            "op": "eq",
+            "value": "Stainless Steels",
+            "rawValue": "Stainless Steels",
+            "appliedAt": 0
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": "10",
+            "rawValue": 10,
+            "appliedAt": 1775639368663
+          },
+          {
+            "field": "toolSubtype",
+            "op": "eq",
+            "value": "Square",
+            "rawValue": "Square",
+            "appliedAt": 1775639368663
+          },
+          {
+            "field": "cuttingType",
+            "op": "skip",
+            "value": "상관없음",
+            "rawValue": "skip",
+            "appliedAt": 0
+          }
+        ],
+        "turnResults": [
+          {
+            "text": "스테인리스 Square 2날 TiAlN 10mm",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "2날",
+                "rawValue": 2,
+                "appliedAt": 0
+              },
+              {
+                "field": "coating",
+                "op": "eq",
+                "value": "TiAlN",
+                "rawValue": "TiAlN",
+                "appliedAt": 0
+              },
+              {
+                "field": "workPieceName",
+                "op": "eq",
+                "value": "Stainless Steels",
+                "rawValue": "Stainless Steels",
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775639368663
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 1775639368663
+              }
+            ],
+            "expected": null
+          },
+          {
+            "text": "코팅 상관없으니 일반적으로 많이 사용하는 걸로 추천해주세요",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "2날",
+                "rawValue": 2,
+                "appliedAt": 0
+              },
+              {
+                "field": "workPieceName",
+                "op": "eq",
+                "value": "Stainless Steels",
+                "rawValue": "Stainless Steels",
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775639368663
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 1775639368663
+              },
+              {
+                "field": "cuttingType",
+                "op": "skip",
+                "value": "상관없음",
+                "rawValue": "skip",
+                "appliedAt": 0
+              }
+            ],
+            "expected": null
+          }
+        ]
+      }
     },
     {
-      "id": "M06",
+      "id": "J06",
       "verdict": "PASS",
-      "detail": "strict:LengthofCut",
-      "elapsedMs": 1694,
-      "filters": [
-        {
-          "field": "diameterMm",
-          "op": "between",
-          "value": "직경 30mm~50mm",
-          "rawValue": 30,
-          "appliedAt": 0
-        },
-        {
-          "field": "lengthOfCutMm",
-          "op": "eq",
-          "value": "30mm",
-          "rawValue": 30,
-          "appliedAt": 0
-        }
-      ]
+      "detail": "3turns",
+      "elapsedMs": 54009,
+      "runResult": {
+        "lastFilters": [
+          {
+            "field": "workPieceName",
+            "op": "eq",
+            "value": "Stainless Steels",
+            "rawValue": "Stainless Steels",
+            "appliedAt": 0
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": "4날",
+            "rawValue": 4,
+            "appliedAt": 0
+          },
+          {
+            "field": "coating",
+            "op": "eq",
+            "value": "Y-Coating",
+            "rawValue": "Y-Coating",
+            "appliedAt": 1
+          }
+        ],
+        "turnResults": [
+          {
+            "text": "SUS304 가공이에요!",
+            "filters": [
+              {
+                "field": "workPieceName",
+                "op": "eq",
+                "value": "Stainless Steels",
+                "rawValue": "Stainless Steels",
+                "appliedAt": 0
+              }
+            ],
+            "expected": [
+              "workPieceName=Stainless Steels"
+            ]
+          },
+          {
+            "text": "4날",
+            "filters": [
+              {
+                "field": "workPieceName",
+                "op": "eq",
+                "value": "Stainless Steels",
+                "rawValue": "Stainless Steels",
+                "appliedAt": 0
+              },
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              }
+            ],
+            "expected": [
+              "fluteCount=4"
+            ]
+          },
+          {
+            "text": "Y 코팅으로 추천해줘",
+            "filters": [
+              {
+                "field": "workPieceName",
+                "op": "eq",
+                "value": "Stainless Steels",
+                "rawValue": "Stainless Steels",
+                "appliedAt": 0
+              },
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              },
+              {
+                "field": "coating",
+                "op": "eq",
+                "value": "Y-Coating",
+                "rawValue": "Y-Coating",
+                "appliedAt": 1
+              }
+            ],
+            "expected": [
+              "coating=Y-Coating"
+            ]
+          }
+        ]
+      }
     },
     {
-      "id": "M07",
+      "id": "J07",
       "verdict": "PASS",
-      "detail": "strict:ShankDia",
-      "elapsedMs": 11937,
-      "filters": [
-        {
-          "field": "diameterMm",
-          "op": "eq",
-          "value": "6mm",
-          "rawValue": 6,
-          "appliedAt": 0
-        },
-        {
-          "field": "shankDiameterMm",
-          "op": "eq",
-          "value": "6mm",
-          "rawValue": 6,
-          "appliedAt": 0
-        }
-      ]
+      "detail": "smoke:seq",
+      "elapsedMs": 39649,
+      "runResult": {
+        "lastFilters": [
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": "10",
+            "rawValue": 10,
+            "appliedAt": 1775639438566
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": "3날",
+            "rawValue": 3,
+            "appliedAt": 0
+          },
+          {
+            "field": "workPieceName",
+            "op": "eq",
+            "value": "알루미늄",
+            "rawValue": "알루미늄",
+            "appliedAt": 0
+          }
+        ],
+        "turnResults": [
+          {
+            "text": "Aluminum 측면가공 10mm",
+            "filters": [
+              {
+                "field": "workPieceName",
+                "op": "eq",
+                "value": "알루미늄",
+                "rawValue": "알루미늄",
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775639438566
+              }
+            ],
+            "expected": null
+          },
+          {
+            "text": "3날로 추천해주세요, 항공용 Aluminum 소재에 고속 가공용에 적용",
+            "filters": [
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775639438566
+              },
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "3날",
+                "rawValue": 3,
+                "appliedAt": 0
+              },
+              {
+                "field": "workPieceName",
+                "op": "eq",
+                "value": "알루미늄",
+                "rawValue": "알루미늄",
+                "appliedAt": 0
+              }
+            ],
+            "expected": null
+          }
+        ]
+      }
     },
     {
-      "id": "M08",
-      "verdict": "FAIL",
-      "detail": "strict:NeckDiameter≠diameterMm",
-      "elapsedMs": 1554,
-      "filters": [
-        {
-          "field": "diameterMm",
-          "op": "lte",
-          "value": "넥 직경 4mm 이하",
-          "rawValue": 4,
-          "appliedAt": 0
-        }
-      ]
-    },
-    {
-      "id": "M09",
-      "verdict": "FAIL",
-      "detail": "strict:RadiusAll≠diameterMm,toolSubtype",
-      "elapsedMs": 16341,
-      "filters": [
-        {
-          "field": "diameterMm",
-          "op": "eq",
-          "value": "0.5mm",
-          "rawValue": 0.5,
-          "appliedAt": 0
-        },
-        {
-          "field": "toolSubtype",
-          "op": "eq",
-          "value": "Radius",
-          "rawValue": "Radius",
-          "appliedAt": 1775537317860
-        }
-      ]
-    },
-    {
-      "id": "M10",
-      "verdict": "FAIL",
-      "detail": "strict:Cutter_Diameter≠diameterMm",
-      "elapsedMs": 12258,
-      "filters": [
-        {
-          "field": "diameterMm",
-          "op": "eq",
-          "value": "50mm",
-          "rawValue": 50,
-          "appliedAt": 0
-        }
-      ]
-    },
-    {
-      "id": "M11",
+      "id": "J08",
       "verdict": "PASS",
-      "detail": "strict:NumberofFlute",
-      "elapsedMs": 1179,
-      "filters": [
-        {
-          "field": "fluteCount",
-          "op": "gte",
-          "value": "날수 4개 이상",
-          "rawValue": 4,
-          "appliedAt": 0
-        }
-      ]
+      "detail": "smoke:seq",
+      "elapsedMs": 42158,
+      "runResult": {
+        "lastFilters": [
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": "4날",
+            "rawValue": 4,
+            "appliedAt": 0
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": "10",
+            "rawValue": 10,
+            "appliedAt": 1775639479155
+          },
+          {
+            "field": "toolSubtype",
+            "op": "eq",
+            "value": "Square",
+            "rawValue": "Square",
+            "appliedAt": 1775639479155
+          }
+        ],
+        "turnResults": [
+          {
+            "text": "Square 4날 10mm 추천해줘",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775639479155
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 1775639479155
+              }
+            ],
+            "expected": null
+          },
+          {
+            "text": "#1번과 #2번 비교",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775639479155
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 1775639479155
+              }
+            ],
+            "expected": null
+          }
+        ]
+      }
     },
     {
-      "id": "M12",
-      "verdict": "PASS",
-      "detail": "strict:NumberofFlute",
-      "elapsedMs": 1353,
-      "filters": [
-        {
-          "field": "fluteCount",
-          "op": "between",
-          "value": "날수 2개~6개",
-          "rawValue": 2,
-          "appliedAt": 0
-        }
-      ]
+      "id": "J09",
+      "verdict": "ERROR",
+      "error": "read ECONNRESET"
     },
     {
-      "id": "M13",
-      "verdict": "PASS",
-      "detail": "strict:NumberofFlute",
-      "elapsedMs": 1712,
-      "filters": [
-        {
-          "field": "fluteCount",
-          "op": "eq",
-          "value": "100날",
-          "rawValue": 100,
-          "appliedAt": 0
-        }
-      ]
-    },
-    {
-      "id": "M14",
-      "verdict": "FAIL",
-      "detail": "strict:HelixAngle≠helix_angle",
-      "elapsedMs": 21925,
-      "filters": [
-        {
-          "field": "helix_angle",
-          "op": "includes",
-          "value": "헬릭스 각 30도에서 45도 사이",
-          "rawValue": "30~45",
-          "appliedAt": 0
-        }
-      ]
-    },
-    {
-      "id": "M15",
-      "verdict": "FAIL",
-      "detail": "strict:TaperAngle≠toolSubtype",
-      "elapsedMs": 12378,
-      "filters": [
-        {
-          "field": "toolSubtype",
-          "op": "includes",
-          "value": "Taper",
-          "rawValue": "Taper",
-          "appliedAt": 0
-        }
-      ]
-    },
-    {
-      "id": "M16",
-      "verdict": "FAIL",
-      "detail": "strict:SingleDoubleEnd≠fluteCount",
-      "elapsedMs": 11247,
-      "filters": [
-        {
-          "field": "fluteCount",
-          "op": "eq",
-          "value": "날수 1날 (싱글엔드)",
-          "rawValue": 1,
-          "appliedAt": 0
-        }
-      ]
-    },
-    {
-      "id": "M17",
-      "verdict": "FAIL",
-      "detail": "no-filter-extracted",
-      "elapsedMs": 21101,
-      "filters": []
-    },
-    {
-      "id": "M18",
-      "verdict": "FAIL",
-      "detail": "strict:RoughingFinishtype≠toolSubtype",
-      "elapsedMs": 11444,
-      "filters": [
-        {
-          "field": "toolSubtype",
-          "op": "includes",
-          "value": "Roughing",
-          "rawValue": "Roughing",
-          "appliedAt": 0
-        }
-      ]
-    },
-    {
-      "id": "M19",
-      "verdict": "PASS",
-      "detail": "strict:CutterShape",
-      "elapsedMs": 12133,
-      "filters": [
-        {
-          "field": "toolSubtype",
-          "op": "includes",
-          "value": "Ball",
-          "rawValue": "Ball",
-          "appliedAt": 0
-        }
-      ]
-    },
-    {
-      "id": "M20",
-      "verdict": "PASS",
-      "detail": "strict:CFRP",
-      "elapsedMs": 6172,
-      "filters": [
-        {
-          "field": "workPieceName",
-          "op": "includes",
-          "value": "FRP",
-          "rawValue": "FRP",
-          "appliedAt": 0
-        }
-      ]
-    },
-    {
-      "id": "M21",
-      "verdict": "PASS",
-      "detail": "strict:OutsideDia",
-      "elapsedMs": 16238,
-      "filters": [
-        {
-          "field": "diameterMm",
-          "op": "eq",
-          "value": "10mm",
-          "rawValue": 10,
-          "appliedAt": 0
-        }
-      ]
-    },
-    {
-      "id": "M22",
-      "verdict": "PASS",
-      "detail": "strict:OutsideDia",
-      "elapsedMs": 1365,
-      "filters": [
-        {
-          "field": "diameterMm",
-          "op": "gte",
-          "value": "직경 8mm 초과",
-          "rawValue": 8.01,
-          "appliedAt": 0
-        }
-      ]
-    },
-    {
-      "id": "M23",
-      "verdict": "PASS",
-      "detail": "strict:OutsideDia",
-      "elapsedMs": 1490,
-      "filters": [
-        {
-          "field": "diameterMm",
-          "op": "gte",
-          "value": "직경 12mm 이상",
-          "rawValue": 12,
-          "appliedAt": 0
-        }
-      ]
-    },
-    {
-      "id": "M24",
-      "verdict": "PASS",
-      "detail": "strict:OutsideDia",
-      "elapsedMs": 1414,
-      "filters": [
-        {
-          "field": "diameterMm",
-          "op": "lte",
-          "value": "직경 5mm 이하",
-          "rawValue": 5,
-          "appliedAt": 0
-        }
-      ]
-    },
-    {
-      "id": "M25",
-      "verdict": "PASS",
-      "detail": "strict:OutsideDia",
-      "elapsedMs": 1450,
-      "filters": [
-        {
-          "field": "diameterMm",
-          "op": "lte",
-          "value": "직경 4mm 이하",
-          "rawValue": 4,
-          "appliedAt": 0
-        }
-      ]
-    },
-    {
-      "id": "M26",
-      "verdict": "PASS",
-      "detail": "strict:OutsideDia",
-      "elapsedMs": 2229,
-      "filters": [
-        {
-          "field": "diameterMm",
-          "op": "between",
-          "value": "직경 6~10mm",
-          "rawValue": 6,
-          "appliedAt": 0
-        }
-      ]
-    },
-    {
-      "id": "M27",
-      "verdict": "PASS",
-      "detail": "strict:OutsideDia",
-      "elapsedMs": 14319,
-      "filters": [
-        {
-          "field": "diameterMm",
-          "op": "eq",
-          "value": "10mm",
-          "rawValue": 10,
-          "appliedAt": 0
-        }
-      ]
-    },
-    {
-      "id": "M28",
-      "verdict": "PASS",
-      "detail": "strict:OutsideDia",
-      "elapsedMs": 12263,
-      "filters": [
-        {
-          "field": "diameterMm",
-          "op": "eq",
-          "value": "8mm",
-          "rawValue": 8,
-          "appliedAt": 0
-        }
-      ]
-    },
-    {
-      "id": "M29",
-      "verdict": "PASS",
-      "detail": "strict:OutsideDia",
-      "elapsedMs": 11670,
-      "filters": [
-        {
-          "field": "diameterMm",
-          "op": "eq",
-          "value": "6mm",
-          "rawValue": 6,
-          "appliedAt": 0
-        }
-      ]
-    },
-    {
-      "id": "M30",
-      "verdict": "PASS",
-      "detail": "strict:OutsideDia",
-      "elapsedMs": 9720,
-      "filters": [
-        {
-          "field": "diameterMm",
-          "op": "eq",
-          "value": "6.35mm",
-          "rawValue": 6.35,
-          "appliedAt": 0
-        }
-      ]
+      "id": "J10",
+      "verdict": "ERROR",
+      "error": "connect EHOSTUNREACH 20.119.98.136:3000"
     }
   ]
 }

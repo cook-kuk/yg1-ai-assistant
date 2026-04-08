@@ -1,0 +1,27 @@
+
+[recommend-quality] recommend-after-fix | endpoint=http://20.119.98.136:3000 | n=15/15 workers=2
+
+--- recommend-after-fix | PASS 9 (60.0%)  FAIL 6  ERROR 0  in 331301ms ---
+  FAIL  #M02 Multi: OAL → TiAlN               cand=   30 ms=43741
+         reason: 0 후보 (텍스트)
+  FAIL  #S02 비철 N 6mm side                    cand=  276 ms=37073
+         reason: 0 후보 (텍스트)
+  PASS  #M03 Multi: brand 제외                  cand=  367 ms=44095
+  PASS  #E01 999mm (음의 케이스)                   cand=   30 ms=31479
+  PASS  #S01 탄소강 P 슬로팅 10mm                   cand= 1037 ms=44200
+  FAIL  #S04 초내열 S 12mm                       cand=   30 ms=6908
+         reason: 0 후보 (텍스트)
+  PASS  #M01 Multi: 베이스 → 4날                  cand=  546 ms=53595
+  PASS  #H03 Chip Splitter 없는 거               cand= 2704 ms=77895
+  PASS  #H04 초경만                              cand=  954 ms=39494
+  FAIL  #E02 모순 ≥20 ≤5                        cand= 1037 ms=60649
+         reason: 0 후보 (텍스트)
+  PASS  #H01 초내열 누락 지적                        cand=   31 ms=5635
+  FAIL  #S03 스테인리스 M 8mm                      cand=   30 ms=43117
+         reason: 0 후보 (텍스트)
+  PASS  #M04 Multi: 단일 series                 cand=   36 ms=39648
+  PASS  #S05 주철 K 10mm                        cand=  591 ms=49358
+  FAIL  #M05 Multi: 헬릭스 + cl                  cand=   30 ms=49608
+         reason: 0 후보 (텍스트)
+
+→ test-results\loop\recommend-after-fix.json

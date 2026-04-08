@@ -1,0 +1,12 @@
+Running brand_exclusion_after_recommendation ... FAIL
+Running brand_exclusion_variant ... FAIL
+Running clear_brand_after_recommendation ... PASS
+Running country_filter_after_recommendation ... PASS
+Running flute_replace_after_recommendation ... PASS
+Running go_back_then_exclude_brand ... PASS
+Running range_request ... PASS
+
+Fixtures: 7
+PASS: 5
+FAIL/ERROR: 2
+Saved: C:\Users\kuksh\Downloads\YG1_test\test-results\thread-results-p3000.json

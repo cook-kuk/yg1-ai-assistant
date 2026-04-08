@@ -1,0 +1,15 @@
+HEAD is now at 17f0865 fix(sql-agent): pull MV columns from pg_attribute, not information_schema
+17f0865 fix(sql-agent): pull MV columns from pg_attribute, not information_schema
+#19 unpacking to docker.io/library/yg1-ai-catalog-dev-app:latest 0.0s done
+#19 DONE 0.2s
+
+#20 resolving provenance for metadata file
+#20 DONE 0.0s
+ Image yg1-ai-catalog-dev-app Built 
+ Container yg1-ai-catalog-app-dev Creating 
+ Container yg1-ai-catalog-app-dev Created 
+ Container yg1-ai-catalog-app-dev Starting 
+ Container yg1-ai-catalog-app-dev Started 
+STDERR: From github.com:csp-digital/yg1-ai-catalog
+ * branch            main       -> FETCH_HEAD
+

@@ -1,0 +1,1013 @@
+{
+  "label": "final-100",
+  "endpoint": "http://20.119.98.136:3000",
+  "runAt": "2026-04-07T21:46:28.438Z",
+  "tally": {
+    "PASS": 86,
+    "FAIL": 14,
+    "ERROR": 0
+  },
+  "passPct": "86.0",
+  "results": [
+    {
+      "id": "fb-fb-1774828375828-a48f1721",
+      "name": "답변 내용 중 \"상관없음\"을 선택해도 괜찮다고 하였지만 선택사항 중 \"상",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "6개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S1310060\n**브랜드명:** 3S MILL | **제품코드:** CG3S02100\n**브랜드명:** 4G MILL ",
+      "products": 6,
+      "ms": 33158
+    },
+    {
+      "id": "fb-fb-1774831630544-2f404c52",
+      "name": "YG-1 제품중에서 고경도강용 엔드밀에 대해 3S Mill 말고 다른 제",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "1개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4602040\n\n**MIRACLE** 시리즈와 **A-POWER** 시리즈는 모두 **YG-1** 제품입니다.\n\n###",
+      "products": 1,
+      "ms": 23853
+    },
+    {
+      "id": "fb-fb-1774226428729-0b81f703",
+      "name": "X-Coating은 중경도가공에 적합한 코팅이나, 고경도가공에 대해 추천",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "5개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4706002\n**브랜드명:** 3S MILL | **제품코드:** CG3S1306045\n**브랜드명:** 3S MIL",
+      "products": 5,
+      "ms": 409986
+    },
+    {
+      "id": "M03",
+      "name": "Multi: brand 제외",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** GENERAL HSS END MILLS | **제품코드:** CE7659908\n**브랜드명:** COMPOSITE MATERIALS | **제품코드:** URT5",
+      "products": 10,
+      "ms": 35797
+    },
+    {
+      "id": "fb-fb-1774597818690-8c8ffa21",
+      "name": "6파이 추천 요청에 4파이 제품을 추천 받았습니다.\n데이터 베이스가 아직",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "알루미늄 가공에 적합한 6mm 엔드밀을 추천드리겠습니다! 이미 좋은 검색 결과가 있네요.\n\n알루미늄 측면 가공(Side Milling)에는 다음 제품들을 추천드립니다:\n\n## 🎯",
+      "products": 10,
+      "ms": 16565
+    },
+    {
+      "id": "fb-fb-1775438969226-90a5628f",
+      "name": "탄소강 가공을 위한 초경엔드밀 제품이 3S MILL밖에 없다는 답변이 잘",
+      "source": "chat",
+      "verdict": "FAIL",
+      "reason": "에러 응답",
+      "txt": "죄송합니다, 응답을 생성하지 못했습니다.\n\n📋 Reference: YG-1 내부 DB",
+      "products": 0,
+      "ms": 38716
+    },
+    {
+      "id": "fb-fb-1774827740338-3f9cd67c",
+      "name": "질문에 대한 답을 받을때마다 평가를 눌러야만 추가 질문이나 조건을 입력할",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "4개 추천",
+      "txt": "**브랜드명:** i-Xmill | **제품코드:** XMB130A120\n**브랜드명:** GENERAL CARBIDE | **제품코드:** G9B52120\n**브랜드명:** K-",
+      "products": 4,
+      "ms": 20524
+    },
+    {
+      "id": "fb-fb-1774243283585-2372531a",
+      "name": "SG8A46 시리즈와 SG8A60 시리즈의 차이점에 대해서 문의 하였고 ",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "9개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4606032\n**브랜드명:** 3S MILL | **제품코드:** CG3S38060150\n**브랜드명:** X-POW",
+      "products": 9,
+      "ms": 135154
+    },
+    {
+      "id": "H03",
+      "name": "Chip Splitter 없는 거",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** TitaNox-Power | **제품코드:** GMG41100\n**브랜드명:** TitaNox-Power | **제품코드:** GMG40100\n**브랜드명:** ",
+      "products": 10,
+      "ms": 18180
+    },
+    {
+      "id": "fb-fb-1774313388044-5b543671",
+      "name": "슬롯가공 제품추천 문의 하였는데 Ball 제품을 1순위로 추천해서 왜 B",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "4개 추천",
+      "txt": "**브랜드명:** V7 PLUS | **제품코드:** GMH61100\n**브랜드명:** V7 PLUS | **제품코드:** GMG55100\n**브랜드명:** K-2 CARBIDE ",
+      "products": 4,
+      "ms": 164670
+    },
+    {
+      "id": "M02",
+      "name": "Multi: OAL→TiAlN",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 4G MILL | **제품코드:** SG9E7610030\n**브랜드명:** GENERAL CARBIDE | **제품코드:** G9B52100\n**브랜드명:** G",
+      "products": 10,
+      "ms": 47725
+    },
+    {
+      "id": "fb-fb-1775176423494-0ae4fc88",
+      "name": "Inch Size에 대한 필터링 문제인지, 피삭재에 대한 필터링 문제인지",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "대화형 응답",
+      "txt": "## 💡 **왜 ALU-POWER를 추천하지 못했는지 명확한 답변**\n\n---\n\n### 🔴 **핵심 이유: 내부 DB에 ALU-POWER 데이터가 없습니다**\n\n제가 접근하는 ",
+      "products": 0,
+      "ms": 161616
+    },
+    {
+      "id": "fb-fb-1774242505710-585b558a",
+      "name": "탭제품을 추천하여, 왜 탭을 추천해주냐고 문의하니 엔드밀로 정상 필터링 ",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** i-Xmill | **제품코드:** XMB130A130\n**브랜드명:** 4G MILL | **제품코드:** SEME71140E\n**브랜드명:** X-POWER ",
+      "products": 10,
+      "ms": 19955
+    },
+    {
+      "id": "S01",
+      "name": "탄소강 P 슬로팅 10mm",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4510045\n**브랜드명:** 3S MILL | **제품코드:** CG3S3710020\n**브랜드명:** 3S MIL",
+      "products": 10,
+      "ms": 17573
+    },
+    {
+      "id": "fb-fb-1775089857321-1173550c",
+      "name": "직경 4MM를 검색 조건으로 주었는데 정확 매칭에 3MM 제품이 추천함.",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "1개 추천",
+      "txt": "**브랜드명:** GENERAL CARBIDE | **제품코드:** T4GRB-040A\n\n고경도강 (HRc 40~45) 프로파일 가공용 **4mm 4날 볼 엔드밀**을 추천드립니다",
+      "products": 1,
+      "ms": 56919
+    },
+    {
+      "id": "fb-fb-1774853710657-6f9aaf51",
+      "name": "SEM84500616 제품 사이즈(유효길이) 문의했는데 잘못된 정보 제공",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "1개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4500606\n\n아, 죄송합니다! 말씀하신 **유효길이(날 길이, Length of Cut)**는 위에 나와 있습니다.",
+      "products": 1,
+      "ms": 36441
+    },
+    {
+      "id": "fb-fb-1775548143208-8d5e8d45",
+      "name": "알루컷 제품 GEE8304030 추천에 \nEFORCE 정보가 함께 출력됨",
+      "source": "chat",
+      "verdict": "FAIL",
+      "reason": "에러 응답",
+      "txt": "죄송합니다, 응답을 생성하지 못했습니다.\n\n📋 Reference: YG-1 내부 DB",
+      "products": 0,
+      "ms": 39588
+    },
+    {
+      "id": "fb-fb-1775547371500-1f186895",
+      "name": "선택지 선택 시, 원하는 값이 출력이 되지 않고,\n의미없는 결과값이 나옴",
+      "source": "chat",
+      "verdict": "FAIL",
+      "reason": "추천 인텐트인데 0개",
+      "txt": "스테인리스 가공용 스퀘어 엔드밀을 키워드로 검색해보겠습니다.\n\n📋 Reference: YG-1 내부 DB",
+      "products": 0,
+      "ms": 26271
+    },
+    {
+      "id": "S02",
+      "name": "비철 N 6mm side",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "2개 추천",
+      "txt": "**브랜드명:** DREAM DRILL-ALU | **제품코드:** DGE433112\n**브랜드명:** DREAM DRILL-ALU | **제품코드:** D5434030\n\n죄송합니",
+      "products": 2,
+      "ms": 15595
+    },
+    {
+      "id": "M05",
+      "name": "Multi: 헬릭스 + cl",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4510045\n**브랜드명:** 3S MILL | **제품코드:** CG3S3710020\n**브랜드명:** 3S MIL",
+      "products": 10,
+      "ms": 34461
+    },
+    {
+      "id": "fb-fb-1775547498674-53617dd4",
+      "name": "스테인레스 추천에\nSUSCUT/V7PLUS/Titanox 등의 제품이 없",
+      "source": "chat",
+      "verdict": "FAIL",
+      "reason": "추천 인텐트인데 0개",
+      "txt": "날 수 조건을 제거하고 검색해보겠습니다.\n\n📋 Reference: YG-1 내부 DB",
+      "products": 0,
+      "ms": 39312
+    },
+    {
+      "id": "fb-fb-1775173084447-7fb9db94",
+      "name": "예상답변에비해 여전히 T-Coating제품이 도출되거나 피삭재 경도에 맞",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "5개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4608042\n**브랜드명:** 3S MILL | **제품코드:** CG3S38080150\n**브랜드명:** X5070",
+      "products": 5,
+      "ms": 113390
+    },
+    {
+      "id": "fb-fb-1775434146630-2807dcae",
+      "name": "현재 관리가 되고 있는 CGM3S37 시리즈가 우선적으로 추천이 되었으면",
+      "source": "chat",
+      "verdict": "FAIL",
+      "reason": "0 후보",
+      "txt": "φ6mm에서 결과가 없어서 근접 직경(±2mm)으로 검색해보겠습니다.\n\n📋 Reference: YG-1 내부 DB",
+      "products": 0,
+      "ms": 12842
+    },
+    {
+      "id": "fb-fb-1774858754863-780dd6b7",
+      "name": "탄소강 Holemaking Tool 선택 시, 2날 선호하는 것을 선택 ",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "8개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4506060\n**브랜드명:** 3S MILL | **제품코드:** CG3S1106045\n**브랜드명:** 3S MIL",
+      "products": 8,
+      "ms": 67934
+    },
+    {
+      "id": "fb-fb-1774912675960-f0da9ed0",
+      "name": "바로 위에 답변에서 영어로 계속 답변해드리겠다고 했는데 다름 답변에서 바",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "1개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S3710020\n\n**Brand:** 3S MILL | **Product Code:** CG3S3710020\n\nPerfe",
+      "products": 1,
+      "ms": 56646
+    },
+    {
+      "id": "fb-fb-1774922814916-41885e58",
+      "name": "검색결과상의 추천 제품 순서와 시스템상의 번호가 상이한 것으로 보입니다.",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "4개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4506060\n**브랜드명:** 3S MILL | **제품코드:** CG3S1306045\n**브랜드명:** 3S MIL",
+      "products": 4,
+      "ms": 195482
+    },
+    {
+      "id": "fb-fb-1775518837451-b6487900",
+      "name": "S소재 국내제품 추천 요청시에도 해외제품만 안내함.\n우측 추천 후보에서 ",
+      "source": "chat",
+      "verdict": "FAIL",
+      "reason": "에러 응답",
+      "txt": "죄송합니다, 응답을 생성하지 못했습니다.\n\n📋 Reference: YG-1 내부 DB",
+      "products": 0,
+      "ms": 25845
+    },
+    {
+      "id": "fb-fb-1775518137030-4db18406",
+      "name": "SUPER ALLOY 시리즈에 대한 정보가 거의 안 들어가 있는 것 같습",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "6개 추천",
+      "txt": "**브랜드명:** TitaNox-Power | **제품코드:** GMG41100\n**브랜드명:** TitaNox-Power | **제품코드:** GMG40100\n**브랜드명:** ",
+      "products": 6,
+      "ms": 289087
+    },
+    {
+      "id": "E02",
+      "name": "모순 ≥20 ≤5",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4510045\n**브랜드명:** 3S MILL | **제품코드:** CG3S3710020\n**브랜드명:** 3S MIL",
+      "products": 10,
+      "ms": 19374
+    },
+    {
+      "id": "fb-fb-1775177398312-27f59b9e",
+      "name": "적절한 제품 추천 받은 뒤 Shank Type 이 Plain Flat 모",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "2개 추천",
+      "txt": "**브랜드명:** V7 PLUS | **제품코드:** GMG56100\n**브랜드명:** V7 PLUS | **제품코드:** GMG55100\n\n죄송합니다만, 현재 내부 DB 검색 시",
+      "products": 2,
+      "ms": 140689
+    },
+    {
+      "id": "M04",
+      "name": "Multi: 단일 series",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S3710020\n**브랜드명:** 3S MILL | **제품코드:** CG3S1310060\n**브랜드명:** 3S MIL",
+      "products": 10,
+      "ms": 75569
+    },
+    {
+      "id": "fb-fb-1774856676243-2b5627a5",
+      "name": "첫번째 응답 후 일괄 질의가 가능한 항목(공구 형상/날수/피삭재)에 대하",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "4개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S3712020\n**브랜드명:** 4G MILL | **제품코드:** SEME671200545\n**브랜드명:** 4G M",
+      "products": 4,
+      "ms": 30602
+    },
+    {
+      "id": "M01",
+      "name": "Multi: 베이스 → 4날",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S3710020\n**브랜드명:** 3S MILL | **제품코드:** CG3S1310060\n**브랜드명:** 3S MIL",
+      "products": 10,
+      "ms": 36908
+    },
+    {
+      "id": "fb-fb-1774311798174-7f3512dd",
+      "name": "브이세븐과 서스컷의 차이점에 대해서 문의 했는데 코팅 종류에 대해서 답변",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S3710020\n**브랜드명:** 3S MILL | **제품코드:** CG3S1310060\n**브랜드명:** 3S MIL",
+      "products": 10,
+      "ms": 88716
+    },
+    {
+      "id": "fb-fb-1774394675014-1f99b602",
+      "name": "최초 검색 후 날수 5날(3개 제품)을 선택했으나 검색 시간이 너무 느림",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "4개 추천",
+      "txt": "**브랜드명:** 4G MILL | **제품코드:** SG9E7714014S\n**브랜드명:** JET-POWER | **제품코드:** EH920140\n**브랜드명:** JET-PO",
+      "products": 4,
+      "ms": 20074
+    },
+    {
+      "id": "fb-fb-1775516853994-57a96dd5",
+      "name": "초경엔드밀, 하이스 엔드밀 구분을 못하는 것 같다.",
+      "source": "chat",
+      "verdict": "FAIL",
+      "reason": "에러 응답",
+      "txt": "죄송합니다, 응답을 생성하지 못했습니다.\n\n📋 Reference: YG-1 내부 DB",
+      "products": 0,
+      "ms": 58939
+    },
+    {
+      "id": "fb-fb-1774918567413-a27192d1",
+      "name": "채팅으로 요청 사항을 전달했을 때, 해당 내용에 대한 처리가 매우 미흡하",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4506060\n**브랜드명:** ONLY ONE | **제품코드:** GYG76060\n**브랜드명:** ONLY ONE",
+      "products": 10,
+      "ms": 61979
+    },
+    {
+      "id": "S05",
+      "name": "주철 K 10mm",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4510045\n**브랜드명:** 3S MILL | **제품코드:** CG3S3710020\n**브랜드명:** ONLY O",
+      "products": 10,
+      "ms": 20388
+    },
+    {
+      "id": "fb-fb-1774311416298-3f462feb",
+      "name": "가공소재를 다양하게 선택했더니 소재가 다양하다면서 주로 가공하는 소재가 ",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S3710020\n**브랜드명:** 3S MILL | **제품코드:** CG3S1310060\n**브랜드명:** 3S MIL",
+      "products": 10,
+      "ms": 18920
+    },
+    {
+      "id": "fb-fb-1775436699668-26dbc8df",
+      "name": "제품 추천은 정확했지만 인치사이즈 제품의 제원을 표기 하는데 뒤에 단위가",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "1개 추천",
+      "txt": "완벽합니다! 다양한 가공 방식에 대응하시는군요.\n\n## 🎯 최종 추천: JAI39902 (DLC 코팅, 3날)\n\n**브랜드:** ALU-POWER HPC | **제품코드:** J",
+      "products": 1,
+      "ms": 118836
+    },
+    {
+      "id": "fb-fb-1775089726155-f8b153d1",
+      "name": "학습 DB의 문제로 보이며 화면에 보이는 2개의 품목이 동일 제품입니다.",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "1개 추천",
+      "txt": "**브랜드명:** GENERAL CARBIDE | **제품코드:** T4GRB-040A\n\n4날 볼 엔드밀 제품들을 확인하셨군요! 4날은 정밀 프로파일 가공에서 면조도와 안정성이 우",
+      "products": 1,
+      "ms": 32949
+    },
+    {
+      "id": "fb-fb-1774941800686-97939a62",
+      "name": "알루컷 시리즈에 대해서 간략하게 설명 요청하였는데 설명한 시리즈 중 없는",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "4개 추천",
+      "txt": "**브랜드명:** CRX S | **제품코드:** SGED31100\n**브랜드명:** CRX S | **제품코드:** SGED3010025\n**브랜드명:** ALU-POWER HP",
+      "products": 4,
+      "ms": 251371
+    },
+    {
+      "id": "S04",
+      "name": "초내열 S 12mm",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "1개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S3712020\n\n초내열합금(Inconel, Hastelloy 등) 가공용 12mm 엔드밀을 추천드립니다.\n\n사전 검색 ",
+      "products": 1,
+      "ms": 19014
+    },
+    {
+      "id": "fb-fb-1774309889960-058e1f6b",
+      "name": "추천 제품은 Carbide 제품이 우선 추천되고 HSS 제품이 후순위로 ",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 4G MILL | **제품코드:** SG9E76060\n**브랜드명:** GENERAL HSS | **제품코드:** E2767060\n**브랜드명:** GENERAL",
+      "products": 10,
+      "ms": 36770
+    },
+    {
+      "id": "fb-fb-1774827247930-4e35e357",
+      "name": "고경도강 가공 제품 추천에 전용 Brand인 X1-EH나 X5070을 추",
+      "source": "chat",
+      "verdict": "FAIL",
+      "reason": "에러 응답",
+      "txt": "죄송합니다, 응답을 생성하지 못했습니다.\n\n📋 Reference: YG-1 내부 DB",
+      "products": 0,
+      "ms": 82720
+    },
+    {
+      "id": "fb-fb-1774926011671-6fc05faa",
+      "name": "공구 세부 타입, 날 수, 코팅 정보를 사전에 선택할 수 있으면 제품 제",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "9개 추천",
+      "txt": "완벽합니다! **SEM813 시리즈 (X-POWER S)**가 정확히 HRc 55~70의 초고경도강 전용 제품입니다. 48개 변형이 바로 이 시리즈에 해당합니다.\n\n## 🔥 HR",
+      "products": 9,
+      "ms": 56744
+    },
+    {
+      "id": "fb-fb-1774857545085-1d96e0e5",
+      "name": "주철, slotting 가공 시 구글 AI는 2,3날 추천\n당사 AI는 ",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4508040\n**브랜드명:** 3S MILL | **제품코드:** CG3S3708020\n**브랜드명:** ONLY O",
+      "products": 10,
+      "ms": 21625
+    },
+    {
+      "id": "fb-fb-1775105015965-c774909e",
+      "name": "문의에 대해 와이지원 제품이 아닌 것을 답변함.\n-->MIRACLE, T",
+      "source": "chat",
+      "verdict": "FAIL",
+      "reason": "0 후보",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S600200114\n**브랜드명:** 3S MILL | **제품코드:** CG3S470200220\n\n아쉽게도 현재 내부 ",
+      "products": 2,
+      "ms": 202569
+    },
+    {
+      "id": "E01",
+      "name": "999mm (음의 케이스)",
+      "source": "chat",
+      "verdict": "FAIL",
+      "reason": "추천 인텐트인데 0개",
+      "txt": "입력하신 **직경 999mm**는 일반적인 엔드밀 범위(0.5~50mm)를 크게 벗어난 값입니다. \n\n실제로 슬롯 가공(Slotting)에 많이 사용되는 일반적인 직경은 **6mm",
+      "products": 0,
+      "ms": 10990
+    },
+    {
+      "id": "fb-fb-1774244095746-b99ba043",
+      "name": "브랜드별 차이점을 물어봤고, 엔드밀 날수에 대한 답변을 받았습니다. (맞",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** COMPOSITE MATERIALS | **제품코드:** URT5P2AP1000\n**브랜드명:** COMPOSITE MATERIALS | **제품코드:** TYP",
+      "products": 10,
+      "ms": 20182
+    },
+    {
+      "id": "fb-fb-1774834206622-2916f6f4",
+      "name": "데모모드 - 도면업로드 자동 판정 오타\n특'주' 타겟 --> 특'수' 타",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "8개 추천",
+      "txt": "**브랜드명:** 4G MILL | **제품코드:** SEME71060E\n**브랜드명:** TANK-POWER | **제품코드:** GAC25060N\n**브랜드명:** TANK-P",
+      "products": 8,
+      "ms": 21040
+    },
+    {
+      "id": "fb-fb-1775087653812-9b3d0330",
+      "name": "3날 스퀘어 비코팅 제품 추천해 달라고 했는데,\n스탠다드 제품도 아닌 d",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "5개 추천",
+      "txt": "**브랜드명:** ALU-POWER HPC | **제품코드:** E5H23100\n**브랜드명:** ALU-CUT for Korean Market | **제품코드:** GEE8310",
+      "products": 5,
+      "ms": 46670
+    },
+    {
+      "id": "fb-fb-1774844596603-fd6fdcb8",
+      "name": "TitaNox-Power 4Flute 제품 Corner Radius 1m",
+      "source": "chat",
+      "verdict": "FAIL",
+      "reason": "에러 응답",
+      "txt": "죄송합니다, 응답을 생성하지 못했습니다.\n\n📋 Reference: YG-1 내부 DB + 웹 검색",
+      "products": 0,
+      "ms": 86528
+    },
+    {
+      "id": "fb-fb-1775088869748-be876d64",
+      "name": "스테인레스강 영역에서, 헬리컬 가공 볼 가공 시,\nV7 PLUS GMG5",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "2개 추천",
+      "txt": "**브랜드명:** V7 PLUS | **제품코드:** GMG56120\n**브랜드명:** SUS-CUT for Korean Market | **제품코드:** EMD88120\n\n스테인",
+      "products": 2,
+      "ms": 15753
+    },
+    {
+      "id": "fb-fb-1774845913558-2626c002",
+      "name": "알루파워 E5910060 알루미늄 가공 절삭조건에 대해서 문의 하였고 결",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "## 📊 WIDE-CUT (SE5E91060200) - 알루미늄 측면 가공 절삭 조건\n\n### 🎯 6mm 볼 엔드밀 | Aluminum Side Cutting\n\n---\n\n## ",
+      "products": 10,
+      "ms": 121551
+    },
+    {
+      "id": "fb-fb-1775009604727-10bf3713",
+      "name": "아직 처음 단계라 그렇겠지만, 현재에서 조금 좋아지는 정도로 AI ASS",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4508040\n**브랜드명:** 3S MILL | **제품코드:** CG3S1308050\n**브랜드명:** 3S MIL",
+      "products": 10,
+      "ms": 186079
+    },
+    {
+      "id": "fb-fb-1774922407028-bc407400",
+      "name": "제품 추천 로직이 이전 단계의 값으로 검색이 진행되는 것으로 보입니다.\n",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "4개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4506060\n**브랜드명:** 3S MILL | **제품코드:** CG3S1306045\n**브랜드명:** 3S MIL",
+      "products": 4,
+      "ms": 162776
+    },
+    {
+      "id": "fb-fb-1775088715872-ac52f8c4",
+      "name": "고경도 강용 solid end mill 추천 요청시 당사 Main 신제품",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "고경도강(HRc 40~65) 밀링에 최적화된 **Solid End Mill** 제품을 추천드립니다!\n\n---\n\n## 🏆 고경도강 밀링 추천 Solid End Mill\n\n### 1",
+      "products": 10,
+      "ms": 83711
+    },
+    {
+      "id": "S03",
+      "name": "스테인리스 M 8mm",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** ONLY ONE | **제품코드:** GYG76080\n**브랜드명:** ONLY ONE | **제품코드:** GYG72080\n**브랜드명:** ONLY ONE |",
+      "products": 10,
+      "ms": 18529
+    },
+    {
+      "id": "fb-fb-1774843660016-2c75f3c6",
+      "name": "데이터베이스 문제로 추정되는데 GMG41과 GMG40의 차이를 문의했을 ",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "7개 추천",
+      "txt": "**브랜드명:** V7 PLUS | **제품코드:** GMG87100\n**브랜드명:** TitaNox-Power | **제품코드:** GMG41100\n**브랜드명:** TitaNo",
+      "products": 7,
+      "ms": 56425
+    },
+    {
+      "id": "fb-fb-1774307969250-c45f752f",
+      "name": "제품명 -> 시리즈 -> 세부 EDP 로 단계를 보여주는게 제품 찾기가 ",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** GENERAL HSS END MILLS | **제품코드:** CE7659906\n**브랜드명:** COMPOSITE MATERIALS | **제품코드:** URT5",
+      "products": 10,
+      "ms": 22416
+    },
+    {
+      "id": "fb-fb-1775103063410-621b197f",
+      "name": "필요한 가공깊이 정보를 제공하였는데, ai는 저의 질문과 관계없이 본인이",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "1개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S3702005\n\n직경 2mm, 스테인리스 가공, 날 길이 10mm 이상 조건으로 내부 DB에서 다시 검색해보겠습니다.\n",
+      "products": 1,
+      "ms": 49991
+    },
+    {
+      "id": "fb-fb-1774332500126-fc2c5b75",
+      "name": "제품 탐색 첫 단계에서 지금은 조건선택 버튼을 모두 클릭해야만 검색하여 ",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 4G MILL | **제품코드:** SEME71100E\n**브랜드명:** GENERAL CARBIDE | **제품코드:** E5882100\n**브랜드명:** X-",
+      "products": 10,
+      "ms": 149498
+    },
+    {
+      "id": "H05",
+      "name": "국내 한정",
+      "source": "chat",
+      "verdict": "FAIL",
+      "reason": "추천 인텐트인데 0개",
+      "txt": "국가 필터를 제거하고 글로벌 제품 중 초내열합금용을 검색해보겠습니다.\n\n📋 Reference: YG-1 내부 DB",
+      "products": 0,
+      "ms": 18514
+    },
+    {
+      "id": "fb-fb-1775548918222-d8285536",
+      "name": "우측 섹션 제품 선택 시, 다른 출력값 정보 확인됨\n\nE5E83 -> G",
+      "source": "chat",
+      "verdict": "FAIL",
+      "reason": "추천 인텐트인데 0개",
+      "txt": "직경 범위를 넓혀서 3~5mm 사이의 비철금속용 제품을 검색해보겠습니다.\n\n📋 Reference: YG-1 내부 DB",
+      "products": 0,
+      "ms": 14186
+    },
+    {
+      "id": "fb-fb-1774855742501-0b87df72",
+      "name": "알루미늄 가공에 항공용 Aluminum 고속 가공에 대해\n추천하지 못함",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "5개 추천",
+      "txt": "항공용 알루미늄 소재 고속 가공이시군요! 사전 검색된 3날 제품 중 **항공 산업에 최적화된 제품**을 추천드립니다.\n\n---\n\n## ✈️ 항공용 알루미늄 고속 가공 최적 추천\n\n",
+      "products": 5,
+      "ms": 42014
+    },
+    {
+      "id": "fb-fb-1774836289605-9a828c7f",
+      "name": "1. T-Coating 이 아니라 X-Coating으로 코팅 명이 잘못되",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "4개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S02040\n**브랜드명:** 3S MILL | **제품코드:** CG3S1304030\n**브랜드명:** 4G MILL ",
+      "products": 4,
+      "ms": 55798
+    },
+    {
+      "id": "fb-fb-1775107199333-6975e1d4",
+      "name": "고객사에서 T3P02K54 품목 동일규격에 막힌구멍용을 찾으실 수도 있으",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4506060\n**브랜드명:** 3S MILL | **제품코드:** CG3S3706020\n**브랜드명:** 3S MIL",
+      "products": 10,
+      "ms": 60590
+    },
+    {
+      "id": "fb-fb-1774396036060-b54bb72f",
+      "name": "제품 비교시 제공된 데이터에 있는 조건이 나오지 않음.\n두 개 제품간에는",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "4개 추천",
+      "txt": "**브랜드명:** 4G MILL | **제품코드:** SG9E7714014S\n**브랜드명:** JET-POWER | **제품코드:** EH920140\n**브랜드명:** JET-PO",
+      "products": 4,
+      "ms": 39428
+    },
+    {
+      "id": "fb-fb-1774935474273-83c12d54",
+      "name": "트로코이달 가공에 부적합 제품 추천 => 최적 제품 추천 로직 변경 필요",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "4개 추천",
+      "txt": "**브랜드명:** X-POWER S | **제품코드:** SEM81210055\n**브랜드명:** SUS-CUT for Korean Market | **제품코드:** EHD85100",
+      "products": 4,
+      "ms": 104444
+    },
+    {
+      "id": "fb-fb-1774847576895-31b1ba11",
+      "name": "코너레디우스 제품 추천을 문의했고, 시리즈까지는 추천을 받았으나  Rad",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** TitaNox-Power | **제품코드:** GMG41060\n**브랜드명:** TitaNox-Power | **제품코드:** GMG31901\n**브랜드명:** ",
+      "products": 10,
+      "ms": 57381
+    },
+    {
+      "id": "fb-fb-1775006591096-6efbdf23",
+      "name": "1. 일반 고객 입장에서 선택하기 어려운 질문이 있음.\n  예) 선호 코",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "1개 추천",
+      "txt": "**브랜드명:** 4G MILL | **제품코드:** SG9E76100\n**브랜드명:** 4G MILL | **제품코드:** SG9E7610030\n\n좋은 선택입니다! **X-Coa",
+      "products": 1,
+      "ms": 105102
+    },
+    {
+      "id": "fb-fb-1775106428709-cbb49dec",
+      "name": "내수용 페이지에서 해외용 제품(K-2) 추천\n만약에 고객이 없는 제품에 ",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "1개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4604050\n\n네! X1-EH 시리즈에서 **4mm 볼 엔드밀**을 추천드립니다! 👍\n\n## 🌟 X1-EH 4mm",
+      "products": 1,
+      "ms": 227806
+    },
+    {
+      "id": "fb-fb-1774845421912-0cfc307f",
+      "name": "알루미늄 피삭재 코팅 추천에 TiCN, Bright, DLC는 매우 좋은",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** CRX S | **제품코드:** SGED28060\n**브랜드명:** CRX S | **제품코드:** SGED2706030\n**브랜드명:** WIDE-CUT for",
+      "products": 10,
+      "ms": 54587
+    },
+    {
+      "id": "fb-fb-1774835754980-00f3994d",
+      "name": "<br/> 같은 태그가 적용되지 않고 텍스트로 보임 ",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "4개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S3704010\n**브랜드명:** 4G MILL | **제품코드:** SEME8104010\n**브랜드명:** 4G MIL",
+      "products": 4,
+      "ms": 149945
+    },
+    {
+      "id": "fb-fb-1775094766576-fb743028",
+      "name": "추천된 제품 내 국내용/해외용 구분이 있으면 좋을 것 같습니다.",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "6개 추천",
+      "txt": "**브랜드명:** 4G MILL | **제품코드:** SEME71060E\n**브랜드명:** 4G MILL | **제품코드:** SEME7306032E\n**브랜드명:** 4G MIL",
+      "products": 6,
+      "ms": 79567
+    },
+    {
+      "id": "fb-fb-1774920347147-8ea1f32b",
+      "name": "제품을 추천하지 못하는데 DB에서 선택하는 로직이 이상한 것인지 형상 선",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "완벽합니다! 인코넬 가공용 코너 R 엔드밀 직경 10mm 제품을 찾았습니다! 🎯\n\n## 🔥 **추천 제품: TitaNox-Power 코너 R 엔드밀**\n\n### **GMG411",
+      "products": 10,
+      "ms": 121784
+    },
+    {
+      "id": "fb-fb-1774937968550-99c8633b",
+      "name": "-Y코팅만 53개가 필터링 된 상태에서, 선택지에 T코팅이 등장했음(에러",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** V7 PLUS | **제품코드:** GMG87200\n**브랜드명:** TitaNox-Power | **제품코드:** GMG41200\n**브랜드명:** TitaNo",
+      "products": 10,
+      "ms": 78975
+    },
+    {
+      "id": "fb-fb-1775542730132-19a18e96",
+      "name": "제일 작은 제일 큰 이런 말에 대해서는 아직 대답해주지 못하는 것으로 보",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "7개 추천",
+      "txt": "**브랜드명:** V7 PLUS | **제품코드:** GMH6410020\n**브랜드명:** V7 PLUS | **제품코드:** GMG18904\n**브랜드명:** V7 PLUS | ",
+      "products": 7,
+      "ms": 130700
+    },
+    {
+      "id": "fb-fb-1774942130529-a1f13ffb",
+      "name": "국가지정을 하고 해당 국가에 판매하는 제품으로만 먼저 필터링 요청하였으나",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4510045\n**브랜드명:** 3S MILL | **제품코드:** CG3S3710020\n**브랜드명:** 3S MIL",
+      "products": 10,
+      "ms": 19358
+    },
+    {
+      "id": "fb-fb-1774852855227-f66e533b",
+      "name": "처음에는 \"SUS-CUT (EHD85): 한국 시장 맞춤형 범용 시리즈\"",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** V7 PLUS | **제품코드:** GMH63100\n**브랜드명:** V7 PLUS | **제품코드:** GMH62100\n**브랜드명:** V7 PLUS | **",
+      "products": 10,
+      "ms": 97569
+    },
+    {
+      "id": "fb-fb-1774244593825-c98c41da",
+      "name": "소재와 코팅의 대외비 사항에 대해서 문의 하였는데, 괜찮은 답변이 나온 ",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** V7 PLUS | **제품코드:** GMG55100\n\n## YG-1 V7 PLUS 코팅 정보\n\n### ✅ YG-1 자체 코팅 시설 보유\n\n**YG-1은 코팅을 외",
+      "products": 10,
+      "ms": 492193
+    },
+    {
+      "id": "fb-fb-1774857296356-b4527a88",
+      "name": "Radius 제품의 경우 반드시 Radius값이 제품 비교시 보여 주어야",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "4개 추천",
+      "txt": "**브랜드명:** 4G MILL | **제품코드:** SEME6312020\n**브랜드명:** 4G MILL | **제품코드:** SEME671200545\n\n## 🔍 #1 vs #",
+      "products": 4,
+      "ms": 112538
+    },
+    {
+      "id": "fb-fb-1774415936248-96cf0696",
+      "name": " 램핑가공을 위한 알루미늄용(N계열) 엔드밀 추천을 해달라고 했는데 4G",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** ALU-POWER HPC | **제품코드:** JAH25916\n**브랜드명:** ALU-POWER HPC | **제품코드:** JAH24920\n**브랜드명:** ",
+      "products": 10,
+      "ms": 144453
+    },
+    {
+      "id": "fb-fb-1774916166636-e4783d32",
+      "name": "1. 사용자의 선호도를 파악하고 선택을 돕기 위해 시스템이 부연 설명을 ",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "1개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S3704010\n\n4날, Steel 가공용, Square 엔드밀, 직경 6mm 조건으로 인기 제품을 찾아보겠습니다.\n\n-",
+      "products": 1,
+      "ms": 45729
+    },
+    {
+      "id": "fb-fb-1774941096875-98b89e86",
+      "name": "추천 초기에 선택지가 아닌 다른부분을 문의 했음에도 그에 대한 답변이 아",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "4개 추천",
+      "txt": "**브랜드명:** CRX S | **제품코드:** SGED31100\n**브랜드명:** CRX S | **제품코드:** SGED3010025\n**브랜드명:** ALU-POWER HP",
+      "products": 4,
+      "ms": 20395
+    },
+    {
+      "id": "fb-fb-1774844688578-5a1f9673",
+      "name": "처음 제품 추천 요청한 직경이 1/2이었습니다. 물론 유사 Size인 1",
+      "source": "chat",
+      "verdict": "FAIL",
+      "reason": "에러 응답",
+      "txt": "죄송합니다, 응답을 생성하지 못했습니다.\n\n📋 Reference: YG-1 내부 DB",
+      "products": 0,
+      "ms": 56477
+    },
+    {
+      "id": "fb-fb-1774834986428-5747894c",
+      "name": "같은 제품인데 Tool Code와 EDP No로 2개로 중복 검색됨 ",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "1개 추천",
+      "txt": "**브랜드명:** GENERAL CARBIDE | **제품코드:** G9B52040\n**브랜드명:** K-2 CARBIDE | **제품코드:** GFC66040\n**브랜드명:** ",
+      "products": 1,
+      "ms": 115364
+    },
+    {
+      "id": "fb-fb-1774853311055-9db20b91",
+      "name": "30파이 제품이 없다고 답변하고 있습니다. HSS 엔드밀 제품 중에 추천",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** GENERAL HSS | **제품코드:** CE7A63300\n**브랜드명:** GENERAL HSS END MILLS | **제품코드:** CE7659300\n**",
+      "products": 10,
+      "ms": 97278
+    },
+    {
+      "id": "fb-fb-1774832669737-de404690",
+      "name": "1. Country 에 ASIA 가 2개로 나옵니다.\n2. Dealer ",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "3개 추천",
+      "txt": "**브랜드명:** K-2 CARBIDE | **제품코드:** EMC60005080\n**브랜드명:** K-2 CARBIDE | **제품코드:** EMC56005\n**브랜드명:** 3",
+      "products": 3,
+      "ms": 37910
+    },
+    {
+      "id": "fb-fb-1774826375804-cdcc1cfb",
+      "name": "S계열 제품 추천 요청했는데, 가장 Best Brand인 TitaNox-",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "1개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S3712020\n\n완벽한 지적입니다! \n\n## 🔍 검색 결과 분석\n\n말씀하신 대로 **TitaNox-Power** 같은",
+      "products": 1,
+      "ms": 77596
+    },
+    {
+      "id": "fb-fb-1775088070257-591bd61d",
+      "name": "왼쪽 제품 탐색 부근에 현재 검색 조건등을 표기해 놓았는데, 이를 변경하",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "1개 추천",
+      "txt": "**브랜드명:** ALU-POWER HPC | **제품코드:** JAH23120\n\n좋습니다! DLC 코팅으로 변경하시면 AL7075 가공에 더욱 유리합니다.\n\n## 🎯 12파이 ",
+      "products": 1,
+      "ms": 118947
+    },
+    {
+      "id": "fb-fb-1774827944133-bd6dd71f",
+      "name": "3S MILL의 Coating을 T-Coating이라고 설명하고 있습니다",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "대화형 응답",
+      "txt": "## T-Coating이란?\n\n**T-Coating**은 **YG-1이 독자 개발한 나노복합 코팅 기술**로, 초고경도 소재 가공에 최적화된 고성능 코팅입니다.\n\n---\n\n### ",
+      "products": 0,
+      "ms": 93874
+    },
+    {
+      "id": "fb-fb-1775090508791-8a64d7ae",
+      "name": "드림드릴 제너럴을 찾아 접근 했으나 결과는 나오지 않음. 추천 후보에는 ",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "완벽합니다! 탄소강 홀 가공용 **10mm TiAlN 코팅 드릴**을 찾았습니다.\n\n## ✅ 추천 제품: YG-1 Dream Drill\n\n### 📌 **제품 코드: DH42310",
+      "products": 10,
+      "ms": 120557
+    },
+    {
+      "id": "fb-fb-1774912507361-8abf023e",
+      "name": "언어를 한국어로 선택한 상태에서 영어로 답변을 요청했는데 영어로 답변을 ",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4510045\n**브랜드명:** 3S MILL | **제품코드:** CG3S3710020\n**브랜드명:** 3S MIL",
+      "products": 10,
+      "ms": 39431
+    },
+    {
+      "id": "fb-fb-1774829627248-621eaec8",
+      "name": "1. padding이 너무 커서 화면에 표시되는 정보의 양이 제한적임.\n",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "10개 추천",
+      "txt": "**브랜드명:** i-SMART | **제품코드:** XSEME36100\n**브랜드명:** 3S MILL | **제품코드:** CG3S4610052\n**브랜드명:** i-SMART",
+      "products": 10,
+      "ms": 69620
+    },
+    {
+      "id": "fb-fb-1774856914537-2232c2d1",
+      "name": "직경 12mm 로 조회 하였으나 1건은 12mm이고 다른 한건은 10mm",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "4개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S3712020\n**브랜드명:** 4G MILL | **제품코드:** SEME671200545\n\n네, **Bright F",
+      "products": 4,
+      "ms": 73956
+    },
+    {
+      "id": "fb-fb-1774845036616-41849929",
+      "name": "제품 추천까지는 좋았지만, G-CUT의 경우 Aluminum 보단 Gra",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "4개 추천",
+      "txt": "**브랜드명:** CRX S | **제품코드:** SGED28060\n**브랜드명:** CRX S | **제품코드:** SGED2706030\n**브랜드명:** WIDE-CUT for",
+      "products": 4,
+      "ms": 21536
+    },
+    {
+      "id": "fb-fb-1774939748766-11807cef",
+      "name": "고경도강용 제품 중 X5070을 추천해주는지 확인하기 위해 코팅색상인 파",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "6개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4610052\n**브랜드명:** 3S MILL | **제품코드:** CG3S38100150\n**브랜드명:** i-SMA",
+      "products": 6,
+      "ms": 244168
+    },
+    {
+      "id": "fb-fb-1774598251071-43c3ade8",
+      "name": "Ai의 추천 댓글의 선택지와 아래의 선택지 버튼이 일치하지 않습니다.\n\n",
+      "source": "chat",
+      "verdict": "PASS",
+      "reason": "2개 추천",
+      "txt": "**브랜드명:** 3S MILL | **제품코드:** CG3S4610052\n**브랜드명:** 3S MILL | **제품코드:** CG3S38100150\n\n고경도강 가공용 직경 10",
+      "products": 2,
+      "ms": 14271
+    }
+  ]
+}

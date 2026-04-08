@@ -1,0 +1,158 @@
+{
+  "label": "baseline-iter0",
+  "endpoint": "http://20.119.98.136:3000",
+  "runAt": "2026-04-07T15:49:38.085Z",
+  "n": 12,
+  "passed": 0,
+  "failed": 3,
+  "warn": 9,
+  "ms": 106563,
+  "results": [
+    {
+      "id": 1,
+      "name": "P 슬로팅 10mm 베이스",
+      "nl": "괜찮은 거 추천",
+      "db": 290,
+      "ep": 1037,
+      "filters": [],
+      "ms": 37585,
+      "verdict": "⚠️과다"
+    },
+    {
+      "id": 15,
+      "name": "5중 P/M φ8-12 4F OAL≥80 TiAlN 재고",
+      "nl": "직경 8-12, 4F, OAL 80+, TiAlN, 재고",
+      "db": 10,
+      "ep": 137,
+      "filters": [
+        "diameter:includes:8|9|10|11|12",
+        "flutes:eq:4F",
+        "overall_length:includes:80+",
+        "coating:eq:TiAlN",
+        "stock_status:eq:in_stock",
+        "fluteCount:eq:4"
+      ],
+      "ms": 31379,
+      "verdict": "⚠️과다"
+    },
+    {
+      "id": 22,
+      "name": "999mm (음의 케이스)",
+      "nl": "직경 999mm 추천",
+      "db": 0,
+      "ep": 30,
+      "filters": [
+        "diameterMm:eq:999"
+      ],
+      "ms": 17798,
+      "verdict": "❌오탐"
+    },
+    {
+      "id": 3,
+      "name": "직경 8~12mm",
+      "nl": "8~12mm 사이",
+      "db": 1037,
+      "ep": 296,
+      "filters": [
+        "diameterMm:eq:12"
+      ],
+      "ms": 34733,
+      "verdict": "⚠️과소"
+    },
+    {
+      "id": 10,
+      "name": "재고 P 10mm",
+      "nl": "in stock",
+      "db": 130,
+      "ep": 20,
+      "filters": [],
+      "ms": 19267,
+      "verdict": "⚠️과소"
+    },
+    {
+      "id": 23,
+      "name": "모순 ≥20 ≤5",
+      "nl": "20 넘고 5 미만 직경",
+      "db": 0,
+      "ep": 1037,
+      "filters": [
+        "diameter:eq:5"
+      ],
+      "ms": 28972,
+      "verdict": "❌오탐"
+    },
+    {
+      "id": 7,
+      "name": "5F 이상 S 12mm",
+      "nl": "5 flute 넘게",
+      "db": 32,
+      "ep": 266,
+      "filters": [
+        "flute:eq:5"
+      ],
+      "ms": 31285,
+      "verdict": "⚠️과다"
+    },
+    {
+      "id": 21,
+      "name": "Tap M10 1.5pitch",
+      "nl": "M10 P1.5 관통탭",
+      "db": 0,
+      "ep": 7953,
+      "filters": [],
+      "ms": 46405,
+      "verdict": "❌오탐"
+    },
+    {
+      "id": 4,
+      "name": "OAL ≥100",
+      "nl": "100mm보다 긴 거",
+      "db": 113,
+      "ep": 29,
+      "filters": [
+        "diameterMm:eq:100"
+      ],
+      "ms": 28835,
+      "verdict": "⚠️과소"
+    },
+    {
+      "id": 14,
+      "name": "4중 φ10 OAL≥100 4F TiAlN",
+      "nl": "φ10 4F TiAlN OAL≥100",
+      "db": 1,
+      "ep": 471,
+      "filters": [
+        "fluteCount:eq:4"
+      ],
+      "ms": 46143,
+      "verdict": "⚠️과다"
+    },
+    {
+      "id": 25,
+      "name": "KOREA 풀필터",
+      "nl": "한국 재고로 4날 TiAlN 전장 100 이상",
+      "db": 1,
+      "ep": 30,
+      "filters": [
+        "workPieceName:includes:",
+        "flute_count:eq:4",
+        "coating_type:includes:TiAlN",
+        "overall_length:eq:100+"
+      ],
+      "ms": 22218,
+      "verdict": "⚠️과다"
+    },
+    {
+      "id": 13,
+      "name": "ALU-POWER 제외",
+      "nl": "ALU-POWER 제외",
+      "db": 94,
+      "ep": 367,
+      "filters": [
+        "brand:neq:ALU-POWER"
+      ],
+      "ms": 28137,
+      "verdict": "⚠️과다"
+    }
+  ]
+}

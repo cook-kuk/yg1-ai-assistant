@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "<string>", line 9, in <module>
+    print('STDOUT:'); print(out[-3000:])
+                      ~~~~~^^^^^^^^^^^^^
+UnicodeEncodeError: 'cp949' codec can't encode character '\u0192' in position 45: illegal multibyte sequence
+STDOUT:

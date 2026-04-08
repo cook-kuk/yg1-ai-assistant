@@ -1,0 +1,12 @@
+Running brand_exclusion_after_recommendation ... ERROR
+Running brand_exclusion_variant ... ERROR
+Running clear_brand_after_recommendation ... ERROR
+Running country_filter_after_recommendation ... ERROR
+Running flute_replace_after_recommendation ... ERROR
+Running go_back_then_exclude_brand ... ERROR
+Running range_request ... ERROR
+
+Fixtures: 7
+PASS: 0
+FAIL/ERROR: 7
+Saved: C:\Users\kuksh\Downloads\YG1_test\test-results\thread-results-p2999.json

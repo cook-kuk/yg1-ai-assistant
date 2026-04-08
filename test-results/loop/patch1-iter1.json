@@ -1,0 +1,84 @@
+{
+  "label": "patch1-iter1",
+  "endpoint": "http://20.119.98.136:3000",
+  "runAt": "2026-04-07T16:03:04.093Z",
+  "n": 12,
+  "passed": 0,
+  "failed": 0,
+  "warn": 0,
+  "ms": 22297,
+  "results": [
+    {
+      "id": 5,
+      "name": "OAL ≤80",
+      "error": "T0: fetch failed",
+      "ms": 11516
+    },
+    {
+      "id": 2,
+      "name": "다중소재 P+M+K 6mm",
+      "error": "T0: fetch failed",
+      "ms": 10876
+    },
+    {
+      "id": 9,
+      "name": "uncoated N 6mm",
+      "error": "T0: fetch failed",
+      "ms": 10870
+    },
+    {
+      "id": 23,
+      "name": "모순 ≥20 ≤5",
+      "error": "T0: fetch failed",
+      "ms": 10864
+    },
+    {
+      "id": 20,
+      "name": "Drill OAL≥100 + 쿨런트",
+      "error": "T0: fetch failed",
+      "ms": 10756
+    },
+    {
+      "id": 7,
+      "name": "5F 이상 S 12mm",
+      "error": "T0: fetch failed",
+      "ms": 10767
+    },
+    {
+      "id": 15,
+      "name": "5중 P/M φ8-12 4F OAL≥80 TiAlN 재고",
+      "error": "T0: fetch failed",
+      "ms": 10757
+    },
+    {
+      "id": 11,
+      "name": "재고 M 8mm",
+      "error": "T0: fetch failed",
+      "ms": 10749
+    },
+    {
+      "id": 22,
+      "name": "999mm (음의 케이스)",
+      "error": "T0: fetch failed",
+      "ms": 21
+    },
+    {
+      "id": 14,
+      "name": "4중 φ10 OAL≥100 4F TiAlN",
+      "error": "T0: fetch failed",
+      "ms": 18
+    },
+    {
+      "id": 17,
+      "name": "Shank 6~10",
+      "error": "T0: fetch failed",
+      "ms": 15
+    },
+    {
+      "id": 25,
+      "name": "KOREA 풀필터",
+      "error": "T0: fetch failed",
+      "ms": 10
+    }
+  ]
+}

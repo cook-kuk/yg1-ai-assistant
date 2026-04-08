@@ -1,0 +1,12 @@
+From github.com:csp-digital/yg1-ai-catalog
+   7576026..3e2f447  main       -> origin/main
+Updating 7576026..3e2f447
+Fast-forward
+ lib/recommendation/core/single-call-router.ts | 1 +
+ 1 file changed, 1 insertion(+)
+53.07 npm notice To update run: npm install -g npm@11.12.1
+53.07 npm notice
+------
+failed to solve: process "/bin/sh -c npm run build" did not complete successfully: exit code: 1
+
+

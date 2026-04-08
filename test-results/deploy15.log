@@ -1,0 +1,7 @@
+Already up to date.
+#18 DONE 0.0s
+ Image yg1-ai-catalog-dev-app Built 
+ Container yg1-ai-catalog-app-dev Recreate 
+ Container yg1-ai-catalog-app-dev Error response from daemon: Conflict. The container name "/75c464acdc60_yg1-ai-catalog-app-dev" is already in use by container "640ed094c5011d8dd4dfe22a4297b414a2cf82bc3f0c3e3ba35ed24eb3596de4". You have to remove (or rename) that container to be able to reuse that name. 
+Error response from daemon: Conflict. The container name "/75c464acdc60_yg1-ai-catalog-app-dev" is already in use by container "640ed094c5011d8dd4dfe22a4297b414a2cf82bc3f0c3e3ba35ed24eb3596de4". You have to remove (or rename) that container to be able to reuse that name.
+
