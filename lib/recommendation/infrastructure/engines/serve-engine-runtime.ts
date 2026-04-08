@@ -1719,6 +1719,55 @@ async function handleServeExplorationInner(
     // edit-intent가 맡아야 할 문장(말고/빼고/제외/상관없/바꿔 등)은 KG보다 먼저 처리
     // ══════════════════════════════════════════════════════════
 
+    // ── 0.5. Deterministic SCR pre-pass (no LLM, fastest path) ──
+    // det-SCR로 즉시 잡히는 명확한 필터 의도(예: "Y 코팅으로 추천해줘", "10mm")는
+    // SQL Agent / KG / SCR LLM을 거치지 않고 바로 적용. J06 회귀 방지:
+    // SQL Agent Haiku가 "추천해줘"를 _skip 메타로 오인해 코팅 필터를 누락시키던
+    // 버그를 차단한다. edit-intent 시그널이 있으면 양보(말고/빼고/바꿔는 edit-intent가 처리).
+    if (!singleCallHandled && lastUserMsg && !hasEditSignal(msg)) {
+      const detPreActions = parseDeterministic(msg)
+      const detApplyActions = detPreActions.filter(a => a.type === "apply_filter" && a.field && a.value != null)
+      if (detApplyActions.length > 0) {
+        let appliedAny = false
+        for (const action of detApplyActions) {
+          const isBetween = action.op === "between" && action.value2 != null
+          const inputValue: string | number | Array<string | number> = isBetween
+            ? [action.value as string | number, action.value2 as string | number]
+            : (action.value as string | number)
+          const filter = buildAppliedFilterFromValue(action.field!, inputValue, turnCount, action.op)
+          if (!filter) continue
+          const skipIdx = filters.findIndex(f => f.field === filter.field && f.op === "skip")
+          if (skipIdx >= 0) filters.splice(skipIdx, 1)
+          if (action.op === "neq") {
+            const existingIdx = filters.findIndex(f => f.field === filter.field && f.op !== "neq")
+            if (existingIdx >= 0) filters.splice(existingIdx, 1)
+          }
+          const result = replaceFieldFilter(baseInput, filters, filter, deps.applyFilterToInput)
+          filters.splice(0, filters.length, ...result.nextFilters)
+          currentInput = result.nextInput
+          appliedAny = true
+        }
+        if (appliedAny) {
+          const hasShowRec = /추천|보여|제품\s*보기|show/iu.test(msg)
+          const lastF = filters[filters.length - 1] ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount }
+          bridgedV2Action = hasShowRec
+            ? { type: "show_recommendation" }
+            : { type: "continue_narrowing", filter: lastF }
+          bridgedV2OrchestratorResult = {
+            action: bridgedV2Action,
+            reasoning: `det-scr-pre:${detApplyActions.map(a => `${a.field}=${a.value}`).join(",")}`,
+            agentsInvoked: [],
+            escalatedToOpus: false,
+          }
+          singleCallHandled = true
+          pendingSelectionAction = null
+          pendingSelectionOrchestratorResult = null
+          trace.add("det-scr-pre", "router", { actions: detApplyActions.map(a => ({ field: a.field, value: a.value, op: a.op })) }, { applied: detApplyActions.length, filterCount: filters.length }, `det-SCR pre-pass applied ${detApplyActions.length} action(s)`)
+          console.log(`[det-scr:pre] ${detApplyActions.length} actions applied early: ${detApplyActions.map(a => `${a.field}=${a.value}`).join(", ")}`)
+        }
+      }
+    }
+
     // ── 1. Edit-Intent Layer: state modification (deterministic, 0 LLM calls) ──
     // Handles replace/exclude/clear/go_back/reset — runs BEFORE KG so edit
     // expressions are not intercepted by KG's exclude patterns.
