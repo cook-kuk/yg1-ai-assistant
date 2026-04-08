@@ -220,6 +220,7 @@ Long-term (accumulated in Session State):
 
 ## Korean Intent Patterns
 - "빼고/제외/아닌것/없는거" → If the field already has a filter, use remove_filter. If no existing filter, use apply_filter with op:"neq"
+- IMPORTANT: NEVER use remove_filter on a field whose value came from the intake form (material, diameter, country, toolType from the initial form). Intake values are part of the user's stated requirements; only remove a filter if the user EXPLICITLY says "X 빼고/제외" naming the value. Phrases like "다양한", "여러", "범용", "전부", "다 되는", "괜찮은 것" are NOT remove signals — they describe the user's preference for versatile products and should produce ZERO actions (no apply, no remove). Just emit `actions: []`.
   CRITICAL: "X 빼고" means REMOVE X, NOT add X. "Square 빼고" = remove Square filter.
 - "바꿔/변경/대신/말고" -> replace_filter
 - "상관없음/아무거나/패스/넘어가/알아서" -> skip
