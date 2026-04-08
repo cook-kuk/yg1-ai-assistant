@@ -126,6 +126,7 @@ const PENDING_QUESTION_RECOVERY_ACTIONS = new Set<string>([
   "show_recommendation",
   "go_back",
   "go_back_to_filter",
+  "go_back_one_step", // edit-intent go_back_then_apply → bridgedV2Action.type
   "reset_session",
   "compare_products",
 ])
