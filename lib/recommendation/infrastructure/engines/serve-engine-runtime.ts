@@ -122,6 +122,12 @@ const PENDING_QUESTION_RECOVERY_ACTIONS = new Set<string>([
   "continue_narrowing",
   "skip_field",
   "replace_existing_filter",
+  // 사용자가 pending question 도중 명시적으로 결과/네비/리셋을 요청하는 액션
+  "show_recommendation",
+  "go_back",
+  "go_back_to_filter",
+  "reset_session",
+  "compare_products",
 ])
 
 /**
@@ -187,9 +193,13 @@ function buildZeroResultWithAlternatives(
   const chips: string[] = []
 
   if (distribution && distribution.size > 0) {
-    // Sort by count descending, take top alternatives
+    // Sort by count descending, take top alternatives.
+    // Drop empty/whitespace-only values + normalize known DB typos (AITiN→AlTiN).
+    const normalize = (v: string): string =>
+      v.trim().replace(/\bAITiN\b/gi, "AlTiN").replace(/\s+/g, " ")
     const sorted = [...distribution.entries()]
-      .filter(([, count]) => count > 0)
+      .map(([val, count]) => [normalize(String(val ?? "")), count] as const)
+      .filter(([val, count]) => count > 0 && val.length > 0)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 8)
 
@@ -198,9 +208,13 @@ function buildZeroResultWithAlternatives(
       .join(", ")
     lines.push(`현재 조건에서 선택 가능한 ${failedLabel}: ${availableList}`)
 
-    // Build chips for each available value
+    // Build chips for each available value.
+    // Skip prefix if value already starts with the label (prevents double-label loop
+    // like "코팅 코팅 PM60" → "코팅: 코팅 PM60").
+    const labelPrefixRe = new RegExp(`^${failedLabel.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\s*[:\\s]`, "i")
     for (const [val, count] of sorted) {
-      chips.push(`${failedLabel} ${val} (${count}개)`)
+      const prefix = labelPrefixRe.test(val) ? "" : `${failedLabel} `
+      chips.push(`${prefix}${val} (${count}개)`)
     }
   } else {
     lines.push(`${failedLabel} 조건을 변경하거나 '상관없음'을 선택해주세요.`)

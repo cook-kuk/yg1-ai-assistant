@@ -621,6 +621,17 @@ function normalizeMaterialTags(tags: string[] | null | undefined): string[] {
 
 const TODO_PLACEHOLDER = "/images/series/todo-placeholder.svg"
 
+// DB raw 코팅 값 normalize: AITiN(OCR/입력 오타) → AlTiN. 다른 typo 발견 시 여기 추가.
+function normalizeCoatingValue(value: string | null | undefined): string | null {
+  if (!value) return null
+  const trimmed = String(value).trim()
+  if (!trimmed) return null
+  return trimmed
+    .replace(/\bAITiN\b/g, "AlTiN")
+    .replace(/\bAITIN\b/g, "AlTiN")
+    .replace(/\bALTIN\b/gi, "AlTiN")
+}
+
 function resolveSeriesIconUrl(seriesName: string | null | undefined): string {
   if (!seriesName || !seriesName.trim()) return TODO_PLACEHOLDER
   const clean = seriesName.trim()
@@ -696,7 +707,7 @@ function mapRowToProduct(row: RawProductRow): CanonicalProduct {
       row.option_numberofflute,
       row.option_z,
     )),
-    coating: firstNonEmpty(row.milling_coating, row.holemaking_coating, row.threading_coating, row.search_coating),
+    coating: normalizeCoatingValue(firstNonEmpty(row.milling_coating, row.holemaking_coating, row.threading_coating, row.search_coating)),
     toolMaterial: firstNonEmpty(row.milling_tool_material, row.holemaking_tool_material, row.threading_tool_material),
     shankDiameterMm: parseNumber(firstNonEmpty(row.milling_shank_dia, row.holemaking_shank_dia, row.threading_shank_dia, row.option_shank_diameter, row.option_dcon)),
     shankType: firstNonEmpty(row.search_shank_type, row.milling_shank_type, row.series_shank_type, row.tooling_shank_type),
