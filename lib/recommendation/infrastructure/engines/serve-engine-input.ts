@@ -78,6 +78,10 @@ export function mapIntakeToInput(form: ProductIntakeForm): RecommendationInput {
         input.machiningCategory = "Turning"
       } else {
         input.machiningCategory = normalized
+        // Also set toolType so product-db-source.ts uses it for edp_root_category WHERE clause.
+        // Without this, Holemaking/Threading intakes returned mixed Milling products
+        // because the SQL category filter only consults input.toolType.
+        input.toolType = normalized
       }
     }
   }
