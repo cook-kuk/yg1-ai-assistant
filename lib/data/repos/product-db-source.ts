@@ -722,7 +722,9 @@ function mapRowToProduct(row: RawProductRow): CanonicalProduct {
     threadTpi: parseNumber(row.threading_tpi),
     applicationShapes: normalizeApplicationShapes(row.series_application_shape),
     materialTags: normalizeMaterialTags(row.material_tags),
-    country: null,
+    country: Array.isArray(row.country_codes) && row.country_codes.length > 0
+      ? row.country_codes.map(v => String(v).toUpperCase()).join(",")
+      : null,
     description: firstNonEmpty(row.series_description),
     featureText: firstNonEmpty(row.series_feature),
     seriesIconUrl: resolveSeriesIconUrl(row.edp_series_name),
