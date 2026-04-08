@@ -72,6 +72,9 @@ export function getFilterDisplayValue(
       return language === "ko" ? `${baseValue} 이하` : `≤ ${baseValue}`
     case "between":
       return language === "ko" ? `${baseValue} 사이` : `${baseValue} range`
+    case "neq":
+    case "exclude":
+      return language === "ko" ? `${baseValue} 제외` : `≠ ${baseValue}`
     default:
       return baseValue
   }

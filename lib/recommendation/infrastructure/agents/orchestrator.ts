@@ -507,8 +507,8 @@ const NARROWING_TOOLS: LLMTool[] = [
         },
         op: {
           type: "string",
-          enum: ["eq", "gte", "lte", "between"],
-          description: "비교 연산자. 생략시 'eq'. 사용자가 '이상/이하/넘는/미만/까지/사이' 등 비교 표현을 쓰면 반드시 명시: '10mm 이하' → lte, '5날 이상' → gte, '8~12mm' → between (이 경우 value는 '8,12' 형태). 단순 선택은 eq."
+          enum: ["eq", "neq", "gte", "lte", "between"],
+          description: "비교 연산자. 생략시 'eq'. 사용자가 '이상/이하/넘는/미만/까지/사이/제외/말고/빼고/아닌' 등 표현을 쓰면 반드시 명시: '10mm 이하' → lte, '5날 이상' → gte, '8~12mm' → between (value='8,12'), 'TiAlN 빼고/제외' → neq. 단순 선택은 eq."
         }
       },
       required: ["field", "value"]
@@ -699,8 +699,9 @@ ${dynamicSessionState}
 - "10mm 이하", "80도 미만", "100까지" → apply_filter(field=..., value="10", op="lte")
 - "5날 이상", "100mm 넘는", "45도 초과" → apply_filter(field=..., value="5", op="gte")
 - "8~12mm", "8mm 이상 12mm 이하", "6에서 10 사이" → apply_filter(field=..., value="8,12", op="between")
+- "TiAlN 빼고", "AlCrN 제외", "Ball 말고", "4날 아닌 거" → apply_filter(field=..., value="TiAlN", op="neq")
 - 단순 선택("10mm", "5날", "Square") → op 생략 (기본 eq)
-주의: "이상/이하/넘는/미만/까지/사이" 같은 비교 표현을 무시하지 말 것. 누락하면 잘못된 단일 값 매칭이 됨.
+주의: "이상/이하/넘는/미만/까지/사이/제외/빼고/말고/아닌" 같은 표현을 무시하지 말 것. 누락하면 잘못된 단일 값 매칭이 됨.
 
 ═══ 재고/납기 필터링 ═══
 - "재고 있는 거로", "재고 있는 제품만", "즉시 구매 가능한 거" → filter_stock(filter="instock")
@@ -734,9 +735,9 @@ function mapToolUseToAction(
       const value = String(input.value ?? "")
       const displayValue = String(input.display_value ?? value)
       const rawOp = typeof input.op === "string" ? input.op.toLowerCase() : ""
-      const opOverride: "eq" | "gte" | "lte" | "between" | null =
-        rawOp === "gte" || rawOp === "lte" || rawOp === "between" || rawOp === "eq"
-          ? (rawOp as "eq" | "gte" | "lte" | "between")
+      const opOverride: "eq" | "neq" | "gte" | "lte" | "between" | null =
+        rawOp === "gte" || rawOp === "lte" || rawOp === "between" || rawOp === "eq" || rawOp === "neq"
+          ? (rawOp as "eq" | "neq" | "gte" | "lte" | "between")
           : null
       const displayedOption = resolveDisplayedOptionSelection(
         ctx,
