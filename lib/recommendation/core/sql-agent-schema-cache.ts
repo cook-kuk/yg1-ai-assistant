@@ -13,6 +13,8 @@ export interface DbSchema {
   sampleValues: Record<string, string[]>
   /** Numeric column stats (min/max/distinct samples) — drives range matching without hardcoded labels */
   numericStats: Record<string, { min: number; max: number; samples: number[] }>
+  /** Auxiliary tables (cutting conditions, inventory, series profile) — exposed to LLM for joins */
+  auxTables: Record<string, { column_name: string; data_type: string }[]>
   workpieces: { tag_name: string; normalized_work_piece_name: string }[]
   brands: string[]
   /** Distinct country codes from product_recommendation_mv.country_codes (text[] array, unnested) */
@@ -159,11 +161,31 @@ export async function getDbSchema(): Promise<DbSchema> {
     // Column may not exist in older schemas — fall back silently.
   }
 
-  // 6. Build value→column reverse index for unqualified-token routing.
+  // 6. Auxiliary tables (cutting conditions, inventory, series profile) — joinable with the main MV
+  const auxTables: Record<string, { column_name: string; data_type: string }[]> = {}
+  const AUX_TABLE_TARGETS: Array<{ schema: string; table: string; alias: string }> = [
+    { schema: "raw_catalog", table: "cutting_condition_table", alias: "raw_catalog.cutting_condition_table" },
+    { schema: "catalog_app", table: "product_inventory_summary_mv", alias: "catalog_app.product_inventory_summary_mv" },
+    { schema: "catalog_app", table: "series_profile_mv", alias: "catalog_app.series_profile_mv" },
+  ]
+  for (const t of AUX_TABLE_TARGETS) {
+    try {
+      const auxRes = await pool.query<{ column_name: string; data_type: string }>(
+        `SELECT column_name, data_type
+         FROM information_schema.columns
+         WHERE table_schema = $1 AND table_name = $2
+         ORDER BY ordinal_position`,
+        [t.schema, t.table],
+      )
+      if (auxRes.rows.length > 0) auxTables[t.alias] = auxRes.rows
+    } catch { /* table may not exist in this env */ }
+  }
+
+  // 7. Build value→column reverse index for unqualified-token routing.
   const valueIndex = buildValueIndex({ sampleValues, brands, countries, workpieces })
 
-  cached = { columns, sampleValues, numericStats, workpieces, brands, countries, valueIndex, loadedAt: Date.now() }
-  console.log(`[sql-agent-schema] loaded: ${columns.length} cols, ${Object.keys(sampleValues).length} text-sampled, ${Object.keys(numericStats).length} numeric-sampled, ${workpieces.length} wp, ${brands.length} brands, ${countries.length} countries, ${Object.keys(valueIndex).length} indexed`)
+  cached = { columns, sampleValues, numericStats, auxTables, workpieces, brands, countries, valueIndex, loadedAt: Date.now() }
+  console.log(`[sql-agent-schema] loaded: ${columns.length} cols, ${Object.keys(sampleValues).length} text-sampled, ${Object.keys(numericStats).length} numeric-sampled, ${Object.keys(auxTables).length} aux tables, ${workpieces.length} wp, ${brands.length} brands, ${countries.length} countries, ${Object.keys(valueIndex).length} indexed`)
   return cached
 }
 

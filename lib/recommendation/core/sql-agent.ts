@@ -117,6 +117,10 @@ function buildSystemPrompt(schema: DbSchema, existingFilters: AppliedFilter[]): 
 
   const brandList = schema.brands.join(", ")
 
+  const auxList = Object.entries(schema.auxTables ?? {})
+    .map(([table, cols]) => `### ${table}\n${cols.map(c => `  ${c.column_name} (${c.data_type})`).join("\n")}`)
+    .join("\n\n")
+
   const filterList = existingFilters.length > 0
     ? existingFilters.map(f => `  ${f.field} ${f.op} ${f.value}`).join("\n")
     : "  (none)"
@@ -138,6 +142,11 @@ ${wpList}
 ## Brand Names
 ${brandList}
 
+## Auxiliary Tables (read-only reference — not directly filtered, but informs which questions need a tool-forge join)
+${auxList || "  (none loaded)"}
+
+If the user asks about cutting conditions / RPM / feed rate / 절삭조건 / 회전수 / 이송속도 / 절입깊이, those numbers live in raw_catalog.cutting_condition_table — return [] here so the upstream tool-forge handles the join. Do NOT invent product-MV columns for those.
+
 ## Currently Applied Filters
 ${filterList}
 
@@ -146,7 +155,7 @@ Extract filter conditions from user message as JSON array:
 [{"field":"column_name","op":"eq|neq|like|gte|lte|between","value":"...","value2":"upper_bound_for_between","display":"한국어 설명"}]
 
 Rules:
-- field MUST be one of the actual column_names listed above, or "_workPieceName" for workpiece materials, or "_skip"/"_reset"/"_back" for navigation. NEVER invent a column name.
+- field MUST be one of the actual column_names listed above (product_recommendation_mv only), or "_workPieceName" for workpiece materials, or "_skip"/"_reset"/"_back" for navigation. NEVER invent a column name.
 - Match user intent to columns by reading the column name AND its sample values. The column name is in English; map Korean/Japanese/etc. terms to it semantically. If multiple columns plausibly match (e.g. milling_* vs holemaking_*), prefer the one whose sample values or numeric range fits the user's number.
 - For exclusion/negation (빼고/말고/제외/아닌것 등) → op="neq"
 - For navigation: skip(상관없음/패스) → _skip, reset(처음부터/초기화) → _reset, back(이전/돌아가) → _back
@@ -157,7 +166,46 @@ NEVER use eq when the user expressed a range:
 - "이상/넘는/초과/최소" → gte
 - "이하/미만/최대/넘지 않는" → lte
 - "A~B / A에서 B 사이 / A부터 B까지" → between with value=A, value2=B
+- "정도/근처/대략/around" → between ±10% of the number
 - Pick the column whose name matches the user's label (직경→diameter, 전장/OAL→overall_length, 날장/LOC→length_of_cut, 샹크→shank, 헬릭스→helix, 날수→flute, etc.) AND whose min/max range contains the user's number. Do not emit duplicate eq filters for the same number on different columns.
+
+## Korean → English semantic hints (use op:like when the chemical/internal name may differ)
+- 공구 소재: 초경/카바이드/솔리드/Carbide → like "Carbide" · 하이스/HSS/고속도강 → like "HSS" · 코발트하이스/HSS-Co → like "HSS-Co" · 서멧/PCD/CBN → like that token
+- 코팅: TiAlN/X코팅 → like "TiAlN" or "X-Coating" · AlCrN/Y코팅 → like "AlCrN" or "Y-Coating" · DLC → like "DLC" · 무코팅/비코팅 → like "Uncoated" or "Bright"
+- 피삭재 (use _workPieceName eq): 스테인리스/스텐/SUS → "스테인리스" · 티타늄/Ti → "티타늄" · 알루미늄/AL → "알루미늄" · 주철/FC/FCD → "주철" · 탄소강/SM45C → "탄소강" · 고경도강/SKD11 → "고경도강" · 인코넬/내열합금 → "인코넬" · 구리/동/황동 → "구리" · 합금강/SCM440 → "합금강" · 복합재/CFRP → "복합재" · 흑연 → "흑연"
+- 공구 형상: 스퀘어/평날 → search_subtype eq "Square" · 볼/볼엔드밀 → "Ball" · 라디우스/코너R → like "Radius" · 러핑/황삭 → "Roughing" · 테이퍼 → "Taper" · 챔퍼/모따기 → "Chamfer" · 하이피드/고이송 → like "High-Feed"
+- 가공 형상: 측면가공 → series_application_shape like "side" · 포켓 → like "pocket" · 곡면 → like "contour"
+- 생크: 플레인/스트레이트 → shank_type like "Plain" · 웰던 → like "Weldon" · HA → like "HA"
+- 국가 (text[]): 국내/한국 → eq "KOR" · 미국/인치 → eq "USA" · 유럽 → eq "ENG" · 일본 → eq "JPN"
+- 모호한 표현(좋은 거/추천해줘/괜찮은 거/범용/다양한) → []
+
+## Examples
+User: "스테인리스 가공할건데 4날 스퀘어 10mm"
+→ [{"field":"_workPieceName","op":"eq","value":"스테인리스","display":"피삭재: 스테인리스"},{"field":"search_subtype","op":"eq","value":"Square","display":"형상: 스퀘어"},{"field":"search_flute_count","op":"eq","value":"4","display":"날수: 4날"},{"field":"search_diameter_mm","op":"eq","value":"10","display":"직경: 10mm"}]
+
+User: "초경 카바이드 소재로만"
+→ [{"field":"milling_tool_material","op":"like","value":"Carbide","display":"공구소재: 초경(Carbide)"}]
+
+User: "Y 코팅으로 추천해줘"
+→ [{"field":"search_coating","op":"like","value":"Y-Coating","display":"코팅: Y-Coating(AlCrN)"}]
+
+User: "10mm 근처 직경"
+→ [{"field":"search_diameter_mm","op":"between","value":"9","value2":"11","display":"직경: ~10mm(9~11)"}]
+
+User: "DLC 빼고 코팅 있는 거"
+→ [{"field":"search_coating","op":"neq","value":"DLC","display":"DLC 제외"}]
+
+User: "적용공법이 side milling인"
+→ [{"field":"series_application_shape","op":"like","value":"side","display":"적용공법: side milling"}]
+
+User: "인치 제품"
+→ [{"field":"edp_unit","op":"eq","value":"Inch","display":"단위: 인치"}]
+
+User: "상관없음"
+→ [{"field":"_skip","op":"skip","value":"skip"}]
+
+User: "X-POWER 시리즈의 SUS304 절삭조건 알려줘"
+→ []   (cutting conditions live in an aux table — let tool-forge handle it)
 
 ALWAYS respond with valid JSON array only. No explanation.`
 }
