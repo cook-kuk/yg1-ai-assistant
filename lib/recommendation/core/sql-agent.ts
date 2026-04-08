@@ -75,6 +75,14 @@ const DB_COL_TO_FILTER_FIELD: Record<string, string> = {
   milling_outside_dia: "diameterMm",
   holemaking_outside_dia: "diameterMm",
   threading_outside_dia: "diameterMm",
+  // 포인트 각도 / 쓰레드 피치 (이전에 빠져 있어 LLM이 milling_point_angle 같은 가짜 컬럼을 emit했음)
+  holemaking_point_angle: "pointAngleDeg",
+  // Defensive aliases for hallucinated variants
+  milling_point_angle: "pointAngleDeg",
+  point_angle: "pointAngleDeg",
+  threading_pitch: "threadPitchMm",
+  thread_pitch: "threadPitchMm",
+  threading_tpi: "threadPitchMm",
   // workpiece is handled specially via _workPieceName
   _workPieceName: "workPieceName",
 }
@@ -342,16 +350,14 @@ export function buildAppliedFilterFromAgentFilter(
     return filter
   }
 
-  // Unknown DB column → store as rawSqlField for direct WHERE injection
-  return {
-    field: agentFilter.field,
-    op,
-    value: agentFilter.display ?? agentFilter.value,
-    rawValue: agentFilter.value,
-    appliedAt: turnCount,
-    rawSqlField: agentFilter.field,
-    rawSqlOp: agentFilter.op,
-  }
+  // Unknown DB column → DROP. The historical rawSqlField fallback let the LLM
+  // emit hallucinated column names (e.g. `milling_point_angle` which doesn't
+  // exist) and they would propagate to appliedFilters as phantom filters that
+  // never reach the SQL WHERE clause but mislead the user into thinking the
+  // filter was applied. Better to drop and force the LLM to use canonical
+  // columns from DB_COL_TO_FILTER_FIELD.
+  console.warn(`[sql-agent] dropping filter on unknown column: ${agentFilter.field}`)
+  return null
 }
 
 // ── Helpers ──────────────────────────────────────────────────
