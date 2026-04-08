@@ -10,7 +10,7 @@ import {
   runHybridRetrieval,
 } from "@/lib/recommendation/domain/recommendation-domain"
 import { BrandReferenceRepo } from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
-import { isPrecisionMode } from "@/lib/recommendation/runtime-flags"
+import { isPrecisionMode, isKgDisabled } from "@/lib/recommendation/runtime-flags"
 import { getSessionCache } from "@/lib/recommendation/infrastructure/cache/session-cache"
 import { resolveMaterialTag } from "@/lib/recommendation/domain/material-resolver"
 import { parseAnswerToFilter } from "@/lib/recommendation/domain/question-engine"
