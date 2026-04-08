@@ -2890,8 +2890,16 @@ async function handleServeExplorationInner(
     // ── Knowledge fallback ──
     // DB에 일부 시리즈(SUPER ALLOY, TITANOX, X-POWER 등)가 누락돼 0건이 나오는 경우,
     // data/series-knowledge.json (PDF에서 추출한 2134 시리즈)에서 매칭을 시도한다.
-    // 평소 경로에는 영향 없음 — DB가 ≥1건이면 이 블록은 실행되지 않는다.
-    if (candidates.length === 0 && !isPrecisionMode()) {
+    //
+    // GATE: 사용자가 구체적인 시리즈/브랜드를 언급한 경우에만 fallback. 일반
+    // (재질+직경+날수) 쿼리에선 fallback 30개가 ghost narrowing chip 무한루프를
+    //만들어서 차단. 시리즈/브랜드 hint 없으면 0건 그대로 두고 broaden 안내.
+    const hasSeriesOrBrandHint = !!(
+      (resolvedInput as { seriesName?: string | null; brand?: string | null })?.seriesName?.trim()
+      || (resolvedInput as { seriesName?: string | null; brand?: string | null })?.brand?.trim()
+      || filters.some(f => f.field === "edpSeriesName" || f.field === "brand" || f.field === "seriesName")
+    )
+    if (candidates.length === 0 && !isPrecisionMode() && hasSeriesOrBrandHint) {
       try {
         const { searchKnowledgeFallback } = await import("@/lib/recommendation/infrastructure/knowledge/knowledge-fallback")
         let kbCandidates = searchKnowledgeFallback(resolvedInput, filters)
