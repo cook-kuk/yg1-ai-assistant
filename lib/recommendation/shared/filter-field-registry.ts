@@ -13,6 +13,7 @@ import {
   stripKoreanParticles,
   inferIsoGroupsFromText,
 } from "@/lib/recommendation/shared/patterns"
+import { getDbSchemaSync } from "@/lib/recommendation/core/sql-agent-schema-cache"
 
 type FilterPrimitive = string | number | boolean
 type FilterValueKind = "string" | "number" | "boolean"
@@ -1322,38 +1323,54 @@ export function buildDbWhereClauseForFilter(
   // skip 필터는 DB 쿼리에서 제외 — "상관없음"으로 WHERE 걸리면 0건
   if (filter.op === "skip") return null
 
-  // SQL Agent rawSqlField → whitelist + 스키마 검증 후 직접 WHERE절 생성
-  // rawSqlField는 임시 브릿지: 장기적으로 QuerySpec + Compiler로 대체 예정
+  // SQL Agent rawSqlField → 동적 스키마 검증 후 직접 WHERE절 생성.
+  // 화이트리스트 제거: DB에 추가되는 모든 컬럼이 자동으로 필터 가능해야 함.
+  // 안전장치: ① identifier 정규식 ② live schema 컬럼 존재 여부 ③ numeric op는 numeric 컬럼만
   if (filter.rawSqlField) {
-    const ALLOWED_RAW_SQL_COLUMNS = new Set([
-      "edp_brand_name",
-      "edp_series_name",
-      "search_subtype",
-      "search_coating",
-      "search_diameter_mm",
-      // Removed: search_flute_count, search_helix_angle, shank_type
-      // These columns do not exist in catalog_app.product_recommendation_mv.
-      // Allowing them produced SQL errors when sql-agent emitted them as rawSqlField.
-      // For these fields, route through the canonical filter path
-      // (fluteCount / helixAngleDeg / shankType in DB_COL_TO_FILTER_FIELD)
-      // which uses firstNumberFromColumns() to pick the right real column.
-    ])
-    // numeric 비교(gte/lte/between)는 numeric-safe 컬럼에서만 허용
-    const NUMERIC_SAFE_COLUMNS = new Set([
-      "search_diameter_mm",
-    ])
-    if (!ALLOWED_RAW_SQL_COLUMNS.has(filter.rawSqlField)) return null
+    // 1. SQL injection 방어: 안전한 식별자 패턴만
+    const SAFE_IDENT = /^[a-z_][a-z0-9_]{0,63}$/
+    if (!SAFE_IDENT.test(filter.rawSqlField)) {
+      console.warn(`[where:rawSql] reject unsafe identifier: ${filter.rawSqlField}`)
+      return null
+    }
+
+    // 2. 실제 MV에 존재하는 컬럼인지 검증 (sql-agent에서 1차 검증했지만 belt-and-suspenders)
+    const schema = getDbSchemaSync()
+    const colMeta = schema?.columns.find(c => c.column_name === filter.rawSqlField)
+    if (!colMeta) {
+      console.warn(`[where:rawSql] reject unknown column: ${filter.rawSqlField}`)
+      return null
+    }
 
     const op = filter.rawSqlOp
+    const dataType = colMeta.data_type
+    const isNumericColumn = /int|numeric|real|double|float|decimal/i.test(dataType)
+    const isArrayColumn = dataType === "ARRAY" || /\[\]$/.test(dataType)
     const isNumericOp = op === "gte" || op === "lte" || op === "between"
-    if (isNumericOp && !NUMERIC_SAFE_COLUMNS.has(filter.rawSqlField)) return null
+    if (isNumericOp && !isNumericColumn) {
+      console.warn(`[where:rawSql] numeric op ${op} on non-numeric column ${filter.rawSqlField} (${dataType})`)
+      return null
+    }
 
+    // 3a. text[] 배열 컬럼은 overlap 연산자 사용 (country_codes 등)
+    if (isArrayColumn && (op === "eq" || op === "like")) {
+      const val = filter.rawValue
+      const arr = Array.isArray(val) ? val.map(String) : [String(val)]
+      return `COALESCE(${filter.rawSqlField}, ARRAY[]::text[]) && ${next(arr)}::text[]`
+    }
+
+    // 3b. 일반 컬럼
     switch (op) {
       case "eq": return `${filter.rawSqlField} = ${next(filter.rawValue)}`
       case "neq": return `${filter.rawSqlField} != ${next(filter.rawValue)}`
-      case "like": return `LOWER(COALESCE(${filter.rawSqlField}, '')) LIKE ${next("%" + String(filter.rawValue).toLowerCase() + "%")}`
+      case "like": return `LOWER(COALESCE(${filter.rawSqlField}::text, '')) LIKE ${next("%" + String(filter.rawValue).toLowerCase() + "%")}`
       case "gte": return `${filter.rawSqlField} >= ${next(filter.rawValue)}`
       case "lte": return `${filter.rawSqlField} <= ${next(filter.rawValue)}`
+      case "between": {
+        const v2 = (filter as { rawValue2?: unknown }).rawValue2
+        if (v2 == null) return null
+        return `${filter.rawSqlField} BETWEEN ${next(filter.rawValue)} AND ${next(v2)}`
+      }
       default: return null
     }
   }

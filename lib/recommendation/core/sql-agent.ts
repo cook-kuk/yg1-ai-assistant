@@ -4,7 +4,7 @@
  * Haiku 1회 호출로 동작.
  */
 
-import type { DbSchema } from "./sql-agent-schema-cache"
+import { getDbSchemaSync, type DbSchema } from "./sql-agent-schema-cache"
 import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import { resolveModel } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import type { AppliedFilter } from "@/lib/types/exploration"
@@ -273,14 +273,41 @@ export function buildAppliedFilterFromAgentFilter(
     return filter
   }
 
-  // Unknown DB column → DROP. The historical rawSqlField fallback let the LLM
-  // emit hallucinated column names (e.g. `milling_point_angle` which doesn't
-  // exist) and they would propagate to appliedFilters as phantom filters that
-  // never reach the SQL WHERE clause but mislead the user into thinking the
-  // filter was applied. Better to drop and force the LLM to use canonical
-  // columns from DB_COL_TO_FILTER_FIELD.
-  console.warn(`[sql-agent] dropping filter on unknown column: ${agentFilter.field}`)
-  return null
+  // Not in the DB_COL_TO_FILTER_FIELD whitelist — but the LLM may still have
+  // picked a real MV column. Validate against the live schema. If the column
+  // exists, build a rawSqlField filter that bypasses the registry but is still
+  // safe (schema-checked + parameterized in WHERE-builder).
+  const schema = getDbSchemaSync()
+  const colMeta = schema?.columns.find(c => c.column_name === agentFilter.field)
+  if (!colMeta) {
+    console.warn(`[sql-agent] dropping filter on unknown column: ${agentFilter.field}`)
+    return null
+  }
+
+  const isNumericColumn = /int|numeric|real|double|float|decimal/i.test(colMeta.data_type)
+  const rawValue = isNumericColumn ? coerceNumeric(agentFilter.value) : agentFilter.value
+  const isBetween = op === "between" && agentFilter.value2 != null
+
+  console.log(`[sql-agent:schema-pass] ${agentFilter.field} (${colMeta.data_type}) → rawSqlField`)
+
+  const filter: AppliedFilter & { rawSqlField?: string; rawSqlOp?: string; rawValue2?: string | number } = {
+    field: agentFilter.field,
+    op,
+    value: agentFilter.display ?? (isBetween ? `${agentFilter.value}~${agentFilter.value2}` : agentFilter.value),
+    rawValue,
+    appliedAt: turnCount,
+    rawSqlField: agentFilter.field,
+    rawSqlOp: agentFilter.op,
+  }
+  if (isBetween) {
+    filter.rawValue2 = isNumericColumn ? coerceNumeric(agentFilter.value2 as string) : (agentFilter.value2 as string)
+  }
+  return filter
+}
+
+function coerceNumeric(value: string): number | string {
+  const n = parseFloat(value)
+  return isNaN(n) ? value : n
 }
 
 // ── Helpers ──────────────────────────────────────────────────
