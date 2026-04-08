@@ -40,7 +40,7 @@ import { normalizePlannerResult, validatePlannerResult, buildExecutorSummary } f
 import { dryRunReduce, reduce, compareReducerVsActual, type ReducerAction } from "@/lib/recommendation/core/state-reducer"
 import { USE_STATE_REDUCER, USE_CHIP_SYSTEM, isSingleCallRouterEnabled, LLM_FREE_INTERPRETATION, ENABLE_PLANNER_DECISION } from "@/lib/feature-flags"
 import { routeSingleCall } from "@/lib/recommendation/core/single-call-router"
-import { naturalLanguageToFilters, buildAppliedFilterFromAgentFilter } from "@/lib/recommendation/core/sql-agent"
+import { naturalLanguageToFilters, naturalLanguageToFiltersStreaming, buildAppliedFilterFromAgentFilter } from "@/lib/recommendation/core/sql-agent"
 import { getDbSchemaSync, getDbSchema } from "@/lib/recommendation/core/sql-agent-schema-cache"
 import { naturalLanguageToQuerySpec } from "@/lib/recommendation/core/query-planner"
 import { querySpecToAppliedFilters, appliedFiltersToConstraints } from "@/lib/recommendation/core/query-spec-to-filters"
@@ -1315,8 +1315,16 @@ export interface ServeEngineRuntimeDependencies {
    * a Korean reasoning trail. The /api/recommend/stream endpoint wires this to
    * an SSE "thinking" event so the UI can render it Claude-style before the
    * filter result and narrative arrive.
+   *
+   * Two modes:
+   *  - opts.delta = true  → `text` is a *delta* to append to whatever the UI
+   *                          has already shown. Used for true token-by-token
+   *                          streaming from provider.stream().
+   *  - opts undefined / delta=false → `text` is the *complete* reasoning so
+   *                          far; the UI should replace its current value.
+   *                          Used for non-streaming providers and fallbacks.
    */
-  onThinking?: (text: string) => void
+  onThinking?: (text: string, opts?: { delta?: boolean }) => void
   buildCandidateSnapshot: (
     candidates: ScoredProduct[],
     evidenceMap: Map<string, EvidenceSummary>
@@ -2090,7 +2098,31 @@ async function handleServeExplorationInner(
             }
             trace.add("semantic-cache", "router", { query: msg.slice(0, 80) }, { hit: true, source: "sql-agent", filterCount: agentResult.filters.length }, "semantic-cache hit")
           } else {
-            agentResult = await naturalLanguageToFilters(msg, schema, filters, provider)
+            // Use the streaming variant when an onThinking sink is wired up so
+            // we can flush reasoning chars to the SSE channel as they arrive.
+            // The streaming function transparently falls back to the
+            // non-streaming path when provider.stream is unavailable.
+            if (deps.onThinking && provider.stream) {
+              let streamedAny = false
+              agentResult = await naturalLanguageToFiltersStreaming(
+                msg,
+                schema,
+                filters,
+                provider,
+                (delta) => {
+                  streamedAny = true
+                  try { deps.onThinking!(delta, { delta: true }) } catch { /* never block runtime */ }
+                },
+              )
+              // If streaming yielded nothing (e.g. fallback path triggered),
+              // emit the final reasoning as a single non-delta frame so the UI
+              // still shows something.
+              if (!streamedAny && agentResult.reasoning) {
+                try { deps.onThinking(agentResult.reasoning) } catch { /* never block runtime */ }
+              }
+            } else {
+              agentResult = await naturalLanguageToFilters(msg, schema, filters, provider)
+            }
             // Store in semantic cache for next time (only meaningful results)
             if (agentResult.filters.length > 0) {
               storeSemanticCache(msg, filters, {
@@ -2104,13 +2136,11 @@ async function handleServeExplorationInner(
           // Surface SQL-agent reasoning to the UI as a Claude-style "추론 과정"
           // collapsible. We stash it on prevState so the presenter (which reads
           // sessionState) picks it up regardless of which response builder fires.
+          // The deltas (if any) were already flushed during streaming above; the
+          // stash here ensures the final text is persisted on the session for
+          // non-stream consumers and message history.
           if (agentResult.reasoning && prevState) {
             (prevState as ExplorationSessionState).thinkingProcess = agentResult.reasoning
-            // Real-time hook: SSE endpoint flushes a "thinking" frame immediately
-            // so the UI starts rendering before filter retrieval / narrative finish.
-            if (deps.onThinking) {
-              try { deps.onThinking(agentResult.reasoning) } catch { /* never block runtime */ }
-            }
           }
 
           if (agentResult.filters.length > 0) {
@@ -3027,6 +3057,24 @@ async function handleServeExplorationInner(
       // Convert V2 result → legacy session state (preserving existing state data)
       const legacyState = convertFromV2State(result.sessionState, prevState)
       const v2ResolvedInput = rebuildResolvedInputFromFilters(form, legacyState.appliedFilters ?? [], deps)
+
+      // Real-time CoT (v2-bridge path): the v2 orchestrator settles filters
+      // BEFORE retrieval, but the function returns long before our late-stage
+      // synthetic-thinking block ever runs. Fire onThinking right here so the
+      // SSE 'thinking' frame lands while the user is still seeing the loading
+      // bubble. Stash on legacyState so the presenter also surfaces it.
+      try {
+        const v2Filters = legacyState.appliedFilters ?? []
+        if (v2Filters.length > 0 && !legacyState.thinkingProcess) {
+          const synthetic = buildSyntheticThinkingFromFilters(v2Filters)
+          if (synthetic) {
+            legacyState.thinkingProcess = synthetic
+            if (deps.onThinking) {
+              try { deps.onThinking(synthetic) } catch { /* never block runtime */ }
+            }
+          }
+        }
+      } catch { /* safe-guard, never block v2 path */ }
       legacyState.displayedChips = result.chips
       legacyState.displayedOptions = result.displayedOptions
       legacyState.turnCount = result.sessionState.turnCount
