@@ -13,8 +13,10 @@ import type { AppliedFilter } from "@/lib/types/exploration"
 
 export interface AgentFilter {
   field: string
-  op: "eq" | "neq" | "like" | "skip" | "reset" | "back"
+  op: "eq" | "neq" | "like" | "skip" | "reset" | "back" | "gte" | "lte" | "between"
   value: string
+  /** Upper bound for between op (range queries). */
+  value2?: string
   display?: string
 }
 
@@ -204,7 +206,7 @@ ${filterList}
 
 ## Instructions
 Extract filter conditions from user message as JSON array:
-[{"field":"column_name","op":"eq|neq|like","value":"...","display":"한국어 설명"}]
+[{"field":"column_name","op":"eq|neq|like|gte|lte|between","value":"...","value2":"upper_bound_for_between","display":"한국어 설명"}]
 
 Rules:
 - field MUST be actual column_name from schema, or "_workPieceName" for workpiece materials, or "_skip"/"_reset"/"_back" for navigation
@@ -212,6 +214,20 @@ Rules:
 - For exclusion/negation (빼고/말고/제외/아닌것 etc.) → op="neq"
 - For navigation: skip(상관없음/패스) → _skip, reset(처음부터/초기화) → _reset, back(이전/돌아가) → _back
 - For questions or non-filter messages → [] (empty array)
+
+## CRITICAL — Range/Comparison Operators
+Numeric columns (diameter, length, flute count, helix angle, shank diameter, etc.) support range ops. NEVER use eq when the user expressed a range:
+- "이상", "넘는", "초과", "그 이상", "최소" → op="gte"
+- "이하", "미만", "최대", "넘지 않는" → op="lte"
+- "A에서 B 사이", "A~B", "A부터 B까지", "A에서 B mm" → op="between" with value=A, value2=B
+- Pick the column based on the surrounding label, NEVER from the bare number alone:
+  · "전체 길이/전장/OAL 100mm 이상" → milling_overall_length(or option_overall_length) gte 100
+  · "절삭 길이/날장/LOC 20mm 이상"   → milling_length_of_cut(or option_loc) gte 20
+  · "샹크 6에서 10 사이"             → option_shank_diameter between 6,10
+  · "헬릭스 45도 이상"               → milling_helix_angle gte 45
+  · "날수 5개 이상"                  → search_flute_count gte 5
+  · "직경 8~12mm"                    → search_diameter_mm between 8,12
+- Do NOT emit a duplicate eq filter for the same number on a different column. The label that immediately precedes the number decides the column.
 - ALWAYS respond with valid JSON array only. No explanation.`
 }
 
@@ -262,15 +278,21 @@ function parseAgentResponse(raw: string): AgentFilter[] {
   return []
 }
 
+const VALID_AGENT_OPS = new Set(["eq", "neq", "like", "skip", "reset", "back", "gte", "lte", "between"])
+
 function validateFilters(arr: unknown[]): AgentFilter[] {
   return arr.filter((item): item is AgentFilter => {
     if (typeof item !== "object" || item === null) return false
     const obj = item as Record<string, unknown>
-    return typeof obj.field === "string" && typeof obj.op === "string" && typeof obj.value !== "undefined"
+    return typeof obj.field === "string"
+      && typeof obj.op === "string"
+      && VALID_AGENT_OPS.has(obj.op)
+      && typeof obj.value !== "undefined"
   }).map(f => ({
     field: f.field,
     op: f.op,
     value: String(f.value),
+    value2: f.value2 != null ? String(f.value2) : undefined,
     display: f.display ? String(f.display) : undefined,
   }))
 }
@@ -295,20 +317,29 @@ export function buildAppliedFilterFromAgentFilter(
   // Map DB column to filter-field-registry field name
   const registryField = DB_COL_TO_FILTER_FIELD[agentFilter.field] ?? null
 
-  // Convert op for compatibility
-  const op = agentFilter.op === "like" ? "includes" as const
-    : agentFilter.op === "neq" ? "neq" as const
-    : "eq" as const
+  // Convert op for compatibility — preserve range ops directly.
+  const op: AppliedFilter["op"] = agentFilter.op === "like" ? "includes"
+    : agentFilter.op === "neq" ? "neq"
+    : agentFilter.op === "gte" ? "gte"
+    : agentFilter.op === "lte" ? "lte"
+    : agentFilter.op === "between" ? "between"
+    : "eq"
 
   if (registryField) {
-    // Known field → standard AppliedFilter
-    return {
+    // For between, store both bounds in rawValue / rawValue2.
+    const isBetween = op === "between" && agentFilter.value2 != null
+    const rawValue = coerceRawValue(registryField, agentFilter.value)
+    const filter: AppliedFilter = {
       field: registryField,
       op,
-      value: agentFilter.display ?? agentFilter.value,
-      rawValue: coerceRawValue(registryField, agentFilter.value),
+      value: agentFilter.display ?? (isBetween ? `${agentFilter.value}~${agentFilter.value2}` : agentFilter.value),
+      rawValue,
       appliedAt: turnCount,
     }
+    if (isBetween) {
+      ;(filter as AppliedFilter & { rawValue2?: number | string }).rawValue2 = coerceRawValue(registryField, agentFilter.value2 as string)
+    }
+    return filter
   }
 
   // Unknown DB column → store as rawSqlField for direct WHERE injection
@@ -325,8 +356,13 @@ export function buildAppliedFilterFromAgentFilter(
 
 // ── Helpers ──────────────────────────────────────────────────
 
+const NUMERIC_REGISTRY_FIELDS = new Set([
+  "diameterMm", "fluteCount", "shankDiameterMm", "lengthOfCutMm",
+  "overallLengthMm", "helixAngleDeg", "ballRadiusMm", "taperAngleDeg",
+])
+
 function coerceRawValue(field: string, value: string): string | number {
-  if (field === "diameterMm" || field === "fluteCount") {
+  if (NUMERIC_REGISTRY_FIELDS.has(field)) {
     const n = parseFloat(value)
     return isNaN(n) ? value : n
   }
