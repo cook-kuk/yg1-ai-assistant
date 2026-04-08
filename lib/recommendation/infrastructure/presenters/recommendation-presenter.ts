@@ -248,6 +248,73 @@ interface BuildRecommendationResponseDtoParams {
   detail?: string
 }
 
+/**
+ * Synthesize a Korean reasoning sentence from a session's appliedFilters.
+ *
+ * Used as the last-tier fallback when no upstream reasoning source has populated
+ * thinkingProcess. Deterministic, no LLM, no network — assembles a 2-sentence
+ * "intent + slots" explanation from field/op/value tuples. Returns null when
+ * the session has no meaningful filters.
+ */
+function synthesizeThinkingFromSessionFilters(
+  sessionState: ExplorationSessionState | null
+): string | null {
+  if (!sessionState) return null
+  const filters = (sessionState.appliedFilters ?? []).filter(f => f.op !== "skip")
+  if (filters.length === 0) return null
+
+  const FIELD_LABEL: Record<string, string> = {
+    workPieceName: "피삭재",
+    material: "ISO 소재군",
+    diameterMm: "공구 직경",
+    fluteCount: "날수",
+    coating: "코팅",
+    toolSubtype: "공구 형상",
+    toolMaterial: "공구 재질",
+    seriesName: "시리즈",
+    brand: "브랜드",
+    cuttingType: "가공 방식",
+    overallLengthMm: "전체 길이",
+    lengthOfCutMm: "날장 길이",
+    shankDiameterMm: "생크 직경",
+    helixAngleDeg: "헬릭스각",
+    taperAngleDeg: "테이퍼각",
+    ballRadiusMm: "코너/볼 R",
+    pointAngleDeg: "포인트 각도",
+    threadPitchMm: "나사 피치",
+    stockStatus: "재고",
+    country: "생산국",
+    toolType: "공구 종류",
+  }
+  const formatPhrase = (op: string, value: string): string => {
+    switch (op) {
+      case "neq": return `${value} 제외`
+      case "gte": return `${value} 이상`
+      case "lte": return `${value} 이하`
+      case "between": return `${value} 범위`
+      default: return value
+    }
+  }
+
+  const parts = filters.map(f => {
+    const label = FIELD_LABEL[f.field] ?? f.field
+    const valueStr = String(f.value ?? f.rawValue ?? "")
+    return `${label} ${formatPhrase(f.op, valueStr)}`
+  })
+
+  const priority = ["workPieceName", "material", "materialTags", "diameterMm", "fluteCount", "toolSubtype", "coating"]
+  const sorted = [...filters].sort((a, b) => {
+    const ia = priority.indexOf(a.field)
+    const ib = priority.indexOf(b.field)
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
+  })
+  const lead = sorted[0]
+  const leadLabel = FIELD_LABEL[lead.field] ?? lead.field
+  const leadValue = String(lead.value ?? lead.rawValue ?? "")
+
+  return `사용자 요청에서 ${leadLabel} '${leadValue}' 을(를) 핵심 조건으로 파악했습니다. 다음 조건으로 필터링합니다: ${parts.join(", ")}.`
+}
+
 export function buildRecommendationResponseDto(
   params: BuildRecommendationResponseDtoParams
 ): RecommendationResponseDto {
@@ -295,9 +362,16 @@ export function buildRecommendationResponseDto(
     altFactChecked: params.altFactChecked ?? [],
     capabilities,
     meta: params.meta,
-    // Prefer explicit param, fall back to whatever the runtime stashed on the
-    // session (sql-agent reasoning, etc.) so every code path can surface it.
-    thinkingProcess: params.thinkingProcess ?? sessionState?.thinkingProcess ?? null,
+    // Three-tier fallback:
+    //   1. explicit param (rarely set)
+    //   2. runtime stashed it on session (SQL agent natural-language reasoning)
+    //   3. synthesize from the session's appliedFilters (covers det-SCR / KG /
+    //      v2-bridge / orchestrator paths that don't emit prose reasoning)
+    thinkingProcess:
+      params.thinkingProcess
+      ?? sessionState?.thinkingProcess
+      ?? synthesizeThinkingFromSessionFilters(sessionState)
+      ?? null,
     error: params.error,
     detail: params.detail,
   }
