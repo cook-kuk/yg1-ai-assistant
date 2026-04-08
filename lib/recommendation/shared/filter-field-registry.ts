@@ -466,10 +466,27 @@ function stringMatch(record: FilterRecord, filter: AppliedFilter, key: string): 
 function numericMatch(record: FilterRecord, filter: AppliedFilter, key: string, tolerance = 0.0001): boolean {
   const rawValues = extractNumericFilterRawValues(filter)
   if (rawValues.length === 0) return false
-  return extractPrimitiveValues(record, key).some(value => {
-    if (typeof value !== "number") return false
-    return rawValues.some(raw => Math.abs(value - raw) <= tolerance)
-  })
+  const numericValues = extractPrimitiveValues(record, key).filter((v): v is number => typeof v === "number")
+  if (numericValues.length === 0) return false
+
+  // Range ops must be honored here too — otherwise SQL returns rows but the
+  // in-memory matches() pass drops them all because exact-equality fails.
+  if (filter.op === "gte" || filter.op === "lte") {
+    const threshold = Number(rawValues[0])
+    if (!Number.isFinite(threshold)) return false
+    return numericValues.some(v => filter.op === "gte" ? v >= threshold : v <= threshold)
+  }
+  if (filter.op === "between") {
+    const lo = Number(rawValues[0])
+    const hi = Number((filter as { rawValue2?: unknown }).rawValue2 ?? rawValues[1] ?? rawValues[0])
+    if (!Number.isFinite(lo) || !Number.isFinite(hi)) return false
+    const [lowVal, highVal] = lo <= hi ? [lo, hi] : [hi, lo]
+    return numericValues.some(v => v >= lowVal && v <= highVal)
+  }
+
+  return numericValues.some(value =>
+    rawValues.some(raw => Math.abs(value - raw) <= tolerance)
+  )
 }
 
 function booleanMatch(record: FilterRecord, filter: AppliedFilter, key: string): boolean {
