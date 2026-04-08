@@ -646,6 +646,22 @@ export async function resolveExplicitFilterRequest(
 
   const raw = userMessage.trim()
   if (!raw || !hasExplicitFilterIntentSignal(raw) || hasExplicitRevisionSignal(raw)) return null
+
+  // ── Det SCR fast path: if deterministic parser handles this message,
+  // skip the LLM explicit filter extraction entirely so the SCR path takes over.
+  if (process.env.DETERMINISTIC_SCR !== "0") {
+    try {
+      const { parseDeterministic } = await import("@/lib/recommendation/core/deterministic-scr")
+      const detActions = parseDeterministic(raw)
+      if (detActions.length > 0) {
+        console.log(`[explicit-filter] det SCR matched ${detActions.length}, skipping LLM path`)
+        return null  // let SCR handle it
+      }
+    } catch (err) {
+      console.warn("[explicit-filter] det SCR import failed:", (err as Error).message)
+    }
+  }
+
   const parsedText = await parseExplicitFilterText(raw, undefined, provider)
   const candidateFields = inferExplicitFilterTargetFields(raw, parsedText.hintedFields, sessionState)
   if (candidateFields.length === 0) return null
