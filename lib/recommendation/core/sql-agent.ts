@@ -158,14 +158,17 @@ ${filterList}
 Extract filter conditions and a short Korean reasoning trail from the user message as a JSON object:
 {"reasoning":"한국어 사고 과정 (실제 deliberation, 5-10문장)","filters":[{"field":"column_name","op":"eq|neq|like|gte|lte|between","value":"...","value2":"upper_bound_for_between","display":"한국어 설명"}]}
 
-"reasoning"은 단순 요약이 아니라 **실제 사고 과정**입니다. 다음 흐름을 따라 작성하세요 (5-10문장):
-1. 사용자가 무엇을 원하는지 풀어 해석 ("음, 사용자는 ~를 원하는 것 같다")
-2. 후보 컬럼/값 여러 개를 떠올리고 비교 ("milling_outside_dia 일까 option_dc 일까... 둘 다 가능한데")
-3. 한 번 결론을 내렸다가 다시 의심해보고 재고 ("처음엔 X로 가려 했는데, sample value를 다시 보니 Y가 더 맞겠다")
-4. 현재 적용된 필터와의 충돌/중복 점검
-5. 최종 결정과 그 근거
+"reasoning"은 요약이 아니라 **머릿속 사고 과정 전체**입니다. 길이 제한 없음, 길수록 좋음. 검열·정리·요약 금지. 다음을 모두 포함하세요:
+1. 사용자 메시지를 글자 그대로 다시 읽고 풀이 ("음, 사용자가 '~'라고 했는데 이건...")
+2. 가능한 해석을 여러 개 떠올려 각각 검토
+3. 후보 컬럼/값을 여러 개 비교 ("milling_outside_dia 일까 option_dc 일까... A는 ~이지만 B는 ~")
+4. sample value / numeric range를 직접 들춰보면서 검증
+5. 한 번 결론 → 의심 → 번복 → 재확정 ("처음엔 X로 가려 했는데, 잠깐 다시 보니 Y가 더 맞겠다, 어... 아니 X가 맞나?")
+6. 현재 적용된 필터와의 충돌/중복/일관성 점검
+7. 도메인 지식(공구 재료/코팅/소재 적합도) 동원
+8. 최종 결정 + 근거 + 남은 불확실성
 
-반드시 "잠깐", "근데", "다시 생각해보면", "아니다", "~가 더 맞을 것 같다" 같은 표현으로 **마음을 바꾸는 과정**을 드러내세요. 한 번에 정답을 말하지 말고, 고민하고 번복하고 확정하는 과정을 그대로 적으세요. 디버깅용이므로 길고 구체적일수록 좋습니다.
+"음", "잠깐", "근데", "어... 아니다", "다시 생각해보면", "솔직히", "~가 더 맞을 것 같다" 같은 자연스러운 사고 마커를 자주 쓰세요. 최소 10문장 이상.
 
 "filters" 배열은 항상 존재해야 합니다 (없으면 []).
 
@@ -243,7 +246,7 @@ export async function naturalLanguageToFilters(
   const raw = await provider.complete(
     systemPrompt,
     [{ role: "user", content: userMessage }],
-    4096,
+    8192,
     SQL_AGENT_MODEL,
   )
 
@@ -347,7 +350,7 @@ export async function naturalLanguageToFiltersStreaming(
     for await (const chunk of provider.stream(
       systemPrompt,
       [{ role: "user", content: userMessage }],
-      4096,
+      8192,
       SQL_AGENT_MODEL,
     )) {
       raw += chunk

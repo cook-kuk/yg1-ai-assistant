@@ -1643,15 +1643,18 @@ async function streamLLMReasoningForChipPath(params: {
 }): Promise<string | null> {
   const { provider, userText, prevFilters, newFilters, candidateCountBefore, candidateCountAfter, onThinking } = params
   const fmt = (fs: AppliedFilter[]) => fs.filter(f => f.op !== "skip").map(f => `${f.field}=${f.value}`).join(", ") || "(none)"
-  const sys = `당신은 YG-1 절삭공구 추천 엔진의 추론 과정을 기록하는 역할입니다. 사용자가 방금 한 입력과 필터 변화를 보고, 실제로 고민하고 마음을 바꾸고 다시 결정하는 사고 과정을 5-8문장 한국어로 자유롭게 적으세요.
+  const sys = `당신은 YG-1 절삭공구 추천 엔진의 내부 사고 과정(CoT)을 1인칭으로 적는 역할입니다. 요약하지 말고, 머릿속에서 실제로 흘러가는 모든 생각을 그대로 길게 적으세요. 길수록 좋습니다. 디버깅용이므로 검열·정리·요약 금지.
 
-반드시 다음을 포함하세요:
-- 사용자가 무엇을 원하는지 풀어 해석 ("음, 사용자는 ~를 원하는 것 같다")
-- 가능한 다른 해석/옵션 비교 ("~일 수도 있고 ~일 수도 있는데")
-- 한 번 결론을 내리고 다시 의심 ("처음엔 X로 가려 했는데, 다시 보니...")
-- 최종 결정과 그 근거
+다음을 모두 포함하세요 (순서 자유):
+- 사용자 메시지를 글자 그대로 다시 읽으면서 무엇을 원하는지 풀이
+- 가능한 해석을 여러 개 떠올려보고 각각 검토
+- 후보 컬럼/값/필터를 여러 개 비교 ("A일까 B일까... A는 ~이지만 B는 ~")
+- 한 번 결론을 내렸다가 의심하고 번복 ("처음엔 X로 가려 했는데, 잠깐 다시 보니 Y가 더 맞겠다")
+- 직전 필터와의 충돌/일관성 점검
+- 도메인 지식(공구 재료/코팅/소재 적합도) 동원해서 따져보기
+- 최종 결정과 그 근거, 그리고 남은 불확실성
 
-"잠깐", "근데", "다시 생각해보면", "아니다" 같은 표현으로 마음을 바꾸는 과정을 드러내세요. 한 줄 요약 금지. 디버깅용이므로 길고 솔직할수록 좋습니다. JSON이나 마크다운 없이 평문으로만 응답하세요.`
+"음", "잠깐", "근데", "어... 아니다", "다시 생각해보면", "솔직히" 같은 자연스러운 사고 마커를 자주 쓰세요. 최소 10문장 이상, 길이 제한 없음. JSON이나 마크다운 없이 평문으로만.`
   const user = `사용자 입력: "${userText}"
 직전 필터: ${fmt(prevFilters)}
 현재 필터: ${fmt(newFilters)}
@@ -1663,14 +1666,14 @@ async function streamLLMReasoningForChipPath(params: {
   try {
     let full = ""
     if (provider.stream) {
-      for await (const chunk of provider.stream(sys, [{ role: "user", content: user }], 1024, model)) {
+      for await (const chunk of provider.stream(sys, [{ role: "user", content: user }], 8192, model)) {
         full += chunk
         if (onThinking && chunk) {
           try { onThinking(chunk, { delta: true }) } catch { /* noop */ }
         }
       }
     } else {
-      full = await provider.complete(sys, [{ role: "user", content: user }], 1024, model)
+      full = await provider.complete(sys, [{ role: "user", content: user }], 8192, model)
       if (onThinking && full) {
         try { onThinking(full) } catch { /* noop */ }
       }
