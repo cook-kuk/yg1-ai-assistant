@@ -21,7 +21,10 @@ import {
   handleServeExploration,
   handleServeSimpleChat,
 } from "@/lib/recommendation/infrastructure/engines/serve-engine-runtime"
-import { getEngineSessionState } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
+import {
+  buildRecommendationResponseDto,
+  getEngineSessionState,
+} from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import {
   traceRecommendation,
   traceRecommendationError,
@@ -84,7 +87,25 @@ export async function POST(req: Request): Promise<Response> {
       safeEnqueue(sseFrame("started", { ok: true }))
 
       const onEarlyFlush = (payload: EarlyRecommendationFlush) => {
-        safeEnqueue(sseFrame("cards", payload))
+        // Build a partial DTO so the client can reuse parseRecommendationResponse.
+        // text is empty (LLM narrative still pending); recommendation/explanations
+        // are populated so product cards render immediately.
+        try {
+          const partialDto = buildRecommendationResponseDto({
+            text: "",
+            purpose: "recommendation",
+            isComplete: false,
+            recommendation: payload.recommendation,
+            evidenceSummaries: payload.evidenceSummaries,
+            primaryExplanation: payload.primaryExplanation,
+            primaryFactChecked: payload.primaryFactChecked as Record<string, unknown> | null,
+            altExplanations: payload.altExplanations,
+            altFactChecked: payload.altFactChecked as Array<Record<string, unknown>>,
+          })
+          safeEnqueue(sseFrame("cards", partialDto))
+        } catch (err) {
+          traceRecommendationError("http.stream.cards:dto-error", err)
+        }
       }
 
       try {

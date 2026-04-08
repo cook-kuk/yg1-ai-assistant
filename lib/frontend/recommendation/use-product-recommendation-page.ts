@@ -304,16 +304,38 @@ export function useProductRecommendationPage({
         pagination: { page: 0, pageSize: DEFAULT_PAGE_SIZE },
       })
 
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 55000)
-      const res = await fetch("/api/recommend", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestPayload),
-        signal: controller.signal,
-      }).finally(() => clearTimeout(timeout))
-      if (!res.ok) throw new Error(`서버 오류 (${res.status})`)
-      const data = parseRecommendationResponse(await res.json())
+      const aiPlaceholderId = createClientEventId()
+      setChatMessages([
+        { role: "user", text: intakeText, createdAt: new Date().toISOString() },
+        {
+          role: "ai",
+          text: "",
+          isLoading: true,
+          createdAt: new Date().toISOString(),
+          feedbackGroupId: aiPlaceholderId,
+        },
+      ])
+      setPhase("explore")
+
+      const data = await streamRecommendation(requestPayload, {
+        onCards: partial => {
+          setChatMessages(prev => {
+            const updated = [...prev]
+            const lastIndex = updated.length - 1
+            const last = updated[lastIndex]
+            if (!last || last.role !== "ai") return prev
+            updated[lastIndex] = {
+              ...last,
+              recommendation: partial.recommendation ?? null,
+              evidenceSummaries: partial.evidenceSummaries ?? null,
+              primaryExplanation: partial.primaryExplanation ?? null,
+              primaryFactChecked: partial.primaryFactChecked ?? null,
+              altExplanations: partial.altExplanations ?? [],
+            }
+            return updated
+          })
+        },
+      })
       if (data.error) throw new Error(data.detail ?? data.error)
 
       setSessionState(data.session.publicState ?? null)
@@ -322,9 +344,11 @@ export function useProductRecommendationPage({
       setCandidatePagination(data.pagination ?? null)
       setCapabilities(resolveRecommendationCapabilities(data))
 
-      setChatMessages([
-        { role: "user", text: intakeText, createdAt: new Date().toISOString() },
-        {
+      setChatMessages(prev => {
+        const updated = [...prev]
+        const lastIndex = updated.length - 1
+        if (lastIndex < 0 || updated[lastIndex].role !== "ai") return prev
+        updated[lastIndex] = {
           role: "ai",
           text: data.text ?? "",
           chips: data.chips ?? [],
@@ -335,14 +359,15 @@ export function useProductRecommendationPage({
           primaryExplanation: data.primaryExplanation ?? null,
           primaryFactChecked: data.primaryFactChecked ?? null,
           altExplanations: data.altExplanations ?? [],
+          isLoading: false,
           requestPayload,
           responsePayload: data,
-          createdAt: new Date().toISOString(),
-          feedbackGroupId: createClientEventId(),
+          createdAt: updated[lastIndex].createdAt ?? new Date().toISOString(),
+          feedbackGroupId: aiPlaceholderId,
           debugTrace: (data as any).meta?.debugTrace ?? null,
-        },
-      ])
-      setPhase("explore")
+        }
+        return updated
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : "알 수 없는 오류")
       setPhase("intake")

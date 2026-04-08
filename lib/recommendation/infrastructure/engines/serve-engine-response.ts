@@ -76,12 +76,11 @@ type JsonRecommendationResponse = (
  * answer text yet. Used by /api/recommend/stream (TODO-B progressive cards).
  */
 export interface EarlyRecommendationFlush {
-  status: string
-  primaryProduct: unknown
-  alternatives: unknown[]
-  warnings: string[]
-  rationale: string[]
-  totalCandidatesConsidered: number
+  recommendation: RecommendationResult
+  primaryExplanation: RecommendationExplanation | null
+  primaryFactChecked: FactCheckedRecommendation | null
+  altExplanations: RecommendationExplanation[]
+  altFactChecked: FactCheckedRecommendation[]
   evidenceSummaries: EvidenceSummary[] | null
 }
 
@@ -969,12 +968,11 @@ export async function buildRecommendationResponse(
   if (deps.onEarlyFlush) {
     try {
       deps.onEarlyFlush({
-        status,
-        primaryProduct: primary,
-        alternatives,
-        warnings,
-        rationale,
-        totalCandidatesConsidered: totalCandidateCount,
+        recommendation,
+        primaryExplanation,
+        primaryFactChecked,
+        altExplanations,
+        altFactChecked,
         evidenceSummaries: evidenceSummaries.length > 0 ? evidenceSummaries : null,
       })
     } catch (err) {
