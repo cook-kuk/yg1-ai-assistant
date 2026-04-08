@@ -26,7 +26,6 @@ import { findCatalogsForProduct } from "@/lib/data/catalog-mapping"
 import {
   buildCandidateDetailBadges,
   buildCandidateSpecFallback,
-  buildCandidateSubtypeHighlight,
   buildSubtypeFirstSummary,
 } from "@/lib/frontend/recommendation/recommendation-card-highlights"
 import type {
@@ -525,7 +524,7 @@ export function CandidateCard({ c }: { c: RecommendationCandidateDto }) {
   const cleanedDescription = c.description
     ? c.description.replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, "").trim()
     : null
-  const subtypeHighlight = buildCandidateSubtypeHighlight(c, language)
+  const detailBadges = buildCandidateDetailBadges(c, language)
   const fallbackSpecs = buildCandidateSpecFallback(c)
 
   return (
@@ -556,14 +555,19 @@ export function CandidateCard({ c }: { c: RecommendationCandidateDto }) {
           )}
         </div>
       </div>
-      {subtypeHighlight ? (
+      {detailBadges.length > 0 ? (
         <div className="flex flex-wrap gap-2">
-          <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900 shadow-sm">
-            <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-amber-600">
-              {subtypeHighlight.label}
-            </span>
-            <span>{subtypeHighlight.value}</span>
-          </div>
+          {detailBadges.map(badge => (
+            <div
+              key={`${badge.label}-${badge.value}`}
+              className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900 shadow-sm"
+            >
+              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-amber-600">
+                {badge.label}
+              </span>
+              <span>{badge.value}</span>
+            </div>
+          ))}
         </div>
       ) : (
         <div className="flex flex-wrap gap-1.5 text-xs text-gray-600">
