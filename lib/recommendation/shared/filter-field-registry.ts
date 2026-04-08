@@ -776,11 +776,28 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
       return { ...input, country: value ? value.toUpperCase() : undefined }
     },
     clearInput: input => ({ ...input, country: undefined }),
-    extractValues: record => extractPrimitiveValues(record, "country"),
-    matches: (record, filter) => stringMatch(record, {
-      ...filter,
-      rawValue: extractStringFilterRawValues(filter).map(value => value.toUpperCase()),
-    }, "country"),
+    extractValues: record => {
+      // record.country_codes(array) 우선, 없으면 record.country(콤마 문자열) 분해
+      const r = record as Record<string, unknown>
+      const arr = r.country_codes
+      if (Array.isArray(arr)) return arr.map(v => String(v).toUpperCase()).filter(Boolean)
+      const str = r.country
+      if (typeof str === "string" && str.length > 0) {
+        return str.split(/[,/]/).map(v => v.trim().toUpperCase()).filter(Boolean)
+      }
+      return []
+    },
+    matches: (record, filter) => {
+      const targets = extractStringFilterRawValues(filter).map(v => String(v).trim().toUpperCase()).filter(Boolean)
+      if (targets.length === 0) return true
+      const r = record as Record<string, unknown>
+      const arr = r.country_codes
+      const tokens: string[] = Array.isArray(arr)
+        ? arr.map(v => String(v).toUpperCase())
+        : (typeof r.country === "string" ? r.country.split(/[,/]/).map(v => v.trim().toUpperCase()) : [])
+      const has = targets.some(t => tokens.includes(t))
+      return filter.op === "neq" ? !has : has
+    },
     buildDbClause: (filter, next) => {
       const normalized = extractStringFilterRawValues(filter)
         .map(value => value.trim().toUpperCase())
