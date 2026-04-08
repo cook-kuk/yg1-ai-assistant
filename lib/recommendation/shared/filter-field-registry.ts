@@ -384,7 +384,15 @@ function buildNumericEqualityClause(
 ): string | null {
   const rawValues = extractNumericFilterRawValues(filter)
   if (rawValues.length === 0) return null
-  const numericExpr = firstNumberFromColumns(columns)
+  // Drop any column that doesn't exist in the live MV — older field
+  // definitions still reference legacy columns (holemaking_point_angle,
+  // threading_pitch, threading_tpi) that the new compact MV no longer has.
+  // Without this guard the SQL fails with "column ... does not exist".
+  const liveSchema = getDbSchemaSync()
+  const knownCols = liveSchema ? new Set(liveSchema.columns.map(c => c.column_name)) : null
+  const presentColumns = knownCols ? columns.filter(c => knownCols.has(c)) : columns
+  if (presentColumns.length === 0) return null
+  const numericExpr = firstNumberFromColumns(presentColumns)
 
   // Range ops: gte / lte / between are handled here so each numeric field
   // automatically supports range filters without needing to know columns
