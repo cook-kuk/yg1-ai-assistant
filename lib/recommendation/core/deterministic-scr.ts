@@ -29,7 +29,7 @@ const FIELD_CUES: Array<{ pattern: RegExp; field: string; numeric: boolean }> = 
   // LOC 날장
   { pattern: /(절삭\s*길이|날\s*길이|날장|\bloc\b|\bcl\b|length\s*of\s*cut)/i, field: "lengthOfCutMm", numeric: true },
   // 샹크 직경
-  { pattern: /(샹크\s*(?:직경|지름)|생크\s*(?:직경|지름)|shank\s*(?:dia|diameter))/i, field: "shankDiameterMm", numeric: true },
+  { pattern: /(샹크\s*(?:직경|지름)?|생크\s*(?:직경|지름)?|shank\s*(?:dia|diameter)?)/i, field: "shankDiameterMm", numeric: true },
   // 헬릭스
   { pattern: /(헬릭스\s*각?도?|나선\s*각?도?|helix\s*angle|\bhelix\b)/i, field: "helixAngleDeg", numeric: true },
   // 포인트 각도 (drill)

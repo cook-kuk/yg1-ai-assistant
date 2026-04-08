@@ -772,6 +772,11 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
         jp: "JPN",
         cn: "CHN",
         de: "DEU",
+        // Uppercase canonical forms (from knowledge-graph.ts)
+        KOREA: "KOR", USA: "USA", CHINA: "CHN", JAPAN: "JPN", GERMANY: "DEU",
+        INDIA: "IND", TURKEY: "TUR", MEXICO: "MEX", THAILAND: "THA", VIETNAM: "VNM",
+        ENGLAND: "ENG", FRANCE: "FRA", ITALY: "ITA", SPAIN: "ESP", POLAND: "POL",
+        RUSSIA: "RUS", BRAZIL: "BRA", HUNGARY: "HUN", CZECH: "CZE", PORTUGAL: "PRT",
       }
       /** Region → multiple country codes (comma-separated for downstream split) */
       const REGION_MAP: Record<string, string> = {
