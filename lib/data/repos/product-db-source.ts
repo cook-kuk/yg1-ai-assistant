@@ -866,14 +866,14 @@ function buildProductDataQuery(
             COALESCE(status_row.material_rating_score, 0)
               + CASE
                   WHEN ${workPieceNameParam}::text IS NOT NULL
-                    AND status_row.normalized_work_piece_name = NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '')
+                    AND status_row.normalized_work_piece_name = NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '[\\s\\-·ㆍ\\./(),]+', '', 'g'), '')
                   THEN 10
                   ELSE 0
                 END
               AS material_rating_score,
             CASE
               WHEN ${workPieceNameParam}::text IS NOT NULL
-                AND status_row.normalized_work_piece_name = NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '')
+                AND status_row.normalized_work_piece_name = NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '[\\s\\-·ㆍ\\./(),]+', '', 'g'), '')
               THEN TRUE
               ELSE FALSE
             END AS workpiece_name_matched
@@ -886,16 +886,16 @@ function buildProductDataQuery(
             material_rating text,
             material_rating_score integer
           )
-          WHERE ${materialTagParam}::text IS NOT NULL
+          WHERE (${materialTagParam}::text IS NOT NULL OR ${workPieceNameParam}::text IS NOT NULL)
             AND sp.normalized_series_name = NULLIF(
               regexp_replace(UPPER(BTRIM(COALESCE(deduped_products.edp_series_name, ''))), '[\\s\\-·ㆍ\\./(),]+', '', 'g'),
               ''
             )
-            AND status_row.tag_name = ${materialTagParam}
+            AND (${materialTagParam}::text IS NULL OR status_row.tag_name = ${materialTagParam})
           ORDER BY
             CASE
               WHEN ${workPieceNameParam}::text IS NOT NULL
-                AND status_row.normalized_work_piece_name = NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '\\s+', '', 'g'), '')
+                AND status_row.normalized_work_piece_name = NULLIF(regexp_replace(UPPER(BTRIM(${workPieceNameParam})), '[\\s\\-·ㆍ\\./(),]+', '', 'g'), '')
               THEN 0
               ELSE 1
             END ASC,
@@ -906,6 +906,7 @@ function buildProductDataQuery(
       )
       SELECT *
       FROM ranked_products
+      WHERE ${workPieceNameParam}::text IS NULL OR workpiece_name_matched = TRUE
       ORDER BY
         material_rating_score DESC,
         CASE material_rating

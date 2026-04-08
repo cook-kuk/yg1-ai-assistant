@@ -26,6 +26,7 @@ import {
   ProductRepo,
 } from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
 import { ENABLE_POST_SQL_CANDIDATE_FILTERS } from "@/lib/feature-flags"
+import { applyFilterToRecommendationInput } from "@/lib/recommendation/shared/filter-field-registry"
 import { resolveMaterialTag } from "@/lib/recommendation/domain/material-resolver"
 import { getAppShapesForOperation } from "@/lib/recommendation/domain/operation-resolver"
 import { applyPostFilterToProducts, getFilterFieldDefinition } from "@/lib/recommendation/shared/filter-field-registry"
@@ -280,6 +281,13 @@ export async function runHybridRetrieval(
 ): Promise<HybridResult> {
   // Defensive: strip skip/empty filters that must never reach DB or post-filter
   const filters = rawFilters.filter(f => f.op !== "skip" && f.field && f.field !== "")
+  // Sync RecommendationInput from filters so DB-level fields (workPieceName, material, etc.)
+  // that only live in filters[] are reflected on input before the DB query runs.
+  let syncedInput: RecommendationInput = input
+  for (const filter of filters) {
+    syncedInput = applyFilterToRecommendationInput(syncedInput, filter)
+  }
+  input = syncedInput
   traceRecommendation("domain.runHybridRetrieval:input", {
     input: summarizeRecommendationInputForTrace(input),
     filters: summarizeFiltersForTrace(filters),

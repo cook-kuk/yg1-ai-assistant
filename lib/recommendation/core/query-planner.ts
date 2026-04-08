@@ -57,7 +57,7 @@ Respond ONLY with a JSON object:
 const PLANNER_MODEL = resolveModel("haiku")
 
 const VALID_FIELDS = new Set<string>([
-  "materialGroup", "workpiece", "toolFamily", "toolSubtype", "diameterMm",
+  "materialGroup", "workpiece", "workPieceName", "toolFamily", "toolSubtype", "diameterMm",
   "fluteCount", "coating", "brand", "seriesName", "operationType",
   "operationShape", "shankType", "country",
   // Numeric range-capable fields (must match QUERY_FIELD_MANIFEST entries)
