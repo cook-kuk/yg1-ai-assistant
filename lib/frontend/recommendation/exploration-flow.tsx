@@ -430,21 +430,23 @@ function NarrowingChat({
               )}
 
               {message.role === "ai" && message.thinkingProcess && (
-                <details className="mt-1" open={message.isLoading}>
+                // Always-visible reasoning trail. We keep the <details> wrapper
+                // so users can collapse it later, but it stays open by default
+                // (during streaming AND after settle) so the trail acts as a
+                // permanent transcript of the AI's thinking. The summary label
+                // pulses while streaming and goes static once the message
+                // settles. The text is plain (no typewriter wrapper) because
+                // chunks already arrive at the LLM's token cadence via SSE.
+                <details className="mt-1" open>
                   <summary className="text-[11px] text-gray-500 cursor-pointer hover:text-gray-700 select-none flex items-center gap-1">
                     <span className={message.isLoading ? "animate-pulse" : ""}>
                       {message.isLoading
                         ? (language === "ko" ? "추론 중…" : "Thinking…")
-                        : (language === "ko" ? "추론 과정 보기" : "Show reasoning")}
+                        : (language === "ko" ? "추론 과정" : "Reasoning")}
                     </span>
                   </summary>
                   <div className="mt-1 p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-900 leading-relaxed whitespace-pre-wrap">
-                    {/* Claude-style typewriter while loading; instant when settled */}
-                    {index === messages.length - 1 && message.isLoading ? (
-                      <TypewriterText text={message.thinkingProcess} instant={false} />
-                    ) : (
-                      message.thinkingProcess
-                    )}
+                    {message.thinkingProcess}
                   </div>
                 </details>
               )}

@@ -236,11 +236,16 @@ export function useProductRecommendationPage({
             const lastIndex = updated.length - 1
             const last = updated[lastIndex]
             if (!last || last.role !== "ai") return prev
-            // delta=true → append (true token streaming).
-            // delta=false/undefined → replace (synthetic / non-streaming source).
+            // Stacking semantics:
+            //   delta=true  → append directly (true token streaming inside one source)
+            //   delta=false → append as a NEW paragraph if there's already content
+            //                 (so different reasoning sources don't overwrite each other)
+            const prevThinking = last.thinkingProcess ?? ""
             const nextText = opts?.delta
-              ? ((last.thinkingProcess ?? "") + text)
-              : text
+              ? prevThinking + text
+              : prevThinking
+                ? prevThinking.trimEnd() + "\n\n" + text
+                : text
             updated[lastIndex] = { ...last, thinkingProcess: nextText }
             return updated
           })
@@ -340,11 +345,16 @@ export function useProductRecommendationPage({
             const lastIndex = updated.length - 1
             const last = updated[lastIndex]
             if (!last || last.role !== "ai") return prev
-            // delta=true → append (true token streaming).
-            // delta=false/undefined → replace (synthetic / non-streaming source).
+            // Stacking semantics:
+            //   delta=true  → append directly (true token streaming inside one source)
+            //   delta=false → append as a NEW paragraph if there's already content
+            //                 (so different reasoning sources don't overwrite each other)
+            const prevThinking = last.thinkingProcess ?? ""
             const nextText = opts?.delta
-              ? ((last.thinkingProcess ?? "") + text)
-              : text
+              ? prevThinking + text
+              : prevThinking
+                ? prevThinking.trimEnd() + "\n\n" + text
+                : text
             updated[lastIndex] = { ...last, thinkingProcess: nextText }
             return updated
           })
@@ -454,11 +464,16 @@ export function useProductRecommendationPage({
             const lastIndex = updated.length - 1
             const last = updated[lastIndex]
             if (!last || last.role !== "ai") return prev
-            // delta=true → append (true token streaming).
-            // delta=false/undefined → replace (synthetic / non-streaming source).
+            // Stacking semantics:
+            //   delta=true  → append directly (true token streaming inside one source)
+            //   delta=false → append as a NEW paragraph if there's already content
+            //                 (so different reasoning sources don't overwrite each other)
+            const prevThinking = last.thinkingProcess ?? ""
             const nextText = opts?.delta
-              ? ((last.thinkingProcess ?? "") + text)
-              : text
+              ? prevThinking + text
+              : prevThinking
+                ? prevThinking.trimEnd() + "\n\n" + text
+                : text
             updated[lastIndex] = { ...last, thinkingProcess: nextText }
             return updated
           })
