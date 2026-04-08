@@ -42,6 +42,17 @@ export interface SingleCallResult {
   actions: SingleCallAction[]
   answer: string
   reasoning: string
+  /**
+   * Set when the deterministic SCR detects an unqualified token that maps to
+   * multiple registry fields (MV reverse-index ambiguity). Runtime returns
+   * this as a clarification question instead of guessing a slot.
+   */
+  clarification?: {
+    question: string
+    chips: string[]
+    /** chip label → registry field id for round-trip resolution by callers */
+    chipFieldMap: Record<string, string>
+  }
 }
 
 // ── Validation ────────────────────────────────────────────────
@@ -555,6 +566,40 @@ function buildAmbiguityClarification(amb: MvAmbiguity): string {
   return `'${amb.token}'은(는) ${labels.join(" / ")} 중 어디에 적용할까요?`
 }
 
+/**
+ * Build chip labels + chip→field map for an ambiguous token. Chip text is
+ * a natural Korean phrasing combining the registry label and the original
+ * token, so when the user clicks it the resulting message can be re-parsed
+ * (or directly resolved via chipFieldMap by the runtime).
+ */
+function buildClarificationFromMeta(meta: DeterministicMeta): SingleCallResult["clarification"] | null {
+  if (meta.ambiguities.length === 0) return null
+  const question = meta.ambiguities.map(buildAmbiguityClarification).join("\n")
+  const allChips: string[] = []
+  const chipFieldMap: Record<string, string> = {}
+  for (const amb of meta.ambiguities) {
+    const built = buildAmbiguityChips(amb)
+    for (const c of built.chips) {
+      allChips.push(c)
+      chipFieldMap[c] = built.chipFieldMap[c]
+    }
+  }
+  return { question, chips: allChips, chipFieldMap }
+}
+
+function buildAmbiguityChips(amb: MvAmbiguity): { chips: string[]; chipFieldMap: Record<string, string> } {
+  const chips: string[] = []
+  const chipFieldMap: Record<string, string> = {}
+  for (const f of amb.fields) {
+    const def = getFilterFieldDefinition(f)
+    const label = def?.label ?? f
+    const chip = `${label}로 적용 (${amb.token})`
+    chips.push(chip)
+    chipFieldMap[chip] = f
+  }
+  return { chips, chipFieldMap }
+}
+
 const DET_SCR_ENABLED = process.env.DETERMINISTIC_SCR !== "0"
 const DET_SCR_LLM_AUGMENT = process.env.DETERMINISTIC_SCR_LLM_AUGMENT === "1"
 
@@ -595,27 +640,25 @@ export async function routeSingleCall(
       if (canonicalized.length > 0 && !DET_SCR_LLM_AUGMENT) {
         // Pure deterministic: skip LLM entirely.
         // 모호 토큰이 있으면 unambiguous 필터는 그대로 적용하고 추가로
-        // clarification 질문을 answer에 실어 사용자에게 묻는다.
-        const clarification = detMeta.ambiguities
-          .map(buildAmbiguityClarification)
-          .join("\n")
+        // clarification 질문을 answer + 구조화된 chips로 함께 노출.
+        const clarification = buildClarificationFromMeta(detMeta)
         return {
           actions: canonicalized,
-          answer: clarification,
-          reasoning: detMeta.ambiguities.length > 0
+          answer: clarification?.question ?? "",
+          reasoning: clarification
             ? `deterministic: ${canonicalized.length} actions + ${detMeta.ambiguities.length} clarification(s)`
             : `deterministic: ${canonicalized.length} actions`,
+          ...(clarification ? { clarification } : {}),
         }
       }
     } else if (detMeta.ambiguities.length > 0) {
       // 결정론적 액션이 하나도 없지만 모호 토큰이 있는 경우 — 질문만 던진다.
-      const clarification = detMeta.ambiguities
-        .map(buildAmbiguityClarification)
-        .join("\n")
+      const clarification = buildClarificationFromMeta(detMeta)!
       return {
         actions: [],
-        answer: clarification,
+        answer: clarification.question,
         reasoning: `deterministic: 0 actions + ${detMeta.ambiguities.length} clarification(s)`,
+        clarification,
       }
     }
   }

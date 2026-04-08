@@ -1388,15 +1388,20 @@ function buildRevisionClarificationResponse(
   currentInput: RecommendationInput,
   turnCount: number,
   question: string,
-  requestPreparation: ReturnType<typeof prepareRequest> | null
+  requestPreparation: ReturnType<typeof prepareRequest> | null,
+  chipsOverride?: string[],
 ) {
+  const defaultChips = filters.length > 0 ? ["⟵ 이전 단계", "처음부터 다시"] : ["처음부터 다시"]
+  const chips = chipsOverride && chipsOverride.length > 0
+    ? [...chipsOverride, ...defaultChips.filter(c => !chipsOverride.includes(c))]
+    : defaultChips
   const sessionState = carryForwardState(prevState, {
     appliedFilters: filters,
     narrowingHistory,
     resolutionStatus: prevState.resolutionStatus ?? "narrowing",
     resolvedInput: currentInput,
     turnCount,
-    displayedChips: filters.length > 0 ? ["⟵ 이전 단계", "처음부터 다시"] : ["처음부터 다시"],
+    displayedChips: chips,
     displayedOptions: [],
     currentMode: "question",
     lastAction: "ask_clarification",
@@ -2231,6 +2236,31 @@ async function handleServeExplorationInner(
         reasoning: singleResult.reasoning,
         answer: singleResult.answer?.slice(0, 100),
       })
+
+      // ── MV reverse-index ambiguity short-circuit ──
+      // 사용자가 필드명 없이 던진 토큰이 여러 슬롯에 매치되면 SCR이
+      // clarification 정보를 채워 보낸다. 다른 결정론 액션이 없을 때만
+      // 즉시 질문 응답으로 단락(short-circuit)시키고, 액션이 있을 땐
+      // 그 액션은 정상 적용 후 후속 턴에서 묻는다 (현재는 answer 텍스트로).
+      if (singleResult.clarification && singleResult.actions.length === 0 && prevState) {
+        console.log(`[SCR:clarify] returning clarification question with ${singleResult.clarification.chips.length} chips`)
+        trace.add("single-call-router-clarify", "router", {
+          question: singleResult.clarification.question,
+          chips: singleResult.clarification.chips,
+        })
+        return buildRevisionClarificationResponse(
+          deps,
+          prevState,
+          form,
+          filters,
+          narrowingHistory,
+          currentInput,
+          turnCount,
+          singleResult.clarification.question,
+          requestPrep,
+          singleResult.clarification.chips,
+        )
+      }
 
       // Filter out _canonFailed actions — let legacy handle them
       const hasCanonFailed = singleResult.actions.some(a => a._canonFailed)
