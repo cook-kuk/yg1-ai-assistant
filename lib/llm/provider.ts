@@ -456,7 +456,9 @@ export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
       const isReasoningModel = /^(gpt-5|o1|o3|o4)/i.test(cfg.model)
       // Strip the Anthropic prefix-cache marker — OpenAI doesn't understand it
       // and would otherwise leak the literal "===DYNAMIC===" string into the
-      // model's context as noise.
+      // model's context as noise. Replacing with a paragraph break also keeps
+      // the static prefix at the front of the system message so OpenAI's
+      // automatic prompt caching can pick it up cleanly.
       const cleanedSystem = systemPrompt.replace(/\s*===DYNAMIC===\s*/g, "\n\n")
       const body: Record<string, unknown> = {
         model: cfg.model,
@@ -465,6 +467,12 @@ export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
           ...messages.map(m => ({ role: m.role, content: m.content })),
         ],
       }
+      // OpenAI prompt caching: passing prompt_cache_key buckets requests so
+      // identical-prefix calls from the same agent share a cache slot. Without
+      // it OpenAI still attempts auto-caching but hit rate is far lower for
+      // multi-tenant workloads. Per-agent key isolates buckets cleanly.
+      const cacheKey = (agentNameArg ?? agentName)
+      if (cacheKey) body.prompt_cache_key = `yg1:${cacheKey}`
       if (isReasoningModel) {
         body.max_completion_tokens = maxTokens
       } else {
@@ -496,10 +504,15 @@ export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
         }
         const json = await res.json() as {
           choices?: Array<{ message?: { content?: string } }>
-          usage?: { prompt_tokens?: number; completion_tokens?: number }
+          usage?: {
+            prompt_tokens?: number
+            completion_tokens?: number
+            prompt_tokens_details?: { cached_tokens?: number }
+          }
         }
         const content = json.choices?.[0]?.message?.content ?? ""
         const durationMs = Date.now() - startMs
+        const cachedTokens = json.usage?.prompt_tokens_details?.cached_tokens ?? 0
         if (isBenchmarkEnabled()) {
           recordBenchmarkLlmCall({
             agent: agentNameArg ?? agentName ?? null,
@@ -507,10 +520,13 @@ export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
             provider: "openai-compatible",
             inputTokens: json.usage?.prompt_tokens ?? 0,
             outputTokens: json.usage?.completion_tokens ?? 0,
-            cacheReadTokens: 0,
+            cacheReadTokens: cachedTokens,
             cacheWriteTokens: 0,
             durationMs,
           })
+        }
+        if (cachedTokens > 0) {
+          console.log(`[openai:cache-hit] agent=${cacheKey ?? "?"} cached=${cachedTokens}/${json.usage?.prompt_tokens ?? 0} tokens (${durationMs}ms)`)
         }
         traceRecommendation("llm.provider.complete:output", {
           provider: "openai-compatible",
