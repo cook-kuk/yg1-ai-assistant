@@ -949,24 +949,56 @@ export function RecommendationPanel({
         </div>
       )}
 
-      {alternatives.length > 0 && (
-        <div>
-          <div className="text-xs font-semibold text-gray-500 mb-2">
-            {language === "ko" ? `대체 후보 (${alternatives.length})` : `Alternatives (${alternatives.length})`}
+      {alternatives.length > 0 && (() => {
+        // Group alternatives by series so users see "GMG27 (3개)" headers instead
+        // of a flat list. Order preserved per first-occurrence to keep score-based
+        // ranking stable across groups.
+        const seriesOrder: string[] = []
+        const bySeries = new Map<string, typeof alternatives>()
+        let runningRank = 2
+        const ranks = new Map<string, number>()
+        for (const alt of alternatives) {
+          const key = (alt?.product?.seriesName?.trim() || "기타")
+          if (!bySeries.has(key)) {
+            bySeries.set(key, [])
+            seriesOrder.push(key)
+          }
+          bySeries.get(key)!.push(alt)
+          ranks.set(alt?.product?.id ?? `${key}-${runningRank}`, runningRank++)
+        }
+        return (
+          <div>
+            <div className="text-xs font-semibold text-gray-500 mb-2">
+              {language === "ko"
+                ? `대체 후보 (${alternatives.length}) · ${seriesOrder.length}개 시리즈`
+                : `Alternatives (${alternatives.length}) · ${seriesOrder.length} series`}
+            </div>
+            <div className="space-y-3">
+              {seriesOrder.map(seriesKey => {
+                const members = bySeries.get(seriesKey) ?? []
+                return (
+                  <div key={seriesKey}>
+                    <div className="text-[11px] font-semibold text-blue-700 mb-1 px-1">
+                      {seriesKey} <span className="text-gray-400 font-normal">({members.length}{language === "ko" ? "개" : ""})</span>
+                    </div>
+                    <div className="space-y-2">
+                      {members.map(alternative => (
+                        <ProductCard
+                          key={alternative?.product?.id}
+                          scored={alternative}
+                          rank={ranks.get(alternative?.product?.id ?? "") ?? 0}
+                          isAlternative
+                          evidenceSummary={evidenceSummaries?.find(summary => summary.productCode === alternative?.product?.normalizedCode) ?? null}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
-          <div className="space-y-2">
-            {alternatives.map((alternative, index) => (
-              <ProductCard
-                key={alternative?.product?.id}
-                scored={alternative}
-                rank={index + 2}
-                isAlternative
-                evidenceSummary={evidenceSummaries?.find(summary => summary.productCode === alternative?.product?.normalizedCode) ?? null}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+        )
+      })()}
 
       {status === "none" && (
         <div className="text-center py-8">
