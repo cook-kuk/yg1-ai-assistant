@@ -1732,8 +1732,11 @@ async function handleServeExplorationInner(
     }
 
     // ── 2. Knowledge Graph: entity match + navigation (deterministic, 0 LLM calls, ~0.01s) ──
+    // Gated by runtime flag — when disableKg=true (header x-disable-kg: 1), skip
+    // KG entirely so SCR/sql-agent + LLM handle all extraction. Used for A/B
+    // testing the LLM-only path against the KG-augmented path.
     let kgHint: string | undefined
-    if (!singleCallHandled && lastUserMsg) {
+    if (!singleCallHandled && lastUserMsg && !isKgDisabled()) {
       const kgResult = tryKGDecision(msg, prevState)
       trace.add("knowledge-graph", "router", { confidence: kgResult.confidence, source: kgResult.source, reason: kgResult.reason })
 

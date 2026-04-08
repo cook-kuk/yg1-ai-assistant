@@ -109,11 +109,9 @@ const NUMERIC_PATTERNS: Array<{ field: string; patterns: RegExp[]; extract: (m: 
   {
     field: "diameterMm",
     patterns: [
-      // Explicit prefix only — never match bare "<num>mm" because that would
-      // hijack OAL/CL/shank/helix contexts. Bare diameter must come from the
-      // intake form, never from a narrowing turn's free text.
       /(?:직경|지름|파이|φ|Φ|ø|dia(?:meter)?)\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
-      new RegExp(`(${KO_NUM_KEYS})\\s*(?:미리|밀리|파이)`, "i"),
+      /(\d+(?:\.\d+)?)\s*(?:mm|파이)\b/i,
+      new RegExp(`(${KO_NUM_KEYS})\\s*(?:미리|밀리|파이|mm)`, "i"),
     ],
     extract: (m) => {
       if (KO_NUM[m[1]]) return KO_NUM[m[1]]

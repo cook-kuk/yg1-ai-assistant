@@ -10,6 +10,9 @@ import { AsyncLocalStorage } from "async_hooks"
 
 export interface RuntimeFlags {
   precisionMode: boolean
+  /** When true, skip the rule-based knowledge-graph extractor entirely.
+   *  Used to A/B test the LLM-only path against the KG-augmented path. */
+  disableKg: boolean
 }
 
 const storage = new AsyncLocalStorage<RuntimeFlags>()
@@ -20,4 +23,8 @@ export function runWithRuntimeFlags<T>(flags: RuntimeFlags, fn: () => T): T {
 
 export function isPrecisionMode(): boolean {
   return storage.getStore()?.precisionMode === true
+}
+
+export function isKgDisabled(): boolean {
+  return storage.getStore()?.disableKg === true
 }
