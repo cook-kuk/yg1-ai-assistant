@@ -23,6 +23,7 @@ import {
 import { ENABLE_TOOL_USE_ROUTING } from "@/lib/recommendation/infrastructure/config/recommendation-feature-flags"
 import { USE_NEW_ORCHESTRATOR, shouldUseV2ForPhase } from "@/lib/feature-flags"
 import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import { getProviderForAgent } from "@/lib/llm/provider"
 import { performUnifiedJudgment } from "@/lib/recommendation/domain/context/unified-haiku-judgment"
 import {
   buildComparisonOptionState,
@@ -2090,7 +2091,11 @@ async function handleServeExplorationInner(
     if (shouldUseSingleCall) {
       // Pass recent conversation history so SCR understands references like "아까 거", "그거로"
       const recentConversation = messages.slice(-6) // last 3 turns (AI+User pairs)
-      const singleResult = await routeSingleCall(lastUserMsg.text, prevState, provider, recentConversation, kgHint)
+      // Per-agent provider override: if AGENT_SINGLE_CALL_ROUTER_PROVIDER is set,
+      // route this LLM call to OpenAI-compatible (GPT/Groq/Gemini/local).
+      // Falls back to Claude default when env not set.
+      const scrProvider = getProviderForAgent("single-call-router")
+      const singleResult = await routeSingleCall(lastUserMsg.text, prevState, scrProvider, recentConversation, kgHint)
       // Temporary debug: log SCR result to trace
       trace.add("single-call-router", "router", {
         actionCount: singleResult.actions.length,

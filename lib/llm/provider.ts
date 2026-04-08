@@ -42,6 +42,7 @@ export type AgentName =
   | "query-decomposer"
   | "turn-orchestrator"
   | "tool-use-router"
+  | "single-call-router"
 
 export interface LLMProvider {
   complete(systemPrompt: string, messages: LLMMessage[], maxTokens?: number, model?: ModelSpecifier, agentName?: AgentName): Promise<string>
@@ -102,6 +103,7 @@ const AGENT_MODEL_ENV: Record<AgentName, string> = {
   "query-decomposer":        "AGENT_QUERY_DECOMPOSER_MODEL",
   "turn-orchestrator":       "AGENT_TURN_ORCHESTRATOR_MODEL",
   "tool-use-router":         "AGENT_TOOL_USE_ROUTER_MODEL",
+  "single-call-router":      "AGENT_SINGLE_CALL_ROUTER_MODEL",
 }
 
 function isModelTier(value: string): value is ModelTier {
@@ -330,12 +332,152 @@ export function createClaudeProvider(): LLMProvider {
   }
 }
 
-// ── OpenAI Placeholder ────────────────────────────────────────
-export function createOpenAIProvider(): LLMProvider {
+// ── OpenAI-compatible Provider ────────────────────────────────
+// Works with: OpenAI, Groq, Google Gemini, xAI Grok, DeepSeek, Mistral,
+// Together, Fireworks, OpenRouter, Ollama, LM Studio, vLLM, Azure OpenAI, ...
+// Configured per agent via env vars (see resolveOpenAICompatibleConfig).
+interface OpenAICompatibleConfig {
+  apiKey: string
+  baseURL: string
+  model: string
+}
+
+/** Resolve OpenAI-compatible config with per-agent override.
+ *  Priority (highest first):
+ *    1. AGENT_<NAME>_PROVIDER + AGENT_<NAME>_MODEL/API_KEY/BASE_URL
+ *    2. LLM_PROVIDER (global) + LLM_MODEL/API_KEY/BASE_URL
+ *    3. OPENAI_* defaults
+ */
+function resolveOpenAICompatibleConfig(agentName?: AgentName): OpenAICompatibleConfig | null {
+  const agentEnvKey = agentName ? agentName.toUpperCase().replace(/-/g, "_") : null
+
+  function pick(suffix: string): string | undefined {
+    if (agentEnvKey) {
+      const v = process.env[`AGENT_${agentEnvKey}_${suffix}`]
+      if (v) return v
+    }
+    return process.env[`LLM_${suffix}`] || process.env[`OPENAI_${suffix === "API_KEY" ? "API_KEY" : suffix}`]
+  }
+
+  // Provider preset baseURLs
+  const provider = (agentEnvKey && process.env[`AGENT_${agentEnvKey}_PROVIDER`])
+    || process.env.LLM_PROVIDER
+    || ""
+  const PROVIDER_BASE_URLS: Record<string, string> = {
+    openai:     "https://api.openai.com/v1",
+    groq:       "https://api.groq.com/openai/v1",
+    gemini:     "https://generativelanguage.googleapis.com/v1beta/openai/",
+    google:     "https://generativelanguage.googleapis.com/v1beta/openai/",
+    xai:        "https://api.x.ai/v1",
+    grok:       "https://api.x.ai/v1",
+    deepseek:   "https://api.deepseek.com/v1",
+    mistral:    "https://api.mistral.ai/v1",
+    together:   "https://api.together.xyz/v1",
+    fireworks:  "https://api.fireworks.ai/inference/v1",
+    openrouter: "https://openrouter.ai/api/v1",
+    ollama:     "http://host.docker.internal:11434/v1",
+    lmstudio:   "http://host.docker.internal:1234/v1",
+    vllm:       "http://host.docker.internal:8000/v1",
+    local:      "http://host.docker.internal:11434/v1",
+  }
+
+  const apiKey = pick("API_KEY") || ""
+  const baseURL = pick("BASE_URL") || PROVIDER_BASE_URLS[provider.toLowerCase()] || "https://api.openai.com/v1"
+  const model = pick("MODEL") || ""
+
+  // Local providers may not need API key
+  const isLocal = /localhost|127\.0\.0\.1|host\.docker\.internal/i.test(baseURL)
+  if (!model) return null
+  if (!apiKey && !isLocal) return null
+  return { apiKey: apiKey || "local", baseURL, model }
+}
+
+export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
+  const config = resolveOpenAICompatibleConfig(agentName)
   return {
-    available() { return !!process.env.OPENAI_API_KEY },
-    async complete() { throw new Error("OpenAI provider not yet implemented") },
-    async completeWithTools() { throw new Error("OpenAI provider not yet implemented") },
+    available() { return config != null },
+    async complete(systemPrompt, messages, maxTokens = 1500, _model, agentNameArg) {
+      const cfg = resolveOpenAICompatibleConfig(agentNameArg ?? agentName)
+      if (!cfg) throw new Error("OpenAI-compatible provider not configured")
+      const startMs = Date.now()
+      const url = cfg.baseURL.replace(/\/$/, "") + "/chat/completions"
+      const body = {
+        model: cfg.model,
+        max_tokens: maxTokens,
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...messages.map(m => ({ role: m.role, content: m.content })),
+        ],
+        temperature: 0.1,
+      }
+      traceRecommendation("llm.provider.complete:input", {
+        provider: "openai-compatible",
+        baseURL: cfg.baseURL,
+        model: cfg.model,
+        agentName: agentNameArg ?? agentName ?? null,
+        maxTokens,
+        systemPromptPreview: systemPrompt.slice(0, 180),
+        systemPromptLength: systemPrompt.length,
+        messages: summarizeMessages(messages),
+      })
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${cfg.apiKey}`,
+          },
+          body: JSON.stringify(body),
+        })
+        if (!res.ok) {
+          const errText = await res.text().catch(() => "")
+          throw new Error(`openai-compatible HTTP ${res.status}: ${errText.slice(0, 400)}`)
+        }
+        const json = await res.json() as {
+          choices?: Array<{ message?: { content?: string } }>
+          usage?: { prompt_tokens?: number; completion_tokens?: number }
+        }
+        const content = json.choices?.[0]?.message?.content ?? ""
+        const durationMs = Date.now() - startMs
+        if (isBenchmarkEnabled()) {
+          recordBenchmarkLlmCall({
+            agent: agentNameArg ?? agentName ?? null,
+            model: cfg.model,
+            inputTokens: json.usage?.prompt_tokens ?? 0,
+            outputTokens: json.usage?.completion_tokens ?? 0,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+            durationMs,
+          })
+        }
+        traceRecommendation("llm.provider.complete:output", {
+          provider: "openai-compatible",
+          model: cfg.model,
+          agentName: agentNameArg ?? agentName ?? null,
+          durationMs,
+          textPreview: content.slice(0, 180),
+          textLength: content.length,
+        })
+        return content
+      } catch (error) {
+        traceRecommendationError("llm.provider.complete:error", error, {
+          provider: "openai-compatible",
+          baseURL: cfg.baseURL,
+          model: cfg.model,
+          agentName: agentNameArg ?? agentName ?? null,
+        })
+        await logRuntimeError({
+          category: "llm",
+          event: "provider.complete.error",
+          error,
+          context: { route: "/api/recommend", provider: "openai-compatible", model: cfg.model },
+        })
+        throw error
+      }
+    },
+    async completeWithTools() {
+      throw new Error("openai-compatible completeWithTools not implemented (use Claude provider for tool use)")
+    },
   }
 }
 
@@ -349,6 +491,30 @@ export function createAzureProvider(): LLMProvider {
 }
 
 // ── Auto-select best available provider ───────────────────────
+/** Per-agent provider selection.
+ *  AGENT_<NAME>_PROVIDER 가 anthropic 외 값이면 OpenAI-호환 사용.
+ *  미설정 시 LLM_PROVIDER 글로벌 default 확인. 둘 다 없으면 Claude.
+ */
+export function getProviderForAgent(agentName?: AgentName): LLMProvider {
+  const agentEnvKey = agentName ? agentName.toUpperCase().replace(/-/g, "_") : null
+  const explicitProvider = (
+    (agentEnvKey && process.env[`AGENT_${agentEnvKey}_PROVIDER`])
+    || process.env.LLM_PROVIDER
+    || ""
+  ).toLowerCase()
+
+  if (explicitProvider && explicitProvider !== "anthropic" && explicitProvider !== "claude") {
+    const openai = createOpenAIProvider(agentName)
+    if (openai.available()) return openai
+    traceRecommendation("llm.getProviderForAgent:fallback", {
+      reason: `provider=${explicitProvider} not available (model/key missing)`,
+      agentName: agentName ?? null,
+    }, "warn")
+  }
+
+  return getProvider()
+}
+
 export function getProvider(): LLMProvider {
   const claude = createClaudeProvider()
   if (claude.available()) return claude
