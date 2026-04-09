@@ -739,9 +739,13 @@ export async function runHybridRetrieval(
     console.log(`[hybrid:stage] stage=stock_filter enriched=${enrichPool.length} survived=${survivors.length}`)
   }
 
+  // Hard cap: broad 상태(topN<=0)에서도 최대 SCORE_EVIDENCE_HARD_CAP 만 evidence/inventory enrich.
+  // 64K 후보를 다 돌리면 score_evidence + inventory pool + heap 모두 폭발 (4GB OOM).
+  // 200이면 display N=50 + 여유분 충분.
+  const SCORE_EVIDENCE_HARD_CAP = 200
   const topCandidates = topN > 0
     ? qualifiedCandidates.slice(0, topN)
-    : qualifiedCandidates
+    : qualifiedCandidates.slice(0, SCORE_EVIDENCE_HARD_CAP)
   console.log(
     `[hybrid:stage] stage=final count=${topCandidates.length} total=${totalConsidered} sourceTotal=${initialCandidateCount} edps=${formatScoredEdpList(topCandidates)}`
   )
