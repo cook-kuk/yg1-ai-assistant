@@ -612,9 +612,12 @@ export function extractApplicationShape(text: string): DeterministicAction | nul
   const cues: Array<{ pattern: RegExp; value: string }> = [
     { pattern: /(코너\s*r|corner\s*radius)/i, value: "Corner_Radius" },
     { pattern: /(다이\s*싱킹|die[\s-]?sinking|금형|몰드)/i, value: "Die-Sinking" },
-    { pattern: /(페이싱|facing|면\s*가공)/i, value: "Facing" },
-    { pattern: /(헬리컬|helical\s*interpolation)/i, value: "Helical_Interpolation" },
+    // Side_Milling 을 Facing 보다 먼저 시도해야 "측면 가공" 이 Facing 으로 잘못
+    // 흡수되지 않는다 ("측면" 의 "면" 이 /면\s*가공/ 에 매칭되던 버그).
     { pattern: /(사이드\s*밀링|side\s*milling|측면\s*가공)/i, value: "Side_Milling" },
+    // Facing 의 "면 가공" 은 "측면", "표면" 등 prefix 가 없을 때만.
+    { pattern: /(페이싱|facing|(?<![측표상바앞윗아랫옆])면\s*가공)/i, value: "Facing" },
+    { pattern: /(헬리컬|helical\s*interpolation)/i, value: "Helical_Interpolation" },
     { pattern: /(슬로팅|slotting|슬롯\s*가공|홈\s*가공)/i, value: "Slotting" },
     { pattern: /(트로코이달|trochoidal)/i, value: "Trochoidal" },
     { pattern: /(테이퍼\s*사이드|taper\s*side)/i, value: "Taper_Side_Milling" },

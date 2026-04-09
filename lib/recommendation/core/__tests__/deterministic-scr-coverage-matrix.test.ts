@@ -107,22 +107,7 @@ describe("coverage: helixAngleDeg", () => {
   it.each(cases)("'%s' → %o", (text, expected) => expectExtraction(text, expected))
 })
 
-describe("coverage: pointAngleDeg", () => {
-  const cases: Array<[string, ExpectedAction]> = [
-    ["포인트 각도 140", { field: "pointAngleDeg", op: "eq", value: 140 }],
-    ["드릴 포인트 118", { field: "pointAngleDeg", op: "eq", value: 118 }],
-    ["point angle 135", { field: "pointAngleDeg", op: "eq", value: 135 }],
-  ]
-  it.each(cases)("'%s' → %o", (text, expected) => expectExtraction(text, expected))
-})
-
-describe("coverage: threadPitchMm", () => {
-  const cases: Array<[string, ExpectedAction]> = [
-    ["나사 피치 1.5", { field: "threadPitchMm", op: "eq", value: 1.5 }],
-    ["thread pitch 2.0", { field: "threadPitchMm", op: "eq", value: 2.0 }],
-  ]
-  it.each(cases)("'%s' → %o", (text, expected) => expectExtraction(text, expected))
-})
+// 드릴/탭 필드(pointAngleDeg, threadPitchMm)는 의도적으로 제외 — milling 전용 매트릭스.
 
 describe("coverage: ballRadiusMm", () => {
   const cases: Array<[string, ExpectedAction]> = [
@@ -232,4 +217,78 @@ describe("coverage: coolantHole × eq/neq", () => {
     ["쿨런트 없는 거", { field: "coolantHole", op: "eq", value: "false" }],
   ]
   it.each(cases)("'%s' → %o", (text, expected) => expectExtraction(text, expected))
+})
+
+// ── 밀링 카테고리 필드 ──
+describe("coverage: coating × eq/neq + 무코팅", () => {
+  const cases: Array<[string, ExpectedAction]> = [
+    ["TiAlN 코팅", { field: "coating", op: "eq", value: "TiAlN" }],
+    ["AlCrN 코팅 추천", { field: "coating", op: "eq", value: "AlCrN" }],
+    ["DLC 코팅", { field: "coating", op: "eq", value: "DLC" }],
+    ["Y 코팅 (공백 변형)", { field: "coating", op: "eq", value: "Y-Coating" }],
+    ["X-Coating", { field: "coating", op: "eq", value: "X-Coating" }],
+    ["Z코팅 빼고", { field: "coating", op: "neq", value: "Z-Coating" }],
+    ["무코팅 제품", { field: "coating", op: "eq", value: "Bright Finish" }],
+    ["코팅 없는 거", { field: "coating", op: "eq", value: "Bright Finish" }],
+    // 'uncoated' 는 COATING_VALUES 에 'Uncoated' canonical 이 별도로 있어 그쪽으로 매핑.
+    ["uncoated", { field: "coating", op: "eq", value: "Uncoated" }],
+  ]
+  it.each(cases)("'%s' → %o", (text, expected) => {
+    // Y 코팅 표현은 letterCoatingMatch 가 잡으니 prefix 만 비교
+    const text2 = text.replace(/\s*\(공백 변형\)/, "")
+    expectExtraction(text2, expected)
+  })
+})
+
+describe("coverage: brand × eq (실제 BRAND_VALUES 항목)", () => {
+  const cases: Array<[string, string]> = [
+    ["ONLY ONE 브랜드만", "ONLY ONE"],
+    ["X-POWER 추천해줘", "X-POWER"],
+    ["TANK-POWER 만 보여줘", "TANK-POWER"],
+    ["ALU-POWER 시리즈", "ALU-POWER"],
+    ["TitaNox 브랜드", "TitaNox"],
+    ["4G MILL 만", "4G MILL"],
+  ]
+  it.each(cases)("'%s' → brand=%s", (text, expected) => {
+    const a = findField(text, "brand")
+    if (!a) throw new Error(`[GAP] '${text}' → brand 추출 실패`)
+    expect(String(a.value).toUpperCase()).toBe(String(expected).toUpperCase())
+  })
+})
+
+describe("coverage: toolSubtype × eq (밀링 형상)", () => {
+  const cases: Array<[string, string]> = [
+    ["더블 엔드 엔드밀", "Double"],
+    ["double-ended 추천", "Double"],
+    ["싱글 엔드", "Single"],
+    ["single-ended", "Single"],
+  ]
+  it.each(cases)("'%s' → toolSubtype=%s", (text, expected) => {
+    const a = findField(text, "toolSubtype")
+    if (!a) throw new Error(`[GAP] '${text}' → toolSubtype 추출 실패`)
+    expect(a.value).toBe(expected)
+  })
+})
+
+describe("coverage: applicationShape × eq (밀링 가공 형상 9종)", () => {
+  const cases: Array<[string, string]> = [
+    ["페이싱 가공", "Facing"],
+    ["면 가공", "Facing"],
+    ["헬리컬 보간", "Helical_Interpolation"],
+    ["사이드 밀링", "Side_Milling"],
+    ["측면 가공", "Side_Milling"],
+    ["슬로팅", "Slotting"],
+    ["홈 가공", "Slotting"],
+    ["트로코이달 가공", "Trochoidal"],
+    ["프로파일링", "Profiling"],
+    ["윤곽 가공", "Profiling"],
+    ["램핑", "Ramping"],
+    ["플런징", "Plunging"],
+    ["챔퍼 가공", "Chamfering"],
+  ]
+  it.each(cases)("'%s' → applicationShape=%s", (text, expected) => {
+    const a = findField(text, "applicationShape")
+    if (!a) throw new Error(`[GAP] '${text}' → applicationShape 추출 실패`)
+    expect(a.value).toBe(expected)
+  })
 })
