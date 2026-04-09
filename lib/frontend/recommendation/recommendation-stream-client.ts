@@ -21,8 +21,15 @@ import type {
  */
 export interface StreamRecommendationCallbacks {
   onCards?: (dto: RecommendationResponseDto) => void
-  /** Real-time reasoning flushes from the server (Claude-style "thinking"). */
-  onThinking?: (text: string) => void
+  /**
+   * Real-time reasoning flushes from the server (Claude-style "thinking").
+   *
+   * - `delta=true`  → `text` is a chunk to *append* to the in-flight reasoning.
+   *                   Used for true token-by-token streaming.
+   * - `delta=false` → `text` is the *complete* reasoning so far; *replace* the
+   *                   current value. Used for synthetic/non-streaming sources.
+   */
+  onThinking?: (text: string, opts?: { delta?: boolean }) => void
 }
 
 export interface StreamRecommendationOptions extends StreamRecommendationCallbacks {
@@ -80,9 +87,11 @@ export async function streamRecommendation(
         catch { /* malformed partial — ignore, final will arrive */ }
       } else if (event === "thinking") {
         if (!onThinking) return
-        const text = (parsed as { text?: unknown } | null)?.text
-        if (typeof text === "string" && text.trim()) {
-          try { onThinking(text) } catch { /* never block stream */ }
+        const obj = parsed as { text?: unknown; delta?: unknown } | null
+        const text = obj?.text
+        const delta = obj?.delta === true
+        if (typeof text === "string" && (delta || text.trim())) {
+          try { onThinking(text, { delta }) } catch { /* never block stream */ }
         }
       } else if (event === "final") {
         try { finalDto = parseRecommendationResponse(parsed) }

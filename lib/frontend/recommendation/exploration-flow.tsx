@@ -345,6 +345,7 @@ function NarrowingChat({
   onSend,
   onReset,
   onShowCandidates,
+  onShowProductCards,
   onFeedback,
   onChipFeedback,
   onRecommendationFeedback,
@@ -355,6 +356,8 @@ function NarrowingChat({
   onSend: (text: string) => void
   onReset?: () => void
   onShowCandidates?: () => void
+  /** "제품 보기" CTA — pours the current candidate snapshot into the chat. */
+  onShowProductCards?: () => void
   onFeedback?: (messageIndex: number, feedback: TurnFeedback) => void
   onChipFeedback?: (messageIndex: number, feedback: TurnFeedback) => void
   onRecommendationFeedback?: (messageIndex: number, feedback: TurnFeedback) => void
@@ -429,27 +432,37 @@ function NarrowingChat({
                 </div>
               )}
 
-              {message.role === "ai" && message.thinkingProcess && (
-                // Always-visible reasoning trail. We keep the <details> wrapper
-                // so users can collapse it later, but it stays open by default
-                // (during streaming AND after settle) so the trail acts as a
-                // permanent transcript of the AI's thinking. The summary label
-                // pulses while streaming and goes static once the message
-                // settles. The text is plain (no typewriter wrapper) because
-                // chunks already arrive at the LLM's token cadence via SSE.
-                <details className="mt-1" open>
-                  <summary className="text-[11px] text-gray-500 cursor-pointer hover:text-gray-700 select-none flex items-center gap-1">
-                    <span className={message.isLoading ? "animate-pulse" : ""}>
-                      {message.isLoading
-                        ? (language === "ko" ? "추론 중…" : "Thinking…")
-                        : (language === "ko" ? "추론 과정" : "Reasoning")}
-                    </span>
-                  </summary>
-                  <div className="mt-1 p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-900 leading-relaxed whitespace-pre-wrap">
-                    {message.thinkingProcess}
-                  </div>
-                </details>
-              )}
+              {message.role === "ai" && message.thinkingProcess && (() => {
+                // ChatGPT/Claude-style reasoning: a one-line headline always
+                // visible, with the full trail tucked into a collapsed
+                // <details>. While streaming we keep details open so the user
+                // can watch tokens arrive; once the message settles we close
+                // it so the headline carries the summary.
+                const trail = message.thinkingProcess
+                // Headline = first non-empty line, stripped of markdown bullets.
+                const headline = (trail.split(/\r?\n/).find(l => l.trim().length > 0) ?? "")
+                  .replace(/^[-*•\d.\s]+/, "")
+                  .trim()
+                const rest = trail.slice(trail.indexOf(headline) + headline.length).replace(/^\s*\n/, "")
+                const hasRest = rest.trim().length > 0
+                return (
+                  <details className="mt-1" open>
+                    <summary className="text-[11px] text-gray-600 cursor-pointer hover:text-gray-800 select-none flex items-start gap-1.5">
+                      <span className={`text-gray-400 mt-[1px] ${message.isLoading ? "animate-pulse" : ""}`}>
+                        {message.isLoading
+                          ? (language === "ko" ? "추론 중…" : "Thinking…")
+                          : "›"}
+                      </span>
+                      <span className="flex-1 leading-snug">{headline}</span>
+                    </summary>
+                    {hasRest && (
+                      <div className="mt-1 p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-900 leading-relaxed whitespace-pre-wrap">
+                        {rest}
+                      </div>
+                    )}
+                  </details>
+                )
+              })()}
 
               {message.role === "ai" && message.chips && message.chips.length > 0 && !message.isLoading && (() => {
                 const isLatest = index === messages.length - 1 && !isSending
@@ -488,11 +501,12 @@ function NarrowingChat({
                   if (chip.includes("제품 보기") && !isLatest) return
                   if (chip.includes("AI 상세 분석") && (!isLatest || needsFeedback)) return
                   if (chip.includes("제품 보기")) {
-                    // "제품 보기"는 후보 패널을 여는 UI 액션. 챗 라우터로 보내면
-                    // 동일 추천이 재생성되거나 좁히기 질문이 다시 뜨는 버그가 있어
-                    // chat 호출 없이 패널만 연다.
+                    // "제품 보기"는 챗 라우터를 거치지 않는 순수 UI 액션.
+                    // 사이드 패널을 여는 대신, 현재 후보 스냅샷을 채팅창에
+                    // 새 AI 메시지로 부어준다 (제품 카드를 대화 흐름 안에서
+                    // 직접 보고 싶다는 사용자 요구 — 2026-04-09).
                     setInput("")
-                    if (onShowCandidates) onShowCandidates()
+                    if (onShowProductCards) onShowProductCards()
                   } else if (chip.includes("AI 상세 분석")) {
                     setInput(""); onSend("AI 상세 분석 해줘")
                   }
@@ -565,6 +579,14 @@ function NarrowingChat({
                   </>
                 )
               })()}
+
+              {message.candidateCards && message.candidateCards.length > 0 && !message.isLoading && (
+                <div className="mt-1 space-y-2">
+                  {message.candidateCards.map(candidate => (
+                    <CandidateCard key={candidate.productCode} c={candidate} />
+                  ))}
+                </div>
+              )}
 
               {message.recommendation && !message.isLoading && (
                 <>
@@ -946,6 +968,7 @@ export function ExplorationScreen({
   onPageChange,
   onReset,
   onEdit,
+  onShowProductCards,
   onFeedback,
   onChipFeedback,
   onRecommendationFeedback,
@@ -964,6 +987,7 @@ export function ExplorationScreen({
   onPageChange: (page: number) => void
   onReset: () => void
   onEdit: () => void
+  onShowProductCards?: () => void
   onFeedback: (messageIndex: number, feedback: TurnFeedback) => void
   onChipFeedback: (messageIndex: number, feedback: TurnFeedback) => void
   onRecommendationFeedback: (messageIndex: number, feedback: TurnFeedback) => void
@@ -1047,6 +1071,7 @@ export function ExplorationScreen({
             onSend={onSend}
             onReset={onReset}
             onShowCandidates={handleShowCandidates}
+            onShowProductCards={onShowProductCards}
             onFeedback={onFeedback}
             onChipFeedback={onChipFeedback}
             onRecommendationFeedback={onRecommendationFeedback}

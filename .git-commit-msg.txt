@@ -1,13 +1,45 @@
-fix(scr): 재고 N개 이상 — extract numeric stock threshold
+feat(llm): OpenAI swap infra — A/B + shadow + smart SCR + provider fixes
 
-Deterministic SCR was always pushing stockStatus="instock" regardless of
-whether the user said "재고 있어" or "재고 30개 이상만". The SQL filter
-builder in filter-field-registry already supports a numeric threshold
-when rawValue starts with digits (translates to total_stock >= N), but
-SCR never produced that shape.
+A multi-piece change to make the agent fleet runnable on OpenAI (gpt-5.4 /
+gpt-5.4-mini) alongside Claude and to compare them rigorously.
 
-Now matches "재고 30개 이상" / "재고 50 이상" / "stock >= 100" first and
-emits {field: stockStatus, value: "30", op: gte}; falls back to the
-plain in-stock filter only when no number is present.
+provider.ts
+- A/B traffic split: AGENT_<NAME>_OPENAI_RATIO / OPENAI_AB_RATIO randomly
+  routes a fraction of openai-configured agent calls back to Claude. Used
+  to gather paired latency/token samples per agent.
+- Shadow mode: OPENAI_SHADOW=true makes openai-routed agents return Claude
+  output as production response while firing OpenAI in parallel and
+  appending the paired result to test-results/_shadow-dump.jsonl. Lets us
+  diff accuracy offline without risking the production response.
+- resolveModel() bug fix: previously read AGENT_<NAME>_MODEL even when the
+  agent was configured for OpenAI, so the Claude provider was being asked
+  to call "gpt-5.4-mini" and 404'ing. Now the agent-level env is only
+  honored when AGENT_<NAME>_PROVIDER is anthropic/empty. Surfaced by
+  shadow mode (Claude side returned "" for SCR every time).
+- getProvider() global override: when LLM_PROVIDER=openai is set, the
+  default provider path also routes to OpenAI so call sites that use
+  getProvider() directly (sql-agent, llm-chip-*, semantic-turn-extractor,
+  value-normalizer, etc.) participate in the swap.
+
+shadow-dump.ts (new)
+- Append-only JSONL writer + sha256 input hashing helper. Used by the
+  shadow wrapper to persist paired Claude/OpenAI outputs for diffing.
+
+benchmark-collector.ts
+- Add `provider` field to BenchmarkLlmCall so the per-request usage report
+  can attribute calls to anthropic vs openai-compatible.
+
+recommendation-http.ts
+- Move getBenchmarkTurnUsage() inside the runWithBenchmark scope. The
+  AsyncLocalStorage context disappears the moment storage.run() returns,
+  so the prior placement always saw an empty store.
+
+single-call-router.ts
+- "Smart Behavior" prompt section in SYSTEM_PROMPT_FREE: explicit
+  guidance for the LLM to act as a senior YG-1 application engineer when
+  it writes the visible answer — never generic questions, acknowledge
+  what the user said, give 2-3 concrete branches with brief reasons,
+  expert tone, no fabricated product names. No new LLM hops; just better
+  use of the existing SCR call.
 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>

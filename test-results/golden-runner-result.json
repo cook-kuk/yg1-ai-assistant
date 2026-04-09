@@ -1,14 +1,14 @@
 {
   "pass": 8,
-  "fail": 0,
-  "error": 2,
+  "fail": 2,
+  "error": 0,
   "skip": 0,
   "details": [
     {
       "id": "J01",
       "verdict": "PASS",
       "detail": "4turns",
-      "elapsedMs": 77792,
+      "elapsedMs": 11627,
       "runResult": {
         "lastFilters": [
           {
@@ -23,7 +23,7 @@
             "op": "eq",
             "value": "10",
             "rawValue": 10,
-            "appliedAt": 1775639216010
+            "appliedAt": 1775678374813
           },
           {
             "field": "fluteCount",
@@ -35,16 +35,16 @@
           {
             "field": "brand",
             "op": "neq",
-            "value": "CRX S 제외",
-            "rawValue": "CRX S",
-            "appliedAt": 1
+            "value": "CRX-S 브랜드 제외",
+            "rawValue": "CRX-S",
+            "appliedAt": 0
           },
           {
-            "field": "toolSubtype",
+            "field": "coating",
             "op": "skip",
             "value": "상관없음",
             "rawValue": "skip",
-            "appliedAt": 2
+            "appliedAt": 0
           }
         ],
         "turnResults": [
@@ -63,7 +63,7 @@
                 "op": "eq",
                 "value": "10",
                 "rawValue": 10,
-                "appliedAt": 1775639216010
+                "appliedAt": 1775678374813
               }
             ],
             "expected": null
@@ -83,7 +83,7 @@
                 "op": "eq",
                 "value": "10",
                 "rawValue": 10,
-                "appliedAt": 1775639216010
+                "appliedAt": 1775678374813
               },
               {
                 "field": "fluteCount",
@@ -112,7 +112,7 @@
                 "op": "eq",
                 "value": "10",
                 "rawValue": 10,
-                "appliedAt": 1775639216010
+                "appliedAt": 1775678374813
               },
               {
                 "field": "fluteCount",
@@ -124,9 +124,9 @@
               {
                 "field": "brand",
                 "op": "neq",
-                "value": "CRX S 제외",
-                "rawValue": "CRX S",
-                "appliedAt": 1
+                "value": "CRX-S 브랜드 제외",
+                "rawValue": "CRX-S",
+                "appliedAt": 0
               }
             ],
             "expected": [
@@ -148,7 +148,7 @@
                 "op": "eq",
                 "value": "10",
                 "rawValue": 10,
-                "appliedAt": 1775639216010
+                "appliedAt": 1775678374813
               },
               {
                 "field": "fluteCount",
@@ -160,16 +160,16 @@
               {
                 "field": "brand",
                 "op": "neq",
-                "value": "CRX S 제외",
-                "rawValue": "CRX S",
-                "appliedAt": 1
+                "value": "CRX-S 브랜드 제외",
+                "rawValue": "CRX-S",
+                "appliedAt": 0
               },
               {
-                "field": "toolSubtype",
+                "field": "coating",
                 "op": "skip",
                 "value": "상관없음",
                 "rawValue": "skip",
-                "appliedAt": 2
+                "appliedAt": 0
               }
             ],
             "expected": null
@@ -179,9 +179,9 @@
     },
     {
       "id": "J02",
-      "verdict": "PASS",
-      "detail": "2turns",
-      "elapsedMs": 28886,
+      "verdict": "FAIL",
+      "detail": "t2:fluteCount=missing",
+      "elapsedMs": 4509,
       "runResult": {
         "lastFilters": [
           {
@@ -189,21 +189,14 @@
             "op": "eq",
             "value": "10",
             "rawValue": 10,
-            "appliedAt": 1775639290353
+            "appliedAt": 1775678386174
           },
           {
             "field": "toolSubtype",
             "op": "eq",
             "value": "Square",
             "rawValue": "Square",
-            "appliedAt": 1775639290353
-          },
-          {
-            "field": "fluteCount",
-            "op": "eq",
-            "value": "4날",
-            "rawValue": 4,
-            "appliedAt": 0
+            "appliedAt": 1775678386174
           }
         ],
         "turnResults": [
@@ -222,14 +215,14 @@
                 "op": "eq",
                 "value": "10",
                 "rawValue": 10,
-                "appliedAt": 1775639290353
+                "appliedAt": 1775678386174
               },
               {
                 "field": "toolSubtype",
                 "op": "eq",
                 "value": "Square",
                 "rawValue": "Square",
-                "appliedAt": 1775639290353
+                "appliedAt": 1775678386174
               }
             ],
             "expected": null
@@ -242,21 +235,14 @@
                 "op": "eq",
                 "value": "10",
                 "rawValue": 10,
-                "appliedAt": 1775639290353
+                "appliedAt": 1775678386174
               },
               {
                 "field": "toolSubtype",
                 "op": "eq",
                 "value": "Square",
                 "rawValue": "Square",
-                "appliedAt": 1775639290353
-              },
-              {
-                "field": "fluteCount",
-                "op": "eq",
-                "value": "4날",
-                "rawValue": 4,
-                "appliedAt": 0
+                "appliedAt": 1775678386174
               }
             ],
             "expected": [
@@ -270,7 +256,7 @@
       "id": "J03",
       "verdict": "PASS",
       "detail": "smoke:seq",
-      "elapsedMs": 14447,
+      "elapsedMs": 11840,
       "runResult": {
         "lastFilters": [],
         "turnResults": [
@@ -296,7 +282,7 @@
                 "op": "eq",
                 "value": "Square",
                 "rawValue": "Square",
-                "appliedAt": 1775639319280
+                "appliedAt": 1775678390394
               }
             ],
             "expected": null
@@ -311,9 +297,9 @@
     },
     {
       "id": "J04",
-      "verdict": "PASS",
-      "detail": "2turns",
-      "elapsedMs": 33258,
+      "verdict": "FAIL",
+      "detail": "t2:brand:op(want=neq,got=eq)",
+      "elapsedMs": 16750,
       "runResult": {
         "lastFilters": [
           {
@@ -325,9 +311,9 @@
           },
           {
             "field": "brand",
-            "op": "neq",
-            "value": "CRX S",
-            "rawValue": "CRX S",
+            "op": "eq",
+            "value": "CRX-S",
+            "rawValue": "CRX-S",
             "appliedAt": 0
           }
         ],
@@ -354,7 +340,7 @@
                 "op": "eq",
                 "value": "Square",
                 "rawValue": "Square",
-                "appliedAt": 1775639334231
+                "appliedAt": 1775678403922
               }
             ],
             "expected": null
@@ -371,9 +357,9 @@
               },
               {
                 "field": "brand",
-                "op": "neq",
-                "value": "CRX S",
-                "rawValue": "CRX S",
+                "op": "eq",
+                "value": "CRX-S",
+                "rawValue": "CRX-S",
                 "appliedAt": 0
               }
             ],
@@ -388,7 +374,7 @@
       "id": "J05",
       "verdict": "PASS",
       "detail": "smoke:seq",
-      "elapsedMs": 16039,
+      "elapsedMs": 6211,
       "runResult": {
         "lastFilters": [
           {
@@ -410,21 +396,14 @@
             "op": "eq",
             "value": "10",
             "rawValue": 10,
-            "appliedAt": 1775639368663
+            "appliedAt": 1775678420907
           },
           {
             "field": "toolSubtype",
             "op": "eq",
             "value": "Square",
             "rawValue": "Square",
-            "appliedAt": 1775639368663
-          },
-          {
-            "field": "cuttingType",
-            "op": "skip",
-            "value": "상관없음",
-            "rawValue": "skip",
-            "appliedAt": 0
+            "appliedAt": 1775678420907
           }
         ],
         "turnResults": [
@@ -457,14 +436,14 @@
                 "op": "eq",
                 "value": "10",
                 "rawValue": 10,
-                "appliedAt": 1775639368663
+                "appliedAt": 1775678420907
               },
               {
                 "field": "toolSubtype",
                 "op": "eq",
                 "value": "Square",
                 "rawValue": "Square",
-                "appliedAt": 1775639368663
+                "appliedAt": 1775678420907
               }
             ],
             "expected": null
@@ -491,21 +470,14 @@
                 "op": "eq",
                 "value": "10",
                 "rawValue": 10,
-                "appliedAt": 1775639368663
+                "appliedAt": 1775678420907
               },
               {
                 "field": "toolSubtype",
                 "op": "eq",
                 "value": "Square",
                 "rawValue": "Square",
-                "appliedAt": 1775639368663
-              },
-              {
-                "field": "cuttingType",
-                "op": "skip",
-                "value": "상관없음",
-                "rawValue": "skip",
-                "appliedAt": 0
+                "appliedAt": 1775678420907
               }
             ],
             "expected": null
@@ -517,7 +489,7 @@
       "id": "J06",
       "verdict": "PASS",
       "detail": "3turns",
-      "elapsedMs": 54009,
+      "elapsedMs": 6263,
       "runResult": {
         "lastFilters": [
           {
@@ -539,7 +511,7 @@
             "op": "eq",
             "value": "Y-Coating",
             "rawValue": "Y-Coating",
-            "appliedAt": 1
+            "appliedAt": 0
           }
         ],
         "turnResults": [
@@ -602,7 +574,7 @@
                 "op": "eq",
                 "value": "Y-Coating",
                 "rawValue": "Y-Coating",
-                "appliedAt": 1
+                "appliedAt": 0
               }
             ],
             "expected": [
@@ -616,7 +588,7 @@
       "id": "J07",
       "verdict": "PASS",
       "detail": "smoke:seq",
-      "elapsedMs": 39649,
+      "elapsedMs": 5476,
       "runResult": {
         "lastFilters": [
           {
@@ -624,7 +596,7 @@
             "op": "eq",
             "value": "10",
             "rawValue": 10,
-            "appliedAt": 1775639438566
+            "appliedAt": 1775678432671
           },
           {
             "field": "fluteCount",
@@ -657,7 +629,7 @@
                 "op": "eq",
                 "value": "10",
                 "rawValue": 10,
-                "appliedAt": 1775639438566
+                "appliedAt": 1775678432671
               }
             ],
             "expected": null
@@ -670,7 +642,7 @@
                 "op": "eq",
                 "value": "10",
                 "rawValue": 10,
-                "appliedAt": 1775639438566
+                "appliedAt": 1775678432671
               },
               {
                 "field": "fluteCount",
@@ -696,7 +668,7 @@
       "id": "J08",
       "verdict": "PASS",
       "detail": "smoke:seq",
-      "elapsedMs": 42158,
+      "elapsedMs": 20383,
       "runResult": {
         "lastFilters": [
           {
@@ -711,14 +683,14 @@
             "op": "eq",
             "value": "10",
             "rawValue": 10,
-            "appliedAt": 1775639479155
+            "appliedAt": 1775678438013
           },
           {
             "field": "toolSubtype",
             "op": "eq",
             "value": "Square",
             "rawValue": "Square",
-            "appliedAt": 1775639479155
+            "appliedAt": 1775678438013
           }
         ],
         "turnResults": [
@@ -737,14 +709,14 @@
                 "op": "eq",
                 "value": "10",
                 "rawValue": 10,
-                "appliedAt": 1775639479155
+                "appliedAt": 1775678438013
               },
               {
                 "field": "toolSubtype",
                 "op": "eq",
                 "value": "Square",
                 "rawValue": "Square",
-                "appliedAt": 1775639479155
+                "appliedAt": 1775678438013
               }
             ],
             "expected": null
@@ -764,14 +736,14 @@
                 "op": "eq",
                 "value": "10",
                 "rawValue": 10,
-                "appliedAt": 1775639479155
+                "appliedAt": 1775678438013
               },
               {
                 "field": "toolSubtype",
                 "op": "eq",
                 "value": "Square",
                 "rawValue": "Square",
-                "appliedAt": 1775639479155
+                "appliedAt": 1775678438013
               }
             ],
             "expected": null
@@ -781,13 +753,176 @@
     },
     {
       "id": "J09",
-      "verdict": "ERROR",
-      "error": "read ECONNRESET"
+      "verdict": "PASS",
+      "detail": "smoke:seq",
+      "elapsedMs": 33250,
+      "runResult": {
+        "lastFilters": [
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": "4날",
+            "rawValue": 4,
+            "appliedAt": 0
+          },
+          {
+            "field": "toolSubtype",
+            "op": "eq",
+            "value": "Square",
+            "rawValue": "Square",
+            "appliedAt": 1775678458452
+          }
+        ],
+        "turnResults": [
+          {
+            "text": "Square 4날 추천해줘",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 1775678458452
+              }
+            ],
+            "expected": null
+          },
+          {
+            "text": "이중에 재고가 제일 많은 것 위주로 추려줘",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 1775678458452
+              }
+            ],
+            "expected": null
+          },
+          {
+            "text": "가격이 저렴한 순으로 알려줘",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 1775678458452
+              }
+            ],
+            "expected": null
+          }
+        ]
+      }
     },
     {
       "id": "J10",
-      "verdict": "ERROR",
-      "error": "connect EHOSTUNREACH 20.119.98.136:3000"
+      "verdict": "PASS",
+      "detail": "smoke:seq",
+      "elapsedMs": 17162,
+      "runResult": {
+        "lastFilters": [
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": "4날",
+            "rawValue": 4,
+            "appliedAt": 0
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": "10",
+            "rawValue": 10,
+            "appliedAt": 1775678491888
+          },
+          {
+            "field": "toolSubtype",
+            "op": "eq",
+            "value": "Square",
+            "rawValue": "Square",
+            "appliedAt": 1775678491888
+          }
+        ],
+        "turnResults": [
+          {
+            "text": "Square 4날 10mm",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775678491888
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 1775678491888
+              }
+            ],
+            "expected": null
+          },
+          {
+            "text": "Please answer in English.",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775678491888
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 1775678491888
+              }
+            ],
+            "expected": null
+          }
+        ]
+      }
     }
   ]
 }

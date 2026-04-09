@@ -38,6 +38,7 @@ export default function ProductRecommendPage() {
     runRecommendation,
     runRecommendationWithForm,
     handleChatSend,
+    handleShowProductCards,
     loadCandidatePage,
     handleReset,
     handleFeedback,
@@ -157,6 +158,7 @@ export default function ProductRecommendPage() {
             onPageChange={loadCandidatePage}
             onReset={handleReset}
             onEdit={() => setPhase("intake")}
+            onShowProductCards={handleShowProductCards}
             onFeedback={handleFeedback}
             onChipFeedback={handleChipFeedback}
             onRecommendationFeedback={handleRecommendationFeedback}

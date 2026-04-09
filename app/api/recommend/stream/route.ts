@@ -88,10 +88,17 @@ export async function POST(req: Request): Promise<Response> {
 
       // Real-time CoT: SQL agent reasoning is flushed the moment it's parsed,
       // before retrieval. The client renders it Claude-style as the message
-      // streams in. Multiple thinking events allowed (later sources can append).
-      const onThinking = (text: string) => {
-        if (!text || !text.trim()) return
-        try { safeEnqueue(sseFrame("thinking", { text })) }
+      // streams in. Two modes:
+      //   - {delta:true, text}: append `text` to whatever the UI has shown so
+      //     far (true token-by-token streaming from provider.stream())
+      //   - {text}: replace the UI's current value (single-shot reasoning from
+      //     synthetic fallbacks or non-streaming providers)
+      const onThinking = (text: string, opts?: { delta?: boolean }) => {
+        if (!text) return
+        // Allow whitespace-only deltas (newlines mid-sentence) but skip empty
+        // replace frames so we don't blank the UI.
+        if (!opts?.delta && !text.trim()) return
+        try { safeEnqueue(sseFrame("thinking", { text, delta: !!opts?.delta })) }
         catch (err) { traceRecommendationError("http.stream.thinking:enqueue-error", err) }
       }
 
@@ -110,6 +117,10 @@ export async function POST(req: Request): Promise<Response> {
             primaryFactChecked: payload.primaryFactChecked as Record<string, unknown> | null,
             altExplanations: payload.altExplanations,
             altFactChecked: payload.altFactChecked as Array<Record<string, unknown>>,
+            // Include candidates + pagination so the client can populate the
+            // right-side "추천 후보" panel immediately, in parallel with cards.
+            candidateSnapshot: payload.candidates,
+            pagination: payload.pagination,
           })
           safeEnqueue(sseFrame("cards", partialDto))
         } catch (err) {

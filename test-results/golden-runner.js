@@ -224,17 +224,37 @@ async function main() {
     console.log(`▶ Shard ${shardIdx}/${shardTotal}: ${cases.length} cases`);
   }
 
-  console.log(`▶ Running ${cases.length} cases (strict=${strict})`);
+  // Resume support: skip case IDs already present in the JSONL log.
+  // The JSONL file is append-only so each completed case survives container
+  // restarts and re-runs simply pick up where the previous run left off.
+  // PROGRESS_DIR env var lets us write the resume log to a host-mounted volume
+  // (e.g. /app/data/feedback) so it survives container restarts even though
+  // /app/test-results lives only inside the image.
+  const progressDir = process.env.PROGRESS_DIR || __dirname;
+  const jsonlPath = path.join(progressDir, `golden-runner-progress${OUT_SUFFIX}.jsonl`);
+  const completedIds = new Set();
+  if (fs.existsSync(jsonlPath)) {
+    for (const line of fs.readFileSync(jsonlPath, 'utf8').split('\n')) {
+      if (!line.trim()) continue;
+      try { const obj = JSON.parse(line); if (obj.id) completedIds.add(obj.id); } catch {}
+    }
+    if (completedIds.size > 0) console.log(`▶ Resume: ${completedIds.size} cases already done, skipping`);
+  }
+  const remaining = cases.filter(c => !completedIds.has(c.id));
+  console.log(`▶ Running ${remaining.length} cases (strict=${strict})`);
   const results = { pass: 0, fail: 0, error: 0, skip: 0, details: [] };
   const startAll = Date.now();
+  const appendJsonl = (obj) => fs.appendFileSync(jsonlPath, JSON.stringify(obj) + '\n');
 
-  for (const c of cases) {
+  for (const c of remaining) {
     if (c.preState) {
       results.skip++;
       console.log(`⏭  ${c.id} SKIP (preState)`);
       results.details.push({ id: c.id, verdict: 'SKIP' });
+      appendJsonl({ id: c.id, verdict: 'SKIP' });
       continue;
     }
+    let row;
     try {
       const t0 = Date.now();
       const runResult = c.sequence ? await runSequence(c) : await runSingle(c);
@@ -245,12 +265,15 @@ async function main() {
       const icon = r.verdict === 'PASS' ? '✅' : '❌';
       const preview = c.input || (c.sequence || []).map(turnText).join('|')
       console.log(`${icon} ${c.id} ${String(preview).substring(0, 40).padEnd(40)} ${r.verdict} ${r.detail} (${elapsed}ms)`);
-      results.details.push({ id: c.id, verdict: r.verdict, detail: r.detail, elapsedMs: elapsed, runResult });
+      row = { id: c.id, verdict: r.verdict, detail: r.detail, elapsedMs: elapsed };
+      results.details.push({ ...row, runResult });
     } catch (e) {
       results.error++;
       console.log(`💥 ${c.id} ERROR ${e.message}`);
-      results.details.push({ id: c.id, verdict: 'ERROR', error: e.message });
+      row = { id: c.id, verdict: 'ERROR', error: e.message };
+      results.details.push(row);
     }
+    appendJsonl(row);
     await sleep(200);
   }
 

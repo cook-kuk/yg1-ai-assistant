@@ -4,6 +4,7 @@ import type {
   RecommendationResult,
   RequestPreparationResult,
 } from "@/lib/frontend/recommendation/recommendation-types"
+import type { RecommendationCandidateDto } from "@/lib/contracts/recommendation"
 
 export type TurnFeedback = "good" | "bad" | "neutral" | null
 export type LogPayload = unknown
@@ -31,4 +32,10 @@ export interface ChatMsg {
   debugTrace?: import("@/lib/debug/agent-trace").TurnDebugTrace | null
   /** Server-emitted reasoning trail — Claude-style "추론 과정 보기" collapsible. */
   thinkingProcess?: string | null
+  /**
+   * Inline product-card list rendered directly in the chat (not in the side
+   * panel). Populated when the user clicks the "📋 지금 바로 제품 보기" CTA so
+   * the candidate snapshot is poured into the conversation flow.
+   */
+  candidateCards?: RecommendationCandidateDto[] | null
 }
