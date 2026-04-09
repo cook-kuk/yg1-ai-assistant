@@ -143,7 +143,7 @@ export const DB_COL_TO_FILTER_FIELD: Record<string, string> = {
 }
 
 // Navigation pseudo-fields
-const NAV_FIELDS = new Set(["_skip", "_reset", "_back"])
+const NAV_FIELDS = new Set(["_skip", "_reset", "_back", "_qa"])
 
 // ── System Prompt Builder ────────────────────────────────────
 // NO hardcoded column descriptions. The LLM reads column names + sample values
@@ -278,6 +278,15 @@ Rules:
 - **잘못 적용된 필터에 대한 사용자 항의** ("X는 bug", "X 요청한 적 없어요", "X 잘못 들어갔어요", "X 아닌데요"): Currently Applied Filters 중 해당 값을 가진 항목을 사용자가 거부한 것입니다. 그 field에 대해 어떤 필터도 emit 하지 마세요 (neq도 아님). reasoning 에 "사용자가 기존 X 필터를 거부했으므로 재emit하지 않음"이라고 적고, 새로 emit 할 필터가 없으면 filters: [] 로 응답. 런타임이 거부된 필터를 자동으로 제거합니다.
 - "이전으로 돌아가서 X 제외" / "되돌리고 X 빼고" 같은 복합 문장은 **X 에 대한 neq 만** emit (되돌리기는 런타임이 처리).
 - For navigation: skip(상관없음/패스) → _skip, reset(처음부터/초기화) → _reset, back(이전/돌아가) → _back
+- **_qa (직접 답변)**: 사용자가 필터 조건이 아니라 질문/상담/비교/트러블슈팅을 하면 "{\"field\":\"_qa\",\"op\":\"eq\",\"value\":\"<10년차 영업엔지니어 톤의 구체적 답변>\"}" 를 emit. value에는 도메인 지식(소재/코팅/절삭조건/형상)을 총동원해 숫자·범위까지 포함한 실용 답변을 직접 작성하라. confidence="high", clarification=null.
+  - 트리거: 용어 질문("~가 뭐야?", "~란?", "~알려줘"), 비교("A vs B", "뭐가 나아", "차이"), 트러블슈팅(수명/떨림/파손/마모/채터/버), 도메인 상담("~에 뭐가 좋아?", "어떻게 하면 ~?")
+  - 복합(필터+질문): 필터 filter들 + _qa 답변을 **동시에** emit. 필터는 그대로 적용되고, 답변은 응답에 함께 녹아든다.
+  - 예시:
+    - "헬릭스가 뭐야?" → [{\"field\":\"_qa\",\"op\":\"eq\",\"value\":\"헬릭스는 엔드밀 날의 비틀림 각도입니다. 30°는 범용(칩 배출 균형), 45°~50°는 고속 마감(부하↓)이고, 스테인리스처럼 질긴 소재는 38°~45°가 무난합니다. YG-1은 30°·38°·45°·50° 라인이 있습니다.\"}]
+    - "공구 수명이 너무 짧아" → [{\"field\":\"_qa\",\"op\":\"eq\",\"value\":\"수명이 짧은 3대 원인: ① 절삭속도 과대(스테인리스 Vc 80~120 m/min 적정, 그 이상이면 코팅부터 벗겨집니다) ② 코팅 부적합(SUS엔 AlCrN/Y-Coating, 알루미늄엔 DLC/무코팅) ③ 업밀링으로 인한 가공경화. 소재/직경/현재 조건 알려주시면 구체 진단 드리겠습니다.\"}]
+    - "AlCrN vs TiAlN 뭐가 나아? 스테인리스인데" → [{\"field\":\"_workPieceName\",\"op\":\"eq\",\"value\":\"스테인리스\"},{\"field\":\"_qa\",\"op\":\"eq\",\"value\":\"스테인리스엔 AlCrN(Y-Coating)이 우세합니다. AlCrN 내산화 ~1100°C vs TiAlN ~900°C — 스테인리스 절삭열 600~800°C에서 AlCrN이 산화 마모를 훨씬 버팁니다. 수명 차이 1.5~2배 나는 경우가 흔합니다.\"}]
+    - "스테인리스 DLC 코팅으로" → [{\"field\":\"_workPieceName\",\"op\":\"eq\",\"value\":\"스테인리스\"},{\"field\":\"coating\",\"op\":\"eq\",\"value\":\"DLC\"},{\"field\":\"_qa\",\"op\":\"eq\",\"value\":\"⚠️ DLC는 내열 한계가 약 400°C라 스테인리스 절삭열(600~800°C)에 부적합합니다. 같은 조건에서 코팅이 빠르게 박리됩니다. 대신 AlCrN(Y-Coating)을 권장드립니다.\"}]
+    - "스테인리스 추천해줘 그리고 알루파워가 뭐야?" → [{\"field\":\"_workPieceName\",\"op\":\"eq\",\"value\":\"스테인리스\"},{\"field\":\"_qa\",\"op\":\"eq\",\"value\":\"ALU-POWER는 알루미늄 전용 3날 고성능 엔드밀 라인입니다(37° 헬릭스, DLC/무코팅). 지금 검색하신 스테인리스 용도에는 맞지 않아 별도 시리즈로 잡아드렸습니다.\"}]
 - For pure questions or non-filter messages → [] (empty array)
 
 ## Range/Comparison Operators (numeric columns)
@@ -600,6 +609,12 @@ export function buildAppliedFilterFromAgentFilter(
   // Skip-token guard: LLM 이 "상관없음/모름/아무거나" 같은 skip 신호를 값으로 emit 한 경우,
   // 이를 실제 필터로 적용하면 후보가 0 으로 떨어짐 (시리즈명 "상관없음" 버그). 드랍.
   if (typeof agentFilter.value === "string" && isSkipToken(agentFilter.value)) {
+    return null
+  }
+
+  // _qa is a carrier for direct answer text — never applied as a real filter.
+  // serve-engine extracts the text before calling this and drops _qa.
+  if (agentFilter.field === "_qa") {
     return null
   }
 

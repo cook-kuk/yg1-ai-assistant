@@ -400,6 +400,12 @@ ${lines.join("\n")}
     ? `\n[시스템 확인 질문 — 응답에 자연스럽게 포함할 것]\n${clarification}\n`
     : ""
 
+  // SQL Agent _qa: 직접 답변 (질문/상담/비교/트러블슈팅)
+  const qaAnswer = (sessionState as unknown as { __qaDirectAnswer?: string } | null)?.__qaDirectAnswer
+  const qaBlock = qaAnswer
+    ? `\n[핵심 답변 — 10년차 영업 엔지니어 톤으로 아래 내용을 자연스럽게 전달. 그대로 복사 금지, "시스템에서 답변드립니다" 같은 메타 표현 금지. 수치·근거 유지하며 한 호흡으로 녹여라.]\n${qaAnswer}\n`
+    : ""
+
   // ── Proactive Insights (insight-generator가 serve-engine에서 stash) ──
   const proactiveInsights = (sessionState as unknown as { __proactiveInsights?: string } | null)?.__proactiveInsights ?? ""
 
@@ -432,7 +438,7 @@ ${lines.join("\n")}
     : ""
 
   return `
-=== 현재 세션 컨텍스트 ===${clarificationBlock}
+=== 현재 세션 컨텍스트 ===${qaBlock}${clarificationBlock}
 [고객 초기 입력]
 ${intakeSummary}
 

@@ -2379,7 +2379,28 @@ async function handleServeExplorationInner(
             agentResult = { ...agentResult, filters: [] }
           }
 
-          if (agentResult.filters.length > 0) {
+          // ── _qa: SQL Agent의 직접 답변 (질문/상담/비교/트러블슈팅) ──
+          const qaFilter = agentResult.filters.find(f => f.field === "_qa")
+          if (qaFilter) {
+            const qaText = String(qaFilter.value ?? "").trim()
+            if (qaText) {
+              console.log(`[_qa] direct answer: "${qaText.slice(0, 80)}"`)
+              if (prevState) {
+                ;(prevState as unknown as { __qaDirectAnswer?: string }).__qaDirectAnswer = qaText
+              }
+            }
+            agentResult = { ...agentResult, filters: agentResult.filters.filter(f => f.field !== "_qa") }
+          }
+
+          // _qa만 있고 다른 필터 없음 → answer_general 경로 (narrowing 회피)
+          if (qaFilter && agentResult.filters.length === 0) {
+            const qaText = String(qaFilter.value ?? "").trim()
+            console.log(`[_qa] pure Q/A — routing to answer_general`)
+            const qaAction = { type: "answer_general" as const, message: qaText }
+            bridgedV2Action = qaAction
+            bridgedV2OrchestratorResult = { action: qaAction, reasoning: "sql-agent:_qa", agentsInvoked: [], escalatedToOpus: false }
+            singleCallHandled = true
+          } else if (agentResult.filters.length > 0) {
             const META_FIELDS = new Set(["_skip", "_reset", "_back"])
             const metaAction = agentResult.filters.find(f => META_FIELDS.has(f.field))
             if (metaAction) {
