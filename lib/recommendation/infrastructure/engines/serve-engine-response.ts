@@ -624,8 +624,23 @@ export async function buildQuestionResponse(
   let responseChips = question?.chips ?? chips
   const latestTurnWasSkip = didLatestNarrowingTurnSkip(history)
 
+  // Detect first-turn intake — synthesized intake summary is the only message,
+  // no narrowing history yet. The intake panel already shows the form values to
+  // the user, so the chat message just needs candidate count + the question.
+  // Skipping the LLM polish here saves 20~50s on the first response (gpt-5
+  // medium-effort polish was the dominant latency source after we removed the
+  // first-turn LLM extraction in 0d88a11).
+  const isFirstTurnIntakeResponse = messages.length === 1 && history.length === 0 && !overrideText
+
   if (overrideText) {
     // no-op
+  } else if (isFirstTurnIntakeResponse) {
+    if (question?.questionText) {
+      responseText = language === "ko"
+        ? `현재 ${totalCandidateCount.toLocaleString()}개 후보가 있습니다. ${question.questionText}`
+        : `${totalCandidateCount.toLocaleString()} candidates so far. ${question.questionText}`
+    }
+    console.log("[first-turn-intake] Skipped LLM question polish — deterministic question response")
   } else if (provider.available() && messages.length === 0) {
     try {
       const systemPrompt = buildSystemPrompt(language)
