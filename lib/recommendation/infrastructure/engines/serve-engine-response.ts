@@ -998,27 +998,30 @@ export async function buildRecommendationResponse(
   const altFactChecked: FactCheckedRecommendation[] = []
 
   if (primary) {
+    // Perf: build explanations synchronously, then run ALL fact-checks in parallel.
+    // Previously fact-checks ran sequentially in a for-await loop (~0.5-1s each).
     const primaryEvidence = evidenceLookup(primary) ?? null
-    // Phase F.2: build a RankingTrace from the ScoreBreakdown so the
-    // explanation-builder can emit a grounded rationale. Falls back to null
-    // (legacy narrative path) when no breakdown is present.
     const primaryTrace = primary.scoreBreakdown
       ? buildTraceFromScoreBreakdown(primary.product.normalizedCode, primary.scoreBreakdown, 1, filters)
       : null
     primaryExplanation = buildExplanation(primary, input, primaryEvidence, primaryTrace)
-    primaryFactChecked = await runFactCheck(primary, input, primaryEvidence, primaryExplanation)
 
-    let altRank = 2
-    for (const alt of alternatives) {
+    const altPrepared = alternatives.map((alt, i) => {
       const altEvidence = evidenceLookup(alt) ?? null
       const altTrace = alt.scoreBreakdown
-        ? buildTraceFromScoreBreakdown(alt.product.normalizedCode, alt.scoreBreakdown, altRank, filters)
+        ? buildTraceFromScoreBreakdown(alt.product.normalizedCode, alt.scoreBreakdown, i + 2, filters)
         : null
       const altExplanation = buildExplanation(alt, input, altEvidence, altTrace)
-      altExplanations.push(altExplanation)
-      altFactChecked.push(await runFactCheck(alt, input, altEvidence, altExplanation))
-      altRank++
-    }
+      return { alt, altEvidence, altExplanation }
+    })
+    for (const p of altPrepared) altExplanations.push(p.altExplanation)
+
+    const [primaryFC, ...altFC] = await Promise.all([
+      runFactCheck(primary, input, primaryEvidence, primaryExplanation),
+      ...altPrepared.map(p => runFactCheck(p.alt, input, p.altEvidence, p.altExplanation)),
+    ])
+    primaryFactChecked = primaryFC
+    for (const fc of altFC) altFactChecked.push(fc)
   }
 
   const recommendation: RecommendationResult = {

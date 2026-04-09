@@ -551,69 +551,42 @@ export function buildExplanationResultPrompt(
 ): string {
   const responseLanguage = language === "ko" ? "한국어" : "영어"
   const kbBlock = userMessage ? buildKBContextBlock(userMessage, 3) : ""
-  // Build matched facts text
-  const matchedLines = explanation.matchedFacts.map(f =>
-    `  ✓ ${f.label}: 요청=${f.requestedValue} → 제품=${f.productValue} (${f.matchType}, ${f.score}/${f.maxScore}pt)`
-  )
 
-  // Build unmatched facts text
-  const unmatchedLines = explanation.unmatchedFacts.map(f =>
-    `  ✗ ${f.label}: 요청=${f.requestedValue} → 제품=${f.productValue ?? "정보없음"} (${f.reason})`
-  )
-
-  // Build evidence text
-  const evidenceLines = explanation.supportingEvidence.map(e =>
-    `  [${e.type}] ${e.summary}`
-  )
-
-  // Fact check summary
+  // Perf: trimmed prompt — full product spec is already in sessionContext's
+  // [현재 표시된 추천 제품] block, no need to repeat. Keep only the few facts
+  // the LLM needs to pick a reason from (matched/unmatched + 1-line fact-check).
+  const matchedTop = explanation.matchedFacts
+    .slice(0, 4)
+    .map(f => `${f.label}=${f.productValue}`)
+    .join(", ")
+  const unmatchedTop = explanation.unmatchedFacts
+    .slice(0, 2)
+    .map(f => `${f.label}(${f.reason})`)
+    .join(", ")
+  const evidenceTop = explanation.supportingEvidence
+    .slice(0, 2)
+    .map(e => e.summary)
+    .join(" / ")
   const fcReport = factChecked.factCheckReport
-  const fcLines = fcReport.steps.map(s =>
-    `  Step${s.step} ${s.label}: ${s.passed ? "✓" : "✗"} (${s.fieldsVerified}/${s.fieldsChecked} 확인)`
-  )
+  const altLine = alternatives.length > 0
+    ? alternatives.slice(0, 4).map((a, i) => `${i + 2}.${a.displayCode}(${a.matchStatus},${a.score})`).join(" ")
+    : "없음"
 
   return `${sessionContext}${kbBlock}
 
-[추천 후보]
-- 제품코드: ${factChecked.displayCode.value}
-- 시리즈: ${factChecked.seriesName.value ?? "정보없음"}
-- 형상: ${factChecked.toolSubtype.value ?? "정보없음"}
-- 직경: ${factChecked.diameterMm.value ?? "정보없음"}mm
-- 날수: ${factChecked.fluteCount.value ?? "정보없음"}
-- 코팅: ${factChecked.coating.value ?? "정보없음"}
-- 소재태그: ${factChecked.materialTags.value.join(", ") || "정보없음"}
-- 재고: ${factChecked.stockStatus.value}
-- 납기: ${factChecked.minLeadTimeDays.value ?? "정보없음"}일
+[추천 1순위] ${factChecked.displayCode.value} | ${factChecked.seriesName.value ?? "?"} | 재고:${factChecked.stockStatus.value} | 납기:${factChecked.minLeadTimeDays.value ?? "?"}일
+[매칭] ${matchedTop || "없음"}
+[불일치] ${unmatchedTop || "없음"}
+[근거] ${evidenceTop || "없음"}
+[검증] ${fcReport.verificationPct}%
+[대안] ${altLine}
+${warnings.length > 0 ? `[경고] ${warnings.slice(0, 3).join(" / ")}` : ""}
 
-[매칭 근거]
-${matchedLines.length > 0 ? matchedLines.join("\n") : "  (매칭 근거 없음)"}
-
-[불일치]
-${unmatchedLines.length > 0 ? unmatchedLines.join("\n") : "  (불일치 없음)"}
-
-[절삭조건/근거]
-${evidenceLines.length > 0 ? evidenceLines.join("\n") : "  (근거 자료 없음)"}
-
-[검증]
-- Fact Check 검증률: ${fcReport.verificationPct}%
-${fcLines.join("\n")}
-
-${alternatives.length > 0 ? `[대안 ${alternatives.length}개]\n${alternatives.map((a, i) => {
-  const condStr = a.bestCondition
-    ? ` | 절삭조건: Vc=${a.bestCondition.Vc ?? "?"}, fz=${a.bestCondition.fz ?? "?"}, ap=${a.bestCondition.ap ?? "?"} (${a.sourceCount ?? 0}건)`
-    : ""
-  return `  ${i + 2}. ${a.displayCode} - ${a.matchStatus}, 점수: ${a.score}${condStr}`
-}).join("\n")}` : "[대안 없음]"}
-
-[경고]
-${warnings.length > 0 ? warnings.map(w => `  - ${w}`).join("\n") : "  없음"}
-
-위 데이터를 바탕으로 ${responseLanguage} 추천 요약을 작성하세요.
-- 텍스트만 출력
-- 2~4문장
-- 첫 문장에 제품코드와 핵심 추천 이유 포함
-- 이미 화면에 보이는 스펙을 기계적으로 다시 나열하지 말고, 선택 이유만 자연스럽게 설명
-- DB에 있는 사실만 말하고, 마지막 문장에 짧은 재고/납기 또는 주의사항만 덧붙이세요.`
+위 데이터로 ${responseLanguage} 추천 요약을 작성하세요.
+- 2~4문장, 텍스트만
+- 첫 문장: 제품코드 + 핵심 이유
+- 화면에 이미 보이는 스펙은 기계적으로 나열하지 말고 선택 이유만 자연스럽게
+- DB 사실만, 마지막에 짧은 재고/납기/주의사항`
 }
 
 // ── Intent Summary for Session Context ──────────────────────
