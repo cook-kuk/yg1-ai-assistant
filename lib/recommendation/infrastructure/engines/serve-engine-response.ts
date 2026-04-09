@@ -656,33 +656,36 @@ export async function buildQuestionResponse(
       console.warn("[recommend] LLM greeting failed:", error)
     }
   } else if (provider.available() && messages.length > 0 && !latestTurnWasSkip) {
+    // Slim narrative polish — routed to the `narrative-polish` agent which
+    // resolves to OPENAI_HAIKU_MODEL (gpt-5-mini) with reasoning_effort=minimal.
+    // The full system prompt + persona + domain context is overkill for "rewrite
+    // one question naturally"; before this we burned 30~50s on a sonnet-tier
+    // medium-effort call for a 1-2 sentence rewrite. Slim prompt + mini + minimal
+    // brings it down to ~1s while preserving natural tone for both chip clicks
+    // and free-text follow-ups.
     try {
       const lastUserText = [...messages].reverse().find(m => m.role === "user")?.text ?? ""
-      const systemPrompt = buildSystemPrompt(language)
-      const sessionCtx = buildSessionContext(form, sessionState, totalCandidateCount, snapshotToDisplayed(candidateSnapshot), lastUserText)
       const chipList = question?.chips?.length ? question.chips.join(", ") : ""
-      const chipInstruction = chipList
-        ? `\n선택지(칩): [${chipList}]\n★ 응답에서 질문할 때 반드시 위 선택지와 일치하는 표현을 사용하라. 선택지에 없는 옵션을 제시하지 마라. 선택지를 자연스럽게 안내하되 그대로 나열하지 말고 맥락에 맞게 질문하라.\n★★ 숫자/개수/분포를 절대 지어내지 마라. 칩에 "(N개)"로 표시된 숫자만 인용 가능. 칩에 없는 통계는 언급 금지.`
-        : ""
-      const raw = await provider.complete(systemPrompt, [
-        { role: "user", content: `${sessionCtx}
+      const polishSystem = `당신은 YG-1 절삭공구 추천 어시스턴트입니다. 아래 "원본 질문"을 사용자 메시지에 자연스럽게 반응하는 한국어 1~2문장으로 다듬어 주세요.
 
-현재 진행 중인 질문: "${question?.questionText ?? ""}"
-현재 후보 ${totalCandidateCount}개.
-${chipInstruction}
+규칙:
+- 사용자 선택/입력을 1문장으로 짧게 확인 ("4날로 적용했어요." 같이 완전한 문장).
+- 이어서 원본 질문을 자연스럽게 던지기. 핵심 정보(필드명, 후보 수)는 변경 금지.
+- 숫자/개수는 입력에 적힌 값만 사용. 새 숫자 만들지 마라.
+- 토막 문장 ("로 필터링하겠습니다") 금지. 이모지 금지. 마크다운 금지.
+- 응답은 ${language === "ko" ? "한국어" : "영어"} 평문 1~2문장.
 
-사용자의 최신 메시지: "${lastUserText}"
-
-응답 작성 규칙:
-1. 사용자가 칩/조건을 선택했으면, 해당 선택을 1문장으로 자연스럽게 확인 (예: "스테인리스 가공이시군요." / "직경 4mm로 좁혀드릴게요."). "로 필터링하겠습니다" 같이 토막난 문장 절대 금지. 항상 주어/대상이 있는 완전한 문장으로 작성하라.
-2. 그 다음 1문장으로 왜 다음 질문이 필요한지 또는 이 조건이 어떤 의미인지 짧게 설명 (예: "직경에 따라 적용 가능한 시리즈가 달라집니다.").
-3. 마지막에 다음 질문을 자연스럽게 던져라. 위 "현재 진행 중인 질문" 텍스트를 그대로 복붙하지 말고, 맥락에 맞게 다듬어라.
-4. 사용자 메시지가 현재 질문과 관련 없는 내용(회사 정보, 영업소, 공장 등)이면 【YG-1 회사 정보】에서 답변한 뒤 자연스럽게 현재 질문으로 돌아와라.
-5. 답변 길이: 2~4문장. 너무 짧으면 부실하고, 너무 길면 읽기 싫다.
-6. 절대 금지: 한 단어 응답, 토막 문장, "로 ~하겠습니다" 같이 주어 빠진 문장.
-
-JSON으로 응답: { "responseText": "...", "extractedParams": {}, "isComplete": false, "skipQuestion": false }` }
-      ], 1500)
+JSON으로만 응답: {"responseText":"..."}`
+      const polishUser = `사용자 최신 메시지: "${lastUserText}"
+현재 후보 ${totalCandidateCount}개
+원본 질문: "${question?.questionText ?? ""}"${chipList ? `\n선택지(칩): [${chipList}]` : ""}`
+      const raw = await provider.complete(
+        polishSystem,
+        [{ role: "user", content: polishUser }],
+        300,
+        undefined,
+        "narrative-polish",
+      )
       const parsed = safeParseJSON(raw)
       if (typeof parsed?.responseText === "string") {
         const candidate = parsed.responseText.trim()
@@ -692,14 +695,14 @@ JSON으로 응답: { "responseText": "...", "extractedParams": {}, "isComplete":
           || /^로\s/.test(candidate)
           || /^으?로 (필터|좁|골라|진행|적용)/.test(candidate)
         if (isFragment) {
-          console.warn(`[recommend] LLM polish returned fragment "${candidate.slice(0, 40)}" — falling back to deterministic question`)
+          console.warn(`[recommend] narrative-polish returned fragment "${candidate.slice(0, 40)}" — falling back to deterministic question`)
           responseText = question?.questionText ?? responseText
         } else {
           responseText = candidate
         }
       }
     } catch (error) {
-      console.warn("[recommend] LLM question polish failed:", error)
+      console.warn("[recommend] narrative-polish failed:", error)
     }
   } else if (latestTurnWasSkip) {
     console.log("[recommend] Skipping LLM question polish after skip_field; using deterministic question text")

@@ -109,6 +109,7 @@ export type AgentName =
   | "query-planner"
   | "self-correction"
   | "turn-repair"
+  | "narrative-polish"
 
 /** SINGLE SOURCE OF TRUTH — agent → intended weight (tier).
  *  Both Anthropic and OpenAI providers consult this so "haiku" means the
@@ -118,6 +119,7 @@ export const AGENT_TIER: Record<AgentName, ModelTier> = {
   "parameter-extractor":     "haiku",
   "single-call-router":      "haiku",
   "query-planner":           "haiku",
+  "narrative-polish":        "haiku",
   // Mid: judgment, semantic interpretation, multi-step orchestration
   "intent-classifier":       "sonnet",
   "ambiguity-resolver":      "sonnet",
@@ -141,10 +143,11 @@ export type ReasoningEffort = "minimal" | "low" | "medium" | "high"
  *  tokens on simple extraction/classification work. We override per-agent so
  *  light agents skip reasoning entirely while heavy ones keep it. */
 export const AGENT_REASONING_EFFORT: Partial<Record<AgentName, ReasoningEffort>> = {
-  // Minimal — pure extraction / mechanical routing, no reasoning needed
+  // Minimal — pure extraction / mechanical routing / one-line rewrites
   "parameter-extractor":     "minimal",
   "single-call-router":      "minimal",
   "query-planner":           "minimal",
+  "narrative-polish":        "minimal",
   // Low — light judgment, short answers
   "intent-classifier":       "low",
   "ambiguity-resolver":      "low",
