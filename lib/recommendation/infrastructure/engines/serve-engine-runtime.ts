@@ -3546,6 +3546,25 @@ async function handleServeExplorationInner(
           }
         }
 
+        // ── Proactive Insight Engine (KB 기반 능동 통찰) ──
+        try {
+          const { generateInsights, formatInsightsForPrompt } = await import("@/lib/recommendation/core/insight-generator")
+          const insights = generateInsights(
+            lastUserMsg?.text ?? "",
+            legacyState.appliedFilters ?? [],
+            totalCandidateCount,
+            legacyState.turnCount ?? 0,
+          )
+          if (insights.length > 0) {
+            console.log(`[insight] ${insights.length}건: ${insights.map(i => `${i.type}(${i.source})`).join(", ")}`)
+            const insightBlock = formatInsightsForPrompt(insights)
+            legacyState.thinkingProcess = (legacyState.thinkingProcess ? legacyState.thinkingProcess + "\n\n" : "") + insightBlock
+            ;(legacyState as ExplorationSessionState & { __proactiveInsights?: string }).__proactiveInsights = insightBlock
+          }
+        } catch (e) {
+          console.warn("[insight] error:", (e as Error).message)
+        }
+
         // ── Kick features: domain-guard + predictive-filter + 견적 칩 ──
         try {
           const { checkDomainWarnings, formatWarningsForResponse } = await import("@/lib/recommendation/core/domain-guard")
