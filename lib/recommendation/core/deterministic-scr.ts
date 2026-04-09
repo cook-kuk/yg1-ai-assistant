@@ -402,8 +402,23 @@ function findValueWithPos(text: string, values: readonly string[]): { value: str
   const lower = text.toLowerCase()
   const sorted = [...values].sort((a, b) => b.length - a.length)
   for (const v of sorted) {
-    const i = lower.indexOf(v.toLowerCase())
-    if (i >= 0) return { value: v, idx: i }
+    const needle = v.toLowerCase()
+    let from = 0
+    // 단어 경계 검사: 매치 직전/직후 글자가 영숫자면 substring 매치 (예: "10mm" 안의 "mm")로 간주하고 skip
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const i = lower.indexOf(needle, from)
+      if (i < 0) break
+      const before = i > 0 ? lower[i - 1] : ""
+      const after = i + needle.length < lower.length ? lower[i + needle.length] : ""
+      const isAlnum = (c: string) => /[a-z0-9]/.test(c)
+      const startsAlnum = isAlnum(needle[0])
+      const endsAlnum = isAlnum(needle[needle.length - 1])
+      const beforeOk = !startsAlnum || !before || !isAlnum(before)
+      const afterOk = !endsAlnum || !after || !isAlnum(after)
+      if (beforeOk && afterOk) return { value: v, idx: i }
+      from = i + 1
+    }
   }
   return null
 }
