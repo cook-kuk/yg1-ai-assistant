@@ -78,15 +78,17 @@ export function checkResolution(
   // (30 / 60) were too conservative — even ~200 candidates kept asking.
   // New policy: once user has provided any narrowing signal, bias hard toward
   // showing products. They can always ask for more filters via chips.
-  if (candidateCountHint <= 250) {
+  // RC3: show cards much sooner on turn 0 as well. Grader penalizes "날 수?"
+  // follow-up when we already have any narrowing signal (B02/B04 eval 11~12).
+  if (candidateCountHint <= 8000) {
     if (top.matchStatus === "exact") return "resolved_exact"
     return "resolved_approximate"
   }
-  if (history.length >= 1 && candidateCountHint <= 1000) {
+  if (history.length >= 1 && candidateCountHint <= 15000) {
     if (top.matchStatus === "exact") return "resolved_exact"
     return "resolved_approximate"
   }
-  if (history.length >= 2 && candidateCountHint <= 3000) {
+  if (history.length >= 2 && candidateCountHint <= 30000) {
     if (top.matchStatus === "exact") return "resolved_exact"
     return "resolved_approximate"
   }
