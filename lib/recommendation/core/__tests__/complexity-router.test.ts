@@ -21,17 +21,17 @@ describe("assessComplexity", () => {
     expect(assessComplexity("스테인리스 4날 10mm").level).toBe("normal")
     expect(assessComplexity("티타늄 가공용 엔드밀").level).toBe("normal")
   })
-  test("light는 KB/웹서치만 끔(CoT·self-correction 유지)", () => {
+  test("light는 KB/웹서치만 끔 (CoT는 hotfix로 전역 OFF)", () => {
     const d = assessComplexity("10mm")
     expect(d.searchKB).toBe(false)
     expect(d.allowWebSearch).toBe(false)
-    expect(d.generateCoT).toBe(true)
+    expect(d.generateCoT).toBe(false) // hotfix: CoT 전역 비활성화
     expect(d.runSelfCorrection).toBe(true)
   })
-  test("deep는 전부 켬", () => {
+  test("deep는 KB 켬 (CoT는 hotfix로 전역 OFF)", () => {
     const d = assessComplexity("AlCrN vs TiAlN?")
     expect(d.searchKB).toBe(true)
-    expect(d.generateCoT).toBe(true)
+    expect(d.generateCoT).toBe(false) // hotfix: CoT 전역 비활성화
   })
   test("칩 클릭은 CoT/self-correction 모두 OFF (fast path)", () => {
     const d = assessComplexity("6날 (213개)")

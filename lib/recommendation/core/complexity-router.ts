@@ -55,6 +55,16 @@ export function assessComplexity(
   message: string,
   appliedFilterCount: number = 0,
 ): ComplexityDecision {
+  const decision = _assessComplexityInner(message, appliedFilterCount)
+  // HOTFIX: CoT 스트리밍 전역 비활성화 — 상무님 CoT 2분 컴플레인 대응
+  // SQL Agent는 non-streaming(naturalLanguageToFilters) 경로로 동작
+  return { ...decision, generateCoT: false }
+}
+
+function _assessComplexityInner(
+  message: string,
+  appliedFilterCount: number = 0,
+): ComplexityDecision {
   const t = message.trim()
 
   // FAST PATH 1 — 칩 클릭: deterministic patch 적용만 하면 됨
