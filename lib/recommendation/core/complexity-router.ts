@@ -43,11 +43,29 @@ const DEEP_TRIGGERS = [
   /그리고|또|추가로|근데|그런데/iu,
 ]
 
+// 칩 클릭: 라벨 끝에 "(N개)" 또는 "(N건)" 카운트 suffix가 붙는다.
+// SmartOption은 이미 deterministic patch를 들고 있어 LLM 검증이 필요 없음.
+const CHIP_CLICK_PATTERN = /\(\s*\d+\s*[개건]\s*\)\s*$/u
+
+// 구조화 인테이크 첫 턴: 사용자가 폼에서 보낸 emoji-prefixed structured prompt.
+// 모든 필드가 이미 명시되어 있어 추가 해석/자기교정이 불필요.
+const STRUCTURED_INTAKE_PATTERN = /🧭|위\s*조건에\s*맞는\s*YG-1/u
+
 export function assessComplexity(
   message: string,
   appliedFilterCount: number = 0,
 ): ComplexityDecision {
   const t = message.trim()
+
+  // FAST PATH 1 — 칩 클릭: deterministic patch 적용만 하면 됨
+  if (CHIP_CLICK_PATTERN.test(t)) {
+    return { level: "light", reason: "칩 클릭(deterministic)", runSelfCorrection: false, searchKB: false, generateCoT: false, allowWebSearch: false, maxSentences: 2 }
+  }
+
+  // FAST PATH 2 — 구조화 인테이크 첫 턴: 모든 필드 명시됨
+  if (STRUCTURED_INTAKE_PATTERN.test(t)) {
+    return { level: "light", reason: "구조화 인테이크", runSelfCorrection: false, searchKB: false, generateCoT: false, allowWebSearch: false, maxSentences: 3 }
+  }
 
   // LIGHT — KB/웹서치만 끔. CoT·self-correction은 유지(필터 정확도 보존)
   if (LIGHT_PATTERNS.some(p => p.test(t))) {

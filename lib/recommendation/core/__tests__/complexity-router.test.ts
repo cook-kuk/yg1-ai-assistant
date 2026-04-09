@@ -33,4 +33,19 @@ describe("assessComplexity", () => {
     expect(d.searchKB).toBe(true)
     expect(d.generateCoT).toBe(true)
   })
+  test("칩 클릭은 CoT/self-correction 모두 OFF (fast path)", () => {
+    const d = assessComplexity("6날 (213개)")
+    expect(d.level).toBe("light")
+    expect(d.generateCoT).toBe(false)
+    expect(d.runSelfCorrection).toBe(false)
+    expect(assessComplexity("4날 (1558개)").generateCoT).toBe(false)
+    expect(assessComplexity("Y 코팅 (42건)").generateCoT).toBe(false)
+  })
+  test("구조화 인테이크 첫 턴은 CoT/self-correction OFF", () => {
+    const intake = "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n🛠️ 가공 방식: Milling\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
+    const d = assessComplexity(intake)
+    expect(d.level).toBe("light")
+    expect(d.generateCoT).toBe(false)
+    expect(d.runSelfCorrection).toBe(false)
+  })
 })
