@@ -35,6 +35,7 @@ import { useApp } from "@/lib/frontend/app-context"
 import { CandidateCard, IntentSummaryCard, RecommendationPanel } from "@/lib/frontend/recommendation/recommendation-display"
 import {
   groupRecommendationCandidatesBySeries,
+  sortCandidatesByPriority,
   type RecommendationCandidateSeriesGroup,
 } from "@/lib/frontend/recommendation/recommendation-grouping"
 import { isUndoChipEnabled } from "@/lib/frontend/recommendation/recommendation-view-model"
@@ -913,7 +914,11 @@ function CandidatePanel({
   const useAccordion = groups.length > 0
   const pageStart = page * pageSize
   const pageEnd = pageStart + (candidates?.length ?? 0)
-  const displayCandidates = candidates ?? null
+  // 플랫 모드에서도 그룹 모드와 동일한 우선순위 정책 적용 (score → matchStatus → stockStatus → totalStock)
+  const displayCandidates = useMemo(
+    () => candidates ? sortCandidatesByPriority(candidates) : null,
+    [candidates]
+  )
   const hasMore = page + 1 < totalPages
   const hasPrev = page > 0
   const activeFilterCount = sessionState?.appliedFilters?.filter(filter => filter.op !== "skip").length ?? 0
