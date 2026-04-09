@@ -86,6 +86,29 @@ export async function POST(req: Request): Promise<Response> {
       // Initial "started" ping so the client knows the connection is live.
       safeEnqueue(sseFrame("started", { ok: true }))
 
+      // Heartbeat reasoning: many engine paths don't fire onThinking until late
+      // (or not at all for first-turn recommendations). To keep the UI alive,
+      // emit a sequence of generic stage updates until either the real engine
+      // reasoning arrives (sawRealThinking flips true) or the final frame ships.
+      let sawRealThinking = false
+      let heartbeatIdx = 0
+      const heartbeatStages = [
+        "🤔 사용자 입력을 해석하는 중…",
+        "🔎 필터를 추출하고 후보 풀을 구성하는 중…",
+        "📐 도메인 지식과 충돌 여부를 점검하는 중…",
+        "🧮 후보 점수를 매기고 정렬하는 중…",
+        "✍️ 추천 근거를 정리하는 중…",
+      ]
+      // Fire first stage right away so the trail is never empty.
+      safeEnqueue(sseFrame("thinking", { text: heartbeatStages[0], delta: false }))
+      heartbeatIdx = 1
+      const heartbeatTimer = setInterval(() => {
+        if (sawRealThinking || closed) return
+        if (heartbeatIdx >= heartbeatStages.length) return
+        safeEnqueue(sseFrame("thinking", { text: heartbeatStages[heartbeatIdx], delta: false }))
+        heartbeatIdx++
+      }, 2500)
+
       // Real-time CoT: SQL agent reasoning is flushed the moment it's parsed,
       // before retrieval. The client renders it Claude-style as the message
       // streams in. Two modes:
@@ -98,6 +121,11 @@ export async function POST(req: Request): Promise<Response> {
         // Allow whitespace-only deltas (newlines mid-sentence) but skip empty
         // replace frames so we don't blank the UI.
         if (!opts?.delta && !text.trim()) return
+        // First real reasoning event silences the heartbeat sequence.
+        if (!sawRealThinking) {
+          sawRealThinking = true
+          clearInterval(heartbeatTimer)
+        }
         try { safeEnqueue(sseFrame("thinking", { text, delta: !!opts?.delta })) }
         catch (err) { traceRecommendationError("http.stream.thinking:enqueue-error", err) }
       }
@@ -171,6 +199,7 @@ export async function POST(req: Request): Promise<Response> {
         }))
       } finally {
         closed = true
+        clearInterval(heartbeatTimer)
         try { controller.close() } catch { /* already closed */ }
       }
     },
