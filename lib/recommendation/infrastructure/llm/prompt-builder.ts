@@ -392,6 +392,34 @@ ${lines.join("\n")}
     ? `\n[시스템 확인 질문 — 응답에 자연스럽게 포함할 것]\n${clarification}\n`
     : ""
 
+  // ── Kick 1: domain-guard 경고 주입 ──
+  const domainWarnings = (sessionState as unknown as { __domainWarnings?: string } | null)?.__domainWarnings
+  const domainWarningBlock = domainWarnings
+    ? `\n═══ 도메인 경고 (반드시 응답에 자연스럽게 포함) ═══${domainWarnings}\n위 경고를 전문가답게 자연스럽게 전달하세요. 경고 문구 그대로 복사 금지. 예: "참고로 이 소재에서 DLC는 비추입니다. 내열이..."처럼.\n`
+    : ""
+
+  // ── Kick 3: 0건 예측 제안 주입 ──
+  const predictiveSuggestion = (sessionState as unknown as { __predictiveSuggestion?: string } | null)?.__predictiveSuggestion
+  const predictiveBlock = predictiveSuggestion
+    ? `\n═══ 0건 예측 대안 (응답에 자연스럽게 제시) ═══\n${predictiveSuggestion}\n유저에게 "지금 조건으로는 없는데, 어느 조건을 빼면 N건 나옵니다" 식으로 선택지를 제시하라.\n`
+    : ""
+
+  // ── Kick 4: 턴별 맥락 깊이 적응 ──
+  const turnCount = sessionState?.turnCount ?? 0
+  let turnDepthGuide = ""
+  if (turnCount <= 1) {
+    turnDepthGuide = `\n[대화 깊이] Turn ${turnCount} — 첫 진입. 범용적 응답, 핵심 조건만 확인.`
+  } else if (turnCount <= 3) {
+    turnDepthGuide = `\n[대화 깊이] Turn ${turnCount} — 조건 좁히기. 이전 대화 내용 반영, 같은 말 반복 금지.`
+  } else {
+    turnDepthGuide = `\n[대화 깊이] Turn ${turnCount} — 전문가 모드. 이 유저의 가공 상황을 이해한 상태에서 구체적 팁/위험 경고/비교 분석을 제공하라. 유저가 이미 한 선택을 기억하고 연결해서 답하라.`
+  }
+
+  // ── Kick 5: 견적 연결 (Turn 4+ 이면서 후보가 좁혀진 상태) ──
+  const quoteBlock = turnCount >= 4 && candidateCount > 0 && candidateCount <= 20
+    ? `\n[후속 액션 제안] 추천 끝에 자연스럽게 다음 단계 제안: "이 제품으로 견적 받아보시겠어요?" / "절삭조건이나 샘플도 가능합니다." / 필요시 "본사 기술팀(032-526-0909) 연결 가능합니다." 강요 금지, 한 줄로.`
+    : ""
+
   return `
 === 현재 세션 컨텍스트 ===${clarificationBlock}
 [고객 초기 입력]
@@ -405,8 +433,8 @@ ${histSummary}
 
 [현재 후보 수] ${candidateCount}개
 [해결 상태] ${sessionState?.resolutionStatus ?? "broad"}
-[턴 수] ${sessionState?.turnCount ?? 0}
-${displayedSection}${kbSection}`
+[턴 수] ${turnCount}${turnDepthGuide}
+${displayedSection}${kbSection}${domainWarningBlock}${predictiveBlock}${quoteBlock}`
 }
 
 // ── Narrowing Prompt ─────────────────────────────────────────
@@ -490,19 +518,41 @@ export function buildResultPrompt(
     }
   }
 
+  // ── Kick 2: 랭킹 근거 투명화 — matchedFields를 사람이 읽는 이유로 변환 ──
+  const fieldReasonMap: Record<string, string> = {
+    workPieceName: "✅ 소재 적합 (이 소재 전용 시리즈)",
+    coating: `✅ 코팅 매칭 (${primary.product.coating || "?"} — 이 소재에서 수명 최적)`,
+    toolSubtype: `✅ 형상 매칭`,
+    diameterMm: `✅ 직경 매칭 (φ${primary.product.diameterMm ?? "?"}mm)`,
+    fluteCount: `✅ 날수 매칭 (${primary.product.fluteCount ?? "?"}날)`,
+    overallLengthMm: `✅ 전장 매칭`,
+    cuttingType: `✅ 가공 방식 매칭`,
+  }
+  const matchReasons = (primary.matchedFields ?? []).map(f => fieldReasonMap[f] ?? `✅ ${f} 매칭`)
+  const stockReason = primary.stockStatus === "instock"
+    ? `  ✅ 재고: 즉시 출하 가능 (${primary.totalStock ?? "?"})`
+    : primary.stockStatus === "limited"
+      ? `  ⚪ 재고: 제한적 (${primary.totalStock ?? "?"})`
+      : `  ⚪ 재고: ${primary.stockStatus}`
+  const reasonsBlock = matchReasons.length > 0
+    ? matchReasons.map(r => `  ${r}`).join("\n") + "\n" + stockReason
+    : stockReason
+
   return `${sessionContext}
 
 === 추천 결과 (데이터 전용) ===
-[1순위] ${primary.product.displayCode} (${primary.product.seriesName ?? "?"})
+[1순위] ${primary.product.displayCode} (${primary.product.seriesName ?? "?"}) — 종합 ${primary.score}점 (${primary.matchStatus})
   - 브랜드명(제품라인): ${primary.product.brand ?? "정보없음"}
   - 직경: ${primary.product.diameterMm ?? "?"}mm
   - 날 수: ${primary.product.fluteCount ?? "?"}
   - 코팅: ${primary.product.coating || "정보없음"}
   - 소재 태그: ${primary.product.materialTags.join(", ") || "?"}
-  - 매칭: ${primary.matchStatus} (점수: ${primary.score})
   - 재고: ${primary.stockStatus} (${primary.totalStock ?? "?"})
   - 납기: ${primary.minLeadTimeDays ?? "?"}일
-  - 일치 항목: ${primary.matchedFields.join(", ") || "없음"}
+
+[1순위 랭킹 근거 — 응답에서 반드시 이 이유를 자연스럽게 풀어 설명]
+${reasonsBlock}
+※ 점수 숫자만 나열 금지. "왜 1위인지" 위 근거를 문장으로 풀어라. 예: "스테인리스 전용 시리즈에 AlCrN 코팅이 이 소재에서 수명이 가장 길고, 국내 재고도 바로 출하 가능해서 1위입니다."
 
 ${alternatives.length > 0 ? `[대안 ${alternatives.length}개]\n${alternatives.map((a, i) =>
     `  ${i + 2}. ${a.product.displayCode} (${a.product.seriesName ?? "?"}) - ${a.matchStatus}, 점수: ${a.score}`
