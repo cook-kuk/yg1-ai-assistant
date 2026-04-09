@@ -7,6 +7,10 @@
       { "coating": "AlCrN", "yg1_name": "Y-Coating", "reason": "AlCrN은 1100°C까지 내산화성이 뛰어나 스테인리스의 높은 절삭열에 최적. 마찰 계수가 낮아 칩 부착 방지.", "priority": 1 },
       { "coating": "TiAlN", "yg1_name": "X-Coating", "reason": "TiAlN은 800°C까지 내열. 범용적이지만 AlCrN 대비 스테인리스 전용성은 낮음.", "priority": 2 }
     ],
+    "not_recommended_coatings": [
+      { "coating": "DLC", "reason": "DLC는 400°C 이상에서 흑연화되어 급격히 마모. 스테인리스는 절삭열이 800~1000°C에 달해 DLC가 수십 초 만에 박리됨. 알루미늄·비철 전용 코팅." },
+      { "coating": "Diamond", "reason": "다이아몬드 코팅은 철계 소재와 700°C 이상에서 화학반응해 탄소 확산 마모. 스테인리스 포함 모든 철계 금지." }
+    ],
     "recommended_subtypes": ["Square (측면 안정성)", "Roughing (황삭 효율)"],
     "recommended_flute_count": "4날 (강성 + 칩 배출 밸런스)",
     "machining_tips": [

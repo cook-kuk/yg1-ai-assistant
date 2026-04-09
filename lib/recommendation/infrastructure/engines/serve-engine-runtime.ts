@@ -3461,6 +3461,11 @@ async function handleServeExplorationInner(
         // 성공 시 result.searchPayload를 in-place 갱신하여 downstream이 그대로 사용.
         // Phase 가드 없음: search가 실행됐는데 0건이면 phase 무관하게 교정한다 (question 모드도 포함).
         console.log(`[self-correction:gate] total=${totalCandidateCount}, lastUserMsg=${!!lastUserMsg}, phase=${result.sessionState.journeyPhase}`)
+        // RC3: capture original filters BEFORE self-correction drops any of
+        // them, so insight-generator / domain-guard can still see the user's
+        // intent (e.g. "스테인리스 DLC" → we need DLC in the warning check
+        // even after self-correction drops DLC to find candidates).
+        const preCorrectionFilters: AppliedFilter[] = [...(legacyState.appliedFilters ?? [])]
         if (totalCandidateCount === 0 && lastUserMsg) {
           try {
             const { constraintsToFilters } = await import("@/lib/recommendation/core/search-adapter")
@@ -3574,9 +3579,18 @@ async function handleServeExplorationInner(
         // ── Proactive Insight Engine (KB 기반 능동 통찰) ──
         try {
           const { generateInsights, formatInsightsForPrompt } = await import("@/lib/recommendation/core/insight-generator")
+          // RC3: union current filters with pre-correction filters so warnings
+          // on dropped combinations (e.g. 스테인리스+DLC) still surface.
+          const currentFilters = legacyState.appliedFilters ?? []
+          const unionFilters: AppliedFilter[] = [...currentFilters]
+          for (const pf of preCorrectionFilters) {
+            if (!unionFilters.some(f => f.field === pf.field && String(f.value) === String(pf.value))) {
+              unionFilters.push(pf)
+            }
+          }
           const insights = generateInsights(
             lastUserMsg?.text ?? "",
-            legacyState.appliedFilters ?? [],
+            unionFilters,
             totalCandidateCount,
             legacyState.turnCount ?? 0,
           )
@@ -3593,7 +3607,16 @@ async function handleServeExplorationInner(
         // ── Kick features: domain-guard + predictive-filter + 견적 칩 ──
         try {
           const { checkDomainWarnings, formatWarningsForResponse } = await import("@/lib/recommendation/core/domain-guard")
-          const domainWarnings = checkDomainWarnings(legacyState.appliedFilters ?? [])
+          // RC3: check against union (pre-correction ∪ current) so dropped
+          // filter combinations (e.g. 스테인리스+DLC) still warn.
+          const dgCurrent = legacyState.appliedFilters ?? []
+          const dgUnion: AppliedFilter[] = [...dgCurrent]
+          for (const pf of preCorrectionFilters) {
+            if (!dgUnion.some(f => f.field === pf.field && String(f.value) === String(pf.value))) {
+              dgUnion.push(pf)
+            }
+          }
+          const domainWarnings = checkDomainWarnings(dgUnion)
           if (domainWarnings.length > 0) {
             console.log(`[domain-guard] ${domainWarnings.length} warnings: ${domainWarnings.map(w => `${w.level}:${w.message.slice(0,50)}`).join("; ")}`)
             const warningText = domainWarnings.map(w => `[${w.level}] ${w.message}`).join("\n")
