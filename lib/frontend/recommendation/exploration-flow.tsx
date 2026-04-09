@@ -589,7 +589,7 @@ function ReasoningBlock({
             : null)}
         </div>
       )}
-      {open && deep && (
+      {deep && (
         <div className="mt-1.5">
           <button
             type="button"
