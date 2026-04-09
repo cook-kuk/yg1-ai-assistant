@@ -1,0 +1,448 @@
+{
+  "at": "2026-04-09T06:28:12.692Z",
+  "api": "http://20.119.98.136:3000/api/recommend",
+  "group": 2,
+  "results": [
+    {
+      "id": "B1",
+      "name": "real feedback: Tank-power 브랜드 설명",
+      "pass": false,
+      "passCount": 1,
+      "failCount": 1,
+      "elapsed": 8744,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "알루미늄 10mm 엔드밀",
+          "pass": true,
+          "elapsed": 6719,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "workPieceName=알루미늄",
+          "candidateCount": 845,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "Tank-power 브랜드에 대해서 설명해줘",
+          "pass": false,
+          "elapsed": 2025,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: HTTP 500: {\"text\":\"죄송합니다, 처리 중 오류가 발생했습니다. 다시 시도해주세요.\",\"purpose\":\"question\",\"chips\":[\"처음부터 다시\",\"소재 입력\",\"직경 입력\"],\"isComplete\":false,\"recommendation\":null,\"session\":{\"publicState\":null,\"engineState\":null},\"candid"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "HTTP 500: {\"text\":\"죄송합니다, 처리 중 오류가 발생했습니다. 다시 시도해주세요.\",\"purpose\":\"question\",\"chips\":[\"처음부터 다시\",\"소재 입력\",\"직경 입력\"],\"isComplete\":false,\"recommendation\":null,\"session\":{\"publicState\":null,\"engineState\":null},\"candid"
+        }
+      ]
+    },
+    {
+      "id": "B2",
+      "name": "real feedback: CRX-S 브랜드 소개",
+      "pass": false,
+      "passCount": 1,
+      "failCount": 1,
+      "elapsed": 8630,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀",
+          "pass": true,
+          "elapsed": 7185,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "",
+          "candidateCount": 1043,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "CRX s 브랜드도 소개해주세요",
+          "pass": false,
+          "elapsed": 1445,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: HTTP 500: {\"text\":\"죄송합니다, 처리 중 오류가 발생했습니다. 다시 시도해주세요.\",\"purpose\":\"question\",\"chips\":[\"처음부터 다시\",\"소재 입력\",\"직경 입력\"],\"isComplete\":false,\"recommendation\":null,\"session\":{\"publicState\":null,\"engineState\":null},\"candid"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "HTTP 500: {\"text\":\"죄송합니다, 처리 중 오류가 발생했습니다. 다시 시도해주세요.\",\"purpose\":\"question\",\"chips\":[\"처음부터 다시\",\"소재 입력\",\"직경 입력\"],\"isComplete\":false,\"recommendation\":null,\"session\":{\"publicState\":null,\"engineState\":null},\"candid"
+        }
+      ]
+    },
+    {
+      "id": "B3",
+      "name": "real feedback: Alu-power 브랜드 소개",
+      "pass": false,
+      "passCount": 1,
+      "failCount": 1,
+      "elapsed": 7340,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀",
+          "pass": true,
+          "elapsed": 5651,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "",
+          "candidateCount": 1043,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "Alu-power 브랜드 소개부탁",
+          "pass": false,
+          "elapsed": 1689,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: HTTP 500: {\"text\":\"죄송합니다, 처리 중 오류가 발생했습니다. 다시 시도해주세요.\",\"purpose\":\"question\",\"chips\":[\"처음부터 다시\",\"소재 입력\",\"직경 입력\"],\"isComplete\":false,\"recommendation\":null,\"session\":{\"publicState\":null,\"engineState\":null},\"candid"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "HTTP 500: {\"text\":\"죄송합니다, 처리 중 오류가 발생했습니다. 다시 시도해주세요.\",\"purpose\":\"question\",\"chips\":[\"처음부터 다시\",\"소재 입력\",\"직경 입력\"],\"isComplete\":false,\"recommendation\":null,\"session\":{\"publicState\":null,\"engineState\":null},\"candid"
+        }
+      ]
+    },
+    {
+      "id": "B4",
+      "name": "real feedback: 구리요 mid-flow material 변경",
+      "pass": false,
+      "passCount": 1,
+      "failCount": 1,
+      "elapsed": 6927,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "알루미늄 엔드밀",
+          "pass": true,
+          "elapsed": 4596,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "workPieceName=알루미늄",
+          "candidateCount": 845,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "구리요",
+          "pass": false,
+          "elapsed": 2331,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: HTTP 500: {\"text\":\"죄송합니다, 처리 중 오류가 발생했습니다. 다시 시도해주세요.\",\"purpose\":\"question\",\"chips\":[\"처음부터 다시\",\"소재 입력\",\"직경 입력\"],\"isComplete\":false,\"recommendation\":null,\"session\":{\"publicState\":null,\"engineState\":null},\"candid"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "HTTP 500: {\"text\":\"죄송합니다, 처리 중 오류가 발생했습니다. 다시 시도해주세요.\",\"purpose\":\"question\",\"chips\":[\"처음부터 다시\",\"소재 입력\",\"직경 입력\"],\"isComplete\":false,\"recommendation\":null,\"session\":{\"publicState\":null,\"engineState\":null},\"candid"
+        }
+      ]
+    },
+    {
+      "id": "B5",
+      "name": "legit brand: ONLY ONE 명시 → 적용 OK",
+      "pass": true,
+      "passCount": 1,
+      "failCount": 0,
+      "elapsed": 5479,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "ONLY ONE 브랜드만 보여줘",
+          "pass": true,
+          "elapsed": 5479,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "brand=ONLY ONE",
+          "candidateCount": 275,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "R1",
+      "name": "between: '직경 8~12mm'",
+      "pass": false,
+      "passCount": 1,
+      "failCount": 1,
+      "elapsed": 2685,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "탄소강 엔드밀",
+          "pass": true,
+          "elapsed": 2475,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "brand=TitaNox, workPieceName=Carbon Steels",
+          "candidateCount": 4,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "직경 8~12mm 사이",
+          "pass": false,
+          "elapsed": 210,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: HTTP 500: {\"text\":\"죄송합니다, 처리 중 오류가 발생했습니다. 다시 시도해주세요.\",\"purpose\":\"question\",\"chips\":[\"처음부터 다시\",\"소재 입력\",\"직경 입력\"],\"isComplete\":false,\"recommendation\":null,\"session\":{\"publicState\":null,\"engineState\":null},\"candid"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "HTTP 500: {\"text\":\"죄송합니다, 처리 중 오류가 발생했습니다. 다시 시도해주세요.\",\"purpose\":\"question\",\"chips\":[\"처음부터 다시\",\"소재 입력\",\"직경 입력\"],\"isComplete\":false,\"recommendation\":null,\"session\":{\"publicState\":null,\"engineState\":null},\"candid"
+        }
+      ]
+    },
+    {
+      "id": "R2",
+      "name": "gte: '전체 길이 100mm 이상'",
+      "pass": false,
+      "passCount": 1,
+      "failCount": 1,
+      "elapsed": 6656,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "탄소강 10mm 엔드밀",
+          "pass": true,
+          "elapsed": 6159,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "brand=TitaNox, workPieceName=Carbon Steels",
+          "candidateCount": 0,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "전체 길이 100mm 이상",
+          "pass": false,
+          "elapsed": 497,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: HTTP 500: {\"text\":\"죄송합니다, 처리 중 오류가 발생했습니다. 다시 시도해주세요.\",\"purpose\":\"question\",\"chips\":[\"처음부터 다시\",\"소재 입력\",\"직경 입력\"],\"isComplete\":false,\"recommendation\":null,\"session\":{\"publicState\":null,\"engineState\":null},\"candid"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "HTTP 500: {\"text\":\"죄송합니다, 처리 중 오류가 발생했습니다. 다시 시도해주세요.\",\"purpose\":\"question\",\"chips\":[\"처음부터 다시\",\"소재 입력\",\"직경 입력\"],\"isComplete\":false,\"recommendation\":null,\"session\":{\"publicState\":null,\"engineState\":null},\"candid"
+        }
+      ]
+    },
+    {
+      "id": "R3",
+      "name": "neq: 'Y-Coating 빼고'",
+      "pass": false,
+      "passCount": 1,
+      "failCount": 1,
+      "elapsed": 11515,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "초내열합금 10mm 엔드밀",
+          "pass": true,
+          "elapsed": 8444,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "workPieceName=Titanium",
+          "candidateCount": 590,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "Y-Coating 빼고",
+          "pass": false,
+          "elapsed": 3071,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: HTTP 500: {\"text\":\"죄송합니다, 처리 중 오류가 발생했습니다. 다시 시도해주세요.\",\"purpose\":\"question\",\"chips\":[\"처음부터 다시\",\"소재 입력\",\"직경 입력\"],\"isComplete\":false,\"recommendation\":null,\"session\":{\"publicState\":null,\"engineState\":null},\"candid"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "HTTP 500: {\"text\":\"죄송합니다, 처리 중 오류가 발생했습니다. 다시 시도해주세요.\",\"purpose\":\"question\",\"chips\":[\"처음부터 다시\",\"소재 입력\",\"직경 입력\"],\"isComplete\":false,\"recommendation\":null,\"session\":{\"publicState\":null,\"engineState\":null},\"candid"
+        }
+      ]
+    },
+    {
+      "id": "R4",
+      "name": "stockThreshold: '재고 50개 이상'",
+      "pass": false,
+      "passCount": 1,
+      "failCount": 1,
+      "elapsed": 7016,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "탄소강 10mm 엔드밀",
+          "pass": true,
+          "elapsed": 6821,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "brand=TitaNox, workPieceName=Carbon Steels",
+          "candidateCount": 0,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "Square",
+          "pass": false,
+          "elapsed": 195,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: HTTP 500: {\"text\":\"죄송합니다, 처리 중 오류가 발생했습니다. 다시 시도해주세요.\",\"purpose\":\"question\",\"chips\":[\"처음부터 다시\",\"소재 입력\",\"직경 입력\"],\"isComplete\":false,\"recommendation\":null,\"session\":{\"publicState\":null,\"engineState\":null},\"candid"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "HTTP 500: {\"text\":\"죄송합니다, 처리 중 오류가 발생했습니다. 다시 시도해주세요.\",\"purpose\":\"question\",\"chips\":[\"처음부터 다시\",\"소재 입력\",\"직경 입력\"],\"isComplete\":false,\"recommendation\":null,\"session\":{\"publicState\":null,\"engineState\":null},\"candid"
+        }
+      ]
+    },
+    {
+      "id": "R5",
+      "name": "go_back: '이전 단계'",
+      "pass": false,
+      "passCount": 1,
+      "failCount": 1,
+      "elapsed": 6656,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "탄소강 10mm 엔드밀",
+          "pass": true,
+          "elapsed": 6275,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "brand=TitaNox, workPieceName=Carbon Steels",
+          "candidateCount": 0,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "Square",
+          "pass": false,
+          "elapsed": 381,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: HTTP 500: {\"text\":\"죄송합니다, 처리 중 오류가 발생했습니다. 다시 시도해주세요.\",\"purpose\":\"question\",\"chips\":[\"처음부터 다시\",\"소재 입력\",\"직경 입력\"],\"isComplete\":false,\"recommendation\":null,\"session\":{\"publicState\":null,\"engineState\":null},\"candid"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "HTTP 500: {\"text\":\"죄송합니다, 처리 중 오류가 발생했습니다. 다시 시도해주세요.\",\"purpose\":\"question\",\"chips\":[\"처음부터 다시\",\"소재 입력\",\"직경 입력\"],\"isComplete\":false,\"recommendation\":null,\"session\":{\"publicState\":null,\"engineState\":null},\"candid"
+        }
+      ]
+    }
+  ]
+}

@@ -258,12 +258,34 @@ async function findSingleBrandProfile(name: string): Promise<BrandProfileRecord 
   }
 }
 
+/**
+ * 동시 실행 개수를 제한해 단일 요청이 pool 을 점유하지 않도록 한다.
+ * (pool max=16 환경에서 안전선 4)
+ */
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length)
+  let cursor = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (true) {
+      const i = cursor++
+      if (i >= items.length) return
+      results[i] = await fn(items[i])
+    }
+  })
+  await Promise.all(workers)
+  return results
+}
+
 export const EntityProfileRepo = {
   async findSeriesProfiles(names: string[]): Promise<SeriesProfileRecord[]> {
     const uniqueNames = Array.from(new Set(names.map(name => name.trim()).filter(Boolean)))
     if (uniqueNames.length === 0) return []
 
-    const rows = await Promise.all(uniqueNames.map(name => findSingleSeriesProfile(name)))
+    const rows = await mapWithConcurrency(uniqueNames, 4, findSingleSeriesProfile)
     return rows.filter((row): row is SeriesProfileRecord => row !== null)
   },
 
@@ -271,7 +293,7 @@ export const EntityProfileRepo = {
     const uniqueNames = Array.from(new Set(names.map(name => name.trim()).filter(Boolean)))
     if (uniqueNames.length === 0) return []
 
-    const rows = await Promise.all(uniqueNames.map(name => findSingleBrandProfile(name)))
+    const rows = await mapWithConcurrency(uniqueNames, 4, findSingleBrandProfile)
     return rows.filter((row): row is BrandProfileRecord => row !== null)
   },
 }

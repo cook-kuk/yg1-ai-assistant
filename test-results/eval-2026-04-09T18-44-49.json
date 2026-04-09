@@ -1,0 +1,346 @@
+{
+  "timestamp": "2026-04-09T18:44:49.104Z",
+  "results": [
+    {
+      "id": "B01",
+      "input": "스테인리스 4날 10mm 추천해줘",
+      "ms": 3963,
+      "candidateCount": 216,
+      "filterCount": 3,
+      "responsePreview": "코팅 종류 선호가 있으신가요? 후보 중에 Y-Coating, TiAlN, X-Coating 등이 있습니다.",
+      "grade": {
+        "accuracy": 2,
+        "naturalness": 3,
+        "insight": 2,
+        "length_fit": 3,
+        "context": 2,
+        "total": 12,
+        "issues": [
+          "주요 필터 누락 (소재, 날수, 직경에 대한 직접적인 추천 없음)",
+          "자연스러운 대화 흐름 부족"
+        ],
+        "suggestion": "스테인리스 4날 10mm에 대한 구체적인 추천을 제공하고, 코팅 종류에 대한 질문을 추가하는 것이 좋습니다."
+      },
+      "error": null
+    },
+    {
+      "id": "B02",
+      "input": "직경 10mm 이상만",
+      "ms": 4039,
+      "candidateCount": 5770,
+      "filterCount": 1,
+      "responsePreview": "날 수는 몇 날이 좋으실까요? 2·3·4날이 가장 많이 쓰입니다.",
+      "grade": {
+        "accuracy": 2,
+        "naturalness": 3,
+        "insight": 1,
+        "length_fit": 3,
+        "context": 2,
+        "total": 11,
+        "issues": [
+          "직경 조건을 충족하는 응답이 없음",
+          "유저의 요청에 대한 적절한 정보 제공 부족"
+        ],
+        "suggestion": "직경 10mm 이상의 절삭공구를 추천하고, 사용 용도에 맞는 날 수에 대한 정보를 제공하세요."
+      },
+      "error": null
+    },
+    {
+      "id": "B03",
+      "input": "CRX S 빼고 추천해줘",
+      "ms": 8700,
+      "candidateCount": 64438,
+      "filterCount": 1,
+      "responsePreview": "직경은 어느 정도가 필요하세요? 25.4mm, 76.2mm, 127mm가 많이 나갑니다.",
+      "grade": {
+        "accuracy": 2,
+        "naturalness": 3,
+        "insight": 1,
+        "length_fit": 3,
+        "context": 2,
+        "total": 11,
+        "issues": [
+          "유저의 요청에 대한 적절한 응답 부족",
+          "추천 제품 제안 없음"
+        ],
+        "suggestion": "유저가 요청한 CRX S를 제외한 다른 제품을 추천해주고, 직경에 대한 정보도 포함하여 더 구체적인 답변을 제공해야 합니다."
+      },
+      "error": null
+    },
+    {
+      "id": "B04",
+      "input": "아무거나 빨리 10mm",
+      "ms": 3983,
+      "candidateCount": 1895,
+      "filterCount": 1,
+      "responsePreview": "날 수는 몇 날이 좋으실까요? 2·3·4날이 가장 많이 쓰입니다.",
+      "grade": {
+        "accuracy": 2,
+        "naturalness": 3,
+        "insight": 2,
+        "length_fit": 3,
+        "context": 2,
+        "total": 12,
+        "issues": [
+          "정확한 필터링 부족",
+          "자연스러운 대화 부족",
+          "유용한 정보 부족"
+        ],
+        "suggestion": "유저의 요청에 맞는 구체적인 절삭공구 추천과 함께 추가적인 정보 제공 필요"
+      },
+      "error": null
+    },
+    {
+      "id": "B05",
+      "input": "헬릭스가 뭐야?",
+      "ms": 1574,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "responsePreview": "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요.",
+      "grade": {
+        "accuracy": 1,
+        "naturalness": 1,
+        "insight": 1,
+        "length_fit": 1,
+        "context": 1,
+        "total": 5,
+        "issues": [
+          "정확한 정보 제공 부족",
+          "자연스러운 대화 부족",
+          "유용한 정보 없음",
+          "응답 길이 부적절",
+          "이전 대화와 연결 없음"
+        ],
+        "suggestion": "헬릭스의 정의와 특징을 간단히 설명하는 응답으로 개선하세요."
+      },
+      "error": null
+    },
+    {
+      "id": "C01",
+      "input": "스테인리스 추천해줘 그리고 알루파워가 뭐야?",
+      "ms": 7466,
+      "candidateCount": 23705,
+      "filterCount": 1,
+      "responsePreview": "직경은 어느 정도가 필요하세요? 25.4mm, 76.2mm, 127mm가 많이 나갑니다.",
+      "grade": {
+        "accuracy": 2,
+        "naturalness": 3,
+        "insight": 1,
+        "length_fit": 2,
+        "context": 2,
+        "total": 10,
+        "issues": [
+          "스테인리스 추천이 없음",
+          "알루파워에 대한 설명이 없음",
+          "직경 질문이 유저의 요청과 관련 없음"
+        ],
+        "suggestion": "스테인리스 절삭공구 추천과 알루파워에 대한 설명을 포함하여 응답해야 합니다."
+      },
+      "error": null
+    },
+    {
+      "id": "C02",
+      "input": "구리 비슷한 거 떨림 없는 걸로",
+      "ms": 6549,
+      "candidateCount": 12781,
+      "filterCount": 1,
+      "responsePreview": "날 수는 몇 날이 좋으실까요? 2·3·4날이 가장 많이 쓰입니다.",
+      "grade": {
+        "accuracy": 2,
+        "naturalness": 2,
+        "insight": 1,
+        "length_fit": 3,
+        "context": 2,
+        "total": 10,
+        "issues": [
+          "소재와 코팅에 대한 정보 부족",
+          "떨림 관련 통찰 부족"
+        ],
+        "suggestion": "구리와 비슷한 비철금속의 종류와 떨림을 줄이는 방법에 대한 정보를 제공해야 합니다."
+      },
+      "error": null
+    },
+    {
+      "id": "C03",
+      "input": "AlCrN이랑 TiAlN 뭐가 나아? 스테인리스인데",
+      "ms": 4555,
+      "candidateCount": 5313,
+      "filterCount": 2,
+      "responsePreview": "직경은 어느 정도가 필요하세요? 2mm, 2.5mm, 3mm, 3.5mm, 4mm 등이 많이 나갑니다.",
+      "grade": {
+        "accuracy": 2,
+        "naturalness": 3,
+        "insight": 1,
+        "length_fit": 3,
+        "context": 2,
+        "total": 11,
+        "issues": [
+          "유저의 질문에 대한 직접적인 답변 부족",
+          "제공된 정보가 소재 비교에 대한 것이 아님"
+        ],
+        "suggestion": "AlCrN과 TiAlN의 장단점을 비교하여 유저의 질문에 직접적으로 답변하는 내용을 포함해야 합니다."
+      },
+      "error": null
+    },
+    {
+      "id": "C04",
+      "input": "스테인리스 DLC 코팅으로",
+      "ms": 6818,
+      "candidateCount": 0,
+      "filterCount": 2,
+      "responsePreview": "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요.",
+      "grade": {
+        "accuracy": 1,
+        "naturalness": 2,
+        "insight": 1,
+        "length_fit": 2,
+        "context": 1,
+        "total": 7,
+        "issues": [
+          "DLC와 스테인리스의 부적합 경고 누락",
+          "대안 코팅 제시 부족"
+        ],
+        "suggestion": "DLC 코팅이 스테인리스에 부적합하다는 경고와 함께 대안 코팅을 제시해야 합니다."
+      },
+      "error": null
+    },
+    {
+      "id": "C05",
+      "input": "공구 수명이 너무 짧아",
+      "ms": 2747,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "responsePreview": "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요.",
+      "grade": {
+        "accuracy": 1,
+        "naturalness": 2,
+        "insight": 1,
+        "length_fit": 2,
+        "context": 1,
+        "total": 7,
+        "issues": [
+          "정확한 제품 추천 없음",
+          "유저의 문제에 대한 분석 부족",
+          "자연스러운 대화 흐름 부족"
+        ],
+        "suggestion": "유저의 문제를 분석하고, 절삭속도나 소재에 따른 공구 수명에 대한 정보를 제공하는 것이 필요합니다."
+      },
+      "error": null
+    },
+    {
+      "id": "M01",
+      "input": "스테인리스 엔드밀 추천 → 4날로 → 10mm",
+      "ms": 18845,
+      "candidateCount": 1895,
+      "filterCount": 1,
+      "responsePreview": "10mm로 적용했어요. 날 수는 몇 날이 좋으실까요? 2·3·4날이 가장 많이 쓰입니다.",
+      "grade": {
+        "accuracy": 3,
+        "naturalness": 3,
+        "insight": 2,
+        "length_fit": 4,
+        "context": 3,
+        "total": 15,
+        "issues": [
+          "날 수에 대한 구체적인 추천 부족",
+          "스테인리스 엔드밀에 대한 정보 부족"
+        ],
+        "suggestion": "스테인리스 엔드밀에 대한 구체적인 추천과 함께 각 날 수의 장단점을 설명해 주세요."
+      },
+      "error": null
+    },
+    {
+      "id": "M02",
+      "input": "스테인리스 4날 스퀘어 추천 → 아니 볼로 바꿔",
+      "ms": 11579,
+      "candidateCount": 6192,
+      "filterCount": 1,
+      "responsePreview": "직경은 어느 정도가 필요하세요? 0.1mm, 0.2mm, 0.3mm, 0.4mm, 0.5mm 등이 많이 나갑니다.",
+      "grade": {
+        "accuracy": 2,
+        "naturalness": 3,
+        "insight": 2,
+        "length_fit": 3,
+        "context": 2,
+        "total": 12,
+        "issues": [
+          "스퀘어에서 볼로의 교체 요청을 제대로 반영하지 않음",
+          "직경에 대한 정보만 제공하고, 다른 중요한 정보(소재, 코팅 등)가 누락됨"
+        ],
+        "suggestion": "유저의 요청에 맞춰 스퀘어에서 볼로의 교체를 반영하고, 필요한 소재와 코팅에 대한 정보를 추가하여 응답해야 합니다."
+      },
+      "error": null
+    },
+    {
+      "id": "E01",
+      "input": "스텐인리스 4낭 10mn",
+      "ms": 7617,
+      "candidateCount": 23705,
+      "filterCount": 1,
+      "responsePreview": "직경은 어느 정도가 필요하세요? 25.4mm, 76.2mm, 127mm가 많이 나갑니다.",
+      "grade": {
+        "accuracy": 2,
+        "naturalness": 3,
+        "insight": 1,
+        "length_fit": 3,
+        "context": 2,
+        "total": 11,
+        "issues": [
+          "직경 정보가 유저 의도와 맞지 않음",
+          "스테인리스 4날에 대한 정보 부족"
+        ],
+        "suggestion": "유저가 요청한 스테인리스 4날 10mm에 대한 구체적인 정보를 제공하고, 적절한 직경을 제안해야 합니다."
+      },
+      "error": null
+    },
+    {
+      "id": "E02",
+      "input": "좋은 거 추천해줘",
+      "ms": 7193,
+      "candidateCount": 64588,
+      "filterCount": 0,
+      "responsePreview": "직경은 어느 정도가 필요하세요? 25.4mm, 76.2mm, 127mm가 많이 나갑니다.",
+      "grade": {
+        "accuracy": 3,
+        "naturalness": 4,
+        "insight": 2,
+        "length_fit": 4,
+        "context": 3,
+        "total": 16,
+        "issues": [
+          "추천의 구체성이 부족함",
+          "유저의 의도를 충분히 파악하지 못함"
+        ],
+        "suggestion": "유저의 요구사항을 더 구체적으로 파악하기 위해 추가 질문을 포함하는 것이 좋습니다."
+      },
+      "error": null
+    },
+    {
+      "id": "E03",
+      "input": "네",
+      "ms": 2886,
+      "candidateCount": 64588,
+      "filterCount": 0,
+      "responsePreview": "직경은 어느 정도가 필요하세요? 25.4mm, 76.2mm, 127mm가 많이 나갑니다.",
+      "grade": {
+        "accuracy": 3,
+        "naturalness": 4,
+        "insight": 2,
+        "length_fit": 4,
+        "context": 3,
+        "total": 16,
+        "issues": [
+          "직경 옵션이 유저의 의도와 일치하지 않을 수 있음",
+          "유저의 질문에 대한 직접적인 응답 부족"
+        ],
+        "suggestion": "유저의 의도를 더 명확히 파악하고, 필요한 정보를 직접적으로 요청하는 방식으로 개선할 것."
+      },
+      "error": null
+    }
+  ],
+  "summary": {
+    "total": 15,
+    "graded": 15,
+    "avgTotal": "11.1"
+  }
+}

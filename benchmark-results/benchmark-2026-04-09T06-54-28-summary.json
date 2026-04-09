@@ -1,0 +1,99 @@
+{
+  "meta": {
+    "baseUrl": "http://localhost:3001",
+    "totalTurns": 5,
+    "startedAt": "2026-04-09T06:54:28.050Z",
+    "intakeForm": {
+      "inquiryPurpose": {
+        "status": "known",
+        "value": "new"
+      },
+      "material": {
+        "status": "known",
+        "value": "P"
+      },
+      "operationType": {
+        "status": "known",
+        "value": "Side_Milling"
+      },
+      "machiningIntent": {
+        "status": "unanswered"
+      },
+      "toolTypeOrCurrentProduct": {
+        "status": "known",
+        "value": "Milling"
+      },
+      "diameterInfo": {
+        "status": "known",
+        "value": "10mm"
+      }
+    },
+    "pricing": [
+      {
+        "match": "opus",
+        "input": 15,
+        "output": 75,
+        "cacheRead": 1.5,
+        "cacheWrite": 18.75
+      },
+      {
+        "match": "sonnet",
+        "input": 3,
+        "output": 15,
+        "cacheRead": 0.3,
+        "cacheWrite": 3.75
+      },
+      {
+        "match": "haiku",
+        "input": 0.8,
+        "output": 4,
+        "cacheRead": 0.08,
+        "cacheWrite": 1
+      }
+    ]
+  },
+  "aggregate": {
+    "avgLatencyMs": 16335,
+    "maxLatencyMs": 22410,
+    "minLatencyMs": 11289,
+    "p95LatencyMs": 22410,
+    "errorCount": 0,
+    "purposeDistribution": {
+      "question": 5
+    },
+    "totalRequestBytes": 2699312,
+    "totalResponseBytes": 4320285,
+    "totalLlmCalls": 9,
+    "totalInputTokens": 11004,
+    "totalOutputTokens": 575,
+    "totalCacheReadTokens": 3584,
+    "totalCacheWriteTokens": 0,
+    "totalEstimatedCost": 0.0427,
+    "avgCostPerTurn": 0.0085,
+    "avgLlmCallsPerTurn": 1.8
+  },
+  "checkpoints": [
+    {
+      "turn": 5,
+      "latencyMs": 15356,
+      "purpose": "question",
+      "candidateCount": 2265,
+      "filterCount": 3,
+      "resolutionStatus": "narrowing",
+      "displayedCandidateCount": 50,
+      "sessionId": "ses-1775717667127",
+      "currentMode": "narrowing",
+      "cumulativeAvgLatencyMs": 16335,
+      "turnLlmCalls": 2,
+      "turnInputTokens": 2271,
+      "turnOutputTokens": 149,
+      "turnCacheReadTokens": 1792,
+      "turnCacheWriteTokens": 0,
+      "turnEstimatedCost": 0.0096,
+      "cumulativeInputTokens": 11004,
+      "cumulativeOutputTokens": 575,
+      "cumulativeLlmCalls": 9,
+      "cumulativeEstimatedCost": 0.0427
+    }
+  ]
+}

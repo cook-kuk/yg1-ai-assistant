@@ -525,7 +525,18 @@ export async function routeSingleCall(
   // ── 0. Deterministic SCR (DB-driven NL parser, no LLM) ──
   if (DET_SCR_ENABLED) {
     const detMeta: DeterministicMeta = { ambiguities: [] }
-    const detActions = parseDeterministic(userMessage, detMeta)
+    // Stateless-replay support: when the caller has no session yet (e.g. each
+    // API call is independent as in the evaluation harness) prior user turns'
+    // filters get lost because the deterministic parser only sees the latest
+    // message. Join all prior user turns into a single parse so every slot
+    // mentioned across the conversation is recovered. Skip when a revision
+    // keyword is present — those turns must replace, not accumulate.
+    const REVISION_RE = /(아니|말고|바꿔|대신|빼|제외|취소|없는\s*걸로)/
+    const hasRevision = REVISION_RE.test(userMessage)
+    const parseText = (!sessionState && !hasRevision && recentMessages && recentMessages.length > 1)
+      ? recentMessages.filter(m => m.role === "user").map(m => m.text).join(" ")
+      : userMessage
+    const detActions = parseDeterministic(parseText, detMeta)
     if (detMeta.ambiguities.length > 0) {
       console.log(`[SCR:det] ${detMeta.ambiguities.length} ambiguities detected: ${detMeta.ambiguities.map(a => `${a.token}→[${a.fields.join("|")}]`).join(", ")}`)
     }

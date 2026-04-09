@@ -58,11 +58,30 @@ export interface HybridRetrievalPagination {
  */
 export function selectStockSurvivors<T extends { totalStock?: number | null }>(
   candidates: T[],
-  isNegation: boolean
+  isNegation: boolean,
+  threshold: number = 0,
 ): T[] {
-  return isNegation
-    ? candidates.filter(c => (c.totalStock ?? 0) === 0)
-    : candidates.filter(c => (c.totalStock ?? 0) > 0)
+  // threshold>0 이면 총 재고가 threshold 이상인 후보만 살린다 (예: "재고 1000개 이상").
+  // threshold=0 (기본) 이면 in-stock (> 0) 의미.
+  if (isNegation) {
+    return candidates.filter(c => (c.totalStock ?? 0) === 0)
+  }
+  if (threshold > 0) {
+    return candidates.filter(c => (c.totalStock ?? 0) >= threshold)
+  }
+  return candidates.filter(c => (c.totalStock ?? 0) > 0)
+}
+
+/** Extract numeric threshold from a stockStatus filter. Returns 0 if none. */
+function extractStockThreshold(filter: AppliedFilter): number {
+  const raw = String((filter as { rawValue?: unknown }).rawValue ?? filter.value ?? "").trim()
+  if (!raw) return 0
+  // "1000", "1000 이상", "1000개 이상", "재고 1000 이상" 등 선두 숫자 추출
+  const m = raw.match(/\d+/)
+  if (!m) return 0
+  // enum 라벨("instock", "재고있음")엔 숫자 없음 → 0 반환 (기본 in-stock 경로)
+  const n = parseInt(m[0], 10)
+  return Number.isFinite(n) && n > 0 ? n : 0
 }
 
 // ── Scoring weights (same as match-engine.ts) ────────────────
@@ -736,9 +755,10 @@ export async function runHybridRetrieval(
       c.minLeadTimeDays = LeadTimeRepo.minLeadTime(c.product.normalizedCode)
     }
     const isNeg = stockFilter.op === "neq" || stockFilter.op === "exclude"
-    const survivors = selectStockSurvivors(enrichPool, isNeg)
+    const threshold = extractStockThreshold(stockFilter)
+    const survivors = selectStockSurvivors(enrichPool, isNeg, threshold)
     qualifiedCandidates.splice(0, qualifiedCandidates.length, ...survivors)
-    console.log(`[hybrid:stage] stage=stock_filter enriched=${enrichPool.length} survived=${survivors.length}`)
+    console.log(`[hybrid:stage] stage=stock_filter enriched=${enrichPool.length} threshold=${threshold} survived=${survivors.length}`)
   }
 
   // Hard cap: broad 상태(topN<=0)에서도 최대 SCORE_EVIDENCE_HARD_CAP 만 evidence/inventory enrich.

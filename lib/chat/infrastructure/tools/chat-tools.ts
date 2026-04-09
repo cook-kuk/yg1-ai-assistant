@@ -1226,12 +1226,18 @@ async function executeFindYG1Alternative(params: {
   // 원본 제외
   alternatives = alternatives.filter(p => p.normalizedCode !== original.normalizedCode)
 
-  // 재고 확인 + 정렬 (재고 있는 것 우선)
+  // 재고 확인 + 정렬 (재고 있는 것 우선) — N+1 제거: 단일 배치 쿼리
   const { InventoryRepo } = await import("@/lib/data/repos/inventory-repo")
-  const enriched = await Promise.all(alternatives.slice(0, 20).map(async p => {
-    const inv = await InventoryRepo.getEnrichedAsync(p.normalizedCode)
-    return { product: p, stockStatus: inv.stockStatus, totalStock: inv.totalStock }
-  }))
+  const top = alternatives.slice(0, 20)
+  const invMap = await InventoryRepo.getEnrichedBatchAsync(top.map(p => p.normalizedCode))
+  const enriched = top.map(p => {
+    const inv = invMap.get(p.normalizedCode)
+    return {
+      product: p,
+      stockStatus: inv?.stockStatus ?? "unknown",
+      totalStock: inv?.totalStock ?? 0,
+    }
+  })
 
   enriched.sort((a, b) => {
     const stockOrder: Record<string, number> = { instock: 0, limited: 1, unknown: 2, outofstock: 3 }

@@ -2,7 +2,7 @@ import "server-only"
 
 import { randomBytes } from "node:crypto"
 import { Pool, type QueryResult, type QueryResultRow } from "pg"
-import { getSharedPool } from "@/lib/data/shared-pool"
+import { getSharedPool, getSharedPoolStats } from "@/lib/data/shared-pool"
 import { notifyDbQuery } from "@/lib/slack-notifier"
 import { appendRuntimeLog, logRuntimeError } from "@/lib/runtime-logger"
 import { isPrecisionMode } from "@/lib/recommendation/runtime-flags"
@@ -512,8 +512,10 @@ async function executeLoggedQuery<T extends QueryResultRow>(
       interpolatedQuery,
       values,
     })
+    const stats = getSharedPoolStats()
+    const statsStr = stats ? ` pool={total:${stats.total},idle:${stats.idle},waiting:${stats.waiting}}` : ""
     console.error(
-      `[product-db] sql:error operation=${context.operation} duration=${Date.now() - startedAt}ms message=${error instanceof Error ? error.message : String(error)}`
+      `[product-db] sql:error operation=${context.operation} duration=${Date.now() - startedAt}ms message=${error instanceof Error ? error.message : String(error)}${statsStr}`
     )
     await logRuntimeError({
       category: "db",

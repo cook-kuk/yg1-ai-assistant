@@ -18,7 +18,7 @@ async function run(c) {
     const res = await fetch(API, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ engine: "serve", language: "ko", messages: [{ role: "user", text: c.input }] }),
-      signal: AbortSignal.timeout(60000),
+      signal: AbortSignal.timeout(120000),
     })
     const ms = Date.now() - t0
     const j = await res.json().catch(() => ({}))

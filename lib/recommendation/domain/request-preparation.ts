@@ -106,10 +106,22 @@ export function classifyIntent(
 
 const RESET_KEYWORDS = ["처음부터 다시", "다시 처음부터", "처음부터", "다시 시작", "리셋", "초기화", "새로 시작", "reset"]
 
+// 자연어 reset 표현: "처음 조건 다 잊고", "초기 조건으로 돌아가", "필터 다 지우고" 등
+// 명시적 reset 키워드가 없어도 "조건/필터/상태"를 "잊/지우/버리/돌아가/되돌리" 한다는 의도면 reset
+const RESET_PHRASE_RE = /(처음|초기|원래|기존)\s*(조건|상태|설정|필터)?\s*(다|모두|전부)?\s*(잊|지우|버리|돌아가|되돌|초기화)/
+const RESET_FILTER_CLEAR_RE = /(필터|조건)\s*(다|모두|전부)\s*(잊|지우|버리|초기화)/
+
+function matchesResetSignal(clean: string): boolean {
+  if (RESET_KEYWORDS.some(s => clean.includes(s))) return true
+  if (RESET_PHRASE_RE.test(clean)) return true
+  if (RESET_FILTER_CLEAR_RE.test(clean)) return true
+  return false
+}
+
 function isExplicitResetCommand(clean: string): boolean {
-  if (!RESET_KEYWORDS.some(s => clean.includes(s))) return false
+  if (!matchesResetSignal(clean)) return false
   if (RESET_KEYWORDS.includes(clean)) return true
-  if (clean.length > 25) return false
+  if (clean.length > 40) return false
   if (/\?|아니야|아닌가|잖아|않아|맞아|맞지|해야|나와야|보기로|어떻게|왜/.test(clean)) return false
   // Frustration emoticons → clarification, not reset
   if (/ㅠ|ㅜ/.test(clean)) return false
@@ -438,12 +450,9 @@ export function planRoute(
   if (message && sessionState) {
     const clean = message.trim().toLowerCase()
 
-    // Reset signal
-    if (["처음부터 다시", "다시 처음부터", "다시 시작", "리셋", "초기화", "새로 시작", "처음부터", "reset"].some(s => clean.includes(s))) {
-      // Guard: only treat as reset if the message is short and direct (not meta-question)
-      if (clean.length <= 25 && !/\?|어떻게|왜/.test(clean)) {
-        return { action: "reset_session", reason: "사용자가 초기화를 요청했습니다", needsLLM: false, riskFlags }
-      }
+    // Reset signal — keyword OR natural-language reset phrase
+    if (isExplicitResetCommand(clean)) {
+      return { action: "reset_session", reason: "사용자가 초기화를 요청했습니다", needsLLM: false, riskFlags }
     }
 
     // Undo signals — resolve target from message + session state
@@ -463,10 +472,8 @@ export function planRoute(
     }
   } else if (message) {
     const clean = message.trim().toLowerCase()
-    if (["처음부터 다시", "다시 처음부터", "다시 시작", "리셋", "초기화", "새로 시작", "처음부터", "reset"].some(s => clean.includes(s))) {
-      if (clean.length <= 25 && !/\?|어떻게|왜/.test(clean)) {
-        return { action: "reset_session", reason: "사용자가 초기화를 요청했습니다", needsLLM: false, riskFlags }
-      }
+    if (isExplicitResetCommand(clean)) {
+      return { action: "reset_session", reason: "사용자가 초기화를 요청했습니다", needsLLM: false, riskFlags }
     }
   }
 

@@ -1,0 +1,99 @@
+{
+  "meta": {
+    "baseUrl": "http://localhost:3000",
+    "totalTurns": 5,
+    "startedAt": "2026-04-09T06:26:36.512Z",
+    "intakeForm": {
+      "inquiryPurpose": {
+        "status": "known",
+        "value": "new"
+      },
+      "material": {
+        "status": "known",
+        "value": "P"
+      },
+      "operationType": {
+        "status": "known",
+        "value": "Side_Milling"
+      },
+      "machiningIntent": {
+        "status": "unanswered"
+      },
+      "toolTypeOrCurrentProduct": {
+        "status": "known",
+        "value": "Milling"
+      },
+      "diameterInfo": {
+        "status": "known",
+        "value": "10mm"
+      }
+    },
+    "pricing": [
+      {
+        "match": "opus",
+        "input": 15,
+        "output": 75,
+        "cacheRead": 1.5,
+        "cacheWrite": 18.75
+      },
+      {
+        "match": "sonnet",
+        "input": 3,
+        "output": 15,
+        "cacheRead": 0.3,
+        "cacheWrite": 3.75
+      },
+      {
+        "match": "haiku",
+        "input": 0.8,
+        "output": 4,
+        "cacheRead": 0.08,
+        "cacheWrite": 1
+      }
+    ]
+  },
+  "aggregate": {
+    "avgLatencyMs": 179,
+    "maxLatencyMs": 267,
+    "minLatencyMs": 141,
+    "p95LatencyMs": 267,
+    "errorCount": 5,
+    "purposeDistribution": {
+      "unknown": 5
+    },
+    "totalRequestBytes": 1479,
+    "totalResponseBytes": 217109,
+    "totalLlmCalls": 0,
+    "totalInputTokens": 0,
+    "totalOutputTokens": 0,
+    "totalCacheReadTokens": 0,
+    "totalCacheWriteTokens": 0,
+    "totalEstimatedCost": 0,
+    "avgCostPerTurn": 0,
+    "avgLlmCallsPerTurn": 0
+  },
+  "checkpoints": [
+    {
+      "turn": 5,
+      "latencyMs": 141,
+      "purpose": null,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "resolutionStatus": null,
+      "displayedCandidateCount": 0,
+      "sessionId": null,
+      "currentMode": null,
+      "cumulativeAvgLatencyMs": 179,
+      "turnLlmCalls": 0,
+      "turnInputTokens": 0,
+      "turnOutputTokens": 0,
+      "turnCacheReadTokens": 0,
+      "turnCacheWriteTokens": 0,
+      "turnEstimatedCost": 0,
+      "cumulativeInputTokens": 0,
+      "cumulativeOutputTokens": 0,
+      "cumulativeLlmCalls": 0,
+      "cumulativeEstimatedCost": 0
+    }
+  ]
+}

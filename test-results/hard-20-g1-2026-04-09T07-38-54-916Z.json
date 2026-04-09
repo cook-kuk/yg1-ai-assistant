@@ -1,0 +1,559 @@
+{
+  "at": "2026-04-09T07:38:54.917Z",
+  "api": "http://20.119.98.136:3000/api/recommend",
+  "group": 1,
+  "results": [
+    {
+      "id": "P1",
+      "name": "small-talk: '너 이름은?' must not apply brand",
+      "pass": true,
+      "passCount": 2,
+      "failCount": 0,
+      "elapsed": 51755,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀 추천해주세요.",
+          "pass": true,
+          "elapsed": 18719,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "",
+          "candidateCount": 64588,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "너 이름은?",
+          "pass": true,
+          "elapsed": 33036,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "",
+          "candidateCount": 64588,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "P2",
+      "name": "'안녕하세요' must not apply any categorical filter",
+      "pass": true,
+      "passCount": 2,
+      "failCount": 0,
+      "elapsed": 39658,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "탄소강 10mm 엔드밀 추천",
+          "pass": true,
+          "elapsed": 16007,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "workPieceName=Carbon Steels",
+          "candidateCount": 2913,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "안녕하세요",
+          "pass": true,
+          "elapsed": 23651,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "workPieceName=Carbon Steels",
+          "candidateCount": 2913,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "P3",
+      "name": "'고마워' mid-flow must preserve filters",
+      "pass": true,
+      "passCount": 3,
+      "failCount": 0,
+      "elapsed": 57957,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "스테인리스 8mm 엔드밀",
+          "pass": true,
+          "elapsed": 4914,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "workPieceName=Stainless Steels",
+          "candidateCount": 1482,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "Square",
+          "pass": true,
+          "elapsed": 10990,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "workPieceName=Stainless Steels, toolSubtype=Square",
+          "candidateCount": 809,
+          "error": null
+        },
+        {
+          "turn": 3,
+          "user": "고마워",
+          "pass": true,
+          "elapsed": 42053,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "workPieceName=Stainless Steels, toolSubtype=Square",
+          "candidateCount": 809,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "P4",
+      "name": "'당신 누구야' must not apply country=Korea",
+      "pass": true,
+      "passCount": 2,
+      "failCount": 0,
+      "elapsed": 52564,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀 추천해주세요.",
+          "pass": true,
+          "elapsed": 15676,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "",
+          "candidateCount": 64588,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "당신 누구야",
+          "pass": true,
+          "elapsed": 36888,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "",
+          "candidateCount": 64588,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "P5",
+      "name": "ghost X1-EH brand from minimal request",
+      "pass": true,
+      "passCount": 1,
+      "failCount": 0,
+      "elapsed": 14961,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀 하나 추천해줘",
+          "pass": true,
+          "elapsed": 14961,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "",
+          "candidateCount": 64588,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "I1",
+      "name": "'추천해줘' must NOT add new filter (must show)",
+      "pass": true,
+      "passCount": 3,
+      "failCount": 0,
+      "elapsed": 36576,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀 추천",
+          "pass": true,
+          "elapsed": 11329,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "",
+          "candidateCount": 3772,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "Square",
+          "pass": true,
+          "elapsed": 16208,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "toolSubtype=Square",
+          "candidateCount": 1722,
+          "error": null
+        },
+        {
+          "turn": 3,
+          "user": "오호 추천해줘",
+          "pass": true,
+          "elapsed": 9039,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "toolSubtype=Square, coating=상관없음[skip]",
+          "candidateCount": 1722,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "I2",
+      "name": "real feedback: 다 필요없고 알루미늄 3날 corner radius",
+      "pass": true,
+      "passCount": 2,
+      "failCount": 0,
+      "elapsed": 21004,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀 추천",
+          "pass": true,
+          "elapsed": 8793,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "",
+          "candidateCount": 4737,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "다 필요없고 알루미늄 가공용으로 3날짜리 Corner radius",
+          "pass": true,
+          "elapsed": 12211,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "ballRadiusMm=3mm, fluteCount=3날, workPieceName=알루미늄, toolSubtype=Radius",
+          "candidateCount": 12,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "I3",
+      "name": "real feedback: corner radius → square 정정",
+      "pass": true,
+      "passCount": 3,
+      "failCount": 0,
+      "elapsed": 35273,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀 추천",
+          "pass": true,
+          "elapsed": 8758,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "",
+          "candidateCount": 3772,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "Corner Radius",
+          "pass": true,
+          "elapsed": 13472,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "toolSubtype=Radius",
+          "candidateCount": 1141,
+          "error": null
+        },
+        {
+          "turn": 3,
+          "user": "음 죄송해요 corner radius 말고 square로 다시해주세요",
+          "pass": true,
+          "elapsed": 13043,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "toolSubtype=Square",
+          "candidateCount": 1722,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "I4",
+      "name": "Square → 4날 → '상관없음' must skip",
+      "pass": true,
+      "passCount": 4,
+      "failCount": 0,
+      "elapsed": 44389,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀",
+          "pass": true,
+          "elapsed": 6705,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "",
+          "candidateCount": 1490,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "Square",
+          "pass": true,
+          "elapsed": 17644,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "toolSubtype=Square",
+          "candidateCount": 750,
+          "error": null
+        },
+        {
+          "turn": 3,
+          "user": "4날",
+          "pass": true,
+          "elapsed": 10524,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "toolSubtype=Square, fluteCount=4날",
+          "candidateCount": 362,
+          "error": null
+        },
+        {
+          "turn": 4,
+          "user": "상관없음",
+          "pass": true,
+          "elapsed": 9516,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "toolSubtype=Square, fluteCount=4날, cuttingType=상관없음[skip]",
+          "candidateCount": 362,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "I5",
+      "name": "real feedback: 제품 비교 질문 (필터 박지 말 것)",
+      "pass": true,
+      "passCount": 3,
+      "failCount": 0,
+      "elapsed": 43055,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "초내열합금 10mm 엔드밀",
+          "pass": true,
+          "elapsed": 6556,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "workPieceName=Titanium",
+          "candidateCount": 590,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "Square",
+          "pass": true,
+          "elapsed": 18029,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "workPieceName=Titanium, toolSubtype=Square",
+          "candidateCount": 251,
+          "error": null
+        },
+        {
+          "turn": 3,
+          "user": "GMG55100 이랑 GMG40100의 차이가 뭐야?",
+          "pass": true,
+          "elapsed": 18470,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "workPieceName=Titanium, toolSubtype=Square",
+          "candidateCount": 251,
+          "error": null
+        }
+      ]
+    }
+  ]
+}

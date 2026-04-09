@@ -1,0 +1,6 @@
+turn,userMessage,latencyMs,httpStatus,purpose,candidateCount,filterCount,turnCount,sessionId,currentMode,lastAskedField,resolutionStatus,displayedChipCount,displayedOptionCount,displayedCandidateCount,hasRecommendation,hasComparison,routeAction,debugTrace,llmCallCount,turnInputTokens,turnOutputTokens,turnCacheReadTokens,turnCacheWriteTokens,turnEstimatedCost,cumulativeEstimatedCost,requestBytes,responseBytes,error
+1,10mm 엔드밀 추천해주세요,15521,200,question,267,0,0,ses-1775717599789,narrowing,fluteCount,broad,7,5,50,false,false,continue_narrowing,true,1,1936,82,1792,0,0.0076,0.0076,441,792610,
+2,4날이면 좋겠어요,22410,200,question,14513,1,1,ses-1775717621038,narrowing,toolSubtype,narrowing,7,5,50,false,false,continue_narrowing,true,2,2228,101,0,0,0.0082,0.0158,638086,868945,
+3,코팅은 뭐가 좋을까요?,17097,200,question,4648,2,2,ses-1775717638451,narrowing,diameterMm,narrowing,9,7,50,false,false,continue_narrowing,true,2,2284,115,0,0,0.0086,0.0244,687719,864507,
+4,AlCrN 코팅 제품으로 보여주세요,11289,200,question,4648,2,2,ses-1775717650973,narrowing,diameterMm,narrowing,9,7,50,false,false,continue_narrowing,true,2,2285,128,0,0,0.0088,0.0331,684636,869384,
+5,재고 있는 것만 보여줘,15356,200,question,2265,3,2,ses-1775717667127,narrowing,diameterMm,narrowing,9,7,50,false,false,continue_narrowing,true,2,2271,149,1792,0,0.0096,0.0427,688430,924839,

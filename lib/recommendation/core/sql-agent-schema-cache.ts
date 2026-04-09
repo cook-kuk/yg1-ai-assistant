@@ -69,7 +69,7 @@ function getPool(): Pool {
       : null)
   if (!connStr) throw new Error("[sql-agent-schema] No database connection configured")
 
-  return new Pool({ connectionString: connStr, max: 2, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 5_000 })
+  return new Pool({ connectionString: connStr, max: 8, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 10_000 })
 }
 
 declare global {
