@@ -1,0 +1,64 @@
+{
+  "pass": 5,
+  "fail": 0,
+  "error": 1,
+  "skip": 0,
+  "details": [
+    {
+      "id": "E07",
+      "verdict": "ERROR",
+      "error": "read ECONNRESET"
+    },
+    {
+      "id": "F01",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 19596,
+      "runResult": []
+    },
+    {
+      "id": "F05",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 313089,
+      "runResult": []
+    },
+    {
+      "id": "G04",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 1512,
+      "runResult": []
+    },
+    {
+      "id": "G08",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 52389,
+      "runResult": [
+        {
+          "field": "coating",
+          "op": "eq",
+          "value": "Y-Coating",
+          "rawValue": "Y-Coating",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "H02",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 92453,
+      "runResult": [
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "4날",
+          "rawValue": 4,
+          "appliedAt": 0
+        }
+      ]
+    }
+  ]
+}

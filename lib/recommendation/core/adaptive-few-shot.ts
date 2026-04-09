@@ -75,6 +75,34 @@ export function buildFewShotText(examples: FewShotExample[]): string {
   return examples.map(ex => `User: "${ex.input}"\n→ ${ex.output}`).join("\n\n")
 }
 
+/**
+ * Adapter: emit examples in single-call-router's wrapper format
+ * ({"actions":[{"type":"apply_filter",...}], "answer":"", "reasoning":"..."}).
+ * ex.output is a bare filter array — wrap each filter as an apply_filter action.
+ */
+export function buildFewShotTextScr(examples: FewShotExample[]): string {
+  if (examples.length === 0) return ""
+  const blocks: string[] = []
+  for (const ex of examples) {
+    let filters: Array<{ field: string; op?: string; value: unknown }> = []
+    try {
+      const parsed = JSON.parse(ex.output)
+      if (Array.isArray(parsed)) filters = parsed
+    } catch { /* ignore */ }
+    if (filters.length === 0) continue
+    const actions = filters.map(f => {
+      const rawVal = f.value
+      // numeric-looking values → number; otherwise string
+      const num = typeof rawVal === "string" && rawVal !== "" && !isNaN(Number(rawVal)) ? Number(rawVal) : null
+      const value = num !== null ? num : rawVal
+      return { type: "apply_filter", field: f.field, value, op: f.op ?? "eq" }
+    })
+    const wrapper = { actions, answer: "", reasoning: `${actions.length} filter(s) from message` }
+    blocks.push(`User: "${ex.input}"\n→ ${JSON.stringify(wrapper)}`)
+  }
+  return blocks.join("\n\n")
+}
+
 export function _resetFewShotPoolForTest(): void {
   _pool = []
   _loaded = false

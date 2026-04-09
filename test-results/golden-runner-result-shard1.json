@@ -1,0 +1,159 @@
+{
+  "pass": 9,
+  "fail": 0,
+  "error": 1,
+  "skip": 2,
+  "details": [
+    {
+      "id": "C09",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 181338,
+      "runResult": [
+        {
+          "field": "country",
+          "op": "eq",
+          "value": "KOREA",
+          "rawValue": "KOREA",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "C13",
+      "verdict": "PASS",
+      "detail": "loose:3filter",
+      "elapsedMs": 50574,
+      "runResult": [
+        {
+          "field": "toolMaterial",
+          "op": "eq",
+          "value": "Carbide",
+          "rawValue": "Carbide",
+          "appliedAt": 0
+        },
+        {
+          "field": "toolType",
+          "op": "eq",
+          "value": "solid",
+          "rawValue": "solid",
+          "appliedAt": 0
+        },
+        {
+          "field": "toolSubtype",
+          "op": "eq",
+          "value": "Ball",
+          "rawValue": "Ball",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "D02",
+      "verdict": "PASS",
+      "detail": "loose:3filter",
+      "elapsedMs": 33792,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "12mm",
+          "rawValue": 12,
+          "appliedAt": 0
+        },
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "2날",
+          "rawValue": 2,
+          "appliedAt": 0
+        },
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Hardened Steels",
+          "rawValue": "Hardened Steels",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "D06",
+      "verdict": "ERROR",
+      "error": "socket hang up"
+    },
+    {
+      "id": "D10",
+      "verdict": "PASS",
+      "detail": "loose:2filter",
+      "elapsedMs": 46960,
+      "runResult": [
+        {
+          "field": "brand",
+          "op": "eq",
+          "value": "X1-EH",
+          "rawValue": "X1-EH",
+          "appliedAt": 0
+        },
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Hardened Steels",
+          "rawValue": "Hardened Steels",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "E04",
+      "verdict": "SKIP"
+    },
+    {
+      "id": "E08",
+      "verdict": "SKIP"
+    },
+    {
+      "id": "F02",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 305836,
+      "runResult": []
+    },
+    {
+      "id": "G01",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 55301,
+      "runResult": [
+        {
+          "field": "coating",
+          "op": "eq",
+          "value": "T-Coating",
+          "rawValue": "T-Coating",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "G05",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 1722,
+      "runResult": []
+    },
+    {
+      "id": "G09",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 1902,
+      "runResult": []
+    },
+    {
+      "id": "H03",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 139442,
+      "runResult": []
+    }
+  ]
+}

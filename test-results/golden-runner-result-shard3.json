@@ -1,0 +1,96 @@
+{
+  "pass": 5,
+  "fail": 0,
+  "error": 2,
+  "skip": 1,
+  "details": [
+    {
+      "id": "E02",
+      "verdict": "ERROR",
+      "error": "read ECONNRESET"
+    },
+    {
+      "id": "E06",
+      "verdict": "SKIP"
+    },
+    {
+      "id": "E10",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 241835,
+      "runResult": [
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Hardened Steels",
+          "rawValue": "Hardened Steels",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "F04",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 112491,
+      "runResult": []
+    },
+    {
+      "id": "G03",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 63427,
+      "runResult": [
+        {
+          "field": "brand",
+          "op": "eq",
+          "value": "V7 PLUS A",
+          "rawValue": "V7 PLUS A",
+          "appliedAt": 0
+        },
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Stainless Steels",
+          "rawValue": "Stainless Steels",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "G07",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 40888,
+      "runResult": [
+        {
+          "field": "coating",
+          "op": "eq",
+          "value": "DLC",
+          "rawValue": "DLC",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "H01",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 129957,
+      "runResult": [
+        {
+          "field": "toolMaterial",
+          "op": "eq",
+          "value": "Carbide",
+          "rawValue": "Carbide",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "H05",
+      "verdict": "ERROR",
+      "error": "read ECONNRESET"
+    }
+  ]
+}

@@ -7,6 +7,8 @@
  */
 
 import type { QuerySpec, QueryConstraint, QueryField } from "./query-spec"
+import { getSimilarityComparableFields } from "./query-spec-manifest"
+import { expandToleranceConstraint } from "./query-spec-to-filters"
 
 // ── Output Types ────────────────────────────────────────────
 
@@ -135,7 +137,9 @@ export function compileProductQuery(
     return `$${paramIdx++}`
   }
 
-  for (const constraint of spec.constraints) {
+  for (const rawConstraint of spec.constraints) {
+    // Phase C: rewrite eq+tolerance → between before column mapping.
+    const constraint = expandToleranceConstraint(rawConstraint)
     const mapping = FIELD_TO_COLUMN[constraint.field]
     if (!mapping) {
       dropped.push({ ...constraint, dropReason: `unknown field: ${constraint.field}` })
@@ -155,9 +159,117 @@ export function compileProductQuery(
     ? `WHERE ${whereClauses.join("\n  AND ")}`
     : ""
 
-  const sql = `SELECT * FROM ${BASE_TABLE}\n${whereStr}\nORDER BY edp_series_name, search_diameter_mm`
+  // ── Phase C: similarity wins over sort ────────────────────
+  if (spec.similarTo) {
+    const sim = buildSimilaritySql(spec.similarTo, whereStr, nextParam)
+    if (sim) {
+      return {
+        sql: sim.sql,
+        params,
+        strategy,
+        appliedConstraints: applied,
+        droppedConstraints: dropped,
+      }
+    }
+    // similarity couldn't be built (no comparable fields / unknown ref) — fall through to sort path.
+  }
+
+  // ── Phase C: sort ─────────────────────────────────────────
+  let orderBy = "ORDER BY edp_series_name, search_diameter_mm"
+  if (spec.sort) {
+    const sortMapping = FIELD_TO_COLUMN[spec.sort.field]
+    if (sortMapping) {
+      const sortCol = sortMapping.numericExpr ?? sortMapping.column
+      const dir = spec.sort.direction === "desc" ? "DESC" : "ASC"
+      orderBy = `ORDER BY ${sortCol} ${dir} NULLS LAST`
+    }
+  }
+
+  const sql = `SELECT * FROM ${BASE_TABLE}\n${whereStr}\n${orderBy}`
 
   return { sql, params, strategy, appliedConstraints: applied, droppedConstraints: dropped }
+}
+
+// ── Phase C: Similarity SQL Builder ─────────────────────────
+//
+// Normalized euclidean distance over numeric fields. Per-field range
+// (max - min) is read from sql-agent-schema-cache's numericStats; if
+// unavailable we fall back to range=1 (raw difference).
+//
+// Shape:
+//   WITH ref AS (SELECT <numExprAliases> FROM mv WHERE edp_product_id = $X)
+//   SELECT mv.*, SQRT((( ... )/range)^2 + ...) AS _similarity_score
+//   FROM mv CROSS JOIN ref
+//   WHERE ...
+//   ORDER BY _similarity_score ASC NULLS LAST
+//   LIMIT $K
+
+function getNumericRangeFromCache(dbCol: string): number {
+  try {
+    // Lazy require to dodge a hard coupling / circular import at module init.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { getDbSchemaSync } = require("./sql-agent-schema-cache")
+    const cache = getDbSchemaSync?.()
+    const stats = cache?.numericStats?.[dbCol]
+    if (stats && stats.max > stats.min) return stats.max - stats.min
+  } catch {
+    /* fallback below */
+  }
+  return 1
+}
+
+function buildSimilaritySql(
+  sim: { referenceProductId: string; fields?: QueryField[]; topK?: number },
+  whereStr: string,
+  nextParam: (v: unknown) => string,
+): { sql: string } | null {
+  const fields = (sim.fields && sim.fields.length > 0)
+    ? sim.fields
+    : getSimilarityComparableFields()
+
+  // Keep only fields that have a column mapping and are numeric.
+  const usable = fields
+    .map(f => {
+      const m = FIELD_TO_COLUMN[f]
+      if (!m || m.type !== "numeric") return null
+      const expr = m.numericExpr ?? m.column
+      return { field: f, expr, baseCol: m.column }
+    })
+    .filter((x): x is { field: QueryField; expr: string; baseCol: string } => x !== null)
+
+  if (usable.length === 0) return null
+
+  const refAlias = "ref"
+  const refSelect = usable
+    .map((u, i) => `(${u.expr}) AS f${i}`)
+    .join(", ")
+
+  const refParam = nextParam(sim.referenceProductId)
+  const refCte = `WITH ref AS (
+    SELECT ${refSelect}
+    FROM ${BASE_TABLE}
+    WHERE edp_product_id = ${refParam}
+    LIMIT 1
+  )`
+
+  const distanceTerms = usable.map((u, i) => {
+    const range = getNumericRangeFromCache(u.baseCol)
+    // Guard against NULLs on either side with COALESCE to ref value (zero contribution).
+    return `POWER((COALESCE(${u.expr}, ${refAlias}.f${i}) - ${refAlias}.f${i}) / ${range}, 2)`
+  })
+  const distanceExpr = `SQRT(${distanceTerms.join(" + ")})`
+
+  const topK = sim.topK && sim.topK > 0 ? sim.topK : 10
+  const limitParam = nextParam(topK)
+
+  const sql = `${refCte}
+SELECT ${BASE_TABLE}.*, ${distanceExpr} AS _similarity_score
+FROM ${BASE_TABLE} CROSS JOIN ${refAlias}
+${whereStr}
+ORDER BY _similarity_score ASC NULLS LAST
+LIMIT ${limitParam}`
+
+  return { sql }
 }
 
 // ── Clause Builder ──────────────────────────────────────────

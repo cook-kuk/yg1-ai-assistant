@@ -32,6 +32,8 @@ export interface ChatMsg {
   debugTrace?: import("@/lib/debug/agent-trace").TurnDebugTrace | null
   /** Server-emitted reasoning trail — Claude-style "추론 과정 보기" collapsible. */
   thinkingProcess?: string | null
+  /** Full LLM chain-of-thought (separate channel from staged heartbeat). */
+  thinkingDeep?: string | null
   /**
    * Inline product-card list rendered directly in the chat (not in the side
    * panel). Populated when the user clicks the "📋 지금 바로 제품 보기" CTA so

@@ -37,12 +37,7 @@
   {
     "symptom": "공구 수명 짧음",
     "aliases": ["공구 마모", "tool wear", "수명 단축", "급속 마모"],
-    "causes": [
-      "Vc 과대",
-      "코팅 부적합",
-      "쿨런트 부족",
-      "절입 과대"
-    ],
+    "causes": ["Vc 과대", "코팅 부적합", "쿨런트 부족", "절입 과대"],
     "solutions": [
       { "action": "Vc 10~20% 감속", "detail": "마모 지수적 감소" },
       { "action": "소재 적합 코팅 선택", "detail": "스테인리스→AlCrN, 티타늄→AlTiN" },
@@ -53,12 +48,7 @@
   {
     "symptom": "표면 거칠기 불량",
     "aliases": ["표면 거침", "Ra 높음", "surface roughness", "표면 품질"],
-    "causes": [
-      "이송 과대",
-      "날수 부족",
-      "공구 마모",
-      "떨림"
-    ],
+    "causes": ["이송 과대", "날수 부족", "공구 마모", "떨림"],
     "solutions": [
       { "action": "정삭 패스 추가 (ap=0.1mm)", "detail": "마이크로 정삭" },
       { "action": "날수 증가 (6날)", "detail": "이송 마크 감소" },
@@ -69,12 +59,7 @@
   {
     "symptom": "공구 파손",
     "aliases": ["깨짐", "breakage", "tool breakage", "공구 부러짐"],
-    "causes": [
-      "직진 진입 (plunge)",
-      "절입 과대",
-      "충돌",
-      "강성 부족"
-    ],
+    "causes": ["직진 진입 (plunge)", "절입 과대", "충돌", "강성 부족"],
     "solutions": [
       { "action": "헬리컬 진입", "detail": "포켓 진입은 헬리컬 또는 ramp" },
       { "action": "절입 단계화", "detail": "ap를 직경의 50% 이하로" },
@@ -85,11 +70,7 @@
   {
     "symptom": "구성인선(BUE)",
     "aliases": ["built-up edge", "BUE", "용착", "칩 점착"],
-    "causes": [
-      "Vc 너무 낮음",
-      "연성 소재 (Al, Cu)",
-      "코팅 친화성 높음"
-    ],
+    "causes": ["Vc 너무 낮음", "연성 소재 (Al, Cu)", "코팅 친화성 높음"],
     "solutions": [
       { "action": "Vc 증가", "detail": "구성인선 임계 속도 초과" },
       { "action": "DLC 또는 무코팅", "detail": "소재 친화성 차단" },
@@ -99,11 +80,7 @@
   {
     "symptom": "가공경화",
     "aliases": ["work hardening", "표면 경화", "재가공 어려움"],
-    "causes": [
-      "절입 너무 작음 (마찰만 발생)",
-      "공구 마모로 압착",
-      "스테인리스/티타늄/인코넬"
-    ],
+    "causes": ["절입 너무 작음 (마찰만 발생)", "공구 마모로 압착", "스테인리스/티타늄/인코넬"],
     "solutions": [
       { "action": "ap 증가 (경화층 아래로 절입)", "detail": "경화층 0.05~0.1mm 아래까지" },
       { "action": "다운 밀링", "detail": "업 밀링 금지 (경화 가속)" },
@@ -113,11 +90,7 @@
   {
     "symptom": "치수 정밀도 불량",
     "aliases": ["dimension", "치수 어긋남", "탄성 회복", "deflection"],
-    "causes": [
-      "공구 휨 (긴 공구)",
-      "탄성 회복",
-      "열변형"
-    ],
+    "causes": ["공구 휨 (긴 공구)", "탄성 회복", "열변형"],
     "solutions": [
       { "action": "굵은 섕크 + 짧은 LOC", "detail": "강성 향상" },
       { "action": "정삭 패스 2회 (탄성 보정)", "detail": "동일 패스 반복" },
@@ -127,11 +100,7 @@
   {
     "symptom": "코너 R 정밀도 불량",
     "aliases": ["코너 R", "corner radius", "코너 깎임"],
-    "causes": [
-      "코너에서 절삭력 급증",
-      "공구 휨",
-      "이송 과대"
-    ],
+    "causes": ["코너에서 절삭력 급증", "공구 휨", "이송 과대"],
     "solutions": [
       { "action": "코너 감속 (G-code F70%)", "detail": "코너 진입 직전 이송 감소" },
       { "action": "코너 R 형상 공구 사용", "detail": "Radius 엔드밀" },
@@ -141,15 +110,263 @@
   {
     "symptom": "박리(delamination)",
     "aliases": ["박리", "delamination", "복합재 박리", "CFRP 박리"],
-    "causes": [
-      "복합재 가공 시 섬유가 뜯김",
-      "단방향 절삭",
-      "둔한 공구"
-    ],
+    "causes": ["복합재 가공 시 섬유가 뜯김", "단방향 절삭", "둔한 공구"],
     "solutions": [
       { "action": "압축형(compression) 공구 사용", "detail": "위/아래 동시에 누름" },
       { "action": "다이아몬드 코팅", "detail": "예리한 날 유지" },
       { "action": "백킹 플레이트 사용", "detail": "출구측 지지" }
     ]
+  },
+  {
+    "symptom_ko": "버 발생 (burr)",
+    "symptom_en": "burr formation at exit edges",
+    "causes": [
+      "둔화된 날 (flank wear)",
+      "저탄소강/연성 재료에서 BUE와 동반",
+      "출구측 지지 부족",
+      "이송 과대 또는 출구에서 두꺼운 칩"
+    ],
+    "solutions": [
+      "예리한 PVD 코팅 또는 그라운드 인서트 사용",
+      "climb milling + 출구 각도 조정 (lead-in/out arc)",
+      "출구측 백킹/지지 추가",
+      "정삭 패스에서 fz 감소 및 wiper 인서트 사용",
+      "디버링 공구/브러시로 2차 공정"
+    ],
+    "related_operations": ["milling", "drilling"],
+    "key_parameters_to_check": ["fz", "flank wear VB", "exit angle", "coating sharpness"],
+    "source_url": "https://www.sandvik.coromant.com/en-us/knowledge/milling/troubleshooting-milling",
+    "source_name": "Sandvik Coromant — Milling Troubleshooting"
+  },
+  {
+    "symptom_ko": "인서트 날끝 치핑 (edge chipping)",
+    "symptom_en": "insert edge chipping / micro-fracture",
+    "causes": [
+      "단속 절삭 충격",
+      "칩 재절삭 (recutting)",
+      "과도하게 negative한 날 geometry",
+      "진입/후퇴 시 충격 하중",
+      "thick chip at exit"
+    ],
+    "solutions": [
+      "tougher grade/보다 positive한 chipbreaker 선택",
+      "롤-인/롤-아웃 경로 (arc entry) 적용",
+      "고압 쿨런트로 칩 재절삭 방지",
+      "ae/ap 재조정으로 exit chip thickness 감소",
+      "runout <0.01mm로 잡기"
+    ],
+    "related_operations": ["milling", "turning"],
+    "key_parameters_to_check": ["entry/exit angle", "hex/hx chip thickness", "runout", "insert grade"],
+    "source_url": "https://www.sandvik.coromant.com/en-us/knowledge/milling/troubleshooting-milling",
+    "source_name": "Sandvik Coromant — Milling Troubleshooting"
+  },
+  {
+    "symptom_ko": "열변형으로 인한 치수 드리프트",
+    "symptom_en": "dimensional drift due to thermal expansion",
+    "causes": [
+      "스핀들/공작물 워밍업 부족",
+      "쿨런트 온도 변동",
+      "가공 열이 공작물로 전달",
+      "드라이 커팅 장시간"
+    ],
+    "solutions": [
+      "스핀들 워밍업 사이클 실행",
+      "쿨런트 칠러로 ±1°C 유지",
+      "through-coolant로 열을 칩과 함께 배출",
+      "초정삭 전 열안정화 대기",
+      "in-process probing으로 보정"
+    ],
+    "related_operations": ["milling", "turning", "drilling"],
+    "key_parameters_to_check": ["coolant temp", "spindle warmup", "workpiece temp", "probe offset"],
+    "source_url": "https://www.sandvik.coromant.com/en-us/knowledge/general-turning/troubleshooting-turning",
+    "source_name": "Sandvik Coromant — Turning Troubleshooting"
+  },
+  {
+    "symptom_ko": "박벽 변형 (thin-wall deflection)",
+    "symptom_en": "thin-wall deflection during milling",
+    "causes": [
+      "공구/벽의 강성 부족",
+      "과도한 radial engagement",
+      "한쪽에서 전체 깊이로 가공"
+    ],
+    "solutions": [
+      "waterfall 전략: 양쪽에서 얕게 내려가며 교차 가공",
+      "가능한 한 큰 직경 엔드밀 사용 (deflection ∝ 1/D^4)",
+      "High-Feed End Mill로 절삭력을 축 방향으로",
+      "shank 최대 삽입, stickout 최소화",
+      "climb milling, ae를 벽 두께의 30% 이하"
+    ],
+    "related_operations": ["milling"],
+    "key_parameters_to_check": ["ae", "L/D", "wall thickness", "cutter diameter"],
+    "source_url": "https://www.harveyperformance.com/in-the-loupe/troubleshooting-tips/",
+    "source_name": "Harvey Performance — In The Loupe"
+  },
+  {
+    "symptom_ko": "드릴 홀 오버사이즈",
+    "symptom_en": "hole oversize in drilling",
+    "causes": [
+      "홀더 런아웃 과대",
+      "드릴 포인트 비대칭 재연마",
+      "과도한 feed",
+      "stub/pilot 없이 긴 드릴 사용"
+    ],
+    "solutions": [
+      "shrink-fit/hydraulic 홀더로 교체 (runout <0.005mm)",
+      "스팟 드릴 또는 pilot hole 선행",
+      "포인트 대칭 재연마 또는 신품 교체",
+      "feed 10~20% 감소",
+      "self-centering (split-point) geometry 사용"
+    ],
+    "related_operations": ["drilling"],
+    "key_parameters_to_check": ["TIR runout", "point symmetry", "fn", "pilot"],
+    "source_url": "https://www.kennametal.com/us/en/resources/technical-tips/holemaking/troubleshooting-solid-carbide-drilling0.html",
+    "source_name": "Kennametal — Troubleshooting Solid Carbide Drilling"
+  },
+  {
+    "symptom_ko": "드릴 워킹/홀 위치 불량",
+    "symptom_en": "drill walking / hole misalignment",
+    "causes": [
+      "스팟 드릴 없음",
+      "경사면/곡면 진입",
+      "드릴 포인트 각도 부적합",
+      "시작 시 feed 과대"
+    ],
+    "solutions": [
+      "90°~140° 스팟 드릴로 센터링",
+      "self-centering split-point 드릴 사용",
+      "시작 feed 50%로 peck entry",
+      "경사면은 페이스밀로 평탄화 후 드릴"
+    ],
+    "related_operations": ["drilling"],
+    "key_parameters_to_check": ["spot drill angle", "entry feed", "surface flatness"],
+    "source_url": "https://www.kennametal.com/us/en/resources/technical-tips/holemaking.html",
+    "source_name": "Kennametal — Holemaking Tech Tips"
+  },
+  {
+    "symptom_ko": "탭 파손",
+    "symptom_en": "tap breakage",
+    "causes": [
+      "블라인드 홀 바닥 칩 축적",
+      "잘못된 pre-tap drill 사이즈 (thread % 과대)",
+      "경사 tapping / 스핀들-Z 미동기",
+      "윤활 부족",
+      "잘못된 플루트 형상 (through vs blind)"
+    ],
+    "solutions": [
+      "블라인드 → spiral-flute 탭, through → spiral-point(gun) 탭",
+      "rigid tapping 모드 사용",
+      "thread % 65~75%로 낮춰 torque 감소",
+      "tap oil/EP 쿨런트 적용",
+      "peck tapping으로 칩 배출"
+    ],
+    "related_operations": ["tapping"],
+    "key_parameters_to_check": ["pre-drill size", "thread %", "flute type", "rigid tap sync"],
+    "source_url": "https://www.kennametal.com/us/en/resources/technical-tips/holemaking.html",
+    "source_name": "Kennametal — Holemaking Tech Tips"
+  },
+  {
+    "symptom_ko": "나사 게이지 오버사이즈",
+    "symptom_en": "thread gauge oversize (go/no-go fail)",
+    "causes": [
+      "pre-drill 너무 큼",
+      "탭 마모로 flank 확장",
+      "runout 과대",
+      "rigid tap sync 오차"
+    ],
+    "solutions": [
+      "pre-drill 사이즈 재계산 (75% thread)",
+      "신품 탭 교체 및 runout 재측정",
+      "고정밀 tap holder (tension/compression 최소)",
+      "thread mill로 전환하여 보정 가능한 방식 사용"
+    ],
+    "related_operations": ["tapping", "thread milling"],
+    "key_parameters_to_check": ["pre-drill", "tap wear", "TIR", "thread %"],
+    "source_url": "https://www.sandvik.coromant.com/en-us/knowledge/threading/thread-milling/troubleshooting-thread-milling",
+    "source_name": "Sandvik Coromant — Thread Milling Troubleshooting"
+  },
+  {
+    "symptom_ko": "리머 채터 마크",
+    "symptom_en": "reamer chatter marks on hole wall",
+    "causes": [
+      "균등 플루트 리머 공진",
+      "feed 너무 낮음 (드릴 수준)",
+      "Vc 너무 높음",
+      "runout 과대",
+      "stock 과대 또는 과소"
+    ],
+    "solutions": [
+      "unequal-flute 리머 사용",
+      "feed를 드릴 대비 200~300% 증가",
+      "Vc를 드릴의 2/3로 감속",
+      "shrink-fit/hydraulic 홀더 (runout <0.005mm)",
+      "리밍 stock = 홀경의 2~3% 유지"
+    ],
+    "related_operations": ["reaming"],
+    "key_parameters_to_check": ["fn", "Vc", "runout", "reaming stock", "flute spacing"],
+    "source_url": "https://www.kennametal.com/us/en/resources/blog/metal-cutting/reaming-tool-basics.html",
+    "source_name": "Kennametal — Reaming Tool Basics (Tech Tip #40)"
+  },
+  {
+    "symptom_ko": "깊은 포켓 칩 패킹",
+    "symptom_en": "chip packing in deep pocket milling",
+    "causes": [
+      "칩 배출 경로 부족",
+      "쿨런트/에어 블라스트 압력 부족",
+      "날수 과다 (좁은 칩 포켓)",
+      "깊이당 재절삭"
+    ],
+    "solutions": [
+      "through-coolant 공구 + 40bar 이상",
+      "2~3날 long-reach 공구로 칩 포켓 확보",
+      "feed/ap 단계별 감소",
+      "retract-to-clear peck 전략",
+      "air blast 보조, 수직 자세 가공 시 중력 이용"
+    ],
+    "related_operations": ["milling"],
+    "key_parameters_to_check": ["coolant pressure", "flute count", "ap", "retract cycle"],
+    "source_url": "https://www.harveyperformance.com/in-the-loupe/common-challenges-deep-cavity-milling/",
+    "source_name": "Harvey Performance — Deep Cavity Milling"
+  },
+  {
+    "symptom_ko": "스케일/변색 (thermal discoloration)",
+    "symptom_en": "scaling / thermal discoloration of chips and workpiece",
+    "causes": [
+      "Vc 과대",
+      "쿨런트 공급 부족",
+      "둔화된 날로 마찰열 과대",
+      "부적합 코팅 (산화)"
+    ],
+    "solutions": [
+      "Vc 15~20% 감속",
+      "through-coolant 적용",
+      "AlTiN/AlCrN 등 고내산화 코팅 사용",
+      "공구 교체 주기 단축",
+      "칩 색상 모니터링 (straw~blue = OK, purple~black = 과열)"
+    ],
+    "related_operations": ["milling", "turning", "drilling"],
+    "key_parameters_to_check": ["Vc", "coolant flow", "coating oxidation temp", "chip color"],
+    "source_url": "https://www.sandvik.coromant.com/en-us/knowledge/milling/troubleshooting-milling",
+    "source_name": "Sandvik Coromant — Milling Troubleshooting"
+  },
+  {
+    "symptom_ko": "쿨런트 부패/악취",
+    "symptom_en": "coolant breakdown and foul smell",
+    "causes": [
+      "박테리아 증식 (혐기성)",
+      "tramp oil 유입",
+      "농도 관리 미흡",
+      "장기 미사용 정체"
+    ],
+    "solutions": [
+      "주기적 skimmer로 tramp oil 제거",
+      "refractometer로 농도 체크 (보통 6~10%)",
+      "주말 에어레이션 펌프 가동",
+      "biocide 투입 또는 전량 교환 + 탱크 세척",
+      "pH 모니터 (8.5~9.2)"
+    ],
+    "related_operations": ["milling", "turning", "drilling", "grinding"],
+    "key_parameters_to_check": ["concentration %", "pH", "tramp oil", "bacteria count"],
+    "source_url": "https://www.mmsonline.com/articles/how-to-keep-coolant-clean",
+    "source_name": "Modern Machine Shop — Coolant Management"
   }
 ]

@@ -62,13 +62,41 @@ function mapOp(qop: QueryOp, field?: string): AppliedFilter["op"] {
 
 // ── Core Converter ──────────────────────────────────────────
 
+/**
+ * Phase C: rewrite `eq` + tolerance/toleranceRatio into a `between` constraint.
+ * Numeric fields only (non-numeric values are returned unchanged).
+ * Absolute `tolerance` wins over `toleranceRatio` if both set.
+ */
+export function expandToleranceConstraint(c: QueryConstraint): QueryConstraint {
+  if (c.op !== "eq") return c
+  if (c.tolerance == null && c.toleranceRatio == null) return c
+  if (typeof c.value !== "number") return c
+  const v = c.value
+  let lo: number, hi: number
+  if (c.tolerance != null) {
+    lo = v - c.tolerance
+    hi = v + c.tolerance
+  } else {
+    const r = c.toleranceRatio!
+    lo = v * (1 - r)
+    hi = v * (1 + r)
+  }
+  return {
+    field: c.field,
+    op: "between",
+    value: [lo, hi],
+    display: c.display ?? `${c.field}: ${lo}~${hi}`,
+  }
+}
+
 export function querySpecToAppliedFilters(
   spec: QuerySpec,
   turnCount: number,
 ): AppliedFilter[] {
   const results: AppliedFilter[] = []
 
-  for (const constraint of spec.constraints) {
+  for (const rawConstraint of spec.constraints) {
+    const constraint = expandToleranceConstraint(rawConstraint)
     const filterField = QUERY_FIELD_TO_FILTER_FIELD[constraint.field]
     if (!filterField) {
       console.warn(`[query-spec-to-filters] unmapped field "${constraint.field}", skipping`)

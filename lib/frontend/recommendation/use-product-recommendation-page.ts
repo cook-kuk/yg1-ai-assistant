@@ -236,17 +236,27 @@ export function useProductRecommendationPage({
             const lastIndex = updated.length - 1
             const last = updated[lastIndex]
             if (!last || last.role !== "ai") return prev
-            // Stacking semantics:
-            //   delta=true  → append directly (true token streaming inside one source)
-            //   delta=false → append as a NEW paragraph if there's already content
-            //                 (so different reasoning sources don't overwrite each other)
-            const prevThinking = last.thinkingProcess ?? ""
-            const nextText = opts?.delta
-              ? prevThinking + text
-              : prevThinking
-                ? prevThinking.trimEnd() + "\n\n" + text
-                : text
-            updated[lastIndex] = { ...last, thinkingProcess: nextText }
+            // Two channels:
+            //   kind="deep" → full LLM CoT, lives in thinkingDeep (toggle body)
+            //   kind="stage" or undefined → high-level heartbeat, lives in thinkingProcess
+            const isDeep = opts?.kind === "deep"
+            if (isDeep) {
+              const prevDeep = (last as any).thinkingDeep ?? ""
+              const nextDeep = opts?.delta
+                ? prevDeep + text
+                : prevDeep
+                  ? prevDeep.trimEnd() + "\n\n" + text
+                  : text
+              updated[lastIndex] = { ...last, thinkingDeep: nextDeep } as any
+            } else {
+              const prevThinking = last.thinkingProcess ?? ""
+              const nextText = opts?.delta
+                ? prevThinking + text
+                : prevThinking
+                  ? prevThinking.trimEnd() + "\n\n" + text
+                  : text
+              updated[lastIndex] = { ...last, thinkingProcess: nextText }
+            }
             return updated
           })
         },
@@ -350,17 +360,27 @@ export function useProductRecommendationPage({
             const lastIndex = updated.length - 1
             const last = updated[lastIndex]
             if (!last || last.role !== "ai") return prev
-            // Stacking semantics:
-            //   delta=true  → append directly (true token streaming inside one source)
-            //   delta=false → append as a NEW paragraph if there's already content
-            //                 (so different reasoning sources don't overwrite each other)
-            const prevThinking = last.thinkingProcess ?? ""
-            const nextText = opts?.delta
-              ? prevThinking + text
-              : prevThinking
-                ? prevThinking.trimEnd() + "\n\n" + text
-                : text
-            updated[lastIndex] = { ...last, thinkingProcess: nextText }
+            // Two channels:
+            //   kind="deep" → full LLM CoT, lives in thinkingDeep (toggle body)
+            //   kind="stage" or undefined → high-level heartbeat, lives in thinkingProcess
+            const isDeep = opts?.kind === "deep"
+            if (isDeep) {
+              const prevDeep = (last as any).thinkingDeep ?? ""
+              const nextDeep = opts?.delta
+                ? prevDeep + text
+                : prevDeep
+                  ? prevDeep.trimEnd() + "\n\n" + text
+                  : text
+              updated[lastIndex] = { ...last, thinkingDeep: nextDeep } as any
+            } else {
+              const prevThinking = last.thinkingProcess ?? ""
+              const nextText = opts?.delta
+                ? prevThinking + text
+                : prevThinking
+                  ? prevThinking.trimEnd() + "\n\n" + text
+                  : text
+              updated[lastIndex] = { ...last, thinkingProcess: nextText }
+            }
             return updated
           })
         },
@@ -474,17 +494,27 @@ export function useProductRecommendationPage({
             const lastIndex = updated.length - 1
             const last = updated[lastIndex]
             if (!last || last.role !== "ai") return prev
-            // Stacking semantics:
-            //   delta=true  → append directly (true token streaming inside one source)
-            //   delta=false → append as a NEW paragraph if there's already content
-            //                 (so different reasoning sources don't overwrite each other)
-            const prevThinking = last.thinkingProcess ?? ""
-            const nextText = opts?.delta
-              ? prevThinking + text
-              : prevThinking
-                ? prevThinking.trimEnd() + "\n\n" + text
-                : text
-            updated[lastIndex] = { ...last, thinkingProcess: nextText }
+            // Two channels:
+            //   kind="deep" → full LLM CoT, lives in thinkingDeep (toggle body)
+            //   kind="stage" or undefined → high-level heartbeat, lives in thinkingProcess
+            const isDeep = opts?.kind === "deep"
+            if (isDeep) {
+              const prevDeep = (last as any).thinkingDeep ?? ""
+              const nextDeep = opts?.delta
+                ? prevDeep + text
+                : prevDeep
+                  ? prevDeep.trimEnd() + "\n\n" + text
+                  : text
+              updated[lastIndex] = { ...last, thinkingDeep: nextDeep } as any
+            } else {
+              const prevThinking = last.thinkingProcess ?? ""
+              const nextText = opts?.delta
+                ? prevThinking + text
+                : prevThinking
+                  ? prevThinking.trimEnd() + "\n\n" + text
+                  : text
+              updated[lastIndex] = { ...last, thinkingProcess: nextText }
+            }
             return updated
           })
         },

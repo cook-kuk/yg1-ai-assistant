@@ -17,6 +17,14 @@ export interface FieldManifestEntry {
   aliases: string[]
   valueType: "string" | "number" | "range"
   examples: string[]
+  /** Phase C: eligible for ORDER BY. All numeric fields + a few text/enum fields. */
+  sortable?: boolean
+  /**
+   * Phase C: included by default in similarity distance when
+   * QuerySimilarity.fields is omitted. Numeric only.
+   * fluteCount is intentionally excluded — treated as hard filter by users.
+   */
+  similarityComparable?: boolean
 }
 
 // ── Manifest ────────────────────────────────────────────────
@@ -66,6 +74,8 @@ export const QUERY_FIELD_MANIFEST: FieldManifestEntry[] = [
     aliases: ["직경", "지름", "diameter", "dia", "파이", "Ø", "날 직경", "cutting diameter"],
     valueType: "number",
     examples: ["6", "8", "10", "12", "16", "20"],
+    sortable: true,
+    similarityComparable: true,
   },
   {
     field: "fluteCount",
@@ -75,6 +85,9 @@ export const QUERY_FIELD_MANIFEST: FieldManifestEntry[] = [
     aliases: ["날", "날수", "flute", "플루트", "날개"],
     valueType: "number",
     examples: ["2", "3", "4", "6"],
+    sortable: true,
+    // similarityComparable intentionally false — users treat flute count as a hard filter,
+    // not as a similarity axis (2날 vs 4날 are categorically different tools).
   },
   {
     field: "coating",
@@ -147,6 +160,8 @@ export const QUERY_FIELD_MANIFEST: FieldManifestEntry[] = [
     aliases: ["전장", "전체 길이", "전체길이", "총길이", "OAL", "오버롤"],
     valueType: "number",
     examples: ["100", "80", "≥100", "≤80"],
+    sortable: true,
+    similarityComparable: true,
   },
   {
     field: "lengthOfCutMm",
@@ -156,6 +171,8 @@ export const QUERY_FIELD_MANIFEST: FieldManifestEntry[] = [
     aliases: ["날장", "절삭 길이", "절삭길이", "날 길이", "LOC", "CL"],
     valueType: "number",
     examples: ["20", "30", "≥20"],
+    sortable: true,
+    similarityComparable: true,
   },
   {
     field: "shankDiameterMm",
@@ -165,6 +182,8 @@ export const QUERY_FIELD_MANIFEST: FieldManifestEntry[] = [
     aliases: ["샹크 직경", "생크 직경", "샹크직경", "생크직경", "shank diameter", "shank dia", "샹크 지름", "생크 지름"],
     valueType: "number",
     examples: ["6", "10", "6~10"],
+    sortable: true,
+    similarityComparable: true,
   },
   {
     field: "helixAngleDeg",
@@ -174,6 +193,8 @@ export const QUERY_FIELD_MANIFEST: FieldManifestEntry[] = [
     aliases: ["헬릭스", "헬릭스각", "나선각", "helix"],
     valueType: "number",
     examples: ["30", "45", "≥45"],
+    sortable: true,
+    similarityComparable: true,
   },
   {
     field: "coolantHole",
@@ -192,6 +213,8 @@ export const QUERY_FIELD_MANIFEST: FieldManifestEntry[] = [
     aliases: ["포인트 각도", "드릴 각도", "point angle", "드릴 포인트"],
     valueType: "number",
     examples: ["118", "140", "≥135"],
+    sortable: true,
+    similarityComparable: true,
   },
   {
     field: "threadPitchMm",
@@ -201,6 +224,8 @@ export const QUERY_FIELD_MANIFEST: FieldManifestEntry[] = [
     aliases: ["피치", "pitch", "나사 피치"],
     valueType: "number",
     examples: ["1.5", "1.0", "0.5"],
+    sortable: true,
+    similarityComparable: true,
   },
 ]
 
@@ -210,6 +235,20 @@ const _manifestMap = new Map(QUERY_FIELD_MANIFEST.map(e => [e.field, e]))
 
 export function getFieldManifest(field: QueryField): FieldManifestEntry | undefined {
   return _manifestMap.get(field)
+}
+
+/** Phase C: fields that may appear in a QuerySort. */
+export function getSortableFields(): QueryField[] {
+  return QUERY_FIELD_MANIFEST.filter(e => e.sortable).map(e => e.field)
+}
+
+/** Phase C: default numeric field set for similarity distance when user omits fields. */
+export function getSimilarityComparableFields(): QueryField[] {
+  return QUERY_FIELD_MANIFEST.filter(e => e.similarityComparable).map(e => e.field)
+}
+
+export function isFieldSortable(field: QueryField): boolean {
+  return _manifestMap.get(field)?.sortable === true
 }
 
 /** planner system prompt에 삽입할 manifest 요약 텍스트 */

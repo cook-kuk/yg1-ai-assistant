@@ -16,6 +16,8 @@ import { getDbSchemaSync } from "./sql-agent-schema-cache"
 import type { AppliedFilter, ExplorationSessionState } from "@/lib/recommendation/domain/types"
 import type { OrchestratorAction } from "@/lib/recommendation/infrastructure/agents/types"
 import type { SemanticReplyRoute, SemanticDirectContext, SemanticTurnDecision } from "./semantic-turn-extractor"
+import type { QueryField, QuerySort, QuerySimilarity, QueryConstraint } from "./query-spec"
+import { QUERY_FIELD_MANIFEST, getSortableFields } from "./query-spec-manifest"
 
 // ── Node Types ─────────────────────────────────────────────────
 
@@ -231,6 +233,142 @@ const CUTTING_CONDITION_PATTERNS = [
   /(?:절삭\s*조건|가공\s*조건|회전수|이송|절입|rpm|spindle|feed\s*rate|cutting\s*speed|Vc|fz)/iu,
 ]
 
+// ── §9 Phase E — Sort / Tolerance / Similarity pattern matchers ───
+
+/**
+ * Build an alias→QueryField lookup from the manifest (lowercase).
+ * Covers both canonical labels and the aliases array. Manifest-driven:
+ * no hardcoded field names below.
+ */
+const _fieldAliasIndex: Array<{ alias: string; field: QueryField }> = (() => {
+  const entries: Array<{ alias: string; field: QueryField }> = []
+  for (const e of QUERY_FIELD_MANIFEST) {
+    const push = (s: string) => entries.push({ alias: s.toLowerCase(), field: e.field })
+    push(e.field)
+    push(e.label)
+    for (const a of e.aliases) push(a)
+  }
+  // Longest-first so "shank diameter" beats "diameter"
+  return entries.sort((a, b) => b.alias.length - a.alias.length)
+})()
+
+/** Find the first field alias that appears in `lower` and is sortable. */
+function _findSortableFieldMention(lower: string): QueryField | null {
+  const sortable = new Set(getSortableFields())
+  for (const { alias, field } of _fieldAliasIndex) {
+    if (!sortable.has(field)) continue
+    if (alias.length < 2) continue
+    if (lower.includes(alias)) return field
+  }
+  return null
+}
+
+/** Find the first numeric field alias that appears before the `near` position. */
+function _findNumericFieldNear(lower: string, numIdx: number): QueryField | null {
+  // Scan for an alias whose last occurrence is BEFORE the number
+  let best: { field: QueryField; pos: number } | null = null
+  for (const { alias, field } of _fieldAliasIndex) {
+    const entry = QUERY_FIELD_MANIFEST.find(e => e.field === field)
+    if (entry?.valueType !== "number") continue
+    if (alias.length < 2) continue
+    const pos = lower.lastIndexOf(alias, numIdx)
+    if (pos >= 0 && (!best || pos > best.pos)) {
+      best = { field, pos }
+    }
+  }
+  return best?.field ?? null
+}
+
+// "직경 작은 순", "OAL 짧은 순으로", "날수 많은 순서로"
+const SORT_ASC_WORDS = ["작은", "짧은", "적은", "낮은", "얇은"]
+const SORT_DESC_WORDS = ["큰", "긴", "많은", "높은", "두꺼운"]
+const SORT_SUFFIX_RE = /(?:순으로|순서로|순서|\s순\b|^순\b|[가-힣]\s*순(?:$|\s))/u
+
+/** Try to parse a sort phrase. Returns null if not a pure-numeric sort on a sortable field. */
+export function tryParseSortPhrase(message: string): QuerySort | null {
+  const lower = message.toLowerCase()
+  if (!SORT_SUFFIX_RE.test(lower)) return null
+
+  // Scan for `<field alias> ... <direction word> ... 순`
+  let dir: "asc" | "desc" | null = null
+  for (const w of SORT_ASC_WORDS) {
+    if (lower.includes(w)) { dir = "asc"; break }
+  }
+  if (!dir) {
+    for (const w of SORT_DESC_WORDS) {
+      if (lower.includes(w)) { dir = "desc"; break }
+    }
+  }
+  if (!dir) return null
+
+  const field = _findSortableFieldMention(lower)
+  if (!field) return null
+
+  return { field, direction: dir }
+}
+
+// "10mm 근처", "약 10mm", "얼추 8", "OAL 50mm 정도", "10mm쯤"
+const TOLERANCE_FUZZY_RE = /(?:(약|대략|얼추)\s*)?(\d+(?:\.\d+)?)\s*(mm)?\s*(근처|쯤|정도)?/iu
+// Must contain at least one fuzzy marker (either prefix "약/대략/얼추" or suffix "근처/쯤/정도")
+const TOLERANCE_HAS_MARKER_RE = /(?:약|대략|얼추|근처|쯤|정도)/u
+
+/** Try to parse a tolerance phrase. Returns a QueryConstraint with tolerance populated. */
+export function tryParseTolerancePhrase(message: string): QueryConstraint | null {
+  if (!TOLERANCE_HAS_MARKER_RE.test(message)) return null
+  const lower = message.toLowerCase()
+  const m = lower.match(TOLERANCE_FUZZY_RE)
+  if (!m || !m.index && m.index !== 0) return null
+  // Require at least one marker group present
+  if (!m[1] && !m[4]) return null
+
+  const numVal = parseFloat(m[2])
+  if (!Number.isFinite(numVal) || numVal <= 0) return null
+
+  const numIdx = m.index!
+  // Prefer a field mentioned BEFORE the number (e.g., "OAL 50mm 근처")
+  let field = _findNumericFieldNear(lower, numIdx)
+  // Otherwise default to diameter when unit is "mm" and no other context
+  if (!field) {
+    if (m[3] === "mm" || !m[3]) field = "diameterMm"
+  }
+  if (!field) return null
+
+  // Default tolerance: 1.0 absolute for mm diameters, otherwise 10% ratio (handled by compiler)
+  const tolerance = 1.0
+  return {
+    field,
+    op: "eq",
+    value: numVal,
+    display: `${field}: ~${numVal}mm`,
+    tolerance,
+  }
+}
+
+// "이거랑 비슷한", "이 제품이랑 비슷한 spec", "비슷한 거로", "유사 스펙으로"
+const SIMILARITY_PATTERNS: RegExp[] = [
+  /(?:이거\s*랑|이것\s*이?랑|이\s*제품(?:이|과)?\s*(?:랑|와|같은))\s*비슷/iu,
+  /비슷한\s*(?:spec|스펙|거|것|걸|제품이랑)/iu,
+  /유사(?:한|\s*스펙|\s*spec)/iu,
+]
+
+/** Try to parse a similarity phrase. Returns null if no reference-product context exists. */
+export function tryParseSimilarityPhrase(
+  message: string,
+  sessionState: ExplorationSessionState | null,
+): QuerySimilarity | null {
+  if (!SIMILARITY_PATTERNS.some(p => p.test(message))) return null
+  // KG requires a current product context; otherwise fall through to LLM/SCR.
+  // We use a sentinel so the runtime can fill in the real id from session state.
+  // Guard: session must have at least ONE displayed/last product.
+  const hasCurrent = !!(sessionState && (
+    (sessionState as any).lastRecommendedProductId ||
+    (sessionState as any).lastRecommended ||
+    ((sessionState as any).displayedProducts?.length ?? 0) > 0
+  ))
+  if (!hasCurrent) return null
+  return { referenceProductId: "__current__", topK: 10 }
+}
+
 // ── Core Resolution Functions ──────────────────────────────────
 
 /** Resolve entity from text → { field, canonical } or null */
@@ -370,11 +508,27 @@ export function entitiesToFilters(entities: Array<{ field: string; canonical: st
 
 // ── Main KG Decision Function ──────────────────────────────────
 
+/**
+ * Phase E — partial QuerySpec emitted by KG §9 (sort / tolerance / similarity).
+ * Consumed by serve-engine-runtime which stashes it on session state so the
+ * downstream compileProductQuery path can pick it up. The runtime resolves
+ * `similarTo.referenceProductId === "__current__"` into a real product id
+ * from session state before compiling.
+ */
+export interface KGSpecPatch {
+  sort?: QuerySort
+  similarTo?: QuerySimilarity
+  /** constraints whose `tolerance`/`toleranceRatio` must be merged into an existing eq constraint (or added new). */
+  toleranceConstraints?: QueryConstraint[]
+}
+
 export interface KGDecisionResult {
   decision: SemanticTurnDecision | null
   confidence: number
-  source: "kg-intent" | "kg-entity" | "kg-exclude" | "kg-skip" | "none"
+  source: "kg-intent" | "kg-entity" | "kg-exclude" | "kg-skip" | "kg-sort" | "kg-tolerance" | "kg-similarity" | "none"
   reason: string
+  /** Phase E — partial QuerySpec additions. Coexist with `decision`; runtime merges. */
+  specPatch?: KGSpecPatch
 }
 
 /**
@@ -479,6 +633,57 @@ export function tryKGDecision(
       confidence: 0.90,
       source: "kg-intent",
       reason: "question pattern",
+    }
+  }
+
+  // ── §9 Phase E. Sort / Tolerance / Similarity dispatch ──
+  // Produces a `specPatch` that the runtime merges into the QuerySpec flowing
+  // into compileProductQuery (sort → ORDER BY, tolerance → BETWEEN rewrite,
+  // similarTo → similarity CTE). We still emit a benign `show_recommendation`
+  // decision so the runtime treats it as a handled turn — the actual SQL
+  // behavior comes from the specPatch.
+  //
+  // Order inside this block:
+  //   (a) similarity — most specific phrase shape, and must win over competitor §5b
+  //   (b) sort — "직경 작은 순" etc. Stock sort stays on existing post-display
+  //       rerank path (option b) since stockStatus isn't a numeric QueryField.
+  //   (c) tolerance — "10mm 근처", "약 50mm"
+  //
+  // Each sub-matcher returns null on miss → plain fall-through to §5a.
+  {
+    const sim = tryParseSimilarityPhrase(msg, sessionState)
+    if (sim) {
+      return {
+        decision: buildDecision({ type: "show_recommendation" }, [], 0.92, `KG §9: similarity → ${sim.referenceProductId}`),
+        confidence: 0.92,
+        source: "kg-similarity",
+        reason: `similarity referenceProductId=${sim.referenceProductId}`,
+        specPatch: { similarTo: sim },
+      }
+    }
+  }
+  {
+    const sort = tryParseSortPhrase(msg)
+    if (sort) {
+      return {
+        decision: buildDecision({ type: "show_recommendation" }, [], 0.92, `KG §9: sort ${sort.field} ${sort.direction}`),
+        confidence: 0.92,
+        source: "kg-sort",
+        reason: `sort ${sort.field} ${sort.direction}`,
+        specPatch: { sort },
+      }
+    }
+  }
+  {
+    const tol = tryParseTolerancePhrase(msg)
+    if (tol) {
+      return {
+        decision: buildDecision({ type: "show_recommendation" }, [], 0.90, `KG §9: tolerance ${tol.field} ~${tol.value}`),
+        confidence: 0.90,
+        source: "kg-tolerance",
+        reason: `tolerance ${tol.field}=${tol.value}±${tol.tolerance}`,
+        specPatch: { toleranceConstraints: [tol] },
+      }
     }
   }
 
@@ -683,18 +888,41 @@ export function tryKGDecision(
     }
   }
 
-  // ── 8. Single-entity bare-token extraction ──
-  // 자유 텍스트 (예: "4날 TiAlN Square", "TiAlN 코팅된거", "스퀘어 엔드밀") 는
-  // KG 가 부분만 잡아 deterministic-scr/LLM 의 풀 추출을 가로채는 문제가 있어
-  // 2026-04-09 부터 "message 가 거의 entity alias 그 자체" 인 경우만 dispatch.
-  // 부가 토큰이 있거나 멀티 entity 이면 deterministic-scr → LLM 에게 위임.
+  // ── 8. Bare-token entity dispatch ──
+  // Principle: KG may only dispatch when it is highly confident that its
+  // extraction represents the *entire* user intent, not a fragment of it.
+  // The practical test for "lossless" is conservative: the message must be
+  // at most 2 whitespace tokens, and KG must have matched all of them as
+  // entities. Longer utterances (e.g. "4날 TiAlN Square") historically
+  // caused §8 leaks where KG partially extracted and hijacked the turn —
+  // deterministic-scr / LLM handle those correctly. See kg-disabled-
+  // multientity.test.ts for the behavioral contract.
+  //
+  // Two explicit exceptions allowed because they are high-signal compound
+  // phrases whose shape the KG alias index does not tokenize cleanly but
+  // whose meaning is unambiguous:
+  //   (a) "싱크/생크 타입 X" → shankType compound
+  //   (b) "P/M/K/N/S/H 소재" → ISO material group
+  //
+  // Additional guard: `diameterMm` is excluded unconditionally. "<num>mm" is
+  // lexically ambiguous (OAL / LOC / shank / cutting diameter) and only SCR
+  // has the context to disambiguate safely.
   const entities = extractEntities(msg)
-  const msgCompact = lower.replace(/\s+/g, "")
-  const isBareSingleEntity =
-    entities.length === 1 &&
-    typeof entities[0].value === "string" &&
-    msgCompact.length <= entities[0].value.replace(/\s+/g, "").length + 1
-  if (isBareSingleEntity && !COMPANY_PATTERNS.some(p => p.test(msg))) {
+  const tokenCount = msg.split(/\s+/).filter(Boolean).length
+  const hasDiameter = entities.some(e => e.field === "diameterMm")
+
+  const isLosslessShortUtterance =
+    entities.length >= 1 &&
+    entities.length === tokenCount &&
+    tokenCount <= 2 &&
+    !hasDiameter
+  const isShankCompound = /(?:싱크|생크|shank)\s*(?:타입|type)\s*\S+/i.test(msg)
+  const isMaterialGroup = /(?:^|\s)[pmknshPMKNSH]\s*소재/.test(msg)
+
+  const shouldDispatch =
+    entities.length >= 1 &&
+    (isLosslessShortUtterance || isShankCompound || isMaterialGroup)
+  if (shouldDispatch && !COMPANY_PATTERNS.some(p => p.test(msg))) {
     // Negation check: "4날 말고", "TiAlN 빼고" 등 → op: "exclude"
     const isNegation = /빼고|제외|아닌\s*것|아닌\s*걸|아닌걸|없는\s*거|말고|만\s*아니면|없이|아닌\s*거|없는\s*거로|가\s*아닌|이\s*아닌/u.test(msg)
     const primary = entities[0]

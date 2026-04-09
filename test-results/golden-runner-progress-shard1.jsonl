@@ -1,0 +1,20 @@
+{"id":"A02","verdict":"PASS","detail":"loose:1filter","elapsedMs":128716}
+{"id":"A10","verdict":"PASS","detail":"loose:1filter","elapsedMs":230872}
+{"id":"B08","verdict":"SKIP"}
+{"id":"C01","verdict":"PASS","detail":"loose:3filter","elapsedMs":60389}
+{"id":"A06","verdict":"PASS","detail":"loose:1filter","elapsedMs":184988}
+{"id":"B04","verdict":"SKIP"}
+{"id":"B12","verdict":"PASS","detail":"no-expected","elapsedMs":198319}
+{"id":"C05","verdict":"PASS","detail":"loose:2filter","elapsedMs":57902}
+{"id":"C09","verdict":"PASS","detail":"loose:1filter","elapsedMs":181338}
+{"id":"C13","verdict":"PASS","detail":"loose:3filter","elapsedMs":50574}
+{"id":"D02","verdict":"PASS","detail":"loose:3filter","elapsedMs":33792}
+{"id":"D06","verdict":"ERROR","error":"socket hang up"}
+{"id":"D10","verdict":"PASS","detail":"loose:2filter","elapsedMs":46960}
+{"id":"E04","verdict":"SKIP"}
+{"id":"E08","verdict":"SKIP"}
+{"id":"F02","verdict":"PASS","detail":"no-expected","elapsedMs":305836}
+{"id":"G01","verdict":"PASS","detail":"no-expected","elapsedMs":55301}
+{"id":"G05","verdict":"PASS","detail":"no-expected","elapsedMs":1722}
+{"id":"G09","verdict":"PASS","detail":"no-expected","elapsedMs":1902}
+{"id":"H03","verdict":"PASS","detail":"no-expected","elapsedMs":139442}

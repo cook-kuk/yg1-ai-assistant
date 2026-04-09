@@ -344,13 +344,16 @@ function ExplorationSidebar({
 // 스트리밍 중에는 100ms 단위 타이머가 흐르고, 끝나면 최종 경과시간을 고정한다.
 function ReasoningBlock({
   trail,
+  deep,
   isLoading,
   language,
 }: {
   trail: string
+  deep: string
   isLoading: boolean
   language: "ko" | "en"
 }) {
+  const [deepOpen, setDeepOpen] = useState(false)
   const [open, setOpen] = useState(true)
   const [elapsedMs, setElapsedMs] = useState(0)
   const startedAtRef = useRef<number | null>(null)
@@ -462,6 +465,23 @@ function ReasoningBlock({
           {trail || (isLoading
             ? <span className="text-amber-700/70 italic">{language === "ko" ? "추론 내용을 가져오는 중…" : "Fetching reasoning…"}</span>
             : null)}
+        </div>
+      )}
+      {open && deep && (
+        <div className="mt-1.5">
+          <button
+            type="button"
+            onClick={() => setDeepOpen(v => !v)}
+            className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-gray-700"
+          >
+            <ChevronRight size={10} className={`transition-transform ${deepOpen ? "rotate-90" : ""}`} />
+            <span>{language === "ko" ? `🧠 상세 사고 과정 (${deep.length.toLocaleString()}자)` : `🧠 Full chain-of-thought (${deep.length.toLocaleString()} chars)`}</span>
+          </button>
+          {deepOpen && (
+            <div className="mt-1 p-2 bg-indigo-50 border border-indigo-200 rounded text-[11px] text-indigo-900 leading-relaxed whitespace-pre-wrap max-h-[400px] overflow-y-auto">
+              {deep}
+            </div>
+          )}
         </div>
       )}
       <style jsx>{`
@@ -583,9 +603,10 @@ function NarrowingChat({
                 </div>
               )}
 
-              {message.role === "ai" && (message.thinkingProcess || message.isLoading) && (
+              {message.role === "ai" && (message.thinkingProcess || message.thinkingDeep || message.isLoading) && (
                 <ReasoningBlock
                   trail={message.thinkingProcess ?? ""}
+                  deep={message.thinkingDeep ?? ""}
                   isLoading={!!message.isLoading}
                   language={language}
                 />

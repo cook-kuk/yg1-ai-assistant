@@ -1899,6 +1899,11 @@ async function handleServeExplorationInner(
   // Phase 4.5 — tool-forge fallback rows captured for the retrieval stage to
   // promote into candidates if hybrid retrieval + knowledge fallback both miss.
   let forgedFallbackRows: Record<string, unknown>[] = []
+  // Phase G — dual-path compiled result hoisted to the outer function scope
+  // so both the planner/KG-merge block (~line 2430) that fills it and the v2
+  // orchestrator block (~line 3260) that consumes it can see it.
+  let phaseGCompiledResult: Awaited<ReturnType<typeof import("@/lib/recommendation/core/execute-spec-via-compiler").executeSpecViaCompiler>> | null = null
+  let phaseGSpecMode: "sort" | "similarity" | "tolerance" | "plain" = "plain"
   if (messages.length > 0 && lastUserMsg) {
     if (prevState?.pendingAction) {
       const pendingCheck = shouldExecutePendingAction(
@@ -2415,6 +2420,9 @@ async function handleServeExplorationInner(
     // 2) decision layer가 production vs planner confidence 비교
     // 3) planner가 충분히 높으면 override, 아니면 production 유지
     // Feature flag: ENABLE_PLANNER_DECISION=false → shadow trace only
+    //
+    // Phase G — variables declared in outer scope (near forgedFallbackRows);
+    // filled here after KG merge, consumed in the v2 orchestrator block.
     if (lastUserMsg) {
       try {
         const currentConstraints = appliedFiltersToConstraints(filters)
@@ -2430,6 +2438,36 @@ async function handleServeExplorationInner(
           console.log(`[kg-merge] applied patch: sort=${!!kgPatch.sort} similarTo=${!!kgPatch.similarTo} tolerance=${kgPatch.toleranceConstraints?.length ?? 0}`)
         }
         const shadowFilters = querySpecToAppliedFilters(spec, turnCount)
+
+        // ── Phase G — dual-path execute via compileProductQuery ──
+        // When the merged spec carries sort / similarTo the legacy
+        // AppliedFilter[] path silently drops those features. Compile +
+        // execute the spec against the DB here; we stash the ordered result
+        // and the v2 orchestrator block below replaces its searchPayload
+        // candidates in-place, so downstream response/explanation sees the
+        // SQL-ordered rows. Tolerance stays on the legacy path because
+        // expandToleranceConstraint already rewrites eq+tolerance → between
+        // inside querySpecToAppliedFilters (verified — same helper imported
+        // by both compile-product-query.ts and query-spec-to-filters.ts).
+        try {
+          const { specNeedsCompiler, executeSpecViaCompiler } = await import("@/lib/recommendation/core/execute-spec-via-compiler")
+          if (specNeedsCompiler(spec)) {
+            phaseGCompiledResult = await executeSpecViaCompiler(spec)
+            phaseGSpecMode = phaseGCompiledResult.mode
+            console.log(`[phase-g] dual-path engaged mode=${phaseGSpecMode} rows=${phaseGCompiledResult.rowCount} sqlHead="${phaseGCompiledResult.compiled.sql.slice(0, 120).replace(/\s+/g, " ")}"`)
+            trace.add("phase-g-compile-exec", "router", {
+              mode: phaseGSpecMode,
+              rowCount: phaseGCompiledResult.rowCount,
+              appliedConstraintCount: phaseGCompiledResult.compiled.appliedConstraints.length,
+              droppedConstraintCount: phaseGCompiledResult.compiled.droppedConstraints.length,
+              sqlHasOrderBy: /ORDER\s+BY/i.test(phaseGCompiledResult.compiled.sql),
+              sqlHasSimilarity: /_similarity_score/.test(phaseGCompiledResult.compiled.sql),
+            })
+          }
+        } catch (e) {
+          console.warn(`[phase-g] compile-execute failed (non-blocking, falling back to legacy path):`, e instanceof Error ? e.message : String(e))
+          phaseGCompiledResult = null
+        }
 
         // Decision layer: confidence-based selection
         const kgHandled = singleCallHandled && bridgedV2OrchestratorResult?.reasoning?.startsWith("kg:")
@@ -3258,6 +3296,47 @@ async function handleServeExplorationInner(
       // Build response matching existing API format
       const isResultPhase = result.sessionState.journeyPhase === "results_displayed" || result.sessionState.journeyPhase === "post_result_exploration"
       if (result.searchPayload) {
+        // ── Phase G — replace candidates with SQL-ordered rows from
+        // compileProductQuery when sort/similarTo is active. We keep the
+        // orchestrator's evidenceMap intact (by EDP code intersect) so
+        // downstream explanation-builder still has evidence for every row it
+        // displays. Skip hybrid rerank: user explicitly asked for this order.
+        if (phaseGCompiledResult && phaseGCompiledResult.rowCount > 0) {
+          try {
+            const compiled = phaseGCompiledResult.products
+            const payload = result.searchPayload as {
+              candidates: typeof result.searchPayload.candidates
+              evidenceMap: typeof result.searchPayload.evidenceMap
+              totalConsidered: number
+            }
+            const origByCode = new Map<string, typeof payload.candidates[number]>()
+            for (const c of payload.candidates) {
+              const key = (c as { normalizedCode?: string; displayCode?: string }).normalizedCode
+                ?? (c as { displayCode?: string }).displayCode
+                ?? ""
+              if (key) origByCode.set(key, c)
+            }
+            // Prefer original candidates (they already have hybrid scoring
+            // metadata) reordered per compiled result; fall back to the
+            // freshly-fetched CanonicalProduct for rows the orchestrator
+            // never saw.
+            const reordered: typeof payload.candidates = []
+            for (const p of compiled) {
+              const key = p.normalizedCode || p.displayCode || ""
+              const hit = key ? origByCode.get(key) : undefined
+              if (hit) reordered.push(hit)
+              else reordered.push(p as unknown as typeof payload.candidates[number])
+            }
+            if (reordered.length > 0) {
+              payload.candidates = reordered
+              payload.totalConsidered = reordered.length
+              console.log(`[phase-g] searchPayload replaced: mode=${phaseGSpecMode} candidates=${reordered.length} (${phaseGCompiledResult.rowCount} compiled, ${origByCode.size} from orchestrator)`)
+            }
+          } catch (e) {
+            console.warn(`[phase-g] candidate replacement failed (keeping orchestrator result):`, e instanceof Error ? e.message : String(e))
+          }
+        }
+
         let totalCandidateCount = result.searchPayload.totalConsidered
         let displayPage = sliceCandidatesForPage(
           result.searchPayload.candidates,

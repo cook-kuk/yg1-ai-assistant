@@ -100,12 +100,12 @@ export async function POST(req: Request): Promise<Response> {
         "✍️ 추천 근거를 정리하는 중…",
       ]
       // Fire first stage right away so the trail is never empty.
-      safeEnqueue(sseFrame("thinking", { text: heartbeatStages[0], delta: false }))
+      safeEnqueue(sseFrame("thinking", { text: heartbeatStages[0], delta: false, kind: "stage" }))
       heartbeatIdx = 1
       const heartbeatTimer = setInterval(() => {
-        if (sawRealThinking || closed) return
+        if (closed) return
         if (heartbeatIdx >= heartbeatStages.length) return
-        safeEnqueue(sseFrame("thinking", { text: heartbeatStages[heartbeatIdx], delta: false }))
+        safeEnqueue(sseFrame("thinking", { text: heartbeatStages[heartbeatIdx], delta: false, kind: "stage" }))
         heartbeatIdx++
       }, 2500)
 
@@ -121,12 +121,11 @@ export async function POST(req: Request): Promise<Response> {
         // Allow whitespace-only deltas (newlines mid-sentence) but skip empty
         // replace frames so we don't blank the UI.
         if (!opts?.delta && !text.trim()) return
-        // First real reasoning event silences the heartbeat sequence.
-        if (!sawRealThinking) {
-          sawRealThinking = true
-          clearInterval(heartbeatTimer)
-        }
-        try { safeEnqueue(sseFrame("thinking", { text, delta: !!opts?.delta })) }
+        // Note: keep heartbeat stages running in parallel — they live in a
+        // separate channel (kind:"stage") so the user always sees high-level
+        // progress while the deep reasoning streams below.
+        if (!sawRealThinking) sawRealThinking = true
+        try { safeEnqueue(sseFrame("thinking", { text, delta: !!opts?.delta, kind: "deep" })) }
         catch (err) { traceRecommendationError("http.stream.thinking:enqueue-error", err) }
       }
 

@@ -1,0 +1,67 @@
+{
+  "pass": 3,
+  "fail": 0,
+  "error": 3,
+  "skip": 0,
+  "details": [
+    {
+      "id": "E09",
+      "verdict": "ERROR",
+      "error": "TIMEOUT"
+    },
+    {
+      "id": "F03",
+      "verdict": "ERROR",
+      "error": "read ECONNRESET"
+    },
+    {
+      "id": "G02",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 35964,
+      "runResult": [
+        {
+          "field": "brand",
+          "op": "eq",
+          "value": "SUS-CUT",
+          "rawValue": "SUS-CUT",
+          "appliedAt": 0
+        },
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Stainless Steels",
+          "rawValue": "Stainless Steels",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "G06",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 50822,
+      "runResult": [
+        {
+          "field": "brand",
+          "op": "eq",
+          "value": "GMG",
+          "rawValue": "GMG",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "G10",
+      "verdict": "ERROR",
+      "error": "read ECONNRESET"
+    },
+    {
+      "id": "H04",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 242017,
+      "runResult": []
+    }
+  ]
+}

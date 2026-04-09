@@ -59,7 +59,7 @@ export default function ProductRecommendPage() {
         : "Search"
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col bg-[linear-gradient(180deg,#ffffff_0%,#f7f7f8_100%)]">
+    <div className="flex flex-1 min-h-0 flex-col bg-[linear-gradient(180deg,#ffffff_0%,#f7f7f8_100%)]">
       <FeedbackWidget
         form={form}
         messages={chatMessages}
@@ -67,7 +67,7 @@ export default function ProductRecommendPage() {
         candidateSnapshot={candidateSnapshot}
       />
 
-      <div className="shrink-0 border-b bg-gray-50/80 px-4 py-1 text-center">
+      <div className="hidden sm:block shrink-0 border-b bg-gray-50/80 px-4 py-1 text-center">
         <span className="font-mono text-[10px] text-gray-400">
           Build updated: {process.env.NEXT_PUBLIC_BUILD_TIMESTAMP ?? new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}
         </span>
@@ -75,13 +75,13 @@ export default function ProductRecommendPage() {
 
       {phase !== "explore" && (
         <div className="shrink-0 border-b bg-white/95">
-          <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-6 px-4 py-5">
+          <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-3 py-2.5 sm:gap-6 sm:px-4 sm:py-5">
             <div className="min-w-0 flex-1">
-              <div className="mb-2 h-1 w-14 rounded-full bg-red-600" />
+              <div className="mb-1.5 hidden h-1 w-14 rounded-full bg-red-600 sm:mb-2 sm:block" />
               <div className="flex items-center gap-2">
-                <span className="text-xl font-semibold tracking-[-0.03em] text-gray-950">YG-1 Product Search</span>
+                <span className="truncate text-base font-semibold tracking-[-0.03em] text-gray-950 sm:text-xl">YG-1 Product Search</span>
                 <span
-                  className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] ${
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] sm:px-2.5 sm:py-1 sm:text-[11px] sm:tracking-[0.2em] ${
                     phase === "intake"
                       ? "bg-red-50 text-red-700"
                       : phase === "summary"
@@ -92,7 +92,7 @@ export default function ProductRecommendPage() {
                   {phaseLabel}
                 </span>
               </div>
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-1 hidden text-sm text-gray-500 sm:block">
                 {language === "ko"
                   ? "공정과 소재를 선택해 추천을 시작하세요."
                   : "Choose process and material to begin the recommendation flow."}

@@ -1111,8 +1111,38 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
   },
 }
 
+/**
+ * Manifest → registry field alias map.
+ *
+ * Phase A landed with `query-spec-manifest.ts` exposing semantic IDs
+ * (workpiece, materialGroup, toolFamily, operationType, shankType,
+ * operationShape) that the SCR LLM now emits directly via
+ * `buildManifestPromptSection()`. The registry below uses legacy IDs
+ * (workPieceName, material, toolType, …). Without this alias map the
+ * canonicalization in `buildAppliedFilterFromValue` silently fails with
+ * `_canonFailed` for every manifest-ID the LLM emits.
+ *
+ * Phase B note: a full rename would require touching query-spec.ts
+ * (QueryField union type — reserved for Phase C) or single-call-router.ts
+ * (reserved — just landed), so we bridge transparently inside the registry.
+ * operationType / operationShape have no registry equivalent yet — they
+ * return null and are logged as unsupported; SCR already tolerates this.
+ */
+const MANIFEST_FIELD_ALIASES: Record<string, string> = {
+  workpiece: "workPieceName",
+  materialGroup: "material",
+  toolFamily: "toolType",
+  // toolSubtype, diameterMm, fluteCount, coating, brand, seriesName,
+  // shankType, country, overallLengthMm, lengthOfCutMm, shankDiameterMm,
+  // helixAngleDeg, coolantHole, pointAngleDeg, threadPitchMm — identical
+}
+
+function resolveFieldAlias(field: string): string {
+  return MANIFEST_FIELD_ALIASES[field] ?? field
+}
+
 export function getFilterFieldDefinition(field: string): FilterFieldDefinition | null {
-  return FILTER_FIELD_DEFINITIONS[field] ?? null
+  return FILTER_FIELD_DEFINITIONS[resolveFieldAlias(field)] ?? null
 }
 
 export function getFilterFieldLabel(field: string): string {

@@ -1138,6 +1138,33 @@ async function queryProductsPageFromDatabaseUncached(options: ProductSearchOptio
   }
 }
 
+/**
+ * Phase G — Execute a pre-compiled SQL (produced by compileProductQuery) and
+ * map rows back into CanonicalProduct[]. Used only for specs that carry
+ * sort / similarTo / tolerance features the legacy AppliedFilter[] path
+ * cannot represent.
+ *
+ * This intentionally shares the same pool + logging pipeline as the legacy
+ * path so the compiled-query path is not a separate DB connection.
+ */
+export async function executeCompiledProductQuery(
+  sql: string,
+  params: unknown[],
+  opLabel: string = "executeCompiledProductQuery",
+): Promise<{ products: CanonicalProduct[]; rowCount: number }> {
+  if (!shouldUseDatabaseSource()) {
+    console.warn(`[product-db] ${opLabel} skipped: DB source unavailable`)
+    return { products: [], rowCount: 0 }
+  }
+  const result = await executeLoggedQuery<RawProductRow>(sql, params, {
+    operation: opLabel,
+  })
+  const products = result.rows
+    .map(mapRowToProduct)
+    .filter(product => !!product.normalizedCode)
+  return { products, rowCount: result.rowCount ?? products.length }
+}
+
 export async function queryProductsFromDatabase(options: ProductSearchOptions = {}): Promise<CanonicalProduct[]> {
   const cacheKey = buildProductQueryCacheKey("list", options)
   const cached = readProductQueryCache<CanonicalProduct[]>(cacheKey)

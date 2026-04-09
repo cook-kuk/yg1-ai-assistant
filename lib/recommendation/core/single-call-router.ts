@@ -11,6 +11,8 @@ import { buildAppliedFilterFromValue, getRegisteredFilterFields } from "@/lib/re
 import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
 import { buildDomainKnowledgeSnippet } from "@/lib/recommendation/shared/patterns"
 import { getDbSchemaSync } from "@/lib/recommendation/core/sql-agent-schema-cache"
+import { QUERY_FIELD_MANIFEST, buildManifestPromptSection } from "@/lib/recommendation/core/query-spec-manifest"
+import { selectFewShots, buildFewShotTextScr } from "@/lib/recommendation/core/adaptive-few-shot"
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -183,7 +185,44 @@ function buildSessionSummary(state: ExplorationSessionState | null): string {
   return parts.join("\n")
 }
 
-const SYSTEM_PROMPT_FULL = `You are a routing engine for a cutting tool recommendation chatbot (YG-1).
+/** Comma-separated list of numeric field names derived from QUERY_FIELD_MANIFEST. */
+function buildNumericFieldWhitelist(): string {
+  return QUERY_FIELD_MANIFEST
+    .filter(e => e.valueType === "number")
+    .map(e => e.field)
+    .join(", ")
+}
+
+/** Core anchor examples showing the action vocabulary (routing, not field knowledge). */
+const SCR_ANCHOR_EXAMPLES = `User: "Square 빼고" (when toolSubtype=Square filter exists)
+→ {"actions":[{"type":"remove_filter","field":"toolSubtype"}],"answer":"","reasoning":"remove existing Square filter"}
+
+User: "4날로 바꿔줘" (when fluteCount=6 filter exists)
+→ {"actions":[{"type":"replace_filter","field":"fluteCount","from":"6","to":4}],"answer":"","reasoning":"replace flute count"}
+
+User: "TiAlN이 뭐야?"
+→ {"actions":[],"answer":"TiAlN은 내열성 코팅입니다.","reasoning":"question, no filter change"}
+
+User: "상관없음" / "아무거나 괜찮아"
+→ {"actions":[{"type":"skip"}],"answer":"","reasoning":"user skips current question"}
+
+User: "추천 제품 보기" / "지금 바로 제품 보기"
+→ {"actions":[{"type":"show_recommendation"}],"answer":"","reasoning":"user wants results"}
+
+User: "GMG55100과 GMG40100 비교해줘"
+→ {"actions":[{"type":"compare","targets":["GMG55100","GMG40100"]}],"answer":"","reasoning":"compare two products"}
+
+User: "직경 작은 순으로 보여줘"
+→ {"actions":[{"type":"show_recommendation","sort":{"field":"diameterMm","direction":"asc"}}],"answer":"","reasoning":"sort ascending by diameter"}
+
+User: "10mm 근처로"
+→ {"actions":[{"type":"apply_filter","field":"diameterMm","value":10,"op":"eq","tolerance":1.0}],"answer":"","reasoning":"tolerance-based fuzzy match around 10mm"}
+
+User: "이 제품이랑 비슷한 스펙"  (when a product is currently displayed)
+→ {"actions":[{"type":"show_recommendation","similarTo":{"referenceProductId":"__current__","topK":10}}],"answer":"","reasoning":"similarity query against current product"}`
+
+function buildSystemPromptFull(): string {
+  return `You are a routing engine for a cutting tool recommendation chatbot (YG-1).
 Given the user's Korean message and the current session state, determine what actions to take.
 
 ## Available Actions (return as JSON array)
@@ -193,9 +232,7 @@ Given the user's Korean message and the current session state, determine what ac
     - "이상", "넘는", "초과", "그 이상" → op:"gte"
     - "이하", "미만", "넘지 않는" → op:"lte"
     - "A에서 B 사이", "A~B", "A에서 B까지" → op:"between" with value=A, value2=B
-  Range ops apply ONLY to numeric fields: diameterMm, fluteCount, lengthOfCutMm, overallLengthMm, helixAngleDeg, shankDiameterMm, ballRadiusMm, taperAngleDeg, pointAngleDeg, threadPitchMm.
-- pointAngleDeg: drill tip point angle in degrees (number). Triggers: "포인트 각도", "드릴 각도", "point angle". Example: "포인트 각도 140도" → pointAngleDeg=140 op:eq.
-- threadPitchMm: tap/thread pitch in mm (number). Triggers: "피치", "P1.5", "pitch". "M10 P1.5 관통탭" → threadPitchMm=1.5 (plus toolType=tap etc).
+  Range ops apply ONLY to numeric fields: ${buildNumericFieldWhitelist()}.
 - remove_filter: Remove an existing filter. Requires field.
 - replace_filter: Change an existing filter value. Requires field, from, to.
 - show_recommendation: User wants to see results now.
@@ -241,180 +278,19 @@ Long-term (accumulated in Session State):
 - coating values: TiAlN, AlCrN, DLC, TiCN, Bright Finish, Blue-Coating, X-Coating, Y-Coating, Uncoated
 - diameterMm values: numbers only (e.g., 10, 8, 6.35)
 
-## Available filter fields
-- toolSubtype: tool shape (Square, Ball, Radius, Roughing, Taper, Chamfer, High-Feed)
-- fluteCount: number of flutes (2, 3, 4, 5, 6)
-- coating: coating type (TiAlN, AlCrN, DLC, TiCN, Bright Finish, Blue-Coating, X-Coating, Y-Coating, Uncoated)
-- diameterMm: tool diameter in mm (number)
-- lengthOfCutMm: length of cut / flute length in mm (number). "긴 가공" implies larger value.
-- overallLengthMm: overall tool length in mm (number)
-- workPieceName: specific workpiece material (구리/Copper, 알루미늄/Aluminum, 스테인리스/Stainless, 탄소강/Carbon Steel, 주철/Cast Iron, 티타늄/Titanium, 인코넬/Inconel, 고경도강/Hardened Steel). Use this when user mentions a SPECIFIC material name.
-- material: material group code (P, M, K, N, S, H). Use this when user mentions an ISO code.
-- country: sales region / country of sale. Use ISO-3 codes or Korean/English natural names — the system canonicalizes them. Examples: "국내"/"국산"/"내수"/"한국" → "국내", "유럽"/"유럽용"/"유럽판매용"/"europe" → "유럽", "독일" → "독일", "일본" → "일본". "수입품 제외" / "해외 제품 제외" → country="국내" (op:"eq"). "국내 제품 말고" → country="국내" (op:"neq").
-- ballRadiusMm: corner radius / ball nose radius in mm (number). Triggers: "라디우스 0.3", "코너R 0.5", "R0.2". When user gives a numeric radius value, emit BOTH toolSubtype="Radius" AND ballRadiusMm=<value>.
-- coolantHole: presence of internal coolant through-hole (boolean). Triggers: "쿨런트홀", "쿨런트 구멍", "내부 냉각", "coolant hole", "internal coolant". Use value:true for "있는 거/되는 거", value:false for "없는 거/없이".
-- stockStatus: in-stock filter (string). Triggers: "재고 있는 거", "재고만", "재고 있는 것만", "재고있음", "instock", "납기 빠른", "즉시 출하". Use value:"instock" with op:"eq". For numeric threshold ("재고 50개 이상"), use value:"50" or include the number in value as text.
-- brand: series/brand name (string, pass-through). The canonical list of brands that actually exist in DB is injected below under "## Known DB Values". ONLY emit brand values from that list (closest match if user uses a variant spelling). Triggers: "브랜드 <name>", "<name>로", "<name> 시리즈". If user says "브랜드를 X로 바꿔줘" and NO brand filter exists yet → apply_filter(brand=X). If brand filter already exists → replace_filter(brand, from=<current>, to=X).
+## Available filter fields (source: query-spec-manifest)
+${buildManifestPromptSection()}
 
-## Examples
+Additional runtime-only fields (not in manifest, still valid):
+- stockStatus: in-stock filter. Triggers: "재고 있는 거", "재고만", "납기 빠른". Use value:"instock" op:"eq".
+
+## Examples (anchor + adaptive)
+${SCR_ANCHOR_EXAMPLES}
+
+{{ADAPTIVE_FEWSHOT}}
+
 User: "4날 TiAlN Square 추천해줘"
 → {"actions":[{"type":"apply_filter","field":"fluteCount","value":4,"op":"eq"},{"type":"apply_filter","field":"coating","value":"TiAlN","op":"eq"},{"type":"apply_filter","field":"toolSubtype","value":"Square","op":"eq"}],"answer":"","reasoning":"3 filters from single message"}
-
-User: "Square 빼고" (when toolSubtype=Square filter exists)
-→ {"actions":[{"type":"remove_filter","field":"toolSubtype"}],"answer":"","reasoning":"user wants to remove Square filter"}
-
-User: "Square 빼고 나머지로" (when toolSubtype=Square filter exists)
-→ {"actions":[{"type":"remove_filter","field":"toolSubtype"}],"answer":"","reasoning":"remove existing Square filter to show all other subtypes"}
-
-User: "TiAlN 제외하고" (when coating=TiAlN filter exists)
-→ {"actions":[{"type":"remove_filter","field":"coating"}],"answer":"","reasoning":"remove TiAlN coating filter"}
-
-User: "Ball 아닌 것들" (no existing toolSubtype filter)
-→ {"actions":[{"type":"apply_filter","field":"toolSubtype","value":"Ball","op":"neq"}],"answer":"","reasoning":"exclude Ball subtype"}
-
-User: "4날로 바꿔줘" (when fluteCount=6 filter exists)
-→ {"actions":[{"type":"replace_filter","field":"fluteCount","from":"6","to":4}],"answer":"","reasoning":"replace 6 flute with 4 flute"}
-
-User: "Ball로 변경해주세요" (when toolSubtype=Square filter exists)
-→ {"actions":[{"type":"replace_filter","field":"toolSubtype","from":"Square","to":"Ball"}],"answer":"","reasoning":"replace Square with Ball"}
-
-User: "TiAlN이 뭐야?"
-→ {"actions":[],"answer":"TiAlN은 내열성 코팅입니다.","reasoning":"question, no filter change"}
-
-User: "피삭재는 구리 SQUARE 2날 직경 10 짜리 추천해줘"
-→ {"actions":[{"type":"apply_filter","field":"workPieceName","value":"구리","op":"eq"},{"type":"apply_filter","field":"toolSubtype","value":"Square","op":"eq"},{"type":"apply_filter","field":"fluteCount","value":2,"op":"eq"},{"type":"apply_filter","field":"diameterMm","value":10,"op":"eq"}],"answer":"","reasoning":"4 filters: copper workpiece, square subtype, 2 flutes, 10mm diameter"}
-
-User: "구리 스퀘어 2날 10mm"
-→ {"actions":[{"type":"apply_filter","field":"workPieceName","value":"구리","op":"eq"},{"type":"apply_filter","field":"toolSubtype","value":"Square","op":"eq"},{"type":"apply_filter","field":"fluteCount","value":2,"op":"eq"},{"type":"apply_filter","field":"diameterMm","value":10,"op":"eq"}],"answer":"","reasoning":"4 filters from natural Korean"}
-
-User: "알루미늄 고속가공용 추천해줘"
-→ {"actions":[{"type":"apply_filter","field":"workPieceName","value":"알루미늄","op":"eq"}],"answer":"","reasoning":"aluminum workpiece, high-speed implies finishing intent"}
-
-User: "스퀘어를 쓰고싶고, 구리를 가공하고 싶어."
-→ {"actions":[{"type":"apply_filter","field":"toolSubtype","value":"Square","op":"eq"},{"type":"apply_filter","field":"workPieceName","value":"구리","op":"eq"}],"answer":"","reasoning":"2 filters: square + copper workpiece"}
-
-User: "3날 무코팅에 스퀘어" (feedback: user wanted 3-flute uncoated square)
-→ {"actions":[{"type":"apply_filter","field":"fluteCount","value":3,"op":"eq"},{"type":"apply_filter","field":"coating","value":"Uncoated","op":"eq"},{"type":"apply_filter","field":"toolSubtype","value":"Square","op":"eq"}],"answer":"","reasoning":"3 filters: 3 flutes, uncoated, square"}
-
-User: "고경도강 밀링에 좋은 Solid end mill은 뭐가 있어?" (no filters yet)
-→ {"actions":[{"type":"apply_filter","field":"workPieceName","value":"고경도강","op":"eq"}],"answer":"","reasoning":"hardened steel workpiece, asking for recommendation"}
-
-User: "SUS304 황삭할 건데 뭐가 좋아?"
-→ {"actions":[{"type":"apply_filter","field":"workPieceName","value":"스테인리스","op":"eq"}],"answer":"","reasoning":"SUS304=stainless, roughing intent noted"}
-
-User: "동 가공용 10미리 두날"
-→ {"actions":[{"type":"apply_filter","field":"workPieceName","value":"구리","op":"eq"},{"type":"apply_filter","field":"diameterMm","value":10,"op":"eq"},{"type":"apply_filter","field":"fluteCount","value":2,"op":"eq"}],"answer":"","reasoning":"동=copper, 10미리=10mm, 두날=2 flutes"}
-
-User: "비철 구리 Square 2날 Ø10"
-→ {"actions":[{"type":"apply_filter","field":"workPieceName","value":"구리","op":"eq"},{"type":"apply_filter","field":"toolSubtype","value":"Square","op":"eq"},{"type":"apply_filter","field":"fluteCount","value":2,"op":"eq"},{"type":"apply_filter","field":"diameterMm","value":10,"op":"eq"}],"answer":"","reasoning":"비철 구리=copper, Ø10=diameter 10mm"}
-
-User: "10mm 4날 Square TiAlN 탄소강"
-→ {"actions":[{"type":"apply_filter","field":"diameterMm","value":10,"op":"eq"},{"type":"apply_filter","field":"fluteCount","value":4,"op":"eq"},{"type":"apply_filter","field":"toolSubtype","value":"Square","op":"eq"},{"type":"apply_filter","field":"coating","value":"TiAlN","op":"eq"},{"type":"apply_filter","field":"workPieceName","value":"탄소강","op":"eq"}],"answer":"","reasoning":"5 filters from single message"}
-
-User: "전체 길이 100mm 이상인 것만"
-→ {"actions":[{"type":"apply_filter","field":"overallLengthMm","value":100,"op":"gte"}],"answer":"","reasoning":"OAL ≥ 100mm"}
-
-User: "전장 80mm 이하 짧은 거"
-→ {"actions":[{"type":"apply_filter","field":"overallLengthMm","value":80,"op":"lte"}],"answer":"","reasoning":"OAL ≤ 80mm"}
-
-User: "날수 5개 이상"
-→ {"actions":[{"type":"apply_filter","field":"fluteCount","value":5,"op":"gte"}],"answer":"","reasoning":"flute count ≥ 5"}
-
-User: "헬릭스 각도 45도 이상"
-→ {"actions":[{"type":"apply_filter","field":"helixAngleDeg","value":45,"op":"gte"}],"answer":"","reasoning":"helix angle ≥ 45"}
-
-User: "샹크 직경 6에서 10 사이"
-→ {"actions":[{"type":"apply_filter","field":"shankDiameterMm","value":6,"value2":10,"op":"between"}],"answer":"","reasoning":"shank diameter range 6-10mm"}
-
-User: "절삭 길이(날장) 20mm 이상"
-→ {"actions":[{"type":"apply_filter","field":"lengthOfCutMm","value":20,"op":"gte"}],"answer":"","reasoning":"length of cut ≥ 20mm"}
-
-User: "직경 8mm 이상 12mm 이하 제품만 보여줘"
-→ {"actions":[{"type":"apply_filter","field":"diameterMm","value":8,"value2":12,"op":"between"}],"answer":"","reasoning":"diameter range 8-12mm"}
-
-User: "전장 100 이상이고 쿨런트홀 있는 거"
-→ {"actions":[{"type":"apply_filter","field":"overallLengthMm","value":100,"op":"gte"},{"type":"apply_filter","field":"coolantHole","value":true,"op":"eq"}],"answer":"","reasoning":"OAL ≥100 + internal coolant through-hole"}
-
-User: "재고 있는 거만 보여줘"
-→ {"actions":[{"type":"apply_filter","field":"stockStatus","value":"instock","op":"eq"}],"answer":"","reasoning":"in-stock filter"}
-
-User: "재고 있고 빠른 납기 가능한 거"
-→ {"actions":[{"type":"apply_filter","field":"stockStatus","value":"instock","op":"eq"}],"answer":"","reasoning":"in-stock filter (fast delivery implies in stock)"}
-
-User: "한국 재고로 4날 TiAlN 전장 100 이상"
-→ {"actions":[{"type":"apply_filter","field":"country","value":"한국","op":"eq"},{"type":"apply_filter","field":"stockStatus","value":"instock","op":"eq"},{"type":"apply_filter","field":"fluteCount","value":4,"op":"eq"},{"type":"apply_filter","field":"coating","value":"TiAlN","op":"eq"},{"type":"apply_filter","field":"overallLengthMm","value":100,"op":"gte"}],"answer":"","reasoning":"5 filters: KR + stock + 4F + TiAlN + OAL≥100"}
-
-User: "M10 P1.5 관통탭"
-→ {"actions":[{"type":"apply_filter","field":"diameterMm","value":10,"op":"eq"},{"type":"apply_filter","field":"threadPitchMm","value":1.5,"op":"eq"}],"answer":"","reasoning":"Tap M10 with pitch 1.5mm"}
-
-User: "포인트 각도 140도"
-→ {"actions":[{"type":"apply_filter","field":"pointAngleDeg","value":140,"op":"eq"}],"answer":"","reasoning":"drill point angle 140 degrees"}
-
-User: "알루파워라는 브랜드는 왜 추천해주지 않나요?" (question about missing brand)
-→ {"actions":[],"answer":"알루파워(ALU-POWER) 시리즈가 후보에 포함되어 있는지 확인하겠습니다.","reasoning":"question about brand, no filter change"}
-
-User: "T-Coating 설명해줘"
-→ {"actions":[],"answer":"","reasoning":"question about coating type, no filter change"}
-
-User: "SUS304 가공인데" (specific steel grade = workPieceName)
-→ {"actions":[{"type":"apply_filter","field":"workPieceName","value":"SUS304","op":"eq"}],"answer":"","reasoning":"SUS304=stainless steel, set as workPieceName"}
-
-User: "추천 제품 보기" / "지금 바로 제품 보기"
-→ {"actions":[{"type":"show_recommendation"}],"answer":"","reasoning":"user wants to see results"}
-
-User: "상관없음" / "아무거나 괜찮아" / "알아서 추천해줘"
-→ {"actions":[{"type":"skip"}],"answer":"","reasoning":"user skips current question"}
-
-User: "아까 말한 그 코팅으로 해줘" (conversation history mentions TiAlN)
-→ {"actions":[{"type":"apply_filter","field":"coating","value":"TiAlN","op":"eq"}],"answer":"","reasoning":"references TiAlN from conversation history"}
-
-User: "그거로 해줘" / "네 그걸로" (previous assistant suggested Square)
-→ {"actions":[{"type":"apply_filter","field":"toolSubtype","value":"Square","op":"eq"}],"answer":"","reasoning":"agrees with assistant's previous suggestion"}
-
-User: "고경도강에 추천하는 가공방식은 어떤게 있어?" (question with material context)
-→ {"actions":[],"answer":"고경도강 가공에는 Side Milling, Profiling 등이 적합합니다.","reasoning":"question about machining methods, no filter change needed"}
-
-User: "국내용 제품으로만 추천해줄래?" / "국내제품으로만 추천해줘" / "국내 제품으로만 추려줘"
-→ {"actions":[{"type":"apply_filter","field":"country","value":"국내","op":"eq"}],"answer":"","reasoning":"Korea-only products"}
-
-User: "수입품은 제외해줘" / "해외 제품 빼고"
-→ {"actions":[{"type":"apply_filter","field":"country","value":"국내","op":"eq"}],"answer":"","reasoning":"exclude imports = keep domestic only"}
-
-User: "나 독일사람인데 유럽판매용 제품으로만 먼저 필터링해줘요"
-→ {"actions":[{"type":"apply_filter","field":"country","value":"유럽","op":"eq"}],"answer":"","reasoning":"Europe sales region"}
-
-User: "국가가 KOREA 아니라 EUROPE"
-→ {"actions":[{"type":"replace_filter","field":"country","from":"한국","to":"유럽"}],"answer":"","reasoning":"change country from Korea to Europe"}
-
-User: "스테인리스 슬로팅 2날 8mm 국내 제품으로"
-→ {"actions":[{"type":"apply_filter","field":"workPieceName","value":"스테인리스","op":"eq"},{"type":"apply_filter","field":"fluteCount","value":2,"op":"eq"},{"type":"apply_filter","field":"diameterMm","value":8,"op":"eq"},{"type":"apply_filter","field":"country","value":"국내","op":"eq"}],"answer":"","reasoning":"stainless + 2 flute + 8mm + Korea"}
-
-User: "브랜드를 X-POWER로 바꿔줘" (no existing brand filter)
-→ {"actions":[{"type":"apply_filter","field":"brand","value":"X-POWER","op":"eq"}],"answer":"","reasoning":"apply brand filter (no prior brand to replace)"}
-
-User: "브랜드를 X-POWER로 바꿔줘" (when brand=TitaNox-Power exists)
-→ {"actions":[{"type":"replace_filter","field":"brand","from":"TitaNox-Power","to":"X-POWER"}],"answer":"","reasoning":"replace existing brand"}
-
-User: "알루파워 시리즈로 추천해줘"
-→ {"actions":[{"type":"apply_filter","field":"brand","value":"ALU-POWER","op":"eq"}],"answer":"","reasoning":"알루파워 = ALU-POWER brand"}
-
-User: "라디우스 0.3mm" / "코너R 0.5"
-→ {"actions":[{"type":"apply_filter","field":"toolSubtype","value":"Radius","op":"eq"},{"type":"apply_filter","field":"ballRadiusMm","value":0.3,"op":"eq"}],"answer":"","reasoning":"radius subtype + 0.3mm corner radius"}
-
-User: "파란색 코팅 제품 있어?" (color → coating mapping)
-→ {"actions":[{"type":"apply_filter","field":"coating","value":"Blue-Coating","op":"eq"}],"answer":"","reasoning":"파란색=Blue-Coating (X5070 brand)"}
-
-User: "DLC 빼고 TiAlN으로" (remove + add in one message, when coating=DLC exists)
-→ {"actions":[{"type":"remove_filter","field":"coating"},{"type":"apply_filter","field":"coating","value":"TiAlN","op":"eq"}],"answer":"","reasoning":"remove DLC, add TiAlN"}
-
-User: "SEM81010035이 알루미늄 가공에 적합할까?" (product code + question)
-→ {"actions":[],"answer":"해당 제품의 소재 적합도를 확인하겠습니다.","reasoning":"question about specific product, no filter change"}
-
-User: "GMG55100과 GMG40100 비교해줘" (product comparison)
-→ {"actions":[{"type":"compare","targets":["GMG55100","GMG40100"]}],"answer":"","reasoning":"compare two specific products"}
-
-User: "코너레디우스 0.5 날장 20이상" (multiple spec requirements)
-→ {"actions":[{"type":"apply_filter","field":"toolSubtype","value":"Radius","op":"eq"},{"type":"apply_filter","field":"lengthOfCutMm","value":20,"op":"range"}],"answer":"","reasoning":"코너레디우스=Radius, 날장=lengthOfCut≥20"}
 
 ## Response Format (strict JSON only, no markdown, no code blocks)
 {
@@ -430,12 +306,17 @@ User: "코너레디우스 0.5 날장 20이상" (multiple spec requirements)
 
 ## Known DB Values (use ONLY these exact values for brand/country/workpiece)
 {{DB_VALUES}}`
+}
 
-const SYSTEM_PROMPT_FREE = `You are a routing engine for a cutting tool recommendation chatbot (YG-1).
+function buildSystemPromptFree(): string {
+  return `You are a routing engine for a cutting tool recommendation chatbot (YG-1).
 The user speaks Korean. Analyze the message and session state to determine actions.
 
 ## Available Actions (JSON array)
-- apply_filter: {type, field, value, op} — field: toolSubtype(Square/Ball/Radius/Roughing/Taper/Chamfer/High-Feed), fluteCount(number), coating(TiAlN/AlCrN/DLC/TiCN/Bright Finish/Blue-Coating/X-Coating/Y-Coating/Uncoated), diameterMm(number), lengthOfCutMm(number), overallLengthMm(number), shankDiameterMm(number, "샹크 직경"/"shank diameter"), helixAngleDeg(number, "헬릭스"/"나선각"/"helix"), ballRadiusMm(number, corner R/라디우스), pointAngleDeg(number, drill point angle 140/118/135), threadPitchMm(number, "M10 P1.5"→1.5/"피치"), coolantHole(boolean, "쿨런트홀"), stockStatus(string "instock", "재고"/"납기"), brand(X-POWER/TitaNox-Power/CRX S/ALU-POWER/3S MILL/ONLY ONE — "브랜드를 X로 바꿔"시 기존 brand 필터 있으면 replace, 없으면 apply), workPieceName(구리/알루미늄/스테인리스/탄소강/주철/티타늄/인코넬/고경도강), material(P/M/K/N/S/H), country(국내/유럽/독일/일본/한국 — "국내제품"/"수입품 제외"→country=국내, "유럽판매용"→country=유럽)
+- apply_filter: {type, field, value, op}. Valid fields (source: query-spec-manifest):
+${buildManifestPromptSection()}
+  Numeric fields (gte/lte/between allowed): ${buildNumericFieldWhitelist()}.
+  Runtime-only extras: stockStatus("instock", "재고"/"납기").
 - remove_filter: {type, field} — "빼고/제외" + existing filter → remove
 - replace_filter: {type, field, from, to} — "바꿔/변경" → replace value
 - show_recommendation: {type} — "추천해줘/보여줘/제품 보기"
@@ -483,24 +364,10 @@ When you emit an "answer" action OR set the top-level "answer" field alongside o
 
 (G) NEVER fabricate product names. Reference series/brand names only if they appear in DB Values or session state.
 
-## Key Examples
-"피삭재는 구리 SQUARE 2날 직경 10" → [apply workPieceName=구리, toolSubtype=Square, fluteCount=2, diameterMm=10]
-"3날 무코팅에 스퀘어" → [apply fluteCount=3, coating=Uncoated, toolSubtype=Square]
-"Square 빼고" (existing filter) → [remove toolSubtype]
-"Ball로 바꿔" (toolSubtype=Square exists) → [replace toolSubtype from=Square to=Ball]
-"TiAlN이 뭐야?" → answer, no filter
-"상관없음" → skip
-"탄소강 10mm 4날 Square TiAlN으로 추천해줘" → [apply workPieceName=탄소강, diameterMm=10, fluteCount=4, toolSubtype=Square, coating=TiAlN]
-"스퀘어를 쓰고싶고 구리를 가공하고 싶어" → [apply toolSubtype=Square, workPieceName=구리]
-"copper square 2flute 10mm endmill 추천해줘" → [apply workPieceName=구리, toolSubtype=Square, fluteCount=2, diameterMm=10]
-"국내제품으로만 추천해줘" / "수입품은 제외해줘" → [apply country=국내]
-"유럽판매용 제품으로만" → [apply country=유럽]
-"라디우스 0.3mm" / "코너R 0.5" → [apply toolSubtype=Radius, ballRadiusMm=0.3]
-"브랜드를 X-POWER로 바꿔줘" (no brand filter yet) → [apply brand=X-POWER]
-"브랜드를 X-POWER로 바꿔줘" (brand=TitaNox-Power exists) → [replace brand from=TitaNox-Power to=X-POWER]
-(pending: fluteCount) "Square 4날 추천해줘" → [apply fluteCount=4, toolSubtype=Square] — answer pending + extract additional
-(pending: coating) "그거로 코팅해줘" (prev turn mentioned TiAlN) → [apply coating=TiAlN] — resolve reference from conversation
-(pending: toolSubtype) "DLC 빼고 TiAlN으로 바꿔" → [replace coating from=DLC to=TiAlN] — negation + replacement
+## Key Examples (anchor + adaptive)
+${SCR_ANCHOR_EXAMPLES}
+
+{{ADAPTIVE_FEWSHOT}}
 
 ${buildDomainKnowledgeSnippet()}
 
@@ -513,6 +380,7 @@ Response: strict JSON {"actions": [...], "answer": "", "reasoning": "brief"}
 
 ## Known DB Values (use ONLY these exact values for brand/country/workpiece)
 {{DB_VALUES}}`
+}
 
 function buildDbValuesSnippet(): string {
   const schema = getDbSchemaSync()
@@ -543,11 +411,13 @@ function buildDbValuesSnippet(): string {
   return parts.length > 0 ? parts.join("\n") : "(DB schema cache empty)"
 }
 
-function buildSystemPrompt(state: ExplorationSessionState | null): string {
-  const template = LLM_FREE_INTERPRETATION ? SYSTEM_PROMPT_FREE : SYSTEM_PROMPT_FULL
+function buildSystemPrompt(state: ExplorationSessionState | null, userMessage = ""): string {
+  const template = LLM_FREE_INTERPRETATION ? buildSystemPromptFree() : buildSystemPromptFull()
+  const adaptive = userMessage ? buildFewShotTextScr(selectFewShots(userMessage, 10)) : ""
   return template
     .replace("{{SESSION_STATE}}", buildSessionSummary(state))
     .replace("{{DB_VALUES}}", buildDbValuesSnippet())
+    .replace("{{ADAPTIVE_FEWSHOT}}", adaptive)
 }
 
 // ── Main function ─────────────────────────────────────────────
@@ -693,7 +563,7 @@ export async function routeSingleCall(
     }
   }
 
-  const basePrompt = buildSystemPrompt(sessionState)
+  const basePrompt = buildSystemPrompt(sessionState, userMessage)
   const systemPrompt = kgHint
     ? `${basePrompt}\n\n## KG Hint (pre-analyzed entities from Knowledge Graph)\n${kgHint}\nUse these as strong guidance — the entities above are already validated. Emit matching apply_filter actions.`
     : basePrompt

@@ -126,5 +126,245 @@
       "공구 수명 3~5배 향상",
       "스테인리스/티타늄/인코넬에 강력 권장"
     ]
+  },
+  {
+    "operation_ko": "포켓 가공",
+    "operation_en": "pocket milling",
+    "recommended_tool_subtype": "square or corner-radius endmill, 3-4 flute",
+    "recommended_strategy": "Enter closed pockets with helical (circular) ramp interpolation using a helix diameter >110-120% of cutter diameter. Apply HEM trochoidal paths for roughing to maximize tool life.",
+    "key_parameters": {
+      "Vc_m_min": "material-dependent (see Harvey MAP)",
+      "fz_mm": "0.02-0.08 (HEM increased)",
+      "ae_pct_D": "7-30 (HEM) / 50-70 (conventional rough)",
+      "ap_pct_D": "up to 200 (HEM, long-edge) / 50 (conventional)"
+    },
+    "common_pitfalls": [
+      "Straight plunge with non-center-cutting tool → breakage",
+      "Long-reach tool on shallow pocket → chatter and poor finish",
+      "Ignoring corner feed reduction → corner burn-out"
+    ],
+    "related_yg1_series": ["X-POWER", "V7 PLUS A", "TitaNox-Power"],
+    "source_url": "https://www.harveyperformance.com/in-the-loupe/types-tool-entry/",
+    "source_name": "Harvey Performance — Most Common Methods of Tool Entry"
+  },
+  {
+    "operation_ko": "측면 가공 / 프로파일링",
+    "operation_en": "side milling / profiling",
+    "recommended_tool_subtype": "square or corner-radius endmill, 4-5 flute, 35-45° helix",
+    "recommended_strategy": "Use climb (down) milling with moderate ae for roughing and very light ae for finishing to achieve wall straightness and Ra targets.",
+    "key_parameters": {
+      "Vc_m_min": "material-dependent",
+      "fz_mm": "0.03-0.10",
+      "ae_pct_D": "3-5 (finish) / 30-50 (rough)",
+      "ap_pct_D": "100-200 (long-edge rigidity permitting)"
+    },
+    "common_pitfalls": [
+      "Conventional (up) milling on soft materials → built-up edge",
+      "Excessive ap on slender tool → wall taper",
+      "Skipping climb direction → poor surface finish"
+    ],
+    "related_yg1_series": ["X-POWER", "V7 PLUS A", "TitaNox-Power"],
+    "source_url": "https://www.harveyperformance.com/in-the-loupe/depth-of-cut/",
+    "source_name": "Harvey Performance — Diving Into the Depth of Cut"
+  },
+  {
+    "operation_ko": "슬로팅 / 풀 슬롯",
+    "operation_en": "slotting / full slot",
+    "recommended_tool_subtype": "square endmill, 2-3 flute, short LOC",
+    "recommended_strategy": "With full diameter engagement (ae=100%D), reduce feed and axial DOC and use through-coolant to evacuate chips; prefer trochoidal slotting when geometry allows.",
+    "key_parameters": {
+      "Vc_m_min": "80% of side-milling Vc",
+      "fz_mm": "0.015-0.05",
+      "ae_pct_D": "100",
+      "ap_pct_D": "25-50"
+    },
+    "common_pitfalls": [
+      "4+ flute tool in a full slot → chip packing and breakage",
+      "Insufficient coolant pressure → chip re-cutting",
+      "Full fz of side milling applied → overload"
+    ],
+    "related_yg1_series": ["X-POWER", "ALU-POWER", "V7 PLUS A"],
+    "source_url": "https://www.harveyperformance.com/in-the-loupe/successful-slotting-with-miniature-cutting-tools/",
+    "source_name": "Harvey Performance — Successful Slotting"
+  },
+  {
+    "operation_ko": "3D 컨투어링 (볼 노즈)",
+    "operation_en": "3D contouring (ball nose)",
+    "recommended_tool_subtype": "ball-nose endmill, 4-flute variable pitch, tapered neck",
+    "recommended_strategy": "Select stepover from target cusp/scallop height; keep stepover above ~12.5%D to avoid diminishing returns and compensate Vc for reduced effective diameter at shallow Z engagement.",
+    "key_parameters": {
+      "Vc_m_min": "use effective diameter, not nominal",
+      "fz_mm": "0.02-0.08",
+      "ae_pct_D": "5-12 (stepover)",
+      "ap_pct_D": "5-15 (finishing)"
+    },
+    "common_pitfalls": [
+      "Using nominal Vc at tip → severe rubbing and tip wear",
+      "Stepover too small → machining time with no finish gain",
+      "Long tool without tapered neck → chatter on walls"
+    ],
+    "related_yg1_series": ["G-Mold", "V7 PLUS A"],
+    "source_url": "https://www.helicaltool.com/products/contour-finishers-4-flute-ball-tapered-neck",
+    "source_name": "Helical Solutions — Contour Finishers"
+  },
+  {
+    "operation_ko": "정면 가공",
+    "operation_en": "face milling",
+    "recommended_tool_subtype": "indexable face mill (45° or 90° lead)",
+    "recommended_strategy": "Match cutter diameter to 1.3-1.5× workpiece width, enter with rolling arc, and choose insert geometry by ap/fz window; use sharp PVD inserts at ap 0.5-0.8 mm for finish.",
+    "key_parameters": {
+      "Vc_m_min": "material-dependent (Sandvik CoroKey)",
+      "fz_mm": "up to 0.55 (roughing) / 0.1-0.2 (finish)",
+      "ae_pct_D": "60-80",
+      "ap_pct_D": "2-8 (insert dependent)"
+    },
+    "common_pitfalls": [
+      "Cutter centered on workpiece → unfavorable entry angle, insert chipping",
+      "Thin walls with high fz → deflection and poor flatness",
+      "Wrong insert geometry for ap/fz combination"
+    ],
+    "related_yg1_series": [],
+    "source_url": "https://www.sandvik.coromant.com/en-us/knowledge/milling/face-milling",
+    "source_name": "Sandvik Coromant — Face milling"
+  },
+  {
+    "operation_ko": "램핑 / 헬리컬 진입",
+    "operation_en": "ramping / helical entry",
+    "recommended_tool_subtype": "center-cutting square endmill, 3-4 flute",
+    "recommended_strategy": "Prefer helical interpolation for closed forms; use 1-3° linear ramp for open entries and keep helix diameter >110-120% of the cutter diameter.",
+    "key_parameters": {
+      "Vc_m_min": "same as slotting for the material",
+      "fz_mm": "0.02-0.06",
+      "ae_pct_D": "n/a (determined by ramp geometry)",
+      "ap_pct_D": "per pass driven by ramp angle"
+    },
+    "common_pitfalls": [
+      "Non-center-cutting tool on plunge → tip failure",
+      "Ramp angle too steep in hard steel → chipping",
+      "Helix diameter <110%D → bottom gets skipped"
+    ],
+    "related_yg1_series": ["X-POWER", "V7 PLUS A"],
+    "source_url": "https://www.harveyperformance.com/in-the-loupe/ramping-success/",
+    "source_name": "Harvey Performance — Ramping to Success"
+  },
+  {
+    "operation_ko": "스레드 밀링",
+    "operation_en": "thread milling",
+    "recommended_tool_subtype": "single-profile or multi-profile thread mill (solid carbide or indexable)",
+    "recommended_strategy": "Helically interpolate to produce the thread; arc-in / arc-out entry avoids witness marks. One tool handles multiple diameters of the same pitch; superior to tapping in hard or blind-hole work.",
+    "key_parameters": {
+      "Vc_m_min": "per Kennametal NOVO / insert grade",
+      "fz_mm": "adjusted for effective diameter at thread radius",
+      "ae_pct_D": "full profile engagement",
+      "ap_pct_D": "thread depth in one helical pass"
+    },
+    "common_pitfalls": [
+      "Straight radial plunge into full depth → witness mark on thread",
+      "Not compensating fz for the cutter-vs-hole radius geometry",
+      "Ignoring direction (climb) for internal vs. external threads"
+    ],
+    "related_yg1_series": [],
+    "source_url": "https://www.kennametal.com/us/en/products/metalworking-tools/threading/thread-milling.html",
+    "source_name": "Kennametal — Thread Milling"
+  },
+  {
+    "operation_ko": "모따기 / 디버링",
+    "operation_en": "chamfering / deburring",
+    "recommended_tool_subtype": "chamfer mill (60/82/90/100/120°) or double-cut deburring chamfer cutter",
+    "recommended_strategy": "Calculate speed and feed at the effective cutting diameter (not nominal tip), use climb direction and light axial DOC; double-cut deburring tools support higher feeds.",
+    "key_parameters": {
+      "Vc_m_min": "calculated at effective diameter",
+      "fz_mm": "0.02-0.06 (per effective D)",
+      "ae_pct_D": "light",
+      "ap_pct_D": "to chamfer size"
+    },
+    "common_pitfalls": [
+      "Using nominal diameter for RPM → severe tip rub",
+      "Conventional milling → ragged chamfer edge",
+      "Chamfer cutter used as spot drill in hard material → chipping"
+    ],
+    "related_yg1_series": [],
+    "source_url": "https://www.harveyperformance.com/in-the-loupe/multiple-uses-chamfer-mill/",
+    "source_name": "Harvey Performance — Multiple Uses of a Chamfer Mill"
+  },
+  {
+    "operation_ko": "플런지 밀링",
+    "operation_en": "plunge milling",
+    "recommended_tool_subtype": "center-cutting plunge endmill or dedicated insert plunge cutter",
+    "recommended_strategy": "Drive cutting force into the spindle axis for maximum rigidity in long-overhang or chatter-prone setups; index ~75%D between plunges and finish walls with a side pass.",
+    "key_parameters": {
+      "Vc_m_min": "same as slotting",
+      "fz_mm": "0.5× slotting fz (axial)",
+      "ae_pct_D": "75 (step between plunges)",
+      "ap_pct_D": "full tool length per plunge"
+    },
+    "common_pitfalls": [
+      "Non-center-cutting tool → tip failure on plunge",
+      "Step too large → ledges and uncut material",
+      "Skipping finishing side pass → poor wall finish"
+    ],
+    "related_yg1_series": [],
+    "source_url": "https://www.harveyperformance.com/in-the-loupe/plunge-and-pocket-milling-in-4140-steel-with-helicals-combination-feed-hem-mill/",
+    "source_name": "Harvey Performance — Plunge & Pocket Milling in 4140"
+  },
+  {
+    "operation_ko": "드릴링 (구멍 가공)",
+    "operation_en": "hole making / drilling",
+    "recommended_tool_subtype": "solid-carbide drill with through-coolant",
+    "recommended_strategy": "Select point angle by material, pre-spot when needed, use through-coolant for L/D>3 and peck drilling for L/D>5 or gummy materials.",
+    "key_parameters": {
+      "Vc_m_min": "per Sandvik CoroKey",
+      "fz_mm": "fn scales with diameter",
+      "ae_pct_D": "100",
+      "ap_pct_D": "per peck length"
+    },
+    "common_pitfalls": [
+      "Walking on uneven surface without spotting",
+      "No through-coolant on deep hole → chip packing",
+      "Wrong point angle for work material"
+    ],
+    "related_yg1_series": ["Dream Drill", "GENERAL HSS-Co"],
+    "source_url": "https://www.sandvik.coromant.com/en-us/knowledge/machining-formulas-definitions/pages/drilling.aspx",
+    "source_name": "Sandvik Coromant — Drilling formulas"
+  },
+  {
+    "operation_ko": "리밍",
+    "operation_en": "reaming",
+    "recommended_tool_subtype": "multi-flute carbide or HSS reamer",
+    "recommended_strategy": "Leave 0.1-0.3 mm stock on diameter, run at ~2/3 of the drilling Vc and 2-3× the drilling feed per revolution; use rigid or floating holder and flood/through-coolant.",
+    "key_parameters": {
+      "Vc_m_min": "~2/3 of drilling Vc for same material",
+      "fz_mm": "2-3× drilling fn (per rev, not per tooth)",
+      "ae_pct_D": "0.5-1.5 (diametral stock)",
+      "ap_pct_D": "through"
+    },
+    "common_pitfalls": [
+      "Using drilling speed on the reamer → bell-mouth and oversize",
+      "Too little stock → burnishing, poor finish",
+      "Misalignment → taper and chatter marks"
+    ],
+    "related_yg1_series": [],
+    "source_url": "https://www.sandvik.coromant.com/en-us/knowledge/reaming/troubleshooting-reaming",
+    "source_name": "Sandvik Coromant — Troubleshooting for reaming"
+  },
+  {
+    "operation_ko": "탭 가공",
+    "operation_en": "thread tapping",
+    "recommended_tool_subtype": "spiral-point (through) or spiral-flute (blind) cutting tap, or forming tap",
+    "recommended_strategy": "Use synchronized rigid tapping or tension-compression holder; cutting oil mandatory; Vc 5-15 m/min in steel for cutting taps, higher for forming taps on ductile materials.",
+    "key_parameters": {
+      "Vc_m_min": "5-15 (cutting) / 10-30 (forming)",
+      "fz_mm": "pitch (per rev)",
+      "ae_pct_D": "full",
+      "ap_pct_D": "to thread depth"
+    },
+    "common_pitfalls": [
+      "Wrong pre-drill diameter (cutting vs. forming tap)",
+      "Insufficient lubrication → tap welding and breakage",
+      "Spiral-point tap in blind hole → chip packing"
+    ],
+    "related_yg1_series": [],
+    "source_url": "https://www.sandvik.coromant.com/en-us/knowledge/threading/tapping",
+    "source_name": "Sandvik Coromant — Tapping"
   }
 ]

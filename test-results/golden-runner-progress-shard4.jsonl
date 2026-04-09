@@ -1,0 +1,9 @@
+{"id":"A05","verdict":"PASS","detail":"loose:1filter","elapsedMs":49239}
+{"id":"B03","verdict":"SKIP"}
+{"id":"B11","verdict":"SKIP"}
+{"id":"C04","verdict":"PASS","detail":"loose:1filter","elapsedMs":79872}
+{"id":"C12","verdict":"PASS","detail":"loose:1filter","elapsedMs":267660}
+{"id":"D05","verdict":"PASS","detail":"loose:2filter","elapsedMs":32252}
+{"id":"E03","verdict":"SKIP"}
+{"id":"F01","verdict":"PASS","detail":"no-expected","elapsedMs":13188}
+{"id":"G04","verdict":"ERROR","error":"read ECONNRESET"}

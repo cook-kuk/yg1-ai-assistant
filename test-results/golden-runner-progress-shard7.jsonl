@@ -1,0 +1,5 @@
+{"id":"A08","verdict":"PASS","detail":"loose:1filter","elapsedMs":51601}
+{"id":"B06","verdict":"SKIP"}
+{"id":"B14","verdict":"SKIP"}
+{"id":"C07","verdict":"PASS","detail":"loose:1filter","elapsedMs":305037}
+{"id":"C15","verdict":"PASS","detail":"loose:3filter","elapsedMs":39375}

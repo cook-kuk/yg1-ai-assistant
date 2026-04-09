@@ -77,6 +77,37 @@ export interface QueryConstraint {
   value: string | number | [number, number]  // between일 때 [min, max]
   /** planner가 채운 사람 읽을 수 있는 설명 (e.g., "직경: 10mm") */
   display?: string
+  /**
+   * Phase C: fuzzy / tolerance for numeric eq.
+   * When present on an `eq` constraint against a numeric field, the compiler
+   * rewrites the clause as `BETWEEN [value - tolerance, value + tolerance]`.
+   * Absolute (mm, flutes, ...).
+   */
+  tolerance?: number
+  /**
+   * Phase C: proportional tolerance. `0.1` → ±10%.
+   * Ignored if `tolerance` is also set (absolute wins).
+   */
+  toleranceRatio?: number
+}
+
+// ── Sort / Similarity (Phase C) ─────────────────────────────
+
+export interface QuerySort {
+  field: QueryField
+  direction: "asc" | "desc"
+}
+
+export interface QuerySimilarity {
+  /** EDP product id (or whatever serve-engine uses) for the reference row. */
+  referenceProductId: string
+  /**
+   * Numeric fields to compare. If omitted, compiler falls back to the
+   * manifest's `similarityComparable: true` set.
+   */
+  fields?: QueryField[]
+  /** LIMIT for the similarity-ranked result. Default 10 at compile time. */
+  topK?: number
 }
 
 // ── QuerySpec ───────────────────────────────────────────────
@@ -89,6 +120,10 @@ export interface QuerySpec {
   questionText?: string
   /** planner의 판단 근거 (디버그용) */
   reasoning?: string
+  /** Phase C: single-key ordering (e.g. "재고 많은 순", "직경 작은 순"). */
+  sort?: QuerySort
+  /** Phase C: similarity-mode query ("A 제품이랑 비슷한 spec"). */
+  similarTo?: QuerySimilarity
 }
 
 // ── Build Result ────────────────────────────────────────────

@@ -19,13 +19,15 @@ import type {
 } from "@/lib/recommendation/domain/types"
 import { resolveMaterialTag, getMaterialDisplay } from "@/lib/recommendation/domain/material-resolver"
 import { getMaterialDisplayValue } from "@/lib/recommendation/shared/intake-localization"
+import type { RankingTrace } from "@/lib/recommendation/domain/ranking-trace"
 
 // ── Main Entry ──────────────────────────────────────────────
 
 export function buildExplanation(
   scored: ScoredProduct,
   input: RecommendationInput,
-  evidenceSummary: EvidenceSummary | null
+  evidenceSummary: EvidenceSummary | null,
+  trace?: RankingTrace | null
 ): RecommendationExplanation {
   const p = scored.product
   const breakdown = scored.scoreBreakdown
@@ -34,7 +36,14 @@ export function buildExplanation(
   const unmatchedFacts = buildUnmatchedFacts(scored, input, breakdown)
   const supportingEvidence = buildSupportingEvidence(scored, evidenceSummary)
   const warnings = buildExplanationWarnings(scored, input, evidenceSummary)
-  const summaryText = buildExplanationSummary(matchedFacts, unmatchedFacts, supportingEvidence, scored)
+  const narrativeSummary = buildExplanationSummary(matchedFacts, unmatchedFacts, supportingEvidence, scored)
+  // Phase F: when a structured RankingTrace is provided, prepend a
+  // contribution-grounded rationale to the summaryText. The existing
+  // narrative summary is preserved as a suffix so all existing regression
+  // tests and downstream consumers keep working unchanged.
+  const summaryText = trace
+    ? `${buildTraceRationale(trace)} | ${narrativeSummary}`
+    : narrativeSummary
 
   return {
     productCode: p.normalizedCode,
@@ -337,6 +346,43 @@ function buildExplanationSummary(
 
   // Score
   parts.push(`매칭률 ${scored.scoreBreakdown?.matchPct ?? 0}%`)
+
+  return parts.join(" | ")
+}
+
+// ── Phase F: RankingTrace Rationale ─────────────────────────
+//
+// When the ranking pipeline populates a parallel RankingTrace alongside its
+// scored candidates, we emit a grounded "왜 이걸 추천했어?" rationale built
+// from the trace's contributions + matchedConstraints. Kept pure and
+// side-effect-free so it can be unit tested in isolation.
+
+function buildTraceRationale(trace: RankingTrace): string {
+  const parts: string[] = []
+
+  if (trace.contributions.length > 0) {
+    // Sort by |weight| desc so the most influential contributions appear first.
+    const sorted = [...trace.contributions].sort(
+      (a, b) => Math.abs(b.weight) - Math.abs(a.weight),
+    )
+    const contribText = sorted
+      .map(c => {
+        const sign = c.weight >= 0 ? "+" : ""
+        const val = c.value ? ` (${c.value})` : ""
+        return `${c.label}${val} [${sign}${c.weight.toFixed(2)}]`
+      })
+      .join(", ")
+    parts.push(`기여도: ${contribText}`)
+  }
+
+  if (trace.matchedConstraints.length > 0) {
+    const constraintText = trace.matchedConstraints
+      .map(mc => `${mc.field}=${mc.value}`)
+      .join(", ")
+    parts.push(`일치 조건: ${constraintText}`)
+  }
+
+  parts.push(`최종점수 ${trace.finalScore.toFixed(2)} (순위 ${trace.rank})`)
 
   return parts.join(" | ")
 }
