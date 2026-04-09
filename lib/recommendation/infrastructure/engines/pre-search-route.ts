@@ -62,11 +62,20 @@ export async function classifyPreSearchRoute(
     queryTarget.type === "active_field_query" ||
     queryTarget.type === "general_question"
 
+  // RC2: compare/explain intents on domain terms should go to knowledge path
+  // even when entities are present (e.g. "AlCrN vs TiAlN", "알루파워가 뭐야")
+  // because the filter pipeline can't answer "what is X" or "A vs B".
+  const isCompareOrExplainIntent =
+    (judgment.intentAction === "explain" || judgment.intentAction === "compare") &&
+    judgment.domainRelevance === "product_query" &&
+    queryTarget.type !== "field_count"
+
   const isGeneralKnowledge =
     isCuttingToolTaxonomyKnowledgeQuestion(userMessage) ||
     judgment.domainRelevance === "company_query" ||
     judgment.domainRelevance === "greeting" ||
     judgment.domainRelevance === "off_topic" ||
+    isCompareOrExplainIntent ||
     (
       isExplanationLike &&
       judgment.domainRelevance === "product_query" &&

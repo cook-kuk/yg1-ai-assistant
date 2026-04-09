@@ -152,6 +152,7 @@ export function buildJudgmentPrompt(input: UnifiedJudgmentInput): string {
    - "재고 있는 것만", "재고 확인", "즉시 구매", "재고 된 거만" → domainRelevance: "product_query", intentAction: "select_option" (재고 필터링)
    - "쉽게 설명해줘", "쉽게 알려줘", "설명해줘", "뭐가 다른거야", "어떤 차이" → intentAction: "explain" (현재 표시된 선택지/시리즈 설명)
    - "A 말고 B로", "A 대신 B", "B로 바꿔", "B로 교체" → intentAction: "refine_condition", intentShift: "replace_constraint" (기존 A 제거 → B 적용)
+   - 공구 트러블 증상 ("수명 짧", "파손", "치핑", "마모", "진동", "채터", "버", "깨짐") → intentAction: "explain" (원인/해결 설명 요청, 필터링 아님)
 8. questionShape: 시스템응답에 질문이 있으면 형태 — binary_yes_no|binary_proceed|explicit_choice|constrained_options|open_ended|none
 9. extractedAnswer: 사용자가 선택한 값(칩 텍스트/값) 추출, 없으면 null
    - 가공방식 키워드 매핑: "램핑"→Radius, "슬롯"→Square, "프로파일"→Ball, "정삭"→Finishing, "황삭"→Roughing
