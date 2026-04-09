@@ -313,7 +313,8 @@ export function useProductRecommendationPage({
           feedbackGroupId: aiPlaceholderId,
           debugTrace: (data as any).meta?.debugTrace ?? null,
           thinkingProcess: data.thinkingProcess || updated[lastIndex].thinkingProcess || null,
-        }
+          thinkingDeep: (data as any).thinkingDeep || (updated[lastIndex] as any).thinkingDeep || null,
+        } as ChatMsg
         return updated
       })
     } catch (err) {
@@ -437,7 +438,8 @@ export function useProductRecommendationPage({
           feedbackGroupId: aiPlaceholderId,
           debugTrace: (data as any).meta?.debugTrace ?? null,
           thinkingProcess: data.thinkingProcess || updated[lastIndex].thinkingProcess || null,
-        }
+          thinkingDeep: (data as any).thinkingDeep || (updated[lastIndex] as any).thinkingDeep || null,
+        } as ChatMsg
         return updated
       })
     } catch (err) {
@@ -593,7 +595,8 @@ export function useProductRecommendationPage({
           feedbackGroupId: prev[updated.length - 1]?.feedbackGroupId ?? createClientEventId(),
           debugTrace: (data as any).meta?.debugTrace ?? null,
           thinkingProcess: data.thinkingProcess || prev[updated.length - 1]?.thinkingProcess || null,
-        }
+          thinkingDeep: (data as any).thinkingDeep || (prev[updated.length - 1] as any)?.thinkingDeep || null,
+        } as ChatMsg
         console.log("[chip-groups:client:store]", {
           messageIndex: updated.length - 1,
           chipCount: nextMessage.chips?.length ?? 0,
@@ -608,14 +611,24 @@ export function useProductRecommendationPage({
         updated[updated.length - 1] = nextMessage
         return updated
       })
-    } catch {
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : ""
+      console.error("[chat] error:", err)
       setChatMessages(prev => {
         const updated = [...prev]
+        const last = updated[updated.length - 1]
+        // Preserve any in-progress thinking trace + surface backend detail so the
+        // root cause is visible instead of swallowed by a generic error string.
         updated[updated.length - 1] = {
+          ...(last ?? {}),
           role: "ai",
-          text: "오류가 발생했습니다. 다시 시도해주세요.",
+          text: detail
+            ? `오류가 발생했습니다: ${detail}`
+            : "오류가 발생했습니다. 다시 시도해주세요.",
           isLoading: false,
-        }
+          thinkingProcess: last?.thinkingProcess ?? null,
+          thinkingDeep: (last as any)?.thinkingDeep ?? null,
+        } as ChatMsg
         return updated
       })
     } finally {
