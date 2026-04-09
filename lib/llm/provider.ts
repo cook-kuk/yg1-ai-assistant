@@ -79,6 +79,8 @@ export type AgentName =
   | "tool-use-router"
   | "single-call-router"
   | "query-planner"
+  | "self-correction"
+  | "turn-repair"
 
 export interface LLMProvider {
   complete(systemPrompt: string, messages: LLMMessage[], maxTokens?: number, model?: ModelSpecifier, agentName?: AgentName): Promise<string>
@@ -149,6 +151,8 @@ const AGENT_MODEL_ENV: Record<AgentName, string> = {
   "tool-use-router":         "AGENT_TOOL_USE_ROUTER_MODEL",
   "single-call-router":      "AGENT_SINGLE_CALL_ROUTER_MODEL",
   "query-planner":           "AGENT_QUERY_PLANNER_MODEL",
+  "self-correction":         "AGENT_SELF_CORRECTION_MODEL",
+  "turn-repair":             "AGENT_TURN_REPAIR_MODEL",
 }
 
 function isModelTier(value: string): value is ModelTier {
