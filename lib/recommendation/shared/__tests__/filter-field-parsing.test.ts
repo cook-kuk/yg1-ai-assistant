@@ -292,48 +292,48 @@ describe("numeric field parsing", () => {
 // ===========================================================================
 // 6. Country uppercase normalization (8 cases)
 // ===========================================================================
-describe("country canonicalization — ISO alpha-3", () => {
+describe("country canonicalization — MV region codes (KOREA/AMERICA/ASIA/EUROPE)", () => {
+  // MV catalog_app.product_recommendation_mv.country_codes stores region names,
+  // not ISO alpha-3. See filter-field-registry.ts country.canonicalizeRawValue.
   it.each([
-    // Old alpha-2 backward compat → new alpha-3
-    ["kr", "KOR"],
-    ["us", "USA"],
-    ["jp", "JPN"],
-    ["cn", "CHN"],
-    ["de", "DEU"],
-    ["Kr", "KOR"],
-    ["uS", "USA"],
-    // Already alpha-3 passthrough
-    ["KOR", "KOR"],
-    ["USA", "USA"],
-    ["JPN", "JPN"],
+    ["kr", "KOREA"],
+    ["us", "AMERICA"],
+    ["jp", "ASIA"],
+    ["cn", "ASIA"],
+    ["de", "EUROPE"],
+    ["Kr", "KOREA"],
+    ["uS", "AMERICA"],
+    // Region passthrough
+    ["KOREA", "KOREA"],
+    ["ASIA", "ASIA"],
     // Korean names
-    ["한국", "KOR"],
-    ["대한민국", "KOR"],
-    ["미국", "USA"],
-    ["일본", "JPN"],
-    ["중국", "CHN"],
-    ["독일", "DEU"],
-    ["영국", "ENG"],
-    ["프랑스", "FRA"],
-    ["이탈리아", "ITA"],
-    ["터키", "TUR"],
-    ["체코", "CZE"],
+    ["한국", "KOREA"],
+    ["대한민국", "KOREA"],
+    ["미국", "AMERICA"],
+    ["일본", "ASIA"],
+    ["중국", "ASIA"],
+    ["독일", "EUROPE"],
+    ["영국", "EUROPE"],
+    ["프랑스", "EUROPE"],
+    ["이탈리아", "EUROPE"],
+    ["터키", "EUROPE"],
+    ["체코", "EUROPE"],
     // English names
-    ["Japan", "JPN"],
-    ["Germany", "DEU"],
-    ["China", "CHN"],
-    ["Korea", "KOR"],
+    ["Japan", "ASIA"],
+    ["Germany", "EUROPE"],
+    ["China", "ASIA"],
+    ["Korea", "KOREA"],
   ])("canonicalize country(%j) → %j", (input, expected) => {
     expect(canonicalize("country", input)).toBe(expected)
   })
 
   it.each([
-    ["kr", "KOR"],
-    ["us", "USA"],
-    ["KOR", "KOR"],
-    ["한국", "KOR"],
-    ["Japan", "JPN"],
-    ["독일", "DEU"],
+    ["kr", "KOREA"],
+    ["us", "AMERICA"],
+    ["KOREA", "KOREA"],
+    ["한국", "KOREA"],
+    ["Japan", "ASIA"],
+    ["독일", "EUROPE"],
   ])("parseAnswerToFilter('country', %j).rawValue → %j", (answer, expected) => {
     expect(parseRaw("country", answer)).toBe(expected)
   })

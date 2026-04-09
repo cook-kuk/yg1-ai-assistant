@@ -14,6 +14,7 @@ import {
   inferIsoGroupsFromText,
 } from "@/lib/recommendation/shared/patterns"
 import { getDbSchemaSync } from "@/lib/recommendation/core/sql-agent-schema-cache"
+import { createFilterFieldFactories } from "@/lib/recommendation/shared/filter-field-factories"
 
 type FilterPrimitive = string | number | boolean
 type FilterValueKind = "string" | "number" | "boolean"
@@ -507,6 +508,19 @@ function booleanMatch(record: FilterRecord, filter: AppliedFilter, key: string):
   })
 }
 
+// Bundle of internal helpers passed to the factory module. Declared here so
+// factories can construct method closures without importing from this file
+// (which would create a circular dependency).
+const { makeNumberRangeFieldDef, makeBooleanFieldDef } = createFilterFieldFactories({
+  firstFilterNumberValue,
+  firstFilterBooleanValue,
+  extractPrimitiveValues,
+  numericMatch,
+  booleanMatch,
+  buildNumericEqualityClause,
+  buildBooleanStringClause,
+})
+
 const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
   diameterMm: {
     field: "diameterMm",
@@ -616,39 +630,27 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
       return record.workpieceMatched === true
     },
   },
-  fluteCount: {
+  fluteCount: makeNumberRangeFieldDef({
     field: "fluteCount",
     label: "날 수",
     queryAliases: ["날 수", "날수", "몇 날", "flute", "날"],
-    kind: "number",
-    op: "eq",
     unit: "날",
+    inputKey: "flutePreference",
+    dbColumns: ["option_numberofflute", "option_z", "milling_number_of_flute", "holemaking_number_of_flute", "threading_number_of_flute"],
     canonicalizeRawValue: (rawValue) => {
       // Strip Korean particles from flute expressions: "2날이요" → "2날" → 2
       const s = stripKoreanParticles(String(rawValue).trim())
-      // English word numbers: "two flute" → 2, "four flute" → 4
       const WORD_NUMBERS: Record<string, number> = {
         one: 1, two: 2, three: 3, four: 4, five: 5, six: 6,
         seven: 7, eight: 8, nine: 9, ten: 10,
       }
       const wordMatch = s.toLowerCase().match(/^(one|two|three|four|five|six|seven|eight|nine|ten)\b/)
       if (wordMatch) return WORD_NUMBERS[wordMatch[1]] ?? rawValue
-      // Reversed Korean order: "날 2개" → 2
       const reversedMatch = s.match(/^날\s*(\d+)\s*개?$/)
       if (reversedMatch) return parseInt(reversedMatch[1], 10)
       return extractNumericValue(s) ?? rawValue
     },
-    setInput: (input, filter) => ({ ...input, flutePreference: firstFilterNumberValue(filter) }),
-    clearInput: input => ({ ...input, flutePreference: undefined }),
-    extractValues: record => extractPrimitiveValues(record, "fluteCount"),
-    matches: (record, filter) => numericMatch(record, filter, "fluteCount"),
-    buildDbClause: (filter, next) => buildNumericEqualityClause(
-      ["option_numberofflute", "option_z", "milling_number_of_flute", "holemaking_number_of_flute", "threading_number_of_flute"],
-      filter,
-      next,
-      0.0001
-    ),
-  },
+  }),
   coating: {
     field: "coating",
     label: "코팅",
@@ -834,24 +836,14 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
       return `EXISTS (SELECT 1 FROM unnest(COALESCE(country_codes, ARRAY[]::text[])) AS _c WHERE upper(_c) = ANY(${param}::text[]))`
     },
   },
-  shankDiameterMm: {
+  shankDiameterMm: makeNumberRangeFieldDef({
     field: "shankDiameterMm",
     label: "생크 직경",
     queryAliases: ["생크", "shank"],
-    kind: "number",
-    op: "eq",
     unit: "mm",
-    setInput: (input, filter) => ({ ...input, shankDiameterMm: firstFilterNumberValue(filter) }),
-    clearInput: input => ({ ...input, shankDiameterMm: undefined }),
-    extractValues: record => extractPrimitiveValues(record, "shankDiameterMm"),
-    matches: (record, filter) => numericMatch(record, filter, "shankDiameterMm", 0.5),
-    buildDbClause: (filter, next) => buildNumericEqualityClause(
-      ["milling_shank_dia", "holemaking_shank_dia", "threading_shank_dia", "option_shank_diameter", "option_dcon"],
-      filter,
-      next,
-      0.5
-    ),
-  },
+    tolerance: 0.5,
+    dbColumns: ["milling_shank_dia", "holemaking_shank_dia", "threading_shank_dia", "option_shank_diameter", "option_dcon"],
+  }),
   shankType: {
     field: "shankType",
     label: "생크 타입",
@@ -874,111 +866,51 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
       return `(LOWER(COALESCE(search_shank_type, '')) LIKE ${param} OR LOWER(COALESCE(milling_shank_type, '')) LIKE ${param} OR LOWER(COALESCE(series_shank_type, '')) LIKE ${param} OR LOWER(COALESCE(tooling_shank_type, '')) LIKE ${param})`
     },
   },
-  lengthOfCutMm: {
+  lengthOfCutMm: makeNumberRangeFieldDef({
     field: "lengthOfCutMm",
     label: "절삭 길이",
     queryAliases: ["절삭길이", "절삭 길이", "날길이", "날 길이", "loc"],
-    kind: "number",
-    op: "eq",
     unit: "mm",
-    setInput: (input, filter) => ({ ...input, lengthOfCutMm: firstFilterNumberValue(filter) }),
-    clearInput: input => ({ ...input, lengthOfCutMm: undefined }),
-    extractValues: record => extractPrimitiveValues(record, "lengthOfCutMm"),
-    matches: (record, filter) => numericMatch(record, filter, "lengthOfCutMm", 2),
-    buildDbClause: (filter, next) => buildNumericEqualityClause(
-      ["milling_length_of_cut", "holemaking_flute_length", "threading_thread_length", "option_flute_length", "option_loc"],
-      filter,
-      next,
-      2
-    ),
-  },
-  overallLengthMm: {
+    tolerance: 2,
+    dbColumns: ["milling_length_of_cut", "holemaking_flute_length", "threading_thread_length", "option_flute_length", "option_loc"],
+  }),
+  overallLengthMm: makeNumberRangeFieldDef({
     field: "overallLengthMm",
     label: "전장",
     queryAliases: ["전장", "전체 길이", "oal"],
-    kind: "number",
-    op: "eq",
     unit: "mm",
-    setInput: (input, filter) => ({ ...input, overallLengthMm: firstFilterNumberValue(filter) }),
-    clearInput: input => ({ ...input, overallLengthMm: undefined }),
-    extractValues: record => extractPrimitiveValues(record, "overallLengthMm"),
-    matches: (record, filter) => numericMatch(record, filter, "overallLengthMm", 5),
-    buildDbClause: (filter, next) => buildNumericEqualityClause(
-      ["milling_overall_length", "holemaking_overall_length", "threading_overall_length", "option_overall_length", "option_oal"],
-      filter,
-      next,
-      5
-    ),
-  },
-  helixAngleDeg: {
+    tolerance: 5,
+    dbColumns: ["milling_overall_length", "holemaking_overall_length", "threading_overall_length", "option_overall_length", "option_oal"],
+  }),
+  helixAngleDeg: makeNumberRangeFieldDef({
     field: "helixAngleDeg",
     label: "헬릭스각",
     queryAliases: ["헬릭스", "헬릭스각", "헬릭스 각", "헬릭스 각도", "나선각", "나선 각도", "helix", "helixAngle", "helix angle"],
-    kind: "number",
-    op: "eq",
     unit: "°",
-    setInput: (input, filter) => ({ ...input, helixAngleDeg: firstFilterNumberValue(filter) }),
-    clearInput: input => ({ ...input, helixAngleDeg: undefined }),
-    extractValues: record => extractPrimitiveValues(record, "helixAngleDeg"),
-    matches: (record, filter) => numericMatch(record, filter, "helixAngleDeg", 2),
-    buildDbClause: (filter, next) => buildNumericEqualityClause(
-      ["milling_helix_angle", "holemaking_helix_angle"],
-      filter,
-      next,
-      2
-    ),
-  },
-  ballRadiusMm: {
+    tolerance: 2,
+    dbColumns: ["milling_helix_angle", "holemaking_helix_angle"],
+  }),
+  ballRadiusMm: makeNumberRangeFieldDef({
     field: "ballRadiusMm",
     label: "볼 반경",
     queryAliases: ["볼 반경", "ball radius"],
-    kind: "number",
-    op: "eq",
     unit: "mm",
-    setInput: (input, filter) => ({ ...input, ballRadiusMm: firstFilterNumberValue(filter) }),
-    clearInput: input => ({ ...input, ballRadiusMm: undefined }),
-    extractValues: record => extractPrimitiveValues(record, "ballRadiusMm"),
-    matches: (record, filter) => numericMatch(record, filter, "ballRadiusMm"),
-    buildDbClause: (filter, next) => buildNumericEqualityClause(
-      ["milling_ball_radius", "option_r", "option_re"],
-      filter,
-      next,
-      0.0001
-    ),
-  },
-  taperAngleDeg: {
+    dbColumns: ["milling_ball_radius", "option_r", "option_re"],
+  }),
+  taperAngleDeg: makeNumberRangeFieldDef({
     field: "taperAngleDeg",
     label: "테이퍼각",
     queryAliases: ["테이퍼각", "taper"],
-    kind: "number",
-    op: "eq",
     unit: "°",
-    setInput: (input, filter) => ({ ...input, taperAngleDeg: firstFilterNumberValue(filter) }),
-    clearInput: input => ({ ...input, taperAngleDeg: undefined }),
-    extractValues: record => extractPrimitiveValues(record, "taperAngleDeg"),
-    matches: (record, filter) => numericMatch(record, filter, "taperAngleDeg", 0.5),
-    buildDbClause: (filter, next) => buildNumericEqualityClause(
-      ["milling_taper_angle", "option_taperangle"],
-      filter,
-      next,
-      0.5
-    ),
-  },
-  coolantHole: {
+    tolerance: 0.5,
+    dbColumns: ["milling_taper_angle", "option_taperangle"],
+  }),
+  coolantHole: makeBooleanFieldDef({
     field: "coolantHole",
     label: "쿨런트 홀",
     queryAliases: ["쿨런트", "절삭유홀", "coolant", "coolant hole"],
-    kind: "boolean",
-    op: "eq",
-    setInput: (input, filter) => ({ ...input, coolantHole: firstFilterBooleanValue(filter) }),
-    clearInput: input => ({ ...input, coolantHole: undefined }),
-    extractValues: record => extractPrimitiveValues(record, "coolantHole"),
-    matches: (record, filter) => booleanMatch(record, filter, "coolantHole"),
-    buildDbClause: (filter) => buildBooleanStringClause(
-      ["milling_coolant_hole", "holemaking_coolant_hole", "threading_coolant_hole", "option_coolanthole"],
-      filter,
-    ),
-  },
+    dbColumns: ["milling_coolant_hole", "holemaking_coolant_hole", "threading_coolant_hole", "option_coolanthole"],
+  }),
   pointAngleDeg: {
     field: "pointAngleDeg",
     label: "포인트 각도",

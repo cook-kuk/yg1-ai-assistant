@@ -1,4 +1,5 @@
 import { notifyRecommendation } from "@/lib/recommendation/infrastructure/notifications/recommendation-notifier"
+import { buildTraceFromScoreBreakdown } from "@/lib/recommendation/domain/build-ranking-trace"
 import {
   EntityProfileRepo,
   SeriesMaterialStatusRepo,
@@ -980,14 +981,25 @@ export async function buildRecommendationResponse(
 
   if (primary) {
     const primaryEvidence = evidenceLookup(primary) ?? null
-    primaryExplanation = buildExplanation(primary, input, primaryEvidence)
+    // Phase F.2: build a RankingTrace from the ScoreBreakdown so the
+    // explanation-builder can emit a grounded rationale. Falls back to null
+    // (legacy narrative path) when no breakdown is present.
+    const primaryTrace = primary.scoreBreakdown
+      ? buildTraceFromScoreBreakdown(primary.product.normalizedCode, primary.scoreBreakdown, 1, filters)
+      : null
+    primaryExplanation = buildExplanation(primary, input, primaryEvidence, primaryTrace)
     primaryFactChecked = await runFactCheck(primary, input, primaryEvidence, primaryExplanation)
 
+    let altRank = 2
     for (const alt of alternatives) {
       const altEvidence = evidenceLookup(alt) ?? null
-      const altExplanation = buildExplanation(alt, input, altEvidence)
+      const altTrace = alt.scoreBreakdown
+        ? buildTraceFromScoreBreakdown(alt.product.normalizedCode, alt.scoreBreakdown, altRank, filters)
+        : null
+      const altExplanation = buildExplanation(alt, input, altEvidence, altTrace)
       altExplanations.push(altExplanation)
       altFactChecked.push(await runFactCheck(alt, input, altEvidence, altExplanation))
+      altRank++
     }
   }
 
