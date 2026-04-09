@@ -911,6 +911,18 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
 
   // 2) Inline flute count (label 없는 "4날", "2 flute") — fluteCount 안 잡힌 경우만
   if (!seen.has("fluteCount")) {
+    // 교체 패턴 우선: "2날 말고 4날로", "2날 대신 4날", "2 flute → 4 flute" — 마지막(=새) 값 선택
+    const replaceRe = /(\d+)\s*(?:날|flutes?|fl\b|f\b)[^가-힣a-z0-9]*?(?:말고|대신|아니고|아니라|바꿔|변경|→|->|to)[^가-힣a-z0-9]*?(\d+)\s*(?:날|flutes?|fl\b|f\b)/i
+    const repM = text.match(replaceRe)
+    if (repM) {
+      const value = parseInt(repM[2], 10)
+      if (Number.isFinite(value) && value > 0 && value <= 20) {
+        actions.push({ type: "apply_filter", field: "fluteCount", value, op: "eq", source: "deterministic" })
+        seen.add("fluteCount")
+      }
+    }
+  }
+  if (!seen.has("fluteCount")) {
     const m = text.match(INLINE_FLUTE_RE)
     if (m) {
       const value = parseInt(m[1], 10)

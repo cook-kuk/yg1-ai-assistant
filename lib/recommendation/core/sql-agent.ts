@@ -86,6 +86,10 @@ export const DB_COL_TO_FILTER_FIELD: Record<string, string> = {
   threading_pitch: "threadPitchMm",
   thread_pitch: "threadPitchMm",
   threading_tpi: "threadPitchMm",
+  // Single/double end milling cutter — map to toolSubtype slot so golden FIELD_ALIAS resolves.
+  option_milling_singledoubleend: "toolSubtype",
+  milling_single_double_end: "toolSubtype",
+  single_double_end: "toolSubtype",
   // workpiece is handled specially via _workPieceName
   _workPieceName: "workPieceName",
   // Country codes are stored as text[] (unnested by schema cache for indexing).
@@ -176,7 +180,8 @@ Extract filter conditions and a short Korean reasoning trail from the user messa
 Rules:
 - field MUST be one of the actual column_names listed above (product_recommendation_mv only), or "_workPieceName" for workpiece materials, or "_skip"/"_reset"/"_back" for navigation. NEVER invent a column name.
 - Match user intent to columns by reading the column name AND its sample values. The column name is in English; map Korean/Japanese/etc. terms to it semantically. If multiple columns plausibly match (e.g. milling_* vs holemaking_*), prefer the one whose sample values or numeric range fits the user's number.
-- For exclusion/negation (빼고/말고/제외/아닌것 등) → op="neq"
+- For exclusion/negation (빼고/제외/아닌것/"~만 빼고") → op="neq". BUT: "X 말고 Y / X 대신 Y / X 말고 Y로 / Y로 바꿔" 는 **교체**이므로 새 값 Y만 eq 로 emit (기존 필터는 런타임이 같은 field 새 값으로 자동 교체). 오래된 X 에 대한 neq 는 emit 금지.
+- "이전으로 돌아가서 X 제외" / "되돌리고 X 빼고" 같은 복합 문장은 **X 에 대한 neq 만** emit (되돌리기는 런타임이 처리).
 - For navigation: skip(상관없음/패스) → _skip, reset(처음부터/초기화) → _reset, back(이전/돌아가) → _back
 - For pure questions or non-filter messages → [] (empty array)
 
@@ -192,6 +197,9 @@ NEVER use eq when the user expressed a range:
 - 공구 소재: 초경/카바이드/솔리드/Carbide/cemented → like "Carbide" · 하이스/HSS/고속도강/high speed steel → like "HSS" · 코발트하이스/HSS-Co/HSS-CO/분말 하이스/PM HSS → like "HSS-Co" · 서멧/Cermet → like "Cermet" · PCD/diamond → like "PCD" · CBN → like "CBN" · 다이아몬드 → like "Diamond"
 - 코팅: TiAlN/X코팅 → like "TiAlN" or "X-Coating" · AlCrN/Y코팅 → like "AlCrN" or "Y-Coating" · DLC → like "DLC" · 무코팅/비코팅/uncoated/bright → like "Uncoated" or "Bright" · nACo → like "nACo" · CrN → like "CrN" · TiN → like "TiN" · TiCN → like "TiCN" · ZrN → like "ZrN" · "코팅된 거"/"코팅 있는 거"/"코팅 엔드밀" → search_coating neq "Bright" (코팅 존재 여부 필터)
 - 영어 형상 변형: flat/flat endmill → "Square" · bull nose/bullnose → "Radius" or "Corner Radius" · ball nose/ballnose → "Ball" · 4 teeth/4 flute/4-flute → search_flute_count eq 4
+- 길이 상대 표현 (숫자 없음): "긴/롱/long" → overall_length (milling_overall_length 또는 option_overall_length) op:gte with value = numericStats의 median (samples의 중앙값을 직접 계산해 사용) · "짧은/숏/short/스터비/stubby" → 동일 컬럼 op:lte with value = median
+- 날수 상대 표현: "다날/멀티플루트/many flute/multi-flute" → search_flute_count op:gte value=5 · "소수날/few flute" → search_flute_count op:lte value=3
+- 더블/싱글 엔드: "더블엔드/양날/double end/double-ended" → option_milling_singledoubleend eq "Double" · "싱글엔드/single end" → eq "Single"
 - 피삭재 (use _workPieceName eq): 스테인리스/스텐/SUS → "스테인리스" · 티타늄/Ti → "티타늄" · 알루미늄/AL → "알루미늄" · 주철/FC/FCD → "주철" · 탄소강/SM45C → "탄소강" · 고경도강/SKD11 → "고경도강" · 인코넬/내열합금 → "인코넬" · 구리/동/황동 → "구리" · 합금강/SCM440 → "합금강" · 복합재/CFRP → "복합재" · 흑연 → "흑연"
 - 공구 형상: 스퀘어/평날 → search_subtype eq "Square" · 볼/볼엔드밀 → "Ball" · 라디우스/코너R → like "Radius" · 러핑/황삭 → "Roughing" · 테이퍼 → "Taper" · 챔퍼/모따기 → "Chamfer" · 하이피드/고이송 → like "High-Feed"
 - 가공 형상: 측면가공 → series_application_shape like "side" · 포켓 → like "pocket" · 곡면 → like "contour"
