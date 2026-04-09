@@ -126,7 +126,7 @@ const WORK_MATERIAL_CUES: Array<{ pattern: RegExp; value: string }> = [
   { pattern: /(주철|cast\s*iron|덕타일|ductile|fcd|\bfc\b\d*)/i, value: "K" },
   { pattern: /(고경도|경화강|hardened|HRc?\s*\d|hrc)/i, value: "H" },
   { pattern: /(탄소강|carbon\s*steel|sm45c|s45c|s50c|구조용\s*강|structural\s*steel|합금강|alloy\s*steel|공구강|tool\s*steel|prehardened)/i, value: "P" },
-  { pattern: /(cfrp|gfrp|kfrp|복합재|honeycomb|허니컴|아크릴|acrylic|플라스틱|plastic|graphite|그라파이트)/i, value: "O" },
+  { pattern: /(cfrp|gfrp|kfrp|복합재|honeycomb|허니컴|아크릴|acrylic|플라스틱|plastic|graphite|그라파이트|흑연)/i, value: "O" },
 ]
 
 // prod_edp_option_turning.option_turning_grade (23 distinct, cleaned)
