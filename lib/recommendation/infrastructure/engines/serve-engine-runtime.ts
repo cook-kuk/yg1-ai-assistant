@@ -2031,7 +2031,7 @@ async function handleServeExplorationInner(
     }
 
     // ── Complexity 판단 (0ms, LLM 없음) ──
-    const complexity = assessComplexity(msg, (legacyState.appliedFilters ?? []).length)
+    const complexity = assessComplexity(msg, (prevState?.appliedFilters ?? []).length)
     console.log(`[complexity] "${msg.slice(0, 30)}" → ${complexity.level} (${complexity.reason})`)
 
     const hasNegationPattern = /빼고|뺴고|빼구|제외|아닌\s*것|아닌\s*걸|아닌걸|없는\s*거|말고|만\s*아니면|없이|아닌\s*거|없는\s*거로|가\s*아닌|이\s*아닌/u.test(msg)
