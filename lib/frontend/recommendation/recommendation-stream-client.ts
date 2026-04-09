@@ -41,7 +41,7 @@ export async function streamRecommendation(
   payload: RecommendationRequestDto,
   options: StreamRecommendationOptions = {}
 ): Promise<RecommendationResponseDto> {
-  const { onCards, onThinking, signal, timeoutMs = 55_000 } = options
+  const { onCards, onThinking, signal, timeoutMs = 120_000 } = options
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
@@ -122,7 +122,10 @@ export async function streamRecommendation(
   } catch (err) {
     // Fallback: plain JSON POST. Keeps tests/non-streaming clients working
     // and lets us silently degrade if SSE infra is unavailable.
-    if (controller.signal.aborted && !signal?.aborted) {
+    // Only re-throw if the *user* explicitly cancelled — internal timeouts
+    // should fall through to the non-streaming endpoint instead of bubbling
+    // "BodyStreamBuffer was aborted" up to the UI.
+    if (signal?.aborted) {
       throw err
     }
     const fallbackController = new AbortController()
