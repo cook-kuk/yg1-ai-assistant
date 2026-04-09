@@ -184,7 +184,25 @@ export function toRecommendationPublicSessionDto(
   return {
     sessionId: sessionState.sessionId ?? null,
     candidateCount: sessionState.candidateCount,
-    appliedFilters: sessionState.appliedFilters.map(toAppliedFilterDto),
+    // Defensive dedup: 상위 레이어에서 같은 (field, op, rawValue) 조합이 두 번
+    // 박힐 경우 UI 에 "10mm 이상 / 10mm 이상" 이 두 줄로 보이는 문제가 있음. 마지막
+    // 적용분을 유지한다. 정상 경로는 replaceFieldFilter 로 이미 dedup 되지만
+    // narrowingHistory replay · KG + SCR 동시 emit · 이전 턴 state merge 등에서
+    // 새는 경우를 최종 방어한다.
+    appliedFilters: (() => {
+      const seen = new Map<string, number>()
+      sessionState.appliedFilters.forEach((f, i) => {
+        const key = `${f.field}|${f.op ?? "eq"}|${JSON.stringify(f.rawValue ?? f.value ?? null)}`
+        seen.set(key, i)
+      })
+      return sessionState.appliedFilters
+        .map((f, i) => {
+          const key = `${f.field}|${f.op ?? "eq"}|${JSON.stringify(f.rawValue ?? f.value ?? null)}`
+          return seen.get(key) === i ? f : null
+        })
+        .filter((f): f is AppliedFilter => f !== null)
+        .map(toAppliedFilterDto)
+    })(),
     narrowingHistory: sessionState.narrowingHistory.map(toNarrowingTurnDto),
     resolutionStatus: sessionState.resolutionStatus,
     turnCount: sessionState.turnCount,
