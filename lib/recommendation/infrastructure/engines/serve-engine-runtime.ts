@@ -1628,91 +1628,9 @@ export async function handleServeExploration(
  * Deliberately deterministic — no LLM call. Looks at the field name + op + value
  * and assembles 1-2 short sentences. Returns null when nothing useful to say.
  */
-/**
- * Real LLM-generated CoT for paths that don't go through sql-agent
- * (chip clicks via det-SCR / KG / v2-bridge). Streams via onThinking
- * delta=true so the UI types it out token-by-token. Falls back silently
- * on error — never blocks the runtime.
- */
-async function streamLLMReasoningForChipPath(params: {
-  provider: ReturnType<typeof getProvider>
-  userText: string
-  prevFilters: AppliedFilter[]
-  newFilters: AppliedFilter[]
-  candidateCountBefore: number | null
-  candidateCountAfter: number | null
-  onThinking?: (text: string, opts?: { delta?: boolean }) => void
-}): Promise<string | null> {
-  const { provider, userText, prevFilters, newFilters, candidateCountBefore, candidateCountAfter, onThinking } = params
-  const fmt = (fs: AppliedFilter[]) => fs.filter(f => f.op !== "skip").map(f => `${f.field}=${f.value}`).join(", ") || "(none)"
-  const sys = `당신은 YG-1 절삭공구 추천 엔진의 내부 사고 과정(CoT)을 1인칭으로 적는 역할입니다. 요약하지 말고, 머릿속에서 실제로 흘러가는 모든 생각을 그대로 길게 적으세요. 길수록 좋습니다. 디버깅용이므로 검열·정리·요약 금지.
-
-다음을 모두 포함하세요 (순서 자유):
-- 사용자 메시지를 글자 그대로 다시 읽으면서 무엇을 원하는지 풀이
-- 가능한 해석을 여러 개 떠올려보고 각각 검토
-- 후보 컬럼/값/필터를 여러 개 비교 ("A일까 B일까... A는 ~이지만 B는 ~")
-- 한 번 결론을 내렸다가 의심하고 번복 ("처음엔 X로 가려 했는데, 잠깐 다시 보니 Y가 더 맞겠다")
-- 직전 필터와의 충돌/일관성 점검
-- 도메인 지식(공구 재료/코팅/소재 적합도) 동원해서 따져보기
-- 최종 결정과 그 근거, 그리고 남은 불확실성
-
-"음", "잠깐", "근데", "어... 아니다", "다시 생각해보면", "솔직히" 같은 자연스러운 사고 마커를 자주 쓰세요. 최소 10문장 이상, 길이 제한 없음. JSON이나 마크다운 없이 평문으로만.`
-  const user = `사용자 입력: "${userText}"
-직전 필터: ${fmt(prevFilters)}
-현재 필터: ${fmt(newFilters)}
-후보 수: ${candidateCountBefore ?? "?"}개 → ${candidateCountAfter ?? "?"}개
-
-위 변화에 대한 사고 과정을 적어줘.`
-
-  // Use sonnet tier (= OPENAI_SONNET_MODEL or OPENAI_MODEL fallback, e.g.
-  // gpt-5.4) instead of haiku — reasoning summaries from /v1/responses are
-  // only meaningful when the model actually thinks. Mini tier with effort
-  // "minimal" emits an empty summary, leaving the deep CoT toggle blank.
-  const model = "sonnet" as const
-  try {
-    let full = ""
-    let realReasoningChars = 0
-    // Prefer streamReasoning when available — for OpenAI gpt-5/o-series this
-    // hits /v1/responses with reasoning.summary:auto and yields the model's
-    // REAL chain-of-thought tokens (not the prose we asked for in `sys`).
-    // Reasoning chunks → onThinking (deep CoT toggle).
-    // Content chunks   → also forwarded so the prose fallback still streams
-    //                    when reasoning summary is empty (effort=minimal).
-    if (provider.streamReasoning) {
-      for await (const evt of provider.streamReasoning(sys, [{ role: "user", content: user }], 8192, model)) {
-        if (evt.kind === "reasoning") {
-          realReasoningChars += evt.text.length
-          full += evt.text
-          if (onThinking) { try { onThinking(evt.text, { delta: true }) } catch { /* noop */ } }
-        } else if (evt.kind === "content") {
-          full += evt.text
-          // Only stream content as "thinking" when no real reasoning arrived —
-          // otherwise we'd duplicate the answer text into the deep CoT pane.
-          if (onThinking && realReasoningChars === 0) {
-            try { onThinking(evt.text, { delta: true }) } catch { /* noop */ }
-          }
-        }
-      }
-    } else if (provider.stream) {
-      for await (const chunk of provider.stream(sys, [{ role: "user", content: user }], 8192, model)) {
-        full += chunk
-        if (onThinking && chunk) {
-          try { onThinking(chunk, { delta: true }) } catch { /* noop */ }
-        }
-      }
-    } else {
-      full = await provider.complete(sys, [{ role: "user", content: user }], 8192, model)
-      if (onThinking && full) {
-        try { onThinking(full) } catch { /* noop */ }
-      }
-    }
-    console.log(`[chip-CoT] user="${userText}" before=${candidateCountBefore} after=${candidateCountAfter} realReasoning=${realReasoningChars}\n${full}`)
-    return full.trim() || null
-  } catch (err) {
-    console.warn("[chip-CoT] failed:", (err as Error).message)
-    return null
-  }
-}
+// (제거됨, 2026-04-09) chip-path LLM CoT 헬퍼 — 직렬 sonnet 호출이 모든
+// 칩 클릭에 순수 latency 회귀를 추가하던 b8be64f 의 잔재. 합성 CoT로 복원.
+// sql-agent 경로의 스트리밍 CoT 는 naturalLanguageToFiltersStreaming 으로 살아 있음.
 
 function buildSyntheticThinkingFromFilters(filters: AppliedFilter[]): string | null {
   const meaningful = filters.filter(f => f.op !== "skip")
@@ -2340,7 +2258,11 @@ async function handleServeExplorationInner(
             // we can flush reasoning chars to the SSE channel as they arrive.
             // The streaming function transparently falls back to the
             // non-streaming path when provider.stream is unavailable.
-            if (deps.onThinking && provider.stream && complexity.generateCoT) {
+            // sql-agent 스트리밍 CoT: complexity.generateCoT 게이트와 무관하게
+            // 항상 켠다. 이 경로(자유 텍스트)는 chip click 같은 deterministic
+            // patch가 없어서 reasoning 이 유일한 trail 소스 — 끄면 trail이 빈다.
+            // chip click 은 애초에 sql-agent 를 거치지 않으므로 영향 없음.
+            if (deps.onThinking && provider.stream) {
               let streamedAny = false
               agentResult = await naturalLanguageToFiltersStreaming(
                 msg,
@@ -3354,24 +3276,15 @@ async function handleServeExplorationInner(
       // synthetic-thinking block ever runs. Fire onThinking right here so the
       // SSE 'thinking' frame lands while the user is still seeing the loading
       // bubble. Stash on legacyState so the presenter also surfaces it.
+      // 칩 클릭/v2-bridge 경로: 합성 CoT 즉시 emit (LLM 호출 없음 — 이 경로는
+      // CoT 없이도 잘 동작했고, 직렬 LLM 호출은 순수 latency 추가였음).
       try {
         const v2Filters = legacyState.appliedFilters ?? []
         if (v2Filters.length > 0 && !legacyState.thinkingProcess) {
-          const lastUserText = [...messages].reverse().find(m => m.role === "user")?.text ?? ""
-          const llmCot = await streamLLMReasoningForChipPath({
-            provider,
-            userText: lastUserText,
-            prevFilters: prevState?.appliedFilters ?? [],
-            newFilters: v2Filters,
-            candidateCountBefore: prevState?.candidateCount ?? null,
-            candidateCountAfter: legacyState.candidateCount ?? null,
-            onThinking: deps.onThinking,
-          })
-          const cot = llmCot ?? buildSyntheticThinkingFromFilters(v2Filters)
+          const cot = buildSyntheticThinkingFromFilters(v2Filters)
           if (cot) {
             legacyState.thinkingProcess = cot
-            // synthetic fallback wasn't streamed — push it now so UI gets it
-            if (!llmCot && deps.onThinking) {
+            if (deps.onThinking) {
               try { deps.onThinking(cot) } catch { /* never block runtime */ }
             }
           }
@@ -3473,6 +3386,49 @@ async function handleServeExplorationInner(
                 console.log(`[self-correction] success: ${correction.attempts.length} attempts → ${totalCandidateCount} results`)
               } else {
                 console.log(`[self-correction] failed: ${correction.attempts.length} attempts, all 0`)
+                // ── CoT ESCALATION ──
+                // 비-CoT 경로(self-correction 포함)가 실패. SQL agent를 streaming
+                // (CoT) variant로 다시 호출해서 reasoning을 UI에 흘리고, 재추출된
+                // 필터로 retrieval 한 번 더 돌린다.
+                try {
+                  const cotSchema = await getDbSchema()
+                  const cotResult = await naturalLanguageToFiltersStreaming(
+                    lastUserMsg.text,
+                    cotSchema,
+                    legacyState.appliedFilters ?? [],
+                    provider,
+                    deps.onThinking
+                      ? (delta) => { try { deps.onThinking!(delta, { delta: true }) } catch { /* never block */ } }
+                      : undefined,
+                  )
+                  if (cotResult.reasoning) {
+                    legacyState.thinkingProcess =
+                      (legacyState.thinkingProcess ? legacyState.thinkingProcess + "\n\n" : "")
+                      + "🧠 CoT 재시도:\n" + cotResult.reasoning
+                  }
+                  if (cotResult.filters.length > 0) {
+                    const cotApplied = cotResult.filters
+                      .map(f => buildAppliedFilterFromAgentFilter(f, turnCount))
+                      .filter((f): f is AppliedFilter => f !== null)
+                    const mergedFilters = [...(legacyState.appliedFilters ?? []), ...cotApplied]
+                    const cotHR = await runHybridRetrieval(scInput, mergedFilters)
+                    if (cotHR.totalConsidered > 0) {
+                      ;(result.searchPayload as { candidates: typeof cotHR.candidates; evidenceMap: typeof cotHR.evidenceMap; totalConsidered: number }).candidates = cotHR.candidates
+                      ;(result.searchPayload as { candidates: typeof cotHR.candidates; evidenceMap: typeof cotHR.evidenceMap; totalConsidered: number }).evidenceMap = cotHR.evidenceMap
+                      ;(result.searchPayload as { candidates: typeof cotHR.candidates; evidenceMap: typeof cotHR.evidenceMap; totalConsidered: number }).totalConsidered = cotHR.totalConsidered
+                      totalCandidateCount = cotHR.totalConsidered
+                      displayPage = sliceCandidatesForPage(cotHR.candidates, cotHR.evidenceMap, resolvedPagination)
+                      legacyState.appliedFilters = mergedFilters
+                      console.log(`[cot-escalation] success: +${cotApplied.length} filters → ${totalCandidateCount} results`)
+                    } else {
+                      console.log(`[cot-escalation] still 0 with ${cotApplied.length} new filters`)
+                    }
+                  } else {
+                    console.log(`[cot-escalation] no new filters extracted`)
+                  }
+                } catch (cotErr) {
+                  console.warn("[cot-escalation] error:", (cotErr as Error).message)
+                }
               }
               if (correction.explanation) {
                 legacyState.thinkingProcess = (legacyState.thinkingProcess ? legacyState.thinkingProcess + "\n\n" : "") + correction.explanation
@@ -3757,20 +3713,13 @@ async function handleServeExplorationInner(
   // First-turn requests have prevState=null, so we MUST not gate on it —
   // the SSE 'thinking' frame is still useful even when there's no session yet.
   if ((!prevState?.thinkingProcess) && filters.length > 0) {
-    const lateUserText = [...messages].reverse().find(m => m.role === "user")?.text ?? ""
-    const llmCot = await streamLLMReasoningForChipPath({
-      provider,
-      userText: lateUserText,
-      prevFilters: prevState?.appliedFilters ?? [],
-      newFilters: filters,
-      candidateCountBefore: prevState?.candidateCount ?? null,
-      candidateCountAfter: null,
-      onThinking: deps.onThinking,
-    })
-    const cot = llmCot ?? buildSyntheticThinkingFromFilters(filters)
+    // sql-agent 경로는 위에서 이미 reasoning을 스트림했고, 여기까지 오는 건
+    // det-SCR / KG / tool-use 같이 CoT 없이도 잘 처리됐던 경로다. 합성 CoT만
+    // emit (직렬 LLM 호출 금지 — 그 경로의 latency 회귀 원인이었음).
+    const cot = buildSyntheticThinkingFromFilters(filters)
     if (cot) {
       if (prevState) prevState.thinkingProcess = cot
-      if (!llmCot && deps.onThinking) {
+      if (deps.onThinking) {
         try { deps.onThinking(cot) } catch { /* never block runtime */ }
       }
     }
