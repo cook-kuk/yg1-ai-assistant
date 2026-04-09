@@ -8,6 +8,7 @@ import { getDbSchemaSync, type DbSchema } from "./sql-agent-schema-cache"
 import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import { resolveModel } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import type { AppliedFilter } from "@/lib/types/exploration"
+import { selectFewShots, buildFewShotText } from "./adaptive-few-shot"
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -99,7 +100,7 @@ const NAV_FIELDS = new Set(["_skip", "_reset", "_back"])
 // directly from the DB schema and matches user intent itself. Adding a new
 // column to the MV requires zero code changes — it shows up automatically.
 
-function buildSystemPrompt(schema: DbSchema, existingFilters: AppliedFilter[]): string {
+function buildSystemPrompt(schema: DbSchema, existingFilters: AppliedFilter[], userMessage?: string): string {
   const colList = schema.columns
     .map(c => `  ${c.column_name} (${c.data_type})`)
     .join("\n")
@@ -198,36 +199,8 @@ NEVER use eq when the user expressed a range:
 - 국가 (text[]): 국내/한국 → eq "KOR" · 미국/인치 → eq "USA" · 유럽 → eq "ENG" · 일본 → eq "JPN"
 - 모호한 표현(좋은 거/추천해줘/괜찮은 거/범용/다양한) → []
 
-## Examples
-User: "스테인리스 가공할건데 4날 스퀘어 10mm"
-→ {"reasoning":"스테인리스(ISO M군) 가공용 4날 스퀘어 엔드밀 직경 10mm 조건으로 검색합니다. 스테인리스에는 내열성 높은 AlCrN(Y-Coating) 계열이 적합합니다.","filters":[{"field":"_workPieceName","op":"eq","value":"스테인리스","display":"피삭재: 스테인리스"},{"field":"search_subtype","op":"eq","value":"Square","display":"형상: 스퀘어"},{"field":"search_flute_count","op":"eq","value":"4","display":"날수: 4날"},{"field":"search_diameter_mm","op":"eq","value":"10","display":"직경: 10mm"}]}
-
-User: "구리 비슷한 소재 가공할건데 떨림 적은 거"
-→ {"reasoning":"구리와 유사한 비철금속(ISO N군)으로 판단됩니다. 떨림을 줄이려면 부등분할 4날 스퀘어 엔드밀이 안정적이며, 비철금속에는 DLC 코팅이 칩 부착을 방지합니다.","filters":[{"field":"_workPieceName","op":"eq","value":"구리","display":"피삭재: 구리(비철금속)"},{"field":"search_flute_count","op":"eq","value":"4","display":"날수: 4날(떨림 방지)"},{"field":"search_subtype","op":"eq","value":"Square","display":"형상: 스퀘어"}]}
-
-User: "초경 카바이드 소재로만"
-→ [{"field":"milling_tool_material","op":"like","value":"Carbide","display":"공구소재: 초경(Carbide)"}]
-
-User: "Y 코팅으로 추천해줘"
-→ [{"field":"search_coating","op":"like","value":"Y-Coating","display":"코팅: Y-Coating(AlCrN)"}]
-
-User: "10mm 근처 직경"
-→ [{"field":"search_diameter_mm","op":"between","value":"9","value2":"11","display":"직경: ~10mm(9~11)"}]
-
-User: "DLC 빼고 코팅 있는 거"
-→ [{"field":"search_coating","op":"neq","value":"DLC","display":"DLC 제외"}]
-
-User: "적용공법이 side milling인"
-→ [{"field":"series_application_shape","op":"like","value":"side","display":"적용공법: side milling"}]
-
-User: "인치 제품"
-→ [{"field":"edp_unit","op":"eq","value":"Inch","display":"단위: 인치"}]
-
-User: "상관없음"
-→ [{"field":"_skip","op":"skip","value":"skip"}]
-
-User: "X-POWER 시리즈의 SUS304 절삭조건 알려줘"
-→ []   (cutting conditions live in an aux table — let tool-forge handle it)
+## Examples (dynamically selected — most similar to current query from golden set)
+${userMessage ? (buildFewShotText(selectFewShots(userMessage, 4)) || "(no matching examples found — fall back to schema-driven reasoning)") : "(no user message context — generic mode)"}
 
 ALWAYS respond with a single valid JSON object {"reasoning":"...","filters":[...]} — no markdown fences, no prose outside JSON.`
 }
@@ -242,7 +215,7 @@ export async function naturalLanguageToFilters(
   existingFilters: AppliedFilter[],
   provider: LLMProvider,
 ): Promise<SqlAgentResult> {
-  const systemPrompt = buildSystemPrompt(schema, existingFilters)
+  const systemPrompt = buildSystemPrompt(schema, existingFilters, userMessage)
   const raw = await provider.complete(
     systemPrompt,
     [{ role: "user", content: userMessage }],
@@ -343,7 +316,7 @@ export async function naturalLanguageToFiltersStreaming(
   if (!provider.stream) {
     return naturalLanguageToFilters(userMessage, schema, existingFilters, provider)
   }
-  const systemPrompt = buildSystemPrompt(schema, existingFilters)
+  const systemPrompt = buildSystemPrompt(schema, existingFilters, userMessage)
   const extractor = new ReasoningExtractor()
   let raw = ""
   try {
