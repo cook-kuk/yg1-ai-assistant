@@ -185,6 +185,7 @@ Rules:
 - field MUST be one of the actual column_names listed above (product_recommendation_mv only), or "_workPieceName" for workpiece materials, or "_skip"/"_reset"/"_back" for navigation. NEVER invent a column name.
 - Match user intent to columns by reading the column name AND its sample values. The column name is in English; map Korean/Japanese/etc. terms to it semantically. If multiple columns plausibly match (e.g. milling_* vs holemaking_*), prefer the one whose sample values or numeric range fits the user's number.
 - For exclusion/negation (빼고/제외/아닌것/"~만 빼고") → op="neq". BUT: "X 말고 Y / X 대신 Y / X 말고 Y로 / Y로 바꿔" 는 **교체**이므로 새 값 Y만 eq 로 emit (기존 필터는 런타임이 같은 field 새 값으로 자동 교체). 오래된 X 에 대한 neq 는 emit 금지.
+- **잘못 적용된 필터에 대한 사용자 항의** ("X는 bug", "X 요청한 적 없어요", "X 잘못 들어갔어요", "X 아닌데요"): Currently Applied Filters 중 해당 값을 가진 항목을 사용자가 거부한 것입니다. 그 field에 대해 어떤 필터도 emit 하지 마세요 (neq도 아님). reasoning 에 "사용자가 기존 X 필터를 거부했으므로 재emit하지 않음"이라고 적고, 새로 emit 할 필터가 없으면 filters: [] 로 응답. 런타임이 거부된 필터를 자동으로 제거합니다.
 - "이전으로 돌아가서 X 제외" / "되돌리고 X 빼고" 같은 복합 문장은 **X 에 대한 neq 만** emit (되돌리기는 런타임이 처리).
 - For navigation: skip(상관없음/패스) → _skip, reset(처음부터/초기화) → _reset, back(이전/돌아가) → _back
 - For pure questions or non-filter messages → [] (empty array)
