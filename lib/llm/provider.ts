@@ -186,6 +186,23 @@ export interface LLMProvider {
    * non-streaming complete() path remains the source of truth for telemetry.
    */
   stream?(systemPrompt: string, messages: LLMMessage[], maxTokens?: number, model?: ModelSpecifier, agentName?: AgentName): AsyncIterable<string>
+  /**
+   * Optional: yield REAL reasoning-summary deltas alongside content deltas.
+   * Used to surface gpt-5 / o-series chain-of-thought to the UI as a tagged
+   * stream:
+   *   - { kind: "reasoning", text } — chunk of the model's reasoning summary
+   *   - { kind: "content",   text } — chunk of the final answer
+   * The OpenAI provider hits /v1/responses with `reasoning: { summary: "auto" }`
+   * for reasoning models. Other providers may leave this undefined; callers
+   * should fall back to stream()/complete() in that case.
+   */
+  streamReasoning?(
+    systemPrompt: string,
+    messages: LLMMessage[],
+    maxTokens?: number,
+    model?: ModelSpecifier,
+    agentName?: AgentName
+  ): AsyncIterable<{ kind: "reasoning" | "content"; text: string }>
   available(): boolean
 }
 
@@ -812,6 +829,134 @@ export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
         })
       } catch (error) {
         traceRecommendationError("llm.provider.stream:error", error, {
+          provider: "openai-compatible",
+          model: cfg.model,
+          agentName: agentNameArg ?? agentName ?? null,
+        })
+        throw error
+      }
+    },
+    /**
+     * gpt-5 / o-series real reasoning summary stream via /v1/responses.
+     *
+     * Why a separate method instead of overloading stream(): chat completions
+     * does not expose reasoning summaries — only the final assistant text in
+     * delta.content. /v1/responses surfaces a tagged event stream where
+     * `response.reasoning_summary_text.delta` carries the actual model thinking
+     * and `response.output_text.delta` carries the answer. We yield both as
+     * tagged events so callers can route reasoning to the UI's "deep" channel
+     * and content to the regular text channel.
+     *
+     * Non-reasoning models transparently fall back to stream() so callers can
+     * use this method unconditionally.
+     */
+    async *streamReasoning(systemPrompt, messages, maxTokens = 1500, model, agentNameArg) {
+      const tierHint = inferTierFromModel(typeof model === "string" ? model : undefined)
+      const cfg = resolveOpenAICompatibleConfig(agentNameArg ?? agentName, tierHint ?? undefined)
+      if (!cfg) throw new Error("OpenAI-compatible provider not configured")
+      const isReasoningModel = /^(gpt-5|o1|o3|o4)/i.test(cfg.model)
+      // Non-reasoning model — emit content-only via the regular stream path.
+      if (!isReasoningModel) {
+        const fallback = createOpenAIProvider(agentNameArg ?? agentName)
+        if (fallback.stream) {
+          for await (const chunk of fallback.stream(systemPrompt, messages, maxTokens, model, agentNameArg)) {
+            yield { kind: "content" as const, text: chunk }
+          }
+        }
+        return
+      }
+      const startMs = Date.now()
+      const url = cfg.baseURL.replace(/\/$/, "") + "/responses"
+      const cleanedSystem = systemPrompt.replace(/\s*===DYNAMIC===\s*/g, "\n\n")
+      const effort = AGENT_REASONING_EFFORT[(agentNameArg ?? agentName) as AgentName] ?? "medium"
+      const body: Record<string, unknown> = {
+        model: cfg.model,
+        input: [
+          { role: "system", content: cleanedSystem },
+          ...messages.map(m => ({ role: m.role, content: m.content })),
+        ],
+        // `summary: "auto"` lets the API choose concise vs detailed; with
+        // effort="minimal" the summary may be empty (intended).
+        reasoning: { effort, summary: "auto" },
+        max_output_tokens: maxTokens,
+        stream: true,
+      }
+      const cacheKey = (agentNameArg ?? agentName)
+      if (cacheKey) body.prompt_cache_key = `yg1:${cacheKey}`
+      traceRecommendation("llm.provider.streamReasoning:input", {
+        provider: "openai-compatible",
+        model: cfg.model,
+        agentName: agentNameArg ?? agentName ?? null,
+        effort,
+      })
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${cfg.apiKey}`,
+        },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok || !res.body) {
+        const errText = await res.text().catch(() => "")
+        throw new Error(`openai-compatible /responses HTTP ${res.status}: ${errText.slice(0, 400)}`)
+      }
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = ""
+      let reasoningChars = 0
+      let contentChars = 0
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buf += decoder.decode(value, { stream: true })
+          // SSE: events delimited by blank lines, each frame may have
+          // `event: <name>` and one or more `data: <json>` lines.
+          let sep: number
+          while ((sep = buf.search(/\r?\n\r?\n/)) !== -1) {
+            const frame = buf.slice(0, sep)
+            buf = buf.slice(sep).replace(/^\r?\n\r?\n/, "")
+            const dataLines: string[] = []
+            for (const line of frame.split("\n")) {
+              const trimmed = line.replace(/\r$/, "")
+              if (trimmed.startsWith("data:")) dataLines.push(trimmed.slice(5).trim())
+            }
+            if (dataLines.length === 0) continue
+            const dataStr = dataLines.join("\n")
+            if (dataStr === "[DONE]") continue
+            let parsed: { type?: string; delta?: string } | null = null
+            try { parsed = JSON.parse(dataStr) } catch { continue }
+            if (!parsed?.type) continue
+            // Reasoning summary deltas — the actual chain-of-thought.
+            if (parsed.type === "response.reasoning_summary_text.delta") {
+              const text = typeof parsed.delta === "string" ? parsed.delta : ""
+              if (text) {
+                reasoningChars += text.length
+                yield { kind: "reasoning" as const, text }
+              }
+            } else if (parsed.type === "response.output_text.delta") {
+              const text = typeof parsed.delta === "string" ? parsed.delta : ""
+              if (text) {
+                contentChars += text.length
+                yield { kind: "content" as const, text }
+              }
+            }
+            // Other event types (response.created, .in_progress, .completed,
+            // reasoning_summary_part.added/.done, output_text.done) are
+            // structural and don't carry user-visible text — ignore them.
+          }
+        }
+        traceRecommendation("llm.provider.streamReasoning:output", {
+          provider: "openai-compatible",
+          model: cfg.model,
+          agentName: agentNameArg ?? agentName ?? null,
+          durationMs: Date.now() - startMs,
+          reasoningChars,
+          contentChars,
+        })
+      } catch (error) {
+        traceRecommendationError("llm.provider.streamReasoning:error", error, {
           provider: "openai-compatible",
           model: cfg.model,
           agentName: agentNameArg ?? agentName ?? null,

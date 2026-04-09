@@ -1666,7 +1666,29 @@ async function streamLLMReasoningForChipPath(params: {
   const model = "haiku" as const
   try {
     let full = ""
-    if (provider.stream) {
+    let realReasoningChars = 0
+    // Prefer streamReasoning when available — for OpenAI gpt-5/o-series this
+    // hits /v1/responses with reasoning.summary:auto and yields the model's
+    // REAL chain-of-thought tokens (not the prose we asked for in `sys`).
+    // Reasoning chunks → onThinking (deep CoT toggle).
+    // Content chunks   → also forwarded so the prose fallback still streams
+    //                    when reasoning summary is empty (effort=minimal).
+    if (provider.streamReasoning) {
+      for await (const evt of provider.streamReasoning(sys, [{ role: "user", content: user }], 8192, model)) {
+        if (evt.kind === "reasoning") {
+          realReasoningChars += evt.text.length
+          full += evt.text
+          if (onThinking) { try { onThinking(evt.text, { delta: true }) } catch { /* noop */ } }
+        } else if (evt.kind === "content") {
+          full += evt.text
+          // Only stream content as "thinking" when no real reasoning arrived —
+          // otherwise we'd duplicate the answer text into the deep CoT pane.
+          if (onThinking && realReasoningChars === 0) {
+            try { onThinking(evt.text, { delta: true }) } catch { /* noop */ }
+          }
+        }
+      }
+    } else if (provider.stream) {
       for await (const chunk of provider.stream(sys, [{ role: "user", content: user }], 8192, model)) {
         full += chunk
         if (onThinking && chunk) {
@@ -1679,7 +1701,7 @@ async function streamLLMReasoningForChipPath(params: {
         try { onThinking(full) } catch { /* noop */ }
       }
     }
-    console.log(`[chip-CoT] user="${userText}" before=${candidateCountBefore} after=${candidateCountAfter}\n${full}`)
+    console.log(`[chip-CoT] user="${userText}" before=${candidateCountBefore} after=${candidateCountAfter} realReasoning=${realReasoningChars}\n${full}`)
     return full.trim() || null
   } catch (err) {
     console.warn("[chip-CoT] failed:", (err as Error).message)
