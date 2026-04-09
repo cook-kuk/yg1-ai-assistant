@@ -34,4 +34,14 @@ describe("deterministic-scr phantom categorical guard", () => {
     expect(brand).toBeDefined()
     expect(String(brand?.value).toLowerCase()).toContain("x-power")
   })
+
+  // Word-boundary guard: brand value that only appears as the prefix of a
+  // longer alphanumeric token (i.e. inside a product code) is NOT a real
+  // mention and must be dropped. Reproduces the I5 failure where asking
+  // "GMG55100 이랑 GMG40100의 차이" auto-applied brand=GMG.
+  it("brand prefix inside product code is NOT a real mention", () => {
+    const actions = parseDeterministic("GMG55100 이랑 GMG40100의 차이가 뭐야?")
+    const brand = actions.find(a => a.field === "brand" && String(a.value).toUpperCase() === "GMG")
+    expect(brand).toBeUndefined()
+  })
 })

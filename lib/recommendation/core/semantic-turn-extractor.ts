@@ -739,13 +739,28 @@ function normalizeForMatch(s: string): string {
   return s.toLowerCase().replace(/[\s\-_]+/g, "")
 }
 
-function isPhantomFilter(field: string, value: unknown, normalizedMessage: string): boolean {
+// Word-boundary aware match: value must appear in message such that neither side
+// is glued to another alphanumeric (Latin/CJK) — i.e. it's a real mention, not
+// a prefix of a longer token. Examples:
+//   "GMG" in "GMG55100"  → false (prefix of product code)
+//   "GMG" in "GMG 보여줘" → true
+//   "ONLY ONE" in "onlyone" → true (whitespace is optional between value words)
+function hasBoundedMatch(value: string, message: string): boolean {
+  const v = String(value).toLowerCase().trim()
+  const m = String(message).toLowerCase()
+  if (!v || !m) return false
+  const parts = v.split(/[\s\-_]+/).filter(Boolean)
+  if (parts.length === 0) return false
+  const escaped = parts.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[\\s\\-_]*")
+  const re = new RegExp(`(^|[^a-z0-9가-힣])${escaped}(?![a-z0-9가-힣])`, "i")
+  return re.test(m)
+}
+
+function isPhantomFilter(field: string, value: unknown, _normalizedMessage: string, rawMessage: string): boolean {
   if (!PHANTOM_GUARDED_FIELDS.has(field)) return false
   const valueStr = Array.isArray(value) ? value.join(" ") : String(value ?? "")
   if (!valueStr) return false
-  const normalizedValue = normalizeForMatch(valueStr)
-  if (!normalizedValue) return false
-  return !normalizedMessage.includes(normalizedValue)
+  return !hasBoundedMatch(valueStr, rawMessage)
 }
 
 function stripPhantomCategoricalFilters(
@@ -754,12 +769,12 @@ function stripPhantomCategoricalFilters(
 ): SemanticTurnDecision | null {
   const normalizedMessage = normalizeForMatch(userMessage)
   const extraFilters = decision.extraFilters.filter(
-    f => !isPhantomFilter(f.field, f.rawValue ?? f.value, normalizedMessage)
+    f => !isPhantomFilter(f.field, f.rawValue ?? f.value, normalizedMessage, userMessage)
   )
 
   const action = decision.action
   if (action.type === "continue_narrowing") {
-    if (isPhantomFilter(action.filter.field, action.filter.rawValue ?? action.filter.value, normalizedMessage)) {
+    if (isPhantomFilter(action.filter.field, action.filter.rawValue ?? action.filter.value, normalizedMessage, userMessage)) {
       // Promote first surviving extra filter, or drop the action entirely.
       if (extraFilters.length === 0) return null
       const [next, ...rest] = extraFilters
@@ -770,7 +785,7 @@ function stripPhantomCategoricalFilters(
       }
     }
   } else if (action.type === "replace_existing_filter") {
-    if (isPhantomFilter(action.nextFilter.field, action.nextFilter.rawValue ?? action.nextFilter.value, normalizedMessage)) {
+    if (isPhantomFilter(action.nextFilter.field, action.nextFilter.rawValue ?? action.nextFilter.value, normalizedMessage, userMessage)) {
       if (extraFilters.length === 0) return null
       const [next, ...rest] = extraFilters
       return {

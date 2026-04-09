@@ -155,6 +155,23 @@ describe("extractSemanticTurnDecision", () => {
       expect(result.extraFilters).toEqual([])
     })
 
+    it("drops brand value when only matched as prefix of product code (word boundary)", async () => {
+      const provider = createMockProvider(`{
+        "action": "continue_narrowing",
+        "filters": [{ "field": "brand", "value": "GMG" }],
+        "confidence": 0.9,
+        "reasoning": "phantom from product code"
+      }`)
+
+      const result = await extractSemanticTurnDecision({
+        userMessage: "GMG55100 이랑 GMG40100의 차이가 뭐야?",
+        sessionState: makeState(),
+        provider,
+      })
+
+      expect(result).toBeNull()
+    })
+
     it("does not apply substring guard to non-categorical fields like toolMaterial", async () => {
       // Korean transliteration must still work for material/shape
       const provider = createMockProvider(`{

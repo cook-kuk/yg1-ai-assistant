@@ -1243,24 +1243,32 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
 
 const PHANTOM_GUARDED_FIELDS = new Set(["brand", "country", "seriesName"])
 
-function normalizeForPhantomMatch(s: string): string {
-  return s.toLowerCase().replace(/[\s\-_]+/g, "")
+// Word-boundary aware match: value is a "real" mention only when it isn't glued
+// to other alphanumerics on either side. Drops cases like brand="GMG" being
+// pulled out of product code "GMG55100" (prefix-of-token), while still allowing
+// transliteration with collapsed whitespace ("ONLY ONE" ↔ "onlyone").
+function hasBoundedPhantomMatch(value: string, message: string): boolean {
+  const v = String(value).toLowerCase().trim()
+  const m = String(message).toLowerCase()
+  if (!v || !m) return false
+  const parts = v.split(/[\s\-_]+/).filter(Boolean)
+  if (parts.length === 0) return false
+  const escaped = parts.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[\\s\\-_]*")
+  const re = new RegExp(`(^|[^a-z0-9가-힣])${escaped}(?![a-z0-9가-힣])`, "i")
+  return re.test(m)
 }
 
 function filterPhantomCategoricalActions(
   actions: DeterministicAction[],
   userMessage: string,
 ): DeterministicAction[] {
-  const normalizedMessage = normalizeForPhantomMatch(userMessage)
   return actions.filter(a => {
     if (!PHANTOM_GUARDED_FIELDS.has(a.field)) return true
     const valueStr = String(a.value ?? "")
     if (!valueStr) return true
-    const normalizedValue = normalizeForPhantomMatch(valueStr)
-    if (!normalizedValue) return true
-    if (normalizedMessage.includes(normalizedValue)) return true
+    if (hasBoundedPhantomMatch(valueStr, userMessage)) return true
     console.warn(
-      `[deterministic-scr] phantom ${a.field} filter dropped: "${valueStr}" not in user message "${userMessage.slice(0, 80)}"`,
+      `[deterministic-scr] phantom ${a.field} filter dropped: "${valueStr}" not a bounded mention in "${userMessage.slice(0, 80)}"`,
     )
     return false
   })
