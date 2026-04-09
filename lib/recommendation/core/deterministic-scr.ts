@@ -1232,7 +1232,38 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
     seen.add(a.field)
   }
 
-  return actions
+  // ── Phantom categorical guard ────────────────────────────────
+  // brand/country/seriesName are proper-noun filters: fuzzy/phonetic/MV
+  // backstops can false-positive on unrelated Korean text (e.g. "엔드밀 추천"
+  // consonant-skeleton ≈ "SUPER ALLOY"). Drop any categorical filter whose
+  // canonical value does not actually appear (normalized substring) in the
+  // user message. Principled guard — no hardcoded value lists.
+  return filterPhantomCategoricalActions(actions, text)
+}
+
+const PHANTOM_GUARDED_FIELDS = new Set(["brand", "country", "seriesName"])
+
+function normalizeForPhantomMatch(s: string): string {
+  return s.toLowerCase().replace(/[\s\-_]+/g, "")
+}
+
+function filterPhantomCategoricalActions(
+  actions: DeterministicAction[],
+  userMessage: string,
+): DeterministicAction[] {
+  const normalizedMessage = normalizeForPhantomMatch(userMessage)
+  return actions.filter(a => {
+    if (!PHANTOM_GUARDED_FIELDS.has(a.field)) return true
+    const valueStr = String(a.value ?? "")
+    if (!valueStr) return true
+    const normalizedValue = normalizeForPhantomMatch(valueStr)
+    if (!normalizedValue) return true
+    if (normalizedMessage.includes(normalizedValue)) return true
+    console.warn(
+      `[deterministic-scr] phantom ${a.field} filter dropped: "${valueStr}" not in user message "${userMessage.slice(0, 80)}"`,
+    )
+    return false
+  })
 }
 
 /**
