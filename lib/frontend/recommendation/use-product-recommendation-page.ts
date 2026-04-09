@@ -27,6 +27,18 @@ import {
 } from "@/lib/frontend/recommendation/recommendation-view-model"
 import { createClientEventId } from "@/lib/frontend/recommendation/client-event-id"
 
+// 스트리밍 중 누적된 실시간 CoT 전문이 턴 종료 시점에 백엔드의 짧은 요약으로 덮이는 것을
+// 막기 위한 헬퍼. 둘 중 더 긴 쪽 (= 정보가 더 많은 쪽) 을 유지.
+function pickLongerThinking(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): string | null {
+  const sa = typeof a === "string" ? a : ""
+  const sb = typeof b === "string" ? b : ""
+  if (!sa && !sb) return null
+  return sa.length >= sb.length ? sa : sb
+}
+
 export type Phase = "intake" | "summary" | "loading" | "explore"
 // 설일석 피드백(2026-04-07): "추천 제품 종류가 너무 많아 고객이 혼란".
 // 50→20으로 축소. 더 보고 싶을 때 페이지네이션으로 추가 로드 가능.
@@ -312,8 +324,10 @@ export function useProductRecommendationPage({
           createdAt: updated[lastIndex].createdAt ?? new Date().toISOString(),
           feedbackGroupId: aiPlaceholderId,
           debugTrace: (data as any).meta?.debugTrace ?? null,
-          thinkingProcess: data.thinkingProcess || updated[lastIndex].thinkingProcess || null,
-          thinkingDeep: (data as any).thinkingDeep || (updated[lastIndex] as any).thinkingDeep || null,
+          // 스트리밍 중 누적된 실시간 CoT 전문을 최종 요약이 덮어쓰지 않도록 더 긴 쪽을 유지.
+          // 백엔드의 최종 thinkingProcess 는 대개 짧은 요약이고, 실시간 누적본이 full trail.
+          thinkingProcess: pickLongerThinking(updated[lastIndex].thinkingProcess, data.thinkingProcess) || null,
+          thinkingDeep: pickLongerThinking((updated[lastIndex] as any).thinkingDeep, (data as any).thinkingDeep) || null,
         } as ChatMsg
         return updated
       })
@@ -437,8 +451,10 @@ export function useProductRecommendationPage({
           createdAt: updated[lastIndex].createdAt ?? new Date().toISOString(),
           feedbackGroupId: aiPlaceholderId,
           debugTrace: (data as any).meta?.debugTrace ?? null,
-          thinkingProcess: data.thinkingProcess || updated[lastIndex].thinkingProcess || null,
-          thinkingDeep: (data as any).thinkingDeep || (updated[lastIndex] as any).thinkingDeep || null,
+          // 스트리밍 중 누적된 실시간 CoT 전문을 최종 요약이 덮어쓰지 않도록 더 긴 쪽을 유지.
+          // 백엔드의 최종 thinkingProcess 는 대개 짧은 요약이고, 실시간 누적본이 full trail.
+          thinkingProcess: pickLongerThinking(updated[lastIndex].thinkingProcess, data.thinkingProcess) || null,
+          thinkingDeep: pickLongerThinking((updated[lastIndex] as any).thinkingDeep, (data as any).thinkingDeep) || null,
         } as ChatMsg
         return updated
       })
@@ -594,8 +610,8 @@ export function useProductRecommendationPage({
           createdAt: prev[updated.length - 1]?.createdAt ?? new Date().toISOString(),
           feedbackGroupId: prev[updated.length - 1]?.feedbackGroupId ?? createClientEventId(),
           debugTrace: (data as any).meta?.debugTrace ?? null,
-          thinkingProcess: data.thinkingProcess || prev[updated.length - 1]?.thinkingProcess || null,
-          thinkingDeep: (data as any).thinkingDeep || (prev[updated.length - 1] as any)?.thinkingDeep || null,
+          thinkingProcess: pickLongerThinking(prev[updated.length - 1]?.thinkingProcess, data.thinkingProcess) || null,
+          thinkingDeep: pickLongerThinking((prev[updated.length - 1] as any)?.thinkingDeep, (data as any).thinkingDeep) || null,
         } as ChatMsg
         console.log("[chip-groups:client:store]", {
           messageIndex: updated.length - 1,
