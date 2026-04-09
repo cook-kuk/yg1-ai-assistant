@@ -268,7 +268,20 @@ function buildZeroResultWithAlternatives(
       chips.push(`${prefix}${val} (${count}개)`)
     }
   } else {
-    lines.push(`${failedLabel} 조건을 변경하거나 '상관없음'을 선택해주세요.`)
+    // BUG2: 후보 분포가 비어 있을 때(완전 0건 + 회복 단서 없음) — 사용자가 직접
+    // 풀 필터를 선택하도록 active 필터 각각에 대해 "X 빼기" 칩을 자동 생성한다.
+    // 이렇게 해야 사용자가 다음 액션을 잡을 수 있고, "조건을 변경하거나 상관없음"
+    // 같은 막다른 카피로 끝나지 않는다.
+    const otherFilters = activeFilters.filter(f => f.field !== failedFilter.field)
+    if (otherFilters.length > 0) {
+      lines.push(`${failedLabel}: ${failedValue} 와 호환되는 후보가 없습니다. 다른 조건을 풀어보세요:`)
+      for (const f of otherFilters) {
+        const fLabel = getFilterFieldLabel(f.field)
+        chips.push(`${fLabel} ${f.value} 빼기`)
+      }
+    } else {
+      lines.push(`${failedLabel} 조건을 변경하거나 '상관없음'을 선택해주세요.`)
+    }
   }
 
   // Add revert chip if there's a previous value to go back to
@@ -2063,7 +2076,9 @@ async function handleServeExplorationInner(
           filters.splice(0, filters.length, ...result.nextFilters)
           currentInput = result.nextInput
           appliedAny = true
-          if (action.field !== "rpm") appliedAnyRoutable = true
+          // 가상 필드(cutting_condition_table 경로: rpm/feedRate/cuttingSpeed/depthOfCut)
+          // 는 DB narrowing 을 안 하므로 라우팅 가드에서 제외한다.
+          if (action.field !== "rpm" && action.field !== "feedRate" && action.field !== "cuttingSpeed" && action.field !== "depthOfCut") appliedAnyRoutable = true
         }
         if (appliedAny && appliedAnyRoutable) {
           const hasShowRec = /추천|보여|제품\s*보기|show/iu.test(msg)

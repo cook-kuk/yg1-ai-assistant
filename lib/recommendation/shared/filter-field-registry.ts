@@ -998,6 +998,46 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     matches: () => null,
     // No buildDbClause: cutting_condition_table 경로가 별도 처리
   },
+  // 이송속도(feed rate) — 가시성 전용 가상 필드. rpm 과 동일하게
+  // tool-forge 가 cutting_condition_table 을 직접 조회해 narrowing 한다.
+  feedRate: {
+    field: "feedRate",
+    label: "이송속도",
+    queryAliases: ["feed", "feed rate", "이송", "이송속도", "fz"],
+    kind: "number",
+    op: "range",
+    unit: "mm/rev",
+    setInput: input => input,
+    clearInput: input => input,
+    extractValues: () => [],
+    matches: () => null,
+  },
+  // 절삭속도(cutting speed / Vc) — 가시성 전용 가상 필드.
+  cuttingSpeed: {
+    field: "cuttingSpeed",
+    label: "절삭속도",
+    queryAliases: ["cutting speed", "절삭속도", "vc"],
+    kind: "number",
+    op: "range",
+    unit: "m/min",
+    setInput: input => input,
+    clearInput: input => input,
+    extractValues: () => [],
+    matches: () => null,
+  },
+  // 절입량(depth of cut / ap) — 가시성 전용 가상 필드.
+  depthOfCut: {
+    field: "depthOfCut",
+    label: "절입량",
+    queryAliases: ["depth of cut", "절입", "절입량", "절입깊이", "ap"],
+    kind: "number",
+    op: "range",
+    unit: "mm",
+    setInput: input => input,
+    clearInput: input => input,
+    extractValues: () => [],
+    matches: () => null,
+  },
   applicationShapes: {
     field: "applicationShapes",
     kind: "string",

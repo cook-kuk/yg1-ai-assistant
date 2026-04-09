@@ -151,6 +151,100 @@ export const InventoryRepo = {
     return { snapshots, totalStock, stockStatus }
   },
 
+  /**
+   * 배치 버전: N개 code 를 단일 쿼리(= ANY($1))로 가져와 code→enriched 맵 반환.
+   * hybrid-retrieval 의 topCandidates enrichment 에서 N+1 RTT 를 제거하기 위해
+   * 사용. DB 미구성 시 빈 Map 을 돌려준다.
+   */
+  async getEnrichedBatchAsync(
+    normalizedCodes: readonly string[]
+  ): Promise<Map<string, InventoryEnriched>> {
+    const out = new Map<string, InventoryEnriched>()
+    if (normalizedCodes.length === 0) return out
+
+    // 입력 코드 → 정규화 키 매핑을 보존 (caller 가 원본 키로 lookup 할 수 있도록).
+    const inputToKey = new Map<string, string>()
+    for (const raw of normalizedCodes) {
+      const key = normalizeCode(raw)
+      if (key) inputToKey.set(raw, key)
+    }
+    const uniqueKeys = Array.from(new Set(inputToKey.values()))
+    if (uniqueKeys.length === 0) return out
+
+    if (!shouldUseDatabaseSource()) {
+      logDatabaseUnavailable(`getEnrichedBatchAsync size=${uniqueKeys.length}`)
+      // DB 미구성이어도 caller 가 빈 enriched 를 얻도록 기본값으로 채워준다.
+      const empty: InventoryEnriched = { snapshots: [], totalStock: null, stockStatus: "unknown" }
+      for (const raw of inputToKey.keys()) out.set(raw, empty)
+      return out
+    }
+
+    const pool = getPool()
+    if (!pool) return out
+
+    const sql = `
+      SELECT
+        edp,
+        normalized_edp,
+        description,
+        spec,
+        warehouse_or_region,
+        quantity,
+        snapshot_date,
+        price,
+        currency,
+        unit,
+        source_file,
+        REPLACE(REPLACE(UPPER(COALESCE(normalized_edp, edp, '')), ' ', ''), '-', '') AS match_key
+      FROM catalog_app.inventory_snapshot
+      WHERE REPLACE(REPLACE(UPPER(COALESCE(normalized_edp, edp, '')), ' ', ''), '-', '') = ANY($1)
+      ORDER BY snapshot_date DESC NULLS LAST, warehouse_or_region ASC
+    `
+
+    try {
+      const result = await pool.query(sql, [uniqueKeys])
+      const grouped = new Map<string, InventorySnapshot[]>()
+      for (const row of result.rows) {
+        const key = String(row.match_key ?? "")
+        const snap: InventorySnapshot = {
+          edp: row.edp,
+          normalizedEdp: normalizeCode(row.normalized_edp ?? row.edp),
+          description: row.description ?? null,
+          spec: row.spec ?? null,
+          warehouseOrRegion: row.warehouse_or_region ?? "",
+          quantity: row.quantity == null ? null : Number(row.quantity),
+          snapshotDate: row.snapshot_date ? String(row.snapshot_date).slice(0, 10) : null,
+          price: row.price == null ? null : Number(row.price),
+          currency: row.currency ?? null,
+          unit: row.unit ?? null,
+          sourceFile: row.source_file ?? "inventory_snapshot",
+        }
+        const arr = grouped.get(key)
+        if (arr) arr.push(snap)
+        else grouped.set(key, [snap])
+      }
+      // 원본 입력 코드 키로 되돌려준다 (동일 정규화 키 여러 입력도 같은 결과 공유).
+      for (const [rawInput, key] of inputToKey.entries()) {
+        const snaps = grouped.get(key) ?? []
+        out.set(rawInput, {
+          snapshots: snaps,
+          totalStock: totalFromSnapshots(snaps),
+          stockStatus: statusFromSnapshots(snaps),
+        })
+      }
+      return out
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.warn(`[inventory-db] batch query failed size=${uniqueKeys.length} message=${message}`)
+      // 실패 시에도 caller 가 undefined lookup 을 피하도록 빈 기본값으로 채움.
+      const empty: InventoryEnriched = { snapshots: [], totalStock: null, stockStatus: "unknown" }
+      for (const raw of inputToKey.keys()) {
+        if (!out.has(raw)) out.set(raw, empty)
+      }
+      return out
+    }
+  },
+
   totalStock(normalizedCode: string): number | null {
     logDatabaseUnavailable(`totalStock code=${normalizedCode}`)
     return null

@@ -722,17 +722,19 @@ export async function runHybridRetrieval(
     // SQL 단계 필터링이 신뢰할 수 있으므로 enrich + matches post-filter 를 우회.
     const stockFilter = filters.find(f => f.field === "stockStatus")!
     const enrichPool = qualifiedCandidates.slice(0, STOCK_FILTER_ENRICH_CAP)
-    // Display 용으로만 enrichment (post-filter는 안 함)
-    await Promise.all(
-      enrichPool.map(async (c) => {
-        const inv = await InventoryRepo.getEnrichedAsync(c.product.normalizedCode)
+    // Display 용으로만 enrichment (post-filter는 안 함). 배치 쿼리로 N+1 제거.
+    const enrichCodes = enrichPool.map(c => c.product.normalizedCode)
+    const enrichMap = await InventoryRepo.getEnrichedBatchAsync(enrichCodes)
+    for (const c of enrichPool) {
+      const inv = enrichMap.get(c.product.normalizedCode)
+      if (inv) {
         c.inventory = inv.snapshots
         c.totalStock = inv.totalStock
         c.stockStatus = inv.stockStatus
-        c.leadTimes = LeadTimeRepo.getByEdp(c.product.normalizedCode)
-        c.minLeadTimeDays = LeadTimeRepo.minLeadTime(c.product.normalizedCode)
-      })
-    )
+      }
+      c.leadTimes = LeadTimeRepo.getByEdp(c.product.normalizedCode)
+      c.minLeadTimeDays = LeadTimeRepo.minLeadTime(c.product.normalizedCode)
+    }
     const isNeg = stockFilter.op === "neq" || stockFilter.op === "exclude"
     const survivors = selectStockSurvivors(enrichPool, isNeg)
     qualifiedCandidates.splice(0, qualifiedCandidates.length, ...survivors)
@@ -752,17 +754,21 @@ export async function runHybridRetrieval(
 
   // Enrich top candidates with inventory + lead time (deferred for performance).
   // hasStockFilter 경로는 위에서 이미 enrich 됐으므로 skip (idempotent해도 RTT 낭비).
+  // Pool은 topCandidates 전체 (= 최대 SCORE_EVIDENCE_HARD_CAP). 예전엔 100으로 하드캡
+  // 되어 있어서 display N이 커지거나 후순위 후보의 재고 표시가 비는 문제가 있었음.
   if (!hasStockFilter) {
-    await Promise.all(
-      topCandidates.slice(0, 100).map(async (c) => {
-        const inv = await InventoryRepo.getEnrichedAsync(c.product.normalizedCode)
+    const enrichCodes = topCandidates.map(c => c.product.normalizedCode)
+    const enrichMap = await InventoryRepo.getEnrichedBatchAsync(enrichCodes)
+    for (const c of topCandidates) {
+      const inv = enrichMap.get(c.product.normalizedCode)
+      if (inv) {
         c.inventory = inv.snapshots
         c.totalStock = inv.totalStock
         c.stockStatus = inv.stockStatus
-        c.leadTimes = LeadTimeRepo.getByEdp(c.product.normalizedCode)
-        c.minLeadTimeDays = LeadTimeRepo.minLeadTime(c.product.normalizedCode)
-      })
-    )
+      }
+      c.leadTimes = LeadTimeRepo.getByEdp(c.product.normalizedCode)
+      c.minLeadTimeDays = LeadTimeRepo.minLeadTime(c.product.normalizedCode)
+    }
   }
 
   // ── Stage 3: Evidence Retrieval (parallelized) ─────────────

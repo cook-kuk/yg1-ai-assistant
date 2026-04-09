@@ -1091,8 +1091,8 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
   // 가상 rpm 필터를 만들어 좌측 패널에 칩으로 노출. 실제 cutting_condition_table
   // 조회는 tool-forge LLM이 별도로 한다. buildDbClause는 no-op이라 double-filter X.
   if (!seen.has("rpm")) {
-    const rpmGte = text.match(/(?:rpm|회전수|스핀들(?:\s*속도)?)\s*([\d,]+)\s*(?:이상|over|\+|초과|올라가는|넘는)/i)
-    const rpmLte = text.match(/(?:rpm|회전수|스핀들(?:\s*속도)?)\s*([\d,]+)\s*(?:이하|under|미만)/i)
+    const rpmGte = text.match(/(?:rpm|회전수|스핀들(?:\s*속도)?|spindle(?:\s*speed)?)\s*([\d,]+)\s*(?:이상|over|\+|초과|올라가는|넘는)/i)
+    const rpmLte = text.match(/(?:rpm|회전수|스핀들(?:\s*속도)?|spindle(?:\s*speed)?)\s*([\d,]+)\s*(?:이하|under|미만)/i)
     const m = rpmGte ?? rpmLte
     if (m) {
       const n = parseInt(m[1].replace(/,/g, ""), 10)
@@ -1107,6 +1107,44 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
         seen.add("rpm")
       }
     }
+  }
+
+  // 7.6) 이송속도 / 절삭속도 / 절입량 — rpm 과 동일하게 가상 필드.
+  // 실제 narrowing 은 tool-forge 가 cutting_condition_table 을 조회해 처리하고,
+  // 여기서는 임계값을 뽑아 칩으로 노출하기 위한 가시성 extraction 만 수행한다.
+  const cuttingConditionPatterns: Array<{ field: "feedRate" | "cuttingSpeed" | "depthOfCut"; gte: RegExp; lte: RegExp }> = [
+    {
+      field: "feedRate",
+      gte: /(?:feed\s*rate|feed|이송(?:\s*속도)?|\bfz)\s*([\d.,]+)\s*(?:mm\s*\/\s*rev|mm\/rev)?\s*(?:이상|over|\+|초과)/i,
+      lte: /(?:feed\s*rate|feed|이송(?:\s*속도)?|\bfz)\s*([\d.,]+)\s*(?:mm\s*\/\s*rev|mm\/rev)?\s*(?:이하|under|미만)/i,
+    },
+    {
+      field: "cuttingSpeed",
+      gte: /(?:cutting\s*speed|절삭\s*속도|\bvc)\s*([\d.,]+)\s*(?:m\s*\/\s*min|m\/min)?\s*(?:이상|over|\+|초과)/i,
+      lte: /(?:cutting\s*speed|절삭\s*속도|\bvc)\s*([\d.,]+)\s*(?:m\s*\/\s*min|m\/min)?\s*(?:이하|under|미만)/i,
+    },
+    {
+      field: "depthOfCut",
+      gte: /(?:depth\s*of\s*cut|절입(?:량|\s*깊이)?|\bap)\s*([\d.,]+)\s*(?:mm)?\s*(?:이상|over|\+|초과)/i,
+      lte: /(?:depth\s*of\s*cut|절입(?:량|\s*깊이)?|\bap)\s*([\d.,]+)\s*(?:mm)?\s*(?:이하|under|미만)/i,
+    },
+  ]
+  for (const { field, gte, lte } of cuttingConditionPatterns) {
+    if (seen.has(field)) continue
+    const gteMatch = text.match(gte)
+    const lteMatch = text.match(lte)
+    const m = gteMatch ?? lteMatch
+    if (!m) continue
+    const n = parseFloat(m[1].replace(/,/g, ""))
+    if (!Number.isFinite(n) || n <= 0) continue
+    actions.push({
+      type: "apply_filter",
+      field,
+      value: n,
+      op: gteMatch ? "gte" : "lte",
+      source: "deterministic",
+    })
+    seen.add(field)
   }
 
   // 8) 쿨런트홀

@@ -76,6 +76,11 @@ vi.mock("@/lib/recommendation/infrastructure/repositories/recommendation-reposit
       totalStock: 0,
       stockStatus: "unknown" as const,
     })),
+    getEnrichedBatchAsync: vi.fn(async (codes: readonly string[]) => {
+      const out = new Map<string, { snapshots: never[]; totalStock: number; stockStatus: "unknown" }>()
+      for (const c of codes) out.set(c, { snapshots: [], totalStock: 0, stockStatus: "unknown" })
+      return out
+    }),
   },
   LeadTimeRepo: {
     getByEdp: vi.fn(() => []),
