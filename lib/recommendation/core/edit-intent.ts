@@ -11,6 +11,7 @@
  */
 
 import { resolveEntity, extractEntities } from "./knowledge-graph"
+import { resolveFieldFromKorean, getFieldKoMap } from "./auto-synonym"
 import type { AppliedFilter } from "@/lib/types/exploration"
 
 // ── Types ────────────────────────────────────────────────────
@@ -39,32 +40,29 @@ const EDIT_SIGNAL_RE =
   /말고|빼고|제외|외에|아닌|않은|아니고|아니면|아니에요|아닙니다|아닌데|인데요|바꿔|바꾸|변경|교체|에서\s*\S+\s*(?:로|으로)|상관없|관계없|아무거나|뭐든|처음부터|다시\s*시작|초기화|리셋|reset|요청\s*(?:한\s*적|안\s*했|않았)|잘못/iu
 
 // ── Field Name Patterns ──────────────────────────────────────
+// 한국어 필드 키워드 매핑은 auto-synonym 에서 자동 생성 (DB 스키마 기반).
+// "브랜드는 상관없음" → field="brand" 추출. 토큰 단위로 매핑 검색 후
+// fallback 으로 메시지 substring 검색.
 
-const FIELD_KO_MAP: Record<string, string> = {
-  "브랜드": "brand",
-  "코팅": "coating",
-  "날수": "fluteCount",
-  "날": "fluteCount",
-  "형상": "toolSubtype",
-  "타입": "toolSubtype",
-  "소재": "workPieceName",
-  "재질": "workPieceName",
-  "직경": "diameterMm",
-  "파이": "diameterMm",
-  "시리즈": "seriesName",
-  "생크": "shankDiameterMm",
-  "전장": "overallLengthMm",
-  "절삭길이": "lengthOfCutMm",
-  "헬릭스": "helixAngleDeg",
-  "국가": "country",
-}
-
-/** "브랜드는 상관없음" → field="brand" 추출 */
 function extractFieldFromKorean(msg: string): string | null {
-  for (const [ko, field] of Object.entries(FIELD_KO_MAP)) {
-    if (msg.includes(ko)) return field
+  const direct = resolveFieldFromKorean(msg)
+  if (direct) return direct
+  // substring fallback — 긴 키부터 검사해서 메시지 안 어디에 있어도 잡음
+  const lower = msg.toLowerCase()
+  for (const key of fieldKeysByLengthDesc()) {
+    if (lower.includes(key)) {
+      const f = resolveFieldFromKorean(key)
+      if (f) return f
+    }
   }
   return null
+}
+
+let _sortedFieldKeys: string[] | null = null
+function fieldKeysByLengthDesc(): string[] {
+  if (_sortedFieldKeys) return _sortedFieldKeys
+  _sortedFieldKeys = Array.from(getFieldKoMap().keys()).sort((a, b) => b.length - a.length)
+  return _sortedFieldKeys
 }
 
 // ── Core Parser ──────────────────────────────────────────────
@@ -356,7 +354,11 @@ function resolveEntityOrNumeric(
 
 /** Entity의 field를 추론 (token이 entity에 직접 매핑 안 될 때) */
 function inferFieldFromEntity(token: string): string | null {
-  return extractFieldFromKorean(token)
+  const field = resolveFieldFromKorean(token)
+  if (field) return field
+  const entity = resolveEntity(token)
+  if (entity) return entity.field
+  return null
 }
 
 /** Normalize identifier for comparison: strip hyphens, spaces, lowercase */

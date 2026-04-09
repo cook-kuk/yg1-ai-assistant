@@ -141,4 +141,71 @@ export function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
 export function _resetSynonymMapForTest(): void {
   _map = new Map()
   _version = -1
+  _fieldMap = new Map()
+  _fieldMapVersion = -1
+}
+
+// ── Field-name → filter-field mapping (한국어 필드 키워드) ────
+//
+// edit-intent.ts의 FIELD_KO_MAP 하드코딩 교체용.
+// 3개 소스: COL_KO_HINTS(보편 키워드) + DB_COL_TO_FILTER_FIELD 역매핑 + 스키마 컬럼명.
+
+import { DB_COL_TO_FILTER_FIELD } from "./sql-agent"
+
+let _fieldMap: Map<string, string> = new Map()
+let _fieldMapVersion = -1
+
+const COL_KO_HINTS: Record<string, string[]> = {
+  coating: ["코팅", "코팅종류", "표면처리"],
+  diameterMm: ["직경", "파이", "지름", "외경"],
+  fluteCount: ["날수", "날", "인선수", "플루트"],
+  toolSubtype: ["형상", "타입", "종류", "공구형상"],
+  brand: ["브랜드", "제조사", "메이커"],
+  seriesName: ["시리즈", "시리즈명"],
+  shankType: ["생크", "샹크", "자루"],
+  shankDiameterMm: ["생크직경", "샹크직경"],
+  overallLengthMm: ["전장", "전체길이", "oal"],
+  lengthOfCutMm: ["절삭길이", "날장", "loc", "유효길이"],
+  helixAngleDeg: ["헬릭스", "헬릭스각", "비틀림각"],
+  country: ["국가", "국적", "원산지"],
+  toolMaterial: ["공구소재", "모재"],
+  workPieceName: ["피삭재", "가공소재", "워크피스", "소재", "재질"],
+}
+
+function buildFieldMap(): Map<string, string> {
+  const m = new Map<string, string>()
+
+  // 1. 보편 한국어 키워드
+  for (const [field, koList] of Object.entries(COL_KO_HINTS)) {
+    for (const ko of koList) m.set(ko.toLowerCase(), field)
+  }
+
+  // 2. DB_COL_TO_FILTER_FIELD 역매핑 — DB 컬럼 short-name도 키로 등록
+  for (const [col, field] of Object.entries(DB_COL_TO_FILTER_FIELD)) {
+    const short = col.replace(/^(?:search_|option_|milling_|holemaking_|threading_|edp_)/, "")
+    if (short.length > 2) m.set(short.toLowerCase(), field)
+    m.set(col.toLowerCase(), field)
+  }
+
+  return m
+}
+
+export function getFieldKoMap(): Map<string, string> {
+  if (_fieldMap.size === 0 || _fieldMapVersion < 0) {
+    _fieldMap = buildFieldMap()
+    _fieldMapVersion = 1
+    console.log(`[auto-synonym:field] built: ${_fieldMap.size} field mappings`)
+  }
+  return _fieldMap
+}
+
+/**
+ * 한국어 토큰에서 filter field 추출.
+ * 조사 제거 후 매핑 검색.
+ */
+export function resolveFieldFromKorean(token: string): string | null {
+  const map = getFieldKoMap()
+  const raw = token.toLowerCase().trim()
+  const stripped = raw.replace(/[은는이가을를의도로]$/u, "").trim()
+  return map.get(stripped) ?? map.get(raw) ?? null
 }
