@@ -1929,7 +1929,8 @@ async function handleServeExplorationInner(
     const hasQ = /[?？]/.test(rawMsg0)
     const QUESTION_RE = /(뭐야|뭔데|뭐에요|뭐임|뭔가요|무엇|뜻이|의미|알려줘|알려주|설명해|왜\s|어떻게|어느\s*게|어떤\s*게\s*(더|낫|좋))/
     const COMPARE_RE = /(\bvs\.?\b|대비|차이|뭐가\s*(더|나|나아|좋)|어느\s*게\s*(더|낫|좋))/i
-    const TROUBLE_RE = /(수명\s*(이|가)?\s*(짧|줄)|마모가|닳아|파손|깨짐|부러|떨림|진동|채터|거칠|버[가는이]?\s|칩[이\s]*엉)/
+    // 수명 ... 짧/줄/안좋/문제/나빠 — adverbs may sit between ("수명이 너무 짧아")
+    const TROUBLE_RE = /(수명[\s\S]{0,15}(짧|줄|문제|안\s*좋|나빠|떨어)|마모가|닳아|파손|깨짐|부러|떨림|진동|채터|거칠|버[가는이]?\s|칩[이\s]*엉)/
     const isAnswerIntent = hasQ || QUESTION_RE.test(rawMsg0) || COMPARE_RE.test(rawMsg0) || TROUBLE_RE.test(rawMsg0)
     if (isAnswerIntent) {
       console.log(`[turn0-answer] question/compare/trouble pattern → answer_general: "${rawMsg0.slice(0, 60)}"`)
