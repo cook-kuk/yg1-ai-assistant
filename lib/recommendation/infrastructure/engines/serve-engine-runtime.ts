@@ -4156,6 +4156,19 @@ async function handleServeExplorationInner(
       )
     }
     if (bridgedV2Action.type === "continue_narrowing" || bridgedV2Action.type === "show_recommendation") {
+      // RC1: First-turn show-cards bias. When the user gave a rich turn-0
+      // query (2+ extracted filters) and we have candidates, show cards
+      // immediately instead of asking another narrowing question. This fixes
+      // B01 "스테인리스 4날 10mm 추천해줘" style queries that previously
+      // looped into coating/series questions.
+      const meaningfulFilters = filters.filter(f => f.op !== "skip" && f.field !== "none").length
+      if (meaningfulFilters >= 2 && displayCandidates.length > 0) {
+        return deps.buildRecommendationResponse(
+          form, candidates, evidenceMap, totalCandidateCount, paginationDto(totalCandidateCount),
+          displayCandidates, displayEvidenceMap, currentInput, narrowingHistory, filters,
+          turnCount, messages, provider, language, displayedProducts,
+        )
+      }
       // Filters applied on first turn but no show_recommendation or 0 candidates → ask next question
       return deps.buildQuestionResponse(
         form, candidates, evidenceMap, totalCandidateCount, paginationDto(totalCandidateCount),
