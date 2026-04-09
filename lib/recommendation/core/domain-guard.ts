@@ -33,7 +33,7 @@ export function checkDomainWarnings(filters: AppliedFilter[]): DomainWarning[] {
   // ── 소재-코팅 부적합 경고 ──
 
   // DLC + 철계/고경도 소재 (내열 400°C → 600~800°C 절삭열 못 견딤)
-  if (coating.includes("dlc") && /스테인리스|탄소강|합금강|티타늄|인코넬|주철|고경도/.test(material)) {
+  if (coating.includes("dlc") && /스테인리스|탄소강|합금강|티타늄|인코넬|주철|고경도|stainless|carbon\s*steel|alloy\s*steel|titanium|inconel|cast\s*iron|hardened/i.test(material)) {
     warnings.push({
       level: "danger",
       message: `DLC 코팅은 ${material}에 부적합합니다. 내열 400°C로 절삭열(600~800°C)에 견디지 못합니다.`,
@@ -43,7 +43,7 @@ export function checkDomainWarnings(filters: AppliedFilter[]): DomainWarning[] {
   }
 
   // TiAlN/AlTiN + 알루미늄 (Ti 함유 → BUE 구성인선)
-  if (/tialn|altin|x-coat|x코팅/.test(coating) && /알루미늄|aluminum|비철|구리/.test(material)) {
+  if (/tialn|altin|x-coat|x코팅/.test(coating) && /알루미늄|aluminum|비철|구리|copper|non-?ferrous/i.test(material)) {
     warnings.push({
       level: "warn",
       message: `Ti 함유 코팅(${coating})은 알루미늄과 반응하여 BUE(구성인선)가 발생할 수 있습니다.`,
@@ -53,7 +53,7 @@ export function checkDomainWarnings(filters: AppliedFilter[]): DomainWarning[] {
   }
 
   // 무코팅 + 고온 소재
-  if (/uncoated|bright|무코팅|비코팅/.test(coating) && /스테인리스|티타늄|인코넬/.test(material)) {
+  if (/uncoated|bright|무코팅|비코팅/.test(coating) && /스테인리스|티타늄|인코넬|stainless|titanium|inconel/i.test(material)) {
     warnings.push({
       level: "warn",
       message: `무코팅은 ${material} 가공 시 마모가 빠릅니다. 절삭열이 높은 소재에는 코팅 필수입니다.`,
