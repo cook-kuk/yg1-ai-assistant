@@ -655,7 +655,8 @@ export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
       if (isReasoningModel) {
         body.max_completion_tokens = maxTokens
         const effort = AGENT_REASONING_EFFORT[(agentNameArg ?? agentName) as AgentName]
-        if (effort) body.reasoning_effort = effort
+        // BISECT: temporarily disabled — suspected of causing primary=null
+        // if (effort) body.reasoning_effort = effort
         effortApplied = effort ?? "medium(default)"
       } else {
         body.max_tokens = maxTokens
@@ -758,7 +759,8 @@ export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
       if (isReasoningModel) {
         body.max_completion_tokens = maxTokens
         const effort = AGENT_REASONING_EFFORT[(agentNameArg ?? agentName) as AgentName]
-        if (effort) body.reasoning_effort = effort
+        // BISECT: temporarily disabled — suspected of causing primary=null
+        // if (effort) body.reasoning_effort = effort
         effortApplied = effort ?? "medium(default)"
       } else {
         body.max_tokens = maxTokens
@@ -996,7 +998,8 @@ export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
       if (isReasoningModel) {
         body.max_completion_tokens = maxTokens
         const effort = AGENT_REASONING_EFFORT[(agentNameArg ?? agentName) as AgentName]
-        if (effort) body.reasoning_effort = effort
+        // BISECT: temporarily disabled — suspected of causing primary=null
+        // if (effort) body.reasoning_effort = effort
         effortApplied = effort ?? "medium(default)"
       } else {
         body.max_tokens = maxTokens
