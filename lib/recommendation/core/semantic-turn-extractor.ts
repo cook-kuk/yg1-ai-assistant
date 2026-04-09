@@ -728,6 +728,62 @@ function validateSemanticTurnResult(
   }
 }
 
+// Hard guard against LLM hallucinating categorical values (brand/country).
+// These are proper nouns that MUST literally appear in the user's message.
+// If the LLM invented one (e.g. picked "ONLY ONE" from the DB catalog when the
+// user said "너 이름은?"), drop it. Other filter fields (소재/형상 etc.) tolerate
+// Korean transliteration so we don't apply substring guard to them.
+const PHANTOM_GUARDED_FIELDS = new Set(["brand", "country"])
+
+function normalizeForMatch(s: string): string {
+  return s.toLowerCase().replace(/[\s\-_]+/g, "")
+}
+
+function isPhantomFilter(field: string, value: unknown, normalizedMessage: string): boolean {
+  if (!PHANTOM_GUARDED_FIELDS.has(field)) return false
+  const valueStr = Array.isArray(value) ? value.join(" ") : String(value ?? "")
+  if (!valueStr) return false
+  const normalizedValue = normalizeForMatch(valueStr)
+  if (!normalizedValue) return false
+  return !normalizedMessage.includes(normalizedValue)
+}
+
+function stripPhantomCategoricalFilters(
+  decision: SemanticTurnDecision,
+  userMessage: string
+): SemanticTurnDecision | null {
+  const normalizedMessage = normalizeForMatch(userMessage)
+  const extraFilters = decision.extraFilters.filter(
+    f => !isPhantomFilter(f.field, f.rawValue ?? f.value, normalizedMessage)
+  )
+
+  const action = decision.action
+  if (action.type === "continue_narrowing") {
+    if (isPhantomFilter(action.filter.field, action.filter.rawValue ?? action.filter.value, normalizedMessage)) {
+      // Promote first surviving extra filter, or drop the action entirely.
+      if (extraFilters.length === 0) return null
+      const [next, ...rest] = extraFilters
+      return {
+        ...decision,
+        action: { type: "continue_narrowing", filter: next },
+        extraFilters: rest,
+      }
+    }
+  } else if (action.type === "replace_existing_filter") {
+    if (isPhantomFilter(action.nextFilter.field, action.nextFilter.rawValue ?? action.nextFilter.value, normalizedMessage)) {
+      if (extraFilters.length === 0) return null
+      const [next, ...rest] = extraFilters
+      return {
+        ...decision,
+        action: { type: "continue_narrowing", filter: next },
+        extraFilters: rest,
+      }
+    }
+  }
+
+  return { ...decision, extraFilters }
+}
+
 export async function extractSemanticTurnDecision(params: {
   userMessage: string
   sessionState: ExplorationSessionState | null
@@ -749,11 +805,16 @@ export async function extractSemanticTurnDecision(params: {
     )
     const validation = validateSemanticTurnResult(parseJsonObject(raw), sessionState, clean)
     if (validation.decision) {
-      const reasoning = validation.decision.reasoning
-      return {
-        ...validation.decision,
-        reasoning: attempt > 1 ? `${reasoning} [repair:${attempt}]` : reasoning,
+      const guarded = stripPhantomCategoricalFilters(validation.decision, clean)
+      if (guarded) {
+        const reasoning = guarded.reasoning
+        return {
+          ...guarded,
+          reasoning: attempt > 1 ? `${reasoning} [repair:${attempt}]` : reasoning,
+        }
       }
+      // All filters were phantom and decision became empty → treat as no-op
+      return null
     }
 
     repairFeedback = [
