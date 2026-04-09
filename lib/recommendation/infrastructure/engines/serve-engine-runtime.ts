@@ -1921,19 +1921,41 @@ async function handleServeExplorationInner(
     let msg = lastUserMsg?.text ?? ""
 
     // ── Turn Repair: 모호한 참조("그거 말고", "더 큰 거", "아니야 X를") → 직전 맥락으로 풀이 ──
-    // needsRepair=true + 이전 맥락 존재(applied filters or narrowing history)할 때만 LLM 한 번 호출.
-    // 일반 메시지는 0ms 통과.
-    if (msg && prevState && ((prevState.narrowingHistory?.length ?? 0) > 0 || (prevState.appliedFilters?.length ?? 0) > 0)) {
+    // needsRepair=true + 직전 턴 존재(prevState 또는 messages.length>=2)면 트리거.
+    // 맥락은 narrowingHistory/appliedFilters → 둘 다 비면 messages 자체에서 직전 user/ai 추출.
+    if (msg && (prevState || messages.length >= 2)) {
       try {
         const { needsRepair, repairMessage } = await import("@/lib/recommendation/core/turn-repair")
         const repairTriggered = needsRepair(msg)
-        console.log(`[turn-repair:gate] msg="${msg.slice(0, 40)}", needsRepair=${repairTriggered}, history=${prevState.narrowingHistory?.length ?? 0}, filters=${prevState.appliedFilters?.length ?? 0}`)
+        const histLen = prevState?.narrowingHistory?.length ?? 0
+        const filtLen = prevState?.appliedFilters?.length ?? 0
+        console.log(`[turn-repair:gate] msg="${msg.slice(0, 40)}", needsRepair=${repairTriggered}, history=${histLen}, filters=${filtLen}, msgs=${messages.length}`)
         if (repairTriggered) {
-          const repair = await repairMessage(msg, prevState.appliedFilters ?? [], prevState.narrowingHistory ?? [], provider)
+          let history = (prevState?.narrowingHistory ?? []) as Array<{ question: string; answer: string; extractedFilters: unknown[]; candidateCountBefore: number; candidateCountAfter: number }>
+          if (history.length === 0 && messages.length >= 2) {
+            // Fallback: build minimal NarrowingTurn-like records from the recent message tail.
+            const recent = messages.slice(-6)
+            for (let i = 0; i < recent.length; i++) {
+              const m = recent[i] as { role?: string; text?: string }
+              if (m.role === "user" && i + 1 < recent.length && (recent[i + 1] as { role?: string }).role === "ai") {
+                history.push({
+                  question: ((recent[i + 1] as { text?: string }).text ?? ""),
+                  answer: m.text ?? "",
+                  extractedFilters: [],
+                  candidateCountBefore: 0,
+                  candidateCountAfter: 0,
+                })
+              }
+            }
+          }
+          const filters = prevState?.appliedFilters ?? []
+          const repair = await repairMessage(msg, filters, history as never, provider)
           if (repair.wasRepaired) {
             console.log(`[turn-repair] "${msg}" → "${repair.clarifiedMessage}"`)
             msg = repair.clarifiedMessage
-            prevState.thinkingProcess = `🔍 모호한 참조 해석: "${lastUserMsg!.text}" → "${msg}"${repair.repairExplanation ? "\n" + repair.repairExplanation : ""}` + (prevState.thinkingProcess ? "\n\n" + prevState.thinkingProcess : "")
+            if (prevState) {
+              prevState.thinkingProcess = `🔍 모호한 참조 해석: "${lastUserMsg!.text}" → "${msg}"${repair.repairExplanation ? "\n" + repair.repairExplanation : ""}` + (prevState.thinkingProcess ? "\n\n" + prevState.thinkingProcess : "")
+            }
           }
         }
       } catch (e) {
@@ -2100,6 +2122,30 @@ async function handleServeExplorationInner(
       trace.add("knowledge-graph", "router", { confidence: kgResult.confidence, source: kgResult.source, reason: kgResult.reason })
 
       if (kgResult.decision && kgResult.confidence >= 0.9) {
+        // Phase E — KG §9 specPatch (sort/tolerance/similarTo).
+        // Stash on prevState so the downstream compileProductQuery path (or
+        // post-display rerank) can pick it up. For similarTo we resolve the
+        // "__current__" sentinel to a real product id from session state here,
+        // because KG doesn't have session context.
+        if (kgResult.specPatch && prevState) {
+          const patch = { ...kgResult.specPatch }
+          if (patch.similarTo?.referenceProductId === "__current__") {
+            const ps = prevState as any
+            const resolvedId: string | undefined =
+              ps.lastRecommendedProductId ||
+              ps.lastRecommended?.productId ||
+              ps.lastRecommended?.id ||
+              (Array.isArray(ps.displayedProducts) && ps.displayedProducts[0]?.productId) ||
+              (Array.isArray(ps.displayedProducts) && ps.displayedProducts[0]?.id)
+            if (resolvedId) {
+              patch.similarTo = { ...patch.similarTo, referenceProductId: String(resolvedId) }
+            } else {
+              delete patch.similarTo
+            }
+          }
+          ;(prevState as any).kgSpecPatch = patch
+          console.log(`[kg:spec-patch] ${kgResult.source} → ${JSON.stringify(patch)}`)
+        }
         // High confidence → execute deterministically, skip LLM
         const kgAction = kgResult.decision.action
         const kgFilters: AppliedFilter[] = []
@@ -2373,7 +2419,16 @@ async function handleServeExplorationInner(
       try {
         const currentConstraints = appliedFiltersToConstraints(filters)
         const plannerResult = await naturalLanguageToQuerySpec(msg, currentConstraints, getProviderForAgent("query-planner"))
-        const spec = plannerResult.spec
+        // Phase E.5 — merge any KG §9 specPatch stashed on session state into
+        // the planner-built spec BEFORE we fan out to querySpecToAppliedFilters
+        // or compileProductQuery. Consume-once: the patch is deleted from
+        // session state so a stale patch can't re-apply on the next turn.
+        const { mergeKgPatchIntoSpec, consumeKgSpecPatch } = await import("@/lib/recommendation/core/kg-spec-merge")
+        const kgPatch = consumeKgSpecPatch(prevState)
+        const spec = mergeKgPatchIntoSpec(plannerResult.spec, kgPatch)
+        if (kgPatch) {
+          console.log(`[kg-merge] applied patch: sort=${!!kgPatch.sort} similarTo=${!!kgPatch.similarTo} tolerance=${kgPatch.toleranceConstraints?.length ?? 0}`)
+        }
         const shadowFilters = querySpecToAppliedFilters(spec, turnCount)
 
         // Decision layer: confidence-based selection
