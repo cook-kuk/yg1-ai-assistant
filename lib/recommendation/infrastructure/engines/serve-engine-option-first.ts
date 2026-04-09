@@ -25,7 +25,7 @@ import { buildQuestionAlignedOptions, buildConfusionHelperOptions } from "@/lib/
 import { detectUserState } from "@/lib/recommendation/domain/context/user-understanding-detector"
 import { performUnifiedJudgment, type UnifiedJudgment } from "@/lib/recommendation/domain/context/unified-haiku-judgment"
 import { buildChipContext, buildChipContextFromUnifiedTurnContext } from "@/lib/recommendation/domain/context/chip-context-builder"
-import { rerankChipsWithLLM } from "@/lib/recommendation/domain/options/llm-chip-reranker"
+import { rankChipsDeterministic } from "@/lib/recommendation/domain/options/chip-ranker"
 import { buildRecentInteractionFrame } from "@/lib/recommendation/domain/context/recent-interaction-frame"
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
 import { inferLikelyReferencedBlock } from "@/lib/recommendation/domain/context/ui-context-extractor"
@@ -353,10 +353,9 @@ export async function buildQuestionResponseOptionState(params: {
     userStateResult.state,
     userStateResult.confusedAbout,
   )
-  const reranked = await rerankChipsWithLLM(
+  const reranked = rankChipsDeterministic(
     mergedOptions,
     unifiedChipContext.recentTurnsSummary.length > 0 ? unifiedChipContext : chipContext,
-    provider,
   )
 
   const finalChips = smartOptionsToChips(reranked.options)
