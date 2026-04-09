@@ -1919,21 +1919,48 @@ async function handleServeExplorationInner(
   // bottom (`if (!prevState && singleCallHandled && bridgedV2Action)`)
   // routes straight into buildRecommendationResponse with the form-derived
   // resolvedInput + empty filter list.
-  // First-turn intake short-circuit only applies when the raw user text looks
-  // like a plain filter-spec (material/flute/diameter tokens). Pure questions,
-  // comparisons, troubleshooting, and consult intents must fall through to the
-  // SCR answer path + pre-search fast-path — otherwise we mis-route "헬릭스가
-  // 뭐야?" / "스테인리스 DLC 코팅으로" / "AlCrN vs TiAlN" into continue_narrowing.
-  let isFirstTurnIntake = !prevState && messages.length <= 1
-  if (isFirstTurnIntake) {
-    const rawMsg0 = (lastUserMsg?.text ?? "").trim()
+  const isFirstTurnIntake = !prevState && messages.length <= 1
+  // Turn 0 question/compare/trouble intercept: route directly to general-chat
+  // handler before the filter-spec short-circuit. Without this, messages like
+  // "헬릭스가 뭐야?" / "공구 수명 짧아" / "AlCrN vs TiAlN" fall into
+  // continue_narrowing with 0 filters and return a stub.
+  if (isFirstTurnIntake && lastUserMsg) {
+    const rawMsg0 = lastUserMsg.text.trim()
     const hasQ = /[?？]/.test(rawMsg0)
-    const QUESTION_RE = /(뭐야|뭔데|뭐에요|뭐임|뭔가요|무엇|뜻이|의미|알려줘|알려주|설명|왜\s|어떻게|어느\s*게|어떤\s*게|어떤\s*거)/
-    const COMPARE_RE = /(\bvs\.?\b|대비|차이|뭐가\s*(더|나|나아|좋)|어느\s*게\s*(더|낫|좋)|어떤\s*게\s*(더|낫|좋))/i
-    const TROUBLE_RE = /(수명|마모|닳|파손|깨짐|부러|떨림|진동|채터|거칠|버[가는이]?|칩[이\s]*엉)/
-    if (hasQ || QUESTION_RE.test(rawMsg0) || COMPARE_RE.test(rawMsg0) || TROUBLE_RE.test(rawMsg0)) {
-      console.log(`[first-turn-intake] SKIP short-circuit — question/compare/trouble pattern detected: "${rawMsg0.slice(0, 60)}"`)
-      isFirstTurnIntake = false
+    const QUESTION_RE = /(뭐야|뭔데|뭐에요|뭐임|뭔가요|무엇|뜻이|의미|알려줘|알려주|설명해|왜\s|어떻게|어느\s*게|어떤\s*게\s*(더|낫|좋))/
+    const COMPARE_RE = /(\bvs\.?\b|대비|차이|뭐가\s*(더|나|나아|좋)|어느\s*게\s*(더|낫|좋))/i
+    const TROUBLE_RE = /(수명\s*(이|가)?\s*(짧|줄)|마모가|닳아|파손|깨짐|부러|떨림|진동|채터|거칠|버[가는이]?\s|칩[이\s]*엉)/
+    const isAnswerIntent = hasQ || QUESTION_RE.test(rawMsg0) || COMPARE_RE.test(rawMsg0) || TROUBLE_RE.test(rawMsg0)
+    if (isAnswerIntent) {
+      console.log(`[turn0-answer] question/compare/trouble pattern → answer_general: "${rawMsg0.slice(0, 60)}"`)
+      const answerState = buildSessionState({
+        candidateCount: 0,
+        appliedFilters: filters,
+        narrowingHistory,
+        stageHistory: [],
+        resolutionStatus: "narrowing",
+        resolvedInput: currentInput,
+        turnCount,
+        displayedCandidates: [],
+        displayedChips: [],
+        displayedOptions: [],
+        currentMode: "question",
+      })
+      return handleServeGeneralChatAction({
+        deps,
+        action: { type: "answer_general", message: rawMsg0 },
+        orchResult: buildPreSearchOrchestratorResult(rawMsg0, "turn0_lexical_answer"),
+        provider,
+        form,
+        messages,
+        prevState: answerState,
+        filters,
+        narrowingHistory,
+        currentInput,
+        candidates: [],
+        evidenceMap: new Map(),
+        turnCount,
+      })
     }
   }
   if (isFirstTurnIntake) {
