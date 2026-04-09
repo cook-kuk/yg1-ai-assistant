@@ -601,6 +601,17 @@ export function tryKGDecision(
       reason: "stock filter",
     }
   }
+  // 재고 정렬 (예: "재고 많은 순으로", "재고 적은 순"). totalStock 은 sortable manifest 에
+  // 없어서 tryParseSortPhrase 가 잡지 못함 → 명시 패턴으로 filter_by_stock 라우팅 후
+  // serve-engine-stock 의 desc rerank 에 위임. MFM04/MFM10 골든셋 fix.
+  if (/재고[가는은이도만]?\s*(?:많|적)[은는]\s*순/u.test(msg)) {
+    return {
+      decision: buildDecision({ type: "filter_by_stock", stockFilter: "instock" } as OrchestratorAction, [], 0.92, "KG: stock sort"),
+      confidence: 0.92,
+      source: "kg-intent",
+      reason: "stock sort",
+    }
+  }
 
   // ── 4b. "좁히기" chip patterns → refine_condition (show selection options) ──
   if (NARROWING_CHIP_PATTERNS.some(p => p.test(msg))) {
