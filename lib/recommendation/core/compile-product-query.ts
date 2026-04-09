@@ -62,7 +62,11 @@ const FIELD_TO_COLUMN: Partial<Record<QueryField, ColumnMapping>> = {
   workpiece:       { column: "work_piece_name", type: "text", semantic: "workpiece" },
   toolFamily:      { column: "edp_root_category", type: "text" },
   toolSubtype:     { column: "search_subtype", type: "text" },
-  diameterMm:      { column: "search_diameter_mm", type: "numeric" },
+  diameterMm:      {
+    column: "search_diameter_mm",
+    type: "numeric",
+    numericExpr: numericFromColumns(["search_diameter_mm"]),
+  },
   fluteCount:      {
     column: "COALESCE(option_numberofflute, option_z, milling_number_of_flute, holemaking_number_of_flute, threading_number_of_flute)",
     type: "numeric",
@@ -185,7 +189,12 @@ export function compileProductQuery(
     }
   }
 
-  const sql = `SELECT * FROM ${BASE_TABLE}\n${whereStr}\n${orderBy}`
+  let limitStr = ""
+  if (typeof spec.limit === "number" && spec.limit > 0) {
+    limitStr = `\nLIMIT ${nextParam(spec.limit)}`
+  }
+
+  const sql = `SELECT * FROM ${BASE_TABLE}\n${whereStr}\n${orderBy}${limitStr}`
 
   return { sql, params, strategy, appliedConstraints: applied, droppedConstraints: dropped }
 }
@@ -248,7 +257,7 @@ function buildSimilaritySql(
   const refCte = `WITH ref AS (
     SELECT ${refSelect}
     FROM ${BASE_TABLE}
-    WHERE edp_product_id = ${refParam}
+    WHERE edp_no = ${refParam}
     LIMIT 1
   )`
 

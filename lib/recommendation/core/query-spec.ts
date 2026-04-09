@@ -124,6 +124,8 @@ export interface QuerySpec {
   sort?: QuerySort
   /** Phase C: similarity-mode query ("A 제품이랑 비슷한 spec"). */
   similarTo?: QuerySimilarity
+  /** Optional row cap applied at compile time. */
+  limit?: number
 }
 
 // ── Build Result ────────────────────────────────────────────
