@@ -198,7 +198,8 @@ NEVER use eq when the user expressed a range:
 - Pick the column whose name matches the user's label (직경→diameter, 전장/OAL→overall_length, 날장/LOC→length_of_cut, 샹크→shank, 헬릭스→helix, 날수→flute, etc.) AND whose min/max range contains the user's number. Do not emit duplicate eq filters for the same number on different columns.
 
 ## Korean → English semantic hints (use op:like when the chemical/internal name may differ)
-- **전역 규칙**: 위 sampleList / brandList / wpList / numericStats 에 실제로 등장한 값이 한국어 음역·유사어·약칭으로 들어와도 발음/의미 유사도로 그 값에 매핑하세요. 절대 리스트에 없는 값을 emit 하지 말 것. (아래 컬럼별 힌트는 자주 보는 예시 모음일 뿐 — 새로운 컬럼/값에도 같은 원리로 동작.)
+- **전역 규칙**: 위 sampleList / brandList / wpList / numericStats 에 실제로 등장한 값이 한국어 음역·유사어·약칭·오타·축약형으로 들어와도 발음/의미 유사도로 그 값에 매핑하세요. 절대 리스트에 없는 값을 emit 하지 말 것. (아래 컬럼별 힌트는 자주 보는 예시 모음일 뿐 — 새로운 컬럼/값에도 같은 원리로 동작.)
+- **불확실 처리**: 사용자 표현이 어느 후보에 매핑될지 확신이 없으면 reasoning에 "가장 가까운 후보 2-3개"를 명시하고 filters는 [] 로 emit. 추측 emit 금지 — 모호하면 빈 배열이 정답.
 - 공구 소재: 초경/카바이드/솔리드/Carbide/cemented → like "Carbide" · 하이스/HSS/고속도강/high speed steel → like "HSS" · 코발트하이스/HSS-Co/HSS-CO/분말 하이스/PM HSS → like "HSS-Co" · 서멧/Cermet → like "Cermet" · PCD/diamond → like "PCD" · CBN → like "CBN" · 다이아몬드 → like "Diamond"
 - 코팅: TiAlN/X코팅 → like "TiAlN" or "X-Coating" · AlCrN/Y코팅 → like "AlCrN" or "Y-Coating" · DLC → like "DLC" · 무코팅/비코팅/uncoated/bright → like "Uncoated" or "Bright" · nACo → like "nACo" · CrN → like "CrN" · TiN → like "TiN" · TiCN → like "TiCN" · ZrN → like "ZrN" · "코팅된 거"/"코팅 있는 거"/"코팅 엔드밀" → search_coating neq "Bright" (코팅 존재 여부 필터)
 - 영어 형상 변형: flat/flat endmill → "Square" · bull nose/bullnose → "Radius" or "Corner Radius" · ball nose/ballnose → "Ball" · 4 teeth/4 flute/4-flute → search_flute_count eq 4

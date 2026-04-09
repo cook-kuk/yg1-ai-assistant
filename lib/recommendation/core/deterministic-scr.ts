@@ -15,6 +15,20 @@
 import { findColumnsForToken } from "./sql-agent-schema-cache"
 import { DB_COL_TO_FILTER_FIELD } from "./sql-agent"
 import { stripKoreanParticles } from "@/lib/recommendation/shared/patterns"
+import { findFuzzyMatch } from "./phonetic-match"
+
+// Brand values — sample of clean YG-1 brands from prod_brand.brand_name (421
+// distinct, dumped 2026-04-08). Phonetic fuzzy match (consonant skeleton) lets
+// Korean transliterations like 엑스파워/알루파워/타이타녹스 hit these without
+// any hardcoded alias map. New brands appearing in DB still flow through the
+// LLM SCR fallback path until this list is refreshed.
+const BRAND_VALUES = [
+  "X-POWER", "X-POWER PRO", "TitaNox-Power", "TitaNox", "CRX-S", "CRX S",
+  "ALU-POWER", "3S MILL", "3S PLUS", "ONLY ONE", "K2 CARBIDE", "K-2 CARBIDE",
+  "TANK-POWER", "JET-POWER", "X1-EH", "X5070", "X5070S", "E-FORCE",
+  "V7", "V7 PLUS", "V7 PLUS A", "V7 INOX", "GMG", "GAA29", "SUS-CUT",
+  "SUPER ALLOY", "BASIX", "4G MILL", "4G MILLS",
+]
 
 export interface DeterministicAction {
   type: "apply_filter"
@@ -1024,9 +1038,28 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
     }
   }
 
-  // 6) Brand — deterministic 매칭 제거.
-  // BRAND_VALUES가 영문 trademark만 담고 있어서 한글 표기(엑스파워/타이타녹스/씨알엑스에스 등)를
-  // 못 잡았고, 한글 alias 하드코딩은 no-hardcoding 원칙에 위배. brand는 LLM filter extraction이 전담.
+  // 6) Brand — phonetic fuzzy match.
+  // 이전엔 영문 substring 매칭만이라 한글 표기(엑스파워/타이타녹스 등)를 못 잡아서
+  // 비활성화했지만, 음역 fuzzy 매칭(consonant-skeleton phonetic key)은 alias map이
+  // 아닌 phoneme 비교라 no-hardcoding 원칙과 충돌 X. BRAND_VALUES가 source of truth.
+  if (!seen.has("brand")) {
+    const fuzzy = findFuzzyMatch(text, BRAND_VALUES)
+    if (fuzzy) {
+      const idx = text.toLowerCase().indexOf(fuzzy.value.toLowerCase())
+      const ctx = idx >= 0
+        ? text.slice(Math.max(0, idx - 5), idx + fuzzy.value.length + 12)
+        : text.slice(0, 40)
+      const isNeg = NEG_MARKERS.test(ctx)
+      actions.push({
+        type: "apply_filter",
+        field: "brand",
+        value: fuzzy.value,
+        op: isNeg ? "neq" : "eq",
+        source: "deterministic",
+      })
+      seen.add("brand")
+    }
+  }
 
   // 7) 재고
   // "재고 30개 이상", "재고 50 이상", "stock >= 100" 같이 숫자 임계값이 있으면
