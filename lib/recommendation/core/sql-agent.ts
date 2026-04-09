@@ -37,6 +37,8 @@ export const DB_COL_TO_FILTER_FIELD: Record<string, string> = {
   search_flute_count: "fluteCount",
   option_numberofflute: "fluteCount",
   option_z: "fluteCount",
+  milling_number_of_flute: "fluteCount",
+  milling_numberofflute: "fluteCount",
   edp_brand_name: "brand",
   edp_series_name: "seriesName",
   edp_root_category: "toolType",
