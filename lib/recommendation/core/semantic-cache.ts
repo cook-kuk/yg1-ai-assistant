@@ -11,6 +11,7 @@
  */
 
 import type { AppliedFilter } from "@/lib/recommendation/domain/types"
+import { tokenize, jaccardSimilarity } from "./auto-synonym"
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -52,81 +53,10 @@ const CACHE_MAX_SIZE = 500
 const CACHE_TTL_MS = 30 * 60 * 1000 // 30 min
 const SIMILARITY_THRESHOLD = 0.75
 
-// ── Synonym map ──────────────────────────────────────────────
-// 같은 의미의 한국어/영어/약어를 단일 정규형으로 합친다.
-// 새 토큰이 필요하면 여기 한 줄만 추가하면 됨.
-const SYNONYM_MAP: Record<string, string> = {
-  // workpiece
-  스테인리스: "stainless", 스텐: "stainless", sus: "stainless", sus304: "stainless",
-  sus316: "stainless", sts304: "stainless", stainless: "stainless",
-  티타늄: "titanium", ti6al4v: "titanium", ti: "titanium", titanium: "titanium",
-  알루미늄: "aluminum", 알미늄: "aluminum", al: "aluminum", a6061: "aluminum",
-  a7075: "aluminum", aluminum: "aluminum", aluminium: "aluminum",
-  주철: "castiron", fc: "castiron", fcd: "castiron", castiron: "castiron",
-  탄소강: "carbonsteel", sm45c: "carbonsteel", s45c: "carbonsteel", carbonsteel: "carbonsteel",
-  고경도강: "hardened", skd11: "hardened", skd61: "hardened", hrc: "hardened", hardened: "hardened",
-  인코넬: "inconel", 하스텔로이: "inconel", 내열합금: "inconel", inconel: "inconel",
-  구리: "copper", 동: "copper", 황동: "copper", brass: "copper", copper: "copper",
-  합금강: "alloysteel", scm440: "alloysteel", alloysteel: "alloysteel",
-  복합재: "composite", cfrp: "composite", composite: "composite",
-  흑연: "graphite", graphite: "graphite",
-
-  // tool subtype
-  스퀘어: "square", 평날: "square", 평엔드밀: "square", square: "square",
-  볼: "ball", 볼엔드밀: "ball", 볼노즈: "ball", ball: "ball",
-  라디우스: "radius", 레디우스: "radius", 코너r: "radius", radius: "radius",
-  러핑: "roughing", 황삭: "roughing", roughing: "roughing",
-  테이퍼: "taper", taper: "taper",
-  챔퍼: "chamfer", 모따기: "chamfer", 면취: "chamfer", chamfer: "chamfer",
-  하이피드: "highfeed", 고이송: "highfeed", highfeed: "highfeed", "high-feed": "highfeed",
-
-  // coating
-  tialn: "tialn", x코팅: "tialn", 엑스코팅: "tialn", "x-coating": "tialn",
-  alcrn: "alcrn", y코팅: "alcrn", 와이코팅: "alcrn", "y-coating": "alcrn",
-  dlc: "dlc",
-  무코팅: "uncoated", 비코팅: "uncoated", uncoated: "uncoated", bright: "uncoated",
-
-  // tool material
-  초경: "carbide", 카바이드: "carbide", carbide: "carbide", 솔리드: "carbide",
-  하이스: "hss", hss: "hss", 고속도강: "hss",
-
-  // units / measures
-  mm: "_mm", 밀리: "_mm", 미리: "_mm", 파이: "_mm", "ø": "_mm",
-  날: "_flute", flute: "_flute", flutes: "_flute", f: "_flute",
-  도: "_deg", deg: "_deg", degree: "_deg",
-
-  // intent
-  추천: "_recommend", 추천해줘: "_recommend", 골라줘: "_recommend",
-  보여줘: "_recommend", 찾아줘: "_recommend",
-  빼고: "_exclude", 제외: "_exclude", 말고: "_exclude", 없는: "_exclude",
-}
-
 // ── Cache state ──────────────────────────────────────────────
+// Note: 동의어 정규화/토큰화는 auto-synonym.ts로 이전됨 (DB+patterns+KG 자동 구축).
 
 const cache: CacheEntry[] = []
-
-// ── Tokenization ─────────────────────────────────────────────
-
-function tokenize(text: string): Set<string> {
-  const lower = text.toLowerCase()
-  // Strip Korean particles + common suffixes
-  const stripped = lower.replace(/(?:이요|으로|이랑|에서|한테|부터|까지|로|은|는|이|가|을|를|요|해줘|해|줘|입니다|이에요|예요)\b/gu, " ")
-  const raw = stripped.split(/[\s,./()[\]{}!?;:'"~]+/).filter(t => t.length > 0)
-  const normalized = new Set<string>()
-  for (const token of raw) {
-    if (token.length === 0) continue
-    normalized.add(SYNONYM_MAP[token] ?? token)
-  }
-  return normalized
-}
-
-function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
-  if (a.size === 0 || b.size === 0) return 0
-  let intersection = 0
-  for (const t of a) if (b.has(t)) intersection++
-  const union = a.size + b.size - intersection
-  return union === 0 ? 0 : intersection / union
-}
 
 function computeFilterKey(filters: AppliedFilter[]): string {
   return filters
