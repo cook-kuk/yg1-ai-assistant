@@ -1020,6 +1020,32 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
     }
   }
 
+  // 3.6) Inline mm fallback: "알루미늄 10mm 4날" 처럼 cue 없는 복합 문장에서
+  // diameter 가 누락되는 케이스. 이미 다른 numeric field cue (전장/절삭길이/샹크/
+  // 헬릭스 등) 가 소비한 위치는 consumedRanges 로 skip. "4날", "100mm 이상",
+  // "RPM 8000" 같은 다른 의미의 숫자도 제외해야 한다.
+  if (!seen.has("diameterMm")) {
+    const re = /(?<![\d.])(\d+(?:\.\d+)?)\s*mm\b/gi
+    let match: RegExpExecArray | null
+    while ((match = re.exec(text)) !== null) {
+      const numStart = match.index
+      const numEnd = match.index + match[0].length
+      if (isConsumed(numStart, numEnd)) continue
+      // 직후 12자에 op marker 가 있으면 다른 field 의 range 표현일 가능성 — skip
+      const tail = text.slice(numEnd, numEnd + 12)
+      if (/(?:이상|이하|초과|미만|over|under|≥|≤|>=|<=|넘는|올라가는)/i.test(tail)) continue
+      // 직전 8자에 다른 field 의 cue 가 있으면 skip (예: "전장 100mm")
+      const head = text.slice(Math.max(0, numStart - 12), numStart)
+      if (/(전장|전체\s*길이|overall|oal|절삭\s*길이|날\s*길이|loc|샹크|생크|shank|헬릭스|helix|포인트\s*각|point\s*angle|피치|pitch|코너\s*r|ball\s*radius|회전수|rpm|spindle|이송|feed|절삭\s*속도|cutting\s*speed|vc|절입|depth|ap)/i.test(head)) continue
+      const v = parseFloat(match[1])
+      if (!Number.isFinite(v) || v <= 0 || v > 100) continue
+      actions.push({ type: "apply_filter", field: "diameterMm", value: v, op: "eq", source: "deterministic" })
+      seen.add("diameterMm")
+      consumedRanges.push([numStart, numEnd])
+      break
+    }
+  }
+
   // 4) Thread pattern: M10 P1.5
   const thread = parseThreadPattern(text)
   if (thread.dia != null && !seen.has("diameterMm")) {

@@ -270,6 +270,110 @@ describe("coverage: toolSubtype × eq (밀링 형상)", () => {
   })
 })
 
+// ── EDGE CASES — 한국어 조사 / 인치 / 콤마 / 소수점 / 단위 변형 ──
+describe("edge: 한국어 조사 부착", () => {
+  const cases: Array<[string, ExpectedAction]> = [
+    ["직경이 10mm 인거", { field: "diameterMm", op: "eq", value: 10 }],
+    ["직경은 8mm", { field: "diameterMm", op: "eq", value: 8 }],
+    ["전장이 100mm 이상", { field: "overallLengthMm", op: "gte", value: 100 }],
+    ["날수가 4개", { field: "fluteCount", op: "eq", value: 4 }],
+    ["재고가 50개 이상", { field: "stockStatus" }],
+  ]
+  it.each(cases)("'%s' → %o", (text, expected) => expectExtraction(text, expected))
+})
+
+describe("edge: 인치/분수/콤마/소수점", () => {
+  it("'1/4 인치' → 6.35mm", () => {
+    const a = findField("1/4 인치 엔드밀", "diameterMm")
+    if (!a) throw new Error("[GAP] 1/4 인치 → diameter 추출 실패")
+    expect(a.value).toBeCloseTo(6.35, 1)
+  })
+  it("'직경 12.7mm' → 소수점", () => {
+    const a = findField("직경 12.7mm", "diameterMm")
+    expect(a?.value).toBe(12.7)
+  })
+  it("'RPM 12,000 이상' → 콤마 separator", () => {
+    const a = findField("RPM 12,000 이상", "rpm")
+    expect(a?.value).toBe(12000)
+  })
+  it("'전장 100.5mm' → overallLength 소수점", () => {
+    const a = findField("전장 100.5mm", "overallLengthMm")
+    expect(a?.value).toBe(100.5)
+  })
+})
+
+describe("edge: 단위 부착/분리/생략 변형", () => {
+  const cases: Array<[string, ExpectedAction]> = [
+    ["10mm 직경", { field: "diameterMm", op: "eq", value: 10 }],
+    ["10 mm 직경", { field: "diameterMm", op: "eq", value: 10 }],
+    ["직경10mm", { field: "diameterMm", op: "eq", value: 10 }],
+    ["dia.10", { field: "diameterMm", op: "eq", value: 10 }],
+  ]
+  it.each(cases)("'%s' → %o", (text, expected) => expectExtraction(text, expected))
+})
+
+describe("edge: 복합 입력 — 한 문장에 여러 필드", () => {
+  it("'알루미늄 10mm 4날 카바이드 TiAlN 코팅' → 5필드 동시", () => {
+    const actions = parseDeterministic("알루미늄 10mm 4날 카바이드 TiAlN 코팅")
+    const fields = new Map(actions.map(a => [a.field, a.value]))
+    expect(fields.get("diameterMm")).toBe(10)
+    expect(fields.get("fluteCount")).toBe(4)
+    expect(fields.get("toolMaterial")).toBe("Carbide")
+    expect(fields.get("coating")).toBe("TiAlN")
+    // 알루미늄 → workMaterial=N
+    const wm = actions.find(a => (a.field === "workMaterial" || a.field === "material") && a.value === "N")
+    expect(wm).toBeDefined()
+  })
+
+  it("'스테인리스 8mm 슬로팅 4날 RPM 8000 이상' → 5필드 (밀링 가공형상 포함)", () => {
+    const actions = parseDeterministic("스테인리스 8mm 슬로팅 4날 RPM 8000 이상")
+    const fields = new Map(actions.map(a => [a.field, a.value]))
+    expect(fields.get("diameterMm")).toBe(8)
+    expect(fields.get("fluteCount")).toBe(4)
+    expect(fields.get("rpm")).toBe(8000)
+    expect(fields.get("applicationShape")).toBe("Slotting")
+    const wm = actions.find(a => (a.field === "workMaterial" || a.field === "material") && a.value === "M")
+    expect(wm).toBeDefined()
+  })
+
+  it("'직경 6mm 이상 12mm 이하, 4날, TiAlN' → between + flute + coating", () => {
+    const actions = parseDeterministic("직경 6mm 이상 12mm 이하, 4날, TiAlN")
+    const dia = actions.find(a => a.field === "diameterMm")
+    expect(dia?.op).toBe("between")
+    expect(dia?.value).toBe(6)
+    expect((dia as { value2?: number }).value2).toBe(12)
+    expect(actions.find(a => a.field === "fluteCount")?.value).toBe(4)
+    expect(actions.find(a => a.field === "coating")?.value).toBe("TiAlN")
+  })
+})
+
+describe("edge: negation 다양한 표현 (말고/빼고/제외/말구)", () => {
+  const cases: Array<[string, ExpectedAction]> = [
+    ["TiAlN 빼고", { field: "coating", op: "neq", value: "TiAlN" }],
+    ["AlCrN 말고", { field: "coating", op: "neq", value: "AlCrN" }],
+    ["DLC 제외", { field: "coating", op: "neq", value: "DLC" }],
+    ["하이스 빼고 추천", { field: "toolMaterial", op: "neq", value: "HSS" }],
+  ]
+  it.each(cases)("'%s' → %o", (text, expected) => expectExtraction(text, expected))
+})
+
+describe("edge: false-positive 가드 — 노이즈 문장은 추출 X", () => {
+  const noisyTexts = [
+    "안녕하세요",
+    "고마워요",
+    "추천해줘",
+    "이전 단계",
+    "당신은 누구",
+    "도움 좀 줘",
+  ]
+  it.each(noisyTexts)("'%s' → 어떤 필드도 추출되지 않음", (text) => {
+    const actions = parseDeterministic(text)
+    // 액션이 0개 이거나, 있어도 phantom 가드된 brand/country/seriesName 은 안 나와야
+    const offending = actions.filter(a => ["brand", "country", "seriesName", "diameterMm", "fluteCount", "coating", "toolMaterial"].includes(a.field))
+    expect(offending).toEqual([])
+  })
+})
+
 describe("coverage: applicationShape × eq (밀링 가공 형상 9종)", () => {
   const cases: Array<[string, string]> = [
     ["페이싱 가공", "Facing"],
