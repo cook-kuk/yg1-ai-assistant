@@ -1942,14 +1942,20 @@ async function handleServeExplorationInner(
   const isFirstTurnIntake = !prevState && messages.length <= 1
   if (isFirstTurnIntake) {
     singleCallHandled = true
-    bridgedV2Action = { type: "show_recommendation" }
+    // continue_narrowing (NOT show_recommendation) on first turn — the
+    // dispatcher (line ~3911) routes show_recommendation into
+    // buildRecommendationResponse which fires the heavy summary LLM
+    // (sonnet, 4000 tok, 30~50s). On first turn we just want a question
+    // ("flute 선호?"), not a full recommendation summary, so steer the
+    // dispatcher to buildQuestionResponse which is much lighter.
+    bridgedV2Action = { type: "continue_narrowing", filter: { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: 0 } }
     bridgedV2OrchestratorResult = {
       action: bridgedV2Action,
       reasoning: "first-turn-intake-deterministic",
       agentsInvoked: [],
       escalatedToOpus: false,
     }
-    console.log("[first-turn-intake] Skipping LLM extraction — deterministic form→retrieval path")
+    console.log("[first-turn-intake] Skipping LLM extraction — deterministic form→question path")
   }
   // Phase 4.5 — tool-forge fallback rows captured for the retrieval stage to
   // promote into candidates if hybrid retrieval + knowledge fallback both miss.
