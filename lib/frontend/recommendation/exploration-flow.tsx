@@ -189,17 +189,123 @@ function CaseCaptureModal({
   )
 }
 
+// Range filter UI options. label 은 자연어 디스패치 시 deterministic-scr 가
+// 인식하는 키워드여야 한다 (NUMERIC_FIELD_CUES + 단위 포함).
+const RANGE_FILTER_OPTIONS: Array<{ key: string; ko: string; en: string; unit: string; integer?: boolean }> = [
+  { key: "직경", ko: "직경", en: "Diameter", unit: "mm" },
+  { key: "전장", ko: "전장", en: "Overall length", unit: "mm" },
+  { key: "절삭길이", ko: "절삭 길이", en: "Cutting length", unit: "mm" },
+  { key: "날수", ko: "날수", en: "Flutes", unit: "", integer: true },
+]
+
+export function buildRangeQueryText(fieldKo: string, unit: string, min: string, max: string): string | null {
+  const hasMin = min.trim() !== ""
+  const hasMax = max.trim() !== ""
+  if (!hasMin && !hasMax) return null
+  const minN = hasMin ? Number(min) : null
+  const maxN = hasMax ? Number(max) : null
+  if (hasMin && (!Number.isFinite(minN) || (minN as number) < 0)) return null
+  if (hasMax && (!Number.isFinite(maxN) || (maxN as number) < 0)) return null
+  if (hasMin && hasMax) {
+    // 같은 값이면 between 의미가 없으니 eq 형태로
+    if (minN === maxN) return `${fieldKo} ${minN}${unit}`
+    const lo = Math.min(minN as number, maxN as number)
+    const hi = Math.max(minN as number, maxN as number)
+    return `${fieldKo} ${lo}${unit} 이상 ${hi}${unit} 이하`
+  }
+  if (hasMin) return `${fieldKo} ${minN}${unit} 이상`
+  return `${fieldKo} ${maxN}${unit} 이하`
+}
+
+function RangeFilterAdder({
+  language,
+  onSend,
+}: {
+  language: "ko" | "en"
+  onSend: ((text: string) => void) | undefined
+}) {
+  const [fieldKey, setFieldKey] = useState<string>(RANGE_FILTER_OPTIONS[0].key)
+  const [minVal, setMinVal] = useState<string>("")
+  const [maxVal, setMaxVal] = useState<string>("")
+
+  if (!onSend) return null
+
+  const opt = RANGE_FILTER_OPTIONS.find(o => o.key === fieldKey) ?? RANGE_FILTER_OPTIONS[0]
+  const fieldLabel = language === "ko" ? opt.ko : opt.en
+  const fieldKoForQuery = opt.ko
+  const handleApply = () => {
+    const text = buildRangeQueryText(fieldKoForQuery, opt.unit, minVal, maxVal)
+    if (!text) return
+    onSend(text)
+    setMinVal("")
+    setMaxVal("")
+  }
+  const canApply = minVal.trim() !== "" || maxVal.trim() !== ""
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white px-2.5 py-2 mt-2">
+      <div className="text-[10px] font-semibold text-gray-600 mb-1.5">
+        {language === "ko" ? "📐 범위 필터 추가" : "📐 Add range filter"}
+      </div>
+      <div className="flex items-center gap-1">
+        <select
+          value={fieldKey}
+          onChange={e => setFieldKey(e.target.value)}
+          className="text-[10px] border border-gray-200 rounded px-1 py-1 bg-white text-gray-700 focus:outline-none focus:border-blue-400"
+        >
+          {RANGE_FILTER_OPTIONS.map(o => (
+            <option key={o.key} value={o.key}>{language === "ko" ? o.ko : o.en}</option>
+          ))}
+        </select>
+        <input
+          type="number"
+          inputMode={opt.integer ? "numeric" : "decimal"}
+          step={opt.integer ? 1 : "any"}
+          min={0}
+          value={minVal}
+          onChange={e => setMinVal(e.target.value)}
+          placeholder={language === "ko" ? "최소" : "Min"}
+          className="w-12 text-[10px] border border-gray-200 rounded px-1 py-1 focus:outline-none focus:border-blue-400"
+          aria-label={`${fieldLabel} ${language === "ko" ? "최소" : "min"}`}
+        />
+        <span className="text-[10px] text-gray-400">~</span>
+        <input
+          type="number"
+          inputMode={opt.integer ? "numeric" : "decimal"}
+          step={opt.integer ? 1 : "any"}
+          min={0}
+          value={maxVal}
+          onChange={e => setMaxVal(e.target.value)}
+          placeholder={language === "ko" ? "최대" : "Max"}
+          className="w-12 text-[10px] border border-gray-200 rounded px-1 py-1 focus:outline-none focus:border-blue-400"
+          aria-label={`${fieldLabel} ${language === "ko" ? "최대" : "max"}`}
+        />
+        <button
+          type="button"
+          onClick={handleApply}
+          disabled={!canApply}
+          className="ml-auto text-[10px] px-2 py-1 rounded bg-blue-500 text-white font-semibold hover:bg-blue-600 disabled:bg-gray-200 disabled:text-gray-400"
+        >
+          {language === "ko" ? "적용" : "Apply"}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function ExplorationSidebar({
   form,
   sessionState,
   engineSessionState,
   onEdit,
+  onSend,
   messages,
 }: {
   form: ProductIntakeForm
   sessionState: RecommendationPublicSessionDto | null
   engineSessionState: ExplorationSessionState | null
   onEdit: () => void
+  onSend?: (text: string) => void
   messages: ChatMsg[]
 }) {
   const { language } = useApp()
@@ -252,6 +358,7 @@ function ExplorationSidebar({
               {language === "ko" ? `현재 후보 ${sessionState.candidateCount}개` : `${sessionState.candidateCount} candidates`}
             </div>
           )}
+          <RangeFilterAdder language={language} onSend={onSend} />
         </div>
       </div>
 
@@ -1250,7 +1357,7 @@ export function ExplorationScreen({
               </button>
             </div>
           )}
-          <ExplorationSidebar form={form} sessionState={sessionState} engineSessionState={engineSessionState} onEdit={onEdit} messages={messages} />
+          <ExplorationSidebar form={form} sessionState={sessionState} engineSessionState={engineSessionState} onEdit={onEdit} onSend={onSend} messages={messages} />
         </div>
 
         <div className="flex-1 min-w-0 flex flex-col">
