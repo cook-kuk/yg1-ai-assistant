@@ -1988,13 +1988,19 @@ async function handleServeExplorationInner(
       console.warn("[first-turn-intake] det-SCR injection failed:", (e as Error).message)
     }
     singleCallHandled = true
-    // continue_narrowing (NOT show_recommendation) on first turn — the
-    // dispatcher (line ~3911) routes show_recommendation into
-    // buildRecommendationResponse which fires the heavy summary LLM
-    // (sonnet, 4000 tok, 30~50s). On first turn we just want a question
-    // ("flute 선호?"), not a full recommendation summary, so steer the
-    // dispatcher to buildQuestionResponse which is much lighter.
-    bridgedV2Action = { type: "continue_narrowing", filter: { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: 0 } }
+    // If the user explicitly said "추천해줘/보여줘/찾아줘" AND det-SCR extracted
+    // at least 2 filters, go straight to show_recommendation — the user has
+    // given enough info and expects cards, not another question. Otherwise
+    // stay with continue_narrowing (light question response).
+    const rawMsgLower = (lastUserMsg?.text ?? "").trim()
+    const hasShowVerb = /(추천\s*(해줘|해주|좀)?|보여줘|찾아줘|알려줘|골라줘|제품\s*(보|줘))/.test(rawMsgLower)
+    const meaningfulFilters = filters.filter(f => f.op !== "skip" && f.field !== "none").length
+    if (hasShowVerb && meaningfulFilters >= 2) {
+      console.log(`[first-turn-intake] show_recommendation: ${meaningfulFilters} filters + explicit verb`)
+      bridgedV2Action = { type: "show_recommendation" }
+    } else {
+      bridgedV2Action = { type: "continue_narrowing", filter: { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: 0 } }
+    }
     bridgedV2OrchestratorResult = {
       action: bridgedV2Action,
       reasoning: "first-turn-intake-deterministic",
