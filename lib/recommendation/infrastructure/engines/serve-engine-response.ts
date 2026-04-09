@@ -495,7 +495,14 @@ export async function buildQuestionResponse(
     responsePrefix: responsePrefix ?? null,
   })
   // ── Resolution guard: if already resolved, skip all questions → show recommendation ──
-  const preCheckStatus = checkResolution(candidates, history, totalCandidateCount)
+  // Explicit-show short-circuit: when the user has applied at least one filter
+  // and the latest message contains an explicit show intent ("추천해줘", "보여줘",
+  // "show"), bypass the ask-vs-show threshold. Prevents B03-type regressions
+  // ("CRX S 빼고 추천해줘" → asks diameter despite the exclusion filter).
+  const lastUserText = [...messages].reverse().find(m => m.role === "user")?.text ?? ""
+  const explicitShow = filters.length >= 1
+    && /(추천|보여|show|주세요|알려|찾아)/i.test(lastUserText)
+  const preCheckStatus = checkResolution(candidates, history, totalCandidateCount, explicitShow)
   const alreadyResolved = preCheckStatus.startsWith("resolved")
 
   const question = alreadyResolved
@@ -1224,11 +1231,17 @@ export async function buildRecommendationResponse(
       console.warn("[zero-result:domain-guard] error:", (e as Error).message)
     }
   }
-  let finalResponseText = status === "none"
-    ? hasCandidatePool
-      ? `조건에 완전히 맞는 제품은 없지만 유사 후보 ${totalCandidateCount}개를 찾았습니다. 직경이나 소재 조건을 조정하거나 현재 후보를 검토해보세요.`
-      : noneFallbackText
-    : responseText
+  // status==="none" 이면서 primary 제품이 있는 경우(=loose match): LLM 요약을 그대로 보존.
+  // 기존 generic stub 으로 덮어쓰면 LLM 추천 근거가 사라져 R03 같은 range filter 케이스가
+  // "조건에 완전히 맞는 제품은 없지만" 메시지로 응답됨. responseText 가 비어있을 때만 fallback.
+  let finalResponseText: string
+  if (status === "none" && !hasCandidatePool) {
+    finalResponseText = noneFallbackText
+  } else if (status === "none" && hasCandidatePool && (!responseText || responseText.trim().length < 20)) {
+    finalResponseText = `조건에 완전히 맞는 제품은 없지만 유사 후보 ${totalCandidateCount}개를 찾았습니다. 직경이나 소재 조건을 조정하거나 현재 후보를 검토해보세요.`
+  } else {
+    finalResponseText = responseText
+  }
   const recValidation = validateOptionFirstPipeline(finalResponseText, finalRecChips, postRecDisplayedOptions)
   if (recValidation.correctedAnswer) {
     finalResponseText = recValidation.correctedAnswer
