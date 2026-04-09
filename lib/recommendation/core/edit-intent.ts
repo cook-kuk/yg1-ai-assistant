@@ -36,7 +36,7 @@ export function hasEditSignal(msg: string): boolean {
 }
 
 const EDIT_SIGNAL_RE =
-  /말고|빼고|제외|외에|아닌|않은|아니고|아니면|아니에요|아닙니다|아닌데|인데요|바꿔|바꾸|변경|교체|에서\s*\S+\s*(?:로|으로)|상관없|관계없|아무거나|뭐든|처음부터|다시\s*시작|초기화|리셋|reset|요청\s*(?:한\s*적|안\s*했|않았)|잘못|bug|버그/iu
+  /말고|빼고|제외|외에|아닌|않은|아니고|아니면|아니에요|아닙니다|아닌데|인데요|바꿔|바꾸|변경|교체|에서\s*\S+\s*(?:로|으로)|상관없|관계없|아무거나|뭐든|처음부터|다시\s*시작|초기화|리셋|reset|요청\s*(?:한\s*적|안\s*했|않았)|잘못/iu
 
 // ── Field Name Patterns ──────────────────────────────────────
 
@@ -86,7 +86,7 @@ export function parseEditIntent(
 
   // ── 0. reject_applied_filter ("X는 bug", "X 요청한 적 없", "X 잘못", "X 아닌데요") ──
   // 사용자가 잘못 적용된 필터를 항의 — 현재 필터에서 그 값을 가진 항목을 찾아 clear.
-  const REJECT_RE = /(?:bug|버그|잘못|요청\s*(?:한\s*적\s*(?:이\s*)?없|안\s*했|않았)|아닌데요?|아니에요|아닙니다)/iu
+  const REJECT_RE = /(?:잘못|요청\s*(?:한\s*적\s*(?:이\s*)?없|안\s*했|않았)|아닌데요?|아니에요|아닙니다)/iu
   if (REJECT_RE.test(lower) && existingFilters.length > 0) {
     // 메시지에 등장한 엔티티를 찾아 현재 필터와 매칭
     const entities = extractEntities(msg)
