@@ -1,55 +1,60 @@
 {
-  "pass": 22,
-  "fail": 0,
-  "error": 7,
-  "skip": 3,
+  "pass": 85,
+  "fail": 319,
+  "error": 3,
+  "skip": 17,
   "details": [
     {
-      "id": "E07",
+      "id": "B12",
       "verdict": "ERROR",
       "error": "read ECONNRESET"
     },
     {
-      "id": "F01",
-      "verdict": "PASS",
-      "detail": "no-expected",
-      "elapsedMs": 19596,
-      "runResult": []
+      "id": "B13",
+      "verdict": "SKIP"
     },
     {
-      "id": "F05",
-      "verdict": "PASS",
-      "detail": "no-expected",
-      "elapsedMs": 313089,
-      "runResult": []
+      "id": "B14",
+      "verdict": "SKIP"
     },
     {
-      "id": "G04",
-      "verdict": "PASS",
-      "detail": "no-expected",
-      "elapsedMs": 1512,
-      "runResult": []
+      "id": "B15",
+      "verdict": "SKIP"
     },
     {
-      "id": "G08",
+      "id": "C01",
       "verdict": "PASS",
-      "detail": "no-expected",
-      "elapsedMs": 52389,
+      "detail": "loose:3filter",
+      "elapsedMs": 36210,
       "runResult": [
         {
-          "field": "coating",
+          "field": "lengthOfCutMm",
           "op": "eq",
-          "value": "Y-Coating",
-          "rawValue": "Y-Coating",
+          "value": "40mm",
+          "rawValue": 40,
+          "appliedAt": 0
+        },
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "16mm",
+          "rawValue": 16,
+          "appliedAt": 0
+        },
+        {
+          "field": "toolMaterial",
+          "op": "eq",
+          "value": "HSS",
+          "rawValue": "HSS",
           "appliedAt": 0
         }
       ]
     },
     {
-      "id": "H02",
+      "id": "C02",
       "verdict": "PASS",
-      "detail": "loose:1filter",
-      "elapsedMs": 92453,
+      "detail": "loose:3filter",
+      "elapsedMs": 49122,
       "runResult": [
         {
           "field": "fluteCount",
@@ -57,6 +62,131 @@
           "value": "4날",
           "rawValue": 4,
           "appliedAt": 0
+        },
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Titanium",
+          "rawValue": "Titanium",
+          "appliedAt": 0
+        },
+        {
+          "field": "toolSubtype",
+          "op": "eq",
+          "value": "Radius",
+          "rawValue": "Radius",
+          "appliedAt": 1775699176186
+        }
+      ]
+    },
+    {
+      "id": "C03",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 66085,
+      "runResult": [
+        {
+          "field": "overallLengthMm",
+          "op": "gte",
+          "value": "80mm",
+          "rawValue": 80,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "C04",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 36106,
+      "runResult": [
+        {
+          "field": "lengthOfCutMm",
+          "op": "gte",
+          "value": "100mm",
+          "rawValue": 100,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "C05",
+      "verdict": "PASS",
+      "detail": "loose:2filter",
+      "elapsedMs": 44821,
+      "runResult": [
+        {
+          "field": "overallLengthMm",
+          "op": "gte",
+          "value": "100mm",
+          "rawValue": 100,
+          "appliedAt": 0
+        },
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "12mm",
+          "rawValue": 12,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "C06",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 57926,
+      "runResult": [
+        {
+          "field": "fluteCount",
+          "op": "between",
+          "value": "날수 4~6날",
+          "rawValue": 4,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "C07",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 92245,
+      "runResult": [
+        {
+          "field": "fluteCount",
+          "op": "gte",
+          "value": "3날",
+          "rawValue": 3,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "C08",
+      "verdict": "PASS",
+      "detail": "loose:3filter",
+      "elapsedMs": 47929,
+      "runResult": [
+        {
+          "field": "ballRadiusMm",
+          "op": "eq",
+          "value": "코너레디우스 1mm(약 0.040인치)",
+          "rawValue": "R.040",
+          "appliedAt": 0
+        },
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "1",
+          "rawValue": 1,
+          "appliedAt": 1775699534720
+        },
+        {
+          "field": "toolSubtype",
+          "op": "eq",
+          "value": "Radius",
+          "rawValue": "Radius",
+          "appliedAt": 1775699534720
         }
       ]
     },
@@ -64,7 +194,7 @@
       "id": "C09",
       "verdict": "PASS",
       "detail": "loose:1filter",
-      "elapsedMs": 181338,
+      "elapsedMs": 72723,
       "runResult": [
         {
           "field": "country",
@@ -76,10 +206,55 @@
       ]
     },
     {
+      "id": "C10",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 277657,
+      "runResult": [
+        {
+          "field": "toolMaterial",
+          "op": "eq",
+          "value": "Carbide",
+          "rawValue": "Carbide",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "C11",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 72270,
+      "runResult": [
+        {
+          "field": "country",
+          "op": "eq",
+          "value": "EUROPE",
+          "rawValue": "EUROPE",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "C12",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 108982,
+      "runResult": [
+        {
+          "field": "shankType",
+          "op": "eq",
+          "value": "plain",
+          "rawValue": "plain",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
       "id": "C13",
       "verdict": "PASS",
       "detail": "loose:3filter",
-      "elapsedMs": 50574,
+      "elapsedMs": 31637,
       "runResult": [
         {
           "field": "toolMaterial",
@@ -105,10 +280,97 @@
       ]
     },
     {
+      "id": "C14",
+      "verdict": "PASS",
+      "detail": "loose:2filter",
+      "elapsedMs": 33157,
+      "runResult": [
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "구리",
+          "rawValue": "구리",
+          "appliedAt": 0
+        },
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "6",
+          "rawValue": 6,
+          "appliedAt": 1775700135956
+        }
+      ]
+    },
+    {
+      "id": "C15",
+      "verdict": "PASS",
+      "detail": "loose:3filter",
+      "elapsedMs": 34269,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "16mm",
+          "rawValue": 16,
+          "appliedAt": 0
+        },
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Inconel",
+          "rawValue": "Inconel",
+          "appliedAt": 0
+        },
+        {
+          "field": "toolSubtype",
+          "op": "eq",
+          "value": "Square",
+          "rawValue": "Square",
+          "appliedAt": 1775700169300
+        }
+      ]
+    },
+    {
+      "id": "D01",
+      "verdict": "PASS",
+      "detail": "loose:4filter",
+      "elapsedMs": 32149,
+      "runResult": [
+        {
+          "field": "lengthOfCutMm",
+          "op": "gte",
+          "value": "20mm",
+          "rawValue": 20,
+          "appliedAt": 0
+        },
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Alloy Steels",
+          "rawValue": "Alloy Steels",
+          "appliedAt": 0
+        },
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "10",
+          "rawValue": 10,
+          "appliedAt": 1775700204270
+        },
+        {
+          "field": "toolSubtype",
+          "op": "eq",
+          "value": "Roughing",
+          "rawValue": "Roughing",
+          "appliedAt": 1775700204270
+        }
+      ]
+    },
+    {
       "id": "D02",
       "verdict": "PASS",
       "detail": "loose:3filter",
-      "elapsedMs": 33792,
+      "elapsedMs": 94967,
       "runResult": [
         {
           "field": "diameterMm",
@@ -134,15 +396,199 @@
       ]
     },
     {
+      "id": "D03",
+      "verdict": "PASS",
+      "detail": "loose:4filter",
+      "elapsedMs": 57519,
+      "runResult": [
+        {
+          "field": "overallLengthMm",
+          "op": "gte",
+          "value": "70mm",
+          "rawValue": 70,
+          "appliedAt": 0
+        },
+        {
+          "field": "lengthOfCutMm",
+          "op": "gte",
+          "value": "20mm",
+          "rawValue": 20,
+          "appliedAt": 0
+        },
+        {
+          "field": "fluteCount",
+          "op": "gte",
+          "value": "5날",
+          "rawValue": 5,
+          "appliedAt": 0
+        },
+        {
+          "field": "toolSubtype",
+          "op": "eq",
+          "value": "Radius",
+          "rawValue": "Radius",
+          "appliedAt": 1775700332801
+        }
+      ]
+    },
+    {
+      "id": "D04",
+      "verdict": "PASS",
+      "detail": "loose:3filter",
+      "elapsedMs": 31431,
+      "runResult": [
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "4날",
+          "rawValue": 4,
+          "appliedAt": 0
+        },
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "5",
+          "rawValue": 5,
+          "appliedAt": 1775700389185
+        },
+        {
+          "field": "toolSubtype",
+          "op": "eq",
+          "value": "Square",
+          "rawValue": "Square",
+          "appliedAt": 1775700389185
+        }
+      ]
+    },
+    {
+      "id": "D05",
+      "verdict": "PASS",
+      "detail": "loose:2filter",
+      "elapsedMs": 62539,
+      "runResult": [
+        {
+          "field": "overallLengthMm",
+          "op": "eq",
+          "value": "250mm",
+          "rawValue": 250,
+          "appliedAt": 0
+        },
+        {
+          "field": "lengthOfCutMm",
+          "op": "eq",
+          "value": "180mm",
+          "rawValue": 180,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
       "id": "D06",
-      "verdict": "ERROR",
-      "error": "socket hang up"
+      "verdict": "PASS",
+      "detail": "loose:2filter",
+      "elapsedMs": 111759,
+      "runResult": [
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Hardened Steels",
+          "rawValue": "Hardened Steels",
+          "appliedAt": 0
+        },
+        {
+          "field": "toolSubtype",
+          "op": "eq",
+          "value": "Ball",
+          "rawValue": "Ball",
+          "appliedAt": 1775700500055
+        }
+      ]
+    },
+    {
+      "id": "D07",
+      "verdict": "PASS",
+      "detail": "loose:5filter",
+      "elapsedMs": 62143,
+      "runResult": [
+        {
+          "field": "overallLengthMm",
+          "op": "gte",
+          "value": "70mm",
+          "rawValue": 70,
+          "appliedAt": 0
+        },
+        {
+          "field": "lengthOfCutMm",
+          "op": "gte",
+          "value": "15mm",
+          "rawValue": 15,
+          "appliedAt": 0
+        },
+        {
+          "field": "diameterMm",
+          "op": "gte",
+          "value": "10mm",
+          "rawValue": 10,
+          "appliedAt": 0
+        },
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "5날",
+          "rawValue": 5,
+          "appliedAt": 0
+        },
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Titanium",
+          "rawValue": "Titanium",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "D08",
+      "verdict": "PASS",
+      "detail": "loose:2filter",
+      "elapsedMs": 51210,
+      "runResult": [
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "3날",
+          "rawValue": 3,
+          "appliedAt": 0
+        },
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "알루미늄",
+          "rawValue": "알루미늄",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "D09",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 65946,
+      "runResult": [
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Stainless Steels",
+          "rawValue": "Stainless Steels",
+          "appliedAt": 0
+        }
+      ]
     },
     {
       "id": "D10",
       "verdict": "PASS",
       "detail": "loose:2filter",
-      "elapsedMs": 46960,
+      "elapsedMs": 42413,
       "runResult": [
         {
           "field": "brand",
@@ -161,25 +607,127 @@
       ]
     },
     {
+      "id": "E01",
+      "verdict": "SKIP"
+    },
+    {
+      "id": "E02",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 199254,
+      "runResult": [
+        {
+          "field": "brand",
+          "op": "neq",
+          "value": "3S MILL",
+          "rawValue": "3S MILL",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "E03",
+      "verdict": "SKIP"
+    },
+    {
       "id": "E04",
       "verdict": "SKIP"
+    },
+    {
+      "id": "E05",
+      "verdict": "SKIP"
+    },
+    {
+      "id": "E06",
+      "verdict": "SKIP"
+    },
+    {
+      "id": "E07",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 320046,
+      "runResult": [
+        {
+          "field": "brand",
+          "op": "neq",
+          "value": "브랜드 ABC 제외",
+          "rawValue": "ABC",
+          "appliedAt": 0
+        }
+      ]
     },
     {
       "id": "E08",
       "verdict": "SKIP"
     },
     {
+      "id": "E09",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 91479,
+      "runResult": [
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Titanium",
+          "rawValue": "Titanium",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "E10",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 106059,
+      "runResult": [
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Hardened Steels",
+          "rawValue": "Hardened Steels",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "F01",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 21269,
+      "runResult": []
+    },
+    {
       "id": "F02",
       "verdict": "PASS",
       "detail": "no-expected",
-      "elapsedMs": 305836,
+      "elapsedMs": 113089,
+      "runResult": []
+    },
+    {
+      "id": "F03",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 121946,
+      "runResult": []
+    },
+    {
+      "id": "F04",
+      "verdict": "ERROR",
+      "error": "socket hang up"
+    },
+    {
+      "id": "F05",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 232358,
       "runResult": []
     },
     {
       "id": "G01",
       "verdict": "PASS",
       "detail": "no-expected",
-      "elapsedMs": 55301,
+      "elapsedMs": 38942,
       "runResult": [
         {
           "field": "coating",
@@ -191,41 +739,10 @@
       ]
     },
     {
-      "id": "G05",
-      "verdict": "PASS",
-      "detail": "no-expected",
-      "elapsedMs": 1722,
-      "runResult": []
-    },
-    {
-      "id": "G09",
-      "verdict": "PASS",
-      "detail": "no-expected",
-      "elapsedMs": 1902,
-      "runResult": []
-    },
-    {
-      "id": "H03",
-      "verdict": "PASS",
-      "detail": "no-expected",
-      "elapsedMs": 139442,
-      "runResult": []
-    },
-    {
-      "id": "E09",
-      "verdict": "ERROR",
-      "error": "TIMEOUT"
-    },
-    {
-      "id": "F03",
-      "verdict": "ERROR",
-      "error": "read ECONNRESET"
-    },
-    {
       "id": "G02",
       "verdict": "PASS",
       "detail": "no-expected",
-      "elapsedMs": 35964,
+      "elapsedMs": 44902,
       "runResult": [
         {
           "field": "brand",
@@ -244,68 +761,10 @@
       ]
     },
     {
-      "id": "G06",
-      "verdict": "PASS",
-      "detail": "no-expected",
-      "elapsedMs": 50822,
-      "runResult": [
-        {
-          "field": "brand",
-          "op": "eq",
-          "value": "GMG",
-          "rawValue": "GMG",
-          "appliedAt": 0
-        }
-      ]
-    },
-    {
-      "id": "G10",
-      "verdict": "ERROR",
-      "error": "read ECONNRESET"
-    },
-    {
-      "id": "H04",
-      "verdict": "PASS",
-      "detail": "no-expected",
-      "elapsedMs": 242017,
-      "runResult": []
-    },
-    {
-      "id": "E02",
-      "verdict": "ERROR",
-      "error": "read ECONNRESET"
-    },
-    {
-      "id": "E06",
-      "verdict": "SKIP"
-    },
-    {
-      "id": "E10",
-      "verdict": "PASS",
-      "detail": "no-expected",
-      "elapsedMs": 241835,
-      "runResult": [
-        {
-          "field": "workPieceName",
-          "op": "eq",
-          "value": "Hardened Steels",
-          "rawValue": "Hardened Steels",
-          "appliedAt": 0
-        }
-      ]
-    },
-    {
-      "id": "F04",
-      "verdict": "PASS",
-      "detail": "no-expected",
-      "elapsedMs": 112491,
-      "runResult": []
-    },
-    {
       "id": "G03",
       "verdict": "PASS",
       "detail": "no-expected",
-      "elapsedMs": 63427,
+      "elapsedMs": 80472,
       "runResult": [
         {
           "field": "brand",
@@ -324,10 +783,39 @@
       ]
     },
     {
+      "id": "G04",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 1855,
+      "runResult": []
+    },
+    {
+      "id": "G05",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 2085,
+      "runResult": []
+    },
+    {
+      "id": "G06",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 34800,
+      "runResult": [
+        {
+          "field": "brand",
+          "op": "eq",
+          "value": "GMG",
+          "rawValue": "GMG",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
       "id": "G07",
       "verdict": "PASS",
       "detail": "no-expected",
-      "elapsedMs": 40888,
+      "elapsedMs": 57039,
       "runResult": [
         {
           "field": "coating",
@@ -339,10 +827,39 @@
       ]
     },
     {
+      "id": "G08",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 66879,
+      "runResult": [
+        {
+          "field": "coating",
+          "op": "eq",
+          "value": "Y-Coating",
+          "rawValue": "Y-Coating",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "G09",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 2978,
+      "runResult": []
+    },
+    {
+      "id": "G10",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 36311,
+      "runResult": []
+    },
+    {
       "id": "H01",
       "verdict": "PASS",
       "detail": "no-expected",
-      "elapsedMs": 129957,
+      "elapsedMs": 167818,
       "runResult": [
         {
           "field": "toolMaterial",
@@ -354,9 +871,3764 @@
       ]
     },
     {
+      "id": "H02",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 61343,
+      "runResult": [
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "4날",
+          "rawValue": 4,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "H03",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 114793,
+      "runResult": []
+    },
+    {
+      "id": "H04",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 135101,
+      "runResult": []
+    },
+    {
       "id": "H05",
       "verdict": "ERROR",
       "error": "read ECONNRESET"
+    },
+    {
+      "id": "I01",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 6343,
+      "runResult": []
+    },
+    {
+      "id": "I02",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 1903,
+      "runResult": []
+    },
+    {
+      "id": "I03",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 40725,
+      "runResult": [
+        {
+          "field": "stockStatus",
+          "op": "eq",
+          "value": "instock",
+          "rawValue": "instock",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "I04",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 43487,
+      "runResult": [
+        {
+          "field": "stockStatus",
+          "op": "gte",
+          "value": "50",
+          "rawValue": "50",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "I05",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 176674,
+      "runResult": []
+    },
+    {
+      "id": "J01",
+      "verdict": "PASS",
+      "detail": "4turns",
+      "elapsedMs": 311113,
+      "runResult": {
+        "lastFilters": [
+          {
+            "field": "workPieceName",
+            "op": "eq",
+            "value": "Stainless Steels",
+            "rawValue": "Stainless Steels",
+            "appliedAt": 0
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": "10",
+            "rawValue": 10,
+            "appliedAt": 1775703499319
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": "4날",
+            "rawValue": 4,
+            "appliedAt": 0
+          },
+          {
+            "field": "brand",
+            "op": "neq",
+            "value": "CRX S",
+            "rawValue": "CRX S",
+            "appliedAt": 1
+          },
+          {
+            "field": "toolSubtype",
+            "op": "skip",
+            "value": "상관없음",
+            "rawValue": "skip",
+            "appliedAt": 2
+          }
+        ],
+        "turnResults": [
+          {
+            "text": "스테인리스강 측면가공 10mm 엔드밀",
+            "filters": [
+              {
+                "field": "workPieceName",
+                "op": "eq",
+                "value": "Stainless Steels",
+                "rawValue": "Stainless Steels",
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775703499319
+              }
+            ],
+            "expected": null
+          },
+          {
+            "text": "4날",
+            "filters": [
+              {
+                "field": "workPieceName",
+                "op": "eq",
+                "value": "Stainless Steels",
+                "rawValue": "Stainless Steels",
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775703499319
+              },
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              }
+            ],
+            "expected": [
+              "fluteCount=4"
+            ]
+          },
+          {
+            "text": "CRX S 빼고",
+            "filters": [
+              {
+                "field": "workPieceName",
+                "op": "eq",
+                "value": "Stainless Steels",
+                "rawValue": "Stainless Steels",
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775703499319
+              },
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              },
+              {
+                "field": "brand",
+                "op": "neq",
+                "value": "CRX S",
+                "rawValue": "CRX S",
+                "appliedAt": 1
+              }
+            ],
+            "expected": [
+              "brand=CRX S(neq)"
+            ]
+          },
+          {
+            "text": "추천해줘",
+            "filters": [
+              {
+                "field": "workPieceName",
+                "op": "eq",
+                "value": "Stainless Steels",
+                "rawValue": "Stainless Steels",
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775703499319
+              },
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              },
+              {
+                "field": "brand",
+                "op": "neq",
+                "value": "CRX S",
+                "rawValue": "CRX S",
+                "appliedAt": 1
+              },
+              {
+                "field": "toolSubtype",
+                "op": "skip",
+                "value": "상관없음",
+                "rawValue": "skip",
+                "appliedAt": 2
+              }
+            ],
+            "expected": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "J02",
+      "verdict": "PASS",
+      "detail": "2turns",
+      "elapsedMs": 63504,
+      "runResult": {
+        "lastFilters": [
+          {
+            "field": "toolSubtype",
+            "op": "eq",
+            "value": "Square",
+            "rawValue": "Square",
+            "appliedAt": 0
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": "10",
+            "rawValue": 10,
+            "appliedAt": 1775703810244
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": "4",
+            "rawValue": "4",
+            "appliedAt": 0
+          }
+        ],
+        "turnResults": [
+          {
+            "text": "Square 2날 10mm",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "2날",
+                "rawValue": 2,
+                "appliedAt": 0
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775703810244
+              }
+            ],
+            "expected": null
+          },
+          {
+            "text": "2날 말고 4날로",
+            "filters": [
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775703810244
+              },
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4",
+                "rawValue": "4",
+                "appliedAt": 0
+              }
+            ],
+            "expected": [
+              "fluteCount=4(eq)"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "J03",
+      "verdict": "PASS",
+      "detail": "smoke:seq",
+      "elapsedMs": 54039,
+      "runResult": {
+        "lastFilters": [],
+        "turnResults": [
+          {
+            "text": "Square 4날 CRX-S",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              },
+              {
+                "field": "brand",
+                "op": "eq",
+                "value": "CRX-S",
+                "rawValue": "CRX-S",
+                "appliedAt": 0
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 0
+              }
+            ],
+            "expected": null
+          },
+          {
+            "text": "처음부터",
+            "filters": [],
+            "expected": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "J04",
+      "verdict": "PASS",
+      "detail": "2turns",
+      "elapsedMs": 166952,
+      "runResult": {
+        "lastFilters": [
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": "2날",
+            "rawValue": 2,
+            "appliedAt": 0
+          },
+          {
+            "field": "brand",
+            "op": "neq",
+            "value": "CRX S",
+            "rawValue": "CRX S",
+            "appliedAt": 0
+          }
+        ],
+        "turnResults": [
+          {
+            "text": "Square 2날 CRX-S",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "2날",
+                "rawValue": 2,
+                "appliedAt": 0
+              },
+              {
+                "field": "brand",
+                "op": "eq",
+                "value": "CRX-S",
+                "rawValue": "CRX-S",
+                "appliedAt": 0
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 0
+              }
+            ],
+            "expected": null
+          },
+          {
+            "text": "이전으로 돌아가서 CRX S 제외",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "2날",
+                "rawValue": 2,
+                "appliedAt": 0
+              },
+              {
+                "field": "brand",
+                "op": "neq",
+                "value": "CRX S",
+                "rawValue": "CRX S",
+                "appliedAt": 0
+              }
+            ],
+            "expected": [
+              "brand=CRX S(neq)"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "J05",
+      "verdict": "PASS",
+      "detail": "smoke:seq",
+      "elapsedMs": 68993,
+      "runResult": {
+        "lastFilters": [
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": "2날",
+            "rawValue": 2,
+            "appliedAt": 0
+          },
+          {
+            "field": "workPieceName",
+            "op": "eq",
+            "value": "Stainless Steels",
+            "rawValue": "Stainless Steels",
+            "appliedAt": 0
+          },
+          {
+            "field": "toolSubtype",
+            "op": "eq",
+            "value": "Square",
+            "rawValue": "Square",
+            "appliedAt": 0
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": "10",
+            "rawValue": 10,
+            "appliedAt": 1775704096009
+          },
+          {
+            "field": "cuttingType",
+            "op": "skip",
+            "value": "상관없음",
+            "rawValue": "skip",
+            "appliedAt": 0
+          }
+        ],
+        "turnResults": [
+          {
+            "text": "스테인리스 Square 2날 TiAlN 10mm",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "2날",
+                "rawValue": 2,
+                "appliedAt": 0
+              },
+              {
+                "field": "coating",
+                "op": "eq",
+                "value": "TiAlN",
+                "rawValue": "TiAlN",
+                "appliedAt": 0
+              },
+              {
+                "field": "workPieceName",
+                "op": "eq",
+                "value": "Stainless Steels",
+                "rawValue": "Stainless Steels",
+                "appliedAt": 0
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775704096009
+              }
+            ],
+            "expected": null
+          },
+          {
+            "text": "코팅 상관없으니 일반적으로 많이 사용하는 걸로 추천해주세요",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "2날",
+                "rawValue": 2,
+                "appliedAt": 0
+              },
+              {
+                "field": "workPieceName",
+                "op": "eq",
+                "value": "Stainless Steels",
+                "rawValue": "Stainless Steels",
+                "appliedAt": 0
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775704096009
+              },
+              {
+                "field": "cuttingType",
+                "op": "skip",
+                "value": "상관없음",
+                "rawValue": "skip",
+                "appliedAt": 0
+              }
+            ],
+            "expected": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "J06",
+      "verdict": "PASS",
+      "detail": "3turns",
+      "elapsedMs": 176669,
+      "runResult": {
+        "lastFilters": [
+          {
+            "field": "workPieceName",
+            "op": "eq",
+            "value": "Stainless Steels",
+            "rawValue": "Stainless Steels",
+            "appliedAt": 0
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": "4날",
+            "rawValue": 4,
+            "appliedAt": 0
+          },
+          {
+            "field": "coating",
+            "op": "eq",
+            "value": "Y-Coating",
+            "rawValue": "Y-Coating",
+            "appliedAt": 1
+          }
+        ],
+        "turnResults": [
+          {
+            "text": "SUS304 가공이에요!",
+            "filters": [
+              {
+                "field": "workPieceName",
+                "op": "eq",
+                "value": "Stainless Steels",
+                "rawValue": "Stainless Steels",
+                "appliedAt": 0
+              }
+            ],
+            "expected": [
+              "workPieceName=Stainless Steels"
+            ]
+          },
+          {
+            "text": "4날",
+            "filters": [
+              {
+                "field": "workPieceName",
+                "op": "eq",
+                "value": "Stainless Steels",
+                "rawValue": "Stainless Steels",
+                "appliedAt": 0
+              },
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              }
+            ],
+            "expected": [
+              "fluteCount=4"
+            ]
+          },
+          {
+            "text": "Y 코팅으로 추천해줘",
+            "filters": [
+              {
+                "field": "workPieceName",
+                "op": "eq",
+                "value": "Stainless Steels",
+                "rawValue": "Stainless Steels",
+                "appliedAt": 0
+              },
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              },
+              {
+                "field": "coating",
+                "op": "eq",
+                "value": "Y-Coating",
+                "rawValue": "Y-Coating",
+                "appliedAt": 1
+              }
+            ],
+            "expected": [
+              "coating=Y-Coating"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "J07",
+      "verdict": "PASS",
+      "detail": "smoke:seq",
+      "elapsedMs": 119203,
+      "runResult": {
+        "lastFilters": [
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": "10",
+            "rawValue": 10,
+            "appliedAt": 1775704341948
+          },
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": "3날",
+            "rawValue": 3,
+            "appliedAt": 0
+          },
+          {
+            "field": "workPieceName",
+            "op": "eq",
+            "value": "알루미늄",
+            "rawValue": "알루미늄",
+            "appliedAt": 0
+          }
+        ],
+        "turnResults": [
+          {
+            "text": "Aluminum 측면가공 10mm",
+            "filters": [
+              {
+                "field": "workPieceName",
+                "op": "eq",
+                "value": "알루미늄",
+                "rawValue": "알루미늄",
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775704341948
+              }
+            ],
+            "expected": null
+          },
+          {
+            "text": "3날로 추천해주세요, 항공용 Aluminum 소재에 고속 가공용에 적용",
+            "filters": [
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775704341948
+              },
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "3날",
+                "rawValue": 3,
+                "appliedAt": 0
+              },
+              {
+                "field": "workPieceName",
+                "op": "eq",
+                "value": "알루미늄",
+                "rawValue": "알루미늄",
+                "appliedAt": 0
+              }
+            ],
+            "expected": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "J08",
+      "verdict": "PASS",
+      "detail": "smoke:seq",
+      "elapsedMs": 68744,
+      "runResult": {
+        "lastFilters": [
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": "4날",
+            "rawValue": 4,
+            "appliedAt": 0
+          },
+          {
+            "field": "toolSubtype",
+            "op": "eq",
+            "value": "Square",
+            "rawValue": "Square",
+            "appliedAt": 0
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": "10",
+            "rawValue": 10,
+            "appliedAt": 1775704460813
+          }
+        ],
+        "turnResults": [
+          {
+            "text": "Square 4날 10mm 추천해줘",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775704460813
+              }
+            ],
+            "expected": null
+          },
+          {
+            "text": "#1번과 #2번 비교",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775704460813
+              }
+            ],
+            "expected": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "J09",
+      "verdict": "PASS",
+      "detail": "smoke:seq",
+      "elapsedMs": 106924,
+      "runResult": {
+        "lastFilters": [
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": "4날",
+            "rawValue": 4,
+            "appliedAt": 0
+          },
+          {
+            "field": "toolSubtype",
+            "op": "eq",
+            "value": "Square",
+            "rawValue": "Square",
+            "appliedAt": 0
+          }
+        ],
+        "turnResults": [
+          {
+            "text": "Square 4날 추천해줘",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 0
+              }
+            ],
+            "expected": null
+          },
+          {
+            "text": "이중에 재고가 제일 많은 것 위주로 추려줘",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 0
+              }
+            ],
+            "expected": null
+          },
+          {
+            "text": "가격이 저렴한 순으로 알려줘",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 0
+              }
+            ],
+            "expected": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "J10",
+      "verdict": "PASS",
+      "detail": "smoke:seq",
+      "elapsedMs": 63990,
+      "runResult": {
+        "lastFilters": [
+          {
+            "field": "fluteCount",
+            "op": "eq",
+            "value": "4날",
+            "rawValue": 4,
+            "appliedAt": 0
+          },
+          {
+            "field": "toolSubtype",
+            "op": "eq",
+            "value": "Square",
+            "rawValue": "Square",
+            "appliedAt": 0
+          },
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": "10",
+            "rawValue": 10,
+            "appliedAt": 1775704637079
+          }
+        ],
+        "turnResults": [
+          {
+            "text": "Square 4날 10mm",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775704637079
+              }
+            ],
+            "expected": null
+          },
+          {
+            "text": "Please answer in English.",
+            "filters": [
+              {
+                "field": "fluteCount",
+                "op": "eq",
+                "value": "4날",
+                "rawValue": 4,
+                "appliedAt": 0
+              },
+              {
+                "field": "toolSubtype",
+                "op": "eq",
+                "value": "Square",
+                "rawValue": "Square",
+                "appliedAt": 0
+              },
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10",
+                "rawValue": 10,
+                "appliedAt": 1775704637079
+              }
+            ],
+            "expected": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "K01",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 45380,
+      "runResult": [
+        {
+          "field": "brand",
+          "op": "eq",
+          "value": "GMG",
+          "rawValue": "GMG",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "K02",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 39142,
+      "runResult": [
+        {
+          "field": "seriesName",
+          "op": "includes",
+          "value": "시리즈명 SEME75100E",
+          "rawValue": "SEME75100E",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "K03",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 108422,
+      "runResult": [
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "알루미늄",
+          "rawValue": "알루미늄",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "K04",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 27969,
+      "runResult": [
+        {
+          "field": "brand",
+          "op": "eq",
+          "value": "GMG",
+          "rawValue": "GMG",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "K05",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 120229,
+      "runResult": [
+        {
+          "field": "toolSubtype",
+          "op": "includes",
+          "value": "황삭(roughing) 용도의 공구",
+          "rawValue": "Roughing",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "K06",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 230455,
+      "runResult": [
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "피삭재: 알루미늄으로 변경",
+          "rawValue": "알루미늄",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "K07",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 77529,
+      "runResult": [
+        {
+          "field": "brand",
+          "op": "eq",
+          "value": "X-POWER PRO",
+          "rawValue": "X-POWER PRO",
+          "appliedAt": 0
+        },
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Hardened Steels",
+          "rawValue": "Hardened Steels",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "K08",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 156835,
+      "runResult": []
+    },
+    {
+      "id": "K09",
+      "verdict": "PASS",
+      "detail": "loose:2filter",
+      "elapsedMs": 175297,
+      "runResult": [
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "알루미늄",
+          "rawValue": "알루미늄",
+          "appliedAt": 0
+        },
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "7",
+          "rawValue": 7,
+          "appliedAt": 1775705601700
+        }
+      ]
+    },
+    {
+      "id": "K10",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 41480,
+      "runResult": []
+    },
+    {
+      "id": "M01",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 184902,
+      "runResult": []
+    },
+    {
+      "id": "M02",
+      "verdict": "PASS",
+      "detail": "loose:2filter",
+      "elapsedMs": 259808,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "6",
+          "rawValue": 6,
+          "appliedAt": 1775706097728
+        },
+        {
+          "field": "toolSubtype",
+          "op": "eq",
+          "value": "Ball",
+          "rawValue": "Ball",
+          "appliedAt": 1775706097728
+        }
+      ]
+    },
+    {
+      "id": "M03",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 213498,
+      "runResult": []
+    },
+    {
+      "id": "M04",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 197183,
+      "runResult": []
+    },
+    {
+      "id": "M05",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 190577,
+      "runResult": []
+    },
+    {
+      "id": "M06",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 131303,
+      "runResult": []
+    },
+    {
+      "id": "M07",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 295659,
+      "runResult": []
+    },
+    {
+      "id": "M08",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 113594,
+      "runResult": []
+    },
+    {
+      "id": "M09",
+      "verdict": "PASS",
+      "detail": "loose:2filter",
+      "elapsedMs": 91692,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "0.5",
+          "rawValue": 0.5,
+          "appliedAt": 1775707314980
+        },
+        {
+          "field": "toolSubtype",
+          "op": "eq",
+          "value": "Radius",
+          "rawValue": "Radius",
+          "appliedAt": 1775707314980
+        }
+      ]
+    },
+    {
+      "id": "M10",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 139721,
+      "runResult": []
+    },
+    {
+      "id": "M11",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 154255,
+      "runResult": []
+    },
+    {
+      "id": "M12",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 139745,
+      "runResult": []
+    },
+    {
+      "id": "M13",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 89998,
+      "runResult": []
+    },
+    {
+      "id": "M14",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 199,
+      "runResult": []
+    },
+    {
+      "id": "M15",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M16",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 197,
+      "runResult": []
+    },
+    {
+      "id": "M17",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 197,
+      "runResult": []
+    },
+    {
+      "id": "M18",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M19",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 757,
+      "runResult": []
+    },
+    {
+      "id": "M20",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 195,
+      "runResult": []
+    },
+    {
+      "id": "M21",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M22",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M23",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M24",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M25",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M26",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M27",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M28",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 198,
+      "runResult": []
+    },
+    {
+      "id": "M29",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M30",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 190,
+      "runResult": []
+    },
+    {
+      "id": "M31",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 199,
+      "runResult": []
+    },
+    {
+      "id": "M32",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M33",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M34",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 198,
+      "runResult": []
+    },
+    {
+      "id": "M35",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M36",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M37",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 190,
+      "runResult": []
+    },
+    {
+      "id": "M38",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 769,
+      "runResult": []
+    },
+    {
+      "id": "M39",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 200,
+      "runResult": []
+    },
+    {
+      "id": "M40",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M41",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 199,
+      "runResult": []
+    },
+    {
+      "id": "M42",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M43",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M44",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 199,
+      "runResult": []
+    },
+    {
+      "id": "M45",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M46",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M47",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 195,
+      "runResult": []
+    },
+    {
+      "id": "M48",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M49",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 198,
+      "runResult": []
+    },
+    {
+      "id": "M50",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M51",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 190,
+      "runResult": []
+    },
+    {
+      "id": "M52",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M53",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 195,
+      "runResult": []
+    },
+    {
+      "id": "M54",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 212,
+      "runResult": []
+    },
+    {
+      "id": "M55",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M56",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 190,
+      "runResult": []
+    },
+    {
+      "id": "M57",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 203,
+      "runResult": []
+    },
+    {
+      "id": "M58",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M59",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M60",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M61",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 202,
+      "runResult": []
+    },
+    {
+      "id": "M62",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M63",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M64",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M65",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 198,
+      "runResult": []
+    },
+    {
+      "id": "M66",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M67",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 199,
+      "runResult": []
+    },
+    {
+      "id": "M68",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M69",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M70",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 199,
+      "runResult": []
+    },
+    {
+      "id": "M71",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M72",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M73",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M74",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 200,
+      "runResult": []
+    },
+    {
+      "id": "M75",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M76",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M77",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M78",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 195,
+      "runResult": []
+    },
+    {
+      "id": "M79",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M80",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M81",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 195,
+      "runResult": []
+    },
+    {
+      "id": "M82",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M83",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 199,
+      "runResult": []
+    },
+    {
+      "id": "M84",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 200,
+      "runResult": []
+    },
+    {
+      "id": "M85",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 195,
+      "runResult": []
+    },
+    {
+      "id": "M86",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M87",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M88",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 198,
+      "runResult": []
+    },
+    {
+      "id": "M89",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 195,
+      "runResult": []
+    },
+    {
+      "id": "M90",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M91",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M92",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 190,
+      "runResult": []
+    },
+    {
+      "id": "M93",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M94",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 198,
+      "runResult": []
+    },
+    {
+      "id": "M95",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 195,
+      "runResult": []
+    },
+    {
+      "id": "M96",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 190,
+      "runResult": []
+    },
+    {
+      "id": "M97",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 775,
+      "runResult": []
+    },
+    {
+      "id": "M98",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M99",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M100",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M101",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 200,
+      "runResult": []
+    },
+    {
+      "id": "M102",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M103",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 197,
+      "runResult": []
+    },
+    {
+      "id": "M104",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 197,
+      "runResult": []
+    },
+    {
+      "id": "M105",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M106",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 197,
+      "runResult": []
+    },
+    {
+      "id": "M107",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 195,
+      "runResult": []
+    },
+    {
+      "id": "M108",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 198,
+      "runResult": []
+    },
+    {
+      "id": "M109",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M110",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M111",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M112",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 195,
+      "runResult": []
+    },
+    {
+      "id": "M113",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M114",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 204,
+      "runResult": []
+    },
+    {
+      "id": "M115",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 212,
+      "runResult": []
+    },
+    {
+      "id": "M116",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 199,
+      "runResult": []
+    },
+    {
+      "id": "M117",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 204,
+      "runResult": []
+    },
+    {
+      "id": "M118",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 195,
+      "runResult": []
+    },
+    {
+      "id": "M119",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 203,
+      "runResult": []
+    },
+    {
+      "id": "M120",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 199,
+      "runResult": []
+    },
+    {
+      "id": "M121",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M122",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M123",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M124",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 203,
+      "runResult": []
+    },
+    {
+      "id": "M125",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M126",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 197,
+      "runResult": []
+    },
+    {
+      "id": "M127",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M128",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 195,
+      "runResult": []
+    },
+    {
+      "id": "M129",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 202,
+      "runResult": []
+    },
+    {
+      "id": "M130",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M131",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 200,
+      "runResult": []
+    },
+    {
+      "id": "M132",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M133",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M134",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 207,
+      "runResult": []
+    },
+    {
+      "id": "M135",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M136",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 198,
+      "runResult": []
+    },
+    {
+      "id": "M137",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M138",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M139",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M140",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 197,
+      "runResult": []
+    },
+    {
+      "id": "M141",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 204,
+      "runResult": []
+    },
+    {
+      "id": "M142",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 202,
+      "runResult": []
+    },
+    {
+      "id": "M143",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 195,
+      "runResult": []
+    },
+    {
+      "id": "M144",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M145",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 197,
+      "runResult": []
+    },
+    {
+      "id": "M146",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 195,
+      "runResult": []
+    },
+    {
+      "id": "M147",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 195,
+      "runResult": []
+    },
+    {
+      "id": "M148",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M149",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 202,
+      "runResult": []
+    },
+    {
+      "id": "M150",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M151",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M152",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 205,
+      "runResult": []
+    },
+    {
+      "id": "M153",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M154",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 195,
+      "runResult": []
+    },
+    {
+      "id": "M155",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M156",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M157",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M158",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 208,
+      "runResult": []
+    },
+    {
+      "id": "M159",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 198,
+      "runResult": []
+    },
+    {
+      "id": "M160",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M161",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 234,
+      "runResult": []
+    },
+    {
+      "id": "M162",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M163",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M164",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M165",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M166",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M167",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M168",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 201,
+      "runResult": []
+    },
+    {
+      "id": "M169",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 198,
+      "runResult": []
+    },
+    {
+      "id": "M170",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M171",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M172",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 195,
+      "runResult": []
+    },
+    {
+      "id": "M173",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 199,
+      "runResult": []
+    },
+    {
+      "id": "M174",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M175",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 197,
+      "runResult": []
+    },
+    {
+      "id": "M176",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 197,
+      "runResult": []
+    },
+    {
+      "id": "M177",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 190,
+      "runResult": []
+    },
+    {
+      "id": "M178",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 198,
+      "runResult": []
+    },
+    {
+      "id": "M179",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 203,
+      "runResult": []
+    },
+    {
+      "id": "M180",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 236,
+      "runResult": []
+    },
+    {
+      "id": "M181",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 202,
+      "runResult": []
+    },
+    {
+      "id": "M182",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 208,
+      "runResult": []
+    },
+    {
+      "id": "M183",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M184",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M185",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 198,
+      "runResult": []
+    },
+    {
+      "id": "M186",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 204,
+      "runResult": []
+    },
+    {
+      "id": "M187",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M188",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 202,
+      "runResult": []
+    },
+    {
+      "id": "M189",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 199,
+      "runResult": []
+    },
+    {
+      "id": "M190",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M191",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 205,
+      "runResult": []
+    },
+    {
+      "id": "M192",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 201,
+      "runResult": []
+    },
+    {
+      "id": "M193",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M194",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M195",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 197,
+      "runResult": []
+    },
+    {
+      "id": "M196",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 195,
+      "runResult": []
+    },
+    {
+      "id": "M197",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 195,
+      "runResult": []
+    },
+    {
+      "id": "M198",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 197,
+      "runResult": []
+    },
+    {
+      "id": "M199",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 200,
+      "runResult": []
+    },
+    {
+      "id": "M200",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 195,
+      "runResult": []
+    },
+    {
+      "id": "M201",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M202",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 195,
+      "runResult": []
+    },
+    {
+      "id": "M203",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M204",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M205",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M206",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 190,
+      "runResult": []
+    },
+    {
+      "id": "M207",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M208",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 190,
+      "runResult": []
+    },
+    {
+      "id": "M209",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M210",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 197,
+      "runResult": []
+    },
+    {
+      "id": "M211",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 200,
+      "runResult": []
+    },
+    {
+      "id": "M212",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M213",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M214",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 198,
+      "runResult": []
+    },
+    {
+      "id": "M215",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M216",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M217",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M218",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M219",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 198,
+      "runResult": []
+    },
+    {
+      "id": "M220",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 202,
+      "runResult": []
+    },
+    {
+      "id": "M221",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 200,
+      "runResult": []
+    },
+    {
+      "id": "M222",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M223",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 223,
+      "runResult": []
+    },
+    {
+      "id": "M224",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 198,
+      "runResult": []
+    },
+    {
+      "id": "M225",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M226",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M227",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M228",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M229",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M230",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M231",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 199,
+      "runResult": []
+    },
+    {
+      "id": "M232",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M233",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M234",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M235",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M236",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M237",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 190,
+      "runResult": []
+    },
+    {
+      "id": "M238",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M239",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 190,
+      "runResult": []
+    },
+    {
+      "id": "M240",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 198,
+      "runResult": []
+    },
+    {
+      "id": "M241",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M242",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 197,
+      "runResult": []
+    },
+    {
+      "id": "M243",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M244",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M245",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M246",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 198,
+      "runResult": []
+    },
+    {
+      "id": "M247",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M248",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M249",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M250",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 277,
+      "runResult": []
+    },
+    {
+      "id": "M251",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 197,
+      "runResult": []
+    },
+    {
+      "id": "M252",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M253",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M254",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 764,
+      "runResult": []
+    },
+    {
+      "id": "M255",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 190,
+      "runResult": []
+    },
+    {
+      "id": "M256",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 190,
+      "runResult": []
+    },
+    {
+      "id": "M257",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M258",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M259",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M260",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 201,
+      "runResult": []
+    },
+    {
+      "id": "M261",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M262",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M263",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M264",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M265",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 199,
+      "runResult": []
+    },
+    {
+      "id": "M266",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M267",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M268",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M269",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M270",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M271",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M272",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M273",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M274",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 198,
+      "runResult": []
+    },
+    {
+      "id": "M275",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M276",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 197,
+      "runResult": []
+    },
+    {
+      "id": "M277",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M278",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 223,
+      "runResult": []
+    },
+    {
+      "id": "M279",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M280",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M281",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 200,
+      "runResult": []
+    },
+    {
+      "id": "M282",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 199,
+      "runResult": []
+    },
+    {
+      "id": "M283",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M284",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 199,
+      "runResult": []
+    },
+    {
+      "id": "M285",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M286",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M287",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M288",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 190,
+      "runResult": []
+    },
+    {
+      "id": "M289",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 193,
+      "runResult": []
+    },
+    {
+      "id": "M290",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 190,
+      "runResult": []
+    },
+    {
+      "id": "M291",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 192,
+      "runResult": []
+    },
+    {
+      "id": "M292",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 195,
+      "runResult": []
+    },
+    {
+      "id": "M293",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 194,
+      "runResult": []
+    },
+    {
+      "id": "M294",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M295",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M296",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 196,
+      "runResult": []
+    },
+    {
+      "id": "M297",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 195,
+      "runResult": []
+    },
+    {
+      "id": "M298",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 191,
+      "runResult": []
+    },
+    {
+      "id": "M299",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 5359,
+      "runResult": []
+    },
+    {
+      "id": "M300",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 218,
+      "runResult": []
+    },
+    {
+      "id": "M301",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 211,
+      "runResult": []
+    },
+    {
+      "id": "M302",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 213,
+      "runResult": []
+    },
+    {
+      "id": "M303",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 218,
+      "runResult": []
+    },
+    {
+      "id": "M304",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 223,
+      "runResult": []
+    },
+    {
+      "id": "M305",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 206,
+      "runResult": []
+    },
+    {
+      "id": "M306",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 227,
+      "runResult": []
+    },
+    {
+      "id": "M307",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 216,
+      "runResult": []
+    },
+    {
+      "id": "M308",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 219,
+      "runResult": []
+    },
+    {
+      "id": "M309",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 204,
+      "runResult": []
+    },
+    {
+      "id": "M310",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 207,
+      "runResult": []
+    },
+    {
+      "id": "M311",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 209,
+      "runResult": []
+    },
+    {
+      "id": "M312",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 218,
+      "runResult": []
+    },
+    {
+      "id": "M313",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 206,
+      "runResult": []
+    },
+    {
+      "id": "M314",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 209,
+      "runResult": []
+    },
+    {
+      "id": "M315",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 210,
+      "runResult": []
+    },
+    {
+      "id": "M316",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 204,
+      "runResult": []
+    },
+    {
+      "id": "M317",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 205,
+      "runResult": []
+    },
+    {
+      "id": "M318",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 208,
+      "runResult": []
+    },
+    {
+      "id": "M319",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 204,
+      "runResult": []
+    },
+    {
+      "id": "M320",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 220,
+      "runResult": []
+    },
+    {
+      "id": "M321",
+      "verdict": "SKIP"
+    },
+    {
+      "id": "M322",
+      "verdict": "SKIP"
+    },
+    {
+      "id": "M323",
+      "verdict": "SKIP"
+    },
+    {
+      "id": "M324",
+      "verdict": "SKIP"
+    },
+    {
+      "id": "M325",
+      "verdict": "SKIP"
+    },
+    {
+      "id": "M326",
+      "verdict": "SKIP"
+    },
+    {
+      "id": "M327",
+      "verdict": "SKIP"
+    },
+    {
+      "id": "M328",
+      "verdict": "SKIP"
+    },
+    {
+      "id": "M329",
+      "verdict": "PASS",
+      "detail": "smoke:seq",
+      "elapsedMs": 1022,
+      "runResult": {
+        "lastFilters": [],
+        "turnResults": [
+          {
+            "text": "외경 10mm 엔드밀",
+            "filters": [],
+            "expected": null
+          },
+          {
+            "text": "12mm로 변경",
+            "filters": [],
+            "expected": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "M330",
+      "verdict": "PASS",
+      "detail": "smoke:seq",
+      "elapsedMs": 1034,
+      "runResult": {
+        "lastFilters": [],
+        "turnResults": [
+          {
+            "text": "외경 10mm",
+            "filters": [],
+            "expected": null
+          },
+          {
+            "text": "4날로",
+            "filters": [],
+            "expected": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "M331",
+      "verdict": "PASS",
+      "detail": "smoke:seq",
+      "elapsedMs": 1529,
+      "runResult": {
+        "lastFilters": [],
+        "turnResults": [
+          {
+            "text": "외경 10mm",
+            "filters": [],
+            "expected": null
+          },
+          {
+            "text": "전장 100mm 이상",
+            "filters": [],
+            "expected": null
+          },
+          {
+            "text": "TiAlN 코팅",
+            "filters": [],
+            "expected": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "M332",
+      "verdict": "PASS",
+      "detail": "smoke:seq",
+      "elapsedMs": 1012,
+      "runResult": {
+        "lastFilters": [],
+        "turnResults": [
+          {
+            "text": "4날 엔드밀",
+            "filters": [],
+            "expected": null
+          },
+          {
+            "text": "6날로 바꿔줘",
+            "filters": [],
+            "expected": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "M333",
+      "verdict": "PASS",
+      "detail": "smoke:seq",
+      "elapsedMs": 1020,
+      "runResult": {
+        "lastFilters": [],
+        "turnResults": [
+          {
+            "text": "외경 10mm",
+            "filters": [],
+            "expected": null
+          },
+          {
+            "text": "처음부터",
+            "filters": [],
+            "expected": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "M334",
+      "verdict": "PASS",
+      "detail": "smoke:seq",
+      "elapsedMs": 2147,
+      "runResult": {
+        "lastFilters": [],
+        "turnResults": [
+          {
+            "text": "외경 10mm",
+            "filters": [],
+            "expected": null
+          },
+          {
+            "text": "4날",
+            "filters": [],
+            "expected": null
+          },
+          {
+            "text": "이전으로",
+            "filters": [],
+            "expected": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "M335",
+      "verdict": "PASS",
+      "detail": "smoke:seq",
+      "elapsedMs": 1041,
+      "runResult": {
+        "lastFilters": [],
+        "turnResults": [
+          {
+            "text": "외경 6에서 12mm",
+            "filters": [],
+            "expected": null
+          },
+          {
+            "text": "8에서 10mm로 좁혀줘",
+            "filters": [],
+            "expected": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "M336",
+      "verdict": "PASS",
+      "detail": "smoke:seq",
+      "elapsedMs": 1035,
+      "runResult": {
+        "lastFilters": [],
+        "turnResults": [
+          {
+            "text": "날수 50개 이상",
+            "filters": [],
+            "expected": null
+          },
+          {
+            "text": "조건 완화해줘",
+            "filters": [],
+            "expected": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "M337",
+      "verdict": "PASS",
+      "detail": "smoke:seq",
+      "elapsedMs": 1045,
+      "runResult": {
+        "lastFilters": [],
+        "turnResults": [
+          {
+            "text": "TiAlN 코팅",
+            "filters": [],
+            "expected": null
+          },
+          {
+            "text": "AlTiN으로 바꿔",
+            "filters": [],
+            "expected": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "M338",
+      "verdict": "PASS",
+      "detail": "smoke:seq",
+      "elapsedMs": 1019,
+      "runResult": {
+        "lastFilters": [],
+        "turnResults": [
+          {
+            "text": "황삭 엔드밀",
+            "filters": [],
+            "expected": null
+          },
+          {
+            "text": "아니 정삭으로",
+            "filters": [],
+            "expected": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "M339",
+      "verdict": "PASS",
+      "detail": "smoke:seq",
+      "elapsedMs": 1573,
+      "runResult": {
+        "lastFilters": [],
+        "turnResults": [
+          {
+            "text": "외경 10mm",
+            "filters": [],
+            "expected": null
+          },
+          {
+            "text": "전장 200mm 이상",
+            "filters": [],
+            "expected": null
+          },
+          {
+            "text": "전장 조건 빼",
+            "filters": [],
+            "expected": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "M340",
+      "verdict": "PASS",
+      "detail": "smoke:seq",
+      "elapsedMs": 2060,
+      "runResult": {
+        "lastFilters": [],
+        "turnResults": [
+          {
+            "text": "외경 10mm",
+            "filters": [],
+            "expected": null
+          },
+          {
+            "text": "4날",
+            "filters": [],
+            "expected": null
+          },
+          {
+            "text": "TiAlN",
+            "filters": [],
+            "expected": null
+          },
+          {
+            "text": "추천해줘",
+            "filters": [],
+            "expected": null
+          }
+        ]
+      }
     }
   ]
 }
