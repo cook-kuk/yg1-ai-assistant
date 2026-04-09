@@ -1917,7 +1917,28 @@ async function handleServeExplorationInner(
     // Use Single-Call when: multi-condition message detected (2+ filter hints)
     // Skip when: simple chip click, side question, or pending selection early
     const pendingAlreadyResolved = pendingQuestionReply.kind === "resolved" || pendingQuestionReply.kind === "side_question"
-    const msg = lastUserMsg?.text ?? ""
+    let msg = lastUserMsg?.text ?? ""
+
+    // ── Turn Repair: 모호한 참조("그거 말고", "더 큰 거", "아니야 X를") → 직전 맥락으로 풀이 ──
+    // needsRepair=true + history 존재할 때만 LLM 한 번 호출. 일반 메시지는 0ms 통과.
+    if (msg && prevState?.narrowingHistory && prevState.narrowingHistory.length > 0) {
+      try {
+        const { needsRepair, repairMessage } = await import("@/lib/recommendation/core/turn-repair")
+        if (needsRepair(msg)) {
+          const repair = await repairMessage(msg, prevState.appliedFilters ?? [], prevState.narrowingHistory, provider)
+          if (repair.wasRepaired) {
+            console.log(`[turn-repair] "${msg}" → "${repair.clarifiedMessage}"`)
+            msg = repair.clarifiedMessage
+            if (prevState) {
+              prevState.thinkingProcess = `🔍 모호한 참조 해석: "${lastUserMsg!.text}" → "${msg}"${repair.repairExplanation ? "\n" + repair.repairExplanation : ""}` + (prevState.thinkingProcess ? "\n\n" + prevState.thinkingProcess : "")
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("[turn-repair] integration error:", (e as Error).message)
+      }
+    }
+
     const hasNegationPattern = /빼고|뺴고|빼구|제외|아닌\s*것|아닌\s*걸|아닌걸|없는\s*거|말고|만\s*아니면|없이|아닌\s*거|없는\s*거로|가\s*아닌|이\s*아닌/u.test(msg)
     let negationHandled = false
 
@@ -3174,12 +3195,51 @@ async function handleServeExplorationInner(
       // Build response matching existing API format
       const isResultPhase = result.sessionState.journeyPhase === "results_displayed" || result.sessionState.journeyPhase === "post_result_exploration"
       if (result.searchPayload) {
-        const totalCandidateCount = result.searchPayload.totalConsidered
-        const displayPage = sliceCandidatesForPage(
+        let totalCandidateCount = result.searchPayload.totalConsidered
+        let displayPage = sliceCandidatesForPage(
           result.searchPayload.candidates,
           result.searchPayload.evidenceMap,
           resolvedPagination
         )
+
+        // ── Self-Correction: 0건 + 필터 존재 → 자동 교정 시도 ──
+        // input(base constraints)은 유지하고 AppliedFilter[]만 mutate 한다.
+        // 성공 시 result.searchPayload를 in-place 갱신하여 downstream이 그대로 사용.
+        if (isResultPhase && totalCandidateCount === 0 && lastUserMsg) {
+          try {
+            const { constraintsToFilters } = await import("@/lib/recommendation/core/search-adapter")
+            const { input: scInput, filters: scFilters } = constraintsToFilters(result.sessionState)
+            if (scFilters.length > 0) {
+              const { selfCorrectFilters } = await import("@/lib/recommendation/core/self-correction")
+              const { runHybridRetrieval } = await import("@/lib/recommendation/domain/hybrid-retrieval")
+              let lastHR: Awaited<ReturnType<typeof runHybridRetrieval>> | null = null
+              const correction = await selfCorrectFilters(
+                lastUserMsg.text, scFilters, provider,
+                async (cf) => {
+                  lastHR = await runHybridRetrieval(scInput, cf)
+                  return lastHR.totalConsidered
+                },
+              )
+              if (correction.success && lastHR) {
+                const hr = lastHR as Awaited<ReturnType<typeof runHybridRetrieval>>
+                ;(result.searchPayload as { candidates: typeof hr.candidates; evidenceMap: typeof hr.evidenceMap; totalConsidered: number }).candidates = hr.candidates
+                ;(result.searchPayload as { candidates: typeof hr.candidates; evidenceMap: typeof hr.evidenceMap; totalConsidered: number }).evidenceMap = hr.evidenceMap
+                ;(result.searchPayload as { candidates: typeof hr.candidates; evidenceMap: typeof hr.evidenceMap; totalConsidered: number }).totalConsidered = hr.totalConsidered
+                totalCandidateCount = hr.totalConsidered
+                displayPage = sliceCandidatesForPage(hr.candidates, hr.evidenceMap, resolvedPagination)
+                legacyState.appliedFilters = correction.finalFilters
+                console.log(`[self-correction] success: ${correction.attempts.length} attempts → ${totalCandidateCount} results`)
+              } else {
+                console.log(`[self-correction] failed: ${correction.attempts.length} attempts, all 0`)
+              }
+              if (correction.explanation) {
+                legacyState.thinkingProcess = (legacyState.thinkingProcess ? legacyState.thinkingProcess + "\n\n" : "") + correction.explanation
+              }
+            }
+          } catch (e) {
+            console.warn("[self-correction] integration error:", (e as Error).message)
+          }
+        }
 
         legacyState.candidateCount = totalCandidateCount
         legacyState.displayedCandidates = deps.buildCandidateSnapshot(displayPage.candidates, displayPage.evidenceMap)
@@ -3188,6 +3248,28 @@ async function handleServeExplorationInner(
         perf.endStep("v2_orchestrator")
         perf.recordLlmCall()
         perf.finish()
+
+        // self-correction이 실패해서 0건+필터>0인 케이스도 question 모드로 fallback
+        if (isResultPhase && totalCandidateCount === 0 && (legacyState.appliedFilters ?? []).length > 0) {
+          console.log("[runtime:v2] 0 candidates after self-correction → question fallback")
+          legacyState.currentMode = "question"
+          return deps.buildQuestionResponse(
+            form,
+            result.searchPayload.candidates,
+            result.searchPayload.evidenceMap,
+            totalCandidateCount,
+            paginationDto(totalCandidateCount),
+            displayPage.candidates,
+            displayPage.evidenceMap,
+            v2ResolvedInput,
+            legacyState.narrowingHistory ?? [],
+            legacyState.appliedFilters ?? [],
+            legacyState.turnCount,
+            messages,
+            provider,
+            language,
+          )
+        }
 
         // 0건이면 recommendation 대신 question 모드로 fallback — 조건 축소를 유도한다.
         if (isResultPhase && totalCandidateCount === 0 && (legacyState.appliedFilters ?? []).length === 0) {
