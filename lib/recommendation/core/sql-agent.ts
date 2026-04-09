@@ -130,7 +130,18 @@ function buildSystemPrompt(schema: DbSchema, existingFilters: AppliedFilter[], u
   const brandList = schema.brands.join(", ")
 
   const auxList = Object.entries(schema.auxTables ?? {})
-    .map(([table, cols]) => `### ${table}\n${cols.map(c => `  ${c.column_name} (${c.data_type})`).join("\n")}`)
+    .map(([table, cols]) => {
+      const samples = schema.auxSampleValues?.[table] ?? {}
+      const nstats = schema.auxNumericStats?.[table] ?? {}
+      const colLines = cols.map(c => {
+        const sv = samples[c.column_name]
+        const ns = nstats[c.column_name]
+        if (sv && sv.length > 0) return `  ${c.column_name} (${c.data_type}) e.g. ${sv.slice(0, 12).join(", ")}`
+        if (ns) return `  ${c.column_name} (${c.data_type}) min=${ns.min} max=${ns.max} samples=[${ns.samples.slice(0, 6).join(", ")}]`
+        return `  ${c.column_name} (${c.data_type})`
+      }).join("\n")
+      return `### ${table}\n${colLines}`
+    })
     .join("\n\n")
 
   const filterList = existingFilters.length > 0
@@ -155,10 +166,10 @@ ${wpList}
 ${brandList}
 (브랜드는 한국어 음역으로 들어올 수 있습니다 — 예: "엑스파워" ≈ X-POWER, "알루파워" ≈ ALU-POWER. 발음 유사도로 위 리스트의 정확한 값을 골라 emit 하세요. 리스트에 없으면 emit 금지.)
 
-## Auxiliary Tables (read-only reference — not directly filtered, but informs which questions need a tool-forge join)
+## Auxiliary Tables (read-only reference — joinable, not directly filterable from this agent)
 ${auxList || "  (none loaded)"}
 
-If the user asks about cutting conditions / RPM / feed rate / 절삭조건 / 회전수 / 이송속도 / 절입깊이, those numbers live in raw_catalog.cutting_condition_table — return [] here so the upstream tool-forge handles the join. Do NOT invent product-MV columns for those.
+When the user asks about cutting conditions / RPM / feed rate / 절삭조건 / 회전수 / 이송속도 / 절입깊이 — those numbers live in raw_catalog.cutting_condition_table. This agent cannot filter that table directly, so emit [] for the cutting-number itself and let the upstream tool-forge handle the join. BUT: use the aux sample values above to (a) confirm the user's number is in-range, (b) extract any *product-MV* filters implied by the same message (e.g. "스테인리스 RPM 3000" → still emit _workPieceName=스테인리스), and (c) note your reasoning so tool-forge has context. Never invent product-MV columns for cutting numbers.
 
 ===DYNAMIC===
 

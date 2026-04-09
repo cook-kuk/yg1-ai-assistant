@@ -16,6 +16,10 @@ export interface DbSchema {
   numericStats: Record<string, { min: number; max: number; samples: number[] }>
   /** Auxiliary tables (cutting conditions, inventory, series profile) — exposed to LLM for joins */
   auxTables: Record<string, { column_name: string; data_type: string }[]>
+  /** Sample values for aux table text columns — gives LLM eyes into joinable tables */
+  auxSampleValues: Record<string, Record<string, string[]>>
+  /** Numeric stats for aux table numeric columns */
+  auxNumericStats: Record<string, Record<string, { min: number; max: number; samples: number[] }>>
   workpieces: { tag_name: string; normalized_work_piece_name: string }[]
   brands: string[]
   /** Distinct country codes from product_recommendation_mv.country_codes (text[] array, unnested) */
@@ -185,6 +189,8 @@ export async function getDbSchema(): Promise<DbSchema> {
     { schema: "catalog_app", table: "product_inventory_summary_mv", alias: "catalog_app.product_inventory_summary_mv" },
     { schema: "catalog_app", table: "series_profile_mv", alias: "catalog_app.series_profile_mv" },
   ]
+  const auxSampleValues: Record<string, Record<string, string[]>> = {}
+  const auxNumericStats: Record<string, Record<string, { min: number; max: number; samples: number[] }>> = {}
   for (const t of AUX_TABLE_TARGETS) {
     try {
       const auxRes = await pool.query<{ column_name: string; data_type: string }>(
@@ -194,7 +200,50 @@ export async function getDbSchema(): Promise<DbSchema> {
          ORDER BY ordinal_position`,
         [t.schema, t.table],
       )
-      if (auxRes.rows.length > 0) auxTables[t.alias] = auxRes.rows
+      if (auxRes.rows.length === 0) continue
+      auxTables[t.alias] = auxRes.rows
+
+      const fq = `${quoteIdent(t.schema)}.${quoteIdent(t.table)}`
+      const samples: Record<string, string[]> = {}
+      const nstats: Record<string, { min: number; max: number; samples: number[] }> = {}
+
+      for (const c of auxRes.rows) {
+        const isText = /character|text/i.test(c.data_type)
+        const isNum = /int|numeric|double|real|decimal|float/i.test(c.data_type)
+        if (isText) {
+          try {
+            const r = await pool.query<{ v: string }>(
+              `SELECT DISTINCT ${quoteIdent(c.column_name)}::text AS v
+               FROM ${fq}
+               WHERE ${quoteIdent(c.column_name)} IS NOT NULL
+                 AND BTRIM(${quoteIdent(c.column_name)}::text) <> ''
+                 AND length(${quoteIdent(c.column_name)}::text) <= 64
+               ORDER BY v LIMIT 80`,
+            )
+            if (r.rows.length > 0) samples[c.column_name] = r.rows.map(x => x.v)
+          } catch { /* skip */ }
+        } else if (isNum) {
+          try {
+            const r = await pool.query<{ mn: number | null; mx: number | null }>(
+              `SELECT MIN(${quoteIdent(c.column_name)})::float8 AS mn, MAX(${quoteIdent(c.column_name)})::float8 AS mx
+               FROM ${fq}
+               WHERE ${quoteIdent(c.column_name)} IS NOT NULL`,
+            )
+            const mn = r.rows[0]?.mn
+            const mx = r.rows[0]?.mx
+            if (mn == null || mx == null) continue
+            const s = await pool.query<{ v: number }>(
+              `SELECT DISTINCT ${quoteIdent(c.column_name)}::float8 AS v
+               FROM ${fq}
+               WHERE ${quoteIdent(c.column_name)} IS NOT NULL
+               ORDER BY v LIMIT 8`,
+            )
+            nstats[c.column_name] = { min: Number(mn), max: Number(mx), samples: s.rows.map(x => Number(x.v)) }
+          } catch { /* skip */ }
+        }
+      }
+      if (Object.keys(samples).length > 0) auxSampleValues[t.alias] = samples
+      if (Object.keys(nstats).length > 0) auxNumericStats[t.alias] = nstats
     } catch { /* table may not exist in this env */ }
   }
 
@@ -206,8 +255,10 @@ export async function getDbSchema(): Promise<DbSchema> {
   // alias maps.
   const phoneticIndex = buildPhoneticIndex({ sampleValues, brands, countries, workpieces })
 
-  cached = { columns, sampleValues, numericStats, auxTables, workpieces, brands, countries, valueIndex, phoneticIndex, loadedAt: Date.now() }
-  console.log(`[sql-agent-schema] loaded: ${columns.length} cols, ${Object.keys(sampleValues).length} text-sampled, ${Object.keys(numericStats).length} numeric-sampled, ${Object.keys(auxTables).length} aux tables, ${workpieces.length} wp, ${brands.length} brands, ${countries.length} countries, ${Object.keys(valueIndex).length} indexed, ${phoneticIndex.length} phonetic`)
+  cached = { columns, sampleValues, numericStats, auxTables, auxSampleValues, auxNumericStats, workpieces, brands, countries, valueIndex, phoneticIndex, loadedAt: Date.now() }
+  const auxSampleCount = Object.values(auxSampleValues).reduce((n, m) => n + Object.keys(m).length, 0)
+  const auxNumCount = Object.values(auxNumericStats).reduce((n, m) => n + Object.keys(m).length, 0)
+  console.log(`[sql-agent-schema] loaded: ${columns.length} cols, ${Object.keys(sampleValues).length} text-sampled, ${Object.keys(numericStats).length} numeric-sampled, ${Object.keys(auxTables).length} aux tables (${auxSampleCount} aux text-sampled, ${auxNumCount} aux numeric-sampled), ${workpieces.length} wp, ${brands.length} brands, ${countries.length} countries, ${Object.keys(valueIndex).length} indexed, ${phoneticIndex.length} phonetic`)
   return cached
 }
 
