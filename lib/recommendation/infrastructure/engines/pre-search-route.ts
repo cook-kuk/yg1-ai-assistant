@@ -45,6 +45,30 @@ export async function classifyPreSearchRoute(
     }
   }
 
+  // Lexical fast-path: pure question / troubleshooting / comparison patterns.
+  // unified-judgment (Haiku LLM) often mis-labels these as recommendation, so we
+  // intercept with cheap regex triggers before spending an LLM call. Turn 0 only —
+  // later turns carry narrowing context and should keep going through judgment.
+  if (!sessionState || (sessionState.turnCount ?? 0) === 0) {
+    const msg = userMessage.trim()
+    const hasQuestionMark = /[?？]/.test(msg)
+    const QUESTION_RE = /(뭐야|뭔데|뭐에요|뭐임|뭔가요|무엇|뜻이|의미|알려줘|알려주|설명|왜\s|어떻게|어느게|어떤게|어떤거|어떤\s게)/
+    const COMPARE_RE = /(vs\.?|대비|차이|뭐가\s*(더|나|나아|좋)|어느\s*게|어떤\s*게\s*(더|낫|좋))/i
+    const TROUBLE_RE = /(수명|마모|닳|파손|깨짐|부러|떨림|진동|채터|거칠|버[가는이]?|칩[이\s]*엉)/
+    const CONSULT_RE = /(어떻게\s*해야|어떻게\s*하면|어떤\s*게\s*좋|뭐가\s*좋|추천\s*해줘|대책|해결)/
+    const isExplain = hasQuestionMark || QUESTION_RE.test(msg)
+    const isCompare = COMPARE_RE.test(msg)
+    const isTrouble = TROUBLE_RE.test(msg)
+    const isConsult = CONSULT_RE.test(msg) && msg.length < 40
+    // Exclude pure filter-spec messages (e.g. "스테인리스 4날 10mm" — no question words)
+    if (isExplain || isCompare || isTrouble || (isConsult && hasQuestionMark)) {
+      return {
+        kind: "general_knowledge",
+        reason: `lexical:${isExplain ? "explain" : isCompare ? "compare" : isTrouble ? "trouble" : "consult"}`,
+      }
+    }
+  }
+
   const judgment = await performUnifiedJudgment({
     userMessage,
     assistantText: null,
