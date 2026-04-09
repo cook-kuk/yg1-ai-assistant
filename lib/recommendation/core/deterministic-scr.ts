@@ -23,7 +23,7 @@ import { findFuzzyMatch } from "./phonetic-match"
 // any hardcoded alias map. New brands appearing in DB still flow through the
 // LLM SCR fallback path until this list is refreshed.
 const BRAND_VALUES = [
-  "X-POWER", "X-POWER PRO", "TitaNox-Power", "TitaNox", "CRX-S", "CRX S",
+  "X-POWER", "X-POWER PRO", "TitaNox-Power", "TitaNox", "CRX S",
   "ALU-POWER", "3S MILL", "3S PLUS", "ONLY ONE", "K2 CARBIDE", "K-2 CARBIDE",
   "TANK-POWER", "JET-POWER", "X1-EH", "X5070", "X5070S", "E-FORCE",
   "V7", "V7 PLUS", "V7 PLUS A", "V7 INOX", "GMG", "GAA29", "SUS-CUT",

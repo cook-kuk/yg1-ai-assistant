@@ -1,3 +1,12 @@
+
+## 2026-04-09T23:23:12.108Z
+rounds=1 baseline=18.83 final=18.83 scenarios=48
+
+## 2026-04-09T23:13:52.212Z
+rounds=1 baseline=18.67 final=18.67 scenarios=48
+
+## 2026-04-09T23:04:17.813Z
+rounds=1 baseline=17.79 final=17.79 scenarios=48
 # Evolution Log
 
 ## 2026-04-10 — agent "big-jump" (baseline 11.8 → 16.8)

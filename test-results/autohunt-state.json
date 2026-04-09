@@ -1,0 +1,25 @@
+{
+  "round": 1,
+  "history": [
+    {
+      "round": 1,
+      "scenarios": 48,
+      "avg": 18.833333333333332,
+      "min": 7,
+      "pass": 13,
+      "total": 24,
+      "buckets": {
+        "A": 2,
+        "B": 2,
+        "C": 7,
+        "D": 0,
+        "E": 0,
+        "F": 0
+      },
+      "pick": "C",
+      "evidence": "test-results/autohunt-round1-evidence.json"
+    }
+  ],
+  "scenarioCount": 48,
+  "baselineAvg": 18.833333333333332
+}

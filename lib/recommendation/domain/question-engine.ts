@@ -56,9 +56,17 @@ const QUESTION_FIELD_LABELS: Record<string, string> = {
 export function checkResolution(
   candidates: ScoredProduct[],
   history: NarrowingTurn[],
-  candidateCountHint: number = candidates.length
+  candidateCountHint: number = candidates.length,
+  forceResolve: boolean = false
 ): ResolutionStatus {
   if (candidateCountHint === 0 || candidates.length === 0) return "resolved_none"
+  // Caller has determined the user explicitly asked to see products ("추천해줘",
+  // "보여줘", etc.) alongside at least one narrowing filter. Skip the ask-vs-show
+  // gate entirely — respect the explicit show intent regardless of pool size.
+  if (forceResolve) {
+    const top = candidates[0]
+    return top?.matchStatus === "exact" ? "resolved_exact" : "resolved_approximate"
+  }
 
   const top = candidates[0]
   if (top.matchStatus === "exact" && candidateCountHint <= 3) return "resolved_exact"

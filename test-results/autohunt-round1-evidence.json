@@ -1,0 +1,163 @@
+{
+  "round": 1,
+  "timestamp": "2026-04-09T23:23:12.102Z",
+  "buckets": {
+    "A": [
+      {
+        "id": "B03",
+        "input": "CRX S 빼고 추천해줘",
+        "score": 11,
+        "issues": [
+          "유저의 요청에 대한 적절한 응답 부족",
+          "추천 제품 제안 없음"
+        ],
+        "suggestion": "유저가 요청한 CRX S를 제외한 다른 제품을 추천해주고, 직경에 대한 정보도 포함하여 더 구체적인 답변을 제공해야 합니다.",
+        "candidateCount": 64438,
+        "filterCount": 1,
+        "responsePreview": "직경은 어느 정도가 필요하세요? 25.4mm, 76.2mm, 127mm가 많이 나갑니다."
+      },
+      {
+        "id": "N01",
+        "input": "CRX S 빼고 추천해줘",
+        "score": 11,
+        "issues": [
+          "CRX S 제외 요청에 대한 응답 부족",
+          "직경 정보만 제공, 다른 추천 없음"
+        ],
+        "suggestion": "CRX S를 제외한 다른 제품 추천과 함께 직경에 대한 정보 제공",
+        "candidateCount": 64438,
+        "filterCount": 1,
+        "responsePreview": "직경은 어느 정도가 필요하세요? 25.4mm, 76.2mm, 127mm가 많이 나갑니다."
+      }
+    ],
+    "B": [
+      {
+        "id": "K01",
+        "input": "우리 공장에서 SUS316L 많이 하는데 괜찮은 거?",
+        "score": 7,
+        "issues": [
+          "정확한 제품 추천 없음",
+          "자연스러운 대화 흐름 부족",
+          "유용한 정보 제공 부족",
+          "응답 길이 불균형",
+          "이전 대화와의 연결 없음"
+        ],
+        "suggestion": "SUS316L에 적합한 절삭공구를 추천하고, 관련 정보나 팁을 제공하여 유저의 질문에 직접적으로 답변하는 것이 좋습니다.",
+        "candidateCount": 0,
+        "filterCount": 0,
+        "responsePreview": "죄송하지만 YG-1의 구체적인 재료별 생산 현황이나 제품 사양은 확인할 수 없습니다. YG-1 본사(032-526-0909)에 문의해 주세요.  제품 관련 상담이 필요하신가요?"
+      },
+      {
+        "id": "K02",
+        "input": "미쯔비시 쓰고 있었는데 대체 가능?",
+        "score": 18,
+        "issues": [
+          "대체 가능 제품의 정확한 코드 부족",
+          "미쯔비시 제품 코드 요청에 대한 명확한 안내 부족"
+        ],
+        "suggestion": "미쯔비시 제품 코드에 대한 구체적인 요청을 포함하고, 대체품의 특징이나 장점을 추가하여 유저에게 더 많은 정보를 제공하는 것이 좋습니다.",
+        "candidateCount": 0,
+        "filterCount": 0,
+        "responsePreview": "경쟁사 제품 크로스 레퍼런스 결과입니다. **YG-1 대체품 3건:** 1. **DGE433112** DGE433 Ø11.2mm, 2날 2. **CG3S600200114** CG3"
+      }
+    ],
+    "C": [
+      {
+        "id": "B02",
+        "input": "직경 10mm 이상만",
+        "score": 19,
+        "issues": [
+          "직경 10mm 이상이라는 조건을 명확히 반영하지 못함",
+          "재고 정보는 유용하지만, 전체 길이에 대한 정보가 부족함"
+        ],
+        "suggestion": "직경 10mm 이상의 절삭공구를 명확히 제시하고, 전체 길이에 대한 정보도 포함하여 응답을 개선할 필요가 있습니다.",
+        "candidateCount": 5770,
+        "filterCount": 1,
+        "responsePreview": "가장 가까운 후보로는 SGED31100 (SGED31)를 먼저 검토해보시면 됩니다. Square 형상, 2날, φ10mm 기준에 잘 맞고, 코팅은 DLC으로 N군 소재 대응 범위를"
+      },
+      {
+        "id": "M02",
+        "input": "스테인리스 4날 스퀘어 추천 → 아니 볼로 바꿔",
+        "score": 17,
+        "issues": [
+          "정확한 스퀘어에서 볼로의 전환에 대한 명확한 설명 부족",
+          "추천된 공구의 세부 정보가 유저의 요구에 완벽히 부합하지 않음"
+        ],
+        "suggestion": "볼로의 전환에 대한 명확한 설명과 함께, 추천된 공구가 유저의 요구에 어떻게 부합하는지 더 구체적으로 설명하는 것이 좋습니다.",
+        "candidateCount": 6185,
+        "filterCount": 1,
+        "responsePreview": "가장 가까운 후보로는 UGMG54064 (UGMG54)를 먼저 검토해보시면 됩니다. Ball 형상, 4날, φ25.4mm 기준에 잘 맞고, 코팅은 Y-Coating으로 H군, K군"
+      },
+      {
+        "id": "E02",
+        "input": "좋은 거 추천해줘",
+        "score": 16,
+        "issues": [
+          "추천의 구체성이 부족함",
+          "유저의 의도를 파악하지 못함"
+        ],
+        "suggestion": "유저의 요구사항을 더 구체적으로 파악하기 위한 추가 질문을 포함하세요.",
+        "candidateCount": 64588,
+        "filterCount": 0,
+        "responsePreview": "직경은 어느 정도가 필요하세요? 25.4mm, 76.2mm, 127mm가 많이 나갑니다."
+      },
+      {
+        "id": "E03",
+        "input": "네",
+        "score": 16,
+        "issues": [
+          "직경 선택에 대한 추가 정보 부족",
+          "유저의 의도 파악 부족"
+        ],
+        "suggestion": "유저의 의도에 맞는 더 구체적인 질문을 포함하여 응답을 개선하세요.",
+        "candidateCount": 64588,
+        "filterCount": 0,
+        "responsePreview": "직경은 어느 정도가 필요하세요? 25.4mm, 76.2mm, 127mm가 많이 나갑니다."
+      },
+      {
+        "id": "R01",
+        "input": "100mm 이상이면 좋겠어",
+        "score": 19,
+        "issues": [
+          "직경이 100mm 이상이라는 조건을 명확히 반영하지 못함",
+          "'정확 일치 없음'이라는 표현이 혼란을 줄 수 있음"
+        ],
+        "suggestion": "직경이 100mm 이상인 제품을 명확히 추천하고, 후보의 장점이나 특징을 강조하는 것이 좋습니다.",
+        "candidateCount": 154,
+        "filterCount": 1,
+        "responsePreview": "가장 가까운 후보로는 ML10210027 (ML102)를 먼저 검토해보시면 됩니다. Side & Face Cutter 형상, 20날, φ100mm 기준에 잘 맞고, 코팅은 Brig"
+      },
+      {
+        "id": "R03",
+        "input": "전장 200mm 이상",
+        "score": 16,
+        "issues": [
+          "제품명 오류 가능성",
+          "후보 수치의 신뢰성 부족"
+        ],
+        "suggestion": "제품명에 대한 정확한 정보를 제공하고, 후보 수에 대한 신뢰성을 높이기 위한 추가 설명이 필요합니다.",
+        "candidateCount": 2829,
+        "filterCount": 1,
+        "responsePreview": "ALU-CUT for Korean Market GED70200125 기준으로 보면, 조건에 완전히 맞는 제품은 없지만, 검토해볼 만한 유사 후보 2829개는 찾았습니다. 현재 후보"
+      },
+      {
+        "id": "R05",
+        "input": "50mm 이하로만",
+        "score": 19,
+        "issues": [
+          "정확 일치 없음이라는 표현이 혼란을 줄 수 있음",
+          "P군 소재 대응 범위에 대한 추가 설명 부족"
+        ],
+        "suggestion": "정확 일치하지 않는 이유를 좀 더 명확히 설명하고, P군 소재에 대한 간단한 설명을 추가하면 좋겠습니다.",
+        "candidateCount": 320,
+        "filterCount": 1,
+        "responsePreview": "가장 가까운 후보로는 CE7A63500 (CE7A63)를 먼저 검토해보시면 됩니다. Roughing 형상, 6날, φ50mm 기준에 잘 맞고, 코팅은 TiCN으로 P군 소재 대응 "
+      }
+    ],
+    "D": [],
+    "E": [],
+    "F": []
+  },
+  "pickBucket": "C",
+  "vmLogsTail": "ge] stage=final count=200 total=64438 sourceTotal=64438 edps=UGMG54064,UGMG54048,UGMG53S940,UGMG53S939,UGMG42922,UGMG42918,UGMG42915,UGMG42911,UGMG42923,UGMG42919,UGMG42...<truncated:403>\n[recommend] hybrid timings: total=5095ms fetch=4709ms filter=129ms score_evidence=245ms source=64438 considered=64438 final=200\n[recommend] Retrieval executed: display=50 total=64438 candidates\n[pending-action:set] \"25.4mm (103개)\" (field=diameterMm, value=25.4mm)\n[narrowing:question] ───────────────────────────\n[narrowing:question] Session: ses-1775776937548\n[narrowing:question] Candidates: 64438\n[narrowing:question] Status: broad\n[narrowing:question] Turn: 0\n[narrowing:question] Filters: brand=CRX-S\n[narrowing:question] Stages: initial_search → brand_CRX-S\n[narrowing:question] Next question field: diameterMm\n[narrowing:question] ───────────────────────────\n[first-turn-intake] Deterministic conversational question (no count preamble)\n[chip-groups:server:http] {\"purpose\":\"question\",\"chipCount\":6,\"chipPreview\":[\"25.4mm (103개)\",\"76.2mm (55개)\",\"127mm (42개)\",\"상관없음\",\"📋 지금 바로 제품 보기 (64438개)\",\"✨ AI 상세 분석\"],\"chipGroupCount\":0,\"chipGroups\":[],\"s...<truncated:61>\n[recommend] request start hasPrevState=false messages=1 displayedProducts=0 BUILD=002ebde\n[recommend] Intent: general_question (low), Route: continue_narrowing\n[turn0-answer] question/compare/trouble pattern → answer_general: \"우리 공장에서 SUS316L 많이 하는데 괜찮은 거?\"\n[unified-judgment] \"우리 공장에서 SUS316L 많이 하는데 괜찮\" → action=ask_recommendation domain=product_query state=clear signal=strong\n[company-response] Direct Haiku response for: \"우리 공장에서 SUS316L 많이 하는데 괜찮은 거?\"\n[chip-groups:server:build] {\"isQuestionAssist\":false,\"pendingField\":null,\"chipCount\":1,\"chipPreview\":[\"처음부터 다시\"],\"chipGroupCount\":0,\"chipGroups\":[],\"displayedOptionCount\":0,\"displayedOptionFields\":[]}\n[chip-groups:server:http] {\"purpose\":\"general_chat\",\"chipCount\":1,\"chipPreview\":[\"처음부터 다시\"],\"chipGroupCount\":0,\"chipGroups\":[],\"sessionLastAskedField\":null,\"sessionMode\":\"general_chat\"}\n[recommend] request start hasPrevState=false messages=1 displayedProducts=0 BUILD=002ebde\n[recommend] Intent: substitute_search (medium), Route: continue_narrowing\n[turn0-answer] question/compare/trouble pattern → answer_general: \"미쯔비시 쓰고 있었는데 대체 가능?\"\n[competitor-xref] code parse: {\"diameter_mm\":null,\"flute_count\":null,\"tool_shape\":null,\"coating\":null,\"iso_groups\":null,\"confidence\":\"low\",\"parse_notes\":\"구체적인 제품 코드가 없음. 미쯔비시 기존 제품...<truncated:8>\n[competitor-xref] web search result length: 1965\n[competitor-mapping] Spec extraction failed: {\"name\":\"SyntaxError\",\"message\":\"Unexpected token 'B', \\\"Based on t\\\"... is not valid JSON\",\"stack\":\"SyntaxError: Unexpected token 'B', \\\"Based on t\\\"... is not valid JSON\\n    at JSON.parse (<anonymous>)\\n    at $ (/app/.next/server/chunks/lib_chat_05127d2f._.js:32:202)\\n    at async ...<truncated:743>\"}\n[product-repo] search source=db filters=0 limit=200\n[DBG-mat] input.material=undefined resolvedTags=[]\n[product-db] query:list:start where=0 values=3 limit=200 offset=0 code=- series=-\n[product-db] sql operation=queryProductsListFromDatabase query=\"WITH filtered_products AS ( SELECT *, REPLACE(REPLACE(UPPER(COALESCE(edp_no, '')), ' ', ''), '-', '') AS normalized_...<truncated:5311>\n[product-db] sql:done operation=queryProductsListFromDatabase duration=824ms rows=200\n[product-db] query:list=829ms rows=200 mapped=200 filters=0 limit=200 offset=0\n[product-db] stage=db_fetch count=200 edps=DGE433112,CG3S600200114,DGE433111,CG3S600120204,DGE433110,CG3S600120203,DGE433109,CG3S600100220,DGE433108,CG3S600100216,DGE433107,CG3S600...<truncated:476>\n[reply-ui-strategy] strategy=replace_with_reply_options, label=competitor-cross-ref, chips=3, options=3\n[series-validator] hallucinated series in response: CG3S600200114, CG3S60, CG3S470400210, CG3S47\n[chip-groups:server:http] {\"purpose\":\"general_chat\",\"chipCount\":3,\"chipPreview\":[\"대체품 상세 비교\",\"다른 경쟁사 제품 검색\",\"추천 제품 보기\"],\"chipGroupCount\":0,\"chipGroups\":[],\"sessionLastAskedField\":null,\"sessionMode\":\"general...<truncated:7>\n[recommend] request start hasPrevState=false messages=1 displayedProducts=0 BUILD=002ebde\n[recommend] Intent: general_question (low), Route: continue_narrowing\n[first-turn-intake] det-SCR pre-injected 3 filter(s): diameterMm=10, workPieceName=Stainless Steels, workMaterial=M\n[first-turn-intake] Skipping LLM extraction — deterministic form→question path\n[complexity] \"10파이 넘는 거 스텐용\" → normal (일반 추천)\n[planner-decision] winner=production planner=0.30 prod=0.50 margin=-0.20 applied=false | 2c 1569ms\n[runtime:multi-filter-extract] 2 hints: material=스테인리스, dia=10, subtype=null, flute=null\n[runtime:multi-filter-extract] singleCallHandled=true, bridged=continue_narrowing\n[product-repo] search source=db filters=2 limit=auto\n[DBG-mat] input.material=\"스테인리스\" resolvedTags=[\"M\"]\n[product-db] query:list:start where=2 values=5 limit=none offset=0 code=- series=-\n[product-db] sql operation=queryProductsListFromDatabase query=\"WITH filtered_products AS ( SELECT *, REPLACE(REPLACE(UPPER(COALESCE(edp_no, '')), ' ', ''), '-', '') AS normalized_...<truncated:5553>\n[product-db] sql:done operation=queryProductsListFromDatabase duration=441ms rows=4698\n[product-db] query:list=488ms rows=4698 mapped=4698 filters=2 limit=none offset=0\n[product-db] stage=db_fetch count=4698 edps=XMB130A120,XMB130A110,XMB130A100,XMB130A080,SEME7108016E,SEME7108016,SEME71080,SEME71120E,SEME7112040E,SEME7112040,SEME7112035E,SEME7112...<truncated:448>\n[hybrid:filter] extra post-sql heuristics disabled; narrowing filters still applied\n[hybrid:filter] diameterMm=10mm: 4698 → 2559 candidates\n[hybrid:filter] workPieceName=Stainless Steels: 2559 → 2559 candidates\n[hybrid:stage] stage=post_filter count=2559 total=2559 sourceTotal=4698 edps=XMB130A120,XMB130A110,XMB130A100,SEME71120E,SEME7112040E,SEME7112040,SEME7112035E,SEME7112035,SEME71120...<truncated:469>\n[hybrid:stage] stage=ranked count=2559 total=2559 sourceTotal=4698 edps=SEME71100E,SEME7110035E,SEME7110035,SEME7110030E,SEME7110030,SEME7110022E,SEME7110022,SEME71100,GYG03100,GYG...<truncated:376>\n[hybrid:stage] stage=final count=200 total=2559 sourceTotal=4698 edps=SEME71100E,SEME7110035E,GYG03100,GYG02100,GYG01100,GYF99100,GYF98100,GYF97100,GYF96100,GYF94100,GMH59906,GMH59...<truncated:355>\n[recommend] hybrid timings: total=570ms fetch=488ms filter=8ms score_evidence=74ms source=4698 considered=2559 final=200\n[recommend] Retrieval executed: display=50 total=2559 candidates\n[series-material-status-db] sql query=\"WITH requested_series AS ( SELECT DISTINCT NULLIF( regexp_replace(UPPER(BTRIM(series_name)), '[\\s\\-·ㆍ\\./(),]+', '', 'g'), '' ) AS normalized_...<truncated:1570>\n[series-material-status-db] iso=M workPiece=Stainless Steels rows=27 duration=3ms\n[narrowing:question] ───────────────────────────\n[narrowing:question] Session: ses-1775776980033\n[narrowing:question] Candidates: 2559\n[narrowing:question] Status: resolved_exact\n[narrowing:question] Turn: 0\n[narrowing:question] Filters: diameterMm=10mm, workPieceName=Stainless Steels\n[narrowing:question] Stages: initial_search → diameterMm_10mm → workPieceName_Stainless Steels\n[narrowing:question] ───────────────────────────\n[recommend] LLM result summary failed: {\"name\":\"TypeError\",\"message\":\"Cannot read properties of undefined (reading 'value')\",\"stack\":\"TypeError: Cannot read properties of undefined (reading 'value')\\n    at f (/app/.next/server/chunks/lib_5758cb02._.js:518:23)\\n    at j (/app/.next/server/chunks/[root-of-the-server...<truncated:777>\"}\n[series-material-status-db] sql query=\"WITH requested_series AS ( SELECT DISTINCT NULLIF( regexp_replace(UPPER(BTRIM(series_name)), '[\\s\\-·ㆍ\\./(),]+', '', 'g'), '' ) AS normalized_...<truncated:1570>\n[series-material-status-db] iso=M workPiece=Stainless Steels rows=27 duration=4ms\n[chip-groups:server:http] {\"purpose\":\"recommendation\",\"chipCount\":8,\"chipPreview\":[\"날수로 좁히기 (3날/4날)\",\"상위 3개 비교\",\"SEME71100E 상세 정보\",\"다른 코팅 옵션 보기\",\"시리즈 차이 설명해줘 (SEME71 vs GYG03)\",\"φ10mm 외 다른 직경\"],\"chipGroupCo...<truncated:83>\n"
+}

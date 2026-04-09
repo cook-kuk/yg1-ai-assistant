@@ -374,6 +374,11 @@ function buildExactIdentifierClause(columns: string[], filter: AppliedFilter, ne
   const rawValues = extractStringFilterRawValues(filter).map(value => normalizeIdentifierText(value)).filter(Boolean)
   if (rawValues.length === 0) return null
   const param = next(rawValues)
+  const isNeg = filter.op === "neq" || filter.op === "exclude"
+  if (isNeg) {
+    // "CRX S 빼고" → brand NOT IN (...) 각 컬럼에 대해 AND 로 제외.
+    return `(${columns.map(column => `regexp_replace(LOWER(COALESCE(${column}, '')), '[^a-z0-9가-힣]+', '', 'g') <> ALL(${param}::text[])`).join(" AND ")})`
+  }
   return `(${columns.map(column => `regexp_replace(LOWER(COALESCE(${column}, '')), '[^a-z0-9가-힣]+', '', 'g') = ANY(${param}::text[])`).join(" OR ")})`
 }
 
