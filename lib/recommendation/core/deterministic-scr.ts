@@ -1057,6 +1057,29 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
     }
   }
 
+  // 7.5) RPM (절삭조건 — 가상 필드, 실제 narrowing은 tool-forge가 처리)
+  // "RPM 3000 이상", "회전수 5000 이상", "spindle 4000+" 같이 임계값과 함께 들어오면
+  // 가상 rpm 필터를 만들어 좌측 패널에 칩으로 노출. 실제 cutting_condition_table
+  // 조회는 tool-forge LLM이 별도로 한다. buildDbClause는 no-op이라 double-filter X.
+  if (!seen.has("rpm")) {
+    const rpmGte = text.match(/(?:rpm|회전수|스핀들(?:\s*속도)?)\s*([\d,]+)\s*(?:이상|over|\+|초과|올라가는|넘는)/i)
+    const rpmLte = text.match(/(?:rpm|회전수|스핀들(?:\s*속도)?)\s*([\d,]+)\s*(?:이하|under|미만)/i)
+    const m = rpmGte ?? rpmLte
+    if (m) {
+      const n = parseInt(m[1].replace(/,/g, ""), 10)
+      if (Number.isFinite(n) && n > 0) {
+        actions.push({
+          type: "apply_filter",
+          field: "rpm",
+          value: n,
+          op: rpmGte ? "gte" : "lte",
+          source: "deterministic",
+        })
+        seen.add("rpm")
+      }
+    }
+  }
+
   // 8) 쿨런트홀
   if (!seen.has("coolantHole")) {
     if (COOLANT_PATTERNS.some(p => p.test(text))) {

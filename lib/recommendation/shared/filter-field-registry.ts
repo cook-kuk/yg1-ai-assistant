@@ -981,6 +981,23 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
       return null
     },
   },
+  // RPM(절삭조건) — 가시성 전용 가상 필드.
+  // 실제 narrowing은 tool-forge가 raw_catalog.cutting_condition_table 을 직접
+  // 조회해서 처리하므로 buildDbClause/matches/extractValues 모두 no-op.
+  // 이 정의는 좌측 필터 패널 칩 표시 + 세션 상태 추적을 위해서만 존재.
+  rpm: {
+    field: "rpm",
+    label: "RPM",
+    queryAliases: ["rpm", "회전수", "spindle", "spindle speed", "스핀들"],
+    kind: "number",
+    op: "range",
+    unit: "RPM",
+    setInput: input => input,
+    clearInput: input => input,
+    extractValues: () => [],
+    matches: () => null,
+    // No buildDbClause: cutting_condition_table 경로가 별도 처리
+  },
   applicationShapes: {
     field: "applicationShapes",
     kind: "string",

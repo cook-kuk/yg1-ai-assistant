@@ -2075,6 +2075,11 @@ async function handleServeExplorationInner(
       const detApplyActions = detPreActions.filter(a => a.type === "apply_filter" && a.field && a.value != null)
       if (detApplyActions.length > 0) {
         let appliedAny = false
+        // RPM은 가상 필터 — buildDbClause가 no-op이라 narrowing은 tool-forge가
+        // cutting_condition_table에서 처리. 이 액션 하나만 있으면 short-circuit
+        // 하지 말고 (singleCallHandled를 켜지 말고) 후속 KG/SQL/tool-forge 경로를
+        // 그대로 태워야 실제 narrowing이 일어난다.
+        let appliedAnyRoutable = false
         for (const action of detApplyActions) {
           const isBetween = action.op === "between" && action.value2 != null
           const inputValue: string | number | Array<string | number> = isBetween
@@ -2092,8 +2097,9 @@ async function handleServeExplorationInner(
           filters.splice(0, filters.length, ...result.nextFilters)
           currentInput = result.nextInput
           appliedAny = true
+          if (action.field !== "rpm") appliedAnyRoutable = true
         }
-        if (appliedAny) {
+        if (appliedAny && appliedAnyRoutable) {
           const hasShowRec = /추천|보여|제품\s*보기|show/iu.test(msg)
           const lastF = filters[filters.length - 1] ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount }
           bridgedV2Action = hasShowRec
@@ -2110,6 +2116,9 @@ async function handleServeExplorationInner(
           pendingSelectionOrchestratorResult = null
           trace.add("det-scr-pre", "router", { actions: detApplyActions.map(a => ({ field: a.field, value: a.value, op: a.op })) }, { applied: detApplyActions.length, filterCount: filters.length }, `det-SCR pre-pass applied ${detApplyActions.length} action(s)`)
           console.log(`[det-scr:pre] ${detApplyActions.length} actions applied early: ${detApplyActions.map(a => `${a.field}=${a.value}`).join(", ")}`)
+        } else if (appliedAny && !appliedAnyRoutable) {
+          // RPM-only (or other virtual-only) — 가시성 필터만 push, 후속 routing 그대로
+          console.log(`[det-scr:pre] virtual-only filter(s) pushed, continuing routing: ${detApplyActions.map(a => `${a.field}=${a.value}`).join(", ")}`)
         }
       }
     }
