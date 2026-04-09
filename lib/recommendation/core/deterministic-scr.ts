@@ -972,6 +972,18 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
     }
   }
 
+  // 3.5) Bare-mm-only fallback: "10mm", "8.5 mm", "10" — 메시지가 숫자(+mm)뿐이면 직경으로 해석
+  if (!seen.has("diameterMm")) {
+    const bare = text.match(/^\s*(\d+(?:\.\d+)?)\s*(?:mm|밀리)?\s*$/i)
+    if (bare) {
+      const v = parseFloat(bare[1])
+      if (Number.isFinite(v) && v > 0 && v <= 100) {
+        actions.push({ type: "apply_filter", field: "diameterMm", value: v, op: "eq", source: "deterministic" })
+        seen.add("diameterMm")
+      }
+    }
+  }
+
   // 4) Thread pattern: M10 P1.5
   const thread = parseThreadPattern(text)
   if (thread.dia != null && !seen.has("diameterMm")) {
