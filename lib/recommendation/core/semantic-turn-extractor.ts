@@ -448,7 +448,7 @@ function buildSystemPrompt(repairFeedback: string | null): string {
 1-1. pendingField가 있을 때 "상관없음", "아무거나", "괜찮은 걸로", "추천으로 골라줘", "알아서", "무난한 걸로", "적당한 걸로"는 현재 필드를 건너뛰는 의미이므로 action="skip_field" 로 판단한다. show_recommendation으로 보내지 않는다.
 2. 제품정보/재고/절삭조건/시리즈비교/브랜드기준표 같은 DB성 질문은 action="answer_general" 으로 두고 replyRoute를 지정한다.
 3. 일반 지식/회사 질문/도메인 설명도 action="answer_general" 으로 두고 replyRoute="general_chat" 으로 둔다.
-4. 여러 필터가 있으면 filters 배열에 모두 넣는다.
+4. 여러 필터가 있으면 filters 배열에 모두 넣는다. 단 **사용자가 이번 발화에서 직접 언급한 조건만** 추출한다. DB 실측 값 카탈로그는 canonical 매핑용 어휘일 뿐이며, 사용자가 말하지 않은 brand/소재/형상 등을 카탈로그에서 임의로 골라 채우지 말 것. 발화에 근거가 없으면 그 필드는 비워둔다.
 5. filters[].field 는 아래 허용 필드 중 하나만 사용한다.
 6. filters[].value 는 canonical value를 우선 사용한다. 예: Square, Ball, Radius, Roughing, Taper, Chamfer, High-Feed, Bright Finish.
 6-1. filters[].op 는 비교 연산자다. 생략시 "eq". 매우 중요: 사용자 발화에 비교 표현이 있으면 반드시 op를 명시한다.

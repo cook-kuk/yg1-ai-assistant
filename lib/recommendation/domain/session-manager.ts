@@ -249,15 +249,35 @@ export function restoreOnePreviousStep(
   const lastStageIdx = stageHistory.length - 1
 
   if (lastStageIdx > 0) {
-    // Restore to the stage before the last one
-    const prevStage = stageHistory[lastStageIdx - 1]
-    return {
-      rebuiltInput: { ...prevStage.resolvedInputSnapshot },
-      remainingFilters: [...prevStage.filtersSnapshot],
-      remainingHistory: state.narrowingHistory.slice(0, Math.max(0, state.narrowingHistory.length - 1)),
-      remainingStages: stageHistory.slice(0, lastStageIdx),
-      undoTurnCount: prevStage.filtersSnapshot.filter(f => f.op !== "skip").length,
-      removedFilterDesc: stageHistory[lastStageIdx]?.filterApplied?.value ?? "마지막 단계",
+    // 한 사용자 턴에서 여러 필터가 동시에 적용되면 stage 가 N개 쌓인다
+    // (createFilterStage 가 필터 1개당 1 stage 를 만들기 때문). "이전 단계" 는
+    // 필터 1개가 아니라 "직전 사용자 턴 전체" 를 되돌려야 하므로, 마지막
+    // stage 의 appliedAt(턴 인덱스)과 같은 모든 stage 를 한꺼번에 벗긴다.
+    const lastAppliedAt = stageHistory[lastStageIdx]?.filterApplied?.appliedAt
+    let firstSameTurnIdx = lastStageIdx
+    if (lastAppliedAt != null) {
+      while (
+        firstSameTurnIdx > 0 &&
+        stageHistory[firstSameTurnIdx - 1]?.filterApplied?.appliedAt === lastAppliedAt
+      ) {
+        firstSameTurnIdx--
+      }
+    }
+    const cutIdx = firstSameTurnIdx // stage 를 [0, cutIdx) 로 잘라낸다
+    if (cutIdx > 0) {
+      const prevStage = stageHistory[cutIdx - 1]
+      const removedDescs = stageHistory
+        .slice(cutIdx)
+        .map(s => s.filterApplied?.value)
+        .filter((v): v is string => !!v)
+      return {
+        rebuiltInput: { ...prevStage.resolvedInputSnapshot },
+        remainingFilters: [...prevStage.filtersSnapshot],
+        remainingHistory: state.narrowingHistory.slice(0, Math.max(0, state.narrowingHistory.length - 1)),
+        remainingStages: stageHistory.slice(0, cutIdx),
+        undoTurnCount: prevStage.filtersSnapshot.filter(f => f.op !== "skip").length,
+        removedFilterDesc: removedDescs.join(", ") || "마지막 단계",
+      }
     }
   }
 

@@ -35,7 +35,10 @@ import type {
 } from "@/lib/recommendation/domain/types"
 import type { EarlyRecommendationFlush } from "@/lib/recommendation/infrastructure/engines/serve-engine-response"
 
-export const maxDuration = 60
+// 120s: chat/stream과 동일. 60s 였을 때 무거운 턴(74s+)에서 Vercel 런타임이
+// request signal을 reason 없이 abort → 클라이언트에 "signal is aborted without
+// reason" 으로 노출되던 이슈를 해결.
+export const maxDuration = 120
 
 function parseRequest(body: unknown): RecommendationRequestDto {
   return recommendationRequestSchema.parse(body) as RecommendationRequestDto
@@ -116,16 +119,15 @@ export async function POST(req: Request): Promise<Response> {
       //     far (true token-by-token streaming from provider.stream())
       //   - {text}: replace the UI's current value (single-shot reasoning from
       //     synthetic fallbacks or non-streaming providers)
-      const onThinking = (text: string, opts?: { delta?: boolean }) => {
+      const onThinking = (text: string, opts?: { delta?: boolean; kind?: "deep" | "stage" }) => {
         if (!text) return
-        // Allow whitespace-only deltas (newlines mid-sentence) but skip empty
-        // replace frames so we don't blank the UI.
         if (!opts?.delta && !text.trim()) return
-        // Note: keep heartbeat stages running in parallel — they live in a
-        // separate channel (kind:"stage") so the user always sees high-level
-        // progress while the deep reasoning streams below.
         if (!sawRealThinking) sawRealThinking = true
-        try { safeEnqueue(sseFrame("thinking", { text, delta: !!opts?.delta, kind: "deep" })) }
+        // 기본은 stage(메인 trail). 호출자가 명시적으로 kind:"deep" 을 주면
+        // 토글 본문(thinkingDeep)으로 라우팅 — 한 턴 끝난 뒤에도 펼쳐 볼 수
+        // 있도록 message 객체에 그대로 보존된다.
+        const kind = opts?.kind ?? "stage"
+        try { safeEnqueue(sseFrame("thinking", { text, delta: !!opts?.delta, kind })) }
         catch (err) { traceRecommendationError("http.stream.thinking:enqueue-error", err) }
       }
 
