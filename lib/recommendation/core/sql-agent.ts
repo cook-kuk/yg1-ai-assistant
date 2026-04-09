@@ -151,6 +151,7 @@ ${wpList}
 
 ## Brand Names
 ${brandList}
+(브랜드는 한국어 음역으로 들어올 수 있습니다 — 예: "엑스파워" ≈ X-POWER, "알루파워" ≈ ALU-POWER. 발음 유사도로 위 리스트의 정확한 값을 골라 emit 하세요. 리스트에 없으면 emit 금지.)
 
 ## Auxiliary Tables (read-only reference — not directly filtered, but informs which questions need a tool-forge join)
 ${auxList || "  (none loaded)"}
