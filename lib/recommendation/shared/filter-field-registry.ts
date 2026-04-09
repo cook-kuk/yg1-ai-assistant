@@ -1126,6 +1126,13 @@ export function buildAppliedFilterFromValue(
   const definition = getFilterFieldDefinition(field)
   if (!definition) return null
 
+  // Skip-token guard: "상관없음", "아무거나", "any" 같은 토큰이 값으로 들어오면
+  // 필터로 만들지 않는다 (이건 skip 신호이지 값이 아님). 칩 클릭/응답 정규화/
+  // sql-agent emit 등 모든 진입점이 이 함수를 통과하므로 여기 한 곳만 막으면 충분.
+  if (typeof rawValue === "string" && SKIP_TOKENS.has(rawValue.trim().toLowerCase())) {
+    return null
+  }
+
   const targetField = definition.canonicalField ?? definition.field
 
   // For numeric fields, check fractional inch BEFORE multi-value splitting
