@@ -1663,7 +1663,11 @@ async function streamLLMReasoningForChipPath(params: {
 
 위 변화에 대한 사고 과정을 적어줘.`
 
-  const model = "haiku" as const
+  // Use sonnet tier (= OPENAI_SONNET_MODEL or OPENAI_MODEL fallback, e.g.
+  // gpt-5.4) instead of haiku — reasoning summaries from /v1/responses are
+  // only meaningful when the model actually thinks. Mini tier with effort
+  // "minimal" emits an empty summary, leaving the deep CoT toggle blank.
+  const model = "sonnet" as const
   try {
     let full = ""
     let realReasoningChars = 0
