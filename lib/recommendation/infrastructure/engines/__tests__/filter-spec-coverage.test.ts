@@ -195,11 +195,12 @@ describe("applyFilterToInput — 종속 관계 & 교체", () => {
     expect(updated.workPieceName).toBeUndefined()
   })
 
-  it("material 같은 값 재적용 시에도 workPieceName 클리어", () => {
+  it("material 같은 값 재적용은 같은 ISO 그룹이면 workPieceName 보존", () => {
+    // ADC12 = 알루미늄(N) → 같은 그룹 → production 은 보존 (사용자 의도 모순 없음).
     const input = { ...makeBaseInput(), material: "알루미늄", workPieceName: "ADC12" }
     const updated = applyFilterToInput(input, af("material", "eq", "알루미늄", "알루미늄"))
     expect(updated.material).toBe("알루미늄")
-    expect(updated.workPieceName).toBeUndefined()
+    expect(updated.workPieceName).toBe("ADC12")
   })
 
   it("fluteCount 적용", () => {
@@ -257,8 +258,9 @@ describe("applyFilterToInput — 종속 관계 & 교체", () => {
     expect(updated.brand).toBe("V7 PLUS")
   })
 
-  it("country 적용 (대문자 정규화)", () => {
+  it("country 적용 (raw filter, applyFilterToInput stores as-is)", () => {
     const updated = applyFilterToInput(makeBaseInput(), af("country", "includes", "KOR", "KOR"))
+    // canonical 화는 parseAnswerToFilter 에서 함. raw filter 는 그대로 저장.
     expect(updated.country).toBe("KOR")
   })
 })

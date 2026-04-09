@@ -204,12 +204,14 @@ describe("Material dependency clearing — applyFilterToInput", () => {
     expect(result.toolType).toBe("엔드밀")
   })
 
-  it("same material re-applied still clears workPieceName", () => {
+  it("same material re-applied within same ISO group preserves workPieceName", () => {
+    // SCM440 은 탄소강(P) 그룹. material '일반강' 도 탄소강(P) → ISO 교집합 존재 →
+    // production 은 stale workPieceName 보존 (사용자 의도와 모순 없음).
     const input = { ...makeBaseInput(), workPieceName: "SCM440" }
     const filter = af("material", "eq", "일반강", "일반강")
     const result = applyFilterToInput(input, filter)
     expect(result.material).toBe("일반강")
-    expect(result.workPieceName).toBeUndefined()
+    expect(result.workPieceName).toBe("SCM440")
   })
 
   it("workPieceName change does NOT clear material", () => {
@@ -521,10 +523,12 @@ describe("Input field mapping — applyFilterToInput per field", () => {
     expect(result.brand).toBe("ALU-POWER HPC")
   })
 
-  it("country → country (uppercase)", () => {
+  it("country → country (raw filter, applyFilterToInput stores as-is)", () => {
     const input = makeBaseInput()
     const filter = af("country", "includes", "KOR", "KOR")
     const result = applyFilterToInput(input, filter)
+    // applyFilterToInput 은 canonical 화 하지 않고 raw rawValue 를 그대로 저장.
+    // canonical 변환은 parseAnswerToFilter / buildAppliedFilterFromValue 진입점에서 발생.
     expect(result.country).toBe("KOR")
   })
 
@@ -591,11 +595,12 @@ describe("Input field mapping — applyFilterToInput per field", () => {
     expect(result.toolMaterial).toBe("초경")
   })
 
-  it("material → material (and clears workPieceName)", () => {
+  it("material → material (clears workPieceName when ISO group differs)", () => {
+    // SUS304 는 스테인리스(M). 새 material '알루미늄' 은 N → 다른 그룹 → 클리어.
     const input = { ...makeBaseInput(), workPieceName: "SUS304" }
-    const filter = af("material", "eq", "스테인리스", "스테인리스")
+    const filter = af("material", "eq", "알루미늄", "알루미늄")
     const result = applyFilterToInput(input, filter)
-    expect(result.material).toBe("스테인리스")
+    expect(result.material).toBe("알루미늄")
     expect(result.workPieceName).toBeUndefined()
   })
 
@@ -1325,30 +1330,26 @@ describe("creative: parseFieldAnswerToFilter field name variations", () => {
   })
 })
 
+// Production canonical 은 region 단위 (KOREA / AMERICA / ASIA / EUROPE).
+// MV.country_codes 가 region 으로 저장되도록 변경된 후 stale 했던 테스트 갱신.
 describe("creative: country canonicalization", () => {
   it.each([
-    ["한국", "KOR"],
-    ["korea", "KOR"],
-    ["미국", "USA"],
-    ["usa", "USA"],
-    ["일본", "JPN"],
-    ["독일", "DEU"],
-    ["germany", "DEU"],
+    ["한국", "KOREA"],
+    ["korea", "KOREA"],
+    ["미국", "AMERICA"],
+    ["usa", "AMERICA"],
+    ["일본", "ASIA"],   // 한국 외 아시아 → ASIA region
+    ["독일", "EUROPE"],
+    ["germany", "EUROPE"],
   ])("buildAppliedFilterFromValue('country', %j) rawValue → %j", (input, expected) => {
     const f = buildAppliedFilterFromValue("country", input)
     expect(f).not.toBeNull()
     expect(f!.rawValue).toBe(expected)
   })
 
-  it("region '아시아' expands to multiple codes", () => {
+  it("region '아시아' → ASIA region (직접 입력)", () => {
     const f = buildAppliedFilterFromValue("country", "아시아")
     expect(f).not.toBeNull()
-    // Should contain comma-separated values split into array
-    const raw = f!.rawValue
-    if (typeof raw === "string") {
-      expect(raw).toContain("KOR")
-    } else if (Array.isArray(raw)) {
-      expect(raw).toContain("KOR")
-    }
+    expect(f!.rawValue).toBe("ASIA")
   })
 })

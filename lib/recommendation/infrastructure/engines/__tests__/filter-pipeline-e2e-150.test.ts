@@ -570,85 +570,83 @@ describe("workPieceName — full pipeline (15)", () => {
 //  6. country (15 tests)
 // ═══════════════════════════════════════════════════════════
 
+// 주의: production 의 country canonical 은 region 단위 (KOREA / AMERICA / ASIA / EUROPE).
+// MV product_recommendation_mv.country_codes 가 region 으로 저장되도록 변경된 후에도
+// 이 테스트는 ISO-3 (KOR/USA/JPN/DEU) 로 stale 했음. 현재 canonical 에 맞춰 갱신.
 describe("country — full pipeline (15)", () => {
-  it("01: '한국' → country='KOR'", () => {
+  it("01: '한국' → country='KOREA'", () => {
     const { input } = runPipeline("country", "한국")
-    expect(input.country).toBe("KOR")
+    expect(input.country).toBe("KOREA")
   })
 
-  it("02: 'KOR' → country='KOR'", () => {
+  it("02: 'KOR' → country='KOREA' (ISO-3 alias)", () => {
     const { input } = runPipeline("country", "KOR")
-    expect(input.country).toBe("KOR")
+    expect(input.country).toBe("KOREA")
   })
 
-  it("03: '미국' → country='USA'", () => {
+  it("03: '미국' → country='AMERICA'", () => {
     const { input } = runPipeline("country", "미국")
-    expect(input.country).toBe("USA")
+    expect(input.country).toBe("AMERICA")
   })
 
-  it("04: 'USA' → country='USA'", () => {
+  it("04: 'USA' → country='AMERICA'", () => {
     const { input } = runPipeline("country", "USA")
-    expect(input.country).toBe("USA")
+    expect(input.country).toBe("AMERICA")
   })
 
-  it("05: '일본' → country='JPN'", () => {
+  it("05: '일본' → country='ASIA' (한국 외 아시아 → ASIA region)", () => {
     const { input } = runPipeline("country", "일본")
-    expect(input.country).toBe("JPN")
+    expect(input.country).toBe("ASIA")
   })
 
-  it("06: 'JPN' → country='JPN'", () => {
+  it("06: 'JPN' → country='ASIA'", () => {
     const { input } = runPipeline("country", "JPN")
-    expect(input.country).toBe("JPN")
+    expect(input.country).toBe("ASIA")
   })
 
-  it("07: '독일' → country='DEU'", () => {
+  it("07: '독일' → country='EUROPE'", () => {
     const { input } = runPipeline("country", "독일")
-    expect(input.country).toBe("DEU")
+    expect(input.country).toBe("EUROPE")
   })
 
-  it("08: 'DEU' → country='DEU'", () => {
+  it("08: 'DEU' → country='EUROPE'", () => {
     const { input } = runPipeline("country", "DEU")
-    expect(input.country).toBe("DEU")
+    expect(input.country).toBe("EUROPE")
   })
 
-  it("09: '아시아' → country contains KOR,JPN,CHN,THA,VNM", () => {
+  it("09: '아시아' → country='ASIA' (region 직접 입력)", () => {
     const { input } = runPipeline("country", "아시아")
-    expect(input.country).toContain("KOR")
-    expect(input.country).toContain("JPN")
+    expect(input.country).toBe("ASIA")
   })
 
-  it("10: 'KOREA' → country='KOR'", () => {
+  it("10: 'KOREA' → country='KOREA' (canonical 자기 자신 통과)", () => {
     const { input } = runPipeline("country", "KOREA")
-    // 'KOREA' doesn't match any alias exactly, passes through as uppercase
-    // Actually 'korea' maps to 'KOR' in the aliases
-    const c = input.country!
-    expect(c === "KOR" || c === "KOREA").toBe(true)
+    expect(input.country).toBe("KOREA")
   })
 
-  it("11: '중국' → country='CHN'", () => {
+  it("11: '중국' → country='ASIA'", () => {
     const { input } = runPipeline("country", "중국")
-    expect(input.country).toBe("CHN")
+    expect(input.country).toBe("ASIA")
   })
 
-  it("12: 'china' → country='CHN'", () => {
+  it("12: 'china' → country='ASIA'", () => {
     const { input } = runPipeline("country", "china")
-    expect(input.country).toBe("CHN")
+    expect(input.country).toBe("ASIA")
   })
 
-  it("13: 'germany' → country='DEU'", () => {
+  it("13: 'germany' → country='EUROPE'", () => {
     const { input } = runPipeline("country", "germany")
-    expect(input.country).toBe("DEU")
+    expect(input.country).toBe("EUROPE")
   })
 
-  it("14: '영국' → country='ENG'", () => {
+  it("14: '영국' → country='EUROPE'", () => {
     const { input } = runPipeline("country", "영국")
-    expect(input.country).toBe("ENG")
+    expect(input.country).toBe("EUROPE")
   })
 
-  it("15: '유럽' → country contains DEU,FRA,ENG", () => {
+  it("15: '유럽' → country='EUROPE' (region 직접 입력)", () => {
     const { input } = runPipeline("country", "유럽")
-    expect(input.country).toContain("DEU")
-    expect(input.country).toContain("FRA")
+    expect(input.country).toBe("EUROPE")
   })
 })
 
@@ -797,7 +795,7 @@ describe("multi-step chains — full pipeline (20)", () => {
     const result = rebuildInputFromFilters(base, filters, applyFilterToInput)
     expect(result.toolSubtype).toBe("Ball")
     expect(result.workPieceName).toBe("알루미늄")
-    expect(result.country).toBe("KOR")
+    expect(result.country).toBe("KOREA")
   })
 
   it("03: 5 filters → all fields set correctly", () => {
@@ -898,7 +896,7 @@ describe("multi-step chains — full pipeline (20)", () => {
       "country", "미국", [f1], base
     )
     expect(replacedExisting).toBe(true)
-    expect(nextInput.country).toBe("USA")
+    expect(nextInput.country).toBe("AMERICA")
   })
 
   // --- Parse → apply → clear → verify cleared ---
@@ -943,7 +941,7 @@ describe("multi-step chains — full pipeline (20)", () => {
     const base = makeBaseInput()
     const f1 = parseAnswerToFilter("country", "한국")!
     const applied = applyFilterToInput(base, f1)
-    expect(applied.country).toBe("KOR")
+    expect(applied.country).toBe("KOREA")
     const cleared = clearFilterFromRecommendationInput(applied, "country")
     expect(cleared.country).toBeUndefined()
   })

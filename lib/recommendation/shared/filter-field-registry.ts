@@ -590,7 +590,9 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
       }
       return next
     },
-    clearInput: input => ({ ...input, material: undefined }),
+    // material 을 명시적으로 skip 한 사용자는 어떤 소재 제약도 원하지 않으므로
+    // stale workPieceName (이전 턴의 SUS304 같은 값) 도 함께 클리어.
+    clearInput: input => ({ ...input, material: undefined, workPieceName: undefined }),
   },
   workPieceName: {
     field: "workPieceName",

@@ -11,7 +11,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 export const MATERIAL_KEYWORDS: Record<string, string[]> = {
-  "알루미늄": ["알루미늄", "알루", "aluminum", "aluminium", "AL", "alu"],
+  "알루미늄": ["알루미늄", "알루", "aluminum", "aluminium", "AL", "alu", "ADC", "두랄루민", "duralumin"],
   "스테인리스": ["스테인리스", "스테인레스", "스텐", "STS", "sus", "stainless"],
   "주철": ["주철", "cast iron", "GC", "FC"],
   "탄소강": ["탄소강", "일반강", "합금강", "구조강", "프리하든", "carbon", "carbon steel", "S45C", "SM45C", "SCM440", "scm", "sncm"],
