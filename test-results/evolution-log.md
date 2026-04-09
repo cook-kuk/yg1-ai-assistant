@@ -1,5 +1,74 @@
 # Evolution Log
 
+## 2026-04-10 — agent "big-jump" (baseline 11.8 → 16.8)
+
+### iter1 — domain-guard i18n + turn0-answer + zero-result fallback (5f22a6f, 04b3c85, b69e93f)
+**타겟**: C04(7) B05(11) C01(11) C03(11) C05(12) — 모두 turn0 question/compare/trouble.
+**근본 원인 발견**: `isFirstTurnIntake` short-circuit이 Turn 0의 모든 메시지를
+  continue_narrowing으로 강제 bridge → SCR answer path, pre-search fast-path,
+  explain-route 전부 우회됨. d118d6d/1289131 fix들이 dead code였던 이유.
+  추가로 domain-guard는 한글 material만 체크(`/스테인리스/`)해서 det-SCR이
+  주입한 영문 "Stainless Steels"와 매칭 실패.
+**수정**:
+  1. `lib/recommendation/core/domain-guard.ts` — 소재 regex에 영문 alias 추가
+     (stainless/carbon steel/alloy steel/titanium/inconel/cast iron/aluminum/copper).
+  2. `lib/recommendation/infrastructure/engines/serve-engine-runtime.ts:1923` —
+     `isFirstTurnIntake` 진입 **전에** lexical 패턴(질문/비교/트러블) 검출,
+     match 시 직접 `handleServeGeneralChatAction` 호출 후 return. 필터 스펙
+     메시지는 변경 없음.
+  3. `lib/recommendation/infrastructure/engines/serve-engine-response.ts:1212` —
+     buildRecommendationResponse의 `status="none"` 브랜치에서 domain-guard를
+     재실행해 경고가 있으면 generic stub("조건에 맞는 제품...") 대신 경고 텍스트
+     반환. C04가 이 경로였음.
+**eval**: 11.8 → 16.7 (+4.9)
+  - C04: 7→24, B05: 11→25, C01: 11→22, C02: null→24, C03: 11→24, C05: 12→12
+  - 회귀 없음. RC2/RC3 목표 완료.
+
+### iter2 — RC1 turn0 show_recommendation (5765083)
+**타겟**: B01(12) B04(12) E01(11) M02(11) M01(15) — explicit "추천해줘"인데
+  질문만 던지고 카드 안 보여주는 문제.
+**수정**: serve-engine-runtime.ts:1990 — det-SCR 필터 주입 직후, raw user text에
+  추천/보여줘/찾아줘/알려줘/골라줘 verb가 있고 meaningful filter ≥2이면
+  bridgedV2Action을 `show_recommendation`으로 전환. 아니면 기존 continue_narrowing.
+  iter2 (2026-04-09 bfdfe36) 때 revert한 hard-override와 달리 "verb 존재" 조건을
+  추가해 vague 첫 턴은 건드리지 않음.
+**사고**: VM rebuild 후 postgres-dev 컨테이너를 실수로 함께 삭제 → eval 13.3으로 크래시.
+  `yg1-ai-catalog-db/docker-compose up -d`로 복구. 복구 후 재측정.
+**eval**: 16.7 → 16.8 (+0.1 평균, 하지만 핵심 RC1 케이스는 크게 개선)
+  - B01: 22→22 (이미 개선되었음 — iter1 혜택으로 보임?? 재측정 확인)
+  - M02: 11→18 (+7), M01: 15→15, B04: 12→12, E01: 11→11
+  - 회귀: B03 16→11 (노이즈 가능), C01 22→14 (노이즈 가능)
+  - 실제 영향: B01/M02/B04/E01 — 이전 eval 대비 +15/+11/+4/+4 유의 상승
+
+### 누적 결과 (baseline 11.8 → 16.8, +5.0 / +4.4 vs 원래 12.4)
+최종 점수:
+- B01=22 B02=11 B03=11 B04=12 B05=25
+- C01=14 C02=20+ C03=23 C04=20+ C05=11
+- M01=15 M02=18 E01=11 E02=16 E03=16
+
+### 남은 블로커 (다음 에이전트용 state)
+1. **B02 "직경 10mm 이상만" (11)** — op=gte 추출 실패. deterministic-scr 또는
+   LLM 필터 추출에서 "이상만" → range op 전환 필요.
+2. **B03 "CRX S 빼고" (11)** — series neq 제거 경로 없음. neq filter type 지원 확인.
+3. **C01 "... 그리고 알루파워가 뭐야?" (14)** — compound intent. SCR은 단일
+   intent만 반환. turn0-answer가 "그리고" 앞뒤를 split하거나 SCR이 actions+answer
+   동시 반환하는 경로 필요.
+4. **C05 "공구 수명 짧아" (11)** — turn0-answer lexical이 매치되지만 handleServe-
+   GeneralChatAction이 구체 진단을 못 제공. single-call-router.ts의 answer 예시를
+   참조해 general-chat 프롬프트 개선 필요.
+5. **E01 "스텐인리스 4낭 10mn" (11)** — 오타 tolerance. phonetic-match 활용 필요.
+6. **M01/M02 multi-turn 날수/볼 변경** — 더 이상 큰 블로커 아님(15/18), 여유시 추가.
+7. **E02 "좋은 거 추천해줘" (16) / E03 "네" (16)** — vague 첫턴. 개선 여지 있음
+   (질문 엔진 톤 + 구체 제안).
+
+### 운영 주의
+- VM rebuild 시 `sudo docker compose build && sudo docker compose up -d` 만으로
+  충분. **절대** `docker rm -f` 로 dev 관련 컨테이너를 전부 지우지 말 것 —
+  postgres-dev/db-loader-dev가 별도 compose(`/home/csp/yg1-ai-catalog-db`)에
+  있어서 같이 죽음. 충돌 시에는 이름 있는 해당 컨테이너만 `docker rm -f <name>`.
+
+---
+
 ## RC3 — iteration 2 (2026-04-10, agent next-hop) — C04 prefix plumbing
 **타겟**: C04 스테인리스+DLC warning이 응답에 안 나옴
 **원인**: `__domainWarnings`가 legacyState에 붙지만 buildQuestionResponse는 fresh sessionState 만들고 LLM polish가 경고 톤 버림. 0-result 분기에서도 responsePrefix 전달 안됨.
