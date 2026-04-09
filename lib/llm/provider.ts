@@ -659,7 +659,7 @@ export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
         body.max_completion_tokens = maxTokens
         const effort = AGENT_REASONING_EFFORT[(agentNameArg ?? agentName) as AgentName]
         
-        if (effort) body.reasoning_effort = effort
+        // if (effort) body.reasoning_effort = effort  // disabled — chat.completions 경로에서 타임아웃 유발
         effortApplied = effort ?? "medium(default)"
       } else {
         body.max_tokens = maxTokens
@@ -763,7 +763,7 @@ export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
         body.max_completion_tokens = maxTokens
         const effort = AGENT_REASONING_EFFORT[(agentNameArg ?? agentName) as AgentName]
         
-        if (effort) body.reasoning_effort = effort
+        // if (effort) body.reasoning_effort = effort  // disabled — chat.completions 경로에서 타임아웃 유발
         effortApplied = effort ?? "medium(default)"
       } else {
         body.max_tokens = maxTokens
@@ -1002,7 +1002,7 @@ export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
         body.max_completion_tokens = maxTokens
         const effort = AGENT_REASONING_EFFORT[(agentNameArg ?? agentName) as AgentName]
         
-        if (effort) body.reasoning_effort = effort
+        // if (effort) body.reasoning_effort = effort  // disabled — chat.completions 경로에서 타임아웃 유발
         effortApplied = effort ?? "medium(default)"
       } else {
         body.max_tokens = maxTokens
