@@ -1,7 +1,35 @@
 /**
  * LLM Provider Abstraction
- * Supports Claude (with tool_use), OpenAI (placeholder), Azure (placeholder).
- * Falls back to deterministic summary if no key available.
+ *
+ * ┌─────────────────────────────────────────────────────────────────────┐
+ * │  ROUTING MODEL (read this before changing anything below)            │
+ * ├─────────────────────────────────────────────────────────────────────┤
+ * │  Call sites pass two things to a provider:                           │
+ * │    • agentName: AgentName     — *what* is calling (semantic role)    │
+ * │    • model: ModelTier|string  — "haiku"|"sonnet"|"opus" or raw id    │
+ * │                                                                      │
+ * │  The TIER LABEL ("haiku"|"sonnet"|"opus") is provider-agnostic.      │
+ * │  It expresses *intended weight*, not a literal model id:             │
+ * │    haiku  → light  (extraction, classification, normalization)       │
+ * │    sonnet → mid    (judgment, comparison, response composition)      │
+ * │    opus   → heavy  (rare, only for the hardest reasoning)            │
+ * │                                                                      │
+ * │  Each backend resolves the tier to its own concrete model id:        │
+ * │    Anthropic side → ANTHROPIC_HAIKU_MODEL / SONNET / OPUS env        │
+ * │    OpenAI    side → OPENAI_HAIKU_MODEL    / SONNET / OPUS env        │
+ * │  Per-agent overrides (AGENT_<NAME>_MODEL) win over tier defaults.    │
+ * │                                                                      │
+ * │  The single source of truth for "which tier does each agent want"    │
+ * │  is AGENT_TIER below. Both providers consult it so the meaning of    │
+ * │  "haiku" stays consistent regardless of which backend is active.     │
+ * │                                                                      │
+ * │  Provider selection (Anthropic vs OpenAI) is orthogonal — driven by  │
+ * │  LLM_PROVIDER / AGENT_<NAME>_PROVIDER. See getProviderForAgent().    │
+ * └─────────────────────────────────────────────────────────────────────┘
+ *
+ * Supports Claude (with tool_use), OpenAI-compatible (OpenAI / Groq / xAI /
+ * Gemini / DeepSeek / Mistral / Together / Fireworks / OpenRouter / Ollama
+ * / LM Studio / vLLM). Falls back to deterministic summary if no key.
  */
 
 import { createAnthropicMessageWithLogging } from "@/lib/llm/anthropic-tracer"
@@ -81,6 +109,40 @@ export type AgentName =
   | "query-planner"
   | "self-correction"
   | "turn-repair"
+
+/** SINGLE SOURCE OF TRUTH — agent → intended weight (tier).
+ *  Both Anthropic and OpenAI providers consult this so "haiku" means the
+ *  same thing on both backends. Update this map when adding a new agent. */
+export const AGENT_TIER: Record<AgentName, ModelTier> = {
+  // Light: extraction, classification, normalization, mechanical routing
+  "parameter-extractor":     "haiku",
+  "single-call-router":      "haiku",
+  "query-planner":           "haiku",
+  // Mid: judgment, semantic interpretation, multi-step orchestration
+  "intent-classifier":       "sonnet",
+  "ambiguity-resolver":      "sonnet",
+  "semantic-turn-extractor": "sonnet",
+  "unified-judgment":        "sonnet",
+  "turn-orchestrator":       "sonnet",
+  "tool-use-router":         "sonnet",
+  "comparison":              "sonnet",
+  "query-decomposer":        "sonnet",
+  "response-composer":       "sonnet",
+  "self-correction":         "sonnet",
+  "turn-repair":             "sonnet",
+}
+
+/** Infer the tier from a literal Anthropic model id, e.g.
+ *  "claude-haiku-4-5-20251001" → "haiku". Used by the OpenAI provider so
+ *  callers that pass `resolveModel("haiku")` (which returns an Anthropic id)
+ *  still get a tier-aware OpenAI model lookup. Returns null if unknown. */
+export function inferTierFromModel(modelId?: string): ModelTier | null {
+  if (!modelId) return null
+  if (/haiku/i.test(modelId)) return "haiku"
+  if (/sonnet/i.test(modelId)) return "sonnet"
+  if (/opus/i.test(modelId)) return "opus"
+  return null
+}
 
 export interface LLMProvider {
   complete(systemPrompt: string, messages: LLMMessage[], maxTokens?: number, model?: ModelSpecifier, agentName?: AgentName): Promise<string>
@@ -451,19 +513,35 @@ interface OpenAICompatibleConfig {
   model: string
 }
 
-/** Resolve OpenAI-compatible config with per-agent override.
- *  Priority (highest first):
- *    1. AGENT_<NAME>_PROVIDER + AGENT_<NAME>_MODEL/API_KEY/BASE_URL
- *    2. LLM_PROVIDER (global) + LLM_MODEL/API_KEY/BASE_URL
- *    3. OPENAI_* defaults
+/** Resolve OpenAI-compatible config with per-agent + per-tier override.
+ *  Priority for MODEL (highest first):
+ *    1. AGENT_<NAME>_MODEL          — per-agent override (rarely used)
+ *    2. OPENAI_<TIER>_MODEL         — tier-level override (HAIKU/SONNET/OPUS)
+ *                                     ← this is the main lever for cost/latency
+ *    3. LLM_MODEL / OPENAI_MODEL    — global default
+ *  Priority for API_KEY / BASE_URL:
+ *    1. AGENT_<NAME>_API_KEY / BASE_URL
+ *    2. LLM_API_KEY / OPENAI_API_KEY (and base url equivalents)
+ *
+ *  tierHint comes from either AGENT_TIER[agentName] or, when the caller
+ *  resolved to a literal Anthropic id, inferTierFromModel(modelId).
  */
-function resolveOpenAICompatibleConfig(agentName?: AgentName): OpenAICompatibleConfig | null {
+function resolveOpenAICompatibleConfig(
+  agentName?: AgentName,
+  tierHint?: ModelTier,
+): OpenAICompatibleConfig | null {
   const agentEnvKey = agentName ? agentName.toUpperCase().replace(/-/g, "_") : null
+  const effectiveTier = tierHint ?? (agentName ? AGENT_TIER[agentName] : undefined)
 
   function pick(suffix: string): string | undefined {
     if (agentEnvKey) {
       const v = process.env[`AGENT_${agentEnvKey}_${suffix}`]
       if (v) return v
+    }
+    // Tier-level override only applies to MODEL — API_KEY/BASE_URL don't vary by tier.
+    if (suffix === "MODEL" && effectiveTier) {
+      const tierModel = process.env[`OPENAI_${effectiveTier.toUpperCase()}_MODEL`]
+      if (tierModel) return tierModel
     }
     return process.env[`LLM_${suffix}`] || process.env[`OPENAI_${suffix === "API_KEY" ? "API_KEY" : suffix}`]
   }
@@ -505,8 +583,9 @@ export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
   const config = resolveOpenAICompatibleConfig(agentName)
   return {
     available() { return config != null },
-    async complete(systemPrompt, messages, maxTokens = 1500, _model, agentNameArg) {
-      const cfg = resolveOpenAICompatibleConfig(agentNameArg ?? agentName)
+    async complete(systemPrompt, messages, maxTokens = 1500, model, agentNameArg) {
+      const tierHint = inferTierFromModel(typeof model === "string" ? model : undefined)
+      const cfg = resolveOpenAICompatibleConfig(agentNameArg ?? agentName, tierHint ?? undefined)
       if (!cfg) throw new Error("OpenAI-compatible provider not configured")
       const startMs = Date.now()
       const url = cfg.baseURL.replace(/\/$/, "") + "/chat/completions"
@@ -611,8 +690,9 @@ export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
         throw error
       }
     },
-    async *stream(systemPrompt, messages, maxTokens = 1500, _model, agentNameArg) {
-      const cfg = resolveOpenAICompatibleConfig(agentNameArg ?? agentName)
+    async *stream(systemPrompt, messages, maxTokens = 1500, model, agentNameArg) {
+      const tierHint = inferTierFromModel(typeof model === "string" ? model : undefined)
+      const cfg = resolveOpenAICompatibleConfig(agentNameArg ?? agentName, tierHint ?? undefined)
       if (!cfg) throw new Error("OpenAI-compatible provider not configured")
       const startMs = Date.now()
       const url = cfg.baseURL.replace(/\/$/, "") + "/chat/completions"
@@ -705,8 +785,9 @@ export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
         throw error
       }
     },
-    async completeWithTools(systemPrompt, messages, tools, maxTokens = 1500, _model, agentNameArg) {
-      const cfg = resolveOpenAICompatibleConfig(agentNameArg ?? agentName)
+    async completeWithTools(systemPrompt, messages, tools, maxTokens = 1500, model, agentNameArg) {
+      const tierHint = inferTierFromModel(typeof model === "string" ? model : undefined)
+      const cfg = resolveOpenAICompatibleConfig(agentNameArg ?? agentName, tierHint ?? undefined)
       if (!cfg) throw new Error("OpenAI-compatible provider not configured")
       const startMs = Date.now()
       const url = cfg.baseURL.replace(/\/$/, "") + "/chat/completions"
