@@ -936,6 +936,33 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
     }
   }
 
+  // 2.5) Relative shape/length cues — value 없는 op-only 필터들
+  // M51 "다날", M39 "긴", M40 "짧은", M17 "더블엔드"
+  if (!seen.has("fluteCount") && /(다\s*날|다인|multi[- ]?flute)/i.test(text)) {
+    actions.push({ type: "apply_filter", field: "fluteCount", value: 5, op: "gte", source: "deterministic" })
+    seen.add("fluteCount")
+  }
+  if (!seen.has("fluteCount") && /(소수\s*날|날\s*적은|적은\s*날|few[- ]?flute)/i.test(text)) {
+    actions.push({ type: "apply_filter", field: "fluteCount", value: 3, op: "lte", source: "deterministic" })
+    seen.add("fluteCount")
+  }
+  if (!seen.has("overallLengthMm") && /(긴\s*엔드밀|길이\s*가\s*긴|long\s*(?:endmill|reach|length))/i.test(text)) {
+    actions.push({ type: "apply_filter", field: "overallLengthMm", value: 100, op: "gte", source: "deterministic" })
+    seen.add("overallLengthMm")
+  }
+  if (!seen.has("overallLengthMm") && /(짧은\s*엔드밀|길이\s*가\s*짧은|short\s*(?:endmill|reach|length))/i.test(text)) {
+    actions.push({ type: "apply_filter", field: "overallLengthMm", value: 80, op: "lte", source: "deterministic" })
+    seen.add("overallLengthMm")
+  }
+  if (!seen.has("toolSubtype") && /(더블\s*엔드|양\s*날\s*엔드밀|양\s*끝\s*날|double[- ]?end(?:ed)?)/i.test(text)) {
+    actions.push({ type: "apply_filter", field: "toolSubtype", value: "Double", op: "eq", source: "deterministic" })
+    seen.add("toolSubtype")
+  }
+  if (!seen.has("toolSubtype") && /(싱글\s*엔드|single[- ]?end(?:ed)?)/i.test(text)) {
+    actions.push({ type: "apply_filter", field: "toolSubtype", value: "Single", op: "eq", source: "deterministic" })
+    seen.add("toolSubtype")
+  }
+
   // 3) Inch fraction → diameter (1/4인치)
   if (!seen.has("diameterMm")) {
     const inch = parseInchFraction(text)
