@@ -2943,23 +2943,39 @@ async function handleServeExplorationInner(
               break
             }
             case "answer": {
-              if (!prevState) break // first turn — fall through to legacy
-              // Record Q&A in long-term memory
-              if (prevState.conversationMemory) {
+              // Record Q&A in long-term memory (only if session exists)
+              if (prevState?.conversationMemory) {
                 const questionField = prevState.lastAskedField ?? null
                 recordQA(prevState.conversationMemory, lastUserMsg.text, singleResult.answer || "", questionField, turnCount)
                 recordHighlight(prevState.conversationMemory, turnCount, "question", lastUserMsg.text.slice(0, 50), questionField ?? undefined)
-                // If asking about current pending field → confusion signal
                 if (questionField) recordConfusion(prevState.conversationMemory, questionField)
+              }
+              // Turn 0 (no prevState): build a minimal session state so general-chat handler has context.
+              const answerState = prevState ?? buildSessionState({
+                candidateCount: 0,
+                appliedFilters: filters,
+                narrowingHistory,
+                stageHistory: [],
+                resolutionStatus: "narrowing",
+                resolvedInput: currentInput,
+                turnCount,
+                displayedCandidates: [],
+                displayedChips: [],
+                displayedOptions: [],
+                currentMode: "question",
+              })
+              // Stash SCR's answer text so prompt-builder can inject it as the core answer.
+              if (singleResult.answer) {
+                ;(answerState as unknown as { __qaDirectAnswer?: string }).__qaDirectAnswer = singleResult.answer
               }
               return handleServeGeneralChatAction({
                 deps,
-                action: { type: "answer_general", message: lastUserMsg.text },
+                action: { type: "answer_general", message: singleResult.answer || lastUserMsg.text },
                 orchResult: buildPreSearchOrchestratorResult(lastUserMsg.text, "single_call_answer"),
                 provider,
                 form,
                 messages,
-                prevState,
+                prevState: answerState,
                 filters,
                 narrowingHistory,
                 currentInput,
