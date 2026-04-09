@@ -250,7 +250,7 @@ function buildFluteQuestion(input: RecommendationInput, candidates: ScoredProduc
 
   return {
     field: "fluteCount",
-    questionText: `현재 ${candidates.length}개 후보가 있습니다. 날 수(flute) 선호가 있으신가요?`,
+    questionText: `날 수는 몇 날이 좋으실까요? 2·3·4날이 가장 많이 쓰입니다.`,
     chips,
     infoGain: gain,
   }
@@ -453,7 +453,7 @@ function buildDiameterQuestion(input: RecommendationInput, candidates: ScoredPro
   const diameterPreview = [...diameterCounts.keys()].sort((a, b) => a - b).slice(0, 5).map(v => `${v}mm`).join(", ")
   return {
     field: "diameterMm",
-    questionText: `필요한 직경을 선택하거나 직접 입력해주세요. 현재 후보에는 ${diameterPreview}${diameterCounts.size > 5 ? " 등이" : "가"} 있습니다.`,
+    questionText: `직경은 어느 정도가 필요하세요? ${diameterPreview}${diameterCounts.size > 5 ? " 등이" : "가"} 많이 나갑니다.`,
     chips,
     infoGain: gain,
   }
@@ -486,7 +486,7 @@ function buildDiameterRefineQuestion(input: RecommendationInput, candidates: Sco
 
   return {
     field: "diameterRefine",
-    questionText: `직경 ${input.diameterMm}mm 근처에 ${closestDiameters.join(", ")}mm가 있습니다. 정확한 직경을 선택해주세요.`,
+    questionText: `${input.diameterMm}mm 근처로 ${closestDiameters.join(", ")}mm가 있는데, 어느 쪽이 맞으세요?`,
     chips: closestDiameters.map(diameter => `${diameter}mm`),
     infoGain: 0.6,
   }
