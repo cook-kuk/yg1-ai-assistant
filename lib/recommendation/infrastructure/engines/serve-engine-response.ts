@@ -572,7 +572,10 @@ export async function buildQuestionResponse(
     fullDisplayedProducts: candidateSnapshot,
     displayedSeriesGroups,
     uiNarrowingPath: buildUINarrowingPath(filters, history, totalCandidateCount),
-    currentMode: messages.length === 0 ? "question" : "narrowing",
+    // 0 candidates → "question" (사용자에게 조건 완화를 요청하는 회복 분기). narrowing 으로
+    // 박으면 UX가 "더 좁히는 중" 처럼 보이고 FB-36 (티타늄 0.5mm Taper 6날) 같은 극한 조건에서
+    // 무한히 narrowing 모드로 떠 있게 됨.
+    currentMode: messages.length === 0 ? "question" : totalCandidateCount === 0 ? "question" : "narrowing",
     displayedCandidates: candidateSnapshot,
     fullDisplayedCandidates: fullCandidateSnapshot,
     filterValueScope,
