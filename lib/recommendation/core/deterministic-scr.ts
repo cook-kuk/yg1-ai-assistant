@@ -87,8 +87,8 @@ const FIELD_CUES: Array<{ pattern: RegExp; field: string; numeric: boolean }> = 
   { pattern: /(날수|날\s*수|\bflute\s*count\b|\bflutes?\b)/i, field: "fluteCount", numeric: true },
 ]
 
-// "4날", "2 flute", "5F" 같은 inline flute count 패턴
-const INLINE_FLUTE_RE = /(\d+)\s*(?:날|flutes?|fl\b|f\b)/i
+// "4날", "2 flute", "5F" 같은 inline flute count 패턴. "낭" 은 "날" 의 흔한 오타.
+const INLINE_FLUTE_RE = /(\d+)\s*(?:날|낭|flutes?|fl\b|f\b)/i
 
 // Operator markers (range). 위치는 value 뒤에 와야 함.
 const OP_MARKERS: Array<{ pattern: RegExp; op: "gte" | "lte" }> = [
@@ -1030,7 +1030,8 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
   // 헬릭스 등) 가 소비한 위치는 consumedRanges 로 skip. "4날", "100mm 이상",
   // "RPM 8000" 같은 다른 의미의 숫자도 제외해야 한다.
   if (!seen.has("diameterMm")) {
-    const re = /(?<![\d.])(\d+(?:\.\d+)?)\s*mm\b/gi
+    // "mn" 은 "mm" 의 흔한 키보드 오타
+    const re = /(?<![\d.])(\d+(?:\.\d+)?)\s*(?:mm|mn)\b/gi
     let match: RegExpExecArray | null
     while ((match = re.exec(text)) !== null) {
       const numStart = match.index
