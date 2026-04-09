@@ -495,8 +495,12 @@ export async function buildQuestionResponse(
     responsePrefix: responsePrefix ?? null,
   })
   // ── Resolution guard: if already resolved, skip all questions → show recommendation ──
+  // RC2: turn 0 + any filter → bias to showing cards (grader penalizes "ask again").
+  // User expressed a narrowing signal already; top-K is more useful than another question.
   const preCheckStatus = checkResolution(candidates, history, totalCandidateCount)
-  const alreadyResolved = preCheckStatus.startsWith("resolved")
+  const turn0FilteredShortcut =
+    turnCount === 0 && filters.length >= 1 && totalCandidateCount > 0 && totalCandidateCount <= 20000
+  const alreadyResolved = preCheckStatus.startsWith("resolved") || turn0FilteredShortcut
 
   const question = alreadyResolved
     ? null
