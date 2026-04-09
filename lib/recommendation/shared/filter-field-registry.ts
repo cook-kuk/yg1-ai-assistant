@@ -1182,7 +1182,7 @@ export function buildAppliedFilterFromValue(
   if (definition.kind === "number" && typeof rawValue === "string") {
     const inchMm = parseFractionalInchToMm(rawValue.trim())
     if (inchMm != null) {
-      return buildAppliedFilterFromValue(field, inchMm, appliedAt)
+      return buildAppliedFilterFromValue(field, inchMm, appliedAt, opOverride)
     }
   }
 
@@ -1250,16 +1250,31 @@ export function parseFieldAnswerToFilter(field: string, answer: string): Applied
   if (!clean) return null
   if (SKIP_TOKENS.has(clean.toLowerCase())) return null
 
-  // For numeric fields, try fractional inch conversion BEFORE multi-value splitting
-  // so that "3/8\"" doesn't get split on "/" by MULTI_VALUE_SEPARATOR_PATTERN.
+  // ── 범위 연산자 감지 (숫자 필드): "100mm 이상만" → gte 100, "50 이하" → lte 50 ──
+  let opOverride: string | undefined
+  let valueCleaned = clean
   if (definition.kind === "number") {
-    const inchMm = parseFractionalInchToMm(clean)
-    if (inchMm != null) {
-      return buildAppliedFilterFromValue(field, inchMm, 0)
+    const rangeMatch = clean.match(/(-?\d+(?:\.\d+)?)\s*(?:mm|파이|ø|φ)?\s*(이상|넘는|초과|최소|이하|미만|최대|이내)/u)
+    const reverseMatch = !rangeMatch ? clean.match(/(이상|넘는|초과|최소|이하|미만|최대|이내)\s*(-?\d+(?:\.\d+)?)\s*(?:mm|파이|ø|φ)?/u) : null
+    const marker = rangeMatch?.[2] ?? reverseMatch?.[1]
+    const numStr = rangeMatch?.[1] ?? reverseMatch?.[2]
+    if (marker && numStr) {
+      valueCleaned = numStr
+      if (/이상|넘는|초과|최소/.test(marker)) opOverride = "gte"
+      else if (/이하|미만|최대|이내/.test(marker)) opOverride = "lte"
     }
   }
 
-  return buildAppliedFilterFromValue(field, clean, 0)
+  // For numeric fields, try fractional inch conversion BEFORE multi-value splitting
+  // so that "3/8\"" doesn't get split on "/" by MULTI_VALUE_SEPARATOR_PATTERN.
+  if (definition.kind === "number") {
+    const inchMm = parseFractionalInchToMm(valueCleaned)
+    if (inchMm != null) {
+      return buildAppliedFilterFromValue(field, inchMm, 0, opOverride)
+    }
+  }
+
+  return buildAppliedFilterFromValue(field, valueCleaned, 0, opOverride)
 }
 
 export function applyFilterToRecommendationInput(input: RecommendationInput, filter: AppliedFilter): RecommendationInput {

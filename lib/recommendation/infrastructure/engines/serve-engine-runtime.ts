@@ -2049,7 +2049,7 @@ async function handleServeExplorationInner(
     // SQL Agent / KG / SCR LLM을 거치지 않고 바로 적용. J06 회귀 방지:
     // SQL Agent Haiku가 "추천해줘"를 _skip 메타로 오인해 코팅 필터를 누락시키던
     // 버그를 차단한다. edit-intent 시그널이 있으면 양보(말고/빼고/바꿔는 edit-intent가 처리).
-    if (!singleCallHandled && lastUserMsg && !hasEditSignal(msg)) {
+    if (!singleCallHandled && lastUserMsg && !hasEditSignal(msg) && !shouldResolvePendingSelectionEarly) {
       const detPreActions = parseDeterministic(msg)
       const detApplyActions = detPreActions.filter(a => a.type === "apply_filter" && a.field && a.value != null)
       if (detApplyActions.length > 0) {
@@ -2107,7 +2107,7 @@ async function handleServeExplorationInner(
     // ── 1. Edit-Intent Layer: state modification (deterministic, 0 LLM calls) ──
     // Handles replace/exclude/clear/go_back/reset — runs BEFORE KG so edit
     // expressions are not intercepted by KG's exclude patterns.
-    if (!singleCallHandled && lastUserMsg && hasEditSignal(msg)) {
+    if (!singleCallHandled && lastUserMsg && hasEditSignal(msg) && !shouldResolvePendingSelectionEarly) {
       let editResult: ReturnType<typeof parseEditIntent> = null
       try {
         editResult = parseEditIntent(msg, filters)
@@ -2201,7 +2201,7 @@ async function handleServeExplorationInner(
     // KG entirely so SCR/sql-agent + LLM handle all extraction. Used for A/B
     // testing the LLM-only path against the KG-augmented path.
     let kgHint: string | undefined
-    if (!singleCallHandled && lastUserMsg && !isKgDisabled()) {
+    if (!singleCallHandled && lastUserMsg && !isKgDisabled() && !shouldResolvePendingSelectionEarly) {
       const kgResult = tryKGDecision(msg, prevState)
       trace.add("knowledge-graph", "router", { confidence: kgResult.confidence, source: kgResult.source, reason: kgResult.reason })
 
@@ -2302,7 +2302,7 @@ async function handleServeExplorationInner(
     // Handles filters + negation + navigation — replaces deterministic negation handler
     // Wrapped in semantic-cache: identical/synonymous queries with the same filter
     // context replay the cached agent result and skip the LLM call entirely.
-    if (!singleCallHandled && lastUserMsg) {
+    if (!singleCallHandled && lastUserMsg && !shouldResolvePendingSelectionEarly) {
       try {
         const schema = getDbSchemaSync()
         if (schema) {
