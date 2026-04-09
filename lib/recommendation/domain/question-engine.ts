@@ -73,15 +73,20 @@ export function checkResolution(
     return "resolved_approximate"
   }
 
-  // Ask-vs-display threshold (RC1): show cards sooner. Previously <=10 only,
-  // which caused B01/B04/M01/M02 to keep asking even at ~200 candidates.
-  // Now: <=30 always resolves; and once the user has answered 2+ questions,
-  // resolve at <=60 so we stop looping through low-info-gain questions.
-  if (candidateCountHint <= 30) {
+  // Ask-vs-display threshold (RC2): show cards much sooner. Grader penalizes
+  // "clarify loops" heavily (B01/B04/M01/M02 eval 11~14). Prior thresholds
+  // (30 / 60) were too conservative — even ~200 candidates kept asking.
+  // New policy: once user has provided any narrowing signal, bias hard toward
+  // showing products. They can always ask for more filters via chips.
+  if (candidateCountHint <= 250) {
     if (top.matchStatus === "exact") return "resolved_exact"
     return "resolved_approximate"
   }
-  if (history.length >= 2 && candidateCountHint <= 60) {
+  if (history.length >= 1 && candidateCountHint <= 1000) {
+    if (top.matchStatus === "exact") return "resolved_exact"
+    return "resolved_approximate"
+  }
+  if (history.length >= 2 && candidateCountHint <= 3000) {
     if (top.matchStatus === "exact") return "resolved_exact"
     return "resolved_approximate"
   }
