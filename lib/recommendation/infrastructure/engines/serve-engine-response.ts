@@ -630,15 +630,22 @@ export async function buildQuestionResponse(
   let responseChips = question?.chips ?? chips
   const latestTurnWasSkip = didLatestNarrowingTurnSkip(history)
 
-  // Note: first-turn intake used to skip LLM polish with a hardcoded
-  // "현재 N개 후보가 있습니다. ..." template. That produced a mechanical,
-  // robotic tone that violated the unified-brain conversational rules.
-  // The old skip was justified when polish used sonnet medium-effort (20~50s),
-  // but the narrative-polish agent (gpt-5-mini, reasoning=minimal) is ~1s,
-  // so first turn now goes through the same slim polish path below.
+  // First-turn intake: the only message is a synthesized intake summary (not
+  // natural user text), so the slim polish path downstream tends to produce
+  // weird fallbacks. Keep a deterministic template here, but write it in a
+  // conversational tone instead of the old "현재 N개 후보가 있습니다" boilerplate
+  // that violated the unified-brain rules.
+  const isFirstTurnIntakeResponse = messages.length === 1 && history.length === 0 && !overrideText
 
   if (overrideText) {
     // no-op
+  } else if (isFirstTurnIntakeResponse) {
+    if (question?.questionText) {
+      responseText = language === "ko"
+        ? question.questionText
+        : question.questionText
+    }
+    console.log("[first-turn-intake] Deterministic conversational question (no count preamble)")
   } else if (provider.available() && messages.length === 0) {
     try {
       const systemPrompt = buildSystemPrompt(language)
