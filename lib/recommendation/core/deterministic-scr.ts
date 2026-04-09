@@ -37,6 +37,13 @@ export interface DeterministicAction {
   value2?: string | number
   op: "eq" | "neq" | "gte" | "lte" | "between"
   source: "deterministic"
+  /**
+   * 추출이 명시적인 cue 사전(예: COUNTRY_PATTERNS, TOOL_MATERIAL_PATTERNS)에서
+   * 왔다는 표식. phantom guard 는 이 플래그가 true 면 canonical value 가
+   * substring 매칭 안 돼도 통과시킨다 ("국내산" → country=한국 같은 동의어 케이스).
+   * MV reverse-index / phonetic 같은 phantom 위험 경로에서는 절대 set 하지 말 것.
+   */
+  viaExplicitCue?: boolean
 }
 
 /**
@@ -73,8 +80,9 @@ const FIELD_CUES: Array<{ pattern: RegExp; field: string; numeric: boolean }> = 
   { pattern: /(나사\s*피치|스레드\s*피치|thread\s*pitch|\bpitch\b|\bp\s*\d)/i, field: "threadPitchMm", numeric: true },
   // 볼/코너 R
   { pattern: /(코너\s*r|코너\s*반경|볼\s*반경|ball\s*radius|corner\s*r)/i, field: "ballRadiusMm", numeric: true },
-  // 직경 (가장 일반적이라 마지막). 단 "샹크 직경"/"생크 직경"은 위에서 이미 처리됨
-  { pattern: /(?<![샹생][크])\s*(직경|지름|외경|파이|\bdia(?:meter)?\b|\bφ|\bø)/i, field: "diameterMm", numeric: true },
+  // 직경 (가장 일반적이라 마지막). 단 "샹크 직경"/"생크 직경"은 위에서 이미 처리됨.
+  // φ/ø 는 비-word 문자라 \b 를 쓰면 시작 위치에서 매칭 실패함 → \b 제거.
+  { pattern: /(?<![샹생][크])\s*(직경|지름|외경|파이|\bdia(?:meter)?\b|φ|ø)/i, field: "diameterMm", numeric: true },
   // 날수
   { pattern: /(날수|날\s*수|\bflute\s*count\b|\bflutes?\b)/i, field: "fluteCount", numeric: true },
 ]
@@ -371,9 +379,11 @@ const STOCK_PATTERNS = [
   /재고[가는은이도]?\s*있/, /재고만/, /재고[가는은이]?\s*\d/, /재고로/, /재고\b/, /in[-\s]?stock/i, /즉시\s*출하/, /빠른\s*납기/, /납기\s*빠른/,
 ]
 
-// 쿨런트홀 (coolant hole)
+// 쿨런트홀 (coolant hole). negation 표현("쿨런트 없는")도 게이트를 통과해야
+// 아래의 isNeg 분기에서 false 값으로 추출된다.
 const COOLANT_PATTERNS = [
   /쿨런트\s*홀/, /쿨런트\s*구멍/, /coolant\s*hole/i, /내부\s*냉각/,
+  /쿨런트\s*없/, /coolant.*없/i, /쿨런트\s*안\s*되/,
 ]
 
 // 공구 소재 (tool material) — registry queryAliases (filter-field-registry.ts:704) 와 동기화.
@@ -1160,11 +1170,12 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
     }
   }
 
-  // 9) 국가
+  // 9) 국가 — 명시적 cue 사전("국내", "국산", "내수") 으로 canonical "한국" 매핑.
+  // 동의어 매칭이라 phantom guard 의 substring 검증을 통과 못 하므로 viaExplicitCue 표식 부착.
   if (!seen.has("country")) {
     for (const { pattern, value } of COUNTRY_PATTERNS) {
       if (pattern.test(text)) {
-        actions.push({ type: "apply_filter", field: "country", value, op: "eq", source: "deterministic" })
+        actions.push({ type: "apply_filter", field: "country", value, op: "eq", source: "deterministic", viaExplicitCue: true })
         seen.add("country")
         break
       }
@@ -1306,6 +1317,9 @@ function filterPhantomCategoricalActions(
 ): DeterministicAction[] {
   return actions.filter(a => {
     if (!PHANTOM_GUARDED_FIELDS.has(a.field)) return true
+    // 명시적 cue 사전(예: COUNTRY_PATTERNS) 에서 추출된 액션은 동의어 매핑이라
+    // canonical value 가 user text 에 substring 으로 안 나타날 수 있다 — 통과시킨다.
+    if (a.viaExplicitCue) return true
     const valueStr = String(a.value ?? "")
     if (!valueStr) return true
     if (hasBoundedPhantomMatch(valueStr, userMessage)) return true
