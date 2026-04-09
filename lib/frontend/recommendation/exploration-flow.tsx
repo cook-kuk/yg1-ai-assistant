@@ -356,18 +356,6 @@ function ReasoningBlock({
   const startedAtRef = useRef<number | null>(null)
   const finalMsRef = useRef<number | null>(null)
 
-  // 최근 추론 소요시간 이동평균(localStorage) — 첫 사용시 12s fallback.
-  // 매 추론 종료마다 push, 최근 10건 평균을 다음 estimate로 사용.
-  const STORAGE_KEY = "yg1.reasoningDurations.v1"
-  const [estimateMs, setEstimateMs] = useState<number>(() => {
-    if (typeof window === "undefined") return 12_000
-    try {
-      const arr = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]") as number[]
-      if (!Array.isArray(arr) || arr.length === 0) return 12_000
-      return arr.reduce((a, b) => a + b, 0) / arr.length
-    } catch { return 12_000 }
-  })
-
   useEffect(() => {
     if (isLoading) {
       if (startedAtRef.current === null) startedAtRef.current = Date.now()
@@ -379,45 +367,20 @@ function ReasoningBlock({
       }, 100)
       return () => clearInterval(id)
     }
-    // 스트리밍 종료: 최종 경과시간 고정 + 이동평균 갱신
     if (startedAtRef.current !== null && finalMsRef.current === null) {
       const final = Date.now() - startedAtRef.current
       finalMsRef.current = final
       setElapsedMs(final)
-      try {
-        const prev = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]") as number[]
-        const next = [...(Array.isArray(prev) ? prev : []), final].slice(-10)
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-        setEstimateMs(next.reduce((a, b) => a + b, 0) / next.length)
-      } catch {}
     }
     return undefined
   }, [isLoading])
 
-  // 스트리밍이 끝나도 본문을 접지 않는다 — 사용자가 추론 내역을
-  // 다시 펼쳐서 읽을 수 있도록 유지하고, 접고 싶으면 직접 토글한다.
-
+  // ChatGPT/Claude 웹 패턴: ETA 예측은 본질적으로 부정확해 거짓말이 되기 쉬움.
+  // → 진행률/남은시간 없이 경과초 + shimmer 만 표시.
   const seconds = Math.max(0, elapsedMs / 1000)
-  // 동적 ETA: elapsed가 estimate의 80%를 넘으면 estimate를 elapsed * 1.4로 늘려
-  // "남은 시간"이 항상 양수로 흐르도록. 더 걸릴 것 같으면 자동으로 시간 추가.
-  const liveEstimateMs = isLoading
-    ? Math.max(estimateMs, elapsedMs / 0.8, elapsedMs + 2_000)
-    : estimateMs
-  const rawProgress = !isLoading ? 1 : Math.min(0.95, elapsedMs / liveEstimateMs)
-  const remainingS = Math.max(1, Math.ceil((liveEstimateMs - elapsedMs) / 1000))
-  const timerLabel = !isLoading
-    ? `${Math.round(seconds)}s`
-    : (language === "ko" ? `${seconds.toFixed(1)}s · 약 ${remainingS}s 남음` : `${seconds.toFixed(1)}s · ~${remainingS}s left`)
   const headlineText = isLoading
     ? (language === "ko" ? "추론 중" : "Thinking")
     : (language === "ko" ? `${Math.max(1, Math.round(seconds))}초 동안 추론함` : `Thought for ${Math.max(1, Math.round(seconds))}s`)
-
-  // 원형 progress ring
-  const RING_SIZE = 14
-  const RING_STROKE = 2
-  const RING_R = (RING_SIZE - RING_STROKE) / 2
-  const RING_C = 2 * Math.PI * RING_R
-  const ringOffset = RING_C * (1 - rawProgress)
 
   return (
     <div className="mt-1 max-w-full">
@@ -426,40 +389,15 @@ function ReasoningBlock({
         onClick={() => setOpen(v => !v)}
         className="group flex items-center gap-2 px-2.5 py-1 rounded-full bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-colors"
       >
-        {isLoading ? (
-          <span className="relative inline-flex items-center justify-center shrink-0" style={{ width: RING_SIZE, height: RING_SIZE }}>
-            <svg width={RING_SIZE} height={RING_SIZE} className="-rotate-90">
-              <circle
-                cx={RING_SIZE / 2}
-                cy={RING_SIZE / 2}
-                r={RING_R}
-                fill="none"
-                stroke="#e5e7eb"
-                strokeWidth={RING_STROKE}
-              />
-              <circle
-                cx={RING_SIZE / 2}
-                cy={RING_SIZE / 2}
-                r={RING_R}
-                fill="none"
-                stroke="#3b82f6"
-                strokeWidth={RING_STROKE}
-                strokeLinecap="round"
-                strokeDasharray={RING_C}
-                strokeDashoffset={ringOffset}
-                style={{ transition: "stroke-dashoffset 200ms linear" }}
-              />
-            </svg>
-          </span>
-        ) : (
-          <Brain size={12} className="text-blue-500 shrink-0" />
-        )}
+        <Brain size={12} className={`shrink-0 ${isLoading ? "text-blue-500 animate-pulse" : "text-blue-500"}`} />
         <span className={`text-[11px] font-medium text-gray-700 leading-none ${isLoading ? "shimmer-text" : ""}`}>
           {headlineText}
         </span>
-        <span className="text-[10px] tabular-nums text-gray-500 leading-none font-mono">
-          {timerLabel}
-        </span>
+        {isLoading && (
+          <span className="text-[10px] tabular-nums text-gray-500 leading-none font-mono">
+            {seconds.toFixed(1)}s
+          </span>
+        )}
         <ChevronRight
           size={12}
           className={`text-gray-400 shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
