@@ -73,7 +73,15 @@ export function checkResolution(
     return "resolved_approximate"
   }
 
-  if (candidateCountHint <= 10) {
+  // Ask-vs-display threshold (RC1): show cards sooner. Previously <=10 only,
+  // which caused B01/B04/M01/M02 to keep asking even at ~200 candidates.
+  // Now: <=30 always resolves; and once the user has answered 2+ questions,
+  // resolve at <=60 so we stop looping through low-info-gain questions.
+  if (candidateCountHint <= 30) {
+    if (top.matchStatus === "exact") return "resolved_exact"
+    return "resolved_approximate"
+  }
+  if (history.length >= 2 && candidateCountHint <= 60) {
     if (top.matchStatus === "exact") return "resolved_exact"
     return "resolved_approximate"
   }
