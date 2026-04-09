@@ -3546,6 +3546,58 @@ async function handleServeExplorationInner(
           }
         }
 
+        // ── Kick features: domain-guard + predictive-filter + 견적 칩 ──
+        try {
+          const { checkDomainWarnings, formatWarningsForResponse } = await import("@/lib/recommendation/core/domain-guard")
+          const domainWarnings = checkDomainWarnings(legacyState.appliedFilters ?? [])
+          if (domainWarnings.length > 0) {
+            console.log(`[domain-guard] ${domainWarnings.length} warnings: ${domainWarnings.map(w => `${w.level}:${w.message.slice(0,50)}`).join("; ")}`)
+            const warningText = domainWarnings.map(w => `[${w.level}] ${w.message}`).join("\n")
+            legacyState.thinkingProcess = (legacyState.thinkingProcess ? legacyState.thinkingProcess + "\n\n" : "") + "⚠️ 도메인 경고:\n" + warningText
+            const responseText = formatWarningsForResponse(domainWarnings)
+            if (responseText) {
+              ;(legacyState as ExplorationSessionState & { __domainWarnings?: string }).__domainWarnings = responseText
+            }
+          }
+        } catch (e) {
+          console.warn("[domain-guard] error:", (e as Error).message)
+        }
+
+        // Predictive-filter: 0건 + 필터 2+개일 때 조건별 대안 건수 제시
+        if (totalCandidateCount === 0 && (legacyState.appliedFilters ?? []).length >= 2) {
+          try {
+            const { constraintsToFilters } = await import("@/lib/recommendation/core/search-adapter")
+            const { predictFilterResult } = await import("@/lib/recommendation/core/predictive-filter")
+            const { runHybridRetrieval: runHR } = await import("@/lib/recommendation/domain/hybrid-retrieval")
+            const { input: pfInput, filters: pfFilters } = constraintsToFilters(result.sessionState)
+            const prediction = await predictFilterResult(pfFilters, async (tf) => {
+              const hr = await runHR(pfInput, tf)
+              return hr.totalConsidered
+            })
+            if (prediction.willBeZero && prediction.suggestion) {
+              console.log(`[predictive-filter] 0건 예측, ${prediction.dropOneResults.length}개 대안`)
+              legacyState.thinkingProcess = (legacyState.thinkingProcess ? legacyState.thinkingProcess + "\n\n" : "") + "🔮 0건 예측:\n" + prediction.suggestion
+              ;(legacyState as ExplorationSessionState & { __predictiveSuggestion?: string }).__predictiveSuggestion = prediction.suggestion
+            }
+          } catch (e) {
+            console.warn("[predictive-filter] error:", (e as Error).message)
+          }
+        }
+
+        // Turn 3+ 이면서 후보가 적당히 좁혀진 경우 액션 칩(견적/절삭조건) 추가
+        if (
+          (legacyState.turnCount ?? 0) >= 3 &&
+          totalCandidateCount > 0 &&
+          totalCandidateCount <= 20 &&
+          Array.isArray(legacyState.displayedChips)
+        ) {
+          const existing = new Set(legacyState.displayedChips)
+          const actionChips = ["이 제품으로 견적 요청", "절삭조건 알려주세요"]
+          for (const c of actionChips) {
+            if (!existing.has(c)) legacyState.displayedChips.push(c)
+          }
+        }
+
         legacyState.candidateCount = totalCandidateCount
         legacyState.displayedCandidates = deps.buildCandidateSnapshot(displayPage.candidates, displayPage.evidenceMap)
         legacyState.filterValueScope = buildFilterValueScope(result.searchPayload.candidates as unknown as Array<Record<string, unknown>>)
