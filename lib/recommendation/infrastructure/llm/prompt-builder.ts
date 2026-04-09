@@ -9,7 +9,7 @@
  */
 
 import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
-import { buildKBContextBlock } from "@/lib/recommendation/core/semantic-search"
+import { buildKBContextBlock, searchKB, getMaterialGuide, getCoatingProperties } from "@/lib/recommendation/core/semantic-search"
 import { YG1_COMPANY_SNIPPET } from "@/lib/knowledge/company-prompt-snippet"
 import { buildDomainKnowledgeSnippet } from "@/lib/recommendation/shared/patterns"
 import { getIntakeDisplayValue } from "@/lib/recommendation/shared/intake-localization"
@@ -257,7 +257,8 @@ export function buildSessionContext(
   intakeForm: ProductIntakeForm,
   sessionState: ExplorationSessionState | null,
   candidateCount: number,
-  displayedProducts?: { rank: number; code: string; brand: string | null; series: string | null; toolSubtype: string | null; diameter: number | null; flute: number | null; coating: string | null; materialTags: string[]; score: number; matchStatus: string }[] | null
+  displayedProducts?: { rank: number; code: string; brand: string | null; series: string | null; toolSubtype: string | null; diameter: number | null; flute: number | null; coating: string | null; materialTags: string[]; score: number; matchStatus: string }[] | null,
+  userMessage?: string,
 ): string {
   const intakeSummary = buildIntakeSummaryText(intakeForm)
   const appliedFilters = sessionState?.appliedFilters ?? []
@@ -290,6 +291,43 @@ ${lines.join("\n")}
 `
   }
 
+  // ── 도메인 지식 KB 검색 (RAG) ──
+  let kbSection = ""
+  if (userMessage && userMessage.length > 2) {
+    const kbResults = searchKB(userMessage, 3, 0.08)
+    const kbIds = new Set(kbResults.map(r => r.entry.id))
+    if (kbResults.length > 0) {
+      const kbLines = kbResults.map(r => `  • ${r.entry.summary}`).join("\n")
+      kbSection = `\n═══ 참고 도메인 지식 (RAG — 자연스럽게 활용, 원문 복사 금지) ═══\n${kbLines}`
+    }
+
+    const materialFilter = (sessionState?.appliedFilters ?? []).find(
+      f => f.field === "workPieceName" || f.field === "_workPieceName",
+    )
+    if (materialFilter) {
+      const guide = getMaterialGuide(String(materialFilter.value))
+      if (guide && !kbIds.has(guide.id)) {
+        const tips = Array.isArray(guide.data.machining_tips)
+          ? (guide.data.machining_tips as string[]).slice(0, 3).map(t => `    - ${t}`).join("\n")
+          : ""
+        kbSection += `${kbSection ? "" : "\n═══ 참고 도메인 지식 (RAG) ═══"}\n  • ${guide.summary}${tips ? "\n" + tips : ""}`
+        kbIds.add(guide.id)
+      }
+    }
+
+    const coatingFilter = (sessionState?.appliedFilters ?? []).find(f => f.field === "coating")
+    if (coatingFilter) {
+      const prop = getCoatingProperties(String(coatingFilter.value))
+      if (prop && !kbIds.has(prop.id)) {
+        kbSection += `${kbSection ? "" : "\n═══ 참고 도메인 지식 (RAG) ═══"}\n  • ${prop.summary}`
+      }
+    }
+
+    if (kbSection) {
+      kbSection += `\n위 지식은 추천 근거/설명에 자연스럽게 녹여 사용하세요. 그대로 복사하지 마세요.`
+    }
+  }
+
   return `
 === 현재 세션 컨텍스트 ===
 [고객 초기 입력]
@@ -304,7 +342,7 @@ ${histSummary}
 [현재 후보 수] ${candidateCount}개
 [해결 상태] ${sessionState?.resolutionStatus ?? "broad"}
 [턴 수] ${sessionState?.turnCount ?? 0}
-${displayedSection}`
+${displayedSection}${kbSection}`
 }
 
 // ── Narrowing Prompt ─────────────────────────────────────────

@@ -628,7 +628,8 @@ export async function buildQuestionResponse(
   } else if (provider.available() && messages.length === 0) {
     try {
       const systemPrompt = buildSystemPrompt(language)
-      const sessionCtx = buildSessionContext(form, sessionState, totalCandidateCount, snapshotToDisplayed(candidateSnapshot))
+      const firstUserText = messages.find(m => m.role === "user")?.text ?? ""
+      const sessionCtx = buildSessionContext(form, sessionState, totalCandidateCount, snapshotToDisplayed(candidateSnapshot), firstUserText)
       const greetingPrompt = buildGreetingPrompt(sessionCtx, question, totalCandidateCount, language)
       const raw = await provider.complete(systemPrompt, [{ role: "user", content: greetingPrompt }], 1500)
       const parsed = safeParseJSON(raw)
@@ -642,7 +643,7 @@ export async function buildQuestionResponse(
     try {
       const lastUserText = [...messages].reverse().find(m => m.role === "user")?.text ?? ""
       const systemPrompt = buildSystemPrompt(language)
-      const sessionCtx = buildSessionContext(form, sessionState, totalCandidateCount, snapshotToDisplayed(candidateSnapshot))
+      const sessionCtx = buildSessionContext(form, sessionState, totalCandidateCount, snapshotToDisplayed(candidateSnapshot), lastUserText)
       const chipList = question?.chips?.length ? question.chips.join(", ") : ""
       const chipInstruction = chipList
         ? `\n선택지(칩): [${chipList}]\n★ 응답에서 질문할 때 반드시 위 선택지와 일치하는 표현을 사용하라. 선택지에 없는 옵션을 제시하지 마라. 선택지를 자연스럽게 안내하되 그대로 나열하지 말고 맥락에 맞게 질문하라.\n★★ 숫자/개수/분포를 절대 지어내지 마라. 칩에 "(N개)"로 표시된 숫자만 인용 가능. 칩에 없는 통계는 언급 금지.`
@@ -1050,7 +1051,8 @@ export async function buildRecommendationResponse(
         displayedOptions: [],
         lastAction: "show_recommendation",
       })
-      const sessionCtx = buildSessionContext(form, llmSessionState, totalCandidateCount, snapshotToDisplayed(llmSessionState.displayedCandidates))
+      const lastUserTextForKB = [...messages].reverse().find(m => m.role === "user")?.text ?? ""
+      const sessionCtx = buildSessionContext(form, llmSessionState, totalCandidateCount, snapshotToDisplayed(llmSessionState.displayedCandidates), lastUserTextForKB)
         + (extraResponseContext ?? "")
       const resultPrompt = buildExplanationResultPrompt(
         sessionCtx,
