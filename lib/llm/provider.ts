@@ -634,14 +634,17 @@ export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
       // multi-tenant workloads. Per-agent key isolates buckets cleanly.
       const cacheKey = (agentNameArg ?? agentName)
       if (cacheKey) body.prompt_cache_key = `yg1:${cacheKey}`
+      let effortApplied: ReasoningEffort | "medium(default)" | null = null
       if (isReasoningModel) {
         body.max_completion_tokens = maxTokens
         const effort = AGENT_REASONING_EFFORT[(agentNameArg ?? agentName) as AgentName]
         if (effort) body.reasoning_effort = effort
+        effortApplied = effort ?? "medium(default)"
       } else {
         body.max_tokens = maxTokens
         body.temperature = 0.1
       }
+      console.log(`[llm] agent=${agentNameArg ?? agentName ?? "?"} model=${cfg.model} effort=${effortApplied ?? "n/a"} tokens=${maxTokens}`)
       traceRecommendation("llm.provider.complete:input", {
         provider: "openai-compatible",
         baseURL: cfg.baseURL,
@@ -734,14 +737,17 @@ export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
       }
       const cacheKey = (agentNameArg ?? agentName)
       if (cacheKey) body.prompt_cache_key = `yg1:${cacheKey}`
+      let effortApplied: ReasoningEffort | "medium(default)" | null = null
       if (isReasoningModel) {
         body.max_completion_tokens = maxTokens
         const effort = AGENT_REASONING_EFFORT[(agentNameArg ?? agentName) as AgentName]
         if (effort) body.reasoning_effort = effort
+        effortApplied = effort ?? "medium(default)"
       } else {
         body.max_tokens = maxTokens
         body.temperature = 0.1
       }
+      console.log(`[llm:stream] agent=${agentNameArg ?? agentName ?? "?"} model=${cfg.model} effort=${effortApplied ?? "n/a"} tokens=${maxTokens}`)
       traceRecommendation("llm.provider.stream:input", {
         provider: "openai-compatible",
         model: cfg.model,
@@ -841,14 +847,17 @@ export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
       }
       const cacheKey = (agentNameArg ?? agentName)
       if (cacheKey) body.prompt_cache_key = `yg1:${cacheKey}`
+      let effortApplied: ReasoningEffort | "medium(default)" | null = null
       if (isReasoningModel) {
         body.max_completion_tokens = maxTokens
         const effort = AGENT_REASONING_EFFORT[(agentNameArg ?? agentName) as AgentName]
         if (effort) body.reasoning_effort = effort
+        effortApplied = effort ?? "medium(default)"
       } else {
         body.max_tokens = maxTokens
         body.temperature = 0.1
       }
+      console.log(`[llm:tools] agent=${agentNameArg ?? agentName ?? "?"} model=${cfg.model} effort=${effortApplied ?? "n/a"} tokens=${maxTokens}`)
       traceRecommendation("llm.provider.completeWithTools:input", {
         provider: "openai-compatible",
         baseURL: cfg.baseURL,
