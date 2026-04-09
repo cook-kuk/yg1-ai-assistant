@@ -29,6 +29,10 @@ export interface SqlAgentResult {
   raw: string
   /** 한국어 추론 과정 — UI 의 "추론 과정 보기" 접이식에 표시. */
   reasoning?: string
+  /** SQL Agent 자체 판단 확신도. high=바로 적용, medium=적용+확인, low=질문. */
+  confidence?: "high" | "medium" | "low"
+  /** 확신이 낮을 때 사용자에게 물어볼 한국어 확인 질문. */
+  clarification?: string | null
 }
 
 // ── Column → filter-field-registry field mapping ─────────────
@@ -182,7 +186,27 @@ ${filterList}
 
 ## Instructions
 Extract filter conditions and a short Korean reasoning trail from the user message as a JSON object:
-{"reasoning":"한국어 사고 과정 (실제 deliberation, 5-10문장)","filters":[{"field":"column_name","op":"eq|neq|like|gte|lte|between","value":"...","value2":"upper_bound_for_between","display":"한국어 설명"}]}
+{"reasoning":"한국어 사고 과정 (실제 deliberation, 5-10문장)","filters":[{"field":"column_name","op":"eq|neq|like|gte|lte|between","value":"...","value2":"upper_bound_for_between","display":"한국어 설명"}],"confidence":"high|medium|low","clarification":null}
+
+## Confidence & Clarification (매우 중요 — CoT 기반 행동 결정)
+"confidence" 필드를 반드시 포함:
+- "high": 사용자 의도가 명확하고 컬럼/값 매칭 확실 → 바로 필터 적용 (clarification=null).
+- "medium": 의도는 파악했으나 컬럼/값이 약간 애매 → 필터 적용하되 clarification으로 확인 질문 병행.
+- "low": 어떤 컬럼/값에 매핑할지 확신 없음 → filters=[] 로 비우고 clarification으로 질문만.
+
+판단 기준:
+- 숫자가 해당 컬럼의 numericStats 범위를 크게 벗어나면 → medium 이하. 예: 직경 100mm인데 max=50.
+- "이상/이하" 같은 범위 표현인데 어떤 컬럼에 적용할지 모호하면 → medium 이하.
+- 사용자가 필드명을 명시 안 했고 숫자만 말했으면 → medium.
+- 한국어 표현이 여러 해석 가능하면 → low. 예: "떨림 적은 거", "큰 거", "좋은 거".
+- 경쟁사 제품명·전문 용어가 DB에 매칭 안 되면 → low.
+- 명확한 필드+값 조합이면 → high. 예: "스퀘어 4날 10mm TiAlN".
+
+예시:
+- "100mm 이상만" (직경 max=50) → filters:[], confidence:"low", clarification:"100mm 이상이 직경(ø)인지 전장(OAL)인지 확인 부탁드립니다. 엔드밀 직경은 보통 50mm 이하이고, 전장 100mm 이상은 많이 있습니다."
+- "스테인리스 4날 10mm" → 3개 필터, confidence:"high", clarification:null
+- "떨림 적은 거" → filters:[], confidence:"low", clarification:"떨림을 줄이는 방법은 1) 부등분할 엔드밀 2) 날수 증가(4→6날) 3) 넥 타입 — 어떤 방식을 원하시나요?"
+- "구리 비슷한 소재" → _workPieceName=구리, confidence:"medium", clarification:"구리(순동) 계열로 검색했습니다. 혹시 황동/청동이시면 말씀해주세요."
 
 ${mode === "cot" ? `"reasoning"은 요약이 아니라 **머릿속 사고 과정 전체**입니다. 길이 제한 없음, 길수록 좋음. 검열·정리·요약 금지. 다음을 모두 포함하세요:
 1. 사용자 메시지를 글자 그대로 다시 읽고 풀이 ("음, 사용자가 '~'라고 했는데 이건...")
@@ -256,21 +280,49 @@ export async function naturalLanguageToFilters(
     SQL_AGENT_MODEL,
   )
 
-  const { filters, reasoning } = parseAgentResponse(raw)
+  const parsed = parseAgentResponse(raw)
+  const { filters, reasoning } = parsed
   console.log("\n[sql-agent:CoT] ────────────────────────────────")
   console.log(`[sql-agent:CoT] user: ${userMessage}`)
   console.log(`[sql-agent:CoT] existing filters: ${existingFilters.map(f => `${f.field}=${f.value}`).join(", ") || "(none)"}`)
   console.log(`[sql-agent:CoT] reasoning:\n${reasoning ?? "(none)"}`)
   console.log(`[sql-agent:CoT] filters: ${JSON.stringify(filters)}`)
+  console.log(`[sql-agent:CoT] confidence=${parsed.confidence ?? "(n/a)"} clarification=${parsed.clarification ?? "(none)"}`)
   console.log(`[sql-agent:CoT] raw(${raw.length}b): ${raw.slice(0, 800)}${raw.length > 800 ? "…" : ""}`)
   console.log("[sql-agent:CoT] ────────────────────────────────\n")
   const resolved = validateAndResolveFilters(filters)
-  if (resolved.messages.length > 0) {
-    const note = resolved.messages.join(". ")
-    console.log(`[sql-agent:value-resolver] ${note}`)
-    return { filters: resolved.resolvedFilters, raw, reasoning: (reasoning ?? "") + "\n\n🔧 값 교정: " + note }
+  const base: SqlAgentResult = {
+    filters: resolved.resolvedFilters,
+    raw,
+    reasoning: resolved.messages.length > 0 ? (reasoning ?? "") + "\n\n🔧 값 교정: " + resolved.messages.join(". ") : reasoning,
+    confidence: parsed.confidence ?? "medium",
+    clarification: parsed.clarification ?? null,
   }
-  return { filters: resolved.resolvedFilters, raw, reasoning }
+  if (resolved.messages.length > 0) console.log(`[sql-agent:value-resolver] ${resolved.messages.join(". ")}`)
+  return applyRangeGuard(base, schema)
+}
+
+// ── Range guard: DB numericStats 범위 밖 값이 있으면 confidence 하향 + 자동 clarification ──
+function applyRangeGuard(result: SqlAgentResult, schema: DbSchema): SqlAgentResult {
+  let updated = result
+  for (const f of result.filters) {
+    const stats = schema.numericStats?.[f.field]
+    if (!stats) continue
+    const val = Number(f.value)
+    if (!Number.isFinite(val)) continue
+    const outOfRange = val > stats.max * 2 || (val < stats.min * 0.5 && val > 0)
+    if (!outOfRange) continue
+    console.warn(`[sql-agent:range] ${f.field}=${f.value} OUT OF RANGE (DB: ${stats.min}~${stats.max})`)
+    const lowered: "high" | "medium" | "low" =
+      updated.confidence === "high" ? "medium" : (updated.confidence ?? "medium")
+    updated = {
+      ...updated,
+      confidence: lowered,
+      clarification: updated.clarification
+        ?? `${f.field} 값 ${f.value}이(가) DB 범위(${stats.min}~${stats.max})를 벗어납니다. 다른 필드를 말씀하신 건 아닌지 확인 부탁드립니다.`,
+    }
+  }
+  return updated
 }
 
 // ── Streaming variant ────────────────────────────────────────
@@ -380,26 +432,43 @@ export async function naturalLanguageToFiltersStreaming(
     console.warn("[sql-agent:stream] failed, falling back to complete():", (err as Error).message)
     return naturalLanguageToFilters(userMessage, schema, existingFilters, provider, mode)
   }
-  const { filters, reasoning } = parseAgentResponse(raw)
+  const parsed = parseAgentResponse(raw)
+  const { filters, reasoning } = parsed
   console.log("\n[sql-agent:CoT:stream] ────────────────────────")
   console.log(`[sql-agent:CoT:stream] user: ${userMessage}`)
   console.log(`[sql-agent:CoT:stream] existing filters: ${existingFilters.map(f => `${f.field}=${f.value}`).join(", ") || "(none)"}`)
   console.log(`[sql-agent:CoT:stream] reasoning:\n${reasoning ?? "(none)"}`)
   console.log(`[sql-agent:CoT:stream] filters: ${JSON.stringify(filters)}`)
+  console.log(`[sql-agent:CoT:stream] confidence=${parsed.confidence ?? "(n/a)"} clarification=${parsed.clarification ?? "(none)"}`)
   console.log(`[sql-agent:CoT:stream] raw(${raw.length}b): ${raw.slice(0, 800)}${raw.length > 800 ? "…" : ""}`)
   console.log("[sql-agent:CoT:stream] ────────────────────────\n")
   const resolved = validateAndResolveFilters(filters)
-  if (resolved.messages.length > 0) {
-    const note = resolved.messages.join(". ")
-    console.log(`[sql-agent:value-resolver:stream] ${note}`)
-    return { filters: resolved.resolvedFilters, raw, reasoning: (reasoning ?? "") + "\n\n🔧 값 교정: " + note }
+  if (resolved.messages.length > 0) console.log(`[sql-agent:value-resolver:stream] ${resolved.messages.join(". ")}`)
+  const base: SqlAgentResult = {
+    filters: resolved.resolvedFilters,
+    raw,
+    reasoning: resolved.messages.length > 0 ? (reasoning ?? "") + "\n\n🔧 값 교정: " + resolved.messages.join(". ") : reasoning,
+    confidence: parsed.confidence ?? "medium",
+    clarification: parsed.clarification ?? null,
   }
-  return { filters: resolved.resolvedFilters, raw, reasoning }
+  return applyRangeGuard(base, schema)
 }
 
 // ── Response Parser ──────────────────────────────────────────
 
-function parseAgentResponse(raw: string): { filters: AgentFilter[]; reasoning?: string } {
+type ParsedAgent = { filters: AgentFilter[]; reasoning?: string; confidence?: "high" | "medium" | "low"; clarification?: string | null }
+
+function extractConfidence(v: unknown): "high" | "medium" | "low" | undefined {
+  if (v === "high" || v === "medium" || v === "low") return v
+  return undefined
+}
+function extractClarification(v: unknown): string | null | undefined {
+  if (typeof v === "string" && v.trim()) return v.trim()
+  if (v === null) return null
+  return undefined
+}
+
+function parseAgentResponse(raw: string): ParsedAgent {
   const trimmed = raw.trim()
 
   // New format: {"reasoning":"...","filters":[...]}
@@ -408,10 +477,12 @@ function parseAgentResponse(raw: string): { filters: AgentFilter[]; reasoning?: 
   try {
     const parsed = JSON.parse(trimmed)
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && Array.isArray((parsed as { filters?: unknown }).filters)) {
-      const obj = parsed as { reasoning?: unknown; filters: unknown[] }
+      const obj = parsed as { reasoning?: unknown; filters: unknown[]; confidence?: unknown; clarification?: unknown }
       return {
         filters: validateFilters(obj.filters),
         reasoning: typeof obj.reasoning === "string" && obj.reasoning.trim() ? obj.reasoning.trim() : undefined,
+        confidence: extractConfidence(obj.confidence),
+        clarification: extractClarification(obj.clarification) ?? null,
       }
     }
     if (Array.isArray(parsed)) return { filters: validateFilters(parsed) }
@@ -426,6 +497,8 @@ function parseAgentResponse(raw: string): { filters: AgentFilter[]; reasoning?: 
         return {
           filters: validateFilters(parsed.filters),
           reasoning: typeof parsed.reasoning === "string" && parsed.reasoning.trim() ? parsed.reasoning.trim() : undefined,
+          confidence: extractConfidence(parsed.confidence),
+          clarification: extractClarification(parsed.clarification) ?? null,
         }
       }
     } catch { /* fall through */ }

@@ -386,8 +386,14 @@ ${lines.join("\n")}
     }
   }
 
+  // SQL Agent confidence=low/medium 때 주입되는 확인 질문
+  const clarification = (sessionState as unknown as { pendingClarification?: string } | null)?.pendingClarification
+  const clarificationBlock = clarification
+    ? `\n[시스템 확인 질문 — 응답에 자연스럽게 포함할 것]\n${clarification}\n`
+    : ""
+
   return `
-=== 현재 세션 컨텍스트 ===
+=== 현재 세션 컨텍스트 ===${clarificationBlock}
 [고객 초기 입력]
 ${intakeSummary}
 

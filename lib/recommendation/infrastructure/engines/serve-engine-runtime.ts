@@ -2309,7 +2309,7 @@ async function handleServeExplorationInner(
           const { lookupCache: lookupSemanticCache, storeCache: storeSemanticCache } = await import("@/lib/recommendation/core/semantic-cache")
           const semanticHit = lookupSemanticCache(msg, filters)
 
-          let agentResult: { filters: import("@/lib/recommendation/core/sql-agent").AgentFilter[]; raw: string; reasoning?: string }
+          let agentResult: { filters: import("@/lib/recommendation/core/sql-agent").AgentFilter[]; raw: string; reasoning?: string; confidence?: "high" | "medium" | "low"; clarification?: string | null }
           if (semanticHit && semanticHit.source === "sql-agent") {
             agentResult = {
               filters: semanticHit.actions as unknown as import("@/lib/recommendation/core/sql-agent").AgentFilter[],
@@ -2364,6 +2364,19 @@ async function handleServeExplorationInner(
           // non-stream consumers and message history.
           if (agentResult.reasoning && prevState) {
             (prevState as ExplorationSessionState).thinkingProcess = agentResult.reasoning
+          }
+
+          // ── CoT confidence 기반 분기 ──
+          // low: 필터 적용하지 않고 clarification 질문만 — 0건 무한 루프 방지
+          // medium/high: 기존대로 필터 적용, medium이면 clarification도 함께 전달
+          if (agentResult.clarification && prevState) {
+            ;(prevState as unknown as { pendingClarification?: string }).pendingClarification = agentResult.clarification
+          }
+          if (agentResult.confidence === "low" && agentResult.clarification) {
+            console.log(`[sql-agent:confidence] LOW — skipping filters, asking: "${agentResult.clarification.slice(0, 80)}"`)
+            trace.add("sql-agent", "router", { confidence: "low" }, { clarification: agentResult.clarification.slice(0, 120) }, "low-confidence → clarification")
+            // filters 무시 — 아래 블록 진입 안 함
+            agentResult = { ...agentResult, filters: [] }
           }
 
           if (agentResult.filters.length > 0) {
