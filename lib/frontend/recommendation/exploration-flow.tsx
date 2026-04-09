@@ -367,6 +367,11 @@ function ReasoningBlock({
     } catch { return 12_000 }
   })
 
+  // 로딩이 시작되면 항상 자동으로 펼쳐서 추론 본문이 보이게 한다.
+  useEffect(() => {
+    if (isLoading) setOpen(true)
+  }, [isLoading])
+
   useEffect(() => {
     if (isLoading) {
       if (startedAtRef.current === null) startedAtRef.current = Date.now()
@@ -453,8 +458,10 @@ function ReasoningBlock({
         />
       </button>
       {open && (
-        <div className="mt-1.5 ml-1 pl-3 border-l-2 border-gray-200 text-[11px] text-gray-700 leading-relaxed whitespace-pre-wrap">
-          {trail}
+        <div className="mt-1.5 ml-1 pl-3 border-l-2 border-gray-200 text-[11px] text-gray-700 leading-relaxed whitespace-pre-wrap min-h-[1.2em]">
+          {trail || (isLoading
+            ? <span className="text-gray-400 italic">{language === "ko" ? "추론 내용을 가져오는 중…" : "Fetching reasoning…"}</span>
+            : null)}
         </div>
       )}
       <style jsx>{`
