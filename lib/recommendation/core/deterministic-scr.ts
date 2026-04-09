@@ -1033,19 +1033,22 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
     // "mn" 은 "mm" 의 흔한 키보드 오타
     const re = /(?<![\d.])(\d+(?:\.\d+)?)\s*(?:mm|mn)\b/gi
     let match: RegExpExecArray | null
+    const OTHER_FIELD_CUE_RE = /(전장|전체\s*길이|overall|oal|절삭\s*길이|날\s*길이|loc|샹크|생크|shank|헬릭스|helix|포인트\s*각|point\s*angle|피치|pitch|코너\s*r|ball\s*radius|회전수|rpm|spindle|이송|feed|절삭\s*속도|cutting\s*speed|vc|절입|depth|ap)/i
     while ((match = re.exec(text)) !== null) {
       const numStart = match.index
       const numEnd = match.index + match[0].length
       if (isConsumed(numStart, numEnd)) continue
-      // 직후 12자에 op marker 가 있으면 다른 field 의 range 표현일 가능성 — skip
-      const tail = text.slice(numEnd, numEnd + 12)
-      if (/(?:이상|이하|초과|미만|over|under|≥|≤|>=|<=|넘는|올라가는)/i.test(tail)) continue
       // 직전 8자에 다른 field 의 cue 가 있으면 skip (예: "전장 100mm")
       const head = text.slice(Math.max(0, numStart - 12), numStart)
-      if (/(전장|전체\s*길이|overall|oal|절삭\s*길이|날\s*길이|loc|샹크|생크|shank|헬릭스|helix|포인트\s*각|point\s*angle|피치|pitch|코너\s*r|ball\s*radius|회전수|rpm|spindle|이송|feed|절삭\s*속도|cutting\s*speed|vc|절입|depth|ap)/i.test(head)) continue
+      if (OTHER_FIELD_CUE_RE.test(head)) continue
+      // 직후 12자에 op marker 가 있는 경우: 다른 field 의 range 표현일 수도 있으나
+      // 다른 field cue 가 head/tail 어디에도 없으면 diameter 로 해석 (R01/R05 fix).
+      const tail = text.slice(numEnd, numEnd + 14)
+      const op = detectOpAfter(text, numEnd)
+      if (op && OTHER_FIELD_CUE_RE.test(tail)) continue
       const v = parseFloat(match[1])
-      if (!Number.isFinite(v) || v <= 0 || v > 100) continue
-      actions.push({ type: "apply_filter", field: "diameterMm", value: v, op: "eq", source: "deterministic" })
+      if (!Number.isFinite(v) || v <= 0 || v > 300) continue
+      actions.push({ type: "apply_filter", field: "diameterMm", value: v, op: op ?? "eq", source: "deterministic" })
       seen.add("diameterMm")
       consumedRanges.push([numStart, numEnd])
       break
