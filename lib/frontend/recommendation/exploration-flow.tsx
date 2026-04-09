@@ -458,9 +458,9 @@ function ReasoningBlock({
         />
       </button>
       {open && (
-        <div className="mt-1.5 ml-1 pl-3 border-l-2 border-gray-200 text-[11px] text-gray-700 leading-relaxed whitespace-pre-wrap min-h-[1.2em]">
+        <div className="mt-1.5 p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-900 leading-relaxed whitespace-pre-wrap min-h-[1.6em]">
           {trail || (isLoading
-            ? <span className="text-gray-400 italic">{language === "ko" ? "추론 내용을 가져오는 중…" : "Fetching reasoning…"}</span>
+            ? <span className="text-amber-700/70 italic">{language === "ko" ? "추론 내용을 가져오는 중…" : "Fetching reasoning…"}</span>
             : null)}
         </div>
       )}
