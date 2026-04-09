@@ -445,7 +445,92 @@ ${histSummary}
 [현재 후보 수] ${candidateCount}개
 [해결 상태] ${sessionState?.resolutionStatus ?? "broad"}
 [턴 수] ${turnCount}${turnDepthGuide}
-${displayedSection}${kbSection}${proactiveInsights}${domainWarningBlock}${predictiveBlock}${quoteBlock}`
+${displayedSection}${kbSection}${proactiveInsights}${domainWarningBlock}${predictiveBlock}${quoteBlock}
+${UNIFIED_BRAIN_RULES}`
+}
+
+// ── Unified Brain: 섹션 나열 → 하나의 자연스러운 대화로 ────────────
+// 위 컨텍스트가 섹션별로 나뉘어 있어도, 응답은 "한 사람이 한 호흡에"
+const UNIFIED_BRAIN_RULES = `
+═══ 응답 통합 규칙 (매우 중요) ═══
+위 세션 컨텍스트에 KB·통찰·경고·추천·다음 질문이 섹션별로 나뉘어 있지만,
+응답은 반드시 "한 사람이 한 호흡에 말하는 것처럼" 하나의 대화로 녹여라.
+
+금지:
+- "먼저 A…", "참고로 B…", "한 가지 C…" 같은 3단 전환어 나열
+- 각 섹션(KB/insight/warning/추천/질문)을 순서대로 라벨링해서 나열
+- "경고:", "팁:", "추천:" 같은 라벨 사용
+- 매 턴 리셋 느낌("안녕하세요", "현재 N개 검색되었습니다")
+- 이전 턴에 이미 한 말 반복
+
+해야 할 것:
+- 이전 대화가 있으면 자연스럽게 이어라 ("아까 ~하셨으니까", "~까지 정해졌고", "거의 다 왔습니다")
+- 경고·통찰·추천·다음 질문을 하나의 문단 안에 대화체로 녹여라
+- Turn 4+에서는 지금까지 조건을 종합한 결론 톤 ("지금 조건이면 이겁니다")
+
+올바른 예시 (스테인리스 포켓):
+"스테인리스 포켓이시군요. Y-Coating이 이 소재에 딱인데, 진입은 헬리컬로 하셔야 해요 — 직진 진입이면 공구 부러집니다. 직경이랑 깊이 알려주시면 넥 타입 필요한지도 봐드리겠습니다."
+→ 추천·근거·경고·다음 질문이 한 문단에 녹아있음. 섹션 나열 아님.
+
+핵심: 정보를 나열하지 말고, 대화하라.
+`
+
+/**
+ * 모든 모듈 출력을 하나의 "상황 브리핑"으로 통합.
+ * 섹션 구분 없이 한 서사로 정리 → LLM이 자연스럽게 대화.
+ */
+export function buildUnifiedBriefing(params: {
+  userMessage: string
+  turnCount: number
+  candidateCount: number
+  appliedFilters: Array<{ field: string; op: string; value: string }>
+  topProducts: Array<{ code: string; brand: string; matchedFields?: string[] }>
+  kbResults: string[]
+  insights: Array<{ type: string; message: string }>
+  warnings: string[]
+  clarification: string | null
+  previousContext: string
+  narrowingHistory: Array<{ question: string; answer: string; countBefore: number; countAfter: number }>
+}): string {
+  const p = params
+  const lines: string[] = []
+  lines.push(`[현재 상황]`)
+  if (p.previousContext) lines.push(p.previousContext)
+  lines.push(`Turn ${p.turnCount}. 유저: "${p.userMessage}"`)
+  if (p.appliedFilters.length > 0) {
+    const fs = p.appliedFilters.map(f => `${f.field}=${f.value}(${f.op})`).join(", ")
+    lines.push(`적용 필터: ${fs} → ${p.candidateCount}개 후보.`)
+  } else {
+    lines.push(`필터 없음. 전체 후보 ${p.candidateCount}개.`)
+  }
+  if (p.warnings.length > 0 || p.insights.length > 0 || p.clarification) {
+    lines.push(`\n[고려 사항]`)
+    for (const w of p.warnings) lines.push(`- 경고: ${w}`)
+    if (p.clarification) lines.push(`- 확인 필요: ${p.clarification}`)
+    for (const i of p.insights) {
+      const label = i.type === "root_cause" ? "진짜 원인" : i.type === "warning" ? "주의" : "참고"
+      lines.push(`- ${label}: ${i.message}`)
+    }
+  }
+  if (p.topProducts.length > 0) {
+    lines.push(`\n[추천 후보]`)
+    for (const prod of p.topProducts.slice(0, 3)) {
+      const matched = prod.matchedFields?.join("+") ?? ""
+      lines.push(`- ${prod.code} (${prod.brand})${matched ? ` [매칭: ${matched}]` : ""}`)
+    }
+  }
+  if (p.kbResults.length > 0) {
+    lines.push(`\n[배경 지식 — 자연스럽게 활용]`)
+    for (const kb of p.kbResults.slice(0, 3)) lines.push(`- ${kb}`)
+  }
+  if (p.narrowingHistory.length > 0) {
+    lines.push(`\n[대화 이력 — 반복 금지, 흐름 이어가기]`)
+    for (const h of p.narrowingHistory.slice(-3)) {
+      lines.push(`- "${h.answer}" → ${h.countBefore}→${h.countAfter}개`)
+    }
+  }
+  lines.push(UNIFIED_BRAIN_RULES)
+  return lines.join("\n")
 }
 
 // ── Narrowing Prompt ─────────────────────────────────────────
