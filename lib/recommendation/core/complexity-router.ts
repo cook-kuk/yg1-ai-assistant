@@ -56,9 +56,12 @@ export function assessComplexity(
   appliedFilterCount: number = 0,
 ): ComplexityDecision {
   const decision = _assessComplexityInner(message, appliedFilterCount)
-  // HOTFIX: CoT 스트리밍 전역 비활성화 — 상무님 CoT 2분 컴플레인 대응
-  // SQL Agent는 non-streaming(naturalLanguageToFilters) 경로로 동작
-  return { ...decision, generateCoT: false }
+  // HOTFIX: CoT는 deep에서만. light/normal은 CoT off (상무님 CoT 2분 컴플레인 대응)
+  // 비교/트러블슈팅/긴 입력(deep)에서만 CoT 호출.
+  if (decision.level !== "deep") {
+    return { ...decision, generateCoT: false }
+  }
+  return decision
 }
 
 function _assessComplexityInner(

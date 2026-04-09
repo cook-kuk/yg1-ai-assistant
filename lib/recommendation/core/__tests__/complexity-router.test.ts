@@ -28,10 +28,10 @@ describe("assessComplexity", () => {
     expect(d.generateCoT).toBe(false) // hotfix: CoT 전역 비활성화
     expect(d.runSelfCorrection).toBe(true)
   })
-  test("deep는 KB 켬 (CoT는 hotfix로 전역 OFF)", () => {
+  test("deep는 KB + CoT 켬 (light/normal만 CoT off)", () => {
     const d = assessComplexity("AlCrN vs TiAlN?")
     expect(d.searchKB).toBe(true)
-    expect(d.generateCoT).toBe(false) // hotfix: CoT 전역 비활성화
+    expect(d.generateCoT).toBe(true)
   })
   test("칩 클릭은 CoT/self-correction 모두 OFF (fast path)", () => {
     const d = assessComplexity("6날 (213개)")
