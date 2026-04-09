@@ -564,7 +564,10 @@ export async function buildQuestionResponse(
     resolutionStatus: checkResolution(candidates, history, totalCandidateCount),
     resolvedInput: input,
     turnCount,
-    lastAskedField: question?.field ?? undefined,
+    // BUG4: 0-result 분기에서 question이 null 이면 lastAskedField 가 undefined 로 박혀
+    // UI 카피("양면값을 선택해주세요" 류)가 깨지고 후속 턴 컨텍스트가 끊긴다.
+    // 가장 마지막에 적용된 필터의 field 로 fallback 해 컨텍스트를 유지한다.
+    lastAskedField: question?.field ?? filters[filters.length - 1]?.field ?? undefined,
     displayedProducts: candidateSnapshot,
     fullDisplayedProducts: candidateSnapshot,
     displayedSeriesGroups,
@@ -1111,7 +1114,9 @@ export async function buildRecommendationResponse(
       const raw = await provider.complete(
         systemPrompt,
         [{ role: "user", content: resultPrompt }],
-        RECOMMENDATION_SUMMARY_MAX_TOKENS
+        RECOMMENDATION_SUMMARY_MAX_TOKENS,
+        undefined,
+        "response-composer",
       )
       const extractedSummary = extractRecommendationSummaryText(raw)
       if (extractedSummary) {
