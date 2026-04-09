@@ -21,11 +21,12 @@ describe("assessComplexity", () => {
     expect(assessComplexity("스테인리스 4날 10mm").level).toBe("normal")
     expect(assessComplexity("티타늄 가공용 엔드밀").level).toBe("normal")
   })
-  test("light는 KB/CoT/웹서치 끔", () => {
+  test("light는 KB/웹서치만 끔(CoT·self-correction 유지)", () => {
     const d = assessComplexity("10mm")
     expect(d.searchKB).toBe(false)
-    expect(d.generateCoT).toBe(false)
     expect(d.allowWebSearch).toBe(false)
+    expect(d.generateCoT).toBe(true)
+    expect(d.runSelfCorrection).toBe(true)
   })
   test("deep는 전부 켬", () => {
     const d = assessComplexity("AlCrN vs TiAlN?")

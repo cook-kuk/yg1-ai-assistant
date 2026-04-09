@@ -49,12 +49,12 @@ export function assessComplexity(
 ): ComplexityDecision {
   const t = message.trim()
 
-  // LIGHT
+  // LIGHT — KB/웹서치만 끔. CoT·self-correction은 유지(필터 정확도 보존)
   if (LIGHT_PATTERNS.some(p => p.test(t))) {
-    return { level: "light", reason: "단순 값/확인", runSelfCorrection: false, searchKB: false, generateCoT: false, allowWebSearch: false, maxSentences: 2 }
+    return { level: "light", reason: "단순 값/확인", runSelfCorrection: true, searchKB: false, generateCoT: true, allowWebSearch: false, maxSentences: 2 }
   }
   if (t.length <= 8 && appliedFilterCount > 0) {
-    return { level: "light", reason: `짧은 입력(${t.length}자)+기존필터`, runSelfCorrection: false, searchKB: false, generateCoT: false, allowWebSearch: false, maxSentences: 2 }
+    return { level: "light", reason: `짧은 입력(${t.length}자)+기존필터`, runSelfCorrection: true, searchKB: false, generateCoT: true, allowWebSearch: false, maxSentences: 2 }
   }
 
   // DEEP
