@@ -88,16 +88,6 @@ const COATING_VALUES = [
   "Blue-Coating", "Uncoated", "Non-Coating",
 ]
 
-// Brand values — sample of clean YG-1 brands from prod_brand.brand_name (421 distinct, dumped 2026-04-08).
-// Noisy entries (TEST/cyr/excel/digit-only) filtered. Add more as encountered; runtime registry merge possible later.
-const BRAND_VALUES = [
-  "X-POWER", "X-POWER PRO", "TitaNox-Power", "TitaNox", "CRX-S", "CRX S",
-  "ALU-POWER", "3S MILL", "3S PLUS", "ONLY ONE", "K2 CARBIDE", "K-2 CARBIDE",
-  "TANK-POWER", "JET-POWER", "X1-EH", "X5070", "X5070S", "E-FORCE",
-  "V7", "V7 PLUS", "V7 PLUS A", "V7 INOX", "GMG", "GAA29", "SUS-CUT",
-  "SUPER ALLOY", "BASIX", "4G MILL", "4G MILLS",
-]
-
 // ── DB meta constants (source: scripts/dump-meta.mjs → test-results/db-meta.json, 2026-04-08) ──
 // DB가 확장될 일 없어서 정적 하드코딩. 정제 규칙: TEST/cyr/excel/단일문자/경로/숫자만 제거.
 
@@ -1034,18 +1024,9 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
     }
   }
 
-  // 6) Brand
-  if (!seen.has("brand")) {
-    const v = findValueIn(text, BRAND_VALUES)
-    if (v) {
-      // 부정 marker 가 brand 근처에 있는지 (앞 30자 또는 뒤 8자)
-      const idx = text.toLowerCase().indexOf(v.toLowerCase())
-      const ctx = text.slice(Math.max(0, idx - 5), idx + v.length + 12)
-      const isNeg = NEG_MARKERS.test(ctx)
-      actions.push({ type: "apply_filter", field: "brand", value: v, op: isNeg ? "neq" : "eq", source: "deterministic" })
-      seen.add("brand")
-    }
-  }
+  // 6) Brand — deterministic 매칭 제거.
+  // BRAND_VALUES가 영문 trademark만 담고 있어서 한글 표기(엑스파워/타이타녹스/씨알엑스에스 등)를
+  // 못 잡았고, 한글 alias 하드코딩은 no-hardcoding 원칙에 위배. brand는 LLM filter extraction이 전담.
 
   // 7) 재고
   // "재고 30개 이상", "재고 50 이상", "stock >= 100" 같이 숫자 임계값이 있으면
