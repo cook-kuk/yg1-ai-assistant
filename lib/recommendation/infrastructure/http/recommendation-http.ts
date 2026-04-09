@@ -139,10 +139,25 @@ export function jsonRecommendationResponse(
     sessionMode: dto.session.publicState?.currentMode ?? null,
   }))
 
+  // payload slimming: drop legacy top-level sessionState alias (~680KB duplicate of session.engineState)
+  // and strip sessionContext.sessionState from requestPreparation (another ~680KB duplicate).
+  // Frontend reads engineState only via dto.session.engineState; nothing reads sessionContext.sessionState.
+  const slimRequestPreparation = dto.requestPreparation && typeof dto.requestPreparation === "object"
+    ? (() => {
+        const rp = dto.requestPreparation as Record<string, unknown>
+        const sc = rp.sessionContext as Record<string, unknown> | undefined
+        if (sc && "sessionState" in sc) {
+          return { ...rp, sessionContext: { ...sc, sessionState: null } }
+        }
+        return rp
+      })()
+    : dto.requestPreparation
+
   return NextResponse.json({
     ...dto,
-    // UI 마이그레이션 동안만 유지하는 하위 호환 alias다.
-    sessionState: params.sessionState ?? null,
+    requestPreparation: slimRequestPreparation,
+    // legacy aliases (kept null for backward-compat shape; consumers must read dto.session.engineState)
+    sessionState: null,
     candidateSnapshot: params.candidateSnapshot ?? null,
     extractedField: params.meta?.extractedField ?? null,
   }, init)
