@@ -1922,6 +1922,35 @@ async function handleServeExplorationInner(
   }
 
   let singleCallHandled = false
+  // ── Deterministic first-turn short-circuit ──────────────────────────────
+  // When there's no prior session (prevState=null) and the only message is
+  // the auto-synthesized intake summary ("탄소강 / Milling / 8mm 추천해주세요"),
+  // every form value is already in `resolvedInput` via the deterministic
+  // `mapIntakeToInput`. Running SQL agent / KG / single-call-router on the
+  // synthesized text is pure waste — it adds 2-5s of LLM latency, costs
+  // tokens, and (worst case) corrupts turn 0 when the extraction LLM returns
+  // bad JSON or misclassifies a filter, collapsing the recommendation to
+  // primary=null with thousands of candidates intact (the bug we hit on
+  // 2026-04-09 after enabling reasoning_effort=minimal).
+  //
+  // Skip the entire LLM extraction phase: set singleCallHandled=true so all
+  // downstream gates (`!singleCallHandled && lastUserMsg`) become no-ops, and
+  // pre-fill bridgedV2Action so the existing first-turn dispatcher at the
+  // bottom (`if (!prevState && singleCallHandled && bridgedV2Action)`)
+  // routes straight into buildRecommendationResponse with the form-derived
+  // resolvedInput + empty filter list.
+  const isFirstTurnIntake = !prevState && messages.length <= 1
+  if (isFirstTurnIntake) {
+    singleCallHandled = true
+    bridgedV2Action = { type: "show_recommendation" }
+    bridgedV2OrchestratorResult = {
+      action: bridgedV2Action,
+      reasoning: "first-turn-intake-deterministic",
+      agentsInvoked: [],
+      escalatedToOpus: false,
+    }
+    console.log("[first-turn-intake] Skipping LLM extraction — deterministic form→retrieval path")
+  }
   // Phase 4.5 — tool-forge fallback rows captured for the retrieval stage to
   // promote into candidates if hybrid retrieval + knowledge fallback both miss.
   let forgedFallbackRows: Record<string, unknown>[] = []
