@@ -1942,6 +1942,29 @@ async function handleServeExplorationInner(
   // resolvedInput + empty filter list.
   const isFirstTurnIntake = !prevState && messages.length <= 1
   if (isFirstTurnIntake) {
+    // Inject deterministic filters from raw user message ("10mm" → diameterMm=10)
+    // before short-circuit, so first-turn questions are properly narrowed.
+    try {
+      const rawMsg = lastUserMsg?.text ?? ""
+      if (rawMsg) {
+        const detActs = parseDeterministic(rawMsg).filter(a => a.type === "apply_filter" && a.field && a.value != null)
+        for (const a of detActs) {
+          const isBetween = a.op === "between" && a.value2 != null
+          const inputValue: string | number | Array<string | number> = isBetween
+            ? [a.value as string | number, a.value2 as string | number]
+            : (a.value as string | number)
+          const f = buildAppliedFilterFromValue(a.field!, inputValue, 0, a.op)
+          if (f) {
+            const r = replaceFieldFilter(baseInput, filters, f, deps.applyFilterToInput)
+            filters.splice(0, filters.length, ...r.nextFilters)
+            currentInput = r.nextInput
+          }
+        }
+        if (detActs.length > 0) console.log(`[first-turn-intake] det-SCR pre-injected ${detActs.length} filter(s): ${detActs.map(a => `${a.field}=${a.value}`).join(", ")}`)
+      }
+    } catch (e) {
+      console.warn("[first-turn-intake] det-SCR injection failed:", (e as Error).message)
+    }
     singleCallHandled = true
     // continue_narrowing (NOT show_recommendation) on first turn — the
     // dispatcher (line ~3911) routes show_recommendation into
