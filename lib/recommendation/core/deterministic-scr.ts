@@ -378,9 +378,13 @@ const COOLANT_PATTERNS = [
 
 // 공구 소재 (tool material) — registry queryAliases (filter-field-registry.ts:704) 와 동기화.
 // DB 값은 영문 (Carbide / HSS) 이라 한국어 별칭은 canonical 영문으로 매핑한다.
+// 우선순위 주의: 더 구체적인 패턴(예: HSS-Co)을 먼저 두지 않으므로 NL 매칭에서
+// 가장 흔한 용어부터. PCD/Diamond 는 동일 value(Diamond)로 매핑.
 const TOOL_MATERIAL_PATTERNS: Array<{ pattern: RegExp; value: string }> = [
   { pattern: /카바이드|초경|carbide/i, value: "Carbide" },
   { pattern: /하이스|고속도강|high\s*speed\s*steel|\bhss\b/i, value: "HSS" },
+  { pattern: /\bcbn\b|씨비엔|큐빅\s*보론|cubic\s*boron\s*nitride/i, value: "CBN" },
+  { pattern: /다이아몬드|\bpcd\b|\bdiamond\b|폴리크리스탈|polycrystalline\s*diamond/i, value: "Diamond" },
 ]
 
 // 국가

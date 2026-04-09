@@ -102,6 +102,49 @@ describe("buildSidebarConditionItems", () => {
     expect(items.find(item => item.label === "공구 직경")?.value).toBe("6.35mm")
   })
 
+  it("renders toolMaterial filter as a distinct chip with 공구 소재 label", () => {
+    const items = buildSidebarConditionItems(
+      makeForm(),
+      makeSessionState([
+        { field: "toolMaterial", op: "eq", value: "CARBIDE", rawValue: "CARBIDE", appliedAt: 1 },
+      ]),
+      null,
+      "ko"
+    )
+
+    const tm = items.find(item => item.label === "공구 소재")
+    expect(tm).toBeDefined()
+    expect(tm?.value).toBe("CARBIDE")
+    expect(tm?.source).toBe("filter")
+    expect(tm?.emoji).toBe("🔧")
+  })
+
+  it("toolMaterial 칩이 form 의 material(피삭재) 칩과 별도로 동시 표시된다", () => {
+    const items = buildSidebarConditionItems(
+      makeForm(), // form.material = "비철금속" 가 들어있음
+      makeSessionState([
+        { field: "toolMaterial", op: "eq", value: "CARBIDE", rawValue: "CARBIDE", appliedAt: 1 },
+      ]),
+      null,
+      "ko"
+    )
+
+    expect(items.find(i => i.label === "가공 소재")?.value).toBe("비철금속")
+    expect(items.find(i => i.label === "공구 소재")?.value).toBe("CARBIDE")
+  })
+
+  it("toolMaterial neq 필터는 '제외' 접미사로 표시", () => {
+    const items = buildSidebarConditionItems(
+      makeForm(),
+      makeSessionState([
+        { field: "toolMaterial", op: "neq", value: "HSS", rawValue: "HSS", appliedAt: 1 },
+      ]),
+      null,
+      "ko"
+    )
+    expect(items.find(i => i.label === "공구 소재")?.value).toBe("HSS 제외")
+  })
+
   it("shows Turning when the stored machining category value is Tooling System", () => {
     const items = buildSidebarConditionItems(
       makeForm({
