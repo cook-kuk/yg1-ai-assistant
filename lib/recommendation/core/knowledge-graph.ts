@@ -308,13 +308,26 @@ export function extractEntities(message: string): Array<{ field: string; value: 
     results.push({ field: node.field, value: alias, canonical: node.canonical })
   }
 
-  // Numeric pattern matching is intentionally disabled — sql-agent + SCR are
-  // schema-aware and handle numeric extraction with proper range ops (gte/lte/
-  // between). KG's regex-based numeric extraction was causing field hijacks
-  // (bare "<num>mm" stealing from OAL/CL/shank/helix contexts) and producing
-  // eq-only filters that overrode proper range filters from sql-agent.
-  // KG remains responsible for: brand matching, operation routing, fluteCount
-  // entity match, and intent classification (skip/back/reset/show/exclude).
+  // 2b. Numeric pattern matching (fluteCount, diameterMm, etc.)
+  // NOTE: These are collected into extractEntities results so that §6 (exclude)
+  // and regression tests can see them. They do NOT flow into sql-agent filters
+  // directly — §8 (multi-entity dispatch) is disabled, and call sites in
+  // serve-engine-runtime only use the results as string hints. This prevents
+  // the historical "bare <num>mm hijacks OAL/LOC" regression.
+  for (const { field, patterns, extract } of NUMERIC_PATTERNS) {
+    if (results.some(r => r.field === field)) continue
+    for (const pat of patterns) {
+      const m = message.match(pat)
+      if (m) {
+        const num = extract(m)
+        if (Number.isFinite(num) && num > 0) {
+          const canonical = String(num)
+          results.push({ field, value: m[0], canonical })
+        }
+        break
+      }
+    }
+  }
 
   // 3. Dynamic brand matching from DB schema cache (no hardcoding)
   //    Normalize hyphens/spaces: "CRX-S" ↔ "CRX S" ↔ "CRXS"
@@ -670,13 +683,18 @@ export function tryKGDecision(
     }
   }
 
-  // ── 8. Single-entity short-text extraction ──
-  // 멀티 entity 자유 텍스트 (예: "4날 TiAlN Square", "탄소강 8mm 4날 황삭") 는
+  // ── 8. Single-entity bare-token extraction ──
+  // 자유 텍스트 (예: "4날 TiAlN Square", "TiAlN 코팅된거", "스퀘어 엔드밀") 는
   // KG 가 부분만 잡아 deterministic-scr/LLM 의 풀 추출을 가로채는 문제가 있어
-  // 2026-04-09 부터 entities.length === 1 (단일 토큰/단어) 만 KG 에서 dispatch.
-  // 멀티는 deterministic-scr → LLM semantic-extractor 경로로 위임.
+  // 2026-04-09 부터 "message 가 거의 entity alias 그 자체" 인 경우만 dispatch.
+  // 부가 토큰이 있거나 멀티 entity 이면 deterministic-scr → LLM 에게 위임.
   const entities = extractEntities(msg)
-  if (entities.length === 1 && !COMPANY_PATTERNS.some(p => p.test(msg))) {
+  const msgCompact = lower.replace(/\s+/g, "")
+  const isBareSingleEntity =
+    entities.length === 1 &&
+    typeof entities[0].value === "string" &&
+    msgCompact.length <= entities[0].value.replace(/\s+/g, "").length + 1
+  if (isBareSingleEntity && !COMPANY_PATTERNS.some(p => p.test(msg))) {
     // Negation check: "4날 말고", "TiAlN 빼고" 등 → op: "exclude"
     const isNegation = /빼고|제외|아닌\s*것|아닌\s*걸|아닌걸|없는\s*거|말고|만\s*아니면|없이|아닌\s*거|없는\s*거로|가\s*아닌|이\s*아닌/u.test(msg)
     const primary = entities[0]

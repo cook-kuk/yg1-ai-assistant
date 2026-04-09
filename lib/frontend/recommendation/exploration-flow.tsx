@@ -443,8 +443,8 @@ function NarrowingChat({
                 const headline = (trail.split(/\r?\n/).find(l => l.trim().length > 0) ?? "")
                   .replace(/^[-*•\d.\s]+/, "")
                   .trim()
-                const rest = trail.slice(trail.indexOf(headline) + headline.length).replace(/^\s*\n/, "")
-                const hasRest = rest.trim().length > 0
+                // 본문은 항상 full trail. headline은 요약 프리뷰일 뿐이라
+                // 자르지 않는다 (한 줄짜리 trail도 본문에 그대로 보존).
                 return (
                   <details className="mt-1" open>
                     <summary className="text-[11px] text-gray-600 cursor-pointer hover:text-gray-800 select-none flex items-start gap-1.5">
@@ -455,11 +455,9 @@ function NarrowingChat({
                       </span>
                       <span className="flex-1 leading-snug">{headline}</span>
                     </summary>
-                    {hasRest && (
-                      <div className="mt-1 p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-900 leading-relaxed whitespace-pre-wrap">
-                        {rest}
-                      </div>
-                    )}
+                    <div className="mt-1 p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-900 leading-relaxed whitespace-pre-wrap">
+                      {trail}
+                    </div>
                   </details>
                 )
               })()}
