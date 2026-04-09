@@ -55,12 +55,14 @@ export function assessComplexity(
   message: string,
   appliedFilterCount: number = 0,
 ): ComplexityDecision {
-  // 정책 (2026-04-09): 첫 시도는 항상 비-CoT (빠른 경로). CoT는 메시지 텍스트
-  // 패턴이 아니라 실제 결과(0건/낮은 confidence/검증 실패)가 나쁠 때 serve-engine-
-  // runtime의 escalation 단계에서만 켠다. = "CoT 없이 잘 되는 건 그대로, 안 되는
-  // 케이스만 CoT로 재시도"
+  // 정책 (2026-04-09):
+  // - light / normal / 칩클릭 / 구조화 인테이크: CoT OFF (latency 보호 — 상무님 컴플레인 대응)
+  // - deep (분석/비교/트러블슈팅): CoT ON (가치 > latency)
+  // - 0건 결과: 별도 경로로 zero-result-cot 모듈에서 강제 ON (serve-engine-runtime
+  //   post-retrieval 단계에서 트리거)
   const decision = _assessComplexityInner(message, appliedFilterCount)
-  return { ...decision, generateCoT: false }
+  const generateCoT = decision.level === "deep" ? decision.generateCoT : false
+  return { ...decision, generateCoT }
 }
 
 function _assessComplexityInner(

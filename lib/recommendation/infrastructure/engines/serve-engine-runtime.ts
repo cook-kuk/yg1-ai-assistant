@@ -3814,6 +3814,38 @@ async function handleServeExplorationInner(
     displayCandidates = displayPage.candidates
     displayEvidenceMap = displayPage.evidenceMap
     console.log(`[recommend] Retrieval executed: display=${displayCandidates.length} total=${totalCandidateCount} candidates`)
+
+    // ── Zero-result CoT ──────────────────────────────────────
+    // 모든 fallback(KB / tool-forge)이 다 실패해서 결과가 0건이고 사용자가
+    // 실제로 필터를 적용한 상태라면 여기서 강력한 진단 CoT를 만든다.
+    // 글로벌 CoT hotfix(complexity-router)는 latency 때문에 OFF지만, 0건은
+    // 정확히 CoT가 가치 있는 케이스 — "왜 안 나오는지 + 뭘 풀어야 나오는지"를
+    // 고객이 즉시 알아야 함. 단일 Haiku 호출(~600 토큰).
+    if (candidates.length === 0 && filters.filter(f => f.op !== "skip").length > 0 && lastUserMsg?.text) {
+      try {
+        const { generateZeroResultCoT } = await import("@/lib/recommendation/domain/zero-result-cot")
+        const cot = await generateZeroResultCoT(
+          {
+            userMessage: lastUserMsg.text,
+            filters,
+            preFilterCount: prevState?.candidateCount ?? null,
+          },
+          provider,
+        )
+        if (cot) {
+          if (prevState) {
+            prevState.thinkingProcess =
+              (prevState.thinkingProcess ? prevState.thinkingProcess + "\n\n" : "") + cot
+          }
+          if (deps.onThinking) {
+            try { deps.onThinking(cot) } catch { /* never block runtime */ }
+          }
+          console.log(`[zero-result-cot] emitted (${cot.length} chars)`)
+        }
+      } catch (err) {
+        console.warn(`[zero-result-cot] generation failed:`, (err as Error).message)
+      }
+    }
   } else {
     candidates = []
     evidenceMap = new Map()
