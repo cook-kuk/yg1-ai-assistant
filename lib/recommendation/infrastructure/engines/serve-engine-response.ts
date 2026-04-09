@@ -1209,10 +1209,25 @@ export async function buildRecommendationResponse(
     `✨ AI 상세 분석`,
   ]
   const hasCandidatePool = totalCandidateCount > 0 && !!primary
+  // RC3: when 0 candidates and filter combo trips domain-guard (e.g. 스테인리스+DLC),
+  // replace the generic stub with a deterministic domain warning + alternative suggestion.
+  let noneFallbackText = "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요."
+  if (status === "none" && !hasCandidatePool) {
+    try {
+      const { checkDomainWarnings, formatWarningsForResponse } = await import("@/lib/recommendation/core/domain-guard")
+      const dgWarnings = checkDomainWarnings(filters)
+      if (dgWarnings.length > 0) {
+        const warningText = formatWarningsForResponse(dgWarnings)
+        if (warningText) noneFallbackText = warningText
+      }
+    } catch (e) {
+      console.warn("[zero-result:domain-guard] error:", (e as Error).message)
+    }
+  }
   let finalResponseText = status === "none"
     ? hasCandidatePool
       ? `조건에 완전히 맞는 제품은 없지만 유사 후보 ${totalCandidateCount}개를 찾았습니다. 직경이나 소재 조건을 조정하거나 현재 후보를 검토해보세요.`
-      : "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요."
+      : noneFallbackText
     : responseText
   const recValidation = validateOptionFirstPipeline(finalResponseText, finalRecChips, postRecDisplayedOptions)
   if (recValidation.correctedAnswer) {
