@@ -182,6 +182,11 @@ const STOCK_PATTERNS = [
 ]
 // 숫자 임계값: "재고 200개 이상", "재고 50개 넘는", "stock >= 100", "재고 100 이상만" 등
 const STOCK_THRESHOLD_PATTERN = /(?:재고|stock)(?:[가는은이])?\s*(?:>=?|≥)?\s*(\d+)\s*(?:개)?\s*(?:이상|넘는|초과|over|more)?/iu
+// 수량 조회 의문문: "재고 몇개", "재고 얼마", "재고 수량", "how much stock" 등 — 임계값 없이 조회.
+// filter_by_stock (instock) 으로 라우팅하여 재고 있는 제품만 + 재고 표시로 응답.
+const STOCK_QUERY_PATTERNS = [
+  /(?:재고|stock)(?:[가는은이])?\s*(?:몇\s*(?:개|대)?|얼마|수량|개수|어느\s*정도|how\s*(?:much|many))/iu,
+]
 
 const COMPETITOR_PATTERNS = [
   /경쟁사/iu,
@@ -591,6 +596,16 @@ export function tryKGDecision(
         source: "kg-intent",
         reason: `stock threshold ${threshold}`,
       }
+    }
+  }
+  // 재고 수량 조회 의문문 ("재고 몇개 있어?") — threshold 없이 instock 으로 라우팅하여
+  // serve-engine-stock 이 재고 있는 후보 + totalStock 값을 표시하도록 위임.
+  if (STOCK_QUERY_PATTERNS.some(p => p.test(msg))) {
+    return {
+      decision: buildDecision({ type: "filter_by_stock", stockFilter: "instock" } as OrchestratorAction, [], 0.92, "KG: stock query (수량 조회)"),
+      confidence: 0.92,
+      source: "kg-intent",
+      reason: "stock query",
     }
   }
   if (STOCK_PATTERNS.some(p => p.test(msg))) {

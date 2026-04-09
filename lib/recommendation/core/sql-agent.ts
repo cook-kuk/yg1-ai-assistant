@@ -10,6 +10,8 @@ import { resolveModel } from "@/lib/recommendation/infrastructure/llm/recommenda
 import type { AppliedFilter } from "@/lib/types/exploration"
 import { selectFewShots, buildFewShotText } from "./adaptive-few-shot"
 import { validateAndResolveFilters } from "./value-resolver"
+import { getFilterFieldLabel } from "@/lib/recommendation/shared/filter-field-registry"
+import { isSkipToken } from "@/lib/recommendation/shared/patterns"
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -168,6 +170,8 @@ ${brandList}
 
 ## Auxiliary Tables (read-only reference — joinable, not directly filterable from this agent)
 ${auxList || "  (none loaded)"}
+
+When the user asks about inventory / 재고 / stock / 수량 — 재고 데이터는 catalog_app.product_inventory_summary_mv 에 있고 normalized_edp ↔ product_recommendation_mv.normalized_code 로 JOIN 됩니다 (컬럼: total_stock, warehouse_count). 이 agent 가 직접 JOIN 하지는 않지만, upstream 의 filter_by_stock 경로가 처리하므로 "재고" 관련 질문에는 제품-MV 필터만 emit 하고 재고 자체는 []. 절대 "재고 컬럼이 없다" 고 reasoning 에 쓰지 마세요 — 재고는 다른 테이블에 있고 JOIN 가능합니다.
 
 When the user asks about cutting conditions / RPM / feed rate / 절삭조건 / 회전수 / 이송속도 / 절입깊이 — those numbers live in raw_catalog.cutting_condition_table. This agent cannot filter that table directly, so emit [] for the cutting-number itself and let the upstream tool-forge handle the join. BUT: use the aux sample values above to (a) confirm the user's number is in-range, (b) extract any *product-MV* filters implied by the same message (e.g. "스테인리스 RPM 3000" → still emit _workPieceName=스테인리스), and (c) note your reasoning so tool-forge has context. Never invent product-MV columns for cutting numbers.
 
@@ -466,6 +470,12 @@ export function buildAppliedFilterFromAgentFilter(
   agentFilter: AgentFilter,
   turnCount: number,
 ): AppliedFilter | null {
+  // Skip-token guard: LLM 이 "상관없음/모름/아무거나" 같은 skip 신호를 값으로 emit 한 경우,
+  // 이를 실제 필터로 적용하면 후보가 0 으로 떨어짐 (시리즈명 "상관없음" 버그). 드랍.
+  if (typeof agentFilter.value === "string" && isSkipToken(agentFilter.value)) {
+    return null
+  }
+
   // Navigation pseudo-fields
   if (NAV_FIELDS.has(agentFilter.field)) {
     return {
@@ -492,10 +502,19 @@ export function buildAppliedFilterFromAgentFilter(
     // For between, store both bounds in rawValue / rawValue2.
     const isBetween = op === "between" && agentFilter.value2 != null
     const rawValue = coerceRawValue(registryField, agentFilter.value)
+    // BUG1: LLM may emit `display: "피삭재: 인코넬(내열합금)"` baking the field label into
+    // the display string, which then duplicates ("피삭재: 피삭재: ...") in 0-result messages.
+    // Strip the leading "<label>:" if it matches this field, and trim any "(extra)" suffix.
+    const fieldLabel = getFilterFieldLabel(registryField)
+    let displayValue = agentFilter.display ?? (isBetween ? `${agentFilter.value}~${agentFilter.value2}` : agentFilter.value)
+    if (fieldLabel && displayValue) {
+      const labelPrefixRe = new RegExp(`^\\s*${fieldLabel.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\s*[:：]\\s*`, "i")
+      displayValue = displayValue.replace(labelPrefixRe, "")
+    }
     const filter: AppliedFilter = {
       field: registryField,
       op,
-      value: agentFilter.display ?? (isBetween ? `${agentFilter.value}~${agentFilter.value2}` : agentFilter.value),
+      value: displayValue,
       rawValue,
       appliedAt: turnCount,
     }

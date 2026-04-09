@@ -463,6 +463,9 @@ function ReasoningBlock({
 }) {
   const [deepOpen, setDeepOpen] = useState(false)
   const [open, setOpen] = useState(true)
+  // 사용자가 수동으로 토글한 적이 있으면 자동 접기/펴기를 멈춘다 (의도 존중).
+  const userToggledRef = useRef(false)
+  const wasLoadingRef = useRef(isLoading)
   const [elapsedMs, setElapsedMs] = useState(0)
   const startedAtRef = useRef<number | null>(null)
   const finalMsRef = useRef<number | null>(null)
@@ -478,9 +481,20 @@ function ReasoningBlock({
     } catch { return 12_000 }
   })
 
-  // 로딩이 시작되면 항상 자동으로 펼쳐서 추론 본문이 보이게 한다.
+  // 로딩 중: 자동 펼침. 로딩 종료 직후: 자동 접기 (ChatGPT/Claude 스타일 — 토글로 남김).
+  // 사용자가 직접 클릭한 적이 있으면 건드리지 않는다.
   useEffect(() => {
-    if (isLoading) setOpen(true)
+    if (userToggledRef.current) {
+      wasLoadingRef.current = isLoading
+      return
+    }
+    if (isLoading) {
+      setOpen(true)
+    } else if (wasLoadingRef.current && !isLoading) {
+      // loading → done 전환 순간에만 접는다 (이미 종료된 턴에는 영향 X).
+      setOpen(false)
+    }
+    wasLoadingRef.current = isLoading
   }, [isLoading])
 
   useEffect(() => {
@@ -533,7 +547,7 @@ function ReasoningBlock({
     <div className="mt-1 max-w-full">
       <button
         type="button"
-        onClick={() => setOpen(v => !v)}
+        onClick={() => { userToggledRef.current = true; setOpen(v => !v) }}
         className="group flex items-center gap-2 px-2.5 py-1 rounded-full bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-colors"
       >
         {isLoading ? (

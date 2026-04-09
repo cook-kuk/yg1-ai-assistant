@@ -903,7 +903,12 @@ export function extractFromMvIndex(
 // ── Main parser ──────────────────────────────────────────────
 export function parseDeterministic(message: string, meta?: DeterministicMeta): DeterministicAction[] {
   if (!message || message.trim().length === 0) return []
+  // "이 중 / 이중 / 여기서 / 그중" 같은 관계사 노이즈를 제거해 뒤따르는 조건 추출을 돕는다.
+  // 예: "이중 절삭속도 20이상만" → "절삭속도 20이상만" (공구 '이중 날' 같은 형용사가 아니라
+  // "이 중에서" 의 축약형). 뒤에 공백 없이 숫자/한글키워드가 붙는 경우만 치환.
   const text = message.trim()
+    .replace(/(^|[\s,])(?:이\s*중(?:에서)?|그\s*중(?:에서)?|여기(?:서|에서)?)(?=\s*[가-힣a-zA-Z])/gu, "$1")
+    .trim()
   const actions: DeterministicAction[] = []
   const seen = new Set<string>() // dedup by field
 
