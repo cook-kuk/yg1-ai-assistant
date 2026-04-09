@@ -3183,16 +3183,20 @@ async function handleServeExplorationInner(
         }
 
         // 5. Judgment explain route (only if no revision, no filter)
-        if (!revisionResult && !filterResult && judgmentResult && prevState) {
-          const isExplainQuestion = judgmentResult.intentAction === "explain" || /[?？]$/.test(lastUserMsg.text.trim())
+        if (!revisionResult && !filterResult && prevState) {
+          const trimmed = lastUserMsg.text.trim()
+          const isExplainQuestion =
+            (judgmentResult?.intentAction === "explain") ||
+            /[?？]$/.test(trimmed) ||
+            /(뭐야|뭔가요|뭔데|뭐에요|뭐임|무엇|뜻|의미|설명|알려)/.test(trimmed)
           if (
             isExplainQuestion &&
             (
-              judgmentResult.domainRelevance === "cutting_condition" ||
+              judgmentResult?.domainRelevance === "cutting_condition" ||
               isToolDomainQuestion(lastUserMsg.text)
             )
           ) {
-            console.log(`[runtime:explain-route] ${judgmentResult.domainRelevance} -> answer_general before V2`)
+            console.log(`[runtime:explain-route] ${judgmentResult?.domainRelevance ?? "tool_term"} -> answer_general before V2`)
             return handleServeGeneralChatAction({
               deps,
               action: { type: "answer_general", message: lastUserMsg.text },
@@ -5445,7 +5449,7 @@ async function handleServeExplorationInner(
 
 // ── Tool domain detection ─────────────────────────────
 // tool/가공/형상/추천 질문은 company handler로 가면 안 됨
-const TOOL_DOMAIN_PATTERN = /slot|milling|side.?mill|shoulder|plunge|ball.?end|taper|square|corner.?r|radius|flute|날수|날 수|coating|코팅|dlc|tialn|alcrn|알루미늄.*가공|스테인리스.*가공|rpm|feed|이송|절삭|ap |ae |vc |fz |추천.*이유|왜.*추천|어떤.*형상|뭐가.*좋|뭐가.*맞|차이점|형상|가공.*방|황삭|정삭|엔드밀|드릴|탭|인서트|시리즈.*차이|제품.*비교|절삭.*조건/i
+const TOOL_DOMAIN_PATTERN = /slot|milling|side.?mill|shoulder|plunge|ball.?end|taper|square|corner.?r|radius|flute|날수|날 수|coating|코팅|dlc|tialn|alcrn|알루미늄.*가공|스테인리스.*가공|rpm|feed|이송|절삭|ap |ae |vc |fz |추천.*이유|왜.*추천|어떤.*형상|뭐가.*좋|뭐가.*맞|차이점|형상|가공.*방|황삭|정삭|엔드밀|드릴|탭|인서트|시리즈.*차이|제품.*비교|절삭.*조건|헬릭스|helix|비틀림|나선|리드|lead.?angle|rake|경사각|여유각|relief|chip.?load|칩.?로드|런아웃|runout|백래시|backlash|생크|shank|척킹|chuck|툴홀더|tool.?holder|오버행|overhang|워블|wobble/i
 
 function isToolDomainQuestion(message: string): boolean {
   return TOOL_DOMAIN_PATTERN.test(message)
