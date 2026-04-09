@@ -66,7 +66,7 @@ function aliasFor(field) {
   return FIELD_ALIAS[field] || [field, field.toLowerCase()];
 }
 
-function callAPI(body, timeoutMs = 90000) {
+function callAPIOnce(body, timeoutMs = 90000) {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify(body);
     const req = http.request({
@@ -84,6 +84,25 @@ function callAPI(body, timeoutMs = 90000) {
     req.setTimeout(timeoutMs, () => { req.destroy(); reject(new Error('TIMEOUT')); });
     req.write(data); req.end();
   });
+}
+
+// Retry transient network errors (ECONNRESET / socket hang up / TIMEOUT) up to 2 times.
+// Real engine FAILs are not retried — those bubble up via the parsed response.
+async function callAPI(body, timeoutMs = 90000) {
+  const TRANSIENT = /ECONNRESET|socket hang up|TIMEOUT|EPIPE|ETIMEDOUT|ECONNREFUSED/i;
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await callAPIOnce(body, timeoutMs);
+    } catch (e) {
+      lastErr = e;
+      if (!TRANSIENT.test(e.message || '')) throw e;
+      const backoff = 2000 * (attempt + 1);
+      console.error(`[retry] ${e.message} → wait ${backoff}ms (attempt ${attempt + 1}/3)`);
+      await new Promise(r => setTimeout(r, backoff));
+    }
+  }
+  throw lastErr;
 }
 
 function extractFilters(resp) {

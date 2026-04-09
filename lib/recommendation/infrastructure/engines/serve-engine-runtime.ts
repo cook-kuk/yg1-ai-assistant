@@ -1921,18 +1921,19 @@ async function handleServeExplorationInner(
     let msg = lastUserMsg?.text ?? ""
 
     // ── Turn Repair: 모호한 참조("그거 말고", "더 큰 거", "아니야 X를") → 직전 맥락으로 풀이 ──
-    // needsRepair=true + history 존재할 때만 LLM 한 번 호출. 일반 메시지는 0ms 통과.
-    if (msg && prevState?.narrowingHistory && prevState.narrowingHistory.length > 0) {
+    // needsRepair=true + 이전 맥락 존재(applied filters or narrowing history)할 때만 LLM 한 번 호출.
+    // 일반 메시지는 0ms 통과.
+    if (msg && prevState && ((prevState.narrowingHistory?.length ?? 0) > 0 || (prevState.appliedFilters?.length ?? 0) > 0)) {
       try {
         const { needsRepair, repairMessage } = await import("@/lib/recommendation/core/turn-repair")
-        if (needsRepair(msg)) {
-          const repair = await repairMessage(msg, prevState.appliedFilters ?? [], prevState.narrowingHistory, provider)
+        const repairTriggered = needsRepair(msg)
+        console.log(`[turn-repair:gate] msg="${msg.slice(0, 40)}", needsRepair=${repairTriggered}, history=${prevState.narrowingHistory?.length ?? 0}, filters=${prevState.appliedFilters?.length ?? 0}`)
+        if (repairTriggered) {
+          const repair = await repairMessage(msg, prevState.appliedFilters ?? [], prevState.narrowingHistory ?? [], provider)
           if (repair.wasRepaired) {
             console.log(`[turn-repair] "${msg}" → "${repair.clarifiedMessage}"`)
             msg = repair.clarifiedMessage
-            if (prevState) {
-              prevState.thinkingProcess = `🔍 모호한 참조 해석: "${lastUserMsg!.text}" → "${msg}"${repair.repairExplanation ? "\n" + repair.repairExplanation : ""}` + (prevState.thinkingProcess ? "\n\n" + prevState.thinkingProcess : "")
-            }
+            prevState.thinkingProcess = `🔍 모호한 참조 해석: "${lastUserMsg!.text}" → "${msg}"${repair.repairExplanation ? "\n" + repair.repairExplanation : ""}` + (prevState.thinkingProcess ? "\n\n" + prevState.thinkingProcess : "")
           }
         }
       } catch (e) {
@@ -3212,7 +3213,9 @@ async function handleServeExplorationInner(
         // ── Self-Correction: 0건 + 필터 존재 → 자동 교정 시도 ──
         // input(base constraints)은 유지하고 AppliedFilter[]만 mutate 한다.
         // 성공 시 result.searchPayload를 in-place 갱신하여 downstream이 그대로 사용.
-        if (isResultPhase && totalCandidateCount === 0 && lastUserMsg) {
+        // Phase 가드 없음: search가 실행됐는데 0건이면 phase 무관하게 교정한다 (question 모드도 포함).
+        console.log(`[self-correction:gate] total=${totalCandidateCount}, lastUserMsg=${!!lastUserMsg}, phase=${result.sessionState.journeyPhase}`)
+        if (totalCandidateCount === 0 && lastUserMsg) {
           try {
             const { constraintsToFilters } = await import("@/lib/recommendation/core/search-adapter")
             const { input: scInput, filters: scFilters } = constraintsToFilters(result.sessionState)

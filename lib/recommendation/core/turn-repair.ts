@@ -33,7 +33,10 @@ export async function repairMessage(
   provider: LLMProvider,
 ): Promise<RepairResult> {
   if (!needsRepair(msg)) return { clarifiedMessage: msg, wasRepaired: false, repairExplanation: null }
-  if (!history || history.length === 0) return { clarifiedMessage: msg, wasRepaired: false, repairExplanation: null }
+  // 둘 다 비어있으면 해석할 맥락이 없음
+  if ((!history || history.length === 0) && filters.length === 0) {
+    return { clarifiedMessage: msg, wasRepaired: false, repairExplanation: null }
+  }
 
   const recent = history.slice(-3).map((t, i) => ({
     turn: i + 1,
