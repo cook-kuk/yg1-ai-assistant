@@ -427,6 +427,49 @@ function buildNumericEqualityClause(
 }
 
 /**
+ * EXISTS 서브쿼리 빌더: raw_catalog.cutting_condition_table 에 제품 series 가
+ * 매칭되고, 지정 컬럼이 원하는 범위/값을 만족하는 레코드가 최소 1건 있으면 통과.
+ * cutting_condition_table 의 수치 컬럼은 전부 text 이므로 regexp_replace 로
+ * 숫자 토큰만 추출한 뒤 numeric 캐스팅한다 ("0.2D" → 0.2 처럼 단위 접미사 무시).
+ * eq 비교에는 ±5% (최소 0.01) 허용.
+ */
+function buildCuttingConditionExistsClause(
+  ccColumn: string,
+  filter: AppliedFilter,
+  next: (value: unknown) => string,
+): string | null {
+  const rawValues = extractNumericFilterRawValues(filter)
+  const numericExpr = `NULLIF(regexp_replace(COALESCE(c.${ccColumn}, ''), '[^0-9.]', '', 'g'), '')::numeric`
+  let predicate: string | null = null
+  if (filter.op === "gte" || filter.op === "lte") {
+    const v = Number(rawValues[0])
+    if (!Number.isFinite(v)) return null
+    const param = next(v)
+    const cmp = filter.op === "gte" ? ">=" : "<="
+    predicate = `${numericExpr} ${cmp} ${param}`
+  } else if (filter.op === "between") {
+    const lo = Number(rawValues[0])
+    const hi = Number((filter as { rawValue2?: unknown }).rawValue2 ?? rawValues[1] ?? rawValues[0])
+    if (!Number.isFinite(lo) || !Number.isFinite(hi)) return null
+    const [low, high] = lo <= hi ? [lo, hi] : [hi, lo]
+    predicate = `${numericExpr} BETWEEN ${next(low)} AND ${next(high)}`
+  } else {
+    if (rawValues.length === 0) return null
+    const parts: string[] = []
+    for (const raw of rawValues) {
+      const v = Number(raw)
+      if (!Number.isFinite(v)) continue
+      const param = next(v)
+      const tol = Math.max(Math.abs(v) * 0.05, 0.01)
+      parts.push(`ABS(${numericExpr} - ${param}) <= ${tol}`)
+    }
+    if (parts.length === 0) return null
+    predicate = parts.length === 1 ? parts[0] : `(${parts.join(" OR ")})`
+  }
+  return `EXISTS (SELECT 1 FROM raw_catalog.cutting_condition_table c WHERE c.series_name = edp_series_name AND ${predicate})`
+}
+
+/**
  * Boolean-as-text columns (Y/N/Yes/No/Coolant/Through/Null).
  * filter.value: true  → any column matches truthy text
  *               false → all present columns are falsy (or all null)
@@ -983,10 +1026,14 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
       return null
     },
   },
-  // RPM(절삭조건) — 가시성 전용 가상 필드.
-  // 실제 narrowing은 tool-forge가 raw_catalog.cutting_condition_table 을 직접
-  // 조회해서 처리하므로 buildDbClause/matches/extractValues 모두 no-op.
-  // 이 정의는 좌측 필터 패널 칩 표시 + 세션 상태 추적을 위해서만 존재.
+  // 절삭조건 4종 (rpm/feedRate/cuttingSpeed/depthOfCut) — registry의 1차 필터
+  // 경로. buildDbClause 가 raw_catalog.cutting_condition_table 에 대해 EXISTS
+  // 서브쿼리를 만들고 edp_series_name 조인 + 수치 범위/허용오차 매칭을 수행한다.
+  // cutting_condition_table 컬럼은 전부 text 라 buildCuttingConditionExistsClause
+  // 내부에서 regexp_replace → numeric 캐스팅으로 견고하게 처리.
+  // 제품 레코드 자체에는 이 필드가 없으므로 matches/extractValues 는 no-op 유지
+  // (deterministic SCR 단계에선 DB 경로가 narrowing 을 담당). 만약 EXISTS 가 0건
+  // 이면 상위 relax 루프/tool-forge 가 자연스럽게 fallback 을 수행한다.
   rpm: {
     field: "rpm",
     label: "RPM",
@@ -998,14 +1045,12 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     clearInput: input => input,
     extractValues: () => [],
     matches: () => null,
-    // No buildDbClause: cutting_condition_table 경로가 별도 처리
+    buildDbClause: (filter, next) => buildCuttingConditionExistsClause("spindle_speed", filter, next),
   },
-  // 이송속도(feed rate) — 가시성 전용 가상 필드. rpm 과 동일하게
-  // tool-forge 가 cutting_condition_table 을 직접 조회해 narrowing 한다.
   feedRate: {
     field: "feedRate",
     label: "이송속도",
-    queryAliases: ["feed", "feed rate", "이송", "이송속도", "fz"],
+    queryAliases: ["feed", "feed rate", "이송", "이송속도", "fz", "fn"],
     kind: "number",
     op: "range",
     unit: "mm/rev",
@@ -1013,8 +1058,8 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     clearInput: input => input,
     extractValues: () => [],
     matches: () => null,
+    buildDbClause: (filter, next) => buildCuttingConditionExistsClause("feed_per_tooth", filter, next),
   },
-  // 절삭속도(cutting speed / Vc) — 가시성 전용 가상 필드.
   cuttingSpeed: {
     field: "cuttingSpeed",
     label: "절삭속도",
@@ -1026,8 +1071,8 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     clearInput: input => input,
     extractValues: () => [],
     matches: () => null,
+    buildDbClause: (filter, next) => buildCuttingConditionExistsClause("cutting_speed", filter, next),
   },
-  // 절입량(depth of cut / ap) — 가시성 전용 가상 필드.
   depthOfCut: {
     field: "depthOfCut",
     label: "절입량",
@@ -1039,6 +1084,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     clearInput: input => input,
     extractValues: () => [],
     matches: () => null,
+    buildDbClause: (filter, next) => buildCuttingConditionExistsClause("axial_depth_of_cut", filter, next),
   },
   applicationShapes: {
     field: "applicationShapes",

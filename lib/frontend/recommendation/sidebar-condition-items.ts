@@ -101,6 +101,20 @@ function getFilterFieldLabel(field: string, language: "ko" | "en"): string {
       return language === "ko" ? "브랜드" : "Brand"
     case "toolMaterial":
       return language === "ko" ? "공구 소재" : "Tool Material"
+    case "ballRadiusMm":
+      return language === "ko" ? "볼 반경" : "Ball Radius"
+    case "pointAngleDeg":
+      return language === "ko" ? "포인트 각도" : "Point Angle"
+    case "threadPitchMm":
+      return language === "ko" ? "나사 피치" : "Thread Pitch"
+    case "rpm":
+      return language === "ko" ? "회전수(RPM)" : "Spindle Speed"
+    case "feedRate":
+      return language === "ko" ? "이송속도" : "Feed Rate"
+    case "cuttingSpeed":
+      return language === "ko" ? "절삭속도" : "Cutting Speed"
+    case "depthOfCut":
+      return language === "ko" ? "절입량" : "Depth of Cut"
     default:
       return localizeIntakeText(field, language)
   }
@@ -127,6 +141,20 @@ function getFilterFieldEmoji(field: string): string {
       return "🏭"
     case "toolMaterial":
       return "🔧"
+    case "ballRadiusMm":
+      return "⚪"
+    case "pointAngleDeg":
+      return "📐"
+    case "threadPitchMm":
+      return "🧵"
+    case "rpm":
+      return "🌀"
+    case "feedRate":
+      return "➡️"
+    case "cuttingSpeed":
+      return "⚡"
+    case "depthOfCut":
+      return "⬇️"
     default:
       return "🏷️"
   }
