@@ -9,6 +9,7 @@ import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recomm
 import { resolveModel } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import type { AppliedFilter } from "@/lib/types/exploration"
 import { selectFewShots, buildFewShotText } from "./adaptive-few-shot"
+import { validateAndResolveFilters } from "./value-resolver"
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -241,7 +242,13 @@ export async function naturalLanguageToFilters(
   console.log(`[sql-agent:CoT] filters: ${JSON.stringify(filters)}`)
   console.log(`[sql-agent:CoT] raw(${raw.length}b): ${raw.slice(0, 800)}${raw.length > 800 ? "…" : ""}`)
   console.log("[sql-agent:CoT] ────────────────────────────────\n")
-  return { filters, raw, reasoning }
+  const resolved = validateAndResolveFilters(filters)
+  if (resolved.messages.length > 0) {
+    const note = resolved.messages.join(". ")
+    console.log(`[sql-agent:value-resolver] ${note}`)
+    return { filters: resolved.resolvedFilters, raw, reasoning: (reasoning ?? "") + "\n\n🔧 값 교정: " + note }
+  }
+  return { filters: resolved.resolvedFilters, raw, reasoning }
 }
 
 // ── Streaming variant ────────────────────────────────────────
@@ -358,7 +365,13 @@ export async function naturalLanguageToFiltersStreaming(
   console.log(`[sql-agent:CoT:stream] filters: ${JSON.stringify(filters)}`)
   console.log(`[sql-agent:CoT:stream] raw(${raw.length}b): ${raw.slice(0, 800)}${raw.length > 800 ? "…" : ""}`)
   console.log("[sql-agent:CoT:stream] ────────────────────────\n")
-  return { filters, raw, reasoning }
+  const resolved = validateAndResolveFilters(filters)
+  if (resolved.messages.length > 0) {
+    const note = resolved.messages.join(". ")
+    console.log(`[sql-agent:value-resolver:stream] ${note}`)
+    return { filters: resolved.resolvedFilters, raw, reasoning: (reasoning ?? "") + "\n\n🔧 값 교정: " + note }
+  }
+  return { filters: resolved.resolvedFilters, raw, reasoning }
 }
 
 // ── Response Parser ──────────────────────────────────────────
