@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
   Activity,
+  Brain,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   Clock,
   Database,
@@ -338,6 +340,144 @@ function ExplorationSidebar({
   )
 }
 
+// ChatGPT/Claude-style reasoning block: 헤드라인 + 경과시간 + 토글 본문.
+// 스트리밍 중에는 100ms 단위 타이머가 흐르고, 끝나면 최종 경과시간을 고정한다.
+function ReasoningBlock({
+  trail,
+  isLoading,
+  language,
+}: {
+  trail: string
+  isLoading: boolean
+  language: "ko" | "en"
+}) {
+  const [open, setOpen] = useState(true)
+  const [elapsedMs, setElapsedMs] = useState(0)
+  const startedAtRef = useRef<number | null>(null)
+  const finalMsRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (isLoading) {
+      if (startedAtRef.current === null) startedAtRef.current = Date.now()
+      finalMsRef.current = null
+      const id = setInterval(() => {
+        if (startedAtRef.current !== null) {
+          setElapsedMs(Date.now() - startedAtRef.current)
+        }
+      }, 100)
+      return () => clearInterval(id)
+    }
+    // 스트리밍 종료: 최종 경과시간 한 번만 고정
+    if (startedAtRef.current !== null && finalMsRef.current === null) {
+      finalMsRef.current = Date.now() - startedAtRef.current
+      setElapsedMs(finalMsRef.current)
+    }
+    return undefined
+  }, [isLoading])
+
+  // 스트리밍이 끝나도 본문을 접지 않는다 — 사용자가 추론 내역을
+  // 다시 펼쳐서 읽을 수 있도록 유지하고, 접고 싶으면 직접 토글한다.
+
+  const seconds = Math.max(0, elapsedMs / 1000)
+  // 추론 평균 소요시간(경험치) ~15s. 실제 종료 전까지는 95%에서 멈춰
+  // "거의 다 됐어요" 느낌만 주고, 끝나는 순간 100%로 스냅한다.
+  const ESTIMATED_MS = 15_000
+  const rawProgress = isLoading
+    ? Math.min(0.95, elapsedMs / ESTIMATED_MS)
+    : 1
+  const remainingS = isLoading
+    ? Math.max(0, Math.ceil((ESTIMATED_MS - elapsedMs) / 1000))
+    : 0
+  const timerLabel = isLoading
+    ? (language === "ko" ? `${seconds.toFixed(1)}s · 약 ${remainingS}s 남음` : `${seconds.toFixed(1)}s · ~${remainingS}s left`)
+    : `${Math.round(seconds)}s`
+  const headlineText = isLoading
+    ? (language === "ko" ? "추론 중" : "Thinking")
+    : (language === "ko" ? `${Math.max(1, Math.round(seconds))}초 동안 추론함` : `Thought for ${Math.max(1, Math.round(seconds))}s`)
+
+  // 원형 progress ring
+  const RING_SIZE = 14
+  const RING_STROKE = 2
+  const RING_R = (RING_SIZE - RING_STROKE) / 2
+  const RING_C = 2 * Math.PI * RING_R
+  const ringOffset = RING_C * (1 - rawProgress)
+
+  return (
+    <div className="mt-1 max-w-full">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="group flex items-center gap-2 px-2.5 py-1 rounded-full bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-colors"
+      >
+        {isLoading ? (
+          <span className="relative inline-flex items-center justify-center shrink-0" style={{ width: RING_SIZE, height: RING_SIZE }}>
+            <svg width={RING_SIZE} height={RING_SIZE} className="-rotate-90">
+              <circle
+                cx={RING_SIZE / 2}
+                cy={RING_SIZE / 2}
+                r={RING_R}
+                fill="none"
+                stroke="#e5e7eb"
+                strokeWidth={RING_STROKE}
+              />
+              <circle
+                cx={RING_SIZE / 2}
+                cy={RING_SIZE / 2}
+                r={RING_R}
+                fill="none"
+                stroke="#3b82f6"
+                strokeWidth={RING_STROKE}
+                strokeLinecap="round"
+                strokeDasharray={RING_C}
+                strokeDashoffset={ringOffset}
+                style={{ transition: "stroke-dashoffset 200ms linear" }}
+              />
+            </svg>
+          </span>
+        ) : (
+          <Brain size={12} className="text-blue-500 shrink-0" />
+        )}
+        <span className={`text-[11px] font-medium text-gray-700 leading-none ${isLoading ? "shimmer-text" : ""}`}>
+          {headlineText}
+        </span>
+        <span className="text-[10px] tabular-nums text-gray-500 leading-none font-mono">
+          {timerLabel}
+        </span>
+        <ChevronRight
+          size={12}
+          className={`text-gray-400 shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
+        />
+      </button>
+      {open && (
+        <div className="mt-1.5 ml-1 pl-3 border-l-2 border-gray-200 text-[11px] text-gray-700 leading-relaxed whitespace-pre-wrap">
+          {trail}
+        </div>
+      )}
+      <style jsx>{`
+        .shimmer-text {
+          background: linear-gradient(
+            90deg,
+            #6b7280 0%,
+            #6b7280 40%,
+            #d1d5db 50%,
+            #6b7280 60%,
+            #6b7280 100%
+          );
+          background-size: 200% 100%;
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          animation: shimmer 1.6s linear infinite;
+        }
+        @keyframes shimmer {
+          0% { background-position: 100% 0; }
+          100% { background-position: -100% 0; }
+        }
+      `}</style>
+    </div>
+  )
+}
+
 function NarrowingChat({
   messages,
   isSending,
@@ -393,7 +533,7 @@ function NarrowingChat({
       <div className="flex justify-end px-4 pt-2">
         <DebugToggle enabled={debugMode} onToggle={() => setDebugMode(prev => !prev)} />
       </div>
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain px-3 py-3 space-y-4 sm:px-4">
         {messages.map((message, index) => (
           <div key={index} className={`flex items-end gap-2 ${message.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
             <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
@@ -402,7 +542,7 @@ function NarrowingChat({
               {message.role === "ai" ? <Sparkles size={13} /> : (language === "ko" ? "나" : "Me")}
             </div>
 
-            <div className="max-w-[82%] space-y-2">
+            <div className="max-w-[85%] sm:max-w-[82%] min-w-0 space-y-2">
               {message.text && !message.isLoading && (
                 <div className={`px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${
                   message.role === "user"
@@ -424,7 +564,7 @@ function NarrowingChat({
                 </div>
               )}
 
-              {message.isLoading && (
+              {message.isLoading && !message.thinkingProcess && (
                 <div className="flex gap-1.5 px-4 py-3 bg-gray-100 rounded-2xl rounded-bl-sm w-fit">
                   {[0, 1, 2].map(dot => (
                     <div key={dot} className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: `${dot * 0.15}s` }} />
@@ -432,35 +572,13 @@ function NarrowingChat({
                 </div>
               )}
 
-              {message.role === "ai" && message.thinkingProcess && (() => {
-                // ChatGPT/Claude-style reasoning: a one-line headline always
-                // visible, with the full trail tucked into a collapsed
-                // <details>. While streaming we keep details open so the user
-                // can watch tokens arrive; once the message settles we close
-                // it so the headline carries the summary.
-                const trail = message.thinkingProcess
-                // Headline = first non-empty line, stripped of markdown bullets.
-                const headline = (trail.split(/\r?\n/).find(l => l.trim().length > 0) ?? "")
-                  .replace(/^[-*•\d.\s]+/, "")
-                  .trim()
-                // 본문은 항상 full trail. headline은 요약 프리뷰일 뿐이라
-                // 자르지 않는다 (한 줄짜리 trail도 본문에 그대로 보존).
-                return (
-                  <details className="mt-1" open>
-                    <summary className="text-[11px] text-gray-600 cursor-pointer hover:text-gray-800 select-none flex items-start gap-1.5">
-                      <span className={`text-gray-400 mt-[1px] ${message.isLoading ? "animate-pulse" : ""}`}>
-                        {message.isLoading
-                          ? (language === "ko" ? "추론 중…" : "Thinking…")
-                          : "›"}
-                      </span>
-                      <span className="flex-1 leading-snug">{headline}</span>
-                    </summary>
-                    <div className="mt-1 p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-900 leading-relaxed whitespace-pre-wrap">
-                      {trail}
-                    </div>
-                  </details>
-                )
-              })()}
+              {message.role === "ai" && (message.thinkingProcess || message.isLoading) && (
+                <ReasoningBlock
+                  trail={message.thinkingProcess ?? ""}
+                  isLoading={!!message.isLoading}
+                  language={language}
+                />
+              )}
 
               {message.role === "ai" && message.chips && message.chips.length > 0 && !message.isLoading && (() => {
                 const isLatest = index === messages.length - 1 && !isSending
@@ -690,7 +808,7 @@ function NarrowingChat({
         ))}
       </div>
 
-      <div className="shrink-0 px-4 py-3 border-t bg-white">
+      <div className="shrink-0 px-3 py-2.5 border-t bg-white sm:px-4 sm:py-3" style={{ paddingBottom: "calc(0.625rem + env(safe-area-inset-bottom))" }}>
         {needsFeedback && (
           <div className="text-center text-xs text-amber-600 bg-amber-50 rounded-lg py-1.5 mb-2">
             {language === "ko"
@@ -715,9 +833,9 @@ function NarrowingChat({
             placeholder={language === "ko" ? "추가 질문이나 조건을 입력하세요..." : "Enter additional questions or conditions..."}
             rows={1}
             disabled={isSending || !!needsFeedback}
-            className="flex-1 px-3 py-2.5 rounded-xl border-2 border-gray-200 text-sm focus:outline-none focus:border-blue-400 resize-none min-h-[42px] max-h-[120px]"
+            className="flex-1 px-3 py-2.5 rounded-xl border-2 border-gray-200 text-base sm:text-sm focus:outline-none focus:border-blue-400 resize-none min-h-[44px] max-h-[120px]"
           />
-          <Button onClick={handleSend} disabled={!input.trim() || isSending || !!needsFeedback} size="sm" className="h-[42px] w-[42px] p-0 shrink-0 rounded-xl">
+          <Button onClick={handleSend} disabled={!input.trim() || isSending || !!needsFeedback} size="sm" className="h-[44px] w-[44px] p-0 shrink-0 rounded-xl">
             <Send size={15} />
           </Button>
         </div>
@@ -1010,16 +1128,16 @@ export function ExplorationScreen({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b bg-white">
-        <div className="flex items-center gap-2">
-          <h2 className="text-sm font-bold text-gray-900">{language === "ko" ? "AI 제품 탐색" : "AI Product Search"}</h2>
+      <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-2 border-b bg-white sm:px-4 sm:py-2.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <h2 className="shrink-0 text-sm font-bold text-gray-900">{language === "ko" ? "AI 탐색" : "AI Search"}</h2>
           {sessionState && (
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${RESOLUTION_CONFIG[sessionState.resolutionStatus]?.cls ?? "bg-gray-100 text-gray-600"}`}>
+            <span className={`shrink-0 text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full font-medium ${RESOLUTION_CONFIG[sessionState.resolutionStatus]?.cls ?? "bg-gray-100 text-gray-600"}`}>
               {RESOLUTION_CONFIG[sessionState.resolutionStatus]?.[language] ?? sessionState.resolutionStatus}
             </span>
           )}
           {sessionState && sessionState.resolutionStatus !== "broad" && (
-            <span className="text-xs text-gray-500">
+            <span className="hidden sm:inline text-xs text-gray-500 truncate">
               {sessionState.candidateCount === 0
                 ? (language === "ko" ? "0건" : "0 results")
                 : sessionState.candidateCount > 50
@@ -1030,34 +1148,71 @@ export function ExplorationScreen({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1.5">
-          <Button variant="outline" size="sm" onClick={() => setShowSidebar(prev => !prev)} className="gap-1 text-xs h-7 px-2 lg:hidden">
-            <Filter size={11} />
-            {language === "ko" ? "조건" : "Filters"}
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowCandidates(prev => !prev)} className="gap-1 text-xs h-7 px-2 lg:hidden">
-            <Activity size={11} />
-            {language === "ko" ? "후보" : "Results"}
-          </Button>
-          <Button variant="outline" size="sm" onClick={onEdit} className="gap-1 text-xs h-7 px-2">
-            <Edit2 size={11} />
-            {language === "ko" ? "조건 수정" : "Edit Conditions"}
-          </Button>
-          <Button variant="outline" size="sm" onClick={onReset} className="gap-1 text-xs h-7 px-2 border-orange-300 text-orange-700 hover:bg-orange-50">
-            <RotateCcw size={11} />
-            {language === "ko" ? "새 검색" : "New Search"}
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowSuccessModal(true)} className="gap-1 text-xs h-7 px-2 border-yellow-300 text-yellow-700 hover:bg-yellow-50">
-            <Star size={11} />
-            {language === "ko" ? "좋은 사례 저장" : "Save Success Case"}
-          </Button>
+        <div className="flex items-center gap-1 shrink-0 sm:gap-1.5">
+          <button
+            type="button"
+            aria-label={language === "ko" ? "조건" : "Filters"}
+            onClick={() => setShowSidebar(prev => !prev)}
+            className="lg:hidden inline-flex items-center justify-center h-9 w-9 rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50 active:bg-gray-100"
+          >
+            <Filter size={15} />
+          </button>
+          <button
+            type="button"
+            aria-label={language === "ko" ? "후보" : "Results"}
+            onClick={() => setShowCandidates(prev => !prev)}
+            className="lg:hidden inline-flex items-center justify-center h-9 w-9 rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50 active:bg-gray-100"
+          >
+            <Activity size={15} />
+          </button>
+          <button
+            type="button"
+            aria-label={language === "ko" ? "조건 수정" : "Edit Conditions"}
+            onClick={onEdit}
+            className="inline-flex items-center justify-center h-9 w-9 sm:w-auto sm:px-2.5 gap-1 rounded-md border border-gray-200 text-xs text-gray-700 hover:bg-gray-50 active:bg-gray-100"
+          >
+            <Edit2 size={15} className="sm:hidden" />
+            <Edit2 size={11} className="hidden sm:inline" />
+            <span className="hidden sm:inline">{language === "ko" ? "조건 수정" : "Edit"}</span>
+          </button>
+          <button
+            type="button"
+            aria-label={language === "ko" ? "새 검색" : "New Search"}
+            onClick={onReset}
+            className="inline-flex items-center justify-center h-9 w-9 sm:w-auto sm:px-2.5 gap-1 rounded-md border border-orange-300 text-xs text-orange-700 hover:bg-orange-50 active:bg-orange-100"
+          >
+            <RotateCcw size={15} className="sm:hidden" />
+            <RotateCcw size={11} className="hidden sm:inline" />
+            <span className="hidden sm:inline">{language === "ko" ? "새 검색" : "New"}</span>
+          </button>
+          <button
+            type="button"
+            aria-label={language === "ko" ? "좋은 사례 저장" : "Save Success Case"}
+            onClick={() => setShowSuccessModal(true)}
+            className="inline-flex items-center justify-center h-9 w-9 sm:w-auto sm:px-2.5 gap-1 rounded-md border border-yellow-300 text-xs text-yellow-700 hover:bg-yellow-50 active:bg-yellow-100"
+          >
+            <Star size={15} className="sm:hidden" />
+            <Star size={11} className="hidden sm:inline" />
+            <span className="hidden sm:inline">{language === "ko" ? "사례 저장" : "Save"}</span>
+          </button>
         </div>
       </div>
 
       <CaseCaptureModal open={showSuccessModal} onClose={() => setShowSuccessModal(false)} onSubmit={onSuccessCapture} />
 
-      <div className="flex-1 min-h-0 flex overflow-hidden">
-        <div className={`w-60 border-r bg-gray-50 flex-shrink-0 overflow-y-auto transition-all ${showSidebar ? "block" : "hidden"} lg:block`}>
+      <div className="flex-1 min-h-0 flex overflow-hidden relative">
+        {showSidebar && (
+          <div className="lg:hidden fixed inset-0 bg-black/40 z-40" onClick={() => setShowSidebar(false)} />
+        )}
+        <div className={`${showSidebar ? "fixed inset-y-0 left-0 z-50 w-[85vw] max-w-xs shadow-xl" : "hidden"} lg:static lg:block lg:w-60 lg:shadow-none lg:max-w-none border-r bg-gray-50 flex-shrink-0 overflow-y-auto transition-all`}>
+          {showSidebar && (
+            <div className="lg:hidden flex items-center justify-between px-3 py-2 border-b bg-white sticky top-0">
+              <span className="text-xs font-semibold text-gray-700">{language === "ko" ? "조건 및 필터" : "Filters"}</span>
+              <button onClick={() => setShowSidebar(false)} className="p-1 -mr-1 rounded hover:bg-gray-100" aria-label="Close">
+                <X size={16} />
+              </button>
+            </div>
+          )}
           <ExplorationSidebar form={form} sessionState={sessionState} engineSessionState={engineSessionState} onEdit={onEdit} messages={messages} />
         </div>
 
@@ -1076,7 +1231,18 @@ export function ExplorationScreen({
           />
         </div>
 
-        <div ref={candidatePanelRef} className={`w-80 border-l bg-white flex-shrink-0 overflow-y-auto transition-all ${showCandidates ? "block" : "hidden"} lg:block ${pulseCandidates ? "ring-4 ring-blue-500 ring-inset shadow-[0_0_24px_rgba(59,130,246,0.55)] animate-pulse" : ""}`}>
+        {showCandidates && (
+          <div className="lg:hidden fixed inset-0 bg-black/40 z-40" onClick={() => setShowCandidates(false)} />
+        )}
+        <div ref={candidatePanelRef} className={`${showCandidates ? "fixed inset-y-0 right-0 z-50 w-[90vw] max-w-sm shadow-xl" : "hidden"} lg:static lg:block lg:w-80 lg:shadow-none lg:max-w-none border-l bg-white flex-shrink-0 overflow-y-auto transition-all ${pulseCandidates ? "ring-4 ring-blue-500 ring-inset shadow-[0_0_24px_rgba(59,130,246,0.55)] animate-pulse" : ""}`}>
+          {showCandidates && (
+            <div className="lg:hidden flex items-center justify-between px-3 py-2 border-b bg-white sticky top-0 z-10">
+              <span className="text-xs font-semibold text-gray-700">{language === "ko" ? "추천 후보" : "Candidates"}</span>
+              <button onClick={() => setShowCandidates(false)} className="p-1 -mr-1 rounded hover:bg-gray-100" aria-label="Close">
+                <X size={16} />
+              </button>
+            </div>
+          )}
           <CandidatePanel
             candidates={candidateSnapshot}
             pagination={candidatePagination}
