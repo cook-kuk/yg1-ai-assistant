@@ -87,14 +87,14 @@ describe("hard20 B-series — brand explanation/legitimate brand mention", () =>
 
 // ── Group 2: Range/op edge cases (R1~R5) ──────────────────────
 describe("hard20 R-series — range / negation / stock / go-back", () => {
-  // KNOWN GAP: '직경 8~12mm 사이' 는 op=between 으로 잡히지만 현재 deterministic-scr
-  // 가 상한값(12)을 버리고 하한 8 만 value 로 채운다. 추후 between 양쪽 보존하도록
-  // 보강 필요. 지금은 회귀 보호 차원에서 최소한 diameter 액션이 잡히고 phantom 이
-  // 없다는 것만 검증한다.
-  it("R1.t2 '직경 8~12mm 사이' → diameter 액션 잡힘 + phantom 없음 (between 상한 누락은 별도 TODO)", () => {
+  it("R1.t2 '직경 8~12mm 사이' → diameter between 8 ~ 12 양쪽 잡힘", () => {
     const actions = activeFiltersFor("직경 8~12mm 사이")
-    const dias = actions.filter(a => a.field === "diameterMm")
-    expect(dias.length).toBeGreaterThanOrEqual(1)
+    const dia = actions.find(a => a.field === "diameterMm")
+    expect(dia).toBeDefined()
+    expect(dia?.op).toBe("between")
+    expect(dia?.value).toBe(8)
+    // 상한은 value2 에 보관
+    expect((dia as { value2?: number }).value2).toBe(12)
     expect(hasPhantomCategorical("직경 8~12mm 사이")).toEqual([])
   })
 
