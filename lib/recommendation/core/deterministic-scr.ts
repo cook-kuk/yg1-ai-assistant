@@ -368,7 +368,7 @@ function parseThreadPattern(text: string): { dia?: number; pitch?: number } {
 
 // 재고 (stock)
 const STOCK_PATTERNS = [
-  /재고\s*있/, /재고만/, /재고\s*\d/, /재고로/, /재고\b/, /in[-\s]?stock/i, /즉시\s*출하/, /빠른\s*납기/, /납기\s*빠른/,
+  /재고[가는은이도]?\s*있/, /재고만/, /재고[가는은이]?\s*\d/, /재고로/, /재고\b/, /in[-\s]?stock/i, /즉시\s*출하/, /빠른\s*납기/, /납기\s*빠른/,
 ]
 
 // 쿨런트홀 (coolant hole)

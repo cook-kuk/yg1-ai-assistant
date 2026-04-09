@@ -111,7 +111,7 @@ const NUMERIC_PATTERNS: Array<{ field: string; patterns: RegExp[]; extract: (m: 
   {
     field: "diameterMm",
     patterns: [
-      /(?:직경|지름|파이|φ|Φ|ø|dia(?:meter)?)\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
+      /(?:직경|지름|파이|φ|Φ|ø|dia(?:meter)?)(?:[이가은는을를도만])?\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
       /(\d+(?:\.\d+)?)\s*(?:mm|파이)\b/i,
       new RegExp(`(${KO_NUM_KEYS})\\s*(?:미리|밀리|파이|mm)`, "i"),
     ],
@@ -124,7 +124,7 @@ const NUMERIC_PATTERNS: Array<{ field: string; patterns: RegExp[]; extract: (m: 
     field: "fluteCount",
     patterns: [
       /(\d+)\s*(?:날|f|플루트|flute)/i,
-      /(?:날\s*수|플루트|flute)\s*(\d+)/i,
+      /(?:날\s*수|플루트|flute)(?:[이가은는을를도만])?\s*(\d+)/i,
       new RegExp(`(${KO_NUM_KEYS})\\s*날`, "i"),
     ],
     extract: (m) => {
@@ -135,28 +135,28 @@ const NUMERIC_PATTERNS: Array<{ field: string; patterns: RegExp[]; extract: (m: 
   {
     field: "shankDiameterMm",
     patterns: [
-      /(?:생크|shank)\s*(?:직경|지름)?\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
+      /(?:생크|shank)(?:[이가은는을를도만])?\s*(?:직경|지름)?(?:[이가은는을를도만])?\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
     ],
     extract: (m) => parseFloat(m[1]),
   },
   {
     field: "lengthOfCutMm",
     patterns: [
-      /(?:날장|절삭길이|절삭\s*길이|loc)\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
+      /(?:날장|절삭길이|절삭\s*길이|loc)(?:[이가은는을를도만])?\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
     ],
     extract: (m) => parseFloat(m[1]),
   },
   {
     field: "overallLengthMm",
     patterns: [
-      /(?:전장|전체\s*길이|oal)\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
+      /(?:전장|전체\s*길이|oal)(?:[이가은는을를도만])?\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
     ],
     extract: (m) => parseFloat(m[1]),
   },
   {
     field: "helixAngleDeg",
     patterns: [
-      /(?:헬릭스|나선각|helix)\s*(\d+(?:\.\d+)?)\s*(?:도|°)?/i,
+      /(?:헬릭스|나선각|helix)(?:[이가은는을를도만])?\s*(\d+(?:\.\d+)?)\s*(?:도|°)?/i,
     ],
     extract: (m) => parseFloat(m[1]),
   },
@@ -178,10 +178,10 @@ const RESET_PATTERNS = [
 ]
 
 const STOCK_PATTERNS = [
-  /(?:재고\s*(?:있|만|확인|된)|즉시\s*구매|바로\s*구매|in\s*stock)/iu,
+  /(?:재고(?:[가는은이도만])?\s*(?:있|만|확인|된)|즉시\s*구매|바로\s*구매|in\s*stock)/iu,
 ]
 // 숫자 임계값: "재고 200개 이상", "재고 50개 넘는", "stock >= 100", "재고 100 이상만" 등
-const STOCK_THRESHOLD_PATTERN = /(?:재고|stock)\s*(?:>=?|≥)?\s*(\d+)\s*(?:개)?\s*(?:이상|넘는|초과|over|more)?/iu
+const STOCK_THRESHOLD_PATTERN = /(?:재고|stock)(?:[가는은이])?\s*(?:>=?|≥)?\s*(\d+)\s*(?:개)?\s*(?:이상|넘는|초과|over|more)?/iu
 
 const COMPETITOR_PATTERNS = [
   /경쟁사/iu,
@@ -394,7 +394,7 @@ export function extractEntities(message: string): Array<{ field: string; value: 
   const lower = message.toLowerCase()
 
   // 0. Compound patterns: "싱크/생크 타입 X" → shankType=X
-  const shankTypeMatch = lower.match(/(?:싱크|생크|shank)\s*(?:타입|type)\s*(\S+)/i)
+  const shankTypeMatch = lower.match(/(?:싱크|생크|shank)(?:[이가은는을를도만])?\s*(?:타입|type)(?:[이가은는을를도만])?\s*(\S+)/i)
   if (shankTypeMatch) {
     const rawVal = shankTypeMatch[1]
     // resolve through entity index or use raw
