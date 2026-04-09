@@ -26,10 +26,10 @@ export function getSharedPool(): Pool | null {
   if (!connectionString) return null
 
   if (!globalThis.__yg1SharedDbPool) {
-    console.log("[shared-pool] Creating shared pg pool (max=5)")
+    console.log("[shared-pool] Creating shared pg pool (max=8)")
     globalThis.__yg1SharedDbPool = new Pool({
       connectionString,
-      max: 5,
+      max: 8,
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 10_000,
     })

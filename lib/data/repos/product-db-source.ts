@@ -2,6 +2,7 @@ import "server-only"
 
 import { randomBytes } from "node:crypto"
 import { Pool, type QueryResult, type QueryResultRow } from "pg"
+import { getSharedPool } from "@/lib/data/shared-pool"
 import { notifyDbQuery } from "@/lib/slack-notifier"
 import { appendRuntimeLog, logRuntimeError } from "@/lib/runtime-logger"
 import { isPrecisionMode } from "@/lib/recommendation/runtime-flags"
@@ -424,9 +425,12 @@ function getPool(): Pool {
 
   logDatabaseConfigOnce(connectionString)
 
+  // 단일 shared pool 로 통합 — 이전엔 product-db 가 별도 max=10 pool 을 만들어서
+  // 다른 repo (brand/entity/evidence/inventory/series) pool 합쳐 총 28 conn 까지 열려
+  // PG "too many clients already" 가 부하 시 발생. shared-pool 1개로 통합해 ceiling 고정.
   if (!globalThis.__yg1ProductDbPool) {
-    console.log("[product-db] creating pg pool")
-    globalThis.__yg1ProductDbPool = new Pool({
+    console.log("[product-db] using shared pg pool")
+    globalThis.__yg1ProductDbPool = getSharedPool() ?? new Pool({
       connectionString,
       max: parsePositiveInt(process.env.PRODUCT_DB_POOL_MAX, 10),
       idleTimeoutMillis: parsePositiveInt(process.env.PRODUCT_DB_POOL_IDLE_MS, 30_000),
