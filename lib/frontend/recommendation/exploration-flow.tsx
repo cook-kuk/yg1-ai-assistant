@@ -356,6 +356,18 @@ function ReasoningBlock({
   const startedAtRef = useRef<number | null>(null)
   const finalMsRef = useRef<number | null>(null)
 
+  // 최근 추론 소요시간 이동평균(localStorage) — 첫 사용시 12s fallback.
+  // 매 추론 종료마다 push, 최근 10건 평균을 다음 estimate로 사용.
+  const STORAGE_KEY = "yg1.reasoningDurations.v1"
+  const [estimateMs, setEstimateMs] = useState<number>(() => {
+    if (typeof window === "undefined") return 12_000
+    try {
+      const arr = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]") as number[]
+      if (!Array.isArray(arr) || arr.length === 0) return 12_000
+      return arr.reduce((a, b) => a + b, 0) / arr.length
+    } catch { return 12_000 }
+  })
+
   useEffect(() => {
     if (isLoading) {
       if (startedAtRef.current === null) startedAtRef.current = Date.now()
@@ -367,10 +379,17 @@ function ReasoningBlock({
       }, 100)
       return () => clearInterval(id)
     }
-    // 스트리밍 종료: 최종 경과시간 한 번만 고정
+    // 스트리밍 종료: 최종 경과시간 고정 + 이동평균 갱신
     if (startedAtRef.current !== null && finalMsRef.current === null) {
-      finalMsRef.current = Date.now() - startedAtRef.current
-      setElapsedMs(finalMsRef.current)
+      const final = Date.now() - startedAtRef.current
+      finalMsRef.current = final
+      setElapsedMs(final)
+      try {
+        const prev = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]") as number[]
+        const next = [...(Array.isArray(prev) ? prev : []), final].slice(-10)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+        setEstimateMs(next.reduce((a, b) => a + b, 0) / next.length)
+      } catch {}
     }
     return undefined
   }, [isLoading])
@@ -379,18 +398,20 @@ function ReasoningBlock({
   // 다시 펼쳐서 읽을 수 있도록 유지하고, 접고 싶으면 직접 토글한다.
 
   const seconds = Math.max(0, elapsedMs / 1000)
-  // 추론 평균 소요시간(경험치) ~15s. 실제 종료 전까지는 95%에서 멈춰
-  // "거의 다 됐어요" 느낌만 주고, 끝나는 순간 100%로 스냅한다.
-  const ESTIMATED_MS = 15_000
-  const rawProgress = isLoading
-    ? Math.min(0.95, elapsedMs / ESTIMATED_MS)
-    : 1
-  const remainingS = isLoading
-    ? Math.max(0, Math.ceil((ESTIMATED_MS - elapsedMs) / 1000))
-    : 0
-  const timerLabel = isLoading
-    ? (language === "ko" ? `${seconds.toFixed(1)}s · 약 ${remainingS}s 남음` : `${seconds.toFixed(1)}s · ~${remainingS}s left`)
-    : `${Math.round(seconds)}s`
+  // estimate 초과 시: 1 - exp(-extra/estimate) 로 부드럽게 95%까지 수렴 →
+  // "약 N초 남음" 대신 경과만 표시. 절대 0이 박히지 않게.
+  const overEstimate = elapsedMs > estimateMs
+  const rawProgress = !isLoading
+    ? 1
+    : overEstimate
+      ? Math.min(0.95, 0.7 + 0.25 * (1 - Math.exp(-(elapsedMs - estimateMs) / estimateMs)))
+      : Math.min(0.7, (elapsedMs / estimateMs) * 0.7)
+  const remainingS = Math.max(1, Math.ceil((estimateMs - elapsedMs) / 1000))
+  const timerLabel = !isLoading
+    ? `${Math.round(seconds)}s`
+    : overEstimate
+      ? (language === "ko" ? `${seconds.toFixed(1)}s · 거의 다 됐어요` : `${seconds.toFixed(1)}s · almost there`)
+      : (language === "ko" ? `${seconds.toFixed(1)}s · 약 ${remainingS}s 남음` : `${seconds.toFixed(1)}s · ~${remainingS}s left`)
   const headlineText = isLoading
     ? (language === "ko" ? "추론 중" : "Thinking")
     : (language === "ko" ? `${Math.max(1, Math.round(seconds))}초 동안 추론함` : `Thought for ${Math.max(1, Math.round(seconds))}s`)
