@@ -2100,7 +2100,14 @@ async function handleServeExplorationInner(
     // SQL Agent Haiku가 "추천해줘"를 _skip 메타로 오인해 코팅 필터를 누락시키던
     // 버그를 차단한다. edit-intent 시그널이 있으면 양보(말고/빼고/바꿔는 edit-intent가 처리).
     if (!singleCallHandled && lastUserMsg && !hasEditSignal(msg) && !shouldResolvePendingSelectionEarly) {
-      const detPreActions = parseDeterministic(msg)
+      // Stateless-replay: when the caller has no session yet (evaluation harness
+      // sends each call without session context) prior user turns' filters are
+      // lost because this pre-pass only sees the latest message. Join all prior
+      // user turns so every slot mentioned across the conversation is recovered.
+      const detParseMsg = (!prevState && messages.filter(m => m.role === "user").length > 1)
+        ? messages.filter(m => m.role === "user").map(m => m.text).join(" ")
+        : msg
+      const detPreActions = parseDeterministic(detParseMsg)
       const detApplyActions = detPreActions.filter(a => a.type === "apply_filter" && a.field && a.value != null)
       if (detApplyActions.length > 0) {
         let appliedAny = false
