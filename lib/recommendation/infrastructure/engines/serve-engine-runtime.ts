@@ -41,6 +41,7 @@ import { dryRunReduce, reduce, compareReducerVsActual, type ReducerAction } from
 import { USE_STATE_REDUCER, USE_CHIP_SYSTEM, isSingleCallRouterEnabled, LLM_FREE_INTERPRETATION, ENABLE_PLANNER_DECISION } from "@/lib/feature-flags"
 import { routeSingleCall } from "@/lib/recommendation/core/single-call-router"
 import { naturalLanguageToFilters, naturalLanguageToFiltersStreaming, buildAppliedFilterFromAgentFilter } from "@/lib/recommendation/core/sql-agent"
+import { assessComplexity } from "@/lib/recommendation/core/complexity-router"
 import { getDbSchemaSync, getDbSchema } from "@/lib/recommendation/core/sql-agent-schema-cache"
 import { naturalLanguageToQuerySpec } from "@/lib/recommendation/core/query-planner"
 import { querySpecToAppliedFilters, appliedFiltersToConstraints } from "@/lib/recommendation/core/query-spec-to-filters"
@@ -2029,6 +2030,10 @@ async function handleServeExplorationInner(
       }
     }
 
+    // ── Complexity 판단 (0ms, LLM 없음) ──
+    const complexity = assessComplexity(msg, (legacyState.appliedFilters ?? []).length)
+    console.log(`[complexity] "${msg.slice(0, 30)}" → ${complexity.level} (${complexity.reason})`)
+
     const hasNegationPattern = /빼고|뺴고|빼구|제외|아닌\s*것|아닌\s*걸|아닌걸|없는\s*거|말고|만\s*아니면|없이|아닌\s*거|없는\s*거로|가\s*아닌|이\s*아닌/u.test(msg)
     let negationHandled = false
 
@@ -2303,7 +2308,7 @@ async function handleServeExplorationInner(
             // we can flush reasoning chars to the SSE channel as they arrive.
             // The streaming function transparently falls back to the
             // non-streaming path when provider.stream is unavailable.
-            if (deps.onThinking && provider.stream) {
+            if (deps.onThinking && provider.stream && complexity.generateCoT) {
               let streamedAny = false
               agentResult = await naturalLanguageToFiltersStreaming(
                 msg,
@@ -3414,7 +3419,7 @@ async function handleServeExplorationInner(
           try {
             const { constraintsToFilters } = await import("@/lib/recommendation/core/search-adapter")
             const { input: scInput, filters: scFilters } = constraintsToFilters(result.sessionState)
-            if (scFilters.length > 0) {
+            if (scFilters.length > 0 && complexity.runSelfCorrection) {
               const { selfCorrectFilters } = await import("@/lib/recommendation/core/self-correction")
               const { runHybridRetrieval } = await import("@/lib/recommendation/domain/hybrid-retrieval")
               let lastHR: Awaited<ReturnType<typeof runHybridRetrieval>> | null = null
@@ -3453,6 +3458,7 @@ async function handleServeExplorationInner(
               await import("@/lib/recommendation/core/web-search-fallback")
             const filtersExtracted = (legacyState.appliedFilters ?? []).length > 0
             if (
+              complexity.allowWebSearch &&
               shouldTriggerWebSearch({
                 message: lastUserMsg.text,
                 filtersExtracted,
