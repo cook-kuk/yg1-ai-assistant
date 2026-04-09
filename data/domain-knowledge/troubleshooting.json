@@ -1,0 +1,155 @@
+[
+  {
+    "symptom": "칩 엉킴",
+    "aliases": ["칩 감김", "chip wrapping", "칩이 감겨", "칩 배출 불량", "칩이 안 빠져", "칩 막힘"],
+    "causes": [
+      "이송 너무 낮음 → 얇은 칩 → 엉킴",
+      "쿨런트 압력 부족",
+      "날수 너무 많음 → 칩 포켓 부족",
+      "코팅 마찰 계수 높음"
+    ],
+    "solutions": [
+      { "action": "이송 속도 20% 증가", "detail": "fz 증가 → 두꺼운 칩 → 잘 끊어짐" },
+      { "action": "쿨런트 압력 증가 (20~40bar)", "detail": "고압 쿨런트가 칩을 밀어냄" },
+      { "action": "날수 줄이기 (4날→2~3날)", "detail": "칩 포켓 크게 확보" },
+      { "action": "DLC 또는 무코팅 사용", "detail": "마찰 계수 낮춰 칩 부착 방지" }
+    ],
+    "related_yg1_series": ["ALU-POWER", "V7 PLUS A"]
+  },
+  {
+    "symptom": "떨림/진동",
+    "aliases": ["채터", "chatter", "vibration", "떨려", "진동", "표면 울림", "노이즈"],
+    "causes": [
+      "돌출 길이 과대 (L/D > 4)",
+      "날수 부족 (2날 → 불안정)",
+      "절입 깊이 과대",
+      "장비 강성 부족"
+    ],
+    "solutions": [
+      { "action": "부등분할 엔드밀 사용", "detail": "날 간격이 불균일 → 공진 주파수 분산" },
+      { "action": "날수 증가 (4~6날)", "detail": "절삭력 분산 → 안정성 증가" },
+      { "action": "넥 타입 공구 사용", "detail": "유효 돌출 길이 줄임" },
+      { "action": "절입 깊이(ap) 축소", "detail": "절삭력 감소 → 떨림 감소" },
+      { "action": "Vc 10~15% 변경", "detail": "공진 회피 (증가 또는 감소 둘 다 시도)" }
+    ],
+    "related_yg1_series": ["TitaNox-Power", "X-POWER"]
+  },
+  {
+    "symptom": "공구 수명 짧음",
+    "aliases": ["공구 마모", "tool wear", "수명 단축", "급속 마모"],
+    "causes": [
+      "Vc 과대",
+      "코팅 부적합",
+      "쿨런트 부족",
+      "절입 과대"
+    ],
+    "solutions": [
+      { "action": "Vc 10~20% 감속", "detail": "마모 지수적 감소" },
+      { "action": "소재 적합 코팅 선택", "detail": "스테인리스→AlCrN, 티타늄→AlTiN" },
+      { "action": "고압 쿨런트 적용", "detail": "절삭열 해소" },
+      { "action": "트로코이달 가공", "detail": "절입 일정 + 칩 두께 일정" }
+    ]
+  },
+  {
+    "symptom": "표면 거칠기 불량",
+    "aliases": ["표면 거침", "Ra 높음", "surface roughness", "표면 품질"],
+    "causes": [
+      "이송 과대",
+      "날수 부족",
+      "공구 마모",
+      "떨림"
+    ],
+    "solutions": [
+      { "action": "정삭 패스 추가 (ap=0.1mm)", "detail": "마이크로 정삭" },
+      { "action": "날수 증가 (6날)", "detail": "이송 마크 감소" },
+      { "action": "Ball 엔드밀로 정삭", "detail": "곡면 정삭에 최적" },
+      { "action": "이송 감소", "detail": "Ra 비례 개선" }
+    ]
+  },
+  {
+    "symptom": "공구 파손",
+    "aliases": ["깨짐", "breakage", "tool breakage", "공구 부러짐"],
+    "causes": [
+      "직진 진입 (plunge)",
+      "절입 과대",
+      "충돌",
+      "강성 부족"
+    ],
+    "solutions": [
+      { "action": "헬리컬 진입", "detail": "포켓 진입은 헬리컬 또는 ramp" },
+      { "action": "절입 단계화", "detail": "ap를 직경의 50% 이하로" },
+      { "action": "중심절삭 가능 공구 선택", "detail": "센터컷 가능 시리즈 사용" },
+      { "action": "강성 홀더 + 짧은 돌출", "detail": "L/D < 4 권장" }
+    ]
+  },
+  {
+    "symptom": "구성인선(BUE)",
+    "aliases": ["built-up edge", "BUE", "용착", "칩 점착"],
+    "causes": [
+      "Vc 너무 낮음",
+      "연성 소재 (Al, Cu)",
+      "코팅 친화성 높음"
+    ],
+    "solutions": [
+      { "action": "Vc 증가", "detail": "구성인선 임계 속도 초과" },
+      { "action": "DLC 또는 무코팅", "detail": "소재 친화성 차단" },
+      { "action": "쿨런트 미스트", "detail": "윤활 + 냉각" }
+    ]
+  },
+  {
+    "symptom": "가공경화",
+    "aliases": ["work hardening", "표면 경화", "재가공 어려움"],
+    "causes": [
+      "절입 너무 작음 (마찰만 발생)",
+      "공구 마모로 압착",
+      "스테인리스/티타늄/인코넬"
+    ],
+    "solutions": [
+      { "action": "ap 증가 (경화층 아래로 절입)", "detail": "경화층 0.05~0.1mm 아래까지" },
+      { "action": "다운 밀링", "detail": "업 밀링 금지 (경화 가속)" },
+      { "action": "예리한 날 + 양호한 코팅", "detail": "마찰 최소화" }
+    ]
+  },
+  {
+    "symptom": "치수 정밀도 불량",
+    "aliases": ["dimension", "치수 어긋남", "탄성 회복", "deflection"],
+    "causes": [
+      "공구 휨 (긴 공구)",
+      "탄성 회복",
+      "열변형"
+    ],
+    "solutions": [
+      { "action": "굵은 섕크 + 짧은 LOC", "detail": "강성 향상" },
+      { "action": "정삭 패스 2회 (탄성 보정)", "detail": "동일 패스 반복" },
+      { "action": "쿨런트 안정화", "detail": "온도 변화 최소화" }
+    ]
+  },
+  {
+    "symptom": "코너 R 정밀도 불량",
+    "aliases": ["코너 R", "corner radius", "코너 깎임"],
+    "causes": [
+      "코너에서 절삭력 급증",
+      "공구 휨",
+      "이송 과대"
+    ],
+    "solutions": [
+      { "action": "코너 감속 (G-code F70%)", "detail": "코너 진입 직전 이송 감소" },
+      { "action": "코너 R 형상 공구 사용", "detail": "Radius 엔드밀" },
+      { "action": "트로코이달 코너", "detail": "원호 보간으로 절입 일정" }
+    ]
+  },
+  {
+    "symptom": "박리(delamination)",
+    "aliases": ["박리", "delamination", "복합재 박리", "CFRP 박리"],
+    "causes": [
+      "복합재 가공 시 섬유가 뜯김",
+      "단방향 절삭",
+      "둔한 공구"
+    ],
+    "solutions": [
+      { "action": "압축형(compression) 공구 사용", "detail": "위/아래 동시에 누름" },
+      { "action": "다이아몬드 코팅", "detail": "예리한 날 유지" },
+      { "action": "백킹 플레이트 사용", "detail": "출구측 지지" }
+    ]
+  }
+]

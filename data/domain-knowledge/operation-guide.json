@@ -1,0 +1,130 @@
+[
+  {
+    "operation": "포켓 가공",
+    "aliases": ["pocket", "포켓", "홈 가공", "cavity", "포켓팅"],
+    "description": "폐쇄된 내부 형상을 파내는 가공. 칩 배출이 어려움.",
+    "tool_selection": {
+      "subtype": "Square 또는 Radius (코너R 있으면 코너 강도 증가)",
+      "flute_count": "3~4날 (칩 포켓 확보 + 강성 밸런스)",
+      "length": "짧은 날장(LOC) 권장. 깊은 포켓은 넥 달린 공구",
+      "coolant": "내부 쿨런트홀 필수"
+    },
+    "strategy": [
+      "헬리컬 진입 (plunge 금지) — 공구 손상 방지",
+      "ae = 직경의 50~70% (황삭), 5~10% (정삭)",
+      "코너 감속 — 코너 R 근처 이송 70% 감속"
+    ],
+    "common_mistakes": [
+      "중심 절삭 불가 공구로 직진 진입 → 공구 파손",
+      "깊은 포켓에 긴 공구 사용 → 떨림 → 넥 타입 사용"
+    ]
+  },
+  {
+    "operation": "측면 가공",
+    "aliases": ["side milling", "측면", "외경 가공", "wall", "사이드컷팅"],
+    "description": "워크피스 외벽을 깎는 가공. 가장 일반적.",
+    "tool_selection": {
+      "subtype": "Square (직각 벽면), Radius (코너 R 있는 벽면)",
+      "flute_count": "4~5날 (안정성)",
+      "helix": "35~45° (일반), 50°+ (진동 저감)"
+    },
+    "strategy": [
+      "다운 밀링 권장",
+      "ap = 직경의 1~2배 (long-edge 가능)",
+      "ae = 직경의 30~50%"
+    ]
+  },
+  {
+    "operation": "슬로팅",
+    "aliases": ["slotting", "슬로팅", "홈 절삭", "slot"],
+    "description": "공구 직경 = 홈 폭, 양면 동시 절삭.",
+    "tool_selection": {
+      "subtype": "Square",
+      "flute_count": "2~3날 (칩 포켓 확보)",
+      "length": "짧은 LOC"
+    },
+    "strategy": [
+      "ap는 직경의 50% 이하",
+      "이송 50% 감속 (양면 절삭 보상)",
+      "칩 배출 — 고압 쿨런트"
+    ],
+    "common_mistakes": [
+      "4날 엔드밀로 슬로팅 → 칩 막힘"
+    ]
+  },
+  {
+    "operation": "정삭",
+    "aliases": ["finishing", "정삭", "마무리", "finish"],
+    "description": "표면 거칠기와 치수 정밀도 확보.",
+    "tool_selection": {
+      "subtype": "Ball (곡면), Square (평면), Radius (코너)",
+      "flute_count": "4~6날",
+      "coating": "고경도 + 저마찰"
+    },
+    "strategy": [
+      "ap 0.1~0.3mm",
+      "ae 직경의 5~15%",
+      "Vc 황삭 대비 20% 증가",
+      "fz 작게 — Ra 직접 영향"
+    ]
+  },
+  {
+    "operation": "황삭",
+    "aliases": ["roughing", "황삭", "rough"],
+    "description": "재료 제거율(MRR) 극대화.",
+    "tool_selection": {
+      "subtype": "Roughing (니크 형상)",
+      "flute_count": "4~5날",
+      "length": "긴 LOC 가능"
+    },
+    "strategy": [
+      "ap 직경의 100% (long-edge)",
+      "ae 직경의 5~10% (트로코이달)",
+      "Vc 적정 + fz 최대화"
+    ]
+  },
+  {
+    "operation": "드릴링",
+    "aliases": ["drilling", "드릴링", "구멍 가공", "hole"],
+    "description": "원형 구멍 가공.",
+    "tool_selection": {
+      "subtype": "Drill",
+      "point_angle": "118° (범용), 135° (스테인리스/경합금), 140° (고경도)"
+    },
+    "strategy": [
+      "내부 쿨런트홀 권장 (L/D > 3)",
+      "Peck drilling — 깊은 구멍 (L/D > 5)",
+      "예비 센터 드릴 권장"
+    ]
+  },
+  {
+    "operation": "탭핑",
+    "aliases": ["tapping", "탭핑", "나사 가공", "thread"],
+    "description": "암나사 가공.",
+    "tool_selection": {
+      "subtype": "Tap (Forming/Cutting)",
+      "type": "관통: 점화탭, 막힌 구멍: 나선탭"
+    },
+    "strategy": [
+      "전용 탭 척 (텐션-컴프레션) 사용",
+      "Vc 5~15 m/min",
+      "쿨런트/오일 필수"
+    ]
+  },
+  {
+    "operation": "트로코이달 가공",
+    "aliases": ["trochoidal", "트로코이달", "트로코이드", "high-feed"],
+    "description": "원호 궤적으로 ae를 작게 유지하며 ap를 최대로.",
+    "tool_selection": {
+      "subtype": "Square 또는 Roughing",
+      "flute_count": "5~7날",
+      "length": "긴 LOC"
+    },
+    "strategy": [
+      "ap 직경의 1~2배",
+      "ae 직경의 5~15%",
+      "공구 수명 3~5배 향상",
+      "스테인리스/티타늄/인코넬에 강력 권장"
+    ]
+  }
+]

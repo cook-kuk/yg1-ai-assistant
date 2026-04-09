@@ -897,7 +897,8 @@ export async function buildRecommendationResponse(
   messages: ChatMessage[],
   provider: ReturnType<typeof getProvider>,
   language: AppLanguage,
-  displayedProducts: DisplayedProduct[] | null = null
+  displayedProducts: DisplayedProduct[] | null = null,
+  extraResponseContext?: string,
 ): Promise<Response> {
   traceRecommendation("response.buildRecommendationResponse:input", {
     totalCandidateCount,
@@ -1028,6 +1029,10 @@ export async function buildRecommendationResponse(
     }
   }
 
+  const recLastUserMsg = messages.length > 0
+    ? [...messages].reverse().find(m => m.role === "user")?.text ?? null
+    : null
+
   if (provider.available() && primary && primaryFactChecked && primaryExplanation) {
     try {
       const systemPrompt = buildRecommendationSummarySystemPrompt(language)
@@ -1046,6 +1051,7 @@ export async function buildRecommendationResponse(
         lastAction: "show_recommendation",
       })
       const sessionCtx = buildSessionContext(form, llmSessionState, totalCandidateCount, snapshotToDisplayed(llmSessionState.displayedCandidates))
+        + (extraResponseContext ?? "")
       const resultPrompt = buildExplanationResultPrompt(
         sessionCtx,
         primaryFactChecked,
@@ -1063,7 +1069,8 @@ export async function buildRecommendationResponse(
           }
         }),
         warnings,
-        language
+        language,
+        recLastUserMsg ?? undefined,
       )
 
       const raw = await provider.complete(
@@ -1087,9 +1094,6 @@ export async function buildRecommendationResponse(
   // so the planner can detect diversity in coating/flute/series across the full result set.
   const fullCandidateSnapshot = buildCandidateSnapshot(candidates, evidenceMap)
   const filterValueScope = buildFilterValueScope(candidates as unknown as Array<Record<string, unknown>>)
-  const recLastUserMsg = messages.length > 0
-    ? [...messages].reverse().find(m => m.role === "user")?.text ?? null
-    : null
 
   // ── Option-first: structured options FIRST, then derive chips ──
   // NEVER generate chips from answer text. displayedOptions → chips.

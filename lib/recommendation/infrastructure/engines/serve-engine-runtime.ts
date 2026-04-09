@@ -1308,7 +1308,8 @@ export interface ServeEngineRuntimeDependencies {
     messages: ChatMessage[],
     provider: ReturnType<typeof getProvider>,
     language: AppLanguage,
-    displayedProducts?: RecommendationDisplayedProductRequestDto[] | null
+    displayedProducts?: RecommendationDisplayedProductRequestDto[] | null,
+    extraResponseContext?: string,
   ) => Promise<Response>
   /**
    * Optional hook fired the moment the SQL agent (or any other source) produces
@@ -2153,8 +2154,14 @@ async function handleServeExplorationInner(
       } else if (kgResult.confidence >= 0.5) {
         // Medium confidence → pass as hint to SCR (used later if SQL Agent also fails)
         const entities = extractEntities(msg)
-        if (entities.length > 0) {
-          kgHint = entities.map(e => `${e.field}=${e.canonical}`).join(", ")
+        // Exclude diameterMm from hint: "<num>mm" is lexically ambiguous
+        // (could be OAL / LOC / shank / cutting diameter) and SCR has the
+        // surrounding context to disambiguate; passing it as a hint would
+        // bias SCR toward diameterMm and re-introduce the hijack regression
+        // (2026-04-09 guard).
+        const safeEntities = entities.filter(e => e.field !== "diameterMm")
+        if (safeEntities.length > 0) {
+          kgHint = safeEntities.map(e => `${e.field}=${e.canonical}`).join(", ")
           console.log(`[kg:hint] "${msg}" → ${kgResult.source} (${kgResult.confidence}), hint: ${kgHint}`)
         }
       }
@@ -3241,6 +3248,35 @@ async function handleServeExplorationInner(
           }
         }
 
+        // ── Web search fallback — self-correction까지 다 실패했을 때만 ──
+        if (isResultPhase && lastUserMsg) {
+          try {
+            const { shouldTriggerWebSearch, runWebSearch, formatWebSearchBlock } =
+              await import("@/lib/recommendation/core/web-search-fallback")
+            const filtersExtracted = (legacyState.appliedFilters ?? []).length > 0
+            if (
+              shouldTriggerWebSearch({
+                message: lastUserMsg.text,
+                filtersExtracted,
+                candidateCount: totalCandidateCount,
+              })
+            ) {
+              const ws = await runWebSearch(lastUserMsg.text)
+              if (ws) {
+                const block = formatWebSearchBlock(ws)
+                legacyState.thinkingProcess =
+                  (legacyState.thinkingProcess ? legacyState.thinkingProcess + "\n\n" : "") +
+                  block.thinkingLine
+                ;(legacyState as ExplorationSessionState & { webSearchContext?: string }).webSearchContext =
+                  block.promptBlock
+                console.log(`[web-search] success: query="${ws.query}" len=${ws.text.length}`)
+              }
+            }
+          } catch (e) {
+            console.warn("[web-search] integration error:", (e as Error).message)
+          }
+        }
+
         legacyState.candidateCount = totalCandidateCount
         legacyState.displayedCandidates = deps.buildCandidateSnapshot(displayPage.candidates, displayPage.evidenceMap)
         legacyState.filterValueScope = buildFilterValueScope(result.searchPayload.candidates as unknown as Array<Record<string, unknown>>)
@@ -3294,6 +3330,7 @@ async function handleServeExplorationInner(
         }
 
         if (isResultPhase) {
+          const wsCtx = (legacyState as ExplorationSessionState & { webSearchContext?: string }).webSearchContext
           return deps.buildRecommendationResponse(
             form,
             result.searchPayload.candidates,
@@ -3309,6 +3346,8 @@ async function handleServeExplorationInner(
             messages,
             provider,
             language,
+            null,
+            wsCtx,
           )
         }
 

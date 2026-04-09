@@ -9,6 +9,7 @@
  */
 
 import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
+import { buildKBContextBlock } from "@/lib/recommendation/core/semantic-search"
 import { YG1_COMPANY_SNIPPET } from "@/lib/knowledge/company-prompt-snippet"
 import { buildDomainKnowledgeSnippet } from "@/lib/recommendation/shared/patterns"
 import { getIntakeDisplayValue } from "@/lib/recommendation/shared/intake-localization"
@@ -434,9 +435,11 @@ export function buildExplanationResultPrompt(
   explanation: RecommendationExplanation,
   alternatives: { displayCode: string; matchStatus: string; score: number; bestCondition?: Record<string, string | null> | null; sourceCount?: number }[],
   warnings: string[],
-  language: AppLanguage = "ko"
+  language: AppLanguage = "ko",
+  userMessage?: string,
 ): string {
   const responseLanguage = language === "ko" ? "한국어" : "영어"
+  const kbBlock = userMessage ? buildKBContextBlock(userMessage, 3) : ""
   // Build matched facts text
   const matchedLines = explanation.matchedFacts.map(f =>
     `  ✓ ${f.label}: 요청=${f.requestedValue} → 제품=${f.productValue} (${f.matchType}, ${f.score}/${f.maxScore}pt)`
@@ -458,7 +461,7 @@ export function buildExplanationResultPrompt(
     `  Step${s.step} ${s.label}: ${s.passed ? "✓" : "✗"} (${s.fieldsVerified}/${s.fieldsChecked} 확인)`
   )
 
-  return `${sessionContext}
+  return `${sessionContext}${kbBlock}
 
 [추천 후보]
 - 제품코드: ${factChecked.displayCode.value}

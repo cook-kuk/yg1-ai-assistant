@@ -1,0 +1,209 @@
+[
+  {
+    "material": "스테인리스",
+    "iso_group": "M",
+    "characteristics": "높은 절삭열, 칩 엉킴, 가공경화, 점성이 높은 칩",
+    "recommended_coatings": [
+      { "coating": "AlCrN", "yg1_name": "Y-Coating", "reason": "AlCrN은 1100°C까지 내산화성이 뛰어나 스테인리스의 높은 절삭열에 최적. 마찰 계수가 낮아 칩 부착 방지.", "priority": 1 },
+      { "coating": "TiAlN", "yg1_name": "X-Coating", "reason": "TiAlN은 800°C까지 내열. 범용적이지만 AlCrN 대비 스테인리스 전용성은 낮음.", "priority": 2 }
+    ],
+    "recommended_subtypes": ["Square (측면 안정성)", "Roughing (황삭 효율)"],
+    "recommended_flute_count": "4날 (강성 + 칩 배출 밸런스)",
+    "machining_tips": [
+      "절삭 속도 Vc 80~120 m/min 권장 (탄소강 대비 30~40% 감속)",
+      "칩 배출 위해 쿨런트 필수 — 내부 쿨런트홀 권장",
+      "다운 밀링(하향 절삭) 필수 — 가공경화 방지",
+      "절입 깊이 ae는 직경의 30% 이하 권장"
+    ],
+    "common_problems": [
+      { "problem": "칩 엉킴", "solution": "쿨런트 압력 증가 + 이송 속도 증가" },
+      { "problem": "공구 수명 짧음", "solution": "AlCrN 코팅 + Vc 감속 10% + ae 축소" },
+      { "problem": "표면 거칠기 불량", "solution": "날수 증가(6날) + 이송 감소 + 정삭 전용 시리즈" }
+    ],
+    "yg1_recommended_series": ["TitaNox-Power", "X-POWER", "V7 PLUS A"]
+  },
+  {
+    "material": "알루미늄",
+    "iso_group": "N",
+    "characteristics": "낮은 절삭 저항, 구성인선(BUE), 칩 부착, 초고속 가공 가능",
+    "recommended_coatings": [
+      { "coating": "DLC", "yg1_name": "DLC", "reason": "DLC(다이아몬드라이크카본)는 마찰 계수 0.1 이하로 알루미늄 칩 부착 완전 방지. 무윤활 가공 가능.", "priority": 1 },
+      { "coating": "Uncoated", "yg1_name": "Bright", "reason": "무코팅 초경은 알루미늄과 친화성 낮아 BUE 방지. DLC 대비 저가.", "priority": 2 }
+    ],
+    "recommended_subtypes": ["Square", "Ball"],
+    "recommended_flute_count": "2~3날 (큰 칩 포켓)",
+    "machining_tips": [
+      "Vc 300~1000 m/min (초고속 가공 가능)",
+      "큰 헬릭스각(45°+)으로 칩 배출 극대화",
+      "건식 가공 가능 (DLC 시)",
+      "ae 최대 100% 슬로팅도 가능"
+    ],
+    "common_problems": [
+      { "problem": "구성인선(BUE)", "solution": "Vc 증가 + DLC 코팅 + 쿨런트 미스트" },
+      { "problem": "칩 부착", "solution": "DLC 또는 무코팅 + 헬릭스각 증가" }
+    ],
+    "yg1_recommended_series": ["ALU-POWER", "ALU-POWER HPC", "ALU-CUT"]
+  },
+  {
+    "material": "티타늄",
+    "iso_group": "S",
+    "characteristics": "낮은 열전도율(공구로 열집중), 가공경화, 화학반응성, 탄성회복",
+    "recommended_coatings": [
+      { "coating": "AlTiN", "yg1_name": "X-Coating", "reason": "AlTiN은 고온 안정성으로 티타늄의 열집중 환경에 적합. 산화막 형성으로 확산마모 방지.", "priority": 1 },
+      { "coating": "AlCrN", "yg1_name": "Y-Coating", "reason": "내산화성 우수, 티타늄 황삭에 적합.", "priority": 2 }
+    ],
+    "recommended_subtypes": ["Roughing", "Square"],
+    "recommended_flute_count": "4~5날 (부등분할 권장)",
+    "machining_tips": [
+      "Vc 40~80 m/min (저속이 원칙)",
+      "고압 쿨런트 필수 (70bar+) — 열집중 해소",
+      "ap 작게 + ae 크게 (트로코이달 가공 권장)",
+      "탄성회복 고려 — 정삭 패스 추가"
+    ],
+    "common_problems": [
+      { "problem": "공구 급속 마모", "solution": "Vc 감속 + 고압 쿨런트 + 부등분할 엔드밀" },
+      { "problem": "떨림", "solution": "트로코이달 가공 + 부등분할 + 짧은 LOC" }
+    ],
+    "yg1_recommended_series": ["TitaNox-Power", "X-POWER"]
+  },
+  {
+    "material": "인코넬",
+    "iso_group": "S",
+    "characteristics": "초가공경화성, 극도의 절삭열, 연마 마모, Ni기 초내열합금",
+    "recommended_coatings": [
+      { "coating": "AlTiN", "yg1_name": "X-Coating", "reason": "초내열합금에는 AlTiN의 고온 산화막 형성이 필수. 1000°C+ 환경에서 보호.", "priority": 1 },
+      { "coating": "AlCrN", "yg1_name": "Y-Coating", "reason": "AlCrN도 적용 가능, 특히 황삭.", "priority": 2 }
+    ],
+    "recommended_subtypes": ["Roughing", "세라믹 인서트"],
+    "recommended_flute_count": "5~6날 (부등분할 강력 권장)",
+    "machining_tips": [
+      "Vc 20~40 m/min (매우 저속)",
+      "고압 쿨런트 절대 필수",
+      "트로코이달 또는 플런지 밀링 권장",
+      "절입 일정 유지 — 가공경화 회피"
+    ],
+    "common_problems": [
+      { "problem": "공구 수명 매우 짧음", "solution": "세라믹/CBN 고려 + 트로코이달 + 부등분할" }
+    ],
+    "yg1_recommended_series": ["TitaNox-Power", "X-POWER"]
+  },
+  {
+    "material": "탄소강",
+    "iso_group": "P",
+    "characteristics": "범용, 안정적 절삭, 중간 정도 절삭열",
+    "recommended_coatings": [
+      { "coating": "TiAlN", "yg1_name": "X-Coating", "reason": "TiAlN은 탄소강 범용 가공의 표준. 내열·내마모 밸런스 우수.", "priority": 1 },
+      { "coating": "AlCrN", "yg1_name": "Y-Coating", "reason": "고속 가공 또는 건식 가공 시 우위.", "priority": 2 }
+    ],
+    "recommended_subtypes": ["Square", "Radius", "Ball"],
+    "recommended_flute_count": "4날",
+    "machining_tips": [
+      "Vc 150~250 m/min",
+      "건식 또는 미스트 쿨런트 가능",
+      "다운 밀링 권장"
+    ],
+    "yg1_recommended_series": ["X-POWER", "V7 PLUS A", "GENERAL HSS-Co"]
+  },
+  {
+    "material": "합금강",
+    "iso_group": "P",
+    "characteristics": "탄소강 대비 강도/경도 상승, 절삭 저항 증가",
+    "recommended_coatings": [
+      { "coating": "TiAlN", "yg1_name": "X-Coating", "reason": "합금강 표준 코팅. 중경도 합금강에 적합.", "priority": 1 },
+      { "coating": "AlCrN", "yg1_name": "Y-Coating", "reason": "고경도 합금강(HRC 40+)에는 AlCrN.", "priority": 2 }
+    ],
+    "recommended_subtypes": ["Square", "Radius"],
+    "recommended_flute_count": "4~5날",
+    "machining_tips": [
+      "Vc 100~180 m/min",
+      "Vc는 경도 따라 감속",
+      "고압 쿨런트 권장"
+    ],
+    "yg1_recommended_series": ["X-POWER", "V7 PLUS A"]
+  },
+  {
+    "material": "고경도강",
+    "iso_group": "H",
+    "characteristics": "HRC 45~70, 매우 단단함, 미세한 절삭 깊이 필요",
+    "recommended_coatings": [
+      { "coating": "AlCrN", "yg1_name": "Y-Coating", "reason": "고경도강에는 AlCrN의 내마모성 + 내열성이 필수.", "priority": 1 },
+      { "coating": "nACo (nano-composite)", "yg1_name": "Special", "reason": "초고경도(HRC 60+)에는 나노복합 코팅.", "priority": 2 }
+    ],
+    "recommended_subtypes": ["Ball (금형 가공)", "Square (HRC 50 미만)"],
+    "recommended_flute_count": "4~6날",
+    "machining_tips": [
+      "Vc 60~120 m/min",
+      "ap 매우 작게 (직경의 5% 이하)",
+      "고강성 홀더 + 짧은 돌출",
+      "건식 또는 미스트 (열충격 회피)"
+    ],
+    "yg1_recommended_series": ["V7 PLUS A", "G-Mold"]
+  },
+  {
+    "material": "주철",
+    "iso_group": "K",
+    "characteristics": "단속 절삭, 흑연으로 마모, 칩 분말화, 낮은 절삭열",
+    "recommended_coatings": [
+      { "coating": "TiAlN", "yg1_name": "X-Coating", "reason": "주철 표준 코팅. 내마모성 우수.", "priority": 1 },
+      { "coating": "AlCrN", "yg1_name": "Y-Coating", "reason": "고속 가공 또는 구상흑연주철에 적합.", "priority": 2 }
+    ],
+    "recommended_subtypes": ["Square", "Roughing"],
+    "recommended_flute_count": "4~6날",
+    "machining_tips": [
+      "Vc 100~200 m/min",
+      "건식 가공 권장 (열충격 회피)",
+      "분진 흡입 시스템 필수"
+    ],
+    "yg1_recommended_series": ["X-POWER", "V7 PLUS A"]
+  },
+  {
+    "material": "구리",
+    "iso_group": "N",
+    "characteristics": "연성, 칩 부착, 점착, 표면 거칠기 어려움",
+    "recommended_coatings": [
+      { "coating": "DLC", "yg1_name": "DLC", "reason": "구리/황동의 점착 방지에 DLC가 최적.", "priority": 1 },
+      { "coating": "Uncoated", "yg1_name": "Bright", "reason": "무코팅 초경도 적합.", "priority": 2 }
+    ],
+    "recommended_subtypes": ["Square", "Ball"],
+    "recommended_flute_count": "2~3날",
+    "machining_tips": [
+      "Vc 200~400 m/min",
+      "큰 헬릭스각",
+      "쿨런트 미스트 권장"
+    ],
+    "yg1_recommended_series": ["ALU-POWER", "ALU-CUT"]
+  },
+  {
+    "material": "복합재",
+    "iso_group": "N",
+    "characteristics": "CFRP/GFRP 등, 연마성, 박리(delamination), 섬유 절단",
+    "recommended_coatings": [
+      { "coating": "Diamond", "yg1_name": "Diamond", "reason": "다이아몬드 코팅이 CFRP의 카본 섬유 연마 마모에 유일한 해법.", "priority": 1 }
+    ],
+    "recommended_subtypes": ["다이아몬드 코팅 전용 라우터", "Compression"],
+    "recommended_flute_count": "다중날 (압축형)",
+    "machining_tips": [
+      "Vc 100~300 m/min",
+      "다운 밀링 + 업 밀링 동시 (압축형 공구로 박리 방지)",
+      "분진 흡입 필수",
+      "건식 가공"
+    ],
+    "yg1_recommended_series": ["Composite Router"]
+  },
+  {
+    "material": "흑연",
+    "iso_group": "K",
+    "characteristics": "분말 칩, 극심한 마모, 전극 가공용",
+    "recommended_coatings": [
+      { "coating": "Diamond CVD", "yg1_name": "Diamond", "reason": "흑연 가공은 다이아몬드 코팅 외 대안 없음. 공구 수명 10~20배 향상.", "priority": 1 }
+    ],
+    "recommended_subtypes": ["Ball (전극 정삭)", "Square"],
+    "recommended_flute_count": "2~4날",
+    "machining_tips": [
+      "Vc 200~500 m/min",
+      "건식 가공 + 분진 흡입 필수",
+      "고강성 머신 권장"
+    ],
+    "yg1_recommended_series": ["G-Mold Diamond"]
+  }
+]
