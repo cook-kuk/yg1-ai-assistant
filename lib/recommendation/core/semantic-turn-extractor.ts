@@ -733,7 +733,7 @@ function validateSemanticTurnResult(
 // If the LLM invented one (e.g. picked "ONLY ONE" from the DB catalog when the
 // user said "너 이름은?"), drop it. Other filter fields (소재/형상 etc.) tolerate
 // Korean transliteration so we don't apply substring guard to them.
-const PHANTOM_GUARDED_FIELDS = new Set(["brand", "country"])
+const PHANTOM_GUARDED_FIELDS = new Set(["brand", "country", "seriesName"])
 
 function normalizeForMatch(s: string): string {
   return s.toLowerCase().replace(/[\s\-_]+/g, "")
