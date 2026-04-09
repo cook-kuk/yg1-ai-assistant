@@ -461,7 +461,7 @@ function ReasoningBlock({
   isLoading: boolean
   language: "ko" | "en"
 }) {
-  const [deepOpen, setDeepOpen] = useState(false)
+  const [deepOpen, setDeepOpen] = useState(true)
   const [open, setOpen] = useState(true)
   // 사용자가 수동으로 토글한 적이 있으면 자동 접기/펴기를 멈춘다 (의도 존중).
   const userToggledRef = useRef(false)
@@ -600,7 +600,7 @@ function ReasoningBlock({
             <span>{language === "ko" ? `🧠 상세 사고 과정 (${deep.length.toLocaleString()}자)` : `🧠 Full chain-of-thought (${deep.length.toLocaleString()} chars)`}</span>
           </button>
           {deepOpen && (
-            <div className="mt-1 p-2 bg-indigo-50 border border-indigo-200 rounded text-[11px] text-indigo-900 leading-relaxed whitespace-pre-wrap max-h-[400px] overflow-y-auto">
+            <div className="mt-1 p-2 bg-indigo-50 border border-indigo-200 rounded text-[11px] text-indigo-900 leading-relaxed whitespace-pre-wrap max-h-[600px] overflow-y-auto font-mono">
               {deep}
             </div>
           )}
