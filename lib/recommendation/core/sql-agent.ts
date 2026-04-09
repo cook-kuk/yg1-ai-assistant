@@ -35,6 +35,43 @@ export interface SqlAgentResult {
   clarification?: string | null
 }
 
+// ── Tool-shape safety net ────────────────────────────────────
+//
+// LLM은 가끔 "square랑 Roughing만 아니면 돼" 같은 공구형상 제외 표현을
+// brand 필드로 잘못 emit 한다 (brand 제외는 긴 텍스트를 허용하는 자유 슬롯
+// 이라 LLM 이 fallback 으로 붙음). prompt 에 명시 규칙이 있어도 가끔 누락
+// 되므로 validateAndResolveFilters 뒤에 post-validation 으로 강제 교정.
+// value 에 공구형상 키워드가 포함되면 brand → toolSubtype 으로 재배정한다.
+const TOOL_SHAPE_CANON: Record<string, string> = {
+  square: "Square", "flat": "Square", "평날": "Square", "스퀘어": "Square",
+  roughing: "Roughing", "러핑": "Roughing", "황삭": "Roughing",
+  ball: "Ball", "볼": "Ball", "볼엔드밀": "Ball",
+  radius: "Radius", "라디우스": "Radius", "코너r": "Radius", "cornerradius": "Radius",
+  taper: "Taper", "테이퍼": "Taper",
+  chamfer: "Chamfer", "챔퍼": "Chamfer", "모따기": "Chamfer",
+}
+
+function reassignShapeBrandFilters(filters: AgentFilter[]): { filters: AgentFilter[]; messages: string[] } {
+  const messages: string[] = []
+  const out: AgentFilter[] = []
+  for (const f of filters) {
+    if (f.field !== "brand" || !f.value) { out.push(f); continue }
+    const lower = f.value.toLowerCase()
+    const hits: string[] = []
+    for (const [kw, canon] of Object.entries(TOOL_SHAPE_CANON)) {
+      if (lower.includes(kw)) hits.push(canon)
+    }
+    const uniqHits = Array.from(new Set(hits))
+    if (uniqHits.length === 0) { out.push(f); continue }
+    // brand 필터를 각 공구형상별 toolSubtype 필터로 교체
+    for (const canon of uniqHits) {
+      out.push({ ...f, field: "toolSubtype", value: canon })
+    }
+    messages.push(`brand="${f.value}" → toolSubtype ${uniqHits.map(v => `${f.op === "neq" ? "≠" : "="}${v}`).join(", ")} 로 재배정 (공구형상은 brand 가 아님)`)
+  }
+  return { filters: out, messages }
+}
+
 // ── Column → filter-field-registry field mapping ─────────────
 
 export const DB_COL_TO_FILTER_FIELD: Record<string, string> = {
@@ -208,6 +245,16 @@ Extract filter conditions and a short Korean reasoning trail from the user messa
 - "떨림 적은 거" → filters:[], confidence:"low", clarification:"떨림을 줄이는 방법은 1) 부등분할 엔드밀 2) 날수 증가(4→6날) 3) 넥 타입 — 어떤 방식을 원하시나요?"
 - "구리 비슷한 소재" → _workPieceName=구리, confidence:"medium", clarification:"구리(순동) 계열로 검색했습니다. 혹시 황동/청동이시면 말씀해주세요."
 
+## Self-Check (reasoning ↔ filters 일치 검증 — 매우 중요)
+filters를 최종 출력하기 전에 자신의 reasoning을 다시 읽고 아래를 점검하세요:
+1. reasoning에 "확인 필요", "모호", "불확실", "아닐 수도", "잘 모르겠" 가 있으면 → confidence="low", filters=[], clarification 작성. 의심한 걸 확신있게 emit 금지.
+2. reasoning에 "범위 밖", "max가 X인데 Y 요청", "DB 범위 초과" 가 있으면 → 해당 필터 제거, clarification으로 되물어라. (예: "직경 100mm는 엔드밀 범위(max 50mm)를 벗어납니다. 전장을 말씀하신 건가요?")
+3. reasoning에 "부적합", "비추", "위험", "문제 있" 가 있으면 → 필터는 유지하되 clarification에 경고/대안 포함.
+4. reasoning이 "이상/이하/초과/미만/사이" 같은 범위어를 언급했는데 filters.op가 eq 이면 틀린 것 → 반드시 gte/lte/between 으로 교정.
+5. reasoning에서 "두 가지 해석 가능", "A일 수도 B일 수도" 라고 썼으면 → confidence="low", 두 해석 모두 clarification에 제시.
+6. reasoning을 여러 번 번복했으면 ("처음엔 X, 아니 Y, 다시 X") → confidence는 medium 이하.
+핵심: reasoning에서 의심한 것은 filters에서도 그만큼 망설여라. 의심했으면 물어보고, 확신할 때만 emit하라.
+
 ${mode === "cot" ? `"reasoning"은 요약이 아니라 **머릿속 사고 과정 전체**입니다. 길이 제한 없음, 길수록 좋음. 검열·정리·요약 금지. 다음을 모두 포함하세요:
 1. 사용자 메시지를 글자 그대로 다시 읽고 풀이 ("음, 사용자가 '~'라고 했는데 이건...")
 2. 가능한 해석을 여러 개 떠올려 각각 검토
@@ -250,6 +297,7 @@ NEVER use eq when the user expressed a range:
 - 더블/싱글 엔드: "더블엔드/양끝날/양날엔드밀/double end/double-ended" → **반드시 option_milling_singledoubleend eq "Double"** (series_description 같은 자유 텍스트 컬럼 사용 금지 — 구조화 컬럼이 있을 땐 그것을 쓸 것) · "싱글엔드/single end" → option_milling_singledoubleend eq "Single"
 - 피삭재 (use _workPieceName eq): 스테인리스/스텐/SUS → "스테인리스" · 티타늄/Ti → "티타늄" · 알루미늄/AL → "알루미늄" · 주철/FC/FCD → "주철" · 탄소강/SM45C → "탄소강" · 고경도강/SKD11 → "고경도강" · 인코넬/내열합금 → "인코넬" · 구리/동/황동 → "구리" · 합금강/SCM440 → "합금강" · 복합재/CFRP → "복합재" · 흑연 → "흑연"
 - 공구 형상: 스퀘어/평날 → search_subtype eq "Square" · 볼/볼엔드밀 → "Ball" · 라디우스/코너R → like "Radius" · 러핑/황삭 → "Roughing" · 테이퍼 → "Taper" · 챔퍼/모따기 → "Chamfer" · 하이피드/고이송 → like "High-Feed"
+- **형상 제외 표현**: "Square/Roughing/Ball/Radius/Taper/Chamfer 제외", "X만 아니면", "X 빼고", "X 말고" → 반드시 search_subtype neq "X" 로 emit. **brand neq 로 넣지 말 것** (공구형상은 brand 가 아님). 두 개 이상 제외 시 각각을 별도 filter 로 분리.
 - 가공 형상: 측면가공 → series_application_shape like "side" · 포켓 → like "pocket" · 곡면 → like "contour"
 - 생크: 플레인/스트레이트 → shank_type like "Plain" · 웰던 → like "Weldon" · HA → like "HA"
 - 국가 (text[]): 국내/한국 → eq "KOR" · 미국/인치 → eq "USA" · 유럽 → eq "ENG" · 일본 → eq "JPN"
@@ -291,14 +339,16 @@ export async function naturalLanguageToFilters(
   console.log(`[sql-agent:CoT] raw(${raw.length}b): ${raw.slice(0, 800)}${raw.length > 800 ? "…" : ""}`)
   console.log("[sql-agent:CoT] ────────────────────────────────\n")
   const resolved = validateAndResolveFilters(filters)
+  const reassigned = reassignShapeBrandFilters(resolved.resolvedFilters)
+  const allMessages = [...resolved.messages, ...reassigned.messages]
   const base: SqlAgentResult = {
-    filters: resolved.resolvedFilters,
+    filters: reassigned.filters,
     raw,
-    reasoning: resolved.messages.length > 0 ? (reasoning ?? "") + "\n\n🔧 값 교정: " + resolved.messages.join(". ") : reasoning,
+    reasoning: allMessages.length > 0 ? (reasoning ?? "") + "\n\n🔧 값 교정: " + allMessages.join(". ") : reasoning,
     confidence: parsed.confidence ?? "medium",
     clarification: parsed.clarification ?? null,
   }
-  if (resolved.messages.length > 0) console.log(`[sql-agent:value-resolver] ${resolved.messages.join(". ")}`)
+  if (allMessages.length > 0) console.log(`[sql-agent:value-resolver] ${allMessages.join(". ")}`)
   return applyRangeGuard(base, schema)
 }
 
@@ -443,11 +493,13 @@ export async function naturalLanguageToFiltersStreaming(
   console.log(`[sql-agent:CoT:stream] raw(${raw.length}b): ${raw.slice(0, 800)}${raw.length > 800 ? "…" : ""}`)
   console.log("[sql-agent:CoT:stream] ────────────────────────\n")
   const resolved = validateAndResolveFilters(filters)
-  if (resolved.messages.length > 0) console.log(`[sql-agent:value-resolver:stream] ${resolved.messages.join(". ")}`)
+  const reassigned = reassignShapeBrandFilters(resolved.resolvedFilters)
+  const allMessages = [...resolved.messages, ...reassigned.messages]
+  if (allMessages.length > 0) console.log(`[sql-agent:value-resolver:stream] ${allMessages.join(". ")}`)
   const base: SqlAgentResult = {
-    filters: resolved.resolvedFilters,
+    filters: reassigned.filters,
     raw,
-    reasoning: resolved.messages.length > 0 ? (reasoning ?? "") + "\n\n🔧 값 교정: " + resolved.messages.join(". ") : reasoning,
+    reasoning: allMessages.length > 0 ? (reasoning ?? "") + "\n\n🔧 값 교정: " + allMessages.join(". ") : reasoning,
     confidence: parsed.confidence ?? "medium",
     clarification: parsed.clarification ?? null,
   }
