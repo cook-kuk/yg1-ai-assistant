@@ -1,5 +1,22 @@
 # Evolution Log
 
+## RC3 — iteration 2 (2026-04-10, agent next-hop) — C04 prefix plumbing
+**타겟**: C04 스테인리스+DLC warning이 응답에 안 나옴
+**원인**: `__domainWarnings`가 legacyState에 붙지만 buildQuestionResponse는 fresh sessionState 만들고 LLM polish가 경고 톤 버림. 0-result 분기에서도 responsePrefix 전달 안됨.
+**수정**: lib/recommendation/infrastructure/engines/serve-engine-runtime.ts:3677 — 0-cand self-correction fallback에서 `legacyState.__domainWarnings` + `__predictiveSuggestion`을 `responsePrefix`로 전달 → buildQuestionResponse가 polished text 앞에 결정론적으로 prepend
+**commit**: 8d85b8b
+**eval**: 미실행 (다음 에이전트가 돌려야 함)
+
+## RC2 — iteration 1 (2026-04-10, agent next-hop) — intent routing
+**타겟**: B05(헬릭스가 뭐야) C01(compound) C03(AlCrN vs TiAlN) C05(공구 수명 짧)
+**원인**: pre-search-route.isGeneralKnowledge가 `entities.length===0`을 요구해서 vs/비교 쿼리(entities 2+) 와 compound 쿼리는 filter pipeline 직행. troubleshoot 증상은 judgment가 `continue`로 분류.
+**수정**:
+  - lib/recommendation/infrastructure/engines/pre-search-route.ts — `isCompareOrExplainIntent` 추가, intentAction이 explain/compare + domainRelevance=product_query면 entity 수와 무관하게 general_knowledge
+  - lib/recommendation/domain/context/unified-haiku-judgment.ts:154 — 프롬프트에 트러블 증상 예시 한 줄 추가 ("수명 짧/파손/치핑/마모/진동/채터/버/깨짐" → intentAction: explain)
+**commit**: 781ccaa
+**eval**: 미실행
+**리스크**: compound "추천 그리고 X가 뭐야" (C01)는 judgment가 단일 intent만 반환하므로 여전히 먹힐지 불확실. B05/C03/C05는 개선 확률 높음.
+
 ## RC1 — iteration 1 (2026-04-10 00:40, agent 8c51…)
 **타겟**: B01/B04/M01/M02 ask-vs-display
 **원인**: `checkResolution()` 임계값이 `<=10` 후보일 때만 resolved 반환 → ~200 후보대에서 infinite narrowing
