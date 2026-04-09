@@ -40,6 +40,140 @@ function makeState(overrides: Partial<ExplorationSessionState> = {}): Exploratio
 }
 
 describe("extractSemanticTurnDecision", () => {
+  describe("phantom categorical filter guard", () => {
+    it("drops brand filter when value is not in user message (ONLY ONE hallucination)", async () => {
+      const provider = createMockProvider(`{
+        "action": "continue_narrowing",
+        "filters": [{ "field": "brand", "value": "ONLY ONE" }],
+        "confidence": 0.9,
+        "reasoning": "phantom"
+      }`)
+
+      const result = await extractSemanticTurnDecision({
+        userMessage: "너 이름은?",
+        sessionState: makeState(),
+        provider,
+      })
+
+      expect(result).toBeNull()
+    })
+
+    it("drops seriesName filter when value is not in user message (상관없음 hallucination)", async () => {
+      const provider = createMockProvider(`{
+        "action": "continue_narrowing",
+        "filters": [{ "field": "seriesName", "value": "상관없음" }],
+        "confidence": 0.9,
+        "reasoning": "phantom"
+      }`)
+
+      const result = await extractSemanticTurnDecision({
+        userMessage: "오호 추천해줘",
+        sessionState: makeState(),
+        provider,
+      })
+
+      expect(result).toBeNull()
+    })
+
+    it("drops country filter when value is not in user message", async () => {
+      const provider = createMockProvider(`{
+        "action": "continue_narrowing",
+        "filters": [{ "field": "country", "value": "Korea" }],
+        "confidence": 0.9,
+        "reasoning": "phantom"
+      }`)
+
+      const result = await extractSemanticTurnDecision({
+        userMessage: "안녕하세요",
+        sessionState: makeState(),
+        provider,
+      })
+
+      expect(result).toBeNull()
+    })
+
+    it("keeps brand filter when value literally appears in user message", async () => {
+      const provider = createMockProvider(`{
+        "action": "continue_narrowing",
+        "filters": [{ "field": "brand", "value": "ONLY ONE" }],
+        "confidence": 0.9,
+        "reasoning": "legit"
+      }`)
+
+      const result = await extractSemanticTurnDecision({
+        userMessage: "ONLY ONE 브랜드만 보여줘",
+        sessionState: makeState(),
+        provider,
+      })
+
+      expect(result).not.toBeNull()
+      if (result?.action.type !== "continue_narrowing") {
+        throw new Error("expected continue_narrowing")
+      }
+      expect(result.action.filter.field).toBe("brand")
+    })
+
+    it("matches brand value case-insensitively and ignores spacing", async () => {
+      const provider = createMockProvider(`{
+        "action": "continue_narrowing",
+        "filters": [{ "field": "brand", "value": "ONLY ONE" }],
+        "confidence": 0.9,
+        "reasoning": "legit"
+      }`)
+
+      const result = await extractSemanticTurnDecision({
+        userMessage: "onlyone 으로만 줘",
+        sessionState: makeState(),
+        provider,
+      })
+
+      expect(result).not.toBeNull()
+    })
+
+    it("drops phantom brand but promotes legit toolSubtype filter to action", async () => {
+      const provider = createMockProvider(`{
+        "action": "continue_narrowing",
+        "filters": [
+          { "field": "brand", "value": "ONLY ONE" },
+          { "field": "toolSubtype", "value": "Square" }
+        ],
+        "confidence": 0.9,
+        "reasoning": "mixed"
+      }`)
+
+      const result = await extractSemanticTurnDecision({
+        userMessage: "square 형상으로",
+        sessionState: makeState(),
+        provider,
+      })
+
+      expect(result).not.toBeNull()
+      if (result?.action.type !== "continue_narrowing") {
+        throw new Error("expected continue_narrowing")
+      }
+      expect(result.action.filter.field).toBe("toolSubtype")
+      expect(result.extraFilters).toEqual([])
+    })
+
+    it("does not apply substring guard to non-categorical fields like toolMaterial", async () => {
+      // Korean transliteration must still work for material/shape
+      const provider = createMockProvider(`{
+        "action": "continue_narrowing",
+        "filters": [{ "field": "toolMaterial", "value": "Carbide" }],
+        "confidence": 0.9,
+        "reasoning": "한글 음역"
+      }`)
+
+      const result = await extractSemanticTurnDecision({
+        userMessage: "카바이드로 줘",
+        sessionState: makeState(),
+        provider,
+      })
+
+      expect(result).not.toBeNull()
+    })
+  })
+
   it("merges same-field semantic filters into one multi-value filter", async () => {
     const provider = createMockProvider(`{
       "action": "continue_narrowing",
