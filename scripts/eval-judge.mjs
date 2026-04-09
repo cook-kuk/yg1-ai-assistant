@@ -73,7 +73,162 @@ const SCENARIOS = [
     expect: "모호해도 범용 추천. 에러 아님. 추가 질문으로 좁혀가기" },
   { id: "E03", input: "네", phase: 4,
     expect: "1~2문장. 과잉 응답 금지" },
+
+  // Phase 2: 실전 범위/경쟁사/구어체
+  { id: "R01", input: "100mm 이상이면 좋겠어", phase: 2, expect: "직경 gte 100. 전장 안 잡힘" },
+  { id: "R02", input: "직경 10mm 이상만", phase: 2, expect: "diameterMm gte 10" },
+  { id: "R03", input: "전장 200mm 이상", phase: 2, expect: "overallLengthMm gte 200" },
+  { id: "R04", input: "6mm에서 12mm 사이", phase: 2, expect: "diameterMm between 6~12" },
+  { id: "R05", input: "50mm 이하로만", phase: 2, expect: "diameterMm lte 50" },
+  { id: "N01", input: "CRX S 빼고 추천해줘", phase: 2, expect: "brand neq + 제품 카드 표시" },
+  { id: "K01", input: "우리 공장에서 SUS316L 많이 하는데 괜찮은 거?", phase: 2, expect: "스테인리스 매칭 + 추천" },
+  { id: "K02", input: "미쯔비시 쓰고 있었는데 대체 가능?", phase: 2, expect: "경쟁사+YG-1 동급" },
+  { id: "K03", input: "10파이 넘는 거 스텐용", phase: 2, expect: "gte 10 + 스테인리스" },
 ]
+
+// ═══ Phase A: 동적 시나리오 확장 ═══
+
+const SYNONYM_MAP = {
+  "스테인리스": ["스텐", "SUS304", "SUS316L", "스뎅", "sus"],
+  "4날": ["네날", "4F", "4 flute", "사날"],
+  "10mm": ["10파이", "φ10", "직경10"],
+  "이상": ["넘는", "초과", "위로", "보다 큰", "이상이면 좋겠어"],
+  "이하": ["미만", "아래", "보다 작은", "안 넘는"],
+  "빼고": ["제외", "말고", "없이", "아닌 거", "빼줘"],
+  "추천해줘": ["보여줘", "있어?", "뭐가 좋아?", "골라줘"],
+  "뭐야": ["뭔데", "알려줘", "설명해줘", "뭐임", "뭔가요"],
+  "짧아": ["너무 짧아", "금방 닳아", "오래 못 써", "수명이 안 나와"],
+  "떨림": ["진동", "채터", "흔들림", "떨려"],
+}
+
+export function mutateFromFailures(results) {
+  const fails = (results ?? [])
+    .filter(r => r.grade && (r.grade.total ?? 25) < 20 && !r.error)
+    .slice(0, 5)
+  const out = []
+  for (const r of fails) {
+    const orig = r.input ?? ""
+    const hitKey = Object.keys(SYNONYM_MAP).find(k => orig.includes(k))
+    if (!hitKey) continue
+    const syns = SYNONYM_MAP[hitKey]
+    const pick = syns[Math.floor(Math.random() * syns.length)]
+    const mutated = orig.replace(hitKey, pick)
+    if (mutated === orig) continue
+    out.push({
+      id: `MUT_${r.id}_${Date.now().toString(36)}`,
+      input: mutated,
+      phase: 5,
+      expect: `원본(${r.id}) 변형: "${hitKey}"→"${pick}". 동일 의도로 처리.`,
+    })
+  }
+  return out
+}
+
+export function generateRangeScenarios() {
+  const fields = [
+    { key: "diameterMm", ko: "직경", vals: [4, 6, 8, 10, 12, 16, 20] },
+    { key: "overallLengthMm", ko: "전장", vals: [50, 75, 100, 150, 200, 250] },
+    { key: "fluteCount", ko: "날수", vals: [2, 3, 4, 6] },
+  ]
+  const ops = [
+    { key: "gte", ko: "이상" },
+    { key: "lte", ko: "이하" },
+    { key: "lt", ko: "미만" },
+    { key: "between", ko: "사이" },
+  ]
+  const combos = []
+  for (const f of fields) {
+    for (const op of ops) {
+      let text
+      if (op.key === "between") {
+        const a = f.vals[Math.floor(Math.random() * (f.vals.length - 1))]
+        const b = f.vals[f.vals.length - 1]
+        text = `${f.ko} ${a}${f.key === "fluteCount" ? "날" : "mm"}에서 ${b}${f.key === "fluteCount" ? "날" : "mm"} 사이`
+      } else {
+        const v = f.vals[Math.floor(Math.random() * f.vals.length)]
+        text = `${f.ko} ${v}${f.key === "fluteCount" ? "날" : "mm"} ${op.ko}`
+      }
+      combos.push({
+        id: `RNG_${f.key}_${op.key}_${Date.now().toString(36)}_${Math.floor(Math.random()*1000)}`,
+        input: text,
+        phase: 5,
+        expect: `${f.key} ${op.key} 필터 정확 추출`,
+      })
+    }
+  }
+  // shuffle and cap 10
+  return combos.sort(() => Math.random() - 0.5).slice(0, 10)
+}
+
+export async function generateCustomerScenarios(results, openaiKey) {
+  if (!openaiKey) return []
+  const sys = `당신은 한국 제조현장 절삭공구 구매 담당자 페르소나 생성기.
+YG-1 절삭공구 AI 어시스턴트에 물어볼 법한 실전 질문 10개를 생성하라.
+- 존댓말/반말 섞어서
+- 오타/축약어/구어체 포함
+- 소재(스테인리스/알루미늄/티타늄/탄소강/구리), 직경/전장/날수, 브랜드, 트러블슈팅 등 다양
+- 너무 쉬운 건 피하고 실전 엣지 케이스 위주
+
+응답은 반드시 JSON 배열만 (다른 텍스트 금지):
+[{"input":"질문","expect":"기대 동작"},...]`
+  try {
+    const res = await fetch(OPENAI_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${openaiKey}` },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: sys },
+          { role: "user", content: "10개 생성" },
+        ],
+        max_tokens: 1500,
+        temperature: 0.9,
+      }),
+    })
+    const data = await res.json()
+    const text = data.choices?.[0]?.message?.content ?? ""
+    const match = text.match(/\[[\s\S]*\]/)
+    if (!match) return []
+    const arr = JSON.parse(match[0])
+    const ts = Date.now().toString(36)
+    return arr.slice(0, 10).map((x, i) => ({
+      id: `GEN_${ts}_${i}`,
+      input: String(x.input ?? ""),
+      phase: 5,
+      expect: String(x.expect ?? "자연스러운 추천/답변"),
+    })).filter(s => s.input.length > 0)
+  } catch (e) {
+    console.warn(`generateCustomerScenarios failed: ${e.message}`)
+    return []
+  }
+}
+
+export async function refreshScenarios(baseScenarios, lastResults, openaiKey) {
+  const mutated = mutateFromFailures(lastResults)
+  const ranges = generateRangeScenarios()
+  const gen = await generateCustomerScenarios(lastResults, openaiKey)
+  const seenIds = new Set(baseScenarios.map(s => s.id))
+  const merged = [...baseScenarios]
+  for (const s of [...mutated, ...ranges, ...gen]) {
+    if (seenIds.has(s.id)) continue
+    seenIds.add(s.id)
+    merged.push(s)
+  }
+  // 50개 상한: phase>=5 이고 22+ 안정 시나리오 제거
+  if (merged.length > 50) {
+    const byId = Object.fromEntries((lastResults ?? []).map(r => [r.id, r.grade?.total ?? 0]))
+    const keep = merged.filter(s => {
+      if ((s.phase ?? 0) < 5) return true
+      const score = byId[s.id] ?? 0
+      return score < 22
+    })
+    while (keep.length > 50) keep.pop()
+    return keep
+  }
+  return merged
+}
+
+export { SCENARIOS, SYNONYM_MAP, callARIA, judgeResponse, runScenario }
 
 // ═══ 채점 루브릭 ═══
 
@@ -203,6 +358,9 @@ async function runScenario(scenario) {
 
 // ═══ 실행 ═══
 
+const __entry = (process.argv[1] ?? "").replace(/\\/g, "/").split("/").pop() ?? ""
+const __isMain = __entry === "eval-judge.mjs"
+if (__isMain) {
 console.log("\n🧪 ARIA Eval-Driven Development — LLM-as-Judge\n")
 
 const results = []
@@ -275,3 +433,4 @@ fs.writeFileSync(fname, JSON.stringify({ timestamp: new Date().toISOString(), re
   avgTotal: graded.length > 0 ? (graded.reduce((s, r) => s + (r.grade?.total ?? 0), 0) / graded.length).toFixed(1) : 0,
 }}, null, 2))
 console.log(`\n📊 결과 저장: ${fname}`)
+} // end __isMain
