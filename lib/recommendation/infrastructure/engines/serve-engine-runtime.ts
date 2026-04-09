@@ -166,12 +166,45 @@ function buildZeroResultMessage(
  * for the failed field given the current (pre-change) candidate set.
  * Returns an enriched message + alternative chips so the user can recover.
  */
+/**
+ * Scan narrowingHistory for the filter with the largest absolute reduction.
+ * Returns null if history is empty or no reduction occurred.
+ * Used to surface the *actual* culprit in 0-result messages instead of always
+ * blaming the most recently added filter.
+ */
+function findLargestReductionFilter(
+  history: ReadonlyArray<{
+    extractedFilters?: ReadonlyArray<{ field: string; value: string | number | boolean }>
+    candidateCountBefore?: number
+    candidateCountAfter?: number
+  }>,
+): { field: string; value: string; reduction: number; before: number; after: number } | null {
+  let best: { field: string; value: string; reduction: number; before: number; after: number } | null = null
+  for (const turn of history) {
+    const before = turn.candidateCountBefore ?? 0
+    const after = turn.candidateCountAfter ?? 0
+    const reduction = before - after
+    if (reduction <= 0) continue
+    const f = turn.extractedFilters?.[0]
+    if (!f) continue
+    if (!best || reduction > best.reduction) {
+      best = { field: f.field, value: String(f.value), reduction, before, after }
+    }
+  }
+  return best
+}
+
 function buildZeroResultWithAlternatives(
   failedFilter: { field: string; value: string },
   activeFilters: Array<{ field: string; value: string }>,
   currentCandidates: ScoredProduct[],
   totalCandidateCount: number,
   previousValue?: string | null,
+  narrowingHistory?: ReadonlyArray<{
+    extractedFilters?: ReadonlyArray<{ field: string; value: string | number | boolean }>
+    candidateCountBefore?: number
+    candidateCountAfter?: number
+  }>,
 ): { message: string; chips: string[] } {
   const failedLabel = getFilterFieldLabel(failedFilter.field)
   const failedValue = failedFilter.value
@@ -192,6 +225,21 @@ function buildZeroResultWithAlternatives(
   const lines = [
     `${conditionSummary} 조건을 모두 적용하면 후보가 없습니다.`,
   ]
+
+  // Surface the actual largest-reduction culprit if it differs from the
+  // currently failing filter — otherwise the user blames the wrong filter.
+  if (narrowingHistory && narrowingHistory.length > 0) {
+    const culprit = findLargestReductionFilter(narrowingHistory)
+    if (
+      culprit &&
+      (culprit.field !== failedFilter.field || String(culprit.value) !== String(failedFilter.value))
+    ) {
+      const culpritLabel = getFilterFieldLabel(culprit.field)
+      lines.push(
+        `→ 가장 크게 좁힌 필터는 ${culpritLabel}: ${culprit.value} 입니다 (${culprit.before}→${culprit.after}개). 이 필터를 먼저 풀어보세요.`
+      )
+    }
+  }
 
   const chips: string[] = []
 
@@ -4040,6 +4088,8 @@ async function handleServeExplorationInner(
               filters,
               candidates,
               totalCandidateCount,
+              undefined,
+              narrowingHistory,
             )
             return deps.buildQuestionResponse(
               form, candidates, evidenceMap, totalCandidateCount, paginationDto(totalCandidateCount), displayCandidates, displayEvidenceMap, currentInput,
@@ -4986,6 +5036,7 @@ async function handleServeExplorationInner(
           candidates,
           totalCandidateCount,
           action.previousValue,
+          narrowingHistory,
         )
         return deps.buildQuestionResponse(
           form,
@@ -5151,6 +5202,8 @@ async function handleServeExplorationInner(
           filters,
           candidates,
           totalCandidateCount,
+          undefined,
+          narrowingHistory,
         )
         return deps.buildQuestionResponse(
           form,
