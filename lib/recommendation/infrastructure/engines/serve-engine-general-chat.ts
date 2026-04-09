@@ -1034,6 +1034,10 @@ export async function handleServeGeneralChatAction(
   let llmResponse: { text: string; chips: string[] }
   if (canReusePreGenerated) {
     llmResponse = { text: action.message, chips: [] }
+  } else if (!canReusePreGenerated && (prevState as unknown as { __qaDirectAnswer?: string })?.__qaDirectAnswer) {
+    const qaFallback = (prevState as unknown as { __qaDirectAnswer?: string }).__qaDirectAnswer!
+    llmResponse = { text: qaFallback, chips: [] }
+    console.log(`[general-chat] __qaDirectAnswer fallback: "${qaFallback.slice(0, 60)}"`)
   } else {
     llmResponse = await deps.handleGeneralChat(
       provider,
