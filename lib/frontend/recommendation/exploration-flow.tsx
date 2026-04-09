@@ -398,20 +398,16 @@ function ReasoningBlock({
   // 다시 펼쳐서 읽을 수 있도록 유지하고, 접고 싶으면 직접 토글한다.
 
   const seconds = Math.max(0, elapsedMs / 1000)
-  // estimate 초과 시: 1 - exp(-extra/estimate) 로 부드럽게 95%까지 수렴 →
-  // "약 N초 남음" 대신 경과만 표시. 절대 0이 박히지 않게.
-  const overEstimate = elapsedMs > estimateMs
-  const rawProgress = !isLoading
-    ? 1
-    : overEstimate
-      ? Math.min(0.95, 0.7 + 0.25 * (1 - Math.exp(-(elapsedMs - estimateMs) / estimateMs)))
-      : Math.min(0.7, (elapsedMs / estimateMs) * 0.7)
-  const remainingS = Math.max(1, Math.ceil((estimateMs - elapsedMs) / 1000))
+  // 동적 ETA: elapsed가 estimate의 80%를 넘으면 estimate를 elapsed * 1.4로 늘려
+  // "남은 시간"이 항상 양수로 흐르도록. 더 걸릴 것 같으면 자동으로 시간 추가.
+  const liveEstimateMs = isLoading
+    ? Math.max(estimateMs, elapsedMs / 0.8, elapsedMs + 2_000)
+    : estimateMs
+  const rawProgress = !isLoading ? 1 : Math.min(0.95, elapsedMs / liveEstimateMs)
+  const remainingS = Math.max(1, Math.ceil((liveEstimateMs - elapsedMs) / 1000))
   const timerLabel = !isLoading
     ? `${Math.round(seconds)}s`
-    : overEstimate
-      ? (language === "ko" ? `${seconds.toFixed(1)}s · 거의 다 됐어요` : `${seconds.toFixed(1)}s · almost there`)
-      : (language === "ko" ? `${seconds.toFixed(1)}s · 약 ${remainingS}s 남음` : `${seconds.toFixed(1)}s · ~${remainingS}s left`)
+    : (language === "ko" ? `${seconds.toFixed(1)}s · 약 ${remainingS}s 남음` : `${seconds.toFixed(1)}s · ~${remainingS}s left`)
   const headlineText = isLoading
     ? (language === "ko" ? "추론 중" : "Thinking")
     : (language === "ko" ? `${Math.max(1, Math.round(seconds))}초 동안 추론함` : `Thought for ${Math.max(1, Math.round(seconds))}s`)
