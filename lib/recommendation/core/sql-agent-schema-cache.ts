@@ -5,6 +5,7 @@
  */
 
 import { Pool } from "pg"
+import { phoneticKey } from "./phonetic-match"
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -26,7 +27,23 @@ export interface DbSchema {
    * to a filter slot without the user naming the field.
    */
   valueIndex: Record<string, string[]>
+  /**
+   * Phonetic index: every DB value's consonant skeleton paired with its
+   * original form and source column. Lets deterministic SCR catch Korean
+   * transliterations (엑스파워 → X-POWER) for any column without per-field
+   * hardcoded alias maps. Built once at cache load.
+   */
+  phoneticIndex: PhoneticEntry[]
   loadedAt: number
+}
+
+export interface PhoneticEntry {
+  /** Consonant-skeleton phonetic key (≥ 3 chars) */
+  key: string
+  /** Original DB value (used for emit) */
+  original: string
+  /** MV column name (or synthetic _workPieceName / country_codes) */
+  column: string
 }
 
 // ── Cache ────────────────────────────────────────────────────
@@ -184,8 +201,13 @@ export async function getDbSchema(): Promise<DbSchema> {
   // 7. Build value→column reverse index for unqualified-token routing.
   const valueIndex = buildValueIndex({ sampleValues, brands, countries, workpieces })
 
-  cached = { columns, sampleValues, numericStats, auxTables, workpieces, brands, countries, valueIndex, loadedAt: Date.now() }
-  console.log(`[sql-agent-schema] loaded: ${columns.length} cols, ${Object.keys(sampleValues).length} text-sampled, ${Object.keys(numericStats).length} numeric-sampled, ${Object.keys(auxTables).length} aux tables, ${workpieces.length} wp, ${brands.length} brands, ${countries.length} countries, ${Object.keys(valueIndex).length} indexed`)
+  // 8. Phonetic index — consonant-skeleton keys for all DB values, enables
+  // Korean transliteration matching across every column without hardcoded
+  // alias maps.
+  const phoneticIndex = buildPhoneticIndex({ sampleValues, brands, countries, workpieces })
+
+  cached = { columns, sampleValues, numericStats, auxTables, workpieces, brands, countries, valueIndex, phoneticIndex, loadedAt: Date.now() }
+  console.log(`[sql-agent-schema] loaded: ${columns.length} cols, ${Object.keys(sampleValues).length} text-sampled, ${Object.keys(numericStats).length} numeric-sampled, ${Object.keys(auxTables).length} aux tables, ${workpieces.length} wp, ${brands.length} brands, ${countries.length} countries, ${Object.keys(valueIndex).length} indexed, ${phoneticIndex.length} phonetic`)
   return cached
 }
 
@@ -253,4 +275,104 @@ function buildValueIndex(args: {
     addIndexEntry(index, wp.normalized_work_piece_name, "_workPieceName")
   }
   return index
+}
+
+// ── Phonetic index helpers ───────────────────────────────────
+
+function buildPhoneticIndex(args: {
+  sampleValues: Record<string, string[]>
+  brands: string[]
+  countries: string[]
+  workpieces: { tag_name: string; normalized_work_piece_name: string }[]
+}): PhoneticEntry[] {
+  const out: PhoneticEntry[] = []
+  const dedupe = new Set<string>()
+
+  function add(value: string, column: string): void {
+    const v = (value ?? "").trim()
+    if (!v || v.length < 2) return
+    if (/^-?\d+(?:\.\d+)?$/.test(v)) return // pure number
+    const key = phoneticKey(v)
+    // Min 3 to limit false positives — 2-char skeletons are too generic.
+    if (!key || key.length < 3) return
+    const dedupeKey = `${column}::${key}::${v.toLowerCase()}`
+    if (dedupe.has(dedupeKey)) return
+    dedupe.add(dedupeKey)
+    out.push({ key, original: v, column })
+  }
+
+  for (const [col, values] of Object.entries(args.sampleValues)) {
+    for (const v of values) add(v, col)
+  }
+  for (const b of args.brands) add(b, "edp_brand_name")
+  for (const c of args.countries) add(c, "country_codes")
+  for (const wp of args.workpieces) {
+    add(wp.tag_name, "_workPieceName")
+    add(wp.normalized_work_piece_name, "_workPieceName")
+  }
+  return out
+}
+
+export interface PhoneticMatch {
+  column: string
+  value: string
+  similarity: number
+  /** The user input token that produced the match */
+  matchedToken: string
+}
+
+/**
+ * Find the best phonetic match for any token inside `text` against the
+ * full DB phonetic index. Sync, no DB call. Returns null if cache cold or
+ * no token clears the threshold.
+ *
+ * Strategy: tokenize on whitespace + Korean particles, romanize each token,
+ * compare against the phonetic index using length-aware containment +
+ * similarity scoring. Prefers longer + more specific matches to reduce
+ * false positives.
+ */
+export function findValueByPhonetic(text: string, threshold = 0.85): PhoneticMatch | null {
+  if (!cached || cached.phoneticIndex.length === 0) return null
+  if (!text) return null
+
+  // Tokenize: split on whitespace and Korean particles to isolate brand-like
+  // chunks. Particles like 으로/로/는/은/이/가/을/를 are stripped from token tails.
+  const tokens = text
+    .split(/[\s,.\/\-()[\]]+/)
+    .map(t => t.replace(/(?:으로|로|은|는|이|가|을|를|의|에|에서|만)$/u, ""))
+    .filter(t => t.length >= 2)
+
+  let best: PhoneticMatch | null = null
+
+  for (const tok of tokens) {
+    const tokKey = phoneticKey(tok)
+    if (!tokKey || tokKey.length < 3) continue
+
+    for (const entry of cached.phoneticIndex) {
+      // Containment in either direction (handles user typing more/less than
+      // the canonical brand)
+      const a = tokKey
+      const b = entry.key
+      let sim = 0
+      if (a === b) {
+        sim = 1
+      } else if (a.includes(b)) {
+        sim = b.length / a.length
+      } else if (b.includes(a)) {
+        sim = a.length / b.length
+      } else {
+        // Cheap prefix similarity for near-matches
+        let common = 0
+        const lim = Math.min(a.length, b.length)
+        for (let i = 0; i < lim && a[i] === b[i]; i++) common++
+        if (common >= 3) sim = common / Math.max(a.length, b.length)
+      }
+
+      if (sim >= threshold && (!best || sim > best.similarity || (sim === best.similarity && entry.key.length > (best ? phoneticKey(best.value).length : 0)))) {
+        best = { column: entry.column, value: entry.original, similarity: sim, matchedToken: tok }
+      }
+    }
+  }
+
+  return best
 }

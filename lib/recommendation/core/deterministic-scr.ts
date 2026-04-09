@@ -12,7 +12,7 @@
  * Output shape: single-call-router.ts 의 SingleCallAction 과 동일.
  */
 
-import { findColumnsForToken } from "./sql-agent-schema-cache"
+import { findColumnsForToken, findValueByPhonetic } from "./sql-agent-schema-cache"
 import { DB_COL_TO_FILTER_FIELD } from "./sql-agent"
 import { stripKoreanParticles } from "@/lib/recommendation/shared/patterns"
 import { findFuzzyMatch } from "./phonetic-match"
@@ -1220,5 +1220,47 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
     seen.add(a.field)
   }
 
+  // ── Phonetic backstop (모든 DB 컬럼 일반화) ──────────────────
+  // 위 모든 추출기 + MV exact 인덱스가 다 미스했지만 사용자 토큰이 DB 값의
+  // 한국어 음역/약칭/오타일 수 있는 경우를 잡는다. schema cache의
+  // phoneticIndex가 sampleValues + brands + countries + workpieces 전체에서
+  // consonant-skeleton key를 사전 빌드해 두어, 신규 컬럼이 MV에 추가돼도
+  // 코드 변경 0번으로 매칭됨. 캐시 콜드면 no-op.
+  for (const a of extractFromPhoneticIndex(text, seen)) {
+    if (seen.has(a.field)) continue
+    actions.push(a)
+    seen.add(a.field)
+  }
+
   return actions
+}
+
+/**
+ * Phonetic index backstop. Mirror of extractFromMvIndex but uses
+ * consonant-skeleton phonetic matching against the schema cache's
+ * phoneticIndex. Catches Korean transliterations of any DB value across
+ * any column without per-field hardcoded alias maps.
+ */
+export function extractFromPhoneticIndex(
+  text: string,
+  alreadySeen: Set<string>,
+): DeterministicAction[] {
+  const match = findValueByPhonetic(text)
+  if (!match) return []
+  const field = resolveFieldForColumn(match.column)
+  if (!field) return []
+  if (alreadySeen.has(field)) return []
+
+  const tok = match.matchedToken
+  const idx = text.toLowerCase().indexOf(tok.toLowerCase())
+  const op: "eq" | "neq" =
+    idx >= 0 && negNear(text, idx, tok.length) ? "neq" : "eq"
+
+  return [{
+    type: "apply_filter",
+    field,
+    value: match.value, // canonical DB value, not the user token
+    op,
+    source: "deterministic",
+  }]
 }
