@@ -3677,6 +3677,16 @@ async function handleServeExplorationInner(
         if (isResultPhase && totalCandidateCount === 0 && (legacyState.appliedFilters ?? []).length > 0) {
           console.log("[runtime:v2] 0 candidates after self-correction → question fallback")
           legacyState.currentMode = "question"
+          // RC3: deterministic warning prefix — when domain-guard caught an
+          // incompatible combination (e.g. 스테인리스 + DLC) and result is 0,
+          // inject the warning as responsePrefix so users see the reason even
+          // if LLM polish drops it.
+          const zeroWarning = (legacyState as ExplorationSessionState & { __domainWarnings?: string }).__domainWarnings
+          const zeroPredictive = (legacyState as ExplorationSessionState & { __predictiveSuggestion?: string }).__predictiveSuggestion
+          const prefixParts: string[] = []
+          if (zeroWarning) prefixParts.push(zeroWarning)
+          if (zeroPredictive) prefixParts.push(zeroPredictive)
+          const zeroPrefix = prefixParts.length > 0 ? prefixParts.join("\n\n") : undefined
           return deps.buildQuestionResponse(
             form,
             result.searchPayload.candidates,
@@ -3692,6 +3702,10 @@ async function handleServeExplorationInner(
             messages,
             provider,
             language,
+            undefined, // overrideText
+            undefined, // existingStageHistory
+            undefined, // excludeWorkPieceValues
+            zeroPrefix, // responsePrefix — deterministic domain warning
           )
         }
 
