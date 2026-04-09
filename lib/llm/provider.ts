@@ -132,6 +132,30 @@ export const AGENT_TIER: Record<AgentName, ModelTier> = {
   "turn-repair":             "sonnet",
 }
 
+/** Reasoning effort for gpt-5 / o-series models. Lower = faster + cheaper.
+ *  Only the OpenAI provider consults this; Anthropic ignores it. */
+export type ReasoningEffort = "minimal" | "low" | "medium" | "high"
+
+/** SINGLE SOURCE OF TRUTH — agent → reasoning effort.
+ *  gpt-5 / o-series default to "medium" when omitted, which wastes thinking
+ *  tokens on simple extraction/classification work. We override per-agent so
+ *  light agents skip reasoning entirely while heavy ones keep it. */
+export const AGENT_REASONING_EFFORT: Partial<Record<AgentName, ReasoningEffort>> = {
+  // Minimal — pure extraction / mechanical routing, no reasoning needed
+  "parameter-extractor":     "minimal",
+  "single-call-router":      "minimal",
+  "query-planner":           "minimal",
+  // Low — light judgment, short answers
+  "intent-classifier":       "low",
+  "ambiguity-resolver":      "low",
+  "semantic-turn-extractor": "low",
+  "turn-orchestrator":       "low",
+  "tool-use-router":         "low",
+  // Medium (default, omitted) — real reasoning
+  //   "unified-judgment", "comparison", "response-composer",
+  //   "query-decomposer", "self-correction", "turn-repair"
+}
+
 /** Infer the tier from a literal Anthropic model id, e.g.
  *  "claude-haiku-4-5-20251001" → "haiku". Used by the OpenAI provider so
  *  callers that pass `resolveModel("haiku")` (which returns an Anthropic id)
@@ -612,6 +636,8 @@ export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
       if (cacheKey) body.prompt_cache_key = `yg1:${cacheKey}`
       if (isReasoningModel) {
         body.max_completion_tokens = maxTokens
+        const effort = AGENT_REASONING_EFFORT[(agentNameArg ?? agentName) as AgentName]
+        if (effort) body.reasoning_effort = effort
       } else {
         body.max_tokens = maxTokens
         body.temperature = 0.1
@@ -710,6 +736,8 @@ export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
       if (cacheKey) body.prompt_cache_key = `yg1:${cacheKey}`
       if (isReasoningModel) {
         body.max_completion_tokens = maxTokens
+        const effort = AGENT_REASONING_EFFORT[(agentNameArg ?? agentName) as AgentName]
+        if (effort) body.reasoning_effort = effort
       } else {
         body.max_tokens = maxTokens
         body.temperature = 0.1
@@ -815,6 +843,8 @@ export function createOpenAIProvider(agentName?: AgentName): LLMProvider {
       if (cacheKey) body.prompt_cache_key = `yg1:${cacheKey}`
       if (isReasoningModel) {
         body.max_completion_tokens = maxTokens
+        const effort = AGENT_REASONING_EFFORT[(agentNameArg ?? agentName) as AgentName]
+        if (effort) body.reasoning_effort = effort
       } else {
         body.max_tokens = maxTokens
         body.temperature = 0.1
