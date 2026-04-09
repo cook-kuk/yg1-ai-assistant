@@ -3400,6 +3400,7 @@ async function handleServeExplorationInner(
                     deps.onThinking
                       ? (delta) => { try { deps.onThinking!(delta, { delta: true }) } catch { /* never block */ } }
                       : undefined,
+                    "cot", // ← escalation retry: full deliberative reasoning
                   )
                   if (cotResult.reasoning) {
                     legacyState.thinkingProcess =

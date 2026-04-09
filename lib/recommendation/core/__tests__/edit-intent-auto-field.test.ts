@@ -59,3 +59,30 @@ describe("parseEditIntent with auto-field", () => {
     }
   })
 })
+
+describe("reject_applied_filter (negation fallback)", () => {
+  const existing = [
+    { field: "brand", op: "eq", value: "X1-EH", rawValue: "X1-EH", appliedAt: 0 },
+  ] as const
+
+  test("entity 없음 + field 키워드: '브랜드 잘못' → clear brand", () => {
+    const result = parseEditIntent("브랜드 잘못 들어갔어요", existing as never)
+    expect(result?.intent.type).toBe("clear_field")
+    if (result?.intent.type === "clear_field") {
+      expect(result.intent.field).toBe("brand")
+    }
+  })
+
+  test("entity 없음 + 요청 안 했: '브랜드 요청한 적 없어요' → clear brand", () => {
+    const result = parseEditIntent("브랜드 요청한 적 없어요", existing as never)
+    expect(result?.intent.type).toBe("clear_field")
+    if (result?.intent.type === "clear_field") {
+      expect(result.intent.field).toBe("brand")
+    }
+  })
+
+  test("filter 없으면 null", () => {
+    const result = parseEditIntent("브랜드 잘못 들어갔어요", [])
+    expect(result).toBeNull()
+  })
+})

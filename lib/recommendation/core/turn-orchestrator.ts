@@ -111,7 +111,24 @@ This rule is absolute.
 "처음부터"/"리셋" → reset_session
 "이전"/"뒤로" → go_back
 "상관없어"/"아무거나"/"몰라" → skip_field
-"그냥"/"빨리"/"알아서" → 즉시 추천 (추가 질문 금지)`
+"그냥"/"빨리"/"알아서" → 즉시 추천 (추가 질문 금지)
+
+═══ 출력 형식 ═══
+JSON only. The "answerDraft" MUST be the final user-facing answer in natural Korean — complete sentences, not placeholders. If asking a question, include the question in answerDraft.
+
+★ suggestedChips 생성 규칙 (매우 중요):
+- 반드시 현재 대화 맥락과 직전 질문/답변에 기반한 칩 3-6개 생성
+- 같은 칩을 매번 반복하지 마라 ("왜 이 제품을 추천했나요?" 같은 고정 칩 금지)
+- 추천 결과가 있으면: 해당 제품/시리즈의 구체적 정보를 물을 수 있는 칩 (예: "GED7210030 재고", "E5E83 시리즈 특징")
+- 후보에 다양한 코팅/날수가 있으면: 분포 기반 필터 칩 (예: "3날로 좁히기", "DLC 코팅만")
+- 비교 요청 후: 선택 칩 (예: "1번으로 할게", "다른 직경 검색")
+- 설명 후: 심화/전환 칩 (예: "더 자세히", "이걸로 결정")
+- 항상 하나 이상의 탐색 칩 포함 (예: "조건 변경", "다른 소재로")
+
+JSON schema:
+{"phaseInterpretation":{"currentPhase":"intake|narrowing|results_displayed|post_result_exploration|comparison|revision","confidence":0.0-1.0},"actionInterpretation":{"type":"continue_narrowing|replace_slot|show_recommendation|go_back|compare_products|answer_general|redirect_off_topic|reset_session|skip_field|ask_clarification|refine_current_results","rationale":"...","confidence":0.0-1.0},"answerIntent":{"topic":"...","needsGroundedFact":false,"shouldUseCurrentResultContext":false,"shouldResumePendingQuestion":false},"uiPlan":{"optionMode":"question_options|result_followups|none|comparison_options|no_options"},"nextQuestion":{"field":"...","suggestedOptions":[{"label":"...","value":"..."}],"allowSkip":true},"suggestedChips":[{"label":"...","type":"option|action|filter|navigation"}],"answerDraft":"..."}
+
+===DYNAMIC===`
 
 function buildTurnDecisionPrompt(snapshot: TurnSnapshot): string {
   // Constraints summary
@@ -163,18 +180,7 @@ TopProducts: ${productSummary}
 [ConversationHistory]
 ${recentTurnsStr}
 
-Generate a complete turn plan as JSON. The "answerDraft" MUST be the final user-facing answer in natural Korean — complete sentences, not placeholders. If asking a question, include the question in answerDraft.
-
-★ suggestedChips 생성 규칙 (매우 중요):
-- 반드시 현재 대화 맥락과 직전 질문/답변에 기반한 칩 3-6개 생성
-- 같은 칩을 매번 반복하지 마라 ("왜 이 제품을 추천했나요?" 같은 고정 칩 금지)
-- 추천 결과가 있으면: 해당 제품/시리즈의 구체적 정보를 물을 수 있는 칩 (예: "GED7210030 재고", "E5E83 시리즈 특징")
-- 후보에 다양한 코팅/날수가 있으면: 분포 기반 필터 칩 (예: "3날로 좁히기", "DLC 코팅만")
-- 비교 요청 후: 선택 칩 (예: "1번으로 할게", "다른 직경 검색")
-- 설명 후: 심화/전환 칩 (예: "더 자세히", "이걸로 결정")
-- 항상 하나 이상의 탐색 칩 포함 (예: "조건 변경", "다른 소재로")
-
-{"phaseInterpretation":{"currentPhase":"intake|narrowing|results_displayed|post_result_exploration|comparison|revision","confidence":0.0-1.0},"actionInterpretation":{"type":"continue_narrowing|replace_slot|show_recommendation|go_back|compare_products|answer_general|redirect_off_topic|reset_session|skip_field|ask_clarification|refine_current_results","rationale":"...","confidence":0.0-1.0},"answerIntent":{"topic":"...","needsGroundedFact":false,"shouldUseCurrentResultContext":false,"shouldResumePendingQuestion":false},"uiPlan":{"optionMode":"question_options|result_followups|none|comparison_options|no_options"},"nextQuestion":{"field":"...","suggestedOptions":[{"label":"...","value":"..."}],"allowSkip":true},"suggestedChips":[{"label":"...","type":"option|action|filter|navigation"}],"answerDraft":"..."}`
+Generate the JSON turn plan now.`
 }
 
 // Step 2: Get LLM decision via Haiku call (falls back to defaults on failure)

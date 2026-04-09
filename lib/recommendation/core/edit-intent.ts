@@ -86,7 +86,7 @@ export function parseEditIntent(
   // 사용자가 잘못 적용된 필터를 항의 — 현재 필터에서 그 값을 가진 항목을 찾아 clear.
   const REJECT_RE = /(?:잘못|요청\s*(?:한\s*적\s*(?:이\s*)?없|안\s*했|않았)|아닌데요?|아니에요|아닙니다)/iu
   if (REJECT_RE.test(lower) && existingFilters.length > 0) {
-    // 메시지에 등장한 엔티티를 찾아 현재 필터와 매칭
+    // (a) 메시지에 등장한 엔티티가 현재 필터와 매칭되면 그 field clear
     const entities = extractEntities(msg)
     for (const ent of entities) {
       const hit = existingFilters.find(
@@ -99,6 +99,16 @@ export function parseEditIntent(
           confidence: 0.95,
           reason: `reject ${ent.field}=${ent.canonical} (user denied)`,
         }
+      }
+    }
+    // (b) entity 매칭 실패 → 메시지에서 한국어 field 키워드(브랜드/코팅/...)
+    //     를 추출. 그 field가 현재 필터에 있으면 clear.
+    const fieldFromKo = extractFieldFromKorean(msg)
+    if (fieldFromKo && existingFilters.some(f => f.field === fieldFromKo)) {
+      return {
+        intent: { type: "clear_field", field: fieldFromKo },
+        confidence: 0.9,
+        reason: `reject ${fieldFromKo} field (user denied, no entity)`,
       }
     }
   }

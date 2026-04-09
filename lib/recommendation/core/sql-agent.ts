@@ -107,7 +107,9 @@ const NAV_FIELDS = new Set(["_skip", "_reset", "_back"])
 // directly from the DB schema and matches user intent itself. Adding a new
 // column to the MV requires zero code changes — it shows up automatically.
 
-function buildSystemPrompt(schema: DbSchema, existingFilters: AppliedFilter[], userMessage?: string): string {
+export type SqlAgentMode = "fast" | "cot"
+
+function buildSystemPrompt(schema: DbSchema, existingFilters: AppliedFilter[], userMessage?: string, mode: SqlAgentMode = "fast"): string {
   const colList = schema.columns
     .map(c => `  ${c.column_name} (${c.data_type})`)
     .join("\n")
@@ -167,7 +169,7 @@ ${filterList}
 Extract filter conditions and a short Korean reasoning trail from the user message as a JSON object:
 {"reasoning":"한국어 사고 과정 (실제 deliberation, 5-10문장)","filters":[{"field":"column_name","op":"eq|neq|like|gte|lte|between","value":"...","value2":"upper_bound_for_between","display":"한국어 설명"}]}
 
-"reasoning"은 요약이 아니라 **머릿속 사고 과정 전체**입니다. 길이 제한 없음, 길수록 좋음. 검열·정리·요약 금지. 다음을 모두 포함하세요:
+${mode === "cot" ? `"reasoning"은 요약이 아니라 **머릿속 사고 과정 전체**입니다. 길이 제한 없음, 길수록 좋음. 검열·정리·요약 금지. 다음을 모두 포함하세요:
 1. 사용자 메시지를 글자 그대로 다시 읽고 풀이 ("음, 사용자가 '~'라고 했는데 이건...")
 2. 가능한 해석을 여러 개 떠올려 각각 검토
 3. 후보 컬럼/값을 여러 개 비교 ("milling_outside_dia 일까 option_dc 일까... A는 ~이지만 B는 ~")
@@ -177,7 +179,7 @@ Extract filter conditions and a short Korean reasoning trail from the user messa
 7. 도메인 지식(공구 재료/코팅/소재 적합도) 동원
 8. 최종 결정 + 근거 + 남은 불확실성
 
-"음", "잠깐", "근데", "어... 아니다", "다시 생각해보면", "솔직히", "~가 더 맞을 것 같다" 같은 자연스러운 사고 마커를 자주 쓰세요. 최소 10문장 이상.
+"음", "잠깐", "근데", "어... 아니다", "다시 생각해보면", "솔직히", "~가 더 맞을 것 같다" 같은 자연스러운 사고 마커를 자주 쓰세요. 최소 10문장 이상.` : `"reasoning"은 **간결한** 한국어 사고 과정 (2-4문장). 사용자 의도를 한 줄로 요약하고, 매핑한 컬럼/값과 핵심 근거만 적으세요. 자기 의심·번복·반복 금지. 모호하면 reasoning에 후보를 명시하고 filters: [] 로 응답.`}
 
 "filters" 배열은 항상 존재해야 합니다 (없으면 []).
 
@@ -229,12 +231,13 @@ export async function naturalLanguageToFilters(
   schema: DbSchema,
   existingFilters: AppliedFilter[],
   provider: LLMProvider,
+  mode: SqlAgentMode = "fast",
 ): Promise<SqlAgentResult> {
-  const systemPrompt = buildSystemPrompt(schema, existingFilters, userMessage)
+  const systemPrompt = buildSystemPrompt(schema, existingFilters, userMessage, mode)
   const raw = await provider.complete(
     systemPrompt,
     [{ role: "user", content: userMessage }],
-    8192,
+    mode === "cot" ? 8192 : 2048,
     SQL_AGENT_MODEL,
   )
 
@@ -333,18 +336,19 @@ export async function naturalLanguageToFiltersStreaming(
   existingFilters: AppliedFilter[],
   provider: LLMProvider,
   onReasoningDelta?: (delta: string) => void,
+  mode: SqlAgentMode = "fast",
 ): Promise<SqlAgentResult> {
   if (!provider.stream) {
-    return naturalLanguageToFilters(userMessage, schema, existingFilters, provider)
+    return naturalLanguageToFilters(userMessage, schema, existingFilters, provider, mode)
   }
-  const systemPrompt = buildSystemPrompt(schema, existingFilters, userMessage)
+  const systemPrompt = buildSystemPrompt(schema, existingFilters, userMessage, mode)
   const extractor = new ReasoningExtractor()
   let raw = ""
   try {
     for await (const chunk of provider.stream(
       systemPrompt,
       [{ role: "user", content: userMessage }],
-      8192,
+      mode === "cot" ? 8192 : 2048,
       SQL_AGENT_MODEL,
     )) {
       raw += chunk
@@ -359,7 +363,7 @@ export async function naturalLanguageToFiltersStreaming(
     // If streaming fails mid-flight, fall back to non-streaming so we still
     // produce a result for the rest of the pipeline.
     console.warn("[sql-agent:stream] failed, falling back to complete():", (err as Error).message)
-    return naturalLanguageToFilters(userMessage, schema, existingFilters, provider)
+    return naturalLanguageToFilters(userMessage, schema, existingFilters, provider, mode)
   }
   const { filters, reasoning } = parseAgentResponse(raw)
   console.log("\n[sql-agent:CoT:stream] ────────────────────────")
