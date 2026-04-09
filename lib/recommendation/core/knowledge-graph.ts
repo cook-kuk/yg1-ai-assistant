@@ -35,7 +35,7 @@ interface IntentPattern {
 
 // ── Entity Graph (Filter Values) ──────────────────────────────
 
-const ENTITY_NODES: EntityNode[] = [
+export const ENTITY_NODES: EntityNode[] = [
   // toolSubtype
   { canonical: "Square", field: "toolSubtype", aliases: ["square", "스퀘어", "스퀘어엔드밀", "평엔드밀"] },
   { canonical: "Ball", field: "toolSubtype", aliases: ["ball", "볼", "볼엔드밀", "볼노즈"] },
