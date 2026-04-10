@@ -152,7 +152,7 @@ export function runValidationGate(params: {
         ...params.narrowingHistory,
         { question: params.question!.field, answer: "(auto-skipped)", extractedFilters: [], candidateCountBefore: 0, candidateCountAfter: 0 },
       ]
-      const nextQ = selectNextQuestion(params.resolvedInput, params.candidates, extendedHistory, params.candidates.length, [], params.appliedFilters)
+      const nextQ = selectNextQuestion(params.resolvedInput, params.candidates, extendedHistory, params.candidates.length)
       if (nextQ && !answeredFields.has(nextQ.field)) {
         repairedQuestion = nextQ
         console.log(`[validation-gate:REPAIR] REASK_KNOWN_FIELD — replaced "${params.question!.field}" with "${nextQ.field}"`)

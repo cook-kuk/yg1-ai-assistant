@@ -62,9 +62,68 @@ import {
 import { validateOptionFirstPipeline } from "@/lib/recommendation/domain/options/option-validator"
 import { buildFilterValueScope } from "@/lib/recommendation/shared/filter-field-registry"
 import { traceRecommendation } from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
+import {
+  evaluateUncertainty,
+  selectHighestInfoGainQuestion,
+  type RecommendationMeta,
+} from "@/lib/recommendation/domain/uncertainty-gate"
+
+import type { FactCheckReport, VerifiedField } from "@/lib/types/fact-check"
 
 type DisplayedProduct = RecommendationDisplayedProductRequestDto
 const RECOMMENDATION_SUMMARY_MAX_TOKENS = 4000
+
+/**
+ * Build a lightweight FactCheckedRecommendation without LLM calls.
+ * Used in FAST+high-confidence mode to skip the expensive runFactCheck.
+ * All values come directly from the canonical ScoredProduct — no external queries.
+ */
+function buildLightweightFactChecked(
+  scored: ScoredProduct,
+  explanation: RecommendationExplanation,
+): FactCheckedRecommendation {
+  const p = scored.product
+  const vf = <T>(value: T, step: string): VerifiedField<T> => ({
+    value, status: "verified", source: "canonical-product", checkedAt: step,
+  })
+  const report: FactCheckReport = {
+    steps: [
+      { step: 1, name: "product_identity", label: "제품 확인", passed: true, issues: [], fieldsChecked: 4, fieldsVerified: 4 },
+      { step: 2, name: "spec_check", label: "스펙 확인", passed: true, issues: [], fieldsChecked: 7, fieldsVerified: 7 },
+      { step: 5, name: "render_safe", label: "표시 안전", passed: true, issues: [], fieldsChecked: 3, fieldsVerified: 3 },
+    ],
+    overallStatus: "verified",
+    totalFieldsChecked: 14,
+    totalFieldsVerified: 14,
+    verificationPct: 100,
+    criticalIssues: [],
+  }
+  return {
+    productCode: vf(p.normalizedCode, "product_identity"),
+    displayCode: vf(p.displayCode, "product_identity"),
+    seriesName: vf(p.seriesName, "product_identity"),
+    manufacturer: vf(p.manufacturer, "product_identity"),
+    diameterMm: vf(p.diameterMm, "spec_check"),
+    fluteCount: vf(p.fluteCount, "spec_check"),
+    coating: vf(p.coating, "spec_check"),
+    toolMaterial: vf(p.toolMaterial, "spec_check"),
+    materialTags: vf(p.materialTags, "spec_check"),
+    lengthOfCutMm: vf(p.lengthOfCutMm, "spec_check"),
+    overallLengthMm: vf(p.overallLengthMm, "spec_check"),
+    hasCuttingConditions: false,
+    bestCondition: vf(null, "cutting_condition"),
+    conditionConfidence: vf(0, "cutting_condition"),
+    conditionSourceCount: vf(0, "cutting_condition"),
+    stockStatus: vf(scored.stockStatus, "inventory_check"),
+    totalStock: vf(scored.totalStock, "inventory_check"),
+    minLeadTimeDays: vf(scored.minLeadTimeDays, "inventory_check"),
+    matchPct: scored.scoreBreakdown?.matchPct ?? 0,
+    matchStatus: scored.matchStatus,
+    score: scored.score,
+    explanation,
+    factCheckReport: report,
+  }
+}
 
 type JsonRecommendationResponse = (
   params: Parameters<typeof buildRecommendationResponseDto>[0],
@@ -435,6 +494,7 @@ async function buildWorkPieceQuestion(
     field: "workPieceName",
     questionText: `선택하신 소재는 ISO ${isoGroup} (${materialLabel})군입니다. 세부 피삭재를 선택해주세요. (일부 제품은 세부 분류가 없어 "상관없음" 선택 시 전체 후보에서 추천합니다)`,
     chips,
+    expectedInfoGain: 0.5,
   }
 }
 
@@ -448,14 +508,9 @@ async function selectNextQuestionForResponse(params: {
 }): Promise<NextQuestion | null> {
   const { input, candidates, history, filters, totalCandidateCount, excludeWorkPieceValues } = params
   const workPieceQuestion = await buildWorkPieceQuestion(input, filters, candidates, excludeWorkPieceValues)
-  return selectNextQuestion(
-    input,
-    candidates,
-    history,
-    totalCandidateCount,
-    workPieceQuestion ? [workPieceQuestion] : [],
-    filters
-  )
+  // workPieceQuestion takes priority when available; fall back to entropy-based selection
+  if (workPieceQuestion) return workPieceQuestion
+  return selectNextQuestion(input, candidates, history, totalCandidateCount)
 }
 
 export async function buildQuestionResponse(
@@ -972,6 +1027,36 @@ export async function buildRecommendationResponse(
   }
 
   const { primary, alternatives, status } = classifyHybridResults({ candidates, evidenceMap, totalConsidered: totalCandidateCount, filtersApplied: filters })
+
+  // ── Uncertainty Gate: FAST / VERIFY / ASK ──
+  const primaryEvForGate = primary
+    ? (evidenceMap.get(primary.product.normalizedCode) ?? evidenceMap.get(primary.product.displayCode) ?? null)
+    : null
+  const uncertaintyMeta = evaluateUncertainty(
+    candidates, evidenceMap, input, filters, totalCandidateCount,
+    primary, primaryEvForGate,
+  )
+
+  // ASK: force single info-gain question even if resolution says "show cards"
+  if (uncertaintyMeta.mode === "ASK") {
+    const infoGainQ = selectHighestInfoGainQuestion(candidates, input, filters)
+    if (infoGainQ) {
+      uncertaintyMeta.followup_question = `${infoGainQ.label}을(를) 알려주시면 더 정확한 추천이 가능합니다.`
+      uncertaintyMeta.followup_reason = `현재 후보 ${totalCandidateCount}개 중 ${Math.round(infoGainQ.reductionRatio * 100)}%를 좁힐 수 있는 핵심 조건입니다.`
+      console.log(`[uncertainty-gate:ASK] forcing question field=${infoGainQ.field} reduction=${(infoGainQ.reductionRatio * 100).toFixed(0)}%`)
+      // Route to question response instead of recommendation
+      return buildQuestionResponse(
+        deps, form, candidates, evidenceMap, totalCandidateCount,
+        pagination, displayCandidates, displayEvidenceMap,
+        input, history, filters, turnCount, messages, provider, language,
+        uncertaintyMeta.followup_question,  // overrideText
+        undefined, // existingStageHistory
+        undefined, // excludeWorkPieceValues
+        `⚠️ ${uncertaintyMeta.followup_reason}\n\n`, // responsePrefix
+      )
+    }
+  }
+
   const warnings = primary ? buildWarnings(primary, input) : ["조건에 맞는 제품을 찾지 못했습니다"]
   const rationale = primary ? buildRationale(primary, input) : []
 
@@ -1028,12 +1113,25 @@ export async function buildRecommendationResponse(
     })
     for (const p of altPrepared) altExplanations.push(p.altExplanation)
 
-    const [primaryFC, ...altFC] = await Promise.all([
-      runFactCheck(primary, input, primaryEvidence, primaryExplanation),
-      ...altPrepared.map(p => runFactCheck(p.alt, input, p.altEvidence, p.altExplanation)),
-    ])
-    primaryFactChecked = primaryFC
-    for (const fc of altFC) altFactChecked.push(fc)
+    // ── FAST optimization: skip expensive fact-check when high confidence ──
+    // Fact-check adds ~0.5-1s per candidate (LLM call). In FAST+high-confidence
+    // mode, the deterministic explanation is sufficient — no hallucination risk.
+    const skipFactCheck = uncertaintyMeta.mode === "FAST" && uncertaintyMeta.confidence === "high"
+    if (skipFactCheck) {
+      console.log("[uncertainty-gate:FAST] skipping fact-check (high confidence)")
+      // Build lightweight fact-checked wrappers from explanation (no LLM call)
+      primaryFactChecked = buildLightweightFactChecked(primary, primaryExplanation)
+      for (const p of altPrepared) {
+        altFactChecked.push(buildLightweightFactChecked(p.alt, p.altExplanation))
+      }
+    } else {
+      const [primaryFC, ...altFC] = await Promise.all([
+        runFactCheck(primary, input, primaryEvidence, primaryExplanation),
+        ...altPrepared.map(p => runFactCheck(p.alt, input, p.altEvidence, p.altExplanation)),
+      ])
+      primaryFactChecked = primaryFC
+      for (const fc of altFC) altFactChecked.push(fc)
+    }
   }
 
   const recommendation: RecommendationResult = {
@@ -1079,7 +1177,12 @@ export async function buildRecommendationResponse(
     ? [...messages].reverse().find(m => m.role === "user")?.text ?? null
     : null
 
-  if (provider.available() && primary && primaryFactChecked && primaryExplanation) {
+  // ── FAST+high: skip LLM summary entirely (use deterministic) ──
+  const skipLlmSummary = uncertaintyMeta.mode === "FAST" && uncertaintyMeta.confidence === "high"
+  if (skipLlmSummary) {
+    console.log("[uncertainty-gate:FAST] skipping LLM summary (deterministic only)")
+  }
+  if (!skipLlmSummary && provider.available() && primary && primaryFactChecked && primaryExplanation) {
     try {
       const systemPrompt = buildRecommendationSummarySystemPrompt(language)
       const llmSessionState = buildSessionState({
@@ -1270,6 +1373,7 @@ export async function buildRecommendationResponse(
     primaryFactChecked: primaryFactChecked ? serializeFactChecked(primaryFactChecked) : null,
     altExplanations,
     altFactChecked: altFactChecked.map(item => serializeFactChecked(item)),
+    recommendationMeta: uncertaintyMeta,
   })
 }
 

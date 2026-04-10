@@ -261,6 +261,7 @@ interface BuildRecommendationResponseDtoParams {
   altExplanations?: RecommendationExplanation[]
   altFactChecked?: Array<Record<string, unknown>>
   meta?: RecommendationResponseMetaDto
+  recommendationMeta?: RecommendationResponseDto["recommendationMeta"]
   thinkingProcess?: string | null
   error?: string
   detail?: string
@@ -380,6 +381,7 @@ export function buildRecommendationResponseDto(
     altFactChecked: params.altFactChecked ?? [],
     capabilities,
     meta: params.meta,
+    recommendationMeta: params.recommendationMeta,
     // Three-tier fallback:
     //   1. explicit param (rarely set)
     //   2. runtime stashed it on session (SQL agent natural-language reasoning)
