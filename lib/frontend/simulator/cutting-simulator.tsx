@@ -43,6 +43,46 @@ interface CuttingSimulatorProps {
   initialOperation?: string
 }
 
+interface SimulatorExample {
+  label: string
+  brand: string
+  series: string
+  iso: string
+  diameter: number
+  flutes: number
+  hint: string
+}
+
+const SIMULATOR_EXAMPLES: SimulatorExample[] = [
+  {
+    label: "프리하든강 미세가공",
+    brand: "E-FORCE",
+    series: "GNX98",
+    iso: "P",
+    diameter: 0.5,
+    flutes: 2,
+    hint: "고경도 30~45HRC · 2날 볼 엔드밀",
+  },
+  {
+    label: "고경도 일반가공",
+    brand: "E-FORCE",
+    series: "SEM845",
+    iso: "H",
+    diameter: 6,
+    flutes: 4,
+    hint: "고경도 H군 · 4날 일반",
+  },
+  {
+    label: "범용 드릴링",
+    brand: "DRILL",
+    series: "D1953",
+    iso: "P",
+    diameter: 10,
+    flutes: 2,
+    hint: "탄소강 P군 · 10mm 드릴",
+  },
+]
+
 export function CuttingSimulator({ initialProduct, initialMaterial, initialOperation }: CuttingSimulatorProps) {
   // Input state
   const [productCode, setProductCode] = useState(initialProduct ?? "")
@@ -131,8 +171,61 @@ export function CuttingSimulator({ initialProduct, initialMaterial, initialOpera
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const applyExample = useCallback((ex: SimulatorExample) => {
+    setProductCode(ex.series)
+    setIsoGroup(ex.iso)
+    setDiameter(ex.diameter)
+    setFluteCount(ex.flutes)
+    // Defer fetch to next tick so state updates are flushed
+    setTimeout(() => {
+      void (async () => {
+        setIsLoading(true)
+        try {
+          const res = await fetch(`/api/simulator?series=${encodeURIComponent(ex.series)}&diameter=${ex.diameter}&material=${ex.iso}`)
+          if (!res.ok) throw new Error("API error")
+          const data: SimulatorApiResponse = await res.json()
+          setCatalogData(data)
+          if (data.found && data.ranges) {
+            setDataSource(data.interpolated ? "interpolated" : "catalog")
+            setVc(Math.round((data.ranges.VcMin + data.ranges.VcMax) / 2))
+            setFz(parseFloat(((data.ranges.fzMin + data.ranges.fzMax) / 2).toFixed(4)))
+          } else {
+            setDataSource("default")
+          }
+        } catch {
+          setDataSource("default")
+        } finally {
+          setIsLoading(false)
+        }
+      })()
+    }, 0)
+  }, [])
+
   return (
     <div className="space-y-6">
+      {/* ── 예시 칩 ── */}
+      <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-3">
+        <div className="text-[11px] font-semibold text-blue-800 mb-2 flex items-center gap-1.5">
+          ⚡ 예시로 빠르게 시작
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {SIMULATOR_EXAMPLES.map(ex => (
+            <button
+              key={ex.series}
+              onClick={() => applyExample(ex)}
+              className="text-left rounded-lg border border-blue-200 bg-white px-3 py-2 hover:border-blue-400 hover:shadow-sm transition-all"
+            >
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">{ex.brand}</span>
+                <span className="text-xs font-mono font-bold text-gray-900">{ex.series}</span>
+              </div>
+              <div className="text-[11px] text-gray-700 font-medium">{ex.label}</div>
+              <div className="text-[10px] text-gray-500 mt-0.5">{ex.hint} · ⌀{ex.diameter}mm · ISO {ex.iso}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* ── 입력부 ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* 제품 선택 */}
