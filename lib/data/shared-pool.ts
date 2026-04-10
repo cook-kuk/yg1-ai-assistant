@@ -29,7 +29,7 @@ export function getSharedPool(): Pool | null {
     const max = Number(process.env.SHARED_DB_POOL_MAX) || 16
     const idleMs = Number(process.env.SHARED_DB_POOL_IDLE_MS) || 30_000
     const connMs = Number(process.env.SHARED_DB_POOL_CONNECT_MS) || 10_000
-    const stmtMs = Number(process.env.SHARED_DB_STATEMENT_TIMEOUT_MS) || 30_000
+    const stmtMs = Number(process.env.SHARED_DB_STATEMENT_TIMEOUT_MS) || 60_000
     console.log(`[shared-pool] Creating shared pg pool (max=${max}, idle=${idleMs}ms, connTimeout=${connMs}ms, stmtTimeout=${stmtMs}ms)`)
     const pool = new Pool({
       connectionString,

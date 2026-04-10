@@ -222,14 +222,9 @@ async function findSingleSeriesProfile(name: string): Promise<SeriesProfileRecor
   }
 }
 
-async function findSeriesProfilesBatch(names: string[]): Promise<SeriesProfileRecord[]> {
-  const pool = getPool()
-  if (!pool) return []
+const BATCH_CHUNK_SIZE = 30
 
-  const normalizedNames = names.map(normalizeLookupKey).filter(Boolean)
-  if (normalizedNames.length === 0) return []
-  const uniqueNames = Array.from(new Set(normalizedNames))
-
+async function findSeriesProfilesBatchChunk(pool: Pool, chunk: string[]): Promise<SeriesProfileRecord[]> {
   const sql = `
     SELECT DISTINCT ON (matched_key) *
     FROM (
@@ -248,18 +243,32 @@ async function findSeriesProfilesBatch(names: string[]): Promise<SeriesProfileRe
     ) sub
     ORDER BY matched_key
   `
+  const result = await pool.query(sql, [chunk])
+  return result.rows.map((row: Record<string, unknown>) => mapSeriesProfileRow(row))
+}
+
+async function findSeriesProfilesBatch(names: string[]): Promise<SeriesProfileRecord[]> {
+  const pool = getPool()
+  if (!pool) return []
+
+  const normalizedNames = names.map(normalizeLookupKey).filter(Boolean)
+  if (normalizedNames.length === 0) return []
+  const uniqueNames = Array.from(new Set(normalizedNames))
+
+  // split into chunks to stay under statement_timeout
+  const chunks: string[][] = []
+  for (let i = 0; i < uniqueNames.length; i += BATCH_CHUNK_SIZE) {
+    chunks.push(uniqueNames.slice(i, i + BATCH_CHUNK_SIZE))
+  }
 
   try {
-    const values = [uniqueNames]
-    console.log(`[entity-profile-db] batch series query count=${uniqueNames.length}`)
-    const result = await pool.query(sql, values)
-    return result.rows.map((row: Record<string, unknown>) => mapSeriesProfileRow(row))
+    console.log(`[entity-profile-db] batch series query count=${uniqueNames.length} chunks=${chunks.length}`)
+    const results = await Promise.all(chunks.map(chunk => findSeriesProfilesBatchChunk(pool, chunk)))
+    return results.flat()
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     console.warn(`[entity-profile-db] batch series lookup failed count=${uniqueNames.length}: ${message}`)
-    // fallback to individual queries
-    const rows = await mapWithConcurrency(uniqueNames, 4, findSingleSeriesProfile)
-    return rows.filter((row): row is SeriesProfileRecord => row !== null)
+    return []
   }
 }
 
@@ -299,14 +308,7 @@ async function findSingleBrandProfile(name: string): Promise<BrandProfileRecord 
   }
 }
 
-async function findBrandProfilesBatch(names: string[]): Promise<BrandProfileRecord[]> {
-  const pool = getPool()
-  if (!pool) return []
-
-  const normalizedNames = names.map(normalizeLookupKey).filter(Boolean)
-  if (normalizedNames.length === 0) return []
-  const uniqueNames = Array.from(new Set(normalizedNames))
-
+async function findBrandProfilesBatchChunk(pool: Pool, chunk: string[]): Promise<BrandProfileRecord[]> {
   const sql = `
     SELECT DISTINCT ON (matched_key) *
     FROM (
@@ -326,17 +328,31 @@ async function findBrandProfilesBatch(names: string[]): Promise<BrandProfileReco
     ) sub
     ORDER BY matched_key
   `
+  const result = await pool.query(sql, [chunk])
+  return result.rows.map((row: Record<string, unknown>) => mapBrandProfileRow(row))
+}
+
+async function findBrandProfilesBatch(names: string[]): Promise<BrandProfileRecord[]> {
+  const pool = getPool()
+  if (!pool) return []
+
+  const normalizedNames = names.map(normalizeLookupKey).filter(Boolean)
+  if (normalizedNames.length === 0) return []
+  const uniqueNames = Array.from(new Set(normalizedNames))
+
+  const chunks: string[][] = []
+  for (let i = 0; i < uniqueNames.length; i += BATCH_CHUNK_SIZE) {
+    chunks.push(uniqueNames.slice(i, i + BATCH_CHUNK_SIZE))
+  }
 
   try {
-    const values = [uniqueNames]
-    console.log(`[entity-profile-db] batch brand query count=${uniqueNames.length}`)
-    const result = await pool.query(sql, values)
-    return result.rows.map((row: Record<string, unknown>) => mapBrandProfileRow(row))
+    console.log(`[entity-profile-db] batch brand query count=${uniqueNames.length} chunks=${chunks.length}`)
+    const results = await Promise.all(chunks.map(chunk => findBrandProfilesBatchChunk(pool, chunk)))
+    return results.flat()
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     console.warn(`[entity-profile-db] batch brand lookup failed count=${uniqueNames.length}: ${message}`)
-    const rows = await mapWithConcurrency(uniqueNames, 4, findSingleBrandProfile)
-    return rows.filter((row): row is BrandProfileRecord => row !== null)
+    return []
   }
 }
 
