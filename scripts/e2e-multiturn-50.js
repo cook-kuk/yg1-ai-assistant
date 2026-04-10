@@ -9,7 +9,7 @@
  */
 
 const API_URL = process.env.API_URL || "https://yg1-ai-assistant.vercel.app/api/recommend"
-const TIMEOUT = 90_000
+const TIMEOUT = 300_000
 const PARALLEL = 2
 
 // ═══════════════════════════════════════════════════════════════

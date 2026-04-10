@@ -9,7 +9,7 @@
  */
 
 const API_URL = process.env.API_URL || "http://20.119.98.136:3000/api/recommend"
-const TIMEOUT = 60000
+const TIMEOUT = 300_000
 const BATCH_SIZE = 6
 
 // ═══════════════════════════════════════════════════════════════

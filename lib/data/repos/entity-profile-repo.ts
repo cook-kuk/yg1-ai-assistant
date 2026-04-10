@@ -222,6 +222,47 @@ async function findSingleSeriesProfile(name: string): Promise<SeriesProfileRecor
   }
 }
 
+async function findSeriesProfilesBatch(names: string[]): Promise<SeriesProfileRecord[]> {
+  const pool = getPool()
+  if (!pool) return []
+
+  const normalizedNames = names.map(normalizeLookupKey).filter(Boolean)
+  if (normalizedNames.length === 0) return []
+  const uniqueNames = Array.from(new Set(normalizedNames))
+
+  const sql = `
+    SELECT DISTINCT ON (matched_key) *
+    FROM (
+      SELECT sp.*, unnested.key AS matched_key
+      FROM catalog_app.series_profile_mv sp
+      CROSS JOIN unnest($1::text[]) AS unnested(key)
+      WHERE sp.normalized_series_name = unnested.key
+         OR EXISTS (
+           SELECT 1
+           FROM unnest(COALESCE(sp.series_name_variants, ARRAY[]::text[])) AS series_row(series_name)
+           WHERE regexp_replace(UPPER(BTRIM(series_row.series_name)), '[\\s\\-·∙ㆍ\\./(),]+', '', 'g') = unnested.key
+         )
+      ORDER BY unnested.key,
+        CASE WHEN sp.normalized_series_name = unnested.key THEN 0 ELSE 1 END,
+        sp.edp_count DESC NULLS LAST
+    ) sub
+    ORDER BY matched_key
+  `
+
+  try {
+    const values = [uniqueNames]
+    console.log(`[entity-profile-db] batch series query count=${uniqueNames.length}`)
+    const result = await pool.query(sql, values)
+    return result.rows.map((row: Record<string, unknown>) => mapSeriesProfileRow(row))
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.warn(`[entity-profile-db] batch series lookup failed count=${uniqueNames.length}: ${message}`)
+    // fallback to individual queries
+    const rows = await mapWithConcurrency(uniqueNames, 4, findSingleSeriesProfile)
+    return rows.filter((row): row is SeriesProfileRecord => row !== null)
+  }
+}
+
 async function findSingleBrandProfile(name: string): Promise<BrandProfileRecord | null> {
   const pool = getPool()
   if (!pool) return null
@@ -258,6 +299,47 @@ async function findSingleBrandProfile(name: string): Promise<BrandProfileRecord 
   }
 }
 
+async function findBrandProfilesBatch(names: string[]): Promise<BrandProfileRecord[]> {
+  const pool = getPool()
+  if (!pool) return []
+
+  const normalizedNames = names.map(normalizeLookupKey).filter(Boolean)
+  if (normalizedNames.length === 0) return []
+  const uniqueNames = Array.from(new Set(normalizedNames))
+
+  const sql = `
+    SELECT DISTINCT ON (matched_key) *
+    FROM (
+      SELECT bp.*, unnested.key AS matched_key
+      FROM catalog_app.brand_profile_mv bp
+      CROSS JOIN unnest($1::text[]) AS unnested(key)
+      WHERE bp.normalized_brand_name = unnested.key
+         OR EXISTS (
+           SELECT 1
+           FROM unnest(COALESCE(bp.brand_name_variants, ARRAY[]::text[])) AS brand_row(brand_name)
+           WHERE regexp_replace(UPPER(BTRIM(brand_row.brand_name)), '[\\s\\-·∙ㆍ\\./(),]+', '', 'g') = unnested.key
+         )
+      ORDER BY unnested.key,
+        CASE WHEN bp.normalized_brand_name = unnested.key THEN 0 ELSE 1 END,
+        bp.series_count DESC NULLS LAST,
+        bp.edp_count DESC NULLS LAST
+    ) sub
+    ORDER BY matched_key
+  `
+
+  try {
+    const values = [uniqueNames]
+    console.log(`[entity-profile-db] batch brand query count=${uniqueNames.length}`)
+    const result = await pool.query(sql, values)
+    return result.rows.map((row: Record<string, unknown>) => mapBrandProfileRow(row))
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.warn(`[entity-profile-db] batch brand lookup failed count=${uniqueNames.length}: ${message}`)
+    const rows = await mapWithConcurrency(uniqueNames, 4, findSingleBrandProfile)
+    return rows.filter((row): row is BrandProfileRecord => row !== null)
+  }
+}
+
 /**
  * 동시 실행 개수를 제한해 단일 요청이 pool 을 점유하지 않도록 한다.
  * (pool max=16 환경에서 안전선 4)
@@ -285,15 +367,19 @@ export const EntityProfileRepo = {
     const uniqueNames = Array.from(new Set(names.map(name => name.trim()).filter(Boolean)))
     if (uniqueNames.length === 0) return []
 
-    const rows = await mapWithConcurrency(uniqueNames, 4, findSingleSeriesProfile)
-    return rows.filter((row): row is SeriesProfileRecord => row !== null)
+    // batch query: 1 SQL instead of N
+    return findSeriesProfilesBatch(uniqueNames)
   },
 
   async findBrandProfiles(names: string[]): Promise<BrandProfileRecord[]> {
     const uniqueNames = Array.from(new Set(names.map(name => name.trim()).filter(Boolean)))
     if (uniqueNames.length === 0) return []
 
-    const rows = await mapWithConcurrency(uniqueNames, 4, findSingleBrandProfile)
-    return rows.filter((row): row is BrandProfileRecord => row !== null)
+    // batch query: 1 SQL instead of N
+    return findBrandProfilesBatch(uniqueNames)
   },
+
+  // keep single-lookup for callers that need exactly one
+  findSingleSeriesProfile,
+  findSingleBrandProfile,
 }

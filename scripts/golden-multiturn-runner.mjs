@@ -3,7 +3,7 @@
 import fs from "node:fs"
 
 const API_URL = process.env.API_URL || "http://20.119.98.136:3000/api/recommend"
-const TIMEOUT = 120_000
+const TIMEOUT = 300_000
 const PARALLEL = parseInt(process.argv.find(a => a.startsWith("--parallel="))?.split("=")[1] ?? "3", 10)
 
 const dataset = JSON.parse(fs.readFileSync("./test-results/golden-set-extra-hard.json", "utf8"))

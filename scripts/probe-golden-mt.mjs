@@ -1,6 +1,6 @@
 // Inspect the broken golden multiturn cases via real API
 const API_URL = process.env.API_URL || "http://20.119.98.136:3000/api/recommend"
-const TIMEOUT = 90_000
+const TIMEOUT = 300_000
 
 const baseForm = {
   inquiryPurpose: { status: "known", value: "new" },

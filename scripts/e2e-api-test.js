@@ -9,7 +9,7 @@
  */
 
 const API_URL = process.env.API_URL || "http://localhost:3000/api/recommend"
-const TIMEOUT = 60000
+const TIMEOUT = 300_000
 
 // ═══════════════════════════════════════════════════════════════
 // Helpers

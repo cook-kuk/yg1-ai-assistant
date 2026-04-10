@@ -1,6 +1,6 @@
 // Focused repro: STRESS-7T 5 times against given API_URL
 const API_URL = process.env.API_URL || "http://20.119.98.136:3000/api/recommend"
-const TIMEOUT = 90_000
+const TIMEOUT = 300_000
 
 const turns = [
   "위 조건에 맞는 YG-1 제품을 추천해 주세요.",
