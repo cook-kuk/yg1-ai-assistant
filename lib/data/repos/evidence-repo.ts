@@ -79,16 +79,25 @@ function buildSearchText(chunk: EvidenceChunk, workPieceName: string | null): st
     .toLowerCase()
 }
 
+function combineHardnessRange(min: string | null | undefined, max: string | null | undefined): string | null {
+  const lo = cleanText(min)
+  const hi = cleanText(max)
+  if (lo && hi) return lo === hi ? lo : `${lo}~${hi}`
+  return lo || hi || null
+}
+
 function mapRowToEvidenceChunk(row: RawEvidenceRow): EvidenceChunk {
   const seriesName = cleanText(row.series_name)
   const workPieceName = cleanText(row.work_piece_name)
+  const applicationShape = cleanText(row.application_shape)
+  const hardness = combineHardnessRange(row.hardness_min_hrc, row.hardness_max_hrc)
   const chunk: EvidenceChunk = {
     id: `raw-cutting:${row._row_num ?? createFallbackId()}`,
     productCode: normalizeCode(seriesName),
     seriesName,
     toolType: null,
     toolSubtype: null,
-    cuttingType: cleanText(row.application_shape),
+    cuttingType: applicationShape,
     isoGroup: cleanText(row.tag_name)?.toUpperCase() ?? null,
     diameterMm: parseNumber(row.diameter_mm),
     conditions: {
@@ -109,6 +118,9 @@ function mapRowToEvidenceChunk(row: RawEvidenceRow): EvidenceChunk {
     referencePages: null,
     pageTitle: workPieceName,
     searchText: "",
+    workpiece: workPieceName,
+    hardnessHrc: hardness,
+    toolShape: applicationShape, // DB application_shape ≈ tool shape/operation, treat as both
   }
 
   chunk.searchText = buildSearchText(chunk, workPieceName)
@@ -319,9 +331,19 @@ function filterBySeries(chunks: EvidenceChunk[], series: string): EvidenceChunk[
   return chunks.filter(chunk => chunk.seriesName?.toLowerCase().includes(lower))
 }
 
+export interface EvidenceFilterOpts {
+  isoGroup?: string | null
+  cuttingType?: string | null
+  diameterMm?: number | null
+  toleranceMm?: number
+  workpiece?: string | null
+  hardnessHrc?: string | null
+  toolShape?: string | null
+}
+
 function applyEvidenceFilters(
   chunks: EvidenceChunk[],
-  opts?: { isoGroup?: string | null; cuttingType?: string | null; diameterMm?: number | null; toleranceMm?: number }
+  opts?: EvidenceFilterOpts
 ): EvidenceChunk[] {
   let results = [...chunks]
 
@@ -333,9 +355,27 @@ function applyEvidenceFilters(
     if (filtered.length > 0) results = filtered
   }
 
+  if (opts?.workpiece) {
+    const w = opts.workpiece.toLowerCase()
+    const filtered = results.filter(chunk => (chunk.workpiece || chunk.pageTitle || "").toLowerCase().includes(w))
+    if (filtered.length > 0) results = filtered
+  }
+
+  if (opts?.hardnessHrc) {
+    const h = opts.hardnessHrc.toLowerCase().replace(/\s+/g, "")
+    const filtered = results.filter(chunk => (chunk.hardnessHrc || "").toLowerCase().replace(/\s+/g, "").includes(h))
+    if (filtered.length > 0) results = filtered
+  }
+
   if (opts?.cuttingType) {
     const ct = opts.cuttingType.toLowerCase()
     const filtered = results.filter(chunk => chunk.cuttingType?.toLowerCase().includes(ct))
+    if (filtered.length > 0) results = filtered
+  }
+
+  if (opts?.toolShape) {
+    const ts = opts.toolShape.toLowerCase()
+    const filtered = results.filter(chunk => (chunk.toolShape || chunk.cuttingType || "").toLowerCase().includes(ts))
     if (filtered.length > 0) results = filtered
   }
 
@@ -398,7 +438,7 @@ export const EvidenceRepo = {
 
   async findBySeriesName(
     series: string,
-    opts?: { isoGroup?: string | null; cuttingType?: string | null; diameterMm?: number | null; toleranceMm?: number }
+    opts?: EvidenceFilterOpts
   ): Promise<EvidenceChunk[]> {
     const chunks = await loadChunks()
     return applyEvidenceFilters(filterBySeries(chunks, series), opts)

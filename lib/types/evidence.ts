@@ -33,8 +33,12 @@ export interface EvidenceChunk {
   sourceFile: string              // "yg1_4G_mill" | "yg1_alu_cut"
   pdfFile: string | null          // original PDF filename
   referencePages: string | null   // page numbers in PDF
-  pageTitle: string | null        // catalog page title
+  pageTitle: string | null        // catalog page title (legacy: also workpiece for older rows)
   searchText: string              // concatenated text for lexical search
+  // ── Harvey-MAP 수준 세부 필드 (merged_all_clean.csv 기반, 일부 chunk 는 미보유) ──
+  workpiece?: string | null        // 소재 세부등급 (예: SUS304, 프리하든강, 가단주철)
+  hardnessHrc?: string | null      // 경도 범위 텍스트 (예: "35~45", "55~65")
+  toolShape?: string | null        // 공구 형상 (예: 볼, 스퀘어, 래디우스, 롱넥 볼)
 }
 
 /** Numeric range aggregated across many chunks */

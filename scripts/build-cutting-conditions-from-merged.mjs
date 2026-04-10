@@ -149,7 +149,10 @@ function main() {
     const seriesName = seriesRaw.replace(/\s+/g, " ").toUpperCase()
     const productCode = normalizeCode(seriesRaw)
     const diameterMm = parseNum(get("인선_mm"))
-    const cuttingType = cleanText(get("cutting_type")) || cleanText(get("tool_shape"))
+    // cutting_type = 작업유형 (고속가공/사이드컷팅/슬로팅/일반가공) — 비었으면 tool_shape 폴백
+    const cuttingTypeRaw = cleanText(get("cutting_type"))
+    const toolShape = cleanText(get("tool_shape"))
+    const cuttingType = cuttingTypeRaw || toolShape
     const workpiece = cleanText(get("workpiece"))
     const hardness = cleanText(get("hardness_hrc"))
 
@@ -190,8 +193,11 @@ function main() {
       sourceFile: "merged_all_clean",
       pdfFile: cleanText(get("pdf_file")),
       referencePages: cleanText(get("page")),
-      pageTitle: workpiece, // workpiece name lives here (matches EvidenceRepo convention)
+      pageTitle: workpiece, // back-compat: legacy code reads workpiece from pageTitle
       searchText: "",
+      workpiece,
+      hardnessHrc: hardness,
+      toolShape,
     }
     chunk.searchText = buildSearchText(chunk, "merged_all_clean")
     chunks.push(chunk)

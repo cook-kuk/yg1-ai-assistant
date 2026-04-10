@@ -16,6 +16,9 @@ interface CatalogCondition {
   seriesName: string
   isoGroup: string
   cuttingType: string
+  toolShape?: string | null
+  workpiece?: string | null
+  hardnessHrc?: string | null
   diameterMm: number | null
   Vc: string | null
   fz: string | null
@@ -26,13 +29,26 @@ interface CatalogCondition {
   confidence: number
 }
 
+interface SimulatorFacets {
+  isoGroups: string[]
+  workpieces: string[]
+  hardnesses: string[]
+  cuttingTypes: string[]
+  toolShapes: string[]
+}
+
 interface SimulatorApiResponse {
   found: boolean
   count: number
   series: string
   diameter: number | null
   material: string | null
+  workpiece: string | null
+  hardness: string | null
+  cuttingType: string | null
+  toolShape: string | null
   conditions: CatalogCondition[]
+  facets: SimulatorFacets
   ranges: { VcMin: number; VcMax: number; fzMin: number; fzMax: number } | null
   interpolated: boolean
 }
@@ -117,6 +133,11 @@ export function CuttingSimulator({ initialProduct, initialMaterial, initialOpera
   const [operation, setOperation] = useState(initialOperation ?? "Side_Milling")
   const [diameter, setDiameter] = useState(10)
   const [fluteCount, setFluteCount] = useState(4)
+  // Harvey-MAP cascading filters (data-driven from CSV facets)
+  const [workpiece, setWorkpiece] = useState<string>("")
+  const [hardness, setHardness] = useState<string>("")
+  const [cuttingType, setCuttingType] = useState<string>("")
+  const [toolShape, setToolShape] = useState<string>("")
 
   // Catalog data
   const [catalogData, setCatalogData] = useState<SimulatorApiResponse | null>(null)
@@ -152,14 +173,22 @@ export function CuttingSimulator({ initialProduct, initialMaterial, initialOpera
     Vc, fz, ap, ae, D: diameter, Z: fluteCount, isoGroup,
   }), [Vc, fz, ap, ae, diameter, fluteCount, isoGroup])
 
-  // Fetch catalog data
+  // Fetch catalog data — sends all Harvey-MAP filters
   const fetchCatalog = useCallback(async () => {
     if (!productCode.trim()) return
     setIsLoading(true)
     try {
-      // Extract series name from product code (remove trailing digits for diameter/length variants)
       const series = productCode.trim()
-      const res = await fetch(`/api/simulator?series=${encodeURIComponent(series)}&diameter=${diameter}&material=${isoGroup}`)
+      const params = new URLSearchParams({
+        series,
+        diameter: String(diameter),
+        material: isoGroup,
+      })
+      if (workpiece) params.set("workpiece", workpiece)
+      if (hardness) params.set("hardness", hardness)
+      if (cuttingType) params.set("cuttingType", cuttingType)
+      if (toolShape) params.set("toolShape", toolShape)
+      const res = await fetch(`/api/simulator?${params.toString()}`)
       if (!res.ok) throw new Error("API error")
       const data: SimulatorApiResponse = await res.json()
       setCatalogData(data)
@@ -170,8 +199,8 @@ export function CuttingSimulator({ initialProduct, initialMaterial, initialOpera
           ...range,
           VcMin: data.ranges.VcMin,
           VcMax: data.ranges.VcMax,
-          fzMin: data.ranges.fzMin,
-          fzMax: data.ranges.fzMax,
+          fzMin: data.ranges.fzMin || range.fzMin,
+          fzMax: data.ranges.fzMax || range.fzMax,
         }, mode)
         setVc(Math.round(mid.Vc))
         setFz(parseFloat(mid.fz.toFixed(4)))
@@ -183,7 +212,28 @@ export function CuttingSimulator({ initialProduct, initialMaterial, initialOpera
     } finally {
       setIsLoading(false)
     }
-  }, [productCode, diameter, isoGroup, mode, range])
+  }, [productCode, diameter, isoGroup, workpiece, hardness, cuttingType, toolShape, mode, range])
+
+  // Auto-refetch when cascading filters change (after initial product is set)
+  useEffect(() => {
+    if (!productCode.trim() || !catalogData) return
+    fetchCatalog()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isoGroup, workpiece, hardness, cuttingType, toolShape])
+
+  // Reset child filters when parent changes (cascading semantics)
+  const onChangeIso = (v: string) => {
+    setIsoGroup(v); setWorkpiece(""); setHardness(""); setCuttingType(""); setToolShape("")
+  }
+  const onChangeWorkpiece = (v: string) => {
+    setWorkpiece(v); setHardness(""); setCuttingType(""); setToolShape("")
+  }
+  const onChangeHardness = (v: string) => {
+    setHardness(v); setCuttingType(""); setToolShape("")
+  }
+  const onChangeCuttingType = (v: string) => {
+    setCuttingType(v); setToolShape("")
+  }
 
   // Apply optimization mode
   useEffect(() => {
@@ -203,6 +253,7 @@ export function CuttingSimulator({ initialProduct, initialMaterial, initialOpera
     setIsoGroup(ex.iso)
     setDiameter(ex.diameter)
     setFluteCount(ex.flutes)
+    setWorkpiece(""); setHardness(""); setCuttingType(""); setToolShape("")
     // Defer fetch to next tick so state updates are flushed
     setTimeout(() => {
       void (async () => {
@@ -316,7 +367,7 @@ export function CuttingSimulator({ initialProduct, initialMaterial, initialOpera
             {Object.entries(ISO_LABELS).map(([key, label]) => (
               <button
                 key={key}
-                onClick={() => setIsoGroup(key)}
+                onClick={() => onChangeIso(key)}
                 className={`rounded-lg border-2 px-2 py-2 text-center transition-all text-xs ${
                   isoGroup === key
                     ? "border-blue-500 bg-blue-50 font-bold"
@@ -328,6 +379,37 @@ export function CuttingSimulator({ initialProduct, initialMaterial, initialOpera
               </button>
             ))}
           </div>
+          {/* 세부 소재 / 경도 (시리즈 선택 후 동적 노출) */}
+          {catalogData?.facets && (
+            <>
+              {catalogData.facets.workpieces.length > 0 && (
+                <div>
+                  <label className="text-[10px] text-gray-500">세부 소재 ({catalogData.facets.workpieces.length}종)</label>
+                  <select
+                    value={workpiece}
+                    onChange={e => onChangeWorkpiece(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-xs focus:border-blue-400 focus:outline-none"
+                  >
+                    <option value="">전체</option>
+                    {catalogData.facets.workpieces.map(w => <option key={w} value={w}>{w}</option>)}
+                  </select>
+                </div>
+              )}
+              {catalogData.facets.hardnesses.length > 0 && (
+                <div>
+                  <label className="text-[10px] text-gray-500">경도 HRC ({catalogData.facets.hardnesses.length}종)</label>
+                  <select
+                    value={hardness}
+                    onChange={e => onChangeHardness(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-xs focus:border-blue-400 focus:outline-none"
+                  >
+                    <option value="">전체</option>
+                    {catalogData.facets.hardnesses.map(h => <option key={h} value={h}>{h}</option>)}
+                  </select>
+                </div>
+              )}
+            </>
+          )}
           <div className="text-[10px] text-gray-400">
             비절삭저항 kc = {KC_TABLE[isoGroup] ?? 2000} N/mm²
           </div>
@@ -348,6 +430,34 @@ export function CuttingSimulator({ initialProduct, initialMaterial, initialOpera
             <option value="Trochoidal">Trochoidal (트로코이달)</option>
             <option value="Drilling">Drilling (드릴링)</option>
           </select>
+
+          {/* CSV 기반 가공형상 / 공구형상 dropdowns (시리즈 선택 후 동적) */}
+          {catalogData?.facets && catalogData.facets.cuttingTypes.length > 0 && (
+            <div>
+              <label className="text-[10px] text-gray-500">가공형상 ({catalogData.facets.cuttingTypes.length}종)</label>
+              <select
+                value={cuttingType}
+                onChange={e => onChangeCuttingType(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-xs focus:border-blue-400 focus:outline-none"
+              >
+                <option value="">전체</option>
+                {catalogData.facets.cuttingTypes.map(ct => <option key={ct} value={ct}>{ct}</option>)}
+              </select>
+            </div>
+          )}
+          {catalogData?.facets && catalogData.facets.toolShapes.length > 0 && (
+            <div>
+              <label className="text-[10px] text-gray-500">공구 형상 ({catalogData.facets.toolShapes.length}종)</label>
+              <select
+                value={toolShape}
+                onChange={e => setToolShape(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-xs focus:border-blue-400 focus:outline-none"
+              >
+                <option value="">전체</option>
+                {catalogData.facets.toolShapes.map(ts => <option key={ts} value={ts}>{ts}</option>)}
+              </select>
+            </div>
+          )}
 
           {/* 최적화 모드 */}
           <h4 className="text-xs font-medium text-gray-700 mt-4">최적화 모드</h4>
