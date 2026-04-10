@@ -55,31 +55,58 @@ interface SimulatorExample {
 
 const SIMULATOR_EXAMPLES: SimulatorExample[] = [
   {
-    label: "프리하든강 미세가공",
+    label: "프리하든강 미세 볼",
     brand: "E-FORCE",
     series: "GNX98",
     iso: "P",
     diameter: 0.5,
     flutes: 2,
-    hint: "고경도 30~45HRC · 2날 볼 엔드밀",
+    hint: "30~45HRC · 2날 볼 엔드밀",
   },
   {
-    label: "고경도 일반가공",
-    brand: "E-FORCE",
-    series: "SEM845",
+    label: "스테인리스 측면",
+    brand: "SUS-CUT",
+    series: "EHD84",
+    iso: "M",
+    diameter: 10,
+    flutes: 4,
+    hint: "SUS304 · 4날 스퀘어",
+  },
+  {
+    label: "주철 슬로팅",
+    brand: "V7 PLUS",
+    series: "GMG87",
+    iso: "K",
+    diameter: 8,
+    flutes: 4,
+    hint: "GC계 주철 · 4날 스퀘어",
+  },
+  {
+    label: "인녹스 드릴",
+    brand: "DRILL",
+    series: "DH453",
+    iso: "M",
+    diameter: 8,
+    flutes: 2,
+    hint: "스테인리스 · 쿨런트 홀 드릴",
+  },
+  {
+    label: "고경도 4G 볼",
+    brand: "4G MILLS",
+    series: "SEM846",
     iso: "H",
     diameter: 6,
-    flutes: 4,
-    hint: "고경도 H군 · 4날 일반",
+    flutes: 2,
+    hint: "55~65HRC · 2날 롱넥 볼",
   },
   {
-    label: "범용 드릴링",
-    brand: "DRILL",
-    series: "D1953",
-    iso: "P",
+    label: "알루미늄 라핑",
+    brand: "M42 HSS",
+    series: "CE7406",
+    iso: "N",
     diameter: 10,
-    flutes: 2,
-    hint: "탄소강 P군 · 10mm 드릴",
+    flutes: 3,
+    hint: "비철 · 3날 라핑 HSS",
   },
 ]
 
@@ -208,7 +235,7 @@ export function CuttingSimulator({ initialProduct, initialMaterial, initialOpera
         <div className="text-[11px] font-semibold text-blue-800 mb-2 flex items-center gap-1.5">
           ⚡ 예시로 빠르게 시작
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
           {SIMULATOR_EXAMPLES.map(ex => (
             <button
               key={ex.series}
