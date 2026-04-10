@@ -326,7 +326,10 @@ export function decideMode(signal: UncertaintySignal): DecisionMode {
 // ── Confidence / Risk Derivation ─────────────────────────────
 
 export function deriveConfidence(signal: UncertaintySignal): "high" | "medium" | "low" {
-  if (signal.topMatchPct >= 70 && signal.evidenceCoverage >= 0.5 && signal.topScoreGap >= 10) {
+  const allSlotsFilled = signal.missingCriticalSlots.length === 0
+  // High: strong match + good evidence. Relax gap requirement when all slots filled.
+  if (signal.topMatchPct >= 70 && signal.evidenceCoverage >= 0.5 &&
+      (signal.topScoreGap >= 10 || (allSlotsFilled && signal.meaningfulFilterCount >= 3))) {
     return "high"
   }
   if (signal.topMatchPct >= 40 || (signal.meaningfulFilterCount >= 2 && signal.candidateCount <= 100)) {

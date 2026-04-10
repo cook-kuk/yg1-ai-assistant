@@ -162,6 +162,7 @@ describe("deriveConfidence", () => {
       topScoreGap: 15,
       meaningfulFilterCount: 2,
       candidateCount: 50,
+      missingCriticalSlots: [],
     } as UncertaintySignal)).toBe("high")
   })
 
@@ -172,6 +173,7 @@ describe("deriveConfidence", () => {
       topScoreGap: 5,
       meaningfulFilterCount: 1,
       candidateCount: 200,
+      missingCriticalSlots: [],
     } as UncertaintySignal)).toBe("medium")
   })
 
@@ -182,6 +184,7 @@ describe("deriveConfidence", () => {
       topScoreGap: 2,
       meaningfulFilterCount: 0,
       candidateCount: 5000,
+      missingCriticalSlots: ["diameterMm"],
     } as UncertaintySignal)).toBe("low")
   })
 })
