@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const queryMock = vi.fn()
 const poolConstructorMock = vi.fn(function MockPool() {
-  return { query: queryMock }
+  return { query: queryMock, on: vi.fn() }
 })
 
 vi.mock("server-only", () => ({}))
@@ -99,6 +99,7 @@ describe("product db query count behavior", () => {
     delete process.env.PRODUCT_REPO_SOURCE
     process.env.DATABASE_URL = "postgresql://user:pass@localhost:5432/yg1"
     delete globalThis.__yg1ProductDbPool
+    delete globalThis.__yg1SharedDbPool
     delete globalThis.__yg1ProductDbConfigLogged
   })
 

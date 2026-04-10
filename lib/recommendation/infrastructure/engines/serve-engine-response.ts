@@ -1038,7 +1038,7 @@ export async function buildRecommendationResponse(
     : null
 
   // Detect task type from form + input for highRiskTask / intentAmbiguous
-  const purposeVal = form.inquiryPurpose.status === "known" ? form.inquiryPurpose.value : null
+  const purposeVal = form.inquiryPurpose?.status === "known" ? form.inquiryPurpose.value : null
   const gateOpts = {
     isCompetitorReplacement: purposeVal === "substitute" || purposeVal === "inventory_substitute",
     isCuttingConditionTask: purposeVal === "cutting_condition",
