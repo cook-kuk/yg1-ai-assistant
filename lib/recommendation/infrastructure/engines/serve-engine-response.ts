@@ -557,8 +557,10 @@ export async function buildQuestionResponse(
   const lastUserText = [...messages].reverse().find(m => m.role === "user")?.text ?? ""
   const explicitShow = filters.length >= 1
     && /(추천|보여|show|주세요|알려|찾아)/i.test(lastUserText)
+  console.log(`[DBG-resolve] lastUserText="${lastUserText.slice(0,40)}" filters=${filters.length} filtersOps=${filters.map(f=>f.field+'('+f.op+')').join(',')} explicitShow=${explicitShow} cands=${candidates.length} total=${totalCandidateCount}`)
   const preCheckStatus = checkResolution(candidates, history, totalCandidateCount, explicitShow)
   const alreadyResolved = preCheckStatus.startsWith("resolved")
+  console.log(`[DBG-resolve] preCheckStatus=${preCheckStatus} alreadyResolved=${alreadyResolved}`)
 
   const question = alreadyResolved
     ? null
@@ -1517,7 +1519,7 @@ export function logNarrowingState(
   console.log(`[narrowing:${phase}] Candidates: ${state.candidateCount}`)
   console.log(`[narrowing:${phase}] Status: ${state.resolutionStatus}`)
   console.log(`[narrowing:${phase}] Turn: ${state.turnCount}`)
-  console.log(`[narrowing:${phase}] Filters: ${state.appliedFilters.map(filter => `${filter.field}=${filter.value}`).join(", ") || "(none)"}`)
+  console.log(`[narrowing:${phase}] Filters: ${state.appliedFilters.map(filter => `${filter.field}(${filter.op ?? "eq"})=${filter.value}`).join(", ") || "(none)"}`)
   console.log(`[narrowing:${phase}] Stages: ${state.stageHistory?.map(stage => stage.stageName).join(" → ") || "(none)"}`)
   if (currentField) {
     console.log(`[narrowing:${phase}] Next question field: ${currentField}`)
