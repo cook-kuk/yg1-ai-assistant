@@ -1,4 +1,20 @@
 
+## 2026-04-10T01:30:00Z (agent session: opus-4.6 autohunt 4 rounds)
+baseline=17.79 → 18.83 (+1.04). 3 fixes committed:
+- a1a3d40 fix(det-scr): bare-mm + range op → diameterMm (R01 11→19, R05 12→19)
+- 0400c53 fix(serve-resp): preserve LLM summary on status=none with primary (R03 12→16, B05 23→25)
+- 5214983 fix(registry): exact-identifier neq op (brand/series/country 제외 필터)
+B03/N01 (CRX neq) still failing — brand=CRX-S 필터가 DB 매칭 불일치 + neq path 추가 검증 필요. Stopping due to concurrent eval-v3 commits from parallel agent (953e7cd) changing scenario set.
+
+## 2026-04-10T00:52:38.625Z
+rounds=1 baseline=19.79 final=19.79 scenarios=48
+
+## 2026-04-10T00:31:57.180Z
+rounds=1 baseline=19.33 final=19.33 scenarios=48
+
+## 2026-04-10T00:22:53.979Z
+rounds=1 baseline=18.82 final=18.82 scenarios=48
+
 ## 2026-04-09T23:23:12.108Z
 rounds=1 baseline=18.83 final=18.83 scenarios=48
 
