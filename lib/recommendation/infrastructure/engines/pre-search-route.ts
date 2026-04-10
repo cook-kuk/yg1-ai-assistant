@@ -61,7 +61,11 @@ export async function classifyPreSearchRoute(
     const isTrouble = TROUBLE_RE.test(msg)
     const isConsult = CONSULT_RE.test(msg) && msg.length < 40
     // Exclude pure filter-spec messages (e.g. "스테인리스 4날 10mm" — no question words)
-    if (isExplain || isCompare || isTrouble || (isConsult && hasQuestionMark)) {
+    // Also exclude messages with material/spec entities + recommendation-like patterns
+    // e.g. "SUS316L 많이 하는데 괜찮은 거?" should route to recommendation, not Q&A
+    const RECOMMEND_LIKE_RE = /(?:괜찮|좋은|추천|적합|적당|맞는|쓸만|쓸\s*만|어울리|어떤\s*거|어떤\s*게\s*있|있나|있어|있을까)/
+    const hasRecommendLikeSignal = RECOMMEND_LIKE_RE.test(msg) && queryTarget.entities.length > 0
+    if ((isExplain || isCompare || isTrouble || (isConsult && hasQuestionMark)) && !hasRecommendLikeSignal) {
       return {
         kind: "general_knowledge",
         reason: `lexical:${isExplain ? "explain" : isCompare ? "compare" : isTrouble ? "trouble" : "consult"}`,

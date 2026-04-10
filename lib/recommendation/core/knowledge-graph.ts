@@ -74,9 +74,10 @@ export const ENTITY_NODES: EntityNode[] = [
   { canonical: "Graphite", field: "workPieceName", aliases: ["흑연", "graphite", "카본"] },
   { canonical: "FRP", field: "workPieceName", aliases: ["frp", "섬유강화플라스틱", "cfrp", "gfrp", "복합재"] },
   // shankType
-  { canonical: "Plain", field: "shankType", aliases: ["플레인", "plain", "일반생크", "스트레이트생크", "straight shank"] },
+  { canonical: "Plain", field: "shankType", aliases: ["플레인", "plain", "일반생크", "스트레이트생크", "스트레이트", "straight shank", "원통생크", "원통", "straight"] },
   { canonical: "Weldon", field: "shankType", aliases: ["웰던", "weldon", "웰돈"] },
   { canonical: "HA", field: "shankType", aliases: ["ha생크", "ha shank"] },
+  { canonical: "HSK", field: "shankType", aliases: ["hsk", "hsk생크", "hsk shank"] },
   // Boolean: coolantHole
   { canonical: "true", field: "coolantHole", aliases: ["쿨런트", "쿨런트홀", "절삭유홀", "coolant", "coolant hole", "내부급유", "내부냉각", "쓰루쿨런트", "through coolant"] },
   // Countries
@@ -156,9 +157,24 @@ const NUMERIC_PATTERNS: Array<{ field: string; patterns: RegExp[]; extract: (m: 
   {
     field: "helixAngleDeg",
     patterns: [
-      /(?:헬릭스|나선각|helix)(?:[이가은는을를도만])?\s*(\d+(?:\.\d+)?)\s*(?:도|°)?/i,
+      /(?:헬릭스|나선각|비틀림각|helix)(?:[이가은는을를도만])?\s*(\d+(?:\.\d+)?)\s*(?:도|°)?/i,
     ],
     extract: (m) => parseFloat(m[1]),
+  },
+  {
+    field: "taperAngleDeg",
+    patterns: [
+      /(?:테이퍼|테이퍼각|taper)(?:\s*각)?(?:[이가은는을를도만])?\s*(\d+(?:\.\d+)?)\s*(?:도|°)?/i,
+    ],
+    extract: (m) => parseFloat(m[1]),
+  },
+  {
+    field: "cornerRadiusMm",
+    patterns: [
+      /(?:코너\s*R|R)\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
+      /(?:코너\s*반경|코너\s*래디우스|코너\s*레디우스|corner\s*radius)(?:[이가은는을를도만])?\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
+    ],
+    extract: (m) => parseFloat(m[1] ?? m[2]),
   },
 ]
 

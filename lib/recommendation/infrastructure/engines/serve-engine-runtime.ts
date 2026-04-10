@@ -2104,10 +2104,34 @@ async function handleServeExplorationInner(
       // sends each call without session context) prior user turns' filters are
       // lost because this pre-pass only sees the latest message. Join all prior
       // user turns so every slot mentioned across the conversation is recovered.
-      const detParseMsg = (!prevState && messages.filter(m => m.role === "user").length > 1)
-        ? messages.filter(m => m.role === "user").map(m => m.text).join(" ")
-        : msg
-      const detPreActions = parseDeterministic(detParseMsg)
+      // FIX: parse the latest message separately so that when the same field
+      // appears in both earlier and latest turns (e.g. "TiAlN" in Q&A turn then
+      // "AlCrN으로 추천해줘" in latest), the latest turn's value wins.
+      let detPreActions: ReturnType<typeof parseDeterministic>
+      if (!prevState && messages.filter(m => m.role === "user").length > 1) {
+        let allUserMsgs = messages.filter(m => m.role === "user").map(m => m.text)
+        // FIX: if any user message is a reset signal ("처음부터", "초기화", "리셋"),
+        // discard all messages before (and including) the reset — only parse post-reset messages.
+        const RESET_RE = /(?:처음부터|다시\s*시작|초기화|리셋|^reset$)/iu
+        const lastResetIdx = allUserMsgs.findLastIndex(m => RESET_RE.test(m))
+        if (lastResetIdx >= 0) {
+          allUserMsgs = allUserMsgs.slice(lastResetIdx + 1)
+          if (allUserMsgs.length === 0) allUserMsgs = [msg]
+        }
+        const latestMsg = allUserMsgs[allUserMsgs.length - 1]
+        const priorMsgs = allUserMsgs.slice(0, -1).join(" ")
+        const latestActions = parseDeterministic(latestMsg)
+        const priorActions = parseDeterministic(priorMsgs)
+        // latest wins: if the latest message extracts a field, drop that field from prior
+        const latestFields = new Set(latestActions.filter(a => a.field).map(a => a.field))
+        const mergedActions = [
+          ...priorActions.filter(a => !a.field || !latestFields.has(a.field)),
+          ...latestActions,
+        ]
+        detPreActions = mergedActions
+      } else {
+        detPreActions = parseDeterministic(msg)
+      }
       const detApplyActions = detPreActions.filter(a => a.type === "apply_filter" && a.field && a.value != null)
       if (detApplyActions.length > 0) {
         let appliedAny = false
