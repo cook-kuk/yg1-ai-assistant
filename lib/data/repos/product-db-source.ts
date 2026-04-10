@@ -831,7 +831,12 @@ export function buildQueryOptions(options: ProductSearchOptions): { where: strin
     // input에서 이미 처리한 필드는 filter DB clause 생략 (중복 방지)
     if (inputHandledFields.has(filter.field) || inputHandledFields.has(getFilterFieldDefinition(filter.field)?.canonicalField ?? "")) continue
     const clause = buildDbWhereClauseForFilter(filter, next)
-    if (clause) where.push(clause)
+    if (clause) {
+      where.push(clause)
+      console.log(`[DBG-filter-clause] field=${filter.field} op=${filter.op} value=${filter.rawValue ?? filter.value} → ${clause.slice(0, 120)}`)
+    } else {
+      console.log(`[DBG-filter-clause] field=${filter.field} op=${filter.op} → NULL (no clause)`)
+    }
   }
   if (materialTags.size > 0) {
     const param = next([...materialTags])
