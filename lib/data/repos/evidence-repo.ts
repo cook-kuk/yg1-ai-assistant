@@ -4,7 +4,7 @@
  * and falls back to evidence-chunks.json when DB is unavailable.
  */
 
-import type { EvidenceChunk, EvidenceSummary } from "@/lib/types/evidence"
+import type { ConditionRange, EvidenceChunk, EvidenceSummary, SeriesIsoRange } from "@/lib/types/evidence"
 import path from "path"
 import fs from "fs"
 import { randomBytes } from "node:crypto"
@@ -183,6 +183,51 @@ function loadChunksFromJson(): EvidenceChunk[] {
   }
   _jsonCache = JSON.parse(fs.readFileSync(filePath, "utf-8")) as EvidenceChunk[]
   return _jsonCache
+}
+
+function parseLeadingNumber(value: string | null | undefined): number | null {
+  if (!value) return null
+  const match = String(value).match(/-?\d+(?:\.\d+)?/)
+  if (!match) return null
+  const n = Number.parseFloat(match[0])
+  return Number.isFinite(n) ? n : null
+}
+
+function aggregateRange(values: (string | null | undefined)[]): ConditionRange | null {
+  let min = Number.POSITIVE_INFINITY
+  let max = Number.NEGATIVE_INFINITY
+  let count = 0
+  for (const v of values) {
+    const n = parseLeadingNumber(v)
+    if (n == null || n <= 0) continue
+    if (n < min) min = n
+    if (n > max) max = n
+    count++
+  }
+  if (count === 0) return null
+  return { min, max, count }
+}
+
+function computeSeriesRangeByIso(chunks: EvidenceChunk[]): SeriesIsoRange[] {
+  const groups = new Map<string, EvidenceChunk[]>()
+  for (const c of chunks) {
+    const iso = (c.isoGroup ?? "?").toUpperCase()
+    if (!groups.has(iso)) groups.set(iso, [])
+    groups.get(iso)!.push(c)
+  }
+  const out: SeriesIsoRange[] = []
+  for (const [iso, list] of groups) {
+    out.push({
+      isoGroup: iso,
+      vc: aggregateRange(list.map(c => c.conditions.Vc)),
+      fz: aggregateRange(list.map(c => c.conditions.fz)),
+      ap: aggregateRange(list.map(c => c.conditions.ap)),
+      ae: aggregateRange(list.map(c => c.conditions.ae)),
+      count: list.length,
+    })
+  }
+  out.sort((a, b) => a.isoGroup.localeCompare(b.isoGroup))
+  return out
 }
 
 function mergeKey(chunk: EvidenceChunk): string {
@@ -422,14 +467,23 @@ export const EvidenceRepo = {
   ): Promise<EvidenceSummary> {
     const chunks = await this.findForProduct(productCode, opts)
     const best = chunks.length > 0 ? chunks[0] : null
+    const seriesName = best?.seriesName ?? opts?.seriesName ?? null
+
+    // Build per-ISO-group range across the ENTIRE series (no iso/diameter filter)
+    let seriesRangeByIso: SeriesIsoRange[] | undefined
+    if (seriesName) {
+      const seriesChunks = await this.findBySeriesName(seriesName)
+      seriesRangeByIso = computeSeriesRangeByIso(seriesChunks)
+    }
 
     return {
       productCode: normalizeCode(productCode),
-      seriesName: best?.seriesName ?? opts?.seriesName ?? null,
+      seriesName,
       chunks,
       bestCondition: best?.conditions ?? null,
       bestConfidence: best?.confidence ?? 0,
       sourceCount: chunks.length,
+      seriesRangeByIso,
     }
   },
 

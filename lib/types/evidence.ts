@@ -37,6 +37,23 @@ export interface EvidenceChunk {
   searchText: string              // concatenated text for lexical search
 }
 
+/** Numeric range aggregated across many chunks */
+export interface ConditionRange {
+  min: number
+  max: number
+  count: number
+}
+
+/** Per-ISO-group Vc/fz range across the entire series (ignoring diameter filter) */
+export interface SeriesIsoRange {
+  isoGroup: string
+  vc: ConditionRange | null
+  fz: ConditionRange | null
+  ap: ConditionRange | null
+  ae: ConditionRange | null
+  count: number
+}
+
 /** Summary of evidence for a product (used in API responses) */
 export interface EvidenceSummary {
   productCode: string
@@ -45,4 +62,6 @@ export interface EvidenceSummary {
   bestCondition: CuttingConditions | null  // highest confidence match
   bestConfidence: number
   sourceCount: number
+  /** Series-level Vc/fz/ap/ae ranges grouped by ISO group (for "권장 절삭조건: Vc 80~120" UI) */
+  seriesRangeByIso?: SeriesIsoRange[]
 }

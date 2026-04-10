@@ -437,16 +437,43 @@ function ProductCard({
           {bestCondition && (
             <div>
               <div className="text-xs text-gray-500 mb-1">{language === "ko" ? "절삭조건" : "Cutting Conditions"}</div>
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
-                  {bestCondition.Vc && <span className="text-gray-700">Vc: {bestCondition.Vc}</span>}
-                  {bestCondition.fz && <span className="text-gray-700">fz: {bestCondition.fz}</span>}
-                  {bestCondition.ap && <span className="text-gray-700">ap: {bestCondition.ap}</span>}
-                  {bestCondition.ae && <span className="text-gray-700">ae: {bestCondition.ae}</span>}
-                  {bestCondition.n && <span className="text-gray-700">n: {bestCondition.n}</span>}
-                  {bestCondition.vf && <span className="text-gray-700">vf: {bestCondition.vf}</span>}
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 space-y-2">
+                <div>
+                  <div className="text-[10px] font-semibold text-purple-700 uppercase tracking-wide mb-1">
+                    {language === "ko" ? "직경 매칭" : "Diameter Match"}
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+                    {bestCondition.Vc && <span className="text-gray-700">Vc: {bestCondition.Vc}</span>}
+                    {bestCondition.fz && <span className="text-gray-700">fz: {bestCondition.fz}</span>}
+                    {bestCondition.ap && <span className="text-gray-700">ap: {bestCondition.ap}</span>}
+                    {bestCondition.ae && <span className="text-gray-700">ae: {bestCondition.ae}</span>}
+                    {bestCondition.n && <span className="text-gray-700">n: {bestCondition.n}</span>}
+                    {bestCondition.vf && <span className="text-gray-700">vf: {bestCondition.vf}</span>}
+                  </div>
                 </div>
-                <div className="text-[10px] text-purple-600 mt-2">
+                {evidenceSummary?.seriesRangeByIso && evidenceSummary.seriesRangeByIso.length > 0 && (
+                  <div className="border-t border-purple-200 pt-2">
+                    <div className="text-[10px] font-semibold text-purple-700 uppercase tracking-wide mb-1">
+                      {language === "ko" ? "시리즈 권장 범위 (ISO별)" : "Series Range (by ISO)"}
+                    </div>
+                    <div className="space-y-0.5 text-[11px]">
+                      {evidenceSummary.seriesRangeByIso.map(r => {
+                        const fmt = (rng: { min: number; max: number } | null) =>
+                          rng ? (rng.min === rng.max ? `${rng.min}` : `${rng.min}~${rng.max}`) : "—"
+                        return (
+                          <div key={r.isoGroup} className="flex items-center gap-2 text-gray-700">
+                            <span className="font-mono font-semibold text-purple-800 w-6">{r.isoGroup}</span>
+                            <span>Vc {fmt(r.vc)}</span>
+                            <span className="text-gray-400">·</span>
+                            <span>fz {fmt(r.fz)}</span>
+                            <span className="text-gray-400 ml-auto text-[10px]">{r.count}건</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+                <div className="text-[10px] text-purple-600">
                   {language === "ko"
                     ? `카탈로그/DB 근거 · 신뢰도 ${Math.round((evidenceSummary?.bestConfidence ?? 0) * 100)}% · ${evidenceSummary?.sourceCount ?? 0}건`
                     : `Catalog/DB grounded · Confidence ${Math.round((evidenceSummary?.bestConfidence ?? 0) * 100)}% · ${evidenceSummary?.sourceCount ?? 0} sources`}
