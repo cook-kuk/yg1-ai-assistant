@@ -143,10 +143,13 @@ export function computeUncertaintySignal(
   },
 ): UncertaintySignal {
   // Missing critical slots
+  // workPieceName ("Stainless Steels" etc.) counts as material info —
+  // KG maps "SUS304"→workPieceName, not material field directly.
+  // machiningIntent ("roughing"/"finishing") counts as operationType info.
   const missingCriticalSlots: string[] = []
   if (input.diameterMm == null) missingCriticalSlots.push("diameterMm")
-  if (!input.material) missingCriticalSlots.push("material")
-  if (!input.operationType) missingCriticalSlots.push("operationType")
+  if (!input.material && !input.workPieceName) missingCriticalSlots.push("material")
+  if (!input.operationType && !input.machiningIntent) missingCriticalSlots.push("operationType")
 
   // Top score gap
   const top = candidates[0]
@@ -360,13 +363,13 @@ export function selectHighestInfoGainQuestion(
       field: "material",
       label: "소재",
       getValue: c => (c.product.materialTags ?? [])[0] ?? null,
-      isSet: () => !!input.material,
+      isSet: () => !!input.material || !!input.workPieceName,
     },
     {
       field: "operationType",
       label: "가공 방식 (황삭/정삭 등)",
       getValue: c => c.product.toolSubtype, // rough proxy
-      isSet: () => !!input.operationType,
+      isSet: () => !!input.operationType || !!input.machiningIntent,
     },
   ]
 

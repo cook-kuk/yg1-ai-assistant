@@ -204,7 +204,11 @@ describe("deriveRisk", () => {
       topScoreGap: 3,
       candidateCount: 5,
       missingCriticalSlots: [],
-    } as UncertaintySignal)).toBe("medium")
+      userIntentAmbiguous: false,
+      evidenceCoverage: 0.5,
+      topMatchPct: 60,
+      meaningfulFilterCount: 2,
+    } satisfies UncertaintySignal)).toBe("medium")
   })
 
   it("returns low when no risk signals", () => {
@@ -216,7 +220,11 @@ describe("deriveRisk", () => {
       topScoreGap: 15,
       candidateCount: 10,
       missingCriticalSlots: [],
-    } as UncertaintySignal)).toBe("low")
+      userIntentAmbiguous: false,
+      evidenceCoverage: 0.5,
+      topMatchPct: 60,
+      meaningfulFilterCount: 2,
+    } satisfies UncertaintySignal)).toBe("low")
   })
 })
 
