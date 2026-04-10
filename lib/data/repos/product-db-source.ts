@@ -875,6 +875,8 @@ export function buildQueryOptions(options: ProductSearchOptions): { where: strin
 
   const limit = typeof options.limit === "number" && options.limit > 0 ? options.limit : undefined
   const offset = typeof options.offset === "number" && options.offset > 0 ? options.offset : 0
+  console.log(`[DBG-SQL] WHERE clauses (${where.length}): ${where.map((w, i) => `\n  [${i}] ${w.slice(0, 150)}`).join("")}`)
+  console.log(`[DBG-SQL] values: ${JSON.stringify(values).slice(0, 200)}`)
   return { where, values, limit, offset }
 }
 
