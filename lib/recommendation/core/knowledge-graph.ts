@@ -413,8 +413,11 @@ export function extractEntities(message: string): Array<{ field: string; value: 
     }
   }
 
-  // 0b. Material group pattern: "P소재", "M소재" → single alpha ISO code
-  const materialGroupMatch = lower.match(/^([pmknsh])\s*소재/i) || lower.match(/([pmknsh])\s*소재\b/i)
+  // 0b. Material group pattern: "P소재", "ISO P", "ISO P 소재", "P 소재" → single alpha ISO code
+  const materialGroupMatch =
+    lower.match(/iso\s*([pmknsh])\b/i) ||
+    lower.match(/^([pmknsh])\s*소재/i) ||
+    lower.match(/([pmknsh])\s*소재\b/i)
   if (materialGroupMatch && !results.some(r => r.field === "material")) {
     const code = materialGroupMatch[1].toUpperCase()
     results.push({ field: "material", value: code, canonical: code })

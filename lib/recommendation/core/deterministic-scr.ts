@@ -601,7 +601,7 @@ export function extractMachiningCondition(text: string): DeterministicAction | n
     const m = text.match(pattern)
     if (m && m.index != null) {
       const op = negNear(text, m.index, m[0].length) ? "neq" : "eq"
-      return { type: "apply_filter", field: "machiningCondition", value, op, source: "deterministic" }
+      return { type: "apply_filter", field: "cuttingType", value, op, source: "deterministic" }
     }
   }
   return null
@@ -1249,7 +1249,7 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
     { field: "drillType", fn: extractDrillType },
     { field: "holeShape", fn: extractHoleShape },
     { field: "coolantSystem", fn: extractCoolantSystem },
-    { field: "machiningCondition", fn: extractMachiningCondition },
+    { field: "cuttingType", fn: extractMachiningCondition },
     { field: "applicationShape", fn: extractApplicationShape },
   ]
   for (const { field, fn } of extraExtractors) {
