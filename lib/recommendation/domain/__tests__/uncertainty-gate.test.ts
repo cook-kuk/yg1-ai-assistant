@@ -7,7 +7,11 @@ import {
   buildReasonCodes,
   selectHighestInfoGainQuestion,
   evaluateUncertainty,
+  assignPerspectiveLabel,
+  buildReasonSummary,
+  getPerspectiveKo,
   type UncertaintySignal,
+  type RecommendationMeta,
 } from "../uncertainty-gate"
 import type {
   AppliedFilter,
@@ -125,8 +129,14 @@ describe("decideMode", () => {
     expect(decideMode({ ...baseSignal, lowConfidenceMapping: true })).toBe("VERIFY")
   })
 
-  it("returns VERIFY for close top score gap", () => {
-    expect(decideMode({ ...baseSignal, topScoreGap: 2, candidateCount: 5 })).toBe("VERIFY")
+  it("returns VERIFY for close top score gap with weak evidence", () => {
+    // Close gap + low evidence → VERIFY (even if slots filled, strongMatch fails)
+    expect(decideMode({ ...baseSignal, topScoreGap: 2, candidateCount: 5, evidenceCoverage: 0.3 })).toBe("VERIFY")
+  })
+
+  it("returns FAST for close top score gap with all slots filled + strong match", () => {
+    // Close gap but all critical slots filled + high match + good evidence → stay FAST
+    expect(decideMode({ ...baseSignal, topScoreGap: 2, candidateCount: 5 })).toBe("FAST")
   })
 
   it("returns VERIFY for low evidence coverage", () => {
@@ -442,5 +452,127 @@ describe("evaluateUncertainty", () => {
     )
     expect(meta.mode).toBe("VERIFY")
     expect(meta.risk).toBe("high")
+  })
+
+  it("returns VERIFY for competitor replacement (substitute purpose)", () => {
+    const primary = makeCandidate()
+    const input = makeInput({ diameterMm: 10, material: "P", operationType: "slotting" })
+    const meta = evaluateUncertainty(
+      [primary], new Map(), input,
+      [makeFilter("diameterMm", "10"), makeFilter("material", "P")],
+      50, primary, null,
+      { isCompetitorReplacement: true },
+    )
+    expect(meta.mode).toBe("VERIFY")
+    expect(meta.risk).toBe("high")
+  })
+
+  it("returns VERIFY for regional task", () => {
+    const primary = makeCandidate()
+    const input = makeInput({ diameterMm: 10, material: "P", operationType: "slotting", country: "US" })
+    const meta = evaluateUncertainty(
+      [primary], new Map(), input,
+      [makeFilter("diameterMm", "10"), makeFilter("material", "P")],
+      50, primary, null,
+      { isRegionalTask: true },
+    )
+    expect(meta.mode).toBe("VERIFY")
+  })
+
+  it("returns ASK when intentAmbiguous + missing slots", () => {
+    const input = makeInput({ diameterMm: 10 }) // missing material + operationType
+    const meta = evaluateUncertainty(
+      [makeCandidate()], new Map(), input, [], 200,
+      null, null,
+      { intentAmbiguous: true },
+    )
+    expect(meta.mode).toBe("ASK")
+  })
+})
+
+// ── assignPerspectiveLabel ──────────────────────────────────
+
+describe("assignPerspectiveLabel", () => {
+  it("returns performance_priority for high match + evidence", () => {
+    const c = makeCandidate({ scoreBreakdown: makeScoreBreakdown(85), evidence: [{ source: "test" } as never] })
+    expect(assignPerspectiveLabel(c, 85)).toBe("performance_priority")
+  })
+
+  it("returns supply_priority for low match + in stock", () => {
+    const c = makeCandidate({ scoreBreakdown: makeScoreBreakdown(40), totalStock: 50, evidence: [] })
+    expect(assignPerspectiveLabel(c, 80)).toBe("supply_priority")
+  })
+
+  it("returns balanced for mid-range match", () => {
+    const c = makeCandidate({ scoreBreakdown: makeScoreBreakdown(65), evidence: [] })
+    expect(assignPerspectiveLabel(c, 65)).toBe("balanced")
+  })
+})
+
+// ── buildReasonSummary ──────────────────────────────────────
+
+describe("buildReasonSummary", () => {
+  it("builds Korean summary with icon and confidence", () => {
+    const meta: RecommendationMeta = {
+      confidence: "high",
+      risk: "low",
+      missing_info: [],
+      reason_codes: ["diameter_match", "material_fit", "inventory_advantage"],
+      mode: "FAST",
+    }
+    const result = buildReasonSummary(meta)
+    expect(result).toContain("✅")
+    expect(result).toContain("직경 일치")
+    expect(result).toContain("소재 적합")
+    expect(result).toContain("재고 유리")
+    expect(result).toContain("신뢰도: 높음")
+  })
+
+  it("uses warning icon for low confidence", () => {
+    const meta: RecommendationMeta = {
+      confidence: "low",
+      risk: "high",
+      missing_info: ["직경"],
+      reason_codes: ["safe_default"],
+      mode: "VERIFY",
+    }
+    const result = buildReasonSummary(meta)
+    expect(result).toContain("⚠️")
+    expect(result).toContain("신뢰도: 낮음")
+  })
+
+  it("returns null for empty reason codes", () => {
+    const meta: RecommendationMeta = {
+      confidence: "low",
+      risk: "high",
+      missing_info: [],
+      reason_codes: [],
+      mode: "ASK",
+    }
+    expect(buildReasonSummary(meta)).toBeNull()
+  })
+
+  it("limits to 4 reason codes max", () => {
+    const meta: RecommendationMeta = {
+      confidence: "medium",
+      risk: "low",
+      missing_info: [],
+      reason_codes: ["diameter_match", "material_fit", "operation_fit", "flute_match", "coating_match", "inventory_advantage"],
+      mode: "FAST",
+    }
+    const result = buildReasonSummary(meta)!
+    // Should only have 4 labels, not 6
+    const dotCount = (result.match(/·/g) || []).length
+    expect(dotCount).toBe(3) // 4 labels = 3 separators
+  })
+})
+
+// ── getPerspectiveKo ────────────────────────────────────────
+
+describe("getPerspectiveKo", () => {
+  it("returns correct Korean labels", () => {
+    expect(getPerspectiveKo("balanced")).toBe("무난한 선택")
+    expect(getPerspectiveKo("performance_priority")).toBe("성능 우선")
+    expect(getPerspectiveKo("supply_priority")).toBe("수급 우선")
   })
 })

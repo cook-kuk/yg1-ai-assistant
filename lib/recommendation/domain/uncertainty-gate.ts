@@ -78,11 +78,90 @@ export interface RecommendationMeta {
   followup_question?: string
   /** Why this question matters */
   followup_reason?: string
+  /** Short Korean summary of reason codes + confidence */
+  reason_summary?: string | null
+  /** Perspective labels for primary + alternatives */
+  perspectives?: {
+    primary?: { label: PerspectiveLabel; labelKo: string }
+    alternatives?: Array<{ code: string; label: PerspectiveLabel; labelKo: string }>
+  }
   /** Raw signal for debugging */
   signal?: UncertaintySignal
 }
 
-// ── Reason Code Assembly ─────────────────────────────────────
+// ── Perspective Labels ───────────────────────────────────────
+
+export type PerspectiveLabel = "balanced" | "performance_priority" | "supply_priority"
+
+/**
+ * Label a candidate with a perspective based on its score and stock.
+ * Pure deterministic — no LLM call.
+ */
+export function assignPerspectiveLabel(
+  scored: ScoredProduct,
+  topMatchPct: number,
+): PerspectiveLabel {
+  const hasStock = scored.totalStock != null && scored.totalStock > 0
+  const matchPct = scored.scoreBreakdown?.matchPct ?? 0
+
+  // High match + evidence = performance pick
+  if (matchPct >= 70 && scored.evidence.length > 0) return "performance_priority"
+  // Low match but has stock = supply pick
+  if (matchPct < 60 && hasStock) return "supply_priority"
+  return "balanced"
+}
+
+const PERSPECTIVE_KO: Record<PerspectiveLabel, string> = {
+  balanced: "무난한 선택",
+  performance_priority: "성능 우선",
+  supply_priority: "수급 우선",
+}
+
+// ── Reason Code Labels & Assembly ───────────────────────────
+
+const REASON_CODE_KO: Record<RecommendationReasonCode, string> = {
+  material_fit: "소재 적합",
+  operation_fit: "가공형상 적합",
+  diameter_match: "직경 일치",
+  flute_match: "날수 일치",
+  tool_shape_fit: "공구 형상 적합",
+  coating_match: "코팅 적합",
+  roughing_fit: "황삭 적합",
+  finishing_fit: "정삭 적합",
+  inventory_advantage: "재고 유리",
+  regional_availability: "판매국 적합",
+  evidence_grounded: "절삭조건 근거 있음",
+  safe_default: "범용성 높음",
+  performance_priority: "성능 우선",
+  supply_priority: "수급 우선",
+  series_match: "시리즈 일치",
+  high_completeness: "스펙 충족률 높음",
+}
+
+/**
+ * Build a short Korean summary line from reason codes + confidence + risk.
+ * E.g. "✅ 직경 일치 · 소재 적합 · 재고 유리 (신뢰도: 높음)"
+ * Returns null if no reason codes.
+ */
+export function buildReasonSummary(meta: RecommendationMeta): string | null {
+  if (meta.reason_codes.length === 0) return null
+  const labels = meta.reason_codes
+    .slice(0, 4) // max 4 for brevity
+    .map(c => REASON_CODE_KO[c])
+    .filter(Boolean)
+  if (labels.length === 0) return null
+
+  const confLabel = meta.confidence === "high" ? "높음" : meta.confidence === "medium" ? "보통" : "낮음"
+  const icon = meta.confidence === "high" ? "✅" : meta.confidence === "medium" ? "🔶" : "⚠️"
+  return `${icon} ${labels.join(" · ")} (신뢰도: ${confLabel})`
+}
+
+/**
+ * Build a perspective label string for the primary recommendation.
+ */
+export function getPerspectiveKo(label: PerspectiveLabel): string {
+  return PERSPECTIVE_KO[label]
+}
 
 const CRITICAL_SLOTS = ["diameterMm", "material", "operationType"] as const
 
@@ -231,7 +310,12 @@ export function decideMode(signal: UncertaintySignal): DecisionMode {
   if (signal.highRiskTask) return "VERIFY"
   if (signal.hasConstraintConflict) return "VERIFY"
   if (signal.lowConfidenceMapping && signal.candidateCount > 0) return "VERIFY"
-  if (signal.topScoreGap < 3 && signal.candidateCount >= 2) return "VERIFY"
+  // Close race → VERIFY, unless all critical slots filled + high match + good evidence
+  if (signal.topScoreGap < 3 && signal.candidateCount >= 2) {
+    const allSlotsFilled = signal.missingCriticalSlots.length === 0
+    const strongMatch = signal.topMatchPct >= 60 && signal.evidenceCoverage >= 0.5
+    if (!(allSlotsFilled && strongMatch)) return "VERIFY"
+  }
   if (signal.evidenceCoverage < 0.2 && signal.candidateCount > 0 && signal.candidateCount <= 50) return "VERIFY"
   if (signal.zeroOrTooWideResults) return "VERIFY"
 
