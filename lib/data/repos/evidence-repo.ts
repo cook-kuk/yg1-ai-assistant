@@ -185,6 +185,39 @@ function loadChunksFromJson(): EvidenceChunk[] {
   return _jsonCache
 }
 
+function mergeKey(chunk: EvidenceChunk): string {
+  const series = normalizeCode(chunk.seriesName ?? "")
+  const iso = (chunk.isoGroup ?? "").toUpperCase()
+  const diameter = chunk.diameterMm != null ? chunk.diameterMm.toFixed(3) : ""
+  const workpiece = (chunk.pageTitle ?? "").trim().toLowerCase()
+  const cuttingType = (chunk.cuttingType ?? "").trim().toLowerCase()
+  return `${series}|${iso}|${diameter}|${workpiece}|${cuttingType}`
+}
+
+function mergeChunkSources(primary: EvidenceChunk[], supplement: EvidenceChunk[]): EvidenceChunk[] {
+  const seen = new Set<string>()
+  const merged: EvidenceChunk[] = []
+  for (const c of primary) {
+    const k = mergeKey(c)
+    if (!seen.has(k)) {
+      seen.add(k)
+      merged.push(c)
+    }
+  }
+  let added = 0
+  for (const c of supplement) {
+    const k = mergeKey(c)
+    if (seen.has(k)) continue
+    seen.add(k)
+    merged.push(c)
+    added++
+  }
+  if (supplement.length > 0) {
+    console.log(`[evidence] merged primary=${primary.length} supplement=${supplement.length} added=${added} total=${merged.length}`)
+  }
+  return merged
+}
+
 async function loadChunks(): Promise<EvidenceChunk[]> {
   if (!shouldUseDatabaseSource()) return loadChunksFromJson()
 
@@ -216,7 +249,10 @@ async function loadChunks(): Promise<EvidenceChunk[]> {
         const result = await getPool().query<RawEvidenceRow>(query, values)
         const mapped = result.rows.map(mapRowToEvidenceChunk)
         console.log(`[evidence-db] loaded rows=${mapped.length}`)
-        return mapped
+        // Supplement with JSON rows (merged_all_clean corpus) where key doesn't overlap.
+        // DB wins on collision; JSON adds non-overlapping rows (e.g. series/ISO not yet in DB).
+        const jsonChunks = loadChunksFromJson()
+        return mergeChunkSources(mapped, jsonChunks)
       } catch (error) {
         console.warn(
           `[evidence-db] query failed, falling back to JSON evidence: ${error instanceof Error ? error.message : String(error)}`
