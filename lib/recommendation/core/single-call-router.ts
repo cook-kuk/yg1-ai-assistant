@@ -533,8 +533,18 @@ export async function routeSingleCall(
     // keyword is present — those turns must replace, not accumulate.
     const REVISION_RE = /(아니|말고|바꿔|대신|빼|제외|취소|없는\s*걸로)/
     const hasRevision = REVISION_RE.test(userMessage)
-    const parseText = (!sessionState && !hasRevision && recentMessages && recentMessages.length > 1)
-      ? recentMessages.filter(m => m.role === "user").map(m => m.text).join(" ")
+    // After a reset turn ("처음부터 다시", "리셋", "초기화"), only parse messages AFTER the reset
+    const RESET_RE = /처음부터|초기화|리셋|다시\s*시작|reset|start\s*over/i
+    let filteredMessages = recentMessages
+    if (!sessionState && !hasRevision && recentMessages && recentMessages.length > 1) {
+      const lastResetIdx = recentMessages.map((m, i) => m.role === "user" && RESET_RE.test(m.text) ? i : -1)
+        .filter(i => i >= 0).pop()
+      if (lastResetIdx !== undefined && lastResetIdx >= 0) {
+        filteredMessages = recentMessages.slice(lastResetIdx + 1)
+      }
+    }
+    const parseText = (!sessionState && !hasRevision && filteredMessages && filteredMessages.length > 1)
+      ? filteredMessages.filter(m => m.role === "user").map(m => m.text).join(" ")
       : userMessage
     const detActions = parseDeterministic(parseText, detMeta)
     if (detMeta.ambiguities.length > 0) {

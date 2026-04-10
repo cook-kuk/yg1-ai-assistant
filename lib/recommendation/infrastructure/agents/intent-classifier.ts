@@ -28,9 +28,11 @@ const NONSENSE_PATTERNS = SHARED_NONSENSE_PATTERNS
 const REFINEMENT_PATTERNS: RegExp[] = [
   /피삭재.*바꿔/, /소재.*바꿔/, /소재.*바꾸/, /재질.*바꿔/, /재질.*바꾸/,
   /직경.*변경/, /직경.*바꿔/, /다른.*직경/,
-  /코팅.*변경/, /코팅.*바꿔/,
+  /코팅.*변경/, /코팅.*바꿔/, /대체.*코팅/, /코팅.*대체/, /다른.*코팅/,
+  /대체.*추천/, /대체.*해/, /.*대체/,
   /다시.*추천/, /다시.*볼래/, /다시.*보고/,
   /스테인리스/, /알루미늄/, /탄소강/, /티타늄/,
+  /AlCrN/i, /AlTiN/i, /TiAlN/i, /DLC/i, /무코팅/,
 ]
 
 function detectRefinementField(clean: string): string | undefined {

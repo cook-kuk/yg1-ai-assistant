@@ -144,6 +144,7 @@ export function buildJudgmentPrompt(input: UnifiedJudgmentInput): string {
 4. frameRelation: direct_answer|confusion|challenge|revise|compare_request|detail_request|followup_on_result|meta_feedback|restart|general_chat
 5. intentShift: none|refine_existing|replace_constraint|branch_exploration|compare_request|explain_request|reset
 6. domainRelevance: product_query|company_query|cutting_condition|competitor|greeting|off_topic|narrowing_response
+   - 소재 키워드(SUS, SCM, S45C, 알루미늄, 스테인리스, 티타늄 등) + 품질/적합 표현("괜찮은", "적합한", "좋은 거", "추천", "어떤 거") → product_query (off_topic 아님!)
 7. intentAction: select_option(칩/값 선택)|ask_recommendation(추천 요청)|compare(비교+설명 둘 다)|explain(설명요청)|reset_session(처음부터)|refine_condition(조건변경)|skip_field(건너뛰기)|undo(되돌리기)|continue(진행)|off_topic(무관)
    - "차이점", "비교", "A와 B", "A랑 B", "vs" → intentAction: "compare" (narrowing 중이어도). compare는 비교표+설명 둘 다 제공
    - 시리즈/브랜드 이름이 2개 이상 언급되면 → intentAction: "compare"
@@ -153,6 +154,7 @@ export function buildJudgmentPrompt(input: UnifiedJudgmentInput): string {
    - "쉽게 설명해줘", "쉽게 알려줘", "설명해줘", "뭐가 다른거야", "어떤 차이" → intentAction: "explain" (현재 표시된 선택지/시리즈 설명)
    - "A 말고 B로", "A 대신 B", "B로 바꿔", "B로 교체" → intentAction: "refine_condition", intentShift: "replace_constraint" (기존 A 제거 → B 적용)
    - 공구 트러블 증상 ("수명 짧", "파손", "치핑", "마모", "진동", "채터", "버", "깨짐") → intentAction: "explain" (원인/해결 설명 요청, 필터링 아님)
+   - 소재 키워드 + 품질/적합 표현("괜찮은 거", "적합한 거", "좋은 거", "어떤 게 좋") → intentAction: "ask_recommendation", domainRelevance: "product_query" (off_topic/company_query 아님!)
 8. questionShape: 시스템응답에 질문이 있으면 형태 — binary_yes_no|binary_proceed|explicit_choice|constrained_options|open_ended|none
 9. extractedAnswer: 사용자가 선택한 값(칩 텍스트/값) 추출, 없으면 null
    - 가공방식 키워드 매핑: "램핑"→Radius, "슬롯"→Square, "프로파일"→Ball, "정삭"→Finishing, "황삭"→Roughing
