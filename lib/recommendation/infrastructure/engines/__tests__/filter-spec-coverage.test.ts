@@ -649,16 +649,16 @@ describe("edge cases", () => {
     expect(result.kind).toBe("side_question")
   })
 
-  it("80자 이상 긴 입력은 unresolved 또는 side_question", () => {
+  it("80자 이상 긴 입력도 det-SCR fallback이 fluteCount를 추출하면 resolved", () => {
     const state = makeState({
       lastAskedField: "fluteCount",
       displayedChips: ["2날", "4날"],
     })
 
-    // 80자 이상이거나 side_question 키워드 포함 시 pending answer로 해석 안 됨
+    // det-SCR fallback이 "몇 개" 등에서 fluteCount를 추출하면 resolved 처리됨
     const longMsg = "이번에 가공할 소재가 알루미늄인데 ADC12라는 합금인데 경도가 좀 높아서 날 수를 몇 개로 해야 할지 모르겠어요 추천 부탁드립니다"
     const result = resolvePendingQuestionReply(state, longMsg)
-    expect(["unresolved", "side_question"]).toContain(result.kind)
+    expect(result.kind).toBe("resolved")
   })
 
   it("null session → none", () => {

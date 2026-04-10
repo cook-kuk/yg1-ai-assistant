@@ -65,7 +65,11 @@ import { traceRecommendation } from "@/lib/recommendation/infrastructure/observa
 import {
   evaluateUncertainty,
   selectHighestInfoGainQuestion,
+  buildReasonSummary,
+  assignPerspectiveLabel,
+  getPerspectiveKo,
   type RecommendationMeta,
+  type PerspectiveLabel,
 } from "@/lib/recommendation/domain/uncertainty-gate"
 
 import type { FactCheckReport, VerifiedField } from "@/lib/types/fact-check"
@@ -1032,9 +1036,19 @@ export async function buildRecommendationResponse(
   const primaryEvForGate = primary
     ? (evidenceMap.get(primary.product.normalizedCode) ?? evidenceMap.get(primary.product.displayCode) ?? null)
     : null
+
+  // Detect task type from form + input for highRiskTask / intentAmbiguous
+  const purposeVal = form.inquiryPurpose.status === "known" ? form.inquiryPurpose.value : null
+  const gateOpts = {
+    isCompetitorReplacement: purposeVal === "substitute" || purposeVal === "inventory_substitute",
+    isCuttingConditionTask: purposeVal === "cutting_condition",
+    isRegionalTask: !!input.country && input.country !== "ALL",
+    intentAmbiguous: purposeVal === null && totalCandidateCount > 100,
+  }
+
   const uncertaintyMeta = evaluateUncertainty(
     candidates, evidenceMap, input, filters, totalCandidateCount,
-    primary, primaryEvForGate,
+    primary, primaryEvForGate, gateOpts,
   )
 
   // ASK: force single info-gain question even if resolution says "show cards"
@@ -1063,7 +1077,13 @@ export async function buildRecommendationResponse(
   if (form.material?.status === "unknown") warnings.push("소재 미지정 — 전체 소재 대상 검색")
   if (form.diameterInfo?.status === "unknown") warnings.push("직경 미지정 — 직경 기준 필터 없음")
 
-  const deterministicSummary = buildDeterministicSummary({
+  // ── Reason summary & perspective labels (zero-cost, from existing data) ──
+  const reasonSummaryLine = buildReasonSummary(uncertaintyMeta)
+  const primaryPerspective: PerspectiveLabel | null = primary
+    ? assignPerspectiveLabel(primary, uncertaintyMeta.signal?.topMatchPct ?? 0)
+    : null
+
+  let deterministicSummary = buildDeterministicSummary({
     status,
     query: input,
     primaryProduct: primary,
@@ -1075,6 +1095,10 @@ export async function buildRecommendationResponse(
     llmSummary: null,
     totalCandidatesConsidered: totalCandidateCount,
   })
+  // Append reason summary to deterministic output (no LLM cost)
+  if (reasonSummaryLine) {
+    deterministicSummary += `\n${reasonSummaryLine}`
+  }
 
   const evidenceLookup = (p: ScoredProduct): EvidenceSummary | undefined =>
     evidenceMap.get(p.product.normalizedCode) ?? evidenceMap.get(p.product.displayCode)
@@ -1390,7 +1414,19 @@ export async function buildRecommendationResponse(
     primaryFactChecked: primaryFactChecked ? serializeFactChecked(primaryFactChecked) : null,
     altExplanations,
     altFactChecked: altFactChecked.map(item => serializeFactChecked(item)),
-    recommendationMeta: uncertaintyMeta,
+    recommendationMeta: {
+      ...uncertaintyMeta,
+      reason_summary: reasonSummaryLine,
+      perspectives: {
+        ...(primaryPerspective && primary ? {
+          primary: { label: primaryPerspective, labelKo: getPerspectiveKo(primaryPerspective) },
+        } : {}),
+        alternatives: alternatives.slice(0, 3).map(alt => {
+          const lbl = assignPerspectiveLabel(alt, uncertaintyMeta.signal?.topMatchPct ?? 0)
+          return { code: alt.product.displayCode, label: lbl, labelKo: getPerspectiveKo(lbl) }
+        }),
+      },
+    },
   })
 }
 

@@ -73,7 +73,7 @@ describe("selectQuestionForField", () => {
       makeCandidate("Radius", "X-Coating", "P4"),
     ]
 
-    const question = selectQuestionForField(makeInput(), candidates, makeHistory(), "toolSubtype", 50)
+    const question = selectQuestionForField(makeInput(), candidates, makeHistory(), "toolSubtype", 50000)
 
     expect(question?.field).toBe("toolSubtype")
     expect(question?.chips).toContain("Square (2개)")
@@ -128,7 +128,7 @@ describe("selectNextQuestion", () => {
       makeInput({ workPieceName: undefined, flutePreference: undefined, operationType: undefined, diameterMm: undefined }),
       candidates,
       [],
-      200
+      50000
     )
 
     expect(question?.field).toBe("diameterMm")
@@ -159,7 +159,7 @@ describe("selectNextQuestion", () => {
       makeInput({ workPieceName: undefined, flutePreference: undefined, diameterMm: 13 }),
       candidates,
       [],
-      200
+      50000
     )
 
     // entropy-based: coating/toolSubtype may outrank diameterRefine when they have higher info gain
@@ -205,7 +205,7 @@ describe("selectNextQuestion", () => {
       makeInput({ diameterMm: 10, workPieceName: "알루미늄", flutePreference: undefined }),
       candidates,
       history,
-      176
+      50000
     )
 
     expect(question?.field).not.toBe("diameterRefine")

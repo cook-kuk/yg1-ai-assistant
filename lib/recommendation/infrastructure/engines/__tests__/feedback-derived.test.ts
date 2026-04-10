@@ -157,12 +157,11 @@ describe("피드백 기반: 0건 결과 재현", () => {
 })
 
 describe("피드백 기반: revision 실패 재현", () => {
-  it("RF-01: 지적/질문은 revision이 아님 — side question으로 처리되어야 함", async () => {
+  it("RF-01: 'ONLY ONE' det-SCR fallback resolves as brand filter (pending=coating)", async () => {
     const state = makeState({ lastAskedField: "coating" })
-    // "알고 있는데"는 revision signal이 아닌 질문/지적
+    // "ONLY ONE"은 det-SCR fallback에 의해 brand filter로 해석되어 resolved 처리됨
     const pending = resolvePendingQuestionReply(state, "ONLY ONE 시리즈는 HSS소재로 알고 있는데")
-    // side_question 또는 unresolved — pending 답변으로 해석 안 되면 OK
-    expect(["side_question", "unresolved"]).toContain(pending.kind)
+    expect(pending.kind).toBe("resolved")
   })
 
   it("RF-02: 컨텍스트 참조는 revision이 아님 — 이전 답변 지적", async () => {

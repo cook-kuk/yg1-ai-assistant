@@ -102,7 +102,7 @@ describe("executeSpecViaCompiler — SQL evidence", () => {
 
     expect(executeCalls).toHaveLength(1)
     const call = executeCalls[0]
-    expect(call.sql).toMatch(/ORDER BY\s+search_diameter_mm\s+ASC\s+NULLS LAST/i)
+    expect(call.sql).toMatch(/ORDER BY\s+.*search_diameter_mm.*\s+ASC\s+NULLS LAST/i)
     expect(call.sql).toMatch(/FROM catalog_app\.product_recommendation_mv/)
     expect(result.mode).toBe("sort")
   })
@@ -139,7 +139,7 @@ describe("executeSpecViaCompiler — SQL evidence", () => {
     await executeSpecViaCompiler(spec)
     const call = executeCalls[0]
     expect(call.sql).toMatch(/WHERE/)
-    expect(call.sql).toMatch(/ORDER BY\s+search_diameter_mm\s+DESC/i)
+    expect(call.sql).toMatch(/ORDER BY\s+.*search_diameter_mm.*\s+DESC/i)
   })
 })
 

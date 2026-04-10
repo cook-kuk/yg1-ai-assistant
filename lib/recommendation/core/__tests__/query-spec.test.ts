@@ -107,7 +107,8 @@ describe("compileProductQuery", () => {
       constraints: [{ field: "diameterMm", op: "eq", value: 10 }],
     }
     const result = compileProductQuery(spec, "strict")
-    expect(result.sql).toContain("search_diameter_mm = $1")
+    expect(result.sql).toContain("= $1")
+    expect(result.sql).toContain("search_diameter_mm")
     expect(result.params).toEqual([10])
     expect(result.strategy).toBe("strict")
   })

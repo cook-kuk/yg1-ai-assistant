@@ -56,8 +56,8 @@ describe("filter-field-registry rpm definition", () => {
     expect(filter?.rawValue).toBe(3000)
   })
 
-  it("buildDbClause는 정의되어 있지 않음 (no-op — narrowing은 tool-forge가 처리)", () => {
+  it("buildDbClause가 정의되어 있음", () => {
     const def = getFilterFieldDefinition("rpm")
-    expect(def?.buildDbClause).toBeUndefined()
+    expect(def?.buildDbClause).toBeDefined()
   })
 })

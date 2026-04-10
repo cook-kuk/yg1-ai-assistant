@@ -236,6 +236,11 @@ export interface RecommendationResponseDto {
     mode: "FAST" | "VERIFY" | "ASK"
     followup_question?: string
     followup_reason?: string
+    reason_summary?: string | null
+    perspectives?: {
+      primary?: { label: string; labelKo: string }
+      alternatives?: Array<{ code: string; label: string; labelKo: string }>
+    }
   }
   /** 추론 과정 — Claude thinking 처럼 유저에게 "이렇게 이해했습니다" 보여주기 위한 한국어 자연어. */
   thinkingProcess?: string | null

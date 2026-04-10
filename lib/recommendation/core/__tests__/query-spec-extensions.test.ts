@@ -37,7 +37,8 @@ describe("Phase C — sort", () => {
       sort: { field: "diameterMm", direction: "asc" },
     }
     const out = compileProductQuery(spec)
-    expect(out.sql).toMatch(/ORDER BY search_diameter_mm ASC/)
+    expect(out.sql).toMatch(/ORDER BY .* ASC/)
+    expect(out.sql).toContain("search_diameter_mm")
     expect(out.sql).not.toMatch(/ORDER BY edp_series_name/)
   })
 
@@ -118,7 +119,7 @@ describe("Phase C — similarity", () => {
     }
     const out = compileProductQuery(spec)
     expect(out.sql).toContain("WITH ref AS")
-    expect(out.sql).toContain("edp_product_id =")
+    expect(out.sql).toContain("edp_no =")
     expect(out.sql).toContain("SQRT(")
     expect(out.sql).toContain("_similarity_score")
     expect(out.sql).toMatch(/ORDER BY _similarity_score ASC/)
@@ -161,7 +162,8 @@ describe("Phase C — combined + regression", () => {
     const out = compileProductQuery(spec)
     expect(out.sql).toContain("WHERE")
     expect(out.sql).toContain(">=")
-    expect(out.sql).toMatch(/ORDER BY search_diameter_mm ASC/)
+    expect(out.sql).toMatch(/ORDER BY .* ASC/)
+    expect(out.sql).toContain("search_diameter_mm")
   })
 
   it("absence of sort/similarTo/tolerance yields the legacy default ORDER BY", () => {

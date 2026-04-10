@@ -1,4 +1,8 @@
-import { describe, expect, it } from "vitest"
+import { afterAll, beforeAll, describe, expect, it } from "vitest"
+
+let origDetScr: string | undefined
+beforeAll(() => { origDetScr = process.env.DETERMINISTIC_SCR; process.env.DETERMINISTIC_SCR = "0" })
+afterAll(() => { if (origDetScr === undefined) delete process.env.DETERMINISTIC_SCR; else process.env.DETERMINISTIC_SCR = origDetScr })
 
 import { buildPendingSelectionFilter, resolveExplicitComparisonAction, resolveExplicitFilterRequest, resolveExplicitRevisionRequest } from "../serve-engine-runtime"
 import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"

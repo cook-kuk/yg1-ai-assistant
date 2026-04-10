@@ -199,6 +199,6 @@ describe("filter-field-registry cutting condition definitions", () => {
     expect(def?.label).toBe(label)
     expect(def?.unit).toBe(unit)
     expect(def?.kind).toBe("number")
-    expect(def?.buildDbClause).toBeUndefined()
+    expect(def?.buildDbClause).toBeDefined()
   })
 })

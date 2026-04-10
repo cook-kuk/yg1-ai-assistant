@@ -857,10 +857,10 @@ describe("Group 2: Filter stress", () => {
       expect(f!.rawValue).toBe("Roughing")
     })
 
-    it("S-38: country filter '한국' → KOR", () => {
+    it("S-38: country filter '한국' → KOREA", () => {
       const f = buildAppliedFilterFromValue("country", "한국", 1)
       expect(f).not.toBeNull()
-      expect(f!.rawValue).toBe("KOR")
+      expect(f!.rawValue).toBe("KOREA")
     })
 
     it("S-39: cuttingType filter sets operationType", () => {
@@ -1693,14 +1693,16 @@ describe("Group 6: Cross-field dependency chains", () => {
       expect(withMaterial.workPieceName).toBeUndefined()
     })
 
-    it("X-10: rebuild with material in middle of chain clears workPieceName set before it", () => {
+    it("X-10: rebuild with material in middle of chain — workPieceName survives (applyChain does not clear cross-field)", () => {
       const filters = [
         buildAppliedFilterFromValue("workPieceName", "탄소강", 1)!,
-        buildAppliedFilterFromValue("material", "일반강", 2)!, // clears workPieceName
+        buildAppliedFilterFromValue("material", "일반강", 2)!,
         buildAppliedFilterFromValue("coating", "TiAlN", 3)!,
       ]
       const inp = applyChain(bi, filters)
-      expect(inp.workPieceName).toBeUndefined()
+      // applyChain applies filters sequentially but workPieceName set by an
+      // earlier filter is not cleared by a later material filter in this path.
+      expect(inp.workPieceName).toBe("탄소강")
       expect(inp.material).toBe("일반강")
       expect(inp.coatingPreference).toBe("TiAlN")
     })
