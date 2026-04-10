@@ -831,12 +831,7 @@ export function buildQueryOptions(options: ProductSearchOptions): { where: strin
     // input에서 이미 처리한 필드는 filter DB clause 생략 (중복 방지)
     if (inputHandledFields.has(filter.field) || inputHandledFields.has(getFilterFieldDefinition(filter.field)?.canonicalField ?? "")) continue
     const clause = buildDbWhereClauseForFilter(filter, next)
-    if (clause) {
-      where.push(clause)
-      console.log(`[DBG-filter-clause] field=${filter.field} op=${filter.op} value=${filter.rawValue ?? filter.value} → ${clause.slice(0, 120)}`)
-    } else {
-      console.log(`[DBG-filter-clause] field=${filter.field} op=${filter.op} → NULL (no clause)`)
-    }
+    if (clause) where.push(clause)
   }
   if (materialTags.size > 0) {
     const param = next([...materialTags])
@@ -875,8 +870,6 @@ export function buildQueryOptions(options: ProductSearchOptions): { where: strin
 
   const limit = typeof options.limit === "number" && options.limit > 0 ? options.limit : undefined
   const offset = typeof options.offset === "number" && options.offset > 0 ? options.offset : 0
-  console.log(`[DBG-SQL] WHERE clauses (${where.length}): ${where.map((w, i) => `\n  [${i}] ${w.slice(0, 150)}`).join("")}`)
-  console.log(`[DBG-SQL] values: ${JSON.stringify(values).slice(0, 200)}`)
   return { where, values, limit, offset }
 }
 
