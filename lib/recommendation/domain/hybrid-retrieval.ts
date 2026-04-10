@@ -339,9 +339,11 @@ export async function runHybridRetrieval(
 
   // ── Stage 1: Structured Filter ─────────────────────────────
   const fetchStartedAt = Date.now()
+  // RETRIEVAL_MAX_CANDIDATES: 기본 50 (넓은 쿼리 DB 과부하 방지), 0 = 무제한 (테스트용)
+  const maxCandidates = Number(process.env.RETRIEVAL_MAX_CANDIDATES ?? 50) || undefined
   const limit = pagination
     ? pagination.pageSize
-    : (topN > 0 ? Math.max(topN * 20, 500) : undefined)
+    : (topN > 0 ? Math.max(topN * 20, 500) : maxCandidates)
   const offset = pagination ? pagination.page * pagination.pageSize : 0
   const searchResult = pagination
     ? await ProductRepo.searchPage(input, filters, { limit, offset })
