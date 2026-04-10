@@ -1,0 +1,402 @@
+{
+  "timestamp": "2026-04-10T00:52:24.607Z",
+  "results": [
+    {
+      "id": "B01",
+      "input": "스테인리스 4날 10mm 추천해줘",
+      "ms": 245029,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "responsePreview": "",
+      "grade": null,
+      "error": "The operation was aborted due to timeout"
+    },
+    {
+      "id": "B02",
+      "input": "직경 10mm 이상만",
+      "ms": 245018,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "responsePreview": "",
+      "grade": null,
+      "error": "The operation was aborted due to timeout"
+    },
+    {
+      "id": "B03",
+      "input": "CRX S 빼고 추천해줘",
+      "ms": 234687,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "responsePreview": "",
+      "grade": null,
+      "error": "fetch failed"
+    },
+    {
+      "id": "B04",
+      "input": "아무거나 빨리 10mm",
+      "ms": 19572,
+      "candidateCount": 1895,
+      "filterCount": 1,
+      "responsePreview": "가장 가까운 후보로는 SG9E7710015 (SG9E77)를 먼저 검토해보시면 됩니다. Square 형상, 4날, φ10mm 기준에 잘 맞고, 코팅은 X-Coating으로 H군, ",
+      "grade": {
+        "accuracy": 4,
+        "naturalness": 4,
+        "insight": 3,
+        "length_fit": 4,
+        "context": 5,
+        "total": 20,
+        "issues": [],
+        "suggestion": "응답을 좀 더 간결하게 요약하면 좋을 것 같습니다."
+      },
+      "error": null
+    },
+    {
+      "id": "B05",
+      "input": "헬릭스가 뭐야?",
+      "ms": 21806,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "responsePreview": "헬릭스(helix)는 3차원 공간에서 나선형으로 비틀린 곡선 구조를 뜻합니다. 절삭공구에서는 날의 비틀림 각도를 나타내는 용어로, 엔드밀이나 드릴의 플루트(홈)가 축을 중심으로 나",
+      "grade": {
+        "accuracy": 5,
+        "naturalness": 5,
+        "insight": 5,
+        "length_fit": 5,
+        "context": 5,
+        "total": 25,
+        "issues": [],
+        "suggestion": "특별한 개선 필요 없음"
+      },
+      "error": null
+    },
+    {
+      "id": "C01",
+      "input": "스테인리스 추천해줘 그리고 알루파워가 뭐야?",
+      "ms": 245035,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "responsePreview": "",
+      "grade": null,
+      "error": "The operation was aborted due to timeout"
+    },
+    {
+      "id": "C02",
+      "input": "구리 비슷한 거 떨림 없는 걸로",
+      "ms": 209121,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "responsePreview": "",
+      "grade": null,
+      "error": "fetch failed"
+    },
+    {
+      "id": "C03",
+      "input": "AlCrN이랑 TiAlN 뭐가 나아? 스테인리스인데",
+      "ms": 35617,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "responsePreview": "스테인리스 가공에는 **AlCrN**이 더 유리합니다. AlCrN은 TiAlN 대비 마모 저항이 저하중에서 30배, 고하중에서 10배 우수하며, 최대 1100°C까지 견디는 고온 ",
+      "grade": {
+        "accuracy": 5,
+        "naturalness": 4,
+        "insight": 5,
+        "length_fit": 5,
+        "context": 5,
+        "total": 24,
+        "issues": [],
+        "suggestion": "응답의 자연스러움을 높이기 위해 좀 더 대화체로 표현하면 좋을 것 같습니다."
+      },
+      "error": null
+    },
+    {
+      "id": "C04",
+      "input": "스테인리스 DLC 코팅으로",
+      "ms": 6331,
+      "candidateCount": 0,
+      "filterCount": 2,
+      "responsePreview": "  ⚠️ DLC 코팅은 stainless steels에 부적합합니다. 내열 400°C로 절삭열(600~800°C)에 견디지 못합니다. AlCrN(Y-Coating)이나 TiAlN(",
+      "grade": {
+        "accuracy": 5,
+        "naturalness": 4,
+        "insight": 5,
+        "length_fit": 5,
+        "context": 5,
+        "total": 24,
+        "issues": [],
+        "suggestion": "응답을 좀 더 자연스럽게 만들기 위해 문장을 부드럽게 연결하는 것이 좋습니다."
+      },
+      "error": null
+    },
+    {
+      "id": "C05",
+      "input": "공구 수명이 너무 짧아",
+      "ms": 14461,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "responsePreview": "공구 수명이 짧다면 몇 가지 원인이 있을 수 있습니다.  **현재 가공 조건을 알려주시겠습니까?** - 가공 소재 (예: SUS304, S45C, 알루미늄 등) - 사용 중인 공구",
+      "grade": {
+        "accuracy": 4,
+        "naturalness": 4,
+        "insight": 4,
+        "length_fit": 5,
+        "context": 5,
+        "total": 22,
+        "issues": [
+          "일부 소재 예시가 카탈로그 수준으로 보임",
+          "코팅 관련 설명이 다소 모호함"
+        ],
+        "suggestion": "공구 수명에 영향을 미치는 요소에 대한 더 구체적인 설명과 함께, 각 요소에 대한 해결책을 제시하면 좋을 것 같습니다."
+      },
+      "error": null
+    },
+    {
+      "id": "M01",
+      "input": "멀티턴",
+      "ms": 245022,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "responsePreview": "",
+      "grade": null,
+      "error": "The operation was aborted due to timeout"
+    },
+    {
+      "id": "M02",
+      "input": "스테인리스 4날 스퀘어 추천 → 아니 볼로 바꿔",
+      "ms": 27854,
+      "candidateCount": 6197,
+      "filterCount": 1,
+      "responsePreview": "가장 가까운 후보로는 SEME7902007 (SEME79)를 먼저 검토해보시면 됩니다. Ball 형상, 2날, φ2mm 기준에 잘 맞고, 코팅은 Y-Coating으로 H군, K군,",
+      "grade": {
+        "accuracy": 2,
+        "naturalness": 3,
+        "insight": 2,
+        "length_fit": 3,
+        "context": 2,
+        "total": 12,
+        "issues": [
+          "스퀘어에서 볼로의 변경 요청을 제대로 반영하지 못함",
+          "추천된 필터의 날 수가 2날로 잘못됨"
+        ],
+        "suggestion": "유저의 요청에 맞춰 볼 형상으로 변경된 필터를 추천하고, 날 수를 정확히 반영해야 합니다."
+      },
+      "error": null
+    },
+    {
+      "id": "E01",
+      "input": "스텐인리스 4낭 10mn",
+      "ms": 4633,
+      "candidateCount": 234,
+      "filterCount": 3,
+      "responsePreview": "이 조건이면 SEME71100E (SEME71)를 먼저 보시면 됩니다. Square 형상, 4날, φ10mm 기준에 잘 맞고, 코팅은 Y-Coating으로 H군, K군, M군, P",
+      "grade": {
+        "accuracy": 5,
+        "naturalness": 4,
+        "insight": 4,
+        "length_fit": 4,
+        "context": 5,
+        "total": 22,
+        "issues": [],
+        "suggestion": "응답을 좀 더 자연스럽게 다듬고, 추가적인 팁이나 주의사항을 포함하면 좋을 것 같습니다."
+      },
+      "error": null
+    },
+    {
+      "id": "E02",
+      "input": "좋은 거 추천해줘",
+      "ms": 11005,
+      "candidateCount": 64588,
+      "filterCount": 0,
+      "responsePreview": "직경은 어느 정도가 필요하세요? 25.4mm, 76.2mm, 127mm가 많이 나갑니다.",
+      "grade": {
+        "accuracy": 3,
+        "naturalness": 4,
+        "insight": 2,
+        "length_fit": 4,
+        "context": 3,
+        "total": 16,
+        "issues": [
+          "추천의 구체성이 부족함",
+          "유저의 의도를 파악하지 못함"
+        ],
+        "suggestion": "유저의 요구사항을 더 구체적으로 파악하기 위한 추가 질문을 포함하세요."
+      },
+      "error": null
+    },
+    {
+      "id": "E03",
+      "input": "네",
+      "ms": 3710,
+      "candidateCount": 64588,
+      "filterCount": 0,
+      "responsePreview": "직경은 어느 정도가 필요하세요? 25.4mm, 76.2mm, 127mm가 많이 나갑니다.",
+      "grade": {
+        "accuracy": 3,
+        "naturalness": 4,
+        "insight": 2,
+        "length_fit": 4,
+        "context": 3,
+        "total": 16,
+        "issues": [
+          "직경 선택에 대한 추가 설명 부족",
+          "유저의 의도 파악 부족"
+        ],
+        "suggestion": "유저의 의도에 맞는 더 구체적인 질문을 추가하여 대화를 이어가세요."
+      },
+      "error": null
+    },
+    {
+      "id": "R01",
+      "input": "100mm 이상이면 좋겠어",
+      "ms": 4364,
+      "candidateCount": 154,
+      "filterCount": 1,
+      "responsePreview": "가장 가까운 후보로는 ML09210007 (ML092)를 먼저 검토해보시면 됩니다. Side & Face Cutter 형상, 22날, φ100mm 기준에 잘 맞고, 코팅은 Brig",
+      "grade": {
+        "accuracy": 4,
+        "naturalness": 4,
+        "insight": 3,
+        "length_fit": 4,
+        "context": 4,
+        "total": 19,
+        "issues": [
+          "직경이 100mm 이상이라는 조건을 명확히 반영하지 못함",
+          "전장에 대한 언급이 없음"
+        ],
+        "suggestion": "직경이 100mm 이상인 제품을 명확히 추천하고, 전장에 대한 정보도 포함하여 유저의 요구를 더 잘 반영할 수 있도록 개선하세요."
+      },
+      "error": null
+    },
+    {
+      "id": "R02",
+      "input": "직경 10mm 이상만",
+      "ms": 3884,
+      "candidateCount": 5770,
+      "filterCount": 1,
+      "responsePreview": "가장 가까운 후보로는 SG9E7710015 (SG9E77)를 먼저 검토해보시면 됩니다. Square 형상, 4날, φ10mm 기준에 잘 맞고, 코팅은 X-Coating으로 H군, ",
+      "grade": {
+        "accuracy": 4,
+        "naturalness": 4,
+        "insight": 3,
+        "length_fit": 4,
+        "context": 5,
+        "total": 20,
+        "issues": [
+          "직경 10mm 이상이라는 조건을 명확히 반영하지 못함",
+          "재고 정보는 유용하지만, 더 많은 정보가 필요할 수 있음"
+        ],
+        "suggestion": "직경 10mm 이상의 절삭공구를 명확히 제시하고, 추가적인 옵션이나 추천을 제공하는 것이 좋습니다."
+      },
+      "error": null
+    },
+    {
+      "id": "R03",
+      "input": "전장 200mm 이상",
+      "ms": 4219,
+      "candidateCount": 2829,
+      "filterCount": 1,
+      "responsePreview": "4G MILL SEME75200110E 기준으로 보면, 조건에 완전히 맞는 제품은 없지만, 검토해볼 만한 유사 후보 2829개는 찾았습니다. 현재 후보를 보시거나 조건을 조금만 넓",
+      "grade": {
+        "accuracy": 3,
+        "naturalness": 4,
+        "insight": 3,
+        "length_fit": 4,
+        "context": 3,
+        "total": 17,
+        "issues": [
+          "제품명 오류 가능성",
+          "후보 수치의 신뢰성 부족"
+        ],
+        "suggestion": "제품명에 대한 정확한 정보를 제공하고, 후보 수에 대한 신뢰성을 높이기 위한 추가 설명을 포함하세요."
+      },
+      "error": null
+    },
+    {
+      "id": "R04",
+      "input": "6mm에서 12mm 사이",
+      "ms": 5016,
+      "candidateCount": 6078,
+      "filterCount": 1,
+      "responsePreview": "가장 가까운 후보로는 SG9E7706010 (SG9E77)를 먼저 검토해보시면 됩니다. Square 형상, 4날, φ6mm 기준에 잘 맞고, 코팅은 X-Coating으로 H군, K",
+      "grade": {
+        "accuracy": 4,
+        "naturalness": 4,
+        "insight": 3,
+        "length_fit": 4,
+        "context": 5,
+        "total": 20,
+        "issues": [
+          "정확 일치 없음이라는 표현이 혼란을 줄 수 있음",
+          "코팅 및 소재에 대한 추가 설명 부족"
+        ],
+        "suggestion": "정확한 후보를 제시하고, 코팅 및 소재에 대한 더 구체적인 정보를 제공하면 좋겠습니다."
+      },
+      "error": null
+    },
+    {
+      "id": "R05",
+      "input": "50mm 이하로만",
+      "ms": 3960,
+      "candidateCount": 320,
+      "filterCount": 1,
+      "responsePreview": "가장 가까운 후보로는 CE7A63500 (CE7A63)를 먼저 검토해보시면 됩니다. Roughing 형상, 6날, φ50mm 기준에 잘 맞고, 코팅은 TiCN으로 P군 소재 대응 ",
+      "grade": {
+        "accuracy": 4,
+        "naturalness": 4,
+        "insight": 3,
+        "length_fit": 4,
+        "context": 4,
+        "total": 19,
+        "issues": [
+          "정확 일치 없음이라는 표현이 혼란을 줄 수 있음"
+        ],
+        "suggestion": "정확한 일치를 제공하거나, 근사 후보에 대한 설명을 더 명확히 할 것."
+      },
+      "error": null
+    },
+    {
+      "id": "N01",
+      "input": "CRX S 빼고 추천해줘",
+      "ms": 245015,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "responsePreview": "",
+      "grade": null,
+      "error": "The operation was aborted due to timeout"
+    },
+    {
+      "id": "K01",
+      "input": "우리 공장에서 SUS316L 많이 하는데 괜찮은 거?",
+      "ms": 206392,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "responsePreview": "",
+      "grade": null,
+      "error": "fetch failed"
+    },
+    {
+      "id": "K02",
+      "input": "미쯔비시 쓰고 있었는데 대체 가능?",
+      "ms": 245025,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "responsePreview": "",
+      "grade": null,
+      "error": "The operation was aborted due to timeout"
+    },
+    {
+      "id": "K03",
+      "input": "10파이 넘는 거 스텐용",
+      "ms": 195414,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "responsePreview": "",
+      "grade": null,
+      "error": "fetch failed"
+    }
+  ],
+  "summary": {
+    "total": 24,
+    "graded": 14,
+    "avgTotal": "19.7"
+  }
+}

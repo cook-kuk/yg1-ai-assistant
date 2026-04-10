@@ -1,315 +1,184 @@
 [
   {
-    "id": "B01",
+    "id": "S01",
     "input": "스테인리스 4날 10mm 추천해줘",
-    "phase": 1,
-    "expect": "필터 3개(소재+날수+직경), 후보 있음, 자연스러운 추천"
+    "expect": "필터 3개(소재+날수+직경), 제품 카드 표시, 자연스러운 추천"
   },
   {
-    "id": "B02",
+    "id": "S02",
     "input": "직경 10mm 이상만",
-    "phase": 1,
-    "expect": "diameterMm gte 10 (eq 아님). overallLength 안 잡힘"
+    "expect": "diameterMm gte 10 (eq 아님!). 전장 안 잡힘"
   },
   {
-    "id": "B03",
+    "id": "S03",
     "input": "CRX S 빼고 추천해줘",
-    "phase": 1,
-    "expect": "brand neq CRX S"
+    "expect": "brand neq CRX-S. 제품 카드 표시 (질문만 하지 말고)"
   },
   {
-    "id": "B04",
-    "input": "아무거나 빨리 10mm",
-    "phase": 1,
-    "expect": "1~2문장 즉답. 추가 질문 안 함"
-  },
-  {
-    "id": "B05",
+    "id": "S04",
     "input": "헬릭스가 뭐야?",
-    "phase": 1,
-    "expect": "용어 설명 1~2문장. 필터 안 걸림"
+    "expect": "헬릭스 = 날의 비틀림 각도 설명. 필터 안 걸림. '직경 얼마?' 아님"
   },
   {
-    "id": "C01",
-    "input": "스테인리스 추천해줘 그리고 알루파워가 뭐야?",
-    "phase": 2,
-    "expect": "스테인리스 추천 + 알루파워 설명, 둘 다 답변"
-  },
-  {
-    "id": "C02",
-    "input": "구리 비슷한 거 떨림 없는 걸로",
-    "phase": 2,
-    "expect": "비철금속 매칭 + 떨림 관련 통찰이나 질문"
-  },
-  {
-    "id": "C03",
-    "input": "AlCrN이랑 TiAlN 뭐가 나아? 스테인리스인데",
-    "phase": 2,
-    "expect": "4~6문장 비교 분석 + 소재 기반 추천"
-  },
-  {
-    "id": "C04",
-    "input": "스테인리스 DLC 코팅으로",
-    "phase": 2,
-    "expect": "DLC+스테인리스 부적합 경고 + 대안 코팅 제시"
-  },
-  {
-    "id": "C05",
+    "id": "S05",
     "input": "공구 수명이 너무 짧아",
-    "phase": 2,
-    "expect": "트러블슈팅: 원인 분석(절삭속도?) + 해결책"
+    "expect": "원인 분석(절삭속도/코팅/가공경화). '직경 얼마?' 아님"
   },
   {
-    "id": "M01",
-    "phase": 3,
-    "turns": [
-      {
-        "role": "user",
-        "text": "스테인리스 엔드밀 추천"
-      },
-      null,
-      {
-        "role": "user",
-        "text": "4날로"
-      },
-      null,
-      {
-        "role": "user",
-        "text": "10mm"
-      }
-    ],
-    "expect": "Turn 2~3이 이전 맥락 이어감. '아까 스테인리스~' 느낌. 기계적 보고 없음"
+    "id": "S06",
+    "input": "AlCrN이랑 TiAlN 뭐가 나아? 스테인리스인데",
+    "expect": "비교 분석 + 스테인리스 기반 AlCrN 추천"
   },
   {
-    "id": "M02",
-    "phase": 3,
-    "turns": [
-      {
-        "role": "user",
-        "text": "스테인리스 4날 스퀘어 추천"
-      },
-      null,
-      {
-        "role": "user",
-        "text": "아니 볼로 바꿔"
-      }
-    ],
-    "expect": "스퀘어→볼 교체 정상. 이전 필터(소재+날수) 유지"
-  },
-  {
-    "id": "E01",
-    "input": "스텐인리스 4낭 10mn",
-    "phase": 4,
-    "expect": "오타 이해하고 스테인리스 4날 10mm로 처리"
-  },
-  {
-    "id": "E02",
-    "input": "좋은 거 추천해줘",
-    "phase": 4,
-    "expect": "모호해도 범용 추천. 에러 아님. 추가 질문으로 좁혀가기"
-  },
-  {
-    "id": "E03",
-    "input": "네",
-    "phase": 4,
-    "expect": "1~2문장. 과잉 응답 금지"
-  },
-  {
-    "id": "R01",
+    "id": "S07",
     "input": "100mm 이상이면 좋겠어",
-    "phase": 2,
-    "expect": "직경 gte 100. 전장 안 잡힘"
+    "expect": "직경 gte 100. 전장 안 잡힘 (eq 100 아님!)"
   },
   {
-    "id": "R02",
-    "input": "직경 10mm 이상만",
-    "phase": 2,
-    "expect": "diameterMm gte 10"
+    "id": "S08",
+    "input": "스텐인리스 4낭 10mn",
+    "expect": "오타 이해 → 스테인리스 4날 10mm 처리"
   },
   {
-    "id": "R03",
-    "input": "전장 200mm 이상",
-    "phase": 2,
-    "expect": "overallLengthMm gte 200"
-  },
-  {
-    "id": "R04",
-    "input": "6mm에서 12mm 사이",
-    "phase": 2,
-    "expect": "diameterMm between 6~12"
-  },
-  {
-    "id": "R05",
-    "input": "50mm 이하로만",
-    "phase": 2,
-    "expect": "diameterMm lte 50"
-  },
-  {
-    "id": "N01",
-    "input": "CRX S 빼고 추천해줘",
-    "phase": 2,
-    "expect": "brand neq + 제품 카드 표시"
-  },
-  {
-    "id": "K01",
+    "id": "S09",
     "input": "우리 공장에서 SUS316L 많이 하는데 괜찮은 거?",
-    "phase": 2,
-    "expect": "스테인리스 매칭 + 추천"
+    "expect": "SUS316L=스테인리스 매칭 + 추천"
   },
   {
-    "id": "K02",
-    "input": "미쯔비시 쓰고 있었는데 대체 가능?",
-    "phase": 2,
-    "expect": "경쟁사+YG-1 동급"
+    "id": "S10",
+    "input": "아무거나 빨리 10mm",
+    "expect": "즉시 1~2문장 추천. 추가 질문 최소화"
   },
   {
-    "id": "K03",
-    "input": "10파이 넘는 거 스텐용",
-    "phase": 2,
-    "expect": "gte 10 + 스테인리스"
-  },
-  {
-    "id": "MUT_B02_mns3rkns",
-    "input": "직경 10파이 이상만",
+    "id": "MUT_S02_mns7ow68",
+    "input": "직경 직경10 이상만",
     "phase": 5,
-    "expect": "원본(B02) 변형: \"10mm\"→\"10파이\". 동일 의도로 처리."
+    "expect": "원본(S02) 변형: \"10mm\"→\"직경10\". 동일 의도로 처리."
   },
   {
-    "id": "MUT_B03_mns3rkns",
-    "input": "CRX S 빼줘 추천해줘",
+    "id": "MUT_S07_mns7ow68",
+    "input": "100mm 이상이면 좋겠어이면 좋겠어",
     "phase": 5,
-    "expect": "원본(B03) 변형: \"빼고\"→\"빼줘\". 동일 의도로 처리."
+    "expect": "원본(S07) 변형: \"이상\"→\"이상이면 좋겠어\". 동일 의도로 처리."
   },
   {
-    "id": "MUT_M02_mns3rkns",
-    "input": "SUS304 4날 스퀘어 추천 → 아니 볼로 바꿔",
-    "phase": 5,
-    "expect": "원본(M02) 변형: \"스테인리스\"→\"SUS304\". 동일 의도로 처리."
-  },
-  {
-    "id": "MUT_E02_mns3rkns",
-    "input": "좋은 거 보여줘",
-    "phase": 5,
-    "expect": "원본(E02) 변형: \"추천해줘\"→\"보여줘\". 동일 의도로 처리."
-  },
-  {
-    "id": "RNG_diameterMm_gte_mns3rknt_723",
-    "input": "직경 8mm 이상",
-    "phase": 5,
-    "expect": "diameterMm gte 필터 정확 추출"
-  },
-  {
-    "id": "RNG_diameterMm_between_mns3rknt_803",
-    "input": "직경 6mm에서 20mm 사이",
+    "id": "RNG_diameterMm_between_mns7ow68_552",
+    "input": "직경 8mm에서 20mm 사이",
     "phase": 5,
     "expect": "diameterMm between 필터 정확 추출"
   },
   {
-    "id": "RNG_overallLengthMm_lte_mns3rknt_135",
-    "input": "전장 150mm 이하",
-    "phase": 5,
-    "expect": "overallLengthMm lte 필터 정확 추출"
-  },
-  {
-    "id": "RNG_diameterMm_lte_mns3rknt_87",
-    "input": "직경 10mm 이하",
-    "phase": 5,
-    "expect": "diameterMm lte 필터 정확 추출"
-  },
-  {
-    "id": "RNG_overallLengthMm_lt_mns3rknt_829",
-    "input": "전장 200mm 미만",
-    "phase": 5,
-    "expect": "overallLengthMm lt 필터 정확 추출"
-  },
-  {
-    "id": "RNG_fluteCount_lt_mns3rknt_24",
-    "input": "날수 3날 미만",
-    "phase": 5,
-    "expect": "fluteCount lt 필터 정확 추출"
-  },
-  {
-    "id": "RNG_fluteCount_gte_mns3rknt_497",
-    "input": "날수 3날 이상",
-    "phase": 5,
-    "expect": "fluteCount gte 필터 정확 추출"
-  },
-  {
-    "id": "RNG_diameterMm_lt_mns3rknt_45",
-    "input": "직경 12mm 미만",
-    "phase": 5,
-    "expect": "diameterMm lt 필터 정확 추출"
-  },
-  {
-    "id": "RNG_fluteCount_lte_mns3rknt_381",
+    "id": "RNG_fluteCount_lte_mns7ow68_468",
     "input": "날수 3날 이하",
     "phase": 5,
     "expect": "fluteCount lte 필터 정확 추출"
   },
   {
-    "id": "RNG_fluteCount_between_mns3rknt_208",
+    "id": "RNG_fluteCount_lt_mns7ow68_769",
+    "input": "날수 4날 미만",
+    "phase": 5,
+    "expect": "fluteCount lt 필터 정확 추출"
+  },
+  {
+    "id": "RNG_overallLengthMm_gte_mns7ow68_931",
+    "input": "전장 50mm 이상",
+    "phase": 5,
+    "expect": "overallLengthMm gte 필터 정확 추출"
+  },
+  {
+    "id": "RNG_overallLengthMm_lte_mns7ow68_437",
+    "input": "전장 75mm 이하",
+    "phase": 5,
+    "expect": "overallLengthMm lte 필터 정확 추출"
+  },
+  {
+    "id": "RNG_overallLengthMm_between_mns7ow68_689",
+    "input": "전장 200mm에서 250mm 사이",
+    "phase": 5,
+    "expect": "overallLengthMm between 필터 정확 추출"
+  },
+  {
+    "id": "RNG_diameterMm_gte_mns7ow68_272",
+    "input": "직경 10mm 이상",
+    "phase": 5,
+    "expect": "diameterMm gte 필터 정확 추출"
+  },
+  {
+    "id": "RNG_fluteCount_between_mns7ow68_684",
     "input": "날수 2날에서 6날 사이",
     "phase": 5,
     "expect": "fluteCount between 필터 정확 추출"
   },
   {
-    "id": "GEN_mns3rprd_0",
-    "input": "스테인리스 가공할 때 YG-1에서 추천하는 절삭공구 뭐야?",
+    "id": "RNG_diameterMm_lte_mns7ow68_421",
+    "input": "직경 16mm 이하",
     "phase": 5,
-    "expect": "스테인리스 가공에 적합한 절삭공구 추천"
+    "expect": "diameterMm lte 필터 정확 추출"
   },
   {
-    "id": "GEN_mns3rprd_1",
-    "input": "티타늄 가공할 때, 날수는 몇 개로 해야 최적화 돼?",
+    "id": "RNG_fluteCount_gte_mns7ow68_83",
+    "input": "날수 3날 이상",
     "phase": 5,
-    "expect": "티타늄 가공 시 최적의 날수 정보 제공"
+    "expect": "fluteCount gte 필터 정확 추출"
   },
   {
-    "id": "GEN_mns3rprd_2",
-    "input": "알루미늄 가공할 때, 직경 10mm에 전장 50mm인 공구 있는지 알려줘.",
+    "id": "GEN_mns7p2js_0",
+    "input": "스테인리스 가공할 때 YG-1 툴 중 뭐가 제일 잘 맞나요?",
     "phase": 5,
-    "expect": "알루미늄 가공에 적합한 공구 정보 제공"
+    "expect": "적합한 절삭공구 추천"
   },
   {
-    "id": "GEN_mns3rprd_3",
-    "input": "탄소강 가공 시 가장 많이 사용하는 YG-1 브랜드 공구 어떤 게 있어?",
+    "id": "GEN_mns7p2js_1",
+    "input": "알루미늄 소재 가공할 때 직경 8mm, 전장 100mm인 절삭공구 있나요?",
     "phase": 5,
-    "expect": "탄소강 가공에 적합한 YG-1 브랜드 공구 추천"
+    "expect": "사양에 맞는 공구 검색"
   },
   {
-    "id": "GEN_mns3rprd_4",
-    "input": "구리 가공할 때 주의해야 할 점이 뭐야?",
+    "id": "GEN_mns7p2js_2",
+    "input": "티타늄 가공은 어떤 날수의 공구가 좋을까요?",
     "phase": 5,
-    "expect": "구리 가공 시 주의사항 정보 제공"
+    "expect": "날수 추천"
   },
   {
-    "id": "GEN_mns3rprd_5",
-    "input": "YG-1 공구 중에서 절삭 속도를 조절할 수 있는 공구 리스트 좀 줘.",
+    "id": "GEN_mns7p2js_3",
+    "input": "탄소강 가공 시 트러블슈팅 방법 좀 알려줘요. 뭐가 문제일까?",
     "phase": 5,
-    "expect": "절삭 속도 조절 가능한 YG-1 공구 리스트 제공"
+    "expect": "트러블슈팅 정보 제공"
   },
   {
-    "id": "GEN_mns3rprd_6",
-    "input": "공구 날이 마모됐을 때 어떤 조치를 취해야 돼?",
+    "id": "GEN_mns7p2js_4",
+    "input": "구리 가공하려는데, 브랜드별로 성능 차이가 많이 나나요?",
     "phase": 5,
-    "expect": "공구 날 마모 시 적절한 트러블슈팅 정보 제공"
+    "expect": "브랜드 비교 정보"
   },
   {
-    "id": "GEN_mns3rprd_7",
-    "input": "스테인리스와 알루미늄을 동시에 가공할 때 어떤 공구가 좋을까?",
+    "id": "GEN_mns7p2js_5",
+    "input": "YG-1 공구의 코팅 종류가 뭐가 있지? 그거 어떤 차이 있어?",
     "phase": 5,
-    "expect": "스테인리스와 알루미늄 동시 가공에 적합한 공구 추천"
+    "expect": "코팅 종류 및 특징 설명"
   },
   {
-    "id": "GEN_mns3rprd_8",
-    "input": "YG-1 절삭공구 중에서 직경 12mm 이상 공구 리스트 있어?",
+    "id": "GEN_mns7p2js_6",
+    "input": "절삭속도랑 이송속도는 어떻게 설정하는 게 좋을까? 공구에 따라 다르지?",
     "phase": 5,
-    "expect": "직경 12mm 이상인 YG-1 절삭공구 리스트 제공"
+    "expect": "설정 방법 안내"
   },
   {
-    "id": "GEN_mns3rprd_9",
-    "input": "경량화된 티타늄 부품 가공할 때 절삭 유량은 얼마나 줘야 해?",
+    "id": "GEN_mns7p2js_7",
+    "input": "날이 너무 빨리 무는데, 이거 어떻게 해결해?",
     "phase": 5,
-    "expect": "티타늄 부품 가공 시 추천 절삭 유량 정보 제공"
+    "expect": "문제 해결 방안 제시"
+  },
+  {
+    "id": "GEN_mns7p2js_8",
+    "input": "특이한 가공 조건이 필요한 경우 YG-1에서 추천해줄 수 있는 공구가 있을까?",
+    "phase": 5,
+    "expect": "특별한 요구에 맞는 공구 추천"
+  },
+  {
+    "id": "GEN_mns7p2js_9",
+    "input": "YG-1의 새로운 제품군이 있으면 알려줘! 추가로 스펙도 좀 볼 수 있을까?",
+    "phase": 5,
+    "expect": "신제품 정보 및 스펙 제공"
   }
 ]

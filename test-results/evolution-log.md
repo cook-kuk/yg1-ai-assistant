@@ -1,4 +1,7 @@
 
+## 2026-04-10T01:13:07.169Z
+rounds=1 baseline=18.57 final=18.57 scenarios=32
+
 ## 2026-04-10T01:30:00Z (agent session: opus-4.6 autohunt 4 rounds)
 baseline=17.79 → 18.83 (+1.04). 3 fixes committed:
 - a1a3d40 fix(det-scr): bare-mm + range op → diameterMm (R01 11→19, R05 12→19)

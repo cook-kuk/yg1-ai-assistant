@@ -1,0 +1,228 @@
+{
+  "timestamp": "2026-04-10T01:12:47.270Z",
+  "results": [
+    {
+      "id": "S01",
+      "input": "스테인리스 4날 10mm 추천해줘",
+      "ms": 99697,
+      "candidateCount": 216,
+      "filterCount": 3,
+      "responsePreview": "이 조건이면 SEME71100E (SEME71)를 먼저 보시면 됩니다. Square 형상, 4날, φ10mm 기준에 잘 맞고, 코팅은 Y-Coating으로 H군, K군, M군, P",
+      "grade": {
+        "accuracy": 5,
+        "naturalness": 4,
+        "insight": 3,
+        "length_fit": 4,
+        "context": 5,
+        "total": 21,
+        "issues": [],
+        "suggestion": "코팅 및 소재에 대한 추가 설명을 제공하면 더 좋을 것 같습니다."
+      },
+      "error": null
+    },
+    {
+      "id": "S02",
+      "input": "직경 10mm 이상만",
+      "ms": 3925,
+      "candidateCount": 5770,
+      "filterCount": 1,
+      "responsePreview": "가장 가까운 후보로는 SG9E7710015 (SG9E77)를 먼저 검토해보시면 됩니다. Square 형상, 4날, φ10mm 기준에 잘 맞고, 코팅은 X-Coating으로 H군, ",
+      "grade": {
+        "accuracy": 4,
+        "naturalness": 4,
+        "insight": 3,
+        "length_fit": 4,
+        "context": 4,
+        "total": 19,
+        "issues": [
+          "직경 10mm 이상이라는 조건을 완벽히 충족하지 않음",
+          "재고 정보는 유용하지만, 더 많은 정보가 필요할 수 있음"
+        ],
+        "suggestion": "직경 10mm 이상의 절삭공구를 명확히 제시하고, 추가적인 옵션이나 추천을 제공하는 것이 좋습니다."
+      },
+      "error": null
+    },
+    {
+      "id": "S03",
+      "input": "CRX S 빼고 추천해줘",
+      "ms": 380226,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "responsePreview": "",
+      "grade": {
+        "accuracy": 1,
+        "naturalness": 1,
+        "insight": 1,
+        "length_fit": 1,
+        "context": 1,
+        "total": 5,
+        "issues": [
+          "AI 응답이 없음",
+          "유저의 요청을 전혀 반영하지 않음"
+        ],
+        "suggestion": "유저의 요청에 맞는 다른 제품을 추천하는 응답을 제공해야 합니다."
+      },
+      "error": "ARIA 3회 실패: The operation was aborted due to timeout"
+    },
+    {
+      "id": "S04",
+      "input": "헬릭스가 뭐야?",
+      "ms": 296971,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "responsePreview": "",
+      "grade": {
+        "accuracy": 1,
+        "naturalness": 1,
+        "insight": 1,
+        "length_fit": 1,
+        "context": 1,
+        "total": 5,
+        "issues": [
+          "응답 없음"
+        ],
+        "suggestion": "헬릭스의 정의와 특징을 간단히 설명하는 응답을 제공해야 합니다."
+      },
+      "error": "ARIA 3회 실패: The operation was aborted due to timeout"
+    },
+    {
+      "id": "S05",
+      "input": "공구 수명이 너무 짧아",
+      "ms": 380140,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "responsePreview": "",
+      "grade": {
+        "accuracy": 1,
+        "naturalness": 1,
+        "insight": 1,
+        "length_fit": 1,
+        "context": 1,
+        "total": 5,
+        "issues": [
+          "AI 응답이 없음",
+          "유저의 문제에 대한 정보 제공 부족"
+        ],
+        "suggestion": "유저의 문제를 이해하고, 공구 수명 연장에 대한 조언이나 원인 분석을 제공해야 합니다."
+      },
+      "error": "ARIA 3회 실패: The operation was aborted due to timeout"
+    },
+    {
+      "id": "S06",
+      "input": "AlCrN이랑 TiAlN 뭐가 나아? 스테인리스인데",
+      "ms": 380085,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "responsePreview": "",
+      "grade": {
+        "accuracy": 1,
+        "naturalness": 1,
+        "insight": 1,
+        "length_fit": 1,
+        "context": 1,
+        "total": 5,
+        "issues": [
+          "AI 응답이 없음"
+        ],
+        "suggestion": "유저의 질문에 대한 명확한 답변을 제공해야 합니다. AlCrN과 TiAlN의 장단점을 비교하여 스테인리스에 적합한 추천을 포함해야 합니다."
+      },
+      "error": "ARIA 3회 실패: The operation was aborted due to timeout"
+    },
+    {
+      "id": "S07",
+      "input": "100mm 이상이면 좋겠어",
+      "ms": 133948,
+      "candidateCount": 154,
+      "filterCount": 1,
+      "responsePreview": "가장 가까운 후보로는 ML09210007 (ML092)를 먼저 검토해보시면 됩니다. Side & Face Cutter 형상, 22날, φ100mm 기준에 잘 맞고, 코팅은 Brig",
+      "grade": {
+        "accuracy": 4,
+        "naturalness": 4,
+        "insight": 3,
+        "length_fit": 4,
+        "context": 4,
+        "total": 19,
+        "issues": [
+          "직경이 100mm 이상이라는 조건을 명확히 반영하지 못함",
+          "전장에 대한 언급이 없음"
+        ],
+        "suggestion": "직경이 100mm 이상인 제품을 명확히 추천하고, 전장에 대한 정보도 포함하여 유저의 요구를 더 잘 반영할 수 있도록 개선하세요."
+      },
+      "error": null
+    },
+    {
+      "id": "S08",
+      "input": "스텐인리스 4낭 10mn",
+      "ms": 4865,
+      "candidateCount": 234,
+      "filterCount": 3,
+      "responsePreview": "이 조건이면 SEME71100E (SEME71)를 먼저 보시면 됩니다. Square 형상, 4날, φ10mm 기준에 잘 맞고, 코팅은 Y-Coating으로 H군, K군, M군, P",
+      "grade": {
+        "accuracy": 4,
+        "naturalness": 4,
+        "insight": 3,
+        "length_fit": 4,
+        "context": 5,
+        "total": 20,
+        "issues": [
+          "'4낭'의 오타를 '4날'로 이해했으나, '4날'이라는 표현이 다소 어색함",
+          "납기 정보가 없다는 점은 유용하나, 추가적인 정보가 부족함"
+        ],
+        "suggestion": "코팅 및 소재에 대한 추가 설명과 함께, 재고 및 납기 정보를 더 명확히 제공하면 좋겠습니다."
+      },
+      "error": null
+    },
+    {
+      "id": "S09",
+      "input": "우리 공장에서 SUS316L 많이 하는데 괜찮은 거?",
+      "ms": 10349,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "responsePreview": "확인할 수 없습니다. YG-1 본사(032-526-0909)에 문의해 주세요.  (YG-1의 제품 소재 사양이나 특정 재질 처리 능력에 대한 정보는 제공하지 않습니다.)",
+      "grade": {
+        "accuracy": 1,
+        "naturalness": 1,
+        "insight": 1,
+        "length_fit": 1,
+        "context": 1,
+        "total": 5,
+        "issues": [
+          "정확한 정보 제공 부족",
+          "자연스러운 대화 부족",
+          "유용한 정보 없음",
+          "응답 길이 부적절",
+          "맥락 연결 없음"
+        ],
+        "suggestion": "SUS316L에 적합한 절삭공구에 대한 정보를 제공하고, 관련 팁이나 추천 제품을 제안하는 방식으로 응답을 개선하세요."
+      },
+      "error": null
+    },
+    {
+      "id": "S10",
+      "input": "아무거나 빨리 10mm",
+      "ms": 4782,
+      "candidateCount": 1895,
+      "filterCount": 1,
+      "responsePreview": "가장 가까운 후보로는 SG9E7710015 (SG9E77)를 먼저 검토해보시면 됩니다. Square 형상, 4날, φ10mm 기준에 잘 맞고, 코팅은 X-Coating으로 H군, ",
+      "grade": {
+        "accuracy": 4,
+        "naturalness": 4,
+        "insight": 3,
+        "length_fit": 4,
+        "context": 5,
+        "total": 20,
+        "issues": [
+          "정확 일치 없음 부분이 혼란을 줄 수 있음",
+          "코팅 및 소재에 대한 추가 설명 부족"
+        ],
+        "suggestion": "정확한 추천을 위해 유저의 요구에 맞는 더 구체적인 정보를 제공하고, 코팅 및 소재에 대한 간단한 설명을 추가하면 좋겠습니다."
+      },
+      "error": null
+    }
+  ],
+  "summary": {
+    "total": 10,
+    "graded": 10,
+    "avgTotal": "12.4"
+  }
+}
