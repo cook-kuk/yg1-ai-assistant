@@ -740,15 +740,15 @@ export function buildExplanationResultPrompt(
   return `${sessionContext}${kbBlock}
 
 [추천 후보]
-- 제품코드: ${factChecked.displayCode.value}
-- 시리즈: ${factChecked.seriesName.value ?? "정보없음"}
-- 형상: ${factChecked.toolSubtype.value ?? "정보없음"}
-- 직경: ${factChecked.diameterMm.value ?? "정보없음"}mm
-- 날수: ${factChecked.fluteCount.value ?? "정보없음"}
-- 코팅: ${factChecked.coating.value ?? "정보없음"}
-- 소재태그: ${factChecked.materialTags.value.join(", ") || "정보없음"}
-- 재고: ${factChecked.stockStatus.value}
-- 납기: ${factChecked.minLeadTimeDays.value ?? "정보없음"}일
+- 제품코드: ${factChecked.displayCode?.value ?? "정보없음"}
+- 시리즈: ${factChecked.seriesName?.value ?? "정보없음"}
+- 형상: ${factChecked.toolSubtype?.value ?? "정보없음"}
+- 직경: ${factChecked.diameterMm?.value ?? "정보없음"}mm
+- 날수: ${factChecked.fluteCount?.value ?? "정보없음"}
+- 코팅: ${factChecked.coating?.value ?? "정보없음"}
+- 소재태그: ${factChecked.materialTags?.value?.join(", ") || "정보없음"}
+- 재고: ${factChecked.stockStatus?.value ?? "정보없음"}
+- 납기: ${factChecked.minLeadTimeDays?.value ?? "정보없음"}일
 
 [매칭 근거]
 ${matchedLines.length > 0 ? matchedLines.join("\n") : "  (매칭 근거 없음)"}
