@@ -1345,6 +1345,23 @@ export async function buildRecommendationResponse(
   } else {
     finalResponseText = responseText
   }
+  // ── VERIFY mode: append caveat when uncertainty is notable ──
+  if (uncertaintyMeta.mode === "VERIFY" && primary) {
+    const sig = uncertaintyMeta.signal
+    if (sig) {
+      if (sig.topScoreGap < 3 && alternatives.length > 0) {
+        const altCode = alternatives[0].product.displayCode
+        finalResponseText += `\n\n⚠️ 1순위와 2순위(${altCode}) 점수 차이가 작습니다. 두 제품을 비교해보시길 권합니다.`
+      }
+      if (sig.lowConfidenceMapping) {
+        finalResponseText += `\n\n⚠️ 정확히 일치하는 제품이 없어 유사 후보를 추천드립니다. 조건을 조정하면 더 정확한 결과를 얻을 수 있습니다.`
+      }
+      if (sig.hasConstraintConflict) {
+        finalResponseText += `\n\n⚠️ 입력 조건 간 충돌이 감지되었습니다. 조건을 확인해주세요.`
+      }
+    }
+  }
+
   const recValidation = validateOptionFirstPipeline(finalResponseText, finalRecChips, postRecDisplayedOptions)
   if (recValidation.correctedAnswer) {
     finalResponseText = recValidation.correctedAnswer
