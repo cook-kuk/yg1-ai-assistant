@@ -135,6 +135,11 @@ export const RecommendationInputSchema = z.object({
   seriesName: z.string().optional(),
   brand: z.string().optional(),
   diameterMm: z.number().optional(),
+  // Soft proximity hint for range-op diameter filters (gte/gt/lte/lt/between).
+  // Set to the filter boundary value so the retrieval scorer can apply a
+  // weak proximity signal without the hard boundary pile-up that `diameterMm`
+  // causes for `eq`. See hybrid-retrieval diameter scoring block.
+  diameterMmRangeTarget: z.number().optional(),
   diameterUnit: z.enum(["mm", "inch"]).optional(),
   shankDiameterMm: z.number().optional(),
   lengthOfCutMm: z.number().optional(),

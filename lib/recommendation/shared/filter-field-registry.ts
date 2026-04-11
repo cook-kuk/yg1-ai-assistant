@@ -276,6 +276,15 @@ function eqOnlyNumberValue(filter: AppliedFilter): number | undefined {
   return firstFilterNumberValue(filter)
 }
 
+// For range ops, expose the boundary as a soft hint the scorer can decay
+// gently across the whole filtered set — no hard pile-up, but still provides
+// weak ordering (flagship 10mm carbide ahead of a 50mm HSS roughing mill
+// for "10mm 이상" queries).
+function rangeOnlyNumberValue(filter: AppliedFilter): number | undefined {
+  if (filter.op === "eq") return undefined
+  return firstFilterNumberValue(filter)
+}
+
 function firstFilterBooleanValue(filter: AppliedFilter): boolean | undefined {
   return extractBooleanFilterRawValues(filter)[0]
 }
@@ -598,8 +607,12 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
       if (inchMm != null) return inchMm
       return extractNumericValue(s) ?? rawValue
     },
-    setInput: (input, filter) => ({ ...input, diameterMm: eqOnlyNumberValue(filter) }),
-    clearInput: input => ({ ...input, diameterMm: undefined }),
+    setInput: (input, filter) => ({
+      ...input,
+      diameterMm: eqOnlyNumberValue(filter),
+      diameterMmRangeTarget: rangeOnlyNumberValue(filter),
+    }),
+    clearInput: input => ({ ...input, diameterMm: undefined, diameterMmRangeTarget: undefined }),
     extractValues: record => extractPrimitiveValues(record, "diameterMm"),
     matches: (record, filter) => numericMatch(record, filter, "diameterMm"),
     buildDbClause: (filter, next) => buildNumericEqualityClause(["search_diameter_mm"], filter, next, 0.05),
@@ -620,8 +633,12 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
       if (inchMm != null) return inchMm
       return extractNumericValue(s) ?? rawValue
     },
-    setInput: (input, filter) => ({ ...input, diameterMm: eqOnlyNumberValue(filter) }),
-    clearInput: input => ({ ...input, diameterMm: undefined }),
+    setInput: (input, filter) => ({
+      ...input,
+      diameterMm: eqOnlyNumberValue(filter),
+      diameterMmRangeTarget: rangeOnlyNumberValue(filter),
+    }),
+    clearInput: input => ({ ...input, diameterMm: undefined, diameterMmRangeTarget: undefined }),
     extractValues: record => extractPrimitiveValues(record, "diameterMm"),
     matches: (record, filter) => numericMatch(record, filter, "diameterMm"),
   },

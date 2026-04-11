@@ -513,16 +513,30 @@ export async function runHybridRetrieval(
     // ── Compute each scoring dimension with explanations ────
     let diamScore = 0
     let diamDetail = ""
-    if (!input.diameterMm) {
-      diamScore = 10
-      diamDetail = "직경 미지정 (기본 10pt)"
-    } else if (product.diameterMm !== null) {
+    if (input.diameterMm && product.diameterMm !== null) {
+      // eq case: hard proximity (boundary pile-up is what the user asked)
       const diff = Math.abs(product.diameterMm - input.diameterMm)
       if (diff === 0) { diamScore = WEIGHTS.diameter; diamDetail = `φ${product.diameterMm}mm 정확 일치` }
       else if (diff <= 0.1) { diamScore = Math.round(WEIGHTS.diameter * 0.9); diamDetail = `φ${product.diameterMm}mm (오차 ${diff.toFixed(1)}mm)` }
       else if (diff <= 0.5) { diamScore = Math.round(WEIGHTS.diameter * 0.6); diamDetail = `φ${product.diameterMm}mm (오차 ${diff.toFixed(1)}mm)` }
       else if (diff <= 1.0) { diamScore = Math.round(WEIGHTS.diameter * 0.3); diamDetail = `φ${product.diameterMm}mm (오차 ${diff.toFixed(1)}mm, 근사)` }
       else { diamDetail = `φ${product.diameterMm}mm (오차 ${diff.toFixed(1)}mm, 범위 초과)` }
+    } else if (input.diameterMmRangeTarget && product.diameterMm !== null) {
+      // range-op case: soft proximity to boundary. Max bonus is ~27/40 so it
+      // can tilt ranking toward boundary-region products without forcing the
+      // pile-up that eq does. Exponential decay with boundary-relative scale
+      // lets it work for both small ("10mm 이상") and large ("100mm 이상").
+      const target = input.diameterMmRangeTarget
+      const diff = Math.abs(product.diameterMm - target)
+      const base = 15
+      const maxBonus = 12
+      const scale = Math.max(target * 0.5, 5)
+      const bonus = maxBonus * Math.exp(-diff / scale)
+      diamScore = Math.round(base + bonus)
+      diamDetail = `φ${product.diameterMm}mm (범위 기준 ${target}mm, soft ${diamScore}pt)`
+    } else if (!input.diameterMm && !input.diameterMmRangeTarget) {
+      diamScore = 10
+      diamDetail = "직경 미지정 (기본 10pt)"
     } else {
       diamDetail = "직경 정보 없음"
     }
