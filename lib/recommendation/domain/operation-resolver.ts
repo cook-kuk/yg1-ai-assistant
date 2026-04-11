@@ -21,6 +21,9 @@ const OPERATION_ALIASES: Array<{ keywords: string[]; values: string[] }> = [
   { keywords: ["turning", "터닝", "선반", "선삭"], values: ["ISO_Turning", "Parting_Grooving"] },
   // Milling (broad category → common sub-shapes)
   { keywords: ["milling", "밀링", "엔드밀", "end mill", "endmill"], values: ["Side_Milling", "Slotting", "Profiling", "Facing"] },
+  // Pocket — DB stores both "Pocketing" and "Pocket milling"; use short "Pocket"
+  // as a LIKE token so both variants match.
+  { keywords: ["포켓", "pocket", "pocketing", "포켓가공", "포켓 가공", "포켓밀링", "pocket milling"], values: ["Pocket"] },
   { keywords: ["측면가공", "측면", "side milling"], values: ["Side_Milling"] },
   { keywords: ["정면가공", "정면", "face", "facing"], values: ["Facing"] },
   { keywords: ["프로파일", "윤곽", "profiling", "profile", "contour"], values: ["Profiling"] },

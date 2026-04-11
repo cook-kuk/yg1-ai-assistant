@@ -38,12 +38,13 @@ interface IntentPattern {
 // ── Entity Graph (Filter Values) ──────────────────────────────
 
 export const ENTITY_NODES: EntityNode[] = [
-  // NOTE: "엔드밀/드릴/탭" do NOT map to toolType — the toolType field in the
-  // product record is normalized to Solid/Indexable (tool FORM) via
-  // normalizeToolType() in product-db-source.ts, not the root category. Using
-  // toolType here would 0-filter every Milling candidate (Solid != Milling).
-  // For root category routing, rely on toolSubtype (Square/Ball/...) or the
-  // hybrid-retrieval machiningCategory path.
+  // machiningCategory (root tool family) — mirrors toolType for SQL WHERE
+  // and drives the CATEGORY_SHAPE_MAP post-filter in hybrid-retrieval. Direct
+  // toolType entries would post-filter 0 candidates because product.toolType
+  // is normalized to Solid/Indexable (FORM), not the root category.
+  { canonical: "Milling", field: "machiningCategory", aliases: ["엔드밀", "엔드밀공구", "endmill", "end mill", "밀링", "milling", "밀링공구"] },
+  { canonical: "Holemaking", field: "machiningCategory", aliases: ["드릴", "드릴링", "drill", "drilling", "홀가공", "구멍가공", "holemaking"] },
+  { canonical: "Threading", field: "machiningCategory", aliases: ["탭", "탭핑", "tap", "tapping", "나사가공", "threading"] },
   // toolSubtype
   { canonical: "Square", field: "toolSubtype", aliases: ["square", "스퀘어", "스퀘어엔드밀", "평엔드밀", "플랫", "플랫엔드밀", "flat", "플랫엔드", "스퀘어엔드"] },
   { canonical: "Ball", field: "toolSubtype", aliases: ["ball", "볼", "볼엔드밀", "볼노즈"] },
@@ -88,6 +89,19 @@ export const ENTITY_NODES: EntityNode[] = [
   { canonical: "CAT", field: "shankType", aliases: ["cat", "cat생크", "cat shank"] },
   // Boolean: coolantHole
   { canonical: "true", field: "coolantHole", aliases: ["쿨런트", "쿨런트홀", "절삭유홀", "coolant", "coolant hole", "내부급유", "내부냉각", "쓰루쿨런트", "through coolant"] },
+  // cuttingType (→ input.operationType → series_application_shape LIKE).
+  // Canonical values must be resolvable by getOperationShapeSearchTexts in
+  // operation-resolver.ts (which maps keywords → series_application_shape text).
+  { canonical: "Pocketing", field: "cuttingType", aliases: ["포켓가공", "포켓 가공", "포켓팅", "pocket", "pocketing", "pocket milling", "포켓밀링"] },
+  { canonical: "Side_Milling", field: "cuttingType", aliases: ["측면가공", "측면 가공", "측면", "side milling", "사이드밀링", "사이드 밀링"] },
+  { canonical: "Slotting", field: "cuttingType", aliases: ["슬로팅", "슬로팅가공", "슬롯가공", "슬롯", "slot", "slotting", "홈가공"] },
+  { canonical: "Facing", field: "cuttingType", aliases: ["정면가공", "정면 가공", "정면", "facing", "페이싱"] },
+  { canonical: "Profiling", field: "cuttingType", aliases: ["프로파일", "프로파일링", "윤곽가공", "윤곽", "profile", "profiling", "contour"] },
+  { canonical: "Roughing", field: "cuttingType", aliases: ["황삭", "황삭가공", "rough", "roughing", "러핑", "헤비컷"] },
+  { canonical: "Finishing", field: "cuttingType", aliases: ["정삭", "정삭가공", "finish", "finishing", "마무리"] },
+  { canonical: "Drilling", field: "cuttingType", aliases: ["드릴", "드릴링", "구멍가공", "구멍 가공", "drill", "drilling"] },
+  { canonical: "Threading_Blind", field: "cuttingType", aliases: ["탭핑", "나사가공", "탭가공", "tapping", "threading"] },
+  { canonical: "Chamfering", field: "cuttingType", aliases: ["챔퍼가공", "챔퍼링", "모따기", "면취", "chamfering"] },
   // Countries
   { canonical: "KOREA", field: "country", aliases: ["한국", "korea", "국내", "코리아", "국내제품", "국내산", "국산", "국내용", "국내전용"] },
   { canonical: "USA", field: "country", aliases: ["미국", "usa", "us", "america", "미합중국"] },

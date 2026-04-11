@@ -783,6 +783,26 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
       next
     ),
   },
+  machiningCategory: {
+    field: "machiningCategory",
+    label: "가공 분류",
+    queryAliases: ["가공 분류", "category", "machining category", "가공계열"],
+    kind: "string",
+    matchPolicy: "strict_identifier",
+    op: "eq",
+    // Mirror to toolType so the SQL WHERE clause (which reads input.toolType
+    // via resolveRequestedToolFamily) filters edp_root_category. The post-
+    // retrieval CATEGORY_SHAPE_MAP path in hybrid-retrieval.ts reads
+    // input.machiningCategory.
+    setInput: (input, filter) => {
+      const value = joinedFilterStringValue(filter)
+      return { ...input, machiningCategory: value, toolType: value }
+    },
+    clearInput: input => ({ ...input, machiningCategory: undefined, toolType: undefined }),
+    // Bypass post-filter rejection — actual category pruning happens via
+    // hybrid-retrieval's CATEGORY_SHAPE_MAP path, not the field registry.
+    matches: () => true,
+  },
   brand: {
     field: "brand",
     label: "브랜드",
