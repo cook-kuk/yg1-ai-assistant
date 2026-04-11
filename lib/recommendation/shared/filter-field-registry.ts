@@ -264,6 +264,18 @@ function firstFilterNumberValue(filter: AppliedFilter): number | undefined {
   return extractNumericFilterRawValues(filter)[0]
 }
 
+// For numeric range filters (gte/gt/lte/lt/between) we intentionally DO NOT
+// mirror the filter value onto the scalar input field (e.g. input.diameterMm).
+// The filter has already done its job in the DB query — the remaining scored
+// set is the subset that passed the threshold. Feeding the boundary value back
+// into the scorer makes it rank products closest to the boundary highest,
+// which is the opposite of what the user asked ("10mm 이상" then top5 all Ø10mm).
+// Only `eq` should set the scalar target.
+function eqOnlyNumberValue(filter: AppliedFilter): number | undefined {
+  if (filter.op !== "eq") return undefined
+  return firstFilterNumberValue(filter)
+}
+
 function firstFilterBooleanValue(filter: AppliedFilter): boolean | undefined {
   return extractBooleanFilterRawValues(filter)[0]
 }
@@ -586,7 +598,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
       if (inchMm != null) return inchMm
       return extractNumericValue(s) ?? rawValue
     },
-    setInput: (input, filter) => ({ ...input, diameterMm: firstFilterNumberValue(filter) }),
+    setInput: (input, filter) => ({ ...input, diameterMm: eqOnlyNumberValue(filter) }),
     clearInput: input => ({ ...input, diameterMm: undefined }),
     extractValues: record => extractPrimitiveValues(record, "diameterMm"),
     matches: (record, filter) => numericMatch(record, filter, "diameterMm"),
@@ -608,7 +620,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
       if (inchMm != null) return inchMm
       return extractNumericValue(s) ?? rawValue
     },
-    setInput: (input, filter) => ({ ...input, diameterMm: firstFilterNumberValue(filter) }),
+    setInput: (input, filter) => ({ ...input, diameterMm: eqOnlyNumberValue(filter) }),
     clearInput: input => ({ ...input, diameterMm: undefined }),
     extractValues: record => extractPrimitiveValues(record, "diameterMm"),
     matches: (record, filter) => numericMatch(record, filter, "diameterMm"),
