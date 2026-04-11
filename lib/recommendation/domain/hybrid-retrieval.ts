@@ -341,15 +341,16 @@ export async function runHybridRetrieval(
   const fetchStartedAt = Date.now()
   // RETRIEVAL_MAX_CANDIDATES: 기본 500 (넓은 쿼리 DB 과부하 방지), 0 = 무제한 (테스트용)
   const maxCandidates = Number(process.env.RETRIEVAL_MAX_CANDIDATES ?? 500) || undefined
-  // Pure-negation queries (e.g. "CRX S 빼고") need a wider DB pool: with
-  // pagination.pageSize alone, a single dominant series (e.g. 3S MILL with
-  // hundreds of micro-diameter variants) can completely fill the first page
-  // and starve the diversity/flagship reranker downstream.
+  // Pure-negation queries (e.g. "CRX S 빼고") need a wider DB pool: a single
+  // dominant micro-series (e.g. 3S MILL with hundreds of small-diameter
+  // variants) can completely fill the 500-candidate cap and starve the
+  // flagship/diversity reranker. Remove the cap so flagship brands enter
+  // the scored pool and the in-memory reranker can promote them.
   const isPureNegationQuery =
     filters.length > 0 && filters.every(f => f.op === "neq" || f.op === "exclude")
   const limit = pagination
-    ? (isPureNegationQuery ? 500 : pagination.pageSize)
-    : (topN > 0 ? Math.max(topN * 20, 500) : maxCandidates)
+    ? (isPureNegationQuery ? undefined : pagination.pageSize)
+    : (topN > 0 ? Math.max(topN * 20, 500) : (isPureNegationQuery ? undefined : maxCandidates))
   const offset = pagination && !isPureNegationQuery ? pagination.page * pagination.pageSize : 0
   const searchResult = pagination
     ? await ProductRepo.searchPage(input, filters, { limit, offset })
