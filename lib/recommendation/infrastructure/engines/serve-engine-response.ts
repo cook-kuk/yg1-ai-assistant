@@ -796,10 +796,23 @@ export async function buildQuestionResponse(
         if (Array.isArray(c.materialTags) && c.materialTags.length > 0) meta.push(c.materialTags.slice(0, 2).join("/"))
         return `  ${i + 1}. ${c.displayCode ?? c.productCode} (${meta.join(", ")})`
       }).join("\n")
+      const opSymbol = (op: string): string => {
+        switch (op) {
+          case "eq": return "="
+          case "neq": return "≠"
+          case "gte": return "≥"
+          case "lte": return "≤"
+          case "gt": return ">"
+          case "lt": return "<"
+          case "in": return "∈"
+          case "nin": return "∉"
+          default: return "="
+        }
+      }
       const filterSummary = filters.length > 0
         ? filters
             .filter(f => f.op !== "skip" && f.field !== "none")
-            .map(f => `${f.field}=${Array.isArray(f.value) ? f.value.join("|") : f.value}`)
+            .map(f => `${f.field}${opSymbol(f.op)}${Array.isArray(f.value) ? f.value.join("|") : f.value}`)
             .join(", ")
         : ""
       const insightBlock = extraResponseContext && extraResponseContext.trim().length > 0
@@ -819,6 +832,12 @@ export async function buildQuestionResponse(
   필터 변경 시 변경 사실 명시:
   예: "AlCrN에서 Y-Coating으로 바꿨더니 후보가 5개로 줄었네요."
   '현재 적용 필터' 입력에 값이 있으면 그 중 가장 최근/대표 조건을 자연스럽게 한 마디로 녹여라.
+
+[제외 필터(≠/∉) 처리 필수] '현재 적용 필터'에 ≠ 또는 ∉ 가 붙은 항목은 **사용자가 명시적으로 빼달라고 한 값**이다.
+  - 절대 그 값을 추천하거나 긍정적으로 언급하지 마라.
+  - "X 빼고" 의도를 (1)에서 자연스럽게 확인: 예) "CRX S 시리즈는 빼고 다른 라인에서 골라봤습니다."
+  - 상위 후보 카드에 그 brand/series가 보이면 즉시 무시하고 나머지 후보 위주로 코멘트.
+  예) brand≠CRX S → "CRX S는 제외하고, 4G/V7 PLUS 같은 다른 라인 위주로 보여드릴게요." (CRX S 자체 칭찬 금지)
 
 [통찰력 활용] '프로액티브 통찰' 블록이 주어지면 (2)에 그 내용을 한 문장으로 녹여라(메커니즘·이유·팁 위주). 통찰 블록 그대로 복붙 금지.
 
