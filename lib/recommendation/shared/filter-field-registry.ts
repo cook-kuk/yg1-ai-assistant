@@ -897,7 +897,15 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
   shankType: {
     field: "shankType",
     label: "생크 타입",
-    queryAliases: ["생크 타입", "싱크 타입", "shank type"],
+    queryAliases: [
+      "생크 타입", "싱크 타입", "shank type",
+      "HSK", "hsk", "hsk생크", "hsk shank",
+      "BT", "bt", "bt생크", "bt shank",
+      "CAT", "cat", "cat생크", "cat shank",
+      "스트레이트", "스트레이트 생크", "straight", "straight shank",
+      "원통", "원통생크", "원통 생크",
+      "플레인", "plain", "웰던", "weldon",
+    ],
     kind: "string",
     op: "eq",
     setInput: (input, filter) => input, // shankType은 RecommendationInput에 없으므로 pass-through
@@ -935,7 +943,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
   helixAngleDeg: makeNumberRangeFieldDef({
     field: "helixAngleDeg",
     label: "헬릭스각",
-    queryAliases: ["헬릭스", "헬릭스각", "헬릭스 각", "헬릭스 각도", "나선각", "나선 각도", "helix", "helixAngle", "helix angle"],
+    queryAliases: ["헬릭스", "헬릭스각", "헬릭스 각", "헬릭스 각도", "나선각", "나선 각도", "비틀림각", "비틀림 각", "비틀림 각도", "helix", "helixAngle", "helix angle"],
     unit: "°",
     tolerance: 2,
     dbColumns: ["milling_helix_angle", "holemaking_helix_angle"],
@@ -950,10 +958,18 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
   taperAngleDeg: makeNumberRangeFieldDef({
     field: "taperAngleDeg",
     label: "테이퍼각",
-    queryAliases: ["테이퍼각", "taper"],
+    queryAliases: ["테이퍼", "테이퍼각", "테이퍼 각", "테이퍼 각도", "taper", "taper angle"],
     unit: "°",
     tolerance: 0.5,
     dbColumns: ["milling_taper_angle", "option_taperangle"],
+  }),
+  cornerRadiusMm: makeNumberRangeFieldDef({
+    field: "cornerRadiusMm",
+    label: "코너 반경",
+    queryAliases: ["코너R", "코너 R", "코너 반경", "코너반경", "R값", "인선R", "corner r", "corner radius", "corner_radius"],
+    unit: "mm",
+    tolerance: 0.05,
+    dbColumns: ["option_re", "option_r", "milling_ball_radius"],
   }),
   coolantHole: makeBooleanFieldDef({
     field: "coolantHole",

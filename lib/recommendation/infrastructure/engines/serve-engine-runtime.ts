@@ -2379,6 +2379,19 @@ async function handleServeExplorationInner(
       }
     }
 
+    // KG → sql-agent bridge: even when KG decision confidence is low, any
+    // entity match (shankType=HSK, cornerRadiusMm=0.5, taperAngleDeg=5, ...)
+    // should be surfaced to sql-agent as a hint so the LLM can include it.
+    // Only builds a hint if one wasn't already set above.
+    if (!kgHint && lastUserMsg && !singleCallHandled && !isKgDisabled() && !shouldResolvePendingSelectionEarly) {
+      const entities = extractEntities(msg)
+      const safeEntities = entities.filter(e => e.field !== "diameterMm")
+      if (safeEntities.length > 0) {
+        kgHint = safeEntities.map(e => `${e.field}=${e.canonical}`).join(", ")
+        console.log(`[kg:hint:bridge] "${msg}" → hint: ${kgHint}`)
+      }
+    }
+
     // ── 3. SQL Agent: primary handler (Haiku 1회, schema-aware, ~0.5s) ──
     // Handles filters + negation + navigation — replaces deterministic negation handler
     // Wrapped in semantic-cache: identical/synonymous queries with the same filter
@@ -2417,6 +2430,8 @@ async function handleServeExplorationInner(
                   streamedAny = true
                   try { deps.onThinking!(delta, { delta: true }) } catch { /* never block runtime */ }
                 },
+                "fast",
+                kgHint,
               )
               // If streaming yielded nothing (e.g. fallback path triggered),
               // emit the final reasoning as a single non-delta frame so the UI
@@ -2425,7 +2440,7 @@ async function handleServeExplorationInner(
                 try { deps.onThinking(agentResult.reasoning) } catch { /* never block runtime */ }
               }
             } else {
-              agentResult = await naturalLanguageToFilters(msg, schema, filters, provider)
+              agentResult = await naturalLanguageToFilters(msg, schema, filters, provider, "fast", kgHint)
             }
             // Store in semantic cache for next time (only meaningful results)
             if (agentResult.filters.length > 0) {

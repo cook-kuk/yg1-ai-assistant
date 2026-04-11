@@ -78,6 +78,8 @@ export const ENTITY_NODES: EntityNode[] = [
   { canonical: "Weldon", field: "shankType", aliases: ["웰던", "weldon", "웰돈"] },
   { canonical: "HA", field: "shankType", aliases: ["ha생크", "ha shank"] },
   { canonical: "HSK", field: "shankType", aliases: ["hsk", "hsk생크", "hsk shank"] },
+  { canonical: "BT", field: "shankType", aliases: ["bt", "bt생크", "bt shank"] },
+  { canonical: "CAT", field: "shankType", aliases: ["cat", "cat생크", "cat shank"] },
   // Boolean: coolantHole
   { canonical: "true", field: "coolantHole", aliases: ["쿨런트", "쿨런트홀", "절삭유홀", "coolant", "coolant hole", "내부급유", "내부냉각", "쓰루쿨런트", "through coolant"] },
   // Countries
@@ -171,10 +173,10 @@ const NUMERIC_PATTERNS: Array<{ field: string; patterns: RegExp[]; extract: (m: 
   {
     field: "cornerRadiusMm",
     patterns: [
-      /(?:코너\s*R|R)\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
-      /(?:코너\s*반경|코너\s*래디우스|코너\s*레디우스|corner\s*radius)(?:[이가은는을를도만])?\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
+      /(?:코너\s*R|코너\s*알|인선\s*R|R\s*값)\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
+      /(?:코너\s*반경|코너\s*래디우스|코너\s*레디우스|corner\s*radius|corner\s*r)(?:[이가은는을를도만])?\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
     ],
-    extract: (m) => parseFloat(m[1] ?? m[2]),
+    extract: (m) => parseFloat(m[1]),
   },
 ]
 
