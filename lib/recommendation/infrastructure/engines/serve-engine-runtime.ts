@@ -1988,6 +1988,36 @@ async function handleServeExplorationInner(
     } catch (e) {
       console.warn("[first-turn-intake] det-SCR injection failed:", (e as Error).message)
     }
+    // KG entity injection — det-SCR only catches numeric patterns ("10mm",
+    // "4날"). For lexical field entities (shankType=HSK, helixAngleDeg=45,
+    // taperAngleDeg=5, cornerRadiusMm=0.5, ...) we need extractEntities.
+    // Without this, first-turn free-text queries containing these fields
+    // silently drop them because the first-turn-intake skip path bypasses
+    // both KG (§2280+) and sql-agent (§2395+).
+    try {
+      const rawMsg = lastUserMsg?.text ?? ""
+      if (rawMsg) {
+        const kgEntities = extractEntities(rawMsg)
+          // diameterMm is lexically ambiguous on bare "<num>mm" — let det-SCR
+          // handle it; KG's numeric patterns can misfire on OAL/LOC.
+          .filter(e => e.field !== "diameterMm")
+          // skip fields det-SCR already filled
+          .filter(e => !filters.some(f => f.field === e.field && f.op !== "skip"))
+        const injected: string[] = []
+        for (const e of kgEntities) {
+          const f = buildAppliedFilterFromValue(e.field, e.canonical, 0)
+          if (f) {
+            const r = replaceFieldFilter(baseInput, filters, f, deps.applyFilterToInput)
+            filters.splice(0, filters.length, ...r.nextFilters)
+            currentInput = r.nextInput
+            injected.push(`${e.field}=${e.canonical}`)
+          }
+        }
+        if (injected.length > 0) console.log(`[first-turn-intake] KG pre-injected ${injected.length} filter(s): ${injected.join(", ")}`)
+      }
+    } catch (e) {
+      console.warn("[first-turn-intake] KG injection failed:", (e as Error).message)
+    }
     singleCallHandled = true
     // If the user explicitly said "추천해줘/보여줘/찾아줘" AND det-SCR extracted
     // at least 2 filters, go straight to show_recommendation — the user has
