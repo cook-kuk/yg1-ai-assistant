@@ -35,6 +35,10 @@ import {
 } from "@/lib/recommendation/infrastructure/engines/serve-engine-option-first"
 import { getMaterialDisplay, resolveMaterialTag } from "@/lib/recommendation/domain/material-resolver"
 import { assessComplexity } from "@/lib/recommendation/core/complexity-router"
+import {
+  buildNegationFallbackText,
+  findCandidateScopedPhantoms,
+} from "@/lib/recommendation/infrastructure/knowledge/candidate-phantom-guard"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { RecommendationDisplayedProductRequestDto, RecommendationPaginationDto } from "@/lib/contracts/recommendation"
@@ -923,6 +927,36 @@ JSON으로만: {"responseText":"..."}`
       }
     } catch (error) {
       console.warn("[recommend] narrative-polish failed:", error)
+    }
+
+    // ── Candidate-scoped phantom guard (negation path) ──
+    // On neq/nin filters, verify every brand/series phrase in the polished
+    // text is either in the current candidate snapshot or framed as an
+    // exclusion. Anything else means the LLM invented a recommendation or
+    // recommended the value it was told to exclude — fall back to a safe
+    // deterministic template built from the actual snapshot.
+    const hasNegationFilter = filters.some(f => f.op === "neq" || f.op === "nin")
+    if (hasNegationFilter && responseText && candidateSnapshot.length > 0) {
+      const { phantoms, excludedMentioned } = findCandidateScopedPhantoms(
+        responseText,
+        candidateSnapshot,
+        filters,
+      )
+      if (phantoms.length > 0 || excludedMentioned.length > 0) {
+        console.warn(
+          `[phantom-guard] negation-path issue — phantoms=[${phantoms.join(", ")}] excludedMentioned=[${excludedMentioned.join(", ")}]`,
+        )
+        const firstNeq = filters.find(f => f.op === "neq" || f.op === "nin")
+        const excludedRaw =
+          firstNeq && typeof firstNeq.value === "string" ? firstNeq.value
+          : firstNeq && typeof firstNeq.rawValue === "string" ? firstNeq.rawValue
+          : null
+        responseText = buildNegationFallbackText(
+          totalCandidateCount,
+          candidateSnapshot,
+          excludedRaw,
+        )
+      }
     }
   } else if (latestTurnWasSkip) {
     console.log("[recommend] Skipping LLM question polish after skip_field; using deterministic question text")
