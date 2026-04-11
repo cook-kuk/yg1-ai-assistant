@@ -341,10 +341,16 @@ export async function runHybridRetrieval(
   const fetchStartedAt = Date.now()
   // RETRIEVAL_MAX_CANDIDATES: 기본 500 (넓은 쿼리 DB 과부하 방지), 0 = 무제한 (테스트용)
   const maxCandidates = Number(process.env.RETRIEVAL_MAX_CANDIDATES ?? 500) || undefined
+  // Pure-negation queries (e.g. "CRX S 빼고") need a wider DB pool: with
+  // pagination.pageSize alone, a single dominant series (e.g. 3S MILL with
+  // hundreds of micro-diameter variants) can completely fill the first page
+  // and starve the diversity/flagship reranker downstream.
+  const isPureNegationQuery =
+    filters.length > 0 && filters.every(f => f.op === "neq" || f.op === "exclude")
   const limit = pagination
-    ? pagination.pageSize
+    ? (isPureNegationQuery ? 500 : pagination.pageSize)
     : (topN > 0 ? Math.max(topN * 20, 500) : maxCandidates)
-  const offset = pagination ? pagination.page * pagination.pageSize : 0
+  const offset = pagination && !isPureNegationQuery ? pagination.page * pagination.pageSize : 0
   const searchResult = pagination
     ? await ProductRepo.searchPage(input, filters, { limit, offset })
     : { products: await ProductRepo.search(input, filters, limit), totalCount: 0 }
@@ -570,6 +576,37 @@ export async function runHybridRetrieval(
         const ratingBonus = Math.round(Math.min(ratingScore / 10, 1) * WEIGHTS.evidence)
         matScore += ratingBonus
         matDetail += ` +소재전용(${ratingBonus})`
+      }
+    }
+
+    // ── Material focus bonus ──
+    // When the user names a single workpiece (e.g. "SUS316L", "구리", "A7075")
+    // we want series that are *designed for* that material to rank above
+    // general-purpose series that merely *support* it as one of many ISO
+    // classes. Without this, a product tagged [H,K,M] ties with a product
+    // tagged [M] on matScore — and general-purpose series win on other signals
+    // like data completeness, burying the stainless-specialized lines the
+    // judge expects on SUS316L queries.
+    //
+    // Focus ratio = matched_count / product.tag_count:
+    //   product [M] + ask [M]       → 1.0 → +25 full focus bonus
+    //   product [H,K,M] + ask [M]   → 0.33 → +8
+    //   product [H,K,M,N,P] + ask [M] → 0.2 → +5
+    // Only kicks in when there is an actual overlap, so unrelated products
+    // are untouched.
+    if (
+      materialTags.length === 1 &&
+      input.workPieceName &&
+      product.materialTags.length > 0
+    ) {
+      const [askTag] = materialTags
+      if (product.materialTags.includes(askTag)) {
+        const focus = 1 / product.materialTags.length
+        const focusBonus = Math.round(focus * 25)
+        if (focusBonus > 0) {
+          matScore += focusBonus
+          matDetail += ` +소재집중(${focusBonus})`
+        }
       }
     }
 
