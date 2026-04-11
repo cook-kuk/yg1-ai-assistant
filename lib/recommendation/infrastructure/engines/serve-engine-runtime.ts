@@ -2075,15 +2075,21 @@ async function handleServeExplorationInner(
       console.warn("[first-turn-intake] KG injection failed:", (e as Error).message)
     }
     singleCallHandled = true
-    // If the user explicitly said "추천해줘/보여줘/찾아줘" AND det-SCR extracted
-    // at least 2 filters, go straight to show_recommendation — the user has
-    // given enough info and expects cards, not another question. Otherwise
-    // stay with continue_narrowing (light question response).
+    // Fast-path triggers (skip questions, go straight to show_recommendation):
+    //   1) explicit show verb ("추천해줘/보여줘/찾아줘") + ≥2 filters
+    //   2) urgency ("빨리/급해/당장/지금") + ≥1 filter — user wants speed
+    //   3) indifference ("아무거나/알아서/대충/뭐든") + ≥1 filter — user doesn't want to be asked
+    // Otherwise fall back to continue_narrowing (light question response).
     const rawMsgLower = (lastUserMsg?.text ?? "").trim()
     const hasShowVerb = /(추천\s*(해줘|해주|좀)?|보여줘|찾아줘|알려줘|골라줘|제품\s*(보|줘))/.test(rawMsgLower)
+    const hasUrgency = /(빨리|급해|급한|당장|지금\s*바로|얼른|서둘러)/.test(rawMsgLower)
+    const hasIndifference = /(아무거나|아무|알아서|대충|뭐든|상관\s*없)/.test(rawMsgLower)
     const meaningfulFilters = filters.filter(f => f.op !== "skip" && f.field !== "none").length
-    if (hasShowVerb && meaningfulFilters >= 2) {
-      console.log(`[first-turn-intake] show_recommendation: ${meaningfulFilters} filters + explicit verb`)
+    const showVerbPath = hasShowVerb && meaningfulFilters >= 2
+    const speedPath = (hasUrgency || hasIndifference) && meaningfulFilters >= 1
+    if (showVerbPath || speedPath) {
+      const reason = speedPath ? `urgency/indifference + ${meaningfulFilters} filter(s)` : `${meaningfulFilters} filters + explicit verb`
+      console.log(`[first-turn-intake] show_recommendation: ${reason}`)
       bridgedV2Action = { type: "show_recommendation" }
     } else {
       bridgedV2Action = { type: "continue_narrowing", filter: { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: 0 } }
