@@ -616,7 +616,11 @@ export async function buildQuestionResponse(
   const preCheckStatus = checkResolution(candidates, history, totalCandidateCount, explicitShow)
   const alreadyResolved = preCheckStatus.startsWith("resolved")
 
-  const question = alreadyResolved
+  // When caller passes overrideText (e.g. uncertainty-gate ASK forcing a
+  // question even though resolution says "show cards"), skip the
+  // alreadyResolved short-circuit so we still build a question + option chips
+  // for the forced field. Without this, chips collapse to nav-only.
+  const question = alreadyResolved && !overrideText
     ? null
     : await selectNextQuestionForResponse({
         input,
