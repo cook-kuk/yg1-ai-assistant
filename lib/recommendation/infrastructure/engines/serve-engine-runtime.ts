@@ -1776,20 +1776,30 @@ async function handleServeExplorationInner(
   let proactiveInsightsContext: string | undefined
   const baseBuildQuestionResponse = deps.buildQuestionResponse
   const baseBuildRecommendationResponse = deps.buildRecommendationResponse
+  // Positional indices of `extraResponseContext`:
+  //   buildQuestionResponse       → 20 (after overrideText/existingStageHistory/
+  //     excludeWorkPieceValues/responsePrefix/overrideChips)
+  //   buildRecommendationResponse → 16 (after displayedProducts)
+  // Previous indices (19 / 15) pointed at overrideChips / displayedProducts
+  // respectively — that silently clobbered chips with the insight string and
+  // caused the insight block to be dropped, so the narrative-polish LLM never
+  // saw the proactive insights. That's why S03/S09/S10 통찰력 scored low.
+  const EXTRA_CTX_IDX_Q = 20
+  const EXTRA_CTX_IDX_R = 16
   deps = {
     ...deps,
     buildQuestionResponse: (...args: Parameters<typeof baseBuildQuestionResponse>) => {
-      const passed = args[19]
+      const passed = args[EXTRA_CTX_IDX_Q]
       const ctx = passed !== undefined ? passed : proactiveInsightsContext
       const newArgs = [...args] as Parameters<typeof baseBuildQuestionResponse>
-      newArgs[19] = ctx
+      newArgs[EXTRA_CTX_IDX_Q] = ctx
       return baseBuildQuestionResponse(...newArgs)
     },
     buildRecommendationResponse: (...args: Parameters<typeof baseBuildRecommendationResponse>) => {
-      const passed = args[15]
+      const passed = args[EXTRA_CTX_IDX_R]
       const ctx = passed !== undefined ? passed : proactiveInsightsContext
       const newArgs = [...args] as Parameters<typeof baseBuildRecommendationResponse>
-      newArgs[15] = ctx
+      newArgs[EXTRA_CTX_IDX_R] = ctx
       return baseBuildRecommendationResponse(...newArgs)
     },
   }
