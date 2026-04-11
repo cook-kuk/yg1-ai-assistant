@@ -18,8 +18,61 @@ if (existsSync(".env.local")) {
 }
 
 const ARIA_API = process.env.ARIA_API || "http://20.119.98.136:3000/api/recommend"
+const ARIA_STREAM_API = ARIA_API.replace(/\/api\/recommend\/?$/, "/api/recommend/stream")
 const OPENAI_API = "https://api.openai.com/v1/chat/completions"
 const OPENAI_KEY = process.env.OPENAI_API_KEY
+
+// UI와 동일한 기본 intakeForm (country=ALL, 나머지 unanswered)
+const UI_INTAKE_FORM = {
+  inquiryPurpose: { status: "unanswered" },
+  material: { status: "unanswered" },
+  operationType: { status: "unanswered" },
+  machiningIntent: { status: "unanswered" },
+  toolTypeOrCurrentProduct: { status: "unanswered" },
+  diameterInfo: { status: "unanswered" },
+  country: { status: "known", value: "ALL" },
+}
+const UI_PAGE_SIZE = 20
+
+// UI가 실제로 유저에게 보여주는 카드 요약 — judge 입력 text에 concat
+function summarizeCandidatesForJudge(dto) {
+  const cands = Array.isArray(dto?.candidates) ? dto.candidates : []
+  if (cands.length === 0) return ""
+  const top = cands.slice(0, 5)
+  const lines = top.map((c, i) => {
+    const parts = []
+    if (c.displayCode || c.productCode) parts.push(c.displayCode ?? c.productCode)
+    const meta = []
+    if (c.brand) meta.push(c.brand)
+    if (c.seriesName) meta.push(c.seriesName)
+    if (c.diameterMm != null) meta.push(`Ø${c.diameterMm}mm`)
+    if (c.fluteCount != null) meta.push(`${c.fluteCount}날`)
+    if (c.coating) meta.push(c.coating)
+    if (Array.isArray(c.materialTags) && c.materialTags.length > 0) meta.push(c.materialTags.slice(0, 3).join("/"))
+    if (meta.length > 0) parts.push(`(${meta.join(", ")})`)
+    return `${i + 1}. ${parts.join(" ")}`
+  })
+  const total = cands.length
+  return `\n\n[추천 제품 카드 ${total}개 중 상위 ${top.length}개]\n${lines.join("\n")}`
+}
+
+function buildDisplayedProducts(candidates) {
+  if (!Array.isArray(candidates) || candidates.length === 0) return null
+  return candidates.slice(0, 10).map(c => ({
+    rank: c.rank,
+    code: c.displayCode,
+    productCode: c.productCode,
+    brand: c.brand ?? null,
+    series: c.seriesName ?? null,
+    diameter: c.diameterMm ?? null,
+    flute: c.fluteCount ?? null,
+    coating: c.coating ?? null,
+    toolSubtype: c.toolSubtype ?? null,
+    materialTags: c.materialTags ?? [],
+    score: c.score ?? 0,
+    matchStatus: c.matchStatus ?? "unknown",
+  }))
+}
 
 // ═══ v3 시나리오 10개 (고정, 추가 금지) ═══
 
@@ -221,21 +274,106 @@ const JUDGE_PROMPT = `당신은 AI 절삭공구 추천 시스템의 품질 평�
 
 // ═══ 메인 루프 ═══
 
-async function callARIA(messages) {
+// UI와 동일한 payload 구성 (createFollowUpRecommendationRequest 미러)
+function buildUIRequestPayload(messages, prior) {
+  return {
+    intakeForm: UI_INTAKE_FORM,
+    messages,
+    session: prior?.session ?? null,
+    displayedProducts: buildDisplayedProducts(prior?.candidates),
+    pagination: { page: 0, pageSize: UI_PAGE_SIZE },
+    language: "ko",
+  }
+}
+
+// SSE 프레임 파서 — recommendation-stream-client.ts 와 동일한 로직
+// B: cards 이벤트도 별도로 수집 → finalDto에 머지해 judge가 UI와 동일하게 채점
+async function consumeSSE(res) {
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ""
+  let finalDto = null
+  let cardsDto = null  // B: cards 이벤트로 들어온 partial DTO
+  let streamErrorMessage = null
+
+  const dispatch = (rawFrame) => {
+    let event = "message"
+    const dataLines = []
+    for (const line of rawFrame.split("\n")) {
+      if (!line) continue
+      if (line.startsWith("event:")) event = line.slice(6).trim()
+      else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim())
+    }
+    if (dataLines.length === 0) return
+    let parsed
+    try { parsed = JSON.parse(dataLines.join("\n")) } catch { return }
+    if (event === "final") finalDto = parsed
+    else if (event === "cards") cardsDto = parsed  // B: 카드 partial 저장
+    else if (event === "error") {
+      streamErrorMessage = parsed?.message ?? "stream error"
+    }
+    // thinking 이벤트는 UI 전용 (CoT) — 드레인만
+  }
+
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    let idx
+    while ((idx = buffer.search(/\r?\n\r?\n/)) !== -1) {
+      const frame = buffer.slice(0, idx)
+      buffer = buffer.slice(idx).replace(/^\r?\n\r?\n/, "")
+      dispatch(frame)
+    }
+  }
+  if (buffer.trim()) dispatch(buffer)
+
+  if (streamErrorMessage) throw new Error(streamErrorMessage)
+  if (!finalDto) throw new Error("stream ended without final frame")
+  // B: cards 이벤트가 final 보다 풍부하면 candidates/recommendation 보강
+  if (cardsDto) {
+    if ((!finalDto.candidates || finalDto.candidates.length === 0) && Array.isArray(cardsDto.candidates)) {
+      finalDto.candidates = cardsDto.candidates
+    }
+    if (!finalDto.recommendation && cardsDto.recommendation) {
+      finalDto.recommendation = cardsDto.recommendation
+    }
+  }
+  return finalDto
+}
+
+async function callARIA(messages, prior) {
+  const payload = buildUIRequestPayload(messages, prior)
   let lastErr
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const res = await fetch(ARIA_API, {
+      // 1차: /api/recommend/stream (SSE) — UI 기본 경로
+      const streamRes = await fetch(ARIA_STREAM_API, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ engine: "serve", language: "ko", messages }),
+        headers: { "Content-Type": "application/json", "Accept": "text/event-stream" },
+        body: JSON.stringify(payload),
         signal: AbortSignal.timeout(120000),
       })
-      return await res.json()
-    } catch (e) {
-      lastErr = e
-      console.warn(`  [aria] attempt ${attempt + 1} failed: ${e.message}`)
-      if (attempt < 2) await new Promise(r => setTimeout(r, 10000))
+      if (!streamRes.ok || !streamRes.body) {
+        throw new Error(`stream init failed (${streamRes.status})`)
+      }
+      return await consumeSSE(streamRes)
+    } catch (streamErr) {
+      // UI와 동일한 fallback: non-stream /api/recommend
+      try {
+        const res = await fetch(ARIA_API, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(120000),
+        })
+        if (!res.ok) throw new Error(`서버 오류 (${res.status})`)
+        return await res.json()
+      } catch (e) {
+        lastErr = e
+        console.warn(`  [aria] attempt ${attempt + 1} failed: stream=${streamErr.message} / fallback=${e.message}`)
+        if (attempt < 2) await new Promise(r => setTimeout(r, 10000))
+      }
     }
   }
   throw new Error("ARIA 3회 실패: " + (lastErr?.message ?? "unknown"))
@@ -282,13 +420,16 @@ async function runScenario(scenario) {
   const t0 = Date.now()
   try {
     let messages, inputText
+    // prior: UI의 sessionState/candidateSnapshot을 턴 간 이어붙이는 역할
+    let prior = { session: null, candidates: null }
     if (scenario.turns) {
       messages = []
       for (const turn of scenario.turns) {
         if (turn === null) {
-          const res = await callARIA(messages)
+          const res = await callARIA(messages, prior)
           const aiText = res.text ?? res.data?.message?.text ?? res.message ?? ""
           messages.push({ role: "ai", text: aiText })
+          prior = { session: res.session ?? null, candidates: res.candidates ?? null }
         } else {
           messages.push(turn)
         }
@@ -299,14 +440,20 @@ async function runScenario(scenario) {
       inputText = scenario.input
     }
 
-    const res = await callARIA(messages)
+    const res = await callARIA(messages, prior)
     const ms = Date.now() - t0
-    const aiText = res.text ?? res.data?.message?.text ?? res.message ?? ""
+    const rawText = res.text ?? res.data?.message?.text ?? res.message ?? ""
     const ps = res.session?.publicState ?? {}
     const candidateCount = ps.candidateCount ?? res.candidateCount ?? 0
     const filters = ps.appliedFilters ?? res.data?.appliedFilters ?? []
+    // C: 사용자 사양대로 명시 로그 (regression 진단)
+    console.log(`  [${scenario.id}] filters:`, JSON.stringify(res.session?.publicState?.appliedFilters))
+    console.log(`  [${scenario.id}] candidates:`, res.candidates?.length ?? 0)
+    // B: UI가 보여주는 카드 요약을 judge 입력에 합쳐서 "제품 카드 미제공" 오판 방지
+    const cardSummary = summarizeCandidatesForJudge(res)
+    const textForJudge = rawText + cardSummary
 
-    const grade = await judgeResponse(inputText, aiText, scenario.expect)
+    const grade = await judgeResponse(inputText, textForJudge, scenario.expect)
 
     return {
       id: scenario.id,
@@ -314,7 +461,10 @@ async function runScenario(scenario) {
       ms,
       candidateCount,
       filterCount: filters.length,
-      responsePreview: aiText.slice(0, 100).replace(/\n/g, " "),
+      // C: appliedFilters 원본을 보존 — regression 진단용
+      appliedFilters: filters,
+      responsePreview: rawText.slice(0, 100).replace(/\n/g, " "),
+      cardPreview: cardSummary.slice(0, 200).replace(/\n/g, " | "),
       grade,
       error: null,
     }
@@ -339,7 +489,18 @@ for (const s of SCENARIOS) {
 
   const score = r.grade?.total ?? "?"
   const icon = r.error ? "💥" : (r.grade?.total >= 20 ? "✅" : r.grade?.total >= 15 ? "⚠️" : "❌")
-  console.log(`${icon} ${r.id} [${r.ms}ms] ${score}/25 "${r.input}" → ${r.candidateCount}건`)
+  console.log(`${icon} ${r.id} [${r.ms}ms] ${score}/25 "${r.input}" → ${r.candidateCount}건 (필터 ${r.filterCount}개)`)
+
+  // C: 필터 덤프 — regression 케이스 진단용
+  if (Array.isArray(r.appliedFilters) && r.appliedFilters.length > 0) {
+    const summary = r.appliedFilters
+      .map(f => `${f.field}${f.op ? ":" + f.op : ""}=${JSON.stringify(f.value)}`)
+      .join(", ")
+    console.log(`   🔎 filters: ${summary}`)
+  } else if (r.candidateCount > 0) {
+    console.log(`   🔎 filters: (없음) — ${r.candidateCount}건 매칭`)
+  }
+  if (r.cardPreview) console.log(`   🃏 ${r.cardPreview}`)
 
   if (r.grade?.issues?.length > 0) {
     for (const issue of r.grade.issues) console.log(`   ⚡ ${issue}`)

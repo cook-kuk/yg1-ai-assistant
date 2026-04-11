@@ -772,18 +772,29 @@ export async function buildQuestionResponse(
     try {
       const lastUserText = [...messages].reverse().find(m => m.role === "user")?.text ?? ""
       const chipList = question?.chips?.length ? question.chips.join(", ") : ""
-      const polishSystem = `당신은 YG-1 절삭공구 추천 어시스턴트입니다. 아래 "원본 질문"을 사용자 메시지에 자연스럽게 반응하는 한국어 1~2문장으로 다듬어 주세요.
+      // Top 후보 요약 — LLM이 카드 없이 narrative 다듬을 때 한 줄 인용 가능하도록
+      const topCandLines = candidateSnapshot.slice(0, 3).map((c, i) => {
+        const meta = []
+        if (c.brand) meta.push(c.brand)
+        if (c.seriesName) meta.push(c.seriesName)
+        if (c.coating) meta.push(c.coating)
+        if (c.fluteCount != null) meta.push(`${c.fluteCount}날`)
+        if (c.diameterMm != null) meta.push(`Ø${c.diameterMm}mm`)
+        if (Array.isArray(c.materialTags) && c.materialTags.length > 0) meta.push(c.materialTags.slice(0, 2).join("/"))
+        return `  ${i + 1}. ${c.displayCode ?? c.productCode} (${meta.join(", ")})`
+      }).join("\n")
+      const polishSystem = `당신은 YG-1 기술영업 김도현 차장입니다. 사용자 메시지에 한국어로 친근하게 응답하세요.
 
-규칙:
-- 사용자 선택/입력을 1문장으로 짧게 확인 ("4날로 적용했어요." 같이 완전한 문장).
-- 이어서 원본 질문을 자연스럽게 던지기. 핵심 정보(필드명, 후보 수)는 변경 금지.
-- 숫자/개수는 입력에 적힌 값만 사용. 새 숫자 만들지 마라.
-- 토막 문장 ("로 필터링하겠습니다") 금지. 이모지 금지. 마크다운 금지.
-- 응답은 ${language === "ko" ? "한국어" : "영어"} 평문 1~2문장.
+흐름: (1) 사용자 입력 짧게 확인 → (2) 후보 중 눈에 띄는 특징 한 줄(코팅·시리즈 강점이나 가공 팁) → (3) 원본 질문을 자연스럽게.
 
-JSON으로만 응답: {"responseText":"..."}`
+- 카드에 안 보이는 메커니즘/노하우 위주. 스펙 나열 금지.
+- 숫자는 주어진 값만 사용, 새로 만들지 마라.
+- 후보가 0개거나 사용자 의도가 비교/설명/트러블슈팅이면 (2)는 그 응답으로 대체.
+- 평문 2~4문장. 이모지/마크다운/토막 문장 금지.
+
+JSON으로만: {"responseText":"..."}`
       const polishUser = `사용자 최신 메시지: "${lastUserText}"
-현재 후보 ${totalCandidateCount}개
+현재 후보 ${totalCandidateCount}개${topCandLines ? `\n상위 후보:\n${topCandLines}` : ""}
 원본 질문: "${question?.questionText ?? ""}"${chipList ? `\n선택지(칩): [${chipList}]` : ""}`
       const raw = await provider.complete(
         polishSystem,

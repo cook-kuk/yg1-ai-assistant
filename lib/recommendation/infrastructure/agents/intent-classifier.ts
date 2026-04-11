@@ -327,7 +327,7 @@ Intent 종류 (반드시 이 값 중 하나):
 규칙:
 - "코팅 바꿔", "대체 추천", "다른 X" → REFINE_CONDITION (extractedValue=변경할 필드명 또는 값)
 - "처음부터", "리셋", "다시 시작" → RESET_SESSION
-- "~란?", "~뭐야?", "~설명" → ASK_EXPLANATION
+- "~란?", "~뭐야?", "~설명", "A랑 B 뭐가 나아/차이" 같은 개념·코팅·소재 비교 질문 → ASK_EXPLANATION
 - 단순 값 제공 → SET_PARAMETER (extractedValue=값)
 - "~하는데 괜찮은 거?", "~좋은 거?", "~추천 좀", "~쓸만한 거" → 반드시 SET_PARAMETER 또는 ASK_RECOMMENDATION. 사용자가 언급한 소재/용어를 extractedValue에 넣어라. 이건 "추천 요청"이지 지식 질문이 아니다.
 
