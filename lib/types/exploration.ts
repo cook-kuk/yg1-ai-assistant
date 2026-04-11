@@ -166,6 +166,8 @@ export interface ExplorationSessionState {
   filterValueScope?: Record<string, string[]>
   displayedSetFilter?: { field: string; operator: string; value: string } | null  // 현재 적용된 in-display 필터
   displayedChips: string[]                  // chips shown with the last question
+  /** Index-aligned with displayedChips. Null slots → legacy text dispatch. */
+  displayedStructuredChips?: (import("@/lib/contracts/recommendation").StructuredChipDto | null)[]
   displayedOptions: DisplayedOption[]       // structured narrowing options for numbered selection
   lastAction?: LastActionType               // what the system did last turn
 

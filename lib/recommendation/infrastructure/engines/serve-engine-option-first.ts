@@ -19,6 +19,7 @@ import {
   buildContextAwarePlannerContext,
   buildPostRecommendationPlannerContext,
   smartOptionsToChips,
+  smartOptionsToStructuredChips,
   smartOptionsToDisplayedOptions,
 } from "@/lib/recommendation/domain/options/option-bridge"
 import { buildQuestionAlignedOptions, buildConfusionHelperOptions } from "@/lib/recommendation/domain/options/question-option-builder"
@@ -756,7 +757,7 @@ export function buildQuestionFieldOptions(
   field: string,
   candidateChips: string[],
   hasHistory: boolean
-): { options: SmartOption[]; displayedOptions: DisplayedOption[]; chips: string[] } {
+): { options: SmartOption[]; displayedOptions: DisplayedOption[]; chips: string[]; structuredChips: (import("@/lib/contracts/recommendation").StructuredChipDto | null)[] } {
   let optionIndex = 0
   const nextId = () => `qfield_${field}_${++optionIndex}`
 
@@ -839,8 +840,9 @@ export function buildQuestionFieldOptions(
 
   const displayedOptions = smartOptionsToDisplayedOptions(options)
   const chips = smartOptionsToChips(options)
+  const structuredChips = smartOptionsToStructuredChips(options)
 
-  return { options, displayedOptions, chips }
+  return { options, displayedOptions, chips, structuredChips }
 }
 
 /**

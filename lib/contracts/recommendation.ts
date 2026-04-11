@@ -81,6 +81,31 @@ export interface RecommendationChipGroupDto {
   chips: string[]
 }
 
+/**
+ * Structured chip — carries action metadata so the frontend can dispatch
+ * filter application, navigation, or reset without round-tripping through
+ * the LLM re-extraction pipeline. Parallel to the legacy `chips: string[]`
+ * array (index-aligned, sparse: `null` slots mean "fall back to text-based
+ * dispatch").
+ */
+export type StructuredChipActionDto =
+  | "apply_filter"
+  | "remove_filter"
+  | "navigate"
+  | "reset"
+  | "select_option"
+  | "ask"
+
+export interface StructuredChipDto {
+  text: string
+  action: StructuredChipActionDto
+  field?: string
+  value?: string
+  op?: "eq" | "neq" | "gte" | "lte" | "between"
+  target?: string
+  products?: string[]
+}
+
 export interface RecommendationSeriesGroupSummaryDto {
   seriesKey: string
   seriesName: string
@@ -133,6 +158,8 @@ export interface RecommendationPublicSessionDto {
   lastAskedField?: string | null
   lastAction?: string | null
   displayedChips: string[]
+  /** Index-aligned with displayedChips. Null slots → fall back to text dispatch. */
+  displayedStructuredChips?: (StructuredChipDto | null)[]
   displayedOptions: RecommendationDisplayedOptionDto[]
   displayedSeriesGroups?: RecommendationSeriesGroupSummaryDto[]
   uiNarrowingPath?: RecommendationUINarrowingPathEntryDto[]
@@ -207,12 +234,18 @@ export interface RecommendationRequestDto {
   pagination?: Pick<RecommendationPaginationDto, "page" | "pageSize"> | null
   language?: "ko" | "en"
   mode?: string
+  /** Structured chip click short-circuit — when present, the server applies
+   * the chip's action directly (e.g. filter injection) and skips LLM
+   * re-extraction of the synthetic user message. */
+  chipAction?: StructuredChipDto | null
 }
 
 export interface RecommendationResponseDto {
   text: string
   purpose: RecommendationPurpose
   chips: string[]
+  /** Index-aligned with chips. Null slots → fall back to text dispatch. */
+  structuredChips?: (StructuredChipDto | null)[]
   chipGroups?: RecommendationChipGroupDto[]
   isComplete: boolean
   recommendation: RecommendationResult | null
@@ -327,6 +360,25 @@ export const recommendationChipGroupSchema = z.object({
   chips: z.array(z.string()),
 })
 
+export const structuredChipActionSchema = z.enum([
+  "apply_filter",
+  "remove_filter",
+  "navigate",
+  "reset",
+  "select_option",
+  "ask",
+])
+
+export const structuredChipSchema = z.object({
+  text: z.string(),
+  action: structuredChipActionSchema,
+  field: z.string().optional(),
+  value: z.string().optional(),
+  op: z.enum(["eq", "neq", "gte", "lte", "between"]).optional(),
+  target: z.string().optional(),
+  products: z.array(z.string()).optional(),
+}).passthrough()
+
 export const recommendationSeriesGroupSummarySchema = z.object({
   seriesKey: z.string(),
   seriesName: z.string(),
@@ -379,6 +431,7 @@ export const recommendationPublicSessionSchema = z.object({
   lastAskedField: z.string().nullable().optional(),
   lastAction: z.string().nullable().optional(),
   displayedChips: z.array(z.string()),
+  displayedStructuredChips: z.array(structuredChipSchema.nullable()).optional(),
   displayedOptions: z.array(recommendationDisplayedOptionSchema),
   displayedSeriesGroups: z.array(recommendationSeriesGroupSummarySchema).optional(),
   uiNarrowingPath: z.array(recommendationUiNarrowingPathEntrySchema).optional(),
@@ -449,6 +502,7 @@ export const recommendationRequestSchema = z.object({
   pagination: recommendationPaginationSchema.pick({ page: true, pageSize: true }).nullable().optional(),
   language: z.enum(["ko", "en"]).optional(),
   mode: z.string().optional(),
+  chipAction: structuredChipSchema.nullable().optional(),
 }).passthrough()
 
 export const recommendationResponseMetaSchema = z.object({
@@ -460,6 +514,7 @@ export const recommendationResponseSchema = z.object({
   text: z.string(),
   purpose: recommendationPurposeSchema,
   chips: z.array(z.string()),
+  structuredChips: z.array(structuredChipSchema.nullable()).optional(),
   chipGroups: z.array(recommendationChipGroupSchema).optional(),
   isComplete: z.boolean(),
   recommendation: z.unknown().nullable(),

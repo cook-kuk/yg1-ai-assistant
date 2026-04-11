@@ -641,7 +641,10 @@ function NarrowingChat({
   messages: ChatMsg[]
   isSending: boolean
   capabilities: RecommendationCapabilityDto
-  onSend: (text: string) => void
+  onSend: (
+    text: string,
+    chipAction?: import("@/lib/contracts/recommendation").StructuredChipDto | null,
+  ) => void
   onReset?: () => void
   onShowCandidates?: () => void
   /** "제품 보기" CTA — pours the current candidate snapshot into the chat. */
@@ -779,13 +782,24 @@ function NarrowingChat({
                 const renderChipButton = (chip: string, chipIndex: number) => {
                   const isResetChip = chip === "처음부터 다시" || chip === "처음부터"
                   const isUndoChip = isUndoChipEnabled(chip, capabilities)
+                  // Look up the structured chip by matching the label against the
+                  // message's flat chips array — index-aligned with structuredChips.
+                  const flatIndex = message.chips?.indexOf(chip) ?? -1
+                  const structured = flatIndex >= 0
+                    ? message.structuredChips?.[flatIndex] ?? null
+                    : null
                   return (
                     <button
                       key={`${chip}-${chipIndex}`}
                       onClick={() => {
                         if (!isLatest || needsFeedback || isSending) return
-                        if (isResetChip && onReset) onReset()
-                        else { setInput(""); onSend(chip) }
+                        if (isResetChip && onReset) { onReset(); return }
+                        if (structured && structured.action === "reset" && onReset) {
+                          onReset()
+                          return
+                        }
+                        setInput("")
+                        onSend(chip, structured)
                       }}
                       className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
                         !isLatest
@@ -1252,7 +1266,10 @@ export function ExplorationScreen({
   candidatePagination: RecommendationPaginationDto | null
   isCandidatePageLoading: boolean
   capabilities: RecommendationCapabilityDto
-  onSend: (text: string) => void
+  onSend: (
+    text: string,
+    chipAction?: import("@/lib/contracts/recommendation").StructuredChipDto | null,
+  ) => void
   onPageChange: (page: number) => void
   onReset: () => void
   onEdit: () => void

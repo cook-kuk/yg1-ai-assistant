@@ -311,6 +311,7 @@ export function useProductRecommendationPage({
           role: "ai",
           text: data.text ?? "",
           chips: data.chips ?? [],
+          structuredChips: data.structuredChips ?? undefined,
           chipGroups: data.chipGroups ?? undefined,
           recommendation: data.recommendation ?? null,
           evidenceSummaries: data.evidenceSummaries ?? null,
@@ -438,6 +439,7 @@ export function useProductRecommendationPage({
           role: "ai",
           text: data.text ?? "",
           chips: data.chips ?? [],
+          structuredChips: data.structuredChips ?? undefined,
           chipGroups: data.chipGroups ?? undefined,
           recommendation: data.recommendation ?? null,
           evidenceSummaries: data.evidenceSummaries ?? null,
@@ -464,7 +466,10 @@ export function useProductRecommendationPage({
     }
   }
 
-  const handleChatSend = async (text: string) => {
+  const handleChatSend = async (
+    text: string,
+    chipAction?: import("@/lib/contracts/recommendation").StructuredChipDto | null,
+  ) => {
     if (isChatSending) return
 
     const userMessage: ChatMsg = {
@@ -493,7 +498,7 @@ export function useProductRecommendationPage({
           ? { status: "known" as const, value: country }
           : { status: "known" as const, value: "ALL" },
       }
-      const requestPayload = createFollowUpRecommendationRequest({
+      const baseRequestPayload = createFollowUpRecommendationRequest({
         form: formWithCountry,
         messages: history,
         session: sessionEnvelope,
@@ -501,6 +506,9 @@ export function useProductRecommendationPage({
         language,
         pagination: { page: 0, pageSize: DEFAULT_PAGE_SIZE },
       })
+      const requestPayload = chipAction
+        ? { ...baseRequestPayload, chipAction }
+        : baseRequestPayload
 
       // Progressive cards (TODO-B): SSE flushes a partial DTO before the LLM
       // narrative arrives so cards render immediately. onCards updates the
@@ -598,6 +606,7 @@ export function useProductRecommendationPage({
           text: data.text ?? "",
           recommendation: data.recommendation ?? null,
           chips: data.chips ?? [],
+          structuredChips: data.structuredChips ?? undefined,
           chipGroups: data.chipGroups ?? undefined,
           evidenceSummaries: data.evidenceSummaries ?? null,
           requestPreparation: data.requestPreparation ?? null,

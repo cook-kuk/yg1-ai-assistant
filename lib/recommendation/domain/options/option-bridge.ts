@@ -6,6 +6,7 @@
  */
 
 import type { SmartOption, OptionPlannerContext } from "./types"
+import type { StructuredChipDto } from "@/lib/contracts/recommendation"
 import type {
   AppliedFilter,
   CandidateSnapshot,
@@ -74,6 +75,86 @@ export function smartOptionsToDisplayedOptions(smartOptions: SmartOption[]): Dis
  */
 export function smartOptionsToChips(smartOptions: SmartOption[]): string[] {
   return smartOptions.map(option => option.label)
+}
+
+/**
+ * Convert SmartOptions to structured chips — parallel to smartOptionsToChips,
+ * index-aligned with the label array. Carries action/field/value/op metadata
+ * so the frontend can dispatch directly (apply_filter / reset / etc.) without
+ * routing through the LLM re-extraction pipeline.
+ *
+ * Returns `null` for slots where no meaningful structured action can be
+ * derived (defensive — lets the caller fall back to text dispatch).
+ */
+export function smartOptionsToStructuredChips(smartOptions: SmartOption[]): (StructuredChipDto | null)[] {
+  return smartOptions.map(option => {
+    const text = option.label
+
+    // reset_session → reset action
+    if (option.plan.type === "reset_session") {
+      return { text, action: "reset" }
+    }
+
+    // compare_products → navigate to compare with product codes from patches
+    if (option.plan.type === "compare_products") {
+      const products = option.plan.patches
+        .filter(p => p.op === "add" && typeof p.value === "string")
+        .map(p => String(p.value))
+      return { text, action: "navigate", target: "compare", products }
+    }
+
+    // explain_recommendation → navigate action (explainer panel)
+    if (option.plan.type === "explain_recommendation") {
+      return { text, action: "navigate", target: "explain" }
+    }
+
+    // branch_session → ask action (user confirmation required before branching)
+    if (option.plan.type === "branch_session") {
+      return { text, action: "ask" }
+    }
+
+    // relax_filters → remove_filter (if single field) otherwise ask
+    if (option.plan.type === "relax_filters") {
+      const removePatch = option.plan.patches.find(p => p.op === "remove")
+      if (removePatch && removePatch.field) {
+        return { text, action: "remove_filter", field: removePatch.field }
+      }
+      return { text, action: "ask" }
+    }
+
+    // apply_filter / replace_filter → structured filter application.
+    // Prefer the direct option.field/value (set by buildQuestionFieldOptions);
+    // fall back to the first patch if missing.
+    if (option.plan.type === "apply_filter" || option.plan.type === "replace_filter") {
+      const field = option.field ?? option.plan.patches.find(p => p.op === "add" || p.op === "replace")?.field
+      const value = option.value ?? option.plan.patches.find(p => p.op === "add" || p.op === "replace")?.value
+      if (!field) return null
+
+      // Action-bucket pseudo-fields (_action=undo / skip) shouldn't be
+      // dispatched as filter clicks — fall through to text handler.
+      if (field === "_action") return null
+
+      // "skip" value → select_option (user's intent is "ignore this field"),
+      // which the server needs to convert into a skip filter.
+      if (value === "skip") {
+        return { text, action: "select_option", field, value: "skip" }
+      }
+
+      const op = option.plan.patches.find(p => (p.op === "add" || p.op === "replace") && p.field === field)?.op === "replace"
+        ? "eq"
+        : "eq"
+
+      return {
+        text,
+        action: "apply_filter",
+        field,
+        value: value != null ? String(value) : "",
+        op,
+      }
+    }
+
+    return null
+  })
 }
 
 /**

@@ -209,6 +209,9 @@ export function toRecommendationPublicSessionDto(
     lastAskedField: sessionState.lastAskedField ?? null,
     lastAction: sessionState.lastAction ?? null,
     displayedChips: [...(sessionState.displayedChips ?? [])],
+    displayedStructuredChips: sessionState.displayedStructuredChips
+      ? [...sessionState.displayedStructuredChips]
+      : undefined,
     displayedOptions: (sessionState.displayedOptions ?? []).map(toDisplayedOptionDto),
     displayedSeriesGroups: (sessionState.displayedSeriesGroups ?? sessionState.displayedGroups ?? []).map(toSeriesGroupSummaryDto),
     uiNarrowingPath: (sessionState.uiNarrowingPath ?? []).map(toUINarrowingPathEntryDto),
@@ -248,6 +251,7 @@ interface BuildRecommendationResponseDtoParams {
   text: string
   purpose: RecommendationResponseDto["purpose"]
   chips?: string[]
+  structuredChips?: (import("@/lib/contracts/recommendation").StructuredChipDto | null)[]
   chipGroups?: RecommendationChipGroupDto[]
   isComplete: boolean
   recommendation?: RecommendationResult | null
@@ -365,6 +369,7 @@ export function buildRecommendationResponseDto(
     text: finalText,
     purpose: params.purpose,
     chips: params.chips ?? [],
+    structuredChips: params.structuredChips,
     chipGroups: params.chipGroups,
     isComplete: params.isComplete,
     recommendation: params.recommendation ?? null,

@@ -4,7 +4,7 @@ import type {
   RecommendationResult,
   RequestPreparationResult,
 } from "@/lib/frontend/recommendation/recommendation-types"
-import type { RecommendationCandidateDto } from "@/lib/contracts/recommendation"
+import type { RecommendationCandidateDto, StructuredChipDto } from "@/lib/contracts/recommendation"
 
 export type TurnFeedback = "good" | "bad" | "neutral" | null
 export type LogPayload = unknown
@@ -14,6 +14,8 @@ export interface ChatMsg {
   text: string
   recommendation?: RecommendationResult | null
   chips?: string[]
+  /** Index-aligned with `chips`. Null slots fall back to text dispatch. */
+  structuredChips?: (StructuredChipDto | null)[]
   chipGroups?: Array<{ label: string; chips: string[] }>
   evidenceSummaries?: EvidenceSummary[] | null
   isLoading?: boolean

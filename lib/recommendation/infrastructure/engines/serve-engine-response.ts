@@ -58,7 +58,9 @@ import type {
 import {
   smartOptionsToChips,
   smartOptionsToDisplayedOptions,
+  smartOptionsToStructuredChips,
 } from "@/lib/recommendation/domain/options/option-bridge"
+import type { StructuredChipDto } from "@/lib/contracts/recommendation"
 import { validateOptionFirstPipeline } from "@/lib/recommendation/domain/options/option-validator"
 import { buildFilterValueScope } from "@/lib/recommendation/shared/filter-field-registry"
 import { traceRecommendation } from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
@@ -76,6 +78,37 @@ import type { FactCheckReport, VerifiedField } from "@/lib/types/fact-check"
 
 type DisplayedProduct = RecommendationDisplayedProductRequestDto
 const RECOMMENDATION_SUMMARY_MAX_TOKENS = 4000
+
+/**
+ * Align a final chip-label array with an upstream structured-chip registry
+ * (index-aligned with `upstreamChips`). Any label not in the registry gets
+ * a synthesized navigation/reset action based on well-known CTA text, or
+ * null (legacy text-based dispatch).
+ */
+function alignStructuredChips(
+  finalChips: string[],
+  upstreamChips: string[] | null,
+  upstreamStructured: (StructuredChipDto | null)[] | null,
+): (StructuredChipDto | null)[] {
+  const registry = new Map<string, StructuredChipDto>()
+  if (upstreamChips && upstreamStructured) {
+    for (let i = 0; i < upstreamChips.length; i++) {
+      const s = upstreamStructured[i]
+      if (s) registry.set(upstreamChips[i], s)
+    }
+  }
+  return finalChips.map(label => {
+    const hit = registry.get(label)
+    if (hit) return hit
+    // Synthesize for well-known CTA/reset/undo chips
+    if (label.includes("제품 보기")) return { text: label, action: "navigate", target: "product_list" }
+    if (label.includes("AI 상세 분석")) return { text: label, action: "navigate", target: "deep_analysis" }
+    if (label === "처음부터 다시" || label === "처음부터") return { text: label, action: "reset" }
+    if (label === "⟵ 이전 단계") return { text: label, action: "navigate", target: "undo" }
+    if (label === "상관없음") return { text: label, action: "select_option", value: "skip" }
+    return null
+  })
+}
 
 /**
  * Build a lightweight FactCheckedRecommendation without LLM calls.
@@ -912,7 +945,18 @@ JSON으로만 응답: {"responseText":"..."}`
     if (!finalResponseChips.some(c => c.includes("AI 상세 분석"))) finalResponseChips = [...finalResponseChips, `✨ AI 상세 분석`]
   }
 
+  // Align structured chips against the final chip-label list. Uses the
+  // question engine's upstream structured chips as the authoritative source;
+  // any finalResponseChips that aren't in the upstream list (CTA buttons,
+  // "이전 단계", "처음부터") get synthesized actions.
+  const finalStructuredChips = alignStructuredChips(
+    finalResponseChips,
+    questionFieldResult?.chips ?? null,
+    questionFieldResult?.structuredChips ?? null,
+  )
+
   sessionState.displayedChips = finalResponseChips
+  sessionState.displayedStructuredChips = finalStructuredChips
   sessionState.displayedOptions = finalDisplayedOptions
 
   // ── Post-Answer Validator: strip unauthorized actions from answer ──
@@ -954,6 +998,7 @@ JSON으로만 응답: {"responseText":"..."}`
     text: responseText,
     purpose: messages.length === 0 ? "greeting" : "question",
     chips: finalResponseChips,
+    structuredChips: finalStructuredChips,
     isComplete: false,
     recommendation: null,
     sessionState,
@@ -1293,6 +1338,9 @@ export async function buildRecommendationResponse(
   const followUpChips = postRecOptions.length > 0
     ? smartOptionsToChips(postRecOptions)
     : buildMinimalPostRecChips(recommendation, filters)
+  const followUpStructuredChips = postRecOptions.length > 0
+    ? smartOptionsToStructuredChips(postRecOptions)
+    : (followUpChips.map(() => null) as (StructuredChipDto | null)[])
 
   const displayedSeriesGroups = await buildDisplayedSeriesGroups(candidateSnapshot, input)
   const sessionState = buildSessionState({
@@ -1402,6 +1450,14 @@ export async function buildRecommendationResponse(
     console.log(`[answer-validator:recommendation] Softened unauthorized actions: ${recValidation.unauthorizedActions.map(a => a.phrase).join(",")}`)
   }
 
+  const finalRecStructuredChips = alignStructuredChips(
+    finalRecChips,
+    followUpChips,
+    followUpStructuredChips,
+  )
+  sessionState.displayedChips = finalRecChips
+  sessionState.displayedStructuredChips = finalRecStructuredChips
+
   traceRecommendation("response.buildRecommendationResponse:output", {
     purpose: "recommendation",
     text: finalResponseText,
@@ -1413,6 +1469,7 @@ export async function buildRecommendationResponse(
     text: finalResponseText,
     purpose: "recommendation",
     chips: finalRecChips,
+    structuredChips: finalRecStructuredChips,
     isComplete: true,
     recommendation,
     sessionState,
