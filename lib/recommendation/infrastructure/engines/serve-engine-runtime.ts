@@ -2020,6 +2020,23 @@ async function handleServeExplorationInner(
     const isAnswerIntent = !isSoftRec && (hasQ || QUESTION_RE.test(rawMsg0) || COMPARE_RE.test(rawMsg0) || TROUBLE_RE.test(rawMsg0)) || GREETING_RE.test(rawMsg0)
     if (isAnswerIntent) {
       console.log(`[turn0-answer] question/compare/trouble pattern → answer_general: "${rawMsg0.slice(0, 60)}"`)
+      // Inline proactive insights for turn0 troubleshoot/compare/question —
+      // insight-generator normally runs downstream in the recommendation
+      // pipeline (line ~3820), but turn0-answer short-circuits before that,
+      // so troubleshoot messages ("공구 수명 짧아") would miss the KB-based
+      // mechanism hints. Run generateInsights inline so general-chat's
+      // insightContext block gets populated.
+      let turn0InsightBlock = ""
+      try {
+        const { generateInsights, formatInsightsForPrompt } = await import("@/lib/recommendation/core/insight-generator")
+        const insights = generateInsights(rawMsg0, filters, 0, turnCount ?? 0)
+        if (insights.length > 0) {
+          turn0InsightBlock = formatInsightsForPrompt(insights)
+          console.log(`[turn0-answer] insight: ${insights.length}건 inline`)
+        }
+      } catch (e) {
+        console.warn("[turn0-answer] insight error:", (e as Error).message)
+      }
       const answerState = buildSessionState({
         candidateCount: 0,
         appliedFilters: filters,
@@ -2033,6 +2050,9 @@ async function handleServeExplorationInner(
         displayedOptions: [],
         currentMode: "question",
       })
+      if (turn0InsightBlock) {
+        ;(answerState as ExplorationSessionState & { __proactiveInsights?: string }).__proactiveInsights = turn0InsightBlock
+      }
       return handleServeGeneralChatAction({
         deps,
         action: { type: "answer_general", message: rawMsg0 },
