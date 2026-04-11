@@ -34,6 +34,7 @@ import {
   generateSmartOptionsForRecommendation,
 } from "@/lib/recommendation/infrastructure/engines/serve-engine-option-first"
 import { getMaterialDisplay, resolveMaterialTag } from "@/lib/recommendation/domain/material-resolver"
+import { assessComplexity } from "@/lib/recommendation/core/complexity-router"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { RecommendationDisplayedProductRequestDto, RecommendationPaginationDto } from "@/lib/contracts/recommendation"
@@ -841,11 +842,13 @@ export async function buildQuestionResponse(
   예: "AlCrN에서 Y-Coating으로 바꿨더니 후보가 5개로 줄었네요."
   '현재 적용 필터' 입력에 값이 있으면 그 중 가장 최근/대표 조건을 자연스럽게 한 마디로 녹여라.
 
-[제외 필터(≠/∉) 처리 필수] '현재 적용 필터'에 ≠ 또는 ∉ 가 붙은 항목은 **사용자가 명시적으로 빼달라고 한 값**이다.
-  - 절대 그 값을 추천하거나 긍정적으로 언급하지 마라.
-  - "X 빼고" 의도를 (1)에서 자연스럽게 확인: 예) "CRX S 시리즈는 빼고 다른 라인에서 골라봤습니다."
-  - 상위 후보 카드에 그 brand/series가 보이면 즉시 무시하고 나머지 후보 위주로 코멘트.
-  예) brand≠CRX S → "CRX S는 제외하고, 4G/V7 PLUS 같은 다른 라인 위주로 보여드릴게요." (CRX S 자체 칭찬 금지)
+[부정 필터(빼고/제외/말고/아닌 거) 처리 필수]
+사용자 메시지에 "빼고/제외/말고/아닌" 이 있거나 '현재 적용 필터'에 ≠/∉ 가 붙어있으면:
+  1) 제외 사실 확인 1문장 — 제외 대상 이름만 한 번 언급하고 끝. 절대 그 값을 재추천하거나 장점을 나열하지 마라.
+  2) 남은 상위 후보 중 실제 존재하는 대표 시리즈 하나를 즉시 소개.
+  3) 그 대안이 왜 좋은지 메커니즘/이유 1줄 (가변 헬릭스·내열 코팅·고이송 기하 등 카드 밖 노하우).
+  예) "CRX S는 제외했습니다. 남은 후보 중 4G MILL이 가변 헬릭스로 채터를 억제해 스테인리스 측벽에 강하고, V7 PLUS는 Y-Coating으로 열 방출이 좋아 수명이 길게 나옵니다."
+  ❌ 금지: 제외한 것을 칭찬/설명/비교하거나 "사실 CRX S도 좋지만..." 같은 hedging.
 
 [통찰력 활용] '프로액티브 통찰' 블록이 주어지면 (2)에 그 내용을 한 문장으로 녹여라(메커니즘·이유·팁 위주). 통찰 블록 그대로 복붙 금지.
 
@@ -866,14 +869,29 @@ export async function buildQuestionResponse(
   "~주세요/~해주세요" 명령조는 "~가시나요/~쓰실 건가요/~정도 되나요" 질문조로.
 
 JSON으로만: {"responseText":"..."}`
+      const complexity = assessComplexity(lastUserText, filters.length)
+      const isDeep = complexity.level === "deep"
+      const deepCoTBlock = isDeep
+        ? `
+
+[깊이 있는 답변 모드 — 이 질문은 복잡합니다]
+단계별로 생각하되 **최종 출력은 평문 2~5문장**만 내보내라 (생각 과정 나열 금지):
+  1) 사용자 의도 파악 (비교/트러블슈팅/용어설명/복합조건 중 무엇?)
+  2) 관련 도메인 지식 정리 (내열온도/헬릭스각/코팅 메커니즘/재질 특성 등)
+  3) 최적 답변 구성 (메커니즘 → 결론 → 실전 팁 순)
+  4) 위험 요소 체크 (가공경화·채터·구성인선·열변형 등 주의점)
+시간이 걸려도 좋으니 shallow한 "상황에 따라 다릅니다" 답변은 금지.`
+        : ""
+      const finalPolishSystem = polishSystem + deepCoTBlock
+      const polishMaxTokens = isDeep ? 2000 : complexity.level === "light" ? 500 : 1000
       const polishUser = `사용자 최신 메시지: "${lastUserText}"
 현재 후보 ${totalCandidateCount}개
 현재 적용 필터: ${filterSummary || "(없음)"}${topCandLines ? `\n상위 후보:\n${topCandLines}` : ""}
 원본 질문: "${question?.questionText ?? ""}"${chipList ? `\n선택지(칩): [${chipList}]` : ""}${insightBlock}`
       const raw = await provider.complete(
-        polishSystem,
+        finalPolishSystem,
         [{ role: "user", content: polishUser }],
-        300,
+        polishMaxTokens,
         undefined,
         "narrative-polish",
       )
