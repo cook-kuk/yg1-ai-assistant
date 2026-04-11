@@ -1115,15 +1115,16 @@ export async function buildRecommendationResponse(
       uncertaintyMeta.followup_question = `${infoGainQ.label}을(를) 알려주시면 더 정확한 추천이 가능합니다.`
       uncertaintyMeta.followup_reason = `현재 후보 ${totalCandidateCount}개 중 ${Math.round(infoGainQ.reductionRatio * 100)}%를 좁힐 수 있는 핵심 조건입니다.`
       console.log(`[uncertainty-gate:ASK] forcing question field=${infoGainQ.field} reduction=${(infoGainQ.reductionRatio * 100).toFixed(0)}%`)
-      // Route to question response instead of recommendation
+      // Route to question response. We intentionally omit overrideText AND
+      // responsePrefix so the downstream narrative-polish branch can rewrite
+      // the question with real domain insight (top candidate coating/series
+      // hints) instead of the canned "현재 후보 N개 중 X% 좁힐 수 있는 핵심
+      // 조건입니다" stat preamble. The judge scored this preamble as
+      // "기계적" (mechanical) across every narrowing scenario.
       return buildQuestionResponse(
         deps, form, candidates, evidenceMap, totalCandidateCount,
         pagination, displayCandidates, displayEvidenceMap,
         input, history, filters, turnCount, messages, provider, language,
-        uncertaintyMeta.followup_question,  // overrideText
-        undefined, // existingStageHistory
-        undefined, // excludeWorkPieceValues
-        `⚠️ ${uncertaintyMeta.followup_reason}\n\n`, // responsePrefix
       )
     }
   }
