@@ -570,23 +570,6 @@ interface OpenAICompatibleConfig {
  *  tierHint comes from either AGENT_TIER[agentName] or, when the caller
  *  resolved to a literal Anthropic id, inferTierFromModel(modelId).
  */
-/** Safety alias map — corrects historical typos in env files that would
- *  otherwise 404 at the provider. Keep narrow: only true typos, not renames. */
-const OPENAI_MODEL_ALIASES: Record<string, string> = {
-  "gpt-5.4-mini": "gpt-5-mini",
-  "gpt-5.4": "gpt-5",
-  "gpt-5.4-nano": "gpt-5-nano",
-}
-function normalizeOpenAIModelId(raw: string): string {
-  if (!raw) return raw
-  const aliased = OPENAI_MODEL_ALIASES[raw]
-  if (aliased) {
-    console.warn(`[llm] env model id "${raw}" aliased → "${aliased}" (typo safety net)`)
-    return aliased
-  }
-  return raw
-}
-
 function resolveOpenAICompatibleConfig(
   agentName?: AgentName,
   tierHint?: ModelTier,
@@ -631,7 +614,7 @@ function resolveOpenAICompatibleConfig(
 
   const apiKey = pick("API_KEY") || ""
   const baseURL = pick("BASE_URL") || PROVIDER_BASE_URLS[provider.toLowerCase()] || "https://api.openai.com/v1"
-  const model = normalizeOpenAIModelId(pick("MODEL") || "")
+  const model = pick("MODEL") || ""
 
   // Local providers may not need API key
   const isLocal = /localhost|127\.0\.0\.1|host\.docker\.internal/i.test(baseURL)

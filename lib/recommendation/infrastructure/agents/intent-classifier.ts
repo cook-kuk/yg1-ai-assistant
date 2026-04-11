@@ -329,6 +329,12 @@ Intent 종류 (반드시 이 값 중 하나):
 - "처음부터", "리셋", "다시 시작" → RESET_SESSION
 - "~란?", "~뭐야?", "~설명" → ASK_EXPLANATION
 - 단순 값 제공 → SET_PARAMETER (extractedValue=값)
+- "~하는데 괜찮은 거?", "~좋은 거?", "~추천 좀", "~쓸만한 거" → 반드시 SET_PARAMETER 또는 ASK_RECOMMENDATION. 사용자가 언급한 소재/용어를 extractedValue에 넣어라. 이건 "추천 요청"이지 지식 질문이 아니다.
+
+절대 금지:
+- 소재명(SUS316L, SCM440 등) + 괜찮은지/좋은지 물으면 절대 OUT_OF_SCOPE 아님. SET_PARAMETER로 분류.
+- "많이 하는데", "쓰고 있는데" 같은 맥락은 "내가 이 소재 가공한다"는 뜻. 추천 요청으로 간주.
+- 일반 지식 답변("본사 문의하세요", "확인할 수 없습니다") 경로로 빠뜨리지 마라. 항상 제품 추천 흐름으로 라우팅.
 
 반드시 JSON만 출력. 다른 텍스트 절대 금지.
 {"intent":"...","confidence":0.0-1.0,"extractedValue":"..." 또는 null,"reasoning":"한 문장"}`
