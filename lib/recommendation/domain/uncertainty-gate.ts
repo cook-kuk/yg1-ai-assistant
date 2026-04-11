@@ -410,6 +410,7 @@ export function selectHighestInfoGainQuestion(
   candidates: ScoredProduct[],
   input: RecommendationInput,
   filters: AppliedFilter[],
+  askedFields?: ReadonlySet<string>,
 ): InfoGainQuestion | null {
   const alreadyFiltered = new Set(filters.map(f => f.field))
   const questions: InfoGainQuestion[] = []
@@ -462,6 +463,10 @@ export function selectHighestInfoGainQuestion(
 
   for (const fa of fieldAccessors) {
     if (fa.isSet() || alreadyFiltered.has(fa.field)) continue
+    // P0 loop fix: exclude fields already asked in previous narrowing turns so
+    // the ASK override doesn't re-pick the same field turn after turn when the
+    // user answers without providing that field (the classic toolSubtype loop).
+    if (askedFields && askedFields.has(fa.field)) continue
 
     const valueCounts = new Map<string, number>()
     let nullCount = 0
