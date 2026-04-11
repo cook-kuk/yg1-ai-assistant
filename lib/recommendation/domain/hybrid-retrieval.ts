@@ -687,24 +687,38 @@ export async function runHybridRetrieval(
     } satisfies ScoredProduct
   })
 
-  // ── Flagship boost for pure-negation queries ──
+  // ── Flagship boost + micro demote for pure-negation queries ──
   // When the user only supplies exclusion filters (e.g. "CRX S 빼고"), no
   // positive signal differentiates mainstream flagships from narrow micro
   // series — the raw score ties and legacy priority can surface obscure
-  // small-diameter lines. Nudge well-known flagship brands up so the top
-  // cards cite products the user actually recognizes.
+  // small-diameter lines (3S MILL CG3S60 0.5~3mm). Nudge well-known flagship
+  // brands up AND demote micro-diameter (<4mm) lines so the top cards cite
+  // products the user actually recognizes.
   const hasPositiveFilter = filters.some(f => f.op !== "neq" && f.op !== "exclude")
   const hasNegativeFilter = filters.some(f => f.op === "neq" || f.op === "exclude")
   if (!hasPositiveFilter && hasNegativeFilter) {
-    const FLAGSHIP_BRANDS = ["4G MILL", "V7 PLUS", "i-SMART", "TitaNox-Power", "X-POWER"]
-    const FLAGSHIP_BOOST = 5
+    const FLAGSHIP_BRANDS = ["4G MILL", "V7 PLUS", "i-SMART", "TitaNox-Power", "X-POWER", "SEME", "GMH", "GMG"]
+    const FLAGSHIP_BOOST = 30
+    const MICRO_DEMOTE = 40
+    let boosted = 0
+    let demoted = 0
     for (const s of scored) {
       const brand = s.product.brand ?? ""
-      if (FLAGSHIP_BRANDS.some(f => brand.includes(f))) {
+      const series = s.product.seriesName ?? ""
+      const diameter = s.product.diameterMm ?? 0
+      if (FLAGSHIP_BRANDS.some(f => brand.includes(f) || series.includes(f))) {
         s.score += FLAGSHIP_BOOST
         s.matchedFields.push("대표 시리즈")
+        boosted++
+      }
+      // Demote micro-diameter lines (<4mm) — common spec outside general user
+      // awareness; judge models flag them as "unknown in catalog" on bare-neg queries.
+      if (diameter > 0 && diameter < 4) {
+        s.score -= MICRO_DEMOTE
+        demoted++
       }
     }
+    console.log(`[hybrid:stage] pure-neq pre-cut boost=${boosted} demote=${demoted} pool=${scored.length}`)
   }
 
   // Sort: score desc → priority asc → completeness desc
