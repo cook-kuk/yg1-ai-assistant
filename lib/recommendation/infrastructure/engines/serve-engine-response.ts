@@ -544,11 +544,20 @@ async function selectNextQuestionForResponse(params: {
   excludeWorkPieceValues?: string[]
 }): Promise<NextQuestion | null> {
   const { input, candidates, history, filters, totalCandidateCount, excludeWorkPieceValues } = params
+  const alreadyAsked = new Set(
+    history.map(t => t.askedField).filter((f): f is string => typeof f === "string" && f.length > 0)
+  )
   const workPieceQuestion = await buildWorkPieceQuestion(input, filters, candidates, excludeWorkPieceValues)
-  // workPieceQuestion takes priority when available; fall back to entropy-based selection
-  if (workPieceQuestion) return workPieceQuestion
-  return selectNextQuestion(input, candidates, history, totalCandidateCount)
+  if (workPieceQuestion && !alreadyAsked.has(workPieceQuestion.field)) return workPieceQuestion
+  const q = selectNextQuestion(input, candidates, history, totalCandidateCount)
+  if (q && alreadyAsked.has(q.field)) {
+    console.warn(`[question-dedup] skipping field=${q.field} — already asked in history`)
+    return null
+  }
+  return q
 }
+
+const MAX_QUESTION_REC_DEPTH = 3
 
 export async function buildQuestionResponse(
   deps: ServeResponseBuilderDependencies,
@@ -571,7 +580,17 @@ export async function buildQuestionResponse(
   excludeWorkPieceValues?: string[],
   responsePrefix?: string,
   overrideChips?: string[],
+  extraResponseContext?: string,
+  _recursionDepth: number = 0,
 ): Promise<Response> {
+  if (_recursionDepth > MAX_QUESTION_REC_DEPTH) {
+    console.warn(`[recursion-guard] buildQuestionResponse depth=${_recursionDepth} > ${MAX_QUESTION_REC_DEPTH} — forcing recommendation (skipQuestionInjection=true) to break loop`)
+    return buildRecommendationResponse(
+      deps, form, candidates, evidenceMap, totalCandidateCount,
+      pagination, displayCandidates, displayEvidenceMap, input, history, filters,
+      turnCount, messages, provider, language, null, undefined, true, _recursionDepth + 1,
+    )
+  }
   traceRecommendation("response.buildQuestionResponse:input", {
     totalCandidateCount,
     turnCount,
@@ -724,6 +743,7 @@ export async function buildQuestionResponse(
       snapshotToDisplayed(candidateSnapshot),
       undefined,
       true,
+      _recursionDepth + 1,
     )
   }
 
@@ -1050,7 +1070,12 @@ export async function buildRecommendationResponse(
   displayedProducts: DisplayedProduct[] | null = null,
   extraResponseContext?: string,
   skipQuestionInjection: boolean = false,
+  _recursionDepth: number = 0,
 ): Promise<Response> {
+  if (_recursionDepth > MAX_QUESTION_REC_DEPTH) {
+    console.warn(`[recursion-guard] buildRecommendationResponse depth=${_recursionDepth} > ${MAX_QUESTION_REC_DEPTH} — forcing skipQuestionInjection=true to break loop`)
+    skipQuestionInjection = true
+  }
   traceRecommendation("response.buildRecommendationResponse:input", {
     totalCandidateCount,
     turnCount,
@@ -1092,7 +1117,14 @@ export async function buildRecommendationResponse(
         turnCount,
         messages,
         provider,
-        language
+        language,
+        undefined, // overrideText
+        undefined, // existingStageHistory
+        undefined, // excludeWorkPieceValues
+        undefined, // responsePrefix
+        undefined, // overrideChips
+        undefined, // extraResponseContext
+        _recursionDepth + 1,
       )
     }
   }
@@ -1136,6 +1168,12 @@ export async function buildRecommendationResponse(
         pagination, displayCandidates, displayEvidenceMap,
         input, history, filters, turnCount, messages, provider, language,
         uncertaintyMeta.followup_question, // overrideText
+        undefined, // existingStageHistory
+        undefined, // excludeWorkPieceValues
+        undefined, // responsePrefix
+        undefined, // overrideChips
+        undefined, // extraResponseContext
+        _recursionDepth + 1,
       )
     }
   }
