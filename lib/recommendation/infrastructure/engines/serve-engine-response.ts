@@ -796,14 +796,39 @@ export async function buildQuestionResponse(
         if (Array.isArray(c.materialTags) && c.materialTags.length > 0) meta.push(c.materialTags.slice(0, 2).join("/"))
         return `  ${i + 1}. ${c.displayCode ?? c.productCode} (${meta.join(", ")})`
       }).join("\n")
+      const filterSummary = filters.length > 0
+        ? filters
+            .filter(f => f.op !== "skip" && f.field !== "none")
+            .map(f => `${f.field}=${Array.isArray(f.value) ? f.value.join("|") : f.value}`)
+            .join(", ")
+        : ""
+      const insightBlock = extraResponseContext && extraResponseContext.trim().length > 0
+        ? `\n프로액티브 통찰:\n${extraResponseContext.trim()}`
+        : ""
       const polishSystem = `당신은 YG-1 기술영업 김도현 차장입니다. 사용자 메시지에 한국어로 친근하게 응답하세요.
 
-흐름: (1) 사용자 입력 짧게 확인 → (2) 후보 중 눈에 띄는 특징 한 줄(코팅·시리즈 강점이나 가공 팁) → (3) 원본 질문을 자연스럽게.
+흐름: (1) 사용자 입력 짧게 확인(이전 필터 이어받기 포함) → (2) 후보 중 눈에 띄는 특징 한 줄(코팅·시리즈 강점이나 가공 팁) → (3) 원본 질문을 자연스럽게.
 
 - 카드에 안 보이는 메커니즘/노하우 위주. 스펙 나열 금지.
 - 숫자는 주어진 값만 사용, 새로 만들지 마라.
 - 후보가 0개거나 사용자 의도가 비교/설명/트러블슈팅이면 (2)는 그 응답으로 대체.
 - 평문 2~4문장. 이모지/마크다운/토막 문장 금지.
+
+[맥락 이어받기 필수] 이전 턴에서 적용된 필터가 있으면 (1)에서 반드시 이어받아 언급:
+  예: "스테인리스 10mm로 좁혔더니 148개 나왔습니다. 코팅은 어떤 걸로 가실래요?"
+  필터 변경 시 변경 사실 명시:
+  예: "AlCrN에서 Y-Coating으로 바꿨더니 후보가 5개로 줄었네요."
+  '현재 적용 필터' 입력에 값이 있으면 그 중 가장 최근/대표 조건을 자연스럽게 한 마디로 녹여라.
+
+[통찰력 활용] '프로액티브 통찰' 블록이 주어지면 (2)에 그 내용을 한 문장으로 녹여라(메커니즘·이유·팁 위주). 통찰 블록 그대로 복붙 금지.
+
+[소재 그레이드 인식 필수] 사용자가 구체 그레이드(SUS304/SUS316L/A6061/A7075/Ti6Al4V/Inconel718/SCM440/SKD11/SKD61 등)를 언급하면 ISO 그룹(M/P/N/S)만 말하지 말고 해당 그레이드 고유 특성을 (2)에 한 줄로 짚어라.
+  예) SUS316L → "SUS316L은 Mo 첨가로 SUS304보다 가공경화·점성이 심해 이송 끊김 금지, AlCrN 같은 내열 코팅이 유리합니다."
+  예) Ti6Al4V → "Ti6Al4V는 열전도가 낮아 날끝에 열이 몰리니 저속·고압 쿨란트가 핵심입니다."
+  예) A7075 → "A7075는 구성인선이 붙기 쉬워 DLC/무코팅에 고속·저이송이 안전합니다."
+
+[코팅 비교 질의 필수] 사용자가 2개 이상 코팅(AlCrN/TiAlN/DLC/TiN/TiCN/Diamond 등)을 나란히 언급하면 언급된 **모든 코팅을 각각 한 줄씩** 내열온도·강점·약점을 짚고, 사용자가 말한 작업 조건에서 어느 쪽이 유리한지 결론까지 낸 뒤 (3) 질문으로 넘어가라. 한쪽만 답하거나 "상황에 따라 다름"으로 얼버무리지 마라.
+  예) "AlCrN은 내열 ~1100℃로 스테인리스 고속 건식에 강하고, TiAlN은 ~800℃대로 고경도강 건식에 유리합니다. 스테인리스라면 AlCrN 쪽이 산화 마모가 적어요."
 
 [질문 자연스러움 필수] 원본 질문이 기계적이면 반드시 대화체로 바꿔라:
   ❌ "공구 타입을 알려주세요" → ✅ "주로 어떤 가공을 하시나요? 포켓/측면/홈 같은 거요"
@@ -815,8 +840,9 @@ export async function buildQuestionResponse(
 
 JSON으로만: {"responseText":"..."}`
       const polishUser = `사용자 최신 메시지: "${lastUserText}"
-현재 후보 ${totalCandidateCount}개${topCandLines ? `\n상위 후보:\n${topCandLines}` : ""}
-원본 질문: "${question?.questionText ?? ""}"${chipList ? `\n선택지(칩): [${chipList}]` : ""}`
+현재 후보 ${totalCandidateCount}개
+현재 적용 필터: ${filterSummary || "(없음)"}${topCandLines ? `\n상위 후보:\n${topCandLines}` : ""}
+원본 질문: "${question?.questionText ?? ""}"${chipList ? `\n선택지(칩): [${chipList}]` : ""}${insightBlock}`
       const raw = await provider.complete(
         polishSystem,
         [{ role: "user", content: polishUser }],

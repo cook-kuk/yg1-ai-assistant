@@ -1354,6 +1354,7 @@ export interface ServeEngineRuntimeDependencies {
     excludeWorkPieceValues?: string[],
     responsePrefix?: string,
     overrideChips?: string[],
+    extraResponseContext?: string,
   ) => Promise<Response>
   buildRecommendationResponse: (
     form: ProductIntakeForm,
@@ -1767,6 +1768,32 @@ async function handleServeExplorationInner(
   pagination: CandidatePaginationRequest | null = null,
   trace: TraceCollector = new TraceCollector()
 ): Promise<Response> {
+  // ── Proactive insights auto-injection ──
+  // insight-generator (line ~3805) writes into this closure var. The wrapped
+  // build*Response functions then auto-inject it as `extraResponseContext` so
+  // the polish/summary LLM prompts can weave it into their narrative without
+  // every call site having to forward the value explicitly.
+  let proactiveInsightsContext: string | undefined
+  const baseBuildQuestionResponse = deps.buildQuestionResponse
+  const baseBuildRecommendationResponse = deps.buildRecommendationResponse
+  deps = {
+    ...deps,
+    buildQuestionResponse: (...args: Parameters<typeof baseBuildQuestionResponse>) => {
+      const passed = args[19]
+      const ctx = passed !== undefined ? passed : proactiveInsightsContext
+      const newArgs = [...args] as Parameters<typeof baseBuildQuestionResponse>
+      newArgs[19] = ctx
+      return baseBuildQuestionResponse(...newArgs)
+    },
+    buildRecommendationResponse: (...args: Parameters<typeof baseBuildRecommendationResponse>) => {
+      const passed = args[15]
+      const ctx = passed !== undefined ? passed : proactiveInsightsContext
+      const newArgs = [...args] as Parameters<typeof baseBuildRecommendationResponse>
+      newArgs[15] = ctx
+      return baseBuildRecommendationResponse(...newArgs)
+    },
+  }
+
   // SQL Agent 스키마 로드 (첫 호출 시 await, 이후 캐시)
   await getDbSchema().catch(() => {})
 
@@ -3803,6 +3830,9 @@ async function handleServeExplorationInner(
             const insightBlock = formatInsightsForPrompt(insights)
             legacyState.thinkingProcess = (legacyState.thinkingProcess ? legacyState.thinkingProcess + "\n\n" : "") + insightBlock
             ;(legacyState as ExplorationSessionState & { __proactiveInsights?: string }).__proactiveInsights = insightBlock
+            // Auto-inject into all subsequent build*Response calls via the closure
+            // wrapper installed at the top of handleServeExplorationInner.
+            proactiveInsightsContext = insightBlock
           }
         } catch (e) {
           console.warn("[insight] error:", (e as Error).message)

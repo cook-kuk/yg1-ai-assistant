@@ -209,6 +209,7 @@ export function createServeRuntimeDependencies(
       excludeWorkPieceValues?: Parameters<typeof buildQuestionResponse>[17],
       responsePrefix?: Parameters<typeof buildQuestionResponse>[18],
       overrideChips?: Parameters<typeof buildQuestionResponse>[19],
+      extraResponseContext?: Parameters<typeof buildQuestionResponse>[20],
     ) => buildQuestionResponse(
       responseDeps,
       form,
@@ -230,6 +231,7 @@ export function createServeRuntimeDependencies(
       excludeWorkPieceValues,
       responsePrefix,
       overrideChips,
+      extraResponseContext,
     ),
     buildRecommendationResponse: (
       form: ProductIntakeForm,
@@ -247,6 +249,7 @@ export function createServeRuntimeDependencies(
       provider: Parameters<typeof buildRecommendationResponse>[13],
       language: Parameters<typeof buildRecommendationResponse>[14],
       displayedProducts?: Parameters<typeof buildRecommendationResponse>[15],
+      extraResponseContext?: Parameters<typeof buildRecommendationResponse>[16],
     ) => buildRecommendationResponse(
       responseDeps,
       form,
@@ -264,6 +267,7 @@ export function createServeRuntimeDependencies(
       provider,
       language,
       displayedProducts,
+      extraResponseContext,
     ),
     onThinking: options.onThinking,
     buildCandidateSnapshot,
