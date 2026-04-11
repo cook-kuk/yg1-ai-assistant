@@ -1892,6 +1892,39 @@ async function handleServeExplorationInner(
     pendingSelectionOrchestratorResult = buildPendingSelectionOrchestratorResult(pendingSelectionFilter)
   }
 
+  // ── Post-result skip-word short-circuit ────────────────────────
+  // When products are already shown (resolutionStatus=resolved_*) and the
+  // user sends a bare skip word ("상관없음", "모름", "패스", ...), there is
+  // no pending field to skip and no filter to extract. The heavy routing
+  // path still runs sql-agent + SCR through shadow-mode planner — that
+  // costs ~30-42s on a no-op message (measured I4 T4). Route straight to
+  // answer_general so only the composer runs (~5-8s floor).
+  if (
+    !shouldResolvePendingSelectionEarly
+    && prevState
+    && lastUserMsg
+    && isSkipSelectionValue(lastUserMsg.text)
+    && isPostResultPhase(journeyPhase)
+    && !!prevState.resolutionStatus?.startsWith("resolved")
+  ) {
+    console.log(`[post-result-skip-shortcircuit] "${lastUserMsg.text}" → answer_general (skip sql-agent/SCR)`)
+    return handleServeGeneralChatAction({
+      deps,
+      action: { type: "answer_general", message: lastUserMsg.text },
+      orchResult: buildPreSearchOrchestratorResult(lastUserMsg.text, "post_result_skip_noop"),
+      provider,
+      form,
+      messages,
+      prevState,
+      filters,
+      narrowingHistory,
+      currentInput,
+      candidates: [],
+      evidenceMap: new Map(),
+      turnCount,
+    })
+  }
+
   // ── Build & Persist Conversation Memory (long-term, across turns) ──
   if (prevState && !prevState.conversationMemory) {
     prevState.conversationMemory = buildMemoryFromSession(
