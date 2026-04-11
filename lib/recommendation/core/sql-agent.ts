@@ -193,7 +193,10 @@ function buildSystemPrompt(schema: DbSchema, existingFilters: AppliedFilter[], u
     ? existingFilters.map(f => `  ${f.field} ${f.op} ${f.value}`).join("\n")
     : "  (none)"
 
-  return `You are a SQL filter expert for YG-1 cutting tool catalog.
+  if (kgHint) {
+    console.log(`[sql-agent:kgHint] received hint=${kgHint}`)
+  }
+  return `You are a SQL filter expert for YG-1 cutting tool catalog. [KGBRIDGE_MARKER_V2_20260411_PADDING_TO_VERIFY_DEPLOY_ACTIVE_CODE_BUILD]
 
 ## DB Schema (catalog_app.product_recommendation_mv)
 ${colList}
