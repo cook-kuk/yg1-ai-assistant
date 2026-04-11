@@ -1974,7 +1974,12 @@ async function handleServeExplorationInner(
     const hasRecEntities = extractEntities(rawMsg0).some(e =>
       ["workPieceName", "coating", "toolSubtype", "toolType", "shankType", "diameterMm", "fluteCount"].includes(e.field)
     )
-    const isSoftRec = SOFT_REC_RE.test(rawMsg0) || hasRecEntities
+    // Strong compare pattern: "X(이?랑|와|과|vs) Y ... (뭐가 나/더/차이/어느 게)"
+    // wins over soft-rec even when entities are present — the user is asking
+    // which of two things is better, not for a recommendation of either.
+    const STRONG_COMPARE_RE = /(\S+)\s*(이?랑|와|과|\bvs\.?\b)\s*(\S+).*(뭐가\s*(나|더|좋)|어느\s*게|차이|대비)/i
+    const isStrongCompare = STRONG_COMPARE_RE.test(rawMsg0)
+    const isSoftRec = !isStrongCompare && (SOFT_REC_RE.test(rawMsg0) || hasRecEntities)
     const isAnswerIntent = !isSoftRec && (hasQ || QUESTION_RE.test(rawMsg0) || COMPARE_RE.test(rawMsg0) || TROUBLE_RE.test(rawMsg0)) || GREETING_RE.test(rawMsg0)
     if (isAnswerIntent) {
       console.log(`[turn0-answer] question/compare/trouble pattern → answer_general: "${rawMsg0.slice(0, 60)}"`)

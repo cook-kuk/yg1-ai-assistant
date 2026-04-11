@@ -731,22 +731,13 @@ export async function buildQuestionResponse(
   let responseChips = question?.chips ?? chips
   const latestTurnWasSkip = didLatestNarrowingTurnSkip(history)
 
-  // First-turn intake: the only message is a synthesized intake summary (not
-  // natural user text), so the slim polish path downstream tends to produce
-  // weird fallbacks. Keep a deterministic template here, but write it in a
-  // conversational tone instead of the old "현재 N개 후보가 있습니다" boilerplate
-  // that violated the unified-brain rules.
-  const isFirstTurnIntakeResponse = messages.length === 1 && history.length === 0 && !overrideText
-
+  // First-turn intake historically took a deterministic template path because
+  // the only message was a synthesized intake summary. In the current flow the
+  // first user message is real natural text, so we let it fall into the
+  // narrative-polish branch below; the fragment guard there falls back to the
+  // deterministic question text if the polish output looks broken.
   if (overrideText) {
     // no-op
-  } else if (isFirstTurnIntakeResponse) {
-    if (question?.questionText) {
-      responseText = language === "ko"
-        ? question.questionText
-        : question.questionText
-    }
-    console.log("[first-turn-intake] Deterministic conversational question (no count preamble)")
   } else if (provider.available() && messages.length === 0) {
     try {
       const systemPrompt = buildSystemPrompt(language)
