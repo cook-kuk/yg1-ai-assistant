@@ -1931,7 +1931,18 @@ async function handleServeExplorationInner(
     const COMPARE_RE = /(\bvs\.?\b|대비|차이|뭐가\s*(더|나|나아|좋)|어느\s*게\s*(더|낫|좋))/i
     // 수명 ... 짧/줄/안좋/문제/나빠 — adverbs may sit between ("수명이 너무 짧아")
     const TROUBLE_RE = /(수명[\s\S]{0,15}(짧|줄|문제|안\s*좋|나빠|떨어)|마모가|닳아|파손|깨짐|부러|떨림|진동|채터|거칠|버[가는이]?\s|칩[이\s]*엉)/
-    const isAnswerIntent = hasQ || QUESTION_RE.test(rawMsg0) || COMPARE_RE.test(rawMsg0) || TROUBLE_RE.test(rawMsg0)
+    // Greetings / chit-chat → general-chat handler (not narrowing)
+    const GREETING_RE = /^(안녕|하이|hi\b|hello\b|반가|좋은\s*(아침|오후|저녁)|처음\s*뵙|start)/i
+    // Soft recommendation-request markers: "~괜찮은 거?", "~좋은 거?", "~추천 좀",
+    // "~뭐가 있어?", "~쓸만한 거" — these LOOK like questions but mean "recommend"
+    const SOFT_REC_RE = /(괜찮은|좋은|쓸만한|쓸\s*만한|추천\s*(좀|해)|뭐가\s*있|있을까|어울리는|맞는|적합한)/
+    // If the message contains product entities (material/coating/subtype/shank),
+    // it's a recommendation context even with "?". Only intercept pure Q/troubleshoot.
+    const hasRecEntities = extractEntities(rawMsg0).some(e =>
+      ["workPieceName", "coating", "toolSubtype", "toolType", "shankType", "diameterMm", "fluteCount"].includes(e.field)
+    )
+    const isSoftRec = SOFT_REC_RE.test(rawMsg0) || hasRecEntities
+    const isAnswerIntent = !isSoftRec && (hasQ || QUESTION_RE.test(rawMsg0) || COMPARE_RE.test(rawMsg0) || TROUBLE_RE.test(rawMsg0)) || GREETING_RE.test(rawMsg0)
     if (isAnswerIntent) {
       console.log(`[turn0-answer] question/compare/trouble pattern → answer_general: "${rawMsg0.slice(0, 60)}"`)
       const answerState = buildSessionState({

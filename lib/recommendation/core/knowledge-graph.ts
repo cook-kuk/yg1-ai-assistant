@@ -38,8 +38,12 @@ interface IntentPattern {
 // ── Entity Graph (Filter Values) ──────────────────────────────
 
 export const ENTITY_NODES: EntityNode[] = [
+  // toolType (edp_root_category) — broad category from Korean tool names
+  { canonical: "Milling", field: "toolType", aliases: ["엔드밀", "endmill", "end mill", "밀링", "milling", "밀링공구"] },
+  { canonical: "Holemaking", field: "toolType", aliases: ["드릴", "drill", "홀가공", "구멍가공", "holemaking", "드릴링"] },
+  { canonical: "Threading", field: "toolType", aliases: ["탭", "tap", "탭핑", "나사", "나사가공", "threading", "쓰레딩"] },
   // toolSubtype
-  { canonical: "Square", field: "toolSubtype", aliases: ["square", "스퀘어", "스퀘어엔드밀", "평엔드밀"] },
+  { canonical: "Square", field: "toolSubtype", aliases: ["square", "스퀘어", "스퀘어엔드밀", "평엔드밀", "플랫", "플랫엔드밀", "flat", "플랫엔드", "스퀘어엔드"] },
   { canonical: "Ball", field: "toolSubtype", aliases: ["ball", "볼", "볼엔드밀", "볼노즈"] },
   { canonical: "Radius", field: "toolSubtype", aliases: ["radius", "라디우스", "레디우스", "레디어스", "코너r", "코너알", "코너반경", "코너레디우스", "코너레디어스", "코너래디우스", "corner radius"] },
   { canonical: "Roughing", field: "toolSubtype", aliases: ["roughing", "황삭", "러핑", "황삭용"] },
