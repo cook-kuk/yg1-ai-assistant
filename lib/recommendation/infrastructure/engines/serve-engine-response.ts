@@ -542,14 +542,15 @@ async function selectNextQuestionForResponse(params: {
   filters: AppliedFilter[]
   totalCandidateCount: number
   excludeWorkPieceValues?: string[]
+  skipResolutionCheck?: boolean
 }): Promise<NextQuestion | null> {
-  const { input, candidates, history, filters, totalCandidateCount, excludeWorkPieceValues } = params
+  const { input, candidates, history, filters, totalCandidateCount, excludeWorkPieceValues, skipResolutionCheck } = params
   const alreadyAsked = new Set(
     history.map(t => t.askedField).filter((f): f is string => typeof f === "string" && f.length > 0)
   )
   const workPieceQuestion = await buildWorkPieceQuestion(input, filters, candidates, excludeWorkPieceValues)
   if (workPieceQuestion && !alreadyAsked.has(workPieceQuestion.field)) return workPieceQuestion
-  const q = selectNextQuestion(input, candidates, history, totalCandidateCount)
+  const q = selectNextQuestion(input, candidates, history, totalCandidateCount, skipResolutionCheck)
   if (q && alreadyAsked.has(q.field)) {
     console.warn(`[question-dedup] skipping field=${q.field} — already asked in history`)
     return null
@@ -618,9 +619,11 @@ export async function buildQuestionResponse(
 
   // When caller passes overrideText (e.g. uncertainty-gate ASK forcing a
   // question even though resolution says "show cards"), skip the
-  // alreadyResolved short-circuit so we still build a question + option chips
-  // for the forced field. Without this, chips collapse to nav-only.
-  const question = alreadyResolved && !overrideText
+  // alreadyResolved short-circuit AND propagate skipResolutionCheck into
+  // selectNextQuestion so we still build a question + option chips for the
+  // forced field. Without this, chips collapse to nav-only.
+  const forceQuestion = !!overrideText
+  const question = alreadyResolved && !forceQuestion
     ? null
     : await selectNextQuestionForResponse({
         input,
@@ -629,6 +632,7 @@ export async function buildQuestionResponse(
         filters,
         totalCandidateCount,
         excludeWorkPieceValues,
+        skipResolutionCheck: forceQuestion,
       })
   const stageHistory = existingStageHistory
     ? [...existingStageHistory]

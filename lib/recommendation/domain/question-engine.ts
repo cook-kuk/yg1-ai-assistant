@@ -109,10 +109,13 @@ export function selectNextQuestion(
   input: RecommendationInput,
   candidates: ScoredProduct[],
   history: NarrowingTurn[],
-  candidateCountHint: number = candidates.length
+  candidateCountHint: number = candidates.length,
+  skipResolutionCheck: boolean = false,
 ): NextQuestion | null {
-  const status = checkResolution(candidates, history, candidateCountHint)
-  if (status.startsWith("resolved")) return null
+  if (!skipResolutionCheck) {
+    const status = checkResolution(candidates, history, candidateCountHint)
+    if (status.startsWith("resolved")) return null
+  }
 
   const fields = analyzeFields(input, candidates, history)
   fields.sort((a, b) => {
