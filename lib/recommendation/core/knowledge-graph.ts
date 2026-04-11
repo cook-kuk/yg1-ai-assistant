@@ -38,10 +38,12 @@ interface IntentPattern {
 // ── Entity Graph (Filter Values) ──────────────────────────────
 
 export const ENTITY_NODES: EntityNode[] = [
-  // toolType (edp_root_category) — broad category from Korean tool names
-  { canonical: "Milling", field: "toolType", aliases: ["엔드밀", "endmill", "end mill", "밀링", "milling", "밀링공구"] },
-  { canonical: "Holemaking", field: "toolType", aliases: ["드릴", "drill", "홀가공", "구멍가공", "holemaking", "드릴링"] },
-  { canonical: "Threading", field: "toolType", aliases: ["탭", "tap", "탭핑", "나사", "나사가공", "threading", "쓰레딩"] },
+  // NOTE: "엔드밀/드릴/탭" do NOT map to toolType — the toolType field in the
+  // product record is normalized to Solid/Indexable (tool FORM) via
+  // normalizeToolType() in product-db-source.ts, not the root category. Using
+  // toolType here would 0-filter every Milling candidate (Solid != Milling).
+  // For root category routing, rely on toolSubtype (Square/Ball/...) or the
+  // hybrid-retrieval machiningCategory path.
   // toolSubtype
   { canonical: "Square", field: "toolSubtype", aliases: ["square", "스퀘어", "스퀘어엔드밀", "평엔드밀", "플랫", "플랫엔드밀", "flat", "플랫엔드", "스퀘어엔드"] },
   { canonical: "Ball", field: "toolSubtype", aliases: ["ball", "볼", "볼엔드밀", "볼노즈"] },
