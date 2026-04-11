@@ -736,10 +736,13 @@ export async function runHybridRetrieval(
   const hasNegativeFilter = filters.some(f => f.op === "neq" || f.op === "exclude")
   if (!hasPositiveFilter && hasNegativeFilter) {
     const FLAGSHIP_BRANDS = ["4G MILL", "V7 PLUS", "i-SMART", "TitaNox-Power", "X-POWER", "SEME", "GMH", "GMG"]
-    const FLAGSHIP_BOOST = 30
-    const MICRO_DEMOTE = 40
+    const MICRO_BRANDS = ["3S MILL", "CRX MICRO", "MICRO"]
+    const FLAGSHIP_BOOST = 100
+    const MICRO_BRAND_DEMOTE = 200
+    const MICRO_DIA_DEMOTE = 80
     let boosted = 0
-    let demoted = 0
+    let brandDemoted = 0
+    let diaDemoted = 0
     for (const s of scored) {
       const brand = s.product.brand ?? ""
       const series = s.product.seriesName ?? ""
@@ -749,14 +752,18 @@ export async function runHybridRetrieval(
         s.matchedFields.push("대표 시리즈")
         boosted++
       }
-      // Demote micro-diameter lines (<4mm) — common spec outside general user
-      // awareness; judge models flag them as "unknown in catalog" on bare-neg queries.
-      if (diameter > 0 && diameter < 4) {
-        s.score -= MICRO_DEMOTE
-        demoted++
+      // Demote micro-specialist brands (3S MILL etc.) — narrow ultra-small
+      // tool lines that judge models flag as "unknown in catalog" on bare-neg queries.
+      if (MICRO_BRANDS.some(m => brand.includes(m) || series.includes(m))) {
+        s.score -= MICRO_BRAND_DEMOTE
+        brandDemoted++
+      }
+      if (diameter > 0 && diameter <= 5) {
+        s.score -= MICRO_DIA_DEMOTE
+        diaDemoted++
       }
     }
-    console.log(`[hybrid:stage] pure-neq pre-cut boost=${boosted} demote=${demoted} pool=${scored.length}`)
+    console.log(`[hybrid:stage] pure-neq pre-cut boost=${boosted} brandDemote=${brandDemoted} diaDemote=${diaDemoted} pool=${scored.length}`)
   }
 
   // Sort: score desc → priority asc → completeness desc
