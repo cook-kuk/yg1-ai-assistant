@@ -73,7 +73,15 @@ export async function classifyIntent(
         }
       }
     }
-    // LLM 직행
+    // LLM 직행 — Groq 우선, 실패 시 Haiku
+    if (process.env.GROQ_API_KEY) {
+      try {
+        const groqResult = await classifyWithGroq(message, sessionState)
+        if (groqResult) return groqResult
+      } catch (e) {
+        console.warn("[intent-classifier] LLM-free Groq failed, trying Haiku:", e instanceof Error ? e.message : e)
+      }
+    }
     if (provider.available()) {
       try {
         return await classifyWithHaiku(message, sessionState, provider)
@@ -181,7 +189,18 @@ export async function classifyIntent(
 
   // ── 5~8: Removed — LLM handles general intent classification ──
 
-  // ── 9. Ambiguous: use Haiku LLM ──
+  // ── 9. Ambiguous: Groq fast path → Haiku LLM fallback ──
+  // Groq (llama-3.3-70b-versatile) is ~5-10x faster than Sonnet for simple
+  // intent classification. Fall through to Haiku if Groq is unavailable or
+  // errors (timeout, network, 5xx, bad JSON).
+  if (process.env.GROQ_API_KEY) {
+    try {
+      const groqResult = await classifyWithGroq(message, sessionState)
+      if (groqResult) return groqResult
+    } catch (e) {
+      console.warn("[intent-classifier] Groq fast path failed, trying Haiku:", e instanceof Error ? e.message : e)
+    }
+  }
   if (provider.available()) {
     try {
       return await classifyWithHaiku(message, sessionState, provider)
@@ -262,6 +281,105 @@ Respond: {"intent":"...", "confidence": 0.0-1.0, "extractedValue": "..." or null
     }
   } catch {
     return { intent: "SET_PARAMETER", confidence: 0.4, modelUsed: INTENT_CLASSIFIER_MODEL }
+  }
+}
+
+// ── Groq fast-path classifier ────────────────────────────────
+// llama-3.3-70b-versatile on Groq: sub-second JSON intent classification.
+// Runs before classifyWithHaiku. Failure (timeout, network, 4xx/5xx, bad
+// JSON) returns null so the caller falls through to Haiku. Zero side effects.
+const GROQ_TIMEOUT_MS = 3000
+const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
+const GROQ_MODEL = process.env.GROQ_INTENT_MODEL || "llama-3.3-70b-versatile"
+
+async function classifyWithGroq(
+  message: string,
+  sessionState: ExplorationSessionState | null,
+): Promise<IntentClassification | null> {
+  const apiKey = process.env.GROQ_API_KEY
+  if (!apiKey) return null
+
+  const sessionSummary = sessionState
+    ? `candidates=${sessionState.candidateCount}, filters=[${sessionState.appliedFilters.map(f => `${f.field}=${f.value}`).join(", ")}], status=${sessionState.resolutionStatus}`
+    : "no session"
+
+  const systemPrompt = `YG-1 절삭공구 추천 챗봇의 의도 분류기. 한국어 사용자 입력을 JSON으로 분류.
+
+세션: ${sessionSummary}
+
+Intent 종류 (반드시 이 값 중 하나):
+- SET_PARAMETER: 구체적인 값 제공 (직경/소재/날수/코팅 등)
+- SELECT_OPTION: 제시된 옵션 중 선택
+- ASK_RECOMMENDATION: 추천 결과 요청
+- ASK_COMPARISON: 제품 비교 요청
+- ASK_REASON: 추천 이유 질문
+- ASK_EXPLANATION: 용어/개념 설명 질문 ("헬릭스가 뭐야?", "DLC란?")
+- REFINE_CONDITION: 기존 필터 변경 ("코팅 바꿔", "AlCrN으로", "대체 추천")
+- RESET_SESSION: 처음부터 다시, 초기화, 리셋
+- START_NEW_TOPIC: 주제 전환
+- OUT_OF_SCOPE: 무의미/범위 밖
+
+도메인 매핑:
+- 소재: SUS/스테인리스→Stainless Steels, SM45C/S45C→Carbon Steels, SCM→Alloy Steels, SKD→Hardened Steels, A7075/A6061→Aluminum, Ti6Al4V→Titanium, Inconel→Inconel
+- 코팅: 와이/Y→Y-Coating, 엑스/X→X-Coating, AlCrN/TiAlN/DLC 원문 그대로
+- 형상: 볼노즈→Ball, 플랫/스퀘어→Square, 코너R→Radius
+
+규칙:
+- "코팅 바꿔", "대체 추천", "다른 X" → REFINE_CONDITION (extractedValue=변경할 필드명 또는 값)
+- "처음부터", "리셋", "다시 시작" → RESET_SESSION
+- "~란?", "~뭐야?", "~설명" → ASK_EXPLANATION
+- 단순 값 제공 → SET_PARAMETER (extractedValue=값)
+
+반드시 JSON만 출력. 다른 텍스트 절대 금지.
+{"intent":"...","confidence":0.0-1.0,"extractedValue":"..." 또는 null,"reasoning":"한 문장"}`
+
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), GROQ_TIMEOUT_MS)
+  try {
+    const res = await fetch(GROQ_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        temperature: 0,
+        max_tokens: 300,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: message },
+        ],
+      }),
+      signal: ctrl.signal,
+    })
+    if (!res.ok) {
+      const err = await res.text().catch(() => "")
+      console.warn(`[intent-classifier] Groq HTTP ${res.status}: ${err.slice(0, 200)}`)
+      return null
+    }
+    const json = await res.json() as {
+      choices?: Array<{ message?: { content?: string } }>
+    }
+    const raw = json.choices?.[0]?.message?.content ?? ""
+    if (!raw) return null
+    const parsed = JSON.parse(raw.trim().replace(/```json\n?|\n?```/g, ""))
+    if (!parsed || typeof parsed.intent !== "string") return null
+    return {
+      intent: parsed.intent as NarrowingIntent,
+      confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0.75,
+      extractedValue: parsed.extractedValue ?? undefined,
+      reasoning: `Groq(${GROQ_MODEL}): ${parsed.reasoning ?? parsed.intent}`,
+      modelUsed: GROQ_MODEL,
+    }
+  } catch (e) {
+    if ((e as Error)?.name === "AbortError") {
+      console.warn(`[intent-classifier] Groq timeout (${GROQ_TIMEOUT_MS}ms)`)
+    }
+    return null
+  } finally {
+    clearTimeout(timer)
   }
 }
 
