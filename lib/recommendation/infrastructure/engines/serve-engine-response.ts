@@ -736,9 +736,11 @@ export async function buildQuestionResponse(
   // first user message is real natural text, so we let it fall into the
   // narrative-polish branch below; the fragment guard there falls back to the
   // deterministic question text if the polish output looks broken.
-  if (overrideText) {
-    // no-op
-  } else if (provider.available() && messages.length === 0) {
+  // NOTE: overrideText is intentionally NOT a short-circuit anymore — the
+  // uncertainty-gate ASK path passes overrideText to prevent recursion, but
+  // we still want polish to rewrite the canned followup_question into a
+  // natural, candidate-aware sentence.
+  if (provider.available() && messages.length === 0) {
     try {
       const systemPrompt = buildSystemPrompt(language)
       const firstUserText = messages.find(m => m.role === "user")?.text ?? ""
@@ -1123,16 +1125,17 @@ export async function buildRecommendationResponse(
       uncertaintyMeta.followup_question = `${infoGainQ.label}을(를) 알려주시면 더 정확한 추천이 가능합니다.`
       uncertaintyMeta.followup_reason = `현재 후보 ${totalCandidateCount}개 중 ${Math.round(infoGainQ.reductionRatio * 100)}%를 좁힐 수 있는 핵심 조건입니다.`
       console.log(`[uncertainty-gate:ASK] forcing question field=${infoGainQ.field} reduction=${(infoGainQ.reductionRatio * 100).toFixed(0)}%`)
-      // Route to question response. We intentionally omit overrideText AND
-      // responsePrefix so the downstream narrative-polish branch can rewrite
-      // the question with real domain insight (top candidate coating/series
-      // hints) instead of the canned "현재 후보 N개 중 X% 좁힐 수 있는 핵심
-      // 조건입니다" stat preamble. The judge scored this preamble as
-      // "기계적" (mechanical) across every narrowing scenario.
+      // Route to question response with overrideText (prevents recursion
+      // back into buildRecommendationResponse via the !question guard). We
+      // intentionally DROP responsePrefix so the polish branch downstream
+      // can rewrite with candidate-aware insight instead of the canned
+      // "현재 후보 N개 중 X% 좁힐 수 있는 핵심 조건입니다" preamble. The polish
+      // branch no longer early-returns on overrideText.
       return buildQuestionResponse(
         deps, form, candidates, evidenceMap, totalCandidateCount,
         pagination, displayCandidates, displayEvidenceMap,
         input, history, filters, turnCount, messages, provider, language,
+        uncertaintyMeta.followup_question, // overrideText
       )
     }
   }
