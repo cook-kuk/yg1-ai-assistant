@@ -2012,6 +2012,13 @@ async function handleServeExplorationInner(
           // diameterMm is lexically ambiguous on bare "<num>mm" — let det-SCR
           // handle it; KG's numeric patterns can misfire on OAL/LOC.
           .filter(e => e.field !== "diameterMm")
+          // toolType from KG extracts domain labels ("Milling", "Holemaking")
+          // but product records store normalized buckets ("Solid"/"Indexable"/
+          // "Insert"/"Holder" via normalizeToolType in product-db-source.ts).
+          // Injecting KG's "Milling" drops every candidate to 0. The form's
+          // toolTypeOrCurrentProduct handles this field through a different
+          // path that doesn't collide with the normalized record value.
+          .filter(e => e.field !== "toolType")
           // skip fields det-SCR already filled
           .filter(e => !filters.some(f => f.field === e.field && f.op !== "skip"))
         const injected: string[] = []
