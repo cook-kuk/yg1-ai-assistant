@@ -41,7 +41,6 @@ Respond ONLY with a JSON object:
 
 ## Rules
 - field must be one of the listed fields above (semantic, not DB column)
-- For exclusion (빼고/말고/제외) → op="neq"
 - For navigation: 상관없음/패스 → skip, 처음부터/초기화 → reset, 이전/돌아가 → back
 - For side questions (뭐야/무엇/설명) with no filter intent → intent="question", constraints=[]
 - For "추천해줘/보여줘" with constraints → intent="show_recommendation"
@@ -49,6 +48,32 @@ Respond ONLY with a JSON object:
 - "싱크 타입", "생크 타입" → shankType (NOT brand, NOT toolSubtype)
 - "스퀘어 타입", "볼 타입" → toolSubtype
 - P/M/K/N/S/H 단일 알파벳 → materialGroup, 구체적 소재명(구리/스테인리스) → workpiece
+
+## Korean Operator Mapping (CRITICAL — apply literally)
+The operator is determined by the phrase IMMEDIATELY attached to the value. Do NOT invert.
+- "X 이상" / "X 넘는" / "X 초과" / "X 부터" / "X 위로" → op="gte", value=X
+- "X 이하" / "X 미만" / "X 까지" / "X 아래로" → op="lte", value=X
+- "X 빼고" / "X 말고" / "X 제외" / "X 아닌" / "X 아닌거" / "X 아닌거로" / "X 없는" / "X 말곤" → op="neq", value=X
+- "A에서 B 사이" / "A~B" / "A부터 B까지" → op="between", value=[A,B]
+- plain "X" with no modifier → op="eq", value=X
+- Multiple conditions in one sentence → emit ONE constraint per condition, each with its own operator.
+
+## Few-Shot Examples (study these carefully)
+User: "3날 이상" → {"constraints":[{"field":"fluteCount","op":"gte","value":3,"display":"3날 이상"}]}
+User: "4날 이하로" → {"constraints":[{"field":"fluteCount","op":"lte","value":4,"display":"4날 이하"}]}
+User: "10mm 이상만" → {"constraints":[{"field":"diameterMm","op":"gte","value":10,"display":"10mm 이상"}]}
+User: "100mm 넘는거" → {"constraints":[{"field":"diameterMm","op":"gte","value":100,"display":"100mm 이상"}]}
+User: "CRX S 빼고 추천해줘" → {"intent":"show_recommendation","constraints":[{"field":"brand","op":"neq","value":"CRX S","display":"CRX S 제외"}]}
+User: "Square 아닌거로" → {"constraints":[{"field":"toolSubtype","op":"neq","value":"Square","display":"Square 제외"}]}
+User: "볼 말고" → {"constraints":[{"field":"toolSubtype","op":"neq","value":"Ball","display":"Ball 제외"}]}
+User: "날수 3날 이상이랑 형상 Square 아닌거로" → {"constraints":[{"field":"fluteCount","op":"gte","value":3,"display":"3날 이상"},{"field":"toolSubtype","op":"neq","value":"Square","display":"Square 제외"}]}
+User: "직경 5에서 10 사이" → {"constraints":[{"field":"diameterMm","op":"between","value":[5,10],"display":"5~10mm"}]}
+
+WRONG examples (NEVER do these):
+- "3날 이상" → {op:"neq",value:3}  ❌ (이상 means gte, not neq)
+- "Square 아닌거로" → {op:"eq",value:"Square"}  ❌ (아닌 means neq, not eq)
+- "10mm 이상" → {op:"eq",value:10}  ❌ (drops the 이상)
+
 - JSON only, no explanation outside the object`
 }
 

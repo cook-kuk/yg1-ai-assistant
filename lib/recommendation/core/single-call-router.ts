@@ -227,6 +227,18 @@ User: "직경 작은 순으로 보여줘"
 User: "10mm 근처로"
 → {"actions":[{"type":"apply_filter","field":"diameterMm","value":10,"op":"eq","tolerance":1.0}],"answer":"","reasoning":"tolerance-based fuzzy match around 10mm"}
 
+User: "3날 이상" (no existing fluteCount filter)
+→ {"actions":[{"type":"apply_filter","field":"fluteCount","value":3,"op":"gte"}],"answer":"","reasoning":"gte from 이상"}
+
+User: "Square 아닌거로" (no existing toolSubtype filter)
+→ {"actions":[{"type":"apply_filter","field":"toolSubtype","value":"Square","op":"neq"}],"answer":"","reasoning":"neq from 아닌"}
+
+User: "날수 3날 이상이랑 형상 Square 아닌거로"
+→ {"actions":[{"type":"apply_filter","field":"fluteCount","value":3,"op":"gte"},{"type":"apply_filter","field":"toolSubtype","value":"Square","op":"neq"}],"answer":"","reasoning":"compound: gte flute + neq subtype"}
+
+User: "100mm 넘는거"
+→ {"actions":[{"type":"apply_filter","field":"diameterMm","value":100,"op":"gte"}],"answer":"","reasoning":"gte from 넘는"}
+
 User: "이 제품이랑 비슷한 스펙"  (when a product is currently displayed)
 → {"actions":[{"type":"show_recommendation","similarTo":{"referenceProductId":"__current__","topK":10}}],"answer":"","reasoning":"similarity query against current product"}`
 
@@ -270,7 +282,7 @@ Long-term (accumulated in Session State):
 - Use this to personalize: if user always skips coating → don't ask again about coating
 
 ## Korean Intent Patterns
-- "빼고/제외/아닌것/없는거" → If the field already has a filter, use remove_filter. If no existing filter, use apply_filter with op:"neq"
+- "빼고/제외/아닌것/아닌거/아닌거로/말고/없는거" → If the field already has a filter, use remove_filter. If no existing filter, use apply_filter with op:"neq". NEVER use op:"eq" for these phrases.
 - IMPORTANT: NEVER use remove_filter on a field whose value came from the intake form (material, diameter, country, toolType from the initial form). Intake values are part of the user requirements; only remove a filter if the user EXPLICITLY says "X 빼고/제외" naming the value. Phrases like "다양한", "여러", "범용", "전부", "다 되는", "괜찮은 것" are NOT remove signals — they describe a preference for versatile products and should produce ZERO actions (empty actions array).
   CRITICAL: "X 빼고" means REMOVE X, NOT add X. "Square 빼고" = remove Square filter.
 - "바꿔/변경/대신/말고" -> replace_filter
