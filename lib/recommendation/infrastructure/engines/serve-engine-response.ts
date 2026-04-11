@@ -584,7 +584,6 @@ export async function buildQuestionResponse(
   overrideChips?: string[],
   extraResponseContext?: string,
   _recursionDepth: number = 0,
-  forcedQuestionField?: string,
 ): Promise<Response> {
   if (_recursionDepth > MAX_QUESTION_REC_DEPTH) {
     console.warn(`[recursion-guard] buildQuestionResponse depth=${_recursionDepth} > ${MAX_QUESTION_REC_DEPTH} — forcing recommendation (skipQuestionInjection=true) to break loop`)
@@ -695,12 +694,7 @@ export async function buildQuestionResponse(
     // BUG4: 0-result 분기에서 question이 null 이면 lastAskedField 가 undefined 로 박혀
     // UI 카피("양면값을 선택해주세요" 류)가 깨지고 후속 턴 컨텍스트가 끊긴다.
     // 가장 마지막에 적용된 필터의 field 로 fallback 해 컨텍스트를 유지한다.
-    // P0 loop fix: forcedQuestionField (from uncertainty-gate ASK path) wins
-    // over both question.field and the filter fallback. Without this, the
-    // ASK override would display a toolSubtype question but persist
-    // lastAskedField="diameterMm", so the next turn's narrowingHistory push
-    // recorded the wrong askedField and the loop dedup never kicked in.
-    lastAskedField: forcedQuestionField ?? question?.field ?? filters[filters.length - 1]?.field ?? undefined,
+    lastAskedField: question?.field ?? filters[filters.length - 1]?.field ?? undefined,
     displayedProducts: candidateSnapshot,
     fullDisplayedProducts: candidateSnapshot,
     displayedSeriesGroups,
@@ -848,13 +842,13 @@ export async function buildQuestionResponse(
   예: "AlCrN에서 Y-Coating으로 바꿨더니 후보가 5개로 줄었네요."
   '현재 적용 필터' 입력에 값이 있으면 그 중 가장 최근/대표 조건을 자연스럽게 한 마디로 녹여라.
 
-[부정 필터(빼고/제외/말고/아닌 거) 처리 필수 — 3요소 모두]
-사용자 메시지에 "빼고/제외/말고/아닌" 이 있거나 '현재 적용 필터'에 ≠/∉ 가 붙어있으면 아래 3개를 빠짐없이 넣어라:
-  1) 제외 확인 1문장 — 제외 대상 이름만 한 번 언급. 칭찬/비교/hedging 금지.
-  2) **대안 시리즈 1개 + 메커니즘** — topCandLines 상위에 실제로 존재하는 seriesName 하나를 그대로 인용하고 메커니즘(가변 헬릭스·칩 포켓·코팅 내열) 1줄. 양성 필터가 없더라도 반드시 대안 1개는 구체 언급하라. 브랜드/시리즈 이름에서 소재 용도를 유추하지 마라 (환각 금지 규칙 참조).
-  3) 추가 질문 1문장 — 어떤 소재·가공·직경으로 좁힐지 자연스럽게 되물어라 (양성 필터가 없을수록 필수).
-  예) "CRX S는 빼드렸고 500개 남았습니다. 상위에 올라온 4G MILL이 가변 헬릭스로 채터 억제가 뛰어난 범용 시리즈인데, 주로 어떤 소재·가공이신가요? 직경이나 날수 기준이 있으면 더 좁혀드릴게요."
-  ❌ 금지: 대안 시리즈 없이 질문만 던지기, 제외한 것을 칭찬/비교/hedging, "사실 CRX S도 좋지만..." 같은 주저.
+[부정 필터(빼고/제외/말고/아닌 거) 처리 필수]
+사용자 메시지에 "빼고/제외/말고/아닌" 이 있거나 '현재 적용 필터'에 ≠/∉ 가 붙어있으면:
+  1) 제외 사실 확인 1문장 — 제외 대상 이름만 한 번 언급하고 끝. 절대 그 값을 재추천하거나 장점을 나열하지 마라.
+  2) 양성 필터(소재/직경/가공/날수/코팅 중 하나라도 있을 때): 남은 상위 후보 중 실제 존재하는 대표 시리즈 하나를 즉시 소개하고 메커니즘 1줄.
+  3) 양성 필터가 하나도 없으면(순수 제외만): 특정 제품을 "최적"이라고 단정하지 말고, 소재·가공·직경 중 어떤 기준으로 좁힐지 자연스럽게 되물어라. 예) "CRX S는 빼드렸고 500여 개가 남았네요. 주로 어떤 소재·가공이신가요? 기준이 있어야 제대로 된 대안을 골라드릴 수 있어요."
+  예) "CRX S는 제외했습니다. 남은 후보 중 4G MILL이 가변 헬릭스로 채터를 억제해 스테인리스 측벽에 강하고, V7 PLUS는 Y-Coating으로 열 방출이 좋아 수명이 길게 나옵니다."
+  ❌ 금지: 제외한 것을 칭찬/설명/비교하거나 "사실 CRX S도 좋지만..." 같은 hedging.
 
 [소재 적합성 환각 금지 — 최우선]
 제품의 **소재 적합성(어떤 소재에 좋다)**은 상위 후보 메타의 **materialTags 필드(H/K/M/N/P/S)에만** 근거해 말하라.
@@ -1236,27 +1230,12 @@ export async function buildRecommendationResponse(
   )
 
   // ASK: force single info-gain question even if resolution says "show cards"
-  // P0 loop fix: only enter ASK override if (a) we have not exceeded a hard
-  // cross-turn cap, and (b) the picked field has not already been asked in
-  // prior turns. Both guards were missing, causing "직경 10mm 이상만" → loop:
-  // selectHighestInfoGainQuestion re-picked toolSubtype every turn because
-  // it didn't know the history, and the session lastAskedField was falling
-  // back to the latest applied filter's field so history never recorded
-  // toolSubtype as asked.
-  const MAX_ASK_OVERRIDE_TURNS = 3
-  if (uncertaintyMeta.mode === "ASK" && history.length >= MAX_ASK_OVERRIDE_TURNS) {
-    console.warn(`[uncertainty-gate:ASK] skip override — history.length=${history.length} >= ${MAX_ASK_OVERRIDE_TURNS} (safe escape to recommendation)`)
-  } else if (uncertaintyMeta.mode === "ASK") {
-    const askedFields = new Set(
-      history
-        .map(turn => turn.askedField)
-        .filter((field): field is string => typeof field === "string" && field.length > 0)
-    )
-    const infoGainQ = selectHighestInfoGainQuestion(candidates, input, filters, askedFields)
+  if (uncertaintyMeta.mode === "ASK") {
+    const infoGainQ = selectHighestInfoGainQuestion(candidates, input, filters)
     if (infoGainQ) {
       uncertaintyMeta.followup_question = `${infoGainQ.label}을(를) 알려주시면 더 정확한 추천이 가능합니다.`
       uncertaintyMeta.followup_reason = `현재 후보 ${totalCandidateCount}개 중 ${Math.round(infoGainQ.reductionRatio * 100)}%를 좁힐 수 있는 핵심 조건입니다.`
-      console.log(`[uncertainty-gate:ASK] forcing question field=${infoGainQ.field} reduction=${(infoGainQ.reductionRatio * 100).toFixed(0)}% askedBefore=[${Array.from(askedFields).join(",")}]`)
+      console.log(`[uncertainty-gate:ASK] forcing question field=${infoGainQ.field} reduction=${(infoGainQ.reductionRatio * 100).toFixed(0)}%`)
       // Route to question response with overrideText (prevents recursion
       // back into buildRecommendationResponse via the !question guard). We
       // intentionally DROP responsePrefix so the polish branch downstream
@@ -1274,7 +1253,6 @@ export async function buildRecommendationResponse(
         undefined, // overrideChips
         undefined, // extraResponseContext
         _recursionDepth + 1,
-        infoGainQ.field, // forcedQuestionField — records actually-asked field in state
       )
     }
   }
