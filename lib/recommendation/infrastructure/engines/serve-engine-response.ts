@@ -688,7 +688,9 @@ export async function buildQuestionResponse(
       messages,
       provider,
       language,
-      snapshotToDisplayed(candidateSnapshot)
+      snapshotToDisplayed(candidateSnapshot),
+      undefined,
+      true,
     )
   }
 
@@ -990,6 +992,7 @@ export async function buildRecommendationResponse(
   language: AppLanguage,
   displayedProducts: DisplayedProduct[] | null = null,
   extraResponseContext?: string,
+  skipQuestionInjection: boolean = false,
 ): Promise<Response> {
   traceRecommendation("response.buildRecommendationResponse:input", {
     totalCandidateCount,
@@ -1002,32 +1005,39 @@ export async function buildRecommendationResponse(
     messageCount: messages.length,
     pagination: summarizePaginationForTrace(pagination),
     displayedProductsCount: displayedProducts?.length ?? 0,
+    skipQuestionInjection,
   })
-  const nextQuestion = await selectNextQuestionForResponse({
-    input,
-    candidates,
-    history,
-    filters,
-    totalCandidateCount,
-  })
-  if (nextQuestion) {
-    return buildQuestionResponse(
-      deps,
-      form,
-      candidates,
-      evidenceMap,
-      totalCandidateCount,
-      pagination,
-      displayCandidates,
-      displayEvidenceMap,
+  // Recursion guard: when buildQuestionResponse delegates here with question=null
+  // (alreadyResolved OR selectNextQuestion returned null), do not re-inject a
+  // workPiece question — that would bounce us back into buildQuestionResponse
+  // which would again null the question and recurse here → infinite loop.
+  if (!skipQuestionInjection) {
+    const nextQuestion = await selectNextQuestionForResponse({
       input,
+      candidates,
       history,
       filters,
-      turnCount,
-      messages,
-      provider,
-      language
-    )
+      totalCandidateCount,
+    })
+    if (nextQuestion) {
+      return buildQuestionResponse(
+        deps,
+        form,
+        candidates,
+        evidenceMap,
+        totalCandidateCount,
+        pagination,
+        displayCandidates,
+        displayEvidenceMap,
+        input,
+        history,
+        filters,
+        turnCount,
+        messages,
+        provider,
+        language
+      )
+    }
   }
 
   const { primary, alternatives, status } = classifyHybridResults({ candidates, evidenceMap, totalConsidered: totalCandidateCount, filtersApplied: filters })
