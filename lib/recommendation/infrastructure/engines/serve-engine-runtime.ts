@@ -50,6 +50,7 @@ import { assessComplexity } from "@/lib/recommendation/core/complexity-router"
 import { getDbSchemaSync, getDbSchema } from "@/lib/recommendation/core/sql-agent-schema-cache"
 import { naturalLanguageToQuerySpec } from "@/lib/recommendation/core/query-planner"
 import { querySpecToAppliedFilters, appliedFiltersToConstraints } from "@/lib/recommendation/core/query-spec-to-filters"
+import { sortScoredCandidatesByQuerySort } from "@/lib/recommendation/core/query-sort-runtime"
 import { decidePlannerOverride } from "@/lib/recommendation/core/planner-decision"
 import { resolveMultiStageQuery, resolverProducedMeaningfulOutput, type MultiStageResolverResult } from "@/lib/recommendation/core/multi-stage-query-resolver"
 import { isLegacyKgHintEnabled, isLegacyKgInterpreterEnabled } from "@/lib/recommendation/core/kg-runtime-policy"
@@ -2091,6 +2092,7 @@ async function handleServeExplorationInner(
   // routes straight into buildRecommendationResponse with the form-derived
   // resolvedInput + empty filter list.
   let stagedSpecPatch: KGSpecPatch | null = null
+  let activeQuerySort: ReturnType<typeof tryParseSortPhrase> = null
   const isFirstTurnIntake = !prevState && messages.length <= 1
   let firstTurnResolverResult: MultiStageResolverResult | null = null
   let firstTurnResolverBypassed = false
@@ -2100,6 +2102,7 @@ async function handleServeExplorationInner(
       try {
         const firstTurnEditResult = hasEditSignal(rawMsg) ? parseEditIntent(rawMsg, filters) : null
         const firstTurnSort = tryParseSortPhrase(rawMsg)
+        if (firstTurnSort) activeQuerySort = firstTurnSort
         const stageOneActions = parseDeterministic(rawMsg).filter(
           action => action.type === "apply_filter" && action.field && action.value != null,
         )
@@ -2269,6 +2272,7 @@ async function handleServeExplorationInner(
       }
       if (firstTurnResolverResult.sort) {
         stagedSpecPatch = { ...(stagedSpecPatch ?? {}), sort: firstTurnResolverResult.sort }
+        activeQuerySort = firstTurnResolverResult.sort
       }
       if (injected.length > 0) {
         console.log(`[first-turn-intake] multi-stage injected ${injected.length} filter(s): ${injected.join(", ")}`)
@@ -2419,6 +2423,7 @@ async function handleServeExplorationInner(
       : null
     if (stageOneSort) {
       stagedSpecPatch = { ...(stagedSpecPatch ?? {}), sort: stageOneSort }
+      activeQuerySort = stageOneSort
     }
 
     // ── 0.5. Deterministic SCR pre-pass (no LLM, fastest path) ──
@@ -2614,6 +2619,7 @@ async function handleServeExplorationInner(
 
         if (multiStageResult.sort) {
           stagedSpecPatch = { ...(stagedSpecPatch ?? {}), sort: multiStageResult.sort }
+          activeQuerySort = multiStageResult.sort
           stageOneReasoningParts.push(
             `${multiStageResult.source}:sort:${multiStageResult.sort.field}:${multiStageResult.sort.direction}`
           )
@@ -3162,6 +3168,9 @@ async function handleServeExplorationInner(
         let spec = mergeKgPatchIntoSpec(plannerResult.spec, kgPatch)
         if (stagedSpecPatch) {
           spec = mergeKgPatchIntoSpec(spec, stagedSpecPatch)
+        }
+        if (spec.sort) {
+          activeQuerySort = spec.sort
         }
         if (kgPatch) {
           console.log(`[kg-merge] applied patch: sort=${!!kgPatch.sort} similarTo=${!!kgPatch.similarTo} tolerance=${kgPatch.toleranceConstraints?.length ?? 0}`)
@@ -4086,6 +4095,11 @@ async function handleServeExplorationInner(
         }
 
         let totalCandidateCount = result.searchPayload.totalConsidered
+        if (activeQuerySort) {
+          result.searchPayload.candidates = sortScoredCandidatesByQuerySort(result.searchPayload.candidates, activeQuerySort)
+          console.log(`[query-sort] applied runtime ordering field=${activeQuerySort.field} dir=${activeQuerySort.direction} candidates=${result.searchPayload.candidates.length}`)
+        }
+
         let displayPage = sliceCandidatesForPage(
           result.searchPayload.candidates,
           result.searchPayload.evidenceMap,
@@ -4119,11 +4133,14 @@ async function handleServeExplorationInner(
               )
               if (correction.success && lastHR) {
                 const hr = lastHR as Awaited<ReturnType<typeof runHybridRetrieval>>
-                ;(result.searchPayload as { candidates: typeof hr.candidates; evidenceMap: typeof hr.evidenceMap; totalConsidered: number }).candidates = hr.candidates
+                const sortedHrCandidates = activeQuerySort
+                  ? sortScoredCandidatesByQuerySort(hr.candidates, activeQuerySort)
+                  : hr.candidates
+                ;(result.searchPayload as { candidates: typeof hr.candidates; evidenceMap: typeof hr.evidenceMap; totalConsidered: number }).candidates = sortedHrCandidates
                 ;(result.searchPayload as { candidates: typeof hr.candidates; evidenceMap: typeof hr.evidenceMap; totalConsidered: number }).evidenceMap = hr.evidenceMap
                 ;(result.searchPayload as { candidates: typeof hr.candidates; evidenceMap: typeof hr.evidenceMap; totalConsidered: number }).totalConsidered = hr.totalConsidered
                 totalCandidateCount = hr.totalConsidered
-                displayPage = sliceCandidatesForPage(hr.candidates, hr.evidenceMap, resolvedPagination)
+                displayPage = sliceCandidatesForPage(sortedHrCandidates, hr.evidenceMap, resolvedPagination)
                 legacyState.appliedFilters = correction.finalFilters
                 console.log(`[self-correction] success: ${correction.attempts.length} attempts → ${totalCandidateCount} results`)
               } else {
@@ -4156,11 +4173,14 @@ async function handleServeExplorationInner(
                     const mergedFilters = [...(legacyState.appliedFilters ?? []), ...cotApplied]
                     const cotHR = await runHybridRetrieval(scInput, mergedFilters)
                     if (cotHR.totalConsidered > 0) {
-                      ;(result.searchPayload as { candidates: typeof cotHR.candidates; evidenceMap: typeof cotHR.evidenceMap; totalConsidered: number }).candidates = cotHR.candidates
+                      const sortedCotCandidates = activeQuerySort
+                        ? sortScoredCandidatesByQuerySort(cotHR.candidates, activeQuerySort)
+                        : cotHR.candidates
+                      ;(result.searchPayload as { candidates: typeof cotHR.candidates; evidenceMap: typeof cotHR.evidenceMap; totalConsidered: number }).candidates = sortedCotCandidates
                       ;(result.searchPayload as { candidates: typeof cotHR.candidates; evidenceMap: typeof cotHR.evidenceMap; totalConsidered: number }).evidenceMap = cotHR.evidenceMap
                       ;(result.searchPayload as { candidates: typeof cotHR.candidates; evidenceMap: typeof cotHR.evidenceMap; totalConsidered: number }).totalConsidered = cotHR.totalConsidered
                       totalCandidateCount = cotHR.totalConsidered
-                      displayPage = sliceCandidatesForPage(cotHR.candidates, cotHR.evidenceMap, resolvedPagination)
+                      displayPage = sliceCandidatesForPage(sortedCotCandidates, cotHR.evidenceMap, resolvedPagination)
                       legacyState.appliedFilters = mergedFilters
                       console.log(`[cot-escalation] success: +${cotApplied.length} filters → ${totalCandidateCount} results`)
                     } else {

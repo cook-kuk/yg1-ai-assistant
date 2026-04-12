@@ -39,6 +39,7 @@ import {
   buildNegationFallbackText,
   findCandidateScopedPhantoms,
 } from "@/lib/recommendation/infrastructure/knowledge/candidate-phantom-guard"
+import { buildRpmExplanationText, normalizeRpmPhrases } from "@/lib/recommendation/infrastructure/engines/response-text-hints"
 
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
 import type { RecommendationDisplayedProductRequestDto, RecommendationPaginationDto } from "@/lib/contracts/recommendation"
@@ -1187,6 +1188,11 @@ JSON으로만: {"responseText":"..."}`
   if (responsePrefix) {
     responseText = `${responsePrefix}\n\n${responseText}`.trim()
   }
+  responseText = normalizeRpmPhrases(responseText)
+  const rpmQuestionExplanation = buildRpmExplanationText(filters)
+  if (rpmQuestionExplanation && !/(vc|????|???)/iu.test(responseText)) {
+    responseText = `${rpmQuestionExplanation} ${responseText}`.trim()
+  }
 
   // ── Safety: strip single-character chips (e.g. "탭" from LLM, or spread string remnants) ──
   const preFilterCount = finalResponseChips.length
@@ -1705,6 +1711,11 @@ export async function buildRecommendationResponse(
     finalResponseText = `조건에 완전히 맞는 제품은 없지만 유사 후보 ${totalCandidateCount}개를 찾았습니다. 직경이나 소재 조건을 조정하거나 현재 후보를 검토해보세요.`
   } else {
     finalResponseText = responseText
+  }
+  finalResponseText = normalizeRpmPhrases(finalResponseText)
+  const rpmRecommendationExplanation = buildRpmExplanationText(filters)
+  if (rpmRecommendationExplanation && !/(vc|????|???)/iu.test(finalResponseText)) {
+    finalResponseText = `${rpmRecommendationExplanation} ${finalResponseText}`.trim()
   }
   // ── VERIFY mode: append caveat when uncertainty is notable ──
   if (uncertaintyMeta.mode === "VERIFY" && primary) {

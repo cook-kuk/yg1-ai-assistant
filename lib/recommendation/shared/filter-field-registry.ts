@@ -91,6 +91,25 @@ const IDENTIFIER_DESCRIPTOR_STOPWORDS = new Set([
   "yg1",
 ])
 
+function stripIdentifierDescriptorSuffix(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return trimmed
+
+  const stopwordPattern = [...IDENTIFIER_DESCRIPTOR_STOPWORDS]
+    .sort((left, right) => right.length - left.length)
+    .map(token => token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|")
+
+  if (!stopwordPattern) return trimmed
+
+  const stripped = trimmed
+    .replace(new RegExp(`\\b(?:${stopwordPattern})\\b.*$`, "i"), "")
+    .replace(/[\s,;:/-]+$/u, "")
+    .trim()
+
+  return stripped || trimmed
+}
+
 function stripFilterAnswer(answer: string): string {
   return answer.trim().replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
 }
@@ -432,15 +451,23 @@ function canonicalizeBrandRawValue(rawValue: string | number | boolean): string 
   const trimmed = String(rawValue).trim()
   if (!trimmed) return null
 
+  const descriptorStripped = stripIdentifierDescriptorSuffix(trimmed)
+
   const schemaBrands = getDbSchemaSync()?.brands ?? []
-  if (schemaBrands.length === 0) return trimmed
+  if (schemaBrands.length === 0) return descriptorStripped || trimmed
 
   const exactIdentifier = normalizeIdentifierText(trimmed)
   const exactMatch = schemaBrands.find(brand => normalizeIdentifierText(brand) === exactIdentifier)
   if (exactMatch) return exactMatch
 
+  const strippedIdentifier = normalizeIdentifierText(descriptorStripped)
+  if (strippedIdentifier) {
+    const strippedExactMatch = schemaBrands.find(brand => normalizeIdentifierText(brand) === strippedIdentifier)
+    if (strippedExactMatch) return strippedExactMatch
+  }
+
   const rawTokens = tokenizeIdentifierWords(trimmed)
-  if (rawTokens.length === 0) return trimmed
+  if (rawTokens.length === 0) return descriptorStripped || trimmed
 
   const prefixCandidates = schemaBrands.filter(brand => {
     const brandTokens = tokenizeIdentifierWords(brand)
@@ -451,7 +478,7 @@ function canonicalizeBrandRawValue(rawValue: string | number | boolean): string 
   })
 
   if (prefixCandidates.length === 1) return prefixCandidates[0]
-  return trimmed
+  return descriptorStripped || trimmed
 }
 
 function buildInventoryExistsClause(
@@ -1137,9 +1164,14 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     setInput: input => input,
     clearInput: input => input,
     extractValues: record => extractPrimitiveValues(record, "totalStock"),
-    // Inventory quantity is enforced by SQL/EXISTS. When snapshots already carry
-    // totalStock, numericMatch keeps post-filter semantics aligned.
-    matches: (record, filter) => numericMatch(record, filter, "totalStock", 0),
+    // Inventory quantity is enforced by SQL/EXISTS. Candidate snapshots do not
+    // always materialize totalStock, so missing values must not erase SQL-
+    // filtered survivors during post-filtering.
+    matches: (record, filter) => {
+      const values = extractPrimitiveValues(record, "totalStock")
+      if (values.length === 0) return true
+      return numericMatch(record, filter, "totalStock", 0)
+    },
     buildDbClause: (filter, next) => {
       const rawValues = extractNumericFilterRawValues(filter)
       if (rawValues.length === 0) return null
