@@ -429,6 +429,8 @@ describe("handleServeGeneralChatAction", () => {
     expect(body.purpose).toBe("general_chat")
     expect(body.text).toContain("Excellent")
     expect(body.text).toContain("Good")
+    expect(body.text).toContain("전용")
+    expect(body.text).toContain("범용")
     expect(body.sessionState.displayedProducts).toEqual(prevState.displayedProducts)
     expect(body.chips).toContain("직접 입력")
   })

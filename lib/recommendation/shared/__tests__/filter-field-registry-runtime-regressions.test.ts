@@ -99,4 +99,33 @@ describe("filter-field-registry runtime regressions", () => {
     expect(filtered).toHaveLength(1)
     expect(filtered?.[0]?.displayCode).toBe("P1")
   })
+
+  it("treats null totalStock snapshots as missing during post-filtering", () => {
+    const filter = buildAppliedFilterFromValue("totalStock", 100, 0, "gte")
+    const candidates = [
+      {
+        normalizedCode: "P1",
+        displayCode: "P1",
+        brand: "YG-1",
+        seriesName: "SERIES",
+        diameterMm: 10,
+        fluteCount: 4,
+        coating: "TiAlN",
+        toolMaterial: "Carbide",
+        shankDiameterMm: 10,
+        lengthOfCutMm: 20,
+        overallLengthMm: 60,
+        helixAngleDeg: 45,
+        description: null,
+        featureText: null,
+        materialTags: ["P"],
+        totalStock: null,
+      },
+    ] as any
+
+    const filtered = applyPostFilterToProducts(candidates, filter!)
+
+    expect(filtered).toHaveLength(1)
+    expect(filtered?.[0]?.displayCode).toBe("P1")
+  })
 })

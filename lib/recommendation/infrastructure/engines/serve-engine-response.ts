@@ -1190,7 +1190,7 @@ JSON으로만: {"responseText":"..."}`
   }
   responseText = normalizeRpmPhrases(responseText)
   const rpmQuestionExplanation = buildRpmExplanationText(filters)
-  if (rpmQuestionExplanation && !/(vc|????|???)/iu.test(responseText)) {
+  if (rpmQuestionExplanation && !/(\bvc\b|cutting speed|spindle speed)/iu.test(responseText)) {
     responseText = `${rpmQuestionExplanation} ${responseText}`.trim()
   }
 
@@ -1714,7 +1714,7 @@ export async function buildRecommendationResponse(
   }
   finalResponseText = normalizeRpmPhrases(finalResponseText)
   const rpmRecommendationExplanation = buildRpmExplanationText(filters)
-  if (rpmRecommendationExplanation && !/(vc|????|???)/iu.test(finalResponseText)) {
+  if (rpmRecommendationExplanation && !/(\bvc\b|cutting speed|spindle speed)/iu.test(finalResponseText)) {
     finalResponseText = `${rpmRecommendationExplanation} ${finalResponseText}`.trim()
   }
   // ── VERIFY mode: append caveat when uncertainty is notable ──

@@ -1169,7 +1169,10 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     // filtered survivors during post-filtering.
     matches: (record, filter) => {
       const values = extractPrimitiveValues(record, "totalStock")
-      if (values.length === 0) return true
+      const numericValues = values
+        .map(value => typeof value === "number" ? value : Number(value))
+        .filter(value => Number.isFinite(value))
+      if (numericValues.length === 0) return true
       return numericMatch(record, filter, "totalStock", 0)
     },
     buildDbClause: (filter, next) => {

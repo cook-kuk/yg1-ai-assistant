@@ -65,6 +65,7 @@ import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/doma
 import { shouldExecutePendingAction, pendingActionToFilter } from "@/lib/recommendation/domain/context/pending-action-resolver"
 import { TurnPerfLogger, setCurrentPerfLogger } from "@/lib/recommendation/infrastructure/perf/turn-perf-logger"
 import { applyPostFilterToProducts, buildAppliedFilterFromValue, buildFilterValueScope, extractFilterFieldValueMap, getFilterFieldDefinition, getFilterFieldLabel, getFilterFieldQueryAliases, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
+import { normalizeRuntimeAppliedFilter } from "@/lib/recommendation/shared/runtime-filter-normalization"
 import { traceRecommendation } from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
 import type { CanonicalProduct } from "@/lib/recommendation/domain/types"
 import {
@@ -74,6 +75,8 @@ import {
   parseExplicitFilterText,
   parseExplicitRevisionText,
 } from "@/lib/recommendation/shared/constraint-text-parser"
+import { DIRECT_PRODUCT_CODE_PATTERN } from "@/lib/recommendation/infrastructure/engines/serve-engine-assist-utils"
+import { applyRuntimeCandidateOrdering } from "@/lib/recommendation/infrastructure/engines/runtime-candidate-ordering"
 
 import { buildMemoryFromSession, recordHighlight, recordQA, recordSkip, recordRevision, recordConfusion } from "@/lib/recommendation/domain/memory/conversation-memory"
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
@@ -1598,6 +1601,42 @@ export function shouldShortCircuitFirstTurnIntake(params: {
   return params.bypassResolver || !!(params.resolverResult && hasTerminalMultiStageResult(params.resolverResult))
 }
 
+function extractReferenceProductIdFromMessage(rawMessage: string): string | null {
+  const match = rawMessage.match(DIRECT_PRODUCT_CODE_PATTERN)
+  return match?.[1]?.trim().toUpperCase() ?? null
+}
+
+function mergeStagedSpecPatch(base: KGSpecPatch | null, patch: KGSpecPatch | null): KGSpecPatch | null {
+  if (!base) return patch
+  if (!patch) return base
+
+  return {
+    ...base,
+    ...patch,
+    toleranceConstraints: [
+      ...(base.toleranceConstraints ?? []),
+      ...(patch.toleranceConstraints ?? []),
+    ],
+  }
+}
+
+export function buildResolverSimilaritySpecPatch(
+  result: MultiStageResolverResult | null,
+  rawMessage: string,
+): KGSpecPatch | null {
+  if (!result || result.routeHint !== "compare_products") return null
+
+  const referenceProductId = extractReferenceProductIdFromMessage(rawMessage)
+  if (!referenceProductId) return null
+
+  return {
+    similarTo: {
+      referenceProductId,
+      topK: 10,
+    },
+  }
+}
+
 function buildActionFromMultiStageResult(
   result: MultiStageResolverResult,
   rawMessage: string,
@@ -2263,16 +2302,22 @@ async function handleServeExplorationInner(
         }
       }
       for (const filter of firstTurnResolverResult.filters) {
-        if (filter.op === "skip") continue
-        if (filters.some(existing => existing.field === filter.field && existing.op !== "skip")) continue
-        const result = replaceFieldFilter(baseInput, filters, filter, deps.applyFilterToInput)
+        const normalizedFilter = normalizeRuntimeAppliedFilter(filter, filter.appliedAt ?? turnCount)
+        if (normalizedFilter.op === "skip") continue
+        if (filters.some(existing => existing.field === normalizedFilter.field && existing.op !== "skip")) continue
+        const result = replaceFieldFilter(baseInput, filters, normalizedFilter, deps.applyFilterToInput)
         filters.splice(0, filters.length, ...result.nextFilters)
         currentInput = result.nextInput
-        injected.push(`${filter.field}=${String(filter.rawValue ?? filter.value)}`)
+        injected.push(`${normalizedFilter.field}=${String(normalizedFilter.rawValue ?? normalizedFilter.value)}`)
       }
       if (firstTurnResolverResult.sort) {
-        stagedSpecPatch = { ...(stagedSpecPatch ?? {}), sort: firstTurnResolverResult.sort }
+        stagedSpecPatch = mergeStagedSpecPatch(stagedSpecPatch, { sort: firstTurnResolverResult.sort })
         activeQuerySort = firstTurnResolverResult.sort
+      }
+      const firstTurnSimilarityPatch = buildResolverSimilaritySpecPatch(firstTurnResolverResult, lastUserMsg?.text ?? "")
+      if (firstTurnSimilarityPatch) {
+        stagedSpecPatch = mergeStagedSpecPatch(stagedSpecPatch, firstTurnSimilarityPatch)
+        console.log(`[first-turn-intake] staged similarity reference=${firstTurnSimilarityPatch.similarTo?.referenceProductId}`)
       }
       if (injected.length > 0) {
         console.log(`[first-turn-intake] multi-stage injected ${injected.length} filter(s): ${injected.join(", ")}`)
@@ -2599,30 +2644,39 @@ async function handleServeExplorationInner(
         }
 
         for (const filter of multiStageResult.filters) {
-          const skipIdx = filter.op === "skip"
+          const normalizedFilter = normalizeRuntimeAppliedFilter(filter, filter.appliedAt ?? turnCount)
+          const skipIdx = normalizedFilter.op === "skip"
             ? -1
-            : filters.findIndex(existing => existing.field === filter.field && existing.op === "skip")
+            : filters.findIndex(existing => existing.field === normalizedFilter.field && existing.op === "skip")
           if (skipIdx >= 0) filters.splice(skipIdx, 1)
-          if (filter.op === "neq") {
-            const existingIdx = filters.findIndex(existing => existing.field === filter.field && existing.op !== "neq")
+          if (normalizedFilter.op === "neq") {
+            const existingIdx = filters.findIndex(existing => existing.field === normalizedFilter.field && existing.op !== "neq")
             if (existingIdx >= 0) filters.splice(existingIdx, 1)
           }
-          const replaced = replaceFieldFilter(baseInput, filters, filter, deps.applyFilterToInput)
+          const replaced = replaceFieldFilter(baseInput, filters, normalizedFilter, deps.applyFilterToInput)
           filters.splice(0, filters.length, ...replaced.nextFilters)
           currentInput = replaced.nextInput
-          lastStageOneFilter = filter
-          const rawValue = Array.isArray(filter.rawValue)
-            ? filter.rawValue.join("~")
-            : String(filter.rawValue ?? filter.value)
-          stageOneReasoningParts.push(`${multiStageResult.source}:${filter.field}=${rawValue}:${filter.op}`)
+          lastStageOneFilter = normalizedFilter
+          const rawValue = Array.isArray(normalizedFilter.rawValue)
+            ? normalizedFilter.rawValue.join("~")
+            : String(normalizedFilter.rawValue ?? normalizedFilter.value)
+          stageOneReasoningParts.push(`${multiStageResult.source}:${normalizedFilter.field}=${rawValue}:${normalizedFilter.op}`)
         }
 
         if (multiStageResult.sort) {
-          stagedSpecPatch = { ...(stagedSpecPatch ?? {}), sort: multiStageResult.sort }
+          stagedSpecPatch = mergeStagedSpecPatch(stagedSpecPatch, { sort: multiStageResult.sort })
           activeQuerySort = multiStageResult.sort
           stageOneReasoningParts.push(
             `${multiStageResult.source}:sort:${multiStageResult.sort.field}:${multiStageResult.sort.direction}`
           )
+        }
+        const resolverSimilarityPatch = buildResolverSimilaritySpecPatch(multiStageResult, msg)
+        if (resolverSimilarityPatch) {
+          stagedSpecPatch = mergeStagedSpecPatch(stagedSpecPatch, resolverSimilarityPatch)
+          stageOneReasoningParts.push(
+            `${multiStageResult.source}:similarTo:${resolverSimilarityPatch.similarTo?.referenceProductId}`
+          )
+          console.log(`[multi-stage:truth] staged similarity reference=${resolverSimilarityPatch.similarTo?.referenceProductId}`)
         }
 
         const fallbackFilter =
@@ -4677,6 +4731,16 @@ async function handleServeExplorationInner(
       } catch (forgeErr) {
         console.warn(`[recommend] tool-forge fallback mapping error:`, (forgeErr as Error).message)
       }
+    }
+
+    const orderedCandidates = applyRuntimeCandidateOrdering(candidates, activeQuerySort, phaseGCompiledResult)
+    if (orderedCandidates.phaseGReplaced) {
+      candidates = orderedCandidates.candidates
+      totalCandidateCount = candidates.length
+      console.log(`[phase-g] retrieval candidates replaced: mode=${phaseGSpecMode} candidates=${candidates.length}`)
+    } else if (orderedCandidates.sortApplied) {
+      candidates = orderedCandidates.candidates
+      console.log(`[query-sort] applied retrieval ordering field=${activeQuerySort?.field} dir=${activeQuerySort?.direction} candidates=${candidates.length}`)
     }
 
     const displayPage = sliceCandidatesForPage(candidates, evidenceMap, resolvedPagination)

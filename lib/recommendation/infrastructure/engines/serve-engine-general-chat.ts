@@ -268,19 +268,19 @@ function buildGenericMaterialRatingLegendReply(
 ): QuestionReply {
   const focusLine =
     askedRating === "EXCELLENT"
-      ? "여기서 Excellent는 현재 소재에 특히 잘 맞도록 설계된 후보라는 뜻입니다."
+      ? "여기서 Excellent는 지금 보고 있는 소재에 특히 잘 맞도록 전용 성격이 강하게 잡힌 후보라는 뜻입니다."
       : askedRating === "GOOD"
-        ? "여기서 Good은 현재 소재에서 가공 가능하지만 Excellent보다는 범용 성격이 큰 후보를 뜻합니다."
+        ? "여기서 Good은 현재 소재에서 충분히 가공 가능하지만 Excellent보다는 범용 성격이 큰 후보를 뜻합니다."
         : askedRating === "NULL"
           ? "여기서 Null은 나쁘다는 뜻이 아니라, 현재 화면에서 소재 적합성 근거가 충분히 표시되지 않은 상태를 뜻합니다."
           : "여기 표시되는 Excellent / Good / Null은 현재 소재 기준의 적합성 등급입니다."
 
   const text = [
     focusLine,
-    "Excellent는 해당 소재에 더 최적화된 형상이나 코팅, 설계 방향을 가진 경우에 주로 붙습니다.",
+    "Excellent는 현재 선택한 소재와 설계 방향이 정확히 맞고, 형상이나 코팅도 그 소재 쪽에 더 최적화된 경우에 주로 붙습니다.",
     "Good은 해당 소재에서 충분히 사용할 수 있지만 여러 소재를 함께 커버하는 범용 계열일 때 주로 보입니다.",
     "Null은 부적합 판정이 아니라 등급 근거가 부족하거나 화면에 별도 표시를 붙이지 않은 경우입니다.",
-    "예를 들어 알루미늄 전용 계열은 Excellent로, 범용 엔드밀은 Good으로 보일 수 있습니다.",
+    "예를 들어 알루미늄 전용 계열이나 전용 코팅이 붙은 제품은 Excellent로, 범용 엔드밀은 Good으로 보일 수 있습니다.",
   ].join("\n\n")
 
   const chips = [
