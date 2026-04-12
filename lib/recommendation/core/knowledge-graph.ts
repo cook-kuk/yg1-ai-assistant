@@ -995,8 +995,12 @@ export function tryKGDecision(
   const isShankCompound = /(?:샹크|싱크|생크|쌩크|shank)\s*(?:타입|type)\s*\S+/i.test(msg)
   const isMaterialGroup = /(?:^|\s)[pmknshPMKNSH]\s*소재/.test(msg)
 
+  const hasGenericMachiningCategoryCompanion =
+    entities.some(e => e.field === "machiningCategory") &&
+    entities.some(e => e.field !== "machiningCategory")
   const shouldDispatch =
     entities.length >= 1 &&
+    !hasGenericMachiningCategoryCompanion &&
     (isLosslessShortUtterance || isShankCompound || isMaterialGroup)
   if (shouldDispatch && !COMPANY_PATTERNS.some(p => p.test(msg))) {
     // Negation check: "4날 말고", "TiAlN 빼고" 등 → op: "exclude"
