@@ -15,7 +15,7 @@
 import { findColumnsForToken, findValueByPhonetic } from "./sql-agent-schema-cache"
 import { DB_COL_TO_FILTER_FIELD } from "./sql-agent"
 import { stripKoreanParticles } from "@/lib/recommendation/shared/patterns"
-import { findFuzzyMatch } from "./phonetic-match"
+import { findFuzzyMatch, levenshtein, phoneticKey } from "./phonetic-match"
 
 // Brand values — sample of clean YG-1 brands from prod_brand.brand_name (421
 // distinct, dumped 2026-04-08). Phonetic fuzzy match (consonant skeleton) lets
@@ -44,6 +44,10 @@ export interface DeterministicAction {
    * MV reverse-index / phonetic 같은 phantom 위험 경로에서는 절대 set 하지 말 것.
    */
   viaExplicitCue?: boolean
+  /** Korean transliteration fuzzy score for brand-only phantom guard fallback. */
+  phoneticSimilarity?: number
+  /** Brand fuzzy match is the main user intent, not a side-effect of another filter token. */
+  allowPhoneticFallback?: boolean
 }
 
 /**
@@ -78,8 +82,10 @@ const FIELD_CUES: Array<{ pattern: RegExp; field: string; numeric: boolean }> = 
   { pattern: /(포인트\s*각도|드릴\s*포인트|point\s*angle|드릴\s*끝)/i, field: "pointAngleDeg", numeric: true },
   // 피치 (thread)
   { pattern: /(나사\s*피치|스레드\s*피치|thread\s*pitch|\bpitch\b|\bp\s*\d)/i, field: "threadPitchMm", numeric: true },
-  // 볼/코너 R
-  { pattern: /(코너\s*r|코너\s*반경|볼\s*반경|ball\s*radius|corner\s*r)/i, field: "ballRadiusMm", numeric: true },
+  // 코너 R
+  { pattern: /(코너\s*r|코너\s*반경|corner\s*r|corner\s*radius|인선\s*r|r값)/i, field: "cornerRadiusMm", numeric: true },
+  // 볼 반경
+  { pattern: /(볼\s*반경|ball\s*radius)/i, field: "ballRadiusMm", numeric: true },
   // 직경 (가장 일반적이라 마지막). 단 "샹크 직경"/"생크 직경"은 위에서 이미 처리됨.
   // φ/ø 는 비-word 문자라 \b 를 쓰면 시작 위치에서 매칭 실패함 → \b 제거.
   { pattern: /(?<![샹생][크])\s*(직경|지름|외경|파이|\bdia(?:meter)?\b|φ|ø)/i, field: "diameterMm", numeric: true },
@@ -101,6 +107,8 @@ const BETWEEN_MARKERS = /(?:사이|between|~|에서|to)/i
 
 // Negation markers
 const NEG_MARKERS = /(말고|빼고|제외|exclude|아닌)/i
+const NEG_PREFIX_MARKERS = /(?:아닌|아니고|not|except|without|exclude)\s*$/i
+const NEG_SUFFIX_MARKERS = /^(?:\s*(?:가|이|은|는|을|를|도|만)?\s*)?(?:말고|빼고|제외(?:하고)?|아닌|아니고|not|except|without|exclude)/i
 
 // Coating values (registry queryAliases 와 일치 — DB에 있는 값)
 const COATING_VALUES = [
@@ -412,8 +420,11 @@ const COUNTRY_PATTERNS: Array<{ pattern: RegExp; value: string }> = [
 // NEG_MARKERS 인접 시 op = "neq". MV 미연결 카테고리는 호출되어도 no-op이 되도록 _VALUES 비어있으면 skip.
 
 function negNear(text: string, idx: number, len: number): boolean {
-  const ctx = text.slice(Math.max(0, idx - 8), idx + len + 12)
-  return NEG_MARKERS.test(ctx)
+  const before = text.slice(Math.max(0, idx - 12), idx)
+  if (NEG_PREFIX_MARKERS.test(before)) return true
+
+  const after = text.slice(idx + len, idx + len + 16)
+  return NEG_SUFFIX_MARKERS.test(after)
 }
 
 function findValueWithPos(text: string, values: readonly string[]): { value: string; idx: number } | null {
@@ -818,7 +829,8 @@ function inferFieldFromColumnName(col: string): string | null {
   if (/point[_\s]?angle/.test(c)) return "pointAngleDeg"
   if (/helix[_\s]?angle/.test(c)) return "helixAngleDeg"
   if (/taper[_\s]?angle/.test(c)) return "taperAngleDeg"
-  if (/ball[_\s]?radius|corner[_\s]?r/.test(c)) return "ballRadiusMm"
+  if (/corner[_\s]?(?:r|radius)|edge[_\s]?radius/.test(c)) return "cornerRadiusMm"
+  if (/ball[_\s]?radius/.test(c)) return "ballRadiusMm"
   if (/shank[_\s]?dia/.test(c)) return "shankDiameterMm"
   if (/shank[_\s]?type/.test(c)) return "shankType"
   if (/length[_\s]?of[_\s]?cut|^loc$|_loc$/.test(c)) return "lengthOfCutMm"
@@ -1079,9 +1091,9 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
       v = findValueIn(text, COATING_VALUES)
     }
     if (v) {
-      const idx = text.toLowerCase().indexOf(v.slice(0, 1).toLowerCase())
-      const neighborhood = idx >= 0 ? text.slice(idx, idx + v.length + 12) : text
-      const isNeg = NEG_MARKERS.test(neighborhood)
+      const idx = letterCoatingMatch?.index ?? findValueWithPos(text, [v])?.idx ?? -1
+      const matchLen = letterCoatingMatch?.[0].length ?? v.length
+      const isNeg = idx >= 0 && negNear(text, idx, matchLen)
       actions.push({ type: "apply_filter", field: "coating", value: v, op: isNeg ? "neq" : "eq", source: "deterministic" })
       seen.add("coating")
     } else if (/(코팅\s*없는|무\s*코팅|uncoated|bright\s*finish)/i.test(text)) {
@@ -1095,21 +1107,28 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
   // 비활성화했지만, 음역 fuzzy 매칭(consonant-skeleton phonetic key)은 alias map이
   // 아닌 phoneme 비교라 no-hardcoding 원칙과 충돌 X. BRAND_VALUES가 source of truth.
   if (!seen.has("brand")) {
-    const fuzzy = findFuzzyMatch(text, BRAND_VALUES)
+    const { searchText: brandSearchText } = extractBrandSearchText(text)
+    const fuzzy = findFuzzyMatch(brandSearchText, BRAND_VALUES)
     if (fuzzy) {
-      const idx = text.toLowerCase().indexOf(fuzzy.value.toLowerCase())
-      const ctx = idx >= 0
-        ? text.slice(Math.max(0, idx - 5), idx + fuzzy.value.length + 12)
-        : text.slice(0, 40)
-      const isNeg = NEG_MARKERS.test(ctx)
-      actions.push({
-        type: "apply_filter",
-        field: "brand",
-        value: fuzzy.value,
-        op: isNeg ? "neq" : "eq",
-        source: "deterministic",
-      })
-      seen.add("brand")
+      const idx = brandSearchText.toLowerCase().indexOf(fuzzy.value.toLowerCase())
+      const isNeg = idx >= 0 && negNear(brandSearchText, idx, fuzzy.value.length)
+      const hasBrandCue = /(?:브랜드|brand|시리즈|series)/i.test(text)
+      const allowPhoneticFallback =
+        hasBrandCue
+        || (!/[a-z0-9]/i.test(text) && hasStandaloneHangulBrandToken(text, fuzzy.value))
+      const strongBrandMention = isStrongBrandMention(brandSearchText, fuzzy.value)
+      if (brandSearchText.toLowerCase().includes(fuzzy.value.toLowerCase()) || strongBrandMention) {
+        actions.push({
+          type: "apply_filter",
+          field: "brand",
+          value: fuzzy.value,
+          op: isNeg ? "neq" : "eq",
+          source: "deterministic",
+          phoneticSimilarity: fuzzy.similarity,
+          allowPhoneticFallback,
+        })
+        seen.add("brand")
+      }
     }
   }
 
@@ -1349,6 +1368,42 @@ function hasBoundedPhantomMatch(value: string, message: string): boolean {
   return re.test(m)
 }
 
+function hasStandaloneHangulBrandToken(message: string, brandValue: string): boolean {
+  const tokens = String(message).match(/[가-힣]+/g) ?? []
+  const brandKey = phoneticKey(brandValue)
+  if (!brandKey) return false
+  return tokens.some(token => {
+    const stripped = stripKoreanParticles(token).trim()
+    if (!stripped || stripped.length < 4 || !/^[가-힣]+$/.test(stripped)) return false
+    const tokenKey = phoneticKey(stripped)
+    if (!tokenKey) return false
+    if (tokenKey.includes(brandKey) || brandKey.includes(tokenKey)) return true
+    const distance = levenshtein(tokenKey, brandKey)
+    const similarity = 1 - distance / Math.max(tokenKey.length, brandKey.length)
+    return similarity >= 0.9
+  })
+}
+
+function extractBrandSearchText(message: string): { searchText: string; hasBrandCue: boolean } {
+  const cueMatch = message.match(/^(.*?)(?:\uBE0C\uB79C\uB4DC|brand|\uC2DC\uB9AC\uC988|series)(.*)$/iu)
+  if (!cueMatch) return { searchText: message, hasBrandCue: false }
+
+  const leading = cueMatch[1]?.trim() ?? ""
+  const trailing = cueMatch[2]?.trim() ?? ""
+  const trailingWithoutParticles = trailing.replace(/^(?:\uC740|\uB294|\uC774|\uAC00|\uC744|\uB97C|\uB85C|\uC73C\uB85C|\uB9CC)\s*/u, "")
+
+  if (leading.length >= 2) return { searchText: leading, hasBrandCue: true }
+  if (trailingWithoutParticles.length >= 2) return { searchText: trailingWithoutParticles, hasBrandCue: true }
+  return { searchText: message, hasBrandCue: true }
+}
+
+function isStrongBrandMention(message: string, brandValue: string): boolean {
+  const normalizedMessage = String(message).toLowerCase()
+  if (normalizedMessage.includes(String(brandValue).toLowerCase())) return true
+  if (!/[\uAC00-\uD7A3]/.test(message)) return false
+  return hasStandaloneHangulBrandToken(message, brandValue)
+}
+
 function filterPhantomCategoricalActions(
   actions: DeterministicAction[],
   userMessage: string,
@@ -1361,6 +1416,12 @@ function filterPhantomCategoricalActions(
     const valueStr = String(a.value ?? "")
     if (!valueStr) return true
     if (hasBoundedPhantomMatch(valueStr, userMessage)) return true
+    if (
+      a.field === "brand" &&
+      /[가-힣]/.test(userMessage) &&
+      !String(userMessage).toLowerCase().includes(valueStr.toLowerCase()) &&
+      a.allowPhoneticFallback
+    ) return true
     console.warn(
       `[deterministic-scr] phantom ${a.field} filter dropped: "${valueStr}" not a bounded mention in "${userMessage.slice(0, 80)}"`,
     )

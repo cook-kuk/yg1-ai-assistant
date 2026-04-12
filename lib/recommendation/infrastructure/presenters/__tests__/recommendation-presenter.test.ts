@@ -65,4 +65,26 @@ describe("buildRecommendationResponseDto", () => {
 
     expect(dto.candidates?.[0]?.displayCode).toBe("KEEP-001")
   })
+
+  it("does not append hallucination warning for material grades like SUS316L", () => {
+    const dto = buildRecommendationResponseDto({
+      text: "TitaNox-Power가 SUS316L 가공에 무난합니다.",
+      purpose: "recommendation",
+      isComplete: true,
+    })
+
+    expect(dto.text).toContain("SUS316L")
+    expect(dto.text).not.toContain("카탈로그에서 확인되지 않은 시리즈명")
+  })
+
+  it("still appends hallucination warning for unknown series-like names", () => {
+    const dto = buildRecommendationResponseDto({
+      text: "ZXQ999 시리즈가 적합합니다.",
+      purpose: "recommendation",
+      isComplete: true,
+    })
+
+    expect(dto.text).toContain("ZXQ999")
+    expect(dto.text).toContain("카탈로그에서 확인되지 않은 시리즈명")
+  })
 })

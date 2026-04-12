@@ -94,25 +94,20 @@ describe("findFuzzyMatch — Korean brand transliterations", () => {
 })
 
 describe("deterministic-scr brand fuzzy integration", () => {
-  it("엑스파워 추천해줘 → phantom guard drops Korean-only transliteration", async () => {
+  it("엑스파워 추천해줘 → brand=X-POWER", async () => {
     const { parseDeterministic } = await import("../deterministic-scr")
     const a = parseDeterministic("엑스파워 추천해줘").find(x => x.field === "brand")
-    // Fuzzy match finds X-POWER, but phantom guard drops it because
-    // the English brand name doesn't appear as a bounded mention in Korean text.
-    expect(a).toBeUndefined()
+    expect(a?.value).toBe("X-POWER")
   })
-  it("알루파워 시리즈로 → phantom guard drops Korean-only transliteration (no English substring)", async () => {
+  it("알루파워 시리즈로 → brand=ALU-POWER", async () => {
     const { parseDeterministic } = await import("../deterministic-scr")
     const a = parseDeterministic("알루파워 시리즈로 부탁").find(x => x.field === "brand")
-    // Fuzzy match finds ALU-POWER, but phantom guard drops it because
-    // the English brand name doesn't appear as a bounded mention in the Korean text.
-    expect(a).toBeUndefined()
+    expect(a?.value).toBe("ALU-POWER")
   })
-  it("타이타녹스 → phantom guard drops Korean-only transliteration", async () => {
+  it("타이타녹스 → brand=TitaNox", async () => {
     const { parseDeterministic } = await import("../deterministic-scr")
     const a = parseDeterministic("타이타녹스로 가공하려고").find(x => x.field === "brand")
-    // Same as above: fuzzy match finds TitaNox but phantom guard drops it.
-    expect(a).toBeUndefined()
+    expect(a?.value).toBe("TitaNox")
   })
   it("4G MILL은 영문 그대로 → brand=4G MILL", async () => {
     const { parseDeterministic } = await import("../deterministic-scr")

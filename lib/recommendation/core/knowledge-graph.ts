@@ -158,7 +158,7 @@ const NUMERIC_PATTERNS: Array<{ field: string; patterns: RegExp[]; extract: (m: 
   {
     field: "shankDiameterMm",
     patterns: [
-      /(?:생크|shank)(?:[이가은는을를도만])?\s*(?:직경|지름)?(?:[이가은는을를도만])?\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
+      /(?:샹크|생크|싱크|쌩크|shank)(?:[이가은는을를도만])?\s*(?:직경|지름)?(?:[이가은는을를도만])?\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
     ],
     extract: (m) => parseFloat(m[1]),
   },
@@ -326,11 +326,16 @@ function _findNumericFieldNear(lower: string, numIdx: number): QueryField | null
 const SORT_ASC_WORDS = ["작은", "짧은", "적은", "낮은", "얇은"]
 const SORT_DESC_WORDS = ["큰", "긴", "많은", "높은", "두꺼운"]
 const SORT_SUFFIX_RE = /(?:순으로|순서로|순서|\s순\b|^순\b|[가-힣]\s*순(?:$|\s))/u
+const SORT_SUPERLATIVE_RE = /(?:가장|제일|최대|최소|최고|최저)/u
+const SORT_DESC_SUPERLATIVE_RE = /(?:최장|최대|최고)/u
+const SORT_ASC_SUPERLATIVE_RE = /(?:최단|최소|최저)/u
 
 /** Try to parse a sort phrase. Returns null if not a pure-numeric sort on a sortable field. */
 export function tryParseSortPhrase(message: string): QuerySort | null {
   const lower = message.toLowerCase()
-  if (!SORT_SUFFIX_RE.test(lower)) return null
+  const hasSortSuffix = SORT_SUFFIX_RE.test(lower)
+  const hasSuperlativeCue = SORT_SUPERLATIVE_RE.test(lower)
+  if (!hasSortSuffix && !hasSuperlativeCue) return null
 
   // Scan for `<field alias> ... <direction word> ... 순`
   let dir: "asc" | "desc" | null = null
@@ -341,6 +346,10 @@ export function tryParseSortPhrase(message: string): QuerySort | null {
     for (const w of SORT_DESC_WORDS) {
       if (lower.includes(w)) { dir = "desc"; break }
     }
+  }
+  if (!dir && hasSuperlativeCue) {
+    if (SORT_ASC_SUPERLATIVE_RE.test(lower)) dir = "asc"
+    else if (SORT_DESC_SUPERLATIVE_RE.test(lower)) dir = "desc"
   }
   if (!dir) return null
 
@@ -437,7 +446,7 @@ export function extractEntities(message: string): Array<{ field: string; value: 
   const lower = message.toLowerCase()
 
   // 0. Compound patterns: "싱크/생크 타입 X" → shankType=X
-  const shankTypeMatch = lower.match(/(?:싱크|생크|shank)(?:[이가은는을를도만])?\s*(?:타입|type)(?:[이가은는을를도만])?\s*(\S+)/i)
+  const shankTypeMatch = lower.match(/(?:샹크|싱크|생크|쌩크|shank)(?:[이가은는을를도만])?\s*(?:타입|type)(?:[이가은는을를도만])?\s*(\S+)/i)
   if (shankTypeMatch) {
     const rawVal = shankTypeMatch[1]
     // resolve through entity index or use raw
@@ -983,7 +992,7 @@ export function tryKGDecision(
     entities.length === tokenCount &&
     tokenCount <= 2 &&
     !hasDiameter
-  const isShankCompound = /(?:싱크|생크|shank)\s*(?:타입|type)\s*\S+/i.test(msg)
+  const isShankCompound = /(?:샹크|싱크|생크|쌩크|shank)\s*(?:타입|type)\s*\S+/i.test(msg)
   const isMaterialGroup = /(?:^|\s)[pmknshPMKNSH]\s*소재/.test(msg)
 
   const shouldDispatch =

@@ -17,6 +17,11 @@ import {
   buildQuestionAssistOptions,
 } from "@/lib/recommendation/infrastructure/engines/serve-engine-option-first"
 import { shouldAttemptWebSearchFallback } from "@/lib/recommendation/infrastructure/engines/serve-engine-assist"
+import {
+  CUTTING_CONDITION_QUERY_PATTERN,
+  DIRECT_PRODUCT_CODE_PATTERN,
+  DIRECT_SERIES_CODE_PATTERN,
+} from "@/lib/recommendation/infrastructure/engines/serve-engine-assist-utils"
 import { buildFinalChipsFromLLM, isUnfilterableChip } from "@/lib/recommendation/domain/options/llm-chip-pipeline"
 import { resolveYG1Query } from "@/lib/knowledge/knowledge-router"
 import { traceRecommendation } from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
@@ -255,6 +260,112 @@ function getGroundedKnowledgeReply(userMessage: string): QuestionReply {
   return {
     text: result.answer,
     chips: [],
+  }
+}
+
+function getMaterialRatingLegendReply(
+  userMessage: string,
+  prevState: ExplorationSessionState,
+): QuestionReply {
+  const clean = userMessage.trim()
+  if (!/(excellent|good|null)/i.test(clean)) return null
+  if (!/(뭐야|무슨|뜻|의미|설명|차이|등급|grade|rating)/i.test(clean)) return null
+
+  const groups = (prevState.displayedSeriesGroups ?? [])
+    .filter((group): group is typeof group & { materialRating: "EXCELLENT" | "GOOD" | "NULL" } =>
+      group?.materialRating === "EXCELLENT" || group?.materialRating === "GOOD" || group?.materialRating === "NULL"
+    )
+  if (groups.length === 0) return null
+
+  const counts = new Map<string, number>()
+  for (const group of groups) {
+    counts.set(group.materialRating, (counts.get(group.materialRating) ?? 0) + 1)
+  }
+
+  const askedRating = clean.match(/\b(excellent|good|null)\b/i)?.[1]?.toUpperCase() ?? null
+  const summary = [
+    counts.has("EXCELLENT") ? `EXCELLENT ${counts.get("EXCELLENT")}개` : null,
+    counts.has("GOOD") ? `GOOD ${counts.get("GOOD")}개` : null,
+    counts.has("NULL") ? `NULL ${counts.get("NULL")}개` : null,
+  ].filter((value): value is string => Boolean(value)).join(", ")
+
+  const focusLine =
+    askedRating === "EXCELLENT"
+      ? "여기서 EXCELLENT는 현재 선택한 소재/조건에 대한 적합도가 가장 높은 우선 후보라는 뜻입니다."
+      : askedRating === "GOOD"
+        ? "여기서 GOOD는 현재 조건에서 사용 가능하지만, EXCELLENT보다 우선순위가 한 단계 낮은 후보라는 뜻입니다."
+        : askedRating === "NULL"
+          ? "여기서 NULL은 내부 소재 적합도 등급 데이터가 없어서 우선순위를 명시하지 못한 상태라는 뜻입니다."
+          : "여기 표시되는 EXCELLENT / GOOD / NULL은 현재 세션 기준의 소재 적합도 우선순위 표시입니다."
+
+  const text = [
+    focusLine,
+    "EXCELLENT는 상대 우선순위가 가장 높고, GOOD는 사용 가능하지만 한 단계 보수적으로 보는 등급입니다.",
+    "NULL은 나쁘다는 뜻이 아니라 내부 적합도 근거가 비어 있어 별도 등급을 붙이지 못한 경우입니다.",
+    summary ? `현재 화면 기준 등급 분포는 ${summary} 입니다.` : null,
+  ].filter((line): line is string => Boolean(line)).join("\n\n")
+
+  const chips = [
+    askedRating === "GOOD" ? "EXCELLENT는 뭐야?" : "GOOD는 뭐야?",
+    "추천 제품 보기",
+    "직접 입력",
+  ]
+
+  return { text, chips }
+}
+
+function getCuttingConditionClarificationReply(
+  userMessage: string,
+  currentInput: RecommendationInput,
+): QuestionReply {
+  const clean = userMessage.trim()
+  if (!CUTTING_CONDITION_QUERY_PATTERN.test(clean)) return null
+  if (DIRECT_PRODUCT_CODE_PATTERN.test(clean) || DIRECT_SERIES_CODE_PATTERN.test(clean)) return null
+
+  const requestedConditions: string[] = []
+  const rpm = clean.match(/(?:rpm|회전수|스핀들(?:\s*속도)?|spindle(?:\s*speed)?)\s*([\d,]+)\s*(이상|이하|초과|미만|\+)/i)
+  if (rpm) requestedConditions.push(`RPM ${rpm[1]} ${rpm[2]}`)
+  const feed = clean.match(/(?:이송(?:속도)?|feed(?:\s*rate)?|fz)\s*([\d.]+)\s*(이상|이하|초과|미만|\+)/i)
+  if (feed) requestedConditions.push(`이송 ${feed[1]} ${feed[2]}`)
+  const cuttingSpeed = clean.match(/(?:절삭\s*속도|cutting\s*speed|vc)\s*([\d.]+)\s*(이상|이하|초과|미만|\+)/i)
+  if (cuttingSpeed) requestedConditions.push(`절삭속도 ${cuttingSpeed[1]} ${cuttingSpeed[2]}`)
+
+  const knownContext: string[] = []
+  const material = currentInput.workPieceName ?? currentInput.material
+  if (material) knownContext.push(`소재=${material}`)
+  if (currentInput.diameterMm != null) knownContext.push(`직경=φ${currentInput.diameterMm}mm`)
+  if (currentInput.operationType) knownContext.push(`가공=${currentInput.operationType}`)
+  else if (currentInput.machiningCategory) knownContext.push(`가공=${currentInput.machiningCategory}`)
+
+  const missing: string[] = []
+  if (!material) missing.push("소재")
+  if (currentInput.diameterMm == null) missing.push("직경")
+  if (!currentInput.operationType && !currentInput.machiningCategory) missing.push("가공 방식")
+
+  const clarificationChips =
+    missing.length > 0
+      ? [
+          missing[0] === "소재" ? "소재 기준 추가" : missing[0] === "직경" ? "직경 기준 추가" : "가공 방식 추가",
+          missing[1] === "소재" ? "소재 기준 추가" : missing[1] === "직경" ? "직경 기준 추가" : missing[1] === "가공 방식" ? "가공 방식 추가" : "황삭 기준",
+          "직접 입력",
+        ]
+      : ["황삭 기준", "정삭 기준", "직접 입력"]
+
+  const text = [
+    requestedConditions.length > 0
+      ? `${requestedConditions.join(", ")} 조건은 제품 고정 스펙이 아니라 소재·직경·가공 방식에 따라 달라지는 절삭조건입니다.`
+      : "절삭조건 질문은 제품 고정 스펙이 아니라 소재·직경·가공 방식에 따라 값이 달라집니다.",
+    knownContext.length > 0
+      ? `현재 잡혀 있는 기준은 ${knownContext.join(", ")} 입니다.`
+      : "현재 조건이 넓어서 바로 제품 리스트로 확정하면 오답 위험이 큽니다.",
+    missing.length > 0
+      ? `${missing.join(", ")} 중 하나 이상을 더 주시면 그 범위에서 추천이나 조건 설명을 정확히 이어갈 수 있습니다.`
+      : "여기서 황삭/정삭이나 절입량을 하나만 더 주시면 현재 조건 안에서 더 정확히 좁힐 수 있습니다.",
+  ].join("\n\n")
+
+  return {
+    text,
+    chips: clarificationChips.slice(0, 3),
   }
 }
 
@@ -897,6 +1008,60 @@ export async function handleServeGeneralChatAction(
         strategy,
       )
     }
+  }
+
+  const materialRatingLegendReply = getMaterialRatingLegendReply(lastUserMessage, prevState)
+  if (materialRatingLegendReply) {
+    return buildValidatedReplyResponse(
+      deps,
+      prevState,
+      filters,
+      narrowingHistory,
+      currentInput,
+      turnCount,
+      lastUserMessage,
+      materialRatingLegendReply,
+      "material-rating-legend",
+      {
+        purpose: "general_chat",
+        currentMode: "general_chat",
+        lastAction: "answer_general",
+      },
+      orchResult,
+      buildProcessTrace({
+        actionType: "answer_general",
+        pendingQuestionField: prevState.lastAskedField ?? null,
+        recentFrameRelation: "rating_legend",
+        displayedOptions: buildReplyDisplayedOptions(materialRatingLegendReply.chips),
+      }),
+    )
+  }
+
+  const cuttingConditionClarificationReply = getCuttingConditionClarificationReply(lastUserMessage, currentInput)
+  if (cuttingConditionClarificationReply) {
+    return buildValidatedReplyResponse(
+      deps,
+      prevState,
+      filters,
+      narrowingHistory,
+      currentInput,
+      turnCount,
+      lastUserMessage,
+      cuttingConditionClarificationReply,
+      "cutting-condition-clarification",
+      {
+        purpose: "question",
+        currentMode: "question",
+        lastAction: "answer_general",
+      },
+      orchResult,
+      buildProcessTrace({
+        actionType: "answer_general",
+        pendingQuestionField: prevState.lastAskedField ?? null,
+        recentFrameRelation: "cutting_condition_clarification",
+        displayedOptions: buildReplyDisplayedOptions(cuttingConditionClarificationReply.chips),
+      }),
+    )
   }
 
   const groundedKnowledgeReply = getGroundedKnowledgeReply(lastUserMessage)

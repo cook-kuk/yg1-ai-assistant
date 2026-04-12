@@ -35,6 +35,24 @@ function normalizeKey(s: string): string {
   return s.toUpperCase().replace(/[\s\-./()_]+/g, "").replace(/[^A-Z0-9]/g, "")
 }
 
+const MATERIAL_GRADE_PATTERNS = [
+  /^SUS\d{3,4}[A-Z]*$/,
+  /^SKD\d+[A-Z]*$/,
+  /^SKH\d+[A-Z]*$/,
+  /^SCM\d+[A-Z]*$/,
+  /^SM\d+[A-Z]*$/,
+  /^S\d{2,4}C$/,
+  /^A\d{4}$/,
+  /^TI\d+AL\d+V?\d*$/,
+  /^INCONEL\d+$/,
+  /^FCD?\d+$/,
+  /^HRC\d+$/,
+]
+
+function isMaterialGradeToken(key: string): boolean {
+  return MATERIAL_GRADE_PATTERNS.some(pattern => pattern.test(key))
+}
+
 function loadOnce(): { tokens: Set<string>; display: Map<string, string> } {
   if (knownTokens && knownDisplay) return { tokens: knownTokens, display: knownDisplay }
 
@@ -57,7 +75,7 @@ function loadOnce(): { tokens: Set<string>; display: Map<string, string> } {
         // 슬래시/플러스 등으로 분리된 내부 토큰도 추가 (예: "Square / Radius" → "SQUARE", "RADIUS")
         for (const part of field.split(/[\/+,;]/)) {
           const k = normalizeKey(part)
-          if (k.length >= 3 && !STOP_TOKENS.has(k)) {
+          if (k.length >= 3 && !STOP_TOKENS.has(k) && !isMaterialGradeToken(k)) {
             tokens.add(k)
             if (!display.has(k)) display.set(k, part.trim())
           }
@@ -103,7 +121,7 @@ export function findHallucinatedSeries(text: string): HallucinationHit[] {
     // 단일 단어면 다음 단계에서 처리
     if (!/\s/.test(trimmed)) continue
     const key = normalizeKey(trimmed)
-    if (key.length < 4 || STOP_TOKENS.has(key)) continue
+    if (key.length < 4 || STOP_TOKENS.has(key) || isMaterialGradeToken(key)) continue
     if (seen.has(key)) continue
     seen.add(key)
     if (!tokens.has(key)) {
@@ -121,7 +139,7 @@ export function findHallucinatedSeries(text: string): HallucinationHit[] {
   const singles = text.match(SERIES_TOKEN) ?? []
   for (const tok of singles) {
     const key = normalizeKey(tok)
-    if (key.length < 4 || STOP_TOKENS.has(key)) continue
+    if (key.length < 4 || STOP_TOKENS.has(key) || isMaterialGradeToken(key)) continue
     if (seen.has(key)) continue
     if (!/[A-Z]/.test(key) || !/[0-9]/.test(key)) continue // 영+숫자 혼합만
     seen.add(key)

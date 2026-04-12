@@ -1,0 +1,118 @@
+[
+  {
+    "name": "flat→Square",
+    "q": "플랫 엔드밀",
+    "ms": 6100,
+    "filters": [
+      "machiningCategory=Milling",
+      "toolSubtype=Square"
+    ],
+    "text": "⚠️ 현재 후보 500개 중 95%를 좁힐 수 있는 핵심 조건입니다.    직경을(를) 알려주시면 더 정확한 추천이 가능합니다.",
+    "ok": true,
+    "issues": []
+  },
+  {
+    "name": "endmill→Milling",
+    "q": "엔드밀 추천해줘",
+    "ms": 7557,
+    "filters": [
+      "machiningCategory=Milling"
+    ],
+    "text": "⚠️ 현재 후보 500개 중 88%를 좁힐 수 있는 핵심 조건입니다.    직경을(를) 알려주시면 더 정확한 추천이 가능합니다.",
+    "ok": true,
+    "issues": []
+  },
+  {
+    "name": "drill→Holemaking",
+    "q": "드릴 추천해줘",
+    "ms": 6205,
+    "filters": [
+      "machiningCategory=Holemaking",
+      "cuttingType=Drilling"
+    ],
+    "text": "⚠️ 현재 후보 500개 중 98%를 좁힐 수 있는 핵심 조건입니다.    직경을(를) 알려주시면 더 정확한 추천이 가능합니다.",
+    "ok": true,
+    "issues": []
+  },
+  {
+    "name": "tap→Threading",
+    "q": "탭 추천해줘",
+    "ms": 5480,
+    "filters": [
+      "machiningCategory=Threading"
+    ],
+    "text": "⚠️ 현재 후보 500개 중 90%를 좁힐 수 있는 핵심 조건입니다.    직경을(를) 알려주시면 더 정확한 추천이 가능합니다.",
+    "ok": true,
+    "issues": []
+  },
+  {
+    "name": "greeting",
+    "q": "안녕하세요",
+    "ms": 5473,
+    "filters": [],
+    "text": "안녕하세요! YG-1 절삭공구 전문 엔지니어입니다.  어떤 가공 작업을 준비 중이신가요? 소재, 가공 방식, 공구 직경 등을 알려주시면 최적의 절삭공구를 추천해드리겠습니다.",
+    "ok": false,
+    "issues": [
+      "unwanted \"직경\""
+    ]
+  },
+  {
+    "name": "greeting-hi",
+    "q": "hi",
+    "ms": 5660,
+    "filters": [],
+    "text": "안녕하세요! YG-1 절삭공구 전문 엔지니어입니다.  어떤 가공 작업을 계획 중이신가요? 소재, 가공 방식, 필요한 공구 종류 등을 말씀해 주시면 최적의 제품을 추천해 드리겠습니다.",
+    "ok": true,
+    "issues": []
+  },
+  {
+    "name": "SUS316L-soft",
+    "q": "우리 공장에서 SUS316L 많이 하는데 괜찮은 거?",
+    "ms": 8636,
+    "filters": [
+      "workPieceName=Stainless Steels"
+    ],
+    "text": "⚠️ 현재 후보 500개 중 56%를 좁힐 수 있는 핵심 조건입니다.    날수을(를) 알려주시면 더 정확한 추천이 가능합니다.",
+    "ok": true,
+    "issues": []
+  },
+  {
+    "name": "AlCrN-soft",
+    "q": "AlCrN 괜찮은 거?",
+    "ms": 5143,
+    "filters": [
+      "coating=AlCrN"
+    ],
+    "text": "⚠️ 현재 후보 500개 중 59%를 좁힐 수 있는 핵심 조건입니다.    직경을(를) 알려주시면 더 정확한 추천이 가능합니다.",
+    "ok": true,
+    "issues": []
+  },
+  {
+    "name": "볼노즈",
+    "q": "볼노즈 엔드밀",
+    "ms": 4864,
+    "filters": [
+      "machiningCategory=Milling",
+      "toolSubtype=Ball"
+    ],
+    "text": "⚠️ 현재 후보 500개 중 79%를 좁힐 수 있는 핵심 조건입니다.    직경을(를) 알려주시면 더 정확한 추천이 가능합니다.",
+    "ok": true,
+    "issues": []
+  },
+  {
+    "name": "HSK",
+    "q": "HSK 생크",
+    "ms": 4833,
+    "filters": [
+      "shankType=HSK"
+    ],
+    "text": "⚠️ 현재 후보 482개 중 2%를 좁힐 수 있는 핵심 조건입니다.    직경을(를) 알려주시면 더 정확한 추천이 가능합니다.",
+    "ok": true,
+    "issues": []
+  },
+  {
+    "name": "knowledge-q",
+    "q": "헬릭스가 뭐야?",
+    "error": "fetch failed"
+  }
+]

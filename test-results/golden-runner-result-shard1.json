@@ -1,29 +1,411 @@
 {
-  "pass": 9,
-  "fail": 0,
-  "error": 1,
+  "pass": 71,
+  "fail": 14,
+  "error": 4,
   "skip": 2,
   "details": [
     {
-      "id": "C09",
+      "id": "I02",
+      "verdict": "ERROR",
+      "error": "TIMEOUT"
+    },
+    {
+      "id": "J01",
+      "verdict": "ERROR",
+      "error": "TIMEOUT"
+    },
+    {
+      "id": "J05",
+      "verdict": "ERROR",
+      "error": "TIMEOUT"
+    },
+    {
+      "id": "J09",
+      "verdict": "ERROR",
+      "error": "read ECONNRESET"
+    },
+    {
+      "id": "K03",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 40162,
+      "runResult": []
+    },
+    {
+      "id": "K07",
+      "verdict": "PASS",
+      "detail": "no-expected",
+      "elapsedMs": 8341,
+      "runResult": []
+    },
+    {
+      "id": "M01",
       "verdict": "PASS",
       "detail": "loose:1filter",
-      "elapsedMs": 181338,
+      "elapsedMs": 13456,
       "runResult": [
         {
-          "field": "country",
-          "op": "eq",
-          "value": "KOREA",
-          "rawValue": "KOREA",
+          "field": "diameterMm",
+          "op": "between",
+          "value": "10mm, 12mm",
+          "rawValue": [
+            10,
+            12
+          ],
           "appliedAt": 0
         }
       ]
     },
     {
-      "id": "C13",
+      "id": "M05",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 11980,
+      "runResult": [
+        {
+          "field": "overallLengthMm",
+          "op": "gte",
+          "value": "100mm",
+          "rawValue": 100,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M09",
       "verdict": "PASS",
       "detail": "loose:3filter",
-      "elapsedMs": 50574,
+      "elapsedMs": 9677,
+      "runResult": [
+        {
+          "field": "ballRadiusMm",
+          "op": "between",
+          "value": "0.5mm, 2mm",
+          "rawValue": [
+            0.5,
+            2
+          ],
+          "appliedAt": 0
+        },
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "0.5",
+          "rawValue": 0.5,
+          "appliedAt": 1775803136575
+        },
+        {
+          "field": "toolSubtype",
+          "op": "eq",
+          "value": "Radius",
+          "rawValue": "Radius",
+          "appliedAt": 1775803136575
+        }
+      ]
+    },
+    {
+      "id": "M13",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 9293,
+      "runResult": [
+        {
+          "field": "fluteCount",
+          "op": "gte",
+          "value": "100날",
+          "rawValue": 100,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M17",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 7108,
+      "runResult": [
+        {
+          "field": "toolSubtype",
+          "op": "eq",
+          "value": "Double",
+          "rawValue": "Double",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M21",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 11063,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "10mm",
+          "rawValue": 10,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M25",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 11880,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "lte",
+          "value": "4mm",
+          "rawValue": 4,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M29",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 9406,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "6mm",
+          "rawValue": 6,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M33",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 15159,
+      "runResult": [
+        {
+          "field": "shankDiameterMm",
+          "op": "lte",
+          "value": "8mm",
+          "rawValue": 8,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M37",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 12009,
+      "runResult": [
+        {
+          "field": "overallLengthMm",
+          "op": "lte",
+          "value": "80mm",
+          "rawValue": 80,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M41",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 6968,
+      "runResult": [
+        {
+          "field": "lengthOfCutMm",
+          "op": "eq",
+          "value": "30mm",
+          "rawValue": 30,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M45",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 9010,
+      "runResult": [
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "2날",
+          "rawValue": 2,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M49",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 22762,
+      "runResult": [
+        {
+          "field": "fluteCount",
+          "op": "lte",
+          "value": "3날",
+          "rawValue": 3,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M53",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 9032,
+      "runResult": [
+        {
+          "field": "helixAngleDeg",
+          "op": "gte",
+          "value": "40°",
+          "rawValue": 40,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M57",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 16320,
+      "runResult": []
+    },
+    {
+      "id": "M61",
+      "verdict": "PASS",
+      "detail": "loose:3filter",
+      "elapsedMs": 8456,
+      "runResult": [
+        {
+          "field": "ballRadiusMm",
+          "op": "lte",
+          "value": "0.5mm",
+          "rawValue": 0.5,
+          "appliedAt": 0
+        },
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "0.5",
+          "rawValue": 0.5,
+          "appliedAt": 1775803289274
+        },
+        {
+          "field": "toolSubtype",
+          "op": "eq",
+          "value": "Radius",
+          "rawValue": "Radius",
+          "appliedAt": 1775803289274
+        }
+      ]
+    },
+    {
+      "id": "M65",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 12344,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "4mm",
+          "rawValue": 4,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M69",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 3619,
+      "runResult": [
+        {
+          "field": "shankDiameterMm",
+          "op": "gte",
+          "value": "80mm",
+          "rawValue": 80,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M73",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 6901,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "lte",
+          "value": "40mm",
+          "rawValue": 40,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M77",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 8307,
+      "runResult": [
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "4날",
+          "rawValue": 4,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M81",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 60245,
+      "runResult": [
+        {
+          "field": "cuttingType",
+          "op": "eq",
+          "value": "Roughing",
+          "rawValue": "Roughing",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M85",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 14547,
+      "runResult": []
+    },
+    {
+      "id": "M89",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 9831,
+      "runResult": [
+        {
+          "field": "coating",
+          "op": "eq",
+          "value": "TiAlN",
+          "rawValue": "TiAlN",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M93",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 14326,
       "runResult": [
         {
           "field": "toolMaterial",
@@ -31,28 +413,88 @@
           "value": "Carbide",
           "rawValue": "Carbide",
           "appliedAt": 0
-        },
+        }
+      ]
+    },
+    {
+      "id": "M97",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 8185,
+      "runResult": [
         {
-          "field": "toolType",
+          "field": "coolantHole",
           "op": "eq",
-          "value": "solid",
-          "rawValue": "solid",
-          "appliedAt": 0
-        },
-        {
-          "field": "toolSubtype",
-          "op": "eq",
-          "value": "Ball",
-          "rawValue": "Ball",
+          "value": "false",
+          "rawValue": false,
           "appliedAt": 0
         }
       ]
     },
     {
-      "id": "D02",
+      "id": "M101",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 8361,
+      "runResult": []
+    },
+    {
+      "id": "M105",
       "verdict": "PASS",
-      "detail": "loose:3filter",
-      "elapsedMs": 33792,
+      "detail": "loose:1filter",
+      "elapsedMs": 6473,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "999mm",
+          "rawValue": 999,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M109",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 7534,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "10mm",
+          "rawValue": 10,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M113",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 7270,
+      "runResult": []
+    },
+    {
+      "id": "M117",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 10288,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "10mm",
+          "rawValue": 10,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M121",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 7844,
       "runResult": [
         {
           "field": "diameterMm",
@@ -60,100 +502,817 @@
           "value": "12mm",
           "rawValue": 12,
           "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M125",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 9399,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "10mm",
+          "rawValue": 10,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M129",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 10338,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "lte",
+          "value": "공구 직경 10mm 이하",
+          "rawValue": 10,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M133",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 13900,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "between",
+          "value": "공구 직경 6~12mm",
+          "rawValue": 6,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M137",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 13553,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "1.5mm",
+          "rawValue": 1.5,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M141",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 12771,
+      "runResult": [
+        {
+          "field": "shankDiameterMm",
+          "op": "eq",
+          "value": "6mm",
+          "rawValue": 6,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M145",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 12244,
+      "runResult": [
+        {
+          "field": "shankDiameterMm",
+          "op": "gte",
+          "value": "16mm",
+          "rawValue": 16,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M149",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 9297,
+      "runResult": [
+        {
+          "field": "overallLengthMm",
+          "op": "eq",
+          "value": "120mm",
+          "rawValue": 120,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M153",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 5732,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "100mm",
+          "rawValue": 100,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M157",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 11442,
+      "runResult": [
+        {
+          "field": "overallLengthMm",
+          "op": "between",
+          "value": "100mm, 150mm",
+          "rawValue": [
+            100,
+            150
+          ],
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M161",
+      "verdict": "PASS",
+      "detail": "loose:2filter",
+      "elapsedMs": 9420,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "40mm",
+          "rawValue": 40,
+          "appliedAt": 0
         },
+        {
+          "field": "coating",
+          "op": "eq",
+          "value": "TiN",
+          "rawValue": "TiN",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M165",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 43894,
+      "runResult": [
+        {
+          "field": "lengthOfCutMm",
+          "op": "gte",
+          "value": "50mm",
+          "rawValue": 50,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M169",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 5551,
+      "runResult": [
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "5날",
+          "rawValue": 5,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M173",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 6816,
+      "runResult": [
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "10날",
+          "rawValue": 10,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M177",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 9112,
+      "runResult": [
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "4날",
+          "rawValue": 4,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M181",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 15578,
+      "runResult": [
+        {
+          "field": "fluteCount",
+          "op": "between",
+          "value": "4날, 6날",
+          "rawValue": [
+            4,
+            6
+          ],
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M185",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 12414,
+      "runResult": [
+        {
+          "field": "helixAngleDeg",
+          "op": "eq",
+          "value": "45°",
+          "rawValue": 45,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M189",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 11587,
+      "runResult": [
+        {
+          "field": "helixAngleDeg",
+          "op": "gte",
+          "value": "25°",
+          "rawValue": 25,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M193",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 11435,
+      "runResult": []
+    },
+    {
+      "id": "M197",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 6247,
+      "runResult": []
+    },
+    {
+      "id": "M201",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 11057,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "3mm",
+          "rawValue": 3,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M205",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 15797,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "lte",
+          "value": "6mm",
+          "rawValue": 6,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M209",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 10411,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "63mm",
+          "rawValue": 63,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M213",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 14041,
+      "runResult": [
+        {
+          "field": "coating",
+          "op": "eq",
+          "value": "TiCN",
+          "rawValue": "TiCN",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M217",
+      "verdict": "PASS",
+      "detail": "loose:2filter",
+      "elapsedMs": 16201,
+      "runResult": [
+        {
+          "field": "toolMaterial",
+          "op": "eq",
+          "value": "Diamond",
+          "rawValue": "Diamond",
+          "appliedAt": 0
+        },
+        {
+          "field": "coating",
+          "op": "eq",
+          "value": "Diamond",
+          "rawValue": "Diamond",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M221",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 20395,
+      "runResult": [
+        {
+          "field": "shankType",
+          "op": "eq",
+          "value": "weldon",
+          "rawValue": "weldon",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M225",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 8587,
+      "runResult": [
+        {
+          "field": "shankType",
+          "op": "eq",
+          "value": "straight",
+          "rawValue": "straight",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M229",
+      "verdict": "PASS",
+      "detail": "loose:2filter",
+      "elapsedMs": 4649,
+      "runResult": [
+        {
+          "field": "toolMaterial",
+          "op": "eq",
+          "value": "CBN",
+          "rawValue": "CBN",
+          "appliedAt": 0
+        },
+        {
+          "field": "brand",
+          "op": "eq",
+          "value": "CBN",
+          "rawValue": "CBN",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M233",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 9653,
+      "runResult": []
+    },
+    {
+      "id": "M237",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 12387,
+      "runResult": []
+    },
+    {
+      "id": "M241",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 39765,
+      "runResult": [
+        {
+          "field": "cuttingType",
+          "op": "eq",
+          "value": "Finishing",
+          "rawValue": "Finishing",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M245",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 12128,
+      "runResult": [
+        {
+          "field": "toolSubtype",
+          "op": "eq",
+          "value": "Single",
+          "rawValue": "Single",
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M249",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 25195,
+      "runResult": []
+    },
+    {
+      "id": "M253",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 73754,
+      "runResult": []
+    },
+    {
+      "id": "M257",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 8953,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "7mm",
+          "rawValue": 7,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M261",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 10871,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "16mm",
+          "rawValue": 16,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M265",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 9105,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "2mm",
+          "rawValue": 2,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M269",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 34298,
+      "runResult": [
+        {
+          "field": "helixAngleDeg",
+          "op": "eq",
+          "value": "42°",
+          "rawValue": 42,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M273",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 25999,
+      "runResult": []
+    },
+    {
+      "id": "M277",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 8889,
+      "runResult": [
+        {
+          "field": "overallLengthMm",
+          "op": "eq",
+          "value": "75mm",
+          "rawValue": 75,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M281",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 10620,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "80mm",
+          "rawValue": 80,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M285",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 8940,
+      "runResult": [
+        {
+          "field": "shankDiameterMm",
+          "op": "eq",
+          "value": "20mm",
+          "rawValue": 20,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M289",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 15883,
+      "runResult": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "9.53mm",
+          "rawValue": 9.53,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M293",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 10961,
+      "runResult": [
+        {
+          "field": "overallLengthMm",
+          "op": "gte",
+          "value": "100mm",
+          "rawValue": 100,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M297",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 26240,
+      "runResult": []
+    },
+    {
+      "id": "M301",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 10211,
+      "runResult": [
         {
           "field": "fluteCount",
           "op": "eq",
           "value": "2날",
           "rawValue": 2,
           "appliedAt": 0
-        },
-        {
-          "field": "workPieceName",
-          "op": "eq",
-          "value": "Hardened Steels",
-          "rawValue": "Hardened Steels",
-          "appliedAt": 0
         }
       ]
     },
     {
-      "id": "D06",
-      "verdict": "ERROR",
-      "error": "socket hang up"
-    },
-    {
-      "id": "D10",
+      "id": "M305",
       "verdict": "PASS",
-      "detail": "loose:2filter",
-      "elapsedMs": 46960,
+      "detail": "loose:1filter",
+      "elapsedMs": 9863,
       "runResult": [
         {
-          "field": "brand",
+          "field": "diameterMm",
           "op": "eq",
-          "value": "X1-EH",
-          "rawValue": "X1-EH",
-          "appliedAt": 0
-        },
-        {
-          "field": "workPieceName",
-          "op": "eq",
-          "value": "Hardened Steels",
-          "rawValue": "Hardened Steels",
+          "value": "12mm",
+          "rawValue": 12,
           "appliedAt": 0
         }
       ]
     },
     {
-      "id": "E04",
+      "id": "M309",
+      "verdict": "PASS",
+      "detail": "loose:1filter",
+      "elapsedMs": 15928,
+      "runResult": [
+        {
+          "field": "overallLengthMm",
+          "op": "lte",
+          "value": "전장(OAL) 최대 80mm",
+          "rawValue": 80,
+          "appliedAt": 0
+        }
+      ]
+    },
+    {
+      "id": "M313",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 24474,
+      "runResult": []
+    },
+    {
+      "id": "M317",
+      "verdict": "FAIL",
+      "detail": "no-filter-extracted",
+      "elapsedMs": 7293,
+      "runResult": []
+    },
+    {
+      "id": "M321",
       "verdict": "SKIP"
     },
     {
-      "id": "E08",
+      "id": "M325",
       "verdict": "SKIP"
     },
     {
-      "id": "F02",
+      "id": "M329",
       "verdict": "PASS",
-      "detail": "no-expected",
-      "elapsedMs": 305836,
-      "runResult": []
+      "detail": "smoke:seq",
+      "elapsedMs": 32084,
+      "runResult": {
+        "lastFilters": [
+          {
+            "field": "diameterMm",
+            "op": "eq",
+            "value": "12",
+            "rawValue": "12",
+            "appliedAt": 0
+          }
+        ],
+        "turnResults": [
+          {
+            "text": "외경 10mm 엔드밀",
+            "filters": [
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10mm",
+                "rawValue": 10,
+                "appliedAt": 0
+              }
+            ],
+            "expected": null
+          },
+          {
+            "text": "12mm로 변경",
+            "filters": [
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "12",
+                "rawValue": "12",
+                "appliedAt": 0
+              }
+            ],
+            "expected": null
+          }
+        ]
+      }
     },
     {
-      "id": "G01",
+      "id": "M333",
       "verdict": "PASS",
-      "detail": "no-expected",
-      "elapsedMs": 55301,
-      "runResult": [
-        {
-          "field": "coating",
-          "op": "eq",
-          "value": "T-Coating",
-          "rawValue": "T-Coating",
-          "appliedAt": 0
-        }
-      ]
+      "detail": "smoke:seq",
+      "elapsedMs": 28612,
+      "runResult": {
+        "lastFilters": [],
+        "turnResults": [
+          {
+            "text": "외경 10mm",
+            "filters": [
+              {
+                "field": "diameterMm",
+                "op": "eq",
+                "value": "10mm",
+                "rawValue": 10,
+                "appliedAt": 0
+              }
+            ],
+            "expected": null
+          },
+          {
+            "text": "처음부터",
+            "filters": [],
+            "expected": null
+          }
+        ]
+      }
     },
     {
-      "id": "G05",
+      "id": "M337",
       "verdict": "PASS",
-      "detail": "no-expected",
-      "elapsedMs": 1722,
-      "runResult": []
-    },
-    {
-      "id": "G09",
-      "verdict": "PASS",
-      "detail": "no-expected",
-      "elapsedMs": 1902,
-      "runResult": []
-    },
-    {
-      "id": "H03",
-      "verdict": "PASS",
-      "detail": "no-expected",
-      "elapsedMs": 139442,
-      "runResult": []
+      "detail": "smoke:seq",
+      "elapsedMs": 29565,
+      "runResult": {
+        "lastFilters": [
+          {
+            "field": "coating",
+            "op": "eq",
+            "value": "AlTiN",
+            "rawValue": "AlTiN",
+            "appliedAt": 0
+          }
+        ],
+        "turnResults": [
+          {
+            "text": "TiAlN 코팅",
+            "filters": [
+              {
+                "field": "coating",
+                "op": "eq",
+                "value": "TiAlN",
+                "rawValue": "TiAlN",
+                "appliedAt": 0
+              }
+            ],
+            "expected": null
+          },
+          {
+            "text": "AlTiN으로 바꿔",
+            "filters": [
+              {
+                "field": "coating",
+                "op": "eq",
+                "value": "AlTiN",
+                "rawValue": "AlTiN",
+                "appliedAt": 0
+              }
+            ],
+            "expected": null
+          }
+        ]
+      }
     }
   ]
 }

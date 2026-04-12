@@ -137,9 +137,9 @@ export const QUERY_FIELD_MANIFEST: FieldManifestEntry[] = [
   {
     field: "shankType",
     label: "생크 타입",
-    description: "공구 생크(자루) 형태. Plain(플레인/일반), Weldon(웰던), HA 등. '싱크 타입', '생크 타입'이라고 하면 이 필드.",
+    description: "공구 생크(자루) 형태. Plain(플레인/일반), Weldon(웰던), HA 등. '싱크 타입', '생크 타입', '쌩크 타입'이라고 하면 이 필드.",
     allowedOps: ["eq", "neq", "contains"],
-    aliases: ["싱크 타입", "생크 타입", "shank type", "생크", "싱크"],
+    aliases: ["싱크 타입", "생크 타입", "쌩크 타입", "shank type", "생크", "싱크", "쌩크"],
     valueType: "string",
     examples: ["Plain", "Weldon", "HA"],
   },
@@ -177,9 +177,9 @@ export const QUERY_FIELD_MANIFEST: FieldManifestEntry[] = [
   {
     field: "shankDiameterMm",
     label: "샹크 직경",
-    description: "공구 자루(샹크/생크) 부분 직경. 사용자 입력에 '샹크', '생크', 'shank' 가 포함되면 반드시 이 필드 — diameterMm 가 아님.",
+    description: "공구 자루(샹크/생크/쌩크) 부분 직경. 사용자 입력에 '샹크', '생크', '싱크', '쌩크', 'shank' 가 포함되면 반드시 이 필드 — diameterMm 가 아님.",
     allowedOps: ["eq", "neq", "gte", "lte", "between"],
-    aliases: ["샹크 직경", "생크 직경", "샹크직경", "생크직경", "shank diameter", "shank dia", "샹크 지름", "생크 지름"],
+    aliases: ["샹크 직경", "생크 직경", "싱크 직경", "쌩크 직경", "샹크직경", "생크직경", "싱크직경", "쌩크직경", "shank diameter", "shank dia", "샹크 지름", "생크 지름", "싱크 지름", "쌩크 지름"],
     valueType: "number",
     examples: ["6", "10", "6~10"],
     sortable: true,

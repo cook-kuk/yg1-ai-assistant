@@ -77,6 +77,13 @@ describe("KG bugfixes (2026-04-09)", () => {
       expect(action?.filter?.field).toBe("shankType")
     })
 
+    it('"쌩크 타입 플레인" dispatches shankType=Plain', () => {
+      const result = tryKGDecision("쌩크 타입 플레인", null)
+      const action = result.decision?.action as any
+      expect(action?.type).toBe("continue_narrowing")
+      expect(action?.filter?.field).toBe("shankType")
+    })
+
     it('"P소재" dispatches material=P', () => {
       const result = tryKGDecision("P소재", null)
       const action = result.decision?.action as any

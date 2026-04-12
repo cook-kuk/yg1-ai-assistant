@@ -1,0 +1,2070 @@
+{
+  "summary": {
+    "apiUrl": "http://127.0.0.1:3105/api/recommend",
+    "startedAt": "2026-04-11T22:52:10.717Z",
+    "total": 30,
+    "pass": 17,
+    "partial": 10,
+    "fail": 3
+  },
+  "results": [
+    {
+      "q": "스테인리스 4날 10mm",
+      "expect": {
+        "workPieceName": "Stainless Steels",
+        "fluteCount": 4,
+        "diameterMm": 10
+      },
+      "statusCode": 200,
+      "elapsedMs": 31692,
+      "purpose": "question",
+      "text": "스테인리스 4날 10mm로 좁혀서 148개가 남았네요. 상위 후보인 SUS-CUT for Korean Market은 Y-Coating으로 스테인리스에서 날끝 마모를 눌러주는 쪽이라 안정적으로 보입니다. 세부 타입은 중요합니다, 일반적으로 Square는 바닥·측면 범용, Radius는 모서리 강성, Roughing은 칩 배출 쪽 장점이 있어서 주로 어떤 가공이신지에 따라 갈라집니다.",
+      "filters": [
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "4날",
+          "rawValue": 4,
+          "appliedAt": 0
+        },
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "10mm",
+          "rawValue": 10,
+          "appliedAt": 0
+        },
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Stainless Steels",
+          "rawValue": "Stainless Steels",
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "Square (60개)",
+        "Radius (45개)",
+        "Roughing (38개)",
+        "Ball (4개)",
+        "상관없음",
+        "📋 지금 바로 제품 보기 (148개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "PASS",
+        "matched": [
+          {
+            "spec": {
+              "field": "workPieceName",
+              "op": "eq",
+              "expected": "Stainless Steels"
+            },
+            "actual": {
+              "field": "workPieceName",
+              "op": "eq",
+              "value": "Stainless Steels",
+              "rawValue": "Stainless Steels",
+              "appliedAt": 0
+            }
+          },
+          {
+            "spec": {
+              "field": "fluteCount",
+              "op": "eq",
+              "expected": 4
+            },
+            "actual": {
+              "field": "fluteCount",
+              "op": "eq",
+              "value": "4날",
+              "rawValue": 4,
+              "appliedAt": 0
+            }
+          },
+          {
+            "spec": {
+              "field": "diameterMm",
+              "op": "eq",
+              "expected": 10
+            },
+            "actual": {
+              "field": "diameterMm",
+              "op": "eq",
+              "value": "10mm",
+              "rawValue": 10,
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [],
+        "extras": [],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 3
+      }
+    },
+    {
+      "q": "알루미늄 2날 6mm",
+      "expect": {
+        "workPieceName": "Aluminum",
+        "fluteCount": 2,
+        "diameterMm": 6
+      },
+      "statusCode": 200,
+      "elapsedMs": 4992,
+      "purpose": "recommendation",
+      "text": "E5D7106025가 알루미늄용으로 가장 먼저 보시면 되는 이유는, 비철계에서 칩이 달라붙기 쉬운 조건에 맞춘 Bright Finish라서 구성인선 억제와 칩 배출이 깔끔하기 때문입니다. 알루미늄은 열이 공구로 덜 빠지고 칩이 길게 붙기 쉬워서, 진입은 가능하면 한 번에 파고들기보다 옆에서 가볍게 물리는 방식이 더 안정적입니다. 표면이 거칠게 나오면 마무리 패스를 아주 얕게 한 번 추가하면 개선되는 경우가 많고, 현재 재고는 있으나 납기 정보는 확인이 필요합니다.\n\n⚠️ 1순위와 2순위(E5D71060) 점수 차이가 작습니다. 두 제품을 비교해보시길 권합니다.",
+      "filters": [
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "2날",
+          "rawValue": 2,
+          "appliedAt": 0
+        },
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "6mm",
+          "rawValue": 6,
+          "appliedAt": 0
+        },
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "알루미늄",
+          "rawValue": "알루미늄",
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "코팅으로 좁히기 (Bright Finish/TiCN)",
+        "상위 3개 비교",
+        "E5D7106025 상세 정보",
+        "시리즈 차이 설명해줘 (E5D71 vs EG930)",
+        "φ6mm 외 다른 직경",
+        "⟵ 이전 단계로 돌아가기",
+        "📋 지금 바로 제품 보기 (28개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "FAIL",
+        "matched": [
+          {
+            "spec": {
+              "field": "fluteCount",
+              "op": "eq",
+              "expected": 2
+            },
+            "actual": {
+              "field": "fluteCount",
+              "op": "eq",
+              "value": "2날",
+              "rawValue": 2,
+              "appliedAt": 0
+            }
+          },
+          {
+            "spec": {
+              "field": "diameterMm",
+              "op": "eq",
+              "expected": 6
+            },
+            "actual": {
+              "field": "diameterMm",
+              "op": "eq",
+              "value": "6mm",
+              "rawValue": 6,
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [
+          {
+            "field": "workPieceName",
+            "op": "eq",
+            "expected": "Aluminum"
+          }
+        ],
+        "extras": [
+          {
+            "field": "workPieceName",
+            "op": "eq",
+            "value": "알루미늄",
+            "rawValue": "알루미늄",
+            "appliedAt": 0
+          }
+        ],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 3
+      }
+    },
+    {
+      "q": "티타늄 가공용",
+      "expect": {
+        "workPieceName": "Titanium"
+      },
+      "statusCode": 200,
+      "elapsedMs": 8633,
+      "purpose": "question",
+      "text": "티타늄 가공으로 좁히니 후보가 500개 남았습니다. 상위의 TitaNox-Power는 Y-Coating과 4날 조합이라 날끝 열을 버티면서도 채터를 잘 눌러줘요. 직경은 어느 정도가 필요하세요? 8mm, 12mm, 16mm, 20mm, 25mm 중에 맞춰드릴게요.",
+      "filters": [
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Titanium",
+          "rawValue": "Titanium",
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "20mm (31개)",
+        "25mm (30개)",
+        "12mm (27개)",
+        "16mm (27개)",
+        "8mm (21개)",
+        "상관없음",
+        "📋 지금 바로 제품 보기 (500개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "PASS",
+        "matched": [
+          {
+            "spec": {
+              "field": "workPieceName",
+              "op": "eq",
+              "expected": "Titanium"
+            },
+            "actual": {
+              "field": "workPieceName",
+              "op": "eq",
+              "value": "Titanium",
+              "rawValue": "Titanium",
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [],
+        "extras": [],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 1
+      }
+    },
+    {
+      "q": "SCM440 가공",
+      "expect": {
+        "workPieceName": "Alloy Steels"
+      },
+      "statusCode": 200,
+      "elapsedMs": 8310,
+      "purpose": "question",
+      "text": "직경을(를) 알려주시면 더 정확한 추천이 가능합니다.",
+      "filters": [
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Alloy Steels",
+          "rawValue": "Alloy Steels",
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "10mm (11개)",
+        "12mm (10개)",
+        "1.5mm (9개)",
+        "1mm (8개)",
+        "3mm (8개)",
+        "상관없음",
+        "📋 지금 바로 제품 보기 (500개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "PASS",
+        "matched": [
+          {
+            "spec": {
+              "field": "workPieceName",
+              "op": "eq",
+              "expected": "Alloy Steels"
+            },
+            "actual": {
+              "field": "workPieceName",
+              "op": "eq",
+              "value": "Alloy Steels",
+              "rawValue": "Alloy Steels",
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [],
+        "extras": [],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 1
+      }
+    },
+    {
+      "q": "SUS316L 엔드밀",
+      "expect": {
+        "workPieceName": "Stainless Steels"
+      },
+      "statusCode": 200,
+      "elapsedMs": 6918,
+      "purpose": "question",
+      "text": "SUS316L 엔드밀로 좁히셨더니 후보가 500개 남았고, 상위에는 UGMG54064가 보입니다. V7 PLUS A에 Y-Coating, 4날이라 316L처럼 점성이 큰 재질에서 칩이 달라붙는 걸 줄이는 쪽으로 쓰기 좋습니다. 316L은 304보다 가공경화가 빨라서 이송이 끊기면 공구가 더 버티기 힘든 편인데, 직경은 어느 정도로 보시나요?",
+      "filters": [
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Stainless Steels",
+          "rawValue": "Stainless Steels",
+          "appliedAt": 0
+        },
+        {
+          "field": "machiningCategory",
+          "op": "eq",
+          "value": "Milling",
+          "rawValue": "Milling",
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "25.4mm (103개)",
+        "76.2mm (55개)",
+        "127mm (42개)",
+        "상관없음",
+        "📋 지금 바로 제품 보기 (500개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "PARTIAL",
+        "matched": [
+          {
+            "spec": {
+              "field": "workPieceName",
+              "op": "eq",
+              "expected": "Stainless Steels"
+            },
+            "actual": {
+              "field": "workPieceName",
+              "op": "eq",
+              "value": "Stainless Steels",
+              "rawValue": "Stainless Steels",
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [],
+        "extras": [
+          {
+            "field": "machiningCategory",
+            "op": "eq",
+            "value": "Milling",
+            "rawValue": "Milling",
+            "appliedAt": 0
+          }
+        ],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 2
+      }
+    },
+    {
+      "q": "SKD11 가공",
+      "expect": {
+        "workPieceName": "Hardened Steels"
+      },
+      "statusCode": 200,
+      "elapsedMs": 3694,
+      "purpose": "recommendation",
+      "text": "DH500100은 고경도강 가공용으로 걸러진 후보라 지금 조건에서 가장 먼저 보셔도 되는 드릴입니다. H 태그라서 경화강처럼 공구에 부담이 큰 소재에서 절삭날 유지가 유리하고, 표면 처리도 들어가 있어 마모를 늦추는 쪽으로 설계된 점이 강점입니다. 이 계열은 급하게 깊이 파기보다 칩 배출을 살리면서 안정적으로 들어가야 수명이 잘 나오고, 재고와 납기는 현재 정보가 없어 확인이 필요합니다.\n\n⚠️ 1순위와 2순위(CBN) 점수 차이가 작습니다. 두 제품을 비교해보시길 권합니다.",
+      "filters": [
+        {
+          "field": "brand",
+          "op": "eq",
+          "value": "SUS-CUT",
+          "rawValue": "SUS-CUT",
+          "appliedAt": 0
+        },
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Hardened Steels",
+          "rawValue": "Hardened Steels",
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "코팅으로 좁히기 (Excellent Coating and Surface Treatment/TiAlN)",
+        "날수로 좁히기 (2날/4날)",
+        "상위 3개 비교",
+        "DH500100 상세 정보",
+        "시리즈 차이 설명해줘 (DH500100 vs CBN)",
+        "⟵ 이전 단계로 돌아가기",
+        "📋 지금 바로 제품 보기 (30개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "PARTIAL",
+        "matched": [
+          {
+            "spec": {
+              "field": "workPieceName",
+              "op": "eq",
+              "expected": "Hardened Steels"
+            },
+            "actual": {
+              "field": "workPieceName",
+              "op": "eq",
+              "value": "Hardened Steels",
+              "rawValue": "Hardened Steels",
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [],
+        "extras": [
+          {
+            "field": "brand",
+            "op": "eq",
+            "value": "SUS-CUT",
+            "rawValue": "SUS-CUT",
+            "appliedAt": 0
+          }
+        ],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 2
+      }
+    },
+    {
+      "q": "SM45C 황삭",
+      "expect": {
+        "workPieceName": "Carbon Steels"
+      },
+      "statusCode": 200,
+      "elapsedMs": 6287,
+      "purpose": "question",
+      "text": "SM45C 황삭으로 좁혔더니 현재 500개가 보입니다. 상위에는 CE7A63 계열이 먼저 보이는데, 황삭용이라 날수와 코팅이 버티면서도 절삭부하를 분산시키는 쪽이 눈에 띕니다. 직경은 어느 정도가 필요하세요? 40mm, 18mm, 20mm, 22mm, 25mm 중에서 보셔도 되고 상관없으시면 그 기준으로 더 좁혀드릴게요.",
+      "filters": [
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Carbon Steels",
+          "rawValue": "Carbon Steels",
+          "appliedAt": 0
+        },
+        {
+          "field": "cuttingType",
+          "op": "eq",
+          "value": "Roughing",
+          "rawValue": "Roughing",
+          "appliedAt": 0
+        },
+        {
+          "field": "toolSubtype",
+          "op": "includes",
+          "value": "Roughing",
+          "rawValue": "Roughing",
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "40mm (10개)",
+        "18mm (9개)",
+        "20mm (8개)",
+        "22mm (8개)",
+        "25mm (8개)",
+        "상관없음",
+        "📋 지금 바로 제품 보기 (500개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "PARTIAL",
+        "matched": [
+          {
+            "spec": {
+              "field": "workPieceName",
+              "op": "eq",
+              "expected": "Carbon Steels"
+            },
+            "actual": {
+              "field": "workPieceName",
+              "op": "eq",
+              "value": "Carbon Steels",
+              "rawValue": "Carbon Steels",
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [],
+        "extras": [
+          {
+            "field": "cuttingType",
+            "op": "eq",
+            "value": "Roughing",
+            "rawValue": "Roughing",
+            "appliedAt": 0
+          },
+          {
+            "field": "toolSubtype",
+            "op": "includes",
+            "value": "Roughing",
+            "rawValue": "Roughing",
+            "appliedAt": 0
+          }
+        ],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 3
+      }
+    },
+    {
+      "q": "Y코팅 추천",
+      "expect": {
+        "coating": "Y-Coating"
+      },
+      "statusCode": 200,
+      "elapsedMs": 5948,
+      "purpose": "question",
+      "text": "Y-Coating으로 좁히셨더니 후보가 500개 남았습니다. V7 PLUS A는 Y-Coating과 4날 조합이라 열이 몰리는 상황에서 날끝을 안정적으로 받쳐주는 편이에요. 직경은 어느 정도가 필요하세요? 25.4mm, 76.2mm, 127mm, 10mm, 12mm 중에 보시면 됩니다.",
+      "filters": [
+        {
+          "field": "coating",
+          "op": "eq",
+          "value": "Y-Coating",
+          "rawValue": "Y-Coating",
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "25.4mm (82개)",
+        "76.2mm (58개)",
+        "127mm (39개)",
+        "10mm (3개)",
+        "12mm (3개)",
+        "상관없음",
+        "📋 지금 바로 제품 보기 (500개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "PASS",
+        "matched": [
+          {
+            "spec": {
+              "field": "coating",
+              "op": "eq",
+              "expected": "Y-Coating"
+            },
+            "actual": {
+              "field": "coating",
+              "op": "eq",
+              "value": "Y-Coating",
+              "rawValue": "Y-Coating",
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [],
+        "extras": [],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 1
+      }
+    },
+    {
+      "q": "AlCrN 코팅",
+      "expect": {
+        "coating": "AlCrN"
+      },
+      "statusCode": 200,
+      "elapsedMs": 6369,
+      "purpose": "question",
+      "text": "AlCrN 코팅으로 보셨네요. 상위 후보는 V7 PLUS A 계열이 잡혀 있고, Y-Coating 조합이라 열을 잘 버티면서 H/K 쪽 가공에서 마모를 늦추는 쪽으로 보시면 됩니다. 직경은 어느 정도가 필요하세요? 25.4mm, 76.2mm, 127mm, 10mm, 12mm 중에서 많이 나옵니다.",
+      "filters": [
+        {
+          "field": "coating",
+          "op": "eq",
+          "value": "AlCrN",
+          "rawValue": "AlCrN",
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "25.4mm (82개)",
+        "76.2mm (58개)",
+        "127mm (39개)",
+        "10mm (3개)",
+        "12mm (3개)",
+        "상관없음",
+        "📋 지금 바로 제품 보기 (500개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "PASS",
+        "matched": [
+          {
+            "spec": {
+              "field": "coating",
+              "op": "eq",
+              "expected": "AlCrN"
+            },
+            "actual": {
+              "field": "coating",
+              "op": "eq",
+              "value": "AlCrN",
+              "rawValue": "AlCrN",
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [],
+        "extras": [],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 1
+      }
+    },
+    {
+      "q": "DLC 코팅 엔드밀",
+      "expect": {
+        "coating": "DLC"
+      },
+      "statusCode": 200,
+      "elapsedMs": 6304,
+      "purpose": "question",
+      "text": "DLC 코팅 엔드밀로 좁히셨더니 후보가 500개 남았고, 상위에는 CRX S 계열이 보이네요. DLC는 마찰을 낮춰 붙음과 구성인선을 줄이기 좋아서 알루미늄이나 비철 쪽에서 특히 쓰기 편합니다. 직경은 어느 정도가 필요하세요? 0.5mm, 0.6mm, 0.8mm, 1mm, 1.5mm 등이 많이 나옵니다.",
+      "filters": [
+        {
+          "field": "coating",
+          "op": "eq",
+          "value": "DLC",
+          "rawValue": "DLC",
+          "appliedAt": 0
+        },
+        {
+          "field": "machiningCategory",
+          "op": "eq",
+          "value": "Milling",
+          "rawValue": "Milling",
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "25.4mm (41개)",
+        "76.2mm (30개)",
+        "20mm (19개)",
+        "16mm (15개)",
+        "12mm (14개)",
+        "상관없음",
+        "📋 지금 바로 제품 보기 (500개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "PARTIAL",
+        "matched": [
+          {
+            "spec": {
+              "field": "coating",
+              "op": "eq",
+              "expected": "DLC"
+            },
+            "actual": {
+              "field": "coating",
+              "op": "eq",
+              "value": "DLC",
+              "rawValue": "DLC",
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [],
+        "extras": [
+          {
+            "field": "machiningCategory",
+            "op": "eq",
+            "value": "Milling",
+            "rawValue": "Milling",
+            "appliedAt": 0
+          }
+        ],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 2
+      }
+    },
+    {
+      "q": "볼노즈 엔드밀",
+      "expect": {
+        "toolSubtype": "Ball"
+      },
+      "statusCode": 200,
+      "elapsedMs": 5282,
+      "purpose": "question",
+      "text": "볼노즈 엔드밀로 좁혔더니 현재 500개가 남았고, 상위는 XSEME60 계열이 보이네요. 이 시리즈는 Y-Coating과 4날 조합이라 형상 유지와 표면 흔들림을 같이 잡기 좋습니다. 직경은 어느 정도가 필요하세요? 5mm, 8mm, 10mm, 11mm, 12mm 중에서 많이 찾으십니다.",
+      "filters": [
+        {
+          "field": "machiningCategory",
+          "op": "eq",
+          "value": "Milling",
+          "rawValue": "Milling",
+          "appliedAt": 0
+        },
+        {
+          "field": "toolSubtype",
+          "op": "includes",
+          "value": "Ball",
+          "rawValue": "Ball",
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "25.4mm (43개)",
+        "76.2mm (30개)",
+        "127mm (18개)",
+        "10mm (9개)",
+        "12mm (9개)",
+        "상관없음",
+        "📋 지금 바로 제품 보기 (500개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "PARTIAL",
+        "matched": [
+          {
+            "spec": {
+              "field": "toolSubtype",
+              "op": "eq",
+              "expected": "Ball"
+            },
+            "actual": {
+              "field": "toolSubtype",
+              "op": "includes",
+              "value": "Ball",
+              "rawValue": "Ball",
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [],
+        "extras": [
+          {
+            "field": "machiningCategory",
+            "op": "eq",
+            "value": "Milling",
+            "rawValue": "Milling",
+            "appliedAt": 0
+          }
+        ],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 2
+      }
+    },
+    {
+      "q": "플랫 엔드밀",
+      "expect": {
+        "toolSubtype": "Square"
+      },
+      "statusCode": 200,
+      "elapsedMs": 5173,
+      "purpose": "question",
+      "text": "플랫 엔드밀로 좁히셨더니 500개가 남았고, 상위에는 3S MILL 계열이 올라와 있습니다. 3S MILL은 깔끔한 평면 절삭에 맞게 날 접지와 칩 빠짐 밸런스를 잡아 둔 쪽이라, 홈보다 측면이나 바닥 마감에서 쓰기 편합니다. 직경은 어느 정도가 필요하세요? 10mm, 4mm, 12mm, 1mm, 1.5mm 중에서 보시면 됩니다.\n\n> ⚠️ 안내: 위 응답에 카탈로그에서 확인되지 않은 시리즈명(3S MILL)이 포함되어 있을 수 있습니다. 정확한 제품명은 YG-1 본사(032-526-0909)로 확인 부탁드립니다.",
+      "filters": [
+        {
+          "field": "machiningCategory",
+          "op": "eq",
+          "value": "Milling",
+          "rawValue": "Milling",
+          "appliedAt": 0
+        },
+        {
+          "field": "toolSubtype",
+          "op": "includes",
+          "value": "Square",
+          "rawValue": "Square",
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "10mm (11개)",
+        "4mm (10개)",
+        "12mm (10개)",
+        "1mm (8개)",
+        "1.5mm (8개)",
+        "상관없음",
+        "📋 지금 바로 제품 보기 (500개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "PARTIAL",
+        "matched": [
+          {
+            "spec": {
+              "field": "toolSubtype",
+              "op": "eq",
+              "expected": "Square"
+            },
+            "actual": {
+              "field": "toolSubtype",
+              "op": "includes",
+              "value": "Square",
+              "rawValue": "Square",
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [],
+        "extras": [
+          {
+            "field": "machiningCategory",
+            "op": "eq",
+            "value": "Milling",
+            "rawValue": "Milling",
+            "appliedAt": 0
+          }
+        ],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 2
+      }
+    },
+    {
+      "q": "코너R 엔드밀",
+      "expect": {
+        "toolSubtype": "Radius"
+      },
+      "statusCode": 200,
+      "elapsedMs": 4672,
+      "purpose": "question",
+      "text": "코너R 엔드밀로 좁혔더니 500개가 남았습니다. 상위 후보는 3S MILL 계열이 T-Coating이라 날끝 마모를 눌러서 범용 가공에 무난합니다. 날 수는 몇 날이 좋으실까요? 2날, 4날, 아니면 상관없으세요?\n\n> ⚠️ 안내: 위 응답에 카탈로그에서 확인되지 않은 시리즈명(3S MILL)이 포함되어 있을 수 있습니다. 정확한 제품명은 YG-1 본사(032-526-0909)로 확인 부탁드립니다.",
+      "filters": [
+        {
+          "field": "machiningCategory",
+          "op": "eq",
+          "value": "Milling",
+          "rawValue": "Milling",
+          "appliedAt": 0
+        },
+        {
+          "field": "toolSubtype",
+          "op": "includes",
+          "value": "Radius",
+          "rawValue": "Radius",
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "2날 (100개)",
+        "4날 (100개)",
+        "상관없음",
+        "📋 지금 바로 제품 보기 (500개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "PARTIAL",
+        "matched": [
+          {
+            "spec": {
+              "field": "toolSubtype",
+              "op": "eq",
+              "expected": "Radius"
+            },
+            "actual": {
+              "field": "toolSubtype",
+              "op": "includes",
+              "value": "Radius",
+              "rawValue": "Radius",
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [],
+        "extras": [
+          {
+            "field": "machiningCategory",
+            "op": "eq",
+            "value": "Milling",
+            "rawValue": "Milling",
+            "appliedAt": 0
+          }
+        ],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 2
+      }
+    },
+    {
+      "q": "CRX S 빼고",
+      "expect": {
+        "brand_neq": [
+          "CRX-S",
+          "CRX S"
+        ]
+      },
+      "statusCode": 200,
+      "elapsedMs": 17509,
+      "purpose": "question",
+      "text": "직경은 어느 정도가 필요하세요? 25.4mm, 76.2mm, 127mm가 많이 나갑니다.",
+      "filters": [
+        {
+          "field": "brand",
+          "op": "neq",
+          "value": "CRX S",
+          "rawValue": "CRX S",
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "25.4mm (103개)",
+        "76.2mm (55개)",
+        "127mm (42개)",
+        "상관없음",
+        "📋 지금 바로 제품 보기 (64438개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "PASS",
+        "matched": [
+          {
+            "spec": {
+              "field": "brand",
+              "op": "neq",
+              "expected": [
+                "CRX-S",
+                "CRX S"
+              ]
+            },
+            "actual": {
+              "field": "brand",
+              "op": "neq",
+              "value": "CRX S",
+              "rawValue": "CRX S",
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [],
+        "extras": [],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 1
+      }
+    },
+    {
+      "q": "Y코팅 말고",
+      "expect": {
+        "coating_neq": [
+          "Y-Coating",
+          "Y Coating"
+        ]
+      },
+      "statusCode": 200,
+      "elapsedMs": 15569,
+      "purpose": "question",
+      "text": "Y-Coating은 제외했습니다. 남은 쪽에선 4G MILL SG9E77이 가변 헬릭스 쪽 설계로 진동을 눌러주고, X-Coating이라 열이 올라가는 구간에서 수명 쪽이 안정적으로 나오는 편입니다. 직경은 어느 정도가 필요하세요? 12mm, 10mm, 8mm, 6mm, 20mm 중에서 많이 맞습니다.",
+      "filters": [
+        {
+          "field": "coating",
+          "op": "neq",
+          "value": "Y-Coating",
+          "rawValue": "Y-Coating",
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "12mm (37개)",
+        "10mm (35개)",
+        "8mm (30개)",
+        "6mm (28개)",
+        "20mm (24개)",
+        "상관없음",
+        "📋 지금 바로 제품 보기 (52617개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "PASS",
+        "matched": [
+          {
+            "spec": {
+              "field": "coating",
+              "op": "neq",
+              "expected": [
+                "Y-Coating",
+                "Y Coating"
+              ]
+            },
+            "actual": {
+              "field": "coating",
+              "op": "neq",
+              "value": "Y-Coating",
+              "rawValue": "Y-Coating",
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [],
+        "extras": [],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 1
+      }
+    },
+    {
+      "q": "직경 10mm 이상",
+      "expect": {
+        "diameterMm_gte": 10
+      },
+      "statusCode": 200,
+      "elapsedMs": 4936,
+      "purpose": "question",
+      "text": "직경 10mm 이상으로 좁히셨더니 후보가 500개네요. 상위에는 Ø11mm의 CE7A63110과 CE7659110이 보이고, TiCN 코팅이라 마모를 눌러서 범용 가공에서 무난하게 가져가기 좋습니다. 직경은 11mm 쪽으로 보실까요, 아니면 12mm나 10.5mm처럼 더 맞춰드릴까요?",
+      "filters": [
+        {
+          "field": "diameterMm",
+          "op": "gte",
+          "value": "10mm",
+          "rawValue": 10,
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "12mm (56개)",
+        "10mm (54개)",
+        "11mm (14개)",
+        "10.5mm (7개)",
+        "11.5mm (6개)",
+        "상관없음",
+        "📋 지금 바로 제품 보기 (500개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "PASS",
+        "matched": [
+          {
+            "spec": {
+              "field": "diameterMm",
+              "op": "gte",
+              "expected": 10
+            },
+            "actual": {
+              "field": "diameterMm",
+              "op": "gte",
+              "value": "10mm",
+              "rawValue": 10,
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [],
+        "extras": [],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 1
+      }
+    },
+    {
+      "q": "직경 20mm 이하",
+      "expect": {
+        "diameterMm_lte": 20
+      },
+      "statusCode": 200,
+      "elapsedMs": 5610,
+      "purpose": "question",
+      "text": "공구 타입 (엔드밀/드릴/탭 등)을(를) 알려주시면 더 정확한 추천이 가능합니다.",
+      "filters": [
+        {
+          "field": "diameterMm",
+          "op": "lte",
+          "value": "20mm",
+          "rawValue": 20,
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "1mm (18개)",
+        "10mm (13개)",
+        "0.6mm (12개)",
+        "5mm (12개)",
+        "8mm (12개)",
+        "상관없음",
+        "📋 지금 바로 제품 보기 (500개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "PASS",
+        "matched": [
+          {
+            "spec": {
+              "field": "diameterMm",
+              "op": "lte",
+              "expected": 20
+            },
+            "actual": {
+              "field": "diameterMm",
+              "op": "lte",
+              "value": "20mm",
+              "rawValue": 20,
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [],
+        "extras": [],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 1
+      }
+    },
+    {
+      "q": "직경 10mm 이상 20mm 이하",
+      "expect": {
+        "diameterMm_gte": 10,
+        "diameterMm_lte": 20
+      },
+      "statusCode": 200,
+      "elapsedMs": 5231,
+      "purpose": "question",
+      "text": "직경 10mm 이상 20mm 이하로 좁혔더니 500개가 남았습니다. 상위에는 XSEME60과 XSEME01이 보이는데, Y-Coating에 4날이라 기본 체결성과 칩 배출 밸런스가 괜찮게 나온 구성이네요. 세부 타입은 작업면에 따라 갈리는데, 주로 포켓·측면·곡면 중 어떤 가공이신가요?",
+      "filters": [
+        {
+          "field": "diameterMm",
+          "op": "between",
+          "value": "10mm, 20mm",
+          "rawValue": [
+            10,
+            20
+          ],
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "Radius (64개)",
+        "Square (36개)",
+        "Ball (30개)",
+        "Roughing (1개)",
+        "상관없음",
+        "📋 지금 바로 제품 보기 (500개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "PARTIAL",
+        "matched": [
+          {
+            "spec": {
+              "field": "diameterMm",
+              "op": "gte",
+              "expected": 10
+            },
+            "actual": {
+              "field": "diameterMm",
+              "op": "between",
+              "value": "10mm, 20mm",
+              "rawValue": [
+                10,
+                20
+              ],
+              "appliedAt": 0
+            }
+          },
+          {
+            "spec": {
+              "field": "diameterMm",
+              "op": "lte",
+              "expected": 20
+            },
+            "actual": {
+              "field": "diameterMm",
+              "op": "between",
+              "value": "10mm, 20mm",
+              "rawValue": [
+                10,
+                20
+              ],
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [],
+        "extras": [
+          {
+            "field": "diameterMm",
+            "op": "between",
+            "value": "10mm, 20mm",
+            "rawValue": [
+              10,
+              20
+            ],
+            "appliedAt": 0
+          }
+        ],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 1
+      }
+    },
+    {
+      "q": "4날 이상",
+      "expect": {
+        "fluteCount_gte": 4
+      },
+      "statusCode": 200,
+      "elapsedMs": 4585,
+      "purpose": "question",
+      "text": "4날 이상으로 좁혔더니 후보가 500개 남았네요. 상위에는 CE7A63 시리즈가 보이고, TiCN 코팅이라 날끝 마모를 눌러서 범용 가공에서 무난하게 끌고 가기 좋습니다. 직경은 어느 정도가 필요하세요? 3mm, 6mm, 8mm, 10mm, 12mm 중에서 맞춰보실까요?",
+      "filters": [
+        {
+          "field": "fluteCount",
+          "op": "gte",
+          "value": "4날",
+          "rawValue": 4,
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "3mm (11개)",
+        "8mm (10개)",
+        "6mm (9개)",
+        "10mm (9개)",
+        "12mm (9개)",
+        "상관없음",
+        "📋 지금 바로 제품 보기 (500개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "PASS",
+        "matched": [
+          {
+            "spec": {
+              "field": "fluteCount",
+              "op": "gte",
+              "expected": 4
+            },
+            "actual": {
+              "field": "fluteCount",
+              "op": "gte",
+              "value": "4날",
+              "rawValue": 4,
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [],
+        "extras": [],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 1
+      }
+    },
+    {
+      "q": "스테인리스 4날 10mm Y코팅 볼노즈",
+      "expect": {
+        "workPieceName": "Stainless Steels",
+        "fluteCount": 4,
+        "diameterMm": 10,
+        "coating": "Y-Coating",
+        "toolSubtype": "Ball"
+      },
+      "statusCode": 200,
+      "elapsedMs": 3680,
+      "purpose": "recommendation",
+      "text": "EMD88100이 지금 조건에서 가장 맞습니다. 스테인리스용으로 잡혀 있고 Y-Coating이라 열과 마모가 같이 올라오는 상황에서 공구 수명을 안정적으로 가져가면서, 4날 볼 형상이라 표면 마무리와 범용성이 좋습니다. 스테인리스는 가공경화가 빨리 오니 이송을 끊지 말고 한 번에 물고 가는 쪽이 유리합니다. 재고는 있으나 납기는 별도 확인이 필요합니다.",
+      "filters": [
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "4날",
+          "rawValue": 4,
+          "appliedAt": 0
+        },
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "10mm",
+          "rawValue": 10,
+          "appliedAt": 0
+        },
+        {
+          "field": "coating",
+          "op": "eq",
+          "value": "Y-Coating",
+          "rawValue": "Y-Coating",
+          "appliedAt": 0
+        },
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Stainless Steels",
+          "rawValue": "Stainless Steels",
+          "appliedAt": 0
+        },
+        {
+          "field": "toolSubtype",
+          "op": "includes",
+          "value": "Ball",
+          "rawValue": "Ball",
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "상위 3개 비교",
+        "EMD88100 상세 정보",
+        "다른 코팅 옵션 보기",
+        "시리즈 차이 설명해줘 (EMD88 vs GMG56)",
+        "φ10mm 외 다른 직경",
+        "⟵ 이전 단계로 돌아가기",
+        "📋 지금 바로 제품 보기 (4개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "PASS",
+        "matched": [
+          {
+            "spec": {
+              "field": "workPieceName",
+              "op": "eq",
+              "expected": "Stainless Steels"
+            },
+            "actual": {
+              "field": "workPieceName",
+              "op": "eq",
+              "value": "Stainless Steels",
+              "rawValue": "Stainless Steels",
+              "appliedAt": 0
+            }
+          },
+          {
+            "spec": {
+              "field": "fluteCount",
+              "op": "eq",
+              "expected": 4
+            },
+            "actual": {
+              "field": "fluteCount",
+              "op": "eq",
+              "value": "4날",
+              "rawValue": 4,
+              "appliedAt": 0
+            }
+          },
+          {
+            "spec": {
+              "field": "diameterMm",
+              "op": "eq",
+              "expected": 10
+            },
+            "actual": {
+              "field": "diameterMm",
+              "op": "eq",
+              "value": "10mm",
+              "rawValue": 10,
+              "appliedAt": 0
+            }
+          },
+          {
+            "spec": {
+              "field": "coating",
+              "op": "eq",
+              "expected": "Y-Coating"
+            },
+            "actual": {
+              "field": "coating",
+              "op": "eq",
+              "value": "Y-Coating",
+              "rawValue": "Y-Coating",
+              "appliedAt": 0
+            }
+          },
+          {
+            "spec": {
+              "field": "toolSubtype",
+              "op": "eq",
+              "expected": "Ball"
+            },
+            "actual": {
+              "field": "toolSubtype",
+              "op": "includes",
+              "value": "Ball",
+              "rawValue": "Ball",
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [],
+        "extras": [],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 5
+      }
+    },
+    {
+      "q": "알루미늄 2날 DLC 코팅 6mm",
+      "expect": {
+        "workPieceName": "Aluminum",
+        "fluteCount": 2,
+        "coating": "DLC",
+        "diameterMm": 6
+      },
+      "statusCode": 200,
+      "elapsedMs": 4457,
+      "purpose": "recommendation",
+      "text": "SGED31060이 알루미늄용으로 가장 먼저 보실 만한 추천입니다. DLC 코팅과 2날 구조라 비철계에서 마찰을 낮춰 구성인선이 덜 생기고, 칩 배출도 비교적 깔끔해서 알루미늄 가공에 잘 맞습니다. 알루미늄은 절삭저항이 낮아 속도를 너무 낮추기보다 칩이 붙지 않게 관리하는 쪽이 중요하고, 표면이 거칠면 정삭 패스를 한 번 더 주는 게 효과적입니다. 재고는 있고 납기는 별도 확인이 필요합니다.\n\n⚠️ 1순위와 2순위(SGED3006030) 점수 차이가 작습니다. 두 제품을 비교해보시길 권합니다.",
+      "filters": [
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "2날",
+          "rawValue": 2,
+          "appliedAt": 0
+        },
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "6mm",
+          "rawValue": 6,
+          "appliedAt": 0
+        },
+        {
+          "field": "coating",
+          "op": "eq",
+          "value": "DLC",
+          "rawValue": "DLC",
+          "appliedAt": 0
+        },
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "알루미늄",
+          "rawValue": "알루미늄",
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "상위 3개 비교",
+        "SGED31060 상세 정보",
+        "다른 코팅 옵션 보기",
+        "시리즈 차이 설명해줘 (SGED31 vs SGED30)",
+        "φ6mm 외 다른 직경",
+        "⟵ 이전 단계로 돌아가기",
+        "📋 지금 바로 제품 보기 (10개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "FAIL",
+        "matched": [
+          {
+            "spec": {
+              "field": "fluteCount",
+              "op": "eq",
+              "expected": 2
+            },
+            "actual": {
+              "field": "fluteCount",
+              "op": "eq",
+              "value": "2날",
+              "rawValue": 2,
+              "appliedAt": 0
+            }
+          },
+          {
+            "spec": {
+              "field": "coating",
+              "op": "eq",
+              "expected": "DLC"
+            },
+            "actual": {
+              "field": "coating",
+              "op": "eq",
+              "value": "DLC",
+              "rawValue": "DLC",
+              "appliedAt": 0
+            }
+          },
+          {
+            "spec": {
+              "field": "diameterMm",
+              "op": "eq",
+              "expected": 6
+            },
+            "actual": {
+              "field": "diameterMm",
+              "op": "eq",
+              "value": "6mm",
+              "rawValue": 6,
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [
+          {
+            "field": "workPieceName",
+            "op": "eq",
+            "expected": "Aluminum"
+          }
+        ],
+        "extras": [
+          {
+            "field": "workPieceName",
+            "op": "eq",
+            "value": "알루미늄",
+            "rawValue": "알루미늄",
+            "appliedAt": 0
+          }
+        ],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 4
+      }
+    },
+    {
+      "q": "스텐인리스 4낭 10mn",
+      "expect": {
+        "workPieceName": "Stainless Steels",
+        "fluteCount": 4,
+        "diameterMm": 10
+      },
+      "statusCode": 200,
+      "elapsedMs": 4850,
+      "purpose": "question",
+      "text": "스테인리스에 4날 Ø10mm로 좁히셨더니 후보가 152개 남았습니다. 상위의 4G MILL은 가변 헬릭스 쪽으로 진동을 눌러서 스테인리스 측면 가공에 무난하고, V7 PLUS는 Y-Coating으로 열이 몰리는 상황에서 수명 쪽이 강한 편입니다. 공구 세부 타입은 중요한데, 지금은 Square, Radius, Roughing 중에서 어떤 쪽으로 보실까요?",
+      "filters": [
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "4날",
+          "rawValue": 4,
+          "appliedAt": 0
+        },
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "10mm",
+          "rawValue": 10,
+          "appliedAt": 0
+        },
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Stainless Steels",
+          "rawValue": "Stainless Steels",
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "Square (64개)",
+        "Radius (45개)",
+        "Roughing (38개)",
+        "Ball (4개)",
+        "상관없음",
+        "📋 지금 바로 제품 보기 (152개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "PASS",
+        "matched": [
+          {
+            "spec": {
+              "field": "workPieceName",
+              "op": "eq",
+              "expected": "Stainless Steels"
+            },
+            "actual": {
+              "field": "workPieceName",
+              "op": "eq",
+              "value": "Stainless Steels",
+              "rawValue": "Stainless Steels",
+              "appliedAt": 0
+            }
+          },
+          {
+            "spec": {
+              "field": "fluteCount",
+              "op": "eq",
+              "expected": 4
+            },
+            "actual": {
+              "field": "fluteCount",
+              "op": "eq",
+              "value": "4날",
+              "rawValue": 4,
+              "appliedAt": 0
+            }
+          },
+          {
+            "spec": {
+              "field": "diameterMm",
+              "op": "eq",
+              "expected": 10
+            },
+            "actual": {
+              "field": "diameterMm",
+              "op": "eq",
+              "value": "10mm",
+              "rawValue": 10,
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [],
+        "extras": [],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 3
+      }
+    },
+    {
+      "q": "알미늄 2날",
+      "expect": {
+        "workPieceName": "Aluminum",
+        "fluteCount": 2
+      },
+      "statusCode": 200,
+      "elapsedMs": 6219,
+      "purpose": "question",
+      "text": "직경을(를) 알려주시면 더 정확한 추천이 가능합니다.",
+      "filters": [
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "2날",
+          "rawValue": 2,
+          "appliedAt": 0
+        },
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "알루미늄",
+          "rawValue": "알루미늄",
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "20mm (6개)",
+        "16mm (5개)",
+        "3mm (4개)",
+        "4mm (4개)",
+        "5mm (4개)",
+        "상관없음",
+        "📋 지금 바로 제품 보기 (500개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "FAIL",
+        "matched": [
+          {
+            "spec": {
+              "field": "fluteCount",
+              "op": "eq",
+              "expected": 2
+            },
+            "actual": {
+              "field": "fluteCount",
+              "op": "eq",
+              "value": "2날",
+              "rawValue": 2,
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [
+          {
+            "field": "workPieceName",
+            "op": "eq",
+            "expected": "Aluminum"
+          }
+        ],
+        "extras": [
+          {
+            "field": "workPieceName",
+            "op": "eq",
+            "value": "알루미늄",
+            "rawValue": "알루미늄",
+            "appliedAt": 0
+          }
+        ],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 2
+      }
+    },
+    {
+      "q": "HSK 생크",
+      "expect": {
+        "shankType": "HSK"
+      },
+      "statusCode": 200,
+      "elapsedMs": 2957,
+      "purpose": "recommendation",
+      "text": "E5D72가 지금 조건에서는 1순위입니다. N 태그라 비철 쪽에 맞고, 3날 라운드 형상이라 알루미늄 계열에서 진동을 줄이면서 마감면을 안정적으로 가져가기 좋습니다. 알루미늄은 칩이 달라붙기 쉬우니 절삭유를 충분히 주고 이송을 너무 낮추지 않는 게 수명에 유리합니다. 다만 현재는 정확 일치가 아니라 근사 후보이고 재고·납기 정보도 없어서, 소재나 가공 방식 알려주시면 더 딱 맞게 좁혀드리겠습니다.\n\n⚠️ 1순위와 2순위(E5D71) 점수 차이가 작습니다. 두 제품을 비교해보시길 권합니다.",
+      "filters": [
+        {
+          "field": "brand",
+          "op": "eq",
+          "value": "BASIX",
+          "rawValue": "BASIX",
+          "appliedAt": 0
+        },
+        {
+          "field": "shankType",
+          "op": "eq",
+          "value": "HSK",
+          "rawValue": "HSK",
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "코팅으로 좁히기 (ALU-CUT/Uncoated)",
+        "날수로 좁히기 (2날/3날)",
+        "상위 3개 비교",
+        "E5D72 상세 정보",
+        "시리즈 차이 설명해줘 (E5D72 vs E5D71)",
+        "⟵ 이전 단계로 돌아가기",
+        "📋 지금 바로 제품 보기 (30개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "PARTIAL",
+        "matched": [
+          {
+            "spec": {
+              "field": "shankType",
+              "op": "eq",
+              "expected": "HSK"
+            },
+            "actual": {
+              "field": "shankType",
+              "op": "eq",
+              "value": "HSK",
+              "rawValue": "HSK",
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [],
+        "extras": [
+          {
+            "field": "brand",
+            "op": "eq",
+            "value": "BASIX",
+            "rawValue": "BASIX",
+            "appliedAt": 0
+          }
+        ],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 2
+      }
+    },
+    {
+      "q": "헬릭스 45도",
+      "expect": {
+        "helixAngleDeg": 45
+      },
+      "statusCode": 200,
+      "elapsedMs": 4759,
+      "purpose": "question",
+      "text": "헬릭스 45도로 좁혔더니 후보가 500개 남았습니다. 위쪽은 TITANOX-POWER 계열이라 스테인리스·일반강 쪽에서 칩을 안정적으로 걷어내는 쪽으로 보시면 됩니다. 직경은 어느 정도가 필요하세요? 25.4mm, 76.2mm, 127mm 중에서 많이 맞습니다.",
+      "filters": [
+        {
+          "field": "helixAngleDeg",
+          "op": "eq",
+          "value": "45°",
+          "rawValue": 45,
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "25.4mm (110개)",
+        "76.2mm (52개)",
+        "127mm (38개)",
+        "상관없음",
+        "📋 지금 바로 제품 보기 (500개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "PASS",
+        "matched": [
+          {
+            "spec": {
+              "field": "helixAngleDeg",
+              "op": "eq",
+              "expected": 45
+            },
+            "actual": {
+              "field": "helixAngleDeg",
+              "op": "eq",
+              "value": "45°",
+              "rawValue": 45,
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [],
+        "extras": [],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 1
+      }
+    },
+    {
+      "q": "코너R 0.5",
+      "expect": {
+        "cornerRadiusMm": 0.5
+      },
+      "statusCode": 200,
+      "elapsedMs": 4769,
+      "purpose": "recommendation",
+      "text": "조건에 맞는 제품을 찾지 못했습니다. 직경이나 소재 조건을 조정해보세요.",
+      "filters": [
+        {
+          "field": "cornerRadiusMm",
+          "op": "eq",
+          "value": "0.5mm",
+          "rawValue": 0.5,
+          "appliedAt": 0
+        },
+        {
+          "field": "toolSubtype",
+          "op": "includes",
+          "value": "Radius",
+          "rawValue": "Radius",
+          "appliedAt": 0
+        }
+      ],
+      "chips": [
+        "⟵ 이전 단계",
+        "처음부터 다시",
+        "📋 지금 바로 제품 보기 (0개)",
+        "✨ AI 상세 분석"
+      ],
+      "evaluation": {
+        "status": "PARTIAL",
+        "matched": [
+          {
+            "spec": {
+              "field": "cornerRadiusMm",
+              "op": "eq",
+              "expected": 0.5
+            },
+            "actual": {
+              "field": "cornerRadiusMm",
+              "op": "eq",
+              "value": "0.5mm",
+              "rawValue": 0.5,
+              "appliedAt": 0
+            }
+          }
+        ],
+        "partial": [],
+        "missing": [],
+        "extras": [
+          {
+            "field": "toolSubtype",
+            "op": "includes",
+            "value": "Radius",
+            "rawValue": "Radius",
+            "appliedAt": 0
+          }
+        ],
+        "noFilterExpected": false,
+        "noFilterPass": true,
+        "intentExpected": null,
+        "intentStatus": "n/a",
+        "activeFilterCount": 2
+      }
+    },
+    {
+      "q": "헬릭스가 뭐야?",
+      "expect": {
+        "_intent": "question",
+        "_noFilter": true
+      },
+      "statusCode": 200,
+      "elapsedMs": 4053,
+      "purpose": "general_chat",
+      "text": "헬릭스는 절삭공구의 날이 축을 따라 비틀려 올라가는 각도를 말하며, 칩 배출과 절삭 충격을 줄이는 핵심 형상입니다. 헬릭스 각이 크면 절삭이 부드럽고 진동 억제에 유리하지만, 비틀림이 커져 강성은 다소 떨어집니다. 반대로 헬릭스 각이 작으면 강성은 좋지만 칩 배출성과 절삭감은 상대적으로 불리합니다. 엔드밀에서는 보통 소재와 가공 방식에 따라 헬릭스 각을 조절해 진동, 칩 배출, 공구 수명을 균형 맞춥니다.",
+      "filters": [],
+      "chips": [
+        "쉽게 설명해줘",
+        "추천으로 골라줘",
+        "상관없음",
+        "헬릭스 설명해줘"
+      ],
+      "evaluation": {
+        "status": "PASS",
+        "matched": [],
+        "partial": [],
+        "missing": [],
+        "extras": [],
+        "noFilterExpected": true,
+        "noFilterPass": true,
+        "intentExpected": "question",
+        "intentStatus": "pass",
+        "activeFilterCount": 0
+      }
+    },
+    {
+      "q": "공구 수명이 짧아",
+      "expect": {
+        "_intent": "troubleshoot",
+        "_noFilter": true
+      },
+      "statusCode": 200,
+      "elapsedMs": 2785,
+      "purpose": "general_chat",
+      "text": "공구 수명이 짧은 경우는 보통 절삭속도 과다, 이송 불안정, 냉각 부족, 또는 소재에 맞지 않는 코팅 관련해서 말씀해주세요이 원인입니다. 먼저 마모 형태가 측면마모인지, 날끝 파손인지, 구성인선인지에 따라 원인을 좁혀야 합니다. 절삭 조건은 속도를 10~20% 낮추고 이송은 끊지 말고 일정하게 유지하는 쪽이 기본이며, 특히 스테인리스나 내열합금이면 AlCrN 계열이 유리합니다. 날끝이 빨리 깨지면 채터나 과도한 돌출도 함께 의심해야 합니다.",
+      "filters": [],
+      "chips": [
+        "쉽게 설명해줘",
+        "추천으로 골라줘",
+        "상관없음",
+        "공구 수명이 짧은 원인/해결 방법 설명해줘"
+      ],
+      "evaluation": {
+        "status": "PASS",
+        "matched": [],
+        "partial": [],
+        "missing": [],
+        "extras": [],
+        "noFilterExpected": true,
+        "noFilterPass": true,
+        "intentExpected": "troubleshoot",
+        "intentStatus": "pass",
+        "activeFilterCount": 0
+      }
+    },
+    {
+      "q": "안녕하세요",
+      "expect": {
+        "_intent": "greeting",
+        "_noFilter": true
+      },
+      "statusCode": 200,
+      "elapsedMs": 1909,
+      "purpose": "general_chat",
+      "text": "안녕하세요. 절삭공구, 코팅, 소재별 공략, 공정별 공구 추천까지 바로 도와드리겠습니다. 필요한 가공 조건을 말씀해주시면 현장 기준으로 간결하게 안내드리겠습니다.",
+      "filters": [],
+      "chips": [
+        "처음부터 다시"
+      ],
+      "evaluation": {
+        "status": "PASS",
+        "matched": [],
+        "partial": [],
+        "missing": [],
+        "extras": [],
+        "noFilterExpected": true,
+        "noFilterPass": true,
+        "intentExpected": "greeting",
+        "intentStatus": "pass",
+        "activeFilterCount": 0
+      }
+    },
+    {
+      "q": "처음부터 다시",
+      "expect": {
+        "_intent": "reset",
+        "_noFilter": true
+      },
+      "statusCode": 200,
+      "elapsedMs": 4595,
+      "purpose": "greeting",
+      "text": "처음부터 다시 시작합니다. 새로 조건을 입력해주세요.",
+      "filters": [],
+      "chips": [
+        "처음부터 다시"
+      ],
+      "evaluation": {
+        "status": "PASS",
+        "matched": [],
+        "partial": [],
+        "missing": [],
+        "extras": [],
+        "noFilterExpected": true,
+        "noFilterPass": true,
+        "intentExpected": "reset",
+        "intentStatus": "pass",
+        "activeFilterCount": 0
+      }
+    }
+  ]
+}

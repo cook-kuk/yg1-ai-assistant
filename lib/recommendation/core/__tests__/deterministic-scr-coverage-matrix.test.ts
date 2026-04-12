@@ -109,10 +109,18 @@ describe("coverage: helixAngleDeg", () => {
 
 // 드릴/탭 필드(pointAngleDeg, threadPitchMm)는 의도적으로 제외 — milling 전용 매트릭스.
 
+describe("coverage: cornerRadiusMm", () => {
+  const cases: Array<[string, ExpectedAction]> = [
+    ["코너R 0.5", { field: "cornerRadiusMm", op: "eq", value: 0.5 }],
+    ["코너 R 0.5", { field: "cornerRadiusMm", op: "eq", value: 0.5 }],
+    ["코너 반경 1.0", { field: "cornerRadiusMm", op: "eq", value: 1.0 }],
+  ]
+  it.each(cases)("'%s' → %o", (text, expected) => expectExtraction(text, expected))
+})
+
 describe("coverage: ballRadiusMm", () => {
   const cases: Array<[string, ExpectedAction]> = [
-    ["코너 R 0.5", { field: "ballRadiusMm", op: "eq", value: 0.5 }],
-    ["코너 반경 1.0", { field: "ballRadiusMm", op: "eq", value: 1.0 }],
+    ["볼 반경 1.0", { field: "ballRadiusMm", op: "eq", value: 1.0 }],
     ["ball radius 2", { field: "ballRadiusMm", op: "eq", value: 2 }],
   ]
   it.each(cases)("'%s' → %o", (text, expected) => expectExtraction(text, expected))

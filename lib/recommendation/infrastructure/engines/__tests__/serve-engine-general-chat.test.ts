@@ -16,6 +16,7 @@ import type {
   NarrowingTurn,
   ProductIntakeForm,
   ScoredProduct,
+  SeriesGroup,
 } from "@/lib/recommendation/domain/types"
 
 function makeCandidate(rank: number, code: string, coating: string): ScoredProduct {
@@ -79,7 +80,30 @@ function makeSnapshot(rank: number, code: string, coating: string): CandidateSna
   }
 }
 
+function makeSeriesGroup(
+  seriesName: string,
+  materialRating: "EXCELLENT" | "GOOD" | "NULL",
+  members: CandidateSnapshot[],
+): SeriesGroup {
+  const materialRatingScore = materialRating === "EXCELLENT" ? 3 : materialRating === "GOOD" ? 2 : 1
+
+  return {
+    seriesKey: seriesName,
+    seriesName,
+    seriesIconUrl: null,
+    description: null,
+    candidateCount: members.length,
+    topScore: members[0]?.score ?? 0,
+    materialRating,
+    materialRatingScore,
+    members,
+  }
+}
+
 function makePrevState(): ExplorationSessionState {
+  const first = makeSnapshot(1, "E5D7004010", "DLC")
+  const second = makeSnapshot(2, "E5D7004020", "TiAlN")
+
   return {
     sessionId: "ses-general-chat",
     candidateCount: 2,
@@ -95,8 +119,13 @@ function makePrevState(): ExplorationSessionState {
     },
     turnCount: 1,
     lastAskedField: "coating",
-    displayedProducts: [makeSnapshot(1, "E5D7004010", "DLC"), makeSnapshot(2, "E5D7004020", "TiAlN")],
-    displayedCandidates: [makeSnapshot(1, "E5D7004010", "DLC"), makeSnapshot(2, "E5D7004020", "TiAlN")],
+    displayedProducts: [first, second],
+    displayedCandidates: [first, second],
+    displayedSeriesGroups: [
+      makeSeriesGroup("X-Power", "EXCELLENT", [first]),
+      makeSeriesGroup("Alu-Power", "GOOD", [second]),
+      makeSeriesGroup("Tank-Power", "NULL", [second]),
+    ],
     displayedChips: ["DLC (1)", "TiAlN (1)", "No preference"],
     displayedOptions: [
       { index: 1, label: "DLC (1??", field: "coating", value: "DLC", count: 1 },
@@ -104,6 +133,7 @@ function makePrevState(): ExplorationSessionState {
     ],
     lastAction: "continue_narrowing",
     currentMode: "question",
+    lastRecommendationArtifact: [first, second],
   }
 }
 
@@ -305,6 +335,104 @@ describe("handleServeGeneralChatAction", () => {
 
     expect(body.chips).toEqual(cuttingChips)
     expect(body.chips).not.toContain("DLC (1??")
+    expect(body.sessionState.displayedOptions.every((o: { field: string }) => o.field === "_action")).toBe(true)
+  })
+
+  it("answers material rating legend questions from displayed series groups without dropping recommendation state", async () => {
+    const prevState = makePrevState()
+    const candidates = [makeCandidate(1, "E5D7004010", "DLC"), makeCandidate(2, "E5D7004020", "TiAlN")]
+    const handleGeneralChat = vi.fn(async () => ({ text: "unused", chips: [] }))
+
+    const response = await handleServeGeneralChatAction({
+      deps: {
+        buildCandidateSnapshot: () => prevState.displayedCandidates,
+        handleDirectInventoryQuestion: vi.fn(async () => null),
+        handleDirectEntityProfileQuestion: vi.fn(async () => null),
+        handleDirectBrandReferenceQuestion: vi.fn(async () => null),
+        handleDirectCuttingConditionQuestion: vi.fn(async () => null),
+        handleContextualNarrowingQuestion: vi.fn(async () => null),
+        handleGeneralChat,
+        jsonRecommendationResponse: (params) =>
+          new Response(JSON.stringify(params), { headers: { "content-type": "application/json" } }),
+      },
+      action: { type: "answer_general", message: "" } as any,
+      orchResult: { ...orchResult, action: { type: "answer_general" as const, message: "" } },
+      provider: { available: () => false } as any,
+      form,
+      messages: [
+        { role: "ai", text: "추천 결과를 보여드렸습니다." },
+        { role: "user", text: "What does Excellent rating mean?" },
+      ],
+      prevState,
+      filters: [],
+      narrowingHistory: [],
+      currentInput: prevState.resolvedInput,
+      candidates,
+      evidenceMap: new Map(),
+      turnCount: 2,
+    })
+
+    const body = await response.json()
+
+    expect(handleGeneralChat).not.toHaveBeenCalled()
+    expect(body.purpose).toBe("general_chat")
+    expect(body.sessionState.currentMode).toBe("general_chat")
+    expect(body.text).toContain("EXCELLENT")
+    expect(body.text).toContain("GOOD")
+    expect(body.sessionState.candidateCount).toBe(prevState.candidateCount)
+    expect(body.sessionState.displayedProducts).toEqual(prevState.displayedProducts)
+    expect(body.sessionState.displayedSeriesGroups).toEqual(prevState.displayedSeriesGroups)
+    expect(body.sessionState.lastRecommendationArtifact).toEqual(prevState.lastRecommendationArtifact)
+    expect(body.candidateSnapshot).toEqual(prevState.lastRecommendationArtifact)
+    expect(body.chips).toContain("직접 입력")
+  })
+
+  it("returns deterministic clarification for broad RPM questions instead of generic general chat", async () => {
+    const prevState = makePrevState()
+    const candidates = [makeCandidate(1, "E5D7004010", "DLC"), makeCandidate(2, "E5D7004020", "TiAlN")]
+    const handleGeneralChat = vi.fn(async () => ({ text: "unused", chips: [] }))
+
+    const response = await handleServeGeneralChatAction({
+      deps: {
+        buildCandidateSnapshot: () => prevState.displayedCandidates,
+        handleDirectInventoryQuestion: vi.fn(async () => null),
+        handleDirectEntityProfileQuestion: vi.fn(async () => null),
+        handleDirectBrandReferenceQuestion: vi.fn(async () => null),
+        handleDirectCuttingConditionQuestion: vi.fn(async () => null),
+        handleContextualNarrowingQuestion: vi.fn(async () => null),
+        handleGeneralChat,
+        jsonRecommendationResponse: (params) =>
+          new Response(JSON.stringify(params), { headers: { "content-type": "application/json" } }),
+      },
+      action: { type: "answer_general", message: "" } as any,
+      orchResult: { ...orchResult, action: { type: "answer_general" as const, message: "" } },
+      provider: { available: () => false } as any,
+      form,
+      messages: [
+        { role: "ai", text: "추천 결과를 보여드렸습니다." },
+        { role: "user", text: "RPM 12000 이상만 보여줘" },
+      ],
+      prevState,
+      filters: [],
+      narrowingHistory: [],
+      currentInput: prevState.resolvedInput,
+      candidates,
+      evidenceMap: new Map(),
+      turnCount: 2,
+    })
+
+    const body = await response.json()
+
+    expect(handleGeneralChat).not.toHaveBeenCalled()
+    expect(body.purpose).toBe("question")
+    expect(body.sessionState.currentMode).toBe("question")
+    expect(body.text).toContain("12000")
+    expect(body.text).toContain("Aluminum")
+    expect(body.sessionState.candidateCount).toBe(prevState.candidateCount)
+    expect(body.sessionState.displayedProducts).toEqual(prevState.displayedProducts)
+    expect(body.sessionState.displayedSeriesGroups).toEqual(prevState.displayedSeriesGroups)
+    expect(body.sessionState.lastRecommendationArtifact).toEqual(prevState.lastRecommendationArtifact)
+    expect(body.chips).toContain("직접 입력")
     expect(body.sessionState.displayedOptions.every((o: { field: string }) => o.field === "_action")).toBe(true)
   })
 })

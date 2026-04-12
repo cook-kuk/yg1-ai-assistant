@@ -226,6 +226,7 @@ describe("extractDiameter", () => {
   it("직경 8 → 8", () => expect(extractDiameter("직경 8")).toBe(8))
   it("φ16 → 16", () => expect(extractDiameter("φ16")).toBe(16))
   it("D20 → 20", () => expect(extractDiameter("D20")).toBe(20))
+  it("SKD11 material code → null", () => expect(extractDiameter("SKD11 가공")).toBeNull())
   it("no diameter → null", () => expect(extractDiameter("엔드밀 추천")).toBeNull())
   it("out of range (300mm) → null", () => expect(extractDiameter("300mm")).toBeNull())
 })

@@ -81,6 +81,32 @@ function formatOptions(value: unknown): string[] {
     .filter((item): item is string => Boolean(item))
 }
 
+function formatDroppedFilters(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item) => {
+      const record = asRecord(item)
+      if (!record || typeof record.field !== "string") return null
+      const op = typeof record.op === "string" ? record.op : "?"
+      const rawValue = record.rawValue ?? record.value
+      const reason = typeof record.reason === "string" ? record.reason : "unknown"
+      return `${record.field}:${op}=${String(rawValue ?? "")} (${reason})`
+    })
+    .filter((item): item is string => Boolean(item))
+}
+
+function formatClauseEntries(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item) => {
+      const record = asRecord(item)
+      if (!record || typeof record.field !== "string" || typeof record.clause !== "string") return null
+      const op = typeof record.op === "string" ? record.op : "?"
+      return `${record.field}:${op} => ${record.clause}`
+    })
+    .filter((item): item is string => Boolean(item))
+}
+
 function summarizeAction(value: unknown): Record<string, unknown> | null {
   const record = asRecord(value)
   if (!record || typeof record.type !== "string") return null
@@ -179,6 +205,16 @@ export function summarizeRecommendationTracePayload(tag: string, payload?: unkno
         confidence: getPath(record, ["llmResult", "confidence"]) ?? null,
       }
 
+    case "runtime.handleServeExplorationInner:sql-agent-filter-pipeline":
+      return {
+        stage: "sql-agent-filter-pipeline",
+        confidence: record.confidence ?? null,
+        parsedFilters: formatFilterList(record.parsedFilters).slice(0, 8),
+        normalizedFilters: formatFilterList(record.normalizedFilters).slice(0, 8),
+        droppedFilters: formatDroppedFilters(record.droppedFilters).slice(0, 8),
+        finalFilters: formatFilterList(record.finalFilters).slice(0, 8),
+      }
+
     case "runtime.handleServeExplorationInner:state-after-routing-prep":
       return {
         stage: "routing",
@@ -261,6 +297,21 @@ export function summarizeRecommendationTracePayload(tag: string, payload?: unkno
               return item?.displayCode ?? item?.productCode ?? null
             }).filter((item): item is string => Boolean(item))
           : [],
+      }
+
+    case "db.product.queryProductsPageFromDatabase:plan":
+    case "db.product.queryProductsFromDatabase:plan":
+      return {
+        stage: "db-query-plan",
+        operation: record.operation ?? null,
+        appliedClauses: formatClauseEntries(record.appliedClauses).slice(0, 8),
+        skippedFilters: formatDroppedFilters(record.skippedFilters).slice(0, 8),
+        droppedFilters: formatDroppedFilters(record.droppedFilters).slice(0, 8),
+        finalWhereClauses: Array.isArray(record.finalWhereClauses)
+          ? record.finalWhereClauses.slice(0, 8)
+          : [],
+        totalCount: record.totalCount ?? record.productCount ?? null,
+        pageCount: record.pageCount ?? record.productCount ?? null,
       }
 
     case "context.performUnifiedJudgment:input":

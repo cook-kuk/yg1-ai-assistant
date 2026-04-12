@@ -68,6 +68,10 @@ import {
 import type { StructuredChipDto } from "@/lib/contracts/recommendation"
 import { validateOptionFirstPipeline } from "@/lib/recommendation/domain/options/option-validator"
 import { buildFilterValueScope } from "@/lib/recommendation/shared/filter-field-registry"
+import {
+  COATING_CHEMICAL_DB_ALIASES,
+  canonicalizeCoating,
+} from "@/lib/recommendation/shared/patterns"
 import { traceRecommendation } from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
 import {
   evaluateUncertainty,
@@ -371,6 +375,99 @@ export function shouldFallbackToDeterministicQuestionText(params: {
   if (ownHints.some(pattern => pattern.test(responseText))) return false
 
   return true
+}
+
+const CHEMICAL_COATING_DISPLAY: Record<string, string> = {
+  alcrn: "AlCrN",
+  tialn: "TiAlN",
+  ticn: "TiCN",
+  altin: "AlTiN",
+}
+
+function normalizeCoatingAliasKey(value: string): string {
+  return value.trim().toLowerCase().replace(/[\s_-]+/g, "")
+}
+
+function findCoatingAliasGroup(raw: string): { chemicalKey: string; aliases: string[] } | null {
+  const cleaned = raw.trim()
+  if (!cleaned) return null
+  const canonical = canonicalizeCoating(cleaned) ?? cleaned
+  const normalized = normalizeCoatingAliasKey(canonical)
+  if (COATING_CHEMICAL_DB_ALIASES[normalized]) {
+    return {
+      chemicalKey: normalized,
+      aliases: COATING_CHEMICAL_DB_ALIASES[normalized],
+    }
+  }
+  for (const [chemicalKey, aliases] of Object.entries(COATING_CHEMICAL_DB_ALIASES)) {
+    if (aliases.some(alias => normalizeCoatingAliasKey(alias) === normalized)) {
+      return { chemicalKey, aliases }
+    }
+  }
+  return null
+}
+
+export function buildCoatingAliasDisplayLabel(
+  requestedCoating: string,
+  candidateSnapshot: CandidateSnapshot[],
+): string | null {
+  const requestedDisplay = requestedCoating.trim()
+  if (!requestedDisplay) return null
+
+  const aliasGroup = findCoatingAliasGroup(requestedDisplay)
+  if (!aliasGroup) return null
+
+  const equivalentKeys = new Set<string>([
+    normalizeCoatingAliasKey(requestedDisplay),
+    normalizeCoatingAliasKey(CHEMICAL_COATING_DISPLAY[aliasGroup.chemicalKey] ?? requestedDisplay),
+    ...aliasGroup.aliases.map(alias => normalizeCoatingAliasKey(alias)),
+  ])
+
+  const aliasLabels = new Map<string, string>()
+  for (const candidate of candidateSnapshot) {
+    const coating = typeof candidate.coating === "string" ? candidate.coating.trim() : ""
+    if (!coating) continue
+    const normalized = normalizeCoatingAliasKey(coating)
+    if (!equivalentKeys.has(normalized)) continue
+    if (normalized === normalizeCoatingAliasKey(requestedDisplay)) continue
+    if (!aliasLabels.has(normalized)) aliasLabels.set(normalized, coating)
+  }
+
+  if (aliasLabels.size === 0) return null
+  return `${requestedDisplay}(${Array.from(aliasLabels.values()).join("/")})`
+}
+
+export function buildCoatingAliasGroundedQuestionText(params: {
+  history: NarrowingTurn[]
+  questionText: string
+  candidateSnapshot: CandidateSnapshot[]
+  totalCandidateCount: number
+}): string | null {
+  const latestTurn = params.history[params.history.length - 1]
+  if (!latestTurn) return null
+
+  const latestCoatingFilter = [...latestTurn.extractedFilters]
+    .reverse()
+    .find(filter => filter.field === "coating" && (filter.op === "eq" || filter.op === "includes"))
+
+  if (!latestCoatingFilter) return null
+
+  const requestedCoating =
+    typeof latestCoatingFilter.rawValue === "string" ? latestCoatingFilter.rawValue
+    : typeof latestCoatingFilter.value === "string" ? latestCoatingFilter.value
+    : null
+  if (!requestedCoating) return null
+
+  const aliasLabel = buildCoatingAliasDisplayLabel(requestedCoating, params.candidateSnapshot)
+  if (!aliasLabel) return null
+
+  const parts = [`코팅은 ${aliasLabel} 기준으로 그대로 좁혀졌습니다.`]
+  if (params.totalCandidateCount > 0) {
+    parts.push(`현재 후보는 ${params.totalCandidateCount}개입니다.`)
+  }
+  const questionText = params.questionText.trim()
+  if (questionText) parts.push(questionText)
+  return parts.join(" ")
 }
 
 async function loadSeriesMaterialRatings(
@@ -986,6 +1083,18 @@ JSON으로만: {"responseText":"..."}`
     responseText = responseText.replace(/\(\s*\)/g, "").replace(/  +/g, " ").trim()
   }
 
+  const aliasGroundedQuestionText = question
+    ? buildCoatingAliasGroundedQuestionText({
+        history,
+        questionText: question.questionText,
+        candidateSnapshot,
+        totalCandidateCount,
+      })
+    : null
+  if (aliasGroundedQuestionText) {
+    responseText = aliasGroundedQuestionText
+  }
+
   const requestPrep = prepareRequest(form, messages, sessionState, input, totalCandidateCount)
 
   // ── Option-first: chips are derived from structured displayedOptions (built above) ──
@@ -1268,11 +1377,13 @@ export async function buildRecommendationResponse(
 
   // ASK: force single info-gain question even if resolution says "show cards"
   if (uncertaintyMeta.mode === "ASK") {
-    const infoGainQ = selectHighestInfoGainQuestion(candidates, input, filters)
+    // P0 loop fix: extract askedFields from history to prevent repeated questions
+    const askedFields = new Set(history.map(turn => turn.askedField).filter((f): f is string => typeof f === "string"))
+    const infoGainQ = selectHighestInfoGainQuestion(candidates, input, filters, askedFields)
     if (infoGainQ) {
       uncertaintyMeta.followup_question = `${infoGainQ.label}을(를) 알려주시면 더 정확한 추천이 가능합니다.`
       uncertaintyMeta.followup_reason = `현재 후보 ${totalCandidateCount}개 중 ${Math.round(infoGainQ.reductionRatio * 100)}%를 좁힐 수 있는 핵심 조건입니다.`
-      console.log(`[uncertainty-gate:ASK] forcing question field=${infoGainQ.field} reduction=${(infoGainQ.reductionRatio * 100).toFixed(0)}%`)
+      console.log(`[uncertainty-gate:ASK] forcing question field=${infoGainQ.field} reduction=${(infoGainQ.reductionRatio * 100).toFixed(0)}% (asked=${Array.from(askedFields).join(",")})`)
       // Route to question response with overrideText (prevents recursion
       // back into buildRecommendationResponse via the !question guard). We
       // intentionally DROP responsePrefix so the polish branch downstream

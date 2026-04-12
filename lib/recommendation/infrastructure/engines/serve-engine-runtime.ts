@@ -10,7 +10,7 @@ import {
   runHybridRetrieval,
 } from "@/lib/recommendation/domain/recommendation-domain"
 import { BrandReferenceRepo } from "@/lib/recommendation/infrastructure/repositories/recommendation-repositories"
-import { isPrecisionMode, isKgDisabled } from "@/lib/recommendation/runtime-flags"
+import { isPrecisionMode } from "@/lib/recommendation/runtime-flags"
 import { getSessionCache } from "@/lib/recommendation/infrastructure/cache/session-cache"
 import { resolveMaterialTag } from "@/lib/recommendation/domain/material-resolver"
 import { parseAnswerToFilter } from "@/lib/recommendation/domain/question-engine"
@@ -40,14 +40,21 @@ import { normalizePlannerResult, validatePlannerResult, buildExecutorSummary } f
 import { dryRunReduce, reduce, compareReducerVsActual, type ReducerAction } from "@/lib/recommendation/core/state-reducer"
 import { USE_STATE_REDUCER, USE_CHIP_SYSTEM, isSingleCallRouterEnabled, LLM_FREE_INTERPRETATION, ENABLE_PLANNER_DECISION } from "@/lib/feature-flags"
 import { routeSingleCall } from "@/lib/recommendation/core/single-call-router"
-import { naturalLanguageToFilters, naturalLanguageToFiltersStreaming, buildAppliedFilterFromAgentFilter } from "@/lib/recommendation/core/sql-agent"
+import {
+  naturalLanguageToFilters,
+  naturalLanguageToFiltersStreaming,
+  buildAppliedFilterFromAgentFilter,
+  buildAppliedFilterFromAgentFilterWithTrace,
+} from "@/lib/recommendation/core/sql-agent"
 import { assessComplexity } from "@/lib/recommendation/core/complexity-router"
 import { getDbSchemaSync, getDbSchema } from "@/lib/recommendation/core/sql-agent-schema-cache"
 import { naturalLanguageToQuerySpec } from "@/lib/recommendation/core/query-planner"
 import { querySpecToAppliedFilters, appliedFiltersToConstraints } from "@/lib/recommendation/core/query-spec-to-filters"
 import { decidePlannerOverride } from "@/lib/recommendation/core/planner-decision"
+import { resolveMultiStageQuery } from "@/lib/recommendation/core/multi-stage-query-resolver"
+import { isLegacyKgHintEnabled, isLegacyKgInterpreterEnabled } from "@/lib/recommendation/core/kg-runtime-policy"
 import { logPatternMiningEntry } from "@/lib/recommendation/core/pattern-mining/logger"
-import { tryKGDecision, extractEntities } from "@/lib/recommendation/core/knowledge-graph"
+import { tryKGDecision, extractEntities, tryParseSortPhrase, type KGSpecPatch } from "@/lib/recommendation/core/knowledge-graph"
 import { parseDeterministic } from "@/lib/recommendation/core/deterministic-scr"
 import { hasEditSignal, parseEditIntent, applyEditIntent } from "@/lib/recommendation/core/edit-intent"
 import { deriveChips, toChipState, toChipStateWithCandidates, compareChips, safeApplyChips } from "@/lib/recommendation/core/chip-system"
@@ -57,6 +64,7 @@ import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/doma
 import { shouldExecutePendingAction, pendingActionToFilter } from "@/lib/recommendation/domain/context/pending-action-resolver"
 import { TurnPerfLogger, setCurrentPerfLogger } from "@/lib/recommendation/infrastructure/perf/turn-perf-logger"
 import { applyPostFilterToProducts, buildAppliedFilterFromValue, buildFilterValueScope, extractFilterFieldValueMap, getFilterFieldDefinition, getFilterFieldLabel, getFilterFieldQueryAliases, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
+import { traceRecommendation } from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
 import type { CanonicalProduct } from "@/lib/recommendation/domain/types"
 import {
   buildConstraintClarificationQuestion,
@@ -873,6 +881,10 @@ function rebuildResolvedInputFromFilters(
   return nextInput
 }
 
+function hasGlobalStageOneRelaxationSignal(msg: string): boolean {
+  return /(?:^|\s)(?:\uC0C1\uAD00\s*\uC5C6(?:\uC5B4|\uC5B4\uC694|\uC74C)?|\uC544\uBB34\uAC70\uB098|\uBB50\uB4E0(?:\s*\uC0C1\uAD00\s*\uC5C6(?:\uC5B4|\uC5B4\uC694)?)?|\uB2E4\s*\uAD1C\uCC2E(?:\uC544|\uC544\uC694)?|\uBB34\uAD00)(?:$|\s)/iu.test(msg)
+}
+
 function resolveSingleIsoGroup(material: string | undefined): string | null {
   if (!material) return null
 
@@ -939,6 +951,7 @@ export function resolvePendingQuestionReply(
   if (!userMessage) return { kind: "none" }
 
   const raw = userMessage.trim()
+  const pendingDetActions = parseDeterministic(raw)
   if (!raw) return { kind: "none" }
   if (raw.length > 80) return { kind: "unresolved", pendingField, raw }
   if (/[?？]/.test(raw)) return { kind: "side_question", pendingField, raw }
@@ -952,8 +965,7 @@ export function resolvePendingQuestionReply(
   // 같은 케이스 방어: KG 가 "Y 코팅" 별칭을 모르고 entity 0개를 반환해도, det-SCR 의
   // letterCoatingMatch 가 Y-Coating 으로 잡으므로 위임이 아니라 코팅 지정으로 해석.
   if (/^(?:.*(?:추천해|골라|알아서|너가|니가|한개|하나만|아무거나).*(?:줘|해줘|해|주세요|요)?|추천으로\s*골라줘)$/u.test(raw)
-      && extractEntities(raw).length === 0
-      && parseDeterministic(raw).length === 0) {
+      && pendingDetActions.length === 0) {
     console.log(`[pending-selection] Delegation detected: "${raw.slice(0, 30)}" → treating as skip`)
     const skipFilter: AppliedFilter = {
       field: pendingField,
@@ -1830,6 +1842,9 @@ async function handleServeExplorationInner(
   })
 
   const provider = getProvider()
+  const providerAvailable = provider.available()
+  const legacyKgInterpreterEnabled = isLegacyKgInterpreterEnabled(providerAvailable)
+  const legacyKgHintEnabled = isLegacyKgHintEnabled(providerAvailable)
   const perf = new TurnPerfLogger()
   setCurrentPerfLogger(perf)
   perf.setPhase(prevState?.currentMode ?? "intake")
@@ -1989,6 +2004,7 @@ async function handleServeExplorationInner(
   // bottom (`if (!prevState && singleCallHandled && bridgedV2Action)`)
   // routes straight into buildRecommendationResponse with the form-derived
   // resolvedInput + empty filter list.
+  let stagedSpecPatch: KGSpecPatch | null = null
   const isFirstTurnIntake = !prevState && messages.length <= 1
   // Turn 0 question/compare/trouble intercept: route directly to general-chat
   // handler before the filter-spec short-circuit. Without this, messages like
@@ -2008,8 +2024,10 @@ async function handleServeExplorationInner(
     const SOFT_REC_RE = /(괜찮은|좋은|쓸만한|쓸\s*만한|추천\s*(좀|해)|뭐가\s*있|있을까|어울리는|맞는|적합한)/
     // If the message contains product entities (material/coating/subtype/shank),
     // it's a recommendation context even with "?". Only intercept pure Q/troubleshoot.
-    const hasRecEntities = extractEntities(rawMsg0).some(e =>
-      ["workPieceName", "coating", "toolSubtype", "toolType", "shankType", "diameterMm", "fluteCount"].includes(e.field)
+    const hasRecEntities = parseDeterministic(rawMsg0).some(action =>
+      action.type === "apply_filter"
+      && action.field != null
+      && ["workPieceName", "coating", "toolSubtype", "toolType", "shankType", "diameterMm", "fluteCount"].includes(action.field)
     )
     // Strong compare pattern: "X(이?랑|와|과|vs) Y ... (뭐가 나/더/차이/어느 게)"
     // wins over soft-rec even when entities are present — the user is asking
@@ -2094,42 +2112,59 @@ async function handleServeExplorationInner(
     } catch (e) {
       console.warn("[first-turn-intake] det-SCR injection failed:", (e as Error).message)
     }
-    // KG entity injection — det-SCR only catches numeric patterns ("10mm",
-    // "4날"). For lexical field entities (shankType=HSK, helixAngleDeg=45,
-    // taperAngleDeg=5, cornerRadiusMm=0.5, ...) we need extractEntities.
-    // Without this, first-turn free-text queries containing these fields
-    // silently drop them because the first-turn-intake skip path bypasses
-    // both KG (§2280+) and sql-agent (§2395+).
+    // Stage 2/3 fallback for first-turn free text: keep Stage 1 exact and let
+    // the shared resolver handle unresolved phrasing instead of injecting KG
+    // entities here.
     try {
       const rawMsg = lastUserMsg?.text ?? ""
       if (rawMsg) {
-        const kgEntities = extractEntities(rawMsg)
-          // diameterMm is lexically ambiguous on bare "<num>mm" — let det-SCR
-          // handle it; KG's numeric patterns can misfire on OAL/LOC.
-          .filter(e => e.field !== "diameterMm")
-          // toolType from KG extracts domain labels ("Milling", "Holemaking")
-          // but product records store normalized buckets ("Solid"/"Indexable"/
-          // "Insert"/"Holder" via normalizeToolType in product-db-source.ts).
-          // Injecting KG's "Milling" drops every candidate to 0. The form's
-          // toolTypeOrCurrentProduct handles this field through a different
-          // path that doesn't collide with the normalized record value.
-          .filter(e => e.field !== "toolType")
-          // skip fields det-SCR already filled
-          .filter(e => !filters.some(f => f.field === e.field && f.op !== "skip"))
+        const stageOneActions = parseDeterministic(rawMsg).filter(
+          action => action.type === "apply_filter" && action.field && action.value != null,
+        )
+        const fallbackResult = await resolveMultiStageQuery({
+          message: rawMsg,
+          turnCount,
+          currentFilters: filters,
+          sessionState: prevState,
+          stageOneDeterministicActions: stageOneActions,
+          complexity: assessComplexity(rawMsg, filters.length),
+        })
         const injected: string[] = []
-        for (const e of kgEntities) {
-          const f = buildAppliedFilterFromValue(e.field, e.canonical, 0)
-          if (f) {
-            const r = replaceFieldFilter(baseInput, filters, f, deps.applyFilterToInput)
-            filters.splice(0, filters.length, ...r.nextFilters)
-            currentInput = r.nextInput
-            injected.push(`${e.field}=${e.canonical}`)
+        for (const filter of fallbackResult.filters) {
+          if (filter.op === "skip") continue
+          if (filters.some(existing => existing.field === filter.field && existing.op !== "skip")) continue
+          const result = replaceFieldFilter(baseInput, filters, filter, deps.applyFilterToInput)
+          filters.splice(0, filters.length, ...result.nextFilters)
+          currentInput = result.nextInput
+          injected.push(`${filter.field}=${String(filter.rawValue ?? filter.value)}`)
+        }
+        if (fallbackResult.sort) {
+          stagedSpecPatch = { ...(stagedSpecPatch ?? {}), sort: fallbackResult.sort }
+        }
+        if (injected.length > 0) {
+          console.log(`[first-turn-intake] multi-stage injected ${injected.length} filter(s): ${injected.join(", ")}`)
+        }
+        if (legacyKgHintEnabled) {
+          const legacyEntities = extractEntities(rawMsg)
+            .filter(e => e.field !== "diameterMm")
+            .filter(e => e.field !== "toolType")
+            .filter(e => !filters.some(f => f.field === e.field && f.op !== "skip"))
+          const legacyInjected: string[] = []
+          for (const entity of legacyEntities) {
+            const filter = buildAppliedFilterFromValue(entity.field, entity.canonical, 0)
+            if (!filter) continue
+            const result = replaceFieldFilter(baseInput, filters, filter, deps.applyFilterToInput)
+            filters.splice(0, filters.length, ...result.nextFilters)
+            currentInput = result.nextInput
+            legacyInjected.push(`${entity.field}=${entity.canonical}`)
+          }
+          if (legacyInjected.length > 0) {
+            console.log(`[first-turn-intake] legacy KG injected ${legacyInjected.length} filter(s): ${legacyInjected.join(", ")}`)
           }
         }
-        if (injected.length > 0) console.log(`[first-turn-intake] KG pre-injected ${injected.length} filter(s): ${injected.join(", ")}`)
       }
     } catch (e) {
-      console.warn("[first-turn-intake] KG injection failed:", (e as Error).message)
+      console.warn("[first-turn-intake] multi-stage fallback failed:", (e as Error).message)
     }
     singleCallHandled = true
     // Fast-path triggers (skip questions, go straight to show_recommendation):
@@ -2243,12 +2278,30 @@ async function handleServeExplorationInner(
     // edit-intent가 맡아야 할 문장(말고/빼고/제외/상관없/바꿔 등)은 KG보다 먼저 처리
     // ══════════════════════════════════════════════════════════
 
+    let stageOneEditResult: ReturnType<typeof parseEditIntent> = null
+    if (!shouldResolvePendingSelectionEarly && lastUserMsg && hasEditSignal(msg)) {
+      try {
+        stageOneEditResult = parseEditIntent(msg, filters)
+      } catch (err) {
+        console.warn(`[edit-intent] parse failed for "${msg.slice(0, 80)}":`, (err as Error).message)
+      }
+    }
+
+    const stageOneSort = !shouldResolvePendingSelectionEarly && lastUserMsg
+      ? tryParseSortPhrase(msg)
+      : null
+    if (stageOneSort) {
+      stagedSpecPatch = { ...(stagedSpecPatch ?? {}), sort: stageOneSort }
+    }
+
     // ── 0.5. Deterministic SCR pre-pass (no LLM, fastest path) ──
     // det-SCR로 즉시 잡히는 명확한 필터 의도(예: "Y 코팅으로 추천해줘", "10mm")는
-    // SQL Agent / KG / SCR LLM을 거치지 않고 바로 적용. J06 회귀 방지:
-    // SQL Agent Haiku가 "추천해줘"를 _skip 메타로 오인해 코팅 필터를 누락시키던
-    // 버그를 차단한다. edit-intent 시그널이 있으면 양보(말고/빼고/바꿔는 edit-intent가 처리).
-    if (!singleCallHandled && lastUserMsg && !hasEditSignal(msg) && !shouldResolvePendingSelectionEarly) {
+    // SQL Agent / KG / SCR LLM을 거치지 않고 바로 적용한다. skip_field 계열은
+    // 같은 턴의 deterministic filter/sort 와 함께 합성하고, replace/exclude 류
+    // edit-intent 는 기존 전용 경로에 양보한다.
+    const allowStageOneDeterministicMerge =
+      !stageOneEditResult || stageOneEditResult.intent.type === "skip_field"
+    if (!singleCallHandled && lastUserMsg && allowStageOneDeterministicMerge && !shouldResolvePendingSelectionEarly) {
       // Stateless-replay: when the caller has no session yet (evaluation harness
       // sends each call without session context) prior user turns' filters are
       // lost because this pre-pass only sees the latest message. Join all prior
@@ -2257,6 +2310,7 @@ async function handleServeExplorationInner(
       // appears in both earlier and latest turns (e.g. "TiAlN" in Q&A turn then
       // "AlCrN으로 추천해줘" in latest), the latest turn's value wins.
       let detPreActions: ReturnType<typeof parseDeterministic>
+      let currentTurnDetActions: ReturnType<typeof parseDeterministic>
       if (!prevState && messages.filter(m => m.role === "user").length > 1) {
         let allUserMsgs = messages.filter(m => m.role === "user").map(m => m.text)
         // FIX: if any user message is a reset signal ("처음부터", "초기화", "리셋"),
@@ -2269,82 +2323,239 @@ async function handleServeExplorationInner(
         }
         const latestMsg = allUserMsgs[allUserMsgs.length - 1]
         const priorMsgs = allUserMsgs.slice(0, -1).join(" ")
-        const latestActions = parseDeterministic(latestMsg)
+        currentTurnDetActions = parseDeterministic(latestMsg)
         const priorActions = parseDeterministic(priorMsgs)
         // latest wins: if the latest message extracts a field, drop that field from prior
-        const latestFields = new Set(latestActions.filter(a => a.field).map(a => a.field))
-        const mergedActions = [
+        const latestFields = new Set(currentTurnDetActions.filter(a => a.field).map(a => a.field))
+        detPreActions = [
           ...priorActions.filter(a => !a.field || !latestFields.has(a.field)),
-          ...latestActions,
+          ...currentTurnDetActions,
         ]
-        detPreActions = mergedActions
       } else {
-        detPreActions = parseDeterministic(msg)
+        currentTurnDetActions = parseDeterministic(msg)
+        detPreActions = currentTurnDetActions
       }
+
       const detApplyActions = detPreActions.filter(a => a.type === "apply_filter" && a.field && a.value != null)
-      if (detApplyActions.length > 0) {
-        let appliedAny = false
-        // RPM은 가상 필터 — buildDbClause가 no-op이라 narrowing은 tool-forge가
-        // cutting_condition_table에서 처리. 이 액션 하나만 있으면 short-circuit
-        // 하지 말고 (singleCallHandled를 켜지 말고) 후속 KG/SQL/tool-forge 경로를
-        // 그대로 태워야 실제 narrowing이 일어난다.
-        let appliedAnyRoutable = false
-        for (const action of detApplyActions) {
-          const isBetween = action.op === "between" && action.value2 != null
-          const inputValue: string | number | Array<string | number> = isBetween
-            ? [action.value as string | number, action.value2 as string | number]
-            : (action.value as string | number)
-          const filter = buildAppliedFilterFromValue(action.field!, inputValue, turnCount, action.op)
-          if (!filter) continue
-          const skipIdx = filters.findIndex(f => f.field === filter.field && f.op === "skip")
-          if (skipIdx >= 0) filters.splice(skipIdx, 1)
-          if (action.op === "neq") {
-            const existingIdx = filters.findIndex(f => f.field === filter.field && f.op !== "neq")
-            if (existingIdx >= 0) filters.splice(existingIdx, 1)
+      const effectiveDetApplyActions =
+        stageOneEditResult?.intent.type === "skip_field"
+          ? detApplyActions.filter(action => action.field !== stageOneEditResult.intent.field)
+          : detApplyActions
+      const currentTurnFields = new Set(
+        currentTurnDetActions
+          .filter(a => a.type === "apply_filter" && a.field && a.value != null)
+          .map(a => a.field!)
+      )
+      const shouldClearUnmentionedFields =
+        !stageOneEditResult
+        && currentTurnFields.size > 0
+        && hasGlobalStageOneRelaxationSignal(msg)
+
+      let appliedAny = false
+      // RPM은 가상 필터 — buildDbClause가 no-op이라 narrowing은 tool-forge가
+      // cutting_condition_table에서 처리. 이 액션 하나만 있으면 short-circuit
+      // 하지 말고 (singleCallHandled를 켜지 말고) 후속 KG/SQL/tool-forge 경로를
+      // 그대로 태워야 실제 narrowing이 일어난다.
+      let appliedAnyRoutable = false
+      let lastStageOneFilter: AppliedFilter | null = null
+      const stageOneReasoningParts: string[] = []
+
+      if (shouldClearUnmentionedFields) {
+        const beforeCount = filters.length
+        for (let index = filters.length - 1; index >= 0; index--) {
+          if (!currentTurnFields.has(filters[index].field)) {
+            filters.splice(index, 1)
           }
-          const result = replaceFieldFilter(baseInput, filters, filter, deps.applyFilterToInput)
+        }
+        if (filters.length !== beforeCount) {
+          currentInput = rebuildResolvedInputFromFilters(form, filters, deps)
+          appliedAny = true
+          appliedAnyRoutable = true
+          stageOneReasoningParts.push(`relax:${[...currentTurnFields].join("|")}`)
+        }
+      }
+
+      if (stageOneEditResult?.intent.type === "skip_field") {
+        const mutation = applyEditIntent(stageOneEditResult.intent, filters, turnCount)
+        for (const idx of [...mutation.removeIndices].sort((a, b) => b - a)) {
+          filters.splice(idx, 1)
+        }
+        if (mutation.addFilter) {
+          const result = replaceFieldFilter(baseInput, filters, mutation.addFilter, deps.applyFilterToInput)
           filters.splice(0, filters.length, ...result.nextFilters)
           currentInput = result.nextInput
+          lastStageOneFilter = mutation.addFilter
           appliedAny = true
-          // 가상 필드(cutting_condition_table 경로: rpm/feedRate/cuttingSpeed/depthOfCut)
-          // 는 DB narrowing 을 안 하므로 라우팅 가드에서 제외한다.
-          if (action.field !== "rpm" && action.field !== "feedRate" && action.field !== "cuttingSpeed" && action.field !== "depthOfCut") appliedAnyRoutable = true
+          appliedAnyRoutable = true
+          stageOneReasoningParts.push(`skip:${mutation.addFilter.field}`)
         }
-        if (appliedAny && appliedAnyRoutable) {
-          const hasShowRec = /추천|보여|제품\s*보기|show/iu.test(msg)
-          const lastF = filters[filters.length - 1] ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount }
-          bridgedV2Action = hasShowRec
-            ? { type: "show_recommendation" }
-            : { type: "continue_narrowing", filter: lastF }
-          bridgedV2OrchestratorResult = {
-            action: bridgedV2Action,
-            reasoning: `det-scr-pre:${detApplyActions.map(a => `${a.field}=${a.value}`).join(",")}`,
-            agentsInvoked: [],
-            escalatedToOpus: false,
+      }
+
+      for (const action of effectiveDetApplyActions) {
+        const isBetween = action.op === "between" && action.value2 != null
+        const inputValue: string | number | Array<string | number> = isBetween
+          ? [action.value as string | number, action.value2 as string | number]
+          : (action.value as string | number)
+        const filter = buildAppliedFilterFromValue(action.field!, inputValue, turnCount, action.op)
+        if (!filter) continue
+        const skipIdx = filters.findIndex(f => f.field === filter.field && f.op === "skip")
+        if (skipIdx >= 0) filters.splice(skipIdx, 1)
+        if (action.op === "neq") {
+          const existingIdx = filters.findIndex(f => f.field === filter.field && f.op !== "neq")
+          if (existingIdx >= 0) filters.splice(existingIdx, 1)
+        }
+        const result = replaceFieldFilter(baseInput, filters, filter, deps.applyFilterToInput)
+        filters.splice(0, filters.length, ...result.nextFilters)
+        currentInput = result.nextInput
+        lastStageOneFilter = filter
+        appliedAny = true
+        stageOneReasoningParts.push(`${action.field}=${action.value}`)
+        // 가상 필드(cutting_condition_table 경로: rpm/feedRate/cuttingSpeed/depthOfCut)
+        // 는 DB narrowing 을 안 하므로 라우팅 가드에서 제외한다.
+        if (action.field !== "rpm" && action.field !== "feedRate" && action.field !== "cuttingSpeed" && action.field !== "depthOfCut") {
+          appliedAnyRoutable = true
+        }
+      }
+
+      if (stageOneSort) {
+        appliedAny = true
+        appliedAnyRoutable = true
+        stageOneReasoningParts.push(`sort:${stageOneSort.field}:${stageOneSort.direction}`)
+      }
+
+      const multiStageResolvedFields = new Set(currentTurnFields)
+      if (stageOneEditResult?.intent.type === "skip_field") {
+        multiStageResolvedFields.add(stageOneEditResult.intent.field)
+      }
+
+      const multiStageResult = await resolveMultiStageQuery({
+        message: msg,
+        turnCount,
+        currentFilters: filters,
+        sessionState: prevState,
+        pendingField: prevState?.lastAskedField ?? null,
+        stageOneEditIntent: stageOneEditResult,
+        stageOneDeterministicActions: currentTurnDetActions,
+        stageOneSort,
+        complexity,
+      })
+
+      if (multiStageResult.source !== "none") {
+        if (multiStageResult.clearOtherFilters) {
+          const keepFields = new Set([
+            ...multiStageResolvedFields,
+            ...multiStageResult.filters.map(filter => filter.field),
+          ])
+          const beforeCount = filters.length
+          for (let index = filters.length - 1; index >= 0; index--) {
+            if (!keepFields.has(filters[index].field)) {
+              filters.splice(index, 1)
+            }
           }
-          singleCallHandled = true
-          pendingSelectionAction = null
-          pendingSelectionOrchestratorResult = null
-          trace.add("det-scr-pre", "router", { actions: detApplyActions.map(a => ({ field: a.field, value: a.value, op: a.op })) }, { applied: detApplyActions.length, filterCount: filters.length }, `det-SCR pre-pass applied ${detApplyActions.length} action(s)`)
-          console.log(`[det-scr:pre] ${detApplyActions.length} actions applied early: ${detApplyActions.map(a => `${a.field}=${a.value}`).join(", ")}`)
-        } else if (appliedAny && !appliedAnyRoutable) {
-          // RPM-only (or other virtual-only) — 가시성 필터만 push, 후속 routing 그대로
-          console.log(`[det-scr:pre] virtual-only filter(s) pushed, continuing routing: ${detApplyActions.map(a => `${a.field}=${a.value}`).join(", ")}`)
+          if (filters.length !== beforeCount) {
+            currentInput = rebuildResolvedInputFromFilters(form, filters, deps)
+            appliedAny = true
+            appliedAnyRoutable = true
+            stageOneReasoningParts.push(`${multiStageResult.source}:clear_other_filters`)
+          }
         }
+
+        for (const filter of multiStageResult.filters) {
+          multiStageResolvedFields.add(filter.field)
+          const skipIdx = filter.op === "skip"
+            ? -1
+            : filters.findIndex(existing => existing.field === filter.field && existing.op === "skip")
+          if (skipIdx >= 0) filters.splice(skipIdx, 1)
+          if (filter.op === "neq") {
+            const existingIdx = filters.findIndex(existing => existing.field === filter.field && existing.op !== "neq")
+            if (existingIdx >= 0) filters.splice(existingIdx, 1)
+          }
+          const replaced = replaceFieldFilter(baseInput, filters, filter, deps.applyFilterToInput)
+          filters.splice(0, filters.length, ...replaced.nextFilters)
+          currentInput = replaced.nextInput
+          lastStageOneFilter = filter
+          appliedAny = true
+          if (filter.field !== "rpm" && filter.field !== "feedRate" && filter.field !== "cuttingSpeed" && filter.field !== "depthOfCut") {
+            appliedAnyRoutable = true
+          }
+          const rawValue = Array.isArray(filter.rawValue)
+            ? filter.rawValue.join("~")
+            : String(filter.rawValue ?? filter.value)
+          stageOneReasoningParts.push(`${multiStageResult.source}:${filter.field}=${rawValue}:${filter.op}`)
+        }
+
+        if (multiStageResult.sort) {
+          stagedSpecPatch = { ...(stagedSpecPatch ?? {}), sort: multiStageResult.sort }
+          appliedAny = true
+          appliedAnyRoutable = true
+          stageOneReasoningParts.push(
+            `${multiStageResult.source}:sort:${multiStageResult.sort.field}:${multiStageResult.sort.direction}`
+          )
+        }
+
+        trace.add(
+          "multi-stage-resolver",
+          "router",
+          {
+            source: multiStageResult.source,
+            confidence: multiStageResult.confidence,
+            unresolvedTokens: multiStageResult.unresolvedTokens,
+            filterCount: multiStageResult.filters.length,
+            sort: multiStageResult.sort ? `${multiStageResult.sort.field}:${multiStageResult.sort.direction}` : null,
+            clearOtherFilters: multiStageResult.clearOtherFilters,
+            routeHint: multiStageResult.routeHint,
+          },
+          { applied: multiStageResult.filters.length + (multiStageResult.sort ? 1 : 0) },
+          `multi-stage ${multiStageResult.source} resolved ${multiStageResult.filters.length} filter(s)`
+        )
+        console.log(
+          `[multi-stage-resolver] source=${multiStageResult.source} filters=${multiStageResult.filters.length} sort=${multiStageResult.sort ? `${multiStageResult.sort.field}:${multiStageResult.sort.direction}` : "none"} unresolved=${multiStageResult.unresolvedTokens.join(",") || "none"}`
+        )
+      }
+
+      if (appliedAny && (appliedAnyRoutable || !!stageOneSort)) {
+        const hasShowRec =
+          !!stageOneSort
+          || !!multiStageResult.sort
+          || multiStageResult.routeHint === "show_recommendation"
+          || /\uCD94\uCC9C|\uBCF4\uC5EC|\uC81C\uD488\s*\uBCF4\uAE30|show/iu.test(msg)
+        const lastF = lastStageOneFilter ?? filters[filters.length - 1] ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount }
+        bridgedV2Action = hasShowRec
+          ? { type: "show_recommendation" }
+          : { type: "continue_narrowing", filter: lastF }
+        bridgedV2OrchestratorResult = {
+          action: bridgedV2Action,
+          reasoning: `det-scr-pre:${stageOneReasoningParts.join(",")}`,
+          agentsInvoked: [],
+          escalatedToOpus: false,
+        }
+        singleCallHandled = true
+        pendingSelectionAction = null
+        pendingSelectionOrchestratorResult = null
+        trace.add(
+          "det-scr-pre",
+          "router",
+          {
+            actions: effectiveDetApplyActions.map(a => ({ field: a.field, value: a.value, op: a.op })),
+            skipField: stageOneEditResult?.intent.type === "skip_field" ? stageOneEditResult.intent.field : null,
+            sort: stageOneSort ? `${stageOneSort.field}:${stageOneSort.direction}` : null,
+            globalRelaxation: shouldClearUnmentionedFields,
+          },
+          { applied: stageOneReasoningParts.length, filterCount: filters.length },
+          `det-SCR pre-pass applied ${stageOneReasoningParts.join(", ")}`
+        )
+        console.log(`[det-scr:pre] applied early: ${stageOneReasoningParts.join(", ")}`)
+      } else if (appliedAny && !appliedAnyRoutable && !stageOneSort) {
+        // RPM-only (or other virtual-only) — 가시성 필터만 push, 후속 routing 그대로
+        console.log(`[det-scr:pre] virtual-only filter(s) pushed, continuing routing: ${effectiveDetApplyActions.map(a => `${a.field}=${a.value}`).join(", ")}`)
       }
     }
 
     // ── 1. Edit-Intent Layer: state modification (deterministic, 0 LLM calls) ──
-    // Handles replace/exclude/clear/go_back/reset — runs BEFORE KG so edit
+    // Handles replace/exclude/skip/clear/go_back/reset — runs BEFORE KG so edit
     // expressions are not intercepted by KG's exclude patterns.
     if (!singleCallHandled && lastUserMsg && hasEditSignal(msg) && !shouldResolvePendingSelectionEarly) {
-      let editResult: ReturnType<typeof parseEditIntent> = null
-      try {
-        editResult = parseEditIntent(msg, filters)
-      } catch (err) {
-        // Defensive: edit-intent must never crash the request — fall through to KG/LLM.
-        console.warn(`[edit-intent] parse failed for "${msg.slice(0, 80)}":`, (err as Error).message)
-      }
+      const editResult = stageOneEditResult
       if (editResult && editResult.confidence >= 0.9) {
         try {
         const mutation = applyEditIntent(editResult.intent, filters, turnCount)
@@ -2384,14 +2595,18 @@ async function handleServeExplorationInner(
 
           // Apply addition
           if (mutation.addFilter) {
-            const built = buildAppliedFilterFromValue(
-              mutation.addFilter.field,
-              mutation.addFilter.rawValue,
-              turnCount,
-              mutation.addFilter.op === "neq" ? "neq" : undefined,
-            )
+            const built = mutation.addFilter.op === "skip"
+              ? mutation.addFilter
+              : buildAppliedFilterFromValue(
+                  mutation.addFilter.field,
+                  mutation.addFilter.rawValue,
+                  turnCount,
+                  mutation.addFilter.op === "neq" ? "neq" : undefined,
+                )
             if (built) {
-              const skipIdx = filters.findIndex(x => x.field === built.field && x.op === "skip")
+              const skipIdx = built.op === "skip"
+                ? -1
+                : filters.findIndex(x => x.field === built.field && x.op === "skip")
               if (skipIdx >= 0) filters.splice(skipIdx, 1)
               const result = replaceFieldFilter(baseInput, filters, built, deps.applyFilterToInput)
               filters.splice(0, filters.length, ...result.nextFilters)
@@ -2406,7 +2621,10 @@ async function handleServeExplorationInner(
 
           if (!bridgedV2Action) {
             const lastF = mutation.addFilter ?? filters[filters.length - 1] ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount }
-            bridgedV2Action = { type: "continue_narrowing", filter: lastF }
+            const hasShowRec = /추천|보여|제품\s*보기|show/iu.test(msg)
+            bridgedV2Action = hasShowRec
+              ? { type: "show_recommendation" }
+              : { type: "continue_narrowing", filter: lastF }
           }
           if (!bridgedV2OrchestratorResult) {
             bridgedV2OrchestratorResult = { action: bridgedV2Action, reasoning: `edit-intent:${editResult.reason}`, agentsInvoked: [], escalatedToOpus: false }
@@ -2431,7 +2649,7 @@ async function handleServeExplorationInner(
     // KG entirely so SCR/sql-agent + LLM handle all extraction. Used for A/B
     // testing the LLM-only path against the KG-augmented path.
     let kgHint: string | undefined
-    if (!singleCallHandled && lastUserMsg && !isKgDisabled() && !shouldResolvePendingSelectionEarly) {
+    if (!singleCallHandled && lastUserMsg && legacyKgInterpreterEnabled && !shouldResolvePendingSelectionEarly) {
       const kgResult = tryKGDecision(msg, prevState)
       trace.add("knowledge-graph", "router", { confidence: kgResult.confidence, source: kgResult.source, reason: kgResult.reason })
 
@@ -2532,7 +2750,7 @@ async function handleServeExplorationInner(
     // entity match (shankType=HSK, cornerRadiusMm=0.5, taperAngleDeg=5, ...)
     // should be surfaced to sql-agent as a hint so the LLM can include it.
     // Only builds a hint if one wasn't already set above.
-    if (!kgHint && lastUserMsg && !singleCallHandled && !isKgDisabled() && !shouldResolvePendingSelectionEarly) {
+    if (!kgHint && lastUserMsg && !singleCallHandled && legacyKgHintEnabled && !shouldResolvePendingSelectionEarly) {
       const entities = extractEntities(msg)
       const safeEntities = entities.filter(e => e.field !== "diameterMm")
       if (safeEntities.length > 0) {
@@ -2671,8 +2889,35 @@ async function handleServeExplorationInner(
               }
             } else {
               // 필터 적용 (eq + neq 모두 처리)
+              const parsedFilters = agentResult.filters.map(af => ({
+                field: af.field,
+                op: af.op,
+                value: af.value,
+                value2: af.value2 ?? null,
+                display: af.display ?? null,
+              }))
+              const normalizedFilters: Array<Record<string, unknown>> = []
+              const droppedFilters: Array<Record<string, unknown>> = []
               for (const af of agentResult.filters) {
-                const built = buildAppliedFilterFromAgentFilter(af, turnCount)
+                const builtResult = buildAppliedFilterFromAgentFilterWithTrace(af, turnCount)
+                const built = builtResult.filter
+                if (!built) {
+                  droppedFilters.push({
+                    field: af.field,
+                    op: af.op,
+                    value: af.value,
+                    value2: af.value2 ?? null,
+                    reason: builtResult.droppedReason ?? "build_failed",
+                  })
+                  continue
+                }
+                normalizedFilters.push({
+                  field: built.field,
+                  op: built.op,
+                  value: built.value,
+                  rawValue: built.rawValue,
+                  rawValue2: (built as AppliedFilter & { rawValue2?: string | number }).rawValue2 ?? null,
+                })
                 if (built) {
                   // NEQ: 기존 같은 필드 필터 제거 �� 추가
                   if (af.op === "neq") {
@@ -2692,6 +2937,20 @@ async function handleServeExplorationInner(
               }
 
               const hasShowRec = /추천|보여|제품\s*보기|show/iu.test(msg)
+              traceRecommendation("runtime.handleServeExplorationInner:sql-agent-filter-pipeline", {
+                confidence: agentResult.confidence ?? null,
+                parsedFilters,
+                normalizedFilters,
+                droppedFilters,
+                finalFilters: filters.filter(f => f.op !== "skip").map(f => ({
+                  field: f.field,
+                  op: f.op,
+                  value: f.value,
+                  rawValue: f.rawValue,
+                  rawValue2: (f as AppliedFilter & { rawValue2?: string | number }).rawValue2 ?? null,
+                })),
+              })
+
               const lastF = filters[filters.length - 1] ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount }
               bridgedV2Action = hasShowRec
                 ? { type: "show_recommendation" }
@@ -2795,9 +3054,16 @@ async function handleServeExplorationInner(
         // session state so a stale patch can't re-apply on the next turn.
         const { mergeKgPatchIntoSpec, consumeKgSpecPatch } = await import("@/lib/recommendation/core/kg-spec-merge")
         const kgPatch = consumeKgSpecPatch(prevState)
-        const spec = mergeKgPatchIntoSpec(plannerResult.spec, kgPatch)
+        let spec = mergeKgPatchIntoSpec(plannerResult.spec, kgPatch)
+        if (stagedSpecPatch) {
+          spec = mergeKgPatchIntoSpec(spec, stagedSpecPatch)
+        }
         if (kgPatch) {
           console.log(`[kg-merge] applied patch: sort=${!!kgPatch.sort} similarTo=${!!kgPatch.similarTo} tolerance=${kgPatch.toleranceConstraints?.length ?? 0}`)
+        }
+        if (stagedSpecPatch) {
+          console.log(`[stage1-merge] applied patch: sort=${!!stagedSpecPatch.sort} similarTo=${!!stagedSpecPatch.similarTo} tolerance=${stagedSpecPatch.toleranceConstraints?.length ?? 0}`)
+          stagedSpecPatch = null
         }
         const shadowFilters = querySpecToAppliedFilters(spec, turnCount)
 
@@ -2887,7 +3153,7 @@ async function handleServeExplorationInner(
               currentInput = result.nextInput
             }
 
-            const hasShowRec = spec.intent === "show_recommendation" || /추천|보여|제품\s*보기|show/iu.test(msg)
+            const hasShowRec = spec.intent === "show_recommendation" || /\uCD94\uCC9C|\uBCF4\uC5EC|\uC81C\uD488\s*\uBCF4\uAE30|show/iu.test(msg)
             const lastF = filters[filters.length - 1] ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount }
             bridgedV2Action = hasShowRec
               ? { type: "show_recommendation" }

@@ -779,9 +779,45 @@ export function mapRowToProduct(row: RawProductRow): CanonicalProduct {
   }
 }
 
-export function buildQueryOptions(options: ProductSearchOptions): { where: string[]; values: unknown[]; limit: number | undefined; offset: number } {
+interface ProductQueryClauseTrace {
+  source: "input" | "filter" | "derived"
+  field: string
+  op: string
+  value: string
+  clause: string
+}
+
+interface ProductQueryDropTrace {
+  field: string
+  op: string
+  value: string
+  reason: string
+}
+
+interface ProductQueryDebugPlan {
+  appliedClauses: ProductQueryClauseTrace[]
+  skippedFilters: ProductQueryDropTrace[]
+  droppedFilters: ProductQueryDropTrace[]
+  finalWhereClauses: string[]
+}
+
+export function buildQueryOptions(options: ProductSearchOptions): {
+  where: string[]
+  values: unknown[]
+  limit: number | undefined
+  offset: number
+  debugPlan: ProductQueryDebugPlan
+} {
   const where: string[] = []
   const values: unknown[] = []
+  const appliedClauses: ProductQueryClauseTrace[] = []
+  const skippedFilters: ProductQueryDropTrace[] = []
+  const droppedFilters: ProductQueryDropTrace[] = []
+  const formatTraceValue = (value: unknown): string => (
+    Array.isArray(value)
+      ? value.map(item => String(item ?? "")).join(",")
+      : String(value ?? "")
+  )
   const next = (value: unknown) => {
     values.push(value)
     return `$${values.length}`
@@ -791,22 +827,30 @@ export function buildQueryOptions(options: ProductSearchOptions): { where: strin
   if (options.normalizedCode) {
     const normalizedCode = options.normalizedCode.replace(/[\s-]/g, "").toUpperCase()
     const param = next(normalizedCode)
-    where.push(`REPLACE(REPLACE(UPPER(COALESCE(edp_no, '')), ' ', ''), '-', '') = ${param}`)
+    const clause = `REPLACE(REPLACE(UPPER(COALESCE(edp_no, '')), ' ', ''), '-', '') = ${param}`
+    where.push(clause)
+    appliedClauses.push({ source: "input", field: "normalizedCode", op: "eq", value: normalizedCode, clause })
   }
 
   if (options.seriesName) {
     const param = next(`%${options.seriesName.toLowerCase()}%`)
-    where.push(`LOWER(COALESCE(edp_series_name, '')) LIKE ${param}`)
+    const clause = `LOWER(COALESCE(edp_series_name, '')) LIKE ${param}`
+    where.push(clause)
+    appliedClauses.push({ source: "input", field: "seriesName", op: "like", value: options.seriesName, clause })
   }
 
   if (input?.diameterMm != null) {
     if (isPrecisionMode()) {
       const eq = next(input.diameterMm)
-      where.push(`search_diameter_mm = ${eq}`)
+      const clause = `search_diameter_mm = ${eq}`
+      where.push(clause)
+      appliedClauses.push({ source: "input", field: "diameterMm", op: "eq", value: String(input.diameterMm), clause })
     } else {
       const min = next(input.diameterMm - 2)
       const max = next(input.diameterMm + 2)
-      where.push(`search_diameter_mm IS NOT NULL AND search_diameter_mm BETWEEN ${min} AND ${max}`)
+      const clause = `search_diameter_mm IS NOT NULL AND search_diameter_mm BETWEEN ${min} AND ${max}`
+      where.push(clause)
+      appliedClauses.push({ source: "input", field: "diameterMm", op: "between", value: String(input.diameterMm), clause })
     }
   }
 
@@ -829,13 +873,45 @@ export function buildQueryOptions(options: ProductSearchOptions): { where: strin
       }
     }
     // input에서 이미 처리한 필드는 filter DB clause 생략 (중복 방지)
-    if (inputHandledFields.has(filter.field) || inputHandledFields.has(getFilterFieldDefinition(filter.field)?.canonicalField ?? "")) continue
+    if (inputHandledFields.has(filter.field) || inputHandledFields.has(getFilterFieldDefinition(filter.field)?.canonicalField ?? "")) {
+      skippedFilters.push({
+        field: filter.field,
+        op: filter.op,
+        value: formatTraceValue(filter.rawValue ?? filter.value),
+        reason: "handled_by_input",
+      })
+      continue
+    }
     const clause = buildDbWhereClauseForFilter(filter, next)
-    if (clause) where.push(clause)
+    if (clause) {
+      where.push(clause)
+      appliedClauses.push({
+        source: "filter",
+        field: filter.field,
+        op: filter.op,
+        value: formatTraceValue(filter.rawValue ?? filter.value),
+        clause,
+      })
+    } else {
+      droppedFilters.push({
+        field: filter.field,
+        op: filter.op,
+        value: formatTraceValue(filter.rawValue ?? filter.value),
+        reason: "no_db_clause",
+      })
+    }
   }
   if (materialTags.size > 0) {
     const param = next([...materialTags])
-    where.push(`COALESCE(material_tags, ARRAY[]::text[]) && ${param}::text[]`)
+    const clause = `COALESCE(material_tags, ARRAY[]::text[]) && ${param}::text[]`
+    where.push(clause)
+    appliedClauses.push({
+      source: "derived",
+      field: "materialTag",
+      op: "overlap",
+      value: [...materialTags].join(","),
+      clause,
+    })
   }
 
   if (input?.country && input.country !== "ALL") {
@@ -844,14 +920,18 @@ export function buildQueryOptions(options: ProductSearchOptions): { where: strin
     const codes = input.country.split(",").map(c => c.trim().toUpperCase()).filter(Boolean)
     if (codes.length > 0) {
       const param = next(codes)
-      where.push(`COALESCE(country_codes, ARRAY[]::text[]) && ${param}::text[]`)
+      const clause = `COALESCE(country_codes, ARRAY[]::text[]) && ${param}::text[]`
+      where.push(clause)
+      appliedClauses.push({ source: "input", field: "country", op: "overlap", value: codes.join(","), clause })
     }
   }
 
   const requestedToolFamily = resolveRequestedToolFamilyInput(input?.toolType)
   if (requestedToolFamily) {
     const categoryParam = next(requestedToolFamily)
-    where.push(`LOWER(BTRIM(COALESCE(edp_root_category, ''))) = LOWER(BTRIM(${categoryParam}))`)
+    const clause = `LOWER(BTRIM(COALESCE(edp_root_category, ''))) = LOWER(BTRIM(${categoryParam}))`
+    where.push(clause)
+    appliedClauses.push({ source: "input", field: "toolType", op: "eq", value: requestedToolFamily, clause })
   }
 
   // operationType은 application_shape LIKE 필터로 잡으면 DB ground truth와
@@ -864,13 +944,26 @@ export function buildQueryOptions(options: ProductSearchOptions): { where: strin
         const param = next(`%${shape.toLowerCase()}%`)
         clauses.push(`LOWER(COALESCE(series_application_shape, '')) LIKE ${param}`)
       }
-      where.push(`(${clauses.join(" OR ")})`)
+      const clause = `(${clauses.join(" OR ")})`
+      where.push(clause)
+      appliedClauses.push({ source: "input", field: "operationType", op: "like", value: operationShapeTexts.join(","), clause })
     }
   }
 
   const limit = typeof options.limit === "number" && options.limit > 0 ? options.limit : undefined
   const offset = typeof options.offset === "number" && options.offset > 0 ? options.offset : 0
-  return { where, values, limit, offset }
+  return {
+    where,
+    values,
+    limit,
+    offset,
+    debugPlan: {
+      appliedClauses,
+      skippedFilters,
+      droppedFilters,
+      finalWhereClauses: [...where],
+    },
+  }
 }
 
 function buildPagedProductQueryBase(where: string[]): string {
@@ -1073,7 +1166,7 @@ async function queryProductsPageFromDatabaseUncached(options: ProductSearchOptio
     inputKeys: options.input ? Object.keys(options.input).filter(key => options.input?.[key as keyof typeof options.input] != null) : [],
     filterCount: options.filters?.length ?? 0,
   })
-  const { where, values, limit, offset } = buildQueryOptions(options)
+  const { where, values, limit, offset, debugPlan } = buildQueryOptions(options)
   const queryBase = buildPagedProductQueryBase(where)
   const countQuery = `
     ${queryBase}
@@ -1106,6 +1199,15 @@ async function queryProductsPageFromDatabaseUncached(options: ProductSearchOptio
   const mapped = result.rows
     .map(mapRowToProduct)
     .filter(product => !!product.normalizedCode)
+
+  traceRecommendation("db.product.queryProductsPageFromDatabase:plan", {
+    operation: "queryProductsPageFromDatabase",
+    ...debugPlan,
+    totalCount,
+    pageCount: mapped.length,
+    limit,
+    offset,
+  })
 
   const durationMs = Date.now() - startedAt
   if (shouldLogTimings()) {
@@ -1195,7 +1297,7 @@ async function queryProductsFromDatabaseUncached(options: ProductSearchOptions =
     inputKeys: options.input ? Object.keys(options.input).filter(key => options.input?.[key as keyof typeof options.input] != null) : [],
     filterCount: options.filters?.length ?? 0,
   })
-  const { where, values, limit, offset } = buildQueryOptions(options)
+  const { where, values, limit, offset, debugPlan } = buildQueryOptions(options)
   const dataQuery = buildProductDataQuery(options.input, where, values, limit, offset)
 
   const startedAt = Date.now()
@@ -1213,6 +1315,14 @@ async function queryProductsFromDatabaseUncached(options: ProductSearchOptions =
   const mapped = result.rows
     .map(mapRowToProduct)
     .filter(product => !!product.normalizedCode)
+
+  traceRecommendation("db.product.queryProductsFromDatabase:plan", {
+    operation: "queryProductsFromDatabase",
+    ...debugPlan,
+    productCount: mapped.length,
+    limit,
+    offset,
+  })
 
   if (shouldLogTimings()) {
     console.log(

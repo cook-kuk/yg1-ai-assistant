@@ -1,0 +1,1033 @@
+{
+  "at": "2026-04-11T23:33:21.097Z",
+  "api": "http://127.0.0.1:3105/api/recommend",
+  "group": 0,
+  "results": [
+    {
+      "id": "P1",
+      "name": "small-talk: '너 이름은?' must not apply brand",
+      "pass": true,
+      "passCount": 2,
+      "failCount": 0,
+      "elapsed": 14653,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀 추천해주세요.",
+          "pass": true,
+          "elapsed": 8550,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "machiningCategory=Milling",
+          "candidateCount": 500,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "너 이름은?",
+          "pass": true,
+          "elapsed": 6103,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "machiningCategory=Milling",
+          "candidateCount": 500,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "P2",
+      "name": "'안녕하세요' must not apply any categorical filter",
+      "pass": true,
+      "passCount": 2,
+      "failCount": 0,
+      "elapsed": 21313,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "탄소강 10mm 엔드밀 추천",
+          "pass": true,
+          "elapsed": 8593,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "diameterMm=10mm, workPieceName=Carbon Steels, machiningCategory=Milling",
+          "candidateCount": 148,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "안녕하세요",
+          "pass": true,
+          "elapsed": 12720,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "diameterMm=10mm, workPieceName=Carbon Steels, machiningCategory=Milling",
+          "candidateCount": 148,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "P3",
+      "name": "'고마워' mid-flow must preserve filters",
+      "pass": true,
+      "passCount": 3,
+      "failCount": 0,
+      "elapsed": 24570,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "스테인리스 8mm 엔드밀",
+          "pass": true,
+          "elapsed": 8674,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "diameterMm=8mm, workPieceName=Stainless Steels, machiningCategory=Milling",
+          "candidateCount": 145,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "Square",
+          "pass": true,
+          "elapsed": 5571,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "diameterMm=8mm, workPieceName=Stainless Steels, machiningCategory=Milling, toolSubtype=Square",
+          "candidateCount": 124,
+          "error": null
+        },
+        {
+          "turn": 3,
+          "user": "고마워",
+          "pass": true,
+          "elapsed": 10325,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "diameterMm=8mm, workPieceName=Stainless Steels, machiningCategory=Milling, toolSubtype=Square",
+          "candidateCount": 124,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "P4",
+      "name": "'당신 누구야' must not apply country=Korea",
+      "pass": true,
+      "passCount": 2,
+      "failCount": 0,
+      "elapsed": 27101,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀 추천해주세요.",
+          "pass": true,
+          "elapsed": 8559,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "machiningCategory=Milling",
+          "candidateCount": 500,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "당신 누구야",
+          "pass": true,
+          "elapsed": 18542,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "machiningCategory=Milling",
+          "candidateCount": 500,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "P5",
+      "name": "ghost X1-EH brand from minimal request",
+      "pass": true,
+      "passCount": 1,
+      "failCount": 0,
+      "elapsed": 5698,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀 하나 추천해줘",
+          "pass": true,
+          "elapsed": 5698,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "machiningCategory=Milling",
+          "candidateCount": 500,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "I1",
+      "name": "'추천해줘' must NOT add new filter (must show)",
+      "pass": true,
+      "passCount": 3,
+      "failCount": 0,
+      "elapsed": 20628,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀 추천",
+          "pass": true,
+          "elapsed": 7031,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "machiningCategory=Milling",
+          "candidateCount": 165,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "Square",
+          "pass": true,
+          "elapsed": 6541,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "machiningCategory=Milling, toolSubtype=Square",
+          "candidateCount": 137,
+          "error": null
+        },
+        {
+          "turn": 3,
+          "user": "오호 추천해줘",
+          "pass": true,
+          "elapsed": 7056,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "machiningCategory=Milling, toolSubtype=Square",
+          "candidateCount": 137,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "I2",
+      "name": "real feedback: 다 필요없고 알루미늄 3날 corner radius",
+      "pass": true,
+      "passCount": 2,
+      "failCount": 0,
+      "elapsed": 14895,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀 추천",
+          "pass": true,
+          "elapsed": 5190,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "machiningCategory=Milling",
+          "candidateCount": 160,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "다 필요없고 알루미늄 가공용으로 3날짜리 Corner radius",
+          "pass": true,
+          "elapsed": 9705,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "cornerRadiusMm=3mm, fluteCount=3날, workPieceName=알루미늄, toolSubtype=Radius",
+          "candidateCount": 0,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "I3",
+      "name": "real feedback: corner radius → square 정정",
+      "pass": true,
+      "passCount": 3,
+      "failCount": 0,
+      "elapsed": 22110,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀 추천",
+          "pass": true,
+          "elapsed": 7120,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "machiningCategory=Milling",
+          "candidateCount": 165,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "Corner Radius",
+          "pass": true,
+          "elapsed": 8695,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "machiningCategory=Milling, toolSubtype=Radius, cornerRadiusMm=상관없음[skip]",
+          "candidateCount": 163,
+          "error": null
+        },
+        {
+          "turn": 3,
+          "user": "음 죄송해요 corner radius 말고 square로 다시해주세요",
+          "pass": true,
+          "elapsed": 6295,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "machiningCategory=Milling, cornerRadiusMm=상관없음[skip], toolSubtype=Square",
+          "candidateCount": 137,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "I4",
+      "name": "Square → 4날 → '상관없음' must skip",
+      "pass": true,
+      "passCount": 4,
+      "failCount": 0,
+      "elapsed": 22211,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀",
+          "pass": true,
+          "elapsed": 6274,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "machiningCategory=Milling",
+          "candidateCount": 151,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "Square",
+          "pass": true,
+          "elapsed": 6854,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "machiningCategory=Milling, toolSubtype=Square",
+          "candidateCount": 134,
+          "error": null
+        },
+        {
+          "turn": 3,
+          "user": "4날",
+          "pass": true,
+          "elapsed": 6918,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "machiningCategory=Milling, toolSubtype=Square, fluteCount=4날",
+          "candidateCount": 96,
+          "error": null
+        },
+        {
+          "turn": 4,
+          "user": "상관없음",
+          "pass": true,
+          "elapsed": 2165,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "machiningCategory=Milling, toolSubtype=Square, fluteCount=4날",
+          "candidateCount": 96,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "I5",
+      "name": "real feedback: 제품 비교 질문 (필터 박지 말 것)",
+      "pass": true,
+      "passCount": 3,
+      "failCount": 0,
+      "elapsed": 19802,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "초내열합금 10mm 엔드밀",
+          "pass": true,
+          "elapsed": 6324,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "diameterMm=10mm, workPieceName=Titanium, machiningCategory=Milling",
+          "candidateCount": 153,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "Square",
+          "pass": true,
+          "elapsed": 5715,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "diameterMm=10mm, workPieceName=Titanium, machiningCategory=Milling, toolSubtype=Square",
+          "candidateCount": 68,
+          "error": null
+        },
+        {
+          "turn": 3,
+          "user": "GMG55100 이랑 GMG40100의 차이가 뭐야?",
+          "pass": true,
+          "elapsed": 7763,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "diameterMm=10mm, workPieceName=Titanium, machiningCategory=Milling, toolSubtype=Square",
+          "candidateCount": 68,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "B1",
+      "name": "real feedback: Tank-power 브랜드 설명",
+      "pass": true,
+      "passCount": 2,
+      "failCount": 0,
+      "elapsed": 14633,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "알루미늄 10mm 엔드밀",
+          "pass": true,
+          "elapsed": 7401,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "diameterMm=10mm, workPieceName=알루미늄, machiningCategory=Milling",
+          "candidateCount": 155,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "Tank-power 브랜드에 대해서 설명해줘",
+          "pass": true,
+          "elapsed": 7232,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "diameterMm=10mm, workPieceName=알루미늄, machiningCategory=Milling, brand=TANK-POWER",
+          "candidateCount": 0,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "B2",
+      "name": "real feedback: CRX-S 브랜드 소개",
+      "pass": true,
+      "passCount": 2,
+      "failCount": 0,
+      "elapsed": 12812,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀",
+          "pass": true,
+          "elapsed": 6205,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "machiningCategory=Milling",
+          "candidateCount": 164,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "CRX s 브랜드도 소개해주세요",
+          "pass": true,
+          "elapsed": 6607,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "machiningCategory=Milling, brand=CRX S",
+          "candidateCount": 6,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "B3",
+      "name": "real feedback: Alu-power 브랜드 소개",
+      "pass": true,
+      "passCount": 2,
+      "failCount": 0,
+      "elapsed": 12891,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀",
+          "pass": true,
+          "elapsed": 6482,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "machiningCategory=Milling",
+          "candidateCount": 164,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "Alu-power 브랜드 소개부탁",
+          "pass": true,
+          "elapsed": 6409,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "machiningCategory=Milling, brand=ALU-POWER",
+          "candidateCount": 23,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "B4",
+      "name": "real feedback: 구리요 mid-flow material 변경",
+      "pass": true,
+      "passCount": 2,
+      "failCount": 0,
+      "elapsed": 14145,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "알루미늄 엔드밀",
+          "pass": true,
+          "elapsed": 6001,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "workPieceName=알루미늄, machiningCategory=Milling",
+          "candidateCount": 155,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "구리요",
+          "pass": true,
+          "elapsed": 8144,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "machiningCategory=Milling, material=구리, workPieceName=구리[includes]",
+          "candidateCount": 5,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "B5",
+      "name": "legit brand: ONLY ONE 명시 → 적용 OK",
+      "pass": true,
+      "passCount": 1,
+      "failCount": 0,
+      "elapsed": 5232,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "ONLY ONE 브랜드만 보여줘",
+          "pass": true,
+          "elapsed": 5232,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "brand=ONLY ONE",
+          "candidateCount": 275,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "R1",
+      "name": "between: '직경 8~12mm'",
+      "pass": true,
+      "passCount": 2,
+      "failCount": 0,
+      "elapsed": 13706,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "탄소강 엔드밀",
+          "pass": true,
+          "elapsed": 7148,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "workPieceName=Carbon Steels, machiningCategory=Milling",
+          "candidateCount": 500,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "직경 8~12mm 사이",
+          "pass": true,
+          "elapsed": 6558,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "workPieceName=Carbon Steels, machiningCategory=Milling, diameterMm=8mm, 12mm[between]",
+          "candidateCount": 500,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "R2",
+      "name": "gte: '전체 길이 100mm 이상'",
+      "pass": true,
+      "passCount": 2,
+      "failCount": 0,
+      "elapsed": 14737,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "탄소강 10mm 엔드밀",
+          "pass": true,
+          "elapsed": 6240,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "diameterMm=10mm, workPieceName=Carbon Steels, machiningCategory=Milling",
+          "candidateCount": 148,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "전체 길이 100mm 이상",
+          "pass": true,
+          "elapsed": 8497,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "diameterMm=10mm, workPieceName=Carbon Steels, machiningCategory=Milling, overallLengthMm=100mm[gte]",
+          "candidateCount": 157,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "R3",
+      "name": "neq: 'Y-Coating 빼고'",
+      "pass": true,
+      "passCount": 2,
+      "failCount": 0,
+      "elapsed": 13527,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "초내열합금 10mm 엔드밀",
+          "pass": true,
+          "elapsed": 6503,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "diameterMm=10mm, workPieceName=Titanium, machiningCategory=Milling",
+          "candidateCount": 153,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "Y-Coating 빼고",
+          "pass": true,
+          "elapsed": 7024,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "diameterMm=10mm, workPieceName=Titanium, machiningCategory=Milling, coating=AlCrN 제외[neq]",
+          "candidateCount": 74,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "R4",
+      "name": "stockThreshold: '재고 50개 이상'",
+      "pass": true,
+      "passCount": 3,
+      "failCount": 0,
+      "elapsed": 20573,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "탄소강 10mm 엔드밀",
+          "pass": true,
+          "elapsed": 6348,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "diameterMm=10mm, workPieceName=Carbon Steels, machiningCategory=Milling",
+          "candidateCount": 148,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "Square",
+          "pass": true,
+          "elapsed": 6934,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "diameterMm=10mm, workPieceName=Carbon Steels, machiningCategory=Milling, toolSubtype=Square",
+          "candidateCount": 125,
+          "error": null
+        },
+        {
+          "turn": 3,
+          "user": "재고 50개 이상만 보여줘",
+          "pass": true,
+          "elapsed": 7291,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "diameterMm=10mm, workPieceName=Carbon Steels, machiningCategory=Milling, toolSubtype=Square, stockStatus=50[gte]",
+          "candidateCount": 125,
+          "error": null
+        }
+      ]
+    },
+    {
+      "id": "R5",
+      "name": "go_back: '이전 단계'",
+      "pass": true,
+      "passCount": 4,
+      "failCount": 0,
+      "elapsed": 25851,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "탄소강 10mm 엔드밀",
+          "pass": true,
+          "elapsed": 6645,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "diameterMm=10mm, workPieceName=Carbon Steels, machiningCategory=Milling",
+          "candidateCount": 148,
+          "error": null
+        },
+        {
+          "turn": 2,
+          "user": "Square",
+          "pass": true,
+          "elapsed": 5856,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "diameterMm=10mm, workPieceName=Carbon Steels, machiningCategory=Milling, toolSubtype=Square",
+          "candidateCount": 125,
+          "error": null
+        },
+        {
+          "turn": 3,
+          "user": "4날",
+          "pass": true,
+          "elapsed": 6221,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "diameterMm=10mm, workPieceName=Carbon Steels, machiningCategory=Milling, toolSubtype=Square, fluteCount=4날",
+          "candidateCount": 130,
+          "error": null
+        },
+        {
+          "turn": 4,
+          "user": "이전 단계",
+          "pass": true,
+          "elapsed": 7129,
+          "checks": [
+            {
+              "pass": true
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "diameterMm=10mm, workPieceName=Carbon Steels, machiningCategory=Milling, toolSubtype=Square",
+          "candidateCount": 125,
+          "error": null
+        }
+      ]
+    }
+  ]
+}

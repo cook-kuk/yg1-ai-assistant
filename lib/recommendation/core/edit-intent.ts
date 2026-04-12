@@ -19,6 +19,7 @@ import type { AppliedFilter } from "@/lib/types/exploration"
 export type EditIntent =
   | { type: "replace_field"; field: string; oldValue?: string; newValue: string }
   | { type: "exclude_field"; field: string; value: string }
+  | { type: "skip_field"; field: string }
   | { type: "clear_field"; field: string }
   | { type: "go_back_then_apply"; inner: EditIntent }
   | { type: "reset_all" }
@@ -33,11 +34,17 @@ export interface EditIntentResult {
 
 /** 수정 동사/조사가 포함되어 있는지 빠르게 판별 */
 export function hasEditSignal(msg: string): boolean {
-  return EDIT_SIGNAL_RE.test(msg)
+  return EDIT_SIGNAL_RE.test(msg) || RESET_SIGNAL_RE.test(msg)
 }
 
 const EDIT_SIGNAL_RE =
-  /말고|빼고|제외|외에|아닌|않은|아니고|아니면|아니에요|아닙니다|아닌데|인데요|바꿔|바꾸|변경|교체|에서\s*\S+\s*(?:로|으로)|상관없|관계없|아무거나|뭐든|처음부터|다시\s*시작|초기화|리셋|reset|요청\s*(?:한\s*적|안\s*했|않았)|잘못/iu
+  /(?:\uB9D0\uACE0|\uBE7C\uACE0|\uC81C\uC678|\uC544\uB2CC|\uC5C6|\uC544\uB2C8\uACE0|\uC544\uB2C8\uBA74|\uC544\uB2C8\uC5D0\uC694|\uC544\uB2D9\uB2C8\uB2E4|\uC544\uB2CC\uB370\uB3C4|\uBC14\uAFD4|\uBC14\uAFB8|\uBCC0\uACBD|\uAD50\uCCB4|\uC5D0\uC11C\s*\S+\s*(?:\uB85C|\uC73C\uB85C)|\uC0C1\uAD00\s*\uC5C6(?:\uC5B4|\uC5B4\uC694|\uC74C)?|\uC544\uBB34\uAC70\uB098|\uBB50\uB4E0|\uB2E4\s*\uAD1C\uCC2E(?:\uC544|\uC544\uC694)?|\uBB34\uAD00|\uC694\uCCAD\s*(?:\uD55C\s*\uC801\s*\uC5C6)|\uC798\uBABB)/iu
+
+const RESET_SIGNAL_RE =
+  /^\s*(?:\uCC98\uC74C\uBD80\uD130\s*\uB2E4\uC2DC(?:\s*\uC2DC\uC791)?|\uB2E4\uC2DC\s*\uCC98\uC74C\uBD80\uD130|\uB2E4\uC2DC\s*\uC2DC\uC791|\uCD08\uAE30\uD654|\uB9AC\uC14B|reset)\s*[.!?~]*\s*$/iu
+
+const CLEAR_SIGNAL_RE =
+  /(?:\uC0C1\uAD00\s*\uC5C6(?:\uC5B4|\uC5B4\uC694|\uC74C)?|\uC544\uBB34\uAC70\uB098|\uBB50\uB4E0|\uB2E4\s*\uAD1C\uCC2E(?:\uC544|\uC544\uC694)?|\uBB34\uAD00)/iu
 
 // ── Field Name Patterns ──────────────────────────────────────
 // 한국어 필드 키워드 매핑은 auto-synonym 에서 자동 생성 (DB 스키마 기반).
@@ -65,6 +72,54 @@ function fieldKeysByLengthDesc(): string[] {
   return _sortedFieldKeys
 }
 
+function extractNearestFieldBeforeIndex(msg: string, untilIndex: number): string | null {
+  const lower = msg.toLowerCase()
+  let best: { field: string; index: number; length: number } | null = null
+
+  for (const key of fieldKeysByLengthDesc()) {
+    const field = resolveFieldFromKorean(key)
+    if (!field) continue
+    const normalizedKey = key.toLowerCase()
+
+    let searchFrom = 0
+    while (searchFrom < lower.length) {
+      const idx = lower.indexOf(normalizedKey, searchFrom)
+      if (idx < 0) break
+      if (idx < untilIndex && (!best || idx > best.index || (idx === best.index && normalizedKey.length > best.length))) {
+        best = { field, index: idx, length: normalizedKey.length }
+      }
+      searchFrom = idx + Math.max(1, normalizedKey.length)
+    }
+  }
+
+  return best?.field ?? null
+}
+
+function inferFieldFromTrailingSegment(segment: string): string | null {
+  const trimmed = segment.trim()
+  if (!trimmed) return null
+
+  const entities = extractEntities(trimmed)
+  const lastEntity = entities[entities.length - 1]
+  if (lastEntity?.field) return lastEntity.field
+
+  const tokens = trimmed.split(/\s+/).filter(Boolean)
+  for (let index = tokens.length - 1; index >= 0; index--) {
+    const token = tokens[index]
+    const field = extractFieldFromKorean(token) ?? inferFieldFromEntity(token)
+    if (field) return field
+  }
+
+  return null
+}
+
+function inferSkipFieldFromMessage(msg: string, signalIndex: number): string | null {
+  const beforeSignal = msg.slice(0, Math.max(0, signalIndex)).trim()
+  return extractFieldFromKorean(beforeSignal)
+    ?? extractNearestFieldBeforeIndex(msg, signalIndex)
+    ?? inferFieldFromTrailingSegment(beforeSignal)
+}
+
 // ── Core Parser ──────────────────────────────────────────────
 
 /**
@@ -81,6 +136,10 @@ export function parseEditIntent(
   if (!hasEditSignal(msg)) return null
 
   const lower = msg.toLowerCase().trim()
+
+  if (RESET_SIGNAL_RE.test(lower)) {
+    return { intent: { type: "reset_all" }, confidence: 0.95, reason: "reset signal" }
+  }
 
   // ── 0. reject_applied_filter ("X는 bug", "X 요청한 적 없", "X 잘못", "X 아닌데요") ──
   // 사용자가 잘못 적용된 필터를 항의 — 현재 필터에서 그 값을 가진 항목을 찾아 clear.
@@ -144,32 +203,15 @@ export function parseEditIntent(
     }
   }
 
-  // ── 3. clear_field ("브랜드는 상관없음", "코팅 관계없어", "소재 아무거나") ──
-  const clearMatch = lower.match(
-    /(\S+?)(?:은|는|이|가)?\s*(?:상관없|관계없|아무거나|뭐든)/u
-  )
-  if (clearMatch) {
-    const field = extractFieldFromKorean(clearMatch[1]) ?? inferFieldFromEntity(clearMatch[1])
+  // ── 3. skip_field ("브랜드는 상관없음", "코팅 관계없어", "소재 아무거나") ──
+  const clearSignal = CLEAR_SIGNAL_RE.exec(lower)
+  if (clearSignal && clearSignal.index != null) {
+    const field = inferSkipFieldFromMessage(msg, clearSignal.index)
     if (field) {
       return {
-        intent: { type: "clear_field", field },
+        intent: { type: "skip_field", field },
         confidence: 0.93,
-        reason: `clear ${field}`,
-      }
-    }
-  }
-
-  // Variant without particle: "소재 아무거나"
-  const clearMatch2 = lower.match(
-    /(\S+)\s+(?:상관없|관계없|아무거나|뭐든)/u
-  )
-  if (clearMatch2) {
-    const field = extractFieldFromKorean(clearMatch2[1]) ?? inferFieldFromEntity(clearMatch2[1])
-    if (field) {
-      return {
-        intent: { type: "clear_field", field },
-        confidence: 0.93,
-        reason: `clear ${field}`,
+        reason: `skip ${field}`,
       }
     }
   }
@@ -432,6 +474,22 @@ export function applyEditIntent(
         op: "neq",
         value: `${intent.value} 제외`,
         rawValue: intent.value,
+        appliedAt: turnCount,
+      }
+
+      return { removeIndices, addFilter, goBack: false }
+    }
+
+    case "skip_field": {
+      const removeIndices = existingFilters
+        .map((f, i) => f.field === intent.field ? i : -1)
+        .filter(i => i >= 0)
+
+      const addFilter: AppliedFilter = {
+        field: intent.field,
+        op: "skip",
+        value: "상관없음",
+        rawValue: "skip",
         appliedAt: turnCount,
       }
 

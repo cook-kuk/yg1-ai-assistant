@@ -561,19 +561,35 @@ try {
   if (prior) {
     const prev = JSON.parse(readFileSync(`test-results/${prior}`, "utf8"))
     const prevById = Object.fromEntries((prev.results ?? []).map(r => [r.id, r.grade?.total ?? 0]))
+    // Reasoning-model polish (gpt-5-mini) 은 client-side temperature 고정이 불가.
+    // 10회 실행 측정 결과 개별 케이스 run-to-run 변동폭이 Δ±3점까지 관측됨.
+    // → 개별 케이스는 Δ≥3만 신호, 진짜 signal은 aggregate avg 로 판단한다.
+    const CASE_NOISE_THRESHOLD = 3
+    const AVG_NOISE_THRESHOLD = 0.8
     const regressions = []
     const improvements = []
+    const noise = []
+    let prevAvgSum = 0, prevAvgCount = 0, nowAvgSum = 0, nowAvgCount = 0
     for (const r of results) {
       const now = r.grade?.total ?? 0
       const before = prevById[r.id]
       if (before == null) continue
-      if (now < before) regressions.push(`${r.id}: ${before}→${now}`)
-      else if (now > before) improvements.push(`${r.id}: ${before}→${now}`)
+      prevAvgSum += before; prevAvgCount += 1
+      nowAvgSum += now; nowAvgCount += 1
+      const delta = now - before
+      if (delta <= -CASE_NOISE_THRESHOLD) regressions.push(`${r.id}: ${before}→${now}`)
+      else if (delta >= CASE_NOISE_THRESHOLD) improvements.push(`${r.id}: ${before}→${now}`)
+      else if (delta !== 0) noise.push(`${r.id}: ${before}→${now} (Δ${delta > 0 ? "+" : ""}${delta})`)
     }
+    const prevAvg = prevAvgCount ? prevAvgSum / prevAvgCount : 0
+    const nowAvg = nowAvgCount ? nowAvgSum / nowAvgCount : 0
+    const avgDelta = nowAvg - prevAvg
+    const avgSignal = Math.abs(avgDelta) >= AVG_NOISE_THRESHOLD ? (avgDelta > 0 ? "📈 개선" : "📉 하락") : "➡️  변화 없음 (noise 범위)"
     console.log(`\n📈 이전 실행(${prior}) 대비:`)
-    if (improvements.length) console.log(`  ✅ 개선 ${improvements.length}개: ${improvements.join(", ")}`)
-    if (regressions.length) console.log(`  🔻 REGRESSION ${regressions.length}개: ${regressions.join(", ")}`)
-    if (!improvements.length && !regressions.length) console.log(`  ➡️  변화 없음`)
+    console.log(`  전체 avg: ${prevAvg.toFixed(2)} → ${nowAvg.toFixed(2)} (Δ${avgDelta >= 0 ? "+" : ""}${avgDelta.toFixed(2)}) — ${avgSignal}`)
+    if (improvements.length) console.log(`  ✅ 개선 ≥${CASE_NOISE_THRESHOLD}점 ${improvements.length}개: ${improvements.join(", ")}`)
+    if (regressions.length) console.log(`  🔻 REGRESSION ≥${CASE_NOISE_THRESHOLD}점 ${regressions.length}개: ${regressions.join(", ")}`)
+    if (noise.length) console.log(`  · noise (Δ<${CASE_NOISE_THRESHOLD}) ${noise.length}개: ${noise.join(", ")}`)
   }
 } catch (e) { console.warn(`regression compare skipped: ${e.message}`) }
 

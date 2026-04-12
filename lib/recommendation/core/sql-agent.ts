@@ -611,30 +611,37 @@ function validateFilters(arr: unknown[]): AgentFilter[] {
 
 // ── AgentFilter → AppliedFilter conversion ───────────────────
 
-export function buildAppliedFilterFromAgentFilter(
+export interface AppliedFilterBuildResult {
+  filter: AppliedFilter | null
+  droppedReason?: "skip_token" | "qa_pseudo_field" | "unknown_column"
+}
+
+export function buildAppliedFilterFromAgentFilterWithTrace(
   agentFilter: AgentFilter,
   turnCount: number,
-): AppliedFilter | null {
+): AppliedFilterBuildResult {
   // Skip-token guard: LLM 이 "상관없음/모름/아무거나" 같은 skip 신호를 값으로 emit 한 경우,
   // 이를 실제 필터로 적용하면 후보가 0 으로 떨어짐 (시리즈명 "상관없음" 버그). 드랍.
   if (typeof agentFilter.value === "string" && isSkipToken(agentFilter.value)) {
-    return null
+    return { filter: null, droppedReason: "skip_token" }
   }
 
   // _qa is a carrier for direct answer text — never applied as a real filter.
   // serve-engine extracts the text before calling this and drops _qa.
   if (agentFilter.field === "_qa") {
-    return null
+    return { filter: null, droppedReason: "qa_pseudo_field" }
   }
 
   // Navigation pseudo-fields
   if (NAV_FIELDS.has(agentFilter.field)) {
     return {
-      field: agentFilter.field.replace(/^_/, ""),
-      op: agentFilter.op as AppliedFilter["op"],
-      value: agentFilter.value,
-      rawValue: agentFilter.value,
-      appliedAt: turnCount,
+      filter: {
+        field: agentFilter.field.replace(/^_/, ""),
+        op: agentFilter.op as AppliedFilter["op"],
+        value: agentFilter.value,
+        rawValue: agentFilter.value,
+        appliedAt: turnCount,
+      },
     }
   }
 
@@ -677,7 +684,7 @@ export function buildAppliedFilterFromAgentFilter(
     if (isBetween) {
       ;(filter as AppliedFilter & { rawValue2?: number | string }).rawValue2 = coerceRawValue(registryField, agentFilter.value2 as string)
     }
-    return filter
+    return { filter }
   }
 
   // Not in the DB_COL_TO_FILTER_FIELD whitelist — but the LLM may still have
@@ -688,7 +695,7 @@ export function buildAppliedFilterFromAgentFilter(
   const colMeta = schema?.columns.find(c => c.column_name === agentFilter.field)
   if (!colMeta) {
     console.warn(`[sql-agent] dropping filter on unknown column: ${agentFilter.field}`)
-    return null
+    return { filter: null, droppedReason: "unknown_column" }
   }
 
   const isNumericColumn = /int|numeric|real|double|float|decimal/i.test(colMeta.data_type)
@@ -709,7 +716,14 @@ export function buildAppliedFilterFromAgentFilter(
   if (isBetween) {
     filter.rawValue2 = isNumericColumn ? coerceNumeric(agentFilter.value2 as string) : (agentFilter.value2 as string)
   }
-  return filter
+  return { filter }
+}
+
+export function buildAppliedFilterFromAgentFilter(
+  agentFilter: AgentFilter,
+  turnCount: number,
+): AppliedFilter | null {
+  return buildAppliedFilterFromAgentFilterWithTrace(agentFilter, turnCount).filter
 }
 
 function coerceNumeric(value: string): number | string {

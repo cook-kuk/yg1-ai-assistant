@@ -1,0 +1,310 @@
+{
+  "timestamp": "2026-04-11T10:07:39.004Z",
+  "results": [
+    {
+      "id": "S01",
+      "input": "스테인리스 4날 10mm 추천해줘",
+      "ms": 13129,
+      "candidateCount": 148,
+      "filterCount": 3,
+      "appliedFilters": [
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "4날",
+          "rawValue": 4,
+          "appliedAt": 0
+        },
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "10mm",
+          "rawValue": 10,
+          "appliedAt": 0
+        },
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Stainless Steels",
+          "rawValue": "Stainless Steels",
+          "appliedAt": 0
+        }
+      ],
+      "responsePreview": "스테인리스 4날 10mm로 좁혔더니 148개 나왔습니다. 상위에 SUS-CUT 시리즈가 Y-Coating으로 올라왔는데, 이 코팅은 스테인리스 가공경화층을 억제해서 날끝 수명이 길",
+      "cardPreview": " |  | [추천 제품 카드 20개 중 상위 5개] | 1. EMD9210030 (SUS-CUT for Korean Market, EMD92, Ø10mm, 4날, Y-Coating, M) | 2. EMD9210010 (SUS-CUT for Korean Market, EMD92, Ø10mm, 4날, Y-Coating, M) | 3. EMD92100 (SUS-CUT for Ko",
+      "grade": {
+        "accuracy": 5,
+        "naturalness": 4,
+        "insight": 4,
+        "length_fit": 5,
+        "context": 5,
+        "total": 23,
+        "issues": [],
+        "suggestion": "추천 제품 카드에 대한 간단한 설명 추가"
+      },
+      "error": null
+    },
+    {
+      "id": "S02",
+      "input": "직경 10mm 이상만",
+      "ms": 10409,
+      "candidateCount": 500,
+      "filterCount": 1,
+      "appliedFilters": [
+        {
+          "field": "diameterMm",
+          "op": "gte",
+          "value": "10mm",
+          "rawValue": 10,
+          "appliedAt": 0
+        }
+      ],
+      "responsePreview": "직경 10mm 이상으로 좁혔더니 500개 나왔습니다. 상위에 CE7A63 시리즈가 TiCN 코팅에 6날이라 탄소강·합금강 고이송에 강하네요. 직경은 12mm(48개)·10mm(44",
+      "cardPreview": " |  | [추천 제품 카드 20개 중 상위 5개] | 1. CE7A63500 (GENERAL HSS, CE7A63, Ø50mm, 6날, TiCN, P) | 2. CE7A63450 (GENERAL HSS, CE7A63, Ø45mm, 6날, TiCN, P) | 3. CE7A63390 (GENERAL HSS, CE7A63, Ø39mm, 6날, TiCN, P) | 4. CE7A633",
+      "grade": {
+        "accuracy": 4,
+        "naturalness": 4,
+        "insight": 3,
+        "length_fit": 4,
+        "context": 5,
+        "total": 20,
+        "issues": [
+          "직경 10mm 이상이라는 조건을 정확히 반영하지 못함",
+          "추천 제품 중 일부가 10mm 미만임"
+        ],
+        "suggestion": "직경 10mm 이상인 제품만 추천하도록 필터링을 강화하고, 유저가 원하는 직경에 대한 질문을 더 명확히 할 것."
+      },
+      "error": null
+    },
+    {
+      "id": "S03",
+      "input": "CRX S 빼고 추천해줘",
+      "ms": 13125,
+      "candidateCount": 64438,
+      "filterCount": 1,
+      "appliedFilters": [
+        {
+          "field": "brand",
+          "op": "neq",
+          "value": "CRX S",
+          "rawValue": "CRX S",
+          "appliedAt": 0
+        }
+      ],
+      "responsePreview": "CRX S는 제외했습니다. 남은 후보 중 V7 PLUS A가 Y-Coating으로 고경도강·주철 건식 가공에서 내열성이 뛰어나고, 4날 설계라 이송이 안정적입니다. 직경은 어느 정",
+      "cardPreview": " |  | [추천 제품 카드 20개 중 상위 5개] | 1. UGMG54064 (V7 PLUS A, UGMG54, Ø25.4mm, 4날, Y-Coating, H/K/M) | 2. UGMG54048 (V7 PLUS A, UGMG54, Ø76.2mm, 4날, Y-Coating, H/K/M) | 3. UGMG53S940 (V7 PLUS A, UGMG53, Ø25.4mm, 4날, ",
+      "grade": {
+        "accuracy": 5,
+        "naturalness": 4,
+        "insight": 4,
+        "length_fit": 5,
+        "context": 5,
+        "total": 23,
+        "issues": [],
+        "suggestion": "AI 응답이 자연스러움을 더 높이기 위해서는 대화체로 조금 더 부드럽게 표현할 수 있습니다."
+      },
+      "error": null
+    },
+    {
+      "id": "S04",
+      "input": "헬릭스가 뭐야?",
+      "ms": 24081,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "appliedFilters": [],
+      "responsePreview": "절삭공구에서 **헬릭스(Helix)**는 엔드밀 날의 **나선 비틀림 각도**를 뜻합니다. 30도 표준 헬릭스는 범용이고, 45도 이상 고(高)헬릭스는 칩 배출이 빠르고 절삭력을 ",
+      "cardPreview": "",
+      "grade": {
+        "accuracy": 5,
+        "naturalness": 5,
+        "insight": 5,
+        "length_fit": 5,
+        "context": 5,
+        "total": 25,
+        "issues": [],
+        "suggestion": ""
+      },
+      "error": null
+    },
+    {
+      "id": "S05",
+      "input": "공구 수명이 너무 짧아",
+      "ms": 9202,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "appliedFilters": [],
+      "responsePreview": "공구 수명이 짧다면 원인을 먼저 파악해야 합니다. 몇 가지 확인할 점을 알려드리겠습니다.  **어떤 소재를 가공하시나요?** (예: 스테인리스, 알루미늄, 탄소강, 주철 등)  *",
+      "cardPreview": "",
+      "grade": {
+        "accuracy": 5,
+        "naturalness": 4,
+        "insight": 4,
+        "length_fit": 5,
+        "context": 5,
+        "total": 23,
+        "issues": [],
+        "suggestion": "조금 더 자연스러운 대화체로 개선하면 좋을 것 같습니다."
+      },
+      "error": null
+    },
+    {
+      "id": "S06",
+      "input": "AlCrN이랑 TiAlN 뭐가 나아? 스테인리스인데",
+      "ms": 31892,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "appliedFilters": [],
+      "responsePreview": "스테인리스 가공이라면 **AlCrN(YG-1 Y-Coating)이 더 유리**합니다. AlCrN은 내열 온도가 ~1100℃로 TiAlN(~800℃)보다 높고, Cr 산화막 형성으로",
+      "cardPreview": "",
+      "grade": {
+        "accuracy": 5,
+        "naturalness": 5,
+        "insight": 5,
+        "length_fit": 5,
+        "context": 5,
+        "total": 25,
+        "issues": [],
+        "suggestion": "특별한 개선 필요 없음"
+      },
+      "error": null
+    },
+    {
+      "id": "S07",
+      "input": "100mm 이상이면 좋겠어",
+      "ms": 8635,
+      "candidateCount": 500,
+      "filterCount": 1,
+      "appliedFilters": [
+        {
+          "field": "diameterMm",
+          "op": "gte",
+          "value": "100mm",
+          "rawValue": 100,
+          "appliedAt": 0
+        }
+      ],
+      "responsePreview": "100mm 이상으로 좁혔더니 500개가 나왔습니다. 상위에 V7 PLUS A가 Y-Coating 4날로 잡혀 있는데, 고경도강·주철 건식 가공에서 날 수명이 길게 나오는 편입니다.",
+      "cardPreview": " |  | [추천 제품 카드 20개 중 상위 5개] | 1. UGMG54040 (V7 PLUS A, UGMG54, Ø127mm, 4날, Y-Coating, H/K/M) | 2. UGMG54028 (V7 PLUS A, UGMG54, Ø177.8mm, 4날, Y-Coating, H/K/M) | 3. UGMG53S929 (V7 PLUS A, UGMG53, Ø127mm, 4날, Y",
+      "grade": {
+        "accuracy": 4,
+        "naturalness": 4,
+        "insight": 4,
+        "length_fit": 4,
+        "context": 4,
+        "total": 20,
+        "issues": [],
+        "suggestion": "날 수에 대한 추가 설명이나 선택 기준을 제공하면 더 좋을 것 같습니다."
+      },
+      "error": null
+    },
+    {
+      "id": "S08",
+      "input": "스텐인리스 4낭 10mn",
+      "ms": 11468,
+      "candidateCount": 152,
+      "filterCount": 3,
+      "appliedFilters": [
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "4날",
+          "rawValue": 4,
+          "appliedAt": 0
+        },
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "10mm",
+          "rawValue": 10,
+          "appliedAt": 0
+        },
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Stainless Steels",
+          "rawValue": "Stainless Steels",
+          "appliedAt": 0
+        }
+      ],
+      "responsePreview": "스테인리스 4날 10mm로 좁혔더니 152개 나왔습니다. 상위에 4G MILL과 V7 PLUS가 보이는데, 4G MILL은 가변 헬릭스로 채터를 억제해서 측벽 가공에 강하고 V7 ",
+      "cardPreview": " |  | [추천 제품 카드 20개 중 상위 5개] | 1. SEME71100E (4G MILL, SEME71, Ø10mm, 4날, Y-Coating, H/K/M) | 2. SEME7110035E (4G MILL, SEME71, Ø10mm, 4날, Y-Coating, H/K/M) | 3. GMG56100 (V7 PLUS, GMG56, Ø10mm, 4날, Y-Coating, ",
+      "grade": {
+        "accuracy": 5,
+        "naturalness": 4,
+        "insight": 4,
+        "length_fit": 5,
+        "context": 5,
+        "total": 23,
+        "issues": [],
+        "suggestion": "AI 응답이 자연스럽지만, 질문에 대한 추가적인 정보나 팁을 더 제공하면 좋을 것 같습니다."
+      },
+      "error": null
+    },
+    {
+      "id": "S09",
+      "input": "우리 공장에서 SUS316L 많이 하는데 괜찮은 거?",
+      "ms": 18567,
+      "candidateCount": 500,
+      "filterCount": 1,
+      "appliedFilters": [
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Stainless Steels",
+          "rawValue": "Stainless Steels",
+          "appliedAt": 0
+        }
+      ],
+      "responsePreview": "스테인리스로 좁혔더니 500개 나왔네요. 상위에 V7 PLUS A가 Y-Coating으로 내열성이 높아서 SUS316L 가공경화층 절삭에 강하고, 4날이라 이송도 빠르게 잡을 수 ",
+      "cardPreview": " |  | [추천 제품 카드 20개 중 상위 5개] | 1. UGMG54064 (V7 PLUS A, UGMG54, Ø25.4mm, 4날, Y-Coating, H/K/M) | 2. UGMG54048 (V7 PLUS A, UGMG54, Ø76.2mm, 4날, Y-Coating, H/K/M) | 3. UGMG53S940 (V7 PLUS A, UGMG53, Ø25.4mm, 4날, ",
+      "grade": {
+        "accuracy": 4,
+        "naturalness": 4,
+        "insight": 4,
+        "length_fit": 4,
+        "context": 5,
+        "total": 21,
+        "issues": [
+          "추천 제품의 정확한 명칭이 아닌 시리즈명 사용",
+          "SUS316L에 대한 추가적인 정보 부족"
+        ],
+        "suggestion": "추천 제품의 정확한 명칭을 사용하고, SUS316L 가공 시 주의해야 할 점이나 팁을 추가하면 좋겠습니다."
+      },
+      "error": null
+    },
+    {
+      "id": "S10",
+      "input": "아무거나 빨리 10mm",
+      "ms": 9993,
+      "candidateCount": 110,
+      "filterCount": 1,
+      "appliedFilters": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "10mm",
+          "rawValue": 10,
+          "appliedAt": 0
+        }
+      ],
+      "responsePreview": "10mm로 좁혔더니 110개 나왔습니다. 상위에 XSEME60이 Y-Coating 4날로 고경도강·주철 범용이라 무난하고, XSEME01도 같은 스펙으로 날 길이만 다릅니다. 주로",
+      "cardPreview": " |  | [추천 제품 카드 20개 중 상위 5개] | 1. XSEME60100 (i-SMART, XSEME60, Ø10mm, 4날, Y-Coating, H/K/P) | 2. XSEME01100150 (i-SMART, XSEME01, Ø10mm, 4날, Y-Coating) | 3. XSEME01100200 (i-SMART, XSEME01, Ø10mm, 4날, Y-Coatin",
+      "grade": {
+        "accuracy": 4,
+        "naturalness": 4,
+        "insight": 4,
+        "length_fit": 4,
+        "context": 5,
+        "total": 21,
+        "issues": [],
+        "suggestion": "추천 제품에 대한 간단한 설명 추가 시 더 유용할 것."
+      },
+      "error": null
+    }
+  ],
+  "summary": {
+    "total": 10,
+    "graded": 10,
+    "avgTotal": "22.4"
+  }
+}

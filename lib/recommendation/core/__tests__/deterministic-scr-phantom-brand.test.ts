@@ -35,6 +35,32 @@ describe("deterministic-scr phantom categorical guard", () => {
     expect(String(brand?.value).toLowerCase()).toContain("x-power")
   })
 
+  it("Korean transliteration still resolves to the intended brand", () => {
+    const actions = parseDeterministic("엑스파워 추천해줘")
+    const brand = actions.find(a => a.field === "brand")
+    expect(brand?.value).toBe("X-POWER")
+  })
+
+  it("indifference wording with a brand cue does not hallucinate a brand filter", () => {
+    const actions = parseDeterministic("브랜드 노상관")
+    expect(actions.find(a => a.field === "brand")).toBeUndefined()
+  })
+
+  it("SKD11 material code does not trigger a phantom brand", () => {
+    const actions = parseDeterministic("SKD11 가공")
+    expect(actions.find(a => a.field === "brand")).toBeUndefined()
+  })
+
+  it("HSK holder query does not trigger a phantom brand", () => {
+    const actions = parseDeterministic("HSK 생크")
+    expect(actions.find(a => a.field === "brand")).toBeUndefined()
+  })
+
+  it("small-talk question does not trigger a phantom brand", () => {
+    const actions = parseDeterministic("당신 누구야")
+    expect(actions.find(a => a.field === "brand")).toBeUndefined()
+  })
+
   // Word-boundary guard: brand value that only appears as the prefix of a
   // longer alphanumeric token (i.e. inside a product code) is NOT a real
   // mention and must be dropped. Reproduces the I5 failure where asking

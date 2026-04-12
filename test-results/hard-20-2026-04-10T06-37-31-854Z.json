@@ -1,0 +1,590 @@
+{
+  "at": "2026-04-10T06:37:31.865Z",
+  "api": "http://20.119.98.136:3000/api/recommend",
+  "group": 0,
+  "results": [
+    {
+      "id": "P1",
+      "name": "small-talk: '너 이름은?' must not apply brand",
+      "pass": false,
+      "passCount": 0,
+      "failCount": 1,
+      "elapsed": 120022,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀 추천해주세요.",
+          "pass": false,
+          "elapsed": 120022,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: This operation was aborted"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "This operation was aborted"
+        }
+      ]
+    },
+    {
+      "id": "P2",
+      "name": "'안녕하세요' must not apply any categorical filter",
+      "pass": false,
+      "passCount": 0,
+      "failCount": 1,
+      "elapsed": 120015,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "탄소강 10mm 엔드밀 추천",
+          "pass": false,
+          "elapsed": 120015,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: This operation was aborted"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "This operation was aborted"
+        }
+      ]
+    },
+    {
+      "id": "P3",
+      "name": "'고마워' mid-flow must preserve filters",
+      "pass": false,
+      "passCount": 0,
+      "failCount": 1,
+      "elapsed": 120011,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "스테인리스 8mm 엔드밀",
+          "pass": false,
+          "elapsed": 120011,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: This operation was aborted"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "This operation was aborted"
+        }
+      ]
+    },
+    {
+      "id": "P4",
+      "name": "'당신 누구야' must not apply country=Korea",
+      "pass": false,
+      "passCount": 0,
+      "failCount": 1,
+      "elapsed": 120010,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀 추천해주세요.",
+          "pass": false,
+          "elapsed": 120009,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: This operation was aborted"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "This operation was aborted"
+        }
+      ]
+    },
+    {
+      "id": "P5",
+      "name": "ghost X1-EH brand from minimal request",
+      "pass": false,
+      "passCount": 0,
+      "failCount": 1,
+      "elapsed": 120020,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀 하나 추천해줘",
+          "pass": false,
+          "elapsed": 120020,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: This operation was aborted"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            },
+            {
+              "pass": true
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "This operation was aborted"
+        }
+      ]
+    },
+    {
+      "id": "I1",
+      "name": "'추천해줘' must NOT add new filter (must show)",
+      "pass": false,
+      "passCount": 0,
+      "failCount": 1,
+      "elapsed": 120018,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀 추천",
+          "pass": false,
+          "elapsed": 120018,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: This operation was aborted"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "This operation was aborted"
+        }
+      ]
+    },
+    {
+      "id": "I2",
+      "name": "real feedback: 다 필요없고 알루미늄 3날 corner radius",
+      "pass": false,
+      "passCount": 0,
+      "failCount": 1,
+      "elapsed": 120006,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀 추천",
+          "pass": false,
+          "elapsed": 120005,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: This operation was aborted"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "This operation was aborted"
+        }
+      ]
+    },
+    {
+      "id": "I3",
+      "name": "real feedback: corner radius → square 정정",
+      "pass": false,
+      "passCount": 0,
+      "failCount": 1,
+      "elapsed": 120006,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀 추천",
+          "pass": false,
+          "elapsed": 120005,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: This operation was aborted"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "This operation was aborted"
+        }
+      ]
+    },
+    {
+      "id": "I4",
+      "name": "Square → 4날 → '상관없음' must skip",
+      "pass": false,
+      "passCount": 0,
+      "failCount": 1,
+      "elapsed": 120009,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀",
+          "pass": false,
+          "elapsed": 120009,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: This operation was aborted"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "This operation was aborted"
+        }
+      ]
+    },
+    {
+      "id": "I5",
+      "name": "real feedback: 제품 비교 질문 (필터 박지 말 것)",
+      "pass": false,
+      "passCount": 0,
+      "failCount": 1,
+      "elapsed": 120007,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "초내열합금 10mm 엔드밀",
+          "pass": false,
+          "elapsed": 120007,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: This operation was aborted"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "This operation was aborted"
+        }
+      ]
+    },
+    {
+      "id": "B1",
+      "name": "real feedback: Tank-power 브랜드 설명",
+      "pass": false,
+      "passCount": 0,
+      "failCount": 1,
+      "elapsed": 120007,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "알루미늄 10mm 엔드밀",
+          "pass": false,
+          "elapsed": 120007,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: This operation was aborted"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "This operation was aborted"
+        }
+      ]
+    },
+    {
+      "id": "B2",
+      "name": "real feedback: CRX-S 브랜드 소개",
+      "pass": false,
+      "passCount": 0,
+      "failCount": 1,
+      "elapsed": 120007,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀",
+          "pass": false,
+          "elapsed": 120007,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: This operation was aborted"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "This operation was aborted"
+        }
+      ]
+    },
+    {
+      "id": "B3",
+      "name": "real feedback: Alu-power 브랜드 소개",
+      "pass": false,
+      "passCount": 0,
+      "failCount": 1,
+      "elapsed": 120006,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "엔드밀",
+          "pass": false,
+          "elapsed": 120006,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: This operation was aborted"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "This operation was aborted"
+        }
+      ]
+    },
+    {
+      "id": "B4",
+      "name": "real feedback: 구리요 mid-flow material 변경",
+      "pass": false,
+      "passCount": 0,
+      "failCount": 1,
+      "elapsed": 120007,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "알루미늄 엔드밀",
+          "pass": false,
+          "elapsed": 120007,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: This operation was aborted"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "This operation was aborted"
+        }
+      ]
+    },
+    {
+      "id": "B5",
+      "name": "legit brand: ONLY ONE 명시 → 적용 OK",
+      "pass": false,
+      "passCount": 0,
+      "failCount": 1,
+      "elapsed": 120009,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "ONLY ONE 브랜드만 보여줘",
+          "pass": false,
+          "elapsed": 120009,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: This operation was aborted"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "This operation was aborted"
+        }
+      ]
+    },
+    {
+      "id": "R1",
+      "name": "between: '직경 8~12mm'",
+      "pass": false,
+      "passCount": 0,
+      "failCount": 1,
+      "elapsed": 120009,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "탄소강 엔드밀",
+          "pass": false,
+          "elapsed": 120009,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: This operation was aborted"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "This operation was aborted"
+        }
+      ]
+    },
+    {
+      "id": "R2",
+      "name": "gte: '전체 길이 100mm 이상'",
+      "pass": false,
+      "passCount": 0,
+      "failCount": 1,
+      "elapsed": 120009,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "탄소강 10mm 엔드밀",
+          "pass": false,
+          "elapsed": 120009,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: This operation was aborted"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "This operation was aborted"
+        }
+      ]
+    },
+    {
+      "id": "R3",
+      "name": "neq: 'Y-Coating 빼고'",
+      "pass": false,
+      "passCount": 0,
+      "failCount": 1,
+      "elapsed": 120008,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "초내열합금 10mm 엔드밀",
+          "pass": false,
+          "elapsed": 120008,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: This operation was aborted"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "This operation was aborted"
+        }
+      ]
+    },
+    {
+      "id": "R4",
+      "name": "stockThreshold: '재고 50개 이상'",
+      "pass": false,
+      "passCount": 0,
+      "failCount": 1,
+      "elapsed": 24907,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "탄소강 10mm 엔드밀",
+          "pass": false,
+          "elapsed": 24907,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: fetch failed"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "fetch failed"
+        }
+      ]
+    },
+    {
+      "id": "R5",
+      "name": "go_back: '이전 단계'",
+      "pass": false,
+      "passCount": 0,
+      "failCount": 1,
+      "elapsed": 24906,
+      "turnResults": [
+        {
+          "turn": 1,
+          "user": "탄소강 10mm 엔드밀",
+          "pass": false,
+          "elapsed": 24906,
+          "checks": [
+            {
+              "pass": false,
+              "reason": "error: fetch failed"
+            },
+            {
+              "pass": false,
+              "reason": "empty text"
+            }
+          ],
+          "filters": "",
+          "candidateCount": 0,
+          "error": "fetch failed"
+        }
+      ]
+    }
+  ]
+}

@@ -88,15 +88,17 @@ describe("DEMO S04 — replace fluteCount 2 → 4", () => {
 })
 
 describe("DEMO S05 — clear brand filter", () => {
-  it("브랜드는 상관없음 → brand 필터 모두 제거", () => {
+  it("브랜드는 상관없음 → brand 필터를 skip 으로 교체", () => {
     const base: AppliedFilter[] = [
       makeFilter("diameterMm", 10, "eq", 10),
       { field: "brand", op: "neq", value: "CRX S 제외", rawValue: "CRX S", appliedAt: 0 },
     ]
     const { filters, intentType } = applyAndGetFilters("브랜드는 상관없음", base)
-    expect(intentType).toBe("clear_field")
-    // INVARIANT: 어떤 brand 필터도 남으면 안 됨
-    expect(filters.some(f => f.field === "brand")).toBe(false)
+    expect(intentType).toBe("skip_field")
+    // INVARIANT: brand 필터는 skip 하나만 남아야 함
+    const brandFilters = filters.filter(f => f.field === "brand")
+    expect(brandFilters).toHaveLength(1)
+    expect(brandFilters[0].op).toBe("skip")
     // 다른 필터는 보존
     expect(filters.some(f => f.field === "diameterMm")).toBe(true)
   })

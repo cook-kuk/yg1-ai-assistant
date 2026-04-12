@@ -1,0 +1,325 @@
+{
+  "timestamp": "2026-04-11T06:10:06.919Z",
+  "results": [
+    {
+      "id": "S01",
+      "input": "스테인리스 4날 10mm 추천해줘",
+      "ms": 8146,
+      "candidateCount": 148,
+      "filterCount": 3,
+      "appliedFilters": [
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "4날",
+          "rawValue": 4,
+          "appliedAt": 0
+        },
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "10mm",
+          "rawValue": 10,
+          "appliedAt": 0
+        },
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Stainless Steels",
+          "rawValue": "Stainless Steels",
+          "appliedAt": 0
+        }
+      ],
+      "responsePreview": "⚠️ 현재 후보 148개 중 59%를 좁힐 수 있는 핵심 조건입니다.    공구 타입 (엔드밀/드릴/탭 등)을(를) 알려주시면 더 정확한 추천이 가능합니다.",
+      "cardPreview": " |  | [추천 제품 카드 20개 중 상위 5개] | 1. SEME71100E (4G MILL, SEME71, Ø10mm, 4날, Y-Coating, H/K/M) | 2. SEME7110035E (4G MILL, SEME71, Ø10mm, 4날, Y-Coating, H/K/M) | 3. GMG56100 (V7 PLUS, GMG56, Ø10mm, 4날, Y-Coating, ",
+      "grade": {
+        "accuracy": 4,
+        "naturalness": 3,
+        "insight": 2,
+        "length_fit": 4,
+        "context": 3,
+        "total": 16,
+        "issues": [
+          "공구 타입에 대한 추가 질문이 필요하지만, 추천 제품이 너무 기계적임",
+          "위험 경고나 전문가 팁 부족"
+        ],
+        "suggestion": "추천 제품에 대한 간단한 설명이나 사용 팁을 추가하여 자연스러움을 높이고, 공구 타입에 대한 질문을 더 부드럽게 연결할 수 있도록 개선."
+      },
+      "error": null
+    },
+    {
+      "id": "S02",
+      "input": "직경 10mm 이상만",
+      "ms": 4405,
+      "candidateCount": 315,
+      "filterCount": 1,
+      "appliedFilters": [
+        {
+          "field": "diameterMm",
+          "op": "gte",
+          "value": "10mm",
+          "rawValue": 10,
+          "appliedAt": 0
+        }
+      ],
+      "responsePreview": "⚠️ 현재 후보 315개 중 68%를 좁힐 수 있는 핵심 조건입니다.    공구 타입 (엔드밀/드릴/탭 등)을(를) 알려주시면 더 정확한 추천이 가능합니다.",
+      "cardPreview": " |  | [추천 제품 카드 20개 중 상위 5개] | 1. XSEME60100 (i-SMART, XSEME60, Ø10mm, 4날, Y-Coating, H/K/P) | 2. XSEME01100150 (i-SMART, XSEME01, Ø10mm, 4날, Y-Coating) | 3. XSEME01100200 (i-SMART, XSEME01, Ø10mm, 4날, Y-Coatin",
+      "grade": {
+        "accuracy": 4,
+        "naturalness": 3,
+        "insight": 2,
+        "length_fit": 4,
+        "context": 3,
+        "total": 16,
+        "issues": [
+          "직경 10mm 이상이라는 조건이 명확히 반영되지 않음",
+          "공구 타입에 대한 추가 질문이 필요하지만, 유저의 의도를 충분히 반영하지 못함"
+        ],
+        "suggestion": "직경 조건을 명확히 반영하고, 공구 타입에 대한 질문을 더 자연스럽게 연결하는 방식으로 개선할 수 있습니다."
+      },
+      "error": null
+    },
+    {
+      "id": "S03",
+      "input": "CRX S 빼고 추천해줘",
+      "ms": 5581,
+      "candidateCount": 500,
+      "filterCount": 1,
+      "appliedFilters": [
+        {
+          "field": "brand",
+          "op": "neq",
+          "value": "CRX S",
+          "rawValue": "CRX S",
+          "appliedAt": 0
+        }
+      ],
+      "responsePreview": "⚠️ 현재 후보 500개 중 92%를 좁힐 수 있는 핵심 조건입니다.    직경을(를) 알려주시면 더 정확한 추천이 가능합니다.",
+      "cardPreview": " |  | [추천 제품 카드 20개 중 상위 5개] | 1. CG3S600200114 (3S MILL, CG3S60, Ø2mm, 2날, T-Coating, H/P) | 2. CG3S600120204 (3S MILL, CG3S60, Ø1.2mm, 2날, T-Coating, H/P) | 3. CG3S470400210 (3S MILL, CG3S47, Ø4mm, 4날, T-Coat",
+      "grade": {
+        "accuracy": 4,
+        "naturalness": 3,
+        "insight": 2,
+        "length_fit": 4,
+        "context": 3,
+        "total": 16,
+        "issues": [
+          "직경을 물어보는 부분이 다소 기계적임",
+          "CRX S 제외 요청에 대한 명확한 반영 부족"
+        ],
+        "suggestion": "유저의 요청에 더 명확하게 응답하고, 자연스러운 대화 흐름을 유지하기 위해 추가 정보를 제공하는 것이 좋습니다."
+      },
+      "error": null
+    },
+    {
+      "id": "S04",
+      "input": "헬릭스가 뭐야?",
+      "ms": 26161,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "appliedFilters": [],
+      "responsePreview": "헬릭스(helix)는 나선 형태를 의미하는 용어로, 절삭공구에서는 공구 날의 비틀림 각도를 나타냅니다. 엔드밀이나 드릴의 날이 축을 중심으로 나선형으로 배치된 형상이죠. 헬릭스 각",
+      "cardPreview": "",
+      "grade": {
+        "accuracy": 5,
+        "naturalness": 5,
+        "insight": 5,
+        "length_fit": 5,
+        "context": 5,
+        "total": 25,
+        "issues": [],
+        "suggestion": ""
+      },
+      "error": null
+    },
+    {
+      "id": "S05",
+      "input": "공구 수명이 너무 짧아",
+      "ms": 11180,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "appliedFilters": [],
+      "responsePreview": "공구 수명이 짧다면 몇 가지 원인이 있을 수 있습니다.  **주요 원인과 해결책:**  1. **절삭 조건 과부하** - 절삭 속도나 이송이 너무 높으면 조기 마모됩니다. 제조사 ",
+      "cardPreview": "",
+      "grade": {
+        "accuracy": 5,
+        "naturalness": 4,
+        "insight": 4,
+        "length_fit": 5,
+        "context": 5,
+        "total": 23,
+        "issues": [],
+        "suggestion": "공구 추천을 위한 소재와 공구 종류를 명확히 요청하는 부분을 강조하면 더 좋을 것 같습니다."
+      },
+      "error": null
+    },
+    {
+      "id": "S06",
+      "input": "AlCrN이랑 TiAlN 뭐가 나아? 스테인리스인데",
+      "ms": 28320,
+      "candidateCount": 0,
+      "filterCount": 0,
+      "appliedFilters": [],
+      "responsePreview": "스테인리스 가공에서는 **AlCrN**이 일반적으로 더 유리합니다. AlCrN은 최대 작동온도가 약 1,100°C로 TiAlN(약 900°C)보다 내열성이 우수하고, 마모 테스트에",
+      "cardPreview": "",
+      "grade": {
+        "accuracy": 5,
+        "naturalness": 5,
+        "insight": 4,
+        "length_fit": 5,
+        "context": 5,
+        "total": 24,
+        "issues": [],
+        "suggestion": "AlCrN과 TiAlN의 비교에 대한 더 깊은 통찰력을 제공하기 위해, 각 코팅의 장단점에 대한 추가적인 설명을 포함할 수 있습니다."
+      },
+      "error": null
+    },
+    {
+      "id": "S07",
+      "input": "100mm 이상이면 좋겠어",
+      "ms": 3657,
+      "candidateCount": 154,
+      "filterCount": 1,
+      "appliedFilters": [
+        {
+          "field": "diameterMm",
+          "op": "gte",
+          "value": "100mm",
+          "rawValue": 100,
+          "appliedAt": 0
+        }
+      ],
+      "responsePreview": "⚠️ 현재 후보 154개 중 73%를 좁힐 수 있는 핵심 조건입니다.    공구 타입 (엔드밀/드릴/탭 등)을(를) 알려주시면 더 정확한 추천이 가능합니다.",
+      "cardPreview": " |  | [추천 제품 카드 20개 중 상위 5개] | 1. ML09210007 (GENERAL HSS, ML092, Ø100mm, 22날, Bright Finish, P) | 2. ML09210006 (GENERAL HSS, ML092, Ø100mm, 22날, Bright Finish, P) | 3. ML09210005 (GENERAL HSS, ML092, Ø100mm, ",
+      "grade": {
+        "accuracy": 3,
+        "naturalness": 3,
+        "insight": 2,
+        "length_fit": 4,
+        "context": 3,
+        "total": 15,
+        "issues": [
+          "직경이 100mm 이상이라는 조건이 명확히 반영되지 않음",
+          "추천 제품이 모두 Ø100mm로, 100mm 이상이 아님"
+        ],
+        "suggestion": "직경 조건을 명확히 반영하여 100mm 이상의 제품을 추천하고, 공구 타입에 대한 질문을 더 자연스럽게 연결하는 것이 좋습니다."
+      },
+      "error": null
+    },
+    {
+      "id": "S08",
+      "input": "스텐인리스 4낭 10mn",
+      "ms": 4645,
+      "candidateCount": 152,
+      "filterCount": 3,
+      "appliedFilters": [
+        {
+          "field": "fluteCount",
+          "op": "eq",
+          "value": "4날",
+          "rawValue": 4,
+          "appliedAt": 0
+        },
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "10mm",
+          "rawValue": 10,
+          "appliedAt": 0
+        },
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Stainless Steels",
+          "rawValue": "Stainless Steels",
+          "appliedAt": 0
+        }
+      ],
+      "responsePreview": "⚠️ 현재 후보 152개 중 58%를 좁힐 수 있는 핵심 조건입니다.    공구 타입 (엔드밀/드릴/탭 등)을(를) 알려주시면 더 정확한 추천이 가능합니다.",
+      "cardPreview": " |  | [추천 제품 카드 20개 중 상위 5개] | 1. SEME71100E (4G MILL, SEME71, Ø10mm, 4날, Y-Coating, H/K/M) | 2. SEME7110035E (4G MILL, SEME71, Ø10mm, 4날, Y-Coating, H/K/M) | 3. GMG56100 (V7 PLUS, GMG56, Ø10mm, 4날, Y-Coating, ",
+      "grade": {
+        "accuracy": 4,
+        "naturalness": 3,
+        "insight": 2,
+        "length_fit": 4,
+        "context": 3,
+        "total": 16,
+        "issues": [
+          "'스텐인리스'의 오타가 '스테인리스'로 수정되지 않음",
+          "공구 타입에 대한 추가 질문이 있지만, 유저의 요청에 대한 직접적인 응답이 부족함"
+        ],
+        "suggestion": "유저의 요청에 대한 직접적인 응답을 포함하고, 오타를 수정하여 더 자연스럽고 정확한 대화를 제공할 수 있도록 개선하세요."
+      },
+      "error": null
+    },
+    {
+      "id": "S09",
+      "input": "우리 공장에서 SUS316L 많이 하는데 괜찮은 거?",
+      "ms": 8705,
+      "candidateCount": 500,
+      "filterCount": 1,
+      "appliedFilters": [
+        {
+          "field": "workPieceName",
+          "op": "eq",
+          "value": "Stainless Steels",
+          "rawValue": "Stainless Steels",
+          "appliedAt": 0
+        }
+      ],
+      "responsePreview": "⚠️ 현재 후보 500개 중 56%를 좁힐 수 있는 핵심 조건입니다.    날수을(를) 알려주시면 더 정확한 추천이 가능합니다.",
+      "cardPreview": " |  | [추천 제품 카드 20개 중 상위 5개] | 1. UGMG54064 (V7 PLUS A, UGMG54, Ø25.4mm, 4날, Y-Coating, H/K/M) | 2. UGMG54048 (V7 PLUS A, UGMG54, Ø76.2mm, 4날, Y-Coating, H/K/M) | 3. UGMG53S940 (V7 PLUS A, UGMG53, Ø25.4mm, 4날, ",
+      "grade": {
+        "accuracy": 3,
+        "naturalness": 3,
+        "insight": 2,
+        "length_fit": 4,
+        "context": 2,
+        "total": 14,
+        "issues": [
+          "추천 제품이 있지만 날수에 대한 정보 요청이 부족함",
+          "SUS316L에 대한 구체적인 정보나 팁이 없음"
+        ],
+        "suggestion": "날수와 같은 추가 정보를 요청하는 대신, SUS316L에 적합한 절삭 조건이나 팁을 제공하는 것이 좋습니다."
+      },
+      "error": null
+    },
+    {
+      "id": "S10",
+      "input": "아무거나 빨리 10mm",
+      "ms": 3441,
+      "candidateCount": 110,
+      "filterCount": 1,
+      "appliedFilters": [
+        {
+          "field": "diameterMm",
+          "op": "eq",
+          "value": "10mm",
+          "rawValue": 10,
+          "appliedAt": 0
+        }
+      ],
+      "responsePreview": "⚠️ 현재 후보 110개 중 63%를 좁힐 수 있는 핵심 조건입니다.    공구 타입 (엔드밀/드릴/탭 등)을(를) 알려주시면 더 정확한 추천이 가능합니다.",
+      "cardPreview": " |  | [추천 제품 카드 20개 중 상위 5개] | 1. XSEME60100 (i-SMART, XSEME60, Ø10mm, 4날, Y-Coating, H/K/P) | 2. XSEME01100150 (i-SMART, XSEME01, Ø10mm, 4날, Y-Coating) | 3. XSEME01100200 (i-SMART, XSEME01, Ø10mm, 4날, Y-Coatin",
+      "grade": {
+        "accuracy": 3,
+        "naturalness": 3,
+        "insight": 2,
+        "length_fit": 4,
+        "context": 3,
+        "total": 15,
+        "issues": [
+          "추천 제품의 다양성이 부족함",
+          "공구 타입에 대한 질문이 다소 기계적임"
+        ],
+        "suggestion": "추천 제품의 다양성을 높이고, 공구 타입에 대한 질문을 좀 더 자연스럽게 연결해보세요."
+      },
+      "error": null
+    }
+  ],
+  "summary": {
+    "total": 10,
+    "graded": 10,
+    "avgTotal": "18.0"
+  }
+}

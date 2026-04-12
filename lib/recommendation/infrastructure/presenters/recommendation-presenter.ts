@@ -30,6 +30,7 @@ import type {
   SeriesGroup,
   UINarrowingPathEntry,
 } from "@/lib/recommendation/domain/types"
+import { findHallucinatedSeries } from "@/lib/recommendation/infrastructure/knowledge/series-validator"
 
 function toAppliedFilterDto(filter: AppliedFilter): RecommendationAppliedFilterDto {
   return {
@@ -353,8 +354,6 @@ export function buildRecommendationResponseDto(
   // knowledge JSON 기반 known-set과 대조. 텍스트 자체는 수정하지 않음.
   let finalText = params.text
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { findHallucinatedSeries } = require("@/lib/recommendation/infrastructure/knowledge/series-validator") as typeof import("@/lib/recommendation/infrastructure/knowledge/series-validator")
     const hits = findHallucinatedSeries(finalText)
     if (hits.length > 0) {
       const names = hits.map(h => h.raw).join(", ")

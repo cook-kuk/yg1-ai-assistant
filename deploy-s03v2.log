@@ -1,0 +1,87 @@
+
+========== GIT PULL ==========
+
+$ cd ~/yg1-ai-catalog-dev && git fetch origin && git reset --hard origin/main && git log --oneline -3
+remote: Enumerating objects: 6, done.[K
+remote: Counting objects:  16% (1/6)[Kremote: Counting objects:  33% (2/6)[Kremote: Counting objects:  50% (3/6)[Kremote: Counting objects:  66% (4/6)[Kremote: Counting objects:  83% (5/6)[Kremote: Counting objects: 100% (6/6)[Kremote: Counting objects: 100% (6/6), done.[K
+remote: Total 6 (delta 5), reused 6 (delta 5), pack-reused 0 (from 0)[K
+Unpacking objects:  16% (1/6)Unpacking objects:  33% (2/6)Unpacking objects:  50% (3/6)Unpacking objects:  66% (4/6)Unpacking objects:  83% (5/6)Unpacking objects: 100% (6/6)Unpacking objects: 100% (6/6), 1.12 KiB | 191.00 KiB/s, done.
+From github.com:csp-digital/yg1-ai-catalog
+   0d45d99..30a36a6  main       -> origin/main
+HEAD is now at 30a36a6 fix(retrieval): micro-brand demote for pure-neq queries
+[?1h=[33m30a36a6[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m fix(retrieval): micro-brand dem[m [33m[m[33m[m[1;36m[m[33m[m[1;32m[m[33m[m[1;31m[m[33m[m[1;31m[m[33m[mote for pure-neq queries[m
+[33m0d45d99[m perf(retrieval): unlimited DB pool for pure-negation queries[m
+[33m8bcf275[m fix(retrieval): material focus bonus for single-workpiece queries[m
+[K[?1l>
+[exit 0]
+
+========== REBUILD + START CONTAINER ==========
+
+$ echo 'cornerstp1234!@#$' | sudo -S bash -c 'cd /home/csp/yg1-ai-catalog-dev && APP_MODE=dev docker compose up --build -d app 2>&1 | tail -30'
+
+#16 [runner 4/6] COPY --from=builder /app/.next/static ./.next/static
+#16 DONE 0.3s
+
+#17 [runner 5/6] COPY --from=builder /app/public ./public
+#17 DONE 0.4s
+
+#18 [runner 6/6] COPY --from=builder /app/data ./data
+#18 DONE 0.7s
+
+#19 exporting to image
+#19 exporting layers
+#19 exporting layers 9.0s done
+#19 exporting manifest sha256:4652df7d59249453688314c19fc0177605e34c084d91d6e18c98c82b3f9ba931 0.0s done
+#19 exporting config sha256:d23f94950f615e1f5610a019db86f804a8895a26e4ea791fe3afd7cebc7140d3 0.1s done
+#19 exporting attestation manifest sha256:3314c94fb3bf3bc50f0e108b2cdb3b07f720bdf107836b2177fefd8bd32c3400
+#19 exporting attestation manifest sha256:3314c94fb3bf3bc50f0e108b2cdb3b07f720bdf107836b2177fefd8bd32c3400 0.2s done
+#19 exporting manifest list sha256:abb81dec6d5a95c846e0e5179fc29dee71199adabce9bbf6504f74d22d83d024
+#19 exporting manifest list sha256:abb81dec6d5a95c846e0e5179fc29dee71199adabce9bbf6504f74d22d83d024 0.1s done
+#19 naming to docker.io/library/yg1-ai-catalog-dev-app:latest 0.0s done
+#19 unpacking to docker.io/library/yg1-ai-catalog-dev-app:latest
+#19 unpacking to docker.io/library/yg1-ai-catalog-dev-app:latest 3.9s done
+#19 DONE 13.4s
+
+#20 resolving provenance for metadata file
+#20 DONE 0.0s
+ Image yg1-ai-catalog-dev-app Built
+ Container yg1-ai-catalog-app-dev Recreate
+ Container yg1-ai-catalog-app-dev Error response from daemon: Conflict. The container name "/7e6f35ed9a51_yg1-ai-catalog-app-dev" is already in use by container "7e8e8298b402363d181f4a919e3bcffa687c370f7bb5227485de25b7fd20a2e2". You have to remove (or rename) that container to be able to reuse that name.
+Error response from daemon: Conflict. The container name "/7e6f35ed9a51_yg1-ai-catalog-app-dev" is already in use by container "7e8e8298b402363d181f4a919e3bcffa687c370f7bb5227485de25b7fd20a2e2". You have to remove (or rename) that container to be able to reuse that name.
+[exit 0]
+
+========== WAIT FOR CONTAINER ==========
+
+$ echo 'cornerstp1234!@#$' | sudo -S bash -c 'docker ps --filter name=app-dev --format '"'"'{{.Names}}|{{.Status}}'"'"''
+yg1-ai-catalog-app-dev|Up 2 seconds
+[exit 0]
+
+$ echo 'cornerstp1234!@#$' | sudo -S bash -c 'docker ps --filter name=app-dev --format '"'"'{{.Names}}|{{.Status}}'"'"''
+yg1-ai-catalog-app-dev|Up 6 seconds
+[exit 0]
+
+$ echo 'cornerstp1234!@#$' | sudo -S bash -c 'docker ps --filter name=app-dev --format '"'"'{{.Names}}|{{.Status}}'"'"''
+yg1-ai-catalog-app-dev|Up 11 seconds
+[exit 0]
+
+$ echo 'cornerstp1234!@#$' | sudo -S bash -c 'docker ps --filter name=app-dev --format '"'"'{{.Names}}|{{.Status}}'"'"''
+yg1-ai-catalog-app-dev|Up 16 seconds
+[exit 0]
+
+$ echo 'cornerstp1234!@#$' | sudo -S bash -c 'docker ps --filter name=app-dev --format '"'"'{{.Names}}|{{.Status}}'"'"''
+yg1-ai-catalog-app-dev|Up 20 seconds
+[exit 0]
+
+$ echo 'cornerstp1234!@#$' | sudo -S bash -c 'docker ps --filter name=app-dev --format '"'"'{{.Names}}|{{.Status}}'"'"''
+yg1-ai-catalog-app-dev|Up 25 seconds
+[exit 0]
+
+========== FIX VERIFICATION ==========
+
+$ echo 'cornerstp1234!@#$' | sudo -S bash -c 'docker exec yg1-ai-catalog-app-dev grep -c '"'"'출력 전 자체 체크리스트'"'"' /app/lib/recommendation/infrastructure/llm/prompt-builder.ts 2>&1'
+1
+[exit 0]
+
+$ echo 'cornerstp1234!@#$' | sudo -S bash -c 'docker exec yg1-ai-catalog-app-dev grep -c '"'"'질문 자연스러움 필수'"'"' /app/lib/recommendation/infrastructure/engines/serve-engine-response.ts 2>&1'
+1
+[exit 0]

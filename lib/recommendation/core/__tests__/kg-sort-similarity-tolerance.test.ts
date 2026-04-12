@@ -33,6 +33,12 @@ describe("KG §9 sort", () => {
     expect(res.specPatch?.sort?.direction).toBe("desc")
   })
 
+  it('"날장 제일 긴 제품 보여줘" → sort lengthOfCutMm desc', () => {
+    const res = tryKGDecision("날장 제일 긴 제품 보여줘", null)
+    expect(res.source).toBe("kg-sort")
+    expect(res.specPatch?.sort).toEqual({ field: "lengthOfCutMm", direction: "desc" })
+  })
+
   it('"친절한 순으로" (non-sortable field) → falls through', () => {
     const res = tryKGDecision("친절한 순으로", null)
     expect(res.source).not.toBe("kg-sort")
