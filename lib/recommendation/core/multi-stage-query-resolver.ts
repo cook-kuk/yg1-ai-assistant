@@ -1393,7 +1393,10 @@ export async function resolveMultiStageQuery(
     if (hasMeaningfulResolution(stage3Result)) {
       clearResolverFailure(cacheKey)
       storeResolverCache(cacheKey, stage3Result)
-      return mergeMultiStageResults(stage1Result, materializeResult("stage3", stage3Result, args.turnCount))
+      const stage2Base = hasMeaningfulResolution(stage2Result)
+        ? mergeMultiStageResults(stage1Result, materializeResult("stage2", stage2Result, args.turnCount))
+        : stage1Result
+      return mergeMultiStageResults(stage2Base, materializeResult("stage3", stage3Result, args.turnCount))
     }
   }
 

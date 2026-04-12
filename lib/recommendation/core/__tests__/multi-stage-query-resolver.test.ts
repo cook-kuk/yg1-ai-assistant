@@ -321,6 +321,39 @@ describe("resolveMultiStageQuery", () => {
     expect(stage3Provider.complete).toHaveBeenCalledTimes(1)
   })
 
+  it("preserves Stage 2 route hints when Stage 3 returns a weaker overlay", async () => {
+    const result = await resolveMultiStageQuery({
+      message: "GMI4710055 이제품이랑 비슷한 제품을 추천해줄수 있어요?",
+      turnCount: 6,
+      currentFilters: [],
+      complexity: assessComplexity("GMI4710055 이제품이랑 비슷한 제품을 추천해줄수 있어요?"),
+      stage2Provider: makeProvider(JSON.stringify({
+        filters: [],
+        sort: null,
+        routeHint: "compare_products",
+        intent: "show_recommendation",
+        clearOtherFilters: false,
+        confidence: 0.85,
+        unresolvedTokens: ["GMI4710055"],
+        reasoning: "similarity request recognized",
+      })),
+      stage3Provider: makeProvider(JSON.stringify({
+        filters: [],
+        sort: null,
+        routeHint: "none",
+        intent: "show_recommendation",
+        clearOtherFilters: true,
+        confidence: 0.95,
+        unresolvedTokens: [],
+        reasoning: "weaker overlay without compare route hint",
+      })),
+    })
+
+    expect(result.source).toBe("stage3")
+    expect(result.routeHint).toBe("compare_products")
+    expect(result.clearOtherFilters).toBe(true)
+  })
+
   it("maps Stage 2 question route hints to answer_general intent", async () => {
     const stage2Provider = makeProvider(
       JSON.stringify({
