@@ -321,7 +321,7 @@ describe("resolveMultiStageQuery", () => {
     expect(stage3Provider.complete).toHaveBeenCalledTimes(1)
   })
 
-  it("preserves Stage 2 route hints when Stage 3 returns a weaker overlay", async () => {
+  it("does not let a weaker Stage 3 overlay override a Stage 2 compare route", async () => {
     const result = await resolveMultiStageQuery({
       message: "GMI4710055 이제품이랑 비슷한 제품을 추천해줄수 있어요?",
       turnCount: 6,
@@ -349,9 +349,75 @@ describe("resolveMultiStageQuery", () => {
       })),
     })
 
-    expect(result.source).toBe("stage3")
+    expect(result.source).toBe("stage2")
     expect(result.routeHint).toBe("compare_products")
-    expect(result.clearOtherFilters).toBe(true)
+    expect(result.clearOtherFilters).toBe(false)
+  })
+
+  it("ignores clearOtherFilters-only outputs when there is nothing to release", async () => {
+    const result = await resolveMultiStageQuery({
+      message: "GMI4710055 ?댁젣?덉씠??鍮꾩듂???쒗뭹??異붿쿇?댁쨪???덉뼱??",
+      turnCount: 6,
+      currentFilters: [],
+      complexity: assessComplexity("GMI4710055 ?댁젣?덉씠??鍮꾩듂???쒗뭹??異붿쿇?댁쨪???덉뼱??"),
+      stage2Provider: makeProvider(JSON.stringify({
+        filters: [],
+        sort: null,
+        routeHint: "none",
+        intent: "none",
+        clearOtherFilters: false,
+        confidence: 0.15,
+        unresolvedTokens: ["GMI4710055"],
+        reasoning: "still unresolved",
+      })),
+      stage3Provider: makeProvider(JSON.stringify({
+        filters: [],
+        sort: null,
+        routeHint: "none",
+        intent: "none",
+        clearOtherFilters: true,
+        confidence: 0.95,
+        unresolvedTokens: [],
+        reasoning: "no-op clear only",
+      })),
+    })
+
+    expect(result.source).toBe("clarification")
+    expect(result.clearOtherFilters).toBe(false)
+    expect(result.intent).toBe("ask_clarification")
+  })
+
+  it("passes compare_products guidance into the resolver prompt", async () => {
+    const stage2Provider = {
+      available: () => true,
+      complete: vi.fn(async (systemPrompt: string, messages: Array<{ role: string; content: string }>) => {
+        expect(systemPrompt).toContain("compare_products")
+        expect(systemPrompt).toContain("similar product")
+        expect(messages[0]?.content ?? "").toContain("GMI4710055")
+        return JSON.stringify({
+          filters: [],
+          sort: null,
+          routeHint: "compare_products",
+          clearOtherFilters: false,
+          confidence: 0.93,
+          unresolvedTokens: ["GMI4710055"],
+          reasoning: "similar product request around a specific item",
+        })
+      }),
+      completeWithTools: vi.fn(async () => ({ text: null, toolUse: null })),
+    } as unknown as LLMProvider & { complete: ReturnType<typeof vi.fn> }
+
+    const result = await resolveMultiStageQuery({
+      message: "GMI4710055 ?댁젣?덉씠??鍮꾩듂???쒗뭹??異붿쿇?댁쨪???덉뼱??",
+      turnCount: 6,
+      currentFilters: [],
+      complexity: assessComplexity("GMI4710055 ?댁젣?덉씠??鍮꾩듂???쒗뭹??異붿쿇?댁쨪???덉뼱??"),
+      stage2Provider,
+      stage3Provider: makeUnavailableProvider(),
+    })
+
+    expect(result.source).toBe("stage2")
+    expect(result.routeHint).toBe("compare_products")
   })
 
   it("maps Stage 2 question route hints to answer_general intent", async () => {

@@ -588,6 +588,25 @@ function isIntentOnlyRoutingSignal(result: {
   return result.intent === "show_recommendation" || result.intent === "continue_narrowing"
 }
 
+function sanitizeNoOpResolution(
+  result: NormalizedResolverResult | null,
+  args: ResolveMultiStageQueryArgs,
+  stage1Result: MultiStageResolverResult | null,
+): NormalizedResolverResult | null {
+  if (!result) return null
+
+  const releasableFields = new Set<string>([
+    ...args.currentFilters.map(filter => filter.field),
+    ...(stage1Result?.filters ?? []).map(filter => filter.field),
+  ])
+
+  return {
+    ...result,
+    clearOtherFilters: result.clearOtherFilters && releasableFields.size > 0,
+    removeFields: result.removeFields.filter(field => releasableFields.has(field)),
+  }
+}
+
 export function resolverProducedMeaningfulOutput(result: MultiStageResolverResult): boolean {
   return result.source !== "none" && !isIntentOnlyRoutingSignal(result) && (
     result.filters.length > 0
@@ -1139,10 +1158,11 @@ Rules:
   - ui_question: screen labels or UI statuses such as Excellent / Good / 정확매칭
   - general_question: explanatory question, concept question, or tool-domain side question
   - show_recommendation: user explicitly wants results now
-  - compare_products: explicit comparison request
+  - compare_products: explicit comparison request, or a similar-product request around a concrete item or product code
   - none: otherwise
 - If pendingField is set and the user is clearly dismissing that field, use it.
 - If a schema phonetic hint clearly matches a brand / series / material token in the user message, emit the corresponding filter instead of returning only show_recommendation.
+- If the user asks for a similar product around a concrete item or product code, prefer routeHint=compare_products even if the code itself stays unresolved.
 - Do not guess. Keep unresolved tokens instead.
 - Return JSON only.
 
@@ -1152,7 +1172,8 @@ Examples:
 {"filters":[{"field":"brand","op":"eq","value":"CRX S","rawToken":"크렉스에스"}],"sort":null,"routeHint":"none","clearOtherFilters":false,"confidence":0.9,"unresolvedTokens":[],"reasoning":"phonetic brand"}
 {"filters":[{"field":"totalStock","op":"gte","value":100,"rawToken":"재고 100개 이상"}],"sort":null,"routeHint":"none","clearOtherFilters":false,"confidence":0.9,"unresolvedTokens":[],"reasoning":"numeric inventory threshold"}
 {"filters":[],"sort":{"field":"lengthOfCutMm","direction":"desc"},"routeHint":"show_recommendation","clearOtherFilters":false,"confidence":0.95,"unresolvedTokens":[],"reasoning":"superlative sort"}
-{"filters":[],"sort":null,"routeHint":"ui_question","clearOtherFilters":false,"confidence":0.94,"unresolvedTokens":[],"reasoning":"UI label question"}`
+{"filters":[],"sort":null,"routeHint":"ui_question","clearOtherFilters":false,"confidence":0.94,"unresolvedTokens":[],"reasoning":"UI label question"}
+{"filters":[],"sort":null,"routeHint":"compare_products","clearOtherFilters":false,"confidence":0.93,"unresolvedTokens":["GMI4710055"],"reasoning":"similar product request around a specific item"}`
 
   const userPrompt = [
     `User message: ${args.message}`,
@@ -1181,7 +1202,7 @@ Decision process:
 1. Classify the user intent: filter, sort, comparison, UI question, side question, or mixed.
 2. Analyze the unresolved tokens: Korean pronunciation, slang, misspacing, shorthand, superlative, indifference, UI vocabulary.
 3. Use any schema phonetic hints only when they clearly fit the user's meaning.
-4. Map only high-confidence items to DB fields or routeHint.
+4. Map only high-confidence items to DB fields or routeHint. Similar-product requests around a concrete item should use routeHint=compare_products even when the code stays unresolved.
 5. If all other existing filters should be released, set clearOtherFilters=true.
 6. If unsure, leave filters empty and keep unresolvedTokens.
 
@@ -1374,7 +1395,11 @@ export async function resolveMultiStageQuery(
     whyEnteringStage2: stage1Result ? "stage1_partial_with_unresolved_tokens" : "stage1_no_resolution",
     stage1ResolvedTokens,
   })
-  const stage2Result = await runResolverStage("stage2", args, unresolvedTokens, null, stage1ResolvedTokens)
+  const stage2Result = sanitizeNoOpResolution(
+    await runResolverStage("stage2", args, unresolvedTokens, null, stage1ResolvedTokens),
+    args,
+    stage1Result,
+  )
 
   if (
     hasMeaningfulResolution(stage2Result)
@@ -1389,7 +1414,11 @@ export async function resolveMultiStageQuery(
 
   const stage3Needed = shouldEscalateToStage3(args, unresolvedTokens, stage2Result, failureCount)
   if (stage3Needed) {
-    const stage3Result = await runResolverStage("stage3", args, unresolvedTokens, stage2Result)
+    const stage3Result = sanitizeNoOpResolution(
+      await runResolverStage("stage3", args, unresolvedTokens, stage2Result),
+      args,
+      stage1Result,
+    )
     if (hasMeaningfulResolution(stage3Result)) {
       clearResolverFailure(cacheKey)
       storeResolverCache(cacheKey, stage3Result)
