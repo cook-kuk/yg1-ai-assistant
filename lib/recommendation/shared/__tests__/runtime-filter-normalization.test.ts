@@ -28,7 +28,7 @@ describe("normalizeRuntimeAppliedFilter", () => {
     expect(normalized).toEqual(expect.objectContaining({
       field: "brand",
       value: "ALU-CUT",
-      rawValue: "ALU-CUT",
+      rawValue: "ALU-CUT for Korean Market",
       appliedAt: 7,
     }))
   })

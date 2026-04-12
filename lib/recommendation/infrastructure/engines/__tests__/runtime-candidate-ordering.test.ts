@@ -96,4 +96,27 @@ describe("applyRuntimeCandidateOrdering", () => {
     expect(out.sortApplied).toBe(true)
     expect(out.candidates.map(candidate => candidate.product.displayCode)).toEqual(["B", "C", "A"])
   })
+
+  it("wraps compiled-only rows as scored candidates", () => {
+    const out = applyRuntimeCandidateOrdering(
+      [makeCandidate("A", 5)],
+      null,
+      {
+        rowCount: 2,
+        products: [
+          { normalizedCode: "A", displayCode: "A" } as any,
+          { normalizedCode: "Z", displayCode: "Z" } as any,
+        ],
+      },
+    )
+
+    expect(out.phaseGReplaced).toBe(true)
+    expect(out.candidates.map(candidate => candidate.product.displayCode)).toEqual(["A", "Z"])
+    expect(out.candidates[1]).toEqual(expect.objectContaining({
+      matchStatus: "approximate",
+      totalStock: null,
+      stockStatus: "unknown",
+    }))
+    expect(out.candidates[1]?.product.displayCode).toBe("Z")
+  })
 })

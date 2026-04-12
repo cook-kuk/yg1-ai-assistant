@@ -5,6 +5,22 @@ import type { ScoredProduct } from "@/lib/recommendation/domain/types"
 
 type PhaseGSnapshot = Pick<SpecExecutorResult, "products" | "rowCount">
 
+function wrapCompiledProduct(product: PhaseGSnapshot["products"][number], rank: number): ScoredProduct {
+  return {
+    product: product as unknown as ScoredProduct["product"],
+    score: Math.max(1, 100 - rank),
+    scoreBreakdown: null,
+    matchedFields: [],
+    matchStatus: "approximate",
+    inventory: [],
+    leadTimes: [],
+    evidence: [],
+    stockStatus: "unknown",
+    totalStock: null,
+    minLeadTimeDays: null,
+  }
+}
+
 export function applyRuntimeCandidateOrdering(
   candidates: ScoredProduct[],
   sort: QuerySort | null,
@@ -25,11 +41,11 @@ export function applyRuntimeCandidateOrdering(
     }
 
     const reordered: ScoredProduct[] = []
-    for (const product of phaseGCompiledResult.products) {
+    for (const [index, product] of phaseGCompiledResult.products.entries()) {
       const key = product.normalizedCode || product.displayCode || ""
       const hit = key ? originalByCode.get(key) : undefined
       if (hit) reordered.push(hit)
-      else reordered.push(product as unknown as ScoredProduct)
+      else reordered.push(wrapCompiledProduct(product, index))
     }
 
     if (reordered.length > 0) {

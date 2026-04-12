@@ -19,5 +19,20 @@ export function normalizeRuntimeAppliedFilter(
         : undefined
 
   const normalized = buildAppliedFilterFromValue(filter.field, rawValue, appliedAt, opOverride)
-  return normalized ? { ...normalized, appliedAt } : { ...filter, appliedAt }
+  if (!normalized) return { ...filter, appliedAt }
+
+  if (
+    filter.field === "brand"
+    && typeof filter.rawValue === "string"
+    && typeof normalized.value === "string"
+    && normalized.value !== filter.rawValue
+  ) {
+    return {
+      ...normalized,
+      rawValue: filter.rawValue,
+      appliedAt,
+    }
+  }
+
+  return { ...normalized, appliedAt }
 }
