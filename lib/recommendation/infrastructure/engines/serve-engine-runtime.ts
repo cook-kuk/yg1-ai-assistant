@@ -51,7 +51,7 @@ import { getDbSchemaSync, getDbSchema } from "@/lib/recommendation/core/sql-agen
 import { naturalLanguageToQuerySpec } from "@/lib/recommendation/core/query-planner"
 import { querySpecToAppliedFilters, appliedFiltersToConstraints } from "@/lib/recommendation/core/query-spec-to-filters"
 import { decidePlannerOverride } from "@/lib/recommendation/core/planner-decision"
-import { resolveMultiStageQuery } from "@/lib/recommendation/core/multi-stage-query-resolver"
+import { resolveMultiStageQuery, resolverProducedMeaningfulOutput, type MultiStageResolverResult } from "@/lib/recommendation/core/multi-stage-query-resolver"
 import { isLegacyKgHintEnabled, isLegacyKgInterpreterEnabled } from "@/lib/recommendation/core/kg-runtime-policy"
 import { logPatternMiningEntry } from "@/lib/recommendation/core/pattern-mining/logger"
 import { tryKGDecision, extractEntities, tryParseSortPhrase, type KGSpecPatch } from "@/lib/recommendation/core/knowledge-graph"
@@ -337,6 +337,42 @@ export function shouldReplayUnresolvedPendingQuestion(
   earlyAction: string | null
 ): boolean {
   return pendingReplyKind === "unresolved" && !PENDING_QUESTION_RECOVERY_ACTIONS.has(earlyAction ?? "")
+}
+
+const BARE_RECOMMEND_REQUEST_KEYS = new Set([
+  "추천해줘",
+  "추천해주세요",
+  "추천해줄래",
+  "골라줘",
+  "찾아줘",
+  "좋은거",
+  "좋은거골라줘",
+  "괜찮은거",
+  "괜찮은거골라줘",
+  "뭐가좋아",
+  "뭐가좋을까",
+])
+
+export function isBareRecommendationRequest(
+  message: string,
+  hasSessionState: boolean,
+): boolean {
+  if (hasSessionState) return false
+  const normalized = message
+    .normalize("NFKC")
+    .replace(/\s+/g, "")
+    .replace(/[!.?~]+$/g, "")
+    .trim()
+  return BARE_RECOMMEND_REQUEST_KEYS.has(normalized)
+}
+
+export function shouldBypassFirstTurnMultiStageResolver(params: {
+  message: string
+  hasEditIntent: boolean
+  hasSort: boolean
+  stageOneActionCount: number
+}): boolean {
+  return isBareRecommendationRequest(params.message, false)
 }
 
 function buildPreSearchOrchestratorResult(userMessage: string, reason: string) {
@@ -1544,6 +1580,56 @@ function buildRevisionClarificationResponse(
   })
 }
 
+function hasTerminalMultiStageResult(result: MultiStageResolverResult): boolean {
+  return resolverProducedMeaningfulOutput(result)
+}
+
+export function shouldAllowTurn0LexicalAnswerIntercept(
+  result: MultiStageResolverResult | null,
+): boolean {
+  return !result || !hasTerminalMultiStageResult(result)
+}
+
+export function shouldShortCircuitFirstTurnIntake(params: {
+  bypassResolver: boolean
+  resolverResult: MultiStageResolverResult | null
+}): boolean {
+  return params.bypassResolver || !!(params.resolverResult && hasTerminalMultiStageResult(params.resolverResult))
+}
+
+function buildActionFromMultiStageResult(
+  result: MultiStageResolverResult,
+  rawMessage: string,
+  turnCount: number,
+  fallbackFilter?: AppliedFilter | null,
+): OrchestratorAction | null {
+  switch (result.intent) {
+    case "reset_session":
+      return { type: "reset_session" }
+    case "go_back_one_step":
+      return { type: "go_back_one_step", followUpFilter: result.followUpFilter ?? undefined }
+    case "show_recommendation":
+      return { type: "show_recommendation" }
+    case "answer_general":
+      return { type: "answer_general", message: rawMessage }
+    case "continue_narrowing":
+      return {
+        type: "continue_narrowing",
+        filter: fallbackFilter ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount },
+      }
+    case "ask_clarification":
+    case "none":
+    default:
+      if (result.filters.length > 0 || result.removeFields.length > 0 || !!result.sort || result.clearOtherFilters) {
+        return {
+          type: "continue_narrowing",
+          filter: fallbackFilter ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount },
+        }
+      }
+      return null
+  }
+}
+
 export async function handleServeExploration(
   deps: ServeEngineRuntimeDependencies,
   form: ProductIntakeForm,
@@ -2006,13 +2092,52 @@ async function handleServeExplorationInner(
   // resolvedInput + empty filter list.
   let stagedSpecPatch: KGSpecPatch | null = null
   const isFirstTurnIntake = !prevState && messages.length <= 1
+  let firstTurnResolverResult: MultiStageResolverResult | null = null
+  let firstTurnResolverBypassed = false
+  if (isFirstTurnIntake && lastUserMsg) {
+    const rawMsg = lastUserMsg.text ?? ""
+    if (rawMsg) {
+      try {
+        const firstTurnEditResult = hasEditSignal(rawMsg) ? parseEditIntent(rawMsg, filters) : null
+        const firstTurnSort = tryParseSortPhrase(rawMsg)
+        const stageOneActions = parseDeterministic(rawMsg).filter(
+          action => action.type === "apply_filter" && action.field && action.value != null,
+        )
+        firstTurnResolverBypassed = shouldBypassFirstTurnMultiStageResolver({
+          message: rawMsg,
+          hasEditIntent: !!firstTurnEditResult,
+          hasSort: !!firstTurnSort,
+          stageOneActionCount: stageOneActions.length,
+        })
+        if (firstTurnResolverBypassed) {
+          console.log(`[first-turn-intake] bare recommendation request bypassed multi-stage resolver`)
+        } else {
+          firstTurnResolverResult = await resolveMultiStageQuery({
+            message: rawMsg,
+            turnCount,
+            currentFilters: filters,
+            sessionState: prevState,
+            stageOneEditIntent: firstTurnEditResult,
+            stageOneDeterministicActions: stageOneActions,
+            stageOneSort: firstTurnSort,
+            complexity: assessComplexity(rawMsg, filters.length),
+          })
+          console.log(
+            `[first-turn-intake] multi-stage source=${firstTurnResolverResult.source} intent=${firstTurnResolverResult.intent} unresolved=${firstTurnResolverResult.unresolvedTokens.join(",") || "none"}`
+          )
+        }
+      } catch (e) {
+        console.warn("[first-turn-intake] multi-stage fallback failed:", (e as Error).message)
+      }
+    }
+  }
   // Turn 0 question/compare/trouble intercept: route directly to general-chat
   // handler before the filter-spec short-circuit. Without this, messages like
   // "헬릭스가 뭐야?" / "공구 수명 짧아" / "AlCrN vs TiAlN" fall into
   // continue_narrowing with 0 filters and return a stub.
-  if (isFirstTurnIntake && lastUserMsg) {
+  if (isFirstTurnIntake && lastUserMsg && shouldAllowTurn0LexicalAnswerIntercept(firstTurnResolverResult)) {
     const rawMsg0 = lastUserMsg.text.trim()
-    const hasQ = /[?？]/.test(rawMsg0)
+    const bareRecommendationRequest = isBareRecommendationRequest(rawMsg0, false)
     const QUESTION_RE = /(뭐야|뭔데|뭐에요|뭐임|뭔가요|무엇|뜻이|의미|알려줘|알려주|설명해|왜\s|어떻게|어느\s*게|어떤\s*게\s*(더|낫|좋))/
     const COMPARE_RE = /(\bvs\.?\b|대비|차이|뭐가\s*(더|나|나아|좋)|어느\s*게\s*(더|낫|좋))/i
     // 수명 ... 짧/줄/안좋/문제/나빠 — adverbs may sit between ("수명이 너무 짧아")
@@ -2035,7 +2160,12 @@ async function handleServeExplorationInner(
     const STRONG_COMPARE_RE = /(\S+)\s*(이?랑|와|과|\bvs\.?\b)\s*(\S+).*(뭐가\s*(나|더|좋)|어느\s*게|차이|대비)/i
     const isStrongCompare = STRONG_COMPARE_RE.test(rawMsg0)
     const isSoftRec = !isStrongCompare && (SOFT_REC_RE.test(rawMsg0) || hasRecEntities)
-    const isAnswerIntent = !isSoftRec && (hasQ || QUESTION_RE.test(rawMsg0) || COMPARE_RE.test(rawMsg0) || TROUBLE_RE.test(rawMsg0)) || GREETING_RE.test(rawMsg0)
+    const isKnowledgeLikeTurn0 = QUESTION_RE.test(rawMsg0) || COMPARE_RE.test(rawMsg0) || TROUBLE_RE.test(rawMsg0)
+    const isAnswerIntent = (
+      !bareRecommendationRequest &&
+      !isSoftRec &&
+      isKnowledgeLikeTurn0
+    ) || GREETING_RE.test(rawMsg0)
     if (isAnswerIntent) {
       console.log(`[turn0-answer] question/compare/trouble pattern → answer_general: "${rawMsg0.slice(0, 60)}"`)
       // Inline proactive insights for turn0 troubleshoot/compare/question —
@@ -2089,84 +2219,72 @@ async function handleServeExplorationInner(
     }
   }
   if (isFirstTurnIntake) {
-    // Inject deterministic filters from raw user message ("10mm" → diameterMm=10)
-    // before short-circuit, so first-turn questions are properly narrowed.
-    try {
-      const rawMsg = lastUserMsg?.text ?? ""
-      if (rawMsg) {
-        const detActs = parseDeterministic(rawMsg).filter(a => a.type === "apply_filter" && a.field && a.value != null)
-        for (const a of detActs) {
-          const isBetween = a.op === "between" && a.value2 != null
-          const inputValue: string | number | Array<string | number> = isBetween
-            ? [a.value as string | number, a.value2 as string | number]
-            : (a.value as string | number)
-          const f = buildAppliedFilterFromValue(a.field!, inputValue, 0, a.op)
-          if (f) {
-            const r = replaceFieldFilter(baseInput, filters, f, deps.applyFilterToInput)
-            filters.splice(0, filters.length, ...r.nextFilters)
-            currentInput = r.nextInput
-          }
-        }
-        if (detActs.length > 0) console.log(`[first-turn-intake] det-SCR pre-injected ${detActs.length} filter(s): ${detActs.map(a => `${a.field}=${a.value}`).join(", ")}`)
-      }
-    } catch (e) {
-      console.warn("[first-turn-intake] det-SCR injection failed:", (e as Error).message)
+    if (firstTurnResolverResult?.clarification) {
+      const clarificationState = prevState ?? buildSessionState({
+        candidateCount: filters.length,
+        appliedFilters: filters,
+        narrowingHistory,
+        stageHistory: [],
+        resolutionStatus: "narrowing",
+        resolvedInput: currentInput,
+        turnCount,
+        displayedCandidates: [],
+        displayedChips: [],
+        displayedOptions: [],
+        currentMode: "question",
+      })
+      return buildRevisionClarificationResponse(
+        deps,
+        clarificationState,
+        form,
+        filters,
+        narrowingHistory,
+        currentInput,
+        turnCount,
+        firstTurnResolverResult.clarification.question,
+        requestPrep,
+        firstTurnResolverResult.clarification.chips,
+      )
     }
-    // Stage 2/3 fallback for first-turn free text: keep Stage 1 exact and let
-    // the shared resolver handle unresolved phrasing instead of injecting KG
-    // entities here.
-    try {
-      const rawMsg = lastUserMsg?.text ?? ""
-      if (rawMsg) {
-        const stageOneActions = parseDeterministic(rawMsg).filter(
-          action => action.type === "apply_filter" && action.field && action.value != null,
-        )
-        const fallbackResult = await resolveMultiStageQuery({
-          message: rawMsg,
-          turnCount,
-          currentFilters: filters,
-          sessionState: prevState,
-          stageOneDeterministicActions: stageOneActions,
-          complexity: assessComplexity(rawMsg, filters.length),
-        })
-        const injected: string[] = []
-        for (const filter of fallbackResult.filters) {
-          if (filter.op === "skip") continue
-          if (filters.some(existing => existing.field === filter.field && existing.op !== "skip")) continue
-          const result = replaceFieldFilter(baseInput, filters, filter, deps.applyFilterToInput)
-          filters.splice(0, filters.length, ...result.nextFilters)
-          currentInput = result.nextInput
-          injected.push(`${filter.field}=${String(filter.rawValue ?? filter.value)}`)
-        }
-        if (fallbackResult.sort) {
-          stagedSpecPatch = { ...(stagedSpecPatch ?? {}), sort: fallbackResult.sort }
-        }
-        if (injected.length > 0) {
-          console.log(`[first-turn-intake] multi-stage injected ${injected.length} filter(s): ${injected.join(", ")}`)
-        }
-        if (legacyKgHintEnabled) {
-          const legacyEntities = extractEntities(rawMsg)
-            .filter(e => e.field !== "diameterMm")
-            .filter(e => e.field !== "toolType")
-            .filter(e => !filters.some(f => f.field === e.field && f.op !== "skip"))
-          const legacyInjected: string[] = []
-          for (const entity of legacyEntities) {
-            const filter = buildAppliedFilterFromValue(entity.field, entity.canonical, 0)
-            if (!filter) continue
-            const result = replaceFieldFilter(baseInput, filters, filter, deps.applyFilterToInput)
-            filters.splice(0, filters.length, ...result.nextFilters)
-            currentInput = result.nextInput
-            legacyInjected.push(`${entity.field}=${entity.canonical}`)
-          }
-          if (legacyInjected.length > 0) {
-            console.log(`[first-turn-intake] legacy KG injected ${legacyInjected.length} filter(s): ${legacyInjected.join(", ")}`)
-          }
+
+    const injected: string[] = []
+    const firstTurnResolverMeaningful =
+      firstTurnResolverResult ? hasTerminalMultiStageResult(firstTurnResolverResult) : false
+    if (firstTurnResolverResult) {
+      console.log(`[first-turn-intake] resolverMeaningful=${firstTurnResolverMeaningful} source=${firstTurnResolverResult.source}`)
+    }
+    if (firstTurnResolverResult && firstTurnResolverMeaningful) {
+      for (const field of firstTurnResolverResult.removeFields) {
+        for (let index = filters.length - 1; index >= 0; index--) {
+          if (filters[index].field === field) filters.splice(index, 1)
         }
       }
-    } catch (e) {
-      console.warn("[first-turn-intake] multi-stage fallback failed:", (e as Error).message)
+      for (const filter of firstTurnResolverResult.filters) {
+        if (filter.op === "skip") continue
+        if (filters.some(existing => existing.field === filter.field && existing.op !== "skip")) continue
+        const result = replaceFieldFilter(baseInput, filters, filter, deps.applyFilterToInput)
+        filters.splice(0, filters.length, ...result.nextFilters)
+        currentInput = result.nextInput
+        injected.push(`${filter.field}=${String(filter.rawValue ?? filter.value)}`)
+      }
+      if (firstTurnResolverResult.sort) {
+        stagedSpecPatch = { ...(stagedSpecPatch ?? {}), sort: firstTurnResolverResult.sort }
+      }
+      if (injected.length > 0) {
+        console.log(`[first-turn-intake] multi-stage injected ${injected.length} filter(s): ${injected.join(", ")}`)
+      }
     }
-    singleCallHandled = true
+
+    const shouldShortCircuitFirstTurn = shouldShortCircuitFirstTurnIntake({
+      bypassResolver: firstTurnResolverBypassed,
+      resolverResult: firstTurnResolverResult,
+    })
+    if (!shouldShortCircuitFirstTurn) {
+      if (firstTurnResolverResult?.source === "none") {
+        console.log("[first-turn-intake] multi-stage returned none - falling back to legacy routers")
+      }
+    } else {
+      singleCallHandled = true
     // Fast-path triggers (skip questions, go straight to show_recommendation):
     //   1) explicit show verb ("추천해줘/보여줘/찾아줘") + ≥2 filters
     //   2) urgency ("빨리/급해/당장/지금") + ≥1 filter — user wants speed
@@ -2179,7 +2297,12 @@ async function handleServeExplorationInner(
     const meaningfulFilters = filters.filter(f => f.op !== "skip" && f.field !== "none").length
     const showVerbPath = hasShowVerb && meaningfulFilters >= 2
     const speedPath = (hasUrgency || hasIndifference) && meaningfulFilters >= 1
-    if (showVerbPath || speedPath) {
+    const resolverAction = firstTurnResolverResult
+      ? buildActionFromMultiStageResult(firstTurnResolverResult, lastUserMsg?.text ?? "", turnCount)
+      : null
+    if (resolverAction) {
+      bridgedV2Action = resolverAction
+    } else if (showVerbPath || speedPath) {
       const reason = speedPath ? `urgency/indifference + ${meaningfulFilters} filter(s)` : `${meaningfulFilters} filters + explicit verb`
       console.log(`[first-turn-intake] show_recommendation: ${reason}`)
       bridgedV2Action = { type: "show_recommendation" }
@@ -2188,11 +2311,14 @@ async function handleServeExplorationInner(
     }
     bridgedV2OrchestratorResult = {
       action: bridgedV2Action,
-      reasoning: "first-turn-intake-deterministic",
+      reasoning: firstTurnResolverResult
+        ? `first-turn-intake:${firstTurnResolverResult.source}:${firstTurnResolverResult.reasoning}`
+        : "first-turn-intake-deterministic",
       agentsInvoked: [],
       escalatedToOpus: false,
     }
-    console.log("[first-turn-intake] Skipping LLM extraction — deterministic form→question path")
+    console.log("[first-turn-intake] Skipping legacy KG/sql-agent/SCR")
+    }
   }
   // Phase 4.5 — tool-forge fallback rows captured for the retrieval stage to
   // promote into candidates if hybrid retrieval + knowledge fallback both miss.
@@ -2268,6 +2394,7 @@ async function handleServeExplorationInner(
 
     // ── Complexity 판단 (0ms, LLM 없음) ──
     const complexity = assessComplexity(msg, (prevState?.appliedFilters ?? []).length)
+    const bareRecommendationRequest = isBareRecommendationRequest(msg, !!prevState)
     console.log(`[complexity] "${msg.slice(0, 30)}" → ${complexity.level} (${complexity.reason})`)
 
     const hasNegationPattern = /빼고|뺴고|빼구|제외|아닌\s*것|아닌\s*걸|아닌걸|없는\s*거|말고|만\s*아니면|없이|아닌\s*거|없는\s*거로|가\s*아닌|이\s*아닌/u.test(msg)
@@ -2351,101 +2478,95 @@ async function handleServeExplorationInner(
         && currentTurnFields.size > 0
         && hasGlobalStageOneRelaxationSignal(msg)
 
-      let appliedAny = false
-      // RPM은 가상 필터 — buildDbClause가 no-op이라 narrowing은 tool-forge가
-      // cutting_condition_table에서 처리. 이 액션 하나만 있으면 short-circuit
-      // 하지 말고 (singleCallHandled를 켜지 말고) 후속 KG/SQL/tool-forge 경로를
-      // 그대로 태워야 실제 narrowing이 일어난다.
-      let appliedAnyRoutable = false
       let lastStageOneFilter: AppliedFilter | null = null
       const stageOneReasoningParts: string[] = []
 
-      if (shouldClearUnmentionedFields) {
-        const beforeCount = filters.length
-        for (let index = filters.length - 1; index >= 0; index--) {
-          if (!currentTurnFields.has(filters[index].field)) {
-            filters.splice(index, 1)
-          }
+      let multiStageResult: MultiStageResolverResult
+      if (bareRecommendationRequest) {
+        multiStageResult = {
+          source: "none",
+          filters: [],
+          sort: null,
+          routeHint: "none",
+          intent: "none",
+          clearOtherFilters: false,
+          removeFields: [],
+          followUpFilter: null,
+          confidence: 0,
+          unresolvedTokens: [],
+          reasoning: "defer:bare_recommendation",
+          clarification: null,
         }
-        if (filters.length !== beforeCount) {
-          currentInput = rebuildResolvedInputFromFilters(form, filters, deps)
-          appliedAny = true
-          appliedAnyRoutable = true
-          stageOneReasoningParts.push(`relax:${[...currentTurnFields].join("|")}`)
-        }
+      } else {
+        multiStageResult = await resolveMultiStageQuery({
+          message: msg,
+          turnCount,
+          currentFilters: filters,
+          sessionState: prevState,
+          pendingField: prevState?.lastAskedField ?? null,
+          stageOneEditIntent: stageOneEditResult,
+          stageOneDeterministicActions: effectiveDetApplyActions,
+          stageOneSort,
+          stageOneClearUnmentionedFields: shouldClearUnmentionedFields,
+          complexity,
+        })
       }
 
-      if (stageOneEditResult?.intent.type === "skip_field") {
-        const mutation = applyEditIntent(stageOneEditResult.intent, filters, turnCount)
-        for (const idx of [...mutation.removeIndices].sort((a, b) => b - a)) {
-          filters.splice(idx, 1)
-        }
-        if (mutation.addFilter) {
-          const result = replaceFieldFilter(baseInput, filters, mutation.addFilter, deps.applyFilterToInput)
-          filters.splice(0, filters.length, ...result.nextFilters)
-          currentInput = result.nextInput
-          lastStageOneFilter = mutation.addFilter
-          appliedAny = true
-          appliedAnyRoutable = true
-          stageOneReasoningParts.push(`skip:${mutation.addFilter.field}`)
-        }
+      trace.add(
+        "multi-stage-resolver",
+        "router",
+        {
+          source: multiStageResult.source,
+          confidence: multiStageResult.confidence,
+          unresolvedTokens: multiStageResult.unresolvedTokens,
+          filterCount: multiStageResult.filters.length,
+          sort: multiStageResult.sort ? `${multiStageResult.sort.field}:${multiStageResult.sort.direction}` : null,
+          clearOtherFilters: multiStageResult.clearOtherFilters,
+          routeHint: multiStageResult.routeHint,
+          intent: multiStageResult.intent,
+          removeFields: multiStageResult.removeFields,
+          clarification: !!multiStageResult.clarification,
+        },
+        { applied: multiStageResult.filters.length + (multiStageResult.sort ? 1 : 0) },
+        `multi-stage ${multiStageResult.source} resolved ${multiStageResult.filters.length} filter(s)`
+      )
+      console.log(
+        `[multi-stage-resolver] source=${multiStageResult.source} filters=${multiStageResult.filters.length} sort=${multiStageResult.sort ? `${multiStageResult.sort.field}:${multiStageResult.sort.direction}` : "none"} intent=${multiStageResult.intent} unresolved=${multiStageResult.unresolvedTokens.join(",") || "none"}`
+      )
+
+      if (multiStageResult.clarification) {
+        const clarificationState = prevState ?? buildSessionState({
+          candidateCount: filters.length,
+          appliedFilters: filters,
+          narrowingHistory,
+          stageHistory: [],
+          resolutionStatus: "narrowing",
+          resolvedInput: currentInput,
+          turnCount,
+          displayedCandidates: [],
+          displayedChips: [],
+          displayedOptions: [],
+          currentMode: "question",
+        })
+        return buildRevisionClarificationResponse(
+          deps,
+          clarificationState,
+          form,
+          filters,
+          narrowingHistory,
+          currentInput,
+          turnCount,
+          multiStageResult.clarification.question,
+          requestPreparation,
+          multiStageResult.clarification.chips,
+        )
       }
 
-      for (const action of effectiveDetApplyActions) {
-        const isBetween = action.op === "between" && action.value2 != null
-        const inputValue: string | number | Array<string | number> = isBetween
-          ? [action.value as string | number, action.value2 as string | number]
-          : (action.value as string | number)
-        const filter = buildAppliedFilterFromValue(action.field!, inputValue, turnCount, action.op)
-        if (!filter) continue
-        const skipIdx = filters.findIndex(f => f.field === filter.field && f.op === "skip")
-        if (skipIdx >= 0) filters.splice(skipIdx, 1)
-        if (action.op === "neq") {
-          const existingIdx = filters.findIndex(f => f.field === filter.field && f.op !== "neq")
-          if (existingIdx >= 0) filters.splice(existingIdx, 1)
-        }
-        const result = replaceFieldFilter(baseInput, filters, filter, deps.applyFilterToInput)
-        filters.splice(0, filters.length, ...result.nextFilters)
-        currentInput = result.nextInput
-        lastStageOneFilter = filter
-        appliedAny = true
-        stageOneReasoningParts.push(`${action.field}=${action.value}`)
-        // 가상 필드(cutting_condition_table 경로: rpm/feedRate/cuttingSpeed/depthOfCut)
-        // 는 DB narrowing 을 안 하므로 라우팅 가드에서 제외한다.
-        if (action.field !== "rpm" && action.field !== "feedRate" && action.field !== "cuttingSpeed" && action.field !== "depthOfCut") {
-          appliedAnyRoutable = true
-        }
-      }
-
-      if (stageOneSort) {
-        appliedAny = true
-        appliedAnyRoutable = true
-        stageOneReasoningParts.push(`sort:${stageOneSort.field}:${stageOneSort.direction}`)
-      }
-
-      const multiStageResolvedFields = new Set(currentTurnFields)
-      if (stageOneEditResult?.intent.type === "skip_field") {
-        multiStageResolvedFields.add(stageOneEditResult.intent.field)
-      }
-
-      const multiStageResult = await resolveMultiStageQuery({
-        message: msg,
-        turnCount,
-        currentFilters: filters,
-        sessionState: prevState,
-        pendingField: prevState?.lastAskedField ?? null,
-        stageOneEditIntent: stageOneEditResult,
-        stageOneDeterministicActions: currentTurnDetActions,
-        stageOneSort,
-        complexity,
-      })
-
-      if (multiStageResult.source !== "none") {
+      const resolverMeaningful = hasTerminalMultiStageResult(multiStageResult)
+      console.log(`[multi-stage:truth] meaningful=${resolverMeaningful} source=${multiStageResult.source}`)
+      if (resolverMeaningful) {
         if (multiStageResult.clearOtherFilters) {
-          const keepFields = new Set([
-            ...multiStageResolvedFields,
-            ...multiStageResult.filters.map(filter => filter.field),
-          ])
+          const keepFields = new Set(multiStageResult.filters.map(filter => filter.field))
           const beforeCount = filters.length
           for (let index = filters.length - 1; index >= 0; index--) {
             if (!keepFields.has(filters[index].field)) {
@@ -2454,14 +2575,25 @@ async function handleServeExplorationInner(
           }
           if (filters.length !== beforeCount) {
             currentInput = rebuildResolvedInputFromFilters(form, filters, deps)
-            appliedAny = true
-            appliedAnyRoutable = true
             stageOneReasoningParts.push(`${multiStageResult.source}:clear_other_filters`)
           }
         }
 
+        if (multiStageResult.removeFields.length > 0) {
+          const removeSet = new Set(multiStageResult.removeFields)
+          const beforeCount = filters.length
+          for (let index = filters.length - 1; index >= 0; index--) {
+            if (removeSet.has(filters[index].field)) {
+              filters.splice(index, 1)
+            }
+          }
+          if (filters.length !== beforeCount) {
+            currentInput = rebuildResolvedInputFromFilters(form, filters, deps)
+          }
+          stageOneReasoningParts.push(`${multiStageResult.source}:remove:${multiStageResult.removeFields.join("|")}`)
+        }
+
         for (const filter of multiStageResult.filters) {
-          multiStageResolvedFields.add(filter.field)
           const skipIdx = filter.op === "skip"
             ? -1
             : filters.findIndex(existing => existing.field === filter.field && existing.op === "skip")
@@ -2474,10 +2606,6 @@ async function handleServeExplorationInner(
           filters.splice(0, filters.length, ...replaced.nextFilters)
           currentInput = replaced.nextInput
           lastStageOneFilter = filter
-          appliedAny = true
-          if (filter.field !== "rpm" && filter.field !== "feedRate" && filter.field !== "cuttingSpeed" && filter.field !== "depthOfCut") {
-            appliedAnyRoutable = true
-          }
           const rawValue = Array.isArray(filter.rawValue)
             ? filter.rawValue.join("~")
             : String(filter.rawValue ?? filter.value)
@@ -2486,68 +2614,45 @@ async function handleServeExplorationInner(
 
         if (multiStageResult.sort) {
           stagedSpecPatch = { ...(stagedSpecPatch ?? {}), sort: multiStageResult.sort }
-          appliedAny = true
-          appliedAnyRoutable = true
           stageOneReasoningParts.push(
             `${multiStageResult.source}:sort:${multiStageResult.sort.field}:${multiStageResult.sort.direction}`
           )
         }
 
-        trace.add(
-          "multi-stage-resolver",
-          "router",
-          {
-            source: multiStageResult.source,
-            confidence: multiStageResult.confidence,
-            unresolvedTokens: multiStageResult.unresolvedTokens,
-            filterCount: multiStageResult.filters.length,
-            sort: multiStageResult.sort ? `${multiStageResult.sort.field}:${multiStageResult.sort.direction}` : null,
-            clearOtherFilters: multiStageResult.clearOtherFilters,
-            routeHint: multiStageResult.routeHint,
-          },
-          { applied: multiStageResult.filters.length + (multiStageResult.sort ? 1 : 0) },
-          `multi-stage ${multiStageResult.source} resolved ${multiStageResult.filters.length} filter(s)`
-        )
-        console.log(
-          `[multi-stage-resolver] source=${multiStageResult.source} filters=${multiStageResult.filters.length} sort=${multiStageResult.sort ? `${multiStageResult.sort.field}:${multiStageResult.sort.direction}` : "none"} unresolved=${multiStageResult.unresolvedTokens.join(",") || "none"}`
-        )
-      }
-
-      if (appliedAny && (appliedAnyRoutable || !!stageOneSort)) {
-        const hasShowRec =
-          !!stageOneSort
-          || !!multiStageResult.sort
-          || multiStageResult.routeHint === "show_recommendation"
-          || /\uCD94\uCC9C|\uBCF4\uC5EC|\uC81C\uD488\s*\uBCF4\uAE30|show/iu.test(msg)
-        const lastF = lastStageOneFilter ?? filters[filters.length - 1] ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount }
-        bridgedV2Action = hasShowRec
-          ? { type: "show_recommendation" }
-          : { type: "continue_narrowing", filter: lastF }
-        bridgedV2OrchestratorResult = {
-          action: bridgedV2Action,
-          reasoning: `det-scr-pre:${stageOneReasoningParts.join(",")}`,
-          agentsInvoked: [],
-          escalatedToOpus: false,
+        const fallbackFilter =
+          lastStageOneFilter
+          ?? multiStageResult.followUpFilter
+          ?? filters[filters.length - 1]
+          ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount }
+        const resolverAction = buildActionFromMultiStageResult(multiStageResult, msg, turnCount, fallbackFilter)
+        if (resolverAction) {
+          bridgedV2Action = resolverAction
+          bridgedV2OrchestratorResult = {
+            action: resolverAction,
+            reasoning: `multi-stage:${multiStageResult.source}:${stageOneReasoningParts.join(",") || multiStageResult.reasoning}`,
+            agentsInvoked: [],
+            escalatedToOpus: false,
+          }
+          singleCallHandled = true
+          pendingSelectionAction = null
+          pendingSelectionOrchestratorResult = null
+          trace.add(
+            "det-scr-pre",
+            "router",
+            {
+              actions: effectiveDetApplyActions.map(a => ({ field: a.field, value: a.value, op: a.op })),
+              skipField: stageOneEditResult?.intent.type === "skip_field" ? stageOneEditResult.intent.field : null,
+              sort: stageOneSort ? `${stageOneSort.field}:${stageOneSort.direction}` : null,
+              globalRelaxation: shouldClearUnmentionedFields,
+              resolverIntent: multiStageResult.intent,
+            },
+            { applied: stageOneReasoningParts.length, filterCount: filters.length },
+            `multi-stage terminal ${multiStageResult.source}`
+          )
+          console.log(`[multi-stage:terminal] ${stageOneReasoningParts.join(",") || multiStageResult.reasoning}`)
         }
-        singleCallHandled = true
-        pendingSelectionAction = null
-        pendingSelectionOrchestratorResult = null
-        trace.add(
-          "det-scr-pre",
-          "router",
-          {
-            actions: effectiveDetApplyActions.map(a => ({ field: a.field, value: a.value, op: a.op })),
-            skipField: stageOneEditResult?.intent.type === "skip_field" ? stageOneEditResult.intent.field : null,
-            sort: stageOneSort ? `${stageOneSort.field}:${stageOneSort.direction}` : null,
-            globalRelaxation: shouldClearUnmentionedFields,
-          },
-          { applied: stageOneReasoningParts.length, filterCount: filters.length },
-          `det-SCR pre-pass applied ${stageOneReasoningParts.join(", ")}`
-        )
-        console.log(`[det-scr:pre] applied early: ${stageOneReasoningParts.join(", ")}`)
-      } else if (appliedAny && !appliedAnyRoutable && !stageOneSort) {
-        // RPM-only (or other virtual-only) — 가시성 필터만 push, 후속 routing 그대로
-        console.log(`[det-scr:pre] virtual-only filter(s) pushed, continuing routing: ${effectiveDetApplyActions.map(a => `${a.field}=${a.value}`).join(", ")}`)
+      } else {
+        console.log("[multi-stage:truth] resolver produced no actionable output; legacy fallback remains enabled")
       }
     }
 
@@ -3291,7 +3396,7 @@ async function handleServeExplorationInner(
 
     // ── 5. SCR: 최후 fallback ──
     const negationFullyHandled = hasNegationPattern && negationHandled
-    const shouldUseSingleCall = (isSingleCallRouterEnabled() || LLM_FREE_INTERPRETATION) && lastUserMsg && messages.length > 0 && !negationFullyHandled && !singleCallHandled && (LLM_FREE_INTERPRETATION || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
+    const shouldUseSingleCall = (isSingleCallRouterEnabled() || LLM_FREE_INTERPRETATION) && lastUserMsg && messages.length > 0 && !negationFullyHandled && !singleCallHandled && !bareRecommendationRequest && (LLM_FREE_INTERPRETATION || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
     if (shouldUseSingleCall) {
       // ── Pending clarification round-trip ──
       // 직전 턴에서 ambiguity chip을 보였고 사용자가 그 chip을 클릭(=동일 텍스트
@@ -3765,35 +3870,39 @@ async function handleServeExplorationInner(
 
         // 6. PreSearch non-recommendation route (only if no revision, no filter)
         if (!revisionResult && !filterResult && preSearchResult && preSearchResult.kind !== "recommendation_action") {
-          console.log(`[runtime:pre-route] ${preSearchResult.kind} -> answer_general (${preSearchResult.reason})`)
-          const generalChatState = prevState ?? buildSessionState({
-            candidateCount: 0,
-            appliedFilters: filters,
-            narrowingHistory,
-            stageHistory: [],
-            resolutionStatus: "narrowing",
-            resolvedInput: currentInput,
-            turnCount,
-            displayedCandidates: [],
-            displayedChips: [],
-            displayedOptions: [],
-            currentMode: "question",
-          })
-          return handleServeGeneralChatAction({
-            deps,
-            action: { type: "answer_general", message: lastUserMsg.text },
-            orchResult: buildPreSearchOrchestratorResult(lastUserMsg.text, preSearchResult.reason),
-            provider,
-            form,
-            messages,
-            prevState: generalChatState,
-            filters,
-            narrowingHistory,
-            currentInput,
-            candidates: [],
-            evidenceMap: new Map(),
-            turnCount,
-          })
+          if (bareRecommendationRequest) {
+            console.log(`[runtime:pre-route] bare recommendation request bypassed ${preSearchResult.kind} (${preSearchResult.reason})`)
+          } else {
+            console.log(`[runtime:pre-route] ${preSearchResult.kind} -> answer_general (${preSearchResult.reason})`)
+            const generalChatState = prevState ?? buildSessionState({
+              candidateCount: 0,
+              appliedFilters: filters,
+              narrowingHistory,
+              stageHistory: [],
+              resolutionStatus: "narrowing",
+              resolvedInput: currentInput,
+              turnCount,
+              displayedCandidates: [],
+              displayedChips: [],
+              displayedOptions: [],
+              currentMode: "question",
+            })
+            return handleServeGeneralChatAction({
+              deps,
+              action: { type: "answer_general", message: lastUserMsg.text },
+              orchResult: buildPreSearchOrchestratorResult(lastUserMsg.text, preSearchResult.reason),
+              provider,
+              form,
+              messages,
+              prevState: generalChatState,
+              filters,
+              narrowingHistory,
+              currentInput,
+              candidates: [],
+              evidenceMap: new Map(),
+              turnCount,
+            })
+          }
         }
       }
     }

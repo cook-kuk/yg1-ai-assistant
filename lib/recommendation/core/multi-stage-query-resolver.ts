@@ -4,7 +4,7 @@ import { buildAppliedFilterFromValue, getFilterFieldLabel, getFilterFieldQueryAl
 import { stripKoreanParticles } from "@/lib/recommendation/shared/patterns"
 import type { ComplexityDecision } from "./complexity-router"
 import type { DeterministicAction } from "./deterministic-scr"
-import type { EditIntentResult } from "./edit-intent"
+import { applyEditIntent, type EditIntentResult } from "./edit-intent"
 import type { QueryField, QuerySort } from "./query-spec"
 import { getSortableFields, QUERY_FIELD_MANIFEST } from "./query-spec-manifest"
 import { getDbSchemaSync } from "./sql-agent-schema-cache"
@@ -17,6 +17,14 @@ type ResolverRouteHint =
   | "general_question"
   | "show_recommendation"
   | "compare_products"
+export type ResolverIntent =
+  | "none"
+  | "continue_narrowing"
+  | "show_recommendation"
+  | "answer_general"
+  | "reset_session"
+  | "go_back_one_step"
+  | "ask_clarification"
 
 type PrimitiveValue = string | number | boolean
 
@@ -28,25 +36,37 @@ interface ResolverFilterSpec {
   rawToken?: string
 }
 
+export interface ResolverClarification {
+  question: string
+  chips: string[]
+}
+
 interface NormalizedResolverResult {
   filters: ResolverFilterSpec[]
   sort: QuerySort | null
   routeHint: ResolverRouteHint
+  intent: ResolverIntent
   clearOtherFilters: boolean
+  removeFields: string[]
   confidence: number
   unresolvedTokens: string[]
   reasoning: string
+  clarification: ResolverClarification | null
 }
 
 export interface MultiStageResolverResult {
-  source: "none" | "cache" | "stage2" | "stage3"
+  source: "none" | "stage1" | "cache" | "stage2" | "stage3" | "clarification"
   filters: AppliedFilter[]
   sort: QuerySort | null
   routeHint: ResolverRouteHint
+  intent: ResolverIntent
   clearOtherFilters: boolean
+  removeFields: string[]
+  followUpFilter: AppliedFilter | null
   confidence: number
   unresolvedTokens: string[]
   reasoning: string
+  clarification: ResolverClarification | null
 }
 
 export interface ResolveMultiStageQueryArgs {
@@ -58,6 +78,7 @@ export interface ResolveMultiStageQueryArgs {
   stageOneEditIntent?: EditIntentResult | null
   stageOneDeterministicActions?: DeterministicAction[]
   stageOneSort?: QuerySort | null
+  stageOneClearUnmentionedFields?: boolean
   complexity?: ComplexityDecision | null
   stage2Provider?: LLMProvider | null
   stage3Provider?: LLMProvider | null
@@ -83,6 +104,8 @@ const FAILURE_TTL_MS = DAY_MS
 const STAGE2_TIMEOUT_MS = 3000
 const STAGE3_TIMEOUT_MS = 12000
 const STAGE2_CONFIDENCE_THRESHOLD = 0.7
+const STAGE1_SKIP_CUE_RE = /(아무거나|상관\s*없|뭐든|다\s*괜찮|무관)/giu
+const STAGE1_SORT_CUE_RE = /(제일|가장|젤|맨|최대한|긴걸로|짧은걸로|긴|짧은|큰|작은|많은|적은|높은|낮은|두꺼운|얇은)/giu
 
 const resolverCache = new Map<string, CacheEntry>()
 const failureCache = new Map<string, FailureEntry>()
@@ -94,6 +117,15 @@ const ROUTE_HINTS = new Set<ResolverRouteHint>([
   "general_question",
   "show_recommendation",
   "compare_products",
+])
+const RESOLVER_INTENTS = new Set<ResolverIntent>([
+  "none",
+  "continue_narrowing",
+  "show_recommendation",
+  "answer_general",
+  "reset_session",
+  "go_back_one_step",
+  "ask_clarification",
 ])
 
 const STOPWORD_TOKENS = new Set([
@@ -138,6 +170,20 @@ const STOPWORD_TOKENS = new Set([
   "쯤",
 ])
 
+const BARE_RECOMMENDATION_KEYS = new Set([
+  "추천해줘",
+  "추천해주세요",
+  "추천해줄래",
+  "골라줘",
+  "찾아줘",
+  "좋은거",
+  "좋은거골라줘",
+  "괜찮은거",
+  "괜찮은거골라줘",
+  "뭐가좋아",
+  "뭐가좋을까",
+])
+
 const fieldAliasIndex = (() => {
   const entries: Array<{ normalized: string; field: string }> = []
   for (const field of getRegisteredFilterFields()) {
@@ -165,6 +211,14 @@ const sortableFieldAliasIndex = (() => {
   }
   entries.sort((a, b) => b.normalized.length - a.normalized.length)
   return entries
+})()
+
+const sortableFieldAliases = (() => {
+  const map = new Map<QueryField, string[]>()
+  for (const entry of QUERY_FIELD_MANIFEST) {
+    map.set(entry.field, [entry.field, entry.label, ...entry.aliases])
+  }
+  return map
 })()
 
 function normalizeToken(value: string): string {
@@ -207,7 +261,9 @@ function serializeResolutionSignature(result: NormalizedResolverResult): string 
     })),
     sort: result.sort,
     routeHint: result.routeHint,
+    intent: result.intent,
     clearOtherFilters: result.clearOtherFilters,
+    removeFields: result.removeFields,
   })
 }
 
@@ -308,11 +364,13 @@ function extractKnownTokens(
 ): Set<string> {
   const known = new Set<string>()
 
-  for (const { normalized } of fieldAliasIndex) known.add(normalized)
-
   for (const action of stageOneDeterministicActions ?? []) {
-    const fieldNormalized = normalizeToken(action.field ?? "")
-    if (fieldNormalized) known.add(fieldNormalized)
+    for (const alias of [action.field ?? "", ...getFilterFieldQueryAliases(action.field ?? "")]) {
+      for (const token of tokenize(alias)) {
+        const normalized = normalizeToken(token)
+        if (normalized) known.add(normalized)
+      }
+    }
     for (const token of tokenize(String(action.value ?? ""))) {
       const normalized = normalizeToken(token)
       if (normalized) known.add(normalized)
@@ -323,36 +381,196 @@ function extractKnownTokens(
     }
   }
 
-  if (stageOneEditIntent?.intent.type === "skip_field" || stageOneEditIntent?.intent.type === "clear_field") {
-    const normalized = normalizeToken(stageOneEditIntent.intent.field)
-    if (normalized) known.add(normalized)
+  if (stageOneEditIntent) {
+    const addFieldAliases = (field: string) => {
+      for (const alias of [field, ...getFilterFieldQueryAliases(field)]) {
+        for (const token of tokenize(alias)) {
+          const normalized = normalizeToken(token)
+          if (normalized) known.add(normalized)
+        }
+      }
+    }
+
+    switch (stageOneEditIntent.intent.type) {
+      case "skip_field":
+      case "clear_field":
+        addFieldAliases(stageOneEditIntent.intent.field)
+        break
+      case "replace_field":
+        addFieldAliases(stageOneEditIntent.intent.field)
+        for (const token of tokenize(String(stageOneEditIntent.intent.newValue ?? ""))) {
+          const normalized = normalizeToken(token)
+          if (normalized) known.add(normalized)
+        }
+        break
+      case "exclude_field":
+        addFieldAliases(stageOneEditIntent.intent.field)
+        for (const token of tokenize(String(stageOneEditIntent.intent.value ?? ""))) {
+          const normalized = normalizeToken(token)
+          if (normalized) known.add(normalized)
+        }
+        break
+      default:
+        break
+    }
   }
 
   if (stageOneSort) {
-    for (const token of tokenize(stageOneSort.field)) {
-      const normalized = normalizeToken(token)
-      if (normalized) known.add(normalized)
+    const aliases = sortableFieldAliases.get(stageOneSort.field) ?? [stageOneSort.field]
+    for (const alias of aliases) {
+      for (const token of tokenize(alias)) {
+        const normalized = normalizeToken(token)
+        if (normalized) known.add(normalized)
+      }
     }
   }
 
   return known
 }
 
-function extractUnresolvedTokens(args: ResolveMultiStageQueryArgs): string[] {
-  const known = extractKnownTokens(
+function extractRawTokens(message: string): string[] {
+  return Array.from(tokenize(message))
+    .map(token => normalizeToken(token))
+    .filter(token => token.length >= 2)
+    .filter(token => !/^\d+(?:\.\d+)?$/.test(token))
+}
+
+function extractCueTokens(message: string, pattern: RegExp): string[] {
+  const matches = message.match(pattern) ?? []
+  return uniqueStrings(
+    matches.flatMap(match => Array.from(tokenize(match)).map(token => normalizeToken(token)))
+  )
+}
+
+function tokenMatchesKnown(token: string, known: Set<string>): boolean {
+  if (known.has(token)) return true
+  for (const candidate of known) {
+    if (candidate.length < 2) continue
+    if (
+      token.startsWith(candidate)
+      || token.endsWith(candidate)
+      || candidate.startsWith(token)
+      || candidate.endsWith(token)
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
+function extendKnownTokensWithStageOneCues(args: ResolveMultiStageQueryArgs, known: Set<string>): Set<string> {
+  const extended = new Set(known)
+
+  if (args.stageOneEditIntent?.intent.type === "skip_field" || args.stageOneClearUnmentionedFields) {
+    for (const token of extractCueTokens(args.message, STAGE1_SKIP_CUE_RE)) {
+      if (token) extended.add(token)
+    }
+  }
+
+  if (args.stageOneSort) {
+    for (const token of extractCueTokens(args.message, STAGE1_SORT_CUE_RE)) {
+      if (token) extended.add(token)
+    }
+  }
+
+  return extended
+}
+
+function extractStageOneResolvedTokens(args: ResolveMultiStageQueryArgs): string[] {
+  const known = extendKnownTokensWithStageOneCues(args, extractKnownTokens(
     args.message,
     args.stageOneEditIntent,
     args.stageOneDeterministicActions,
     args.stageOneSort,
-  )
-
-  const rawTokens = Array.from(tokenize(args.message))
-    .map(token => normalizeToken(token))
-    .filter(token => token.length >= 2)
-    .filter(token => !/^\d+(?:\.\d+)?$/.test(token))
+  ))
 
   return uniqueStrings(
-    rawTokens.filter(token => !known.has(token) && !STOPWORD_TOKENS.has(token))
+    extractRawTokens(args.message).filter(token => tokenMatchesKnown(token, known) && !STOPWORD_TOKENS.has(token))
+  )
+}
+
+function extractStageOneResolvedBy(args: ResolveMultiStageQueryArgs): string[] {
+  const resolvedBy: string[] = []
+  if (args.stageOneEditIntent) resolvedBy.push("edit-intent")
+  if ((args.stageOneDeterministicActions?.length ?? 0) > 0) resolvedBy.push("det-scr")
+  if (args.stageOneSort) resolvedBy.push("sort")
+  if (args.stageOneClearUnmentionedFields) resolvedBy.push("relaxation")
+  return resolvedBy
+}
+
+function formatAppliedFilters(filters: AppliedFilter[]): Array<{ field: string; op: AppliedFilter["op"]; value: unknown }> {
+  return filters.map(filter => ({
+    field: filter.field,
+    op: filter.op,
+    value: filter.rawValue ?? filter.value,
+  }))
+}
+
+function mergeAppliedFilters(
+  baseFilters: AppliedFilter[],
+  overlayFilters: AppliedFilter[],
+): AppliedFilter[] {
+  const merged = [...baseFilters]
+
+  for (const filter of overlayFilters) {
+    for (let index = merged.length - 1; index >= 0; index--) {
+      if (merged[index].field !== filter.field) continue
+      merged.splice(index, 1)
+    }
+    merged.push(filter)
+  }
+
+  return merged
+}
+
+function mergeMultiStageResults(
+  base: MultiStageResolverResult | null,
+  overlay: MultiStageResolverResult,
+): MultiStageResolverResult {
+  if (!base) return overlay
+
+  const removeFields = uniqueStrings([...base.removeFields, ...overlay.removeFields])
+  const baseFilters = base.filters.filter(filter => !removeFields.includes(filter.field))
+
+  return {
+    source: overlay.source,
+    filters: mergeAppliedFilters(baseFilters, overlay.filters),
+    sort: overlay.sort ?? base.sort,
+    routeHint: overlay.routeHint !== "none" ? overlay.routeHint : base.routeHint,
+    intent: overlay.intent !== "none" ? overlay.intent : base.intent,
+    clearOtherFilters: base.clearOtherFilters || overlay.clearOtherFilters,
+    removeFields,
+    followUpFilter: overlay.followUpFilter ?? base.followUpFilter,
+    confidence: overlay.confidence > 0 ? overlay.confidence : base.confidence,
+    unresolvedTokens: overlay.unresolvedTokens,
+    reasoning: [base.reasoning, overlay.reasoning].filter(Boolean).join(" + "),
+    clarification: overlay.clarification ?? base.clarification,
+  }
+}
+
+export function resolverProducedMeaningfulOutput(result: MultiStageResolverResult): boolean {
+  return result.source !== "none" && (
+    result.filters.length > 0
+    || result.removeFields.length > 0
+    || !!result.sort
+    || result.clearOtherFilters
+    || result.intent !== "none"
+    || !!result.clarification
+    || result.routeHint !== "none"
+    || !!result.followUpFilter
+  )
+}
+
+function extractUnresolvedTokens(args: ResolveMultiStageQueryArgs): string[] {
+  const known = extendKnownTokensWithStageOneCues(args, extractKnownTokens(
+    args.message,
+    args.stageOneEditIntent,
+    args.stageOneDeterministicActions,
+    args.stageOneSort,
+  ))
+
+  return uniqueStrings(
+    extractRawTokens(args.message).filter(token => !tokenMatchesKnown(token, known) && !STOPWORD_TOKENS.has(token))
   )
 }
 
@@ -394,6 +612,40 @@ function normalizeRouteHint(raw: unknown): ResolverRouteHint {
   return ROUTE_HINTS.has(value as ResolverRouteHint)
     ? value as ResolverRouteHint
     : "none"
+}
+
+function normalizeIntent(raw: unknown): ResolverIntent {
+  const value = String(raw ?? "").trim().toLowerCase()
+  return RESOLVER_INTENTS.has(value as ResolverIntent)
+    ? value as ResolverIntent
+    : "none"
+}
+
+function hasShowRecommendationSignal(message: string): boolean {
+  return /(추천\s*(해줘|해주|좀)?|보여줘|찾아줘|알려줘|골라줘|제품\s*(보|줘)|show)/iu.test(message)
+}
+
+function isBareRecommendationMessage(message: string): boolean {
+  const normalized = message
+    .normalize("NFKC")
+    .replace(/\s+/g, "")
+    .replace(/[!.?~]+$/g, "")
+    .trim()
+  return BARE_RECOMMENDATION_KEYS.has(normalized)
+}
+
+function inferIntentFromRouteHint(
+  routeHint: ResolverRouteHint,
+  message: string,
+  hasFilter: boolean,
+  hasSort: boolean,
+): ResolverIntent {
+  if (routeHint === "show_recommendation") return "show_recommendation"
+  if (routeHint === "general_question" || routeHint === "ui_question") return "answer_general"
+  if (hasSort) return "show_recommendation"
+  if (hasFilter) return hasShowRecommendationSignal(message) ? "show_recommendation" : "continue_narrowing"
+  if (hasShowRecommendationSignal(message)) return "show_recommendation"
+  return "none"
 }
 
 function normalizeFilterSpecs(
@@ -454,6 +706,7 @@ function normalizeSort(rawSort: unknown): QuerySort | null {
 
 function normalizeResolverPayload(
   payload: unknown,
+  message: string,
   pendingField?: string | null,
 ): NormalizedResolverResult | null {
   if (!payload) return null
@@ -466,7 +719,13 @@ function normalizeResolverPayload(
   const filters = normalizeFilterSpecs(objectPayload.filters, pendingField)
   const sort = normalizeSort(objectPayload.sort)
   const routeHint = normalizeRouteHint(objectPayload.routeHint)
+  const intent = normalizeIntent(objectPayload.intent) !== "none"
+    ? normalizeIntent(objectPayload.intent)
+    : inferIntentFromRouteHint(routeHint, message, filters.length > 0, Boolean(sort))
   const clearOtherFilters = objectPayload.clearOtherFilters === true
+  const removeFields = Array.isArray(objectPayload.removeFields)
+    ? uniqueStrings(objectPayload.removeFields.map(field => resolveFilterField(field)).filter((field): field is string => Boolean(field)))
+    : []
   const confidence = clampConfidence(objectPayload.confidence, filters.length > 0 || sort ? 0.8 : 0)
   const unresolvedTokens = Array.isArray(objectPayload.unresolvedTokens)
     ? uniqueStrings(objectPayload.unresolvedTokens.map(token => String(token ?? "").trim()))
@@ -477,10 +736,13 @@ function normalizeResolverPayload(
     filters,
     sort,
     routeHint,
+    intent,
     clearOtherFilters,
+    removeFields,
     confidence,
     unresolvedTokens,
     reasoning,
+    clarification: null,
   }
 }
 
@@ -519,10 +781,14 @@ function materializeResult(
       .filter((filter): filter is AppliedFilter => filter != null),
     sort: normalized.sort,
     routeHint: normalized.routeHint,
+    intent: normalized.intent,
     clearOtherFilters: normalized.clearOtherFilters,
+    removeFields: normalized.removeFields,
+    followUpFilter: null,
     confidence: normalized.confidence,
     unresolvedTokens: normalized.unresolvedTokens,
     reasoning: normalized.reasoning,
+    clarification: normalized.clarification,
   }
 }
 
@@ -531,9 +797,182 @@ function hasMeaningfulResolution(result: NormalizedResolverResult | null): resul
     && (
       result.filters.length > 0
       || !!result.sort
+      || result.intent !== "none"
       || result.clearOtherFilters
+      || result.removeFields.length > 0
+      || !!result.clarification
       || result.routeHint !== "none"
     )
+}
+
+function buildClarificationResult(
+  args: ResolveMultiStageQueryArgs,
+  unresolvedTokens: string[],
+): MultiStageResolverResult {
+  const pendingField = args.pendingField ?? args.sessionState?.lastAskedField ?? null
+  const pendingLabel = pendingField ? getFilterFieldLabel(pendingField) : null
+  const unresolvedLabel = unresolvedTokens.length > 0 ? unresolvedTokens.slice(0, 3).join(", ") : "현재 표현"
+  const question = pendingLabel
+    ? `${pendingLabel} 조건을 어떻게 처리할지 더 구체적으로 알려주세요.`
+    : `입력하신 표현(${unresolvedLabel})의 의미를 정확히 반영하려면 어떤 조건인지 조금만 더 구체적으로 알려주세요.`
+  const chips = pendingLabel
+    ? [`${pendingLabel} 상관없음`, "추천 제품 보기", "직접 입력"]
+    : ["추천 제품 보기", "직접 입력", "처음부터 다시"]
+
+  return {
+    source: "clarification",
+    filters: [],
+    sort: null,
+    routeHint: "none",
+    intent: "ask_clarification",
+    clearOtherFilters: false,
+    removeFields: [],
+    followUpFilter: null,
+    confidence: 0,
+    unresolvedTokens,
+    reasoning: pendingField
+      ? `clarification:${pendingField}`
+      : `clarification:${unresolvedTokens.join("|") || "generic"}`,
+    clarification: {
+      question,
+      chips,
+    },
+  }
+}
+
+function buildEmptyResult(reasoning = ""): MultiStageResolverResult {
+  return {
+    source: "none",
+    filters: [],
+    sort: null,
+    routeHint: "none",
+    intent: "none",
+    clearOtherFilters: false,
+    removeFields: [],
+    followUpFilter: null,
+    confidence: 0,
+    unresolvedTokens: [],
+    reasoning,
+    clarification: null,
+  }
+}
+
+function buildStageOneResult(args: ResolveMultiStageQueryArgs): MultiStageResolverResult | null {
+  const editIntent = args.stageOneEditIntent?.intent ?? null
+  const clearUnmentioned = args.stageOneClearUnmentionedFields === true
+  const rawActions = args.stageOneDeterministicActions ?? []
+  const effectiveActions =
+    editIntent?.type === "skip_field"
+      ? rawActions.filter(action => action.field !== editIntent.field)
+      : rawActions
+  const filterSpecs: ResolverFilterSpec[] = []
+  const removeFields = new Set<string>()
+  let followUpFilter: AppliedFilter | null = null
+  let intent: ResolverIntent = "none"
+  let reasoning = "stage1"
+
+  if (editIntent) {
+    switch (editIntent.type) {
+      case "reset_all":
+        return {
+          source: "stage1",
+          filters: [],
+          sort: null,
+          routeHint: "none",
+          intent: "reset_session",
+          clearOtherFilters: false,
+          removeFields: [],
+          followUpFilter: null,
+          confidence: args.stageOneEditIntent?.confidence ?? 0.95,
+          unresolvedTokens: [],
+          reasoning: `stage1:${args.stageOneEditIntent?.reason ?? "reset_all"}`,
+          clarification: null,
+        }
+      case "go_back_then_apply": {
+        const mutation = applyEditIntent(editIntent, args.currentFilters, args.turnCount)
+        return {
+          source: "stage1",
+          filters: [],
+          sort: null,
+          routeHint: "none",
+          intent: "go_back_one_step",
+          clearOtherFilters: false,
+          removeFields: [],
+          followUpFilter: mutation.addFilter,
+          confidence: args.stageOneEditIntent?.confidence ?? 0.93,
+          unresolvedTokens: [],
+          reasoning: `stage1:${args.stageOneEditIntent?.reason ?? "go_back_then_apply"}`,
+          clarification: null,
+        }
+      }
+      case "skip_field":
+        removeFields.add(editIntent.field)
+        filterSpecs.push({ field: editIntent.field, op: "skip" })
+        reasoning = `stage1:${args.stageOneEditIntent?.reason ?? `skip ${editIntent.field}`}`
+        break
+      case "clear_field":
+        removeFields.add(editIntent.field)
+        reasoning = `stage1:${args.stageOneEditIntent?.reason ?? `clear ${editIntent.field}`}`
+        break
+      case "replace_field":
+        removeFields.add(editIntent.field)
+        filterSpecs.push({ field: editIntent.field, op: "eq", value: editIntent.newValue })
+        reasoning = `stage1:${args.stageOneEditIntent?.reason ?? `replace ${editIntent.field}`}`
+        break
+      case "exclude_field":
+        filterSpecs.push({ field: editIntent.field, op: "neq", value: editIntent.value })
+        reasoning = `stage1:${args.stageOneEditIntent?.reason ?? `exclude ${editIntent.field}`}`
+        break
+    }
+  }
+
+  for (const action of effectiveActions) {
+    if (action.type !== "apply_filter" || !action.field || action.value == null) continue
+    filterSpecs.push({
+      field: action.field,
+      op: action.op ?? "eq",
+      value: action.value as PrimitiveValue | PrimitiveValue[],
+      value2: action.value2 as PrimitiveValue | undefined,
+      rawToken: typeof action.source === "string" ? action.source : undefined,
+    })
+  }
+
+  const filters = filterSpecs
+    .map(spec => buildFilterFromSpec(spec, args.turnCount))
+    .filter((filter): filter is AppliedFilter => filter != null)
+
+  const hasStageOneResolution =
+    filters.length > 0
+    || !!args.stageOneSort
+    || clearUnmentioned
+    || removeFields.size > 0
+    || intent !== "none"
+
+  if (!hasStageOneResolution) return null
+
+  if (intent === "none") {
+    intent = inferIntentFromRouteHint(
+      "none",
+      args.message,
+      filters.length > 0 || removeFields.size > 0 || clearUnmentioned,
+      Boolean(args.stageOneSort),
+    )
+  }
+
+  return {
+    source: "stage1",
+    filters,
+    sort: args.stageOneSort ?? null,
+    routeHint: intent === "show_recommendation" ? "show_recommendation" : "none",
+    intent,
+    clearOtherFilters: clearUnmentioned,
+    removeFields: Array.from(removeFields),
+    followUpFilter,
+    confidence: args.stageOneEditIntent?.confidence ?? (filters.length > 0 || args.stageOneSort ? 0.95 : 0.85),
+    unresolvedTokens: [],
+    reasoning,
+    clarification: null,
+  }
 }
 
 function buildFieldGuide(): string {
@@ -669,18 +1108,41 @@ async function runResolverStage(
   args: ResolveMultiStageQueryArgs,
   unresolvedTokens: string[],
   stage2Result?: NormalizedResolverResult | null,
+  stage1ResolvedTokens?: string[],
 ): Promise<NormalizedResolverResult | null> {
   const provider = stage === "stage2"
     ? (args.stage2Provider ?? getProviderForAgent("parameter-extractor"))
     : (args.stage3Provider ?? getProviderForAgent("semantic-turn-extractor"))
 
-  if (!provider?.available()) return null
+  if (!provider?.available()) {
+    console.log(`[multi-stage:${stage}] provider unavailable`)
+    return null
+  }
 
   const { systemPrompt, userPrompt } = stage === "stage2"
     ? buildStage2Prompt(args, unresolvedTokens)
     : buildStage3Prompt(args, unresolvedTokens, stage2Result ?? null)
 
   try {
+    if (stage === "stage2") {
+      console.log("[multi-stage:stage2] calling LLM", {
+        unresolvedTokens,
+        stage1ResolvedTokens: stage1ResolvedTokens ?? [],
+        currentFilters: formatAppliedFilters(args.currentFilters),
+      })
+    } else {
+      console.log("[multi-stage:stage3] calling LLM", {
+        unresolvedTokens,
+        stage2Result: stage2Result ? {
+          filters: stage2Result.filters,
+          sort: stage2Result.sort,
+          intent: stage2Result.intent,
+          confidence: stage2Result.confidence,
+          unresolvedTokens: stage2Result.unresolvedTokens,
+        } : null,
+        currentFilters: formatAppliedFilters(args.currentFilters),
+      })
+    }
     const response = await withTimeout(
       provider.complete(
         systemPrompt,
@@ -691,9 +1153,28 @@ async function runResolverStage(
       ),
       stage === "stage2" ? STAGE2_TIMEOUT_MS : STAGE3_TIMEOUT_MS,
     )
-    if (!response) return null
-    return normalizeResolverPayload(extractJsonObject(response), args.pendingField ?? args.sessionState?.lastAskedField ?? null)
+    if (!response) {
+      console.log(`[multi-stage:${stage}] timed out or returned empty`)
+      return null
+    }
+    const normalized = normalizeResolverPayload(
+      extractJsonObject(response),
+      args.message,
+      args.pendingField ?? args.sessionState?.lastAskedField ?? null,
+    )
+    console.log(`[multi-stage:${stage}] result`, {
+      source: stage,
+      filters: normalized?.filters ?? [],
+      sort: normalized?.sort ?? null,
+      intent: normalized?.intent ?? "none",
+      routeHint: normalized?.routeHint ?? "none",
+      clarification: normalized?.clarification ?? null,
+      unresolvedTokens: normalized?.unresolvedTokens ?? [],
+      confidence: normalized?.confidence ?? 0,
+    })
+    return normalized
   } catch {
+    console.log(`[multi-stage:${stage}] failed`)
     return null
   }
 }
@@ -716,28 +1197,63 @@ function shouldEscalateToStage3(
 export async function resolveMultiStageQuery(
   args: ResolveMultiStageQueryArgs,
 ): Promise<MultiStageResolverResult> {
+  const stage1Result = buildStageOneResult(args)
+  const stage1ResolvedTokens = extractStageOneResolvedTokens(args)
   const unresolvedTokens = extractUnresolvedTokens(args)
-  if (unresolvedTokens.length === 0) {
+  console.log("[multi-stage:stage1] exit", {
+    resolvedTokens: stage1ResolvedTokens,
+    unresolvedTokens,
+    resolvedBy: extractStageOneResolvedBy(args),
+    finalStage1Filters: formatAppliedFilters(stage1Result?.filters ?? []),
+    sort: stage1Result?.sort ?? null,
+    removeFields: stage1Result?.removeFields ?? [],
+    clearOtherFilters: stage1Result?.clearOtherFilters ?? false,
+    intent: stage1Result?.intent ?? "none",
+  })
+
+  const shouldShortCircuitStage1 = Boolean(stage1Result) && (
+    unresolvedTokens.length === 0
+    || stage1Result.filters.some(filter => filter.op === "skip")
+    || stage1Result.removeFields.length > 0
+    || stage1Result.clearOtherFilters
+  )
+
+  if (stage1Result && shouldShortCircuitStage1) {
     return {
-      source: "none",
-      filters: [],
-      sort: null,
-      routeHint: "none",
-      clearOtherFilters: false,
-      confidence: 0,
+      ...stage1Result,
       unresolvedTokens: [],
-      reasoning: "",
     }
+  }
+
+  if (unresolvedTokens.length === 0) {
+    const pendingField = args.pendingField ?? args.sessionState?.lastAskedField ?? null
+    if (!pendingField && args.currentFilters.length === 0 && isBareRecommendationMessage(args.message)) {
+      return buildEmptyResult("defer:bare_recommendation")
+    }
+    return buildClarificationResult(args, [])
   }
 
   const cacheKey = computeCacheKey(args.message, args.pendingField ?? args.sessionState?.lastAskedField ?? null)
   const cached = lookupResolverCache(cacheKey)
   if (cached) {
-    return materializeResult("cache", cached, args.turnCount)
+    const cachedResult = mergeMultiStageResults(stage1Result, materializeResult("cache", cached, args.turnCount))
+    console.log("[multi-stage:cache] hit", {
+      unresolvedTokens,
+      filters: formatAppliedFilters(cachedResult.filters),
+      sort: cachedResult.sort,
+      intent: cachedResult.intent,
+      clarification: cachedResult.clarification,
+    })
+    return cachedResult
   }
 
   const failureCount = getResolverFailureCount(cacheKey)
-  const stage2Result = await runResolverStage("stage2", args, unresolvedTokens)
+  console.log("[multi-stage:stage2] entry", {
+    unresolvedTokens,
+    whyEnteringStage2: stage1Result ? "stage1_partial_with_unresolved_tokens" : "stage1_no_resolution",
+    stage1ResolvedTokens,
+  })
+  const stage2Result = await runResolverStage("stage2", args, unresolvedTokens, null, stage1ResolvedTokens)
 
   if (
     hasMeaningfulResolution(stage2Result)
@@ -747,7 +1263,7 @@ export async function resolveMultiStageQuery(
   ) {
     clearResolverFailure(cacheKey)
     storeResolverCache(cacheKey, stage2Result)
-    return materializeResult("stage2", stage2Result, args.turnCount)
+    return mergeMultiStageResults(stage1Result, materializeResult("stage2", stage2Result, args.turnCount))
   }
 
   const stage3Needed = shouldEscalateToStage3(args, unresolvedTokens, stage2Result, failureCount)
@@ -756,27 +1272,18 @@ export async function resolveMultiStageQuery(
     if (hasMeaningfulResolution(stage3Result)) {
       clearResolverFailure(cacheKey)
       storeResolverCache(cacheKey, stage3Result)
-      return materializeResult("stage3", stage3Result, args.turnCount)
+      return mergeMultiStageResults(stage1Result, materializeResult("stage3", stage3Result, args.turnCount))
     }
   }
 
   if (hasMeaningfulResolution(stage2Result)) {
     clearResolverFailure(cacheKey)
     storeResolverCache(cacheKey, stage2Result)
-    return materializeResult("stage2", stage2Result, args.turnCount)
+    return mergeMultiStageResults(stage1Result, materializeResult("stage2", stage2Result, args.turnCount))
   }
 
   recordResolverFailure(cacheKey)
-  return {
-    source: "none",
-    filters: [],
-    sort: null,
-    routeHint: "none",
-    clearOtherFilters: false,
-    confidence: stage2Result?.confidence ?? 0,
-    unresolvedTokens,
-    reasoning: stage2Result?.reasoning ?? "",
-  }
+  return mergeMultiStageResults(stage1Result, buildClarificationResult(args, unresolvedTokens))
 }
 
 export function _resetMultiStageResolverCacheForTest(): void {
