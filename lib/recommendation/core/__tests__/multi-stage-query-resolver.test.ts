@@ -111,6 +111,36 @@ describe("resolveMultiStageQuery", () => {
     expect(cachedStage2Provider.complete).not.toHaveBeenCalled()
   })
 
+  it("sends unresolved phonetic brand tokens to Stage 2", async () => {
+    const stage2Provider = makeProvider(
+      JSON.stringify({
+        filters: [{ field: "brand", op: "eq", value: "ALU-CUT", rawToken: "알루컷" }],
+        sort: null,
+        routeHint: "show_recommendation",
+        clearOtherFilters: false,
+        confidence: 0.93,
+        unresolvedTokens: [],
+        reasoning: "phonetic brand mapping",
+      }),
+    )
+
+    const result = await resolveMultiStageQuery({
+      message: "알루컷 브랜드 추천",
+      turnCount: 2,
+      currentFilters: [],
+      complexity: assessComplexity("알루컷 브랜드 추천"),
+      stage2Provider,
+      stage3Provider: makeUnavailableProvider(),
+    })
+
+    expect(result.source).toBe("stage2")
+    expect(result.intent).toBe("show_recommendation")
+    expect(result.filters).toEqual([
+      expect.objectContaining({ field: "brand", rawValue: "ALU-CUT" }),
+    ])
+    expect(stage2Provider.complete).toHaveBeenCalledTimes(1)
+  })
+
   it("merges Stage 1 deterministic output with Stage 2 semantic output", async () => {
     const stage2Provider = makeProvider(
       JSON.stringify({
@@ -308,7 +338,7 @@ describe("resolveMultiStageQuery", () => {
     ])
   })
 
-  it("defers bare first-turn recommendation requests to downstream ASK flow", async () => {
+  it("asks for workpiece on bare first-turn recommendation requests", async () => {
     const stage2Provider = makeProvider()
     const stage3Provider = makeProvider()
 

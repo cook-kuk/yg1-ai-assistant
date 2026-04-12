@@ -39,6 +39,7 @@ interface ResolverFilterSpec {
 export interface ResolverClarification {
   question: string
   chips: string[]
+  askedField?: string | null
 }
 
 interface NormalizedResolverResult {
@@ -429,7 +430,15 @@ function extractKnownTokens(
 }
 
 function extractRawTokens(message: string): string[] {
-  return Array.from(tokenize(message))
+  const raw = message
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/(\d(?:\.\d+)?)([a-zA-Z가-힣])/g, "$1 $2")
+    .replace(/([a-zA-Z가-힣])(\d)/g, "$1 $2")
+    .split(/[\s,./()[\]{}!?;:'"~\-]+/)
+    .filter(token => token.length > 0)
+
+  return raw
     .map(token => normalizeToken(token))
     .filter(token => token.length >= 2)
     .filter(token => !/^\d+(?:\.\d+)?$/.test(token))
@@ -810,12 +819,20 @@ function buildClarificationResult(
   unresolvedTokens: string[],
 ): MultiStageResolverResult {
   const pendingField = args.pendingField ?? args.sessionState?.lastAskedField ?? null
+  const isBareRecommendation =
+    !pendingField
+    && args.currentFilters.length === 0
+    && isBareRecommendationMessage(args.message)
   const pendingLabel = pendingField ? getFilterFieldLabel(pendingField) : null
   const unresolvedLabel = unresolvedTokens.length > 0 ? unresolvedTokens.slice(0, 3).join(", ") : "현재 표현"
-  const question = pendingLabel
+  const question = isBareRecommendation
+    ? "어떤 소재를 가공하시나요?"
+    : pendingLabel
     ? `${pendingLabel} 조건을 어떻게 처리할지 더 구체적으로 알려주세요.`
     : `입력하신 표현(${unresolvedLabel})의 의미를 정확히 반영하려면 어떤 조건인지 조금만 더 구체적으로 알려주세요.`
-  const chips = pendingLabel
+  const chips = isBareRecommendation
+    ? ["스테인리스", "알루미늄", "탄소강", "직접 입력"]
+    : pendingLabel
     ? [`${pendingLabel} 상관없음`, "추천 제품 보기", "직접 입력"]
     : ["추천 제품 보기", "직접 입력", "처음부터 다시"]
 
@@ -832,10 +849,13 @@ function buildClarificationResult(
     unresolvedTokens,
     reasoning: pendingField
       ? `clarification:${pendingField}`
+      : isBareRecommendation
+      ? "clarification:workPieceName"
       : `clarification:${unresolvedTokens.join("|") || "generic"}`,
     clarification: {
       question,
       chips,
+      askedField: pendingField ?? (isBareRecommendation ? "workPieceName" : null),
     },
   }
 }
