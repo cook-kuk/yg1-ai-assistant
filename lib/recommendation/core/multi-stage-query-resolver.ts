@@ -7,7 +7,7 @@ import type { DeterministicAction } from "./deterministic-scr"
 import { applyEditIntent, type EditIntentResult } from "./edit-intent"
 import type { QueryField, QuerySort } from "./query-spec"
 import { getSortableFields, QUERY_FIELD_MANIFEST } from "./query-spec-manifest"
-import { getDbSchemaSync } from "./sql-agent-schema-cache"
+import { findValueByPhonetic, getDbSchemaSync } from "./sql-agent-schema-cache"
 import { tokenize } from "./auto-synonym"
 
 type ResolverFilterOp = "eq" | "neq" | "gte" | "lte" | "between" | "skip"
@@ -98,6 +98,13 @@ interface FailureEntry {
   expiresAt: number
 }
 
+interface ResolverSchemaHint {
+  token: string
+  column: string
+  value: string
+  similarity: number
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000
 const CACHE_TTL_MS = 7 * DAY_MS
 const VERIFIED_CACHE_TTL_MS = 30 * DAY_MS
@@ -105,6 +112,7 @@ const FAILURE_TTL_MS = DAY_MS
 const STAGE2_TIMEOUT_MS = 3000
 const STAGE3_TIMEOUT_MS = 12000
 const STAGE2_CONFIDENCE_THRESHOLD = 0.7
+const SCHEMA_HINT_PHONETIC_THRESHOLD = 0.88
 const STAGE1_SKIP_CUE_RE = /(아무거나|상관\s*없|뭐든|다\s*괜찮|무관)/giu
 const STAGE1_SORT_CUE_RE = /(제일|가장|젤|맨|최대한|긴걸로|짧은걸로|긴|짧은|큰|작은|많은|적은|높은|낮은|두꺼운|얇은)/giu
 
@@ -557,8 +565,31 @@ function mergeMultiStageResults(
   }
 }
 
+function isIntentOnlyRoutingSignal(result: {
+  filters: Array<unknown>
+  sort: QuerySort | null
+  routeHint: ResolverRouteHint
+  intent: ResolverIntent
+  clearOtherFilters: boolean
+  removeFields: string[]
+  clarification: ResolverClarification | null
+  followUpFilter?: AppliedFilter | null
+}): boolean {
+  const hasStructuralMeaning =
+    result.filters.length > 0
+    || !!result.sort
+    || result.routeHint !== "none"
+    || result.clearOtherFilters
+    || result.removeFields.length > 0
+    || !!result.clarification
+    || !!result.followUpFilter
+
+  if (hasStructuralMeaning) return false
+  return result.intent === "show_recommendation" || result.intent === "continue_narrowing"
+}
+
 export function resolverProducedMeaningfulOutput(result: MultiStageResolverResult): boolean {
-  return result.source !== "none" && (
+  return result.source !== "none" && !isIntentOnlyRoutingSignal(result) && (
     result.filters.length > 0
     || result.removeFields.length > 0
     || !!result.sort
@@ -581,6 +612,38 @@ function extractUnresolvedTokens(args: ResolveMultiStageQueryArgs): string[] {
   return uniqueStrings(
     extractRawTokens(args.message).filter(token => !tokenMatchesKnown(token, known) && !STOPWORD_TOKENS.has(token))
   )
+}
+
+function collectSchemaHints(message: string, unresolvedTokens: string[]): ResolverSchemaHint[] {
+  const candidates = uniqueStrings([message, ...unresolvedTokens]).filter(candidate => candidate.trim().length >= 2)
+  const hints: ResolverSchemaHint[] = []
+  const seen = new Set<string>()
+
+  for (const candidate of candidates) {
+    const match = findValueByPhonetic(candidate, SCHEMA_HINT_PHONETIC_THRESHOLD)
+    if (!match) continue
+    const normalizedToken = normalizeToken(match.matchedToken)
+    if (!normalizedToken || STOPWORD_TOKENS.has(normalizedToken)) continue
+
+    const signature = `${match.column}::${match.value}::${normalizedToken}`
+    if (seen.has(signature)) continue
+    seen.add(signature)
+    hints.push({
+      token: match.matchedToken,
+      column: match.column,
+      value: match.value,
+      similarity: match.similarity,
+    })
+  }
+
+  return hints
+}
+
+function formatSchemaHintBlock(hints: ResolverSchemaHint[]): string {
+  if (hints.length === 0) return "none"
+  return hints
+    .map(hint => `- token "${hint.token}" ~= ${hint.column}="${hint.value}" (sim ${hint.similarity.toFixed(2)})`)
+    .join("\n")
 }
 
 function resolveFilterField(raw: unknown): string | null {
@@ -815,6 +878,15 @@ function materializeResult(
 
 function hasMeaningfulResolution(result: NormalizedResolverResult | null): result is NormalizedResolverResult {
   return Boolean(result)
+    && !isIntentOnlyRoutingSignal({
+      filters: result.filters,
+      sort: result.sort,
+      routeHint: result.routeHint,
+      intent: result.intent,
+      clearOtherFilters: result.clearOtherFilters,
+      removeFields: result.removeFields,
+      clarification: result.clarification,
+    })
     && (
       result.filters.length > 0
       || !!result.sort
@@ -1045,6 +1117,7 @@ function buildCurrentFilterSummary(filters: AppliedFilter[]): string {
 }
 
 function buildStage2Prompt(args: ResolveMultiStageQueryArgs, unresolvedTokens: string[]): { systemPrompt: string; userPrompt: string } {
+  const schemaHints = collectSchemaHints(args.message, unresolvedTokens)
   const systemPrompt = `You are the Stage 2 lightweight resolver for the YG-1 cutting tool recommendation system.
 The deterministic parser already handled exact patterns. Resolve only the leftover intent.
 
@@ -1069,6 +1142,7 @@ Rules:
   - compare_products: explicit comparison request
   - none: otherwise
 - If pendingField is set and the user is clearly dismissing that field, use it.
+- If a schema phonetic hint clearly matches a brand / series / material token in the user message, emit the corresponding filter instead of returning only show_recommendation.
 - Do not guess. Keep unresolved tokens instead.
 - Return JSON only.
 
@@ -1083,6 +1157,7 @@ Examples:
   const userPrompt = [
     `User message: ${args.message}`,
     `Stage 1 unresolved tokens: ${unresolvedTokens.join(", ") || "none"}`,
+    `Possible schema phonetic hints:\n${formatSchemaHintBlock(schemaHints)}`,
     `Pending field: ${args.pendingField ?? args.sessionState?.lastAskedField ?? "none"}`,
     `Current filters: ${buildCurrentFilterSummary(args.currentFilters)}`,
     `Respond with JSON only.`,
@@ -1092,6 +1167,7 @@ Examples:
 }
 
 function buildStage3Prompt(args: ResolveMultiStageQueryArgs, unresolvedTokens: string[], stage2Result: NormalizedResolverResult | null): { systemPrompt: string; userPrompt: string } {
+  const schemaHints = collectSchemaHints(args.message, unresolvedTokens)
   const systemPrompt = `You are the Stage 3 deep reasoning resolver for the YG-1 cutting tool recommendation system.
 Stage 1 and Stage 2 were not sufficient. Think step by step internally, then return JSON only.
 
@@ -1104,9 +1180,10 @@ ${buildSchemaContext()}
 Decision process:
 1. Classify the user intent: filter, sort, comparison, UI question, side question, or mixed.
 2. Analyze the unresolved tokens: Korean pronunciation, slang, misspacing, shorthand, superlative, indifference, UI vocabulary.
-3. Map only high-confidence items to DB fields or routeHint.
-4. If all other existing filters should be released, set clearOtherFilters=true.
-5. If unsure, leave filters empty and keep unresolvedTokens.
+3. Use any schema phonetic hints only when they clearly fit the user's meaning.
+4. Map only high-confidence items to DB fields or routeHint.
+5. If all other existing filters should be released, set clearOtherFilters=true.
+6. If unsure, leave filters empty and keep unresolvedTokens.
 
 Return JSON:
 {"filters":[],"sort":null,"routeHint":"none","clearOtherFilters":false,"confidence":0.0,"unresolvedTokens":[],"reasoning":""}`
@@ -1117,6 +1194,7 @@ Return JSON:
     `Current filters: ${buildCurrentFilterSummary(args.currentFilters)}`,
     `Complexity: ${args.complexity?.level ?? "unknown"} (${args.complexity?.reason ?? "n/a"})`,
     `Stage 1 unresolved tokens: ${unresolvedTokens.join(", ") || "none"}`,
+    `Possible schema phonetic hints:\n${formatSchemaHintBlock(schemaHints)}`,
     `Stage 2 result: ${stage2Result ? JSON.stringify({
       filters: stage2Result.filters,
       sort: stage2Result.sort,
@@ -1148,6 +1226,12 @@ async function runResolverStage(
   const provider = stage === "stage2"
     ? (args.stage2Provider ?? getProviderForAgent("parameter-extractor"))
     : (args.stage3Provider ?? getProviderForAgent("semantic-turn-extractor"))
+  const schemaHints = collectSchemaHints(args.message, unresolvedTokens).map(hint => ({
+    token: hint.token,
+    column: hint.column,
+    value: hint.value,
+    similarity: Number(hint.similarity.toFixed(2)),
+  }))
 
   if (!provider?.available()) {
     console.log(`[multi-stage:${stage}] provider unavailable`)
@@ -1164,6 +1248,7 @@ async function runResolverStage(
         unresolvedTokens,
         stage1ResolvedTokens: stage1ResolvedTokens ?? [],
         currentFilters: formatAppliedFilters(args.currentFilters),
+        schemaHints,
       })
     } else {
       console.log("[multi-stage:stage3] calling LLM", {
@@ -1176,6 +1261,7 @@ async function runResolverStage(
           unresolvedTokens: stage2Result.unresolvedTokens,
         } : null,
         currentFilters: formatAppliedFilters(args.currentFilters),
+        schemaHints,
       })
     }
     const response = await withTimeout(

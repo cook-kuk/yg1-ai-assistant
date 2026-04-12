@@ -16,6 +16,17 @@ vi.mock("../sql-agent-schema-cache", () => ({
     brands: ["CRX S", "ALU-CUT", "TANK-POWER", "V7 PLUS"],
     loadedAt: Date.now(),
   }),
+  findValueByPhonetic: (text: string) => {
+    if (String(text).includes("알루컷")) {
+      return {
+        column: "edp_brand_name",
+        value: "ALU-CUT for Korean Market",
+        similarity: 0.99,
+        matchedToken: "알루컷",
+      }
+    }
+    return null
+  },
 }))
 
 function makeProvider(...responses: string[]): LLMProvider & { complete: ReturnType<typeof vi.fn> } {
@@ -272,6 +283,44 @@ describe("resolveMultiStageQuery", () => {
     expect(stage3Provider.complete).toHaveBeenCalledTimes(1)
   })
 
+  it("passes schema phonetic hints into Stage 3 so brand truth survives timeout fallback", async () => {
+    const stage3Provider = {
+      available: () => true,
+      complete: vi.fn(async (_systemPrompt: string, messages: Array<{ role: string; content: string }>) => {
+        const userPrompt = messages[0]?.content ?? ""
+        expect(userPrompt).toContain("Possible schema phonetic hints:")
+        expect(userPrompt).toContain("알루컷")
+        expect(userPrompt).toContain("ALU-CUT for Korean Market")
+        return JSON.stringify({
+          filters: [{ field: "brand", op: "eq", value: "ALU-CUT for Korean Market", rawToken: "알루컷" }],
+          sort: null,
+          routeHint: "show_recommendation",
+          clearOtherFilters: false,
+          confidence: 0.95,
+          unresolvedTokens: [],
+          reasoning: "schema phonetic hint matched brand",
+        })
+      }),
+      completeWithTools: vi.fn(async () => ({ text: null, toolUse: null })),
+    } as unknown as LLMProvider & { complete: ReturnType<typeof vi.fn> }
+
+    const result = await resolveMultiStageQuery({
+      message: "알루컷 브랜드 중에서 추천해줄수 있어요?",
+      turnCount: 3,
+      currentFilters: [],
+      complexity: assessComplexity("알루컷 브랜드 중에서 추천해줄수 있어요?"),
+      stage2Provider: makeProvider(""),
+      stage3Provider,
+    })
+
+    expect(result.source).toBe("stage3")
+    expect(result.intent).toBe("show_recommendation")
+    expect(result.filters).toEqual([
+      expect.objectContaining({ field: "brand", rawValue: "ALU-CUT" }),
+    ])
+    expect(stage3Provider.complete).toHaveBeenCalledTimes(1)
+  })
+
   it("maps Stage 2 question route hints to answer_general intent", async () => {
     const stage2Provider = makeProvider(
       JSON.stringify({
@@ -401,5 +450,29 @@ describe("resolveMultiStageQuery", () => {
     expect(result.intent).toBe("ask_clarification")
     expect(result.clarification?.question).toContain("조금만 더 구체적으로")
     expect(result.clarification?.chips).toContain("직접 입력")
+  })
+  it("does not treat intent-only show_recommendation as a resolved truth source", async () => {
+    const result = await resolveMultiStageQuery({
+      message: "애매한 브랜드로 추천해줄수 있어요?",
+      turnCount: 8,
+      currentFilters: [],
+      complexity: assessComplexity("애매한 브랜드로 추천해줄수 있어요?"),
+      stage2Provider: makeProvider(""),
+      stage3Provider: makeProvider(JSON.stringify({
+        filters: [],
+        sort: null,
+        routeHint: "none",
+        intent: "show_recommendation",
+        clearOtherFilters: false,
+        confidence: 0.95,
+        unresolvedTokens: [],
+        reasoning: "user wants recommendations",
+      })),
+    })
+
+    expect(result.source).toBe("clarification")
+    expect(result.intent).toBe("ask_clarification")
+    expect(result.filters).toEqual([])
+    expect(result.clarification).not.toBeNull()
   })
 })
