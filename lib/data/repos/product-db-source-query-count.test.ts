@@ -137,4 +137,44 @@ describe("product db query count behavior", () => {
     expect(String(queryMock.mock.calls[0]?.[0])).toContain("COUNT(*)")
     expect(String(queryMock.mock.calls[1]?.[0])).not.toContain("COUNT(*)")
   })
+
+  it("binds canonical workpiece families for grade-like workpiece queries", async () => {
+    queryMock.mockResolvedValue({
+      rows: [createRawProductRow()],
+      rowCount: 1,
+    })
+
+    const { queryProductsFromDatabase } = await import("./product-db-source")
+    await queryProductsFromDatabase({
+      input: {
+        manufacturerScope: "yg1-only",
+        locale: "ko",
+        workPieceName: "SUS316L",
+      } as any,
+      limit: 1,
+    })
+
+    const values = queryMock.mock.calls[0]?.[1] as unknown[]
+    expect(values).toContain("Stainless")
+  })
+
+  it("binds canonical workpiece families for typo-ish stainless workpiece queries", async () => {
+    queryMock.mockResolvedValue({
+      rows: [createRawProductRow()],
+      rowCount: 1,
+    })
+
+    const { queryProductsFromDatabase } = await import("./product-db-source")
+    await queryProductsFromDatabase({
+      input: {
+        manufacturerScope: "yg1-only",
+        locale: "ko",
+        workPieceName: "스텐인리스강",
+      } as any,
+      limit: 1,
+    })
+
+    const values = queryMock.mock.calls[0]?.[1] as unknown[]
+    expect(values).toContain("Stainless")
+  })
 })

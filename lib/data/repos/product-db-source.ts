@@ -80,10 +80,114 @@ const WORKPIECE_DB_MAP: Record<string, string> = {
   graphite: "Graphite",
 }
 
-function normalizeWorkPieceNameForDb(raw: string | null): string | null {
+export function normalizeWorkPieceNameForDb(raw: string | null): string | null {
   if (!raw) return null
-  const key = raw.toLowerCase().replace(/\s+/g, "")
-  return WORKPIECE_DB_MAP[key] ?? raw
+
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+
+  const key = trimmed.toLowerCase().replace(/\s+/g, "")
+  const exact = WORKPIECE_DB_MAP[key]
+  if (exact) return exact
+
+  const compact = key.replace(/[^a-z0-9\u3131-\u318e\uac00-\ud7a3]+/g, "")
+
+  // Grade-level material names should collapse into the DB's canonical
+  // workpiece family so recommendation queries do not go to 0 rows on
+  // literals such as SUS316L or typo-ish stainless variants.
+  if (
+    /^(?:sus|sts)\d+[a-z]*$/i.test(compact)
+    || compact.includes("stainless")
+    || compact.includes("스텐")
+    || compact.includes("스테인")
+  ) {
+    return "Stainless"
+  }
+
+  if (
+    /^a?(?:5052|6061|7075)$/i.test(compact)
+    || compact.includes("aluminum")
+    || compact.includes("aluminium")
+    || compact.includes("알루")
+    || compact.includes("알미늄")
+  ) {
+    return "Aluminum"
+  }
+
+  if (
+    /^(?:fc|fcd)\d*[a-z]*$/i.test(compact)
+    || compact.includes("castiron")
+    || compact.includes("주철")
+  ) {
+    return "Cast Iron"
+  }
+
+  if (
+    /^(?:scm|sncm|suj)\d*[a-z]*$/i.test(compact)
+    || compact.includes("alloysteel")
+    || compact.includes("합금")
+  ) {
+    return "Alloy Steel"
+  }
+
+  if (
+    /^(?:skd|hrc)\d*[a-z]*$/i.test(compact)
+    || compact.includes("hardened")
+    || compact.includes("고경도")
+    || compact.includes("경화강")
+  ) {
+    return "Hardened Steel"
+  }
+
+  if (
+    /^(?:s(?:m)?45c|s50c|s55c|sk3|sk5)$/i.test(compact)
+    || compact.includes("carbonsteel")
+    || compact.includes("탄소")
+    || compact.includes("일반강")
+  ) {
+    return "Carbon Steel"
+  }
+
+  if (
+    compact === "cu"
+    || compact.includes("copper")
+    || compact.includes("brass")
+    || compact.includes("bronze")
+    || compact.includes("구리")
+    || compact.includes("황동")
+    || compact.includes("청동")
+  ) {
+    return "Copper"
+  }
+
+  if (
+    compact.includes("ti6al4v")
+    || compact.includes("titanium")
+    || compact.includes("티타늄")
+  ) {
+    return "Titanium"
+  }
+
+  if (
+    compact.includes("inconel")
+    || compact.includes("hastelloy")
+    || compact.includes("superalloy")
+    || compact.includes("인코넬")
+    || compact.includes("초내열")
+    || compact.includes("내열합금")
+  ) {
+    return "Inconel"
+  }
+
+  if (compact === "frp" || compact === "cfrp" || compact.includes("복합재")) {
+    return "FRP"
+  }
+
+  if (compact.includes("graphite") || compact.includes("흑연")) {
+    return "Graphite"
+  }
+
+  return trimmed
 }
 
 interface RawProductRow {

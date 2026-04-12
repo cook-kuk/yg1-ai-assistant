@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 
 vi.mock("server-only", () => ({}))
 
-import { buildQueryOptions } from "./product-db-source"
+import { buildQueryOptions, normalizeWorkPieceNameForDb } from "./product-db-source"
 
 describe("product db operation shape filtering", () => {
   it("filters by series_application_shape text only", () => {
@@ -47,5 +47,18 @@ describe("product db operation shape filtering", () => {
     expect(where.some(clause => clause.includes("edp_root_category"))).toBe(true)
     expect(where.some(clause => clause.includes("series_application_shape"))).toBe(false)
     expect(values).toContain("Tooling System")
+  })
+})
+
+describe("product db workpiece normalization", () => {
+  it.each([
+    ["SUS316L", "Stainless"],
+    ["스텐인리스강", "Stainless"],
+    ["스테인리스강", "Stainless"],
+    ["A7075", "Aluminum"],
+    ["SCM440", "Alloy Steel"],
+    ["SKD11", "Hardened Steel"],
+  ])("normalizes %s -> %s", (input, expected) => {
+    expect(normalizeWorkPieceNameForDb(input)).toBe(expected)
   })
 })
