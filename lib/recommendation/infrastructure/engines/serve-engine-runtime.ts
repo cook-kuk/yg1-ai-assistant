@@ -4812,6 +4812,46 @@ async function handleServeExplorationInner(
 
   // ── First-turn bridged action: prevState=null이면 dispatch 블록(line ~2595) 도달 불가 → 여기서 처리 ──
   if (!prevState && singleCallHandled && bridgedV2Action) {
+    if (bridgedV2Action.type === "answer_general" || bridgedV2Action.type === "redirect_off_topic") {
+      const answerState = buildSessionState({
+        candidateCount: totalCandidateCount,
+        appliedFilters: filters,
+        narrowingHistory,
+        stageHistory: [],
+        resolutionStatus: "narrowing",
+        resolvedInput: currentInput,
+        turnCount,
+        displayedCandidates: displayCandidates,
+        fullDisplayedCandidates: candidates,
+        displayedProducts: displayCandidates,
+        fullDisplayedProducts: candidates,
+        displayedSeriesGroups: prevState?.displayedSeriesGroups ?? [],
+        displayedChips: [],
+        displayedOptions: [],
+        currentMode: "question",
+        lastRecommendationArtifact: displayCandidates,
+      })
+      return handleServeGeneralChatAction({
+        deps,
+        action: bridgedV2Action,
+        orchResult: bridgedV2OrchestratorResult ?? {
+          action: bridgedV2Action,
+          reasoning: "first-turn-bridged-answer-general",
+          agentsInvoked: [],
+          escalatedToOpus: false,
+        },
+        provider,
+        form,
+        messages,
+        prevState: answerState,
+        filters,
+        narrowingHistory,
+        currentInput,
+        candidates,
+        evidenceMap,
+        turnCount,
+      })
+    }
     if (bridgedV2Action.type === "show_recommendation" && displayCandidates.length > 0) {
       return deps.buildRecommendationResponse(
         form,

@@ -263,6 +263,35 @@ function getGroundedKnowledgeReply(userMessage: string): QuestionReply {
   }
 }
 
+function buildGenericMaterialRatingLegendReply(
+  askedRating: string | null,
+): QuestionReply {
+  const focusLine =
+    askedRating === "EXCELLENT"
+      ? "여기서 Excellent는 현재 소재에 특히 잘 맞도록 설계된 후보라는 뜻입니다."
+      : askedRating === "GOOD"
+        ? "여기서 Good은 현재 소재에서 가공 가능하지만 Excellent보다는 범용 성격이 큰 후보를 뜻합니다."
+        : askedRating === "NULL"
+          ? "여기서 Null은 나쁘다는 뜻이 아니라, 현재 화면에서 소재 적합성 근거가 충분히 표시되지 않은 상태를 뜻합니다."
+          : "여기 표시되는 Excellent / Good / Null은 현재 소재 기준의 적합성 등급입니다."
+
+  const text = [
+    focusLine,
+    "Excellent는 해당 소재에 더 최적화된 형상이나 코팅, 설계 방향을 가진 경우에 주로 붙습니다.",
+    "Good은 해당 소재에서 충분히 사용할 수 있지만 여러 소재를 함께 커버하는 범용 계열일 때 주로 보입니다.",
+    "Null은 부적합 판정이 아니라 등급 근거가 부족하거나 화면에 별도 표시를 붙이지 않은 경우입니다.",
+    "예를 들어 알루미늄 전용 계열은 Excellent로, 범용 엔드밀은 Good으로 보일 수 있습니다.",
+  ].join("\n\n")
+
+  const chips = [
+    askedRating === "GOOD" ? "Excellent는 뭐야?" : "Good은 뭐야?",
+    "추천 제품 보기",
+    "직접 입력",
+  ]
+
+  return { text, chips }
+}
+
 function getMaterialRatingLegendReply(
   userMessage: string,
   prevState: ExplorationSessionState,
@@ -275,7 +304,10 @@ function getMaterialRatingLegendReply(
     .filter((group): group is typeof group & { materialRating: "EXCELLENT" | "GOOD" | "NULL" } =>
       group?.materialRating === "EXCELLENT" || group?.materialRating === "GOOD" || group?.materialRating === "NULL"
     )
-  if (groups.length === 0) return null
+  if (groups.length === 0) {
+    const askedRating = clean.match(/\b(excellent|good|null)\b/i)?.[1]?.toUpperCase() ?? null
+    return buildGenericMaterialRatingLegendReply(askedRating)
+  }
 
   const counts = new Map<string, number>()
   for (const group of groups) {

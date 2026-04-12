@@ -387,6 +387,52 @@ describe("handleServeGeneralChatAction", () => {
     expect(body.chips).toContain("직접 입력")
   })
 
+  it("answers material rating legend questions even when no series groups are displayed yet", async () => {
+    const prevState = {
+      ...makePrevState(),
+      displayedSeriesGroups: [],
+    }
+    const candidates = [makeCandidate(1, "E5D7004010", "DLC"), makeCandidate(2, "E5D7004020", "TiAlN")]
+    const handleGeneralChat = vi.fn(async () => ({ text: "unused", chips: [] }))
+
+    const response = await handleServeGeneralChatAction({
+      deps: {
+        buildCandidateSnapshot: () => prevState.displayedCandidates,
+        handleDirectInventoryQuestion: vi.fn(async () => null),
+        handleDirectEntityProfileQuestion: vi.fn(async () => null),
+        handleDirectBrandReferenceQuestion: vi.fn(async () => null),
+        handleDirectCuttingConditionQuestion: vi.fn(async () => null),
+        handleContextualNarrowingQuestion: vi.fn(async () => null),
+        handleGeneralChat,
+        jsonRecommendationResponse: (params) =>
+          new Response(JSON.stringify(params), { headers: { "content-type": "application/json" } }),
+      },
+      action: { type: "answer_general", message: "" } as any,
+      orchResult: { ...orchResult, action: { type: "answer_general" as const, message: "" } },
+      provider: { available: () => false } as any,
+      form,
+      messages: [
+        { role: "user", text: "What does Excellent rating mean?" },
+      ],
+      prevState,
+      filters: [],
+      narrowingHistory: [],
+      currentInput: prevState.resolvedInput,
+      candidates,
+      evidenceMap: new Map(),
+      turnCount: 1,
+    })
+
+    const body = await response.json()
+
+    expect(handleGeneralChat).not.toHaveBeenCalled()
+    expect(body.purpose).toBe("general_chat")
+    expect(body.text).toContain("Excellent")
+    expect(body.text).toContain("Good")
+    expect(body.sessionState.displayedProducts).toEqual(prevState.displayedProducts)
+    expect(body.chips).toContain("직접 입력")
+  })
+
   it("returns deterministic clarification for broad RPM questions instead of generic general chat", async () => {
     const prevState = makePrevState()
     const candidates = [makeCandidate(1, "E5D7004010", "DLC"), makeCandidate(2, "E5D7004020", "TiAlN")]

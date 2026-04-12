@@ -338,6 +338,33 @@ describe("resolveMultiStageQuery", () => {
     ])
   })
 
+  it("normalizes numeric inventory thresholds to totalStock", async () => {
+    const stage2Provider = makeProvider(
+      JSON.stringify({
+        filters: [{ field: "stockStatus", op: "gte", value: 100, rawToken: "재고 100개 이상" }],
+        sort: null,
+        routeHint: "none",
+        clearOtherFilters: false,
+        confidence: 0.89,
+        unresolvedTokens: [],
+        reasoning: "numeric inventory threshold",
+      }),
+    )
+
+    const result = await resolveMultiStageQuery({
+      message: "알루미늄 Square 재고 100개 이상 3날",
+      turnCount: 3,
+      currentFilters: [],
+      complexity: assessComplexity("알루미늄 Square 재고 100개 이상 3날"),
+      stage2Provider,
+      stage3Provider: makeUnavailableProvider(),
+    })
+
+    expect(result.filters).toEqual(expect.arrayContaining([
+      expect.objectContaining({ field: "totalStock", op: "gte", rawValue: 100 }),
+    ]))
+  })
+
   it("asks for workpiece on bare first-turn recommendation requests", async () => {
     const stage2Provider = makeProvider()
     const stage3Provider = makeProvider()

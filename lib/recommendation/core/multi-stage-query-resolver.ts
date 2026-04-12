@@ -671,7 +671,7 @@ function normalizeFilterSpecs(
     if (!FILTER_OPS.has(opValue as ResolverFilterOp)) continue
 
     const op = opValue as ResolverFilterOp
-    const resolvedField = resolveFilterField(record.field) ?? (op === "skip" ? pendingField ?? null : null)
+    let resolvedField = resolveFilterField(record.field) ?? (op === "skip" ? pendingField ?? null : null)
     if (!resolvedField) continue
 
     if (op === "skip") {
@@ -691,6 +691,13 @@ function normalizeFilterSpecs(
     }
     if (value == null) continue
     if (op === "between" && value2 == null) continue
+
+    if (
+      resolvedField === "stockStatus"
+      && (op === "gte" || op === "lte" || op === "between" || typeof value === "number")
+    ) {
+      resolvedField = "totalStock"
+    }
 
     specs.push({
       field: resolvedField,
@@ -769,9 +776,14 @@ function buildFilterFromSpec(spec: ResolverFilterSpec, turnCount: number): Appli
   const rawValue = spec.op === "between"
     ? [spec.value as PrimitiveValue, spec.value2 as PrimitiveValue]
     : (spec.value as PrimitiveValue | PrimitiveValue[])
+  const targetField =
+    spec.field === "stockStatus"
+    && (spec.op === "gte" || spec.op === "lte" || spec.op === "between" || typeof rawValue === "number")
+      ? "totalStock"
+      : spec.field
 
   return buildAppliedFilterFromValue(
-    spec.field,
+    targetField,
     rawValue,
     turnCount,
     spec.op === "eq" ? undefined : spec.op,
@@ -1047,6 +1059,8 @@ Rules:
 - Operators: eq, neq, gte, lte, between, skip.
 - skip means the user does not care about a field and the existing restriction should be removed.
 - sort means a superlative like "제일 긴", "가장 작은".
+- Use stockStatus only for availability states such as instock / outofstock / limited.
+- Use totalStock for numeric inventory thresholds such as "재고 100개 이상".
 - clearOtherFilters=true only when the user says everything else is okay / all other conditions can be dropped.
 - routeHint:
   - ui_question: screen labels or UI statuses such as Excellent / Good / 정확매칭
@@ -1062,6 +1076,7 @@ Examples:
 {"filters":[{"field":"brand","op":"skip","rawToken":"노상관"}],"sort":null,"routeHint":"none","clearOtherFilters":false,"confidence":0.92,"unresolvedTokens":[],"reasoning":"brand indifference"}
 {"filters":[{"field":"coating","op":"skip","rawToken":"아무래도 좋은데"},{"field":"fluteCount","op":"eq","value":4,"rawToken":"4날"}],"sort":null,"routeHint":"none","clearOtherFilters":false,"confidence":0.88,"unresolvedTokens":[],"reasoning":"skip coating and keep flute"}
 {"filters":[{"field":"brand","op":"eq","value":"CRX S","rawToken":"크렉스에스"}],"sort":null,"routeHint":"none","clearOtherFilters":false,"confidence":0.9,"unresolvedTokens":[],"reasoning":"phonetic brand"}
+{"filters":[{"field":"totalStock","op":"gte","value":100,"rawToken":"재고 100개 이상"}],"sort":null,"routeHint":"none","clearOtherFilters":false,"confidence":0.9,"unresolvedTokens":[],"reasoning":"numeric inventory threshold"}
 {"filters":[],"sort":{"field":"lengthOfCutMm","direction":"desc"},"routeHint":"show_recommendation","clearOtherFilters":false,"confidence":0.95,"unresolvedTokens":[],"reasoning":"superlative sort"}
 {"filters":[],"sort":null,"routeHint":"ui_question","clearOtherFilters":false,"confidence":0.94,"unresolvedTokens":[],"reasoning":"UI label question"}`
 

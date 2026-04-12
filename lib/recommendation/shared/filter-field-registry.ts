@@ -66,6 +66,31 @@ function normalizeIdentifierText(value: string): string {
     .replace(/[^a-z0-9가-힣]+/g, "")
 }
 
+function tokenizeIdentifierWords(value: string): string[] {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .split(/[^a-z0-9가-힣]+/g)
+    .map(token => token.trim())
+    .filter(Boolean)
+}
+
+const IDENTIFIER_DESCRIPTOR_STOPWORDS = new Set([
+  "brand",
+  "edition",
+  "for",
+  "global",
+  "korea",
+  "korean",
+  "market",
+  "model",
+  "series",
+  "ver",
+  "version",
+  "yg",
+  "yg1",
+])
+
 function stripFilterAnswer(answer: string): string {
   return answer.trim().replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
 }
@@ -401,6 +426,48 @@ function buildExactIdentifierClause(columns: string[], filter: AppliedFilter, ne
     return `(${columns.map(column => `regexp_replace(LOWER(COALESCE(${column}, '')), '[^a-z0-9가-힣]+', '', 'g') <> ALL(${param}::text[])`).join(" AND ")})`
   }
   return `(${columns.map(column => `regexp_replace(LOWER(COALESCE(${column}, '')), '[^a-z0-9가-힣]+', '', 'g') = ANY(${param}::text[])`).join(" OR ")})`
+}
+
+function canonicalizeBrandRawValue(rawValue: string | number | boolean): string | null {
+  const trimmed = String(rawValue).trim()
+  if (!trimmed) return null
+
+  const schemaBrands = getDbSchemaSync()?.brands ?? []
+  if (schemaBrands.length === 0) return trimmed
+
+  const exactIdentifier = normalizeIdentifierText(trimmed)
+  const exactMatch = schemaBrands.find(brand => normalizeIdentifierText(brand) === exactIdentifier)
+  if (exactMatch) return exactMatch
+
+  const rawTokens = tokenizeIdentifierWords(trimmed)
+  if (rawTokens.length === 0) return trimmed
+
+  const prefixCandidates = schemaBrands.filter(brand => {
+    const brandTokens = tokenizeIdentifierWords(brand)
+    if (brandTokens.length === 0 || brandTokens.length >= rawTokens.length) return false
+    if (!brandTokens.every((token, index) => rawTokens[index] === token)) return false
+    const suffixTokens = rawTokens.slice(brandTokens.length)
+    return suffixTokens.length > 0 && suffixTokens.every(token => IDENTIFIER_DESCRIPTOR_STOPWORDS.has(token))
+  })
+
+  if (prefixCandidates.length === 1) return prefixCandidates[0]
+  return trimmed
+}
+
+function buildInventoryExistsClause(
+  comparator: "=" | ">=" | "<=" | "BETWEEN",
+  next: (value: unknown) => string,
+  firstValue: number,
+  secondValue?: number,
+): string | null {
+  if (!Number.isFinite(firstValue)) return null
+  if (comparator === "BETWEEN") {
+    if (!Number.isFinite(secondValue)) return null
+    const low = Math.min(firstValue, secondValue as number)
+    const high = Math.max(firstValue, secondValue as number)
+    return `EXISTS (SELECT 1 FROM catalog_app.product_inventory_summary_mv inv WHERE inv.edp = edp_no AND inv.total_stock BETWEEN ${next(low)} AND ${next(high)})`
+  }
+  return `EXISTS (SELECT 1 FROM catalog_app.product_inventory_summary_mv inv WHERE inv.edp = edp_no AND inv.total_stock ${comparator} ${next(firstValue)})`
 }
 
 function buildNumericEqualityClause(
@@ -839,6 +906,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "string",
     matchPolicy: "strict_identifier",
     op: "includes",
+    canonicalizeRawValue: canonicalizeBrandRawValue,
     setInput: (input, filter) => ({ ...input, brand: joinedFilterStringValue(filter) }),
     clearInput: input => ({ ...input, brand: undefined }),
     extractValues: record => extractPrimitiveValues(record, "brand"),
@@ -1060,6 +1128,30 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
       0.01,
     ),
   },
+  totalStock: {
+    field: "totalStock",
+    label: "재고수량",
+    queryAliases: ["재고", "재고 수량", "재고수량", "재고 개수", "stock quantity", "total stock", "inventory"],
+    kind: "number",
+    op: "range",
+    setInput: input => input,
+    clearInput: input => input,
+    extractValues: record => extractPrimitiveValues(record, "totalStock"),
+    // Inventory quantity is enforced by SQL/EXISTS. When snapshots already carry
+    // totalStock, numericMatch keeps post-filter semantics aligned.
+    matches: (record, filter) => numericMatch(record, filter, "totalStock", 0),
+    buildDbClause: (filter, next) => {
+      const rawValues = extractNumericFilterRawValues(filter)
+      if (rawValues.length === 0) return null
+      if (filter.op === "gte") return buildInventoryExistsClause(">=", next, rawValues[0])
+      if (filter.op === "lte") return buildInventoryExistsClause("<=", next, rawValues[0])
+      if (filter.op === "between") {
+        const rawValue2 = Number((filter as { rawValue2?: unknown }).rawValue2 ?? rawValues[1] ?? rawValues[0])
+        return buildInventoryExistsClause("BETWEEN", next, rawValues[0], rawValue2)
+      }
+      return buildInventoryExistsClause("=", next, rawValues[0])
+    },
+  },
   stockStatus: {
     field: "stockStatus",
     label: "재고",
@@ -1114,7 +1206,10 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     setInput: input => input,
     clearInput: input => input,
     extractValues: () => [],
-    matches: () => null,
+    // Virtual cutting-condition filters are already enforced by SQL EXISTS.
+    // Returning true here prevents a second in-memory pass from deleting
+    // candidates that do not materialize rpm as a product field.
+    matches: () => true,
     buildDbClause: (filter, next) => buildCuttingConditionExistsClause("spindle_speed", filter, next),
   },
   feedRate: {
@@ -1127,7 +1222,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     setInput: input => input,
     clearInput: input => input,
     extractValues: () => [],
-    matches: () => null,
+    matches: () => true,
     buildDbClause: (filter, next) => buildCuttingConditionExistsClause("feed_per_tooth", filter, next),
   },
   cuttingSpeed: {
@@ -1140,7 +1235,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     setInput: input => input,
     clearInput: input => input,
     extractValues: () => [],
-    matches: () => null,
+    matches: () => true,
     buildDbClause: (filter, next) => buildCuttingConditionExistsClause("cutting_speed", filter, next),
   },
   depthOfCut: {
@@ -1153,7 +1248,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     setInput: input => input,
     clearInput: input => input,
     extractValues: () => [],
-    matches: () => null,
+    matches: () => true,
     buildDbClause: (filter, next) => buildCuttingConditionExistsClause("axial_depth_of_cut", filter, next),
   },
   applicationShapes: {
