@@ -29,7 +29,7 @@ import { createServeRuntimeDependencies } from "@/lib/recommendation/infrastruct
 import { INITIAL_INTAKE_FORM } from "@/lib/types/intake"
 import { handleServeExploration } from "../serve-engine-runtime"
 
-function makeCandidate(productCode: string, coating: string) {
+function makeCandidate(productCode: string, coating: string, toolSubtype = "Square") {
   return {
     rank: 1,
     productCode,
@@ -41,7 +41,7 @@ function makeCandidate(productCode: string, coating: string) {
     diameterMm: 10,
     fluteCount: 4,
     coating,
-    toolSubtype: "Square",
+    toolSubtype,
     toolMaterial: "Carbide",
     shankDiameterMm: null,
     shankType: null,
@@ -169,5 +169,62 @@ describe("handleServeExploration alternative exploration questions", () => {
     expect(body.session?.engineState?.appliedFilters).toEqual(
       expect.not.arrayContaining([expect.objectContaining({ field: "coating", op: "neq" })]),
     )
+  })
+
+  it("surfaces toolSubtype alternatives from displayedOptions for typoed negation questions", async () => {
+    const prevState = buildSessionState({
+      candidateCount: 5,
+      appliedFilters: [
+        { field: "workPieceName", op: "includes", value: "Carbon Steels", rawValue: "Carbon Steels", appliedAt: 0 },
+      ] as any,
+      narrowingHistory: [],
+      stageHistory: [],
+      resolutionStatus: "broad",
+      resolvedInput: {
+        manufacturerScope: "yg1-only",
+        locale: "ko",
+        workPieceName: "Carbon Steels",
+      } as any,
+      turnCount: 1,
+      displayedCandidates: [
+        makeCandidate("A-1", "TiAlN", "Square"),
+        makeCandidate("A-2", "TiAlN", "Square"),
+        makeCandidate("B-1", "TiAlN", "Ball"),
+        makeCandidate("B-2", "TiAlN", "Ball"),
+        makeCandidate("C-1", "TiAlN", "Radius"),
+      ] as any,
+      displayedChips: ["Square (2\uAC1C)", "Ball (2\uAC1C)", "Radius (1\uAC1C)"],
+      displayedOptions: [
+        { index: 1, label: "Square (2\uAC1C)", field: "toolSubtype", value: "Square", count: 2 },
+        { index: 2, label: "Ball (2\uAC1C)", field: "toolSubtype", value: "Ball", count: 2 },
+        { index: 3, label: "Radius (1\uAC1C)", field: "toolSubtype", value: "Radius", count: 1 },
+      ],
+      currentMode: "question",
+      lastAskedField: "toolSubtype",
+    })
+
+    const response = await handleServeExploration(
+      createServeRuntimeDependencies(),
+      INITIAL_INTAKE_FORM,
+      [{ role: "user", text: "Square \uC544\uB2C8\uAC83\uC911\uC5D0 \uCD94\uCC9C\uD560\uAC70 \uC788\uC5B4?" }],
+      prevState,
+      null,
+      "ko",
+      null,
+    )
+
+    const body = await response.json() as any
+
+    expect(body.error).toBeUndefined()
+    expect(body.purpose).toBe("question")
+    expect(body.text).toContain("Square")
+    expect(body.chips).toEqual(expect.arrayContaining(["Ball (2\uAC1C)", "Radius (1\uAC1C)", "\uC9C1\uC811 \uC785\uB825"]))
+    expect(body.session?.engineState?.appliedFilters).toEqual(
+      expect.not.arrayContaining([expect.objectContaining({ field: "toolSubtype", op: "neq" })]),
+    )
+    expect(body.session?.engineState?.displayedOptions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ field: "toolSubtype", value: "Ball", label: "Ball (2\uAC1C)" }),
+      expect.objectContaining({ field: "toolSubtype", value: "Radius", label: "Radius (1\uAC1C)" }),
+    ]))
   })
 })

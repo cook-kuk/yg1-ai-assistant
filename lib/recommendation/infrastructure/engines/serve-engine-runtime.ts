@@ -38,7 +38,7 @@ import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-t
 import { TraceCollector, isDebugEnabled } from "@/lib/debug/agent-trace"
 import { normalizePlannerResult, validatePlannerResult, buildExecutorSummary } from "@/lib/recommendation/core/turn-boundaries"
 import { dryRunReduce, reduce, compareReducerVsActual, type ReducerAction } from "@/lib/recommendation/core/state-reducer"
-import { USE_STATE_REDUCER, USE_CHIP_SYSTEM, isSingleCallRouterEnabled, LLM_FREE_INTERPRETATION, ENABLE_PLANNER_DECISION } from "@/lib/feature-flags"
+import { USE_STATE_REDUCER, USE_CHIP_SYSTEM, isSingleCallRouterEnabled, LLM_FREE_INTERPRETATION, ENABLE_PLANNER_DECISION, ENABLE_STATEFUL_CLARIFICATION_ARBITER } from "@/lib/feature-flags"
 import { routeSingleCall } from "@/lib/recommendation/core/single-call-router"
 import {
   naturalLanguageToFilters,
@@ -96,6 +96,7 @@ import type {
   AppLanguage,
   CandidateSnapshot,
   ChatMessage,
+  DisplayedOption,
   EvidenceSummary,
   ExplorationSessionState,
   NarrowingStage,
@@ -887,6 +888,35 @@ function normalizeNegationCueText(value: string): string {
     .replace(/([a-z])\1+/g, "$1")
 }
 
+function normalizeAlternativeExplorationLookupText(value: string): string {
+  return normalizePendingSelectionText(String(value))
+    .replace(/[^a-z0-9가-힣]+/giu, "")
+}
+
+function hasAlternativeNegationCue(message: string): boolean {
+  const normalized = normalizeAlternativeExplorationLookupText(message)
+  if (!normalized) return false
+
+  return [
+    "빼고",
+    "뺴고",
+    "빼구",
+    "제외",
+    "말고",
+    "없이",
+    "아닌것",
+    "아닌걸",
+    "아닌거",
+    "없는거",
+    "없는걸로",
+    "만아니면",
+    "가아닌",
+    "이아닌",
+    "아니것",
+    "아니거",
+  ].some(cue => normalized.includes(normalizeAlternativeExplorationLookupText(cue)))
+}
+
 function buildNegatedPhraseCandidates(cleaned: string): string[] {
   const trimmed = cleaned.replace(/^[\s,.;:!?？]+|[\s,.;:!?？]+$/g, "").trim()
   if (!trimmed) return []
@@ -943,9 +973,16 @@ export function extractNegatedValue(msg: string): { field: string; rawValue: str
     .replace(/^(?:아니\s*)?/u, "")
     .trim()
 
-  if (!cleaned) return null
+  const relaxedCleaned = cleaned === msg.trim()
+    ? msg
+      .replace(/\s*(?:아닌\s*것(?:들|중에)?|아니\s*것(?:들|중에)?|아니것(?:들|중에)?|아닌\s*거|아니\s*거|아니거).*$/u, "")
+      .replace(/^(?:아닌\s*|아니\s*)?/u, "")
+      .trim()
+    : cleaned
 
-  const phraseCandidates = buildNegatedPhraseCandidates(cleaned)
+  if (!relaxedCleaned) return null
+
+  const phraseCandidates = buildNegatedPhraseCandidates(relaxedCleaned)
   if (phraseCandidates.length === 0) return null
 
   for (const phrase of phraseCandidates) {
@@ -1631,6 +1668,7 @@ function buildRevisionClarificationResponse(
   requestPreparation: ReturnType<typeof prepareRequest> | null,
   chipsOverride?: string[],
   pendingClarification?: ExplorationSessionState["pendingClarification"],
+  displayedOptionsOverride?: DisplayedOption[],
 ) {
   const defaultChips = filters.length > 0 ? ["⟵ 이전 단계", "처음부터 다시"] : ["처음부터 다시"]
   const chips = chipsOverride && chipsOverride.length > 0
@@ -1643,7 +1681,7 @@ function buildRevisionClarificationResponse(
     resolvedInput: currentInput,
     turnCount,
     displayedChips: chips,
-    displayedOptions: [],
+    displayedOptions: displayedOptionsOverride ?? [],
     currentMode: "question",
     lastAction: "ask_clarification",
     pendingAction: null,
@@ -1724,6 +1762,69 @@ function extractSnapshotFieldValue(candidate: CandidateSnapshot, field: string):
   }
 }
 
+function extractNegatedValueFromContext(
+  prevState: ExplorationSessionState,
+  message: string,
+): { field: string; rawValue: string | number; displayValue: string } | null {
+  const normalizedMessage = normalizeAlternativeExplorationLookupText(message)
+  if (!normalizedMessage) return null
+
+  const matches: Array<{
+    field: string
+    rawValue: string | number
+    displayValue: string
+    priority: number
+    length: number
+  }> = []
+
+  const pushMatch = (
+    field: string,
+    rawValue: string | number,
+    displayValue: string | number | null | undefined,
+    priority: number,
+  ) => {
+    const display = String(displayValue ?? rawValue ?? "").trim()
+    const normalizedDisplay = normalizeAlternativeExplorationLookupText(display)
+    if (!normalizedDisplay || !normalizedMessage.includes(normalizedDisplay)) return
+
+    matches.push({
+      field,
+      rawValue,
+      displayValue: display,
+      priority,
+      length: normalizedDisplay.length,
+    })
+  }
+
+  for (const filter of prevState.appliedFilters ?? []) {
+    if (!filter?.field || filter.op === "skip") continue
+    const rawValue = filter.rawValue ?? filter.value
+    if (typeof rawValue !== "string" && typeof rawValue !== "number") continue
+    pushMatch(filter.field, rawValue, rawValue, 3)
+  }
+
+  for (const option of prevState.displayedOptions ?? []) {
+    if (!option?.field || option.field === "_action" || option.field === "skip") continue
+    pushMatch(option.field, option.value, option.value, 4)
+    pushMatch(option.field, option.value, option.label, 2)
+  }
+
+  const snapshots = prevState.lastRecommendationArtifact ?? prevState.displayedCandidates ?? []
+  const snapshotFields = ["coating", "toolSubtype", "seriesName", "brand", "fluteCount", "diameterMm"] as const
+  for (const snapshot of snapshots) {
+    for (const field of snapshotFields) {
+      const value = extractSnapshotFieldValue(snapshot, field)
+      if (!value) continue
+      pushMatch(field, value, value, 1)
+    }
+  }
+
+  return matches
+    .sort((left, right) => right.priority - left.priority || right.length - left.length)
+    .map(({ field, rawValue, displayValue }) => ({ field, rawValue, displayValue }))
+    [0] ?? null
+}
+
 function isAlternativeExplorationQuestionV2(message: string): boolean {
   const raw = message.trim()
   if (!raw) return false
@@ -1740,51 +1841,379 @@ function isAlternativeExplorationQuestionV2(message: string): boolean {
   return asksAlternatives && questionLike && !explicitReplacement
 }
 
+type AlternativeExplorationClarification = {
+  question: string
+  chips: string[]
+  displayedOptions: DisplayedOption[]
+  pendingClarification: ExplorationSessionState["pendingClarification"]
+}
+
+type ClarificationArbiterDecisionName =
+  | "keep_current_clarification"
+  | "use_state_options"
+  | "continue_legacy"
+
+interface ClarificationArbiterDecision {
+  decision: ClarificationArbiterDecisionName
+  confidence: number
+  reasoning: string
+  targetField: string | null
+  excludedValue: string | number | null
+}
+
+type ClarificationArbiterOutcome =
+  | { kind: "keep_current" }
+  | { kind: "use_state_options"; clarification: AlternativeExplorationClarification }
+  | { kind: "continue_legacy"; result: MultiStageResolverResult }
+
+function buildRuntimeClarificationCandidate(params: {
+  question: string
+  chips: string[]
+  askedField?: string | null
+  reasoning?: string
+}): MultiStageResolverResult {
+  return {
+    source: "clarification",
+    filters: [],
+    sort: null,
+    routeHint: "none",
+    intent: "ask_clarification",
+    clearOtherFilters: false,
+    removeFields: [],
+    followUpFilter: null,
+    confidence: 0,
+    unresolvedTokens: [],
+    reasoning: params.reasoning ?? "clarification:runtime",
+    clarification: {
+      question: params.question,
+      chips: params.chips,
+      askedField: params.askedField ?? null,
+    },
+  }
+}
+
+function tryParseClarificationArbiterJson(raw: string): Record<string, unknown> | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+
+  const candidates = [
+    trimmed,
+    trimmed.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim(),
+  ]
+  const firstBrace = trimmed.indexOf("{")
+  const lastBrace = trimmed.lastIndexOf("}")
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    candidates.push(trimmed.slice(firstBrace, lastBrace + 1))
+  }
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate)
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>
+      }
+    } catch {
+      // Ignore malformed candidates and try the next one.
+    }
+  }
+
+  return null
+}
+
+function normalizeClarificationArbiterConfidence(raw: unknown): number {
+  const parsed = typeof raw === "number" ? raw : Number(raw)
+  if (!Number.isFinite(parsed)) return 0
+  return Math.max(0, Math.min(1, parsed))
+}
+
+function resolveClarificationArbiterField(raw: unknown): string | null {
+  const value = String(raw ?? "").trim()
+  if (!value) return null
+
+  const normalized = normalizeAlternativeExplorationLookupText(value)
+  for (const field of getRegisteredFilterFields()) {
+    if (normalizeAlternativeExplorationLookupText(field) === normalized) return field
+    if (
+      getFilterFieldQueryAliases(field).some(alias =>
+        normalizeAlternativeExplorationLookupText(alias) === normalized,
+      )
+    ) {
+      return field
+    }
+  }
+
+  return null
+}
+
+function summarizeClarificationArbiterFilters(filters: AppliedFilter[]): string {
+  if (filters.length === 0) return "none"
+
+  return filters
+    .slice(0, 6)
+    .map(filter => `${getFilterFieldLabel(filter.field)} ${filter.op} ${formatRepairFilterValue(filter)}`)
+    .join(" | ")
+}
+
+function summarizeClarificationArbiterOptions(options: DisplayedOption[]): string {
+  if (options.length === 0) return "none"
+
+  return options
+    .slice(0, 6)
+    .map(option => `${option.field}:${option.value} (${option.count})`)
+    .join(" | ")
+}
+
+function summarizeClarificationArbiterCandidates(prevState: ExplorationSessionState): string {
+  const snapshots = prevState.lastRecommendationArtifact ?? prevState.displayedCandidates ?? []
+  if (snapshots.length === 0) return "none"
+
+  return snapshots
+    .slice(0, 5)
+    .map(candidate => {
+      const parts = [
+        candidate.displayCode ?? candidate.productCode ?? candidate.seriesName ?? "candidate",
+        candidate.toolSubtype ? `shape=${candidate.toolSubtype}` : null,
+        candidate.coating ? `coating=${candidate.coating}` : null,
+        typeof candidate.fluteCount === "number" ? `flute=${candidate.fluteCount}` : null,
+      ].filter(Boolean)
+      return parts.join(", ")
+    })
+    .join(" | ")
+}
+
+function buildClarificationArbiterPrompt(
+  prevState: ExplorationSessionState,
+  result: MultiStageResolverResult,
+  userMessage: string,
+): { systemPrompt: string; userPrompt: string } {
+  const clarification = result.clarification
+  const systemPrompt = [
+    "You are a clarification arbiter for a stateful industrial tool recommendation system.",
+    "State/UI is the source of truth. Never invent product data, option values, or fields.",
+    "Decide only one of these actions:",
+    '- "keep_current_clarification": the existing clarification should be shown as-is.',
+    '- "use_state_options": instead of a generic clarification, show current UI/state options for one existing field.',
+    '- "continue_legacy": do not ask a clarification now; let the existing deterministic/runtime logic continue unchanged.',
+    "Only choose use_state_options when the target field is already supported by displayedOptions, displayedCandidates, or current state.",
+    "Prefer continue_legacy when the current clarification would interrupt a turn that can keep flowing without another question.",
+    "Preserve current filters, domain, and session truth.",
+    "Return JSON only.",
+    '{"decision":"keep_current_clarification|use_state_options|continue_legacy","confidence":0.0,"reasoning":"","targetField":null,"excludedValue":null}',
+  ].join("\n")
+
+  const userPrompt = [
+    `User message: ${userMessage}`,
+    `Current filters: ${summarizeClarificationArbiterFilters(prevState.appliedFilters ?? [])}`,
+    `Current mode: ${prevState.currentMode ?? "unknown"}`,
+    `Last asked field: ${prevState.lastAskedField ?? "none"}`,
+    `Candidate count: ${prevState.candidateCount ?? 0}`,
+    `Displayed options: ${summarizeClarificationArbiterOptions(prevState.displayedOptions ?? [])}`,
+    `Displayed candidates: ${summarizeClarificationArbiterCandidates(prevState)}`,
+    `Existing clarification question: ${clarification?.question ?? "none"}`,
+    `Existing clarification chips: ${(clarification?.chips ?? []).join(" | ") || "none"}`,
+    `Resolver reasoning: ${result.reasoning || "none"}`,
+  ].join("\n")
+
+  return { systemPrompt, userPrompt }
+}
+
+function normalizeClarificationArbiterDecision(raw: string): ClarificationArbiterDecision | null {
+  const parsed = tryParseClarificationArbiterJson(raw)
+  if (!parsed) return null
+
+  const decision = String(parsed.decision ?? "").trim() as ClarificationArbiterDecisionName
+  if (!["keep_current_clarification", "use_state_options", "continue_legacy"].includes(decision)) {
+    return null
+  }
+
+  const rawExcludedValue = parsed.excludedValue
+  const excludedValue =
+    typeof rawExcludedValue === "string" || typeof rawExcludedValue === "number"
+      ? rawExcludedValue
+      : null
+
+  return {
+    decision,
+    confidence: normalizeClarificationArbiterConfidence(parsed.confidence),
+    reasoning: String(parsed.reasoning ?? "").trim(),
+    targetField: resolveClarificationArbiterField(parsed.targetField),
+    excludedValue,
+  }
+}
+
+export function applyClarificationArbiterDecision(params: {
+  decision: ClarificationArbiterDecision
+  prevState: ExplorationSessionState
+  result: MultiStageResolverResult
+  userMessage: string
+}): ClarificationArbiterOutcome {
+  const { decision, prevState, result, userMessage } = params
+
+  if (decision.decision === "use_state_options") {
+    const negatedValue = extractNegatedValue(userMessage) ?? extractNegatedValueFromContext(prevState, userMessage)
+    const targetField = decision.targetField ?? negatedValue?.field ?? result.clarification?.askedField ?? prevState.lastAskedField ?? null
+    if (!targetField) return { kind: "keep_current" }
+
+    const excludedValue = decision.excludedValue ?? negatedValue?.rawValue ?? null
+    const excludedLabel =
+      negatedValue?.displayValue
+      ?? (typeof excludedValue === "string" || typeof excludedValue === "number" ? String(excludedValue) : null)
+    const clarification = buildAlternativeExplorationClarificationV2(
+      prevState,
+      targetField,
+      excludedValue,
+      excludedLabel,
+    )
+    return clarification
+      ? { kind: "use_state_options", clarification }
+      : { kind: "keep_current" }
+  }
+
+  if (decision.decision === "continue_legacy") {
+    const hasExecutionSignal =
+      result.filters.length > 0
+      || result.removeFields.length > 0
+      || !!result.sort
+      || result.clearOtherFilters
+      || !!result.followUpFilter
+      || (result.intent !== "ask_clarification" && result.intent !== "none")
+
+    return {
+      kind: "continue_legacy",
+      result: hasExecutionSignal
+        ? {
+          ...result,
+          clarification: null,
+          reasoning: `${result.reasoning}|arbiter:continue_legacy${decision.reasoning ? `:${decision.reasoning}` : ""}`,
+        }
+        : {
+          ...result,
+          source: "none",
+          intent: "none",
+          routeHint: "none",
+          clarification: null,
+          reasoning: `${result.reasoning}|arbiter:continue_legacy${decision.reasoning ? `:${decision.reasoning}` : ""}`,
+        },
+    }
+  }
+
+  return { kind: "keep_current" }
+}
+
+async function maybeRunClarificationArbiter(params: {
+  provider: ReturnType<typeof getProvider>
+  prevState: ExplorationSessionState | null
+  result: MultiStageResolverResult | null
+  userMessage: string
+}): Promise<ClarificationArbiterOutcome | null> {
+  const { provider, prevState, result, userMessage } = params
+  if (!ENABLE_STATEFUL_CLARIFICATION_ARBITER) return null
+  if (!provider.available() || !prevState || !result?.clarification) return null
+
+  const hasStateTruth =
+    (prevState.appliedFilters?.length ?? 0) > 0
+    || (prevState.displayedOptions?.length ?? 0) > 0
+    || (prevState.displayedCandidates?.length ?? 0) > 0
+    || (prevState.lastRecommendationArtifact?.length ?? 0) > 0
+  if (!hasStateTruth) return null
+
+  try {
+    const { systemPrompt, userPrompt } = buildClarificationArbiterPrompt(prevState, result, userMessage)
+    const raw = await provider.complete(
+      systemPrompt,
+      [{ role: "user", content: userPrompt }],
+      250,
+      "sonnet",
+      "turn-orchestrator",
+    )
+    const decision = normalizeClarificationArbiterDecision(raw)
+    if (!decision || decision.confidence < 0.55) return null
+    return applyClarificationArbiterDecision({
+      decision,
+      prevState,
+      result,
+      userMessage,
+    })
+  } catch (error) {
+    console.warn("[clarification-arbiter] failed:", (error as Error).message)
+    return null
+  }
+}
+
 function buildAlternativeExplorationClarificationV2(
   prevState: ExplorationSessionState,
   field: string,
   excludedValue: string | number | null | undefined,
   excludedLabelOverride?: string | null,
-): { question: string; chips: string[]; pendingClarification: ExplorationSessionState["pendingClarification"] } | null {
-  const snapshots = prevState.lastRecommendationArtifact ?? prevState.displayedCandidates ?? []
-  if (!snapshots.length) return null
-
+): AlternativeExplorationClarification | null {
   const excludedComparable = normalizeComparableFilterValue(field, excludedValue ?? null)
-  const counts = new Map<string, number>()
   let excludedSeen = false
 
-  for (const candidate of snapshots) {
-    const value = extractSnapshotFieldValue(candidate, field)
-    if (!value) continue
+  // Prefer the UI's current options over inferred snapshot distribution.
+  let displayedOptions = (prevState.displayedOptions ?? [])
+    .filter(option => option.field === field && option.value && option.field !== "skip")
+    .filter(option => {
+      const comparable = normalizeComparableFilterValue(field, option.value)
+      if (excludedComparable && comparable === excludedComparable) {
+        excludedSeen = true
+        return false
+      }
+      return true
+    })
+    .slice(0, 4)
+    .map((option, index) => ({
+      index: index + 1,
+      label: option.label?.trim() || (option.count > 0 ? `${option.value} (${option.count}개)` : option.value),
+      field: option.field,
+      value: option.value,
+      count: option.count ?? 0,
+    }))
 
-    if (excludedComparable && normalizeComparableFilterValue(field, value) === excludedComparable) {
-      excludedSeen = true
-      continue
+  if (displayedOptions.length === 0) {
+    const snapshots = prevState.lastRecommendationArtifact ?? prevState.displayedCandidates ?? []
+    if (!snapshots.length) return null
+
+    const counts = new Map<string, number>()
+    for (const candidate of snapshots) {
+      const value = extractSnapshotFieldValue(candidate, field)
+      if (!value) continue
+
+      if (excludedComparable && normalizeComparableFilterValue(field, value) === excludedComparable) {
+        excludedSeen = true
+        continue
+      }
+
+      counts.set(value, (counts.get(value) ?? 0) + 1)
     }
 
-    counts.set(value, (counts.get(value) ?? 0) + 1)
+    displayedOptions = [...counts.entries()]
+      .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], "ko"))
+      .slice(0, 4)
+      .map(([value, count], index) => ({
+        index: index + 1,
+        label: `${value} (${count}개)`,
+        field,
+        value,
+        count,
+      }))
   }
-
-  const options = [...counts.entries()]
-    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], "ko"))
-    .slice(0, 4)
 
   const label = getFilterFieldLabel(field)
   const excludedLabel = String(excludedLabelOverride ?? excludedValue ?? "").trim()
   const chipResolution: Record<string, { field: string; value: string }> = {}
 
-  if (options.length === 0) {
+  if (displayedOptions.length === 0) {
     return {
       question: `현재 후보 기준으로는 ${label}에서 ${excludedLabel || "현재 값"} 말고 바로 고를 만한 대안이 보이지 않습니다. ${label} 대신 다른 조건을 바꿔볼지 알려주세요.`,
       chips: ["다른 조건으로 좁혀보기", "직접 입력"],
+      displayedOptions: [],
       pendingClarification: { chipResolution },
     }
   }
 
-  const optionChips = options.map(([value, count]) => {
-    const chip = `${value} (${count}개)`
-    chipResolution[chip] = { field, value }
-    return chip
+  const optionChips = displayedOptions.map(option => {
+    chipResolution[option.label] = { field, value: option.value }
+    return option.label
   })
 
   const question = excludedSeen
@@ -1794,6 +2223,7 @@ function buildAlternativeExplorationClarificationV2(
   return {
     question,
     chips: [...optionChips, "직접 입력"],
+    displayedOptions,
     pendingClarification: { chipResolution },
   }
 }
@@ -1972,6 +2402,13 @@ function buildActionFromMultiStageResult(
       }
       return null
   }
+}
+
+function mapMessagesToResolverConversationHistory(messages: ChatMessage[]): Array<{ role: "user" | "assistant"; text: string }> {
+  return messages.slice(-6).map(message => ({
+    role: message.role === "ai" ? "assistant" : "user",
+    text: message.text,
+  }))
 }
 
 export async function handleServeExploration(
@@ -2483,10 +2920,7 @@ async function handleServeExplorationInner(
             turnCount,
             currentFilters: filters,
             sessionState: prevState,
-            conversationHistory: messages.slice(-6).map(message => ({
-              role: message.role === "assistant" ? "assistant" : "user",
-              text: message.text,
-            })),
+            conversationHistory: mapMessagesToResolverConversationHistory(messages),
             stageOneEditIntent: firstTurnEditResult,
             stageOneDeterministicActions: stageOneActions,
             stageOneSort: firstTurnSort,
@@ -2597,6 +3031,34 @@ async function handleServeExplorationInner(
     }
   }
   if (isFirstTurnIntake) {
+    const firstTurnClarificationArbiter = firstTurnResolverResult?.clarification
+      ? await maybeRunClarificationArbiter({
+        provider,
+        prevState,
+        result: firstTurnResolverResult,
+        userMessage: lastUserMsg?.text ?? "",
+      })
+      : null
+    if (firstTurnClarificationArbiter?.kind === "continue_legacy" && firstTurnResolverResult) {
+      firstTurnResolverResult = firstTurnClarificationArbiter.result
+    }
+    if (firstTurnClarificationArbiter?.kind === "use_state_options" && prevState) {
+      return buildRevisionClarificationResponse(
+        deps,
+        prevState,
+        form,
+        filters,
+        narrowingHistory,
+        currentInput,
+        turnCount,
+        firstTurnClarificationArbiter.clarification.question,
+        requestPrep,
+        firstTurnClarificationArbiter.clarification.chips,
+        firstTurnClarificationArbiter.clarification.pendingClarification,
+        firstTurnClarificationArbiter.clarification.displayedOptions,
+      )
+    }
+
     if (firstTurnResolverResult?.clarification) {
       const clarificationState = prevState ?? buildSessionState({
         candidateCount: filters.length,
@@ -2785,18 +3247,49 @@ async function handleServeExplorationInner(
             && !hasConcreteRepairAction
           if (shouldAskRepairClarification && prevState) {
             const repairClarification = buildRepairClarification(filters)
-            return buildRevisionClarificationResponse(
-              deps,
+            const repairClarificationArbiter = await maybeRunClarificationArbiter({
+              provider,
               prevState,
-              form,
-              filters,
-              narrowingHistory,
-              currentInput,
-              turnCount,
-              repairClarification.question,
-              requestPrep,
-              repairClarification.chips,
-            )
+              result: buildRuntimeClarificationCandidate({
+                question: repairClarification.question,
+                chips: repairClarification.chips,
+                askedField: prevState.lastAskedField ?? null,
+                reasoning: "clarification:repair_runtime",
+              }),
+              userMessage: msg,
+            })
+            if (repairClarificationArbiter?.kind === "continue_legacy") {
+              // Skip the repair clarification and let the existing runtime
+              // continue with deterministic/LLM routing.
+            } else if (repairClarificationArbiter?.kind === "use_state_options") {
+              return buildRevisionClarificationResponse(
+                deps,
+                prevState,
+                form,
+                filters,
+                narrowingHistory,
+                currentInput,
+                turnCount,
+                repairClarificationArbiter.clarification.question,
+                requestPrep,
+                repairClarificationArbiter.clarification.chips,
+                repairClarificationArbiter.clarification.pendingClarification,
+                repairClarificationArbiter.clarification.displayedOptions,
+              )
+            } else {
+              return buildRevisionClarificationResponse(
+                deps,
+                prevState,
+                form,
+                filters,
+                narrowingHistory,
+                currentInput,
+                turnCount,
+                repairClarification.question,
+                requestPrep,
+                repairClarification.chips,
+              )
+            }
           }
           if (repair.wasRepaired) {
             console.log(`[turn-repair] "${msg}" → "${repair.clarifiedMessage}"`)
@@ -2818,6 +3311,7 @@ async function handleServeExplorationInner(
 
     const hasNegationPattern = /빼고|뺴고|빼구|제외|아닌\s*것|아닌\s*걸|아닌걸|없는\s*거|말고|만\s*아니면|없이|아닌\s*거|없는\s*거로|가\s*아닌|이\s*아닌/u.test(msg)
     let negationHandled = false
+    const hasStatefulNegationPattern = hasNegationPattern || hasAlternativeNegationCue(msg)
 
     // ══════════════════════════════════════════════════════════
     // Router priority: Edit-Intent(수정동사) → KG(entity match) → SQL Agent → negation(fallback) → SCR
@@ -2825,9 +3319,9 @@ async function handleServeExplorationInner(
     // ══════════════════════════════════════════════════════════
 
     const alternativeExplorationClarification =
-      prevState && hasNegationPattern && isAlternativeExplorationQuestionV2(msg)
+      prevState && hasStatefulNegationPattern && isAlternativeExplorationQuestionV2(msg)
         ? (() => {
-            const negatedValue = extractNegatedValue(msg)
+            const negatedValue = extractNegatedValue(msg) ?? extractNegatedValueFromContext(prevState, msg)
             if (!negatedValue) return null
 
             const clarification = buildAlternativeExplorationClarificationV2(
@@ -2845,7 +3339,7 @@ async function handleServeExplorationInner(
           })()
         : null
 
-    if (alternativeExplorationClarification) {
+    if (alternativeExplorationClarification && prevState) {
       return buildRevisionClarificationResponse(
         deps,
         prevState,
@@ -2858,6 +3352,7 @@ async function handleServeExplorationInner(
         requestPrep,
         alternativeExplorationClarification.chips,
         alternativeExplorationClarification.pendingClarification,
+        alternativeExplorationClarification.displayedOptions,
       )
     }
 
@@ -2987,10 +3482,7 @@ async function handleServeExplorationInner(
           turnCount,
           currentFilters: filters,
           sessionState: prevState,
-          conversationHistory: messages.slice(-6).map(message => ({
-            role: message.role === "assistant" ? "assistant" : "user",
-            text: message.text,
-          })),
+          conversationHistory: mapMessagesToResolverConversationHistory(messages),
           pendingField: prevState?.lastAskedField ?? null,
           stageOneEditIntent: stageOneEditResult,
           stageOneDeterministicActions: effectiveDetApplyActions,
@@ -3025,6 +3517,34 @@ async function handleServeExplorationInner(
       console.log(
         `[multi-stage-resolver] source=${multiStageResult.source} filters=${multiStageResult.filters.length} sort=${multiStageResult.sort ? `${multiStageResult.sort.field}:${multiStageResult.sort.direction}` : "none"} intent=${multiStageResult.intent} unresolved=${multiStageResult.unresolvedTokens.join(",") || "none"}`
       )
+
+      const clarificationArbiter = multiStageResult.clarification
+        ? await maybeRunClarificationArbiter({
+          provider,
+          prevState,
+          result: multiStageResult,
+          userMessage: msg,
+        })
+        : null
+      if (clarificationArbiter?.kind === "continue_legacy") {
+        multiStageResult = clarificationArbiter.result
+      }
+      if (clarificationArbiter?.kind === "use_state_options" && prevState) {
+        return buildRevisionClarificationResponse(
+          deps,
+          prevState,
+          form,
+          filters,
+          narrowingHistory,
+          currentInput,
+          turnCount,
+          clarificationArbiter.clarification.question,
+          requestPrep,
+          clarificationArbiter.clarification.chips,
+          clarificationArbiter.clarification.pendingClarification,
+          clarificationArbiter.clarification.displayedOptions,
+        )
+      }
 
       if (multiStageResult.clarification) {
         const clarificationState = prevState ?? buildSessionState({

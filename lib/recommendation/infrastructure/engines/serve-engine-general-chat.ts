@@ -24,6 +24,7 @@ import {
 } from "@/lib/recommendation/infrastructure/engines/serve-engine-assist-utils"
 import { buildFinalChipsFromLLM, isUnfilterableChip } from "@/lib/recommendation/domain/options/llm-chip-pipeline"
 import { resolveYG1Query } from "@/lib/knowledge/knowledge-router"
+import { detectOrderQuantityInventoryAmbiguity } from "@/lib/recommendation/shared/order-quantity-ambiguity"
 import { traceRecommendation } from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
 import type { SemanticDirectContext, SemanticReplyRoute } from "@/lib/recommendation/core/semantic-turn-extractor"
 import type { buildRecommendationResponseDto } from "@/lib/recommendation/infrastructure/presenters/recommendation-presenter"
@@ -711,6 +712,36 @@ export async function handleServeGeneralChatAction(
   const lastUserMessage = [...messages].reverse().find(message => message.role === "user")?.text ?? ""
   const semanticForce: DirectQuestionOptions = { force: true, semanticContext: semanticDirectContext }
   const shouldRunLegacyDirectRoutes = semanticReplyRoute == null
+  const orderQuantityAmbiguity = detectOrderQuantityInventoryAmbiguity(lastUserMessage)
+
+  if (orderQuantityAmbiguity) {
+    return buildValidatedReplyResponse(
+      deps,
+      prevState,
+      filters,
+      narrowingHistory,
+      currentInput,
+      turnCount,
+      lastUserMessage,
+      {
+        text: orderQuantityAmbiguity.question,
+        chips: orderQuantityAmbiguity.chips,
+      },
+      "order-quantity-ambiguity",
+      {
+        purpose: "question",
+        currentMode: "question",
+        lastAction: "answer_general",
+      },
+      orchResult,
+      buildProcessTrace({
+        actionType: "answer_general",
+        pendingQuestionField: prevState.lastAskedField ?? null,
+        recentFrameRelation: "order_quantity_inventory_ambiguity",
+        displayedOptions: buildReplyDisplayedOptions(orderQuantityAmbiguity.chips),
+      }),
+    )
+  }
 
   if (semanticReplyRoute === "inventory") {
     const forcedInventoryReply = await deps.handleDirectInventoryQuestion(lastUserMessage, prevState, semanticForce)

@@ -2,6 +2,8 @@ import { getProviderForAgent, type LLMProvider } from "@/lib/llm/provider"
 import { resolveRequestedToolFamily } from "@/lib/data/repos/product-query-filters"
 import type { AppliedFilter, ExplorationSessionState } from "@/lib/recommendation/domain/types"
 import { buildAppliedFilterFromValue, getFilterFieldLabel, getFilterFieldQueryAliases, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
+import { detectMeasurementScopeAmbiguity } from "@/lib/recommendation/shared/measurement-scope-ambiguity"
+import { detectOrderQuantityInventoryAmbiguity } from "@/lib/recommendation/shared/order-quantity-ambiguity"
 import { stripKoreanParticles } from "@/lib/recommendation/shared/patterns"
 import { normalizeRuntimeAppliedFilter } from "@/lib/recommendation/shared/runtime-filter-normalization"
 import type { ComplexityDecision } from "./complexity-router"
@@ -80,8 +82,12 @@ export type ResolverValidationIssueCode =
   | "operator_attachment_conflict"
   | "skip_conflict"
   | "range_operator_mismatch"
+  | "inventory_scope_ambiguity"
+  | "measurement_scope_ambiguity"
   | "session_truth_conflict"
   | "domain_lock_risk"
+  | "generic_specific_collapse"
+  | "correction_signal_ignored"
   | "noop_result"
 
 export interface ResolverValidationIssue {
@@ -119,6 +125,7 @@ export interface ResolveMultiStageQueryArgs {
   turnCount: number
   currentFilters: AppliedFilter[]
   sessionState?: ExplorationSessionState | null
+  conversationHistory?: Array<{ role: "user" | "assistant"; text: string }>
   pendingField?: string | null
   stageOneEditIntent?: EditIntentResult | null
   stageOneDeterministicActions?: DeterministicAction[]
@@ -164,6 +171,18 @@ interface ResolverSchemaHint {
 }
 
 type ResolverValidationPhase = "stage1" | "cache" | "stage2" | "stage3"
+type ResolverConversationMode = "new" | "refine" | "repair" | "explain"
+
+interface ResolverConversationContext {
+  mode: ResolverConversationMode
+  stateSummary: string
+  uiSummary: string
+  historySummary: string
+  candidateBufferSummary: string
+  correctionSummary: string
+  currentUnderstanding: string
+  cacheSignature: string
+}
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const CACHE_TTL_MS = 7 * DAY_MS
@@ -182,6 +201,8 @@ const NEGATION_CUE_RE = /(?:말고|빼고|제외|아니고|아니라|아닌\s*�
 const ALTERNATIVE_CUE_RE = /(?:다른\s*거|다른거|대신|instead|alternative|더\s*무난한|덜\s*공격적인|비슷한데?\s*더)/iu
 const RANGE_GTE_CUE_RE = /(?:이상|초과|at\s*least|greater\s*than|over|>=)/iu
 const RANGE_LTE_CUE_RE = /(?:이하|미만|at\s*most|less\s*than|under|below|<=)/iu
+
+const DEICTIC_CONTEXT_RE = /(?:\uADF8\uAC70|\uADF8\uAC8C|\uC774\uAC70|\uC774\uAC8C|\uC800\uAC70|\uC800\uAC8C|\uC544\uAE4C|\uBC29\uAE08|that|this|previous|last)/iu
 
 const resolverCache = new Map<string, CacheEntry>()
 const failureCache = new Map<string, FailureEntry>()
@@ -321,10 +342,255 @@ function clampConfidence(value: unknown, fallback: number): number {
   return Math.max(0, Math.min(1, value))
 }
 
-function computeCacheKey(message: string, pendingField?: string | null): string {
-  const normalizedMessage = message.trim().toLowerCase().replace(/\s+/g, " ")
-  const normalizedPending = pendingField?.trim().toLowerCase() ?? ""
-  return normalizedPending ? `${normalizedMessage}::pending=${normalizedPending}` : normalizedMessage
+function summarizeFilterForContext(filter: AppliedFilter): string {
+  return `${filter.field} ${filter.op} ${String(filter.rawValue ?? filter.value)}`
+}
+
+function summarizeHistoryTurnForContext(turn: {
+  answer?: string | null
+  askedField?: string | null
+  extractedFilters?: AppliedFilter[] | null
+}): string {
+  const answer = String(turn.answer ?? "").trim()
+  const askedField = String(turn.askedField ?? "").trim()
+  const extractedFilters = (turn.extractedFilters ?? []).slice(0, 2).map(summarizeFilterForContext)
+
+  return [
+    askedField ? `asked=${askedField}` : null,
+    answer ? `answer=${answer}` : null,
+    extractedFilters.length > 0 ? `delta=${extractedFilters.join(", ")}` : null,
+  ].filter((value): value is string => Boolean(value)).join(" | ")
+}
+
+function summarizeDisplayedOptionForContext(option: NonNullable<ExplorationSessionState["displayedOptions"]>[number]): string {
+  return `${option.index}. ${option.label} => ${option.field}=${option.value} (${option.count})`
+}
+
+function summarizeCandidateForContext(candidate: NonNullable<ExplorationSessionState["displayedCandidates"]>[number]): string {
+  const parts = [
+    candidate.displayCode || candidate.productCode,
+    candidate.displayLabel ?? null,
+    candidate.brand ?? null,
+    candidate.seriesName ?? null,
+  ].filter((value): value is string => Boolean(String(value ?? "").trim()))
+
+  return parts.join(" / ")
+}
+
+function messageReferencesDisplayedContext(
+  message: string,
+  sessionState?: ExplorationSessionState | null,
+): boolean {
+  if (!sessionState) return false
+
+  const normalizedMessage = normalizeToken(message)
+  if (!normalizedMessage) return false
+
+  const contextTokens = uniqueStrings([
+    ...(sessionState.displayedChips ?? []),
+    ...(sessionState.displayedOptions ?? []).flatMap(option => [option.label, option.value, option.field]),
+    ...(sessionState.displayedCandidates ?? []).flatMap(candidate => [
+      candidate.productCode,
+      candidate.displayCode,
+      candidate.displayLabel,
+      candidate.brand,
+      candidate.seriesName,
+      candidate.toolSubtype ?? null,
+    ]),
+    ...(sessionState.lastRecommendationArtifact ?? []).flatMap(candidate => [
+      candidate.productCode,
+      candidate.displayCode,
+      candidate.displayLabel,
+      candidate.brand,
+      candidate.seriesName,
+    ]),
+    ...(sessionState.uiNarrowingPath ?? []).flatMap(entry => [entry.label, entry.field ?? null, entry.value ?? null]),
+  ])
+    .map(token => normalizeToken(token))
+    .filter(token => token.length >= 2)
+
+  return contextTokens.some(token => normalizedMessage.includes(token))
+}
+
+function hasSessionGrounding(args: ResolveMultiStageQueryArgs): boolean {
+  const state = args.sessionState
+  if (args.currentFilters.length > 0) return true
+  if (!state) return false
+
+  return Boolean(
+    (state.candidateCount ?? 0) > 0
+    || (state.narrowingHistory?.length ?? 0) > 0
+    || (state.displayedChips?.length ?? 0) > 0
+    || (state.displayedOptions?.length ?? 0) > 0
+    || (state.displayedCandidates?.length ?? 0) > 0
+    || (state.displayedProducts?.length ?? 0) > 0
+    || (state.lastRecommendationArtifact?.length ?? 0) > 0
+    || Boolean(state.lastComparisonArtifact)
+    || (state.uiNarrowingPath?.length ?? 0) > 0
+  )
+}
+
+function hasExplainCue(message: string): boolean {
+  return /(?:\?|뭐야|무엇|설명|왜|이유|차이|어떻게|알려줘|말해줘|vs\b|compare|difference|explain|why)/iu.test(message)
+}
+
+function buildComparisonArtifactSummary(artifact: ExplorationSessionState["lastComparisonArtifact"]): string {
+  if (!artifact) return "none"
+
+  const comparedCodes = uniqueStrings(artifact.comparedProductCodes ?? []).slice(0, 4)
+  return comparedCodes.length > 0 ? comparedCodes.join(" | ") : "present"
+}
+
+function buildCandidateBufferSummary(sessionState: ExplorationSessionState | null): string {
+  if (!sessionState) return "none"
+
+  const displayedProducts = uniqueStrings(
+    (sessionState.displayedProducts ?? []).flatMap(product => [
+      product.productCode,
+      product.displayCode,
+      product.displayLabel,
+      product.brand,
+      product.seriesName,
+    ].filter((value): value is string => Boolean(String(value ?? "").trim()))),
+  ).slice(0, 4)
+
+  const displayedSeriesGroups = uniqueStrings(
+    (sessionState.displayedSeriesGroups ?? []).flatMap(group => [
+      group.seriesName,
+      group.seriesKey,
+    ].filter((value): value is string => Boolean(String(value ?? "").trim()))),
+  ).slice(0, 4)
+
+  const recommendationAnchor = uniqueStrings(
+    (sessionState.lastRecommendationArtifact ?? []).flatMap(candidate => [
+      candidate.productCode,
+      candidate.displayCode,
+      candidate.displayLabel,
+      candidate.brand,
+      candidate.seriesName,
+    ].filter((value): value is string => Boolean(String(value ?? "").trim()))),
+  ).slice(0, 4)
+
+  return [
+    `displayedProducts=${displayedProducts.join(" | ") || "none"}`,
+    `displayedSeriesGroups=${displayedSeriesGroups.join(" | ") || "none"}`,
+    `lastRecommendation=${recommendationAnchor.join(" | ") || "none"}`,
+    `lastComparison=${buildComparisonArtifactSummary(sessionState.lastComparisonArtifact)}`,
+  ].join(" ; ")
+}
+
+function buildCorrectionSummary(args: ResolveMultiStageQueryArgs, mode: ResolverConversationMode): string {
+  const parts: string[] = []
+  if (mode === "repair") parts.push("mode=repair")
+  if (needsRepair(args.message)) parts.push("repair_signal=true")
+  if (hasEditSignal(args.message)) parts.push("edit_signal=true")
+  if (args.stageOneEditIntent) parts.push(`edit_hint=${args.stageOneEditIntent.intent.type}`)
+  if (shouldDeferHardcodedSemanticExecution(args.message)) parts.push("semantic_defer=true")
+  return parts.length > 0 ? parts.join(" ; ") : "none"
+}
+
+function classifyResolverConversationMode(args: ResolveMultiStageQueryArgs): ResolverConversationMode {
+  if (needsRepair(args.message)) return "repair"
+  if (args.stageOneEditIntent?.intent?.type === "reset_all") return "new"
+  if (hasExplainCue(args.message)) return "explain"
+  if (!hasSessionGrounding(args)) return "new"
+  if (
+    hasExplicitMutationCue(args.message)
+    || DEICTIC_CONTEXT_RE.test(args.message)
+    || messageReferencesDisplayedContext(args.message, args.sessionState)
+  ) {
+    return "refine"
+  }
+  return "refine"
+}
+
+function buildResolverConversationContext(args: ResolveMultiStageQueryArgs): ResolverConversationContext {
+  const mode = classifyResolverConversationMode(args)
+  const sessionState = args.sessionState
+  const candidateBufferSummary = buildCandidateBufferSummary(sessionState)
+  const correctionSummary = buildCorrectionSummary(args, mode)
+
+  const stateSummary = [
+    `mode=${mode}`,
+    `domain=${sessionState?.resolvedInput?.toolType ?? sessionState?.resolvedInput?.machiningCategory ?? "unknown"}`,
+    `candidateCount=${sessionState?.candidateCount ?? "unknown"}`,
+    `filters=${args.currentFilters.length > 0 ? args.currentFilters.slice(0, 6).map(summarizeFilterForContext).join(" | ") : "none"}`,
+    `pendingField=${args.pendingField ?? sessionState?.lastAskedField ?? "none"}`,
+    `sessionMode=${sessionState?.currentMode ?? "unknown"}`,
+    `candidateBuffer=${candidateBufferSummary}`,
+  ].join(" ; ")
+
+  const uiSummary = [
+    `displayedChips=${(sessionState?.displayedChips ?? []).slice(0, 4).join(", ") || "none"}`,
+    `displayedOptions=${(sessionState?.displayedOptions ?? []).slice(0, 4).map(summarizeDisplayedOptionForContext).join(" | ") || "none"}`,
+    `topCandidates=${(sessionState?.displayedCandidates ?? []).slice(0, 3).map(summarizeCandidateForContext).join(" | ") || "none"}`,
+    `uiPath=${(sessionState?.uiNarrowingPath ?? []).slice(-3).map(entry => `${entry.kind}:${entry.label}`).join(" | ") || "none"}`,
+  ].join(" ; ")
+
+  const recentHistory = (args.conversationHistory ?? [])
+    .slice(-4)
+    .map(turn => `${turn.role}: ${turn.text}`)
+    .filter(Boolean)
+  const narrowingHistory = (sessionState?.narrowingHistory ?? [])
+    .slice(-3)
+    .map(summarizeHistoryTurnForContext)
+    .filter(Boolean)
+  const historySummary = [
+    `conversation=${recentHistory.join(" || ") || "none"}`,
+    `narrowing=${narrowingHistory.join(" || ") || "none"}`,
+    `correction=${correctionSummary}`,
+  ].join(" ; ")
+
+  const currentUnderstanding = args.currentFilters.length > 0
+    ? args.currentFilters.slice(0, 4).map(summarizeFilterForContext).join(" | ")
+    : sessionState?.displayedCandidates?.length
+      ? `displayed candidates anchored: ${(sessionState.displayedCandidates ?? []).slice(0, 2).map(summarizeCandidateForContext).join(" | ")}`
+      : "none"
+
+  const cacheSignature = JSON.stringify({
+    mode,
+    pendingField: args.pendingField ?? sessionState?.lastAskedField ?? null,
+    filters: args.currentFilters.map(filter => ({
+      field: filter.field,
+      op: filter.op,
+      value: filter.rawValue ?? filter.value,
+    })),
+    candidateCount: sessionState?.candidateCount ?? null,
+    displayedChips: (sessionState?.displayedChips ?? []).slice(0, 4),
+    displayedOptions: (sessionState?.displayedOptions ?? []).slice(0, 4).map(option => ({
+      field: option.field,
+      value: option.value,
+      label: option.label,
+    })),
+    topCandidates: (sessionState?.displayedCandidates ?? []).slice(0, 3).map(candidate => candidate.productCode),
+    candidateBufferSummary,
+    correctionSummary,
+    uiPath: (sessionState?.uiNarrowingPath ?? []).slice(-3).map(entry => ({
+      kind: entry.kind,
+      label: entry.label,
+      field: entry.field ?? null,
+      value: entry.value ?? null,
+    })),
+    history: recentHistory,
+    narrowingHistory,
+  })
+
+  return {
+    mode,
+    stateSummary,
+    uiSummary,
+    historySummary,
+    candidateBufferSummary,
+    correctionSummary,
+    currentUnderstanding,
+    cacheSignature,
+  }
+}
+
+function computeCacheKey(args: ResolveMultiStageQueryArgs): string {
+  const normalizedMessage = args.message.trim().toLowerCase().replace(/\s+/g, " ")
+  const context = buildResolverConversationContext(args)
+  return `${normalizedMessage}::ctx=${context.cacheSignature}`
 }
 
 function serializeResolutionSignature(result: NormalizedResolverResult): string {
@@ -615,7 +881,10 @@ function hasRangeCue(message: string): { gte: boolean; lte: boolean } {
 
 function hasExplicitMutationCue(message: string): boolean {
   return hasEditSignal(message)
-    || shouldDeferHardcodedSemanticExecution(message) || needsRepair(message) || hasNegationCue(message) || hasAlternativeCue(message)
+    || shouldDeferHardcodedSemanticExecution(message)
+    || needsRepair(message)
+    || hasNegationCue(message)
+    || hasAlternativeCue(message)
 }
 
 function normalizeComparableScalar(field: string, value: unknown): string {
@@ -889,6 +1158,7 @@ function validateResolverExecution(
   result: MultiStageResolverResult,
   phase: ResolverValidationPhase,
 ): { result: MultiStageResolverResult; validation: ResolverValidationSummary } {
+  const conversationContext = buildResolverConversationContext(args)
   const currentFilters = normalizeFiltersForValidation(args.currentFilters, args.turnCount)
   const currentByField = buildLatestFilterMap(currentFilters)
   const issues: ResolverValidationIssue[] = []
@@ -970,6 +1240,40 @@ function validateResolverExecution(
     ))
   }
 
+  const orderQuantityAmbiguity = detectOrderQuantityInventoryAmbiguity(args.message)
+  const introducesInventoryScope =
+    normalizedFilters.some(filter => filter.field === "totalStock" || filter.field === "stockStatus")
+    || normalizedResult.followUpFilter?.field === "totalStock"
+    || normalizedResult.followUpFilter?.field === "stockStatus"
+
+  if (orderQuantityAmbiguity && introducesInventoryScope) {
+    issues.push(buildValidationIssue(
+      "inventory_scope_ambiguity",
+      `ambiguous order quantity "${orderQuantityAmbiguity.normalizedQuantityPhrase}" cannot be silently treated as inventory scope`,
+      phase === "stage3" ? "clarification" : "strong_cot",
+      "totalStock",
+    ))
+  }
+
+  const measurementScopeAmbiguity = detectMeasurementScopeAmbiguity(args.message, {
+    pendingField: args.pendingField ?? args.sessionState?.lastAskedField ?? null,
+  })
+  const introducedMeasurementField = measurementScopeAmbiguity
+    ? normalizedFilters.find(filter => measurementScopeAmbiguity.candidateFields.includes(filter.field))
+      ?? (normalizedResult.followUpFilter && measurementScopeAmbiguity.candidateFields.includes(normalizedResult.followUpFilter.field)
+        ? normalizedResult.followUpFilter
+        : null)
+    : null
+
+  if (measurementScopeAmbiguity && introducedMeasurementField) {
+    issues.push(buildValidationIssue(
+      "measurement_scope_ambiguity",
+      `ambiguous measurement "${measurementScopeAmbiguity.normalizedPhrase}" cannot be silently assigned to ${introducedMeasurementField.field}`,
+      phase === "stage3" ? "clarification" : "strong_cot",
+      introducedMeasurementField.field,
+    ))
+  }
+
   for (const filter of normalizedFilters) {
     const current = currentByField.get(filter.field)
     if (!current || filtersEquivalent(current, filter)) continue
@@ -979,6 +1283,18 @@ function validateResolverExecution(
       `filter ${filter.field} conflicts with current session truth without an explicit revise cue`,
       phase === "stage3" ? "clarification" : alternativeCue || negationCue ? "strong_cot" : "weak_cot",
       filter.field,
+    ))
+  }
+
+  if (
+    conversationContext.mode !== "new"
+    && normalizedResult.clearOtherFilters
+    && args.stageOneEditIntent?.intent?.type !== "reset_all"
+  ) {
+    issues.push(buildValidationIssue(
+      "session_truth_conflict",
+      `mode=${conversationContext.mode} cannot clear all existing filters without an explicit reset cue`,
+      phase === "stage3" ? "clarification" : "strong_cot",
     ))
   }
 
@@ -1180,8 +1496,13 @@ function expandSemanticHintTokens(rawTokens: string[]): string[] {
 }
 
 function extractSemanticEditHintTokens(args: ResolveMultiStageQueryArgs): string[] {
-  if (shouldExecuteEditIntentDeterministically(args.stageOneEditIntent)) return []
-  return expandSemanticHintTokens(getEditIntentHintTokens(args.stageOneEditIntent))
+  if (!args.stageOneEditIntent) return []
+  if (args.stageOneEditIntent.intent.type === "reset_all") return []
+
+  return expandSemanticHintTokens([
+    ...getEditIntentAffectedFields(args.stageOneEditIntent),
+    ...getEditIntentHintTokens(args.stageOneEditIntent),
+  ])
 }
 
 function extractDeterministicSemanticHintTokens(args: ResolveMultiStageQueryArgs): string[] {
@@ -1202,12 +1523,12 @@ function extractDeterministicSemanticHintTokens(args: ResolveMultiStageQueryArgs
 function buildStageOneSemanticHintSummary(args: ResolveMultiStageQueryArgs): string {
   const parts: string[] = []
 
-  if (args.stageOneEditIntent && !shouldExecuteEditIntentDeterministically(args.stageOneEditIntent)) {
+  if (args.stageOneEditIntent && args.stageOneEditIntent.intent.type !== "reset_all") {
     const affectedFields = getEditIntentAffectedFields(args.stageOneEditIntent)
     const hintTokens = getEditIntentHintTokens(args.stageOneEditIntent)
 
     parts.push([
-      `edit.intent=${args.stageOneEditIntent.intent.type}`,
+      `edit.candidate=${args.stageOneEditIntent.intent.type}`,
       affectedFields.length > 0 ? `fields=${affectedFields.join(", ")}` : null,
       hintTokens.length > 0 ? `tokens=${hintTokens.join(", ")}` : null,
       `reason=${args.stageOneEditIntent.reason}`,
@@ -1232,7 +1553,22 @@ function buildStageOneSemanticHintSummary(args: ResolveMultiStageQueryArgs): str
     parts.push("global_relaxation=true")
   }
 
+  if (args.stageOneSort) {
+    parts.push(`sort.candidate=${args.stageOneSort.field}:${args.stageOneSort.direction}`)
+  }
+
   return parts.length > 0 ? parts.join(" || ") : "none"
+}
+
+function hasStageOneSemanticCandidates(args: ResolveMultiStageQueryArgs): boolean {
+  return Boolean(
+    (args.stageOneDeterministicActions?.some(action =>
+      action.type === "apply_filter" && action.field && action.value != null,
+    )) ||
+    (args.stageOneEditIntent && args.stageOneEditIntent.intent.type !== "reset_all") ||
+    args.stageOneSort ||
+    args.stageOneClearUnmentionedFields
+  )
 }
 
 function extractUnresolvedTokens(args: ResolveMultiStageQueryArgs): string[] {
@@ -1545,15 +1881,41 @@ function buildClarificationResult(
   args: ResolveMultiStageQueryArgs,
   unresolvedTokens: string[],
 ): MultiStageResolverResult {
+  const orderQuantityAmbiguity = detectOrderQuantityInventoryAmbiguity(args.message)
+  if (orderQuantityAmbiguity) {
+    return {
+      source: "clarification",
+      filters: [],
+      sort: null,
+      routeHint: "general_question",
+      intent: "ask_clarification",
+      clearOtherFilters: false,
+      removeFields: [],
+      followUpFilter: null,
+      confidence: 0,
+      unresolvedTokens,
+      reasoning: "clarification:inventory_scope_ambiguity",
+      clarification: {
+        question: orderQuantityAmbiguity.question,
+        chips: orderQuantityAmbiguity.chips,
+        askedField: null,
+      },
+    }
+  }
+
+  const conversationContext = buildResolverConversationContext(args)
   const pendingField = args.pendingField ?? args.sessionState?.lastAskedField ?? null
   const isBareRecommendation =
     !pendingField
     && args.currentFilters.length === 0
     && isBareRecommendationMessage(args.message)
+  const isStatefulRepair = conversationContext.mode !== "new" && args.currentFilters.length > 0
   const pendingLabel = pendingField ? getFilterFieldLabel(pendingField) : null
   const unresolvedLabel = unresolvedTokens.length > 0 ? unresolvedTokens.slice(0, 3).join(", ") : "현재 표현"
   const question = isBareRecommendation
     ? "어떤 소재를 가공하시나요?"
+    : isStatefulRepair
+    ? `\uD604\uC7AC\uB294 ${conversationContext.currentUnderstanding} \uB85C \uC774\uD574\uD588\uB294\uB370, \uC5B4\uB290 \uBD80\uBD84\uC744 \uBC14\uAFB8\uBA74 \uB420\uAE4C\uC694?`
     : pendingLabel
     ? `${pendingLabel} 조건을 어떻게 처리할지 더 구체적으로 알려주세요.`
     : `입력하신 표현(${unresolvedLabel})의 의미를 정확히 반영하려면 어떤 조건인지 조금만 더 구체적으로 알려주세요.`
@@ -1581,7 +1943,9 @@ function buildClarificationResult(
       : `clarification:${unresolvedTokens.join("|") || "generic"}`,
     clarification: {
       question,
-      chips,
+      chips: isStatefulRepair
+        ? ["\uC81C\uC678/\uC218\uC815", "\uCD94\uCC9C \uACC4\uC18D", "\uC9C1\uC811 \uC785\uB825"]
+        : chips,
       askedField: pendingField ?? (isBareRecommendation ? "workPieceName" : null),
     },
   }
@@ -1609,8 +1973,6 @@ function buildStageOneAnalysis(args: ResolveMultiStageQueryArgs): StageOneBuildA
   const editIntent = editIntentResult?.intent ?? null
   const executeStageOneEdit = shouldExecuteEditIntentDeterministically(editIntentResult)
   const filterSpecs: ResolverFilterSpec[] = []
-  const removeFields = new Set<string>()
-  let followUpFilter: AppliedFilter | null = null
   let intent: ResolverIntent = "none"
   let reasoning = "stage1"
 
@@ -1645,37 +2007,14 @@ function buildStageOneAnalysis(args: ResolveMultiStageQueryArgs): StageOneBuildA
           reasoning: `stage1:${args.stageOneEditIntent?.reason ?? "reset_all"}`,
           clarification: null,
         })
-      case "go_back_then_apply": {
-        const mutation = applyEditIntent(editIntent, args.currentFilters, args.turnCount)
-        return finalize({
-          source: "stage1",
-          filters: [],
-          sort: null,
-          routeHint: "none",
-          intent: "go_back_one_step",
-          clearOtherFilters: false,
-          removeFields: [],
-          followUpFilter: mutation.addFilter,
-          confidence: args.stageOneEditIntent?.confidence ?? 0.93,
-          unresolvedTokens: [],
-          reasoning: `stage1:${args.stageOneEditIntent?.reason ?? "go_back_then_apply"}`,
-          clarification: null,
-        })
-      }
       case "skip_field":
-        removeFields.add(editIntent.field)
-        filterSpecs.push({ field: editIntent.field, op: "skip" })
-        reasoning = `stage1:${args.stageOneEditIntent?.reason ?? `skip ${editIntent.field}`}`
-        break
       case "clear_field":
-        removeFields.add(editIntent.field)
-        reasoning = `stage1:${args.stageOneEditIntent?.reason ?? `clear ${editIntent.field}`}`
-        break
       case "replace_field":
-        reasoning = `stage1:${args.stageOneEditIntent?.reason ?? `replace ${editIntent.field}`}`
-        break
       case "exclude_field":
-        reasoning = `stage1:${args.stageOneEditIntent?.reason ?? `exclude ${editIntent.field}`}`
+        reasoning = `stage1:hint:${args.stageOneEditIntent?.reason ?? editIntent.type}`
+        break
+      case "go_back_then_apply":
+        reasoning = `stage1:hint:${args.stageOneEditIntent?.reason ?? "go_back_then_apply"}`
         break
     }
   } else if (editIntentResult) {
@@ -1687,32 +2026,20 @@ function buildStageOneAnalysis(args: ResolveMultiStageQueryArgs): StageOneBuildA
     .filter((filter): filter is AppliedFilter => filter != null)
 
   const hasStageOneResolution =
-    filters.length > 0
-    || !!args.stageOneSort
-    || removeFields.size > 0
-    || intent !== "none"
+    intent !== "none"
 
   if (!hasStageOneResolution) return finalize(null)
-
-  if (intent === "none") {
-    intent = inferIntentFromRouteHint(
-      "none",
-      args.message,
-      filters.length > 0 || removeFields.size > 0,
-      Boolean(args.stageOneSort),
-    )
-  }
 
   return finalize({
     source: "stage1",
     filters,
-    sort: args.stageOneSort ?? null,
-    routeHint: intent === "show_recommendation" ? "show_recommendation" : "none",
+    sort: null,
+    routeHint: "none",
     intent,
     clearOtherFilters: false,
-    removeFields: Array.from(removeFields),
-    followUpFilter,
-    confidence: args.stageOneEditIntent?.confidence ?? (filters.length > 0 || args.stageOneSort ? 0.95 : 0.85),
+    removeFields: [],
+    followUpFilter: null,
+    confidence: args.stageOneEditIntent?.confidence ?? 0.95,
     unresolvedTokens: [],
     reasoning,
     clarification: null,
@@ -1957,6 +2284,7 @@ function buildStage2Prompt(args: ResolveMultiStageQueryArgs, unresolvedTokens: s
   const schemaHints = collectSchemaHints(args.message, unresolvedTokens)
   const materialContext = buildResolverMaterialContext(args, unresolvedTokens)
   const semanticHintSummary = buildStageOneSemanticHintSummary(args)
+  const conversationContext = buildResolverConversationContext(args)
   const systemPrompt = `You are the Stage 2 lightweight resolver for the YG-1 cutting tool recommendation system.
 Stage 1 only applies structurally safe operations and candidate hints. It must not finalize ambiguous natural-language mutation meaning.
 You are responsible for the final semantic interpretation of negation, alternatives, and revise/follow-up language.
@@ -1979,6 +2307,11 @@ ${buildResolverDomainDictionary()}
 ${SEMANTIC_INTERPRETATION_POLICY_PROMPT}
 
 Rules:
+- First classify the turn as new, refine, or repair from the current state, UI context, and conversation history.
+- Current session state is the source of truth. If the mode is refine or repair, preserve every untouched constraint and return only the delta.
+- Use displayed chips, displayed options, top candidates, and recent conversation turns to resolve deictic references such as "that", "this", or "the previous one".
+- Alias mappings, dictionaries, typo normalization, schema phonetic hints, and Stage 1 hints are clues only. The final meaning must come from the full contextual utterance.
+- Do not silently reset to a generic narrowing flow when the turn is refine or repair.
 - Extract every filter you can map safely.
 - skip means the user does not care about a field and the existing restriction should be removed.
 - sort means a superlative like "제일 긴", "가장 작은".
@@ -2011,6 +2344,11 @@ Examples:
 
   const userPrompt = [
     `User message: ${args.message}`,
+    `Resolver mode: ${conversationContext.mode}`,
+    `Current state truth: ${conversationContext.stateSummary}`,
+    `UI context: ${conversationContext.uiSummary}`,
+    `Recent conversation history: ${conversationContext.historySummary}`,
+    `Current understanding to preserve unless changed: ${conversationContext.currentUnderstanding}`,
     `Stage 1 unresolved tokens: ${unresolvedTokens.join(", ") || "none"}`,
     `Stage 1 semantic hints: ${semanticHintSummary}`,
     `Material mapping context:\n${materialContext || "none"}`,
@@ -2028,6 +2366,7 @@ function buildStage3Prompt(args: ResolveMultiStageQueryArgs, unresolvedTokens: s
   const schemaHints = collectSchemaHints(args.message, unresolvedTokens)
   const materialContext = buildResolverMaterialContext(args, unresolvedTokens)
   const semanticHintSummary = buildStageOneSemanticHintSummary(args)
+  const conversationContext = buildResolverConversationContext(args)
   const systemPrompt = `You are the Stage 3 deep reasoning resolver for the YG-1 cutting tool recommendation system.
 Stage 1 and Stage 2 were not sufficient. Think step by step internally, then return JSON only.
 
@@ -2049,21 +2388,29 @@ ${buildResolverDomainDictionary()}
 ${SEMANTIC_INTERPRETATION_POLICY_PROMPT}
 
 Decision process:
-1. Classify the user intent: filter, sort, comparison, UI question, side question, or mixed.
-2. Analyze the unresolved tokens: Korean pronunciation, slang, misspacing, shorthand, superlative, indifference, UI vocabulary.
-3. Use any schema phonetic hints only when they clearly fit the user's meaning.
-4. Map only high-confidence items to DB fields or routeHint. Similar-product requests around a concrete item should use routeHint=compare_products even when the code stays unresolved.
-5. Keep operator attachment local to each clause. "2 flutes and not square" must stay fluteCount eq 2 and toolSubtype neq Square.
-6. Treat Stage 1 semantic hints as candidate intent only. Do not copy them unless the full utterance supports them.
-7. If all other existing filters should be released, set clearOtherFilters=true.
-8. If unsure, leave filters empty and keep unresolvedTokens.
-9. Never invent a field, operator, column, or canonical value outside the field catalog and domain dictionary.
+1. Decide whether the turn is new, refine, or repair from the current state, UI context, and conversation history.
+2. If the mode is refine or repair, preserve the existing session truth and modify only the touched fields.
+3. Classify the user intent: filter, sort, comparison, UI question, side question, or mixed.
+4. Analyze the unresolved tokens: Korean pronunciation, slang, misspacing, shorthand, superlative, indifference, UI vocabulary.
+5. Use any schema phonetic hints only when they clearly fit the user's meaning.
+6. Map only high-confidence items to DB fields or routeHint. Similar-product requests around a concrete item should use routeHint=compare_products even when the code stays unresolved.
+7. Keep operator attachment local to each clause. "2 flutes and not square" must stay fluteCount eq 2 and toolSubtype neq Square.
+8. Treat Stage 1 semantic hints as candidate intent only. Do not copy them unless the full utterance supports them.
+9. Use displayed chips, displayed options, and top candidates to resolve deictic follow-ups before asking for clarification.
+10. If all other existing filters should be released, set clearOtherFilters=true only when the user explicitly reset or released them.
+11. If unsure, leave filters empty and keep unresolvedTokens.
+12. Never invent a field, operator, column, or canonical value outside the field catalog and domain dictionary.
 
 Return JSON:
 {"filters":[],"sort":null,"routeHint":"none","clearOtherFilters":false,"confidence":0.0,"unresolvedTokens":[],"reasoning":""}`
 
   const userPrompt = [
     `User message: ${args.message}`,
+    `Resolver mode: ${conversationContext.mode}`,
+    `Current state truth: ${conversationContext.stateSummary}`,
+    `UI context: ${conversationContext.uiSummary}`,
+    `Recent conversation history: ${conversationContext.historySummary}`,
+    `Current understanding to preserve unless changed: ${conversationContext.currentUnderstanding}`,
     `Pending field: ${args.pendingField ?? args.sessionState?.lastAskedField ?? "none"}`,
     `Current filters: ${buildCurrentFilterSummary(args.currentFilters)}`,
     `Complexity: ${args.complexity?.level ?? "unknown"} (${args.complexity?.reason ?? "n/a"})`,
@@ -2217,16 +2564,23 @@ export async function resolveMultiStageQuery(
     args.stage1CotEscalation?.enabled === true
       ? collectValidationReasons(stage1Validation)
       : []
+  const stage1SemanticHintReplay =
+    !stage1Result
+    && hasStageOneSemanticCandidates(args)
   const stage1ForceCotFromValidation =
     args.stage1CotEscalation?.enabled === true
     && stage1Validation?.escalation !== "none"
-  const stage1GateReasons = uniqueStrings([...stage1GateBase.reasons, ...stage1ValidationReasons])
+  const stage1GateReasons = uniqueStrings([
+    ...stage1GateBase.reasons,
+    ...stage1ValidationReasons,
+    ...(stage1SemanticHintReplay ? ["semantic_hints_only"] : []),
+  ])
   const effectiveUnresolvedTokens = stage1GateReasons.length > 0 && stage1GateBase.effectiveUnresolvedTokens.length === 0
     ? synthesizeStage1ReplayTokens(args.message, stage1ResolvedTokens)
     : stage1GateBase.effectiveUnresolvedTokens
   const stage1Gate = {
     ...stage1GateBase,
-    forceCot: stage1GateBase.forceCot || stage1ForceCotFromValidation,
+    forceCot: stage1GateBase.forceCot || stage1ForceCotFromValidation || stage1SemanticHintReplay,
     reasons: stage1GateReasons,
     effectiveUnresolvedTokens,
   }
@@ -2281,7 +2635,7 @@ export async function resolveMultiStageQuery(
     return buildClarificationResult(args, [])
   }
 
-  const cacheKey = computeCacheKey(args.message, args.pendingField ?? args.sessionState?.lastAskedField ?? null)
+  const cacheKey = computeCacheKey(args)
   const cached = lookupResolverCache(cacheKey)
   if (cached) {
     const cachedCandidate = mergeMultiStageResults(stage1Result, materializeResult("cache", cached, args.turnCount))

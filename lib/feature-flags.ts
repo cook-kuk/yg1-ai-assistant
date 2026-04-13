@@ -62,6 +62,9 @@ export const LLM_FREE_INTERPRETATION = envFlag("LLM_FREE_INTERPRETATION", true)
 export const ENABLE_PLANNER_DECISION = envFlag("ENABLE_PLANNER_DECISION", true)
 
 /** Use V2 turn orchestrator (new recommendation pipeline). Defaults to true — V2 is the primary pipeline. Set USE_NEW_ORCHESTRATOR=false to revert to legacy. */
+/** Let an advisory LLM decide whether an ambiguous stateful turn should ask or reuse current UI options. */
+export const ENABLE_STATEFUL_CLARIFICATION_ARBITER = envFlag("ENABLE_STATEFUL_CLARIFICATION_ARBITER", true)
+
 export const USE_NEW_ORCHESTRATOR = process.env.USE_NEW_ORCHESTRATOR !== "false"
 
 /** Comma-separated list of phases where V2 is enabled. "all" = everything. Useful for gradual rollout. */
