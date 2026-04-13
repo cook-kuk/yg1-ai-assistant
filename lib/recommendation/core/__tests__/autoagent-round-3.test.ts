@@ -48,6 +48,7 @@ describe("canonicalizeToolSubtype - 확장 alias", () => {
 
 describe("canonicalizeCoating - 확장 alias", () => {
   it("'와이코팅' → Y-Coating", () => expect(canonicalizeCoating("와이코팅")).toBe("Y-Coating"))
+  it("'Y-coatiing' → Y-Coating", () => expect(canonicalizeCoating("Y-coatiing")).toBe("Y-Coating"))
   it("'엑스코팅' → X-Coating", () => expect(canonicalizeCoating("엑스코팅")).toBe("X-Coating"))
   it("'블루코팅' → Blue", () => expect(canonicalizeCoating("블루코팅")).toBe("Blue"))
   it("'무코팅' → Uncoated", () => expect(canonicalizeCoating("무코팅")).toBe("Uncoated"))

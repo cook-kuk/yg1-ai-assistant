@@ -50,6 +50,7 @@ import { assessComplexity } from "@/lib/recommendation/core/complexity-router"
 import { getDbSchemaSync, getDbSchema } from "@/lib/recommendation/core/sql-agent-schema-cache"
 import { naturalLanguageToQuerySpec } from "@/lib/recommendation/core/query-planner"
 import { querySpecToAppliedFilters, appliedFiltersToConstraints } from "@/lib/recommendation/core/query-spec-to-filters"
+import { buildStructuredDraftClarificationOptions, buildStructuredFilterDraft } from "@/lib/recommendation/core/structured-filter-draft"
 import { sortScoredCandidatesByQuerySort } from "@/lib/recommendation/core/query-sort-runtime"
 import { decidePlannerOverride } from "@/lib/recommendation/core/planner-decision"
 import { resolveMultiStageQuery, resolverProducedMeaningfulOutput, type MultiStageResolverResult } from "@/lib/recommendation/core/multi-stage-query-resolver"
@@ -880,7 +881,36 @@ export async function resolveExplicitFilterRequest(
  * Returns { field, rawValue, displayValue } if found, null otherwise.
  */
 function normalizeNegationCueText(value: string): string {
-  return String(value).toLowerCase().replace(/[\s\-_()]+/g, "")
+  return String(value)
+    .toLowerCase()
+    .replace(/[\s\-_()]+/g, "")
+    .replace(/([a-z])\1+/g, "$1")
+}
+
+function buildNegatedPhraseCandidates(cleaned: string): string[] {
+  const trimmed = cleaned.replace(/^[\s,.;:!?？]+|[\s,.;:!?？]+$/g, "").trim()
+  if (!trimmed) return []
+
+  const strippedLead = trimmed.replace(
+    /^(?:그리고|그리고요|그럼|그러면|근데|그런데|혹시|음|아|저기|그냥)\s+/u,
+    "",
+  ).trim()
+
+  const candidates: string[] = []
+  const pushCandidate = (value: string) => {
+    const next = value.trim()
+    if (!next || candidates.includes(next)) return
+    candidates.push(next)
+  }
+
+  pushCandidate(strippedLead)
+  pushCandidate(trimmed)
+
+  const tokens = strippedLead.split(/\s+/).filter(Boolean)
+  if (tokens.length >= 2) pushCandidate(tokens.slice(-2).join(" "))
+  if (tokens.length >= 1) pushCandidate(tokens[tokens.length - 1])
+
+  return candidates
 }
 
 function buildNegationFieldTryOrder(msg: string): string[] {
@@ -915,42 +945,51 @@ export function extractNegatedValue(msg: string): { field: string; rawValue: str
 
   if (!cleaned) return null
 
-  const detActions = parseDeterministic(cleaned)
-    .filter(action => action.type === "apply_filter")
-  if (detActions.length === 1) {
-    const [action] = detActions
-    return {
-      field: action.field,
-      rawValue: action.value,
-      displayValue: cleaned,
+  const phraseCandidates = buildNegatedPhraseCandidates(cleaned)
+  if (phraseCandidates.length === 0) return null
+
+  for (const phrase of phraseCandidates) {
+    const detActions = parseDeterministic(phrase)
+      .filter(action => action.type === "apply_filter")
+    if (detActions.length === 1) {
+      const [action] = detActions
+      return {
+        field: action.field,
+        rawValue: action.value,
+        displayValue: phrase,
+      }
     }
   }
 
   // Try buildAppliedFilterFromValue with each registered field
   // brand/seriesName first — "TANK-POWER 빼고" ���은 브랜드 제외�� 코팅보다 먼저 잡아야 함
   const fieldsToTry = buildNegationFieldTryOrder(msg)
-  for (const field of fieldsToTry) {
-    const filter = buildAppliedFilterFromValue(field, cleaned)
-    if (filter) {
-      const normalizedFilter = normalizeRuntimeAppliedFilter(filter, filter.appliedAt ?? 0)
-      return {
-        field: normalizedFilter.field,
-        rawValue: typeof normalizedFilter.rawValue === "object" ? String(normalizedFilter.rawValue) : normalizedFilter.rawValue,
-        displayValue: cleaned,
+  for (const phrase of phraseCandidates) {
+    for (const field of fieldsToTry) {
+      const filter = buildAppliedFilterFromValue(field, phrase)
+      if (filter) {
+        const normalizedFilter = normalizeRuntimeAppliedFilter(filter, filter.appliedAt ?? 0)
+        return {
+          field: normalizedFilter.field,
+          rawValue: typeof normalizedFilter.rawValue === "object" ? String(normalizedFilter.rawValue) : normalizedFilter.rawValue,
+          displayValue: phrase,
+        }
       }
     }
   }
 
   // Fallback: try all registered fields
-  for (const field of getRegisteredFilterFields()) {
-    if (fieldsToTry.includes(field)) continue
-    const filter = buildAppliedFilterFromValue(field, cleaned)
-    if (filter) {
-      const normalizedFilter = normalizeRuntimeAppliedFilter(filter, filter.appliedAt ?? 0)
-      return {
-        field: normalizedFilter.field,
-        rawValue: typeof normalizedFilter.rawValue === "object" ? String(normalizedFilter.rawValue) : normalizedFilter.rawValue,
-        displayValue: cleaned,
+  for (const phrase of phraseCandidates) {
+    for (const field of getRegisteredFilterFields()) {
+      if (fieldsToTry.includes(field)) continue
+      const filter = buildAppliedFilterFromValue(field, phrase)
+      if (filter) {
+        const normalizedFilter = normalizeRuntimeAppliedFilter(filter, filter.appliedAt ?? 0)
+        return {
+          field: normalizedFilter.field,
+          rawValue: typeof normalizedFilter.rawValue === "object" ? String(normalizedFilter.rawValue) : normalizedFilter.rawValue,
+          displayValue: phrase,
+        }
       }
     }
   }
@@ -1689,9 +1728,12 @@ function isAlternativeExplorationQuestionV2(message: string): boolean {
   const raw = message.trim()
   if (!raw) return false
 
+  const recommendationCue = /(?:추천|보여|고를|선택)/u.test(raw)
+  const availabilityCue = /(?:있어|있어요|있나요|있습니까|있을까|가능|가능해|가능한가)/u.test(raw)
   const asksAlternatives =
     /(?:뭐가|무엇이|어떤|다른)\s*(?:있어|있나요|있습니까|좋아|나아요|가능|거|걸|옵션|코팅|형상)?/u.test(raw)
-    || /대안|다른\s*옵션|추천\s*가능/u.test(raw)
+    || /대안|다른\s*옵션/u.test(raw)
+    || (recommendationCue && availabilityCue)
   const questionLike = /[?？]/.test(raw) || /(?:있어|있나요|있을까|가능해|가능한가|좋아|나아요)/u.test(raw)
   const explicitReplacement = /(?:으로\s+\S+|(?:으로|로)\s*(?:바꿔|변경|수정))/u.test(raw)
 
@@ -3651,6 +3693,49 @@ async function handleServeExplorationInner(
         if (stagedSpecPatch) {
           console.log(`[stage1-merge] applied patch: sort=${!!stagedSpecPatch.sort} similarTo=${!!stagedSpecPatch.similarTo} tolerance=${stagedSpecPatch.toleranceConstraints?.length ?? 0}`)
           stagedSpecPatch = null
+        }
+        const structuredDraft = buildStructuredFilterDraft({
+          userMessage: msg,
+          sessionState: prevState,
+          spec,
+        })
+        trace.add("structured-filter-draft", "router", {
+          mode: structuredDraft.mode,
+          intent: structuredDraft.intent,
+          filterCount: structuredDraft.filters.length,
+          confidence: structuredDraft.confidence,
+          needsClarification: structuredDraft.needsClarification,
+          sort: structuredDraft.sort ? `${structuredDraft.sort.field}:${structuredDraft.sort.direction}` : null,
+        })
+        const shouldBypassStructuredDraftClarification =
+          hasNegationPattern && structuredDraft.mode !== "repair"
+
+        if (structuredDraft.needsClarification && !singleCallHandled && !shouldBypassStructuredDraftClarification) {
+          const clarificationState = prevState ?? buildSessionState({
+            candidateCount: filters.length,
+            appliedFilters: filters,
+            narrowingHistory,
+            stageHistory: [],
+            resolutionStatus: "narrowing",
+            resolvedInput: currentInput,
+            turnCount,
+            displayedCandidates: [],
+            displayedChips: [],
+            displayedOptions: [],
+            currentMode: "question",
+          })
+          return buildRevisionClarificationResponse(
+            deps,
+            clarificationState,
+            form,
+            filters,
+            narrowingHistory,
+            currentInput,
+            turnCount,
+            structuredDraft.clarificationQuestion ?? "조건을 한 번만 더 구체적으로 알려주세요.",
+            requestPrep,
+            buildStructuredDraftClarificationOptions(structuredDraft, prevState),
+          )
         }
         const shadowFilters = querySpecToAppliedFilters(spec, turnCount)
 
