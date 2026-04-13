@@ -213,6 +213,7 @@ export interface ExplorationSessionState {
    * collapsible. Reset every turn — never accumulated.
    */
   thinkingProcess?: string | null
+  thinkingDeep?: string | null
 
   // ── Persistent Conversation Memory (accumulates across turns) ──
   conversationMemory?: import("@/lib/recommendation/domain/memory/conversation-memory").ConversationMemory

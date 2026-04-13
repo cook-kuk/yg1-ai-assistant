@@ -73,6 +73,7 @@ interface BuildSessionStateParams {
   conversationMemory?: import("@/lib/recommendation/domain/memory/conversation-memory").ConversationMemory
   conversationLog?: import("@/lib/recommendation/domain/memory/memory-compressor").ConversationLog
   thinkingProcess?: string | null
+  thinkingDeep?: string | null
 }
 
 export function buildSessionState(params: BuildSessionStateParams): ExplorationSessionState {
@@ -113,6 +114,7 @@ export function buildSessionState(params: BuildSessionStateParams): ExplorationS
     conversationMemory: params.conversationMemory,
     conversationLog: params.conversationLog,
     thinkingProcess: params.thinkingProcess ?? null,
+    thinkingDeep: params.thinkingDeep ?? null,
   }
 }
 
@@ -185,6 +187,7 @@ export function carryForwardState(
     conversationMemory: overrides.conversationMemory ?? prev.conversationMemory,
     conversationLog: overrides.conversationLog ?? prev.conversationLog,
     thinkingProcess: "thinkingProcess" in overrides ? overrides.thinkingProcess ?? null : prev.thinkingProcess ?? null,
+    thinkingDeep: "thinkingDeep" in overrides ? overrides.thinkingDeep ?? null : prev.thinkingDeep ?? null,
   })
 }
 

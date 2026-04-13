@@ -87,4 +87,32 @@ describe("buildRecommendationResponseDto", () => {
     expect(dto.text).toContain("ZXQ999")
     expect(dto.text).toContain("카탈로그에서 확인되지 않은 시리즈명")
   })
+
+  it("surfaces thinkingDeep from session state", () => {
+    const sessionState = {
+      sessionId: "s-thinking",
+      candidateCount: 1,
+      appliedFilters: [],
+      narrowingHistory: [],
+      stageHistory: [],
+      resolutionStatus: "resolved_approximate",
+      resolvedInput: { manufacturerScope: "yg1-only", locale: "ko" },
+      turnCount: 1,
+      displayedCandidates: [],
+      displayedChips: [],
+      displayedOptions: [],
+      thinkingProcess: "short reasoning",
+      thinkingDeep: "full cot body",
+    } as ExplorationSessionState
+
+    const dto = buildRecommendationResponseDto({
+      text: "test",
+      purpose: "question",
+      isComplete: false,
+      sessionState,
+    })
+
+    expect(dto.thinkingProcess).toBe("short reasoning")
+    expect(dto.thinkingDeep).toBe("full cot body")
+  })
 })

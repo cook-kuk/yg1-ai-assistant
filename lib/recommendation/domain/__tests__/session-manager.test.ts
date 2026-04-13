@@ -149,6 +149,17 @@ describe("carryForwardState", () => {
     expect(next.turnCount).toBe(5)
   })
 
+  it("preserves and overrides thinkingDeep independently", () => {
+    const state = makeMinimalState({ thinkingProcess: "short", thinkingDeep: "full-cot" } as any)
+    const preserved = carryForwardState(state, {})
+    expect(preserved.thinkingProcess).toBe("short")
+    expect(preserved.thinkingDeep).toBe("full-cot")
+
+    const next = carryForwardState(state, { thinkingDeep: "updated-full-cot" })
+    expect(next.thinkingProcess).toBe("short")
+    expect(next.thinkingDeep).toBe("updated-full-cot")
+  })
+
   it("rebuilds uiNarrowingPath when narrowingHistory is overridden", () => {
     const state = makeMinimalState()
     const filter = makeFilter("coating", "AlTiN", 0)

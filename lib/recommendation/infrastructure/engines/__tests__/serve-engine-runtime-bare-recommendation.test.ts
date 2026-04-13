@@ -3,8 +3,11 @@ import { describe, expect, it, vi } from "vitest"
 vi.mock("server-only", () => ({}))
 
 import {
+  applyThinkingFieldsToPayload,
   buildResolverSimilaritySpecPatch,
   isBareRecommendationRequest,
+  shouldExposeFullThinking,
+  shouldUseSqlAgentSemanticCache,
   shouldAllowTurn0LexicalAnswerIntercept,
   shouldBypassFirstTurnMultiStageResolver,
   shouldShortCircuitFirstTurnIntake,
@@ -146,5 +149,50 @@ describe("first-turn routing guards", () => {
         topK: 10,
       },
     })
+  })
+
+  it("enables full thinking in dev/test app modes only", () => {
+    const prevAppMode = process.env.APP_MODE
+    const prevNodeEnv = process.env.NODE_ENV
+
+    process.env.APP_MODE = "dev"
+    process.env.NODE_ENV = "production"
+    expect(shouldExposeFullThinking()).toBe(true)
+
+    process.env.APP_MODE = "production"
+    process.env.NODE_ENV = "production"
+    expect(shouldExposeFullThinking()).toBe(false)
+
+    process.env.APP_MODE = ""
+    process.env.NODE_ENV = "test"
+    expect(shouldExposeFullThinking()).toBe(true)
+
+    process.env.APP_MODE = prevAppMode
+    process.env.NODE_ENV = prevNodeEnv
+  })
+
+  it("injects thinkingDeep into final payload and engine state", () => {
+    const payload = applyThinkingFieldsToPayload({
+      text: "ok",
+      session: {
+        publicState: null,
+        engineState: {
+          sessionId: "s1",
+        },
+      },
+    }, {
+      thinkingProcess: "short",
+      thinkingDeep: "full cot",
+    }) as any
+
+    expect(payload.thinkingProcess).toBe("short")
+    expect(payload.thinkingDeep).toBe("full cot")
+    expect(payload.session.engineState.thinkingProcess).toBe("short")
+    expect(payload.session.engineState.thinkingDeep).toBe("full cot")
+  })
+
+  it("bypasses sql-agent semantic cache when full thinking is enabled", () => {
+    expect(shouldUseSqlAgentSemanticCache(true)).toBe(false)
+    expect(shouldUseSqlAgentSemanticCache(false)).toBe(true)
   })
 })

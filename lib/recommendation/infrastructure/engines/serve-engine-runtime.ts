@@ -111,6 +111,11 @@ type CandidatePageSlice = {
   candidates: ScoredProduct[]
   evidenceMap: Map<string, EvidenceSummary>
 }
+type ThinkingKind = "stage" | "deep"
+type RuntimeThinkingState = {
+  thinkingProcess: string | null
+  thinkingDeep: string | null
+}
 type ExplicitRevisionRequest = {
   targetField: string
   previousValue: string
@@ -1440,7 +1445,7 @@ export interface ServeEngineRuntimeDependencies {
    *                          far; the UI should replace its current value.
    *                          Used for non-streaming providers and fallbacks.
    */
-  onThinking?: (text: string, opts?: { delta?: boolean }) => void
+  onThinking?: (text: string, opts?: { delta?: boolean; kind?: "deep" | "stage" }) => void
   buildCandidateSnapshot: (
     candidates: ScoredProduct[],
     evidenceMap: Map<string, EvidenceSummary>
@@ -1599,6 +1604,96 @@ export function shouldShortCircuitFirstTurnIntake(params: {
   resolverResult: MultiStageResolverResult | null
 }): boolean {
   return params.bypassResolver || !!(params.resolverResult && hasTerminalMultiStageResult(params.resolverResult))
+}
+
+export function shouldExposeFullThinking(): boolean {
+  const explicit = process.env.RECOMMEND_SHOW_FULL_THINKING?.trim().toLowerCase()
+  if (explicit === "true" || explicit === "1" || explicit === "on") return true
+  if (explicit === "false" || explicit === "0" || explicit === "off") return false
+
+  const appMode = process.env.APP_MODE?.trim().toLowerCase()
+  if (appMode === "dev" || appMode === "test" || appMode === "qa" || appMode === "staging") return true
+  if (appMode === "production") return false
+
+  return process.env.NODE_ENV === "test"
+}
+
+export function shouldUseSqlAgentSemanticCache(exposeFullThinking: boolean): boolean {
+  return !exposeFullThinking
+}
+
+export function applyThinkingFieldsToPayload(
+  payload: unknown,
+  thinking: Partial<RuntimeThinkingState>,
+): unknown {
+  if (!payload || typeof payload !== "object") return payload
+
+  const thinkingProcess = thinking.thinkingProcess ?? null
+  const thinkingDeep = thinking.thinkingDeep ?? null
+  if (!thinkingProcess && !thinkingDeep) return payload
+
+  const out = payload as Record<string, unknown>
+  if (thinkingProcess && out.thinkingProcess == null) out.thinkingProcess = thinkingProcess
+  if (thinkingDeep && out.thinkingDeep == null) out.thinkingDeep = thinkingDeep
+
+  const session = out.session
+  if (!session || typeof session !== "object") return out
+
+  const sessionEnvelope = session as Record<string, unknown>
+  const engineState = sessionEnvelope.engineState
+  if (engineState && typeof engineState === "object") {
+    const engineRecord = engineState as Record<string, unknown>
+    if (thinkingProcess && engineRecord.thinkingProcess == null) engineRecord.thinkingProcess = thinkingProcess
+    if (thinkingDeep && engineRecord.thinkingDeep == null) engineRecord.thinkingDeep = thinkingDeep
+  }
+
+  return out
+}
+
+function setThinking(state: RuntimeThinkingState, text: string, kind: ThinkingKind): void {
+  if (!text) return
+  if (kind === "deep") {
+    state.thinkingDeep = text
+    return
+  }
+  state.thinkingProcess = text
+}
+
+function appendThinking(state: RuntimeThinkingState, text: string, kind: ThinkingKind): void {
+  if (!text) return
+  if (kind === "deep") {
+    state.thinkingDeep = state.thinkingDeep ? `${state.thinkingDeep}\n\n${text}` : text
+    return
+  }
+  state.thinkingProcess = state.thinkingProcess ? `${state.thinkingProcess}\n\n${text}` : text
+}
+
+function syncThinkingToSession(
+  sessionState: ExplorationSessionState | null | undefined,
+  thinking: Partial<RuntimeThinkingState>,
+): void {
+  if (!sessionState) return
+  if (thinking.thinkingProcess !== undefined) sessionState.thinkingProcess = thinking.thinkingProcess ?? null
+  if (thinking.thinkingDeep !== undefined) sessionState.thinkingDeep = thinking.thinkingDeep ?? null
+}
+
+async function withThinkingResponse(
+  response: Response,
+  thinking: Partial<RuntimeThinkingState>,
+): Promise<Response> {
+  if (!thinking.thinkingProcess && !thinking.thinkingDeep) return response
+
+  try {
+    const payload = await response.json()
+    const merged = applyThinkingFieldsToPayload(payload, thinking)
+    return new Response(JSON.stringify(merged), {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    })
+  } catch {
+    return response
+  }
 }
 
 function extractReferenceProductIdFromMessage(rawMessage: string): string | null {
@@ -1912,8 +2007,14 @@ async function handleServeExplorationInner(
   // the polish/summary LLM prompts can weave it into their narrative without
   // every call site having to forward the value explicitly.
   let proactiveInsightsContext: string | undefined
+  const runtimeThinking: RuntimeThinkingState = {
+    thinkingProcess: prevState?.thinkingProcess ?? null,
+    thinkingDeep: prevState?.thinkingDeep ?? null,
+  }
+  const fullThinkingEnabled = shouldExposeFullThinking()
   const baseBuildQuestionResponse = deps.buildQuestionResponse
   const baseBuildRecommendationResponse = deps.buildRecommendationResponse
+  const baseJsonRecommendationResponse = deps.jsonRecommendationResponse
   // Positional indices of `extraResponseContext`:
   //   buildQuestionResponse       → 20 (after overrideText/existingStageHistory/
   //     excludeWorkPieceValues/responsePrefix/overrideChips)
@@ -1926,19 +2027,27 @@ async function handleServeExplorationInner(
   const EXTRA_CTX_IDX_R = 16
   deps = {
     ...deps,
+    jsonRecommendationResponse: (params, init) => {
+      syncThinkingToSession(params.sessionState, runtimeThinking)
+      return baseJsonRecommendationResponse({
+        ...params,
+        thinkingProcess: params.thinkingProcess ?? runtimeThinking.thinkingProcess,
+        thinkingDeep: params.thinkingDeep ?? runtimeThinking.thinkingDeep,
+      }, init)
+    },
     buildQuestionResponse: (...args: Parameters<typeof baseBuildQuestionResponse>) => {
       const passed = args[EXTRA_CTX_IDX_Q]
       const ctx = passed !== undefined ? passed : proactiveInsightsContext
       const newArgs = [...args] as Parameters<typeof baseBuildQuestionResponse>
       newArgs[EXTRA_CTX_IDX_Q] = ctx
-      return baseBuildQuestionResponse(...newArgs)
+      return baseBuildQuestionResponse(...newArgs).then(response => withThinkingResponse(response, runtimeThinking))
     },
     buildRecommendationResponse: (...args: Parameters<typeof baseBuildRecommendationResponse>) => {
       const passed = args[EXTRA_CTX_IDX_R]
       const ctx = passed !== undefined ? passed : proactiveInsightsContext
       const newArgs = [...args] as Parameters<typeof baseBuildRecommendationResponse>
       newArgs[EXTRA_CTX_IDX_R] = ctx
-      return baseBuildRecommendationResponse(...newArgs)
+      return baseBuildRecommendationResponse(...newArgs).then(response => withThinkingResponse(response, runtimeThinking))
     },
   }
 
@@ -2941,7 +3050,9 @@ async function handleServeExplorationInner(
         const schema = getDbSchemaSync()
         if (schema) {
           const { lookupCache: lookupSemanticCache, storeCache: storeSemanticCache } = await import("@/lib/recommendation/core/semantic-cache")
-          const semanticHit = lookupSemanticCache(msg, filters)
+          const semanticHit = shouldUseSqlAgentSemanticCache(fullThinkingEnabled)
+            ? lookupSemanticCache(msg, filters)
+            : null
 
           let agentResult: { filters: import("@/lib/recommendation/core/sql-agent").AgentFilter[]; raw: string; reasoning?: string; confidence?: "high" | "medium" | "low"; clarification?: string | null }
           if (semanticHit && semanticHit.source === "sql-agent") {
@@ -2968,22 +3079,38 @@ async function handleServeExplorationInner(
                 provider,
                 (delta) => {
                   streamedAny = true
-                  try { deps.onThinking!(delta, { delta: true }) } catch { /* never block runtime */ }
+                  try {
+                    deps.onThinking!(delta, fullThinkingEnabled ? { delta: true, kind: "deep" } : { delta: true })
+                  } catch { /* never block runtime */ }
                 },
-                "fast",
+                fullThinkingEnabled ? "cot" : "fast",
                 kgHint,
               )
               // If streaming yielded nothing (e.g. fallback path triggered),
               // emit the final reasoning as a single non-delta frame so the UI
               // still shows something.
               if (!streamedAny && agentResult.reasoning) {
-                try { deps.onThinking(agentResult.reasoning) } catch { /* never block runtime */ }
+                try {
+                  deps.onThinking(agentResult.reasoning, fullThinkingEnabled ? { kind: "deep" } : undefined)
+                } catch { /* never block runtime */ }
               }
             } else {
-              agentResult = await naturalLanguageToFilters(msg, schema, filters, provider, "fast", kgHint)
+              agentResult = await naturalLanguageToFilters(
+                msg,
+                schema,
+                filters,
+                provider,
+                fullThinkingEnabled ? "cot" : "fast",
+                kgHint,
+              )
+              if (deps.onThinking && agentResult.reasoning) {
+                try {
+                  deps.onThinking(agentResult.reasoning, fullThinkingEnabled ? { kind: "deep" } : undefined)
+                } catch { /* never block runtime */ }
+              }
             }
             // Store in semantic cache for next time (only meaningful results)
-            if (agentResult.filters.length > 0) {
+            if (shouldUseSqlAgentSemanticCache(fullThinkingEnabled) && agentResult.filters.length > 0) {
               storeSemanticCache(msg, filters, {
                 source: "sql-agent",
                 actions: agentResult.filters as unknown as import("@/lib/recommendation/core/semantic-cache").CachedAction[],
@@ -2998,8 +3125,9 @@ async function handleServeExplorationInner(
           // The deltas (if any) were already flushed during streaming above; the
           // stash here ensures the final text is persisted on the session for
           // non-stream consumers and message history.
-          if (agentResult.reasoning && prevState) {
-            (prevState as ExplorationSessionState).thinkingProcess = agentResult.reasoning
+          if (agentResult.reasoning) {
+            setThinking(runtimeThinking, agentResult.reasoning, fullThinkingEnabled ? "deep" : "stage")
+            syncThinkingToSession(prevState, runtimeThinking)
           }
 
           // ── CoT confidence 기반 분기 ──
@@ -4219,14 +4347,23 @@ async function handleServeExplorationInner(
                     legacyState.appliedFilters ?? [],
                     provider,
                     deps.onThinking
-                      ? (delta) => { try { deps.onThinking!(delta, { delta: true }) } catch { /* never block */ } }
+                      ? (delta) => {
+                          try {
+                            deps.onThinking!(delta, fullThinkingEnabled ? { delta: true, kind: "deep" } : { delta: true })
+                          } catch { /* never block */ }
+                        }
                       : undefined,
                     "cot", // ← escalation retry: full deliberative reasoning
                   )
                   if (cotResult.reasoning) {
-                    legacyState.thinkingProcess =
-                      (legacyState.thinkingProcess ? legacyState.thinkingProcess + "\n\n" : "")
-                      + "🧠 CoT 재시도:\n" + cotResult.reasoning
+                    if (fullThinkingEnabled) {
+                      appendThinking(runtimeThinking, cotResult.reasoning, "deep")
+                      syncThinkingToSession(legacyState, runtimeThinking)
+                    } else {
+                      legacyState.thinkingProcess =
+                        (legacyState.thinkingProcess ? legacyState.thinkingProcess + "\n\n" : "")
+                        + "🧠 CoT 재시도:\n" + cotResult.reasoning
+                    }
                   }
                   if (cotResult.filters.length > 0) {
                     const cotApplied = cotResult.filters

@@ -277,6 +277,7 @@ export interface RecommendationResponseDto {
   }
   /** 추론 과정 — Claude thinking 처럼 유저에게 "이렇게 이해했습니다" 보여주기 위한 한국어 자연어. */
   thinkingProcess?: string | null
+  thinkingDeep?: string | null
   error?: string
   detail?: string
 }
@@ -530,6 +531,7 @@ export const recommendationResponseSchema = z.object({
   capabilities: recommendationCapabilitySchema,
   meta: recommendationResponseMetaSchema.optional(),
   thinkingProcess: z.string().nullable().optional(),
+  thinkingDeep: z.string().nullable().optional(),
   error: z.string().optional(),
   detail: z.string().optional(),
 }).passthrough()

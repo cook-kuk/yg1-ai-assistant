@@ -268,6 +268,7 @@ interface BuildRecommendationResponseDtoParams {
   meta?: RecommendationResponseMetaDto
   recommendationMeta?: RecommendationResponseDto["recommendationMeta"]
   thinkingProcess?: string | null
+  thinkingDeep?: string | null
   error?: string
   detail?: string
 }
@@ -395,6 +396,10 @@ export function buildRecommendationResponseDto(
       params.thinkingProcess
       ?? sessionState?.thinkingProcess
       ?? synthesizeThinkingFromSessionFilters(sessionState)
+      ?? null,
+    thinkingDeep:
+      params.thinkingDeep
+      ?? sessionState?.thinkingDeep
       ?? null,
     error: params.error,
     detail: params.detail,
