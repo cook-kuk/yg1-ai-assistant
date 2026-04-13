@@ -61,8 +61,8 @@ The operator is determined by the phrase IMMEDIATELY attached to the value. Do N
 ## Few-Shot Examples (study these carefully)
 User: "3날 이상" → {"constraints":[{"field":"fluteCount","op":"gte","value":3,"display":"3날 이상"}]}
 User: "4날 이하로" → {"constraints":[{"field":"fluteCount","op":"lte","value":4,"display":"4날 이하"}]}
-User: "10mm 이상만" → {"constraints":[{"field":"diameterMm","op":"gte","value":10,"display":"10mm 이상"}]}
-User: "100mm 넘는거" → {"constraints":[{"field":"diameterMm","op":"gte","value":100,"display":"100mm 이상"}]}
+User: "직경 10mm 이상만" → {"constraints":[{"field":"diameterMm","op":"gte","value":10,"display":"직경 10mm 이상"}]}
+User: "전장 100mm 넘는거" → {"constraints":[{"field":"overallLengthMm","op":"gte","value":100,"display":"전장 100mm 이상"}]}
 User: "CRX S 빼고 추천해줘" → {"intent":"show_recommendation","constraints":[{"field":"brand","op":"neq","value":"CRX S","display":"CRX S 제외"}]}
 User: "Square 아닌거로" → {"constraints":[{"field":"toolSubtype","op":"neq","value":"Square","display":"Square 제외"}]}
 User: "볼 말고" → {"constraints":[{"field":"toolSubtype","op":"neq","value":"Ball","display":"Ball 제외"}]}

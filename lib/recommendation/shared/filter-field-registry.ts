@@ -1518,8 +1518,8 @@ export function parseFieldAnswerToFilter(field: string, answer: string): Applied
   let opOverride: string | undefined
   let valueCleaned = clean
   if (definition.kind === "number") {
-    const rangeMatch = clean.match(/(-?\d+(?:\.\d+)?)\s*(?:mm|파이|ø|φ)?\s*(이상|넘는|초과|최소|이하|미만|최대|이내)/u)
-    const reverseMatch = !rangeMatch ? clean.match(/(이상|넘는|초과|최소|이하|미만|최대|이내)\s*(-?\d+(?:\.\d+)?)\s*(?:mm|파이|ø|φ)?/u) : null
+    const rangeMatch = clean.match(/(-?\d+(?:\.\d+)?)\s*(?:mm|파이|ø|φ|도|°|deg(?:ree)?s?)?\s*(이상|넘는|초과|최소|이하|미만|최대|이내)/u)
+    const reverseMatch = !rangeMatch ? clean.match(/(이상|넘는|초과|최소|이하|미만|최대|이내)\s*(-?\d+(?:\.\d+)?)\s*(?:mm|파이|ø|φ|도|°|deg(?:ree)?s?)?/u) : null
     const marker = rangeMatch?.[2] ?? reverseMatch?.[1]
     const numStr = rangeMatch?.[1] ?? reverseMatch?.[2]
     if (marker && numStr) {

@@ -220,12 +220,14 @@ describe("getRedirectResponse", () => {
 // 3. Input Normalizer — extractDiameter
 // ═══════════════════════════════════════════════════════════════
 describe("extractDiameter", () => {
-  it("10mm → 10", () => expect(extractDiameter("10mm")).toBe(10))
-  it("6.5mm → 6.5", () => expect(extractDiameter("6.5mm")).toBe(6.5))
+  it("10mm without a field cue stays unresolved", () => expect(extractDiameter("10mm")).toBeNull())
+  it("6.5mm without a field cue stays unresolved", () => expect(extractDiameter("6.5mm")).toBeNull())
+  it("100mm 이상 without a field cue stays unresolved", () => expect(extractDiameter("100mm 이상")).toBeNull())
   it("12파이 → 12", () => expect(extractDiameter("12파이")).toBe(12))
   it("직경 8 → 8", () => expect(extractDiameter("직경 8")).toBe(8))
   it("φ16 → 16", () => expect(extractDiameter("φ16")).toBe(16))
   it("D20 → 20", () => expect(extractDiameter("D20")).toBe(20))
+  it("전장 100mm 이상 → null", () => expect(extractDiameter("전장 100mm 이상")).toBeNull())
   it("SKD11 material code → null", () => expect(extractDiameter("SKD11 가공")).toBeNull())
   it("no diameter → null", () => expect(extractDiameter("엔드밀 추천")).toBeNull())
   it("out of range (300mm) → null", () => expect(extractDiameter("300mm")).toBeNull())
@@ -276,10 +278,10 @@ describe("extractCoating", () => {
 // 8. Input Normalizer — normalizeInput
 // ═══════════════════════════════════════════════════════════════
 describe("normalizeInput", () => {
-  it("parses full Korean query into structured input", () => {
+  it("keeps ambiguous mm phrases unresolved until the field is clarified", () => {
     const result = normalizeInput("알루미늄 10mm 4날 엔드밀 황삭 TiAlN")
     expect(result.material).toBe("알루미늄")
-    expect(result.diameterMm).toBe(10)
+    expect(result.diameterMm).toBeUndefined()
     expect(result.flutePreference).toBe(4)
     expect(result.operationType).toBe("황삭")
     expect(result.coatingPreference).toBe("TiAlN")
@@ -310,7 +312,7 @@ describe("mergeInputs", () => {
     const base = normalizeInput("알루미늄 10mm")
     const merged = mergeInputs(base, { material: undefined })
     expect(merged.material).toBe("알루미늄")
-    expect(merged.diameterMm).toBe(10)
+    expect(merged.diameterMm).toBeUndefined()
   })
 })
 

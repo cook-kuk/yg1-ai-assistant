@@ -355,7 +355,10 @@ export function shouldReplayUnresolvedPendingQuestion(
   pendingReplyKind: PendingQuestionReplyResolution["kind"],
   earlyAction: string | null
 ): boolean {
-  return pendingReplyKind === "unresolved" && !PENDING_QUESTION_RECOVERY_ACTIONS.has(earlyAction ?? "")
+  return (
+    (pendingReplyKind === "unresolved" || pendingReplyKind === "defer_holistic")
+    && !PENDING_QUESTION_RECOVERY_ACTIONS.has(earlyAction ?? "")
+  )
 }
 
 const PENDING_SELECTION_RESULT_INTENT_RE = /(?:추천\s*(?:해줘|해주|해주세요|좀)?|보여줘|제품\s*(?:보여줘|보기)|찾아줘|비교|차이|vs|versus)/iu
@@ -370,16 +373,28 @@ function getPendingSelectionAllowedFields(
   if (pendingCanonical) fields.add(pendingCanonical)
   const resolvedCanonical = getFilterFieldDefinition(resolvedField)?.canonicalField
   if (resolvedCanonical) fields.add(resolvedCanonical)
+
+  const semanticSiblings: Record<string, string[]> = {
+    material: ["workPieceName", "workMaterial"],
+    workPieceName: ["material", "workMaterial"],
+    workMaterial: ["material", "workPieceName"],
+    diameterMm: ["diameterRefine"],
+    diameterRefine: ["diameterMm"],
+  }
+
+  for (const sibling of semanticSiblings[pendingField] ?? []) fields.add(sibling)
+  for (const sibling of semanticSiblings[resolvedField] ?? []) fields.add(sibling)
   return fields
 }
 
 function shouldDeferPendingSelectionEarlyResolve(args: {
+  sessionState: ExplorationSessionState | null
   raw: string
   pendingField: string
   resolvedField: string
   pendingDetActions: ReturnType<typeof parseDeterministic>
 }): { defer: boolean; reasons: string[] } {
-  const { raw, pendingField, resolvedField, pendingDetActions } = args
+  const { sessionState, raw, pendingField, resolvedField, pendingDetActions } = args
   const reasons: string[] = []
   const allowedFields = getPendingSelectionAllowedFields(pendingField, resolvedField)
 
@@ -404,6 +419,24 @@ function shouldDeferPendingSelectionEarlyResolve(args: {
   }
   if (PENDING_SELECTION_COMPOUND_CUE_RE.test(raw) || deterministicFields.length >= 2) {
     reasons.push("compound_utterance")
+  }
+  const overrideRiskFields = Array.from(new Set(
+    (sessionState?.appliedFilters ?? [])
+      .filter(filter => filter.op !== "skip")
+      .filter(filter => {
+        const canonicalField = getFilterFieldDefinition(filter.field)?.canonicalField ?? filter.field
+        if (allowedFields.has(canonicalField)) return false
+        const rawValue = filter.rawValue ?? filter.value
+        const values = Array.isArray(rawValue) ? rawValue : [rawValue]
+        return values.some(value => {
+          const comparable = String(value ?? "").trim()
+          return comparable.length > 0 && includesText(raw, comparable)
+        })
+      })
+      .map(filter => filter.field),
+  ))
+  if (overrideRiskFields.length > 0) {
+    reasons.push(`override_risk:${overrideRiskFields.join("|")}`)
   }
 
   return { defer: reasons.length > 0, reasons }
@@ -1255,24 +1288,6 @@ export function resolvePendingQuestionReply(
     })
   }
 
-  const pendingSelectionDefer = shouldDeferPendingSelectionEarlyResolve({
-    raw,
-    pendingField,
-    resolvedField,
-    pendingDetActions,
-  })
-  if (pendingSelectionDefer.defer) {
-    console.log(
-      `[pending-selection] Deferring holistic parse for "${raw.slice(0, 40)}" (reasons=${pendingSelectionDefer.reasons.join(",")})`
-    )
-    return {
-      kind: "defer_holistic",
-      pendingField: resolvedField,
-      raw,
-      reasons: pendingSelectionDefer.reasons,
-    }
-  }
-
   const optionMatch = optionsForPendingField.find(option => matchesPendingOptionValue(clean, option))
 
   const chipMatch = optionsForPendingField.find(option => {
@@ -1304,6 +1319,25 @@ export function resolvePendingQuestionReply(
         : null
   const parsedDirect = freeformField ? parseAnswerToFilter(freeformField, raw) : null
   const resolvedValue = parsedDirect ? null : selectedValue ?? null
+
+  const pendingSelectionDefer = shouldDeferPendingSelectionEarlyResolve({
+    sessionState,
+    raw,
+    pendingField,
+    resolvedField,
+    pendingDetActions,
+  })
+  if (pendingSelectionDefer.defer && !selectedOption && !parsedDirect) {
+    console.log(
+      `[pending-selection] Deferring holistic parse for "${raw.slice(0, 40)}" (reasons=${pendingSelectionDefer.reasons.join(",")})`
+    )
+    return {
+      kind: "defer_holistic",
+      pendingField: resolvedField,
+      raw,
+      reasons: pendingSelectionDefer.reasons,
+    }
+  }
 
   if (resolvedValue === "skip" || isSkipSelectionValue(selectedOption?.label) || isSkipSelectionValue(raw)) {
     const filter: AppliedFilter = {
@@ -6227,9 +6261,13 @@ async function handleServeExplorationInner(
           "현재 질문에 대한 답변으로 인식하지 못했습니다. 아래 선택지 중에서 골라주시거나, 필요한 값이 있으면 형식에 맞게 직접 입력해주세요.",
         )
       }
-    } else if (hasActivePendingQuestion && pendingQuestionReply.kind === "unresolved" && earlyAction) {
+    } else if (
+      hasActivePendingQuestion
+      && (pendingQuestionReply.kind === "unresolved" || pendingQuestionReply.kind === "defer_holistic")
+      && earlyAction
+    ) {
       console.log(
-        `[pending-selection] Unresolved direct match recovered by action="${earlyAction}" for field="${prevState.lastAskedField ?? "unknown"}"`
+        `[pending-selection] Deferred pending reply recovered by action="${earlyAction}" for field="${prevState.lastAskedField ?? "unknown"}"`
       )
     }
 

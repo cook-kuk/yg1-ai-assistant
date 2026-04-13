@@ -197,6 +197,40 @@ describe("pending selection resolver", () => {
     expect(filter!.rawValue).toBe(10)
   })
 
+  it("resolves freeform numeric range for overallLengthMm when that is the pending field", () => {
+    const state = makeState({
+      lastAskedField: "overallLengthMm",
+      displayedChips: ["80mm (12개)", "100mm (9개)", "상관없음"],
+      displayedOptions: [],
+    })
+
+    const filter = buildPendingSelectionFilter(state, "100mm 이상")
+
+    expect(filter).not.toBeNull()
+    expect(filter).toMatchObject({
+      field: "overallLengthMm",
+      op: "gte",
+      rawValue: 100,
+    })
+  })
+
+  it("resolves freeform numeric range for helixAngleDeg when that is the pending field", () => {
+    const state = makeState({
+      lastAskedField: "helixAngleDeg",
+      displayedChips: ["30도 (12개)", "45도 (9개)", "상관없음"],
+      displayedOptions: [],
+    })
+
+    const filter = buildPendingSelectionFilter(state, "35도 이상")
+
+    expect(filter).not.toBeNull()
+    expect(filter).toMatchObject({
+      field: "helixAngleDeg",
+      op: "gte",
+      rawValue: 35,
+    })
+  })
+
   it("does not resolve explanation-like free text as explicit selection", () => {
     const state = makeState({
       lastAskedField: "workPieceName",

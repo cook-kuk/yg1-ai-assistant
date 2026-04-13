@@ -366,7 +366,7 @@ function inferReferencedField(message: string | null): string | null {
 
   if (/소재|재질|피삭재|material|알루|스테인|주철|티타늄|고경도/.test(clean)) return "material"
   if (/코팅|coating|tialn|altin|dlc|alcrn/.test(clean)) return "coating"
-  if (/직경|지름|diameter|\d+\s*mm/.test(clean)) return "diameterMm"
+  if (/직경|지름|diameter|파이|φ|ø/.test(clean)) return "diameterMm"
   if (/날수|날\s*수|flute|\d+\s*날/.test(clean)) return "fluteCount"
   if (/형상|shape|square|ball|radius/.test(clean)) return "toolSubtype"
   if (/시리즈|series/.test(clean)) return "seriesName"

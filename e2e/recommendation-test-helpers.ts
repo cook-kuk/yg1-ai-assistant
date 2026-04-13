@@ -948,14 +948,33 @@ export class RecommendationHarness {
 
   async startAluminum4mmSideMillingRecommendation() {
     await this.gotoProducts()
-    const sections = this.page.locator("div.bg-white.rounded-2xl.border.border-gray-200.p-4.space-y-3")
 
-    await sections.nth(0).getByRole("button", { name: /New Product Recommendation/ }).click()
-    await sections.nth(1).getByRole("button", { name: /Aluminum \/ Non-ferrous/ }).click()
-    await sections.nth(2).getByRole("button", { name: /Side Milling/ }).click()
-    await sections.nth(3).getByRole("button", { name: /End Mill \(Square \/ Ball \/ CR\)/ }).click()
-    await sections.nth(4).getByRole("button", { name: /4mm/ }).click()
-    await sections.nth(5).locator("button").first().click()
+    const clickFirstMatchingButton = async (patterns: RegExp[]) => {
+      for (const pattern of patterns) {
+        const locator = this.page.getByRole("button", { name: pattern }).first()
+        if (await locator.count()) {
+          await locator.click()
+          return
+        }
+      }
+      throw new Error(`Could not find a button matching any of: ${patterns.map(String).join(", ")}`)
+    }
+
+    await clickFirstMatchingButton([/New Product Recommendation/])
+    await clickFirstMatchingButton([/Aluminum \/ Non-ferrous/, /^N\b.*Non-ferrous/i, /^N\b/i, /Non-ferrous/i])
+    await clickFirstMatchingButton([/^Milling\b/i, /Milling Process/i])
+
+    const sideMillingButton = this.page.getByRole("button", { name: /Side Milling|측면가공/i }).first()
+    await expect(sideMillingButton).toBeVisible()
+    await sideMillingButton.click()
+
+    const endMillButton = this.page.getByRole("button", { name: /End Mill \(Square \/ Ball \/ CR\)|엔드밀/i }).first()
+    if (await endMillButton.count()) {
+      await endMillButton.click()
+    }
+
+    await clickFirstMatchingButton([/\b4mm\b/i])
+    await clickFirstMatchingButton([/All Country|All Countries|전체 Country/i, /Korea|KOREA/i])
 
     const reviewButton = this.page.getByRole("button", { name: /Review Conditions/ })
     await expect(reviewButton).toBeEnabled()

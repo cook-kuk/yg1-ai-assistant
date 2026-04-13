@@ -24,6 +24,7 @@ import {
 } from "@/lib/recommendation/infrastructure/engines/serve-engine-assist-utils"
 import { buildFinalChipsFromLLM, isUnfilterableChip } from "@/lib/recommendation/domain/options/llm-chip-pipeline"
 import { resolveYG1Query } from "@/lib/knowledge/knowledge-router"
+import { detectMeasurementScopeAmbiguity } from "@/lib/recommendation/shared/measurement-scope-ambiguity"
 import { detectOrderQuantityInventoryAmbiguity } from "@/lib/recommendation/shared/order-quantity-ambiguity"
 import { traceRecommendation } from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
 import type { SemanticDirectContext, SemanticReplyRoute } from "@/lib/recommendation/core/semantic-turn-extractor"
@@ -713,6 +714,9 @@ export async function handleServeGeneralChatAction(
   const semanticForce: DirectQuestionOptions = { force: true, semanticContext: semanticDirectContext }
   const shouldRunLegacyDirectRoutes = semanticReplyRoute == null
   const orderQuantityAmbiguity = detectOrderQuantityInventoryAmbiguity(lastUserMessage)
+  const measurementScopeAmbiguity = detectMeasurementScopeAmbiguity(lastUserMessage, {
+    pendingField: prevState.lastAskedField ?? null,
+  })
 
   if (orderQuantityAmbiguity) {
     return buildValidatedReplyResponse(
@@ -739,6 +743,35 @@ export async function handleServeGeneralChatAction(
         pendingQuestionField: prevState.lastAskedField ?? null,
         recentFrameRelation: "order_quantity_inventory_ambiguity",
         displayedOptions: buildReplyDisplayedOptions(orderQuantityAmbiguity.chips),
+      }),
+    )
+  }
+
+  if (measurementScopeAmbiguity) {
+    return buildValidatedReplyResponse(
+      deps,
+      prevState,
+      filters,
+      narrowingHistory,
+      currentInput,
+      turnCount,
+      lastUserMessage,
+      {
+        text: measurementScopeAmbiguity.question,
+        chips: measurementScopeAmbiguity.chips,
+      },
+      "measurement-scope-ambiguity",
+      {
+        purpose: "question",
+        currentMode: "question",
+        lastAction: "answer_general",
+      },
+      orchResult,
+      buildProcessTrace({
+        actionType: "answer_general",
+        pendingQuestionField: prevState.lastAskedField ?? null,
+        recentFrameRelation: "measurement_scope_ambiguity",
+        displayedOptions: buildReplyDisplayedOptions(measurementScopeAmbiguity.chips),
       }),
     )
   }

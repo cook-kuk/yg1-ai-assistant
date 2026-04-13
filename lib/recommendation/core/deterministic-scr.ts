@@ -15,6 +15,7 @@
 import { findColumnsForToken, findValueByPhonetic } from "./sql-agent-schema-cache"
 import { DB_COL_TO_FILTER_FIELD } from "./sql-agent"
 import { stripKoreanParticles } from "@/lib/recommendation/shared/patterns"
+import { detectMeasurementScopeAmbiguity } from "@/lib/recommendation/shared/measurement-scope-ambiguity"
 import { findFuzzyMatch, levenshtein, phoneticKey } from "./phonetic-match"
 
 // Brand values — sample of clean YG-1 brands from prod_brand.brand_name (421
@@ -65,6 +66,121 @@ export interface MvAmbiguity {
 
 export interface DeterministicMeta {
   ambiguities: MvAmbiguity[]
+}
+
+export interface DeterministicSemanticHint {
+  fieldCandidate: string | null
+  valueCandidate: string | number | Array<string | number> | null
+  operatorCue: DeterministicAction["op"] | null
+  numericCue: number[]
+  domainCue: string | null
+}
+
+function inferSemanticHintDomainCue(field: string | null | undefined): string | null {
+  switch (field) {
+    case "toolType":
+    case "machiningCategory":
+      return "tool-family"
+    case "toolSubtype":
+    case "applicationShape":
+      return "shape"
+    case "fluteCount":
+    case "diameterMm":
+    case "overallLengthMm":
+    case "lengthOfCutMm":
+    case "shankDiameterMm":
+    case "helixAngleDeg":
+    case "pointAngleDeg":
+    case "cornerRadiusMm":
+    case "ballRadiusMm":
+    case "coolantHole":
+      return "geometry"
+    case "coating":
+    case "surfaceFinish":
+      return "coating"
+    case "brand":
+    case "seriesName":
+    case "edpSeriesName":
+      return "brand-series"
+    case "material":
+    case "workPieceName":
+    case "workMaterial":
+    case "toolMaterial":
+      return "material"
+    case "operationType":
+    case "cuttingType":
+      return "operation"
+    case "stockStatus":
+    case "totalStock":
+      return "inventory"
+    case "country":
+      return "country"
+    case "threadPitchMm":
+    case "threadShape":
+    case "threadDirection":
+    case "threadInternalExternal":
+    case "tapTolerance":
+      return "threading"
+    case "toolHolderType":
+    case "shankType":
+      return "holder"
+    default:
+      return field ? "general" : null
+  }
+}
+
+function extractSemanticHintNumericCue(value: unknown): number[] {
+  const values = Array.isArray(value) ? value : [value]
+  const cues: number[] = []
+
+  for (const entry of values) {
+    if (typeof entry === "number" && Number.isFinite(entry)) {
+      cues.push(entry)
+      continue
+    }
+    if (typeof entry !== "string") continue
+
+    const trimmed = entry.trim()
+    if (!trimmed) continue
+
+    const direct = Number(trimmed)
+    if (Number.isFinite(direct)) {
+      cues.push(direct)
+      continue
+    }
+
+    const matches = trimmed.match(/\d+(?:\.\d+)?/g) ?? []
+    for (const match of matches) {
+      const parsed = Number(match)
+      if (Number.isFinite(parsed)) cues.push(parsed)
+    }
+  }
+
+  return Array.from(new Set(cues))
+}
+
+export function buildDeterministicSemanticHints(actions: DeterministicAction[]): DeterministicSemanticHint[] {
+  const hints: DeterministicSemanticHint[] = []
+  const seen = new Set<string>()
+
+  for (const action of actions) {
+    const valueCandidate = action.op === "between" && action.value2 != null
+      ? [action.value as string | number, action.value2 as string | number]
+      : (action.value as string | number)
+    const hint: DeterministicSemanticHint = {
+      fieldCandidate: action.field ?? null,
+      valueCandidate,
+      operatorCue: action.op ?? null,
+      numericCue: extractSemanticHintNumericCue(valueCandidate),
+      domainCue: inferSemanticHintDomainCue(action.field),
+    }
+    const signature = JSON.stringify(hint)
+    if (seen.has(signature)) continue
+    seen.add(signature)
+    hints.push(hint)
+  }
+
+  return hints
 }
 
 // ── Field cue patterns (한국어 + 영어). 우선순위 순 ──────────────
@@ -924,6 +1040,7 @@ export function extractFromMvIndex(
   const tokens = tokenizeForMvIndex(text)
   if (tokens.length === 0) return []
 
+  const measurementScopeAmbiguity = detectMeasurementScopeAmbiguity(text)
   const actions: DeterministicAction[] = []
   const localSeen = new Set<string>()
 
@@ -983,6 +1100,7 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
   const text = message.trim()
     .replace(/(^|[\s,])(?:이\s*중(?:에서)?|그\s*중(?:에서)?|여기(?:서|에서)?)(?=\s*[가-힣a-zA-Z])/gu, "$1")
     .trim()
+  const measurementScopeAmbiguity = detectMeasurementScopeAmbiguity(text)
   const actions: DeterministicAction[] = []
   const seen = new Set<string>() // dedup by field
 
@@ -1079,7 +1197,7 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
   }
 
   // 3) Inch fraction → diameter (1/4인치)
-  if (!seen.has("diameterMm")) {
+  if (!seen.has("diameterMm") && measurementScopeAmbiguity?.kind !== "length") {
     const inch = parseInchFraction(text)
     if (inch != null) {
       actions.push({ type: "apply_filter", field: "diameterMm", value: inch, op: "eq", source: "deterministic" })
@@ -1088,9 +1206,9 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
   }
 
   // 3.5) Bare-mm-only fallback: "10mm", "8.5 mm", "10" — 메시지가 숫자(+mm)뿐이면 직경으로 해석
-  if (!seen.has("diameterMm")) {
+  if (!seen.has("diameterMm") && measurementScopeAmbiguity?.kind !== "length") {
     const bare = text.match(/^\s*(\d+(?:\.\d+)?)\s*(?:mm|밀리)?\s*$/i)
-    if (bare) {
+    if (bare && /(?:mm|mn|밀리)/i.test(text)) {
       const v = parseFloat(bare[1])
       if (Number.isFinite(v) && v > 0 && v <= 100) {
         actions.push({ type: "apply_filter", field: "diameterMm", value: v, op: "eq", source: "deterministic" })
@@ -1103,7 +1221,7 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
   // diameter 가 누락되는 케이스. 이미 다른 numeric field cue (전장/절삭길이/샹크/
   // 헬릭스 등) 가 소비한 위치는 consumedRanges 로 skip. "4날", "100mm 이상",
   // "RPM 8000" 같은 다른 의미의 숫자도 제외해야 한다.
-  if (!seen.has("diameterMm")) {
+  if (!seen.has("diameterMm") && measurementScopeAmbiguity?.kind !== "length") {
     // "mn" 은 "mm" 의 흔한 키보드 오타
     const re = /(?<![\d.])(\d+(?:\.\d+)?)\s*(?:mm|mn)\b/gi
     let match: RegExpExecArray | null

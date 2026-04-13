@@ -51,7 +51,7 @@ const FIELD_KEYWORDS: Record<string, RegExp> = {
   fluteCount: /날\s*수|날수|플루트|flute|\d날/i,
   toolSubtype: /형상|서브타입|Square|Ball|Radius|Taper|스퀘어|볼|라디우스/i,
   material: /소재|재질|피삭재|알루미늄|스테인리스|탄소강/i,
-  diameterMm: /직경|지름|mm/i,
+  diameterMm: /직경|지름|diameter|파이|φ|Φ|ø/i,
   toolMaterial: /공구\s*소재|카바이드|초경|HSS|고속도강/i,
 }
 
