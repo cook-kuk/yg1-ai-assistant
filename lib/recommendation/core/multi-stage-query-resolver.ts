@@ -1,7 +1,7 @@
 import { getProviderForAgent, type LLMProvider } from "@/lib/llm/provider"
 import { resolveRequestedToolFamily } from "@/lib/data/repos/product-query-filters"
-import type { AppliedFilter, ExplorationSessionState } from "@/lib/recommendation/domain/types"
-import { buildAppliedFilterFromValue, getFilterFieldLabel, getFilterFieldQueryAliases, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
+import type { AppliedFilter, ExplorationSessionState, ExtractedSlot, RecommendationInput, UserIntent } from "@/lib/recommendation/domain/types"
+import { buildAppliedFilterFromValue, getFilterFieldDefinition, getFilterFieldLabel, getFilterFieldQueryAliases, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
 import { detectMeasurementScopeAmbiguity } from "@/lib/recommendation/shared/measurement-scope-ambiguity"
 import { detectOrderQuantityInventoryAmbiguity } from "@/lib/recommendation/shared/order-quantity-ambiguity"
 import { stripKoreanParticles } from "@/lib/recommendation/shared/patterns"
@@ -86,6 +86,8 @@ export type ResolverValidationIssueCode =
   | "session_truth_conflict"
   | "domain_lock_risk"
   | "generic_specific_collapse"
+  | "request_preparation_mismatch"
+  | "recognized_entity_mismatch"
   | "correction_signal_ignored"
   | "noop_result"
 
@@ -124,12 +126,16 @@ export interface ResolveMultiStageQueryArgs {
   turnCount: number
   currentFilters: AppliedFilter[]
   sessionState?: ExplorationSessionState | null
+  resolvedInputSnapshot?: RecommendationInput | null
   conversationHistory?: Array<{ role: "user" | "assistant"; text: string }>
   pendingField?: string | null
   stageOneEditIntent?: EditIntentResult | null
   stageOneDeterministicActions?: DeterministicAction[]
   stageOneSort?: QuerySort | null
   stageOneClearUnmentionedFields?: boolean
+  requestPreparationIntent?: UserIntent | null
+  requestPreparationSlots?: ExtractedSlot[] | null
+  recognizedEntities?: Array<{ field: string; value: string | number | boolean }> | null
   complexity?: ComplexityDecision | null
   stage2Provider?: LLMProvider | null
   stage3Provider?: LLMProvider | null
@@ -953,6 +959,172 @@ function buildEffectiveFilterState(
   return next
 }
 
+function getValidationFieldAliases(field: string): string[] {
+  const aliases = new Set<string>([field])
+  const canonicalField = getFilterFieldDefinition(field)?.canonicalField
+  if (canonicalField) aliases.add(canonicalField)
+
+  if (field === "material" || field === "workPieceName") {
+    aliases.add("material")
+    aliases.add("workPieceName")
+  }
+  if (field === "toolType" || field === "machiningCategory") {
+    aliases.add("toolType")
+    aliases.add("machiningCategory")
+  }
+
+  return Array.from(aliases)
+}
+
+function appendTruthValue(
+  index: Map<string, Set<string>>,
+  field: string,
+  value: unknown,
+): void {
+  if (value == null) return
+  const values = Array.isArray(value) ? value : [value]
+
+  for (const item of values) {
+    if (item == null || (typeof item === "object" && !Array.isArray(item))) continue
+    const normalized = normalizeComparableScalar(field, item)
+    if (!normalized) continue
+
+    for (const alias of getValidationFieldAliases(field)) {
+      const bucket = index.get(alias) ?? new Set<string>()
+      bucket.add(normalized)
+      index.set(alias, bucket)
+    }
+  }
+}
+
+function buildEffectiveTruthIndex(
+  args: ResolveMultiStageQueryArgs,
+  effectiveFilters: AppliedFilter[],
+): Map<string, Set<string>> {
+  const index = new Map<string, Set<string>>()
+
+  for (const filter of effectiveFilters) {
+    if (filter.op === "skip") continue
+    appendTruthValue(index, filter.field, filter.rawValue ?? filter.value)
+    if (filter.rawValue2 != null) appendTruthValue(index, filter.field, filter.rawValue2)
+  }
+
+  const snapshots = [args.resolvedInputSnapshot ?? null, args.sessionState?.resolvedInput ?? null]
+  for (const snapshot of snapshots) {
+    if (!snapshot) continue
+    for (const [field, value] of Object.entries(snapshot as Record<string, unknown>)) {
+      appendTruthValue(index, field, value)
+    }
+  }
+
+  return index
+}
+
+function buildExpectationConstraint(
+  field: string,
+  value: string | number | boolean,
+): { field: string; value: string | number | boolean; signature: string } | null {
+  const materialized = buildAppliedFilterFromValue(field, value, 0)
+  const normalizedField = materialized?.field ?? getFilterFieldDefinition(field)?.canonicalField ?? field
+  const normalizedValue = (materialized?.rawValue ?? materialized?.value ?? value) as string | number | boolean
+  const comparableValue = normalizeComparableScalar(normalizedField, normalizedValue)
+  if (!comparableValue) return null
+
+  return {
+    field: normalizedField,
+    value: normalizedValue,
+    signature: `${normalizedField}::${comparableValue}`,
+  }
+}
+
+function truthIndexContainsConstraint(
+  index: Map<string, Set<string>>,
+  constraint: { field: string; value: string | number | boolean; signature: string },
+): boolean {
+  const comparableValue = normalizeComparableScalar(constraint.field, constraint.value)
+  if (!comparableValue) return false
+
+  return getValidationFieldAliases(constraint.field).some(alias => index.get(alias)?.has(comparableValue))
+}
+
+function shouldValidateExpectationCoverage(
+  args: ResolveMultiStageQueryArgs,
+  result: MultiStageResolverResult,
+): boolean {
+  const recommendationIntents = new Set<UserIntent>([
+    "product_recommendation",
+    "substitute_search",
+    "narrowing_answer",
+    "refinement",
+  ])
+
+  const isRecommendationContext =
+    (args.requestPreparationIntent ? recommendationIntents.has(args.requestPreparationIntent) : false)
+    || result.intent === "continue_narrowing"
+    || result.intent === "show_recommendation"
+    || result.routeHint === "show_recommendation"
+
+  if (!isRecommendationContext) return false
+
+  return (
+    result.filters.length > 0
+    || !!result.followUpFilter
+    || result.intent === "continue_narrowing"
+    || result.intent === "show_recommendation"
+  )
+}
+
+function formatExpectationItems(items: Array<{ field: string; value: string | number | boolean }>): string {
+  return items.map(item => `${item.field}=${String(item.value)}`).join(", ")
+}
+
+function collectExpectationCoverageIssues(
+  args: ResolveMultiStageQueryArgs,
+  result: MultiStageResolverResult,
+  effectiveFilters: AppliedFilter[],
+  phase: ResolverValidationPhase,
+): ResolverValidationIssue[] {
+  if (!shouldValidateExpectationCoverage(args, result)) return []
+
+  const issues: ResolverValidationIssue[] = []
+  const truthIndex = buildEffectiveTruthIndex(args, effectiveFilters)
+  const escalation = phase === "stage3" ? "clarification" : "strong_cot"
+
+  const requestPreparationMismatches = new Map<string, { field: string; value: string | number | boolean }>()
+  for (const slot of (args.requestPreparationSlots ?? []).filter(slot => slot.source !== "intake" && slot.confidence !== "low")) {
+    const constraint = buildExpectationConstraint(slot.field, slot.value)
+    if (!constraint || truthIndexContainsConstraint(truthIndex, constraint)) continue
+    requestPreparationMismatches.set(constraint.signature, { field: constraint.field, value: constraint.value })
+  }
+  if (requestPreparationMismatches.size > 0) {
+    const missing = Array.from(requestPreparationMismatches.values())
+    issues.push(buildValidationIssue(
+      "request_preparation_mismatch",
+      `request-preparation slots missing from executable truth: ${formatExpectationItems(missing)}`,
+      escalation,
+      missing[0]?.field ?? null,
+    ))
+  }
+
+  const recognizedEntityMismatches = new Map<string, { field: string; value: string | number | boolean }>()
+  for (const entity of args.recognizedEntities ?? []) {
+    const constraint = buildExpectationConstraint(entity.field, entity.value)
+    if (!constraint || truthIndexContainsConstraint(truthIndex, constraint)) continue
+    recognizedEntityMismatches.set(constraint.signature, { field: constraint.field, value: constraint.value })
+  }
+  if (recognizedEntityMismatches.size > 0) {
+    const missing = Array.from(recognizedEntityMismatches.values())
+    issues.push(buildValidationIssue(
+      "recognized_entity_mismatch",
+      `recognized entities missing from executable truth: ${formatExpectationItems(missing)}`,
+      escalation,
+      missing[0]?.field ?? null,
+    ))
+  }
+
+  return issues
+}
+
 function inferLockedToolFamily(args: ResolveMultiStageQueryArgs): ReturnType<typeof resolveRequestedToolFamily> {
   const candidates = uniqueStrings([
     args.sessionState?.resolvedInput?.toolType,
@@ -1287,10 +1459,10 @@ function validateResolverExecution(
   }
 
   const effectiveFilters = buildEffectiveFilterState(currentFilters, normalizedResult, args.turnCount)
-  const effectiveByField = buildLatestFilterMap(effectiveFilters)
   const negationCue = hasNegationCue(args.message)
   const alternativeCue = hasAlternativeCue(args.message)
   const rangeCue = hasRangeCue(args.message)
+  issues.push(...collectExpectationCoverageIssues(args, normalizedResult, effectiveFilters, phase))
 
   if (negationCue) {
     for (const filter of effectiveFilters) {
@@ -1656,6 +1828,25 @@ function buildStageOneSemanticHintSummary(args: ResolveMultiStageQueryArgs): str
   }
 
   return Object.keys(payload).length > 0 ? JSON.stringify(payload) : "none"
+}
+
+function buildRequestPreparationSlotSummary(args: ResolveMultiStageQueryArgs): string {
+  const slots = uniqueStrings(
+    (args.requestPreparationSlots ?? [])
+      .filter(slot => slot.source !== "intake")
+      .map(slot => `${slot.field}=${String(slot.value)} (${slot.source}/${slot.confidence})`),
+  )
+
+  return slots.length > 0 ? slots.join(" | ") : "none"
+}
+
+function buildRecognizedEntitySummary(args: ResolveMultiStageQueryArgs): string {
+  const entities = uniqueStrings(
+    (args.recognizedEntities ?? [])
+      .map(entity => `${entity.field}=${String(entity.value)}`),
+  )
+
+  return entities.length > 0 ? entities.join(" | ") : "none"
 }
 
 function hasStageOneSemanticCandidates(args: ResolveMultiStageQueryArgs): boolean {
@@ -2435,6 +2626,7 @@ Rules:
 - If the mode is explain, preserve the active session truth and prefer routeHint=general_question or ui_question instead of mutating filters.
 - Use displayed chips, displayed options, top candidates, recent conversation turns, and candidate buffers to resolve deictic references such as "that", "this", or "the previous one".
 - Alias mappings, dictionaries, typo normalization, schema phonetic hints, and Stage 1 hints are clues only. The final meaning must come from the full contextual utterance.
+- Request-preparation chat slots and recognized entities are coverage hints. If they reveal extra filter-bearing terms, reconcile them with the full sentence before finalizing a narrower result.
 - Do not silently reset to a generic narrowing flow when the turn is refine or repair.
 - Extract every filter you can map safely.
 - skip means the user does not care about a field and the existing restriction should be removed.
@@ -2481,6 +2673,9 @@ Examples:
     `Current understanding to preserve unless changed: ${conversationContext.currentUnderstanding}`,
     `Stage 1 unresolved tokens: ${unresolvedTokens.join(", ") || "none"}`,
     `Stage 1 semantic hints: ${semanticHintSummary}`,
+    `Request-preparation intent: ${args.requestPreparationIntent ?? "none"}`,
+    `Request-preparation chat slots: ${buildRequestPreparationSlotSummary(args)}`,
+    `Recognized entities: ${buildRecognizedEntitySummary(args)}`,
     `Material mapping context:\n${materialContext || "none"}`,
     `Possible schema phonetic hints:\n${formatSchemaHintBlock(schemaHints)}`,
     `Pending field: ${args.pendingField ?? args.sessionState?.lastAskedField ?? "none"}`,
@@ -2551,6 +2746,9 @@ Return JSON:
     `Complexity: ${args.complexity?.level ?? "unknown"} (${args.complexity?.reason ?? "n/a"})`,
     `Stage 1 unresolved tokens: ${unresolvedTokens.join(", ") || "none"}`,
     `Stage 1 semantic hints: ${semanticHintSummary}`,
+    `Request-preparation intent: ${args.requestPreparationIntent ?? "none"}`,
+    `Request-preparation chat slots: ${buildRequestPreparationSlotSummary(args)}`,
+    `Recognized entities: ${buildRecognizedEntitySummary(args)}`,
     `Material mapping context:\n${materialContext || "none"}`,
     `Possible schema phonetic hints:\n${formatSchemaHintBlock(schemaHints)}`,
     `Current candidate count: ${args.stage1CotEscalation?.currentCandidateCount ?? "unknown"}`,

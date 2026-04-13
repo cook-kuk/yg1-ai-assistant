@@ -267,6 +267,36 @@ describe("normal pending resolution", () => {
     }
   })
 
+  it('"100mm 이상" for overallLengthMm resolves as an overall-length range', () => {
+    const state = makeState({
+      lastAskedField: "overallLengthMm",
+      displayedChips: ["80mm (12개)", "100mm (9개)", "상관없음"],
+      displayedOptions: [],
+    })
+    const result = resolvePendingQuestionReply(state, "100mm 이상")
+    expect(result.kind).toBe("resolved")
+    if (result.kind === "resolved") {
+      expect(result.filter.field).toBe("overallLengthMm")
+      expect(result.filter.op).toBe("gte")
+      expect(result.filter.rawValue).toBe(100)
+    }
+  })
+
+  it('"35도 이상" for helixAngleDeg resolves as an angle range', () => {
+    const state = makeState({
+      lastAskedField: "helixAngleDeg",
+      displayedChips: ["30도 (12개)", "45도 (9개)", "상관없음"],
+      displayedOptions: [],
+    })
+    const result = resolvePendingQuestionReply(state, "35도 이상")
+    expect(result.kind).toBe("resolved")
+    if (result.kind === "resolved") {
+      expect(result.filter.field).toBe("helixAngleDeg")
+      expect(result.filter.op).toBe("gte")
+      expect(result.filter.rawValue).toBe(35)
+    }
+  })
+
   it('"Radius" for toolSubtype with matching displayedOptions', () => {
     const state = makeState({
       lastAskedField: "toolSubtype",

@@ -36,13 +36,21 @@ describe("knowledge-graph", () => {
       expect(fields).toContain("toolSubtype")
     })
 
-    it('"copper square 2flute 10mm" → 영어 alias 4개 추출', () => {
-      const entities = extractEntities("copper square 2flute 10mm")
+    it('"copper square 2flute 직경 10mm" → explicit diameter cue keeps diameter entity', () => {
+      const entities = extractEntities("copper square 2flute 직경 10mm")
       expect(entities.length).toBeGreaterThanOrEqual(3)
       const fields = entities.map(e => e.field)
       expect(fields).toContain("toolSubtype")
       expect(fields).toContain("fluteCount")
       expect(fields).toContain("diameterMm")
+    })
+
+    it('"copper square 2flute 10mm" → bare mm no longer defaults to diameter', () => {
+      const entities = extractEntities("copper square 2flute 10mm")
+      const fields = entities.map(e => e.field)
+      expect(fields).toContain("toolSubtype")
+      expect(fields).toContain("fluteCount")
+      expect(fields).not.toContain("diameterMm")
     })
   })
 

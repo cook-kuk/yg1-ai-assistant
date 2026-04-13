@@ -12,6 +12,7 @@ import {
   getRegisteredFilterFields,
   getFilterFieldQueryAliases,
 } from "@/lib/recommendation/shared/filter-field-registry"
+import { detectMeasurementScopeAmbiguity } from "@/lib/recommendation/shared/measurement-scope-ambiguity"
 import { getDbSchemaSync } from "./sql-agent-schema-cache"
 import type { AppliedFilter, ExplorationSessionState } from "@/lib/recommendation/domain/types"
 import type { OrchestratorAction } from "@/lib/recommendation/infrastructure/agents/types"
@@ -139,8 +140,9 @@ const NUMERIC_PATTERNS: Array<{ field: string; patterns: RegExp[]; extract: (m: 
     field: "diameterMm",
     patterns: [
       /(?:직경|지름|파이|φ|Φ|ø|dia(?:meter)?)(?:[이가은는을를도만])?\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
-      /(\d+(?:\.\d+)?)\s*(?:mm|파이)\b/i,
-      new RegExp(`(${KO_NUM_KEYS})\\s*(?:미리|밀리|파이|mm)`, "i"),
+      /(\d+(?:\.\d+)?)\s*(?:파이|φ|Φ|ø)\b/i,
+      /\bD(\d+(?:\.\d+)?)\b/i,
+      new RegExp(`(${KO_NUM_KEYS})\\s*(?:파이|직경)`, "i"),
     ],
     extract: (m) => {
       if (KO_NUM[m[1]]) return KO_NUM[m[1]]
@@ -336,6 +338,7 @@ const TOLERANCE_HAS_MARKER_RE = /(?:약|대략|얼추|근처|쯤|정도)/u
 /** Try to parse a tolerance phrase. Returns a QueryConstraint with tolerance populated. */
 export function tryParseTolerancePhrase(message: string): QueryConstraint | null {
   if (!TOLERANCE_HAS_MARKER_RE.test(message)) return null
+  if (detectMeasurementScopeAmbiguity(message)?.kind === "length") return null
   const lower = message.toLowerCase()
   const m = lower.match(TOLERANCE_FUZZY_RE)
   if (!m || !m.index && m.index !== 0) return null
@@ -348,10 +351,6 @@ export function tryParseTolerancePhrase(message: string): QueryConstraint | null
   const numIdx = m.index!
   // Prefer a field mentioned BEFORE the number (e.g., "OAL 50mm 근처")
   let field = _findNumericFieldNear(lower, numIdx)
-  // Otherwise default to diameter when unit is "mm" and no other context
-  if (!field) {
-    if (m[3] === "mm" || !m[3]) field = "diameterMm"
-  }
   if (!field) return null
 
   // Default tolerance: 1.0 absolute for mm diameters, otherwise 10% ratio (handled by compiler)

@@ -18,16 +18,16 @@ type MeasurementFieldOption = {
 }
 
 const LENGTH_OPTIONS: MeasurementFieldOption[] = [
-  { field: "diameterMm", label: "직경", cue: /(?<![생크][\s-]?)(?:직경|지름|경|파이|dia(?:meter)?|ø|Ø|첩)/iu },
+  { field: "diameterMm", label: "직경", cue: /(?<![샹생][크])(?:직경|지름|외경|파이|dia(?:meter)?|φ|Φ|ø|Ø)/iu },
   { field: "overallLengthMm", label: "전장", cue: /(?:전장|전체\s*길이|overall\s*length|\boal\b)/iu },
-  { field: "lengthOfCutMm", label: "절삭 길이", cue: /(?:절삭\s*길이|날\s*길이|유장|\bloc\b|\bcl\b|length\s*of\s*cut)/iu },
-  { field: "shankDiameterMm", label: "생크 직경", cue: /(?:생크|샹크|shank)(?:\s*(?:직경|지름|dia(?:meter)?))?/iu },
+  { field: "lengthOfCutMm", label: "절삭 길이", cue: /(?:절삭\s*길이|날\s*길이|날장|유장|\bloc\b|\bcl\b|length\s*of\s*cut)/iu },
+  { field: "shankDiameterMm", label: "생크 직경", cue: /(?:샹크|생크|싱크|쌩크|shank)(?:\s*(?:직경|지름|dia(?:meter)?))?/iu },
 ]
 
 const ANGLE_OPTIONS: MeasurementFieldOption[] = [
-  { field: "helixAngleDeg", label: "헬릭스각", cue: /(?:헬릭스\s*각도?|나선\s*각도?|helix(?:\s*angle)?)/iu },
-  { field: "taperAngleDeg", label: "테이퍼각", cue: /(?:테이퍼\s*각도?|taper(?:\s*angle)?)/iu },
-  { field: "pointAngleDeg", label: "포인트 각도", cue: /(?:포인트\s*각도|드릴\s*포인트|point\s*angle|드릴\s*각)/iu },
+  { field: "helixAngleDeg", label: "헬릭스각", cue: /(?:헬릭스\s*각?도?|나선\s*각?도?|helix(?:\s*angle)?)/iu },
+  { field: "taperAngleDeg", label: "테이퍼각", cue: /(?:테이퍼\s*각?도?|taper(?:\s*angle)?)/iu },
+  { field: "pointAngleDeg", label: "포인트 각도", cue: /(?:포인트\s*각도|드릴\s*포인트|point\s*angle|드릴\s*끝)/iu },
 ]
 
 const ADDITIONAL_LENGTH_CUES: RegExp[] = [
@@ -68,7 +68,7 @@ function buildLengthAmbiguity(phrase: string): MeasurementScopeAmbiguity {
     phrase,
     normalizedPhrase,
     candidateFields: LENGTH_OPTIONS.map(option => option.field),
-    question: `말씀하신 "${normalizedPhrase}"는 직경 기준인지, 전장 기준인지, 절삭 길이 기준인지 확인 부탁드립니다. 생크 직경이나 다른 기준이면 직접 입력해 주세요.`,
+    question: `말씀하신 "${normalizedPhrase}"이 직경 기준인지, 전장 기준인지, 절삭 길이 기준인지 확인 부탁드립니다. 생크 직경이나 다른 기준이면 직접 입력해 주세요.`,
     chips: [
       `직경 ${normalizedPhrase}`,
       `전장 ${normalizedPhrase}`,
@@ -85,7 +85,7 @@ function buildAngleAmbiguity(phrase: string): MeasurementScopeAmbiguity {
     phrase,
     normalizedPhrase,
     candidateFields: ANGLE_OPTIONS.map(option => option.field),
-    question: `말씀하신 "${normalizedPhrase}"는 헬릭스각 기준인지, 테이퍼각 기준인지, 포인트 각도 기준인지 확인 부탁드립니다.`,
+    question: `말씀하신 "${normalizedPhrase}"이 헬릭스각 기준인지, 테이퍼각 기준인지, 포인트 각도 기준인지 확인 부탁드립니다.`,
     chips: [
       `헬릭스각 ${normalizedPhrase}`,
       `테이퍼각 ${normalizedPhrase}`,
