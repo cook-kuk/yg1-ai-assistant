@@ -465,4 +465,65 @@ describe("resolveMultiStageQuery validation-driven escalation", () => {
       expect.objectContaining({ code: "domain_lock_risk" }),
     ]))
   })
+
+  it("escalates request-preparation and recognized-entity mismatches into stage3 clarification", async () => {
+    const partialResult = JSON.stringify({
+      filters: [{ field: "fluteCount", op: "eq", value: 4, rawToken: "4날" }],
+      sort: null,
+      routeHint: "show_recommendation",
+      clearOtherFilters: false,
+      confidence: 0.93,
+      unresolvedTokens: [],
+      reasoning: "kept only the pending-selection prefix",
+    })
+    const stage2Provider = makeProvider(partialResult)
+    const stage3Provider = makeProvider(partialResult)
+
+    const result = await resolveMultiStageQuery({
+      message: "4날 TiAlN Square 추천해줘",
+      turnCount: 9,
+      currentFilters: [
+        { field: "machiningCategory", op: "eq", value: "Milling", rawValue: "Milling", appliedAt: 1 },
+      ],
+      sessionState: {
+        sessionId: "pending-selection-mismatch",
+        candidateCount: 9828,
+        appliedFilters: [],
+        narrowingHistory: [],
+        stageHistory: [],
+        resolutionStatus: "narrowing",
+        resolvedInput: { machiningCategory: "Milling", diameterMm: 10 },
+        turnCount: 8,
+        currentMode: "question",
+        lastAskedField: "fluteCount",
+        displayedCandidates: [],
+        displayedChips: ["2날", "4날", "3날", "상관없음"],
+        displayedOptions: [
+          { index: 1, label: "2날", field: "fluteCount", value: "2날", count: 240 },
+          { index: 2, label: "4날", field: "fluteCount", value: "4날", count: 120 },
+        ],
+      } as any,
+      complexity: assessComplexity("4날 TiAlN Square 추천해줘", 1),
+      requestPreparationIntent: "refinement",
+      requestPreparationSlots: [
+        { field: "fluteCount", value: 4, confidence: "high", source: "chat" },
+        { field: "coating", value: "TiAlN", confidence: "high", source: "chat" },
+        { field: "toolSubtype", value: "Square", confidence: "high", source: "chat" },
+      ],
+      recognizedEntities: [
+        { field: "coating", value: "TiAlN" },
+        { field: "toolSubtype", value: "Square" },
+      ],
+      stage2Provider,
+      stage3Provider,
+    })
+
+    expect(stage2Provider.complete).toHaveBeenCalledTimes(1)
+    expect(stage3Provider.complete).toHaveBeenCalledTimes(1)
+    expect(result.source).toBe("clarification")
+    expect(result.validation?.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "request_preparation_mismatch" }),
+      expect.objectContaining({ code: "recognized_entity_mismatch" }),
+    ]))
+  })
 })
