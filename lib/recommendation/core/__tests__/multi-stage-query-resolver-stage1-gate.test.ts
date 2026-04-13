@@ -212,4 +212,48 @@ describe("resolveMultiStageQuery stage1 CoT gate", () => {
     expect(result.reasoning).toContain("defer:stage1_cot:")
     expect(result.unresolvedTokens.length).toBeGreaterThan(0)
   })
+
+  it("defers replace-style stage1 edits to Stage 2 instead of finalizing the field in stage1", async () => {
+    const stage2Provider = makeProvider(JSON.stringify({
+      filters: [{ field: "fluteCount", op: "eq", value: 4, rawToken: "4 flute" }],
+      sort: null,
+      routeHint: "show_recommendation",
+      clearOtherFilters: false,
+      confidence: 0.93,
+      unresolvedTokens: [],
+      reasoning: "semantic replacement resolved by stage2",
+    }))
+
+    const result = await resolveMultiStageQuery({
+      message: "2 flute instead 4 flute",
+      turnCount: 5,
+      currentFilters: [],
+      complexity: assessComplexity("2 flute instead 4 flute"),
+      stageOneEditIntent: {
+        intent: { type: "replace_field", field: "fluteCount", oldValue: "2", newValue: "4" },
+        confidence: 0.95,
+        reason: "replace fluteCount: 2 -> 4",
+      },
+      stageOneDeterministicActions: [
+        {
+          type: "apply_filter",
+          field: "fluteCount",
+          op: "eq",
+          value: 4,
+          source: "deterministic",
+        },
+      ],
+      stage2Provider,
+      stage3Provider: makeUnavailableProvider(),
+      stage1CotEscalation: {
+        enabled: true,
+      },
+    })
+
+    expect(result.source).toBe("stage2")
+    expect(result.filters).toEqual([
+      expect.objectContaining({ field: "fluteCount", rawValue: 4 }),
+    ])
+    expect(stage2Provider.complete).toHaveBeenCalledTimes(1)
+  })
 })

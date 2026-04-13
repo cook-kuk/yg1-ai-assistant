@@ -413,6 +413,10 @@ export async function runHybridRetrieval(
     // Hard filter: machining category — exclude products from wrong category
     // e.g. when searching Milling, exclude TAP products whose shapes are only Threading
     // Two-pronged: (1) applicationShapes check, (2) metadata keyword check for mis-categorised products
+    // Domain lock: once a session has a machiningCategory, NEVER allow cross-category
+    // candidates through — even if filtering produces 0 results. This prevents
+    // tap/drill/thread mill candidates from leaking into an end mill session when
+    // follow-up filters (RPM, stock, etc.) are added.
     if (input.machiningCategory) {
       const categoryShapes = CATEGORY_SHAPE_MAP[input.machiningCategory]
       if (categoryShapes) {
@@ -420,9 +424,10 @@ export async function runHybridRetrieval(
           productMatchesMachiningCategory(p.applicationShapes, categoryShapes) &&
           !hasForegnCategoryMetadata(p, input.machiningCategory!)
         )
-        if (catFiltered.length > 0) {
-          console.log(`[hybrid-retrieval] machiningCategory filter: ${input.machiningCategory} → ${candidates.length} → ${catFiltered.length} candidates`)
-          candidates = catFiltered
+        const beforeCount = candidates.length
+        candidates = catFiltered  // Hard filter: apply even if 0 results
+        if (beforeCount !== catFiltered.length) {
+          console.log(`[hybrid-retrieval] machiningCategory HARD filter: ${input.machiningCategory} → ${beforeCount} → ${catFiltered.length} candidates`)
         }
       }
     }

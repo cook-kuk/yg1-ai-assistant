@@ -303,6 +303,25 @@ describe("hybrid-retrieval machining category filter", () => {
     expect(codes).not.toContain("KTAP012")
   })
 
+  it("domain lock: returns 0 candidates rather than allowing cross-category products", async () => {
+    // When all products are from a different category (e.g. only TAP products
+    // available but session is Milling), the hard filter must produce 0 results
+    // instead of silently letting cross-domain products through.
+    const tapOnly = makeProduct({
+      normalizedCode: "TAP030",
+      displayCode: "TAP-030",
+      toolSubtype: "Spiral Flute",
+      diameterMm: 10,
+      applicationShapes: ["Threading_Blind"],
+    })
+
+    mockProducts.push(tapOnly)
+
+    const result = await runHybridRetrieval(makeInput({ machiningCategory: "Milling" }), [])
+
+    expect(result.candidates.length).toBe(0)
+  })
+
   it("keeps TAP product when machiningCategory is Threading", async () => {
     const tapProduct = makeProduct({
       normalizedCode: "TAP020",

@@ -1,16 +1,29 @@
 import { getProviderForAgent, type LLMProvider } from "@/lib/llm/provider"
+import { resolveRequestedToolFamily } from "@/lib/data/repos/product-query-filters"
 import type { AppliedFilter, ExplorationSessionState } from "@/lib/recommendation/domain/types"
 import { buildAppliedFilterFromValue, getFilterFieldLabel, getFilterFieldQueryAliases, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
 import { stripKoreanParticles } from "@/lib/recommendation/shared/patterns"
+import { normalizeRuntimeAppliedFilter } from "@/lib/recommendation/shared/runtime-filter-normalization"
 import type { ComplexityDecision } from "./complexity-router"
 import type { DeterministicAction } from "./deterministic-scr"
-import { applyEditIntent, hasEditSignal, type EditIntentResult } from "./edit-intent"
+import {
+  applyEditIntent,
+  getEditIntentAffectedFields,
+  getEditIntentHintTokens,
+  hasEditSignal,
+  shouldExecuteEditIntentDeterministically,
+  type EditIntentResult,
+} from "./edit-intent"
 import type { QueryField, QuerySort } from "./query-spec"
 import { getSortableFields, QUERY_FIELD_MANIFEST } from "./query-spec-manifest"
 import { findValueByPhonetic, getDbSchemaSync } from "./sql-agent-schema-cache"
 import { tokenize } from "./auto-synonym"
 import { needsRepair } from "./turn-repair"
-import { buildMaterialPromptHints, buildScopedMaterialPromptHints } from "@/lib/recommendation/shared/material-mapping"
+import {
+  buildMaterialPromptHints,
+  buildScopedMaterialPromptHints,
+  resolveMaterialFamilyName,
+} from "@/lib/recommendation/shared/material-mapping"
 
 type ResolverFilterOp = "eq" | "neq" | "gte" | "lte" | "between" | "skip"
 type ResolverRouteHint =
@@ -57,6 +70,30 @@ interface NormalizedResolverResult {
   clarification: ResolverClarification | null
 }
 
+export type ResolverValidationIssueCode =
+  | "redundant_filter"
+  | "negation_conflict"
+  | "operator_attachment_conflict"
+  | "skip_conflict"
+  | "range_operator_mismatch"
+  | "session_truth_conflict"
+  | "domain_lock_risk"
+  | "noop_result"
+
+export interface ResolverValidationIssue {
+  code: ResolverValidationIssueCode
+  severity: "warning" | "error"
+  field?: string | null
+  detail: string
+  escalation: "weak_cot" | "strong_cot" | "clarification"
+}
+
+export interface ResolverValidationSummary {
+  valid: boolean
+  escalation: "none" | "weak_cot" | "strong_cot" | "clarification"
+  issues: ResolverValidationIssue[]
+}
+
 export interface MultiStageResolverResult {
   source: "none" | "stage1" | "cache" | "stage2" | "stage3" | "clarification"
   filters: AppliedFilter[]
@@ -70,6 +107,7 @@ export interface MultiStageResolverResult {
   unresolvedTokens: string[]
   reasoning: string
   clarification: ResolverClarification | null
+  validation?: ResolverValidationSummary | null
 }
 
 export interface ResolveMultiStageQueryArgs {
@@ -121,6 +159,8 @@ interface ResolverSchemaHint {
   similarity: number
 }
 
+type ResolverValidationPhase = "stage1" | "cache" | "stage2" | "stage3"
+
 const DAY_MS = 24 * 60 * 60 * 1000
 const CACHE_TTL_MS = 7 * DAY_MS
 const VERIFIED_CACHE_TTL_MS = 30 * DAY_MS
@@ -133,6 +173,11 @@ const STAGE1_COT_BROAD_CANDIDATE_THRESHOLD = 5000
 const STAGE1_COT_TOKEN_LIMIT = 8
 const STAGE1_SKIP_CUE_RE = /(아무거나|상관\s*없|뭐든|다\s*괜찮|무관)/giu
 const STAGE1_SORT_CUE_RE = /(제일|가장|젤|맨|최대한|긴걸로|짧은걸로|긴|짧은|큰|작은|많은|적은|높은|낮은|두꺼운|얇은)/giu
+
+const NEGATION_CUE_RE = /(?:말고|빼고|제외|아니고|아니라|아닌\s*거|아닌거|아닌\b|except|without|exclude|not\b)/iu
+const ALTERNATIVE_CUE_RE = /(?:다른\s*거|다른거|대신|instead|alternative|더\s*무난한|덜\s*공격적인|비슷한데?\s*더)/iu
+const RANGE_GTE_CUE_RE = /(?:이상|초과|at\s*least|greater\s*than|over|>=)/iu
+const RANGE_LTE_CUE_RE = /(?:이하|미만|at\s*most|less\s*than|under|below|<=)/iu
 
 const resolverCache = new Map<string, CacheEntry>()
 const failureCache = new Map<string, FailureEntry>()
@@ -390,8 +435,20 @@ function extractKnownTokens(
   stageOneSort?: QuerySort | null,
 ): Set<string> {
   const known = new Set<string>()
+  const stageOneEditExecutes = shouldExecuteEditIntentDeterministically(stageOneEditIntent)
+  const suppressedDeterministicFields = new Set<string>()
+
+  if (stageOneEditIntent?.intent.type === "skip_field") {
+    suppressedDeterministicFields.add(stageOneEditIntent.intent.field)
+  }
+  if (!stageOneEditExecutes) {
+    for (const field of getEditIntentAffectedFields(stageOneEditIntent)) {
+      suppressedDeterministicFields.add(field)
+    }
+  }
 
   for (const action of stageOneDeterministicActions ?? []) {
+    if (action.field && suppressedDeterministicFields.has(action.field)) continue
     for (const alias of [action.field ?? "", ...getFilterFieldQueryAliases(action.field ?? "")]) {
       for (const token of tokenize(alias)) {
         const normalized = normalizeToken(token)
@@ -408,7 +465,7 @@ function extractKnownTokens(
     }
   }
 
-  if (stageOneEditIntent) {
+  if (stageOneEditIntent && stageOneEditExecutes) {
     const addFieldAliases = (field: string) => {
       for (const alias of [field, ...getFilterFieldQueryAliases(field)]) {
         for (const token of tokenize(alias)) {
@@ -526,7 +583,13 @@ function extractStageOneResolvedTokens(args: ResolveMultiStageQueryArgs): string
 
 function extractStageOneResolvedBy(args: ResolveMultiStageQueryArgs): string[] {
   const resolvedBy: string[] = []
-  if (args.stageOneEditIntent) resolvedBy.push("edit-intent")
+  if (args.stageOneEditIntent) {
+    resolvedBy.push(
+      shouldExecuteEditIntentDeterministically(args.stageOneEditIntent)
+        ? "edit-intent"
+        : "edit-hint",
+    )
+  }
   if ((args.stageOneDeterministicActions?.length ?? 0) > 0) resolvedBy.push("det-scr")
   if (args.stageOneSort) resolvedBy.push("sort")
   if (args.stageOneClearUnmentionedFields) resolvedBy.push("relaxation")
@@ -539,6 +602,459 @@ function formatAppliedFilters(filters: AppliedFilter[]): Array<{ field: string; 
     op: filter.op,
     value: filter.rawValue ?? filter.value,
   }))
+}
+
+function compareEscalationPriority(
+  left: ResolverValidationSummary["escalation"] | ResolverValidationIssue["escalation"],
+  right: ResolverValidationSummary["escalation"] | ResolverValidationIssue["escalation"],
+): number {
+  const priority: Record<ResolverValidationSummary["escalation"] | ResolverValidationIssue["escalation"], number> = {
+    none: 0,
+    weak_cot: 1,
+    strong_cot: 2,
+    clarification: 3,
+  }
+  return priority[left] - priority[right]
+}
+
+function hasNegationCue(message: string): boolean {
+  return NEGATION_CUE_RE.test(message)
+}
+
+function hasAlternativeCue(message: string): boolean {
+  return ALTERNATIVE_CUE_RE.test(message)
+}
+
+function hasSkipCue(message: string): boolean {
+  STAGE1_SKIP_CUE_RE.lastIndex = 0
+  return STAGE1_SKIP_CUE_RE.test(message)
+}
+
+function hasRangeCue(message: string): { gte: boolean; lte: boolean } {
+  return {
+    gte: RANGE_GTE_CUE_RE.test(message),
+    lte: RANGE_LTE_CUE_RE.test(message),
+  }
+}
+
+function hasExplicitMutationCue(message: string): boolean {
+  return hasEditSignal(message) || needsRepair(message) || hasNegationCue(message) || hasAlternativeCue(message)
+}
+
+function normalizeComparableScalar(field: string, value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.map(item => normalizeComparableScalar(field, item)).join("|")
+  }
+  if (typeof value === "number") return String(value)
+  if (typeof value === "boolean") return value ? "true" : "false"
+
+  const raw = String(value ?? "").trim()
+  if (!raw) return ""
+
+  if (field === "material" || field === "workPieceName") {
+    return normalizeToken(resolveMaterialFamilyName(raw) ?? raw)
+  }
+  if (field === "toolType" || field === "machiningCategory") {
+    return normalizeToken(resolveRequestedToolFamily(raw) ?? raw)
+  }
+
+  return normalizeToken(raw)
+}
+
+function buildFilterSignature(filter: AppliedFilter | null | undefined): string {
+  if (!filter) return ""
+  return [
+    filter.field,
+    filter.op,
+    normalizeComparableScalar(filter.field, filter.rawValue ?? filter.value),
+    normalizeComparableScalar(filter.field, filter.rawValue2 ?? ""),
+  ].join("::")
+}
+
+function filtersEquivalent(left: AppliedFilter | null | undefined, right: AppliedFilter | null | undefined): boolean {
+  return Boolean(left) && Boolean(right) && buildFilterSignature(left) === buildFilterSignature(right)
+}
+
+function buildLatestFilterMap(filters: AppliedFilter[]): Map<string, AppliedFilter> {
+  const map = new Map<string, AppliedFilter>()
+  for (const filter of filters) {
+    map.set(filter.field, filter)
+  }
+  return map
+}
+
+function normalizeFiltersForValidation(filters: AppliedFilter[], turnCount: number): AppliedFilter[] {
+  return filters.map(filter => normalizeRuntimeAppliedFilter(filter, filter.appliedAt ?? turnCount))
+}
+
+function buildEffectiveFilterState(
+  currentFilters: AppliedFilter[],
+  result: MultiStageResolverResult,
+  turnCount: number,
+): AppliedFilter[] {
+  const normalizedCurrent = normalizeFiltersForValidation(currentFilters, turnCount)
+  const next = result.clearOtherFilters
+    ? []
+    : normalizedCurrent.filter(filter => !result.removeFields.includes(filter.field))
+
+  for (const filter of normalizeFiltersForValidation(result.filters, turnCount)) {
+    for (let index = next.length - 1; index >= 0; index -= 1) {
+      if (next[index].field !== filter.field) continue
+      next.splice(index, 1)
+    }
+    next.push(filter)
+  }
+
+  return next
+}
+
+function inferLockedToolFamily(args: ResolveMultiStageQueryArgs): ReturnType<typeof resolveRequestedToolFamily> {
+  const candidates = uniqueStrings([
+    args.sessionState?.resolvedInput?.toolType,
+    args.sessionState?.resolvedInput?.machiningCategory,
+    ...args.currentFilters
+      .filter(filter => filter.field === "toolType" || filter.field === "machiningCategory")
+      .map(filter => String(filter.rawValue ?? filter.value ?? "")),
+  ])
+
+  for (const candidate of candidates) {
+    const family = resolveRequestedToolFamily(candidate)
+    if (family) return family
+  }
+
+  return null
+}
+
+function inferResultToolFamily(filters: AppliedFilter[]): ReturnType<typeof resolveRequestedToolFamily> {
+  for (const filter of filters) {
+    if (filter.field !== "toolType" && filter.field !== "machiningCategory") continue
+    const family = resolveRequestedToolFamily(String(filter.rawValue ?? filter.value ?? ""))
+    if (family) return family
+  }
+  return null
+}
+
+function filterValueAppearsInMessage(message: string, filter: AppliedFilter): boolean {
+  if (typeof filter.rawValue !== "string" && typeof filter.value !== "string") return false
+
+  const messageFamily = resolveMaterialFamilyName(message)
+  const filterValue = String(filter.rawValue ?? filter.value ?? "").trim()
+  if (!filterValue) return false
+
+  if ((filter.field === "material" || filter.field === "workPieceName") && messageFamily) {
+    const filterFamily = resolveMaterialFamilyName(filterValue)
+    if (filterFamily && filterFamily === messageFamily) return true
+  }
+
+  const normalizedMessage = normalizeToken(message)
+  const normalizedValue = normalizeToken(filterValue)
+  return normalizedValue.length >= 2 && normalizedMessage.includes(normalizedValue)
+}
+
+function buildValidationIssue(
+  code: ResolverValidationIssueCode,
+  detail: string,
+  escalation: ResolverValidationIssue["escalation"],
+  field?: string | null,
+  severity: ResolverValidationIssue["severity"] = "error",
+): ResolverValidationIssue {
+  return { code, detail, escalation, field, severity }
+}
+
+function buildValidationSummary(issues: ResolverValidationIssue[]): ResolverValidationSummary {
+  if (issues.length === 0) {
+    return {
+      valid: true,
+      escalation: "none",
+      issues: [],
+    }
+  }
+
+  let escalation: ResolverValidationSummary["escalation"] = "none"
+  for (const issue of issues) {
+    if (compareEscalationPriority(issue.escalation, escalation) > 0) {
+      escalation = issue.escalation
+    }
+  }
+
+  return {
+    valid: !issues.some(issue => issue.severity === "error"),
+    escalation,
+    issues,
+  }
+}
+
+type ValidationClause = {
+  raw: string
+  normalized: string
+  negative: boolean
+}
+
+function buildValidationClauses(message: string): ValidationClause[] {
+  return message
+    .split(/\s*(?:,|그리고|하고|인데|but|;|\n)\s*/iu)
+    .map(part => part.trim())
+    .filter(Boolean)
+    .map(part => ({
+      raw: part,
+      normalized: normalizeToken(part),
+      negative: hasNegationCue(part),
+    }))
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+function buildFilterMessageTokens(filter: AppliedFilter): string[] {
+  const raw = filter.rawValue ?? filter.value
+  const values = Array.isArray(raw) ? raw : [raw]
+  const tokens: string[] = []
+
+  for (const value of values) {
+    if (typeof value === "number") {
+      tokens.push(String(value))
+      continue
+    }
+    if (typeof value === "boolean") {
+      tokens.push(value ? "true" : "false")
+      continue
+    }
+
+    const text = String(value ?? "").trim()
+    if (!text) continue
+    tokens.push(text)
+    const normalized = normalizeToken(text)
+    if (normalized) tokens.push(normalized)
+    for (const token of tokenize(text)) {
+      const normalizedToken = normalizeToken(token)
+      if (normalizedToken) tokens.push(normalizedToken)
+    }
+    if (filter.field === "material" || filter.field === "workPieceName") {
+      const family = resolveMaterialFamilyName(text)
+      const normalizedFamily = normalizeToken(family ?? "")
+      if (normalizedFamily) tokens.push(normalizedFamily)
+    }
+  }
+
+  return uniqueStrings(tokens).filter(token => token.length >= 2 || /^\d/.test(token))
+}
+
+function clauseMentionsToken(clause: ValidationClause, token: string): boolean {
+  const trimmedToken = token.trim()
+  if (!trimmedToken) return false
+
+  if (/^\d+(?:\.\d+)?$/.test(trimmedToken)) {
+    return new RegExp(`(^|[^0-9])${escapeRegExp(trimmedToken)}($|[^0-9])`).test(clause.raw)
+  }
+
+  const normalizedToken = normalizeToken(trimmedToken)
+  if (normalizedToken && clause.normalized.includes(normalizedToken)) return true
+  return clause.raw.toLowerCase().includes(trimmedToken.toLowerCase())
+}
+
+function findBestAttachmentClause(message: string, filter: AppliedFilter): ValidationClause | null {
+  const clauses = buildValidationClauses(message)
+  if (clauses.length === 0) return null
+
+  const tokens = buildFilterMessageTokens(filter)
+  let bestClause: ValidationClause | null = null
+  let bestScore = 0
+
+  for (const clause of clauses) {
+    const score = tokens.reduce((total, token) => total + (clauseMentionsToken(clause, token) ? 1 : 0), 0)
+    if (score <= 0 || score < bestScore) continue
+    bestClause = clause
+    bestScore = score
+  }
+
+  return bestClause
+}
+
+function collectOperatorAttachmentIssues(
+  message: string,
+  filters: AppliedFilter[],
+  phase: ResolverValidationPhase,
+): ResolverValidationIssue[] {
+  const issues: ResolverValidationIssue[] = []
+  const messageHasNegation = hasNegationCue(message)
+
+  for (const filter of filters) {
+    if (filter.op !== "eq" && filter.op !== "neq") continue
+    const clause = findBestAttachmentClause(message, filter)
+    if (!clause) continue
+
+    if (clause.negative && filter.op !== "neq") {
+      issues.push(buildValidationIssue(
+        "operator_attachment_conflict",
+        `negative clause matched ${filter.field} but operator stayed ${filter.op}`,
+        phase === "stage3" ? "clarification" : "strong_cot",
+        filter.field,
+      ))
+      continue
+    }
+
+    if (messageHasNegation && !clause.negative && filter.op === "neq") {
+      issues.push(buildValidationIssue(
+        "operator_attachment_conflict",
+        `positive clause matched ${filter.field} but operator flipped to neq`,
+        phase === "stage3" ? "clarification" : "strong_cot",
+        filter.field,
+      ))
+    }
+  }
+
+  return issues
+}
+
+function validateResolverExecution(
+  args: ResolveMultiStageQueryArgs,
+  result: MultiStageResolverResult,
+  phase: ResolverValidationPhase,
+): { result: MultiStageResolverResult; validation: ResolverValidationSummary } {
+  const currentFilters = normalizeFiltersForValidation(args.currentFilters, args.turnCount)
+  const currentByField = buildLatestFilterMap(currentFilters)
+  const issues: ResolverValidationIssue[] = []
+  const explicitMutation = hasExplicitMutationCue(args.message)
+
+  const normalizedRemoveFields = uniqueStrings(
+    result.removeFields.filter(field => currentByField.has(field) || result.filters.some(filter => filter.field === field))
+  )
+  for (const field of result.removeFields) {
+    if (normalizedRemoveFields.includes(field)) continue
+    issues.push(buildValidationIssue(
+      "redundant_filter",
+      `remove ${field} had no current session truth to change`,
+      "weak_cot",
+      field,
+      "warning",
+    ))
+  }
+
+  const normalizedFilters: AppliedFilter[] = []
+  for (const filter of normalizeFiltersForValidation(result.filters, args.turnCount)) {
+    const current = currentByField.get(filter.field)
+    if (!normalizedRemoveFields.includes(filter.field) && filtersEquivalent(current, filter)) {
+      issues.push(buildValidationIssue(
+        "redundant_filter",
+        `filter ${filter.field} already matches session truth`,
+        "weak_cot",
+        filter.field,
+        "warning",
+      ))
+      continue
+    }
+
+    const existingIndex = normalizedFilters.findIndex(existing => existing.field === filter.field)
+    if (existingIndex >= 0) {
+      normalizedFilters.splice(existingIndex, 1, filter)
+      continue
+    }
+
+    normalizedFilters.push(filter)
+  }
+
+  const normalizedResult: MultiStageResolverResult = {
+    ...result,
+    filters: normalizedFilters,
+    removeFields: normalizedRemoveFields,
+    followUpFilter: result.followUpFilter
+      ? normalizeRuntimeAppliedFilter(result.followUpFilter, result.followUpFilter.appliedAt ?? args.turnCount)
+      : null,
+  }
+
+  const effectiveFilters = buildEffectiveFilterState(currentFilters, normalizedResult, args.turnCount)
+  const effectiveByField = buildLatestFilterMap(effectiveFilters)
+  const negationCue = hasNegationCue(args.message)
+  const alternativeCue = hasAlternativeCue(args.message)
+  const rangeCue = hasRangeCue(args.message)
+
+  if (negationCue) {
+    for (const filter of effectiveFilters) {
+      if (filter.op === "neq" || filter.op === "skip") continue
+      if (!filterValueAppearsInMessage(args.message, filter)) continue
+      issues.push(buildValidationIssue(
+        "negation_conflict",
+        `negation request kept ${filter.field}=${String(filter.rawValue ?? filter.value)}`,
+        phase === "stage3" ? "clarification" : "strong_cot",
+        filter.field,
+      ))
+    }
+  }
+
+  issues.push(...collectOperatorAttachmentIssues(args.message, normalizedFilters, phase))
+
+  if ((rangeCue.gte || rangeCue.lte) && normalizedFilters.some(filter => typeof filter.rawValue === "number" && filter.op === "eq")) {
+    const expectedOp = rangeCue.gte && !rangeCue.lte ? "gte" : rangeCue.lte && !rangeCue.gte ? "lte" : "between"
+    issues.push(buildValidationIssue(
+      "range_operator_mismatch",
+      `range language requires ${expectedOp}, not numeric eq`,
+      phase === "stage3" ? "clarification" : "strong_cot",
+    ))
+  }
+
+  for (const filter of normalizedFilters) {
+    const current = currentByField.get(filter.field)
+    if (!current || filtersEquivalent(current, filter)) continue
+    if (explicitMutation || normalizedRemoveFields.includes(filter.field) || normalizedResult.clearOtherFilters) continue
+    issues.push(buildValidationIssue(
+      "session_truth_conflict",
+      `filter ${filter.field} conflicts with current session truth without an explicit revise cue`,
+      phase === "stage3" ? "clarification" : alternativeCue || negationCue ? "strong_cot" : "weak_cot",
+      filter.field,
+    ))
+  }
+
+  const pendingField = args.pendingField ?? args.sessionState?.lastAskedField ?? null
+  if (
+    pendingField
+    && (hasSkipCue(args.message) || negationCue)
+    && normalizedFilters.some(filter => filter.field === pendingField && filter.op !== "skip")
+  ) {
+    issues.push(buildValidationIssue(
+      "skip_conflict",
+      `skip-like language was converted into a concrete ${pendingField} filter`,
+      phase === "stage3" ? "clarification" : "weak_cot",
+      pendingField,
+    ))
+  }
+
+  const lockedFamily = inferLockedToolFamily(args)
+  const resultFamily = inferResultToolFamily(normalizedFilters)
+  if (lockedFamily && resultFamily && lockedFamily !== resultFamily) {
+    issues.push(buildValidationIssue(
+      "domain_lock_risk",
+      `result tries to switch tool family from ${lockedFamily} to ${resultFamily}`,
+      phase === "stage3" ? "clarification" : "strong_cot",
+      "toolType",
+    ))
+  }
+
+  if (
+    isIntentOnlyRoutingSignal(normalizedResult)
+    && !normalizedResult.clarification
+    && !normalizedResult.followUpFilter
+  ) {
+    issues.push(buildValidationIssue(
+      "noop_result",
+      "result did not produce an executable filter delta",
+      phase === "stage3" ? "clarification" : negationCue || alternativeCue ? "strong_cot" : "weak_cot",
+    ))
+  }
+
+  const validation = buildValidationSummary(issues)
+  return {
+    result: {
+      ...normalizedResult,
+      validation,
+    },
+    validation,
+  }
+}
+
+function collectValidationReasons(validation: ResolverValidationSummary | null | undefined): string[] {
+  if (!validation || validation.issues.length === 0) return []
+  return uniqueStrings(validation.issues.map(issue => `validation_${issue.code}`))
 }
 
 function mergeAppliedFilters(
@@ -586,6 +1102,7 @@ function mergeMultiStageResults(
       ...base,
       unresolvedTokens: overlay.unresolvedTokens.length > 0 ? overlay.unresolvedTokens : base.unresolvedTokens,
       reasoning: [base.reasoning, overlay.reasoning].filter(Boolean).join(" + "),
+      validation: overlay.validation ?? base.validation ?? null,
     }
   }
 
@@ -605,6 +1122,7 @@ function mergeMultiStageResults(
     unresolvedTokens: overlay.unresolvedTokens,
     reasoning: [base.reasoning, overlay.reasoning].filter(Boolean).join(" + "),
     clarification: overlay.clarification ?? base.clarification,
+    validation: overlay.validation ?? base.validation ?? null,
   }
 }
 
@@ -663,6 +1181,47 @@ export function resolverProducedMeaningfulOutput(result: MultiStageResolverResul
   )
 }
 
+function expandSemanticHintTokens(rawTokens: string[]): string[] {
+  const expanded = rawTokens.flatMap(token => {
+    const trimmed = token.trim()
+    if (!trimmed) return []
+
+    const normalized = normalizeToken(trimmed)
+    const pieces = Array.from(tokenize(trimmed))
+      .map(part => normalizeToken(part))
+      .filter(Boolean)
+
+    return uniqueStrings([trimmed, normalized, ...pieces].filter(Boolean))
+  })
+
+  return uniqueStrings(
+    expanded.filter(token => {
+      const normalized = normalizeToken(token)
+      return Boolean(normalized) && (!STOPWORD_TOKENS.has(normalized) || /^\d/.test(token))
+    }),
+  )
+}
+
+function extractSemanticEditHintTokens(args: ResolveMultiStageQueryArgs): string[] {
+  if (shouldExecuteEditIntentDeterministically(args.stageOneEditIntent)) return []
+  return expandSemanticHintTokens(getEditIntentHintTokens(args.stageOneEditIntent))
+}
+
+function buildStageOneSemanticHintSummary(args: ResolveMultiStageQueryArgs): string {
+  if (shouldExecuteEditIntentDeterministically(args.stageOneEditIntent)) return "none"
+  if (!args.stageOneEditIntent) return "none"
+
+  const affectedFields = getEditIntentAffectedFields(args.stageOneEditIntent)
+  const hintTokens = getEditIntentHintTokens(args.stageOneEditIntent)
+
+  return [
+    `intent=${args.stageOneEditIntent.intent.type}`,
+    affectedFields.length > 0 ? `fields=${affectedFields.join(", ")}` : null,
+    hintTokens.length > 0 ? `tokens=${hintTokens.join(", ")}` : null,
+    `reason=${args.stageOneEditIntent.reason}`,
+  ].filter((entry): entry is string => Boolean(entry)).join(" | ")
+}
+
 function extractUnresolvedTokens(args: ResolveMultiStageQueryArgs): string[] {
   const known = extendKnownTokensWithStageOneCues(args, extractKnownTokens(
     args.message,
@@ -672,7 +1231,12 @@ function extractUnresolvedTokens(args: ResolveMultiStageQueryArgs): string[] {
   ))
 
   return uniqueStrings(
-    extractRawTokens(args.message).filter(token => !tokenMatchesKnown(token, known) && !STOPWORD_TOKENS.has(token))
+    [...extractRawTokens(args.message), ...extractSemanticEditHintTokens(args)].filter(token => {
+      const normalized = normalizeToken(token)
+      if (!normalized) return false
+      if (STOPWORD_TOKENS.has(normalized) && !/^\d/.test(token)) return false
+      return !tokenMatchesKnown(normalized, known)
+    }),
   )
 }
 
@@ -1024,13 +1588,21 @@ function buildEmptyResult(reasoning = ""): MultiStageResolverResult {
 }
 
 function buildStageOneAnalysis(args: ResolveMultiStageQueryArgs): StageOneBuildAnalysis {
-  const editIntent = args.stageOneEditIntent?.intent ?? null
+  const editIntentResult = args.stageOneEditIntent ?? null
+  const editIntent = editIntentResult?.intent ?? null
+  const executeStageOneEdit = shouldExecuteEditIntentDeterministically(editIntentResult)
   const clearUnmentioned = args.stageOneClearUnmentionedFields === true
   const rawActions = args.stageOneDeterministicActions ?? []
+  const semanticHintedFields = new Set(
+    executeStageOneEdit ? [] : getEditIntentAffectedFields(editIntentResult),
+  )
   const effectiveActions =
-    editIntent?.type === "skip_field"
-      ? rawActions.filter(action => action.field !== editIntent.field)
-      : rawActions
+    rawActions.filter(action => {
+      if (!action.field) return true
+      if (editIntent?.type === "skip_field" && action.field === editIntent.field) return false
+      if (semanticHintedFields.has(action.field)) return false
+      return true
+    })
   const filterSpecs: ResolverFilterSpec[] = []
   const removeFields = new Set<string>()
   let followUpFilter: AppliedFilter | null = null
@@ -1051,7 +1623,7 @@ function buildStageOneAnalysis(args: ResolveMultiStageQueryArgs): StageOneBuildA
     }
   }
 
-  if (editIntent) {
+  if (editIntent && executeStageOneEdit) {
     switch (editIntent.type) {
       case "reset_all":
         return finalize({
@@ -1104,6 +1676,8 @@ function buildStageOneAnalysis(args: ResolveMultiStageQueryArgs): StageOneBuildA
         reasoning = `stage1:${args.stageOneEditIntent?.reason ?? `exclude ${editIntent.field}`}`
         break
     }
+  } else if (editIntentResult) {
+    reasoning = `stage1:hint:${editIntentResult.reason}`
   }
 
   for (const action of effectiveActions) {
@@ -1164,18 +1738,52 @@ function buildFieldGuide(): string {
     .join("\n")
 }
 
-function buildSchemaContext(): string {
+function getResolverSchemaSnapshot(): {
+  sampleValues: Record<string, string[]>
+  workpieces: Array<string | { tag_name?: string | null; normalized_work_piece_name?: string | null }>
+  brands: string[]
+} {
   const schema = getDbSchemaSync()
+  if (!schema) {
+    return {
+      sampleValues: {},
+      workpieces: [],
+      brands: [],
+    }
+  }
+
+  return {
+    sampleValues: schema.sampleValues ?? {},
+    workpieces: schema.workpieces ?? [],
+    brands: schema.brands ?? [],
+  }
+}
+
+function getResolverWorkpieceSamples(
+  workpieces: Array<string | { tag_name?: string | null; normalized_work_piece_name?: string | null }>,
+): string[] {
+  return uniqueStrings(
+    workpieces.map(entry =>
+      typeof entry === "string"
+        ? entry
+        : entry?.normalized_work_piece_name ?? entry?.tag_name ?? ""
+    ),
+  ).filter(Boolean)
+}
+
+function buildSchemaContext(): string {
+  const schema = getResolverSchemaSnapshot()
   const lines: string[] = []
 
-  if (Array.isArray(schema.workpieces) && schema.workpieces.length > 0) {
-    lines.push(`- workPiece samples: ${schema.workpieces.slice(0, 8).join(", ")}`)
+  const workPieceSamples = getResolverWorkpieceSamples(schema.workpieces)
+  if (workPieceSamples.length > 0) {
+    lines.push(`- workPiece samples: ${workPieceSamples.slice(0, 8).join(", ")}`)
   }
   if (Array.isArray(schema.brands) && schema.brands.length > 0) {
     lines.push(`- brand samples: ${schema.brands.slice(0, 12).join(", ")}`)
   }
 
-  for (const [column, rawValues] of Object.entries(schema.sampleValues ?? {}).slice(0, 20)) {
+  for (const [column, rawValues] of Object.entries(schema.sampleValues).slice(0, 20)) {
     if (!Array.isArray(rawValues) || rawValues.length === 0) continue
     const clean = uniqueStrings(rawValues.slice(0, 5).map(value => String(value ?? "").trim()))
     if (clean.length === 0) continue
@@ -1193,23 +1801,17 @@ function buildCurrentFilterSummary(filters: AppliedFilter[]): string {
 }
 
 function buildResolverDomainDictionary(): string {
-  const schema = getDbSchemaSync()
+  const schema = getResolverSchemaSnapshot()
   const toolSubtypeSamples = uniqueStrings([
-    ...(schema.sampleValues?.tool_subtype ?? []),
-    ...(schema.sampleValues?.search_subtype ?? []),
+    ...(schema.sampleValues.tool_subtype ?? []),
+    ...(schema.sampleValues.search_subtype ?? []),
   ]).slice(0, 8)
   const coatingSamples = uniqueStrings([
-    ...(schema.sampleValues?.coating ?? []),
-    ...(schema.sampleValues?.search_coating ?? []),
+    ...(schema.sampleValues.coating ?? []),
+    ...(schema.sampleValues.search_coating ?? []),
   ]).slice(0, 8)
-  const workPieceSamples = uniqueStrings(
-    (schema.workpieces ?? []).map(entry =>
-      typeof entry === "string"
-        ? entry
-        : entry?.normalized_work_piece_name ?? entry?.tag_name ?? ""
-    ),
-  ).slice(0, 8)
-  const brandSamples = uniqueStrings(schema.brands ?? []).slice(0, 8)
+  const workPieceSamples = getResolverWorkpieceSamples(schema.workpieces).slice(0, 8)
+  const brandSamples = uniqueStrings(schema.brands).slice(0, 8)
   const materialHints = buildMaterialPromptHints(6)
 
   return [
@@ -1221,7 +1823,7 @@ function buildResolverDomainDictionary(): string {
     `- stockStatus is only for qualitative states such as instock / outofstock / limited.`,
     `- totalStock is only for numeric inventory thresholds.`,
     `- skip/remove/clear means release an existing restriction, not invent a new value.`,
-  ].join("\n")
+  ].filter((line): line is string => Boolean(line)).join("\n")
 }
 
 function isStage1MostlyNoOp(
@@ -1345,14 +1947,29 @@ function classifyStage1CotEscalation(
   }
 }
 
+function buildResolverMaterialContext(args: ResolveMultiStageQueryArgs, unresolvedTokens: string[]): string {
+  const currentMaterialTerms = args.currentFilters
+    .filter(filter => filter.field === "material" || filter.field === "workPieceName")
+    .map(filter => String(filter.rawValue ?? filter.value ?? "").trim())
+
+  const scopedSeed = uniqueStrings([
+    args.message,
+    ...unresolvedTokens,
+    ...currentMaterialTerms,
+    args.sessionState?.resolvedInput?.material ?? null,
+    args.sessionState?.resolvedInput?.workPieceName ?? null,
+  ]).join(" ")
+
+  return buildScopedMaterialPromptHints(scopedSeed, 4)
+}
+
 function buildStage2Prompt(args: ResolveMultiStageQueryArgs, unresolvedTokens: string[]): { systemPrompt: string; userPrompt: string } {
   const schemaHints = collectSchemaHints(args.message, unresolvedTokens)
-  const materialContext = buildScopedMaterialPromptHints(
-    [args.message, ...unresolvedTokens].filter(Boolean).join(" "),
-    4,
-  )
+  const materialContext = buildResolverMaterialContext(args, unresolvedTokens)
+  const semanticHintSummary = buildStageOneSemanticHintSummary(args)
   const systemPrompt = `You are the Stage 2 lightweight resolver for the YG-1 cutting tool recommendation system.
-The deterministic parser already handled exact patterns. Resolve only the leftover intent.
+Stage 1 only applies structurally safe operations and candidate hints. It must not finalize ambiguous natural-language mutation meaning.
+You are responsible for the final semantic interpretation of negation, alternatives, and revise/follow-up language.
 
 Field catalog:
 ${buildFieldGuide()}
@@ -1385,6 +2002,8 @@ Rules:
 - If pendingField is set and the user is clearly dismissing that field, use it.
 - If a schema phonetic hint clearly matches a brand / series / material token in the user message, emit the corresponding filter instead of returning only show_recommendation.
 - If the user asks for a similar product around a concrete item or product code, prefer routeHint=compare_products even if the code itself stays unresolved.
+- Attach negation only to the local field/value in the same clause. Example: "2 flutes and not square" => fluteCount eq 2, toolSubtype neq Square.
+- Treat Stage 1 semantic hints as candidates only. Validate them against the full sentence, current filters, and allowed operators before using them.
 - Never invent a field, operator, column, or canonical value outside the field catalog and domain dictionary.
 - Do not guess. Keep unresolved tokens instead.
 - Return JSON only.
@@ -1401,6 +2020,7 @@ Examples:
   const userPrompt = [
     `User message: ${args.message}`,
     `Stage 1 unresolved tokens: ${unresolvedTokens.join(", ") || "none"}`,
+    `Stage 1 semantic hints: ${semanticHintSummary}`,
     `Material mapping context:\n${materialContext || "none"}`,
     `Possible schema phonetic hints:\n${formatSchemaHintBlock(schemaHints)}`,
     `Pending field: ${args.pendingField ?? args.sessionState?.lastAskedField ?? "none"}`,
@@ -1414,10 +2034,8 @@ Examples:
 
 function buildStage3Prompt(args: ResolveMultiStageQueryArgs, unresolvedTokens: string[], stage2Result: NormalizedResolverResult | null): { systemPrompt: string; userPrompt: string } {
   const schemaHints = collectSchemaHints(args.message, unresolvedTokens)
-  const materialContext = buildScopedMaterialPromptHints(
-    [args.message, ...unresolvedTokens].filter(Boolean).join(" "),
-    4,
-  )
+  const materialContext = buildResolverMaterialContext(args, unresolvedTokens)
+  const semanticHintSummary = buildStageOneSemanticHintSummary(args)
   const systemPrompt = `You are the Stage 3 deep reasoning resolver for the YG-1 cutting tool recommendation system.
 Stage 1 and Stage 2 were not sufficient. Think step by step internally, then return JSON only.
 
@@ -1441,9 +2059,11 @@ Decision process:
 2. Analyze the unresolved tokens: Korean pronunciation, slang, misspacing, shorthand, superlative, indifference, UI vocabulary.
 3. Use any schema phonetic hints only when they clearly fit the user's meaning.
 4. Map only high-confidence items to DB fields or routeHint. Similar-product requests around a concrete item should use routeHint=compare_products even when the code stays unresolved.
-5. If all other existing filters should be released, set clearOtherFilters=true.
-6. If unsure, leave filters empty and keep unresolvedTokens.
-7. Never invent a field, operator, column, or canonical value outside the field catalog and domain dictionary.
+5. Keep operator attachment local to each clause. "2 flutes and not square" must stay fluteCount eq 2 and toolSubtype neq Square.
+6. Treat Stage 1 semantic hints as candidate intent only. Do not copy them unless the full utterance supports them.
+7. If all other existing filters should be released, set clearOtherFilters=true.
+8. If unsure, leave filters empty and keep unresolvedTokens.
+9. Never invent a field, operator, column, or canonical value outside the field catalog and domain dictionary.
 
 Return JSON:
 {"filters":[],"sort":null,"routeHint":"none","clearOtherFilters":false,"confidence":0.0,"unresolvedTokens":[],"reasoning":""}`
@@ -1454,6 +2074,7 @@ Return JSON:
     `Current filters: ${buildCurrentFilterSummary(args.currentFilters)}`,
     `Complexity: ${args.complexity?.level ?? "unknown"} (${args.complexity?.reason ?? "n/a"})`,
     `Stage 1 unresolved tokens: ${unresolvedTokens.join(", ") || "none"}`,
+    `Stage 1 semantic hints: ${semanticHintSummary}`,
     `Material mapping context:\n${materialContext || "none"}`,
     `Possible schema phonetic hints:\n${formatSchemaHintBlock(schemaHints)}`,
     `Current candidate count: ${args.stage1CotEscalation?.currentCandidateCount ?? "unknown"}`,
@@ -1566,8 +2187,11 @@ function shouldEscalateToStage3(
   args: ResolveMultiStageQueryArgs,
   unresolvedTokens: string[],
   stage2Result: NormalizedResolverResult | null,
+  stage2Validation: ResolverValidationSummary | null,
   failureCount: number,
 ): boolean {
+  if (stage2Validation && !stage2Validation.valid) return true
+  if (stage2Validation?.escalation === "strong_cot" || stage2Validation?.escalation === "clarification") return true
   if (unresolvedTokens.length === 0) return false
   if (!stage2Result) return true
   if (stage2Result.unresolvedTokens.length > 0) return true
@@ -1581,17 +2205,37 @@ export async function resolveMultiStageQuery(
   args: ResolveMultiStageQueryArgs,
 ): Promise<MultiStageResolverResult> {
   const stage1Analysis = buildStageOneAnalysis(args)
-  const stage1Result = stage1Analysis.result
+  const stage1ValidationResult = stage1Analysis.result
+    ? validateResolverExecution(args, stage1Analysis.result, "stage1")
+    : null
+  const stage1Result = stage1ValidationResult?.result ?? stage1Analysis.result
+  const stage1Validation = stage1ValidationResult?.validation ?? null
   const stage1ResolvedTokens = extractStageOneResolvedTokens(args)
   const unresolvedTokens = extractUnresolvedTokens(args)
-  const stage1Gate = classifyStage1CotEscalation(
+  const stage1GateBase = classifyStage1CotEscalation(
     args,
     stage1Result,
     stage1Analysis,
     unresolvedTokens,
     stage1ResolvedTokens,
   )
-  const effectiveUnresolvedTokens = stage1Gate.effectiveUnresolvedTokens
+  const stage1ValidationReasons =
+    args.stage1CotEscalation?.enabled === true
+      ? collectValidationReasons(stage1Validation)
+      : []
+  const stage1ForceCotFromValidation =
+    args.stage1CotEscalation?.enabled === true
+    && stage1Validation?.escalation !== "none"
+  const stage1GateReasons = uniqueStrings([...stage1GateBase.reasons, ...stage1ValidationReasons])
+  const effectiveUnresolvedTokens = stage1GateReasons.length > 0 && stage1GateBase.effectiveUnresolvedTokens.length === 0
+    ? synthesizeStage1ReplayTokens(args.message, stage1ResolvedTokens)
+    : stage1GateBase.effectiveUnresolvedTokens
+  const stage1Gate = {
+    ...stage1GateBase,
+    forceCot: stage1GateBase.forceCot || stage1ForceCotFromValidation,
+    reasons: stage1GateReasons,
+    effectiveUnresolvedTokens,
+  }
   console.log("[multi-stage:stage1] exit", {
     resolvedTokens: stage1ResolvedTokens,
     unresolvedTokens,
@@ -1618,6 +2262,7 @@ export async function resolveMultiStageQuery(
     stage1MostlyNoOp: stage1Gate.stage1MostlyNoOp,
     unresolvedTokens,
     effectiveUnresolvedTokens,
+    validation: stage1Validation,
     schemaHints: stage1Gate.schemaHints.map(hint => ({
       token: hint.token,
       column: hint.column,
@@ -1630,6 +2275,7 @@ export async function resolveMultiStageQuery(
     return {
       ...stage1Result,
       unresolvedTokens: [],
+      validation: stage1Validation,
     }
   }
 
@@ -1644,15 +2290,23 @@ export async function resolveMultiStageQuery(
   const cacheKey = computeCacheKey(args.message, args.pendingField ?? args.sessionState?.lastAskedField ?? null)
   const cached = lookupResolverCache(cacheKey)
   if (cached) {
-    const cachedResult = mergeMultiStageResults(stage1Result, materializeResult("cache", cached, args.turnCount))
-    console.log("[multi-stage:cache] hit", {
+    const cachedCandidate = mergeMultiStageResults(stage1Result, materializeResult("cache", cached, args.turnCount))
+    const cachedValidationResult = validateResolverExecution(args, cachedCandidate, "cache")
+    if (cachedValidationResult.validation.valid) {
+      console.log("[multi-stage:cache] hit", {
+        unresolvedTokens: effectiveUnresolvedTokens,
+        filters: formatAppliedFilters(cachedValidationResult.result.filters),
+        sort: cachedValidationResult.result.sort,
+        intent: cachedValidationResult.result.intent,
+        clarification: cachedValidationResult.result.clarification,
+        validation: cachedValidationResult.validation,
+      })
+      return cachedValidationResult.result
+    }
+    console.log("[multi-stage:cache] skipped invalid cached result", {
       unresolvedTokens: effectiveUnresolvedTokens,
-      filters: formatAppliedFilters(cachedResult.filters),
-      sort: cachedResult.sort,
-      intent: cachedResult.intent,
-      clarification: cachedResult.clarification,
+      validation: cachedValidationResult.validation,
     })
-    return cachedResult
   }
 
   const failureCount = getResolverFailureCount(cacheKey)
@@ -1670,46 +2324,85 @@ export async function resolveMultiStageQuery(
     args,
     stage1Result,
   )
+  const stage2ValidationResult = stage2Result
+    ? validateResolverExecution(
+      args,
+      mergeMultiStageResults(stage1Result, materializeResult("stage2", stage2Result, args.turnCount)),
+      "stage2",
+    )
+    : null
+  const validatedStage2Result = stage2ValidationResult?.result ?? null
+  const stage2Validation = stage2ValidationResult?.validation ?? null
 
   if (
     hasMeaningfulResolution(stage2Result)
+    && Boolean(validatedStage2Result)
+    && stage2Validation?.valid === true
     && stage2Result.confidence >= STAGE2_CONFIDENCE_THRESHOLD
     && stage2Result.unresolvedTokens.length === 0
-    && !shouldEscalateToStage3(args, effectiveUnresolvedTokens, stage2Result, failureCount)
+    && !shouldEscalateToStage3(args, effectiveUnresolvedTokens, stage2Result, stage2Validation, failureCount)
   ) {
     clearResolverFailure(cacheKey)
     storeResolverCache(cacheKey, stage2Result)
-    return mergeMultiStageResults(stage1Result, materializeResult("stage2", stage2Result, args.turnCount))
+    return validatedStage2Result
   }
 
-  const stage3Needed = shouldEscalateToStage3(args, effectiveUnresolvedTokens, stage2Result, failureCount)
+  const stage3Needed = shouldEscalateToStage3(
+    args,
+    effectiveUnresolvedTokens,
+    stage2Result,
+    stage2Validation,
+    failureCount,
+  )
   if (stage3Needed) {
+    const stage2Base = validatedStage2Result && resolverProducedMeaningfulOutput(validatedStage2Result)
+      ? validatedStage2Result
+      : stage1Result
     const stage3Result = sanitizeNoOpResolution(
       await runResolverStage("stage3", args, effectiveUnresolvedTokens, stage2Result),
       args,
       stage1Result,
     )
-    if (hasMeaningfulResolution(stage3Result)) {
+    const stage3ValidationResult = stage3Result
+      ? validateResolverExecution(
+        args,
+        mergeMultiStageResults(stage2Base, materializeResult("stage3", stage3Result, args.turnCount)),
+        "stage3",
+      )
+      : null
+    if (
+      hasMeaningfulResolution(stage3Result)
+      && stage3ValidationResult?.validation.valid
+    ) {
       clearResolverFailure(cacheKey)
       storeResolverCache(cacheKey, stage3Result)
-      const stage2Base = hasMeaningfulResolution(stage2Result)
-        ? mergeMultiStageResults(stage1Result, materializeResult("stage2", stage2Result, args.turnCount))
-        : stage1Result
-      return mergeMultiStageResults(stage2Base, materializeResult("stage3", stage3Result, args.turnCount))
+      return stage3ValidationResult.result
+    }
+
+    if (stage3ValidationResult && (!stage3ValidationResult.validation.valid || stage3ValidationResult.validation.escalation === "clarification")) {
+      return {
+        ...mergeMultiStageResults(stage2Base, buildClarificationResult(args, effectiveUnresolvedTokens)),
+        validation: stage3ValidationResult.validation,
+      }
     }
   }
 
-  if (hasMeaningfulResolution(stage2Result)) {
-    if (!stage1Gate.forceCot) {
+  if (validatedStage2Result && resolverProducedMeaningfulOutput(validatedStage2Result)) {
+    if (stage2Validation?.valid) {
       clearResolverFailure(cacheKey)
-      storeResolverCache(cacheKey, stage2Result)
-      return mergeMultiStageResults(stage1Result, materializeResult("stage2", stage2Result, args.turnCount))
+      if (stage2Result) storeResolverCache(cacheKey, stage2Result)
+      return validatedStage2Result
     }
     console.log("[multi-stage:stage2] meaningful result deferred for SQL-agent fallback", {
       reasons: stage1Gate.reasons,
-      confidence: stage2Result.confidence,
-      unresolvedTokens: stage2Result.unresolvedTokens,
+      confidence: stage2Result?.confidence ?? 0,
+      unresolvedTokens: stage2Result?.unresolvedTokens ?? [],
+      validation: stage2Validation,
     })
+    return {
+      ...mergeMultiStageResults(stage1Result, buildClarificationResult(args, effectiveUnresolvedTokens)),
+      validation: stage2Validation,
+    }
   }
 
   recordResolverFailure(cacheKey)
@@ -1726,4 +2419,3 @@ export function _resetMultiStageResolverCacheForTest(): void {
   resolverCache.clear()
   failureCache.clear()
 }
-

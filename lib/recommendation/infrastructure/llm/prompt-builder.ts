@@ -12,6 +12,7 @@ import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
 import { buildKBContextBlock, searchKB, getMaterialGuide, getCoatingProperties } from "@/lib/recommendation/core/semantic-search"
 import { YG1_COMPANY_SNIPPET } from "@/lib/knowledge/company-prompt-snippet"
 import { buildDomainKnowledgeSnippet } from "@/lib/recommendation/shared/patterns"
+import { buildMaterialPromptHints, buildScopedMaterialPromptHints } from "@/lib/recommendation/shared/material-mapping"
 import { getIntakeDisplayValue } from "@/lib/recommendation/shared/intake-localization"
 import type {
   AnswerState,
@@ -33,6 +34,28 @@ import type {
 import type { NextQuestion } from "@/lib/recommendation/domain/question-engine"
 
 // ── System Prompt (immutable) ────────────────────────────────
+function buildMaterialPromptContext(
+  materialValue: string | null | undefined,
+  language: AppLanguage = "ko",
+  limit = 4,
+  fallbackText?: string | null,
+): string {
+  const raw = String(materialValue ?? "").trim()
+  const fallback = String(fallbackText ?? "").trim()
+  if (!raw && !fallback) return ""
+
+  const displayValue = raw
+    ? getIntakeDisplayValue("material", { status: "known", value: raw } as never, language).trim()
+    : ""
+  const scopedSeed = [displayValue, fallback].filter(Boolean).join(" ").trim()
+  if (!scopedSeed) return ""
+
+  const hints = buildScopedMaterialPromptHints(scopedSeed, limit)
+  const genericHints = buildMaterialPromptHints(limit)
+  const block = hints || genericHints
+  return block ? `[CSV material hints]\n${block}` : ""
+}
+
 export function buildSystemPrompt(language: AppLanguage = "ko"): string {
   const responseLanguage = language === "ko" ? "한국어" : "영어"
 
@@ -45,6 +68,7 @@ export function buildSystemPrompt(language: AppLanguage = "ko"): string {
 - ${responseLanguage}로 전문가답게 간결하고 정확하게 대화. 이모지 사용 금지.
 
 ${buildDomainKnowledgeSnippet()}
+${buildMaterialPromptHints(4) ? `\n[CSV material hints]\n${buildMaterialPromptHints(4)}\n` : ""}
 
 ${YG1_COMPANY_SNIPPET}
 
@@ -388,9 +412,23 @@ export function buildSessionContext(
   candidateCount: number,
   displayedProducts?: { rank: number; code: string; brand: string | null; series: string | null; toolSubtype: string | null; diameter: number | null; flute: number | null; coating: string | null; materialTags: string[]; score: number; matchStatus: string }[] | null,
   userMessage?: string,
+  language: AppLanguage = "ko",
 ): string {
   const intakeSummary = buildIntakeSummaryText(intakeForm)
   const appliedFilters = sessionState?.appliedFilters ?? []
+  const materialSeed = Array.from(new Set([
+    ...appliedFilters
+      .filter(filter => filter.field === "material" || filter.field === "workPieceName")
+      .map(filter => String(filter.rawValue ?? filter.value ?? "").trim())
+      .filter(Boolean),
+    String(userMessage ?? "").trim(),
+  ])).join(" ")
+  const materialContext = buildMaterialPromptContext(
+    intakeForm.material?.status === "known" ? intakeForm.material.value : null,
+    language,
+    4,
+    materialSeed,
+  )
   // 정종서 피드백(2026-04-06): LLM이 빈 필터 리스트에도 "이미 적용되어 있습니다"라고
   // 거짓 답변하던 문제. 명시적으로 0건을 알리고 거짓 단언을 금지한다.
   const filterSummary = appliedFilters.length > 0
@@ -470,7 +508,10 @@ ${lines.join("\n")}
     : ""
 
   // ── Proactive Insights (insight-generator가 serve-engine에서 stash) ──
-  const proactiveInsights = (sessionState as unknown as { __proactiveInsights?: string } | null)?.__proactiveInsights ?? ""
+  const proactiveInsights = [
+    (sessionState as unknown as { __proactiveInsights?: string } | null)?.__proactiveInsights ?? "",
+    materialContext,
+  ].filter(Boolean).join("\n")
 
   // ── Kick 1: domain-guard 경고 주입 ──
   const domainWarnings = (sessionState as unknown as { __domainWarnings?: string } | null)?.__domainWarnings
@@ -507,7 +548,7 @@ ${intakeSummary}
 
 [적용된 필터]
 ${filterSummary}
-${filterTruthGuard}
+${filterTruthGuard}${buildFilterTruthPropagationBlock(appliedFilters, sessionState)}
 [축소 대화 이력]
 ${histSummary}
 
@@ -520,6 +561,49 @@ ${UNIFIED_BRAIN_RULES}`
 
 // ── Unified Brain: 섹션 나열 → 하나의 자연스러운 대화로 ────────────
 // 위 컨텍스트가 섹션별로 나뉘어 있어도, 응답은 "한 사람이 한 호흡에"
+
+// ── Filter Truth Propagation ────────────────────────────────
+// On follow-up turns, when filters exist the LLM must acknowledge them
+// instead of asking redundant questions or ignoring user-applied constraints.
+function buildFilterTruthPropagationBlock(
+  appliedFilters: AppliedFilter[],
+  sessionState: ExplorationSessionState | null,
+): string {
+  if (appliedFilters.length === 0) return ""
+
+  const cuttingConditionFields = new Set(["rpm", "spindleSpeed", "feedRate", "cuttingSpeed", "depthOfCut", "ap", "ae", "fz", "vc"])
+  const hasCuttingConditionFilter = appliedFilters.some(f => cuttingConditionFields.has(f.field))
+  const hasToolDomain = appliedFilters.some(f => f.field === "toolType" || f.field === "machiningCategory")
+    || !!sessionState?.resolvedInput?.toolType
+    || !!sessionState?.resolvedInput?.machiningCategory
+
+  const blocks: string[] = []
+
+  if (hasCuttingConditionFilter) {
+    const ccFilters = appliedFilters.filter(f => cuttingConditionFields.has(f.field))
+    const ccSummary = ccFilters.map(f => `${f.field} ${f.op} ${f.value}`).join(", ")
+    blocks.push(
+      `[절삭조건 필터 적용 중] ${ccSummary}가 이미 적용되어 있다. ` +
+      `사용자가 이 필터를 언급하면 "이미 반영되어 있습니다"로 답하고, 현재 후보군 상태를 설명하라. ` +
+      `절삭조건 필터가 있으면 "가공 방식이 필요합니다"를 반복하지 마라 — 이미 조건이 좁혀진 상태다.`
+    )
+  }
+
+  if (hasToolDomain) {
+    const domain = sessionState?.resolvedInput?.toolType
+      ?? sessionState?.resolvedInput?.machiningCategory
+      ?? appliedFilters.find(f => f.field === "toolType")?.value
+      ?? "unknown"
+    blocks.push(
+      `[도메인 락] 현재 세션은 "${domain}" 추천 맥락이다. ` +
+      `후보가 부족하더라도 다른 공구 계열(탭/드릴/쓰레드밀 등)을 제안하지 마라. ` +
+      `같은 도메인 안에서 조건 완화를 제안하라.`
+    )
+  }
+
+  return blocks.length > 0 ? "\n" + blocks.join("\n") + "\n" : ""
+}
+
 const UNIFIED_BRAIN_RULES = `
 ═══ 응답 통합 규칙 (매우 중요) ═══
 위 세션 컨텍스트에 KB·통찰·경고·추천·다음 질문이 섹션별로 나뉘어 있지만,

@@ -57,7 +57,13 @@ import { isLegacyKgHintEnabled, isLegacyKgInterpreterEnabled } from "@/lib/recom
 import { logPatternMiningEntry } from "@/lib/recommendation/core/pattern-mining/logger"
 import { tryKGDecision, extractEntities, tryParseSortPhrase, type KGSpecPatch } from "@/lib/recommendation/core/knowledge-graph"
 import { parseDeterministic } from "@/lib/recommendation/core/deterministic-scr"
-import { hasEditSignal, parseEditIntent, applyEditIntent } from "@/lib/recommendation/core/edit-intent"
+import {
+  applyEditIntent,
+  getEditIntentAffectedFields,
+  hasEditSignal,
+  parseEditIntent,
+  shouldExecuteEditIntentDeterministically,
+} from "@/lib/recommendation/core/edit-intent"
 import { deriveChips, toChipState, toChipStateWithCandidates, compareChips, safeApplyChips } from "@/lib/recommendation/core/chip-system"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
 import { classifyPreSearchRoute } from "@/lib/recommendation/infrastructure/engines/pre-search-route"
@@ -1589,6 +1595,44 @@ function buildRevisionClarificationResponse(
   })
 }
 
+function formatRepairFilterValue(filter: AppliedFilter): string {
+  const raw = filter.rawValue ?? filter.value
+  if (Array.isArray(raw)) return raw.map(value => String(value)).filter(Boolean).join("/")
+  if (typeof raw === "number") {
+    if (filter.field === "fluteCount") return `${raw}날`
+    if (filter.field.toLowerCase().includes("diameter") || filter.field.toLowerCase().includes("length")) {
+      return `${raw}mm`
+    }
+    return String(raw)
+  }
+  if (typeof raw === "boolean") return raw ? "yes" : "no"
+  return String(raw ?? "").trim()
+}
+
+function buildRepairClarification(questionFilters: AppliedFilter[]): { question: string; chips: string[] } {
+  const latestFilters = [...questionFilters]
+    .sort((left, right) => (right.appliedAt ?? 0) - (left.appliedAt ?? 0))
+    .slice(0, 3)
+  const summary = latestFilters
+    .map(filter => `${getFilterFieldLabel(filter.field)}=${formatRepairFilterValue(filter)}`)
+    .filter(Boolean)
+    .join(", ")
+
+  const chips = Array.from(new Set([
+    ...latestFilters
+      .map(filter => formatRepairFilterValue(filter))
+      .filter(Boolean)
+      .map(value => `${value} 말고`),
+    "직접 입력",
+  ]))
+
+  const question = summary
+    ? `방금 해석한 조건 중 어디가 잘못 반영됐는지 알려주세요. 현재는 ${summary} 로 반영돼 있습니다.`
+    : "방금 해석한 조건 중 어디가 잘못됐는지 알려주세요. 잘못 반영된 값을 바로 고칠 수 있습니다."
+
+  return { question, chips }
+}
+
 function hasTerminalMultiStageResult(result: MultiStageResolverResult): boolean {
   return resolverProducedMeaningfulOutput(result)
 }
@@ -2248,12 +2292,14 @@ async function handleServeExplorationInner(
     const rawMsg = lastUserMsg.text ?? ""
     if (rawMsg) {
       try {
-        const firstTurnEditResult = hasEditSignal(rawMsg) ? parseEditIntent(rawMsg, filters) : null
-        const firstTurnSort = tryParseSortPhrase(rawMsg)
-        if (firstTurnSort) activeQuerySort = firstTurnSort
         const stageOneActions = parseDeterministic(rawMsg).filter(
           action => action.type === "apply_filter" && action.field && action.value != null,
         )
+        const firstTurnEditResult = hasEditSignal(rawMsg)
+          ? parseEditIntent(rawMsg, filters, stageOneActions)
+          : null
+        const firstTurnSort = tryParseSortPhrase(rawMsg)
+        if (firstTurnSort) activeQuerySort = firstTurnSort
         firstTurnResolverBypassed = shouldBypassFirstTurnMultiStageResolver({
           message: rawMsg,
           hasEditIntent: !!firstTurnEditResult,
@@ -2516,8 +2562,9 @@ async function handleServeExplorationInner(
     // 맥락은 narrowingHistory/appliedFilters → 둘 다 비면 messages 자체에서 직전 user/ai 추출.
     if (msg && (prevState || messages.length >= 2)) {
       try {
-        const { needsRepair, repairMessage } = await import("@/lib/recommendation/core/turn-repair")
+        const { isRepairOnlySignal, needsRepair, repairMessage } = await import("@/lib/recommendation/core/turn-repair")
         const repairTriggered = needsRepair(msg)
+        const repairOnlySignal = isRepairOnlySignal(msg)
         const histLen = prevState?.narrowingHistory?.length ?? 0
         const filtLen = prevState?.appliedFilters?.length ?? 0
         console.log(`[turn-repair:gate] msg="${msg.slice(0, 40)}", needsRepair=${repairTriggered}, history=${histLen}, filters=${filtLen}, msgs=${messages.length}`)
@@ -2541,6 +2588,27 @@ async function handleServeExplorationInner(
           }
           const filters = prevState?.appliedFilters ?? []
           const repair = await repairMessage(msg, filters, history as never, provider)
+          const shouldAskRepairClarification =
+            prevState
+            && repairOnlySignal
+            && !repair.wasRepaired
+            && !hasEditSignal(msg)
+            && !parseDeterministic(msg).some(action => action.type === "apply_filter")
+          if (shouldAskRepairClarification && prevState) {
+            const repairClarification = buildRepairClarification(filters)
+            return buildRevisionClarificationResponse(
+              deps,
+              prevState,
+              form,
+              filters,
+              narrowingHistory,
+              currentInput,
+              turnCount,
+              repairClarification.question,
+              requestPrep,
+              repairClarification.chips,
+            )
+          }
           if (repair.wasRepaired) {
             console.log(`[turn-repair] "${msg}" → "${repair.clarifiedMessage}"`)
             msg = repair.clarifiedMessage
@@ -2568,13 +2636,23 @@ async function handleServeExplorationInner(
     // ══════════════════════════════════════════════════════════
 
     let stageOneEditResult: ReturnType<typeof parseEditIntent> = null
+    const stageOneEditHintActions =
+      !shouldResolvePendingSelectionEarly && lastUserMsg && hasEditSignal(msg)
+        ? parseDeterministic(msg).filter(
+            action => action.type === "apply_filter" && action.field && action.value != null,
+          )
+        : []
     if (!shouldResolvePendingSelectionEarly && lastUserMsg && hasEditSignal(msg)) {
       try {
-        stageOneEditResult = parseEditIntent(msg, filters)
+        stageOneEditResult = parseEditIntent(msg, filters, stageOneEditHintActions)
       } catch (err) {
         console.warn(`[edit-intent] parse failed for "${msg.slice(0, 80)}":`, (err as Error).message)
       }
     }
+    const stageOneEditCanExecute = shouldExecuteEditIntentDeterministically(stageOneEditResult)
+    const semanticEditHintFields = new Set(
+      stageOneEditCanExecute ? [] : getEditIntentAffectedFields(stageOneEditResult),
+    )
 
     const stageOneSort = !shouldResolvePendingSelectionEarly && lastUserMsg
       ? tryParseSortPhrase(msg)
@@ -2590,7 +2668,9 @@ async function handleServeExplorationInner(
     // 같은 턴의 deterministic filter/sort 와 함께 합성하고, replace/exclude 류
     // edit-intent 는 기존 전용 경로에 양보한다.
     const allowStageOneDeterministicMerge =
-      !stageOneEditResult || stageOneEditResult.intent.type === "skip_field"
+      !stageOneEditResult
+      || !stageOneEditCanExecute
+      || stageOneEditResult.intent.type === "skip_field"
     if (!singleCallHandled && lastUserMsg && allowStageOneDeterministicMerge && !shouldResolvePendingSelectionEarly) {
       // Stateless-replay: when the caller has no session yet (evaluation harness
       // sends each call without session context) prior user turns' filters are
@@ -2628,9 +2708,14 @@ async function handleServeExplorationInner(
 
       const detApplyActions = detPreActions.filter(a => a.type === "apply_filter" && a.field && a.value != null)
       const effectiveDetApplyActions =
-        stageOneEditResult?.intent.type === "skip_field"
-          ? detApplyActions.filter(action => action.field !== stageOneEditResult.intent.field)
-          : detApplyActions
+        detApplyActions.filter(action => {
+          if (!action.field) return true
+          if (stageOneEditResult?.intent.type === "skip_field" && action.field === stageOneEditResult.intent.field) {
+            return false
+          }
+          if (semanticEditHintFields.has(action.field)) return false
+          return true
+        })
       const currentTurnFields = new Set(
         currentTurnDetActions
           .filter(a => a.type === "apply_filter" && a.field && a.value != null)
@@ -2724,7 +2809,7 @@ async function handleServeExplorationInner(
           currentInput,
           turnCount,
           multiStageResult.clarification.question,
-          requestPreparation,
+          requestPrep,
           multiStageResult.clarification.chips,
         )
       }
@@ -2838,7 +2923,7 @@ async function handleServeExplorationInner(
     // expressions are not intercepted by KG's exclude patterns.
     if (!singleCallHandled && lastUserMsg && hasEditSignal(msg) && !shouldResolvePendingSelectionEarly) {
       const editResult = stageOneEditResult
-      if (editResult && editResult.confidence >= 0.9) {
+      if (editResult && shouldExecuteEditIntentDeterministically(editResult) && editResult.confidence >= 0.9) {
         try {
         const mutation = applyEditIntent(editResult.intent, filters, turnCount)
         trace.add("edit-intent", "router", { type: editResult.intent.type, reason: editResult.reason, confidence: editResult.confidence })

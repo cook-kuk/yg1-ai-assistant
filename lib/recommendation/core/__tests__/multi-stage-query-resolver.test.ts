@@ -1,9 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import path from "node:path"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { LLMProvider } from "@/lib/llm/provider"
 import { assessComplexity } from "../complexity-router"
 import { parseEditIntent } from "../edit-intent"
 import { _resetMultiStageResolverCacheForTest, resolveMultiStageQuery } from "../multi-stage-query-resolver"
+import { _resetMaterialMappingCacheForTest, _setMaterialMappingTestPaths } from "@/lib/recommendation/shared/material-mapping"
+
+const FIXTURE_ROOT = path.resolve(process.cwd(), "lib", "recommendation", "shared", "__tests__", "fixtures")
 
 vi.mock("../sql-agent-schema-cache", () => ({
   getDbSchemaSync: () => ({
@@ -51,6 +55,15 @@ function makeUnavailableProvider(): LLMProvider & { complete: ReturnType<typeof 
 describe("resolveMultiStageQuery", () => {
   beforeEach(() => {
     _resetMultiStageResolverCacheForTest()
+    _setMaterialMappingTestPaths({
+      materialPath: path.join(FIXTURE_ROOT, "material-mapping-sample.csv"),
+      brandAffinityPath: path.join(FIXTURE_ROOT, "brand-material-affinity-sample.csv"),
+      seriesProfilePath: path.join(FIXTURE_ROOT, "series-profile-sample.csv"),
+    })
+  })
+
+  afterEach(() => {
+    _resetMaterialMappingCacheForTest()
   })
 
   it("returns Stage 1 immediately for deterministic skip intents", async () => {
@@ -356,10 +369,10 @@ describe("resolveMultiStageQuery", () => {
 
   it("ignores clearOtherFilters-only outputs when there is nothing to release", async () => {
     const result = await resolveMultiStageQuery({
-      message: "GMI4710055 ?댁젣?덉씠??鍮꾩듂???쒗뭹??異붿쿇?댁쨪???덉뼱??",
+      message: "GMI4710055 이제품이랑 비슷한 제품을 추천해줄수 있어요?",
       turnCount: 6,
       currentFilters: [],
-      complexity: assessComplexity("GMI4710055 ?댁젣?덉씠??鍮꾩듂???쒗뭹??異붿쿇?댁쨪???덉뼱??"),
+      complexity: assessComplexity("GMI4710055 이제품이랑 비슷한 제품을 추천해줄수 있어요?"),
       stage2Provider: makeProvider(JSON.stringify({
         filters: [],
         sort: null,
@@ -408,10 +421,10 @@ describe("resolveMultiStageQuery", () => {
     } as unknown as LLMProvider & { complete: ReturnType<typeof vi.fn> }
 
     const result = await resolveMultiStageQuery({
-      message: "GMI4710055 ?댁젣?덉씠??鍮꾩듂???쒗뭹??異붿쿇?댁쨪???덉뼱??",
+      message: "GMI4710055 이제품이랑 비슷한 제품을 추천해줄수 있어요?",
       turnCount: 6,
       currentFilters: [],
-      complexity: assessComplexity("GMI4710055 ?댁젣?덉씠??鍮꾩듂???쒗뭹??異붿쿇?댁쨪???덉뼱??"),
+      complexity: assessComplexity("GMI4710055 이제품이랑 비슷한 제품을 추천해줄수 있어요?"),
       stage2Provider,
       stage3Provider: makeUnavailableProvider(),
     })
@@ -552,10 +565,10 @@ describe("resolveMultiStageQuery", () => {
   })
   it("keeps Stage 1 sort truth when later stages only fall back to clarification", async () => {
     const result = await resolveMultiStageQuery({
-      message: "?좎옣 ?쒖씪 湲닿구濡?異붿쿇?댁＜?몄슂",
+      message: "?醫롮삢 ??뽰뵬 疫뀀떯援ф에??곕뗄荑??곻폒?紐꾩뒄",
       turnCount: 4,
       currentFilters: [],
-      complexity: assessComplexity("?좎옣 ?쒖씪 湲닿구濡?異붿쿇?댁＜?몄슂"),
+      complexity: assessComplexity("?醫롮삢 ??뽰뵬 疫뀀떯援ф에??곕뗄荑??곻폒?紐꾩뒄"),
       stageOneSort: { field: "lengthOfCutMm", direction: "desc" },
       stage2Provider: makeProvider(""),
       stage3Provider: makeUnavailableProvider(),
@@ -591,4 +604,41 @@ describe("resolveMultiStageQuery", () => {
     expect(result.filters).toEqual([])
     expect(result.clarification).not.toBeNull()
   })
+  it("injects scoped material mapping context into Stage 2 for unresolved material aliases", async () => {
+    const stage2Provider = {
+      available: () => true,
+      complete: vi.fn(async (_systemPrompt: string, messages: Array<{ role: string; content: string }>) => {
+        const userPrompt = messages[0]?.content ?? ""
+        expect(userPrompt).toContain("Material mapping context:")
+        expect(userPrompt).toContain("Carbon Steel")
+        expect(userPrompt).toContain("ISO P")
+        return JSON.stringify({
+          filters: [{ field: "workPieceName", op: "eq", value: "Carbon Steel", rawToken: "AISI 1010" }],
+          sort: null,
+          routeHint: "show_recommendation",
+          clearOtherFilters: false,
+          confidence: 0.93,
+          unresolvedTokens: [],
+          reasoning: "material mapping context resolved the alias",
+        })
+      }),
+      completeWithTools: vi.fn(async () => ({ text: null, toolUse: null })),
+    } as unknown as LLMProvider & { complete: ReturnType<typeof vi.fn> }
+
+    const result = await resolveMultiStageQuery({
+      message: "AISI 1010 carbon steel recommendation",
+      turnCount: 4,
+      currentFilters: [],
+      complexity: assessComplexity("AISI 1010 carbon steel recommendation"),
+      stage2Provider,
+      stage3Provider: makeUnavailableProvider(),
+    })
+
+    expect(result.source).toBe("stage2")
+    expect(result.intent).toBe("show_recommendation")
+    expect(result.filters).toEqual([
+      expect.objectContaining({ field: "workPieceName", rawValue: "Carbon Steel" }),
+    ])
+  })
 })
+
