@@ -18,6 +18,10 @@ import type { OrchestratorAction } from "@/lib/recommendation/infrastructure/age
 import type { SemanticReplyRoute, SemanticDirectContext, SemanticTurnDecision } from "./semantic-turn-extractor"
 import type { QueryField, QuerySort, QuerySimilarity, QueryConstraint } from "./query-spec"
 import { QUERY_FIELD_MANIFEST, getSortableFields } from "./query-spec-manifest"
+import {
+  hasSemanticComparisonCue,
+  shouldDeferHardcodedSemanticExecution,
+} from "./semantic-execution-policy"
 
 // ── Node Types ─────────────────────────────────────────────────
 
@@ -241,22 +245,6 @@ const COMPETITOR_PATTERNS = [
 const SHOW_RESULT_PATTERNS = [
   /(?:추천\s*(?:해|받|보)|결과\s*보|지금\s*조건으로|제품\s*보기|바로\s*보여|show\s*(?:results?|recommendation))/iu,
 ]
-
-const COMPARE_PATTERNS = [
-  /(?:비교\s*(?:해|하)|차이\s*(?:점|가)|뭐가\s*다|compare|difference|vs\.?)\s/iu,
-]
-
-const EXCLUDE_PATTERNS = [
-  // "square 타입 말고" → capture "square" (skip 타입/종류/형상 suffixes)
-  /(\S+)\s+(?:타입|종류|형상|코팅|계열)\s*(?:말고|빼고|제외|외에)/iu,
-  /(\S+)\s*(?:말고|빼고|제외|외에)/iu,
-  /(\S+?)(?:이|가|을|를)\s*(?:아닌|않은|아니고)/iu,
-  /(\S+)\s+(?:아닌|않은|아니고)/iu,
-  /(?:not|except|without|exclude|other\s+than)\s+(\S+)/iu,
-]
-
-const SEMANTIC_MUTATION_CUE_RE =
-  /(?:말고|빼고|제외|아닌|않은|아니고|대신|instead|alternative|다른\s*거|다른거|변경|바꿔|switch|replace)/iu
 
 const REFINE_PATTERNS = [
   /(?:다른|변경|바꿔|바꾸|change|different)\s*(?:직경|소재|코팅|날수|형상|diameter|material|coating|flute|subtype)/iu,
@@ -600,7 +588,7 @@ export function tryKGDecision(
   const msg = userMessage.trim()
   const lower = msg.toLowerCase()
   const pendingField = sessionState?.lastAskedField ?? null
-  const shouldDeferSemanticMutation = SEMANTIC_MUTATION_CUE_RE.test(msg)
+  const shouldDeferSemanticExecution = shouldDeferHardcodedSemanticExecution(msg)
 
   // ── 1. Skip patterns ──
   if (SKIP_PATTERNS.some(p => p.test(msg))) {
@@ -705,6 +693,14 @@ export function tryKGDecision(
     /(?:what\s*is|explain|tell\s*me\s*about|difference\s*between)/iu,
   ]
   if (QUESTION_PATTERNS.some(p => p.test(msg)) && msg.length < 60) {
+    if (hasSemanticComparisonCue(msg)) {
+      return {
+        decision: null,
+        confidence: 0,
+        source: "none",
+        reason: "semantic comparison deferred to semantic resolver",
+      }
+    }
     return {
       decision: buildDecision(
         { type: "answer_general", message: msg, preGenerated: false } as OrchestratorAction,
@@ -785,6 +781,14 @@ export function tryKGDecision(
   // "CRX S 말고 다른 브랜드" = exclude, not competitor query → negation이면 skip
   const hasNegSignal = /빼고|제외|말고|아닌|않은/u.test(msg)
   if (COMPETITOR_PATTERNS.some(p => p.test(msg)) && !hasNegSignal) {
+    if (shouldDeferSemanticExecution) {
+      return {
+        decision: null,
+        confidence: 0,
+        source: "none",
+        reason: "semantic comparison deferred to semantic resolver",
+      }
+    }
     return {
       decision: buildDecision({ type: "answer_general", message: msg } as OrchestratorAction, [], 0.92, "KG: competitor query → answer_general with web search"),
       confidence: 0.92,
@@ -849,70 +853,7 @@ export function tryKGDecision(
     }
   }
 
-  // ── 6. Exclude patterns ("X 말고", "except X") ──
-  // Also handles "X 말고 Y로" → apply Y as eq (not just exclude X)
-  for (const pattern of EXCLUDE_PATTERNS) {
-    const match = msg.match(pattern)
-    if (match) {
-      if (shouldDeferSemanticMutation) {
-        return {
-          decision: null,
-          confidence: 0,
-          source: "none",
-          reason: "semantic mutation deferred to semantic resolver",
-        }
-      }
-      const excludeRaw = (match[1] || match[2]).toLowerCase()
-      const entity = resolveEntity(excludeRaw)
-      const resolved = entity
-        ? { field: entity.field, canonical: entity.canonical }
-        : (() => {
-            const numEntities = extractEntities(excludeRaw)
-            return numEntities.length > 0 ? { field: numEntities[0].field, canonical: numEntities[0].canonical } : null
-          })()
-      if (resolved) {
-        // Check if there's a replacement entity in the rest of the message
-        // "2날 말고 4날로", "Square 빼고 Ball로", "TiAlN 말고 DLC" etc.
-        const afterExclude = msg.slice(match.index! + match[0].length)
-        const replacementEntities = extractEntities(afterExclude)
-        const replacement = replacementEntities.find(e => e.field === resolved.field)
-
-        if (replacement) {
-          // "X 말고 Y로" → apply Y as eq (user wants Y, not just "not X")
-          const filter: AppliedFilter = {
-            field: replacement.field,
-            op: "eq",
-            value: replacement.canonical,
-            rawValue: replacement.canonical,
-            appliedAt: 0,
-          }
-          return {
-            decision: buildDecision({ type: "continue_narrowing", filter } as OrchestratorAction, [], 0.95, `KG: replace ${resolved.canonical} → ${replacement.canonical}`),
-            confidence: 0.95,
-            source: "kg-exclude",
-            reason: `replace ${resolved.field}: ${resolved.canonical} → ${replacement.canonical}`,
-          }
-        }
-
-        // No replacement → pure exclusion
-        const filter: AppliedFilter = {
-          field: resolved.field,
-          op: "exclude",
-          value: resolved.canonical,
-          rawValue: resolved.canonical,
-          appliedAt: 0,
-        }
-        return {
-          decision: buildDecision({ type: "continue_narrowing", filter } as OrchestratorAction, [], 0.95, `KG: exclude ${resolved.canonical}`),
-          confidence: 0.95,
-          source: "kg-exclude",
-          reason: `exclude ${resolved.field}=${resolved.canonical}`,
-        }
-      }
-    }
-  }
-
-  // ── 7. Direct entity answer to pending field ──
+  // ── 6. Direct entity answer to pending field ──
   if (pendingField) {
     // Check if the entire message is an entity match
     const entity = resolveEntity(msg)
@@ -976,7 +917,7 @@ export function tryKGDecision(
     }
   }
 
-  // ── 8. Bare-token entity dispatch ──
+  // ── 7. Bare-token entity dispatch ──
   // Principle: KG may only dispatch when it is highly confident that its
   // extraction represents the *entire* user intent, not a fragment of it.
   // The practical test for "lossless" is conservative: the message must be
@@ -1013,7 +954,7 @@ export function tryKGDecision(
   const shouldDispatch =
     entities.length >= 1 &&
     !hasGenericMachiningCategoryCompanion &&
-    !shouldDeferSemanticMutation &&
+    !shouldDeferSemanticExecution &&
     (isLosslessShortUtterance || isShankCompound || isMaterialGroup)
   if (shouldDispatch && !COMPANY_PATTERNS.some(p => p.test(msg))) {
     const primary = entities[0]
@@ -1099,7 +1040,7 @@ export function getKGStats() {
   // Count unique fields as relation types
   const fieldSet = new Set(ENTITY_NODES.map(n => n.field))
   // Relations = entity→field mappings + numeric patterns + intent pattern groups
-  const intentGroupCount = [SKIP_PATTERNS, BACK_PATTERNS, RESET_PATTERNS, STOCK_PATTERNS, SHOW_RESULT_PATTERNS, EXCLUDE_PATTERNS].filter(p => p.length > 0).length
+  const intentGroupCount = [SKIP_PATTERNS, BACK_PATTERNS, RESET_PATTERNS, STOCK_PATTERNS, SHOW_RESULT_PATTERNS].filter(p => p.length > 0).length
   const totalRelations = ENTITY_NODES.length + NUMERIC_PATTERNS.length + intentGroupCount
 
   return {

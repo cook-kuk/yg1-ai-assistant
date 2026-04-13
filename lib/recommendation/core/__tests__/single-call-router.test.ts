@@ -238,6 +238,8 @@ describe("routeSingleCall — canonicalization", () => {
   it("threads deterministic candidates into the LLM prompt instead of short-circuiting", async () => {
     const provider = {
       complete: vi.fn(async (systemPrompt: string) => {
+        expect(systemPrompt).toContain("## Semantic policy")
+        expect(systemPrompt).toContain("Do not finalize natural-language negation, alternatives, comparison, or follow-up revision from cue words alone.")
         expect(systemPrompt).toContain("## Deterministic Candidate Hints")
         expect(systemPrompt).toContain("fluteCount eq 4")
         return JSON.stringify({
@@ -337,6 +339,15 @@ describe("routeSingleCall — canonicalization", () => {
       expect.objectContaining({ type: "apply_filter", field: "fluteCount", value: 4, op: "eq" }),
     ])
     expect(result.reasoning).toBe("deterministic_fallback")
+  })
+
+  it("does not use deterministic fallback for broad semantic comparison prompts", async () => {
+    const provider = {
+      complete: vi.fn().mockRejectedValue(new Error("LLM timeout")),
+    } as any
+    const result = await routeSingleCall("CRX S vs V7", null, provider)
+    expect(result.actions).toEqual([])
+    expect(result.reasoning).toContain("llm_error")
   })
 
   it("field null in apply_filter action still validates (field is optional in type)", async () => {

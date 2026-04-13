@@ -168,7 +168,9 @@ describe("resolveMultiStageQuery", () => {
   it("passes deterministic candidates to Stage 2 as semantic hints instead of stage1 truth", async () => {
     const stage2Provider = {
       available: () => true,
-      complete: vi.fn(async (_systemPrompt: string, messages: Array<{ role: string; content: string }>) => {
+      complete: vi.fn(async (systemPrompt: string, messages: Array<{ role: string; content: string }>) => {
+        expect(systemPrompt).toContain("Semantic policy:")
+        expect(systemPrompt).toContain('Do not finalize natural-language negation, alternatives, comparison, or follow-up revision from cue words alone.')
         const userPrompt = messages[0]?.content ?? ""
         expect(userPrompt).toContain("Stage 1 semantic hints:")
         expect(userPrompt).toContain("det.candidates=fluteCount eq 4")
