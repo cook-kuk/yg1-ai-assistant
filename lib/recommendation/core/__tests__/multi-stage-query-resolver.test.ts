@@ -550,6 +550,23 @@ describe("resolveMultiStageQuery", () => {
     expect(result.clarification?.question).toContain("조금만 더 구체적으로")
     expect(result.clarification?.chips).toContain("직접 입력")
   })
+  it("keeps Stage 1 sort truth when later stages only fall back to clarification", async () => {
+    const result = await resolveMultiStageQuery({
+      message: "?좎옣 ?쒖씪 湲닿구濡?異붿쿇?댁＜?몄슂",
+      turnCount: 4,
+      currentFilters: [],
+      complexity: assessComplexity("?좎옣 ?쒖씪 湲닿구濡?異붿쿇?댁＜?몄슂"),
+      stageOneSort: { field: "lengthOfCutMm", direction: "desc" },
+      stage2Provider: makeProvider(""),
+      stage3Provider: makeUnavailableProvider(),
+    })
+
+    expect(result.source).toBe("stage1")
+    expect(result.sort).toEqual({ field: "lengthOfCutMm", direction: "desc" })
+    expect(result.intent).toBe("show_recommendation")
+    expect(result.clarification).toBeNull()
+  })
+
   it("does not treat intent-only show_recommendation as a resolved truth source", async () => {
     const result = await resolveMultiStageQuery({
       message: "애매한 브랜드로 추천해줄수 있어요?",
