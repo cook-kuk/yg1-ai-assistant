@@ -4,7 +4,7 @@ let origDetScr: string | undefined
 beforeAll(() => { origDetScr = process.env.DETERMINISTIC_SCR; process.env.DETERMINISTIC_SCR = "0" })
 afterAll(() => { if (origDetScr === undefined) delete process.env.DETERMINISTIC_SCR; else process.env.DETERMINISTIC_SCR = origDetScr })
 
-import { buildPendingSelectionFilter, resolveExplicitComparisonAction, resolveExplicitFilterRequest, resolveExplicitRevisionRequest } from "../serve-engine-runtime"
+import { buildPendingSelectionFilter, resolveExplicitComparisonAction, resolveExplicitFilterRequest, resolveExplicitRevisionRequest, resolvePendingQuestionReply } from "../serve-engine-runtime"
 import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import type { ExplorationSessionState } from "@/lib/recommendation/domain/types"
 
@@ -228,6 +228,44 @@ describe("pending selection resolver", () => {
       field: "helixAngleDeg",
       op: "gte",
       rawValue: 35,
+    })
+  })
+
+  it("defers holistic parsing when a pending-answer prefix includes extra entities and result intent", () => {
+    const state = makeState({
+      lastAskedField: "fluteCount",
+      displayedOptions: [
+        { index: 1, label: "2날", field: "fluteCount", value: "2날", count: 10 },
+        { index: 2, label: "4날", field: "fluteCount", value: "4날", count: 12 },
+        { index: 3, label: "상관없음", field: "fluteCount", value: "skip", count: 0 },
+      ],
+    })
+
+    const resolution = resolvePendingQuestionReply(state, "4날 TiAlN Square 추천해줘")
+
+    expect(resolution).toMatchObject({
+      kind: "defer_holistic",
+      pendingField: "fluteCount",
+    })
+    expect(resolution.kind === "defer_holistic" ? resolution.reasons.length : 0).toBeGreaterThan(0)
+  })
+
+  it("still early-resolves a pure pending-selection reply", () => {
+    const state = makeState({
+      lastAskedField: "fluteCount",
+      displayedOptions: [
+        { index: 1, label: "2날", field: "fluteCount", value: "2날", count: 10 },
+        { index: 2, label: "4날", field: "fluteCount", value: "4날", count: 12 },
+      ],
+    })
+
+    const resolution = resolvePendingQuestionReply(state, "4날로 해줘")
+
+    expect(resolution).toMatchObject({
+      kind: "resolved",
+      filter: expect.objectContaining({
+        field: "fluteCount",
+      }),
     })
   })
 
