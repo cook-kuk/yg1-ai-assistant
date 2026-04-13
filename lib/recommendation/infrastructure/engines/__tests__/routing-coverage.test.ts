@@ -336,6 +336,68 @@ describe("normal pending resolution", () => {
       expect(result.filter.field).toBe("toolSubtype")
     }
   })
+  it("defers mixed pending replies with extra entities and recommendation intent to holistic parsing", () => {
+    const state = makeState({
+      lastAskedField: "fluteCount",
+      displayedOptions: [
+        { index: 1, label: "2\uB0A0", field: "fluteCount", value: "2", count: 20 },
+        { index: 2, label: "4\uB0A0", field: "fluteCount", value: "4", count: 30 },
+      ],
+    })
+
+    const message = "4\uB0A0 TiAlN Square \uCD94\uCC9C\uD574\uC918"
+    const result = resolvePendingQuestionReply(state, message)
+
+    expect(result.kind).toBe("defer_holistic")
+    expect(buildPendingSelectionFilter(state, message)).toBeNull()
+    if (result.kind === "defer_holistic") {
+      expect(result.reasons).toEqual(expect.arrayContaining([
+        "result_intent",
+        "compound_utterance",
+      ]))
+      expect(result.reasons.some(reason => reason.startsWith("extra_entities:"))).toBe(true)
+    }
+  })
+
+  it("keeps pure pending answers resolvable when there is no extra semantic load", () => {
+    const state = makeState({
+      lastAskedField: "fluteCount",
+      displayedOptions: [
+        { index: 1, label: "2\uB0A0", field: "fluteCount", value: "2", count: 20 },
+        { index: 2, label: "4\uB0A0", field: "fluteCount", value: "4", count: 30 },
+      ],
+    })
+
+    const result = resolvePendingQuestionReply(state, "2\uB0A0\uB85C \uD574\uC918")
+
+    expect(result.kind).toBe("resolved")
+    if (result.kind === "resolved") {
+      expect(result.filter.field).toBe("fluteCount")
+      expect(result.filter.rawValue).toBe(2)
+    }
+  })
+
+  it("defers pending early resolution when an existing filter override is implied", () => {
+    const state = makeState({
+      lastAskedField: "fluteCount",
+      appliedFilters: [
+        { field: "brand", op: "eq", value: "4G MILL", rawValue: "4G MILL", appliedAt: 1 },
+      ],
+      displayedOptions: [
+        { index: 1, label: "2\uB0A0", field: "fluteCount", value: "2", count: 20 },
+        { index: 2, label: "4\uB0A0", field: "fluteCount", value: "4", count: 30 },
+      ],
+    })
+
+    const message = "4G MILL 4\uB0A0 \uCD94\uCC9C\uD574\uC918"
+    const result = resolvePendingQuestionReply(state, message)
+
+    expect(result.kind).toBe("defer_holistic")
+    expect(buildPendingSelectionFilter(state, message)).toBeNull()
+    if (result.kind === "defer_holistic") {
+      expect(result.reasons.some(reason => reason.startsWith("override_risk:"))).toBe(true)
+    }
+  })
 })
 
 // ---------------------------------------------------------------------------

@@ -225,7 +225,7 @@ export interface RecommendationResponseMetaDto {
 }
 
 export interface RecommendationRequestDto {
-  engine?: string
+  engine?: string | null
   intakeForm?: ProductIntakeForm
   messages?: ChatMessage[]
   session?: RecommendationSessionEnvelopeDto | null
@@ -491,7 +491,7 @@ export const recommendationSessionEnvelopeSchema = z.object({
 }).passthrough()
 
 export const recommendationRequestSchema = z.object({
-  engine: z.string().optional(),
+  engine: z.string().nullable().optional(),
   intakeForm: z.unknown().optional(),
   messages: z.array(z.object({
     role: z.enum(["user", "ai"]),
