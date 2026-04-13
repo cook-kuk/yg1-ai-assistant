@@ -136,44 +136,90 @@ export function getRecommendationCapabilities(
 export function toRecommendationCandidateDto(
   candidate: CandidateSnapshot
 ): RecommendationCandidateDto {
+  const record = candidate as unknown as Record<string, unknown>
+  const pickString = (...keys: string[]): string | null => {
+    for (const key of keys) {
+      const value = record[key]
+      if (typeof value === "string") return value
+    }
+    return null
+  }
+  const pickNumber = (...keys: string[]): number | null => {
+    for (const key of keys) {
+      const value = record[key]
+      if (typeof value === "number" && Number.isFinite(value)) return value
+    }
+    return null
+  }
+  const pickBoolean = (...keys: string[]): boolean | null => {
+    for (const key of keys) {
+      const value = record[key]
+      if (typeof value === "boolean") return value
+    }
+    return null
+  }
+  const materialTags = Array.isArray(record.materialTags)
+    ? record.materialTags.map(tag => String(tag ?? "").trim()).filter(Boolean)
+    : []
+  const inventoryLocations = Array.isArray(record.inventoryLocations)
+    ? record.inventoryLocations
+    : []
+  const displayCode =
+    pickString("displayCode", "code", "normalizedCode", "productCode", "normalized_code", "display_code")
+    ?? ""
+  const productCode =
+    pickString("productCode", "normalizedCode", "code", "normalized_code", "displayCode", "display_code")
+    ?? displayCode
+  const rank = pickNumber("rank") ?? 0
+  const matchStatusValue = pickString("matchStatus", "match_status")
+  const matchStatus: RecommendationCandidateDto["matchStatus"] =
+    matchStatusValue === "exact" || matchStatusValue === "approximate" || matchStatusValue === "none"
+      ? matchStatusValue
+      : "none"
+
   return {
-    rank: candidate.rank,
-    productCode: candidate.productCode,
-    displayCode: candidate.displayCode,
-    displayLabel: candidate.displayLabel,
-    brand: candidate.brand,
-    seriesName: candidate.seriesName,
-    seriesIconUrl: candidate.seriesIconUrl,
-    diameterMm: candidate.diameterMm,
-    fluteCount: candidate.fluteCount,
-    coating: candidate.coating,
-    toolSubtype: candidate.toolSubtype,
-    toolMaterial: candidate.toolMaterial,
-    shankDiameterMm: candidate.shankDiameterMm,
-    shankType: candidate.shankType ?? null,
-    lengthOfCutMm: candidate.lengthOfCutMm,
-    overallLengthMm: candidate.overallLengthMm,
-    helixAngleDeg: candidate.helixAngleDeg,
-    coolantHole: candidate.coolantHole ?? null,
-    ballRadiusMm: candidate.ballRadiusMm ?? null,
-    taperAngleDeg: candidate.taperAngleDeg ?? null,
-    pointAngleDeg: candidate.pointAngleDeg ?? null,
-    threadPitchMm: candidate.threadPitchMm ?? null,
-    description: candidate.description,
-    featureText: candidate.featureText,
-    materialTags: [...candidate.materialTags],
-    score: candidate.score,
-    scoreBreakdown: candidate.scoreBreakdown,
-    matchStatus: candidate.matchStatus,
-    stockStatus: candidate.stockStatus,
-    totalStock: candidate.totalStock,
-    inventorySnapshotDate: candidate.inventorySnapshotDate,
-    inventoryLocations: candidate.inventoryLocations.map(location => ({
-      warehouseOrRegion: location.warehouseOrRegion,
-      quantity: location.quantity,
+    rank,
+    productCode,
+    displayCode,
+    displayLabel: pickString("displayLabel", "display_label") ?? (displayCode || null),
+    brand: pickString("brand", "manufacturer"),
+    seriesName: pickString("seriesName", "series", "series_name"),
+    seriesIconUrl: pickString("seriesIconUrl", "series_icon_url"),
+    diameterMm: pickNumber("diameterMm", "diameter", "diameter_mm"),
+    fluteCount: pickNumber("fluteCount", "flute", "flute_count"),
+    coating: pickString("coating", "search_coating"),
+    toolSubtype: pickString("toolSubtype", "tool_subtype", "search_subtype"),
+    toolMaterial: pickString("toolMaterial", "tool_material"),
+    shankDiameterMm: pickNumber("shankDiameterMm", "shankDiameter", "shank_diameter_mm"),
+    shankType: pickString("shankType", "shank_type"),
+    lengthOfCutMm: pickNumber("lengthOfCutMm", "lengthOfCut", "loc", "length_of_cut_mm"),
+    overallLengthMm: pickNumber("overallLengthMm", "overallLength", "oal", "overall_length_mm"),
+    helixAngleDeg: pickNumber("helixAngleDeg", "helixAngle", "helix_angle_deg"),
+    coolantHole: pickBoolean("coolantHole", "coolant_hole"),
+    ballRadiusMm: pickNumber("ballRadiusMm", "ballRadius", "ball_radius_mm"),
+    taperAngleDeg: pickNumber("taperAngleDeg", "taperAngle", "taper_angle_deg"),
+    pointAngleDeg: pickNumber("pointAngleDeg", "pointAngle", "point_angle_deg"),
+    threadPitchMm: pickNumber("threadPitchMm", "threadPitch", "thread_pitch_mm"),
+    description: pickString("description", "materialDescription", "material_description"),
+    featureText: pickString("featureText", "feature_text"),
+    materialTags: [...materialTags],
+    score: pickNumber("score") ?? 0,
+    scoreBreakdown: (record.scoreBreakdown as RecommendationCandidateDto["scoreBreakdown"] | null | undefined) ?? null,
+    matchStatus,
+    stockStatus: pickString("stockStatus", "stock_status") ?? "unknown",
+    totalStock: pickNumber("totalStock", "total_stock"),
+    inventorySnapshotDate: pickString("inventorySnapshotDate", "inventory_snapshot_date"),
+    inventoryLocations: inventoryLocations.map(location => ({
+      warehouseOrRegion:
+        (location as { warehouseOrRegion?: string | null; warehouse_or_region?: string | null }).warehouseOrRegion
+        ?? (location as { warehouseOrRegion?: string | null; warehouse_or_region?: string | null }).warehouse_or_region
+        ?? "",
+      quantity:
+        (location as { quantity?: number | null }).quantity
+        ?? 0,
     })),
-    hasEvidence: candidate.hasEvidence,
-    bestCondition: toBestConditionDto(candidate.bestCondition),
+    hasEvidence: pickBoolean("hasEvidence", "has_evidence") ?? false,
+    bestCondition: toBestConditionDto((record.bestCondition as CandidateSnapshot["bestCondition"] | null | undefined) ?? null),
   }
 }
 
@@ -267,6 +313,7 @@ interface BuildRecommendationResponseDtoParams {
   altFactChecked?: Array<Record<string, unknown>>
   meta?: RecommendationResponseMetaDto
   recommendationMeta?: RecommendationResponseDto["recommendationMeta"]
+  reasoningVisibility?: RecommendationResponseDto["reasoningVisibility"]
   thinkingProcess?: string | null
   thinkingDeep?: string | null
   error?: string
@@ -346,6 +393,20 @@ export function buildRecommendationResponseDto(
 ): RecommendationResponseDto {
   const sessionState = params.sessionState ?? null
   const capabilities = getRecommendationCapabilities(sessionState)
+  const synthesizedThinkingProcess = synthesizeThinkingFromSessionFilters(sessionState)
+  const resolvedThinkingProcess =
+    params.thinkingProcess
+    ?? sessionState?.thinkingProcess
+    ?? synthesizedThinkingProcess
+    ?? null
+  const resolvedThinkingDeep =
+    params.thinkingDeep
+    ?? sessionState?.thinkingDeep
+    ?? null
+  const reasoningVisibility =
+    params.reasoningVisibility
+    ?? (resolvedThinkingDeep ? "full" : resolvedThinkingProcess ? "simple" : "hidden")
+  const hideReasoning = reasoningVisibility === "hidden"
   const stableCandidateSnapshot =
     params.purpose === "recommendation"
       ? (params.candidateSnapshot ?? sessionState?.lastRecommendationArtifact ?? null)
@@ -388,20 +449,20 @@ export function buildRecommendationResponseDto(
     capabilities,
     meta: params.meta,
     recommendationMeta: params.recommendationMeta,
+    reasoningVisibility,
     // Three-tier fallback:
     //   1. explicit param (rarely set)
     //   2. runtime stashed it on session (SQL agent natural-language reasoning)
     //   3. synthesize from the session's appliedFilters (covers det-SCR / KG /
     //      v2-bridge / orchestrator paths that don't emit prose reasoning)
     thinkingProcess:
-      params.thinkingProcess
-      ?? sessionState?.thinkingProcess
-      ?? synthesizeThinkingFromSessionFilters(sessionState)
-      ?? null,
+      hideReasoning
+        ? null
+        : resolvedThinkingProcess,
     thinkingDeep:
-      params.thinkingDeep
-      ?? sessionState?.thinkingDeep
-      ?? null,
+      hideReasoning
+        ? null
+        : resolvedThinkingDeep,
     error: params.error,
     detail: params.detail,
   }

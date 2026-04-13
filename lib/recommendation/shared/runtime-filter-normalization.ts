@@ -13,7 +13,9 @@ export function normalizeRuntimeAppliedFilter(
 
   const rawValue = filter.rawValue ?? filter.value
   const opOverride =
-    filter.op === "neq" || filter.op === "exclude"
+    filter.field === "workPieceName" && filter.op !== "neq" && filter.op !== "exclude"
+      ? "eq"
+      : filter.op === "neq" || filter.op === "exclude"
       ? "neq"
       : filter.op === "gte" || filter.op === "lte"
         ? filter.op

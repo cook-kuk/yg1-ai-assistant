@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk"
+﻿import Anthropic from "@anthropic-ai/sdk"
 
 import { createAnthropicMessageWithLogging } from "@/lib/chat/infrastructure/llm/chat-llm"
 import { resolveMaterialTag } from "@/lib/chat/domain/material-resolver"
@@ -11,6 +11,10 @@ import {
 import type { AppliedFilter, CanonicalProduct, RecommendationInput } from "@/lib/chat/domain/types"
 import { resolveYG1Query, resolveYG1QuerySemantic, buildNotFoundResponse } from "@/lib/knowledge/knowledge-router"
 import { getProvider } from "@/lib/llm/provider"
+import {
+  canonicalizeCountryValue,
+  canonicalizeToolSubtypeValue,
+} from "@/lib/recommendation/shared/canonical-values"
 
 export const CHAT_TOOLS: Anthropic.Tool[] = [
   {
@@ -395,22 +399,13 @@ function resolveToolType(raw: string | undefined): string | null {
 }
 function resolveToolSubtype(raw: string | undefined): string | null {
   if (!raw) return null
-  return TOOL_SUBTYPE_CANON[raw.toLowerCase()] ?? null
+  return canonicalizeToolSubtypeValue(raw)
 }
 
-const COUNTRY_NAME_TO_ISO: Record<string, string> = {
-  국내: "KOR", 국내제품: "KOR", 국산: "KOR", 한국: "KOR", 대한민국: "KOR", korea: "KOR", kor: "KOR", kr: "KOR",
-  미국: "USA", usa: "USA", us: "USA", america: "USA",
-  일본: "JPN", japan: "JPN", jp: "JPN",
-  중국: "CHN", china: "CHN", cn: "CHN",
-  독일: "DEU", germany: "DEU", de: "DEU",
-}
 function resolveCountry(raw: string | undefined): string | null {
   if (!raw) return null
-  const trimmed = String(raw).trim()
-  if (!trimmed) return null
-  const lower = trimmed.toLowerCase()
-  return COUNTRY_NAME_TO_ISO[lower] ?? COUNTRY_NAME_TO_ISO[trimmed] ?? trimmed.toUpperCase()
+  const canonical = canonicalizeCountryValue(raw)
+  return typeof canonical === "string" ? canonical : null
 }
 
 function buildProductSearchOptions(params: {

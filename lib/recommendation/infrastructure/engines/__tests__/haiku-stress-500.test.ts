@@ -871,7 +871,7 @@ describe("Part 4: Korean NL adversarial (100 cases)", () => {
 
     it('"스퀘어" pending (Korean for Square)', () => {
       const r = resolvePendingQuestionReply(subtypeQuestionState, "스퀘어")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"TiAIN" (capital I vs l typo) → coating revision graceful', async () => {
@@ -1010,42 +1010,42 @@ describe("Part 4: Korean NL adversarial (100 cases)", () => {
 
     it('"ㄴㄴ Ball로" during pending → might resolve Ball', () => {
       const r = resolvePendingQuestionReply(subtypeQuestionState, "ㄴㄴ Ball로")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"ㅎㅎ Square로 할게" during pending → resolved', () => {
       const r = resolvePendingQuestionReply(subtypeQuestionState, "ㅎㅎ Square로 할게")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"ㄱㄱ 4날" during pending → might resolve 4날', () => {
       const r = resolvePendingQuestionReply(fluteQuestionState, "ㄱㄱ 4날")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"ㅇㅇ TiAlN" during pending → might resolve TiAlN', () => {
       const r = resolvePendingQuestionReply(coatingQuestionState, "ㅇㅇ TiAlN")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"ㅋㅋ 패스" during pending → skip', () => {
       const r = resolvePendingQuestionReply(subtypeQuestionState, "ㅋㅋ 패스")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"ㅎ 아무거나" during pending → skip', () => {
       const r = resolvePendingQuestionReply(subtypeQuestionState, "ㅎ 아무거나")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"굿 TiAlN으로" during pending → might resolve', () => {
       const r = resolvePendingQuestionReply(coatingQuestionState, "굿 TiAlN으로")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"넹 Ball요" during pending → might resolve Ball', () => {
       const r = resolvePendingQuestionReply(subtypeQuestionState, "넹 Ball요")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"ㄴㄴ" alone during pending → graceful', () => {
@@ -1152,12 +1152,12 @@ describe("Part 4: Korean NL adversarial (100 cases)", () => {
   describe("very short messages", () => {
     it('"4" during fluteCount pending → resolved', () => {
       const r = resolvePendingQuestionReply(fluteQuestionState, "4")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"2" during fluteCount pending → resolved', () => {
       const r = resolvePendingQuestionReply(fluteQuestionState, "2")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"6" during diameterMm pending → resolved', () => {
@@ -1167,7 +1167,7 @@ describe("Part 4: Korean NL adversarial (100 cases)", () => {
 
     it('"볼" during toolSubtype pending → graceful', () => {
       const r = resolvePendingQuestionReply(subtypeQuestionState, "볼")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"ㅎ" during pending → graceful', () => {
@@ -1182,12 +1182,12 @@ describe("Part 4: Korean NL adversarial (100 cases)", () => {
 
     it('"1" during subtype pending → might match index 1', () => {
       const r = resolvePendingQuestionReply(subtypeQuestionState, "1")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"3" during coating pending → might match index 3', () => {
       const r = resolvePendingQuestionReply(coatingQuestionState, "3")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"아" during pending → graceful', () => {
@@ -1230,37 +1230,37 @@ describe("Part 4: Korean NL adversarial (100 cases)", () => {
   describe("emoji mixed messages", () => {
     it('"Square 추천해줘 👍" during pending → resolved', () => {
       const r = resolvePendingQuestionReply(subtypeQuestionState, "Square 추천해줘 👍")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"4날로 ✅" during pending → resolved', () => {
       const r = resolvePendingQuestionReply(fluteQuestionState, "4날로 ✅")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"TiAlN 👌" during coating pending → resolved', () => {
       const r = resolvePendingQuestionReply(coatingQuestionState, "TiAlN 👌")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"Ball로 해줘 😊" during pending → resolved', () => {
       const r = resolvePendingQuestionReply(subtypeQuestionState, "Ball로 해줘 😊")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"Radius ❤️" during pending → resolved', () => {
       const r = resolvePendingQuestionReply(subtypeQuestionState, "Radius ❤️")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"패스 😅" during pending → skip', () => {
       const r = resolvePendingQuestionReply(subtypeQuestionState, "패스 😅")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"아무거나 🙏" during pending → skip', () => {
       const r = resolvePendingQuestionReply(subtypeQuestionState, "아무거나 🙏")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"TiAlN 말고 DLC로 변경 🔧" → revision', async () => {
@@ -1309,27 +1309,27 @@ describe("Part 4: Korean NL adversarial (100 cases)", () => {
 
     it('"상관없음 😌" during pending → skip', () => {
       const r = resolvePendingQuestionReply(subtypeQuestionState, "상관없음 😌")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"스킵 🤷" during pending → skip', () => {
       const r = resolvePendingQuestionReply(fluteQuestionState, "스킵 🤷")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"넘어가 🏃" during pending → skip', () => {
       const r = resolvePendingQuestionReply(coatingQuestionState, "넘어가 🏃")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"6mm 📐" during diameter pending → resolved', () => {
       const r = resolvePendingQuestionReply(diameterQuestionState, "6mm 📐")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
 
     it('"AlCrN 👍👍" during coating pending → resolved', () => {
       const r = resolvePendingQuestionReply(coatingQuestionState, "AlCrN 👍👍")
-      expect(["resolved", "unresolved"].includes(r.kind)).toBe(true)
+      expect(["resolved", "unresolved", "defer_holistic"].includes(r.kind)).toBe(true)
     })
   })
 })
@@ -1464,8 +1464,8 @@ describe("Part 5: edge case combinations (100 cases)", () => {
       ["6mm", "resolved_or_unresolved"],
     ])('"%s" with stale lastAskedField → graceful', (msg, _expected) => {
       const r = resolvePendingQuestionReply(staleState, msg)
-      // With no displayed options, should still attempt resolution
-      expect(["resolved", "unresolved", "none"].includes(r.kind)).toBe(true)
+      // With no displayed options, stricter pending routing may defer to holistic interpretation.
+      expect(["resolved", "unresolved", "none", "defer_holistic"].includes(r.kind)).toBe(true)
     })
   })
 

@@ -1598,6 +1598,7 @@ export function resolvePendingQuestionReply(
     console.log(`[pending-selection] Keeping direct parse unresolved for "${raw.slice(0, 40)}"`)
     return { kind: "unresolved", pendingField, raw }
   }
+
   if (resolvedValue === "skip" || isSkipSelectionValue(selectedOption?.label) || isSkipSelectionValue(raw)) {
     const filter: AppliedFilter = {
       field: resolvedField,

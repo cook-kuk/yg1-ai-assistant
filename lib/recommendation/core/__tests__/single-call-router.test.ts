@@ -238,8 +238,15 @@ describe("routeSingleCall — canonicalization", () => {
   it("threads deterministic candidates into the LLM prompt instead of short-circuiting", async () => {
     const provider = {
       complete: vi.fn(async (systemPrompt: string) => {
+        expect(systemPrompt).toContain("## Turn Mode Hint")
+        expect(systemPrompt).toContain("candidateMode=new")
         expect(systemPrompt).toContain("## Deterministic Candidate Hints")
         expect(systemPrompt).toContain("fluteCount eq 4")
+        expect(systemPrompt).toContain("## Semantic Hints (deterministic, non-authoritative)")
+        expect(systemPrompt).toContain('"fieldCandidate":"fluteCount"')
+        expect(systemPrompt).toContain('"operatorCue":"eq"')
+        expect(systemPrompt).toContain('"numericCue":[4]')
+        expect(systemPrompt).toContain('"domainCue":"geometry"')
         expect(systemPrompt).toMatch(/Literal cue words are advisory only|Do not copy them blindly/)
         return JSON.stringify({
           actions: [{ type: "apply_filter", field: "fluteCount", value: 4, op: "eq" }],
@@ -254,6 +261,40 @@ describe("routeSingleCall — canonicalization", () => {
     expect(result.actions).toEqual([
       expect.objectContaining({ type: "apply_filter", field: "fluteCount", value: 4, op: "eq" }),
     ])
+  })
+
+  it("classifies repair mode before routing correction turns", async () => {
+    const provider = {
+      complete: vi.fn(async (systemPrompt: string) => {
+        expect(systemPrompt).toContain("candidateMode=repair")
+        return JSON.stringify({
+          actions: [],
+          answer: "",
+          reasoning: "repair prompt only",
+        })
+      }),
+    } as any
+
+    await routeSingleCall(
+      "\uADF8\uAC8C \uC544\uB2C8\uACE0",
+      {
+        sessionId: "repair-mode",
+        candidateCount: 5,
+        appliedFilters: [],
+        narrowingHistory: [],
+        stageHistory: [],
+        resolutionStatus: "narrowing",
+        resolvedInput: { machiningCategory: "Milling" },
+        turnCount: 2,
+        displayedCandidates: [],
+        displayedChips: [],
+        displayedOptions: [],
+        currentMode: "recommendation",
+      } as any,
+      provider,
+    )
+
+    expect(provider.complete).toHaveBeenCalledTimes(1)
   })
 
   it("canonicalizes Korean toolSubtype 스퀘어 → Square", async () => {

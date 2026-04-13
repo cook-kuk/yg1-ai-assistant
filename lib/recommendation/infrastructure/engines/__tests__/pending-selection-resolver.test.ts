@@ -250,6 +250,150 @@ describe("pending selection resolver", () => {
     expect(resolution.kind === "defer_holistic" ? resolution.reasons.length : 0).toBeGreaterThan(0)
   })
 
+  it("defers the exact mixed-slot recommendation request instead of committing the pending field", () => {
+    const state = makeState({
+      lastAskedField: "fluteCount",
+      displayedOptions: [
+        { index: 1, label: "2날", field: "fluteCount", value: "2날", count: 10 },
+        { index: 2, label: "4날", field: "fluteCount", value: "4날", count: 12 },
+        { index: 3, label: "상관없음", field: "fluteCount", value: "skip", count: 0 },
+      ],
+    })
+
+    const resolution = resolvePendingQuestionReply(state, "4날 TiAlN Square 추천해줘")
+
+    expect(resolution).toMatchObject({
+      kind: "defer_holistic",
+      pendingField: "fluteCount",
+      raw: "4날 TiAlN Square 추천해줘",
+    })
+  })
+
+  it("defers the exact local-negation alternative phrase instead of flipping the operator on the pending field", () => {
+    const state = makeState({
+      lastAskedField: "fluteCount",
+      displayedOptions: [
+        { index: 1, label: "2날", field: "fluteCount", value: "2날", count: 10 },
+        { index: 2, label: "4날", field: "fluteCount", value: "4날", count: 12 },
+        { index: 3, label: "상관없음", field: "fluteCount", value: "skip", count: 0 },
+      ],
+    })
+
+    const resolution = resolvePendingQuestionReply(state, "날수는 2개여야하고 square 아니고 다른거")
+
+    expect(resolution).toMatchObject({
+      kind: "defer_holistic",
+      pendingField: "fluteCount",
+      raw: "날수는 2개여야하고 square 아니고 다른거",
+    })
+  })
+
+  it("defers a generic coating preference instead of collapsing it into a specific enum", () => {
+    const state = makeState({
+      lastAskedField: "coating",
+      displayedOptions: [
+        { index: 1, label: "Y-Coating", field: "coating", value: "Y-Coating", count: 8 },
+        { index: 2, label: "TiAlN", field: "coating", value: "TiAlN", count: 6 },
+        { index: 3, label: "AlCrN", field: "coating", value: "AlCrN", count: 4 },
+      ],
+    })
+
+    const resolution = resolvePendingQuestionReply(state, "금속 코팅으로 부탁해요")
+
+    expect(resolution).toMatchObject({
+      kind: "defer_holistic",
+      pendingField: "coating",
+      raw: "금속 코팅으로 부탁해요",
+    })
+    expect(resolution.kind === "defer_holistic" ? resolution.reasons : []).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("generic_specific_risk"),
+      ]),
+    )
+  })
+
+  it("defers the exact generic-to-specific correction question instead of routing it as a plain side question", () => {
+    const state = makeState({
+      lastAskedField: "coating",
+      displayedOptions: [
+        { index: 1, label: "Y-Coating", field: "coating", value: "Y-Coating", count: 8 },
+        { index: 2, label: "TiAlN", field: "coating", value: "TiAlN", count: 6 },
+      ],
+    })
+
+    const resolution = resolvePendingQuestionReply(state, "금속 코팅이 어떻게 Y-Coating이 되죠")
+
+    expect(resolution).toMatchObject({
+      kind: "defer_holistic",
+      pendingField: "coating",
+      raw: "금속 코팅이 어떻게 Y-Coating이 되죠",
+    })
+    expect(resolution.kind === "defer_holistic" ? resolution.reasons : []).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("generic_specific_risk"),
+      ]),
+    )
+  })
+
+  it("defers the exact comparative alternative question into full-sentence interpretation", () => {
+    const state = makeState({
+      lastAskedField: "workPieceName",
+      displayedOptions: [
+        { index: 1, label: "Titanium", field: "workPieceName", value: "Titanium", count: 4 },
+        { index: 2, label: "Stainless Steels", field: "workPieceName", value: "Stainless Steels", count: 8 },
+      ],
+    })
+
+    const resolution = resolvePendingQuestionReply(state, "티타늄 말고 뭐가 좋아?")
+
+    expect(resolution).toMatchObject({
+      kind: "defer_holistic",
+      pendingField: "workPieceName",
+      raw: "티타늄 말고 뭐가 좋아?",
+    })
+  })
+
+  it("defers the exact brand exclusion phrase into holistic interpretation", () => {
+    const state = makeState({
+      lastAskedField: "brand",
+      displayedOptions: [
+        { index: 1, label: "4G MILL", field: "brand", value: "4G MILL", count: 4 },
+        { index: 2, label: "ALU-POWER", field: "brand", value: "ALU-POWER", count: 6 },
+      ],
+    })
+
+    const resolution = resolvePendingQuestionReply(state, "4G MILL 아닌 거로")
+
+    expect(resolution).toMatchObject({
+      kind: "defer_holistic",
+      pendingField: "brand",
+      raw: "4G MILL 아닌 거로",
+    })
+  })
+
+  it("defers repair-only frustration turns so repair mode can reinterpret the full sentence", () => {
+    const state = makeState({
+      lastAskedField: "toolSubtype",
+      displayedOptions: [
+        { index: 1, label: "Square", field: "toolSubtype", value: "Square", count: 10 },
+        { index: 2, label: "Ball", field: "toolSubtype", value: "Ball", count: 12 },
+      ],
+    })
+
+    const resolution = resolvePendingQuestionReply(state, "진짜 너 말 안듣는다")
+
+    expect(resolution).toMatchObject({
+      kind: "defer_holistic",
+      pendingField: "toolSubtype",
+      raw: "진짜 너 말 안듣는다",
+    })
+    expect(resolution.kind === "defer_holistic" ? resolution.reasons : []).toEqual(
+      expect.arrayContaining([
+        "repair_signal",
+      ]),
+    )
+  })
+
   it("still early-resolves a pure pending-selection reply", () => {
     const state = makeState({
       lastAskedField: "fluteCount",

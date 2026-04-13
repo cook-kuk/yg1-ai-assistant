@@ -4,7 +4,11 @@ import type {
   RecommendationResult,
   RequestPreparationResult,
 } from "@/lib/frontend/recommendation/recommendation-types"
-import type { RecommendationCandidateDto, StructuredChipDto } from "@/lib/contracts/recommendation"
+import type {
+  RecommendationCandidateDto,
+  RecommendationReasoningVisibility,
+  StructuredChipDto,
+} from "@/lib/contracts/recommendation"
 
 export type TurnFeedback = "good" | "bad" | "neutral" | null
 export type LogPayload = unknown
@@ -36,6 +40,7 @@ export interface ChatMsg {
   thinkingProcess?: string | null
   /** Full LLM chain-of-thought (separate channel from staged heartbeat). */
   thinkingDeep?: string | null
+  reasoningVisibility?: RecommendationReasoningVisibility | null
   /**
    * Inline product-card list rendered directly in the chat (not in the side
    * panel). Populated when the user clicks the "📋 지금 바로 제품 보기" CTA so

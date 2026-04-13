@@ -1,17 +1,4 @@
-/**
- * Query Target Classifier — Separates answer topic from search scope constraints.
- *
- * RULE: Active filters are constraints, NOT the topic of the current question.
- *
- * Priority for topic selection:
- * 1. Latest user query target (explicit entities, comparison requests)
- * 2. Explicit entity mentions in latest user query
- * 3. Current visible UI context
- * 4. Active filters (ONLY as scope constraint)
- * 5. Pending field / generic fallback
- *
- * Deterministic. No LLM calls.
- */
+import { findKnownEntityMentions } from "@/lib/recommendation/shared/entity-registry"
 
 export type QueryTargetType =
   | "series_comparison"
@@ -37,28 +24,41 @@ export interface QueryTarget {
   type: QueryTargetType
 }
 
-const SERIES_NAME_PATTERN = /\b(ALU[-\s]?CUT(?:\s+(?:POWER|HPC|for\s+Korean\s+Market))?|TANK[-\s]?POWER|X[-\s]?POWER|I[-\s]?POWER|V[-\s]?POWER|ALU[-\s]?MILL|ALU[-\s]?POWER(?:\s+HPC)?|INOX[-\s]?POWER|X\d{4,}|E\d[A-Z]\d+|GAA\d+|GEE\d+|JAH\d+|ALM\d+|EI\d+|[A-Z]{2,5}\d{2,4}[A-Z]?|[A-Z]{1,4}\d[A-Z]{1,3}\d{2,4}[A-Z]?)\b/gi
-const BRAND_NAME_PATTERN = /\b(E[·∙ㆍ.]?\s*FORCE(?:\s+BLUE)?(?:\s+for\s+Korean\s+Market)?|4G\s*MILLS(?:\s*-\s*KOR)?|SUPER\s+ALLOY|X5070\s*S)\b/gi
 const PRODUCT_CODE_PATTERN = /\b(?:[A-Z]{2,5}\d{4,}[A-Z]*\d*|[A-Z]\d[A-Z]\d{4,}[A-Z]?)\b/g
-const COMPARISON_PATTERN = /차이|비교|vs|대비|어떤.*게.*낫|뭐가.*다른|뭐가.*좋|어떤.*게.*좋/i
-const SERIES_INFO_PATTERN = /시리즈|특징|장점|단점|용도|적합/i
-const COUNT_PATTERN = /몇\s*개|갯수|분포|몇\s*종/i
-const COMPANY_INFO_PATTERN = /영업소|공장|본사|대표|회장|사장|매출|주주|연혁|설립|창업|직원|채용|전화|연락|번호|카탈로그|인증|수상|연구소/i
+const COMPARISON_PATTERN = /차이|비교|vs|대비|어떤.*(게|것).*(좋|나아)|뭐가.*(더|더욱).*(좋|나아)/i
+const SERIES_INFO_PATTERN = /시리즈|특징|장점|용도|적합/i
+const COUNT_PATTERN = /몇\s*개|개수|분포|몇\s*종/i
+const COMPANY_INFO_PATTERN = /영업소|공장|본사|대표|회장|매출|주주|경영|설립|창업|직원|채용|전화|연락|번호|카탈로그|인증|수상|연구소/i
 const ENTITY_COMPARISON_PATTERN = /([A-Z0-9][A-Z0-9·∙ㆍ.\-\s]{1,40}?)\s*(?:vs\.?|VS\.?|와|과|이랑|랑|대비)\s*([A-Z0-9][A-Z0-9·∙ㆍ.\-\s]{1,40}?)(?=\s*(?:의|은|는|이|가|를|을|차이|비교|특징|설명|$))/giu
 
 const FIELD_KEYWORDS: Record<string, RegExp> = {
   coating: /코팅|DLC|TiAlN|AlCrN|AlTiN|무코팅|Bright\s*Finish/i,
-  fluteCount: /날\s*수|날수|플루트|flute|\d날/i,
+  fluteCount: /날\s*수|날수|플루트|flute|\d\s*날/i,
   toolSubtype: /형상|서브타입|Square|Ball|Radius|Taper|스퀘어|볼|라디우스/i,
   material: /소재|재질|피삭재|알루미늄|스테인리스|탄소강/i,
-  diameterMm: /직경|지름|diameter|파이|φ|Φ|ø/i,
+  diameterMm: /직경|지름|diameter|파이|mm/i,
   toolMaterial: /공구\s*소재|카바이드|초경|HSS|고속도강/i,
+}
+
+function dedupeEntities(values: string[]): string[] {
+  const seen = new Set<string>()
+  const deduped: string[] = []
+
+  for (const value of values) {
+    const trimmed = value.trim()
+    const key = trimmed.toUpperCase().replace(/[\s\-·∙ㆍ.]+/g, "")
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    deduped.push(trimmed)
+  }
+
+  return deduped
 }
 
 function resolveComparisonType(
   productMatches: string[],
   hasBrandEntities: boolean,
-  mentionsBrand: boolean
+  mentionsBrand: boolean,
 ): QueryTargetType {
   if (productMatches.length >= 2) return "product_comparison"
   return hasBrandEntities || mentionsBrand ? "brand_comparison" : "series_comparison"
@@ -67,21 +67,27 @@ function resolveComparisonType(
 export function classifyQueryTarget(
   userMessage: string,
   activeFilterField?: string | null,
-  pendingField?: string | null
+  pendingField?: string | null,
 ): QueryTarget {
   const clean = userMessage.trim()
-  const lower = clean.toLowerCase()
 
-  const seriesMatches = Array.from(clean.matchAll(SERIES_NAME_PATTERN)).map(match => match[0])
-  const brandMatches = Array.from(clean.matchAll(BRAND_NAME_PATTERN)).map(match => match[0])
+  const seriesMatches = findKnownEntityMentions("series", clean)
+  const brandMatches = findKnownEntityMentions("brand", clean).filter(brand => !seriesMatches.includes(brand))
   const productMatches = Array.from(clean.matchAll(PRODUCT_CODE_PATTERN)).map(match => match[0])
-  const comparisonEntityMatches = Array.from(clean.matchAll(ENTITY_COMPARISON_PATTERN)).flatMap(match => [match[1], match[2]])
-  const entities = [...new Set([...seriesMatches, ...brandMatches, ...productMatches, ...comparisonEntityMatches].map(entity => entity.trim()).filter(Boolean))]
-  const hasBrandEntities = brandMatches.length > 0 && seriesMatches.length === 0 && productMatches.length === 0
-  const mentionsBrand = /브랜드|brand/i.test(clean)
+  const comparisonEntityMatches = Array.from(clean.matchAll(ENTITY_COMPARISON_PATTERN))
+    .flatMap(match => [match[1], match[2]])
+    .filter(Boolean)
+  const entities = dedupeEntities([
+    ...seriesMatches,
+    ...brandMatches,
+    ...productMatches,
+    ...comparisonEntityMatches,
+  ])
 
-  const isComparison = COMPARISON_PATTERN.test(lower)
-  if (isComparison && entities.length >= 2) {
+  const mentionsBrand = /브랜드|brand/i.test(clean)
+  const hasBrandEntities = mentionsBrand && brandMatches.length > 0 && seriesMatches.length === 0 && productMatches.length === 0
+
+  if (COMPARISON_PATTERN.test(clean) && entities.length >= 2) {
     const comparisonType = resolveComparisonType(productMatches, hasBrandEntities, mentionsBrand)
     return {
       type: comparisonType,
@@ -112,7 +118,7 @@ export function classifyQueryTarget(
     }
   }
 
-  const looseComparisonWithConjunction = clean.match(/(.+?)\s*[과와랑]\s*(.+?)\s*(차이|비교|다른|좋|별로|뭐)/i)
+  const looseComparisonWithConjunction = clean.match(/(.+?)\s*(?:와|과|이랑|랑)\s*(.+?)\s*(차이|비교|다른|비교해|뭐)/i)
   if (looseComparisonWithConjunction) {
     const entity1 = looseComparisonWithConjunction[1].trim()
     const entity2 = looseComparisonWithConjunction[2].trim()
@@ -130,15 +136,16 @@ export function classifyQueryTarget(
     }
   }
 
-  if (entities.length >= 1 && SERIES_INFO_PATTERN.test(lower)) {
+  if (entities.length >= 1 && SERIES_INFO_PATTERN.test(clean)) {
+    const type = hasBrandEntities ? "brand_info" : "series_info"
     return {
-      type: hasBrandEntities || mentionsBrand ? "brand_info" : "series_info",
+      type,
       entities,
       overridesActiveFilter: true,
-      answerTopic: hasBrandEntities || mentionsBrand ? `${entities[0]} 브랜드 정보` : `${entities[0]} 시리즈 정보`,
+      answerTopic: type === "brand_info" ? `${entities[0]} 브랜드 정보` : `${entities[0]} 시리즈 정보`,
       searchScopeOnly: true,
       requiresSearch: true,
-      searchScope: hasBrandEntities || mentionsBrand ? "brand_lookup" : "series_lookup",
+      searchScope: type === "brand_info" ? "brand_lookup" : "series_lookup",
     }
   }
 
@@ -154,7 +161,7 @@ export function classifyQueryTarget(
     }
   }
 
-  if (COMPANY_INFO_PATTERN.test(lower)) {
+  if (COMPANY_INFO_PATTERN.test(clean)) {
     return {
       type: "company_info",
       entities: [],
@@ -168,8 +175,19 @@ export function classifyQueryTarget(
 
   const activeField = activeFilterField ?? pendingField
   if (activeField) {
+    if (activeField === "diameterMm" && /^\s*\d+(?:\.\d+)?\s*mm(?:\s+\S+)?\s*$/i.test(clean)) {
+      return {
+        type: "unknown",
+        entities: [],
+        overridesActiveFilter: false,
+        answerTopic: "unknown",
+        searchScopeOnly: false,
+        requiresSearch: false,
+        searchScope: "none",
+      }
+    }
     const fieldPattern = FIELD_KEYWORDS[activeField]
-    if (fieldPattern && fieldPattern.test(lower)) {
+    if (fieldPattern && fieldPattern.test(clean)) {
       return {
         type: "active_field_query",
         entities: [],
@@ -183,18 +201,19 @@ export function classifyQueryTarget(
   }
 
   if (entities.length >= 1) {
+    const type = hasBrandEntities ? "brand_info" : "series_info"
     return {
-      type: hasBrandEntities || mentionsBrand ? "brand_info" : "series_info",
+      type,
       entities,
       overridesActiveFilter: true,
       answerTopic: `${entities[0]} 정보`,
       searchScopeOnly: true,
       requiresSearch: true,
-      searchScope: hasBrandEntities || mentionsBrand ? "brand_lookup" : "series_lookup",
+      searchScope: type === "brand_info" ? "brand_lookup" : "series_lookup",
     }
   }
 
-  if (COUNT_PATTERN.test(lower)) {
+  if (COUNT_PATTERN.test(clean)) {
     return {
       type: "field_count",
       entities: [],
@@ -206,7 +225,7 @@ export function classifyQueryTarget(
     }
   }
 
-  if (/설명|알려|뭐야|차이/.test(lower) && !activeField) {
+  if (/설명|알려|뭐야|차이/.test(clean) && !activeField) {
     return {
       type: "general_question",
       entities: [],
@@ -232,7 +251,7 @@ export function classifyQueryTarget(
 export function isWrongTopicAnswer(
   answerText: string,
   queryTarget: QueryTarget,
-  activeFilterField?: string | null
+  activeFilterField?: string | null,
 ): boolean {
   if (!queryTarget.overridesActiveFilter || !activeFilterField) return false
 
@@ -248,9 +267,5 @@ export function isWrongTopicAnswer(
     entityMentions += (answerText.match(entityPattern) ?? []).length
   }
 
-  if (fieldMentions >= 2 && entityMentions <= 1) {
-    return true
-  }
-
-  return false
+  return fieldMentions >= 2 && entityMentions <= 1
 }

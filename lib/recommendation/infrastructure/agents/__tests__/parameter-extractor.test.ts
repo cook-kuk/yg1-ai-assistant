@@ -39,4 +39,37 @@ describe("parameter-extractor", () => {
     expect(result.toolSubtype).toBe("Square")
     expect(result.rawValue).toBe("3날 square로 추천")
   })
+  it("extracts registry-backed multiword series names deterministically", async () => {
+    const provider = createMockProvider(`{
+      "seriesName": "",
+      "rawValue": ""
+    }`)
+
+    const result = await extractParameters("V7 PLUS로 추천", null, provider)
+
+    expect(result.seriesName).toBe("V7 PLUS")
+  })
+
+  it("canonicalizes material aliases through the shared registry", async () => {
+    const provider = createMockProvider(`{
+      "material": "",
+      "rawValue": ""
+    }`)
+
+    const result = await extractParameters("stainless square로 추천", null, provider)
+
+    expect(result.material).toBe("Stainless Steel")
+    expect(result.toolSubtype).toBe("Square")
+  })
+
+  it("canonicalizes coating aliases through the shared registry", async () => {
+    const provider = createMockProvider(`{
+      "coating": "",
+      "rawValue": ""
+    }`)
+
+    const result = await extractParameters("altin coating으로 추천", null, provider)
+
+    expect(result.coating).toBe("AlTiN")
+  })
 })

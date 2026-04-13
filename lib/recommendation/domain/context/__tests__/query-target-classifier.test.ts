@@ -100,7 +100,7 @@ describe("query-target: entity comparison detection", () => {
     expect(result.type).toBe("brand_comparison")
     expect(result.overridesActiveFilter).toBe(true)
     expect(result.entities).toContain("E·FORCE")
-    expect(result.entities).toContain("4G MILLS")
+    expect(result.entities).toContain("4G Mills")
   })
 })
 

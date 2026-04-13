@@ -18,9 +18,9 @@ type MeasurementFieldOption = {
 }
 
 const LENGTH_OPTIONS: MeasurementFieldOption[] = [
-  { field: "diameterMm", label: "직경", cue: /(?<![샹생][크])(?:직경|지름|외경|파이|dia(?:meter)?|φ|Φ|ø|Ø)/iu },
+  { field: "diameterMm", label: "직경", cue: /(?<![샹생][크])(?:직경|지름|외경|파이|dia(?:meter)?|φ|Φ|ø)/iu },
   { field: "overallLengthMm", label: "전장", cue: /(?:전장|전체\s*길이|overall\s*length|\boal\b)/iu },
-  { field: "lengthOfCutMm", label: "절삭 길이", cue: /(?:절삭\s*길이|날\s*길이|날장|유장|\bloc\b|\bcl\b|length\s*of\s*cut)/iu },
+  { field: "lengthOfCutMm", label: "절삭 길이", cue: /(?:절삭\s*길이|날\s*길이|날장|\bloc\b|\bcl\b|length\s*of\s*cut)/iu },
   { field: "shankDiameterMm", label: "생크 직경", cue: /(?:샹크|생크|싱크|쌩크|shank)(?:\s*(?:직경|지름|dia(?:meter)?))?/iu },
 ]
 

@@ -6,6 +6,15 @@
  * 순수 상수 + 순수 함수만 export. 외부 import 없음 (leaf module).
  */
 
+import {
+  TOOL_SUBTYPE_ALIAS_MAP as CANONICAL_TOOL_SUBTYPE_ALIAS_MAP,
+  COATING_ALIAS_MAP as CANONICAL_COATING_ALIAS_MAP,
+  COATING_DB_ALIAS_MAP as CANONICAL_COATING_DB_ALIAS_MAP,
+  canonicalizeToolSubtypeValue,
+  canonicalizeCoatingValue,
+  buildCanonicalDomainKnowledgeSnippet,
+} from "@/lib/recommendation/shared/canonical-values"
+
 // ═══════════════════════════════════════════════════════════════
 // 1. Material keywords
 // ═══════════════════════════════════════════════════════════════

@@ -29,4 +29,16 @@ describe("GET /api/countries", () => {
     expect(queryMock).toHaveBeenCalledWith(COUNTRIES_SQL)
     expect(body).toEqual({ countries: ["KOREA", "EUROPE"] })
   })
+
+  it("normalizes fallback and raw DB country aliases to canonical regions", async () => {
+    queryMock.mockResolvedValue({
+      rows: [{ country: "KR" }, { country: "ENG" }, { country: "KOREA" }],
+    })
+
+    const { GET } = await import("../../app/api/countries/route")
+    const response = await GET()
+    const body = await response.json()
+
+    expect(body).toEqual({ countries: ["KOREA", "EUROPE"] })
+  })
 })

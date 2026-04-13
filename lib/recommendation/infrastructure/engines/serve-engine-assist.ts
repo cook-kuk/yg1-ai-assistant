@@ -13,6 +13,7 @@ import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/doma
 import { resolveYG1Query } from "@/lib/knowledge/knowledge-router"
 import { resolveMaterialTag } from "@/lib/recommendation/domain/recommendation-domain"
 import { getIntakeDisplayValue } from "@/lib/recommendation/shared/intake-localization"
+import { findKnownEntityMentions } from "@/lib/recommendation/shared/entity-registry"
 import { getProvider, resolveModel } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import { YG1_COMPANY_SNIPPET } from "@/lib/knowledge/company-prompt-snippet"
 import {
@@ -43,8 +44,6 @@ import {
   PRODUCT_INFO_TRIGGER_PATTERN,
   BRAND_REFERENCE_TRIGGER_PATTERN,
   ENTITY_PROFILE_TRIGGER_PATTERN,
-  SERIES_NAME_ENTITY_PATTERN,
-  BRAND_NAME_ENTITY_PATTERN,
   ENTITY_COMPARISON_PATTERN,
   LATIN_ENTITY_PHRASE_PATTERN,
   CUTTING_KNOWLEDGE_PATTERNS,
@@ -214,8 +213,8 @@ function extractLookupCandidatesFromMessage(userMessage: string): string[] {
   const names: string[] = [...queryTarget.entities]
   names.push(...collectRegexMatches(DIRECT_PRODUCT_CODE_GLOBAL_PATTERN, userMessage))
   names.push(...collectRegexMatches(DIRECT_SERIES_CODE_GLOBAL_PATTERN, userMessage))
-  names.push(...(userMessage.match(SERIES_NAME_ENTITY_PATTERN) ?? []))
-  names.push(...(userMessage.match(BRAND_NAME_ENTITY_PATTERN) ?? []))
+  names.push(...findKnownEntityMentions("series", userMessage))
+  names.push(...findKnownEntityMentions("brand", userMessage))
   names.push(...collectRegexMatches(LATIN_ENTITY_PHRASE_PATTERN, userMessage).filter(isLikelyLookupPhrase))
 
   for (const match of userMessage.matchAll(ENTITY_COMPARISON_PATTERN)) {
@@ -1328,6 +1327,180 @@ export async function handleDirectCuttingConditionQuestion(
   }
 }
 
+type ContextualValueCount = {
+  value: string
+  count: number
+}
+
+function dedupeStrings(values: string[]): string[] {
+  return Array.from(new Set(values.filter(Boolean)))
+}
+
+function normalizeContextualLookupValue(value: string): string {
+  return value
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[\s()_\-]+/g, "")
+}
+
+function getContextualFieldLabel(field: string): string {
+  switch (field) {
+    case "coating":
+      return "\uCF54\uD305"
+    case "fluteCount":
+      return "\uB0A0 \uC218"
+    case "toolSubtype":
+      return "\uD615\uC0C1"
+    case "seriesName":
+      return "\uC2DC\uB9AC\uC988"
+    case "diameterMm":
+      return "\uC9C1\uACBD"
+    case "toolMaterial":
+      return "\uACF5\uAD6C \uC7AC\uC9C8"
+    default:
+      return field
+  }
+}
+
+function formatContextualFieldValue(field: string, value: string | number | null | undefined): string | null {
+  if (value == null) return null
+
+  if (field === "fluteCount") {
+    const digits = String(value).match(/\d+/)?.[0]
+    return digits ? `${digits}\uB0A0` : null
+  }
+
+  if (field === "diameterMm") {
+    const numeric = String(value).match(/[\d.]+/)?.[0]
+    return numeric ? `${numeric}mm` : null
+  }
+
+  const text = String(value).trim()
+  return text.length > 0 ? text : null
+}
+
+function getContextualCandidateFieldValue(candidate: ScoredProduct, field: string): string | number | null {
+  switch (field) {
+    case "coating":
+      return candidate.product.coating ?? null
+    case "fluteCount":
+      return candidate.product.fluteCount ?? null
+    case "toolSubtype":
+      return candidate.product.toolSubtype ?? null
+    case "seriesName":
+      return candidate.product.seriesName ?? null
+    case "diameterMm":
+      return candidate.product.diameterMm ?? null
+    case "toolMaterial":
+      return candidate.product.toolMaterial ?? null
+    default:
+      return null
+  }
+}
+
+function buildContextualValueCounts(
+  field: string,
+  candidates: ScoredProduct[],
+  prevState: ExplorationSessionState,
+): ContextualValueCount[] {
+  const counts = new Map<string, number>()
+
+  if (candidates.length > 0) {
+    for (const candidate of candidates) {
+      const formatted = formatContextualFieldValue(field, getContextualCandidateFieldValue(candidate, field))
+      if (!formatted) continue
+      counts.set(formatted, (counts.get(formatted) ?? 0) + 1)
+    }
+  }
+
+  if (counts.size === 0) {
+    for (const option of prevState.displayedOptions ?? []) {
+      if (option.field !== field) continue
+      const formatted = formatContextualFieldValue(field, option.value)
+      if (!formatted) continue
+      counts.set(formatted, option.count ?? 0)
+    }
+  }
+
+  return [...counts.entries()]
+    .map(([value, count]) => ({ value, count }))
+    .sort((left, right) => right.count - left.count || left.value.localeCompare(right.value))
+}
+
+function buildContextualCountQueryReply(
+  userMessage: string,
+  candidates: ScoredProduct[],
+  prevState: ExplorationSessionState,
+): string | null {
+  const pendingField = prevState.lastAskedField ?? null
+  const activeField = prevState.appliedFilters?.find(filter => filter.op !== "skip")?.field ?? null
+  const queryTarget = classifyQueryTarget(userMessage, activeField, pendingField)
+  const hasCountCue = /몇\s*개|개수|갯수|분포|몇\s*종|얼마/i.test(userMessage)
+  if (queryTarget.type !== "field_count" && !hasCountCue) return null
+
+  const requestedField = detectRequestedProductField(userMessage)?.value ?? null
+  const fieldOrder = dedupeStrings([
+    pendingField ?? "",
+    requestedField ?? "",
+    ...(prevState.displayedOptions ?? [])
+      .map(option => option.field)
+      .filter(field => field && field !== "_action"),
+    "toolSubtype",
+    "coating",
+    "fluteCount",
+    "seriesName",
+    "diameterMm",
+    "toolMaterial",
+  ])
+
+  const normalizedMessage = normalizeContextualLookupValue(userMessage)
+  let matchedField: string | null = null
+  let matchedValues: string[] = []
+
+  for (const field of fieldOrder) {
+    const counts = buildContextualValueCounts(field, candidates, prevState)
+    if (counts.length === 0) continue
+
+    const hits = counts
+      .filter(entry => normalizedMessage.includes(normalizeContextualLookupValue(entry.value)))
+      .map(entry => entry.value)
+
+    if (hits.length > 0) {
+      matchedField = field
+      matchedValues = dedupeStrings(hits)
+      break
+    }
+
+    if (!matchedField && (pendingField === field || requestedField === field)) {
+      matchedField = field
+    }
+  }
+
+  if (!matchedField) return null
+
+  const counts = buildContextualValueCounts(matchedField, candidates, prevState)
+  if (counts.length === 0) return null
+
+  const totalCount = candidates.length > 0
+    ? candidates.length
+    : Math.max(prevState.candidateCount ?? 0, counts.reduce((sum, entry) => sum + entry.count, 0))
+  const fieldLabel = getContextualFieldLabel(matchedField)
+
+  if (matchedValues.length > 0) {
+    const parts = matchedValues.map(value => {
+      const count = counts.find(entry => entry.value === value)?.count ?? 0
+      return `${value} ${count}\uAC1C`
+    })
+    return `\uD604\uC7AC \uD6C4\uBCF4 ${totalCount}\uAC1C \uAE30\uC900 ${fieldLabel}\uC740 ${parts.join(", ")}\uC785\uB2C8\uB2E4.`
+  }
+
+  const summary = counts
+    .slice(0, 5)
+    .map(entry => `${entry.value} ${entry.count}\uAC1C`)
+    .join(", ")
+  return `\uD604\uC7AC \uD6C4\uBCF4 ${totalCount}\uAC1C \uAE30\uC900 ${fieldLabel} \uBD84\uD3EC\uB294 ${summary}\uC785\uB2C8\uB2E4.`
+}
+
 export async function handleContextualNarrowingQuestion(
   provider: ReturnType<typeof getProvider>,
   userMessage: string,
@@ -1378,6 +1551,9 @@ export async function handleContextualNarrowingQuestion(
   const isBrandSeriesQuery = /브랜드|시리즈|brand|series|CRX|ALU.?POWER|ALU.?CUT|Titanox|V7|4G.?MILL|DREAM|JET.?POWER|X5070|X.?POWER|SINE|ONLY.?ONE/i.test(userMessage)
 
   // ── Data-driven context ──
+  const contextualCountReply = buildContextualCountQueryReply(userMessage, candidates, prevState)
+  if (contextualCountReply) return contextualCountReply
+
   const fieldDataContext = isBrandSeriesQuery
     ? buildBrandSeriesContext(candidates)
     : buildFieldDataContext(lastField, candidates)

@@ -4,6 +4,8 @@
  * When a recommended series matches a pattern, the video link is shown in the product detail.
  */
 
+import { countryToPreferredLanguage } from "@/lib/recommendation/shared/canonical-values"
+
 export interface VideoEntry {
   title: string
   url: string
@@ -123,8 +125,7 @@ export const VIDEO_LIST: VideoEntry[] = [
  * KR → "ko", 그 외 → "en", 없으면 "ko"
  */
 export function countryToLanguage(country?: string | null): "ko" | "en" {
-  if (!country) return "ko"
-  return country.toUpperCase() === "KR" ? "ko" : "en"
+  return countryToPreferredLanguage(country)
 }
 
 export function findVideosForProduct(

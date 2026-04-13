@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import { buildRecommendationResponseDto } from "../recommendation-presenter"
-import type { ExplorationSessionState } from "@/lib/recommendation/domain/types"
+import { buildRecommendationResponseDto, toRecommendationCandidateDto } from "../recommendation-presenter"
+import type { CandidateSnapshot, ExplorationSessionState } from "@/lib/recommendation/domain/types"
 
 function makeCandidate(rank: number, displayCode: string) {
   return {
@@ -37,6 +37,42 @@ function makeCandidate(rank: number, displayCode: string) {
 }
 
 describe("buildRecommendationResponseDto", () => {
+  it("normalizes missing candidate arrays before building DTOs", () => {
+    const dto = toRecommendationCandidateDto({
+      ...makeCandidate(1, "SAFE-001"),
+      materialTags: undefined,
+      inventoryLocations: undefined,
+    } as unknown as CandidateSnapshot)
+
+    expect(dto.materialTags).toEqual([])
+    expect(dto.inventoryLocations).toEqual([])
+  })
+
+  it("maps displayed-product style candidates into response DTO shape", () => {
+    const dto = toRecommendationCandidateDto({
+      rank: 3,
+      code: "E5571000",
+      brand: "YG-1",
+      series: "X5070",
+      diameter: 10,
+      flute: 4,
+      coating: "TiAlN",
+      toolSubtype: "Ball",
+      materialTags: ["M"],
+      score: 91,
+      matchStatus: "approximate",
+    } as unknown as CandidateSnapshot)
+
+    expect(dto.rank).toBe(3)
+    expect(dto.productCode).toBe("E5571000")
+    expect(dto.displayCode).toBe("E5571000")
+    expect(dto.seriesName).toBe("X5070")
+    expect(dto.diameterMm).toBe(10)
+    expect(dto.fluteCount).toBe(4)
+    expect(dto.toolSubtype).toBe("Ball")
+    expect(dto.materialTags).toEqual(["M"])
+  })
+
   it("preserves lastRecommendationArtifact candidates for non-recommendation replies", () => {
     const preserved = [makeCandidate(1, "KEEP-001")]
     const questionSnapshot = [makeCandidate(1, "QUESTION-001")]
@@ -143,5 +179,37 @@ describe("buildRecommendationResponseDto", () => {
     expect(dto.thinkingProcess).toContain("코팅 'T-Coating'")
     expect(dto.thinkingProcess).toContain("코팅 T-Coating 제외")
     expect(dto.thinkingProcess).not.toContain("제외 제외")
+  })
+
+  it("hides reasoning when reasoningVisibility is hidden", () => {
+    const sessionState = {
+      sessionId: "s-hidden",
+      candidateCount: 10,
+      appliedFilters: [
+        { field: "fluteCount", op: "eq", value: "4", rawValue: "4", appliedAt: 1 },
+      ],
+      narrowingHistory: [],
+      stageHistory: [],
+      resolutionStatus: "resolved_approximate",
+      resolvedInput: { manufacturerScope: "yg1-only", locale: "ko" },
+      turnCount: 1,
+      displayedCandidates: [],
+      displayedChips: [],
+      displayedOptions: [],
+      thinkingProcess: "숨겨져야 하는 reasoning",
+      thinkingDeep: "숨겨져야 하는 deep reasoning",
+    } as ExplorationSessionState
+
+    const dto = buildRecommendationResponseDto({
+      text: "test",
+      purpose: "question",
+      isComplete: false,
+      sessionState,
+      reasoningVisibility: "hidden",
+    })
+
+    expect(dto.reasoningVisibility).toBe("hidden")
+    expect(dto.thinkingProcess).toBeNull()
+    expect(dto.thinkingDeep).toBeNull()
   })
 })

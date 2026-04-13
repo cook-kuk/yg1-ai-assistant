@@ -10,7 +10,7 @@ function makeSession(pendingField: string): ExplorationSessionState {
     narrowingHistory: [],
     resolvedInput: {},
     displayedCandidates: [],
-    displayedChips: ["Y-Coating", "AlTiN", "상관없음"],
+    displayedChips: ["Y-Coating", "AlTiN", "\uC0C1\uAD00\uC5C6\uC74C"],
     displayedOptions: [
       { index: 1, label: "Y-Coating", field: "coating", value: "Y-Coating", count: 8 },
       { index: 2, label: "AlTiN", field: "coating", value: "AlTiN", count: 4 },
@@ -21,13 +21,15 @@ function makeSession(pendingField: string): ExplorationSessionState {
 }
 
 describe("J06: pending-question det-SCR fallback", () => {
-  it("'Y 코팅으로 추천해줘' defers det-SCR candidate instead of committing coating=Y-Coating", () => {
+  it("defers a coating recommendation request instead of early-committing the deterministic candidate", () => {
     const session = makeSession("coating")
-    const r = resolvePendingQuestionReply(session, "Y 코팅으로 추천해줘")
-    expect(r.kind).toBe("unresolved")
-    if (r.kind === "unresolved") {
-      expect(r.pendingField).toBe("coating")
-      expect(r.raw).toBe("Y 코팅으로 추천해줘")
+    const message = "Y \uCF54\uD305\uC73C\uB85C \uCD94\uCC9C\uD574\uC918"
+    const reply = resolvePendingQuestionReply(session, message)
+
+    expect(["unresolved", "defer_holistic"]).toContain(reply.kind)
+    if (reply.kind === "unresolved" || reply.kind === "defer_holistic") {
+      expect(reply.pendingField).toBe("coating")
+      expect(reply.raw).toBe(message)
     }
   })
 })

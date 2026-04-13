@@ -19,6 +19,7 @@ type JsonRecord = Record<string, unknown>
 type SuccessCaseNotification = Parameters<typeof slackNotifySuccessCase>[0]
 type FailureCaseNotification = Parameters<typeof slackNotifyFailureCase>[0]
 type TurnFeedbackNotification = Parameters<typeof slackNotifyTurnFeedback>[0]
+const DEFAULT_MONGO_FEEDBACK_LOAD_TIMEOUT_MS = 3000
 
 type FeedbackPostResult =
   | { status: 200; body: { success: true; id: string; screenshotCount?: number } }
@@ -176,6 +177,31 @@ function getFailureFeedbackHistory(value: unknown): FailureCaseNotification["fee
 
 function sanitizeFeedbackIdPart(value: string): string {
   return value.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 120)
+}
+
+function getMongoFeedbackLoadTimeoutMs(): number {
+  const raw = process.env.MONGO_FEEDBACK_LOAD_TIMEOUT_MS
+  if (!raw) return DEFAULT_MONGO_FEEDBACK_LOAD_TIMEOUT_MS
+
+  const parsed = Number.parseInt(raw, 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_MONGO_FEEDBACK_LOAD_TIMEOUT_MS
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+
+  try {
+    return await Promise.race<T | null>([
+      promise,
+      new Promise<null>(resolve => {
+        timer = setTimeout(() => resolve(null), timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timer) {
+      clearTimeout(timer)
+    }
+  }
 }
 
 function buildTurnFeedbackId(body: JsonRecord): string {
@@ -481,10 +507,17 @@ export class FeedbackService {
   }
 
   async loadAll(): Promise<FeedbackListResponseDto> {
-    const mongoData = await loadAllFeedbackDataFromMongo().catch(error => {
-      console.error("[feedback] Failed to load feedback from MongoDB, falling back to JSON:", error)
-      return null
-    })
+    const mongoData = await withTimeout(
+      loadAllFeedbackDataFromMongo().catch(error => {
+        console.error("[feedback] Failed to load feedback from MongoDB, falling back to JSON:", error)
+        return null
+      }),
+      getMongoFeedbackLoadTimeoutMs()
+    )
+
+    if (mongoData == null) {
+      console.warn("[feedback] MongoDB feedback load timed out or returned no data, falling back to JSON")
+    }
 
     const { generalEntries, feedbackEntries } = mongoData ?? loadAllFeedbackData()
 

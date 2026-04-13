@@ -8,13 +8,15 @@ import {
   SKIP_TOKENS as SHARED_SKIP_TOKENS,
   COATING_KO_ALIASES as SHARED_COATING_KO_ALIASES,
   COATING_CHEMICAL_DB_ALIASES,
-  canonicalizeCoating as sharedCanonicalizeCoating,
-  canonicalizeToolSubtype as sharedCanonicalizeToolSubtype,
   stripKoreanParticles,
   inferIsoGroupsFromText,
 } from "@/lib/recommendation/shared/patterns"
 import { getDbSchemaSync } from "@/lib/recommendation/core/sql-agent-schema-cache"
 import { createFilterFieldFactories } from "@/lib/recommendation/shared/filter-field-factories"
+import {
+  canonicalizeCountryValue,
+} from "@/lib/recommendation/shared/canonical-values"
+import { canonicalizeKnownEntityValue } from "@/lib/recommendation/shared/entity-registry"
 
 type FilterPrimitive = string | number | boolean
 type FilterValueKind = "string" | "number" | "boolean"
@@ -42,53 +44,56 @@ interface FilterFieldDefinition {
 }
 
 const SKIP_TOKENS = SHARED_SKIP_TOKENS
-const MULTI_VALUE_SEPARATOR_PATTERN = /\s*(?:,|\/|\||또는|아니면| and | or |(?<=[0-9A-Za-z가-힣])(?:이나|과|와)(?=\s*[0-9A-Za-z가-힣]))\s*/iu
+const MULTI_VALUE_SEPARATOR_PATTERN = new RegExp(
+  String.raw`\s*(?:,|\/|\||\uB610\uB294|\uC544\uB2C8\uBA74|\band\b|\bor\b|(?<=[0-9A-Za-z\uAC00-\uD7A3])(?:\uC774\uB098|\uACFC|\uC640)(?=\s*[0-9A-Za-z\uAC00-\uD7A3]))\s*`,
+  'iu',
+)
 
 function unwrapRecord(record: FilterRecord): Record<string, unknown> {
-  if (record && typeof record === "object" && "product" in record && record.product && typeof record.product === "object") {
+  if (record && typeof record === 'object' && 'product' in record && record.product && typeof record.product === 'object') {
     return record.product as Record<string, unknown>
   }
   return record as Record<string, unknown>
 }
 
 function normalizeText(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, " ")
+  return value.trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
 function normalizeCompactText(value: string): string {
-  return normalizeText(value).replace(/\s+/g, "")
+  return normalizeText(value).replace(/\s+/g, '')
 }
 
 function normalizeIdentifierText(value: string): string {
   return String(value)
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9가-힣]+/g, "")
+    .replace(/[^0-9a-z\uAC00-\uD7A3]+/g, '')
 }
 
 function tokenizeIdentifierWords(value: string): string[] {
   return String(value)
     .trim()
     .toLowerCase()
-    .split(/[^a-z0-9가-힣]+/g)
+    .split(/[^0-9a-z\uAC00-\uD7A3]+/g)
     .map(token => token.trim())
     .filter(Boolean)
 }
 
 const IDENTIFIER_DESCRIPTOR_STOPWORDS = new Set([
-  "brand",
-  "edition",
-  "for",
-  "global",
-  "korea",
-  "korean",
-  "market",
-  "model",
-  "series",
-  "ver",
-  "version",
-  "yg",
-  "yg1",
+  'brand',
+  'edition',
+  'for',
+  'global',
+  'korea',
+  'korean',
+  'market',
+  'model',
+  'series',
+  'ver',
+  'version',
+  'yg',
+  'yg1',
 ])
 
 function stripIdentifierDescriptorSuffix(value: string): string {
@@ -97,21 +102,26 @@ function stripIdentifierDescriptorSuffix(value: string): string {
 
   const stopwordPattern = [...IDENTIFIER_DESCRIPTOR_STOPWORDS]
     .sort((left, right) => right.length - left.length)
-    .map(token => token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-    .join("|")
+    .map(token => token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|')
 
   if (!stopwordPattern) return trimmed
 
   const stripped = trimmed
-    .replace(new RegExp(`\\b(?:${stopwordPattern})\\b.*$`, "i"), "")
-    .replace(/[\s,;:/-]+$/u, "")
+    .replace(new RegExp(`\\b(?:${stopwordPattern})\\b.*$`, 'i'), '')
+    .replace(/[\s,;:/-]+$/u, '')
     .trim()
 
   return stripped || trimmed
 }
 
 function stripFilterAnswer(answer: string): string {
-  return answer.trim().replace(/\s*\(\d+개\)\s*$/, "").replace(/\s*—\s*.+$/, "").trim()
+  return answer
+    .trim()
+    .replace(/\s*\(\d+\uAC1C\)\s*$/u, '')
+    .replace(/\s*[\u2013\u2014]\s*.+$/u, '')
+    .replace(/\s+-\s+.+$/u, '')
+    .trim()
 }
 
 function stripLeadingFieldPhrase(answer: string, aliases: string[] | undefined): string {
@@ -120,11 +130,11 @@ function stripLeadingFieldPhrase(answer: string, aliases: string[] | undefined):
 
   const sortedAliases = [...aliases].sort((a, b) => b.length - a.length)
   for (const alias of sortedAliases) {
-    const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-    const pattern = new RegExp(`^${escaped}(?=\\s|[은는이가을를로]|$)\\s*(?:은|는|이|가|을|를|로|으로)?\\s*`, "iu")
+    const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const pattern = new RegExp(`^${escaped}(?=\\s|[\uC740\uB294\uC774\uAC00\uC744\uB97C\uB85C]|$)\\s*(?:\uC740|\uB294|\uC774|\uAC00|\uC744|\uB97C|\uB85C|\uC73C\uB85C)?\\s*`, 'iu')
     if (!pattern.test(clean)) continue
-    const stripped = clean.replace(pattern, "").trim()
-    if (!stripped) continue  // alias consumed the entire answer — it IS the value, not a prefix
+    const stripped = clean.replace(pattern, '').trim()
+    if (!stripped) continue
     clean = stripped
     break
   }
@@ -132,40 +142,34 @@ function stripLeadingFieldPhrase(answer: string, aliases: string[] | undefined):
   return clean
 }
 
-/**
- * Strip Korean approximate prefixes/suffixes before numeric extraction:
- * "약 10mm" → "10mm", "한 10mm쯤" → "10mm", "10mm정도" → "10mm"
- */
 function stripApproximateAffixes(value: string): string {
   return value
-    .replace(/^(?:약|한)\s+/u, "")
-    .replace(/(?:쯤|정도)\s*$/u, "")
+    .replace(/^(?:\uC57D|\uD55C)\s+/u, '')
+    .replace(/(?:\uCBE4|\uC815\uB3C4)\s*$/u, '')
 }
 
-/**
- * Strip Korean unit aliases for diameter:
- * "10밀리" → "10", "10미리" → "10", "파이10" → "10", "Φ10" → "10"
- */
 function stripKoreanDiameterAliases(value: string): string {
   return value
-    .replace(/^(?:파이)\s*/u, "")
-    .replace(/(?:밀리|미리|파이)\s*$/u, "")
+    .replace(/^(?:\uD30C\uC774)\s*/u, '')
+    .replace(/(?:\uBC00\uB9AC|\uBBF8\uB9AC|\uD30C\uC774)\s*$/u, '')
 }
 
-/**
- * Strip trailing Korean particles from values:
- * "알루미늄으로" → "알루미늄", "2날이요" → "2날"
- */
-// stripKoreanParticles는 shared/patterns.ts에서 import
-
 const KOREAN_NUMBERS: Record<string, number> = {
-  한: 1, 두: 2, 세: 3, 네: 4, 다섯: 5, 여섯: 6,
-  일곱: 7, 여덟: 8, 아홉: 9, 열: 10, 스물: 20,
+  '\uD55C': 1,
+  '\uB450': 2,
+  '\uC138': 3,
+  '\uB124': 4,
+  '\uB2E4\uC12F': 5,
+  '\uC5EC\uC12F': 6,
+  '\uC77C\uACF1': 7,
+  '\uC5EC\uB35F': 8,
+  '\uC544\uD649': 9,
+  '\uC5F4': 10,
+  '\uC2A4\uBB3C': 20,
 }
 
 function extractNumericValue(value: string): number | null {
   const cleaned = stripApproximateAffixes(value)
-  // Try Korean number first: "열미리" → 10, "두날" → 2
   for (const [ko, num] of Object.entries(KOREAN_NUMBERS)) {
     if (cleaned.startsWith(ko)) return num
   }
@@ -175,22 +179,14 @@ function extractNumericValue(value: string): number | null {
   return Number.isNaN(parsed) ? null : parsed
 }
 
-/**
- * Parse fractional inch notation (e.g. "3/8\"", "1-1/2\"", "3/4 inch") and convert to mm.
- * Returns the mm value if the input matches an inch fraction pattern, otherwise null.
- */
 function parseFractionalInchToMm(value: string): number | null {
   const trimmed = value.trim()
-
-  // Pattern: optional whole number + fraction + optional inch indicator
-  // Matches: "3/8\"", "3/8"", "3/8 inch", "1-1/2\"", "1 1/2\"", "1-1/2 inch", "1\"", "2\""
-  const fractionPattern = /^(\d+)[\s-]+(\d+)\s*\/\s*(\d+)\s*(?:"|"|"|''|inch|in|인치)?$/i
-  const simpleFractionPattern = /^(\d+)\s*\/\s*(\d+)\s*(?:"|"|"|''|inch|in|인치)?$/i
-  const wholeInchPattern = /^(\d+(?:\.\d+)?)\s*(?:"|"|"|''|inch|in|인치)$/i
+  const fractionPattern = /^(\d+)[\s-]+(\d+)\s*\/\s*(\d+)\s*(?:\"|''|inch|in|\uC778\uCE58)?$/i
+  const simpleFractionPattern = /^(\d+)\s*\/\s*(\d+)\s*(?:\"|''|inch|in|\uC778\uCE58)?$/i
+  const wholeInchPattern = /^(\d+(?:\.\d+)?)\s*(?:\"|''|inch|in|\uC778\uCE58)$/i
 
   let inches: number | null = null
 
-  // Mixed number: "1-1/2"", "1 1/2 inch"
   const mixedMatch = trimmed.match(fractionPattern)
   if (mixedMatch) {
     const whole = parseInt(mixedMatch[1], 10)
@@ -201,7 +197,6 @@ function parseFractionalInchToMm(value: string): number | null {
     }
   }
 
-  // Simple fraction: "3/8"", "1/2 inch"
   if (inches == null) {
     const simpleMatch = trimmed.match(simpleFractionPattern)
     if (simpleMatch) {
@@ -213,7 +208,6 @@ function parseFractionalInchToMm(value: string): number | null {
     }
   }
 
-  // Whole inch: "1\"", "2 inch"
   if (inches == null) {
     const wholeMatch = trimmed.match(wholeInchPattern)
     if (wholeMatch) {
@@ -222,11 +216,8 @@ function parseFractionalInchToMm(value: string): number | null {
   }
 
   if (inches == null || Number.isNaN(inches)) return null
-
-  // Round to 4 decimal places to avoid floating point artifacts
   return Math.round(inches * 25.4 * 10000) / 10000
 }
-
 function splitRawStringValues(value: string): string[] {
   const normalized = value.trim()
   if (!normalized) return []
@@ -390,9 +381,152 @@ function identifierMatch(record: FilterRecord, filter: AppliedFilter, key: strin
  */
 const COATING_KO_ALIASES = SHARED_COATING_KO_ALIASES
 
+function normalizeAliasLookup(value: string): string {
+  return stripKoreanParticles(String(value ?? "").trim())
+    .toLowerCase()
+    .replace(/[()\s._/-]+/g, "")
+}
+
+function hasHangul(value: string): boolean {
+  return /[\u3131-\u318e\uac00-\ud7a3]/i.test(value)
+}
+
+const TOOL_SUBTYPE_ENGLISH_CANONICAL_MAP: Record<string, string> = {
+  square: "Square",
+  ball: "Ball",
+  radius: "Radius",
+  rough: "Roughing",
+  roughing: "Roughing",
+  taper: "Taper",
+  chamfer: "Chamfer",
+  highfeed: "High-Feed",
+  highfeedmill: "High-Feed",
+  highfeedendmill: "High-Feed",
+}
+
+const TOOL_SUBTYPE_KOREAN_ALIAS_MAP: Record<string, string> = {
+  "\uC2A4\uD018\uC5B4": "Square",
+  "\uD50C\uB7AB": "Square",
+  "\uD50C\uB7AB\uC5D4\uB4DC\uBC00": "Square",
+  "\uC0AC\uAC01": "Square",
+  "\uD3C9": "Square",
+  "\uD3C9\uBA74": "Square",
+  "\uD3C9\uC5D4\uB4DC\uBC00": "Square",
+  "\uBCFC": "Ball",
+  "\uBCFC\uB178\uC988": "Ball",
+  "\uBCFC\uC5D4\uB4DC\uBC00": "Ball",
+  "\uCF54\uB108\uB808\uB514\uC6B0\uC2A4": "Radius",
+  "\uCF54\uB108r": "Radius",
+  "\uB798\uB514\uC6B0\uC2A4": "Radius",
+  "r\uC5D4\uB4DC\uBC00": "Radius",
+  "\uB77C\uB514\uC6B0\uC2A4": "Radius",
+  "\uB808\uB514\uC6B0\uC2A4": "Radius",
+  "\uD669\uC0AD": "Roughing",
+  "\uB7EC\uD504": "Roughing",
+  "\uB7EC\uD551": "Roughing",
+  "\uB7EC\uD551\uC5D4\uB4DC\uBC00": "Roughing",
+  "\uD14C\uC774\uD37C": "Taper",
+  "\uCC54\uD37C": "Chamfer",
+  "\uACE0\uC774\uC1A1": "High-Feed",
+  "\uD558\uC774\uD53C\uB4DC": "High-Feed",
+}
+
+const TOOL_SUBTYPE_KOREAN_ALIAS_ENTRIES = Object.entries(TOOL_SUBTYPE_KOREAN_ALIAS_MAP)
+  .sort((left, right) => right[0].length - left[0].length)
+
+const COATING_ENGLISH_CANONICAL_MAP: Record<string, string> = {
+  blue: "Blue",
+  gold: "Gold",
+  black: "Black",
+  bright: "Bright",
+  brightfinish: "Bright Finish",
+  diamond: "Diamond",
+  uncoated: "Uncoated",
+  bluecoating: "Blue-Coating",
+  xcoating: "X-Coating",
+  ycoating: "Y-Coating",
+  zcoating: "Z-Coating",
+  ccoating: "C-Coating",
+  hcoating: "H-Coating",
+  tcoating: "T-Coating",
+}
+
+const COATING_KOREAN_ALIAS_MAP: Record<string, string> = {
+  "\uBE14\uB8E8": "Blue",
+  "\uBE14\uB8E8\uCF54\uD305": "Blue",
+  "\uACE8\uB4DC": "Gold",
+  "\uACE8\uB4DC\uCF54\uD305": "TiN",
+  "\uBE14\uB799": "Black",
+  "\uBE14\uB799\uCF54\uD305": "TiAlN",
+  "\uC2E4\uBC84": "Bright",
+  "\uC2E4\uBC84\uCF54\uD305": "Bright",
+  "\uBE0C\uB77C\uC774\uD2B8": "Bright",
+  "\uBE0C\uB77C\uC774\uD2B8\uD53C\uB2C8\uC2DC": "Bright",
+  "\uBB34\uCF54\uD305": "Uncoated",
+  "\uBB34\uCF54\uB2DD": "Uncoated",
+  "\uBE44\uCF54\uD305": "Uncoated",
+  "\uCF54\uD305\uC5C6": "Uncoated",
+  "\uCF54\uD305\uC5C6\uC74C": "Uncoated",
+  "\uB2E4\uC774\uC544\uBAAC\uB4DC": "Diamond",
+  "\uB2E4\uC774\uC544\uBAAC\uB4DC\uCF54\uD305": "Diamond",
+  "\uC640\uC774\uCF54\uD305": "Y-Coating",
+  "\uC5D1\uC2A4\uCF54\uD305": "X-Coating",
+  "\uD2F0\uCF54\uD305": "T-Coating",
+}
+
+function canonicalizeCoatingValue(rawValue: string | null | undefined): string | null {
+  const stripped = stripKoreanParticles(String(rawValue ?? "").trim())
+  if (!stripped) return null
+
+  const normalized = normalizeAliasLookup(stripped)
+  const normalizedLoose = normalized.replace(/([a-z])\1+/g, "$1")
+  if (!normalized) return null
+
+  if (hasHangul(stripped)) {
+    const koreanCanonical = COATING_KOREAN_ALIAS_MAP[normalized] ?? COATING_KOREAN_ALIAS_MAP[normalizedLoose]
+    if (koreanCanonical) return koreanCanonical
+  }
+
+  const englishCanonical = COATING_ENGLISH_CANONICAL_MAP[normalized] ?? COATING_ENGLISH_CANONICAL_MAP[normalizedLoose]
+  if (englishCanonical) return englishCanonical
+
+  const internalMatch = normalizedLoose.match(/^([xyztch])coating$/i)
+  if (internalMatch) {
+    return `${internalMatch[1].toUpperCase()}-Coating`
+  }
+
+  if (/[A-Za-z]+-[A-Za-z]/.test(stripped) && !/-coating\b/i.test(stripped)) {
+    return stripped.replace(/-/g, "")
+  }
+
+  return stripped
+}
+
+function canonicalizeToolSubtypeValue(rawValue: string | null | undefined): string | null {
+  const stripped = stripKoreanParticles(String(rawValue ?? "").trim())
+  if (!stripped) return null
+
+  const normalized = normalizeAliasLookup(stripped)
+  if (!normalized) return null
+
+  const englishCanonical = TOOL_SUBTYPE_ENGLISH_CANONICAL_MAP[normalized]
+  if (englishCanonical) return englishCanonical
+
+  if (hasHangul(stripped)) {
+    const koreanExactCanonical = TOOL_SUBTYPE_KOREAN_ALIAS_MAP[normalized]
+    if (koreanExactCanonical) return koreanExactCanonical
+
+    for (const [alias, canonical] of TOOL_SUBTYPE_KOREAN_ALIAS_ENTRIES) {
+      if (normalized.includes(alias)) return canonical
+    }
+  }
+
+  return stripped
+}
+
 function canonicalizeCoatingRawValue(rawValue: string | number | boolean): string | null {
-  const raw = String(rawValue)
-  const canonical = sharedCanonicalizeCoating(raw)
+  const raw = stripFilterAnswer(String(rawValue))
+  const canonical = canonicalizeCoatingValue(raw)
   if (canonical) return canonical
   // 매칭 실패 시 particle 제거 후 원본 반환 (기존 동작 유지)
   const stripped = stripKoreanParticles(raw.trim())
@@ -400,8 +534,8 @@ function canonicalizeCoatingRawValue(rawValue: string | number | boolean): strin
 }
 
 function canonicalizeToolSubtypeRawValue(rawValue: string | number | boolean): string | null {
-  const raw = String(rawValue)
-  const canonical = sharedCanonicalizeToolSubtype(raw)
+  const raw = stripFilterAnswer(String(rawValue))
+  const canonical = canonicalizeToolSubtypeValue(raw)
   if (canonical) return canonical
   // 매칭 실패 시 particle 제거 후 원본 반환 (기존 동작 유지)
   const stripped = stripKoreanParticles(raw.trim())
@@ -468,37 +602,8 @@ function buildExactIdentifierClause(columns: string[], filter: AppliedFilter, ne
 function canonicalizeBrandRawValue(rawValue: string | number | boolean): string | null {
   const trimmed = String(rawValue).trim()
   if (!trimmed) return null
-
-  const descriptorStripped = stripIdentifierDescriptorSuffix(trimmed)
-
-  const schemaBrands = getDbSchemaSync()?.brands ?? []
-  if (schemaBrands.length === 0) return descriptorStripped || trimmed
-
-  const exactIdentifier = normalizeIdentifierText(trimmed)
-  const exactMatch = schemaBrands.find(brand => normalizeIdentifierText(brand) === exactIdentifier)
-  if (exactMatch) return exactMatch
-
-  const strippedIdentifier = normalizeIdentifierText(descriptorStripped)
-  if (strippedIdentifier) {
-    const strippedExactMatch = schemaBrands.find(brand => normalizeIdentifierText(brand) === strippedIdentifier)
-    if (strippedExactMatch) return strippedExactMatch
-  }
-
-  const rawTokens = tokenizeIdentifierWords(trimmed)
-  if (rawTokens.length === 0) return descriptorStripped || trimmed
-
-  const prefixCandidates = schemaBrands.filter(brand => {
-    const brandTokens = tokenizeIdentifierWords(brand)
-    if (brandTokens.length === 0 || brandTokens.length >= rawTokens.length) return false
-    if (!brandTokens.every((token, index) => rawTokens[index] === token)) return false
-    const suffixTokens = rawTokens.slice(brandTokens.length)
-    return suffixTokens.length > 0 && suffixTokens.every(token => IDENTIFIER_DESCRIPTOR_STOPWORDS.has(token))
-  })
-
-  if (prefixCandidates.length === 1) return prefixCandidates[0]
-  return descriptorStripped || trimmed
+  return canonicalizeKnownEntityValue("brand", trimmed)
 }
-
 function buildInventoryExistsClause(
   comparator: "=" | ">=" | "<=" | "BETWEEN",
   next: (value: unknown) => string,
@@ -885,6 +990,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "string",
     matchPolicy: "strict_identifier",
     op: "includes",
+    canonicalizeRawValue: rawValue => canonicalizeKnownEntityValue("series", String(rawValue)),
     setInput: (input, filter) => ({ ...input, seriesName: joinedFilterStringValue(filter) }),
     clearInput: input => ({ ...input, seriesName: undefined }),
     extractValues: record => extractPrimitiveValues(record, "seriesName"),
@@ -967,49 +1073,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     ],
     kind: "string",
     matchPolicy: "strict_identifier",
-    canonicalizeRawValue: rawValue => {
-      /**
-       * Natural-language → catalog_app.product_recommendation_mv.country_codes 실값.
-       * MV는 region 단위로만 저장: KOREA / AMERICA / EUROPE / ASIA
-       * (대소문자 혼재 더러움은 buildDbClause의 case-insensitive overlap에서 흡수)
-       */
-      const COUNTRY_NAME_MAP: Record<string, string> = {
-        // KOREA (단일 국가지만 별도 토큰)
-        한국: "KOREA", 대한민국: "KOREA", 국내: "KOREA", 국산: "KOREA", 내수: "KOREA",
-        korea: "KOREA", "south korea": "KOREA", kr: "KOREA", kor: "KOREA",
-        // AMERICA
-        미국: "AMERICA", usa: "AMERICA", "united states": "AMERICA", america: "AMERICA",
-        us: "AMERICA", "north america": "AMERICA",
-        // ASIA (Korea 외 아시아 국가는 ASIA로 매핑)
-        일본: "ASIA", japan: "ASIA", jp: "ASIA", jpn: "ASIA",
-        중국: "ASIA", china: "ASIA", cn: "ASIA", chn: "ASIA",
-        태국: "ASIA", thailand: "ASIA", tha: "ASIA",
-        베트남: "ASIA", vietnam: "ASIA", vnm: "ASIA",
-        인도: "ASIA", india: "ASIA", ind: "ASIA",
-        // EUROPE
-        독일: "EUROPE", germany: "EUROPE", de: "EUROPE", deu: "EUROPE",
-        영국: "EUROPE", england: "EUROPE", uk: "EUROPE", "united kingdom": "EUROPE", britain: "EUROPE", eng: "EUROPE",
-        프랑스: "EUROPE", france: "EUROPE", fra: "EUROPE",
-        이탈리아: "EUROPE", italy: "EUROPE", ita: "EUROPE",
-        스페인: "EUROPE", spain: "EUROPE", esp: "EUROPE",
-        러시아: "EUROPE", russia: "EUROPE", rus: "EUROPE",
-        폴란드: "EUROPE", poland: "EUROPE", pol: "EUROPE",
-        헝가리: "EUROPE", hungary: "EUROPE", hun: "EUROPE",
-        튀르키예: "EUROPE", 터키: "EUROPE", turkey: "EUROPE", türkiye: "EUROPE", tur: "EUROPE",
-        체코: "EUROPE", czech: "EUROPE", czechia: "EUROPE", "czech republic": "EUROPE", cze: "EUROPE",
-        포르투갈: "EUROPE", portugal: "EUROPE", prt: "EUROPE",
-      }
-      /** Region 직접 입력 */
-      const REGION_MAP: Record<string, string> = {
-        아시아: "ASIA", asia: "ASIA",
-        유럽: "EUROPE", europe: "EUROPE",
-        미주: "AMERICA", 북미: "AMERICA",
-      }
-      const trimmed = String(rawValue).trim()
-      const lower = trimmed.toLowerCase()
-      if (REGION_MAP[lower]) return REGION_MAP[lower]
-      return COUNTRY_NAME_MAP[lower] ?? (trimmed.toUpperCase() || null)
-    },
+    canonicalizeRawValue: rawValue => canonicalizeCountryValue(String(rawValue)),
     op: "includes",
     setInput: (input, filter) => {
       const value = joinedFilterStringValue(filter)
@@ -1518,8 +1582,8 @@ export function parseFieldAnswerToFilter(field: string, answer: string): Applied
   let opOverride: string | undefined
   let valueCleaned = clean
   if (definition.kind === "number") {
-    const rangeMatch = clean.match(/(-?\d+(?:\.\d+)?)\s*(?:mm|파이|ø|φ|°|도|deg(?:ree)?s?)?\s*(이상|넘는|초과|최소|이하|미만|최대|이내)/u)
-    const reverseMatch = !rangeMatch ? clean.match(/(이상|넘는|초과|최소|이하|미만|최대|이내)\s*(-?\d+(?:\.\d+)?)\s*(?:mm|파이|ø|φ|°|도|deg(?:ree)?s?)?/u) : null
+    const rangeMatch = clean.match(/(-?\d+(?:\.\d+)?)\s*(?:mm|파이|ø|φ|도|°|deg(?:ree)?s?)?\s*(이상|넘는|초과|최소|이하|미만|최대|이내)/u)
+    const reverseMatch = !rangeMatch ? clean.match(/(이상|넘는|초과|최소|이하|미만|최대|이내)\s*(-?\d+(?:\.\d+)?)\s*(?:mm|파이|ø|φ|도|°|deg(?:ree)?s?)?/u) : null
     const marker = rangeMatch?.[2] ?? reverseMatch?.[1]
     const numStr = rangeMatch?.[1] ?? reverseMatch?.[2]
     if (marker && numStr) {

@@ -18,6 +18,12 @@ describe("countryToLanguage", () => {
   it("returns 'en' for DE", () => {
     expect(countryToLanguage("DE")).toBe("en")
   })
+  it("returns 'ko' for canonical KOREA", () => {
+    expect(countryToLanguage("KOREA")).toBe("ko")
+  })
+  it("returns 'en' for canonical AMERICA", () => {
+    expect(countryToLanguage("AMERICA")).toBe("en")
+  })
   it("returns 'ko' when null", () => {
     expect(countryToLanguage(null)).toBe("ko")
   })

@@ -11,7 +11,7 @@
 import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
 import { buildKBContextBlock, searchKB, getMaterialGuide, getCoatingProperties } from "@/lib/recommendation/core/semantic-search"
 import { YG1_COMPANY_SNIPPET } from "@/lib/knowledge/company-prompt-snippet"
-import { buildDomainKnowledgeSnippet } from "@/lib/recommendation/shared/patterns"
+import { buildCanonicalDomainKnowledgeSnippet } from "@/lib/recommendation/shared/canonical-values"
 import { buildMaterialPromptHints, buildScopedMaterialPromptHints } from "@/lib/recommendation/shared/material-mapping"
 import { getIntakeDisplayValue } from "@/lib/recommendation/shared/intake-localization"
 import type {
@@ -67,7 +67,7 @@ export function buildSystemPrompt(language: AppLanguage = "ko"): string {
 - 모르면 "해당 정보를 확인할 수 없습니다"라고 답변
 - ${responseLanguage}로 전문가답게 간결하고 정확하게 대화. 이모지 사용 금지.
 
-${buildDomainKnowledgeSnippet()}
+${buildCanonicalDomainKnowledgeSnippet()}
 ${buildMaterialPromptHints(4) ? `\n[CSV material hints]\n${buildMaterialPromptHints(4)}\n` : ""}
 
 ${YG1_COMPANY_SNIPPET}

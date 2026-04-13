@@ -16,6 +16,7 @@
  */
 
 import { recommendationRequestSchema, type RecommendationRequestDto } from "@/lib/contracts/recommendation"
+import { assessComplexity, type UiThinkingMode } from "@/lib/recommendation/core/complexity-router"
 import { createServeRuntimeDependencies } from "@/lib/recommendation/infrastructure/http/recommendation-http"
 import {
   handleServeExploration,
@@ -49,6 +50,24 @@ function getRequestSessionState(body: RecommendationRequestDto): ExplorationSess
     return body.sessionState as ExplorationSessionState
   }
   return getEngineSessionState(body.session ?? null)
+}
+
+function getLatestUserMessageText(body: RecommendationRequestDto): string | null {
+  const messages = body.messages ?? []
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message?.role === "user" && typeof message.text === "string" && message.text.trim()) {
+      return message.text.trim()
+    }
+  }
+  return null
+}
+
+function getStreamThinkingMode(body: RecommendationRequestDto): UiThinkingMode {
+  const latestUserText = getLatestUserMessageText(body)
+  if (!latestUserText) return "hidden"
+  const prevState = getRequestSessionState(body)
+  return assessComplexity(latestUserText, prevState?.appliedFilters?.length ?? 0).uiThinkingMode
 }
 
 function sseFrame(event: string, data: unknown): string {
@@ -88,6 +107,7 @@ export async function POST(req: Request): Promise<Response> {
 
       // Initial "started" ping so the client knows the connection is live.
       safeEnqueue(sseFrame("started", { ok: true }))
+      const streamThinkingMode = getStreamThinkingMode(body)
 
       // Heartbeat reasoning: many engine paths don't fire onThinking until late
       // (or not at all for first-turn recommendations). To keep the UI alive,
@@ -102,15 +122,18 @@ export async function POST(req: Request): Promise<Response> {
         "🧮 후보 점수를 매기고 정렬하는 중…",
         "✍️ 추천 근거를 정리하는 중…",
       ]
-      // Fire first stage right away so the trail is never empty.
-      safeEnqueue(sseFrame("thinking", { text: heartbeatStages[0], delta: false, kind: "stage" }))
-      heartbeatIdx = 1
-      const heartbeatTimer = setInterval(() => {
-        if (closed) return
-        if (heartbeatIdx >= heartbeatStages.length) return
-        safeEnqueue(sseFrame("thinking", { text: heartbeatStages[heartbeatIdx], delta: false, kind: "stage" }))
-        heartbeatIdx++
-      }, 2500)
+      let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+      if (streamThinkingMode !== "hidden") {
+        // FAST path는 reasoning UI를 숨기므로 generic heartbeat도 보내지 않는다.
+        safeEnqueue(sseFrame("thinking", { text: heartbeatStages[0], delta: false, kind: "stage" }))
+        heartbeatIdx = 1
+        heartbeatTimer = setInterval(() => {
+          if (closed) return
+          if (heartbeatIdx >= heartbeatStages.length) return
+          safeEnqueue(sseFrame("thinking", { text: heartbeatStages[heartbeatIdx], delta: false, kind: "stage" }))
+          heartbeatIdx++
+        }, 2500)
+      }
 
       // Real-time CoT: SQL agent reasoning is flushed the moment it's parsed,
       // before retrieval. The client renders it Claude-style as the message
@@ -200,7 +223,7 @@ export async function POST(req: Request): Promise<Response> {
         }))
       } finally {
         closed = true
-        clearInterval(heartbeatTimer)
+        if (heartbeatTimer) clearInterval(heartbeatTimer)
         try { controller.close() } catch { /* already closed */ }
       }
     },

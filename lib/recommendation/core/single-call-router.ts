@@ -9,7 +9,7 @@ import type { LLMProvider, LLMMessage } from "@/lib/recommendation/infrastructur
 import type { ExplorationSessionState, ChatMessage } from "@/lib/recommendation/domain/types"
 import { buildAppliedFilterFromValue, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
 import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
-import { buildDomainKnowledgeSnippet } from "@/lib/recommendation/shared/patterns"
+import { buildCanonicalDomainKnowledgeSnippet } from "@/lib/recommendation/shared/canonical-values"
 import { getDbSchemaSync } from "@/lib/recommendation/core/sql-agent-schema-cache"
 import { QUERY_FIELD_MANIFEST, buildManifestPromptSection } from "@/lib/recommendation/core/query-spec-manifest"
 import { selectFewShots, buildFewShotTextScr } from "@/lib/recommendation/core/adaptive-few-shot"
@@ -427,7 +427,7 @@ ${SCR_ANCHOR_EXAMPLES}
 
 {{ADAPTIVE_FEWSHOT}}
 
-${buildDomainKnowledgeSnippet()}
+${buildCanonicalDomainKnowledgeSnippet()}
 
 Response: strict JSON {"actions": [...], "answer": "", "reasoning": "brief"}
 

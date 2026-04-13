@@ -65,6 +65,7 @@ import {
   handleCompetitorCrossReference,
   handleDirectInventoryQuestion,
   handleDirectCuttingConditionQuestion,
+  handleContextualNarrowingQuestion,
   shouldAttemptWebSearchFallback,
 } from "../serve-engine-assist"
 
@@ -94,6 +95,17 @@ function makeProduct(overrides?: Record<string, unknown>) {
     featureText: null,
     ...overrides,
   }
+}
+
+function makeScoredCandidate(overrides?: Record<string, unknown>) {
+  return {
+    product: makeProduct(overrides),
+    score: 100,
+    matchStatus: "exact",
+    stockStatus: "instock",
+    totalStock: 10,
+    inventory: [],
+  } as any
 }
 
 function makeSeriesProfile(overrides?: Record<string, unknown>) {
@@ -539,6 +551,35 @@ describe("handleCompetitorCrossReference", () => {
     delete process.env.ANTHROPIC_API_KEY
     const reply = await handleCompetitorCrossReference("경쟁사 제품 대체품 추천", null)
     expect(reply).toBeNull() // no API key
+  })
+})
+
+describe("handleContextualNarrowingQuestion", () => {
+  it("answers count questions from current candidates without committing filters", async () => {
+    const prevState = {
+      candidateCount: 4,
+      appliedFilters: [],
+      displayedOptions: [],
+      lastAskedField: undefined,
+      resolutionStatus: "resolved_exact",
+    } as any
+
+    const reply = await handleContextualNarrowingQuestion(
+      mockProvider,
+      "Ball\uC740 \uBA87\uAC1C\uC57C?",
+      {} as any,
+      [
+        makeScoredCandidate({ toolSubtype: "Ball" }),
+        makeScoredCandidate({ toolSubtype: "Square" }),
+        makeScoredCandidate({ toolSubtype: "Square" }),
+        makeScoredCandidate({ toolSubtype: "Radius" }),
+      ],
+      prevState,
+      [],
+    )
+
+    expect(reply).toContain("Ball 1\uAC1C")
+    expect(reply).toContain("\uD604\uC7AC \uD6C4\uBCF4 4\uAC1C")
   })
 })
 

@@ -155,4 +155,11 @@ describe("stage-one deterministic pre-pass", () => {
     ])
     expect(result.semanticHints).toEqual(expect.arrayContaining(["diameterMm", "10"]))
   })
+  it("does not turn count questions into stage-one filter hints", () => {
+    const message = "Ball\uC740 \uBA87\uAC1C\uC57C?"
+    expect(parseDeterministic(message)).toEqual([])
+
+    const result = simulateStageOnePrepass(message, [])
+    expect(result.semanticHints).not.toEqual(expect.arrayContaining(["toolSubtype", "Ball"]))
+  })
 })
