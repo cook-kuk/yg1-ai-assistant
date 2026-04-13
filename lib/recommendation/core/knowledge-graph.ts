@@ -230,30 +230,8 @@ const STOCK_QUERY_PATTERNS = [
   /(?:재고|stock)(?:[가는은이])?\s*(?:몇\s*(?:개|대)?|얼마|수량|개수|어느\s*정도|how\s*(?:much|many))/iu,
 ]
 
-const COMPETITOR_PATTERNS = [
-  /경쟁사/iu,
-  /타사/iu,
-  /다른\s*브랜드/iu,
-  /비슷한\s*(?:제품|공구)/iu,
-  /유사\s*(?:제품|공구)/iu,
-  /대체\s*(?:제품|공구)/iu,
-  /(?:sandvik|kennametal|osg|mitsubishi|walter|seco|nachi|iscar|이스카|미쓰비시)/iu,
-  /competitor/iu,
-  /alternative\s*(?:product|tool)/iu,
-]
-
 const SHOW_RESULT_PATTERNS = [
   /(?:추천\s*(?:해|받|보)|결과\s*보|지금\s*조건으로|제품\s*보기|바로\s*보여|show\s*(?:results?|recommendation))/iu,
-]
-
-const REFINE_PATTERNS = [
-  /(?:다른|변경|바꿔|바꾸|change|different)\s*(?:직경|소재|코팅|날수|형상|diameter|material|coating|flute|subtype)/iu,
-]
-
-// "좁히기" chips: "코팅으로 좁히기", "날수로 좁히기" → refine_condition (show options, don't apply directly)
-const NARROWING_CHIP_PATTERNS = [
-  /(?:코팅|날수|형상|소재|직경)(?:으로|로)\s*좁히기/iu,
-  /좁히기\s*\(/iu, // e.g., "코팅으로 좁히기 (TiAlN/AlTiN)"
 ]
 
 // ── Company / Domain Knowledge Patterns ────────────────────────
@@ -670,23 +648,7 @@ export function tryKGDecision(
     }
   }
 
-  // ── 4b. "좁히기" chip patterns → refine_condition (show selection options) ──
-  if (NARROWING_CHIP_PATTERNS.some(p => p.test(msg))) {
-    // Extract the field from the chip label: "코팅으로 좁히기" → "coating", "날수로 좁히기" → "fluteCount"
-    const fieldMap: Record<string, string> = { "코팅": "coating", "날수": "fluteCount", "형상": "toolSubtype", "소재": "workPieceName", "직경": "diameter" }
-    let refineField = "coating" // default
-    for (const [ko, field] of Object.entries(fieldMap)) {
-      if (msg.includes(ko)) { refineField = field; break }
-    }
-    return {
-      decision: buildDecision({ type: "refine_condition", field: refineField } as OrchestratorAction, [], 0.95, `KG: narrowing chip → refine_condition(${refineField})`),
-      confidence: 0.95,
-      source: "kg-intent",
-      reason: `narrowing chip → ${refineField}`,
-    }
-  }
-
-  // ── 4c. Question patterns ("X가 뭐야?", "X란?", "X 알려줘") → answer_general ──
+  // ── 4b. Question patterns ("X가 뭐야?", "X란?", "X 알려줘") → answer_general ──
   // Must come BEFORE entity extraction to prevent "TiAlN이 뭐야?" from becoming a coating filter
   const QUESTION_PATTERNS = [
     /(?:뭐야|뭐예요|뭐에요|뭘까|뭔가요|무엇|무슨\s*뜻|알려줘|알려\s*주세요|설명|차이가?\s*뭐|차이$|차이점|어떤\s*거야|란\s*뭐|이란|이\s*뭐|중요해|중요한가|필요해)/iu,
@@ -777,27 +739,7 @@ export function tryKGDecision(
     }
   }
 
-  // ── 5b. Competitor patterns (must check BEFORE show_recommendation) ──
-  // "CRX S 말고 다른 브랜드" = exclude, not competitor query → negation이면 skip
-  const hasNegSignal = /빼고|제외|말고|아닌|않은/u.test(msg)
-  if (COMPETITOR_PATTERNS.some(p => p.test(msg)) && !hasNegSignal) {
-    if (shouldDeferSemanticExecution) {
-      return {
-        decision: null,
-        confidence: 0,
-        source: "none",
-        reason: "semantic comparison deferred to semantic resolver",
-      }
-    }
-    return {
-      decision: buildDecision({ type: "answer_general", message: msg } as OrchestratorAction, [], 0.92, "KG: competitor query → answer_general with web search"),
-      confidence: 0.92,
-      source: "kg-intent",
-      reason: "competitor query",
-    }
-  }
-
-  // ── 5c. Application purpose → concrete filter (domain knowledge mapping) ──
+  // ── 5b. Application purpose → concrete filter (domain knowledge mapping) ──
   // 가공 목적에서 toolSubtype/fluteCount를 결정적으로 추출
   const APPLICATION_FILTER_MAP: Array<{ pattern: RegExp; filters: Array<{ field: string; value: string }> }> = [
     { pattern: /(?:곡면|3d|서피스|surface|contouring|구면)/iu, filters: [{ field: "toolSubtype", value: "Ball" }] },
@@ -826,7 +768,7 @@ export function tryKGDecision(
     }
   }
 
-  // ── 5d. Show results patterns ──
+  // ── 5c. Show results patterns ──
   // "추천해줘" + entities → extract filters AND show recommendation
   if (SHOW_RESULT_PATTERNS.some(p => p.test(msg))) {
     const showEntities = extractEntities(msg)

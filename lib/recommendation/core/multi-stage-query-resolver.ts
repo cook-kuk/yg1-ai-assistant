@@ -24,7 +24,10 @@ import {
   buildScopedMaterialPromptHints,
   resolveMaterialFamilyName,
 } from "@/lib/recommendation/shared/material-mapping"
-import { SEMANTIC_INTERPRETATION_POLICY_PROMPT } from "./semantic-execution-policy"
+import {
+  SEMANTIC_INTERPRETATION_POLICY_PROMPT,
+  shouldDeferHardcodedSemanticExecution,
+} from "./semantic-execution-policy"
 
 type ResolverFilterOp = "eq" | "neq" | "gte" | "lte" | "between" | "skip"
 type ResolverRouteHint =
@@ -611,7 +614,8 @@ function hasRangeCue(message: string): { gte: boolean; lte: boolean } {
 }
 
 function hasExplicitMutationCue(message: string): boolean {
-  return hasEditSignal(message) || needsRepair(message) || hasNegationCue(message) || hasAlternativeCue(message)
+  return hasEditSignal(message)
+    || shouldDeferHardcodedSemanticExecution(message) || needsRepair(message) || hasNegationCue(message) || hasAlternativeCue(message)
 }
 
 function normalizeComparableScalar(field: string, value: unknown): string {
@@ -1904,7 +1908,7 @@ function classifyStage1CotEscalation(
 
   const conflictingFollowUp =
     args.currentFilters.length > 0
-    && (needsRepair(args.message) || hasEditSignal(args.message))
+    && (needsRepair(args.message) || hasEditSignal(args.message) || shouldDeferHardcodedSemanticExecution(args.message))
     && (stage1MostlyNoOp || unresolvedTokens.length > 0 || stage1Analysis.canonicalizationMissCount > 0)
   if (conflictingFollowUp) reasons.push("conflicting_follow_up")
 
