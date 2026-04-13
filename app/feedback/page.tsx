@@ -388,6 +388,7 @@ function InlineRecommendedProducts({
 
 export default function FeedbackViewerPage() {
   const { currentUser } = useApp()
+  const isAdmin = currentUser.role === "admin"
   const [generalEntries, setGeneralEntries] = useState<FeedbackEntryDto[]>([])
   const [feedbackEntries, setFeedbackEntries] = useState<FeedbackEventEntryDto[]>([])
   const [loading, setLoading] = useState(true)
@@ -405,20 +406,40 @@ export default function FeedbackViewerPage() {
   const [savingId, setSavingId] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch("/api/feedback/admin").then(r => r.json()).then(d => {
-      const raw = d.fields ?? {}
-      const migrated: Record<string, { csComment: string; dueDate: string; completed: string }> = {}
-      for (const [id, af] of Object.entries(raw) as [string, Record<string, unknown>][]) {
-        const c = af.completed
-        migrated[id] = {
-          csComment: (af.csComment as string) ?? "",
-          dueDate: (af.dueDate as string) ?? "",
-          completed: typeof c === "boolean" ? (c ? "완료" : "미완료") : (c as string) ?? "미완료",
+    if (!isAdmin) {
+      setAdminFields({})
+      return
+    }
+
+    let cancelled = false
+
+    fetch("/api/feedback/admin")
+      .then(r => r.json())
+      .then(d => {
+        if (cancelled) return
+
+        const raw = d.fields ?? {}
+        const migrated: Record<string, { csComment: string; dueDate: string; completed: string }> = {}
+        for (const [id, af] of Object.entries(raw) as [string, Record<string, unknown>][]) {
+          const c = af.completed
+          migrated[id] = {
+            csComment: (af.csComment as string) ?? "",
+            dueDate: (af.dueDate as string) ?? "",
+            completed: typeof c === "boolean" ? (c ? "완료" : "미완료") : (c as string) ?? "미완료",
+          }
         }
-      }
-      setAdminFields(migrated)
-    }).catch(() => {})
-  }, [])
+        setAdminFields(migrated)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAdminFields({})
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [isAdmin])
 
   const saveAdminField = async (id: string, field: string, value: string) => {
     const current = adminFields[id] ?? { csComment: "", dueDate: "", completed: "미완료" }
@@ -440,7 +461,7 @@ export default function FeedbackViewerPage() {
     setError(null)
     try {
       const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 10000)
+      const timeout = setTimeout(() => controller.abort(), 3000)
       const res = await fetch("/api/feedback", { signal: controller.signal })
       clearTimeout(timeout)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -531,7 +552,7 @@ export default function FeedbackViewerPage() {
     [successEntries, successPage]
   )
 
-  if (currentUser.role !== "admin") {
+  if (false && !isAdmin) {
     return (
       <div className="min-h-screen bg-gray-50 px-6 py-12">
         <div className="mx-auto max-w-2xl">
@@ -577,7 +598,7 @@ export default function FeedbackViewerPage() {
           <div className="flex items-center gap-2">
             <a
               href="/feedback/table"
-              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 border border-blue-200"
+              className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 border border-blue-200 ${isAdmin ? "" : "hidden"}`}
             >
               <BarChart3 size={12} />
               평가 테이블
@@ -657,7 +678,7 @@ export default function FeedbackViewerPage() {
               </div>
             )}
             {loading ? (
-              <div className="py-12 text-center text-gray-500">로딩 중...</div>
+              <div className="py-12 text-center text-gray-500">피드백을 불러오는 중입니다.</div>
             ) : error ? (
               <div className="py-12 text-center text-red-500">오류: {error}</div>
             ) : sortedGeneralEntries.length === 0 ? (
@@ -715,7 +736,7 @@ export default function FeedbackViewerPage() {
                         </Card>
                       </button>
                       {/* ── 코너스톤 피드백 관리자 영역 ── */}
-                      <div className="ml-2 mr-2 -mt-1 rounded-b-xl border border-t-0 border-violet-200 bg-violet-50/60 px-4 py-2.5 flex flex-wrap items-center gap-3">
+                      <div className={`ml-2 mr-2 -mt-1 rounded-b-xl border border-t-0 border-violet-200 bg-violet-50/60 px-4 py-2.5 flex flex-wrap items-center gap-3 ${isAdmin ? "" : "hidden"}`}>
                         <span className="text-[10px] font-bold text-violet-600 whitespace-nowrap">코너스톤 피드백</span>
                         <div className="flex-1 min-w-[200px] flex items-center gap-1.5">
                           <input
@@ -784,7 +805,7 @@ export default function FeedbackViewerPage() {
 
           <TabsContent value="history">
             {loading ? (
-              <div className="py-12 text-center text-gray-500">로딩 중...</div>
+              <div className="py-12 text-center text-gray-500">피드백을 불러오는 중입니다.</div>
             ) : error ? (
               <div className="py-12 text-center text-red-500">오류: {error}</div>
             ) : historyEntries.length === 0 ? (
@@ -861,7 +882,7 @@ export default function FeedbackViewerPage() {
 
           <TabsContent value="success">
             {loading ? (
-              <div className="py-12 text-center text-gray-500">로딩 중...</div>
+              <div className="py-12 text-center text-gray-500">피드백을 불러오는 중입니다.</div>
             ) : error ? (
               <div className="py-12 text-center text-red-500">오류: {error}</div>
             ) : successEntries.length === 0 ? (

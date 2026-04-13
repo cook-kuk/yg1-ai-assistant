@@ -76,7 +76,7 @@ const navItems = [
   },
   {
     title: "제품 탐색",
-    titleEn: "Product Finder",
+    titleEn: "Product Recommendation",
     href: "/products",
     icon: Search,
     roles: ["sales", "rnd", "admin"],
@@ -266,6 +266,12 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
         <ul className="space-y-1">
           {filteredNavItems.map(item => {
             const isActive = pathname === item.href
+            const localizedTitle = language === "ko"
+              ? (item.href === "/products" ? "제품 추천" : item.title)
+              : item.titleEn
+            const secondaryTitle = language === "ko"
+              ? item.titleEn
+              : (item.href === "/products" ? "제품 추천" : item.title)
 
             // Disabled items: shown but not clickable
             if (item.disabled) {
@@ -276,7 +282,7 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
                     title={language === 'ko' ? '준비 중' : 'Coming Soon'}
                   >
                     <item.icon className="h-4 w-4" />
-                    <span className="flex-1">{language === 'ko' ? item.title : item.titleEn}</span>
+                    <span className="flex-1">{localizedTitle}</span>
                     {item.badge && (
                       <Badge variant="secondary" className="h-5 min-w-5 text-xs opacity-40">
                         {item.badge}
@@ -284,7 +290,7 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
                     )}
                     <Lock className="h-3 w-3 opacity-40" />
                   </div>
-                  <span className="ml-10 text-[10px] text-sidebar-foreground/20">{language === 'ko' ? item.titleEn : item.title}</span>
+                  <span className="ml-10 text-[10px] text-sidebar-foreground/20">{secondaryTitle}</span>
                 </li>
               )
             }
@@ -309,7 +315,7 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
                   )}
                 >
                   <item.icon className="h-4 w-4" />
-                  <span className="flex-1">{language === 'ko' ? item.title : item.titleEn}</span>
+                  <span className="flex-1">{localizedTitle}</span>
                   {item.badge && (
                     <Badge variant="secondary" className="h-5 min-w-5 text-xs bg-sidebar-primary text-sidebar-primary-foreground">
                       {item.badge}
@@ -317,7 +323,7 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
                   )}
                 </Link>
                 {!isActive && (
-                  <span className="ml-10 text-[10px] text-sidebar-foreground/40">{language === 'ko' ? item.titleEn : item.title}</span>
+                  <span className="ml-10 text-[10px] text-sidebar-foreground/40">{secondaryTitle}</span>
                 )}
               </li>
             )
