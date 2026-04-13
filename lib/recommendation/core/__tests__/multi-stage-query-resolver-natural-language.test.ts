@@ -86,12 +86,12 @@ describe("resolveMultiStageQuery natural-language regressions", () => {
       },
     })
 
-    expect(result.source).toBe("stage2")
-    expect(result.intent).toBe("show_recommendation")
-    expect(result.filters).toEqual([
-      expect.objectContaining({ field: "workPieceName", op: "neq", rawValue: "Titanium" }),
-    ])
-    expect(result.validation?.valid).toBe(true)
+    expect(result.source).toBe("clarification")
+    expect(result.intent).toBe("ask_clarification")
+    expect(result.validation?.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "comparative_preference_ambiguity" }),
+    ]))
+    expect(result.clarification?.chips).toContain("직접 입력")
   })
 
   it("keeps 'CRX S \uBE7C\uACE0' as a brand exclusion instead of a positive brand match", async () => {
@@ -208,7 +208,7 @@ describe("resolveMultiStageQuery natural-language regressions", () => {
     expect(result.validation?.valid).toBe(true)
   })
 
-  it("keeps '\uB0A0\uC218\uB294 2\uAC1C\uC5EC\uC57C\uD558\uACE0 square \uC544\uB2C8\uACE0' attached to the correct fields", async () => {
+  it("asks clarification for '\uB0A0\uC218\uB294 2\uAC1C\uC5EC\uC57C\uD558\uACE0 square \uC544\uB2C8\uACE0' before committing a mixed clause edit", async () => {
     const stage2Provider = makeProvider(JSON.stringify({
       filters: [
         { field: "fluteCount", op: "neq", value: 2, rawToken: "2\uAC1C" },
@@ -246,12 +246,13 @@ describe("resolveMultiStageQuery natural-language regressions", () => {
       },
     })
 
-    expect(result.source).toBe("stage3")
-    expect(result.intent).toBe("show_recommendation")
-    expect(result.filters).toEqual(expect.arrayContaining([
-      expect.objectContaining({ field: "fluteCount", op: "eq", rawValue: 2 }),
-      expect.objectContaining({ field: "toolSubtype", op: "neq", rawValue: "Square" }),
+    expect(result.action).toBe("ask_clarification")
+    expect(result.source).toBe("clarification")
+    expect(result.intent).toBe("ask_clarification")
+    expect(result.filters).toEqual([])
+    expect(result.validation?.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "mixed_clause_ambiguity" }),
     ]))
-    expect(result.validation?.valid).toBe(true)
+    expect(result.clarification?.chips).toContain("직접 입력")
   })
 })
