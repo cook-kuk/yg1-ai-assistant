@@ -1,4 +1,9 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+
+vi.mock("@/lib/recommendation/infrastructure/engines/serve-engine-option-first", () => ({
+  buildComparisonOptionState: () => null,
+  buildRefinementOptionState: () => null,
+}))
 
 import { extractNegatedValue } from "../serve-engine-runtime"
 
@@ -16,6 +21,14 @@ describe("serve-engine-runtime negation extraction", () => {
       field: "brand",
       rawValue: "CRX S",
       displayValue: "CRX S",
+    })
+  })
+
+  it("strips discourse lead-ins and typo-normalizes coating negation", () => {
+    expect(extractNegatedValue("그리고 Y-coatiing 말고 추천할거 있어요?")).toEqual({
+      field: "coating",
+      rawValue: "Y-Coating",
+      displayValue: "Y-coatiing",
     })
   })
 })

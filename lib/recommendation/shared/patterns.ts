@@ -297,17 +297,20 @@ export const COATING_KEYWORD_SET: Set<string> = new Set(
 export function canonicalizeCoating(raw: string): string | null {
   const stripped = stripKoreanParticles(String(raw).trim())
   const normalized = stripped.toLowerCase().replace(/[\s\-_]+/g, "")
+  const normalizedLoose = normalized.replace(/([a-z])\1+/g, "$1")
   if (!normalized) return null
 
   for (const [alias, canonical] of Object.entries(COATING_KO_ALIASES)) {
-    if (normalized === alias || normalized === alias.replace(/[\s\-_]+/g, "")) {
+    const compactAlias = alias.replace(/[\s\-_]+/g, "")
+    const looseAlias = compactAlias.replace(/([a-z])\1+/g, "$1")
+    if (normalized === alias || normalized === compactAlias || normalizedLoose === looseAlias) {
       return canonical
     }
   }
 
   // Preserve YG-1 internal coating labels regardless of spacing/hyphenation.
   // Example: "T coating", "tcoating", "Y-Coating" -> canonical internal label.
-  const internalCoatingMatch = normalized.match(/^(x|y|t|z|c|h)coating$/i)
+  const internalCoatingMatch = normalizedLoose.match(/^(x|y|t|z|c|h)coating$/i)
   if (internalCoatingMatch) {
     return `${internalCoatingMatch[1].toUpperCase()}-Coating`
   }
