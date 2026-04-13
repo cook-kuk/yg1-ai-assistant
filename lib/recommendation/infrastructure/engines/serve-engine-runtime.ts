@@ -1182,25 +1182,15 @@ export function resolvePendingQuestionReply(
   // coating=Y-Coating in det-SCR but never matched a chip/option above, so we
   // would have dropped it. Prefer an action targeting the current pendingField,
   // otherwise take the first apply_filter action.
-  try {
-    const detActions = parseDeterministic(raw)
-    const filterActions = detActions.filter(a => a.type === "apply_filter") as Array<{
-      type: "apply_filter"
-      field: string
-      value: string | number
-      op: string
-    }>
-    if (filterActions.length > 0) {
-      const pendingHit = filterActions.find(a => a.field === pendingField || a.field === resolvedField)
-      const chosen = pendingHit ?? filterActions[0]
-      const built = buildAppliedFilterFromValue(chosen.field, chosen.value, sessionState.turnCount ?? 0, chosen.op)
-      if (built) {
-        console.log(`[pending-selection] Resolved via det-SCR fallback field="${built.field}" value="${built.value}" (pending="${pendingField}")`)
-        return { kind: "resolved", filter: built }
-      }
-    }
-  } catch (err) {
-    console.warn("[pending-selection] det-SCR fallback failed:", (err as Error).message)
+  const deferredDetHint = pendingDetActions.find(action => (
+    action.type === "apply_filter"
+    && (action.field === pendingField || action.field === resolvedField)
+  )) ?? pendingDetActions.find(action => action.type === "apply_filter")
+
+  if (deferredDetHint?.type === "apply_filter") {
+    console.log(
+      `[pending-selection] Deferred det-SCR hint field="${deferredDetHint.field}" value="${deferredDetHint.value}" (pending="${pendingField}")`
+    )
   }
 
   console.log(`[pending-selection] Unresolved reply for field="${resolvedField}" raw="${raw.slice(0, 30)}"`)
@@ -2695,6 +2685,7 @@ async function handleServeExplorationInner(
         const { isRepairOnlySignal, needsRepair, repairMessage } = await import("@/lib/recommendation/core/turn-repair")
         const repairTriggered = needsRepair(msg)
         const repairOnlySignal = isRepairOnlySignal(msg)
+        const deicticRepairSignal = /(?:그거|그게|이거|이게|아까|방금)/u.test(msg)
         const histLen = prevState?.narrowingHistory?.length ?? 0
         const filtLen = prevState?.appliedFilters?.length ?? 0
         console.log(`[turn-repair:gate] msg="${msg.slice(0, 40)}", needsRepair=${repairTriggered}, history=${histLen}, filters=${filtLen}, msgs=${messages.length}`)
@@ -2718,12 +2709,21 @@ async function handleServeExplorationInner(
           }
           const filters = prevState?.appliedFilters ?? []
           const repair = await repairMessage(msg, filters, history as never, provider)
+          const repairDetActions = parseDeterministic(msg)
+          const hasConcreteRepairAction = repairDetActions.some(action =>
+            action.type === "apply_filter"
+            || action.type === "remove_filter"
+            || action.type === "replace_filter"
+          )
+          const needsContextualRepairClarification =
+            deicticRepairSignal
+            && !repairOnlySignal
+            && !hasConcreteRepairAction
           const shouldAskRepairClarification =
             prevState
-            && repairOnlySignal
             && !repair.wasRepaired
-            && !hasEditSignal(msg)
-            && !parseDeterministic(msg).some(action => action.type === "apply_filter")
+            && (repairOnlySignal || needsContextualRepairClarification)
+            && !hasConcreteRepairAction
           if (shouldAskRepairClarification && prevState) {
             const repairClarification = buildRepairClarification(filters)
             return buildRevisionClarificationResponse(
@@ -3792,7 +3792,7 @@ async function handleServeExplorationInner(
     }
 
     // ── 4. Deterministic negation fallback (SQL Agent 실패 시에만) ──
-    if (!singleCallHandled && hasNegationPattern) {
+    if (false && !singleCallHandled && hasNegationPattern) {
       const msgLower = msg.toLowerCase()
 
       // Track 1: Remove existing filter if value matches

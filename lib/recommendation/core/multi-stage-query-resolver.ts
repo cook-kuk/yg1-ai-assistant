@@ -431,39 +431,11 @@ function extractJsonObject(raw: string): unknown | null {
 function extractKnownTokens(
   _message: string,
   stageOneEditIntent?: EditIntentResult | null,
-  stageOneDeterministicActions?: DeterministicAction[],
+  _stageOneDeterministicActions?: DeterministicAction[],
   stageOneSort?: QuerySort | null,
 ): Set<string> {
   const known = new Set<string>()
   const stageOneEditExecutes = shouldExecuteEditIntentDeterministically(stageOneEditIntent)
-  const suppressedDeterministicFields = new Set<string>()
-
-  if (stageOneEditIntent?.intent.type === "skip_field") {
-    suppressedDeterministicFields.add(stageOneEditIntent.intent.field)
-  }
-  if (!stageOneEditExecutes) {
-    for (const field of getEditIntentAffectedFields(stageOneEditIntent)) {
-      suppressedDeterministicFields.add(field)
-    }
-  }
-
-  for (const action of stageOneDeterministicActions ?? []) {
-    if (action.field && suppressedDeterministicFields.has(action.field)) continue
-    for (const alias of [action.field ?? "", ...getFilterFieldQueryAliases(action.field ?? "")]) {
-      for (const token of tokenize(alias)) {
-        const normalized = normalizeToken(token)
-        if (normalized) known.add(normalized)
-      }
-    }
-    for (const token of tokenize(String(action.value ?? ""))) {
-      const normalized = normalizeToken(token)
-      if (normalized) known.add(normalized)
-    }
-    for (const token of tokenize(String(action.value2 ?? ""))) {
-      const normalized = normalizeToken(token)
-      if (normalized) known.add(normalized)
-    }
-  }
 
   if (stageOneEditIntent && stageOneEditExecutes) {
     const addFieldAliases = (field: string) => {
@@ -590,7 +562,7 @@ function extractStageOneResolvedBy(args: ResolveMultiStageQueryArgs): string[] {
         : "edit-hint",
     )
   }
-  if ((args.stageOneDeterministicActions?.length ?? 0) > 0) resolvedBy.push("det-scr")
+  if ((args.stageOneDeterministicActions?.length ?? 0) > 0) resolvedBy.push("det-hint")
   if (args.stageOneSort) resolvedBy.push("sort")
   if (args.stageOneClearUnmentionedFields) resolvedBy.push("relaxation")
   return resolvedBy
@@ -1207,19 +1179,55 @@ function extractSemanticEditHintTokens(args: ResolveMultiStageQueryArgs): string
   return expandSemanticHintTokens(getEditIntentHintTokens(args.stageOneEditIntent))
 }
 
+function extractDeterministicSemanticHintTokens(args: ResolveMultiStageQueryArgs): string[] {
+  const tokens = (args.stageOneDeterministicActions ?? [])
+    .flatMap(action => {
+      if (action.type !== "apply_filter" || !action.field || action.value == null) return []
+      return [
+        action.field,
+        String(action.value),
+        action.value2 != null ? String(action.value2) : null,
+      ]
+    })
+    .filter((token): token is string => typeof token === "string" && token.trim().length > 0)
+
+  return expandSemanticHintTokens(tokens)
+}
+
 function buildStageOneSemanticHintSummary(args: ResolveMultiStageQueryArgs): string {
-  if (shouldExecuteEditIntentDeterministically(args.stageOneEditIntent)) return "none"
-  if (!args.stageOneEditIntent) return "none"
+  const parts: string[] = []
 
-  const affectedFields = getEditIntentAffectedFields(args.stageOneEditIntent)
-  const hintTokens = getEditIntentHintTokens(args.stageOneEditIntent)
+  if (args.stageOneEditIntent && !shouldExecuteEditIntentDeterministically(args.stageOneEditIntent)) {
+    const affectedFields = getEditIntentAffectedFields(args.stageOneEditIntent)
+    const hintTokens = getEditIntentHintTokens(args.stageOneEditIntent)
 
-  return [
-    `intent=${args.stageOneEditIntent.intent.type}`,
-    affectedFields.length > 0 ? `fields=${affectedFields.join(", ")}` : null,
-    hintTokens.length > 0 ? `tokens=${hintTokens.join(", ")}` : null,
-    `reason=${args.stageOneEditIntent.reason}`,
-  ].filter((entry): entry is string => Boolean(entry)).join(" | ")
+    parts.push([
+      `edit.intent=${args.stageOneEditIntent.intent.type}`,
+      affectedFields.length > 0 ? `fields=${affectedFields.join(", ")}` : null,
+      hintTokens.length > 0 ? `tokens=${hintTokens.join(", ")}` : null,
+      `reason=${args.stageOneEditIntent.reason}`,
+    ].filter((entry): entry is string => Boolean(entry)).join(" | "))
+  }
+
+  const deterministicHints = uniqueStrings(
+    (args.stageOneDeterministicActions ?? [])
+      .filter(action => action.type === "apply_filter" && action.field && action.value != null)
+      .map(action => {
+        const upper = action.op === "between" && action.value2 != null
+          ? `${String(action.value)}..${String(action.value2)}`
+          : String(action.value)
+        return `${action.field} ${action.op ?? "eq"} ${upper}`
+      }),
+  )
+  if (deterministicHints.length > 0) {
+    parts.push(`det.candidates=${deterministicHints.join("; ")}`)
+  }
+
+  if (args.stageOneClearUnmentionedFields) {
+    parts.push("global_relaxation=true")
+  }
+
+  return parts.length > 0 ? parts.join(" || ") : "none"
 }
 
 function extractUnresolvedTokens(args: ResolveMultiStageQueryArgs): string[] {
@@ -1231,7 +1239,11 @@ function extractUnresolvedTokens(args: ResolveMultiStageQueryArgs): string[] {
   ))
 
   return uniqueStrings(
-    [...extractRawTokens(args.message), ...extractSemanticEditHintTokens(args)].filter(token => {
+    [
+      ...extractRawTokens(args.message),
+      ...extractSemanticEditHintTokens(args),
+      ...extractDeterministicSemanticHintTokens(args),
+    ].filter(token => {
       const normalized = normalizeToken(token)
       if (!normalized) return false
       if (STOPWORD_TOKENS.has(normalized) && !/^\d/.test(token)) return false
@@ -1591,18 +1603,6 @@ function buildStageOneAnalysis(args: ResolveMultiStageQueryArgs): StageOneBuildA
   const editIntentResult = args.stageOneEditIntent ?? null
   const editIntent = editIntentResult?.intent ?? null
   const executeStageOneEdit = shouldExecuteEditIntentDeterministically(editIntentResult)
-  const clearUnmentioned = args.stageOneClearUnmentionedFields === true
-  const rawActions = args.stageOneDeterministicActions ?? []
-  const semanticHintedFields = new Set(
-    executeStageOneEdit ? [] : getEditIntentAffectedFields(editIntentResult),
-  )
-  const effectiveActions =
-    rawActions.filter(action => {
-      if (!action.field) return true
-      if (editIntent?.type === "skip_field" && action.field === editIntent.field) return false
-      if (semanticHintedFields.has(action.field)) return false
-      return true
-    })
   const filterSpecs: ResolverFilterSpec[] = []
   const removeFields = new Set<string>()
   let followUpFilter: AppliedFilter | null = null
@@ -1667,28 +1667,14 @@ function buildStageOneAnalysis(args: ResolveMultiStageQueryArgs): StageOneBuildA
         reasoning = `stage1:${args.stageOneEditIntent?.reason ?? `clear ${editIntent.field}`}`
         break
       case "replace_field":
-        removeFields.add(editIntent.field)
-        filterSpecs.push({ field: editIntent.field, op: "eq", value: editIntent.newValue })
         reasoning = `stage1:${args.stageOneEditIntent?.reason ?? `replace ${editIntent.field}`}`
         break
       case "exclude_field":
-        filterSpecs.push({ field: editIntent.field, op: "neq", value: editIntent.value })
         reasoning = `stage1:${args.stageOneEditIntent?.reason ?? `exclude ${editIntent.field}`}`
         break
     }
   } else if (editIntentResult) {
     reasoning = `stage1:hint:${editIntentResult.reason}`
-  }
-
-  for (const action of effectiveActions) {
-    if (action.type !== "apply_filter" || !action.field || action.value == null) continue
-    filterSpecs.push({
-      field: action.field,
-      op: action.op ?? "eq",
-      value: action.value as PrimitiveValue | PrimitiveValue[],
-      value2: action.value2 as PrimitiveValue | undefined,
-      rawToken: typeof action.source === "string" ? action.source : undefined,
-    })
   }
 
   const filters = filterSpecs
@@ -1698,7 +1684,6 @@ function buildStageOneAnalysis(args: ResolveMultiStageQueryArgs): StageOneBuildA
   const hasStageOneResolution =
     filters.length > 0
     || !!args.stageOneSort
-    || clearUnmentioned
     || removeFields.size > 0
     || intent !== "none"
 
@@ -1708,7 +1693,7 @@ function buildStageOneAnalysis(args: ResolveMultiStageQueryArgs): StageOneBuildA
     intent = inferIntentFromRouteHint(
       "none",
       args.message,
-      filters.length > 0 || removeFields.size > 0 || clearUnmentioned,
+      filters.length > 0 || removeFields.size > 0,
       Boolean(args.stageOneSort),
     )
   }
@@ -1719,7 +1704,7 @@ function buildStageOneAnalysis(args: ResolveMultiStageQueryArgs): StageOneBuildA
     sort: args.stageOneSort ?? null,
     routeHint: intent === "show_recommendation" ? "show_recommendation" : "none",
     intent,
-    clearOtherFilters: clearUnmentioned,
+    clearOtherFilters: false,
     removeFields: Array.from(removeFields),
     followUpFilter,
     confidence: args.stageOneEditIntent?.confidence ?? (filters.length > 0 || args.stageOneSort ? 0.95 : 0.85),

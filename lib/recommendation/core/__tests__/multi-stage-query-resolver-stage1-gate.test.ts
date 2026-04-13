@@ -87,7 +87,10 @@ describe("resolveMultiStageQuery stage1 CoT gate", () => {
 
   it("escalates canonicalization misses to Stage 2 only when the production gate is enabled", async () => {
     const stage2Provider = makeProvider(JSON.stringify({
-      filters: [{ field: "diameterMm", op: "eq", value: 10, rawToken: "tenish" }],
+      filters: [
+        { field: "fluteCount", op: "eq", value: 4, rawToken: "4 flute" },
+        { field: "diameterMm", op: "eq", value: 10, rawToken: "tenish" },
+      ],
       sort: null,
       routeHint: "none",
       clearOtherFilters: false,
@@ -132,15 +135,18 @@ describe("resolveMultiStageQuery stage1 CoT gate", () => {
     expect(stage2Provider.complete).toHaveBeenCalledTimes(1)
   })
 
-  it("keeps the old stage1 fast path when the production-only gate is not passed", async () => {
+  it("keeps deterministic filter candidates on the semantic path even when the production-only gate is off", async () => {
     const stage2Provider = makeProvider(JSON.stringify({
-      filters: [{ field: "diameterMm", op: "eq", value: 10, rawToken: "tenish" }],
+      filters: [
+        { field: "fluteCount", op: "eq", value: 4, rawToken: "4 flute" },
+        { field: "diameterMm", op: "eq", value: 10, rawToken: "tenish" },
+      ],
       sort: null,
       routeHint: "none",
       clearOtherFilters: false,
       confidence: 0.9,
       unresolvedTokens: [],
-      reasoning: "should not be used",
+      reasoning: "semantic resolver used deterministic candidates as hints",
     }))
 
     const result = await resolveMultiStageQuery({
@@ -168,11 +174,12 @@ describe("resolveMultiStageQuery stage1 CoT gate", () => {
       stage3Provider: makeUnavailableProvider(),
     })
 
-    expect(result.source).toBe("stage1")
-    expect(result.filters).toEqual([
+    expect(result.source).toBe("stage2")
+    expect(result.filters).toEqual(expect.arrayContaining([
       expect.objectContaining({ field: "fluteCount", rawValue: 4 }),
-    ])
-    expect(stage2Provider.complete).not.toHaveBeenCalled()
+      expect.objectContaining({ field: "diameterMm", rawValue: 10 }),
+    ]))
+    expect(stage2Provider.complete).toHaveBeenCalledTimes(1)
   })
 
   it("returns a non-terminal result so SQL-agent can continue when forced CoT still resolves nothing", async () => {

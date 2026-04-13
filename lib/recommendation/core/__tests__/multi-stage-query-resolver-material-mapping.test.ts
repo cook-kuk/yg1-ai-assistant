@@ -78,7 +78,12 @@ describe("resolveMultiStageQuery material mapping", () => {
     expect(result.source).toBe("stage2")
     expect(result.intent).toBe("show_recommendation")
     expect(result.filters).toEqual([
-      expect.objectContaining({ field: "workPieceName", rawValue: "Carbon Steel" }),
+      expect.objectContaining({
+        field: "workPieceName",
+        op: "eq",
+        value: "Carbon Steels",
+        rawValue: "Carbon Steels",
+      }),
     ])
   })
 })

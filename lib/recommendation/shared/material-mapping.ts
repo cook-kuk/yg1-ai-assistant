@@ -154,6 +154,24 @@ const HEAT_TREATMENT_PATTERNS: Array<{ signal: string; pattern: RegExp }> = [
   { signal: "cast", pattern: /\bcast\b/i },
 ]
 
+const CATALOG_FAMILY_NAME_MAP = new Map<string, string>([
+  ["stainless", "Stainless Steels"],
+  ["stainlesssteels", "Stainless Steels"],
+  ["carbonsteel", "Carbon Steels"],
+  ["carbonsteels", "Carbon Steels"],
+  ["alloysteel", "Alloy Steels"],
+  ["alloysteels", "Alloy Steels"],
+  ["prehardenedsteel", "Prehardened Steels"],
+  ["prehardenedsteels", "Prehardened Steels"],
+  ["hardenedsteel", "Hardened Steels"],
+  ["hardenedsteels", "Hardened Steels"],
+  ["castiron", "Cast Iron"],
+  ["aluminum", "Aluminum"],
+  ["copper", "Copper"],
+  ["titanium", "Titanium"],
+  ["inconel", "Inconel"],
+])
+
 let materialMappingCache: MaterialMappingCache | null = null
 let materialMappingPathOverride: string | null = null
 let brandAffinityPathOverride: string | null = null
@@ -798,6 +816,12 @@ export function resolveMaterialFamilyName(raw: string): string | null {
     return resolveFamilyFromIsoTag(match.lv1Iso, getMaterialMappingCache())
   }
   return null
+}
+
+export function resolveCatalogMaterialFamilyName(raw: string): string | null {
+  const family = resolveMaterialFamilyName(raw)
+  if (!family) return null
+  return CATALOG_FAMILY_NAME_MAP.get(normalizeFamilyKey(family)) ?? family
 }
 
 export function resolveMaterialIsoTagForFamily(raw: string): string | null {

@@ -255,6 +255,9 @@ const EXCLUDE_PATTERNS = [
   /(?:not|except|without|exclude|other\s+than)\s+(\S+)/iu,
 ]
 
+const SEMANTIC_MUTATION_CUE_RE =
+  /(?:말고|빼고|제외|아닌|않은|아니고|대신|instead|alternative|다른\s*거|다른거|변경|바꿔|switch|replace)/iu
+
 const REFINE_PATTERNS = [
   /(?:다른|변경|바꿔|바꾸|change|different)\s*(?:직경|소재|코팅|날수|형상|diameter|material|coating|flute|subtype)/iu,
 ]
@@ -597,6 +600,7 @@ export function tryKGDecision(
   const msg = userMessage.trim()
   const lower = msg.toLowerCase()
   const pendingField = sessionState?.lastAskedField ?? null
+  const shouldDeferSemanticMutation = SEMANTIC_MUTATION_CUE_RE.test(msg)
 
   // ── 1. Skip patterns ──
   if (SKIP_PATTERNS.some(p => p.test(msg))) {
@@ -850,6 +854,14 @@ export function tryKGDecision(
   for (const pattern of EXCLUDE_PATTERNS) {
     const match = msg.match(pattern)
     if (match) {
+      if (shouldDeferSemanticMutation) {
+        return {
+          decision: null,
+          confidence: 0,
+          source: "none",
+          reason: "semantic mutation deferred to semantic resolver",
+        }
+      }
       const excludeRaw = (match[1] || match[2]).toLowerCase()
       const entity = resolveEntity(excludeRaw)
       const resolved = entity
@@ -1001,15 +1013,14 @@ export function tryKGDecision(
   const shouldDispatch =
     entities.length >= 1 &&
     !hasGenericMachiningCategoryCompanion &&
+    !shouldDeferSemanticMutation &&
     (isLosslessShortUtterance || isShankCompound || isMaterialGroup)
   if (shouldDispatch && !COMPANY_PATTERNS.some(p => p.test(msg))) {
-    // Negation check: "4날 말고", "TiAlN 빼고" 등 → op: "exclude"
-    const isNegation = /빼고|제외|아닌\s*것|아닌\s*걸|아닌걸|없는\s*거|말고|만\s*아니면|없이|아닌\s*거|없는\s*거로|가\s*아닌|이\s*아닌/u.test(msg)
     const primary = entities[0]
     const extras = entities.slice(1)
     const filter: AppliedFilter = {
       field: primary.field,
-      op: isNegation ? "exclude" : "eq",
+      op: "eq",
       value: primary.canonical,
       rawValue: primary.canonical,
       appliedAt: 0,

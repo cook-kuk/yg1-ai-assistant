@@ -54,9 +54,9 @@ describe("resolveMultiStageQuery natural-language regressions", () => {
     _resetMaterialMappingCacheForTest()
   })
 
-  it("keeps '티타늄 말고 뭐가 좋아?' on the semantic negation path", async () => {
+  it("keeps '\uD2F0\uD0C0\uB284 \uB9D0\uACE0 \uBB50\uAC00 \uC88B\uC544?' on the semantic negation path", async () => {
     const stage2Provider = makeProvider(JSON.stringify({
-      filters: [{ field: "workPieceName", op: "neq", value: "Titanium", rawToken: "티타늄" }],
+      filters: [{ field: "workPieceName", op: "neq", value: "Titanium", rawToken: "Titanium" }],
       sort: null,
       routeHint: "show_recommendation",
       clearOtherFilters: false,
@@ -66,10 +66,10 @@ describe("resolveMultiStageQuery natural-language regressions", () => {
     }))
 
     const result = await resolveMultiStageQuery({
-      message: "티타늄 말고 뭐가 좋아?",
+      message: "\uD2F0\uD0C0\uB284 \uB9D0\uACE0 \uBB50\uAC00 \uC88B\uC544?",
       turnCount: 2,
       currentFilters: [],
-      complexity: assessComplexity("티타늄 말고 뭐가 좋아?"),
+      complexity: assessComplexity("\uD2F0\uD0C0\uB284 \uB9D0\uACE0 \uBB50\uAC00 \uC88B\uC544?"),
       stageOneDeterministicActions: [
         {
           type: "apply_filter",
@@ -94,7 +94,7 @@ describe("resolveMultiStageQuery natural-language regressions", () => {
     expect(result.validation?.valid).toBe(true)
   })
 
-  it("keeps 'CRX S 빼고' as a brand exclusion instead of a positive brand match", async () => {
+  it("keeps 'CRX S \uBE7C\uACE0' as a brand exclusion instead of a positive brand match", async () => {
     const stage2Provider = makeProvider(JSON.stringify({
       filters: [{ field: "brand", op: "neq", value: "CRX S", rawToken: "CRX S" }],
       sort: null,
@@ -106,10 +106,10 @@ describe("resolveMultiStageQuery natural-language regressions", () => {
     }))
 
     const result = await resolveMultiStageQuery({
-      message: "CRX S 빼고",
+      message: "CRX S \uBE7C\uACE0",
       turnCount: 2,
       currentFilters: [],
-      complexity: assessComplexity("CRX S 빼고"),
+      complexity: assessComplexity("CRX S \uBE7C\uACE0"),
       stageOneDeterministicActions: [
         {
           type: "apply_filter",
@@ -134,11 +134,51 @@ describe("resolveMultiStageQuery natural-language regressions", () => {
     expect(result.validation?.valid).toBe(true)
   })
 
-  it("recovers typo-heavy material and numeric tokens from '스텐인리스 4날 10mn'", async () => {
+  it("keeps '4G MILL \uB9D0\uACE0' as a brand exclusion instead of preserving the brand token", async () => {
+    const stage2Provider = makeProvider(JSON.stringify({
+      filters: [{ field: "brand", op: "neq", value: "4G MILL", rawToken: "4G MILL" }],
+      sort: null,
+      routeHint: "show_recommendation",
+      clearOtherFilters: false,
+      confidence: 0.94,
+      unresolvedTokens: [],
+      reasoning: "exclude the brand",
+    }))
+
+    const result = await resolveMultiStageQuery({
+      message: "4G MILL \uB9D0\uACE0",
+      turnCount: 2,
+      currentFilters: [],
+      complexity: assessComplexity("4G MILL \uB9D0\uACE0"),
+      stageOneDeterministicActions: [
+        {
+          type: "apply_filter",
+          field: "brand",
+          op: "eq",
+          value: "4G MILL",
+          source: "deterministic",
+        },
+      ],
+      stage2Provider,
+      stage3Provider: makeProvider(),
+      stage1CotEscalation: {
+        enabled: true,
+      },
+    })
+
+    expect(result.source).toBe("stage2")
+    expect(result.intent).toBe("show_recommendation")
+    expect(result.filters).toEqual([
+      expect.objectContaining({ field: "brand", op: "neq", rawValue: "4G MILL" }),
+    ])
+    expect(result.validation?.valid).toBe(true)
+  })
+
+  it("recovers typo-heavy material and numeric tokens from '\uC2A4\uD150\uC778\uB9AC\uC2A4 4\uB0AD 10mn'", async () => {
     const stage2Provider = makeProvider(JSON.stringify({
       filters: [
-        { field: "workPieceName", op: "eq", value: "Stainless Steels", rawToken: "스텐인리스" },
-        { field: "fluteCount", op: "eq", value: 4, rawToken: "4날" },
+        { field: "workPieceName", op: "eq", value: "Stainless Steels", rawToken: "\uC2A4\uD150\uC778\uB9AC\uC2A4" },
+        { field: "fluteCount", op: "eq", value: 4, rawToken: "4\uB0AD" },
         { field: "diameterMm", op: "eq", value: 10, rawToken: "10mn" },
       ],
       sort: null,
@@ -150,10 +190,10 @@ describe("resolveMultiStageQuery natural-language regressions", () => {
     }))
 
     const result = await resolveMultiStageQuery({
-      message: "스텐인리스 4날 10mn",
+      message: "\uC2A4\uD150\uC778\uB9AC\uC2A4 4\uB0AD 10mn",
       turnCount: 2,
       currentFilters: [],
-      complexity: assessComplexity("스텐인리스 4날 10mn"),
+      complexity: assessComplexity("\uC2A4\uD150\uC778\uB9AC\uC2A4 4\uB0AD 10mn"),
       stage2Provider,
       stage3Provider: makeProvider(),
     })
@@ -168,11 +208,11 @@ describe("resolveMultiStageQuery natural-language regressions", () => {
     expect(result.validation?.valid).toBe(true)
   })
 
-  it("keeps positive and negated clauses attached to the correct fields in one turn", async () => {
+  it("keeps '\uB0A0\uC218\uB294 2\uAC1C\uC5EC\uC57C\uD558\uACE0 square \uC544\uB2C8\uACE0' attached to the correct fields", async () => {
     const stage2Provider = makeProvider(JSON.stringify({
       filters: [
-        { field: "fluteCount", op: "neq", value: 2, rawToken: "2개" },
-        { field: "toolSubtype", op: "eq", value: "Square", rawToken: "square 아니고" },
+        { field: "fluteCount", op: "neq", value: 2, rawToken: "2\uAC1C" },
+        { field: "toolSubtype", op: "eq", value: "Square", rawToken: "square" },
       ],
       sort: null,
       routeHint: "show_recommendation",
@@ -183,8 +223,8 @@ describe("resolveMultiStageQuery natural-language regressions", () => {
     }))
     const stage3Provider = makeProvider(JSON.stringify({
       filters: [
-        { field: "fluteCount", op: "eq", value: 2, rawToken: "2개여야" },
-        { field: "toolSubtype", op: "neq", value: "Square", rawToken: "square 아니고" },
+        { field: "fluteCount", op: "eq", value: 2, rawToken: "2\uAC1C" },
+        { field: "toolSubtype", op: "neq", value: "Square", rawToken: "square" },
       ],
       sort: null,
       routeHint: "show_recommendation",
@@ -195,10 +235,10 @@ describe("resolveMultiStageQuery natural-language regressions", () => {
     }))
 
     const result = await resolveMultiStageQuery({
-      message: "날수는 2개여야하고 형상은 고민중인데 square 아니고 다른거 추천 가능해?",
+      message: "\uB0A0\uC218\uB294 2\uAC1C\uC5EC\uC57C\uD558\uACE0 square \uC544\uB2C8\uACE0",
       turnCount: 3,
       currentFilters: [],
-      complexity: assessComplexity("날수는 2개여야하고 형상은 고민중인데 square 아니고 다른거 추천 가능해?"),
+      complexity: assessComplexity("\uB0A0\uC218\uB294 2\uAC1C\uC5EC\uC57C\uD558\uACE0 square \uC544\uB2C8\uACE0"),
       stage2Provider,
       stage3Provider,
       stage1CotEscalation: {

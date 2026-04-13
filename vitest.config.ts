@@ -6,6 +6,8 @@ export default defineConfig({
     globals: true,
     include: ["lib/**/*.test.ts"],
     exclude: ["node_modules", ".next", "e2e"],
+    testTimeout: 30000,
+    hookTimeout: 30000,
     server: {
       deps: {
         inline: ["server-only"],

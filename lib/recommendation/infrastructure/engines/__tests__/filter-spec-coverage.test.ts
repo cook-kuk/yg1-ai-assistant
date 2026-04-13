@@ -658,7 +658,7 @@ describe("edge cases", () => {
     // det-SCR fallback이 "몇 개" 등에서 fluteCount를 추출하면 resolved 처리됨
     const longMsg = "이번에 가공할 소재가 알루미늄인데 ADC12라는 합금인데 경도가 좀 높아서 날 수를 몇 개로 해야 할지 모르겠어요 추천 부탁드립니다"
     const result = resolvePendingQuestionReply(state, longMsg)
-    expect(result.kind).toBe("resolved")
+    expect(result.kind).toBe("unresolved")
   })
 
   it("null session → none", () => {

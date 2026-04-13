@@ -396,8 +396,8 @@ describe("Part 2: 한국어 코팅 표현 80가지", () => {
     ["Ti-C-N", "ticn"],
     ["Steam Homo", "steam"],
     ["steam homo", "steam"],
-    ["XCoating", "xcoating"],
-    ["YCoating", "ycoating"],
+    ["XCoating", "x-coating"],
+    ["YCoating", "y-coating"],
   ]
 
   const allCoatingCases = [

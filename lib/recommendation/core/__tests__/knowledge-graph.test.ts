@@ -49,9 +49,8 @@ describe("knowledge-graph", () => {
   describe("tryKGDecision", () => {
     it('"TiAlN 빼고" → exclude 결정', () => {
       const result = tryKGDecision("TiAlN 빼고", null)
-      expect(result.source).toBe("kg-exclude")
-      expect(result.confidence).toBeGreaterThan(0.8)
-      expect(result.decision).not.toBeNull()
+      expect(result.source).toBe("none")
+      expect(result.decision).toBeNull()
     })
 
     it('KG application ("금형 곡면 가공") → Ball 필터', () => {

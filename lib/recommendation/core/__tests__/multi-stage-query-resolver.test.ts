@@ -165,18 +165,28 @@ describe("resolveMultiStageQuery", () => {
     expect(stage2Provider.complete).toHaveBeenCalledTimes(1)
   })
 
-  it("merges Stage 1 deterministic output with Stage 2 semantic output", async () => {
-    const stage2Provider = makeProvider(
-      JSON.stringify({
-        filters: [{ field: "coating", op: "skip", rawToken: "뭐가 됐든" }],
-        sort: null,
-        routeHint: "none",
-        clearOtherFilters: false,
-        confidence: 0.91,
-        unresolvedTokens: [],
-        reasoning: "skip coating and keep flute",
+  it("passes deterministic candidates to Stage 2 as semantic hints instead of stage1 truth", async () => {
+    const stage2Provider = {
+      available: () => true,
+      complete: vi.fn(async (_systemPrompt: string, messages: Array<{ role: string; content: string }>) => {
+        const userPrompt = messages[0]?.content ?? ""
+        expect(userPrompt).toContain("Stage 1 semantic hints:")
+        expect(userPrompt).toContain("det.candidates=fluteCount eq 4")
+        return JSON.stringify({
+          filters: [
+            { field: "fluteCount", op: "eq", value: 4, rawToken: "4 flute" },
+            { field: "coating", op: "skip", rawToken: "뭐가 됐든" },
+          ],
+          sort: null,
+          routeHint: "none",
+          clearOtherFilters: false,
+          confidence: 0.91,
+          unresolvedTokens: [],
+          reasoning: "skip coating and keep flute",
+        })
       }),
-    )
+      completeWithTools: vi.fn(async () => ({ text: null, toolUse: null })),
+    } as unknown as LLMProvider & { complete: ReturnType<typeof vi.fn> }
 
     const result = await resolveMultiStageQuery({
       message: "코팅 뭐가 됐든 4날만",
@@ -204,10 +214,13 @@ describe("resolveMultiStageQuery", () => {
     expect(stage2Provider.complete).toHaveBeenCalledTimes(1)
   })
 
-  it("keeps Stage 1 deterministic filters when semantic output is replayed from cache", async () => {
+  it("keeps Stage 2 resolved filters when semantic output is replayed from cache", async () => {
     const stage2Provider = makeProvider(
       JSON.stringify({
-        filters: [{ field: "coating", op: "skip", rawToken: "뭐가 됐든" }],
+        filters: [
+          { field: "fluteCount", op: "eq", value: 4, rawToken: "4 flute" },
+          { field: "coating", op: "skip", rawToken: "뭐가 됐든" },
+        ],
         sort: null,
         routeHint: "none",
         clearOtherFilters: false,
@@ -460,10 +473,10 @@ describe("resolveMultiStageQuery", () => {
     expect(result.routeHint).toBe("general_question")
   })
 
-  it("returns clearOtherFilters for global relaxation phrases", async () => {
+  it("keeps the concrete filter and drops redundant clearOtherFilters on an empty session", async () => {
     const stage2Provider = makeProvider(
       JSON.stringify({
-        filters: [],
+        filters: [{ field: "diameterMm", op: "eq", value: 10, rawToken: "10mm" }],
         sort: null,
         routeHint: "none",
         clearOtherFilters: true,
@@ -492,8 +505,8 @@ describe("resolveMultiStageQuery", () => {
       stage3Provider: makeUnavailableProvider(),
     })
 
-    expect(result.source).toBe("stage1")
-    expect(result.clearOtherFilters).toBe(true)
+    expect(result.source).toBe("stage2")
+    expect(result.clearOtherFilters).toBe(false)
     expect(result.filters).toEqual([
       expect.objectContaining({ field: "diameterMm", rawValue: 10 }),
     ])
@@ -637,7 +650,12 @@ describe("resolveMultiStageQuery", () => {
     expect(result.source).toBe("stage2")
     expect(result.intent).toBe("show_recommendation")
     expect(result.filters).toEqual([
-      expect.objectContaining({ field: "workPieceName", rawValue: "Carbon Steel" }),
+      expect.objectContaining({
+        field: "workPieceName",
+        op: "eq",
+        value: "Carbon Steels",
+        rawValue: "Carbon Steels",
+      }),
     ])
   })
 })

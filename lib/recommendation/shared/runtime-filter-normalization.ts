@@ -1,7 +1,7 @@
 import type { AppliedFilter } from "@/lib/recommendation/domain/types"
 
 import { buildAppliedFilterFromValue } from "./filter-field-registry"
-import { resolveMaterialFamilyName } from "./material-mapping"
+import { resolveCatalogMaterialFamilyName, resolveMaterialFamilyName } from "./material-mapping"
 
 export function normalizeRuntimeAppliedFilter(
   filter: AppliedFilter,
@@ -23,20 +23,21 @@ export function normalizeRuntimeAppliedFilter(
   if (!normalized) return { ...filter, appliedAt }
 
   if ((filter.field === "workPieceName" || filter.field === "material") && typeof rawValue === "string") {
-    const canonicalFamily = resolveMaterialFamilyName(rawValue)
+    const canonicalFamily = filter.field === "workPieceName"
+      ? resolveCatalogMaterialFamilyName(rawValue)
+      : resolveMaterialFamilyName(rawValue)
     if (canonicalFamily) {
+      const canonicalOpOverride = filter.field === "workPieceName" && filter.op !== "neq" && filter.op !== "exclude"
+        ? "eq"
+        : opOverride
       const canonicalized = buildAppliedFilterFromValue(
         filter.field,
         canonicalFamily,
         appliedAt,
-        opOverride,
+        canonicalOpOverride,
       )
       if (canonicalized) {
-        return {
-          ...canonicalized,
-          rawValue,
-          appliedAt,
-        }
+        return { ...canonicalized, appliedAt }
       }
     }
   }

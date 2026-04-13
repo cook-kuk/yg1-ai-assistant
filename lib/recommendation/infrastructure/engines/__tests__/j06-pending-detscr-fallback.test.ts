@@ -21,14 +21,13 @@ function makeSession(pendingField: string): ExplorationSessionState {
 }
 
 describe("J06: pending-question det-SCR fallback", () => {
-  it("'Y 코팅으로 추천해줘' commits coating=Y-Coating instead of unresolved", () => {
+  it("'Y 코팅으로 추천해줘' defers det-SCR candidate instead of committing coating=Y-Coating", () => {
     const session = makeSession("coating")
     const r = resolvePendingQuestionReply(session, "Y 코팅으로 추천해줘")
-    expect(r.kind).toBe("resolved")
-    if (r.kind === "resolved") {
-      expect(r.filter.field).toBe("coating")
-      expect(String(r.filter.value)).toMatch(/Y-Coating/i)
-      expect(r.filter.op).not.toBe("skip")
+    expect(r.kind).toBe("unresolved")
+    if (r.kind === "unresolved") {
+      expect(r.pendingField).toBe("coating")
+      expect(r.raw).toBe("Y 코팅으로 추천해줘")
     }
   })
 })
