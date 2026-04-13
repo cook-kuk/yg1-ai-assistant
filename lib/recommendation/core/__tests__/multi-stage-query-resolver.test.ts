@@ -66,8 +66,16 @@ describe("resolveMultiStageQuery", () => {
     _resetMaterialMappingCacheForTest()
   })
 
-  it("returns Stage 1 immediately for deterministic skip intents", async () => {
-    const stage2Provider = makeProvider()
+  it("routes deterministic skip intents through Stage 2 semantic interpretation", async () => {
+    const stage2Provider = makeProvider(JSON.stringify({
+      filters: [{ field: "shankType", op: "skip", rawToken: "?앺겕 ????꾨Т嫄곕굹" }],
+      sort: null,
+      routeHint: "none",
+      clearOtherFilters: false,
+      confidence: 0.93,
+      unresolvedTokens: [],
+      reasoning: "release the pending shankType constraint",
+    }))
     const stage3Provider = makeProvider()
 
     const result = await resolveMultiStageQuery({
@@ -80,13 +88,11 @@ describe("resolveMultiStageQuery", () => {
       stage3Provider,
     })
 
-    expect(result.source).toBe("stage1")
-    expect(result.intent).toBe("continue_narrowing")
-    expect(result.removeFields).toEqual(["shankType"])
+    expect(result.source).toBe("stage2")
     expect(result.filters).toEqual([
       expect.objectContaining({ field: "shankType", op: "skip", rawValue: "skip" }),
     ])
-    expect(stage2Provider.complete).not.toHaveBeenCalled()
+    expect(stage2Provider.complete).toHaveBeenCalledTimes(1)
     expect(stage3Provider.complete).not.toHaveBeenCalled()
   })
 
@@ -769,7 +775,7 @@ describe("resolveMultiStageQuery", () => {
     expect(result.clarification?.question).toContain("조금만 더 구체적으로")
     expect(result.clarification?.chips).toContain("직접 입력")
   })
-  it("keeps Stage 1 sort truth when later stages only fall back to clarification", async () => {
+  it("does not commit Stage 1 sort hints when later stages fall back to clarification", async () => {
     const result = await resolveMultiStageQuery({
       message: "?醫롮삢 ??뽰뵬 疫뀀떯援ф에??곕뗄荑??곻폒?紐꾩뒄",
       turnCount: 4,
@@ -780,9 +786,9 @@ describe("resolveMultiStageQuery", () => {
       stage3Provider: makeUnavailableProvider(),
     })
 
-    expect(result.source).toBe("stage1")
-    expect(result.sort).toEqual({ field: "lengthOfCutMm", direction: "desc" })
-    expect(result.intent).toBe("show_recommendation")
+    expect(result.source).toBe("none")
+    expect(result.sort).toBeNull()
+    expect(result.intent).toBe("none")
     expect(result.clarification).toBeNull()
   })
 

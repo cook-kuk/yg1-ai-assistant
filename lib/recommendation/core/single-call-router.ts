@@ -17,6 +17,7 @@ import {
   SEMANTIC_INTERPRETATION_POLICY_PROMPT,
   shouldDeferHardcodedSemanticExecution,
 } from "@/lib/recommendation/core/semantic-execution-policy"
+import { needsRepair } from "@/lib/recommendation/core/turn-repair"
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -147,9 +148,34 @@ function buildSessionSummary(state: ExplorationSessionState | null): string {
     parts.push("No filters applied yet.")
   }
   parts.push(`Candidate count: ${state.candidateCount ?? 0}`)
+  parts.push(`Domain: ${state.resolvedInput?.toolType ?? state.resolvedInput?.machiningCategory ?? "unknown"}`)
   if (state.lastAskedField) parts.push(`Last asked field: ${state.lastAskedField}`)
   if (state.currentMode) parts.push(`Mode: ${state.currentMode}`)
   if (state.displayedChips?.length) parts.push(`Displayed chips: ${state.displayedChips.join(", ")}`)
+  if (state.displayedOptions?.length) {
+    parts.push(`Displayed options: ${state.displayedOptions.slice(0, 6).map(option => `${option.label}=>${option.field}=${option.value}`).join(" | ")}`)
+  }
+  if (state.displayedCandidates?.length) {
+    parts.push(`Displayed candidates: ${state.displayedCandidates.slice(0, 4).map(candidate => candidate.displayCode ?? candidate.productCode).join(", ")}`)
+  }
+  if (state.displayedProducts?.length) {
+    parts.push(`Displayed products: ${state.displayedProducts.slice(0, 4).map(product => product.displayCode ?? product.productCode).join(", ")}`)
+  }
+  if (state.displayedSeriesGroups?.length) {
+    parts.push(`Displayed series groups: ${state.displayedSeriesGroups.slice(0, 4).map(group => group.seriesName ?? group.seriesKey).join(", ")}`)
+  }
+  if (state.lastRecommendationArtifact?.length) {
+    parts.push(`Last recommendation artifact: ${state.lastRecommendationArtifact.slice(0, 4).map(candidate => candidate.displayCode ?? candidate.productCode).join(", ")}`)
+  }
+  if (state.lastComparisonArtifact?.comparedProductCodes?.length) {
+    parts.push(`Last comparison artifact: ${state.lastComparisonArtifact.comparedProductCodes.join(", ")}`)
+  }
+  if (state.uiNarrowingPath?.length) {
+    parts.push(`UI path: ${state.uiNarrowingPath.slice(-4).map(entry => `${entry.kind}:${entry.label}`).join(" | ")}`)
+  }
+  if (state.narrowingHistory?.length) {
+    parts.push(`Narrowing history: ${state.narrowingHistory.slice(-3).map(turn => `${turn.askedField ?? "unknown"}=>${turn.answer ?? ""}`).join(" | ")}`)
+  }
   if (state.resolutionStatus) parts.push(`Resolution: ${state.resolutionStatus}`)
 
   // ── Long-term Memory (accumulated across turns) ──
@@ -228,8 +254,8 @@ User: "GMG55100과 GMG40100 비교해줘"
 User: "직경 작은 순으로 보여줘"
 → {"actions":[{"type":"show_recommendation","sort":{"field":"diameterMm","direction":"asc"}}],"answer":"","reasoning":"sort ascending by diameter"}
 
-User: "10mm 근처로"
-→ {"actions":[{"type":"apply_filter","field":"diameterMm","value":10,"op":"eq","tolerance":1.0}],"answer":"","reasoning":"tolerance-based fuzzy match around 10mm"}
+User: "직경 10mm 근처로"
+→ {"actions":[{"type":"apply_filter","field":"diameterMm","value":10,"op":"eq","tolerance":1.0}],"answer":"","reasoning":"tolerance-based fuzzy match around the specified diameter"}
 
 User: "3날 이상" (no existing fluteCount filter)
 → {"actions":[{"type":"apply_filter","field":"fluteCount","value":3,"op":"gte"}],"answer":"","reasoning":"gte from 이상"}
@@ -240,8 +266,8 @@ User: "Square 아닌거로" (no existing toolSubtype filter)
 User: "날수 3날 이상이랑 형상 Square 아닌거로"
 → {"actions":[{"type":"apply_filter","field":"fluteCount","value":3,"op":"gte"},{"type":"apply_filter","field":"toolSubtype","value":"Square","op":"neq"}],"answer":"","reasoning":"compound: gte flute + neq subtype"}
 
-User: "100mm 넘는거"
-→ {"actions":[{"type":"apply_filter","field":"diameterMm","value":100,"op":"gte"}],"answer":"","reasoning":"gte from 넘는"}
+User: "전장 100mm 넘는거"
+→ {"actions":[{"type":"apply_filter","field":"overallLengthMm","value":100,"op":"gte"}],"answer":"","reasoning":"gte from 넘는 on overall length"}
 
 User: "이 제품이랑 비슷한 스펙"  (when a product is currently displayed)
 → {"actions":[{"type":"show_recommendation","similarTo":{"referenceProductId":"__current__","topK":10}}],"answer":"","reasoning":"similarity query against current product"}`
@@ -483,7 +509,12 @@ function buildConversationMemory(
 }
 
 // Hybrid: deterministic parser first, LLM fallback for unmatched
-import { parseDeterministic, type DeterministicMeta, type MvAmbiguity } from "./deterministic-scr"
+import {
+  buildDeterministicSemanticHints,
+  parseDeterministic,
+  type DeterministicMeta,
+  type MvAmbiguity,
+} from "./deterministic-scr"
 import { getFilterFieldDefinition } from "@/lib/recommendation/shared/filter-field-registry"
 
 /**
@@ -545,6 +576,12 @@ function formatDeterministicCandidateHints(actions: SingleCallAction[]): string 
     .join("\n")
 }
 
+function formatDeterministicSemanticHints(
+  hints: ReturnType<typeof buildDeterministicSemanticHints>,
+): string {
+  return hints.length > 0 ? JSON.stringify(hints) : "none"
+}
+
 function formatDeterministicAmbiguities(meta: DeterministicMeta): string {
   if (meta.ambiguities.length === 0) return "none"
   return meta.ambiguities
@@ -553,6 +590,22 @@ function formatDeterministicAmbiguities(meta: DeterministicMeta): string {
 }
 
 const DET_SCR_ENABLED = process.env.DETERMINISTIC_SCR !== "0"
+
+type SingleCallTurnMode = "new" | "refine" | "repair" | "explain"
+
+function hasSingleCallExplainCue(message: string): boolean {
+  return /[?？]/u.test(message)
+    || /(?:뭐야|설명|차이|어떻게|왜|비교|meaning|difference|what\s+is|how\s+to|why)/iu.test(message)
+}
+
+function classifySingleCallTurnMode(
+  userMessage: string,
+  sessionState: ExplorationSessionState | null,
+): SingleCallTurnMode {
+  if (needsRepair(userMessage)) return "repair"
+  if (hasSingleCallExplainCue(userMessage)) return "explain"
+  return sessionState ? "refine" : "new"
+}
 
 export async function routeSingleCall(
   userMessage: string,
@@ -563,6 +616,7 @@ export async function routeSingleCall(
 ): Promise<SingleCallResult> {
   let detMeta: DeterministicMeta | null = null
   let detHintActions: SingleCallAction[] = []
+  let detSemanticHints: ReturnType<typeof buildDeterministicSemanticHints> = []
   const shouldDeferDeterministicHints = shouldDeferHardcodedSemanticExecution(userMessage)
 
   // ── 0. Deterministic SCR (DB-driven NL parser, no LLM) ──
@@ -590,6 +644,7 @@ export async function routeSingleCall(
       ? filteredMessages.filter(m => m.role === "user").map(m => m.text).join(" ")
       : userMessage
     const detActions = parseDeterministic(parseText, detMeta)
+    detSemanticHints = buildDeterministicSemanticHints(detActions)
     if (detMeta.ambiguities.length > 0) {
       console.log(`[SCR:det] ${detMeta.ambiguities.length} ambiguities detected: ${detMeta.ambiguities.map(a => `${a.token}→[${a.fields.join("|")}]`).join(", ")}`)
     }
@@ -628,12 +683,20 @@ export async function routeSingleCall(
 
   const basePrompt = buildSystemPrompt(sessionState, userMessage)
   const promptSections = [basePrompt]
+  promptSections.push(
+    `## Turn Mode Hint\ncandidateMode=${classifySingleCallTurnMode(userMessage, sessionState)}\nInterpret the full utterance against current session truth before executing any filter delta.`,
+  )
   if (kgHint) {
     promptSections.push(`## KG Hint (pre-analyzed entities from Knowledge Graph)\n${kgHint}\nUse these as strong guidance — the entities above are already validated. Emit matching apply_filter actions.`)
   }
   if (detHintActions.length > 0) {
     promptSections.push(
       `## Deterministic Candidate Hints (non-authoritative)\n${formatDeterministicCandidateHints(detHintActions)}\nThese are hardcoded stage-1 hints only. Do not copy them blindly. Interpret the full utterance and session state first, then emit only the actions that remain valid. If the message contains broad semantic cues such as negation, alternatives, comparison, or revision language, do not treat these hints as final truth by themselves.`,
+    )
+  }
+  if (detSemanticHints.length > 0) {
+    promptSections.push(
+      `## Semantic Hints (deterministic, non-authoritative)\n${formatDeterministicSemanticHints(detSemanticHints)}\nEach hint is advisory only. Validate fieldCandidate/valueCandidate/operatorCue/numericCue/domainCue against the current state, applied filters, UI context, and history before emitting actions.`,
     )
   }
   if (detMeta && detMeta.ambiguities.length > 0) {
@@ -645,9 +708,6 @@ export async function routeSingleCall(
   const llmMessages = recentMessages && recentMessages.length > 0
     ? buildConversationMemory(recentMessages, userMessage)
     : [{ role: "user" as const, content: userMessage }]
-  const deterministicFallback = detHintActions.length > 0
-    ? { actions: detHintActions, answer: "", reasoning: "deterministic_fallback" }
-    : null
 
   try {
     console.log(`[SCR] calling LLM, msg: "${userMessage}", hasState: ${!!sessionState}, candidateCount: ${sessionState?.candidateCount ?? "null"}, historyTurns: ${llmMessages.length}`)
@@ -665,7 +725,7 @@ export async function routeSingleCall(
     const parsed = extractJsonFromResponse(raw)
     if (!parsed) {
       console.warn("[SCR] Failed to parse JSON from LLM response, raw:", raw?.substring(0, 200))
-      return deterministicFallback ?? { actions: [], answer: "", reasoning: "parse_failure" }
+      return { actions: [], answer: "", reasoning: "parse_failure" }
     }
 
     console.log(`[SCR] parsed raw: ${JSON.stringify(parsed).substring(0, 300)}`)
@@ -721,15 +781,11 @@ export async function routeSingleCall(
       }
     }
 
-    if (canonicalizedActions.length === 0 && !result.answer && deterministicFallback) {
-      return { ...deterministicFallback, reasoning: `${deterministicFallback.reasoning}:${result.reasoning || "empty_llm_actions"}` }
-    }
-
     return { actions: canonicalizedActions, answer: result.answer, reasoning: result.reasoning }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
     console.error(`[SCR] ERROR: ${errMsg}`)
-    return deterministicFallback ?? { actions: [], answer: "", reasoning: `llm_error:${errMsg.slice(0, 100)}` }
+    return { actions: [], answer: "", reasoning: `llm_error:${errMsg.slice(0, 100)}` }
   }
 }
 
