@@ -355,11 +355,36 @@ export function shouldReplayUnresolvedPendingQuestion(
   pendingReplyKind: PendingQuestionReplyResolution["kind"],
   earlyAction: string | null
 ): boolean {
-  return pendingReplyKind === "unresolved" && !PENDING_QUESTION_RECOVERY_ACTIONS.has(earlyAction ?? "")
+  return (
+    (pendingReplyKind === "unresolved" || pendingReplyKind === "defer_holistic")
+    && !PENDING_QUESTION_RECOVERY_ACTIONS.has(earlyAction ?? "")
+  )
 }
 
 const PENDING_SELECTION_RESULT_INTENT_RE = /(?:추천\s*(?:해줘|해주|해주세요|좀)?|보여줘|제품\s*(?:보여줘|보기)|찾아줘|비교|차이|vs|versus)/iu
 const PENDING_SELECTION_COMPOUND_CUE_RE = /(?:\b(?:and|then)\b|그리고|또|말고|바꾸고|변경하고|다른|추가로|도\s*(?:보여|찾아|추천))/iu
+
+const PENDING_SELECTION_ALLOWED_REPLY_TAIL_RE = /^(?:(?:[\s\p{P}\p{S}]+)|(?:(?:\uC774\uC5D0\uC694|\uC608\uC694|\uC785\uB2C8\uB2E4|\uC694|\uC57C)(?:[\s\p{P}\p{S}]+)?)|(?:(?:\uC774\uC0C1|\uC774\uD558|\uBBF8\uB9CC|\uCD08\uACFC|\uC804\uD6C4|\uADFC\uCC98)(?:[\s\p{P}\p{S}]+)?)|(?:(?:\uB85C|\uC73C\uB85C)?\s*(?:\uD574\uC918|\uD574\uC8FC|\uD574\uC8FC\uC138\uC694|\uD574|\uD574\uC694|\uBD80\uD0C1\uD574|\uBD80\uD0C1\uD574\uC918|\uBC14\uAFD4\uC918|\uBCC0\uACBD\uD574\uC918)?))+$/u
+
+function extractPendingSelectionTrailingText(
+  raw: string,
+  selectedOption: { label?: string; value?: string | number | boolean } | null,
+): string {
+  if (!selectedOption) return ""
+
+  const trimmedRaw = raw.trim()
+  const candidates = Array.from(new Set([
+    String(selectedOption.value ?? "").trim(),
+    String(selectedOption.label ?? "").trim(),
+  ].filter(Boolean))).sort((left, right) => right.length - left.length)
+
+  for (const candidate of candidates) {
+    if (!trimmedRaw.toLowerCase().startsWith(candidate.toLowerCase())) continue
+    return trimmedRaw.slice(candidate.length).trim()
+  }
+
+  return ""
+}
 
 function getPendingSelectionAllowedFields(
   pendingField: string,
@@ -370,16 +395,30 @@ function getPendingSelectionAllowedFields(
   if (pendingCanonical) fields.add(pendingCanonical)
   const resolvedCanonical = getFilterFieldDefinition(resolvedField)?.canonicalField
   if (resolvedCanonical) fields.add(resolvedCanonical)
+
+  const semanticSiblings: Record<string, string[]> = {
+    material: ["workPieceName", "workMaterial"],
+    workPieceName: ["material", "workMaterial"],
+    workMaterial: ["material", "workPieceName"],
+    diameterMm: ["diameterRefine"],
+    diameterRefine: ["diameterMm"],
+  }
+
+  for (const sibling of semanticSiblings[pendingField] ?? []) fields.add(sibling)
+  for (const sibling of semanticSiblings[resolvedField] ?? []) fields.add(sibling)
   return fields
 }
 
 function shouldDeferPendingSelectionEarlyResolve(args: {
+  sessionState: ExplorationSessionState | null
   raw: string
   pendingField: string
   resolvedField: string
   pendingDetActions: ReturnType<typeof parseDeterministic>
+  selectedOption?: { label?: string; value?: string | number | boolean } | null
+  parsedDirect?: AppliedFilter | null
 }): { defer: boolean; reasons: string[] } {
-  const { raw, pendingField, resolvedField, pendingDetActions } = args
+  const { sessionState, raw, pendingField, resolvedField, pendingDetActions, selectedOption = null, parsedDirect = null } = args
   const reasons: string[] = []
   const allowedFields = getPendingSelectionAllowedFields(pendingField, resolvedField)
 
@@ -395,15 +434,41 @@ function shouldDeferPendingSelectionEarlyResolve(args: {
   ))
   const extraDeterministicFields = deterministicFields.filter(field => !allowedFields.has(field))
   const extraRecognizedFields = recognizedEntityFields.filter(field => !allowedFields.has(field))
+  const trailingText = parsedDirect ? "" : extractPendingSelectionTrailingText(raw, selectedOption)
+  const pureSelectedReply =
+    !parsedDirect
+    && !!selectedOption
+    && (!trailingText || PENDING_SELECTION_ALLOWED_REPLY_TAIL_RE.test(trailingText))
 
-  if (extraDeterministicFields.length > 0 || extraRecognizedFields.length > 0) {
+  if (!pureSelectedReply && (extraDeterministicFields.length > 0 || extraRecognizedFields.length > 0)) {
     reasons.push(`extra_entities:${Array.from(new Set([...extraDeterministicFields, ...extraRecognizedFields])).join("|")}`)
   }
   if (PENDING_SELECTION_RESULT_INTENT_RE.test(raw)) {
     reasons.push("result_intent")
   }
-  if (PENDING_SELECTION_COMPOUND_CUE_RE.test(raw) || deterministicFields.length >= 2) {
+  if (PENDING_SELECTION_COMPOUND_CUE_RE.test(raw) || (/\s/.test(raw.trim()) && deterministicFields.length >= 2)) {
     reasons.push("compound_utterance")
+  }
+  if (trailingText && !PENDING_SELECTION_ALLOWED_REPLY_TAIL_RE.test(trailingText)) {
+    reasons.push("trailing_context")
+  }
+  const overrideRiskFields = Array.from(new Set(
+    (sessionState?.appliedFilters ?? [])
+      .filter(filter => filter.op !== "skip")
+      .filter(filter => {
+        const canonicalField = getFilterFieldDefinition(filter.field)?.canonicalField ?? filter.field
+        if (allowedFields.has(canonicalField)) return false
+        const rawValue = filter.rawValue ?? filter.value
+        const values = Array.isArray(rawValue) ? rawValue : [rawValue]
+        return values.some(value => {
+          const comparable = String(value ?? "").trim()
+          return comparable.length > 0 && includesText(raw, comparable)
+        })
+      })
+      .map(filter => filter.field),
+  ))
+  if (overrideRiskFields.length > 0) {
+    reasons.push(`override_risk:${overrideRiskFields.join("|")}`)
   }
 
   return { defer: reasons.length > 0, reasons }
@@ -590,16 +655,44 @@ function normalizePendingSelectionText(value: string): string {
     .toLowerCase()
 }
 
-function matchesPendingOptionValue(clean: string, option: { label?: string; value?: string | number | boolean }): boolean {
+function getPendingOptionMatchScore(
+  clean: string,
+  option: { label?: string; value?: string | number | boolean },
+): 0 | 1 | 2 {
   const normalizedValue = normalizePendingSelectionText(String(option.value ?? ""))
   const normalizedLabel = normalizePendingSelectionText(String(option.label ?? ""))
-  if (!clean) return false
-  return (
-    clean === normalizedValue
-    || clean === normalizedLabel
-    || (normalizedValue.length > 0 && (clean.startsWith(normalizedValue) || normalizedValue.startsWith(clean)))
+  if (!clean) return 0
+  if (clean === normalizedValue || clean === normalizedLabel) return 2
+  if (
+    (normalizedValue.length > 0 && (clean.startsWith(normalizedValue) || normalizedValue.startsWith(clean)))
     || (normalizedLabel.length > 0 && (clean.startsWith(normalizedLabel) || normalizedLabel.startsWith(clean)))
-  )
+  ) {
+    return 1
+  }
+  return 0
+}
+
+function matchesPendingOptionValue(clean: string, option: { label?: string; value?: string | number | boolean }): boolean {
+  return getPendingOptionMatchScore(clean, option) > 0
+}
+
+function findPendingOptionMatch<T extends { label?: string; value?: string | number | boolean }>(
+  options: T[],
+  clean: string,
+): T | null {
+  return options.find(option => getPendingOptionMatchScore(clean, option) === 2)
+    ?? options.find(option => getPendingOptionMatchScore(clean, option) === 1)
+    ?? null
+}
+
+function findPendingChipMatch<T extends { label?: string }>(
+  options: T[],
+  clean: string,
+): T | null {
+  const score = (option: T): 0 | 1 | 2 => getPendingOptionMatchScore(clean, { label: option.label, value: option.label })
+  return options.find(option => score(option) === 2)
+    ?? options.find(option => score(option) === 1)
+    ?? null
 }
 
 function normalizePendingComparableValue(value: string | number | boolean | null | undefined): string {
@@ -1255,30 +1348,9 @@ export function resolvePendingQuestionReply(
     })
   }
 
-  const pendingSelectionDefer = shouldDeferPendingSelectionEarlyResolve({
-    raw,
-    pendingField,
-    resolvedField,
-    pendingDetActions,
-  })
-  if (pendingSelectionDefer.defer) {
-    console.log(
-      `[pending-selection] Deferring holistic parse for "${raw.slice(0, 40)}" (reasons=${pendingSelectionDefer.reasons.join(",")})`
-    )
-    return {
-      kind: "defer_holistic",
-      pendingField: resolvedField,
-      raw,
-      reasons: pendingSelectionDefer.reasons,
-    }
-  }
+  const optionMatch = findPendingOptionMatch(optionsForPendingField, clean)
 
-  const optionMatch = optionsForPendingField.find(option => matchesPendingOptionValue(clean, option))
-
-  const chipMatch = optionsForPendingField.find(option => {
-    const normalizedChip = normalizePendingSelectionText(option.label)
-    return normalizedChip && (clean === normalizedChip || clean.startsWith(normalizedChip) || normalizedChip.startsWith(clean))
-  })
+  const chipMatch = findPendingChipMatch(optionsForPendingField, clean)
 
   // Try canonicalized matching: e.g. "스퀘어" → "Square" via field's canonicalizeRawValue
   // Only attempt for single-token inputs to avoid partial matches in phrases like "change Ball to Radius"
@@ -1289,7 +1361,7 @@ export function resolvePendingQuestionReply(
     if (!canonicalized) return null
     const canonicalClean = normalizePendingSelectionText(String(canonicalized))
     if (!canonicalClean || canonicalClean === clean) return null
-    return optionsForPendingField.find(option => matchesPendingOptionValue(canonicalClean, option))
+    return findPendingOptionMatch(optionsForPendingField, canonicalClean)
   })() : null
 
   const selectedOption = optionMatch ?? chipMatch ?? canonicalMatch ?? null
@@ -1305,6 +1377,26 @@ export function resolvePendingQuestionReply(
   const parsedDirect = freeformField ? parseAnswerToFilter(freeformField, raw) : null
   const resolvedValue = parsedDirect ? null : selectedValue ?? null
 
+  const pendingSelectionDefer = shouldDeferPendingSelectionEarlyResolve({
+    sessionState,
+    raw,
+    pendingField,
+    resolvedField,
+    pendingDetActions,
+    selectedOption,
+    parsedDirect,
+  })
+  if (pendingSelectionDefer.defer) {
+    console.log(
+      `[pending-selection] Deferring holistic parse for "${raw.slice(0, 40)}" (reasons=${pendingSelectionDefer.reasons.join(",")})`
+    )
+    return {
+      kind: "defer_holistic",
+      pendingField: resolvedField,
+      raw,
+      reasons: pendingSelectionDefer.reasons,
+    }
+  }
   if (resolvedValue === "skip" || isSkipSelectionValue(selectedOption?.label) || isSkipSelectionValue(raw)) {
     const filter: AppliedFilter = {
       field: resolvedField,
@@ -2843,15 +2935,6 @@ async function handleServeExplorationInner(
     })
   }
 
-  const requestPrep = prepareRequest(form, messages, prevState, resolvedInput, prevState?.candidateCount ?? 0)
-  console.log(`[recommend] Intent: ${requestPrep.intent} (${requestPrep.intentConfidence}), Route: ${requestPrep.route.action}`)
-  const currentTurnRecognizedEntities = lastUserMsg?.text
-    ? extractEntities(lastUserMsg.text).map(entity => ({
-      field: entity.field,
-      value: entity.canonical || entity.value,
-    }))
-    : []
-
   // Sanitize garbled UTF-8 input. Some clients (Windows curl, certain SSE
   // proxies) mangle Korean bytes into U+FFFD replacement chars. If we let that
   // through, the answer LLM will write apologetic "encoding error" prose and
@@ -2876,6 +2959,14 @@ async function handleServeExplorationInner(
   const lastUserMsg = messages.length > 0
     ? [...messages].reverse().find(message => message.role === "user")
     : null
+  const requestPrep = prepareRequest(form, messages, prevState, resolvedInput, prevState?.candidateCount ?? 0)
+  console.log(`[recommend] Intent: ${requestPrep.intent} (${requestPrep.intentConfidence}), Route: ${requestPrep.route.action}`)
+  const currentTurnRecognizedEntities = lastUserMsg?.text
+    ? extractEntities(lastUserMsg.text).map(entity => ({
+      field: entity.field,
+      value: entity.canonical || entity.value,
+    }))
+    : []
   const narrowingHistory: NarrowingTurn[] = [...(prevState?.narrowingHistory ?? [])]
   let currentInput = { ...resolvedInput }
   let turnCount = prevState?.turnCount ?? 0
@@ -6227,9 +6318,13 @@ async function handleServeExplorationInner(
           "현재 질문에 대한 답변으로 인식하지 못했습니다. 아래 선택지 중에서 골라주시거나, 필요한 값이 있으면 형식에 맞게 직접 입력해주세요.",
         )
       }
-    } else if (hasActivePendingQuestion && pendingQuestionReply.kind === "unresolved" && earlyAction) {
+    } else if (
+      hasActivePendingQuestion
+      && (pendingQuestionReply.kind === "unresolved" || pendingQuestionReply.kind === "defer_holistic")
+      && earlyAction
+    ) {
       console.log(
-        `[pending-selection] Unresolved direct match recovered by action="${earlyAction}" for field="${prevState.lastAskedField ?? "unknown"}"`
+        `[pending-selection] Deferred pending reply recovered by action="${earlyAction}" for field="${prevState.lastAskedField ?? "unknown"}"`
       )
     }
 
