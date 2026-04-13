@@ -24,6 +24,112 @@ import { buildMemoryFromSession } from "../memory/conversation-memory"
 import { updateMemory } from "../memory/memory-manager"
 import { extractFilterFieldValueMap } from "@/lib/recommendation/shared/filter-field-registry"
 
+type CandidateLike = CandidateSnapshot | ScoredProduct
+
+const SNAPSHOT_FIELD_GETTERS: Array<{
+  field: string
+  getValue: (candidate: CandidateSnapshot) => string | number | boolean | null | undefined
+}> = [
+  { field: "fluteCount", getValue: candidate => candidate.fluteCount },
+  { field: "coating", getValue: candidate => candidate.coating },
+  { field: "seriesName", getValue: candidate => candidate.seriesName },
+  { field: "toolSubtype", getValue: candidate => candidate.toolSubtype },
+  { field: "toolMaterial", getValue: candidate => candidate.toolMaterial },
+  { field: "diameterMm", getValue: candidate => candidate.diameterMm },
+  { field: "ballRadiusMm", getValue: candidate => candidate.ballRadiusMm },
+  { field: "taperAngleDeg", getValue: candidate => candidate.taperAngleDeg },
+  { field: "coolantHole", getValue: candidate => candidate.coolantHole },
+  { field: "stockStatus", getValue: candidate => candidate.stockStatus },
+]
+
+function isScoredProductCandidate(candidate: CandidateLike): candidate is ScoredProduct {
+  return "product" in candidate
+}
+
+function extractFieldValueMapFromSnapshots(
+  candidates: CandidateSnapshot[]
+): Map<string, Map<string, number>> {
+  const result = new Map<string, Map<string, number>>()
+
+  for (const { field, getValue } of SNAPSHOT_FIELD_GETTERS) {
+    const distribution = new Map<string, number>()
+
+    for (const candidate of candidates) {
+      const value = getValue(candidate)
+      if (value == null) continue
+
+      const label = String(value)
+      distribution.set(label, (distribution.get(label) ?? 0) + 1)
+    }
+
+    if (distribution.size > 1) {
+      result.set(field, distribution)
+    }
+  }
+
+  return result
+}
+
+function mapTopCandidates(candidates: CandidateLike[]): NonNullable<OptionPlannerContext["topCandidates"]> {
+  return candidates.slice(0, 5).map(candidate => (
+    isScoredProductCandidate(candidate)
+      ? {
+          displayCode: candidate.product.displayCode,
+          seriesName: candidate.product.seriesName,
+          coating: candidate.product.coating,
+          fluteCount: candidate.product.fluteCount,
+          diameterMm: candidate.product.diameterMm,
+          score: candidate.score,
+          matchStatus: candidate.matchStatus,
+        }
+      : {
+          displayCode: candidate.displayCode,
+          seriesName: candidate.seriesName,
+          coating: candidate.coating,
+          fluteCount: candidate.fluteCount,
+          diameterMm: candidate.diameterMm,
+          score: candidate.score,
+          matchStatus: candidate.matchStatus,
+        }
+  ))
+}
+
+function mapDisplayedProducts(candidates: CandidateLike[]): NonNullable<OptionPlannerContext["displayedProducts"]> {
+  return candidates.slice(0, 5).map(candidate => (
+    isScoredProductCandidate(candidate)
+      ? {
+          displayCode: candidate.product.displayCode,
+          seriesName: candidate.product.seriesName,
+          coating: candidate.product.coating,
+          fluteCount: candidate.product.fluteCount,
+          stockStatus: candidate.stockStatus ?? undefined,
+        }
+      : {
+          displayCode: candidate.displayCode,
+          seriesName: candidate.seriesName,
+          coating: candidate.coating,
+          fluteCount: candidate.fluteCount,
+          stockStatus: candidate.stockStatus ?? undefined,
+        }
+  ))
+}
+
+function sanitizeFiltersForMemory(
+  filters: ExplorationSessionState["appliedFilters"] | undefined
+): Array<{ field: string; op: string; value: string; rawValue: string | number; appliedAt: number }> | undefined {
+  if (!filters) return undefined
+
+  return filters.map(filter => ({
+    field: filter.field,
+    op: filter.op,
+    value: filter.value,
+    rawValue: typeof filter.rawValue === "string" || typeof filter.rawValue === "number"
+      ? filter.rawValue
+      : filter.value,
+    appliedAt: filter.appliedAt,
+  }))
+}
+
 /**
  * Extract field value distributions from scored candidates.
  * Used by the planner to generate narrowing options.
@@ -50,6 +156,37 @@ export function extractCandidateFieldValues(
     "coolantHole",
     "stockStatus",
   ])
+}
+
+export function extractCandidateLikeFieldValues(
+  candidates: CandidateLike[]
+): Map<string, Map<string, number>> {
+  if (candidates.length === 0) return new Map()
+  return isScoredProductCandidate(candidates[0])
+    ? extractCandidateFieldValues(candidates as ScoredProduct[])
+    : extractFieldValueMapFromSnapshots(candidates as CandidateSnapshot[])
+}
+
+export function summarizeCandidateFieldValues(
+  candidateFieldValues?: Map<string, Map<string, number>>,
+  maxFields = 6,
+  maxValuesPerField = 4,
+): Array<{ field: string; values: Array<{ value: string; count: number }> }> {
+  if (!candidateFieldValues || candidateFieldValues.size === 0) return []
+
+  return Array.from(candidateFieldValues.entries())
+    .map(([field, values]) => ({
+      field,
+      diversity: values.size,
+      topCount: Math.max(...Array.from(values.values())),
+      values: Array.from(values.entries())
+        .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+        .slice(0, maxValuesPerField)
+        .map(([value, count]) => ({ value, count })),
+    }))
+    .sort((left, right) => right.diversity - left.diversity || left.topCount - right.topCount)
+    .slice(0, maxFields)
+    .map(({ field, values }) => ({ field, values }))
 }
 
 /**
@@ -189,15 +326,9 @@ export function buildPostRecommendationPlannerContext(
     candidateCount: candidateSnapshot.length,
     appliedFilters: filters,
     resolvedInput: resolvedInput as unknown as Record<string, unknown>,
-    topCandidates: candidateSnapshot.slice(0, 5).map(c => ({
-      displayCode: c.displayCode,
-      seriesName: c.seriesName,
-      coating: c.coating,
-      fluteCount: c.fluteCount,
-      diameterMm: c.diameterMm,
-      score: c.score,
-      matchStatus: c.matchStatus,
-    })),
+    candidateFieldValues: extractFieldValueMapFromSnapshots(candidateSnapshot),
+    topCandidates: mapTopCandidates(candidateSnapshot),
+    displayedProducts: mapDisplayedProducts(candidateSnapshot),
   }
 }
 
@@ -240,10 +371,17 @@ export function buildContextAwarePlannerContext(
   interpretation: ContextInterpretation
   memory: ConversationMemory
 } {
+  const memorySessionState = sessionState
+    ? {
+        ...sessionState,
+        appliedFilters: sanitizeFiltersForMemory(sessionState.appliedFilters),
+      }
+    : null
+
   // 1. Build memory from session
   const rawMemory = buildMemoryFromSession(
     form as unknown as Parameters<typeof buildMemoryFromSession>[0],
-    sessionState,
+    memorySessionState,
     sessionState?.turnCount ?? 0
   )
 
@@ -270,35 +408,29 @@ export function buildContextAwarePlannerContext(
     reset: "repair",
   }
   const plannerMode = modeMap[interpretation.mode] ?? "narrowing"
+  const plannerCandidates: CandidateLike[] = (
+    unifiedTurnContext?.currentCandidates?.length
+      ? unifiedTurnContext.currentCandidates
+      : sessionState?.displayedCandidates?.length
+        ? sessionState.displayedCandidates
+        : candidates
+  )
+  const candidateCount = candidates.length > 0 ? candidates.length : plannerCandidates.length
 
   // 5. Build planner context with interpretation + memory
   const plannerCtx: OptionPlannerContext = {
     mode: interpretation.shouldGenerateRepairOptions ? "repair" : plannerMode,
-    candidateCount: candidates.length,
+    candidateCount,
     appliedFilters: filters,
     resolvedInput: resolvedInput as unknown as Record<string, unknown>,
     lastAskedField,
     lastAction: unifiedTurnContext?.latestProcessTrace?.routeAction ?? sessionState?.lastAction,
     userMessage: unifiedTurnContext?.latestUserMessage ?? userMessage ?? undefined,
-    candidateFieldValues: extractCandidateFieldValues(candidates),
-    topCandidates: (unifiedTurnContext?.currentCandidates ?? sessionState?.displayedCandidates ?? []).slice(0, 5).map(c => ({
-      displayCode: c.displayCode,
-      seriesName: c.seriesName,
-      coating: c.coating,
-      fluteCount: c.fluteCount,
-      diameterMm: c.diameterMm,
-      score: c.score,
-      matchStatus: c.matchStatus,
-    })),
+    candidateFieldValues: extractCandidateLikeFieldValues(plannerCandidates),
+    topCandidates: mapTopCandidates(plannerCandidates),
     contextInterpretation: interpretation,
     conversationMemory: unifiedTurnContext?.conversationMemory ?? memory,
-    displayedProducts: (unifiedTurnContext?.currentCandidates ?? sessionState?.displayedCandidates ?? []).slice(0, 5).map(c => ({
-      displayCode: c.displayCode,
-      seriesName: c.seriesName,
-      coating: c.coating,
-      fluteCount: c.fluteCount,
-      stockStatus: c.stockStatus ?? undefined,
-    })),
+    displayedProducts: mapDisplayedProducts(plannerCandidates),
     visibleArtifacts: {
       hasRecommendation: unifiedTurnContext?.uiArtifacts.some(artifact => artifact.kind === "recommendation_card")
         ?? !!sessionState?.lastRecommendationArtifact,

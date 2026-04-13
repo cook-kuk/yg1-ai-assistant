@@ -29,9 +29,9 @@ import {
 } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import {
   buildDisplayedOptions,
+  buildRecommendationFollowUpOptionState,
   buildQuestionFieldOptions,
   buildQuestionResponseOptionState,
-  generateSmartOptionsForRecommendation,
 } from "@/lib/recommendation/infrastructure/engines/serve-engine-option-first"
 import { getMaterialDisplay, resolveMaterialTag } from "@/lib/recommendation/domain/material-resolver"
 import { assessComplexity } from "@/lib/recommendation/core/complexity-router"
@@ -61,11 +61,6 @@ import type {
   UINarrowingPathEntry,
   ChatMessage,
 } from "@/lib/recommendation/domain/types"
-import {
-  smartOptionsToChips,
-  smartOptionsToDisplayedOptions,
-  smartOptionsToStructuredChips,
-} from "@/lib/recommendation/domain/options/option-bridge"
 import type { StructuredChipDto } from "@/lib/contracts/recommendation"
 import { validateOptionFirstPipeline } from "@/lib/recommendation/domain/options/option-validator"
 import { buildFilterValueScope } from "@/lib/recommendation/shared/filter-field-registry"
@@ -1613,18 +1608,22 @@ export async function buildRecommendationResponse(
 
   // ── Option-first: structured options FIRST, then derive chips ──
   // NEVER generate chips from answer text. displayedOptions → chips.
-  const postRecOptions = generateSmartOptionsForRecommendation(
-    fullCandidateSnapshot, filters, input, form, null, recLastUserMsg
-  )
-  const postRecDisplayedOptions = postRecOptions.length > 0
-    ? smartOptionsToDisplayedOptions(postRecOptions)
-    : []
+  const postRecOptionState = await buildRecommendationFollowUpOptionState({
+    candidateSnapshot: fullCandidateSnapshot,
+    filters,
+    input,
+    provider,
+    form,
+    userMessage: recLastUserMsg,
+    assistantText: recommendation.llmSummary ?? deterministicSummary,
+  })
+  const postRecDisplayedOptions = postRecOptionState.displayedOptions
   // Derive chips from structured options; fallback to minimal safe navigation
-  const followUpChips = postRecOptions.length > 0
-    ? smartOptionsToChips(postRecOptions)
+  const followUpChips = postRecOptionState.chips.length > 0
+    ? postRecOptionState.chips
     : buildMinimalPostRecChips(recommendation, filters)
-  const followUpStructuredChips = postRecOptions.length > 0
-    ? smartOptionsToStructuredChips(postRecOptions)
+  const followUpStructuredChips = postRecOptionState.structuredChips.length > 0
+    ? postRecOptionState.structuredChips
     : (followUpChips.map(() => null) as (StructuredChipDto | null)[])
 
   const displayedSeriesGroups = await buildDisplayedSeriesGroups(candidateSnapshot, input)

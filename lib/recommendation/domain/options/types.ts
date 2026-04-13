@@ -44,7 +44,12 @@ export interface SmartOption {
 export interface OptionPlannerContext {
   mode: "intake" | "narrowing" | "recommended" | "repair"
   candidateCount: number
-  appliedFilters: Array<{ field: string; op: string; value: string; rawValue: string | number }>
+  appliedFilters: Array<{
+    field: string
+    op: string
+    value: string
+    rawValue: string | number | boolean | Array<string | number | boolean>
+  }>
   resolvedInput: Record<string, unknown>
   lastAskedField?: string
   lastAction?: string

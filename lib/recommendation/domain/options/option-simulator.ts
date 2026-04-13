@@ -12,7 +12,12 @@ import type { SmartOption } from "./types"
 
 export interface SimulatorContext {
   candidateCount: number
-  appliedFilters: Array<{ field: string; op: string; value: string; rawValue: string | number }>
+  appliedFilters: Array<{
+    field: string
+    op: string
+    value: string
+    rawValue: string | number | boolean | Array<string | number | boolean>
+  }>
   /** Counts per field value from current candidates */
   candidateFieldValues?: Map<string, Map<string, number>>
 }

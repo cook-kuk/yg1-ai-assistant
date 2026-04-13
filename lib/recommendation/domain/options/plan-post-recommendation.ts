@@ -1,31 +1,66 @@
 /**
- * Post-Recommendation Option Planning — Options after recommendation is shown.
+ * Post-recommendation option planning.
  *
- * Generates dynamic options based on top candidates: product details,
- * comparisons, narrowing by coating/flute/series, stock-aware actions, etc.
+ * Chips after a recommendation should come from the actual candidate buffer,
+ * not from a fixed post-result menu. This planner turns candidate-field
+ * distributions into executable option hints, then the selector decides which
+ * ones to surface in the current conversation context.
  */
 
 import type { SmartOption, OptionPlannerContext } from "./types"
-import { nextOptionId } from "./planner-utils"
+import { getFieldLabel, nextOptionId } from "./planner-utils"
 
-// ════════════════════════════════════════════════════════════════
-// POST-RECOMMENDATION OPTIONS (after recommendation)
-// ════════════════════════════════════════════════════════════════
+const POST_RESULT_FIELD_PRIORITY: Record<string, number> = {
+  toolSubtype: 1.35,
+  fluteCount: 1.2,
+  diameterMm: 1.15,
+  coating: 1.0,
+  seriesName: 0.9,
+  toolMaterial: 0.8,
+  ballRadiusMm: 0.75,
+  taperAngleDeg: 0.7,
+}
+
+const VALUE_LABELS: Record<string, Record<string, string>> = {
+  toolSubtype: {
+    Square: "Square",
+    Ball: "Ball",
+    Radius: "Radius",
+    Roughing: "Roughing",
+    Taper: "Taper",
+    Chamfer: "Chamfer",
+    "High-Feed": "High-Feed",
+  },
+  coating: {
+    Uncoated: "무코팅",
+    Bright: "브라이트",
+    "Bright Finish": "브라이트",
+  },
+}
+
+const FIELD_ORDER = [
+  "toolSubtype",
+  "fluteCount",
+  "diameterMm",
+  "coating",
+  "seriesName",
+  "toolMaterial",
+  "ballRadiusMm",
+  "taperAngleDeg",
+]
+
+const POSITIVE_FILTER_OPS = new Set(["eq", "includes"])
+const REVISION_HINT_RE = /(유지|말고|빼고|제외|다른|변경|바꿔|수정)/u
 
 export function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartOption[] {
   const options: SmartOption[] = []
   const top = ctx.topCandidates ?? []
   const displayed = ctx.displayedProducts ?? []
   const artifacts = ctx.visibleArtifacts
+  const activeFilters = buildActiveFilterMap(ctx)
   const skippedFields = new Set(ctx.appliedFilters.filter(filter => filter.op === "skip").map(filter => filter.field))
 
-  // ── UI-artifact-aware: if comparison is already visible, skip compare option ──
-  // ── If cutting conditions already shown, skip cutting conditions option ──
-
-  // ── 후보 데이터 기반 동적 옵션 ──
   const primaryCode = top[0]?.displayCode
-
-  // 1. 제품 상세 (1순위 제품코드 포함)
   if (primaryCode) {
     options.push({
       id: nextOptionId("explore"),
@@ -46,20 +81,19 @@ export function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartO
     })
   }
 
-  // 2. 상위 비교 (후보 + 비교 UI 없을 때)
   if (top.length >= 2 && !artifacts?.hasComparison) {
     options.push({
       id: nextOptionId("compare"),
       family: "compare",
       label: `상위 ${Math.min(top.length, 3)}개 비교`,
-      subtitle: top.slice(0, 3).map(c => c.displayCode).join(" vs "),
+      subtitle: top.slice(0, 3).map(candidate => candidate.displayCode).join(" vs "),
       reason: "상위 후보 비교",
       projectedCount: null,
       projectedDelta: null,
       preservesContext: true,
       destructive: false,
       recommended: top.length >= 3,
-      priorityScore: 0.6,
+      priorityScore: 0.8,
       plan: {
         type: "apply_filter",
         patches: [{ op: "add", field: "_action", value: "compare" }],
@@ -67,121 +101,19 @@ export function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartO
     })
   }
 
-  // 3. Narrow/change coating (dynamic based on variety)
-  const coatingSet = new Set(top.map(c => c.coating).filter(Boolean))
-  if (!skippedFields.has("coating") && coatingSet.size >= 2) {
-    const coatingProjected = Math.max(1, Math.round(top.length / coatingSet.size))
-    options.push({
-      id: nextOptionId("narrowing"),
-      family: "narrowing",
-      label: `코팅으로 좁히기 (${[...coatingSet].slice(0, 3).join("/")})`,
-      subtitle: `현재 ${coatingSet.size}종`,
-      field: "coating",
-      reason: "코팅 기준 추가 필터링",
-      projectedCount: coatingProjected,
-      projectedDelta: -(top.length - coatingProjected),
-      preservesContext: true,
-      destructive: false,
-      recommended: false,
-      priorityScore: 0.7,
-      plan: {
-        type: "apply_filter",
-        patches: [{ op: "add", field: "_action", value: "narrow_coating" }],
-      },
-    })
-  } else if (!skippedFields.has("coating") && top[0]?.coating) {
-    options.push({
-      id: nextOptionId("explore"),
-      family: "explore",
-      label: "다른 코팅 옵션 보기",
-      subtitle: `현재: ${top[0].coating}`,
-      field: "coating",
-      reason: "코팅 변경 탐색",
-      projectedCount: null,
-      projectedDelta: null,
-      preservesContext: true,
-      destructive: false,
-      recommended: false,
-      priorityScore: 0.7,
-      plan: {
-        type: "replace_filter",
-        patches: [{ op: "remove", field: "coating" }],
-      },
-    })
+  const candidateFieldValues = ctx.candidateFieldValues ?? new Map<string, Map<string, number>>()
+  for (const field of FIELD_ORDER) {
+    if (skippedFields.has(field)) continue
+    const distribution = candidateFieldValues.get(field)
+    if (!distribution || distribution.size < 2) continue
+
+    options.push(...buildBrowseOptions(field, distribution, ctx, activeFilters))
+    options.push(...buildValueOptions(field, distribution, ctx, activeFilters))
   }
 
-  // 4. Narrow by flute count (if multiple flute counts exist)
-  const fluteCounts = new Set(top.map(c => c.fluteCount).filter(Boolean))
-  if (fluteCounts.size >= 2) {
-    const fluteLabels = [...fluteCounts].sort((a, b) => (a ?? 0) - (b ?? 0)).map(f => `${f}날`).join("/")
-    const fluteProjected = Math.max(1, Math.round(top.length / fluteCounts.size))
-    options.push({
-      id: nextOptionId("narrowing"),
-      family: "narrowing",
-      label: `날수로 좁히기 (${fluteLabels})`,
-      subtitle: `현재 ${fluteCounts.size}종`,
-      field: "fluteCount",
-      reason: "날수 기준 추가 필터링",
-      projectedCount: fluteProjected,
-      projectedDelta: -(top.length - fluteProjected),
-      preservesContext: true,
-      destructive: false,
-      recommended: true,
-      priorityScore: 0.85,
-      plan: {
-        type: "apply_filter",
-        patches: [{ op: "add", field: "_action", value: "narrow_flute" }],
-      },
-    })
-  }
+  options.push(...buildPreserveOptions(ctx))
 
-  // 4b. Series comparison (when multiple series exist)
-  const seriesSet = new Set(top.map(c => c.seriesName).filter(Boolean))
-  if (seriesSet.size >= 2) {
-    options.push({
-      id: nextOptionId("explore"),
-      family: "explore",
-      label: `시리즈 차이 설명해줘 (${[...seriesSet].slice(0, 2).join(" vs ")})`,
-      subtitle: `${seriesSet.size}개 시리즈`,
-      field: "seriesName",
-      reason: "시리즈별 특성 비교",
-      projectedCount: null,
-      projectedDelta: null,
-      preservesContext: true,
-      destructive: false,
-      recommended: false,
-      priorityScore: 0.6,
-      plan: {
-        type: "apply_filter",
-        patches: [{ op: "add", field: "_action", value: "series_explain" }],
-      },
-    })
-  }
-
-  // 4c. 직경 변경 (현재 직경 표시)
-  if (top[0]?.diameterMm) {
-    options.push({
-      id: nextOptionId("explore"),
-      family: "explore",
-      label: `φ${top[0].diameterMm}mm 외 다른 직경`,
-      subtitle: `현재: ${top[0].diameterMm}mm`,
-      field: "diameterMm",
-      reason: "직경 변경 탐색",
-      projectedCount: null,
-      projectedDelta: null,
-      preservesContext: true,
-      destructive: false,
-      recommended: false,
-      priorityScore: 0.85,
-      plan: {
-        type: "replace_filter",
-        patches: [{ op: "remove", field: "diameterMm" }],
-      },
-    })
-  }
-
-  // 6. Previous step (if filters exist)
-  if (ctx.appliedFilters.length > 0) {
+  if (ctx.appliedFilters.some(filter => filter.op !== "skip")) {
     options.push({
       id: nextOptionId("action"),
       family: "action",
@@ -200,7 +132,6 @@ export function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartO
     })
   }
 
-  // 7. Stock-aware options from displayedProducts
   const primaryProduct = displayed[0]
   if (primaryProduct?.stockStatus === "outofstock") {
     options.push({
@@ -209,13 +140,14 @@ export function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartO
       label: "재고 있는 대안 보기",
       subtitle: `${primaryProduct.displayCode} 재고 없음`,
       field: "stockStatus",
+      value: "instock",
       reason: "재고 있는 제품으로 대안 탐색",
       projectedCount: null,
       projectedDelta: null,
       preservesContext: true,
       destructive: false,
       recommended: true,
-      priorityScore: 0.3,
+      priorityScore: 0.75,
       plan: {
         type: "apply_filter",
         patches: [{ op: "add", field: "stockStatus", value: "instock" }],
@@ -241,8 +173,7 @@ export function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartO
     })
   }
 
-  // 8. Material-specific tips (when material is known and multiple products exist)
-  const material = ctx.resolvedInput?.material as string | undefined
+  const material = ctx.resolvedInput.material as string | undefined
   if (material && top.length >= 2) {
     options.push({
       id: nextOptionId("explore"),
@@ -250,6 +181,7 @@ export function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartO
       label: `${material} 가공 팁 보기`,
       subtitle: "소재별 최적 조건",
       field: "material",
+      value: material,
       reason: "소재 특성에 맞는 가공 조건 안내",
       projectedCount: null,
       projectedDelta: null,
@@ -264,7 +196,6 @@ export function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartO
     })
   }
 
-  // 9. Reset (always available, ranked last)
   options.push({
     id: nextOptionId("reset"),
     family: "reset",
@@ -282,5 +213,313 @@ export function planPostRecommendationOptions(ctx: OptionPlannerContext): SmartO
     },
   })
 
+  return dedupeOptions(options)
+}
+
+function buildActiveFilterMap(ctx: OptionPlannerContext): Map<string, Set<string>> {
+  const result = new Map<string, Set<string>>()
+
+  for (const filter of ctx.appliedFilters) {
+    if (filter.op === "skip") continue
+
+    const values = Array.isArray(filter.rawValue)
+      ? filter.rawValue
+      : [filter.rawValue ?? filter.value]
+
+    for (const rawValue of values) {
+      const normalized = normalizeToken(rawValue)
+      if (!normalized) continue
+
+      if (!result.has(filter.field)) {
+        result.set(filter.field, new Set())
+      }
+      result.get(filter.field)!.add(normalized)
+    }
+  }
+
+  return result
+}
+
+function buildBrowseOptions(
+  field: string,
+  distribution: Map<string, number>,
+  ctx: OptionPlannerContext,
+  activeFilters: Map<string, Set<string>>,
+): SmartOption[] {
+  const options: SmartOption[] = []
+  const activeValues = activeFilters.get(field)
+
+  if (activeValues && activeValues.size > 0) {
+    const currentLabel = Array.from(activeValues).join("/")
+    options.push({
+      id: nextOptionId("repair"),
+      family: "repair",
+      label: `다른 ${getFieldLabel(field)} 보기`,
+      subtitle: currentLabel ? `현재 조건 변경` : undefined,
+      field,
+      reason: `${getFieldLabel(field)}만 바꾸고 나머지 조건 유지`,
+      projectedCount: null,
+      projectedDelta: null,
+      preservesContext: true,
+      destructive: false,
+      recommended: true,
+      priorityScore: 110 * (POST_RESULT_FIELD_PRIORITY[field] ?? 0.7),
+      plan: {
+        type: "replace_filter",
+        patches: [{ op: "remove", field }],
+      },
+    })
+    return options
+  }
+
+  if (distribution.size < 2) return options
+
+  const actionValue = `narrow_${field}`
+  options.push({
+    id: nextOptionId("narrowing"),
+    family: "narrowing",
+    label: buildFieldBrowseLabel(field),
+    reason: `${getFieldLabel(field)} 기준 안전한 추가 축소`,
+    projectedCount: null,
+    projectedDelta: null,
+    preservesContext: true,
+    destructive: false,
+    recommended: false,
+    priorityScore: 70 * (POST_RESULT_FIELD_PRIORITY[field] ?? 0.7),
+    plan: {
+      type: "apply_filter",
+      patches: [{ op: "add", field: "_action", value: actionValue }],
+    },
+  })
+
   return options
+}
+
+function buildValueOptions(
+  field: string,
+  distribution: Map<string, number>,
+  ctx: OptionPlannerContext,
+  activeFilters: Map<string, Set<string>>,
+): SmartOption[] {
+  const activeValues = activeFilters.get(field) ?? new Set<string>()
+  const useReplace = activeValues.size > 0
+  const maxPerField = field === "toolSubtype" || field === "diameterMm" ? 3 : 2
+
+  return Array.from(distribution.entries())
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .filter(([value]) => !activeValues.has(normalizeToken(value)))
+    .slice(0, maxPerField)
+    .map(([value, count], index) => {
+      const plan = useReplace
+        ? {
+            type: "replace_filter" as const,
+            patches: [
+              { op: "remove" as const, field },
+              { op: "add" as const, field, value },
+            ],
+          }
+        : {
+            type: "apply_filter" as const,
+            patches: [{ op: "add" as const, field, value }],
+          }
+
+      const projectedDelta = count - ctx.candidateCount
+      const narrowingGain = ctx.candidateCount > 0
+        ? Math.max(0, (1 - (count / ctx.candidateCount)) * 100)
+        : 0
+
+      return {
+        id: nextOptionId(useReplace ? "repair" : "narrowing"),
+        family: useReplace ? "repair" : "narrowing",
+        label: buildFieldValueLabel(field, value),
+        subtitle: `${count}개 후보`,
+        field,
+        value,
+        reason: useReplace
+          ? `${getFieldLabel(field)}만 바꾸고 기존 맥락 유지`
+          : `${getFieldLabel(field)} 기준 추가 축소`,
+        projectedCount: count,
+        projectedDelta,
+        preservesContext: true,
+        destructive: false,
+        recommended: index === 0 && (field === "toolSubtype" || field === "diameterMm"),
+        priorityScore: (POST_RESULT_FIELD_PRIORITY[field] ?? 0.7) * 100 + narrowingGain,
+        plan,
+      }
+    })
+}
+
+function buildPreserveOptions(ctx: OptionPlannerContext): SmartOption[] {
+  if (!shouldGeneratePreserveOptions(ctx)) return []
+
+  const focusedField = getFocusedField(ctx)
+
+  return ctx.appliedFilters
+    .filter(filter => POSITIVE_FILTER_OPS.has(filter.op))
+    .filter(filter => filter.field !== focusedField)
+    .slice(0, 2)
+    .map(filter => {
+      const label = buildPreserveLabel(filter.field, filter.value, filter.rawValue)
+      return {
+        id: nextOptionId("action"),
+        family: "action" as const,
+        label,
+        subtitle: `${getFieldLabel(filter.field)} 조건 유지`,
+        field: filter.field,
+        value: filter.value,
+        reason: `${getFieldLabel(filter.field)}는 유지하고 다른 축만 조정`,
+        projectedCount: ctx.candidateCount,
+        projectedDelta: 0,
+        preservesContext: true,
+        destructive: false,
+        recommended: true,
+        priorityScore: 82,
+        plan: {
+          type: "branch_session",
+          patches: [{ op: "add", field: filter.field, value: stringifyFilterRawValue(filter.rawValue, filter.value) }],
+        },
+      }
+    })
+}
+
+function shouldGeneratePreserveOptions(ctx: OptionPlannerContext): boolean {
+  const hasPositiveFilter = ctx.appliedFilters.some(filter => POSITIVE_FILTER_OPS.has(filter.op))
+  if (!hasPositiveFilter) return false
+
+  const interpretation = ctx.contextInterpretation
+  if (interpretation && (
+    interpretation.intentShift === "replace_constraint"
+    || interpretation.intentShift === "refine_existing"
+    || interpretation.intentShift === "revise_prior_input"
+  )) {
+    return true
+  }
+
+  return REVISION_HINT_RE.test(ctx.userMessage ?? "")
+}
+
+function getFocusedField(ctx: OptionPlannerContext): string | null {
+  const interpretationField = ctx.contextInterpretation?.referencedField
+  if (interpretationField) return interpretationField
+  if (ctx.lastAskedField) return ctx.lastAskedField
+
+  const lastNegativeFilter = [...ctx.appliedFilters]
+    .reverse()
+    .find(filter => filter.op === "neq" || filter.op === "exclude")
+  if (lastNegativeFilter) return lastNegativeFilter.field
+
+  return null
+}
+
+function buildPreserveLabel(
+  field: string,
+  value: string,
+  rawValue: string | number | boolean | Array<string | number | boolean>
+): string {
+  const rendered = renderFilterValue(field, value, rawValue)
+
+  switch (field) {
+    case "diameterMm":
+      return `φ${rendered} 유지`
+    default:
+      return `${rendered} 유지`
+  }
+}
+
+function renderFilterValue(
+  field: string,
+  value: string,
+  rawValue: string | number | boolean | Array<string | number | boolean>
+): string {
+  if (field === "fluteCount") {
+    if (typeof rawValue === "number") return `${rawValue}날`
+    return value.endsWith("날") ? value : `${value}날`
+  }
+
+  if (field === "diameterMm") {
+    if (typeof rawValue === "number") return `${rawValue}mm`
+    return value.endsWith("mm") ? value : `${value}mm`
+  }
+
+  return value
+}
+
+function stringifyFilterRawValue(
+  rawValue: string | number | boolean | Array<string | number | boolean>,
+  fallback: string
+): string | number {
+  if (typeof rawValue === "string" || typeof rawValue === "number") return rawValue
+  return fallback
+}
+
+function buildFieldBrowseLabel(field: string): string {
+  switch (field) {
+    case "toolSubtype":
+      return "공구 형상 보기"
+    case "fluteCount":
+      return "날 수 좁히기"
+    case "diameterMm":
+      return "직경 좁히기"
+    case "coating":
+      return "코팅 보기"
+    case "seriesName":
+      return "시리즈 보기"
+    default:
+      return `${getFieldLabel(field)} 보기`
+  }
+}
+
+function buildFieldValueLabel(field: string, rawValue: string): string {
+  const value = localizeValue(field, rawValue)
+
+  switch (field) {
+    case "toolSubtype":
+    case "coating":
+    case "seriesName":
+    case "toolMaterial":
+      return `${value} 보기`
+    case "fluteCount":
+      return `${value}날 보기`
+    case "diameterMm":
+      return `φ${value}mm 보기`
+    case "ballRadiusMm":
+      return `R${value} 보기`
+    case "taperAngleDeg":
+      return `${value}° 보기`
+    case "coolantHole":
+      return value === "true" ? "절삭유 홀 있음 보기" : "절삭유 홀 없음 보기"
+    default:
+      return `${value} 보기`
+  }
+}
+
+function localizeValue(field: string, value: string): string {
+  return VALUE_LABELS[field]?.[value] ?? value
+}
+
+function normalizeToken(value: unknown): string {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "")
+}
+
+function dedupeOptions(options: SmartOption[]): SmartOption[] {
+  const seen = new Set<string>()
+  const deduped: SmartOption[] = []
+
+  for (const option of options) {
+    const key = [
+      normalizeToken(option.label),
+      option.plan.type,
+      option.field ?? "",
+      normalizeToken(option.value),
+    ].join("|")
+
+    if (seen.has(key)) continue
+    seen.add(key)
+    deduped.push(option)
+  }
+
+  return deduped
 }
