@@ -5,7 +5,7 @@ vi.mock("@/lib/recommendation/shared/material-mapping", () => ({
   buildScopedMaterialPromptHints: vi.fn(() => "detected family: Stainless\nbrand hints: YG1\nseries hints: INOX-MASTER"),
 }))
 
-import { buildSessionContext } from "../prompt-builder"
+import { buildSessionContext, buildSystemPrompt } from "../prompt-builder"
 
 describe("prompt-builder material hints", () => {
   it("threads CSV-backed material hints into the session context", () => {
@@ -27,5 +27,12 @@ describe("prompt-builder material hints", () => {
     expect(sessionContext).toContain("detected family: Stainless")
     expect(sessionContext).toContain("brand hints: YG1")
     expect(sessionContext).toContain("series hints: INOX-MASTER")
+  })
+
+  it("injects the canonical registry snippet into the system prompt", () => {
+    const prompt = buildSystemPrompt("ko")
+
+    expect(prompt).toContain("[Canonical registry]")
+    expect(prompt).toContain("country: KOREA, AMERICA, ASIA, EUROPE")
   })
 })

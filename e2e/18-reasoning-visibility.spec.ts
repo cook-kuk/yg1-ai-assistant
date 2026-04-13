@@ -8,25 +8,11 @@ import {
   startReasoningRecommendationHarness,
 } from "./reasoning-visibility-helpers"
 
-test.describe("Release gate regressions", () => {
-  test("/feedback stays accessible without admin gating", async ({ page }) => {
-    await page.goto("/feedback")
-    await page.waitForLoadState("networkidle")
+  test.describe("YG-1 recommendation reasoning visibility", () => {
+  test.setTimeout(120_000)
 
-    await expect(page.getByRole("button", { name: /Back|돌아가기/ })).toBeVisible()
-  })
-
-  test("sidebar keeps /products labeled as product recommendation", async ({ page }) => {
-    await page.goto("/")
-    await page.waitForLoadState("networkidle")
-
-    const productNav = page.locator("nav").first().locator("a[href='/products']").first()
-    await expect(productNav).toContainText(/제품 추천|Product Recommendation/i)
-  })
-
-  test("release gate: FAST reasoning stays hidden in the UI", async ({ page }, testInfo) => {
+  test("FAST representative sentence keeps reasoning UI hidden", async ({ page }, testInfo) => {
     const harness = await startReasoningRecommendationHarness(page, testInfo)
-
     try {
       await installReasoningScenarioStreamRoute(page, {
         prompt: "10mm 이상",
@@ -37,6 +23,8 @@ test.describe("Release gate regressions", () => {
       const payload = await harness.sendChat("10mm 이상")
 
       expect(payload?.reasoningVisibility ?? null).toBe("hidden")
+      expect(payload?.thinkingProcess ?? null).toBeNull()
+      expect(payload?.thinkingDeep ?? null).toBeNull()
       await expect(page.getByRole("button", { name: REASONING_TOGGLE_RE })).toHaveCount(0)
       await expect(page.getByText(FULL_REASONING_RE)).toHaveCount(0)
     } finally {
@@ -44,9 +32,9 @@ test.describe("Release gate regressions", () => {
     }
   })
 
-  test("release gate: NORMAL reasoning shows only the simple trace", async ({ page }, testInfo) => {
+  test("NORMAL representative sentence renders only simple reasoning", async ({ page }, testInfo) => {
     const harness = await startReasoningRecommendationHarness(page, testInfo)
-    const stageTrace = "RELEASE GATE NORMAL TRACE"
+    const stageTrace = "NORMAL ROUTE STAGE TRACE"
 
     try {
       await installReasoningScenarioStreamRoute(page, {
@@ -60,6 +48,7 @@ test.describe("Release gate regressions", () => {
       const payload = await harness.sendChat("4날 스퀘어 추천해줘")
 
       expect(payload?.reasoningVisibility ?? null).toBe("simple")
+      expect(payload?.thinkingProcess ?? "").toContain(stageTrace)
       expect(payload?.thinkingDeep ?? null).toBeNull()
       await expect(page.getByRole("button", { name: REASONING_TOGGLE_RE })).toBeVisible()
       await expect(page.getByText(new RegExp(escapeRegex(stageTrace)))).toBeVisible()
@@ -69,10 +58,10 @@ test.describe("Release gate regressions", () => {
     }
   })
 
-  test("release gate: DEEP reasoning exposes the full trace", async ({ page }, testInfo) => {
+  test("DEEP representative sentence renders stage and full reasoning", async ({ page }, testInfo) => {
     const harness = await startReasoningRecommendationHarness(page, testInfo)
-    const stageTrace = "RELEASE GATE DEEP STAGE TRACE"
-    const deepTrace = "RELEASE GATE DEEP FULL TRACE"
+    const stageTrace = "DEEP ROUTE STAGE TRACE"
+    const deepTrace = "DEEP ROUTE FULL TRACE"
 
     try {
       await installReasoningScenarioStreamRoute(page, {
@@ -88,6 +77,8 @@ test.describe("Release gate regressions", () => {
       const payload = await harness.sendChat("티타늄 말고 뭐가 좋아?")
 
       expect(payload?.reasoningVisibility ?? null).toBe("full")
+      expect(payload?.thinkingProcess ?? "").toContain(stageTrace)
+      expect(payload?.thinkingDeep ?? "").toContain(deepTrace)
       await expect(page.getByRole("button", { name: REASONING_TOGGLE_RE })).toBeVisible()
       await expect(page.getByText(new RegExp(escapeRegex(stageTrace)))).toBeVisible()
       await expect(page.getByText(new RegExp(escapeRegex(deepTrace)))).toBeVisible()

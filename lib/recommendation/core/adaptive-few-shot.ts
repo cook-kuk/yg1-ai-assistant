@@ -15,6 +15,47 @@ export interface FewShotExample {
 let _pool: FewShotExample[] = []
 let _loaded = false
 
+const FALLBACK_FEW_SHOT_CASES: Array<{ input: string; filters: Array<{ field: string; op?: string; rawValue: string | number }> }> = [
+  {
+    input: "스테인리스 4날 10mm",
+    filters: [
+      { field: "workPieceName", op: "includes", rawValue: "Stainless Steel" },
+      { field: "fluteCount", op: "eq", rawValue: 4 },
+      { field: "diameterMm", op: "eq", rawValue: 10 },
+    ],
+  },
+  {
+    input: "구리 스퀘어 2날 10mm DLC",
+    filters: [
+      { field: "workPieceName", op: "includes", rawValue: "Copper" },
+      { field: "toolSubtype", op: "eq", rawValue: "Square" },
+      { field: "fluteCount", op: "eq", rawValue: 2 },
+      { field: "diameterMm", op: "eq", rawValue: 10 },
+      { field: "coating", op: "eq", rawValue: "DLC" },
+    ],
+  },
+  {
+    input: "Ball 2날 알루미늄",
+    filters: [
+      { field: "toolSubtype", op: "eq", rawValue: "Ball" },
+      { field: "fluteCount", op: "eq", rawValue: 2 },
+      { field: "workPieceName", op: "includes", rawValue: "Aluminum" },
+    ],
+  },
+]
+
+function loadFallbackFewShotPool(): void {
+  _pool = FALLBACK_FEW_SHOT_CASES.map(example => ({
+    input: example.input,
+    output: JSON.stringify(example.filters.map(filter => ({
+      field: filter.field,
+      op: filter.op ?? "eq",
+      value: String(filter.rawValue),
+    }))),
+    tokens: tokenize(example.input),
+  }))
+}
+
 export function loadFewShotPool(): void {
   if (_loaded) return
   _loaded = true
@@ -23,7 +64,11 @@ export function loadFewShotPool(): void {
     const fs = require("fs")
     const path = require("path")
     const fp = path.join(process.cwd(), "test-results", "golden-set-v1.json")
-    if (!fs.existsSync(fp)) { console.warn("[adaptive-few-shot] golden-set-v1.json missing"); return }
+    if (!fs.existsSync(fp)) {
+      console.warn("[adaptive-few-shot] golden-set-v1.json missing; using fallback seeds")
+      loadFallbackFewShotPool()
+      return
+    }
     const golden = JSON.parse(fs.readFileSync(fp, "utf8"))
     const cases: any[] = Array.isArray(golden.cases) ? golden.cases : []
     _pool = cases
@@ -40,6 +85,7 @@ export function loadFewShotPool(): void {
     console.log(`[adaptive-few-shot] loaded ${_pool.length} examples`)
   } catch (e) {
     console.warn("[adaptive-few-shot] load failed:", (e as Error).message)
+    if (_pool.length === 0) loadFallbackFewShotPool()
   }
 }
 

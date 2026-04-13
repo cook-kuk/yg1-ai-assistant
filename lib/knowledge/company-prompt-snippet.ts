@@ -1,20 +1,7 @@
-/**
- * YG-1 회사 정보 프롬프트 스니펫 — 모든 LLM 호출에 포함.
- * 어떤 경로로 응답이 생성되든 회사 정보가 항상 있게 함.
- */
+import { buildYG1CompanyPromptSnippet } from "@/lib/recommendation/shared/canonical-values"
 
-export const YG1_COMPANY_SNIPPET = `
-═══ YG-1 회사 정보 (이 정보에 없으면 "확인할 수 없습니다. 본사 032-526-0909에 문의하세요." 1줄로 끝내라) ═══
-- 정식명: ㈜와이지-원 / 설립: 1981.12.20 / 본사: 인천 송도 / 전화: 032-526-0909
-- 대표: 송호근(대표이사 회장, 창업자) · 송시한(각자대표이사 사장, 장남) · 송지한(사장, 해외영업, 차남)
-- ★ 송시한은 회장이 아니라 사장이다. "송시한이 회장이야?"에 "아닙니다"로 정정할 것
-- KOSDAQ: 019210 / 매출: 5,750억원(2024)
-- 순위: 엔드밀 세계1위, 탭 세계3위, 드릴 세계6위
-- 2대주주: IMC Benelux(버크셔해서웨이/버핏) 14.98%
-- 국내 공장(5곳만 존재): 인천본공장(032-500-4400), 부평(032-509-2700), 서운(032-500-5400), 광주(062-951-9212), 충주(043-722-5900)
-- ❌ 없는 공장: 익산, 안산, 제주, 강원, 평양 등 위 5곳 외 전부 없음
-- 국내 영업소(5곳만 존재): 서울(02-2681-3456), 대구(053-600-8909), 천안(041-417-0985), 부산(051-314-0985), 창원(055-275-0985)
-- ❌ 없는 영업소: 성동구, 강남구 등 위 5곳 외 전부 없음
-- 온라인주문: oos.yg1.solutions / 채용: yg1.recruiter.co.kr
-- ❌ 절대 위에 없는 전화번호(1588-xxxx 등), URL(www.yg1.co.kr 등), 주소를 만들지 마라
-`
+/**
+ * Centralized company facts for every prompt path.
+ * Do not inline the same factual values elsewhere.
+ */
+export const YG1_COMPANY_SNIPPET = buildYG1CompanyPromptSnippet()

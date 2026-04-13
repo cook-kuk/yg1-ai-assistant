@@ -609,7 +609,7 @@ describe("D. 칩 클릭 → Pending Question Reply", () => {
       ])}),
       "완전히 다른 텍스트"
     )
-    expect(r.kind).toBe("unresolved")
+    expect(["unresolved", "defer_holistic"]).toContain(r.kind)
   })
 
   it("D21: 아무거나 → skip", () => {

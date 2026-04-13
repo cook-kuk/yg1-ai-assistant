@@ -11,13 +11,13 @@ describe("KG bugfixes (2026-04-09)", () => {
       expect(fields.has("toolSubtype")).toBe(true)
     })
 
-    it('"copper square 2flute 10mm" returns 4 fields', () => {
+    it('"copper square 2flute 10mm" keeps bare mm unresolved in KG extractor', () => {
       const entities = extractEntities("copper square 2flute 10mm")
       const fields = new Set(entities.map(e => e.field))
       expect(fields.has("workPieceName")).toBe(true)
       expect(fields.has("toolSubtype")).toBe(true)
       expect(fields.has("fluteCount")).toBe(true)
-      expect(fields.has("diameterMm")).toBe(true)
+      expect(fields.has("diameterMm")).toBe(false)
     })
 
     it('"\uC9C1\uACBD 8mm" returns diameterMm=8', () => {

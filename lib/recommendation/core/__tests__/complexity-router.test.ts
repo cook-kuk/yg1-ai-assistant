@@ -1,51 +1,73 @@
-import { describe, test, expect } from "vitest"
-import { assessComplexity } from "../complexity-router"
+import { describe, expect, test } from "vitest"
+
+import { assessComplexity, canUseResolverStage } from "../complexity-router"
 
 describe("assessComplexity", () => {
-  test("light", () => {
-    expect(assessComplexity("10mm").level).toBe("light")
-    expect(assessComplexity("네").level).toBe("light")
-    expect(assessComplexity("Y-Coating").level).toBe("light")
-    expect(assessComplexity("스퀘어").level).toBe("light")
-    expect(assessComplexity("상관없음").level).toBe("light")
-    expect(assessComplexity("DLC", 3).level).toBe("light")
+  test("routes simple numeric filters to the fast path", () => {
+    const decision = assessComplexity("10mm 이상")
+
+    expect(decision.level).toBe("light")
+    expect(decision.reason).toBe("deterministic_numeric")
+    expect(decision.resolverStageBudget).toBe("stage1")
+    expect(decision.allowLegacyLlmFallback).toBe(false)
+    expect(decision.allowToolForge).toBe(false)
+    expect(decision.runSelfCorrection).toBe(false)
+    expect(decision.generateCoT).toBe(false)
+    expect(decision.uiThinkingMode).toBe("hidden")
   })
-  test("deep", () => {
-    expect(assessComplexity("AlCrN이랑 TiAlN 뭐가 나아?").level).toBe("deep")
-    expect(assessComplexity("떨림 줄이고 싶어").level).toBe("deep")
-    expect(assessComplexity("Sandvik 대체품 있어?").level).toBe("deep")
-    expect(assessComplexity("코팅이 뭐야?").level).toBe("deep")
-    expect(assessComplexity("추천해줘 그리고 알루파워가 뭐야?").level).toBe("deep")
+
+  test("keeps chip-click style values on the fast path", () => {
+    const decision = assessComplexity("4날 (1558개)")
+
+    expect(decision.level).toBe("light")
+    expect(decision.resolverStageBudget).toBe("stage1")
+    expect(decision.uiThinkingMode).toBe("hidden")
+    expect(decision.generateCoT).toBe(false)
   })
-  test("normal", () => {
-    expect(assessComplexity("스테인리스 4날 10mm").level).toBe("normal")
-    expect(assessComplexity("티타늄 가공용 엔드밀").level).toBe("normal")
+
+  test("routes clear compound recommendation requests to the normal path", () => {
+    const decision = assessComplexity("4날 Square 추천")
+
+    expect(decision.level).toBe("normal")
+    expect(decision.reason).toBe("compound_recommendation")
+    expect(decision.resolverStageBudget).toBe("stage2")
+    expect(decision.allowLegacyLlmFallback).toBe(false)
+    expect(decision.allowToolForge).toBe(false)
+    expect(decision.runSelfCorrection).toBe(false)
+    expect(decision.generateCoT).toBe(false)
+    expect(decision.uiThinkingMode).toBe("simple")
   })
-  test("light는 KB/웹서치만 끔 (CoT는 hotfix로 전역 OFF)", () => {
-    const d = assessComplexity("10mm")
-    expect(d.searchKB).toBe(false)
-    expect(d.allowWebSearch).toBe(false)
-    expect(d.generateCoT).toBe(false) // hotfix: CoT 전역 비활성화
-    expect(d.runSelfCorrection).toBe(true)
+
+  test("routes negation and generic follow-ups to the deep path", () => {
+    const decision = assessComplexity("티타늄 말고 뭐가 좋아?")
+
+    expect(decision.level).toBe("deep")
+    expect(decision.reason).toBe("negation")
+    expect(decision.resolverStageBudget).toBe("stage3")
+    expect(decision.allowLegacyLlmFallback).toBe(true)
+    expect(decision.allowToolForge).toBe(true)
+    expect(decision.runSelfCorrection).toBe(true)
+    expect(decision.generateCoT).toBe(true)
+    expect(decision.uiThinkingMode).toBe("full")
   })
-  test("deep는 KB + CoT 켬 (light/normal만 CoT off)", () => {
-    const d = assessComplexity("AlCrN vs TiAlN?")
-    expect(d.searchKB).toBe(true)
-    expect(d.generateCoT).toBe(true)
-  })
-  test("칩 클릭은 CoT/self-correction 모두 OFF (fast path)", () => {
-    const d = assessComplexity("6날 (213개)")
-    expect(d.level).toBe("light")
-    expect(d.generateCoT).toBe(false)
-    expect(d.runSelfCorrection).toBe(false)
-    expect(assessComplexity("4날 (1558개)").generateCoT).toBe(false)
-    expect(assessComplexity("Y 코팅 (42건)").generateCoT).toBe(false)
-  })
-  test("구조화 인테이크 첫 턴은 CoT/self-correction OFF", () => {
-    const intake = "🧭 문의 목적: 신규 제품 추천\n🧱 가공 소재: 탄소강\n🛠️ 가공 방식: Milling\n위 조건에 맞는 YG-1 제품을 추천해 주세요."
-    const d = assessComplexity(intake)
-    expect(d.level).toBe("light")
-    expect(d.generateCoT).toBe(false)
-    expect(d.runSelfCorrection).toBe(false)
+})
+
+describe("canUseResolverStage", () => {
+  test("enforces the configured resolver budget", () => {
+    const fast = assessComplexity("4날")
+    const normal = assessComplexity("4날 Square 추천")
+    const deep = assessComplexity("티타늄 말고 뭐가 좋아?")
+
+    expect(canUseResolverStage(fast, "stage1")).toBe(true)
+    expect(canUseResolverStage(fast, "stage2")).toBe(false)
+    expect(canUseResolverStage(fast, "stage3")).toBe(false)
+
+    expect(canUseResolverStage(normal, "stage1")).toBe(true)
+    expect(canUseResolverStage(normal, "stage2")).toBe(true)
+    expect(canUseResolverStage(normal, "stage3")).toBe(false)
+
+    expect(canUseResolverStage(deep, "stage1")).toBe(true)
+    expect(canUseResolverStage(deep, "stage2")).toBe(true)
+    expect(canUseResolverStage(deep, "stage3")).toBe(true)
   })
 })

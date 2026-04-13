@@ -6,9 +6,42 @@ export interface RecommendResponsePayload extends JsonRecord {
   text?: string | null
   purpose?: string | null
   chips?: string[] | null
+  isComplete?: boolean
+  thinkingProcess?: string | null
+  thinkingDeep?: string | null
+  reasoningVisibility?: "hidden" | "simple" | "full" | null
   recommendation?: JsonRecord | null
+  session?: RecommendSessionEnvelope | null
   sessionState?: RecommendSessionState | null
+  candidates?: RecommendCandidate[] | null
+  pagination?: RecommendPagination | null
+  capabilities?: RecommendCapabilities | null
+  evidenceSummaries?: unknown[] | null
+  requestPreparation?: unknown | null
+  primaryExplanation?: unknown | null
+  primaryFactChecked?: JsonRecord | null
+  altExplanations?: unknown[]
+  altFactChecked?: JsonRecord[]
   candidateSnapshot?: RecommendCandidate[] | null
+}
+
+export interface RecommendCapabilities extends JsonRecord {
+  canCompare: boolean
+  canRestoreTask: boolean
+  canGroupBySeries: boolean
+  canFilterDisplayed: boolean
+}
+
+export interface RecommendPagination extends JsonRecord {
+  page: number
+  pageSize: number
+  totalItems: number
+  totalPages: number
+}
+
+export interface RecommendSessionEnvelope extends JsonRecord {
+  publicState?: RecommendSessionState | null
+  engineState?: unknown | null
 }
 
 export interface RecommendSessionState extends JsonRecord {
@@ -39,6 +72,7 @@ export interface RecommendSessionState extends JsonRecord {
   lastAction?: string | null
   underlyingAction?: string | null
   restoreTarget?: string | null
+  capabilities?: RecommendCapabilities | null
   candidateCounts?: {
     dbMatchCount?: number
     filteredCount?: number
@@ -96,6 +130,13 @@ const BASE_RESOLVED_INPUT = {
   diameterMm: 4,
   toolType: "End Mill",
   unitSystem: "METRIC",
+}
+
+const BASE_CAPABILITIES: RecommendCapabilities = {
+  canCompare: true,
+  canRestoreTask: true,
+  canGroupBySeries: true,
+  canFilterDisplayed: true,
 }
 
 function makeCandidate(input: {
@@ -282,6 +323,7 @@ function buildSessionState(args: {
     underlyingAction: args.underlyingAction ?? "show_recommendation",
     activeGroupKey: args.activeGroupKey ?? null,
     restoreTarget: args.restoreTarget ?? null,
+    capabilities: BASE_CAPABILITIES,
     lastRecommendationArtifact,
     lastComparisonArtifact: args.lastComparisonArtifact ?? null,
     candidateCounts: {
@@ -294,14 +336,70 @@ function buildSessionState(args: {
   }
 }
 
+function readRequestSessionState(body: JsonRecord): RecommendSessionState | null {
+  const legacySessionState = (body.sessionState ?? null) as RecommendSessionState | null
+  if (legacySessionState && typeof legacySessionState === "object") return legacySessionState
+
+  const session = (body.session ?? null) as RecommendSessionEnvelope | null
+  const publicState = session?.publicState ?? null
+  return publicState && typeof publicState === "object" ? publicState : null
+}
+
+function finalizeMockResponse(payload: RecommendResponsePayload): RecommendResponsePayload {
+  const sessionState = payload.sessionState ?? payload.session?.publicState ?? null
+  const capabilities = sessionState?.capabilities ?? payload.capabilities ?? BASE_CAPABILITIES
+  const publicState = sessionState
+    ? {
+        ...sessionState,
+        displayedChips: payload.chips ?? sessionState.displayedChips ?? [],
+        capabilities,
+      }
+    : null
+  const candidates = payload.candidates
+    ?? publicState?.displayedProducts
+    ?? publicState?.displayedCandidates
+    ?? payload.candidateSnapshot
+    ?? null
+  const pagination = payload.pagination
+    ?? (Array.isArray(candidates) && candidates.length > 0
+      ? {
+          page: 0,
+          pageSize: candidates.length,
+          totalItems: candidates.length,
+          totalPages: 1,
+        }
+      : null)
+
+  return {
+    ...payload,
+    isComplete: payload.isComplete ?? false,
+    session: {
+      publicState,
+      engineState: payload.session?.engineState ?? null,
+    },
+    sessionState: publicState,
+    candidates: candidates ?? null,
+    pagination,
+    capabilities,
+    evidenceSummaries: payload.evidenceSummaries ?? null,
+    requestPreparation: payload.requestPreparation ?? null,
+    primaryExplanation: payload.primaryExplanation ?? null,
+    primaryFactChecked: payload.primaryFactChecked ?? null,
+    altExplanations: payload.altExplanations ?? [],
+    altFactChecked: payload.altFactChecked ?? [],
+    candidateSnapshot: payload.candidateSnapshot ?? candidates ?? null,
+  }
+}
+
 function buildMockResponseFromRequest(body: JsonRecord): RecommendResponsePayload {
-  const prev = (body.sessionState ?? null) as RecommendSessionState | null
+  const prev = readRequestSessionState(body)
   const messages = Array.isArray(body.messages) ? body.messages as Array<{ text?: string }> : []
   const lastMessage = String(messages.at(-1)?.text ?? "").trim()
   const normalized = lastMessage.toLowerCase()
   const prevDisplayed = (prev?.displayedProducts ?? prev?.displayedCandidates ?? BASE_CANDIDATES) as RecommendCandidate[]
   const artifact = (prev?.lastRecommendationArtifact ?? BASE_CANDIDATES) as RecommendCandidate[]
   const keepComparison = prev?.lastComparisonArtifact ?? null
+  const payload = (() => {
 
   if (messages.length === 0) {
     const sessionState = buildSessionState({
@@ -786,6 +884,13 @@ function buildMockResponseFromRequest(body: JsonRecord): RecommendResponsePayloa
     altExplanations: [],
     altFactChecked: [],
   }
+  })()
+
+  return finalizeMockResponse(payload)
+}
+
+export function buildMockRecommendResponse(body: Record<string, unknown>): RecommendResponsePayload {
+  return buildMockResponseFromRequest(body as JsonRecord)
 }
 
 function safeJsonParse(text: string): RecommendResponsePayload | null {
@@ -796,8 +901,34 @@ function safeJsonParse(text: string): RecommendResponsePayload | null {
   }
 }
 
+function parseRecommendResponseText(text: string): RecommendResponsePayload | null {
+  const direct = safeJsonParse(text)
+  if (direct) return direct
+
+  const frames = text
+    .split(/\r?\n\r?\n/)
+    .map(frame => frame.trim())
+    .filter(Boolean)
+
+  for (const frame of frames) {
+    const lines = frame.split(/\r?\n/)
+    const event = lines.find(line => line.startsWith("event:"))?.slice(6).trim()
+    if (event !== "final") continue
+
+    const data = lines
+      .filter(line => line.startsWith("data:"))
+      .map(line => line.slice(5).trim())
+      .join("\n")
+
+    const parsed = safeJsonParse(data)
+    if (parsed) return parsed
+  }
+
+  return null
+}
+
 function buildSessionSnapshot(payload: RecommendResponsePayload | null) {
-  const session = payload?.sessionState ?? null
+  const session = payload?.sessionState ?? payload?.session?.publicState ?? null
   const resolved = session?.resolvedInput ?? null
   return {
     purpose: payload?.purpose ?? null,
@@ -819,7 +950,7 @@ function buildSessionSnapshot(payload: RecommendResponsePayload | null) {
 }
 
 function buildArtifactSnapshot(payload: RecommendResponsePayload | null) {
-  const session = payload?.sessionState ?? null
+  const session = payload?.sessionState ?? payload?.session?.publicState ?? null
   const displayedProducts = session?.displayedProducts ?? session?.displayedCandidates ?? []
   const displayedGroups = session?.displayedSeriesGroups ?? session?.displayedGroups ?? []
   const candidateSnapshot = payload?.candidateSnapshot ?? []
@@ -935,7 +1066,7 @@ export class RecommendationHarness {
   }
 
   latestSession(): RecommendSessionState | null {
-    return this.latestPayload()?.sessionState ?? null
+    return this.latestPayload()?.sessionState ?? this.latestPayload()?.session?.publicState ?? null
   }
 
   async gotoProducts() {
@@ -981,7 +1112,7 @@ export class RecommendationHarness {
     await reviewButton.click()
     return this.captureRecommendResponse(async () => {
       await this.page.getByRole("button", { name: /Start Recommendation/ }).click()
-      await expect(this.page.getByText(/AI Product Search/)).toBeVisible()
+      await expect(this.page.getByText(/AI Search|AI Product Search/)).toBeVisible()
     })
   }
 
@@ -1013,6 +1144,10 @@ export class RecommendationHarness {
   }
 
   async expectInputContextVisible() {
+    await expect(this.page.getByText(/Aluminum|Non-ferrous/).first()).toBeVisible()
+    await expect(this.page.getByText(/4mm/).first()).toBeVisible()
+    await expect(this.page.getByText(/Side Milling|Side_Milling/).first()).toBeVisible()
+    return
     await expect(this.page.getByText(/Aluminum|알루미늄/).first()).toBeVisible()
     await expect(this.page.getByText(/4mm/).first()).toBeVisible()
     await expect(this.page.getByText(/Side Milling|측면가공/).first()).toBeVisible()
@@ -1122,16 +1257,35 @@ export class RecommendationHarness {
     }
   }
 
+  private async satisfyFeedbackGate() {
+    const feedbackPrompt = this.page.getByText(/Please rate the response above|평가해주세요/)
+    if (!(await feedbackPrompt.isVisible().catch(() => false))) return
+
+    const clickNeutralForLabel = async (label: RegExp) => {
+      const feedbackLabel = this.page.getByText(label).last()
+      if (!(await feedbackLabel.isVisible().catch(() => false))) return
+
+      const buttons = feedbackLabel.locator("xpath=following-sibling::button")
+      if ((await buttons.count()) < 2) return
+      await buttons.nth(1).click()
+    }
+
+    await clickNeutralForLabel(/^Response:?$/)
+    await clickNeutralForLabel(/^Options:?$/)
+    await clickNeutralForLabel(/^Recommendation:?$/)
+  }
+
   private async captureRecommendResponse(trigger: () => Promise<void>) {
     const responsePromise = this.page.waitForResponse(response =>
-      response.url().includes("/api/recommend") && response.request().method() === "POST",
+      (response.url().includes("/api/recommend/stream") || response.url().includes("/api/recommend"))
+      && response.request().method() === "POST",
     )
 
     await trigger()
 
     const response = await responsePromise
     const responseText = await response.text()
-    const responsePayload = safeJsonParse(responseText)
+    const responsePayload = parseRecommendResponseText(responseText)
     const requestBody = this.readRequestBody(response.request())
     const record: InteractionRecord = {
       at: new Date().toISOString(),
@@ -1145,8 +1299,13 @@ export class RecommendationHarness {
 
     this.interactions.push(record)
 
-    expect(response.ok(), `Expected /api/recommend to succeed but got ${response.status()}.\n${responseText}`).toBeTruthy()
-    await expect(this.page.getByPlaceholder(/Enter additional questions or conditions|추가 질문이나 조건을 입력하세요/)).toBeEnabled()
+    expect(
+      response.ok(),
+      `Expected recommendation request to succeed but got ${response.status()}.\n${responseText}`,
+    ).toBeTruthy()
+    const chatInput = this.page.getByPlaceholder(/Enter additional questions or conditions|추가 질문이나 조건을 입력하세요/)
+    await this.satisfyFeedbackGate()
+    await expect(chatInput).toBeEnabled({ timeout: 10000 })
 
     return responsePayload
   }
@@ -1170,6 +1329,37 @@ export class RecommendationHarness {
   private async installCanonicalScenarioRoute() {
     if (this.scenarioRouteInstalled) return
     this.scenarioRouteInstalled = true
+
+    await this.page.route("**/api/feedback", async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true }),
+      })
+    })
+
+    await this.page.route("**/api/recommend/stream", async route => {
+      const request = route.request()
+      const rawPostData = request.postData()
+      if (!rawPostData) {
+        await route.continue()
+        return
+      }
+
+      let body: JsonRecord
+      try {
+        body = JSON.parse(rawPostData) as JsonRecord
+      } catch {
+        await route.continue()
+        return
+      }
+      const responsePayload = buildMockResponseFromRequest(body)
+      await route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        body: `event: final\ndata: ${JSON.stringify(responsePayload)}\n\n`,
+      })
+    })
 
     await this.page.route("**/api/recommend", async route => {
       const request = route.request()

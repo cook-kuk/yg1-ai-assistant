@@ -13,8 +13,6 @@ export const INVENTORY_QUERY_PATTERN = /재고|stock|inventory|available|availab
 export const PRODUCT_INFO_TRIGGER_PATTERN = /공구\s*소재|재질|코팅|직경|지름|날\s*수|날수|플루트|형상|스퀘어|볼|라디우스|테이퍼|생크|절삭길이|날길이|전장|헬릭스|쿨런트|제품명|품명|스펙|사양|전체\s*사양|상세\s*사양|전체\s*정보|상세\s*정보|무슨\s*제품|어떤\s*제품|뭐야|뭐예요|알려/i
 export const BRAND_REFERENCE_TRIGGER_PATTERN = /(브랜드|brand).*(추천|기준|표|어떤|무슨|뭐|찾|조회)|(?:iso\s*[pmknsh]|hrc|경도|피삭재|소재).*(브랜드|brand)/i
 export const ENTITY_PROFILE_TRIGGER_PATTERN = /시리즈|series|브랜드|brand|차이|비교|vs|대비|특징|용도|적합|형상|설명|몇\s*날|날\s*수|날수|플루트|어떤\s*제품|무슨\s*제품/i
-export const SERIES_NAME_ENTITY_PATTERN = /\b(?:ALU[-\s]?CUT(?:\s+(?:POWER|HPC|for\s+Korean\s+Market))?|TANK[-\s]?POWER|X[-\s]?POWER|I[-\s]?POWER|V[-\s]?POWER|ALU[-\s]?MILL|ALU[-\s]?POWER(?:\s+HPC)?|INOX[-\s]?POWER|[A-Z]{2,5}\d{2,4}[A-Z]?|[A-Z]{1,4}\d[A-Z]{1,3}\d{2,4}[A-Z]?)\b/gi
-export const BRAND_NAME_ENTITY_PATTERN = /\b(?:E[·∙ㆍ.]?\s*FORCE(?:\s+BLUE)?(?:\s+for\s+Korean\s+Market)?|4G\s*MILLS(?:\s*-\s*KOR)?|SUPER\s+ALLOY|X5070\s*S)\b/gi
 export const ENTITY_COMPARISON_PATTERN = /([A-Z0-9][A-Z0-9·∙ㆍ.\-\s]{1,40}?)\s*(?:vs\.?|VS\.?|와|과|이랑|랑|대비)\s*([A-Z0-9][A-Z0-9·∙ㆍ.\-\s]{1,40}?)(?=\s*(?:의|은|는|이|가|를|을|차이|비교|특징|설명|$))/giu
 export const LATIN_ENTITY_PHRASE_PATTERN = /\b[A-Za-z0-9][A-Za-z0-9&.+/-]*(?:\s+[A-Za-z0-9][A-Za-z0-9&.+/-]*){0,5}\b/g
 export const CUTTING_KNOWLEDGE_PATTERNS = /절삭|공구|엔드밀|드릴|인서트|코팅|소재|가공|선반|밀링|CNC|초경|CBN|세라믹|황삭|정삭|면취|보링|리머|탭|나사|칩|인선|마모|수명|이송|회전|절입|쿨란트|치핑|버|진동|채터|tialn|alcrn|dlc|hss|carbide|endmill|milling|turning|drilling/i

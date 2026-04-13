@@ -47,7 +47,8 @@ import { resolveProductReferences } from "./comparison-agent"
 import { parseAnswerToFilter } from "@/lib/recommendation/domain/question-engine"
 import { ENABLE_OPUS_AMBIGUITY, ENABLE_COMPARISON_AGENT } from "@/lib/recommendation/infrastructure/config/recommendation-agent-flags"
 import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
-import { buildDomainKnowledgeSnippet, buildCandidateDistributionSnippet } from "@/lib/recommendation/shared/patterns"
+import { buildCandidateDistributionSnippet } from "@/lib/recommendation/shared/patterns"
+import { buildCanonicalDomainKnowledgeSnippet } from "@/lib/recommendation/shared/canonical-values"
 import { extractFilterFieldValueMap } from "@/lib/recommendation/shared/filter-field-registry"
 import { classifySessionAction, detectFilterIntent } from "@/lib/recommendation/domain/session-action-classifier"
 import { buildAppliedFilterFromValue } from "@/lib/recommendation/shared/filter-field-registry"
@@ -714,7 +715,7 @@ ${candidatesDesc}`
 
 ${dynamicSessionState}
 ${buildDbFilterValueSnippet()}
-${buildDomainKnowledgeSnippet()}
+${buildCanonicalDomainKnowledgeSnippet()}
 ${distSnippet}
 
 핵심 원칙:
