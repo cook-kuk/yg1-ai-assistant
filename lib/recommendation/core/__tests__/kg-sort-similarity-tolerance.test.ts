@@ -47,20 +47,16 @@ describe("KG §9 sort", () => {
 })
 
 describe("KG §9 tolerance", () => {
-  it('"10mm 근처" → tolerance on diameterMm around 10', () => {
+  it('"10mm 근처" no longer defaults to diameter without a field cue', () => {
     const res = tryKGDecision("10mm 근처", null)
-    expect(res.source).toBe("kg-tolerance")
-    const tc = res.specPatch?.toleranceConstraints?.[0]
-    expect(tc?.field).toBe("diameterMm")
-    expect(tc?.value).toBe(10)
-    expect(tc?.tolerance).toBeGreaterThan(0)
+    expect(res.source).not.toBe("kg-tolerance")
+    expect(res.specPatch?.toleranceConstraints).toBeUndefined()
   })
 
-  it('"약 8mm" → tolerance on diameterMm around 8', () => {
+  it('"약 8mm" no longer defaults to diameter without a field cue', () => {
     const res = tryKGDecision("약 8mm", null)
-    expect(res.source).toBe("kg-tolerance")
-    const tc = res.specPatch?.toleranceConstraints?.[0]
-    expect(tc?.value).toBe(8)
+    expect(res.source).not.toBe("kg-tolerance")
+    expect(res.specPatch?.toleranceConstraints).toBeUndefined()
   })
 
   it('"OAL 50mm 근처" → tolerance on overallLengthMm', () => {

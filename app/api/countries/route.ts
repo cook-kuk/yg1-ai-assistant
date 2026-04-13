@@ -3,6 +3,13 @@ import "server-only"
 import { NextResponse } from "next/server"
 import { Pool } from "pg"
 
+export const COUNTRIES_SQL = `SELECT DISTINCT country_row.country AS country
+FROM catalog_app.product_recommendation_mv,
+     LATERAL unnest(country_codes) AS country_row(country)
+WHERE country_row.country IS NOT NULL
+  AND BTRIM(country_row.country) <> ''
+ORDER BY country_row.country`
+
 function dbConnectionString(): string | undefined {
   return (
     process.env.DATABASE_URL ??
@@ -25,14 +32,7 @@ function getPool(): Pool {
 export async function GET() {
   try {
     const pool = getPool()
-    const result = await pool.query<{ country: string }>(
-      `SELECT DISTINCT country
-       FROM catalog_app.product_recommendation_mv,
-            LATERAL unnest(country_codes) AS country_row(country)
-       WHERE country IS NOT NULL
-         AND BTRIM(country) <> ''
-       ORDER BY country`
-    )
+    const result = await pool.query<{ country: string }>(COUNTRIES_SQL)
     const countries = result.rows.map((row) => row.country)
     return NextResponse.json({ countries })
   } catch (error) {

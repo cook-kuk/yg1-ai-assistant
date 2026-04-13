@@ -324,7 +324,7 @@ describe("edge: 복합 입력 — 한 문장에 여러 필드", () => {
   it("'알루미늄 10mm 4날 카바이드 TiAlN 코팅' → 5필드 동시", () => {
     const actions = parseDeterministic("알루미늄 10mm 4날 카바이드 TiAlN 코팅")
     const fields = new Map(actions.map(a => [a.field, a.value]))
-    expect(fields.get("diameterMm")).toBe(10)
+    expect(fields.has("diameterMm")).toBe(false)
     expect(fields.get("fluteCount")).toBe(4)
     expect(fields.get("toolMaterial")).toBe("Carbide")
     expect(fields.get("coating")).toBe("TiAlN")
@@ -336,7 +336,7 @@ describe("edge: 복합 입력 — 한 문장에 여러 필드", () => {
   it("'스테인리스 8mm 슬로팅 4날 RPM 8000 이상' → 5필드 (밀링 가공형상 포함)", () => {
     const actions = parseDeterministic("스테인리스 8mm 슬로팅 4날 RPM 8000 이상")
     const fields = new Map(actions.map(a => [a.field, a.value]))
-    expect(fields.get("diameterMm")).toBe(8)
+    expect(fields.has("diameterMm")).toBe(false)
     expect(fields.get("fluteCount")).toBe(4)
     expect(fields.get("rpm")).toBe(8000)
     expect(fields.get("applicationShape")).toBe("Slotting")
@@ -409,12 +409,12 @@ describe("coverage: applicationShape × eq (밀링 가공 형상 9종)", () => {
 // 사용자가 자연스럽게 한 번에 여러 카테고리 필터를 거는 케이스. 각 필드가
 // 독립적으로 추출돼 모두 한 turn 에 적용되어야 한다.
 describe("multi-filter combo: 스펙 + 재고 + 절삭조건 동시", () => {
-  it("'알루미늄 10mm 4날 카바이드 TiAlN 코팅 RPM 8000 이상 재고 50개 이상' → 7+ 필드", () => {
+  it("'알루미늄 10mm 4날 카바이드 TiAlN 코팅 RPM 8000 이상 재고 50개 이상' → bare mm stays unresolved while other fields extract", () => {
     const text = "알루미늄 10mm 4날 카바이드 TiAlN 코팅 RPM 8000 이상 재고 50개 이상"
     const actions = parseDeterministic(text)
     const fields = new Map(actions.map(a => [a.field, a]))
 
-    expect(fields.get("diameterMm")?.value).toBe(10)
+    expect(fields.has("diameterMm")).toBe(false)
     expect(fields.get("fluteCount")?.value).toBe(4)
     expect(fields.get("toolMaterial")?.value).toBe("Carbide")
     expect(fields.get("coating")?.value).toBe("TiAlN")
@@ -428,12 +428,12 @@ describe("multi-filter combo: 스펙 + 재고 + 절삭조건 동시", () => {
     expect(/50/.test(JSON.stringify(stock))).toBe(true)
   })
 
-  it("'스테인리스 8mm 슬로팅 4날 RPM 8000 이상 이송 0.1 이상' → 6 필드 (밀링 형상 + 절삭조건 2개)", () => {
+  it("'스테인리스 8mm 슬로팅 4날 RPM 8000 이상 이송 0.1 이상' → bare mm stays unresolved while shape/cutting conditions extract", () => {
     const text = "스테인리스 8mm 슬로팅 4날 RPM 8000 이상 이송 0.1 이상"
     const actions = parseDeterministic(text)
     const fields = new Map(actions.map(a => [a.field, a]))
 
-    expect(fields.get("diameterMm")?.value).toBe(8)
+    expect(fields.has("diameterMm")).toBe(false)
     expect(fields.get("fluteCount")?.value).toBe(4)
     expect(fields.get("rpm")?.value).toBe(8000)
     expect(fields.get("feedRate")?.value).toBe(0.1)
@@ -441,12 +441,12 @@ describe("multi-filter combo: 스펙 + 재고 + 절삭조건 동시", () => {
     expect(actions.find(a => (a.field === "workMaterial" || a.field === "material") && a.value === "M")).toBeDefined()
   })
 
-  it("'고경도강 6mm 4날 코팅된 거 빼고 RPM 5000 이상 절삭속도 150 이상' → 5+ 필드 + neq coating", () => {
+  it("'고경도강 6mm 4날 코팅된 거 빼고 RPM 5000 이상 절삭속도 150 이상' → bare mm stays unresolved while the rest extracts", () => {
     const text = "고경도강 6mm 4날 코팅 빼고 RPM 5000 이상 절삭속도 150 이상"
     const actions = parseDeterministic(text)
     const fields = new Map(actions.map(a => [a.field, a]))
 
-    expect(fields.get("diameterMm")?.value).toBe(6)
+    expect(fields.has("diameterMm")).toBe(false)
     expect(fields.get("fluteCount")?.value).toBe(4)
     expect(fields.get("rpm")?.value).toBe(5000)
     expect(fields.get("rpm")?.op).toBe("gte")
@@ -473,12 +473,12 @@ describe("multi-filter combo: 스펙 + 재고 + 절삭조건 동시", () => {
     expect(fields.get("stockStatus")).toBeDefined()
   })
 
-  it("'티타늄 8mm 트로코이달 ALU-POWER 한국 제품 RPM 12000 이상 이송 0.05 이하' → 7 필드", () => {
+  it("'티타늄 8mm 트로코이달 ALU-POWER 한국 제품 RPM 12000 이상 이송 0.05 이하' → bare mm stays unresolved while other fields extract", () => {
     const text = "티타늄 8mm 트로코이달 ALU-POWER 한국 제품 RPM 12000 이상 이송 0.05 이하"
     const actions = parseDeterministic(text)
     const fields = new Map(actions.map(a => [a.field, a]))
 
-    expect(fields.get("diameterMm")?.value).toBe(8)
+    expect(fields.has("diameterMm")).toBe(false)
     expect(fields.get("rpm")?.value).toBe(12000)
     expect(fields.get("rpm")?.op).toBe("gte")
     expect(fields.get("feedRate")?.value).toBe(0.05)
@@ -492,12 +492,12 @@ describe("multi-filter combo: 스펙 + 재고 + 절삭조건 동시", () => {
     expect(country?.value).toBe("한국")
   })
 
-  it("'주철 12mm 4날 Y-Coating 빼고 헬릭스 30도 이상 재고 100개 이상' → 6 필드 (negation + helix + stock)", () => {
+  it("'주철 12mm 4날 Y-Coating 빼고 헬릭스 30도 이상 재고 100개 이상' → bare mm stays unresolved while negation/helix/stock extract", () => {
     const text = "주철 12mm 4날 Y-Coating 빼고 헬릭스 30도 이상 재고 100개 이상"
     const actions = parseDeterministic(text)
     const fields = new Map(actions.map(a => [a.field, a]))
 
-    expect(fields.get("diameterMm")?.value).toBe(12)
+    expect(fields.has("diameterMm")).toBe(false)
     expect(fields.get("fluteCount")?.value).toBe(4)
     expect(fields.get("coating")?.value).toBe("Y-Coating")
     expect(fields.get("coating")?.op).toBe("neq")
@@ -509,24 +509,24 @@ describe("multi-filter combo: 스펙 + 재고 + 절삭조건 동시", () => {
     expect(/100/.test(JSON.stringify(stock))).toBe(true)
   })
 
-  it("'CFRP 10mm 2날 다이아몬드 RPM 20000 이상' → 복합재 + 다이아 + 고RPM", () => {
+  it("'CFRP 10mm 2날 다이아몬드 RPM 20000 이상' → bare mm stays unresolved while composite/rpm extract", () => {
     const text = "CFRP 10mm 2날 다이아몬드 RPM 20000 이상"
     const actions = parseDeterministic(text)
     const fields = new Map(actions.map(a => [a.field, a]))
 
-    expect(fields.get("diameterMm")?.value).toBe(10)
+    expect(fields.has("diameterMm")).toBe(false)
     expect(fields.get("fluteCount")?.value).toBe(2)
     expect(fields.get("toolMaterial")?.value).toBe("Diamond")
     expect(fields.get("rpm")?.value).toBe(20000)
     expect(actions.find(a => (a.field === "workMaterial" || a.field === "material") && a.value === "O")).toBeDefined()
   })
 
-  it("'인코넬 6mm 헬리컬 보간 카바이드 AlCrN 절삭속도 80 이하 절입 1 이하' → 6 필드 (S 군 + 헬리컬 + 두 절삭조건 모두 lte)", () => {
+  it("'인코넬 6mm 헬리컬 보간 카바이드 AlCrN 절삭속도 80 이하 절입 1 이하' → bare mm stays unresolved while helix/cutting conditions extract", () => {
     const text = "인코넬 6mm 헬리컬 보간 카바이드 AlCrN 절삭속도 80 이하 절입 1 이하"
     const actions = parseDeterministic(text)
     const fields = new Map(actions.map(a => [a.field, a]))
 
-    expect(fields.get("diameterMm")?.value).toBe(6)
+    expect(fields.has("diameterMm")).toBe(false)
     expect(fields.get("toolMaterial")?.value).toBe("Carbide")
     expect(fields.get("coating")?.value).toBe("AlCrN")
     expect(fields.get("applicationShape")?.value).toBe("Helical_Interpolation")

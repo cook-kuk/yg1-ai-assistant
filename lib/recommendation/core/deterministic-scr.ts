@@ -1040,6 +1040,7 @@ export function extractFromMvIndex(
   const tokens = tokenizeForMvIndex(text)
   if (tokens.length === 0) return []
 
+  const measurementScopeAmbiguity = detectMeasurementScopeAmbiguity(text)
   const actions: DeterministicAction[] = []
   const localSeen = new Set<string>()
 

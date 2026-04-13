@@ -129,6 +129,18 @@ describe("context interpreter — intent shift detection", () => {
     expect(result.intentShift).toBe("compare_products")
     expect(result.suggestedNextAction).toBe("compare")
   })
+
+  it("does not treat a bare mm phrase as a referenced diameter field", () => {
+    const result = interpretContext({
+      form: makeForm("aluminum"),
+      sessionState: makeSessionState({ resolutionStatus: "resolved_exact" }),
+      resolvedInput: { material: "aluminum" } as any,
+      userMessage: "100mm 이상이요",
+      memory: createEmptyMemory(),
+    })
+
+    expect(result.referencedField).toBeNull()
+  })
 })
 
 // ════════════════════════════════════════════════════════════════

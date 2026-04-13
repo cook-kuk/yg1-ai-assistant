@@ -188,6 +188,16 @@ describe("query-target: field-specific queries", () => {
 
     expect(result.overridesActiveFilter).toBe(false)
   })
+
+  it("bare mm phrases do not hijack an active diameter field query", () => {
+    const result = classifyQueryTarget(
+      "100mm 이상이요",
+      "diameterMm",
+      "diameterMm"
+    )
+
+    expect(result.type).not.toBe("active_field_query")
+  })
 })
 
 // ════════════════════════════════════════════════════════════════
