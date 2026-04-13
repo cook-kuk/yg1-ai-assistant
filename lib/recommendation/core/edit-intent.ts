@@ -30,22 +30,15 @@ export interface EditIntentResult {
   reason: string
 }
 
-type DeterministicEditHintAction = {
-  type?: string | null
-  field?: string | null
-  value?: unknown
-  op?: string | null
-}
-
 // ── Edit Signal Detection ────────────────────────────────────
 
 /** 수정 동사/조사가 포함되어 있는지 빠르게 판별 */
 export function hasEditSignal(msg: string): boolean {
-  return EDIT_SIGNAL_RE.test(msg) || RESET_SIGNAL_RE.test(msg)
+  return DETERMINISTIC_EDIT_SIGNAL_RE.test(msg) || RESET_SIGNAL_RE.test(msg)
 }
 
-const EDIT_SIGNAL_RE =
-  /(?:\uB9D0\uACE0|\uBE7C\uACE0|\uC81C\uC678|\uC544\uB2CC|\uC5C6|\uC544\uB2C8\uACE0|\uC544\uB2C8\uBA74|\uC544\uB2C8\uC5D0\uC694|\uC544\uB2D9\uB2C8\uB2E4|\uC544\uB2CC\uB370\uB3C4|\uBC14\uAFD4|\uBC14\uAFB8|\uBCC0\uACBD|\uAD50\uCCB4|\uC5D0\uC11C\s*\S+\s*(?:\uB85C|\uC73C\uB85C)|\uC0C1\uAD00\s*\uC5C6(?:\uC5B4|\uC5B4\uC694|\uC74C)?|\uC544\uBB34\uAC70\uB098|\uBB50\uB4E0|\uB2E4\s*\uAD1C\uCC2E(?:\uC544|\uC544\uC694)?|\uBB34\uAD00|\uC694\uCCAD\s*(?:\uD55C\s*\uC801\s*\uC5C6)|\uC798\uBABB)/iu
+const DETERMINISTIC_EDIT_SIGNAL_RE =
+  /(?:\uC0C1\uAD00\s*\uC5C6(?:\uC5B4|\uC5B4\uC694|\uC74C)?|\uC544\uBB34\uAC70\uB098|\uBB50\uB4E0|\uB2E4\s*\uAD1C\uCC2E(?:\uC544|\uC544\uC694)?|\uBB34\uAD00|\uC798\uBABB|\uD2C0\uB838|\uC624\uD574|\uC694\uCCAD\s*(?:\uD55C\s*\uC801\s*(?:\uC774\s*)?\uC5C6|\uC548\s*\uD588|\uC54A\uC558))/iu
 
 const RESET_SIGNAL_RE =
   /^\s*(?:\uCC98\uC74C\uBD80\uD130\s*\uB2E4\uC2DC(?:\s*\uC2DC\uC791)?|\uB2E4\uC2DC\s*\uCC98\uC74C\uBD80\uD130|\uB2E4\uC2DC\s*\uC2DC\uC791|\uCD08\uAE30\uD654|\uB9AC\uC14B|reset)\s*[.!?~]*\s*$/iu
@@ -136,8 +129,8 @@ export function shouldExecuteEditIntentDeterministically(
     case "reset_all":
     case "skip_field":
     case "clear_field":
-    case "go_back_then_apply":
       return true
+    case "go_back_then_apply":
     case "replace_field":
     case "exclude_field":
       return false
@@ -207,7 +200,7 @@ function inferSkipFieldFromMessage(msg: string, signalIndex: number): string | n
 export function parseEditIntent(
   msg: string,
   existingFilters: AppliedFilter[] = [],
-  stageOneDeterministicActions: DeterministicEditHintAction[] = [],
+  _stageOneDeterministicActions: unknown[] = [],
 ): EditIntentResult | null {
   if (!hasEditSignal(msg)) return null
 
@@ -217,9 +210,9 @@ export function parseEditIntent(
     return { intent: { type: "reset_all" }, confidence: 0.95, reason: "reset signal" }
   }
 
-  // ── 0. reject_applied_filter ("X는 bug", "X 요청한 적 없", "X 잘못", "X 아닌데요") ──
+  // ── 0. reject_applied_filter ("X 잘못", "X 요청한 적 없") ──
   // 사용자가 잘못 적용된 필터를 항의 — 현재 필터에서 그 값을 가진 항목을 찾아 clear.
-  const REJECT_RE = /(?:잘못|요청\s*(?:한\s*적\s*(?:이\s*)?없|안\s*했|않았)|아닌데요?|아니에요|아닙니다)/iu
+  const REJECT_RE = /(?:잘못|틀렸|오해|요청\s*(?:한\s*적\s*(?:이\s*)?없|안\s*했|않았))/iu
   if (REJECT_RE.test(lower) && existingFilters.length > 0) {
     // (a) 메시지에 등장한 엔티티가 현재 필터와 매칭되면 그 field clear
     const entities = extractEntities(msg)
@@ -253,33 +246,7 @@ export function parseEditIntent(
     return { intent: { type: "reset_all" }, confidence: 0.95, reason: "reset signal" }
   }
 
-  // ── 2. go_back_then_apply ("이전으로 돌아가서 X 제외") ──
-  // 이전 regex 는 lazy 매칭으로 "돌아가서" 가 capture 에 섞여서 entity 해석 실패.
-  // 두 패턴으로 분리: (A) "이전/뒤로 (돌아가서)? X 제외" (B) "돌아가서? X 제외".
-  let goBackTokenCapture: string | null = null
-  const goBackA = lower.match(
-    /^(?:이전|뒤로)\S*(?:\s+돌아가\S*)?\s+(.+?)\s*(?:제외|빼고|말고|없이)\s*$/u
-  )
-  if (goBackA) {
-    goBackTokenCapture = goBackA[1]
-  } else {
-    const goBackB = lower.match(
-      /^돌아가\S*\s+(.+?)\s*(?:제외|빼고|말고|없이)\s*$/u
-    )
-    if (goBackB) goBackTokenCapture = goBackB[1]
-  }
-  if (goBackTokenCapture) {
-    const innerIntent = parseExcludeFromToken(goBackTokenCapture.trim(), existingFilters)
-    if (innerIntent) {
-      return {
-        intent: { type: "go_back_then_apply", inner: innerIntent.intent },
-        confidence: 0.93,
-        reason: `go_back + ${innerIntent.reason}`,
-      }
-    }
-  }
-
-  // ── 3. skip_field ("브랜드는 상관없음", "코팅 관계없어", "소재 아무거나") ──
+  // ── 2. skip_field ("브랜드는 상관없음", "코팅 관계없어", "소재 아무거나") ──
   const clearSignal = CLEAR_SIGNAL_RE.exec(lower)
   if (clearSignal && clearSignal.index != null) {
     const field = inferSkipFieldFromMessage(msg, clearSignal.index)
@@ -290,225 +257,6 @@ export function parseEditIntent(
         reason: `skip ${field}`,
       }
     }
-  }
-
-  // ── 4. replace_field ("X 말고 Y로", "X에서 Y로 바꿔줘") ──
-  const replaceResult = parseReplace(lower, existingFilters)
-  if (replaceResult) return replaceResult
-
-  // ── 5. exclude_field ("X 빼고", "X 아닌걸로", "X 제외") ──
-  const excludeResult = parseExclude(lower, existingFilters, stageOneDeterministicActions)
-  if (excludeResult) return excludeResult
-
-  return null
-}
-
-// ── Replace Parser ───────────────────────────────────────────
-
-/** "X 말고 Y로", "X에서 Y로 바꿔", "X를 Y로 변경" */
-function parseReplace(
-  lower: string,
-  existingFilters: AppliedFilter[],
-): EditIntentResult | null {
-  // Pattern A: "X 말고 Y로" — extract entities from before/after the verb
-  const patA = lower.match(/\s*(?:말고|빼고|제외)\s+/u)
-  if (patA && patA.index !== undefined) {
-    const beforeText = lower.slice(0, patA.index).trim()
-    const afterText = lower.slice(patA.index + patA[0].length).trim()
-    const oldEntities = extractEntities(beforeText)
-    const newEntities = extractEntities(afterText)
-
-    if (oldEntities.length > 0 && newEntities.length > 0) {
-      const oldEntity = oldEntities[oldEntities.length - 1]
-      const replacement = newEntities.find(e => e.field === oldEntity.field)
-      if (replacement) {
-        return {
-          intent: {
-            type: "replace_field",
-            field: oldEntity.field,
-            oldValue: oldEntity.canonical,
-            newValue: replacement.canonical,
-          },
-          confidence: 0.95,
-          reason: `replace ${oldEntity.field}: ${oldEntity.canonical} → ${replacement.canonical}`,
-        }
-      }
-    }
-    // No same-field replacement found → fall through to exclude
-  }
-
-  // Pattern B: "X에서 Y로 바꿔/변경/교체"
-  const patB = lower.match(/(\S+?)에서\s+(\S+?)(?:로|으로)\s*(?:바꿔|바꾸|변경|교체)/u)
-  if (patB) {
-    const oldEntity = resolveEntityOrNumeric(patB[1])
-    const newEntity = resolveEntityOrNumeric(patB[2])
-    if (oldEntity && newEntity && oldEntity.field === newEntity.field) {
-      return {
-        intent: {
-          type: "replace_field",
-          field: oldEntity.field,
-          oldValue: oldEntity.canonical,
-          newValue: newEntity.canonical,
-        },
-        confidence: 0.95,
-        reason: `replace ${oldEntity.field}: ${oldEntity.canonical} → ${newEntity.canonical}`,
-      }
-    }
-  }
-
-  // Pattern C: "Y로 바꿔/변경" (old is inferred from existing filters)
-  const patC = lower.match(/(\S+?)(?:로|으로)\s*(?:바꿔|바꾸|변경|교체)/u)
-  if (patC) {
-    const newEntity = resolveEntityOrNumeric(patC[1])
-    if (newEntity) {
-      const existing = existingFilters.find(f => f.field === newEntity.field)
-      return {
-        intent: {
-          type: "replace_field",
-          field: newEntity.field,
-          oldValue: existing ? String(existing.rawValue) : undefined,
-          newValue: newEntity.canonical,
-        },
-        confidence: existing ? 0.93 : 0.85,
-        reason: `replace ${newEntity.field}: ${existing ? String(existing.rawValue) : "?"} → ${newEntity.canonical}`,
-      }
-    }
-  }
-
-  return null
-}
-
-// ── Exclude Parser ───────────────────────────────────────────
-
-/** "X 빼고", "X 아닌걸로", "X 제외하고", "X만 아니면" */
-function parseExclude(
-  lower: string,
-  existingFilters: AppliedFilter[],
-  stageOneDeterministicActions: DeterministicEditHintAction[] = [],
-): EditIntentResult | null {
-  // Strategy: instead of capturing entity text with regex alone (fails for multi-word
-  // entities like "CRX S"), we detect the edit-verb position and try extractEntities
-  // on the text BEFORE the verb.
-  const EXCLUDE_VERBS = [
-    /\s+(?:타입|종류|형상|코팅|계열)\s*(?:말고|빼고|제외|외에)/iu,
-    /\s*(?:말고|빼고|제외)\s*(?:하고|해|하)?/iu,
-    /(?:이|가|을|를)\s*(?:아닌|않은|아니고)/iu,
-    /\s+(?:아닌|않은|아니고)/iu,
-    /(?:만\s*아니면)/iu,
-    /(?:not|except|without|exclude)\s+/iu,
-  ]
-
-  for (const re of EXCLUDE_VERBS) {
-    const match = lower.match(re)
-    if (!match || match.index === undefined) continue
-
-    // For English "not/except/without X" — entity is AFTER the verb
-    if (/^(?:not|except|without|exclude)/i.test(match[0].trim())) {
-      const after = lower.slice(match.index + match[0].length).trim()
-      const entities = extractEntities(after)
-      if (entities.length > 0) {
-        return makeExcludeResult(entities[0])
-      }
-      continue
-    }
-
-    // For Korean — entity is BEFORE the verb
-    const before = lower.slice(0, match.index).trim()
-    if (!before) continue
-
-    // Try extracting entities from the before-text
-    const entities = extractEntities(before)
-    if (entities.length > 0) {
-      // Use the last entity (closest to the verb)
-      return makeExcludeResult(entities[entities.length - 1])
-    }
-
-    // Fallback: try resolving the whole before-text as one token
-    const resolved = resolveEntityOrNumeric(before)
-    if (resolved) {
-      return makeExcludeResult(resolved)
-    }
-
-    const hinted = pickSingleDeterministicExcludeCandidate(stageOneDeterministicActions)
-    if (hinted) {
-      return makeExcludeResult(hinted)
-    }
-  }
-
-  return null
-}
-
-function makeExcludeResult(entity: { field: string; canonical: string }): EditIntentResult {
-  return {
-    intent: { type: "exclude_field", field: entity.field, value: entity.canonical },
-    confidence: 0.95,
-    reason: `exclude ${entity.field}=${entity.canonical}`,
-  }
-}
-
-function pickSingleDeterministicExcludeCandidate(
-  actions: DeterministicEditHintAction[],
-): { field: string; canonical: string } | null {
-  const candidates = actions
-    .filter(action =>
-      action.type === "apply_filter"
-      && typeof action.field === "string"
-      && action.field.length > 0
-      && action.value != null
-      && action.op !== "neq"
-      && action.op !== "skip"
-    )
-    .map(action => ({
-      field: String(action.field),
-      canonical: String(action.value).trim(),
-    }))
-    .filter(candidate => candidate.canonical.length > 0)
-
-  const unique = candidates.filter((candidate, index, source) =>
-    source.findIndex(entry =>
-      entry.field === candidate.field
-      && entry.canonical.toLowerCase() === candidate.canonical.toLowerCase()
-    ) === index
-  )
-
-  return unique.length === 1 ? unique[0] : null
-}
-
-function parseExcludeFromToken(
-  token: string,
-  _existingFilters: AppliedFilter[],
-): EditIntentResult | null {
-  const entity = resolveEntityOrNumeric(token)
-  if (!entity) return null
-
-  return {
-    intent: { type: "exclude_field", field: entity.field, value: entity.canonical },
-    confidence: 0.95,
-    reason: `exclude ${entity.field}=${entity.canonical}`,
-  }
-}
-
-// ── Helpers ──────────────────────────────────────────────────
-
-/** KG resolveEntity + numeric extraction + brand fallback */
-function resolveEntityOrNumeric(
-  token: string,
-): { field: string; canonical: string } | null {
-  // Try KG entity index first
-  const entity = resolveEntity(token)
-  if (entity) return { field: entity.field, canonical: entity.canonical }
-
-  // Try full extraction (handles "4날", "10mm", "8파이", "CRX S" via DB brands etc.)
-  const entities = extractEntities(token)
-  if (entities.length > 0) return { field: entities[0].field, canonical: entities[0].canonical }
-
-  // Try with Korean particles stripped
-  const stripped = token.replace(/[이가을를은는의도로으와과에서]$/u, "").trim()
-  if (stripped !== token) {
-    const strippedEntity = resolveEntity(stripped)
-    if (strippedEntity) return { field: strippedEntity.field, canonical: strippedEntity.canonical }
-    const strippedEntities = extractEntities(stripped)
-    if (strippedEntities.length > 0) return { field: strippedEntities[0].field, canonical: strippedEntities[0].canonical }
   }
 
   return null

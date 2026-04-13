@@ -52,6 +52,12 @@ describe("KG bugfixes (2026-04-09)", () => {
       expect(result.source).toBe("none")
       expect(result.decision).toBeNull()
     })
+
+    it('"\uCF54\uD305\uC73C\uB85C \uC881\uD788\uAE30" no longer forces a KG refine route', () => {
+      const result = tryKGDecision("\uCF54\uD305\uC73C\uB85C \uC881\uD788\uAE30", null)
+      expect(result.source).toBe("none")
+      expect(result.decision).toBeNull()
+    })
   })
 
   describe("Bug 3: bare positive dispatch gating still works", () => {
