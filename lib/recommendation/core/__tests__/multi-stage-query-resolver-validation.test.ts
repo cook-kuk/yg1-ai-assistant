@@ -526,4 +526,440 @@ describe("resolveMultiStageQuery validation-driven escalation", () => {
       expect.objectContaining({ code: "recognized_entity_mismatch" }),
     ]))
   })
+
+  it("holds free-text feature meaning as a concept instead of collapsing it into seriesName", async () => {
+    const stage2Provider = makeProvider(JSON.stringify({
+      filters: [
+        { field: "seriesName", op: "eq", value: "multiple helix", rawToken: "multiple helix" },
+        { field: "fluteCount", op: "eq", value: 4, rawToken: "4 flutes" },
+      ],
+      sort: null,
+      routeHint: "show_recommendation",
+      clearOtherFilters: false,
+      confidence: 0.89,
+      unresolvedTokens: [],
+      reasoning: "misread the feature phrase as a series identifier",
+    }))
+    const stage3Provider = makeProvider(JSON.stringify({
+      concepts: [
+        { kind: "feature", op: "eq", value: "multiple helix", rawToken: "multiple helix" },
+        { kind: "constraint", fieldHint: "fluteCount", op: "eq", value: 4, rawToken: "4 flutes" },
+      ],
+      filters: [
+        { field: "fluteCount", op: "eq", value: 4, rawToken: "4 flutes" },
+      ],
+      sort: null,
+      routeHint: "show_recommendation",
+      clearOtherFilters: false,
+      confidence: 0.94,
+      unresolvedTokens: ["multiple helix"],
+      reasoning: "kept the feature phrase as a concept because it is not a DB series value",
+    }))
+
+    const result = await resolveMultiStageQuery({
+      message: "multiple helix 4 flutes 보여줘",
+      turnCount: 9,
+      currentFilters: [
+        { field: "machiningCategory", op: "eq", value: "Milling", rawValue: "Milling", appliedAt: 1 },
+      ],
+      sessionState: {
+        sessionId: "feature-concept",
+        candidateCount: 24,
+        appliedFilters: [],
+        narrowingHistory: [],
+        stageHistory: [],
+        resolutionStatus: "narrowing",
+        resolvedInput: { machiningCategory: "Milling" },
+        turnCount: 8,
+        currentMode: "recommendation",
+        displayedCandidates: [],
+        displayedChips: [],
+        displayedOptions: [],
+      } as any,
+      complexity: assessComplexity("multiple helix 4 flutes 보여줘", 1),
+      stage2Provider,
+      stage3Provider,
+    })
+
+    expect(stage2Provider.complete).toHaveBeenCalledTimes(1)
+    expect(stage3Provider.complete).toHaveBeenCalledTimes(1)
+    expect(result.source).toBe("clarification")
+    expect(result.filters.some(filter => filter.field === "seriesName")).toBe(false)
+    expect(result.validation?.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "concept_mapping_gap" }),
+    ]))
+  })
+
+  it("asks clarification for the exact generic coating phrase", async () => {
+    const stage2Provider = makeProvider(JSON.stringify({
+      action: "execute",
+      filters: [{ field: "coating", op: "eq", value: "Y-Coating", rawToken: "금속 코팅" }],
+      sort: null,
+      routeHint: "show_recommendation",
+      clearOtherFilters: false,
+      confidence: 0.91,
+      unresolvedTokens: [],
+      reasoning: "collapsed a generic coating mention into a specific coating",
+    }))
+    const stage3Provider = makeProvider(JSON.stringify({
+      action: "execute",
+      filters: [{ field: "coating", op: "eq", value: "Y-Coating", rawToken: "금속 코팅" }],
+      sort: null,
+      routeHint: "show_recommendation",
+      clearOtherFilters: false,
+      confidence: 0.95,
+      unresolvedTokens: [],
+      reasoning: "kept the same unsafe collapse",
+    }))
+
+    const result = await resolveMultiStageQuery({
+      message: "금속 코팅으로 부탁해요",
+      turnCount: 10,
+      currentFilters: [
+        { field: "machiningCategory", op: "eq", value: "Milling", rawValue: "Milling", appliedAt: 1 },
+      ],
+      sessionState: {
+        sessionId: "generic-coating-exact",
+        candidateCount: 28,
+        appliedFilters: [],
+        narrowingHistory: [],
+        stageHistory: [],
+        resolutionStatus: "narrowing",
+        resolvedInput: { machiningCategory: "Milling" },
+        turnCount: 9,
+        currentMode: "narrowing",
+        displayedCandidates: [],
+        displayedChips: [],
+        displayedOptions: [],
+      } as any,
+      complexity: assessComplexity("금속 코팅으로 부탁해요", 1),
+      stage2Provider,
+      stage3Provider,
+    })
+
+    expect(result.source).toBe("clarification")
+    expect(result.intent).toBe("ask_clarification")
+    expect(result.validation?.action).toBe("ask_clarification")
+    expect(result.clarification?.question).toContain("금속 코팅")
+  })
+
+  it("asks clarification for the exact multiple-helix phrase", async () => {
+    const stage2Provider = makeProvider(JSON.stringify({
+      action: "execute",
+      concepts: [
+        { kind: "feature", op: "eq", value: "multiple helix", rawToken: "multiple helix" },
+      ],
+      filters: [],
+      sort: null,
+      routeHint: "show_recommendation",
+      clearOtherFilters: false,
+      confidence: 0.82,
+      unresolvedTokens: ["multiple helix"],
+      reasoning: "held the phrase as a free-text feature",
+    }))
+    const stage3Provider = makeProvider(JSON.stringify({
+      action: "ask_clarification",
+      reason: "feature_identifier_ambiguity",
+      question: "현재는 'multiple helix'를 특성 후보로 이해했는데, 여기서 'multiple helix'는 시리즈명인가요, 제품 특성인가요?",
+      chips: ["시리즈명", "제품 특성", "직접 입력"],
+      concepts: [
+        { kind: "feature", op: "eq", value: "multiple helix", rawToken: "multiple helix" },
+      ],
+      filters: [],
+      sort: null,
+      routeHint: "none",
+      clearOtherFilters: false,
+      confidence: 0.7,
+      unresolvedTokens: ["multiple helix"],
+      reasoning: "multiple helix cannot be executed safely without clarification",
+    }))
+
+    const result = await resolveMultiStageQuery({
+      message: "multiple helix 있는 거",
+      turnCount: 11,
+      currentFilters: [
+        { field: "machiningCategory", op: "eq", value: "Milling", rawValue: "Milling", appliedAt: 1 },
+      ],
+      sessionState: {
+        sessionId: "multiple-helix-exact",
+        candidateCount: 24,
+        appliedFilters: [],
+        narrowingHistory: [],
+        stageHistory: [],
+        resolutionStatus: "narrowing",
+        resolvedInput: { machiningCategory: "Milling" },
+        turnCount: 10,
+        currentMode: "recommendation",
+        displayedCandidates: [],
+        displayedChips: [],
+        displayedOptions: [],
+      } as any,
+      complexity: assessComplexity("multiple helix 있는 거", 1),
+      stage2Provider,
+      stage3Provider,
+    })
+
+    expect(result.intent).toBe("ask_clarification")
+    expect(result.validation?.action).toBe("ask_clarification")
+    expect(result.clarification?.question).toContain("multiple helix")
+    expect(result.clarification?.chips).toEqual(expect.arrayContaining(["시리즈명", "제품 특성"]))
+  })
+
+  it("asks clarification for comparative preference wording instead of executing", async () => {
+    const stage2Provider = makeProvider(JSON.stringify({
+      action: "execute",
+      filters: [{ field: "coating", op: "neq", value: "TiAlN", rawToken: "티타늄" }],
+      sort: null,
+      routeHint: "show_recommendation",
+      clearOtherFilters: false,
+      confidence: 0.84,
+      unresolvedTokens: [],
+      reasoning: "excluded TiAlN and tried to continue recommending",
+    }))
+    const stage3Provider = makeProvider(JSON.stringify({
+      action: "execute",
+      filters: [{ field: "coating", op: "neq", value: "TiAlN", rawToken: "티타늄" }],
+      sort: null,
+      routeHint: "show_recommendation",
+      clearOtherFilters: false,
+      confidence: 0.9,
+      unresolvedTokens: [],
+      reasoning: "still tried to execute without clarifying the comparison criterion",
+    }))
+
+    const result = await resolveMultiStageQuery({
+      message: "티타늄 말고 뭐가 좋아?",
+      turnCount: 12,
+      currentFilters: [
+        { field: "machiningCategory", op: "eq", value: "Milling", rawValue: "Milling", appliedAt: 1 },
+      ],
+      sessionState: {
+        sessionId: "comparative-preference",
+        candidateCount: 21,
+        appliedFilters: [],
+        narrowingHistory: [],
+        stageHistory: [],
+        resolutionStatus: "narrowing",
+        resolvedInput: { machiningCategory: "Milling" },
+        turnCount: 11,
+        currentMode: "recommendation",
+        displayedCandidates: [],
+        displayedChips: [],
+        displayedOptions: [],
+      } as any,
+      complexity: assessComplexity("티타늄 말고 뭐가 좋아?", 1),
+      stage2Provider,
+      stage3Provider,
+    })
+
+    expect(result.source).toBe("clarification")
+    expect(result.validation?.action).toBe("ask_clarification")
+    expect(result.validation?.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "comparative_preference_ambiguity" }),
+    ]))
+    expect(result.clarification?.question).toContain("비교 기준")
+  })
+
+  it("asks clarification for the exact mixed local-negation phrase", async () => {
+    const stage2Provider = makeProvider(JSON.stringify({
+      action: "execute",
+      filters: [
+        { field: "fluteCount", op: "eq", value: 2, rawToken: "날수는 2개" },
+        { field: "toolSubtype", op: "neq", value: "Square", rawToken: "square 아니고" },
+      ],
+      sort: null,
+      routeHint: "none",
+      clearOtherFilters: false,
+      confidence: 0.93,
+      unresolvedTokens: [],
+      reasoning: "kept operator attachment local to each clause",
+    }))
+
+    const result = await resolveMultiStageQuery({
+      message: "날수는 2개여야하고 square 아니고",
+      turnCount: 13,
+      currentFilters: [
+        { field: "machiningCategory", op: "eq", value: "Milling", rawValue: "Milling", appliedAt: 1 },
+      ],
+      sessionState: {
+        sessionId: "local-negation-exact",
+        candidateCount: 18,
+        appliedFilters: [],
+        narrowingHistory: [],
+        stageHistory: [],
+        resolutionStatus: "narrowing",
+        resolvedInput: { machiningCategory: "Milling" },
+        turnCount: 12,
+        currentMode: "narrowing",
+        displayedCandidates: [],
+        displayedChips: [],
+        displayedOptions: [],
+      } as any,
+      complexity: assessComplexity("날수는 2개여야하고 square 아니고", 1),
+      stage2Provider,
+      stage3Provider: makeProvider(),
+    })
+
+    expect(result.source).toBe("clarification")
+    expect(result.intent).toBe("ask_clarification")
+    expect(result.validation?.action).toBe("ask_clarification")
+    expect(result.validation?.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "mixed_clause_ambiguity" }),
+    ]))
+    expect(result.clarification?.question).toContain("Square")
+  })
+
+  it("asks clarification for the exact correction-only phrase '그게 아니고'", async () => {
+    const stage2Provider = makeProvider(JSON.stringify({
+      action: "execute",
+      filters: [],
+      sort: null,
+      routeHint: "show_recommendation",
+      clearOtherFilters: false,
+      confidence: 0.8,
+      unresolvedTokens: [],
+      reasoning: "ignored the correction cue and kept going",
+    }))
+    const stage3Provider = makeProvider(JSON.stringify({
+      action: "execute",
+      filters: [],
+      sort: null,
+      routeHint: "show_recommendation",
+      clearOtherFilters: false,
+      confidence: 0.84,
+      unresolvedTokens: [],
+      reasoning: "still ignored the correction-only repair signal",
+    }))
+
+    const result = await resolveMultiStageQuery({
+      message: "그게 아니고",
+      turnCount: 14,
+      currentFilters: [
+        { field: "workPieceName", op: "eq", value: "Stainless Steels", rawValue: "Stainless Steels", appliedAt: 1 },
+        { field: "coating", op: "eq", value: "TiAlN", rawValue: "TiAlN", appliedAt: 2 },
+      ],
+      sessionState: {
+        sessionId: "repair-exact-short",
+        candidateCount: 10,
+        appliedFilters: [],
+        narrowingHistory: [],
+        stageHistory: [],
+        resolutionStatus: "narrowing",
+        resolvedInput: { machiningCategory: "Milling" },
+        turnCount: 13,
+        currentMode: "recommendation",
+        displayedCandidates: [],
+        displayedChips: ["스테인리스", "TiAlN"],
+        displayedOptions: [],
+      } as any,
+      complexity: assessComplexity("그게 아니고", 2),
+      stage2Provider,
+      stage3Provider,
+    })
+
+    expect(result.source).toBe("clarification")
+    expect(result.validation?.action).toBe("ask_clarification")
+    expect(result.clarification?.question).toContain("기존 조건")
+  })
+
+  it("asks clarification for the exact repair-only phrase '진짜 너 말 안듣는다'", async () => {
+    const stage2Provider = makeProvider(JSON.stringify({
+      action: "execute",
+      filters: [],
+      sort: null,
+      routeHint: "show_recommendation",
+      clearOtherFilters: false,
+      confidence: 0.78,
+      unresolvedTokens: [],
+      reasoning: "ignored the user's repair frustration",
+    }))
+    const stage3Provider = makeProvider(JSON.stringify({
+      action: "execute",
+      filters: [],
+      sort: null,
+      routeHint: "show_recommendation",
+      clearOtherFilters: false,
+      confidence: 0.81,
+      unresolvedTokens: [],
+      reasoning: "still tried to continue without asking what was wrong",
+    }))
+
+    const result = await resolveMultiStageQuery({
+      message: "진짜 너 말 안듣는다",
+      turnCount: 15,
+      currentFilters: [
+        { field: "workPieceName", op: "eq", value: "Stainless Steels", rawValue: "Stainless Steels", appliedAt: 1 },
+        { field: "coating", op: "eq", value: "TiAlN", rawValue: "TiAlN", appliedAt: 2 },
+      ],
+      sessionState: {
+        sessionId: "repair-exact-frustration",
+        candidateCount: 9,
+        appliedFilters: [],
+        narrowingHistory: [],
+        stageHistory: [],
+        resolutionStatus: "narrowing",
+        resolvedInput: { machiningCategory: "Milling" },
+        turnCount: 14,
+        currentMode: "recommendation",
+        displayedCandidates: [],
+        displayedChips: ["스테인리스", "TiAlN"],
+        displayedOptions: [],
+      } as any,
+      complexity: assessComplexity("진짜 너 말 안듣는다", 2),
+      stage2Provider,
+      stage3Provider,
+    })
+
+    expect(result.source).toBe("clarification")
+    expect(result.validation?.action).toBe("ask_clarification")
+    expect(result.clarification?.question).toContain("새 추천으로 다시")
+  })
+
+  it("maps brand and material concepts into validated filters before execution", async () => {
+    const stage2Provider = makeProvider(JSON.stringify({
+      concepts: [
+        { kind: "brand", op: "eq", value: "CRX S", rawToken: "crx s" },
+        { kind: "material", op: "eq", value: "stainless", rawToken: "stainless" },
+      ],
+      filters: [],
+      sort: null,
+      routeHint: "show_recommendation",
+      clearOtherFilters: false,
+      confidence: 0.93,
+      unresolvedTokens: [],
+      reasoning: "concept-first parse mapped brand and material through validated catalog values",
+    }))
+
+    const result = await resolveMultiStageQuery({
+      message: "CRX S로 스테인리스 추천해줘",
+      turnCount: 10,
+      currentFilters: [
+        { field: "machiningCategory", op: "eq", value: "Milling", rawValue: "Milling", appliedAt: 1 },
+      ],
+      sessionState: {
+        sessionId: "brand-material-concepts",
+        candidateCount: 19,
+        appliedFilters: [],
+        narrowingHistory: [],
+        stageHistory: [],
+        resolutionStatus: "narrowing",
+        resolvedInput: { machiningCategory: "Milling" },
+        turnCount: 9,
+        currentMode: "recommendation",
+        displayedCandidates: [],
+        displayedChips: [],
+        displayedOptions: [],
+      } as any,
+      complexity: assessComplexity("CRX S로 스테인리스 추천해줘", 1),
+      stage2Provider,
+      stage3Provider: makeProvider(),
+    })
+
+    expect(result.source).toBe("stage2")
+    expect(result.filters).toEqual(expect.arrayContaining([
+      expect.objectContaining({ field: "brand", rawValue: "CRX S" }),
+      expect.objectContaining({ field: "workPieceName", rawValue: "Stainless Steels" }),
+    ]))
+    expect(result.validation?.valid).toBe(true)
+  })
 })

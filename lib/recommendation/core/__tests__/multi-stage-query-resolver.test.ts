@@ -33,6 +33,34 @@ vi.mock("../sql-agent-schema-cache", () => ({
   },
 }))
 
+vi.mock("../deterministic-scr", () => ({
+  buildDeterministicSemanticHints: (actions: Array<{
+    field?: string
+    value?: string | number
+    value2?: string | number
+    op?: "eq" | "neq" | "gte" | "lte" | "between" | null
+  }>) => actions.map(action => {
+    const valueCandidate = action.op === "between" && action.value2 != null
+      ? [action.value ?? null, action.value2]
+      : (action.value ?? null)
+    const numericCue = typeof action.value === "number" ? [action.value] : []
+    const domainCue = action.field === "fluteCount"
+      ? "geometry"
+      : action.field === "coating"
+      ? "coating"
+      : action.field === "brand"
+      ? "brand-series"
+      : null
+    return {
+      fieldCandidate: action.field ?? null,
+      valueCandidate,
+      operatorCue: action.op ?? null,
+      numericCue,
+      domainCue,
+    }
+  }),
+}))
+
 function makeProvider(...responses: string[]): LLMProvider & { complete: ReturnType<typeof vi.fn> } {
   const queue = [...responses]
   const complete = vi.fn(async () => queue.shift() ?? "")
@@ -50,6 +78,13 @@ function makeUnavailableProvider(): LLMProvider & { complete: ReturnType<typeof 
     complete,
     completeWithTools: vi.fn(async () => ({ text: null, toolUse: null })),
   } as unknown as LLMProvider & { complete: ReturnType<typeof vi.fn> }
+}
+
+function makeDeepComplexity(reason: string = "test_force_deep") {
+  return {
+    ...assessComplexity("티타늄 말고 뭐가 좋아?"),
+    reason,
+  }
 }
 
 describe("resolveMultiStageQuery", () => {
@@ -141,13 +176,15 @@ describe("resolveMultiStageQuery", () => {
     expect(cachedStage2Provider.complete).not.toHaveBeenCalled()
   })
 
-  it("keys Stage 2 cache by session context for stateful refine turns", async () => {
+  it("falls back to clarification for stateful deictic negation when deeper repair is unavailable", async () => {
     const stage2Provider = makeProvider(
       JSON.stringify({
         filters: [{ field: "brand", op: "neq", value: "CRX S", rawToken: "\uADF8\uAC70" }],
         sort: null,
         routeHint: "show_recommendation",
+        intent: "continue_narrowing",
         clearOtherFilters: false,
+        removeFields: ["brand"],
         confidence: 0.95,
         unresolvedTokens: [],
         reasoning: "exclude the currently anchored brand",
@@ -156,7 +193,9 @@ describe("resolveMultiStageQuery", () => {
         filters: [{ field: "brand", op: "neq", value: "4G MILL", rawToken: "\uADF8\uAC70" }],
         sort: null,
         routeHint: "show_recommendation",
+        intent: "continue_narrowing",
         clearOtherFilters: false,
+        removeFields: ["brand"],
         confidence: 0.95,
         unresolvedTokens: [],
         reasoning: "exclude the currently anchored brand",
@@ -228,15 +267,12 @@ describe("resolveMultiStageQuery", () => {
       },
     })
 
-    expect(first.source).toBe("stage2")
-    expect(first.filters).toEqual([
-      expect.objectContaining({ field: "brand", op: "neq", rawValue: "CRX S" }),
-    ])
-    expect(second.source).toBe("stage2")
-    expect(second.filters).toEqual([
-      expect.objectContaining({ field: "brand", op: "neq", rawValue: "4G MILL" }),
-    ])
-    expect(stage2Provider.complete).toHaveBeenCalledTimes(2)
+    expect(first.source).toBe("clarification")
+    expect(first.intent).toBe("ask_clarification")
+    expect(first.clarification).not.toBeNull()
+    expect(second.source).toBe("clarification")
+    expect(second.intent).toBe("ask_clarification")
+    expect(second.clarification).not.toBeNull()
   })
 
   it("sends unresolved phonetic brand tokens to Stage 2", async () => {
@@ -280,6 +316,9 @@ describe("resolveMultiStageQuery", () => {
         expect(userPrompt).toContain("\"deterministic\"")
         expect(userPrompt).toContain("\"fieldCandidate\":\"fluteCount\"")
         expect(userPrompt).toContain("\"valueCandidate\":4")
+        expect(userPrompt).toContain("\"operatorCue\":\"eq\"")
+        expect(userPrompt).toContain("\"numericCue\":[4]")
+        expect(userPrompt).toContain("\"domainCue\":\"geometry\"")
         return JSON.stringify({
           filters: [
             { field: "fluteCount", op: "eq", value: 4, rawToken: "4 flute" },
@@ -322,7 +361,7 @@ describe("resolveMultiStageQuery", () => {
     expect(stage2Provider.complete).toHaveBeenCalledTimes(1)
   })
 
-  it("passes state, UI context, and history to Stage 2 for refine turns", async () => {
+  it("passes state, UI context, and history to Stage 2 before clarification for ambiguous refine turns", async () => {
     const stage2Provider = {
       available: () => true,
       complete: vi.fn(async (_systemPrompt: string, messages: Array<{ role: string; content: string }>) => {
@@ -336,6 +375,9 @@ describe("resolveMultiStageQuery", () => {
         expect(userPrompt).toContain("topCandidates=V7-100")
         expect(userPrompt).toContain("Recent conversation history: conversation=user:")
         expect(userPrompt).toContain("narrowing=asked=fluteCount")
+        expect(userPrompt).toContain("Request-preparation intent: product_recommendation")
+        expect(userPrompt).toContain("Request-preparation chat slots: fluteCount=2 (chat/high)")
+        expect(userPrompt).toContain("Recognized entities: toolSubtype=Square")
         return JSON.stringify({
           filters: [
             { field: "fluteCount", op: "eq", value: 2, rawToken: "2\uAC1C" },
@@ -398,6 +440,13 @@ describe("resolveMultiStageQuery", () => {
         { role: "user", text: "\uC2A4\uD150\uC778\uB9AC\uC2A4 \uCD94\uCC9C\uD574\uC918" },
         { role: "assistant", text: "4\uB0A0 Square \uD6C4\uBCF4 12\uAC1C\uB97C \uBCF4\uACE0 \uC788\uC2B5\uB2C8\uB2E4." },
       ],
+      requestPreparationIntent: "product_recommendation",
+      requestPreparationSlots: [
+        { field: "fluteCount", value: 2, source: "chat", confidence: "high" } as any,
+      ],
+      recognizedEntities: [
+        { field: "toolSubtype", value: "Square" },
+      ],
       complexity: assessComplexity("\uB0A0\uC218\uB294 2\uAC1C\uC5EC\uC57C\uD558\uACE0 square \uC544\uB2C8\uACE0", 3),
       stage2Provider,
       stage3Provider: makeUnavailableProvider(),
@@ -407,11 +456,13 @@ describe("resolveMultiStageQuery", () => {
       },
     })
 
-    expect(result.source).toBe("stage2")
-    expect(result.filters).toEqual(expect.arrayContaining([
-      expect.objectContaining({ field: "fluteCount", op: "eq", rawValue: 2 }),
-      expect.objectContaining({ field: "toolSubtype", op: "neq", rawValue: "Square" }),
+    expect(result.source).toBe("clarification")
+    expect(result.intent).toBe("ask_clarification")
+    expect(result.validation?.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "mixed_clause_ambiguity" }),
     ]))
+    expect(result.clarification?.question).toContain("Square")
+    expect(result.clarification?.chips).toContain("\uC9C1\uC811 \uC785\uB825")
     expect(stage2Provider.complete).toHaveBeenCalledTimes(1)
   })
 
@@ -538,6 +589,7 @@ describe("resolveMultiStageQuery", () => {
       complexity: assessComplexity("알루컷 브랜드 중에서 추천해줄수 있어요?"),
       stage2Provider: makeProvider(""),
       stage3Provider,
+      complexity: makeDeepComplexity("schema_hint_stage3"),
     })
 
     expect(result.source).toBe("stage3")
@@ -774,7 +826,7 @@ describe("resolveMultiStageQuery", () => {
 
     expect(result.source).toBe("clarification")
     expect(result.intent).toBe("ask_clarification")
-    expect(result.clarification?.question).toContain("조금만 더 구체적으로")
+    expect(result.clarification?.question).toContain("기준이 넓어서")
     expect(result.clarification?.chips).toContain("직접 입력")
   })
   it("does not commit Stage 1 sort hints when later stages fall back to clarification", async () => {
@@ -788,10 +840,10 @@ describe("resolveMultiStageQuery", () => {
       stage3Provider: makeUnavailableProvider(),
     })
 
-    expect(result.source).toBe("none")
+    expect(result.source).toBe("clarification")
     expect(result.sort).toBeNull()
-    expect(result.intent).toBe("none")
-    expect(result.clarification).toBeNull()
+    expect(result.intent).toBe("ask_clarification")
+    expect(result.clarification).not.toBeNull()
   })
 
   it("does not treat intent-only show_recommendation as a resolved truth source", async () => {
@@ -858,6 +910,91 @@ describe("resolveMultiStageQuery", () => {
         rawValue: "Carbon Steels",
       }),
     ])
+  })
+
+  it("routes fast deterministic filter hints through semantic interpretation before clarification", async () => {
+    const message = "10mm 이상"
+    const stage2Provider = makeProvider(JSON.stringify({
+      filters: [{ field: "diameterMm", op: "gte", value: 10 }],
+      sort: null,
+      routeHint: "show_recommendation",
+      clearOtherFilters: false,
+      confidence: 0.99,
+      unresolvedTokens: [],
+      reasoning: "should not run",
+    }))
+    const stage3Provider = makeProvider(JSON.stringify({
+      filters: [{ field: "diameterMm", op: "gte", value: 10 }],
+      sort: null,
+      routeHint: "show_recommendation",
+      clearOtherFilters: false,
+      confidence: 0.99,
+      unresolvedTokens: [],
+      reasoning: "should not run",
+    }))
+
+    const result = await resolveMultiStageQuery({
+      message,
+      turnCount: 3,
+      currentFilters: [],
+      stageOneDeterministicActions: [
+        {
+          type: "apply_filter",
+          field: "diameterMm",
+          value: 10,
+          op: "gte",
+          source: "deterministic",
+        },
+      ] as any,
+      complexity: assessComplexity(message),
+      stage2Provider,
+      stage3Provider,
+    })
+
+    expect(result.source).toBe("clarification")
+    expect(result.intent).toBe("ask_clarification")
+    expect(stage2Provider.complete).toHaveBeenCalledTimes(1)
+    expect(stage3Provider.complete).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not escalate normal-path requests to Stage 3", async () => {
+    const message = "4날 Square 추천"
+    const stage2Provider = makeProvider(JSON.stringify({
+      filters: [],
+      sort: null,
+      routeHint: "none",
+      clearOtherFilters: false,
+      confidence: 0.41,
+      unresolvedTokens: ["square"],
+      reasoning: "still uncertain",
+      clarification: {
+        question: "형상을 더 구체적으로 알려주세요.",
+        chips: ["Square", "Ball", "직접 입력"],
+      },
+    }))
+    const stage3Provider = makeProvider(JSON.stringify({
+      filters: [{ field: "toolSubtype", op: "eq", value: "Square" }],
+      sort: null,
+      routeHint: "show_recommendation",
+      clearOtherFilters: false,
+      confidence: 0.98,
+      unresolvedTokens: [],
+      reasoning: "should not run",
+    }))
+
+    const result = await resolveMultiStageQuery({
+      message,
+      turnCount: 4,
+      currentFilters: [],
+      complexity: assessComplexity(message),
+      stage2Provider,
+      stage3Provider,
+    })
+
+    expect(stage2Provider.complete).toHaveBeenCalledTimes(1)
+    expect(stage3Provider.complete).not.toHaveBeenCalled()
+    expect(result.source).toBe("clarification")
+    expect(result.intent).toBe("ask_clarification")
   })
 })
 

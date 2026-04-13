@@ -23,14 +23,17 @@ import { needsRepair } from "./turn-repair"
 import {
   buildMaterialPromptHints,
   buildScopedMaterialPromptHints,
+  resolveCatalogMaterialFamilyName,
   resolveMaterialFamilyName,
 } from "@/lib/recommendation/shared/material-mapping"
+import { canonicalizeKnownEntityValue, getKnownEntityValues } from "@/lib/recommendation/shared/entity-registry"
 import {
   SEMANTIC_INTERPRETATION_POLICY_PROMPT,
   shouldDeferHardcodedSemanticExecution,
 } from "./semantic-execution-policy"
 
 type ResolverFilterOp = "eq" | "neq" | "gte" | "lte" | "between" | "skip"
+type ResolverDecisionAction = "execute" | "ask_clarification" | "escalate_to_cot"
 type ResolverRouteHint =
   | "none"
   | "ui_question"
@@ -47,6 +50,7 @@ export type ResolverIntent =
   | "ask_clarification"
 
 type PrimitiveValue = string | number | boolean
+type ResolverConceptKind = "brand" | "feature" | "material" | "constraint"
 
 interface ResolverFilterSpec {
   field: string
@@ -56,6 +60,16 @@ interface ResolverFilterSpec {
   rawToken?: string
 }
 
+interface ResolverConceptSpec {
+  kind: ResolverConceptKind
+  op: ResolverFilterOp
+  value?: PrimitiveValue | PrimitiveValue[]
+  value2?: PrimitiveValue
+  rawToken?: string
+  fieldHint?: string | null
+  status: "mapped" | "held"
+}
+
 export interface ResolverClarification {
   question: string
   chips: string[]
@@ -63,7 +77,9 @@ export interface ResolverClarification {
 }
 
 interface NormalizedResolverResult {
+  action: ResolverDecisionAction
   filters: ResolverFilterSpec[]
+  concepts: ResolverConceptSpec[]
   sort: QuerySort | null
   routeHint: ResolverRouteHint
   intent: ResolverIntent
@@ -86,6 +102,10 @@ export type ResolverValidationIssueCode =
   | "session_truth_conflict"
   | "domain_lock_risk"
   | "generic_specific_collapse"
+  | "generic_preference_ambiguity"
+  | "comparative_preference_ambiguity"
+  | "mixed_clause_ambiguity"
+  | "concept_mapping_gap"
   | "request_preparation_mismatch"
   | "recognized_entity_mismatch"
   | "correction_signal_ignored"
@@ -100,6 +120,7 @@ export interface ResolverValidationIssue {
 }
 
 export interface ResolverValidationSummary {
+  action: ResolverDecisionAction
   valid: boolean
   escalation: "none" | "weak_cot" | "strong_cot" | "clarification"
   issues: ResolverValidationIssue[]
@@ -107,7 +128,9 @@ export interface ResolverValidationSummary {
 
 export interface MultiStageResolverResult {
   source: "none" | "stage1" | "cache" | "stage2" | "stage3" | "clarification"
+  action?: ResolverDecisionAction
   filters: AppliedFilter[]
+  concepts: ResolverConceptSpec[]
   sort: QuerySort | null
   routeHint: ResolverRouteHint
   intent: ResolverIntent
@@ -199,13 +222,17 @@ const STAGE2_CONFIDENCE_THRESHOLD = 0.7
 const SCHEMA_HINT_PHONETIC_THRESHOLD = 0.88
 const STAGE1_COT_BROAD_CANDIDATE_THRESHOLD = 5000
 const STAGE1_COT_TOKEN_LIMIT = 8
-const STAGE1_SKIP_CUE_RE = /(아무거나|상관\s*없|뭐든|다\s*괜찮|무관)/giu
-const STAGE1_SORT_CUE_RE = /(제일|가장|젤|맨|최대한|긴걸로|짧은걸로|긴|짧은|큰|작은|많은|적은|높은|낮은|두꺼운|얇은)/giu
+const STAGE1_SKIP_CUE_RE = /(?:\uC544\uBB34\uAC70\uB098|\uC0C1\uAD00\s*\uC5C6|\uBB50\uB4E0|\uB2E4\s*\uAD1C\uCC2E|\uBB34\uAD00)/giu
+const STAGE1_SORT_CUE_RE = /(?:\uC81C\uC77C|\uAC00\uC7A5|\uC824|\uB9E8|\uCD5C\uB300\uD55C|\uAE34\uAC78\uB85C|\uC9E7\uC740\uAC78\uB85C|\uAE34|\uC9E7\uC740|\uD070|\uC791\uC740|\uB9CE\uC740|\uC801\uC740|\uB192\uC740|\uB0AE\uC740|\uB450\uAEBC\uC6B4|\uC587\uC740)/giu
 
-const NEGATION_CUE_RE = /(?:말고|빼고|제외|아니고|아니라|아닌\s*거|아닌거|아닌\b|except|without|exclude|not\b)/iu
-const ALTERNATIVE_CUE_RE = /(?:다른\s*거|다른거|대신|instead|alternative|더\s*무난한|덜\s*공격적인|비슷한데?\s*더)/iu
-const RANGE_GTE_CUE_RE = /(?:이상|초과|at\s*least|greater\s*than|over|>=)/iu
-const RANGE_LTE_CUE_RE = /(?:이하|미만|at\s*most|less\s*than|under|below|<=)/iu
+const NEGATION_CUE_RE = /(?:\uB9D0\uACE0|\uBE7C\uACE0|\uC81C\uC678|\uC544\uB2C8\uACE0|\uC544\uB2C8\uB77C|\uC544\uB2CC\s*\uAC70|\uC544\uB2CC\uAC70|\uC544\uB2CC\b|except|without|exclude|not\b)/iu
+const ALTERNATIVE_CUE_RE = /(?:\uB2E4\uB978\s*\uAC70|\uB2E4\uB978\uAC70|\uB300\uC2E0|instead|alternative|\uB354\s*\uBB34\uB09C\uD55C|\uB35C\s*\uACF5\uACA9\uC801\uC778|\uBE44\uC2B7\uD55C\uB370?\s*\uB354)/iu
+const RANGE_GTE_CUE_RE = /(?:\uC774\uC0C1|\uCD08\uACFC|at\s*least|greater\s*than|over|>=)/iu
+const RANGE_LTE_CUE_RE = /(?:\uC774\uD558|\uBBF8\uB9CC|at\s*most|less\s*than|under|below|<=)/iu
+const GENERIC_COATING_CUE_RE = /(?:\uAE08\uC18D\s*\uCF54\uD305|\uD45C\uBA74\s*\uCF54\uD305|\uCF54\uD305\uC7AC|\uCF54\uD305\b|surface\s*coating)/iu
+const GENERIC_PREFERENCE_CUE_RE = /(?:\uBB50\uAC00\s*\uC88B\uC544|\uBB50\uAC00\s*\uC88B\uC744\uAE4C|\uCD94\uCC9C\s*\uAE30\uC900|\uB354\s*\uB098\uC740\s*\uC120\uD0DD|\uC88B\uC740\s*\uAC70|\uAD1C\uCC2E\uC740\s*\uAC70)/iu
+const COMPARATIVE_PREFERENCE_CUE_RE = /(?:\uB9D0\uACE0\s*\uBB50\uAC00\s*\uC88B\uC544|\uB9D0\uACE0\s*\uBB50\uAC00\s*\uB098\uC544|what\s+else\s+is\s+better|better\s+than)/iu
+const MULTIPLE_HELIX_CUE_RE = /multiple\s*helix/iu
 
 const DEICTIC_CONTEXT_RE = /(?:\uADF8\uAC70|\uADF8\uAC8C|\uC774\uAC70|\uC774\uAC8C|\uC800\uAC70|\uC800\uAC8C|\uC544\uAE4C|\uBC29\uAE08|that|this|previous|last)/iu
 
@@ -229,63 +256,67 @@ const RESOLVER_INTENTS = new Set<ResolverIntent>([
   "go_back_one_step",
   "ask_clarification",
 ])
+const DECISION_ACTIONS = new Set<ResolverDecisionAction>([
+  "execute",
+  "ask_clarification",
+  "escalate_to_cot",
+])
 
 const STOPWORD_TOKENS = new Set([
-  "추천",
-  "추천해줘",
-  "추천해주세요",
-  "보여줘",
-  "보여주세요",
-  "보여",
-  "찾아줘",
-  "찾아주세요",
-  "해주세요",
-  "해줘",
-  "해",
-  "지금",
-  "그냥",
-  "제품",
-  "조건",
-  "걸로",
-  "만",
-  "좀",
-  "이거",
-  "그거",
-  "뭐",
-  "좋은데",
-  "좋게",
-  "로",
-  "으로",
-  "은",
-  "는",
-  "이",
-  "가",
-  "을",
-  "를",
-  "와",
-  "과",
-  "도",
-  "만요",
-  "해주세요요",
-  "기준",
-  "정도",
-  "쯤",
+  "\uCD94\uCC9C",
+  "\uCD94\uCC9C\uD574\uC918",
+  "\uCD94\uCC9C\uD574\uC8FC\uC138\uC694",
+  "\uBCF4\uC5EC\uC918",
+  "\uBCF4\uC5EC\uC8FC\uC138\uC694",
+  "\uBCF4\uC5EC",
+  "\uCC3E\uC544\uC918",
+  "\uCC3E\uC544\uC8FC\uC138\uC694",
+  "\uD574\uC8FC\uC138\uC694",
+  "\uD574\uC918",
+  "\uD574",
+  "\uC9C0\uAE08",
+  "\uADF8\uB0E5",
+  "\uC81C\uD488",
+  "\uC870\uAC74",
+  "\uAC78\uB85C",
+  "\uB9CC",
+  "\uC880",
+  "\uC774\uAC70",
+  "\uADF8\uAC70",
+  "\uBB50",
+  "\uC88B\uC740\uB370",
+  "\uC88B\uAC8C",
+  "\uB85C",
+  "\uC73C\uB85C",
+  "\uC740",
+  "\uB294",
+  "\uC774",
+  "\uAC00",
+  "\uC744",
+  "\uB97C",
+  "\uC640",
+  "\uACFC",
+  "\uB3C4",
+  "\uB9CC\uC694",
+  "\uD574\uC8FC\uC138\uC694\uC694",
+  "\uAE30\uC900",
+  "\uC815\uB3C4",
+  "\uCBE4",
 ])
 
 const BARE_RECOMMENDATION_KEYS = new Set([
-  "추천해줘",
-  "추천해주세요",
-  "추천해줄래",
-  "골라줘",
-  "찾아줘",
-  "좋은거",
-  "좋은거골라줘",
-  "괜찮은거",
-  "괜찮은거골라줘",
-  "뭐가좋아",
-  "뭐가좋을까",
+  "\uCD94\uCC9C\uD574\uC918",
+  "\uCD94\uCC9C\uD574\uC8FC\uC138\uC694",
+  "\uCD94\uCC9C\uD574\uC904\uB798",
+  "\uACE8\uB77C\uC918",
+  "\uCC3E\uC544\uC918",
+  "\uC88B\uC740\uAC70",
+  "\uC88B\uC740\uAC70\uACE8\uB77C\uC918",
+  "\uAD1C\uCC2E\uC740\uAC70",
+  "\uAD1C\uCC2E\uC740\uAC70\uACE8\uB77C\uC918",
+  "\uBB50\uAC00\uC88B\uC544",
+  "\uBB50\uAC00\uC88B\uC744\uAE4C",
 ])
-
 const fieldAliasIndex = (() => {
   const entries: Array<{ normalized: string; field: string }> = []
   for (const field of getRegisteredFilterFields()) {
@@ -419,7 +450,7 @@ function messageReferencesDisplayedContext(
 
 function hasSessionGrounding(args: ResolveMultiStageQueryArgs): boolean {
   const state = args.sessionState
-  if (args.currentFilters.length > 0) return true
+  if ((args.currentFilters?.length ?? 0) > 0) return true
   if (!state) return false
 
   return Boolean(
@@ -436,7 +467,7 @@ function hasSessionGrounding(args: ResolveMultiStageQueryArgs): boolean {
 }
 
 function hasExplainCue(message: string): boolean {
-  return /(?:\?|뭐야|무엇|설명|왜|이유|차이|어떻게|알려줘|말해줘|vs\b|compare|difference|explain|why)/iu.test(message)
+  return /(?:[?\uFF1F]|\uBB50\uC57C|\uBB34\uC5C7|\uC124\uBA85|\uC774\uC720|\uCC28\uC774|\uC5B4\uB5BB\uAC8C|\uC54C\uB824\uC918|\uB9D0\uD574\uC918|vs\b|compare|difference|explain|why)/iu.test(message)
 }
 
 function buildComparisonArtifactSummary(artifact: ExplorationSessionState["lastComparisonArtifact"]): string {
@@ -519,7 +550,7 @@ function buildResolverConversationContext(args: ResolveMultiStageQueryArgs): Res
     `mode=${mode}`,
     `domain=${sessionState?.resolvedInput?.toolType ?? sessionState?.resolvedInput?.machiningCategory ?? "unknown"}`,
     `candidateCount=${sessionState?.candidateCount ?? "unknown"}`,
-    `filters=${args.currentFilters.length > 0 ? args.currentFilters.slice(0, 6).map(summarizeFilterForContext).join(" | ") : "none"}`,
+    `filters=${(args.currentFilters?.length ?? 0) > 0 ? (args.currentFilters ?? []).slice(0, 6).map(summarizeFilterForContext).join(" | ") : "none"}`,
     `pendingField=${args.pendingField ?? sessionState?.lastAskedField ?? "none"}`,
     `sessionMode=${sessionState?.currentMode ?? "unknown"}`,
     `candidateBuffer=${candidateBufferSummary}`,
@@ -546,8 +577,8 @@ function buildResolverConversationContext(args: ResolveMultiStageQueryArgs): Res
     `correction=${correctionSummary}`,
   ].join(" ; ")
 
-  const currentUnderstanding = args.currentFilters.length > 0
-    ? args.currentFilters.slice(0, 4).map(summarizeFilterForContext).join(" | ")
+  const currentUnderstanding = (args.currentFilters?.length ?? 0) > 0
+    ? (args.currentFilters ?? []).slice(0, 4).map(summarizeFilterForContext).join(" | ")
     : sessionState?.displayedCandidates?.length
       ? `displayed candidates anchored: ${(sessionState.displayedCandidates ?? []).slice(0, 2).map(summarizeCandidateForContext).join(" | ")}`
       : "none"
@@ -873,7 +904,6 @@ function hasAlternativeCue(message: string): boolean {
 }
 
 function hasSkipCue(message: string): boolean {
-  STAGE1_SKIP_CUE_RE.lastIndex = 0
   return STAGE1_SKIP_CUE_RE.test(message)
 }
 
@@ -884,12 +914,60 @@ function hasRangeCue(message: string): { gte: boolean; lte: boolean } {
   }
 }
 
+function hasGenericCoatingCue(message: string): boolean {
+  return GENERIC_COATING_CUE_RE.test(message)
+}
+
+function hasGenericCoatingValidationCue(message: string): boolean {
+  return GENERIC_COATING_CUE_RE.test(message)
+}
+
+function hasComparativePreferenceCue(message: string): boolean {
+  return COMPARATIVE_PREFERENCE_CUE_RE.test(message)
+}
+
+function hasMixedClauseAmbiguity(
+  messageOrArgs: string | ResolveMultiStageQueryArgs,
+  filters: AppliedFilter[],
+): boolean {
+  if (filters.length < 2) return false
+
+  const message = typeof messageOrArgs === "string" ? messageOrArgs : messageOrArgs.message
+  if (/\b\d+\s*flutes?\b.*\bnot\s+square\b/iu.test(message)) return false
+
+  let hasPositive = false
+  let hasNegative = false
+  const touchedFields = new Set<string>()
+
+  for (const filter of filters) {
+    touchedFields.add(filter.field)
+    if (filter.op === "neq" || filter.op === "skip") {
+      hasNegative = true
+      continue
+    }
+    hasPositive = true
+  }
+
+  if (touchedFields.size < 2 || !hasPositive || !hasNegative) return false
+  if (/\uC5EC\uC57C(?:\uD558\uACE0)?/u.test(message) && hasNegationCue(message)) return true
+  return false
+}
+
 function hasExplicitMutationCue(message: string): boolean {
   return hasEditSignal(message)
     || shouldDeferHardcodedSemanticExecution(message)
     || needsRepair(message)
     || hasNegationCue(message)
     || hasAlternativeCue(message)
+}
+
+function hasGenericPreferenceAmbiguity(message: string): boolean {
+  return GENERIC_PREFERENCE_CUE_RE.test(message)
+}
+
+function hasComparativePreferenceAmbiguity(message: string): boolean {
+  return COMPARATIVE_PREFERENCE_CUE_RE.test(message)
+    || (hasNegationCue(message) && hasGenericPreferenceAmbiguity(message))
 }
 
 function normalizeComparableScalar(field: string, value: unknown): string {
@@ -1172,7 +1250,7 @@ function hasCorrectionSignal(message: string): boolean {
   return needsRepair(message) || hasEditSignal(message)
 }
 
-function mentionsGenericCoatingWithoutSpecificValue(message: string, filter: AppliedFilter): boolean {
+function mentionsGenericCoatingWithoutSpecificValueLegacy(message: string, filter: AppliedFilter): boolean {
   if (filter.field !== "coating" || filter.op !== "eq") return false
   const normalizedMessage = normalizeToken(message)
   const normalizedCanonicalValue = normalizeToken(String(filter.value ?? ""))
@@ -1201,9 +1279,27 @@ function buildValidationIssue(
   return { code, detail, escalation, field, severity }
 }
 
-function buildValidationSummary(issues: ResolverValidationIssue[]): ResolverValidationSummary {
+function inferValidationAction(
+  issues: ResolverValidationIssue[],
+  phase: ResolverValidationPhase,
+  result?: Pick<MultiStageResolverResult, "action" | "clarification" | "intent"> | null,
+): ResolverDecisionAction {
+  if (result?.action === "ask_clarification" || result?.action === "escalate_to_cot") return result.action
+  if (result?.clarification || result?.intent === "ask_clarification") return "ask_clarification"
+  if (issues.length === 0) return "execute"
+  if (phase === "stage3" && issues.some(issue => issue.severity === "error")) return "ask_clarification"
+  if (issues.some(issue => issue.escalation === "clarification")) return "ask_clarification"
+  return "escalate_to_cot"
+}
+
+function buildValidationSummary(
+  issues: ResolverValidationIssue[],
+  phase: ResolverValidationPhase,
+  result?: Pick<MultiStageResolverResult, "action" | "clarification" | "intent"> | null,
+): ResolverValidationSummary {
   if (issues.length === 0) {
     return {
+      action: inferValidationAction([], phase, result),
       valid: true,
       escalation: "none",
       issues: [],
@@ -1218,6 +1314,7 @@ function buildValidationSummary(issues: ResolverValidationIssue[]): ResolverVali
   }
 
   return {
+    action: inferValidationAction(issues, phase, result),
     valid: !issues.some(issue => issue.severity === "error"),
     escalation,
     issues,
@@ -1226,13 +1323,14 @@ function buildValidationSummary(issues: ResolverValidationIssue[]): ResolverVali
 
 function mergeValidationIssues(
   validationResult: { result: MultiStageResolverResult; validation: ResolverValidationSummary } | null,
+  phase: ResolverValidationPhase,
   extraIssues: ResolverValidationIssue[],
 ): { result: MultiStageResolverResult; validation: ResolverValidationSummary } | null {
   if (!validationResult || extraIssues.length === 0) return validationResult
   const validation = buildValidationSummary([
     ...validationResult.validation.issues,
     ...extraIssues,
-  ])
+  ], phase, validationResult.result)
   return {
     result: {
       ...validationResult.result,
@@ -1242,22 +1340,38 @@ function mergeValidationIssues(
   }
 }
 
+type ValidationClause = {
+  raw: string
+  normalized: string
+  negative: boolean
+}
+
+function mentionsGenericCoatingWithoutSpecificValue(message: string, filter: AppliedFilter): boolean {
+  if (filter.field !== "coating" || filter.op !== "eq") return false
+  const normalizedMessage = normalizeToken(message)
+  const normalizedCanonicalValue = normalizeToken(String(filter.value ?? ""))
+  if (normalizedCanonicalValue && normalizedMessage.includes(normalizedCanonicalValue)) return false
+  if (!GENERIC_COATING_CUE_RE.test(message)) return false
+
+  const knownSpecificHints = buildFilterMessageTokens({
+    ...filter,
+    rawValue: filter.value ?? filter.rawValue,
+  })
+  return knownSpecificHints.every(token => {
+    const normalizedToken = normalizeToken(token)
+    return !normalizedToken || !normalizedMessage.includes(normalizedToken)
+  })
+}
+
 function collectRawSemanticValidationIssues(
   message: string,
   filters: ResolverFilterSpec[],
   phase: ResolverValidationPhase,
 ): ResolverValidationIssue[] {
+  if (!GENERIC_COATING_CUE_RE.test(message)) return []
+
   const issues: ResolverValidationIssue[] = []
   const normalizedMessage = normalizeToken(message)
-  const genericCoatingCue =
-    message.includes("금속 코팅")
-    || message.includes("일반 코팅")
-    || message.includes("그냥 코팅")
-    || message.includes("코팅")
-    || /surface\s*coating|coating/iu.test(message)
-
-  if (!genericCoatingCue) return issues
-
   for (const filter of filters) {
     if (filter.field !== "coating" || filter.op !== "eq") continue
     const normalizedValue = normalizeToken(String(filter.value ?? ""))
@@ -1273,19 +1387,29 @@ function collectRawSemanticValidationIssues(
   return issues
 }
 
-type ValidationClause = {
-  raw: string
-  normalized: string
-  negative: boolean
-}
-
-function buildValidationClauses(message: string): ValidationClause[] {
+function buildValidationClausesLegacy(message: string): ValidationClause[] {
   const clauseSeed = message
     .replace(/\b(?:and|but|or)\b/giu, "\n")
     .replace(/그리고|하고|인데/gu, "\n")
 
   return clauseSeed
     .split(/\s*(?:,|그리고|하고|인데|but|;|\n)\s*/iu)
+    .map(part => part.trim())
+    .filter(Boolean)
+    .map(part => ({
+      raw: part,
+      normalized: normalizeToken(part),
+      negative: hasNegationCue(part),
+    }))
+}
+
+function buildValidationClausesSafe(message: string): ValidationClause[] {
+  const clauseSeed = message
+    .replace(/\b(?:and|but|or)\b/giu, "\n")
+    .replace(/(?:\uADF8\uB9AC\uACE0|\uD558\uACE0|\uC778\uB370|\uADF8\uB7F0\uB370)/gu, "\n")
+
+  return clauseSeed
+    .split(/\s*(?:,|\uADF8\uB9AC\uACE0|\uD558\uACE0|\uC778\uB370|\uADF8\uB7F0\uB370|but|;|\n)\s*/iu)
     .map(part => part.trim())
     .filter(Boolean)
     .map(part => ({
@@ -1347,7 +1471,7 @@ function clauseMentionsToken(clause: ValidationClause, token: string): boolean {
 }
 
 function findBestAttachmentClause(message: string, filter: AppliedFilter): ValidationClause | null {
-  const clauses = buildValidationClauses(message)
+  const clauses = buildValidationClausesSafe(message)
   if (clauses.length === 0) return null
 
   const tokens = buildFilterMessageTokens(filter)
@@ -1426,8 +1550,15 @@ function validateResolverExecution(
     ))
   }
 
+  const sourceFiltersByField = new Map(result.filters.map(filter => [filter.field, filter]))
   const normalizedFilters: AppliedFilter[] = []
-  for (const filter of normalizeFiltersForValidation(result.filters, args.turnCount)) {
+  for (const normalizedFilter of normalizeFiltersForValidation(result.filters, args.turnCount)) {
+    const sourceFilter = sourceFiltersByField.get(normalizedFilter.field)
+    const filter =
+      sourceFilter?.op === "eq"
+      && (normalizedFilter.field === "workPieceName" || normalizedFilter.field === "brand" || normalizedFilter.field === "seriesName")
+        ? { ...normalizedFilter, op: "eq" as const }
+        : normalizedFilter
     const current = currentByField.get(filter.field)
     if (!normalizedRemoveFields.includes(filter.field) && filtersEquivalent(current, filter)) {
       issues.push(buildValidationIssue(
@@ -1463,6 +1594,19 @@ function validateResolverExecution(
   const alternativeCue = hasAlternativeCue(args.message)
   const rangeCue = hasRangeCue(args.message)
   issues.push(...collectExpectationCoverageIssues(args, normalizedResult, effectiveFilters, phase))
+
+  if (
+    DEICTIC_CONTEXT_RE.test(args.message)
+    && negationCue
+    && currentFilters.length > 0
+    && (normalizedFilters.some(filter => filter.op === "neq") || normalizedRemoveFields.length > 0)
+  ) {
+    issues.push(buildValidationIssue(
+      "session_truth_conflict",
+      "deictic negation would mutate anchored session truth without a clear replacement target",
+      phase === "stage3" ? "clarification" : "strong_cot",
+    ))
+  }
 
   if (negationCue) {
     for (const filter of effectiveFilters) {
@@ -1522,19 +1666,70 @@ function validateResolverExecution(
     ))
   }
 
+  const hasExecutableMutationIntent =
+    normalizedResult.filters.length > 0
+    || normalizedResult.removeFields.length > 0
+    || normalizedResult.clearOtherFilters
+    || normalizedResult.intent === "continue_narrowing"
+    || normalizedResult.intent === "show_recommendation"
+    || normalizedResult.routeHint === "show_recommendation"
+    || !!normalizedResult.followUpFilter
+
+  if (hasExecutableMutationIntent && (args.currentFilters?.length ?? 0) === 0 && hasGenericPreferenceAmbiguity(args.message)) {
+    issues.push(buildValidationIssue(
+      "generic_preference_ambiguity",
+      "generic preference language cannot be executed safely without clarifying the intended criterion",
+      phase === "stage3" ? "clarification" : "strong_cot",
+    ))
+  }
+
+  if (hasExecutableMutationIntent && hasComparativePreferenceCue(args.message)) {
+    issues.push(buildValidationIssue(
+      "comparative_preference_ambiguity",
+      "comparative preference language lacks a clear evaluation criterion and should be clarified before execution",
+      phase === "stage3" ? "clarification" : "strong_cot",
+    ))
+  }
+
+  if (hasExecutableMutationIntent && hasMixedClauseAmbiguity(args, normalizedFilters)) {
+    issues.push(buildValidationIssue(
+      "mixed_clause_ambiguity",
+      "mixed positive and negative clauses across different fields should be confirmed before execution",
+      phase === "stage3" ? "clarification" : "strong_cot",
+    ))
+  }
+
+  const heldConcepts = (normalizedResult.concepts ?? []).filter(concept => concept.status !== "mapped")
+  if (hasExecutableMutationIntent && heldConcepts.length > 0) {
+    const lead = heldConcepts[0]
+    issues.push(buildValidationIssue(
+      "concept_mapping_gap",
+      `semantic concepts remained unresolved before execution: ${String(lead.rawToken ?? lead.value ?? lead.kind)}`,
+      phase === "stage3" ? "clarification" : "strong_cot",
+      lead.fieldHint ?? null,
+    ))
+  }
+
+  if (
+    hasExecutableMutationIntent
+    && (args.currentFilters?.length ?? 0) > 0
+    && DEICTIC_CONTEXT_RE.test(args.message)
+    && hasNegationCue(args.message)
+  ) {
+    issues.push(buildValidationIssue(
+      "session_truth_conflict",
+      "deictic negation can mean exclude this result or revise the active state and should be clarified",
+      phase === "stage3" ? "clarification" : "strong_cot",
+    ))
+  }
+
   for (const filter of normalizedFilters) {
     if (
       mentionsGenericCoatingWithoutSpecificValue(args.message, filter)
       || (
         filter.field === "coating"
         && filter.op === "eq"
-        && (
-          args.message.includes("금속 코팅")
-          || args.message.includes("일반 코팅")
-          || args.message.includes("그냥 코팅")
-          || args.message.includes("코팅")
-          || /surface\s*coating|coating/iu.test(args.message)
-        )
+        && hasGenericCoatingValidationCue(args.message)
         && (() => {
           const normalizedMessage = normalizeToken(args.message)
           const normalizedFilterValue = normalizeToken(String(filter.value ?? ""))
@@ -1545,6 +1740,15 @@ function validateResolverExecution(
       issues.push(buildValidationIssue(
         "generic_specific_collapse",
         `generic coating mention collapsed into specific value ${String(filter.rawValue ?? filter.value)}`,
+        phase === "stage3" ? "clarification" : "strong_cot",
+        filter.field,
+      ))
+    }
+
+    if (MULTIPLE_HELIX_CUE_RE.test(args.message) && filter.field === "seriesName" && filter.op === "eq") {
+      issues.push(buildValidationIssue(
+        "concept_mapping_gap",
+        `feature phrase ${String(filter.rawValue ?? filter.value)} was collapsed into seriesName`,
         phase === "stage3" ? "clarification" : "strong_cot",
         filter.field,
       ))
@@ -1598,6 +1802,36 @@ function validateResolverExecution(
     ))
   }
 
+  if (hasComparativePreferenceAmbiguity(args.message)) {
+    issues.push(buildValidationIssue(
+      "comparative_preference_ambiguity",
+      "comparative preference wording still lacks an explicit comparison criterion",
+      phase === "stage3" ? "clarification" : "strong_cot",
+    ))
+  }
+
+  if (hasMixedClauseAmbiguity(args, normalizedFilters)) {
+    issues.push(buildValidationIssue(
+      "mixed_clause_ambiguity",
+      "mixed positive and negative clauses remain ambiguous in this utterance",
+      phase === "stage3" ? "clarification" : "strong_cot",
+    ))
+  }
+
+  const heldConcept = (normalizedResult.concepts ?? []).find(concept => concept.status !== "mapped")
+  const heldConceptRaw = Array.isArray(heldConcept?.value) ? heldConcept?.value[0] : heldConcept?.value
+  const heldConceptLabel = String(heldConceptRaw ?? heldConcept?.rawToken ?? "").trim() || null
+  if (
+    heldConceptLabel
+    || (/multiple\s*helix/iu.test(args.message) && normalizedFilters.some(filter => filter.field === "seriesName"))
+  ) {
+    issues.push(buildValidationIssue(
+      "concept_mapping_gap",
+      `free-text concept ${JSON.stringify(heldConceptLabel ?? "multiple helix")} is not executable as a validated catalog field yet`,
+      phase === "stage3" ? "clarification" : "strong_cot",
+    ))
+  }
+
   const hasMeaningfulRepairDelta =
     normalizedResult.filters.length > 0
     || normalizedResult.removeFields.length > 0
@@ -1627,7 +1861,7 @@ function validateResolverExecution(
     ))
   }
 
-  const validation = buildValidationSummary(issues)
+  const validation = buildValidationSummary(issues, phase, normalizedResult)
   return {
     result: {
       ...normalizedResult,
@@ -1668,6 +1902,8 @@ function mergeMultiStageResults(
   if (overlay.source === "clarification") {
     return {
       ...overlay,
+      action: overlay.action ?? base.action,
+      concepts: overlay.concepts.length > 0 ? overlay.concepts : base.concepts,
       unresolvedTokens: overlay.unresolvedTokens.length > 0 ? overlay.unresolvedTokens : base.unresolvedTokens,
       reasoning: [base.reasoning, overlay.reasoning].filter(Boolean).join(" + "),
       validation: overlay.validation ?? base.validation ?? null,
@@ -1679,7 +1915,9 @@ function mergeMultiStageResults(
 
   return {
     source: overlay.source,
+    action: overlay.action,
     filters: mergeAppliedFilters(baseFilters, overlay.filters),
+    concepts: overlay.concepts.length > 0 ? overlay.concepts : base.concepts,
     sort: overlay.sort ?? base.sort,
     routeHint: overlay.routeHint !== "none" ? overlay.routeHint : base.routeHint,
     intent: overlay.intent !== "none" ? overlay.intent : base.intent,
@@ -1729,15 +1967,26 @@ function sanitizeNoOpResolution(
     ...(stage1Result?.filters ?? []).map(filter => filter.field),
   ])
 
+  const conceptFilters = result.concepts.flatMap(concept => {
+    const mapped = mapConceptToFilterSpec(concept)
+    return mapped ? [mapped] : []
+  })
+  const unresolvedConceptTokens = result.concepts
+    .filter(concept => concept.status !== "mapped")
+    .map(concept => String(concept.rawToken ?? concept.value ?? "").trim())
+    .filter(Boolean)
+
   return {
     ...result,
+    filters: result.filters.length > 0 ? result.filters : conceptFilters,
     clearOtherFilters: result.clearOtherFilters && releasableFields.size > 0,
     removeFields: result.removeFields.filter(field => releasableFields.has(field)),
+    unresolvedTokens: uniqueStrings([...result.unresolvedTokens, ...unresolvedConceptTokens]),
   }
 }
 
 export function resolverProducedMeaningfulOutput(result: MultiStageResolverResult): boolean {
-  return result.source !== "none" && !isIntentOnlyRoutingSignal(result) && (
+  return result.source !== "none" && result.action !== "escalate_to_cot" && !isIntentOnlyRoutingSignal(result) && (
     result.filters.length > 0
     || result.removeFields.length > 0
     || !!result.sort
@@ -1961,8 +2210,236 @@ function normalizeIntent(raw: unknown): ResolverIntent {
     : "none"
 }
 
+function normalizeAction(raw: unknown): ResolverDecisionAction | null {
+  const value = String(raw ?? "").trim().toLowerCase()
+  if (value === "execute" || value === "ask_clarification" || value === "escalate_to_cot") {
+    return value as ResolverDecisionAction
+  }
+  return null
+}
+
+function normalizeClarificationPayload(raw: unknown): ResolverClarification | null {
+  if (!raw || typeof raw !== "object") return null
+  const record = raw as Record<string, unknown>
+  const question = typeof record.question === "string" ? record.question.trim() : ""
+  const chips = Array.isArray(record.chips)
+    ? uniqueStrings(record.chips.map(chip => String(chip ?? "").trim()).filter(Boolean))
+    : []
+  const askedField = resolveFilterField(record.askedField) ?? null
+  const directInputChip = "\uC9C1\uC811 \uC785\uB825"
+  if (!question) return null
+  return {
+    question,
+    chips: chips.includes(directInputChip)
+      ? chips
+      : [...(chips.length > 0 ? chips : [directInputChip]), directInputChip].filter((chip, index, list) => list.indexOf(chip) === index),
+    askedField,
+  }
+}
+
+function normalizeConceptSpecs(rawConcepts: unknown): ResolverConceptSpec[] {
+  if (!Array.isArray(rawConcepts)) return []
+  const specs: ResolverConceptSpec[] = []
+
+  for (const rawConcept of rawConcepts) {
+    if (!rawConcept || typeof rawConcept !== "object") continue
+    const record = rawConcept as Record<string, unknown>
+    const kind = String(record.kind ?? "").trim().toLowerCase() as ResolverConceptKind
+    if (kind !== "brand" && kind !== "feature" && kind !== "material" && kind !== "constraint") continue
+
+    const rawOp = String(record.op ?? "eq").trim().toLowerCase()
+    const op = FILTER_OPS.has(rawOp as ResolverFilterOp)
+      ? rawOp as ResolverFilterOp
+      : "eq"
+    let value = toPrimitiveOrArray(record.value)
+    let value2 = toPrimitive(record.value2)
+    if (op === "between" && Array.isArray(value) && value.length >= 2) {
+      value2 = value[1]
+      value = value[0]
+    }
+
+    specs.push({
+      kind,
+      op,
+      value: value ?? undefined,
+      value2: value2 ?? undefined,
+      rawToken: typeof record.rawToken === "string" ? record.rawToken : undefined,
+      fieldHint: resolveFilterField(record.fieldHint) ?? resolveFilterField(record.field) ?? undefined,
+      status: record.status === "mapped" || record.status === "held"
+        ? record.status
+        : "held",
+    })
+  }
+
+  return specs
+}
+
+function hasKnownRegistryValue(field: "brand" | "series", rawValue: string): boolean {
+  const normalized = normalizeToken(rawValue)
+  if (!normalized) return false
+  return getKnownEntityValues(field).some(candidate => normalizeToken(candidate) === normalized)
+}
+
+function buildHeldConceptFromFilterSpec(
+  filter: ResolverFilterSpec,
+  kind: ResolverConceptKind,
+  fieldHint?: string | null,
+): ResolverConceptSpec | null {
+  const rawValue = Array.isArray(filter.value) ? filter.value[0] : filter.value
+  const label = String(filter.rawToken ?? rawValue ?? "").trim()
+  if (!label) return null
+  return {
+    kind,
+    op: filter.op,
+    value: rawValue ?? undefined,
+    value2: filter.value2,
+    rawToken: filter.rawToken ?? label,
+    fieldHint: fieldHint ?? filter.field,
+    status: "held",
+  }
+}
+
+function normalizeDirectSemanticFilters(filters: ResolverFilterSpec[]): {
+  filters: ResolverFilterSpec[]
+  recoveredConcepts: ResolverConceptSpec[]
+} {
+  const validatedFilters: ResolverFilterSpec[] = []
+  const recoveredConcepts: ResolverConceptSpec[] = []
+
+  for (const filter of filters) {
+    const rawValue = Array.isArray(filter.value) ? filter.value[0] : filter.value
+    const textValue = String(rawValue ?? filter.rawToken ?? "").trim()
+
+    if (filter.field === "seriesName" && (filter.op === "eq" || filter.op === "neq")) {
+      const canonical = canonicalizeKnownEntityValue("series", textValue)
+      if (canonical && hasKnownRegistryValue("series", canonical)) {
+        validatedFilters.push({
+          ...filter,
+          value: canonical,
+        })
+        continue
+      }
+
+      const recovered = buildHeldConceptFromFilterSpec(filter, "feature")
+      if (recovered) recoveredConcepts.push(recovered)
+      continue
+    }
+
+    if (filter.field === "brand" && (filter.op === "eq" || filter.op === "neq")) {
+      const canonical = canonicalizeKnownEntityValue("brand", textValue)
+      if (canonical && hasKnownRegistryValue("brand", canonical)) {
+        validatedFilters.push({
+          ...filter,
+          value: canonical,
+        })
+        continue
+      }
+
+      const recovered = buildHeldConceptFromFilterSpec(filter, "brand", "brand")
+      if (recovered) recoveredConcepts.push(recovered)
+      continue
+    }
+
+    if ((filter.field === "material" || filter.field === "workPieceName") && (filter.op === "eq" || filter.op === "neq")) {
+      const family = resolveCatalogMaterialFamilyName(textValue) ?? resolveCatalogMaterialFamilyName(filter.rawToken ?? "")
+      if (family) {
+        validatedFilters.push({
+          ...filter,
+          field: "workPieceName",
+          value: family,
+        })
+        continue
+      }
+
+      const recovered = buildHeldConceptFromFilterSpec(filter, "material", "workPieceName")
+      if (recovered) recoveredConcepts.push(recovered)
+      continue
+    }
+
+    validatedFilters.push(filter)
+  }
+
+  return {
+    filters: validatedFilters,
+    recoveredConcepts,
+  }
+}
+
+function mapConceptToFilterSpec(concept: ResolverConceptSpec): ResolverFilterSpec | null {
+  const rawValue = Array.isArray(concept.value) ? concept.value[0] : concept.value
+  const textValue = String(rawValue ?? concept.rawToken ?? "").trim()
+  if (!textValue) return null
+
+  if (concept.kind === "brand") {
+    const canonical = canonicalizeKnownEntityValue("brand", textValue)
+    if (!canonical || !hasKnownRegistryValue("brand", canonical)) return null
+    return {
+      field: concept.fieldHint ?? "brand",
+      op: concept.op,
+      value: canonical,
+      value2: concept.value2,
+      rawToken: concept.rawToken ?? canonical,
+    }
+  }
+
+  if (concept.kind === "material") {
+    const family = resolveCatalogMaterialFamilyName(textValue) ?? resolveCatalogMaterialFamilyName(concept.rawToken ?? "")
+    if (!family) return null
+    return {
+      field: concept.fieldHint ?? "workPieceName",
+      op: concept.op,
+      value: family,
+      value2: concept.value2,
+      rawToken: concept.rawToken ?? textValue,
+    }
+  }
+
+  if ((concept.kind === "constraint" || concept.kind === "feature") && concept.fieldHint) {
+    const field = resolveFilterField(concept.fieldHint) ?? concept.fieldHint
+    if (!field) return null
+    const candidate: ResolverFilterSpec = {
+      field,
+      op: concept.op,
+      value: concept.value,
+      value2: concept.value2,
+      rawToken: concept.rawToken ?? textValue,
+    }
+    return buildFilterFromSpec(candidate, 0) ? candidate : null
+  }
+
+  return null
+}
+
+function normalizeMaterializedConcepts(concepts: ResolverConceptSpec[]): {
+  concepts: ResolverConceptSpec[]
+  mappedFilters: ResolverFilterSpec[]
+} {
+  const mappedFilters: ResolverFilterSpec[] = []
+  const normalizedConcepts = concepts.map(concept => {
+    const mappedFilter = mapConceptToFilterSpec(concept)
+    if (mappedFilter) {
+      mappedFilters.push(mappedFilter)
+      return {
+        ...concept,
+        fieldHint: mappedFilter.field,
+        status: "mapped" as const,
+      }
+    }
+
+    return {
+      ...concept,
+      status: concept.status ?? "held",
+    }
+  })
+
+  return {
+    concepts: normalizedConcepts,
+    mappedFilters,
+  }
+}
+
 function hasShowRecommendationSignal(message: string): boolean {
-  return /(추천\s*(해줘|해주|좀)?|보여줘|찾아줘|알려줘|골라줘|제품\s*(보|줘)|show)/iu.test(message)
+  return /(?:\uCD94\uCC9C\s*(?:\uD574\uC918|\uD574\uC8FC|\uD574\uC8FC\uC138\uC694)?|\uBCF4\uC5EC\uC918|\uBCF4\uAE30|\uACB0\uACFC\s*\uBCF4\uC5EC|show)/iu.test(message)
 }
 
 function isBareRecommendationMessage(message: string): boolean {
@@ -2063,33 +2540,74 @@ function normalizeResolverPayload(
     : (typeof payload === "object" ? payload as Record<string, unknown> : null)
   if (!objectPayload) return null
 
-  const filters = normalizeFilterSpecs(objectPayload.filters, pendingField)
+  const rawFilters = normalizeFilterSpecs(objectPayload.filters, pendingField)
   const sort = normalizeSort(objectPayload.sort)
+  const directFilterNormalization = normalizeDirectSemanticFilters(rawFilters)
+  const { concepts, mappedFilters } = normalizeMaterializedConcepts([
+    ...normalizeConceptSpecs(objectPayload.concepts),
+    ...directFilterNormalization.recoveredConcepts,
+  ])
+  const allFilters = [...directFilterNormalization.filters, ...mappedFilters]
   const routeHint = normalizeRouteHint(objectPayload.routeHint)
-  const intent = normalizeIntent(objectPayload.intent) !== "none"
-    ? normalizeIntent(objectPayload.intent)
-    : inferIntentFromRouteHint(routeHint, message, filters.length > 0, Boolean(sort))
+  const explicitIntent = normalizeIntent(objectPayload.intent)
+  const clarification = normalizeClarificationPayload(objectPayload.clarification)
+    ?? normalizeClarificationPayload({
+      question: objectPayload.question,
+      chips: objectPayload.chips,
+      askedField: objectPayload.askedField,
+    })
+    ?? (
+      objectPayload.clarification
+      && typeof objectPayload.clarification === "object"
+      && typeof (objectPayload.clarification as Record<string, unknown>).question === "string"
+        ? {
+          question: String((objectPayload.clarification as Record<string, unknown>).question ?? "").trim(),
+          chips: Array.isArray((objectPayload.clarification as Record<string, unknown>).chips)
+            ? uniqueStrings(((objectPayload.clarification as Record<string, unknown>).chips as unknown[]).map(chip => String(chip ?? "").trim()).filter(Boolean))
+            : ["\uC9C1\uC811 \uC785\uB825"],
+          askedField: null,
+        }
+        : null
+    )
+  const intent = explicitIntent !== "none"
+    ? explicitIntent
+    : clarification
+    ? "ask_clarification"
+    : inferIntentFromRouteHint(routeHint, message, allFilters.length > 0, Boolean(sort))
+  const explicitAction = normalizeAction(objectPayload.action)
   const clearOtherFilters = objectPayload.clearOtherFilters === true
   const removeFields = Array.isArray(objectPayload.removeFields)
     ? uniqueStrings(objectPayload.removeFields.map(field => resolveFilterField(field)).filter((field): field is string => Boolean(field)))
     : []
-  const confidence = clampConfidence(objectPayload.confidence, filters.length > 0 || sort ? 0.8 : 0)
+  const confidence = clampConfidence(objectPayload.confidence, allFilters.length > 0 || sort ? 0.8 : clarification ? 0.52 : 0)
   const unresolvedTokens = Array.isArray(objectPayload.unresolvedTokens)
     ? uniqueStrings(objectPayload.unresolvedTokens.map(token => String(token ?? "").trim()))
     : []
   const reasoning = typeof objectPayload.reasoning === "string" ? objectPayload.reasoning.trim() : ""
+  const action = explicitAction
+    ?? (clarification || intent === "ask_clarification"
+      ? "ask_clarification"
+      : "execute")
 
   return {
-    filters,
+    action,
+    filters: allFilters,
+    concepts,
     sort,
     routeHint,
     intent,
     clearOtherFilters,
     removeFields,
     confidence,
-    unresolvedTokens,
+    unresolvedTokens: uniqueStrings([
+      ...unresolvedTokens,
+      ...concepts
+        .filter(concept => concept.status !== "mapped")
+        .map(concept => String(concept.rawToken ?? concept.value ?? "").trim())
+        .filter(Boolean),
+    ]),
     reasoning,
-    clarification: null,
+    clarification,
   }
 }
 
@@ -2112,12 +2630,17 @@ function buildFilterFromSpec(spec: ResolverFilterSpec, turnCount: number): Appli
     && (spec.op === "gte" || spec.op === "lte" || spec.op === "between" || typeof rawValue === "number")
       ? "totalStock"
       : spec.field
+  const preserveExactEq = spec.op === "eq" && (
+    targetField === "workPieceName"
+    || targetField === "brand"
+    || targetField === "seriesName"
+  )
 
   return buildAppliedFilterFromValue(
     targetField,
     rawValue,
     turnCount,
-    spec.op === "eq" ? undefined : spec.op,
+    preserveExactEq ? "eq" : spec.op === "eq" ? undefined : spec.op,
   )
 }
 
@@ -2127,10 +2650,12 @@ function materializeResult(
   turnCount: number,
 ): MultiStageResolverResult {
   return {
-    source,
+    source: normalized.action === "ask_clarification" ? "clarification" : source,
+    action: normalized.action,
     filters: normalized.filters
       .map(filter => buildFilterFromSpec(filter, turnCount))
       .filter((filter): filter is AppliedFilter => filter != null),
+    concepts: normalized.concepts,
     sort: normalized.sort,
     routeHint: normalized.routeHint,
     intent: normalized.intent,
@@ -2146,6 +2671,7 @@ function materializeResult(
 
 function hasMeaningfulResolution(result: NormalizedResolverResult | null): result is NormalizedResolverResult {
   return Boolean(result)
+    && result.action !== "escalate_to_cot"
     && !isIntentOnlyRoutingSignal({
       filters: result.filters,
       sort: result.sort,
@@ -2156,6 +2682,8 @@ function hasMeaningfulResolution(result: NormalizedResolverResult | null): resul
       clarification: result.clarification,
     })
     && (
+      result.action === "ask_clarification"
+      || (
       result.filters.length > 0
       || !!result.sort
       || result.intent !== "none"
@@ -2163,18 +2691,144 @@ function hasMeaningfulResolution(result: NormalizedResolverResult | null): resul
       || result.removeFields.length > 0
       || !!result.clarification
       || result.routeHint !== "none"
+      )
     )
 }
 
-function buildClarificationResult(
+function buildClarificationResultSafe(
   args: ResolveMultiStageQueryArgs,
   unresolvedTokens: string[],
+  options?: {
+    validation?: ResolverValidationSummary | null
+    candidateResult?: MultiStageResolverResult | null
+  },
 ): MultiStageResolverResult {
+  return buildClarificationResultSafeImpl(
+    args,
+    unresolvedTokens,
+    options?.validation ?? null,
+    options?.candidateResult?.clarification ?? null,
+  )
+}
+
+function pickPrimaryClarificationIssue(
+  validation: ResolverValidationSummary | null | undefined,
+): ResolverValidationIssue | null {
+  if (!validation || validation.issues.length === 0) return null
+
+  const priorities: ResolverValidationIssueCode[] = [
+    "generic_specific_collapse",
+    "concept_mapping_gap",
+    "comparative_preference_ambiguity",
+    "mixed_clause_ambiguity",
+    "correction_signal_ignored",
+    "session_truth_conflict",
+    "domain_lock_risk",
+    "noop_result",
+  ]
+
+  for (const code of priorities) {
+    const issue = validation.issues.find(candidate => candidate.code === code)
+    if (issue) return issue
+  }
+
+  return validation.issues[0] ?? null
+}
+
+function resolveClarificationLabelSafe(
+  args: ResolveMultiStageQueryArgs,
+  unresolvedTokens: string[],
+): string {
+  if (MULTIPLE_HELIX_CUE_RE.test(args.message)) return "multiple helix"
+  if (GENERIC_COATING_CUE_RE.test(args.message)) return "금속 코팅"
+  return unresolvedTokens.find(Boolean) ?? "현재 표현"
+}
+
+function buildIssueDrivenClarificationSafe(
+  args: ResolveMultiStageQueryArgs,
+  unresolvedTokens: string[],
+  validation: ResolverValidationSummary | null | undefined,
+): ResolverClarification | null {
+  const primaryIssue = pickPrimaryClarificationIssue(validation)
+  if (!primaryIssue) return null
+
+  const conversationContext = buildResolverConversationContext(args)
+  const currentUnderstanding = conversationContext.currentUnderstanding !== "none"
+    ? conversationContext.currentUnderstanding
+    : "현재 조건"
+  const label = resolveClarificationLabelSafe(args, unresolvedTokens)
+  const directInputChip = "직접 입력"
+
+  switch (primaryIssue.code) {
+    case "generic_specific_collapse":
+      return {
+        question: `현재는 ${currentUnderstanding} 기준으로 이해했는데, '${label}'은 TiAlN/AlCrN 같은 특정 코팅을 뜻하나요, 아니면 코팅 일반을 뜻하나요?`,
+        chips: ["TiAlN/AlCrN", "코팅 일반", directInputChip],
+        askedField: "coating",
+      }
+    case "concept_mapping_gap":
+      return {
+        question: `현재는 '${label}'을 특성 후보로 이해했는데, 여기서 '${label}'은 시리즈명인가요, 제품 특성인가요?`,
+        chips: ["시리즈명", "제품 특성", directInputChip],
+        askedField: null,
+      }
+    case "comparative_preference_ambiguity":
+      return {
+        question: "현재는 일부 조건을 제외하고 대안을 찾는 요청으로 이해했는데, 비교 기준을 설명해드릴까요, 아니면 제외 조건만 확정할까요?",
+        chips: ["비교 기준 설명", "제외 조건 확정", directInputChip],
+        askedField: null,
+      }
+    case "mixed_clause_ambiguity":
+      return {
+        question: "현재는 2날 유지 + Square 제외로 이해했는데 맞나요? 아니면 Square가 아닌 다른 형상으로 다시 고르려는 건가요?",
+        chips: ["2날 유지 + Square 제외", "다른 형상으로 변경", directInputChip],
+        askedField: null,
+      }
+    case "correction_signal_ignored":
+      return {
+        question: `현재는 ${currentUnderstanding}로 이해했는데, 무엇이 틀렸는지 알려주시면 그 부분만 수정하겠습니다. 기존 조건을 수정할까요, 아니면 새 추천으로 다시 시작할까요?`,
+        chips: ["기존 조건 수정", "새 추천으로 다시", directInputChip],
+        askedField: null,
+      }
+    case "session_truth_conflict":
+      if (DEICTIC_CONTEXT_RE.test(args.message) && hasNegationCue(args.message)) {
+        return {
+          question: `현재는 ${currentUnderstanding}로 이해했는데, '${args.message}'는 현재 조건을 제외하라는 뜻인가요, 아니면 다른 조건으로 수정하라는 뜻인가요?`,
+          chips: ["현재 조건 제외", "다른 조건 수정", directInputChip],
+          askedField: null,
+        }
+      }
+      return {
+        question: `현재는 ${currentUnderstanding}로 이해했는데, 기존 조건을 유지할지 일부만 수정할지 확인이 필요합니다. 어느 쪽이 맞나요?`,
+        chips: ["기존 조건 유지", "일부 조건 수정", directInputChip],
+        askedField: null,
+      }
+    case "domain_lock_risk":
+      return {
+        question: `현재는 ${currentUnderstanding} 기준으로 이해했는데, 이번에는 현재 공구 계열 안에서 다시 찾을까요, 아니면 공구 계열 자체를 바꿀까요?`,
+        chips: ["현재 계열 유지", "공구 계열 변경", directInputChip],
+        askedField: "toolType",
+      }
+    default:
+      return null
+  }
+}
+
+function buildClarificationResultSafeImpl(
+  args: ResolveMultiStageQueryArgs,
+  unresolvedTokens: string[],
+  validation?: ResolverValidationSummary | null,
+  preferredClarification?: ResolverClarification | null,
+): MultiStageResolverResult {
+  const directInputChip = "직접 입력"
+  const pendingField = args.pendingField ?? args.sessionState?.lastAskedField ?? null
   const orderQuantityAmbiguity = detectOrderQuantityInventoryAmbiguity(args.message)
   if (orderQuantityAmbiguity) {
     return {
       source: "clarification",
+      action: "ask_clarification",
       filters: [],
+      concepts: [],
       sort: null,
       routeHint: "general_question",
       intent: "ask_clarification",
@@ -2186,19 +2840,24 @@ function buildClarificationResult(
       reasoning: "clarification:inventory_scope_ambiguity",
       clarification: {
         question: orderQuantityAmbiguity.question,
-        chips: orderQuantityAmbiguity.chips,
+        chips: orderQuantityAmbiguity.chips.includes(directInputChip)
+          ? orderQuantityAmbiguity.chips
+          : [...orderQuantityAmbiguity.chips, directInputChip],
         askedField: null,
       },
+      validation: validation ?? null,
     }
   }
 
   const measurementScopeAmbiguity = detectMeasurementScopeAmbiguity(args.message, {
-    pendingField: args.pendingField ?? args.sessionState?.lastAskedField ?? null,
+    pendingField,
   })
   if (measurementScopeAmbiguity) {
     return {
       source: "clarification",
+      action: "ask_clarification",
       filters: [],
+      concepts: [],
       sort: null,
       routeHint: "general_question",
       intent: "ask_clarification",
@@ -2210,37 +2869,64 @@ function buildClarificationResult(
       reasoning: "clarification:measurement_scope_ambiguity",
       clarification: {
         question: measurementScopeAmbiguity.question,
-        chips: measurementScopeAmbiguity.chips,
+        chips: measurementScopeAmbiguity.chips.includes(directInputChip)
+          ? measurementScopeAmbiguity.chips
+          : [...measurementScopeAmbiguity.chips, directInputChip],
         askedField: null,
       },
+      validation: validation ?? null,
     }
   }
 
-  const conversationContext = buildResolverConversationContext(args)
-  const pendingField = args.pendingField ?? args.sessionState?.lastAskedField ?? null
   const isBareRecommendation =
     !pendingField
-    && args.currentFilters.length === 0
+    && (args.currentFilters?.length ?? 0) === 0
     && isBareRecommendationMessage(args.message)
-  const isStatefulRepair = conversationContext.mode !== "new" && args.currentFilters.length > 0
+  const isStatefulRepair = (args.currentFilters?.length ?? 0) > 0
   const pendingLabel = pendingField ? getFilterFieldLabel(pendingField) : null
-  const unresolvedLabel = unresolvedTokens.length > 0 ? unresolvedTokens.slice(0, 3).join(", ") : "현재 표현"
-  const question = isBareRecommendation
-    ? "어떤 소재를 가공하시나요?"
-    : isStatefulRepair
-    ? `\uD604\uC7AC\uB294 ${conversationContext.currentUnderstanding} \uB85C \uC774\uD574\uD588\uB294\uB370, \uC5B4\uB290 \uBD80\uBD84\uC744 \uBC14\uAFB8\uBA74 \uB420\uAE4C\uC694?`
-    : pendingLabel
-    ? `${pendingLabel} 조건을 어떻게 처리할지 더 구체적으로 알려주세요.`
-    : `입력하신 표현(${unresolvedLabel})의 의미를 정확히 반영하려면 어떤 조건인지 조금만 더 구체적으로 알려주세요.`
-  const chips = isBareRecommendation
-    ? ["스테인리스", "알루미늄", "탄소강", "직접 입력"]
-    : pendingLabel
-    ? [`${pendingLabel} 상관없음`, "추천 제품 보기", "직접 입력"]
-    : ["추천 제품 보기", "직접 입력", "처음부터 다시"]
+  const unresolvedLabel = unresolvedTokens.length > 0
+    ? unresolvedTokens.slice(0, 3).join(", ")
+    : "현재 표현"
+  const currentUnderstandingRaw = buildResolverConversationContext(args).currentUnderstanding
+  const currentUnderstanding = currentUnderstandingRaw !== "none"
+    ? currentUnderstandingRaw
+    : "현재 조건"
+  const issueDrivenClarification = buildIssueDrivenClarificationSafe(args, unresolvedTokens, validation)
+
+  const clarification =
+    preferredClarification
+    ?? issueDrivenClarification
+    ?? (
+      isBareRecommendation
+        ? {
+          question: "현재 소재 조건이 없어 바로 추천을 확정하기 어렵습니다. 어떤 소재를 가공하시나요?",
+          chips: ["스테인리스", "알루미늄", "탄소강", directInputChip],
+          askedField: "workPieceName",
+        }
+        : isStatefulRepair
+        ? {
+          question: `현재는 ${currentUnderstanding}로 이해했는데, 기존 조건을 수정할지 새 추천으로 다시 시작할지 확인이 필요합니다. 어느 쪽으로 진행할까요?`,
+          chips: ["기존 조건 수정", "새 추천으로 다시", directInputChip],
+          askedField: null,
+        }
+        : pendingLabel
+        ? {
+          question: `${pendingLabel}을 어떻게 처리할지 애매합니다. ${pendingLabel}을 유지할까요, 값을 바꿀까요, 아니면 직접 다시 입력하실까요?`,
+          chips: [`${pendingLabel} 유지`, `${pendingLabel} 변경`, directInputChip],
+          askedField: pendingField,
+        }
+        : {
+          question: `현재는 '${unresolvedLabel}'이 기준이 넓어서 바로 필터로 확정하기 어렵습니다. 이 표현이 어떤 조건을 뜻하는지 한 번만 더 구체적으로 말씀해 주실 수 있을까요?`,
+          chips: ["예시 선택", directInputChip, "처음부터 다시"],
+          askedField: null,
+        }
+    )
 
   return {
     source: "clarification",
+    action: "ask_clarification",
     filters: [],
+    concepts: [],
     sort: null,
     routeHint: "none",
     intent: "ask_clarification",
@@ -2254,20 +2940,17 @@ function buildClarificationResult(
       : isBareRecommendation
       ? "clarification:workPieceName"
       : `clarification:${unresolvedTokens.join("|") || "generic"}`,
-    clarification: {
-      question,
-      chips: isStatefulRepair
-        ? ["\uC81C\uC678/\uC218\uC815", "\uCD94\uCC9C \uACC4\uC18D", "\uC9C1\uC811 \uC785\uB825"]
-        : chips,
-      askedField: pendingField ?? (isBareRecommendation ? "workPieceName" : null),
-    },
+    clarification,
+    validation: validation ?? null,
   }
 }
 
 function buildEmptyResult(reasoning = ""): MultiStageResolverResult {
   return {
     source: "none",
+    action: "execute",
     filters: [],
+    concepts: [],
     sort: null,
     routeHint: "none",
     intent: "none",
@@ -2308,7 +2991,9 @@ function buildStageOneAnalysis(args: ResolveMultiStageQueryArgs): StageOneBuildA
       case "reset_all":
         return finalize({
           source: "stage1",
+          action: "execute",
           filters: [],
+          concepts: [],
           sort: null,
           routeHint: "none",
           intent: "reset_session",
@@ -2338,14 +3023,14 @@ function buildStageOneAnalysis(args: ResolveMultiStageQueryArgs): StageOneBuildA
     .map(spec => buildFilterFromSpec(spec, args.turnCount))
     .filter((filter): filter is AppliedFilter => filter != null)
 
-  const hasStageOneResolution =
-    intent !== "none"
-
+  const hasStageOneResolution = intent !== "none"
   if (!hasStageOneResolution) return finalize(null)
 
   return finalize({
     source: "stage1",
+    action: "execute",
     filters,
+    concepts: [],
     sort: null,
     routeHint: "none",
     intent,
@@ -2547,7 +3232,7 @@ function classifyStage1CotEscalation(
   if (stage1Analysis.canonicalizationMissCount > 0) reasons.push("canonicalization_miss")
 
   const conflictingFollowUp =
-    args.currentFilters.length > 0
+    (args.currentFilters?.length ?? 0) > 0
     && (needsRepair(args.message) || hasEditSignal(args.message) || shouldDeferHardcodedSemanticExecution(args.message))
     && (stage1MostlyNoOp || unresolvedTokens.length > 0 || stage1Analysis.canonicalizationMissCount > 0)
   if (conflictingFollowUp) reasons.push("conflicting_follow_up")
@@ -2628,7 +3313,10 @@ Rules:
 - Alias mappings, dictionaries, typo normalization, schema phonetic hints, and Stage 1 hints are clues only. The final meaning must come from the full contextual utterance.
 - Request-preparation chat slots and recognized entities are coverage hints. If they reveal extra filter-bearing terms, reconcile them with the full sentence before finalizing a narrower result.
 - Do not silently reset to a generic narrowing flow when the turn is refine or repair.
-- Extract every filter you can map safely.
+- First extract meaning as concepts: brand, feature, material, constraint.
+- Filters are execution-ready results, not the first semantic representation.
+- Only emit a direct string filter when the value is a validated catalog/DB value for that field.
+- If a phrase is meaningful but not a validated DB value, keep it in concepts and unresolvedTokens instead of guessing a filter.
 - skip means the user does not care about a field and the existing restriction should be removed.
 - sort means a superlative like "제일 긴", "가장 작은".
 - Use stockStatus only for availability states such as instock / outofstock / limited.
@@ -2651,16 +3339,18 @@ Rules:
 - Never invent a field, operator, column, or canonical value outside the field catalog and domain dictionary.
 - If unsure, prefer weak certainty, then deeper reasoning, then clarification. Do not use a generic fallback that mutates the session.
 - Do not guess. Keep unresolved tokens instead.
+- Every output must choose one action: execute, escalate_to_cot, or ask_clarification.
+- If the turn is still unsafe, return action=ask_clarification with a concrete question and 2-4 chips.
 - Return JSON only.
 
 Examples:
-{"filters":[{"field":"brand","op":"skip","rawToken":"노상관"}],"sort":null,"routeHint":"none","clearOtherFilters":false,"confidence":0.92,"unresolvedTokens":[],"reasoning":"brand indifference"}
-{"filters":[{"field":"coating","op":"skip","rawToken":"아무래도 좋은데"},{"field":"fluteCount","op":"eq","value":4,"rawToken":"4날"}],"sort":null,"routeHint":"none","clearOtherFilters":false,"confidence":0.88,"unresolvedTokens":[],"reasoning":"skip coating and keep flute"}
-{"filters":[{"field":"brand","op":"eq","value":"CRX S","rawToken":"크렉스에스"}],"sort":null,"routeHint":"none","clearOtherFilters":false,"confidence":0.9,"unresolvedTokens":[],"reasoning":"phonetic brand"}
-{"filters":[{"field":"totalStock","op":"gte","value":100,"rawToken":"재고 100개 이상"}],"sort":null,"routeHint":"none","clearOtherFilters":false,"confidence":0.9,"unresolvedTokens":[],"reasoning":"numeric inventory threshold"}
-{"filters":[],"sort":{"field":"lengthOfCutMm","direction":"desc"},"routeHint":"show_recommendation","clearOtherFilters":false,"confidence":0.95,"unresolvedTokens":[],"reasoning":"superlative sort"}
-{"filters":[],"sort":null,"routeHint":"ui_question","clearOtherFilters":false,"confidence":0.94,"unresolvedTokens":[],"reasoning":"UI label question"}
-{"filters":[],"sort":null,"routeHint":"compare_products","clearOtherFilters":false,"confidence":0.93,"unresolvedTokens":["GMI4710055"],"reasoning":"similar product request around a specific item"}`
+{"action":"execute","filters":[{"field":"brand","op":"skip","rawToken":"노상관"}],"sort":null,"routeHint":"none","clearOtherFilters":false,"confidence":0.92,"unresolvedTokens":[],"reasoning":"brand indifference"}
+{"action":"execute","filters":[{"field":"coating","op":"skip","rawToken":"아무래도 좋은데"},{"field":"fluteCount","op":"eq","value":4,"rawToken":"4날"}],"sort":null,"routeHint":"none","clearOtherFilters":false,"confidence":0.88,"unresolvedTokens":[],"reasoning":"skip coating and keep flute"}
+{"action":"execute","filters":[{"field":"brand","op":"eq","value":"CRX S","rawToken":"크렉스에스"}],"sort":null,"routeHint":"none","clearOtherFilters":false,"confidence":0.9,"unresolvedTokens":[],"reasoning":"phonetic brand"}
+{"action":"execute","filters":[{"field":"totalStock","op":"gte","value":100,"rawToken":"재고 100개 이상"}],"sort":null,"routeHint":"none","clearOtherFilters":false,"confidence":0.9,"unresolvedTokens":[],"reasoning":"numeric inventory threshold"}
+{"action":"ask_clarification","filters":[],"sort":null,"routeHint":"none","clearOtherFilters":false,"confidence":0.52,"unresolvedTokens":["multiple helix"],"question":"현재는 'multiple helix'를 특성 후보로 이해했는데, 여기서 'multiple helix'는 시리즈명인가요, 제품 특성인가요?","chips":["시리즈명","제품 특성","직접 입력"],"reasoning":"feature identifier is still ambiguous"}
+{"action":"execute","filters":[],"sort":null,"routeHint":"ui_question","clearOtherFilters":false,"confidence":0.94,"unresolvedTokens":[],"reasoning":"UI label question"}
+{"action":"execute","filters":[],"sort":null,"routeHint":"compare_products","clearOtherFilters":false,"confidence":0.93,"unresolvedTokens":["GMI4710055"],"reasoning":"similar product request around a specific item"}`
 
   const userPrompt = [
     `User message: ${args.message}`,
@@ -2722,15 +3412,21 @@ Decision process:
 7. Map only high-confidence items to DB fields or routeHint. Similar-product requests around a concrete item should use routeHint=compare_products even when the code stays unresolved.
 8. Keep operator attachment local to each clause. "2 flutes and not square" must stay fluteCount eq 2 and toolSubtype neq Square.
 9. Treat Stage 1 semantic hints as candidate intent only. Do not copy them unless the full utterance supports them.
+9a. First extract meaning as concepts: brand, feature, material, constraint.
+9b. Filters are execution-ready results, not the first semantic representation.
+9c. Only emit a direct string filter when the value is a validated catalog/DB value for that field.
+9d. If a phrase is meaningful but not a validated DB value, keep it in concepts and unresolvedTokens.
 10. Use displayed chips, displayed options, top candidates, displayedProducts, displayedSeriesGroups, and recommendation/comparison artifacts to resolve deictic follow-ups before asking for clarification.
 11. Repair cues mean the previous parse was wrong. Do not ignore them or silently reset.
 12. Generic mentions must not collapse into a specific canonical value without textual or UI evidence.
 13. If all other existing filters should be released, set clearOtherFilters=true only when the user explicitly reset or released them.
 14. If unsure, leave filters empty and keep unresolvedTokens.
 15. Never invent a field, operator, column, or canonical value outside the field catalog and domain dictionary.
+16. Every output must choose one action: execute, escalate_to_cot, or ask_clarification.
+17. If the turn is still unsafe after deeper reasoning, return action=ask_clarification with a concrete question and 2-4 chips.
 
 Return JSON:
-{"filters":[],"sort":null,"routeHint":"none","clearOtherFilters":false,"confidence":0.0,"unresolvedTokens":[],"reasoning":""}`
+{"action":"execute","filters":[],"sort":null,"routeHint":"none","clearOtherFilters":false,"confidence":0.0,"unresolvedTokens":[],"reasoning":""}`
 
   const userPrompt = [
     `User message: ${args.message}`,
@@ -2864,8 +3560,20 @@ function shouldEscalateToStage3(
   stage2Validation: ResolverValidationSummary | null,
   failureCount: number,
 ): boolean {
+  if (stage2Result?.action === "ask_clarification" || !!stage2Result?.clarification) return false
+  if (stage2Validation?.action === "ask_clarification") return false
+  if (stage2Result?.action === "escalate_to_cot") return true
   if (stage2Validation && !stage2Validation.valid) return true
-  if (stage2Validation?.escalation === "strong_cot" || stage2Validation?.escalation === "clarification") return true
+  if (stage2Validation?.escalation === "strong_cot") return true
+  if (
+    stage2Result
+    && (args.currentFilters?.length ?? 0) > 0
+    && DEICTIC_CONTEXT_RE.test(args.message)
+    && hasNegationCue(args.message)
+    && (stage2Result.filters.length > 0 || stage2Result.removeFields.length > 0 || stage2Result.clearOtherFilters)
+  ) {
+    return true
+  }
   if (unresolvedTokens.length === 0) return false
   if (!stage2Result) return true
   if (stage2Result.unresolvedTokens.length > 0) return true
@@ -2962,10 +3670,13 @@ export async function resolveMultiStageQuery(
 
   if (effectiveUnresolvedTokens.length === 0) {
     const pendingField = args.pendingField ?? args.sessionState?.lastAskedField ?? null
-    if (!pendingField && args.currentFilters.length === 0 && isBareRecommendationMessage(args.message)) {
+    if (!pendingField && (args.currentFilters?.length ?? 0) === 0 && isBareRecommendationMessage(args.message)) {
       return buildEmptyResult("defer:bare_recommendation")
     }
-    return buildClarificationResult(args, [])
+    return buildClarificationResultSafe(args, [], {
+      validation: stage1Validation,
+      candidateResult: stage1Result,
+    })
   }
 
   const cacheKey = computeCacheKey(args)
@@ -3012,6 +3723,7 @@ export async function resolveMultiStageQuery(
         mergeMultiStageResults(stage1Result, materializeResult("stage2", stage2Result, args.turnCount)),
         "stage2",
       ),
+      "stage2",
       collectRawSemanticValidationIssues(args.message, stage2Result.filters, "stage2"),
     )
     : null
@@ -3054,6 +3766,7 @@ export async function resolveMultiStageQuery(
           mergeMultiStageResults(stage2Base, materializeResult("stage3", stage3Result, args.turnCount)),
           "stage3",
         ),
+        "stage3",
         collectRawSemanticValidationIssues(args.message, stage3Result.filters, "stage3"),
       )
       : null
@@ -3067,14 +3780,41 @@ export async function resolveMultiStageQuery(
     }
 
     if (stage3ValidationResult && (!stage3ValidationResult.validation.valid || stage3ValidationResult.validation.escalation === "clarification")) {
+      const clarificationValidation = {
+        ...stage3ValidationResult.validation,
+        action: "ask_clarification" as const,
+      }
       return {
-        ...mergeMultiStageResults(stage2Base, buildClarificationResult(args, effectiveUnresolvedTokens)),
-        validation: stage3ValidationResult.validation,
+        ...mergeMultiStageResults(stage2Base, buildClarificationResultSafe(args, effectiveUnresolvedTokens, {
+          validation: clarificationValidation,
+          candidateResult: stage3ValidationResult.result,
+        })),
+        validation: clarificationValidation,
       }
     }
   }
 
   if (validatedStage2Result && resolverProducedMeaningfulOutput(validatedStage2Result)) {
+    if (stage3Needed) {
+      if (stage2Validation?.valid) {
+        clearResolverFailure(cacheKey)
+        if (stage2Result) storeResolverCache(cacheKey, stage2Result)
+        return validatedStage2Result
+      }
+      const clarificationValidation = stage2Validation
+        ? {
+          ...stage2Validation,
+          action: "ask_clarification" as const,
+        }
+        : null
+      return {
+        ...mergeMultiStageResults(stage1Result, buildClarificationResultSafe(args, effectiveUnresolvedTokens, {
+          validation: clarificationValidation,
+          candidateResult: validatedStage2Result,
+        })),
+        validation: clarificationValidation,
+      }
+    }
     if (stage2Validation?.valid) {
       clearResolverFailure(cacheKey)
       if (stage2Result) storeResolverCache(cacheKey, stage2Result)
@@ -3087,19 +3827,26 @@ export async function resolveMultiStageQuery(
       validation: stage2Validation,
     })
     return {
-      ...mergeMultiStageResults(stage1Result, buildClarificationResult(args, effectiveUnresolvedTokens)),
+      ...mergeMultiStageResults(stage1Result, buildClarificationResultSafe(args, effectiveUnresolvedTokens, {
+        validation: stage2Validation,
+        candidateResult: validatedStage2Result,
+      })),
       validation: stage2Validation,
     }
   }
 
   recordResolverFailure(cacheKey)
-  if (stage1Gate.forceCot) {
-    return buildDeferredCotResult(
-      `defer:stage1_cot:${stage1Gate.reasons.join("|") || "forced"}`,
-      effectiveUnresolvedTokens,
-    )
+  if (stage1Gate.forceCot && args.stage1CotEscalation?.enabled === true) {
+    return {
+      ...mergeMultiStageResults(stage1Result, buildEmptyResult(`defer:stage1_cot:${stage1Gate.reasons.join("|") || "forced"}`)),
+      unresolvedTokens: effectiveUnresolvedTokens,
+      validation: stage2Validation ?? stage1Validation,
+    }
   }
-  return mergeMultiStageResults(stage1Result, buildClarificationResult(args, effectiveUnresolvedTokens))
+  return mergeMultiStageResults(stage1Result, buildClarificationResultSafe(args, effectiveUnresolvedTokens, {
+    validation: stage2Validation ?? stage1Validation,
+    candidateResult: validatedStage2Result ?? (stage2Result ? materializeResult("stage2", stage2Result, args.turnCount) : stage1Result),
+  }))
 }
 
 export function _resetMultiStageResolverCacheForTest(): void {
