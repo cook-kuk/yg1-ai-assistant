@@ -14,10 +14,12 @@ import type { PendingQuestion } from "@/lib/recommendation/domain/context/pendin
 import type { UserStateResult } from "@/lib/recommendation/domain/context/user-understanding-detector"
 import type { SmartOption } from "@/lib/recommendation/domain/options"
 
-import { generateSmartOptions } from "@/lib/recommendation/domain/options"
+import { generateSmartOptionCandidates, generateSmartOptions } from "@/lib/recommendation/domain/options"
 import {
   buildContextAwarePlannerContext,
   buildPostRecommendationPlannerContext,
+  extractCandidateLikeFieldValues,
+  summarizeCandidateFieldValues,
   smartOptionsToChips,
   smartOptionsToStructuredChips,
   smartOptionsToDisplayedOptions,
@@ -72,6 +74,14 @@ export interface QuestionResponseOptionState {
 export interface RefinementOptionState {
   chips: string[]
   displayedOptions: DisplayedOption[]
+}
+
+export interface RecommendationFollowUpOptionState {
+  chips: string[]
+  displayedOptions: DisplayedOption[]
+  structuredChips: (import("@/lib/contracts/recommendation").StructuredChipDto | null)[]
+  selectedOptions: SmartOption[]
+  selectedByLLM: boolean
 }
 
 export async function buildGeneralChatOptionState(input: {
@@ -138,7 +148,7 @@ export async function buildGeneralChatOptionState(input: {
     prevState.lastAskedField ?? undefined,
     unifiedTurnContext,
   )
-  const generalSmartOptions = generateSmartOptions({
+  const generalSmartOptions = generateSmartOptionCandidates({
     plannerCtx,
     simulatorCtx: {
       candidateCount: candidates.length,
@@ -174,12 +184,15 @@ export async function buildGeneralChatOptionState(input: {
       userState: judgment.fromLLM ? judgment.userState : (userStateResult.state ?? null),
       confusedAbout: judgment.fromLLM ? judgment.confusedAbout : (userStateResult.confusedAbout ?? null),
       intentShift: judgment.fromLLM ? judgment.intentShift : (interpretation.intentShift ?? null),
+      referencedField: interpretation.referencedField ?? null,
       referencedUIBlock: frame.likelyReferencedUIBlock ?? null,
       frameRelation: judgment.fromLLM ? judgment.frameRelation : (frame.relation ?? null),
       answeredFields: interpretation.answeredFields ?? [],
       conversationDepth: interpretation.conversationDepth ?? 0,
       suggestedNextAction: interpretation.suggestedNextAction ?? null,
       hasConflict: interpretation.hasConflict ?? false,
+      correctionSignal: interpretation.shouldGenerateRepairOptions || interpretation.hasConflict,
+      candidateBufferSummary: summarizeCandidateFieldValues(plannerCtx.candidateFieldValues),
       recentTurns: (unifiedTurnContext.recentTurns ?? []).slice(-14).map(t => ({ role: t.role, text: t.text })),
     }, provider)
     finalChips = chipSelection.chips
@@ -277,7 +290,7 @@ export async function buildGeneralChatOptionState(input: {
     return {
       finalChips: ["처음부터 다시"],
       finalDisplayedOptions: [],
-      userStateResult: { state: "normal", confidence: 0, confusedAbout: null, boundField: null },
+      userStateResult: { state: "clear", confidence: 0, confusedAbout: null, boundField: null },
       isQuestionAssist: false,
       chipGroups: undefined,
     }
@@ -459,6 +472,132 @@ export function generateSmartOptionsForRecommendation(
     },
     portfolioConfig: { maxOptions: 6 },
   })
+}
+
+export async function buildRecommendationFollowUpOptionState(params: {
+  candidateSnapshot: CandidateSnapshot[]
+  filters: AppliedFilter[]
+  input: RecommendationInput
+  provider: LLMProvider
+  form?: ProductIntakeForm | null
+  sessionState?: ExplorationSessionState | null
+  userMessage?: string | null
+  assistantText?: string | null
+}): Promise<RecommendationFollowUpOptionState> {
+  const {
+    candidateSnapshot,
+    filters,
+    input,
+    provider,
+    form,
+    sessionState,
+    userMessage,
+    assistantText,
+  } = params
+
+  if (candidateSnapshot.length === 0) {
+    return {
+      chips: [],
+      displayedOptions: [],
+      structuredChips: [],
+      selectedOptions: [],
+      selectedByLLM: false,
+    }
+  }
+
+  let plannerCtx: ReturnType<typeof buildPostRecommendationPlannerContext>
+  let interpretation: ReturnType<typeof buildContextAwarePlannerContext>["interpretation"] | null = null
+
+  if (form) {
+    const contextResult = buildContextAwarePlannerContext(
+      form,
+      sessionState ?? null,
+      input,
+      userMessage ?? null,
+      [],
+      filters,
+    )
+    plannerCtx = contextResult.plannerCtx
+    interpretation = contextResult.interpretation
+  } else {
+    plannerCtx = buildPostRecommendationPlannerContext(candidateSnapshot, filters, input)
+  }
+
+  plannerCtx.candidateCount = candidateSnapshot.length
+  plannerCtx.candidateFieldValues = extractCandidateLikeFieldValues(candidateSnapshot)
+  plannerCtx.topCandidates = candidateSnapshot.slice(0, 5).map(candidate => ({
+    displayCode: candidate.displayCode,
+    seriesName: candidate.seriesName,
+    coating: candidate.coating,
+    fluteCount: candidate.fluteCount,
+    diameterMm: candidate.diameterMm,
+    score: candidate.score,
+    matchStatus: candidate.matchStatus,
+  }))
+  plannerCtx.displayedProducts = candidateSnapshot.slice(0, 5).map(candidate => ({
+    displayCode: candidate.displayCode,
+    seriesName: candidate.seriesName,
+    coating: candidate.coating,
+    fluteCount: candidate.fluteCount,
+    stockStatus: candidate.stockStatus,
+  }))
+
+  const candidateOptions = generateSmartOptionCandidates({
+    plannerCtx,
+    simulatorCtx: {
+      candidateCount: candidateSnapshot.length,
+      appliedFilters: filters,
+    },
+    rankerCtx: {
+      candidateCount: candidateSnapshot.length,
+      filterCount: filters.length,
+      hasRecommendation: true,
+      contextInterpretation: interpretation ?? undefined,
+      userMessage: userMessage ?? undefined,
+    },
+  })
+
+  if (candidateOptions.length === 0) {
+    return {
+      chips: [],
+      displayedOptions: [],
+      structuredChips: [],
+      selectedOptions: [],
+      selectedByLLM: false,
+    }
+  }
+
+  const chipSelection = await selectChipsWithLLM(candidateOptions, {
+    userMessage: userMessage ?? "",
+    assistantText: assistantText ?? "",
+    mode: sessionState?.currentMode ?? "recommendation",
+    pendingField: sessionState?.lastAskedField ?? null,
+    candidateCount: candidateSnapshot.length,
+    appliedFilters: filters.filter(filter => filter.op !== "skip").map(filter => ({ field: filter.field, value: filter.value })),
+    resolutionStatus: sessionState?.resolutionStatus ?? "resolved_exact",
+    displayedProducts: candidateSnapshot.slice(0, 5).map(candidate => candidate.displayCode),
+    userState: null,
+    confusedAbout: null,
+    intentShift: interpretation?.intentShift ?? null,
+    referencedField: interpretation?.referencedField ?? null,
+    referencedUIBlock: sessionState?.lastComparisonArtifact ? "comparison_table" : "recommendation_card",
+    frameRelation: null,
+    answeredFields: interpretation?.answeredFields ?? [],
+    conversationDepth: interpretation?.conversationDepth ?? 0,
+    suggestedNextAction: interpretation?.suggestedNextAction ?? null,
+    hasConflict: interpretation?.hasConflict ?? false,
+    correctionSignal: interpretation?.shouldGenerateRepairOptions || interpretation?.hasConflict || false,
+    candidateBufferSummary: summarizeCandidateFieldValues(plannerCtx.candidateFieldValues),
+    recentTurns: [],
+  }, provider)
+
+  return {
+    chips: chipSelection.chips,
+    displayedOptions: chipSelection.displayedOptions,
+    structuredChips: smartOptionsToStructuredChips(chipSelection.selectedOptions),
+    selectedOptions: chipSelection.selectedOptions,
+    selectedByLLM: chipSelection.selectedByLLM,
+  }
 }
 
 export function buildRefinementOptionState(input: {
@@ -852,7 +991,7 @@ export function buildQuestionFieldOptions(
 function buildCandidateBasedRefinementChips(
   field: string,
   candidates: ScoredProduct[],
-  currentFilterValue: string | number | undefined
+  currentFilterValue: string | number | boolean | Array<string | number | boolean> | undefined
 ): string[] {
   if (candidates.length === 0) return []
 
@@ -907,7 +1046,7 @@ function buildCandidateBasedRefinementChips(
   }
 
   // 현재 필터값 제외
-  if (currentFilterValue != null) {
+  if (currentFilterValue != null && !Array.isArray(currentFilterValue)) {
     valueCounts.delete(String(currentFilterValue))
   }
 
