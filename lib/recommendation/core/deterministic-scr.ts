@@ -67,6 +67,121 @@ export interface DeterministicMeta {
   ambiguities: MvAmbiguity[]
 }
 
+export interface DeterministicSemanticHint {
+  fieldCandidate: string | null
+  valueCandidate: string | number | Array<string | number> | null
+  operatorCue: DeterministicAction["op"] | null
+  numericCue: number[]
+  domainCue: string | null
+}
+
+function inferSemanticHintDomainCue(field: string | null | undefined): string | null {
+  switch (field) {
+    case "toolType":
+    case "machiningCategory":
+      return "tool-family"
+    case "toolSubtype":
+    case "applicationShape":
+      return "shape"
+    case "fluteCount":
+    case "diameterMm":
+    case "overallLengthMm":
+    case "lengthOfCutMm":
+    case "shankDiameterMm":
+    case "helixAngleDeg":
+    case "pointAngleDeg":
+    case "cornerRadiusMm":
+    case "ballRadiusMm":
+    case "coolantHole":
+      return "geometry"
+    case "coating":
+    case "surfaceFinish":
+      return "coating"
+    case "brand":
+    case "seriesName":
+    case "edpSeriesName":
+      return "brand-series"
+    case "material":
+    case "workPieceName":
+    case "workMaterial":
+    case "toolMaterial":
+      return "material"
+    case "operationType":
+    case "cuttingType":
+      return "operation"
+    case "stockStatus":
+    case "totalStock":
+      return "inventory"
+    case "country":
+      return "country"
+    case "threadPitchMm":
+    case "threadShape":
+    case "threadDirection":
+    case "threadInternalExternal":
+    case "tapTolerance":
+      return "threading"
+    case "toolHolderType":
+    case "shankType":
+      return "holder"
+    default:
+      return field ? "general" : null
+  }
+}
+
+function extractSemanticHintNumericCue(value: unknown): number[] {
+  const values = Array.isArray(value) ? value : [value]
+  const cues: number[] = []
+
+  for (const entry of values) {
+    if (typeof entry === "number" && Number.isFinite(entry)) {
+      cues.push(entry)
+      continue
+    }
+    if (typeof entry !== "string") continue
+
+    const trimmed = entry.trim()
+    if (!trimmed) continue
+
+    const direct = Number(trimmed)
+    if (Number.isFinite(direct)) {
+      cues.push(direct)
+      continue
+    }
+
+    const matches = trimmed.match(/\d+(?:\.\d+)?/g) ?? []
+    for (const match of matches) {
+      const parsed = Number(match)
+      if (Number.isFinite(parsed)) cues.push(parsed)
+    }
+  }
+
+  return Array.from(new Set(cues))
+}
+
+export function buildDeterministicSemanticHints(actions: DeterministicAction[]): DeterministicSemanticHint[] {
+  const hints: DeterministicSemanticHint[] = []
+  const seen = new Set<string>()
+
+  for (const action of actions) {
+    const valueCandidate = action.op === "between" && action.value2 != null
+      ? [action.value as string | number, action.value2 as string | number]
+      : (action.value as string | number)
+    const hint: DeterministicSemanticHint = {
+      fieldCandidate: action.field ?? null,
+      valueCandidate,
+      operatorCue: action.op ?? null,
+      numericCue: extractSemanticHintNumericCue(valueCandidate),
+      domainCue: inferSemanticHintDomainCue(action.field),
+    }
+    const signature = JSON.stringify(hint)
+    if (seen.has(signature)) continue
+    seen.add(signature)
+    hints.push(hint)
+  }
+
+  return hints
+}
+
 // ── Field cue patterns (한국어 + 영어). 우선순위 순 ──────────────
 // 더 구체적인 패턴이 먼저 와야 함 (전체 길이 → overallLength 가 직경보다 우선)
 const FIELD_CUES: Array<{ pattern: RegExp; field: string; numeric: boolean }> = [

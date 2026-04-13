@@ -277,7 +277,9 @@ describe("resolveMultiStageQuery", () => {
         expect(systemPrompt).toContain('Do not finalize natural-language negation, alternatives, comparison, or follow-up revision from cue words alone.')
         const userPrompt = messages[0]?.content ?? ""
         expect(userPrompt).toContain("Stage 1 semantic hints:")
-        expect(userPrompt).toContain("det.candidates=fluteCount eq 4")
+        expect(userPrompt).toContain("\"deterministic\"")
+        expect(userPrompt).toContain("\"fieldCandidate\":\"fluteCount\"")
+        expect(userPrompt).toContain("\"valueCandidate\":4")
         return JSON.stringify({
           filters: [
             { field: "fluteCount", op: "eq", value: 4, rawToken: "4 flute" },
