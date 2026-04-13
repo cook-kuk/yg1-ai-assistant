@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from "vitest"
 
 import { parseDeterministic } from "@/lib/recommendation/core/deterministic-scr"
-import { applyEditIntent, hasEditSignal, parseEditIntent } from "@/lib/recommendation/core/edit-intent"
+import {
+  applyEditIntent,
+  getEditIntentAffectedFields,
+  hasEditSignal,
+  parseEditIntent,
+  shouldExecuteEditIntentDeterministically,
+} from "@/lib/recommendation/core/edit-intent"
 import { mergeKgPatchIntoSpec } from "@/lib/recommendation/core/kg-spec-merge"
 import { tryParseSortPhrase } from "@/lib/recommendation/core/knowledge-graph"
 import { replaceFieldFilter } from "@/lib/recommendation/infrastructure/engines/serve-engine-filter-state"
@@ -52,7 +58,9 @@ function simulateStageOnePrepass(
   const editResult = hasEditSignal(message) ? parseEditIntent(message, filters) : null
   const sort = tryParseSortPhrase(message)
   const sortPatch = sort ? { sort } : null
-  const allowDeterministicMerge = !editResult || editResult.intent.type === "skip_field"
+  const editCanExecute = shouldExecuteEditIntentDeterministically(editResult)
+  const semanticHintFields = new Set(editCanExecute ? [] : getEditIntentAffectedFields(editResult))
+  const allowDeterministicMerge = !editResult || !editCanExecute || editResult.intent.type === "skip_field"
   if (!allowDeterministicMerge) {
     return { filters, handled: !!sortPatch, reasoning: sort ? [`sort:${sort.field}:${sort.direction}`] : [], sortPatch }
   }
@@ -61,9 +69,12 @@ function simulateStageOnePrepass(
     action => action.type === "apply_filter" && action.field && action.value != null,
   )
   const effectiveDetApplyActions =
-    editResult?.intent.type === "skip_field"
-      ? detApplyActions.filter(action => action.field !== editResult.intent.field)
-      : detApplyActions
+    detApplyActions.filter(action => {
+      if (!action.field) return true
+      if (editResult?.intent.type === "skip_field" && action.field === editResult.intent.field) return false
+      if (semanticHintFields.has(action.field)) return false
+      return true
+    })
   const currentTurnFields = new Set(detApplyActions.map(action => action.field!))
   const shouldClearUnmentionedFields =
     !editResult

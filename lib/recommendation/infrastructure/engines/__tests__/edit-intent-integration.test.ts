@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { applyEditIntent, hasEditSignal, parseEditIntent } from "@/lib/recommendation/core/edit-intent"
+import {
+  applyEditIntent,
+  hasEditSignal,
+  parseEditIntent,
+  shouldExecuteEditIntentDeterministically,
+} from "@/lib/recommendation/core/edit-intent"
 import { replaceFieldFilter } from "@/lib/recommendation/infrastructure/engines/serve-engine-filter-state"
 import { buildAppliedFilterFromValue } from "@/lib/recommendation/shared/filter-field-registry"
 import type { AppliedFilter } from "@/lib/types/exploration"
@@ -35,7 +40,7 @@ function simulateRuntimeEditIntent(
 
   const filters = [...filtersIn]
   const parsed = parseEditIntent(message, filters)
-  if (!parsed || parsed.confidence < 0.9) return null
+  if (!parsed || !shouldExecuteEditIntentDeterministically(parsed) || parsed.confidence < 0.9) return null
 
   const mutation = applyEditIntent(parsed.intent, filters, turnCount)
   for (const index of [...mutation.removeIndices].sort((a, b) => b - a)) {
@@ -80,10 +85,9 @@ describe("edit-intent runtime integration", () => {
     ])
   })
 
-  it("still handles deterministic replacement at runtime", () => {
+  it("defers replacement semantics to the multi-stage resolver", () => {
     const result = simulateRuntimeEditIntent("2날 말고 4날로", baseFilters, 5)
-    expect(result?.action).toBe("replace_field")
-    expect(result?.filters.some(filter => filter.field === "fluteCount" && Number(filter.rawValue) === 4)).toBe(true)
+    expect(result).toBeNull()
   })
 
   it("defers slang skip phrasing to Stage 2/3", () => {

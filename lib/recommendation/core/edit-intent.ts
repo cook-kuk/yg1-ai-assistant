@@ -30,6 +30,13 @@ export interface EditIntentResult {
   reason: string
 }
 
+type DeterministicEditHintAction = {
+  type?: string | null
+  field?: string | null
+  value?: unknown
+  op?: string | null
+}
+
 // ── Edit Signal Detection ────────────────────────────────────
 
 /** 수정 동사/조사가 포함되어 있는지 빠르게 판별 */
@@ -113,6 +120,74 @@ function inferFieldFromTrailingSegment(segment: string): string | null {
   return null
 }
 
+function flattenEditIntents(intent: EditIntent): EditIntent[] {
+  if (intent.type === "go_back_then_apply") {
+    return [intent, ...flattenEditIntents(intent.inner)]
+  }
+  return [intent]
+}
+
+export function shouldExecuteEditIntentDeterministically(
+  result: EditIntentResult | null | undefined,
+): boolean {
+  if (!result) return false
+
+  switch (result.intent.type) {
+    case "reset_all":
+    case "skip_field":
+    case "clear_field":
+    case "go_back_then_apply":
+      return true
+    case "replace_field":
+    case "exclude_field":
+      return false
+  }
+}
+
+export function getEditIntentAffectedFields(
+  result: EditIntentResult | null | undefined,
+): string[] {
+  if (!result) return []
+
+  const fields = flattenEditIntents(result.intent)
+    .flatMap(intent => {
+      switch (intent.type) {
+        case "replace_field":
+        case "exclude_field":
+        case "skip_field":
+        case "clear_field":
+          return [intent.field]
+        default:
+          return []
+      }
+    })
+    .filter((field): field is string => typeof field === "string" && field.length > 0)
+
+  return Array.from(new Set(fields))
+}
+
+export function getEditIntentHintTokens(
+  result: EditIntentResult | null | undefined,
+): string[] {
+  if (!result) return []
+
+  const tokens = flattenEditIntents(result.intent)
+    .flatMap(intent => {
+      switch (intent.type) {
+        case "replace_field":
+          return [intent.oldValue ?? null, intent.newValue]
+        case "exclude_field":
+          return [intent.value]
+        default:
+          return []
+      }
+    })
+    .map(token => String(token ?? "").trim())
+    .filter(Boolean)
+
+  return Array.from(new Set(tokens))
+}
+
 function inferSkipFieldFromMessage(msg: string, signalIndex: number): string | null {
   const beforeSignal = msg.slice(0, Math.max(0, signalIndex)).trim()
   return extractFieldFromKorean(beforeSignal)
@@ -132,6 +207,7 @@ function inferSkipFieldFromMessage(msg: string, signalIndex: number): string | n
 export function parseEditIntent(
   msg: string,
   existingFilters: AppliedFilter[] = [],
+  stageOneDeterministicActions: DeterministicEditHintAction[] = [],
 ): EditIntentResult | null {
   if (!hasEditSignal(msg)) return null
 
@@ -221,7 +297,7 @@ export function parseEditIntent(
   if (replaceResult) return replaceResult
 
   // ── 5. exclude_field ("X 빼고", "X 아닌걸로", "X 제외") ──
-  const excludeResult = parseExclude(lower, existingFilters)
+  const excludeResult = parseExclude(lower, existingFilters, stageOneDeterministicActions)
   if (excludeResult) return excludeResult
 
   return null
@@ -308,6 +384,7 @@ function parseReplace(
 function parseExclude(
   lower: string,
   existingFilters: AppliedFilter[],
+  stageOneDeterministicActions: DeterministicEditHintAction[] = [],
 ): EditIntentResult | null {
   // Strategy: instead of capturing entity text with regex alone (fails for multi-word
   // entities like "CRX S"), we detect the edit-verb position and try extractEntities
@@ -351,6 +428,11 @@ function parseExclude(
     if (resolved) {
       return makeExcludeResult(resolved)
     }
+
+    const hinted = pickSingleDeterministicExcludeCandidate(stageOneDeterministicActions)
+    if (hinted) {
+      return makeExcludeResult(hinted)
+    }
   }
 
   return null
@@ -362,6 +444,34 @@ function makeExcludeResult(entity: { field: string; canonical: string }): EditIn
     confidence: 0.95,
     reason: `exclude ${entity.field}=${entity.canonical}`,
   }
+}
+
+function pickSingleDeterministicExcludeCandidate(
+  actions: DeterministicEditHintAction[],
+): { field: string; canonical: string } | null {
+  const candidates = actions
+    .filter(action =>
+      action.type === "apply_filter"
+      && typeof action.field === "string"
+      && action.field.length > 0
+      && action.value != null
+      && action.op !== "neq"
+      && action.op !== "skip"
+    )
+    .map(action => ({
+      field: String(action.field),
+      canonical: String(action.value).trim(),
+    }))
+    .filter(candidate => candidate.canonical.length > 0)
+
+  const unique = candidates.filter((candidate, index, source) =>
+    source.findIndex(entry =>
+      entry.field === candidate.field
+      && entry.canonical.toLowerCase() === candidate.canonical.toLowerCase()
+    ) === index
+  )
+
+  return unique.length === 1 ? unique[0] : null
 }
 
 function parseExcludeFromToken(
