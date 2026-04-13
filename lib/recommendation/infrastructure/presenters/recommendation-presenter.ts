@@ -312,12 +312,13 @@ function synthesizeThinkingFromSessionFilters(
     toolType: "공구 종류",
   }
   const formatPhrase = (op: string, value: string): string => {
+    const trimmed = value.trim()
     switch (op) {
-      case "neq": return `${value} 제외`
-      case "gte": return `${value} 이상`
-      case "lte": return `${value} 이하`
-      case "between": return `${value} 범위`
-      default: return value
+      case "neq": return /제외\s*$/u.test(trimmed) ? trimmed : `${trimmed} 제외`
+      case "gte": return /이상\s*$/u.test(trimmed) ? trimmed : `${trimmed} 이상`
+      case "lte": return /이하\s*$/u.test(trimmed) ? trimmed : `${trimmed} 이하`
+      case "between": return /범위\s*$/u.test(trimmed) ? trimmed : `${trimmed} 범위`
+      default: return trimmed
     }
   }
 

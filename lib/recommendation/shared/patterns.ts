@@ -305,6 +305,13 @@ export function canonicalizeCoating(raw: string): string | null {
     }
   }
 
+  // Preserve YG-1 internal coating labels regardless of spacing/hyphenation.
+  // Example: "T coating", "tcoating", "Y-Coating" -> canonical internal label.
+  const internalCoatingMatch = normalized.match(/^(x|y|t|z|c|h)coating$/i)
+  if (internalCoatingMatch) {
+    return `${internalCoatingMatch[1].toUpperCase()}-Coating`
+  }
+
   // "코팅없는걸로", "코팅없는거", "없는거" 등 → Uncoated
   if (/코팅없|(?:^|\s)없는/.test(normalized)) return "Uncoated"
 

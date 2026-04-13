@@ -111,6 +111,16 @@ describe("hard20 R-series — range / negation / stock / go-back", () => {
     if (coating) expect(coating.op === "neq" || coating.op === "exclude").toBe(true)
   })
 
+  it("R3.t2b 'T-Coating 빼고' → coating neq=T-Coating and never falls back to TiN", () => {
+    const text = "T-Coating 빼고"
+    expect(hasPhantomCategorical(text)).toEqual([])
+    const actions = activeFiltersFor(text)
+    const coating = actions.find(a => a.field === "coating")
+    expect(coating).toBeDefined()
+    expect(coating?.op === "neq" || coating?.op === "exclude").toBe(true)
+    expect(coating?.value).toBe("T-Coating")
+  })
+
   it("R4.t3 '재고 50개 이상만 보여줘' → stockStatus 임계값 추출", () => {
     const actions = activeFiltersFor("재고 50개 이상만 보여줘")
     const stock = actions.find(a => a.field === "stockStatus")

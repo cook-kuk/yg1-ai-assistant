@@ -878,7 +878,34 @@ export async function resolveExplicitFilterRequest(
  * Dynamically uses all registered filter fields — no hardcoding.
  * Returns { field, rawValue, displayValue } if found, null otherwise.
  */
-function extractNegatedValue(msg: string): { field: string; rawValue: string | number; displayValue: string } | null {
+function normalizeNegationCueText(value: string): string {
+  return String(value).toLowerCase().replace(/[\s\-_()]+/g, "")
+}
+
+function buildNegationFieldTryOrder(msg: string): string[] {
+  const normalizedMsg = normalizeNegationCueText(msg)
+  const explicitCueFields = getRegisteredFilterFields().filter(field => (
+    getFilterFieldQueryAliases(field).some(alias => {
+      const normalizedAlias = normalizeNegationCueText(alias)
+      return normalizedAlias.length >= 2 && normalizedMsg.includes(normalizedAlias)
+    })
+  ))
+
+  return Array.from(new Set([
+    ...explicitCueFields,
+    "brand",
+    "seriesName",
+    "coating",
+    "toolSubtype",
+    "fluteCount",
+    "diameterMm",
+    "workPieceName",
+    "material",
+    "shankType",
+  ]))
+}
+
+export function extractNegatedValue(msg: string): { field: string; rawValue: string | number; displayValue: string } | null {
   // Strip negation suffixes to isolate the value
   const cleaned = msg
     .replace(/\s*(빼고|뺴고|빼구|제외|말고|없이|아닌\s*것|없는\s*거로?|만\s*아니면\s*(?:돼|된다니까|됩니다|되잖아)?|아닌\s*거|말고\s*다른|없는\s*걸로).*$/u, "")
@@ -887,16 +914,28 @@ function extractNegatedValue(msg: string): { field: string; rawValue: string | n
 
   if (!cleaned) return null
 
+  const detActions = parseDeterministic(cleaned)
+    .filter(action => action.type === "apply_filter")
+  if (detActions.length === 1) {
+    const [action] = detActions
+    return {
+      field: action.field,
+      rawValue: action.value,
+      displayValue: cleaned,
+    }
+  }
+
   // Try buildAppliedFilterFromValue with each registered field
   // brand/seriesName first — "TANK-POWER 빼고" ���은 브랜드 제외�� 코팅보다 먼저 잡아야 함
-  const fieldsToTry = ["brand", "seriesName", "coating", "toolSubtype", "fluteCount", "diameterMm", "workPieceName", "material"]
+  const fieldsToTry = buildNegationFieldTryOrder(msg)
   for (const field of fieldsToTry) {
     const filter = buildAppliedFilterFromValue(field, cleaned)
     if (filter) {
+      const normalizedFilter = normalizeRuntimeAppliedFilter(filter, filter.appliedAt ?? 0)
       return {
-        field: filter.field,
-        rawValue: typeof filter.rawValue === "object" ? String(filter.rawValue) : filter.rawValue,
-        displayValue: String(filter.rawValue),
+        field: normalizedFilter.field,
+        rawValue: typeof normalizedFilter.rawValue === "object" ? String(normalizedFilter.rawValue) : normalizedFilter.rawValue,
+        displayValue: cleaned,
       }
     }
   }
@@ -906,10 +945,11 @@ function extractNegatedValue(msg: string): { field: string; rawValue: string | n
     if (fieldsToTry.includes(field)) continue
     const filter = buildAppliedFilterFromValue(field, cleaned)
     if (filter) {
+      const normalizedFilter = normalizeRuntimeAppliedFilter(filter, filter.appliedAt ?? 0)
       return {
-        field: filter.field,
-        rawValue: typeof filter.rawValue === "object" ? String(filter.rawValue) : filter.rawValue,
-        displayValue: String(filter.rawValue),
+        field: normalizedFilter.field,
+        rawValue: typeof normalizedFilter.rawValue === "object" ? String(normalizedFilter.rawValue) : normalizedFilter.rawValue,
+        displayValue: cleaned,
       }
     }
   }
@@ -1631,6 +1671,96 @@ function buildRepairClarification(questionFilters: AppliedFilter[]): { question:
     : "방금 해석한 조건 중 어디가 잘못됐는지 알려주세요. 잘못 반영된 값을 바로 고칠 수 있습니다."
 
   return { question, chips }
+}
+
+function extractSnapshotFieldValue(candidate: CandidateSnapshot, field: string): string | null {
+  switch (field) {
+    case "coating":
+      return candidate.coating?.trim() || null
+    case "toolSubtype":
+      return candidate.toolSubtype?.trim() || null
+    case "seriesName":
+      return candidate.seriesName?.trim() || null
+    case "brand":
+      return candidate.brand?.trim() || null
+    case "fluteCount":
+      return typeof candidate.fluteCount === "number" ? `${candidate.fluteCount}날` : null
+    case "diameterMm":
+      return typeof candidate.diameterMm === "number" ? `${candidate.diameterMm}mm` : null
+    default:
+      return null
+  }
+}
+
+function isAlternativeExplorationQuestionV2(message: string): boolean {
+  const raw = message.trim()
+  if (!raw) return false
+
+  const asksAlternatives =
+    /(?:뭐가|무엇이|어떤|다른)\s*(?:있어|있나요|있습니까|좋아|나아요|가능|거|걸|옵션|코팅|형상)?/u.test(raw)
+    || /대안|다른\s*옵션|추천\s*가능/u.test(raw)
+  const questionLike = /[?？]/.test(raw) || /(?:있어|있나요|있을까|가능해|가능한가|좋아|나아요)/u.test(raw)
+  const explicitReplacement = /(?:으로\s+\S+|(?:으로|로)\s*(?:바꿔|변경|수정))/u.test(raw)
+
+  return asksAlternatives && questionLike && !explicitReplacement
+}
+
+function buildAlternativeExplorationClarificationV2(
+  prevState: ExplorationSessionState,
+  field: string,
+  excludedValue: string | number | null | undefined,
+  excludedLabelOverride?: string | null,
+): { question: string; chips: string[]; pendingClarification: ExplorationSessionState["pendingClarification"] } | null {
+  const snapshots = prevState.lastRecommendationArtifact ?? prevState.displayedCandidates ?? []
+  if (!snapshots.length) return null
+
+  const excludedComparable = normalizeComparableFilterValue(field, excludedValue ?? null)
+  const counts = new Map<string, number>()
+  let excludedSeen = false
+
+  for (const candidate of snapshots) {
+    const value = extractSnapshotFieldValue(candidate, field)
+    if (!value) continue
+
+    if (excludedComparable && normalizeComparableFilterValue(field, value) === excludedComparable) {
+      excludedSeen = true
+      continue
+    }
+
+    counts.set(value, (counts.get(value) ?? 0) + 1)
+  }
+
+  const options = [...counts.entries()]
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], "ko"))
+    .slice(0, 4)
+
+  const label = getFilterFieldLabel(field)
+  const excludedLabel = String(excludedLabelOverride ?? excludedValue ?? "").trim()
+  const chipResolution: Record<string, { field: string; value: string }> = {}
+
+  if (options.length === 0) {
+    return {
+      question: `현재 후보 기준으로는 ${label}에서 ${excludedLabel || "현재 값"} 말고 바로 고를 만한 대안이 보이지 않습니다. ${label} 대신 다른 조건을 바꿔볼지 알려주세요.`,
+      chips: ["다른 조건으로 좁혀보기", "직접 입력"],
+      pendingClarification: { chipResolution },
+    }
+  }
+
+  const optionChips = options.map(([value, count]) => {
+    const chip = `${value} (${count}개)`
+    chipResolution[chip] = { field, value }
+    return chip
+  })
+
+  const question = excludedSeen
+    ? `현재 후보 기준으로 ${label}에서 ${excludedLabel || "현재 값"} 말고는 다음 옵션이 있습니다. 바꿔볼 값을 선택하시거나 직접 입력해 주세요.`
+    : `현재 후보 기준으로는 ${label}에서 ${excludedLabel || "요청한 값"}이(가) 보이지 않습니다. 대신 선택할 수 있는 옵션은 다음과 같습니다.`
+
+  return {
+    question,
+    chips: [...optionChips, "직접 입력"],
+    pendingClarification: { chipResolution },
+  }
 }
 
 function hasTerminalMultiStageResult(result: MultiStageResolverResult): boolean {
@@ -2634,6 +2764,43 @@ async function handleServeExplorationInner(
     // Router priority: Edit-Intent(수정동사) → KG(entity match) → SQL Agent → negation(fallback) → SCR
     // edit-intent가 맡아야 할 문장(말고/빼고/제외/상관없/바꿔 등)은 KG보다 먼저 처리
     // ══════════════════════════════════════════════════════════
+
+    const alternativeExplorationClarification =
+      prevState && hasNegationPattern && isAlternativeExplorationQuestionV2(msg)
+        ? (() => {
+            const negatedValue = extractNegatedValue(msg)
+            if (!negatedValue) return null
+
+            const clarification = buildAlternativeExplorationClarificationV2(
+              prevState,
+              negatedValue.field,
+              negatedValue.rawValue,
+              negatedValue.displayValue,
+            )
+            if (!clarification) return null
+
+            console.log(
+              `[alternative-exploration] field=${negatedValue.field} excluded=${String(negatedValue.rawValue)} chips=${clarification.chips.length}`,
+            )
+            return clarification
+          })()
+        : null
+
+    if (alternativeExplorationClarification) {
+      return buildRevisionClarificationResponse(
+        deps,
+        prevState,
+        form,
+        filters,
+        narrowingHistory,
+        currentInput,
+        turnCount,
+        alternativeExplorationClarification.question,
+        requestPrep,
+        alternativeExplorationClarification.chips,
+        alternativeExplorationClarification.pendingClarification,
+      )
+    }
 
     let stageOneEditResult: ReturnType<typeof parseEditIntent> = null
     const stageOneEditHintActions =
@@ -3648,13 +3815,13 @@ async function handleServeExplorationInner(
       if (!negationHandled) {
         const negatedValue = extractNegatedValue(msg)
         if (negatedValue) {
-          const neqFilter: AppliedFilter = {
-            field: negatedValue.field,
-            op: "neq",
-            value: `${negatedValue.displayValue} 제외`,
-            rawValue: negatedValue.rawValue,
-            appliedAt: turnCount,
-          }
+        const neqFilter: AppliedFilter = {
+          field: negatedValue.field,
+          op: "neq",
+          value: negatedValue.displayValue,
+          rawValue: negatedValue.rawValue,
+          appliedAt: turnCount,
+        }
           const existingIdx = filters.findIndex(f => f.field === neqFilter.field)
           if (existingIdx >= 0) filters.splice(existingIdx, 1)
           filters.push(neqFilter)

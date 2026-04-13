@@ -115,4 +115,33 @@ describe("buildRecommendationResponseDto", () => {
     expect(dto.thinkingProcess).toBe("short reasoning")
     expect(dto.thinkingDeep).toBe("full cot body")
   })
+
+  it("keeps neq filter reasoning idempotent without duplicating 제외", () => {
+    const sessionState = {
+      sessionId: "s-neq",
+      candidateCount: 10,
+      appliedFilters: [
+        { field: "coating", op: "neq", value: "T-Coating", rawValue: "T-Coating", appliedAt: 2 },
+      ],
+      narrowingHistory: [],
+      stageHistory: [],
+      resolutionStatus: "resolved_approximate",
+      resolvedInput: { manufacturerScope: "yg1-only", locale: "ko" },
+      turnCount: 2,
+      displayedCandidates: [],
+      displayedChips: [],
+      displayedOptions: [],
+    } as ExplorationSessionState
+
+    const dto = buildRecommendationResponseDto({
+      text: "test",
+      purpose: "question",
+      isComplete: false,
+      sessionState,
+    })
+
+    expect(dto.thinkingProcess).toContain("코팅 'T-Coating'")
+    expect(dto.thinkingProcess).toContain("코팅 T-Coating 제외")
+    expect(dto.thinkingProcess).not.toContain("제외 제외")
+  })
 })
