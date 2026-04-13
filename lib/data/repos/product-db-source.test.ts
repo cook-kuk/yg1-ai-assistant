@@ -1,8 +1,12 @@
-import { describe, expect, it, vi } from "vitest"
+import path from "node:path"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("server-only", () => ({}))
 
 import { buildQueryOptions, normalizeWorkPieceNameForDb } from "./product-db-source"
+import { _resetMaterialMappingCacheForTest, _setMaterialMappingTestPaths } from "@/lib/recommendation/shared/material-mapping"
+
+const FIXTURE_ROOT = path.resolve(process.cwd(), "lib", "recommendation", "shared", "__tests__", "fixtures")
 
 describe("product db operation shape filtering", () => {
   it("filters by series_application_shape text only", () => {
@@ -51,10 +55,24 @@ describe("product db operation shape filtering", () => {
 })
 
 describe("product db workpiece normalization", () => {
+  beforeEach(() => {
+    _setMaterialMappingTestPaths({
+      materialPath: path.join(FIXTURE_ROOT, "material-mapping-sample.csv"),
+      brandAffinityPath: path.join(FIXTURE_ROOT, "brand-material-affinity-sample.csv"),
+      seriesProfilePath: path.join(FIXTURE_ROOT, "series-profile-sample.csv"),
+    })
+  })
+
+  afterEach(() => {
+    _resetMaterialMappingCacheForTest()
+  })
+
   it.each([
     ["SUS316L", "Stainless"],
     ["스텐인리스강", "Stainless"],
     ["스테인리스강", "Stainless"],
+    ["AISI 1010", "Carbon Steel"],
+    ["DIN X5CrNi18-10", "Stainless"],
     ["A7075", "Aluminum"],
     ["SCM440", "Alloy Steel"],
     ["SKD11", "Hardened Steel"],

@@ -10,6 +10,7 @@ import { getSortableFields, QUERY_FIELD_MANIFEST } from "./query-spec-manifest"
 import { findValueByPhonetic, getDbSchemaSync } from "./sql-agent-schema-cache"
 import { tokenize } from "./auto-synonym"
 import { needsRepair } from "./turn-repair"
+import { buildMaterialPromptHints, buildScopedMaterialPromptHints } from "@/lib/recommendation/shared/material-mapping"
 
 type ResolverFilterOp = "eq" | "neq" | "gte" | "lte" | "between" | "skip"
 type ResolverRouteHint =
@@ -1209,12 +1210,14 @@ function buildResolverDomainDictionary(): string {
     ),
   ).slice(0, 8)
   const brandSamples = uniqueStrings(schema.brands ?? []).slice(0, 8)
+  const materialHints = buildMaterialPromptHints(6)
 
   return [
     `- toolSubtype canonical values/examples: ${toolSubtypeSamples.join(", ") || "Square, Ball, Radius, Roughing, Taper, Chamfer"}`,
     `- coating canonical values/examples: ${coatingSamples.join(", ") || "TiAlN, AlCrN, DLC, Bright Finish"}`,
     `- workPieceName examples: ${workPieceSamples.join(", ") || "Stainless Steels, Aluminum, Carbon Steels, Copper, Titanium"}`,
     `- brand examples: ${brandSamples.join(", ") || "none"}`,
+    materialHints ? `- compact material mapping hints:\n${materialHints}` : null,
     `- stockStatus is only for qualitative states such as instock / outofstock / limited.`,
     `- totalStock is only for numeric inventory thresholds.`,
     `- skip/remove/clear means release an existing restriction, not invent a new value.`,
@@ -1344,6 +1347,10 @@ function classifyStage1CotEscalation(
 
 function buildStage2Prompt(args: ResolveMultiStageQueryArgs, unresolvedTokens: string[]): { systemPrompt: string; userPrompt: string } {
   const schemaHints = collectSchemaHints(args.message, unresolvedTokens)
+  const materialContext = buildScopedMaterialPromptHints(
+    [args.message, ...unresolvedTokens].filter(Boolean).join(" "),
+    4,
+  )
   const systemPrompt = `You are the Stage 2 lightweight resolver for the YG-1 cutting tool recommendation system.
 The deterministic parser already handled exact patterns. Resolve only the leftover intent.
 
@@ -1394,6 +1401,7 @@ Examples:
   const userPrompt = [
     `User message: ${args.message}`,
     `Stage 1 unresolved tokens: ${unresolvedTokens.join(", ") || "none"}`,
+    `Material mapping context:\n${materialContext || "none"}`,
     `Possible schema phonetic hints:\n${formatSchemaHintBlock(schemaHints)}`,
     `Pending field: ${args.pendingField ?? args.sessionState?.lastAskedField ?? "none"}`,
     `Current filters: ${buildCurrentFilterSummary(args.currentFilters)}`,
@@ -1406,6 +1414,10 @@ Examples:
 
 function buildStage3Prompt(args: ResolveMultiStageQueryArgs, unresolvedTokens: string[], stage2Result: NormalizedResolverResult | null): { systemPrompt: string; userPrompt: string } {
   const schemaHints = collectSchemaHints(args.message, unresolvedTokens)
+  const materialContext = buildScopedMaterialPromptHints(
+    [args.message, ...unresolvedTokens].filter(Boolean).join(" "),
+    4,
+  )
   const systemPrompt = `You are the Stage 3 deep reasoning resolver for the YG-1 cutting tool recommendation system.
 Stage 1 and Stage 2 were not sufficient. Think step by step internally, then return JSON only.
 
@@ -1442,6 +1454,7 @@ Return JSON:
     `Current filters: ${buildCurrentFilterSummary(args.currentFilters)}`,
     `Complexity: ${args.complexity?.level ?? "unknown"} (${args.complexity?.reason ?? "n/a"})`,
     `Stage 1 unresolved tokens: ${unresolvedTokens.join(", ") || "none"}`,
+    `Material mapping context:\n${materialContext || "none"}`,
     `Possible schema phonetic hints:\n${formatSchemaHintBlock(schemaHints)}`,
     `Current candidate count: ${args.stage1CotEscalation?.currentCandidateCount ?? "unknown"}`,
     `Stage 2 result: ${stage2Result ? JSON.stringify({
@@ -1713,3 +1726,4 @@ export function _resetMultiStageResolverCacheForTest(): void {
   resolverCache.clear()
   failureCache.clear()
 }
+

@@ -16,6 +16,7 @@ import { resolveMaterialTag } from "@/lib/domain/material-resolver"
 import { getOperationShapeSearchTexts } from "@/lib/domain/operation-resolver"
 import { resolveRequestedToolFamily as resolveRequestedToolFamilyInput } from "@/lib/data/repos/product-query-filters"
 import { buildDbWhereClauseForFilter, getFilterFieldDefinition } from "@/lib/recommendation/shared/filter-field-registry"
+import { resolveMaterialFamilyName } from "@/lib/recommendation/shared/material-mapping"
 
 /**
  * Map Korean workpiece names to English for DB series_profile_mv.normalized_work_piece_name matching.
@@ -85,6 +86,9 @@ export function normalizeWorkPieceNameForDb(raw: string | null): string | null {
 
   const trimmed = raw.trim()
   if (!trimmed) return null
+
+  const mappedFamily = resolveMaterialFamilyName(trimmed)
+  if (mappedFamily) return mappedFamily
 
   const key = trimmed.toLowerCase().replace(/\s+/g, "")
   const exact = WORKPIECE_DB_MAP[key]

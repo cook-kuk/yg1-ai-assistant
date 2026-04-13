@@ -339,6 +339,24 @@ function joinedFilterStringValue(filter: AppliedFilter, separator = ", "): strin
   return values.join(separator)
 }
 
+function joinedCanonicalFilterStringValue(filter: AppliedFilter, separator = ", "): string | undefined {
+  if (Array.isArray(filter.value)) {
+    const values = filter.value.map(value => String(value).trim()).filter(Boolean)
+    if (values.length > 0) return values.join(separator)
+  }
+
+  if (typeof filter.value === "string") {
+    const trimmed = filter.value.trim()
+    if (trimmed) return trimmed
+  }
+
+  if (filter.value != null && typeof filter.value !== "string") {
+    return String(filter.value)
+  }
+
+  return joinedFilterStringValue(filter, separator)
+}
+
 function formatNumericValue(num: number): string {
   return Number.isInteger(num) ? String(num) : String(num)
 }
@@ -746,7 +764,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     // 박힌 값) 도 같이 클리어. 두 값이 같은 ISO 그룹에 속하면 보존.
     // (이전엔 무조건 보존 → "스테인리스" 입력해도 workPieceName=경화강 carryover 버그)
     setInput: (input, filter) => {
-      const newMaterial = joinedFilterStringValue(filter)
+      const newMaterial = joinedCanonicalFilterStringValue(filter)
       const next = { ...input, material: newMaterial }
       const stale = input.workPieceName
       if (stale && newMaterial) {
@@ -794,7 +812,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
       const normalized = stripped.toLowerCase().replace(/\s+/g, "")
       return WORKPIECE_KO_ALIASES[normalized] ?? (stripped || null)
     },
-    setInput: (input, filter) => ({ ...input, workPieceName: joinedFilterStringValue(filter) }),
+    setInput: (input, filter) => ({ ...input, workPieceName: joinedCanonicalFilterStringValue(filter) }),
     clearInput: input => ({ ...input, workPieceName: undefined }),
     matches: (record, _filter) => {
       // DB에서 workpiece_name_matched 플래그로 판별: 해당 시리즈가 요청 피삭재를 지원하는지

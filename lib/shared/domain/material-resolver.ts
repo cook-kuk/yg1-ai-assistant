@@ -8,6 +8,7 @@ import fs from "fs"
 import path from "path"
 
 import type { MaterialTaxonomy } from "@/lib/types/canonical"
+import { lookupMaterialFamily, resolveMaterialIsoTagForFamily } from "@/lib/recommendation/shared/material-mapping"
 
 let _taxonomy: MaterialTaxonomy[] | null = null
 
@@ -43,6 +44,13 @@ export function resolveMaterialTag(input: string): string | null {
   const lower = input.toLowerCase().trim()
 
   if (/^[PMKNSH]$/i.test(lower)) return lower.toUpperCase()
+
+  const mapped = lookupMaterialFamily(input)
+  if (mapped?.lv1Iso) return mapped.lv1Iso
+  if (mapped?.canonicalFamily) {
+    const resolvedIso = resolveMaterialIsoTagForFamily(mapped.canonicalFamily)
+    if (resolvedIso) return resolvedIso
+  }
 
   for (const [alias, tag] of Object.entries(EXTRA_ALIASES)) {
     if (lower.includes(alias.toLowerCase())) return tag

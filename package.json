@@ -6,6 +6,7 @@
     "build": "next build",
     "check:product-db": "node scripts/check-product-db.mjs",
     "dev": "next dev",
+    "generate:material-mapping": "node scripts/generate-material-mapping-module.mjs",
     "lint": "eslint .",
     "start": "next start",
     "test": "vitest run",

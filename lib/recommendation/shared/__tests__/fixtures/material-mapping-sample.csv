@@ -1,0 +1,8 @@
+LV1_ISO,LV2_Category,LV3_Category,Material_Description,Composition_Heat_Treatment,Material_No,JIS,DIN,AISI_ASTM_SAE,BS,EN,AFNOR,SS,UNI,UNE_IHA,UNS,GOST,GB
+P,Carbon Steels,,Non-alloyed steel,"About 0.15% C, Annealed",1.0037,S10C,C10,1010,040A10,C10,XC10,1311,Fe 360 B,,G10100,10,
+M,Stainless Steels,,Stainless steel,"Austenitic, solution treated",1.4301,SUS304,X5CrNi18-10,304,304S15,X5CrNi18-10,Z7CN18-09,,X5CrNi18-10,,S30400,08X18H10,06Cr19Ni10
+M,Stainless Steels,,Stainless steel,"Austenitic, low carbon",1.4404,SUS316L,X2CrNiMo17-12-2,316L,316S11,X2CrNiMo17-12-2,Z3CND17-11-02,,X2CrNiMo17-12-2,,S31603,03X17H14M2,022Cr17Ni12Mo2
+N,Aluminum,,Aluminum alloy,"Age hardened wrought alloy",3.4365,A7075,AlZn5.5MgCu,7075,,,,,,,,A97075,,
+S,Titanium,,Titanium alloy,"Solution treated and aged",3.7165,,TiAl6V4,Ti-6Al-4V,,,,,,,,R56400,,
+S,Inconel,,Nickel-based super alloy,"Solution treated",2.4668,,NiCr19Fe19Nb5,718,,,,,,,,N07718,,
+H,Hardened Steels(HRc40~45),,High-alloyed steel,Quenched & Tempered,1.2379,SKD11,X155CrVMo12-1,D2,,,,,,,,T30402,,

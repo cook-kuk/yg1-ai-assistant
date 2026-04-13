@@ -1,0 +1,7 @@
+id,brand,material_key,material_kind,rating,rating_score,notes
+1,ALU-POWER HPC,N,iso_group,excellent,1,High-speed aluminum specialist
+2,TITANOX-POWER,S,iso_group,excellent,1,Titanium specialist
+3,INCONEL-MASTER,S,iso_group,good,0.8,Super alloy specialist
+4,V7 PLUS,P,iso_group,excellent,1,General steel workhorse
+5,4G MILL,H,iso_group,good,0.7,Hardened steel capable
+6,TITANOX-POWER,M,iso_group,good,0.7,Stainless capable

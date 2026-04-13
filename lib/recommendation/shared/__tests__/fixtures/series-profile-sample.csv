@@ -1,0 +1,7 @@
+series_name,primary_brand_name,edp_count,material_tags,material_work_piece_names,work_piece_statuses
+V7P01,V7 PLUS,120,"[""P""]","[""Carbon Steels"",""Alloy Steels""]","[{""tag_name"":""P"",""work_piece_name"":""Carbon Steels"",""material_rating"":""EXCELLENT"",""material_rating_score"":3}]"
+TNX01,TITANOX-POWER,90,"[""M"",""S""]","[""Stainless Steels"",""Titanium""]","[{""tag_name"":""M"",""work_piece_name"":""Stainless Steels"",""material_rating"":""GOOD"",""material_rating_score"":2},{""tag_name"":""S"",""work_piece_name"":""Titanium"",""material_rating"":""EXCELLENT"",""material_rating_score"":3}]"
+TITA01,TITANOX-POWER,80,"[""S""]","[""Titanium""]","[{""tag_name"":""S"",""work_piece_name"":""Titanium"",""material_rating"":""EXCELLENT"",""material_rating_score"":3}]"
+ALU01,ALU-POWER HPC,150,"[""N""]","[""Aluminum"",""Copper""]","[{""tag_name"":""N"",""work_piece_name"":""Aluminum"",""material_rating"":""EXCELLENT"",""material_rating_score"":3}]"
+INC01,INCONEL-MASTER,55,"[""S""]","[""Inconel""]","[{""tag_name"":""S"",""work_piece_name"":""Inconel"",""material_rating"":""EXCELLENT"",""material_rating_score"":3}]"
+HARD01,4G MILL,65,"[""H"",""P""]","[""Hardened Steels(HRc40~45)"",""Prehardened Steels""]","[{""tag_name"":""H"",""work_piece_name"":""Hardened Steels(HRc40~45)"",""material_rating"":""GOOD"",""material_rating_score"":2}]"
