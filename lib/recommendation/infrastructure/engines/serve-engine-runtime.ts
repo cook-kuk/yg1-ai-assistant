@@ -124,6 +124,7 @@ type ThinkingKind = "stage" | "deep"
 type RuntimeThinkingState = {
   thinkingProcess: string | null
   thinkingDeep: string | null
+  reasoningVisibility: "hidden" | "simple" | "full"
 }
 type ExplicitRevisionRequest = {
   targetField: string
@@ -363,8 +364,19 @@ export function shouldReplayUnresolvedPendingQuestion(
 
 const PENDING_SELECTION_RESULT_INTENT_RE = /(?:추천\s*(?:해줘|해주|해주세요|좀)?|보여줘|제품\s*(?:보여줘|보기)|찾아줘|비교|차이|vs|versus)/iu
 const PENDING_SELECTION_COMPOUND_CUE_RE = /(?:\b(?:and|then)\b|그리고|또|말고|바꾸고|변경하고|다른|추가로|도\s*(?:보여|찾아|추천))/iu
+const PENDING_SELECTION_NEGATION_OR_ALTERNATIVE_RE = /(?:말고|제외|아닌|아니고|instead\s+of|other\s+than|different|다른\s*거)/iu
+const PENDING_SELECTION_SIDE_QUESTION_RE = /뭐야|뭔지|설명|차이|왜|어떻게|몇개|종류|비교|결과|처음부터|초기화|리셋|reset|이전 단계|알려줘|알려|궁금|공장|영업소|연락|번호|정보|회사|사장|회장|매출|주주|지점|사우디|해외|국가|나라|도시|어디|재고|납기|가격|배송|리드\s*타임|stock|inventory|price|lead\s*time|적합|카탈로그|스펙/u
+const PENDING_SELECTION_SOFT_RECOMMENDATION_RE = /(?:어떤\s*게\s*좋|뭐가\s*좋|적합(?:한|\s*거)?|괜찮(?:은|\s*거)?|best|good\s+one)/iu
+const PENDING_SELECTION_REPAIR_SIGNAL_RE = /(?:그게\s*아니고|그게\s*아니라|내\s*말은|아니\s*다시|진짜\s*너\s*말\s*안\s*듣는다)/iu
 
-const PENDING_SELECTION_ALLOWED_REPLY_TAIL_RE = /^(?:(?:[\s\p{P}\p{S}]+)|(?:(?:\uC774\uC5D0\uC694|\uC608\uC694|\uC785\uB2C8\uB2E4|\uC694|\uC57C)(?:[\s\p{P}\p{S}]+)?)|(?:(?:\uC774\uC0C1|\uC774\uD558|\uBBF8\uB9CC|\uCD08\uACFC|\uC804\uD6C4|\uADFC\uCC98)(?:[\s\p{P}\p{S}]+)?)|(?:(?:\uB85C|\uC73C\uB85C)?\s*(?:\uD574\uC918|\uD574\uC8FC|\uD574\uC8FC\uC138\uC694|\uD574|\uD574\uC694|\uBD80\uD0C1\uD574|\uBD80\uD0C1\uD574\uC918|\uBC14\uAFD4\uC918|\uBCC0\uACBD\uD574\uC918)?))+$/u
+const PENDING_SELECTION_ALLOWED_REPLY_TAIL_RE = /^(?:(?:[\s\p{P}\p{S}]+)|(?:(?:mm|mn|밀리|날|낭|flutes?|fl\b|f\b)(?:[\s\p{P}\p{S}]+)?)|(?:(?:\uC774\uC5D0\uC694|\uC608\uC694|\uC785\uB2C8\uB2E4|\uC694|\uC57C)(?:[\s\p{P}\p{S}]+)?)|(?:(?:\uC774\uC0C1|\uC774\uD558|\uBBF8\uB9CC|\uCD08\uACFC|\uC804\uD6C4|\uADFC\uCC98)(?:[\s\p{P}\p{S}]+)?)|(?:(?:\uB85C|\uC73C\uB85C)?\s*(?:\uD574\uC918|\uD574\uC8FC|\uD574\uC8FC\uC138\uC694|\uD574|\uD574\uC694|\uBD80\uD0C1\uD574|\uBD80\uD0C1\uD574\uC918|\uBC14\uAFD4\uC918|\uBCC0\uACBD\uD574\uC918)?))+$/u
+const PENDING_SELECTION_DECORATIVE_TAIL_TOKEN_RE = /^(?:엔드밀|end\s*mill|드릴|탭|리머|형상|코팅|재질|소재|직경|날수)\s*/iu
+const PENDING_SELECTION_DECORATION_FIELDS = new Set([
+  "toolType",
+  "machiningCategory",
+  "manufacturerScope",
+  "locale",
+])
 
 function extractPendingSelectionTrailingText(
   raw: string,
@@ -384,6 +396,105 @@ function extractPendingSelectionTrailingText(
   }
 
   return ""
+}
+
+function isPendingSelectionDecorationField(field: string): boolean {
+  const canonicalField = getFilterFieldDefinition(field)?.canonicalField ?? field
+  return PENDING_SELECTION_DECORATION_FIELDS.has(canonicalField)
+}
+
+function isDecorativePendingSelectionTrailingText(trailingText: string): boolean {
+  if (!trailingText) return true
+  const stripped = trailingText.replace(PENDING_SELECTION_DECORATIVE_TAIL_TOKEN_RE, "").trim()
+  if (
+    PENDING_SELECTION_RESULT_INTENT_RE.test(stripped)
+    || PENDING_SELECTION_COMPOUND_CUE_RE.test(stripped)
+    || PENDING_SELECTION_NEGATION_OR_ALTERNATIVE_RE.test(stripped)
+  ) {
+    return false
+  }
+  return !stripped || PENDING_SELECTION_ALLOWED_REPLY_TAIL_RE.test(stripped)
+}
+
+function hasPendingSelectionSideQuestionCue(raw: string): boolean {
+  return PENDING_SELECTION_SIDE_QUESTION_RE.test(raw)
+}
+
+function hasPendingSelectionRepairSignal(raw: string): boolean {
+  return PENDING_SELECTION_REPAIR_SIGNAL_RE.test(raw)
+}
+
+function isGenericCoatingCue(raw: string, field: string): boolean {
+  const canonicalField = getFilterFieldDefinition(field)?.canonicalField ?? field
+  return canonicalField === "coating"
+    && /(?:금속\s*코팅|메탈\s*코팅|metal\s*coating|surface\s*coating|코팅\s*(?:종류|계열|일반|자체|쪽))/iu.test(raw)
+}
+
+function hasSpecificCoatingCue(
+  raw: string,
+  field: string,
+  pendingDetActions: ReturnType<typeof parseDeterministic>,
+): boolean {
+  if (!isGenericCoatingCue(raw, field)) return false
+  const hasDetCoating = pendingDetActions.some(action => {
+    if (action.type !== "apply_filter" || !action.field) return false
+    const canonicalField = getFilterFieldDefinition(action.field)?.canonicalField ?? action.field
+    return canonicalField === "coating"
+  })
+  if (hasDetCoating) return true
+  return extractEntities(raw).some(entity => {
+    if (!entity.field) return false
+    const canonicalField = getFilterFieldDefinition(entity.field)?.canonicalField ?? entity.field
+    return canonicalField === "coating"
+  })
+}
+
+function shouldBypassPendingSideQuestion(
+  raw: string,
+  pendingField: string,
+  pendingDetActions: ReturnType<typeof parseDeterministic>,
+): boolean {
+  if (hasPendingSelectionRepairSignal(raw)) return true
+  if (hasSpecificCoatingCue(raw, pendingField, pendingDetActions)) return true
+  const hasAlternative =
+    PENDING_SELECTION_NEGATION_OR_ALTERNATIVE_RE.test(raw)
+    || hasAlternativeNegationCue(raw)
+  return hasAlternative && PENDING_SELECTION_SOFT_RECOMMENDATION_RE.test(raw)
+}
+
+function shouldBypassPendingRevision(
+  raw: string,
+  pendingField: string,
+  pendingDetActions: ReturnType<typeof parseDeterministic>,
+): boolean {
+  const allowedFields = getPendingSelectionAllowedFields(pendingField, pendingField)
+  const hasPendingFieldAnswer = pendingDetActions.some(action => {
+    if (action.type !== "apply_filter" || !action.field) return false
+    const canonicalField = getFilterFieldDefinition(action.field)?.canonicalField ?? action.field
+    return allowedFields.has(canonicalField)
+  })
+  const hasExtraEntity =
+    pendingDetActions.some(action => {
+      if (action.type !== "apply_filter" || !action.field) return false
+      const canonicalField = getFilterFieldDefinition(action.field)?.canonicalField ?? action.field
+      return !isPendingSelectionDecorationField(canonicalField) && !allowedFields.has(canonicalField)
+    })
+    || extractEntities(raw).some(entity => {
+      if (!entity.field) return false
+      const canonicalField = getFilterFieldDefinition(entity.field)?.canonicalField ?? entity.field
+      return !isPendingSelectionDecorationField(canonicalField) && !allowedFields.has(canonicalField)
+    })
+
+  return (
+    shouldBypassPendingSideQuestion(raw, pendingField, pendingDetActions)
+    || (hasPendingFieldAnswer && hasExtraEntity)
+    || (
+      hasPendingFieldAnswer
+      && /(?:그리고|하고|,|\band\b|\bthen\b)/iu.test(raw)
+      && (PENDING_SELECTION_NEGATION_OR_ALTERNATIVE_RE.test(raw) || hasAlternativeNegationCue(raw))
+    )
+    || /(?:아닌\s*거(?:로)?|제외)/iu.test(raw)
+  )
 }
 
 function getPendingSelectionAllowedFields(
@@ -420,7 +531,13 @@ function shouldDeferPendingSelectionEarlyResolve(args: {
 }): { defer: boolean; reasons: string[] } {
   const { sessionState, raw, pendingField, resolvedField, pendingDetActions, selectedOption = null, parsedDirect = null } = args
   const reasons: string[] = []
+  if (isSkipSelectionValue(raw)) return { defer: false, reasons }
+
   const allowedFields = getPendingSelectionAllowedFields(pendingField, resolvedField)
+  const hasAlternativeOrNegationCue =
+    PENDING_SELECTION_NEGATION_OR_ALTERNATIVE_RE.test(raw)
+    || hasAlternativeNegationCue(raw)
+  const negatedValue = hasAlternativeOrNegationCue ? extractNegatedValue(raw) : null
 
   const deterministicFields = Array.from(new Set(
     pendingDetActions
@@ -432,24 +549,30 @@ function shouldDeferPendingSelectionEarlyResolve(args: {
       .map(entity => entity.field)
       .filter(Boolean)
   ))
-  const extraDeterministicFields = deterministicFields.filter(field => !allowedFields.has(field))
-  const extraRecognizedFields = recognizedEntityFields.filter(field => !allowedFields.has(field))
-  const trailingText = parsedDirect ? "" : extractPendingSelectionTrailingText(raw, selectedOption)
+  const meaningfulDeterministicFields = deterministicFields.filter(field => !isPendingSelectionDecorationField(field))
+  const meaningfulRecognizedFields = recognizedEntityFields.filter(field => !isPendingSelectionDecorationField(field))
+  const extraDeterministicFields = meaningfulDeterministicFields.filter(field => !allowedFields.has(field))
+  const extraRecognizedFields = meaningfulRecognizedFields.filter(field => !allowedFields.has(field))
+  const trailingText = extractPendingSelectionTrailingText(raw, selectedOption)
   const pureSelectedReply =
     !parsedDirect
     && !!selectedOption
-    && (!trailingText || PENDING_SELECTION_ALLOWED_REPLY_TAIL_RE.test(trailingText))
+    && isDecorativePendingSelectionTrailingText(trailingText)
+  const hasEarlyCommitCandidate =
+    pureSelectedReply
+    || !!selectedOption
+    || isSkipSelectionValue(raw)
 
-  if (!pureSelectedReply && (extraDeterministicFields.length > 0 || extraRecognizedFields.length > 0)) {
+  if (hasEarlyCommitCandidate && !pureSelectedReply && (extraDeterministicFields.length > 0 || extraRecognizedFields.length > 0)) {
     reasons.push(`extra_entities:${Array.from(new Set([...extraDeterministicFields, ...extraRecognizedFields])).join("|")}`)
   }
-  if (PENDING_SELECTION_RESULT_INTENT_RE.test(raw)) {
+  if (hasEarlyCommitCandidate && PENDING_SELECTION_RESULT_INTENT_RE.test(raw)) {
     reasons.push("result_intent")
   }
-  if (PENDING_SELECTION_COMPOUND_CUE_RE.test(raw) || (/\s/.test(raw.trim()) && deterministicFields.length >= 2)) {
+  if (hasEarlyCommitCandidate && (PENDING_SELECTION_COMPOUND_CUE_RE.test(raw) || (/\s/.test(raw.trim()) && meaningfulDeterministicFields.length >= 2))) {
     reasons.push("compound_utterance")
   }
-  if (trailingText && !PENDING_SELECTION_ALLOWED_REPLY_TAIL_RE.test(trailingText)) {
+  if (hasEarlyCommitCandidate && trailingText && !isDecorativePendingSelectionTrailingText(trailingText)) {
     reasons.push("trailing_context")
   }
   const overrideRiskFields = Array.from(new Set(
@@ -467,11 +590,59 @@ function shouldDeferPendingSelectionEarlyResolve(args: {
       })
       .map(filter => filter.field),
   ))
-  if (overrideRiskFields.length > 0) {
+  if (hasEarlyCommitCandidate && overrideRiskFields.length > 0) {
     reasons.push(`override_risk:${overrideRiskFields.join("|")}`)
+  }
+  if (isGenericCoatingCue(raw, resolvedField) && (hasSpecificCoatingCue(raw, resolvedField, pendingDetActions) || !hasPendingSelectionSideQuestionCue(raw))) {
+    reasons.push("generic_specific_risk")
+  }
+  if (hasPendingSelectionRepairSignal(raw)) {
+    reasons.push("repair_signal")
+  }
+  if (!selectedOption && (
+    hasAlternativeOrNegationCue
+    || !!negatedValue
+    || hasPendingSelectionRepairSignal(raw)
+  )) {
+    reasons.push("requires_full_sentence_interpretation")
   }
 
   return { defer: reasons.length > 0, reasons }
+}
+
+function shouldKeepPendingDirectParseUnresolved(args: {
+  raw: string
+  pendingField: string
+  resolvedField: string
+  selectedOption?: { label?: string; value?: string | number | boolean } | null
+  parsedDirect?: AppliedFilter | null
+  pendingDetActions: ReturnType<typeof parseDeterministic>
+}): boolean {
+  const { raw, pendingField, resolvedField, selectedOption = null, parsedDirect = null, pendingDetActions } = args
+  if (!parsedDirect || selectedOption) return false
+
+  const allowedFields = getPendingSelectionAllowedFields(pendingField, resolvedField)
+  const extraDeterministicFields = Array.from(new Set(
+    pendingDetActions
+      .filter(action => action.type === "apply_filter" && action.field)
+      .map(action => action.field!)
+      .filter(field => !isPendingSelectionDecorationField(field))
+      .filter(field => !allowedFields.has(field))
+  ))
+  const extraRecognizedFields = Array.from(new Set(
+    extractEntities(raw)
+      .map(entity => entity.field)
+      .filter((field): field is string => Boolean(field))
+      .filter(field => !isPendingSelectionDecorationField(field))
+      .filter(field => !allowedFields.has(field))
+  ))
+
+  return (
+    extraDeterministicFields.length > 0
+    || extraRecognizedFields.length > 0
+    || PENDING_SELECTION_RESULT_INTENT_RE.test(raw)
+    || PENDING_SELECTION_COMPOUND_CUE_RE.test(raw)
+  )
 }
 
 const BARE_RECOMMEND_REQUEST_KEYS = new Set([
@@ -663,9 +834,12 @@ function getPendingOptionMatchScore(
   const normalizedLabel = normalizePendingSelectionText(String(option.label ?? ""))
   if (!clean) return 0
   if (clean === normalizedValue || clean === normalizedLabel) return 2
+  const cleanIsNumeric = /^\d+(?:\.\d+)?$/.test(clean)
+  const valueIsNumeric = /^\d+(?:\.\d+)?$/.test(normalizedValue)
+  const labelIsNumeric = /^\d+(?:\.\d+)?$/.test(normalizedLabel)
   if (
-    (normalizedValue.length > 0 && (clean.startsWith(normalizedValue) || normalizedValue.startsWith(clean)))
-    || (normalizedLabel.length > 0 && (clean.startsWith(normalizedLabel) || normalizedLabel.startsWith(clean)))
+    (normalizedValue.length > 0 && (!cleanIsNumeric || !valueIsNumeric) && (clean.startsWith(normalizedValue) || normalizedValue.startsWith(clean)))
+    || (normalizedLabel.length > 0 && (!cleanIsNumeric || !labelIsNumeric) && (clean.startsWith(normalizedLabel) || normalizedLabel.startsWith(clean)))
   ) {
     return 1
   }
@@ -1269,8 +1443,23 @@ export function resolvePendingQuestionReply(
     : parseDeterministic(raw)
   if (!raw) return { kind: "none" }
   if (raw.length > 80) return { kind: "unresolved", pendingField, raw }
-  if (/[?？]/.test(raw)) return { kind: "side_question", pendingField, raw }
-  if (hasExplicitRevisionSignal(raw)) {
+  const pendingDirectAnswer = parseAnswerToFilter(pendingField, raw)
+  if (
+    pendingDirectAnswer
+    && /(?:그리고|하고|,|\band\b|\bthen\b)/iu.test(raw)
+    && (PENDING_SELECTION_NEGATION_OR_ALTERNATIVE_RE.test(raw) || hasAlternativeNegationCue(raw))
+  ) {
+    return {
+      kind: "defer_holistic",
+      pendingField,
+      raw,
+      reasons: ["requires_full_sentence_interpretation"],
+    }
+  }
+  if (/[?？]/.test(raw) && !shouldBypassPendingSideQuestion(raw, pendingField, pendingDetActions)) {
+    return { kind: "side_question", pendingField, raw }
+  }
+  if (hasExplicitRevisionSignal(raw) && !shouldBypassPendingRevision(raw, pendingField, pendingDetActions)) {
     console.log(`[pending-selection] Detected revision signal in "${raw.slice(0, 30)}" — deferring to revision resolver`)
     return { kind: "unresolved", pendingField, raw }
   }
@@ -1291,7 +1480,7 @@ export function resolvePendingQuestionReply(
     }
     return { kind: "resolved", filter: skipFilter }
   }
-  if (/뭐야|뭔지|설명|차이|왜|어떻게|몇개|종류|비교|결과|처음부터|초기화|리셋|reset|이전 단계|알려줘|알려|궁금|공장|영업소|연락|번호|정보|회사|사장|회장|매출|주주|지점|사우디|해외|국가|나라|도시|어디|재고|납기|가격|배송|리드\s*타임|stock|inventory|price|lead\s*time|적합|카탈로그|스펙/u.test(raw)) {
+  if (hasPendingSelectionSideQuestionCue(raw) && !shouldBypassPendingSideQuestion(raw, pendingField, pendingDetActions)) {
     return { kind: "side_question", pendingField, raw }
   }
   // Product code + additional text → side question about a specific product (e.g., "G8A59080의 재고 수")
@@ -1396,6 +1585,18 @@ export function resolvePendingQuestionReply(
       raw,
       reasons: pendingSelectionDefer.reasons,
     }
+  }
+
+  if (shouldKeepPendingDirectParseUnresolved({
+    raw,
+    pendingField,
+    resolvedField,
+    selectedOption,
+    parsedDirect,
+    pendingDetActions,
+  })) {
+    console.log(`[pending-selection] Keeping direct parse unresolved for "${raw.slice(0, 40)}"`)
+    return { kind: "unresolved", pendingField, raw }
   }
   if (resolvedValue === "skip" || isSkipSelectionValue(selectedOption?.label) || isSkipSelectionValue(raw)) {
     const filter: AppliedFilter = {
@@ -2431,16 +2632,27 @@ export function shouldUseSqlAgentSemanticCache(exposeFullThinking: boolean): boo
 export function applyThinkingFieldsToPayload(
   payload: unknown,
   thinking: Partial<RuntimeThinkingState>,
+  reasoningVisibility?: "hidden" | "simple" | "full",
 ): unknown {
   if (!payload || typeof payload !== "object") return payload
 
+  const visibility =
+    reasoningVisibility
+    ?? thinking.reasoningVisibility
+    ?? (thinking.thinkingDeep ? "full" : thinking.thinkingProcess ? "simple" : "hidden")
   const thinkingProcess = thinking.thinkingProcess ?? null
   const thinkingDeep = thinking.thinkingDeep ?? null
-  if (!thinkingProcess && !thinkingDeep) return payload
 
   const out = payload as Record<string, unknown>
-  if (thinkingProcess && out.thinkingProcess == null) out.thinkingProcess = thinkingProcess
-  if (thinkingDeep && out.thinkingDeep == null) out.thinkingDeep = thinkingDeep
+  out.reasoningVisibility = visibility
+  out.thinkingProcess =
+    visibility === "hidden"
+      ? null
+      : (thinkingProcess && out.thinkingProcess == null ? thinkingProcess : (out.thinkingProcess ?? null))
+  out.thinkingDeep =
+    visibility === "full"
+      ? (thinkingDeep && out.thinkingDeep == null ? thinkingDeep : (out.thinkingDeep ?? null))
+      : null
 
   const session = out.session
   if (!session || typeof session !== "object") return out
@@ -2449,8 +2661,15 @@ export function applyThinkingFieldsToPayload(
   const engineState = sessionEnvelope.engineState
   if (engineState && typeof engineState === "object") {
     const engineRecord = engineState as Record<string, unknown>
-    if (thinkingProcess && engineRecord.thinkingProcess == null) engineRecord.thinkingProcess = thinkingProcess
-    if (thinkingDeep && engineRecord.thinkingDeep == null) engineRecord.thinkingDeep = thinkingDeep
+    engineRecord.reasoningVisibility = visibility
+    engineRecord.thinkingProcess =
+      visibility === "hidden"
+        ? null
+        : (thinkingProcess && engineRecord.thinkingProcess == null ? thinkingProcess : (engineRecord.thinkingProcess ?? null))
+    engineRecord.thinkingDeep =
+      visibility === "full"
+        ? (thinkingDeep && engineRecord.thinkingDeep == null ? thinkingDeep : (engineRecord.thinkingDeep ?? null))
+        : null
   }
 
   return out
@@ -2460,18 +2679,22 @@ function setThinking(state: RuntimeThinkingState, text: string, kind: ThinkingKi
   if (!text) return
   if (kind === "deep") {
     state.thinkingDeep = text
+    state.reasoningVisibility = "full"
     return
   }
   state.thinkingProcess = text
+  if (state.reasoningVisibility !== "full") state.reasoningVisibility = "simple"
 }
 
 function appendThinking(state: RuntimeThinkingState, text: string, kind: ThinkingKind): void {
   if (!text) return
   if (kind === "deep") {
     state.thinkingDeep = state.thinkingDeep ? `${state.thinkingDeep}\n\n${text}` : text
+    state.reasoningVisibility = "full"
     return
   }
   state.thinkingProcess = state.thinkingProcess ? `${state.thinkingProcess}\n\n${text}` : text
+  if (state.reasoningVisibility !== "full") state.reasoningVisibility = "simple"
 }
 
 function syncThinkingToSession(
@@ -2481,17 +2704,19 @@ function syncThinkingToSession(
   if (!sessionState) return
   if (thinking.thinkingProcess !== undefined) sessionState.thinkingProcess = thinking.thinkingProcess ?? null
   if (thinking.thinkingDeep !== undefined) sessionState.thinkingDeep = thinking.thinkingDeep ?? null
+  if (thinking.reasoningVisibility !== undefined) {
+    ;(sessionState as ExplorationSessionState & { reasoningVisibility?: "hidden" | "simple" | "full" | null }).reasoningVisibility =
+      thinking.reasoningVisibility ?? null
+  }
 }
 
 async function withThinkingResponse(
   response: Response,
   thinking: Partial<RuntimeThinkingState>,
 ): Promise<Response> {
-  if (!thinking.thinkingProcess && !thinking.thinkingDeep) return response
-
   try {
     const payload = await response.json()
-    const merged = applyThinkingFieldsToPayload(payload, thinking)
+    const merged = applyThinkingFieldsToPayload(payload, thinking, thinking.reasoningVisibility)
     return new Response(JSON.stringify(merged), {
       status: response.status,
       statusText: response.statusText,
@@ -2823,6 +3048,7 @@ async function handleServeExplorationInner(
   const runtimeThinking: RuntimeThinkingState = {
     thinkingProcess: prevState?.thinkingProcess ?? null,
     thinkingDeep: prevState?.thinkingDeep ?? null,
+    reasoningVisibility: "hidden",
   }
   const fullThinkingEnabled = shouldExposeFullThinking()
   const baseBuildQuestionResponse = deps.buildQuestionResponse
@@ -3028,6 +3254,64 @@ async function handleServeExplorationInner(
       evidenceMap: new Map(),
       turnCount,
     })
+  }
+
+  if (prevState && lastUserMsg) {
+    const activeFilterField =
+      prevState.appliedFilters?.find(filter => filter.op !== "skip")?.field
+      ?? null
+    const queryTarget = classifyQueryTarget(
+      lastUserMsg.text,
+      activeFilterField,
+      prevState.lastAskedField,
+    )
+
+    if (queryTarget.type === "field_count") {
+      const contextualResult = await runHybridRetrieval(currentInput, filters, 0, null)
+      const contextualReply = await deps.handleContextualNarrowingQuestion(
+        provider,
+        lastUserMsg.text,
+        currentInput,
+        contextualResult.candidates,
+        prevState,
+        messages,
+      )
+
+      if (contextualReply) {
+        trace.add(
+          "field-count-preserve-state",
+          "router",
+          {
+            userMessage: lastUserMsg.text,
+            activeFilterField,
+            candidateCount: contextualResult.totalConsidered,
+            filterCount: filters.length,
+          },
+          {
+            action: "explain_product",
+            queryTarget: queryTarget.type,
+            preservedDisplayedOptions: prevState.displayedOptions?.length ?? 0,
+          },
+          "Count/info query answered from current filtered candidates before semantic execution",
+        )
+
+        return handleServeGeneralChatAction({
+          deps,
+          action: { type: "explain_product", target: lastUserMsg.text },
+          orchResult: buildPreSearchOrchestratorResult(lastUserMsg.text, "field_count_preserve_state"),
+          provider,
+          form,
+          messages,
+          prevState,
+          filters,
+          narrowingHistory,
+          currentInput,
+          candidates: contextualResult.candidates,
+          evidenceMap: contextualResult.evidenceMap,
+          turnCount,
+        })
+      }
+    }
   }
 
   // ── Build & Persist Conversation Memory (long-term, across turns) ──
@@ -3482,6 +3766,8 @@ async function handleServeExplorationInner(
 
     // ── Complexity 판단 (0ms, LLM 없음) ──
     const complexity = assessComplexity(msg, (prevState?.appliedFilters ?? []).length)
+    const allowLegacyLlmFallback = complexity.allowLegacyLlmFallback
+    const allowToolForgeFallback = complexity.allowToolForge
     const bareRecommendationRequest = isBareRecommendationRequest(msg, !!prevState)
     console.log(`[complexity] "${msg.slice(0, 30)}" → ${complexity.level} (${complexity.reason})`)
 
@@ -4313,7 +4599,7 @@ async function handleServeExplorationInner(
     // for new patterns (절삭조건 / RPM / 유사제품 등). Row-to-canonical-candidate
     // injection is intentionally deferred to Phase 4.5 to avoid breaking the
     // existing scoring pipeline with mismatched product shapes.
-    if (!singleCallHandled && lastUserMsg) {
+    if (allowToolForgeFallback && !singleCallHandled && lastUserMsg) {
       try {
         const schemaForForge = getDbSchemaSync()
         if (schemaForForge) {
@@ -4668,7 +4954,15 @@ async function handleServeExplorationInner(
 
     // ── 5. SCR: 최후 fallback ──
     const negationFullyHandled = hasNegationPattern && negationHandled
-    const shouldUseSingleCall = (isSingleCallRouterEnabled() || LLM_FREE_INTERPRETATION) && lastUserMsg && messages.length > 0 && !negationFullyHandled && !singleCallHandled && !bareRecommendationRequest && (LLM_FREE_INTERPRETATION || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
+    const shouldUseSingleCall =
+      allowLegacyLlmFallback
+      && (isSingleCallRouterEnabled() || LLM_FREE_INTERPRETATION)
+      && lastUserMsg
+      && messages.length > 0
+      && !negationFullyHandled
+      && !singleCallHandled
+      && !bareRecommendationRequest
+      && (LLM_FREE_INTERPRETATION || (!shouldResolvePendingSelectionEarly && !pendingAlreadyResolved))
     if (shouldUseSingleCall) {
       // ── Pending clarification round-trip ──
       // 직전 턴에서 ambiguity chip을 보였고 사용자가 그 chip을 클릭(=동일 텍스트
@@ -5005,7 +5299,7 @@ async function handleServeExplorationInner(
       }
     }
 
-    if (!shouldResolvePendingSelectionEarly && !singleCallHandled) {
+    if (allowLegacyLlmFallback && !shouldResolvePendingSelectionEarly && !singleCallHandled) {
       // Step 1: Synchronous comparison check (no LLM, instant)
       explicitComparisonAction = resolveExplicitComparisonAction(prevState, lastUserMsg.text)
       if (explicitComparisonAction?.type === "compare_products") {
@@ -5193,50 +5487,14 @@ async function handleServeExplorationInner(
     const hintCount = [hintMaterial, hintDiameter, hintSubtype, hintFlute].filter(Boolean).length
     // 2개 이상 조건이 감지되면 멀티 필터 적용 (단일 조건은 기존 라우팅에 위임)
     if (hintCount >= 2) {
-      if (hintMaterial && !resolvedInput.workPieceName) {
-        resolvedInput.workPieceName = hintMaterial
-        resolvedInput.material = hintMaterial
-        if (!filters.some(f => f.field === "workPieceName")) {
-          filters.push({ field: "workPieceName", op: "includes", value: hintMaterial, rawValue: hintMaterial, appliedAt: Date.now() })
-        }
-      }
-      if (hintDiameter && !resolvedInput.diameterMm) {
-        resolvedInput.diameterMm = hintDiameter
-        if (!filters.some(f => f.field === "diameterMm")) {
-          filters.push({ field: "diameterMm", op: "eq", value: String(hintDiameter), rawValue: hintDiameter, appliedAt: Date.now() })
-        }
-      }
-      if (hintSubtype && !resolvedInput.toolSubtype) {
-        resolvedInput.toolSubtype = hintSubtype
-        if (!filters.some(f => f.field === "toolSubtype")) {
-          filters.push({ field: "toolSubtype", op: "eq", value: hintSubtype, rawValue: hintSubtype, appliedAt: Date.now() })
-        }
-      }
-      if (hintFlute && !resolvedInput.flutePreference) {
-        resolvedInput.flutePreference = hintFlute
-        if (!filters.some(f => f.field === "fluteCount")) {
-          filters.push({ field: "fluteCount", op: "eq", value: String(hintFlute), rawValue: hintFlute, appliedAt: Date.now() })
-        }
-      }
-      console.log(`[runtime:multi-filter-extract] ${hintCount} hints: material=${hintMaterial}, dia=${hintDiameter}, subtype=${hintSubtype}, flute=${hintFlute}`)
-
-      // Multi-filter 추출 성공 → V2 덮어쓰기 방지
-      // KG가 1개 잡았어도 (singleCallHandled=true) multi-filter가 나머지를 보충
-      if (filters.length >= 2) {
-        const hasShowRec = /추천|보여|제품\s*보기|show/iu.test(msg)
-        const lastF = filters[filters.length - 1] ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount }
-        bridgedV2Action = hasShowRec
-          ? { type: "show_recommendation" }
-          : { type: "continue_narrowing", filter: lastF }
-        bridgedV2OrchestratorResult = {
-          action: bridgedV2Action,
-          reasoning: `multi-filter-extract:${hintCount} hints`,
-          agentsInvoked: [],
-          escalatedToOpus: false,
-        }
-        singleCallHandled = true
-        console.log(`[runtime:multi-filter-extract] singleCallHandled=true, bridged=${bridgedV2Action.type}`)
-      }
+      console.log(`[runtime:multi-filter-hints] ${hintCount} hints observed without direct commit: material=${hintMaterial}, dia=${hintDiameter}, subtype=${hintSubtype}, flute=${hintFlute}`)
+      trace.add("multi-filter-hints", "router", {
+        hintCount,
+        material: hintMaterial ?? null,
+        diameterMm: hintDiameter ?? null,
+        toolSubtype: hintSubtype ?? null,
+        fluteCount: hintFlute ?? null,
+      }, { applied: 0 })
     }
   }
 
@@ -6038,6 +6296,63 @@ async function handleServeExplorationInner(
 
   if (requestPrep.route.action === "reset_session") {
     return buildResetResponse(deps, requestPrep)
+  }
+
+  if (prevState && lastUserMsg) {
+    const activeFilterField =
+      prevState.appliedFilters?.find(filter => filter.op !== "skip")?.field
+      ?? null
+    const queryTarget = classifyQueryTarget(
+      lastUserMsg.text,
+      activeFilterField,
+      prevState.lastAskedField,
+    )
+
+    if (queryTarget.type === "field_count") {
+      const contextualReply = await deps.handleContextualNarrowingQuestion(
+        provider,
+        lastUserMsg.text,
+        currentInput,
+        candidates,
+        prevState,
+        messages,
+      )
+
+      if (contextualReply) {
+        trace.add(
+          "field-count-shortcircuit",
+          "router",
+          {
+            userMessage: lastUserMsg.text,
+            candidateCount: prevState.candidateCount ?? candidates.length,
+            currentMode: prevState.currentMode ?? null,
+            filterCount: filters.length,
+          },
+          {
+            action: "explain_product",
+            queryTarget: queryTarget.type,
+            preservedDisplayedOptions: prevState.displayedOptions?.length ?? 0,
+          },
+          "Count/info query answered from current state without mutating filters",
+        )
+
+        return handleServeGeneralChatAction({
+          deps,
+          action: { type: "explain_product", target: lastUserMsg.text },
+          orchResult: buildPreSearchOrchestratorResult(lastUserMsg.text, "field_count_context_reply"),
+          provider,
+          form,
+          messages,
+          prevState,
+          filters,
+          narrowingHistory,
+          currentInput,
+          candidates,
+          evidenceMap,
+          turnCount,
+        })
+      }
+    }
   }
 
   // ── Journey phase trace ──
@@ -7258,6 +7573,61 @@ async function handleServeExplorationInner(
     }
 
     if (action.type === "continue_narrowing") {
+      const activeFilterField =
+        prevState.appliedFilters?.find(filter => filter.op !== "skip")?.field
+        ?? null
+      const queryTarget = classifyQueryTarget(
+        lastUserMsg.text,
+        activeFilterField,
+        prevState.lastAskedField,
+      )
+
+      if (queryTarget.type === "field_count") {
+        const contextualReply = await deps.handleContextualNarrowingQuestion(
+          provider,
+          lastUserMsg.text,
+          currentInput,
+          candidates,
+          prevState,
+          messages,
+        )
+
+        if (contextualReply) {
+          trace.add(
+            "field-count-intercept",
+            "router",
+            {
+              userMessage: lastUserMsg.text,
+              plannedFilterField: action.filter.field,
+              plannedFilterValue: action.filter.value,
+              candidateCount: prevState.candidateCount ?? candidates.length,
+            },
+            {
+              action: "explain_product",
+              queryTarget: queryTarget.type,
+              preservedFilters: filters.length,
+            },
+            `Count query preserved existing state and bypassed ${action.filter.field}=${action.filter.value}`,
+          )
+
+          return handleServeGeneralChatAction({
+            deps,
+            action: { type: "explain_product", target: lastUserMsg.text },
+            orchResult,
+            provider,
+            form,
+            messages,
+            prevState,
+            filters,
+            narrowingHistory,
+            currentInput,
+            candidates,
+            evidenceMap,
+            turnCount,
+          })
+        }
+      }
+
       let filterAppliedAt = turnCount
       let baseFiltersForNext = filters
       let baseStageHistoryForNext = prevState.stageHistory ?? []
