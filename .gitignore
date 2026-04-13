@@ -69,3 +69,16 @@ test-results/golden-runner-progress.jsonl
 
 # pattern mining logs
 data/pattern-mining-logs.jsonl
+
+# local runtime / probe artifacts
+build-check.log
+*.err.log
+*.out.log
+dev-restart.log
+console.log(t))'
+
+# local release-gate scratch outputs
+test-results/cheolhyun-11-cases-*.json
+test-results/eval-20*.json
+test-results/eval-20*.txt
+test-results/hard-20-20*.json

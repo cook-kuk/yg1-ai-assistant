@@ -5,6 +5,52 @@
 
 ---
 
+## Quick Repo Guide
+
+This repository is a stateful industrial recommendation engine. The system should be understood as a runtime that preserves recommendation context, interprets constrained user input, executes deterministic filtering, and keeps UI/session state synchronized.
+
+### Source Of Truth
+
+- Deterministic recommendation session state is the source of truth, not raw chat history.
+- Persist and trust `displayedProducts`, `displayedOptions`, `displayedSeriesGroups`, `lastRecommendationArtifact`, `lastComparisonArtifact`, `uiNarrowingPath`, and checkpoint history.
+- Never invent product data.
+- Never let UI state and session state diverge silently.
+- Never present `displayedCount` as if it were the total matched count.
+
+### Runtime Path
+
+1. `app/api/recommend/route.ts` receives the request and delegates to the shared recommendation runtime.
+2. `lib/recommendation/infrastructure/engines/serve-engine-runtime.ts` restores session state, handles first-turn routing, and coordinates recommendation execution.
+3. `lib/recommendation/core/multi-stage-query-resolver.ts` is the semantic interpretation layer for unresolved user language after deterministic handling.
+4. `lib/recommendation/shared/*` contains execution-facing normalization, filter registry, and parsing utilities used by runtime code.
+5. `lib/recommendation/shared/filter-field-registry.ts` and the execution pipeline apply filters, build SQL clauses, run post-filter checks, and validate candidate consistency.
+6. Response composition must preserve displayed state and remain aligned with the deterministic session snapshot.
+
+### Key Directories
+
+- `app/`: Next.js App Router pages and API routes.
+- `lib/recommendation/core/`: parsing, resolver, KG, SQL/spec orchestration, deterministic recommendation logic.
+- `lib/recommendation/infrastructure/engines/`: production runtime, response composition, first-turn routing, filter replacement, and engine integration.
+- `lib/recommendation/shared/`: canonical filter definitions, normalization, aliases, patterns, and execution utilities.
+- `lib/recommendation/domain/`: stateful recommendation domain rules and session/context management.
+- `e2e/`: Playwright end-to-end coverage.
+- `scripts/`: local verification, eval, deploy, and utility scripts.
+- `test-results/`: generated eval/probe artifacts and scratch outputs.
+
+### Local Workflow
+
+- `npm run build`: production build check.
+- `npx vitest run`: unit/regression test run.
+- `npm run test:e2e`: Playwright suite.
+- Before release, verify build, regression, and any release-gate scenario set used by the team.
+- Every bug fix should land with a regression test. Prefer Playwright when the bug is UI/session-state related.
+
+### Repo Hygiene
+
+- Treat root-level logs, probe outputs, and ad-hoc test-result dumps as local scratch artifacts unless they are intentionally curated.
+- Keep README and `AGENTS.md` aligned with the actual production path, not planner-only or shadow code.
+- If a change touches routing, filtering, restore/back semantics, or displayed state, validate UI/state synchronization before merging.
+
 
 <!-- METRICS:START -->
 
