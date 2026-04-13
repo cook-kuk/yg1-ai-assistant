@@ -5,11 +5,11 @@
  * B. Compiler 테스트 (compileProductQuery deterministic)
  * C. Bridge 테스트 (querySpecToAppliedFilters)
  * D. Relaxation 테스트 (executeWithRelaxation)
- * E. Golden case 테스트 (KG → 기존 경로)
+ * E. Golden case 테스트 (KG 안전 레일)
  */
 
 import { describe, it, expect, vi } from "vitest"
-import type { QuerySpec, QueryConstraint } from "../query-spec"
+import type { QuerySpec } from "../query-spec"
 import { compileProductQuery } from "../compile-product-query"
 import { querySpecToAppliedFilters, appliedFiltersToConstraints } from "../query-spec-to-filters"
 import { executeWithRelaxation, type QueryExecutor } from "../execute-with-relaxation"
@@ -20,9 +20,6 @@ import { tryKGDecision } from "../knowledge-graph"
 // ══════════════════════════════════════════════════════════════
 
 describe("QuerySpec planner response parsing", () => {
-  // parsePlannerResponse는 private이므로 validate를 통해 간접 테스트
-  // 여기서는 QuerySpec 타입 자체의 계약을 검증
-
   it("should represent multi-field narrowing", () => {
     const spec: QuerySpec = {
       intent: "narrow",
@@ -34,6 +31,7 @@ describe("QuerySpec planner response parsing", () => {
         { field: "diameterMm", op: "eq", value: 10, display: "직경: 10mm" },
       ],
     }
+
     expect(spec.constraints).toHaveLength(4)
     expect(spec.intent).toBe("narrow")
     expect(spec.navigation).toBe("none")
@@ -47,6 +45,7 @@ describe("QuerySpec planner response parsing", () => {
         { field: "coating", op: "neq", value: "TiAlN", display: "코팅: TiAlN 제외" },
       ],
     }
+
     expect(spec.constraints[0].op).toBe("neq")
   })
 
@@ -56,6 +55,7 @@ describe("QuerySpec planner response parsing", () => {
       navigation: "back",
       constraints: [],
     }
+
     expect(spec.navigation).toBe("back")
     expect(spec.constraints).toHaveLength(0)
   })
@@ -67,6 +67,7 @@ describe("QuerySpec planner response parsing", () => {
       constraints: [],
       questionText: "TiAlN이 뭐야?",
     }
+
     expect(spec.intent).toBe("question")
     expect(spec.constraints).toHaveLength(0)
   })
@@ -77,6 +78,7 @@ describe("QuerySpec planner response parsing", () => {
       navigation: "reset",
       constraints: [],
     }
+
     expect(spec.navigation).toBe("reset")
   })
 })
@@ -93,6 +95,7 @@ describe("compileProductQuery", () => {
       constraints: [{ field: "workpiece", op: "eq", value: "Copper" }],
     }
     const result = compileProductQuery(spec)
+
     expect(result.sql).toContain("EXISTS")
     expect(result.sql).toContain("series_profile_mv")
     expect(result.params).toContain("%copper%")
@@ -107,6 +110,7 @@ describe("compileProductQuery", () => {
       constraints: [{ field: "diameterMm", op: "eq", value: 10 }],
     }
     const result = compileProductQuery(spec, "strict")
+
     expect(result.sql).toContain("= $1")
     expect(result.sql).toContain("search_diameter_mm")
     expect(result.params).toEqual([10])
@@ -120,6 +124,7 @@ describe("compileProductQuery", () => {
       constraints: [{ field: "diameterMm", op: "eq", value: 10 }],
     }
     const result = compileProductQuery(spec, "diameter_near_0_5")
+
     expect(result.sql).toContain("BETWEEN")
     expect(result.params).toEqual([9.5, 10.5])
   })
@@ -128,11 +133,10 @@ describe("compileProductQuery", () => {
     const spec: QuerySpec = {
       intent: "narrow",
       navigation: "none",
-      constraints: [
-        { field: "coating", op: "between" as any, value: ["A", "Z"] },
-      ],
+      constraints: [{ field: "coating", op: "between" as any, value: ["A", "Z"] }],
     }
     const result = compileProductQuery(spec)
+
     expect(result.droppedConstraints).toHaveLength(1)
     expect(result.droppedConstraints[0].dropReason).toContain("unsupported op")
     expect(result.appliedConstraints).toHaveLength(0)
@@ -145,6 +149,7 @@ describe("compileProductQuery", () => {
       constraints: [{ field: "brand", op: "neq", value: "TANK-POWER" }],
     }
     const result = compileProductQuery(spec)
+
     expect(result.sql).toContain("IS NULL OR")
     expect(result.sql).toContain("!=")
   })
@@ -160,6 +165,7 @@ describe("compileProductQuery", () => {
       ],
     }
     const result = compileProductQuery(spec)
+
     expect(result.appliedConstraints).toHaveLength(3)
     expect(result.params).toHaveLength(3)
     expect(result.sql).toContain("AND")
@@ -172,6 +178,7 @@ describe("compileProductQuery", () => {
       constraints: [{ field: "brand", op: "contains", value: "CRX" }],
     }
     const result = compileProductQuery(spec)
+
     expect(result.sql).toContain("LIKE")
     expect(result.params).toContain("%crx%")
   })
@@ -192,6 +199,7 @@ describe("querySpecToAppliedFilters", () => {
       ],
     }
     const filters = querySpecToAppliedFilters(spec, 1)
+
     expect(filters).toHaveLength(2)
     expect(filters[0].field).toBe("toolSubtype")
     expect(filters[1].field).toBe("diameterMm")
@@ -201,11 +209,10 @@ describe("querySpecToAppliedFilters", () => {
     const spec: QuerySpec = {
       intent: "narrow",
       navigation: "none",
-      constraints: [
-        { field: "coating", op: "neq", value: "TiAlN" },
-      ],
+      constraints: [{ field: "coating", op: "neq", value: "TiAlN" }],
     }
     const filters = querySpecToAppliedFilters(spec, 0)
+
     expect(filters).toHaveLength(1)
     expect(filters[0].op).toBe("neq")
   })
@@ -217,6 +224,7 @@ describe("querySpecToAppliedFilters", () => {
       constraints: [{ field: "diameterMm", op: "gte", value: 10 }],
     }
     const filters = querySpecToAppliedFilters(spec, 0)
+
     expect(filters).toHaveLength(1)
     expect(filters[0].op).toBe("gte")
     expect(filters[0].rawValue).toBe(10)
@@ -229,6 +237,7 @@ describe("querySpecToAppliedFilters", () => {
       constraints: [{ field: "diameterMm", op: "between", value: [8, 12] }],
     }
     const filters = querySpecToAppliedFilters(spec, 0)
+
     expect(filters).toHaveLength(1)
     expect(filters[0].op).toBe("between")
     expect(filters[0].rawValue).toBe(8)
@@ -242,6 +251,7 @@ describe("querySpecToAppliedFilters", () => {
       constraints: [{ field: "fluteCount", op: "lte", value: 4 }],
     }
     const filters = querySpecToAppliedFilters(spec, 0)
+
     expect(filters).toHaveLength(1)
     expect(filters[0].op).toBe("lte")
   })
@@ -250,11 +260,10 @@ describe("querySpecToAppliedFilters", () => {
     const spec: QuerySpec = {
       intent: "narrow",
       navigation: "none",
-      constraints: [
-        { field: "unknownField" as any, op: "eq", value: "test" },
-      ],
+      constraints: [{ field: "unknownField" as any, op: "eq", value: "test" }],
     }
     const filters = querySpecToAppliedFilters(spec, 0)
+
     expect(filters).toHaveLength(0)
   })
 })
@@ -267,6 +276,7 @@ describe("appliedFiltersToConstraints (reverse)", () => {
       { field: "coating", op: "neq" as const, value: "TiAlN 제외", rawValue: "TiAlN", appliedAt: 0 },
     ]
     const constraints = appliedFiltersToConstraints(filters)
+
     expect(constraints).toHaveLength(3)
     expect(constraints[0].field).toBe("toolSubtype")
     expect(constraints[2].op).toBe("neq")
@@ -277,6 +287,7 @@ describe("appliedFiltersToConstraints (reverse)", () => {
       { field: "coating", op: "skip" as const, value: "상관없음", rawValue: "", appliedAt: 0 },
     ]
     const constraints = appliedFiltersToConstraints(filters)
+
     expect(constraints).toHaveLength(0)
   })
 })
@@ -294,6 +305,7 @@ describe("executeWithRelaxation", () => {
     }
     const executor: QueryExecutor = vi.fn().mockResolvedValue({ rows: [{}], rowCount: 5 })
     const result = await executeWithRelaxation(spec, executor)
+
     expect(result.strategy).toBe("strict")
     expect(result.rowCount).toBe(5)
     expect(result.attempts).toHaveLength(1)
@@ -309,6 +321,7 @@ describe("executeWithRelaxation", () => {
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })
       .mockResolvedValueOnce({ rows: [{}], rowCount: 3 })
     const result = await executeWithRelaxation(spec, executor)
+
     expect(result.strategy).toBe("diameter_near_0_5")
     expect(result.attempts).toHaveLength(2)
   })
@@ -321,6 +334,7 @@ describe("executeWithRelaxation", () => {
     }
     const executor: QueryExecutor = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 })
     const result = await executeWithRelaxation(spec, executor)
+
     expect(result.strategy).toContain("exhausted")
     expect(result.rowCount).toBe(0)
     expect(result.attempts.length).toBeGreaterThan(1)
@@ -328,7 +342,7 @@ describe("executeWithRelaxation", () => {
 })
 
 // ══════════════════════════════════════════════════════════════
-// E. Golden case 테스트 (KG 경로 — 기존 동작 검증)
+// E. Golden case 테스트 (KG 안전 레일)
 // ══════════════════════════════════════════════════════════════
 
 describe("KG golden cases", () => {
@@ -353,32 +367,22 @@ describe("KG golden cases", () => {
 
   it('"TiAlN이 뭐야?" → answer_general or question route', () => {
     const result = tryKGDecision("TiAlN이 뭐야?", null)
-    // TiAlN이 뭐야 = general question, KG may or may not handle it
-    // But it should NOT create a filter
     const action = result.decision?.action
     if (action) {
       expect(action.type).not.toBe("continue_narrowing")
     }
   })
 
-  it('"4날 말고 다른거" → exclude fluteCount', () => {
+  it('"4날 말고 다른거" defers semantic negation to later parsing', () => {
     const result = tryKGDecision("4날 말고 다른거", null)
-    expect(result.confidence).toBeGreaterThanOrEqual(0.9)
-    const action = result.decision?.action as any
-    if (action?.type === "continue_narrowing" && action.filter) {
-      expect(action.filter.op).toBe("exclude")
-      expect(action.filter.field).toBe("fluteCount")
-    }
+    expect(result.source).toBe("none")
+    expect(result.decision).toBeNull()
   })
 
-  it('"TANK-POWER 빼고" → exclude brand', () => {
+  it('"TANK-POWER 빼고" also defers brand exclusion to later parsing', () => {
     const result = tryKGDecision("TANK-POWER 빼고", null)
-    if (result.decision) {
-      const action = result.decision.action as any
-      if (action?.type === "continue_narrowing" && action.filter) {
-        expect(action.filter.op).toBe("exclude")
-      }
-    }
+    expect(result.source).toBe("none")
+    expect(result.decision).toBeNull()
   })
 
   it('"스퀘어 4날" → multi-entity extraction', () => {
@@ -391,7 +395,6 @@ describe("KG golden cases", () => {
 
   it('"CRX-S 추천해줘" → should extract brand or show_recommendation', () => {
     const result = tryKGDecision("CRX-S 추천해줘", null)
-    // CRX-S is a brand, 추천해줘 could trigger show_recommendation
     expect(result.decision).not.toBeNull()
   })
 
@@ -425,7 +428,6 @@ describe("KG golden cases", () => {
     const result = tryKGDecision("P소재로 해줘", null)
     expect(result.confidence).toBeGreaterThanOrEqual(0.9)
     const action = result.decision?.action as any
-    // P should be recognized as material group, not workPieceName="P"
     if (action?.filter) {
       expect(action.filter.field).toBe("material")
       expect(action.filter.rawValue ?? action.filter.value).toBe("P")
@@ -454,6 +456,7 @@ describe("compileProductQuery - shankType", () => {
       constraints: [{ field: "shankType", op: "contains", value: "Plain" }],
     }
     const result = compileProductQuery(spec)
+
     expect(result.sql).toContain("shank_type")
     expect(result.sql).toContain("LIKE")
     expect(result.appliedConstraints).toHaveLength(1)
@@ -466,6 +469,7 @@ describe("compileProductQuery - shankType", () => {
       constraints: [{ field: "shankType", op: "eq", value: "Weldon" }],
     }
     const result = compileProductQuery(spec)
+
     expect(result.sql).toContain("shank_type")
     expect(result.appliedConstraints).toHaveLength(1)
   })

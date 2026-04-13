@@ -168,4 +168,44 @@ describe("resolveMultiStageQuery validation-driven escalation", () => {
     ])
     expect(result.validation?.valid).toBe(true)
   })
+
+  it("asks for clarification when order quantity is ambiguously converted into inventory scope", async () => {
+    const stage2Provider = makeProvider(JSON.stringify({
+      filters: [{ field: "stockStatus", op: "gte", value: 200, rawToken: "200개 이상" }],
+      sort: null,
+      routeHint: "none",
+      clearOtherFilters: false,
+      confidence: 0.91,
+      unresolvedTokens: [],
+      reasoning: "misread the bulk order quantity as an inventory threshold",
+    }))
+    const stage3Provider = makeProvider(JSON.stringify({
+      filters: [{ field: "stockStatus", op: "gte", value: 200, rawToken: "200개 이상" }],
+      sort: null,
+      routeHint: "none",
+      clearOtherFilters: false,
+      confidence: 0.95,
+      unresolvedTokens: [],
+      reasoning: "kept the inventory interpretation",
+    }))
+
+    const result = await resolveMultiStageQuery({
+      message: "여기서 나는 200개 이상 주문해야해요",
+      turnCount: 4,
+      currentFilters: [],
+      complexity: assessComplexity("여기서 나는 200개 이상 주문해야해요"),
+      stage2Provider,
+      stage3Provider,
+    })
+
+    expect(stage2Provider.complete).toHaveBeenCalledTimes(1)
+    expect(stage3Provider.complete).toHaveBeenCalledTimes(1)
+    expect(result.source).toBe("clarification")
+    expect(result.intent).toBe("ask_clarification")
+    expect(result.clarification?.question).toContain("재고 기준인지")
+    expect(result.clarification?.chips).toContain("재고 200개 이상")
+    expect(result.validation?.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "inventory_scope_ambiguity" }),
+    ]))
+  })
 })

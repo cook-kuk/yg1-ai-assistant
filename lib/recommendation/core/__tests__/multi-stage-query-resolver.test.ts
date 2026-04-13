@@ -135,6 +135,104 @@ describe("resolveMultiStageQuery", () => {
     expect(cachedStage2Provider.complete).not.toHaveBeenCalled()
   })
 
+  it("keys Stage 2 cache by session context for stateful refine turns", async () => {
+    const stage2Provider = makeProvider(
+      JSON.stringify({
+        filters: [{ field: "brand", op: "neq", value: "CRX S", rawToken: "\uADF8\uAC70" }],
+        sort: null,
+        routeHint: "show_recommendation",
+        clearOtherFilters: false,
+        confidence: 0.95,
+        unresolvedTokens: [],
+        reasoning: "exclude the currently anchored brand",
+      }),
+      JSON.stringify({
+        filters: [{ field: "brand", op: "neq", value: "4G MILL", rawToken: "\uADF8\uAC70" }],
+        sort: null,
+        routeHint: "show_recommendation",
+        clearOtherFilters: false,
+        confidence: 0.95,
+        unresolvedTokens: [],
+        reasoning: "exclude the currently anchored brand",
+      }),
+    )
+
+    const message = "\uADF8\uAC70 \uB9D0\uACE0"
+    const first = await resolveMultiStageQuery({
+      message,
+      turnCount: 7,
+      currentFilters: [
+        { field: "brand", op: "eq", value: "CRX S", rawValue: "CRX S", appliedAt: 2 },
+      ],
+      sessionState: {
+        sessionId: "s1",
+        candidateCount: 12,
+        appliedFilters: [],
+        narrowingHistory: [],
+        stageHistory: [],
+        resolutionStatus: "narrowing",
+        resolvedInput: { machiningCategory: "Milling" },
+        turnCount: 6,
+        currentMode: "recommendation",
+        displayedCandidates: [
+          { productCode: "CRX001", displayCode: "CRX001", displayLabel: "CRX demo", brand: "CRX S", seriesName: "CRX", rank: 1 },
+        ],
+        displayedChips: ["CRX S"],
+        displayedOptions: [{ index: 1, label: "CRX S", field: "brand", value: "CRX S", count: 12 }],
+        uiNarrowingPath: [{ kind: "filter", label: "CRX S", field: "brand", value: "CRX S", candidateCount: 12 }],
+      } as any,
+      complexity: assessComplexity(message, 1),
+      stage2Provider,
+      stage3Provider: makeUnavailableProvider(),
+      stage1CotEscalation: {
+        enabled: true,
+        currentCandidateCount: 12,
+      },
+    })
+
+    const second = await resolveMultiStageQuery({
+      message,
+      turnCount: 8,
+      currentFilters: [
+        { field: "brand", op: "eq", value: "4G MILL", rawValue: "4G MILL", appliedAt: 3 },
+      ],
+      sessionState: {
+        sessionId: "s2",
+        candidateCount: 9,
+        appliedFilters: [],
+        narrowingHistory: [],
+        stageHistory: [],
+        resolutionStatus: "narrowing",
+        resolvedInput: { machiningCategory: "Milling" },
+        turnCount: 7,
+        currentMode: "recommendation",
+        displayedCandidates: [
+          { productCode: "4GM001", displayCode: "4GM001", displayLabel: "4G demo", brand: "4G MILL", seriesName: "4G", rank: 1 },
+        ],
+        displayedChips: ["4G MILL"],
+        displayedOptions: [{ index: 1, label: "4G MILL", field: "brand", value: "4G MILL", count: 9 }],
+        uiNarrowingPath: [{ kind: "filter", label: "4G MILL", field: "brand", value: "4G MILL", candidateCount: 9 }],
+      } as any,
+      complexity: assessComplexity(message, 1),
+      stage2Provider,
+      stage3Provider: makeUnavailableProvider(),
+      stage1CotEscalation: {
+        enabled: true,
+        currentCandidateCount: 9,
+      },
+    })
+
+    expect(first.source).toBe("stage2")
+    expect(first.filters).toEqual([
+      expect.objectContaining({ field: "brand", op: "neq", rawValue: "CRX S" }),
+    ])
+    expect(second.source).toBe("stage2")
+    expect(second.filters).toEqual([
+      expect.objectContaining({ field: "brand", op: "neq", rawValue: "4G MILL" }),
+    ])
+    expect(stage2Provider.complete).toHaveBeenCalledTimes(2)
+  })
+
   it("sends unresolved phonetic brand tokens to Stage 2", async () => {
     const stage2Provider = makeProvider(
       JSON.stringify({
@@ -212,6 +310,99 @@ describe("resolveMultiStageQuery", () => {
     expect(result.filters).toEqual(expect.arrayContaining([
       expect.objectContaining({ field: "fluteCount", rawValue: 4 }),
       expect.objectContaining({ field: "coating", op: "skip", rawValue: "skip" }),
+    ]))
+    expect(stage2Provider.complete).toHaveBeenCalledTimes(1)
+  })
+
+  it("passes state, UI context, and history to Stage 2 for refine turns", async () => {
+    const stage2Provider = {
+      available: () => true,
+      complete: vi.fn(async (_systemPrompt: string, messages: Array<{ role: string; content: string }>) => {
+        const userPrompt = messages[0]?.content ?? ""
+        expect(userPrompt).toContain("Resolver mode: repair")
+        expect(userPrompt).toContain("Current state truth: mode=repair")
+        expect(userPrompt).toContain("filters=workPieceName eq Stainless Steels")
+        expect(userPrompt).toContain("toolSubtype eq Square")
+        expect(userPrompt).toContain("UI context: displayedChips=")
+        expect(userPrompt).toContain("displayedOptions=")
+        expect(userPrompt).toContain("topCandidates=V7-100")
+        expect(userPrompt).toContain("Recent conversation history: conversation=user:")
+        expect(userPrompt).toContain("narrowing=asked=fluteCount")
+        return JSON.stringify({
+          filters: [
+            { field: "fluteCount", op: "eq", value: 2, rawToken: "2\uAC1C" },
+            { field: "toolSubtype", op: "neq", value: "Square", rawToken: "square" },
+          ],
+          sort: null,
+          routeHint: "show_recommendation",
+          clearOtherFilters: false,
+          confidence: 0.96,
+          unresolvedTokens: [],
+          reasoning: "state-aware refine using existing UI context",
+        })
+      }),
+      completeWithTools: vi.fn(async () => ({ text: null, toolUse: null })),
+    } as unknown as LLMProvider & { complete: ReturnType<typeof vi.fn> }
+
+    const result = await resolveMultiStageQuery({
+      message: "\uB0A0\uC218\uB294 2\uAC1C\uC5EC\uC57C\uD558\uACE0 square \uC544\uB2C8\uACE0",
+      turnCount: 4,
+      currentFilters: [
+        { field: "workPieceName", op: "eq", value: "Stainless Steels", rawValue: "Stainless Steels", appliedAt: 1 },
+        { field: "fluteCount", op: "eq", value: "4", rawValue: 4, appliedAt: 2 },
+        { field: "toolSubtype", op: "eq", value: "Square", rawValue: "Square", appliedAt: 2 },
+      ],
+      sessionState: {
+        sessionId: "refine-1",
+        candidateCount: 12,
+        appliedFilters: [],
+        narrowingHistory: [
+          {
+            question: "\uB0A0\uC218 \uBA87 \uAC1C\uAC00 \uD544\uC694\uD558\uC138\uC694?",
+            askedField: "fluteCount",
+            answer: "4\uB0A0",
+            extractedFilters: [
+              { field: "fluteCount", op: "eq", value: "4", rawValue: 4, appliedAt: 2 },
+            ],
+            candidateCountBefore: 28,
+            candidateCountAfter: 12,
+          },
+        ],
+        stageHistory: [],
+        resolutionStatus: "narrowing",
+        resolvedInput: { machiningCategory: "Milling" },
+        turnCount: 3,
+        currentMode: "narrowing",
+        displayedCandidates: [
+          { productCode: "V7-100", displayCode: "V7-100", displayLabel: "V7 demo", brand: "YG-1", seriesName: "V7", rank: 1 },
+        ],
+        displayedChips: ["\uC2A4\uD150\uC778\uB9AC\uC2A4", "4\uB0A0", "Square"],
+        displayedOptions: [
+          { index: 1, label: "2\uB0A0", field: "fluteCount", value: "2", count: 8 },
+          { index: 2, label: "Square \uC81C\uC678", field: "toolSubtype", value: "Square", count: 9 },
+        ],
+        uiNarrowingPath: [
+          { kind: "filter", label: "\uC2A4\uD150\uC778\uB9AC\uC2A4", field: "workPieceName", value: "Stainless Steels", candidateCount: 28 },
+          { kind: "filter", label: "4\uB0A0", field: "fluteCount", value: "4", candidateCount: 12 },
+        ],
+      } as any,
+      conversationHistory: [
+        { role: "user", text: "\uC2A4\uD150\uC778\uB9AC\uC2A4 \uCD94\uCC9C\uD574\uC918" },
+        { role: "assistant", text: "4\uB0A0 Square \uD6C4\uBCF4 12\uAC1C\uB97C \uBCF4\uACE0 \uC788\uC2B5\uB2C8\uB2E4." },
+      ],
+      complexity: assessComplexity("\uB0A0\uC218\uB294 2\uAC1C\uC5EC\uC57C\uD558\uACE0 square \uC544\uB2C8\uACE0", 3),
+      stage2Provider,
+      stage3Provider: makeUnavailableProvider(),
+      stage1CotEscalation: {
+        enabled: true,
+        currentCandidateCount: 12,
+      },
+    })
+
+    expect(result.source).toBe("stage2")
+    expect(result.filters).toEqual(expect.arrayContaining([
+      expect.objectContaining({ field: "fluteCount", op: "eq", rawValue: 2 }),
+      expect.objectContaining({ field: "toolSubtype", op: "neq", rawValue: "Square" }),
     ]))
     expect(stage2Provider.complete).toHaveBeenCalledTimes(1)
   })

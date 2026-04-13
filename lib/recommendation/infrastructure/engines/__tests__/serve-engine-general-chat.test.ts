@@ -483,6 +483,60 @@ describe("handleServeGeneralChatAction", () => {
     expect(body.chips).toContain("직접 입력")
     expect(body.sessionState.displayedOptions.every((o: { field: string }) => o.field === "_action")).toBe(true)
   })
+
+  it("asks whether bulk quantity means inventory scope or order quantity before answering", async () => {
+    const prevState = makePrevState()
+    const candidates = [makeCandidate(1, "E5D7004010", "DLC"), makeCandidate(2, "E5D7004020", "TiAlN")]
+    const handleGeneralChat = vi.fn(async () => ({ text: "unused", chips: [] }))
+
+    const response = await handleServeGeneralChatAction({
+      deps: {
+        buildCandidateSnapshot: () => prevState.displayedCandidates,
+        handleDirectInventoryQuestion: vi.fn(async () => null),
+        handleDirectEntityProfileQuestion: vi.fn(async () => null),
+        handleDirectBrandReferenceQuestion: vi.fn(async () => null),
+        handleDirectCuttingConditionQuestion: vi.fn(async () => null),
+        handleContextualNarrowingQuestion: vi.fn(async () => null),
+        handleGeneralChat,
+        jsonRecommendationResponse: (params) =>
+          new Response(JSON.stringify(params), { headers: { "content-type": "application/json" } }),
+      },
+      action: { type: "answer_general", message: "" } as any,
+      orchResult: { ...orchResult, action: { type: "answer_general" as const, message: "" } },
+      provider: { available: () => false } as any,
+      form,
+      messages: [
+        { role: "ai", text: "추천 결과를 보고 계십니다." },
+        { role: "user", text: "여기서 나는 200개 이상 주문해야해요" },
+      ],
+      prevState,
+      filters: [],
+      narrowingHistory: [],
+      currentInput: prevState.resolvedInput,
+      candidates,
+      evidenceMap: new Map(),
+      turnCount: 2,
+    })
+
+    const body = await response.json()
+
+    expect(handleGeneralChat).not.toHaveBeenCalled()
+    expect(body.purpose).toBe("question")
+    expect(body.sessionState.currentMode).toBe("question")
+    expect(body.text).toContain("200개 이상")
+    expect(body.text).toContain("재고 기준인지")
+    expect(body.chips).toEqual([
+      "재고 200개 이상",
+      "주문 수량 200개 이상",
+      "둘 다 중요",
+      "직접 입력",
+    ])
+    expect(body.sessionState.candidateCount).toBe(prevState.candidateCount)
+    expect(body.sessionState.displayedProducts).toEqual(prevState.displayedProducts)
+    expect(body.sessionState.displayedSeriesGroups).toEqual(prevState.displayedSeriesGroups)
+    expect(body.sessionState.lastRecommendationArtifact).toEqual(prevState.lastRecommendationArtifact)
+    expect(body.sessionState.displayedOptions.every((o: { field: string }) => o.field === "_action")).toBe(true)
+  })
 })
 
 describe("resolveReplyUiStrategy", () => {
