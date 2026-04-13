@@ -238,10 +238,9 @@ describe("routeSingleCall — canonicalization", () => {
   it("threads deterministic candidates into the LLM prompt instead of short-circuiting", async () => {
     const provider = {
       complete: vi.fn(async (systemPrompt: string) => {
-        expect(systemPrompt).toContain("## Semantic policy")
-        expect(systemPrompt).toContain("Do not finalize natural-language negation, alternatives, comparison, or follow-up revision from cue words alone.")
         expect(systemPrompt).toContain("## Deterministic Candidate Hints")
         expect(systemPrompt).toContain("fluteCount eq 4")
+        expect(systemPrompt).toMatch(/Literal cue words are advisory only|Do not copy them blindly/)
         return JSON.stringify({
           actions: [{ type: "apply_filter", field: "fluteCount", value: 4, op: "eq" }],
           answer: "",
@@ -322,23 +321,19 @@ describe("routeSingleCall — canonicalization", () => {
     expect(result.reasoning).toBe("parse_failure")
   })
 
-  it("falls back to deterministic actions on unparseable LLM response when hints exist", async () => {
+  it("does not commit deterministic hints on unparseable LLM response", async () => {
     const result = await routeSingleCall("볼엔드밀", null, makeMockProvider("I cannot help with that"))
-    expect(result.actions).toEqual([
-      expect.objectContaining({ type: "apply_filter", field: "toolSubtype", value: "Ball", op: "eq" }),
-    ])
-    expect(result.reasoning).toBe("deterministic_fallback")
+    expect(result.actions).toEqual([])
+    expect(result.reasoning).toBe("parse_failure")
   })
 
-  it("falls back to deterministic actions on LLM error when hints exist", async () => {
+  it("does not commit deterministic hints on LLM error", async () => {
     const provider = {
       complete: vi.fn().mockRejectedValue(new Error("LLM timeout")),
     } as any
     const result = await routeSingleCall("4날", null, provider)
-    expect(result.actions).toEqual([
-      expect.objectContaining({ type: "apply_filter", field: "fluteCount", value: 4, op: "eq" }),
-    ])
-    expect(result.reasoning).toBe("deterministic_fallback")
+    expect(result.actions).toEqual([])
+    expect(result.reasoning).toContain("llm_error")
   })
 
   it("does not use deterministic fallback for broad semantic comparison prompts", async () => {

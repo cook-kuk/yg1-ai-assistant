@@ -143,6 +143,7 @@ type PendingQuestionReplyResolution =
   | { kind: "none" }
   | { kind: "resolved"; filter: AppliedFilter }
   | { kind: "side_question"; pendingField: string; raw: string }
+  | { kind: "defer_holistic"; pendingField: string; raw: string; reasons: string[] }
   | { kind: "unresolved"; pendingField: string; raw: string }
 
 const DEFAULT_CANDIDATE_PAGE_SIZE = 50
@@ -355,6 +356,57 @@ export function shouldReplayUnresolvedPendingQuestion(
   earlyAction: string | null
 ): boolean {
   return pendingReplyKind === "unresolved" && !PENDING_QUESTION_RECOVERY_ACTIONS.has(earlyAction ?? "")
+}
+
+const PENDING_SELECTION_RESULT_INTENT_RE = /(?:추천\s*(?:해줘|해주|해주세요|좀)?|보여줘|제품\s*(?:보여줘|보기)|찾아줘|비교|차이|vs|versus)/iu
+const PENDING_SELECTION_COMPOUND_CUE_RE = /(?:\b(?:and|then)\b|그리고|또|말고|바꾸고|변경하고|다른|추가로|도\s*(?:보여|찾아|추천))/iu
+
+function getPendingSelectionAllowedFields(
+  pendingField: string,
+  resolvedField: string,
+): Set<string> {
+  const fields = new Set<string>([pendingField, resolvedField])
+  const pendingCanonical = getFilterFieldDefinition(pendingField)?.canonicalField
+  if (pendingCanonical) fields.add(pendingCanonical)
+  const resolvedCanonical = getFilterFieldDefinition(resolvedField)?.canonicalField
+  if (resolvedCanonical) fields.add(resolvedCanonical)
+  return fields
+}
+
+function shouldDeferPendingSelectionEarlyResolve(args: {
+  raw: string
+  pendingField: string
+  resolvedField: string
+  pendingDetActions: ReturnType<typeof parseDeterministic>
+}): { defer: boolean; reasons: string[] } {
+  const { raw, pendingField, resolvedField, pendingDetActions } = args
+  const reasons: string[] = []
+  const allowedFields = getPendingSelectionAllowedFields(pendingField, resolvedField)
+
+  const deterministicFields = Array.from(new Set(
+    pendingDetActions
+      .filter(action => action.type === "apply_filter" && action.field)
+      .map(action => action.field!)
+  ))
+  const recognizedEntityFields = Array.from(new Set(
+    extractEntities(raw)
+      .map(entity => entity.field)
+      .filter(Boolean)
+  ))
+  const extraDeterministicFields = deterministicFields.filter(field => !allowedFields.has(field))
+  const extraRecognizedFields = recognizedEntityFields.filter(field => !allowedFields.has(field))
+
+  if (extraDeterministicFields.length > 0 || extraRecognizedFields.length > 0) {
+    reasons.push(`extra_entities:${Array.from(new Set([...extraDeterministicFields, ...extraRecognizedFields])).join("|")}`)
+  }
+  if (PENDING_SELECTION_RESULT_INTENT_RE.test(raw)) {
+    reasons.push("result_intent")
+  }
+  if (PENDING_SELECTION_COMPOUND_CUE_RE.test(raw) || deterministicFields.length >= 2) {
+    reasons.push("compound_utterance")
+  }
+
+  return { defer: reasons.length > 0, reasons }
 }
 
 const BARE_RECOMMEND_REQUEST_KEYS = new Set([
@@ -1203,6 +1255,24 @@ export function resolvePendingQuestionReply(
     })
   }
 
+  const pendingSelectionDefer = shouldDeferPendingSelectionEarlyResolve({
+    raw,
+    pendingField,
+    resolvedField,
+    pendingDetActions,
+  })
+  if (pendingSelectionDefer.defer) {
+    console.log(
+      `[pending-selection] Deferring holistic parse for "${raw.slice(0, 40)}" (reasons=${pendingSelectionDefer.reasons.join(",")})`
+    )
+    return {
+      kind: "defer_holistic",
+      pendingField: resolvedField,
+      raw,
+      reasons: pendingSelectionDefer.reasons,
+    }
+  }
+
   const optionMatch = optionsForPendingField.find(option => matchesPendingOptionValue(clean, option))
 
   const chipMatch = optionsForPendingField.find(option => {
@@ -1224,11 +1294,16 @@ export function resolvePendingQuestionReply(
 
   const selectedOption = optionMatch ?? chipMatch ?? canonicalMatch ?? null
   const selectedValue = selectedOption?.value ?? null
-  const diameterFields = ["diameterMm", "diameterRefine"]
-  const supportsDirectFreeformAnswer = diameterFields.includes(pendingField) || diameterFields.includes(resolvedField)
-  const freeformField = diameterFields.includes(pendingField) ? pendingField : resolvedField
-  const parsedDirect = selectedValue || !supportsDirectFreeformAnswer ? null : parseAnswerToFilter(freeformField, raw)
-  const resolvedValue = selectedValue ?? null
+  const pendingDefinition = getFilterFieldDefinition(pendingField)
+  const resolvedDefinition = getFilterFieldDefinition(resolvedField)
+  const freeformField =
+    pendingDefinition?.kind === "number"
+      ? pendingField
+      : resolvedDefinition?.kind === "number"
+        ? resolvedField
+        : null
+  const parsedDirect = freeformField ? parseAnswerToFilter(freeformField, raw) : null
+  const resolvedValue = parsedDirect ? null : selectedValue ?? null
 
   if (resolvedValue === "skip" || isSkipSelectionValue(selectedOption?.label) || isSkipSelectionValue(raw)) {
     const filter: AppliedFilter = {
@@ -2770,6 +2845,12 @@ async function handleServeExplorationInner(
 
   const requestPrep = prepareRequest(form, messages, prevState, resolvedInput, prevState?.candidateCount ?? 0)
   console.log(`[recommend] Intent: ${requestPrep.intent} (${requestPrep.intentConfidence}), Route: ${requestPrep.route.action}`)
+  const currentTurnRecognizedEntities = lastUserMsg?.text
+    ? extractEntities(lastUserMsg.text).map(entity => ({
+      field: entity.field,
+      value: entity.canonical || entity.value,
+    }))
+    : []
 
   // Sanitize garbled UTF-8 input. Some clients (Windows curl, certain SSE
   // proxies) mangle Korean bytes into U+FFFD replacement chars. If we let that
@@ -2921,10 +3002,14 @@ async function handleServeExplorationInner(
             currentFilters: filters,
             sessionState: prevState,
             conversationHistory: mapMessagesToResolverConversationHistory(messages),
+            resolvedInputSnapshot: resolvedInput,
             stageOneEditIntent: firstTurnEditResult,
             stageOneDeterministicActions: stageOneActions,
             stageOneSort: firstTurnSort,
             complexity: assessComplexity(rawMsg, filters.length),
+            requestPreparationIntent: requestPrep.intent,
+            requestPreparationSlots: requestPrep.slots,
+            recognizedEntities: currentTurnRecognizedEntities,
             stage1CotEscalation: {
               enabled: true,
               currentCandidateCount: prevState?.candidateCount ?? null,
@@ -3484,11 +3569,15 @@ async function handleServeExplorationInner(
           sessionState: prevState,
           conversationHistory: mapMessagesToResolverConversationHistory(messages),
           pendingField: prevState?.lastAskedField ?? null,
+          resolvedInputSnapshot: currentInput,
           stageOneEditIntent: stageOneEditResult,
           stageOneDeterministicActions: effectiveDetApplyActions,
           stageOneSort,
           stageOneClearUnmentionedFields: shouldClearUnmentionedFields,
           complexity,
+          requestPreparationIntent: requestPrep.intent,
+          requestPreparationSlots: requestPrep.slots,
+          recognizedEntities: currentTurnRecognizedEntities,
           stage1CotEscalation: {
             enabled: true,
             currentCandidateCount: prevState?.candidateCount ?? null,
@@ -3683,7 +3772,12 @@ async function handleServeExplorationInner(
     // expressions are not intercepted by KG's exclude patterns.
     if (!singleCallHandled && lastUserMsg && hasEditSignal(msg) && !shouldResolvePendingSelectionEarly) {
       const editResult = stageOneEditResult
-      if (editResult && shouldExecuteEditIntentDeterministically(editResult) && editResult.confidence >= 0.9) {
+      if (
+        editResult
+        && editResult.intent.type === "reset_all"
+        && shouldExecuteEditIntentDeterministically(editResult)
+        && editResult.confidence >= 0.9
+      ) {
         try {
         const mutation = applyEditIntent(editResult.intent, filters, turnCount)
         trace.add("edit-intent", "router", { type: editResult.intent.type, reason: editResult.reason, confidence: editResult.confidence })
