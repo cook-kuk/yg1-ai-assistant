@@ -13,6 +13,10 @@ import { buildDomainKnowledgeSnippet } from "@/lib/recommendation/shared/pattern
 import { getDbSchemaSync } from "@/lib/recommendation/core/sql-agent-schema-cache"
 import { QUERY_FIELD_MANIFEST, buildManifestPromptSection } from "@/lib/recommendation/core/query-spec-manifest"
 import { selectFewShots, buildFewShotTextScr } from "@/lib/recommendation/core/adaptive-few-shot"
+import {
+  SEMANTIC_INTERPRETATION_POLICY_PROMPT,
+  shouldDeferHardcodedSemanticExecution,
+} from "@/lib/recommendation/core/semantic-execution-policy"
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -267,6 +271,9 @@ Given the user's Korean message and the current session state, determine what ac
 If a filter already exists in Applied filters, do NOT re-apply the same value.
 If user restates an already-applied condition, just skip that filter action.
 
+## Semantic policy
+${SEMANTIC_INTERPRETATION_POLICY_PROMPT}
+
 ## Conversation Memory (Short-term + Long-term)
 You receive conversation history AND accumulated memory in Session State.
 
@@ -354,6 +361,7 @@ ${buildManifestPromptSection()}
 - fluteCount/diameterMm MUST be numbers only (not "2날", just 2)
 - "X 빼고" when filter exists = remove_filter(field). NOT add X.
 - Questions (ending with ?) = answer action, NO filter changes
+- Literal cue words are advisory only. Use the full utterance and session state before deciding whether a phrase is exclusion, comparison, revision, or just a side question.
 - If filter already applied in session, do NOT re-apply
 - IMPORTANT: Extract ALL filters from the message, even if it doesn't directly answer the pending question. "Square 추천해줘" when asked about flute count → [apply toolSubtype=Square], NOT skip.
 - A message can contain BOTH an answer to the pending question AND additional filters. Extract everything.
@@ -555,9 +563,10 @@ export async function routeSingleCall(
 ): Promise<SingleCallResult> {
   let detMeta: DeterministicMeta | null = null
   let detHintActions: SingleCallAction[] = []
+  const shouldDeferDeterministicHints = shouldDeferHardcodedSemanticExecution(userMessage)
 
   // ── 0. Deterministic SCR (DB-driven NL parser, no LLM) ──
-  if (DET_SCR_ENABLED) {
+  if (DET_SCR_ENABLED && !shouldDeferDeterministicHints) {
     detMeta = { ambiguities: [] }
     // Stateless-replay support: when the caller has no session yet (e.g. each
     // API call is independent as in the evaluation harness) prior user turns'
@@ -624,7 +633,7 @@ export async function routeSingleCall(
   }
   if (detHintActions.length > 0) {
     promptSections.push(
-      `## Deterministic Candidate Hints (non-authoritative)\n${formatDeterministicCandidateHints(detHintActions)}\nThese are hardcoded stage-1 hints only. Do not copy them blindly. Interpret the full utterance and session state first, then emit only the actions that remain valid.`,
+      `## Deterministic Candidate Hints (non-authoritative)\n${formatDeterministicCandidateHints(detHintActions)}\nThese are hardcoded stage-1 hints only. Do not copy them blindly. Interpret the full utterance and session state first, then emit only the actions that remain valid. If the message contains broad semantic cues such as negation, alternatives, comparison, or revision language, do not treat these hints as final truth by themselves.`,
     )
   }
   if (detMeta && detMeta.ambiguities.length > 0) {

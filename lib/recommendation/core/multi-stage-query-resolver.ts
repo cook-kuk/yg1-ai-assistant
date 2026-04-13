@@ -24,6 +24,7 @@ import {
   buildScopedMaterialPromptHints,
   resolveMaterialFamilyName,
 } from "@/lib/recommendation/shared/material-mapping"
+import { SEMANTIC_INTERPRETATION_POLICY_PROMPT } from "./semantic-execution-policy"
 
 type ResolverFilterOp = "eq" | "neq" | "gte" | "lte" | "between" | "skip"
 type ResolverRouteHint =
@@ -1971,6 +1972,8 @@ ${buildSchemaContext()}
 Domain dictionary:
 ${buildResolverDomainDictionary()}
 
+${SEMANTIC_INTERPRETATION_POLICY_PROMPT}
+
 Rules:
 - Extract every filter you can map safely.
 - skip means the user does not care about a field and the existing restriction should be removed.
@@ -2038,6 +2041,8 @@ ${buildSchemaContext()}
 
 Domain dictionary:
 ${buildResolverDomainDictionary()}
+
+${SEMANTIC_INTERPRETATION_POLICY_PROMPT}
 
 Decision process:
 1. Classify the user intent: filter, sort, comparison, UI question, side question, or mixed.

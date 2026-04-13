@@ -57,6 +57,7 @@ import { isLegacyKgHintEnabled, isLegacyKgInterpreterEnabled } from "@/lib/recom
 import { logPatternMiningEntry } from "@/lib/recommendation/core/pattern-mining/logger"
 import { tryKGDecision, extractEntities, tryParseSortPhrase, type KGSpecPatch } from "@/lib/recommendation/core/knowledge-graph"
 import { parseDeterministic } from "@/lib/recommendation/core/deterministic-scr"
+import { shouldDeferHardcodedSemanticExecution } from "@/lib/recommendation/core/semantic-execution-policy"
 import {
   applyEditIntent,
   getEditIntentAffectedFields,
@@ -813,7 +814,7 @@ export async function resolveExplicitFilterRequest(
 
   // ── Det SCR fast path: if deterministic parser handles this message,
   // skip the LLM explicit filter extraction entirely so the SCR path takes over.
-  if (process.env.DETERMINISTIC_SCR !== "0") {
+  if (process.env.DETERMINISTIC_SCR !== "0" && !shouldDeferHardcodedSemanticExecution(raw)) {
     try {
       const { parseDeterministic } = await import("@/lib/recommendation/core/deterministic-scr")
       const detActions = parseDeterministic(raw)
@@ -1042,7 +1043,9 @@ export function resolvePendingQuestionReply(
   if (!userMessage) return { kind: "none" }
 
   const raw = userMessage.trim()
-  const pendingDetActions = parseDeterministic(raw)
+  const pendingDetActions = shouldDeferHardcodedSemanticExecution(raw)
+    ? []
+    : parseDeterministic(raw)
   if (!raw) return { kind: "none" }
   if (raw.length > 80) return { kind: "unresolved", pendingField, raw }
   if (/[?？]/.test(raw)) return { kind: "side_question", pendingField, raw }
@@ -2412,7 +2415,11 @@ async function handleServeExplorationInner(
     const rawMsg = lastUserMsg.text ?? ""
     if (rawMsg) {
       try {
-        const stageOneActions = parseDeterministic(rawMsg).filter(
+        const stageOneActions = (
+          shouldDeferHardcodedSemanticExecution(rawMsg)
+            ? []
+            : parseDeterministic(rawMsg)
+        ).filter(
           action => action.type === "apply_filter" && action.field && action.value != null,
         )
         const firstTurnEditResult = hasEditSignal(rawMsg)
@@ -2434,6 +2441,10 @@ async function handleServeExplorationInner(
             turnCount,
             currentFilters: filters,
             sessionState: prevState,
+            conversationHistory: messages.slice(-6).map(message => ({
+              role: message.role === "assistant" ? "assistant" : "user",
+              text: message.text,
+            })),
             stageOneEditIntent: firstTurnEditResult,
             stageOneDeterministicActions: stageOneActions,
             stageOneSort: firstTurnSort,
@@ -2470,7 +2481,11 @@ async function handleServeExplorationInner(
     const SOFT_REC_RE = /(괜찮은|좋은|쓸만한|쓸\s*만한|추천\s*(좀|해)|뭐가\s*있|있을까|어울리는|맞는|적합한)/
     // If the message contains product entities (material/coating/subtype/shank),
     // it's a recommendation context even with "?". Only intercept pure Q/troubleshoot.
-    const hasRecEntities = parseDeterministic(rawMsg0).some(action =>
+    const hasRecEntities = (
+      shouldDeferHardcodedSemanticExecution(rawMsg0)
+        ? []
+        : parseDeterministic(rawMsg0)
+    ).some(action =>
       action.type === "apply_filter"
       && action.field != null
       && ["workPieceName", "coating", "toolSubtype", "toolType", "shankType", "diameterMm", "fluteCount"].includes(action.field)
@@ -2709,7 +2724,9 @@ async function handleServeExplorationInner(
           }
           const filters = prevState?.appliedFilters ?? []
           const repair = await repairMessage(msg, filters, history as never, provider)
-          const repairDetActions = parseDeterministic(msg)
+          const repairDetActions = shouldDeferHardcodedSemanticExecution(msg)
+            ? []
+            : parseDeterministic(msg)
           const hasConcreteRepairAction = repairDetActions.some(action =>
             action.type === "apply_filter"
             || action.type === "remove_filter"
@@ -2805,7 +2822,11 @@ async function handleServeExplorationInner(
     let stageOneEditResult: ReturnType<typeof parseEditIntent> = null
     const stageOneEditHintActions =
       !shouldResolvePendingSelectionEarly && lastUserMsg && hasEditSignal(msg)
-        ? parseDeterministic(msg).filter(
+        ? (
+            shouldDeferHardcodedSemanticExecution(msg)
+              ? []
+              : parseDeterministic(msg)
+          ).filter(
             action => action.type === "apply_filter" && action.field && action.value != null,
           )
         : []
@@ -2860,8 +2881,12 @@ async function handleServeExplorationInner(
         }
         const latestMsg = allUserMsgs[allUserMsgs.length - 1]
         const priorMsgs = allUserMsgs.slice(0, -1).join(" ")
-        currentTurnDetActions = parseDeterministic(latestMsg)
-        const priorActions = parseDeterministic(priorMsgs)
+        currentTurnDetActions = shouldDeferHardcodedSemanticExecution(latestMsg)
+          ? []
+          : parseDeterministic(latestMsg)
+        const priorActions = shouldDeferHardcodedSemanticExecution(latestMsg)
+          ? []
+          : parseDeterministic(priorMsgs)
         // latest wins: if the latest message extracts a field, drop that field from prior
         const latestFields = new Set(currentTurnDetActions.filter(a => a.field).map(a => a.field))
         detPreActions = [
@@ -2869,7 +2894,9 @@ async function handleServeExplorationInner(
           ...currentTurnDetActions,
         ]
       } else {
-        currentTurnDetActions = parseDeterministic(msg)
+        currentTurnDetActions = shouldDeferHardcodedSemanticExecution(msg)
+          ? []
+          : parseDeterministic(msg)
         detPreActions = currentTurnDetActions
       }
 
@@ -2918,6 +2945,10 @@ async function handleServeExplorationInner(
           turnCount,
           currentFilters: filters,
           sessionState: prevState,
+          conversationHistory: messages.slice(-6).map(message => ({
+            role: message.role === "assistant" ? "assistant" : "user",
+            text: message.text,
+          })),
           pendingField: prevState?.lastAskedField ?? null,
           stageOneEditIntent: stageOneEditResult,
           stageOneDeterministicActions: effectiveDetApplyActions,

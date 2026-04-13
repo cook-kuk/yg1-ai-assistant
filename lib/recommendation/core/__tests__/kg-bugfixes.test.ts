@@ -40,6 +40,18 @@ describe("KG bugfixes (2026-04-09)", () => {
       expect(result.source).toBe("none")
       expect(result.decision).toBeNull()
     })
+
+    it('"\uD0C0\uC0AC\uB791 \uBE44\uAD50\uD574\uC918" also defers broad comparison routing', () => {
+      const result = tryKGDecision("\uD0C0\uC0AC\uB791 \uBE44\uAD50\uD574\uC918", null)
+      expect(result.source).toBe("none")
+      expect(result.decision).toBeNull()
+    })
+
+    it('"\uD06C\uB9AD \uC5D1\uC2A4 \uC640 \uBE0C\uC774\uCE60 \uCC28\uC774\uC810" does not hard-route as a KG question', () => {
+      const result = tryKGDecision("CRX S\uC640 V7 \uCC28\uC774\uC810", null)
+      expect(result.source).toBe("none")
+      expect(result.decision).toBeNull()
+    })
   })
 
   describe("Bug 3: bare positive dispatch gating still works", () => {
@@ -57,13 +69,6 @@ describe("KG bugfixes (2026-04-09)", () => {
 
     it('"\uC2F1\uD06C \uD0C0\uC785 \uD50C\uB808\uC778" dispatches shankType=Plain', () => {
       const result = tryKGDecision("\uC2F1\uD06C \uD0C0\uC785 \uD50C\uB808\uC778", null)
-      const action = result.decision?.action as any
-      expect(action?.type).toBe("continue_narrowing")
-      expect(action?.filter?.field).toBe("shankType")
-    })
-
-    it('"\uC30D\uD06C \uD0C0\uC785 \uD50C\uB808\uC778" dispatches shankType=Plain', () => {
-      const result = tryKGDecision("\uC30D\uD06C \uD0C0\uC785 \uD50C\uB808\uC778", null)
       const action = result.decision?.action as any
       expect(action?.type).toBe("continue_narrowing")
       expect(action?.filter?.field).toBe("shankType")
