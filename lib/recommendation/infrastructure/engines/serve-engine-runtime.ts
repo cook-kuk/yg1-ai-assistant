@@ -2163,6 +2163,10 @@ async function handleServeExplorationInner(
             stageOneDeterministicActions: stageOneActions,
             stageOneSort: firstTurnSort,
             complexity: assessComplexity(rawMsg, filters.length),
+            stage1CotEscalation: {
+              enabled: true,
+              currentCandidateCount: prevState?.candidateCount ?? null,
+            },
           })
           console.log(
             `[first-turn-intake] multi-stage source=${firstTurnResolverResult.source} intent=${firstTurnResolverResult.intent} unresolved=${firstTurnResolverResult.unresolvedTokens.join(",") || "none"}`
@@ -2559,6 +2563,10 @@ async function handleServeExplorationInner(
           stageOneSort,
           stageOneClearUnmentionedFields: shouldClearUnmentionedFields,
           complexity,
+          stage1CotEscalation: {
+            enabled: true,
+            currentCandidateCount: prevState?.candidateCount ?? null,
+          },
         })
       }
 

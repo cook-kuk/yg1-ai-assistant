@@ -154,6 +154,55 @@ const NAV_FIELDS = new Set(["_skip", "_reset", "_back", "_qa"])
 
 export type SqlAgentMode = "fast" | "cot"
 
+function uniquePromptValues(values: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const value of values) {
+    const clean = String(value ?? "").trim()
+    if (!clean || seen.has(clean)) continue
+    seen.add(clean)
+    out.push(clean)
+  }
+  return out
+}
+
+function buildAllowedOutputFieldBlock(): string {
+  return [
+    ...Object.entries(DB_COL_TO_FILTER_FIELD)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([column, field]) => `  ${column} -> ${field}`),
+    "  _skip -> release a pending field restriction",
+    "  _reset -> reset the session",
+    "  _back -> go back one step",
+    "  _qa -> answer/explain without adding a DB filter",
+  ].join("\n")
+}
+
+function buildSqlDomainDictionary(schema: DbSchema): string {
+  const toolSubtypeValues = uniquePromptValues([
+    ...(schema.sampleValues.search_subtype ?? []),
+    ...(schema.sampleValues.tool_subtype ?? []),
+  ]).slice(0, 8)
+  const coatingValues = uniquePromptValues([
+    ...(schema.sampleValues.search_coating ?? []),
+    ...(schema.sampleValues.coating ?? []),
+  ]).slice(0, 8)
+  const workPieceValues = uniquePromptValues(
+    (schema.workpieces ?? []).map(entry => entry.normalized_work_piece_name),
+  ).slice(0, 8)
+  const brandValues = uniquePromptValues(schema.brands ?? []).slice(0, 8)
+
+  return [
+    `  toolSubtype canonical values/examples: ${toolSubtypeValues.join(", ") || "Square, Ball, Radius, Roughing, Taper, Chamfer"}`,
+    `  coating canonical values/examples: ${coatingValues.join(", ") || "TiAlN, AlCrN, DLC, Bright Finish"}`,
+    `  workPieceName examples: ${workPieceValues.join(", ") || "Stainless Steels, Aluminum, Carbon Steels, Copper, Titanium"}`,
+    `  brand examples: ${brandValues.join(", ") || "none"}`,
+    "  stockStatus is only for qualitative availability states such as instock / outofstock / limited.",
+    "  totalStock is only for numeric stock thresholds.",
+    "  skip/remove/back/reset are control actions, not product attributes.",
+  ].join("\n")
+}
+
 function buildSystemPrompt(schema: DbSchema, existingFilters: AppliedFilter[], userMessage?: string, mode: SqlAgentMode = "fast", kgHint?: string): string {
   const colList = schema.columns
     .map(c => `  ${c.column_name} (${c.data_type})`)
@@ -192,6 +241,8 @@ function buildSystemPrompt(schema: DbSchema, existingFilters: AppliedFilter[], u
   const filterList = existingFilters.length > 0
     ? existingFilters.map(f => `  ${f.field} ${f.op} ${f.value}`).join("\n")
     : "  (none)"
+  const allowedOutputFields = buildAllowedOutputFieldBlock()
+  const sqlDomainDictionary = buildSqlDomainDictionary(schema)
 
   return `You are a SQL filter expert for YG-1 cutting tool catalog.
 
@@ -213,6 +264,21 @@ ${brandList}
 
 ## Auxiliary Tables (read-only reference — joinable, not directly filterable from this agent)
 ${auxList || "  (none loaded)"}
+
+## Allowed Output Fields (DB columns + pseudo-fields)
+${allowedOutputFields}
+
+## Allowed Operators
+  eq, neq, like, gte, lte, between, skip, reset, back
+
+## Domain Dictionary
+${sqlDomainDictionary}
+
+Hard constraints:
+- Emit only the allowed output fields listed above.
+- Emit only the allowed operators listed above.
+- If the concept is outside the allowed fields, emit [] or _qa instead of inventing a new column.
+- Reason strictly inside the schema samples, numeric ranges, and domain dictionary.
 
 When the user asks about inventory / 재고 / stock / 수량 — 재고 데이터는 catalog_app.product_inventory_summary_mv 에 있고 normalized_edp ↔ product_recommendation_mv.normalized_code 로 JOIN 됩니다 (컬럼: total_stock, warehouse_count). 이 agent 가 직접 JOIN 하지는 않지만, upstream 의 filter_by_stock 경로가 처리하므로 "재고" 관련 질문에는 제품-MV 필터만 emit 하고 재고 자체는 []. 절대 "재고 컬럼이 없다" 고 reasoning 에 쓰지 마세요 — 재고는 다른 테이블에 있고 JOIN 가능합니다.
 

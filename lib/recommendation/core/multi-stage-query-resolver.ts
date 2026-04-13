@@ -4,11 +4,12 @@ import { buildAppliedFilterFromValue, getFilterFieldLabel, getFilterFieldQueryAl
 import { stripKoreanParticles } from "@/lib/recommendation/shared/patterns"
 import type { ComplexityDecision } from "./complexity-router"
 import type { DeterministicAction } from "./deterministic-scr"
-import { applyEditIntent, type EditIntentResult } from "./edit-intent"
+import { applyEditIntent, hasEditSignal, type EditIntentResult } from "./edit-intent"
 import type { QueryField, QuerySort } from "./query-spec"
 import { getSortableFields, QUERY_FIELD_MANIFEST } from "./query-spec-manifest"
 import { findValueByPhonetic, getDbSchemaSync } from "./sql-agent-schema-cache"
 import { tokenize } from "./auto-synonym"
+import { needsRepair } from "./turn-repair"
 
 type ResolverFilterOp = "eq" | "neq" | "gte" | "lte" | "between" | "skip"
 type ResolverRouteHint =
@@ -83,6 +84,20 @@ export interface ResolveMultiStageQueryArgs {
   complexity?: ComplexityDecision | null
   stage2Provider?: LLMProvider | null
   stage3Provider?: LLMProvider | null
+  stage1CotEscalation?: {
+    enabled?: boolean
+    currentCandidateCount?: number | null
+    broadCandidateThreshold?: number
+  } | null
+}
+
+interface StageOneBuildAnalysis {
+  result: MultiStageResolverResult | null
+  rawFilterSpecCount: number
+  materializedFilterCount: number
+  canonicalizationMissCount: number
+  skipFilterCount: number
+  concreteFilterCount: number
 }
 
 interface CacheEntry {
@@ -113,6 +128,8 @@ const STAGE2_TIMEOUT_MS = 3000
 const STAGE3_TIMEOUT_MS = 12000
 const STAGE2_CONFIDENCE_THRESHOLD = 0.7
 const SCHEMA_HINT_PHONETIC_THRESHOLD = 0.88
+const STAGE1_COT_BROAD_CANDIDATE_THRESHOLD = 5000
+const STAGE1_COT_TOKEN_LIMIT = 8
 const STAGE1_SKIP_CUE_RE = /(아무거나|상관\s*없|뭐든|다\s*괜찮|무관)/giu
 const STAGE1_SORT_CUE_RE = /(제일|가장|젤|맨|최대한|긴걸로|짧은걸로|긴|짧은|큰|작은|많은|적은|높은|낮은|두꺼운|얇은)/giu
 
@@ -1005,7 +1022,7 @@ function buildEmptyResult(reasoning = ""): MultiStageResolverResult {
   }
 }
 
-function buildStageOneResult(args: ResolveMultiStageQueryArgs): MultiStageResolverResult | null {
+function buildStageOneAnalysis(args: ResolveMultiStageQueryArgs): StageOneBuildAnalysis {
   const editIntent = args.stageOneEditIntent?.intent ?? null
   const clearUnmentioned = args.stageOneClearUnmentionedFields === true
   const rawActions = args.stageOneDeterministicActions ?? []
@@ -1019,10 +1036,24 @@ function buildStageOneResult(args: ResolveMultiStageQueryArgs): MultiStageResolv
   let intent: ResolverIntent = "none"
   let reasoning = "stage1"
 
+  const finalize = (result: MultiStageResolverResult | null): StageOneBuildAnalysis => {
+    const materializedFilterCount = result?.filters.length ?? 0
+    const skipFilterCount = result?.filters.filter(filter => filter.op === "skip").length ?? 0
+    const concreteFilterCount = materializedFilterCount - skipFilterCount
+    return {
+      result,
+      rawFilterSpecCount: filterSpecs.length,
+      materializedFilterCount,
+      canonicalizationMissCount: Math.max(0, filterSpecs.length - materializedFilterCount),
+      skipFilterCount,
+      concreteFilterCount,
+    }
+  }
+
   if (editIntent) {
     switch (editIntent.type) {
       case "reset_all":
-        return {
+        return finalize({
           source: "stage1",
           filters: [],
           sort: null,
@@ -1035,10 +1066,10 @@ function buildStageOneResult(args: ResolveMultiStageQueryArgs): MultiStageResolv
           unresolvedTokens: [],
           reasoning: `stage1:${args.stageOneEditIntent?.reason ?? "reset_all"}`,
           clarification: null,
-        }
+        })
       case "go_back_then_apply": {
         const mutation = applyEditIntent(editIntent, args.currentFilters, args.turnCount)
-        return {
+        return finalize({
           source: "stage1",
           filters: [],
           sort: null,
@@ -1051,7 +1082,7 @@ function buildStageOneResult(args: ResolveMultiStageQueryArgs): MultiStageResolv
           unresolvedTokens: [],
           reasoning: `stage1:${args.stageOneEditIntent?.reason ?? "go_back_then_apply"}`,
           clarification: null,
-        }
+        })
       }
       case "skip_field":
         removeFields.add(editIntent.field)
@@ -1096,7 +1127,7 @@ function buildStageOneResult(args: ResolveMultiStageQueryArgs): MultiStageResolv
     || removeFields.size > 0
     || intent !== "none"
 
-  if (!hasStageOneResolution) return null
+  if (!hasStageOneResolution) return finalize(null)
 
   if (intent === "none") {
     intent = inferIntentFromRouteHint(
@@ -1107,7 +1138,7 @@ function buildStageOneResult(args: ResolveMultiStageQueryArgs): MultiStageResolv
     )
   }
 
-  return {
+  return finalize({
     source: "stage1",
     filters,
     sort: args.stageOneSort ?? null,
@@ -1120,7 +1151,7 @@ function buildStageOneResult(args: ResolveMultiStageQueryArgs): MultiStageResolv
     unresolvedTokens: [],
     reasoning,
     clarification: null,
-  }
+  })
 }
 
 function buildFieldGuide(): string {
@@ -1160,6 +1191,157 @@ function buildCurrentFilterSummary(filters: AppliedFilter[]): string {
     .join(" | ")
 }
 
+function buildResolverDomainDictionary(): string {
+  const schema = getDbSchemaSync()
+  const toolSubtypeSamples = uniqueStrings([
+    ...(schema.sampleValues?.tool_subtype ?? []),
+    ...(schema.sampleValues?.search_subtype ?? []),
+  ]).slice(0, 8)
+  const coatingSamples = uniqueStrings([
+    ...(schema.sampleValues?.coating ?? []),
+    ...(schema.sampleValues?.search_coating ?? []),
+  ]).slice(0, 8)
+  const workPieceSamples = uniqueStrings(
+    (schema.workpieces ?? []).map(entry =>
+      typeof entry === "string"
+        ? entry
+        : entry?.normalized_work_piece_name ?? entry?.tag_name ?? ""
+    ),
+  ).slice(0, 8)
+  const brandSamples = uniqueStrings(schema.brands ?? []).slice(0, 8)
+
+  return [
+    `- toolSubtype canonical values/examples: ${toolSubtypeSamples.join(", ") || "Square, Ball, Radius, Roughing, Taper, Chamfer"}`,
+    `- coating canonical values/examples: ${coatingSamples.join(", ") || "TiAlN, AlCrN, DLC, Bright Finish"}`,
+    `- workPieceName examples: ${workPieceSamples.join(", ") || "Stainless Steels, Aluminum, Carbon Steels, Copper, Titanium"}`,
+    `- brand examples: ${brandSamples.join(", ") || "none"}`,
+    `- stockStatus is only for qualitative states such as instock / outofstock / limited.`,
+    `- totalStock is only for numeric inventory thresholds.`,
+    `- skip/remove/clear means release an existing restriction, not invent a new value.`,
+  ].join("\n")
+}
+
+function isStage1MostlyNoOp(
+  stage1Result: MultiStageResolverResult | null,
+  stage1Analysis: StageOneBuildAnalysis,
+): boolean {
+  if (!stage1Result) return false
+  if (stage1Result.intent === "reset_session" || stage1Result.intent === "go_back_one_step") return false
+  if (stage1Result.sort || stage1Result.followUpFilter) return false
+  if (stage1Analysis.concreteFilterCount > 0) return false
+
+  return stage1Analysis.skipFilterCount > 0
+    || stage1Result.removeFields.length > 0
+    || stage1Result.clearOtherFilters
+    || (stage1Analysis.materializedFilterCount === 0 && stage1Result.intent === "continue_narrowing")
+}
+
+function synthesizeStage1ReplayTokens(message: string, stage1ResolvedTokens: string[]): string[] {
+  const rawTokens = uniqueStrings(
+    extractRawTokens(message).filter(token => !STOPWORD_TOKENS.has(token)),
+  ).slice(0, STAGE1_COT_TOKEN_LIMIT)
+  if (rawTokens.length > 0) return rawTokens
+
+  const resolvedTokens = uniqueStrings(
+    stage1ResolvedTokens.filter(token => !STOPWORD_TOKENS.has(token)),
+  ).slice(0, STAGE1_COT_TOKEN_LIMIT)
+  if (resolvedTokens.length > 0) return resolvedTokens
+
+  const normalizedMessage = normalizeToken(message)
+  return normalizedMessage ? [normalizedMessage.slice(0, 48)] : []
+}
+
+function buildDeferredCotResult(reasoning: string, unresolvedTokens: string[]): MultiStageResolverResult {
+  return {
+    ...buildEmptyResult(reasoning),
+    unresolvedTokens,
+  }
+}
+
+function classifyStage1CotEscalation(
+  args: ResolveMultiStageQueryArgs,
+  stage1Result: MultiStageResolverResult | null,
+  stage1Analysis: StageOneBuildAnalysis,
+  unresolvedTokens: string[],
+  stage1ResolvedTokens: string[],
+): {
+  shouldShortCircuit: boolean
+  forceCot: boolean
+  reasons: string[]
+  effectiveUnresolvedTokens: string[]
+  schemaHints: ResolverSchemaHint[]
+  stage1MostlyNoOp: boolean
+} {
+  const shouldShortCircuit = Boolean(stage1Result) && (
+    unresolvedTokens.length === 0
+    || stage1Result.filters.some(filter => filter.op === "skip")
+    || stage1Result.removeFields.length > 0
+    || stage1Result.clearOtherFilters
+  )
+  const stage1MostlyNoOp = isStage1MostlyNoOp(stage1Result, stage1Analysis)
+  const baseTokens = unresolvedTokens.length > 0 ? unresolvedTokens : extractRawTokens(args.message)
+  const schemaHints = collectSchemaHints(args.message, baseTokens)
+
+  if (
+    args.stage1CotEscalation?.enabled !== true
+    || !stage1Result
+    || !shouldShortCircuit
+    || stage1Result.intent === "reset_session"
+    || stage1Result.intent === "go_back_one_step"
+  ) {
+    return {
+      shouldShortCircuit,
+      forceCot: false,
+      reasons: [],
+      effectiveUnresolvedTokens: unresolvedTokens,
+      schemaHints,
+      stage1MostlyNoOp,
+    }
+  }
+
+  const reasons: string[] = []
+  const currentCandidateCount = args.stage1CotEscalation?.currentCandidateCount
+  const broadCandidateThreshold =
+    args.stage1CotEscalation?.broadCandidateThreshold
+    ?? STAGE1_COT_BROAD_CANDIDATE_THRESHOLD
+
+  if (unresolvedTokens.length > 0) reasons.push("alias_miss")
+  if (schemaHints.length > 0 && (unresolvedTokens.length > 0 || stage1Analysis.canonicalizationMissCount > 0)) {
+    reasons.push("typo_suspicion")
+  }
+  if (stage1Analysis.canonicalizationMissCount > 0) reasons.push("canonicalization_miss")
+
+  const conflictingFollowUp =
+    args.currentFilters.length > 0
+    && (needsRepair(args.message) || hasEditSignal(args.message))
+    && (stage1MostlyNoOp || unresolvedTokens.length > 0 || stage1Analysis.canonicalizationMissCount > 0)
+  if (conflictingFollowUp) reasons.push("conflicting_follow_up")
+
+  if (currentCandidateCount === 0) reasons.push("zero_candidates")
+  if (
+    typeof currentCandidateCount === "number"
+    && currentCandidateCount >= broadCandidateThreshold
+    && (stage1MostlyNoOp || unresolvedTokens.length > 0 || stage1Analysis.canonicalizationMissCount > 0)
+  ) {
+    reasons.push("very_broad_candidates")
+  }
+  if (stage1MostlyNoOp) reasons.push("stage1_mostly_noop")
+
+  const uniqueReasons = uniqueStrings(reasons)
+  const effectiveUnresolvedTokens = uniqueReasons.length > 0 && unresolvedTokens.length === 0
+    ? synthesizeStage1ReplayTokens(args.message, stage1ResolvedTokens)
+    : unresolvedTokens
+
+  return {
+    shouldShortCircuit,
+    forceCot: uniqueReasons.length > 0,
+    reasons: uniqueReasons,
+    effectiveUnresolvedTokens,
+    schemaHints,
+    stage1MostlyNoOp,
+  }
+}
+
 function buildStage2Prompt(args: ResolveMultiStageQueryArgs, unresolvedTokens: string[]): { systemPrompt: string; userPrompt: string } {
   const schemaHints = collectSchemaHints(args.message, unresolvedTokens)
   const systemPrompt = `You are the Stage 2 lightweight resolver for the YG-1 cutting tool recommendation system.
@@ -1168,12 +1350,20 @@ The deterministic parser already handled exact patterns. Resolve only the leftov
 Field catalog:
 ${buildFieldGuide()}
 
+Allowed fields:
+- Use only the registered fields listed in the field catalog above.
+
+Allowed operators:
+- eq, neq, gte, lte, between, skip
+
 Schema samples:
 ${buildSchemaContext()}
 
+Domain dictionary:
+${buildResolverDomainDictionary()}
+
 Rules:
 - Extract every filter you can map safely.
-- Operators: eq, neq, gte, lte, between, skip.
 - skip means the user does not care about a field and the existing restriction should be removed.
 - sort means a superlative like "제일 긴", "가장 작은".
 - Use stockStatus only for availability states such as instock / outofstock / limited.
@@ -1188,6 +1378,7 @@ Rules:
 - If pendingField is set and the user is clearly dismissing that field, use it.
 - If a schema phonetic hint clearly matches a brand / series / material token in the user message, emit the corresponding filter instead of returning only show_recommendation.
 - If the user asks for a similar product around a concrete item or product code, prefer routeHint=compare_products even if the code itself stays unresolved.
+- Never invent a field, operator, column, or canonical value outside the field catalog and domain dictionary.
 - Do not guess. Keep unresolved tokens instead.
 - Return JSON only.
 
@@ -1206,6 +1397,7 @@ Examples:
     `Possible schema phonetic hints:\n${formatSchemaHintBlock(schemaHints)}`,
     `Pending field: ${args.pendingField ?? args.sessionState?.lastAskedField ?? "none"}`,
     `Current filters: ${buildCurrentFilterSummary(args.currentFilters)}`,
+    `Current candidate count: ${args.stage1CotEscalation?.currentCandidateCount ?? "unknown"}`,
     `Respond with JSON only.`,
   ].join("\n")
 
@@ -1220,8 +1412,17 @@ Stage 1 and Stage 2 were not sufficient. Think step by step internally, then ret
 Field catalog:
 ${buildFieldGuide()}
 
+Allowed fields:
+- Use only the registered fields listed in the field catalog above.
+
+Allowed operators:
+- eq, neq, gte, lte, between, skip
+
 Schema samples:
 ${buildSchemaContext()}
+
+Domain dictionary:
+${buildResolverDomainDictionary()}
 
 Decision process:
 1. Classify the user intent: filter, sort, comparison, UI question, side question, or mixed.
@@ -1230,6 +1431,7 @@ Decision process:
 4. Map only high-confidence items to DB fields or routeHint. Similar-product requests around a concrete item should use routeHint=compare_products even when the code stays unresolved.
 5. If all other existing filters should be released, set clearOtherFilters=true.
 6. If unsure, leave filters empty and keep unresolvedTokens.
+7. Never invent a field, operator, column, or canonical value outside the field catalog and domain dictionary.
 
 Return JSON:
 {"filters":[],"sort":null,"routeHint":"none","clearOtherFilters":false,"confidence":0.0,"unresolvedTokens":[],"reasoning":""}`
@@ -1241,6 +1443,7 @@ Return JSON:
     `Complexity: ${args.complexity?.level ?? "unknown"} (${args.complexity?.reason ?? "n/a"})`,
     `Stage 1 unresolved tokens: ${unresolvedTokens.join(", ") || "none"}`,
     `Possible schema phonetic hints:\n${formatSchemaHintBlock(schemaHints)}`,
+    `Current candidate count: ${args.stage1CotEscalation?.currentCandidateCount ?? "unknown"}`,
     `Stage 2 result: ${stage2Result ? JSON.stringify({
       filters: stage2Result.filters,
       sort: stage2Result.sort,
@@ -1364,9 +1567,18 @@ function shouldEscalateToStage3(
 export async function resolveMultiStageQuery(
   args: ResolveMultiStageQueryArgs,
 ): Promise<MultiStageResolverResult> {
-  const stage1Result = buildStageOneResult(args)
+  const stage1Analysis = buildStageOneAnalysis(args)
+  const stage1Result = stage1Analysis.result
   const stage1ResolvedTokens = extractStageOneResolvedTokens(args)
   const unresolvedTokens = extractUnresolvedTokens(args)
+  const stage1Gate = classifyStage1CotEscalation(
+    args,
+    stage1Result,
+    stage1Analysis,
+    unresolvedTokens,
+    stage1ResolvedTokens,
+  )
+  const effectiveUnresolvedTokens = stage1Gate.effectiveUnresolvedTokens
   console.log("[multi-stage:stage1] exit", {
     resolvedTokens: stage1ResolvedTokens,
     unresolvedTokens,
@@ -1377,22 +1589,38 @@ export async function resolveMultiStageQuery(
     clearOtherFilters: stage1Result?.clearOtherFilters ?? false,
     intent: stage1Result?.intent ?? "none",
   })
+  console.log("[multi-stage:stage1-gate]", {
+    wouldShortCircuit: stage1Gate.shouldShortCircuit,
+    forceCot: stage1Gate.forceCot,
+    reasons: stage1Gate.reasons,
+    currentCandidateCount: args.stage1CotEscalation?.currentCandidateCount ?? null,
+    broadCandidateThreshold:
+      args.stage1CotEscalation?.broadCandidateThreshold
+      ?? STAGE1_COT_BROAD_CANDIDATE_THRESHOLD,
+    rawFilterSpecCount: stage1Analysis.rawFilterSpecCount,
+    materializedFilterCount: stage1Analysis.materializedFilterCount,
+    canonicalizationMissCount: stage1Analysis.canonicalizationMissCount,
+    skipFilterCount: stage1Analysis.skipFilterCount,
+    concreteFilterCount: stage1Analysis.concreteFilterCount,
+    stage1MostlyNoOp: stage1Gate.stage1MostlyNoOp,
+    unresolvedTokens,
+    effectiveUnresolvedTokens,
+    schemaHints: stage1Gate.schemaHints.map(hint => ({
+      token: hint.token,
+      column: hint.column,
+      value: hint.value,
+      similarity: Number(hint.similarity.toFixed(2)),
+    })),
+  })
 
-  const shouldShortCircuitStage1 = Boolean(stage1Result) && (
-    unresolvedTokens.length === 0
-    || stage1Result.filters.some(filter => filter.op === "skip")
-    || stage1Result.removeFields.length > 0
-    || stage1Result.clearOtherFilters
-  )
-
-  if (stage1Result && shouldShortCircuitStage1) {
+  if (stage1Result && stage1Gate.shouldShortCircuit && !stage1Gate.forceCot) {
     return {
       ...stage1Result,
       unresolvedTokens: [],
     }
   }
 
-  if (unresolvedTokens.length === 0) {
+  if (effectiveUnresolvedTokens.length === 0) {
     const pendingField = args.pendingField ?? args.sessionState?.lastAskedField ?? null
     if (!pendingField && args.currentFilters.length === 0 && isBareRecommendationMessage(args.message)) {
       return buildEmptyResult("defer:bare_recommendation")
@@ -1405,7 +1633,7 @@ export async function resolveMultiStageQuery(
   if (cached) {
     const cachedResult = mergeMultiStageResults(stage1Result, materializeResult("cache", cached, args.turnCount))
     console.log("[multi-stage:cache] hit", {
-      unresolvedTokens,
+      unresolvedTokens: effectiveUnresolvedTokens,
       filters: formatAppliedFilters(cachedResult.filters),
       sort: cachedResult.sort,
       intent: cachedResult.intent,
@@ -1416,12 +1644,16 @@ export async function resolveMultiStageQuery(
 
   const failureCount = getResolverFailureCount(cacheKey)
   console.log("[multi-stage:stage2] entry", {
-    unresolvedTokens,
-    whyEnteringStage2: stage1Result ? "stage1_partial_with_unresolved_tokens" : "stage1_no_resolution",
+    unresolvedTokens: effectiveUnresolvedTokens,
+    whyEnteringStage2: stage1Gate.forceCot
+      ? `stage1_gate:${stage1Gate.reasons.join("|") || "forced"}`
+      : stage1Result
+      ? "stage1_partial_with_unresolved_tokens"
+      : "stage1_no_resolution",
     stage1ResolvedTokens,
   })
   const stage2Result = sanitizeNoOpResolution(
-    await runResolverStage("stage2", args, unresolvedTokens, null, stage1ResolvedTokens),
+    await runResolverStage("stage2", args, effectiveUnresolvedTokens, null, stage1ResolvedTokens),
     args,
     stage1Result,
   )
@@ -1430,17 +1662,17 @@ export async function resolveMultiStageQuery(
     hasMeaningfulResolution(stage2Result)
     && stage2Result.confidence >= STAGE2_CONFIDENCE_THRESHOLD
     && stage2Result.unresolvedTokens.length === 0
-    && !shouldEscalateToStage3(args, unresolvedTokens, stage2Result, failureCount)
+    && !shouldEscalateToStage3(args, effectiveUnresolvedTokens, stage2Result, failureCount)
   ) {
     clearResolverFailure(cacheKey)
     storeResolverCache(cacheKey, stage2Result)
     return mergeMultiStageResults(stage1Result, materializeResult("stage2", stage2Result, args.turnCount))
   }
 
-  const stage3Needed = shouldEscalateToStage3(args, unresolvedTokens, stage2Result, failureCount)
+  const stage3Needed = shouldEscalateToStage3(args, effectiveUnresolvedTokens, stage2Result, failureCount)
   if (stage3Needed) {
     const stage3Result = sanitizeNoOpResolution(
-      await runResolverStage("stage3", args, unresolvedTokens, stage2Result),
+      await runResolverStage("stage3", args, effectiveUnresolvedTokens, stage2Result),
       args,
       stage1Result,
     )
@@ -1455,13 +1687,26 @@ export async function resolveMultiStageQuery(
   }
 
   if (hasMeaningfulResolution(stage2Result)) {
-    clearResolverFailure(cacheKey)
-    storeResolverCache(cacheKey, stage2Result)
-    return mergeMultiStageResults(stage1Result, materializeResult("stage2", stage2Result, args.turnCount))
+    if (!stage1Gate.forceCot) {
+      clearResolverFailure(cacheKey)
+      storeResolverCache(cacheKey, stage2Result)
+      return mergeMultiStageResults(stage1Result, materializeResult("stage2", stage2Result, args.turnCount))
+    }
+    console.log("[multi-stage:stage2] meaningful result deferred for SQL-agent fallback", {
+      reasons: stage1Gate.reasons,
+      confidence: stage2Result.confidence,
+      unresolvedTokens: stage2Result.unresolvedTokens,
+    })
   }
 
   recordResolverFailure(cacheKey)
-  return mergeMultiStageResults(stage1Result, buildClarificationResult(args, unresolvedTokens))
+  if (stage1Gate.forceCot) {
+    return buildDeferredCotResult(
+      `defer:stage1_cot:${stage1Gate.reasons.join("|") || "forced"}`,
+      effectiveUnresolvedTokens,
+    )
+  }
+  return mergeMultiStageResults(stage1Result, buildClarificationResult(args, effectiveUnresolvedTokens))
 }
 
 export function _resetMultiStageResolverCacheForTest(): void {
