@@ -1,18 +1,10 @@
 import { describe, it, expect } from "vitest"
 import { extractEntities, tryKGDecision } from "../knowledge-graph"
 
-/**
- * Regression tests for KG bugs fixed on 2026-04-09:
- *
- * Bug 1: extractEntities multi-entity 추출 누락 (numeric fields disabled)
- * Bug 2: "X 말고 다른거" → confidence 0 (X가 numeric entity인 경우)
- * Bug 3: §8 single-entity 과도 leak vs compound shank/material group 유지
- */
-
 describe("KG bugfixes (2026-04-09)", () => {
   describe("Bug 1: extractEntities multi-entity w/ numeric", () => {
     it('"4날 TiAlN Square" returns fluteCount + coating + toolSubtype', () => {
-      const entities = extractEntities("4날 TiAlN Square")
+      const entities = extractEntities("4\uB0A0 TiAlN Square")
       const fields = new Set(entities.map(e => e.field))
       expect(fields.has("fluteCount")).toBe(true)
       expect(fields.has("coating")).toBe(true)
@@ -28,77 +20,70 @@ describe("KG bugfixes (2026-04-09)", () => {
       expect(fields.has("diameterMm")).toBe(true)
     })
 
-    it('"직경 8mm" returns diameterMm=8', () => {
-      const entities = extractEntities("직경 8mm")
+    it('"\uC9C1\uACBD 8mm" returns diameterMm=8', () => {
+      const entities = extractEntities("\uC9C1\uACBD 8mm")
       const dia = entities.find(e => e.field === "diameterMm")
       expect(dia).toBeDefined()
       expect(dia!.canonical).toBe("8")
     })
   })
 
-  describe("Bug 2: exclude pattern over numeric entity", () => {
-    it('"4날 말고 다른거" → exclude fluteCount=4', () => {
-      const result = tryKGDecision("4날 말고 다른거", null)
-      expect(result.source).toBe("kg-exclude")
-      expect(result.confidence).toBeGreaterThan(0.8)
-      const action = result.decision?.action as any
-      expect(action?.type).toBe("continue_narrowing")
-      expect(action?.filter?.field).toBe("fluteCount")
-      expect(action?.filter?.op).toBe("exclude")
+  describe("Bug 2: semantic mutation should defer instead of executing in KG", () => {
+    it('"\u0034\uB0A0 \uB9D0\uACE0 \uB2E4\uB978\uAC70" does not emit continue_narrowing', () => {
+      const result = tryKGDecision("4\uB0A0 \uB9D0\uACE0 \uB2E4\uB978\uAC70", null)
+      expect(result.source).toBe("none")
+      expect(result.decision).toBeNull()
     })
 
-    it('"2날 말고 4날로" → replace fluteCount 2→4 (eq)', () => {
-      const result = tryKGDecision("2날 말고 4날로", null)
-      expect(result.source).toBe("kg-exclude")
-      const action = result.decision?.action as any
-      expect(action?.filter?.field).toBe("fluteCount")
-      expect(action?.filter?.op).toBe("eq")
-      expect(String(action?.filter?.value)).toBe("4")
+    it('"\u0032\uB0A0 \uB9D0\uACE0 \u0034\uB0A0\uB85C" does not finalize replacement in KG', () => {
+      const result = tryKGDecision("2\uB0A0 \uB9D0\uACE0 4\uB0A0\uB85C", null)
+      expect(result.source).toBe("none")
+      expect(result.decision).toBeNull()
     })
   })
 
-  describe("Bug 3: §8 dispatch gating — no regressions", () => {
-    it('"TiAlN 코팅된거" does NOT dispatch continue_narrowing', () => {
-      const result = tryKGDecision("TiAlN 코팅된거", null)
+  describe("Bug 3: bare positive dispatch gating still works", () => {
+    it('"TiAlN \uCF54\uD305\uB41C\uAC70" does NOT dispatch continue_narrowing', () => {
+      const result = tryKGDecision("TiAlN \uCF54\uD305\uB41C\uAC70", null)
       const action = result.decision?.action as any
       expect(action?.type).not.toBe("continue_narrowing")
     })
 
-    it('"스테인리스 10mm" does NOT dispatch (diameter hijack guard)', () => {
-      const result = tryKGDecision("스테인리스 10mm", null)
+    it('"\uC2A4\uD14C\uC778\uB9AC\uC2A4 10mm" does NOT dispatch (diameter hijack guard)', () => {
+      const result = tryKGDecision("\uC2A4\uD14C\uC778\uB9AC\uC2A4 10mm", null)
       const action = result.decision?.action as any
       expect(action?.type).not.toBe("continue_narrowing")
     })
 
-    it('"싱크 타입 플레인" dispatches shankType=Plain', () => {
-      const result = tryKGDecision("싱크 타입 플레인", null)
+    it('"\uC2F1\uD06C \uD0C0\uC785 \uD50C\uB808\uC778" dispatches shankType=Plain', () => {
+      const result = tryKGDecision("\uC2F1\uD06C \uD0C0\uC785 \uD50C\uB808\uC778", null)
       const action = result.decision?.action as any
       expect(action?.type).toBe("continue_narrowing")
       expect(action?.filter?.field).toBe("shankType")
     })
 
-    it('"쌩크 타입 플레인" dispatches shankType=Plain', () => {
-      const result = tryKGDecision("쌩크 타입 플레인", null)
+    it('"\uC30D\uD06C \uD0C0\uC785 \uD50C\uB808\uC778" dispatches shankType=Plain', () => {
+      const result = tryKGDecision("\uC30D\uD06C \uD0C0\uC785 \uD50C\uB808\uC778", null)
       const action = result.decision?.action as any
       expect(action?.type).toBe("continue_narrowing")
       expect(action?.filter?.field).toBe("shankType")
     })
 
-    it('"P소재" dispatches material=P', () => {
-      const result = tryKGDecision("P소재", null)
+    it('"P\uC18C\uC7AC" dispatches material=P', () => {
+      const result = tryKGDecision("P\uC18C\uC7AC", null)
       const action = result.decision?.action as any
       expect(action?.type).toBe("continue_narrowing")
       expect(action?.filter?.field).toBe("material")
     })
 
-    it('"스퀘어 4날" dispatches (two-entity combo)', () => {
-      const result = tryKGDecision("스퀘어 4날", null)
+    it('"\uC2A4\uD018\uC5B4 4\uB0A0" dispatches (two-entity combo)', () => {
+      const result = tryKGDecision("\uC2A4\uD018\uC5B4 4\uB0A0", null)
       const action = result.decision?.action as any
       expect(action?.type).toBe("continue_narrowing")
     })
 
-    it('"재고 200개 이상" still routes to stock threshold (no regression)', () => {
-      const result = tryKGDecision("재고 200개 이상", null)
+    it('"\uC7AC\uACE0 200\uAC1C \uC774\uC0C1" still routes to stock threshold', () => {
+      const result = tryKGDecision("\uC7AC\uACE0 200\uAC1C \uC774\uC0C1", null)
       const action = result.decision?.action as any
       expect(action?.type).toBe("filter_by_stock")
       expect(action?.stockThreshold).toBe(200)

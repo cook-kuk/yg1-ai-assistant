@@ -49,7 +49,7 @@ describe("normalizeRuntimeAppliedFilter", () => {
     }))
   })
 
-  it("canonicalizes material family names while preserving the raw material text", () => {
+  it("canonicalizes material family names onto the normalized runtime value", () => {
     const normalized = normalizeRuntimeAppliedFilter({
       field: "material",
       op: "eq",
@@ -61,7 +61,7 @@ describe("normalizeRuntimeAppliedFilter", () => {
     expect(normalized).toEqual(expect.objectContaining({
       field: "material",
       value: "Stainless",
-      rawValue: "stainless steel",
+      rawValue: "Stainless",
       appliedAt: 11,
     }))
   })
@@ -102,7 +102,7 @@ describe("normalizeRuntimeAppliedFilter", () => {
     }))
   })
 
-  it("canonicalizes material-family workpiece filters while preserving the original raw token", () => {
+  it("canonicalizes workpiece filters to catalog families and executable eq operators", () => {
     const normalized = normalizeRuntimeAppliedFilter({
       field: "workPieceName",
       op: "includes",
@@ -113,8 +113,9 @@ describe("normalizeRuntimeAppliedFilter", () => {
 
     expect(normalized).toEqual(expect.objectContaining({
       field: "workPieceName",
-      value: "Stainless",
-      rawValue: "SUS316L",
+      op: "eq",
+      value: "Stainless Steels",
+      rawValue: "Stainless Steels",
       appliedAt: 11,
     }))
   })

@@ -320,6 +320,16 @@ ${auxSnippet || "(none)"}
 ## Currently applied filters
 ${filterList}
 
+## Session domain constraint
+${(() => {
+    const toolTypeFilter = existingFilters.find(f => f.field === "toolType")
+    const categoryHint = toolTypeFilter ? toolTypeFilter.value : null
+    if (categoryHint) {
+      return `The user is in a "${categoryHint}" recommendation session. Your query MUST include a WHERE clause filtering edp_root_category to match this domain. NEVER return products from other tool families (e.g. if the session is Milling, do NOT return Tap/Drill/Threading products).`
+    }
+    return "(no domain constraint)"
+  })()}
+
 ## Hard rules
 - The query MUST literally serve the user question above. If the user asked about "vibration reduction series" your WHERE clause MUST mention vibration/저감 in series_feature/series_description, NOT some other random property.
 - SELECT only. NEVER write INSERT/UPDATE/DELETE/DROP/ALTER/CREATE/TRUNCATE.

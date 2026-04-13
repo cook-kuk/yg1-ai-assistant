@@ -304,6 +304,25 @@ const CHIP_EVACUATION_CUES: Array<{ pattern: RegExp; value: string }> = [
 ]
 
 // 코팅 / 브랜드 표시 정규화
+const TOOL_SUBTYPE_CUES: Array<{ pattern: RegExp; value: string }> = [
+  { pattern: /(볼\s*노즈|볼노즈|볼\s*엔드밀|볼엔드밀|ball\s*nose|ballnose|ball\s*end\s*mill|\bball\b)/i, value: "Ball" },
+  { pattern: /(플랫\s*엔드밀|플랫엔드밀|플랫|스퀘어\s*엔드밀|스퀘어엔드밀|스퀘어|flat\s*end\s*mill|square\s*end\s*mill|\bflat\b|\bsquare\b)/i, value: "Square" },
+  { pattern: /(코너\s*r(?:\s*엔드밀)?|코너r(?:\s*엔드밀)?|코너\s*레디우스(?:\s*엔드밀)?|코너레디우스(?:\s*엔드밀)?|corner\s*radius(?:\s*end\s*mill)?|\bradius\b)/i, value: "Radius" },
+  { pattern: /(황삭\s*엔드밀|황삭|roughing(?:\s*end\s*mill)?|\brough\b)/i, value: "Roughing" },
+  { pattern: /(테이퍼(?:\s*엔드밀)?|taper(?:\s*end\s*mill)?)/i, value: "Taper" },
+  { pattern: /(챔퍼(?:\s*엔드밀)?|chamfer(?:\s*end\s*mill)?)/i, value: "Chamfer" },
+  { pattern: /(하이\s*피드(?:\s*엔드밀)?|하이피드(?:\s*엔드밀)?|high[\s-]?feed(?:\s*end\s*mill)?)/i, value: "High-Feed" },
+]
+
+const SHANK_TYPE_CUES: Array<{ pattern: RegExp; value: string }> = [
+  { pattern: /\bHSK(?:\s*생크|\s*shank)?\b/i, value: "HSK" },
+  { pattern: /\bBT(?:\s*생크|\s*shank)?\b/i, value: "BT" },
+  { pattern: /\bCAT(?:\s*생크|\s*shank)?\b/i, value: "CAT" },
+  { pattern: /(스트레이트\s*생크|스트레이트|straight\s*shank|straight)/i, value: "Straight" },
+  { pattern: /(플레인\s*생크|플레인|plain\s*shank|plain)/i, value: "Plain" },
+  { pattern: /(웰던\s*생크|웰던|weldon\s*shank|weldon)/i, value: "Weldon" },
+]
+
 function findValueIn(text: string, values: string[]): string | null {
   const t = text.toLowerCase()
   // longest first
@@ -614,6 +633,49 @@ export function extractMachiningCondition(text: string): DeterministicAction | n
       const op = negNear(text, m.index, m[0].length) ? "neq" : "eq"
       return { type: "apply_filter", field: "cuttingType", value, op, source: "deterministic" }
     }
+  }
+  return null
+}
+
+export function extractToolSubtype(text: string): DeterministicAction | null {
+  const hasShapeContext = /(엔드밀|end\s*mill|형상|타입|subtype|nose|노즈|볼|ball|플랫|flat|스퀘어|square|코너\s*r|코너r|radius|황삭|roughing|테이퍼|taper|챔퍼|chamfer|하이\s*피드|high[\s-]?feed)/i.test(text)
+  if (!hasShapeContext) return null
+
+  const matchedSubtypeValues = Array.from(new Set(
+    TOOL_SUBTYPE_CUES
+      .filter(({ pattern }) => pattern.test(text))
+      .map(({ value }) => value)
+  ))
+  const hasRevisionReplacement =
+    matchedSubtypeValues.length >= 2
+    && /(?:말고|말구|빼고|빼구|제외|대신|아니고|아니라|change\b|switch\b|replace\b|변경|바꿔|->|→|\bto\b)/i.test(text)
+  if (hasRevisionReplacement) return null
+
+  for (const { pattern, value } of TOOL_SUBTYPE_CUES) {
+    const match = text.match(pattern)
+    if (!match || match.index == null) continue
+
+    if (
+      value === "Radius"
+      && !/(엔드밀|end\s*mill|형상|타입|subtype)/i.test(text)
+      && /\d+(?:\.\d+)?\s*(?:mm)?/i.test(text.slice(match.index + match[0].length, match.index + match[0].length + 12))
+    ) {
+      continue
+    }
+
+    const op = negNear(text, match.index, match[0].length) ? "neq" : "eq"
+    return { type: "apply_filter", field: "toolSubtype", value, op, source: "deterministic" }
+  }
+
+  return null
+}
+
+export function extractShankType(text: string): DeterministicAction | null {
+  for (const { pattern, value } of SHANK_TYPE_CUES) {
+    const match = text.match(pattern)
+    if (!match || match.index == null) continue
+    const op = negNear(text, match.index, match[0].length) ? "neq" : "eq"
+    return { type: "apply_filter", field: "shankType", value, op, source: "deterministic" }
   }
   return null
 }
@@ -1259,6 +1321,8 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
   const extraExtractors: Array<{ field: string; fn: (t: string) => DeterministicAction | null }> = [
     { field: "workPieceName", fn: extractWorkPieceName },
     { field: "workMaterial", fn: extractWorkMaterial },
+    { field: "toolSubtype", fn: extractToolSubtype },
+    { field: "shankType", fn: extractShankType },
     { field: "grade", fn: extractGrade },
     { field: "chipBreaker", fn: extractChipBreaker },
     { field: "insertShape", fn: extractInsertShape },

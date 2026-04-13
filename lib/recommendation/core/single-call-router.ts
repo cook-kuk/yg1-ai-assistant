@@ -524,8 +524,27 @@ function buildAmbiguityChips(amb: MvAmbiguity): { chips: string[]; chipFieldMap:
   return { chips, chipFieldMap }
 }
 
+function formatDeterministicCandidateHints(actions: SingleCallAction[]): string {
+  if (actions.length === 0) return "none"
+  return actions
+    .filter(action => action.type === "apply_filter" && action.field && action.value != null)
+    .map(action => {
+      const upper = action.op === "between" && action.value2 != null
+        ? `${String(action.value)}..${String(action.value2)}`
+        : String(action.value)
+      return `- ${action.field} ${action.op ?? "eq"} ${upper}`
+    })
+    .join("\n")
+}
+
+function formatDeterministicAmbiguities(meta: DeterministicMeta): string {
+  if (meta.ambiguities.length === 0) return "none"
+  return meta.ambiguities
+    .map(amb => `- token "${amb.token}" may belong to: ${amb.fields.join(", ")}`)
+    .join("\n")
+}
+
 const DET_SCR_ENABLED = process.env.DETERMINISTIC_SCR !== "0"
-const DET_SCR_LLM_AUGMENT = process.env.DETERMINISTIC_SCR_LLM_AUGMENT === "1"
 
 export async function routeSingleCall(
   userMessage: string,
@@ -534,9 +553,12 @@ export async function routeSingleCall(
   recentMessages?: ChatMessage[],
   kgHint?: string
 ): Promise<SingleCallResult> {
+  let detMeta: DeterministicMeta | null = null
+  let detHintActions: SingleCallAction[] = []
+
   // ── 0. Deterministic SCR (DB-driven NL parser, no LLM) ──
   if (DET_SCR_ENABLED) {
-    const detMeta: DeterministicMeta = { ambiguities: [] }
+    detMeta = { ambiguities: [] }
     // Stateless-replay support: when the caller has no session yet (e.g. each
     // API call is independent as in the evaluation harness) prior user turns'
     // filters get lost because the deterministic parser only sees the latest
@@ -582,20 +604,7 @@ export async function routeSingleCall(
           })
         }
       }
-      if (canonicalized.length > 0 && !DET_SCR_LLM_AUGMENT) {
-        // Pure deterministic: skip LLM entirely.
-        // 모호 토큰이 있으면 unambiguous 필터는 그대로 적용하고 추가로
-        // clarification 질문을 answer + 구조화된 chips로 함께 노출.
-        const clarification = buildClarificationFromMeta(detMeta)
-        return {
-          actions: canonicalized,
-          answer: clarification?.question ?? "",
-          reasoning: clarification
-            ? `deterministic: ${canonicalized.length} actions + ${detMeta.ambiguities.length} clarification(s)`
-            : `deterministic: ${canonicalized.length} actions`,
-          ...(clarification ? { clarification } : {}),
-        }
-      }
+      detHintActions = canonicalized
     } else if (detMeta.ambiguities.length > 0) {
       // 결정론적 액션이 하나도 없지만 모호 토큰이 있는 경우 — 질문만 던진다.
       const clarification = buildClarificationFromMeta(detMeta)!
@@ -609,12 +618,27 @@ export async function routeSingleCall(
   }
 
   const basePrompt = buildSystemPrompt(sessionState, userMessage)
-  const systemPrompt = kgHint
-    ? `${basePrompt}\n\n## KG Hint (pre-analyzed entities from Knowledge Graph)\n${kgHint}\nUse these as strong guidance — the entities above are already validated. Emit matching apply_filter actions.`
-    : basePrompt
+  const promptSections = [basePrompt]
+  if (kgHint) {
+    promptSections.push(`## KG Hint (pre-analyzed entities from Knowledge Graph)\n${kgHint}\nUse these as strong guidance — the entities above are already validated. Emit matching apply_filter actions.`)
+  }
+  if (detHintActions.length > 0) {
+    promptSections.push(
+      `## Deterministic Candidate Hints (non-authoritative)\n${formatDeterministicCandidateHints(detHintActions)}\nThese are hardcoded stage-1 hints only. Do not copy them blindly. Interpret the full utterance and session state first, then emit only the actions that remain valid.`,
+    )
+  }
+  if (detMeta && detMeta.ambiguities.length > 0) {
+    promptSections.push(
+      `## Deterministic Ambiguity Alerts\n${formatDeterministicAmbiguities(detMeta)}\nIf the ambiguity blocks safe execution, ask a clarification instead of guessing.`,
+    )
+  }
+  const systemPrompt = promptSections.join("\n\n")
   const llmMessages = recentMessages && recentMessages.length > 0
     ? buildConversationMemory(recentMessages, userMessage)
     : [{ role: "user" as const, content: userMessage }]
+  const deterministicFallback = detHintActions.length > 0
+    ? { actions: detHintActions, answer: "", reasoning: "deterministic_fallback" }
+    : null
 
   try {
     console.log(`[SCR] calling LLM, msg: "${userMessage}", hasState: ${!!sessionState}, candidateCount: ${sessionState?.candidateCount ?? "null"}, historyTurns: ${llmMessages.length}`)
@@ -632,7 +656,7 @@ export async function routeSingleCall(
     const parsed = extractJsonFromResponse(raw)
     if (!parsed) {
       console.warn("[SCR] Failed to parse JSON from LLM response, raw:", raw?.substring(0, 200))
-      return { actions: [], answer: "", reasoning: "parse_failure" }
+      return deterministicFallback ?? { actions: [], answer: "", reasoning: "parse_failure" }
     }
 
     console.log(`[SCR] parsed raw: ${JSON.stringify(parsed).substring(0, 300)}`)
@@ -688,11 +712,15 @@ export async function routeSingleCall(
       }
     }
 
+    if (canonicalizedActions.length === 0 && !result.answer && deterministicFallback) {
+      return { ...deterministicFallback, reasoning: `${deterministicFallback.reasoning}:${result.reasoning || "empty_llm_actions"}` }
+    }
+
     return { actions: canonicalizedActions, answer: result.answer, reasoning: result.reasoning }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
     console.error(`[SCR] ERROR: ${errMsg}`)
-    return { actions: [], answer: "", reasoning: `llm_error:${errMsg.slice(0, 100)}` }
+    return deterministicFallback ?? { actions: [], answer: "", reasoning: `llm_error:${errMsg.slice(0, 100)}` }
   }
 }
 

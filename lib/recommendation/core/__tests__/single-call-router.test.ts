@@ -235,6 +235,26 @@ describe("routeSingleCall — canonicalization", () => {
     expect(result.actions.every(a => !a._canonFailed)).toBe(true)
   })
 
+  it("threads deterministic candidates into the LLM prompt instead of short-circuiting", async () => {
+    const provider = {
+      complete: vi.fn(async (systemPrompt: string) => {
+        expect(systemPrompt).toContain("## Deterministic Candidate Hints")
+        expect(systemPrompt).toContain("fluteCount eq 4")
+        return JSON.stringify({
+          actions: [{ type: "apply_filter", field: "fluteCount", value: 4, op: "eq" }],
+          answer: "",
+          reasoning: "used deterministic candidate as a hint",
+        })
+      }),
+    } as any
+
+    const result = await routeSingleCall("4날", null, provider)
+    expect(provider.complete).toHaveBeenCalledTimes(1)
+    expect(result.actions).toEqual([
+      expect.objectContaining({ type: "apply_filter", field: "fluteCount", value: 4, op: "eq" }),
+    ])
+  })
+
   it("canonicalizes Korean toolSubtype 스퀘어 → Square", async () => {
     const response = JSON.stringify({
       actions: [{ type: "apply_filter", field: "toolSubtype", value: "스퀘어", op: "eq" }],
@@ -298,6 +318,25 @@ describe("routeSingleCall — canonicalization", () => {
     const result = await routeSingleCall("테스트", null, makeMockProvider("I cannot help with that"))
     expect(result.actions).toEqual([])
     expect(result.reasoning).toBe("parse_failure")
+  })
+
+  it("falls back to deterministic actions on unparseable LLM response when hints exist", async () => {
+    const result = await routeSingleCall("볼엔드밀", null, makeMockProvider("I cannot help with that"))
+    expect(result.actions).toEqual([
+      expect.objectContaining({ type: "apply_filter", field: "toolSubtype", value: "Ball", op: "eq" }),
+    ])
+    expect(result.reasoning).toBe("deterministic_fallback")
+  })
+
+  it("falls back to deterministic actions on LLM error when hints exist", async () => {
+    const provider = {
+      complete: vi.fn().mockRejectedValue(new Error("LLM timeout")),
+    } as any
+    const result = await routeSingleCall("4날", null, provider)
+    expect(result.actions).toEqual([
+      expect.objectContaining({ type: "apply_filter", field: "fluteCount", value: 4, op: "eq" }),
+    ])
+    expect(result.reasoning).toBe("deterministic_fallback")
   })
 
   it("field null in apply_filter action still validates (field is optional in type)", async () => {
