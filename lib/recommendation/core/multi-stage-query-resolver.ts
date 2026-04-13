@@ -1,8 +1,6 @@
 import { getProviderForAgent, type LLMProvider } from "@/lib/llm/provider"
 import type { AppliedFilter, ExplorationSessionState } from "@/lib/recommendation/domain/types"
 import { buildAppliedFilterFromValue, getFilterFieldLabel, getFilterFieldQueryAliases, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
-import { canonicalizeQueryFieldName, canonicalizeRuntimeFieldName } from "@/lib/recommendation/shared/domain-lexicon"
-import { normalizeRuntimeFilterDraft, normalizeRuntimeQuerySort } from "@/lib/recommendation/shared/runtime-filter-normalization"
 import { stripKoreanParticles } from "@/lib/recommendation/shared/patterns"
 import type { ComplexityDecision } from "./complexity-router"
 import type { DeterministicAction } from "./deterministic-scr"
@@ -12,7 +10,7 @@ import { getSortableFields, QUERY_FIELD_MANIFEST } from "./query-spec-manifest"
 import { findValueByPhonetic, getDbSchemaSync } from "./sql-agent-schema-cache"
 import { tokenize } from "./auto-synonym"
 
-type ResolverFilterOp = "eq" | "neq" | "gte" | "lte" | "gt" | "lt" | "between" | "skip"
+type ResolverFilterOp = "eq" | "neq" | "gte" | "lte" | "between" | "skip"
 type ResolverRouteHint =
   | "none"
   | "ui_question"
@@ -121,7 +119,7 @@ const STAGE1_SORT_CUE_RE = /(제일|가장|젤|맨|최대한|긴걸로|짧은걸
 const resolverCache = new Map<string, CacheEntry>()
 const failureCache = new Map<string, FailureEntry>()
 
-const FILTER_OPS = new Set<ResolverFilterOp>(["eq", "neq", "gte", "lte", "gt", "lt", "between", "skip"])
+const FILTER_OPS = new Set<ResolverFilterOp>(["eq", "neq", "gte", "lte", "between", "skip"])
 const ROUTE_HINTS = new Set<ResolverRouteHint>([
   "none",
   "ui_question",
@@ -693,11 +691,21 @@ function formatSchemaHintBlock(hints: ResolverSchemaHint[]): string {
 }
 
 function resolveFilterField(raw: unknown): string | null {
-  return canonicalizeRuntimeFieldName(String(raw ?? ""))
+  const normalized = normalizeToken(String(raw ?? ""))
+  if (!normalized) return null
+  for (const entry of fieldAliasIndex) {
+    if (entry.normalized === normalized) return entry.field
+  }
+  return null
 }
 
 function resolveSortField(raw: unknown): QueryField | null {
-  return canonicalizeQueryFieldName(String(raw ?? ""))
+  const normalized = normalizeToken(String(raw ?? ""))
+  if (!normalized) return null
+  for (const entry of sortableFieldAliasIndex) {
+    if (entry.normalized === normalized) return entry.field
+  }
+  return null
 }
 
 function toPrimitive(value: unknown): PrimitiveValue | null {
@@ -770,11 +778,17 @@ function normalizeFilterSpecs(
     if (!FILTER_OPS.has(opValue as ResolverFilterOp)) continue
 
     const op = opValue as ResolverFilterOp
-    const fallbackPendingField = op === "skip"
-      ? (canonicalizeRuntimeFieldName(pendingField ?? "") ?? pendingField ?? null)
-      : null
-    let resolvedField = resolveFilterField(record.field) ?? fallbackPendingField
+    let resolvedField = resolveFilterField(record.field) ?? (op === "skip" ? pendingField ?? null : null)
     if (!resolvedField) continue
+
+    if (op === "skip") {
+      specs.push({
+        field: resolvedField,
+        op,
+        rawToken: typeof record.rawToken === "string" ? record.rawToken : undefined,
+      })
+      continue
+    }
 
     let value = toPrimitiveOrArray(record.value)
     let value2 = toPrimitive(record.value2)
@@ -787,26 +801,17 @@ function normalizeFilterSpecs(
 
     if (
       resolvedField === "stockStatus"
-      && (op === "gte" || op === "lte" || op === "gt" || op === "lt" || op === "between" || typeof value === "number")
+      && (op === "gte" || op === "lte" || op === "between" || typeof value === "number")
     ) {
       resolvedField = "totalStock"
     }
 
-    const normalized = normalizeRuntimeFilterDraft({
+    specs.push({
       field: resolvedField,
       op,
       value,
       value2: value2 ?? undefined,
       rawToken: typeof record.rawToken === "string" ? record.rawToken : undefined,
-    })
-    if (!normalized) continue
-
-    specs.push({
-      field: normalized.field,
-      op: normalized.op as ResolverFilterOp,
-      value: normalized.value,
-      value2: normalized.value2,
-      rawToken: normalized.rawToken,
     })
   }
 
@@ -816,10 +821,10 @@ function normalizeFilterSpecs(
 function normalizeSort(rawSort: unknown): QuerySort | null {
   if (!rawSort || typeof rawSort !== "object") return null
   const record = rawSort as Record<string, unknown>
-  return normalizeRuntimeQuerySort({
-    field: String(record.field ?? ""),
-    direction: String(record.direction ?? "").trim().toLowerCase() as QuerySort["direction"],
-  })
+  const field = resolveSortField(record.field)
+  const direction = String(record.direction ?? "").trim().toLowerCase()
+  if (!field || (direction !== "asc" && direction !== "desc")) return null
+  return { field, direction }
 }
 
 function normalizeResolverPayload(
@@ -880,14 +885,7 @@ function buildFilterFromSpec(spec: ResolverFilterSpec, turnCount: number): Appli
     : (spec.value as PrimitiveValue | PrimitiveValue[])
   const targetField =
     spec.field === "stockStatus"
-    && (
-      spec.op === "gte"
-      || spec.op === "lte"
-      || spec.op === "gt"
-      || spec.op === "lt"
-      || spec.op === "between"
-      || typeof rawValue === "number"
-    )
+    && (spec.op === "gte" || spec.op === "lte" || spec.op === "between" || typeof rawValue === "number")
       ? "totalStock"
       : spec.field
 
@@ -1056,16 +1054,16 @@ function buildStageOneResult(args: ResolveMultiStageQueryArgs): MultiStageResolv
         }
       }
       case "skip_field":
-        removeFields.add(canonicalizeRuntimeFieldName(editIntent.field) ?? editIntent.field)
+        removeFields.add(editIntent.field)
         filterSpecs.push({ field: editIntent.field, op: "skip" })
         reasoning = `stage1:${args.stageOneEditIntent?.reason ?? `skip ${editIntent.field}`}`
         break
       case "clear_field":
-        removeFields.add(canonicalizeRuntimeFieldName(editIntent.field) ?? editIntent.field)
+        removeFields.add(editIntent.field)
         reasoning = `stage1:${args.stageOneEditIntent?.reason ?? `clear ${editIntent.field}`}`
         break
       case "replace_field":
-        removeFields.add(canonicalizeRuntimeFieldName(editIntent.field) ?? editIntent.field)
+        removeFields.add(editIntent.field)
         filterSpecs.push({ field: editIntent.field, op: "eq", value: editIntent.newValue })
         reasoning = `stage1:${args.stageOneEditIntent?.reason ?? `replace ${editIntent.field}`}`
         break
@@ -1087,26 +1085,13 @@ function buildStageOneResult(args: ResolveMultiStageQueryArgs): MultiStageResolv
     })
   }
 
-  const normalizedStageOneSpecs = filterSpecs
-    .map(spec => normalizeRuntimeFilterDraft(spec))
-    .filter((spec): spec is NonNullable<ReturnType<typeof normalizeRuntimeFilterDraft>> => spec != null)
-    .map(spec => ({
-      field: spec.field,
-      op: spec.op as ResolverFilterOp,
-      value: spec.value,
-      value2: spec.value2,
-      rawToken: spec.rawToken,
-    }))
-
-  const filters = normalizedStageOneSpecs
+  const filters = filterSpecs
     .map(spec => buildFilterFromSpec(spec, args.turnCount))
     .filter((filter): filter is AppliedFilter => filter != null)
 
-  const normalizedStageOneSort = normalizeRuntimeQuerySort(args.stageOneSort ?? null, args.message)
-
   const hasStageOneResolution =
     filters.length > 0
-    || !!normalizedStageOneSort
+    || !!args.stageOneSort
     || clearUnmentioned
     || removeFields.size > 0
     || intent !== "none"
@@ -1118,14 +1103,14 @@ function buildStageOneResult(args: ResolveMultiStageQueryArgs): MultiStageResolv
       "none",
       args.message,
       filters.length > 0 || removeFields.size > 0 || clearUnmentioned,
-      Boolean(normalizedStageOneSort),
+      Boolean(args.stageOneSort),
     )
   }
 
   return {
     source: "stage1",
     filters,
-    sort: normalizedStageOneSort,
+    sort: args.stageOneSort ?? null,
     routeHint: intent === "show_recommendation" ? "show_recommendation" : "none",
     intent,
     clearOtherFilters: clearUnmentioned,
