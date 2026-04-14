@@ -18,22 +18,25 @@ export interface SaveParams {
   intakeForm: Record<string, unknown> | null
 }
 
-export function useConversationHistory(userId = "default") {
+export function useConversationHistory(userId = "default", query = "") {
   const [conversations, setConversations] = useState<ConversationSummary[]>([])
   const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const inflight = useRef<AbortController | null>(null)
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (overrideQuery?: string) => {
     inflight.current?.abort()
     const ctrl = new AbortController()
     inflight.current = ctrl
     setIsLoading(true)
     setError(null)
     try {
+      const q = (overrideQuery ?? query).trim()
+      const qs = new URLSearchParams({ userId, limit: "50" })
+      if (q) qs.set("q", q)
       const res = await fetch(
-        `/api/conversations?userId=${encodeURIComponent(userId)}&limit=50`,
+        `/api/conversations?${qs.toString()}`,
         { signal: ctrl.signal, cache: "no-store" },
       )
       if (!res.ok) throw new Error(`list failed: ${res.status}`)
@@ -47,12 +50,16 @@ export function useConversationHistory(userId = "default") {
     } finally {
       setIsLoading(false)
     }
-  }, [userId])
+  }, [userId, query])
 
+  // Debounce query changes (300ms) so every keystroke doesn't hit the API.
   useEffect(() => {
-    void refresh()
-    return () => inflight.current?.abort()
-  }, [refresh])
+    const t = setTimeout(() => { void refresh() }, query ? 300 : 0)
+    return () => {
+      clearTimeout(t)
+      inflight.current?.abort()
+    }
+  }, [refresh, query])
 
   const load = useCallback(async (conversationId: string): Promise<ConversationFull | null> => {
     try {

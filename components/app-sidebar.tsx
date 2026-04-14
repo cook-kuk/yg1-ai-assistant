@@ -26,6 +26,8 @@ import {
   Brain,
   Trash2,
   History,
+  Search as SearchIcon,
+  X as XIcon,
 } from "lucide-react"
 import { useConversationHistory } from "@/lib/frontend/recommendation/use-conversation-history"
 import { cn } from "@/lib/utils"
@@ -205,10 +207,39 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
     item.roles.includes(currentUser.role)
   )
 
-  const { conversations, remove: removeConversation } = useConversationHistory("default")
+  const [historySearch, setHistorySearch] = useState("")
+  const { conversations, remove: removeConversation } = useConversationHistory("default", historySearch)
   const [historyOpen, setHistoryOpen] = useState(true)
   const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null
   const activeConvId = searchParams?.get("convId") ?? null
+
+  // Group conversations by relative time bucket for ChatGPT-style sections.
+  const groupedConversations = (() => {
+    const now = Date.now()
+    const DAY = 1000 * 60 * 60 * 24
+    const bucket = (iso: string): string => {
+      const t = new Date(iso).getTime()
+      if (!Number.isFinite(t)) return language === "ko" ? "이전" : "Earlier"
+      const diffDays = (now - t) / DAY
+      if (diffDays < 1) return language === "ko" ? "오늘" : "Today"
+      if (diffDays < 2) return language === "ko" ? "어제" : "Yesterday"
+      if (diffDays < 7) return language === "ko" ? "지난 7일" : "Previous 7 days"
+      if (diffDays < 30) return language === "ko" ? "지난 30일" : "Previous 30 days"
+      return language === "ko" ? "이전" : "Earlier"
+    }
+    const order = language === "ko"
+      ? ["오늘", "어제", "지난 7일", "지난 30일", "이전"]
+      : ["Today", "Yesterday", "Previous 7 days", "Previous 30 days", "Earlier"]
+    const groups = new Map<string, typeof conversations>()
+    for (const conv of conversations) {
+      const key = bucket(conv.updatedAt)
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key)!.push(conv)
+    }
+    return order
+      .filter(k => groups.has(k))
+      .map(k => ({ label: k, items: groups.get(k)! }))
+  })()
 
   const handleConversationClick = (conversationId: string) => {
     router.push(`/products?convId=${encodeURIComponent(conversationId)}`)
@@ -384,61 +415,95 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
           </button>
 
           {historyOpen && (
-            <ul className="mt-1 space-y-0.5">
+            <>
+              {/* Search input */}
+              <div className="relative mt-1 px-2">
+                <SearchIcon className="absolute left-4 top-1/2 h-3 w-3 -translate-y-1/2 text-sidebar-foreground/40" />
+                <input
+                  type="text"
+                  value={historySearch}
+                  onChange={e => setHistorySearch(e.target.value)}
+                  placeholder={language === "ko" ? "대화 검색..." : "Search conversations..."}
+                  className="h-7 w-full rounded-md border border-sidebar-border bg-sidebar-accent/40 pl-6 pr-6 text-xs text-sidebar-foreground placeholder:text-sidebar-foreground/40 focus:outline-none focus:ring-1 focus:ring-sidebar-primary"
+                />
+                {historySearch && (
+                  <button
+                    onClick={() => setHistorySearch("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-sidebar-foreground/40 hover:text-sidebar-foreground"
+                    title={language === "ko" ? "지우기" : "Clear"}
+                  >
+                    <XIcon className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+
               {conversations.length === 0 ? (
-                <li className="px-3 py-2 text-xs text-sidebar-foreground/40">
-                  {language === "ko" ? "저장된 대화가 없습니다" : "No saved conversations"}
-                </li>
+                <div className="mt-1 px-3 py-2 text-xs text-sidebar-foreground/40">
+                  {historySearch
+                    ? (language === "ko" ? "검색 결과가 없습니다" : "No matches")
+                    : (language === "ko" ? "저장된 대화가 없습니다" : "No saved conversations")}
+                </div>
               ) : (
-                conversations.map(conv => {
-                  const isActive = activeConvId === conv.conversationId
-                  return (
-                    <li key={conv.conversationId} className="group relative">
-                      <button
-                        onClick={() => handleConversationClick(conv.conversationId)}
-                        className={cn(
-                          "flex w-full flex-col items-start gap-0.5 rounded-md px-3 py-2 text-left text-xs transition-colors",
-                          isActive
-                            ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                            : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50"
-                        )}
-                      >
-                        <div className="flex w-full items-center gap-1.5">
-                          <span className="flex-1 truncate font-medium">{conv.title}</span>
-                          <span className="shrink-0 text-[9px] text-sidebar-foreground/40">
-                            {formatTime(conv.updatedAt)}
-                          </span>
-                        </div>
-                        {conv.lastUserMessage && (
-                          <span className="line-clamp-1 text-[10px] text-sidebar-foreground/50">
-                            {conv.lastUserMessage}
-                          </span>
-                        )}
-                        {conv.filterSummary.length > 0 && (
-                          <div className="mt-0.5 flex flex-wrap gap-1">
-                            {conv.filterSummary.slice(0, 3).map((f, i) => (
-                              <span
-                                key={i}
-                                className="rounded bg-sidebar-accent/70 px-1 py-[1px] text-[9px] text-sidebar-foreground/60"
+                <div className="mt-1">
+                  {groupedConversations.map(group => (
+                    <div key={group.label} className="mt-1 first:mt-0">
+                      <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+                        {group.label}
+                      </div>
+                      <ul className="space-y-0.5">
+                        {group.items.map(conv => {
+                          const isActive = activeConvId === conv.conversationId
+                          return (
+                            <li key={conv.conversationId} className="group relative">
+                              <button
+                                onClick={() => handleConversationClick(conv.conversationId)}
+                                className={cn(
+                                  "flex w-full flex-col items-start gap-0.5 rounded-md px-3 py-2 text-left text-xs transition-colors",
+                                  isActive
+                                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                                    : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50"
+                                )}
                               >
-                                {f}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </button>
-                      <button
-                        onClick={(e) => handleConversationDelete(e, conv.conversationId)}
-                        className="absolute right-1.5 top-1.5 hidden rounded p-1 text-sidebar-foreground/40 hover:bg-red-500/20 hover:text-red-500 group-hover:block"
-                        title={language === "ko" ? "삭제" : "Delete"}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    </li>
-                  )
-                })
+                                <div className="flex w-full items-center gap-1.5">
+                                  <span className="flex-1 truncate font-medium">{conv.title}</span>
+                                  <span className="shrink-0 text-[9px] text-sidebar-foreground/40">
+                                    {formatTime(conv.updatedAt)}
+                                  </span>
+                                </div>
+                                {conv.lastUserMessage && (
+                                  <span className="line-clamp-1 text-[10px] text-sidebar-foreground/50">
+                                    {conv.lastUserMessage}
+                                  </span>
+                                )}
+                                {conv.filterSummary.length > 0 && (
+                                  <div className="mt-0.5 flex flex-wrap gap-1">
+                                    {conv.filterSummary.slice(0, 3).map((f, i) => (
+                                      <span
+                                        key={i}
+                                        className="rounded bg-sidebar-accent/70 px-1 py-[1px] text-[9px] text-sidebar-foreground/60"
+                                      >
+                                        {f}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </button>
+                              <button
+                                onClick={(e) => handleConversationDelete(e, conv.conversationId)}
+                                className="absolute right-1.5 top-1.5 hidden rounded p-1 text-sidebar-foreground/40 hover:bg-red-500/20 hover:text-red-500 group-hover:block"
+                                title={language === "ko" ? "삭제" : "Delete"}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
               )}
-            </ul>
+            </>
           )}
         </div>
       </nav>
