@@ -3613,28 +3613,85 @@ async function handleServeExplorationInner(
         if (firstTurnResolverBypassed) {
           console.log(`[first-turn-intake] bare recommendation request bypassed multi-stage resolver`)
         } else {
-          firstTurnResolverResult = await resolveMultiStageQuery({
-            message: rawMsg,
-            turnCount,
-            currentFilters: filters,
-            sessionState: prevState,
-            conversationHistory: mapMessagesToResolverConversationHistory(messages),
-            resolvedInputSnapshot: resolvedInput,
-            stageOneEditIntent: firstTurnEditResult,
-            stageOneDeterministicActions: stageOneActions,
-            stageOneSort: firstTurnSort,
-            complexity: assessComplexity(rawMsg, filters.length),
-            requestPreparationIntent: requestPrep.intent,
-            requestPreparationSlots: requestPrep.slots,
-            recognizedEntities: currentTurnRecognizedEntities,
-            stage1CotEscalation: {
-              enabled: true,
-              currentCandidateCount: prevState?.candidateCount ?? null,
-            },
-          })
-          console.log(
-            `[first-turn-intake] multi-stage source=${firstTurnResolverResult.source} intent=${firstTurnResolverResult.intent} unresolved=${firstTurnResolverResult.unresolvedTokens.join(",") || "none"}`
-          )
+          // Deterministic multi-hint fast-path: if the first-turn message
+          // already exposes ≥2 independently extractable hints
+          // (material/diameter/toolSubtype/fluteCount), skip Stage2/3 LLM —
+          // those stages were hallucinating `unresolvedTokens` on queries that
+          // are 100% parseable deterministically (e.g. "스테인리스 4날 10mm
+          // 추천해줘"), returning concept_mapping_gap clarifications that
+          // blocked retrieval entirely.
+          const { extractMaterial: detExtractMaterial, extractDiameter: detExtractDiameter } =
+            await import("@/lib/recommendation/domain/input-normalizer")
+          const { canonicalizeToolSubtype: detCanonicalizeToolSubtype, extractFluteCount: detExtractFluteCount } =
+            await import("@/lib/recommendation/shared/patterns")
+          const { buildAppliedFilterFromValue: detBuildFilter } =
+            await import("@/lib/recommendation/shared/filter-field-registry")
+          const detHintPairs: Array<{ field: string; value: string | number }> = []
+          const detMat = detExtractMaterial(rawMsg)
+          if (detMat) detHintPairs.push({ field: "material", value: detMat })
+          const detDia = detExtractDiameter(rawMsg)
+          if (detDia != null) detHintPairs.push({ field: "diameterMm", value: detDia })
+          const detSub = detCanonicalizeToolSubtype(rawMsg)
+          if (detSub) detHintPairs.push({ field: "toolSubtype", value: detSub })
+          const detFl = detExtractFluteCount(rawMsg)
+          if (detFl != null) detHintPairs.push({ field: "fluteCount", value: detFl })
+          // Soft-rec / indifference / urgency markers lower the threshold to 1 hint —
+          // e.g. "SUS316L 많이 하는데 괜찮은 거?" (1 material hint + 괜찮은) or
+          // "아무거나 빨리 10mm" (1 diameter hint + 아무거나/빨리). Without this,
+          // Stage2 LLM treats the surrounding conversational noise as unresolved
+          // semantic hints and loops the user into a clarification.
+          const SOFT_INTENT_RE = /(괜찮은|좋은|쓸만한|쓸\s*만한|추천\s*(좀|해)?|보여\s*줘|찾아\s*줘|뭐가\s*있|있을까|어울리는|맞는|적합한|아무거나|아무|알아서|대충|뭐든|상관\s*없|빨리|급해|급한|당장|얼른|서둘러)/u
+          const minHints = SOFT_INTENT_RE.test(rawMsg) ? 1 : 2
+          let detFastPathFilters: AppliedFilter[] = []
+          if (detHintPairs.length >= minHints) {
+            detFastPathFilters = detHintPairs
+              .map(h => detBuildFilter(h.field, h.value, turnCount))
+              .filter((f): f is AppliedFilter => f !== null)
+          }
+          if (detFastPathFilters.length >= minHints) {
+            firstTurnResolverResult = {
+              source: "stage1",
+              action: "execute",
+              filters: detFastPathFilters,
+              concepts: [],
+              sort: firstTurnSort ?? null,
+              routeHint: "none",
+              intent: "show_recommendation",
+              clearOtherFilters: false,
+              removeFields: [],
+              followUpFilter: null,
+              confidence: 1,
+              unresolvedTokens: [],
+              reasoning: `deterministic-multi-hint:${detFastPathFilters.map(f => f.field).join(",")}`,
+              clarification: null,
+            }
+            console.log(
+              `[first-turn-intake] det-multi-hint fast-path: ${detFastPathFilters.length} filters (${detFastPathFilters.map(f => `${f.field}=${f.value}`).join(", ")})`
+            )
+          } else {
+            firstTurnResolverResult = await resolveMultiStageQuery({
+              message: rawMsg,
+              turnCount,
+              currentFilters: filters,
+              sessionState: prevState,
+              conversationHistory: mapMessagesToResolverConversationHistory(messages),
+              resolvedInputSnapshot: resolvedInput,
+              stageOneEditIntent: firstTurnEditResult,
+              stageOneDeterministicActions: stageOneActions,
+              stageOneSort: firstTurnSort,
+              complexity: assessComplexity(rawMsg, filters.length),
+              requestPreparationIntent: requestPrep.intent,
+              requestPreparationSlots: requestPrep.slots,
+              recognizedEntities: currentTurnRecognizedEntities,
+              stage1CotEscalation: {
+                enabled: true,
+                currentCandidateCount: null,
+              },
+            })
+            console.log(
+              `[first-turn-intake] multi-stage source=${firstTurnResolverResult.source} intent=${firstTurnResolverResult.intent} unresolved=${firstTurnResolverResult.unresolvedTokens.join(",") || "none"}`
+            )
+          }
         }
       } catch (e) {
         console.warn("[first-turn-intake] multi-stage fallback failed:", (e as Error).message)
@@ -6930,6 +6987,12 @@ async function handleServeExplorationInner(
       candidateSnapshot: prevState.displayedCandidates ?? prevState.lastRecommendationArtifact ?? [],
     })
 
+    try {
+      const fs = await import("fs")
+      fs.appendFileSync("C:/Users/kuksh/Downloads/YG1_test/debug-copper.log", `[DEBUG-COPPER] msg=${JSON.stringify(lastUserMsg.text)} action.type=${action.type} turnTruth.intent=${turnTruth.intent} inventoryConstraint=${JSON.stringify(turnTruth.inventoryConstraint)} displayedCandidateFilter=${JSON.stringify(turnTruth.displayedCandidateFilter)} filters=${JSON.stringify(filters.map(f => ({ field: f.field, op: f.op, rawValue: f.rawValue })))} prevDisplayed=${prevState?.displayedCandidates?.length ?? 0} turn=${turnCount}\n`)
+    } catch {}
+    console.log(`[DEBUG-COPPER] action.type=${action.type} turnTruth.intent=${turnTruth.intent} filters=${JSON.stringify(filters.map(f => ({ field: f.field, op: f.op, rawValue: f.rawValue })))} turn=${turnCount}`)
+
     if (turnTruth.intent === "inventory_constraint" && turnTruth.inventoryConstraint && action.type !== "filter_by_stock") {
       action = {
         type: "filter_by_stock",
@@ -6940,6 +7003,11 @@ async function handleServeExplorationInner(
         `[turn-truth] inventory constraint -> filter_by_stock (min=${turnTruth.inventoryConstraint.minimumStock ?? "instock"})`,
       )
     }
+    try {
+      const fs = await import("fs")
+      fs.appendFileSync("C:/Users/kuksh/Downloads/YG1_test/debug-copper.log", `[DEBUG-COPPER-POST] action.type=${action.type} filters.len=${filters.length} filters=${JSON.stringify(filters.map(f => ({ field: f.field, op: f.op, rawValue: f.rawValue })))}\n`)
+    } catch {}
+    console.log(`[DEBUG-COPPER-POST] action.type=${action.type} filters.len=${filters.length}`)
 
     if (
       turnTruth.intent === "displayed_candidate_filtering"
