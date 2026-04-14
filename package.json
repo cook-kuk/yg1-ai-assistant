@@ -8,7 +8,7 @@
     "dev": "next dev",
     "generate:material-mapping": "node scripts/generate-material-mapping-module.mjs",
     "lint": "eslint .",
-    "start": "next start",
+    "start": "node scripts/start-standalone.mjs",
     "test": "vitest run",
     "test:node22": "node scripts/run-vitest-node22.mjs",
     "test:recommendation": "node scripts/run-vitest-node22.mjs run lib/recommendation",
