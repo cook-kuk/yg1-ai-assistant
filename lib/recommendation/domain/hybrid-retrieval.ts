@@ -31,6 +31,13 @@ import { resolveMaterialTag } from "@/lib/recommendation/domain/material-resolve
 import { getAppShapesForOperation } from "@/lib/recommendation/domain/operation-resolver"
 import { applyPostFilterToProducts, getFilterFieldDefinition } from "@/lib/recommendation/shared/filter-field-registry"
 import { traceRecommendation } from "@/lib/recommendation/infrastructure/observability/recommendation-trace"
+import { isFlagshipSeries, isMicroSeries } from "@/lib/recommendation/shared/canonical-values"
+import {
+  SCORING_WEIGHTS,
+  BRAND_SCORING,
+  DIVERSITY_CONFIG,
+  CAPACITY_LIMITS,
+} from "@/lib/recommendation/infrastructure/config/scoring-config"
 
 // ── Result type ──────────────────────────────────────────────
 export interface HybridResult {
@@ -84,17 +91,8 @@ function extractStockThreshold(filter: AppliedFilter): number {
   return Number.isFinite(n) && n > 0 ? n : 0
 }
 
-// ── Scoring weights (same as match-engine.ts) ────────────────
-const WEIGHTS = {
-  diameter: 40,
-  flutes: 15,
-  materialTag: 20,
-  operation: 15,
-  toolShape: 15,  // operationType → toolSubtype compatibility bonus/penalty
-  coating: 5,
-  completeness: 5,
-  evidence: 10,  // bonus for having cutting condition evidence
-}
+// ── Scoring weights (SSOT: infrastructure/config/scoring-config.ts) ────
+const WEIGHTS = SCORING_WEIGHTS
 
 // ── Operation → Tool Shape compatibility ─────────────────────
 // Bonus/penalty applied when operationType is known.
@@ -754,11 +752,12 @@ export async function runHybridRetrieval(
   const hasPositiveFilter = filters.some(f => f.op !== "neq" && f.op !== "exclude")
   const hasNegativeFilter = filters.some(f => f.op === "neq" || f.op === "exclude")
   if (!hasPositiveFilter && hasNegativeFilter) {
-    const FLAGSHIP_BRANDS = ["4G MILL", "V7 PLUS", "i-SMART", "TitaNox-Power", "X-POWER", "SEME", "GMH", "GMG"]
-    const MICRO_BRANDS = ["3S MILL", "CRX MICRO", "MICRO"]
-    const FLAGSHIP_BOOST = 100
-    const MICRO_BRAND_DEMOTE = 200
-    const MICRO_DIA_DEMOTE = 80
+    const {
+      flagshipBoostPrimary: FLAGSHIP_BOOST,
+      microBrandDemote: MICRO_BRAND_DEMOTE,
+      microDiaDemote: MICRO_DIA_DEMOTE,
+      microDiaThreshold: MICRO_DIA_THRESHOLD,
+    } = BRAND_SCORING
     let boosted = 0
     let brandDemoted = 0
     let diaDemoted = 0
@@ -766,18 +765,16 @@ export async function runHybridRetrieval(
       const brand = s.product.brand ?? ""
       const series = s.product.seriesName ?? ""
       const diameter = s.product.diameterMm ?? 0
-      if (FLAGSHIP_BRANDS.some(f => brand.includes(f) || series.includes(f))) {
+      if (isFlagshipSeries(brand) || isFlagshipSeries(series)) {
         s.score += FLAGSHIP_BOOST
         s.matchedFields.push("대표 시리즈")
         boosted++
       }
-      // Demote micro-specialist brands (3S MILL etc.) — narrow ultra-small
-      // tool lines that judge models flag as "unknown in catalog" on bare-neg queries.
-      if (MICRO_BRANDS.some(m => brand.includes(m) || series.includes(m))) {
+      if (isMicroSeries(brand) || isMicroSeries(series)) {
         s.score -= MICRO_BRAND_DEMOTE
         brandDemoted++
       }
-      if (diameter > 0 && diameter <= 5) {
+      if (diameter > 0 && diameter <= MICRO_DIA_THRESHOLD) {
         s.score -= MICRO_DIA_DEMOTE
         diaDemoted++
       }
@@ -802,8 +799,7 @@ export async function runHybridRetrieval(
 
   // ── Series diversity reranker ──
   // Top 5에서 같은 시리즈 최대 2개로 제한 → 다양한 시리즈 추천
-  const MAX_PER_SERIES_IN_TOP = 2
-  const TOP_DIVERSITY_WINDOW = 5
+  const { maxPerSeriesInTop: MAX_PER_SERIES_IN_TOP, topDiversityWindow: TOP_DIVERSITY_WINDOW } = DIVERSITY_CONFIG
   if (qualifiedCandidates.length > TOP_DIVERSITY_WINDOW) {
     const seriesCount = new Map<string, number>()
     const diversified: typeof qualifiedCandidates = []
@@ -832,7 +828,7 @@ export async function runHybridRetrieval(
   // STOCK_FILTER_ENRICH_CAP까지 enrich 후 matches()로 post-filter. 기본 경로는
   // 기존 동작 그대로 유지(성능 회귀 없음).
   const hasStockFilter = filters.some(f => f.field === "stockStatus" && f.op !== "skip")
-  const STOCK_FILTER_ENRICH_CAP = 2000
+  const { stockFilterEnrichCap: STOCK_FILTER_ENRICH_CAP } = CAPACITY_LIMITS
 
   if (hasStockFilter) {
     // SQL builder가 stockStatus.buildDbClause로 inventory_summary_mv 와 EXISTS join
@@ -864,7 +860,7 @@ export async function runHybridRetrieval(
   // Hard cap: broad 상태(topN<=0)에서도 최대 SCORE_EVIDENCE_HARD_CAP 만 evidence/inventory enrich.
   // 64K 후보를 다 돌리면 score_evidence + inventory pool + heap 모두 폭발 (4GB OOM).
   // 200이면 display N=50 + 여유분 충분.
-  const SCORE_EVIDENCE_HARD_CAP = 200
+  const { scoreEvidenceHardCap: SCORE_EVIDENCE_HARD_CAP } = CAPACITY_LIMITS
   const topCandidates = topN > 0
     ? qualifiedCandidates.slice(0, topN)
     : qualifiedCandidates.slice(0, SCORE_EVIDENCE_HARD_CAP)
@@ -945,23 +941,12 @@ export async function runHybridRetrieval(
     appliedFilters.length > 0 &&
     appliedFilters.every(f => f.op === "neq" || f.op === "nin")
   if (isPureNeq) {
-    const FLAGSHIP_KEYWORDS = [
-      "4G MILL",
-      "V7 PLUS",
-      "i-SMART",
-      "TitaNox-Power",
-      "X-POWER",
-      "SEME",
-      "GMH",
-      "GMG",
-    ]
     let boosted = 0
     for (const candidate of topCandidates) {
       const brand = candidate.product.brand ?? ""
       const series = candidate.product.seriesName ?? ""
-      const hit = FLAGSHIP_KEYWORDS.some(kw => brand.includes(kw) || series.includes(kw))
-      if (hit) {
-        candidate.score += 5
+      if (isFlagshipSeries(brand) || isFlagshipSeries(series)) {
+        candidate.score += BRAND_SCORING.flagshipBoostSecondary
         candidate.matchedFields.push("대표 시리즈 가산")
         boosted++
       }

@@ -33,9 +33,16 @@ export const MATERIAL_KEYWORDS: Record<string, string[]> = {
   "비철금속": ["비철"],
 }
 
-/** 모든 소재 alias를 flat Set으로 — O(1) .has() 용 */
+/**
+ * 모든 소재 alias를 flat Set으로. Substring `.includes()` 체크 용도로만 사용하므로
+ * 2자 이하 토큰("AL", "Ti", "Cu", "GC", "FC")은 false-positive 방지 위해 제외.
+ * 짧은 토큰은 matchMaterial() 의 word-boundary regex 경로로 처리됨.
+ */
 export const MATERIAL_KEYWORD_FLAT: Set<string> = new Set(
-  Object.values(MATERIAL_KEYWORDS).flat().map(k => k.toLowerCase())
+  Object.values(MATERIAL_KEYWORDS)
+    .flat()
+    .map(k => k.toLowerCase())
+    .filter(k => k.length > 2)
 )
 
 export function matchMaterial(text: string): string | null {
@@ -344,13 +351,89 @@ export const OPERATION_KEYWORDS: Record<string, string[]> = {
   "정삭": ["정삭", "finishing", "finish", "마무리", "fine"],
   "중삭": ["중삭", "semi", "반정삭"],
   "고이송": ["고이송", "high feed", "highfeed", "hfm", "빠른이송"],
-  "슬롯": ["슬롯", "slot", "홈가공", "홈"],
-  "측면": ["측면", "side milling", "윤곽", "contour"],
+  "슬롯": ["슬롯", "slot", "slotting", "홈가공", "홈", "슬롯가공"],
+  "측면": ["측면", "side", "side milling", "윤곽", "contour", "측면가공"],
+  "프로파일": ["프로파일", "profile", "profiling", "프로파일가공"],
+  "페이싱": ["페이싱", "facing"],
+  "포켓": ["포켓", "pocket", "pocketing"],
+  "3D": ["3d"],
 }
 
 export const OPERATION_KEYWORD_FLAT: Set<string> = new Set(
   Object.values(OPERATION_KEYWORDS).flat().map(k => k.toLowerCase())
 )
+
+// ═══════════════════════════════════════════════════════════════
+// 7.5 Tool type keywords (SSOT)
+// ═══════════════════════════════════════════════════════════════
+
+export const TOOL_KEYWORDS: Record<string, string[]> = {
+  "엔드밀": ["엔드밀", "endmill", "end mill"],
+  "드릴": ["드릴", "drill"],
+  "밀링": ["밀링", "milling"],
+  "탭": ["탭", "tap", "tapping"],
+  "리머": ["리머", "reamer"],
+  "인서트": ["인서트", "insert"],
+  "볼": ["볼", "ball"],
+  "플랫": ["플랫", "flat", "스퀘어", "square"],
+  "챔퍼": ["챔퍼", "chamfer"],
+  "테이퍼": ["테이퍼", "taper"],
+  "선삭": ["선삭"],
+  "보링": ["보링", "boring"],
+}
+
+export const TOOL_KEYWORD_FLAT: Set<string> = new Set(
+  Object.values(TOOL_KEYWORDS).flat().map(k => k.toLowerCase())
+)
+
+// ═══════════════════════════════════════════════════════════════
+// 7.6 Coating flat Set (derived from COATING_KEYWORDS + 일반 표현)
+// ═══════════════════════════════════════════════════════════════
+
+/** Flat lowercase Set — O(1) 체크용. COATING_KEYWORD_SET + 일반 표현("코팅", "y-코팅" 등). */
+export const COATING_KEYWORD_FLAT: Set<string> = new Set<string>([
+  ...COATING_KEYWORD_SET,
+  "코팅",
+  "y-코팅",
+  "x-코팅",
+  "t-코팅",
+  "c-코팅",
+  "h-코팅",
+  "z-코팅",
+])
+
+// ═══════════════════════════════════════════════════════════════
+// 7.7 Product code patterns (SSOT)
+// ═══════════════════════════════════════════════════════════════
+
+export const PRODUCT_CODE_PATTERNS: RegExp[] = [
+  /\b(CE[57]\w{2,})/i,
+  /\b(GNX\d{2,})/i,
+  /\b(SEM[A-Z]*\d{3,})/i,
+  /\b(E[0-9]{4})/i,
+  /\b(GAA?\d{2,})/i,
+  /\b(GMG?\d{2,})/i,
+  /\b(EHD\d{2,})/i,
+  /\b(ALU[\s-]*PLUS)/i,
+]
+
+// ═══════════════════════════════════════════════════════════════
+// 7.8 Reverse material map (alias → canonical)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * MATERIAL_KEYWORDS 의 역방향 매핑 (alias lowercase → canonical 한국어 키).
+ * free-form 소재 문자열을 canonical 이름으로 정규화할 때 사용.
+ */
+export function buildReverseMaterialMap(): Record<string, string> {
+  const reverseMap: Record<string, string> = {}
+  for (const [canonical, aliases] of Object.entries(MATERIAL_KEYWORDS)) {
+    for (const alias of aliases) {
+      reverseMap[alias.toLowerCase()] = canonical
+    }
+  }
+  return reverseMap
+}
 
 export function matchOperation(text: string): string | null {
   const lower = text.toLowerCase()
@@ -460,4 +543,36 @@ export function buildDomainKnowledgeSnippet(): string {
 - TiN: 범용 입문용, 건식 한계, 가격 저렴.
 - TiCN: 내마모성 우수, 일반강 황삭에 강함.
 - Diamond(PCD): 비철 정밀 가공 전용, 철계 절대 금지.`
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Session Contradiction Patterns
+// ═══════════════════════════════════════════════════════════════
+// 세션 상태와 사용자 입력이 모순인 케이스를 LLM 호출 전에 잡아내는 단축회로용.
+// 정확도보다 "명백한 모순만" 잡는 안전망이 목적 — 놓친 케이스는 orchestrator 가
+// LLM 경로로 정상 처리하므로 false-negative 비용이 낮다.
+// 중앙화 이유: 한국어 활용형 / 영어 동의어 확장 시 한 곳에서만 건드리면 됨.
+export const CONTRADICTION_PATTERNS = {
+  // "수정/변경/바꿈" — 기존 조건을 고치려는 요청
+  modify: /(수정|변경|바꾸|바꿔|고치|고쳐|modify|change)/,
+  // "비교" — 둘 이상을 대비하려는 요청
+  compare: /(비교|compare|\bvs\b)/,
+  // "제거/되돌리기/취소" — 적용된 것을 없애려는 요청
+  undo: /(제거|삭제|되돌|취소|undo|remove|delete)/,
+  // "추천" — 재요청
+  recommend: /(추천해|recommend)/,
+  // "다시/새로/재요청" — recommend 과 결합해 "재추천" 으로 해석
+  reRecommend: /(다시|다른|새로|re-?recommend)/,
+} as const
+
+export type ContradictionPatternName = keyof typeof CONTRADICTION_PATTERNS
+
+/**
+ * 단일 패턴 매칭 헬퍼. 소문자 처리된 텍스트만 입력으로 받는다.
+ */
+export function matchContradictionPattern(
+  name: ContradictionPatternName,
+  lowerText: string
+): boolean {
+  return CONTRADICTION_PATTERNS[name].test(lowerText)
 }
