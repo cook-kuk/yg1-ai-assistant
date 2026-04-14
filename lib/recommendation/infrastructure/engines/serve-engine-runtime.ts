@@ -3051,8 +3051,8 @@ async function handleServeExplorationInner(
   // every call site having to forward the value explicitly.
   let proactiveInsightsContext: string | undefined
   const runtimeThinking: RuntimeThinkingState = {
-    thinkingProcess: null,
-    thinkingDeep: null,
+    thinkingProcess: prevState?.thinkingProcess ?? null,
+    thinkingDeep: prevState?.thinkingDeep ?? null,
     reasoningVisibility: "hidden",
   }
   const fullThinkingEnabled = shouldExposeFullThinking()

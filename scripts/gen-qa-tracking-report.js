@@ -15,6 +15,7 @@ const path = require('path');
 const ExcelJS = require('exceljs');
 
 const RESULTS_DIR = path.join(__dirname, '..', 'test-results');
+const TESTSET_DIR = path.join(__dirname, '..', 'testset');
 
 // ── helpers ──
 function readJSON(fp) {
@@ -53,7 +54,7 @@ async function main() {
   // ════════════════════════════════════════
   // 1. 골든셋 Q&A (445건)
   // ════════════════════════════════════════
-  const golden = readJSON(path.join(RESULTS_DIR, 'golden-set-v1.json'));
+  const golden = readJSON(path.join(TESTSET_DIR, 'golden-set-v1.json'));
   const runnerResult = readJSON(path.join(RESULTS_DIR, 'golden-runner-result.json'));
   const detailMap = {};
   for (const d of runnerResult.details || []) detailMap[d.id] = d;

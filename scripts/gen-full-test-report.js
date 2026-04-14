@@ -319,7 +319,7 @@ async function main() {
   // ════════════════════════════════════════════
   // Sheet 7: 골든셋 Q&A 매핑 (445건 질문 → 실행결과)
   // ════════════════════════════════════════════
-  const goldenPath = path.join(__dirname, '..', 'test-results', 'golden-set-v1.json');
+  const goldenPath = path.join(__dirname, '..', 'testset', 'golden-set-v1.json');
   const runnerPath = path.join(__dirname, '..', 'test-results', 'golden-runner-result.json');
   if (fs.existsSync(goldenPath) && fs.existsSync(runnerPath)) {
     const golden = JSON.parse(fs.readFileSync(goldenPath, 'utf8'));

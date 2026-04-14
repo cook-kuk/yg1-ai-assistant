@@ -438,5 +438,37 @@ describe("buildRecommendationResponseDto", () => {
     expect(dto.text).toContain("Among the 2 displayed candidates,")
     expect(dto.text).toContain("are available in stock.")
   })
+
+  it("hides reasoning when reasoningVisibility is hidden", () => {
+    const sessionState = {
+      sessionId: "s-hidden",
+      candidateCount: 10,
+      appliedFilters: [
+        { field: "fluteCount", op: "eq", value: "4", rawValue: "4", appliedAt: 1 },
+      ],
+      narrowingHistory: [],
+      stageHistory: [],
+      resolutionStatus: "resolved_approximate",
+      resolvedInput: { manufacturerScope: "yg1-only", locale: "ko" },
+      turnCount: 1,
+      displayedCandidates: [],
+      displayedChips: [],
+      displayedOptions: [],
+      thinkingProcess: "숨겨져야 하는 reasoning",
+      thinkingDeep: "숨겨져야 하는 deep reasoning",
+    } as ExplorationSessionState
+
+    const dto = buildRecommendationResponseDto({
+      text: "test",
+      purpose: "question",
+      isComplete: false,
+      sessionState,
+      reasoningVisibility: "hidden",
+    })
+
+    expect(dto.reasoningVisibility).toBe("hidden")
+    expect(dto.thinkingProcess).toBeNull()
+    expect(dto.thinkingDeep).toBeNull()
+  })
 })
 

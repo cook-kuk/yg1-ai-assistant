@@ -1,0 +1,446 @@
+ID	Category	Name	Input	PreState	Sequence	ExpectedRouter	ExpectedAction	FiltersAdded	FiltersRemoved	CandidateChange	ShouldNotContain	Source
+A01	A	KG: 단일 brand entity	CRX S	""		kg	continue_narrowing	[{"field":"brand","op":"eq","rawValue":"CRX-S"}]	[]	decrease		synthetic
+A02	A	KG: 4날 단일 entity	4날	""		kg		[{"field":"fluteCount","op":"eq","rawValue":"4"}]	[]	decrease		feedback
+A03	A	KG: 볼 형상 단일	Ball	""		kg		[{"field":"toolSubtype","op":"eq","rawValue":"Ball"}]	[]			feedback
+A04	A	KG: 코팅 brand TiAlN	TiAlN	""		kg		[{"field":"coating","op":"eq","rawValue":"TiAlN"}]	[]			feedback
+A05	A	KG: 4mm 직경 (숫자+단위)	4.4mm	""		kg		[{"field":"diameterMm","op":"eq","rawValue":4.4}]	[]			feedback
+A06	A	KG: 스테인리스 소재	스테인레스강	""		kg		[{"field":"workPieceName","op":"eq","rawValue":"Stainless Steels"}]	[]			feedback
+A07	A	KG: Y코팅 한글 alias	와이코팅으로 추천해주세요	""		kg	show_recommendation	[{"field":"coating","op":"eq","rawValue":"Y-Coating"}]	[]			feedback
+A08	A	KG: V7 PLUS 시리즈명	V7 PLUS	""		kg		[{"field":"brand","op":"eq","rawValue":"V7 PLUS"}]	[]			feedback
+A09	A	KG: 인코넬 소재	Inconel	""		kg		[{"field":"workPieceName","op":"eq","rawValue":"Inconel"}]	[]			feedback
+A10	A	KG: 알루미늄	Aluminum	""		kg		[{"field":"workPieceName","op":"eq","rawValue":"Aluminum"}]	[]			feedback
+B01	B	Edit-intent: CRX S 가 아닌걸로	CRX S 가 아닌걸로	{"filters":["brand=CRX-S"]}		edit-intent	continue_narrowing	[{"field":"brand","op":"neq","rawValue":"CRX S"}]	[{"field":"brand","op":"eq","rawValue":"CRX-S"}]		brand=CRX-S(eq)	synthetic + bug-report
+B02	B	Edit-intent: CRX S 말고 다른 브랜드	CRX S 말고 다른 브랜드	{"filters":["brand=CRX-S"]}		edit-intent		[{"field":"brand","op":"neq"}]	[]		brand=CRX-S(eq)	bug-report
+B03	B	Edit-intent: 2날 말고 4날로 (replace)	2날 말고 4날로	{"filters":["fluteCount=2"]}		edit-intent		[{"field":"fluteCount","op":"eq","rawValue":"4"}]	[{"field":"fluteCount","op":"eq","rawValue":"2"}]			synthetic
+B04	B	Edit-intent: 브랜드는 상관없음 (clear)	브랜드는 상관없음	{"filters":["brand=CRX-S"]}		edit-intent		[]	[{"field":"brand"}]	increase		synthetic
+B05	B	Edit-intent: 이전으로 돌아가서 CRX S 제외 (go_back+exclude)	이전으로 돌아가서 CRX S 제외	{"filters":["fluteCount=2","brand=CRX-S"]}		edit-intent	go_back_one_step	[{"field":"brand","op":"neq"}]	[]			synthetic
+B06	B	Edit-intent: 코팅 상관없음	코팅 상관없으니 일반적으로 많이 사용하는 걸로 추천해주세요	{"filters":["coating=TiAlN"]}		edit-intent	show_recommendation	[]	[{"field":"coating"}]			feedback
+B07	B	Edit-intent: 3S MILL 말고 다른 시리즈	3s mill 말고 다른 시리즈는 없는지 알아봐줘. 2날 ball 기준으로 알아봐줘	""		edit-intent		[{"field":"seriesName","op":"neq"},{"field":"fluteCount","op":"eq","rawValue":"2"},{"field":"toolSubtype","op":"eq","rawValue":"Ball"}]	[]			feedback
+B08	B	Edit-intent: T-Coating이 아닌 다른 코팅	T-Coating이 아닌 다른 코팅의 제품으로 추천해줘	{"filters":["coating=T-Coating"]}		edit-intent		[{"field":"coating","op":"neq"}]	[]			feedback
+B09	B	Edit-intent: TAP 말고 END MILL	TAP 말고 END MILL을 추천해줘봐	{"filters":["toolType=Tap"]}		edit-intent		[{"field":"toolType","op":"eq","rawValue":"Endmill"}]	[{"field":"toolType"}]			feedback
+B10	B	Edit-intent: 가공 소재 변경 (Carbide → Aluminum)	가공 소재 Carbide 아니고 알루미늄으로 변경해줘.	{"filters":["toolMaterial=Carbide"]}		edit-intent		[{"field":"workPieceName","op":"eq","rawValue":"Aluminum"}]	[]			feedback
+B11	B	Edit-intent: 가공방식 다양 (clear)	가공방식은 다양합니다	{"filters":["operationType=Slotting"]}		edit-intent		[]	[{"field":"operationType"}]			feedback
+B12	B	Edit-intent: 아니요 상관없어요	아니요, 상관없어요	""		edit-intent	skip_field	[]	[]			feedback
+B13	B	Edit-intent: TiAlN 빼고	TiAlN 빼고	{"filters":["coating=TiAlN"]}		edit-intent		[{"field":"coating","op":"neq","rawValue":"TiAlN"}]	[{"field":"coating","op":"eq","rawValue":"TiAlN"}]			synthetic
+B14	B	Edit-intent: 처음부터 (reset)	처음부터	{"filters":["brand=CRX-S","fluteCount=2"]}		edit-intent	reset_session	[]	[]			synthetic
+B15	B	Edit-intent: 동일조건 TiN 코팅으로 다시 조회	동일 조건의 TiN 코팅으로  다시 조회	{"filters":["coating=TiAlN"]}		edit-intent		[{"field":"coating","op":"eq","rawValue":"TiN"}]	[]			feedback
+C01	C	SQL: 직경 16 + 날장 40	직경이 16mm , 날장이 40 정도 되는 와이지원의 하이스 엔드밀을 추천해주세요	""		sql-agent	show_recommendation	[{"field":"diameterMm","op":"eq","rawValue":16},{"field":"lengthOfCutMm","op":"between"},{"field":"toolMaterial","op":"eq","rawValue":"HSS"}]	[]			feedback
+C02	C	SQL: 코너R 0.5 + 4FL + 티타늄	코너레디우스 형상으로 알려줘.  R 0.5 , 4FL 제품으로 추천해 주고, 피삭재는 티타늄 합금이야	""		sql-agent		[{"field":"toolSubtype","op":"eq","rawValue":"Radius"},{"field":"cornerRadiusMm","op":"eq","rawValue":0.5},{"field":"fluteCount","op":"eq","rawValue":"4"},{"field":"workPieceName","op":"eq","rawValue":"Titanium"}]	[]			feedback
+C03	C	SQL: 전장 80 이상	전장은 80이상으로 추천해주세요	""		sql-agent		[{"field":"overallLengthMm","op":"gte","rawValue":80}]	[]			feedback
+C04	C	SQL: 날장 100 이상	날장이 100이상으로 추천해줘	""		sql-agent		[{"field":"lengthOfCutMm","op":"gte","rawValue":100}]	[]			feedback
+C05	C	SQL: 인선직경 12 + 전장 100이상	인선직경 12파이로 요청했는데, 전장 100이상 조건에 적합한 제품만 추천해줘	""		sql-agent		[{"field":"diameterMm","op":"eq","rawValue":12},{"field":"overallLengthMm","op":"gte","rawValue":100}]	[]			feedback
+C06	C	SQL: 4에서 6날 (range)	4에서 6날	""		sql-agent		[{"field":"fluteCount","op":"between","rawValue":4,"rawValue2":6}]	[]			feedback
+C07	C	SQL: 3날 이상	3날이상이면 좋겠어요	""		sql-agent		[{"field":"fluteCount","op":"gte","rawValue":3}]	[]			feedback
+C08	C	SQL: 코너R 1mm	코너레디우스 치수가 1mm 인 제품을 보여주세요	""		sql-agent		[{"field":"toolSubtype","op":"eq","rawValue":"Radius"},{"field":"cornerRadiusMm","op":"eq","rawValue":1}]	[]			feedback
+C09	C	SQL: 국내 제품으로만	국내제품으로만 추천해줘	""		sql-agent		[{"field":"country","op":"eq","rawValue":"KOREA"}]	[]			feedback
+C10	C	SQL: 카바이드만	카바이드 제품만 우선 추천해줘	""		sql-agent		[{"field":"toolMaterial","op":"eq","rawValue":"Carbide"}]	[]			feedback
+C11	C	SQL: 유럽판매용 + 독일	나 독일사람인데 유럽판매용 제품으로만 먼저 필터링해줘요	""		sql-agent		[{"field":"country","op":"eq","rawValue":"EUROPE"}]	[]			feedback
+C12	C	SQL: Plain Shank만	Plain Shank 제품으로만 추천해주세요	""		sql-agent		[{"field":"shankType","op":"eq","rawValue":"Plain"}]	[]			feedback
+C13	C	SQL: SOLID CARBIDE Ball	SOLID CARBIDE 제품으로 추천해주고, Ball END MILL로 추천해줘	""		sql-agent		[{"field":"toolMaterial","op":"eq","rawValue":"Carbide"},{"field":"toolSubtype","op":"eq","rawValue":"Ball"}]	[]			feedback
+C14	C	SQL: 6mm + 측면가공 + 구리	구리 측면가공 6mm 엔드밀	""		sql-agent		[{"field":"workPieceName","op":"eq"},{"field":"diameterMm","op":"eq","rawValue":6}]	[]			feedback
+C15	C	SQL: 16파이 스퀘어 + 인코넬	인코넬 가공하는데 16파이 스퀘어 제품 추천해줘	""		sql-agent		[{"field":"workPieceName","op":"eq","rawValue":"Inconel"},{"field":"toolSubtype","op":"eq","rawValue":"Square"},{"field":"diameterMm","op":"eq","rawValue":16}]	[]			feedback
+D01	D	Multi: SCM440 황삭 + 10파이 + 날장 20이상	나는 SCM440 을 황삭가공 하고 싶어요 제품 추천해주세요 제품은 10파이 제품에 날장은 20미리 이상이어야 합니다.	""		sql-agent		[{"field":"diameterMm","op":"eq","rawValue":10},{"field":"lengthOfCutMm","op":"gte","rawValue":20}]	[]			feedback
+D02	D	Multi: HRc60+ 파란색 코팅 + 2날 12파이	HRc60이상 되는 피삭재를 가공할꺼야. 파란색상의 제품이 있던데 그게 고경도강용으로 알고있음 2날 12파이 제품으로 추천해줘	""		sql-agent		[{"field":"fluteCount","op":"eq","rawValue":"2"},{"field":"diameterMm","op":"eq","rawValue":12}]	[]			feedback
+D03	D	Multi: 코너R 0.5 + 날장20+ 전장70+ 넥30+	코너레디우스는 0.5 날장은 20이상 전장은 70이상으로 추천해주고요 넥이 30이상으로 있었으면 좋겠어요	""		sql-agent		[{"field":"cornerRadiusMm","op":"eq","rawValue":0.5},{"field":"lengthOfCutMm","op":"gte","rawValue":20},{"field":"overallLengthMm","op":"gte","rawValue":70},{"field":"neckLengthMm","op":"gte","rawValue":30}]	[]			feedback
+D04	D	Multi: 가공깊이 5mm + 4날 스퀘어	가공 깊이 5mm입니다. 적당한 길이의 4날 스퀘어엔드밀로 추천해주세요	""		sql-agent		[{"field":"fluteCount","op":"eq","rawValue":"4"},{"field":"toolSubtype","op":"eq","rawValue":"Square"}]	[]			feedback
+D05	D	Multi: 익스트라롱 30mm 날장180 전장250 소재무관	저는 엑스트라 롱 엔드밀  30mm,날장180,전장250  제품 찾고 있어요,   날장은 160이상으로 필요해요	""		sql-agent		[{"field":"diameterMm","op":"eq","rawValue":30},{"field":"lengthOfCutMm","op":"gte","rawValue":160}]	[]			feedback
+D06	D	Multi: SKD11 HRc60 금형 Ball	SKD 11 HRC 60 소재를 가공하려고해, 금형가공할꺼라서 Ball타입이면 좋겠어	""		sql-agent		[{"field":"toolSubtype","op":"eq","rawValue":"Ball"}]	[]			feedback
+D07	D	Multi: Titanium 5날 직경10 날장15+ 전장70+	Titanium을 가공하는 5날로 직경 10, 날장 15이상 전장 70이상으로 추천해주는데, 가장 성능이 우수한 제품으로 추천해주세요	""		sql-agent		[{"field":"workPieceName","op":"eq","rawValue":"Titanium"},{"field":"fluteCount","op":"eq","rawValue":"5"},{"field":"diameterMm","op":"eq","rawValue":10},{"field":"lengthOfCutMm","op":"gte","rawValue":15},{"field":"overallLengthMm","op":"gte","rawValue":70}]	[]			feedback
+D08	D	Multi: 항공Aluminum 3날 고속가공	3날로 추천해주세요, 항공용 Aluminum 소재에 고속 가공용에 적용하려고 하는데 어떤 YG-1 제품이 추천될 수 있을까요?	""		sql-agent		[{"field":"fluteCount","op":"eq","rawValue":"3"},{"field":"workPieceName","op":"eq","rawValue":"Aluminum"}]	[]			feedback
+D09	D	Multi: SUS304 가공	SUS304 가공이에요!	""		kg		[{"field":"workPieceName","op":"eq","rawValue":"Stainless Steels"}]	[]			feedback
+D10	D	Multi: HRc55-70 전용 X1-EH/X-5070	경도가 매우 높은 HRc55~70을 선택했는데 전용 Brand인 X5070이나 X1-EH 추천	""		sql-agent		[{"field":"workPieceName","op":"eq","rawValue":"High Hardened Steels(HRc55~70)"}]	[]			feedback
+E01	E	Negation: 3S MILL 단종이니 다른 제품	3S MILLS은 단종제품이니 다른 제품으로 추천해주면 좋겠어	{"filters":["seriesName=3S MILL"]}		edit-intent		[{"field":"seriesName","op":"neq"}]	[]			feedback
+E02	E	Negation: 3S MILL 말고 다른 제품 위주	추천제품을 3S MILL 말고 다른 제품 위주로 추천해주세요,	""		edit-intent		[{"field":"seriesName","op":"neq"}]	[]			feedback
+E03	E	Negation: X-POWER S 다른 제품(브랜드)	X-5070 로는 재고가 전부 없대요, 다른 제품(브랜드)군에서 추천해주세요	{"filters":["brand=X-POWER"]}		edit-intent		[{"field":"brand","op":"neq"}]	[]			feedback
+E04	E	Negation: 4G mill 아닌 다른제품	고경도 강용제품으로 4G MILL 아닌 다른제품도 있지않나요??	{"filters":["seriesName=4G MILL"]}		edit-intent		[{"field":"seriesName","op":"neq"}]	[]			feedback
+E05	E	Negation: 스퀘어타입 재고 필터 해제	스퀘어타입 재고 필터 해제하고 가격이 저렴한 순으로 10품목 선정해줘	{"filters":["toolSubtype=Square"]}		edit-intent		[]	[{"field":"toolSubtype"}]			feedback
+E06	E	Negation: T-Coating이 아닌 다른 코팅 (재확인)	T-Coating이 아닌 다른 코팅의 제품으로 추천해줘	{"filters":["coating=T-Coating"]}		edit-intent		[{"field":"coating","op":"neq"}]	[]			feedback
+E07	E	Negation: 아무것도 매칭 안 되는 부정 (fallback)	ABC 빼고	""		negation-fallback or scr	answer_general or continue_narrowing	[]	[]			synthetic
+E08	E	Negation: Square 아닌 것	Square 아닌 것	{"filters":["toolSubtype=Square"]}		edit-intent		[{"field":"toolSubtype","op":"neq"}]	[{"field":"toolSubtype"}]			synthetic
+E09	E	Negation: WIDE-CUT으로 티타늄 가공? (질문형 부정)	WIDE-CUT 은 비철금속 가공용 엔드밀이에요, WIDE-CUT으로 티타늄 가공을 할 수 있는게 맞나요 ??	""		kg or scr	answer_general	[]	[]			feedback
+E10	E	Negation: hardened steels 분류 오류 지적	왜 m 소재라고 했는데도 hardened steel 등이 들어가 있는거야? 분류 오류야?	""		scr	answer_general	[]	[]			feedback
+F01	F	Nav: 처음부터	처음부터	""		edit-intent or kg	reset_session	[]	[]			synthetic
+F02	F	Nav: ⟵ 이전 단계	이전 단계	""		kg	go_back_one_step	[]	[]			feedback
+F03	F	Nav: 추천해줘	추천해줘	""		kg	show_recommendation	[]	[]			feedback
+F04	F	Nav: 추천 제품 보기	추천 제품 보기	""		kg	show_recommendation	[]	[]			feedback
+F05	F	Nav: 상관없음 (skip)	상관없음	""		kg or edit-intent	skip_field	[]	[]			feedback
+G01	G	Q&A: T-Coating은 뭐야?	T-Coating은 뭐야?	""		kg	answer_general	[]	[]			feedback
+G02	G	Q&A: SUS-CUT은 어떤 피삭재?	sus-cut은 어떤 피삭재를 가공할 때 사용하는 공구인가요??	""		kg	answer_general	[]	[]			feedback
+G03	G	Q&A: V7 PLUS A vs V7 Inox 차이	V7 Plus A와 V7 Inox 차이는 뭐에요?	""		kg	answer_general	[]	[]			feedback
+G04	G	Q&A: 알루컷 브랜드 설명	알루컷 브랜드 설명해줘	""		kg	answer_general	[]	[]			feedback
+G05	G	Q&A: 절삭조건 알려줘	절삭조건 알려줘	""		kg or scr	answer_general	[]	[]			feedback
+G06	G	Q&A: GMG41과 GMG40의 차이	GMG41과 GMG40의 차이가 무엇인가요?	""		kg or scr	answer_general	[]	[]			feedback
+G07	G	Q&A: dlc코팅이 블루색상?	dlc코팅이 블루색상인가요??블루코팅이 맞나요?	""		kg	answer_general	[]	[]			feedback
+G08	G	Q&A: Y-Coating 어떤 코팅	Y-Coating은 어떤 코팅인지 설명해 주세요	""		kg	answer_general	[]	[]			feedback
+G09	G	Q&A: T-앵글커터 판매?	와이지원에서 T-앵글커터 판매하고 있다면 EDP NO.를 알려주세요	""		kg or scr	answer_general	[]	[]			feedback
+G10	G	Q&A: 트로코이달 가공 정의	트로코이달 가공이 어떤 가공인지 알아?	""		kg	answer_general	[]	[]			feedback
+H01	H	Comp: 가장 날장이 긴 제품	와이지원 카바이드 엔드밀 제품 중 제일 날장이 긴 제품을 알려주세요	""		kg	answer_general	[]	[]			feedback
+H02	H	Comp: 가장 인기있는 4날	4날이 좋겠고, 가장 인기있는 아이템을 추천해줘	""		kg or scr		[{"field":"fluteCount","op":"eq","rawValue":"4"}]	[]			feedback
+H03	H	Comp: 날수 최대한 많은	날수가 최대한 많은 제품으로 추천해주세요	""		kg or scr	show_recommendation or answer_general	[]	[]			feedback
+H04	H	Comp: 공구수명 가장 좋은 코팅	가장 공구수명에 좋은 코팅으로 추천해주세요	""		kg or scr		[]	[]			feedback
+H05	H	Comp: 가공 피드 가장 높게	가공 피드를 가장 높게 적용할수 있는 제품으로 추천해주세요	""		kg or scr		[]	[]			feedback
+I01	I	Stock: 재고 제일 많은 것	이중에 재고가 제일 많은 것 위주로 추려줘	""		kg or scr	filter_by_stock	[]	[]			feedback
+I02	I	Sort: 가격이 저렴한 순	가격이 저렴한 순으로 알려줘	""		kg or scr	answer_general or show_recommendation	[]	[]			feedback
+I03	I	Stock: 재고 있는 제품만	재고 있는 제품만 추천해줘	""		kg	filter_by_stock	[]	[]			synthetic
+I04	I	Stock: 재고 50개 이상	재고 50개 이상인 제품으로 추천해주세요	""		kg or sql-agent	filter_by_stock	[]	[]			synthetic
+I05	I	Sort: 가장 추천하는 브랜드별로 구분	가장 추천하는 브랜드 별로 구분해줘	""		kg or scr		[]	[]			feedback
+J01	J	Multi-turn: 인테이크 → 4날 narrow → CRX-S exclude → show		""	[{"input":"스테인리스강 측면가공 10mm 엔드밀","expectedAction":"continue_narrowing"},{"input":"4날","expectedAction":"continue_narrowing","expectedFilters":["fluteCount=4"]},{"input":"CRX S 빼고","expectedRouter":"edit-intent","expectedFilters":["brand=CRX S(neq)"]},{"input":"추천해줘","expectedAction":"show_recommendation","expectedTopProductHint":"no CRX-S"}]			[]	[]			synthetic + bug-report
+J02	J	Multi-turn: 2날 → 말고 4날로		""	[{"input":"Square 2날 10mm"},{"input":"2날 말고 4날로","expectedRouter":"edit-intent","expectedFilters":["fluteCount=4(eq)"]}]			[]	[]			synthetic
+J03	J	Multi-turn: 인테이크 → narrow → 처음부터		""	[{"input":"Square 4날 CRX-S"},{"input":"처음부터","expectedAction":"reset_session","expectedFilters":[]}]			[]	[]			synthetic
+J04	J	Multi-turn: narrow → 이전으로 돌아가서 X 제외		""	[{"input":"Square 2날 CRX-S"},{"input":"이전으로 돌아가서 CRX S 제외","expectedRouter":"edit-intent","expectedFilters":["brand=CRX S(neq)"]}]			[]	[]			bug-report
+J05	J	Multi-turn: 인테이크 → narrow → 코팅상관없 → 추천		""	[{"input":"스테인리스 Square 2날 TiAlN 10mm"},{"input":"코팅 상관없으니 일반적으로 많이 사용하는 걸로 추천해주세요","expectedRouter":"edit-intent or kg"}]			[]	[]			feedback
+J06	J	Multi-turn: SUS304 → 4날 → Y-Coating		""	[{"input":"SUS304 가공이에요!","expectedFilters":["workPieceName=Stainless Steels"]},{"input":"4날","expectedFilters":["fluteCount=4"]},{"input":"Y 코팅으로 추천해줘","expectedFilters":["coating=Y-Coating"],"expectedAction":"show_recommendation"}]			[]	[]			feedback
+J07	J	Multi-turn: 알루미늄 → 3날 → 항공 고속가공		""	[{"input":"Aluminum 측면가공 10mm"},{"input":"3날로 추천해주세요, 항공용 Aluminum 소재에 고속 가공용에 적용","expectedAction":"show_recommendation"}]			[]	[]			feedback
+J08	J	Multi-turn: 추천 후 비교		""	[{"input":"Square 4날 10mm 추천해줘"},{"input":"#1번과 #2번 비교","expectedAction":"compare_products"}]			[]	[]			feedback
+J09	J	Multi-turn: 추천 → 재고 많은 것 → 가격순		""	[{"input":"Square 4날 추천해줘"},{"input":"이중에 재고가 제일 많은 것 위주로 추려줘","expectedAction":"filter_by_stock"},{"input":"가격이 저렴한 순으로 알려줘"}]			[]	[]			feedback
+J10	J	Multi-turn: 영어로 응답 요청		""	[{"input":"Square 4날 10mm"},{"input":"Please answer in English.","expectedAction":"answer_general"}]			[]	[]			feedback
+K01	G	Q&A: GMG55100 vs GMG40100 비교 설명	추천순위 1 인 GMG55100과 추천순위 2인 GMG40100에 대해서 비교해서 설명해주세요	""		kg or scr	compare_products or answer_general	[]	[]			feedback
+K02	G	Q&A: SEME75100E 사진이 잘못됨 (메타데이터 질문)	SEME75100E 제품 사진이 잘못된거 같은데 맞나요?	""		kg or scr	answer_general	[]	[]			feedback
+K03	C	SQL: SEM81010035 알루미늄 적합?	SEM81010035이 알루미늄 가공에 적합할까?	""		kg or scr	answer_general	[]	[]			feedback
+K04	G	Q&A: GMG41100 전체 사양 알려줘	GMG41100 전체 사양 알려줘	""		kg	answer_general	[]	[]			feedback
+K05	C	SQL: 황삭 가공 (operation type 추론)	황삭에 사용할꺼야	""		sql-agent or kg		[{"field":"toolSubtype","op":"eq","rawValue":"Roughing"}]	[]			feedback
+K06	B	Edit-intent: 카바이드 → 알루미늄 변경 (cross-field)	가공 소재 Carbide 아니고 알루미늄으로 변경해줘.	""		edit-intent		[{"field":"workPieceName","op":"eq","rawValue":"Aluminum"}]	[]			feedback
+K07	C	SQL: HRc60 가공 X-POWER PRO	내가 가공하는 피삭재 경도가 HRc61 입니다.  엄청 높아요 그런데 X-POWER PRO를 사용해도 괜찮나요?	""		scr or kg	answer_general	[]	[]			feedback
+K08	G	Q&A: Tap 추천 거부 — 엔드밀 문의	Tap을 잔뜩 추천해줬는데 나는 엔드밀을 문의 한거에요	""		edit-intent or scr		[{"field":"toolType","op":"eq","rawValue":"Endmill"}]	[]			feedback
+K09	C	SQL: 인선 7mm 알루미늄	가공소재는 알루미늄이에요. 인선이 7mm짜리도 있나요?	""		sql-agent		[{"field":"workPieceName","op":"eq","rawValue":"Aluminum"},{"field":"diameterMm","op":"eq","rawValue":7}]	[]			feedback
+K10	B	Edit-intent: 시리즈 단위로 보여줘 (그룹화)	시리즈 단위로 보여줘	""		kg or scr	answer_general or show_recommendation	[]	[]			feedback
+M01	C	Milling 외경 between	외경 10mm 이상 12mm 이하 엔드밀	""		sql-agent		[{"field":"OutsideDia","op":"between","rawValue":[10,12]}]	[]	decrease		synthetic
+M02	C	Milling 외경 lte	직경 6mm 이하 볼노즈	""		sql-agent		[{"field":"OutsideDia","op":"lte","rawValue":6}]	[]	decrease		synthetic
+M03	C	Milling 외경 eq	외경 정확히 8mm 엔드밀	""		sql-agent		[{"field":"OutsideDia","op":"eq","rawValue":8}]	[]			synthetic
+M04	C	Milling 외경 gt	외경 20mm 초과 엔드밀	""		sql-agent		[{"field":"OutsideDia","op":"gt","rawValue":20}]	[]			synthetic
+M05	C	Milling 전체길이 gte	전체 길이 100mm 이상 엔드밀	""		sql-agent		[{"field":"OverAllLength","op":"gte","rawValue":100}]	[]			synthetic
+M06	C	Milling 절삭길이 between	절삭 길이 30mm에서 50mm 사이	""		sql-agent		[{"field":"LengthofCut","op":"between","rawValue":[30,50]}]	[]			synthetic
+M07	C	Milling 생크경 eq	생크 직경 6mm 엔드밀	""		sql-agent		[{"field":"ShankDia","op":"eq","rawValue":6}]	[]			synthetic
+M08	C	Milling 넥경 lte	넥 직경 4mm 이하	""		sql-agent		[{"field":"NeckDiameter","op":"lte","rawValue":4}]	[]			synthetic
+M09	C	Milling 코너R between	코너 R 0.5mm에서 2mm 사이	""		sql-agent		[{"field":"RadiusAll","op":"between","rawValue":[0.5,2]}]	[]			synthetic
+M10	C	Milling 커터경 gte 페이스밀	커터 직경 50mm 이상 페이스밀	""		sql-agent		[{"field":"Cutter_Diameter","op":"gte","rawValue":50}]	[]			synthetic
+M11	C	Milling 날수 gte	날수 4개 이상	""		kg or sql-agent		[{"field":"NumberofFlute","op":"gte","rawValue":4}]	[]			synthetic
+M12	C	Milling 날수 between	날수 2개에서 6개 사이	""		sql-agent		[{"field":"NumberofFlute","op":"between","rawValue":[2,6]}]	[]			synthetic
+M13	C	Milling 날수 비현실 (0건 fallback)	날수 100장 이상 엔드밀	""		sql-agent	show_recommendation	[{"field":"NumberofFlute","op":"gte","rawValue":100}]	[]	zero		synthetic
+M14	C	Milling 헬릭스각 between	헬릭스 각 30도에서 45도 사이	""		sql-agent		[{"field":"HelixAngle","op":"between","rawValue":[30,45]}]	[]			synthetic
+M15	C	Milling 테이퍼각 eq	테이퍼 각 5도 엔드밀	""		sql-agent		[{"field":"TaperAngle","op":"eq","rawValue":5}]	[]			synthetic
+M16	D	Milling 싱글엔드	싱글엔드만 보여줘	""		kg or sql-agent		[{"field":"SingleDoubleEnd","op":"eq","rawValue":"Single"}]	[]			synthetic
+M17	D	Milling 더블엔드	더블엔드 엔드밀	""		kg or sql-agent		[{"field":"SingleDoubleEnd","op":"eq","rawValue":"Double"}]	[]			synthetic
+M18	D	Milling 황삭	황삭용 엔드밀	""		kg or sql-agent		[{"field":"RoughingFinishtype","op":"eq","rawValue":"Roughing"}]	[]			synthetic
+M19	D	Milling 정삭 볼노즈	정삭용 볼노즈	""		kg or sql-agent		[{"field":"RoughingFinishtype","op":"eq","rawValue":"Finishing"},{"field":"CutterShape","op":"eq","rawValue":"BallNose"}]	[]			synthetic
+M20	D	Milling CFRP 복합재	CFRP 가공용 엔드밀	""		kg or sql-agent		[{"field":"CFRP","op":"eq","rawValue":"Y"}]	[]			synthetic
+M21	C	OutsideDia eq	외경 10mm	""		sql-agent		[{"field":"OutsideDia","op":"eq","rawValue":10}]	[]			synthetic
+M22	C	OutsideDia gt	외경 8mm 초과	""		sql-agent		[{"field":"OutsideDia","op":"gt","rawValue":8}]	[]			synthetic
+M23	C	OutsideDia gte	외경 12mm 이상	""		sql-agent		[{"field":"OutsideDia","op":"gte","rawValue":12}]	[]			synthetic
+M24	C	OutsideDia lt	외경 5mm 미만	""		sql-agent		[{"field":"OutsideDia","op":"lt","rawValue":5}]	[]			synthetic
+M25	C	OutsideDia lte	외경 4mm 이하	""		sql-agent		[{"field":"OutsideDia","op":"lte","rawValue":4}]	[]			synthetic
+M26	C	OutsideDia between	외경 6에서 10mm	""		sql-agent		[{"field":"OutsideDia","op":"between","rawValue":[6,10]}]	[]			synthetic
+M27	C	OutsideDia 파이 표현	10파이 엔드밀	""		sql-agent		[{"field":"OutsideDia","op":"eq","rawValue":10}]	[]			synthetic
+M28	C	OutsideDia Ø 표현	Ø8 엔드밀	""		sql-agent		[{"field":"OutsideDia","op":"eq","rawValue":8}]	[]			synthetic
+M29	C	OutsideDia 미리 단위	직경 6미리	""		sql-agent		[{"field":"OutsideDia","op":"eq","rawValue":6}]	[]			synthetic
+M30	C	OutsideDia 소수점	외경 6.35mm	""		sql-agent		[{"field":"OutsideDia","op":"eq","rawValue":6.35}]	[]			synthetic
+M31	C	ShankDia eq	생크경 6mm	""		sql-agent		[{"field":"ShankDia","op":"eq","rawValue":6}]	[]			synthetic
+M32	C	ShankDia gte	생크 직경 10mm 이상	""		sql-agent		[{"field":"ShankDia","op":"gte","rawValue":10}]	[]			synthetic
+M33	C	ShankDia lte	생크 8mm 이하	""		sql-agent		[{"field":"ShankDia","op":"lte","rawValue":8}]	[]			synthetic
+M34	C	ShankDia between	생크 6에서 12mm 사이	""		sql-agent		[{"field":"ShankDia","op":"between","rawValue":[6,12]}]	[]			synthetic
+M35	C	OverAllLength eq	전장 100mm	""		sql-agent		[{"field":"OverAllLength","op":"eq","rawValue":100}]	[]			synthetic
+M36	C	OverAllLength gte	전체 길이 150mm 이상	""		sql-agent		[{"field":"OverAllLength","op":"gte","rawValue":150}]	[]			synthetic
+M37	C	OverAllLength lte	전장 80mm 이하	""		sql-agent		[{"field":"OverAllLength","op":"lte","rawValue":80}]	[]			synthetic
+M38	C	OverAllLength between	전장 100에서 200mm	""		sql-agent		[{"field":"OverAllLength","op":"between","rawValue":[100,200]}]	[]			synthetic
+M39	C	OverAllLength 긴 표현	긴 엔드밀	""		sql-agent or kg		[{"field":"OverAllLength","op":"gte"}]	[]			synthetic
+M40	C	OverAllLength 짧은	짧은 엔드밀	""		sql-agent or kg		[{"field":"OverAllLength","op":"lte"}]	[]			synthetic
+M41	C	LengthofCut eq	절삭 길이 30mm	""		sql-agent		[{"field":"LengthofCut","op":"eq","rawValue":30}]	[]			synthetic
+M42	C	LengthofCut gte	절삭장 40mm 이상	""		sql-agent		[{"field":"LengthofCut","op":"gte","rawValue":40}]	[]			synthetic
+M43	C	LengthofCut lte	절삭 길이 20mm 이하	""		sql-agent		[{"field":"LengthofCut","op":"lte","rawValue":20}]	[]			synthetic
+M44	C	LengthofCut between	절삭장 25에서 50mm	""		sql-agent		[{"field":"LengthofCut","op":"between","rawValue":[25,50]}]	[]			synthetic
+M45	C	Flute eq 2	2날	""		kg		[{"field":"NumberofFlute","op":"eq","rawValue":2}]	[]			synthetic
+M46	C	Flute eq 3	3날 엔드밀	""		kg		[{"field":"NumberofFlute","op":"eq","rawValue":3}]	[]			synthetic
+M47	C	Flute eq 6	6날 엔드밀	""		kg		[{"field":"NumberofFlute","op":"eq","rawValue":6}]	[]			synthetic
+M48	C	Flute gte	날수 5개 이상	""		kg or sql-agent		[{"field":"NumberofFlute","op":"gte","rawValue":5}]	[]			synthetic
+M49	C	Flute lte	날수 3개 이하	""		kg or sql-agent		[{"field":"NumberofFlute","op":"lte","rawValue":3}]	[]			synthetic
+M50	C	Flute between	날수 3에서 6	""		sql-agent		[{"field":"NumberofFlute","op":"between","rawValue":[3,6]}]	[]			synthetic
+M51	C	Flute 다날	다날 엔드밀	""		kg or sql-agent		[{"field":"NumberofFlute","op":"gte"}]	[]			synthetic
+M52	C	HelixAngle eq	헬릭스 각 35도	""		sql-agent		[{"field":"HelixAngle","op":"eq","rawValue":35}]	[]			synthetic
+M53	C	HelixAngle gte	헬릭스 각 40도 이상	""		sql-agent		[{"field":"HelixAngle","op":"gte","rawValue":40}]	[]			synthetic
+M54	C	HelixAngle lte	헬릭스 30도 이하	""		sql-agent		[{"field":"HelixAngle","op":"lte","rawValue":30}]	[]			synthetic
+M55	C	HelixAngle between	헬릭스 30에서 45도	""		sql-agent		[{"field":"HelixAngle","op":"between","rawValue":[30,45]}]	[]			synthetic
+M56	C	TaperAngle eq	테이퍼 각 5도	""		sql-agent		[{"field":"TaperAngle","op":"eq","rawValue":5}]	[]			synthetic
+M57	C	TaperAngle gte	테이퍼 10도 이상	""		sql-agent		[{"field":"TaperAngle","op":"gte","rawValue":10}]	[]			synthetic
+M58	C	TaperAngle lte	테이퍼 3도 이하	""		sql-agent		[{"field":"TaperAngle","op":"lte","rawValue":3}]	[]			synthetic
+M59	C	RadiusAll eq	코너 R 1mm	""		sql-agent		[{"field":"RadiusAll","op":"eq","rawValue":1}]	[]			synthetic
+M60	C	RadiusAll gte	코너 R 2mm 이상	""		sql-agent		[{"field":"RadiusAll","op":"gte","rawValue":2}]	[]			synthetic
+M61	C	RadiusAll lte	코너 R 0.5mm 이하	""		sql-agent		[{"field":"RadiusAll","op":"lte","rawValue":0.5}]	[]			synthetic
+M62	C	RadiusAll between	코너R 0.5에서 2mm	""		sql-agent		[{"field":"RadiusAll","op":"between","rawValue":[0.5,2]}]	[]			synthetic
+M63	C	RadiusofBallNose eq	볼노즈 R 3mm	""		sql-agent		[{"field":"RadiusofBallNose","op":"eq","rawValue":3}]	[]			synthetic
+M64	C	RadiusofBallNose between	볼노즈 R 1에서 5mm	""		sql-agent		[{"field":"RadiusofBallNose","op":"between","rawValue":[1,5]}]	[]			synthetic
+M65	C	NeckDiameter eq	넥경 4mm	""		sql-agent		[{"field":"NeckDiameter","op":"eq","rawValue":4}]	[]			synthetic
+M66	C	NeckDiameter lte	넥 직경 5mm 이하	""		sql-agent		[{"field":"NeckDiameter","op":"lte","rawValue":5}]	[]			synthetic
+M67	C	NeckDiameter between	넥경 3에서 6mm	""		sql-agent		[{"field":"NeckDiameter","op":"between","rawValue":[3,6]}]	[]			synthetic
+M68	C	LengthbelowShank eq	생크 아래 길이 50mm	""		sql-agent		[{"field":"LengthbelowShank","op":"eq","rawValue":50}]	[]			synthetic
+M69	C	LengthbelowShank gte	생크 아래 80mm 이상	""		sql-agent		[{"field":"LengthbelowShank","op":"gte","rawValue":80}]	[]			synthetic
+M70	C	LengthbelowShank lte	생크 아래 30mm 이하	""		sql-agent		[{"field":"LengthbelowShank","op":"lte","rawValue":30}]	[]			synthetic
+M71	C	Cutter_Diameter eq	커터 직경 50mm 페이스밀	""		sql-agent		[{"field":"Cutter_Diameter","op":"eq","rawValue":50}]	[]			synthetic
+M72	C	Cutter_Diameter gte	커터 직경 80mm 이상	""		sql-agent		[{"field":"Cutter_Diameter","op":"gte","rawValue":80}]	[]			synthetic
+M73	C	Cutter_Diameter lte	커터 직경 40mm 이하	""		sql-agent		[{"field":"Cutter_Diameter","op":"lte","rawValue":40}]	[]			synthetic
+M74	C	Cutter_Diameter between	커터 50에서 100mm	""		sql-agent		[{"field":"Cutter_Diameter","op":"between","rawValue":[50,100]}]	[]			synthetic
+M75	C	Max cutting depth eq	최대 절삭 깊이 5mm	""		sql-agent		[{"field":"Maximum_Cutting_Depth","op":"eq","rawValue":5}]	[]			synthetic
+M76	C	Max cutting depth gte	최대 절삭 깊이 10mm 이상	""		sql-agent		[{"field":"Maximum_Cutting_Depth","op":"gte","rawValue":10}]	[]			synthetic
+M77	C	Effective teeth eq	유효 날수 4	""		sql-agent		[{"field":"Number_of_Effective_Teeth","op":"eq","rawValue":4}]	[]			synthetic
+M78	C	Effective teeth gte	유효 날수 6 이상	""		sql-agent		[{"field":"Number_of_Effective_Teeth","op":"gte","rawValue":6}]	[]			synthetic
+M79	D	SingleEnd	싱글엔드 엔드밀	""		kg or sql-agent		[{"field":"SingleDoubleEnd","op":"eq","rawValue":"Single"}]	[]			synthetic
+M80	D	DoubleEnd	더블엔드 엔드밀	""		kg or sql-agent		[{"field":"SingleDoubleEnd","op":"eq","rawValue":"Double"}]	[]			synthetic
+M81	D	Roughing	황삭 엔드밀	""		kg or sql-agent		[{"field":"RoughingFinishtype","op":"eq","rawValue":"Roughing"}]	[]			synthetic
+M82	D	Finishing	정삭 엔드밀	""		kg or sql-agent		[{"field":"RoughingFinishtype","op":"eq","rawValue":"Finishing"}]	[]			synthetic
+M83	D	BallNose	볼노즈 엔드밀	""		kg or sql-agent		[{"field":"CutterShape","op":"eq","rawValue":"BallNose"}]	[]			synthetic
+M84	D	FlatEnd	플랫 엔드밀	""		kg or sql-agent		[{"field":"CutterShape","op":"eq","rawValue":"FlatEnd"}]	[]			synthetic
+M85	D	CornerR	코너 라디우스 엔드밀	""		kg or sql-agent		[{"field":"CutterShape","op":"eq","rawValue":"CornerRadius"}]	[]			synthetic
+M86	D	ShankType Straight	스트레이트 생크	""		kg or sql-agent		[{"field":"ShankType","op":"eq","rawValue":"Straight"}]	[]			synthetic
+M87	D	ShankType Weldon	웰던 생크	""		kg or sql-agent		[{"field":"ShankType","op":"eq","rawValue":"Weldon"}]	[]			synthetic
+M88	D	ShankType HSK	HSK 생크	""		kg or sql-agent		[{"field":"ShankType","op":"eq","rawValue":"HSK"}]	[]			synthetic
+M89	D	Coating TiAlN	TiAlN 코팅 엔드밀	""		kg or sql-agent		[{"field":"Coating","op":"eq","rawValue":"TiAlN"}]	[]			synthetic
+M90	D	Coating AlTiN	AlTiN 코팅	""		kg or sql-agent		[{"field":"Coating","op":"eq","rawValue":"AlTiN"}]	[]			synthetic
+M91	D	Coating DLC	DLC 코팅 엔드밀	""		kg or sql-agent		[{"field":"Coating","op":"eq","rawValue":"DLC"}]	[]			synthetic
+M92	D	Coating Uncoated	무코팅 엔드밀	""		kg or sql-agent		[{"field":"Coating","op":"eq","rawValue":"Uncoated"}]	[]			synthetic
+M93	D	Carbide	초경 엔드밀	""		kg or sql-agent		[{"field":"ToolMaterial","op":"eq","rawValue":"Carbide"}]	[]			synthetic
+M94	D	HSS	하이스 엔드밀	""		kg or sql-agent		[{"field":"ToolMaterial","op":"eq","rawValue":"HSS"}]	[]			synthetic
+M95	D	PCD	PCD 엔드밀	""		kg or sql-agent		[{"field":"ToolMaterial","op":"eq","rawValue":"PCD"}]	[]			synthetic
+M96	D	CoolantHole Y	쿨런트홀 있는 엔드밀	""		kg or sql-agent		[{"field":"CoolantHole","op":"eq","rawValue":"Y"}]	[]			synthetic
+M97	D	CoolantHole N	쿨런트홀 없는 엔드밀	""		kg or sql-agent		[{"field":"CoolantHole","op":"eq","rawValue":"N"}]	[]			synthetic
+M98	D	GFRP	GFRP 가공용 엔드밀	""		kg or sql-agent		[{"field":"GFRP","op":"eq","rawValue":"Y"}]	[]			synthetic
+M99	D	KFRP	KFRP 가공 엔드밀	""		kg or sql-agent		[{"field":"KFRP","op":"eq","rawValue":"Y"}]	[]			synthetic
+M100	D	Honeycomb	허니콤 가공 엔드밀	""		kg or sql-agent		[{"field":"HONEYCOMB","op":"eq","rawValue":"Y"}]	[]			synthetic
+M101	D	Dry cutting	건식 가공 엔드밀	""		kg or sql-agent		[{"field":"Dry","op":"eq","rawValue":"Y"}]	[]			synthetic
+M102	D	Oil mist	오일미스트용 엔드밀	""		kg or sql-agent		[{"field":"Oil_mist","op":"eq","rawValue":"Y"}]	[]			synthetic
+M103	D	Air cooling	에어 쿨링 엔드밀	""		kg or sql-agent		[{"field":"Air","op":"eq","rawValue":"Y"}]	[]			synthetic
+M104	C	OutsideDia 극단 0.1	외경 0.1mm 엔드밀	""		sql-agent		[{"field":"OutsideDia","op":"eq","rawValue":0.1}]	[]			synthetic
+M105	C	OutsideDia 극단 999	외경 999mm 엔드밀	""		sql-agent	show_recommendation	[{"field":"OutsideDia","op":"eq","rawValue":999}]	[]	zero		synthetic
+M106	C	OverAllLength 극단 1000	전장 1000mm 이상	""		sql-agent		[{"field":"OverAllLength","op":"gte","rawValue":1000}]	[]	zero		synthetic
+M107	C	Flute 극단 50	날수 50개 이상	""		sql-agent		[{"field":"NumberofFlute","op":"gte","rawValue":50}]	[]	zero		synthetic
+M108	C	HelixAngle 극단 90	헬릭스 90도	""		sql-agent		[{"field":"HelixAngle","op":"eq","rawValue":90}]	[]	zero		synthetic
+M109	C	OutsideDia 영문	diameter 10mm endmill	""		sql-agent		[{"field":"OutsideDia","op":"eq","rawValue":10}]	[]			synthetic
+M110	C	Flute 영문	4 flute endmill	""		kg		[{"field":"NumberofFlute","op":"eq","rawValue":4}]	[]			synthetic
+M111	C	OAL 영문	OAL 100mm 이상	""		sql-agent		[{"field":"OverAllLength","op":"gte","rawValue":100}]	[]			synthetic
+M112	C	LOC 영문	LOC 30mm	""		sql-agent		[{"field":"LengthofCut","op":"eq","rawValue":30}]	[]			synthetic
+M113	C	구어체 작은	작은 엔드밀 보여줘	""		sql-agent or kg		[{"field":"OutsideDia","op":"lte"}]	[]			synthetic
+M114	C	구어체 큰	큰 엔드밀 보여줘	""		sql-agent or kg		[{"field":"OutsideDia","op":"gte"}]	[]			synthetic
+M115	C	구어체 얇은	얇은 엔드밀	""		sql-agent or kg		[{"field":"OutsideDia","op":"lte"}]	[]			synthetic
+M116	C	구어체 두꺼운	두꺼운 엔드밀	""		sql-agent or kg		[{"field":"OutsideDia","op":"gte"}]	[]			synthetic
+M117	C	단위 누락 외경	외경 10	""		sql-agent		[{"field":"OutsideDia","op":"eq","rawValue":10}]	[]			synthetic
+M118	C	단위 누락 전장	전장 100	""		sql-agent		[{"field":"OverAllLength","op":"eq","rawValue":100}]	[]			synthetic
+M119	C	범위 ~ 표기	외경 6~12mm	""		sql-agent		[{"field":"OutsideDia","op":"between","rawValue":[6,12]}]	[]			synthetic
+M120	C	범위 - 표기	외경 6-12mm	""		sql-agent		[{"field":"OutsideDia","op":"between","rawValue":[6,12]}]	[]			synthetic
+M121	C	OutsideDia 직경 표현	직경 12mm 엔드밀	""				[{"field":"OutsideDia","op":"eq","rawValue":12}]	[]			synthetic
+M122	C	OutsideDia D 표현	D8 엔드밀	""				[{"field":"OutsideDia","op":"eq","rawValue":8}]	[]			synthetic
+M123	C	OutsideDia phi 표현	phi 10 엔드밀	""				[{"field":"OutsideDia","op":"eq","rawValue":10}]	[]			synthetic
+M124	C	OutsideDia 파이 한글	12파이 엔드밀	""				[{"field":"OutsideDia","op":"eq","rawValue":12}]	[]			synthetic
+M125	C	OutsideDia mm 영문	10 mm endmill	""				[{"field":"OutsideDia","op":"eq","rawValue":10}]	[]			synthetic
+M126	C	OutsideDia 보다 큰	외경 8mm 보다 큰	""				[{"field":"OutsideDia","op":"gt","rawValue":8}]	[]			synthetic
+M127	C	OutsideDia 보다 작은	외경 8mm 보다 작은	""				[{"field":"OutsideDia","op":"lt","rawValue":8}]	[]			synthetic
+M128	C	OutsideDia 넘는	외경 10mm 넘는 엔드밀	""				[{"field":"OutsideDia","op":"gt","rawValue":10}]	[]			synthetic
+M129	C	OutsideDia 못 미치는	외경 10mm 못 미치는	""				[{"field":"OutsideDia","op":"lt","rawValue":10}]	[]			synthetic
+M130	C	OutsideDia 까지	외경 12mm 까지	""				[{"field":"OutsideDia","op":"lte","rawValue":12}]	[]			synthetic
+M131	C	OutsideDia 부터	외경 6mm 부터	""				[{"field":"OutsideDia","op":"gte","rawValue":6}]	[]			synthetic
+M132	C	OutsideDia 부터 까지	외경 6mm 부터 12mm 까지	""				[{"field":"OutsideDia","op":"between","rawValue":[6,12]}]	[]			synthetic
+M133	C	OutsideDia 사이	외경 6mm와 12mm 사이	""				[{"field":"OutsideDia","op":"between","rawValue":[6,12]}]	[]			synthetic
+M134	C	OutsideDia 정확히	정확히 외경 10mm	""				[{"field":"OutsideDia","op":"eq","rawValue":10}]	[]			synthetic
+M135	C	OutsideDia 딱	딱 10mm 엔드밀	""				[{"field":"OutsideDia","op":"eq","rawValue":10}]	[]			synthetic
+M136	C	OutsideDia 0.5mm	외경 0.5mm 엔드밀	""				[{"field":"OutsideDia","op":"eq","rawValue":0.5}]	[]			synthetic
+M137	C	OutsideDia 1.5mm	외경 1.5mm 엔드밀	""				[{"field":"OutsideDia","op":"eq","rawValue":1.5}]	[]			synthetic
+M138	C	OutsideDia 25mm	외경 25mm 엔드밀	""				[{"field":"OutsideDia","op":"eq","rawValue":25}]	[]			synthetic
+M139	C	OutsideDia 굵은 구어	굵은 엔드밀 추천	""				[{"field":"OutsideDia","op":"gte"}]	[]			synthetic
+M140	C	OutsideDia 가는 구어	가는 엔드밀 보여줘	""				[{"field":"OutsideDia","op":"lte"}]	[]			synthetic
+M141	C	ShankDia 6파이	생크 6파이	""				[{"field":"ShankDia","op":"eq","rawValue":6}]	[]			synthetic
+M142	C	ShankDia shank dia 영문	shank dia 10mm	""				[{"field":"ShankDia","op":"eq","rawValue":10}]	[]			synthetic
+M143	C	ShankDia 자루경	자루경 8mm	""				[{"field":"ShankDia","op":"eq","rawValue":8}]	[]			synthetic
+M144	C	ShankDia 12mm	생크 12mm 엔드밀	""				[{"field":"ShankDia","op":"eq","rawValue":12}]	[]			synthetic
+M145	C	ShankDia 16mm 이상	생크 16mm 이상	""				[{"field":"ShankDia","op":"gte","rawValue":16}]	[]			synthetic
+M146	C	ShankDia 4mm 이하	생크경 4mm 이하	""				[{"field":"ShankDia","op":"lte","rawValue":4}]	[]			synthetic
+M147	C	ShankDia 8~12 범위	생크 8~12mm	""				[{"field":"ShankDia","op":"between","rawValue":[8,12]}]	[]			synthetic
+M148	C	ShankDia 두꺼운 자루	두꺼운 자루 엔드밀	""				[{"field":"ShankDia","op":"gte"}]	[]			synthetic
+M149	C	OAL 전체길이	전체길이 120mm	""				[{"field":"OverAllLength","op":"eq","rawValue":120}]	[]			synthetic
+M150	C	OAL 총길이	총길이 150mm 이상	""				[{"field":"OverAllLength","op":"gte","rawValue":150}]	[]			synthetic
+M151	C	OAL full length	full length 100mm	""				[{"field":"OverAllLength","op":"eq","rawValue":100}]	[]			synthetic
+M152	C	OAL overall	overall length 80mm 이하	""				[{"field":"OverAllLength","op":"lte","rawValue":80}]	[]			synthetic
+M153	C	OAL L 약어	L 100mm 엔드밀	""				[{"field":"OverAllLength","op":"eq","rawValue":100}]	[]			synthetic
+M154	C	OAL 길쭉한	길쭉한 엔드밀	""				[{"field":"OverAllLength","op":"gte"}]	[]			synthetic
+M155	C	OAL 롱넥	롱넥 엔드밀	""				[{"field":"OverAllLength","op":"gte"}]	[]			synthetic
+M156	C	OAL 짧은형	숏 엔드밀	""				[{"field":"OverAllLength","op":"lte"}]	[]			synthetic
+M157	C	OAL 100~150 범위	전장 100~150mm	""				[{"field":"OverAllLength","op":"between","rawValue":[100,150]}]	[]			synthetic
+M158	C	OAL 50mm	전장 50mm	""				[{"field":"OverAllLength","op":"eq","rawValue":50}]	[]			synthetic
+M159	C	LOC 절삭장	절삭장 25mm	""				[{"field":"LengthofCut","op":"eq","rawValue":25}]	[]			synthetic
+M160	C	LOC 날길이	날길이 30mm	""				[{"field":"LengthofCut","op":"eq","rawValue":30}]	[]			synthetic
+M161	C	LOC cutting length	cutting length 40mm	""				[{"field":"LengthofCut","op":"eq","rawValue":40}]	[]			synthetic
+M162	C	LOC 짧은 날	짧은 날 엔드밀	""				[{"field":"LengthofCut","op":"lte"}]	[]			synthetic
+M163	C	LOC 긴 날	긴 날 엔드밀	""				[{"field":"LengthofCut","op":"gte"}]	[]			synthetic
+M164	C	LOC 20~40 범위	절삭장 20~40mm	""				[{"field":"LengthofCut","op":"between","rawValue":[20,40]}]	[]			synthetic
+M165	C	LOC 50mm 이상	절삭 길이 50mm 이상	""				[{"field":"LengthofCut","op":"gte","rawValue":50}]	[]			synthetic
+M166	C	Flute 1날	1날 엔드밀	""				[{"field":"NumberofFlute","op":"eq","rawValue":1}]	[]			synthetic
+M167	C	Flute 2 flute	2 flute	""				[{"field":"NumberofFlute","op":"eq","rawValue":2}]	[]			synthetic
+M168	C	Flute 3 flute	3 flute endmill	""				[{"field":"NumberofFlute","op":"eq","rawValue":3}]	[]			synthetic
+M169	C	Flute 5날	5날 엔드밀	""				[{"field":"NumberofFlute","op":"eq","rawValue":5}]	[]			synthetic
+M170	C	Flute 6 flute	6 flute endmill	""				[{"field":"NumberofFlute","op":"eq","rawValue":6}]	[]			synthetic
+M171	C	Flute 7날	7날 엔드밀	""				[{"field":"NumberofFlute","op":"eq","rawValue":7}]	[]			synthetic
+M172	C	Flute 8날	8날 엔드밀	""				[{"field":"NumberofFlute","op":"eq","rawValue":8}]	[]			synthetic
+M173	C	Flute 10날	10날 엔드밀	""				[{"field":"NumberofFlute","op":"eq","rawValue":10}]	[]			synthetic
+M174	C	Flute 12날	12날 엔드밀	""				[{"field":"NumberofFlute","op":"eq","rawValue":12}]	[]			synthetic
+M175	C	Flute teeth 영문	4 teeth endmill	""				[{"field":"NumberofFlute","op":"eq","rawValue":4}]	[]			synthetic
+M176	C	Flute 날수 4	날수 4	""				[{"field":"NumberofFlute","op":"eq","rawValue":4}]	[]			synthetic
+M177	C	Flute 4F	4F 엔드밀	""				[{"field":"NumberofFlute","op":"eq","rawValue":4}]	[]			synthetic
+M178	C	Flute 2F	2F 엔드밀	""				[{"field":"NumberofFlute","op":"eq","rawValue":2}]	[]			synthetic
+M179	C	Flute 적은 날	날 적은 엔드밀	""				[{"field":"NumberofFlute","op":"lte"}]	[]			synthetic
+M180	C	Flute 많은 날	날 많은 엔드밀	""				[{"field":"NumberofFlute","op":"gte"}]	[]			synthetic
+M181	C	Flute 4~6 범위	날수 4~6	""				[{"field":"NumberofFlute","op":"between","rawValue":[4,6]}]	[]			synthetic
+M182	C	Flute 6 이상	날 6개 이상	""				[{"field":"NumberofFlute","op":"gte","rawValue":6}]	[]			synthetic
+M183	C	Flute 2 이하	날 2개 이하	""				[{"field":"NumberofFlute","op":"lte","rawValue":2}]	[]			synthetic
+M184	C	Helix 30도	헬릭스 30도	""				[{"field":"HelixAngle","op":"eq","rawValue":30}]	[]			synthetic
+M185	C	Helix 45도	헬릭스 45도	""				[{"field":"HelixAngle","op":"eq","rawValue":45}]	[]			synthetic
+M186	C	Helix high helix	high helix endmill	""				[{"field":"HelixAngle","op":"gte"}]	[]			synthetic
+M187	C	Helix 비틀림각	비틀림각 35도	""				[{"field":"HelixAngle","op":"eq","rawValue":35}]	[]			synthetic
+M188	C	Helix angle 영문	helix angle 40	""				[{"field":"HelixAngle","op":"eq","rawValue":40}]	[]			synthetic
+M189	C	Helix 25도 이상	헬릭스 25도 이상	""				[{"field":"HelixAngle","op":"gte","rawValue":25}]	[]			synthetic
+M190	C	Helix 50도 이하	헬릭스 50도 이하	""				[{"field":"HelixAngle","op":"lte","rawValue":50}]	[]			synthetic
+M191	C	Radius R0.5	R0.5 엔드밀	""				[{"field":"RadiusAll","op":"eq","rawValue":0.5}]	[]			synthetic
+M192	C	Radius R1	R1 엔드밀	""				[{"field":"RadiusAll","op":"eq","rawValue":1}]	[]			synthetic
+M193	C	Radius R2	R2 엔드밀	""				[{"field":"RadiusAll","op":"eq","rawValue":2}]	[]			synthetic
+M194	C	Radius R3	R3 엔드밀	""				[{"field":"RadiusAll","op":"eq","rawValue":3}]	[]			synthetic
+M195	C	Radius corner radius 영문	corner radius 1mm	""				[{"field":"RadiusAll","op":"eq","rawValue":1}]	[]			synthetic
+M196	C	Radius 라디우스	라디우스 0.3mm	""				[{"field":"RadiusAll","op":"eq","rawValue":0.3}]	[]			synthetic
+M197	C	Radius ball R 1.5	볼노즈 R 1.5	""				[{"field":"RadiusofBallNose","op":"eq","rawValue":1.5}]	[]			synthetic
+M198	C	Radius ball R 0.5	볼 R 0.5	""				[{"field":"RadiusofBallNose","op":"eq","rawValue":0.5}]	[]			synthetic
+M199	C	Radius R0.5~R2	R 0.5에서 2	""				[{"field":"RadiusAll","op":"between","rawValue":[0.5,2]}]	[]			synthetic
+M200	C	Radius 작은 R	작은 R 엔드밀	""				[{"field":"RadiusAll","op":"lte"}]	[]			synthetic
+M201	C	Neck 3mm	넥경 3mm	""				[{"field":"NeckDiameter","op":"eq","rawValue":3}]	[]			synthetic
+M202	C	Neck 5mm	넥경 5mm	""				[{"field":"NeckDiameter","op":"eq","rawValue":5}]	[]			synthetic
+M203	C	Neck neck dia	neck dia 4	""				[{"field":"NeckDiameter","op":"eq","rawValue":4}]	[]			synthetic
+M204	C	Neck 가는 넥	가는 넥 엔드밀	""				[{"field":"NeckDiameter","op":"lte"}]	[]			synthetic
+M205	C	Neck 6mm 이하	넥경 6mm 이하	""				[{"field":"NeckDiameter","op":"lte","rawValue":6}]	[]			synthetic
+M206	C	LBS 40mm	생크 아래 40mm	""				[{"field":"LengthbelowShank","op":"eq","rawValue":40}]	[]			synthetic
+M207	C	LBS 60mm 이상	생크 아래 60mm 이상	""				[{"field":"LengthbelowShank","op":"gte","rawValue":60}]	[]			synthetic
+M208	C	LBS reach 영문	reach 50mm	""				[{"field":"LengthbelowShank","op":"eq","rawValue":50}]	[]			synthetic
+M209	C	Cutter 63mm	커터 63mm 페이스밀	""				[{"field":"Cutter_Diameter","op":"eq","rawValue":63}]	[]			synthetic
+M210	C	Cutter 100mm 이상	커터 100mm 이상	""				[{"field":"Cutter_Diameter","op":"gte","rawValue":100}]	[]			synthetic
+M211	C	Cutter Ø80	커터 Ø80 페이스밀	""				[{"field":"Cutter_Diameter","op":"eq","rawValue":80}]	[]			synthetic
+M212	C	Cutter face mill 큰	큰 페이스밀	""				[{"field":"Cutter_Diameter","op":"gte"}]	[]			synthetic
+M213	D	Coating TiCN	TiCN 코팅 엔드밀	""				[{"field":"Coating","op":"eq","rawValue":"TiCN"}]	[]			synthetic
+M214	D	Coating TiN	TiN 코팅 엔드밀	""				[{"field":"Coating","op":"eq","rawValue":"TiN"}]	[]			synthetic
+M215	D	Coating nACo	nACo 코팅 엔드밀	""				[{"field":"Coating","op":"eq","rawValue":"nACo"}]	[]			synthetic
+M216	D	Coating CrN	CrN 코팅 엔드밀	""				[{"field":"Coating","op":"eq","rawValue":"CrN"}]	[]			synthetic
+M217	D	Coating Diamond	다이아몬드 코팅 엔드밀	""				[{"field":"Coating","op":"eq","rawValue":"Diamond"}]	[]			synthetic
+M218	D	Coating 코팅된	코팅된 엔드밀	""				[{"field":"Coating","op":"ne","rawValue":"Uncoated"}]	[]			synthetic
+M219	D	Coating 무코팅 영문	uncoated endmill	""				[{"field":"Coating","op":"eq","rawValue":"Uncoated"}]	[]			synthetic
+M220	D	ShankType cylindrical	원통 생크 엔드밀	""				[{"field":"ShankType","op":"eq","rawValue":"Straight"}]	[]			synthetic
+M221	D	ShankType weldon flat	Weldon flat 생크	""				[{"field":"ShankType","op":"eq","rawValue":"Weldon"}]	[]			synthetic
+M222	D	ShankType HSK63	HSK63 생크	""				[{"field":"ShankType","op":"eq","rawValue":"HSK63"}]	[]			synthetic
+M223	D	ShankType HSK100	HSK100 생크	""				[{"field":"ShankType","op":"eq","rawValue":"HSK100"}]	[]			synthetic
+M224	D	ShankType BT40	BT40 생크	""				[{"field":"ShankType","op":"eq","rawValue":"BT40"}]	[]			synthetic
+M225	D	ShankType straight 영문	straight shank endmill	""				[{"field":"ShankType","op":"eq","rawValue":"Straight"}]	[]			synthetic
+M226	D	Material 초경 영문	carbide endmill	""				[{"field":"ToolMaterial","op":"eq","rawValue":"Carbide"}]	[]			synthetic
+M227	D	Material HSS-CO	HSS-CO 엔드밀	""				[{"field":"ToolMaterial","op":"eq","rawValue":"HSS-Co"}]	[]			synthetic
+M228	D	Material 분말 하이스	분말 하이스 엔드밀	""				[{"field":"ToolMaterial","op":"eq","rawValue":"PM-HSS"}]	[]			synthetic
+M229	D	Material CBN	CBN 엔드밀	""				[{"field":"ToolMaterial","op":"eq","rawValue":"CBN"}]	[]			synthetic
+M230	D	Material PCD 영문	PCD endmill	""				[{"field":"ToolMaterial","op":"eq","rawValue":"PCD"}]	[]			synthetic
+M231	D	CutterShape ball	ball nose endmill	""				[{"field":"CutterShape","op":"eq","rawValue":"BallNose"}]	[]			synthetic
+M232	D	CutterShape flat 영문	flat endmill	""				[{"field":"CutterShape","op":"eq","rawValue":"FlatEnd"}]	[]			synthetic
+M233	D	CutterShape 라운드	라운드 엔드밀	""				[{"field":"CutterShape","op":"eq","rawValue":"BallNose"}]	[]			synthetic
+M234	D	CutterShape 평엔드	평엔드밀	""				[{"field":"CutterShape","op":"eq","rawValue":"FlatEnd"}]	[]			synthetic
+M235	D	CutterShape bull nose	bull nose endmill	""				[{"field":"CutterShape","op":"eq","rawValue":"CornerRadius"}]	[]			synthetic
+M236	D	CutterShape taper	테이퍼 엔드밀	""				[{"field":"CutterShape","op":"eq","rawValue":"Taper"}]	[]			synthetic
+M237	D	CutterShape chamfer	챔퍼 엔드밀	""				[{"field":"CutterShape","op":"eq","rawValue":"Chamfer"}]	[]			synthetic
+M238	D	Roughing 거친 가공	거친 가공용 엔드밀	""				[{"field":"RoughingFinishtype","op":"eq","rawValue":"Roughing"}]	[]			synthetic
+M239	D	Roughing 영문	roughing endmill	""				[{"field":"RoughingFinishtype","op":"eq","rawValue":"Roughing"}]	[]			synthetic
+M240	D	Finishing 마감	마감용 엔드밀	""				[{"field":"RoughingFinishtype","op":"eq","rawValue":"Finishing"}]	[]			synthetic
+M241	D	Finishing 영문	finishing endmill	""				[{"field":"RoughingFinishtype","op":"eq","rawValue":"Finishing"}]	[]			synthetic
+M242	D	Finishing 미세 마감	미세 마감 엔드밀	""				[{"field":"RoughingFinishtype","op":"eq","rawValue":"Finishing"}]	[]			synthetic
+M243	D	Single 1엔드	1엔드 엔드밀	""				[{"field":"SingleDoubleEnd","op":"eq","rawValue":"Single"}]	[]			synthetic
+M244	D	Double 2엔드	2엔드 엔드밀	""				[{"field":"SingleDoubleEnd","op":"eq","rawValue":"Double"}]	[]			synthetic
+M245	D	Single end 영문	single end endmill	""				[{"field":"SingleDoubleEnd","op":"eq","rawValue":"Single"}]	[]			synthetic
+M246	D	Double end 영문	double end endmill	""				[{"field":"SingleDoubleEnd","op":"eq","rawValue":"Double"}]	[]			synthetic
+M247	D	Coolant through	쓰루 쿨런트 엔드밀	""				[{"field":"CoolantHole","op":"eq","rawValue":"Y"}]	[]			synthetic
+M248	D	Coolant through 영문	through coolant endmill	""				[{"field":"CoolantHole","op":"eq","rawValue":"Y"}]	[]			synthetic
+M249	D	Coolant 내부 급유	내부 급유 엔드밀	""				[{"field":"CoolantHole","op":"eq","rawValue":"Y"}]	[]			synthetic
+M250	D	Composite CFRP 영문	CFRP cutting endmill	""				[{"field":"CFRP","op":"eq","rawValue":"Y"}]	[]			synthetic
+M251	D	Composite 탄소복합	탄소복합재 가공 엔드밀	""				[{"field":"CFRP","op":"eq","rawValue":"Y"}]	[]			synthetic
+M252	D	Composite 유리섬유	유리섬유 가공 엔드밀	""				[{"field":"GFRP","op":"eq","rawValue":"Y"}]	[]			synthetic
+M253	D	Composite 케블라	케블라 가공 엔드밀	""				[{"field":"KFRP","op":"eq","rawValue":"Y"}]	[]			synthetic
+M254	D	Cooling MQL	MQL 가공 엔드밀	""				[{"field":"Oil_mist","op":"eq","rawValue":"Y"}]	[]			synthetic
+M255	D	Cooling 건식 영문	dry cutting endmill	""				[{"field":"Dry","op":"eq","rawValue":"Y"}]	[]			synthetic
+M256	D	Cooling 습식	습식 가공 엔드밀	""				[{"field":"Coolant","op":"eq","rawValue":"Y"}]	[]			synthetic
+M257	C	OutsideDia 7mm	외경 7mm	""				[{"field":"OutsideDia","op":"eq","rawValue":7}]	[]			synthetic
+M258	C	OutsideDia 9mm	외경 9mm	""				[{"field":"OutsideDia","op":"eq","rawValue":9}]	[]			synthetic
+M259	C	OutsideDia 11mm	외경 11mm	""				[{"field":"OutsideDia","op":"eq","rawValue":11}]	[]			synthetic
+M260	C	OutsideDia 14mm	외경 14mm	""				[{"field":"OutsideDia","op":"eq","rawValue":14}]	[]			synthetic
+M261	C	OutsideDia 16mm	외경 16mm	""				[{"field":"OutsideDia","op":"eq","rawValue":16}]	[]			synthetic
+M262	C	OutsideDia 18mm	외경 18mm	""				[{"field":"OutsideDia","op":"eq","rawValue":18}]	[]			synthetic
+M263	C	OutsideDia 20mm	외경 20mm	""				[{"field":"OutsideDia","op":"eq","rawValue":20}]	[]			synthetic
+M264	C	OutsideDia 3mm	외경 3mm	""				[{"field":"OutsideDia","op":"eq","rawValue":3}]	[]			synthetic
+M265	C	OutsideDia 2mm	외경 2mm	""				[{"field":"OutsideDia","op":"eq","rawValue":2}]	[]			synthetic
+M266	C	OutsideDia 1mm	외경 1mm	""				[{"field":"OutsideDia","op":"eq","rawValue":1}]	[]			synthetic
+M267	C	Helix 35도	헬릭스 35도	""				[{"field":"HelixAngle","op":"eq","rawValue":35}]	[]			synthetic
+M268	C	Helix 38도	헬릭스 38도	""				[{"field":"HelixAngle","op":"eq","rawValue":38}]	[]			synthetic
+M269	C	Helix 42도	헬릭스 42도	""				[{"field":"HelixAngle","op":"eq","rawValue":42}]	[]			synthetic
+M270	C	Helix 0도	헬릭스 0도	""				[{"field":"HelixAngle","op":"eq","rawValue":0}]	[]			synthetic
+M271	C	Radius R0.1	R0.1 엔드밀	""				[{"field":"RadiusAll","op":"eq","rawValue":0.1}]	[]			synthetic
+M272	C	Radius R0.2	R0.2 엔드밀	""				[{"field":"RadiusAll","op":"eq","rawValue":0.2}]	[]			synthetic
+M273	C	Radius R5	R5 엔드밀	""				[{"field":"RadiusAll","op":"eq","rawValue":5}]	[]			synthetic
+M274	C	Radius R10	R10 엔드밀	""				[{"field":"RadiusAll","op":"eq","rawValue":10}]	[]			synthetic
+M275	C	OAL 200mm	전장 200mm	""				[{"field":"OverAllLength","op":"eq","rawValue":200}]	[]			synthetic
+M276	C	OAL 250mm	전장 250mm	""				[{"field":"OverAllLength","op":"eq","rawValue":250}]	[]			synthetic
+M277	C	OAL 75mm	전장 75mm	""				[{"field":"OverAllLength","op":"eq","rawValue":75}]	[]			synthetic
+M278	C	OAL 60mm	전장 60mm	""				[{"field":"OverAllLength","op":"eq","rawValue":60}]	[]			synthetic
+M279	C	LOC 10mm	절삭장 10mm	""				[{"field":"LengthofCut","op":"eq","rawValue":10}]	[]			synthetic
+M280	C	LOC 60mm	절삭장 60mm	""				[{"field":"LengthofCut","op":"eq","rawValue":60}]	[]			synthetic
+M281	C	LOC 80mm	절삭장 80mm	""				[{"field":"LengthofCut","op":"eq","rawValue":80}]	[]			synthetic
+M282	C	LOC 15mm	절삭장 15mm	""				[{"field":"LengthofCut","op":"eq","rawValue":15}]	[]			synthetic
+M283	C	ShankDia 3mm	생크 3mm	""				[{"field":"ShankDia","op":"eq","rawValue":3}]	[]			synthetic
+M284	C	ShankDia 4mm	생크 4mm	""				[{"field":"ShankDia","op":"eq","rawValue":4}]	[]			synthetic
+M285	C	ShankDia 20mm	생크 20mm	""				[{"field":"ShankDia","op":"eq","rawValue":20}]	[]			synthetic
+M286	C	ShankDia 25mm	생크 25mm	""				[{"field":"ShankDia","op":"eq","rawValue":25}]	[]			synthetic
+M287	C	Inch 1/4	1/4 inch 엔드밀	""				[{"field":"OutsideDia","op":"eq","rawValue":6.35}]	[]			synthetic
+M288	C	Inch 1/2	1/2 inch 엔드밀	""				[{"field":"OutsideDia","op":"eq","rawValue":12.7}]	[]			synthetic
+M289	C	Inch 3/8	3/8 inch 엔드밀	""				[{"field":"OutsideDia","op":"eq","rawValue":9.525}]	[]			synthetic
+M290	C	Inch 1/8	1/8 inch 엔드밀	""				[{"field":"OutsideDia","op":"eq","rawValue":3.175}]	[]			synthetic
+M291	C	OutsideDia 매우 작은	아주 작은 엔드밀	""				[{"field":"OutsideDia","op":"lte"}]	[]			synthetic
+M292	C	OutsideDia 매우 큰	아주 큰 엔드밀	""				[{"field":"OutsideDia","op":"gte"}]	[]			synthetic
+M293	C	OAL 매우 긴	엄청 긴 엔드밀	""				[{"field":"OverAllLength","op":"gte"}]	[]			synthetic
+M294	C	OAL 매우 짧은	엄청 짧은 엔드밀	""				[{"field":"OverAllLength","op":"lte"}]	[]			synthetic
+M295	C	Flute 4매	4매 엔드밀	""				[{"field":"NumberofFlute","op":"eq","rawValue":4}]	[]			synthetic
+M296	C	Flute 2매	2매 엔드밀	""				[{"field":"NumberofFlute","op":"eq","rawValue":2}]	[]			synthetic
+M297	C	Flute 6매 이상	6매 이상 엔드밀	""				[{"field":"NumberofFlute","op":"gte","rawValue":6}]	[]			synthetic
+M298	C	Helix variable	variable helix 엔드밀	""				[{"field":"HelixAngle","op":"eq","rawValue":"Variable"}]	[]			synthetic
+M299	C	Helix 부등 분할	부등 분할 엔드밀	""				[{"field":"HelixAngle","op":"eq","rawValue":"Variable"}]	[]			synthetic
+M300	C	OutsideDia 콤마 표기	외경 6,8,10mm	""				[{"field":"OutsideDia","op":"in","rawValue":[6,8,10]}]	[]			synthetic
+M301	C	Flute 콤마 표기	날수 2,4,6	""				[{"field":"NumberofFlute","op":"in","rawValue":[2,4,6]}]	[]			synthetic
+M302	C	OutsideDia 약	외경 약 10mm	""				[{"field":"OutsideDia","op":"eq","rawValue":10}]	[]			synthetic
+M303	C	OutsideDia 정도	외경 10mm 정도	""				[{"field":"OutsideDia","op":"eq","rawValue":10}]	[]			synthetic
+M304	C	OutsideDia 쯤	외경 10mm 쯤	""				[{"field":"OutsideDia","op":"eq","rawValue":10}]	[]			synthetic
+M305	C	OutsideDia 가량	외경 12mm 가량	""				[{"field":"OutsideDia","op":"eq","rawValue":12}]	[]			synthetic
+M306	C	OutsideDia 최소	외경 최소 6mm	""				[{"field":"OutsideDia","op":"gte","rawValue":6}]	[]			synthetic
+M307	C	OutsideDia 최대	외경 최대 12mm	""				[{"field":"OutsideDia","op":"lte","rawValue":12}]	[]			synthetic
+M308	C	OAL 최소 100	전장 최소 100mm	""				[{"field":"OverAllLength","op":"gte","rawValue":100}]	[]			synthetic
+M309	C	OAL 최대 80	전장 최대 80mm	""				[{"field":"OverAllLength","op":"lte","rawValue":80}]	[]			synthetic
+M310	C	Flute 최소 4	날수 최소 4	""				[{"field":"NumberofFlute","op":"gte","rawValue":4}]	[]			synthetic
+M311	D	Coating 무코팅 vs	코팅 안된 엔드밀	""				[{"field":"Coating","op":"eq","rawValue":"Uncoated"}]	[]			synthetic
+M312	D	Coating 베어	베어 카바이드 엔드밀	""				[{"field":"Coating","op":"eq","rawValue":"Uncoated"}]	[]			synthetic
+M313	D	GeometryStandard JIS	JIS 규격 엔드밀	""				[{"field":"GeometryStandard","op":"eq","rawValue":"JIS"}]	[]			synthetic
+M314	D	GeometryStandard DIN	DIN 규격 엔드밀	""				[{"field":"GeometryStandard","op":"eq","rawValue":"DIN"}]	[]			synthetic
+M315	D	GeometryStandard ANSI	ANSI 규격 엔드밀	""				[{"field":"GeometryStandard","op":"eq","rawValue":"ANSI"}]	[]			synthetic
+M316	D	CuttingDirection 우향	우향 절삭 엔드밀	""				[{"field":"CuttingDirection","op":"eq","rawValue":"Right"}]	[]			synthetic
+M317	D	CuttingDirection 좌향	좌향 절삭 엔드밀	""				[{"field":"CuttingDirection","op":"eq","rawValue":"Left"}]	[]			synthetic
+M318	D	CuttingDirection RH	RH 엔드밀	""				[{"field":"CuttingDirection","op":"eq","rawValue":"Right"}]	[]			synthetic
+M319	D	CuttingDirection LH	LH 엔드밀	""				[{"field":"CuttingDirection","op":"eq","rawValue":"Left"}]	[]			synthetic
+M320	D	Connection_Type 모듈러	모듈러 헤드 엔드밀	""				[{"field":"Connection_Type","op":"eq","rawValue":"Modular"}]	[]			synthetic
+M321	E	Negation OutsideDia 10mm 빼고	외경 10mm 말고	{"filters":["OutsideDia=10"]}		edit-intent		[]	[{"field":"OutsideDia"}]			synthetic
+M322	E	Negation 4날 말고 2날	4날 말고 2날	{"filters":["NumberofFlute=4"]}		edit-intent		[{"field":"NumberofFlute","op":"eq","rawValue":2}]	[{"field":"NumberofFlute","op":"eq","rawValue":4}]			synthetic
+M323	E	Negation TiAlN 빼고	TiAlN 코팅 빼고	{"filters":["Coating=TiAlN"]}		edit-intent		[{"field":"Coating","op":"neq","rawValue":"TiAlN"}]	[]			synthetic
+M324	E	Negation 볼노즈 말고 플랫	볼노즈 말고 플랫으로	{"filters":["CutterShape=BallNose"]}		edit-intent		[{"field":"CutterShape","op":"eq","rawValue":"FlatEnd"}]	[]			synthetic
+M325	E	Negation 황삭 말고 정삭	황삭 말고 정삭	{"filters":["RoughingFinishtype=Roughing"]}		edit-intent		[{"field":"RoughingFinishtype","op":"eq","rawValue":"Finishing"}]	[]			synthetic
+M326	E	Negation 외경 상관없음	외경은 상관없어요	{"filters":["OutsideDia=10"]}		edit-intent		[]	[{"field":"OutsideDia"}]			synthetic
+M327	E	Negation 날수 상관없음	날수는 상관없음	{"filters":["NumberofFlute=4"]}		edit-intent		[]	[{"field":"NumberofFlute"}]			synthetic
+M328	E	Negation 코팅 상관없음	코팅 상관없으니 추천	{"filters":["Coating=TiAlN"]}		edit-intent	show_recommendation	[]	[{"field":"Coating"}]			synthetic
+M329	J	Multi: 외경 10 → 12로 변경		""	["외경 10mm 엔드밀","12mm로 변경"]			[{"field":"OutsideDia","op":"eq","rawValue":12}]	[{"field":"OutsideDia","op":"eq","rawValue":10}]			synthetic
+M330	J	Multi: 외경 10 → 추가 4날		""	["외경 10mm","4날로"]			[]	[]			synthetic
+M331	J	Multi: 외경 → 전장 → 코팅		""	["외경 10mm","전장 100mm 이상","TiAlN 코팅"]			[]	[]			synthetic
+M332	J	Multi: 4날 → 6날 변경		""	["4날 엔드밀","6날로 바꿔줘"]			[{"field":"NumberofFlute","op":"eq","rawValue":6}]	[{"field":"NumberofFlute","op":"eq","rawValue":4}]			synthetic
+M333	J	Multi: 외경 추가 후 reset		""	["외경 10mm","처음부터"]		reset_session	[]	[]			synthetic
+M334	J	Multi: 좁힌 후 뒤로		""	["외경 10mm","4날","이전으로"]		go_back_one_step	[]	[]			synthetic
+M335	J	Multi: 범위 좁히기		""	["외경 6에서 12mm","8에서 10mm로 좁혀줘"]			[{"field":"OutsideDia","op":"between","rawValue":[8,10]}]	[]			synthetic
+M336	J	Multi: 0건 → 완화		""	["날수 50개 이상","조건 완화해줘"]			[]	[]	increase		synthetic
+M337	J	Multi: TiAlN → AlTiN 교체		""	["TiAlN 코팅","AlTiN으로 바꿔"]			[{"field":"Coating","op":"eq","rawValue":"AlTiN"}]	[{"field":"Coating","op":"eq","rawValue":"TiAlN"}]			synthetic
+M338	J	Multi: 황삭 → 정삭 교체		""	["황삭 엔드밀","아니 정삭으로"]			[{"field":"RoughingFinishtype","op":"eq","rawValue":"Finishing"}]	[]			synthetic
+M339	J	Multi: 좁힘 → 너무 좁음 → 완화		""	["외경 10mm","전장 200mm 이상","전장 조건 빼"]			[]	[{"field":"OverAllLength"}]			synthetic
+M340	J	Multi: 단계적 추가 후 추천		""	["외경 10mm","4날","TiAlN","추천해줘"]		show_recommendation	[]	[]			synthetic

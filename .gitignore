@@ -53,6 +53,10 @@ test-results/golden-set-split-mapping.json
 test-results/*.xlsx
 test-results/*.xlsb
 test-results/*.tsv
+test-results/.last-run.json
+test-results/*-chromium/
+test-results/*-firefox/
+test-results/*-webkit/
 test-results/*-results.json
 test-results/*-dump.json
 test-results/feedback-*.json
