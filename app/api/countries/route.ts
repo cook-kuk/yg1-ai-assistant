@@ -2,6 +2,10 @@ import "server-only"
 
 import { NextResponse } from "next/server"
 import { Pool } from "pg"
+import {
+  COUNTRY_CANONICAL_VALUES,
+  canonicalizeCountryValue,
+} from "@/lib/recommendation/shared/canonical-values"
 
 export const COUNTRIES_SQL = `SELECT DISTINCT country_row.country AS country
 FROM catalog_app.product_recommendation_mv,
@@ -33,12 +37,21 @@ export async function GET() {
   try {
     const pool = getPool()
     const result = await pool.query<{ country: string }>(COUNTRIES_SQL)
-    const countries = result.rows.map((row) => row.country)
+    const countries = Array.from(
+      new Set(
+        result.rows
+          .map((row) => canonicalizeCountryValue(row.country))
+          .filter(
+            (country): country is (typeof COUNTRY_CANONICAL_VALUES)[number] =>
+              COUNTRY_CANONICAL_VALUES.includes(country as (typeof COUNTRY_CANONICAL_VALUES)[number]),
+          ),
+      ),
+    )
     return NextResponse.json({ countries })
   } catch (error) {
     console.error("[countries] Failed to fetch countries:", error)
     return NextResponse.json({
-      countries: ["KOR", "ENG", "CHN", "JPN"],
+      countries: COUNTRY_CANONICAL_VALUES,
       fallback: true,
     })
   }
