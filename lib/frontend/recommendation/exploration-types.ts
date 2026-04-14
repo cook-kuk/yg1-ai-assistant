@@ -40,6 +40,8 @@ export interface ChatMsg {
   thinkingProcess?: string | null
   /** Full LLM chain-of-thought (separate channel from staged heartbeat). */
   thinkingDeep?: string | null
+  /** Structured agent decision trace (short-circuit hits, intent classify, SQL, filters, ranking). */
+  thinkingAgent?: string | null
   reasoningVisibility?: RecommendationReasoningVisibility | null
   /**
    * Inline product-card list rendered directly in the chat (not in the side

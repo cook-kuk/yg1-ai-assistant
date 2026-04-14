@@ -28,17 +28,13 @@ export interface InquiryAnalysis {
   reason: string
 }
 
-const TOOL_KEYWORDS = new Set([
-  "엔드밀", "드릴", "볼", "플랫", "스퀘어", "챔퍼", "테이퍼", "인서트",
-  "endmill", "end mill", "drill", "ball", "flat", "square", "taper",
-  "밀링", "선삭", "보링", "리머", "탭",
-])
-
-const MATERIAL_KEYWORDS = new Set([
-  "알루미늄", "알루", "alu", "스테인리스", "스텐", "sus", "탄소강", "합금강",
-  "주철", "티타늄", "인코넬", "고경도", "구리", "비철", "공구강", "내열합금",
-  "scm", "s45c", "sncm", "skd", "hrc",
-])
+import {
+  TOOL_KEYWORD_FLAT as TOOL_KEYWORDS,
+  MATERIAL_KEYWORD_FLAT as MATERIAL_KEYWORDS,
+  OPERATION_KEYWORD_FLAT as OPERATION_KEYWORDS,
+  COATING_KEYWORD_FLAT as COATING_KEYWORDS,
+  PRODUCT_CODE_PATTERNS,
+} from "@/lib/recommendation/shared/patterns"
 
 const DIMENSION_PATTERNS = [
   /\d+(\.\d+)?\s*mm/i,
@@ -48,27 +44,6 @@ const DIMENSION_PATTERNS = [
   /지름\s*\d/,
   /φ?\d+(\.\d+)?/,
 ]
-
-const OPERATION_KEYWORDS = new Set([
-  "황삭", "정삭", "중삭", "슬롯", "측면", "프로파일", "페이싱", "고이송",
-  "roughing", "finishing", "slotting", "side", "profiling",
-  "측면가공", "슬롯가공", "프로파일가공", "3d", "포켓",
-])
-
-const PRODUCT_CODE_PATTERNS = [
-  /\b(CE[57]\w{2,})/i,
-  /\b(GNX\d{2,})/i,
-  /\b(SEM[A-Z]*\d{3,})/i,
-  /\b(E[0-9]{4})/i,
-  /\b(GAA?\d{2,})/i,
-  /\b(GMG?\d{2,})/i,
-  /\b(EHD\d{2,})/i,
-  /\b(ALU[\s-]*PLUS)/i,
-]
-
-const COATING_KEYWORDS = new Set([
-  "코팅", "tialn", "alcrn", "ticn", "tin", "dlc", "무코팅", "y-코팅", "블루",
-])
 
 const GENERAL_KNOWLEDGE_KEYWORDS = new Set([
   "가공", "주의", "주의사항", "차이", "비교", "장단점", "특징", "원리", "팁", "방법",

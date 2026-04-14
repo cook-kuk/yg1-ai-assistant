@@ -47,7 +47,7 @@ import { resolveProductReferences } from "./comparison-agent"
 import { parseAnswerToFilter } from "@/lib/recommendation/domain/question-engine"
 import { ENABLE_OPUS_AMBIGUITY, ENABLE_COMPARISON_AGENT } from "@/lib/recommendation/infrastructure/config/recommendation-agent-flags"
 import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
-import { buildCandidateDistributionSnippet } from "@/lib/recommendation/shared/patterns"
+import { buildCandidateDistributionSnippet, matchContradictionPattern } from "@/lib/recommendation/shared/patterns"
 import { buildCanonicalDomainKnowledgeSnippet } from "@/lib/recommendation/shared/canonical-values"
 import { extractFilterFieldValueMap } from "@/lib/recommendation/shared/filter-field-registry"
 import { classifySessionAction, detectFilterIntent } from "@/lib/recommendation/domain/session-action-classifier"
@@ -709,21 +709,25 @@ ${candidatesDesc}`
       : new Map()
     const distSnippet = buildCandidateDistributionSnippet(distributions, state?.candidateCount ?? 0)
 
+    // Static prefix (cached) first, dynamic per-turn data after ===DYNAMIC=== marker.
     return `당신은 YG-1 절삭공구 추천 시스템의 대화 라우터입니다.
 
 사용자 메시지를 분석하여 적절한 tool을 호출하거나 직접 텍스트로 답변하세요.
 
-${dynamicSessionState}
 ${buildDbFilterValueSnippet()}
 ${buildCanonicalDomainKnowledgeSnippet()}
-${distSnippet}
 
 핵심 원칙:
 - 제품 데이터(코드, 스펙)를 생성하지 마세요
 - 한국어로 답변
-- 칩 제안 시 위 분포 데이터를 기반으로 실제 존재하는 값만 제안`
+- 칩 제안 시 아래 분포 데이터를 기반으로 실제 존재하는 값만 제안
+
+===DYNAMIC===
+${dynamicSessionState}
+${distSnippet}`
   }
 
+  // Static prefix (cached) first, dynamic session state after ===DYNAMIC=== marker.
   return `당신은 YG-1 절삭공구 추천 시스템의 대화 라우터입니다.
 
 ═══ 역할 ═══
@@ -731,7 +735,6 @@ ${distSnippet}
 1. 적절한 tool을 호출하여 시스템 액션을 실행하거나
 2. tool 없이 직접 텍스트로 답변 (잡담, 수학, 감정 공감, 메타 질문 등)
 
-${dynamicSessionState}
 ${buildDbFilterValueSnippet()}
 ═══ 규칙 ═══
 1. 사용자가 칩/옵션을 선택하면 → apply_filter 호출 (field는 lastAskedField 또는 옵션의 field 사용)
@@ -767,7 +770,10 @@ ${buildDbFilterValueSnippet()}
 - "ISO H에서 HRC 55는 어떤 브랜드야?", "스테인레스강 300용 브랜드 뭐가 있어?" → query_field_info (내부 기준표 조회)
 - "Ball로", "Ball 선택", "Ball", "1번" (짧은 값 선택) → apply_filter (필터 적용)
 - 사용자가 "~은/는 뭐야?", "~이/가 몇개야?", "~종류가 뭐가 있어?" → query_field_info
-- 사용자가 명확하게 값을 선택하거나 칩을 클릭한 경우만 apply_filter`
+- 사용자가 명확하게 값을 선택하거나 칩을 클릭한 경우만 apply_filter
+
+===DYNAMIC===
+${dynamicSessionState}`
 }
 
 function mapToolUseToAction(
@@ -1047,6 +1053,9 @@ function buildFilterFromParams(
 /**
  * Routes protected recommendation intents deterministically without LLM calls.
  * Returns null if sessionState is null or the message doesn't match any protected pattern.
+ *
+ * Fast-path for high-frequency turns: numeric selections, affirmative acknowledgements,
+ * undo / reset / skip phrases. Each hit bypasses the tool-use LLM call entirely.
  */
 export function routeProtectedRecommendationIntent(
   userMessage: string,
@@ -1056,6 +1065,7 @@ export function routeProtectedRecommendationIntent(
 
   const trimmed = userMessage.trim()
   const lower = trimmed.toLowerCase()
+  if (!lower) return null
 
   // Full view / reset filter
   if (lower === "전체 보기" || lower === "full view") {
@@ -1085,6 +1095,114 @@ export function routeProtectedRecommendationIntent(
     const seriesName = candidate.seriesName?.toLowerCase()
     if (seriesName && seriesName === lower) {
       return { type: "restore_previous_group", groupKey: candidate.seriesName! }
+    }
+  }
+
+  // ═══ 고빈도 패턴: LLM 호출 없이 deterministic 처리 ═══
+
+  // Numeric selection ("1번", "2", "3번") against displayed options
+  const numMatch = lower.match(/^(\d+)\s*번?\s*$/)
+  if (numMatch && sessionState.displayedOptions?.length) {
+    const idx = parseInt(numMatch[1], 10)
+    const option = sessionState.displayedOptions.find(o => o.index === idx)
+    if (option) {
+      return { type: "select_displayed_option", option }
+    }
+  }
+
+  // Affirmative response with pending question → skip/delegate
+  if (/^(?:네|응|ㅇ|ㅇㅇ|ok|yes|좋아|그래|맞아|넵)$/i.test(lower) && sessionState.lastAskedField) {
+    return { type: "skip_field", reason: "affirmative_with_pending" }
+  }
+
+  // Undo / back
+  if (/^(?:이전|되돌|뒤로|back|undo)\s*(?:으로|려|가|줘|요)?$/i.test(lower)) {
+    return { type: "go_back_one_step", reason: "undo_pattern" }
+  }
+
+  // Reset
+  if (/^(?:리셋|초기화|처음|reset|다시\s*시작)\s*(?:부터|으로|해줘|요)?$/i.test(lower)) {
+    return { type: "reset_session", reason: "reset_pattern" }
+  }
+
+  // Skip / delegate
+  if (/^(?:상관없음|아무거나|패스|skip|모름|무관|스킵|알아서)\s*(?:요|해줘)?$/i.test(lower) && sessionState.lastAskedField) {
+    return { type: "skip_field", reason: "skip_pattern" }
+  }
+
+  // Contradiction: "수정/변경" with no active filters → need clarification
+  const hasFilters = (sessionState.appliedFilters?.length ?? 0) > 0
+  if (!hasFilters && /수정|변경|바꾸|바꿔|고치|고쳐/.test(lower)) {
+    return { type: "clarify_no_filters", reason: "no_filters_to_modify" }
+  }
+
+  return null
+}
+
+// ════════════════════════════════════════════════════════════════
+// SESSION CONTRADICTION SHORT-CIRCUIT
+// ════════════════════════════════════════════════════════════════
+/**
+ * 세션 상태와 사용자 입력이 모순되는 케이스를 LLM 호출 전에 잡아낸다.
+ * 예: 적용 필터가 하나도 없는데 "기존 조건 수정" 을 요청 → 수정할 대상 없음.
+ *
+ * 히트 시 `{ type, reason }` 반환, 아니면 null.
+ * 반환 타입은 routeProtectedRecommendationIntent 와 상호 교체 가능하도록
+ * Record<string, unknown> 계열로 유지.
+ */
+export function detectSessionContradiction(
+  userMessage: string,
+  sessionState: ExplorationSessionState | null
+): { type: string; reason: string; message: string } | null {
+  if (!sessionState) return null
+  const lower = userMessage.trim().toLowerCase()
+  if (!lower) return null
+
+  const hasFilters = (sessionState.appliedFilters?.length ?? 0) > 0
+  const hasResults = (sessionState.candidateCount ?? 0) > 0
+  const status = String(sessionState.resolutionStatus ?? "")
+
+  // 1) 필터 없는데 "수정/변경/바꾸기"
+  if (!hasFilters && matchContradictionPattern("modify", lower)) {
+    return {
+      type: "clarify_no_filters",
+      reason: "no_filters_to_modify",
+      message:
+        "아직 적용된 조건이 없어 수정할 대상이 없습니다. 어떤 조건(소재·직경·가공방식 등)부터 시작하시겠어요?",
+    }
+  }
+
+  // 2) 결과 없는데 "비교"
+  if (!hasResults && matchContradictionPattern("compare", lower)) {
+    return {
+      type: "clarify_no_results",
+      reason: "no_results_to_compare",
+      message:
+        "아직 비교할 후보가 없습니다. 먼저 조건을 알려주시면 추천 후보를 찾아드릴게요.",
+    }
+  }
+
+  // 3) 필터 없는데 "제거/되돌리기/취소"
+  if (!hasFilters && matchContradictionPattern("undo", lower)) {
+    return {
+      type: "clarify_nothing_to_undo",
+      reason: "no_filters_to_undo",
+      message:
+        "아직 적용된 조건이 없어 되돌릴 내역이 없습니다. 새로 조건을 입력해주세요.",
+    }
+  }
+
+  // 4) 이미 resolved 상태에서 중복 추천 요청 (명시적 재요청이 아닐 때만)
+  if (
+    status.startsWith("resolved") &&
+    matchContradictionPattern("recommend", lower) &&
+    !matchContradictionPattern("reRecommend", lower)
+  ) {
+    return {
+      type: "already_resolved",
+      reason: "already_showing_recommendation",
+      message:
+        "이미 추천 결과를 보여드리고 있어요. 다른 조건으로 다시 찾으시려면 '다시 추천' 이나 새로운 조건을 입력해주세요.",
     }
   }
 

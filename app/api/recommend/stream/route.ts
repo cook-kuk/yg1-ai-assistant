@@ -123,13 +123,21 @@ export async function POST(req: Request): Promise<Response> {
         "✍️ 추천 근거를 정리하는 중…",
       ]
       let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+      const stopHeartbeat = () => {
+        if (heartbeatTimer) {
+          clearInterval(heartbeatTimer)
+          heartbeatTimer = null
+        }
+      }
       if (streamThinkingMode !== "hidden") {
         // FAST path는 reasoning UI를 숨기므로 generic heartbeat도 보내지 않는다.
+        // 실제 파이프라인이 emitStage 를 호출하는 즉시 sawRealThinking 이 true 가 되고
+        // 고정 heartbeat 는 중단된다 (아래 onThinking 참조).
         safeEnqueue(sseFrame("thinking", { text: heartbeatStages[0], delta: false, kind: "stage" }))
         heartbeatIdx = 1
         heartbeatTimer = setInterval(() => {
-          if (closed) return
-          if (heartbeatIdx >= heartbeatStages.length) return
+          if (closed || sawRealThinking) { stopHeartbeat(); return }
+          if (heartbeatIdx >= heartbeatStages.length) { stopHeartbeat(); return }
           safeEnqueue(sseFrame("thinking", { text: heartbeatStages[heartbeatIdx], delta: false, kind: "stage" }))
           heartbeatIdx++
         }, 2500)
@@ -142,13 +150,18 @@ export async function POST(req: Request): Promise<Response> {
       //     far (true token-by-token streaming from provider.stream())
       //   - {text}: replace the UI's current value (single-shot reasoning from
       //     synthetic fallbacks or non-streaming providers)
-      const onThinking = (text: string, opts?: { delta?: boolean; kind?: "deep" | "stage" }) => {
+      const onThinking = (text: string, opts?: { delta?: boolean; kind?: "deep" | "stage" | "agent" }) => {
         if (!text) return
         if (!opts?.delta && !text.trim()) return
-        if (!sawRealThinking) sawRealThinking = true
-        // 기본은 stage(메인 trail). 호출자가 명시적으로 kind:"deep" 을 주면
-        // 토글 본문(thinkingDeep)으로 라우팅 — 한 턴 끝난 뒤에도 펼쳐 볼 수
-        // 있도록 message 객체에 그대로 보존된다.
+        if (!sawRealThinking) {
+          sawRealThinking = true
+          // 실제 파이프라인 이벤트가 도착하는 즉시 고정 heartbeat 타이머를 끊는다.
+          stopHeartbeat()
+        }
+        // 채널 3개:
+        //   - "stage"  → 노란 trail 박스 (실시간 스테이지)
+        //   - "deep"   → 남색 토글 본문 (LLM chain-of-thought)
+        //   - "agent"  → 초록 토글 본문 (구조화된 의사결정 트레이스)
         const kind = opts?.kind ?? "stage"
         try { safeEnqueue(sseFrame("thinking", { text, delta: !!opts?.delta, kind })) }
         catch (err) { traceRecommendationError("http.stream.thinking:enqueue-error", err) }

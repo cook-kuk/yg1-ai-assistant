@@ -20,6 +20,7 @@ import {
   orchestrateTurnWithTools,
   resolveProductReferences,
 } from "@/lib/recommendation/infrastructure/agents/recommendation-agents"
+import { detectSessionContradiction } from "@/lib/recommendation/infrastructure/agents/orchestrator"
 import { ENABLE_TOOL_USE_ROUTING } from "@/lib/recommendation/infrastructure/config/recommendation-feature-flags"
 import { USE_NEW_ORCHESTRATOR, shouldUseV2ForPhase } from "@/lib/feature-flags"
 import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
@@ -124,11 +125,37 @@ type CandidatePageSlice = {
   candidates: ScoredProduct[]
   evidenceMap: Map<string, EvidenceSummary>
 }
-type ThinkingKind = "stage" | "deep"
+type ThinkingKind = "stage" | "deep" | "agent"
 type RuntimeThinkingState = {
   thinkingProcess: string | null
   thinkingDeep: string | null
   reasoningVisibility: "hidden" | "simple" | "full"
+}
+
+// ═══ Pipeline Stage Registry ═══
+// 각 파이프라인 스테이지의 실제 실행 시작 시 emitStage() 로 호출된다.
+// stream/route.ts 가 이 이벤트를 받으면 고정 heartbeat 타이머를 끊고
+// 사용자에게 진짜 진행 상황을 보여준다.
+export const PIPELINE_STAGES = {
+  shortCircuit:        "⚡ 세션 상태를 점검하는 중…",
+  intentClassify:      "🤔 사용자 의도를 파악하는 중…",
+  paramExtract:        "🔎 조건과 필터를 추출하는 중…",
+  deterministicSearch: "⚙️ Knowledge Graph에서 검색하는 중…",
+  sqlAgent:            "🗄️ SQL Agent가 쿼리를 생성하는 중…",
+  candidateFilter:     "📐 후보 풀을 필터링하는 중…",
+  domainValidation:    "🔬 도메인 지식으로 검증하는 중…",
+  ranking:             "🧮 후보 점수를 매기고 정렬하는 중…",
+  responseCompose:     "✍️ 응답을 구성하는 중…",
+  quickResponse:       "💬 응답을 준비하는 중…",
+} as const
+
+export type PipelineStage = keyof typeof PIPELINE_STAGES
+
+export interface StageTimingEntry {
+  stage: PipelineStage
+  startMs: number
+  endMs?: number
+  meta?: Record<string, unknown>
 }
 type ExplicitRevisionRequest = {
   targetField: string
@@ -1933,7 +1960,7 @@ export interface ServeEngineRuntimeDependencies {
    *                          far; the UI should replace its current value.
    *                          Used for non-streaming providers and fallbacks.
    */
-  onThinking?: (text: string, opts?: { delta?: boolean; kind?: "deep" | "stage" }) => void
+  onThinking?: (text: string, opts?: { delta?: boolean; kind?: ThinkingKind }) => void
   buildCandidateSnapshot: (
     candidates: ScoredProduct[],
     evidenceMap: Map<string, EvidenceSummary>
@@ -2630,8 +2657,11 @@ export function shouldExposeFullThinking(): boolean {
   return process.env.NODE_ENV === "test"
 }
 
-export function shouldUseSqlAgentSemanticCache(exposeFullThinking: boolean): boolean {
-  return !exposeFullThinking
+export function shouldUseSqlAgentSemanticCache(_exposeFullThinking: boolean): boolean {
+  // Always enable the semantic cache. fullThinking turns previously bypassed
+  // the cache so thinking logs stayed fresh — instead we now replay the
+  // cached reasoning through onThinking on cache hits.
+  return true
 }
 
 export function applyThinkingFieldsToPayload(
@@ -3084,15 +3114,70 @@ async function handleServeExplorationInner(
       const ctx = passed !== undefined ? passed : proactiveInsightsContext
       const newArgs = [...args] as Parameters<typeof baseBuildQuestionResponse>
       newArgs[EXTRA_CTX_IDX_Q] = ctx
-      return baseBuildQuestionResponse(...newArgs).then(response => withThinkingResponse(response, runtimeThinking))
+      try { emitStage("responseCompose", { type: "question" }) } catch { /* no-op */ }
+      return baseBuildQuestionResponse(...newArgs).then(response => {
+        const wrapped = withThinkingResponse(response, runtimeThinking)
+        logTurnSummary("question")
+        return wrapped
+      })
     },
     buildRecommendationResponse: (...args: Parameters<typeof baseBuildRecommendationResponse>) => {
       const passed = args[EXTRA_CTX_IDX_R]
       const ctx = passed !== undefined ? passed : proactiveInsightsContext
       const newArgs = [...args] as Parameters<typeof baseBuildRecommendationResponse>
       newArgs[EXTRA_CTX_IDX_R] = ctx
-      return baseBuildRecommendationResponse(...newArgs).then(response => withThinkingResponse(response, runtimeThinking))
+      try { emitStage("responseCompose", { type: "recommendation" }) } catch { /* no-op */ }
+      return baseBuildRecommendationResponse(...newArgs).then(response => {
+        const wrapped = withThinkingResponse(response, runtimeThinking)
+        logTurnSummary("recommendation")
+        return wrapped
+      })
     },
+  }
+
+  // ═══ Pipeline stage / agent tracing (per-turn, local) ═══
+  // 각 스테이지 시작 시점을 stageTimings 에 기록하고, deps.onThinking 을 통해
+  // SSE "thinking" 이벤트로 UI 에 흘린다. emitAgent 는 구조화된 판단 로그용.
+  const turnStartMs = Date.now()
+  const stageTimings: StageTimingEntry[] = []
+  const agentLogs: string[] = []
+  const emitStage = (stage: PipelineStage, meta?: Record<string, unknown>) => {
+    const now = Date.now()
+    const last = stageTimings[stageTimings.length - 1]
+    if (last && last.endMs === undefined) last.endMs = now
+    stageTimings.push({ stage, startMs: now, meta })
+    const label = PIPELINE_STAGES[stage]
+    const metaStr = meta && Object.keys(meta).length > 0
+      ? ` (${Object.entries(meta).map(([k, v]) => `${k}=${v}`).join(", ")})`
+      : ""
+    try { deps.onThinking?.(`${label}${metaStr}`, { kind: "stage" }) } catch { /* no-op */ }
+    try { console.log(`[pipeline:stage] ${stage}${metaStr} @ ${now - turnStartMs}ms`) } catch { /* no-op */ }
+  }
+  const emitAgent = (entry: string) => {
+    if (!entry) return
+    agentLogs.push(entry)
+    try { deps.onThinking?.(entry + "\n", { kind: "agent", delta: true }) } catch { /* no-op */ }
+  }
+  const logTurnSummary = (responseType: "question" | "recommendation") => {
+    try {
+      const now = Date.now()
+      const last = stageTimings[stageTimings.length - 1]
+      if (last && last.endMs === undefined) last.endMs = now
+      const stageReport = stageTimings.map(s => {
+        const dur = (s.endMs ?? now) - s.startMs
+        return `${s.stage}:${dur}ms`
+      }).join(" → ")
+      if (stageReport) console.log(`[pipeline-timing] ${stageReport}`)
+      console.log(`[turn-summary] ════════════════════════════════════════`)
+      console.log(JSON.stringify({
+        input: lastUserMsg?.text?.slice(0, 60) ?? null,
+        responseType,
+        pipeline: stageTimings.map(s => s.stage),
+        latencyMs: now - turnStartMs,
+        agentLogCount: agentLogs.length,
+      }, null, 2))
+      console.log(`[turn-summary] ════════════════════════════════════════`)
+    } catch { /* no-op */ }
   }
 
   // SQL Agent 스키마 로드 (첫 호출 시 await, 이후 캐시)
@@ -3190,6 +3275,48 @@ async function handleServeExplorationInner(
   const lastUserMsg = messages.length > 0
     ? [...messages].reverse().find(message => message.role === "user")
     : null
+
+  // ═══ 0단계: 세션 모순 단축회로 (LLM 호출 0회) ═══
+  // 적용 필터 없음 + "수정" 요청 같은 모순 케이스를 즉시 잡아 clarification 응답.
+  // heartbeat 가 5단계 다 도는 것을 방지.
+  if (lastUserMsg?.text && prevState) {
+    const contradiction = detectSessionContradiction(lastUserMsg.text, prevState)
+    if (contradiction) {
+      emitStage("shortCircuit", { reason: contradiction.reason })
+      emitAgent(`[단축회로] ${contradiction.type} (${contradiction.reason}): "${lastUserMsg.text.slice(0, 40)}"`)
+      emitStage("quickResponse")
+      const chipsForContradiction = contradiction.type === "clarify_no_filters"
+        ? ["소재 선택", "직경 선택", "가공 방식 선택", "처음부터 다시"]
+        : contradiction.type === "clarify_no_results"
+          ? ["새 조건 입력", "처음부터 다시"]
+          : contradiction.type === "clarify_nothing_to_undo"
+            ? ["새 조건 입력", "처음부터 다시"]
+            : ["다시 추천", "새 조건으로 찾기", "처음부터 다시"]
+      try {
+        console.log(`[turn-summary] ════════════════════════════════════════`)
+        console.log(JSON.stringify({
+          input: lastUserMsg.text.slice(0, 60),
+          shortCircuit: contradiction.type,
+          reason: contradiction.reason,
+          latencyMs: Date.now() - turnStartMs,
+          llmCalls: 0,
+        }, null, 2))
+        console.log(`[turn-summary] ════════════════════════════════════════`)
+      } catch { /* no-op */ }
+      return deps.jsonRecommendationResponse({
+        text: contradiction.message,
+        purpose: "question",
+        chips: chipsForContradiction,
+        isComplete: false,
+        recommendation: null,
+        sessionState: prevState,
+        evidenceSummaries: null,
+        candidateSnapshot: null,
+        requestPreparation: null,
+      })
+    }
+  }
+
   const requestPrep = prepareRequest(form, messages, prevState, resolvedInput, prevState?.candidateCount ?? 0)
   console.log(`[recommend] Intent: ${requestPrep.intent} (${requestPrep.intentConfidence}), Route: ${requestPrep.route.action}`)
   const currentTurnRecognizedEntities = lastUserMsg?.text
@@ -4374,12 +4501,21 @@ async function handleServeExplorationInner(
           const semanticHit = shouldUseSqlAgentSemanticCache(fullThinkingEnabled)
             ? lookupSemanticCache(msg, filters)
             : null
+          emitStage("sqlAgent", { cacheHit: semanticHit ? "HIT" : "MISS" })
 
           let agentResult: { filters: import("@/lib/recommendation/core/sql-agent").AgentFilter[]; raw: string; reasoning?: string; confidence?: "high" | "medium" | "low"; clarification?: string | null }
           if (semanticHit && semanticHit.source === "sql-agent") {
             agentResult = {
               filters: semanticHit.actions as unknown as import("@/lib/recommendation/core/sql-agent").AgentFilter[],
               raw: "",
+              reasoning: semanticHit.reasoning,
+            }
+            // Replay cached reasoning through the thinking channel so fullThinking
+            // turns still see the deep trail even when the LLM call is skipped.
+            if (deps.onThinking && semanticHit.reasoning) {
+              try {
+                deps.onThinking(`[캐시 히트] ${semanticHit.reasoning}`, fullThinkingEnabled ? { kind: "deep" } : undefined)
+              } catch { /* never block runtime */ }
             }
             trace.add("semantic-cache", "router", { query: msg.slice(0, 80) }, { hit: true, source: "sql-agent", filterCount: agentResult.filters.length }, "semantic-cache hit")
           } else {
@@ -4430,11 +4566,13 @@ async function handleServeExplorationInner(
                 } catch { /* never block runtime */ }
               }
             }
-            // Store in semantic cache for next time (only meaningful results)
+            // Store in semantic cache for next time (only meaningful results).
+            // Persist reasoning too so fullThinking turns can replay it on hit.
             if (shouldUseSqlAgentSemanticCache(fullThinkingEnabled) && agentResult.filters.length > 0) {
               storeSemanticCache(msg, filters, {
                 source: "sql-agent",
                 actions: agentResult.filters as unknown as import("@/lib/recommendation/core/semantic-cache").CachedAction[],
+                reasoning: agentResult.reasoning,
               })
             }
           }
@@ -4748,8 +4886,10 @@ async function handleServeExplorationInner(
         try {
           const { specNeedsCompiler, executeSpecViaCompiler } = await import("@/lib/recommendation/core/execute-spec-via-compiler")
           if (specNeedsCompiler(spec)) {
+            emitStage("candidateFilter")
             phaseGCompiledResult = await executeSpecViaCompiler(spec)
             phaseGSpecMode = phaseGCompiledResult.mode
+            emitAgent(`[컴파일-필터] mode=${phaseGSpecMode}, rows=${phaseGCompiledResult.rowCount}, constraints=${phaseGCompiledResult.compiled.appliedConstraints.length}`)
             console.log(`[phase-g] dual-path engaged mode=${phaseGSpecMode} rows=${phaseGCompiledResult.rowCount} sqlHead="${phaseGCompiledResult.compiled.sql.slice(0, 120).replace(/\s+/g, " ")}"`)
             trace.add("phase-g-compile-exec", "router", {
               mode: phaseGSpecMode,
@@ -6055,10 +6195,16 @@ async function handleServeExplorationInner(
       currentCandidates: [],
       unifiedTurnContext: earlyUnifiedTurnContext,
     }
+    emitStage("intentClassify", { mode: ENABLE_TOOL_USE_ROUTING ? "tool-use" : "legacy" })
     const earlyResult = ENABLE_TOOL_USE_ROUTING
       ? await orchestrateTurnWithTools(earlyTurnContext, provider)
       : await orchestrateTurn(earlyTurnContext, provider)
     earlyAction = earlyResult.action.type
+    try {
+      const agents = earlyResult.agentsInvoked ?? []
+      const agentSummary = agents.map(a => `${a.agent}(${a.model}:${a.durationMs}ms)`).join(", ")
+      emitAgent(`[의도분류] "${lastUserMsg.text.slice(0, 30)}" → ${earlyAction}${agentSummary ? ` via ${agentSummary}` : ""}`)
+    } catch { /* no-op */ }
   }
 
   // filter_by_stock 액션이지만 prevState 에 displayedCandidates 가 없으면
@@ -6136,10 +6282,12 @@ async function handleServeExplorationInner(
   let displayEvidenceMap: Map<string, EvidenceSummary>
   let totalCandidateCount = prevState?.candidateCount ?? 0
   if (needsRetrieval) {
+    emitStage("ranking", { filters: filters.length })
     const hybridResult = await runHybridRetrieval(resolvedInput, filters, 0, null)
     candidates = hybridResult.candidates
     evidenceMap = hybridResult.evidenceMap
     totalCandidateCount = hybridResult.totalConsidered
+    emitAgent(`[랭킹] 총 ${totalCandidateCount}건 → top ${candidates.length}건${candidates[0]?.product?.displayCode ? ` (top1=${candidates[0].product.displayCode})` : ""}`)
 
     // ── Knowledge fallback ──
     // DB에 일부 시리즈(SUPER ALLOY, TITANOX, X-POWER 등)가 누락돼 0건이 나오는 경우,

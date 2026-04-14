@@ -407,6 +407,39 @@ export function buildYG1CompanyPromptSnippet(): string {
 `.trim()
 }
 
+// ═══ Brand / Series Categories (SSOT) ═══
+// 대표 시리즈: 사용자가 인지하는 메인 라인업 (boost 대상)
+// 마이크로 시리즈: 초소형 특수 공구 라인 (pure-neq 쿼리에서 demote 대상)
+// 변경 시 여기만 수정 — consumer는 isFlagshipSeries/isMicroSeries 사용.
+export const FLAGSHIP_SERIES = [
+  "4G MILL",
+  "V7 PLUS",
+  "i-SMART",
+  "TitaNox-Power",
+  "X-POWER",
+  "SEME",
+  "GMH",
+  "GMG",
+] as const
+
+export const MICRO_SERIES = [
+  "3S MILL",
+  "CRX MICRO",
+  "MICRO",
+] as const
+
+export function isFlagshipSeries(brandOrSeries: string | null | undefined): boolean {
+  const value = String(brandOrSeries ?? "")
+  if (!value) return false
+  return FLAGSHIP_SERIES.some(flagship => value.includes(flagship))
+}
+
+export function isMicroSeries(brandOrSeries: string | null | undefined): boolean {
+  const value = String(brandOrSeries ?? "")
+  if (!value) return false
+  return MICRO_SERIES.some(micro => value.includes(micro))
+}
+
 export function buildDirectAssistFactualPromptSection(): string {
   return `
 ### system facts

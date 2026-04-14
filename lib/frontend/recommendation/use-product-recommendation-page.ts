@@ -261,10 +261,12 @@ export function useProductRecommendationPage({
             const lastIndex = updated.length - 1
             const last = updated[lastIndex]
             if (!last || last.role !== "ai") return prev
-            // Two channels:
-            //   kind="deep" → full LLM CoT, lives in thinkingDeep (toggle body)
-            //   kind="stage" or undefined → high-level heartbeat, lives in thinkingProcess
+            // Three channels:
+            //   kind="deep"  → full LLM CoT → thinkingDeep (남색 토글 본문)
+            //   kind="agent" → 구조화된 판단 트레이스 → thinkingAgent (초록 토글 본문)
+            //   kind="stage" or undefined → heartbeat trail → thinkingProcess
             const isDeep = opts?.kind === "deep"
+            const isAgent = opts?.kind === "agent"
             if (isDeep) {
               const prevDeep = (last as any).thinkingDeep ?? ""
               const nextDeep = opts?.delta
@@ -273,6 +275,14 @@ export function useProductRecommendationPage({
                   ? prevDeep.trimEnd() + "\n\n" + text
                   : text
               updated[lastIndex] = { ...last, thinkingDeep: nextDeep, reasoningVisibility: "full" } as any
+            } else if (isAgent) {
+              const prevAgent = (last as any).thinkingAgent ?? ""
+              const nextAgent = opts?.delta
+                ? prevAgent + text
+                : prevAgent
+                  ? prevAgent.trimEnd() + "\n" + text
+                  : text
+              updated[lastIndex] = { ...last, thinkingAgent: nextAgent, reasoningVisibility: last.reasoningVisibility ?? "simple" } as any
             } else {
               const prevThinking = last.thinkingProcess ?? ""
               const nextText = opts?.delta
@@ -540,10 +550,12 @@ export function useProductRecommendationPage({
             const lastIndex = updated.length - 1
             const last = updated[lastIndex]
             if (!last || last.role !== "ai") return prev
-            // Two channels:
-            //   kind="deep" → full LLM CoT, lives in thinkingDeep (toggle body)
-            //   kind="stage" or undefined → high-level heartbeat, lives in thinkingProcess
+            // Three channels:
+            //   kind="deep"  → full LLM CoT → thinkingDeep (남색 토글 본문)
+            //   kind="agent" → 구조화된 판단 트레이스 → thinkingAgent (초록 토글 본문)
+            //   kind="stage" or undefined → heartbeat trail → thinkingProcess
             const isDeep = opts?.kind === "deep"
+            const isAgent = opts?.kind === "agent"
             if (isDeep) {
               const prevDeep = (last as any).thinkingDeep ?? ""
               const nextDeep = opts?.delta
@@ -552,6 +564,14 @@ export function useProductRecommendationPage({
                   ? prevDeep.trimEnd() + "\n\n" + text
                   : text
               updated[lastIndex] = { ...last, thinkingDeep: nextDeep, reasoningVisibility: "full" } as any
+            } else if (isAgent) {
+              const prevAgent = (last as any).thinkingAgent ?? ""
+              const nextAgent = opts?.delta
+                ? prevAgent + text
+                : prevAgent
+                  ? prevAgent.trimEnd() + "\n" + text
+                  : text
+              updated[lastIndex] = { ...last, thinkingAgent: nextAgent, reasoningVisibility: last.reasoningVisibility ?? "simple" } as any
             } else {
               const prevThinking = last.thinkingProcess ?? ""
               const nextText = opts?.delta
