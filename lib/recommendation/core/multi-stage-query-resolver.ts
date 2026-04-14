@@ -223,19 +223,19 @@ const STAGE2_CONFIDENCE_THRESHOLD = RESOLVER_CONFIG.stage2ConfidenceThreshold
 const SCHEMA_HINT_PHONETIC_THRESHOLD = RESOLVER_CONFIG.schemaHintPhoneticThreshold
 const STAGE1_COT_BROAD_CANDIDATE_THRESHOLD = RESOLVER_CONFIG.stage1CotBroadCandidateThreshold
 const STAGE1_COT_TOKEN_LIMIT = RESOLVER_CONFIG.stage1CotTokenLimit
-const STAGE1_SKIP_CUE_RE = /(?:\uC544\uBB34\uAC70\uB098|\uC0C1\uAD00\s*\uC5C6|\uBB50\uB4E0|\uB2E4\s*\uAD1C\uCC2E|\uBB34\uAD00)/giu
-const STAGE1_SORT_CUE_RE = /(?:\uC81C\uC77C|\uAC00\uC7A5|\uC824|\uB9E8|\uCD5C\uB300\uD55C|\uAE34\uAC78\uB85C|\uC9E7\uC740\uAC78\uB85C|\uAE34|\uC9E7\uC740|\uD070|\uC791\uC740|\uB9CE\uC740|\uC801\uC740|\uB192\uC740|\uB0AE\uC740|\uB450\uAEBC\uC6B4|\uC587\uC740)/giu
+const STAGE1_SKIP_CUE_RE = /(?:아무거나|상관\s*없|뭐든|다\s*괜찮|무관)/giu
+const STAGE1_SORT_CUE_RE = /(?:제일|가장|젤|맨|최대한|긴걸로|짧은걸로|긴|짧은|큰|작은|많은|적은|높은|낮은|두꺼운|얇은)/giu
 
-const NEGATION_CUE_RE = /(?:\uB9D0\uACE0|\uBE7C\uACE0|\uC81C\uC678|\uC544\uB2C8\uACE0|\uC544\uB2C8\uB77C|\uC544\uB2CC\s*\uAC70|\uC544\uB2CC\uAC70|\uC544\uB2CC\b|except|without|exclude|not\b)/iu
-const ALTERNATIVE_CUE_RE = /(?:\uB2E4\uB978\s*\uAC70|\uB2E4\uB978\uAC70|\uB300\uC2E0|instead|alternative|\uB354\s*\uBB34\uB09C\uD55C|\uB35C\s*\uACF5\uACA9\uC801\uC778|\uBE44\uC2B7\uD55C\uB370?\s*\uB354)/iu
-const RANGE_GTE_CUE_RE = /(?:\uC774\uC0C1|\uCD08\uACFC|at\s*least|greater\s*than|over|>=)/iu
-const RANGE_LTE_CUE_RE = /(?:\uC774\uD558|\uBBF8\uB9CC|at\s*most|less\s*than|under|below|<=)/iu
-const GENERIC_COATING_CUE_RE = /(?:\uAE08\uC18D\s*\uCF54\uD305|\uD45C\uBA74\s*\uCF54\uD305|\uCF54\uD305\uC7AC|\uCF54\uD305\b|surface\s*coating)/iu
-const GENERIC_PREFERENCE_CUE_RE = /(?:\uBB50\uAC00\s*\uC88B\uC544|\uBB50\uAC00\s*\uC88B\uC744\uAE4C|\uCD94\uCC9C\s*\uAE30\uC900|\uB354\s*\uB098\uC740\s*\uC120\uD0DD|\uC88B\uC740\s*\uAC70|\uAD1C\uCC2E\uC740\s*\uAC70)/iu
-const COMPARATIVE_PREFERENCE_CUE_RE = /(?:\uB9D0\uACE0\s*\uBB50\uAC00\s*\uC88B\uC544|\uB9D0\uACE0\s*\uBB50\uAC00\s*\uB098\uC544|what\s+else\s+is\s+better|better\s+than)/iu
+const NEGATION_CUE_RE = /(?:말고|빼고|제외|아니고|아니라|아닌\s*거|아닌거|아닌\b|except|without|exclude|not\b)/iu
+const ALTERNATIVE_CUE_RE = /(?:다른\s*거|다른거|대신|instead|alternative|더\s*무난한|덜\s*공격적인|비슷한데?\s*더)/iu
+const RANGE_GTE_CUE_RE = /(?:이상|초과|at\s*least|greater\s*than|over|>=)/iu
+const RANGE_LTE_CUE_RE = /(?:이하|미만|at\s*most|less\s*than|under|below|<=)/iu
+const GENERIC_COATING_CUE_RE = /(?:금속\s*코팅|표면\s*코팅|코팅재|코팅\b|surface\s*coating)/iu
+const GENERIC_PREFERENCE_CUE_RE = /(?:뭐가\s*좋아|뭐가\s*좋을까|추천\s*기준|더\s*나은\s*선택|좋은\s*거|괜찮은\s*거)/iu
+const COMPARATIVE_PREFERENCE_CUE_RE = /(?:말고\s*뭐가\s*좋아|말고\s*뭐가\s*나아|what\s+else\s+is\s+better|better\s+than)/iu
 const MULTIPLE_HELIX_CUE_RE = /multiple\s*helix/iu
 
-const DEICTIC_CONTEXT_RE = /(?:\uADF8\uAC70|\uADF8\uAC8C|\uC774\uAC70|\uC774\uAC8C|\uC800\uAC70|\uC800\uAC8C|\uC544\uAE4C|\uBC29\uAE08|that|this|previous|last)/iu
+const DEICTIC_CONTEXT_RE = /(?:그거|그게|이거|이게|저거|저게|아까|방금|that|this|previous|last)/iu
 
 const resolverCache = new Map<string, CacheEntry>()
 const failureCache = new Map<string, FailureEntry>()
@@ -264,59 +264,59 @@ const DECISION_ACTIONS = new Set<ResolverDecisionAction>([
 ])
 
 const STOPWORD_TOKENS = new Set([
-  "\uCD94\uCC9C",
-  "\uCD94\uCC9C\uD574\uC918",
-  "\uCD94\uCC9C\uD574\uC8FC\uC138\uC694",
-  "\uBCF4\uC5EC\uC918",
-  "\uBCF4\uC5EC\uC8FC\uC138\uC694",
-  "\uBCF4\uC5EC",
-  "\uCC3E\uC544\uC918",
-  "\uCC3E\uC544\uC8FC\uC138\uC694",
-  "\uD574\uC8FC\uC138\uC694",
-  "\uD574\uC918",
-  "\uD574",
-  "\uC9C0\uAE08",
-  "\uADF8\uB0E5",
-  "\uC81C\uD488",
-  "\uC870\uAC74",
-  "\uAC78\uB85C",
-  "\uB9CC",
-  "\uC880",
-  "\uC774\uAC70",
-  "\uADF8\uAC70",
-  "\uBB50",
-  "\uC88B\uC740\uB370",
-  "\uC88B\uAC8C",
-  "\uB85C",
-  "\uC73C\uB85C",
-  "\uC740",
-  "\uB294",
-  "\uC774",
-  "\uAC00",
-  "\uC744",
-  "\uB97C",
-  "\uC640",
-  "\uACFC",
-  "\uB3C4",
-  "\uB9CC\uC694",
-  "\uD574\uC8FC\uC138\uC694\uC694",
-  "\uAE30\uC900",
-  "\uC815\uB3C4",
-  "\uCBE4",
+  "추천",
+  "추천해줘",
+  "추천해주세요",
+  "보여줘",
+  "보여주세요",
+  "보여",
+  "찾아줘",
+  "찾아주세요",
+  "해주세요",
+  "해줘",
+  "해",
+  "지금",
+  "그냥",
+  "제품",
+  "조건",
+  "걸로",
+  "만",
+  "좀",
+  "이거",
+  "그거",
+  "뭐",
+  "좋은데",
+  "좋게",
+  "로",
+  "으로",
+  "은",
+  "는",
+  "이",
+  "가",
+  "을",
+  "를",
+  "와",
+  "과",
+  "도",
+  "만요",
+  "해주세요요",
+  "기준",
+  "정도",
+  "쯤",
 ])
 
 const BARE_RECOMMENDATION_KEYS = new Set([
-  "\uCD94\uCC9C\uD574\uC918",
-  "\uCD94\uCC9C\uD574\uC8FC\uC138\uC694",
-  "\uCD94\uCC9C\uD574\uC904\uB798",
-  "\uACE8\uB77C\uC918",
-  "\uCC3E\uC544\uC918",
-  "\uC88B\uC740\uAC70",
-  "\uC88B\uC740\uAC70\uACE8\uB77C\uC918",
-  "\uAD1C\uCC2E\uC740\uAC70",
-  "\uAD1C\uCC2E\uC740\uAC70\uACE8\uB77C\uC918",
-  "\uBB50\uAC00\uC88B\uC544",
-  "\uBB50\uAC00\uC88B\uC744\uAE4C",
+  "추천해줘",
+  "추천해주세요",
+  "추천해줄래",
+  "골라줘",
+  "찾아줘",
+  "좋은거",
+  "좋은거골라줘",
+  "괜찮은거",
+  "괜찮은거골라줘",
+  "뭐가좋아",
+  "뭐가좋을까",
 ])
 const fieldAliasIndex = (() => {
   const entries: Array<{ normalized: string; field: string }> = []
@@ -468,7 +468,7 @@ function hasSessionGrounding(args: ResolveMultiStageQueryArgs): boolean {
 }
 
 function hasExplainCue(message: string): boolean {
-  return /(?:[?\uFF1F]|\uBB50\uC57C|\uBB34\uC5C7|\uC124\uBA85|\uC774\uC720|\uCC28\uC774|\uC5B4\uB5BB\uAC8C|\uC54C\uB824\uC918|\uB9D0\uD574\uC918|vs\b|compare|difference|explain|why)/iu.test(message)
+  return /(?:[?？]|뭐야|무엇|설명|이유|차이|어떻게|알려줘|말해줘|vs\b|compare|difference|explain|why)/iu.test(message)
 }
 
 function buildComparisonArtifactSummary(artifact: ExplorationSessionState["lastComparisonArtifact"]): string {
@@ -950,7 +950,7 @@ function hasMixedClauseAmbiguity(
   }
 
   if (touchedFields.size < 2 || !hasPositive || !hasNegative) return false
-  if (/\uC5EC\uC57C(?:\uD558\uACE0)?/u.test(message) && hasNegationCue(message)) return true
+  if (/여야(?:하고)?/u.test(message) && hasNegationCue(message)) return true
   return false
 }
 
@@ -1407,10 +1407,10 @@ function buildValidationClausesLegacy(message: string): ValidationClause[] {
 function buildValidationClausesSafe(message: string): ValidationClause[] {
   const clauseSeed = message
     .replace(/\b(?:and|but|or)\b/giu, "\n")
-    .replace(/(?:\uADF8\uB9AC\uACE0|\uD558\uACE0|\uC778\uB370|\uADF8\uB7F0\uB370)/gu, "\n")
+    .replace(/(?:그리고|하고|인데|그런데)/gu, "\n")
 
   return clauseSeed
-    .split(/\s*(?:,|\uADF8\uB9AC\uACE0|\uD558\uACE0|\uC778\uB370|\uADF8\uB7F0\uB370|but|;|\n)\s*/iu)
+    .split(/\s*(?:,|그리고|하고|인데|그런데|but|;|\n)\s*/iu)
     .map(part => part.trim())
     .filter(Boolean)
     .map(part => ({
@@ -2227,7 +2227,7 @@ function normalizeClarificationPayload(raw: unknown): ResolverClarification | nu
     ? uniqueStrings(record.chips.map(chip => String(chip ?? "").trim()).filter(Boolean))
     : []
   const askedField = resolveFilterField(record.askedField) ?? null
-  const directInputChip = "\uC9C1\uC811 \uC785\uB825"
+  const directInputChip = "직접 입력"
   if (!question) return null
   return {
     question,
@@ -2440,7 +2440,7 @@ function normalizeMaterializedConcepts(concepts: ResolverConceptSpec[]): {
 }
 
 function hasShowRecommendationSignal(message: string): boolean {
-  return /(?:\uCD94\uCC9C\s*(?:\uD574\uC918|\uD574\uC8FC|\uD574\uC8FC\uC138\uC694)?|\uBCF4\uC5EC\uC918|\uBCF4\uAE30|\uACB0\uACFC\s*\uBCF4\uC5EC|show)/iu.test(message)
+  return /(?:추천\s*(?:해줘|해주|해주세요)?|보여줘|보기|결과\s*보여|show)/iu.test(message)
 }
 
 function isBareRecommendationMessage(message: string): boolean {
@@ -2565,7 +2565,7 @@ function normalizeResolverPayload(
           question: String((objectPayload.clarification as Record<string, unknown>).question ?? "").trim(),
           chips: Array.isArray((objectPayload.clarification as Record<string, unknown>).chips)
             ? uniqueStrings(((objectPayload.clarification as Record<string, unknown>).chips as unknown[]).map(chip => String(chip ?? "").trim()).filter(Boolean))
-            : ["\uC9C1\uC811 \uC785\uB825"],
+            : ["직접 입력"],
           askedField: null,
         }
         : null
