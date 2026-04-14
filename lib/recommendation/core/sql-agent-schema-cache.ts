@@ -6,6 +6,7 @@
 
 import { Pool } from "pg"
 import { SCHEMA_CACHE } from "@/lib/recommendation/infrastructure/config/cache-config"
+import { DB_POOL_CONFIG } from "@/lib/recommendation/infrastructure/config/runtime-config"
 import { phoneticKey } from "./phonetic-match"
 
 // ── Types ────────────────────────────────────────────────────
@@ -70,7 +71,12 @@ function getPool(): Pool {
       : null)
   if (!connStr) throw new Error("[sql-agent-schema] No database connection configured")
 
-  return new Pool({ connectionString: connStr, max: 8, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 10_000 })
+  return new Pool({
+    connectionString: connStr,
+    max: DB_POOL_CONFIG.max,
+    idleTimeoutMillis: DB_POOL_CONFIG.idleTimeoutMs,
+    connectionTimeoutMillis: DB_POOL_CONFIG.connectionTimeoutMs,
+  })
 }
 
 declare global {

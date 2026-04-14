@@ -17,6 +17,7 @@
 import { promises as fs } from "fs"
 import path from "path"
 import { randomUUID } from "crypto"
+import { TOOL_REGISTRY_CONFIG } from "@/lib/recommendation/infrastructure/config/runtime-config"
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -43,10 +44,10 @@ export interface ToolEntry {
 // ── Constants ────────────────────────────────────────────────
 
 const REGISTRY_PATH = path.join(process.cwd(), "data", "runtime", "tool-registry.json")
-const TOOL_TTL_DAYS = 7
-const MIN_USE_FOR_PERMANENT = 3
-const MAX_REGISTRY_SIZE = 200
-const MIN_MATCH_SCORE = 0.4
+const TOOL_TTL_DAYS = TOOL_REGISTRY_CONFIG.ttlDays
+const MIN_USE_FOR_PERMANENT = TOOL_REGISTRY_CONFIG.minUseForPermanent
+const MAX_REGISTRY_SIZE = TOOL_REGISTRY_CONFIG.maxSize
+const MIN_MATCH_SCORE = TOOL_REGISTRY_CONFIG.minMatchScore
 
 // ── In-memory cache ──────────────────────────────────────────
 

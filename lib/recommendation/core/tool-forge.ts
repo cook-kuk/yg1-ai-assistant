@@ -24,6 +24,7 @@ import type { AppliedFilter } from "@/lib/recommendation/domain/types"
 import type { DbSchema } from "./sql-agent-schema-cache"
 import { addTool, incrementUseCount, type ToolEntry } from "./tool-registry"
 import { resolveModel } from "@/lib/llm/provider"
+import { TOOL_FORGE_CONFIG } from "@/lib/recommendation/infrastructure/config/runtime-config"
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -57,9 +58,9 @@ const FORGE_MODEL = resolveModel("sonnet")
 const RELAX_MODEL = resolveModel("haiku")
 const VERIFY_MODEL = resolveModel("haiku")
 
-const MAX_FORGE_RETRIES = 3
-const MAX_RELAX_STEPS = 5
-const MAX_LIMIT = 50
+const MAX_FORGE_RETRIES = TOOL_FORGE_CONFIG.maxRetries
+const MAX_RELAX_STEPS = TOOL_FORGE_CONFIG.maxRelaxSteps
+const MAX_LIMIT = TOOL_FORGE_CONFIG.maxLimit
 
 const ALLOWED_SCHEMAS = ["catalog_app", "raw_catalog"]
 const FORBIDDEN_KEYWORDS = /\b(insert|update|delete|drop|alter|create|truncate|grant|revoke|copy|vacuum|reindex)\b/i

@@ -22,10 +22,12 @@ import type {
 
 // ── Config ──────────────────────────────────────────────────
 
+import { PATTERN_MINING_CONFIG } from "@/lib/recommendation/infrastructure/config/planner-config"
+
 /** 최소 지지 수 — 이 이상 반복돼야 후보 생성 */
-const MIN_SUPPORT_COUNT = 3
+const MIN_SUPPORT_COUNT = PATTERN_MINING_CONFIG.minSupportCount
 /** 최소 planner 일관성 — 같은 field+op+value로 해석한 비율 */
-const MIN_CONSISTENCY = 0.8
+const MIN_CONSISTENCY = PATTERN_MINING_CONFIG.minConsistency
 /** KG 승격 금지 op 목록 */
 const NON_PROMOTABLE_OPS = new Set(["gte", "lte", "between"])
 /** 숫자 성격 필드 — alias 후보에서 제외 */

@@ -9,6 +9,11 @@
 
 import type { QuerySpec, QueryConstraint } from "./query-spec"
 import type { AppliedFilter } from "@/lib/types/exploration"
+import {
+  PLANNER_DECISION,
+  PLANNER_PROD_SCORE,
+  PLANNER_SCORE,
+} from "@/lib/recommendation/infrastructure/config/planner-config"
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -40,7 +45,7 @@ const EXCLUDED_OPS = new Set(["in", "not_in"])
 
 // ── Score Constants ─────────────────────────────────────────
 
-const MARGIN = 0.15  // planner must beat production by this margin
+const MARGIN = PLANNER_DECISION.margin
 
 // ── Production Score ────────────────────────────────────────
 
@@ -54,17 +59,17 @@ export function scoreProduction(
   let score = 0
 
   if (kgHit) {
-    score += 0.9
-    factors.push("kg-hit(+0.9)")
+    score += PLANNER_PROD_SCORE.kgHit
+    factors.push(`kg-hit(+${PLANNER_PROD_SCORE.kgHit})`)
   } else if (sqlAgentHit) {
-    score += 0.7
-    factors.push("sql-agent-hit(+0.7)")
+    score += PLANNER_PROD_SCORE.sqlAgentHit
+    factors.push(`sql-agent-hit(+${PLANNER_PROD_SCORE.sqlAgentHit})`)
   } else if (productionFilters.length > 0) {
-    score += 0.5
-    factors.push("fallback-filters(+0.5)")
+    score += PLANNER_PROD_SCORE.fallbackFilters
+    factors.push(`fallback-filters(+${PLANNER_PROD_SCORE.fallbackFilters})`)
   } else {
-    score += 0.1
-    factors.push("no-production-result(+0.1)")
+    score += PLANNER_PROD_SCORE.noProduction
+    factors.push(`no-production-result(+${PLANNER_PROD_SCORE.noProduction})`)
   }
 
   // Semantic loss penalty: production이 eq로 뭉갠 경우 감점
@@ -72,8 +77,8 @@ export function scoreProduction(
     const plannerOp = plannerSpec.constraints[0].op
     const isRichOp = plannerOp === "gte" || plannerOp === "lte" || plannerOp === "between"
     if (isRichOp && productionFilters.some(f => f.field === FIELD_REVERSE_MAP[plannerSpec.constraints[0].field] && f.op === "eq")) {
-      score -= 0.2
-      factors.push("semantic-loss-penalty(-0.2)")
+      score -= PLANNER_PROD_SCORE.semanticLossPenalty
+      factors.push(`semantic-loss-penalty(-${PLANNER_PROD_SCORE.semanticLossPenalty})`)
     }
   }
 
@@ -102,19 +107,19 @@ export function scorePlanner(
   // No constraints → navigation or question → low score for filter override
   if (spec.constraints.length === 0) {
     if (spec.navigation !== "none") {
-      score += 0.85
-      factors.push(`navigation-${spec.navigation}(+0.85)`)
+      score += PLANNER_SCORE.navigation
+      factors.push(`navigation-${spec.navigation}(+${PLANNER_SCORE.navigation})`)
     } else {
-      score += 0.1
-      factors.push("no-constraints(+0.1)")
+      score += PLANNER_SCORE.noConstraints
+      factors.push(`no-constraints(+${PLANNER_SCORE.noConstraints})`)
     }
     return { score, factors }
   }
 
   // Multi-constraint → not eligible
   if (spec.constraints.length > 1) {
-    score += 0.3
-    factors.push("multi-constraint(+0.3, ineligible)")
+    score += PLANNER_SCORE.multiConstraint
+    factors.push(`multi-constraint(+${PLANNER_SCORE.multiConstraint}, ineligible)`)
     return { score, factors }
   }
 
@@ -123,39 +128,39 @@ export function scorePlanner(
 
   // Excluded ops
   if (EXCLUDED_OPS.has(c.op)) {
-    score += 0.2
-    factors.push(`excluded-op:${c.op}(+0.2)`)
+    score += PLANNER_SCORE.excludedOp
+    factors.push(`excluded-op:${c.op}(+${PLANNER_SCORE.excludedOp})`)
     return { score, factors }
   }
 
   // Field confidence
   if (HIGH_CONFIDENCE_FIELDS.has(c.field)) {
-    score += 0.85
-    factors.push(`high-confidence-field:${c.field}(+0.85)`)
+    score += PLANNER_SCORE.highConfidenceField
+    factors.push(`high-confidence-field:${c.field}(+${PLANNER_SCORE.highConfidenceField})`)
   } else if (MEDIUM_CONFIDENCE_FIELDS.has(c.field)) {
-    score += 0.7
-    factors.push(`medium-confidence-field:${c.field}(+0.7)`)
+    score += PLANNER_SCORE.mediumConfidenceField
+    factors.push(`medium-confidence-field:${c.field}(+${PLANNER_SCORE.mediumConfidenceField})`)
   } else {
-    score += 0.5
-    factors.push(`standard-field:${c.field}(+0.5)`)
+    score += PLANNER_SCORE.standardField
+    factors.push(`standard-field:${c.field}(+${PLANNER_SCORE.standardField})`)
   }
 
   // Op-specific bonuses (Phase 2)
   if (c.op === "neq") {
-    score += 0.1
-    factors.push("neq-bonus(+0.1)")
+    score += PLANNER_SCORE.neqBonus
+    factors.push(`neq-bonus(+${PLANNER_SCORE.neqBonus})`)
   } else if (c.op === "gte" || c.op === "lte") {
-    score += 0.15
-    factors.push(`range-${c.op}-bonus(+0.15)`)
+    score += PLANNER_SCORE.rangeBonus
+    factors.push(`range-${c.op}-bonus(+${PLANNER_SCORE.rangeBonus})`)
   } else if (c.op === "between") {
-    score += 0.2
-    factors.push("between-bonus(+0.2)")
+    score += PLANNER_SCORE.betweenBonus
+    factors.push(`between-bonus(+${PLANNER_SCORE.betweenBonus})`)
   }
 
   // Bridge-safe: filter was successfully built
   if (shadowFilters.length > 0) {
-    score += 0.05
-    factors.push("bridge-ok(+0.05)")
+    score += PLANNER_SCORE.bridgeOk
+    factors.push(`bridge-ok(+${PLANNER_SCORE.bridgeOk})`)
   }
 
   return { score, factors }

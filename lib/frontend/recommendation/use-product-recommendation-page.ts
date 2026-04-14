@@ -55,6 +55,19 @@ export type Phase = "intake" | "summary" | "loading" | "explore"
 // 설일석 피드백(2026-04-07): "추천 제품 종류가 너무 많아 고객이 혼란".
 // 50→20으로 축소. 더 보고 싶을 때 페이지네이션으로 추가 로드 가능.
 const DEFAULT_PAGE_SIZE = 20
+const RESTORE_RECOMMENDATION_ALTERNATIVES_LIMIT = 10
+
+function trimRecommendationForPersistence(
+  recommendation: ChatMsg["recommendation"] | null | undefined,
+) {
+  if (!recommendation) return null
+  if (!Array.isArray(recommendation.alternatives)) return recommendation
+  if (recommendation.alternatives.length <= RESTORE_RECOMMENDATION_ALTERNATIVES_LIMIT) return recommendation
+  return {
+    ...recommendation,
+    alternatives: recommendation.alternatives.slice(0, RESTORE_RECOMMENDATION_ALTERNATIVES_LIMIT),
+  }
+}
 
 function buildCandidateHighlights(candidates: RecommendationCandidateDto[] | null) {
   return (candidates ?? []).map(candidate => ({
@@ -127,6 +140,13 @@ function toPersistedMessages(messages: ChatMsg[]) {
       text: m.text ?? "",
       createdAt: m.createdAt ?? new Date().toISOString(),
       hasRecommendation: Boolean(m.recommendation),
+      thinkingProcess: m.thinkingProcess ?? null,
+      thinkingDeep: m.thinkingDeep ?? null,
+      reasoningVisibility: m.reasoningVisibility ?? "hidden",
+      recommendation: trimRecommendationForPersistence(m.recommendation),
+      chipGroups: m.chipGroups ?? [],
+      evidenceSummaries: m.evidenceSummaries ?? null,
+      primaryExplanation: m.primaryExplanation ?? null,
       feedback: m.feedback ?? null,
       chips: m.chips ?? [],
     }))
@@ -194,9 +214,15 @@ export function useProductRecommendationPage({
               role: (m.role === "user" ? "user" : "ai") as "user" | "ai",
               text: m.text ?? "",
               createdAt: m.createdAt,
+              thinkingProcess: (m as { thinkingProcess?: string | null }).thinkingProcess ?? null,
+              thinkingDeep: (m as { thinkingDeep?: string | null }).thinkingDeep ?? null,
+              reasoningVisibility: (m as { reasoningVisibility?: string | null }).reasoningVisibility ?? "hidden",
+              recommendation: (m as { recommendation?: unknown }).recommendation as ChatMsg["recommendation"] ?? null,
+              chipGroups: (m as { chipGroups?: Array<{ label: string; chips: string[] }> }).chipGroups ?? [],
+              evidenceSummaries: (m as { evidenceSummaries?: unknown }).evidenceSummaries as ChatMsg["evidenceSummaries"] ?? null,
+              primaryExplanation: (m as { primaryExplanation?: unknown }).primaryExplanation as ChatMsg["primaryExplanation"] ?? null,
               chips: m.chips ?? [],
               feedback: m.feedback ?? null,
-              reasoningVisibility: "hidden",
             }))
           : []
 

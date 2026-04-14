@@ -27,6 +27,7 @@ import {
   resolveMaterialFamilyName,
 } from "@/lib/recommendation/shared/material-mapping"
 import { canonicalizeKnownEntityValue, getKnownEntityValues } from "@/lib/recommendation/shared/entity-registry"
+import { RESOLVER_CONFIG } from "@/lib/recommendation/infrastructure/config/resolver-config"
 import {
   SEMANTIC_INTERPRETATION_POLICY_PROMPT,
   shouldDeferHardcodedSemanticExecution,
@@ -216,12 +217,12 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const CACHE_TTL_MS = 7 * DAY_MS
 const VERIFIED_CACHE_TTL_MS = 30 * DAY_MS
 const FAILURE_TTL_MS = DAY_MS
-const STAGE2_TIMEOUT_MS = 3000
-const STAGE3_TIMEOUT_MS = 12000
-const STAGE2_CONFIDENCE_THRESHOLD = 0.7
-const SCHEMA_HINT_PHONETIC_THRESHOLD = 0.88
-const STAGE1_COT_BROAD_CANDIDATE_THRESHOLD = 5000
-const STAGE1_COT_TOKEN_LIMIT = 8
+const STAGE2_TIMEOUT_MS = RESOLVER_CONFIG.stage2TimeoutMs
+const STAGE3_TIMEOUT_MS = RESOLVER_CONFIG.stage3TimeoutMs
+const STAGE2_CONFIDENCE_THRESHOLD = RESOLVER_CONFIG.stage2ConfidenceThreshold
+const SCHEMA_HINT_PHONETIC_THRESHOLD = RESOLVER_CONFIG.schemaHintPhoneticThreshold
+const STAGE1_COT_BROAD_CANDIDATE_THRESHOLD = RESOLVER_CONFIG.stage1CotBroadCandidateThreshold
+const STAGE1_COT_TOKEN_LIMIT = RESOLVER_CONFIG.stage1CotTokenLimit
 const STAGE1_SKIP_CUE_RE = /(?:\uC544\uBB34\uAC70\uB098|\uC0C1\uAD00\s*\uC5C6|\uBB50\uB4E0|\uB2E4\s*\uAD1C\uCC2E|\uBB34\uAD00)/giu
 const STAGE1_SORT_CUE_RE = /(?:\uC81C\uC77C|\uAC00\uC7A5|\uC824|\uB9E8|\uCD5C\uB300\uD55C|\uAE34\uAC78\uB85C|\uC9E7\uC740\uAC78\uB85C|\uAE34|\uC9E7\uC740|\uD070|\uC791\uC740|\uB9CE\uC740|\uC801\uC740|\uB192\uC740|\uB0AE\uC740|\uB450\uAEBC\uC6B4|\uC587\uC740)/giu
 

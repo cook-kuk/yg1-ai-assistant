@@ -10,10 +10,11 @@ import {
 import { getDbSchemaSync } from "@/lib/recommendation/core/sql-agent-schema-cache"
 import { DB_COL_TO_FILTER_FIELD } from "@/lib/recommendation/core/sql-agent"
 import { PHANTOM_GUARDED_FIELDS, isGroundedCategoricalValue } from "@/lib/recommendation/core/deterministic-scr"
+import { SEMANTIC_CONFIG } from "@/lib/recommendation/infrastructure/config/resolver-config"
 
 const SEMANTIC_TURN_MODEL = resolveModel("sonnet", "semantic-turn-extractor")
-const MIN_CONFIDENCE = 0.55
-const MAX_SEMANTIC_ATTEMPTS = 3
+const MIN_CONFIDENCE = SEMANTIC_CONFIG.minConfidence
+const MAX_SEMANTIC_ATTEMPTS = SEMANTIC_CONFIG.maxSemanticAttempts
 
 export type SemanticReplyRoute =
   | "inventory"

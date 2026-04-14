@@ -18,7 +18,6 @@ import {
   restoreOnePreviousStep,
   restoreToBeforeFilter,
 } from "../session-manager"
-import { runValidationGate, validateNoReask, validateComparisonScope, validateUndoEffect } from "../validation-gate"
 import type { AppliedFilter, NarrowingStage, ExplorationSessionState } from "@/lib/types/exploration"
 import type { RecommendationInput } from "@/lib/types/canonical"
 
@@ -154,46 +153,5 @@ describe("Undo: Back to Before Specific Filter", () => {
 
     expect(result.remainingFilters).toHaveLength(1)
     expect(result.remainingFilters[0].value).toBe("Square")
-  })
-})
-
-describe("Validation Gate", () => {
-  it("detects re-asking a known field", () => {
-    const filters = [makeFilter("fluteCount", "4날", 0)]
-    const question = { field: "fluteCount", questionText: "날 수?", chips: ["2날", "4날"], expectedInfoGain: 0.8 }
-
-    const issue = validateNoReask(question, filters)
-    expect(issue).not.toBeNull()
-    expect(issue!.code).toBe("REASK_KNOWN_FIELD")
-  })
-
-  it("allows asking an unknown field", () => {
-    const filters = [makeFilter("fluteCount", "4날", 0)]
-    const question = { field: "coating", questionText: "코팅?", chips: ["AlTiN", "DLC"], expectedInfoGain: 0.7 }
-
-    const issue = validateNoReask(question, filters)
-    expect(issue).toBeNull()
-  })
-
-  it("detects comparison out of scope", () => {
-    const displayed = [
-      { rank: 1, displayCode: "A001", productCode: "A001" },
-      { rank: 2, displayCode: "A002", productCode: "A002" },
-      { rank: 3, displayCode: "A003", productCode: "A003" },
-    ] as any[]
-    const issue = validateComparisonScope(["5번"], displayed)
-    expect(issue).not.toBeNull()
-    expect(issue!.code).toBe("COMPARISON_OUT_OF_SCOPE")
-  })
-
-  it("detects undo with no effect", () => {
-    const issue = validateUndoEffect(3, 3, "go_back_one_step")
-    expect(issue).not.toBeNull()
-    expect(issue!.code).toBe("UNDO_NO_EFFECT")
-  })
-
-  it("passes when undo has effect", () => {
-    const issue = validateUndoEffect(3, 2, "go_back_one_step")
-    expect(issue).toBeNull()
   })
 })

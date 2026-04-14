@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test"
 
 import { RecommendationHarness } from "./recommendation-test-helpers"
+import { buildMockRecommendResponse } from "./recommendation-test-helpers"
+import { REASONING_TOGGLE_RE } from "./reasoning-visibility-helpers"
 
 test.describe("YG-1 recommendation artifact persistence", () => {
   test.setTimeout(120_000)
@@ -167,5 +169,155 @@ test.describe("YG-1 recommendation artifact persistence", () => {
     } finally {
       await harness.attachFailureArtifacts()
     }
+  })
+
+  test("restores reasoning and recommendation fields when loading a persisted conversation", async ({ page }) => {
+    const conversationId = "conv_reasoning_restore_e2e"
+    const seededResponse = buildMockRecommendResponse({ messages: [{ role: "user", text: "seed" }] } as unknown as Record<string, unknown>)
+    const baseRecommendation = seededResponse.recommendation && seededResponse.recommendation.status === "exact"
+      ? seededResponse.recommendation
+      : null
+
+    const sourceScoredProduct = baseRecommendation?.primaryProduct ?? baseRecommendation?.alternatives[0]
+    const expandedAlternatives = Array.from({ length: 12 }, (_, index) => {
+      const cloned = JSON.parse(JSON.stringify(sourceScoredProduct)) as Record<string, unknown>
+      const product = cloned.product as Record<string, unknown> | undefined
+      if (product && typeof product.id === "string") {
+        product.id = `${product.id}-${index}`
+      }
+      if (product && typeof product.normalizedCode === "string") {
+        product.normalizedCode = `${product.normalizedCode}-${index}`
+      }
+      if (product && typeof product.displayCode === "string") {
+        product.displayCode = `${product.displayCode}-${index}`
+      }
+      cloned.rank = index + 1
+      return cloned
+    })
+
+    const restoredRecommendation = baseRecommendation
+      ? {
+          ...baseRecommendation,
+          alternatives: expandedAlternatives,
+          totalCandidatesConsidered: expandedAlternatives.length,
+        }
+      : null
+
+    const thinkingProcess = "Restored simple reasoning trace for regression"
+    const thinkingDeep = "Restored full chain-of-thought for regression"
+    const reasoningVisibility = "full"
+    const chipGroups = [{ label: "Context", chips: ["Material", "Diameter"] }]
+    const evidenceSummaries = [{
+      productCode: "E5D7004010",
+      bestCondition: { Vc: "450", fz: "0.1", ap: "2.0", ae: "0.4", n: "9000", vf: "1200" },
+      sourceCount: 1,
+      bestConfidence: 0.91,
+      source: "catalog",
+    }]
+    const primaryExplanation = { summaryText: "Persisted explanation summary", matchPct: 92, matchedFacts: [], unmatchedFacts: [], supportingEvidence: [] }
+
+    const now = new Date().toISOString()
+    const restorePayload = {
+      conversationId,
+      title: "restore-regression",
+      createdAt: now,
+      updatedAt: now,
+      messageCount: 2,
+      lastUserMessage: "seed",
+      filterSummary: [],
+      candidateCount: 2,
+      messages: [
+        { role: "user", text: "seed", createdAt: now, hasRecommendation: false },
+        {
+          role: "ai",
+          text: "Restored recommendation answer",
+          createdAt: now,
+          hasRecommendation: true,
+          thinkingProcess,
+          thinkingDeep,
+          reasoningVisibility,
+          recommendation: restoredRecommendation,
+          chipGroups,
+          evidenceSummaries,
+          primaryExplanation,
+          chips: ["Recommend", "Full View"],
+        },
+      ],
+      sessionState: {
+        candidateCount: expandedAlternatives.length,
+        currentMode: "recommendation",
+        lastAction: "show_recommendation",
+      },
+      intakeForm: {
+        material: { status: "known", value: "Aluminum" },
+        operationType: { status: "known", value: "Side Milling" },
+        toolType: { status: "known", value: "End Mill" },
+        toolSubtype: { status: "known", value: "Square" },
+        diameterMm: { status: "known", value: 4 },
+        country: { status: "known", value: "Korea" },
+      },
+    }
+
+    let capturedSaveBody: { messages?: unknown[] } | null = null
+    await page.route("**/api/conversations", async route => {
+      const request = route.request()
+      const url = request.url()
+      const method = request.method()
+
+      if (method === "POST") {
+        const rawBody = request.postData() ?? "{}"
+        capturedSaveBody = JSON.parse(rawBody) as { messages?: unknown[] }
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ ok: true }),
+        })
+        return
+      }
+
+      if (method === "GET" && url.includes(`/api/conversations/${conversationId}`)) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(restorePayload),
+        })
+        return
+      }
+
+      await route.continue()
+    })
+    await page.route("**/api/feedback", async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true }),
+      })
+    })
+
+    await page.goto(`/products?convId=${conversationId}`)
+    await page.waitForLoadState("networkidle")
+
+    const englishButton = page.getByRole("button", { name: /English/ })
+    if (await englishButton.count()) {
+      await englishButton.click()
+    }
+
+    await expect(page.getByRole("button", { name: REASONING_TOGGLE_RE })).toBeVisible()
+    await expect(page.getByText(thinkingProcess)).toBeVisible()
+    await expect(page.getByText(thinkingDeep)).toBeVisible()
+
+    await expect(async () => {
+      expect(capturedSaveBody?.messages).toBeTruthy()
+    }).toPass()
+
+    const savedMessage = capturedSaveBody?.messages?.[1] as { recommendation?: { alternatives?: unknown[] } & Record<string, unknown> } | undefined
+    expect(savedMessage?.reasoningVisibility).toBe("full")
+    expect(savedMessage?.thinkingProcess).toBe(thinkingProcess)
+    expect(savedMessage?.thinkingDeep).toBe(thinkingDeep)
+    expect(savedMessage?.chipGroups).toEqual(chipGroups)
+    expect(savedMessage?.evidenceSummaries).toEqual(evidenceSummaries)
+    expect(savedMessage?.primaryExplanation).toEqual(primaryExplanation)
+    expect(savedMessage?.recommendation).toBeTruthy()
+    expect((savedMessage?.recommendation as { alternatives?: unknown[] } | null)?.alternatives?.length).toBeLessThanOrEqual(10)
   })
 })

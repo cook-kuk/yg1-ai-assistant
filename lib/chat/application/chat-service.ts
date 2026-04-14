@@ -11,6 +11,7 @@ import {
 } from "@/lib/chat/domain/conversation-state"
 import { createAnthropicMessageWithLogging } from "@/lib/chat/infrastructure/llm/chat-llm"
 import { buildAppliedFilterFromValue } from "@/lib/recommendation/shared/filter-field-registry"
+import { CHAT_LLM_TOKENS } from "@/lib/recommendation/infrastructure/config/runtime-config"
 
 import { buildSystemPrompt } from "./chat-prompt"
 import {
@@ -158,7 +159,7 @@ export async function runChatConversationStreaming(
       operation: round === 0 ? "chat.initial" : `chat.tool_round.${round}`,
       request: {
         model: modelId,
-        max_tokens: 2048,
+        max_tokens: CHAT_LLM_TOKENS.streaming,
         system: systemPrompt,
         tools: CHAT_TOOLS,
         messages: currentMessages,
@@ -234,7 +235,7 @@ export async function runChatConversationStreaming(
     // Stream the final LLM call
     const stream = deps.client.messages.stream({
       model: modelId,
-      max_tokens: 2048,
+      max_tokens: CHAT_LLM_TOKENS.streaming,
       system: systemPrompt,
       tools: CHAT_TOOLS,
       messages: currentMessages,
@@ -559,7 +560,7 @@ async function extractParamsAndPreSearch(
       const haikuModel = resolveModel("haiku")
       const response = await deps.client.messages.create({
         model: (haikuModel || deps.model) as Parameters<typeof deps.client.messages.create>[0]["model"],
-        max_tokens: 300,
+        max_tokens: CHAT_LLM_TOKENS.haikuClassify,
         system: policy,
         messages: [{ role: "user", content: conversationText }],
       })
@@ -659,8 +660,8 @@ export async function runChatConversation(
   // Tool rounds use 1024 tokens (decision/short reasoning only); the FINAL
   // user-facing response below uses 2048. This halves per-round LLM time on
   // long comparison/explanation queries (PUB-062 was 25s/round → ~12s).
-  const TOOL_ROUND_MAX_TOKENS = 1024
-  const FINAL_MAX_TOKENS = 2048
+  const TOOL_ROUND_MAX_TOKENS = CHAT_LLM_TOKENS.toolRound
+  const FINAL_MAX_TOKENS = CHAT_LLM_TOKENS.final
   let llmResponse = await createAnthropicMessageWithLogging({
     client: deps.client,
     route: deps.route,
