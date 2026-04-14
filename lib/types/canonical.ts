@@ -185,6 +185,7 @@ export interface ScoredProduct {
   stockStatus: StockStatus
   totalStock: number | null
   minLeadTimeDays: number | null
+  xaiNarrative?: string | null
 }
 
 // ── Recommendation Result ────────────────────────────────────

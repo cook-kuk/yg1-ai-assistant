@@ -1714,6 +1714,7 @@ function validateResolverExecution(
       && concreteFilterCount >= 2
       && (normalizedResult.confidence ?? 0) >= 0.9
       && heldConcepts.length === 1
+    console.log(`[validator:concept_gap] phase=${phase} filters=${concreteFilterCount} conf=${normalizedResult.confidence} heldConcepts=${heldConcepts.length} lead=${String(lead.rawToken ?? lead.value ?? lead.kind)} allowPartial=${allowPartialExecution}`)
     issues.push(buildValidationIssue(
       "concept_mapping_gap",
       `semantic concepts remained unresolved before execution: ${String(lead.rawToken ?? lead.value ?? lead.kind)}`,

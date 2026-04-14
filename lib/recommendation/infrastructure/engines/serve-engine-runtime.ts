@@ -4955,7 +4955,7 @@ async function handleServeExplorationInner(
                     filters: filterDescription,
                   }),
                   // Phase 5: 0건 rollback 가드레일 — 사용자가 다음 행동을 즉시 고를 수 있도록.
-                  chips: ["기존 조건 유지", "다른 조건으로 바꾸기"],
+                  chips: ["기존 조건 유지", "다른 조건으로 바꾸기", "조건 하나 빼기"],
                   // pre-generated message — LLM 재호출 우회.
                   preGenerated: true,
                 }

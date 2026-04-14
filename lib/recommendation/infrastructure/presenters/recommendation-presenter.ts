@@ -227,6 +227,7 @@ export function toRecommendationCandidateDto(
     })),
     hasEvidence: pickBoolean("hasEvidence", "has_evidence") ?? false,
     bestCondition: toBestConditionDto((record.bestCondition as CandidateSnapshot["bestCondition"] | null | undefined) ?? null),
+    xaiNarrative: pickString("xaiNarrative", "xai_narrative"),
   }
 }
 

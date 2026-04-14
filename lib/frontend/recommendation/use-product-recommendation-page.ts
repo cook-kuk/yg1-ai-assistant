@@ -69,6 +69,119 @@ function trimRecommendationForPersistence(
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function normalizeNullableString(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null
+}
+
+function normalizeNullableNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+function normalizeMatchStatus(value: unknown): RecommendationCandidateDto["matchStatus"] {
+  return value === "exact" || value === "approximate" || value === "none" ? value : "none"
+}
+
+function normalizeCandidateFromSnapshot(raw: unknown): RecommendationCandidateDto | null {
+  if (!isRecord(raw)) return null
+
+  const productCode = normalizeNullableString(raw.productCode) ?? normalizeNullableString(raw.code)
+  const displayCode = normalizeNullableString(raw.displayCode) ?? productCode
+  if (!productCode || !displayCode) return null
+
+  const scoreBreakdown = (raw.scoreBreakdown as RecommendationCandidateDto["scoreBreakdown"]) ?? null
+  const bestCondition = (raw.bestCondition as RecommendationCandidateDto["bestCondition"]) ?? null
+  const inventoryLocations = Array.isArray(raw.inventoryLocations)
+    ? (raw.inventoryLocations as RecommendationCandidateDto["inventoryLocations"])
+    : []
+  const materialTags = Array.isArray(raw.materialTags)
+    ? (raw.materialTags.filter(tag => typeof tag === "string") as string[])
+    : []
+
+  return {
+    rank: typeof raw.rank === "number" ? raw.rank : 0,
+    productCode,
+    displayCode,
+    displayLabel: normalizeNullableString(raw.displayLabel),
+    brand: normalizeNullableString(raw.brand),
+    seriesName: normalizeNullableString(raw.seriesName) ?? normalizeNullableString(raw.series),
+    seriesIconUrl: normalizeNullableString(raw.seriesIconUrl),
+    diameterMm: normalizeNullableNumber(raw.diameterMm ?? raw.diameter),
+    fluteCount: normalizeNullableNumber(raw.fluteCount ?? raw.flute),
+    coating: normalizeNullableString(raw.coating),
+    toolSubtype: normalizeNullableString(raw.toolSubtype),
+    toolMaterial: normalizeNullableString(raw.toolMaterial),
+    shankDiameterMm: normalizeNullableNumber(raw.shankDiameterMm),
+    shankType: normalizeNullableString(raw.shankType),
+    lengthOfCutMm: normalizeNullableNumber(raw.lengthOfCutMm),
+    overallLengthMm: normalizeNullableNumber(raw.overallLengthMm),
+    helixAngleDeg: normalizeNullableNumber(raw.helixAngleDeg),
+    coolantHole: raw.coolantHole === true || raw.coolantHole === false ? raw.coolantHole : null,
+    ballRadiusMm: normalizeNullableNumber(raw.ballRadiusMm),
+    taperAngleDeg: normalizeNullableNumber(raw.taperAngleDeg),
+    pointAngleDeg: normalizeNullableNumber(raw.pointAngleDeg),
+    threadPitchMm: normalizeNullableNumber(raw.threadPitchMm),
+    description: normalizeNullableString(raw.description),
+    featureText: normalizeNullableString(raw.featureText),
+    materialTags,
+    score: typeof raw.score === "number" && Number.isFinite(raw.score) ? raw.score : 0,
+    scoreBreakdown,
+    matchStatus: normalizeMatchStatus(raw.matchStatus),
+    stockStatus: normalizeNullableString(raw.stockStatus) ?? "unknown",
+    totalStock: normalizeNullableNumber(raw.totalStock),
+    inventorySnapshotDate: normalizeNullableString(raw.inventorySnapshotDate),
+    inventoryLocations,
+    hasEvidence: raw.hasEvidence === true,
+    bestCondition,
+  }
+}
+
+function normalizeCandidateSnapshot(raw: unknown): RecommendationCandidateDto[] | null {
+  if (!Array.isArray(raw)) return null
+  const candidates = raw
+    .map(item => normalizeCandidateFromSnapshot(item))
+    .filter((item): item is RecommendationCandidateDto => item !== null)
+
+  return candidates.length > 0 ? candidates : null
+}
+
+function buildCandidateSnapshotForRestore(
+  restoredMessages: ChatMsg[],
+  restoredSessionState: Record<string, unknown> | null,
+): RecommendationCandidateDto[] | null {
+  const fromSessionCandidates = normalizeCandidateSnapshot(restoredSessionState?.displayedCandidates)
+    ?? normalizeCandidateSnapshot(restoredSessionState?.displayedProducts)
+    ?? normalizeCandidateSnapshot(restoredSessionState?.lastRecommendationArtifact)
+
+  if (fromSessionCandidates?.length) return fromSessionCandidates
+
+  const lastRecommendationMessage = [...restoredMessages].slice().reverse().find(message => message.role === "ai" && message.recommendation)
+  const candidatesFromMessage = lastRecommendationMessage ? buildRecommendedProducts(lastRecommendationMessage) : null
+  return candidatesFromMessage ? normalizeCandidateSnapshot(candidatesFromMessage) : null
+}
+
+function buildCandidatePaginationForRestore(
+  candidateSnapshot: RecommendationCandidateDto[] | null,
+  candidateCountHint: number | undefined | null,
+) {
+  if (!candidateSnapshot || candidateSnapshot.length === 0) return null
+  const totalItems = candidateCountHint && candidateCountHint > 0 ? candidateCountHint : candidateSnapshot.length
+  return {
+    page: 0,
+    pageSize: DEFAULT_PAGE_SIZE,
+    totalItems,
+    totalPages: Math.max(Math.ceil(totalItems / DEFAULT_PAGE_SIZE), 1),
+  }
+}
+
 function buildCandidateHighlights(candidates: RecommendationCandidateDto[] | null) {
   return (candidates ?? []).map(candidate => ({
     rank: candidate.rank,
@@ -226,10 +339,18 @@ export function useProductRecommendationPage({
             }))
           : []
 
+        const restoredSessionState = (data.sessionState as (RecommendationPublicSessionDto & Record<string, unknown>) | null) ?? null
+        const restoredCandidateSnapshot = buildCandidateSnapshotForRestore(restoredMessages, restoredSessionState)
+
         setActiveConversationId(externalConversationId)
         restoredRef.current = externalConversationId
         setChatMessages(restoredMessages)
-        setSessionState((data.sessionState as RecommendationPublicSessionDto | null) ?? null)
+        setSessionState(restoredSessionState)
+        setCandidateSnapshot(restoredCandidateSnapshot)
+        setCandidatePagination(buildCandidatePaginationForRestore(
+          restoredCandidateSnapshot,
+          typeof restoredSessionState?.candidateCount === "number" ? restoredSessionState.candidateCount : null,
+        ))
         if (data.intakeForm && typeof data.intakeForm === "object") {
           setForm({ ...INITIAL_INTAKE_FORM, ...(data.intakeForm as ProductIntakeForm) })
         }

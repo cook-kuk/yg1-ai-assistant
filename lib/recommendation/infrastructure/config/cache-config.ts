@@ -65,6 +65,6 @@ export const FEEDBACK_POOL = {
 export const TOOL_MEMORY_CONFIG = {
   highThreshold:       envNum("TOOL_MEMORY_HIGH_THRESHOLD", 0.8),
   midThreshold:        envNum("TOOL_MEMORY_MID_THRESHOLD", 0.5),
-  minSearchThreshold:  envNum("TOOL_MEMORY_MIN_SEARCH_THRESHOLD", 0.3),
+  minSearchThreshold:  envNum("TOOL_MEMORY_MIN_SEARCH_THRESHOLD", 0.25),
   maxResults:          envNum("TOOL_MEMORY_MAX_RESULTS", 3),
 } as const

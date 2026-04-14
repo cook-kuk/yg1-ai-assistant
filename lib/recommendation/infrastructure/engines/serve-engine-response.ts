@@ -1589,7 +1589,11 @@ export async function buildRecommendationResponse(
         undefined,
         "response-composer",
       )
-      const extractedSummary = extractRecommendationSummaryText(raw)
+      const { narrative, remaining } = extractTop1Narrative(raw)
+      if (narrative && primary) {
+        primary.xaiNarrative = narrative
+      }
+      const extractedSummary = extractRecommendationSummaryText(remaining || raw)
       if (extractedSummary) {
         recommendation.llmSummary = extractedSummary
       }
@@ -1860,6 +1864,7 @@ export function buildCandidateSnapshot(
       inventoryLocations,
       hasEvidence: !!evidence && evidence.chunks.length > 0,
       bestCondition: evidence?.bestCondition ?? null,
+      xaiNarrative: candidate.xaiNarrative ?? null,
     }
   })
 }
@@ -2107,6 +2112,21 @@ function unescapeJsonString(value: string): string {
     .replace(/\\n/g, "\n")
     .replace(/\\t/g, "\t")
     .replace(/\\\\/g, "\\")
+}
+
+const TOP1_WHY_RE = /\[TOP1_WHY\]([\s\S]*?)\[\/TOP1_WHY\]/i
+
+/**
+ * Extracts the [TOP1_WHY]...[/TOP1_WHY] block for Top-1 product narrative,
+ * and returns the remaining text with the block stripped out.
+ */
+export function extractTop1Narrative(raw: string): { narrative: string | null; remaining: string } {
+  if (!raw) return { narrative: null, remaining: raw }
+  const match = raw.match(TOP1_WHY_RE)
+  if (!match) return { narrative: null, remaining: raw }
+  const narrative = match[1]?.trim() || null
+  const remaining = raw.replace(TOP1_WHY_RE, "").trim()
+  return { narrative, remaining }
 }
 
 export function extractRecommendationSummaryText(raw: string): string | null {

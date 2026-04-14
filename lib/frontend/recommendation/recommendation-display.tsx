@@ -267,7 +267,7 @@ function buildXaiNarrative(breakdown: ScoreBreakdown): string {
   return parts.join(" ")
 }
 
-function ScoreBreakdownPanel({ breakdown }: { breakdown: ScoreBreakdown }) {
+function ScoreBreakdownPanel({ breakdown, xaiNarrative }: { breakdown: ScoreBreakdown; xaiNarrative?: string | null }) {
   const { language } = useApp()
   const dimensions = [
     { key: "diameter", ko: "직경", en: "Diameter", emoji: "📏" },
@@ -281,6 +281,7 @@ function ScoreBreakdownPanel({ breakdown }: { breakdown: ScoreBreakdown }) {
   ] as const
 
   const narrative = buildXaiNarrative(breakdown)
+  const llmNarrative = xaiNarrative?.trim() || null
 
   return (
     <div className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-lg border border-blue-100 p-3 space-y-2">
@@ -293,6 +294,14 @@ function ScoreBreakdownPanel({ breakdown }: { breakdown: ScoreBreakdown }) {
           {breakdown.total}/{breakdown.maxTotal}pt ({breakdown.matchPct}%)
         </div>
       </div>
+      {llmNarrative && (
+        <div className="bg-blue-50/80 rounded-md px-2.5 py-2 border border-blue-200/70">
+          <div className="text-[10px] font-semibold text-blue-700 mb-1">
+            {language === "ko" ? "왜 이 제품이 최적인가" : "Why this product is optimal"}
+          </div>
+          <div className="text-[11px] text-slate-700 leading-relaxed whitespace-pre-line">{llmNarrative}</div>
+        </div>
+      )}
       <div className="space-y-1.5">
         {dimensions.map(dim => {
           const detail = breakdown[dim.key]
@@ -539,7 +548,12 @@ function ProductCard({
               </div>
             )
           })()}
-          {scored.scoreBreakdown && <ScoreBreakdownPanel breakdown={scored.scoreBreakdown} />}
+          {scored.scoreBreakdown && (
+            <ScoreBreakdownPanel
+              breakdown={scored.scoreBreakdown}
+              xaiNarrative={rank === 1 ? scored.xaiNarrative : null}
+            />
+          )}
         </CardContent>
       )}
     </Card>
@@ -633,7 +647,10 @@ export function CandidateCard({ c }: { c: RecommendationCandidateDto }) {
                   {language === "ko" ? "시리즈" : "Series"}: {c.seriesName}
                 </div>
               )}
-              <ScoreBreakdownPanel breakdown={breakdown} />
+              <ScoreBreakdownPanel
+                breakdown={breakdown}
+                xaiNarrative={c.rank === 1 ? c.xaiNarrative : null}
+              />
             </div>
           )}
         </div>

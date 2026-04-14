@@ -282,6 +282,7 @@ export interface CandidateSnapshot {
   inventoryLocations: InventoryLocationSnapshot[]
   hasEvidence: boolean
   bestCondition: import("./evidence").CuttingConditions | null
+  xaiNarrative?: string | null
 }
 
 export interface InventoryLocationSnapshot {

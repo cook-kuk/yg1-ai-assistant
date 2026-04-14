@@ -210,6 +210,7 @@ export interface RecommendationCandidateDto {
   inventoryLocations: RecommendationCandidateInventoryLocationDto[]
   hasEvidence: boolean
   bestCondition: CuttingConditions | null
+  xaiNarrative?: string | null
 }
 
 export interface RecommendationSessionEnvelopeDto {

@@ -247,6 +247,34 @@ test.describe("YG-1 recommendation artifact persistence", () => {
         candidateCount: expandedAlternatives.length,
         currentMode: "recommendation",
         lastAction: "show_recommendation",
+        displayedProducts: [
+          {
+            rank: 1,
+            code: "E5D7004010",
+            productCode: "E5D7004010",
+            brand: "YG-1",
+            series: "E5D70",
+            diameter: 4,
+            flute: 4,
+            coating: "ALUMINUM",
+            materialTags: ["K"],
+            score: 98,
+            matchStatus: "exact",
+          },
+          {
+            rank: 2,
+            code: "E5D7004020",
+            productCode: "E5D7004020",
+            brand: "YG-1",
+            series: "E5D70",
+            diameter: 4,
+            flute: 4,
+            coating: "ALUMINUM",
+            materialTags: ["K"],
+            score: 95,
+            matchStatus: "exact",
+          },
+        ],
       },
       intakeForm: {
         material: { status: "known", value: "Aluminum" },
@@ -296,6 +324,7 @@ test.describe("YG-1 recommendation artifact persistence", () => {
 
     await page.goto(`/products?convId=${conversationId}`)
     await page.waitForLoadState("networkidle")
+    await expect(page.getByText("E5D7004010")).toBeVisible()
 
     const englishButton = page.getByRole("button", { name: /English/ })
     if (await englishButton.count()) {
