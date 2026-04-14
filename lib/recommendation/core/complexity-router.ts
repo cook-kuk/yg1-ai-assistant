@@ -13,6 +13,9 @@ import {
   type ModelTier,
   type ReasoningTier,
 } from "@/lib/recommendation/infrastructure/config/llm-config"
+import type { DeepIntentHint } from "./deep-intent-classifier"
+
+export type { DeepIntentHint }
 
 export type ComplexityLevel = "light" | "normal" | "deep"
 export type ResolverStageBudget = "stage1" | "stage2" | "stage3"
@@ -99,16 +102,19 @@ function buildDecision(
 }
 
 /**
- * Intent classification by regex has been removed. The LLM (gated by the
- * semantic cache for repeated patterns) decides reasoning depth downstream.
- * complexity-router only fast-paths empty input.
+ * Intent classification by regex has been removed. The LLM classifier
+ * (deep-intent-classifier.ts, gated by the semantic cache) decides reasoning
+ * depth upstream and passes the result in as `llmHint`. Without a hint this
+ * defaults to "normal" for any non-empty input.
  */
 export function assessComplexity(
   message: string,
   _appliedFilterCount: number = 0,
+  llmHint?: DeepIntentHint | null,
 ): ComplexityDecision {
   const text = message.trim()
   if (!text) return buildDecision("light", "empty_input")
+  if (llmHint?.isDeep) return buildDecision("deep", llmHint.reason || "llm_deep")
   return buildDecision("normal", "llm_decides")
 }
 
@@ -144,6 +150,9 @@ export interface RoutingSignalsInput {
   hasPendingQuestion?: boolean
   hasComparisonTargets?: boolean
   hasSelectionContext?: boolean
+  /** Pre-computed LLM intent hint (optional). When provided, drives deep
+   *  promotion without needing a synchronous regex pre-check. */
+  llmHint?: DeepIntentHint | null
 }
 
 function detectSignals(input: RoutingSignalsInput): {
@@ -178,7 +187,7 @@ function detectSignals(input: RoutingSignalsInput): {
 /** 기본 RoutingDecision. complexity-router level 을 그대로 tier 로 쓰되
  *  강제 승격/강등 규칙을 한 번 더 적용한다. */
 export function getRoutingDecision(input: RoutingSignalsInput): RoutingDecision {
-  const complexity = assessComplexity(input.message, input.appliedFilterCount ?? 0)
+  const complexity = assessComplexity(input.message, input.appliedFilterCount ?? 0, input.llmHint ?? null)
   const signals = detectSignals(input)
   const reasons: string[] = [`complexity:${complexity.level}:${complexity.reason}`]
 

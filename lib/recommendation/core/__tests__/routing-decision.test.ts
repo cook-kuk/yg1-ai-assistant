@@ -3,10 +3,10 @@ import { describe, expect, test } from "vitest"
 import { getRoutingDecision } from "../complexity-router"
 
 describe("getRoutingDecision", () => {
-  test("단순 칩 클릭 값은 mini/light", () => {
+  test("단순 칩 클릭 값은 normal (regex 게이트 제거 후 LLM+cache가 판단)", () => {
     const r = getRoutingDecision({ message: "4날 (1558개)" })
-    expect(r.modelTier).toBe("mini")
-    expect(r.reasoningTier).toBe("light")
+    expect(r.modelTier).toBe("full")
+    expect(r.reasoningTier).toBe("normal")
   })
 
   test("일반 추천은 full/normal", () => {
@@ -42,9 +42,10 @@ describe("getRoutingDecision", () => {
     expect(r.reasons.some(r => r.includes("demote"))).toBe(true)
   })
 
-  test("off-topic 잡담은 mini 강등", () => {
+  test("off-topic 잡담은 normal (regex 도메인 게이트 제거, LLM이 판단)", () => {
     const r = getRoutingDecision({ message: "난 아무것도 모르는 신입사원이야" })
-    expect(r.modelTier).toBe("mini")
+    expect(r.modelTier).toBe("full")
+    expect(r.reasoningTier).toBe("normal")
   })
 
   test("필터 없는 수정 요청은 canShortCircuit", () => {
@@ -65,11 +66,11 @@ describe("getRoutingDecision", () => {
     expect(r.shortCircuitType).toBe("clarify_missing_selection_context")
   })
 
-  test("긴 잡담은 자동 deep 승격하지 않음", () => {
+  test("긴 문장은 length-based deep 승격하지 않음", () => {
     const r = getRoutingDecision({
       message: "나는 오늘 아침에 밥을 먹고 출근하는 길에 잠깐 생각을 해봤는데 말이야 이건 정말 긴 문장이지",
     })
-    // 도메인 신호 없는 잡담이므로 mini + light 유지
-    expect(r.modelTier).toBe("mini")
+    // 길이 기반 deep 승격은 없음 (LLM이 판단). normal 로 유지.
+    expect(r.reasoningTier).toBe("normal")
   })
 })
