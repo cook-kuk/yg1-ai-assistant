@@ -55,6 +55,11 @@ interface FieldPattern {
   valueExtractor?: RegExp
 }
 
+// FIXME(SSOT): redundant with deterministic-scr FIELD_CUES — should be removed once
+// orchestrator's replace/remove-filter routing migrates to deterministic-scr field
+// extraction. Do NOT expand this list; any new cues belong in deterministic-scr.
+// diameterMm cue here is intentionally keyed on EXPLICIT cues only (직경/지름/파이/ø/diameter)
+// — no bare-mm fallback, aligned with "물리 치수는 정확한 cue에만 매핑" 원칙.
 const FIELD_PATTERNS: FieldPattern[] = [
   {
     field: "fluteCount",

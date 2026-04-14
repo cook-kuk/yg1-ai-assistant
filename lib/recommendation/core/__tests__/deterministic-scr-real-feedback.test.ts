@@ -109,12 +109,13 @@ describe("real feedback: heavy multi-spec verbatim", () => {
     expect(brand).toBeDefined()
   })
 
-  it("'스테인리스 8mm Side Milling 4날 카바이드 TiAlN' → 5+ 필드", () => {
+  it("'스테인리스 8mm Side Milling 4날 카바이드 TiAlN' → 5+ 필드, bare mm unresolved", () => {
+    // NOTE: post-fallback-removal — bare mm no longer defaults to diameter
     const text = "스테인리스 8mm Side Milling 4날 카바이드 TiAlN"
     const actions = parseDeterministic(text)
     const fields = new Map(actions.map(a => [a.field, a]))
 
-    expect(fields.get("diameterMm")?.value).toBe(8)
+    expect(fields.has("diameterMm")).toBe(false)
     expect(fields.get("fluteCount")?.value).toBe(4)
     expect(fields.get("toolMaterial")?.value).toBe("Carbide")
     expect(fields.get("coating")?.value).toBe("TiAlN")
@@ -122,23 +123,25 @@ describe("real feedback: heavy multi-spec verbatim", () => {
     expect(actions.find(a => (a.field === "workMaterial" || a.field === "material") && a.value === "M")).toBeDefined()
   })
 
-  it("'고경도강 4mm Ball X1-EH 국내용' → 4+ 필드 (브랜드 + 국가 동의어)", () => {
+  it("'고경도강 4mm Ball X1-EH 국내용' → 브랜드/국가/재질, bare mm unresolved", () => {
+    // NOTE: post-fallback-removal — bare mm no longer defaults to diameter
     const text = "고경도강 4mm Ball X1-EH 국내용"
     const actions = parseDeterministic(text)
     const fields = new Map(actions.map(a => [a.field, a]))
 
-    expect(fields.get("diameterMm")?.value).toBe(4)
+    expect(fields.has("diameterMm")).toBe(false)
     expect(actions.find(a => (a.field === "workMaterial" || a.field === "material") && a.value === "H")).toBeDefined()
     expect(fields.get("country")?.value).toBe("한국")
     const brand = actions.find(a => a.field === "brand")
     expect(brand).toBeDefined()
   })
 
-  it("'주철 Slotting 16mm 5날 짧은 시리즈' → workMaterial=K + 가공형상 + 직경 + 날수", () => {
+  it("'주철 Slotting 16mm 5날 짧은 시리즈' → workMaterial=K + 가공형상 + 날수, bare mm unresolved", () => {
+    // NOTE: post-fallback-removal — bare mm no longer defaults to diameter
     const text = "주철 Slotting 16mm 5날 짧은 시리즈"
     const actions = parseDeterministic(text)
     const fields = new Map(actions.map(a => [a.field, a]))
-    expect(fields.get("diameterMm")?.value).toBe(16)
+    expect(fields.has("diameterMm")).toBe(false)
     expect(fields.get("fluteCount")?.value).toBe(5)
     expect(fields.get("applicationShape")?.value).toBe("Slotting")
     expect(actions.find(a => (a.field === "workMaterial" || a.field === "material") && a.value === "K")).toBeDefined()

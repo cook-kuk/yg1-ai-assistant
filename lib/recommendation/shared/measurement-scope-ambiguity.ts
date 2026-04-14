@@ -43,12 +43,10 @@ const ANGLE_PHRASE_RE =
 
 const IMPERIAL_TOOL_CONTEXT_RE = /(?:엔드밀|드릴|리머|탭|커터|공구|endmill|drill|reamer|tap|cutter|tool)/iu
 
-// Flute count / tool subtype / material context in the same message strongly implies
-// that a bare "NNmm" phrase refers to tool diameter (industry convention).
-// Urgency/indifference markers ("아무거나", "빨리", "대충") also imply the user
-// wants a quick recommendation based on the bare diameter — not a clarification loop.
-const IMPLICIT_DIAMETER_CONTEXT_RE =
-  /(?:\b\d+\s*(?:날|F\b|flute|플루트)|\b날수?\s*\d+|엔드밀|드릴|리머|탭|커터|endmill|drill|reamer|\btap\b|cutter|스테인리스|스텐(?:인?리스)?|알루미늄|알미늄|티타늄|탄소강|구리|인코넬|inconel|stainless|aluminum|titanium|carbon\s*steel|\bSUS\d|SUJ\d|SCM\d|SKD\d|SKH\d|SNCM\d|아무거나|아무|알아서|대충|뭐든|상관\s*없|빨리|급해|급한|당장|얼른|서둘러)/iu
+// NOTE: 이전엔 flute/material/subtype 컨텍스트가 있으면 "bare mm = diameter"로
+// 자동 매핑했으나, 이는 물리 치수 모호성 제거 원칙에 어긋난다(전장/자루경/절삭장/넥
+// 등도 동일 문맥에서 나타날 수 있음). cue 없는 bare mm은 ambiguous로 남겨
+// LLM이 도메인 추론으로 결정하도록 한다.
 
 function canonicalPendingField(field: string | null | undefined): string | null {
   if (!field) return null
@@ -118,8 +116,7 @@ export function detectMeasurementScopeAmbiguity(
   if (lengthMatch) {
     if (hasExplicitLengthCue(clean)) return null
     if (isImperialToolDiameterShorthand(clean, lengthMatch[1])) return null
-    // Flute / subtype / material context → bare mm = diameter by industry convention
-    if (IMPLICIT_DIAMETER_CONTEXT_RE.test(clean)) return null
+    // NOTE: post-fallback-removal — bare mm no longer auto-maps to diameter even with material/flute context.
     return buildLengthAmbiguity(lengthMatch[1])
   }
 

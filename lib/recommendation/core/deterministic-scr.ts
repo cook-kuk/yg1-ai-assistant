@@ -1115,27 +1115,6 @@ function hasStructuredDeterministicSpecSignals(text: string): boolean {
   return score >= 2
 }
 
-function hasStrongImplicitDiameterContext(text: string): boolean {
-  if (!/(?:\d+(?:\.\d+)?\s*(?:mm|mn)|\d+\s*\/\s*\d+\s*(?:인치|inch|in|"))/i.test(text)) {
-    return false
-  }
-
-  const cuttingConditionCueCount = [
-    /(?:rpm|회전수|스핀들(?:\s*속도)?|spindle(?:\s*speed)?)/i,
-    /(?:이송(?:\s*속도)?|feed(?:\s*rate)?|\bfz\b)/i,
-    /(?:절삭\s*속도|cutting\s*speed|\bvc\b)/i,
-    /(?:절입(?:량|\s*깊이)?|depth\s*of\s*cut|\bap\b)/i,
-  ].reduce((count, pattern) => count + (pattern.test(text) ? 1 : 0), 0)
-
-  return (
-    Boolean(findValueWithPos(text, BRAND_VALUES))
-    || Boolean(extractApplicationShape(text))
-    || Boolean(extractToolSubtype(text))
-    || Boolean(extractMachiningCondition(text))
-    || (INLINE_FLUTE_RE.test(text) && cuttingConditionCueCount >= 2)
-  )
-}
-
 export function isInformationalValueQuery(message: string): boolean {
   const text = message.trim()
   if (!text) return false
@@ -1159,10 +1138,6 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
   const text = message.trim()
     .replace(/(^|[\s,])(?:이\s*중(?:에서)?|그\s*중(?:에서)?|여기(?:서|에서)?)(?=\s*[가-힣a-zA-Z])/gu, "$1")
     .trim()
-  const measurementScopeAmbiguity = detectMeasurementScopeAmbiguity(text)
-  const allowImplicitDiameterContext =
-    measurementScopeAmbiguity?.kind === "length"
-    && hasStrongImplicitDiameterContext(text)
   if (isInformationalValueQuery(text)) return []
   const actions: DeterministicAction[] = []
   const seen = new Set<string>() // dedup by field
@@ -1259,54 +1234,13 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
     seen.add("toolSubtype")
   }
 
-  // 3) Inch fraction → diameter (1/4인치)
-  if (!seen.has("diameterMm") && (measurementScopeAmbiguity?.kind !== "length" || allowImplicitDiameterContext)) {
-    const inch = parseInchFraction(text)
-    if (inch != null) {
-      actions.push({ type: "apply_filter", field: "diameterMm", value: inch, op: "eq", source: "deterministic" })
+  // 3) Inch fraction → diameter (explicit cue: 인치/inch/"). NOT a bare-mm fallback.
+  // 사용자가 단위를 명시적으로 "1/4 인치" 식으로 언급한 경우만 적용.
+  if (!seen.has("diameterMm")) {
+    const dia = parseInchFraction(text)
+    if (dia != null && dia > 0 && dia < 200) {
+      actions.push({ type: "apply_filter", field: "diameterMm", value: dia, op: "eq", source: "deterministic" })
       seen.add("diameterMm")
-    }
-  }
-
-  // 3.5) Bare-mm-only fallback: "10mm", "8.5 mm", "10" — 메시지가 숫자(+mm)뿐이면 직경으로 해석
-  if (!seen.has("diameterMm") && (measurementScopeAmbiguity?.kind !== "length" || allowImplicitDiameterContext)) {
-    const bare = text.match(/^\s*(\d+(?:\.\d+)?)\s*(?:mm|밀리)?\s*$/i)
-    if (bare && /(?:mm|mn|밀리)/i.test(text)) {
-      const v = parseFloat(bare[1])
-      if (Number.isFinite(v) && v > 0 && v <= 100) {
-        actions.push({ type: "apply_filter", field: "diameterMm", value: v, op: "eq", source: "deterministic" })
-        seen.add("diameterMm")
-      }
-    }
-  }
-
-  // 3.6) Inline mm fallback: "알루미늄 10mm 4날" 처럼 cue 없는 복합 문장에서
-  // diameter 가 누락되는 케이스. 이미 다른 numeric field cue (전장/절삭길이/샹크/
-  // 헬릭스 등) 가 소비한 위치는 consumedRanges 로 skip. "4날", "100mm 이상",
-  // "RPM 8000" 같은 다른 의미의 숫자도 제외해야 한다.
-  if (!seen.has("diameterMm") && (measurementScopeAmbiguity?.kind !== "length" || allowImplicitDiameterContext)) {
-    // "mn" 은 "mm" 의 흔한 키보드 오타
-    const re = /(?<![\d.])(\d+(?:\.\d+)?)\s*(?:mm|mn)\b/gi
-    let match: RegExpExecArray | null
-    const OTHER_FIELD_CUE_RE = /(전장|전체\s*길이|overall|oal|절삭\s*길이|날\s*길이|loc|샹크|생크|shank|헬릭스|helix|포인트\s*각|point\s*angle|피치|pitch|코너\s*r|ball\s*radius|회전수|rpm|spindle|이송|feed|절삭\s*속도|cutting\s*speed|vc|절입|depth|ap)/i
-    while ((match = re.exec(text)) !== null) {
-      const numStart = match.index
-      const numEnd = match.index + match[0].length
-      if (isConsumed(numStart, numEnd)) continue
-      // 직전 8자에 다른 field 의 cue 가 있으면 skip (예: "전장 100mm")
-      const head = text.slice(Math.max(0, numStart - 12), numStart)
-      if (OTHER_FIELD_CUE_RE.test(head)) continue
-      // 직후 12자에 op marker 가 있는 경우: 다른 field 의 range 표현일 수도 있으나
-      // 다른 field cue 가 head/tail 어디에도 없으면 diameter 로 해석 (R01/R05 fix).
-      const tail = text.slice(numEnd, numEnd + 14)
-      const op = detectOpAfter(text, numEnd)
-      if (op && OTHER_FIELD_CUE_RE.test(tail)) continue
-      const v = parseFloat(match[1])
-      if (!Number.isFinite(v) || v <= 0 || v > 300) continue
-      actions.push({ type: "apply_filter", field: "diameterMm", value: v, op: op ?? "eq", source: "deterministic" })
-      seen.add("diameterMm")
-      consumedRanges.push([numStart, numEnd])
-      break
     }
   }
 
