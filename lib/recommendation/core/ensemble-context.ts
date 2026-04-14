@@ -73,43 +73,41 @@ function safeFewShots(userMessage: string): FewShotExample[] {
 }
 
 export function formatEnsembleForPrompt(ctx: EnsembleContext): string {
-  const lines: string[] = []
-  lines.push(`═══ 앙상블 컨텍스트 (4 단서 병렬 수집) ═══`)
-  lines.push(`메시지: "${ctx.userMessage}"`)
-  lines.push(`현재: 후보 ${ctx.candidateCount}개, 적용 필터 ${ctx.appliedFilterCount}개`)
+  // 히트가 하나도 없으면 아무것도 주입하지 않음 (LLM 혼란 방지).
+  // "매칭 없음" 같은 부정형 텍스트도 금지 — 있는 단서만 쓴다.
+  const hasKg = !!ctx.kg
+  const hasToolMem = ctx.toolMemory.length > 0
+  const hasFewShots = ctx.fewShots.length > 0
+  const hasCache = !!ctx.cacheHit
+  if (!hasKg && !hasToolMem && !hasFewShots && !hasCache) return ""
 
-  if (ctx.kg) {
-    lines.push(``)
-    lines.push(`[KG 판단] ${ctx.kg.source} (conf=${ctx.kg.confidence.toFixed(2)}): ${ctx.kg.reason}`)
+  const lines: string[] = []
+  lines.push(`═══ 앙상블 단서 (있는 것만) ═══`)
+
+  if (hasKg && ctx.kg) {
+    lines.push(`[KG] ${ctx.kg.source} (conf=${ctx.kg.confidence.toFixed(2)}): ${ctx.kg.reason}`)
   }
 
-  if (ctx.toolMemory.length > 0) {
-    lines.push(``)
-    lines.push(`[Tool Memory — 과거 성공 사례 (pg_trgm 유사도)]`)
+  if (hasToolMem) {
+    lines.push(`[Tool Memory — 과거 성공 사례]`)
     for (const hit of ctx.toolMemory) {
       const filterStr = summarizeFilters(hit.filters)
-      lines.push(`- sim=${hit.similarity.toFixed(2)} [${hit.tier}] "${hit.question}" → {${filterStr}} (후보 ${hit.candidateCount}개, 히트 ${hit.hitCount}회)`)
+      lines.push(`- sim=${hit.similarity.toFixed(2)} [${hit.tier}] "${hit.question}" → {${filterStr}}`)
     }
-    const hasHigh = ctx.toolMemory.some(h => h.tier === "high")
-    if (hasHigh) {
-      lines.push(`  → high tier 는 오타/약어 회복에 강함. 필터 네이밍을 과거 성공 케이스에 맞춰라.`)
+    if (ctx.toolMemory.some(h => h.tier === "high")) {
+      lines.push(`  → high tier: 오타/약어 회복. 필터 네이밍 일관성 유지.`)
     }
   }
 
-  if (ctx.fewShots.length > 0) {
-    lines.push(``)
-    lines.push(`[Few-Shot (피드백 풀 + 골든셋 유사도 상위)]`)
+  if (hasFewShots) {
+    lines.push(`[Few-Shot]`)
     lines.push(buildFewShotText(ctx.fewShots))
   }
 
-  if (ctx.cacheHit) {
-    lines.push(``)
-    lines.push(`[Semantic Cache — 정확 히트한 유사 쿼리의 결정]`)
-    lines.push(`actions=${JSON.stringify(ctx.cacheHit.actions).slice(0, 300)}`)
+  if (hasCache) {
+    lines.push(`[Semantic Cache hit] actions=${JSON.stringify(ctx.cacheHit!.actions).slice(0, 300)}`)
   }
 
-  lines.push(``)
-  lines.push(`위 단서를 종합해서 최종 필터를 결정하세요.`)
   return lines.join("\n")
 }
 
