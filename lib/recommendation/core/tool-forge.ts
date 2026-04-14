@@ -290,11 +290,15 @@ function buildForgePrompt(userMessage: string, schema: DbSchema, existingFilters
   const filterList = existingFilters.length > 0
     ? existingFilters.map(f => `  ${f.field} ${f.op} ${f.value}`).join("\n")
     : "  (none)"
+  const toolTypeFilter = existingFilters.find(f => f.field === "toolType")
+  const categoryHint = toolTypeFilter ? toolTypeFilter.value : null
+  const domainConstraint = categoryHint
+    ? `The user is in a "${categoryHint}" recommendation session. Your query MUST include a WHERE clause filtering edp_root_category to match this domain. NEVER return products from other tool families (e.g. if the session is Milling, do NOT return Tap/Drill/Threading products).`
+    : "(no domain constraint)"
 
+  // Static schema + rules first (prefix-cacheable). User-specific question +
+  // applied filters + session domain constraint after ===DYNAMIC=== marker.
   return `You are a SQL expert for the YG-1 cutting tool catalog. Generate a SAFE parameterized SELECT query that answers the user's question.
-
-## User question (verbatim — your SQL MUST address this literal intent, do not substitute your own topic)
-"${userMessage}"
 
 ## Main table: catalog_app.product_recommendation_mv
 ${colList}
@@ -317,21 +321,8 @@ ${auxSnippet || "(none)"}
 ### Free-text features (진동/저감/고속/내마모/내열 등)
 - The user is talking about a series characteristic. These live in series_description / series_feature columns of product_recommendation_mv. Use ILIKE '%키워드%' on those columns. Do NOT pivot to coating/material/subtype filters that the user didn't mention.
 
-## Currently applied filters
-${filterList}
-
-## Session domain constraint
-${(() => {
-    const toolTypeFilter = existingFilters.find(f => f.field === "toolType")
-    const categoryHint = toolTypeFilter ? toolTypeFilter.value : null
-    if (categoryHint) {
-      return `The user is in a "${categoryHint}" recommendation session. Your query MUST include a WHERE clause filtering edp_root_category to match this domain. NEVER return products from other tool families (e.g. if the session is Milling, do NOT return Tap/Drill/Threading products).`
-    }
-    return "(no domain constraint)"
-  })()}
-
 ## Hard rules
-- The query MUST literally serve the user question above. If the user asked about "vibration reduction series" your WHERE clause MUST mention vibration/저감 in series_feature/series_description, NOT some other random property.
+- The query MUST literally serve the user question below. If the user asked about "vibration reduction series" your WHERE clause MUST mention vibration/저감 in series_feature/series_description, NOT some other random property.
 - SELECT only. NEVER write INSERT/UPDATE/DELETE/DROP/ALTER/CREATE/TRUNCATE.
 - Use \$1, \$2, ... for every literal value (parameterized query). Never inline strings/numbers.
 - Only reference tables in schemas: catalog_app, raw_catalog.
@@ -351,7 +342,17 @@ ${(() => {
   "params": [...],
   "description": "한국어로 사용자 의도를 그대로 옮긴 1문장",
   "triggerPatterns": ["사용자", "메시지의", "핵심", "단어들"]
-}`
+}
+
+===DYNAMIC===
+## User question (verbatim — your SQL MUST address this literal intent, do not substitute your own topic)
+"${userMessage}"
+
+## Currently applied filters
+${filterList}
+
+## Session domain constraint
+${domainConstraint}`
 }
 
 function buildRetryPrompt(userMessage: string, schema: DbSchema, existingFilters: AppliedFilter[], lastError: string): string {

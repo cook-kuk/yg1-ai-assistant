@@ -26,9 +26,6 @@ function buildPlannerPrompt(currentConstraints: QueryConstraint[]): string {
 ## Available Fields
 ${manifest}
 
-## Current Constraints
-${currentList}
-
 ## Output Format
 Respond ONLY with a JSON object:
 {
@@ -74,7 +71,11 @@ WRONG examples (NEVER do these):
 - "Square 아닌거로" → {op:"eq",value:"Square"}  ❌ (아닌 means neq, not eq)
 - "10mm 이상" → {op:"eq",value:10}  ❌ (drops the 이상)
 
-- JSON only, no explanation outside the object`
+- JSON only, no explanation outside the object
+
+===DYNAMIC===
+## Current Constraints
+${currentList}`
 }
 
 // ── Core ────────────────────────────────────────────────────
