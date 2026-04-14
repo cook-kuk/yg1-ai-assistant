@@ -78,4 +78,34 @@ describe("checkSessionConsistency", () => {
     })
     expect(r.blocked).toBe(false)
   })
+
+  test("clarify_cutting_condition_ambiguous: 수치 없는 절삭조건 필터 의도", () => {
+    const r = checkSessionConsistency({
+      message: "절삭조건으로 필터 더 걸고 싶어요",
+      appliedFilterCount: 4,
+      displayedProductsCount: 4,
+    })
+    expect(r.blocked).toBe(true)
+    expect(r.type).toBe("clarify_cutting_condition_ambiguous")
+    expect(r.reply).toMatch(/Vc/)
+    expect(r.reply).toMatch(/fz/)
+  })
+
+  test("clarify_cutting_condition_ambiguous: 구체 수치 있으면 통과", () => {
+    const r = checkSessionConsistency({
+      message: "절삭조건 Vc 150m/min으로 필터",
+      appliedFilterCount: 2,
+      displayedProductsCount: 4,
+    })
+    expect(r.blocked).toBe(false)
+  })
+
+  test("clarify_cutting_condition_ambiguous: 절삭조건만 묻는 질문은 통과(필터 의도 없음)", () => {
+    const r = checkSessionConsistency({
+      message: "이 제품 절삭조건 알려주세요",
+      appliedFilterCount: 0,
+      displayedProductsCount: 1,
+    })
+    expect(r.blocked).toBe(false)
+  })
 })
