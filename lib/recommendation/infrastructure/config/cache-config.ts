@@ -34,7 +34,7 @@ export const KG_CACHE = {
 
 // ── Semantic Query Cache (jaccard nearest-neighbor on tokens) ─
 export const SEMANTIC_CACHE = {
-  ttlMs:   envNum("CACHE_SEMANTIC_TTL_MS", 30 * 60 * 1000), // 30 min
+  ttlMs:   envNum("CACHE_SEMANTIC_TTL_MS", 2 * 60 * 60 * 1000), // 2 hours
   maxSize: envNum("CACHE_SEMANTIC_MAX_SIZE", 500),
 } as const
 

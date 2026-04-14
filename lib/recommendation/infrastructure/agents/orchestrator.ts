@@ -688,6 +688,7 @@ function buildToolUseSystemPrompt(ctx: TurnContext): string {
   const dynamicSessionState = `═══ 현재 세션 상태 ═══
 - 적용된 필터: [${filterDesc}]
 - 후보 수: ${state?.candidateCount ?? "?"}개
+- 현재 표시 중인 후보: ${state?.candidateCount ?? 0}개
 - 상태: ${state?.resolutionStatus ?? "초기"}
 - 턴 수: ${state?.turnCount ?? 0}
 - 마지막 질문 필드: ${state?.lastAskedField ?? "없음"}
