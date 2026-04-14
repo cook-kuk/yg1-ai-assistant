@@ -50,6 +50,23 @@ describe("assessComplexity", () => {
     expect(decision.generateCoT).toBe(true)
     expect(decision.uiThinkingMode).toBe("full")
   })
+
+  test("routes low-info uncertainty messages to deep with CoT", () => {
+    const decision = assessComplexity("나는 아무것도 몰라요")
+
+    expect(decision.level).toBe("deep")
+    expect(decision.reason).toBe("low_info_clarification")
+    expect(decision.generateCoT).toBe(true)
+    expect(decision.uiThinkingMode).toBe("full")
+  })
+
+  test("routes domain-only messages (industry keyword w/o specifics) to deep", () => {
+    const decision = assessComplexity("에어로스페이스에서 씁니다")
+
+    expect(decision.level).toBe("deep")
+    expect(decision.reason).toBe("domain_only")
+    expect(decision.generateCoT).toBe(true)
+  })
 })
 
 describe("canUseResolverStage", () => {

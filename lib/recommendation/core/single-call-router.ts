@@ -18,6 +18,7 @@ import {
   shouldDeferHardcodedSemanticExecution,
 } from "@/lib/recommendation/core/semantic-execution-policy"
 import { needsRepair } from "@/lib/recommendation/core/turn-repair"
+import { PHANTOM_GUARDED_FIELDS, isGroundedCategoricalValue } from "@/lib/recommendation/core/deterministic-scr"
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -770,10 +771,27 @@ export async function routeSingleCall(
       }
     }
 
-    console.log(`[single-call-router] ${canonicalizedActions.length} actions: ${canonicalizedActions.map(a => `${a.type}(${a.field ?? ""}=${a.value ?? a.to ?? ""})`).join(", ")}`)
+    // Phantom guard: drop apply/replace actions on proper-noun fields whose
+    // canonical value isn't grounded in the user message. Mirrors the guard in
+    // deterministic-scr / semantic-turn-extractor so the LLM can't inject
+    // category values it inferred from world knowledge (e.g. aerospace → Titanium).
+    const guardedActions = canonicalizedActions.filter(a => {
+      const field = a.field
+      if (!field || !PHANTOM_GUARDED_FIELDS.has(field)) return true
+      if (a.type !== "apply_filter" && a.type !== "replace_filter") return true
+      const checked = a.type === "replace_filter"
+        ? String(a.to ?? "")
+        : String(a.value ?? "")
+      if (!checked) return true
+      if (isGroundedCategoricalValue(field, checked, userMessage)) return true
+      console.warn(`[SCR] phantom ${field} filter dropped: "${checked}" not grounded in "${userMessage.slice(0, 80)}"`)
+      return false
+    })
+
+    console.log(`[single-call-router] ${guardedActions.length} actions: ${guardedActions.map(a => `${a.type}(${a.field ?? ""}=${a.value ?? a.to ?? ""})`).join(", ")}`)
 
     // Fallback: if actions empty but reasoning contains field=value patterns, re-extract
-    if (canonicalizedActions.length === 0 && result.reasoning) {
+    if (guardedActions.length === 0 && result.reasoning) {
       const rescued = rescueActionsFromReasoning(result.reasoning)
       if (rescued.length > 0) {
         console.log(`[SCR] Rescued ${rescued.length} actions from reasoning: ${rescued.map(a => `${a.type}(${a.field}=${a.value})`).join(", ")}`)
@@ -781,7 +799,7 @@ export async function routeSingleCall(
       }
     }
 
-    return { actions: canonicalizedActions, answer: result.answer, reasoning: result.reasoning }
+    return { actions: guardedActions, answer: result.answer, reasoning: result.reasoning }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
     console.error(`[SCR] ERROR: ${errMsg}`)

@@ -9,6 +9,7 @@ import {
 } from "@/lib/recommendation/shared/filter-field-registry"
 import { getDbSchemaSync } from "@/lib/recommendation/core/sql-agent-schema-cache"
 import { DB_COL_TO_FILTER_FIELD } from "@/lib/recommendation/core/sql-agent"
+import { PHANTOM_GUARDED_FIELDS, isGroundedCategoricalValue } from "@/lib/recommendation/core/deterministic-scr"
 
 const SEMANTIC_TURN_MODEL = resolveModel("sonnet", "semantic-turn-extractor")
 const MIN_CONFIDENCE = 0.55
@@ -728,39 +729,21 @@ function validateSemanticTurnResult(
   }
 }
 
-// Hard guard against LLM hallucinating categorical values (brand/country).
-// These are proper nouns that MUST literally appear in the user's message.
-// If the LLM invented one (e.g. picked "ONLY ONE" from the DB catalog when the
-// user said "너 이름은?"), drop it. Other filter fields (소재/형상 etc.) tolerate
-// Korean transliteration so we don't apply substring guard to them.
-const PHANTOM_GUARDED_FIELDS = new Set(["brand", "country", "seriesName"])
+// Hard guard against LLM hallucinating categorical values (brand/country/series
+// /workPieceName/material). Proper-noun fields require a literal bounded mention.
+// Material/workPieceName tolerate Korean/English transliteration through the
+// shared alias registry (WORKPIECE_PATTERNS / MATERIAL_ALIAS_MAP) — so "티타늄"
+// still grounds "Titanium" — but industry words like "에어로스페이스" do NOT.
 
 function normalizeForMatch(s: string): string {
   return s.toLowerCase().replace(/[\s\-_]+/g, "")
-}
-
-// Word-boundary aware match: value must appear in message such that neither side
-// is glued to another alphanumeric (Latin/CJK) — i.e. it's a real mention, not
-// a prefix of a longer token. Examples:
-//   "GMG" in "GMG55100"  → false (prefix of product code)
-//   "GMG" in "GMG 보여줘" → true
-//   "ONLY ONE" in "onlyone" → true (whitespace is optional between value words)
-function hasBoundedMatch(value: string, message: string): boolean {
-  const v = String(value).toLowerCase().trim()
-  const m = String(message).toLowerCase()
-  if (!v || !m) return false
-  const parts = v.split(/[\s\-_]+/).filter(Boolean)
-  if (parts.length === 0) return false
-  const escaped = parts.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[\\s\\-_]*")
-  const re = new RegExp(`(^|[^a-z0-9가-힣])${escaped}(?![a-z0-9가-힣])`, "i")
-  return re.test(m)
 }
 
 function isPhantomFilter(field: string, value: unknown, _normalizedMessage: string, rawMessage: string): boolean {
   if (!PHANTOM_GUARDED_FIELDS.has(field)) return false
   const valueStr = Array.isArray(value) ? value.join(" ") : String(value ?? "")
   if (!valueStr) return false
-  return !hasBoundedMatch(valueStr, rawMessage)
+  return !isGroundedCategoricalValue(field, valueStr, rawMessage)
 }
 
 function stripPhantomCategoricalFilters(

@@ -40,6 +40,11 @@ const DEEP_TROUBLE_RE = /(?:이유|원인|떨림|진동|채터|깨짐|수명|문
 const DEEP_COMPETITOR_RE = /(?:sandvik|kennametal|mitsubishi|osg|walter|iscar|seco)/iu
 const DEEP_SPEC_RE = /(?:pvd|cvd|iso\s*\d|규격)/iu
 const DEEP_ALIAS_RE = /(?:[가-힣]{3,}\s*브랜드|[가-힣]{5,}(?:으로만|로만|만)\s*(?:보여줘|추천))/u
+// Uncertainty / low-info messages — user admits they don't know key conditions
+// and/or describes only a domain (aerospace/automotive/mold). These need CoT
+// to drive a clarification dialog back rather than a phantom-filtered guess.
+const DEEP_UNCERTAINTY_RE = /(몰라|모르|잘\s*몰|아무\s*것도|don'?t\s*know|no\s*idea|not\s*sure|처음|초보)/iu
+const DEEP_DOMAIN_RE = /(에어로스페이스|항공우주|aerospace|automotive|자동차\s*산업|die\s*mold|금형\s*산업|medical\s*device|의료기기)/iu
 
 function buildDecision(
   level: ComplexityLevel,
@@ -117,6 +122,8 @@ function isDeepNaturalLanguage(message: string): boolean {
   if (DEEP_COMPETITOR_RE.test(text)) return true
   if (DEEP_SPEC_RE.test(text)) return true
   if (DEEP_ALIAS_RE.test(text)) return true
+  if (DEEP_UNCERTAINTY_RE.test(text)) return true
+  if (DEEP_DOMAIN_RE.test(text)) return true
   if (text.length >= 30) return true
   return false
 }
@@ -140,6 +147,8 @@ export function assessComplexity(
     if (DEEP_CONTEXT_RE.test(text)) return buildDecision("deep", "context_dependent")
     if (DEEP_GENERIC_RE.test(text)) return buildDecision("deep", "generic_concept")
     if (DEEP_TROUBLE_RE.test(text)) return buildDecision("deep", "troubleshooting")
+    if (DEEP_UNCERTAINTY_RE.test(text)) return buildDecision("deep", "low_info_clarification")
+    if (DEEP_DOMAIN_RE.test(text)) return buildDecision("deep", "domain_only")
     if (DEEP_ALIAS_RE.test(text)) return buildDecision("deep", "alias_ambiguity")
     return buildDecision("deep", "complex_natural_language")
   }

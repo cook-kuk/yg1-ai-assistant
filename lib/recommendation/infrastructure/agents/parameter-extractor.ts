@@ -19,6 +19,7 @@ import {
   canonicalizeKnownEntityValue,
   findKnownEntityMentions,
 } from "@/lib/recommendation/shared/entity-registry"
+import { isGroundedCategoricalValue } from "@/lib/recommendation/core/deterministic-scr"
 
 const PARAMETER_EXTRACTOR_MODEL = resolveModel("haiku", "parameter-extractor")
 
@@ -38,7 +39,7 @@ export async function extractParameters(
   if (provider.available() && clean.length > 2) {
     try {
       const haikuResult = await extractWithHaiku(message, sessionState, provider)
-      llmValidated = validateExtractedParameters(haikuResult)
+      llmValidated = validateExtractedParameters(haikuResult, message)
     } catch (e) {
       console.warn("[param-extractor] Haiku extraction failed:", e)
     }
@@ -175,7 +176,10 @@ function extractDeterministicParameters(clean: string): Partial<ExtractedParamet
   return params
 }
 
-function validateExtractedParameters(params: Partial<ExtractedParameters>): Partial<ExtractedParameters> {
+function validateExtractedParameters(
+  params: Partial<ExtractedParameters>,
+  userMessage: string = "",
+): Partial<ExtractedParameters> {
   const result: Partial<ExtractedParameters> = {}
 
   if (params.fluteCount != null) {
@@ -214,6 +218,12 @@ function validateExtractedParameters(params: Partial<ExtractedParameters>): Part
   }
 
   if (params.material) {
+    // Phantom guard: LLM output must be grounded in the user message (bounded
+    // mention OR known alias). Prevents industry-to-material hallucination —
+    // e.g. "aerospace" / "에어로스페이스" must NOT silently become "Titanium".
+    const isGrounded = (canonical: string) =>
+      !userMessage || isGroundedCategoricalValue("material", canonical, userMessage)
+
     if (Array.isArray(params.material)) {
       const materials = params.material
         .map(value => {
@@ -226,7 +236,7 @@ function validateExtractedParameters(params: Partial<ExtractedParameters>): Part
           }
           return trimmed
         })
-        .filter((value): value is string => Boolean(value))
+        .filter((value): value is string => Boolean(value) && isGrounded(value as string))
       if (materials.length > 0) result.material = materials
     } else if (params.material.trim()) {
       const trimmed = params.material.trim()
@@ -237,7 +247,8 @@ function validateExtractedParameters(params: Partial<ExtractedParameters>): Part
           break
         }
       }
-      result.material = canonicalMaterial
+      if (isGrounded(canonicalMaterial)) result.material = canonicalMaterial
+      else console.warn(`[param-extractor] phantom material dropped: "${canonicalMaterial}" not grounded in "${userMessage.slice(0, 80)}"`)
     }
   }
 

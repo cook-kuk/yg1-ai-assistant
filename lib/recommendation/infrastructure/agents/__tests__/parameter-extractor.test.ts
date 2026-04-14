@@ -72,4 +72,28 @@ describe("parameter-extractor", () => {
 
     expect(result.coating).toBe("AlTiN")
   })
+
+  it("drops phantom material when LLM infers it from an industry word (aerospace → Titanium)", async () => {
+    // LLM hallucinates Titanium from "aerospace" context. The phantom guard must
+    // drop it because neither "titanium"/"티타늄" nor any alias appears in text.
+    const provider = createMockProvider(`{
+      "material": "Titanium",
+      "rawValue": ""
+    }`)
+
+    const result = await extractParameters("나는 아무것도 몰라요 그냥 에어로스페이스에서 일해요", null, provider)
+
+    expect(result.material).toBeUndefined()
+  })
+
+  it("keeps material when a known alias is grounded in the message (티타늄 → Titanium)", async () => {
+    const provider = createMockProvider(`{
+      "material": "Titanium",
+      "rawValue": ""
+    }`)
+
+    const result = await extractParameters("티타늄 가공용 추천", null, provider)
+
+    expect(result.material).toBe("Titanium")
+  })
 })

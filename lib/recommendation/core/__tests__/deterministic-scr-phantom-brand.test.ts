@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parseDeterministic } from "../deterministic-scr"
+import { parseDeterministic, isGroundedCategoricalValue } from "../deterministic-scr"
 
 /**
  * Regression: first-turn intake with no brand mention was auto-applying
@@ -69,5 +69,28 @@ describe("deterministic-scr phantom categorical guard", () => {
     const actions = parseDeterministic("GMG55100 이랑 GMG40100의 차이가 뭐야?")
     const brand = actions.find(a => a.field === "brand" && String(a.value).toUpperCase() === "GMG")
     expect(brand).toBeUndefined()
+  })
+})
+
+describe("isGroundedCategoricalValue — material / workPieceName", () => {
+  it("rejects industry-only inference: aerospace → Titanium is phantom", () => {
+    expect(isGroundedCategoricalValue("workPieceName", "Titanium", "나는 아무것도 몰라요 그냥 에어로스페이스에서 일해요")).toBe(false)
+    expect(isGroundedCategoricalValue("material", "Titanium", "aerospace industry")).toBe(false)
+  })
+
+  it("accepts Korean alias of workpiece (티타늄 → Titanium)", () => {
+    expect(isGroundedCategoricalValue("workPieceName", "Titanium", "티타늄 가공")).toBe(true)
+  })
+
+  it("accepts English alias of material (titanium → Titanium)", () => {
+    expect(isGroundedCategoricalValue("material", "Titanium", "titanium part")).toBe(true)
+  })
+
+  it("accepts material via dense alias (스테인리스 → Stainless Steel)", () => {
+    expect(isGroundedCategoricalValue("material", "Stainless Steel", "스테인리스 추천")).toBe(true)
+  })
+
+  it("rejects unrelated carbon-steel text for Stainless Steel", () => {
+    expect(isGroundedCategoricalValue("material", "Stainless Steel", "탄소강 가공")).toBe(false)
   })
 })
