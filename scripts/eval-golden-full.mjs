@@ -41,6 +41,8 @@ const LIMIT = args.limit ? parseInt(args.limit, 10) : Infinity
 const CATS = args.cat ? String(args.cat).toUpperCase().split(",") : null
 const PARALLEL = args.parallel ? parseInt(args.parallel, 10) : 4
 const INCLUDE_PRESTATE = Boolean(args["include-prestate"])
+const MAX_TURNS = args.turns ? parseInt(args.turns, 10) : 3  // 멀티턴 자동 채점 최대 턴
+const OPENAI_KEY = process.env.OPENAI_API_KEY ?? ""
 
 // ═══ 골든셋 로드 ═══
 const golden = JSON.parse(readFileSync("testset/golden-set-v1.json", "utf8"))
@@ -66,6 +68,16 @@ const FIELD_ALIAS = {
   ShankDia: "shankDiameterMm",
   PointAngle: "pointAngleDeg",
   CoolantHole: "coolantHole",
+  // ── Round 2 확대 ──
+  NumberofFlute: "fluteCount",
+  Coating: "coating",
+  Cutter_Diameter: "diameterMm",
+  ToolMaterial: "toolMaterial",
+  RadiusAll: "ballRadiusMm",
+  NeckDiameter: "neckDiameter",
+  ShankType: "shankType",
+  NeckLength: "neckLength",
+  ThreadPitch: "threadPitch",
 }
 function canonField(f) {
   const s = String(f ?? "").trim()
@@ -201,20 +213,97 @@ function grade(expFiltersRaw, actFiltersRaw) {
   return { kind: "miss", matched: softHits, missing, extra, notes: [missReason] }
 }
 
-// ═══ 한 케이스 실행 ═══
+// ═══ LLM chip 선택기 (멀티턴용) ═══
+// 기대 필터와 chip 목록을 보여주고 가장 근접한 chip 하나를 고르게 함.
+// 전용 cue 사전 없이 LLM이 컨텍스트로 판단.
+async function pickChipWithLLM(question, expected, chips, aiQuestion) {
+  if (!OPENAI_KEY || !Array.isArray(chips) || chips.length === 0) return null
+  const expStr = expected.map(fmtFilter).join(", ")
+  const sys = `당신은 자동 평가 에이전트입니다. 사용자의 원본 질문과 기대 필터를 보고, AI가 제시한 chip 중 정답에 가장 가까운 하나를 골라 반환하세요.
+규칙:
+- 기대 필터의 field/op/value를 가장 잘 충족시키는 chip 선택.
+- chip 레이블을 그대로(verbatim) 반환. 다른 텍스트 금지.
+- 없으면 "직접 입력".`
+  const usr = `원본 질문: "${question}"
+기대 필터: ${expStr || "(없음)"}
+AI 질문: "${aiQuestion ?? ""}"
+chip 후보:
+${chips.map((c, i) => `${i + 1}. ${c}`).join("\n")}
+
+정답 chip 레이블 한 줄만:`
+  try {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${OPENAI_KEY}` },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [{ role: "system", content: sys }, { role: "user", content: usr }],
+        max_tokens: 60,
+        temperature: 0,
+      }),
+      signal: AbortSignal.timeout(15000),
+    })
+    const data = await res.json()
+    const raw = (data.choices?.[0]?.message?.content ?? "").trim().replace(/^["']|["']$/g, "")
+    // chip 목록에서 정확/부분 매칭
+    const exact = chips.find(c => c === raw)
+    if (exact) return exact
+    const partial = chips.find(c => raw.includes(c) || c.includes(raw))
+    return partial ?? chips[0]
+  } catch {
+    return chips[0]
+  }
+}
+
+// ═══ 한 케이스 실행 (최대 MAX_TURNS 턴) ═══
 async function runOne(c) {
   const t0 = Date.now()
+  const turnLog = []  // [{turn, input, filters, chips, ms}]
   try {
     const messages = [{ role: "user", text: c.input }]
-    const res = await callARIA(messages, { session: null, candidates: null })
+    let prior = { session: null, candidates: null }
+    let res = null
+    let actualFilters = []
+    let ps = {}
+    let responseText = ""
+    let chips = []
+    let turnCount = 0
+
+    for (let t = 1; t <= MAX_TURNS; t++) {
+      turnCount = t
+      const tTurn = Date.now()
+      res = await callARIA(messages, prior)
+      const turnMs = Date.now() - tTurn
+      ps = res.session?.publicState ?? {}
+      actualFilters = ps.appliedFilters ?? res.data?.appliedFilters ?? []
+      responseText = res.text ?? res.data?.message?.text ?? res.message ?? ""
+      chips = ps.displayedChips ?? res.chips ?? []
+      turnLog.push({
+        turn: t,
+        input: messages[messages.length - 1]?.text ?? "",
+        filters: actualFilters,
+        chips,
+        responseText,
+        ms: turnMs,
+      })
+      // 필터 1개 이상 추출되면 종료
+      if (actualFilters.length > 0) break
+      // 마지막 턴이거나 chip 없으면 종료
+      if (t === MAX_TURNS) break
+      if (!chips || chips.length === 0) break
+      // LLM이 chip 선택
+      const pick = await pickChipWithLLM(c.input, c.expected.filtersAdded ?? [], chips, responseText)
+      if (!pick) break
+      messages.push({ role: "ai", text: responseText })
+      messages.push({ role: "user", text: pick })
+      prior = { session: res.session ?? null, candidates: res.candidates ?? null }
+    }
+
     const ms = Date.now() - t0
-    const ps = res.session?.publicState ?? {}
-    const actualFilters = ps.appliedFilters ?? res.data?.appliedFilters ?? []
-    const actualRouter = ps.lastRouter ?? ps.router ?? res.router ?? null
-    const candidateCount = ps.candidateCount ?? (Array.isArray(res.candidates) ? res.candidates.length : 0)
-    const responseText = res.text ?? res.data?.message?.text ?? res.message ?? ""
-    const thinkingProcess = ps.thinkingProcess ?? res.thinkingProcess ?? null
-    const thinkingDeep = ps.thinkingDeep ?? res.thinkingDeep ?? null
+    const actualRouter = ps.lastRouter ?? ps.router ?? res?.router ?? null
+    const candidateCount = ps.candidateCount ?? (Array.isArray(res?.candidates) ? res.candidates.length : 0)
+    const thinkingProcess = ps.thinkingProcess ?? res?.thinkingProcess ?? null
+    const thinkingDeep = ps.thinkingDeep ?? res?.thinkingDeep ?? null
 
     const g = grade(c.expected.filtersAdded, actualFilters)
     const routerExpected = c.expected.router ?? null
@@ -225,6 +314,8 @@ async function runOne(c) {
       category: c.category,
       input: c.input,
       ms,
+      turns: turnCount,
+      turnLog,
       expected: c.expected.filtersAdded,
       actual: actualFilters,
       expectedRouter: routerExpected,
@@ -247,6 +338,8 @@ async function runOne(c) {
       category: c.category,
       input: c.input,
       ms: Date.now() - t0,
+      turns: turnLog.length,
+      turnLog,
       kind: "miss",
       error: (e?.message ?? "unknown").slice(0, 200),
       expected: c.expected.filtersAdded,
@@ -280,7 +373,8 @@ async function runAll(items, concurrency) {
       done++
       const icon = r.kind === "exact" ? "✅" : r.kind === "soft" ? "🟢" : r.error ? "💥" : "❌"
       const inputStr = String(r.input ?? c.input ?? "").slice(0, 40)
-      process.stdout.write(`${icon} [${done}/${items.length}] ${r.id} ${(r.ms/1000).toFixed(1)}s ${r.kind}  "${inputStr}"\n`)
+      const turnTag = r.turns && r.turns > 1 ? `·${r.turns}턴` : ""
+      process.stdout.write(`${icon} [${done}/${items.length}] ${r.id} ${(r.ms/1000).toFixed(1)}s ${r.kind}${turnTag}  "${inputStr}"\n`)
     }
   }
   const workers = Array.from({ length: Math.min(concurrency, items.length) }, worker)
@@ -349,6 +443,10 @@ const failures = results.filter(r => r.kind !== "exact").map(r => ({
   actual: r.actual,
   reason: r.notes?.join("; ") || r.error || r.kind,
   timeMs: r.ms,
+  turns: r.turns ?? 1,
+  turnLog: (r.turnLog ?? []).map(t => ({
+    turn: t.turn, input: t.input, filtersCount: (t.filters ?? []).length, chips: t.chips ?? [],
+  })),
 }))
 const jsonOut = {
   timestamp: nowIso,
@@ -371,13 +469,22 @@ for (const r of results) {
   const actStr = (r.actual ?? []).map(f => fmtFilter(f)).join(", ") || "(없음)"
   const kindIcon = r.kind === "exact" ? "✅" : r.kind === "soft" ? "🟢 (alias/op 관대)" : "❌"
   const notesStr = r.notes?.length ? ` [${r.notes.join(", ")}]` : ""
-  qaLines.push(`=== ${r.id} [${secs(r.ms)}] ===`)
+  const turnTag = r.turns && r.turns > 1 ? ` ${r.turns}턴` : ""
+  qaLines.push(`=== ${r.id} [${secs(r.ms)}${turnTag}] ===`)
   qaLines.push(`질문: ${r.input}`)
   qaLines.push(`기대 라우터: ${r.expectedRouter ?? "(미지정)"}`)
   qaLines.push(`실제 라우터: ${r.actualRouter ?? "(unknown)"}${r.routerMatch === false ? " ⚠️" : ""}`)
   qaLines.push(`기대 필터: ${expStr}`)
   qaLines.push(`실제 필터: ${actStr}`)
   qaLines.push(`채점: ${r.kind} ${kindIcon}${notesStr}`)
+  qaLines.push(`턴 수: ${r.turns ?? 1}`)
+  if (Array.isArray(r.turnLog) && r.turnLog.length > 1) {
+    for (const t of r.turnLog) {
+      const tf = (t.filters ?? []).map(fmtFilter).join(", ") || "(빈 배열)"
+      const tc = (t.chips ?? []).length > 0 ? ` chips=[${t.chips.join(" | ")}]` : ""
+      qaLines.push(`  · T${t.turn} [${secs(t.ms)}] "${String(t.input).slice(0, 50)}" → ${tf}${tc}`)
+    }
+  }
   qaLines.push(`후보 수: ${r.candidateCount}개`)
   qaLines.push(`응답 텍스트: ${r.responseText || "(없음)"}`)
   qaLines.push(`사고과정(CoT): ${r.thinkingProcess || "없음"}`)
@@ -402,6 +509,37 @@ sumLines.push(`정확도:`)
 sumLines.push(`  exact: ${exactN}개 (${exactRate}%)`)
 sumLines.push(`  soft:  ${softN}개 (${((softN/totalN)*100).toFixed(1)}%) ← 진짜 실력: ${softRate}%`)
 sumLines.push(`  miss:  ${missN}개 (${((missN/totalN)*100).toFixed(1)}%)`)
+sumLines.push("")
+
+// ═══ 멀티턴 집계 ═══
+// 1턴 softRate = 1턴에 filters 추출 성공한 케이스 / total
+// N턴 softRate = N턴까지 누적 + 최종 soft/exact 비율
+const turnBucket = { 1: 0, 2: 0, 3: 0, "4+": 0 }
+let oneTurnHit = 0, twoTurnHit = 0, threeTurnHit = 0
+for (const r of results) {
+  const t = r.turns ?? 1
+  if (t === 1) turnBucket[1]++
+  else if (t === 2) turnBucket[2]++
+  else if (t === 3) turnBucket[3]++
+  else turnBucket["4+"]++
+  const hit = r.kind === "exact" || r.kind === "soft"
+  if (hit) {
+    if (t === 1) oneTurnHit++
+    if (t <= 2) twoTurnHit++
+    if (t <= 3) threeTurnHit++
+  }
+}
+const pct = n => ((n / totalN) * 100).toFixed(1)
+sumLines.push(`멀티턴 분포:`)
+sumLines.push(`  1턴 해결:  ${turnBucket[1]}개 (${pct(turnBucket[1])}%)`)
+sumLines.push(`  2턴 필요:  ${turnBucket[2]}개 (${pct(turnBucket[2])}%)`)
+sumLines.push(`  3턴 필요:  ${turnBucket[3]}개 (${pct(turnBucket[3])}%)`)
+if (turnBucket["4+"] > 0) sumLines.push(`  4턴 이상:  ${turnBucket["4+"]}개`)
+sumLines.push("")
+sumLines.push(`누적 정답률:`)
+sumLines.push(`  1턴까지:   ${oneTurnHit}/${totalN} (${pct(oneTurnHit)}%)`)
+sumLines.push(`  2턴까지:   ${twoTurnHit}/${totalN} (${pct(twoTurnHit)}%)`)
+sumLines.push(`  3턴까지:   ${threeTurnHit}/${totalN} (${pct(threeTurnHit)}%) ← 멀티턴 softRate`)
 sumLines.push("")
 sumLines.push(`속도 분포:`)
 sumLines.push(`  1초 미만:  ${buckets.under1}개`)
