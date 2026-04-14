@@ -78,6 +78,13 @@ const FIELD_ALIAS = {
   ShankType: "shankType",
   NeckLength: "neckLength",
   ThreadPitch: "threadPitch",
+  // ── Round 3 확대 (필터_필드_불일치 Top 쌍 분석 기반) ──
+  LengthofCut: "lengthOfCutMm",              // 골든셋 lowercase-of variant
+  milling_neck_diameter: "neckDiameter",     // system column → canonical
+  SingleDoubleEnd: "toolSubtype",            // 싱글/더블엔드 → toolSubtype
+  CutterShape: "toolSubtype",                // 커터 형상 → toolSubtype
+  RoughingFinishtype: "machiningCategory",   // 황삭/정삭 → machiningCategory
+  LengthbelowShank: "neckLength",            // 생크 아래 길이 → neck length
 }
 function canonField(f) {
   const s = String(f ?? "").trim()
