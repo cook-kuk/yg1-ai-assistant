@@ -1,4 +1,18 @@
 import { defineConfig, devices } from "@playwright/test"
+import { readFileSync } from "node:fs"
+
+const resolveWebServerCommand = (): string | undefined => {
+  try {
+    const scripts = JSON.parse(readFileSync("package.json", "utf-8")).scripts ?? {}
+    if (scripts.dev) return "npm run dev"
+    if (scripts.start) return "npm run start"
+  } catch {
+    // noop
+  }
+  return undefined
+}
+
+const resolvedWebServerCommand = resolveWebServerCommand()
 
 export default defineConfig({
   testDir: "./e2e",
@@ -18,10 +32,10 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-  webServer: process.env.BASE_URL
+  webServer: process.env.BASE_URL || !resolvedWebServerCommand
     ? undefined
     : {
-        command: "npm run dev",
+        command: resolvedWebServerCommand,
         url: "http://localhost:3000",
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,

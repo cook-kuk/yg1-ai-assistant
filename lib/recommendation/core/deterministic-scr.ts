@@ -14,6 +14,7 @@
 
 import { findColumnsForToken, findValueByPhonetic } from "./sql-agent-schema-cache"
 import { DB_COL_TO_FILTER_FIELD } from "./sql-agent"
+import { MATERIAL_ALIAS_MAP } from "@/lib/recommendation/shared/canonical-values"
 import { stripKoreanParticles } from "@/lib/recommendation/shared/patterns"
 import { detectMeasurementScopeAmbiguity } from "@/lib/recommendation/shared/measurement-scope-ambiguity"
 import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-target-classifier"
@@ -1595,13 +1596,19 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
   return filterPhantomCategoricalActions(actions, text)
 }
 
-const PHANTOM_GUARDED_FIELDS = new Set(["brand", "country", "seriesName"])
+export const PHANTOM_GUARDED_FIELDS = new Set([
+  "brand",
+  "country",
+  "seriesName",
+  "workPieceName",
+  "material",
+])
 
 // Word-boundary aware match: value is a "real" mention only when it isn't glued
 // to other alphanumerics on either side. Drops cases like brand="GMG" being
 // pulled out of product code "GMG55100" (prefix-of-token), while still allowing
 // transliteration with collapsed whitespace ("ONLY ONE" ↔ "onlyone").
-function hasBoundedPhantomMatch(value: string, message: string): boolean {
+export function hasBoundedPhantomMatch(value: string, message: string): boolean {
   const v = String(value).toLowerCase().trim()
   const m = String(message).toLowerCase()
   if (!v || !m) return false
@@ -1610,6 +1617,38 @@ function hasBoundedPhantomMatch(value: string, message: string): boolean {
   const escaped = parts.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[\\s\\-_]*")
   const re = new RegExp(`(^|[^a-z0-9가-힣])${escaped}(?![a-z0-9가-힣])`, "i")
   return re.test(m)
+}
+
+// workPieceName / material canonical values tolerate Korean/English transliteration.
+// A value is grounded when its WORKPIECE_PATTERNS (workpiece) or MATERIAL_ALIAS_MAP
+// (material) alias literally appears in the message. Prevents LLM from inferring
+// "Titanium" out of "aerospace" — the industry word doesn't contain any alias.
+function hasWorkPieceAliasMention(canonical: string, message: string): boolean {
+  for (const { pattern, value } of WORKPIECE_PATTERNS) {
+    if (value === canonical && pattern.test(message)) return true
+  }
+  return false
+}
+
+function hasMaterialAliasMention(canonical: string, message: string): boolean {
+  const msg = message.toLowerCase()
+  for (const [alias, mapped] of Object.entries(MATERIAL_ALIAS_MAP)) {
+    if (mapped === canonical && msg.includes(alias.toLowerCase())) return true
+  }
+  return false
+}
+
+/**
+ * Returns true when the categorical `value` is grounded in `message` — either a
+ * bounded substring mention, or (for workPieceName/material) a known alias. Used
+ * to block LLM phantom filters (e.g. aerospace → Titanium).
+ */
+export function isGroundedCategoricalValue(field: string, value: string, message: string): boolean {
+  if (!value || !message) return false
+  if (hasBoundedPhantomMatch(value, message)) return true
+  if (field === "workPieceName") return hasWorkPieceAliasMention(value, message)
+  if (field === "material") return hasMaterialAliasMention(value, message)
+  return false
 }
 
 function hasStandaloneHangulBrandToken(message: string, brandValue: string): boolean {
@@ -1659,7 +1698,7 @@ function filterPhantomCategoricalActions(
     if (a.viaExplicitCue) return true
     const valueStr = String(a.value ?? "")
     if (!valueStr) return true
-    if (hasBoundedPhantomMatch(valueStr, userMessage)) return true
+    if (isGroundedCategoricalValue(a.field, valueStr, userMessage)) return true
     if (
       a.field === "brand" &&
       /[가-힣]/.test(userMessage) &&
@@ -1667,7 +1706,7 @@ function filterPhantomCategoricalActions(
       a.allowPhoneticFallback
     ) return true
     console.warn(
-      `[deterministic-scr] phantom ${a.field} filter dropped: "${valueStr}" not a bounded mention in "${userMessage.slice(0, 80)}"`,
+      `[deterministic-scr] phantom ${a.field} filter dropped: "${valueStr}" not a grounded mention in "${userMessage.slice(0, 80)}"`,
     )
     return false
   })
