@@ -10,6 +10,7 @@ const schema: DbSchema = {
     { column_name: "search_coating", data_type: "text" },
     { column_name: "total_stock", data_type: "integer" },
   ],
+  columnDescriptions: {},
   sampleValues: {
     search_subtype: ["Square", "Ball", "Radius"],
     tool_subtype: ["Square", "Ball", "Radius"],

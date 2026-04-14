@@ -205,7 +205,12 @@ function buildSqlDomainDictionary(schema: DbSchema): string {
 
 function buildSystemPrompt(schema: DbSchema, existingFilters: AppliedFilter[], userMessage?: string, mode: SqlAgentMode = "fast", kgHint?: string): string {
   const colList = schema.columns
-    .map(c => `  ${c.column_name} (${c.data_type})`)
+    .map(c => {
+      const desc = schema.columnDescriptions?.[c.column_name]
+      return desc
+        ? `  ${c.column_name} (${c.data_type}) — ${desc}`
+        : `  ${c.column_name} (${c.data_type})`
+    })
     .join("\n")
 
   const sampleList = Object.entries(schema.sampleValues)

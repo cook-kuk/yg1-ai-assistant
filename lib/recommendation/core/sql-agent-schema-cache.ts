@@ -13,6 +13,13 @@ import { phoneticKey } from "./phonetic-match"
 
 export interface DbSchema {
   columns: { column_name: string; data_type: string }[]
+  /**
+   * Korean one-line description per column — physical meaning for LLM self-mapping.
+   * Fallback map used when DB COMMENT is missing. Keys are DB column names
+   * (or their MV equivalents). No hardcoded Korean→field dictionaries; this is
+   * pure column semantics for the LLM to reason over.
+   */
+  columnDescriptions: Record<string, string>
   sampleValues: Record<string, string[]>
   /** Numeric column stats (min/max/distinct samples) — drives range matching without hardcoded labels */
   numericStats: Record<string, { min: number; max: number; samples: number[] }>
@@ -50,6 +57,71 @@ export interface PhoneticEntry {
   original: string
   /** MV column name (or synthetic _workPieceName / country_codes) */
   column: string
+}
+
+// ── Column Korean descriptions (fallback when DB COMMENT is missing) ─────────
+// 물리적 의미 한 줄 요약 — LLM이 사용자 표현("직경/전장/절삭장/넥/코너R" 등)을
+// 컬럼에 정확히 self-map 하도록 돕는다. 하드코딩 Korean→field dictionary가
+// 아니라 컬럼 semantic metadata. 새 컬럼은 가능하면 DB COMMENT로 관리.
+const COLUMN_KO_DESCRIPTIONS: Record<string, string> = {
+  // Diameter family
+  search_diameter_mm: "공구 외경(직경/지름/파이/ø) — mm",
+  milling_outside_dia: "밀링 공구 외경 — mm",
+  holemaking_outside_dia: "드릴/리머 외경 — mm",
+  threading_outside_dia: "탭/나사 외경 — mm",
+  option_dc: "외경(절삭부 직경) — mm",
+  option_dcon: "샹크 직경(자루경) — mm",
+  milling_shank_dia: "밀링 공구 자루경(샹크 직경) — mm",
+  holemaking_shank_dia: "드릴 자루경(샹크 직경) — mm",
+  threading_shank_dia: "탭 자루경(샹크 직경) — mm",
+  option_shank_diameter: "자루경(샹크 직경) — mm",
+  // Length family
+  milling_overall_length: "전장(공구 전체 길이, OAL) — mm",
+  holemaking_overall_length: "드릴 전장(OAL) — mm",
+  threading_overall_length: "탭 전장(OAL) — mm",
+  option_overall_length: "전장(공구 전체 길이, OAL) — mm",
+  option_oal: "전장(OAL) — mm",
+  milling_length_of_cut: "절삭장(날 길이, LOC) — mm",
+  holemaking_flute_length: "드릴 날 길이 — mm",
+  threading_thread_length: "나사 가공 길이 — mm",
+  option_flute_length: "날 길이(LOC) — mm",
+  option_loc: "절삭장(LOC) — mm",
+  // Neck
+  option_neck_diameter: "넥 직경 — mm",
+  option_neck_length: "넥 길이(유효장 확보용) — mm",
+  milling_neck_diameter: "밀링 넥 직경 — mm",
+  milling_neck_length: "밀링 넥 길이 — mm",
+  // Radii / angles
+  milling_ball_radius: "볼 노즈 반경 — mm",
+  option_r: "코너R(corner radius) — mm",
+  option_re: "인선 반경/코너R — mm",
+  milling_taper_angle: "테이퍼 각도 — °",
+  option_taperangle: "테이퍼 각도 — °",
+  milling_helix_angle: "헬릭스(나선) 각도 — °",
+  holemaking_helix_angle: "드릴 헬릭스 각도 — °",
+  holemaking_point_angle: "드릴 포인트 각도 — °",
+  option_pointangle: "포인트 각도 — °",
+  // Thread
+  threading_pitch: "나사 피치 — mm",
+  option_pitch: "나사 피치 — mm",
+  threading_tpi: "인치당 나사산 수(TPI)",
+  option_tpi: "인치당 나사산 수(TPI)",
+  // Flute / coolant
+  milling_flutes: "밀링 날 수",
+  holemaking_flutes: "드릴 날 수",
+  option_flutecount: "날 수",
+  milling_coolant_hole: "쿨런트 홀(내부 냉각 구멍) 유무",
+  holemaking_coolant_hole: "쿨런트 홀 유무",
+  threading_coolant_hole: "쿨런트 홀 유무",
+  option_coolanthole: "쿨런트 홀 유무",
+  // Attributes
+  coating: "표면 코팅 (TiAlN/AlCrN/DLC/Y-Coating 등)",
+  search_coating: "코팅 (검색용 정규화)",
+  tool_material: "공구 모재 (Carbide/HSS/PCD/Diamond 등)",
+  edp_brand_name: "브랜드명",
+  series_name: "시리즈명",
+  tool_subtype: "공구 세부 형상 (Ball/Square/Radius/Taper/Chamfer/Roughing/High-Feed)",
+  machining_category: "가공 카테고리 (Milling/Holemaking/Threading)",
 }
 
 // ── Cache ────────────────────────────────────────────────────
@@ -262,7 +334,14 @@ export async function getDbSchema(): Promise<DbSchema> {
   // alias maps.
   const phoneticIndex = buildPhoneticIndex({ sampleValues, brands, countries, workpieces })
 
-  cached = { columns, sampleValues, numericStats, auxTables, auxSampleValues, auxNumericStats, workpieces, brands, countries, valueIndex, phoneticIndex, loadedAt: Date.now() }
+  // Column Korean descriptions — fallback map (no DB COMMENT read yet).
+  const columnDescriptions: Record<string, string> = {}
+  for (const c of columns) {
+    const desc = COLUMN_KO_DESCRIPTIONS[c.column_name]
+    if (desc) columnDescriptions[c.column_name] = desc
+  }
+
+  cached = { columns, columnDescriptions, sampleValues, numericStats, auxTables, auxSampleValues, auxNumericStats, workpieces, brands, countries, valueIndex, phoneticIndex, loadedAt: Date.now() }
   const auxSampleCount = Object.values(auxSampleValues).reduce((n, m) => n + Object.keys(m).length, 0)
   const auxNumCount = Object.values(auxNumericStats).reduce((n, m) => n + Object.keys(m).length, 0)
   console.log(`[sql-agent-schema] loaded: ${columns.length} cols, ${Object.keys(sampleValues).length} text-sampled, ${Object.keys(numericStats).length} numeric-sampled, ${Object.keys(auxTables).length} aux tables (${auxSampleCount} aux text-sampled, ${auxNumCount} aux numeric-sampled), ${workpieces.length} wp, ${brands.length} brands, ${countries.length} countries, ${Object.keys(valueIndex).length} indexed, ${phoneticIndex.length} phonetic`)
