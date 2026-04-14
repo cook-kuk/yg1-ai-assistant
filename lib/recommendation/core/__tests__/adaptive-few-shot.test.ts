@@ -1,31 +1,47 @@
-import { describe, test, expect, beforeAll } from "vitest"
-import { selectFewShots, loadFewShotPool, buildFewShotText, _resetFewShotPoolForTest } from "../adaptive-few-shot"
+import { beforeEach, describe, expect, test } from "vitest"
 
-beforeAll(() => {
+import {
+  _resetFewShotPoolForTest,
+  buildFewShotText,
+  loadFewShotPool,
+  selectFewShots,
+} from "../adaptive-few-shot"
+
+beforeEach(() => {
   _resetFewShotPoolForTest()
   loadFewShotPool()
 })
 
-describe("selectFewShots", () => {
-  test("스테인리스 → 관련 예시 1개 이상", () => {
-    const ex = selectFewShots("스테인리스 4날 10mm")
-    expect(ex.length).toBeGreaterThan(0)
-    expect(ex.length).toBeLessThanOrEqual(4)
+describe("adaptive few-shot", () => {
+  test("loads examples for a stainless query", () => {
+    const examples = selectFewShots("스테인리스 4날 10mm")
+
+    expect(examples.length).toBeGreaterThan(0)
+    expect(examples.length).toBeLessThanOrEqual(4)
   })
-  test("최대 4개", () => {
-    const ex = selectFewShots("구리 스퀘어 2날 10mm DLC")
-    expect(ex.length).toBeLessThanOrEqual(4)
+
+  test("caps the number of selected examples", () => {
+    const examples = selectFewShots("구리 스퀘어 2날 10mm DLC")
+
+    expect(examples.length).toBeLessThanOrEqual(4)
   })
-  test("매칭 없으면 빈 배열", () => {
-    const ex = selectFewShots("zzzzzzzzzzz qqqqq")
-    expect(ex.length).toBe(0)
+
+  test("returns an empty list when nothing matches", () => {
+    const examples = selectFewShots("zzzzzzzzzzz qqqqq")
+
+    expect(examples).toEqual([])
   })
-  test("buildFewShotText 포맷", () => {
-    const ex = selectFewShots("Ball")
-    if (ex.length > 0) {
-      const txt = buildFewShotText(ex)
-      expect(txt).toContain("User:")
-      expect(txt).toContain("→")
+
+  test("formats selected examples as prompt text", () => {
+    const examples = selectFewShots("Ball")
+    const text = buildFewShotText(examples)
+
+    if (examples.length === 0) {
+      expect(text).toBe("")
+      return
     }
+
+    expect(text).toContain("User:")
+    expect(text).toContain("\n→")
   })
 })

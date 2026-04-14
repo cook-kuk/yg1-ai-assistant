@@ -6,10 +6,14 @@
 # next.js
 /.next/
 /out/
+/test-results/
+/playwright-report/
 
 # production
 /build
 /logs/
+/benchmark-results/
+/db_export/
 
 # debug
 npm-debug.log*
@@ -75,7 +79,11 @@ build-check.log
 *.err.log
 *.out.log
 dev-restart.log
-console.log(t))'
+tmp-*
+tmp_*.txt
+*.bak-*
+db_export.zip
+qa-full-report-*.xlsx
 
 # local release-gate scratch outputs
 test-results/cheolhyun-11-cases-*.json

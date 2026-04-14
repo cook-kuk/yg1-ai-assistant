@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
  * Pull feedback entries from :3001/api/feedback and convert to replay test cases.
- * Saves to test-results/loop/feedback-cases.json
+ * Saves to testset/autohunt/feedback-cases.json
  */
 const fs = require("fs"), path = require("path")
 const URL = process.argv[2] || "http://20.119.98.136:3001/api/feedback?limit=500"
-const OUT = "test-results/loop/feedback-cases.json"
+const OUT = path.join(__dirname, "..", "testset", "autohunt", "feedback-cases.json")
 
 ;(async () => {
   console.log("[fetch-feedback] GET", URL)

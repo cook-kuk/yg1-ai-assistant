@@ -21,6 +21,7 @@ const WORKERS = parseInt(argv.workers || "2", 10)
 const LABEL = argv.label || `recommend-iter-${Date.now()}`
 const OUT = argv.out || "test-results/loop"
 const ENDPOINT = argv.endpoint || "http://20.119.98.136:3000"
+const FEEDBACK_CASES_PATH = path.join(__dirname, "..", "testset", "autohunt", "feedback-cases.json")
 
 // ── Test cases (mirror quick-runner-quality CASES) ──
 const HAND_CASES = [
@@ -155,7 +156,7 @@ async function pool(items, workers, fn) {
 // Convert feedback cases to the form needed
 function loadFeedbackCases() {
   try {
-    const fb = JSON.parse(fs.readFileSync("test-results/loop/feedback-cases.json", "utf8"))
+    const fb = JSON.parse(fs.readFileSync(FEEDBACK_CASES_PATH, "utf8"))
     return fb.filter(c => c.nls && c.nls.length > 0 && c.form).map(c => ({
       id: c.id,
       name: (c.userComment || "").slice(0, 40) || c.id,
