@@ -205,7 +205,7 @@ function EvidenceBadge({ conditions, confidence }: { conditions: CuttingConditio
         {confidence != null && <span className="text-purple-500">({Math.round(confidence * 100)}%)</span>}
       </button>
       {open && (
-        <div className="absolute z-20 mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-64">
+        <div className="absolute z-20 mt-1 left-0 right-0 sm:right-auto bg-white border border-gray-200 rounded-lg shadow-lg p-3 sm:w-64 max-w-[calc(100vw-2rem)]">
           <div className="text-xs font-semibold text-gray-700 mb-2">
             {language === "ko" ? "절삭조건 (카탈로그 데이터)" : "Cutting Conditions (Catalog Data)"}
           </div>

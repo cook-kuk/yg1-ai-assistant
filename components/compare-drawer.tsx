@@ -28,35 +28,36 @@ export function CompareDrawer() {
   ] as const
 
   return (
-    <div className="fixed bottom-0 left-64 right-0 bg-card border-t border-border shadow-lg z-40 animate-in slide-in-from-bottom-5">
-      <div className="p-4">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Scale className="h-5 w-5 text-primary" />
-            <h3 className="font-semibold">비교함</h3>
+    <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-card border-t border-border shadow-lg z-40 animate-in slide-in-from-bottom-5 max-h-[60vh] overflow-y-auto">
+      <div className="p-3 sm:p-4">
+        <div className="flex items-center justify-between mb-3 sm:mb-4 gap-2 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0">
+            <Scale className="h-5 w-5 text-primary shrink-0" />
+            <h3 className="font-semibold truncate">비교함</h3>
             <Badge variant="secondary">{compareProducts.length}/3</Badge>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={clearCompare}>
-              <Trash2 className="h-4 w-4 mr-1" />
-              전체 삭제
+          <div className="flex items-center gap-2 shrink-0">
+            <Button variant="ghost" size="sm" onClick={clearCompare} className="px-2 sm:px-3">
+              <Trash2 className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">전체 삭제</span>
             </Button>
             <Button size="sm" asChild>
               <Link href="/products/compare">
-                상세 비교
+                <span className="hidden sm:inline">상세 비교</span>
+                <span className="sm:hidden">비교</span>
                 <ArrowRight className="h-4 w-4 ml-1" />
               </Link>
             </Button>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left py-2 px-3 font-medium text-muted-foreground w-32">항목</th>
+                <th className="text-left py-2 px-2 sm:px-3 font-medium text-muted-foreground w-24 sm:w-32">항목</th>
                 {compareProducts.map(product => (
-                  <th key={product.id} className="text-left py-2 px-3 min-w-48">
+                  <th key={product.id} className="text-left py-2 px-2 sm:px-3 min-w-32 sm:min-w-48">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="font-medium">{product.name}</p>
@@ -78,14 +79,14 @@ export function CompareDrawer() {
             <tbody>
               {specs.map((spec, idx) => (
                 <tr key={spec.key} className={cn(idx % 2 === 0 && "bg-muted/30")}>
-                  <td className="py-2 px-3 text-muted-foreground">{spec.label}</td>
+                  <td className="py-2 px-2 sm:px-3 text-muted-foreground">{spec.label}</td>
                   {compareProducts.map(product => {
                     const value = product[spec.key as keyof typeof product]
-                    const displayValue = spec.format 
+                    const displayValue = spec.format
                       ? spec.format(value as number)
                       : value
                     return (
-                      <td key={product.id} className="py-2 px-3">
+                      <td key={product.id} className="py-2 px-2 sm:px-3">
                         {displayValue}
                       </td>
                     )
@@ -93,9 +94,9 @@ export function CompareDrawer() {
                 </tr>
               ))}
               <tr className="border-t border-border">
-                <td className="py-2 px-3 text-muted-foreground">호환 소재</td>
+                <td className="py-2 px-2 sm:px-3 text-muted-foreground">호환 소재</td>
                 {compareProducts.map(product => (
-                  <td key={product.id} className="py-2 px-3">
+                  <td key={product.id} className="py-2 px-2 sm:px-3">
                     <div className="flex flex-wrap gap-1">
                       {product.compatibleMaterials.slice(0, 3).map(mat => (
                         <Badge key={mat} variant="outline" className="text-xs">

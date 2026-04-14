@@ -148,8 +148,8 @@ function CaseCaptureModal({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-5 space-y-3" onClick={event => event.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-3 sm:p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 sm:p-5 space-y-3" onClick={event => event.stopPropagation()}>
         {sent ? (
           <div className="text-center py-4">
             <div className="text-3xl mb-2">✅</div>
