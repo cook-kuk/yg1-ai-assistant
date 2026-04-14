@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Deterministic Single-Call Router (DB-driven NL → SQL filter parser)
  *
  * 목적: LLM 변덕 없이 자연어 메시지에서 SQL 필터를 추출.
@@ -16,6 +16,8 @@ import { findColumnsForToken, findValueByPhonetic } from "./sql-agent-schema-cac
 import { DB_COL_TO_FILTER_FIELD } from "./sql-agent"
 import { stripKoreanParticles } from "@/lib/recommendation/shared/patterns"
 import { detectMeasurementScopeAmbiguity } from "@/lib/recommendation/shared/measurement-scope-ambiguity"
+import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-target-classifier"
+import { detectUserState } from "@/lib/recommendation/domain/context/user-understanding-detector"
 import { findFuzzyMatch, levenshtein, phoneticKey } from "./phonetic-match"
 
 // Brand values — sample of clean YG-1 brands from prod_brand.brand_name (421
@@ -1040,6 +1042,7 @@ export function extractFromMvIndex(
   const tokens = tokenizeForMvIndex(text)
   if (tokens.length === 0) return []
 
+  if (isInformationalValueQuery(text)) return []
   const measurementScopeAmbiguity = detectMeasurementScopeAmbiguity(text)
   const actions: DeterministicAction[] = []
   const localSeen = new Set<string>()
@@ -1092,6 +1095,61 @@ export function extractFromMvIndex(
 }
 
 // ── Main parser ──────────────────────────────────────────────
+const INFO_QUERY_MUTATION_CUE_RE = /(추천|recommend|말고|빼고|제외|아니고|바꿔|변경|수정|replace|switch|select|선택|골라|적용|filter)/i
+
+function hasStructuredDeterministicSpecSignals(text: string): boolean {
+  let score = 0
+
+  if (INLINE_FLUTE_RE.test(text)) score += 2
+  if (TOOL_MATERIAL_PATTERNS.some(({ pattern }) => pattern.test(text))) score += 1
+  if (WORK_MATERIAL_CUES.some(({ pattern }) => pattern.test(text))) score += 1
+  if (Boolean(findValueIn(text, COATING_VALUES))) score += 1
+  if (Boolean(findValueWithPos(text, BRAND_VALUES))) score += 1
+  if (Boolean(extractToolSubtype(text))) score += 1
+  if (Boolean(extractApplicationShape(text))) score += 1
+  if (Boolean(extractMachiningCondition(text))) score += 1
+  if (/(rpm|회전수|스핀들(?:\s*속도)?|spindle(?:\s*speed)?|이송(?:\s*속도)?|feed(?:\s*rate)?|절삭\s*속도|cutting\s*speed|\bvc\b|절입(?:량|\s*깊이)?|depth\s*of\s*cut|\bap\b)/i.test(text)) score += 1
+  if (/(엔드밀|end\s*mill|드릴|drill|탭|tap|리머|reamer|커터|cutter|tool|제품)/i.test(text)) score += 1
+
+  return score >= 2
+}
+
+function hasStrongImplicitDiameterContext(text: string): boolean {
+  if (!/(?:\d+(?:\.\d+)?\s*(?:mm|mn)|\d+\s*\/\s*\d+\s*(?:인치|inch|in|"))/i.test(text)) {
+    return false
+  }
+
+  const cuttingConditionCueCount = [
+    /(?:rpm|회전수|스핀들(?:\s*속도)?|spindle(?:\s*speed)?)/i,
+    /(?:이송(?:\s*속도)?|feed(?:\s*rate)?|\bfz\b)/i,
+    /(?:절삭\s*속도|cutting\s*speed|\bvc\b)/i,
+    /(?:절입(?:량|\s*깊이)?|depth\s*of\s*cut|\bap\b)/i,
+  ].reduce((count, pattern) => count + (pattern.test(text) ? 1 : 0), 0)
+
+  return (
+    Boolean(findValueWithPos(text, BRAND_VALUES))
+    || Boolean(extractApplicationShape(text))
+    || Boolean(extractToolSubtype(text))
+    || Boolean(extractMachiningCondition(text))
+    || (INLINE_FLUTE_RE.test(text) && cuttingConditionCueCount >= 2)
+  )
+}
+
+export function isInformationalValueQuery(message: string): boolean {
+  const text = message.trim()
+  if (!text) return false
+  if (INFO_QUERY_MUTATION_CUE_RE.test(text)) return false
+  if (/(?:몇\s*개(?:야|인가|인지|예요|입니까)?\??|how\s+many\b)/i.test(text)) return true
+  if (hasStructuredDeterministicSpecSignals(text)) return false
+
+  const queryTarget = classifyQueryTarget(text, null, null)
+
+  return (
+    queryTarget.type === "field_count"
+    || queryTarget.type === "general_question"
+  )
+}
+
 export function parseDeterministic(message: string, meta?: DeterministicMeta): DeterministicAction[] {
   if (!message || message.trim().length === 0) return []
   // "이 중 / 이중 / 여기서 / 그중" 같은 관계사 노이즈를 제거해 뒤따르는 조건 추출을 돕는다.
@@ -1101,6 +1159,10 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
     .replace(/(^|[\s,])(?:이\s*중(?:에서)?|그\s*중(?:에서)?|여기(?:서|에서)?)(?=\s*[가-힣a-zA-Z])/gu, "$1")
     .trim()
   const measurementScopeAmbiguity = detectMeasurementScopeAmbiguity(text)
+  const allowImplicitDiameterContext =
+    measurementScopeAmbiguity?.kind === "length"
+    && hasStrongImplicitDiameterContext(text)
+  if (isInformationalValueQuery(text)) return []
   const actions: DeterministicAction[] = []
   const seen = new Set<string>() // dedup by field
 
@@ -1197,7 +1259,7 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
   }
 
   // 3) Inch fraction → diameter (1/4인치)
-  if (!seen.has("diameterMm") && measurementScopeAmbiguity?.kind !== "length") {
+  if (!seen.has("diameterMm") && (measurementScopeAmbiguity?.kind !== "length" || allowImplicitDiameterContext)) {
     const inch = parseInchFraction(text)
     if (inch != null) {
       actions.push({ type: "apply_filter", field: "diameterMm", value: inch, op: "eq", source: "deterministic" })
@@ -1206,7 +1268,7 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
   }
 
   // 3.5) Bare-mm-only fallback: "10mm", "8.5 mm", "10" — 메시지가 숫자(+mm)뿐이면 직경으로 해석
-  if (!seen.has("diameterMm") && measurementScopeAmbiguity?.kind !== "length") {
+  if (!seen.has("diameterMm") && (measurementScopeAmbiguity?.kind !== "length" || allowImplicitDiameterContext)) {
     const bare = text.match(/^\s*(\d+(?:\.\d+)?)\s*(?:mm|밀리)?\s*$/i)
     if (bare && /(?:mm|mn|밀리)/i.test(text)) {
       const v = parseFloat(bare[1])
@@ -1221,7 +1283,7 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
   // diameter 가 누락되는 케이스. 이미 다른 numeric field cue (전장/절삭길이/샹크/
   // 헬릭스 등) 가 소비한 위치는 consumedRanges 로 skip. "4날", "100mm 이상",
   // "RPM 8000" 같은 다른 의미의 숫자도 제외해야 한다.
-  if (!seen.has("diameterMm") && measurementScopeAmbiguity?.kind !== "length") {
+  if (!seen.has("diameterMm") && (measurementScopeAmbiguity?.kind !== "length" || allowImplicitDiameterContext)) {
     // "mn" 은 "mm" 의 흔한 키보드 오타
     const re = /(?<![\d.])(\d+(?:\.\d+)?)\s*(?:mm|mn)\b/gi
     let match: RegExpExecArray | null

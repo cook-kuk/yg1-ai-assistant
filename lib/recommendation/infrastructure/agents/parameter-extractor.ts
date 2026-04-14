@@ -1,5 +1,5 @@
-/**
- * Parameter Extraction Agent — Haiku
+﻿/**
+ * Parameter Extraction Agent - Haiku
  *
  * Extracts structured parameters from user messages.
  * Haiku LLM first, deterministic extraction as a guarded fallback.
@@ -9,6 +9,16 @@ import { resolveModel, type LLMProvider } from "@/lib/recommendation/infrastruct
 import type { ExplorationSessionState } from "@/lib/recommendation/domain/types"
 import type { ExtractedParameters } from "./types"
 import { buildAppliedFilterFromValue } from "@/lib/recommendation/shared/filter-field-registry"
+import {
+  COATING_ALIAS_MAP,
+  MATERIAL_ALIAS_MAP,
+  TOOL_SUBTYPE_ALIAS_MAP,
+  normalizeCompactText,
+} from "@/lib/recommendation/shared/canonical-values"
+import {
+  canonicalizeKnownEntityValue,
+  findKnownEntityMentions,
+} from "@/lib/recommendation/shared/entity-registry"
 
 const PARAMETER_EXTRACTOR_MODEL = resolveModel("haiku", "parameter-extractor")
 
@@ -100,9 +110,9 @@ function extractDeterministicParameters(clean: string): Partial<ExtractedParamet
   const diamMatch = clean.match(/([\d.]+)\s*(?:mm|미리|밀리|파이)/)
   if (diamMatch) params.diameterMm = parseFloat(diamMatch[1])
 
-  // Fractional inch → mm: "3/8\"", "3/8"", "1/2 inch", "1-1/2\""
+  // Fractional inch -> mm: "3/8\"", "3/8"", "1/2 inch", "1-1/2\""
   if (params.diameterMm == null) {
-    const fractionMatch = clean.match(/(\d+)\s*\/\s*(\d+)\s*(?:"|"|"|''|inch|in|인치)/)
+    const fractionMatch = clean.match(/(\d+)\s*\/\s*(\d+)\s*(?:\"|''|inch|in|인치)/)
     if (fractionMatch) {
       const num = parseInt(fractionMatch[1], 10)
       const den = parseInt(fractionMatch[2], 10)
@@ -110,7 +120,7 @@ function extractDeterministicParameters(clean: string): Partial<ExtractedParamet
     }
     // Mixed number: "1-1/2""
     if (params.diameterMm == null) {
-      const mixedMatch = clean.match(/(\d+)[\s-]+(\d+)\s*\/\s*(\d+)\s*(?:"|"|"|''|inch|in|인치)/)
+      const mixedMatch = clean.match(/(\d+)[\s-]+(\d+)\s*\/\s*(\d+)\s*(?:\"|''|inch|in|인치)/)
       if (mixedMatch) {
         const whole = parseInt(mixedMatch[1], 10)
         const num = parseInt(mixedMatch[2], 10)
@@ -120,49 +130,38 @@ function extractDeterministicParameters(clean: string): Partial<ExtractedParamet
     }
   }
 
-  const coatingMap: Record<string, string> = {
-    "altin": "AlTiN", "tialn": "TiAlN", "dlc": "DLC",
-    "alcrn": "AlCrN", "ticn": "TiCN",
-    "무코팅": "Uncoated", "코팅 없": "Uncoated", "코팅없": "Uncoated", "노코팅": "Uncoated", "uncoated": "Uncoated",
-    "bright finish": "Bright Finish", "브라이트": "Bright Finish",
-    "블루코팅": "Blue-Coating", "blue-coating": "Blue-Coating", "블루": "Blue-Coating",
-    "y-코팅": "Y-Coating", "y코팅": "Y-Coating",
-    "x-코팅": "X-Coating", "x코팅": "X-Coating",
-  }
-  for (const [key, val] of Object.entries(coatingMap)) {
-    if (clean.includes(key)) { params.coating = val; break }
-  }
-
-  const subtypeMap: Record<string, string> = {
-    "square": "Square", "스퀘어": "Square",
-    "ball": "Ball", "볼": "Ball",
-    "radius": "Radius", "라디우스": "Radius",
-    "하이피드": "High-Feed", "high-feed": "High-Feed", "high feed": "High-Feed",
-    "황삭": "Roughing", "roughing": "Roughing",
-    "테이퍼": "Taper", "taper": "Taper",
-  }
-  for (const [key, val] of Object.entries(subtypeMap)) {
-    if (chipClean.includes(key) || clean.includes(key)) { params.toolSubtype = val; break }
-  }
-
-  // Material extraction
-  const materialMap: Record<string, string> = {
-    "탄소강": "Carbon Steel", "carbon steel": "Carbon Steel",
-    "스테인리스": "Stainless Steel", "stainless": "Stainless Steel", "sus": "Stainless Steel",
-    "알루미늄": "Aluminum", "aluminum": "Aluminum", "aluminium": "Aluminum",
-    "구리": "Copper", "copper": "Copper", "동": "Copper", "cu": "Copper",
-    "티타늄": "Titanium", "titanium": "Titanium",
-    "인코넬": "Inconel", "inconel": "Inconel",
-    "고경도강": "Hardened Steel", "hardened steel": "Hardened Steel", "hardend steel": "Hardened Steel",
-    "주철": "Cast Iron", "cast iron": "Cast Iron",
-    "graphite": "Graphite", "흑연": "Graphite",
-  }
-  for (const [key, val] of Object.entries(materialMap)) {
-    if (clean.includes(key)) { params.material = val; break }
-  }
-
   const seriesMatch = clean.match(/(ce\d+[a-z]*\d*|gnx\d+|sem[a-z]*\d+|e\d+[a-z]\d+)/i)
   if (seriesMatch) params.seriesName = seriesMatch[1].toUpperCase()
+
+  const normalizedClean = normalizeCompactText(clean)
+  const normalizedChipClean = normalizeCompactText(chipClean)
+
+  for (const [key, val] of Object.entries(COATING_ALIAS_MAP)) {
+    if (normalizedClean.includes(normalizeCompactText(key))) {
+      params.coating = val
+      break
+    }
+  }
+
+  for (const [key, val] of Object.entries(TOOL_SUBTYPE_ALIAS_MAP)) {
+    const alias = normalizeCompactText(key)
+    if (normalizedChipClean.includes(alias) || normalizedClean.includes(alias)) {
+      params.toolSubtype = val
+      break
+    }
+  }
+
+  for (const [key, val] of Object.entries(MATERIAL_ALIAS_MAP)) {
+    if (normalizedClean.includes(normalizeCompactText(key))) {
+      params.material = val
+      break
+    }
+  }
+
+  const knownSeries = findKnownEntityMentions("series", clean)
+  if (knownSeries.length > 0) {
+    params.seriesName = knownSeries[0]
+  }
 
   const productCodeMatch = clean.match(/^([a-z]{2,4}\d{4,}[a-z]*\d*)/i)
   if (productCodeMatch) params.productCode = productCodeMatch[1].toUpperCase()
@@ -200,7 +199,12 @@ function validateExtractedParameters(params: Partial<ExtractedParameters>): Part
   }
 
   if (params.seriesName) {
-    const filter = buildAppliedFilterFromValue("seriesName", params.seriesName, 0)
+    const canonicalSeries = Array.isArray(params.seriesName)
+      ? params.seriesName
+          .map(value => canonicalizeKnownEntityValue("series", String(value)))
+          .filter((value): value is string => Boolean(value))
+      : canonicalizeKnownEntityValue("series", params.seriesName)
+    const filter = buildAppliedFilterFromValue("seriesName", canonicalSeries ?? params.seriesName, 0)
     if (filter) result.seriesName = filter.rawValue as string | string[]
   }
 
@@ -211,10 +215,29 @@ function validateExtractedParameters(params: Partial<ExtractedParameters>): Part
 
   if (params.material) {
     if (Array.isArray(params.material)) {
-      const materials = params.material.map(value => String(value).trim()).filter(Boolean)
+      const materials = params.material
+        .map(value => {
+          const trimmed = String(value).trim()
+          if (!trimmed) return null
+          for (const [key, canonical] of Object.entries(MATERIAL_ALIAS_MAP)) {
+            if (normalizeCompactText(trimmed).includes(normalizeCompactText(key))) {
+              return canonical
+            }
+          }
+          return trimmed
+        })
+        .filter((value): value is string => Boolean(value))
       if (materials.length > 0) result.material = materials
     } else if (params.material.trim()) {
-      result.material = params.material.trim()
+      const trimmed = params.material.trim()
+      let canonicalMaterial = trimmed
+      for (const [key, canonical] of Object.entries(MATERIAL_ALIAS_MAP)) {
+        if (normalizeCompactText(trimmed).includes(normalizeCompactText(key))) {
+          canonicalMaterial = canonical
+          break
+        }
+      }
+      result.material = canonicalMaterial
     }
   }
 

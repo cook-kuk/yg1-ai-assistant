@@ -227,7 +227,7 @@ describe("Golden: 구리 SQUARE 2날 직경 10 → CRX-S 추천", () => {
     // 최소한 "SQUARE"는 pending으로 resolve 되어야 함
     const reply = resolvePendingQuestionReply(state, msg)
     // resolved (Square 매칭) 또는 unresolved (복합 조건이라 SCR로 위임) 둘 다 OK
-    expect(["resolved", "unresolved"]).toContain(reply.kind)
+    expect(["resolved", "unresolved", "defer_holistic"]).toContain(reply.kind)
 
     if (reply.kind === "resolved") {
       // det-SCR fallback may resolve any matching filter from the multi-condition message

@@ -1,102 +1,158 @@
 /**
- * Complexity Router — 유저 메시지 복잡도 → 파이프라인 깊이 결정.
- * 규칙 기반 (0ms, LLM 호출 없음).
+ * Turn-level complexity routing.
+ *
+ * The goal is not "always reason deeply", but "spend only the reasoning budget
+ * the utterance actually needs".
  */
 
 export type ComplexityLevel = "light" | "normal" | "deep"
+export type ResolverStageBudget = "stage1" | "stage2" | "stage3"
+export type UiThinkingMode = "hidden" | "simple" | "full"
 
 export interface ComplexityDecision {
   level: ComplexityLevel
   reason: string
-  /** self-correction 실행 여부 */
   runSelfCorrection: boolean
-  /** KB 시맨틱 검색 여부 */
   searchKB: boolean
-  /** CoT(thinkingProcess) 스트리밍 여부 */
   generateCoT: boolean
-  /** 웹서치 허용 여부 */
   allowWebSearch: boolean
-  /** 응답 최대 문장 수 가이드 (LLM 프롬프트에 주입) */
   maxSentences: number
+  resolverStageBudget: ResolverStageBudget
+  allowLegacyLlmFallback: boolean
+  allowToolForge: boolean
+  uiThinkingMode: UiThinkingMode
 }
 
-// ── 판단 패턴 (LLM 없음, 0ms) ──
+const FAST_ACK_RE = /^(?:ok|okay|yes|yeah|네|넵|응|예|좋아|맞아|그래|고마워)$/iu
+const FAST_SKIP_RE = /^(?:상관없음|아무거나|패스|skip|모름|무관)$/iu
+const FAST_COUNTRY_RE = /^(?:국내|미국|일본|유럽)$/iu
+const FAST_SINGLE_VALUE_RE = /^(?:square|ball|radius|taper|chamfer|spiral(?:\s+flute)?|스퀘어|볼|래디우스|테이퍼|챔퍼|나선)$/iu
+const FAST_ALNUM_RE = /^[A-Za-z][\w-]*$/u
+const FAST_NUMERIC_RE = /^(?:\d+(?:\.\d+)?\s*(?:mm|inch|in(?:ch)?|인치|도)(?:\s*(?:이상|이하|초과|미만))?|\d+\s*날|\d+\s*(?:개|건|ea|pcs))$/iu
+const CHIP_CLICK_PATTERN = /\(\s*\d+\s*(?:개|건)\s*\)\s*$/u
+const STRUCTURED_INTAKE_PATTERN = /(?:문의\s*목적|가공\s*소재|조건에\s*맞는\s*yg-1)/iu
 
-const LIGHT_PATTERNS = [
-  /^(네|응|좋아|OK|ok|ㅇㅇ|그래|맞아|됐어|고마워)$/iu,
-  /^\d+(\.\d+)?\s*(mm|날|도)?$/iu,
-  /^[A-Za-z][\w\-]*$/,
-  /^(스퀘어|볼|라디우스|테이퍼|챔퍼|러핑)$/iu,
-  /^(국내|미국|일본|유럽)$/iu,
-  /^(상관없음|패스|스킵|넘어가|아무거나)$/iu,
-  /^(이전|돌아가|뒤로|처음부터|리셋)$/iu,
-]
+const DEEP_NEGATION_RE = /(?:말고|빼고|제외|아니고|not\b|except|without)/iu
+const DEEP_COMPARISON_RE = /(?:비교|차이|vs\b|대체품|대체|비슷한|similar|alternative|compare|difference)/iu
+const DEEP_CONTEXT_RE = /(?:그거|그게|이거|이게|저거|저게|아까|방금|previous|last)/iu
+const DEEP_GENERIC_RE = /(?:뭐가\s*좋|어떤\s*게|multiple\s+helix|generic|concept|개념|계열|추천해줄수\s*있)/iu
+const DEEP_TROUBLE_RE = /(?:이유|원인|떨림|진동|채터|깨짐|수명|문제|에러|trouble|chatter)/iu
+const DEEP_COMPETITOR_RE = /(?:sandvik|kennametal|mitsubishi|osg|walter|iscar|seco)/iu
+const DEEP_SPEC_RE = /(?:pvd|cvd|iso\s*\d|규격)/iu
+const DEEP_ALIAS_RE = /(?:[가-힣]{3,}\s*브랜드|[가-힣]{5,}(?:으로만|로만|만)\s*(?:보여줘|추천))/u
 
-const DEEP_TRIGGERS = [
-  /비교|차이|뭐가\s*나[아요]|뭐가\s*좋|어떤\s*게|\bvs\b/iu,
-  /왜|이유|원리|어떻게|메커니즘/iu,
-  /떨림|진동|채터|파손|깨짐|수명|문제|트러블/iu,
-  /sandvik|kennametal|mitsubishi|osg|walter|iscar|seco/iu,
-  /대체|대안|대신|비슷한|동급/iu,
-  /뭐야\??|뭐예요|뭔가요/iu,
-  /PVD|CVD|ISO\s*\d|규격/iu,
-  /그리고|또|추가로|근데|그런데/iu,
-]
+function buildDecision(
+  level: ComplexityLevel,
+  reason: string,
+): ComplexityDecision {
+  switch (level) {
+    case "light":
+      return {
+        level,
+        reason,
+        runSelfCorrection: false,
+        searchKB: false,
+        generateCoT: false,
+        allowWebSearch: false,
+        maxSentences: 2,
+        resolverStageBudget: "stage1",
+        allowLegacyLlmFallback: false,
+        allowToolForge: false,
+        uiThinkingMode: "hidden",
+      }
+    case "deep":
+      return {
+        level,
+        reason,
+        runSelfCorrection: true,
+        searchKB: true,
+        generateCoT: true,
+        allowWebSearch: true,
+        maxSentences: 6,
+        resolverStageBudget: "stage3",
+        allowLegacyLlmFallback: true,
+        allowToolForge: true,
+        uiThinkingMode: "full",
+      }
+    default:
+      return {
+        level: "normal",
+        reason,
+        runSelfCorrection: false,
+        searchKB: false,
+        generateCoT: false,
+        allowWebSearch: false,
+        maxSentences: 4,
+        resolverStageBudget: "stage2",
+        allowLegacyLlmFallback: false,
+        allowToolForge: false,
+        uiThinkingMode: "simple",
+      }
+  }
+}
 
-// 칩 클릭: 라벨 끝에 "(N개)" 또는 "(N건)" 카운트 suffix가 붙는다.
-// SmartOption은 이미 deterministic patch를 들고 있어 LLM 검증이 필요 없음.
-const CHIP_CLICK_PATTERN = /\(\s*\d+\s*[개건]\s*\)\s*$/u
+function isFastValueOnlyMessage(message: string, appliedFilterCount: number): boolean {
+  const text = message.trim()
+  if (!text) return false
+  if (CHIP_CLICK_PATTERN.test(text)) return true
+  if (STRUCTURED_INTAKE_PATTERN.test(text)) return true
+  if (FAST_ACK_RE.test(text)) return true
+  if (FAST_SKIP_RE.test(text)) return true
+  if (FAST_COUNTRY_RE.test(text)) return true
+  if (FAST_SINGLE_VALUE_RE.test(text)) return true
+  if (FAST_NUMERIC_RE.test(text)) return true
+  if (FAST_ALNUM_RE.test(text)) return true
+  if (text.length <= 8 && appliedFilterCount > 0) return true
+  return false
+}
 
-// 구조화 인테이크 첫 턴: 사용자가 폼에서 보낸 emoji-prefixed structured prompt.
-// 모든 필드가 이미 명시되어 있어 추가 해석/자기교정이 불필요.
-const STRUCTURED_INTAKE_PATTERN = /🧭|위\s*조건에\s*맞는\s*YG-1/u
+function isDeepNaturalLanguage(message: string): boolean {
+  const text = message.trim()
+  if (!text) return false
+  if (DEEP_NEGATION_RE.test(text)) return true
+  if (DEEP_COMPARISON_RE.test(text)) return true
+  if (DEEP_CONTEXT_RE.test(text)) return true
+  if (DEEP_GENERIC_RE.test(text)) return true
+  if (DEEP_TROUBLE_RE.test(text)) return true
+  if (DEEP_COMPETITOR_RE.test(text)) return true
+  if (DEEP_SPEC_RE.test(text)) return true
+  if (DEEP_ALIAS_RE.test(text)) return true
+  if (text.length >= 30) return true
+  return false
+}
 
 export function assessComplexity(
   message: string,
   appliedFilterCount: number = 0,
 ): ComplexityDecision {
-  // 정책 (2026-04-09):
-  // - light / normal / 칩클릭 / 구조화 인테이크: CoT OFF (latency 보호 — 상무님 컴플레인 대응)
-  // - deep (분석/비교/트러블슈팅): CoT ON (가치 > latency)
-  // - 0건 결과: 별도 경로로 zero-result-cot 모듈에서 강제 ON (serve-engine-runtime
-  //   post-retrieval 단계에서 트리거)
-  const decision = _assessComplexityInner(message, appliedFilterCount)
-  const generateCoT = decision.level === "deep" ? decision.generateCoT : false
-  return { ...decision, generateCoT }
+  const text = message.trim()
+
+  if (isFastValueOnlyMessage(text, appliedFilterCount)) {
+    if (CHIP_CLICK_PATTERN.test(text)) return buildDecision("light", "chip_click")
+    if (STRUCTURED_INTAKE_PATTERN.test(text)) return buildDecision("light", "structured_intake")
+    if (FAST_NUMERIC_RE.test(text)) return buildDecision("light", "deterministic_numeric")
+    return buildDecision("light", "simple_value")
+  }
+
+  if (isDeepNaturalLanguage(text)) {
+    if (DEEP_NEGATION_RE.test(text)) return buildDecision("deep", "negation")
+    if (DEEP_COMPARISON_RE.test(text)) return buildDecision("deep", "comparison")
+    if (DEEP_CONTEXT_RE.test(text)) return buildDecision("deep", "context_dependent")
+    if (DEEP_GENERIC_RE.test(text)) return buildDecision("deep", "generic_concept")
+    if (DEEP_TROUBLE_RE.test(text)) return buildDecision("deep", "troubleshooting")
+    if (DEEP_ALIAS_RE.test(text)) return buildDecision("deep", "alias_ambiguity")
+    return buildDecision("deep", "complex_natural_language")
+  }
+
+  return buildDecision("normal", "compound_recommendation")
 }
 
-function _assessComplexityInner(
-  message: string,
-  appliedFilterCount: number = 0,
-): ComplexityDecision {
-  const t = message.trim()
-
-  // FAST PATH 1 — 칩 클릭: deterministic patch 적용만 하면 됨
-  if (CHIP_CLICK_PATTERN.test(t)) {
-    return { level: "light", reason: "칩 클릭(deterministic)", runSelfCorrection: false, searchKB: false, generateCoT: false, allowWebSearch: false, maxSentences: 2 }
-  }
-
-  // FAST PATH 2 — 구조화 인테이크 첫 턴: 모든 필드 명시됨
-  if (STRUCTURED_INTAKE_PATTERN.test(t)) {
-    return { level: "light", reason: "구조화 인테이크", runSelfCorrection: false, searchKB: false, generateCoT: false, allowWebSearch: false, maxSentences: 3 }
-  }
-
-  // LIGHT — KB/웹서치만 끔. CoT·self-correction은 유지(필터 정확도 보존)
-  if (LIGHT_PATTERNS.some(p => p.test(t))) {
-    return { level: "light", reason: "단순 값/확인", runSelfCorrection: true, searchKB: false, generateCoT: true, allowWebSearch: false, maxSentences: 2 }
-  }
-  if (t.length <= 8 && appliedFilterCount > 0) {
-    return { level: "light", reason: `짧은 입력(${t.length}자)+기존필터`, runSelfCorrection: true, searchKB: false, generateCoT: true, allowWebSearch: false, maxSentences: 2 }
-  }
-
-  // DEEP
-  if (DEEP_TRIGGERS.some(p => p.test(t))) {
-    return { level: "deep", reason: "분석/비교/트러블슈팅", runSelfCorrection: true, searchKB: true, generateCoT: true, allowWebSearch: true, maxSentences: 6 }
-  }
-  if (t.length >= 30) {
-    return { level: "deep", reason: `긴 입력(${t.length}자)`, runSelfCorrection: true, searchKB: true, generateCoT: true, allowWebSearch: false, maxSentences: 5 }
-  }
-
-  // NORMAL
-  return { level: "normal", reason: "일반 추천", runSelfCorrection: true, searchKB: false, generateCoT: true, allowWebSearch: false, maxSentences: 4 }
+export function canUseResolverStage(
+  decision: ComplexityDecision | null | undefined,
+  stage: ResolverStageBudget,
+): boolean {
+  const budget = decision?.resolverStageBudget ?? "stage3"
+  if (budget === "stage3") return true
+  if (budget === "stage2") return stage !== "stage3"
+  return stage === "stage1"
 }

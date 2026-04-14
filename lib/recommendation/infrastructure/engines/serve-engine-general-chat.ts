@@ -10,6 +10,7 @@ import {
 } from "@/lib/recommendation/domain/memory/conversation-memory"
 import { createEmptyConversationLog, recordTurn, type ProcessTrace, type RichTurnRecord } from "@/lib/recommendation/domain/memory/memory-compressor"
 import { buildUnifiedTurnContext } from "@/lib/recommendation/domain/context/turn-context-builder"
+import { buildTurnTruth } from "@/lib/recommendation/domain/context/turn-truth"
 import { validateOptionFirstPipeline } from "@/lib/recommendation/domain/options/option-validator"
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
 import {
@@ -713,7 +714,16 @@ export async function handleServeGeneralChatAction(
   const lastUserMessage = [...messages].reverse().find(message => message.role === "user")?.text ?? ""
   const semanticForce: DirectQuestionOptions = { force: true, semanticContext: semanticDirectContext }
   const shouldRunLegacyDirectRoutes = semanticReplyRoute == null
-  const orderQuantityAmbiguity = detectOrderQuantityInventoryAmbiguity(lastUserMessage)
+  const turnTruth = buildTurnTruth({
+    userMessage: lastUserMessage,
+    sessionState: prevState,
+    appliedFilters: filters,
+    candidateSnapshot: prevState.displayedCandidates ?? prevState.lastRecommendationArtifact ?? [],
+  })
+  const orderQuantityAmbiguity =
+    turnTruth.intent === "inventory_constraint"
+      ? null
+      : detectOrderQuantityInventoryAmbiguity(lastUserMessage)
   const measurementScopeAmbiguity = detectMeasurementScopeAmbiguity(lastUserMessage, {
     pendingField: prevState.lastAskedField ?? null,
   })
@@ -1309,6 +1319,33 @@ export async function handleServeGeneralChatAction(
       prevState.displayedCandidates,
       messages,
       prevState,
+    )
+  }
+
+  if (turnTruth.intent === "inventory_constraint") {
+    return buildValidatedReplyResponse(
+      deps,
+      prevState,
+      filters,
+      narrowingHistory,
+      currentInput,
+      turnCount,
+      lastUserMessage,
+      llmResponse,
+      "inventory-constraint",
+      {
+        purpose: "general_chat",
+        currentMode: "general_chat",
+        lastAction: "answer_general",
+      },
+      orchResult,
+      buildProcessTrace({
+        actionType: "answer_general",
+        pendingQuestionField: prevState.lastAskedField ?? null,
+        recentFrameRelation: "inventory_constraint",
+        displayedOptions: buildReplyDisplayedOptions(llmResponse.chips),
+      }),
+      "replace_with_reply_options",
     )
   }
 

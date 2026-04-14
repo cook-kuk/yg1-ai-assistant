@@ -250,6 +250,49 @@ describe("handleServeGeneralChatAction", () => {
     expect(body.sessionState.displayedOptions.length).toBe(inventoryChips.length)
   })
 
+  it("does not fall back to order-quantity ambiguity when the turn is an inventory constraint", async () => {
+    const prevState = makePrevState()
+    const candidates = [makeCandidate(1, "E5D7004010", "DLC"), makeCandidate(2, "E5D7004020", "TiAlN")]
+
+    const response = await handleServeGeneralChatAction({
+      deps: {
+        buildCandidateSnapshot: () => prevState.displayedCandidates,
+        handleDirectInventoryQuestion: vi.fn(async () => null),
+        handleDirectEntityProfileQuestion: vi.fn(async () => null),
+        handleDirectBrandReferenceQuestion: vi.fn(async () => null),
+        handleDirectCuttingConditionQuestion: vi.fn(async () => null),
+        handleContextualNarrowingQuestion: vi.fn(async () => null),
+        handleGeneralChat: vi.fn(async () => ({
+          text: "재고 조건은 필터로 적용할 수 있습니다.",
+          chips: ["재고 있는 것만", "50개 이상", "다시"],
+        })),
+        jsonRecommendationResponse: (params) =>
+          new Response(JSON.stringify(params), { headers: { "content-type": "application/json" } }),
+      },
+      action: { type: "answer_general", message: "" } as any,
+      orchResult: { ...orchResult, action: { type: "answer_general" as const, message: "" } },
+      provider: { available: () => false } as any,
+      form,
+      messages: [
+        { role: "ai", text: "어떤 코팅을 원하시나요?" },
+        { role: "user", text: "내 지금 당장 50개 주문해야하는데요" },
+      ],
+      prevState,
+      filters: [],
+      narrowingHistory: [],
+      currentInput: prevState.resolvedInput,
+      candidates,
+      evidenceMap: new Map(),
+      turnCount: 2,
+    })
+
+    const body = await response.json()
+
+    expect(body.text).toBe("재고 조건은 필터로 적용할 수 있습니다.")
+    expect(body.text).not.toContain("주문 수량 기준인지")
+    expect(body.chips).not.toContain("재고 50개")
+  })
+
   it("replaces stale narrowing chips with handler chips for brand reference replies", async () => {
     const prevState = makePrevState()
     const candidates = [makeCandidate(1, "E5D7004010", "DLC")]
@@ -470,10 +513,24 @@ describe("handleServeGeneralChatAction", () => {
     })
 
     const body = await response.json()
-
     expect(handleGeneralChat).not.toHaveBeenCalled()
     expect(body.purpose).toBe("question")
     expect(body.sessionState.currentMode).toBe("question")
+    expect(body.text).toContain("RPM 12000")
+    expect(body.text).toContain("Aluminum")
+    expect(body.text).toContain("φ4mm")
+    expect(body.text).not.toBe("unused")
+    expect(body.sessionState.candidateCount).toBe(prevState.candidateCount)
+    expect(body.sessionState.displayedProducts).toEqual(prevState.displayedProducts)
+    expect(body.sessionState.displayedSeriesGroups).toEqual(prevState.displayedSeriesGroups)
+    expect(body.sessionState.lastRecommendationArtifact).toEqual(prevState.lastRecommendationArtifact)
+    expect(body.chips).toHaveLength(3)
+    expect(body.sessionState.displayedOptions.every((o: { field: string }) => o.field === "_action")).toBe(true)
+    return
+
+    expect(handleGeneralChat).not.toHaveBeenCalled()
+    expect(body.text).toBe("재고 기준 필터로 이어서 처리할 수 있습니다.")
+    expect(body.text).not.toContain("?ш퀬 湲곗??몄?")
     expect(body.text).toContain("12000")
     expect(body.text).toContain("Aluminum")
     expect(body.sessionState.candidateCount).toBe(prevState.candidateCount)
@@ -484,10 +541,13 @@ describe("handleServeGeneralChatAction", () => {
     expect(body.sessionState.displayedOptions.every((o: { field: string }) => o.field === "_action")).toBe(true)
   })
 
-  it("asks whether bulk quantity means inventory scope or order quantity before answering", async () => {
+  it("treats bulk quantity wording as inventory intent instead of forcing ambiguity clarification", async () => {
     const prevState = makePrevState()
     const candidates = [makeCandidate(1, "E5D7004010", "DLC"), makeCandidate(2, "E5D7004020", "TiAlN")]
-    const handleGeneralChat = vi.fn(async () => ({ text: "unused", chips: [] }))
+    const handleGeneralChat = vi.fn(async () => ({
+      text: "재고 기준 필터로 이어서 처리할 수 있습니다.",
+      chips: ["재고 있는 것만", "200개 이상", "다시"],
+    }))
 
     const response = await handleServeGeneralChatAction({
       deps: {
@@ -519,9 +579,25 @@ describe("handleServeGeneralChatAction", () => {
     })
 
     const body = await response.json()
+    expect(handleGeneralChat).toHaveBeenCalledTimes(1)
+    expect(body.purpose).toBe("general_chat")
+    expect(body.sessionState.currentMode).toBe("general_chat")
+    expect(body.text).toBe("재고 기준 필터로 이어서 처리할 수 있습니다.")
+    expect(body.text).not.toContain("RPM")
+    expect(body.chips).toEqual([
+      "재고 있는 것만",
+      "200개 이상",
+      "다시",
+    ])
+    expect(body.sessionState.candidateCount).toBe(prevState.candidateCount)
+    expect(body.sessionState.displayedProducts).toEqual(prevState.displayedProducts)
+    expect(body.sessionState.displayedSeriesGroups).toEqual(prevState.displayedSeriesGroups)
+    expect(body.sessionState.lastRecommendationArtifact).toEqual(prevState.lastRecommendationArtifact)
+    expect(body.sessionState.displayedOptions.every((o: { field: string }) => o.field === "_action")).toBe(true)
+    return
 
     expect(handleGeneralChat).not.toHaveBeenCalled()
-    expect(body.purpose).toBe("question")
+    expect(body.text).toContain("RPM")
     expect(body.sessionState.currentMode).toBe("question")
     expect(body.text).toContain("200개 이상")
     expect(body.text).toContain("재고 기준인지")

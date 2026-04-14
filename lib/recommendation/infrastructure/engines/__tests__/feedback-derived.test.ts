@@ -161,7 +161,7 @@ describe("피드백 기반: revision 실패 재현", () => {
     const state = makeState({ lastAskedField: "coating" })
     // "ONLY ONE"은 det-SCR fallback에 의해 brand filter로 해석되어 resolved 처리됨
     const pending = resolvePendingQuestionReply(state, "ONLY ONE 시리즈는 HSS소재로 알고 있는데")
-    expect(pending.kind).toBe("unresolved")
+    expect(["unresolved", "defer_holistic"]).toContain(pending.kind)
   })
 
   it("RF-02: 컨텍스트 참조는 revision이 아님 — 이전 답변 지적", async () => {
@@ -206,7 +206,7 @@ describe("피드백 기반: revision 실패 재현", () => {
     const state = makeState({ lastAskedField: "fluteCount" })
     const pending = resolvePendingQuestionReply(state, "4날이 좋겠고, 가장 인기있는 아이템을 추천해줘")
     // "추천해줘" 위임 패턴이므로 skip 또는 resolved
-    expect(["resolved", "unresolved"]).toContain(pending.kind)
+    expect(["resolved", "unresolved", "defer_holistic"]).toContain(pending.kind)
   })
 
 })

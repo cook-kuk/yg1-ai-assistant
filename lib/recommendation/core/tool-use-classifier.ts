@@ -10,7 +10,7 @@ import type { LLMProvider, LLMTool, LLMToolResult } from "@/lib/recommendation/i
 import type { ExplorationSessionState } from "@/lib/recommendation/domain/types"
 import { buildAppliedFilterFromValue } from "@/lib/recommendation/shared/filter-field-registry"
 import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
-import { buildDomainKnowledgeSnippet } from "@/lib/recommendation/shared/patterns"
+import { buildCanonicalDomainKnowledgeSnippet } from "@/lib/recommendation/shared/canonical-values"
 
 // ── Feature flag ─────────────────────────────────────────────
 
@@ -211,7 +211,7 @@ The user speaks Korean. Choose the right tool based on their message and session
 
 Use your judgment to interpret the user's intent and canonicalize values appropriately.
 
-${buildDomainKnowledgeSnippet()}`
+${buildCanonicalDomainKnowledgeSnippet()}`
 
 export function buildSystemPrompt(state: ExplorationSessionState | null): string {
   const template = LLM_FREE_INTERPRETATION ? SYSTEM_PROMPT_TEMPLATE_FREE : SYSTEM_PROMPT_TEMPLATE_FULL
