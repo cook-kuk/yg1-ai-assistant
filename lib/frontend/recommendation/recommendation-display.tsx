@@ -81,12 +81,13 @@ function StockBadge({ status, total }: { status: string; total: number | null })
 }
 
 function SpecRow({ label, value }: { label: string; value: string | null | undefined }) {
-  if (value == null) return null
-
+  const hasValue = value != null && value !== ""
   return (
     <div className="flex justify-between items-center py-1 border-b border-gray-100 last:border-0">
       <span className="text-xs text-gray-500">{label}</span>
-      <span className="text-xs font-medium text-gray-900">{value}</span>
+      <span className={`text-xs font-medium ${hasValue ? "text-gray-900" : "text-gray-300"}`}>
+        {hasValue ? value : "-"}
+      </span>
     </div>
   )
 }
@@ -428,12 +429,11 @@ function ProductCard({
             <SpecRow label={language === "ko" ? "헬릭스각" : "Helix Angle"} value={product.helixAngleDeg != null ? `${product.helixAngleDeg}°` : null} />
             {(() => {
               const cornerR = product.cornerRadiusMm ?? product.ballRadiusMm
-              if (cornerR == null) return null
               const isBall = (product.toolSubtype ?? "").toLowerCase().includes("ball") || product.toolSubtype === "볼"
               const label = isBall
                 ? (language === "ko" ? "볼 R" : "Ball R")
                 : (language === "ko" ? "코너 R" : "Corner R")
-              return <SpecRow label={label} value={`R${cornerR}`} />
+              return <SpecRow label={label} value={cornerR != null ? `R${cornerR}` : null} />
             })()}
             <SpecRow
               label={language === "ko" ? "쿨런트홀" : "Coolant Hole"}
