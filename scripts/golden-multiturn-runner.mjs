@@ -1,12 +1,15 @@
 // 멀티턴 골든세트 빡센 러너 — extra-hard.multiTurn 12 cases
 // Usage: API_URL=... node scripts/golden-multiturn-runner.mjs [--parallel N]
 import fs from "node:fs"
+import path from "node:path"
 
 const API_URL = process.env.API_URL || "http://20.119.98.136:3000/api/recommend"
 const TIMEOUT = 300_000
 const PARALLEL = parseInt(process.argv.find(a => a.startsWith("--parallel="))?.split("=")[1] ?? "3", 10)
 
-const dataset = JSON.parse(fs.readFileSync("./test-results/golden-set-extra-hard.json", "utf8"))
+const dataset = JSON.parse(
+  fs.readFileSync(path.join(process.cwd(), "testset", "golden-set-extra-hard.json"), "utf8"),
+)
 const cases = dataset.multiTurn
 
 const baseForm = {

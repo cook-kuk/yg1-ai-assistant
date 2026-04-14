@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /**
- * SSH 기반 배포 트리거 — 20.119.98.136 csp user.
- * 사용: node scripts/ssh-deploy.mjs [remote-command]
- *   기본: cd ~/yg1-ai-catalog-dev && git pull && docker compose up -d --build
- * 출력: stdout/stderr 실시간 tail.
+ * SSH deploy helper for the VM at 20.119.98.136 as user csp.
+ * Usage: node scripts/ssh-deploy.mjs [remote-command]
+ * Default: deploy the current git branch to ~/yg1-ai-catalog-dev
  *
- * 비번은 reference_ssh_deploy_server.md 에 기록된 값을 사용 — repo에 평문
- * 저장 금지, 호출 시 env SSH_PASS 또는 memory에서 읽는 것이 원칙.
+ * Do not store the SSH password in the repo.
+ * Pass it via the SSH_PASS environment variable.
  */
 import { Client } from "ssh2"
+import { buildRemoteDeployRepoCommand, resolveTargetBranch } from "./deploy-branch.mjs"
 
 const HOST = "20.119.98.136"
 const PORT = 22
@@ -18,8 +18,21 @@ if (!PASS) {
   console.error("SSH_PASS env required")
   process.exit(1)
 }
-const CMD = process.argv.slice(2).join(" ") ||
-  "cd ~/yg1-ai-catalog-dev && git fetch --all && git reset --hard origin/main && docker compose up -d --build 2>&1 | tail -120"
+const customCommand = process.argv.slice(2).join(" ")
+let CMD = customCommand
+
+if (!CMD) {
+  try {
+    CMD = buildRemoteDeployRepoCommand({
+      repoPath: "~/yg1-ai-catalog-dev",
+      appMode: process.env.APP_MODE || "dev",
+      targetBranch: resolveTargetBranch(),
+    })
+  } catch (error) {
+    console.error(`[ssh] ${error.message}`)
+    process.exit(1)
+  }
+}
 
 const conn = new Client()
 conn.on("ready", () => {

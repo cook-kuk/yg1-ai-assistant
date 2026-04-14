@@ -63,9 +63,9 @@ export function loadFewShotPool(): void {
     // dynamic require — Node runtime only. Edge runtime은 build time에 _pool=[] 그대로.
     const fs = require("fs")
     const path = require("path")
-    const fp = path.join(process.cwd(), "test-results", "golden-set-v1.json")
+    const fp = path.join(process.cwd(), "testset", "golden-set-v1.json")
     if (!fs.existsSync(fp)) {
-      console.warn("[adaptive-few-shot] golden-set-v1.json missing; using fallback seeds")
+      console.warn("[adaptive-few-shot] testset/golden-set-v1.json missing; using fallback seeds")
       loadFallbackFewShotPool()
       return
     }

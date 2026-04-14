@@ -13,6 +13,7 @@ const API_PATH = '/api/recommend';
 const TIMEOUT_MS = parseInt(process.env.TIMEOUT || '120000', 10);
 const DEFAULT_CONCURRENCY = parseInt(process.env.CONCURRENCY || '3', 10);
 const DEFAULT_CASES_FILE = path.join(__dirname, '..', 'testset', 'golden-set-v1.json');
+const RESULTS_DIR = path.join(__dirname, '..', 'test-results');
 
 const SUPPORTED_EXTS = new Set(['.json', '.xlsx', '.xls', '.csv', '.tsv']);
 
@@ -666,13 +667,14 @@ async function main() {
     results,
   };
 
+  fs.mkdirSync(RESULTS_DIR, { recursive: true });
   const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const jsonPath = path.join(__dirname, '..', 'test-results', `qa-full-${ts}.json`);
+  const jsonPath = path.join(RESULTS_DIR, `qa-full-${ts}.json`);
   fs.writeFileSync(jsonPath, JSON.stringify(output, null, 2));
   console.log(`\nJSON: ${jsonPath}`);
   console.log(`Total: ${output.totalCases} | Pass: ${output.pass} | Fail: ${output.fail} | ${(elapsed / 1000).toFixed(1)}s`);
 
-  const xlsxPath = path.join(__dirname, '..', `qa-full-report-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  const xlsxPath = path.join(RESULTS_DIR, `qa-full-report-${new Date().toISOString().slice(0, 10)}.xlsx`);
   await generateXlsx(output, xlsxPath);
 }
 

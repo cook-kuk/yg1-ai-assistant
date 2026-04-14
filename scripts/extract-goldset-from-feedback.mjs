@@ -1,22 +1,22 @@
 #!/usr/bin/env node
 /**
- * :3001 feedback dump → top-K goldset.
+ * :3001 feedback dump ??top-K goldset.
  *
- * 입력: test-results/_feedback_dump.json (curl -o 로 덤프)
- * 출력: test-results/goldset/from-feedback.json
+ * ?낅젰: test-results/_feedback_dump.json (curl -o 濡??ㅽ봽)
+ * 異쒕젰: testset/goldset/from-feedback.json
  *       { cases: [{ id, formSnapshot, nlMessages, expectedTop3/5/10, badExcludes }] }
  *
  * Logic:
- *  - turn_feedback 중 feedback==='good' && candidateHighlights>=3 → positive
- *  - 같은 feedback==='bad' && 동일 form signature → anti-example (top-3 에서 제외 되어야)
- *  - 중복 제거: formSignature + (lastUserMessage || "") 기준 최신 것만
- *  - NL message 없는 케이스는 form 만으로 입력 복원 가능
+ *  - turn_feedback 以?feedback==='good' && candidateHighlights>=3 ??positive
+ *  - 媛숈? feedback==='bad' && ?숈씪 form signature ??anti-example (top-3 ?먯꽌 ?쒖쇅 ?섏뼱??
+ *  - 以묐났 ?쒓굅: formSignature + (lastUserMessage || "") 湲곗? 理쒖떊 寃껊쭔
+ *  - NL message ?녿뒗 耳?댁뒪??form 留뚯쑝濡??낅젰 蹂듭썝 媛??
  */
 import fs from "node:fs"
 import path from "node:path"
 
 const IN = process.argv[2] || "test-results/_feedback_dump.json"
-const OUT = process.argv[3] || "test-results/goldset/from-feedback.json"
+const OUT = process.argv[3] || "testset/goldset/from-feedback.json"
 
 const raw = JSON.parse(fs.readFileSync(IN, "utf8"))
 const all = [
@@ -45,12 +45,12 @@ function formSig(f) {
 function cleanMsg(m) {
   if (!m) return ""
   const s = String(m).trim()
-  if (s.startsWith("🧭") || s === "(선택지 평가)") return ""
+  if (s.startsWith("?㎛") || s === "(?좏깮吏 ?됯?)") return ""
   return s.slice(0, 200)
 }
 
 // Bucket by form signature
-const buckets = new Map() // sig → { good: [], bad: [] }
+const buckets = new Map() // sig ??{ good: [], bad: [] }
 for (const e of all) {
   const sig = formSig(e.formSnapshot)
   if (!sig || sig === "-|-|-|-|-|-|-") continue
@@ -77,7 +77,7 @@ for (const [sig, bucket] of buckets) {
   const latestGood = bucket.good.sort((a, b) => (b.ts || "").localeCompare(a.ts || ""))[0]
   // All NL messages seen on this form (for seed diversity)
   const nlMessages = [...new Set(bucket.good.map(g => g.msg).filter(Boolean))]
-  // Bad picks → must-exclude (only if they appear NOT in any good top-3)
+  // Bad picks ??must-exclude (only if they appear NOT in any good top-3)
   const goodTop3Union = new Set()
   for (const g of bucket.good) for (const p of g.top.slice(0, 3)) goodTop3Union.add(p)
   const badExcludes = [...new Set(
@@ -108,7 +108,7 @@ fs.writeFileSync(OUT, JSON.stringify({ generatedAt: new Date().toISOString(), to
 console.log(`[goldset] ${cases.length} unique form signatures`)
 console.log(`[goldset] ${cases.filter(c => c.nlMessages.length > 0).length} have NL messages`)
 console.log(`[goldset] ${cases.filter(c => c.badExcludes.length > 0).length} have bad excludes`)
-console.log(`[goldset] saved → ${OUT}`)
+console.log(`[goldset] saved ??${OUT}`)
 
 // Top 5 summary
 console.log("\ntop 5 by sample volume:")
@@ -118,5 +118,5 @@ for (const c of cases.slice(0, 5)) {
   const op = f.operationType?.value || "-"
   const tool = f.toolTypeOrCurrentProduct?.value || "-"
   const dia = f.diameterInfo?.value || "-"
-  console.log(`  [${c.goodSamples}g/${c.badSamples}b] ${mat} ${op} ${tool} ${dia} → ${c.expectedTop3.join(",")}`)
+  console.log(`  [${c.goodSamples}g/${c.badSamples}b] ${mat} ${op} ${tool} ${dia} ??${c.expectedTop3.join(",")}`)
 }

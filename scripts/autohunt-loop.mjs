@@ -15,6 +15,7 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, appendFileSync } from "fs"
 import { execSync } from "child_process"
+import { buildRemoteDeployRepoCommand, resolveTargetBranch } from "./deploy-branch.mjs"
 
 if (existsSync(".env.local")) {
   for (const line of readFileSync(".env.local", "utf8").split("\n")) {
@@ -86,6 +87,13 @@ function grabVmLogs(tail = 300) {
 
 // ─── deploy cycle ────────────────────────────────────────────
 function deploy(commitMsg) {
+  const targetBranch = resolveTargetBranch()
+  const remoteDeployCommand = buildRemoteDeployRepoCommand({
+    repoPath: "/home/csp/yg1-ai-catalog-dev",
+    appMode: "dev",
+    targetBranch,
+  })
+  console.log(`[deploy] target branch: ${targetBranch}`)
   try {
     execSync(`git add -A && git commit -m ${JSON.stringify(commitMsg)}`, { stdio: "inherit" })
   } catch {
@@ -93,16 +101,16 @@ function deploy(commitMsg) {
     return false
   }
   try {
-    execSync("git push origin main", { stdio: "inherit" })
-    execSync("git push company main", { stdio: "inherit" })
+    execSync(`git push origin HEAD:${targetBranch}`, { stdio: "inherit" })
+    execSync(`git push company HEAD:${targetBranch}`, { stdio: "inherit" })
   } catch (e) {
     console.warn(`[deploy] push failed: ${e.message}`)
   }
   try {
-    execSync(
-      `ssh yg1vm "cd /home/csp/yg1-ai-catalog-dev && git pull && sudo docker compose build app 2>&1 | tail -3 && sudo docker rm -f yg1-ai-catalog-app-dev 2>&1; sudo docker compose up -d app 2>&1 | tail -3"`,
-      { stdio: "inherit", timeout: 600000 },
-    )
+    execSync(`ssh yg1vm ${JSON.stringify(remoteDeployCommand)}`, {
+      stdio: "inherit",
+      timeout: 600000,
+    })
   } catch (e) {
     console.warn(`[deploy] vm rebuild failed: ${e.message}`)
   }
