@@ -12,6 +12,7 @@ import {
   BookOpen,
   Settings,
   ChevronDown,
+  ChevronRight,
   Sparkles,
   Play,
   MessageSquare,
@@ -23,7 +24,10 @@ import {
   MapPin,
   Calculator,
   Brain,
+  Trash2,
+  History,
 } from "lucide-react"
+import { useConversationHistory } from "@/lib/frontend/recommendation/use-conversation-history"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/lib/store"
 import { wowScenarios } from "@/lib/demo-data"
@@ -201,6 +205,41 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
     item.roles.includes(currentUser.role)
   )
 
+  const { conversations, remove: removeConversation } = useConversationHistory("default")
+  const [historyOpen, setHistoryOpen] = useState(true)
+  const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null
+  const activeConvId = searchParams?.get("convId") ?? null
+
+  const handleConversationClick = (conversationId: string) => {
+    router.push(`/products?convId=${encodeURIComponent(conversationId)}`)
+    onClose?.()
+  }
+
+  const handleConversationDelete = async (e: React.MouseEvent, conversationId: string) => {
+    e.stopPropagation()
+    e.preventDefault()
+    if (!confirm(language === "ko" ? "이 대화를 삭제할까요?" : "Delete this conversation?")) return
+    await removeConversation(conversationId)
+    if (activeConvId === conversationId) {
+      router.push(`/products?reset=${Date.now()}`)
+    }
+  }
+
+  const formatTime = (iso: string): string => {
+    try {
+      const d = new Date(iso)
+      const diffMs = Date.now() - d.getTime()
+      const hrs = diffMs / (1000 * 60 * 60)
+      if (hrs < 1) return language === "ko" ? "방금" : "just now"
+      if (hrs < 24) return `${Math.floor(hrs)}${language === "ko" ? "시간 전" : "h ago"}`
+      const days = Math.floor(hrs / 24)
+      if (days < 7) return `${days}${language === "ko" ? "일 전" : "d ago"}`
+      return d.toLocaleDateString(language === "ko" ? "ko-KR" : "en-US", { month: "short", day: "numeric" })
+    } catch {
+      return ""
+    }
+  }
+
   return (
     <>
       {/* Mobile overlay */}
@@ -329,6 +368,79 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
             )
           })}
         </ul>
+
+        {/* Conversation History */}
+        <div className="mt-4 border-t border-sidebar-border pt-3">
+          <button
+            onClick={() => setHistoryOpen(v => !v)}
+            className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground"
+          >
+            {historyOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+            <History className="h-3.5 w-3.5" />
+            <span className="flex-1 text-left">{language === "ko" ? "대화 기록" : "History"}</span>
+            {conversations.length > 0 && (
+              <span className="text-[10px] font-normal text-sidebar-foreground/40">{conversations.length}</span>
+            )}
+          </button>
+
+          {historyOpen && (
+            <ul className="mt-1 space-y-0.5">
+              {conversations.length === 0 ? (
+                <li className="px-3 py-2 text-xs text-sidebar-foreground/40">
+                  {language === "ko" ? "저장된 대화가 없습니다" : "No saved conversations"}
+                </li>
+              ) : (
+                conversations.map(conv => {
+                  const isActive = activeConvId === conv.conversationId
+                  return (
+                    <li key={conv.conversationId} className="group relative">
+                      <button
+                        onClick={() => handleConversationClick(conv.conversationId)}
+                        className={cn(
+                          "flex w-full flex-col items-start gap-0.5 rounded-md px-3 py-2 text-left text-xs transition-colors",
+                          isActive
+                            ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                            : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50"
+                        )}
+                      >
+                        <div className="flex w-full items-center gap-1.5">
+                          <span className="flex-1 truncate font-medium">{conv.title}</span>
+                          <span className="shrink-0 text-[9px] text-sidebar-foreground/40">
+                            {formatTime(conv.updatedAt)}
+                          </span>
+                        </div>
+                        {conv.lastUserMessage && (
+                          <span className="line-clamp-1 text-[10px] text-sidebar-foreground/50">
+                            {conv.lastUserMessage}
+                          </span>
+                        )}
+                        {conv.filterSummary.length > 0 && (
+                          <div className="mt-0.5 flex flex-wrap gap-1">
+                            {conv.filterSummary.slice(0, 3).map((f, i) => (
+                              <span
+                                key={i}
+                                className="rounded bg-sidebar-accent/70 px-1 py-[1px] text-[9px] text-sidebar-foreground/60"
+                              >
+                                {f}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </button>
+                      <button
+                        onClick={(e) => handleConversationDelete(e, conv.conversationId)}
+                        className="absolute right-1.5 top-1.5 hidden rounded p-1 text-sidebar-foreground/40 hover:bg-red-500/20 hover:text-red-500 group-hover:block"
+                        title={language === "ko" ? "삭제" : "Delete"}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </li>
+                  )
+                })
+              )}
+            </ul>
+          )}
+        </div>
       </nav>
 
       {/* User Role Selector + Country + Language Toggle */}

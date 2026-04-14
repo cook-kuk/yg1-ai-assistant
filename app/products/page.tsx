@@ -19,6 +19,7 @@ export default function ProductRecommendPage() {
   const searchParams = useSearchParams()
   const { language, country } = useApp()
   const resetKey = searchParams.get("reset")
+  const convIdFromUrl = searchParams.get("convId")
 
   const {
     phase,
@@ -49,6 +50,7 @@ export default function ProductRecommendPage() {
     language,
     country,
     resetKey,
+    conversationId: convIdFromUrl,
   })
 
   const phaseLabel =

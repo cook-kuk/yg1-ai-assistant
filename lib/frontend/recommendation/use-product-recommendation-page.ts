@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import type {
   RecommendationCapabilityDto,
@@ -112,14 +112,38 @@ function buildConversationRecommendations(messages: ChatMsg[]) {
   return recommendations.length > 0 ? recommendations : null
 }
 
+function newConversationId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `conv_${crypto.randomUUID()}`
+  }
+  return `conv_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+}
+
+function toPersistedMessages(messages: ChatMsg[]) {
+  return messages
+    .filter(m => !m.isLoading)
+    .map(m => ({
+      role: m.role,
+      text: m.text ?? "",
+      createdAt: m.createdAt ?? new Date().toISOString(),
+      hasRecommendation: Boolean(m.recommendation),
+      feedback: m.feedback ?? null,
+      chips: m.chips ?? [],
+    }))
+}
+
 export function useProductRecommendationPage({
   language,
   country,
   resetKey,
+  conversationId: externalConversationId,
+  userId = "default",
 }: {
   language: "ko" | "en"
   country: string
   resetKey: string | null
+  conversationId?: string | null
+  userId?: string
 }) {
   const [phase, setPhase] = useState<Phase>("intake")
   const [form, setForm] = useState<ProductIntakeForm>(INITIAL_INTAKE_FORM)
@@ -137,6 +161,90 @@ export function useProductRecommendationPage({
     () => buildRecommendationSessionEnvelope(sessionState, engineSessionState),
     [engineSessionState, sessionState]
   )
+
+  const [activeConversationId, setActiveConversationId] = useState<string>(() =>
+    externalConversationId ?? newConversationId()
+  )
+  const restoredRef = useRef<string | null>(null)
+  const suppressSaveRef = useRef(false)
+
+  // 대화 복원: URL ?convId= 로 들어왔거나 사이드바에서 선택한 경우
+  useEffect(() => {
+    if (!externalConversationId) return
+    if (externalConversationId === restoredRef.current) return
+    if (externalConversationId === activeConversationId && restoredRef.current === activeConversationId) return
+
+    let cancelled = false
+    suppressSaveRef.current = true
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/conversations/${encodeURIComponent(externalConversationId)}`, { cache: "no-store" })
+        if (!res.ok) {
+          if (!cancelled) {
+            setActiveConversationId(externalConversationId)
+            restoredRef.current = externalConversationId
+          }
+          return
+        }
+        const data = await res.json()
+        if (cancelled) return
+
+        const restoredMessages: ChatMsg[] = Array.isArray(data.messages)
+          ? data.messages.map((m: { role?: string; text?: string; createdAt?: string; chips?: string[]; feedback?: TurnFeedback }) => ({
+              role: (m.role === "user" ? "user" : "ai") as "user" | "ai",
+              text: m.text ?? "",
+              createdAt: m.createdAt,
+              chips: m.chips ?? [],
+              feedback: m.feedback ?? null,
+              reasoningVisibility: "hidden",
+            }))
+          : []
+
+        setActiveConversationId(externalConversationId)
+        restoredRef.current = externalConversationId
+        setChatMessages(restoredMessages)
+        setSessionState((data.sessionState as RecommendationPublicSessionDto | null) ?? null)
+        if (data.intakeForm && typeof data.intakeForm === "object") {
+          setForm({ ...INITIAL_INTAKE_FORM, ...(data.intakeForm as ProductIntakeForm) })
+        }
+        setPhase(restoredMessages.length > 0 ? "explore" : "intake")
+      } catch (e) {
+        console.warn("[conversation-restore] failed:", e)
+      } finally {
+        // Re-enable save after a tick so state has settled
+        setTimeout(() => { suppressSaveRef.current = false }, 100)
+      }
+    })()
+
+    return () => { cancelled = true }
+  }, [externalConversationId, activeConversationId])
+
+  // 자동 저장: 대화가 진행 중일 때만 (explore phase + 메시지 있음)
+  useEffect(() => {
+    if (suppressSaveRef.current) return
+    if (phase !== "explore") return
+    if (chatMessages.length === 0) return
+    if (chatMessages.every(m => m.isLoading)) return
+    if (isChatSending) return  // Wait until turn finishes
+
+    const timer = setTimeout(() => {
+      const persistedMessages = toPersistedMessages(chatMessages)
+      if (persistedMessages.length === 0) return
+      void fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversationId: activeConversationId,
+          userId,
+          messages: persistedMessages,
+          sessionState: sessionState ?? null,
+          intakeForm: form ?? null,
+        }),
+      }).catch(() => {})
+    }, 800)
+
+    return () => clearTimeout(timer)
+  }, [activeConversationId, chatMessages, form, isChatSending, phase, sessionState, userId])
 
   // 사이드바 국가 선택 → form.country 자동 동기화
   useEffect(() => {
@@ -160,6 +268,10 @@ export function useProductRecommendationPage({
     setIsCandidatePageLoading(false)
     setCapabilities(DEFAULT_RECOMMENDATION_CAPABILITIES)
     setPhase("intake")
+    // Reset 시 새 대화로 간주
+    const freshId = newConversationId()
+    setActiveConversationId(freshId)
+    restoredRef.current = null
   }, [resetKey])
 
   const handleFieldChange = (key: keyof ProductIntakeForm, value: AnswerState<string>) => {
@@ -744,6 +856,8 @@ export function useProductRecommendationPage({
     setIsCandidatePageLoading(false)
     setCapabilities(DEFAULT_RECOMMENDATION_CAPABILITIES)
     setPhase("intake")
+    setActiveConversationId(newConversationId())
+    restoredRef.current = null
   }
 
   const loadCandidatePage = useCallback(async (page: number) => {
@@ -894,6 +1008,7 @@ export function useProductRecommendationPage({
   }
 
   return {
+    conversationId: activeConversationId,
     phase,
     setPhase,
     form,
