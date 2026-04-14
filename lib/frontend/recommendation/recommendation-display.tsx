@@ -420,9 +420,29 @@ function ProductCard({
             <SpecRow label={language === "ko" ? "공구 직경" : "Tool Dia."} value={product.diameterMm != null ? `${product.diameterMm}mm` : null} />
             <SpecRow label={language === "ko" ? "생크 타입" : "Shank Type"} value={product.shankType ?? null} />
             <SpecRow label={language === "ko" ? "생크 직경" : "Shank Dia."} value={product.shankDiameterMm != null ? `${product.shankDiameterMm}mm` : null} />
+            <SpecRow label={language === "ko" ? "넥 직경" : "Neck Dia."} value={product.neckDiameterMm != null ? `${product.neckDiameterMm}mm` : null} />
+            <SpecRow label={language === "ko" ? "넥 길이" : "Neck Length"} value={product.neckLengthMm != null ? `${product.neckLengthMm}mm` : null} />
             <SpecRow label={language === "ko" ? "날장 길이" : "LOC"} value={product.lengthOfCutMm != null ? `${product.lengthOfCutMm}mm` : null} />
+            <SpecRow label={language === "ko" ? "유효장" : "Effective Length"} value={product.effectiveLengthMm != null ? `${product.effectiveLengthMm}mm` : null} />
             <SpecRow label={language === "ko" ? "전체 길이" : "OAL"} value={product.overallLengthMm != null ? `${product.overallLengthMm}mm` : null} />
             <SpecRow label={language === "ko" ? "헬릭스각" : "Helix Angle"} value={product.helixAngleDeg != null ? `${product.helixAngleDeg}°` : null} />
+            {(() => {
+              const cornerR = product.cornerRadiusMm ?? product.ballRadiusMm
+              if (cornerR == null) return null
+              const isBall = (product.toolSubtype ?? "").toLowerCase().includes("ball") || product.toolSubtype === "볼"
+              const label = isBall
+                ? (language === "ko" ? "볼 R" : "Ball R")
+                : (language === "ko" ? "코너 R" : "Corner R")
+              return <SpecRow label={label} value={`R${cornerR}`} />
+            })()}
+            <SpecRow
+              label={language === "ko" ? "쿨런트홀" : "Coolant Hole"}
+              value={product.coolantHole == null
+                ? null
+                : language === "ko"
+                  ? (product.coolantHole ? "있음" : "없음")
+                  : (product.coolantHole ? "Yes" : "No")}
+            />
 
           </div>
           {product.featureText && (
