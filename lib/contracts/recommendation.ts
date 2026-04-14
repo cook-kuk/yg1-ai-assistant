@@ -275,6 +275,7 @@ export interface RecommendationResponseDto {
       alternatives?: Array<{ code: string; label: string; labelKo: string }>
     }
   }
+  reasoningVisibility?: RecommendationReasoningVisibility | null
   /** 추론 과정 — Claude thinking 처럼 유저에게 "이렇게 이해했습니다" 보여주기 위한 한국어 자연어. */
   thinkingProcess?: string | null
   thinkingDeep?: string | null
@@ -282,12 +283,20 @@ export interface RecommendationResponseDto {
   detail?: string
 }
 
+export type RecommendationReasoningVisibility = "hidden" | "simple" | "full"
+
 export const recommendationPurposeSchema = z.enum([
   "greeting",
   "question",
   "recommendation",
   "comparison",
   "general_chat",
+])
+
+export const recommendationReasoningVisibilitySchema = z.enum([
+  "hidden",
+  "simple",
+  "full",
 ])
 
 export const recommendationResolutionStatusSchema = z.enum([
@@ -530,6 +539,7 @@ export const recommendationResponseSchema = z.object({
   altFactChecked: z.array(z.record(z.unknown())),
   capabilities: recommendationCapabilitySchema,
   meta: recommendationResponseMetaSchema.optional(),
+  reasoningVisibility: recommendationReasoningVisibilitySchema.nullable().optional(),
   thinkingProcess: z.string().nullable().optional(),
   thinkingDeep: z.string().nullable().optional(),
   error: z.string().optional(),

@@ -723,7 +723,7 @@ function NarrowingChat({
                 </div>
               )}
 
-              {message.role === "ai" && (message.thinkingProcess || message.thinkingDeep || message.isLoading) && (
+              {message.role === "ai" && message.reasoningVisibility !== "hidden" && (message.thinkingProcess || message.thinkingDeep || message.isLoading) && (
                 <ReasoningBlock
                   trail={message.thinkingProcess ?? ""}
                   deep={message.thinkingDeep ?? ""}

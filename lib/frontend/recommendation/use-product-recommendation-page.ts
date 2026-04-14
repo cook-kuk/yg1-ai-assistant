@@ -7,6 +7,7 @@ import type {
   RecommendationCandidateDto,
   RecommendationPaginationDto,
   RecommendationPublicSessionDto,
+  RecommendationReasoningVisibility,
 } from "@/lib/contracts/recommendation"
 import type { ExplorationSessionState } from "@/lib/recommendation/domain/types"
 import {
@@ -37,6 +38,17 @@ function pickLongerThinking(
   const sb = typeof b === "string" ? b : ""
   if (!sa && !sb) return null
   return sa.length >= sb.length ? sa : sb
+}
+
+function resolveReasoningVisibility(
+  explicit: RecommendationReasoningVisibility | null | undefined,
+  thinkingProcess: string | null | undefined,
+  thinkingDeep: string | null | undefined,
+): RecommendationReasoningVisibility {
+  if (explicit === "hidden" || explicit === "simple" || explicit === "full") return explicit
+  if (thinkingDeep) return "full"
+  if (thinkingProcess) return "simple"
+  return "hidden"
 }
 
 export type Phase = "intake" | "summary" | "loading" | "explore"
@@ -237,6 +249,7 @@ export function useProductRecommendationPage({
           isLoading: true,
           createdAt: new Date().toISOString(),
           feedbackGroupId: aiPlaceholderId,
+          reasoningVisibility: "hidden",
         },
       ])
       setPhase("explore")
@@ -259,7 +272,7 @@ export function useProductRecommendationPage({
                 : prevDeep
                   ? prevDeep.trimEnd() + "\n\n" + text
                   : text
-              updated[lastIndex] = { ...last, thinkingDeep: nextDeep } as any
+              updated[lastIndex] = { ...last, thinkingDeep: nextDeep, reasoningVisibility: "full" } as any
             } else {
               const prevThinking = last.thinkingProcess ?? ""
               const nextText = opts?.delta
@@ -267,7 +280,7 @@ export function useProductRecommendationPage({
                 : prevThinking
                   ? prevThinking.trimEnd() + "\n\n" + text
                   : text
-              updated[lastIndex] = { ...last, thinkingProcess: nextText }
+              updated[lastIndex] = { ...last, thinkingProcess: nextText, reasoningVisibility: "simple" }
             }
             return updated
           })
@@ -307,6 +320,8 @@ export function useProductRecommendationPage({
         const updated = [...prev]
         const lastIndex = updated.length - 1
         if (lastIndex < 0 || updated[lastIndex].role !== "ai") return prev
+        const mergedThinkingProcess = pickLongerThinking(updated[lastIndex].thinkingProcess, data.thinkingProcess) || null
+        const mergedThinkingDeep = pickLongerThinking((updated[lastIndex] as any).thinkingDeep, (data as any).thinkingDeep) || null
         updated[lastIndex] = {
           role: "ai",
           text: data.text ?? "",
@@ -327,8 +342,9 @@ export function useProductRecommendationPage({
           debugTrace: (data as any).meta?.debugTrace ?? null,
           // 스트리밍 중 누적된 실시간 CoT 전문을 최종 요약이 덮어쓰지 않도록 더 긴 쪽을 유지.
           // 백엔드의 최종 thinkingProcess 는 대개 짧은 요약이고, 실시간 누적본이 full trail.
-          thinkingProcess: pickLongerThinking(updated[lastIndex].thinkingProcess, data.thinkingProcess) || null,
-          thinkingDeep: pickLongerThinking((updated[lastIndex] as any).thinkingDeep, (data as any).thinkingDeep) || null,
+          thinkingProcess: mergedThinkingProcess,
+          thinkingDeep: mergedThinkingDeep,
+          reasoningVisibility: resolveReasoningVisibility(data.reasoningVisibility, mergedThinkingProcess, mergedThinkingDeep),
         } as ChatMsg
         return updated
       })
@@ -435,6 +451,8 @@ export function useProductRecommendationPage({
         const updated = [...prev]
         const lastIndex = updated.length - 1
         if (lastIndex < 0 || updated[lastIndex].role !== "ai") return prev
+        const mergedThinkingProcess = pickLongerThinking(updated[lastIndex].thinkingProcess, data.thinkingProcess) || null
+        const mergedThinkingDeep = pickLongerThinking((updated[lastIndex] as any).thinkingDeep, (data as any).thinkingDeep) || null
         updated[lastIndex] = {
           role: "ai",
           text: data.text ?? "",
@@ -455,8 +473,9 @@ export function useProductRecommendationPage({
           debugTrace: (data as any).meta?.debugTrace ?? null,
           // 스트리밍 중 누적된 실시간 CoT 전문을 최종 요약이 덮어쓰지 않도록 더 긴 쪽을 유지.
           // 백엔드의 최종 thinkingProcess 는 대개 짧은 요약이고, 실시간 누적본이 full trail.
-          thinkingProcess: pickLongerThinking(updated[lastIndex].thinkingProcess, data.thinkingProcess) || null,
-          thinkingDeep: pickLongerThinking((updated[lastIndex] as any).thinkingDeep, (data as any).thinkingDeep) || null,
+          thinkingProcess: mergedThinkingProcess,
+          thinkingDeep: mergedThinkingDeep,
+          reasoningVisibility: resolveReasoningVisibility(data.reasoningVisibility, mergedThinkingProcess, mergedThinkingDeep),
         } as ChatMsg
         return updated
       })
@@ -483,6 +502,7 @@ export function useProductRecommendationPage({
       isLoading: true,
       createdAt: new Date().toISOString(),
       feedbackGroupId: createClientEventId(),
+      reasoningVisibility: "hidden",
     }
 
     setChatMessages(prev => [...prev, userMessage, loadingMessage])
@@ -531,7 +551,7 @@ export function useProductRecommendationPage({
                 : prevDeep
                   ? prevDeep.trimEnd() + "\n\n" + text
                   : text
-              updated[lastIndex] = { ...last, thinkingDeep: nextDeep } as any
+              updated[lastIndex] = { ...last, thinkingDeep: nextDeep, reasoningVisibility: "full" } as any
             } else {
               const prevThinking = last.thinkingProcess ?? ""
               const nextText = opts?.delta
@@ -539,7 +559,7 @@ export function useProductRecommendationPage({
                 : prevThinking
                   ? prevThinking.trimEnd() + "\n\n" + text
                   : text
-              updated[lastIndex] = { ...last, thinkingProcess: nextText }
+              updated[lastIndex] = { ...last, thinkingProcess: nextText, reasoningVisibility: "simple" }
             }
             return updated
           })
@@ -601,6 +621,8 @@ export function useProductRecommendationPage({
 
       setChatMessages(prev => {
         const updated = [...prev]
+        const mergedThinkingProcess = pickLongerThinking(prev[updated.length - 1]?.thinkingProcess, data.thinkingProcess) || null
+        const mergedThinkingDeep = pickLongerThinking((prev[updated.length - 1] as any)?.thinkingDeep, (data as any).thinkingDeep) || null
         const nextMessage: ChatMsg = {
           role: "ai",
           text: data.text ?? "",
@@ -619,8 +641,9 @@ export function useProductRecommendationPage({
           createdAt: prev[updated.length - 1]?.createdAt ?? new Date().toISOString(),
           feedbackGroupId: prev[updated.length - 1]?.feedbackGroupId ?? createClientEventId(),
           debugTrace: (data as any).meta?.debugTrace ?? null,
-          thinkingProcess: pickLongerThinking(prev[updated.length - 1]?.thinkingProcess, data.thinkingProcess) || null,
-          thinkingDeep: pickLongerThinking((prev[updated.length - 1] as any)?.thinkingDeep, (data as any).thinkingDeep) || null,
+          thinkingProcess: mergedThinkingProcess,
+          thinkingDeep: mergedThinkingDeep,
+          reasoningVisibility: resolveReasoningVisibility(data.reasoningVisibility, mergedThinkingProcess, mergedThinkingDeep),
         } as ChatMsg
         console.log("[chip-groups:client:store]", {
           messageIndex: updated.length - 1,
@@ -653,6 +676,11 @@ export function useProductRecommendationPage({
           isLoading: false,
           thinkingProcess: last?.thinkingProcess ?? null,
           thinkingDeep: (last as any)?.thinkingDeep ?? null,
+          reasoningVisibility: resolveReasoningVisibility(
+            (last as ChatMsg | undefined)?.reasoningVisibility ?? null,
+            last?.thinkingProcess ?? null,
+            (last as any)?.thinkingDeep ?? null,
+          ),
         } as ChatMsg
         return updated
       })

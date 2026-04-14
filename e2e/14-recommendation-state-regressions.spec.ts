@@ -208,4 +208,34 @@ test.describe("YG-1 recommendation state regressions", () => {
       await harness.attachFailureArtifacts()
     }
   })
+
+  test("english UI session remains english-resolved and keeps request-context locale", async ({ page }, testInfo) => {
+    const harness = new RecommendationHarness(page, testInfo)
+
+    try {
+      await harness.startAluminum4mmSideMillingRecommendation()
+      const recommendation = await harness.ensureRecommendationResponse()
+
+      const resolvedInput = recommendation?.sessionState as
+        | ({ resolvedInput?: { locale?: string } } | null | undefined)
+      const sessionLocale = resolvedInput?.resolvedInput?.locale
+      expect(sessionLocale).toBe("en")
+      const interactions = harness.latestInteraction()
+      const requestBody = interactions?.requestBody as
+        | { resolvedInput?: { locale?: string } }
+        | { session?: { publicState?: { resolvedInput?: { locale?: string } } } }
+        | null
+      const requestBodyLocale =
+        requestBody && "resolvedInput" in requestBody
+          ? requestBody.resolvedInput?.locale
+          : (requestBody as { session?: { publicState?: { resolvedInput?: { locale?: string } } } } | null)?.session?.publicState
+              ?.resolvedInput?.locale
+
+      expect(requestBodyLocale ?? sessionLocale).toBe("en")
+      const lastPayload = harness.latestPayload()
+      expect(lastPayload?.text).toContain("Initial recommendation loaded from persisted artifact fixture.")
+    } finally {
+      await harness.attachFailureArtifacts()
+    }
+  })
 })
