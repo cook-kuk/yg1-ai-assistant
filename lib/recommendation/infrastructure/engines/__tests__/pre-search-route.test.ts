@@ -30,6 +30,27 @@ const unavailableProvider = {
   completeWithTools: vi.fn(),
 } as any
 
+// LLM가 "explain" 판단을 내리는 mock — regex 제거 이후 지식질문 라우팅은 LLM 몫
+function makeExplainProvider() {
+  return {
+    available: () => true,
+    complete: vi.fn().mockResolvedValue(JSON.stringify({
+      userState: "wants_explanation",
+      confusedAbout: null,
+      messageKind: "clarification_request",
+      frameRelation: "detail_request",
+      intentShift: "explain_request",
+      domainRelevance: "product_query",
+      intentAction: "explain",
+      questionShape: "none",
+      extractedAnswer: null,
+      signalStrength: "moderate",
+      isQuotedText: false,
+    })),
+    completeWithTools: vi.fn(),
+  } as any
+}
+
 describe("classifyPreSearchRoute", () => {
   it("routes first-turn taxonomy explanation questions to general_knowledge before search", async () => {
     const result = await classifyPreSearchRoute(
@@ -99,12 +120,14 @@ describe("classifyPreSearchRoute", () => {
     expect(result.kind).toBe("recommendation_action")
   })
 
-  it("preserves pure knowledge question even with filter hint", async () => {
-    // "스테인리스가 뭐야?" 처럼 지식질문 패턴이면 필터 힌트(material=1) 있어도 general_knowledge
+  it("preserves pure knowledge question even with filter hint (LLM says explain)", async () => {
+    // regex 제거 이후: LLM이 "explain" 판단을 내리고 taxonomy 매칭이 없더라도
+    // filter_hints_override는 material만으로는 1개 미만 → general_knowledge 유지.
+    // 단, 이 케이스는 "스테인리스가 뭐야?" — isCuttingToolTaxonomyKnowledgeQuestion으로도 잡힘 가능.
     const result = await classifyPreSearchRoute(
       "스테인리스가 뭐야?",
       makeState({ turnCount: 0, currentMode: "intake", lastAskedField: null }),
-      unavailableProvider,
+      makeExplainProvider(),
     )
 
     expect(result.kind).toBe("general_knowledge")

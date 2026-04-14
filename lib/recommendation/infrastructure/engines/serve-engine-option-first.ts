@@ -121,6 +121,7 @@ export async function buildGeneralChatOptionState(input: {
       filterCount: filters.length,
       candidateCount: candidates.length,
       hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
+      previousTurnAction: prevState.lastAction ?? null,
     }, provider),
     Promise.resolve(buildUnifiedTurnContext({
       latestAssistantText: assistantText,

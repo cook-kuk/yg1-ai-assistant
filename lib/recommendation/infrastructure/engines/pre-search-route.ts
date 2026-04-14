@@ -46,19 +46,6 @@ function countExplicitFilterHints(text: string): number {
   return count
 }
 
-// 지식질문 패턴 — 필터 힌트가 있어도 general_knowledge/direct_lookup 유지
-const KNOWLEDGE_QUESTION_RE = /(뭐야|뭔데|뭐에요|뭐임|뭔가요|무엇|뜻이|의미|원리|왜\s)/
-const KNOWLEDGE_COMPARE_RE = /(\bvs\.?\b|대비|차이|비교\s*(?:해|설명))/i
-const KNOWLEDGE_SERIES_RE = /(시리즈|특징|장점|용도|스펙|설명)/
-
-function looksLikeKnowledgeQuestion(text: string): boolean {
-  return (
-    KNOWLEDGE_QUESTION_RE.test(text) ||
-    KNOWLEDGE_COMPARE_RE.test(text) ||
-    KNOWLEDGE_SERIES_RE.test(text)
-  )
-}
-
 // product_info/product_comparison은 실제 SKU 코드 매칭이므로 override 대상에서 제외
 const OVERRIDABLE_DIRECT_LOOKUP_TYPES = new Set<QueryTargetType>([
   "series_info",
@@ -78,52 +65,15 @@ export async function classifyPreSearchRoute(
     sessionState?.lastAskedField ?? null,
   )
 
-  if (DIRECT_LOOKUP_TYPES.has(queryTarget.type)) {
-    // Override: series/brand 계열은 entity-registry false-positive 가능성이 있고,
-    // 사용자가 필터 힌트로 "추천" 문맥을 분명히 했으면 SKU 직조회가 아닌 추천 경로로
-    if (
-      OVERRIDABLE_DIRECT_LOOKUP_TYPES.has(queryTarget.type) &&
-      !looksLikeKnowledgeQuestion(userMessage)
-    ) {
-      const filterHintCount = countExplicitFilterHints(userMessage)
-      if (filterHintCount >= 1) {
-        return {
-          kind: "recommendation_action",
-          reason: `filter_hints_override_direct:${queryTarget.type}/${filterHintCount}`,
-        }
-      }
-    }
+  const isDirectLookup = DIRECT_LOOKUP_TYPES.has(queryTarget.type)
+  const isOverridableDirectLookup = isDirectLookup && OVERRIDABLE_DIRECT_LOOKUP_TYPES.has(queryTarget.type)
+
+  // product_info/product_comparison (실제 SKU 코드 매칭) 은 override 여지 없이 direct_lookup 확정.
+  // series/brand 계열은 아래 judgment 이후 override 검토.
+  if (isDirectLookup && !isOverridableDirectLookup) {
     return {
       kind: "direct_lookup",
       reason: `query_target:${queryTarget.type}`,
-    }
-  }
-
-  // Lexical fast-path: pure question / troubleshooting / comparison patterns.
-  // unified-judgment (Haiku LLM) often mis-labels these as recommendation, so we
-  // intercept with cheap regex triggers before spending an LLM call. Turn 0 only —
-  // later turns carry narrowing context and should keep going through judgment.
-  if (!sessionState || (sessionState.turnCount ?? 0) === 0) {
-    const msg = userMessage.trim()
-    const hasQuestionMark = /[?？]/.test(msg)
-    const QUESTION_RE = /(뭐야|뭔데|뭐에요|뭐임|뭔가요|무엇|뜻이|의미|알려줘|알려주|설명|왜\s|어떻게|어느게|어떤게|어떤거|어떤\s게)/
-    const COMPARE_RE = /(vs\.?|대비|차이|뭐가\s*(더|나|나아|좋)|어느\s*게|어떤\s*게\s*(더|낫|좋))/i
-    const TROUBLE_RE = /(수명|마모|닳|파손|깨짐|부러|떨림|진동|채터|거칠|버[가는이]?|칩[이\s]*엉)/
-    const CONSULT_RE = /(어떻게\s*해야|어떻게\s*하면|어떤\s*게\s*좋|뭐가\s*좋|추천\s*해줘|대책|해결)/
-    const isExplain = hasQuestionMark || QUESTION_RE.test(msg)
-    const isCompare = COMPARE_RE.test(msg)
-    const isTrouble = TROUBLE_RE.test(msg)
-    const isConsult = CONSULT_RE.test(msg) && msg.length < 40
-    // Exclude pure filter-spec messages (e.g. "스테인리스 4날 10mm" — no question words)
-    // Also exclude messages with material/spec entities + recommendation-like patterns
-    // e.g. "SUS316L 많이 하는데 괜찮은 거?" should route to recommendation, not Q&A
-    const RECOMMEND_LIKE_RE = /(?:괜찮|좋은|추천|적합|적당|맞는|쓸만|쓸\s*만|어울리|어떤\s*거|어떤\s*게\s*있|있나|있어|있을까)/
-    const hasRecommendLikeSignal = RECOMMEND_LIKE_RE.test(msg) && queryTarget.entities.length > 0
-    if ((isExplain || isCompare || isTrouble || (isConsult && hasQuestionMark)) && !hasRecommendLikeSignal) {
-      return {
-        kind: "general_knowledge",
-        reason: `lexical:${isExplain ? "explain" : isCompare ? "compare" : isTrouble ? "trouble" : "consult"}`,
-      }
     }
   }
 
@@ -136,6 +86,7 @@ export async function classifyPreSearchRoute(
     filterCount: sessionState?.appliedFilters?.length ?? 0,
     candidateCount: sessionState?.candidateCount ?? 0,
     hasRecommendation: sessionState?.resolutionStatus?.startsWith("resolved") ?? false,
+    previousTurnAction: sessionState?.lastAction ?? null,
   }, provider)
 
   const isExplanationLike =
@@ -167,9 +118,11 @@ export async function classifyPreSearchRoute(
 
   if (isGeneralKnowledge) {
     const isTaxonomy = isCuttingToolTaxonomyKnowledgeQuestion(userMessage)
-    // Override: 명시 필터 힌트가 있고 지식질문/taxonomy가 아니면 추천 파이프라인 강제
-    // (자연스러운 톤 때문에 judgment가 off_topic/explain으로 오분류해도 필터 추출을 놓치지 않도록)
-    if (!isTaxonomy && !looksLikeKnowledgeQuestion(userMessage)) {
+    // judgment가 explain/compare를 명시적으로 판단했으면 LLM 존중 — 필터힌트 override 금지.
+    // 그 외(off_topic/greeting 등 애매한 분류) + taxonomy 아님 + 필터 힌트 있으면 추천 경로 강제.
+    // 값 추출(material/diameter/subtype 등)은 regex 몫이라 이 override는 intent가 아닌 값 기반.
+    const judgmentSaysExplain = judgment.intentAction === "explain" || judgment.intentAction === "compare"
+    if (!isTaxonomy && !judgmentSaysExplain) {
       const filterHintCount = countExplicitFilterHints(userMessage)
       if (filterHintCount >= 1) {
         return {
@@ -183,6 +136,22 @@ export async function classifyPreSearchRoute(
       reason: isTaxonomy
         ? "taxonomy_knowledge"
         : `judgment:${judgment.domainRelevance}/${judgment.intentAction}`,
+    }
+  }
+
+  // Overridable direct_lookup (series/brand): judgment가 explain/compare 아니고
+  // 필터 힌트가 있으면 추천 경로. 아니면 direct_lookup 유지.
+  if (isOverridableDirectLookup) {
+    const filterHintCount = countExplicitFilterHints(userMessage)
+    if (filterHintCount >= 1) {
+      return {
+        kind: "recommendation_action",
+        reason: `filter_hints_override_direct:${queryTarget.type}/${filterHintCount}`,
+      }
+    }
+    return {
+      kind: "direct_lookup",
+      reason: `query_target:${queryTarget.type}`,
     }
   }
 

@@ -59,6 +59,8 @@ export interface UnifiedJudgmentInput {
   filterCount: number
   candidateCount: number
   hasRecommendation: boolean
+  /** 이전 턴 시스템 action (맥락판단용, candidateCount와 같은 패턴) */
+  previousTurnAction?: string | null
 }
 
 const JUDGMENT_SYSTEM = "YG-1 절삭공구 추천 챗봇 의도 분석기. JSON만 반환."
@@ -132,9 +134,12 @@ export function buildJudgmentPrompt(input: UnifiedJudgmentInput): string {
     ? input.displayedChips.slice(0, 6).join(", ")
     : "없음"
 
+  const prevAction = input.previousTurnAction ?? "none"
+
   return `사용자: "${input.userMessage}"
 시스템응답: "${(input.assistantText ?? "").slice(0, 120)}"
 모드: ${input.currentMode ?? "?"}, 필드: ${input.pendingField ?? "없음"}, 후보: ${input.candidateCount}, 필터: ${input.filterCount}, 추천완료: ${input.hasRecommendation ? "Y" : "N"}
+이전턴action: ${prevAction}  ← 이전 턴이 설명(answer_general/explain_product)이면 짧은 후속질문("4날은?")도 보통 설명 추가요청, 필터가 아님
 칩: ${chips}
 
 10가지 판단:
@@ -190,8 +195,8 @@ export async function performUnifiedJudgment(
   provider: LLMProvider
 ): Promise<UnifiedJudgment> {
   traceRecommendation("context.performUnifiedJudgment:input", input)
-  // 같은 유저 메시지면 캐시 반환 (같은 턴 내 중복 호출 방지)
-  const cacheKey = input.userMessage
+  // 같은 유저 메시지 + 같은 이전턴action이면 캐시 반환 (같은 턴 내 중복 호출 방지)
+  const cacheKey = `${input.userMessage}||${input.previousTurnAction ?? ""}`
   if (cacheKey === lastInput && lastResult.fromLLM) return lastResult
 
   if (!provider.available()) {

@@ -930,7 +930,8 @@ function findPendingChipMatch<T extends { label?: string }>(
     ?? null
 }
 
-function normalizePendingComparableValue(value: string | number | boolean | null | undefined): string {
+function normalizePendingComparableValue(value: string | number | boolean | Array<string | number | boolean> | null | undefined): string {
+  if (Array.isArray(value)) return normalizePendingSelectionText(value.map(v => String(v)).join(",")).replace(/\s+/g, "")
   return normalizePendingSelectionText(String(value ?? "")).replace(/\s+/g, "")
 }
 
@@ -1147,8 +1148,11 @@ function inferExplicitFilterTargetFields(
   return [...new Set(matchedFields)]
 }
 
-function normalizeComparableFilterValue(field: string, value: string | number | null | undefined): string {
+function normalizeComparableFilterValue(field: string, value: string | number | boolean | Array<string | number | boolean> | null | undefined): string {
   if (value == null) return ""
+  if (Array.isArray(value)) {
+    return value.map(v => normalizeComparableFilterValue(field, v)).filter(Boolean).join(",")
+  }
 
   if (field === "fluteCount") {
     const match = String(value).match(/(\d+)/)
@@ -1164,6 +1168,7 @@ function normalizeComparableFilterValue(field: string, value: string | number | 
   const canonicalValue = parsed?.rawValue ?? parsed?.value ?? value
 
   if (canonicalValue == null) return ""
+  if (Array.isArray(canonicalValue)) return normalizePendingSelectionText(canonicalValue.map(v => String(v)).join(","))
   if (typeof canonicalValue === "number") return String(canonicalValue)
   return normalizePendingSelectionText(String(canonicalValue))
 }
@@ -2311,6 +2316,7 @@ function buildRuntimeClarificationCandidate(params: {
   return {
     source: "clarification",
     filters: [],
+    concepts: [],
     sort: null,
     routeHint: "none",
     intent: "ask_clarification",
@@ -4276,6 +4282,7 @@ async function handleServeExplorationInner(
         multiStageResult = {
           source: "none",
           filters: [],
+          concepts: [],
           sort: null,
           routeHint: "none",
           intent: "none",
@@ -5731,35 +5738,55 @@ async function handleServeExplorationInner(
     }
 
     if (allowLegacyLlmFallback && !shouldResolvePendingSelectionEarly && !singleCallHandled) {
-      // Step 1: Synchronous comparison check (no LLM, instant)
-      explicitComparisonAction = resolveExplicitComparisonAction(prevState, lastUserMsg.text)
-      if (explicitComparisonAction?.type === "compare_products") {
-        explicitComparisonOrchestratorResult = buildExplicitComparisonOrchestratorResult(explicitComparisonAction.targets)
-        console.log(`[runtime:explicit-compare] targets=${explicitComparisonAction.targets.join(", ")}`)
+      // Step 1: LLM 먼저 — Unified Judgment + preSearch 병렬 실행.
+      //         regex가 "이게 뭐다"를 판단하지 않음. LLM이 맥락(이전 턴 action 포함) 보고 판단.
+      const [judgmentSettled, preSearchSettled] = await Promise.allSettled([
+        prevState ? performUnifiedJudgment({
+          userMessage: lastUserMsg.text,
+          assistantText: null,
+          pendingField: prevState.lastAskedField ?? null,
+          currentMode: prevState.currentMode ?? null,
+          displayedChips: prevState.displayedChips ?? [],
+          filterCount: filters.length,
+          candidateCount: prevState.candidateCount ?? 0,
+          hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
+          previousTurnAction: prevState.lastAction ?? null,
+        }, provider) : Promise.resolve(null),
+        classifyPreSearchRoute(lastUserMsg.text, prevState, provider),
+      ])
+
+      const judgmentResult = judgmentSettled.status === "fulfilled" ? judgmentSettled.value : null
+      const preSearchResult = preSearchSettled.status === "fulfilled" ? preSearchSettled.value : null
+
+      // Step 2: judgment.intentAction 기반으로 deterministic resolver 실행 여부 결정.
+      //         의도 판단은 LLM, 값 추출은 resolver 내부의 regex/parser.
+      // Non-filter intents는 resolver 자체를 스킵 — "4날은?"이 설명 맥락이면 필터로 안 잡힘.
+      const NON_FILTER_INTENTS = new Set(["explain", "off_topic", "reset_session", "skip_field", "undo"])
+      const judgmentSaysNonFilter = !!judgmentResult && NON_FILTER_INTENTS.has(judgmentResult.intentAction)
+      const judgmentSaysCompare = judgmentResult?.intentAction === "compare"
+
+      // Comparison resolver: intent이 compare일 때만 (또는 judgment가 없을 때 legacy 보수값)
+      if (!judgmentResult || judgmentSaysCompare) {
+        explicitComparisonAction = resolveExplicitComparisonAction(prevState, lastUserMsg.text)
+        if (explicitComparisonAction?.type === "compare_products") {
+          explicitComparisonOrchestratorResult = buildExplicitComparisonOrchestratorResult(explicitComparisonAction.targets)
+          console.log(`[runtime:explicit-compare] targets=${explicitComparisonAction.targets.join(", ")}`)
+        }
       }
 
-      // Step 2: If no comparison, run 4 LLM checks in parallel
+      // Revision/Filter resolver: non-filter intent이면 스킵
       if (!explicitComparisonAction) {
-        const [revisionSettled, filterSettled, judgmentSettled, preSearchSettled] = await Promise.allSettled([
-          resolveExplicitRevisionRequest(prevState, lastUserMsg.text, provider),
-          resolveExplicitFilterRequest(prevState, lastUserMsg.text, provider),
-          prevState ? performUnifiedJudgment({
-            userMessage: lastUserMsg.text,
-            assistantText: null,
-            pendingField: prevState.lastAskedField ?? null,
-            currentMode: prevState.currentMode ?? null,
-            displayedChips: prevState.displayedChips ?? [],
-            filterCount: filters.length,
-            candidateCount: prevState.candidateCount ?? 0,
-            hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
-          }, provider) : Promise.resolve(null),
-          classifyPreSearchRoute(lastUserMsg.text, prevState, provider),
+        const [revisionSettled, filterSettled] = await Promise.allSettled([
+          judgmentSaysNonFilter ? Promise.resolve(null) : resolveExplicitRevisionRequest(prevState, lastUserMsg.text, provider),
+          judgmentSaysNonFilter ? Promise.resolve(null) : resolveExplicitFilterRequest(prevState, lastUserMsg.text, provider),
         ])
 
         const revisionResult = revisionSettled.status === "fulfilled" ? revisionSettled.value : null
         const filterResult = filterSettled.status === "fulfilled" ? filterSettled.value : null
-        const judgmentResult = judgmentSettled.status === "fulfilled" ? judgmentSettled.value : null
-        const preSearchResult = preSearchSettled.status === "fulfilled" ? preSearchSettled.value : null
+
+        if (judgmentSaysNonFilter) {
+          console.log(`[runtime:resolver-gate] intent=${judgmentResult?.intentAction} → revision/filter/comparison resolver SKIPPED (LLM says non-filter)`)
+        }
 
         // Apply by priority: revision > filter > judgment > preSearch
 
@@ -5850,7 +5877,7 @@ async function handleServeExplorationInner(
             return handleServeGeneralChatAction({
               deps,
               action: { type: "answer_general", message: lastUserMsg.text },
-              orchResult: buildPreSearchOrchestratorResult(lastUserMsg.text, `tool_explain:${judgmentResult.domainRelevance}`),
+              orchResult: buildPreSearchOrchestratorResult(lastUserMsg.text, `tool_explain:${judgmentResult?.domainRelevance ?? "tool_term"}`),
               provider,
               form,
               messages,
@@ -7318,6 +7345,7 @@ async function handleServeExplorationInner(
           filterCount: filters.length,
           candidateCount: candidates.length,
           hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
+          previousTurnAction: prevState.lastAction ?? null,
         }, provider)
 
         const toolDomainHere = isToolDomainQuestion(lastUserMsg.text)
@@ -7852,6 +7880,7 @@ async function handleServeExplorationInner(
           filterCount: filters.length,
           candidateCount: candidates.length,
           hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
+          previousTurnAction: prevState.lastAction ?? null,
         }, provider)
         if (quickCheck.domainRelevance === "company_query") {
           // ── Side Question Suspend for redirect_off_topic → company_query ──

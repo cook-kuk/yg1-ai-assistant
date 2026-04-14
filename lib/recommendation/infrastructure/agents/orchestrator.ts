@@ -84,6 +84,7 @@ export async function orchestrateTurn(
     filterCount: ctx.sessionState?.appliedFilters?.length ?? 0,
     candidateCount: ctx.sessionState?.candidateCount ?? 0,
     hasRecommendation: ctx.sessionState?.resolutionStatus?.startsWith("resolved") ?? false,
+    previousTurnAction: ctx.sessionState?.lastAction ?? null,
   }, provider)
 
   // 통합 판단 → NarrowingIntent 매핑
@@ -716,6 +717,11 @@ ${candidatesDesc}`
 
 사용자 메시지를 분석하여 적절한 tool을 호출하거나 직접 텍스트로 답변하세요.
 
+═══ [CoT 판단 우선] SQL Agent 사고 과정 준수 ═══
+SQL Agent의 사고 과정(reasoning)이 '_qa로 처리해야 한다'고 판단했으면,
+filters를 빈 배열로 반환하고 _qa 필드에 직접 답변을 작성하세요.
+사고 과정의 판단을 최종 action이 뒤집지 마세요.
+
 ${buildDbFilterValueSnippet()}
 ${buildCanonicalDomainKnowledgeSnippet()}
 
@@ -741,6 +747,11 @@ ${distSnippet}`
 
   // Static prefix (cached) first, dynamic session state after ===DYNAMIC=== marker.
   return `당신은 YG-1 절삭공구 추천 시스템의 대화 라우터입니다.
+
+═══ [CoT 판단 우선] SQL Agent 사고 과정 준수 ═══
+SQL Agent의 사고 과정(reasoning)이 '_qa로 처리해야 한다'고 판단했으면,
+filters를 빈 배열로 반환하고 _qa 필드에 직접 답변을 작성하세요.
+사고 과정의 판단을 최종 action이 뒤집지 마세요.
 
 ═══ 역할 ═══
 사용자 메시지를 분석하여:
