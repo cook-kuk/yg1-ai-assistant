@@ -1714,7 +1714,6 @@ function validateResolverExecution(
       && concreteFilterCount >= 2
       && (normalizedResult.confidence ?? 0) >= 0.9
       && heldConcepts.length === 1
-    console.log(`[validator:concept_gap] phase=${phase} filters=${concreteFilterCount} conf=${normalizedResult.confidence} heldConcepts=${heldConcepts.length} lead=${String(lead.rawToken ?? lead.value ?? lead.kind)} allowPartial=${allowPartialExecution}`)
     issues.push(buildValidationIssue(
       "concept_mapping_gap",
       `semantic concepts remained unresolved before execution: ${String(lead.rawToken ?? lead.value ?? lead.kind)}`,
@@ -1839,10 +1838,22 @@ function validateResolverExecution(
     heldConceptLabel
     || (/multiple\s*helix/iu.test(args.message) && normalizedFilters.some(filter => filter.field === "seriesName"))
   ) {
+    // Same partial-truth allowance as the heldConcepts check above: don't block a
+    // stage3 result that already extracted >=2 high-confidence concrete filters
+    // just because one free-text concept couldn't be mapped (S08 typo case).
+    const concreteFilterCountForFreeText = normalizedFilters.filter(f => f.op !== "skip").length
+    const heldConceptsAllForFreeText = (normalizedResult.concepts ?? []).filter(c => c.status !== "mapped")
+    const allowPartialFreeText =
+      phase === "stage3"
+      && concreteFilterCountForFreeText >= 2
+      && (normalizedResult.confidence ?? 0) >= 0.9
+      && heldConceptsAllForFreeText.length <= 1
     issues.push(buildValidationIssue(
       "concept_mapping_gap",
       `free-text concept ${JSON.stringify(heldConceptLabel ?? "multiple helix")} is not executable as a validated catalog field yet`,
-      phase === "stage3" ? "clarification" : "strong_cot",
+      allowPartialFreeText ? "weak_cot" : phase === "stage3" ? "clarification" : "strong_cot",
+      undefined,
+      allowPartialFreeText ? "warning" : "error",
     ))
   }
 
