@@ -51,8 +51,9 @@ describe("assessComplexity", () => {
     expect(decision.uiThinkingMode).toBe("full")
   })
 
-  test("routes low-info uncertainty messages to deep with CoT", () => {
-    const decision = assessComplexity("나는 아무것도 몰라요")
+  test("routes low-info uncertainty + domain signal to deep with CoT", () => {
+    // 도메인 신호("가공")가 있어야 deep. 없으면 잡담이므로 demote.
+    const decision = assessComplexity("가공은 잘 모르겠어요")
 
     expect(decision.level).toBe("deep")
     expect(decision.reason).toBe("low_info_clarification")
@@ -60,12 +61,34 @@ describe("assessComplexity", () => {
     expect(decision.uiThinkingMode).toBe("full")
   })
 
-  test("routes domain-only messages (industry keyword w/o specifics) to deep", () => {
-    const decision = assessComplexity("에어로스페이스에서 씁니다")
+  test("demotes uncertainty-only off-topic chatter to light/hidden (no heartbeat cascade)", () => {
+    // "몰라/아무것도"는 있지만 절삭공구 도메인 신호가 전무 → 잡담으로 간주.
+    // uiThinkingMode="hidden"이 되어 stream route의 heartbeat 자체를 시작시키지 않음.
+    const decision = assessComplexity("난 아무것도 모르는 신입사원이야")
+
+    expect(decision.level).toBe("light")
+    expect(decision.reason).toBe("off_topic_chatter")
+    expect(decision.uiThinkingMode).toBe("hidden")
+    expect(decision.generateCoT).toBe(false)
+  })
+
+  test("routes domain industry + tool signal to deep", () => {
+    // "에어로스페이스" + "가공"/"공구" 등 도메인 신호 동반 시 deep.
+    const decision = assessComplexity("에어로스페이스 가공에서 씁니다")
 
     expect(decision.level).toBe("deep")
     expect(decision.reason).toBe("domain_only")
     expect(decision.generateCoT).toBe(true)
+  })
+
+  test("demotes industry-only mention without tool signal to light/hidden", () => {
+    // 산업 이름만 언급하고 공구/가공 맥락이 없으면 잡담으로 본다 — heartbeat 차단.
+    const decision = assessComplexity("에어로스페이스에서 씁니다")
+
+    expect(decision.level).toBe("light")
+    expect(decision.reason).toBe("off_topic_chatter")
+    expect(decision.uiThinkingMode).toBe("hidden")
+    expect(decision.generateCoT).toBe(false)
   })
 })
 

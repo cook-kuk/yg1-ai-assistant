@@ -87,4 +87,26 @@ describe("classifyPreSearchRoute", () => {
 
     expect(result.kind).toBe("recommendation_action")
   })
+
+  it("overrides natural-tone message with explicit filter hints to recommendation_action", async () => {
+    // 자연스러운 톤이지만 명시 필터(직경·날수)가 있으면 chitchat으로 가지 말고 추천 경로
+    const result = await classifyPreSearchRoute(
+      "10mm 4날 쓸건데 괜찮은 거 있을까",
+      makeState({ turnCount: 0, currentMode: "intake", lastAskedField: null }),
+      unavailableProvider,
+    )
+
+    expect(result.kind).toBe("recommendation_action")
+  })
+
+  it("preserves pure knowledge question even with filter hint", async () => {
+    // "스테인리스가 뭐야?" 처럼 지식질문 패턴이면 필터 힌트(material=1) 있어도 general_knowledge
+    const result = await classifyPreSearchRoute(
+      "스테인리스가 뭐야?",
+      makeState({ turnCount: 0, currentMode: "intake", lastAskedField: null }),
+      unavailableProvider,
+    )
+
+    expect(result.kind).toBe("general_knowledge")
+  })
 })

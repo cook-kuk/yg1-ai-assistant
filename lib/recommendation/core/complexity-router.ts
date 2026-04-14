@@ -5,9 +5,39 @@
  * the utterance actually needs".
  */
 
+import {
+  MATERIAL_KEYWORD_FLAT,
+  TOOL_KEYWORD_FLAT,
+  COATING_KEYWORD_FLAT,
+  OPERATION_KEYWORD_FLAT,
+} from "@/lib/recommendation/shared/patterns"
+import {
+  DEFAULT_MODEL_TIER_LIGHT,
+  DEFAULT_MODEL_TIER_NORMAL,
+  DEFAULT_MODEL_TIER_DEEP,
+  type ModelTier,
+  type ReasoningTier,
+} from "@/lib/recommendation/infrastructure/config/llm-config"
+
 export type ComplexityLevel = "light" | "normal" | "deep"
 export type ResolverStageBudget = "stage1" | "stage2" | "stage3"
 export type UiThinkingMode = "hidden" | "simple" | "full"
+
+/** 신규 외부 routing 개념. ComplexityDecision 을 래핑한다. */
+export interface RoutingDecision {
+  reasoningTier: ReasoningTier
+  modelTier: ModelTier
+  reasons: string[]
+  canShortCircuit: boolean
+  shortCircuitType?: string
+  requiresSql?: boolean
+  requiresKg?: boolean
+  requiresNewCandidates?: boolean
+  needsSessionRecovery?: boolean
+  hasConflict?: boolean
+  /** 원래의 ComplexityDecision 도 그대로 보존 — stream route / resolver 가 쓴다. */
+  complexity: ComplexityDecision
+}
 
 export interface ComplexityDecision {
   level: ComplexityLevel
@@ -45,6 +75,32 @@ const DEEP_ALIAS_RE = /(?:[가-힣]{3,}\s*브랜드|[가-힣]{5,}(?:으로만|�
 // to drive a clarification dialog back rather than a phantom-filtered guess.
 const DEEP_UNCERTAINTY_RE = /(몰라|모르|잘\s*몰|아무\s*것도|don'?t\s*know|no\s*idea|not\s*sure|처음|초보)/iu
 const DEEP_DOMAIN_RE = /(에어로스페이스|항공우주|aerospace|automotive|자동차\s*산업|die\s*mold|금형\s*산업|medical\s*device|의료기기)/iu
+
+// 절삭공구 도메인 신호. uncertainty/domain/length 기반 deep 승격의 교차 검증.
+// 도메인 신호가 전혀 없으면 잡담/off-topic으로 간주해 heavy pipeline을 돌리지 않는다.
+// patterns.ts 의 flat Set 을 SSOT 로 사용 + 보조 힌트 (mm/가공/절삭…)
+let _domainSignalSet: Set<string> | null = null
+function getDomainSignalSet(): Set<string> {
+  if (_domainSignalSet) return _domainSignalSet
+  const set = new Set<string>()
+  for (const s of MATERIAL_KEYWORD_FLAT) set.add(s)
+  for (const s of TOOL_KEYWORD_FLAT) set.add(s)
+  for (const s of COATING_KEYWORD_FLAT) set.add(s)
+  for (const s of OPERATION_KEYWORD_FLAT) set.add(s)
+  for (const s of ["mm", "밀리", "직경", "지름", "날", "flute", "hrc", "iso", "카바이드", "초경", "가공", "절삭", "공구", "추천", "비교", "시리즈"]) {
+    set.add(s)
+  }
+  _domainSignalSet = set
+  return set
+}
+
+function hasDomainSignal(text: string): boolean {
+  const lower = text.toLowerCase()
+  for (const keyword of getDomainSignalSet()) {
+    if (lower.includes(keyword)) return true
+  }
+  return false
+}
 
 function buildDecision(
   level: ComplexityLevel,
@@ -122,9 +178,12 @@ function isDeepNaturalLanguage(message: string): boolean {
   if (DEEP_COMPETITOR_RE.test(text)) return true
   if (DEEP_SPEC_RE.test(text)) return true
   if (DEEP_ALIAS_RE.test(text)) return true
-  if (DEEP_UNCERTAINTY_RE.test(text)) return true
-  if (DEEP_DOMAIN_RE.test(text)) return true
-  if (text.length >= 30) return true
+  // 불확실성/산업 표현 + 길이 기반 승격은 절삭공구 도메인 신호를 동반할 때만.
+  // "가공은 잘 모르겠는데" → 도메인("가공") 있음 → deep
+  // "난 아무것도 모르는 신입사원이야" → 도메인 신호 없음 → normal
+  if (DEEP_UNCERTAINTY_RE.test(text) && hasDomainSignal(text)) return true
+  if (DEEP_DOMAIN_RE.test(text) && hasDomainSignal(text)) return true
+  if (text.length >= 30 && hasDomainSignal(text)) return true
   return false
 }
 
@@ -153,6 +212,10 @@ export function assessComplexity(
     return buildDecision("deep", "complex_natural_language")
   }
 
+  // 절삭공구 도메인 신호가 전혀 없으면 잡담/off-topic으로 본다.
+  // heartbeat cascade 억제: stream route가 uiThinkingMode="hidden"을 보고
+  // heartbeat 자체를 시작하지 않음.
+  if (!hasDomainSignal(text)) return buildDecision("light", "off_topic_chatter")
   return buildDecision("normal", "compound_recommendation")
 }
 
@@ -164,4 +227,129 @@ export function canUseResolverStage(
   if (budget === "stage3") return true
   if (budget === "stage2") return stage !== "stage3"
   return stage === "stage1"
+}
+
+// ── Signals for routing (mini/full, effort tier) ────────────────────
+// complexity-router 의 level(light/normal/deep) 은 CoT/stage-budget 을 위해
+// 이미 계산되지만, 모델 선택은 "SQL 필요? / 새 후보 생성? / 비교·부정·범위?" 같은
+// 추가 신호로 결정해야 한다. 길이만으로 deep 으로 올리지 않는다.
+
+const SQL_SIGNAL_RE    = /(조회|몇\s*개|개수|카운트|리스트\s*뽑|테이블|컬럼|sql)/iu
+const KG_SIGNAL_RE     = /(관계|호환|대체|계열|매칭|kg\b)/iu
+const RANGE_SIGNAL_RE  = /(\d+\s*mm\s*(이상|이하|초과|미만)|\d+\s*~\s*\d+|사이|이내)/iu
+const NEGATION_SIGNAL_RE = /(말고|빼고|제외|아니고|not\b|except|without)/iu
+const COMPARE_SIGNAL_RE  = /(비교|차이|vs\b|대체|호환|similar|compare|difference)/iu
+const SESSION_REF_RE     = /(그거|그게|이거|이게|저거|저게|아까|방금|이전|previous|last|그걸로)/iu
+const REFINE_REQUEST_RE  = /(기존\s*조건|조건\s*(수정|변경|바꿔)|필터\s*(수정|변경|바꿔)|조건\s*추가|조건\s*빼)/iu
+const SELECTION_REF_RE   = /^(\s*[1-9]\s*(번|번째|째)?(으?로|만)?\s*(할게|해줘|할래|선택)?\s*$)|그\s*(걸|것)\s*(으?로|만)?\s*(할게|해줘)?/iu
+const NEW_CANDIDATE_RE   = /(추천|찾아|보여|리스트|후보|있어)/iu
+
+export interface RoutingSignalsInput {
+  message: string
+  appliedFilterCount?: number
+  displayedProductsCount?: number
+  hasPendingQuestion?: boolean
+  hasComparisonTargets?: boolean
+  hasSelectionContext?: boolean
+}
+
+function detectSignals(input: RoutingSignalsInput): {
+  requiresSql: boolean
+  requiresKg: boolean
+  requiresNewCandidates: boolean
+  hasConflict: boolean
+  needsSessionRecovery: boolean
+  hasNegation: boolean
+  hasComparison: boolean
+  hasRange: boolean
+  refinesExisting: boolean
+  looksLikeSelection: boolean
+} {
+  const text = input.message
+  const refinesExisting = REFINE_REQUEST_RE.test(text)
+  const looksLikeSelection = SELECTION_REF_RE.test(text)
+  return {
+    requiresSql: SQL_SIGNAL_RE.test(text),
+    requiresKg: KG_SIGNAL_RE.test(text),
+    requiresNewCandidates: NEW_CANDIDATE_RE.test(text) && !refinesExisting && !looksLikeSelection,
+    hasConflict: (NEGATION_SIGNAL_RE.test(text) ? 1 : 0) + (RANGE_SIGNAL_RE.test(text) ? 1 : 0) >= 2,
+    needsSessionRecovery: SESSION_REF_RE.test(text),
+    hasNegation: NEGATION_SIGNAL_RE.test(text),
+    hasComparison: COMPARE_SIGNAL_RE.test(text),
+    hasRange: RANGE_SIGNAL_RE.test(text),
+    refinesExisting,
+    looksLikeSelection,
+  }
+}
+
+/** 기본 RoutingDecision. complexity-router level 을 그대로 tier 로 쓰되
+ *  강제 승격/강등 규칙을 한 번 더 적용한다. */
+export function getRoutingDecision(input: RoutingSignalsInput): RoutingDecision {
+  const complexity = assessComplexity(input.message, input.appliedFilterCount ?? 0)
+  const signals = detectSignals(input)
+  const reasons: string[] = [`complexity:${complexity.level}:${complexity.reason}`]
+
+  // 1) complexity.level → reasoningTier + modelTier 디폴트
+  let reasoningTier: ReasoningTier = complexity.level
+  let modelTier: ModelTier =
+    complexity.level === "light"  ? DEFAULT_MODEL_TIER_LIGHT
+    : complexity.level === "deep" ? DEFAULT_MODEL_TIER_DEEP
+    :                               DEFAULT_MODEL_TIER_NORMAL
+
+  // 2) mini → full 강제 승격
+  const promote = (reason: string) => {
+    if (modelTier !== "full") {
+      modelTier = "full"
+      reasons.push(`promote:${reason}`)
+    }
+    if (reasoningTier === "light") reasoningTier = "normal"
+  }
+  if (signals.requiresSql)            promote("sql")
+  if (signals.requiresKg && signals.hasComparison) promote("kg+compare")
+  if (signals.requiresNewCandidates && complexity.level !== "light") promote("new-candidates")
+  if (signals.hasConflict)            { promote("multi-constraint-conflict"); reasoningTier = "deep" }
+  if (signals.needsSessionRecovery && (signals.hasComparison || signals.hasNegation)) promote("session-recovery")
+  if (signals.hasNegation || signals.hasComparison) {
+    if (modelTier !== "full") promote("negation-or-compare")
+    if (reasoningTier === "normal" || reasoningTier === "light") reasoningTier = "deep"
+  }
+
+  // 3) full → mini 강제 강등
+  //    - pending question context 있는 단순 yes/no
+  //    - selection-only 발화
+  //    - 필터만 재포맷
+  const demote = (reason: string) => {
+    modelTier = "mini"
+    reasoningTier = "light"
+    reasons.push(`demote:${reason}`)
+  }
+  const isYesNo = /^\s*(응|네|넵|예|좋아|ok|okay|no|아니요|아니)\s*[.!?]?\s*$/iu.test(input.message)
+  if (isYesNo && input.hasPendingQuestion) demote("yesno-pending")
+  if (signals.looksLikeSelection && (input.hasSelectionContext ?? input.displayedProductsCount)) demote("selection-resolve")
+  if (complexity.reason === "off_topic_chatter") demote("off-topic")
+
+  // 4) canShortCircuit hint — 실제 차단은 session-consistency-guard 가 한다
+  let canShortCircuit = false
+  let shortCircuitType: string | undefined
+  if (signals.refinesExisting && (input.appliedFilterCount ?? 0) === 0) {
+    canShortCircuit = true; shortCircuitType = "clarify_no_filters"
+  } else if (signals.hasComparison && !input.hasComparisonTargets) {
+    canShortCircuit = true; shortCircuitType = "clarify_missing_compare_targets"
+  } else if (signals.looksLikeSelection && !input.hasSelectionContext && !(input.displayedProductsCount && input.displayedProductsCount > 0)) {
+    canShortCircuit = true; shortCircuitType = "clarify_missing_selection_context"
+  }
+
+  return {
+    reasoningTier,
+    modelTier,
+    reasons,
+    canShortCircuit,
+    shortCircuitType,
+    requiresSql: signals.requiresSql,
+    requiresKg: signals.requiresKg,
+    requiresNewCandidates: signals.requiresNewCandidates,
+    needsSessionRecovery: signals.needsSessionRecovery,
+    hasConflict: signals.hasConflict,
+    complexity,
+  }
 }

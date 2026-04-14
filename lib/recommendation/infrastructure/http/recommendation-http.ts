@@ -10,6 +10,7 @@ import {
   handleServeSimpleChat,
   type ServeEngineRuntimeDependencies,
 } from "@/lib/recommendation/infrastructure/engines/serve-engine-runtime"
+import type { RoutingDecision } from "@/lib/recommendation/core/complexity-router"
 import {
   handleDirectBrandReferenceQuestion,
   handleCompetitorCrossReference,
@@ -178,6 +179,13 @@ export interface ServeRuntimeDependenciesOptions {
    * UI can render it Claude-style.
    */
   onThinking?: (text: string, opts?: { delta?: boolean }) => void
+  /**
+   * RoutingDecision precomputed by the HTTP layer (stream route). Carries the
+   * {modelTier, reasoningTier, canShortCircuit, …} hint so the engine can skip
+   * redundant complexity assessment and tier selection. Optional — legacy
+   * /api/recommend leaves this null and the engine keeps its existing logic.
+   */
+  routingHint?: RoutingDecision | null
 }
 
 export function createServeRuntimeDependencies(
@@ -187,6 +195,7 @@ export function createServeRuntimeDependencies(
   const responseDeps = { jsonRecommendationResponse, onEarlyFlush: options.onEarlyFlush }
 
   return {
+    routingHint: options.routingHint ?? null,
     mapIntakeToInput,
     applyFilterToInput,
     buildQuestionResponse: (

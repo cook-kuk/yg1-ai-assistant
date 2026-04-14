@@ -75,6 +75,7 @@ interface ReplyOverrides {
 }
 
 export interface ServeEngineGeneralChatDependencies {
+  onThinking?: (text: string, opts?: { delta?: boolean; kind?: "stage" | "deep" | "agent" }) => void
   buildCandidateSnapshot: (
     candidates: ScoredProduct[],
     evidenceMap: Map<string, EvidenceSummary>
@@ -711,6 +712,11 @@ export async function handleServeGeneralChatAction(
   } = params
 
   try {
+  // Fire an immediate stage event so ghost heartbeat cascade gets suppressed
+  // (sawRealThinking=true) as soon as general-chat is entered. Without this
+  // the stream/route.ts heartbeat can emit 5 phantom stages while the
+  // general-chat LLM call is in flight.
+  try { deps.onThinking?.("💬 응답을 준비하는 중…", { kind: "stage" }) } catch { /* no-op */ }
   const lastUserMessage = [...messages].reverse().find(message => message.role === "user")?.text ?? ""
   const semanticForce: DirectQuestionOptions = { force: true, semanticContext: semanticDirectContext }
   const shouldRunLegacyDirectRoutes = semanticReplyRoute == null

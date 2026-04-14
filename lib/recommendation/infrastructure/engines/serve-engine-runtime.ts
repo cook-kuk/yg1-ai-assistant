@@ -51,7 +51,10 @@ import {
   buildAppliedFilterFromAgentFilter,
   buildAppliedFilterFromAgentFilterWithTrace,
 } from "@/lib/recommendation/core/sql-agent"
-import { assessComplexity } from "@/lib/recommendation/core/complexity-router"
+import { assessComplexity, type RoutingDecision } from "@/lib/recommendation/core/complexity-router"
+import { executeLlm } from "@/lib/llm/llm-executor"
+import { logTurnDebug, makeTurnId } from "@/lib/recommendation/infrastructure/observability/turn-debug-log"
+import { checkSessionConsistency } from "@/lib/recommendation/core/session-consistency-guard"
 import { getDbSchemaSync, getDbSchema } from "@/lib/recommendation/core/sql-agent-schema-cache"
 import { naturalLanguageToQuerySpec } from "@/lib/recommendation/core/query-planner"
 import { querySpecToAppliedFilters, appliedFiltersToConstraints } from "@/lib/recommendation/core/query-spec-to-filters"
@@ -1961,6 +1964,12 @@ export interface ServeEngineRuntimeDependencies {
    *                          Used for non-streaming providers and fallbacks.
    */
   onThinking?: (text: string, opts?: { delta?: boolean; kind?: ThinkingKind }) => void
+  /**
+   * HTTP 계층(stream route)에서 사전 계산된 RoutingDecision. modelTier /
+   * reasoningTier / canShortCircuit hint 를 담는다. 없으면 엔진이 기존 로직을
+   * 그대로 사용한다. session-consistency-guard 는 이 hint 와 독립적으로 동작.
+   */
+  routingHint?: RoutingDecision | null
   buildCandidateSnapshot: (
     candidates: ScoredProduct[],
     evidenceMap: Map<string, EvidenceSummary>
@@ -2847,8 +2856,104 @@ export async function handleServeExploration(
   language: AppLanguage = "ko",
   pagination: CandidatePaginationRequest | null = null,
 ): Promise<Response> {
+  // ── Turn-debug: 한 턴을 한 줄 JSON 으로 요약 (ENABLE_TURN_DEBUG_LOG=true 일 때만) ─
+  const turnId = makeTurnId()
+  const turnStartedAt = Date.now()
+  const hint = deps.routingHint ?? null
+
+  // ── Session-consistency guard (deterministic, pre-LLM) ───────────
+  // 3 케이스를 LLM 호출 전에 잡아낸다:
+  //   · 적용 필터 0 + 조건 수정 요청   → clarify_no_filters
+  //   · 비교 대상 0 + 비교 요청          → clarify_missing_compare_targets
+  //   · 선택 컨텍스트 0 + 선택 요청     → clarify_missing_selection_context
+  const lastUserMsg = [...messages].reverse().find(m => m.role === "user")?.text?.trim() ?? ""
+  if (lastUserMsg) {
+    const guard = checkSessionConsistency({
+      message: lastUserMsg,
+      appliedFilterCount: prevState?.appliedFilters?.length ?? 0,
+      displayedProductsCount: displayedProducts?.length ?? 0,
+      hasPendingQuestion: !!prevState?.lastAskedField,
+    })
+    if (guard.blocked && guard.reply) {
+      try { deps.onThinking?.("🤔 요청 의도를 확인하는 중…", { kind: "stage" }) } catch { /* no-op */ }
+      try { console.log(`[session-guard] blocked: ${guard.type} — ${guard.reason}`) } catch { /* no-op */ }
+
+      // guard 가 잡은 상황을 LLM(mini+light) 으로 한 번 더 자연스러운 1문장으로
+      // 다듬는다. 실패/빈 응답이면 deterministic reply 를 그대로 쓴다.
+      // routingHint 가 있으면 tier 힌트를 따르고, 없으면 mini+light 로 강제.
+      let naturalReply = guard.reply
+      try {
+        const modelTier = deps.routingHint?.modelTier === "full" ? "full" : "mini"
+        const systemPrompt =
+          "너는 금속 절삭공구 추천 챗봇이다. 아래 상황에서 사용자에게 상냥한 한국어 한 문장으로 되물어라. 이모지/불필요한 서두 금지. 가능한 짧게."
+        const userInput = `[상황] ${guard.type}\n[기본 안내] ${guard.reply}\n[사용자 발화] ${lastUserMsg}\n위 상황을 반영해 한 문장으로 자연스럽게 되물어라.`
+        const result = await executeLlm({
+          agentName: "narrative-polish",
+          reasoningTier: "light",
+          modelTier,
+          systemPrompt,
+          userInput,
+          maxTokens: 200,
+        })
+        const polished = (result.text ?? "").trim()
+        if (polished.length >= 5 && polished.length <= 400) naturalReply = polished
+      } catch (err) {
+        try { console.log(`[session-guard] polish skipped: ${err instanceof Error ? err.message : "unknown"}`) } catch { /* no-op */ }
+      }
+
+      try {
+        logTurnDebug({
+          turnId,
+          userInput: lastUserMsg,
+          routing: {
+            reasoningTier: hint?.reasoningTier ?? "light",
+            modelTier: hint?.modelTier ?? "mini",
+            shortCircuit: true,
+            shortCircuitType: guard.type ?? null,
+            reasons: hint?.reasons ?? [`guard:${guard.type ?? "unknown"}`],
+          },
+          pipeline: { stages: ["session-guard"], durationsMs: {} },
+          resultType: "guard_short_circuit",
+          elapsedMs: Date.now() - turnStartedAt,
+        })
+      } catch { /* debug-log never throws */ }
+
+      return deps.jsonRecommendationResponse({
+        text: naturalReply,
+        purpose: "question",
+        chips: ["⟵ 이전 단계", "처음부터 다시"],
+        isComplete: false,
+        recommendation: null,
+        sessionState: prevState ?? null,
+        evidenceSummaries: null,
+        candidateSnapshot: prevState?.displayedCandidates ?? null,
+        requestPreparation: null,
+        primaryExplanation: null,
+        primaryFactChecked: null,
+        altExplanations: [],
+        altFactChecked: [],
+      })
+    }
+  }
+
   const trace = new TraceCollector()
   const response = await handleServeExplorationInner(deps, form, messages, prevState, displayedProducts, language, pagination, trace)
+  try {
+    logTurnDebug({
+      turnId,
+      userInput: lastUserMsg,
+      routing: {
+        reasoningTier: hint?.reasoningTier ?? "normal",
+        modelTier: hint?.modelTier ?? "full",
+        shortCircuit: false,
+        shortCircuitType: null,
+        reasons: hint?.reasons ?? ["no-hint"],
+      },
+      pipeline: { stages: ["exploration"], durationsMs: {} },
+      resultType: "exploration",
+      elapsedMs: Date.now() - turnStartedAt,
+    })
+  } catch { /* debug-log never throws */ }
 
   // Inject debug trace into every response
   if (isDebugEnabled()) {
@@ -3074,6 +3179,11 @@ async function handleServeExplorationInner(
   pagination: CandidatePaginationRequest | null = null,
   trace: TraceCollector = new TraceCollector()
 ): Promise<Response> {
+  // 최소 1개는 실제 실행된 stage를 UI 로 내보낸다 — heartbeat 타이머를 제거한 뒤
+  // 긴 턴(수십 초)에 UI 가 완전히 조용해지는 걸 막기 위함. 이 emit 은 파이프라인
+  // 진입 시점에 단 한 번 나가고, 이후의 stage 는 실제 emitStage 호출에서만 나간다.
+  try { deps.onThinking?.("🤔 요청을 해석하는 중…", { kind: "stage" }) } catch { /* no-op */ }
+
   // ── Proactive insights auto-injection ──
   // insight-generator (line ~3805) writes into this closure var. The wrapped
   // build*Response functions then auto-inject it as `extraResponseContext` so

@@ -3,6 +3,13 @@ import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recomm
 import { classifyQueryTarget, type QueryTargetType } from "@/lib/recommendation/domain/context/query-target-classifier"
 import { performUnifiedJudgment } from "@/lib/recommendation/domain/context/unified-haiku-judgment"
 import { isCuttingToolTaxonomyKnowledgeQuestion } from "@/lib/shared/domain/cutting-tool-routing-knowledge"
+import {
+  extractDiameter,
+  extractCoating,
+  extractMaterial,
+  extractOperation,
+} from "@/lib/recommendation/domain/input-normalizer"
+import { canonicalizeToolSubtype, extractFluteCount } from "@/lib/recommendation/shared/patterns"
 
 export type PreSearchRouteKind =
   | "general_knowledge"
@@ -27,6 +34,39 @@ function activeFilterField(sessionState: ExplorationSessionState | null): string
   return sessionState?.appliedFilters?.find(filter => filter.op !== "skip")?.field ?? null
 }
 
+// 명시 필터 힌트 개수 (material/diameter/subtype/flute/coating/operation)
+function countExplicitFilterHints(text: string): number {
+  let count = 0
+  if (extractMaterial(text)) count++
+  if (extractDiameter(text) != null) count++
+  if (canonicalizeToolSubtype(text)) count++
+  if (extractFluteCount(text) != null) count++
+  if (extractCoating(text)) count++
+  if (extractOperation(text)) count++
+  return count
+}
+
+// 지식질문 패턴 — 필터 힌트가 있어도 general_knowledge/direct_lookup 유지
+const KNOWLEDGE_QUESTION_RE = /(뭐야|뭔데|뭐에요|뭐임|뭔가요|무엇|뜻이|의미|원리|왜\s)/
+const KNOWLEDGE_COMPARE_RE = /(\bvs\.?\b|대비|차이|비교\s*(?:해|설명))/i
+const KNOWLEDGE_SERIES_RE = /(시리즈|특징|장점|용도|스펙|설명)/
+
+function looksLikeKnowledgeQuestion(text: string): boolean {
+  return (
+    KNOWLEDGE_QUESTION_RE.test(text) ||
+    KNOWLEDGE_COMPARE_RE.test(text) ||
+    KNOWLEDGE_SERIES_RE.test(text)
+  )
+}
+
+// product_info/product_comparison은 실제 SKU 코드 매칭이므로 override 대상에서 제외
+const OVERRIDABLE_DIRECT_LOOKUP_TYPES = new Set<QueryTargetType>([
+  "series_info",
+  "brand_info",
+  "series_comparison",
+  "brand_comparison",
+])
+
 export async function classifyPreSearchRoute(
   userMessage: string,
   sessionState: ExplorationSessionState | null,
@@ -39,6 +79,20 @@ export async function classifyPreSearchRoute(
   )
 
   if (DIRECT_LOOKUP_TYPES.has(queryTarget.type)) {
+    // Override: series/brand 계열은 entity-registry false-positive 가능성이 있고,
+    // 사용자가 필터 힌트로 "추천" 문맥을 분명히 했으면 SKU 직조회가 아닌 추천 경로로
+    if (
+      OVERRIDABLE_DIRECT_LOOKUP_TYPES.has(queryTarget.type) &&
+      !looksLikeKnowledgeQuestion(userMessage)
+    ) {
+      const filterHintCount = countExplicitFilterHints(userMessage)
+      if (filterHintCount >= 1) {
+        return {
+          kind: "recommendation_action",
+          reason: `filter_hints_override_direct:${queryTarget.type}/${filterHintCount}`,
+        }
+      }
+    }
     return {
       kind: "direct_lookup",
       reason: `query_target:${queryTarget.type}`,
@@ -112,9 +166,21 @@ export async function classifyPreSearchRoute(
     )
 
   if (isGeneralKnowledge) {
+    const isTaxonomy = isCuttingToolTaxonomyKnowledgeQuestion(userMessage)
+    // Override: 명시 필터 힌트가 있고 지식질문/taxonomy가 아니면 추천 파이프라인 강제
+    // (자연스러운 톤 때문에 judgment가 off_topic/explain으로 오분류해도 필터 추출을 놓치지 않도록)
+    if (!isTaxonomy && !looksLikeKnowledgeQuestion(userMessage)) {
+      const filterHintCount = countExplicitFilterHints(userMessage)
+      if (filterHintCount >= 1) {
+        return {
+          kind: "recommendation_action",
+          reason: `filter_hints_override:${filterHintCount}`,
+        }
+      }
+    }
     return {
       kind: "general_knowledge",
-      reason: isCuttingToolTaxonomyKnowledgeQuestion(userMessage)
+      reason: isTaxonomy
         ? "taxonomy_knowledge"
         : `judgment:${judgment.domainRelevance}/${judgment.intentAction}`,
     }

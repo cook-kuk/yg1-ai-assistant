@@ -1192,17 +1192,25 @@ export function detectSessionContradiction(
     }
   }
 
-  // 4) 이미 resolved 상태에서 중복 추천 요청 (명시적 재요청이 아닐 때만)
+  // 4) 이미 resolved 상태에서 "순수" 중복 추천 요청만 차단
+  //    "추천해줘" 외 다른 토큰이 남아 있으면 새 조건을 담은 refinement 로 간주하여
+  //    LLM 경로가 필터를 재추출하도록 통과시킨다.
   if (
     status.startsWith("resolved") &&
     matchContradictionPattern("recommend", lower) &&
     !matchContradictionPattern("reRecommend", lower)
   ) {
-    return {
-      type: "already_resolved",
-      reason: "already_showing_recommendation",
-      message:
-        "이미 추천 결과를 보여드리고 있어요. 다른 조건으로 다시 찾으시려면 '다시 추천' 이나 새로운 조건을 입력해주세요.",
+    const residual = lower
+      .replace(/추천해?(주세요|주십시오|드려요|드립니다|줘요|줘|드려)?/g, "")
+      .replace(/recommend/g, "")
+      .replace(/[\s\p{P}\p{S}]+/gu, "")
+    if (residual.length === 0) {
+      return {
+        type: "already_resolved",
+        reason: "already_showing_recommendation",
+        message:
+          "이미 추천 결과를 보여드리고 있어요. 다른 조건으로 다시 찾으시려면 '다시 추천' 이나 새로운 조건을 입력해주세요.",
+      }
     }
   }
 

@@ -191,8 +191,8 @@ describe("first-turn routing guards", () => {
     expect(payload.session.engineState.thinkingDeep).toBe("full cot")
   })
 
-  it("bypasses sql-agent semantic cache when full thinking is enabled", () => {
-    expect(shouldUseSqlAgentSemanticCache(true)).toBe(false)
+  it("always enables sql-agent semantic cache (cached reasoning replayed on hit)", () => {
+    expect(shouldUseSqlAgentSemanticCache(true)).toBe(true)
     expect(shouldUseSqlAgentSemanticCache(false)).toBe(true)
   })
 })

@@ -16,7 +16,11 @@
  */
 
 import { recommendationRequestSchema, type RecommendationRequestDto } from "@/lib/contracts/recommendation"
-import { assessComplexity, type UiThinkingMode } from "@/lib/recommendation/core/complexity-router"
+import {
+  getRoutingDecision,
+  type RoutingDecision,
+  type UiThinkingMode,
+} from "@/lib/recommendation/core/complexity-router"
 import { createServeRuntimeDependencies } from "@/lib/recommendation/infrastructure/http/recommendation-http"
 import {
   handleServeExploration,
@@ -63,11 +67,24 @@ function getLatestUserMessageText(body: RecommendationRequestDto): string | null
   return null
 }
 
-function getStreamThinkingMode(body: RecommendationRequestDto): UiThinkingMode {
+function getStreamRoutingDecision(body: RecommendationRequestDto): RoutingDecision | null {
   const latestUserText = getLatestUserMessageText(body)
-  if (!latestUserText) return "hidden"
+  if (!latestUserText) return null
   const prevState = getRequestSessionState(body)
-  return assessComplexity(latestUserText, prevState?.appliedFilters?.length ?? 0).uiThinkingMode
+  const displayed = body.displayedProducts ?? []
+  return getRoutingDecision({
+    message: latestUserText,
+    appliedFilterCount: prevState?.appliedFilters?.length ?? 0,
+    displayedProductsCount: displayed.length,
+    hasPendingQuestion: !!prevState?.lastAskedField,
+    hasSelectionContext: displayed.length > 0,
+    hasComparisonTargets: displayed.length >= 2,
+  })
+}
+
+function getStreamThinkingMode(decision: RoutingDecision | null): UiThinkingMode {
+  if (!decision) return "hidden"
+  return decision.complexity.uiThinkingMode
 }
 
 function sseFrame(event: string, data: unknown): string {
@@ -107,57 +124,20 @@ export async function POST(req: Request): Promise<Response> {
 
       // Initial "started" ping so the client knows the connection is live.
       safeEnqueue(sseFrame("started", { ok: true }))
-      const streamThinkingMode = getStreamThinkingMode(body)
+      const routingDecision = getStreamRoutingDecision(body)
+      const streamThinkingMode = getStreamThinkingMode(routingDecision)
 
-      // Heartbeat reasoning: many engine paths don't fire onThinking until late
-      // (or not at all for first-turn recommendations). To keep the UI alive,
-      // emit a sequence of generic stage updates until either the real engine
-      // reasoning arrives (sawRealThinking flips true) or the final frame ships.
-      let sawRealThinking = false
-      let heartbeatIdx = 0
-      const heartbeatStages = [
-        "🤔 사용자 입력을 해석하는 중…",
-        "🔎 필터를 추출하고 후보 풀을 구성하는 중…",
-        "📐 도메인 지식과 충돌 여부를 점검하는 중…",
-        "🧮 후보 점수를 매기고 정렬하는 중…",
-        "✍️ 추천 근거를 정리하는 중…",
-      ]
-      let heartbeatTimer: ReturnType<typeof setInterval> | null = null
-      const stopHeartbeat = () => {
-        if (heartbeatTimer) {
-          clearInterval(heartbeatTimer)
-          heartbeatTimer = null
-        }
-      }
-      if (streamThinkingMode !== "hidden") {
-        // FAST path는 reasoning UI를 숨기므로 generic heartbeat도 보내지 않는다.
-        // 실제 파이프라인이 emitStage 를 호출하는 즉시 sawRealThinking 이 true 가 되고
-        // 고정 heartbeat 는 중단된다 (아래 onThinking 참조).
-        safeEnqueue(sseFrame("thinking", { text: heartbeatStages[0], delta: false, kind: "stage" }))
-        heartbeatIdx = 1
-        heartbeatTimer = setInterval(() => {
-          if (closed || sawRealThinking) { stopHeartbeat(); return }
-          if (heartbeatIdx >= heartbeatStages.length) { stopHeartbeat(); return }
-          safeEnqueue(sseFrame("thinking", { text: heartbeatStages[heartbeatIdx], delta: false, kind: "stage" }))
-          heartbeatIdx++
-        }, 2500)
-      }
-
-      // Real-time CoT: SQL agent reasoning is flushed the moment it's parsed,
-      // before retrieval. The client renders it Claude-style as the message
-      // streams in. Two modes:
-      //   - {delta:true, text}: append `text` to whatever the UI has shown so
-      //     far (true token-by-token streaming from provider.stream())
-      //   - {text}: replace the UI's current value (single-shot reasoning from
-      //     synthetic fallbacks or non-streaming providers)
+      // 고정 heartbeat 타이머는 제거했다. 과거에는 실제 파이프라인이 조용할 때를
+      // 덮으려고 2.5s 주기로 5-stage 메시지를 뿌렸지만 → 사용자에게 "생각하는 척"
+      // 으로 보이고 실제 실행 단계와 어긋났다. 지금은 파이프라인이 emitStage
+      // 를 실제로 호출할 때만 "thinking" SSE 프레임이 나간다.
+      //
+      // streamThinkingMode === "hidden" 인 경우(잡담/off-topic) onThinking 을
+      // 아예 UI 로 흘리지 않고 서버 로그만 남긴다.
       const onThinking = (text: string, opts?: { delta?: boolean; kind?: "deep" | "stage" | "agent" }) => {
         if (!text) return
         if (!opts?.delta && !text.trim()) return
-        if (!sawRealThinking) {
-          sawRealThinking = true
-          // 실제 파이프라인 이벤트가 도착하는 즉시 고정 heartbeat 타이머를 끊는다.
-          stopHeartbeat()
-        }
+        if (streamThinkingMode === "hidden") return
         // 채널 3개:
         //   - "stage"  → 노란 trail 박스 (실시간 스테이지)
         //   - "deep"   → 남색 토글 본문 (LLM chain-of-thought)
@@ -194,7 +174,11 @@ export async function POST(req: Request): Promise<Response> {
       }
 
       try {
-        const runtimeDeps = createServeRuntimeDependencies({ onEarlyFlush, onThinking })
+        const runtimeDeps = createServeRuntimeDependencies({
+          onEarlyFlush,
+          onThinking,
+          routingHint: routingDecision,
+        })
 
         const language = body.language === "en" ? "en" : "ko"
         const intakeForm = body.intakeForm as ProductIntakeForm | undefined
@@ -236,7 +220,6 @@ export async function POST(req: Request): Promise<Response> {
         }))
       } finally {
         closed = true
-        if (heartbeatTimer) clearInterval(heartbeatTimer)
         try { controller.close() } catch { /* already closed */ }
       }
     },
