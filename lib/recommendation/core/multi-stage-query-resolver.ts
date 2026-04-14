@@ -1703,11 +1703,23 @@ function validateResolverExecution(
   const heldConcepts = (normalizedResult.concepts ?? []).filter(concept => concept.status !== "mapped")
   if (hasExecutableMutationIntent && heldConcepts.length > 0) {
     const lead = heldConcepts[0]
+    // Partial-truth allowance: when stage3 returned >=2 concrete filters with high
+    // confidence, treating one unmapped token as a hard block discards real progress
+    // (e.g. typo case "스텐인리스 4낭 10mn" → fluteCount+diameterMm extracted).
+    // Downgrade to weak_cot/warning so execution proceeds; the unmapped token can be
+    // surfaced as a soft follow-up rather than wiping the extracted filters.
+    const concreteFilterCount = normalizedFilters.filter(f => f.op !== "skip").length
+    const allowPartialExecution =
+      phase === "stage3"
+      && concreteFilterCount >= 2
+      && (normalizedResult.confidence ?? 0) >= 0.9
+      && heldConcepts.length === 1
     issues.push(buildValidationIssue(
       "concept_mapping_gap",
       `semantic concepts remained unresolved before execution: ${String(lead.rawToken ?? lead.value ?? lead.kind)}`,
-      phase === "stage3" ? "clarification" : "strong_cot",
+      allowPartialExecution ? "weak_cot" : phase === "stage3" ? "clarification" : "strong_cot",
       lead.fieldHint ?? null,
+      allowPartialExecution ? "warning" : "error",
     ))
   }
 
