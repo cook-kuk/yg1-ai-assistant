@@ -7,11 +7,13 @@
  * NOT for: inventory (real-time), search results (filter-dependent).
  */
 
+import { SESSION_CACHE } from "@/lib/recommendation/infrastructure/config/cache-config"
+
 export class SessionCache {
   private cache = new Map<string, { data: unknown; timestamp: number }>()
   private ttl: number
 
-  constructor(ttlMs: number = 5 * 60 * 1000) {
+  constructor(ttlMs: number = SESSION_CACHE.ttlMs) {
     this.ttl = ttlMs
   }
 

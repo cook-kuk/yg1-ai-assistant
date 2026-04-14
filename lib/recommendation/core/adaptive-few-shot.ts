@@ -5,11 +5,15 @@
  * sql-agent system prompt에 4개 정도 동적 주입. 정적 examples 블록 대체.
  */
 import { tokenize, jaccardSimilarity } from "./auto-synonym"
+import { getLearnedFewShotExamples } from "./feedback-pool"
+import { FEEDBACK_POOL } from "@/lib/recommendation/infrastructure/config/cache-config"
 
 export interface FewShotExample {
   input: string
   output: string   // filters JSON string
   tokens: Set<string>
+  /** net positive 👍 count — Jaccard similarity에 boost로 활용 */
+  feedbackWeight?: number
 }
 
 let _pool: FewShotExample[] = []
@@ -83,6 +87,28 @@ export function loadFewShotPool(): void {
         tokens: tokenize(c.input as string),
       }))
     console.log(`[adaptive-few-shot] loaded ${_pool.length} examples`)
+
+    // compile-prompts.ts 가 생성한 bootstrap demonstration 도 pool에 합류
+    try {
+      const fs2 = require("fs") as typeof import("fs")
+      const path2 = require("path") as typeof import("path")
+      const compiledPath = path2.join(process.cwd(), "data", "compiled-demonstrations.json")
+      if (fs2.existsSync(compiledPath)) {
+        const compiled = JSON.parse(fs2.readFileSync(compiledPath, "utf8"))
+        const demos: Array<{ input: string; output: string }> = Array.isArray(compiled?.demonstrations)
+          ? compiled.demonstrations
+          : []
+        let added = 0
+        for (const ex of demos) {
+          if (!ex.input || !ex.output) continue
+          _pool.push({ input: ex.input, output: ex.output, tokens: tokenize(ex.input) })
+          added++
+        }
+        if (added > 0) console.log(`[adaptive-few-shot] +${added} compiled demonstrations`)
+      }
+    } catch (err) {
+      console.warn("[adaptive-few-shot] compiled load failed:", (err as Error).message)
+    }
   } catch (e) {
     console.warn("[adaptive-few-shot] load failed:", (e as Error).message)
     if (_pool.length === 0) loadFallbackFewShotPool()
@@ -91,12 +117,24 @@ export function loadFewShotPool(): void {
 
 export function selectFewShots(userMessage: string, maxCount = 4): FewShotExample[] {
   if (!_loaded) loadFewShotPool()
-  if (_pool.length === 0) return []
+
+  // golden set + feedback-driven learned pool 합산.
+  // learned pool은 👍 횟수에 비례한 boost로 similarity 우선순위 상승.
+  const learned = getLearnedFewShotExamples()
+  const combined = learned.length > 0 ? [..._pool, ...learned] : _pool
+  if (combined.length === 0) return []
   const qt = tokenize(userMessage)
   if (qt.size === 0) return []
 
-  const scored = _pool
-    .map(ex => ({ ex, sim: jaccardSimilarity(qt, ex.tokens) }))
+  const scored = combined
+    .map(ex => {
+      const baseSim = jaccardSimilarity(qt, ex.tokens)
+      const weight = ex.feedbackWeight ?? 0
+      const boost = weight > 0
+        ? Math.min(FEEDBACK_POOL.maxBoost, weight * FEEDBACK_POOL.boostPerPositive)
+        : 0
+      return { ex, sim: baseSim + boost }
+    })
     .filter(s => s.sim >= 0.15)
     .sort((a, b) => b.sim - a.sim)
 

@@ -14,6 +14,11 @@ import {
   notifySuccessCase as slackNotifySuccessCase,
   notifyTurnFeedback as slackNotifyTurnFeedback,
 } from "@/lib/feedback/infrastructure/notifications/feedback-notifier"
+import {
+  learnFromPositiveFeedback,
+  learnFromNegativeFeedback,
+} from "@/lib/recommendation/core/feedback-pool"
+import type { AppliedFilter } from "@/lib/types/exploration"
 
 type JsonRecord = Record<string, unknown>
 type SuccessCaseNotification = Parameters<typeof slackNotifySuccessCase>[0]
@@ -266,6 +271,82 @@ async function notifyTurnFeedback(entry: JsonRecord) {
   } satisfies TurnFeedbackNotification).catch(() => {})
 }
 
+function extractAppliedFiltersForLearning(body: JsonRecord): AppliedFilter[] {
+  // 우선순위: body.appliedFilters (객체 배열) → sessionStateSnapshot.appliedFilters
+  const candidates: unknown[] = [
+    body.appliedFilters,
+    (body.sessionStateSnapshot as JsonRecord | undefined)?.appliedFilters,
+  ]
+  for (const c of candidates) {
+    if (!Array.isArray(c)) continue
+    const objs = c.filter((f): f is JsonRecord =>
+      Boolean(f) && typeof f === "object" && !Array.isArray(f) &&
+      typeof (f as JsonRecord).field === "string" &&
+      typeof (f as JsonRecord).op === "string",
+    )
+    if (objs.length > 0) {
+      return objs.map(f => ({
+        field: String(f.field),
+        op: String(f.op),
+        value: String(f.value ?? ""),
+        rawValue: (f.rawValue ?? f.value ?? "") as AppliedFilter["rawValue"],
+        appliedAt: typeof f.appliedAt === "number" ? f.appliedAt : 0,
+      })) as AppliedFilter[]
+    }
+  }
+  return []
+}
+
+function extractUserMessageForLearning(body: JsonRecord): string {
+  const direct = getString(body.userMessage).trim()
+  if (direct) return direct
+  const history = Array.isArray(body.chatHistory) ? body.chatHistory : []
+  for (let i = history.length - 1; i >= 0; i--) {
+    const item = history[i]
+    if (item && typeof item === "object" && !Array.isArray(item)) {
+      const rec = item as JsonRecord
+      if (rec.role === "user" && typeof rec.text === "string" && rec.text.trim()) {
+        return rec.text.trim()
+      }
+    }
+  }
+  return ""
+}
+
+function isPositiveSignal(value: unknown): boolean {
+  if (typeof value === "number") return value > 0
+  if (typeof value === "string") return value === "good" || value === "positive" || value === "👍"
+  return false
+}
+
+function isNegativeSignal(value: unknown): boolean {
+  if (typeof value === "number") return value < 0
+  if (typeof value === "string") return value === "bad" || value === "negative" || value === "👎"
+  return false
+}
+
+async function applyFeedbackLearning(body: JsonRecord): Promise<void> {
+  const userMessage = extractUserMessageForLearning(body)
+  if (!userMessage) return
+  const filters = extractAppliedFiltersForLearning(body)
+  if (filters.length === 0) return
+
+  const sessionId = getString(body.sessionId)
+  // turn_feedback은 response 또는 chips 대상이 있음 — response 대상이 주 학습 신호.
+  const response = body.responseFeedback ?? (body.feedbackTarget === "response" ? body.feedback : null)
+  const chips = body.chipFeedback ?? (body.feedbackTarget === "chips" ? body.feedback : null)
+  const rating = body.rating
+
+  const positive = isPositiveSignal(response) || isPositiveSignal(chips) || isPositiveSignal(rating)
+  const negative = isNegativeSignal(response) || isNegativeSignal(chips) || isNegativeSignal(rating)
+
+  if (positive && !negative) {
+    await learnFromPositiveFeedback(userMessage, filters, sessionId)
+  } else if (negative && !positive) {
+    await learnFromNegativeFeedback(userMessage, filters)
+  }
+}
+
 async function notifyGeneralFeedback(entry: FeedbackEntryDto, screenshotCount: number) {
   slackNotifyFeedback({
     rating: entry.rating,
@@ -329,6 +410,11 @@ export class FeedbackService {
 
       void notifySuccessCase(successEntry)
 
+      // success_case는 강한 긍정 신호 → positive learning으로 묶어 처리.
+      applyFeedbackLearning({ ...body, rating: 1 }).catch(error => {
+        console.warn("[feedback] learning from success_case failed:", (error as Error).message)
+      })
+
       return { status: 200, body: { success: true, id: String(successEntry.id) } }
     }
 
@@ -376,6 +462,10 @@ export class FeedbackService {
       })
 
       void notifyFailureCase(failureEntry)
+
+      applyFeedbackLearning({ ...body, rating: -1 }).catch(error => {
+        console.warn("[feedback] learning from failure_case failed:", (error as Error).message)
+      })
 
       return { status: 200, body: { success: true, id: String(failureEntry.id) } }
     }
@@ -440,6 +530,10 @@ export class FeedbackService {
 
       void notifyTurnFeedback(turnEntry)
 
+      applyFeedbackLearning(body).catch(error => {
+        console.warn("[feedback] learning from turn_feedback failed:", (error as Error).message)
+      })
+
       return { status: 200, body: { success: true, id: String(turnEntry.id) } }
     }
 
@@ -495,6 +589,10 @@ export class FeedbackService {
     })
 
     void notifyGeneralFeedback(entry, screenshots.length)
+
+    applyFeedbackLearning(body).catch(error => {
+      console.warn("[feedback] learning from general_feedback failed:", (error as Error).message)
+    })
 
     return {
       status: 200,

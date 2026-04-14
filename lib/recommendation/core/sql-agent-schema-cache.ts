@@ -5,6 +5,7 @@
  */
 
 import { Pool } from "pg"
+import { SCHEMA_CACHE } from "@/lib/recommendation/infrastructure/config/cache-config"
 import { phoneticKey } from "./phonetic-match"
 
 // ── Types ────────────────────────────────────────────────────
@@ -51,8 +52,8 @@ export interface PhoneticEntry {
 }
 
 // ── Cache ────────────────────────────────────────────────────
+// TTL 은 cache-config.ts 에서 관리 (SCHEMA_CACHE.ttlMs, 기본 1시간).
 
-const CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour
 let cached: DbSchema | null = null
 
 /**
@@ -80,7 +81,7 @@ declare global {
 // ── Public API ───────────────────────────────────────────────
 
 export async function getDbSchema(): Promise<DbSchema> {
-  if (cached && Date.now() - cached.loadedAt < CACHE_TTL_MS) return cached
+  if (cached && Date.now() - cached.loadedAt < SCHEMA_CACHE.ttlMs) return cached
 
   const pool = getPool()
 
@@ -276,7 +277,7 @@ export function findColumnsForToken(token: string): string[] {
 }
 
 export function getDbSchemaSync(): DbSchema | null {
-  if (cached && Date.now() - cached.loadedAt < CACHE_TTL_MS) return cached
+  if (cached && Date.now() - cached.loadedAt < SCHEMA_CACHE.ttlMs) return cached
   return null
 }
 

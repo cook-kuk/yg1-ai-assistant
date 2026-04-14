@@ -20,7 +20,7 @@ import {
   orchestrateTurnWithTools,
   resolveProductReferences,
 } from "@/lib/recommendation/infrastructure/agents/recommendation-agents"
-import { detectSessionContradiction } from "@/lib/recommendation/infrastructure/agents/orchestrator"
+import { detectSessionContradiction, routeProtectedRecommendationIntent } from "@/lib/recommendation/infrastructure/agents/orchestrator"
 import { ENABLE_TOOL_USE_ROUTING } from "@/lib/recommendation/infrastructure/config/recommendation-feature-flags"
 import { USE_NEW_ORCHESTRATOR, shouldUseV2ForPhase } from "@/lib/feature-flags"
 import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
@@ -6176,6 +6176,15 @@ async function handleServeExplorationInner(
       earlyAction = pendingSelectionFilter.op === "skip" ? "skip_field" : "continue_narrowing"
     }
   } else if (!earlyAction && messages.length > 0 && prevState && lastUserMsg) {
+    // Deterministic fast-path: skip LLM orchestrator for high-frequency protected patterns.
+    const protectedResult = routeProtectedRecommendationIntent(lastUserMsg.text, prevState)
+    if (protectedResult && typeof protectedResult.type === "string") {
+      earlyAction = protectedResult.type
+      emitStage("intentClassify", { mode: "protected-route", action: earlyAction })
+      try {
+        emitAgent(`[의도분류] "${lastUserMsg.text.slice(0, 30)}" → ${earlyAction} via protected-route`)
+      } catch { /* no-op */ }
+    } else {
     const earlyUnifiedTurnContext = buildUnifiedTurnContext({
       latestAssistantText: [...messages].reverse().find(message => message.role === "ai")?.text ?? null,
       latestUserMessage: lastUserMsg.text,
@@ -6205,6 +6214,7 @@ async function handleServeExplorationInner(
       const agentSummary = agents.map(a => `${a.agent}(${a.model}:${a.durationMs}ms)`).join(", ")
       emitAgent(`[의도분류] "${lastUserMsg.text.slice(0, 30)}" → ${earlyAction}${agentSummary ? ` via ${agentSummary}` : ""}`)
     } catch { /* no-op */ }
+    }
   }
 
   // filter_by_stock 액션이지만 prevState 에 displayedCandidates 가 없으면

@@ -23,6 +23,17 @@ import {
   hasSemanticComparisonCue,
   shouldDeferHardcodedSemanticExecution,
 } from "./semantic-execution-policy"
+import { KG_CACHE } from "@/lib/recommendation/infrastructure/config/cache-config"
+
+// ── KG Result Cache ──────────────────────────────────────────
+interface KGCacheEntry { result: KGDecisionResult; timestamp: number }
+const _kgResultCache = new Map<string, KGCacheEntry>()
+
+function _kgCacheKey(message: string, sessionState: ExplorationSessionState | null): string {
+  const filterCount = sessionState?.appliedFilters?.length ?? 0
+  const pendingField = sessionState?.lastAskedField ?? ""
+  return `${message}\u0000${filterCount}\u0000${pendingField}`
+}
 
 // ── Node Types ─────────────────────────────────────────────────
 
@@ -559,6 +570,24 @@ export interface KGDecisionResult {
  * Returns null if KG can't decide with sufficient confidence → fallback to LLM.
  */
 export function tryKGDecision(
+  userMessage: string,
+  sessionState: ExplorationSessionState | null,
+): KGDecisionResult {
+  const cacheKey = _kgCacheKey(userMessage, sessionState)
+  const cached = _kgResultCache.get(cacheKey)
+  if (cached && Date.now() - cached.timestamp < KG_CACHE.ttlMs) {
+    return cached.result
+  }
+  const result = tryKGDecisionInner(userMessage, sessionState)
+  _kgResultCache.set(cacheKey, { result, timestamp: Date.now() })
+  if (_kgResultCache.size > KG_CACHE.maxSize) {
+    const firstKey = _kgResultCache.keys().next().value
+    if (firstKey !== undefined) _kgResultCache.delete(firstKey)
+  }
+  return result
+}
+
+function tryKGDecisionInner(
   userMessage: string,
   sessionState: ExplorationSessionState | null,
 ): KGDecisionResult {

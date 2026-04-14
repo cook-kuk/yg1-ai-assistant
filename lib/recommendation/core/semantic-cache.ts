@@ -7,10 +7,11 @@
  * 캐시 컨텍스트: 같은 메시지라도 현재 적용된 필터가 다르면 결과가 달라짐
  * → (query, filters) 쌍 기준으로 hit/miss 결정.
  *
- * TTL 30분, LRU 최대 500항목.
+ * TTL / 크기 / threshold 는 cache-config.ts (ENV 오버라이드 가능).
  */
 
 import type { AppliedFilter } from "@/lib/recommendation/domain/types"
+import { SEMANTIC_CACHE, getSemanticThreshold } from "@/lib/recommendation/infrastructure/config/cache-config"
 import { tokenize, jaccardSimilarity } from "./auto-synonym"
 
 // ── Types ────────────────────────────────────────────────────
@@ -47,14 +48,8 @@ interface CacheEntry {
   hitCount: number
 }
 
-// ── Constants ────────────────────────────────────────────────
-
-const CACHE_MAX_SIZE = 500
-const CACHE_TTL_MS = 30 * 60 * 1000 // 30 min
-const SIMILARITY_THRESHOLD = 0.75
-
 // ── Cache state ──────────────────────────────────────────────
-// Note: 동의어 정규화/토큰화는 auto-synonym.ts로 이전됨 (DB+patterns+KG 자동 구축).
+// 동의어 정규화/토큰화는 auto-synonym.ts로 이전됨 (DB+patterns+KG 자동 구축).
 
 const cache: CacheEntry[] = []
 
@@ -84,9 +79,10 @@ export function lookupCache(query: string, currentFilters: AppliedFilter[]): Cac
     }
   }
 
-  if (best && bestSim >= SIMILARITY_THRESHOLD) {
+  const threshold = getSemanticThreshold(queryTokens.size)
+  if (best && bestSim >= threshold) {
     best.hitCount++
-    console.log(`[semantic-cache:hit] "${query.slice(0, 40)}" ≈ "${best.query.slice(0, 40)}" jaccard=${bestSim.toFixed(3)} hits=${best.hitCount}`)
+    console.log(`[semantic-cache:hit] "${query.slice(0, 40)}" ≈ "${best.query.slice(0, 40)}" jaccard=${bestSim.toFixed(3)} thr=${threshold} hits=${best.hitCount}`)
     return best.result
   }
   return null
@@ -114,14 +110,14 @@ export function storeCache(query: string, currentFilters: AppliedFilter[], resul
     hitCount: 0,
   })
 
-  if (cache.length > CACHE_MAX_SIZE) {
+  if (cache.length > SEMANTIC_CACHE.maxSize) {
     cache.sort((a, b) => a.hitCount - b.hitCount || a.createdAt - b.createdAt)
-    cache.splice(0, cache.length - CACHE_MAX_SIZE)
+    cache.splice(0, cache.length - SEMANTIC_CACHE.maxSize)
   }
 }
 
 function pruneExpired(): void {
-  const cutoff = Date.now() - CACHE_TTL_MS
+  const cutoff = Date.now() - SEMANTIC_CACHE.ttlMs
   for (let i = cache.length - 1; i >= 0; i--) {
     if (cache[i].createdAt < cutoff) cache.splice(i, 1)
   }
