@@ -3881,6 +3881,29 @@ async function handleServeExplorationInner(
       }
     }
 
+    // First-turn show_recommendation fast-path (~line 6802) returns before the
+    // downstream turnTruth inventory override (~line 6996). Merge the stock
+    // constraint here so SQL-agent misses ("재고 10개 이상") still reach retrieval.
+    try {
+      const { buildTurnTruth, mergeInventoryTruthFilters } = await import("@/lib/recommendation/domain/context/turn-truth")
+      const truth = buildTurnTruth({
+        userMessage: lastUserMsg?.text ?? "",
+        sessionState: prevState,
+        appliedFilters: filters,
+        candidateSnapshot: prevState?.displayedCandidates ?? prevState?.lastRecommendationArtifact ?? [],
+      })
+      if (truth.inventoryConstraint) {
+        const beforeLen = filters.length
+        const merged = mergeInventoryTruthFilters(filters, truth, turnCount)
+        filters.splice(0, filters.length, ...merged)
+        if (filters.length !== beforeLen) {
+          console.log(`[first-turn-intake] turn-truth inventory merged: minStock=${truth.inventoryConstraint.minimumStock ?? "any"}, filters ${beforeLen}→${filters.length}`)
+        }
+      }
+    } catch (e) {
+      console.warn("[first-turn-intake] inventory constraint merge failed:", (e as Error).message)
+    }
+
     const shouldShortCircuitFirstTurn = shouldShortCircuitFirstTurnIntake({
       bypassResolver: firstTurnResolverBypassed,
       resolverResult: firstTurnResolverResult,
@@ -6987,12 +7010,6 @@ async function handleServeExplorationInner(
       candidateSnapshot: prevState.displayedCandidates ?? prevState.lastRecommendationArtifact ?? [],
     })
 
-    try {
-      const fs = await import("fs")
-      fs.appendFileSync("C:/Users/kuksh/Downloads/YG1_test/debug-copper.log", `[DEBUG-COPPER] msg=${JSON.stringify(lastUserMsg.text)} action.type=${action.type} turnTruth.intent=${turnTruth.intent} inventoryConstraint=${JSON.stringify(turnTruth.inventoryConstraint)} displayedCandidateFilter=${JSON.stringify(turnTruth.displayedCandidateFilter)} filters=${JSON.stringify(filters.map(f => ({ field: f.field, op: f.op, rawValue: f.rawValue })))} prevDisplayed=${prevState?.displayedCandidates?.length ?? 0} turn=${turnCount}\n`)
-    } catch {}
-    console.log(`[DEBUG-COPPER] action.type=${action.type} turnTruth.intent=${turnTruth.intent} filters=${JSON.stringify(filters.map(f => ({ field: f.field, op: f.op, rawValue: f.rawValue })))} turn=${turnCount}`)
-
     if (turnTruth.intent === "inventory_constraint" && turnTruth.inventoryConstraint && action.type !== "filter_by_stock") {
       action = {
         type: "filter_by_stock",
@@ -7003,11 +7020,6 @@ async function handleServeExplorationInner(
         `[turn-truth] inventory constraint -> filter_by_stock (min=${turnTruth.inventoryConstraint.minimumStock ?? "instock"})`,
       )
     }
-    try {
-      const fs = await import("fs")
-      fs.appendFileSync("C:/Users/kuksh/Downloads/YG1_test/debug-copper.log", `[DEBUG-COPPER-POST] action.type=${action.type} filters.len=${filters.length} filters=${JSON.stringify(filters.map(f => ({ field: f.field, op: f.op, rawValue: f.rawValue })))}\n`)
-    } catch {}
-    console.log(`[DEBUG-COPPER-POST] action.type=${action.type} filters.len=${filters.length}`)
 
     if (
       turnTruth.intent === "displayed_candidate_filtering"
