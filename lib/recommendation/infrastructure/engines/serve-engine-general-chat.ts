@@ -1310,7 +1310,9 @@ export async function handleServeGeneralChatAction(
   const canReusePreGenerated = preGenerated && !shouldAttemptWebSearchFallback(lastUserMessage)
   let llmResponse: { text: string; chips: string[] }
   if (canReusePreGenerated) {
-    llmResponse = { text: action.message, chips: [] }
+    // Phase 5: action.chips 가 있으면 우선 사용 (rollback 가드레일 등).
+    const preChips = action.type === "answer_general" && Array.isArray(action.chips) ? action.chips : []
+    llmResponse = { text: action.message, chips: preChips }
   } else if (!canReusePreGenerated && (prevState as unknown as { __qaDirectAnswer?: string })?.__qaDirectAnswer) {
     const qaFallback = (prevState as unknown as { __qaDirectAnswer?: string }).__qaDirectAnswer!
     llmResponse = { text: qaFallback, chips: [] }

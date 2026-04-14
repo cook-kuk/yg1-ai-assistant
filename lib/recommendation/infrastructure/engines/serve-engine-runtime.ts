@@ -22,6 +22,7 @@ import {
 } from "@/lib/recommendation/infrastructure/agents/recommendation-agents"
 import { detectSessionContradiction, routeProtectedRecommendationIntent } from "@/lib/recommendation/infrastructure/agents/orchestrator"
 import { ENABLE_TOOL_USE_ROUTING } from "@/lib/recommendation/infrastructure/config/recommendation-feature-flags"
+import { RUNTIME_MESSAGES, renderTemplate } from "@/lib/recommendation/infrastructure/config/runtime-config"
 import { USE_NEW_ORCHESTRATOR, shouldUseV2ForPhase } from "@/lib/feature-flags"
 import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import { getProviderForAgent } from "@/lib/llm/provider"
@@ -67,6 +68,8 @@ import { logPatternMiningEntry } from "@/lib/recommendation/core/pattern-mining/
 import { tryKGDecision, extractEntities, tryParseSortPhrase, type KGSpecPatch } from "@/lib/recommendation/core/knowledge-graph"
 import { parseDeterministic } from "@/lib/recommendation/core/deterministic-scr"
 import { shouldDeferHardcodedSemanticExecution } from "@/lib/recommendation/core/semantic-execution-policy"
+import { gatherEnsembleContext, formatEnsembleForPrompt } from "@/lib/recommendation/core/ensemble-context"
+import { saveToolMemory, searchToolMemory } from "@/lib/recommendation/core/tool-memory"
 import {
   applyEditIntent,
   getEditIntentAffectedFields,
@@ -194,6 +197,30 @@ const PENDING_QUESTION_RECOVERY_ACTIONS = new Set<string>([
   "reset_session",
   "compare_products",
 ])
+
+/** Local predictive match of a displayed candidate against an AppliedFilter.
+ *  Used by SQL-agent zero-result rollback to preview whether newly-added filters
+ *  would leave zero candidates, without running a DB round-trip. */
+function candidateMatchesAppliedFilter(
+  candidate: object,
+  f: AppliedFilter,
+): boolean {
+  const fieldVal = (candidate as Record<string, unknown>)[f.field]
+  const op = f.op
+  if (op === "skip") return true
+  if (fieldVal === null || fieldVal === undefined) return op === "neq"
+  if (op === "eq") return String(fieldVal).toLowerCase() === String(f.value).toLowerCase()
+  if (op === "neq") return String(fieldVal).toLowerCase() !== String(f.value).toLowerCase()
+  const num = Number(fieldVal)
+  if (op === "gte") return Number.isFinite(num) && num >= Number(f.value)
+  if (op === "lte") return Number.isFinite(num) && num <= Number(f.value)
+  if (op === "between") {
+    const lo = Number(f.value)
+    const hi = Number((f as AppliedFilter & { rawValue2?: string | number }).rawValue2 ?? f.value)
+    return Number.isFinite(num) && num >= lo && num <= hi
+  }
+  return true
+}
 
 /**
  * Build a user-friendly 0-result message that tells the user:
@@ -4693,6 +4720,14 @@ async function handleServeExplorationInner(
             : null
           emitStage("sqlAgent", { cacheHit: semanticHit ? "HIT" : "MISS" })
 
+          // Phase 2: tool-memory 직접 조회 — ensemble 과 별도로 hot path 에서 가시화.
+          // ensemble 은 prompt 주입용; 여기서는 high-tier hit 로깅으로 추후 short-circuit 여부 판단 자료.
+          const toolMemHits = await searchToolMemory(msg).catch(() => [])
+          if (toolMemHits.length > 0) {
+            const high = toolMemHits.filter(h => h.tier === "high").length
+            console.log(`[tool-memory:hot] "${msg.slice(0, 60)}" → ${toolMemHits.length} hits (high=${high})`)
+          }
+
           let agentResult: { filters: import("@/lib/recommendation/core/sql-agent").AgentFilter[]; raw: string; reasoning?: string; confidence?: "high" | "medium" | "low"; clarification?: string | null }
           if (semanticHit && semanticHit.source === "sql-agent") {
             agentResult = {
@@ -4765,6 +4800,8 @@ async function handleServeExplorationInner(
                 reasoning: agentResult.reasoning,
               })
             }
+            // Tool Memory save 는 rollback 판정 후로 이동 (4970 부근).
+            // 0건 rollback 케이스가 곧 "실패 SQL" 이라 같이 저장하면 노이즈 학습 발생.
           }
           trace.add("sql-agent", "router", { filterCount: agentResult.filters.length, raw: agentResult.raw.slice(0, 200) })
 
@@ -4846,6 +4883,11 @@ async function handleServeExplorationInner(
                 value2: af.value2 ?? null,
                 display: af.display ?? null,
               }))
+              // Snapshot for zero-result rollback check.
+              const prevFiltersSnapshot = filters.map(f => ({ ...f }))
+              const prevInputSnapshot = currentInput
+              const prevDisplayedCandidates = prevState?.displayedCandidates ?? []
+              const appliedBuiltFilters: AppliedFilter[] = []
               const normalizedFilters: Array<Record<string, unknown>> = []
               const droppedFilters: Array<Record<string, unknown>> = []
               for (const af of agentResult.filters) {
@@ -4879,6 +4921,7 @@ async function handleServeExplorationInner(
                   const result = replaceFieldFilter(baseInput, filters, built, deps.applyFilterToInput)
                   filters.splice(0, filters.length, ...result.nextFilters)
                   currentInput = result.nextInput
+                  appliedBuiltFilters.push(built)
                   if (built.field === pendingSelectionFilter?.field && pendingSelectionAction?.type === "skip_field") {
                     pendingSelectionAction = null
                     pendingSelectionOrchestratorResult = null
@@ -4886,34 +4929,87 @@ async function handleServeExplorationInner(
                 }
               }
 
-              const hasShowRec = /추천|보여|제품\s*보기|show/iu.test(msg)
-              traceRecommendation("runtime.handleServeExplorationInner:sql-agent-filter-pipeline", {
-                confidence: agentResult.confidence ?? null,
-                parsedFilters,
-                normalizedFilters,
-                droppedFilters,
-                finalFilters: filters.filter(f => f.op !== "skip").map(f => ({
-                  field: f.field,
-                  op: f.op,
-                  value: f.value,
-                  rawValue: f.rawValue,
-                  rawValue2: (f as AppliedFilter & { rawValue2?: string | number }).rawValue2 ?? null,
-                })),
-              })
-
-              const lastF = filters[filters.length - 1] ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount }
-              bridgedV2Action = hasShowRec
-                ? { type: "show_recommendation" }
-                : { type: "continue_narrowing", filter: lastF }
-              bridgedV2OrchestratorResult = {
-                action: bridgedV2Action,
-                reasoning: `sql-agent:${agentResult.filters.map(f => `${f.field}=${f.op}${f.value}`).join(",")}`,
-                agentsInvoked: [],
-                escalatedToOpus: false,
+              // Zero-result rollback: if prev had candidates but new filters match none, revert.
+              let rolledBack = false
+              if (appliedBuiltFilters.length > 0 && prevDisplayedCandidates.length >= 1) {
+                const matchCount = prevDisplayedCandidates.filter(c =>
+                  appliedBuiltFilters.every(f => candidateMatchesAppliedFilter(c, f))
+                ).length
+                if (matchCount === 0) {
+                  filters.splice(0, filters.length, ...prevFiltersSnapshot)
+                  currentInput = prevInputSnapshot
+                  rolledBack = true
+                  console.log(`[sql-agent:rollback] ${appliedBuiltFilters.length} filter(s) would yield 0 candidates (prev=${prevDisplayedCandidates.length}) → rollback`)
+                  trace.add("sql-agent", "router", { filterCount: appliedBuiltFilters.length, prevCandidates: prevDisplayedCandidates.length }, { rollback: true }, "zero-result rollback")
+                }
               }
-              singleCallHandled = true
-              negationHandled = hasNegationPattern // SQL Agent가 negation도 처리했으므로
-              console.log(`[sql-agent] ${agentResult.filters.length} filters: ${agentResult.filters.map(f => `${f.field}${f.op}${f.value}`).join(", ")}`)
+
+              if (rolledBack) {
+                const filterDescription = appliedBuiltFilters
+                  .map(f => `${f.field}${f.op === "eq" ? "=" : f.op}${f.value}`)
+                  .join(", ")
+                bridgedV2Action = {
+                  type: "answer_general",
+                  message: renderTemplate(RUNTIME_MESSAGES.zeroResultRollback, {
+                    prev: prevDisplayedCandidates.length,
+                    filters: filterDescription,
+                  }),
+                  // Phase 5: 0건 rollback 가드레일 — 사용자가 다음 행동을 즉시 고를 수 있도록.
+                  chips: ["기존 조건 유지", "다른 조건으로 바꾸기"],
+                  // pre-generated message — LLM 재호출 우회.
+                  preGenerated: true,
+                }
+                bridgedV2OrchestratorResult = {
+                  action: bridgedV2Action,
+                  reasoning: "sql-agent:zero_result_rollback",
+                  agentsInvoked: [],
+                  escalatedToOpus: false,
+                }
+                singleCallHandled = true
+                negationHandled = hasNegationPattern
+              } else {
+                // Phase 2: rollback 안 된 성공 케이스만 tool-memory 저장.
+                // 필터 1개+ AND (직전 candidates 1개+ OR 첫 turn) — 노이즈 SQL 차단.
+                if (agentResult.filters.length > 0) {
+                  const prevCnt = prevState?.candidateCount ?? prevDisplayedCandidates.length
+                  if (prevCnt > 0 || prevDisplayedCandidates.length === 0) {
+                    void saveToolMemory({
+                      question: msg,
+                      sqlQuery: agentResult.raw,
+                      filters: agentResult.filters,
+                      candidateCount: prevCnt,
+                    }).catch(() => { /* never block */ })
+                  }
+                }
+                const hasShowRec = /추천|보여|제품\s*보기|show/iu.test(msg)
+                traceRecommendation("runtime.handleServeExplorationInner:sql-agent-filter-pipeline", {
+                  confidence: agentResult.confidence ?? null,
+                  parsedFilters,
+                  normalizedFilters,
+                  droppedFilters,
+                  finalFilters: filters.filter(f => f.op !== "skip").map(f => ({
+                    field: f.field,
+                    op: f.op,
+                    value: f.value,
+                    rawValue: f.rawValue,
+                    rawValue2: (f as AppliedFilter & { rawValue2?: string | number }).rawValue2 ?? null,
+                  })),
+                })
+
+                const lastF = filters[filters.length - 1] ?? { field: "none", op: "skip" as const, value: "", rawValue: "", appliedAt: turnCount }
+                bridgedV2Action = hasShowRec
+                  ? { type: "show_recommendation" }
+                  : { type: "continue_narrowing", filter: lastF }
+                bridgedV2OrchestratorResult = {
+                  action: bridgedV2Action,
+                  reasoning: `sql-agent:${agentResult.filters.map(f => `${f.field}=${f.op}${f.value}`).join(",")}`,
+                  agentsInvoked: [],
+                  escalatedToOpus: false,
+                }
+                singleCallHandled = true
+                negationHandled = hasNegationPattern // SQL Agent가 negation도 처리했으므로
+                console.log(`[sql-agent] ${agentResult.filters.length} filters: ${agentResult.filters.map(f => `${f.field}${f.op}${f.value}`).join(", ")}`)
+              }
             }
           }
         }
@@ -6384,6 +6480,7 @@ async function handleServeExplorationInner(
       intakeForm: form,
       candidates: prevState.displayedCandidates ?? [],
     })
+    const earlyEnsemble = await gatherEnsembleContext(lastUserMsg.text, prevState, filters).catch(() => null)
     const earlyTurnContext = {
       userMessage: lastUserMsg.text,
       intakeForm: form,
@@ -6393,6 +6490,7 @@ async function handleServeExplorationInner(
       displayedProducts: prevState.displayedCandidates ?? [],
       currentCandidates: [],
       unifiedTurnContext: earlyUnifiedTurnContext,
+      ensembleContextStr: earlyEnsemble ? formatEnsembleForPrompt(earlyEnsemble) : undefined,
     }
     emitStage("intentClassify", { mode: ENABLE_TOOL_USE_ROUTING ? "tool-use" : "legacy" })
     const earlyResult = ENABLE_TOOL_USE_ROUTING
@@ -6950,6 +7048,7 @@ async function handleServeExplorationInner(
       intakeForm: form,
       candidates: currentCandidateSnapshot,
     })
+    const mainEnsemble = await gatherEnsembleContext(lastUserMsg.text, prevState, filters).catch(() => null)
     const turnContext = {
       userMessage: lastUserMsg.text,
       intakeForm: form,
@@ -6959,6 +7058,7 @@ async function handleServeExplorationInner(
       displayedProducts: currentCandidateSnapshot,
       currentCandidates: candidates,
       unifiedTurnContext,
+      ensembleContextStr: mainEnsemble ? formatEnsembleForPrompt(mainEnsemble) : undefined,
     }
 
     if (hasActivePendingQuestion && shouldReplayUnresolvedPendingQuestion(pendingQuestionReply.kind, earlyAction)) {

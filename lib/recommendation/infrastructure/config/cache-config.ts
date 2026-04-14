@@ -39,13 +39,14 @@ export const SEMANTIC_CACHE = {
 } as const
 
 /**
- * 시맨틱 캐시 적중 threshold. 짧은 쿼리(토큰 적음)는 한 단어 차이가
- * Jaccard를 크게 흔들기 때문에 관대하게, 긴 쿼리는 엄격하게.
+ * Semantic cache 정확 히트 threshold (Vanna 2.0 앙상블 정책).
+ * 0.95+ 만 early return; 그 외는 ensemble-context 로 모아 LLM 에 위임한다.
+ * 짧은 쿼리가 더 자주 흔들리지만 ensemble 안에 cache 단서가 함께 들어가서
+ * 정보 손실이 없다 — false-positive replay 차단이 우선.
  */
 export function getSemanticThreshold(tokenCount: number): number {
-  if (tokenCount <= 2) return envNum("CACHE_SEMANTIC_THR_SHORT", 0.9)
-  if (tokenCount <= 5) return envNum("CACHE_SEMANTIC_THR_MID", 0.75)
-  return envNum("CACHE_SEMANTIC_THR_LONG", 0.6)
+  void tokenCount
+  return envNum("CACHE_SEMANTIC_THR", 0.95)
 }
 
 // ── Feedback-Driven Few-Shot Pool ────────────────────────────
@@ -54,4 +55,16 @@ export function getSemanticThreshold(tokenCount: number): number {
 export const FEEDBACK_POOL = {
   boostPerPositive: envNum("FEEDBACK_BOOST_PER_POSITIVE", 0.03),
   maxBoost:         envNum("FEEDBACK_MAX_BOOST", 0.15),
+} as const
+
+// ── Tool Memory (Vanna 2.0 style SQL memory w/ pg_trgm similarity) ──
+// searchToolMemory가 질문 similarity를 threshold 로 갈라서 반환.
+//   high  ≥ highThreshold → strong hint (few-shot 수준)
+//   mid   ≥ midThreshold  → weak hint (reference only)
+//   none  < minSearchThreshold → 무시
+export const TOOL_MEMORY_CONFIG = {
+  highThreshold:       envNum("TOOL_MEMORY_HIGH_THRESHOLD", 0.8),
+  midThreshold:        envNum("TOOL_MEMORY_MID_THRESHOLD", 0.5),
+  minSearchThreshold:  envNum("TOOL_MEMORY_MIN_SEARCH_THRESHOLD", 0.3),
+  maxResults:          envNum("TOOL_MEMORY_MAX_RESULTS", 3),
 } as const

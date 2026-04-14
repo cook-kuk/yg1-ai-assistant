@@ -46,6 +46,7 @@ import { needsOpusResolution, resolveAmbiguity } from "./ambiguity-resolver"
 import { resolveProductReferences } from "./comparison-agent"
 import { parseAnswerToFilter } from "@/lib/recommendation/domain/question-engine"
 import { ENABLE_OPUS_AMBIGUITY, ENABLE_COMPARISON_AGENT } from "@/lib/recommendation/infrastructure/config/recommendation-agent-flags"
+import { PROMPT_LABELS } from "@/lib/recommendation/infrastructure/config/runtime-config"
 import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
 import { buildCandidateDistributionSnippet, matchContradictionPattern } from "@/lib/recommendation/shared/patterns"
 import { buildCanonicalDomainKnowledgeSnippet } from "@/lib/recommendation/shared/canonical-values"
@@ -688,7 +689,7 @@ function buildToolUseSystemPrompt(ctx: TurnContext): string {
   const dynamicSessionState = `═══ 현재 세션 상태 ═══
 - 적용된 필터: [${filterDesc}]
 - 후보 수: ${state?.candidateCount ?? "?"}개
-- 현재 표시 중인 후보: ${state?.candidateCount ?? 0}개
+- ${PROMPT_LABELS.displayedCandidateCount}: ${state?.candidateCount ?? 0}개
 - 상태: ${state?.resolutionStatus ?? "초기"}
 - 턴 수: ${state?.turnCount ?? 0}
 - 마지막 질문 필드: ${state?.lastAskedField ?? "없음"}
@@ -724,7 +725,7 @@ ${buildCanonicalDomainKnowledgeSnippet()}
 - 칩 제안 시 아래 분포 데이터를 기반으로 실제 존재하는 값만 제안
 
 ===DYNAMIC===
-${dynamicSessionState}
+${ctx.ensembleContextStr ? `${ctx.ensembleContextStr}\n\n` : ""}${dynamicSessionState}
 ${distSnippet}`
   }
 
@@ -774,7 +775,7 @@ ${buildDbFilterValueSnippet()}
 - 사용자가 명확하게 값을 선택하거나 칩을 클릭한 경우만 apply_filter
 
 ===DYNAMIC===
-${dynamicSessionState}`
+${ctx.ensembleContextStr ? `${ctx.ensembleContextStr}\n\n` : ""}${dynamicSessionState}`
 }
 
 function mapToolUseToAction(

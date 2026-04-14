@@ -78,7 +78,7 @@ export type OrchestratorAction =
   | { type: "reset_session" }
   | { type: "compare_products"; targets: string[] }
   | { type: "explain_product"; target?: string }
-  | { type: "answer_general"; message: string; preGenerated?: boolean }
+  | { type: "answer_general"; message: string; preGenerated?: boolean; chips?: string[] }
   | { type: "refine_condition"; field: string }
   | { type: "redirect_off_topic" }
   | { type: "filter_by_stock"; stockFilter: "instock" | "limited" | "all"; stockThreshold?: number | null }
@@ -101,6 +101,7 @@ export interface TurnContext {
   displayedProducts: CandidateSnapshot[] | null
   currentCandidates: ScoredProduct[]
   unifiedTurnContext?: UnifiedTurnContext
+  ensembleContextStr?: string
 }
 
 // ── Response Composition Result ──────────────────────────────

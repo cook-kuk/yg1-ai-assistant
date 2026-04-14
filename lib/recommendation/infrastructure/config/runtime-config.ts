@@ -51,3 +51,31 @@ export const CHAT_LLM_TOKENS = {
   /** Haiku 분류 (param extraction) max_tokens. */
   haikuClassify:  envNum("CHAT_HAIKU_CLASSIFY_MAX_TOKENS", 300),
 } as const
+
+// ── Runtime clarification templates (ENV-overridable) ───────
+function envStr(name: string, defaultValue: string): string {
+  const raw = process.env[name]
+  return raw === undefined || raw === "" ? defaultValue : raw
+}
+
+/** Substitute {key} placeholders in a template with actual data. */
+export function renderTemplate(template: string, data: Record<string, string | number>): string {
+  return template.replace(/\{(\w+)\}/g, (_, k) =>
+    k in data ? String(data[k]) : `{${k}}`,
+  )
+}
+
+export const RUNTIME_MESSAGES = {
+  /** Zero-result rollback clarification. Placeholders: {prev} (prev candidate count), {filters} (added filter description). */
+  zeroResultRollback: envStr(
+    "RUNTIME_MSG_ZERO_RESULT_ROLLBACK",
+    "현재 후보 {prev}개가 조건 [{filters}] 적용 시 0건이 됩니다. 기존 조건을 유지할까요?",
+  ),
+} as const
+
+export const PROMPT_LABELS = {
+  displayedCandidateCount: envStr(
+    "PROMPT_LABEL_DISPLAYED_CANDIDATE_COUNT",
+    "현재 표시 중인 후보",
+  ),
+} as const

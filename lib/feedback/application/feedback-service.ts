@@ -18,6 +18,7 @@ import {
   learnFromPositiveFeedback,
   learnFromNegativeFeedback,
 } from "@/lib/recommendation/core/feedback-pool"
+import { markToolMemorySuccess } from "@/lib/recommendation/core/tool-memory"
 import type { AppliedFilter } from "@/lib/types/exploration"
 
 type JsonRecord = Record<string, unknown>
@@ -342,8 +343,10 @@ async function applyFeedbackLearning(body: JsonRecord): Promise<void> {
 
   if (positive && !negative) {
     await learnFromPositiveFeedback(userMessage, filters, sessionId)
+    void markToolMemorySuccess(userMessage, true).catch(() => { /* never block */ })
   } else if (negative && !positive) {
     await learnFromNegativeFeedback(userMessage, filters)
+    void markToolMemorySuccess(userMessage, false).catch(() => { /* never block */ })
   }
 }
 
