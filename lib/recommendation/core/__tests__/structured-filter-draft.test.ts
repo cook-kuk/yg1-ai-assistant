@@ -78,7 +78,7 @@ describe("structured filter draft", () => {
         appliedFilters: [
           { field: "toolSubtype", op: "eq", value: "Square", rawValue: "Square", appliedAt: 1 },
         ],
-        displayedCandidates: [{ productCode: "A", displayCode: "A", displayLabel: null, brand: null, seriesName: null, seriesIconUrl: null, diameterMm: null, fluteCount: null, coating: null, toolMaterial: null, shankDiameterMm: null, lengthOfCutMm: null, overallLengthMm: null, helixAngleDeg: null, description: null, featureText: null, materialTags: [], score: 0, scoreBreakdown: null, matchStatus: "exact", stockStatus: "", totalStock: null, inventorySnapshotDate: null, inventoryLocations: [], hasEvidence: false, bestCondition: null }],
+        displayedCandidates: [{ rank: 1, productCode: "A", displayCode: "A", displayLabel: null, brand: null, seriesName: null, seriesIconUrl: null, diameterMm: null, fluteCount: null, coating: null, toolMaterial: null, shankDiameterMm: null, lengthOfCutMm: null, overallLengthMm: null, helixAngleDeg: null, description: null, featureText: null, materialTags: [], score: 0, scoreBreakdown: null, matchStatus: "exact", stockStatus: "", totalStock: null, inventorySnapshotDate: null, inventoryLocations: [], hasEvidence: false, bestCondition: null }],
       }),
       spec,
     })

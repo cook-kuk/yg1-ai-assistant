@@ -5,7 +5,8 @@
  * Feature-flagged behind USE_SINGLE_CALL_ROUTER.
  */
 
-import type { LLMProvider, LLMMessage } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
+import type { LLMMessage } from "@/lib/llm/provider"
 import type { ExplorationSessionState, ChatMessage } from "@/lib/recommendation/domain/types"
 import { buildAppliedFilterFromValue, getRegisteredFilterFields } from "@/lib/recommendation/shared/filter-field-registry"
 import { LLM_FREE_INTERPRETATION } from "@/lib/feature-flags"
@@ -39,7 +40,7 @@ export interface SingleCallAction {
   value2?: string | number
   from?: string
   to?: string
-  op?: "eq" | "neq" | "in" | "range" | "gte" | "lte" | "between"
+  op?: "eq" | "neq" | "in" | "range" | "gte" | "lte" | "between" | "includes"
   targets?: string[]
   message?: string
   /** Set when canonicalization failed — runtime should fall back to legacy */

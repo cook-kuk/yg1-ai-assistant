@@ -153,22 +153,21 @@ describe("first-turn routing guards", () => {
 
   it("enables full thinking in dev/test app modes only", () => {
     const prevAppMode = process.env.APP_MODE
-    const prevNodeEnv = process.env.NODE_ENV
 
     process.env.APP_MODE = "dev"
-    process.env.NODE_ENV = "production"
+    vi.stubEnv("NODE_ENV", "production")
     expect(shouldExposeFullThinking()).toBe(true)
 
     process.env.APP_MODE = "production"
-    process.env.NODE_ENV = "production"
+    vi.stubEnv("NODE_ENV", "production")
     expect(shouldExposeFullThinking()).toBe(false)
 
     process.env.APP_MODE = ""
-    process.env.NODE_ENV = "test"
+    vi.stubEnv("NODE_ENV", "test")
     expect(shouldExposeFullThinking()).toBe(true)
 
     process.env.APP_MODE = prevAppMode
-    process.env.NODE_ENV = prevNodeEnv
+    vi.unstubAllEnvs()
   })
 
   it("injects thinkingDeep into final payload and engine state", () => {

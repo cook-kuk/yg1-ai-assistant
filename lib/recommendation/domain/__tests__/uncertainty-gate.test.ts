@@ -163,7 +163,7 @@ describe("deriveConfidence", () => {
       meaningfulFilterCount: 2,
       candidateCount: 50,
       missingCriticalSlots: [],
-    } as UncertaintySignal)).toBe("high")
+    } as unknown as UncertaintySignal)).toBe("high")
   })
 
   it("returns medium when topMatchPct >= 40", () => {
@@ -174,7 +174,7 @@ describe("deriveConfidence", () => {
       meaningfulFilterCount: 1,
       candidateCount: 200,
       missingCriticalSlots: [],
-    } as UncertaintySignal)).toBe("medium")
+    } as unknown as UncertaintySignal)).toBe("medium")
   })
 
   it("returns low when topMatchPct < 40 and few filters", () => {
@@ -185,7 +185,7 @@ describe("deriveConfidence", () => {
       meaningfulFilterCount: 0,
       candidateCount: 5000,
       missingCriticalSlots: ["diameterMm"],
-    } as UncertaintySignal)).toBe("low")
+    } as unknown as UncertaintySignal)).toBe("low")
   })
 })
 

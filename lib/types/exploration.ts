@@ -83,6 +83,10 @@ export type LastActionType =
   | "confirm_multi_intent"
   | "confirm_scope"
   | "summarize_task"
+  | "ask_question"
+  | "show_info"
+  | "go_back"
+  | "post_result_filter"
 
 export interface ComparisonArtifact {
   comparedProductCodes: string[]
@@ -110,6 +114,7 @@ export type SessionMode =
   | "group_focus"
   | "restore"
   | "task"
+  | "intake"
 
 export interface UINarrowingPathEntry {
   kind: "filter" | "display_filter" | "series_group" | "restore" | "meta"

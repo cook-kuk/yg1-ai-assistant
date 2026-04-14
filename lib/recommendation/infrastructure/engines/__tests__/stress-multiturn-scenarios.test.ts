@@ -578,7 +578,7 @@ describe("D. 칩 클릭 → Pending Question Reply", () => {
 
   it("D16: resolved 상태에서는 pending 질문 없음 → none", () => {
     const r = resolvePendingQuestionReply(
-      makeState({ lastAskedField: "coating", resolutionStatus: "resolved" }),
+      makeState({ lastAskedField: "coating", resolutionStatus: "resolved_exact" }),
       "TiAlN"
     )
     expect(r.kind).toBe("none")
@@ -918,7 +918,7 @@ describe("F. 풀 라이프사이클 시나리오", () => {
   it("F09: resolved 상태에서 synthetic filter로 revision", async () => {
     const state = makeState({
       currentMode: "recommendation",
-      resolutionStatus: "resolved",
+      resolutionStatus: "resolved_exact",
       appliedFilters: [makeFilter("toolSubtype", "Square", 0)],
       resolvedInput: makeBaseInput({ diameterMm: 10, toolSubtype: "Square" }),
     })
@@ -931,7 +931,7 @@ describe("F. 풀 라이프사이클 시나리오", () => {
   it("F10: 비교 요청 → 제품코드 파싱", () => {
     const state = makeState({
       currentMode: "recommendation",
-      resolutionStatus: "resolved",
+      resolutionStatus: "resolved_exact",
       displayedProducts: [
         { rank: 1, productCode: "E5E84100", displayCode: "E5E84100", seriesName: "E5E84" } as any,
         { rank: 2, productCode: "E5E83100", displayCode: "E5E83100", seriesName: "E5E83" } as any,

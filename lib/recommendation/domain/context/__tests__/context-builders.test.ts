@@ -218,7 +218,7 @@ describe("buildChipContext", () => {
       makeResolvedInput(),
       null,
       "코팅을 선택해 주세요.",
-      { shape: "explicit_choice", questionText: "코팅을 선택해 주세요?", extractedOptions: [], field: "coating", isBinary: false, hasChoices: false },
+      { shape: "explicit_choice", questionText: "코팅을 선택해 주세요?", extractedOptions: [], field: "coating", isBinary: false, hasExplicitChoices: false },
       "clear",
       null,
       [],
@@ -687,13 +687,13 @@ describe("buildUnifiedTurnContext", () => {
         items: [
           { key: "intake_material", field: "material", value: "Steel", source: "intake", status: "resolved", priority: 8, turnCreated: 1, turnUpdated: 1 },
           { key: "narrowing_coating", field: "coating", value: "AlTiN", source: "narrowing", status: "active", priority: 5, turnCreated: 2, turnUpdated: 2 },
-          { key: "tentative_flute", field: "fluteCount", value: "4", source: "llm", status: "tentative", priority: 3, turnCreated: 3, turnUpdated: 3 },
+          { key: "tentative_flute", field: "fluteCount", value: "4", source: "system_inference", status: "tentative", priority: 3, turnCreated: 3, turnUpdated: 3 },
         ],
         recommendationContext: { primaryProductCode: null, primarySeriesName: null, alternativeCount: 0, lastComparedProducts: [], matchStatus: null },
         followUp: { lastAskedField: null, pendingDecisionType: null, currentOptionFamily: null, turnsSinceRecommendation: 0 },
         softPreferences: [],
         highlights: [],
-        userSignals: { confusedFields: [], preferredStyle: null, decisionSpeed: "normal" },
+        userSignals: { confusedFields: [], skippedFields: [], revisedFields: [], prefersDelegate: false, prefersExplanation: false, frustrationCount: 0 },
         recentQA: [],
       },
     })
@@ -725,7 +725,7 @@ describe("buildUnifiedTurnContext", () => {
           { turn: 2, type: "rejection", summary: "user rejected coating", field: "coating" },
           { turn: 3, type: "satisfaction", summary: "user liked result" },
         ],
-        userSignals: { confusedFields: [], preferredStyle: null, decisionSpeed: "normal" },
+        userSignals: { confusedFields: [], skippedFields: [], revisedFields: [], prefersDelegate: false, prefersExplanation: false, frustrationCount: 0 },
         recentQA: [],
       },
     })
@@ -923,7 +923,7 @@ describe("buildChipContextFromUnifiedTurnContext", () => {
       extractedOptions: [],
       field: "coating",
       isBinary: false,
-      hasChoices: false,
+      hasExplicitChoices: false,
     }
 
     const chipCtx = buildChipContextFromUnifiedTurnContext(turnCtx, pq, "clear", null)

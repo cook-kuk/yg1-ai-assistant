@@ -80,6 +80,7 @@ function makeScoredProduct(overrides: Partial<ScoredProduct> = {}): ScoredProduc
       sourceConfidence: "high",
       dataCompletenessScore: 0.9,
       evidenceRefs: ["TEST001"],
+      materialRatingScore: null,
     },
     score: 85,
     scoreBreakdown: null,

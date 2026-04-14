@@ -478,7 +478,7 @@ function buildComparisonArtifactSummary(artifact: ExplorationSessionState["lastC
   return comparedCodes.length > 0 ? comparedCodes.join(" | ") : "present"
 }
 
-function buildCandidateBufferSummary(sessionState: ExplorationSessionState | null): string {
+function buildCandidateBufferSummary(sessionState: ExplorationSessionState | null | undefined): string {
   if (!sessionState) return "none"
 
   const displayedProducts = uniqueStrings(
@@ -2695,8 +2695,8 @@ function materializeResult(
 }
 
 function hasMeaningfulResolution(result: NormalizedResolverResult | null): result is NormalizedResolverResult {
-  return Boolean(result)
-    && result.action !== "escalate_to_cot"
+  if (!result) return false
+  return result.action !== "escalate_to_cot"
     && !isIntentOnlyRoutingSignal({
       filters: result.filters,
       sort: result.sort,
@@ -3217,7 +3217,7 @@ function classifyStage1CotEscalation(
   schemaHints: ResolverSchemaHint[]
   stage1MostlyNoOp: boolean
 } {
-  const shouldShortCircuit = Boolean(stage1Result) && (
+  const shouldShortCircuit = stage1Result != null && (
     unresolvedTokens.length === 0
     || stage1Result.filters.some(filter => filter.op === "skip")
     || stage1Result.removeFields.length > 0
@@ -3757,7 +3757,7 @@ export async function resolveMultiStageQuery(
 
   if (
     hasMeaningfulResolution(stage2Result)
-    && Boolean(validatedStage2Result)
+    && validatedStage2Result != null
     && stage2Validation?.valid === true
     && stage2Result.confidence >= STAGE2_CONFIDENCE_THRESHOLD
     && stage2Result.unresolvedTokens.length === 0

@@ -159,9 +159,9 @@ export async function POST(req: Request): Promise<Response> {
             recommendation: payload.recommendation,
             evidenceSummaries: payload.evidenceSummaries,
             primaryExplanation: payload.primaryExplanation,
-            primaryFactChecked: payload.primaryFactChecked as Record<string, unknown> | null,
+            primaryFactChecked: payload.primaryFactChecked as unknown as Record<string, unknown> | null,
             altExplanations: payload.altExplanations,
-            altFactChecked: payload.altFactChecked as Array<Record<string, unknown>>,
+            altFactChecked: payload.altFactChecked as unknown as Array<Record<string, unknown>>,
             // Include candidates + pagination so the client can populate the
             // right-side "추천 후보" panel immediately, in parallel with cards.
             candidateSnapshot: payload.candidates,

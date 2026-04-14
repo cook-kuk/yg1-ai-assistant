@@ -45,10 +45,12 @@ const millingProduct = {
   sourceConfidence: "high",
   dataCompletenessScore: 0.8,
   evidenceRefs: [],
+  materialRatingScore: null,
 } satisfies CanonicalProduct
 
 let searchCallCount = 0
-const searchMock = vi.fn(async () => {
+const searchMock = vi.fn(async (...args: unknown[]): Promise<CanonicalProduct[]> => {
+  void args
   searchCallCount++
   // First call: operationType=Trochoidal → 0 results
   // Second call: no operationType → products found
@@ -125,7 +127,7 @@ describe("hybrid-retrieval zero-result defense", () => {
     // Should have called search twice: once with Trochoidal, once without
     expect(searchMock).toHaveBeenCalledTimes(2)
     // Second call should have operationType undefined
-    const secondCallInput = searchMock.mock.calls[1][0] as RecommendationInput
+    const secondCallInput = searchMock.mock.calls[1]?.[0] as unknown as RecommendationInput
     expect(secondCallInput.operationType).toBeUndefined()
     // Should return candidates from the retry
     expect(result.candidates.length).toBeGreaterThan(0)

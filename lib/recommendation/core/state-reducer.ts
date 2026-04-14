@@ -104,11 +104,11 @@ function reduceSkipField(
       ...prev,
       turnCount: prev.turnCount + 1,
       lastAction: "skip_field",
-      lastAskedField: null,
+      lastAskedField: undefined,
     },
     mutations: [
       { field: "turnCount", before: prev.turnCount, after: prev.turnCount + 1 },
-      { field: "lastAskedField", before: prev.lastAskedField, after: null },
+      { field: "lastAskedField", before: prev.lastAskedField, after: undefined },
     ],
   }
 }
@@ -242,16 +242,19 @@ function reducePassthrough(
     next.turnCount = overrides.turnCount
   }
   if (overrides.currentMode !== undefined) {
-    mutations.push({ field: "currentMode", before: prev.currentMode, after: overrides.currentMode })
-    next.currentMode = overrides.currentMode
+    const val = overrides.currentMode ?? undefined
+    mutations.push({ field: "currentMode", before: prev.currentMode, after: val })
+    next.currentMode = val as ExplorationSessionState["currentMode"]
   }
   if (overrides.lastAction !== undefined) {
-    mutations.push({ field: "lastAction", before: prev.lastAction, after: overrides.lastAction })
-    next.lastAction = overrides.lastAction
+    const val = overrides.lastAction ?? undefined
+    mutations.push({ field: "lastAction", before: prev.lastAction, after: val })
+    next.lastAction = val as ExplorationSessionState["lastAction"]
   }
   if (overrides.lastAskedField !== undefined) {
-    mutations.push({ field: "lastAskedField", before: prev.lastAskedField, after: overrides.lastAskedField })
-    next.lastAskedField = overrides.lastAskedField
+    const val = overrides.lastAskedField ?? undefined
+    mutations.push({ field: "lastAskedField", before: prev.lastAskedField, after: val })
+    next.lastAskedField = val
   }
 
   return { nextState: next, mutations }

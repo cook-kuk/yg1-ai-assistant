@@ -137,6 +137,7 @@ function makeProduct(overrides: Partial<CanonicalProduct> = {}): CanonicalProduc
     sourceConfidence: "high",
     dataCompletenessScore: 0.8,
     evidenceRefs: [],
+    materialRatingScore: null,
     ...overrides,
   }
 }

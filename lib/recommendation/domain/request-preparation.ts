@@ -300,7 +300,9 @@ export function extractSlots(
   if (sessionState?.appliedFilters) {
     for (const f of sessionState.appliedFilters) {
       if (f.op === "skip") continue
-      slots.push({ field: f.field, value: f.rawValue, confidence: "high", source: "chat" })
+      const rawValue = f.rawValue
+      if (typeof rawValue !== "string" && typeof rawValue !== "number") continue
+      slots.push({ field: f.field, value: rawValue, confidence: "high", source: "chat" })
     }
   }
 

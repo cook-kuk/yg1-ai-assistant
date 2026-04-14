@@ -675,7 +675,7 @@ describe("edge cases", () => {
   it("resolved 상태에서는 none", () => {
     const state = makeState({
       lastAskedField: "fluteCount",
-      resolutionStatus: "resolved:final",
+      resolutionStatus: "resolved_exact",
     })
     const result = resolvePendingQuestionReply(state, "4날")
     expect(result.kind).toBe("none")

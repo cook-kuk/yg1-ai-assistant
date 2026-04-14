@@ -168,7 +168,7 @@ const FILTER_FIELD_TO_QUERY_FIELD: Record<string, QueryField> = Object.fromEntri
 export function appliedFiltersToConstraints(filters: AppliedFilter[]): QueryConstraint[] {
   return filters
     .filter(f => f.op !== "skip")
-    .map(f => {
+    .map((f): QueryConstraint | null => {
       const queryField = FILTER_FIELD_TO_QUERY_FIELD[f.field]
       if (!queryField) return null
       const op: QueryOp =
@@ -187,7 +187,7 @@ export function appliedFiltersToConstraints(filters: AppliedFilter[]): QueryCons
         op,
         value,
         display: f.value,
-      } satisfies QueryConstraint
+      }
     })
     .filter((c): c is QueryConstraint => c !== null)
 }

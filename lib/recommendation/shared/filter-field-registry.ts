@@ -922,8 +922,9 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     matches: (record, _filter) => {
       // DB에서 workpiece_name_matched 플래그로 판별: 해당 시리즈가 요청 피삭재를 지원하는지
       // workpieceMatched가 없는 경우(DB 미조회) → 통과시킴 (false negative 방지)
-      if (record.workpieceMatched === undefined) return true
-      return record.workpieceMatched === true
+      const wm = (record as { workpieceMatched?: boolean }).workpieceMatched
+      if (wm === undefined) return true
+      return wm === true
     },
   },
   fluteCount: makeNumberRangeFieldDef({

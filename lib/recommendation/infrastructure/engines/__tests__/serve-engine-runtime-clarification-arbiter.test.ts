@@ -17,6 +17,7 @@ function makeClarificationResult(overrides: Partial<MultiStageResolverResult> = 
     confidence: 0,
     unresolvedTokens: ["Square"],
     reasoning: "clarification:generic",
+    concepts: [],
     clarification: {
       question: "현재는 형상 쪽이 애매합니다.",
       chips: ["직접 입력"],

@@ -51,6 +51,7 @@ function makeProduct(): CanonicalProduct {
     sourceConfidence: "high",
     dataCompletenessScore: 0.85,
     evidenceRefs: [],
+    materialRatingScore: null,
   }
 }
 

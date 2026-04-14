@@ -120,7 +120,7 @@ describe("Scenario 1: Milling 기본 추천 흐름", () => {
   })
 
   it("S1-T05: 추천 완료 후 resolved 상태 — pending 없음", () => {
-    state = makeState({ ...state, resolvedInput: input, appliedFilters: filters, resolutionStatus: "resolved", lastAskedField: undefined, turnCount: 5 })
+    state = makeState({ ...state, resolvedInput: input, appliedFilters: filters, resolutionStatus: "resolved_exact", lastAskedField: undefined, turnCount: 5 })
     const res = resolvePendingQuestionReply(state, "비교해줘")
     expect(res.kind).toBe("none")
   })
@@ -350,7 +350,7 @@ describe("Scenario 3: Threading 기본 흐름 — 대직경", () => {
   })
 
   it("S3-T07: resolved 상태 진입", () => {
-    state = makeState({ resolvedInput: input, appliedFilters: filters, resolutionStatus: "resolved", turnCount: 7 })
+    state = makeState({ resolvedInput: input, appliedFilters: filters, resolutionStatus: "resolved_exact", turnCount: 7 })
     const res = resolvePendingQuestionReply(state, "ok")
     expect(res.kind).toBe("none")
   })
@@ -446,7 +446,7 @@ describe("Scenario 4: 소직경 Milling 기본 흐름", () => {
   })
 
   it("S4-T06: resolved 진입", () => {
-    state = makeState({ resolvedInput: input, appliedFilters: filters, resolutionStatus: "resolved", turnCount: 6 })
+    state = makeState({ resolvedInput: input, appliedFilters: filters, resolutionStatus: "resolved_exact", turnCount: 6 })
     expect(resolvePendingQuestionReply(state, "ok").kind).toBe("none")
   })
 
@@ -546,7 +546,7 @@ describe("Scenario 5: 인치 직경 + 다양한 흐름", () => {
   })
 
   it("S5-T06: resolved 상태", () => {
-    state = makeState({ resolvedInput: input, appliedFilters: filters, resolutionStatus: "resolved", turnCount: 6 })
+    state = makeState({ resolvedInput: input, appliedFilters: filters, resolutionStatus: "resolved_exact", turnCount: 6 })
     expect(resolvePendingQuestionReply(state, "좋아").kind).toBe("none")
   })
 
@@ -1178,7 +1178,7 @@ describe("Scenario 12: 물음표 기반 side question 감지", () => {
   })
 
   it("S12-T10: resolved 상태 → none", () => {
-    const resolvedState = makeState({ ...state, resolutionStatus: "resolved" })
+    const resolvedState = makeState({ ...state, resolutionStatus: "resolved_exact" })
     expect(resolvePendingQuestionReply(resolvedState, "TiAlN").kind).toBe("none")
   })
 })

@@ -25,7 +25,7 @@ function makeFilter(field: string, value: string | number, op: AppliedFilter["op
   return { field, op, value: String(value), rawValue: value, appliedAt: 0 }
 }
 
-const baseInput: RecommendationInput = {}
+const baseInput: RecommendationInput = { manufacturerScope: "yg1-only", locale: "ko" }
 
 function applyFilterToInput(input: RecommendationInput, filter: AppliedFilter): RecommendationInput {
   return { ...input, [filter.field]: filter.rawValue }

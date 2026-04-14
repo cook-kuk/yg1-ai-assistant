@@ -56,6 +56,7 @@ export interface FactCheckedRecommendation {
   fluteCount: VerifiedField<number | null>
   coating: VerifiedField<string | null>
   toolMaterial: VerifiedField<string | null>
+  toolSubtype?: VerifiedField<string | null>
   materialTags: VerifiedField<string[]>
   lengthOfCutMm: VerifiedField<number | null>
   overallLengthMm: VerifiedField<number | null>

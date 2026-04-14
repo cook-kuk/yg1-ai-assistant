@@ -1395,7 +1395,7 @@ describe("delegation — pending skip (20)", () => {
     const c = await classifyIntent(subtypeQuestionState, "알아서 골라줘")
     expect(c.handler).toBe("pending")
     expect(c.kind).toBe("resolved")
-    if (c.result.kind === "resolved") expect(c.result.filter.op).toBe("skip")
+    if (c.result.kind === "resolved" && "filter" in c.result) expect(c.result.filter.op).toBe("skip")
   })
 })
 

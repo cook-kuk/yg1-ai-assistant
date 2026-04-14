@@ -174,11 +174,12 @@ test.describe("YG-1 recommendation artifact persistence", () => {
   test("restores reasoning and recommendation fields when loading a persisted conversation", async ({ page }) => {
     const conversationId = "conv_reasoning_restore_e2e"
     const seededResponse = buildMockRecommendResponse({ messages: [{ role: "user", text: "seed" }] } as unknown as Record<string, unknown>)
-    const baseRecommendation = seededResponse.recommendation && seededResponse.recommendation.status === "exact"
+    const baseRecommendation = (seededResponse.recommendation && seededResponse.recommendation.status === "exact"
       ? seededResponse.recommendation
-      : null
+      : null) as ({ alternatives?: unknown[]; primaryProduct?: unknown; status?: string } & Record<string, unknown>) | null
 
-    const sourceScoredProduct = baseRecommendation?.primaryProduct ?? baseRecommendation?.alternatives[0]
+    const altList = (baseRecommendation?.alternatives ?? []) as unknown[]
+    const sourceScoredProduct = baseRecommendation?.primaryProduct ?? altList[0]
     const expandedAlternatives = Array.from({ length: 12 }, (_, index) => {
       const cloned = JSON.parse(JSON.stringify(sourceScoredProduct)) as Record<string, unknown>
       const product = cloned.product as Record<string, unknown> | undefined
@@ -336,10 +337,19 @@ test.describe("YG-1 recommendation artifact persistence", () => {
     await expect(page.getByText(thinkingDeep)).toBeVisible()
 
     await expect(async () => {
-      expect(capturedSaveBody?.messages).toBeTruthy()
+      expect((capturedSaveBody as { messages?: unknown[] } | null)?.messages).toBeTruthy()
     }).toPass()
 
-    const savedMessage = capturedSaveBody?.messages?.[1] as { recommendation?: { alternatives?: unknown[] } & Record<string, unknown> } | undefined
+    const savedBody = capturedSaveBody as { messages?: unknown[] } | null
+    const savedMessage = savedBody?.messages?.[1] as ({
+      recommendation?: ({ alternatives?: unknown[] } & Record<string, unknown>) | null
+      reasoningVisibility?: string
+      thinkingProcess?: string
+      thinkingDeep?: string
+      chipGroups?: unknown
+      evidenceSummaries?: unknown
+      primaryExplanation?: unknown
+    } & Record<string, unknown>) | undefined
     expect(savedMessage?.reasoningVisibility).toBe("full")
     expect(savedMessage?.thinkingProcess).toBe(thinkingProcess)
     expect(savedMessage?.thinkingDeep).toBe(thinkingDeep)

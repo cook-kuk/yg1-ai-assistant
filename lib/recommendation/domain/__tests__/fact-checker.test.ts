@@ -50,6 +50,7 @@ function makeProduct(overrides: Partial<CanonicalProduct> = {}): CanonicalProduc
     sourceConfidence: "high",
     dataCompletenessScore: 0.85,
     evidenceRefs: [],
+    materialRatingScore: null,
     ...overrides,
   }
 }

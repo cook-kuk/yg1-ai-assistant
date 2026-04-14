@@ -199,6 +199,8 @@ export interface TurnDebugTrace {
   candidateChanges?: CandidateChangeSnapshot[]
   // Recent conversation
   recentTurns?: Array<{ role: string; text: string; chips?: string[]; mode?: string }>
+  // Planner action (written post-exec by runtime; consumed by shadow reducer comparison)
+  plannerAction?: string | null
 }
 
 // ── Debug Mode Check ─────────────────────────────────────────
@@ -263,7 +265,7 @@ export class TraceCollector {
     }
   }
 
-  add(step: string, category: TraceCategory, input: Record<string, unknown>, output: Record<string, unknown>, reason?: string, extras?: { fallbackUsed?: boolean; alternativesConsidered?: AgentTraceEvent["alternativesConsidered"] }): void {
+  add(step: string, category: TraceCategory, input: Record<string, unknown>, output: Record<string, unknown> = {}, reason?: string, extras?: { fallbackUsed?: boolean; alternativesConsidered?: AgentTraceEvent["alternativesConsidered"] }): void {
     if (!this.enabled) return
     this.events.push({ step, category, inputSummary: input, outputSummary: output, reasonSummary: reason, latencyMs: Date.now() - this.startTime, fallbackUsed: extras?.fallbackUsed, alternativesConsidered: extras?.alternativesConsidered })
   }

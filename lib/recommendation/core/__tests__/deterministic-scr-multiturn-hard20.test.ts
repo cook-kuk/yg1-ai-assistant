@@ -18,7 +18,7 @@ import { parseDeterministic } from "../deterministic-scr"
 const PHANTOM_FIELDS = new Set(["brand", "country", "seriesName"])
 
 function activeFiltersFor(text: string) {
-  return parseDeterministic(text).filter(a => a.type === "apply_filter" && a.op !== "skip")
+  return parseDeterministic(text).filter(a => a.type === "apply_filter" && (a.op as string) !== "skip")
 }
 
 function hasPhantomCategorical(text: string): string[] {
@@ -108,7 +108,7 @@ describe("hard20 R-series — range / negation / stock / go-back", () => {
     expect(hasPhantomCategorical(text)).toEqual([])
     const actions = activeFiltersFor(text)
     const coating = actions.find(a => a.field === "coating")
-    if (coating) expect(coating.op === "neq" || coating.op === "exclude").toBe(true)
+    if (coating) expect(coating.op === "neq" || (coating.op as string) === "exclude").toBe(true)
   })
 
   it("R3.t2b 'T-Coating 빼고' → coating neq=T-Coating and never falls back to TiN", () => {
@@ -117,7 +117,7 @@ describe("hard20 R-series — range / negation / stock / go-back", () => {
     const actions = activeFiltersFor(text)
     const coating = actions.find(a => a.field === "coating")
     expect(coating).toBeDefined()
-    expect(coating?.op === "neq" || coating?.op === "exclude").toBe(true)
+    expect(coating?.op === "neq" || (coating?.op as string) === "exclude").toBe(true)
     expect(coating?.value).toBe("T-Coating")
   })
 

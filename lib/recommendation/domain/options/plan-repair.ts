@@ -132,7 +132,7 @@ const FIELD_CONFLICT_MAP: Record<string, string[]> = {
 function findConflictingFilters(
   conflictField: string,
   _conflictValue: string,
-  appliedFilters: Array<{ field: string; op: string; value: string; rawValue: string | number }>
+  appliedFilters: Array<{ field: string; op: string; value: string; rawValue: string | number | boolean | Array<string | number | boolean> }>
 ): Array<{ field: string; value: string }> {
   // If conflictField is the same as an existing filter, that filter conflicts
   return appliedFilters
@@ -142,7 +142,7 @@ function findConflictingFilters(
 
 function findRelaxableFilters(
   conflictField: string,
-  appliedFilters: Array<{ field: string; op: string; value: string; rawValue: string | number }>
+  appliedFilters: Array<{ field: string; op: string; value: string; rawValue: string | number | boolean | Array<string | number | boolean> }>
 ): Array<{ field: string; value: string }> {
   const relatedFields = FIELD_CONFLICT_MAP[conflictField] ?? []
   return appliedFilters

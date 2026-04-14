@@ -49,7 +49,7 @@ function normalizeText(text: string): string {
 export interface LoggerInput {
   userText: string
   production: {
-    source: "kg" | "sql-agent" | "negation" | "scr" | "none"
+    source: "kg" | "sql-agent" | "negation" | "scr" | "edit-intent" | "none"
     constraints: PatternMiningConstraint[]
     handled: boolean
   }
@@ -61,7 +61,7 @@ export interface LoggerInput {
     reasoning?: string
   }
   decision: {
-    winner: "production" | "planner" | "none"
+    winner: "production" | "planner" | "none" | "skip"
     plannerScore: number
     productionScore: number
     margin: number

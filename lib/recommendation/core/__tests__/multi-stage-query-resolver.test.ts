@@ -488,11 +488,11 @@ describe("resolveMultiStageQuery", () => {
       complexity: assessComplexity("코팅 뭐가 됐든 4날만"),
       stageOneDeterministicActions: [
         {
-          type: "apply_filter",
+          type: "apply_filter" as const,
           field: "fluteCount",
           value: 4,
           op: "eq" as const,
-          source: "deterministic",
+          source: "deterministic" as const,
         },
       ],
     }
@@ -585,10 +585,9 @@ describe("resolveMultiStageQuery", () => {
       message: "알루컷 브랜드 중에서 추천해줄수 있어요?",
       turnCount: 3,
       currentFilters: [],
-      complexity: assessComplexity("알루컷 브랜드 중에서 추천해줄수 있어요?"),
+      complexity: makeDeepComplexity("schema_hint_stage3"),
       stage2Provider: makeProvider(""),
       stage3Provider,
-      complexity: makeDeepComplexity("schema_hint_stage3"),
     })
 
     expect(result.source).toBe("stage3")

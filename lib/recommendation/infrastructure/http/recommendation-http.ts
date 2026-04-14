@@ -145,7 +145,7 @@ export function jsonRecommendationResponse(
   // Frontend reads engineState only via dto.session.engineState; nothing reads sessionContext.sessionState.
   const slimRequestPreparation = dto.requestPreparation && typeof dto.requestPreparation === "object"
     ? (() => {
-        const rp = dto.requestPreparation as Record<string, unknown>
+        const rp = dto.requestPreparation as unknown as Record<string, unknown>
         const sc = rp.sessionContext as Record<string, unknown> | undefined
         if (sc && "sessionState" in sc) {
           return { ...rp, sessionContext: { ...sc, sessionState: null } }
@@ -282,8 +282,8 @@ export function createServeRuntimeDependencies(
     buildCandidateSnapshot,
     handleDirectInventoryQuestion,
     // provider 생성 시점은 요청 처리 직전으로 늦춰, 테스트/런타임 교체를 쉽게 한다.
-    handleDirectEntityProfileQuestion: (userMessage, currentInput, prevState, options) =>
-      handleDirectEntityProfileQuestion(getProvider(), userMessage, currentInput, prevState, options),
+    handleDirectEntityProfileQuestion: ((userMessage, currentInput, prevState, options) =>
+      handleDirectEntityProfileQuestion(getProvider(), userMessage, currentInput, prevState, options)) as ServeEngineRuntimeDependencies["handleDirectEntityProfileQuestion"],
     handleDirectProductInfoQuestion,
     handleDirectBrandReferenceQuestion,
     handleCompetitorCrossReference,
@@ -377,7 +377,7 @@ async function handleRecommendationPostInner(req: Request, rawBody: unknown): Pr
     // AsyncLocalStorage context is gone the moment storage.run() returns.
     const { response, benchmarkUsage } = await runWithBenchmark(async () => {
       const r = await recommendationService.handleRequest({
-        engineId: body.engine,
+        engineId: body.engine ?? undefined,
         intakeForm: body.intakeForm as ProductIntakeForm | undefined,
         messages: body.messages ?? [],
         prevState: getRequestSessionState(body),

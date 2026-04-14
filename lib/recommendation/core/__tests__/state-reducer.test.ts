@@ -169,7 +169,7 @@ describe("reduce — recommend", () => {
 
 describe("reduce — ask_question", () => {
   it("sets lastAskedField and increments turnCount", () => {
-    const prev = makeState({ turnCount: 1, lastAskedField: null })
+    const prev = makeState({ turnCount: 1, lastAskedField: undefined })
     const { nextState } = reduce(prev, { type: "ask_question", field: "material" })
     expect(nextState.turnCount).toBe(2)
     expect(nextState.lastAskedField).toBe("material")

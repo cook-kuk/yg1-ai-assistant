@@ -115,7 +115,7 @@ describe("Scenario 4: intake → 비교 → 조건 변경 → 소재 추가 (풀
     // comparison 모드에서 filters가 사라지면 안 됨
     const comparisonState = makeState({
       currentMode: "comparison",
-      resolutionStatus: "resolved",
+      resolutionStatus: "resolved_exact",
       appliedFilters: [...filters],
       resolvedInput: currentInput,
       candidateCount: 800,
@@ -131,7 +131,7 @@ describe("Scenario 4: intake → 비교 → 조건 변경 → 소재 추가 (풀
   it("Turn 5: 직경 변경 — intake 값(appliedFilters에 없음)을 revision 대상으로 인식", async () => {
     const postComparisonState = makeState({
       currentMode: "comparison",
-      resolutionStatus: "resolved",
+      resolutionStatus: "resolved_exact",
       appliedFilters: [...filters], // toolSubtype, coating만 있음 — diameterMm은 없음!
       resolvedInput: { ...currentInput, diameterMm: 10 },
       candidateCount: 800,
@@ -348,7 +348,7 @@ describe("Scenario 7: skip → revision으로 되돌리기", () => {
     const skipFilter: AppliedFilter = { field: "coating", op: "skip", value: "상관없음", rawValue: "skip", appliedAt: 1 }
     const state = makeState({
       currentMode: "recommendation",
-      resolutionStatus: "resolved",
+      resolutionStatus: "resolved_exact",
       appliedFilters: [
         makeFilter("toolSubtype", "Square", 0),
         skipFilter, // coating은 skip 상태
@@ -557,7 +557,7 @@ describe("Scenario 12: 제품코드 비교 요청 파싱", () => {
   it("E5E84와 E5E83 비교 → targets 추출", () => {
     const state = makeState({
       currentMode: "recommendation",
-      resolutionStatus: "resolved",
+      resolutionStatus: "resolved_exact",
       displayedProducts: [
         { rank: 1, productCode: "E5E84100", displayCode: "E5E84100", seriesName: "E5E84" } as any,
         { rank: 2, productCode: "E5E83100", displayCode: "E5E83100", seriesName: "E5E83" } as any,
@@ -574,14 +574,16 @@ describe("Scenario 12: 제품코드 비교 요청 파싱", () => {
 
     if (action) {
       expect(action.type).toBe("compare_products")
-      expect(action.targets.length).toBeGreaterThanOrEqual(2)
+      if (action.type === "compare_products") {
+        expect(action.targets.length).toBeGreaterThanOrEqual(2)
+      }
     }
   })
 
   it("상위 3개 비교 → targets에 3개 이상", () => {
     const state = makeState({
       currentMode: "recommendation",
-      resolutionStatus: "resolved",
+      resolutionStatus: "resolved_exact",
       displayedProducts: [
         { rank: 1, productCode: "P1", displayCode: "P1" } as any,
         { rank: 2, productCode: "P2", displayCode: "P2" } as any,

@@ -1192,7 +1192,7 @@ function doesCandidatePoolContainFilterValue(
 export async function resolveExplicitFilterRequest(
   sessionState: ExplorationSessionState | null,
   userMessage: string | null,
-  provider: ReturnType<typeof getProvider>
+  provider?: ReturnType<typeof getProvider>
 ): Promise<ExplicitFilterResolution | null> {
   if (!sessionState || !userMessage) return null
 
@@ -1351,7 +1351,7 @@ function buildNegationFieldTryOrder(msg: string): string[] {
   ]))
 }
 
-export function extractNegatedValue(msg: string): { field: string; rawValue: string | number; displayValue: string } | null {
+export function extractNegatedValue(msg: string): { field: string; rawValue: string | number | boolean; displayValue: string } | null {
   // Strip negation suffixes to isolate the value
   const cleaned = msg
     .replace(/\s*(빼고|뺴고|빼구|제외|말고|없이|아닌\s*것|없는\s*거로?|만\s*아니면\s*(?:돼|된다니까|됩니다|되잖아)?|아닌\s*거|말고\s*다른|없는\s*걸로).*$/u, "")
@@ -2013,7 +2013,8 @@ export interface ServeEngineRuntimeDependencies {
   handleDirectEntityProfileQuestion: (
     userMessage: string,
     currentInput: RecommendationInput,
-    prevState: ExplorationSessionState | null
+    prevState: ExplorationSessionState | null,
+    options?: import("@/lib/recommendation/infrastructure/engines/serve-engine-assist").DirectQuestionOptions
   ) => Promise<QuestionReply>
   handleDirectProductInfoQuestion?: (
     userMessage: string,
@@ -2496,7 +2497,11 @@ export function applyClarificationArbiterDecision(params: {
     const targetField = decision.targetField ?? negatedValue?.field ?? result.clarification?.askedField ?? prevState.lastAskedField ?? null
     if (!targetField) return { kind: "keep_current" }
 
-    const excludedValue = decision.excludedValue ?? negatedValue?.rawValue ?? null
+    const rawExcluded = decision.excludedValue ?? negatedValue?.rawValue ?? null
+    const excludedValue: string | number | null =
+      typeof rawExcluded === "string" || typeof rawExcluded === "number" ? rawExcluded
+      : typeof rawExcluded === "boolean" ? String(rawExcluded)
+      : null
     const excludedLabel =
       negatedValue?.displayValue
       ?? (typeof excludedValue === "string" || typeof excludedValue === "number" ? String(excludedValue) : null)
@@ -3240,8 +3245,8 @@ async function handleServeExplorationInner(
   // respectively — that silently clobbered chips with the insight string and
   // caused the insight block to be dropped, so the narrative-polish LLM never
   // saw the proactive insights. That's why S03/S09/S10 통찰력 scored low.
-  const EXTRA_CTX_IDX_Q = 20
-  const EXTRA_CTX_IDX_R = 16
+  const EXTRA_CTX_IDX_Q = 19
+  const EXTRA_CTX_IDX_R = 15
   deps = {
     ...deps,
     jsonRecommendationResponse: (params, init) => {
@@ -3593,7 +3598,7 @@ async function handleServeExplorationInner(
   if (prevState && !prevState.conversationMemory) {
     prevState.conversationMemory = buildMemoryFromSession(
       form as Parameters<typeof buildMemoryFromSession>[0],
-      prevState,
+      prevState as unknown as Parameters<typeof buildMemoryFromSession>[1],
       turnCount
     )
   }
@@ -3919,11 +3924,12 @@ async function handleServeExplorationInner(
     // constraint here so SQL-agent misses ("재고 10개 이상") still reach retrieval.
     try {
       const { buildTurnTruth, mergeInventoryTruthFilters } = await import("@/lib/recommendation/domain/context/turn-truth")
+      const prevStateForTruth = prevState as ExplorationSessionState | null
       const truth = buildTurnTruth({
         userMessage: lastUserMsg?.text ?? "",
-        sessionState: prevState,
+        sessionState: prevStateForTruth,
         appliedFilters: filters,
-        candidateSnapshot: prevState?.displayedCandidates ?? prevState?.lastRecommendationArtifact ?? [],
+        candidateSnapshot: prevStateForTruth?.displayedCandidates ?? prevStateForTruth?.lastRecommendationArtifact ?? [],
       })
       if (truth.inventoryConstraint) {
         const beforeLen = filters.length
@@ -4141,10 +4147,11 @@ async function handleServeExplorationInner(
             const negatedValue = extractNegatedValue(msg) ?? extractNegatedValueFromContext(prevState, msg)
             if (!negatedValue) return null
 
+            const rawVal = negatedValue.rawValue
             const clarification = buildAlternativeExplorationClarificationV2(
               prevState,
               negatedValue.field,
-              negatedValue.rawValue,
+              typeof rawVal === "string" || typeof rawVal === "number" ? rawVal : String(rawVal),
               negatedValue.displayValue,
             )
             if (!clarification) return null
@@ -4584,8 +4591,9 @@ async function handleServeExplorationInner(
             bridgedV2OrchestratorResult = { action: bridgedV2Action, reasoning: `edit-intent:${editResult.reason}`, agentsInvoked: [], escalatedToOpus: false }
           }
           singleCallHandled = true
-          negationHandled = editResult.intent.type === "exclude_field"
-          console.log(`[edit-intent] ${editResult.intent.type}: ${editResult.reason}`)
+          const intentAny = editResult.intent as { type: string }
+          negationHandled = intentAny.type === "exclude_field"
+          console.log(`[edit-intent] ${intentAny.type}: ${editResult.reason}`)
         }
         } catch (err) {
           // Defensive: any throw inside apply (filter registry, replaceFieldFilter,
@@ -5361,10 +5369,10 @@ async function handleServeExplorationInner(
         const negatedValue = extractNegatedValue(msg)
         if (negatedValue) {
         const neqFilter: AppliedFilter = {
-          field: negatedValue.field,
+          field: negatedValue!.field,
           op: "neq",
-          value: negatedValue.displayValue,
-          rawValue: negatedValue.rawValue,
+          value: negatedValue!.displayValue,
+          rawValue: negatedValue!.rawValue,
           appliedAt: turnCount,
         }
           const existingIdx = filters.findIndex(f => f.field === neqFilter.field)
@@ -5379,9 +5387,10 @@ async function handleServeExplorationInner(
       if (negationHandled) {
         pendingSelectionAction = null
         pendingSelectionOrchestratorResult = null
-        bridgedV2Action = { type: "continue_narrowing", filter: filters[filters.length - 1] ?? { field: "none", op: "skip", value: "", rawValue: "", appliedAt: turnCount } as AppliedFilter }
+        const nextAction: OrchestratorAction = { type: "continue_narrowing", filter: filters[filters.length - 1] ?? { field: "none", op: "skip", value: "", rawValue: "", appliedAt: turnCount } as AppliedFilter }
+        bridgedV2Action = nextAction
         bridgedV2OrchestratorResult = {
-          action: bridgedV2Action,
+          action: nextAction,
           reasoning: `negation_deterministic:${filters[filters.length - 1]?.op === "neq" ? "neq_filter" : "removed_filter"}`,
           agentsInvoked: [],
           escalatedToOpus: false,
@@ -5668,11 +5677,11 @@ async function handleServeExplorationInner(
 
             console.log(`[post-result-filter] pool=${fullPoolCandidates.length} → filtered=${fullFilteredSnapshots.length} (top ${displayedFilteredSnapshots.length} shown) (${appliedFilterActions.map(a => `${a.type}:${a.field}=${a.value??a.to??""}`).join(", ")})`)
 
-            const sessionState = carryForwardState(prevState, {
+            const sessionState = carryForwardState(prevState!, {
               candidateCount: fullFilteredSnapshots.length,
               appliedFilters: filters,
               narrowingHistory,
-              resolutionStatus: prevState.resolutionStatus ?? "broad",
+              resolutionStatus: prevState?.resolutionStatus ?? "broad",
               resolvedInput: currentInput,
               turnCount,
               displayedCandidates: displayedFilteredSnapshots,
@@ -6099,7 +6108,8 @@ async function handleServeExplorationInner(
           try {
             const { constraintsToFilters } = await import("@/lib/recommendation/core/search-adapter")
             const { input: scInput, filters: scFilters } = constraintsToFilters(result.sessionState)
-            if (scFilters.length > 0 && complexity.runSelfCorrection) {
+            const scComplexity = assessComplexity(lastUserMsg.text, (prevState?.appliedFilters ?? []).length)
+            if (scFilters.length > 0 && scComplexity.runSelfCorrection) {
               const { selfCorrectFilters } = await import("@/lib/recommendation/core/self-correction")
               const { runHybridRetrieval } = await import("@/lib/recommendation/domain/hybrid-retrieval")
               let lastHR: Awaited<ReturnType<typeof runHybridRetrieval>> | null = null
@@ -6196,8 +6206,9 @@ async function handleServeExplorationInner(
             const { shouldTriggerWebSearch, runWebSearch, formatWebSearchBlock } =
               await import("@/lib/recommendation/core/web-search-fallback")
             const filtersExtracted = (legacyState.appliedFilters ?? []).length > 0
+            const wsComplexity = assessComplexity(lastUserMsg.text, (prevState?.appliedFilters ?? []).length)
             if (
-              complexity.allowWebSearch &&
+              wsComplexity.allowWebSearch &&
               shouldTriggerWebSearch({
                 message: lastUserMsg.text,
                 filtersExtracted,
@@ -6916,19 +6927,19 @@ async function handleServeExplorationInner(
         resolutionStatus: "narrowing",
         resolvedInput: currentInput,
         turnCount,
-        displayedCandidates: displayCandidates,
-        fullDisplayedCandidates: candidates,
-        displayedProducts: displayCandidates,
-        fullDisplayedProducts: candidates,
-        displayedSeriesGroups: prevState?.displayedSeriesGroups ?? [],
+        displayedCandidates: displayCandidates as unknown as CandidateSnapshot[],
+        fullDisplayedCandidates: candidates as unknown as CandidateSnapshot[],
+        displayedProducts: displayCandidates as unknown as CandidateSnapshot[],
+        fullDisplayedProducts: candidates as unknown as CandidateSnapshot[],
+        displayedSeriesGroups: (prevState as ExplorationSessionState | null)?.displayedSeriesGroups ?? [],
         displayedChips: [],
         displayedOptions: [],
         currentMode: "question",
-        lastRecommendationArtifact: displayCandidates,
+        lastRecommendationArtifact: displayCandidates as unknown as CandidateSnapshot[],
       })
       return handleServeGeneralChatAction({
         deps,
-        action: bridgedV2Action,
+        action: bridgedV2Action as Parameters<typeof handleServeGeneralChatAction>[0]["action"],
         orchResult: bridgedV2OrchestratorResult ?? {
           action: bridgedV2Action,
           reasoning: "first-turn-bridged-answer-general",
@@ -7032,7 +7043,6 @@ async function handleServeExplorationInner(
               zeroMsg,
               undefined, // existingStageHistory
               excludeVals,
-              undefined, // preferredQuestionField
               undefined, // responsePrefix
               zeroChips,
             )

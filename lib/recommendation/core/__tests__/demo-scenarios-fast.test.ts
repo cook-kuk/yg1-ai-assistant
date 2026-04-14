@@ -18,7 +18,7 @@ vi.mock("../sql-agent-schema-cache", () => ({
   }),
 }))
 
-function makeFilter(field: string, value: string | number, op = "eq", rawValue?: unknown): AppliedFilter {
+function makeFilter(field: string, value: string | number, op = "eq", rawValue?: string | number | boolean): AppliedFilter {
   return { field, op, value: String(value), rawValue: rawValue ?? value, appliedAt: 0 }
 }
 

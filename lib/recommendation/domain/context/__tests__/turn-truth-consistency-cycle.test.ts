@@ -140,7 +140,7 @@ describe("turn-truth — 전체 detect → sanitize → fallback 사이클", () 
       const truth = buildTurnTruth({
         userMessage: "보여줘",
         sessionState: makeSessionState({
-          displayedSetFilter: "instock_only" as ExplorationSessionState["displayedSetFilter"],
+          displayedSetFilter: { field: "stockStatus", operator: "eq", value: "instock_only" } as ExplorationSessionState["displayedSetFilter"],
         }),
       })
       // appliedFilters가 비어도 activeDisplayFilter만 있으면 mismatch로 잡혀야 함

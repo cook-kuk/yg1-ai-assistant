@@ -259,6 +259,7 @@ const AGENT_MODEL_ENV: Record<AgentName, string> = {
   "query-planner":           "AGENT_QUERY_PLANNER_MODEL",
   "self-correction":         "AGENT_SELF_CORRECTION_MODEL",
   "turn-repair":             "AGENT_TURN_REPAIR_MODEL",
+  "narrative-polish":        "AGENT_NARRATIVE_POLISH_MODEL",
 }
 
 function isModelTier(value: string): value is ModelTier {

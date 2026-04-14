@@ -39,7 +39,7 @@ export interface DeterministicAction {
   field: string
   value: string | number
   value2?: string | number
-  op: "eq" | "neq" | "gte" | "lte" | "between"
+  op: "eq" | "neq" | "gte" | "lte" | "between" | "includes"
   source: "deterministic"
   /**
    * 추출이 명시적인 cue 사전(예: COUNTRY_PATTERNS, TOOL_MATERIAL_PATTERNS)에서

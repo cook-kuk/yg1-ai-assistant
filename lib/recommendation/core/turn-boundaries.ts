@@ -11,12 +11,18 @@ import type { TraceCollector } from "@/lib/debug/agent-trace"
 
 // ── Planner Result (normalized from existing orchestrator) ──
 
+export interface AgentInvocation {
+  agent: string
+  model: string
+  durationMs: number
+}
+
 export interface PlannerResult {
   action: { type: string; [key: string]: unknown }
   reasoning: string | null
   rawExtractions: Array<{ field: string; rawValue: string; source: "explicit" | "inferred" }>
   confidence: "high" | "medium" | "low"
-  agentsInvoked: string[]
+  agentsInvoked: AgentInvocation[]
   wasIntercepted: boolean
   originalActionType: string | null
 }
@@ -26,7 +32,7 @@ export interface PlannerResult {
  * Does NOT change any logic — just wraps the output.
  */
 export function normalizePlannerResult(
-  orchResult: { action: { type: string; [key: string]: unknown }; reasoning?: string | null; agentsInvoked: string[]; escalatedToOpus: boolean },
+  orchResult: { action: { type: string; [key: string]: unknown }; reasoning?: string | null; agentsInvoked: AgentInvocation[]; escalatedToOpus: boolean },
   finalAction: { type: string; [key: string]: unknown },
   wasIntercepted: boolean,
 ): PlannerResult {

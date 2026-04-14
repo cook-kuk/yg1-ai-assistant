@@ -549,7 +549,7 @@ describe("edge cases", () => {
   it("resolved status → none", () => {
     const state = makeState({
       lastAskedField: "toolSubtype",
-      resolutionStatus: "resolved",
+      resolutionStatus: "resolved_exact",
     })
     const result = resolvePendingQuestionReply(state, "Square")
     expect(result.kind).toBe("none")
@@ -558,7 +558,7 @@ describe("edge cases", () => {
   it("resolved_recommended status → none", () => {
     const state = makeState({
       lastAskedField: "toolSubtype",
-      resolutionStatus: "resolved_recommended",
+      resolutionStatus: "resolved_exact",
     })
     const result = resolvePendingQuestionReply(state, "Square")
     expect(result.kind).toBe("none")

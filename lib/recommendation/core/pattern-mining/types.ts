@@ -20,7 +20,7 @@ export interface PatternMiningLog {
   normalizedText: string
   /** KG / SQL Agent production 결과 */
   production: {
-    source: "kg" | "sql-agent" | "negation" | "scr" | "none"
+    source: "kg" | "sql-agent" | "negation" | "scr" | "edit-intent" | "none"
     constraints: PatternMiningConstraint[]
     handled: boolean
   }
@@ -34,7 +34,7 @@ export interface PatternMiningLog {
   }
   /** Decision Layer 결과 */
   decision: {
-    winner: "production" | "planner" | "none"
+    winner: "production" | "planner" | "none" | "skip"
     plannerScore: number
     productionScore: number
     margin: number

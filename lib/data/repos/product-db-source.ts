@@ -272,6 +272,7 @@ interface RawProductRow {
   tooling_shank_type: string | null
   // Injected by ranked_products CTE (not in base table)
   material_rating_score?: number | null
+  workpiece_name_matched?: boolean | null
 }
 
 export interface ProductSeriesOverview {

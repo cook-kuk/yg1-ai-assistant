@@ -133,7 +133,7 @@ describe("compileProductQuery", () => {
     const spec: QuerySpec = {
       intent: "narrow",
       navigation: "none",
-      constraints: [{ field: "coating", op: "between" as any, value: ["A", "Z"] }],
+      constraints: [{ field: "coating", op: "between" as any, value: ["A", "Z"] as unknown as [number, number] }],
     }
     const result = compileProductQuery(spec)
 

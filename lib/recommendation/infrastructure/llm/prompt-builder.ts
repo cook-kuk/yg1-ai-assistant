@@ -432,7 +432,7 @@ export function buildSessionContext(
   intakeForm: ProductIntakeForm,
   sessionState: ExplorationSessionState | null,
   candidateCount: number,
-  displayedProducts?: { rank: number; code: string; brand: string | null; series: string | null; toolSubtype: string | null; diameter: number | null; flute: number | null; coating: string | null; materialTags: string[]; score: number; matchStatus: string }[] | null,
+  displayedProducts?: { rank: number; code: string; brand: string | null; series: string | null; toolSubtype?: string | null; diameter: number | null; flute: number | null; coating: string | null; materialTags: string[]; score: number; matchStatus: string }[] | null,
   userMessage?: string,
   language: AppLanguage = "ko",
 ): string {

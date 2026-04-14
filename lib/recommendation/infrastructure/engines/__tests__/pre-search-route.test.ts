@@ -113,7 +113,7 @@ describe("classifyPreSearchRoute", () => {
     // 자연스러운 톤이지만 명시 필터(직경·날수)가 있으면 chitchat으로 가지 말고 추천 경로
     const result = await classifyPreSearchRoute(
       "10mm 4날 쓸건데 괜찮은 거 있을까",
-      makeState({ turnCount: 0, currentMode: "intake", lastAskedField: null }),
+      makeState({ turnCount: 0, currentMode: "intake", lastAskedField: undefined }),
       unavailableProvider,
     )
 
@@ -126,7 +126,7 @@ describe("classifyPreSearchRoute", () => {
     // 단, 이 케이스는 "스테인리스가 뭐야?" — isCuttingToolTaxonomyKnowledgeQuestion으로도 잡힘 가능.
     const result = await classifyPreSearchRoute(
       "스테인리스가 뭐야?",
-      makeState({ turnCount: 0, currentMode: "intake", lastAskedField: null }),
+      makeState({ turnCount: 0, currentMode: "intake", lastAskedField: undefined }),
       makeExplainProvider(),
     )
 

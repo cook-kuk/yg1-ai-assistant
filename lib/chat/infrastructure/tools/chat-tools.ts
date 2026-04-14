@@ -1103,7 +1103,7 @@ Return as detailed structured text with ALL specs found.`
 
       const searchFilters: AppliedFilter[] = []
       if (cp.flute_count) {
-        searchFilters.push({ field: "fluteCount", op: "eq", value: `${cp.flute_count}날`, rawValue: cp.flute_count, appliedAt: 0 })
+        searchFilters.push({ field: "fluteCount", op: "eq", value: `${cp.flute_count}날`, rawValue: cp.flute_count as number, appliedAt: 0 })
       }
 
       let alternatives = await ProductRepo.search(searchInput, searchFilters, 200)
