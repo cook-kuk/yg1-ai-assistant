@@ -1,0 +1,125 @@
+═══ Schema Coverage Report ═══
+Generated: 2026-04-14T19:11:39.391Z
+DB: catalog_app.product_recommendation_mv
+Source alias file: scripts/eval-golden-full.mjs
+
+Alias 항목 수 : 20
+DB 컬럼 수    : 86
+Registry 필드 : 36
+
+매핑된 필드 (17개)
+────────────────────────────────────────────────────────────
+  OK   OutsideDia                 → diameterMm    [registry]
+  OK   NumberOfFlute              → fluteCount    [registry]
+  OK   OverAllLength              → overallLengthMm    [registry]
+  OK   LengthOfCut                → lengthOfCutMm    [registry]
+  OK   TaperAngle                 → taperAngleDeg    [registry]
+  OK   HelixAngle                 → helixAngleDeg    [registry]
+  OK   BallRadius                 → ballRadiusMm    [registry]
+  OK   CornerRadius               → cornerRadiusMm    [registry]
+  OK   ShankDia                   → shankDiameterMm    [registry]
+  OK   PointAngle                 → pointAngleDeg    [registry]
+  OK   CoolantHole                → coolantHole    [registry]
+  OK   NumberofFlute              → fluteCount    [registry]
+  OK   Coating                    → coating    [registry]
+  OK   Cutter_Diameter            → diameterMm    [registry]
+  OK   ToolMaterial               → toolMaterial    [registry]
+  OK   RadiusAll                  → ballRadiusMm    [registry]
+  OK   ShankType                  → shankType    [registry]
+
+누락된 필드 (3개) — alias 만 있고 DB/registry 어디에도 컬럼 없음
+────────────────────────────────────────────────────────────
+  MISS NeckDiameter               → neckDiameter
+  MISS NeckLength                 → neckLength
+  MISS ThreadPitch                → threadPitch
+
+Alias 없는 DB 컬럼 (86개) — DB 에는 있지만 golden-full FIELD_ALIAS 에 매핑 없음
+────────────────────────────────────────────────────────────
+  -    edp_idx
+  -    edp_no
+  -    edp_brand_name
+  -    edp_series_name
+  -    edp_series_idx
+  -    edp_root_category
+  -    edp_unit
+  -    option_z
+  -    option_numberofflute
+  -    option_drill_diameter
+  -    option_d1
+  -    option_dc
+  -    option_d
+  -    option_shank_diameter
+  -    option_dcon
+  -    option_flute_length
+  -    option_loc
+  -    option_overall_length
+  -    option_oal
+  -    option_r
+  -    option_re
+  -    option_tolofmilldia
+  -    option_tolofshankdia
+  -    option_taperangle
+  -    option_coolanthole
+  -    series_row_idx
+  -    series_brand_name
+  -    series_description
+  -    series_feature
+  -    series_tool_type
+  -    series_product_type
+  -    series_application_shape
+  -    series_cutting_edge_shape
+  -    series_shank_type
+  -    country
+  -    country_codes
+  -    material_tags
+  -    milling_outside_dia
+  -    milling_number_of_flute
+  -    milling_coating
+  -    milling_tool_material
+  -    milling_shank_dia
+  -    milling_shank_type
+  -    milling_length_of_cut
+  -    milling_overall_length
+  -    milling_helix_angle
+  -    milling_ball_radius
+  -    milling_diameter_tolerance
+  -    milling_shank_diameter_tolerance
+  -    milling_taper_angle
+  -    milling_neck_diameter
+  -    milling_effective_length
+  -    milling_coolant_hole
+  -    milling_cutting_edge_shape
+  -    milling_cutter_shape
+  -    holemaking_outside_dia
+  -    holemaking_number_of_flute
+  -    holemaking_coating
+  -    holemaking_tool_material
+  -    holemaking_shank_dia
+  -    holemaking_flute_length
+  -    holemaking_overall_length
+  -    holemaking_helix_angle
+  -    holemaking_diameter_tolerance
+  -    holemaking_shank_diameter_tolerance
+  -    holemaking_length_below_shank
+  -    holemaking_taper_angle
+  -    holemaking_coolant_hole
+  -    threading_outside_dia
+  -    threading_number_of_flute
+  -    threading_coating
+  -    threading_tool_material
+  -    threading_shank_dia
+  -    threading_thread_length
+  -    threading_overall_length
+  -    threading_l3
+  -    threading_coolant_hole
+  -    threading_flute_type
+  -    threading_thread_shape
+  -    tooling_shank_type
+  -    tooling_back_bore_l3
+  -    normalized_code
+  -    search_diameter_mm
+  -    search_coating
+  -    search_subtype
+  -    search_shank_type
+
+═══ 끝 ═══

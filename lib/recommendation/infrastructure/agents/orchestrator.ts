@@ -721,6 +721,7 @@ ${candidatesDesc}`
 SQL Agent의 사고 과정(reasoning)이 '_qa로 처리해야 한다'고 판단했으면,
 filters를 빈 배열로 반환하고 _qa 필드에 직접 답변을 작성하세요.
 사고 과정의 판단을 최종 action이 뒤집지 마세요.
+CoT에 구체적 값(숫자·필드·코팅·브랜드 등)이 등장하면 그 값은 반드시 filters 배열에도 동일하게 포함해야 합니다 — CoT와 filters는 일관되어야 합니다.
 
 ${buildDbFilterValueSnippet()}
 ${buildCanonicalDomainKnowledgeSnippet()}
@@ -752,6 +753,7 @@ ${distSnippet}`
 SQL Agent의 사고 과정(reasoning)이 '_qa로 처리해야 한다'고 판단했으면,
 filters를 빈 배열로 반환하고 _qa 필드에 직접 답변을 작성하세요.
 사고 과정의 판단을 최종 action이 뒤집지 마세요.
+CoT에 구체적 값(숫자·필드·코팅·브랜드 등)이 등장하면 그 값은 반드시 filters 배열에도 동일하게 포함해야 합니다 — CoT와 filters는 일관되어야 합니다.
 
 ═══ 역할 ═══
 사용자 메시지를 분석하여:

@@ -4865,7 +4865,37 @@ async function handleServeExplorationInner(
             bridgedV2Action = qaAction
             bridgedV2OrchestratorResult = { action: qaAction, reasoning: "sql-agent:_qa", agentsInvoked: [], escalatedToOpus: false }
             singleCallHandled = true
-          } else if (agentResult.filters.length > 0) {
+          } else if (!qaFilter && agentResult.filters.length === 0) {
+            // ── Fix 2: 3-stage fallback when SQL Agent returns 0 filters ──
+            // Stage 1: extract filter from CoT reasoning via a tiny LLM call.
+            // Stage 2: if still empty AND numeric tokens present, smart-chip clarification.
+            // Stage 3: general clarification (existing default, handled downstream).
+            try {
+              const { tryCotToFilterFallback } = await import("@/lib/recommendation/core/cot-filter-fallback")
+              const fb = await tryCotToFilterFallback({
+                userMessage: msg,
+                cotReasoning: agentResult.reasoning ?? "",
+                schema,
+              })
+              if (fb.kind === "filter" && fb.filter) {
+                console.log(`[sql-agent:fallback:stage1] CoT→filter: ${fb.filter.field} ${fb.filter.op} ${fb.filter.value}`)
+                trace.add("sql-agent", "router", { fallback: "stage1-cot" }, { field: fb.filter.field, op: fb.filter.op }, "CoT-derived filter")
+                agentResult = { ...agentResult, filters: [fb.filter as import("@/lib/recommendation/core/sql-agent").AgentFilter] }
+              } else if (fb.kind === "clarification" && fb.clarification) {
+                console.log(`[sql-agent:fallback:stage2] numeric→smart-chip: "${fb.clarification.question.slice(0, 60)}"`)
+                trace.add("sql-agent", "router", { fallback: "stage2-numeric-chip" }, { chips: fb.clarification.chips }, "smart-chip clarification")
+                const clarAction = { type: "answer_general" as const, message: fb.clarification.question, chips: fb.clarification.chips, preGenerated: true }
+                bridgedV2Action = clarAction
+                bridgedV2OrchestratorResult = { action: clarAction, reasoning: "sql-agent:fallback:numeric-chip", agentsInvoked: [], escalatedToOpus: false }
+                singleCallHandled = true
+              }
+              // kind === "none" → fall through, existing downstream clarification handles it (Stage 3)
+            } catch (e) {
+              console.error(`[sql-agent:fallback] error (non-fatal):`, e instanceof Error ? e.message : String(e))
+            }
+          }
+
+          if (agentResult.filters.length > 0 && !singleCallHandled) {
             const META_FIELDS = new Set(["_skip", "_reset", "_back"])
             const metaAction = agentResult.filters.find(f => META_FIELDS.has(f.field))
             if (metaAction) {

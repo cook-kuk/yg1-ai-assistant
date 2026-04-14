@@ -810,7 +810,7 @@ describe("resolveMultiStageQuery", () => {
     expect(stage3Provider.complete).not.toHaveBeenCalled()
   })
 
-  it("returns clarification instead of none when every stage fails", async () => {
+  it("returns smart-chip clarification or SQL-agent deferral instead of 기준이 넓어서 refusal", async () => {
     const stage2Provider = makeProvider("")
 
     const result = await resolveMultiStageQuery({
@@ -822,10 +822,19 @@ describe("resolveMultiStageQuery", () => {
       stage3Provider: makeUnavailableProvider(),
     })
 
-    expect(result.source).toBe("clarification")
-    expect(result.intent).toBe("ask_clarification")
-    expect(result.clarification?.question).toContain("기준이 넓어서")
-    expect(result.clarification?.chips).toContain("직접 입력")
+    // Fix 1: the old "기준이 넓어서" refusal is gone. Either:
+    //   (a) message has numeric+unit tokens → smart-chip clarification, OR
+    //   (b) no numeric tokens → defer to SQL Agent (action: "execute")
+    expect(result.clarification?.question ?? "").not.toContain("기준이 넓어서")
+    if (result.action === "ask_clarification") {
+      expect(result.source).toBe("clarification")
+      expect(result.intent).toBe("ask_clarification")
+      expect(result.clarification).not.toBeNull()
+    } else {
+      expect(result.action).toBe("execute")
+      expect(result.filters).toEqual([])
+      expect(result.reasoning ?? "").toMatch(/defer|sql_agent|bare_recommendation/)
+    }
   })
   it("does not commit Stage 1 sort hints when later stages fall back to clarification", async () => {
     const result = await resolveMultiStageQuery({
@@ -838,10 +847,17 @@ describe("resolveMultiStageQuery", () => {
       stage3Provider: makeUnavailableProvider(),
     })
 
-    expect(result.source).toBe("clarification")
+    // Fix 1: ask_clarification (smart chips) OR execute (SQL-agent deferral).
+    // Either way the stale Stage 1 sort must not leak.
     expect(result.sort).toBeNull()
-    expect(result.intent).toBe("ask_clarification")
-    expect(result.clarification).not.toBeNull()
+    if (result.action === "ask_clarification") {
+      expect(result.source).toBe("clarification")
+      expect(result.intent).toBe("ask_clarification")
+      expect(result.clarification).not.toBeNull()
+    } else {
+      expect(result.action).toBe("execute")
+      expect(result.filters).toEqual([])
+    }
   })
 
   it("does not treat intent-only show_recommendation as a resolved truth source", async () => {
@@ -863,10 +879,17 @@ describe("resolveMultiStageQuery", () => {
       })),
     })
 
-    expect(result.source).toBe("clarification")
-    expect(result.intent).toBe("ask_clarification")
+    // Fix 1: intent-only show_recommendation with no filters must not be
+    // treated as truth — either ask for clarification OR defer to SQL Agent.
     expect(result.filters).toEqual([])
-    expect(result.clarification).not.toBeNull()
+    expect(result.intent).not.toBe("show_recommendation")
+    if (result.action === "ask_clarification") {
+      expect(result.source).toBe("clarification")
+      expect(result.intent).toBe("ask_clarification")
+      expect(result.clarification).not.toBeNull()
+    } else {
+      expect(result.action).toBe("execute")
+    }
   })
   it("injects scoped material mapping context into Stage 2 for unresolved material aliases", async () => {
     const stage2Provider = {

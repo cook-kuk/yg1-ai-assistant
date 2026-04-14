@@ -1,3 +1,4 @@
+import { executeLlm } from "@/lib/llm/llm-executor"
 import { getProviderForAgent, type LLMProvider } from "@/lib/llm/provider"
 import { resolveRequestedToolFamily } from "@/lib/data/repos/product-query-filters"
 import type { AppliedFilter, ExplorationSessionState, ExtractedSlot, RecommendationInput, UserIntent } from "@/lib/recommendation/domain/types"
@@ -2720,20 +2721,97 @@ function hasMeaningfulResolution(result: NormalizedResolverResult | null): resul
     )
 }
 
-function buildClarificationResultSafe(
+async function buildClarificationResultSafe(
   args: ResolveMultiStageQueryArgs,
   unresolvedTokens: string[],
   options?: {
     validation?: ResolverValidationSummary | null
     candidateResult?: MultiStageResolverResult | null
   },
-): MultiStageResolverResult {
+): Promise<MultiStageResolverResult> {
   return buildClarificationResultSafeImpl(
     args,
     unresolvedTokens,
     options?.validation ?? null,
     options?.candidateResult?.clarification ?? null,
   )
+}
+
+/**
+ * Extract numeric+unit tokens from user message (e.g., "6mm", "10도", "120mm").
+ * Returns an array of objects with the raw token + inferred unit so callers
+ * can route to SQL Agent when empty OR build smart chips when present.
+ * NOTE: unit list comes from the DB's numeric column suffixes — we only look
+ * for /\d+(?:\.\d+)?\s*(unit)?/ patterns. No hardcoded field cue mapping.
+ */
+function extractNumericTokens(message: string): Array<{ raw: string; num: number; unit: string | null }> {
+  const out: Array<{ raw: string; num: number; unit: string | null }> = []
+  if (!message) return out
+  const re = /(\d+(?:\.\d+)?)\s*(mm|㎜|도|°|deg|hrc|rpm|분|시간|개|날|플루트|f|φ)?/giu
+  let m: RegExpExecArray | null
+  while ((m = re.exec(message)) !== null) {
+    const num = Number(m[1])
+    if (!Number.isFinite(num)) continue
+    const unit = (m[2] ?? "").trim().toLowerCase() || null
+    out.push({ raw: m[0].trim(), num, unit })
+  }
+  return out
+}
+
+/**
+ * Ask LLM to pick 2-3 plausible DB column labels for a numeric+unit token
+ * based on the live DB schema (numeric columns + their min/max/samples).
+ * Returns Korean display labels (getFilterFieldLabel) — no hardcoded map.
+ */
+async function pickSmartChipsForNumericToken(
+  token: { raw: string; num: number; unit: string | null },
+  message: string,
+): Promise<string[] | null> {
+  try {
+    const schema = getDbSchemaSync()
+    if (!schema) return null
+    // Gather numeric columns with stats — gives LLM context without hardcoding.
+    const numericCols = Object.entries(schema.numericStats).slice(0, 40)
+    if (numericCols.length === 0) return null
+    const schemaSnippet = numericCols
+      .map(([col, s]) => `- ${col} (${s.min}~${s.max}, ex: ${s.samples.slice(0, 3).join(", ")})`)
+      .join("\n")
+    const systemPrompt = `당신은 YG-1 절삭공구 DB의 숫자 컬럼을 사용자 표현에 매핑합니다.
+아래 DB 숫자 컬럼 중, 사용자가 언급한 숫자(+단위)에 가장 어울리는 2~3개만 고르세요.
+반드시 JSON 배열만 출력: ["컬럼1","컬럼2","컬럼3"]
+컬럼명은 스키마의 원래 이름 그대로(영문). 추가 설명 금지.
+
+DB 숫자 컬럼:
+${schemaSnippet}`
+    const userInput = `사용자 메시지: "${message}"
+대상 숫자 토큰: "${token.raw}" (num=${token.num}, unit=${token.unit ?? "없음"})`
+    const res = await executeLlm({
+      agentName: "parameter-extractor",
+      modelTier: "mini",
+      reasoningTier: "light",
+      systemPrompt,
+      userInput,
+      maxTokens: 120,
+    })
+    const text = (res.text ?? "").trim()
+    if (!text) return null
+    // Parse JSON array (tolerate code fences / surrounding text).
+    const jsonMatch = text.match(/\[[\s\S]*?\]/)
+    if (!jsonMatch) return null
+    let parsed: unknown
+    try { parsed = JSON.parse(jsonMatch[0]) } catch { return null }
+    if (!Array.isArray(parsed)) return null
+    const cols = parsed.map(x => String(x ?? "").trim()).filter(Boolean).slice(0, 3)
+    if (cols.length === 0) return null
+    // Translate column name to Korean label when possible; fall back to column name.
+    const labels = cols.map(col => {
+      const label = getFilterFieldLabel(col)
+      return label && label !== col ? label : col
+    })
+    return labels
+  } catch {
+    return null
+  }
 }
 
 function pickPrimaryClarificationIssue(
@@ -2839,12 +2917,51 @@ function buildIssueDrivenClarificationSafe(
   }
 }
 
-function buildClarificationResultSafeImpl(
+/**
+ * Decides the final fallback clarification when no earlier branch matched:
+ *  - If the message contains numeric+unit tokens → ask a smart chip question
+ *    where the chips are 2-3 column candidates picked by LLM from the live
+ *    DB schema. No hardcoded field cue map.
+ *  - If no numeric tokens → return null to signal "defer to SQL Agent"
+ *    (caller turns this into action:"execute" with empty filters instead of
+ *    the old "기준이 넓어서" refusal).
+ */
+async function buildNumericOrDeferFallback(
+  args: ResolveMultiStageQueryArgs,
+  unresolvedTokens: string[],
+  directInputChip: string,
+): Promise<ResolverClarification | null> {
+  const numericTokens = extractNumericTokens(args.message ?? "")
+  if (numericTokens.length === 0) {
+    // No numeric hint — defer to SQL Agent so it can try schema-aware extraction
+    // instead of a generic refusal.
+    return null
+  }
+  const primary = numericTokens[0]
+  const chips = await pickSmartChipsForNumericToken(primary, args.message ?? "")
+  if (!chips || chips.length === 0) {
+    // LLM couldn't pick — fall back to unresolvedTokens-style question but
+    // keep it actionable rather than the old refusal.
+    const label = unresolvedTokens.slice(0, 3).join(", ") || "현재 표현"
+    return {
+      question: `'${label}'이 어떤 조건을 뜻하는지 조금만 더 알려주세요.`,
+      chips: [directInputChip, "처음부터 다시"],
+      askedField: null,
+    }
+  }
+  return {
+    question: `"${primary.raw}"는 어느 필드 값으로 적용할까요?`,
+    chips: [...chips, directInputChip],
+    askedField: null,
+  }
+}
+
+async function buildClarificationResultSafeImpl(
   args: ResolveMultiStageQueryArgs,
   unresolvedTokens: string[],
   validation?: ResolverValidationSummary | null,
   preferredClarification?: ResolverClarification | null,
-): MultiStageResolverResult {
+): Promise<MultiStageResolverResult> {
   const directInputChip = "직접 입력"
   const pendingField = args.pendingField ?? args.sessionState?.lastAskedField ?? null
   const orderQuantityAmbiguity = detectOrderQuantityInventoryAmbiguity(args.message)
@@ -2940,12 +3057,31 @@ function buildClarificationResultSafeImpl(
           chips: [`${pendingLabel} 유지`, `${pendingLabel} 변경`, directInputChip],
           askedField: pendingField,
         }
-        : {
-          question: `현재는 '${unresolvedLabel}'이 기준이 넓어서 바로 필터로 확정하기 어렵습니다. 이 표현이 어떤 조건을 뜻하는지 한 번만 더 구체적으로 말씀해 주실 수 있을까요?`,
-          chips: ["예시 선택", directInputChip, "처음부터 다시"],
-          askedField: null,
-        }
+        : await buildNumericOrDeferFallback(args, unresolvedTokens, directInputChip)
     )
+
+  // If fallback chose to defer to SQL Agent (execute with empty filters) the
+  // helper returns null; translate that into a deferred execute result so the
+  // downstream pipeline can try SQL Agent / tool-forge instead of refusing.
+  if (clarification === null) {
+    return {
+      source: "none",
+      action: "execute",
+      filters: [],
+      concepts: [],
+      sort: null,
+      routeHint: "none",
+      intent: "none",
+      clearOtherFilters: false,
+      removeFields: [],
+      followUpFilter: null,
+      confidence: 0,
+      unresolvedTokens,
+      reasoning: "defer:sql_agent_fallback",
+      clarification: null,
+      validation: validation ?? null,
+    }
+  }
 
   return {
     source: "clarification",
@@ -3698,7 +3834,7 @@ export async function resolveMultiStageQuery(
     if (!pendingField && (args.currentFilters?.length ?? 0) === 0 && isBareRecommendationMessage(args.message)) {
       return buildEmptyResult("defer:bare_recommendation")
     }
-    return buildClarificationResultSafe(args, [], {
+    return await buildClarificationResultSafe(args, [], {
       validation: stage1Validation,
       candidateResult: stage1Result,
     })
@@ -3810,7 +3946,7 @@ export async function resolveMultiStageQuery(
         action: "ask_clarification" as const,
       }
       return {
-        ...mergeMultiStageResults(stage2Base, buildClarificationResultSafe(args, effectiveUnresolvedTokens, {
+        ...mergeMultiStageResults(stage2Base, await buildClarificationResultSafe(args, effectiveUnresolvedTokens, {
           validation: clarificationValidation,
           candidateResult: stage3ValidationResult.result,
         })),
@@ -3833,7 +3969,7 @@ export async function resolveMultiStageQuery(
         }
         : null
       return {
-        ...mergeMultiStageResults(stage1Result, buildClarificationResultSafe(args, effectiveUnresolvedTokens, {
+        ...mergeMultiStageResults(stage1Result, await buildClarificationResultSafe(args, effectiveUnresolvedTokens, {
           validation: clarificationValidation,
           candidateResult: validatedStage2Result,
         })),
@@ -3852,7 +3988,7 @@ export async function resolveMultiStageQuery(
       validation: stage2Validation,
     })
     return {
-      ...mergeMultiStageResults(stage1Result, buildClarificationResultSafe(args, effectiveUnresolvedTokens, {
+      ...mergeMultiStageResults(stage1Result, await buildClarificationResultSafe(args, effectiveUnresolvedTokens, {
         validation: stage2Validation,
         candidateResult: validatedStage2Result,
       })),
@@ -3868,7 +4004,7 @@ export async function resolveMultiStageQuery(
       validation: stage2Validation ?? stage1Validation,
     }
   }
-  return mergeMultiStageResults(stage1Result, buildClarificationResultSafe(args, effectiveUnresolvedTokens, {
+  return mergeMultiStageResults(stage1Result, await buildClarificationResultSafe(args, effectiveUnresolvedTokens, {
     validation: stage2Validation ?? stage1Validation,
     candidateResult: validatedStage2Result ?? (stage2Result ? materializeResult("stage2", stage2Result, args.turnCount) : stage1Result),
   }))
