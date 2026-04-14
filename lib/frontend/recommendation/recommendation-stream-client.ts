@@ -29,7 +29,7 @@ export interface StreamRecommendationCallbacks {
    * - `delta=false` → `text` is the *complete* reasoning so far; *replace* the
    *                   current value. Used for synthetic/non-streaming sources.
    */
-  onThinking?: (text: string, opts?: { delta?: boolean; kind?: "stage" | "deep" }) => void
+  onThinking?: (text: string, opts?: { delta?: boolean; kind?: "stage" | "deep" | "agent" }) => void
 }
 
 export interface StreamRecommendationOptions extends StreamRecommendationCallbacks {
@@ -90,7 +90,7 @@ export async function streamRecommendation(
         const obj = parsed as { text?: unknown; delta?: unknown; kind?: unknown } | null
         const text = obj?.text
         const delta = obj?.delta === true
-        const kind = obj?.kind === "deep" ? "deep" : obj?.kind === "stage" ? "stage" : undefined
+        const kind = obj?.kind === "deep" ? "deep" : obj?.kind === "agent" ? "agent" : obj?.kind === "stage" ? "stage" : undefined
         if (typeof text === "string" && (delta || text.trim())) {
           try { onThinking(text, { delta, kind }) } catch { /* never block stream */ }
         }

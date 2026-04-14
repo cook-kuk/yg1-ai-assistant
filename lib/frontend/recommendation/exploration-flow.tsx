@@ -453,15 +453,18 @@ function ExplorationSidebar({
 function ReasoningBlock({
   trail,
   deep,
+  agent,
   isLoading,
   language,
 }: {
   trail: string
   deep: string
+  agent: string
   isLoading: boolean
   language: "ko" | "en"
 }) {
   const [deepOpen, setDeepOpen] = useState(true)
+  const [agentOpen, setAgentOpen] = useState(false)
   const [open, setOpen] = useState(true)
   // 사용자가 수동으로 토글한 적이 있으면 자동 접기/펴기를 멈춘다 (의도 존중).
   const userToggledRef = useRef(false)
@@ -601,6 +604,23 @@ function ReasoningBlock({
           )}
         </div>
       )}
+      {agent && (
+        <div className="mt-1.5">
+          <button
+            type="button"
+            onClick={() => setAgentOpen(v => !v)}
+            className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-gray-700"
+          >
+            <ChevronRight size={10} className={`transition-transform ${agentOpen ? "rotate-90" : ""}`} />
+            <span>{language === "ko" ? `🔍 Agent 판단 과정` : `🔍 Agent decisions`}</span>
+          </button>
+          {agentOpen && (
+            <div className="mt-1 p-2 bg-emerald-50 border border-emerald-200 rounded text-[11px] text-emerald-900 leading-relaxed whitespace-pre-wrap max-h-[600px] overflow-y-auto font-mono">
+              {agent}
+            </div>
+          )}
+        </div>
+      )}
       <style jsx>{`
         .shimmer-text {
           background: linear-gradient(
@@ -723,10 +743,11 @@ function NarrowingChat({
                 </div>
               )}
 
-              {message.role === "ai" && message.reasoningVisibility !== "hidden" && (message.thinkingProcess || message.thinkingDeep || message.isLoading) && (
+              {message.role === "ai" && message.reasoningVisibility !== "hidden" && (message.thinkingProcess || message.thinkingDeep || (message as { thinkingAgent?: string | null }).thinkingAgent || message.isLoading) && (
                 <ReasoningBlock
                   trail={message.thinkingProcess ?? ""}
                   deep={message.thinkingDeep ?? ""}
+                  agent={(message as { thinkingAgent?: string | null }).thinkingAgent ?? ""}
                   isLoading={!!message.isLoading}
                   language={language}
                 />
