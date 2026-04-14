@@ -12,7 +12,6 @@ import {
   BookOpen,
   Settings,
   ChevronDown,
-  ChevronRight,
   Sparkles,
   Play,
   MessageSquare,
@@ -24,12 +23,7 @@ import {
   MapPin,
   Calculator,
   Brain,
-  Trash2,
-  History,
-  Search as SearchIcon,
-  X as XIcon,
 } from "lucide-react"
-import { useConversationHistory } from "@/lib/frontend/recommendation/use-conversation-history"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/lib/store"
 import { wowScenarios } from "@/lib/demo-data"
@@ -207,70 +201,6 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
     item.roles.includes(currentUser.role)
   )
 
-  const [historySearch, setHistorySearch] = useState("")
-  const { conversations, remove: removeConversation } = useConversationHistory("default", historySearch)
-  const [historyOpen, setHistoryOpen] = useState(true)
-  const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null
-  const activeConvId = searchParams?.get("convId") ?? null
-
-  // Group conversations by relative time bucket for ChatGPT-style sections.
-  const groupedConversations = (() => {
-    const now = Date.now()
-    const DAY = 1000 * 60 * 60 * 24
-    const bucket = (iso: string): string => {
-      const t = new Date(iso).getTime()
-      if (!Number.isFinite(t)) return language === "ko" ? "이전" : "Earlier"
-      const diffDays = (now - t) / DAY
-      if (diffDays < 1) return language === "ko" ? "오늘" : "Today"
-      if (diffDays < 2) return language === "ko" ? "어제" : "Yesterday"
-      if (diffDays < 7) return language === "ko" ? "지난 7일" : "Previous 7 days"
-      if (diffDays < 30) return language === "ko" ? "지난 30일" : "Previous 30 days"
-      return language === "ko" ? "이전" : "Earlier"
-    }
-    const order = language === "ko"
-      ? ["오늘", "어제", "지난 7일", "지난 30일", "이전"]
-      : ["Today", "Yesterday", "Previous 7 days", "Previous 30 days", "Earlier"]
-    const groups = new Map<string, typeof conversations>()
-    for (const conv of conversations) {
-      const key = bucket(conv.updatedAt)
-      if (!groups.has(key)) groups.set(key, [])
-      groups.get(key)!.push(conv)
-    }
-    return order
-      .filter(k => groups.has(k))
-      .map(k => ({ label: k, items: groups.get(k)! }))
-  })()
-
-  const handleConversationClick = (conversationId: string) => {
-    router.push(`/products?convId=${encodeURIComponent(conversationId)}`)
-    onClose?.()
-  }
-
-  const handleConversationDelete = async (e: React.MouseEvent, conversationId: string) => {
-    e.stopPropagation()
-    e.preventDefault()
-    if (!confirm(language === "ko" ? "이 대화를 삭제할까요?" : "Delete this conversation?")) return
-    await removeConversation(conversationId)
-    if (activeConvId === conversationId) {
-      router.push(`/products?reset=${Date.now()}`)
-    }
-  }
-
-  const formatTime = (iso: string): string => {
-    try {
-      const d = new Date(iso)
-      const diffMs = Date.now() - d.getTime()
-      const hrs = diffMs / (1000 * 60 * 60)
-      if (hrs < 1) return language === "ko" ? "방금" : "just now"
-      if (hrs < 24) return `${Math.floor(hrs)}${language === "ko" ? "시간 전" : "h ago"}`
-      const days = Math.floor(hrs / 24)
-      if (days < 7) return `${days}${language === "ko" ? "일 전" : "d ago"}`
-      return d.toLocaleDateString(language === "ko" ? "ko-KR" : "en-US", { month: "short", day: "numeric" })
-    } catch {
-      return ""
-    }
-  }
-
   return (
     <>
       {/* Mobile overlay */}
@@ -400,112 +330,6 @@ export function AppSidebar({ open, onClose }: { open?: boolean; onClose?: () => 
           })}
         </ul>
 
-        {/* Conversation History */}
-        <div className="mt-4 border-t border-sidebar-border pt-3">
-          <button
-            onClick={() => setHistoryOpen(v => !v)}
-            className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/60 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground"
-          >
-            {historyOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-            <History className="h-3.5 w-3.5" />
-            <span className="flex-1 text-left">{language === "ko" ? "대화 기록" : "History"}</span>
-            {conversations.length > 0 && (
-              <span className="text-[10px] font-normal text-sidebar-foreground/40">{conversations.length}</span>
-            )}
-          </button>
-
-          {historyOpen && (
-            <>
-              {/* Search input */}
-              <div className="relative mt-1 px-2">
-                <SearchIcon className="absolute left-4 top-1/2 h-3 w-3 -translate-y-1/2 text-sidebar-foreground/40" />
-                <input
-                  type="text"
-                  value={historySearch}
-                  onChange={e => setHistorySearch(e.target.value)}
-                  placeholder={language === "ko" ? "대화 검색..." : "Search conversations..."}
-                  className="h-7 w-full rounded-md border border-sidebar-border bg-sidebar-accent/40 pl-6 pr-6 text-xs text-sidebar-foreground placeholder:text-sidebar-foreground/40 focus:outline-none focus:ring-1 focus:ring-sidebar-primary"
-                />
-                {historySearch && (
-                  <button
-                    onClick={() => setHistorySearch("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-sidebar-foreground/40 hover:text-sidebar-foreground"
-                    title={language === "ko" ? "지우기" : "Clear"}
-                  >
-                    <XIcon className="h-3 w-3" />
-                  </button>
-                )}
-              </div>
-
-              {conversations.length === 0 ? (
-                <div className="mt-1 px-3 py-2 text-xs text-sidebar-foreground/40">
-                  {historySearch
-                    ? (language === "ko" ? "검색 결과가 없습니다" : "No matches")
-                    : (language === "ko" ? "저장된 대화가 없습니다" : "No saved conversations")}
-                </div>
-              ) : (
-                <div className="mt-1">
-                  {groupedConversations.map(group => (
-                    <div key={group.label} className="mt-1 first:mt-0">
-                      <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
-                        {group.label}
-                      </div>
-                      <ul className="space-y-0.5">
-                        {group.items.map(conv => {
-                          const isActive = activeConvId === conv.conversationId
-                          return (
-                            <li key={conv.conversationId} className="group relative">
-                              <button
-                                onClick={() => handleConversationClick(conv.conversationId)}
-                                className={cn(
-                                  "flex w-full flex-col items-start gap-0.5 rounded-md px-3 py-2 text-left text-xs transition-colors",
-                                  isActive
-                                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                                    : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50"
-                                )}
-                              >
-                                <div className="flex w-full items-center gap-1.5">
-                                  <span className="flex-1 truncate font-medium">{conv.title}</span>
-                                  <span className="shrink-0 text-[9px] text-sidebar-foreground/40">
-                                    {formatTime(conv.updatedAt)}
-                                  </span>
-                                </div>
-                                {conv.lastUserMessage && (
-                                  <span className="line-clamp-1 text-[10px] text-sidebar-foreground/50">
-                                    {conv.lastUserMessage}
-                                  </span>
-                                )}
-                                {conv.filterSummary.length > 0 && (
-                                  <div className="mt-0.5 flex flex-wrap gap-1">
-                                    {conv.filterSummary.slice(0, 3).map((f, i) => (
-                                      <span
-                                        key={i}
-                                        className="rounded bg-sidebar-accent/70 px-1 py-[1px] text-[9px] text-sidebar-foreground/60"
-                                      >
-                                        {f}
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
-                              </button>
-                              <button
-                                onClick={(e) => handleConversationDelete(e, conv.conversationId)}
-                                className="absolute right-1.5 top-1.5 hidden rounded p-1 text-sidebar-foreground/40 hover:bg-red-500/20 hover:text-red-500 group-hover:block"
-                                title={language === "ko" ? "삭제" : "Delete"}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </div>
       </nav>
 
       {/* User Role Selector + Country + Language Toggle */}

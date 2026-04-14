@@ -4,6 +4,7 @@ import { useState } from "react"
 import type { ReactNode } from "react"
 import { AppProvider } from "@/lib/store"
 import { AppSidebar } from "./app-sidebar"
+import { HistoryPanel } from "./history-panel"
 import { Notifications } from "./notifications"
 import { CompareDrawer } from "./compare-drawer"
 import { DemoGuide } from "./demo-guide"
@@ -16,6 +17,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <AppProvider>
       <div className="flex h-screen bg-background">
         <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <HistoryPanel />
         <main className="flex-1 flex flex-col min-h-0 min-w-0">
           {/* Mobile header with hamburger */}
           <div className="lg:hidden flex items-center h-12 px-3 border-b bg-white shrink-0">
