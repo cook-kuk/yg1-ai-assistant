@@ -19,6 +19,10 @@ import {
 // 1. Material keywords
 // ═══════════════════════════════════════════════════════════════
 
+// TODO(SSOT): derive from DB material/operation tables instead of hardcoding.
+// prod_work_piece_by_category holds 34 canonical workpiece values (ISO P/M/K/N/S/H/O).
+// Korean aliases could live in a material_aliases table keyed to those canonicals.
+// See CLAUDE.md.
 export const MATERIAL_KEYWORDS: Record<string, string[]> = {
   "알루미늄": ["알루미늄", "알루", "aluminum", "aluminium", "AL", "alu", "ADC", "두랄루민", "duralumin"],
   "스테인리스": ["스테인리스", "스테인레스", "스텐", "STS", "sus", "stainless"],
@@ -253,6 +257,11 @@ export const NONSENSE_PATTERNS: RegExp[] = [/^[ㅋㅎㅠㅜ]+$/, /^[?!.]+$/, /^\
 // 6. Coating keywords & Korean→English mapping
 // ═══════════════════════════════════════════════════════════════
 
+// TODO(SSOT): merge into `COATING_ALIAS_MAP` in canonical-values.ts.
+// Current divergence: this map uses legacy values ("Blue"/"Gold"/"Bright") while
+// canonical-values uses DB values ("Blue-Coating"/"TiN"/"Bright Finish").
+// Merging requires updating tests in autoagent-round-1.test.ts and filter-pipeline-e2e-150.test.ts
+// to expect the canonical DB values. See CLAUDE.md.
 export const COATING_KO_ALIASES: Record<string, string> = {
   블루: "Blue",
   블루코팅: "Blue",
@@ -346,6 +355,9 @@ export function canonicalizeCoating(raw: string): string | null {
 // 7. Operation type keywords
 // ═══════════════════════════════════════════════════════════════
 
+// TODO(SSOT): derive from DB operation/application_shape tables instead of hardcoding.
+// series_application_shape and machining condition tables carry canonical operation names;
+// Korean aliases could live in an operation_aliases table. See CLAUDE.md.
 export const OPERATION_KEYWORDS: Record<string, string[]> = {
   "황삭": ["황삭", "roughing", "rough", "헤비컷"],
   "정삭": ["정삭", "finishing", "finish", "마무리", "fine"],
