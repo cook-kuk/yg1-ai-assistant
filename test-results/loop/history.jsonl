@@ -1,2 +1,0 @@
-{"iter":1,"label":"baseline","ts":"02:00","passed":15,"total":17,"pct":88.2,"note":"quality scoring"}
-{"iter":2,"label":"patch5-fallback","ts":"02:13","passed":16,"total":17,"pct":94.1,"note":"E01 999mm fix; H05 still fail"}
