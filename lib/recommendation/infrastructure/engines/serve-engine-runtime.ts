@@ -793,6 +793,32 @@ function createNarrowingTurn(params: {
   }
 }
 
+// First-turn synthetic narrowing: multi-stage resolver / fast-path 에서 주입된
+// 필터들을 UI 축소이력 + Turn 카운터에 반영. narrowingHistory 가 비어있고 필터가
+// 생긴 경우에만 1회 기록한다. candidateCountBefore 는 필터 이전 풀 크기를 알 수
+// 없으므로 after 와 동일하게 두어 "왜곡된 감소" 표시를 피한다.
+function ensureFirstTurnNarrowingRecorded(params: {
+  narrowingHistory: NarrowingTurn[]
+  filters: AppliedFilter[]
+  answer: string
+  candidateCountAfter: number
+  prevTurnCount: number
+}): boolean {
+  if (params.narrowingHistory.length > 0) return false
+  if (params.prevTurnCount > 0) return false
+  const meaningful = params.filters.filter(f => f.op !== "skip" && f.field !== "none")
+  if (meaningful.length === 0) return false
+  params.narrowingHistory.push(createNarrowingTurn({
+    question: "first-turn-intake",
+    askedField: meaningful[0].field,
+    answer: params.answer,
+    extractedFilters: meaningful.slice(),
+    candidateCountBefore: params.candidateCountAfter,
+    candidateCountAfter: params.candidateCountAfter,
+  }))
+  return true
+}
+
 function buildV2BridgeOrchestratorResult(
   action: OrchestratorAction,
   result: TurnResult
@@ -7177,6 +7203,23 @@ async function handleServeExplorationInner(
     appliedConstraints: filters.filter(f => f.op !== "skip").map(f => ({ field: f.field, value: f.value })),
     skippedReason: !needsRetrieval ? `Action "${earlyAction}" does not require retrieval` : undefined,
   })
+
+  // first-turn multi-stage / fast-path 가 주입한 필터도 UI 축소이력 + Turn 카운터에
+  // 반영. prevState 가 없거나 turnCount==0 이고 narrowingHistory 가 비어있을 때만
+  // 1회 기록하며, 이후 턴(existing narrowingHistory) 은 기존 경로가 책임진다.
+  if (needsRetrieval && totalCandidateCount > 0) {
+    const recorded = ensureFirstTurnNarrowingRecorded({
+      narrowingHistory,
+      filters,
+      answer: lastUserMsg?.text ?? "",
+      candidateCountAfter: totalCandidateCount,
+      prevTurnCount: prevState?.turnCount ?? 0,
+    })
+    if (recorded) {
+      turnCount = Math.max(turnCount, 1)
+      console.log(`[first-turn-narrowing] recorded synthetic turn: filters=${filters.filter(f => f.op !== "skip").length} total=${totalCandidateCount}`)
+    }
+  }
 
   if (requestPrep.route.action === "reset_session") {
     return buildResetResponse(deps, requestPrep)
