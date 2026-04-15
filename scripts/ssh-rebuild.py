@@ -9,6 +9,8 @@ CMDS = [
     # 최신 커밋 pull (origin = csp-digital 회사 repo)
     "cd ~/yg1-ai-catalog-dev && git fetch origin && git reset --hard origin/main 2>&1 | tail -5",
     "cd ~/yg1-ai-catalog-dev && git log -1 --oneline",
+    # 잔여 컨테이너 정리 (이름 충돌 방지)
+    "echo 'cornerstp1234!@#$' | sudo -S docker rm -f yg1-ai-catalog-app-dev 2>&1 | tail -3; echo 'cornerstp1234!@#$' | sudo -S docker ps -a --filter 'name=yg1-ai-catalog-app' --format '{{.ID}} {{.Names}}' | awk '{print $1}' | xargs -r sudo -n docker rm -f 2>&1 | tail -3",
     # 강제 rebuild
     "cd ~/yg1-ai-catalog-dev && echo 'cornerstp1234!@#$' | sudo -S docker compose up -d --build app 2>&1 | tail -15",
 ]

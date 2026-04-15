@@ -113,7 +113,23 @@ function buildCanonicalFieldsSection(schema: DbSchema): string {
   return lines.join("\n")
 }
 
+// schema.loadedAt 를 키로 한 prompt 문자열 memoize.
+// buildSchemaPrompt 는 순수 함수이므로 schema 가 바뀌지 않는 한 결과 동일.
+let cachedSchemaPrompt: { loadedAt: number; text: string } | null = null
+
 export function buildSchemaPrompt(schema: DbSchema): string {
+  if (cachedSchemaPrompt && cachedSchemaPrompt.loadedAt === schema.loadedAt) {
+    return cachedSchemaPrompt.text
+  }
+  const text = buildSchemaPromptImpl(schema)
+  cachedSchemaPrompt = { loadedAt: schema.loadedAt, text }
+  try {
+    console.log(`[unified-router] schema prompt built chars=${text.length} tokens≈${Math.round(text.length / 3.5)}`)
+  } catch { /* no-op */ }
+  return text
+}
+
+function buildSchemaPromptImpl(schema: DbSchema): string {
   const lines: string[] = []
 
   lines.push(buildCanonicalFieldsSection(schema))
@@ -427,6 +443,7 @@ export async function unifiedLLMRouter(input: UnifiedRouterInput): Promise<Unifi
   const historyText = formatHistory(input.conversationHistory)
   const systemPrompt = buildSystemPrompt(schemaPrompt, appliedText, input.candidateCount, historyText)
 
+  const promptChars = systemPrompt.length + input.message.length
   const started = Date.now()
   const result = await executeLlm({
     agentName: "unified-router",
@@ -451,7 +468,8 @@ export async function unifiedLLMRouter(input: UnifiedRouterInput): Promise<Unifi
       `[unified-router] intent=${decision.intent} filters=${decision.filters.length}` +
       ` chips=${decision.chips ? decision.chips.length : 0} purpose=${decision.purpose}` +
       ` conf=${decision.confidence} code=${decision.productLookupCode ?? "-"}` +
-      ` reqField=${decision.requestedProductField ?? "-"} elapsed=${elapsed}ms`,
+      ` reqField=${decision.requestedProductField ?? "-"}` +
+      ` promptChars=${promptChars} tokens≈${Math.round(promptChars / 3.5)} elapsed=${elapsed}ms`,
     )
   } catch { /* no-op */ }
 

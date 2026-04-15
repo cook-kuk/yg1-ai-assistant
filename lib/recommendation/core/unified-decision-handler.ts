@@ -50,13 +50,42 @@ import type { ServeEngineRuntimeDependencies } from "@/lib/recommendation/infras
 
 // ── UnifiedFilter → AppliedFilter 변환 + 검증 ─────────────────
 
-function unifiedFilterToApplied(uf: UnifiedFilter, appliedAt: number): AppliedFilter[] {
+/**
+ * LLM 이 숫자값에 단위를 붙여 emit 하는 경우가 잦다 (예: "10mm", "45°", "5000RPM").
+ * registry.kind="number" 인 필드는 선행 숫자만 뽑아 Number 로 강제 변환.
+ * 프롬프트 규칙 + 코드 후처리 이중 방어.
+ */
+function coerceNumericValue(raw: unknown): number | string | boolean | null {
+  if (raw === null || raw === undefined || raw === "") return null
+  if (typeof raw === "number") return Number.isFinite(raw) ? raw : null
+  if (typeof raw === "boolean") return raw
+  const s = String(raw).trim()
+  const m = s.match(/-?\d+(?:\.\d+)?/)
+  if (!m) return null
+  const n = Number.parseFloat(m[0])
+  return Number.isFinite(n) ? n : null
+}
+
+function sanitizeUnifiedFilter(uf: UnifiedFilter, kind: string | undefined): UnifiedFilter {
+  if (kind !== "number") return uf
+  const out: UnifiedFilter = { ...uf }
+  const v1 = coerceNumericValue(uf.value)
+  if (v1 !== null) out.value = v1
+  if (uf.value2 !== undefined) {
+    const v2 = coerceNumericValue(uf.value2)
+    if (v2 !== null && typeof v2 !== "boolean") out.value2 = v2
+  }
+  return out
+}
+
+function unifiedFilterToApplied(ufIn: UnifiedFilter, appliedAt: number): AppliedFilter[] {
   // 환각 필드 게이트 — registry 에 없으면 버린다
-  const def = getFilterFieldDefinition(uf.field)
+  const def = getFilterFieldDefinition(ufIn.field)
   if (!def) {
-    try { console.warn(`[unified-handler] drop hallucinated field: ${uf.field}`) } catch { /* no-op */ }
+    try { console.warn(`[unified-handler] drop hallucinated field: ${ufIn.field}`) } catch { /* no-op */ }
     return []
   }
+  const uf = sanitizeUnifiedFilter(ufIn, def.kind)
 
   // between 은 AppliedFilter 한 개(op=between, rawValue/rawValue2) 로 표현
   if (uf.op === "between" && uf.value2 !== undefined) {
