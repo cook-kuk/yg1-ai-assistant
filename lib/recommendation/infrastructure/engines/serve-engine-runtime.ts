@@ -3759,6 +3759,31 @@ async function handleServeExplorationInner(
               .filter((f): f is AppliedFilter => f !== null)
           }
           if (detFastPathFilters.length >= minHints) {
+            // Brand affinity auto-inject: fast-path 가 LLM 을 bypass 하므로
+            // schema.brandAffinity 매핑이 유실된다. material hint 가 있고 brand
+            // hint 가 없으면 해당 소재의 EXCELLENT 브랜드(없으면 GOOD)를 brand IN
+            // 필터로 data-driven 주입.
+            const matHint = detHintPairs.find(h => h.field === "material")
+            const hasBrandHint = detFastPathFilters.some(f => f.field === "brand")
+            if (matHint && !hasBrandHint) {
+              const { canonicalizeMaterialValue } =
+                await import("@/lib/recommendation/shared/canonical-values")
+              const canonical = canonicalizeMaterialValue(String(matHint.value))
+              const affinityKey = canonical?.toUpperCase().trim() ?? null
+              const affSchema = getDbSchemaSync()
+              const rows = affinityKey ? (affSchema?.brandAffinity?.[affinityKey] ?? []) : []
+              const byRating = (r: string) => rows.filter(x => String(x.rating ?? "").toUpperCase() === r).map(x => x.brand)
+              const picks = byRating("EXCELLENT").length > 0 ? byRating("EXCELLENT") : byRating("GOOD")
+              if (picks.length > 0) {
+                const brandFilter = detBuildFilter("brand", picks, turnCount, "in")
+                if (brandFilter) {
+                  detFastPathFilters.push(brandFilter)
+                  console.log(
+                    `[first-turn-intake] brandAffinity auto-inject: brand IN [${picks.join(", ")}] (${matHint.value} → ${affinityKey})`
+                  )
+                }
+              }
+            }
             firstTurnResolverResult = {
               source: "stage1",
               action: "execute",
@@ -5080,8 +5105,16 @@ async function handleServeExplorationInner(
               // Match against the FULL candidate pool (fullDisplayedCandidates), not just the top-N
               // displayed page — matching against the page would falsely report 0 even when the
               // full pool has matches (e.g. 전장 100 ↑ 가 page 밖 480개 안에만 있는 경우).
+              //
+              // Skip rollback on SAME-FIELD replacement: when the user changes the value of a
+              // field already in the filter set (e.g. 구리 → 알루미늄 on workPieceName), the prev
+              // pool is filtered by the OLD value and won't match the new value by definition.
+              // That is not a "narrowing to 0" case — it's a switch, which re-queries from scratch.
+              const hasSameFieldReplacement = appliedBuiltFilters.some(f =>
+                prevFiltersSnapshot.some(p => p.field === f.field),
+              )
               let rolledBack = false
-              if (appliedBuiltFilters.length > 0 && prevCandidatePool.length >= 1 && prevFiltersSnapshot.length > 0) {
+              if (appliedBuiltFilters.length > 0 && prevCandidatePool.length >= 1 && prevFiltersSnapshot.length > 0 && !hasSameFieldReplacement) {
                 const matchCount = prevCandidatePool.filter(c =>
                   appliedBuiltFilters.every(f => candidateMatchesAppliedFilter(c, f))
                 ).length
