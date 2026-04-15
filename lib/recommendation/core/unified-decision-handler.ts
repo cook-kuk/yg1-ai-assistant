@@ -78,7 +78,11 @@ function sanitizeUnifiedFilter(uf: UnifiedFilter, kind: string | undefined): Uni
   return out
 }
 
-function unifiedFilterToApplied(ufIn: UnifiedFilter, appliedAt: number): AppliedFilter[] {
+function unifiedFilterToApplied(
+  ufIn: UnifiedFilter,
+  appliedAt: number,
+  prevFilters: AppliedFilter[],
+): AppliedFilter[] {
   // 환각 필드 게이트 — registry 에 없으면 버린다
   const def = getFilterFieldDefinition(ufIn.field)
   if (!def) {
@@ -86,6 +90,28 @@ function unifiedFilterToApplied(ufIn: UnifiedFilter, appliedAt: number): Applied
     return []
   }
   const uf = sanitizeUnifiedFilter(ufIn, def.kind)
+
+  // Numeric soft→hard: LLM 이 처음 추출한 numeric 필터는 hard WHERE 로 걸지 않는다.
+  // prev.appliedFilters 에 같은 field 가 이미 있으면 (이전 턴 soft 포함) → 사용자가
+  // 이미 본 필드 → hard 로 승격. 아니면 op="soft_numeric_pending" 로 저장해서
+  // 다음 턴 재언급 시 merge 로 자동 promote.
+  const fieldPreviouslySeen = prevFilters.some(f => f.field === uf.field)
+  const isFreshNumericEq =
+    def.kind === "number" &&
+    !fieldPreviouslySeen &&
+    (uf.op === "eq" || uf.op === "like") // between/gte/lte 는 사용자가 이미 범위를 명시한 것 → hard
+  if (isFreshNumericEq) {
+    const rawValue = uf.value
+    if (rawValue === undefined || rawValue === null || rawValue === "") return []
+    const softFilter: AppliedFilter = {
+      field: uf.field,
+      op: "soft_numeric_pending",
+      value: String(rawValue),
+      rawValue: typeof rawValue === "boolean" ? rawValue : (rawValue as string | number),
+      appliedAt,
+    }
+    return [softFilter]
+  }
 
   // between 은 AppliedFilter 한 개(op=between, rawValue/rawValue2) 로 표현
   if (uf.op === "between" && uf.value2 !== undefined) {
@@ -111,10 +137,14 @@ function unifiedFilterToApplied(ufIn: UnifiedFilter, appliedAt: number): Applied
   return built ? [built] : []
 }
 
-function convertDecisionFilters(decision: UnifiedDecision, appliedAt: number): AppliedFilter[] {
+function convertDecisionFilters(
+  decision: UnifiedDecision,
+  appliedAt: number,
+  prevFilters: AppliedFilter[],
+): AppliedFilter[] {
   const out: AppliedFilter[] = []
   for (const uf of decision.filters) {
-    out.push(...unifiedFilterToApplied(uf, appliedAt))
+    out.push(...unifiedFilterToApplied(uf, appliedAt, prevFilters))
   }
   return out
 }
@@ -283,7 +313,8 @@ export async function handleUnifiedPath(
 
   // 6) recommend / refine — DB 조회 + 카드 or 칩
   const turnCount = (prevState?.turnCount ?? 0) + 1
-  const appliedFiltersNext = convertDecisionFilters(decision, turnCount)
+  const prevApplied = prevState?.appliedFilters ?? []
+  const appliedFiltersNext = convertDecisionFilters(decision, turnCount, prevApplied)
 
   // recommend = fresh filters, refine = prev + new (중복 필드는 새 값으로 대체)
   const mergedFilters: AppliedFilter[] = (() => {
@@ -294,9 +325,10 @@ export async function handleUnifiedPath(
     return [...byField.values()]
   })()
 
-  // Build RecommendationInput
+  // Build RecommendationInput — soft_numeric_pending 은 아직 hard 아님 → input 에 주입 X
   let input: RecommendationInput = deps.mapIntakeToInput(form)
   for (const f of mergedFilters) {
+    if (f.op === "soft_numeric_pending") continue
     try { input = deps.applyFilterToInput(input, f) } catch { /* no-op */ }
   }
 

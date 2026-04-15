@@ -35,6 +35,8 @@ interface FilterFieldDefinition {
   op: "eq" | "includes" | "range"
   canonicalField?: string
   unit?: string
+  /** Source columns referenced in WHERE clauses (populated by factory). */
+  dbColumns?: string[]
   canonicalizeRawValue?: (rawValue: string | number | boolean) => string | number | boolean | null
   setInput?: (input: RecommendationInput, filter: AppliedFilter) => RecommendationInput
   clearInput?: (input: RecommendationInput) => RecommendationInput
@@ -1702,6 +1704,8 @@ export function applyPostFilterToProducts(
 ): CanonicalProduct[] | null {
   // skip 필터는 후처리에서도 제외
   if (filter.op === "skip") return null
+  // soft_numeric_pending: 아직 hard 필터 아님 → 후처리도 스킵 (전체 통과)
+  if (filter.op === "soft_numeric_pending") return null
   const definition = getFilterFieldDefinition(filter.field)
   if (!definition?.matches) return null
 
@@ -1718,6 +1722,11 @@ export function buildDbWhereClauseForFilter(
 ): string | null {
   // skip 필터는 DB 쿼리에서 제외 — "상관없음"으로 WHERE 걸리면 0건
   if (filter.op === "skip") return null
+
+  // soft_numeric_pending: 첫 턴에 추출된 numeric 필터 (diameter/length/flutes/cornerR 등).
+  // 사용자가 재확정하기 전엔 hard WHERE 로 걸지 않는다. session appliedFilters 에는
+  // 남겨서 다음 턴 LLM 이 같은 field 를 emit 하면 merge 로 op 교체 → 자동 promote.
+  if (filter.op === "soft_numeric_pending") return null
 
   // SQL Agent rawSqlField → 동적 스키마 검증 후 직접 WHERE절 생성.
   // 화이트리스트 제거: DB에 추가되는 모든 컬럼이 자동으로 필터 가능해야 함.
