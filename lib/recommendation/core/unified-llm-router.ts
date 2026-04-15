@@ -106,7 +106,9 @@ function buildCanonicalFieldsSection(schema: DbSchema): string {
     } else if (kind === "string" && samples && samples.length > 0) {
       extras = ` | 샘플=${samples.slice(0, 6).map(v => JSON.stringify(v)).join(",")}`
     }
-    lines.push(`- ${def.field} [${kind}${unit}]${label}${extras}`)
+    const aliases = (def.queryAliases ?? []) as string[]
+    const aliasText = aliases.length > 0 ? ` | 별칭=${aliases.slice(0, 8).join("/")}` : ""
+    lines.push(`- ${def.field} [${kind}${unit}]${label}${extras}${aliasText}`)
   }
   return lines.join("\n")
 }
@@ -294,6 +296,8 @@ function buildSystemPrompt(schemaPrompt: string, appliedFiltersText: string, can
     "   '정도/쯤/약/대략' → between (±10~15%).",
     "   '말고/빼고/제외' → neq.",
     "   '이상/넘는' → gte, '이하/미만' → lte, '사이/~' → between.",
+    "   숫자 필터의 value 는 순수 숫자만 (예: 10). 단위(mm/°/rpm/RPM) 를 붙이지 말 것.",
+    "   '별칭' 에 매칭되는 사용자 표현은 그 필드로 바로 emit (예: '넥경' → neckDiameterMm).",
     "",
     "━━ intent 가이드 ━━",
     "- recommend: 새 추천/검색 요청 (필터 적용)",
