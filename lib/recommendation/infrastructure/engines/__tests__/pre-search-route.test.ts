@@ -59,8 +59,8 @@ describe("classifyPreSearchRoute", () => {
       unavailableProvider,
     )
 
-    expect(result.kind).toBe("general_knowledge")
-    expect(result.reason).toContain("taxonomy_knowledge")
+    expect(result?.kind).toBe("general_knowledge")
+    expect(result?.reason).toContain("taxonomy_knowledge")
   })
 
   it("routes taxonomy explanation questions to general_knowledge before search", async () => {
@@ -70,8 +70,8 @@ describe("classifyPreSearchRoute", () => {
       unavailableProvider,
     )
 
-    expect(result.kind).toBe("general_knowledge")
-    expect(result.reason).toContain("taxonomy_knowledge")
+    expect(result?.kind).toBe("general_knowledge")
+    expect(result?.reason).toContain("taxonomy_knowledge")
   })
 
   it("routes explicit product info questions to direct_lookup", async () => {
@@ -81,8 +81,8 @@ describe("classifyPreSearchRoute", () => {
       unavailableProvider,
     )
 
-    expect(result.kind).toBe("direct_lookup")
-    expect(result.reason).toContain("query_target:product_info")
+    expect(result?.kind).toBe("direct_lookup")
+    expect(result?.reason).toContain("query_target:product_info")
   })
 
   it("routes explicit product comparison questions to direct_lookup", async () => {
@@ -92,11 +92,13 @@ describe("classifyPreSearchRoute", () => {
       unavailableProvider,
     )
 
-    expect(result.kind).toBe("direct_lookup")
-    expect(result.reason).toContain("query_target:product_comparison")
+    expect(result?.kind).toBe("direct_lookup")
+    expect(result?.reason).toContain("query_target:product_comparison")
   })
 
-  it("keeps recommendation narrowing answers in recommendation_action", async () => {
+  it("passes through recommendation/narrowing messages (returns null)", async () => {
+    // recommendation_action 분기 제거 이후: 추천/필터 의도로 보이는 메시지는
+    // pre-search 가 판단하지 않고 downstream unified judgment + filter resolver 로 넘긴다.
     const result = await classifyPreSearchRoute(
       "알루미늄으로 해줘",
       makeState({
@@ -106,33 +108,29 @@ describe("classifyPreSearchRoute", () => {
       unavailableProvider,
     )
 
-    expect(result.kind).toBe("recommendation_action")
+    expect(result).toBeNull()
   })
 
-  it("respects LLM classification for natural-tone message (no regex filter-hint override)", async () => {
-    // Phase 2-A: LLM 판단을 regex filter-hint 가 override 하지 않는다.
-    // unavailableProvider → DEFAULT_JUDGMENT → queryTarget.type 에 따라 direct_lookup 또는 recommendation_action.
-    // 이전 동작(regex 2개 이상이면 recommendation_action 강제)은 제거됨.
+  it("passes through natural-tone message with filter hints (no regex override)", async () => {
+    // pre-search 는 "이건 추천이다" 를 강제하지 않음 — LLM 판단 존중.
+    // direct_lookup 이 아니면 null 반환하여 downstream resolver 로 넘김.
     const result = await classifyPreSearchRoute(
       "10mm 4날 쓸건데 괜찮은 거 있을까",
       makeState({ turnCount: 0, currentMode: "intake", lastAskedField: undefined }),
       unavailableProvider,
     )
 
-    // LLM regex override 제거 이후로는 direct_lookup / recommendation_action 둘 다 허용.
-    expect(["direct_lookup", "recommendation_action"]).toContain(result.kind)
+    // direct_lookup 가능 또는 null (pass-through).
+    expect(result === null || result.kind === "direct_lookup").toBe(true)
   })
 
   it("preserves pure knowledge question even with filter hint (LLM says explain)", async () => {
-    // regex 제거 이후: LLM이 "explain" 판단을 내리고 taxonomy 매칭이 없더라도
-    // filter_hints_override는 material만으로는 1개 미만 → general_knowledge 유지.
-    // 단, 이 케이스는 "스테인리스가 뭐야?" — isCuttingToolTaxonomyKnowledgeQuestion으로도 잡힘 가능.
     const result = await classifyPreSearchRoute(
       "스테인리스가 뭐야?",
       makeState({ turnCount: 0, currentMode: "intake", lastAskedField: undefined }),
       makeExplainProvider(),
     )
 
-    expect(result.kind).toBe("general_knowledge")
+    expect(result?.kind).toBe("general_knowledge")
   })
 })

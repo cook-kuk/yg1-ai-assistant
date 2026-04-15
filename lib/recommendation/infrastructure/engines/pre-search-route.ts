@@ -14,7 +14,6 @@ import { canonicalizeToolSubtype, extractFluteCount } from "@/lib/recommendation
 export type PreSearchRouteKind =
   | "general_knowledge"
   | "direct_lookup"
-  | "recommendation_action"
 
 export interface PreSearchRouteDecision {
   kind: PreSearchRouteKind
@@ -58,7 +57,7 @@ export async function classifyPreSearchRoute(
   userMessage: string,
   sessionState: ExplorationSessionState | null,
   provider: LLMProvider
-): Promise<PreSearchRouteDecision> {
+): Promise<PreSearchRouteDecision | null> {
   const queryTarget = classifyQueryTarget(
     userMessage,
     activeFilterField(sessionState),
@@ -141,8 +140,7 @@ export async function classifyPreSearchRoute(
     }
   }
 
-  return {
-    kind: "recommendation_action",
-    reason: `default:${queryTarget.type}/${judgment.intentAction}`,
-  }
+  // pass-through: 추천/필터 흐름은 downstream resolver(unified judgment + filter resolver)가 결정.
+  // pre-search 가 "이건 추천이다"를 강제하지 않는다 — LLM 판단 존중.
+  return null
 }

@@ -6108,7 +6108,7 @@ async function handleServeExplorationInner(
         }
 
         // 6. PreSearch non-recommendation route (only if no revision, no filter)
-        if (!revisionResult && !filterResult && preSearchResult && preSearchResult.kind !== "recommendation_action") {
+        if (!revisionResult && !filterResult && preSearchResult) {
           if (bareRecommendationRequest) {
             console.log(`[runtime:pre-route] bare recommendation request bypassed ${preSearchResult.kind} (${preSearchResult.reason})`)
           } else {

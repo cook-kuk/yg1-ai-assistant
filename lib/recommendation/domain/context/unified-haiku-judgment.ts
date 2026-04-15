@@ -151,6 +151,11 @@ export function buildJudgmentPrompt(input: UnifiedJudgmentInput): string {
 6. domainRelevance: product_query|company_query|cutting_condition|competitor|greeting|off_topic|narrowing_response
    - 소재 키워드(SUS, SCM, S45C, 알루미늄, 스테인리스, 티타늄 등) + 품질/적합 표현("괜찮은", "적합한", "좋은 거", "추천", "어떤 거") → product_query (off_topic 아님!)
 7. intentAction: select_option(칩/값 선택)|ask_recommendation(추천 요청)|compare(비교+설명 둘 다)|explain(설명요청)|reset_session(처음부터)|refine_condition(조건변경)|skip_field(건너뛰기)|undo(되돌리기)|continue(진행)|off_topic(무관)
+   - [도메인 토큰 해석 원칙] 사용자 입력이 짧은 도메인 토큰(예: "4날", "10mm", "DLC", "알루미늄")일 때:
+     · 직전 턴이 설명/추천이었으면 → follow-up 으로 판단 (explain 또는 continue). 도메인 키워드 존재만으로 ask_recommendation/refine_condition 으로 넘기지 말 것.
+     · 세션 시작(이전턴action=none, 필터 0개)이면 → ask_recommendation (추천 의도).
+     · "추천", "해줘", "찾아", "보여줘", "있어?", "구해줘" 등 명시적 요청 표현이 있으면 → 항상 ask_recommendation (맥락 무시).
+     · 도메인 키워드 존재 자체는 의도 판단 근거가 아님. 맥락(이전턴action) + 명시적 요청 표현만 근거로 삼을 것.
    - "차이점", "비교", "A와 B", "A랑 B", "vs" → intentAction: "compare" (narrowing 중이어도). compare는 비교표+설명 둘 다 제공
    - 시리즈/브랜드 이름이 2개 이상 언급되면 → intentAction: "compare"
    - "변경", "바꾸고", "바꿔", "틀렸", "실수", "다시", "고치" + 필드명(날수/직경/코팅/형상/소재) → intentAction: "refine_condition" (select_option 아님!)
