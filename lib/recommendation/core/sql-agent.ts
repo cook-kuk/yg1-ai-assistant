@@ -406,6 +406,38 @@ NEVER use eq when the user expressed a range:
 - 국가 (text[]): 국내/한국 → eq "KOR" · 미국/인치 → eq "USA" · 유럽 → eq "ENG" · 일본 → eq "JPN"
 - 모호한 표현(좋은 거/추천해줘/괜찮은 거/범용/다양한) → []
 
+## Critical Field Disambiguation (오추론 빈발 케이스 — 반드시 준수)
+
+**1. 근사 표현 → between (eq 절대 금지)**
+"정도", "쯤", "약", "대략", "근처", "around", "approximately" 가 숫자 뒤에 붙으면 op는 반드시 between (값 ±10~15%):
+- "날장이 40 정도" → between 35~45 (eq 40 금지)
+- "약 10mm" → between 9~11
+- "직경 8mm 정도" → between 7~9
+정확한 값을 원할 때만 사용자가 "정확히", "딱", "exactly" 같은 단어를 씁니다 — 그때만 eq.
+
+**2. workPieceName ↔ material (둘 다 emit 금지)**
+workPieceName(피삭재)과 material/toolMaterial(공구재질)은 다른 개념이지만, 사용자가 피삭재만 말했을 때 toolMaterial까지 추측해 emit 하지 마세요.
+- "피삭재는 티타늄" → workPieceName="Titanium" 만. (toolMaterial 추측 금지)
+- "티타늄 가공용" → workPieceName="Titanium" 만.
+- 사용자가 명시적으로 "카바이드/HSS 공구" 라고 해야만 toolMaterial emit.
+
+**3. cornerRadiusMm ↔ ballRadiusMm (혼동 금지)**
+- "코너R", "코너 레디우스", "코너 R", "corner R", "R값", "라디우스" → cornerRadiusMm
+- "볼 반경", "볼 R", "ball radius" → ballRadiusMm
+cornerR = 엔드밀(Square/Radius) 모서리의 라운드 반경
+ballR = 볼노즈(Ball) 엔드밀의 구 반경 (≈ diameterMm/2)
+사용자가 "코너" 라고 명시했으면 절대 ballRadiusMm 로 가지 마세요.
+
+**4. workPieceName 값 정규화 (DB canonical 영문)**
+한글/약칭을 그대로 emit 하지 말고 DB workpieces 리스트의 정확한 표기로 매핑:
+- 알루미늄/알미늄/알루/aluminum/Al → "Aluminum"
+- 스테인리스/스텐/SUS/stainless → "Stainless Steels"
+- 탄소강/SM45C/일반강/carbon steel → "Carbon Steels"
+- 주철/FC/FCD/cast iron → "Cast Iron"
+- 티타늄/Ti/titanium → "Titanium"
+- 인코넬/내열합금/inconel/HRSA → "Heat Resistant Alloys"
+위 wpList(Workpiece Materials) 섹션의 실제 normalized_work_piece_name 값을 우선 참고하세요. 한글값(예: "알루미늄") 그대로 emit 하면 DB 매칭 실패.
+
 ## Examples (dynamically selected — most similar to current query from golden set)
 ${userMessage ? (buildFewShotText(selectFewShots(userMessage, 4)) || "(no matching examples found — fall back to schema-driven reasoning)") : "(no user message context — generic mode)"}
 

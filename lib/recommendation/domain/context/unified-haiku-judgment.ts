@@ -157,6 +157,15 @@ export function buildJudgmentPrompt(input: UnifiedJudgmentInput): string {
    - "N날로 해줘", "코팅 바꿔줘" 같은 직접 값 지정도 refine_condition
    - "재고 있는 것만", "재고 확인", "즉시 구매", "재고 된 거만" → domainRelevance: "product_query", intentAction: "select_option" (재고 필터링)
    - "쉽게 설명해줘", "쉽게 알려줘", "설명해줘", "뭐가 다른거야", "어떤 차이" → intentAction: "explain" (현재 표시된 선택지/시리즈 설명)
+   - [탐색형 질문 = 필터 아님, 무조건 explain] 아래 패턴은 "옵션 목록/종류를 알려달라"는 정보 요청이므로 절대 ask_recommendation 으로 분류하지 말 것:
+     · "뭐가 있어?", "뭐가 있나?", "뭐뭐 있어?"
+     · "종류가 뭐야?", "종류(가/는) 어떻게 돼?"
+     · "어떤 게 있어?", "어떤 것이 있나?", "어떤 (형상/코팅/브랜드/시리즈/타입) 있어?"
+     · "있나요?", "있어요?", "몇 가지야?", "몇 개 있어?"
+     · 소재/카테고리 + "브랜드/시리즈/종류/타입" + "?" (예: "구리 브랜드 뭐가 있어?", "알루미늄용 시리즈 어떤 거 있어?")
+     → 전부 intentAction: "explain", domainRelevance: "product_query" (brand/series 언급돼도 필터로 잡지 말 것)
+     vs "CRX S로 추천해줘"/"TiAlN 코팅으로"/"볼노즈 형상"/"4날" → ask_recommendation (구체적 값 명시 = 필터)
+     구분 핵심: '뭐가/어떤/종류/몇 가지 + ?' = 질문(explain), 구체적 값 명시 = 필터(ask_recommendation)
    - "A 말고 B로", "A 대신 B", "B로 바꿔", "B로 교체" → intentAction: "refine_condition", intentShift: "replace_constraint" (기존 A 제거 → B 적용)
    - 공구 트러블 증상 ("수명 짧", "파손", "치핑", "마모", "진동", "채터", "버", "깨짐") → intentAction: "explain" (원인/해결 설명 요청, 필터링 아님)
    - 소재 키워드 + 품질/적합 표현("괜찮은 거", "적합한 거", "좋은 거", "어떤 게 좋") → intentAction: "ask_recommendation", domainRelevance: "product_query" (off_topic/company_query 아님!)
@@ -186,6 +195,28 @@ export const DEFAULT_JUDGMENT: UnifiedJudgment = {
   fromLLM: false,
 }
 
+/**
+ * LLM 판단 실패 시 fallback. 탐색형 질문 패턴이면 intentAction='explain'으로 보정.
+ * 정상 경로에서는 LLM이 판단하며, 이건 safety net 역할.
+ *
+ * 보정 규칙 (우선순위 순):
+ *  1) 탐색형 어휘(뭐가/어떤/종류/몇 가지/뭐뭐) → explain (항상)
+ *  2) "?" 포함 + 약한 탐색/의문 어휘(있|어떻|무엇|있나) → explain
+ *     (LLM 실패 safety-net: 의문문을 ask_recommendation 으로 잘못 필터링하는 상황 방지)
+ */
+function buildFallbackJudgment(userMessage: string): UnifiedJudgment {
+  const fallback: UnifiedJudgment = { ...DEFAULT_JUDGMENT }
+  const msg = userMessage ?? ""
+  const hasExplicitExploratory = /뭐가\s*있|뭐뭐|있나요|있어요\??$|종류|어떤\s*게|어떤\s*것|몇\s*가지|몇\s*개\s*있/.test(msg)
+  const hasQuestionMark = /[?？]/.test(msg)
+  const hasSoftExploratory = /\b(있\b|있나|있어|있어요|있나요|어떻|무엇|뭐)\b|있\?|있나\?|어떤|무엇|뭐/.test(msg)
+  if (hasExplicitExploratory || (hasQuestionMark && hasSoftExploratory)) {
+    fallback.intentAction = "explain"
+    fallback.domainRelevance = "product_query"
+  }
+  return fallback
+}
+
 /** 캐시: 같은 턴에서 중복 호출 방지 */
 let lastInput: string | null = null
 let lastResult: UnifiedJudgment = DEFAULT_JUDGMENT
@@ -200,7 +231,7 @@ export async function performUnifiedJudgment(
   if (cacheKey === lastInput && lastResult.fromLLM) return lastResult
 
   if (!provider.available()) {
-    return DEFAULT_JUDGMENT
+    return buildFallbackJudgment(input.userMessage)
   }
 
   let rawResponse: string | null = null
@@ -254,12 +285,13 @@ export async function performUnifiedJudgment(
       })
     }
     console.warn("[unified-judgment] Haiku failed:", error)
+    const fallback = buildFallbackJudgment(input.userMessage)
     traceRecommendationError("context.performUnifiedJudgment:error", error, {
       input,
       rawResponse,
-      fallback: DEFAULT_JUDGMENT,
+      fallback,
     })
-    return DEFAULT_JUDGMENT
+    return fallback
   }
 }
 

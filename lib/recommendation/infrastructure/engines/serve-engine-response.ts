@@ -18,6 +18,7 @@ import {
   prepareRequest,
   runFactCheck,
   selectNextQuestion,
+  selectOptionalNarrowing,
 } from "@/lib/recommendation/domain/recommendation-domain"
 import {
   buildExplanationResultPrompt,
@@ -763,9 +764,30 @@ export async function buildQuestionResponse(
   }
 
   // Safety: if no question field options (e.g. 0-candidate guard with overrideText),
-  // provide minimal navigation chips
+  // provide minimal navigation chips + optional narrowing (resolved-but-broad case)
   if (chips.length === 0) {
     const fallbackChips: string[] = []
+    // alreadyResolved 인데 후보가 많으면(>20) 미결정 필드 1개의 narrowing 칩을
+    // 끼워넣어 "결과 + 좁힘 제안" 병행 UX 제공. resolved_exact / 후보 적음은 패스.
+    if (alreadyResolved && totalCandidateCount > 0) {
+      const optionalNarrow = selectOptionalNarrowing(
+        input,
+        candidates,
+        history,
+        filters,
+        totalCandidateCount,
+      )
+      if (optionalNarrow) {
+        for (const chip of optionalNarrow.chips) {
+          if (typeof chip !== "string") continue
+          const trimmed = chip.trim()
+          if (trimmed.length <= 1) continue
+          if (trimmed === "상관없음" || trimmed === "⟵ 이전 단계" || trimmed === "처음부터 다시") continue
+          fallbackChips.push(chip)
+          if (fallbackChips.length >= 4) break
+        }
+      }
+    }
     if (filters.length > 0) fallbackChips.push("⟵ 이전 단계")
     fallbackChips.push("처음부터 다시")
     chips = fallbackChips
@@ -1678,17 +1700,48 @@ export async function buildRecommendationResponse(
     }).catch((err) => { console.warn("[notify] Recommendation notification failed:", err) })
   }
 
+  // ── Optional narrowing: resolved 상태에서도 후보가 많으면 추가 좁힘 제안 ──
+  // selectOptionalNarrowing 이 candidateCount/미결정 필드/infoGain 을 gate 로
+  // "더 좁힐 가치 있는 필드" 를 1개 골라준다. 칩은 해당 필드의 실제 분포에서
+  // 생성되므로 하드코딩 아님. LLM chip-selector 가 이미 선정한 followUpChips 와
+  // 병행 제시 (dedupe 후).
+  const optionalNarrowing = selectOptionalNarrowing(
+    input,
+    candidates,
+    history,
+    filters,
+    totalCandidateCount,
+  )
+  const optionalNarrowingChips = optionalNarrowing
+    ? optionalNarrowing.chips
+        .filter(chip =>
+          typeof chip === "string" && chip.trim().length > 1 &&
+          !["상관없음", "⟵ 이전 단계", "처음부터 다시"].includes(chip)
+        )
+        .slice(0, 4)
+    : []
+
   // ── Post-Answer Validator: strip unauthorized actions from answer ──
   // Direction: displayedOptions → constrain answer (NEVER answer → add chips)
-  // post-result 칩에서 narrowing 칩(소재/날수/개수 포함 칩) 제거 + CTA 버튼 추가
-  const finalRecChips = [
-    ...followUpChips.filter(chip =>
-      typeof chip === "string" && chip.trim().length > 1 &&
-      (!chip.includes("개)") || chip.includes("비교") || chip.includes("보기"))
-    ),
-    `📋 지금 바로 제품 보기 (${totalCandidateCount}개)`,
-    `✨ AI 상세 분석`,
-  ]
+  // post-result 칩에서 followUpChips 의 narrowing 칩(소재/날수/개수 포함 칩)은
+  // 제거하되, selectOptionalNarrowing 이 반환한 "후보가 많아 더 좁힐 수 있다"
+  // 신호의 칩은 유지 (resolved_approximate + candidateCount > 20 케이스).
+  const seenFinalChip = new Set<string>()
+  const finalRecChips: string[] = []
+  const pushChip = (chip: string) => {
+    const key = chip.trim()
+    if (!key || seenFinalChip.has(key)) return
+    seenFinalChip.add(key)
+    finalRecChips.push(chip)
+  }
+  for (const chip of followUpChips) {
+    if (typeof chip !== "string" || chip.trim().length <= 1) continue
+    if (chip.includes("개)") && !chip.includes("비교") && !chip.includes("보기")) continue
+    pushChip(chip)
+  }
+  for (const chip of optionalNarrowingChips) pushChip(chip)
+  pushChip(`📋 지금 바로 제품 보기 (${totalCandidateCount}개)`)
+  pushChip(`✨ AI 상세 분석`)
   const hasCandidatePool = totalCandidateCount > 0 && !!primary
   // RC3: when 0 candidates and filter combo trips domain-guard (e.g. 스테인리스+DLC),
   // replace the generic stub with a deterministic domain warning + alternative suggestion.

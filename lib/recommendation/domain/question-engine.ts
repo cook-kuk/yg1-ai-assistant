@@ -24,7 +24,32 @@ export interface NextQuestion {
   questionText: string
   chips: string[]
   expectedInfoGain: number
+  /** "primary" = 필수 narrowing 질문, "optional_narrowing" = resolved 상태에서 추가 좁힘 제안 */
+  kind?: "primary" | "optional_narrowing"
+  /** optional_narrowing 에서 미결정 필드 목록 (LLM/UI 가 참고) */
+  undecidedFields?: string[]
+  /** optional_narrowing 시점의 후보 수 (LLM 이 칩 표시 여부 판단용) */
+  candidateCount?: number
 }
+
+/**
+ * Optional-narrowing 우선순위 필드.
+ * 사용자 경험상 "조건을 더 좁히고 싶다" 할 때 가장 유용한 상위 필드.
+ * (하드코딩 최소화: filter-field-registry 의 등록된 필드 중 여기 enumerate 된 것만
+ *  narrowing 후보로 사용. 새 필드는 registry 등록 후 이 배열에 추가)
+ */
+const OPTIONAL_NARROWING_PRIORITY_FIELDS = [
+  "toolSubtype",
+  "coating",
+  "fluteCount",
+  "seriesName",
+  "overallLengthMm",
+  "lengthOfCutMm",
+  "shankDiameterMm",
+  "helixAngleDeg",
+  "coolantHole",
+  "cornerRadiusMm",
+]
 
 /**
  * Priority boost weights — higher = more important when entropy is similar.
@@ -135,6 +160,85 @@ export function selectNextQuestion(
     questionText: best.questionText,
     chips,
     expectedInfoGain: best.infoGain,
+    kind: "primary",
+  }
+}
+
+/**
+ * resolved 상태에서 "더 좁힐 수 있는" 미결정 필드 목록을 반환.
+ * filter-field-registry 에 등록된 필드 중 appliedFilters/history 에 없는 것을
+ * OPTIONAL_NARROWING_PRIORITY_FIELDS 순서대로 반환한다.
+ */
+export function getUndecidedFields(
+  input: RecommendationInput,
+  filters: AppliedFilter[],
+  history: NarrowingTurn[],
+): string[] {
+  const applied = new Set<string>()
+  for (const f of filters) {
+    if (f.op === "skip") continue
+    applied.add(f.field)
+  }
+  for (const turn of history) {
+    if (turn.askedField) applied.add(turn.askedField)
+    for (const f of turn.extractedFilters) applied.add(f.field)
+  }
+  // RecommendationInput 에 이미 박힌 값도 "결정됨" 으로 간주
+  if (input.toolSubtype) applied.add("toolSubtype")
+  if (input.coatingPreference) applied.add("coating")
+  if (input.flutePreference) applied.add("fluteCount")
+  if (input.seriesName) applied.add("seriesName")
+  return OPTIONAL_NARROWING_PRIORITY_FIELDS.filter(field => !applied.has(field))
+}
+
+/**
+ * resolved 상태에서 추가 narrowing 을 제안하는 optional-narrowing 질문 생성.
+ *
+ * 규칙:
+ *   - resolved_exact → null (이미 top match 확정, 더 물어볼 필요 없음)
+ *   - candidateCount <= OPTIONAL_NARROWING_MIN_CANDIDATES → null (충분히 좁혀짐)
+ *   - 미결정 필드 없음 → null
+ *   - 위 조건 통과 시 가장 분별력 높은 필드 1개의 칩을 optional_narrowing 으로 반환
+ *
+ * threshold 는 "LLM 이 칩 표시 여부 최종 판단" 을 돕기 위한 후보 생성 gate.
+ * 최종 표시/순서는 chip-selector LLM 또는 호출자가 결정.
+ */
+const OPTIONAL_NARROWING_MIN_CANDIDATES = 20
+
+export function selectOptionalNarrowing(
+  input: RecommendationInput,
+  candidates: ScoredProduct[],
+  history: NarrowingTurn[],
+  filters: AppliedFilter[],
+  candidateCountHint: number = candidates.length,
+): NextQuestion | null {
+  if (candidateCountHint <= OPTIONAL_NARROWING_MIN_CANDIDATES) return null
+  const status = checkResolution(candidates, history, candidateCountHint)
+  if (status === "resolved_exact" || status === "resolved_none") return null
+
+  const undecided = getUndecidedFields(input, filters, history)
+  if (undecided.length === 0) return null
+
+  const undecidedSet = new Set(undecided)
+  const fields = analyzeFields(input, candidates, history)
+    .filter(f => undecidedSet.has(f.field))
+  fields.sort((a, b) => {
+    const scoreA = a.infoGain + getFieldWeight(a.field) * 0.15
+    const scoreB = b.infoGain + getFieldWeight(b.field) * 0.15
+    return scoreB - scoreA
+  })
+
+  const best = fields[0]
+  if (!best || best.infoGain < 0.1) return null
+
+  return {
+    field: best.field,
+    questionText: best.questionText,
+    chips: [...best.chips],
+    expectedInfoGain: best.infoGain,
+    kind: "optional_narrowing",
+    undecidedFields: undecided,
+    candidateCount: candidateCountHint,
   }
 }
 

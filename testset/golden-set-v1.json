@@ -1250,16 +1250,16 @@
       "expected": { "router": "sql-agent", "filtersAdded": [{ "field": "OutsideDia", "op": "between", "rawValue": [10, 12] }], "candidateChange": "decrease" }, "source": "synthetic" },
 
     { "id": "M02", "category": "C", "name": "Milling 외경 lte", "input": "직경 6mm 이하 볼노즈",
-      "expected": { "router": "sql-agent", "filtersAdded": [{ "field": "OutsideDia", "op": "lte", "rawValue": 6 }], "candidateChange": "decrease" }, "source": "synthetic" },
+      "expected": { "router": "sql-agent", "filtersAdded": [{ "field": "diameterMm", "op": "lte", "rawValue": 6 }], "candidateChange": "decrease" }, "source": "synthetic" },
 
     { "id": "M03", "category": "C", "name": "Milling 외경 eq", "input": "외경 정확히 8mm 엔드밀",
       "expected": { "router": "sql-agent", "filtersAdded": [{ "field": "OutsideDia", "op": "eq", "rawValue": 8 }] }, "source": "synthetic" },
 
     { "id": "M04", "category": "C", "name": "Milling 외경 gt", "input": "외경 20mm 초과 엔드밀",
-      "expected": { "router": "sql-agent", "filtersAdded": [{ "field": "OutsideDia", "op": "gt", "rawValue": 20 }] }, "source": "synthetic" },
+      "expected": { "router": "sql-agent", "filtersAdded": [{ "field": "diameterMm", "op": "gt", "rawValue": 20 }] }, "source": "synthetic" },
 
     { "id": "M05", "category": "C", "name": "Milling 전체길이 gte", "input": "전체 길이 100mm 이상 엔드밀",
-      "expected": { "router": "sql-agent", "filtersAdded": [{ "field": "OverAllLength", "op": "gte", "rawValue": 100 }] }, "source": "synthetic" },
+      "expected": { "router": "sql-agent", "filtersAdded": [{ "field": "overallLengthMm", "op": "gte", "rawValue": 100 }] }, "source": "synthetic" },
 
     { "id": "M06", "category": "C", "name": "Milling 절삭길이 between", "input": "절삭 길이 30mm에서 50mm 사이",
       "expected": { "router": "sql-agent", "filtersAdded": [{ "field": "LengthofCut", "op": "between", "rawValue": [30, 50] }] }, "source": "synthetic" },
@@ -1271,7 +1271,7 @@
       "expected": { "router": "sql-agent", "filtersAdded": [{ "field": "NeckDiameter", "op": "lte", "rawValue": 4 }] }, "source": "synthetic" },
 
     { "id": "M09", "category": "C", "name": "Milling 코너R between", "input": "코너 R 0.5mm에서 2mm 사이",
-      "expected": { "router": "sql-agent", "filtersAdded": [{ "field": "RadiusAll", "op": "between", "rawValue": [0.5, 2] }] }, "source": "synthetic" },
+      "expected": { "router": "sql-agent", "filtersAdded": [{ "field": "cornerRadiusMm", "op": "between", "rawValue": [0.5, 2] }] }, "source": "synthetic" },
 
     { "id": "M10", "category": "C", "name": "Milling 커터경 gte 페이스밀", "input": "커터 직경 50mm 이상 페이스밀",
       "expected": { "router": "sql-agent", "filtersAdded": [{ "field": "Cutter_Diameter", "op": "gte", "rawValue": 50 }] }, "source": "synthetic" },
@@ -1283,7 +1283,7 @@
       "expected": { "router": "sql-agent", "filtersAdded": [{ "field": "NumberofFlute", "op": "between", "rawValue": [2, 6] }] }, "source": "synthetic" },
 
     { "id": "M13", "category": "C", "name": "Milling 날수 비현실 (0건 fallback)", "input": "날수 100장 이상 엔드밀",
-      "expected": { "router": "sql-agent", "filtersAdded": [{ "field": "NumberofFlute", "op": "gte", "rawValue": 100 }], "candidateChange": "zero", "lastAction": "show_recommendation", "topProductHint": "0건 fallback 칩 노출" }, "source": "synthetic" },
+      "expected": { "router": "sql-agent", "filtersAdded": [{ "field": "fluteCount", "op": "gte", "rawValue": 100 }], "candidateChange": "zero", "lastAction": "show_recommendation", "topProductHint": "0건 fallback 칩 노출" }, "source": "synthetic" },
 
     { "id": "M14", "category": "C", "name": "Milling 헬릭스각 between", "input": "헬릭스 각 30도에서 45도 사이",
       "expected": { "router": "sql-agent", "filtersAdded": [{ "field": "HelixAngle", "op": "between", "rawValue": [30, 45] }] }, "source": "synthetic" },

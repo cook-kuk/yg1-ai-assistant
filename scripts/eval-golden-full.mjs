@@ -73,7 +73,7 @@ const FIELD_ALIAS = {
   Coating: "coating",
   Cutter_Diameter: "diameterMm",
   ToolMaterial: "toolMaterial",
-  RadiusAll: "ballRadiusMm",
+  RadiusAll: "cornerRadiusMm",
   NeckDiameter: "neckDiameter",
   ShankType: "shankType",
   NeckLength: "neckLength",

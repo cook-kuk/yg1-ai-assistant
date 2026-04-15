@@ -9,6 +9,8 @@ export { prepareRequest } from "@/lib/recommendation/domain/request-preparation"
 export {
   checkResolution,
   selectNextQuestion,
+  selectOptionalNarrowing,
+  getUndecidedFields,
   selectQuestionForField,
   explainQuestionFieldReplayFailure,
   getQuestionFieldPriority,
