@@ -4428,7 +4428,13 @@ async function handleServeExplorationInner(
       !stageOneEditResult
       || !stageOneEditCanExecute
       || stageOneEditResult.intent.type === "skip_field"
-    if (!singleCallHandled && lastUserMsg && allowStageOneDeterministicMerge && !shouldResolvePendingSelectionEarly) {
+    // Judgment gate: explain/question 톤이면 multi-stage-resolver(stage2/stage3) 도 skip.
+    // stage2 는 parameter-extractor LLM 으로 필터를 뽑고, stage3 는 sql-agent 를 재호출
+    // 한다 — 질문 톤인데 필터가 나오면 응답 composer 가 혼란스럽다.
+    if (earlyJudgmentBlocksFilters) {
+      console.log(`[multi-stage-resolver] SKIPPED by judgment gate (intentAction=${earlyJudgment?.intentAction} userState=${earlyJudgment?.userState})`)
+    }
+    if (!singleCallHandled && lastUserMsg && allowStageOneDeterministicMerge && !shouldResolvePendingSelectionEarly && !earlyJudgmentBlocksFilters) {
       // Stateless-replay: when the caller has no session yet (evaluation harness
       // sends each call without session context) prior user turns' filters are
       // lost because this pre-pass only sees the latest message. Join all prior
