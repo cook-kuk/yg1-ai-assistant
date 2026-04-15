@@ -4906,12 +4906,10 @@ async function handleServeExplorationInner(
             agentResult = { ...agentResult, filters: agentResult.filters.filter(f => f.field !== "_qa") }
           }
 
-          // _qa 가 있으면 (필터 동반 여부 무관) → answer_general 경로로 직접 답변.
-          // 특정 제품 단일 필드 질문 (예: "CE7659120 날장길이 얼마?") 은 qaText 를
-          // 그대로 응답 본문으로 쓰고, 카드 렌더 전용 recommendation 파이프라인은 건너뛴다.
-          if (qaFilter) {
+          // _qa만 있고 다른 필터 없음 → answer_general 경로 (narrowing 회피)
+          if (qaFilter && agentResult.filters.length === 0) {
             const qaText = String(qaFilter.value ?? "").trim()
-            console.log(`[_qa] routing to answer_general (filtersAlongside=${agentResult.filters.length})`)
+            console.log(`[_qa] pure Q/A — routing to answer_general`)
             const qaAction = { type: "answer_general" as const, message: qaText }
             bridgedV2Action = qaAction
             bridgedV2OrchestratorResult = { action: qaAction, reasoning: "sql-agent:_qa", agentsInvoked: [], escalatedToOpus: false }
