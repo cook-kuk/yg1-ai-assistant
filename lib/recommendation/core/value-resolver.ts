@@ -96,6 +96,12 @@ export function resolveValue(userValue: string, hintColumn?: string): ResolveRes
   }
 
   // 4단계: 부분 문자열 + 퍼지 매칭
+  // Partial substring 가드: DB 값이 유저 입력 안에 포함되는 경우(`lower.includes(lv)`)는
+  // DB 값 길이와 overlap ratio 모두 충분해야 함. 그렇지 않으면 DB 의 짧은 값
+  // ("2", "a" 같은 1–2 글자 sample)이 "A2765-35" 같은 긴 product-like token 에
+  // 무조건 매칭돼 "A2765-35 → 2" 같은 망가진 auto-correction 이 발생한다.
+  const MIN_PARTIAL_DB_LEN = 3
+  const MIN_PARTIAL_OVERLAP_RATIO = 0.5
   const tolerance = Math.max(2, Math.floor(lower.length * 0.3))
   const fuzzy = allValues
     .map(v => ({ ...v, distance: levenshtein(lower, v.value.toLowerCase()) }))
@@ -105,7 +111,16 @@ export function resolveValue(userValue: string, hintColumn?: string): ResolveRes
   const partial = allValues
     .filter(v => {
       const lv = v.value.toLowerCase()
-      return lv.includes(lower) || lower.includes(lv)
+      if (lv === lower) return false // exact는 이미 위에서 처리됨
+      if (lv.includes(lower)) {
+        // 유저 입력이 DB 값의 substring — 긴 DB 값에서 짧은 유저 입력을 찾는 건 OK
+        return lower.length >= MIN_PARTIAL_DB_LEN
+      }
+      // DB 값이 유저 입력의 substring — DB 값이 충분히 길고 overlap ratio 도 충분해야
+      return (
+        lv.length >= MIN_PARTIAL_DB_LEN &&
+        lv.length / lower.length >= MIN_PARTIAL_OVERLAP_RATIO
+      )
     })
     .map(v => ({ ...v, distance: 0.5 }))
 

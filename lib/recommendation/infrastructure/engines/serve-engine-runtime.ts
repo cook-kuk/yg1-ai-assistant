@@ -5055,6 +5055,24 @@ async function handleServeExplorationInner(
       }
     }
 
+    // deterministic workPieceName → sql-agent hint:
+    // parseDeterministic 이 material-mapping alias (SM 58 / 1311 / S355NH /
+    // A2765-35 같은 JIS/SS/EN/AISI 규격 코드)에서 workPieceName 을 뽑아도,
+    // SQL agent 는 해당 토큰을 그대로 놔두면 "A2765-35" 같은 제품코드로
+    // 오분류(edp_no)한다. det action 을 hint 로 명시 주입해서 sql-agent 가
+    // 소재명으로 인식하도록 고정한다. detPreActions 가 상단 block 에서
+    // 스킵됐을 수도 있으므로 여기서 lightweight 재실행 (regex 위주라 비용 ~0).
+    if (!singleCallHandled && lastUserMsg && !shouldResolvePendingSelectionEarly && !earlyJudgmentBlocksFilters) {
+      const detLocal = shouldDeferHardcodedSemanticExecution(msg) ? [] : parseDeterministic(msg)
+      const detWorkPieces = detLocal
+        .filter(a => a.type === "apply_filter" && a.field === "workPieceName" && a.value != null)
+      if (detWorkPieces.length > 0) {
+        const detHint = detWorkPieces.map(a => `workPieceName=${a.value}`).join(", ")
+        kgHint = kgHint ? `${kgHint}, ${detHint}` : detHint
+        console.log(`[det:hint:workpiece] "${msg}" → hint: ${detHint}`)
+      }
+    }
+
     // ── 3. SQL Agent: primary handler (Haiku 1회, schema-aware, ~0.5s) ──
     // Handles filters + negation + navigation — replaces deterministic negation handler
     // Wrapped in semantic-cache: identical/synonymous queries with the same filter
@@ -5071,7 +5089,10 @@ async function handleServeExplorationInner(
         const schema = getDbSchemaSync()
         if (schema) {
           const { lookupCache: lookupSemanticCache, storeCache: storeSemanticCache } = await import("@/lib/recommendation/core/semantic-cache")
-          const semanticHit = shouldUseSqlAgentSemanticCache(fullThinkingEnabled)
+          // material-mapping alias(workPieceName 힌트)가 새로 붙은 경우 기존
+          // 캐시 항목은 잘못된 해석(edp_no 등)일 수 있으므로 이 턴에 한해 우회.
+          const hasDetWorkPieceHint = !!kgHint && /workPieceName=/.test(kgHint)
+          const semanticHit = shouldUseSqlAgentSemanticCache(fullThinkingEnabled) && !hasDetWorkPieceHint
             ? lookupSemanticCache(msg, filters)
             : null
           emitStage("sqlAgent", { cacheHit: semanticHit ? "HIT" : "MISS" })
