@@ -61,11 +61,17 @@ const QUALITY_TIERS = [
   { min: 0, ko: "Poor", en: "Poor", cls: "bg-rose-100 text-rose-800 border-rose-300" },
 ] as const
 
-function QualityBadge({ matchPct }: { matchPct: number }) {
+function QualityBadge({ breakdown }: { breakdown: ScoreBreakdown }) {
   const { language } = useApp()
-  const tier = QUALITY_TIERS.find(t => matchPct >= t.min) ?? QUALITY_TIERS[QUALITY_TIERS.length - 1]
+  const mat = breakdown.materialTag
+  if (!mat || mat.max <= 0) return null
+  const pct = Math.round((mat.score / mat.max) * 100)
+  const tier = QUALITY_TIERS.find(t => pct >= t.min) ?? QUALITY_TIERS[QUALITY_TIERS.length - 1]
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wide ${tier.cls}`}>
+    <span
+      className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wide ${tier.cls}`}
+      title={language === "ko" ? `피삭재 적합도 ${pct}%` : `Workpiece fit ${pct}%`}
+    >
       {tier[language]}
     </span>
   )
@@ -395,7 +401,7 @@ function ProductCard({
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="font-mono text-sm font-bold text-gray-900">{product.displayCode}</span>
-              {scored.scoreBreakdown && <QualityBadge matchPct={scored.scoreBreakdown.matchPct} />}
+              {scored.scoreBreakdown && <QualityBadge breakdown={scored.scoreBreakdown} />}
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
               {product.brand && <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">{product.brand}</span>}
@@ -631,7 +637,7 @@ export function CandidateCard({ c }: { c: RecommendationCandidateDto }) {
           </div>
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="font-mono text-sm font-bold text-gray-900">{c.displayCode}</span>
-            {breakdown && <QualityBadge matchPct={breakdown.matchPct} />}
+            {breakdown && <QualityBadge breakdown={breakdown} />}
           </div>
           <div className="text-[11px] text-gray-600 mt-1 leading-relaxed font-medium">
             {buildSubtypeFirstSummary(c, language).join(" · ")}
