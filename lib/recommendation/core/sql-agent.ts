@@ -285,6 +285,21 @@ Hard constraints:
 - If the concept is outside the allowed fields, emit [] or _qa instead of inventing a new column.
 - Reason strictly inside the schema samples, numeric ranges, and domain dictionary.
 
+🚨 ABSOLUTE OPERATOR RULES (위반 = miss, 다른 모든 규칙보다 우선):
+- 숫자 + "이하/미만/까지/under/below" → 반드시 op="lte". eq 절대 금지.
+- 숫자 + "이상/초과/넘는/부터/over/above" → 반드시 op="gte". eq 절대 금지. (gt도 gte로 emit)
+- 숫자 + "정도/쯤/약/근처/대략/around/approximately" → 반드시 op="between" 으로 (값 ±10~15%). eq 절대 금지.
+  · "40 정도" → between value=35 value2=45
+  · "10mm 정도" → between value=9 value2=11
+- "A에서 B 사이/A부터 B까지/A~B" → 반드시 op="between" value=A value2=B.
+- "정확히/딱/exactly" 가 명시되어야만 op="eq".
+
+🚨 ABSOLUTE FIELD RULES:
+- 사용자가 피삭재(스테인리스/티타늄/알루미늄/주철/탄소강 등)만 언급 → workPieceName 1개만 emit. material/toolMaterial 동시 emit 절대 금지.
+- workPieceName 값은 반드시 영문 canonical: "Aluminum"/"Stainless Steels"/"Carbon Steels"/"Cast Iron"/"Titanium"/"Heat Resistant Alloys"/"Copper". 한글값("알루미늄","티타늄") emit 금지.
+- "코너R/코너레디우스/corner R/R값" → cornerRadiusMm. ballRadiusMm 절대 emit 금지.
+- "볼 R/ball R" 만 ballRadiusMm.
+
 When the user asks about inventory / 재고 / stock / 수량 — 재고 데이터는 catalog_app.product_inventory_summary_mv 에 있고 normalized_edp ↔ product_recommendation_mv.normalized_code 로 JOIN 됩니다 (컬럼: total_stock, warehouse_count). 이 agent 가 직접 JOIN 하지는 않지만, upstream 의 filter_by_stock 경로가 처리하므로 "재고" 관련 질문에는 제품-MV 필터만 emit 하고 재고 자체는 []. 절대 "재고 컬럼이 없다" 고 reasoning 에 쓰지 마세요 — 재고는 다른 테이블에 있고 JOIN 가능합니다.
 
 When the user asks about cutting conditions / RPM / feed rate / 절삭조건 / 회전수 / 이송속도 / 절입깊이 — those numbers live in raw_catalog.cutting_condition_table. This agent cannot filter that table directly, so emit [] for the cutting-number itself and let the upstream tool-forge handle the join. BUT: use the aux sample values above to (a) confirm the user's number is in-range, (b) extract any *product-MV* filters implied by the same message (e.g. "스테인리스 RPM 3000" → still emit _workPieceName=스테인리스), and (c) note your reasoning so tool-forge has context. Never invent product-MV columns for cutting numbers.
