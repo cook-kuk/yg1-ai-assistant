@@ -221,38 +221,19 @@ export async function getDbSchema(): Promise<DbSchema> {
   // 이전엔 "ORDER BY col LIMIT 12" 로 최저값만 샘플링해서 LLM이 범위 오판(최저값 12개만 보고
   // 정상 범위 값을 이상치로 거부)하는 구조적 버그가 있었음. 이제 PERCENTILE_CONT 로 분포
   // 대표값을 뽑아 어떤 컬럼이든 일관된 스케일 정보 제공.
-  const numericCols = columns
-    .filter(c => /int|numeric|double|real|decimal|float/i.test(c.data_type))
+  //
+  // 추가: MV 컬럼 대부분이 text 로 저장된 "numeric-as-text"(전장/날장/넥경/코너R 등).
+  // data_type 만으로 필터하면 search_diameter_mm 1개만 남음. 따라서 모든 컬럼을
+  // 통합 쿼리(regex + CAST)로 샘플링 후, 90% 이상이 숫자로 파싱되면 numericStats 에 포함.
+  const numericCandidates = columns
+    .filter(c => !/jsonb|bytea|uuid|timestamp|date|time|bool/i.test(c.data_type))
     .map(c => c.column_name)
 
   const numericStats: Record<string, NumericStat> = {}
-  for (const col of numericCols) {
+  for (const col of numericCandidates) {
     try {
-      const res = await pool.query<{
-        mn: number | null; mx: number | null
-        p10: number | null; p25: number | null; p50: number | null; p75: number | null; p90: number | null
-        nn: string | null; dc: string | null
-      }>(
-        `SELECT
-           MIN(${quoteIdent(col)})::float8 AS mn,
-           MAX(${quoteIdent(col)})::float8 AS mx,
-           PERCENTILE_CONT(0.10) WITHIN GROUP (ORDER BY ${quoteIdent(col)}::float8) AS p10,
-           PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY ${quoteIdent(col)}::float8) AS p25,
-           PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY ${quoteIdent(col)}::float8) AS p50,
-           PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY ${quoteIdent(col)}::float8) AS p75,
-           PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY ${quoteIdent(col)}::float8) AS p90,
-           COUNT(*) FILTER (WHERE ${quoteIdent(col)} IS NOT NULL) AS nn,
-           COUNT(DISTINCT ${quoteIdent(col)}) AS dc
-         FROM catalog_app.product_recommendation_mv
-         WHERE ${quoteIdent(col)} IS NOT NULL`
-      )
-      const row = res.rows[0]
-      if (!row || row.mn == null || row.mx == null) continue
-      numericStats[col] = buildNumericStat({
-        min: Number(row.mn), max: Number(row.mx),
-        p10: Number(row.p10), p25: Number(row.p25), p50: Number(row.p50), p75: Number(row.p75), p90: Number(row.p90),
-        nonNullCount: Number(row.nn ?? 0), distinctCount: Number(row.dc ?? 0),
-      })
+      const stat = await queryNumericStats(pool, "catalog_app.product_recommendation_mv", col)
+      if (stat) numericStats[col] = stat
     } catch { /* skip */ }
   }
 
@@ -318,7 +299,7 @@ export async function getDbSchema(): Promise<DbSchema> {
 
       for (const c of auxRes.rows) {
         const isText = /character|text/i.test(c.data_type)
-        const isNum = /int|numeric|double|real|decimal|float/i.test(c.data_type)
+        const skipType = /jsonb|bytea|uuid|timestamp|date|time|bool/i.test(c.data_type)
         if (isText) {
           try {
             const r = await pool.query<{ v: string }>(
@@ -331,33 +312,11 @@ export async function getDbSchema(): Promise<DbSchema> {
             )
             if (r.rows.length > 0) samples[c.column_name] = r.rows.map(x => x.v)
           } catch { /* skip */ }
-        } else if (isNum) {
+        }
+        if (!skipType) {
           try {
-            const r = await pool.query<{
-              mn: number | null; mx: number | null
-              p10: number | null; p25: number | null; p50: number | null; p75: number | null; p90: number | null
-              nn: string | null; dc: string | null
-            }>(
-              `SELECT
-                 MIN(${quoteIdent(c.column_name)})::float8 AS mn,
-                 MAX(${quoteIdent(c.column_name)})::float8 AS mx,
-                 PERCENTILE_CONT(0.10) WITHIN GROUP (ORDER BY ${quoteIdent(c.column_name)}::float8) AS p10,
-                 PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY ${quoteIdent(c.column_name)}::float8) AS p25,
-                 PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY ${quoteIdent(c.column_name)}::float8) AS p50,
-                 PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY ${quoteIdent(c.column_name)}::float8) AS p75,
-                 PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY ${quoteIdent(c.column_name)}::float8) AS p90,
-                 COUNT(*) FILTER (WHERE ${quoteIdent(c.column_name)} IS NOT NULL) AS nn,
-                 COUNT(DISTINCT ${quoteIdent(c.column_name)}) AS dc
-               FROM ${fq}
-               WHERE ${quoteIdent(c.column_name)} IS NOT NULL`,
-            )
-            const row = r.rows[0]
-            if (!row || row.mn == null || row.mx == null) continue
-            nstats[c.column_name] = buildNumericStat({
-              min: Number(row.mn), max: Number(row.mx),
-              p10: Number(row.p10), p25: Number(row.p25), p50: Number(row.p50), p75: Number(row.p75), p90: Number(row.p90),
-              nonNullCount: Number(row.nn ?? 0), distinctCount: Number(row.dc ?? 0),
-            })
+            const stat = await queryNumericStats(pool, fq, c.column_name)
+            if (stat) nstats[c.column_name] = stat
           } catch { /* skip */ }
         }
       }
@@ -423,6 +382,61 @@ function quoteIdent(name: string): string {
 
 function roundStat(n: number): number {
   return Number.isFinite(n) ? Math.round(n * 1000) / 1000 : n
+}
+
+/**
+ * Regex for PG `~` that accepts signed integers and decimals (no thousands separator).
+ * Kept identical to the SQL literal so DB detection and JS-side validation agree.
+ */
+const NUMERIC_RE_SQL = String.raw`^-?[0-9]*\.?[0-9]+$`
+
+/**
+ * Query MIN/MAX/percentile/distinct-count for `col` in `tableFq`.
+ *  - Works on both numeric and text columns (text stored as numeric-looking strings).
+ *  - Filters rows by `col::text ~ '^-?[0-9]*\.?[0-9]+$'` so non-numeric text noise
+ *    (e.g. "N/A", "TiAlN", "Cemented Carbide") is excluded.
+ *  - Requires ≥ 90% of non-empty values to parse as numeric — otherwise returns null
+ *    (treat the column as text, not a numeric distribution).
+ *  - Single round-trip per column to keep boot cost bounded.
+ */
+async function queryNumericStats(
+  pool: Pool,
+  tableFq: string,
+  col: string,
+): Promise<NumericStat | null> {
+  const qCol = quoteIdent(col)
+  const qColText = `${qCol}::text`
+  const res = await pool.query<{
+    total: string | null; nn: string | null
+    mn: number | null; mx: number | null
+    p10: number | null; p25: number | null; p50: number | null; p75: number | null; p90: number | null
+    dc: string | null
+  }>(
+    `SELECT
+       COUNT(*) FILTER (WHERE ${qCol} IS NOT NULL AND BTRIM(${qColText}) <> '') AS total,
+       COUNT(*) FILTER (WHERE ${qColText} ~ '${NUMERIC_RE_SQL}') AS nn,
+       MIN(CASE WHEN ${qColText} ~ '${NUMERIC_RE_SQL}' THEN ${qColText}::float8 END) AS mn,
+       MAX(CASE WHEN ${qColText} ~ '${NUMERIC_RE_SQL}' THEN ${qColText}::float8 END) AS mx,
+       PERCENTILE_CONT(0.10) WITHIN GROUP (ORDER BY CASE WHEN ${qColText} ~ '${NUMERIC_RE_SQL}' THEN ${qColText}::float8 END) AS p10,
+       PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY CASE WHEN ${qColText} ~ '${NUMERIC_RE_SQL}' THEN ${qColText}::float8 END) AS p25,
+       PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY CASE WHEN ${qColText} ~ '${NUMERIC_RE_SQL}' THEN ${qColText}::float8 END) AS p50,
+       PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY CASE WHEN ${qColText} ~ '${NUMERIC_RE_SQL}' THEN ${qColText}::float8 END) AS p75,
+       PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY CASE WHEN ${qColText} ~ '${NUMERIC_RE_SQL}' THEN ${qColText}::float8 END) AS p90,
+       COUNT(DISTINCT CASE WHEN ${qColText} ~ '${NUMERIC_RE_SQL}' THEN ${qColText} END) AS dc
+     FROM ${tableFq}`,
+  )
+  const row = res.rows[0]
+  if (!row) return null
+  const total = Number(row.total ?? 0)
+  const nn = Number(row.nn ?? 0)
+  if (nn === 0 || total === 0) return null
+  if (nn / total < 0.9) return null
+  if (row.mn == null || row.mx == null) return null
+  return buildNumericStat({
+    min: Number(row.mn), max: Number(row.mx),
+    p10: Number(row.p10), p25: Number(row.p25), p50: Number(row.p50), p75: Number(row.p75), p90: Number(row.p90),
+    nonNullCount: nn, distinctCount: Number(row.dc ?? 0),
+  })
 }
 
 /**
