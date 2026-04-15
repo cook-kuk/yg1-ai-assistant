@@ -214,7 +214,9 @@ export function selectOptionalNarrowing(
 ): NextQuestion | null {
   if (candidateCountHint <= OPTIONAL_NARROWING_MIN_CANDIDATES) return null
   const status = checkResolution(candidates, history, candidateCountHint)
-  if (status === "resolved_exact" || status === "resolved_none") return null
+  // resolved_none (0 candidates) 만 차단. resolved_exact 라도 candidateCount >20 이면
+  // narrowing 칩 제안 (예: top 매치 1개 + 유사 120개 → "더 좁힐까요?")
+  if (status === "resolved_none") return null
 
   const undecided = getUndecidedFields(input, filters, history)
   if (undecided.length === 0) return null
