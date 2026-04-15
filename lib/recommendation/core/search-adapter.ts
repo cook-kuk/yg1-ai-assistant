@@ -86,6 +86,7 @@ export function constraintsToFilters(state: RecommendationSessionState): {
     if (value == null) continue
     const legacyField = BASE_TO_LEGACY_FIELD[key]
     if (!legacyField) continue
+    // TODO: 이 배열 하드코딩 → BASE_TO_LEGACY_FIELD.values() 자동 파생으로 전환
     if (["material", "workPieceName", "diameterMm", "cuttingType", "machiningCategory", "toolType", "toolSubtype", "seriesName", "country"].includes(legacyField)) {
       continue
     }
