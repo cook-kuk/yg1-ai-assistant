@@ -110,6 +110,7 @@ export type AgentName =
   | "self-correction"
   | "turn-repair"
   | "narrative-polish"
+  | "explain-domain"
   | "unified-router"
 
 /** SINGLE SOURCE OF TRUTH — agent → intended weight (tier).
@@ -121,6 +122,7 @@ export const AGENT_TIER: Record<AgentName, ModelTier> = {
   "single-call-router":      "haiku",
   "query-planner":           "haiku",
   "narrative-polish":        "haiku",
+  "explain-domain":          "haiku",
   // Mid: judgment, semantic interpretation, multi-step orchestration
   "intent-classifier":       "sonnet",
   "ambiguity-resolver":      "sonnet",
@@ -150,6 +152,7 @@ export const AGENT_REASONING_EFFORT: Partial<Record<AgentName, ReasoningEffort>>
   "single-call-router":      "minimal",
   "query-planner":           "minimal",
   "narrative-polish":        "minimal",
+  "explain-domain":          "low",
   // Low — light judgment, short answers
   "intent-classifier":       "low",
   "ambiguity-resolver":      "low",
@@ -262,6 +265,7 @@ const AGENT_MODEL_ENV: Record<AgentName, string> = {
   "self-correction":         "AGENT_SELF_CORRECTION_MODEL",
   "turn-repair":             "AGENT_TURN_REPAIR_MODEL",
   "narrative-polish":        "AGENT_NARRATIVE_POLISH_MODEL",
+  "explain-domain":          "AGENT_EXPLAIN_DOMAIN_MODEL",
   "unified-router":          "AGENT_UNIFIED_ROUTER_MODEL",
 }
 

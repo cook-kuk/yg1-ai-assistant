@@ -3738,6 +3738,54 @@ async function handleServeExplorationInner(
     }
   }
 
+  // ── Explain short-circuit ──────────────────────────────────────────
+  // Judgment 이 explain intent 로 잡았고 (도메인 값 + 의문 톤) 필터 게이트로
+  // SQL agent/KG/multi-stage 가 모두 skip 된 케이스. 이대로 두면 후보 0건
+  // → "조건에 맞는 제품을 찾지 못했습니다" fallback 으로 끝나버린다.
+  // LLM 으로 바로 한국어 도메인 설명을 생성해서 user-facing 응답으로 반환.
+  if (
+    earlyJudgmentBlocksFilters &&
+    earlyJudgment?.intentAction === "explain" &&
+    lastUserMsg
+  ) {
+    let explainText = ""
+    try {
+      const modelTier = deps.routingHint?.modelTier === "full" ? "full" : "mini"
+      const systemPrompt =
+        "너는 YG-1 금속 절삭공구 추천 챗봇이다. 사용자의 도메인 질문(날수/직경/코팅/소재/공구 종류 등)에 한국어로 짧고 정확하게 설명한다. 2~4문장. 이모지·서두 인사·불필요한 사족 금지. 추천 제품 코드를 나열하지 말고 개념·트레이드오프·선택 기준에 집중. 마지막에 '추천 받으시려면 가공 소재/직경/방식을 알려주세요' 같은 짧은 안내 한 문장으로 마친다."
+      const result = await executeLlm({
+        agentName: "explain-domain",
+        reasoningTier: "light",
+        modelTier,
+        systemPrompt,
+        userInput: lastUserMsg.text,
+        maxTokens: 400,
+      })
+      explainText = (result.text ?? "").trim()
+    } catch (err) {
+      console.warn(`[explain-branch] LLM failed: ${err instanceof Error ? err.message : err}`)
+    }
+    if (explainText.length >= 5) {
+      console.log(`[explain-branch] generated (${explainText.length}c) for "${lastUserMsg.text.slice(0, 30)}"`)
+      return deps.jsonRecommendationResponse({
+        text: explainText,
+        purpose: "question",
+        chips: prevState?.displayedChips ?? [],
+        isComplete: false,
+        recommendation: null,
+        sessionState: prevState ?? null,
+        evidenceSummaries: null,
+        candidateSnapshot: prevState?.displayedCandidates ?? null,
+        requestPreparation: null,
+        primaryExplanation: null,
+        primaryFactChecked: null,
+        altExplanations: [],
+        altFactChecked: [],
+      })
+    }
+    console.warn(`[explain-branch] empty/short explanation, falling through to legacy path`)
+  }
+
   let singleCallHandled = false
   // ── LLM purpose 존중 ──
   // Resolver(routeHint/intent) 또는 SQL Agent(_qa)가 "이건 정보 조회/상담 질문" 이라고
