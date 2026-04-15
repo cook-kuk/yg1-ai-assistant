@@ -211,14 +211,18 @@ function candidateMatchesAppliedFilter(
   const op = f.op
   if (op === "skip") return true
   if (fieldVal === null || fieldVal === undefined) return op === "neq"
-  if (op === "eq") return String(fieldVal).toLowerCase() === String(f.value).toLowerCase()
-  if (op === "neq") return String(fieldVal).toLowerCase() !== String(f.value).toLowerCase()
+  // f.value is display string ("재고 51개 이상"); f.rawValue is the actual
+  // comparable payload (51). Numeric ops must use rawValue, else Number(display)→NaN
+  // and every candidate fails → false-positive zero-result rollback.
+  const numericPayload = (f as AppliedFilter & { rawValue?: string | number }).rawValue ?? f.value
+  if (op === "eq") return String(fieldVal).toLowerCase() === String(numericPayload).toLowerCase()
+  if (op === "neq") return String(fieldVal).toLowerCase() !== String(numericPayload).toLowerCase()
   const num = Number(fieldVal)
-  if (op === "gte") return Number.isFinite(num) && num >= Number(f.value)
-  if (op === "lte") return Number.isFinite(num) && num <= Number(f.value)
+  if (op === "gte") return Number.isFinite(num) && num >= Number(numericPayload)
+  if (op === "lte") return Number.isFinite(num) && num <= Number(numericPayload)
   if (op === "between") {
-    const lo = Number(f.value)
-    const hi = Number((f as AppliedFilter & { rawValue2?: string | number }).rawValue2 ?? f.value)
+    const lo = Number(numericPayload)
+    const hi = Number((f as AppliedFilter & { rawValue2?: string | number }).rawValue2 ?? numericPayload)
     return Number.isFinite(num) && num >= lo && num <= hi
   }
   return true
