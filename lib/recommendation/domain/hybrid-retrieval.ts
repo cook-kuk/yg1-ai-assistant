@@ -144,10 +144,15 @@ const CATEGORY_SHAPE_MAP: Record<string, Set<string>> = {
 // Products mis-categorised in DB (e.g. edp_root_category='Milling' for TAPs)
 // are caught by checking toolSubtype / productName / seriesName.
 const THREADING_METADATA_RE = /\b(tap|thread|threading|tapping|spiral\s*flute|point\s*tap|roll\s*tap)\b|(?:스파이럴\s*탭|포인트\s*탭|롤\s*탭|전조\s*탭|핸드\s*탭|너트\s*탭|관용\s*탭|탭)/i
+const HOLEMAKING_METADATA_RE = /\b(drill|drilling|reamer|reaming)\b|드릴|리머/i
+const MILLING_FOREIGN_RE = new RegExp(
+  `${THREADING_METADATA_RE.source}|${HOLEMAKING_METADATA_RE.source}`,
+  "i",
+)
 
 /** Keywords that indicate a product belongs to a *different* category. */
 const CROSS_CATEGORY_INDICATORS: Record<string, RegExp> = {
-  Milling: THREADING_METADATA_RE,       // Milling should exclude TAP/Thread
+  Milling: MILLING_FOREIGN_RE,          // Milling should exclude TAP/Thread + Drill/Reamer
   Holemaking: THREADING_METADATA_RE,    // Holemaking should exclude TAP/Thread
 }
 
