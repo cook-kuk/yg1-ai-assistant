@@ -357,6 +357,10 @@ function getCuttingConditionClarificationReply(
   const clean = userMessage.trim()
   if (!CUTTING_CONDITION_QUERY_PATTERN.test(clean)) return null
   if (DIRECT_PRODUCT_CODE_PATTERN.test(clean) || DIRECT_SERIES_CODE_PATTERN.test(clean)) return null
+  // Catalog existence queries like "High-feed 형상 제품 있나요?" should pass through to _qa,
+  // not be deflected as cutting-conditions. "feed" token in shape names (High-feed) false-positives
+  // the cutting-condition regex; this guard recovers when the sentence is clearly an existence query.
+  if (/형상|모양|타입|종류|shape/i.test(clean) && /있(?:나요|어|습니까|는지|을까)|존재|가진\s*제품/.test(clean)) return null
 
   const requestedConditions: string[] = []
   const rpm = clean.match(/(?:rpm|회전수|스핀들(?:\s*속도)?|spindle(?:\s*speed)?)\s*([\d,]+)\s*(이상|이하|초과|미만|\+)/i)
