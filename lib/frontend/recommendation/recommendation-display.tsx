@@ -54,6 +54,23 @@ const STOCK_CONFIG = {
   unknown: { ko: "재고 미확인", en: "Stock Unknown", cls: "bg-gray-100 text-gray-600", dot: "bg-gray-400" },
 }
 
+const QUALITY_TIERS = [
+  { min: 80, ko: "Excellent", en: "Excellent", cls: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+  { min: 60, ko: "Good", en: "Good", cls: "bg-sky-100 text-sky-800 border-sky-300" },
+  { min: 40, ko: "Fair", en: "Fair", cls: "bg-amber-100 text-amber-800 border-amber-300" },
+  { min: 0, ko: "Poor", en: "Poor", cls: "bg-rose-100 text-rose-800 border-rose-300" },
+] as const
+
+function QualityBadge({ matchPct }: { matchPct: number }) {
+  const { language } = useApp()
+  const tier = QUALITY_TIERS.find(t => matchPct >= t.min) ?? QUALITY_TIERS[QUALITY_TIERS.length - 1]
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wide ${tier.cls}`}>
+      {tier[language]}
+    </span>
+  )
+}
+
 function MatchBadge({ status }: { status: "exact" | "approximate" | "none" }) {
   const { language } = useApp()
   const cfg = STATUS_CONFIG[status]
@@ -376,7 +393,10 @@ function ProductCard({
               <MatchBadge status={scored.matchStatus} />
               <StockBadge status={scored.stockStatus} total={scored.totalStock} />
             </div>
-            <div className="font-mono text-sm font-bold text-gray-900">{product.displayCode}</div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-mono text-sm font-bold text-gray-900">{product.displayCode}</span>
+              {scored.scoreBreakdown && <QualityBadge matchPct={scored.scoreBreakdown.matchPct} />}
+            </div>
             <div className="flex items-center gap-1.5 flex-wrap">
               {product.brand && <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">{product.brand}</span>}
               {product.seriesName && <span className="text-xs text-blue-700 font-medium">{product.seriesName}</span>}
@@ -609,7 +629,10 @@ export function CandidateCard({ c }: { c: RecommendationCandidateDto }) {
             <MatchBadge status={c.matchStatus} />
             <StockBadge status={c.stockStatus} total={c.totalStock} />
           </div>
-          <div className="font-mono text-sm font-bold text-gray-900">{c.displayCode}</div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="font-mono text-sm font-bold text-gray-900">{c.displayCode}</span>
+            {breakdown && <QualityBadge matchPct={breakdown.matchPct} />}
+          </div>
           <div className="text-[11px] text-gray-600 mt-1 leading-relaxed font-medium">
             {buildSubtypeFirstSummary(c, language).join(" · ")}
           </div>
