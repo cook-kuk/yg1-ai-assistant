@@ -37,6 +37,12 @@ interface FilterFieldDefinition {
   unit?: string
   /** Source columns referenced in WHERE clauses (populated by factory). */
   dbColumns?: string[]
+  /**
+   * Virtual source table — when the field's WHERE clause is an EXISTS subquery
+   * against a non-product table rather than a direct column on product_recommendation_mv.
+   * Consumers (e.g. deterministic pre-pass) can filter behaviors by this marker.
+   */
+  virtualTable?: "cutting_condition_table" | "product_inventory_summary_mv"
   canonicalizeRawValue?: (rawValue: string | number | boolean) => string | number | boolean | null
   setInput?: (input: RecommendationInput, filter: AppliedFilter) => RecommendationInput
   clearInput?: (input: RecommendationInput) => RecommendationInput
@@ -1341,6 +1347,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "number",
     op: "range",
     unit: "RPM",
+    virtualTable: "cutting_condition_table",
     setInput: input => input,
     clearInput: input => input,
     extractValues: () => [],
@@ -1357,6 +1364,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "number",
     op: "range",
     unit: "mm/rev",
+    virtualTable: "cutting_condition_table",
     setInput: input => input,
     clearInput: input => input,
     extractValues: () => [],
@@ -1370,6 +1378,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "number",
     op: "range",
     unit: "m/min",
+    virtualTable: "cutting_condition_table",
     setInput: input => input,
     clearInput: input => input,
     extractValues: () => [],
@@ -1383,6 +1392,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "number",
     op: "range",
     unit: "mm",
+    virtualTable: "cutting_condition_table",
     setInput: input => input,
     clearInput: input => input,
     extractValues: () => [],
@@ -1483,6 +1493,21 @@ function resolveFieldAlias(field: string): string {
 
 export function getFilterFieldDefinition(field: string): FilterFieldDefinition | null {
   return FILTER_FIELD_DEFINITIONS[resolveFieldAlias(field)] ?? null
+}
+
+/**
+ * Returns the set of registry field names whose WHERE clause targets the given
+ * virtual table (e.g. cutting_condition_table for rpm/feedRate/cuttingSpeed/depthOfCut).
+ * Derived from the registry so adding a new virtual-table field automatically propagates.
+ */
+export function listFilterFieldsByVirtualTable(
+  virtualTable: NonNullable<FilterFieldDefinition["virtualTable"]>
+): ReadonlySet<string> {
+  const fields = new Set<string>()
+  for (const [name, def] of Object.entries(FILTER_FIELD_DEFINITIONS)) {
+    if (def.virtualTable === virtualTable) fields.add(name)
+  }
+  return fields
 }
 
 export function getFilterFieldLabel(field: string): string {
