@@ -3671,21 +3671,27 @@ async function handleServeExplorationInner(
   // 기존 judgment 재호출은 같은 턴 내에서 캐시 히트 (추가 LLM 비용 0).
   //
   // 적용 제외:
-  //   - prevState 없음 (intake 첫턴: auto-synth 메시지라 judgment 불필요)
   //   - shouldResolvePendingSelectionEarly (pending chip 선택 답변 경로)
+  //   - intake 첫턴 auto-synth 메시지 (shouldDeferHardcodedSemanticExecution)
+  //
+  // NOTE: 이전엔 prevState==null 이면 skip 했는데, "세션 리셋 직후 사용자가
+  // '4날은?' 처럼 질문 톤 메시지를 첫 실제 턴으로 보내는" 케이스에서 판정이
+  // 통째로 건너뛰어져 필터 추출이 무력화됐다. prevState 대신 메시지가
+  // intake auto-synth 인지로 판단해야 정확.
   let earlyJudgment: UnifiedJudgment | null = null
-  if (prevState && lastUserMsg && !shouldResolvePendingSelectionEarly) {
+  const isIntakeAutoSynth = !!lastUserMsg && shouldDeferHardcodedSemanticExecution(lastUserMsg.text)
+  if (lastUserMsg && !shouldResolvePendingSelectionEarly && !isIntakeAutoSynth) {
     try {
       earlyJudgment = await performUnifiedJudgment({
         userMessage: lastUserMsg.text,
         assistantText: null,
-        pendingField: prevState.lastAskedField ?? null,
-        currentMode: prevState.currentMode ?? null,
-        displayedChips: prevState.displayedChips ?? [],
+        pendingField: prevState?.lastAskedField ?? null,
+        currentMode: prevState?.currentMode ?? null,
+        displayedChips: prevState?.displayedChips ?? [],
         filterCount: filters.length,
-        candidateCount: prevState.candidateCount ?? 0,
-        hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
-        previousTurnAction: prevState.lastAction ?? null,
+        candidateCount: prevState?.candidateCount ?? 0,
+        hasRecommendation: prevState?.resolutionStatus?.startsWith("resolved") ?? false,
+        previousTurnAction: prevState?.lastAction ?? null,
       }, provider)
     } catch (e) {
       console.warn(`[judgment-gate] early judgment failed, falling through:`, (e as Error).message)
