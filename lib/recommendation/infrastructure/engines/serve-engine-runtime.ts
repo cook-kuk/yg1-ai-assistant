@@ -3286,9 +3286,10 @@ async function handleServeExplorationInner(
             const json = JSON.parse(bodyText)
             if (json && json.purpose === "recommendation") {
               json.purpose = "question"
-              json.candidates = null
+              json.candidates = []
+              json.recommendation = null
               json.isComplete = false
-              console.log(`[questionMode:wrapper] downgraded purpose=recommendation→question, cleared candidates`)
+              console.log(`[questionMode:wrapper] downgraded purpose=recommendation→question, cleared candidates+recommendation (card suppressed)`)
               const overridden = new Response(JSON.stringify(json), {
                 status: wrapped.status,
                 headers: wrapped.headers,
