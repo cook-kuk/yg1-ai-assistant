@@ -313,7 +313,14 @@ When the user asks about inventory / 재고 / stock / 수량 — 재고는 catal
   · "재고 없는" 같은 부정 표현은 emit 금지 (upstream 이 처리).
   · 제품 조건(소재/직경/형상 등) 과 재고가 같이 나오면 제품-MV 필터 + 재고 필터를 **모두** 같은 filters 배열에 emit. "재고 컬럼이 없다/다른 테이블이다" 고 reasoning 에 쓰지 말 것.
 
-When the user asks about cutting conditions / RPM / feed rate / 절삭조건 / 회전수 / 이송속도 / 절입깊이 — those numbers live in raw_catalog.cutting_condition_table. This agent cannot filter that table directly, so emit [] for the cutting-number itself and let the upstream tool-forge handle the join. BUT: use the aux sample values above to (a) confirm the user's number is in-range, (b) extract any *product-MV* filters implied by the same message (e.g. "스테인리스 RPM 3000" → still emit _workPieceName=스테인리스), and (c) note your reasoning so tool-forge has context. Never invent product-MV columns for cutting numbers.
+When the user asks about cutting conditions / RPM / feed rate / 절삭조건 / 회전수 / 이송속도 / 절입깊이 — 이 숫자들은 raw_catalog.cutting_condition_table 에 있고 WHERE-builder 가 EXISTS(c.series_name = edp_series_name) subquery 로 자동 join 합니다. 이 agent 가 절삭조건 필터를 **직접 emit** 하세요 — upstream 에 미루지 말 것. (registry 가 rpm/feedRate/cuttingSpeed/depthOfCut 필드로 등록되어 있고 buildDbClause 가 EXISTS 를 생성합니다.)
+  · "RPM N 이상/회전수 N 초과" → {field:"rpm", op:"gte", value:N}
+  · "RPM N 이하/회전수 N 미만" → {field:"rpm", op:"lte", value:N}
+  · "이송 N/feed N" → {field:"feedRate", op:<이상/이하/between>, value:N}
+  · "절삭속도 N/Vc N" → {field:"cuttingSpeed", op:<...>, value:N}
+  · "절입 N/ap N" → {field:"depthOfCut", op:<...>, value:N}
+  · 이미 rpm/feed 등이 Currently Applied Filters 에 있는데 사용자가 새 값/범위를 말하면 **같은 field 로 재-emit** 하면 runtime 이 기존 값을 교체합니다. 교체 의도가 맞으면 반드시 emit (생략하면 이전 필터가 남음).
+  · 제품 조건(소재/직경/형상 등) 과 절삭조건이 같이 나오면 제품-MV 필터 + 절삭조건 필터를 **모두** 같은 filters 배열에 emit. "절삭조건 컬럼이 없다/다른 테이블이다" 고 reasoning 에 쓰지 말 것 — registry 가 처리합니다. 단 절삭조건 외 개념에 대해서는 제품-MV 컬럼을 발명하지 말 것.
 
 ===DYNAMIC===
 
