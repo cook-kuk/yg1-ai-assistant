@@ -4560,6 +4560,15 @@ async function handleServeExplorationInner(
         detPreActions = currentTurnDetActions
       }
 
+      // 절삭조건 필드(RPM/feedRate/cuttingSpeed/depthOfCut)는 deterministic pre-pass
+      // 에서 제외 → SQL agent CoT 가 담당. 이 필드들은 registry buildDbClause 가
+      // EXISTS(raw_catalog.cutting_condition_table) 로 자동 JOIN 하고, sql-agent.ts
+      // 프롬프트가 직접 emit 하도록 지시돼 있음. pre-pass 가 먼저 short-circuit 하면
+      // CoT 자체가 스킵돼서 값 교체·연산자 재해석이 안 되므로 여기서 걷어낸다.
+      const CUTTING_CONDITION_FIELDS = new Set(["rpm", "feedRate", "cuttingSpeed", "depthOfCut"])
+      currentTurnDetActions = currentTurnDetActions.filter(a => !a.field || !CUTTING_CONDITION_FIELDS.has(a.field))
+      detPreActions = detPreActions.filter(a => !a.field || !CUTTING_CONDITION_FIELDS.has(a.field))
+
       const detApplyActions = detPreActions.filter(a => a.type === "apply_filter" && a.field && a.value != null)
       const effectiveDetApplyActions =
         detApplyActions.filter(action => {
