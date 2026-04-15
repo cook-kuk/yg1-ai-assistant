@@ -3439,6 +3439,52 @@ function buildResolverMaterialContext(args: ResolveMultiStageQueryArgs, unresolv
   return buildScopedMaterialPromptHints(scopedSeed, 4)
 }
 
+const FILTER_MAPPING_COMPLETENESS_PROMPT = `[필터 완전성 원칙]
+사용자가 언급한 모든 조건은 반드시 filters 배열에 포함하세요. 일부만 포함하고 나머지를 누락하지 마세요.
+예: '직경 10mm 이상 12mm 이하 4날 TiAlN 스테인리스'
+→ filters 5개 (diameterMm gte 10, diameterMm lte 12, fluteCount eq 4, coating eq TiAlN, workPieceName eq Stainless Steels).
+사용자가 명시한 수치/값은 전부 filters 에 반영하세요. 5개 조건인데 3개만 포함하면 실패입니다.
+
+[필드 매핑 원칙]
+위 Schema samples 와 Field catalog 를 참고해 사용자 표현 → DB 컬럼을 스스로 매핑하세요.
+모든 수치 컬럼은 필터링 가능합니다. 대표 예시:
+- 직경/외경/지름/파이/φ/ø → diameterMm
+- 전장/전체길이/OAL → overallLengthMm
+- 날장/절삭길이/LOC → lengthOfCutMm
+- 생크직경/샹크 → shankDiameterMm
+- 넥경/넥직경 → neckDiameterMm
+- 넥길이/넥장 → neckLengthMm
+- 유효장/유효길이 → effectiveLengthMm
+- 코너R/코너반경/R값 → cornerRadiusMm
+- 볼반경 → ballRadiusMm
+- 헬릭스/나선각 → helixAngleDeg
+- 포인트각/드릴포인트 → pointAngleDeg
+- 테이퍼각 → taperAngleDeg
+- 피치/나사피치 → threadPitchMm
+- 날수/플루트 → fluteCount
+위 목록은 예시입니다. 실제 매핑은 Field catalog 의 aliases 와 Schema samples 의 컬럼명/샘플을 직접 참고하세요. 목록에 없는 컬럼이라도 스키마에 있으면 필터링 가능합니다. 특정 필드만 특별처리하지 않습니다.
+
+[연산자 매핑]
+- '이상', '넘는', '초과', 'over', '≥' → gte
+- '이하', '미만', '밑', 'under', '≤' → lte
+- 'X에서 Y', 'X~Y', 'X부터 Y까지', 'between X and Y' → between (value=X, value2=Y)
+- '말고', '빼고', '제외', 'not', 'except' → neq
+- 표현이 없으면 → eq (정확히 일치)
+연산자도 하드코딩이 아닙니다. 사용자의 자연어 표현에서 의미를 파악해서 적절한 연산자를 선택하세요.
+
+[소수점/특수 값 처리]
+- 0.5, 1.5, 0.3 같은 소수점 값도 정상 필터링하세요.
+- R0.5 = cornerRadiusMm 0.5 (R 은 radius 접두사)
+- φ12 / ø12 = diameterMm 12 (직경 기호)
+- M10 = threadSize 'M10' (M 은 미터 나사 접두사)
+- 2D / 3D = lengthOfCutMm (직경의 배수, 직경 10mm 이면 2D = 20mm)
+
+[복합 조건 처리]
+같은 필드에 '이상' 과 '이하' 가 동시에 오면 between 으로 합치거나, gte + lte 두 개로 분리해도 됩니다.
+- '10mm 이상 12mm 이하' → between 10~12 (filters 1개) 또는 gte 10 + lte 12 (filters 2개)
+다른 필드의 조건은 각각 독립적으로 filters 배열에 따로 담으세요.
+- '직경 10mm 날수 4개' → diameterMm eq 10 + fluteCount eq 4 (filters 2개)`
+
 function buildStage2Prompt(args: ResolveMultiStageQueryArgs, unresolvedTokens: string[]): { systemPrompt: string; userPrompt: string } {
   const schemaHints = collectSchemaHints(args.message, unresolvedTokens)
   const materialContext = buildResolverMaterialContext(args, unresolvedTokens)
@@ -3464,6 +3510,8 @@ Domain dictionary:
 ${buildResolverDomainDictionary()}
 
 ${SEMANTIC_INTERPRETATION_POLICY_PROMPT}
+
+${FILTER_MAPPING_COMPLETENESS_PROMPT}
 
 숫자+mm만 있고 필드 키워드가 없을 때: 분포 데이터에서 해당 값이 p10~p90 범위 안인 컬럼이 1개뿐이면 → 바로 적용. 여러 컬럼이 해당되면 → 가공 맥락(소재, 날수, 공구 타입 등)이 함께 언급됐으면 diameterMm으로 추정하세요. 절삭공구에서 소재+mm+날수 조합은 거의 100% 직경을 의미합니다.
 
@@ -3570,6 +3618,8 @@ Domain dictionary:
 ${buildResolverDomainDictionary()}
 
 ${SEMANTIC_INTERPRETATION_POLICY_PROMPT}
+
+${FILTER_MAPPING_COMPLETENESS_PROMPT}
 
 숫자+mm만 있고 필드 키워드가 없을 때: 분포 데이터에서 해당 값이 p10~p90 범위 안인 컬럼이 1개뿐이면 → 바로 적용. 여러 컬럼이 해당되면 → 가공 맥락(소재, 날수, 공구 타입 등)이 함께 언급됐으면 diameterMm으로 추정하세요. 절삭공구에서 소재+mm+날수 조합은 거의 100% 직경을 의미합니다.
 

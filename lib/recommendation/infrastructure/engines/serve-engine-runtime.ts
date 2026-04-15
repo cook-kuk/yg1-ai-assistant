@@ -1980,6 +1980,7 @@ export interface ServeEngineRuntimeDependencies {
     language: AppLanguage,
     displayedProducts?: RecommendationDisplayedProductRequestDto[] | null,
     extraResponseContext?: string,
+    purpose?: "recommendation" | "question",
   ) => Promise<Response>
   /**
    * Optional hook fired the moment the SQL agent (or any other source) produces
@@ -3251,8 +3252,26 @@ async function handleServeExplorationInner(
     ...deps,
     jsonRecommendationResponse: (params, init) => {
       syncThinkingToSession(params.sessionState, runtimeThinking)
+      // LLM 이 "이건 질문" 이라고 판단한 턴 (questionMode=true) 에서는 추천 카드 렌더를 막는다.
+      // - purpose → "question"
+      // - candidateSnapshot → [] (세션 fallback (lastRecommendationArtifact) 까지 차단하려면
+      //   nullish 가 아닌 빈 배열로 강제)
+      // - recommendation/evidence/isComplete 도 정리
+      // 이전에는 buildRecommendationResponse 의 Response 를 parse-patch-stringify 하는 꼼수였는데,
+      // 이제 모든 응답의 단일 choke point 에서 처리. narrowing 턴 (questionMode=false + purpose=question)
+      // 은 그대로 두어 cards 표시 가능.
+      const overridden = questionMode
+        ? {
+            ...params,
+            purpose: "question" as const,
+            candidateSnapshot: [],
+            recommendation: null,
+            evidenceSummaries: null,
+            isComplete: false,
+          }
+        : params
       return baseJsonRecommendationResponse({
-        ...params,
+        ...overridden,
         thinkingProcess: params.thinkingProcess ?? runtimeThinking.thinkingProcess,
         thinkingDeep: params.thinkingDeep ?? runtimeThinking.thinkingDeep,
       }, init)
@@ -3274,34 +3293,16 @@ async function handleServeExplorationInner(
       const ctx = passed !== undefined ? passed : proactiveInsightsContext
       const newArgs = [...args] as Parameters<typeof baseBuildRecommendationResponse>
       newArgs[EXTRA_CTX_IDX_R] = ctx
-      try { emitStage("responseCompose", { type: questionMode ? "question" : "recommendation" }) } catch { /* no-op */ }
+      // purpose 는 호출부에서 전달받은 값을 그대로 사용 (16번째 파라미터).
+      // questionMode=true 이면 호출부에서 "question" 을 넘기므로 여기서 override 불필요.
+      const PURPOSE_IDX = EXTRA_CTX_IDX_R + 1
+      const purposeArg = newArgs[PURPOSE_IDX] as "recommendation" | "question" | undefined
+      const effectivePurpose: "recommendation" | "question" = questionMode ? "question" : (purposeArg ?? "recommendation")
+      newArgs[PURPOSE_IDX] = effectivePurpose
+      try { emitStage("responseCompose", { type: effectivePurpose }) } catch { /* no-op */ }
       return baseBuildRecommendationResponse(...newArgs).then(async response => {
         const wrapped = await withThinkingResponse(response, runtimeThinking)
-        // LLM 이 "이건 질문" 이라고 판단한 턴에서는 recommendation 카드 렌더를 막는다.
-        // buildRecommendationResponse 내부는 purpose="recommendation" 을 하드코딩하므로
-        // 경계에서 DTO 의 purpose/candidates 를 question 으로 downgrade.
-        if (questionMode) {
-          try {
-            const bodyText = await wrapped.clone().text()
-            const json = JSON.parse(bodyText)
-            if (json && json.purpose === "recommendation") {
-              json.purpose = "question"
-              json.candidates = []
-              json.recommendation = null
-              json.isComplete = false
-              console.log(`[questionMode:wrapper] downgraded purpose=recommendation→question, cleared candidates+recommendation (card suppressed)`)
-              const overridden = new Response(JSON.stringify(json), {
-                status: wrapped.status,
-                headers: wrapped.headers,
-              })
-              logTurnSummary("question")
-              return overridden
-            }
-          } catch (e) {
-            console.warn(`[questionMode:wrapper] override failed (non-fatal):`, (e as Error).message)
-          }
-        }
-        logTurnSummary("recommendation")
+        logTurnSummary(effectivePurpose)
         return wrapped
       })
     },
@@ -3694,15 +3695,36 @@ async function handleServeExplorationInner(
             await import("@/lib/recommendation/shared/patterns")
           const { buildAppliedFilterFromValue: detBuildFilter } =
             await import("@/lib/recommendation/shared/filter-field-registry")
-          const detHintPairs: Array<{ field: string; value: string | number }> = []
+          // Run every independent extractor and collect all deterministic hints,
+          // regardless of order. minHints is only a gate for LLM fallback, never a
+          // mid-extraction short-circuit. Previously, hits like cornerRadiusMm /
+          // helixAngleDeg / coating already in `stageOneActions` were dropped here
+          // because only the 4 base extractors were consulted for the fast-path set.
+          type DetHint = { field: string; value: string | number; value2?: string | number; op: "eq" | "neq" | "gte" | "lte" | "between" }
+          const detHintPairs: DetHint[] = []
+          const pushHint = (h: DetHint) => {
+            if (!h.field || h.value == null) return
+            if (detHintPairs.some(prev => prev.field === h.field)) return
+            detHintPairs.push(h)
+          }
           const detMat = detExtractMaterial(rawMsg)
-          if (detMat) detHintPairs.push({ field: "material", value: detMat })
+          if (detMat) pushHint({ field: "material", value: detMat, op: "eq" })
           const detDia = detExtractDiameter(rawMsg)
-          if (detDia != null) detHintPairs.push({ field: "diameterMm", value: detDia })
+          if (detDia != null) pushHint({ field: "diameterMm", value: detDia, op: "eq" })
           const detSub = detCanonicalizeToolSubtype(rawMsg)
-          if (detSub) detHintPairs.push({ field: "toolSubtype", value: detSub })
+          if (detSub) pushHint({ field: "toolSubtype", value: detSub, op: "eq" })
           const detFl = detExtractFluteCount(rawMsg)
-          if (detFl != null) detHintPairs.push({ field: "fluteCount", value: detFl })
+          if (detFl != null) pushHint({ field: "fluteCount", value: detFl, op: "eq" })
+          for (const action of stageOneActions) {
+            if (action.type !== "apply_filter") continue
+            if (!action.field || action.value == null) continue
+            pushHint({
+              field: action.field,
+              value: action.value as string | number,
+              value2: action.value2 as string | number | undefined,
+              op: action.op as DetHint["op"],
+            })
+          }
           // Soft-rec / indifference / urgency markers lower the threshold to 1 hint —
           // e.g. "SUS316L 많이 하는데 괜찮은 거?" (1 material hint + 괜찮은) or
           // "아무거나 빨리 10mm" (1 diameter hint + 아무거나/빨리). Without this,
@@ -3713,7 +3735,11 @@ async function handleServeExplorationInner(
           let detFastPathFilters: AppliedFilter[] = []
           if (detHintPairs.length >= minHints) {
             detFastPathFilters = detHintPairs
-              .map(h => detBuildFilter(h.field, h.value, turnCount))
+              .map(h => {
+                const input: string | number | Array<string | number> =
+                  h.op === "between" && h.value2 != null ? [h.value, h.value2] : h.value
+                return detBuildFilter(h.field, input, turnCount, h.op === "eq" ? undefined : h.op)
+              })
               .filter((f): f is AppliedFilter => f !== null)
           }
           if (detFastPathFilters.length >= minHints) {
@@ -5846,6 +5872,17 @@ async function handleServeExplorationInner(
 
       const judgmentResult = judgmentSettled.status === "fulfilled" ? judgmentSettled.value : null
       const preSearchResult = preSearchSettled.status === "fulfilled" ? preSearchSettled.value : null
+
+      // LLM 판단 존중: pre-search 가 direct_lookup / general_knowledge 로 분류했으면 정보 조회 질문이다.
+      // questionMode=true 로 전파하여 downstream 이 카드 없이 텍스트만 응답하게 한다
+      // (jsonRecommendationResponse wrapper 에서 candidateSnapshot=[] 처리).
+      if (preSearchResult && (preSearchResult.kind === "direct_lookup" || preSearchResult.kind === "general_knowledge")) {
+        questionMode = true
+        if (prevState) {
+          ;(prevState as unknown as { __questionMode?: boolean }).__questionMode = true
+        }
+        console.log(`[questionMode] pre-search signal: kind=${preSearchResult.kind} reason=${preSearchResult.reason}`)
+      }
 
       // Step 2: judgment.intentAction 기반으로 deterministic resolver 실행 여부 결정.
       //         의도 판단은 LLM, 값 추출은 resolver 내부의 regex/parser.
