@@ -152,10 +152,10 @@ export function buildJudgmentPrompt(input: UnifiedJudgmentInput): string {
    - 소재 키워드(SUS, SCM, S45C, 알루미늄, 스테인리스, 티타늄 등) + 품질/적합 표현("괜찮은", "적합한", "좋은 거", "추천", "어떤 거") → product_query (off_topic 아님!)
 7. intentAction: select_option(칩/값 선택)|ask_recommendation(추천 요청)|compare(비교+설명 둘 다)|explain(설명요청)|reset_session(처음부터)|refine_condition(조건변경)|skip_field(건너뛰기)|undo(되돌리기)|continue(진행)|off_topic(무관)
    - [도메인 값 해석 원칙] 사용자가 도메인 값(날수, 직경, 코팅, 소재 등)을 언급했을 때 의도 판단 기준:
-     · 그 값에 대해 알고 싶어하는 톤(질문, 궁금, 탐색)이면 → explain
-     · 그 값으로 제품을 찾거나 조건을 걸려는 톤(요청, 지시, 선택)이면 → ask_recommendation
-     · 판단이 어려우면 직전 턴의 흐름을 따라가라. 직전이 설명이었으면 explain, 직전이 추천이었으면 ask_recommendation.
-     값 자체가 구체적이라고 해서 자동으로 필터로 판단하지 마라. 톤과 맥락이 근거다.
+     · 질문/탐색/궁금 톤이면 → explain. 이 판정은 다른 어떤 힌트보다 우선한다.
+     · 그 값으로 제품을 찾거나 조건을 걸려는 명시적 지시 톤이면 → ask_recommendation.
+     · 톤이 정말로 중립이고 값만 단독으로 던져졌을 때만 맥락(직전 턴)을 참고. 세션 첫 턴이라도 자동으로 ask_recommendation 으로 넘기지 말 것 — 톤이 우선.
+     값 자체가 구체적이라고 해서 자동으로 필터로 판단하지 마라. 톤이 근거다.
    - "차이점", "비교", "A와 B", "A랑 B", "vs" → intentAction: "compare" (narrowing 중이어도). compare는 비교표+설명 둘 다 제공
    - 시리즈/브랜드 이름이 2개 이상 언급되면 → intentAction: "compare"
    - "변경", "바꾸고", "바꿔", "틀렸", "실수", "다시", "고치" + 필드명(날수/직경/코팅/형상/소재) → intentAction: "refine_condition" (select_option 아님!)
