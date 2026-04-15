@@ -44,7 +44,8 @@ import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-t
 import { TraceCollector, isDebugEnabled } from "@/lib/debug/agent-trace"
 import { normalizePlannerResult, validatePlannerResult, buildExecutorSummary } from "@/lib/recommendation/core/turn-boundaries"
 import { dryRunReduce, reduce, compareReducerVsActual, type ReducerAction } from "@/lib/recommendation/core/state-reducer"
-import { USE_STATE_REDUCER, USE_CHIP_SYSTEM, isSingleCallRouterEnabled, LLM_FREE_INTERPRETATION, ENABLE_PLANNER_DECISION, ENABLE_STATEFUL_CLARIFICATION_ARBITER } from "@/lib/feature-flags"
+import { USE_STATE_REDUCER, USE_CHIP_SYSTEM, isSingleCallRouterEnabled, LLM_FREE_INTERPRETATION, ENABLE_PLANNER_DECISION, ENABLE_STATEFUL_CLARIFICATION_ARBITER, USE_UNIFIED_LLM } from "@/lib/feature-flags"
+import { handleUnifiedPath } from "@/lib/recommendation/core/unified-decision-handler"
 import { routeSingleCall } from "@/lib/recommendation/core/single-call-router"
 import {
   naturalLanguageToFilters,
@@ -2972,6 +2973,19 @@ export async function handleServeExploration(
         altExplanations: [],
         altFactChecked: [],
       })
+    }
+  }
+
+  // ── Unified LLM path (feature-flagged) ────────────────────────────
+  // USE_UNIFIED_LLM=true 이면 기존 파이프라인 전체를 스킵하고 단일 GPT-5.4 호출로
+  // intent/filters/response/chips 를 전부 결정한다. false (default) 이면 아래 기존
+  // handleServeExplorationInner 경로를 그대로 탄다 — regression 없음.
+  if (USE_UNIFIED_LLM) {
+    try {
+      return await handleUnifiedPath(deps, form, messages, prevState, displayedProducts, language, pagination as RecommendationPaginationDto | null)
+    } catch (err) {
+      try { console.warn(`[unified-handler] failed, falling back to legacy: ${err instanceof Error ? err.message : err}`) } catch { /* no-op */ }
+      // 실패 시 기존 경로로 fall through (아래 코드가 실행됨)
     }
   }
 

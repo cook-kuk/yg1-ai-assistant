@@ -110,6 +110,7 @@ export type AgentName =
   | "self-correction"
   | "turn-repair"
   | "narrative-polish"
+  | "unified-router"
 
 /** SINGLE SOURCE OF TRUTH — agent → intended weight (tier).
  *  Both Anthropic and OpenAI providers consult this so "haiku" means the
@@ -132,6 +133,7 @@ export const AGENT_TIER: Record<AgentName, ModelTier> = {
   "response-composer":       "sonnet",
   "self-correction":         "sonnet",
   "turn-repair":             "sonnet",
+  "unified-router":          "sonnet",
 }
 
 /** Reasoning effort for gpt-5 / o-series models. Lower = faster + cheaper.
@@ -260,6 +262,7 @@ const AGENT_MODEL_ENV: Record<AgentName, string> = {
   "self-correction":         "AGENT_SELF_CORRECTION_MODEL",
   "turn-repair":             "AGENT_TURN_REPAIR_MODEL",
   "narrative-polish":        "AGENT_NARRATIVE_POLISH_MODEL",
+  "unified-router":          "AGENT_UNIFIED_ROUTER_MODEL",
 }
 
 function isModelTier(value: string): value is ModelTier {

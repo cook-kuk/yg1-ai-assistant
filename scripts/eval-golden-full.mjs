@@ -85,6 +85,7 @@ const FIELD_ALIAS = {
   CutterShape: "toolSubtype",                // 커터 형상 → toolSubtype
   RoughingFinishtype: "machiningCategory",   // 황삭/정삭 → machiningCategory
   LengthbelowShank: "neckLength",            // 생크 아래 길이 → neck length
+  RadiusofBallNose: "ballRadiusMm",          // 볼노즈 R → ballRadiusMm (BallRadius와 동일)
 }
 function canonField(f) {
   const s = String(f ?? "").trim()

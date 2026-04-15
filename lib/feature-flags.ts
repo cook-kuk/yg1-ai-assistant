@@ -58,6 +58,15 @@ export const USE_SINGLE_CALL_ROUTER = true
  */
 export const LLM_FREE_INTERPRETATION = envFlag("LLM_FREE_INTERPRETATION", true)
 
+/**
+ * Unified LLM Router — 단일 GPT-5.4 호출로 intent/filters/response/chips를 전부 결정.
+ * ON이면: regex 라우터/unified-judgment/deterministic-scr 추출 경로를 전부 스킵하고
+ *        unifiedLLMRouter → handleUnifiedPath 경로를 탄다.
+ * deterministic-scr 은 OFF 상태에서만 의미가 있으며, ON에서는 "LLM 출력 검증기"로 역할 전환.
+ * Default off — 안전하게 rollout 후 켠다.
+ */
+export const USE_UNIFIED_LLM = envFlag("USE_UNIFIED_LLM", false)
+
 /** Use planner decision layer for single-constraint override. Defaults to true. Set ENABLE_PLANNER_DECISION=false to disable. */
 export const ENABLE_PLANNER_DECISION = envFlag("ENABLE_PLANNER_DECISION", true)
 
