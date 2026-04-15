@@ -14,8 +14,16 @@ import { phoneticKey } from "./phonetic-match"
 export interface NumericStat {
   min: number
   max: number
-  /** Distribution representatives (PERCENTILE_CONT) — LLM 이 값이 분포 어디쯤인지 판단 */
-  percentiles: { p10: number; p25: number; p50: number; p75: number; p90: number }
+  /** PERCENTILE_CONT distribution representatives — LLM 이 값이 분포 어디쯤인지 판단 */
+  p10: number
+  p25: number
+  p50: number
+  p75: number
+  p90: number
+  /** Number of distinct non-null values (for chip cardinality hints) */
+  distinctCount: number
+  /** Number of non-null rows (for prompt context) */
+  nonNullCount: number
   /** Auto-detected distribution anomaly hint (unit mixing suspected). Null when distribution looks clean. */
   unitWarning?: string
 }
@@ -223,6 +231,7 @@ export async function getDbSchema(): Promise<DbSchema> {
       const res = await pool.query<{
         mn: number | null; mx: number | null
         p10: number | null; p25: number | null; p50: number | null; p75: number | null; p90: number | null
+        nn: string | null; dc: string | null
       }>(
         `SELECT
            MIN(${quoteIdent(col)})::float8 AS mn,
@@ -231,7 +240,9 @@ export async function getDbSchema(): Promise<DbSchema> {
            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY ${quoteIdent(col)}::float8) AS p25,
            PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY ${quoteIdent(col)}::float8) AS p50,
            PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY ${quoteIdent(col)}::float8) AS p75,
-           PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY ${quoteIdent(col)}::float8) AS p90
+           PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY ${quoteIdent(col)}::float8) AS p90,
+           COUNT(*) FILTER (WHERE ${quoteIdent(col)} IS NOT NULL) AS nn,
+           COUNT(DISTINCT ${quoteIdent(col)}) AS dc
          FROM catalog_app.product_recommendation_mv
          WHERE ${quoteIdent(col)} IS NOT NULL`
       )
@@ -240,6 +251,7 @@ export async function getDbSchema(): Promise<DbSchema> {
       numericStats[col] = buildNumericStat({
         min: Number(row.mn), max: Number(row.mx),
         p10: Number(row.p10), p25: Number(row.p25), p50: Number(row.p50), p75: Number(row.p75), p90: Number(row.p90),
+        nonNullCount: Number(row.nn ?? 0), distinctCount: Number(row.dc ?? 0),
       })
     } catch { /* skip */ }
   }
@@ -324,6 +336,7 @@ export async function getDbSchema(): Promise<DbSchema> {
             const r = await pool.query<{
               mn: number | null; mx: number | null
               p10: number | null; p25: number | null; p50: number | null; p75: number | null; p90: number | null
+              nn: string | null; dc: string | null
             }>(
               `SELECT
                  MIN(${quoteIdent(c.column_name)})::float8 AS mn,
@@ -332,7 +345,9 @@ export async function getDbSchema(): Promise<DbSchema> {
                  PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY ${quoteIdent(c.column_name)}::float8) AS p25,
                  PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY ${quoteIdent(c.column_name)}::float8) AS p50,
                  PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY ${quoteIdent(c.column_name)}::float8) AS p75,
-                 PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY ${quoteIdent(c.column_name)}::float8) AS p90
+                 PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY ${quoteIdent(c.column_name)}::float8) AS p90,
+                 COUNT(*) FILTER (WHERE ${quoteIdent(c.column_name)} IS NOT NULL) AS nn,
+                 COUNT(DISTINCT ${quoteIdent(c.column_name)}) AS dc
                FROM ${fq}
                WHERE ${quoteIdent(c.column_name)} IS NOT NULL`,
             )
@@ -341,6 +356,7 @@ export async function getDbSchema(): Promise<DbSchema> {
             nstats[c.column_name] = buildNumericStat({
               min: Number(row.mn), max: Number(row.mx),
               p10: Number(row.p10), p25: Number(row.p25), p50: Number(row.p50), p75: Number(row.p75), p90: Number(row.p90),
+              nonNullCount: Number(row.nn ?? 0), distinctCount: Number(row.dc ?? 0),
             })
           } catch { /* skip */ }
         }
@@ -368,7 +384,7 @@ export async function getDbSchema(): Promise<DbSchema> {
     else phantomHintKeys.push(key)
   }
   if (phantomHintKeys.length > 0) {
-    console.warn(`[sql-agent-schema] ${phantomHintKeys.length} phantom column hint(s) skipped (not in MV): ${phantomHintKeys.join(", ")}`)
+    console.log(`[schema-cache] skipped ${phantomHintKeys.length} orphan column descriptions: ${phantomHintKeys.join(", ")}`)
   }
 
   cached = { columns, columnDescriptions, sampleValues, numericStats, auxTables, auxSampleValues, auxNumericStats, workpieces, brands, countries, valueIndex, phoneticIndex, loadedAt: Date.now() }
@@ -416,12 +432,14 @@ function roundStat(n: number): number {
 function buildNumericStat(row: {
   min: number; max: number
   p10: number; p25: number; p50: number; p75: number; p90: number
+  nonNullCount: number; distinctCount: number
 }): NumericStat {
-  const percentiles = {
+  const stat: NumericStat = {
+    min: roundStat(row.min), max: roundStat(row.max),
     p10: roundStat(row.p10), p25: roundStat(row.p25), p50: roundStat(row.p50),
     p75: roundStat(row.p75), p90: roundStat(row.p90),
+    nonNullCount: row.nonNullCount, distinctCount: row.distinctCount,
   }
-  const stat: NumericStat = { min: roundStat(row.min), max: roundStat(row.max), percentiles }
   const warn = detectUnitMix(stat)
   if (warn) stat.unitWarning = warn
   return stat
@@ -434,28 +452,31 @@ function buildNumericStat(row: {
  */
 function detectUnitMix(s: NumericStat): string | null {
   const reasons: string[] = []
-  const { min, max, percentiles: { p10, p90 } } = s
+  const { min, max, p10, p90 } = s
   if (min > 0 && Number.isFinite(max / min) && max / min > 1000) {
     reasons.push("max/min>1000")
   }
   if (p10 > 0 && Number.isFinite(p90 / p10) && p90 / p10 > 100) {
     reasons.push("p90/p10>100")
   }
+  if (p90 > 0 && Number.isFinite(max / p90) && max / p90 > 10) {
+    reasons.push("max/p90>10 (극단 아웃라이어)")
+  }
   if (p10 > 0 && p10 < 1 && p90 > 10) {
     reasons.push("0~1 범위와 10+ 범위 값 공존")
   }
   if (reasons.length === 0) return null
-  return `⚠️ 단위 혼입 의심 (${reasons.join(", ")}). 동일 컬럼에 다른 단위(예: inch/mm)가 섞였을 가능성 — 사용자 값은 mm 기준으로 해석하세요.`
+  return `⚠️ inch/mm 혼입 의심 (${reasons.join(", ")}). 사용자 값은 mm 기준으로 해석.`
 }
 
 /**
  * Full distribution line for main schema prompts.
- * Format: "  col: min=X max=Y 분포=[p10=, p25=, p50=, p75=, p90=] [unitWarning]"
+ * Format: "  col: min=X max=Y 분포(p10/p25/p50/p75/p90)=[a/b/c/d/e] 고유값N개 총M행 [unitWarning]"
  */
 export function formatNumericStatsLine(col: string, s: NumericStat): string {
-  const p = s.percentiles
+  const dist = `${s.p10}/${s.p25}/${s.p50}/${s.p75}/${s.p90}`
   const warn = s.unitWarning ? ` ${s.unitWarning}` : ""
-  return `  ${col}: min=${s.min} max=${s.max} 분포=[p10=${p.p10}, p25=${p.p25}, p50=${p.p50}, p75=${p.p75}, p90=${p.p90}]${warn}`
+  return `  ${col}: min=${s.min} max=${s.max} 분포(p10/p25/p50/p75/p90)=[${dist}] 고유값${s.distinctCount}개 총${s.nonNullCount}행${warn}`
 }
 
 /**
@@ -464,7 +485,7 @@ export function formatNumericStatsLine(col: string, s: NumericStat): string {
  */
 export function formatNumericStatsCompact(col: string, s: NumericStat): string {
   const warn = s.unitWarning ? ` ${s.unitWarning}` : ""
-  return `- ${col} (${s.min}~${s.max}, p50=${s.percentiles.p50})${warn}`
+  return `- ${col} (${s.min}~${s.max}, p50=${s.p50}, 고유${s.distinctCount})${warn}`
 }
 
 // ── Reverse index helpers ────────────────────────────────────

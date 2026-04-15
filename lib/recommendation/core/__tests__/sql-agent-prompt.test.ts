@@ -20,7 +20,8 @@ const schema: DbSchema = {
   numericStats: {
     total_stock: {
       min: 0, max: 5000,
-      percentiles: { p10: 0, p25: 10, p50: 100, p75: 500, p90: 2000 },
+      p10: 0, p25: 10, p50: 100, p75: 500, p90: 2000,
+      distinctCount: 120, nonNullCount: 3800,
     },
   },
   auxTables: {},

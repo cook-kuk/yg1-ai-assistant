@@ -19,7 +19,8 @@ vi.mock("../sql-agent-schema-cache", () => ({
     numericStats: {
       search_diameter_mm: {
         min: 1, max: 21,
-        percentiles: { p10: 2, p25: 4, p50: 8, p75: 12, p90: 16 },
+        p10: 2, p25: 4, p50: 8, p75: 12, p90: 16,
+        distinctCount: 40, nonNullCount: 3200,
       },
     },
   }),

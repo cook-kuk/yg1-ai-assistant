@@ -299,6 +299,20 @@ ${kgHint ? `
 ${kgHint}
 **사용 규칙**: 힌트는 "강력한 후보"일 뿐 최종 판단이 아닙니다. 사용자 메시지와 모순되거나 문맥상 어색하면 무시하세요. 힌트와 일치하는 필드를 emit 할 때는 registry 필드명(예: cornerRadiusMm, taperAngleDeg, shankType, helixAngleDeg)을 그대로 써도 되고 DB 컬럼명을 써도 됩니다 — 둘 다 런타임이 해석합니다.
 ` : ""}
+## Chip Generation Rules (clarification 후보 제안 시 — 분포 기반)
+clarification 이 필요할 때 (confidence=low, 또는 숫자만 있고 컬럼 모호), 후보 필드를 **chips 배열**로 제안하세요. 위 "Numeric Column Stats" 의 분포(p10/p25/p50/p75/p90)를 직접 참고해 아래 규칙을 따르세요:
+- **후보 필터링**: 사용자가 언급한 숫자가 해당 컬럼의 [min, max] 밖이면 그 컬럼은 **후보에서 제외**. (예: 100mm인데 max=31 → 그 컬럼 제외.)
+- **분포 태그** (사용자 값 vs 분포):
+  - p10 ≤ 값 ≤ p90 → "(표준)" 또는 "(일반적)" — 대부분 제품이 이 범위.
+  - p90 < 값 ≤ max → "(대형)" 또는 "(상위)" — 드물지만 존재.
+  - min ≤ 값 < p10 → "(소형)" 또는 "(하위)" — 드물지만 존재.
+- **정렬**: p50(중앙값)과의 거리가 가까운 컬럼부터.
+- **개수**: 최대 3개. 마지막에 "직접 입력" 은 런타임이 자동 추가하므로 chips 에 넣지 말 것.
+- **라벨 형식**: "\${한국어 필드명} (\${값}\${단위}) \${분포 태그}" — 예: "전장 (100mm) (표준)", "생크 직경 (100mm) (대형)".
+- **하드코딩 금지**: 후보 선택과 태깅은 반드시 위 분포 수치에서 실시간 산출. 컬럼 이름으로 휴리스틱 고르지 말 것.
+- **JSON 위치**: clarification 객체 안에 \`"chips": [...]\` 로 넣으세요. clarification={"question":"...", "chips":["전장 (100mm) (표준)","생크 직경 (100mm) (대형)"]}.
+- **단위 경고 컬럼**: Numeric Column Stats 에 "⚠️ 단위 혼재 의심" 이 붙은 컬럼은 그 컬럼을 chip 후보에 넣을 때 해당 경고도 question 에 요약해 언급 (예: "해당 컬럼은 인치/mm 혼재 가능성이 있습니다").
+
 ## Instructions
 Extract filter conditions and a short Korean reasoning trail from the user message as a JSON object:
 {"reasoning":"한국어 사고 과정 (실제 deliberation, 5-10문장)","filters":[{"field":"column_name","op":"eq|neq|like|gte|lte|between","value":"...","value2":"upper_bound_for_between","display":"한국어 설명"}],"confidence":"high|medium|low","clarification":null}
