@@ -234,6 +234,8 @@ interface RawProductRow {
   milling_tool_material: string | null
   milling_shank_dia: string | null
   milling_length_of_cut: string | null
+  milling_effective_length: string | null
+  milling_neck_diameter: string | null
   milling_overall_length: string | null
   milling_helix_angle: string | null
   milling_ball_radius: string | null
@@ -358,7 +360,9 @@ declare global {
   var __yg1ProductDbConfigLogged: boolean | undefined
 }
 
-const PRODUCT_BASE_QUERY = `
+// Exported for guard tests: every filter-field-registry dbColumn must appear here,
+// otherwise WHERE clauses against the wrapped subquery 500 with "column does not exist".
+export const PRODUCT_BASE_QUERY = `
 SELECT
   edp_idx,
   edp_no,
@@ -399,6 +403,8 @@ SELECT
   milling_tool_material,
   milling_shank_dia,
   milling_length_of_cut,
+  milling_effective_length,
+  milling_neck_diameter,
   milling_overall_length,
   milling_helix_angle,
   milling_ball_radius,
@@ -860,6 +866,8 @@ export function mapRowToProduct(row: RawProductRow): CanonicalProduct {
     shankDiameterMm: parseNumber(firstNonEmpty(row.milling_shank_dia, row.holemaking_shank_dia, row.threading_shank_dia, row.option_shank_diameter, row.option_dcon)),
     shankType: firstNonEmpty(row.search_shank_type, row.milling_shank_type, row.series_shank_type, row.tooling_shank_type),
     lengthOfCutMm: parseNumber(firstNonEmpty(row.milling_length_of_cut, row.holemaking_flute_length, row.threading_thread_length, row.option_flute_length, row.option_loc)),
+    effectiveLengthMm: parseNumber(row.milling_effective_length),
+    neckDiameterMm: parseNumber(row.milling_neck_diameter),
     overallLengthMm: parseNumber(firstNonEmpty(row.milling_overall_length, row.holemaking_overall_length, row.threading_overall_length, row.option_overall_length, row.option_oal)),
     helixAngleDeg: parseNumber(firstNonEmpty(row.milling_helix_angle, row.holemaking_helix_angle)),
     ballRadiusMm: parseNumber(firstNonEmpty(row.milling_ball_radius, row.option_r, row.option_re)),

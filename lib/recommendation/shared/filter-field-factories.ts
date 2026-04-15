@@ -36,6 +36,8 @@ export interface FactoryFilterFieldDefinition {
   op: "eq" | "includes" | "range"
   canonicalField?: string
   unit?: string
+  /** Source columns referenced in WHERE clauses; exposed for SELECT-coverage guard. */
+  dbColumns?: string[]
   canonicalizeRawValue?: (rawValue: string | number | boolean) => string | number | boolean | null
   setInput?: (input: RecommendationInput, filter: AppliedFilter) => RecommendationInput
   clearInput?: (input: RecommendationInput) => RecommendationInput
@@ -110,6 +112,7 @@ export function createFilterFieldFactories(H: FilterFieldFactoryHelpers): Filter
       kind: "number",
       op: "eq",
       unit,
+      dbColumns,
       canonicalizeRawValue,
       setInput: (input, filter) => ({
         ...input,
@@ -135,6 +138,7 @@ export function createFilterFieldFactories(H: FilterFieldFactoryHelpers): Filter
       queryAliases,
       kind: "boolean",
       op: "eq",
+      dbColumns,
       setInput: (input, filter) => ({
         ...input,
         [key]: H.firstFilterBooleanValue(filter),
