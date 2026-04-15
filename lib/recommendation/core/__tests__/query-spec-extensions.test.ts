@@ -18,9 +18,15 @@ import {
 vi.mock("../sql-agent-schema-cache", () => ({
   getDbSchemaSync: () => ({
     numericStats: {
-      search_diameter_mm: { min: 1, max: 21, samples: [] }, // range = 20
-      "COALESCE(milling_overall_length, holemaking_overall_length, threading_overall_length, option_overall_length, option_oal)":
-        { min: 0, max: 200, samples: [] },
+      // range = 20 (max - min)
+      search_diameter_mm: {
+        min: 1, max: 21,
+        percentiles: { p10: 2, p25: 4, p50: 8, p75: 12, p90: 16 },
+      },
+      "COALESCE(milling_overall_length, holemaking_overall_length, threading_overall_length, option_overall_length, option_oal)": {
+        min: 0, max: 200,
+        percentiles: { p10: 20, p25: 50, p50: 100, p75: 140, p90: 180 },
+      },
     },
   }),
   getDbSchema: async () => ({ numericStats: {} }),

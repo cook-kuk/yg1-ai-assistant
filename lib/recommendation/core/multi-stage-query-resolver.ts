@@ -18,7 +18,7 @@ import {
 } from "./edit-intent"
 import type { QueryField, QuerySort } from "./query-spec"
 import { getSortableFields, QUERY_FIELD_MANIFEST } from "./query-spec-manifest"
-import { findValueByPhonetic, getDbSchemaSync } from "./sql-agent-schema-cache"
+import { findValueByPhonetic, formatNumericStatsCompact, getDbSchemaSync } from "./sql-agent-schema-cache"
 import { tokenize } from "./auto-synonym"
 import { needsRepair } from "./turn-repair"
 import {
@@ -2774,7 +2774,7 @@ async function pickSmartChipsForNumericToken(
     const numericCols = Object.entries(schema.numericStats).slice(0, 40)
     if (numericCols.length === 0) return null
     const schemaSnippet = numericCols
-      .map(([col, s]) => `- ${col} (${s.min}~${s.max}, ex: ${s.samples.slice(0, 3).join(", ")})`)
+      .map(([col, s]) => formatNumericStatsCompact(col, s))
       .join("\n")
     const systemPrompt = `당신은 YG-1 절삭공구 DB의 숫자 컬럼을 사용자 표현에 매핑합니다.
 아래 DB 숫자 컬럼 중, 사용자가 언급한 숫자(+단위)에 가장 어울리는 2~3개만 고르세요.

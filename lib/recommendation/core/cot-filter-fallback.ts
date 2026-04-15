@@ -18,7 +18,7 @@
 
 import { executeLlm } from "@/lib/llm/llm-executor"
 import { getFilterFieldLabel } from "@/lib/recommendation/shared/filter-field-registry"
-import type { DbSchema } from "./sql-agent-schema-cache"
+import { formatNumericStatsCompact, type DbSchema } from "./sql-agent-schema-cache"
 
 export type FallbackFilter = {
   field: string
@@ -163,7 +163,7 @@ async function pickColumnsForNumericToken(
   const numericCols = Object.entries(schema.numericStats).slice(0, 40)
   if (numericCols.length === 0) return null
   const schemaSnippet = numericCols
-    .map(([col, s]) => `- ${col} (${s.min}~${s.max}, ex: ${s.samples.slice(0, 3).join(", ")})`)
+    .map(([col, s]) => formatNumericStatsCompact(col, s))
     .join("\n")
   const systemPrompt = `당신은 YG-1 절삭공구 DB의 숫자 컬럼 매퍼입니다.
 사용자가 언급한 숫자(+단위)가 어느 DB 숫자 컬럼에 적용될지 2~3개만 골라 JSON 배열로 출력하세요.

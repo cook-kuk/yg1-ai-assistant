@@ -18,7 +18,10 @@ const schema: DbSchema = {
     coating: ["TiAlN", "AlCrN", "DLC"],
   },
   numericStats: {
-    total_stock: { min: 0, max: 5000, samples: [0, 10, 100, 500] },
+    total_stock: {
+      min: 0, max: 5000,
+      percentiles: { p10: 0, p25: 10, p50: 100, p75: 500, p90: 2000 },
+    },
   },
   auxTables: {},
   auxSampleValues: {},

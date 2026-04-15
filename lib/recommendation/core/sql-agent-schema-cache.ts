@@ -11,6 +11,15 @@ import { phoneticKey } from "./phonetic-match"
 
 // ── Types ────────────────────────────────────────────────────
 
+export interface NumericStat {
+  min: number
+  max: number
+  /** Distribution representatives (PERCENTILE_CONT) — LLM 이 값이 분포 어디쯤인지 판단 */
+  percentiles: { p10: number; p25: number; p50: number; p75: number; p90: number }
+  /** Auto-detected distribution anomaly hint (unit mixing suspected). Null when distribution looks clean. */
+  unitWarning?: string
+}
+
 export interface DbSchema {
   columns: { column_name: string; data_type: string }[]
   /**
@@ -21,14 +30,14 @@ export interface DbSchema {
    */
   columnDescriptions: Record<string, string>
   sampleValues: Record<string, string[]>
-  /** Numeric column stats (min/max/distinct samples) — drives range matching without hardcoded labels */
-  numericStats: Record<string, { min: number; max: number; samples: number[] }>
+  /** Numeric column stats (min/max/percentile distribution) — drives range matching without hardcoded labels */
+  numericStats: Record<string, NumericStat>
   /** Auxiliary tables (cutting conditions, inventory, series profile) — exposed to LLM for joins */
   auxTables: Record<string, { column_name: string; data_type: string }[]>
   /** Sample values for aux table text columns — gives LLM eyes into joinable tables */
   auxSampleValues: Record<string, Record<string, string[]>>
   /** Numeric stats for aux table numeric columns */
-  auxNumericStats: Record<string, Record<string, { min: number; max: number; samples: number[] }>>
+  auxNumericStats: Record<string, Record<string, NumericStat>>
   workpieces: { tag_name: string; normalized_work_piece_name: string }[]
   brands: string[]
   /** Distinct country codes from product_recommendation_mv.country_codes (text[] array, unnested) */
@@ -200,29 +209,38 @@ export async function getDbSchema(): Promise<DbSchema> {
     } catch { /* skip columns that fail */ }
   }
 
-  // 2b. Numeric column stats (min/max/sample) — lets LLM pick the right numeric column without hardcoded labels
+  // 2b. Numeric column stats — min/max + percentile distribution.
+  // 이전엔 "ORDER BY col LIMIT 12" 로 최저값만 샘플링해서 LLM이 범위 오판(최저값 12개만 보고
+  // 정상 범위 값을 이상치로 거부)하는 구조적 버그가 있었음. 이제 PERCENTILE_CONT 로 분포
+  // 대표값을 뽑아 어떤 컬럼이든 일관된 스케일 정보 제공.
   const numericCols = columns
     .filter(c => /int|numeric|double|real|decimal|float/i.test(c.data_type))
     .map(c => c.column_name)
 
-  const numericStats: Record<string, { min: number; max: number; samples: number[] }> = {}
+  const numericStats: Record<string, NumericStat> = {}
   for (const col of numericCols) {
     try {
-      const res = await pool.query<{ mn: number | null; mx: number | null }>(
-        `SELECT MIN(${quoteIdent(col)})::float8 AS mn, MAX(${quoteIdent(col)})::float8 AS mx
+      const res = await pool.query<{
+        mn: number | null; mx: number | null
+        p10: number | null; p25: number | null; p50: number | null; p75: number | null; p90: number | null
+      }>(
+        `SELECT
+           MIN(${quoteIdent(col)})::float8 AS mn,
+           MAX(${quoteIdent(col)})::float8 AS mx,
+           PERCENTILE_CONT(0.10) WITHIN GROUP (ORDER BY ${quoteIdent(col)}::float8) AS p10,
+           PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY ${quoteIdent(col)}::float8) AS p25,
+           PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY ${quoteIdent(col)}::float8) AS p50,
+           PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY ${quoteIdent(col)}::float8) AS p75,
+           PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY ${quoteIdent(col)}::float8) AS p90
          FROM catalog_app.product_recommendation_mv
          WHERE ${quoteIdent(col)} IS NOT NULL`
       )
-      const mn = res.rows[0]?.mn
-      const mx = res.rows[0]?.mx
-      if (mn == null || mx == null) continue
-      const sampleRes = await pool.query<{ v: number }>(
-        `SELECT DISTINCT ${quoteIdent(col)}::float8 AS v
-         FROM catalog_app.product_recommendation_mv
-         WHERE ${quoteIdent(col)} IS NOT NULL
-         ORDER BY v LIMIT 12`
-      )
-      numericStats[col] = { min: Number(mn), max: Number(mx), samples: sampleRes.rows.map(r => Number(r.v)) }
+      const row = res.rows[0]
+      if (!row || row.mn == null || row.mx == null) continue
+      numericStats[col] = buildNumericStat({
+        min: Number(row.mn), max: Number(row.mx),
+        p10: Number(row.p10), p25: Number(row.p25), p50: Number(row.p50), p75: Number(row.p75), p90: Number(row.p90),
+      })
     } catch { /* skip */ }
   }
 
@@ -269,7 +287,7 @@ export async function getDbSchema(): Promise<DbSchema> {
     { schema: "catalog_app", table: "series_profile_mv", alias: "catalog_app.series_profile_mv" },
   ]
   const auxSampleValues: Record<string, Record<string, string[]>> = {}
-  const auxNumericStats: Record<string, Record<string, { min: number; max: number; samples: number[] }>> = {}
+  const auxNumericStats: Record<string, Record<string, NumericStat>> = {}
   for (const t of AUX_TABLE_TARGETS) {
     try {
       const auxRes = await pool.query<{ column_name: string; data_type: string }>(
@@ -284,7 +302,7 @@ export async function getDbSchema(): Promise<DbSchema> {
 
       const fq = `${quoteIdent(t.schema)}.${quoteIdent(t.table)}`
       const samples: Record<string, string[]> = {}
-      const nstats: Record<string, { min: number; max: number; samples: number[] }> = {}
+      const nstats: Record<string, NumericStat> = {}
 
       for (const c of auxRes.rows) {
         const isText = /character|text/i.test(c.data_type)
@@ -303,21 +321,27 @@ export async function getDbSchema(): Promise<DbSchema> {
           } catch { /* skip */ }
         } else if (isNum) {
           try {
-            const r = await pool.query<{ mn: number | null; mx: number | null }>(
-              `SELECT MIN(${quoteIdent(c.column_name)})::float8 AS mn, MAX(${quoteIdent(c.column_name)})::float8 AS mx
+            const r = await pool.query<{
+              mn: number | null; mx: number | null
+              p10: number | null; p25: number | null; p50: number | null; p75: number | null; p90: number | null
+            }>(
+              `SELECT
+                 MIN(${quoteIdent(c.column_name)})::float8 AS mn,
+                 MAX(${quoteIdent(c.column_name)})::float8 AS mx,
+                 PERCENTILE_CONT(0.10) WITHIN GROUP (ORDER BY ${quoteIdent(c.column_name)}::float8) AS p10,
+                 PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY ${quoteIdent(c.column_name)}::float8) AS p25,
+                 PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY ${quoteIdent(c.column_name)}::float8) AS p50,
+                 PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY ${quoteIdent(c.column_name)}::float8) AS p75,
+                 PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY ${quoteIdent(c.column_name)}::float8) AS p90
                FROM ${fq}
                WHERE ${quoteIdent(c.column_name)} IS NOT NULL`,
             )
-            const mn = r.rows[0]?.mn
-            const mx = r.rows[0]?.mx
-            if (mn == null || mx == null) continue
-            const s = await pool.query<{ v: number }>(
-              `SELECT DISTINCT ${quoteIdent(c.column_name)}::float8 AS v
-               FROM ${fq}
-               WHERE ${quoteIdent(c.column_name)} IS NOT NULL
-               ORDER BY v LIMIT 8`,
-            )
-            nstats[c.column_name] = { min: Number(mn), max: Number(mx), samples: s.rows.map(x => Number(x.v)) }
+            const row = r.rows[0]
+            if (!row || row.mn == null || row.mx == null) continue
+            nstats[c.column_name] = buildNumericStat({
+              min: Number(row.mn), max: Number(row.mx),
+              p10: Number(row.p10), p25: Number(row.p25), p50: Number(row.p50), p75: Number(row.p75), p90: Number(row.p90),
+            })
           } catch { /* skip */ }
         }
       }
@@ -335,10 +359,16 @@ export async function getDbSchema(): Promise<DbSchema> {
   const phoneticIndex = buildPhoneticIndex({ sampleValues, brands, countries, workpieces })
 
   // Column Korean descriptions — fallback map (no DB COMMENT read yet).
+  // 실제 MV 에 없는 phantom 키는 자동 skip + drift 경고. 스키마가 바뀌어도 이 map 은 drift 안 남음.
+  const actualColSet = new Set(columns.map(c => c.column_name))
   const columnDescriptions: Record<string, string> = {}
-  for (const c of columns) {
-    const desc = COLUMN_KO_DESCRIPTIONS[c.column_name]
-    if (desc) columnDescriptions[c.column_name] = desc
+  const phantomHintKeys: string[] = []
+  for (const [key, desc] of Object.entries(COLUMN_KO_DESCRIPTIONS)) {
+    if (actualColSet.has(key)) columnDescriptions[key] = desc
+    else phantomHintKeys.push(key)
+  }
+  if (phantomHintKeys.length > 0) {
+    console.warn(`[sql-agent-schema] ${phantomHintKeys.length} phantom column hint(s) skipped (not in MV): ${phantomHintKeys.join(", ")}`)
   }
 
   cached = { columns, columnDescriptions, sampleValues, numericStats, auxTables, auxSampleValues, auxNumericStats, workpieces, brands, countries, valueIndex, phoneticIndex, loadedAt: Date.now() }
@@ -371,6 +401,70 @@ export function getDbSchemaSync(): DbSchema | null {
 function quoteIdent(name: string): string {
   // simple identifier quoting — prevents SQL injection in column names
   return `"${name.replace(/"/g, '""')}"`
+}
+
+// ── Numeric stat helpers ─────────────────────────────────────
+
+function roundStat(n: number): number {
+  return Number.isFinite(n) ? Math.round(n * 1000) / 1000 : n
+}
+
+/**
+ * Normalize percentile row + run unit-mix detection. Centralizes the shape so
+ * main MV loop and aux-table loop share identical behavior.
+ */
+function buildNumericStat(row: {
+  min: number; max: number
+  p10: number; p25: number; p50: number; p75: number; p90: number
+}): NumericStat {
+  const percentiles = {
+    p10: roundStat(row.p10), p25: roundStat(row.p25), p50: roundStat(row.p50),
+    p75: roundStat(row.p75), p90: roundStat(row.p90),
+  }
+  const stat: NumericStat = { min: roundStat(row.min), max: roundStat(row.max), percentiles }
+  const warn = detectUnitMix(stat)
+  if (warn) stat.unitWarning = warn
+  return stat
+}
+
+/**
+ * Auto-detect distribution anomalies suggesting unit mixing (e.g., mm vs inch
+ * stored in the same column). Column-agnostic — any numeric column that trips
+ * any condition gets a warning. No hardcoded column list.
+ */
+function detectUnitMix(s: NumericStat): string | null {
+  const reasons: string[] = []
+  const { min, max, percentiles: { p10, p90 } } = s
+  if (min > 0 && Number.isFinite(max / min) && max / min > 1000) {
+    reasons.push("max/min>1000")
+  }
+  if (p10 > 0 && Number.isFinite(p90 / p10) && p90 / p10 > 100) {
+    reasons.push("p90/p10>100")
+  }
+  if (p10 > 0 && p10 < 1 && p90 > 10) {
+    reasons.push("0~1 범위와 10+ 범위 값 공존")
+  }
+  if (reasons.length === 0) return null
+  return `⚠️ 단위 혼입 의심 (${reasons.join(", ")}). 동일 컬럼에 다른 단위(예: inch/mm)가 섞였을 가능성 — 사용자 값은 mm 기준으로 해석하세요.`
+}
+
+/**
+ * Full distribution line for main schema prompts.
+ * Format: "  col: min=X max=Y 분포=[p10=, p25=, p50=, p75=, p90=] [unitWarning]"
+ */
+export function formatNumericStatsLine(col: string, s: NumericStat): string {
+  const p = s.percentiles
+  const warn = s.unitWarning ? ` ${s.unitWarning}` : ""
+  return `  ${col}: min=${s.min} max=${s.max} 분포=[p10=${p.p10}, p25=${p.p25}, p50=${p.p50}, p75=${p.p75}, p90=${p.p90}]${warn}`
+}
+
+/**
+ * Compact distribution line for resolver/fallback prompts (tighter token budget).
+ * Format: "- col (min~max, p50=X)[ unitWarning]"
+ */
+export function formatNumericStatsCompact(col: string, s: NumericStat): string {
+  const warn = s.unitWarning ? ` ${s.unitWarning}` : ""
+  return `- ${col} (${s.min}~${s.max}, p50=${s.percentiles.p50})${warn}`
 }
 
 // ── Reverse index helpers ────────────────────────────────────

@@ -4,7 +4,7 @@
  * Haiku 1회 호출로 동작.
  */
 
-import { getDbSchemaSync, type DbSchema } from "./sql-agent-schema-cache"
+import { formatNumericStatsLine, getDbSchemaSync, type DbSchema } from "./sql-agent-schema-cache"
 import type { LLMProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import { resolveModel } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import type { AppliedFilter } from "@/lib/types/exploration"
@@ -219,7 +219,7 @@ function buildSystemPrompt(schema: DbSchema, existingFilters: AppliedFilter[], u
     .join("\n")
 
   const numericList = Object.entries(schema.numericStats)
-    .map(([col, s]) => `  ${col}: min=${s.min} max=${s.max} examples=[${s.samples.slice(0, 8).join(", ")}]`)
+    .map(([col, s]) => formatNumericStatsLine(col, s))
     .join("\n")
 
   const wpList = schema.workpieces
@@ -236,7 +236,7 @@ function buildSystemPrompt(schema: DbSchema, existingFilters: AppliedFilter[], u
         const sv = samples[c.column_name]
         const ns = nstats[c.column_name]
         if (sv && sv.length > 0) return `  ${c.column_name} (${c.data_type}) e.g. ${sv.slice(0, 12).join(", ")}`
-        if (ns) return `  ${c.column_name} (${c.data_type}) min=${ns.min} max=${ns.max} samples=[${ns.samples.slice(0, 6).join(", ")}]`
+        if (ns) return `${formatNumericStatsLine(c.column_name, ns).trimStart()} (${c.data_type})`
         return `  ${c.column_name} (${c.data_type})`
       }).join("\n")
       return `### ${table}\n${colLines}`
