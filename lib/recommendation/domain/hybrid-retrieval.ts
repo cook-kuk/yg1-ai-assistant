@@ -162,11 +162,16 @@ function productMatchesMachiningCategory(shapes: string[], categoryShapes: Set<s
   return shapes.some(s => categoryShapes.has(s))
 }
 
-/** Returns true if product metadata (toolSubtype, productName, seriesName) matches a foreign category's indicators. */
+/** Returns true if product metadata (edp_root_category, toolSubtype, productName, seriesName) matches a foreign category's indicators. */
 function hasForegnCategoryMetadata(
-  product: { toolSubtype: string | null; productName: string | null; seriesName: string | null },
+  product: { toolSubtype: string | null; productName: string | null; seriesName: string | null; machiningCategory?: string | null },
   machiningCategory: string,
 ): boolean {
+  // Direct edp_root_category mismatch — authoritative signal.
+  // e.g. D5434 has edp_root_category='Holemaking', blank series_application_shape,
+  // and seriesName='D5434' (code only, no "DRILL" keyword) → regex check alone missed it.
+  const productCategory = product.machiningCategory?.trim()
+  if (productCategory && productCategory !== machiningCategory) return true
   const pattern = CROSS_CATEGORY_INDICATORS[machiningCategory]
   if (!pattern) return false
   const text = [product.toolSubtype, product.productName, product.seriesName].filter(Boolean).join(" ")
@@ -426,41 +431,6 @@ export async function runHybridRetrieval(
       }
     }
 
-    // Hard filter: machining category — exclude products from wrong category
-    // e.g. when searching Milling, exclude TAP products whose shapes are only Threading
-    // Two-pronged: (1) applicationShapes check, (2) metadata keyword check for mis-categorised products
-    // Domain lock: once a session has a machiningCategory, NEVER allow cross-category
-    // candidates through — even if filtering produces 0 results. This prevents
-    // tap/drill/thread mill candidates from leaking into an end mill session when
-    // follow-up filters (RPM, stock, etc.) are added.
-    //
-    // Implicit Milling default: when user hasn't specified a category (input.machiningCategory
-    // null), silently scope to Milling so drill/tap don't dominate aluminum-style generic queries.
-    // Distinction: explicit category = hard filter even at 0 results, implicit default = soft
-    // filter that rolls back if it would starve the result set. UI chips untouched because we
-    // never mutate input.machiningCategory.
-    const explicitCategory = input.machiningCategory
-    const effectiveCategory = explicitCategory ?? "Milling"
-    const categoryShapes = CATEGORY_SHAPE_MAP[effectiveCategory]
-    if (categoryShapes) {
-      const catFiltered = candidates.filter(p =>
-        productMatchesMachiningCategory(p.applicationShapes, categoryShapes) &&
-        !hasForegnCategoryMetadata(p, effectiveCategory)
-      )
-      const beforeCount = candidates.length
-      if (explicitCategory) {
-        candidates = catFiltered  // Hard filter: apply even if 0 results
-        if (beforeCount !== catFiltered.length) {
-          console.log(`[hybrid-retrieval] machiningCategory HARD filter: ${explicitCategory} → ${beforeCount} → ${catFiltered.length} candidates`)
-        }
-      } else if (catFiltered.length > 0) {
-        candidates = catFiltered
-        if (beforeCount !== catFiltered.length) {
-          console.log(`[hybrid-retrieval] machiningCategory IMPLICIT Milling default → ${beforeCount} → ${catFiltered.length} candidates`)
-        }
-      }
-    }
-
     // Hard filter: toolSubtype when explicitly specified in input
     if (input.toolSubtype) {
       const subtypeLower = input.toolSubtype.toLowerCase()
@@ -525,6 +495,35 @@ export async function runHybridRetrieval(
 
   if (!shouldApplyPostSqlHeuristics) {
     console.log("[hybrid:filter] extra post-sql heuristics disabled; narrowing filters still applied")
+  }
+
+  // Domain lock: machining category — heuristic 토글과 무관하게 항상 적용.
+  // /products 페이지처럼 pagination 이 있는 호출에서도 Holemaking 후보가
+  // Milling 세션으로 새는 걸 막기 위한 hard category constraint.
+  // - explicit category (input.machiningCategory set) → 0 결과여도 hard
+  // - implicit (null) → Milling default, 0이면 롤백
+  {
+    const explicitCategory = input.machiningCategory
+    const effectiveCategory = explicitCategory ?? "Milling"
+    const categoryShapes = CATEGORY_SHAPE_MAP[effectiveCategory]
+    if (categoryShapes) {
+      const catFiltered = candidates.filter(p =>
+        productMatchesMachiningCategory(p.applicationShapes, categoryShapes) &&
+        !hasForegnCategoryMetadata(p, effectiveCategory)
+      )
+      const beforeCount = candidates.length
+      if (explicitCategory) {
+        candidates = catFiltered
+        if (beforeCount !== catFiltered.length) {
+          console.log(`[hybrid-retrieval] machiningCategory HARD filter: ${explicitCategory} → ${beforeCount} → ${catFiltered.length} candidates`)
+        }
+      } else if (catFiltered.length > 0) {
+        candidates = catFiltered
+        if (beforeCount !== catFiltered.length) {
+          console.log(`[hybrid-retrieval] machiningCategory IMPLICIT Milling default → ${beforeCount} → ${catFiltered.length} candidates`)
+        }
+      }
+    }
   }
 
   // Apply narrowing filters from conversation — STRICT mode
