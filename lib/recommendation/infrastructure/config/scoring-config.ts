@@ -44,6 +44,20 @@ export const BRAND_SCORING = {
   microDiaThreshold:      envNum("SCORING_MICRO_DIA_THRESHOLD", 5),
 } as const
 
+// ── Brand × WorkPiece Affinity Boost ────────────────────────
+// 소스: public.brand_material_affinity (연구소 정의 매트릭스).
+// 같은 `materialRating` 티어 안에서 전용 브랜드(예: ALU-CUT × Aluminum)를
+// 범용 브랜드(예: DREAM DRILLS-INOX × Aluminum 미등록)보다 위로 올려준다.
+// 하드코딩 0 — 새 브랜드 등록/제거는 DB INSERT/DELETE 만으로 반영.
+export const BRAND_MATERIAL_AFFINITY = {
+  /** rating_score 에 곱해 boost 계산. workpiece(0~100) * factor. */
+  boostFactor:          envNum("BRAND_AFFINITY_BOOST_FACTOR", 0.5),
+  /** boost 상한 — outlier 제어 및 다른 스코어와의 균형. */
+  boostMax:             envNum("BRAND_AFFINITY_BOOST_MAX", 60),
+  /** iso_group kind 는 0~1 스케일이라 별도 multiplier. 0 이면 iso_group 미사용. */
+  isoGroupMultiplier:   envNum("BRAND_AFFINITY_ISO_GROUP_MULTIPLIER", 20),
+} as const
+
 // ── Diversity ───────────────────────────────────────────────
 export const DIVERSITY_CONFIG = {
   /** Top-N 윈도우 내 시리즈당 최대 후보 수. */

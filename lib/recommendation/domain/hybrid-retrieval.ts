@@ -35,9 +35,14 @@ import { isFlagshipSeries, isMicroSeries } from "@/lib/recommendation/shared/can
 import {
   SCORING_WEIGHTS,
   BRAND_SCORING,
+  BRAND_MATERIAL_AFFINITY,
   DIVERSITY_CONFIG,
   CAPACITY_LIMITS,
 } from "@/lib/recommendation/infrastructure/config/scoring-config"
+import {
+  BrandMaterialAffinityRepo,
+  normalizeBrandKey,
+} from "@/lib/data/repos/brand-material-affinity-repo"
 
 // ── Hard-tier sort by series materialRating (EXCELLENT > GOOD > NULL) ──
 // 티어 간에는 score를 무시하고 EXCELLENT이 무조건 위에 오도록.
@@ -805,6 +810,47 @@ export async function runHybridRetrieval(
       }
     }
     console.log(`[hybrid:stage] pure-neq pre-cut boost=${boosted} brandDemote=${brandDemoted} diaDemote=${diaDemoted} pool=${scored.length}`)
+  }
+
+  // ── Stage 2.5: Brand × WorkPiece Affinity boost ──
+  // 같은 materialRating 티어(EXCELLENT 등) 내부에서 연구소가 정의한
+  // brand-workpiece 매트릭스(public.brand_material_affinity)를 읽어
+  // 전문 브랜드(ALU-CUT × Aluminum=100)를 범용 브랜드(미등록=0) 위로 보정.
+  // rating_score 자체가 DB 값 — 새 브랜드 추가 시 INSERT 만으로 자동 반영.
+  if (input.workPieceName && scored.length > 0) {
+    const uniqueBrands = Array.from(
+      new Set(scored.map(s => s.product.brand ?? "").filter(Boolean))
+    )
+    if (uniqueBrands.length > 0) {
+      const affinityMap = await BrandMaterialAffinityRepo.findByBrands({
+        brands: uniqueBrands,
+        workPieceName: input.workPieceName,
+      })
+      if (affinityMap.size > 0) {
+        const { boostFactor, boostMax, isoGroupMultiplier } = BRAND_MATERIAL_AFFINITY
+        let boostedCount = 0
+        let totalBoostApplied = 0
+        for (const s of scored) {
+          const key = normalizeBrandKey(s.product.brand)
+          if (!key) continue
+          const entry = affinityMap.get(key)
+          if (!entry) continue
+          const rawBoost = entry.kind === "workpiece"
+            ? entry.score * boostFactor
+            : entry.score * isoGroupMultiplier
+          const boost = Math.min(rawBoost, boostMax)
+          if (boost > 0) {
+            s.score += boost
+            s.matchedFields.push("브랜드-피삭재 적합도")
+            boostedCount++
+            totalBoostApplied += boost
+          }
+        }
+        console.log(
+          `[hybrid:stage] stage=brand_affinity workPiece="${input.workPieceName}" matched=${affinityMap.size} boosted=${boostedCount}/${scored.length} totalBoost=${totalBoostApplied.toFixed(1)}`
+        )
+      }
+    }
   }
 
   // Sort: materialRating tier (EXCELLENT>GOOD>NULL) → score desc → priority asc → completeness desc
