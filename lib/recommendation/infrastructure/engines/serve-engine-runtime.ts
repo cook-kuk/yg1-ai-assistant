@@ -92,6 +92,7 @@ import {
   buildConstraintClarificationQuestion,
   hasExplicitFilterIntent,
   hasExplicitRevisionIntent,
+  NON_FILTER_INTENTS,
   parseExplicitFilterText,
   parseExplicitRevisionText,
 } from "@/lib/recommendation/shared/constraint-text-parser"
@@ -1193,9 +1194,17 @@ function doesCandidatePoolContainFilterValue(
 export async function resolveExplicitFilterRequest(
   sessionState: ExplorationSessionState | null,
   userMessage: string | null,
-  provider?: ReturnType<typeof getProvider>
+  provider?: ReturnType<typeof getProvider>,
+  intentAction?: string | null,
 ): Promise<ExplicitFilterResolution | null> {
   if (!sessionState || !userMessage) return null
+
+  // LLM intent gate: non-filter intent (explain/off_topic/reset/skip/undo)이면
+  // 진입 즉시 차단. det SCR / regex fast path / LLM 추출 전부 스킵.
+  if (intentAction && NON_FILTER_INTENTS.has(intentAction)) {
+    console.log(`[explicit-filter] LLM intent=${intentAction} → non-filter, skipping resolver`)
+    return null
+  }
 
   const raw = userMessage.trim()
   if (!raw || !hasExplicitFilterIntentSignal(raw) || hasExplicitRevisionSignal(raw)) return null
@@ -1748,9 +1757,17 @@ export function resolveExplicitComparisonAction(
 export async function resolveExplicitRevisionRequest(
   sessionState: ExplorationSessionState | null,
   userMessage: string | null,
-  provider?: ReturnType<typeof getProvider>
+  provider?: ReturnType<typeof getProvider>,
+  intentAction?: string | null,
 ): Promise<ExplicitRevisionResolution | null> {
   if (!sessionState || !userMessage) return null
+
+  // LLM intent gate: non-filter intent (explain/off_topic/reset/skip/undo)이면
+  // 진입 즉시 차단. 아래 flute/subtype regex fast path 도 이 return 이후에 있으므로 전부 스킵.
+  if (intentAction && NON_FILTER_INTENTS.has(intentAction)) {
+    console.log(`[explicit-revision] LLM intent=${intentAction} → non-filter, skipping resolver`)
+    return null
+  }
 
   const raw = userMessage.trim()
   if (!raw || !hasExplicitRevisionSignal(raw)) return null
@@ -5976,9 +5993,10 @@ async function handleServeExplorationInner(
       // Step 2: judgment.intentAction 기반으로 deterministic resolver 실행 여부 결정.
       //         의도 판단은 LLM, 값 추출은 resolver 내부의 regex/parser.
       // Non-filter intents는 resolver 자체를 스킵 — "4날은?"이 설명 맥락이면 필터로 안 잡힘.
-      const NON_FILTER_INTENTS = new Set(["explain", "off_topic", "reset_session", "skip_field", "undo"])
-      const judgmentSaysNonFilter = !!judgmentResult && NON_FILTER_INTENTS.has(judgmentResult.intentAction)
-      const judgmentSaysCompare = judgmentResult?.intentAction === "compare"
+      // (NON_FILTER_INTENTS 는 constraint-text-parser.ts 에서 import — SSOT.)
+      const judgmentIntentAction = judgmentResult?.intentAction ?? null
+      const judgmentSaysNonFilter = !!judgmentIntentAction && NON_FILTER_INTENTS.has(judgmentIntentAction)
+      const judgmentSaysCompare = judgmentIntentAction === "compare"
 
       // Comparison resolver: intent이 compare일 때만 (또는 judgment가 없을 때 legacy 보수값)
       if (!judgmentResult || judgmentSaysCompare) {
@@ -5992,8 +6010,8 @@ async function handleServeExplorationInner(
       // Revision/Filter resolver: non-filter intent이면 스킵
       if (!explicitComparisonAction) {
         const [revisionSettled, filterSettled] = await Promise.allSettled([
-          judgmentSaysNonFilter ? Promise.resolve(null) : resolveExplicitRevisionRequest(prevState, lastUserMsg.text, provider),
-          judgmentSaysNonFilter ? Promise.resolve(null) : resolveExplicitFilterRequest(prevState, lastUserMsg.text, provider),
+          judgmentSaysNonFilter ? Promise.resolve(null) : resolveExplicitRevisionRequest(prevState, lastUserMsg.text, provider, judgmentIntentAction),
+          judgmentSaysNonFilter ? Promise.resolve(null) : resolveExplicitFilterRequest(prevState, lastUserMsg.text, provider, judgmentIntentAction),
         ])
 
         const revisionResult = revisionSettled.status === "fulfilled" ? revisionSettled.value : null

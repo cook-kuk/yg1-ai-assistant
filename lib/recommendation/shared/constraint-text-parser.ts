@@ -27,6 +27,23 @@ const REVISION_INTENT_PATTERNS = [
 const REVISION_SIGNAL_PATTERN = /(대신|말고|말구|변경|바꿔|바꿀|수정|교체|교환|올려|줄여|늘려|낮춰|높여|아니고|아닌|아니라|ㄴㄴ|말했는데|말했잖|이미\s*말한|위에\s*말한|다시\s*말하|switch\s+to|change\s+to|change\s+.+\s+to|instead\s+of|replace\s+with|i\s+already\s+said|as\s+i\s+said)/iu
 const FILTER_SIGNAL_PATTERN = /(필터|필터링|적용|좁혀|추천|추천해|추천해줘|보여|찾아|검색|기준으로|만\s*(?:보여|추천|찾)|로\s*추천|으로\s*추천)/u
 
+/**
+ * LLM judgment.intentAction 값 중 "필터/수정 의도 아님" 집합.
+ * regex/deterministic 필터·수정 추출기는 이 intent일 때 진입 전 차단되어야 한다.
+ * (도메인 키워드가 포함돼 있어도 explain/off_topic/reset 등이면 필터링 아님)
+ */
+export const NON_FILTER_INTENTS: ReadonlySet<string> = new Set([
+  "explain",
+  "off_topic",
+  "reset_session",
+  "skip_field",
+  "undo",
+])
+
+function isNonFilterIntent(intentAction: string | null | undefined): boolean {
+  return !!intentAction && NON_FILTER_INTENTS.has(intentAction)
+}
+
 function normalizeQueryText(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, "")
 }
@@ -332,11 +349,23 @@ ${fieldGuide}
   }
 }
 
-export function hasExplicitRevisionIntent(value: string): boolean {
+export function hasExplicitRevisionIntent(
+  value: string,
+  intentAction?: string | null,
+): boolean {
+  // LLM 이 explain/off_topic/reset 등 non-filter intent 로 판단했으면 regex 매칭 무시.
+  // LLM 판단 우선 — 도메인 키워드 존재만으로 revision 의도라고 결론내리지 않는다.
+  if (isNonFilterIntent(intentAction)) return false
   return REVISION_SIGNAL_PATTERN.test(value)
 }
 
-export function hasExplicitFilterIntent(value: string): boolean {
+export function hasExplicitFilterIntent(
+  value: string,
+  intentAction?: string | null,
+): boolean {
+  // LLM 이 explain/off_topic/reset 등 non-filter intent 로 판단했으면 regex 매칭 무시.
+  // LLM 판단 우선 — 도메인 키워드 존재만으로 filter 의도라고 결론내리지 않는다.
+  if (isNonFilterIntent(intentAction)) return false
   return FILTER_SIGNAL_PATTERN.test(value)
 }
 
