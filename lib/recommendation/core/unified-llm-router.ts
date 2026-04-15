@@ -210,7 +210,7 @@ function buildSchemaPromptImpl(schema: DbSchema, sections: SchemaPromptSections)
     lines.push("")
     lines.push("== 브랜드 ↔ 피삭재 적합도 (public.brand_material_affinity) ==")
     lines.push("  * ISO 코드(P/M/K/N/S/H) + 피삭재 워드(COPPER/ALUMINUM/TITANIUM) 두 경로 모두 지원.")
-    lines.push("  * soft ranking 힌트가 기본. 단, rating=EXCELLENT 이고 사용자가 해당 소재를 명시했으면 edp_brand_name 을 hard filter 로 포함해도 무방.")
+    lines.push("  * 사용자가 구리/알루미늄/티타늄 같은 비철 소재를 명시하고 해당 소재에 rating=EXCELLENT 브랜드가 있으면 edp_brand_name 을 hard filter 로 포함하세요. 그 외에는 soft ranking 힌트로만 사용.")
     for (const key of affKeys) {
       const rows = (affinity[key] ?? []).slice(0, 8)
       if (rows.length === 0) continue
