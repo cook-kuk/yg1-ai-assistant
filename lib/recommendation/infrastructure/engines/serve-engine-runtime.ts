@@ -5024,6 +5024,16 @@ async function handleServeExplorationInner(
               const prevFiltersSnapshot = filters.map(f => ({ ...f }))
               const prevInputSnapshot = currentInput
               const prevDisplayedCandidates = prevState?.displayedCandidates ?? []
+              // B안: rollback 매칭은 화면에 보이는 top-N (보통 20개) 가 아니라
+              // 전체 후보 pool 을 기준으로 해야 한다. displayedCandidates 만 보면
+              // "전체 500개 중 전장 100 이상 존재" 케이스에서도 false-positive 0건 판정으로
+              // 정상 필터가 롤백되어 사용자 경험이 깨진다.
+              const prevCandidatePool = (
+                prevState?.fullDisplayedCandidates
+                ?? prevState?.fullDisplayedProducts
+                ?? prevState?.displayedCandidates
+                ?? []
+              ) as typeof prevDisplayedCandidates
               const appliedBuiltFilters: AppliedFilter[] = []
               const normalizedFilters: Array<Record<string, unknown>> = []
               const droppedFilters: Array<Record<string, unknown>> = []
@@ -5066,21 +5076,21 @@ async function handleServeExplorationInner(
                 }
               }
 
-              // Zero-result rollback: if prev had candidates but new filters match none, revert.
-              // Skip on first filter application (prev filters == 0): user is narrowing from full pool,
-              // and `displayedCandidates` is only the top-N shown, not the full candidate pool —
-              // matching against it would falsely report 0 even when the full pool has matches.
+              // Zero-result rollback: if prev pool had candidates but new filters match none, revert.
+              // Match against the FULL candidate pool (fullDisplayedCandidates), not just the top-N
+              // displayed page — matching against the page would falsely report 0 even when the
+              // full pool has matches (e.g. 전장 100 ↑ 가 page 밖 480개 안에만 있는 경우).
               let rolledBack = false
-              if (appliedBuiltFilters.length > 0 && prevDisplayedCandidates.length >= 1 && prevFiltersSnapshot.length > 0) {
-                const matchCount = prevDisplayedCandidates.filter(c =>
+              if (appliedBuiltFilters.length > 0 && prevCandidatePool.length >= 1 && prevFiltersSnapshot.length > 0) {
+                const matchCount = prevCandidatePool.filter(c =>
                   appliedBuiltFilters.every(f => candidateMatchesAppliedFilter(c, f))
                 ).length
                 if (matchCount === 0) {
                   filters.splice(0, filters.length, ...prevFiltersSnapshot)
                   currentInput = prevInputSnapshot
                   rolledBack = true
-                  console.log(`[sql-agent:rollback] ${appliedBuiltFilters.length} filter(s) would yield 0 candidates (prev=${prevDisplayedCandidates.length}) → rollback`)
-                  trace.add("sql-agent", "router", { filterCount: appliedBuiltFilters.length, prevCandidates: prevDisplayedCandidates.length }, { rollback: true }, "zero-result rollback")
+                  console.log(`[sql-agent:rollback] ${appliedBuiltFilters.length} filter(s) would yield 0 candidates (pool=${prevCandidatePool.length}, displayed=${prevDisplayedCandidates.length}) → rollback`)
+                  trace.add("sql-agent", "router", { filterCount: appliedBuiltFilters.length, prevPool: prevCandidatePool.length, prevDisplayed: prevDisplayedCandidates.length }, { rollback: true }, "zero-result rollback")
                 }
               }
 
@@ -5091,7 +5101,7 @@ async function handleServeExplorationInner(
                 bridgedV2Action = {
                   type: "answer_general",
                   message: renderTemplate(RUNTIME_MESSAGES.zeroResultRollback, {
-                    prev: prevDisplayedCandidates.length,
+                    prev: prevCandidatePool.length,
                     filters: filterDescription,
                   }),
                   // Phase 5: 0건 rollback 가드레일 — 사용자가 다음 행동을 즉시 고를 수 있도록.
