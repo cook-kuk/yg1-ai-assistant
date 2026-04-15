@@ -129,20 +129,35 @@ export async function streamRecommendation(
     if (signal?.aborted) {
       throw err
     }
-    const fallbackController = new AbortController()
-    const fallbackTimeout = setTimeout(() => fallbackController.abort(), timeoutMs)
-    try {
-      const res = await fetch("/api/recommend", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        signal: fallbackController.signal,
-      })
-      if (!res.ok) throw new Error(`서버 오류 (${res.status})`)
-      return parseRecommendationResponse(await res.json())
-    } finally {
-      clearTimeout(fallbackTimeout)
+    // TypeError: "Failed to fetch" / "NetworkError" typically means the socket
+    // dropped mid-flight (dev-mode HMR restart, flaky Wi-Fi, tunnel hiccup).
+    // Retry the JSON fallback once with a short backoff so transient blips
+    // don't surface as a scary error to the user.
+    const isTransientNetworkError = err instanceof TypeError
+    const attempts = isTransientNetworkError ? 2 : 1
+    let lastError: unknown = err
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 800))
+      if (signal?.aborted) throw lastError
+      const fallbackController = new AbortController()
+      const fallbackTimeout = setTimeout(() => fallbackController.abort(), timeoutMs)
+      try {
+        const res = await fetch("/api/recommend", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: fallbackController.signal,
+        })
+        if (!res.ok) throw new Error(`서버 오류 (${res.status})`)
+        return parseRecommendationResponse(await res.json())
+      } catch (fallbackErr) {
+        lastError = fallbackErr
+        if (!(fallbackErr instanceof TypeError)) throw fallbackErr
+      } finally {
+        clearTimeout(fallbackTimeout)
+      }
     }
+    throw lastError
   } finally {
     clearTimeout(timeout)
   }

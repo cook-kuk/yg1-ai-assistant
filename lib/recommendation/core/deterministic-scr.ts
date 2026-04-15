@@ -527,6 +527,16 @@ const STOCK_PATTERNS = [
   /재고[가는은이도]?\s*있/, /재고만/, /재고[가는은이]?\s*\d/, /재고로/, /재고\b/, /in[-\s]?stock/i, /즉시\s*출하/, /빠른\s*납기/, /납기\s*빠른/,
 ]
 
+// 재고 "순위" 요청은 필터가 아닌 정렬 의도다. "재고 제일 많은거", "재고 가장 많은",
+// "재고 최다", "재고 많은 순" 같은 패턴은 instock 필터로 강제하면 사용자가 원한
+// "전체 대상 desc 정렬" 의도를 꺾는다. 이 경우 deterministic 필터링을 건너뛰고
+// 오케스트레이터가 filter_stock(filter="all") 로 분류하게 둔다.
+const STOCK_RANKING_PATTERNS = [
+  /재고[가는은이도]?\s*(?:제일|가장|최다|많은\s*순|많이|많은\s*거|많은\s*걸|많은\s*것)/,
+  /재고.*(?:제일|가장)\s*많/,
+  /most\s+stock/i,
+]
+
 // 쿨런트홀 (coolant hole). negation 표현("쿨런트 없는")도 게이트를 통과해야
 // 아래의 isNeg 분기에서 false 값으로 추출된다.
 const COOLANT_PATTERNS = [
@@ -1331,8 +1341,13 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
       }
     }
     if (!seen.has("stockStatus") && STOCK_PATTERNS.some(p => p.test(text))) {
-      actions.push({ type: "apply_filter", field: "stockStatus", value: "instock", op: "eq", source: "deterministic" })
-      seen.add("stockStatus")
+      // 순위 요청("재고 제일 많은거")은 필터가 아니므로 deterministic extraction 건너뜀.
+      // 오케스트레이터가 filter_stock(filter="all") 로 분류해 정렬만 수행한다.
+      const isRankingQuery = STOCK_RANKING_PATTERNS.some(p => p.test(text))
+      if (!isRankingQuery) {
+        actions.push({ type: "apply_filter", field: "stockStatus", value: "instock", op: "eq", source: "deterministic" })
+        seen.add("stockStatus")
+      }
     }
   }
 

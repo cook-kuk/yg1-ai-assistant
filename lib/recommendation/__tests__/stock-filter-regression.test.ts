@@ -98,6 +98,28 @@ describe("[stock regression] Bug A — NL parser: 재고 → stockStatus=instock
     )
     expect(positive).toBeUndefined()
   })
+
+  // 2026-04-15: "재고 제일 많은거" 류의 순위 질의가 instock 필터로 오분류되어
+  // (totalStock>=1 조건이 붙어) 사용자 의도("전체 대상 desc 정렬")를 꺾는
+  // 버그 재현. deterministic-scr 은 순위 질의를 건너뛰고 오케스트레이터가
+  // filter_stock(filter="all") 로 분류하도록 둬야 한다.
+  const rankingCases = [
+    "재고 제일 많은거",
+    "모든 제품중 재고 제일 많은거",
+    "재고 가장 많은 것",
+    "재고 최다",
+    "재고 많은 순으로 정렬",
+    "most stock",
+  ]
+  for (const msg of rankingCases) {
+    it(`순위 질의 "${msg}" 는 deterministic stockStatus=instock 필터를 만들면 안 됨`, () => {
+      const actions = parseDeterministic(msg)
+      const leaked = actions.find(
+        a => a.field === "stockStatus" && a.op === "eq" && a.value === "instock"
+      )
+      expect(leaked, `"${msg}" 에서 instock 필터가 새어나오면 안 됨`).toBeUndefined()
+    })
+  }
 })
 
 // ─────────────────────────────────────────────────────────────

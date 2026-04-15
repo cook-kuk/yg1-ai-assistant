@@ -854,6 +854,7 @@ ${DISTRIBUTION_USAGE_GUIDELINES}
 - "재고 50개 이상", "재고 100개 넘는 것만" → filter_stock(filter="instock", threshold=50 또는 100)
 - "납기 빠른 거", "재고 제한적이어도 괜찮아" → filter_stock(filter="limited")
 - "전부 다 보여줘", "재고 무관" → filter_stock(filter="all")
+- "재고 제일/가장 많은 거", "재고 최다", "재고 많은 순으로", "모든 제품중 재고 제일 많은" → filter_stock(filter="all") — 순위 요청: 필터·threshold 없이 재고 desc 정렬만 원함 (instock로 잘못 분류 금지)
 
 ═══ 중요: 질문/탐색 vs 선택 구분 ═══
 - "Ball은 몇개야?", "Taper는 뭐야?", "3날 제품이 많아?" → query_field_info (정보 조회)
