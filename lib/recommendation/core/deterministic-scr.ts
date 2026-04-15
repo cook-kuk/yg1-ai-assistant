@@ -493,32 +493,6 @@ function tryBetween(text: string): { lo: number; hi: number } | null {
   return null
 }
 
-// 직경 cue 없이 mm 범위만 있을 때 (예: "6mm 이상 10mm 이하", "8~12mm") 잡는 fallback.
-// tryBetween 과 달리 mm 단위가 한쪽이라도 명시되어야 매칭 — 무차원 카운트 범위
-// (예: "3 이상 5 이하" = fluteCount) 와 의도 충돌 방지.
-function tryBetweenMm(text: string): { lo: number; hi: number } | null {
-  const patterns = [
-    /(-?\d+(?:\.\d+)?)\s*mm\s*[~\-]\s*(-?\d+(?:\.\d+)?)\s*(?:mm)?/i,
-    /(-?\d+(?:\.\d+)?)\s*(?:mm)?\s*[~\-]\s*(-?\d+(?:\.\d+)?)\s*mm/i,
-    /(-?\d+(?:\.\d+)?)\s*(?:mm)?\s*에서\s*(-?\d+(?:\.\d+)?)\s*mm\s*(?:사이|까지)/i,
-    /(-?\d+(?:\.\d+)?)\s*mm\s*에서\s*(-?\d+(?:\.\d+)?)\s*(?:mm)?\s*(?:사이|까지)/i,
-    /(-?\d+(?:\.\d+)?)\s*mm\s*이상\s*(-?\d+(?:\.\d+)?)\s*(?:mm)?\s*이하/i,
-    /(-?\d+(?:\.\d+)?)\s*(?:mm)?\s*이상\s*(-?\d+(?:\.\d+)?)\s*mm\s*이하/i,
-    /between\s*(-?\d+(?:\.\d+)?)\s*(?:mm)?\s*and\s*(-?\d+(?:\.\d+)?)\s*mm/i,
-    /between\s*(-?\d+(?:\.\d+)?)\s*mm\s*and\s*(-?\d+(?:\.\d+)?)\s*(?:mm)?/i,
-  ]
-  for (const p of patterns) {
-    const m = text.match(p)
-    if (m) {
-      const a = parseFloat(m[1]); const b = parseFloat(m[2])
-      if (Number.isFinite(a) && Number.isFinite(b) && a !== b) {
-        return { lo: Math.min(a, b), hi: Math.max(a, b) }
-      }
-    }
-  }
-  return null
-}
-
 // Op detect: cue + value 다음 12자 내에서 marker 찾기
 function detectOpAfter(text: string, valueEnd: number): "gte" | "lte" | null {
   const tail = text.slice(valueEnd, valueEnd + 12)
@@ -1268,19 +1242,6 @@ export function parseDeterministic(message: string, meta?: DeterministicMeta): D
     const dia = parseInchFraction(text)
     if (dia != null && dia > 0 && dia < 200) {
       actions.push({ type: "apply_filter", field: "diameterMm", value: dia, op: "eq", source: "deterministic" })
-      seen.add("diameterMm")
-    }
-  }
-
-  // 3.5) cue-less mm range fallback → diameterMm.
-  // "6mm 이상 10mm 이하", "8~12mm" 처럼 직경 cue 가 없어도 mm 가 명시된 범위 표현이면
-  // 직경으로 default. mm 이 한쪽이라도 붙어야 fluteCount("3 이상 5 이하") 같은 무차원
-  // 범위와 충돌하지 않는다. 단일 mm 값 (bare 10mm) 은 의도가 모호하므로 제외 — 기존
-  // bare-mm 정책 유지.
-  if (!seen.has("diameterMm")) {
-    const betw = tryBetweenMm(text)
-    if (betw) {
-      actions.push({ type: "apply_filter", field: "diameterMm", value: betw.lo, value2: betw.hi, op: "between", source: "deterministic" })
       seen.add("diameterMm")
     }
   }
