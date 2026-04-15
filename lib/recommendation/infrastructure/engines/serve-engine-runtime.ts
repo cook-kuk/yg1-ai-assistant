@@ -68,6 +68,7 @@ import { isLegacyKgHintEnabled, isLegacyKgInterpreterEnabled } from "@/lib/recom
 import { logPatternMiningEntry } from "@/lib/recommendation/core/pattern-mining/logger"
 import { tryKGDecision, extractEntities, tryParseSortPhrase, type KGSpecPatch } from "@/lib/recommendation/core/knowledge-graph"
 import { parseDeterministic } from "@/lib/recommendation/core/deterministic-scr"
+import { findAllMaterialMatchesInText } from "@/lib/recommendation/shared/material-mapping"
 import { shouldDeferHardcodedSemanticExecution } from "@/lib/recommendation/core/semantic-execution-policy"
 import { gatherEnsembleContext, formatEnsembleForPrompt } from "@/lib/recommendation/core/ensemble-context"
 import { saveToolMemory, searchToolMemory } from "@/lib/recommendation/core/tool-memory"
@@ -5055,21 +5056,46 @@ async function handleServeExplorationInner(
       }
     }
 
-    // deterministic workPieceName → sql-agent hint:
+    // deterministic workPieceName short-circuit:
     // parseDeterministic 이 material-mapping alias (SM 58 / 1311 / S355NH /
-    // A2765-35 같은 JIS/SS/EN/AISI 규격 코드)에서 workPieceName 을 뽑아도,
-    // SQL agent 는 해당 토큰을 그대로 놔두면 "A2765-35" 같은 제품코드로
-    // 오분류(edp_no)한다. det action 을 hint 로 명시 주입해서 sql-agent 가
-    // 소재명으로 인식하도록 고정한다. detPreActions 가 상단 block 에서
-    // 스킵됐을 수도 있으므로 여기서 lightweight 재실행 (regex 위주라 비용 ~0).
+    // A2765-35 같은 JIS/SS/EN/AISI 규격 코드)에서 workPieceName 을 뽑으면,
+    // 그 자체로 신뢰할 수 있는 결정론적 매칭이다 — 부드러운 hint 만으로는
+    // SQL agent 가 alias 토큰을 제품코드(edp_no)로 오분류한다(A2765-35→edp_no).
+    // 그래서 (1) 필터를 직접 적용하고 (2) SQL agent 호출 자체를 그 토큰을
+    // 제거한 메시지로 좁혀 alias 가 다시 추출되지 않도록 한다.
+    let detWorkPieceApplied: { canonical: string; aliases: string[] } | null = null
     if (!singleCallHandled && lastUserMsg && !shouldResolvePendingSelectionEarly && !earlyJudgmentBlocksFilters) {
       const detLocal = shouldDeferHardcodedSemanticExecution(msg) ? [] : parseDeterministic(msg)
       const detWorkPieces = detLocal
         .filter(a => a.type === "apply_filter" && a.field === "workPieceName" && a.value != null)
       if (detWorkPieces.length > 0) {
-        const detHint = detWorkPieces.map(a => `workPieceName=${a.value}`).join(", ")
-        kgHint = kgHint ? `${kgHint}, ${detHint}` : detHint
-        console.log(`[det:hint:workpiece] "${msg}" → hint: ${detHint}`)
+        // material-mapping fallback (별칭/규격 코드)으로 잡힌 항목만 short-circuit
+        // 대상. WORKPIECE_PATTERNS regex 로 잡힌 한국어 명사("스테인리스" 등)는
+        // 기존 경로를 그대로 유지한다 — sql-agent 가 잘 처리하던 영역이라 회귀 방지.
+        const aliasMatches = findAllMaterialMatchesInText(msg)
+        const aliasByFamily = new Map<string, string[]>()
+        for (const m of aliasMatches) {
+          if (!m.lv2Category || !m.matchedAlias) continue
+          if (m.confidence < 0.85) continue
+          const arr = aliasByFamily.get(m.lv2Category) ?? []
+          arr.push(m.matchedAlias)
+          aliasByFamily.set(m.lv2Category, arr)
+        }
+
+        for (const action of detWorkPieces) {
+          const canonical = String(action.value)
+          const aliases = aliasByFamily.get(canonical)
+          if (!aliases || aliases.length === 0) continue // regex-only 매칭이면 건너뜀
+          if (filters.some(f => f.field === "workPieceName")) break
+          const built = buildAppliedFilterFromValue("workPieceName", canonical, turnCount, action.op === "neq" ? "neq" : undefined)
+          if (!built) continue
+          const result = replaceFieldFilter(baseInput, filters, built, deps.applyFilterToInput)
+          filters.splice(0, filters.length, ...result.nextFilters)
+          currentInput = result.nextInput
+          detWorkPieceApplied = { canonical, aliases }
+          console.log(`[det:short-circuit:workpiece] "${msg}" → workPieceName=${canonical} (alias matched: ${aliases.join(", ")})`)
+          break
+        }
       }
     }
 
@@ -5105,6 +5131,19 @@ async function handleServeExplorationInner(
             console.log(`[tool-memory:hot] "${msg.slice(0, 60)}" → ${toolMemHits.length} hits (high=${high})`)
           }
 
+          // det short-circuit 활성화 시 sql-agent 가 보는 메시지에서 alias 토큰을
+          // 제거 — 그래야 sql-agent 가 같은 토큰을 edp_no 등으로 재추출하지 않는다.
+          // workPieceName 필터는 위에서 이미 결정론적으로 적용했으므로 sql-agent 는
+          // 잔여 정보(직경/형상/브랜드 등)만 처리하면 된다.
+          let sqlAgentMsg = msg
+          if (detWorkPieceApplied) {
+            for (const alias of detWorkPieceApplied.aliases) {
+              sqlAgentMsg = sqlAgentMsg.split(alias).join(" ")
+            }
+            sqlAgentMsg = sqlAgentMsg.replace(/\s+/g, " ").trim()
+            console.log(`[det:short-circuit:msg-strip] sqlAgentMsg="${sqlAgentMsg}"`)
+          }
+
           let agentResult: { filters: import("@/lib/recommendation/core/sql-agent").AgentFilter[]; raw: string; reasoning?: string; confidence?: "high" | "medium" | "low"; clarification?: string | null }
           if (semanticHit && semanticHit.source === "sql-agent") {
             agentResult = {
@@ -5132,7 +5171,7 @@ async function handleServeExplorationInner(
             if (deps.onThinking && provider.stream) {
               let streamedAny = false
               agentResult = await naturalLanguageToFiltersStreaming(
-                msg,
+                sqlAgentMsg,
                 schema,
                 filters,
                 provider,
@@ -5155,7 +5194,7 @@ async function handleServeExplorationInner(
               }
             } else {
               agentResult = await naturalLanguageToFilters(
-                msg,
+                sqlAgentMsg,
                 schema,
                 filters,
                 provider,
