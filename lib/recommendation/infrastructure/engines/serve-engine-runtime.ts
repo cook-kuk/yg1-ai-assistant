@@ -3699,6 +3699,29 @@ async function handleServeExplorationInner(
     )
   }
 
+  // 사용자가 명시적으로 제거 요청한 필드를 prevState 필터에서 drop.
+  // unified-judgment 가 "4날 필터 날려줘" 같은 의도를 fieldsToRemove 로 신호하면
+  // 여기서 먼저 정리해서, downstream SQL agent 가 새 필터를 깐 위에 옛 필터가
+  // 살아남아 0건이 되는 환각 0결과를 막는다.
+  if (earlyJudgment && earlyJudgment.fieldsToRemove.length > 0 && filters.length > 0) {
+    const CANON: Record<string, string> = { diameterRefine: "diameterMm", diameterMm: "diameterMm" }
+    const canon = (f: string) => CANON[f] ?? f
+    const removeAll = earlyJudgment.fieldsToRemove.includes("all")
+    const removeSet = new Set(earlyJudgment.fieldsToRemove.map(canon))
+    const before = filters.length
+    const dropped: string[] = []
+    for (let i = filters.length - 1; i >= 0; i -= 1) {
+      const fld = canon(filters[i].field)
+      if (removeAll || removeSet.has(fld)) {
+        dropped.push(filters[i].field)
+        filters.splice(i, 1)
+      }
+    }
+    if (dropped.length > 0) {
+      console.log(`[judgment-gate] fieldsToRemove=${JSON.stringify(earlyJudgment.fieldsToRemove)} → dropped ${dropped.length}/${before} prev filters: ${dropped.join(", ")}`)
+    }
+  }
+
   let singleCallHandled = false
   // ── LLM purpose 존중 ──
   // Resolver(routeHint/intent) 또는 SQL Agent(_qa)가 "이건 정보 조회/상담 질문" 이라고

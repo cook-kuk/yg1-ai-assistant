@@ -62,6 +62,18 @@ export const CHIP_CONFIG = {
   maxLLMCandidates:   envNum("CHIP_MAX_LLM_CANDIDATES", 12),
 } as const
 
+// ── Unified judgment (turn intent classifier) ──────────────
+export const JUDGMENT_CONFIG = {
+  /** 프롬프트에 실을 시스템응답 snippet 최대 길이. */
+  assistantSnippetMaxChars: envNum("JUDGMENT_ASSISTANT_SNIPPET_CHARS", 120),
+  /** 프롬프트에 실을 칩 preview 최대 개수. */
+  chipsPreviewMax:          envNum("JUDGMENT_CHIPS_PREVIEW_MAX", 6),
+  /** 트레이스/로그용 유저 메시지 snippet 최대 길이. */
+  logSnippetMaxChars:       envNum("JUDGMENT_LOG_SNIPPET_CHARS", 25),
+  /** LLM 응답 max_tokens. */
+  maxTokens:                envNum("JUDGMENT_MAX_TOKENS", 2500),
+} as const
+
 // ── Chat Service LLM token budgets ──────────────────────────
 export const CHAT_LLM_TOKENS = {
   /** Tool round (결정/단문 추론) max_tokens. */
