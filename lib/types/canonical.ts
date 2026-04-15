@@ -56,6 +56,7 @@ export const CanonicalProductSchema = z.object({
   // Geometry
   toolType: z.string().nullable(),       // e.g. "Solid", "Indexable"
   toolSubtype: z.string().nullable(),    // e.g. "Square", "Ball", "High-Feed"
+  machiningCategory: z.string().nullable().optional(),  // edp_root_category: Milling/Holemaking/Threading/Tooling System
   diameterMm: z.number().nullable(),
   diameterInch: z.number().nullable(),
   fluteCount: z.number().nullable(),

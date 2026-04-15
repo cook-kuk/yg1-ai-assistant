@@ -845,6 +845,7 @@ export function mapRowToProduct(row: RawProductRow): CanonicalProduct {
     seriesName: firstNonEmpty(row.edp_series_name),
     productName: firstNonEmpty(row.series_description, row.series_product_type, row.milling_cutting_edge_shape),
     toolType: normalizeToolType(row.series_tool_type, row.edp_root_category),
+    machiningCategory: firstNonEmpty(row.edp_root_category) ?? null,
     toolSubtype: normalizeToolSubtype(
       row.milling_cutting_edge_shape,
       row.series_cutting_edge_shape,

@@ -1415,6 +1415,22 @@ function getContextualFieldLabel(field: string): string {
       return "\uC9C1\uACBD"
     case "toolMaterial":
       return "\uACF5\uAD6C \uC7AC\uC9C8"
+    case "effectiveLengthMm":
+      return "\uC720\uD6A8\uC7A5"
+    case "neckDiameterMm":
+      return "\uB125 \uC9C1\uACBD"
+    case "neckLengthMm":
+      return "\uB125 \uAE38\uC774"
+    case "cornerRadiusMm":
+      return "\uCF54\uB108 R"
+    case "ballRadiusMm":
+      return "\uBCFC R"
+    case "taperAngleDeg":
+      return "\uD14C\uC774\uD37C\uAC01"
+    case "pointAngleDeg":
+      return "\uD3EC\uC778\uD2B8\uAC01"
+    case "threadPitchMm":
+      return "\uD53C\uCE58"
     default:
       return field
   }
@@ -1431,6 +1447,23 @@ function formatContextualFieldValue(field: string, value: string | number | null
   if (field === "diameterMm") {
     const numeric = String(value).match(/[\d.]+/)?.[0]
     return numeric ? `${numeric}mm` : null
+  }
+
+  if (
+    field === "effectiveLengthMm" ||
+    field === "neckDiameterMm" ||
+    field === "neckLengthMm" ||
+    field === "cornerRadiusMm" ||
+    field === "ballRadiusMm" ||
+    field === "threadPitchMm"
+  ) {
+    const numeric = String(value).match(/[\d.]+/)?.[0]
+    return numeric ? `${numeric}mm` : null
+  }
+
+  if (field === "taperAngleDeg" || field === "pointAngleDeg") {
+    const numeric = String(value).match(/[\d.]+/)?.[0]
+    return numeric ? `${numeric}\u00B0` : null
   }
 
   const text = String(value).trim()
@@ -1451,6 +1484,22 @@ function getContextualCandidateFieldValue(candidate: ScoredProduct, field: strin
       return candidate.product.diameterMm ?? null
     case "toolMaterial":
       return candidate.product.toolMaterial ?? null
+    case "effectiveLengthMm":
+      return candidate.product.effectiveLengthMm ?? null
+    case "neckDiameterMm":
+      return candidate.product.neckDiameterMm ?? null
+    case "neckLengthMm":
+      return candidate.product.neckLengthMm ?? null
+    case "cornerRadiusMm":
+      return candidate.product.cornerRadiusMm ?? null
+    case "ballRadiusMm":
+      return candidate.product.ballRadiusMm ?? null
+    case "taperAngleDeg":
+      return candidate.product.taperAngleDeg ?? null
+    case "pointAngleDeg":
+      return candidate.product.pointAngleDeg ?? null
+    case "threadPitchMm":
+      return candidate.product.threadPitchMm ?? null
     default:
       return null
   }
