@@ -33,6 +33,7 @@ const LEGACY_FIELD_TO_BASE: Record<string, string> = {
   diameterMm: "diameter",
   operation: "operation",
   cuttingType: "operation",
+  machiningCategory: "machiningCategory",
   toolType: "toolType",
   toolSubtype: "endType",
   seriesName: "seriesName",
@@ -97,6 +98,7 @@ function buildConstraintsFromResolvedInput(input: RecommendationInput | null | u
   if (input.workPieceName) base.materialDetail = input.workPieceName
   if (input.diameterMm != null) base.diameter = input.diameterMm
   if (input.operationType) base.operation = input.operationType
+  if (input.machiningCategory) base.machiningCategory = input.machiningCategory
   if (input.toolType) base.toolType = input.toolType
   if (input.toolSubtype) base.endType = input.toolSubtype
   if (input.seriesName) base.seriesName = input.seriesName
@@ -248,6 +250,8 @@ function getComparableResolvedInputValue(
     case "operation":
     case "cuttingType":
       return resolvedInput.operationType ?? null
+    case "machiningCategory":
+      return resolvedInput.machiningCategory ?? null
     case "toolType":
       return resolvedInput.toolType ?? null
     case "toolSubtype":

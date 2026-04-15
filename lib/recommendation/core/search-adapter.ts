@@ -23,6 +23,7 @@ const BASE_TO_LEGACY_FIELD: Record<string, string> = {
   materialDetail: "workPieceName",
   diameter: "diameterMm",
   operation: "cuttingType",
+  machiningCategory: "machiningCategory",
   toolType: "toolType",
   toolSubtype: "toolSubtype",
   endType: "toolSubtype",
@@ -73,6 +74,7 @@ export function constraintsToFilters(state: RecommendationSessionState): {
   if (base.materialDetail) input.workPieceName = String(base.materialDetail)
   if (base.diameter) input.diameterMm = Number(base.diameter)
   if (base.operation) input.operationType = String(base.operation)
+  if (base.machiningCategory) input.machiningCategory = String(base.machiningCategory)
   if (base.toolType) input.toolType = String(base.toolType)
   if (base.toolSubtype || base.endType) input.toolSubtype = String(base.toolSubtype ?? base.endType)
   if (base.seriesName) input.seriesName = String(base.seriesName)
@@ -84,7 +86,7 @@ export function constraintsToFilters(state: RecommendationSessionState): {
     if (value == null) continue
     const legacyField = BASE_TO_LEGACY_FIELD[key]
     if (!legacyField) continue
-    if (["material", "workPieceName", "diameterMm", "cuttingType", "toolType", "toolSubtype", "seriesName", "country"].includes(legacyField)) {
+    if (["material", "workPieceName", "diameterMm", "cuttingType", "machiningCategory", "toolType", "toolSubtype", "seriesName", "country"].includes(legacyField)) {
       continue
     }
     const filter = buildAppliedFilterFromValue(legacyField, value)
