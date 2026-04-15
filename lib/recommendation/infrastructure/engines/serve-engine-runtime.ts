@@ -5067,8 +5067,11 @@ async function handleServeExplorationInner(
               }
 
               // Zero-result rollback: if prev had candidates but new filters match none, revert.
+              // Skip on first filter application (prev filters == 0): user is narrowing from full pool,
+              // and `displayedCandidates` is only the top-N shown, not the full candidate pool —
+              // matching against it would falsely report 0 even when the full pool has matches.
               let rolledBack = false
-              if (appliedBuiltFilters.length > 0 && prevDisplayedCandidates.length >= 1) {
+              if (appliedBuiltFilters.length > 0 && prevDisplayedCandidates.length >= 1 && prevFiltersSnapshot.length > 0) {
                 const matchCount = prevDisplayedCandidates.filter(c =>
                   appliedBuiltFilters.every(f => candidateMatchesAppliedFilter(c, f))
                 ).length
