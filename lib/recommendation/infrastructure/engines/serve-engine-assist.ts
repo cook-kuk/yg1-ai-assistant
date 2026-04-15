@@ -113,7 +113,7 @@ function detectRequestedProductField(userMessage: string): { label: string; valu
   if (/생크/i.test(userMessage)) {
     return { label: "생크 직경", value: "shankDiameterMm" }
   }
-  if (/절삭길이|날길이|loc/i.test(userMessage)) {
+  if (/절삭\s*길이|절삭장|날\s*길이|날장|날\s*장|loc\b/i.test(userMessage)) {
     return { label: "절삭 길이", value: "lengthOfCutMm" }
   }
   if (/전장|overall|oal/i.test(userMessage)) {
