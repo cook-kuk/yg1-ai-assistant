@@ -5129,24 +5129,28 @@ async function handleServeExplorationInner(
               // displayed page — matching against the page would falsely report 0 even when the
               // full pool has matches (e.g. 전장 100 ↑ 가 page 밖 480개 안에만 있는 경우).
               //
-              // Skip rollback on SAME-FIELD replacement: when the user changes the value of a
-              // field already in the filter set (e.g. 구리 → 알루미늄 on workPieceName), the prev
-              // pool is filtered by the OLD value and won't match the new value by definition.
-              // That is not a "narrowing to 0" case — it's a switch, which re-queries from scratch.
-              const hasSameFieldReplacement = appliedBuiltFilters.some(f =>
-                prevFiltersSnapshot.some(p => p.field === f.field),
-              )
+              // Partition applied filters into REPLACEMENT (field already present in prev filters,
+              // regardless of field — workPiece/diameter/flute/brand/coating/... any field) vs NEW.
+              // - Replacement: user is switching the value of an already-set field. The prev pool is
+              //   filtered by the OLD value of that field and won't match the new value by definition,
+              //   so running the rollback check on replacement filters produces false-positive 0 counts.
+              // - New field: user is ADDING a narrowing condition. Rollback on these is meaningful —
+              //   if the addition drives the pool to 0, ask the user rather than silently return empty.
+              // So we run the rollback check only on new-field filters. Mixed turns (replacement +
+              // new narrowing) still get the rollback guardrail for the narrowing portion.
+              const replacementFields = new Set(prevFiltersSnapshot.map(p => p.field))
+              const newFieldFilters = appliedBuiltFilters.filter(f => !replacementFields.has(f.field))
               let rolledBack = false
-              if (appliedBuiltFilters.length > 0 && prevCandidatePool.length >= 1 && prevFiltersSnapshot.length > 0 && !hasSameFieldReplacement) {
+              if (newFieldFilters.length > 0 && prevCandidatePool.length >= 1 && prevFiltersSnapshot.length > 0) {
                 const matchCount = prevCandidatePool.filter(c =>
-                  appliedBuiltFilters.every(f => candidateMatchesAppliedFilter(c, f))
+                  newFieldFilters.every(f => candidateMatchesAppliedFilter(c, f))
                 ).length
                 if (matchCount === 0) {
                   filters.splice(0, filters.length, ...prevFiltersSnapshot)
                   currentInput = prevInputSnapshot
                   rolledBack = true
-                  console.log(`[sql-agent:rollback] ${appliedBuiltFilters.length} filter(s) would yield 0 candidates (pool=${prevCandidatePool.length}, displayed=${prevDisplayedCandidates.length}) → rollback`)
-                  trace.add("sql-agent", "router", { filterCount: appliedBuiltFilters.length, prevPool: prevCandidatePool.length, prevDisplayed: prevDisplayedCandidates.length }, { rollback: true }, "zero-result rollback")
+                  console.log(`[sql-agent:rollback] ${newFieldFilters.length} new-field filter(s) would yield 0 candidates (pool=${prevCandidatePool.length}, displayed=${prevDisplayedCandidates.length}) → rollback`)
+                  trace.add("sql-agent", "router", { newFieldFilterCount: newFieldFilters.length, totalFilterCount: appliedBuiltFilters.length, prevPool: prevCandidatePool.length, prevDisplayed: prevDisplayedCandidates.length }, { rollback: true }, "zero-result rollback")
                 }
               }
 
