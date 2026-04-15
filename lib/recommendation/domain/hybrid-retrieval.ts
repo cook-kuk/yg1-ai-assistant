@@ -433,17 +433,30 @@ export async function runHybridRetrieval(
     // candidates through — even if filtering produces 0 results. This prevents
     // tap/drill/thread mill candidates from leaking into an end mill session when
     // follow-up filters (RPM, stock, etc.) are added.
-    if (input.machiningCategory) {
-      const categoryShapes = CATEGORY_SHAPE_MAP[input.machiningCategory]
-      if (categoryShapes) {
-        const catFiltered = candidates.filter(p =>
-          productMatchesMachiningCategory(p.applicationShapes, categoryShapes) &&
-          !hasForegnCategoryMetadata(p, input.machiningCategory!)
-        )
-        const beforeCount = candidates.length
+    //
+    // Implicit Milling default: when user hasn't specified a category (input.machiningCategory
+    // null), silently scope to Milling so drill/tap don't dominate aluminum-style generic queries.
+    // Distinction: explicit category = hard filter even at 0 results, implicit default = soft
+    // filter that rolls back if it would starve the result set. UI chips untouched because we
+    // never mutate input.machiningCategory.
+    const explicitCategory = input.machiningCategory
+    const effectiveCategory = explicitCategory ?? "Milling"
+    const categoryShapes = CATEGORY_SHAPE_MAP[effectiveCategory]
+    if (categoryShapes) {
+      const catFiltered = candidates.filter(p =>
+        productMatchesMachiningCategory(p.applicationShapes, categoryShapes) &&
+        !hasForegnCategoryMetadata(p, effectiveCategory)
+      )
+      const beforeCount = candidates.length
+      if (explicitCategory) {
         candidates = catFiltered  // Hard filter: apply even if 0 results
         if (beforeCount !== catFiltered.length) {
-          console.log(`[hybrid-retrieval] machiningCategory HARD filter: ${input.machiningCategory} → ${beforeCount} → ${catFiltered.length} candidates`)
+          console.log(`[hybrid-retrieval] machiningCategory HARD filter: ${explicitCategory} → ${beforeCount} → ${catFiltered.length} candidates`)
+        }
+      } else if (catFiltered.length > 0) {
+        candidates = catFiltered
+        if (beforeCount !== catFiltered.length) {
+          console.log(`[hybrid-retrieval] machiningCategory IMPLICIT Milling default → ${beforeCount} → ${catFiltered.length} candidates`)
         }
       }
     }
