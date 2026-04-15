@@ -15,6 +15,7 @@
 import { findColumnsForToken, findValueByPhonetic } from "./sql-agent-schema-cache"
 import { DB_COL_TO_FILTER_FIELD } from "./sql-agent"
 import { MATERIAL_ALIAS_MAP } from "@/lib/recommendation/shared/canonical-values"
+import { findAllMaterialMatchesInText } from "@/lib/recommendation/shared/material-mapping"
 import { stripKoreanParticles } from "@/lib/recommendation/shared/patterns"
 import { detectMeasurementScopeAmbiguity } from "@/lib/recommendation/shared/measurement-scope-ambiguity"
 import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-target-classifier"
@@ -641,6 +642,16 @@ export function extractWorkPieceName(text: string): DeterministicAction | null {
       const op = negNear(text, m.index, m[0].length) ? "neq" : "eq"
       return { type: "apply_filter", field: "workPieceName", value, op, source: "deterministic" }
     }
+  }
+  // Fallback: material-mapping alias lookup (JIS/SS/EN/AISI codes like "SM 58",
+  // "1311", "S355NH", "A2765-35" that aren't in WORKPIECE_PATTERNS).
+  const matches = findAllMaterialMatchesInText(text)
+  for (const match of matches) {
+    if (!match.lv2Category || !match.matchedAlias) continue
+    if (match.confidence < 0.85) continue
+    const idx = text.toLowerCase().indexOf(match.matchedAlias.toLowerCase())
+    const op = idx >= 0 && negNear(text, idx, match.matchedAlias.length) ? "neq" : "eq"
+    return { type: "apply_filter", field: "workPieceName", value: match.lv2Category, op, source: "deterministic" }
   }
   return null
 }
@@ -1577,6 +1588,12 @@ export function hasBoundedPhantomMatch(value: string, message: string): boolean 
 function hasWorkPieceAliasMention(canonical: string, message: string): boolean {
   for (const { pattern, value } of WORKPIECE_PATTERNS) {
     if (value === canonical && pattern.test(message)) return true
+  }
+  // Material-mapping alias grounding (JIS/SS/EN/AISI codes like SM 58, 1311, S355NH).
+  for (const match of findAllMaterialMatchesInText(message)) {
+    if (match.lv2Category === canonical && match.matchedAlias && match.confidence >= 0.85) {
+      return true
+    }
   }
   return false
 }

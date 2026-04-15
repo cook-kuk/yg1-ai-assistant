@@ -77,4 +77,28 @@ describe("deterministic-scr workPieceName extraction", () => {
     const a = findWorkpiece("그냥 제품 추천해줘")
     expect(a).toBeUndefined()
   })
+
+  // F안 — material-mapping alias fallback (JIS/SS/EN/AISI codes)
+  describe("material-mapping fallback (alias codes)", () => {
+    it("SM 58 (JIS 컬럼) → Carbon Steels", () => {
+      const a = findWorkpiece("SM 58으로 필터링해줘")
+      expect(a?.value).toBe("Carbon Steels")
+      expect(a?.op).toBe("eq")
+    })
+
+    it("1311 (SS 규격) → Carbon Steels", () => {
+      const a = findWorkpiece("SS 규격 기준으로 1311 제품을 추천해줘")
+      expect(a?.value).toBe("Carbon Steels")
+    })
+
+    it("S355NH (JIS/EN) → Carbon Steels", () => {
+      const a = findWorkpiece("JIS 규격의 S355NH 를 추천해줘")
+      expect(a?.value).toBe("Carbon Steels")
+    })
+
+    it("A2765-35 (AISI/ASTM/SAE) → Carbon Steels", () => {
+      const a = findWorkpiece("A2765-35 제품으로 필터링해줘")
+      expect(a?.value).toBe("Carbon Steels")
+    })
+  })
 })

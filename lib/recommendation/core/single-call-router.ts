@@ -145,7 +145,14 @@ function buildSessionSummary(state: ExplorationSessionState | null): string {
   const parts: string[] = []
   const filters = state.appliedFilters ?? []
   if (filters.length > 0) {
-    parts.push(`Applied filters: ${filters.map(f => `${f.field}=${f.value}(${f.op})`).join(", ")}`)
+    // CRITICAL: These are filters ALREADY captured from previous turns.
+    // They are NOT in the current user message. Do NOT re-emit them.
+    // The current message may add, remove, or replace them — but default to ADD.
+    parts.push("### Previously Applied Filters (immutable context — do NOT re-emit)")
+    for (const f of filters) {
+      parts.push(`  - ${f.field}=${f.value} (${f.op})`)
+    }
+    parts.push("### End Previously Applied Filters")
   } else {
     parts.push("No filters applied yet.")
   }
@@ -295,9 +302,21 @@ Given the user's Korean message and the current session state, determine what ac
 - reset: User wants to start over.
 - go_back: User wants to undo the last step.
 
-## IMPORTANT: Filter deduplication
-If a filter already exists in Applied filters, do NOT re-apply the same value.
-If user restates an already-applied condition, just skip that filter action.
+## CRITICAL: Immutable context vs current message
+Session State lists "Previously Applied Filters" — these were captured in earlier turns.
+They are NOT part of the current user message. Treat them as immutable context ONLY.
+
+Decision rules (apply in order):
+1. Extract filters ONLY from the CURRENT user message (the last user turn).
+2. If the message mentions a NEW field not in Previously Applied → emit apply_filter.
+3. If the message explicitly says to drop/exclude an already-applied value → emit remove_filter.
+4. If the message gives a new value for an already-applied field → emit replace_filter.
+5. If the message restates an already-applied value with no change intent → skip it (no action).
+6. NEVER ask "should I modify the existing filter or start over?" when the message clearly
+   adds new filter fields that don't conflict with existing ones. Just add them.
+7. Presence of previously-applied filters MUST NOT make you more conservative.
+   A message like "날은 Square고 직경은 10, 날장 20이상" is 3 new apply_filter actions
+   regardless of whether workPieceName/machiningCategory were already applied.
 
 ## Semantic policy
 ${SEMANTIC_INTERPRETATION_POLICY_PROMPT}
@@ -386,6 +405,18 @@ ${buildManifestPromptSection()}
 - fluteCount / diameterMm values: numbers only, no units or "날" suffix.
 - Do not re-apply a filter that is already present in session state.
 - Decide actions from tone and full context, not from isolated cue words. Questions (exploratory tone) stay as "answer"; directive conditions turn into filter actions even when the user also says "추천해줘".
+
+## CRITICAL: Immutable context vs current message
+"Previously Applied Filters" in Session State = captured in earlier turns, NOT in this message.
+Extract filter actions ONLY from the CURRENT user message. Rules:
+1. New field mentioned in message + not in Previously Applied → apply_filter.
+2. Message explicitly drops an applied value → remove_filter.
+3. Message gives a new value for an applied field → replace_filter.
+4. Message restates an applied value with no change intent → skip (no action).
+5. Message adds new fields that don't conflict with existing filters → just add them.
+   Do NOT ask "수정할까요 vs 새로 시작할까요?" in this case — the answer is always "add".
+6. Presence of Previously Applied Filters MUST NOT make you more conservative or
+   trigger clarification. A directive multi-filter message stays a multi-filter message.
 
 ## Conversation Memory
 You receive recent conversation history. Use it for references like "아까 그거", "이전에 말한 조건", "그 코팅으로".
