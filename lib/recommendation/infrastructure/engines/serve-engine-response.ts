@@ -1297,6 +1297,7 @@ export async function buildRecommendationResponse(
   extraResponseContext?: string,
   skipQuestionInjection: boolean = false,
   _recursionDepth: number = 0,
+  purpose: "recommendation" | "question" = "recommendation",
 ): Promise<Response> {
   if (_recursionDepth > MAX_QUESTION_REC_DEPTH) {
     console.warn(`[recursion-guard] buildRecommendationResponse depth=${_recursionDepth} > ${MAX_QUESTION_REC_DEPTH} — forcing skipQuestionInjection=true to break loop`)
@@ -1543,7 +1544,7 @@ export async function buildRecommendationResponse(
   }
   if (!skipLlmSummary && provider.available() && primary && primaryFactChecked && primaryExplanation) {
     try {
-      const systemPrompt = buildRecommendationSummarySystemPrompt(language)
+      const systemPrompt = buildRecommendationSummarySystemPrompt(language, purpose)
       const llmSessionState = buildSessionState({
         candidateCount: totalCandidateCount,
         appliedFilters: filters,
@@ -1751,23 +1752,25 @@ export async function buildRecommendationResponse(
   sessionState.displayedChips = finalRecChips
   sessionState.displayedStructuredChips = finalRecStructuredChips
 
+  const isQuestionTurn = purpose === "question"
   traceRecommendation("response.buildRecommendationResponse:output", {
-    purpose: "recommendation",
+    purpose,
     text: finalResponseText,
     chips: finalRecChips,
     sessionState,
-    recommendation,
+    recommendation: isQuestionTurn ? null : recommendation,
   })
   return deps.jsonRecommendationResponse({
     text: finalResponseText,
-    purpose: "recommendation",
+    purpose,
     chips: finalRecChips,
     structuredChips: finalRecStructuredChips,
-    isComplete: true,
-    recommendation,
+    isComplete: !isQuestionTurn,
+    recommendation: isQuestionTurn ? null : recommendation,
     sessionState,
-    evidenceSummaries: evidenceSummaries.length > 0 ? evidenceSummaries : null,
-    candidateSnapshot,
+    evidenceSummaries: isQuestionTurn ? null : (evidenceSummaries.length > 0 ? evidenceSummaries : null),
+    // 세션 fallback (lastRecommendationArtifact) 을 차단하기 위해 nullish 가 아닌 빈 배열.
+    candidateSnapshot: isQuestionTurn ? [] : candidateSnapshot,
     pagination,
     requestPreparation: requestPrep,
     primaryExplanation,

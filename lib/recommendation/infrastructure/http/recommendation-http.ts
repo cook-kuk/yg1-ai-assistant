@@ -259,6 +259,7 @@ export function createServeRuntimeDependencies(
       language: Parameters<typeof buildRecommendationResponse>[14],
       displayedProducts?: Parameters<typeof buildRecommendationResponse>[15],
       extraResponseContext?: Parameters<typeof buildRecommendationResponse>[16],
+      purpose?: "recommendation" | "question",
     ) => buildRecommendationResponse(
       responseDeps,
       form,
@@ -277,6 +278,9 @@ export function createServeRuntimeDependencies(
       language,
       displayedProducts,
       extraResponseContext,
+      false,
+      0,
+      purpose,
     ),
     onThinking: options.onThinking,
     buildCandidateSnapshot,

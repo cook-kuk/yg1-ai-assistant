@@ -118,40 +118,26 @@ export async function classifyPreSearchRoute(
 
   if (isGeneralKnowledge) {
     const isTaxonomy = isCuttingToolTaxonomyKnowledgeQuestion(userMessage)
-    // judgment가 explain/compare를 명시적으로 판단했으면 LLM 존중 — 필터힌트 override 금지.
-    // 그 외(off_topic/greeting 등 애매한 분류) + taxonomy 아님 + 필터 힌트 있으면 추천 경로 강제.
-    // 값 추출(material/diameter/subtype 등)은 regex 몫이라 이 override는 intent가 아닌 값 기반.
-    const judgmentSaysExplain = judgment.intentAction === "explain" || judgment.intentAction === "compare"
-    if (!isTaxonomy && !judgmentSaysExplain) {
-      const filterHintCount = countExplicitFilterHints(userMessage)
-      if (filterHintCount >= 1) {
-        return {
-          kind: "recommendation_action",
-          reason: `filter_hints_override:${filterHintCount}`,
-        }
-      }
-    }
+    // LLM 판단 존중: general_knowledge 로 분류되면 regex filter-hint 개수와 상관없이 LLM 결정을 따른다.
+    // filterHintCount 는 로깅/tiebreaker 용으로만 남긴다 — override 금지 (수찬 모델 스타일 필터편향 방지).
+    // 사용자가 진짜 추천을 원하면 intentAction="ask_recommendation" 으로 들어오고 isGeneralKnowledge=false 가 된다.
+    const filterHintCount = countExplicitFilterHints(userMessage)
     return {
       kind: "general_knowledge",
       reason: isTaxonomy
-        ? "taxonomy_knowledge"
-        : `judgment:${judgment.domainRelevance}/${judgment.intentAction}`,
+        ? `taxonomy_knowledge/hints=${filterHintCount}`
+        : `judgment:${judgment.domainRelevance}/${judgment.intentAction}/hints=${filterHintCount}`,
     }
   }
 
-  // Overridable direct_lookup (series/brand): judgment가 explain/compare 아니고
-  // 필터 힌트가 있으면 추천 경로. 아니면 direct_lookup 유지.
+  // Overridable direct_lookup (series/brand): LLM 판단 존중 — filter-hint 로 override 하지 않는다.
+  // 사용자가 "4GMILL 10mm 4날" 처럼 브랜드+필터를 섞어도, LLM 이 direct_lookup 으로 분류했다면
+  // 그 의도대로 브랜드 카드/정보를 먼저 보여주고 후속 턴에서 필터링으로 좁힌다.
   if (isOverridableDirectLookup) {
     const filterHintCount = countExplicitFilterHints(userMessage)
-    if (filterHintCount >= 1) {
-      return {
-        kind: "recommendation_action",
-        reason: `filter_hints_override_direct:${queryTarget.type}/${filterHintCount}`,
-      }
-    }
     return {
       kind: "direct_lookup",
-      reason: `query_target:${queryTarget.type}`,
+      reason: `query_target:${queryTarget.type}/hints=${filterHintCount}`,
     }
   }
 

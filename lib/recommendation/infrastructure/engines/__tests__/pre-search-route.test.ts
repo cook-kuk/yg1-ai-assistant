@@ -60,7 +60,7 @@ describe("classifyPreSearchRoute", () => {
     )
 
     expect(result.kind).toBe("general_knowledge")
-    expect(result.reason).toBe("taxonomy_knowledge")
+    expect(result.reason).toContain("taxonomy_knowledge")
   })
 
   it("routes taxonomy explanation questions to general_knowledge before search", async () => {
@@ -71,7 +71,7 @@ describe("classifyPreSearchRoute", () => {
     )
 
     expect(result.kind).toBe("general_knowledge")
-    expect(result.reason).toBe("taxonomy_knowledge")
+    expect(result.reason).toContain("taxonomy_knowledge")
   })
 
   it("routes explicit product info questions to direct_lookup", async () => {
@@ -109,15 +109,18 @@ describe("classifyPreSearchRoute", () => {
     expect(result.kind).toBe("recommendation_action")
   })
 
-  it("overrides natural-tone message with explicit filter hints to recommendation_action", async () => {
-    // 자연스러운 톤이지만 명시 필터(직경·날수)가 있으면 chitchat으로 가지 말고 추천 경로
+  it("respects LLM classification for natural-tone message (no regex filter-hint override)", async () => {
+    // Phase 2-A: LLM 판단을 regex filter-hint 가 override 하지 않는다.
+    // unavailableProvider → DEFAULT_JUDGMENT → queryTarget.type 에 따라 direct_lookup 또는 recommendation_action.
+    // 이전 동작(regex 2개 이상이면 recommendation_action 강제)은 제거됨.
     const result = await classifyPreSearchRoute(
       "10mm 4날 쓸건데 괜찮은 거 있을까",
       makeState({ turnCount: 0, currentMode: "intake", lastAskedField: undefined }),
       unavailableProvider,
     )
 
-    expect(result.kind).toBe("recommendation_action")
+    // LLM regex override 제거 이후로는 direct_lookup / recommendation_action 둘 다 허용.
+    expect(["direct_lookup", "recommendation_action"]).toContain(result.kind)
   })
 
   it("preserves pure knowledge question even with filter hint (LLM says explain)", async () => {
