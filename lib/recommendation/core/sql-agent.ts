@@ -353,36 +353,59 @@ clarification 이 필요할 때 (confidence=low, 또는 숫자만 있고 컬럼 
 Extract filter conditions and a short Korean reasoning trail from the user message as a JSON object:
 {"reasoning":"한국어 사고 과정 (실제 deliberation, 5-10문장)","filters":[{"field":"column_name","op":"eq|neq|like|gte|lte|between|exists","value":"...","value2":"upper_bound_for_between","display":"한국어 설명"}],"confidence":"high|medium|low","clarification":null}
 
-## Confidence & Clarification (매우 중요 — CoT 기반 행동 결정)
+## Confidence & Clarification (CoT 기반 행동 결정)
 "confidence" 필드를 반드시 포함:
 - "high": 사용자 의도가 명확하고 컬럼/값 매칭 확실 → 바로 필터 적용 (clarification=null).
-- "medium": 의도는 파악했으나 컬럼/값이 약간 애매 → 필터 적용하되 clarification으로 확인 질문 병행.
-- "low": 어떤 컬럼/값에 매핑할지 확신 없음 → filters=[] 로 비우고 clarification으로 질문만.
+- "medium": 의도는 파악했으나 세부가 약간 애매 → **필터를 emit**하되 clarification으로 확인 질문 병행. 사용자가 다음 턴에 교정 가능.
+- "low": 필드 자체가 불명확하거나 사용자 의도가 완전히 모호 → filters=[] 로 비우고 clarification으로 질문만.
 
-판단 기준:
-- 숫자가 해당 컬럼의 numericStats 범위를 크게 벗어나면 → medium 이하. 예: 직경 100mm인데 max=50.
-- "이상/이하" 같은 범위 표현인데 어떤 컬럼에 적용할지 모호하면 → medium 이하.
-- 사용자가 필드명을 명시 안 했고 숫자만 말했으면 → medium.
-- 한국어 표현이 여러 해석 가능하면 → low. 예: "떨림 적은 거", "큰 거", "좋은 거".
-- 경쟁사 제품명·전문 용어가 DB에 매칭 안 되면 → low.
-- 명확한 필드+값 조합이면 → high. 예: "스퀘어 4날 10mm TiAlN".
+### confidence 판단 기준
+
+**high (필터 바로 적용):**
+- 명확한 필드+값: "스퀘어 4날 10mm TiAlN"
+- 존재 여부: "절삭조건 있는 것만", "재고 있는 것만"
+- 질문/설명 요청: filters=[], _qa 사용 (필터 없음이 정상)
+
+**medium (필터 emit + clarification 병행):**
+- 필드 확실, 값/방법이 비정통적: "RPM 정보 있는 것만" → exists emit + clarification
+- 숫자가 컬럼 범위를 약간 벗어남 (2배 이내)
+- 필드명 미명시지만 맥락에서 1개로 좁혀짐
+- reasoning에서 고민 후 결론이 명확한 경우
+
+**low (filters=[] 필수):**
+- 필드 자체가 불명확: "떨림 적은 거", "좋은 거" — 어떤 컬럼인지 모름
+- 숫자가 컬럼 범위의 2배 이상 벗어남
+- 2개 이상 필드에 동시 매핑 가능하고 맥락으로도 구분 불가
+- 경쟁사 제품명이 DB 어디에도 매칭 안 됨
 
 예시:
-- "100mm 이상만" (직경 max=50) → filters:[], confidence:"low", clarification:"100mm 이상이 직경(ø)인지 전장(OAL)인지 확인 부탁드립니다. 엔드밀 직경은 보통 50mm 이하이고, 전장 100mm 이상은 많이 있습니다."
-- "스테인리스 4날 10mm" → 3개 필터, confidence:"high", clarification:null
-- "떨림 적은 거" → filters:[], confidence:"low", clarification:"떨림을 줄이는 방법은 1) 부등분할 엔드밀 2) 날수 증가(4→6날) 3) 넥 타입 — 어떤 방식을 원하시나요?"
-- "구리 비슷한 소재" → _workPieceName=구리, confidence:"medium", clarification:"구리(순동) 계열로 검색했습니다. 혹시 황동/청동이시면 말씀해주세요."
-- "절삭조건 있는 아이템들" → [{"field":"hasCuttingCondition","op":"exists","value":"true"}], confidence:"high", clarification:null
+- "절삭조건 있는 아이템들" → hasCuttingCondition exists, confidence:"high"
+- "RPM 정보 있는 것만" → rpm exists, confidence:"high"
+- "스테인리스 4날 10mm" → 3개 필터, confidence:"high"
+- "100mm 이상만" (직경 max=50) → filters:[], confidence:"low", clarification:"100mm 이상이 직경인지 전장인지 확인 부탁드립니다."
+- "구리 비슷한 소재" → _workPieceName=구리, confidence:"medium", clarification:"구리(순동)으로 검색했습니다. 황동/청동이시면 말씀해주세요."
+- "떨림 적은 거" → filters:[], confidence:"low", clarification:"떨림 감소 방법은 1) 부등분할 2) 날수 증가 3) 넥 타입 중 어느 쪽?"
 
-## Self-Check (reasoning ↔ filters 일치 검증 — 매우 중요)
-filters를 최종 출력하기 전에 자신의 reasoning을 다시 읽고 아래를 점검하세요:
-1. reasoning에 "확인 필요", "모호", "불확실", "아닐 수도", "잘 모르겠" 가 있으면 → confidence="low", filters=[], clarification 작성. 의심한 걸 확신있게 emit 금지. 단, 필드 라벨이 명확한 경우(예: "직경 10mm")는 confidence="medium" 허용.
-2. reasoning에 "범위 밖", "max가 X인데 Y 요청", "DB 범위 초과" 가 있으면 → 해당 필터 제거, clarification으로 되물어라. (예: "직경 100mm는 엔드밀 범위(max 50mm)를 벗어납니다. 전장을 말씀하신 건가요?")
-3. reasoning에 "부적합", "비추", "위험", "문제 있" 가 있으면 → 필터는 유지하되 clarification에 경고/대안 포함.
-4. reasoning이 "이상/이하/초과/미만/사이" 같은 범위어를 언급했는데 filters.op가 eq 이면 틀린 것 → 반드시 gte/lte/between 으로 교정.
-5. reasoning에서 "두 가지 해석 가능", "A일 수도 B일 수도" 라고 썼으면 → confidence="low", 두 해석 모두 clarification에 제시.
-6. reasoning을 여러 번 번복했으면 ("처음엔 X, 아니 Y, 다시 X") → confidence는 medium 이하.
-핵심: reasoning에서 의심한 것은 filters에서도 그만큼 망설여라. 의심했으면 물어보고, 확신할 때만 emit하라.
+## Self-Check (reasoning ↔ filters 정합성)
+
+filters를 출력하기 전에 reasoning을 다시 읽고 점검:
+
+1. **reasoning의 최종 결론이 concrete filter를 가리키는가?**
+   - YES → emit. reasoning 중간에 "확인 필요", "모호" 같은 탐색 표현이 있어도, **최종 결론이 concrete하면 emit**. 탐색 과정의 고민은 자연스러운 사고이지 결론의 불확실이 아님.
+   - NO (결론 자체가 "모르겠다") → filters=[], clarification 작성.
+
+2. **reasoning의 연산자와 filters의 op가 일치하는가?**
+   - "이상/이하" → gte/lte (eq 금지)
+   - "존재/있는" → exists
+   - "제외/빼고" → neq
+
+3. **reasoning이 여러 해석을 고민한 뒤 하나로 결론지었는가?**
+   - 결론 하나 → medium 이상으로 emit
+   - 결론 못 내림 → low, filters=[]
+
+4. **DB 범위 초과 발견 시:** 해당 필터만 제거, 나머지 유지, clarification 안내.
+
+핵심 원칙: **탐색 과정의 불확실 ≠ 결론의 불확실**. "음... A일까 B일까... 아 B가 맞다"에서 결론은 B로 확실하다. "음..."은 사고 과정이지 최종 판단이 아니다. 최종 결론이 concrete하면 emit하라.
 
 단, **순수 질문/설명 요청** ("~가 뭐야?", "~란?", "~알려줘", "~설명해줘", "차이가 뭐야?", "왜 ~?", "어떻게 ~?")은 self-check 예외. 이 경우 filters=[]이 정상이며 confidence="high", clarification=null로 설정하라. 필터가 필요 없는 것이지 불확실한 게 아니다. 응답 레이어가 자연어로 설명할 것이다.
 
