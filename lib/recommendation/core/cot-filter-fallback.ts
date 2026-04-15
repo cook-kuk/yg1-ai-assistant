@@ -50,9 +50,14 @@ export async function tryCotToFilterFallback(args: CotFilterFallbackArgs): Promi
   const msg = (args.userMessage ?? "").trim()
   const cot = (args.cotReasoning ?? "").trim()
 
-  // ── Stage 1: CoT → filter extraction ──
+  // ── Stage 1: CoT → filter | question | null ──
+  // CoT 가 "설명/질문 의도"라고 결론지었으면 "question" 을 돌려준다.
+  // 이 경우 Stage 2(숫자→clarification)를 건너뛰어, 상위 경로의 explain 응답이 처리하게 한다.
   if (cot.length > 0) {
     const stage1 = await extractFilterFromCot(msg, cot, args.schema)
+    if (stage1 === "question") {
+      return { kind: "none", reason: "cot_is_question" }
+    }
     if (stage1) return { kind: "filter", filter: stage1 }
   }
 
@@ -80,21 +85,22 @@ async function extractFilterFromCot(
   userMessage: string,
   cotReasoning: string,
   schema: DbSchema,
-): Promise<FallbackFilter | null> {
+): Promise<FallbackFilter | "question" | null> {
   try {
     const columns = schema.columns.slice(0, 60).map(c => c.column_name).join(", ")
-    const systemPrompt = `당신은 YG-1 절삭공구 DB의 필터 추출기입니다.
-아래 SQL Agent의 사고 과정(CoT)에 "어떤 컬럼에 어떤 값을 적용해야 한다"는 판단이 보이면, 그 필터를 JSON 하나로만 출력하세요.
-사고 과정에 구체적 필터 의도가 없으면 null 을 출력하세요.
+    const systemPrompt = `당신은 YG-1 절삭공구 DB의 필터 판정기입니다.
+SQL Agent의 사고 과정(CoT)을 읽고 아래 셋 중 하나만 출력하세요.
+
+1) CoT 가 "이 메시지는 필터/조건 적용이 아니라 설명·질문·상담 요청"이라고 결론지었으면:
+   "question"
+2) CoT 에 "어떤 컬럼에 어떤 값을 적용해야 한다"는 구체적 필터 의도가 있으면:
+   {"field":"<컬럼명>","op":"eq|neq|gte|lte|between|includes","value":"<값>","value2":"<선택>"}
+3) 둘 다 아니면:
+   null
 
 DB 컬럼(일부): ${columns}
 
-출력 형식 (반드시 이 중 하나만):
-{"field":"<컬럼명>","op":"eq|neq|gte|lte|between|includes","value":"<값>","value2":"<선택>"}
-또는
-null
-
-설명/코드펜스 금지. JSON 또는 null 만.`
+출력은 위 세 형태 중 하나만. 설명/코드펜스 금지.`
     const userInput = `사용자 메시지: "${userMessage}"\n\nSQL Agent CoT:\n${cotReasoning.slice(0, 1200)}`
     const res = await executeLlm({
       agentName: "parameter-extractor",
@@ -106,6 +112,7 @@ null
     })
     const text = (res.text ?? "").trim()
     if (!text || /^null$/i.test(text)) return null
+    if (/^"?question"?$/i.test(text)) return "question"
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     if (!jsonMatch) return null
     let parsed: unknown

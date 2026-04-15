@@ -133,6 +133,7 @@ export function buildJudgmentPrompt(input: UnifiedJudgmentInput): string {
 
 [판단 원칙 — 톤·맥락으로 판단, 키워드 매칭 아님]
 - 도메인 값(날수·직경·코팅·소재 등)이 질문/탐색 톤이면 explain 이 최우선. 첫 턴이라도 톤이 우선이다.
+  · 한국어 의문 조사(은/는/이/가 + 물음표) 또는 의문 어미(~야?/~이야?/~인가?/~니?/~어?)가 붙은 도메인 값 단독 발화는 **설명 요청**이다 (예: "4날은?", "알루미늄은?", "AlTiN이야?"). 절대 필터/ask_recommendation 로 판정하지 말 것.
 - 지시 톤으로 값이 주어지면 ask_recommendation / refine_condition.
 - 이전 턴이 설명이었고 짧은 후속질문이 오면 보통 설명 추가 요청이다.
 - 옵션/종류/목록을 묻는 탐색형 질문은 브랜드·시리즈가 섞여 있어도 explain(product_query).
