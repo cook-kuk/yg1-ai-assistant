@@ -123,6 +123,7 @@ export const AGENT_TIER: Record<AgentName, ModelTier> = {
   "query-planner":           "haiku",
   "narrative-polish":        "haiku",
   "explain-domain":          "haiku",
+  "response-composer":       "haiku",
   // Mid: judgment, semantic interpretation, multi-step orchestration
   "intent-classifier":       "sonnet",
   "ambiguity-resolver":      "sonnet",
@@ -132,7 +133,6 @@ export const AGENT_TIER: Record<AgentName, ModelTier> = {
   "tool-use-router":         "sonnet",
   "comparison":              "sonnet",
   "query-decomposer":        "sonnet",
-  "response-composer":       "sonnet",
   "self-correction":         "sonnet",
   "turn-repair":             "sonnet",
   "unified-router":          "sonnet",
@@ -159,8 +159,9 @@ export const AGENT_REASONING_EFFORT: Partial<Record<AgentName, ReasoningEffort>>
   "semantic-turn-extractor": "low",
   "turn-orchestrator":       "low",
   "tool-use-router":         "low",
+  "response-composer":       "low",
   // Medium (default, omitted) — real reasoning
-  //   "unified-judgment", "comparison", "response-composer",
+  //   "unified-judgment", "comparison",
   //   "query-decomposer", "self-correction", "turn-repair"
 }
 
