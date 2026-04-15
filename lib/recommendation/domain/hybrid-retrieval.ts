@@ -461,11 +461,28 @@ export async function runHybridRetrieval(
       if (tag && !materialTags.includes(tag)) materialTags.push(tag)
     }
   }
+  // workPieceName-only 경로 (예: 사용자가 "알류미늄"만 입력 → workPieceName=Aluminum 필터만 걸림)
+  // 에서는 input.material 이 비어 있어 materialTags 가 []가 되고, 소재 집중 보너스(line 608~)와
+  // 소재 점수(line 567~)가 전부 "미지정 기본 50%" 로 떨어져 ALU-POWER 같은 소재 특화 시리즈가
+  // GENERAL HSS 범용 시리즈에 묻힘. workPieceName 에서 ISO tag 를 도출해 동일 경로를 태운다.
+  // NOTE: 이 경우에만 true — 하드 필터(line ~469)는 SQL 의 workpiece_name_matched 이 이미
+  // 검증한 뒤라 추가로 돌리면 안 됨 (material_tags[] 와 work_piece_statuses 가 100% 1:1 이
+  // 아닐 수 있어 정당한 후보가 떨어질 위험).
+  let materialTagsDerivedFromWorkpiece = false
+  if (materialTags.length === 0 && input.workPieceName) {
+    const tag = resolveMaterialTag(input.workPieceName)
+    if (tag) {
+      materialTags.push(tag)
+      materialTagsDerivedFromWorkpiece = true
+    }
+  }
   const materialTag = materialTags.length > 0 ? materialTags[0] : null  // primary tag for backward compat
 
   if (shouldApplyPostSqlHeuristics) {
     // Hard filter: material — only keep products that support at least one requested material
-    if (materialTags.length > 0) {
+    // workPieceName 에서 역산한 tag 는 SQL 이 이미 workpiece_name_matched=TRUE 로 검증한 뒤
+    // 라 추가 하드 필터를 돌리지 않는다 (정당한 후보 탈락 방지).
+    if (materialTags.length > 0 && !materialTagsDerivedFromWorkpiece) {
       const matFiltered = candidates.filter(p =>
         materialTags.some(tag => p.materialTags.includes(tag))
       )
