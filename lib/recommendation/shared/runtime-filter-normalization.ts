@@ -7,8 +7,12 @@ export function normalizeRuntimeAppliedFilter(
   filter: AppliedFilter,
   appliedAt = filter.appliedAt ?? 0,
 ): AppliedFilter {
+  // source 마킹(예: "system-brandAffinity")은 normalize 단계에서 보존돼야
+  // downstream phantom guard 가 system-injected 필터를 통과시킬 수 있다.
+  const sourceMark = filter.source
+
   if (filter.op === "skip" || filter.op === "between") {
-    return { ...filter, appliedAt }
+    return { ...filter, appliedAt, ...(sourceMark ? { source: sourceMark } : {}) }
   }
 
   const rawValue = filter.rawValue ?? filter.value
@@ -22,7 +26,7 @@ export function normalizeRuntimeAppliedFilter(
         : undefined
 
   const normalized = buildAppliedFilterFromValue(filter.field, rawValue, appliedAt, opOverride)
-  if (!normalized) return { ...filter, appliedAt }
+  if (!normalized) return { ...filter, appliedAt, ...(sourceMark ? { source: sourceMark } : {}) }
 
   if ((filter.field === "workPieceName" || filter.field === "material") && typeof rawValue === "string") {
     const canonicalFamily = filter.field === "workPieceName"
@@ -39,7 +43,7 @@ export function normalizeRuntimeAppliedFilter(
         canonicalOpOverride,
       )
       if (canonicalized) {
-        return { ...canonicalized, appliedAt }
+        return { ...canonicalized, appliedAt, ...(sourceMark ? { source: sourceMark } : {}) }
       }
     }
   }
@@ -54,8 +58,9 @@ export function normalizeRuntimeAppliedFilter(
       ...normalized,
       rawValue: filter.rawValue,
       appliedAt,
+      ...(sourceMark ? { source: sourceMark } : {}),
     }
   }
 
-  return { ...normalized, appliedAt }
+  return { ...normalized, appliedAt, ...(sourceMark ? { source: sourceMark } : {}) }
 }

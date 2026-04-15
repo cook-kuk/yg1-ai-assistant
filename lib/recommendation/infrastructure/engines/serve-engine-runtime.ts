@@ -3759,28 +3759,51 @@ async function handleServeExplorationInner(
               .filter((f): f is AppliedFilter => f !== null)
           }
           if (detFastPathFilters.length >= minHints) {
-            // Brand affinity auto-inject: fast-path 가 LLM 을 bypass 하므로
-            // schema.brandAffinity 매핑이 유실된다. material hint 가 있고 brand
-            // hint 가 없으면 해당 소재의 EXCELLENT 브랜드(없으면 GOOD)를 brand IN
-            // 필터로 data-driven 주입.
-            const matHint = detHintPairs.find(h => h.field === "material")
+            // Brand affinity auto-inject (B안):
+            // fast-path 가 LLM 을 bypass 하므로 schema.brandAffinity 기반 brand
+            // 추천이 유실된다. material 또는 workPieceName hint 가 있고 사용자가
+            // brand 를 직접 지정하지 않았으면 해당 키의 EXCELLENT 브랜드만
+            // brand IN 필터로 data-driven 주입한다 (GOOD 제외 — 정밀도 우선).
             const hasBrandHint = detFastPathFilters.some(f => f.field === "brand")
-            if (matHint && !hasBrandHint) {
-              const { canonicalizeMaterialValue } =
-                await import("@/lib/recommendation/shared/canonical-values")
-              const canonical = canonicalizeMaterialValue(String(matHint.value))
-              const affinityKey = canonical?.toUpperCase().trim() ?? null
-              const affSchema = getDbSchemaSync()
-              const rows = affinityKey ? (affSchema?.brandAffinity?.[affinityKey] ?? []) : []
-              const byRating = (r: string) => rows.filter(x => String(x.rating ?? "").toUpperCase() === r).map(x => x.brand)
-              const picks = byRating("EXCELLENT").length > 0 ? byRating("EXCELLENT") : byRating("GOOD")
-              if (picks.length > 0) {
-                const brandFilter = detBuildFilter("brand", picks, turnCount, "in")
-                if (brandFilter) {
-                  detFastPathFilters.push(brandFilter)
-                  console.log(
-                    `[first-turn-intake] brandAffinity auto-inject: brand IN [${picks.join(", ")}] (${matHint.value} → ${affinityKey})`
-                  )
+            if (!hasBrandHint) {
+              const matHint = detHintPairs.find(h => h.field === "material")
+              const wpHint = detHintPairs.find(h => h.field === "workPieceName")
+              const hintForLog = matHint ?? wpHint
+              if (hintForLog) {
+                const { canonicalizeMaterialValue } =
+                  await import("@/lib/recommendation/shared/canonical-values")
+                // material 우선, 없으면 workPieceName 으로 affinity 키 조회.
+                const affSchema = getDbSchemaSync()
+                const tryKeys: string[] = []
+                for (const h of [matHint, wpHint]) {
+                  if (!h) continue
+                  const raw = String(h.value)
+                  const canonical = canonicalizeMaterialValue(raw) ?? raw
+                  const k = canonical.toUpperCase().trim()
+                  if (k && !tryKeys.includes(k)) tryKeys.push(k)
+                }
+                let picks: string[] = []
+                let usedKey: string | null = null
+                for (const k of tryKeys) {
+                  const rows = affSchema?.brandAffinity?.[k] ?? []
+                  const excellent = rows
+                    .filter(x => String(x.rating ?? "").toUpperCase() === "EXCELLENT")
+                    .map(x => x.brand)
+                  if (excellent.length > 0) {
+                    picks = excellent
+                    usedKey = k
+                    break
+                  }
+                }
+                if (picks.length > 0) {
+                  const brandFilter = detBuildFilter("brand", picks, turnCount, "in")
+                  if (brandFilter) {
+                    const tagged: AppliedFilter = { ...brandFilter, source: "system-brandAffinity" }
+                    detFastPathFilters.push(tagged)
+                    console.log(
+                      `[fast-path:brandAffinity] injected brands: [${picks.join(", ")}] for material: ${hintForLog.value} (key=${usedKey})`
+                    )
+                  }
                 }
               }
             }

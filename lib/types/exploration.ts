@@ -35,6 +35,7 @@ export interface AppliedFilter {
   appliedAt: number        // narrowing turn index
   rawSqlField?: string     // SQL Agent가 직접 지정한 DB 컬럼명
   rawSqlOp?: string        // eq, neq, like, gte, lte
+  source?: string          // 주입 출처 마킹 (예: "system-brandAffinity") — phantom check skip 용
 }
 
 // ── Narrowing Turn ───────────────────────────────────────────

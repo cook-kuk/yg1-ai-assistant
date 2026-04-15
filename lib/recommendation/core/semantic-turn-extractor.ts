@@ -747,18 +747,24 @@ function isPhantomFilter(field: string, value: unknown, _normalizedMessage: stri
   return !isGroundedCategoricalValue(field, valueStr, rawMessage)
 }
 
+// system-injected 필터 (예: brandAffinity 자동 주입)는 사용자 메시지에 grounded
+// 되지 않더라도 의도적으로 추가된 것이므로 phantom guard 를 통과시킨다.
+function isSystemInjected(f: { source?: string }): boolean {
+  return f?.source === "system-brandAffinity"
+}
+
 function stripPhantomCategoricalFilters(
   decision: SemanticTurnDecision,
   userMessage: string
 ): SemanticTurnDecision | null {
   const normalizedMessage = normalizeForMatch(userMessage)
   const extraFilters = decision.extraFilters.filter(
-    f => !isPhantomFilter(f.field, f.rawValue ?? f.value, normalizedMessage, userMessage)
+    f => isSystemInjected(f) || !isPhantomFilter(f.field, f.rawValue ?? f.value, normalizedMessage, userMessage)
   )
 
   const action = decision.action
   if (action.type === "continue_narrowing") {
-    if (isPhantomFilter(action.filter.field, action.filter.rawValue ?? action.filter.value, normalizedMessage, userMessage)) {
+    if (!isSystemInjected(action.filter) && isPhantomFilter(action.filter.field, action.filter.rawValue ?? action.filter.value, normalizedMessage, userMessage)) {
       // Promote first surviving extra filter, or drop the action entirely.
       if (extraFilters.length === 0) return null
       const [next, ...rest] = extraFilters
@@ -769,7 +775,7 @@ function stripPhantomCategoricalFilters(
       }
     }
   } else if (action.type === "replace_existing_filter") {
-    if (isPhantomFilter(action.nextFilter.field, action.nextFilter.rawValue ?? action.nextFilter.value, normalizedMessage, userMessage)) {
+    if (!isSystemInjected(action.nextFilter) && isPhantomFilter(action.nextFilter.field, action.nextFilter.rawValue ?? action.nextFilter.value, normalizedMessage, userMessage)) {
       if (extraFilters.length === 0) return null
       const [next, ...rest] = extraFilters
       return {
