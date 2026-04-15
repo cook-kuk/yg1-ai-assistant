@@ -104,8 +104,34 @@ function detectRequestedProductField(userMessage: string): { label: string; valu
   if (/날\s*수|날수|플루트|몇\s*날/i.test(userMessage)) {
     return { label: "날 수", value: "fluteCount" }
   }
+  // 각도 계열: "테이퍼 각도", "포인트각" — 형상 regex 보다 먼저 체크해야 "테이퍼" 만으로 toolSubtype 로 떨어지지 않음.
+  if (/테이퍼\s*각|taper\s*angle/i.test(userMessage)) {
+    return { label: "테이퍼각", value: "taperAngleDeg" }
+  }
+  if (/포인트\s*각|point\s*angle/i.test(userMessage)) {
+    return { label: "포인트각", value: "pointAngleDeg" }
+  }
   if (/형상|스퀘어|볼|라디우스|테이퍼|radius|ball|square|taper/i.test(userMessage)) {
     return { label: "형상", value: "toolSubtype" }
+  }
+  // 넥/코너/볼 R — 직경/전장 regex 보다 먼저 (넥 '직경' 등에서 direct diameterMm 으로 떨어지지 않게).
+  if (/넥\s*직경|넥경/i.test(userMessage)) {
+    return { label: "넥 직경", value: "neckDiameterMm" }
+  }
+  if (/넥\s*길이|넥장|neck\s*length/i.test(userMessage)) {
+    return { label: "넥 길이", value: "neckLengthMm" }
+  }
+  if (/코너\s*r|코너\s*반경|corner\s*radius/i.test(userMessage)) {
+    return { label: "코너 R", value: "cornerRadiusMm" }
+  }
+  if (/볼\s*r|볼\s*반경|ball\s*radius/i.test(userMessage)) {
+    return { label: "볼 R", value: "ballRadiusMm" }
+  }
+  if (/유효\s*장|유효\s*길이|effective\s*length/i.test(userMessage)) {
+    return { label: "유효 길이", value: "effectiveLengthMm" }
+  }
+  if (/나사\s*피치|피치|thread\s*pitch/i.test(userMessage)) {
+    return { label: "나사 피치", value: "threadPitchMm" }
   }
   if (/직경|지름|몇\s*파이|mm/i.test(userMessage)) {
     return { label: "직경", value: "diameterMm" }
@@ -155,6 +181,22 @@ function getRequestedProductFieldByValue(field: string | null | undefined): { la
       return { label: "절삭 길이", value: "lengthOfCutMm" }
     case "overallLengthMm":
       return { label: "전장", value: "overallLengthMm" }
+    case "neckDiameterMm":
+      return { label: "넥 직경", value: "neckDiameterMm" }
+    case "neckLengthMm":
+      return { label: "넥 길이", value: "neckLengthMm" }
+    case "effectiveLengthMm":
+      return { label: "유효 길이", value: "effectiveLengthMm" }
+    case "cornerRadiusMm":
+      return { label: "코너 R", value: "cornerRadiusMm" }
+    case "ballRadiusMm":
+      return { label: "볼 R", value: "ballRadiusMm" }
+    case "taperAngleDeg":
+      return { label: "테이퍼각", value: "taperAngleDeg" }
+    case "pointAngleDeg":
+      return { label: "포인트각", value: "pointAngleDeg" }
+    case "threadPitchMm":
+      return { label: "나사 피치", value: "threadPitchMm" }
     case "helixAngleDeg":
       return { label: "헬릭스각", value: "helixAngleDeg" }
     case "coolantHole":
@@ -193,6 +235,22 @@ function getProductFieldValue(
       return formatLengthDual(product.lengthOfCutMm, product.diameterInch != null)
     case "overallLengthMm":
       return formatLengthDual(product.overallLengthMm, product.diameterInch != null)
+    case "neckDiameterMm":
+      return formatMmValue(product.neckDiameterMm ?? null)
+    case "neckLengthMm":
+      return formatMmValue(product.neckLengthMm ?? null)
+    case "effectiveLengthMm":
+      return formatMmValue(product.effectiveLengthMm ?? null)
+    case "cornerRadiusMm":
+      return formatMmValue(product.cornerRadiusMm ?? null)
+    case "ballRadiusMm":
+      return formatMmValue(product.ballRadiusMm ?? null)
+    case "taperAngleDeg":
+      return formatAngleValue(product.taperAngleDeg ?? null)
+    case "pointAngleDeg":
+      return formatAngleValue(product.pointAngleDeg ?? null)
+    case "threadPitchMm":
+      return formatMmValue(product.threadPitchMm ?? null)
     case "helixAngleDeg":
       return formatAngleValue(product.helixAngleDeg)
     case "coolantHole":
