@@ -128,7 +128,7 @@ export interface SchemaPromptSections {
 }
 
 const SECTIONS_FULL: SchemaPromptSections = { brandAffinity: true, cuttingConditions: true, auxTables: true, joinHints: true }
-const SECTIONS_LEAN: SchemaPromptSections = { brandAffinity: false, cuttingConditions: false, auxTables: false, joinHints: false }
+const SECTIONS_LEAN: SchemaPromptSections = { brandAffinity: true, cuttingConditions: false, auxTables: false, joinHints: false }
 
 function sectionsToKey(s: SchemaPromptSections): string {
   return `${s.brandAffinity ? 1 : 0}${s.cuttingConditions ? 1 : 0}${s.auxTables ? 1 : 0}${s.joinHints ? 1 : 0}`
