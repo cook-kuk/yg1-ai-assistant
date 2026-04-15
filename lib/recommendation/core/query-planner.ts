@@ -46,13 +46,12 @@ Respond ONLY with a JSON object:
 - "스퀘어 타입", "볼 타입" → toolSubtype
 - P/M/K/N/S/H 단일 알파벳 → materialGroup, 구체적 소재명(구리/스테인리스) → workpiece
 
-## Korean Operator Mapping (CRITICAL — apply literally)
-The operator is determined by the phrase IMMEDIATELY attached to the value. Do NOT invert.
-- "X 이상" / "X 넘는" / "X 초과" / "X 부터" / "X 위로" → op="gte", value=X
-- "X 이하" / "X 미만" / "X 까지" / "X 아래로" → op="lte", value=X
-- "X 빼고" / "X 말고" / "X 제외" / "X 아닌" / "X 아닌거" / "X 아닌거로" / "X 없는" / "X 말곤" → op="neq", value=X
-- "A에서 B 사이" / "A~B" / "A부터 B까지" → op="between", value=[A,B]
-- plain "X" with no modifier → op="eq", value=X
+## Korean Operator Mapping
+- Range operators (gte/lte/between) apply to numeric fields only.
+- Decide op from the meaning of the comparison (범위 상한·하한·구간 중 어느 관계인지), not from keyword position. 한국어 어순은 자유로움 ("100mm 이상" ≡ "이상 100mm").
+- "X 이상 / 넘는 / 초과 / 부터 / 위로" ⇒ gte.  "X 이하 / 미만 / 까지 / 아래로" ⇒ lte.  "A~B / A에서 B 사이 / A부터 B까지" ⇒ between.
+- "X 빼고 / 말고 / 제외 / 아닌 / 아닌거 / 없는 / 말곤" ⇒ neq.  수식어 없는 plain "X" ⇒ eq.
+- Never invert direction (예: "이상"을 lte로 바꾸지 말 것).
 - Multiple conditions in one sentence → emit ONE constraint per condition, each with its own operator.
 
 ## Few-Shot Examples (study these carefully)

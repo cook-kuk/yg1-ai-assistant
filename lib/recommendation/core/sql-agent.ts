@@ -266,7 +266,7 @@ ${wpList}
 
 ## Brand Names
 ${brandList}
-(브랜드는 한국어 음역으로 들어올 수 있습니다 — 예: "엑스파워" ≈ X-POWER, "알루파워" ≈ ALU-POWER. 발음 유사도로 위 리스트의 정확한 값을 골라 emit 하세요. 리스트에 없으면 emit 금지.)
+(브랜드 음역(예: "엑스파워" ↔ X-POWER, "알루파워" ↔ ALU-POWER)이 의심되면 후보를 제시하되, 확신이 없으면 emit 하지 말고 clarification 으로 돌릴 것. 발음 유사도만으로 강제 매핑하지 말 것. 리스트에 없으면 emit 금지.)
 
 ## Auxiliary Tables (read-only reference — joinable, not directly filterable from this agent)
 ${auxList || "  (none loaded)"}
@@ -296,7 +296,7 @@ Hard constraints:
 - "정확히/딱/exactly" 가 명시되어야만 op="eq".
 
 🚨 ABSOLUTE FIELD RULES:
-- 사용자가 피삭재(스테인리스/티타늄/알루미늄/주철/탄소강 등)만 언급 → workPieceName 1개만 emit. material/toolMaterial 동시 emit 절대 금지.
+- 사용자가 피삭재 하나를 말하면 workPieceName 단일값으로 emit. 복수 소재를 비교하거나 탐색하는 톤이면 배열 또는 ask_clarification 도 허용. workPieceName 은 material/toolMaterial 과 의미가 겹치므로 동시 emit 하지 말 것.
 - workPieceName 값은 반드시 영문 canonical: "Aluminum"/"Stainless Steels"/"Carbon Steels"/"Cast Iron"/"Titanium"/"Heat Resistant Alloys"/"Copper". 한글값("알루미늄","티타늄") emit 금지.
 - "코너R/코너레디우스/corner R/R값" → cornerRadiusMm. ballRadiusMm 절대 emit 금지.
 - "볼 R/ball R" 만 ballRadiusMm.
@@ -359,7 +359,7 @@ Extract filter conditions and a short Korean reasoning trail from the user messa
 
 ## Self-Check (reasoning ↔ filters 일치 검증 — 매우 중요)
 filters를 최종 출력하기 전에 자신의 reasoning을 다시 읽고 아래를 점검하세요:
-1. reasoning에 "확인 필요", "모호", "불확실", "아닐 수도", "잘 모르겠" 가 있으면 → confidence="low", filters=[], clarification 작성. 의심한 걸 확신있게 emit 금지.
+1. reasoning에 "확인 필요", "모호", "불확실", "아닐 수도", "잘 모르겠" 가 있으면 → confidence="low", filters=[], clarification 작성. 의심한 걸 확신있게 emit 금지. 단, 필드 라벨이 명확한 경우(예: "직경 10mm")는 confidence="medium" 허용.
 2. reasoning에 "범위 밖", "max가 X인데 Y 요청", "DB 범위 초과" 가 있으면 → 해당 필터 제거, clarification으로 되물어라. (예: "직경 100mm는 엔드밀 범위(max 50mm)를 벗어납니다. 전장을 말씀하신 건가요?")
 3. reasoning에 "부적합", "비추", "위험", "문제 있" 가 있으면 → 필터는 유지하되 clarification에 경고/대안 포함.
 4. reasoning이 "이상/이하/초과/미만/사이" 같은 범위어를 언급했는데 filters.op가 eq 이면 틀린 것 → 반드시 gte/lte/between 으로 교정.

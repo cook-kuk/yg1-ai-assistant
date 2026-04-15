@@ -3440,10 +3440,10 @@ function buildResolverMaterialContext(args: ResolveMultiStageQueryArgs, unresolv
 }
 
 const FILTER_MAPPING_COMPLETENESS_PROMPT = `[필터 완전성 원칙]
-사용자가 언급한 모든 조건은 반드시 filters 배열에 포함하세요. 일부만 포함하고 나머지를 누락하지 마세요.
+사용자가 이번 발화에서 직접 언급한 조건만 filters 배열에 포함하세요. 언급하지 않은 조건을 추측으로 채우지 마세요.
 예: '직경 10mm 이상 12mm 이하 4날 TiAlN 스테인리스'
 → filters 5개 (diameterMm gte 10, diameterMm lte 12, fluteCount eq 4, coating eq TiAlN, workPieceName eq Stainless Steels).
-사용자가 명시한 수치/값은 전부 filters 에 반영하세요. 5개 조건인데 3개만 포함하면 실패입니다.
+명시한 조건은 누락하지 말고, 명시하지 않은 조건은 만들어내지 마세요.
 
 [필드 매핑 원칙]
 위 Schema samples 와 Field catalog 를 참고해 사용자 표현 → DB 컬럼을 스스로 매핑하세요.
@@ -3513,7 +3513,7 @@ ${SEMANTIC_INTERPRETATION_POLICY_PROMPT}
 
 ${FILTER_MAPPING_COMPLETENESS_PROMPT}
 
-숫자+단위만 있고 필드 키워드가 없으면 물리 치수 모호성. 스키마에서 해당 단위에 적합한 후보 컬럼을 찾아 action=ask_clarification 으로 되묻기. 단일 후보로 확실히 좁혀질 때만 그 필드에 적용. 소재/날수/공구 타입 컨텍스트가 있어도 bare 숫자는 기본적으로 모호합니다. 추측 금지.
+숫자+단위만 있고 필드 라벨(직경/날장/전장 등)이 명확하지 않은 베어 숫자는 물리 치수 모호성으로 간주하고 action=ask_clarification 으로 되묻기를 선호하세요. 스키마에 후보 컬럼이 여럿이면 필드를 추측하지 말고 사용자에게 물어보세요. 소재/날수/공구 타입 컨텍스트가 있어도 bare 숫자는 기본적으로 모호합니다.
 
 사고과정에서 '이건 정보 조회/상담 질문이다'라고 판단했으면:
 - 필터 결과 표를 보여주지 말고 해당 정보를 직접 한 줄로 답하세요.
@@ -3621,7 +3621,7 @@ ${SEMANTIC_INTERPRETATION_POLICY_PROMPT}
 
 ${FILTER_MAPPING_COMPLETENESS_PROMPT}
 
-숫자+단위만 있고 필드 키워드가 없으면 물리 치수 모호성. 스키마에서 해당 단위에 적합한 후보 컬럼을 찾아 action=ask_clarification 으로 되묻기. 단일 후보로 확실히 좁혀질 때만 그 필드에 적용. 소재/날수/공구 타입 컨텍스트가 있어도 bare 숫자는 기본적으로 모호합니다. 추측 금지.
+숫자+단위만 있고 필드 라벨(직경/날장/전장 등)이 명확하지 않은 베어 숫자는 물리 치수 모호성으로 간주하고 action=ask_clarification 으로 되묻기를 선호하세요. 스키마에 후보 컬럼이 여럿이면 필드를 추측하지 말고 사용자에게 물어보세요. 소재/날수/공구 타입 컨텍스트가 있어도 bare 숫자는 기본적으로 모호합니다.
 
 사고과정에서 '이건 정보 조회/상담 질문이다'라고 판단했으면:
 - 필터 결과 표를 보여주지 말고 해당 정보를 직접 한 줄로 답하세요.

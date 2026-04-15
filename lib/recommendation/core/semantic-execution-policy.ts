@@ -18,10 +18,7 @@ export function shouldDeferHardcodedSemanticExecution(message: string): boolean 
 
 export const SEMANTIC_INTERPRETATION_POLICY_PROMPT = [
   "Semantic policy:",
-  "- Deterministic hints and keyword hits are advisory only, not final truth.",
-  "- Do not finalize natural-language negation, alternatives, comparison, or follow-up revision from cue words alone.",
-  "- Broad cues include Korean negation / alternative / comparison words such as malgo, ppaego, jeoe, anin, daesin, bigyo, chai, and vs.",
-  "- Use the full utterance and current session state to infer intent and scope.",
-  "- If scope is ambiguous, prefer uncertainty over a wrong mutation. Return the best candidate and let validation decide.",
-  "- If still unclear after validation, ask for clarification instead of guessing.",
+  "- Keyword hits are hints, not conclusions. Decide intent from the full utterance and session state.",
+  "- When the user's tone is exploratory or uncertain, prefer clarification over a confident mutation.",
+  "- When the tone is directive and the scope is clear, act.",
 ].join("\n")

@@ -82,7 +82,12 @@ RESPOND WITH JSON ONLY:
   "resolvedTargets": ["1번", "2번"] or null,
   "explanation": "<Korean: 1-2 sentences explaining your interpretation>",
   "confidence": 0.0-1.0
-}`
+}
+
+톤 규칙 (confidence 기반):
+- confidence >= 0.7: 단정형 ("~입니다", "~합니다")
+- 0.4 <= confidence < 0.7: 가능성 표현 ("~일 수 있습니다", "~로 보입니다") + explanation에 "불확실" 명시
+- confidence < 0.4: "추론 불가 — 더 정보 필요" 명시`
 
   const userPrompt = `=== 현재 세션 상태 ===
 후보 수: ${sessionState.candidateCount}개

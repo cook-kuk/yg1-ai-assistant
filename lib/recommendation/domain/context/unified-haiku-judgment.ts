@@ -151,11 +151,11 @@ export function buildJudgmentPrompt(input: UnifiedJudgmentInput): string {
 6. domainRelevance: product_query|company_query|cutting_condition|competitor|greeting|off_topic|narrowing_response
    - 소재 키워드(SUS, SCM, S45C, 알루미늄, 스테인리스, 티타늄 등) + 품질/적합 표현("괜찮은", "적합한", "좋은 거", "추천", "어떤 거") → product_query (off_topic 아님!)
 7. intentAction: select_option(칩/값 선택)|ask_recommendation(추천 요청)|compare(비교+설명 둘 다)|explain(설명요청)|reset_session(처음부터)|refine_condition(조건변경)|skip_field(건너뛰기)|undo(되돌리기)|continue(진행)|off_topic(무관)
-   - [도메인 토큰 해석 원칙] 사용자 입력이 짧은 도메인 토큰(예: "4날", "10mm", "DLC", "알루미늄")일 때:
-     · 직전 턴이 설명/추천이었으면 → follow-up 으로 판단 (explain 또는 continue). 도메인 키워드 존재만으로 ask_recommendation/refine_condition 으로 넘기지 말 것.
-     · 세션 시작(이전턴action=none, 필터 0개)이면 → ask_recommendation (추천 의도).
-     · "추천", "해줘", "찾아", "보여줘", "있어?", "구해줘" 등 명시적 요청 표현이 있으면 → 항상 ask_recommendation (맥락 무시).
-     · 도메인 키워드 존재 자체는 의도 판단 근거가 아님. 맥락(이전턴action) + 명시적 요청 표현만 근거로 삼을 것.
+   - [도메인 값 해석 원칙] 사용자가 도메인 값(날수, 직경, 코팅, 소재 등)을 언급했을 때 의도 판단 기준:
+     · 그 값에 대해 알고 싶어하는 톤(질문, 궁금, 탐색)이면 → explain
+     · 그 값으로 제품을 찾거나 조건을 걸려는 톤(요청, 지시, 선택)이면 → ask_recommendation
+     · 판단이 어려우면 직전 턴의 흐름을 따라가라. 직전이 설명이었으면 explain, 직전이 추천이었으면 ask_recommendation.
+     값 자체가 구체적이라고 해서 자동으로 필터로 판단하지 마라. 톤과 맥락이 근거다.
    - "차이점", "비교", "A와 B", "A랑 B", "vs" → intentAction: "compare" (narrowing 중이어도). compare는 비교표+설명 둘 다 제공
    - 시리즈/브랜드 이름이 2개 이상 언급되면 → intentAction: "compare"
    - "변경", "바꾸고", "바꿔", "틀렸", "실수", "다시", "고치" + 필드명(날수/직경/코팅/형상/소재) → intentAction: "refine_condition" (select_option 아님!)
@@ -169,8 +169,6 @@ export function buildJudgmentPrompt(input: UnifiedJudgmentInput): string {
      · "있나요?", "있어요?", "몇 가지야?", "몇 개 있어?"
      · 소재/카테고리 + "브랜드/시리즈/종류/타입" + "?" (예: "구리 브랜드 뭐가 있어?", "알루미늄용 시리즈 어떤 거 있어?")
      → 전부 intentAction: "explain", domainRelevance: "product_query" (brand/series 언급돼도 필터로 잡지 말 것)
-     vs "CRX S로 추천해줘"/"TiAlN 코팅으로"/"볼노즈 형상"/"4날" → ask_recommendation (구체적 값 명시 = 필터)
-     구분 핵심: '뭐가/어떤/종류/몇 가지 + ?' = 질문(explain), 구체적 값 명시 = 필터(ask_recommendation)
    - "A 말고 B로", "A 대신 B", "B로 바꿔", "B로 교체" → intentAction: "refine_condition", intentShift: "replace_constraint" (기존 A 제거 → B 적용)
    - 공구 트러블 증상 ("수명 짧", "파손", "치핑", "마모", "진동", "채터", "버", "깨짐") → intentAction: "explain" (원인/해결 설명 요청, 필터링 아님)
    - 소재 키워드 + 품질/적합 표현("괜찮은 거", "적합한 거", "좋은 거", "어떤 게 좋") → intentAction: "ask_recommendation", domainRelevance: "product_query" (off_topic/company_query 아님!)
