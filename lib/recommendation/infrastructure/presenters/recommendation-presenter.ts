@@ -402,13 +402,10 @@ export function buildRecommendationResponseDto(
   const sessionState = params.sessionState ?? null
   const capabilities = getRecommendationCapabilities(sessionState)
   const synthesizedThinkingProcess = synthesizeThinkingFromSessionFilters(sessionState)
-  // purpose !== "recommendation" 인 턴에서는 이번 턴에서 만들어진 candidateSnapshot 을
-  // 카드로 노출하지 않는다 (예: "CE7659120 날장길이 얼마?" 같은 특정 필드 질의).
-  // 이전 추천 턴의 lastRecommendationArtifact 가 있으면 UX 연속성을 위해 그대로 유지한다.
   const stableCandidateSnapshot =
     params.purpose === "recommendation"
       ? (params.candidateSnapshot ?? sessionState?.lastRecommendationArtifact ?? null)
-      : (sessionState?.lastRecommendationArtifact ?? null)
+      : (sessionState?.lastRecommendationArtifact ?? params.candidateSnapshot ?? null)
   const truth = buildTurnTruth({
     userMessage: params.text,
     sessionState,
