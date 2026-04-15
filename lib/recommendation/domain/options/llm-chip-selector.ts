@@ -72,9 +72,11 @@ export async function selectChipsWithLLM(
   context: ChipSelectionContext,
   provider: LLMProvider
 ): Promise<ChipSelectionResult> {
+  console.log(`[chip-selector] entered candidateOptions=${candidateOptions.length} candidateCount=${context.candidateCount} mode=${context.mode} pendingField=${context.pendingField} resolutionStatus=${context.resolutionStatus}`)
   const preparedOptions = prepareCandidateOptions(candidateOptions, context)
 
   if (preparedOptions.length === 0) {
+    console.log(`[chip-selector] EXIT preparedOptions=0 — no chips produced`)
     return createResult([], false)
   }
 

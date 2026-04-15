@@ -3251,6 +3251,8 @@ async function handleServeExplorationInner(
   deps = {
     ...deps,
     jsonRecommendationResponse: (params, init) => {
+      const __caller = (new Error().stack || '').split('\n').slice(2, 5).map(l => l.trim().replace(/^at\s+/, '')).join(' | ')
+      console.log(`[isComplete] set to ${params.isComplete} purpose=${params.purpose} chipsLen=${Array.isArray(params.chips) ? params.chips.length : 'n/a'} questionMode=${questionMode} caller=${__caller}`)
       syncThinkingToSession(params.sessionState, runtimeThinking)
       // LLM 이 "이건 질문" 이라고 판단한 턴 (questionMode=true) 에서는 추천 카드 렌더를 막는다.
       // - purpose → "question"

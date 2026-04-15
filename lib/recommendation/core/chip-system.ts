@@ -234,6 +234,7 @@ const CHIP_POLICIES: ChipPolicy[] = [
 // ── Main derivation function ──
 
 export function deriveChips(state: ChipState, locale: "ko" | "en" = "ko", maxChips = 6): RenderedChip[] {
+  console.log(`[chip-system] entered candidateCount=${state.candidateCount} currentMode=${state.currentMode} turnCount=${state.turnCount} resolutionStatus=${state.resolutionStatus} lastAskedField=${state.lastAskedField}`)
   const staticChips = CHIP_POLICIES
     .filter(policy => policy.visible(state))
     .sort((a, b) => a.priority - b.priority)

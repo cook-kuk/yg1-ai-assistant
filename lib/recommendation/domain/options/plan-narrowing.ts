@@ -16,7 +16,9 @@ export function planNarrowingOptions(ctx: OptionPlannerContext): SmartOption[] {
   const options: SmartOption[] = []
   const fieldValues = ctx.candidateFieldValues
 
-  if (!fieldValues) return options
+  console.log(`[narrowing-plan] entered candidateCount=${ctx.candidateCount} hasFieldValues=${!!fieldValues} fieldCount=${fieldValues ? Object.keys(fieldValues).length : 0} lastAskedField=${ctx.lastAskedField ?? 'none'}`)
+
+  if (!fieldValues) { console.log(`[narrowing-plan] EXIT early — no candidateFieldValues`); return options }
 
   // Generate options for the best narrowing fields
   const fields = rankNarrowingFields(fieldValues, ctx)
