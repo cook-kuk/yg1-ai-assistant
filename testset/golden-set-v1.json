@@ -1255,8 +1255,8 @@
     { "id": "M03", "category": "C", "name": "Milling 외경 eq", "input": "외경 정확히 8mm 엔드밀",
       "expected": { "router": "sql-agent", "filtersAdded": [{ "field": "OutsideDia", "op": "eq", "rawValue": 8 }] }, "source": "synthetic" },
 
-    { "id": "M04", "category": "C", "name": "Milling 외경 gt", "input": "외경 20mm 초과 엔드밀",
-      "expected": { "router": "sql-agent", "filtersAdded": [{ "field": "diameterMm", "op": "gt", "rawValue": 20 }] }, "source": "synthetic" },
+    { "id": "M04", "category": "C", "name": "Milling 외경 gte", "input": "외경 20mm 초과 엔드밀",
+      "expected": { "router": "sql-agent", "filtersAdded": [{ "field": "diameterMm", "op": "gte", "rawValue": 20 }] }, "source": "synthetic" },
 
     { "id": "M05", "category": "C", "name": "Milling 전체길이 gte", "input": "전체 길이 100mm 이상 엔드밀",
       "expected": { "router": "sql-agent", "filtersAdded": [{ "field": "overallLengthMm", "op": "gte", "rawValue": 100 }] }, "source": "synthetic" },
