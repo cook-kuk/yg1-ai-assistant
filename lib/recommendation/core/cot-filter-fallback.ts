@@ -22,7 +22,7 @@ import { formatNumericStatsCompact, type DbSchema } from "./sql-agent-schema-cac
 
 export type FallbackFilter = {
   field: string
-  op: "eq" | "neq" | "gte" | "lte" | "between" | "includes"
+  op: "eq" | "neq" | "gte" | "lte" | "between" | "includes" | "exists"
   value: string | number
   value2?: string | number | null
   display?: string | null
@@ -44,7 +44,7 @@ export interface CotFilterFallbackArgs {
   schema: DbSchema
 }
 
-const VALID_OPS = new Set<FallbackFilter["op"]>(["eq", "neq", "gte", "lte", "between", "includes"])
+const VALID_OPS = new Set<FallbackFilter["op"]>(["eq", "neq", "gte", "lte", "between", "includes", "exists"])
 
 export async function tryCotToFilterFallback(args: CotFilterFallbackArgs): Promise<CotFilterFallbackResult> {
   const msg = (args.userMessage ?? "").trim()

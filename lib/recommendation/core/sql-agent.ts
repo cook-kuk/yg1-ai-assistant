@@ -19,7 +19,7 @@ import { BRAND_MISFIRE_SHAPE_MAP } from "@/lib/recommendation/shared/canonical-v
 
 export interface AgentFilter {
   field: string
-  op: "eq" | "neq" | "like" | "skip" | "reset" | "back" | "gte" | "lte" | "between"
+  op: "eq" | "neq" | "like" | "skip" | "reset" | "back" | "gte" | "lte" | "between" | "exists"
   value: string
   /** Upper bound for between op (range queries). */
   value2?: string
@@ -351,7 +351,7 @@ clarification 이 필요할 때 (confidence=low, 또는 숫자만 있고 컬럼 
 
 ## Instructions
 Extract filter conditions and a short Korean reasoning trail from the user message as a JSON object:
-{"reasoning":"한국어 사고 과정 (실제 deliberation, 5-10문장)","filters":[{"field":"column_name","op":"eq|neq|like|gte|lte|between","value":"...","value2":"upper_bound_for_between","display":"한국어 설명"}],"confidence":"high|medium|low","clarification":null}
+{"reasoning":"한국어 사고 과정 (실제 deliberation, 5-10문장)","filters":[{"field":"column_name","op":"eq|neq|like|gte|lte|between|exists","value":"...","value2":"upper_bound_for_between","display":"한국어 설명"}],"confidence":"high|medium|low","clarification":null}
 
 ## Confidence & Clarification (매우 중요 — CoT 기반 행동 결정)
 "confidence" 필드를 반드시 포함:
@@ -372,6 +372,7 @@ Extract filter conditions and a short Korean reasoning trail from the user messa
 - "스테인리스 4날 10mm" → 3개 필터, confidence:"high", clarification:null
 - "떨림 적은 거" → filters:[], confidence:"low", clarification:"떨림을 줄이는 방법은 1) 부등분할 엔드밀 2) 날수 증가(4→6날) 3) 넥 타입 — 어떤 방식을 원하시나요?"
 - "구리 비슷한 소재" → _workPieceName=구리, confidence:"medium", clarification:"구리(순동) 계열로 검색했습니다. 혹시 황동/청동이시면 말씀해주세요."
+- "절삭조건 있는 아이템들" → [{"field":"hasCuttingCondition","op":"exists","value":"true"}], confidence:"high", clarification:null
 
 ## Self-Check (reasoning ↔ filters 일치 검증 — 매우 중요)
 filters를 최종 출력하기 전에 자신의 reasoning을 다시 읽고 아래를 점검하세요:
@@ -424,6 +425,15 @@ NEVER use eq when the user expressed a range:
 - "A~B / A에서 B 사이 / A부터 B까지" → between with value=A, value2=B
 - "정도/근처/대략/around" → between ±10% of the number
 - Pick the column whose name matches the user's label (직경→diameter, 전장/OAL→overall_length, 날장/LOC→length_of_cut, 샹크→shank, 헬릭스→helix, 날수→flute, etc.) AND whose min/max range contains the user's number. Do not emit duplicate eq filters for the same number on different columns.
+
+## Existence Operator (op: "exists")
+- "~있는 것만", "~정보 있는", "~데이터 존재하는" → op:"exists", value:"true"
+- 절삭조건 존재 여부: "절삭조건 있는 제품" → field:"hasCuttingCondition", op:"exists", value:"true"
+- 개별 절삭조건 필드도 가능: "RPM 정보 있는 것" → field:"rpm", op:"exists", value:"true"
+- op:"exists" 는 데이터 존재 여부만 확인. 값 범위 필터(rpm >= 1000)와 혼동 금지.
+- 예시:
+  - "절삭조건 있는 아이템들" → [{"field":"hasCuttingCondition","op":"exists","value":"true","display":"절삭조건 존재"}]
+  - "RPM 정보 있는 것만" → [{"field":"rpm","op":"exists","value":"true","display":"RPM 데이터 존재"}]
 
 ## Korean → English semantic hints (use op:like when the chemical/internal name may differ)
 - **전역 규칙**: 위 sampleList / brandList / wpList / numericStats 에 실제로 등장한 값이 한국어 음역·유사어·약칭·오타·축약형으로 들어와도 발음/의미 유사도로 그 값에 매핑하세요. 절대 리스트에 없는 값을 emit 하지 말 것. (아래 컬럼별 힌트는 자주 보는 예시 모음일 뿐 — 새로운 컬럼/값에도 같은 원리로 동작.)
@@ -759,7 +769,7 @@ function parseAgentResponse(raw: string): ParsedAgent {
   return { filters: [] }
 }
 
-const VALID_AGENT_OPS = new Set(["eq", "neq", "like", "skip", "reset", "back", "gte", "lte", "between"])
+const VALID_AGENT_OPS = new Set(["eq", "neq", "like", "skip", "reset", "back", "gte", "lte", "between", "exists"])
 
 function validateFilters(arr: unknown[]): AgentFilter[] {
   return arr.filter((item): item is AgentFilter => {
@@ -828,6 +838,7 @@ export function buildAppliedFilterFromAgentFilterWithTrace(
     : agentFilter.op === "gte" ? "gte"
     : agentFilter.op === "lte" ? "lte"
     : agentFilter.op === "between" ? "between"
+    : agentFilter.op === "exists" ? "exists"
     : "eq"
 
   if (registryField) {

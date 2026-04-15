@@ -40,7 +40,7 @@ export interface SingleCallAction {
   value2?: string | number
   from?: string
   to?: string
-  op?: "eq" | "neq" | "in" | "range" | "gte" | "lte" | "between" | "includes"
+  op?: "eq" | "neq" | "in" | "range" | "gte" | "lte" | "between" | "includes" | "exists"
   targets?: string[]
   message?: string
   /** Set when canonicalization failed — runtime should fall back to legacy */
@@ -78,7 +78,7 @@ const VALID_ACTION_TYPES = new Set([
   "go_back",
 ])
 
-const VALID_OPS = new Set(["eq", "neq", "in", "range", "gte", "lte", "between"])
+const VALID_OPS = new Set(["eq", "neq", "in", "range", "gte", "lte", "between", "exists"])
 
 export function validateAction(action: unknown): action is SingleCallAction {
   if (!action || typeof action !== "object") return false

@@ -683,12 +683,27 @@ function buildNumericEqualityClause(
  * cutting_condition_table 의 수치 컬럼은 전부 text 이므로 regexp_replace 로
  * 숫자 토큰만 추출한 뒤 numeric 캐스팅한다 ("0.2D" → 0.2 처럼 단위 접미사 무시).
  * eq 비교에는 ±5% (최소 0.01) 허용.
+ *
+ * ccColumn === null 이면 특정 컬럼 predicate 없이 series 존재 여부만 검사한다
+ * (hasCuttingCondition 필드 용도 — "이 시리즈에 절삭조건 데이터가 있는가").
+ * op === "exists" 이면 컬럼이 지정된 경우 해당 컬럼이 비어있지 않은 레코드 존재
+ * 여부를, 컬럼이 없으면 순수 series 매칭 존재 여부만 본다.
  */
 function buildCuttingConditionExistsClause(
-  ccColumn: string,
+  ccColumn: string | null,
   filter: AppliedFilter,
   next: (value: unknown) => string,
 ): string | null {
+  const baseFrom = `FROM raw_catalog.cutting_condition_table c WHERE c.series_name = edp_series_name`
+
+  if (filter.op === "exists") {
+    if (!ccColumn) return `EXISTS (SELECT 1 ${baseFrom})`
+    return `EXISTS (SELECT 1 ${baseFrom} AND c.${ccColumn} IS NOT NULL AND TRIM(c.${ccColumn}) != '')`
+  }
+
+  // 이하 op 는 컬럼-수치 비교가 필요하므로 ccColumn 이 없으면 처리 불가.
+  if (!ccColumn) return null
+
   const rawValues = extractNumericFilterRawValues(filter)
   const numericExpr = `NULLIF(regexp_replace(COALESCE(c.${ccColumn}, ''), '[^0-9.]', '', 'g'), '')::numeric`
   let predicate: string | null = null
@@ -717,7 +732,7 @@ function buildCuttingConditionExistsClause(
     if (parts.length === 0) return null
     predicate = parts.length === 1 ? parts[0] : `(${parts.join(" OR ")})`
   }
-  return `EXISTS (SELECT 1 FROM raw_catalog.cutting_condition_table c WHERE c.series_name = edp_series_name AND ${predicate})`
+  return `EXISTS (SELECT 1 ${baseFrom} AND ${predicate})`
 }
 
 /**
@@ -1399,6 +1414,22 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     matches: () => true,
     buildDbClause: (filter, next) => buildCuttingConditionExistsClause("axial_depth_of_cut", filter, next),
   },
+  // 절삭조건 테이블에 시리즈 레코드가 1건이라도 있는지만 확인하는 presence 필드.
+  // LLM 이 "절삭조건 있는/절삭데이터 존재하는" 의도로 op:"exists" + value:"true" 를
+  // emit 할 때 사용된다. 개별 수치 컬럼(rpm/feed/...)이 아닌 series 매칭 자체를 본다.
+  hasCuttingCondition: {
+    field: "hasCuttingCondition",
+    label: "절삭조건 존재",
+    queryAliases: ["절삭조건", "절삭조건 있는", "cutting condition", "가공조건", "절삭데이터"],
+    kind: "boolean",
+    op: "eq",
+    virtualTable: "cutting_condition_table",
+    setInput: input => input,
+    clearInput: input => input,
+    extractValues: () => [],
+    matches: () => true,
+    buildDbClause: (filter, next) => buildCuttingConditionExistsClause(null, filter, next),
+  },
   applicationShapes: {
     field: "applicationShapes",
     kind: "string",
@@ -1754,6 +1785,14 @@ export function buildDbWhereClauseForFilter(
   // 사용자가 재확정하기 전엔 hard WHERE 로 걸지 않는다. session appliedFilters 에는
   // 남겨서 다음 턴 LLM 이 같은 field 를 emit 하면 merge 로 op 교체 → 자동 promote.
   if (filter.op === "soft_numeric_pending") return null
+
+  // exists op: virtualTable 필드 전용 존재 여부 체크. registry buildDbClause 에 위임.
+  // 컬럼-수치 predicate 가 없는 "presence" 쿼리라 아래 범용 경로를 거치지 않는다.
+  if (filter.op === "exists") {
+    const definition = getFilterFieldDefinition(filter.field)
+    if (!definition?.buildDbClause) return null
+    return definition.buildDbClause(filter, next)
+  }
 
   // SQL Agent rawSqlField → 동적 스키마 검증 후 직접 WHERE절 생성.
   // 화이트리스트 제거: DB에 추가되는 모든 컬럼이 자동으로 필터 가능해야 함.
