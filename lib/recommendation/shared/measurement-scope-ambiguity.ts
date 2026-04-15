@@ -1,3 +1,5 @@
+import { matchMaterial, extractFluteCount } from "@/lib/recommendation/shared/patterns"
+
 export interface MeasurementScopeAmbiguity {
   kind: "length" | "angle"
   phrase: string
@@ -116,7 +118,9 @@ export function detectMeasurementScopeAmbiguity(
   if (lengthMatch) {
     if (hasExplicitLengthCue(clean)) return null
     if (isImperialToolDiameterShorthand(clean, lengthMatch[1])) return null
-    // NOTE: post-fallback-removal — bare mm no longer auto-maps to diameter even with material/flute context.
+    // 도메인 원칙: 같은 메시지에 material 또는 fluteCount 힌트가 있으면
+    // bare mm은 직경으로 간주한다 (소재+mm+날수 = 100% 직경).
+    if (matchMaterial(clean) || extractFluteCount(clean) != null) return null
     return buildLengthAmbiguity(lengthMatch[1])
   }
 
