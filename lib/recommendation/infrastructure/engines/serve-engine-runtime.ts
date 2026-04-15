@@ -26,7 +26,7 @@ import { RUNTIME_MESSAGES, renderTemplate } from "@/lib/recommendation/infrastru
 import { USE_NEW_ORCHESTRATOR, shouldUseV2ForPhase } from "@/lib/feature-flags"
 import { getProvider } from "@/lib/recommendation/infrastructure/llm/recommendation-llm"
 import { getProviderForAgent } from "@/lib/llm/provider"
-import { performUnifiedJudgment } from "@/lib/recommendation/domain/context/unified-haiku-judgment"
+import { performUnifiedJudgment, type UnifiedJudgment } from "@/lib/recommendation/domain/context/unified-haiku-judgment"
 import {
   buildComparisonOptionState,
   buildRefinementOptionState,
@@ -3661,6 +3661,44 @@ async function handleServeExplorationInner(
     )
   }
 
+  // ── Early Unified Judgment Gate ─────────────────────────────────────
+  // LLM judgment이 모든 shortcut(KG / SQL Agent / tool-memory hot-cache /
+  // parseDeterministic / constraint-text-parser)보다 먼저 실행돼야 한다.
+  // "4날은?" 같은 짧은 도메인 토큰이 직전 턴 설명이면 explain, 세션 시작이면
+  // ask_recommendation — regex/캐시가 맥락 없이 먼저 판단하면 안 됨.
+  //
+  // 캐시 키는 (userMessage + previousTurnAction)이므로 하단 line ~5964의
+  // 기존 judgment 재호출은 같은 턴 내에서 캐시 히트 (추가 LLM 비용 0).
+  //
+  // 적용 제외:
+  //   - prevState 없음 (intake 첫턴: auto-synth 메시지라 judgment 불필요)
+  //   - shouldResolvePendingSelectionEarly (pending chip 선택 답변 경로)
+  let earlyJudgment: UnifiedJudgment | null = null
+  if (prevState && lastUserMsg && !shouldResolvePendingSelectionEarly) {
+    try {
+      earlyJudgment = await performUnifiedJudgment({
+        userMessage: lastUserMsg.text,
+        assistantText: null,
+        pendingField: prevState.lastAskedField ?? null,
+        currentMode: prevState.currentMode ?? null,
+        displayedChips: prevState.displayedChips ?? [],
+        filterCount: filters.length,
+        candidateCount: prevState.candidateCount ?? 0,
+        hasRecommendation: prevState.resolutionStatus?.startsWith("resolved") ?? false,
+        previousTurnAction: prevState.lastAction ?? null,
+      }, provider)
+    } catch (e) {
+      console.warn(`[judgment-gate] early judgment failed, falling through:`, (e as Error).message)
+      earlyJudgment = null
+    }
+  }
+  const earlyJudgmentBlocksFilters = !!earlyJudgment && NON_FILTER_INTENTS.has(earlyJudgment.intentAction)
+  if (earlyJudgment) {
+    console.log(
+      `[judgment-gate] intentAction=${earlyJudgment.intentAction} domain=${earlyJudgment.domainRelevance} → ${earlyJudgmentBlocksFilters ? "BLOCK kg/sql-agent/tool-memory (non-filter intent)" : "proceed to kg/sql-agent/tool-memory"}`
+    )
+  }
+
   let singleCallHandled = false
   // ── LLM purpose 존중 ──
   // Resolver(routeHint/intent) 또는 SQL Agent(_qa)가 "이건 정보 조회/상담 질문" 이라고
@@ -4760,8 +4798,15 @@ async function handleServeExplorationInner(
     // Gated by runtime flag — when disableKg=true (header x-disable-kg: 1), skip
     // KG entirely so SCR/sql-agent + LLM handle all extraction. Used for A/B
     // testing the LLM-only path against the KG-augmented path.
+    //
+    // Judgment gate: non-filter intents(explain/off_topic/reset/skip/undo)는
+    // KG entity match로 필터를 만들면 안 됨. "4날은?"이 follow-up explain이면
+    // KG가 fluteCount=4를 추출해서 필터로 꽂아버림.
     let kgHint: string | undefined
-    if (!singleCallHandled && lastUserMsg && legacyKgInterpreterEnabled && !shouldResolvePendingSelectionEarly) {
+    if (earlyJudgmentBlocksFilters) {
+      console.log(`[judgment-gate] intentAction=${earlyJudgment?.intentAction} → KG SKIPPED`)
+    }
+    if (!singleCallHandled && lastUserMsg && legacyKgInterpreterEnabled && !shouldResolvePendingSelectionEarly && !earlyJudgmentBlocksFilters) {
       const kgResult = tryKGDecision(msg, prevState)
       trace.add("knowledge-graph", "router", { confidence: kgResult.confidence, source: kgResult.source, reason: kgResult.reason })
 
@@ -4862,7 +4907,8 @@ async function handleServeExplorationInner(
     // entity match (shankType=HSK, cornerRadiusMm=0.5, taperAngleDeg=5, ...)
     // should be surfaced to sql-agent as a hint so the LLM can include it.
     // Only builds a hint if one wasn't already set above.
-    if (!kgHint && lastUserMsg && !singleCallHandled && legacyKgHintEnabled && !shouldResolvePendingSelectionEarly) {
+    // Judgment gate: non-filter intent이면 hint도 만들지 않음 (sql-agent에 노이즈 주입 방지).
+    if (!kgHint && lastUserMsg && !singleCallHandled && legacyKgHintEnabled && !shouldResolvePendingSelectionEarly && !earlyJudgmentBlocksFilters) {
       const entities = extractEntities(msg)
       const safeEntities = entities.filter(e => e.field !== "diameterMm")
       if (safeEntities.length > 0) {
@@ -4875,7 +4921,14 @@ async function handleServeExplorationInner(
     // Handles filters + negation + navigation — replaces deterministic negation handler
     // Wrapped in semantic-cache: identical/synonymous queries with the same filter
     // context replay the cached agent result and skip the LLM call entirely.
-    if (!singleCallHandled && lastUserMsg && !shouldResolvePendingSelectionEarly) {
+    //
+    // Judgment gate: non-filter intents(explain/off_topic/reset/skip/undo)는
+    // sql-agent / tool-memory hot-cache 진입 차단. "4날은?" follow-up explain이
+    // tool-memory hot-cache에 걸려 sql-agent CoT로 직행하는 회귀 방지.
+    if (earlyJudgmentBlocksFilters) {
+      console.log(`[judgment-gate] intentAction=${earlyJudgment?.intentAction} → SQL AGENT + tool-memory:hot SKIPPED`)
+    }
+    if (!singleCallHandled && lastUserMsg && !shouldResolvePendingSelectionEarly && !earlyJudgmentBlocksFilters) {
       try {
         const schema = getDbSchemaSync()
         if (schema) {
