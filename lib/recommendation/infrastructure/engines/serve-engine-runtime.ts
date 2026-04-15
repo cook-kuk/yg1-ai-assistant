@@ -3738,16 +3738,27 @@ async function handleServeExplorationInner(
     }
   }
 
+  let singleCallHandled = false
+  // ── LLM purpose 존중 ──
+  // Resolver(routeHint/intent) 또는 SQL Agent(_qa)가 "이건 정보 조회/상담 질문" 이라고
+  // 판단하면 questionMode=true. 후속 purpose 계산 사이트(4곳)에서 이 플래그가 있으면
+  // candidate count 에 관계없이 purpose="question" 으로 강제하고, presenter 는
+  // 이번 턴의 candidateSnapshot 을 카드로 렌더하지 않는다 (이전 턴 아티팩트는 유지).
+  let questionMode = false
+
   // ── Explain short-circuit ──────────────────────────────────────────
   // Judgment 이 explain intent 로 잡았고 (도메인 값 + 의문 톤) 필터 게이트로
   // SQL agent/KG/multi-stage 가 모두 skip 된 케이스. 이대로 두면 후보 0건
   // → "조건에 맞는 제품을 찾지 못했습니다" fallback 으로 끝나버린다.
   // LLM 으로 바로 한국어 도메인 설명을 생성해서 user-facing 응답으로 반환.
+  // NOTE: jsonRecommendationResponse wrapper 가 questionMode 를 reference 하므로
+  //       반드시 questionMode 선언 이후에 위치해야 함 (TDZ ReferenceError 회피).
   if (
     earlyJudgmentBlocksFilters &&
     earlyJudgment?.intentAction === "explain" &&
     lastUserMsg
   ) {
+    questionMode = true
     let explainText = ""
     try {
       const modelTier = deps.routingHint?.modelTier === "full" ? "full" : "mini"
@@ -3783,16 +3794,10 @@ async function handleServeExplorationInner(
         altFactChecked: [],
       })
     }
+    questionMode = false
     console.warn(`[explain-branch] empty/short explanation, falling through to legacy path`)
   }
 
-  let singleCallHandled = false
-  // ── LLM purpose 존중 ──
-  // Resolver(routeHint/intent) 또는 SQL Agent(_qa)가 "이건 정보 조회/상담 질문" 이라고
-  // 판단하면 questionMode=true. 후속 purpose 계산 사이트(4곳)에서 이 플래그가 있으면
-  // candidate count 에 관계없이 purpose="question" 으로 강제하고, presenter 는
-  // 이번 턴의 candidateSnapshot 을 카드로 렌더하지 않는다 (이전 턴 아티팩트는 유지).
-  let questionMode = false
   // ── Deterministic first-turn short-circuit ──────────────────────────────
   // When there's no prior session (prevState=null) and the only message is
   // the auto-synthesized intake summary ("탄소강 / Milling / 8mm 추천해주세요"),
