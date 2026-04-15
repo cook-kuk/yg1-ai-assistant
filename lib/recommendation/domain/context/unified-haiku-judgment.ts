@@ -195,28 +195,6 @@ export const DEFAULT_JUDGMENT: UnifiedJudgment = {
   fromLLM: false,
 }
 
-/**
- * LLM 판단 실패 시 fallback. 탐색형 질문 패턴이면 intentAction='explain'으로 보정.
- * 정상 경로에서는 LLM이 판단하며, 이건 safety net 역할.
- *
- * 보정 규칙 (우선순위 순):
- *  1) 탐색형 어휘(뭐가/어떤/종류/몇 가지/뭐뭐) → explain (항상)
- *  2) "?" 포함 + 약한 탐색/의문 어휘(있|어떻|무엇|있나) → explain
- *     (LLM 실패 safety-net: 의문문을 ask_recommendation 으로 잘못 필터링하는 상황 방지)
- */
-function buildFallbackJudgment(userMessage: string): UnifiedJudgment {
-  const fallback: UnifiedJudgment = { ...DEFAULT_JUDGMENT }
-  const msg = userMessage ?? ""
-  const hasExplicitExploratory = /뭐가\s*있|뭐뭐|있나요|있어요\??$|종류|어떤\s*게|어떤\s*것|몇\s*가지|몇\s*개\s*있/.test(msg)
-  const hasQuestionMark = /[?？]/.test(msg)
-  const hasSoftExploratory = /\b(있\b|있나|있어|있어요|있나요|어떻|무엇|뭐)\b|있\?|있나\?|어떤|무엇|뭐/.test(msg)
-  if (hasExplicitExploratory || (hasQuestionMark && hasSoftExploratory)) {
-    fallback.intentAction = "explain"
-    fallback.domainRelevance = "product_query"
-  }
-  return fallback
-}
-
 /** 캐시: 같은 턴에서 중복 호출 방지 */
 let lastInput: string | null = null
 let lastResult: UnifiedJudgment = DEFAULT_JUDGMENT
@@ -231,7 +209,7 @@ export async function performUnifiedJudgment(
   if (cacheKey === lastInput && lastResult.fromLLM) return lastResult
 
   if (!provider.available()) {
-    return buildFallbackJudgment(input.userMessage)
+    return DEFAULT_JUDGMENT
   }
 
   let rawResponse: string | null = null
@@ -285,13 +263,12 @@ export async function performUnifiedJudgment(
       })
     }
     console.warn("[unified-judgment] Haiku failed:", error)
-    const fallback = buildFallbackJudgment(input.userMessage)
     traceRecommendationError("context.performUnifiedJudgment:error", error, {
       input,
       rawResponse,
-      fallback,
+      fallback: DEFAULT_JUDGMENT,
     })
-    return fallback
+    return DEFAULT_JUDGMENT
   }
 }
 
