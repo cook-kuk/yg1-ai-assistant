@@ -46,6 +46,12 @@ export interface DbSchema {
   auxSampleValues: Record<string, Record<string, string[]>>
   /** Numeric stats for aux table numeric columns */
   auxNumericStats: Record<string, Record<string, NumericStat>>
+  /**
+   * Brand ↔ ISO material group (P/M/K/N/S/H) 적합도 rating.
+   * 소스: public.brand_material_affinity (rating_score DESC).
+   * LLM 프롬프트 주입용 — 동일 후보 세트에서 brand ranking 힌트, hard filter 아님.
+   */
+  brandAffinity: Record<string, Array<{ brand: string; rating: string | null; score: number }>>
   workpieces: { tag_name: string; normalized_work_piece_name: string }[]
   brands: string[]
   /** Distinct country codes from product_recommendation_mv.country_codes (text[] array, unnested) */
@@ -81,34 +87,67 @@ export interface PhoneticEntry {
 // 컬럼에 정확히 self-map 하도록 돕는다. 하드코딩 Korean→field dictionary가
 // 아니라 컬럼 semantic metadata. 새 컬럼은 가능하면 DB COMMENT로 관리.
 const COLUMN_KO_DESCRIPTIONS: Record<string, string> = {
-  // Diameter family
-  search_diameter_mm: "공구 외경(직경/지름/파이/ø) — mm",
+  // ── 식별자 / 기본 정보 ────────────────────────────────────────
+  edp_idx: "EDP 내부 ID (PK)",
+  edp_no: "EDP 번호 (제품 코드) — 브랜드별 유일",
+  edp_brand_name: "브랜드명",
+  edp_series_name: "시리즈명",
+  edp_series_idx: "시리즈 내부 ID",
+  edp_root_category: "최상위 가공 카테고리 (Milling/Holemaking/Threading/Tooling/Turning)",
+  edp_unit: "치수 단위 (mm/inch)",
+  normalized_code: "EDP 정규화 코드 (공백/하이픈 제거, 대문자)",
+
+  // ── 시리즈 메타 ──────────────────────────────────────────────
+  series_row_idx: "시리즈 row ID",
+  series_brand_name: "시리즈 브랜드명",
+  series_description: "시리즈 설명",
+  series_feature: "시리즈 특징/feature",
+  series_tool_type: "시리즈 공구 세부 형상 (End Mill/Drill/Tap 등)",
+  series_product_type: "시리즈 제품 타입",
+  series_application_shape: "시리즈 가공 용도 (Slotting/Profiling/Drilling 등)",
+  series_cutting_edge_shape: "시리즈 절삭날 형상 (Ball/Square/Radius/Taper/Chamfer)",
+  series_shank_type: "시리즈 샹크 타입 (Straight/HSK/BT)",
+
+  // ── 국가 / 피삭재 ────────────────────────────────────────────
+  country: "판매 가능 국가 (콤마 구분)",
+  country_codes: "판매 가능 국가 코드 배열",
+  material_tags: "적용 피삭재 ISO 코드 배열 (P/M/K/N/S/H)",
+
+  // ── 직경 family ──────────────────────────────────────────────
+  search_diameter_mm: "공구 외경(직경/지름/파이/ø) — mm, 통합 검색용",
   milling_outside_dia: "밀링 공구 외경 — mm",
   holemaking_outside_dia: "드릴/리머 외경 — mm",
   threading_outside_dia: "탭/나사 외경 — mm",
   option_dc: "외경(절삭부 직경) — mm",
   option_dcon: "샹크 직경(자루경) — mm",
+  option_d: "외경/직경 — mm",
+  option_d1: "외경/직경(d1) — mm",
+  option_drill_diameter: "드릴 직경 — mm",
+  option_shank_diameter: "자루경(샹크 직경) — mm",
   milling_shank_dia: "밀링 공구 자루경(샹크 직경) — mm",
   holemaking_shank_dia: "드릴 자루경(샹크 직경) — mm",
   threading_shank_dia: "탭 자루경(샹크 직경) — mm",
-  option_shank_diameter: "자루경(샹크 직경) — mm",
-  // Length family
+
+  // ── 길이 family ──────────────────────────────────────────────
   milling_overall_length: "전장(공구 전체 길이, OAL) — mm",
   holemaking_overall_length: "드릴 전장(OAL) — mm",
   threading_overall_length: "탭 전장(OAL) — mm",
   option_overall_length: "전장(공구 전체 길이, OAL) — mm",
   option_oal: "전장(OAL) — mm",
   milling_length_of_cut: "절삭장(날 길이, LOC) — mm",
+  milling_effective_length: "밀링 유효장(effective length) — mm",
   holemaking_flute_length: "드릴 날 길이 — mm",
+  holemaking_length_below_shank: "샹크 아래 돌출 길이 — mm",
   threading_thread_length: "나사 가공 길이 — mm",
+  threading_l3: "탭 L3 길이 — mm",
+  tooling_back_bore_l3: "툴링 back-bore L3 — mm",
   option_flute_length: "날 길이(LOC) — mm",
   option_loc: "절삭장(LOC) — mm",
-  // Neck
-  option_neck_diameter: "넥 직경 — mm",
-  option_neck_length: "넥 길이(유효장 확보용) — mm",
+
+  // ── 넥 ──────────────────────────────────────────────────────
   milling_neck_diameter: "밀링 넥 직경 — mm",
-  milling_neck_length: "밀링 넥 길이 — mm",
-  // Radii / angles
+
+  // ── 반경 / 각도 ──────────────────────────────────────────────
   milling_ball_radius: "볼 노즈 반경 — mm",
   option_r: "코너R(corner radius) — mm",
   option_re: "인선 반경/코너R — mm",
@@ -116,29 +155,55 @@ const COLUMN_KO_DESCRIPTIONS: Record<string, string> = {
   option_taperangle: "테이퍼 각도 — °",
   milling_helix_angle: "헬릭스(나선) 각도 — °",
   holemaking_helix_angle: "드릴 헬릭스 각도 — °",
+  holemaking_taper_angle: "드릴 테이퍼 각도 — °",
   holemaking_point_angle: "드릴 포인트 각도 — °",
-  option_pointangle: "포인트 각도 — °",
-  // Thread
+
+  // ── 나사 ────────────────────────────────────────────────────
   threading_pitch: "나사 피치 — mm",
-  option_pitch: "나사 피치 — mm",
   threading_tpi: "인치당 나사산 수(TPI)",
-  option_tpi: "인치당 나사산 수(TPI)",
-  // Flute / coolant
-  milling_flutes: "밀링 날 수",
-  holemaking_flutes: "드릴 날 수",
-  option_flutecount: "날 수",
+
+  // ── 날 수 / 쿨런트 ──────────────────────────────────────────
+  option_z: "날 수 (Z)",
+  option_numberofflute: "날 수",
+  milling_number_of_flute: "밀링 날 수",
+  holemaking_number_of_flute: "드릴 날 수",
+  threading_number_of_flute: "탭 날 수",
   milling_coolant_hole: "쿨런트 홀(내부 냉각 구멍) 유무",
   holemaking_coolant_hole: "쿨런트 홀 유무",
   threading_coolant_hole: "쿨런트 홀 유무",
   option_coolanthole: "쿨런트 홀 유무",
-  // Attributes
-  coating: "표면 코팅 (TiAlN/AlCrN/DLC/Y-Coating 등)",
-  search_coating: "코팅 (검색용 정규화)",
-  tool_material: "공구 모재 (Carbide/HSS/PCD/Diamond 등)",
-  edp_brand_name: "브랜드명",
-  series_name: "시리즈명",
-  tool_subtype: "공구 세부 형상 (Ball/Square/Radius/Taper/Chamfer/Roughing/High-Feed)",
-  machining_category: "가공 카테고리 (Milling/Holemaking/Threading)",
+
+  // ── 공차 ────────────────────────────────────────────────────
+  option_tolofmilldia: "밀링 외경 공차",
+  option_tolofshankdia: "밀링 샹크 공차",
+  milling_diameter_tolerance: "밀링 외경 공차",
+  milling_shank_diameter_tolerance: "밀링 샹크 공차",
+  holemaking_diameter_tolerance: "드릴 외경 공차",
+  holemaking_shank_diameter_tolerance: "드릴 샹크 공차",
+
+  // ── 코팅 / 모재 / 형상 ───────────────────────────────────────
+  search_coating: "코팅 (통합 검색용 정규화)",
+  milling_coating: "밀링 코팅",
+  holemaking_coating: "드릴 코팅",
+  threading_coating: "탭 코팅",
+  milling_tool_material: "밀링 공구 모재 (Carbide/HSS/PCD/Diamond)",
+  holemaking_tool_material: "드릴 공구 모재",
+  threading_tool_material: "탭 공구 모재",
+  milling_shank_type: "밀링 샹크 타입",
+  tooling_shank_type: "툴링 샹크 타입",
+  search_shank_type: "샹크 타입 (통합 검색용 정규화)",
+  search_subtype: "공구 세부 형상 (통합 검색용: Ball/Square/Radius/Taper/Chamfer)",
+  milling_cutting_edge_shape: "밀링 절삭날 형상",
+  milling_cutter_shape: "밀링 커터 형상",
+  threading_flute_type: "탭 flute 타입",
+  threading_thread_shape: "나사 형상",
+
+  // ── 정규화 컬럼 (UPPER+TRIM SSOT, LLM 매칭용) ──────────────────
+  norm_brand: "브랜드명 (대문자+trim 정규화)",
+  norm_coating: "코팅 (대문자+trim 정규화)",
+  norm_cutting_edge: "절삭날/커터 형상 (대문자+trim 정규화)",
+  norm_application: "가공 용도 (대문자+trim 정규화)",
+  norm_shank_type: "샹크 타입 (대문자+trim 정규화)",
 }
 
 // ── Cache ────────────────────────────────────────────────────
@@ -224,7 +289,7 @@ export async function getDbSchema(): Promise<DbSchema> {
   //
   // 추가: MV 컬럼 대부분이 text 로 저장된 "numeric-as-text"(전장/날장/넥경/코너R 등).
   // data_type 만으로 필터하면 search_diameter_mm 1개만 남음. 따라서 모든 컬럼을
-  // 통합 쿼리(regex + CAST)로 샘플링 후, 90% 이상이 숫자로 파싱되면 numericStats 에 포함.
+  // 통합 쿼리(regex + CAST)로 샘플링 후, 80% 이상이 숫자로 파싱되면 numericStats 에 포함.
   const numericCandidates = columns
     .filter(c => !/jsonb|bytea|uuid|timestamp|date|time|bool/i.test(c.data_type))
     .map(c => c.column_name)
@@ -277,7 +342,10 @@ export async function getDbSchema(): Promise<DbSchema> {
   const AUX_TABLE_TARGETS: Array<{ schema: string; table: string; alias: string }> = [
     { schema: "raw_catalog", table: "cutting_condition_table", alias: "raw_catalog.cutting_condition_table" },
     { schema: "catalog_app", table: "product_inventory_summary_mv", alias: "catalog_app.product_inventory_summary_mv" },
+    { schema: "catalog_app", table: "inventory_snapshot", alias: "catalog_app.inventory_snapshot" },
     { schema: "catalog_app", table: "series_profile_mv", alias: "catalog_app.series_profile_mv" },
+    // Part 6: 브랜드-피삭재 적합도 — LLM 프롬프트 주입으로 ranking 힌트 (hard filter 아님)
+    { schema: "public", table: "brand_material_affinity", alias: "public.brand_material_affinity" },
   ]
   const auxSampleValues: Record<string, Record<string, string[]>> = {}
   const auxNumericStats: Record<string, Record<string, NumericStat>> = {}
@@ -325,6 +393,23 @@ export async function getDbSchema(): Promise<DbSchema> {
     } catch { /* table may not exist in this env */ }
   }
 
+  // 6b. Brand ↔ ISO material affinity matrix — top brands per ISO code by rating_score.
+  const brandAffinity: Record<string, Array<{ brand: string; rating: string | null; score: number }>> = {}
+  try {
+    const affRes = await pool.query<{ material_key: string; brand: string; rating: string | null; rating_score: number | null }>(`
+      SELECT material_key, brand, rating, rating_score
+      FROM public.brand_material_affinity
+      WHERE brand IS NOT NULL AND BTRIM(brand) <> ''
+        AND material_key IS NOT NULL AND BTRIM(material_key) <> ''
+      ORDER BY material_key, rating_score DESC NULLS LAST, brand
+    `)
+    for (const r of affRes.rows) {
+      const key = String(r.material_key).toUpperCase().trim()
+      if (!brandAffinity[key]) brandAffinity[key] = []
+      brandAffinity[key].push({ brand: r.brand, rating: r.rating, score: Number(r.rating_score ?? 0) })
+    }
+  } catch { /* table may not exist — silently skip */ }
+
   // 7. Build value→column reverse index for unqualified-token routing.
   const valueIndex = buildValueIndex({ sampleValues, brands, countries, workpieces })
 
@@ -346,7 +431,7 @@ export async function getDbSchema(): Promise<DbSchema> {
     console.log(`[schema-cache] skipped ${phantomHintKeys.length} orphan column descriptions: ${phantomHintKeys.join(", ")}`)
   }
 
-  cached = { columns, columnDescriptions, sampleValues, numericStats, auxTables, auxSampleValues, auxNumericStats, workpieces, brands, countries, valueIndex, phoneticIndex, loadedAt: Date.now() }
+  cached = { columns, columnDescriptions, sampleValues, numericStats, auxTables, auxSampleValues, auxNumericStats, brandAffinity, workpieces, brands, countries, valueIndex, phoneticIndex, loadedAt: Date.now() }
   const auxSampleCount = Object.values(auxSampleValues).reduce((n, m) => n + Object.keys(m).length, 0)
   const auxNumCount = Object.values(auxNumericStats).reduce((n, m) => n + Object.keys(m).length, 0)
   console.log(`[sql-agent-schema] loaded: ${columns.length} cols, ${Object.keys(sampleValues).length} text-sampled, ${Object.keys(numericStats).length} numeric-sampled, ${Object.keys(auxTables).length} aux tables (${auxSampleCount} aux text-sampled, ${auxNumCount} aux numeric-sampled), ${workpieces.length} wp, ${brands.length} brands, ${countries.length} countries, ${Object.keys(valueIndex).length} indexed, ${phoneticIndex.length} phonetic`)
@@ -395,8 +480,10 @@ const NUMERIC_RE_SQL = String.raw`^-?[0-9]*\.?[0-9]+$`
  *  - Works on both numeric and text columns (text stored as numeric-looking strings).
  *  - Filters rows by `col::text ~ '^-?[0-9]*\.?[0-9]+$'` so non-numeric text noise
  *    (e.g. "N/A", "TiAlN", "Cemented Carbide") is excluded.
- *  - Requires ≥ 90% of non-empty values to parse as numeric — otherwise returns null
+ *  - Requires ≥ 80% of non-empty values to parse as numeric — otherwise returns null
  *    (treat the column as text, not a numeric distribution).
+ *    Loosened from 90% → 80% to include more numeric-dominant columns with
+ *    occasional text noise (e.g. "Multi Flute" mixed into flute-count fields).
  *  - Single round-trip per column to keep boot cost bounded.
  */
 async function queryNumericStats(
@@ -430,7 +517,7 @@ async function queryNumericStats(
   const total = Number(row.total ?? 0)
   const nn = Number(row.nn ?? 0)
   if (nn === 0 || total === 0) return null
-  if (nn / total < 0.9) return null
+  if (nn / total < 0.8) return null
   if (row.mn == null || row.mx == null) return null
   return buildNumericStat({
     min: Number(row.mn), max: Number(row.mx),

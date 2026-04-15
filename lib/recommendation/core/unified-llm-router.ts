@@ -164,6 +164,29 @@ export function buildSchemaPrompt(schema: DbSchema): string {
     }
   }
 
+  // Part 6: 브랜드 ↔ ISO 피삭재 적합도 (rating 매트릭스, soft ranking 힌트)
+  const affinity = schema.brandAffinity ?? {}
+  const affKeys = Object.keys(affinity).sort()
+  if (affKeys.length > 0) {
+    lines.push("")
+    lines.push("== 브랜드 ↔ ISO 피삭재 적합도 (public.brand_material_affinity) ==")
+    lines.push("  * soft ranking 힌트. hard filter 아님. 동일 조건 후보 중 추천 순위만 영향.")
+    for (const key of affKeys) {
+      const rows = (affinity[key] ?? []).slice(0, 8)
+      if (rows.length === 0) continue
+      const parts = rows.map(r => `${r.brand}${r.rating ? `(${r.rating})` : ""}`)
+      lines.push(`  ${key}: ${parts.join(", ")}`)
+    }
+  }
+
+  // Part 8: JOIN 경로 힌트 (재고 / 절삭 조건)
+  lines.push("")
+  lines.push("== JOIN 경로 힌트 (명시적 질의 시에만) ==")
+  lines.push("  * 재고 조회: EXISTS (SELECT 1 FROM catalog_app.inventory_snapshot i WHERE i.edp_no = pe.edp_no AND i.qty > 0)")
+  lines.push("    — '재고 있음'/'stock' 질의가 명시된 경우에만. 기본 추천 흐름은 JOIN 하지 말 것.")
+  lines.push("  * 절삭조건 조회: raw_catalog.cutting_condition_table.edp_no ⇔ product_recommendation_mv.edp_no")
+  lines.push("    — 매칭률 약 0.3% (158 rows). '권장 rpm/feed' 같은 명시적 질의에만 JOIN.")
+
   return lines.join("\n")
 }
 

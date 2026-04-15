@@ -1014,10 +1014,12 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
       next
     ),
   },
+  // toolType: 시리즈 공구 형상 (End Mill / Ball Nose / Drill 등). MV series_tool_type 만 조회.
+  // (이전엔 series_product_type + edp_root_category 까지 묶어 machiningCategory 와 의미 중복 — 분리)
   toolType: {
     field: "toolType",
-    label: "공구 타입",
-    queryAliases: ["공구 타입", "tool type", "카테고리"],
+    label: "공구 형상",
+    queryAliases: ["공구 형상", "공구 타입", "tool type", "tool form"],
     kind: "string",
     matchPolicy: "strict_identifier",
     op: "includes",
@@ -1026,30 +1028,28 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     extractValues: record => extractPrimitiveValues(record, "toolType"),
     matches: (record, filter) => identifierMatch(record, filter, "toolType"),
     buildDbClause: (filter, next) => buildExactIdentifierClause(
-      ["series_tool_type", "series_product_type", "edp_root_category"],
+      ["series_tool_type"],
       filter,
       next
     ),
   },
+  // machiningCategory: 가공 분류 (Milling/Holemaking/Threading). MV edp_root_category 만 조회.
   machiningCategory: {
     field: "machiningCategory",
     label: "가공 분류",
-    queryAliases: ["가공 분류", "category", "machining category", "가공계열"],
+    queryAliases: ["가공 분류", "category", "machining category", "가공계열", "가공 카테고리"],
     kind: "string",
     matchPolicy: "strict_identifier",
     op: "eq",
-    // Mirror to toolType so the SQL WHERE clause (which reads input.toolType
-    // via resolveRequestedToolFamily) filters edp_root_category. The post-
-    // retrieval CATEGORY_SHAPE_MAP path in hybrid-retrieval.ts reads
-    // input.machiningCategory.
-    setInput: (input, filter) => {
-      const value = joinedFilterStringValue(filter)
-      return { ...input, machiningCategory: value, toolType: value }
-    },
-    clearInput: input => ({ ...input, machiningCategory: undefined, toolType: undefined }),
-    // Bypass post-filter rejection — actual category pruning happens via
-    // hybrid-retrieval's CATEGORY_SHAPE_MAP path, not the field registry.
-    matches: () => true,
+    setInput: (input, filter) => ({ ...input, machiningCategory: joinedFilterStringValue(filter) }),
+    clearInput: input => ({ ...input, machiningCategory: undefined }),
+    extractValues: record => extractPrimitiveValues(record, "machiningCategory"),
+    matches: (record, filter) => identifierMatch(record, filter, "machiningCategory"),
+    buildDbClause: (filter, next) => buildExactIdentifierClause(
+      ["edp_root_category"],
+      filter,
+      next
+    ),
   },
   brand: {
     field: "brand",
@@ -1158,6 +1158,22 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     unit: "mm",
     tolerance: 2,
     dbColumns: ["milling_length_of_cut", "holemaking_flute_length", "threading_thread_length", "option_flute_length", "option_loc"],
+  }),
+  neckDiameterMm: makeNumberRangeFieldDef({
+    field: "neckDiameterMm",
+    label: "넥 직경",
+    queryAliases: ["넥 직경", "넥직경", "neck diameter", "neck_diameter", "neckdia"],
+    unit: "mm",
+    tolerance: 0.2,
+    dbColumns: ["milling_neck_diameter"],
+  }),
+  effectiveLengthMm: makeNumberRangeFieldDef({
+    field: "effectiveLengthMm",
+    label: "유효장",
+    queryAliases: ["유효장", "유효 길이", "유효길이", "effective length", "effective_length"],
+    unit: "mm",
+    tolerance: 2,
+    dbColumns: ["milling_effective_length"],
   }),
   overallLengthMm: makeNumberRangeFieldDef({
     field: "overallLengthMm",
