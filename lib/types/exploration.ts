@@ -279,6 +279,7 @@ export interface CandidateSnapshot {
   description: string | null       // series_description
   featureText: string | null        // series_feature
   materialTags: string[]
+  materialRating?: "EXCELLENT" | "GOOD" | "NULL" | null
   score: number
   scoreBreakdown: import("./canonical").ScoreBreakdown | null
   matchStatus: "exact" | "approximate" | "none"

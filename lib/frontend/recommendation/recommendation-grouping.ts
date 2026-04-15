@@ -22,16 +22,25 @@ function defaultSeriesName(value: string | null): string {
   return value ?? UNGROUPED_NAME
 }
 
-// 그룹 내 후보 우선순위:
-//   1) score 내림차순 (최우선)
-//   2) matchStatus: exact > approximate > none
-//   3) stockStatus: instock > limited > unknown > outofstock
-//   4) totalStock 내림차순 (재고 많을수록 위)
-//   5) productCode 사전순 (최후 안정 정렬)
+// 후보 우선순위 (하드 티어링):
+//   1) materialRating 티어: EXCELLENT > GOOD > NULL (티어 간 score 무시)
+//   2) score 내림차순
+//   3) matchStatus: exact > approximate > none
+//   4) stockStatus: instock > limited > unknown > outofstock
+//   5) totalStock 내림차순 (재고 많을수록 위)
+//   6) productCode 사전순 (최후 안정 정렬)
 const MATCH_STATUS_RANK: Record<string, number> = { exact: 0, approximate: 1, none: 2 }
 const STOCK_STATUS_RANK: Record<string, number> = { instock: 0, limited: 1, unknown: 2, outofstock: 3 }
 
+function materialRatingTier(value: "EXCELLENT" | "GOOD" | "NULL" | null | undefined): number {
+  if (value === "EXCELLENT") return 0
+  if (value === "GOOD") return 1
+  return 2
+}
+
 function compareCandidates(a: RecommendationCandidateDto, b: RecommendationCandidateDto): number {
+  const tierDelta = materialRatingTier(a.materialRating) - materialRatingTier(b.materialRating)
+  if (tierDelta !== 0) return tierDelta
   if (b.score !== a.score) return b.score - a.score
   const ma = MATCH_STATUS_RANK[a.matchStatus] ?? 99
   const mb = MATCH_STATUS_RANK[b.matchStatus] ?? 99

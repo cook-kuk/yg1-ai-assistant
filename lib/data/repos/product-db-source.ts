@@ -273,6 +273,7 @@ interface RawProductRow {
   series_shank_type: string | null
   tooling_shank_type: string | null
   // Injected by ranked_products CTE (not in base table)
+  material_rating?: string | null
   material_rating_score?: number | null
   workpiece_name_matched?: boolean | null
 }
@@ -885,6 +886,13 @@ export function mapRowToProduct(row: RawProductRow): CanonicalProduct {
     description: firstNonEmpty(row.series_description),
     featureText: firstNonEmpty(row.series_feature),
     seriesIconUrl: resolveSeriesIconUrl(row.edp_series_name),
+    materialRating: (() => {
+      const raw = typeof row.material_rating === "string" ? row.material_rating.toUpperCase() : ""
+      if (raw === "EXCELLENT") return "EXCELLENT" as const
+      if (raw === "GOOD") return "GOOD" as const
+      if (raw === "NULL") return "NULL" as const
+      return null
+    })(),
     materialRatingScore: typeof row.material_rating_score === "number" ? row.material_rating_score : null,
     workpieceMatched: row.workpiece_name_matched === true,
     sourceConfidence: "medium",

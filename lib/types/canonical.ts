@@ -89,6 +89,7 @@ export const CanonicalProductSchema = z.object({
   seriesIconUrl: z.string().nullable(),
 
   // Material fitness (from series_profile_mv)
+  materialRating: z.enum(["EXCELLENT", "GOOD", "NULL"]).nullable().optional(),  // DB series-level discrete rating
   materialRatingScore: z.number().nullable(),  // DB series-level material fitness score; higher = better match
   workpieceMatched: z.boolean().optional(),     // true when series supports the requested workpiece name
 

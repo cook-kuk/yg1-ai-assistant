@@ -39,6 +39,14 @@ import {
   CAPACITY_LIMITS,
 } from "@/lib/recommendation/infrastructure/config/scoring-config"
 
+// ── Hard-tier sort by series materialRating (EXCELLENT > GOOD > NULL) ──
+// 티어 간에는 score를 무시하고 EXCELLENT이 무조건 위에 오도록.
+function materialRatingTier(value: "EXCELLENT" | "GOOD" | "NULL" | null | undefined): number {
+  if (value === "EXCELLENT") return 0
+  if (value === "GOOD") return 1
+  return 2
+}
+
 // ── Result type ──────────────────────────────────────────────
 export interface HybridResult {
   candidates: ScoredProduct[]
@@ -782,8 +790,10 @@ export async function runHybridRetrieval(
     console.log(`[hybrid:stage] pure-neq pre-cut boost=${boosted} brandDemote=${brandDemoted} diaDemote=${diaDemoted} pool=${scored.length}`)
   }
 
-  // Sort: score desc → priority asc → completeness desc
+  // Sort: materialRating tier (EXCELLENT>GOOD>NULL) → score desc → priority asc → completeness desc
   scored.sort((a, b) => {
+    const tierDelta = materialRatingTier(a.product.materialRating) - materialRatingTier(b.product.materialRating)
+    if (tierDelta !== 0) return tierDelta
     if (b.score !== a.score) return b.score - a.score
     if (a.product.sourcePriority !== b.product.sourcePriority)
       return a.product.sourcePriority - b.product.sourcePriority
@@ -954,8 +964,10 @@ export async function runHybridRetrieval(
     console.log(`[hybrid:stage] pure-neq flagship boost applied — boosted=${boosted}/${topCandidates.length}`)
   }
 
-  // Re-sort after evidence boost
+  // Re-sort after evidence boost — materialRating tier 먼저, 그 다음 기존 순서
   topCandidates.sort((a, b) => {
+    const tierDelta = materialRatingTier(a.product.materialRating) - materialRatingTier(b.product.materialRating)
+    if (tierDelta !== 0) return tierDelta
     if (b.score !== a.score) return b.score - a.score
     if (a.product.sourcePriority !== b.product.sourcePriority)
       return a.product.sourcePriority - b.product.sourcePriority

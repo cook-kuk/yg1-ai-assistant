@@ -167,6 +167,8 @@ function buildAllowedOutputFieldBlock(): string {
     ...Object.entries(DB_COL_TO_FILTER_FIELD)
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([column, field]) => `  ${column} -> ${field}`),
+    "  stockStatus -> stockStatus (재고 상태: instock/limited/outofstock — EXISTS join inventory_summary_mv)",
+    "  totalStock -> totalStock (재고 수량 numeric threshold — EXISTS join inventory_summary_mv)",
     "  _skip -> release a pending field restriction",
     "  _reset -> reset the session",
     "  _back -> go back one step",
@@ -299,7 +301,11 @@ Hard constraints:
 - "코너R/코너레디우스/corner R/R값" → cornerRadiusMm. ballRadiusMm 절대 emit 금지.
 - "볼 R/ball R" 만 ballRadiusMm.
 
-When the user asks about inventory / 재고 / stock / 수량 — 재고 데이터는 catalog_app.product_inventory_summary_mv 에 있고 normalized_edp ↔ product_recommendation_mv.normalized_code 로 JOIN 됩니다 (컬럼: total_stock, warehouse_count). 이 agent 가 직접 JOIN 하지는 않지만, upstream 의 filter_by_stock 경로가 처리하므로 "재고" 관련 질문에는 제품-MV 필터만 emit 하고 재고 자체는 []. 절대 "재고 컬럼이 없다" 고 reasoning 에 쓰지 마세요 — 재고는 다른 테이블에 있고 JOIN 가능합니다.
+When the user asks about inventory / 재고 / stock / 수량 — 재고는 catalog_app.product_inventory_summary_mv 에 있고 WHERE-builder 가 EXISTS(inv.edp = edp_no) subquery 로 자동 join 합니다. 이 agent 가 재고 필터를 **직접 emit** 하세요 — upstream 에 미루지 말 것.
+  · "재고 있는 거/재고만/납기 빠른 것/instock" → {field:"stockStatus", op:"eq", value:"instock"}
+  · "재고 N개 이상/stock >= N/최소 N개" → {field:"totalStock", op:"gte", value:"N"} (숫자 임계값).
+  · "재고 없는" 같은 부정 표현은 emit 금지 (upstream 이 처리).
+  · 제품 조건(소재/직경/형상 등) 과 재고가 같이 나오면 제품-MV 필터 + 재고 필터를 **모두** 같은 filters 배열에 emit. "재고 컬럼이 없다/다른 테이블이다" 고 reasoning 에 쓰지 말 것.
 
 When the user asks about cutting conditions / RPM / feed rate / 절삭조건 / 회전수 / 이송속도 / 절입깊이 — those numbers live in raw_catalog.cutting_condition_table. This agent cannot filter that table directly, so emit [] for the cutting-number itself and let the upstream tool-forge handle the join. BUT: use the aux sample values above to (a) confirm the user's number is in-range, (b) extract any *product-MV* filters implied by the same message (e.g. "스테인리스 RPM 3000" → still emit _workPieceName=스테인리스), and (c) note your reasoning so tool-forge has context. Never invent product-MV columns for cutting numbers.
 

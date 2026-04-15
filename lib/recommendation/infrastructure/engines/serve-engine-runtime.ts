@@ -6032,10 +6032,10 @@ async function handleServeExplorationInner(
       const judgmentResult = judgmentSettled.status === "fulfilled" ? judgmentSettled.value : null
       const preSearchResult = preSearchSettled.status === "fulfilled" ? preSearchSettled.value : null
 
-      // LLM 판단 존중: pre-search 가 direct_lookup / general_knowledge 로 분류했으면 정보 조회 질문이다.
+      // LLM 판단 존중: pre-search 가 general_knowledge 로 분류했으면 정보 조회 질문이다.
       // questionMode=true 로 전파하여 downstream 이 카드 없이 텍스트만 응답하게 한다
       // (jsonRecommendationResponse wrapper 에서 candidateSnapshot=[] 처리).
-      if (preSearchResult && (preSearchResult.kind === "direct_lookup" || preSearchResult.kind === "general_knowledge")) {
+      if (preSearchResult && preSearchResult.kind === "general_knowledge") {
         questionMode = true
         if (prevState) {
           ;(prevState as unknown as { __questionMode?: boolean }).__questionMode = true
@@ -6768,6 +6768,7 @@ async function handleServeExplorationInner(
     ?? explicitFilterAction?.type
     ?? bridgedV2Action?.type
     ?? null
+  let earlyStockThreshold: number | null = null
   if (!earlyAction && pendingSelectionFilter) {
     // Post-result phase: don't force narrowing for non-selection messages
     if (isPostResultPhase(journeyPhase)) {
@@ -6812,6 +6813,12 @@ async function handleServeExplorationInner(
       ? await orchestrateTurnWithTools(earlyTurnContext, provider)
       : await orchestrateTurn(earlyTurnContext, provider)
     earlyAction = earlyResult.action.type
+    if (earlyResult.action.type === "filter_by_stock") {
+      const t = earlyResult.action.stockThreshold
+      if (typeof t === "number" && Number.isFinite(t) && t > 0) {
+        earlyStockThreshold = Math.floor(t)
+      }
+    }
     try {
       const agents = earlyResult.agentsInvoked ?? []
       const agentSummary = agents.map(a => `${a.agent}(${a.model}:${a.durationMs}ms)`).join(", ")
@@ -6834,6 +6841,13 @@ async function handleServeExplorationInner(
       if (stockFilter) {
         filters.push(stockFilter)
         console.log("[runtime:stock] first-turn filter_by_stock → injected stockStatus=instock filter and run retrieval")
+      }
+      if (earlyStockThreshold != null && !filters.some(f => f.field === "totalStock")) {
+        const totalStockFilter = buildAppliedFilterFromValue("totalStock", earlyStockThreshold, 0, "gte")
+        if (totalStockFilter) {
+          filters.push(totalStockFilter)
+          console.log(`[runtime:stock] first-turn filter_by_stock → injected totalStock>=${earlyStockThreshold} filter`)
+        }
       }
     }
     earlyAction = null  // 더 이상 SKIP 하지 않음

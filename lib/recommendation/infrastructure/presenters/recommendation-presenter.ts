@@ -210,6 +210,11 @@ export function toRecommendationCandidateDto(
     description: pickString("description", "materialDescription", "material_description"),
     featureText: pickString("featureText", "feature_text"),
     materialTags: [...materialTags],
+    materialRating: (() => {
+      const raw = pickString("materialRating", "material_rating")
+      if (raw === "EXCELLENT" || raw === "GOOD" || raw === "NULL") return raw
+      return null
+    })(),
     score: pickNumber("score") ?? 0,
     scoreBreakdown: (record.scoreBreakdown as RecommendationCandidateDto["scoreBreakdown"] | null | undefined) ?? null,
     matchStatus,

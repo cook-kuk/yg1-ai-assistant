@@ -1911,6 +1911,7 @@ export function buildCandidateSnapshot(
       description: candidate.product.description ?? null,
       featureText: candidate.product.featureText ?? null,
       materialTags: candidate.product.materialTags,
+      materialRating: candidate.product.materialRating ?? null,
       score: candidate.score,
       scoreBreakdown: candidate.scoreBreakdown,
       matchStatus: candidate.matchStatus,

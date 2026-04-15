@@ -201,6 +201,7 @@ export interface RecommendationCandidateDto {
   description: string | null
   featureText: string | null
   materialTags: string[]
+  materialRating?: "EXCELLENT" | "GOOD" | "NULL" | null
   score: number
   scoreBreakdown: ScoreBreakdown | null
   matchStatus: "exact" | "approximate" | "none"
@@ -484,6 +485,7 @@ export const recommendationCandidateSchema = z.object({
   description: z.string().nullable(),
   featureText: z.string().nullable(),
   materialTags: z.array(z.string()),
+  materialRating: z.enum(["EXCELLENT", "GOOD", "NULL"]).nullable().optional(),
   score: z.number(),
   scoreBreakdown: z.unknown().nullable(),
   matchStatus: z.enum(["exact", "approximate", "none"]),
