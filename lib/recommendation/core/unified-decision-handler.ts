@@ -29,6 +29,7 @@ import {
   buildAppliedFilterFromValue,
   getFilterFieldDefinition,
 } from "@/lib/recommendation/shared/filter-field-registry"
+import { handleDirectProductInfoQuestion } from "@/lib/recommendation/infrastructure/engines/serve-engine-assist"
 import { buildSessionState, carryForwardState } from "@/lib/recommendation/domain/session-manager"
 import { runHybridRetrieval } from "@/lib/recommendation/domain/hybrid-retrieval"
 import { prepareRequest } from "@/lib/recommendation/domain/recommendation-domain"
@@ -176,6 +177,30 @@ export async function handleUnifiedPath(
   }
 
   if (decision.intent === "question") {
+    // LLM 이 제품코드를 감지하면 DB 조회 (regex 없이 LLM 판단만 사용)
+    if (decision.productLookupCode) {
+      const baseInput = deps.mapIntakeToInput(form)
+      const productInfo = await handleDirectProductInfoQuestion(lastUserMsg, baseInput, prevState, {
+        force: true,
+        semanticContext: {
+          lookupCode: decision.productLookupCode,
+          requestedField: decision.requestedProductField ?? null,
+          entityNames: [],
+          entityFocus: null,
+          comparisonRequested: false,
+          isoGroup: null,
+          workPieceName: null,
+          hardnessMinHrc: null,
+          hardnessMaxHrc: null,
+        },
+      }).catch(err => {
+        try { console.warn(`[unified-handler] product info lookup failed: ${err instanceof Error ? err.message : err}`) } catch { /* no-op */ }
+        return null
+      })
+      if (productInfo) {
+        return respondTextOnly(deps, prevState, productInfo.text, productInfo.chips)
+      }
+    }
     // question 은 필터가 있어도 (edp_no lookup 등) UI 에는 텍스트만 렌더
     return respondTextOnly(deps, prevState, decision.response, decision.chips)
   }

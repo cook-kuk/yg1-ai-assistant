@@ -46,6 +46,10 @@ export interface UnifiedDecision {
   chips: string[] | null
   purpose: "recommendation" | "question"
   confidence: "high" | "medium" | "low"
+  /** 사용자가 특정 제품코드의 스펙을 물어보면 LLM 이 여기 채움 → handler 가 DB 조회 */
+  productLookupCode?: string | null
+  /** 어떤 필드를 묻는지 — filter-field-registry 의 이름 (예: "lengthOfCutMm", "coating"). null 이면 전체 스펙 */
+  requestedProductField?: string | null
 }
 
 export interface UnifiedRouterInput {
@@ -207,7 +211,9 @@ function buildSystemPrompt(schemaPrompt: string, appliedFiltersText: string, can
     '  "response": "사용자에게 보여줄 응답 텍스트",',
     '  "chips": ["선택지1", "선택지2", "📋 이대로 보여줘 (N개)", "직접 입력"] 또는 null,',
     '  "purpose": "recommendation | question",',
-    '  "confidence": "high | medium | low"',
+    '  "confidence": "high | medium | low",',
+    '  "productLookupCode": "사용자가 특정 제품코드로 스펙을 물어볼 때 그 코드를 그대로. 아니면 null",',
+    '  "requestedProductField": "어떤 필드를 묻는지 위 \'필터 가능 필드\' 의 이름 하나 (예: lengthOfCutMm, coating, toolMaterial). 전체 스펙이면 null"',
     "}",
     "",
     "━━ cot (Chain of Thought) ━━",
@@ -242,6 +248,16 @@ function buildSystemPrompt(schemaPrompt: string, appliedFiltersText: string, can
     "- compare: 제품/시리즈 비교",
     "- explain: 도메인 지식 설명 (헬릭스각이 뭐야 등)",
     "- reset: 초기화 (처음부터 다시)",
+    "",
+    "━━ 제품코드 스펙 조회 ━━",
+    "사용자가 '<코드> <필드> 얼마/뭐야/알려줘' 처럼 특정 제품의 스펙을 물어보면:",
+    "  - intent = question",
+    "  - productLookupCode = 사용자가 입력한 코드 원문 (형식/패턴 판단 말고 그대로)",
+    "  - requestedProductField = 위 '필터 가능 필드' 중 하나 (예: lengthOfCutMm, coating, fluteCount, toolMaterial). 전체면 null",
+    "  - filters = [] (코드 기반 조회는 filter 아님)",
+    "  - response = '조회 중입니다' 같은 placeholder 한 줄 — 실제 값은 코드가 DB 에서 채움",
+    "  - chips = null",
+    "DB 접근은 당신이 아니라 코드가 합니다. 값을 지어내지 말고 placeholder 만 반환하세요.",
     "",
     "━━ 응답 톤 ━━",
     "10년차 영업 엔지니어. 간결, 전문적, 실용적. 이모지/불필요 서두 금지.",
@@ -331,7 +347,16 @@ function parseUnifiedDecision(rawText: string): UnifiedDecision | null {
       ? (confRaw as "high" | "medium" | "low")
       : "medium"
 
-  return { intent, cot, filters, response, chips, purpose, confidence }
+  const productLookupCode =
+    typeof p.productLookupCode === "string" && p.productLookupCode.trim().length > 0
+      ? p.productLookupCode.trim()
+      : null
+  const requestedProductField =
+    typeof p.requestedProductField === "string" && p.requestedProductField.trim().length > 0
+      ? p.requestedProductField.trim()
+      : null
+
+  return { intent, cot, filters, response, chips, purpose, confidence, productLookupCode, requestedProductField }
 }
 
 // ── Public entry ─────────────────────────────────────────────
@@ -366,7 +391,8 @@ export async function unifiedLLMRouter(input: UnifiedRouterInput): Promise<Unifi
     console.log(
       `[unified-router] intent=${decision.intent} filters=${decision.filters.length}` +
       ` chips=${decision.chips ? decision.chips.length : 0} purpose=${decision.purpose}` +
-      ` conf=${decision.confidence} elapsed=${elapsed}ms`,
+      ` conf=${decision.confidence} code=${decision.productLookupCode ?? "-"}` +
+      ` reqField=${decision.requestedProductField ?? "-"} elapsed=${elapsed}ms`,
     )
   } catch { /* no-op */ }
 
