@@ -24,6 +24,7 @@ import {
   shouldDeferHardcodedSemanticExecution,
 } from "./semantic-execution-policy"
 import { KG_CACHE } from "@/lib/recommendation/infrastructure/config/cache-config"
+import { RESET_REGEX, SKIP_REGEX } from "@/lib/recommendation/shared/patterns"
 
 // ── KG Result Cache ──────────────────────────────────────────
 interface KGCacheEntry { result: KGDecisionResult; timestamp: number }
@@ -219,17 +220,12 @@ const NUMERIC_PATTERNS: Array<{ field: string; patterns: RegExp[]; extract: (m: 
 
 // ── Intent Patterns (deterministic) ───────────────────────────
 
-const SKIP_PATTERNS = [
-  /^(?:상관없음|아무거나|괜찮은\s*걸로|추천으로\s*골라|알아서|any|don'?t\s*care|skip|no\s*preference)$/iu,
-  /^(?:상관\s*없|아무\s*거나|다\s*괜찮|상관x|상관없어|몰라|모르겠)/iu,
-]
+// SKIP / RESET patterns: SSOT in shared/patterns.ts (SKIP_REGEX, RESET_REGEX).
+const SKIP_PATTERNS = SKIP_REGEX
+const RESET_PATTERNS = RESET_REGEX
 
 const BACK_PATTERNS = [
   /(?:이전\s*단계|이전으로|뒤로|한\s*단계\s*전|되돌려|전\s*단계|⟵|previous\s*step|go\s*back)/iu,
-]
-
-const RESET_PATTERNS = [
-  /(?:처음부터\s*다시|다시\s*처음부터|처음으로|초기화|리셋|새로\s*시작|start\s*over|reset)/iu,
 ]
 
 const STOCK_PATTERNS = [

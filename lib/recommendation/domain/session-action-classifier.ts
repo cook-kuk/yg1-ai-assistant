@@ -10,6 +10,8 @@
  * Deterministic. No LLM calls. No DB access. No side effects.
  */
 
+import { RESET_REGEX } from "@/lib/recommendation/shared/patterns"
+
 // ── Session Action ──────────────────────────────────────────
 
 export type SessionAction =
@@ -124,19 +126,8 @@ const REMOVE_PATTERNS = [
   /drop/i,
 ]
 
-// ── Reset Patterns ──────────────────────────────────────────
-
-const RESET_PATTERNS = [
-  /처음부터/,
-  /초기화/,
-  /리셋/,
-  /다시\s*시작/,
-  /전부\s*(?:취소|제거|빼)/,
-  /모든?\s*(?:필터|조건)\s*(?:를?\s*)?(?:취소|제거|빼|초기화|해제)/,
-  /reset/i,
-  /start\s*over/i,
-  /clear\s*all/i,
-]
+// Reset patterns: SSOT in shared/patterns.ts (RESET_REGEX).
+const RESET_PATTERNS = RESET_REGEX
 
 // ── Selection Patterns ──────────────────────────────────────
 

@@ -246,6 +246,30 @@ export const RESET_KEYWORDS: string[] = [
   "새로 시작", "초기화", "reset", "다시 처음부터 시작",
 ]
 
+/**
+ * RESET intent regex — superset merged from knowledge-graph + session-action-classifier.
+ * Consumers needing `.test()` semantics (vs. RESET_KEYWORDS for `.includes()`) should use this.
+ */
+export const RESET_REGEX: RegExp[] = [
+  /(?:처음부터|처음으로|다시\s*시작|다시\s*처음부터|초기화|리셋|새로\s*시작)/iu,
+  /(?:start\s*over|reset|clear\s*all)/i,
+  /전부\s*(?:취소|제거|빼)/iu,
+  /모든?\s*(?:필터|조건)\s*(?:를?\s*)?(?:취소|제거|빼|초기화|해제)/iu,
+]
+
+export function isResetIntent(text: string): boolean {
+  return RESET_REGEX.some(p => p.test(text))
+}
+
+/**
+ * SKIP intent regex — for `.test()` fast-path. Mirrors SKIP_TOKENS but covers
+ * multi-token phrases ("괜찮은 걸로", "추천으로 골라", "no preference").
+ */
+export const SKIP_REGEX: RegExp[] = [
+  /^(?:상관없음|아무거나|괜찮은\s*걸로|추천으로\s*골라|알아서|any|don'?t\s*care|skip|no\s*preference)$/iu,
+  /^(?:상관\s*없|아무\s*거나|다\s*괜찮|상관x|상관없어|몰라|모르겠)/iu,
+]
+
 export const REPLACE_SIGNAL_PATTERNS: RegExp[] = [
   /바꿔/, /변경/, /대신/, /아니고/, /아니라/, /말고/,
   /ㄴㄴ/, /수정/, /교체/, /다시/, /다른\s*걸로/,
