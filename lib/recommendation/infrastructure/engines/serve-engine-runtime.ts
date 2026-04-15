@@ -3274,9 +3274,32 @@ async function handleServeExplorationInner(
       const ctx = passed !== undefined ? passed : proactiveInsightsContext
       const newArgs = [...args] as Parameters<typeof baseBuildRecommendationResponse>
       newArgs[EXTRA_CTX_IDX_R] = ctx
-      try { emitStage("responseCompose", { type: "recommendation" }) } catch { /* no-op */ }
-      return baseBuildRecommendationResponse(...newArgs).then(response => {
-        const wrapped = withThinkingResponse(response, runtimeThinking)
+      try { emitStage("responseCompose", { type: questionMode ? "question" : "recommendation" }) } catch { /* no-op */ }
+      return baseBuildRecommendationResponse(...newArgs).then(async response => {
+        const wrapped = await withThinkingResponse(response, runtimeThinking)
+        // LLM 이 "이건 질문" 이라고 판단한 턴에서는 recommendation 카드 렌더를 막는다.
+        // buildRecommendationResponse 내부는 purpose="recommendation" 을 하드코딩하므로
+        // 경계에서 DTO 의 purpose/candidates 를 question 으로 downgrade.
+        if (questionMode) {
+          try {
+            const bodyText = await wrapped.clone().text()
+            const json = JSON.parse(bodyText)
+            if (json && json.purpose === "recommendation") {
+              json.purpose = "question"
+              json.candidates = null
+              json.isComplete = false
+              console.log(`[questionMode:wrapper] downgraded purpose=recommendation→question, cleared candidates`)
+              const overridden = new Response(JSON.stringify(json), {
+                status: wrapped.status,
+                headers: wrapped.headers,
+              })
+              logTurnSummary("question")
+              return overridden
+            }
+          } catch (e) {
+            console.warn(`[questionMode:wrapper] override failed (non-fatal):`, (e as Error).message)
+          }
+        }
         logTurnSummary("recommendation")
         return wrapped
       })
@@ -3604,6 +3627,12 @@ async function handleServeExplorationInner(
   }
 
   let singleCallHandled = false
+  // ── LLM purpose 존중 ──
+  // Resolver(routeHint/intent) 또는 SQL Agent(_qa)가 "이건 정보 조회/상담 질문" 이라고
+  // 판단하면 questionMode=true. 후속 purpose 계산 사이트(4곳)에서 이 플래그가 있으면
+  // candidate count 에 관계없이 purpose="question" 으로 강제하고, presenter 는
+  // 이번 턴의 candidateSnapshot 을 카드로 렌더하지 않는다 (이전 턴 아티팩트는 유지).
+  let questionMode = false
   // ── Deterministic first-turn short-circuit ──────────────────────────────
   // When there's no prior session (prevState=null) and the only message is
   // the auto-synthesized intake summary ("탄소강 / Milling / 8mm 추천해주세요"),
@@ -4347,6 +4376,19 @@ async function handleServeExplorationInner(
         `[multi-stage-resolver] source=${multiStageResult.source} filters=${multiStageResult.filters.length} sort=${multiStageResult.sort ? `${multiStageResult.sort.field}:${multiStageResult.sort.direction}` : "none"} intent=${multiStageResult.intent} unresolved=${multiStageResult.unresolvedTokens.join(",") || "none"}`
       )
 
+      // LLM 판단 존중: 정보 조회/상담 질문은 questionMode 로 전파
+      if (
+        multiStageResult.routeHint === "general_question"
+        || multiStageResult.routeHint === "ui_question"
+        || multiStageResult.intent === "answer_general"
+      ) {
+        questionMode = true
+        if (prevState) {
+          ;(prevState as unknown as { __questionMode?: boolean }).__questionMode = true
+        }
+        console.log(`[questionMode] resolver signal: routeHint=${multiStageResult.routeHint} intent=${multiStageResult.intent}`)
+      }
+
       const clarificationArbiter = multiStageResult.clarification
         ? await maybeRunClarificationArbiter({
           provider,
@@ -4854,13 +4896,22 @@ async function handleServeExplorationInner(
                 ;(prevState as unknown as { __qaDirectAnswer?: string }).__qaDirectAnswer = qaText
               }
             }
+            // LLM 이 _qa 를 emit 했다 = 사용자가 직접 답을 원함 → questionMode 전파
+            // (필터가 같이 있어도 카드 렌더 대신 텍스트 답변만 한다)
+            questionMode = true
+            if (prevState) {
+              ;(prevState as unknown as { __questionMode?: boolean }).__questionMode = true
+            }
+            console.log(`[questionMode] sql-agent _qa signal`)
             agentResult = { ...agentResult, filters: agentResult.filters.filter(f => f.field !== "_qa") }
           }
 
-          // _qa만 있고 다른 필터 없음 → answer_general 경로 (narrowing 회피)
-          if (qaFilter && agentResult.filters.length === 0) {
+          // _qa 가 있으면 (필터 동반 여부 무관) → answer_general 경로로 직접 답변.
+          // 특정 제품 단일 필드 질문 (예: "CE7659120 날장길이 얼마?") 은 qaText 를
+          // 그대로 응답 본문으로 쓰고, 카드 렌더 전용 recommendation 파이프라인은 건너뛴다.
+          if (qaFilter) {
             const qaText = String(qaFilter.value ?? "").trim()
-            console.log(`[_qa] pure Q/A — routing to answer_general`)
+            console.log(`[_qa] routing to answer_general (filtersAlongside=${agentResult.filters.length})`)
             const qaAction = { type: "answer_general" as const, message: qaText }
             bridgedV2Action = qaAction
             bridgedV2OrchestratorResult = { action: qaAction, reasoning: "sql-agent:_qa", agentsInvoked: [], escalatedToOpus: false }
@@ -5729,7 +5780,7 @@ async function handleServeExplorationInner(
               : `조건에 맞는 제품이 없습니다. 전체 ${fullPoolCandidates.length}개 중 해당 조건을 만족하는 제품이 없어요.`
             return deps.jsonRecommendationResponse({
               text: filterSummary,
-              purpose: fullFilteredSnapshots.length > 0 ? "recommendation" : "question",
+              purpose: questionMode ? "question" : (fullFilteredSnapshots.length > 0 ? "recommendation" : "question"),
               chips: postFilterChips,
               isComplete: fullFilteredSnapshots.length > 0,
               recommendation: null,
@@ -6479,7 +6530,7 @@ async function handleServeExplorationInner(
         }
         return deps.jsonRecommendationResponse({
           text: result.answer,
-          purpose: (isResultPhase && !downgradeToQuestion) ? "recommendation" : "question",
+          purpose: questionMode ? "question" : ((isResultPhase && !downgradeToQuestion) ? "recommendation" : "question"),
           chips: result.chips,
           isComplete: isResultPhase && !downgradeToQuestion,
           recommendation: null,
@@ -7252,7 +7303,7 @@ async function handleServeExplorationInner(
 
         return deps.jsonRecommendationResponse({
           text: filterSummary,
-          purpose: truthFilteredCandidates.length > 0 ? "recommendation" : "question",
+          purpose: questionMode ? "question" : (truthFilteredCandidates.length > 0 ? "recommendation" : "question"),
           chips: postFilterChips,
           isComplete: truthFilteredCandidates.length > 0,
           recommendation: null,
@@ -7591,7 +7642,7 @@ async function handleServeExplorationInner(
           : `${stockLabel} 후보가 없습니다. 재고 조건을 완화해 보세요.`
         return deps.jsonRecommendationResponse({
           text: fallbackText,
-          purpose: filtered.length > 0 ? "recommendation" : "question",
+          purpose: questionMode ? "question" : (filtered.length > 0 ? "recommendation" : "question"),
           chips: fallbackChips,
           isComplete: filtered.length > 0,
           recommendation: null,

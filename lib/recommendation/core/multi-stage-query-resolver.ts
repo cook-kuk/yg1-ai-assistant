@@ -3493,7 +3493,7 @@ Rules:
 - clearOtherFilters=true only when the user says everything else is okay / all other conditions can be dropped.
 - routeHint:
   - ui_question: screen labels or UI statuses such as Excellent / Good / 정확매칭
-  - general_question: explanatory question, concept question, or tool-domain side question
+  - general_question: explanatory question, concept question, or tool-domain side question. Also: user names a specific product code (CE/edp_no) and asks about a single spec field (날장, 코팅, 재고, 절삭조건 등) — do not trigger narrowing, answer the field directly.
   - show_recommendation: user explicitly wants results now
   - compare_products: explicit comparison request, or a similar-product request around a concrete item or product code
   - none: otherwise
