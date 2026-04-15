@@ -3692,10 +3692,20 @@ async function handleServeExplorationInner(
       earlyJudgment = null
     }
   }
-  const earlyJudgmentBlocksFilters = !!earlyJudgment && NON_FILTER_INTENTS.has(earlyJudgment.intentAction)
+  // 필터 추출을 막을 "질문 톤" 신호:
+  //   intentAction ∈ NON_FILTER_INTENTS (explain/off_topic/reset/skip/undo)
+  //   userState === "wants_explanation"  ← "4날은?" 같이 의문조사로 붙은 도메인 값
+  //   intentShift === "explain_request"  ← compare/explain 경로로 분기되는 케이스
+  // LLM 판정이 intentAction 을 refine_condition/ask_recommendation 으로 잘못 잡아도,
+  // userState/intentShift 로 질문 톤을 포착해서 SQL agent 필터 추출을 skip 한다.
+  const earlyJudgmentBlocksFilters = !!earlyJudgment && (
+    NON_FILTER_INTENTS.has(earlyJudgment.intentAction) ||
+    earlyJudgment.userState === "wants_explanation" ||
+    earlyJudgment.intentShift === "explain_request"
+  )
   if (earlyJudgment) {
     console.log(
-      `[judgment-gate] intentAction=${earlyJudgment.intentAction} domain=${earlyJudgment.domainRelevance} → ${earlyJudgmentBlocksFilters ? "BLOCK kg/sql-agent/tool-memory (non-filter intent)" : "proceed to kg/sql-agent/tool-memory"}`
+      `[judgment-gate] intentAction=${earlyJudgment.intentAction} userState=${earlyJudgment.userState} intentShift=${earlyJudgment.intentShift} domain=${earlyJudgment.domainRelevance} → ${earlyJudgmentBlocksFilters ? "BLOCK kg/sql-agent/tool-memory (non-filter / explanation tone)" : "proceed to kg/sql-agent/tool-memory"}`
     )
   }
 
@@ -6438,7 +6448,12 @@ async function handleServeExplorationInner(
                 // 비-CoT 경로(self-correction 포함)가 실패. SQL agent를 streaming
                 // (CoT) variant로 다시 호출해서 reasoning을 UI에 흘리고, 재추출된
                 // 필터로 retrieval 한 번 더 돌린다.
-                try {
+                // Judgment gate: explain/question 톤이면 CoT escalation도 skip —
+                // 질문에 대해 필터를 추가로 뽑으려 하면 안 된다.
+                if (earlyJudgmentBlocksFilters) {
+                  console.log(`[cot-escalation] SKIPPED by judgment gate (intentAction=${earlyJudgment?.intentAction})`)
+                } else {
+                  try {
                   const cotSchema = await getDbSchema()
                   const cotResult = await naturalLanguageToFiltersStreaming(
                     lastUserMsg.text,
@@ -6487,8 +6502,9 @@ async function handleServeExplorationInner(
                   } else {
                     console.log(`[cot-escalation] no new filters extracted`)
                   }
-                } catch (cotErr) {
-                  console.warn("[cot-escalation] error:", (cotErr as Error).message)
+                  } catch (cotErr) {
+                    console.warn("[cot-escalation] error:", (cotErr as Error).message)
+                  }
                 }
               }
               if (correction.explanation) {
