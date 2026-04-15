@@ -3467,6 +3467,12 @@ ${SEMANTIC_INTERPRETATION_POLICY_PROMPT}
 
 숫자+mm만 있고 필드 키워드가 없을 때: 분포 데이터에서 해당 값이 p10~p90 범위 안인 컬럼이 1개뿐이면 → 바로 적용. 여러 컬럼이 해당되면 → 가공 맥락(소재, 날수, 공구 타입 등)이 함께 언급됐으면 diameterMm으로 추정하세요. 절삭공구에서 소재+mm+날수 조합은 거의 100% 직경을 의미합니다.
 
+사고과정에서 '이건 정보 조회/상담 질문이다'라고 판단했으면:
+- 필터 결과 표를 보여주지 말고 해당 정보를 직접 한 줄로 답하세요.
+- 예: '날장길이 얼마?' → 'CE7659120의 날장(절삭 길이)은 55mm입니다.'
+- 표 전체 덤프가 아니라 물어본 것만 답하세요.
+사고과정의 판단과 최종 응답이 모순되면 안 됩니다.
+
 Rules:
 - First classify the turn as new, refine, repair, or explain from the current state, UI context, and conversation history.
 - Current session state is the source of truth, not a loose reference. Most stateful turns are refine or repair, not new.
@@ -3566,6 +3572,12 @@ ${buildResolverDomainDictionary()}
 ${SEMANTIC_INTERPRETATION_POLICY_PROMPT}
 
 숫자+mm만 있고 필드 키워드가 없을 때: 분포 데이터에서 해당 값이 p10~p90 범위 안인 컬럼이 1개뿐이면 → 바로 적용. 여러 컬럼이 해당되면 → 가공 맥락(소재, 날수, 공구 타입 등)이 함께 언급됐으면 diameterMm으로 추정하세요. 절삭공구에서 소재+mm+날수 조합은 거의 100% 직경을 의미합니다.
+
+사고과정에서 '이건 정보 조회/상담 질문이다'라고 판단했으면:
+- 필터 결과 표를 보여주지 말고 해당 정보를 직접 한 줄로 답하세요.
+- 예: '날장길이 얼마?' → 'CE7659120의 날장(절삭 길이)은 55mm입니다.'
+- 표 전체 덤프가 아니라 물어본 것만 답하세요.
+사고과정의 판단과 최종 응답이 모순되면 안 됩니다.
 
 Decision process:
 1. Decide whether the turn is new, refine, repair, or explain from the current state, UI context, and conversation history.
