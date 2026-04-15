@@ -4,6 +4,8 @@
  * product_recommendation_mv 컬럼 + 샘플 값 + work_piece_statuses + 브랜드 목록.
  */
 
+import fs from "fs"
+import path from "path"
 import { Pool } from "pg"
 import { SCHEMA_CACHE } from "@/lib/recommendation/infrastructure/config/cache-config"
 import { DB_POOL_CONFIG } from "@/lib/recommendation/infrastructure/config/runtime-config"
@@ -52,6 +54,21 @@ export interface DbSchema {
    * LLM 프롬프트 주입용 — 동일 후보 세트에서 brand ranking 힌트, hard filter 아님.
    */
   brandAffinity: Record<string, Array<{ brand: string; rating: string | null; score: number }>>
+  /**
+   * 시리즈별 × ISO그룹별 절삭조건 range(Vc/n/fz/vf/ap/ae).
+   * 소스: data/normalized/evidence-chunks.json (13k+ chunks, raw_catalog.cutting_condition_table + PDF).
+   * LLM 프롬프트 주입용 — rpm/이송/절삭속도 질의 시 실제 범위를 LLM 이 알 수 있게.
+   */
+  cuttingConditionSummary: Record<string, {
+    isoGroups: Record<string, {
+      Vc?: { min: number; max: number; count: number }
+      n?: { min: number; max: number; count: number }
+      fz?: { min: number; max: number; count: number }
+      vf?: { min: number; max: number; count: number }
+      ap?: { min: number; max: number; count: number }
+      ae?: { min: number; max: number; count: number }
+    }>
+  }>
   workpieces: { tag_name: string; normalized_work_piece_name: string }[]
   brands: string[]
   /** Distinct country codes from product_recommendation_mv.country_codes (text[] array, unnested) */
@@ -410,6 +427,11 @@ export async function getDbSchema(): Promise<DbSchema> {
     }
   } catch { /* table may not exist — silently skip */ }
 
+  // 6c. Cutting condition summary per series × ISO group — loaded from evidence-chunks.json.
+  // Sourced from DB raw_catalog.cutting_condition_table + PDF corpus (13k+ chunks).
+  // LLM 프롬프트에 주입되어 rpm/이송/Vc 질의 시 실제 범위를 참조하게 한다.
+  const cuttingConditionSummary = loadCuttingConditionSummary()
+
   // 7. Build value→column reverse index for unqualified-token routing.
   const valueIndex = buildValueIndex({ sampleValues, brands, countries, workpieces })
 
@@ -431,10 +453,11 @@ export async function getDbSchema(): Promise<DbSchema> {
     console.log(`[schema-cache] skipped ${phantomHintKeys.length} orphan column descriptions: ${phantomHintKeys.join(", ")}`)
   }
 
-  cached = { columns, columnDescriptions, sampleValues, numericStats, auxTables, auxSampleValues, auxNumericStats, brandAffinity, workpieces, brands, countries, valueIndex, phoneticIndex, loadedAt: Date.now() }
+  cached = { columns, columnDescriptions, sampleValues, numericStats, auxTables, auxSampleValues, auxNumericStats, brandAffinity, cuttingConditionSummary, workpieces, brands, countries, valueIndex, phoneticIndex, loadedAt: Date.now() }
   const auxSampleCount = Object.values(auxSampleValues).reduce((n, m) => n + Object.keys(m).length, 0)
   const auxNumCount = Object.values(auxNumericStats).reduce((n, m) => n + Object.keys(m).length, 0)
-  console.log(`[sql-agent-schema] loaded: ${columns.length} cols, ${Object.keys(sampleValues).length} text-sampled, ${Object.keys(numericStats).length} numeric-sampled, ${Object.keys(auxTables).length} aux tables (${auxSampleCount} aux text-sampled, ${auxNumCount} aux numeric-sampled), ${workpieces.length} wp, ${brands.length} brands, ${countries.length} countries, ${Object.keys(valueIndex).length} indexed, ${phoneticIndex.length} phonetic`)
+  const ccSeriesCount = Object.keys(cuttingConditionSummary).length
+  console.log(`[sql-agent-schema] loaded: ${columns.length} cols, ${Object.keys(sampleValues).length} text-sampled, ${Object.keys(numericStats).length} numeric-sampled, ${Object.keys(auxTables).length} aux tables (${auxSampleCount} aux text-sampled, ${auxNumCount} aux numeric-sampled), ${workpieces.length} wp, ${brands.length} brands, ${countries.length} countries, ${ccSeriesCount} cc-series, ${Object.keys(valueIndex).length} indexed, ${phoneticIndex.length} phonetic`)
   return cached
 }
 
@@ -454,6 +477,86 @@ export function findColumnsForToken(token: string): string[] {
 export function getDbSchemaSync(): DbSchema | null {
   if (cached && Date.now() - cached.loadedAt < SCHEMA_CACHE.ttlMs) return cached
   return null
+}
+
+// ── Cutting condition summary loader ─────────────────────────
+
+interface RawEvidenceChunk {
+  seriesName: string | null
+  isoGroup: string | null
+  conditions?: {
+    Vc?: string | null; n?: string | null; fz?: string | null
+    vf?: string | null; ap?: string | null; ae?: string | null
+  }
+}
+
+let _ccSummaryCache: DbSchema["cuttingConditionSummary"] | null = null
+
+function loadCuttingConditionSummary(): DbSchema["cuttingConditionSummary"] {
+  if (_ccSummaryCache) return _ccSummaryCache
+  const filePath = path.join(process.cwd(), "data", "normalized", "evidence-chunks.json")
+  if (!fs.existsSync(filePath)) {
+    console.warn("[sql-agent-schema] evidence-chunks.json not found — cuttingConditionSummary empty")
+    _ccSummaryCache = {}
+    return _ccSummaryCache
+  }
+  let chunks: RawEvidenceChunk[] = []
+  try {
+    chunks = JSON.parse(fs.readFileSync(filePath, "utf-8")) as RawEvidenceChunk[]
+  } catch (err) {
+    console.warn(`[sql-agent-schema] evidence-chunks.json parse failed: ${err instanceof Error ? err.message : err}`)
+    _ccSummaryCache = {}
+    return _ccSummaryCache
+  }
+
+  const parseNum = (v: string | null | undefined): number | null => {
+    if (v == null) return null
+    const m = String(v).match(/-?\d+(?:\.\d+)?/)
+    if (!m) return null
+    const n = Number.parseFloat(m[0])
+    return Number.isFinite(n) && n > 0 ? n : null
+  }
+
+  type Range = { min: number; max: number; count: number }
+  const agg: Record<string, Record<string, Record<string, Range>>> = {}
+
+  for (const c of chunks) {
+    const series = (c.seriesName ?? "").trim()
+    if (!series) continue
+    const iso = (c.isoGroup ?? "").trim().toUpperCase() || "?"
+    const cond = c.conditions ?? {}
+    const keys: Array<keyof typeof cond> = ["Vc", "n", "fz", "vf", "ap", "ae"]
+    if (!agg[series]) agg[series] = {}
+    if (!agg[series][iso]) agg[series][iso] = {}
+    for (const k of keys) {
+      const n = parseNum(cond[k] ?? null)
+      if (n == null) continue
+      const slot = agg[series][iso]
+      const prev = slot[k]
+      if (!prev) slot[k] = { min: n, max: n, count: 1 }
+      else {
+        if (n < prev.min) prev.min = n
+        if (n > prev.max) prev.max = n
+        prev.count++
+      }
+    }
+  }
+
+  const out: DbSchema["cuttingConditionSummary"] = {}
+  for (const series of Object.keys(agg)) {
+    const iso = agg[series]
+    const isoGroups: Record<string, Record<string, Range>> = {}
+    for (const g of Object.keys(iso)) {
+      const slot = iso[g]
+      if (Object.keys(slot).length === 0) continue
+      isoGroups[g] = slot
+    }
+    if (Object.keys(isoGroups).length > 0) {
+      out[series] = { isoGroups: isoGroups as DbSchema["cuttingConditionSummary"][string]["isoGroups"] }
+    }
+  }
+  _ccSummaryCache = out
+  return out
 }
 
 // ── Helpers ──────────────────────────────────────────────────

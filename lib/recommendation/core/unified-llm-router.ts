@@ -169,13 +169,45 @@ export function buildSchemaPrompt(schema: DbSchema): string {
   const affKeys = Object.keys(affinity).sort()
   if (affKeys.length > 0) {
     lines.push("")
-    lines.push("== 브랜드 ↔ ISO 피삭재 적합도 (public.brand_material_affinity) ==")
-    lines.push("  * soft ranking 힌트. hard filter 아님. 동일 조건 후보 중 추천 순위만 영향.")
+    lines.push("== 브랜드 ↔ 피삭재 적합도 (public.brand_material_affinity) ==")
+    lines.push("  * ISO 코드(P/M/K/N/S/H) + 피삭재 워드(COPPER/ALUMINUM/TITANIUM) 두 경로 모두 지원.")
+    lines.push("  * soft ranking 힌트가 기본. 단, rating=EXCELLENT 이고 사용자가 해당 소재를 명시했으면 edp_brand_name 을 hard filter 로 포함해도 무방.")
     for (const key of affKeys) {
       const rows = (affinity[key] ?? []).slice(0, 8)
       if (rows.length === 0) continue
       const parts = rows.map(r => `${r.brand}${r.rating ? `(${r.rating})` : ""}`)
       lines.push(`  ${key}: ${parts.join(", ")}`)
+    }
+  }
+
+  // Part 1: 절삭조건 요약 (시리즈 × ISO 그룹 → Vc/n/fz/vf/ap/ae range)
+  const cc = schema.cuttingConditionSummary ?? {}
+  const ccSeriesList = Object.keys(cc)
+  if (ccSeriesList.length > 0) {
+    lines.push("")
+    lines.push("== 절삭조건 요약 (시리즈 × ISO그룹, data/normalized/evidence-chunks.json) ==")
+    lines.push("  * 사용자가 rpm/이송/Vc/fz/ap/ae/feed/가공조건 을 묻거나 필터링 원하면 이 범위를 참조.")
+    lines.push("  * 포맷: SERIES [ISO] Vc=min~max fz=min~max n=min~max ap=min~max ae=min~max")
+    const maxSeriesLines = 60
+    const sortedSeries = ccSeriesList
+      .map(s => ({ s, total: Object.values(cc[s].isoGroups).reduce((n, g) => n + Object.values(g).reduce((m, r) => m + (r?.count ?? 0), 0), 0) }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, maxSeriesLines)
+    for (const { s } of sortedSeries) {
+      const groups = cc[s].isoGroups
+      for (const iso of Object.keys(groups).sort()) {
+        const r = groups[iso]
+        const parts: string[] = []
+        if (r.Vc) parts.push(`Vc=${r.Vc.min}~${r.Vc.max}`)
+        if (r.fz) parts.push(`fz=${r.fz.min}~${r.fz.max}`)
+        if (r.n) parts.push(`n=${r.n.min}~${r.n.max}`)
+        if (r.ap) parts.push(`ap=${r.ap.min}~${r.ap.max}`)
+        if (r.ae) parts.push(`ae=${r.ae.min}~${r.ae.max}`)
+        if (parts.length > 0) lines.push(`  ${s} [${iso}] ${parts.join(" ")}`)
+      }
+    }
+    if (ccSeriesList.length > maxSeriesLines) {
+      lines.push(`  ... +${ccSeriesList.length - maxSeriesLines} more series (생략)`)
     }
   }
 

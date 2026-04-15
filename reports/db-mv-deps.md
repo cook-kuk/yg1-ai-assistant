@@ -1,0 +1,182 @@
+# MV 재빌드 안전성 점검
+
+## A. MV에 의존하는 객체
+- ✅ 의존 객체 없음 — DROP+CREATE 안전
+
+## B. source 컬럼 실제 존재
+- raw_catalog.prod_edp_option_holemaking.option_holemaking_pointangle: total=52249, non-null=37037
+- raw_catalog.prod_edp_option_threading.option_threading_pitch: total=33044, non-null=28565
+- raw_catalog.prod_edp_option_threading.option_threading_tpi: total=33044, non-null=25631
+
+## C. public.brand_material_affinity
+- 컬럼: id(uuid), brand(character varying), material_key(character varying), material_kind(character varying), rating(character varying), rating_score(double precision), notes(text)
+- 총 행: 595
+- distinct material_key (6):
+  - `H`
+  - `K`
+  - `M`
+  - `N`
+  - `P`
+  - `S`
+
+- 주요 피삭재 샘플:
+| material_key | brand | rating | score |
+|---|---|---|---:|
+
+## D. product_inventory_summary_mv 후보
+- catalog_app.inventory_snapshot
+
+## E. prod_edp_option_tooling RPM 관련 컬럼
+- 전체 컬럼 (136):
+  - _row_num
+  - idx
+  - category_type
+  - country
+  - edp_no
+  - option_tooling_producttype
+  - option_tooling_type
+  - option_tooling_shanktype
+  - option_tooling_modelno
+  - option_tooling_accessory
+  - option_tooling_mt_no
+  - option_tooling_range_of_drill_min
+  - option_tooling_range_of_drill_max
+  - option_tooling_tpa_size
+  - option_tooling_matching_inserts
+  - option_tooling_d1
+  - option_tooling_d11
+  - option_tooling_bore_range
+  - option_tooling_d
+  - option_tooling_l
+  - option_tooling_l1
+  - option_tooling_l2
+  - option_tooling_fig
+  - option_tooling_length_compensation_comp
+  - option_tooling_length_compensation_ten
+  - option_tooling_din_no
+  - option_tooling_f1
+  - option_tooling_f2
+  - option_tooling_g
+  - option_tooling_jt_no
+  - option_tooling_d2
+  - option_tooling_cuttero
+  - option_tooling_d21
+  - option_tooling_d3
+  - option_tooling_a
+  - option_tooling_clamping_range
+  - option_tooling_nut_collet
+  - option_tooling_h
+  - option_tooling_h2
+  - option_tooling_w
+  - option_tooling_range
+  - option_tooling_h_min
+  - option_tooling_h_max
+  - option_tooling_collet
+  - option_tooling_c
+  - option_tooling_c1
+  - option_tooling_l_min
+  - option_tooling_l1_max
+  - option_tooling_c2
+  - option_tooling_c3
+  - option_tooling_c4
+  - option_tooling_h1
+  - option_tooling_h3
+  - option_tooling_h4
+  - option_tooling_b
+  - option_tooling_k
+  - option_tooling_draw_thread
+  - option_tooling_old_model
+  - option_tooling_part_no
+  - option_tooling_applicable_collet
+  - option_tooling_m
+  - option_tooling_n
+  - option_tooling_adapter_type
+  - option_tooling_taper_no
+  - option_tooling_length
+  - option_tooling_standard
+  - option_tooling_taper_accuraccy
+  - option_tooling_g_value
+  - option_tooling_rpm
+  - option_tooling_coolant_system
+  - option_tooling_run_out_id
+  - option_tooling_run_out_at_3d1
+  - option_tooling_d_min
+  - option_tooling_d_max
+  - option_tooling_d111
+  - option_tooling_e1
+  - option_tooling_e2
+  - option_tooling_m1
+  - option_tooling_w1
+  - option_tooling_e
+  - option_tooling_l11
+  - option_tooling_seta
+  - option_tooling_relno
+  - option_tooling_clamping_range_d
+  - option_tooling_applicable_holder_n_arbor
+  - option_tooling_sealing_disk_set
+  - option_tooling_thickness
+  - option_tooling_set
+  - option_tooling_code_no
+  - option_tooling_wooden_tray
+  - option_tooling_wooden_tray_code_no
+  - option_tooling_thread
+  - option_tooling_dia
+  - option_tooling_length_1
+  - option_tooling_applicable_nut
+  - option_tooling_cartridge
+  - option_tooling_front_bore_bore_range
+  - option_tooling_front_bore_l
+  - option_tooling_front_bore_l1
+  - option_tooling_back_bore_bore_range
+  - option_tooling_back_bore_l2
+  - option_tooling_back_bore_l3
+  - option_tooling_insert
+  - option_tooling_d_bore_range_min
+  - option_tooling_d_bore_range_max
+  - option_tooling_l_height
+  - option_tooling_spare_part_plate
+  - option_tooling_spare_part_cartridge
+  - option_tooling_spare_part_clamp_bolt
+  - option_tooling_spare_part_counter_weight
+  - option_tooling_spare_part_wrench
+  - option_tooling_spare_part_clamp_screw
+  - option_tooling_spare_part_t_wrench
+  - option_tooling_applicable_arbor
+  - option_tooling_no
+  - option_tooling_qty
+  - option_tooling_cma_dia
+  - option_tooling_dial
+  - option_tooling_for
+  - option_tooling_filename
+  - option_tooling_type_thum
+  - brand_idx
+  - brand_name
+  - series_idx
+  - series_name
+  - dxf
+  - dxf_name
+  - stp
+  - stp_name
+  - yourcode
+  - unit
+  - flag_del
+  - reg_id
+  - reg_dtm
+  - modi_id
+  - modi_dtm
+
+## F. 기존 MV 인덱스
+- product_recommendation_mv_code_idx: CREATE INDEX product_recommendation_mv_code_idx ON catalog_app.product_recommendation_mv USING btree (normalized_code)
+- product_recommendation_mv_diameter_idx: CREATE INDEX product_recommendation_mv_diameter_idx ON catalog_app.product_recommendation_mv USING btree (search_diameter_mm)
+- product_recommendation_mv_material_tags_idx: CREATE INDEX product_recommendation_mv_material_tags_idx ON catalog_app.product_recommendation_mv USING gin (material_tags)
+- product_recommendation_mv_country_codes_idx: CREATE INDEX product_recommendation_mv_country_codes_idx ON catalog_app.product_recommendation_mv USING gin (country_codes)
+- product_recommendation_mv_series_trgm_idx: CREATE INDEX product_recommendation_mv_series_trgm_idx ON catalog_app.product_recommendation_mv USING gin (edp_series_name gin_trgm_ops)
+- product_recommendation_mv_coating_trgm_idx: CREATE INDEX product_recommendation_mv_coating_trgm_idx ON catalog_app.product_recommendation_mv USING gin (search_coating gin_trgm_ops)
+- product_recommendation_mv_subtype_trgm_idx: CREATE INDEX product_recommendation_mv_subtype_trgm_idx ON catalog_app.product_recommendation_mv USING gin (search_subtype gin_trgm_ops)
+- product_recommendation_mv_appshape_trgm_idx: CREATE INDEX product_recommendation_mv_appshape_trgm_idx ON catalog_app.product_recommendation_mv USING gin (series_application_shape gin_trgm_ops)
+
+## G. 기존 catalog_app MV 전체
+- brand_profile_mv
+- product_inventory_summary_mv
+- product_recommendation_mv
+- series_profile_mv

@@ -28,6 +28,7 @@ const schema: DbSchema = {
   auxSampleValues: {},
   auxNumericStats: {},
   brandAffinity: {},
+  cuttingConditionSummary: {},
   workpieces: [
     { tag_name: "SUS", normalized_work_piece_name: "Stainless Steels" },
     { tag_name: "AL", normalized_work_piece_name: "Aluminum" },

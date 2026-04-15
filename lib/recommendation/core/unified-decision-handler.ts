@@ -20,6 +20,7 @@
  */
 
 import { getDbSchema } from "@/lib/recommendation/core/sql-agent-schema-cache"
+import { formatDomainKnowledgeFooter } from "@/lib/recommendation/core/domain-knowledge-loader"
 import {
   unifiedLLMRouter,
   type UnifiedDecision,
@@ -87,6 +88,42 @@ function convertDecisionFilters(decision: UnifiedDecision, appliedAt: number): A
     out.push(...unifiedFilterToApplied(uf, appliedAt))
   }
   return out
+}
+
+// ── Cutting condition evidence enrichment (question/explain) ─
+
+const CUTTING_COND_RE = /(rpm|분당\s*회전|회전수|스핀들|feed|이송|fz|vc|절삭\s*속도|ap|ae|절삭\s*깊이|축방향|반경방향|가공\s*조건|절삭\s*조건)/i
+
+function formatSeriesConditionFooter(
+  schema: { cuttingConditionSummary?: Record<string, { isoGroups: Record<string, Record<string, { min: number; max: number; count: number } | undefined>> }> } | null,
+  userMsg: string,
+): string | null {
+  if (!schema?.cuttingConditionSummary) return null
+  if (!CUTTING_COND_RE.test(userMsg)) return null
+  const msg = userMsg.toUpperCase()
+  const matched: string[] = []
+  for (const series of Object.keys(schema.cuttingConditionSummary)) {
+    const key = series.toUpperCase()
+    if (key.length < 2) continue
+    if (msg.includes(key)) matched.push(series)
+  }
+  if (matched.length === 0) return null
+  const lines: string[] = []
+  for (const s of matched.slice(0, 3)) {
+    const groups = schema.cuttingConditionSummary[s].isoGroups
+    for (const iso of Object.keys(groups).sort()) {
+      const r = groups[iso]
+      const parts: string[] = []
+      if (r.Vc) parts.push(`Vc ${r.Vc.min}~${r.Vc.max} m/min`)
+      if (r.fz) parts.push(`fz ${r.fz.min}~${r.fz.max} mm/tooth`)
+      if (r.n) parts.push(`n ${r.n.min}~${r.n.max} rpm`)
+      if (r.ap) parts.push(`ap ${r.ap.min}~${r.ap.max} mm`)
+      if (r.ae) parts.push(`ae ${r.ae.min}~${r.ae.max} mm`)
+      if (parts.length > 0) lines.push(`  • ${s} [ISO ${iso}] ${parts.join(", ")}`)
+    }
+  }
+  if (lines.length === 0) return null
+  return ["", "━ 참고 절삭조건 범위 (evidence) ━", ...lines].join("\n")
 }
 
 // ── Reset / text-only short-circuit ──────────────────────────
@@ -173,7 +210,10 @@ export async function handleUnifiedPath(
 
   // 4) 텍스트-only intents: explain / explore / question
   if (decision.intent === "explain" || decision.intent === "explore") {
-    return respondTextOnly(deps, prevState, decision.response, decision.chips)
+    const ccFooter = formatSeriesConditionFooter(schema, lastUserMsg)
+    const kbFooter = formatDomainKnowledgeFooter(lastUserMsg)
+    const parts = [decision.response, ccFooter, kbFooter].filter(Boolean) as string[]
+    return respondTextOnly(deps, prevState, parts.join("\n"), decision.chips)
   }
 
   if (decision.intent === "question") {
@@ -202,7 +242,9 @@ export async function handleUnifiedPath(
       }
     }
     // question 은 필터가 있어도 (edp_no lookup 등) UI 에는 텍스트만 렌더
-    return respondTextOnly(deps, prevState, decision.response, decision.chips)
+    const footer = formatSeriesConditionFooter(schema, lastUserMsg)
+    const text = footer ? `${decision.response}\n${footer}` : decision.response
+    return respondTextOnly(deps, prevState, text, decision.chips)
   }
 
   // 5) compare — MVP: 텍스트로만 답변 (Phase 2 에서 비교 테이블 추가)

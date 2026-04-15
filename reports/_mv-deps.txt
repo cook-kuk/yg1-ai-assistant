@@ -1,0 +1,35 @@
+# MV 재빌드 안전성 점검
+
+## A. MV에 의존하는 객체
+- ✅ 의존 객체 없음 — DROP+CREATE 안전
+
+## B. source 컬럼 실제 존재
+C:\Users\kuksh\Downloads\YG1_test\node_modules\pg\lib\client.js:631
+          Error.captureStackTrace(err)
+                ^
+
+error: bind message supplies 2 parameters, but prepared statement "" requires 3
+    at C:\Users\kuksh\Downloads\YG1_test\node_modules\pg\lib\client.js:631:17
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async q (file:///C:/Users/kuksh/Downloads/YG1_test/scripts/probe-mv-deps.mjs:8:25)
+    at async file:///C:/Users/kuksh/Downloads/YG1_test/scripts/probe-mv-deps.mjs:30:17 {
+  length: 137,
+  severity: 'ERROR',
+  code: '08P01',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'postgres.c',
+  line: '1733',
+  routine: 'exec_bind_message'
+}
+
+Node.js v24.14.0

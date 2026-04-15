@@ -1,0 +1,649 @@
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## 조사 1: 전체 테이블 맵
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+총 59 개 (tables=55, MVs=4)
+
+[ schema.table | type | 레코드수 | 컬럼수 ]
+  catalog_app.brand_reference                   BASE TABLE                  862  13 cols
+  catalog_app.conversations                     BASE TABLE                   17  14 cols
+  catalog_app.inventory_snapshot                BASE TABLE               115111  14 cols
+  catalog_app.iso_detail_reference              BASE TABLE                   37  6 cols
+  catalog_app.loader_file_state                 BASE TABLE                   35  8 cols
+  catalog_app.new_brand_reference               BASE TABLE                    5  6 cols
+  catalog_app.tool_memory                       BASE TABLE                  130  9 cols
+  public.alembic_version                        BASE TABLE                    1  1 cols
+  public.brand_material_affinity                BASE TABLE                  595  7 cols
+  public.conversations                          BASE TABLE                  262  5 cols
+  public.cross_references                       BASE TABLE                    0  14 cols
+  public.cutting_conditions                     BASE TABLE                  772  13 cols
+  public.glossary_terms                         BASE TABLE                   10  8 cols
+  public.material_aliases                       BASE TABLE                   87  7 cols
+  public.messages                               BASE TABLE                  988  6 cols
+  public.product_categories                     BASE TABLE                   33  7 cols
+  public.product_embeddings                     BASE TABLE                10900  6 cols
+  public.product_variants                       BASE TABLE                    0  10 cols
+  public.products                               BASE TABLE                64600  42 cols
+  public.sales_offices                          BASE TABLE                    0  7 cols
+  public.stock_info                             BASE TABLE                24606  9 cols
+  raw_catalog.cutting_condition_table           BASE TABLE                  158  14 cols
+  raw_catalog.feedback_general_entries_20260324t063916z BASE TABLE                   30  23 cols
+  raw_catalog.feedback_general_entries_20260325t185511z BASE TABLE                   38  37 cols
+  raw_catalog.feedback_general_entries_with_conversation_20260325t190511z BASE TABLE                 1040  38 cols
+  raw_catalog.iso_detail_list                   BASE TABLE                   37  3 cols
+  raw_catalog.kennametal_alu_cut_data_clean     BASE TABLE                  134  35 cols
+  raw_catalog.kennametal_alu_cut_to_product_recommendation_mv_mapping BASE TABLE                   34  7 cols
+  raw_catalog.new_brand                         BASE TABLE                    5  3 cols
+  raw_catalog.opinion_entries_20260324t064044z  BASE TABLE                   30  9 cols
+  raw_catalog.opinion_entries_20260325t185511z  BASE TABLE                   38  18 cols
+  raw_catalog.opinion_entries_with_conversation_20260325t190511z BASE TABLE                 1040  19 cols
+  raw_catalog.prod_brand                        BASE TABLE                 1164  41 cols
+  raw_catalog.prod_brand_sub                    BASE TABLE                 5221  30 cols
+  raw_catalog.prod_category                     BASE TABLE                   33  16 cols
+  raw_catalog.prod_category_sub                 BASE TABLE                  323  12 cols
+  raw_catalog.prod_edp                          BASE TABLE               656543  90 cols
+  raw_catalog.prod_edp_option_holemaking        BASE TABLE                52249  101 cols
+  raw_catalog.prod_edp_option_milling           BASE TABLE                95557  104 cols
+  raw_catalog.prod_edp_option_threading         BASE TABLE                33044  66 cols
+  raw_catalog.prod_edp_option_tooling           BASE TABLE                72801  136 cols
+  raw_catalog.prod_edp_option_turning           BASE TABLE                78754  56 cols
+  raw_catalog.prod_edp_sub_name                 BASE TABLE                  365  25 cols
+  raw_catalog.prod_icons                        BASE TABLE                  832  17 cols
+  raw_catalog.prod_series                       BASE TABLE                23193  42 cols
+  raw_catalog.prod_series_icons                 BASE TABLE               103888  13 cols
+  raw_catalog.prod_series_sub                   BASE TABLE                17208  13 cols
+  raw_catalog.prod_series_work_material_status  BASE TABLE                96976  14 cols
+  raw_catalog.prod_sub_category                 BASE TABLE                   26  18 cols
+  raw_catalog.prod_sub_category_sub             BASE TABLE                  377  12 cols
+  raw_catalog.prod_type_manage_item             BASE TABLE                 2099  12 cols
+  raw_catalog.prod_type_manage_list             BASE TABLE                  281  11 cols
+  raw_catalog.prod_work_piece_by_category       BASE TABLE                   73  28 cols
+  raw_catalog.yg1_stock_data                    BASE TABLE               115111  10 cols
+  raw_catalog.yg_1_reference_brand              BASE TABLE                  862  7 cols
+  catalog_app.brand_profile_mv                  MATERIALIZED VIEW           201  51 cols
+  catalog_app.product_inventory_summary_mv      MATERIALIZED VIEW        115111  5 cols
+  catalog_app.product_recommendation_mv         MATERIALIZED VIEW        125342  86 cols
+  catalog_app.series_profile_mv                 MATERIALIZED VIEW          2860  72 cols
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## 조사 2: JOIN 키 후보 — 같은 컬럼명 다른 테이블
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+조인키 후보 컬럼별 분포:
+
+  edp_idx:
+    · catalog_app.product_recommendation_mv
+
+  edp_no:
+    · raw_catalog.prod_edp
+    · raw_catalog.prod_edp_option_holemaking
+    · raw_catalog.prod_edp_option_milling
+    · raw_catalog.prod_edp_option_threading
+    · raw_catalog.prod_edp_option_tooling
+    · raw_catalog.prod_edp_option_turning
+    · catalog_app.product_recommendation_mv
+
+  normalized_code:
+    · catalog_app.product_recommendation_mv
+
+  normalized_edp:
+    · catalog_app.inventory_snapshot
+    · catalog_app.product_inventory_summary_mv
+
+  series_idx:
+    · raw_catalog.prod_edp
+    · raw_catalog.prod_edp_option_holemaking
+    · raw_catalog.prod_edp_option_milling
+    · raw_catalog.prod_edp_option_threading
+    · raw_catalog.prod_edp_option_tooling
+    · raw_catalog.prod_edp_option_turning
+    · raw_catalog.prod_type_manage_list
+
+  series_row_idx:
+    · catalog_app.product_recommendation_mv
+
+  edp_series_idx:
+    · catalog_app.product_recommendation_mv
+
+  normalized_series_name:
+    · catalog_app.brand_reference
+    · catalog_app.series_profile_mv
+
+  series_name:
+    · catalog_app.brand_reference
+    · raw_catalog.cutting_condition_table
+    · raw_catalog.prod_edp
+    · raw_catalog.prod_edp_option_holemaking
+    · raw_catalog.prod_edp_option_milling
+    · raw_catalog.prod_edp_option_threading
+    · raw_catalog.prod_edp_option_tooling
+    · raw_catalog.prod_edp_option_turning
+    · raw_catalog.prod_series
+    · raw_catalog.prod_series_sub
+    · raw_catalog.yg_1_reference_brand
+    · catalog_app.series_profile_mv
+
+  edp_brand_name:
+    · catalog_app.product_recommendation_mv
+
+  primary_brand_name:
+    · catalog_app.series_profile_mv
+
+  edp_root_category:
+    · catalog_app.product_recommendation_mv
+
+  primary_root_category:
+    · catalog_app.series_profile_mv
+
+[ JOIN 매칭률 (catalog_app.product_recommendation_mv 기준) ]
+MV total = 125342
+  MV.edp_series_idx → series_profile_mv.??(sample)             mv=125342  other=2860  matched=1548  → 1.2%
+  MV.edp_no → product_inventory_summary_mv.??                  ERR: column i.edp_no does not exist
+  cutting_conditions cols: id, product_id, material_group, material_subgroup, vc_min, vc_max, fz_min, fz_max, ap_max, ae_max, coolant_type, coolant_recommended, notes
+  MV.edp_brand_name → catalog_app.brand_profile_mv.brand_name  mv=125342  other=201  matched=65219  → 52.0%
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## 조사 3: 핵심 테이블 상세
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[A. cutting_condition] public.cutting_conditions  rows=772  cols=13
+  컬럼:
+    · id                                       uuid
+    · product_id                               uuid
+    · material_group                           character varying
+    · material_subgroup                        character varying
+    · vc_min                                   double precision
+    · vc_max                                   double precision
+    · fz_min                                   double precision
+    · fz_max                                   double precision
+    · ap_max                                   double precision
+    · ae_max                                   double precision
+    · coolant_type                             character varying
+    · coolant_recommended                      boolean
+    · notes                                    text
+  샘플 3 행 (첫 3 컬럼만 요약):
+    · id="b87f9589-f68d-4a28-a7f0-bb94d7166803"  product_id="de67941e-10cc-4fbc-8eb2-c320e470ee26"  material_group="N"  material_subgroup=null  vc_min=42.400000000000006
+    · id="ee5b6eac-c116-4268-a2ce-e9e8396743a4"  product_id="ab481890-ab0f-415f-b9f0-0ef964d8e2c9"  material_group="N"  material_subgroup=null  vc_min=42.400000000000006
+    · id="6fbe8896-db9e-4b95-a06b-d00f47624006"  product_id="21dcc55d-0c1c-4649-8eeb-8dbe0729ce62"  material_group="N"  material_subgroup=null  vc_min=48.800000000000004
+
+[B. product_inventory_summary_mv] catalog_app.product_inventory_summary_mv  rows=115111  cols=5
+  컬럼:
+    · edp                                      text
+    · normalized_edp                           text
+    · total_stock                              bigint
+    · warehouse_count                          bigint
+    · snapshot_date                            date
+  샘플 3 행 (첫 3 컬럼만 요약):
+    · edp="0222DP2P1AAB"  normalized_edp="0222DP2P1AAB"  total_stock="3"  warehouse_count="1"  snapshot_date="2026-03-17T15:00:00.000Z"
+    · edp="0375RT6P1AAC"  normalized_edp="0375RT6P1AAC"  total_stock="3"  warehouse_count="1"  snapshot_date="2026-03-17T15:00:00.000Z"
+    · edp="12000001"  normalized_edp="12000001"  total_stock="275"  warehouse_count="1"  snapshot_date="2026-03-17T15:00:00.000Z"
+
+[C. series_profile_mv] catalog_app.series_profile_mv  rows=2860  cols=72
+  컬럼:
+    · normalized_series_name                   text
+    · series_name                              text
+    · primary_brand_name                       text
+    · primary_root_category                    text
+    · primary_category_idx                     text
+    · primary_description                      text
+    · primary_feature                          text
+    · primary_tool_type                        text
+    · primary_product_type                     text
+    · primary_application_shape                text
+    · primary_cutting_edge_shape               text
+    · primary_shank_type                       text
+    · primary_cooling_type                     text
+    · primary_hole_type                        text
+    · primary_thread_direction                 text
+    · primary_geometry                         text
+    · primary_machining_condition              text
+    · primary_unit                             text
+    · primary_country                          text
+    · series_name_variants                     text[]
+    · brand_name_variants                      text[]
+    · root_categories                          text[]
+    · tool_types                               text[]
+    · product_types                            text[]
+    · application_shape_values                 text[]
+    · cutting_edge_shape_values                text[]
+    · shank_type_values                        text[]
+    · cooling_type_values                      text[]
+    · hole_type_values                         text[]
+    · thread_direction_values                  text[]
+    · geometry_values                          text[]
+    · machining_condition_values               text[]
+    · unit_values                              text[]
+    · raw_country_values                       text[]
+    · description_variants                     text[]
+    · feature_variants                         text[]
+    · file1_values                             text[]
+    · file_pic_values                          text[]
+    · file_dra_values                          text[]
+    · translations_by_lang                     jsonb
+    · material_tags                            text[]
+    · material_work_piece_names                text[]
+    · work_piece_statuses                      jsonb
+    · country_codes                            text[]
+    · edp_count                                integer
+    · edp_codes                                text[]
+    · edp_brand_names                          text[]
+    · edp_units                                text[]
+    · flute_counts                             numeric[]
+    · coating_values                           text[]
+    · tool_material_values                     text[]
+    · tool_subtypes                            text[]
+    · diameter_min_mm                          numeric
+    · diameter_max_mm                          numeric
+    · shank_diameter_min_mm                    numeric
+    · shank_diameter_max_mm                    numeric
+    · length_of_cut_min_mm                     numeric
+    · length_of_cut_max_mm                     numeric
+    · overall_length_min_mm                    numeric
+    · overall_length_max_mm                    numeric
+    · helix_angle_values                       numeric[]
+    · ball_radius_values                       numeric[]
+    · taper_angle_values                       numeric[]
+    · coolant_hole_values                      boolean[]
+    · reference_series_names                   text[]
+    · reference_brand_names                    text[]
+    · reference_is_new                         boolean
+    · reference_iso_groups                     text[]
+    · reference_work_piece_names               text[]
+    · reference_hrc_min                        numeric
+    · reference_hrc_max                        numeric
+    · reference_profiles                       jsonb
+  샘플 3 행 (첫 3 컬럼만 요약):
+    · normalized_series_name="3XD"  series_name="3xD"  primary_brand_name="i-ONE DRILL"  primary_root_category="Holemaking"  primary_category_idx="6"
+    · normalized_series_name="5XD"  series_name="5xD"  primary_brand_name="i-ONE DRILL"  primary_root_category="Holemaking"  primary_category_idx="6"
+    · normalized_series_name="8XD"  series_name="8xD"  primary_brand_name="i-ONE DRILL"  primary_root_category="Holemaking"  primary_category_idx="6"
+
+[D. brand_profile_mv] catalog_app.brand_profile_mv  rows=201  cols=51
+  컬럼:
+    · normalized_brand_name                    text
+    · brand_name                               text
+    · primary_description                      text
+    · primary_description_work_piece           text
+    · primary_category_idx                     text
+    · primary_sub_category_idx                 text
+    · primary_country                          text
+    · brand_name_variants                      text[]
+    · description_variants                     text[]
+    · description_work_piece_variants          text[]
+    · category_idx_values                      text[]
+    · sub_category_idx_values                  text[]
+    · raw_country_values                       text[]
+    · file1_values                             text[]
+    · file2_values                             text[]
+    · pdf_file_values                          text[]
+    · youtube_urls                             text[]
+    · translations_by_lang                     jsonb
+    · series_brand_name_variants               text[]
+    · series_names                             text[]
+    · series_count                             integer
+    · root_categories                          text[]
+    · tool_types                               text[]
+    · product_types                            text[]
+    · application_shape_values                 text[]
+    · cutting_edge_shape_values                text[]
+    · unit_values                              text[]
+    · raw_series_country_values                text[]
+    · series_description_variants              text[]
+    · series_feature_variants                  text[]
+    · material_tags                            text[]
+    · material_work_piece_names                text[]
+    · work_piece_statuses                      jsonb
+    · country_codes                            text[]
+    · edp_count                                integer
+    · edp_codes                                text[]
+    · edp_series_names                         text[]
+    · edp_units                                text[]
+    · flute_counts                             numeric[]
+    · coating_values                           text[]
+    · tool_material_values                     text[]
+    · diameter_min_mm                          numeric
+    · diameter_max_mm                          numeric
+    · reference_brand_names                    text[]
+    · reference_series_names                   text[]
+    · reference_is_new                         boolean
+    · reference_iso_groups                     text[]
+    · reference_work_piece_names               text[]
+    · reference_hrc_min                        numeric
+    · reference_hrc_max                        numeric
+    · reference_profiles                       jsonb
+  샘플 3 행 (첫 3 컬럼만 요약):
+    · normalized_brand_name="3SPLUS"  brand_name="3S PLUS"  primary_description="3S PLUS"  primary_description_work_piece="For Pre-Hardened Steels , Carbon steels, Alloy Steel"  primary_category_idx="12"
+    · normalized_brand_name="4GMILL"  brand_name="4G MILL"  primary_description="?  YG-1’s “Y” technology coating<br/>?  High speed Machinin  primary_description_work_piece="For Pre-Hardened Steels up to HRc55"  primary_category_idx="12"
+    · normalized_brand_name="ACCESSORY"  brand_name="ACCESSORY"  primary_description=""  primary_description_work_piece=""  primary_category_idx="15"
+
+[ series_profile_mv.work_piece_statuses 구조 (1행 펼침) ]
+  n=8, first_elem={"status":"NULL","tag_name":"K","material_rating":"NULL","work_piece_name":"Cast Iron","material_rating_score":1,"normalized_work_piece_name":"CASTIRON"}
+
+[ primary_tool_type 분포 ]
+                                             1257
+    Solid                                    874
+    undefined                                216
+    Indexable_Tools                          195
+    Holder                                   108
+    Accessory                                90
+    Tool_Holder                              75
+    Insert                                   43
+    Blind Hole                               2
+
+[ tool_subtypes (jsonb) 샘플 ]
+    ["Square"]
+    ["SQUARE","Square"]
+    ["SQUARE","Square"]
+    ["SQUARE","Square"]
+    ["ROUGHING","Roughing Normal"]
+
+[ D. 기타 발견 테이블 (catalog/product/edp/series 키워드) ]
+  catalog_app.brand_reference                        rows=       862  cols=13
+    cols(전체): raw_row_num, tag_name, work_piece_name, normalized_work_piece_name, hardness_min_hrc, hardness_max_hrc, brand_name, normalized_brand_name, series_name, normalized_series_name, source_file, created_at,
+  catalog_app.inventory_snapshot                     rows=    115111  cols=14
+    cols(전체): raw_row_num, edp, normalized_edp, description, spec, warehouse_or_region, quantity, snapshot_date, snapshot_date_text, price, currency, unit, source_file, created_at
+  catalog_app.new_brand_reference                    rows=         5  cols=6
+    cols(전체): raw_row_num, brand_name, normalized_brand_name, is_new, source_file, created_at
+  public.brand_material_affinity                     rows=       595  cols=7
+    cols(전체): id, brand, material_key, material_kind, rating, rating_score, notes
+  public.product_categories                          rows=        33  cols=7
+    cols(전체): id, level, name, name_ko, parent_id, slug, description
+  public.product_embeddings                          rows=     10900  cols=6
+    cols(전체): id, product_id, embedding_type, embedding_text, embedding, last_updated
+  public.product_variants                            rows=         0  cols=10
+    cols(전체): id, product_id, variant_sku, diameter, flute_length, overall_length, corner_radius, carbide_grade, coating_material, is_active
+  public.products                                    rows=     64600  cols=42
+    cols(전체): id, sku, name, name_ko, category_id, tool_type, series, diameter, cutting_diameter, shank_diameter, flute_length, overall_length, neck_length, corner_radius, flute_count, helix_angle, rake_angle, inse...
+  public.stock_info                                  rows=     24606  cols=9
+    cols(전체): id, product_id, region, warehouse, qty_on_hand, lead_time_days, list_price, currency, last_updated
+  raw_catalog.cutting_condition_table                rows=       158  cols=14
+    cols(전체): _row_num, application_shape, series_name, tag_name, hardness_min_hrc, hardness_max_hrc, work_piece_name, diameter_mm, radial_depth_of_cut, axial_depth_of_cut, feed_rate, feed_per_tooth, spindle_speed,
+  raw_catalog.kennametal_alu_cut_to_product_recommendation_mv_mapping rows=        34  cols=7
+    cols(전체): _row_num, source_column, target_columns, match_level, priority, match_rule, notes
+  raw_catalog.new_brand                              rows=         5  cols=3
+    cols(전체): _row_num, brand_name, is_new
+  raw_catalog.prod_brand                             rows=      1164  cols=41
+    cols(전체): _row_num, idx, category_idx, sub_category_idx, brand_name, description, description2, description3, description4, description5, description_work_piece, file1, file1_name, file2, file2_name, pdf_file1,...
+  raw_catalog.prod_brand_sub                         rows=      5221  cols=30
+    cols(전체): _row_num, prod_brand_idx, lang, brand_name, description, description2, description3, description4, description5, description_work_piece, video_yn, catalog_yn, news_yn, related_brand_yn, video_idx, cat...
+  raw_catalog.prod_edp                               rows=    656543  cols=90
+    cols(전체): _row_num, idx, root_category, category_idx, brand_idx, brand_name, series_idx, series_name, edp_no, your_code, file1, file2, file3, dxf, dxf_name, stp, stp_name, unit, option_od, option_r, option_sd, ...
+  raw_catalog.prod_edp_option_holemaking             rows=     52249  cols=101
+    cols(전체): _row_num, idx, category_type, country, edp_no, option_holemaking_uncoatingno, option_holemaking_outsidedia, option_holemaking_wireguage, option_holemaking_letter, option_holemaking_fractional, option_...
+  raw_catalog.prod_edp_option_milling                rows=     95557  cols=104
+    cols(전체): _row_num, idx, category_type, country, edp_no, option_milling_uncoatingno, option_milling_cuttingedgeshape, option_milling_roughingfinishtype, option_milling_outsidedia, option_milling_shankdia, optio...
+  raw_catalog.prod_edp_option_threading              rows=     33044  cols=66
+    cols(전체): _row_num, idx, category_type, country, edp_no, option_threading_size, option_threading_outsidedia, option_threading_pitch, option_threading_tpi, option_threading_coarsefine, option_threading_geometrys...
+  raw_catalog.prod_edp_option_tooling                rows=     72801  cols=136
+    cols(전체): _row_num, idx, category_type, country, edp_no, option_tooling_producttype, option_tooling_type, option_tooling_shanktype, option_tooling_modelno, option_tooling_accessory, option_tooling_mt_no, option...
+  raw_catalog.prod_edp_option_turning                rows=     78754  cols=56
+    cols(전체): _row_num, idx, category_type, country, edp_no, option_turning_grade, option_turning_grade_order, option_turning_chip_breaker, option_turning_chipbreaker_order, option_turning_p_n, option_turning_desig...
+  raw_catalog.prod_edp_sub_name                      rows=       365  cols=25
+    cols(전체): _row_num, idx, root_category, edp_column, title, title_kor, title_chn, title_cze, title_deu, title_esp, title_fra, title_hun, title_ita, title_jpn, title_pol, title_prt, title_rus, title_tha, title_tu...
+  raw_catalog.prod_series                            rows=     23193  cols=42
+    cols(전체): _row_num, idx, root_category, category_idx, brand_idx, brand_name, series_name, description, feature, file1, file1_name, series_icon_idx, application_shape_icon_idx, work_piece_idx, tool_type, sales, ...
+  raw_catalog.prod_series_icons                      rows=    103888  cols=13
+    cols(전체): _row_num, idx, prod_series_idx, prod_icons_idx, icon_type, icon_name, flag_del, flag_save, flag_show, reg_id, reg_dtm, modi_id, modi_dtm
+  raw_catalog.prod_series_sub                        rows=     17208  cols=13
+    cols(전체): _row_num, prod_series_idx, series_name, description, feature, lang, flag_del, flag_save, flag_show, reg_id, reg_dtm, modi_id, modi_dtm
+  raw_catalog.prod_series_work_material_status       rows=     96976  cols=14
+    cols(전체): _row_num, idx, prod_series_idx, prod_work_piece_idx, tag_name, work_piece_name, status, flag_del, flag_save, flag_show, reg_id, reg_dtm, modi_id, modi_dtm
+  raw_catalog.yg1_stock_data                         rows=    115111  cols=10
+    cols(전체): _row_num, edp, description, spec, price, currency, unit, warehouse_or_region, snapshot_date, quantity
+  raw_catalog.yg_1_reference_brand                   rows=       862  cols=7
+    cols(전체): _row_num, brand_name, series_name, tag_name, hardness_min_hrc, hardness_max_hrc, work_piece_name
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## 조사 4: 유효장 (effective length) 추적
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+information_schema.columns 검색 결과: 2 건
+  raw_catalog.prod_edp_option_milling.option_milling_effective_length  (text)
+  raw_catalog.prod_edp_option_milling.option_milling_number_of_effective_teeth  (text)
+
+pg_attribute 기반(matview 포함) effective 검색:
+  raw_catalog.prod_edp_option_milling.option_milling_number_of_effective_teeth  (text)
+  raw_catalog.prod_edp_option_milling.option_milling_effective_length  (text)
+  catalog_app.product_recommendation_mv.milling_effective_length  (text)
+
+MV.milling_effective_length: total=125342 non_null=52648 numericLike=1900 mn="1" mx="90"
+  샘플값: "1", "1.25", "1.5", "1.50", "1.575", "1.75", "1.969", "100", "105", "110", "115", "120", "130", "140", "150"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## 조사 5: 키워드별 컬럼 분포 (전체 스키마)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  [rpm] 2 건:
+    · public.products.max_rpm  (integer)
+    · raw_catalog.prod_edp_option_tooling.option_tooling_rpm  (text)
+
+  [feed] 15 건:
+    · raw_catalog.prod_edp_option_holemaking.option_holemaking_power_feed  (text)
+    · raw_catalog.feedback_general_entries_20260325t185511z.feedback_id  (text)
+    · raw_catalog.feedback_general_entries_20260325t185511z.feedback_target  (text)
+    · raw_catalog.feedback_general_entries_20260325t185511z.feedback_group_id  (text)
+    · raw_catalog.cutting_condition_table.feed_rate  (text)
+    · raw_catalog.cutting_condition_table.feed_per_tooth  (text)
+    · raw_catalog.feedback_general_entries_20260325t185511z.feedback  (text)
+    · raw_catalog.feedback_general_entries_20260325t185511z.feedback_emoji  (text)
+    · raw_catalog.feedback_general_entries_with_conversation_20260325t190511z.feedback_id  (text)
+    · raw_catalog.feedback_general_entries_with_conversation_20260325t190511z.feedback_target  (text)
+    · raw_catalog.feedback_general_entries_with_conversation_20260325t190511z.feedback_group_id  (text)
+    · raw_catalog.feedback_general_entries_with_conversation_20260325t190511z.feedback  (text)
+    · raw_catalog.feedback_general_entries_with_conversation_20260325t190511z.feedback_emoji  (text)
+    · raw_catalog.opinion_entries_20260325t185511z.feedback_id  (text)
+    · raw_catalog.opinion_entries_with_conversation_20260325t190511z.feedback_id  (text)
+
+  [speed] 2 건:
+    · raw_catalog.cutting_condition_table.spindle_speed  (text)
+    · raw_catalog.cutting_condition_table.cutting_speed  (text)
+
+  [cutting] 15 건:
+    · public.products.cutting_diameter  (double precision)
+    · raw_catalog.prod_edp_option_milling.option_milling_cuttingedgeshape  (text)
+    · raw_catalog.prod_edp_option_milling.option_milling_extracuttingedgelength_lz  (text)
+    · raw_catalog.prod_edp_option_milling.option_milling_cuttingdirection  (text)
+    · raw_catalog.prod_edp_option_milling.option_milling_maximum_cutting_depth  (text)
+    · raw_catalog.prod_edp_option_holemaking.option_holemaking_cutting_direction  (text)
+    · raw_catalog.prod_edp_option_holemaking.option_holemaking_cutting_edge_length  (text)
+    · raw_catalog.prod_edp_option_threading.option_threading_cuttingdirection  (text)
+    · raw_catalog.cutting_condition_table.cutting_speed  (text)
+    · raw_catalog.prod_series.cutting_edge_shape  (text)
+    · catalog_app.brand_profile_mv.cutting_edge_shape_values  (text[])
+    · catalog_app.product_recommendation_mv.series_cutting_edge_shape  (text)
+    · catalog_app.product_recommendation_mv.milling_cutting_edge_shape  (text)
+    · catalog_app.series_profile_mv.primary_cutting_edge_shape  (text)
+    · catalog_app.series_profile_mv.cutting_edge_shape_values  (text[])
+
+  [stock] 1 건:
+    · catalog_app.product_inventory_summary_mv.total_stock  (bigint)
+  [inventory] (없음)
+
+  [effective] 3 건:
+    · raw_catalog.prod_edp_option_milling.option_milling_number_of_effective_teeth  (text)
+    · raw_catalog.prod_edp_option_milling.option_milling_effective_length  (text)
+    · catalog_app.product_recommendation_mv.milling_effective_length  (text)
+
+  [catalog] 7 건:
+    · raw_catalog.kennametal_alu_cut_data_clean.catalog_number  (text)
+    · raw_catalog.prod_brand_sub.catalog_yn  (text)
+    · raw_catalog.prod_brand_sub.catalog_idx  (text)
+    · raw_catalog.prod_brand.catalog_yn  (text)
+    · raw_catalog.prod_brand.catalog_idx  (text)
+    · raw_catalog.prod_brand.flag_ecatalog_show  (text)
+    · raw_catalog.prod_series.flag_show_ecatalog  (text)
+
+  [image] 3 건:
+    · public.products.image_url  (character varying)
+    · raw_catalog.kennametal_alu_cut_data_clean.image_path  (text)
+    · raw_catalog.prod_edp_option_turning.option_turning_series_image  (text)
+
+  [video] 4 건:
+    · raw_catalog.prod_brand.video_yn  (text)
+    · raw_catalog.prod_brand.video_idx  (text)
+    · raw_catalog.prod_brand_sub.video_yn  (text)
+    · raw_catalog.prod_brand_sub.video_idx  (text)
+
+  [price] 3 건:
+    · catalog_app.inventory_snapshot.price  (numeric)
+    · public.stock_info.list_price  (double precision)
+    · raw_catalog.yg1_stock_data.price  (text)
+
+  [tolerance] 5 건:
+    · raw_catalog.prod_edp.option_thread_tolerance_class  (text)
+    · catalog_app.product_recommendation_mv.milling_diameter_tolerance  (text)
+    · catalog_app.product_recommendation_mv.milling_shank_diameter_tolerance  (text)
+    · catalog_app.product_recommendation_mv.holemaking_diameter_tolerance  (text)
+    · catalog_app.product_recommendation_mv.holemaking_shank_diameter_tolerance  (text)
+
+  [grade] 7 건:
+    · public.cross_references.grade_match  (boolean)
+    · public.product_variants.carbide_grade  (character varying)
+    · public.products.carbide_grade  (character varying)
+    · raw_catalog.prod_edp_option_turning.option_turning_grade  (text)
+    · raw_catalog.prod_edp_option_turning.option_turning_grade_order  (text)
+    · raw_catalog.prod_edp.option_grade  (text)
+    · raw_catalog.kennametal_alu_cut_data_clean.grade  (text)
+
+  [country] 19 건:
+    · raw_catalog.prod_edp_option_milling.country  (text)
+    · raw_catalog.prod_category.country  (text)
+    · raw_catalog.prod_edp_option_holemaking.country  (text)
+    · raw_catalog.prod_brand.country  (text)
+    · raw_catalog.prod_edp_option_threading.country  (text)
+    · raw_catalog.prod_edp_option_tooling.country  (text)
+    · raw_catalog.prod_edp_option_turning.country  (text)
+    · raw_catalog.prod_sub_category.country  (text)
+    · raw_catalog.prod_series.country  (text)
+    · public.sales_offices.country  (character varying)
+    · catalog_app.brand_profile_mv.primary_country  (text)
+    · catalog_app.brand_profile_mv.raw_country_values  (text[])
+    · catalog_app.brand_profile_mv.raw_series_country_values  (text[])
+    · catalog_app.brand_profile_mv.country_codes  (text[])
+    · catalog_app.product_recommendation_mv.country  (text)
+    · catalog_app.product_recommendation_mv.country_codes  (text[])
+    · catalog_app.series_profile_mv.primary_country  (text)
+    · catalog_app.series_profile_mv.raw_country_values  (text[])
+    · catalog_app.series_profile_mv.country_codes  (text[])
+
+  [neck] 6 건:
+    · public.products.neck_length  (double precision)
+    · raw_catalog.prod_edp_option_milling.option_milling_neckdiameter  (text)
+    · raw_catalog.prod_edp_option_milling.option_milling_underneckparallellength  (text)
+    · raw_catalog.prod_edp_option_threading.option_threading_necklength  (text)
+    · raw_catalog.kennametal_alu_cut_data_clean.neck_type  (text)
+    · catalog_app.product_recommendation_mv.milling_neck_diameter  (text)
+  [point_angle] (없음)
+
+  [pitch] 4 건:
+    · raw_catalog.prod_edp_option_threading.option_threading_pitch  (text)
+    · raw_catalog.prod_edp_option_threading.option_threading_pitch_tpi  (text)
+    · raw_catalog.prod_edp.option_pitch  (text)
+    · raw_catalog.prod_edp.option_pitch_tpi  (text)
+
+  [tpi] 4 건:
+    · raw_catalog.prod_edp_option_threading.option_threading_tpi  (text)
+    · raw_catalog.prod_edp_option_threading.option_threading_pitch_tpi  (text)
+    · raw_catalog.prod_edp.option_tpi  (text)
+    · raw_catalog.prod_edp.option_pitch_tpi  (text)
+
+  [hardness] 6 건:
+    · catalog_app.brand_reference.hardness_min_hrc  (numeric)
+    · catalog_app.brand_reference.hardness_max_hrc  (numeric)
+    · raw_catalog.cutting_condition_table.hardness_min_hrc  (text)
+    · raw_catalog.cutting_condition_table.hardness_max_hrc  (text)
+    · raw_catalog.yg_1_reference_brand.hardness_min_hrc  (text)
+    · raw_catalog.yg_1_reference_brand.hardness_max_hrc  (text)
+
+  [hrc] 10 건:
+    · catalog_app.brand_reference.hardness_min_hrc  (numeric)
+    · catalog_app.brand_reference.hardness_max_hrc  (numeric)
+    · raw_catalog.cutting_condition_table.hardness_min_hrc  (text)
+    · raw_catalog.cutting_condition_table.hardness_max_hrc  (text)
+    · raw_catalog.yg_1_reference_brand.hardness_min_hrc  (text)
+    · raw_catalog.yg_1_reference_brand.hardness_max_hrc  (text)
+    · catalog_app.brand_profile_mv.reference_hrc_min  (numeric)
+    · catalog_app.brand_profile_mv.reference_hrc_max  (numeric)
+    · catalog_app.series_profile_mv.reference_hrc_min  (numeric)
+    · catalog_app.series_profile_mv.reference_hrc_max  (numeric)
+
+  [iso] 4 건:
+    · public.material_aliases.iso_group  (character varying)
+    · public.material_aliases.iso_subgroup  (character varying)
+    · catalog_app.brand_profile_mv.reference_iso_groups  (text[])
+    · catalog_app.series_profile_mv.reference_iso_groups  (text[])
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## 조사 6: COLUMN_KO_DESCRIPTIONS vs MV 실제 컬럼 비교
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ orphan (KO 설명 있는데 MV에 없는 컬럼) 17개 ]
+    · option_neck_diameter
+    · option_neck_length
+    · milling_neck_length
+    · holemaking_point_angle
+    · option_pointangle
+    · threading_pitch
+    · option_pitch
+    · threading_tpi
+    · option_tpi
+    · milling_flutes
+    · holemaking_flutes
+    · option_flutecount
+    · coating
+    · tool_material
+    · series_name
+    · tool_subtype
+    · machining_category
+
+[ MV에 있는데 KO 설명 없는 컬럼 52/86개 ]
+    · edp_idx                                  text
+    · edp_no                                   text
+    · edp_series_name                          text
+    · edp_series_idx                           text
+    · edp_root_category                        text
+    · edp_unit                                 text
+    · option_z                                 text
+    · option_numberofflute                     text
+    · option_drill_diameter                    text
+    · option_d1                                text
+    · option_d                                 text
+    · option_tolofmilldia                      text
+    · option_tolofshankdia                     text
+    · series_row_idx                           text
+    · series_brand_name                        text
+    · series_description                       text
+    · series_feature                           text
+    · series_tool_type                         text
+    · series_product_type                      text
+    · series_application_shape                 text
+    · series_cutting_edge_shape                text
+    · series_shank_type                        text
+    · country                                  text
+    · country_codes                            text[]
+    · material_tags                            text[]
+    · milling_number_of_flute                  text
+    · milling_coating                          text
+    · milling_tool_material                    text
+    · milling_shank_type                       text
+    · milling_diameter_tolerance               text
+    · milling_shank_diameter_tolerance         text
+    · milling_effective_length                 text
+    · milling_cutting_edge_shape               text
+    · milling_cutter_shape                     text
+    · holemaking_number_of_flute               text
+    · holemaking_coating                       text
+    · holemaking_tool_material                 text
+    · holemaking_diameter_tolerance            text
+    · holemaking_shank_diameter_tolerance      text
+    · holemaking_length_below_shank            text
+    · holemaking_taper_angle                   text
+    · threading_number_of_flute                text
+    · threading_coating                        text
+    · threading_tool_material                  text
+    · threading_l3                             text
+    · threading_flute_type                     text
+    · threading_thread_shape                   text
+    · tooling_shank_type                       text
+    · tooling_back_bore_l3                     text
+    · normalized_code                          text
+    · search_subtype                           text
+    · search_shank_type                        text

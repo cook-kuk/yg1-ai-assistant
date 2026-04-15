@@ -1162,7 +1162,7 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
   neckDiameterMm: makeNumberRangeFieldDef({
     field: "neckDiameterMm",
     label: "넥 직경",
-    queryAliases: ["넥 직경", "넥직경", "neck diameter", "neck_diameter", "neckdia"],
+    queryAliases: ["넥 직경", "넥직경", "넥경", "neck diameter", "neck_diameter", "neckdia"],
     unit: "mm",
     tolerance: 0.2,
     dbColumns: ["milling_neck_diameter"],
