@@ -113,23 +113,42 @@ function buildCanonicalFieldsSection(schema: DbSchema): string {
   return lines.join("\n")
 }
 
-// schema.loadedAt 를 키로 한 prompt 문자열 memoize.
-// buildSchemaPrompt 는 순수 함수이므로 schema 가 바뀌지 않는 한 결과 동일.
-let cachedSchemaPrompt: { loadedAt: number; text: string } | null = null
+/**
+ * 2-stage 라우팅용 section 옵션. intent 에 따라 필요한 섹션만 주입해서 토큰 절감.
+ *  - recommend/refine: affinity/cuttingCondition/auxTables OFF (필터 추출만 필요)
+ *  - explain/question: 전부 ON (도메인 지식 응답)
+ *  - compare/explore: auxTables OFF (시리즈 메타만)
+ */
+export interface SchemaPromptSections {
+  brandAffinity: boolean
+  cuttingConditions: boolean
+  auxTables: boolean
+  joinHints: boolean
+}
 
-export function buildSchemaPrompt(schema: DbSchema): string {
-  if (cachedSchemaPrompt && cachedSchemaPrompt.loadedAt === schema.loadedAt) {
-    return cachedSchemaPrompt.text
-  }
-  const text = buildSchemaPromptImpl(schema)
-  cachedSchemaPrompt = { loadedAt: schema.loadedAt, text }
+const SECTIONS_FULL: SchemaPromptSections = { brandAffinity: true, cuttingConditions: true, auxTables: true, joinHints: true }
+const SECTIONS_LEAN: SchemaPromptSections = { brandAffinity: false, cuttingConditions: false, auxTables: false, joinHints: false }
+
+function sectionsToKey(s: SchemaPromptSections): string {
+  return `${s.brandAffinity ? 1 : 0}${s.cuttingConditions ? 1 : 0}${s.auxTables ? 1 : 0}${s.joinHints ? 1 : 0}`
+}
+
+// (loadedAt, sectionsKey) → prompt 문자열 memoize. 섹션 조합별로 따로 캐싱.
+const cachedSchemaPromptByKey = new Map<string, { loadedAt: number; text: string }>()
+
+export function buildSchemaPrompt(schema: DbSchema, sections: SchemaPromptSections = SECTIONS_FULL): string {
+  const key = sectionsToKey(sections)
+  const hit = cachedSchemaPromptByKey.get(key)
+  if (hit && hit.loadedAt === schema.loadedAt) return hit.text
+  const text = buildSchemaPromptImpl(schema, sections)
+  cachedSchemaPromptByKey.set(key, { loadedAt: schema.loadedAt, text })
   try {
-    console.log(`[unified-router] schema prompt built chars=${text.length} tokens≈${Math.round(text.length / 3.5)}`)
+    console.log(`[unified-router] schema prompt built key=${key} chars=${text.length} tokens≈${Math.round(text.length / 3.5)}`)
   } catch { /* no-op */ }
   return text
 }
 
-function buildSchemaPromptImpl(schema: DbSchema): string {
+function buildSchemaPromptImpl(schema: DbSchema, sections: SchemaPromptSections): string {
   const lines: string[] = []
 
   lines.push(buildCanonicalFieldsSection(schema))
@@ -172,7 +191,9 @@ function buildSchemaPromptImpl(schema: DbSchema): string {
   }
 
   // 보조 테이블은 테이블명 + 핵심 컬럼만 나열
-  const auxEntries = Object.entries(schema.auxTables).slice(0, PROMPT_MAX_AUX_TABLES)
+  const auxEntries = sections.auxTables
+    ? Object.entries(schema.auxTables).slice(0, PROMPT_MAX_AUX_TABLES)
+    : []
   if (auxEntries.length > 0) {
     lines.push("")
     lines.push("== 보조 테이블 ==")
@@ -183,7 +204,7 @@ function buildSchemaPromptImpl(schema: DbSchema): string {
   }
 
   // Part 6: 브랜드 ↔ ISO 피삭재 적합도 (rating 매트릭스, soft ranking 힌트)
-  const affinity = schema.brandAffinity ?? {}
+  const affinity = sections.brandAffinity ? (schema.brandAffinity ?? {}) : {}
   const affKeys = Object.keys(affinity).sort()
   if (affKeys.length > 0) {
     lines.push("")
@@ -199,7 +220,7 @@ function buildSchemaPromptImpl(schema: DbSchema): string {
   }
 
   // Part 1: 절삭조건 요약 (시리즈 × ISO 그룹 → Vc/n/fz/vf/ap/ae range)
-  const cc = schema.cuttingConditionSummary ?? {}
+  const cc = sections.cuttingConditions ? (schema.cuttingConditionSummary ?? {}) : {}
   const ccSeriesList = Object.keys(cc)
   if (ccSeriesList.length > 0) {
     lines.push("")
@@ -230,14 +251,82 @@ function buildSchemaPromptImpl(schema: DbSchema): string {
   }
 
   // Part 8: JOIN 경로 힌트 (재고 / 절삭 조건)
-  lines.push("")
-  lines.push("== JOIN 경로 힌트 (명시적 질의 시에만) ==")
-  lines.push("  * 재고 조회: EXISTS (SELECT 1 FROM catalog_app.inventory_snapshot i WHERE i.edp_no = pe.edp_no AND i.qty > 0)")
-  lines.push("    — '재고 있음'/'stock' 질의가 명시된 경우에만. 기본 추천 흐름은 JOIN 하지 말 것.")
-  lines.push("  * 절삭조건 조회: raw_catalog.cutting_condition_table.edp_no ⇔ product_recommendation_mv.edp_no")
-  lines.push("    — 매칭률 약 0.3% (158 rows). '권장 rpm/feed' 같은 명시적 질의에만 JOIN.")
+  if (sections.joinHints) {
+    lines.push("")
+    lines.push("== JOIN 경로 힌트 (명시적 질의 시에만) ==")
+    lines.push("  * 재고 조회: EXISTS (SELECT 1 FROM catalog_app.inventory_snapshot i WHERE i.edp_no = pe.edp_no AND i.qty > 0)")
+    lines.push("    — '재고 있음'/'stock' 질의가 명시된 경우에만. 기본 추천 흐름은 JOIN 하지 말 것.")
+    lines.push("  * 절삭조건 조회: raw_catalog.cutting_condition_table.edp_no ⇔ product_recommendation_mv.edp_no")
+    lines.push("    — 매칭률 약 0.3% (158 rows). '권장 rpm/feed' 같은 명시적 질의에만 JOIN.")
+  }
 
   return lines.join("\n")
+}
+
+// ── Stage A: intent 분류 (cheap/nano) ────────────────────────
+//
+// Stage B(standard) 프롬프트를 intent 별로 재단하기 위해 먼저 cheap LLM 으로
+// intent 하나만 뽑아낸다. 실패/불명확 → "unknown" → Stage B 는 full schema.
+
+const STAGE_A_SYSTEM_PROMPT = [
+  "당신은 YG-1 절삭공구 챗봇의 요청 분류기입니다.",
+  "사용자 메시지를 읽고 intent 하나만 JSON 으로 출력하세요.",
+  "",
+  "━━ intent 정의 ━━",
+  "- recommend: 제품 추천/검색을 새로 시작 (예: '스테인리스 10mm 4날', '엔드밀 추천')",
+  "- refine: 기존 결과에서 조건 수정 (예: '직경 바꿔줘', 'TiAlN 말고')",
+  "- question: 특정 제품코드/필드 스펙 질의 (예: 'SEME71100E 길이 얼마', 'EMD88 코팅')",
+  "- explain: 도메인/절삭조건 설명 (예: '헬릭스각이 뭐야', 'P20 rpm 얼마')",
+  "- compare: 제품/시리즈 비교 (예: '4G MILL 과 SUS-CUT 차이')",
+  "- reset: 초기화 (예: '처음부터', '다시')",
+  "- explore: 옵션 탐색 (예: '어떤 코팅이 있어')",
+  "",
+  "━━ 출력 ━━",
+  '{"intent":"<한 단어>"} 로만 응답. 다른 설명/마크다운 금지.',
+].join("\n")
+
+async function stageAClassifyIntent(message: string, historyText: string): Promise<UnifiedIntent | "unknown"> {
+  const userInput = historyText && historyText !== "(없음)"
+    ? `━ 최근 대화 ━\n${historyText}\n\n━ 현재 메시지 ━\n${message}`
+    : message
+
+  const started = Date.now()
+  const result = await executeLlm({
+    agentName: "unified-router",
+    reasoningTier: "light",
+    modelTier: "mini",
+    systemPrompt: STAGE_A_SYSTEM_PROMPT,
+    userInput,
+    maxTokens: 40,
+  })
+  const elapsed = Date.now() - started
+
+  const raw = result.text ?? ""
+  const match = raw.match(/"intent"\s*:\s*"([a-z]+)"/i)
+  const guess = match ? match[1].toLowerCase() : raw.trim().toLowerCase()
+  const valid: UnifiedIntent[] = ["recommend", "refine", "question", "explore", "compare", "explain", "reset"]
+  const intent: UnifiedIntent | "unknown" = (valid as string[]).includes(guess) ? (guess as UnifiedIntent) : "unknown"
+  try { console.log(`[unified-router] stageA intent=${intent} elapsed=${elapsed}ms`) } catch { /* no-op */ }
+  return intent
+}
+
+function sectionsForIntent(intent: UnifiedIntent | "unknown"): SchemaPromptSections {
+  switch (intent) {
+    case "recommend":
+    case "refine":
+      return SECTIONS_LEAN
+    case "compare":
+    case "explore":
+      return { brandAffinity: true, cuttingConditions: false, auxTables: false, joinHints: false }
+    case "explain":
+    case "question":
+      return SECTIONS_FULL
+    case "reset":
+      return SECTIONS_LEAN
+    default:
+      // unknown → 안전하게 full (stage A 실패 케이스)
+      return SECTIONS_FULL
+  }
 }
 
 function formatAppliedFilters(filters: AppliedFilter[]): string {
@@ -438,9 +527,16 @@ function parseUnifiedDecision(rawText: string): UnifiedDecision | null {
 
 export async function unifiedLLMRouter(input: UnifiedRouterInput): Promise<UnifiedDecision | null> {
   if (!input.schema) return null
-  const schemaPrompt = buildSchemaPrompt(input.schema)
+
   const appliedText = formatAppliedFilters(input.appliedFilters)
   const historyText = formatHistory(input.conversationHistory)
+
+  // Stage A: cheap intent classifier → intent-aware section gating
+  const stageAIntent = await stageAClassifyIntent(input.message, historyText)
+  const sections = sectionsForIntent(stageAIntent)
+
+  // Stage B: full router with tailored schema prompt
+  const schemaPrompt = buildSchemaPrompt(input.schema, sections)
   const systemPrompt = buildSystemPrompt(schemaPrompt, appliedText, input.candidateCount, historyText)
 
   const promptChars = systemPrompt.length + input.message.length
@@ -465,11 +561,12 @@ export async function unifiedLLMRouter(input: UnifiedRouterInput): Promise<Unifi
 
   try {
     console.log(
-      `[unified-router] intent=${decision.intent} filters=${decision.filters.length}` +
+      `[unified-router] stageA=${stageAIntent} intent=${decision.intent} filters=${decision.filters.length}` +
       ` chips=${decision.chips ? decision.chips.length : 0} purpose=${decision.purpose}` +
       ` conf=${decision.confidence} code=${decision.productLookupCode ?? "-"}` +
       ` reqField=${decision.requestedProductField ?? "-"}` +
-      ` promptChars=${promptChars} tokens≈${Math.round(promptChars / 3.5)} elapsed=${elapsed}ms`,
+      ` sections=${sectionsToKey(sections)}` +
+      ` promptChars=${promptChars} tokens≈${Math.round(promptChars / 3.5)} stageB=${elapsed}ms`,
     )
   } catch { /* no-op */ }
 
