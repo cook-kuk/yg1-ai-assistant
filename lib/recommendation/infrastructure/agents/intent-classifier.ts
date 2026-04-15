@@ -24,25 +24,11 @@ const INTENT_CLASSIFIER_MODEL = resolveModel("sonnet", "intent-classifier")
 const RESET_EXACT = RESET_KEYWORDS
 const NONSENSE_PATTERNS = SHARED_NONSENSE_PATTERNS
 
-// Refinement patterns — post-recommendation "change X" intent detection
-const REFINEMENT_PATTERNS: RegExp[] = [
-  /피삭재.*바꿔/, /소재.*바꿔/, /소재.*바꾸/, /재질.*바꿔/, /재질.*바꾸/,
-  /직경.*변경/, /직경.*바꿔/, /다른.*직경/,
-  /코팅.*변경/, /코팅.*바꿔/, /대체.*코팅/, /코팅.*대체/, /다른.*코팅/,
-  /대체.*추천/, /대체.*해/, /.*대체/,
-  /다시.*추천/, /다시.*볼래/, /다시.*보고/,
-  /스테인리스/, /알루미늄/, /탄소강/, /티타늄/,
-  /AlCrN/i, /AlTiN/i, /TiAlN/i, /DLC/i, /무코팅/,
-]
-
-function detectRefinementField(clean: string): string | undefined {
-  if (/피삭재|소재|재질|스테인리스|알루미늄|탄소강|티타늄/.test(clean)) return "material"
-  if (/직경|mm|밀리/.test(clean)) return "diameter"
-  if (/코팅/.test(clean)) return "coating"
-  if (/날|flute|플루트/.test(clean)) return "fluteCount"
-  if (/형상|subtype|square|ball|radius/.test(clean)) return "toolSubtype"
-  return undefined
-}
+// REFINE_CONDITION 의 deterministic regex 는 제거 — LLM 프롬프트가 담당.
+// "스테인리스", "DLC" 같은 bare 토큰은 사용자가 refine 의도 없이 그냥 질문하는
+// 상황(ASK_EXPLANATION)도 매우 흔해서, resolved 세션 한정이라도 false-positive 위험이
+// 컸다. 정답 분기는 LLM unified-haiku-judgment / primary model 이 intentAction +
+// field hint 로 내려준다.
 
 /**
  * Classify user intent — deterministic first, primary model fallback for ambiguity.
@@ -174,12 +160,7 @@ export async function classifyIntent(
     }
   }
 
-  // ── 4. Refinement intent (post-recommendation) ──
-  if (sessionState?.resolutionStatus?.startsWith("resolved") && REFINEMENT_PATTERNS.some(p => p.test(clean))) {
-    return { intent: "REFINE_CONDITION" as NarrowingIntent, confidence: 0.9, extractedValue: detectRefinementField(clean), modelUsed: INTENT_CLASSIFIER_MODEL }
-  }
-
-  // ── 5~8: Removed — LLM handles general intent classification ──
+  // ── 4~8: Removed — LLM handles REFINE_CONDITION + general intent classification ──
 
   // ── 9. Ambiguous: configured primary model fallback ──
   if (provider.available()) {
@@ -216,17 +197,23 @@ async function classifyWithPrimaryModel(
     ? `현재 세션: 후보 ${sessionState.candidateCount}개, 필터 [${sessionState.appliedFilters.map(f => `${f.field}=${f.value}`).join(", ")}], 상태: ${sessionState.resolutionStatus}`
     : "세션 없음"
 
+  const isResolvedSession = sessionState?.resolutionStatus?.startsWith("resolved") === true
+
   const systemPrompt = LLM_FREE_INTERPRETATION
     ? `You are an intent classifier for a Korean cutting tool recommendation system.
 Analyze the user's message in context and classify their intent.
 
-Session: ${sessionSummary}
+Session: ${sessionSummary}${isResolvedSession ? " (already resolved — user may want to refine)" : ""}
+
+Key distinction:
+- REFINE_CONDITION = user wants to CHANGE an already-applied filter (e.g., "소재 바꿔", "다른 직경", "다시 추천해"). Put the target field in extractedValue: "material" | "diameter" | "coating" | "fluteCount" | "toolSubtype".
+- ASK_EXPLANATION = user asks about a concept or material without wanting to change filters (e.g., "스테인리스가 뭐야?", "DLC 장점?"). Bare material/coating mentions without a change verb usually mean ASK_EXPLANATION.
 
 Respond: {"intent": "...", "confidence": 0.0-1.0, "extractedValue": "..." or null}`
     : `You are an intent classifier for an industrial cutting tool recommendation system.
 Classify the user's message into exactly one intent. Respond with JSON only.
 
-Active session context: ${sessionSummary}
+Active session context: ${sessionSummary}${isResolvedSession ? " (already resolved — user may want to refine an applied filter)" : ""}
 
 Intents:
 - SET_PARAMETER: user provides a specific value (diameter, material, etc.)
@@ -234,12 +221,18 @@ Intents:
 - ASK_RECOMMENDATION: user wants to see results now
 - ASK_COMPARISON: user wants to compare products
 - ASK_REASON: user asks why something was recommended
-- ASK_EXPLANATION: user asks about a concept or term
+- ASK_EXPLANATION: user asks about a concept or term (e.g., "스테인리스가 뭐야", "DLC 장점")
+- REFINE_CONDITION: user wants to change an already-applied filter post-resolution (e.g., "소재 바꿔", "다른 직경", "다시 추천해", "코팅 변경"). Set extractedValue to the target field: "material" | "diameter" | "coating" | "fluteCount" | "toolSubtype".
 - GO_BACK_ONE_STEP: user wants to go back one step
 - GO_BACK_TO_SPECIFIC_STAGE: user wants to go back to a specific stage
 - RESET_SESSION: user wants to restart
 - START_NEW_TOPIC: unrelated topic change
 - OUT_OF_SCOPE: nonsense or off-domain
+
+Critical distinction — bare material/coating tokens:
+- "스테인리스 뭐야?", "DLC 좋아?" → ASK_EXPLANATION (curiosity, no change verb)
+- "스테인리스로 바꿔줘", "DLC로 다시" → REFINE_CONDITION (explicit change verb)
+- Bare mentions in a resolved session default to ASK_EXPLANATION unless a change verb (바꿔/변경/다시/다른) is present.
 
 Respond: {"intent":"...", "confidence": 0.0-1.0, "extractedValue": "..." or null}`
 

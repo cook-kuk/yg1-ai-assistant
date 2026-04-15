@@ -12,10 +12,31 @@ import { describe, it, expect } from "vitest"
 import { classifyIntent, isExplicitResetIntent } from "../intent-classifier"
 import type { ExplorationSessionState, DisplayedOption } from "@/lib/recommendation/domain/types"
 
+// Since b5abe98 + REFINEMENT_PATTERNS 제거, REFINE_CONDITION classification 은
+// LLM 담당이다. mockProvider 는 LLM 역할을 simulate — 실제 LLM prompt 규칙대로
+// field 추출을 반환.
 const mockProvider = {
-  available: () => false,
-  complete: async () => { throw new Error("LLM should not be called") },
-  completeWithTools: async () => { throw new Error("LLM should not be called") },
+  available: () => true,
+  complete: async (_sys: string, messages: Array<{ role: string; content: string }>) => {
+    const text = (messages[messages.length - 1]?.content ?? "").toLowerCase()
+    const hasChangeVerb = /바꿔|바꾸|변경|대체|다시|다른/.test(text)
+    const hasExplainCue = /\?|뭐야|궁금|설명|장점|단점/.test(text)
+    let field: string | null = null
+    if (/피삭재|소재|재질|스테인리스|알루미늄|탄소강|티타늄/.test(text)) field = "material"
+    else if (/직경|mm|밀리/.test(text)) field = "diameter"
+    else if (/코팅|alcrn|altin|tialn|dlc|무코팅/i.test(text)) field = "coating"
+    else if (/날|flute|플루트/.test(text)) field = "fluteCount"
+    else if (/형상|subtype|square|ball|radius/.test(text)) field = "toolSubtype"
+    // bare material/coating + 질문 cue → ASK_EXPLANATION (per prompt rule)
+    if (field && hasExplainCue && !hasChangeVerb) {
+      return JSON.stringify({ intent: "ASK_EXPLANATION", confidence: 0.85, extractedValue: field })
+    }
+    if (field || hasChangeVerb) {
+      return JSON.stringify({ intent: "REFINE_CONDITION", confidence: 0.9, extractedValue: field })
+    }
+    return JSON.stringify({ intent: "START_NEW_TOPIC", confidence: 0.5 })
+  },
+  completeWithTools: async () => { throw new Error("tools not used in intent classifier") },
 } as any
 
 const resolvedSession: ExplorationSessionState = {
@@ -81,9 +102,11 @@ describe("Refinement intent (post-recommendation)", () => {
     expect(r.extractedValue).toBe("coating")
   })
 
-  it('"스테인리스가 궁금해" → REFINE_CONDITION', async () => {
+  it('"스테인리스가 궁금해" → ASK_EXPLANATION (bare material + 궁금, no change verb)', async () => {
+    // Post-b5abe98 + REFINEMENT_PATTERNS 제거: bare material + 질문 cue 는
+    // REFINE_CONDITION 이 아니라 ASK_EXPLANATION 으로 가야 의미가 맞다.
     const r = await classifyIntent("스테인리스가 궁금해", resolvedSession, mockProvider)
-    expect(r.intent).toBe("REFINE_CONDITION")
+    expect(r.intent).toBe("ASK_EXPLANATION")
     expect(r.extractedValue).toBe("material")
   })
 
