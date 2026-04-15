@@ -947,6 +947,78 @@ export function buildMaterialPromptHints(limit = 6): string {
     .join("\n")
 }
 
+export type MaterialWorkpieceEntry = {
+  tag_name?: string | null
+  normalized_work_piece_name?: string | null
+}
+
+export function findAllMaterialMatchesInText(text: string): MaterialAliasMatch[] {
+  const normalizedRaw = normalizeAliasToken(text)
+  if (!normalizedRaw) return []
+
+  const cache = getMaterialMappingCache()
+  const seenAlias = new Set<string>()
+  const matches: MaterialAliasMatch[] = []
+
+  for (const entry of cache.aliasEntries) {
+    if (entry.normalizedAlias.length < 4) continue
+    if (seenAlias.has(entry.normalizedAlias)) continue
+    if (!normalizedRaw.includes(entry.normalizedAlias)) continue
+    seenAlias.add(entry.normalizedAlias)
+
+    const bucket = cache.aliasIndex.get(entry.normalizedAlias) ?? [entry]
+    const matched = selectBestAliasMatch(bucket, text, Math.min(entry.confidence, 0.8))
+    if (!matched) continue
+    matches.push({ ...matched, confidence: Math.min(matched.confidence, 0.88) })
+  }
+
+  const seenFamily = new Set<string>()
+  return matches.filter(match => {
+    const key = `${match.canonicalFamily ?? ""}|${match.lv1Iso ?? ""}`
+    if (seenFamily.has(key)) return false
+    seenFamily.add(key)
+    return true
+  })
+}
+
+export function buildMaterialMappingHintsForMessage(
+  message: string,
+  workpieces: MaterialWorkpieceEntry[],
+): string {
+  const matches = findAllMaterialMatchesInText(message)
+  if (matches.length === 0) return ""
+
+  const lines: string[] = []
+  for (const match of matches) {
+    if (!match.lv1Iso) continue
+    const iso = match.lv1Iso.toUpperCase()
+    const lv2Key = normalizeAliasToken(match.lv2Category ?? "")
+    const isoPool = uniqueStrings(
+      workpieces
+        .filter(workpiece => String(workpiece.tag_name ?? "").toUpperCase() === iso)
+        .map(workpiece => workpiece.normalized_work_piece_name ?? null),
+    )
+    const ranked = [...isoPool].sort((left, right) => {
+      const leftKey = normalizeAliasToken(left)
+      const rightKey = normalizeAliasToken(right)
+      const leftScore = lv2Key && (leftKey === lv2Key || leftKey.includes(lv2Key) || lv2Key.includes(leftKey)) ? 1 : 0
+      const rightScore = lv2Key && (rightKey === lv2Key || rightKey.includes(lv2Key) || lv2Key.includes(rightKey)) ? 1 : 0
+      if (leftScore !== rightScore) return rightScore - leftScore
+      return left.localeCompare(right)
+    })
+    const candidates = ranked.slice(0, 6)
+    const label = match.matchedAlias ?? match.raw
+    const lv2 = match.lv2Category ?? "?"
+    const source = match.sourceColumn ?? "alias"
+    lines.push(
+      `- ${label} (${source} spec) → ISO ${iso} / LV2 ${lv2} → workPieceName candidates: ${
+        candidates.join(", ") || "(no tag match)"
+      }`,
+    )
+  }
+  return lines.join("\n")
+}
+
 export function buildScopedMaterialPromptHints(raw: string, limit = 4): string {
   const match = lookupMaterialFamily(raw)
   const familyName = match?.canonicalFamily ?? (match?.lv1Iso ? resolveFamilyFromIsoTag(match.lv1Iso, getMaterialMappingCache()) : null)
