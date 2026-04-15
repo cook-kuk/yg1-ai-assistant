@@ -113,19 +113,21 @@ interface ChipPolicy {
 
 const CHIP_POLICIES: ChipPolicy[] = [
   // ── Narrowing phase ──
+  // 칩 개수·노출 threshold 는 LLM (llm-chip-selector.ts) 가 실제 후보 분포를 보고 결정.
+  // 여기서는 "후보가 존재하면 제시 가능" 수준의 최소 게이트만 유지.
   {
     intent: "confirm_recommend",
     type: "primary",
     labelKey: "chip.confirm_recommend",
     priority: 5,
-    visible: (s) => isNarrowingPhase(s) && s.candidateCount > 0 && s.candidateCount <= 50,
+    visible: (s) => isNarrowingPhase(s) && s.candidateCount > 0,
   },
   {
     intent: "view_products",
     type: "primary",
     labelKey: "chip.view_products",
     priority: 6,
-    visible: (s) => isNarrowingPhase(s) && s.candidateCount > 50,
+    visible: (s) => isNarrowingPhase(s) && s.candidateCount > 0,
   },
   {
     intent: "select_material",
@@ -153,14 +155,14 @@ const CHIP_POLICIES: ChipPolicy[] = [
     type: "filter",
     labelKey: "chip.select_flute_count",
     priority: 40,
-    visible: (s) => isNarrowingPhase(s) && !hasFilter(s, "fluteCount") && s.candidateCount > 20,
+    visible: (s) => isNarrowingPhase(s) && !hasFilter(s, "fluteCount"),
   },
   {
     intent: "select_coating",
     type: "filter",
     labelKey: "chip.select_coating",
     priority: 50,
-    visible: (s) => isNarrowingPhase(s) && !hasFilter(s, "coating") && s.candidateCount > 10,
+    visible: (s) => isNarrowingPhase(s) && !hasFilter(s, "coating"),
   },
   {
     intent: "skip_field",

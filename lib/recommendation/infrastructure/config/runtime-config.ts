@@ -40,6 +40,28 @@ export const TOOL_REGISTRY_CONFIG = {
   minMatchScore:    envNum("TOOL_REGISTRY_MIN_MATCH_SCORE", 0.4),
 } as const
 
+// ── SQL Agent prompt sampling & token budgets ───────────────
+export const SQL_AGENT_CONFIG = {
+  /** Domain dictionary 텍스트 샘플 컬럼(toolSubtype/coating/workPiece/brand)당 상위 N개. */
+  textSampleLimit:    envNum("SQL_AGENT_TEXT_SAMPLE_LIMIT", 8),
+  /** schema.sampleValues(컬럼별 sample value)를 프롬프트에 실을 때 컬럼당 최대 값 수. */
+  columnDescLimit:    envNum("SQL_AGENT_COLUMN_DESC_LIMIT", 30),
+  /** aux tables의 각 컬럼에 붙이는 샘플 값 최대 개수. */
+  numericSampleLimit: envNum("SQL_AGENT_NUMERIC_SAMPLE_LIMIT", 12),
+  /** CoT(thinking) 모드 max_tokens. */
+  cotMaxTokens:       envNum("SQL_AGENT_COT_MAX_TOKENS", 8192),
+  /** Fast 모드 기본 max_tokens. */
+  defaultMaxTokens:   envNum("SQL_AGENT_DEFAULT_MAX_TOKENS", 2048),
+} as const
+
+// ── Chip selection limits ───────────────────────────────────
+export const CHIP_CONFIG = {
+  /** LLM이 최종 선택할 칩의 최대 개수. */
+  maxSelection:       envNum("CHIP_MAX_SELECTION", 6),
+  /** LLM에 후보로 넘기는 최대 옵션 개수. */
+  maxLLMCandidates:   envNum("CHIP_MAX_LLM_CANDIDATES", 12),
+} as const
+
 // ── Chat Service LLM token budgets ──────────────────────────
 export const CHAT_LLM_TOKENS = {
   /** Tool round (결정/단문 추론) max_tokens. */

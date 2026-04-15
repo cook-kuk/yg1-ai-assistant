@@ -47,8 +47,13 @@ describe("deriveChips — narrowing phase", () => {
     expect(chips.some(c => c.key === "confirm_recommend")).toBe(true)
   })
 
-  it("does NOT include confirm_recommend when candidateCount > 50", () => {
+  it("includes confirm_recommend for any positive candidateCount (LLM decides pruning)", () => {
     const chips = deriveChips(makeChipState({ candidateCount: 100 }))
+    expect(chips.some(c => c.key === "confirm_recommend")).toBe(true)
+  })
+
+  it("excludes confirm_recommend when there are no candidates", () => {
+    const chips = deriveChips(makeChipState({ candidateCount: 0 }))
     expect(chips.some(c => c.key === "confirm_recommend")).toBe(false)
   })
 
@@ -64,20 +69,22 @@ describe("deriveChips — narrowing phase", () => {
     expect(chips.some(c => c.key === "select_material")).toBe(false)
   })
 
-  it("excludes select_flute_count when candidateCount <= 20", () => {
-    const chips = deriveChips(makeChipState({ candidateCount: 15 }))
-    expect(chips.some(c => c.key === "select_flute_count")).toBe(false)
-  })
-
-  it("includes select_flute_count when candidateCount > 20", () => {
-    // maxChips might cut it off, use a high limit
-    const chips = deriveChips(makeChipState({ candidateCount: 100 }), "ko", 10)
+  it("includes select_flute_count regardless of candidateCount (LLM prunes downstream)", () => {
+    const chips = deriveChips(makeChipState({ candidateCount: 15 }), "ko", 10)
     expect(chips.some(c => c.key === "select_flute_count")).toBe(true)
   })
 
-  it("excludes select_coating when candidateCount <= 10", () => {
+  it("excludes select_flute_count when fluteCount filter already applied", () => {
+    const chips = deriveChips(makeChipState({
+      candidateCount: 100,
+      appliedFilters: [{ field: "fluteCount", op: "eq", value: "4" }],
+    }), "ko", 10)
+    expect(chips.some(c => c.key === "select_flute_count")).toBe(false)
+  })
+
+  it("includes select_coating regardless of candidateCount (LLM prunes downstream)", () => {
     const chips = deriveChips(makeChipState({ candidateCount: 5 }), "ko", 10)
-    expect(chips.some(c => c.key === "select_coating")).toBe(false)
+    expect(chips.some(c => c.key === "select_coating")).toBe(true)
   })
 
   it("includes skip_field when lastAskedField is set", () => {

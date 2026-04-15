@@ -10,10 +10,11 @@ import { resolveModel, type LLMProvider } from "@/lib/recommendation/infrastruct
 import type { SmartOption } from "./types"
 import type { DisplayedOption } from "@/lib/recommendation/domain/types"
 import { smartOptionsToChips, smartOptionsToDisplayedOptions } from "./option-bridge"
+import { CHIP_CONFIG } from "@/lib/recommendation/infrastructure/config/runtime-config"
 
 const LLM_CHIP_SELECTOR_MODEL = resolveModel("haiku")
-const MAX_SELECTION = 6
-const MAX_LLM_CANDIDATES = 12
+const MAX_SELECTION = CHIP_CONFIG.maxSelection
+const MAX_LLM_CANDIDATES = CHIP_CONFIG.maxLLMCandidates
 
 const GENERIC_REQUEST_PATTERNS = [
   /좁혀/u,

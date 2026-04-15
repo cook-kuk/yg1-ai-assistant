@@ -12,6 +12,8 @@ import { selectFewShots, buildFewShotText } from "./adaptive-few-shot"
 import { validateAndResolveFilters } from "./value-resolver"
 import { getFilterFieldLabel, getFilterFieldDefinition } from "@/lib/recommendation/shared/filter-field-registry"
 import { isSkipToken } from "@/lib/recommendation/shared/patterns"
+import { SQL_AGENT_CONFIG } from "@/lib/recommendation/infrastructure/config/runtime-config"
+import { BRAND_MISFIRE_SHAPE_MAP } from "@/lib/recommendation/shared/canonical-values"
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -42,14 +44,7 @@ export interface SqlAgentResult {
 // 이라 LLM 이 fallback 으로 붙음). prompt 에 명시 규칙이 있어도 가끔 누락
 // 되므로 validateAndResolveFilters 뒤에 post-validation 으로 강제 교정.
 // value 에 공구형상 키워드가 포함되면 brand → toolSubtype 으로 재배정한다.
-const TOOL_SHAPE_CANON: Record<string, string> = {
-  square: "Square", "flat": "Square", "평날": "Square", "스퀘어": "Square",
-  roughing: "Roughing", "러핑": "Roughing", "황삭": "Roughing",
-  ball: "Ball", "볼": "Ball", "볼엔드밀": "Ball",
-  radius: "Radius", "라디우스": "Radius", "코너r": "Radius", "cornerradius": "Radius",
-  taper: "Taper", "테이퍼": "Taper",
-  chamfer: "Chamfer", "챔퍼": "Chamfer", "모따기": "Chamfer",
-}
+// SSOT: alias ↔ canonical 매핑은 shared/canonical-values.ts 의 TOOL_SUBTYPE_ALIAS_MAP.
 
 function reassignShapeBrandFilters(filters: AgentFilter[]): { filters: AgentFilter[]; messages: string[] } {
   const messages: string[] = []
@@ -58,7 +53,7 @@ function reassignShapeBrandFilters(filters: AgentFilter[]): { filters: AgentFilt
     if (f.field !== "brand" || !f.value) { out.push(f); continue }
     const lower = f.value.toLowerCase()
     const hits: string[] = []
-    for (const [kw, canon] of Object.entries(TOOL_SHAPE_CANON)) {
+    for (const [kw, canon] of Object.entries(BRAND_MISFIRE_SHAPE_MAP)) {
       if (lower.includes(kw)) hits.push(canon)
     }
     const uniqHits = Array.from(new Set(hits))
@@ -179,18 +174,19 @@ function buildAllowedOutputFieldBlock(): string {
 }
 
 function buildSqlDomainDictionary(schema: DbSchema): string {
+  const textLimit = SQL_AGENT_CONFIG.textSampleLimit
   const toolSubtypeValues = uniquePromptValues([
     ...(schema.sampleValues.search_subtype ?? []),
     ...(schema.sampleValues.tool_subtype ?? []),
-  ]).slice(0, 8)
+  ]).slice(0, textLimit)
   const coatingValues = uniquePromptValues([
     ...(schema.sampleValues.search_coating ?? []),
     ...(schema.sampleValues.coating ?? []),
-  ]).slice(0, 8)
+  ]).slice(0, textLimit)
   const workPieceValues = uniquePromptValues(
     (schema.workpieces ?? []).map(entry => entry.normalized_work_piece_name),
-  ).slice(0, 8)
-  const brandValues = uniquePromptValues(schema.brands ?? []).slice(0, 8)
+  ).slice(0, textLimit)
+  const brandValues = uniquePromptValues(schema.brands ?? []).slice(0, textLimit)
 
   return [
     `  toolSubtype canonical values/examples: ${toolSubtypeValues.join(", ") || "Square, Ball, Radius, Roughing, Taper, Chamfer"}`,
@@ -213,9 +209,10 @@ function buildSystemPrompt(schema: DbSchema, existingFilters: AppliedFilter[], u
     })
     .join("\n")
 
+  const columnDescLimit = SQL_AGENT_CONFIG.columnDescLimit
   const sampleList = Object.entries(schema.sampleValues)
     .filter(([, vals]) => vals.length > 0)
-    .map(([col, vals]) => `  ${col}: ${vals.slice(0, 30).join(", ")}`)
+    .map(([col, vals]) => `  ${col}: ${vals.slice(0, columnDescLimit).join(", ")}`)
     .join("\n")
 
   const numericList = Object.entries(schema.numericStats)
@@ -228,6 +225,7 @@ function buildSystemPrompt(schema: DbSchema, existingFilters: AppliedFilter[], u
 
   const brandList = schema.brands.join(", ")
 
+  const auxSampleLimit = SQL_AGENT_CONFIG.numericSampleLimit
   const auxList = Object.entries(schema.auxTables ?? {})
     .map(([table, cols]) => {
       const samples = schema.auxSampleValues?.[table] ?? {}
@@ -235,7 +233,7 @@ function buildSystemPrompt(schema: DbSchema, existingFilters: AppliedFilter[], u
       const colLines = cols.map(c => {
         const sv = samples[c.column_name]
         const ns = nstats[c.column_name]
-        if (sv && sv.length > 0) return `  ${c.column_name} (${c.data_type}) e.g. ${sv.slice(0, 12).join(", ")}`
+        if (sv && sv.length > 0) return `  ${c.column_name} (${c.data_type}) e.g. ${sv.slice(0, auxSampleLimit).join(", ")}`
         if (ns) return `${formatNumericStatsLine(c.column_name, ns).trimStart()} (${c.data_type})`
         return `  ${c.column_name} (${c.data_type})`
       }).join("\n")
@@ -475,7 +473,7 @@ export async function naturalLanguageToFilters(
   const raw = await provider.complete(
     systemPrompt,
     [{ role: "user", content: userMessage }],
-    mode === "cot" ? 8192 : 2048,
+    mode === "cot" ? SQL_AGENT_CONFIG.cotMaxTokens : SQL_AGENT_CONFIG.defaultMaxTokens,
     SQL_AGENT_MODEL,
   )
 

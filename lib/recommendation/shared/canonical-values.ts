@@ -202,6 +202,22 @@ export const TOOL_SUBTYPE_ALIAS_MAP: Record<string, string> = {
   "하이피드": "High-Feed",
 }
 
+/**
+ * Brand-misfire 교정용 공구형상 키워드 맵.
+ * sql-agent.ts 가 "brand 값 안에 Square/Ball 같은 공구형상 키워드가 끼어들었을 때"
+ * toolSubtype 으로 재배정할 때 사용. 일반 value canonicalization(TOOL_SUBTYPE_ALIAS_MAP)과
+ * 별개 — DB canonical 값(Square/Ball/Radius/Roughing/Taper/Chamfer)만 노출하며,
+ * cornerradius → "Radius" (Corner Radius 가 아니라 DB 의 canonical "Radius") 로 강제 매핑.
+ */
+export const BRAND_MISFIRE_SHAPE_MAP: Record<string, string> = {
+  square: "Square", flat: "Square", "평날": "Square", "스퀘어": "Square",
+  roughing: "Roughing", "러핑": "Roughing", "황삭": "Roughing",
+  ball: "Ball", "볼": "Ball", "볼엔드밀": "Ball",
+  radius: "Radius", "라디우스": "Radius", "코너r": "Radius", cornerradius: "Radius",
+  taper: "Taper", "테이퍼": "Taper",
+  chamfer: "Chamfer", "챔퍼": "Chamfer", "모따기": "Chamfer",
+}
+
 export function canonicalizeToolSubtypeValue(rawValue: string | null | undefined): string | null {
   const stripped = stripKoreanParticles(String(rawValue ?? "").trim())
   const normalized = normalizeCompactText(stripped)

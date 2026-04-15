@@ -20,14 +20,15 @@ export function planNarrowingOptions(ctx: OptionPlannerContext): SmartOption[] {
 
   if (!fieldValues) { console.log(`[narrowing-plan] EXIT early — no candidateFieldValues`); return options }
 
-  // Generate options for the best narrowing fields
+  // Generate options for ALL discriminative narrowing fields.
+  // No pre-slicing — downstream LLM chip selector sees the full distribution and
+  // decides which field + values are actually discriminative for the current turn.
   const fields = rankNarrowingFields(fieldValues, ctx)
 
-  for (const { field, values } of fields.slice(0, 3)) {
-    // Top values by count for this field
+  for (const { field, values } of fields) {
+    // Emit every value for this field; LLM will prune non-discriminative ones.
     const sortedValues = Array.from(values.entries())
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 4)
 
     for (const [value, count] of sortedValues) {
       const delta = count - ctx.candidateCount
@@ -174,15 +175,8 @@ function localizeValue(field: string, value: string): string {
   return DISPLAY_LABEL_KO[field]?.[value] ?? value
 }
 
-function formatNarrowingLabel(field: string, value: string, count: number): string {
-  const fieldNames: Record<string, string> = {
-    fluteCount: "날 수",
-    coating: "코팅",
-    seriesName: "시리즈",
-    toolSubtype: "공구 형상",
-    cuttingType: "가공 유형",
-    workPieceName: "세부 피삭재",
-  }
-  const fieldLabel = fieldNames[field] ?? field
-  return `${localizeValue(field, value)} (${count}개)`
+function formatNarrowingLabel(_field: string, value: string, count: number): string {
+  // Field label SSOT 는 filter-field-registry 이지만 현재 UI 스타일상 라벨은 값만 노출.
+  // (필드명 노출이 필요해지면 getFilterFieldLabel(_field) 로 교체)
+  return `${localizeValue(_field, value)} (${count}개)`
 }
