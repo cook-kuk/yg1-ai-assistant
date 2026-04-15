@@ -12,9 +12,9 @@ type ParsedConstraintText = {
 type ConstraintParseMode = "filter" | "revision"
 
 const FILTER_INTENT_PATTERNS = [
-  /\s*(?:로|으로|만|만으로|기준으로)?\s*(?:필터|필터링|적용|추천(?:해줘)?|보여줘?|찾아줘?|검색|좁혀줘?|좁혀).*$/u,
-  /\s*(?:만\s*보여줘?|만\s*추천해줘?|만\s*찾아줘?).*$/u,
-  /\s*기준으로\s*(?:추천|필터링|검색|적용|보여줘?).*$/u,
+  /\s*(?:로|으로|만|만으로|기준으로)?\s*(?:필터|필터링|적용|보여줘?|찾아줘?|검색|좁혀줘?|좁혀).*$/u,
+  /\s*(?:만\s*보여줘?|만\s*찾아줘?).*$/u,
+  /\s*기준으로\s*(?:필터링|검색|적용|보여줘?).*$/u,
 ]
 
 const REVISION_INTENT_PATTERNS = [
@@ -25,7 +25,7 @@ const REVISION_INTENT_PATTERNS = [
 ]
 
 const REVISION_SIGNAL_PATTERN = /(대신|말고|말구|변경|바꿔|바꿀|수정|교체|교환|올려|줄여|늘려|낮춰|높여|아니고|아닌|아니라|ㄴㄴ|말했는데|말했잖|이미\s*말한|위에\s*말한|다시\s*말하|switch\s+to|change\s+to|change\s+.+\s+to|instead\s+of|replace\s+with|i\s+already\s+said|as\s+i\s+said)/iu
-const FILTER_SIGNAL_PATTERN = /(필터|필터링|적용|좁혀|추천|추천해|추천해줘|보여|찾아|검색|기준으로|만\s*(?:보여|추천|찾)|로\s*추천|으로\s*추천)/u
+const FILTER_SIGNAL_PATTERN = /(필터|필터링|적용|좁혀|보여|찾아|검색|기준으로|만\s*(?:보여|찾))/u
 
 /**
  * LLM judgment.intentAction 값 중 "필터/수정 의도 아님" 집합.
@@ -40,8 +40,22 @@ export const NON_FILTER_INTENTS: ReadonlySet<string> = new Set([
   "undo",
 ])
 
+/**
+ * intentAction 값 중 "필터/추천 의도 있음" 집합. LLM 판정이 여기에 해당하면
+ * regex 매칭 없이도 explicit filter intent 로 간주한다 (추천/보여 계열 토큰은
+ * 이 경로로 들어오므로 regex 에 하드코딩하지 않는다).
+ */
+export const FILTER_OR_RECOMMEND_INTENTS: ReadonlySet<string> = new Set([
+  "ask_recommendation",
+  "refine_condition",
+])
+
 function isNonFilterIntent(intentAction: string | null | undefined): boolean {
   return !!intentAction && NON_FILTER_INTENTS.has(intentAction)
+}
+
+function isFilterOrRecommendIntent(intentAction: string | null | undefined): boolean {
+  return !!intentAction && FILTER_OR_RECOMMEND_INTENTS.has(intentAction)
 }
 
 function normalizeQueryText(value: string): string {
@@ -366,6 +380,9 @@ export function hasExplicitFilterIntent(
   // LLM 이 explain/off_topic/reset 등 non-filter intent 로 판단했으면 regex 매칭 무시.
   // LLM 판단 우선 — 도메인 키워드 존재만으로 filter 의도라고 결론내리지 않는다.
   if (isNonFilterIntent(intentAction)) return false
+  // LLM 이 ask_recommendation / refine_condition 으로 판단했으면 추천/보여 계열
+  // 하드코딩 regex 없이 intent 만으로 filter 의도 인정.
+  if (isFilterOrRecommendIntent(intentAction)) return true
   return FILTER_SIGNAL_PATTERN.test(value)
 }
 

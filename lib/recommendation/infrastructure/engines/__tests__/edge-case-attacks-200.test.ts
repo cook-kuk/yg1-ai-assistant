@@ -1246,8 +1246,10 @@ describe("Part 6: Revision edge cases", () => {
     expect(hasExplicitFilterIntent("TiAlN으로 필터링")).toBe(true)
   })
 
-  it("176 — hasExplicitFilterIntent catches '추천해줘'", () => {
-    expect(hasExplicitFilterIntent("Ball로 추천해줘")).toBe(true)
+  it("176 — hasExplicitFilterIntent '추천해줘' via intentAction", () => {
+    // 추천 계열 regex 제거됨 — LLM judgment 의 intentAction 으로 판정
+    expect(hasExplicitFilterIntent("Ball로 추천해줘")).toBe(false)
+    expect(hasExplicitFilterIntent("Ball로 추천해줘", "ask_recommendation")).toBe(true)
   })
 
   it("177 — parseExplicitFilterText with empty string", async () => {

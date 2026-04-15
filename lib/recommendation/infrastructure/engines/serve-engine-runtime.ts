@@ -1055,8 +1055,8 @@ function hasExplicitRevisionSignal(value: string): boolean {
   return hasExplicitRevisionIntent(value)
 }
 
-function hasExplicitFilterIntentSignal(value: string): boolean {
-  return hasExplicitFilterIntent(value)
+function hasExplicitFilterIntentSignal(value: string, intentAction?: string | null): boolean {
+  return hasExplicitFilterIntent(value, intentAction)
 }
 
 function includesText(haystack: string, needle: string): boolean {
@@ -1233,7 +1233,7 @@ export async function resolveExplicitFilterRequest(
   }
 
   const raw = userMessage.trim()
-  if (!raw || !hasExplicitFilterIntentSignal(raw) || hasExplicitRevisionSignal(raw)) return null
+  if (!raw || !hasExplicitFilterIntentSignal(raw, intentAction) || hasExplicitRevisionSignal(raw)) return null
 
   // ── Det SCR fast path: if deterministic parser handles this message,
   // skip the LLM explicit filter extraction entirely so the SCR path takes over.
