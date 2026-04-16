@@ -3924,7 +3924,7 @@ async function handleServeExplorationInner(
           // "아무거나 빨리 10mm" (1 diameter hint + 아무거나/빨리). Without this,
           // Stage2 LLM treats the surrounding conversational noise as unresolved
           // semantic hints and loops the user into a clarification.
-          const SOFT_INTENT_RE = /(괜찮은|좋은|쓸만한|쓸\s*만한|추천\s*(좀|해)?|보여\s*줘|찾아\s*줘|뭐가\s*있|있을까|어울리는|맞는|적합한|아무거나|아무|알아서|대충|뭐든|상관\s*없|빨리|급해|급한|당장|얼른|서둘러)/u
+          const SOFT_INTENT_RE = /(괜찮은|좋은|쓸만한|쓸\s*만한|추천\s*(좀|해)?|보여\s*줘|찾아\s*줘|뭐가\s*있|있을까|어울리는|맞는|적합한|아무거나|아무|알아서|대충|뭐든|상관\s*없|빨리|급해|급한|당장|얼른|서둘러|필터\s*링?\s*해|골라\s*줘|알려\s*줘)/u
           const minHints = SOFT_INTENT_RE.test(rawMsg) ? 1 : 2
           let detFastPathFilters: AppliedFilter[] = []
           if (detHintPairs.length >= minHints) {
