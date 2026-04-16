@@ -193,13 +193,13 @@ export function isShortQuestionTone(message: string): boolean {
   if (/[은는이가도만]\s*\?$/.test(trimmed)) return true
   if (/[?？]$/.test(trimmed) && /[가-힣A-Za-z0-9]+\s*[은는이가도만]?\s*[?？]$/.test(trimmed)) {
     // 명령/지시 키워드 있으면 제외
-    if (/(추천|보여|찾아|검색|필터|적용|줘|해줘|알려|말해)/u.test(trimmed)) return false
+    if (/(추천|보여|찾아|검색|필터|적용|줘|해줘|알려|말해|있어|있나|있을까|있는지|있니|골라|라인업)/u.test(trimmed)) return false
     return true
   }
   // 의문 어미: ~야?/이야?/인가?/~니?/~어?/뭐야?/뭐지?
   if (/(뭐(야|지|에요|예요)?|야|이야|인가|니|어|까)\s*[?？]?$/u.test(trimmed)
       && /[가-힣A-Za-z0-9]/.test(trimmed.charAt(0))) {
-    if (/(추천|보여|찾아|검색|필터|적용|줘|해줘|알려|말해)/u.test(trimmed)) return false
+    if (/(추천|보여|찾아|검색|필터|적용|줘|해줘|알려|말해|있어|있나|있을까|있는지|있니|골라|라인업)/u.test(trimmed)) return false
     // 짧고 의문어미 붙은 케이스만
     if (trimmed.length <= 15) return true
   }
