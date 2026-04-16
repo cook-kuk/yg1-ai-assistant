@@ -142,6 +142,10 @@ export const DB_COL_TO_FILTER_FIELD: Record<string, string> = {
   single_double_end: "toolSubtype",
   // workpiece is handled specially via _workPieceName
   _workPieceName: "workPieceName",
+  // 가공 형상/가공 타입: series_application_shape 에 DB canonical 값들이 콤마구분으로 저장됨
+  // (Slotting, Side_Milling, Profiling, Facing, Trochoidal, Drilling, Threading_Blind 등).
+  // LLM 이 이 컬럼으로 emit 하면 registry cuttingType 필드로 라우팅 → LIKE 쿼리로 매칭.
+  series_application_shape: "cuttingType",
   // Country codes are stored as text[] (unnested by schema cache for indexing).
   country_codes: "country",
 }
@@ -467,10 +471,16 @@ NEVER use eq when the user expressed a range:
 - 길이 상대 표현 (숫자 없음): "긴/롱/long" → overall_length (milling_overall_length 또는 option_overall_length) op:gte with value = numericStats의 median (samples의 중앙값을 직접 계산해 사용) · "짧은/숏/short/스터비/stubby" → 동일 컬럼 op:lte with value = median
 - 날수 상대 표현: "다날/멀티플루트/many flute/multi-flute" → search_flute_count op:gte value=5 · "소수날/few flute" → search_flute_count op:lte value=3
 - 더블/싱글 엔드: "더블엔드/양끝날/양날엔드밀/double end/double-ended" → **반드시 option_milling_singledoubleend eq "Double"** (series_description 같은 자유 텍스트 컬럼 사용 금지 — 구조화 컬럼이 있을 땐 그것을 쓸 것) · "싱글엔드/single end" → option_milling_singledoubleend eq "Single"
-- 피삭재 (use _workPieceName eq): 스테인리스/스텐/SUS → "스테인리스" · 티타늄/Ti → "티타늄" · 알루미늄/AL → "알루미늄" · 주철/FC/FCD → "주철" · 탄소강/SM45C → "탄소강" · 고경도강/SKD11 → "고경도강" · 인코넬/내열합금 → "인코넬" · 구리/동/황동 → "구리" · 합금강/SCM440 → "합금강" · 복합재/CFRP → "복합재" · 흑연 → "흑연"
+- 피삭재 (workPieceName, **반드시 영문 canonical**): 스테인리스/스텐/SUS → "Stainless Steels" · 티타늄/Ti → "Titanium" · 알루미늄/AL/A7075 → "Aluminum" · 주철/FC/FCD → "Cast Iron" · 탄소강/SM45C/S45C → "Carbon Steels" · 고경도강/SKD11 → "Hardened Steel" · 인코넬/내열합금/HRSA → "Heat Resistant Alloys" · 구리/동/황동 → "Copper" · 합금강/SCM440 → "Alloy Steel" · 복합재/CFRP/FRP → "FRP" · 흑연 → "Graphite" — 한글값 emit 금지
 - 공구 형상: 스퀘어/평날 → search_subtype eq "Square" · 볼/볼엔드밀 → "Ball" · 라디우스/코너R → like "Radius" · 러핑/황삭 → "Roughing" · 테이퍼 → "Taper" · 챔퍼/모따기 → "Chamfer" · 하이피드/고이송 → like "High-Feed"
 - **형상 제외 표현**: "Square/Roughing/Ball/Radius/Taper/Chamfer 제외", "X만 아니면", "X 빼고", "X 말고" → 반드시 search_subtype neq "X" 로 emit. **brand neq 로 넣지 말 것** (공구형상은 brand 가 아님). 두 개 이상 제외 시 각각을 별도 filter 로 분리.
-- 가공 형상: 측면가공 → series_application_shape like "side" · 포켓 → like "pocket" · 곡면 → like "contour"
+- 가공 형상/가공 타입/cuttingType: 사용자가 "슬로팅/측면가공/정면가공/프로파일링/트로코이달/측면/정면/윤곽/포켓" 같은 표현을 쓰면,
+  **Text Column Sample Values 섹션의 \`series_application_shape\` 값 목록에서 의미가 일치하는 canonical 값을 직접 골라**
+  field="series_application_shape", op="like", value="<canonical>" 로 emit 하세요.
+  예: "측면가공" → sampleValues.series_application_shape 에 "Side_Milling" 이 있으면 → field:"series_application_shape", op:"like", value:"Side_Milling"
+  예: "슬로팅" → "Slotting" · "정면가공" → "Facing" · "프로파일링" → "Profiling" · "트로코이달" → "Trochoidal" · "포켓" → "Pocket" · "드릴" → "Drilling"
+  **한국어 별칭을 이 프롬프트에서 하드코딩해서 외우지 말고**, 실제 DB sample values 에 등장한 canonical 값만 emit 할 것. 목록에 없으면 emit 금지.
+  여러 가공형상이 동시에 언급되면 각각 별도 filter 로 emit.
 - 생크: 플레인/스트레이트 → shank_type like "Plain" · 웰던 → like "Weldon" · HA → like "HA"
 - 국가 (text[]): 국내/한국 → eq "KOR" · 미국/인치 → eq "USA" · 유럽 → eq "ENG" · 일본 → eq "JPN"
 - 모호한 표현(좋은 거/추천해줘/괜찮은 거/범용/다양한) → []

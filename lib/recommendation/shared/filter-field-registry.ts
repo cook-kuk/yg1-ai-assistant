@@ -987,12 +987,17 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
   cuttingType: {
     field: "cuttingType",
     label: "가공 타입",
-    queryAliases: ["가공", "작업", "커팅", "cutting"],
+    queryAliases: ["가공", "작업", "커팅", "cutting", "가공 방식", "가공방식"],
     kind: "string",
-    matchPolicy: "strict_identifier",
-    op: "eq",
+    op: "includes",
     setInput: (input, filter) => ({ ...input, operationType: joinedFilterStringValue(filter) }),
     clearInput: input => ({ ...input, operationType: undefined }),
+    extractValues: record => extractPrimitiveValues(record, "applicationShapes"),
+    matches: (record, filter) => stringMatch(record, filter, "applicationShapes"),
+    // DB: series_application_shape 는 콤마구분 텍스트 ("Slotting, Profiling, Side_Milling").
+    // LIKE 로 부분매칭 — LLM 이 DB sample values (schema cache 제공) 에서 canonical 값을
+    // 골라 emit 하면 여기서 바로 WHERE 절 생성됨. 값 목록은 절대 이 코드에 하드코딩하지 말 것.
+    buildDbClause: (filter, next) => buildLikeClause(["series_application_shape"], filter, next),
   },
   toolSubtype: {
     field: "toolSubtype",
@@ -1252,7 +1257,10 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "number",
     op: "eq",
     unit: "°",
-    setInput: (input, filter) => input,
+    // RecommendationInput 에 pointAngleDeg 필드가 없어 no-op. setInput/clearInput 쌍은
+    // registry contract test 가 강제 — 한쪽만 있으면 skip 필터 처리 시 stuck.
+    setInput: (input, _filter) => input,
+    clearInput: input => input,
     extractValues: record => extractPrimitiveValues(record, "pointAngleDeg"),
     matches: (record, filter) => numericMatch(record, filter, "pointAngleDeg", 1),
     buildDbClause: (filter, next) => buildNumericEqualityClause(
@@ -1269,7 +1277,10 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     kind: "number",
     op: "eq",
     unit: "mm",
-    setInput: (input, filter) => input,
+    // RecommendationInput 에 threadPitchMm 필드가 없어 no-op. setInput/clearInput 쌍은
+    // registry contract test 가 강제 — 한쪽만 있으면 skip 필터 처리 시 stuck.
+    setInput: (input, _filter) => input,
+    clearInput: input => input,
     extractValues: record => extractPrimitiveValues(record, "threadPitchMm"),
     matches: (record, filter) => numericMatch(record, filter, "threadPitchMm", 0.01),
     buildDbClause: (filter, next) => buildNumericEqualityClause(
@@ -1282,9 +1293,17 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
   totalStock: {
     field: "totalStock",
     label: "재고수량",
-    queryAliases: ["재고", "재고 수량", "재고수량", "재고 개수", "stock quantity", "total stock", "inventory"],
+    queryAliases: ["재고 수량", "재고수량", "재고 개수", "stock quantity", "total stock", "inventory"],
     kind: "number",
     op: "range",
+    // 환각 방지: 사용자가 "totalStock = 0"을 narrowing 의도로 요청할 일은 없다.
+    // 재고 없음 의도는 stockStatus=outofstock으로 표현됨. 0 / 음수는 드롭.
+    canonicalizeRawValue: rawValue => {
+      const n = typeof rawValue === "number" ? rawValue : Number(String(rawValue).trim())
+      if (!Number.isFinite(n)) return rawValue
+      if (n <= 0) return null
+      return n
+    },
     setInput: input => input,
     clearInput: input => input,
     extractValues: record => extractPrimitiveValues(record, "totalStock"),
@@ -1317,6 +1336,15 @@ const FILTER_FIELD_DEFINITIONS: Record<string, FilterFieldDefinition> = {
     queryAliases: ["재고", "재고 있는", "재고있는", "재고 있음", "instock", "in stock", "stock", "납기"],
     kind: "string",
     op: "eq",
+    // 값 없는 필터 주입 차단: LLM이 "재고 조건 빼줘" 같은 제거 의도에서
+    // value=0 / "0" / 빈 문자열 / 숫자 리터럴을 환각으로 emit하는 케이스를 거른다.
+    // stockStatus는 상태 문자열(instock/outofstock/limited 등)만 허용.
+    canonicalizeRawValue: rawValue => {
+      const s = String(rawValue ?? "").trim().toLowerCase()
+      if (!s) return null
+      if (/^-?\d+(?:\.\d+)?$/.test(s)) return null
+      return s
+    },
     extractValues: record => {
       if (record && typeof record === "object" && "stockStatus" in record) {
         const value = (record as Record<string, unknown>).stockStatus
