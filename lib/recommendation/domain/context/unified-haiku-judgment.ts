@@ -177,35 +177,6 @@ export const DEFAULT_JUDGMENT: UnifiedJudgment = {
   fromLLM: false,
 }
 
-/**
- * 짧은 단독 발화 + 한국어 의문 조사/어미 = 설명 요청.
- *   "4날은?" / "알루미늄은?" / "AlTiN이야?" / "4날 뭐야?" / "4날이 뭐?"
- * 매칭 조건:
- *   - 길이 ≤ 20자 (명령/지시 톤 거의 다 이보다 김)
- *   - 끝에 ? 있거나, 의문 어미 포함 (~야/이야/인가/니/어)
- *   - 조사(은/는/이/가/도/만) + ? 또는 의문 어미 앞 / 끝
- * 반환 true → judgment 를 강제로 explain 으로 override.
- */
-export function isShortQuestionTone(message: string): boolean {
-  const trimmed = message.trim()
-  if (!trimmed || trimmed.length > 20) return false
-  // 끝 물음표 + 조사 또는 끝 물음표 + 값
-  if (/[은는이가도만]\s*\?$/.test(trimmed)) return true
-  if (/[?？]$/.test(trimmed) && /[가-힣A-Za-z0-9]+\s*[은는이가도만]?\s*[?？]$/.test(trimmed)) {
-    // 명령/지시 키워드 있으면 제외
-    if (/(추천|보여|찾아|검색|필터|적용|줘|해줘|알려|말해)/u.test(trimmed)) return false
-    return true
-  }
-  // 의문 어미: ~야?/이야?/인가?/~니?/~어?/뭐야?/뭐지?
-  if (/(뭐(야|지|에요|예요)?|야|이야|인가|니|어|까)\s*[?？]?$/u.test(trimmed)
-      && /[가-힣A-Za-z0-9]/.test(trimmed.charAt(0))) {
-    if (/(추천|보여|찾아|검색|필터|적용|줘|해줘|알려|말해)/u.test(trimmed)) return false
-    // 짧고 의문어미 붙은 케이스만
-    if (trimmed.length <= 15) return true
-  }
-  return false
-}
-
 /** 캐시: 같은 턴에서 중복 호출 방지 */
 let lastInput: string | null = null
 let lastResult: UnifiedJudgment = DEFAULT_JUDGMENT
@@ -254,19 +225,6 @@ export async function performUnifiedJudgment(
         : [],
       confidence: 1,
       fromLLM: true,
-    }
-
-    // ── 의문조사 safety net ─────────────────────────────────────
-    // LLM 판정이 프롬프트 규칙(line 136)을 무시하고 "4날은?", "알루미늄은?"
-    // 같은 단독 도메인 값 + 의문조사 발화를 refine_condition/ask_recommendation
-    // 으로 분류하는 회귀를 deterministic 으로 교정. 짧은 발화 + 의문 종결에
-    // 한정 → 정상 명령 톤은 건드리지 않는다.
-    if (isShortQuestionTone(input.userMessage) && result.intentAction !== "explain") {
-      console.log(`[unified-judgment] override: "${input.userMessage}" LLM=${result.intentAction} → explain (의문조사 safety net)`)
-      result.intentAction = "explain"
-      result.userState = "wants_explanation"
-      result.intentShift = "explain_request"
-      result.domainRelevance = result.domainRelevance === "off_topic" ? result.domainRelevance : "product_query"
     }
 
     console.log(`[unified-judgment] "${input.userMessage.slice(0, JUDGMENT_CONFIG.logSnippetMaxChars)}" → action=${result.intentAction} domain=${result.domainRelevance} state=${result.userState} signal=${result.signalStrength}`)
