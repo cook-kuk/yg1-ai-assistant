@@ -20,6 +20,7 @@ from schemas import (
     FilterOption,
     FilterOptionsRequest,
     FilterOptionsResponse,
+    SourceAttribution,
 )
 from scr import parse_intent
 from search import (
@@ -262,6 +263,15 @@ def products(req: ProductsRequest) -> ProductsResponse:
     # abbreviated follow-ups still know the material/diameter from turn 1.
     carry_forward_intent(session, intent)
 
+    # Source-attribution log. Each stage appends a record the UI can show.
+    sources: list[SourceAttribution] = [
+        SourceAttribution(
+            type="llm_reasoning" if route.startswith("llm") else "internal_db",
+            detail=f"SCR intent 파싱 ({route})",
+            confidence="high",
+        )
+    ]
+
     # 2. Fetch (whole candidate set). Uses the in-memory index so /products
     #    skips the DB on every request. Closure lets the 0-hit relax loop
     #    rebuild the filter dict from the mutated intent cheaply.
@@ -295,6 +305,11 @@ def products(req: ProductsRequest) -> ProductsResponse:
         return search_products_fast(_build_filters(), limit=5000)
 
     rows = _run_search()
+    sources.append(SourceAttribution(
+        type="internal_db",
+        detail=f"product_recommendation_mv 인메모리 index에서 {len(rows)}건 검색",
+        confidence="high",
+    ))
 
     # 2.2 Follow-up narrow: if we already showed products last turn, try
     # restricting the new filter to that subset first. Empty narrow falls
@@ -329,6 +344,19 @@ def products(req: ProductsRequest) -> ProductsResponse:
             if rows:
                 break
 
+    if relaxed_fields:
+        sources.append(SourceAttribution(
+            type="llm_reasoning",
+            detail=f"조건 완화: {relaxed_fields} 제거 후 재검색",
+            confidence="medium",
+        ))
+    if broadened:
+        sources.append(SourceAttribution(
+            type="internal_db",
+            detail="이전 턴 결과와 호환 불가 → 전역 카탈로그로 확장",
+            confidence="medium",
+        ))
+
     ranked = rank_candidates(rows, intent, top_k=len(rows) or 1)
 
     # 3. Build response product lists. Cutting conditions are pulled in a
@@ -339,6 +367,13 @@ def products(req: ProductsRequest) -> ProductsResponse:
         conditions_map = get_conditions_for_products(top10_raw, iso=intent.material_tag)
     except Exception:
         conditions_map = {}
+    if any(edp in conditions_map for edp in [str(c.get("edp_no") or "") for c in top10_raw]):
+        sources.append(SourceAttribution(
+            type="cutting_conditions",
+            detail="merged_all_fixed.csv (18,908건 절삭조건 DB)",
+            confidence="high",
+        ))
+
     top10: list[ProductCard] = []
     for c, s, b in ranked[:10]:
         edp = str(c.get("edp_no") or "")
@@ -392,11 +427,34 @@ def products(req: ProductsRequest) -> ProductsResponse:
     #    - Natural-language message → RAG lookup + GPT-5.4-mini (CoT).
     #    - Manual-only request → deterministic template (no LLM round-trip).
     chips: list[str] = []
+    knowledge: list[dict] = []
     if req.message:
         try:
             knowledge = search_knowledge(req.message, top_k=3)
         except Exception:
             knowledge = []
+        for k in knowledge:
+            k_type = k.get("type") or ""
+            data = k.get("data") or {}
+            if k_type == "web_search":
+                sources.append(SourceAttribution(
+                    type="web_search",
+                    detail=f"Tavily: {data.get('title','')[:70]} ({data.get('url','')})",
+                    confidence="medium",
+                ))
+            else:
+                # Pull a human-readable label from whichever title-ish field
+                # the entry exposes (troubleshooting=symptom, industry=…etc.)
+                label = (
+                    data.get("symptom") or data.get("material") or data.get("operation")
+                    or data.get("coating_name") or data.get("industry") or data.get("question")
+                    or data.get("series") or ""
+                )
+                sources.append(SourceAttribution(
+                    type="domain_knowledge",
+                    detail=f"{k_type}: {str(label)[:60]}",
+                    confidence="high",
+                ))
         try:
             chat_result = generate_response(
                 message=req.message,
@@ -410,6 +468,14 @@ def products(req: ProductsRequest) -> ProductsResponse:
             chips = chat_result.get("chips") or []
         except Exception:
             raw_answer = _build_answer(intent, ranked)
+        # CoT attribution — note if web search contributed.
+        has_web = any(s.type == "web_search" for s in sources)
+        sources.append(SourceAttribution(
+            type="web_search+llm" if has_web else "llm_reasoning",
+            detail="웹 검색 결과 + GPT-5.4-mini 추론" if has_web
+            else "GPT-5.4-mini CoT 추론" + (" (도메인 지식 주입)" if knowledge else ""),
+            confidence="medium" if has_web else ("high" if knowledge else "medium"),
+        ))
     else:
         raw_answer = _build_answer(intent, ranked)
 
@@ -453,6 +519,7 @@ def products(req: ProductsRequest) -> ProductsResponse:
         availableFilters=available or None,
         session_id=session.session_id,
         broadened=broadened,
+        sources=sources,
     )
 
 

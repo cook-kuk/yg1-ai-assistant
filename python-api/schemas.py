@@ -142,6 +142,14 @@ class ProductSummary(BaseModel):
     score: float
 
 
+class SourceAttribution(BaseModel):
+    """Per-stage evidence — lets the UI surface *why* an answer was
+    produced this way and with what confidence."""
+    type: str       # internal_db | domain_knowledge | llm_reasoning | web_search | web_search+llm | cutting_conditions
+    detail: str
+    confidence: str  # high | medium | low
+
+
 class ProductsResponse(BaseModel):
     text: str
     purpose: str = "recommendation"
@@ -155,3 +163,4 @@ class ProductsResponse(BaseModel):
     availableFilters: Optional[Dict[str, List[FilterOption]]] = None
     session_id: str
     broadened: bool = False  # True when follow-up narrow hit 0 and we used the global set
+    sources: List[SourceAttribution] = Field(default_factory=list)

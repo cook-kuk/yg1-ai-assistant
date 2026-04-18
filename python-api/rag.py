@@ -32,6 +32,7 @@ _SOURCES: list[tuple[str, str, str]] = [
     ("domain-knowledge", "material-coating-guide.json", "material-coating-guide"),
     ("domain-knowledge", "operation-guide.json", "operation-guide"),
     ("domain-knowledge", "coating-properties.json", "coating-properties"),
+    ("domain-knowledge", "industry-application-guide.json", "industry"),
     # Pre-generated product/feature QA — series-keyed lookup. Step 1 of the
     # RAG plan: string join, no embedding. Step 2 (pgvector) comes later.
     ("knowledge/qa", "product_knowledge_qa.json", "product_qa"),
@@ -196,6 +197,22 @@ def _score_product_qa(query: str, item: dict) -> int:
     return base + _category_boost(query, item.get("category"))
 
 
+def _score_industry(query: str, item: dict) -> int:
+    """Match on industry canonical name or alias list. Score reflects alias
+    length so specific terms ("항공우주") beat generic ones ("항공")."""
+    q = query.lower()
+    industry = (item.get("industry") or "").strip()
+    best = 0
+    if industry and industry.lower() in q:
+        best = len(industry) + 2  # canonical boost
+    aliases = item.get("aliases") or []
+    for a in aliases:
+        al = str(a).strip().lower()
+        if al and len(al) >= 2 and al in q:
+            best = max(best, len(al))
+    return best
+
+
 def _score_feature_qa(query: str, item: dict) -> int:
     fv = _token_match(query, item.get("feature_value"))
     if fv == 0:
@@ -214,6 +231,7 @@ _SCORERS = {
     "material-coating-guide": _score_material,
     "operation-guide": _score_operation,
     "coating-properties": _score_coating,
+    "industry": _score_industry,
     "product_qa": _score_product_qa,
     "feature_qa": _score_feature_qa,
 }
@@ -368,14 +386,58 @@ def search_knowledge_semantic(query: str, top_k: int = 3) -> list[dict]:
     ]
 
 
+# ── Phase 3: live web search (Tavily) for long-tail questions ──────────
+
+def search_knowledge_web(query: str, top_k: int = 3) -> list[dict]:
+    """Tavily web search as a last-resort RAG source. Requires TAVILY_API_KEY.
+    Results come back as `{type: 'web_search', data: {title, url, content}}`
+    so the downstream CoT prompt can cite them with low confidence."""
+    api_key = os.environ.get("TAVILY_API_KEY")
+    if not api_key or not query:
+        return []
+    try:
+        from tavily import TavilyClient  # type: ignore
+    except ImportError:
+        return []
+    try:
+        client = TavilyClient(api_key=api_key)
+        resp = client.search(
+            query=query,
+            max_results=top_k,
+            search_depth="basic",
+        )
+    except Exception:
+        return []
+    hits: list[dict] = []
+    for r in (resp.get("results") or [])[:top_k]:
+        hits.append({
+            "type": "web_search",
+            "data": {
+                "title": r.get("title") or "",
+                "url": r.get("url") or "",
+                "content": (r.get("content") or "")[:500],
+            },
+        })
+    return hits
+
+
 def search_knowledge(query: str, top_k: int = 3) -> list[dict]:
-    """Phase 1 keyword → Phase 2 embedding fallback. Each entry is
-    `{"type": <source>, "data": <full entry>}` with an optional
-    `similarity` field when the result came from Phase 2."""
+    """Three-stage cascade:
+      Phase 1 keyword scorer (fast, deterministic, free)
+      Phase 2 OpenAI embeddings (semantic, covers paraphrases)
+      Phase 3 Tavily web search (long-tail / current events / unknown domains)
+    Each result is `{"type": <source>, "data": <entry>}`; Phase 2 adds
+    `similarity`, Phase 3 uses `type='web_search'`."""
     hits = _keyword_search(query, top_k)
     if hits:
         return hits
     try:
-        return search_knowledge_semantic(query, top_k)
+        sem = search_knowledge_semantic(query, top_k)
+        if sem:
+            return sem
+    except Exception:
+        pass
+    try:
+        return search_knowledge_web(query, top_k)
     except Exception:
         return []

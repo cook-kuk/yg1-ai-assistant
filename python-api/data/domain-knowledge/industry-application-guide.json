@@ -1,0 +1,151 @@
+[
+  {
+    "industry": "Aerospace",
+    "aliases": ["항공", "항공우주", "항공기", "aerospace", "aviation"],
+    "typical_materials": ["Ti6Al4V", "Inconel 718", "Inconel 625", "Al 7075", "CFRP"],
+    "iso_groups": ["S", "N", "O"],
+    "recommended_subtypes": ["Ball", "Corner Radius", "Roughing"],
+    "recommended_coatings": ["AlTiN", "AlCrN", "DLC", "TiAlN"],
+    "preferred_series": ["TitaNox-Power", "ALU-POWER HPC", "I-DREAM"],
+    "key_considerations": [
+      "고경도 열간강 + 복합재 혼합 — 열안정성 높은 코팅 필수",
+      "CFRP는 DLC 또는 Diamond 코팅 권장 (마찰 최소화)",
+      "Ti 합금은 저속·고이송(Fz↑, Vc↓) 전략",
+      "스크랩률 민감 — 진동 억제 위해 부등분할 날수 선호"
+    ],
+    "common_operations": ["Pocketing", "Profiling", "Slotting"],
+    "description": "항공용 공구는 초내열합금(S)과 CFRP(O) 가공 비중이 높아 내열/내마모 코팅과 진동 억제 날 설계가 핵심입니다."
+  },
+  {
+    "industry": "Automotive",
+    "aliases": ["자동차", "차량", "automotive", "auto", "car"],
+    "typical_materials": ["S45C", "SCM440", "FCD", "Al 6061", "주조합금"],
+    "iso_groups": ["P", "K", "N"],
+    "recommended_subtypes": ["Square", "Ball", "Corner Radius"],
+    "recommended_coatings": ["TiAlN", "AlCrN", "TiCN"],
+    "preferred_series": ["V7 PLUS", "X-POWER", "3S MILL"],
+    "key_considerations": [
+      "대량생산 — 공구 수명(분당 피드)이 최우선",
+      "주철(K그룹) 가공 비율 높음 — 고경도 코팅 선호",
+      "알루미늄 휠·바디는 Al-POWER 계열",
+      "대량 로트에서는 TiAlN/AlCrN이 내구성에 유리"
+    ],
+    "common_operations": ["Facing", "Drilling", "Milling", "Tapping"],
+    "description": "자동차 부품은 탄소강(P)·주철(K)·알루미늄(N) 혼합. 범용 고수명 공구 선호."
+  },
+  {
+    "industry": "Medical",
+    "aliases": ["의료", "메디컬", "임플란트", "medical", "surgical"],
+    "typical_materials": ["Ti6Al4V", "SUS316L", "CoCr", "PEEK", "UHMWPE"],
+    "iso_groups": ["S", "M", "O"],
+    "recommended_subtypes": ["Ball", "Corner Radius", "Chamfer"],
+    "recommended_coatings": ["DLC", "AlTiN", "AlCrN"],
+    "preferred_series": ["TitaNox-Power", "CRX S"],
+    "key_considerations": [
+      "표면조도 요구 높음 — 정밀 볼/라디우스 엔드밀",
+      "Ti 합금+SUS316L 혼합 — 내열 코팅 필수",
+      "세정·살균 공정 — 공구 날 품질이 부적합률에 직결",
+      "소구경 다날 공구 비중 높음"
+    ],
+    "common_operations": ["Finishing", "Profiling", "Slotting"],
+    "description": "의료기기·임플란트는 정밀 표면 마감이 절대 조건. Ti/SUS316L 가공에 최적화된 공구군 선택."
+  },
+  {
+    "industry": "Mold & Die",
+    "aliases": ["금형", "다이캐스팅", "프레스금형", "mold", "die"],
+    "typical_materials": ["NAK80", "STAVAX", "SKD11", "SKD61", "P20", "HPM"],
+    "iso_groups": ["H", "P"],
+    "recommended_subtypes": ["Ball", "Corner Radius", "Taper"],
+    "recommended_coatings": ["AlCrN", "AlTiN", "TiAlN"],
+    "preferred_series": ["X-POWER", "3S MILL", "CRX S"],
+    "key_considerations": [
+      "고경도강(H그룹, HRC45+) 중심 — 내마모 코팅 필수",
+      "등고선 가공 많음 — 볼/라디우스 엔드밀 비중 높음",
+      "표면조도와 공구 흔적 최소화 — 정밀도 우선",
+      "대형 다이캐스팅은 Roughing 엔드밀 병행"
+    ],
+    "common_operations": ["Profiling", "Pocketing", "Die-Sinking"],
+    "description": "금형 가공은 HRC45 이상 경화강 중심. 볼/라디우스 + AlCrN·AlTiN 조합이 표준."
+  },
+  {
+    "industry": "Energy",
+    "aliases": ["에너지", "발전", "풍력", "터빈", "energy", "wind", "turbine"],
+    "typical_materials": ["Inconel", "Stainless Steel", "저합금강"],
+    "iso_groups": ["S", "M", "P"],
+    "recommended_subtypes": ["Corner Radius", "Roughing"],
+    "recommended_coatings": ["AlTiN", "AlCrN"],
+    "preferred_series": ["TitaNox-Power", "V7 PLUS"],
+    "key_considerations": [
+      "대형 부품 가공 — 공구 강성과 돌출 길이 트레이드오프",
+      "Inconel 블레이드는 저속·고이송 + AlTiN",
+      "긴 사이클 — 공구 수명이 총 가공시간에 직결"
+    ],
+    "common_operations": ["Roughing", "Finishing", "Profiling"],
+    "description": "발전/에너지 분야는 대형 내열합금 부품 가공. 공구 수명과 강성이 핵심."
+  },
+  {
+    "industry": "General Machinery",
+    "aliases": ["일반기계", "범용기계", "machinery", "general"],
+    "typical_materials": ["S45C", "SCM415", "FCD", "SS400"],
+    "iso_groups": ["P", "K"],
+    "recommended_subtypes": ["Square", "Ball", "Corner Radius"],
+    "recommended_coatings": ["TiAlN", "AlCrN"],
+    "preferred_series": ["V7 PLUS", "3S MILL"],
+    "key_considerations": [
+      "범용 가공 — 무난한 성능/가성비 조합 선호",
+      "다품종 소량 — 공구 교체 빈도 높음",
+      "TiAlN은 대부분의 강 가공에 무난"
+    ],
+    "common_operations": ["Milling", "Drilling", "Tapping"],
+    "description": "범용 기계가공. 일반 구조강·주철 중심으로 표준 공구 라인업 사용."
+  },
+  {
+    "industry": "Electronics",
+    "aliases": ["전자", "반도체", "electronics", "semiconductor", "pcb"],
+    "typical_materials": ["Al 알로이", "Cu", "그라파이트", "FR4", "PCB"],
+    "iso_groups": ["N", "O"],
+    "recommended_subtypes": ["Square", "Ball", "Drill"],
+    "recommended_coatings": ["DLC", "Diamond", "Uncoated"],
+    "preferred_series": ["ALU-POWER", "ALU-POWER HPC", "D-POWER GRAPHITE"],
+    "key_considerations": [
+      "소구경(<3mm) 초정밀 가공 많음",
+      "그라파이트는 Diamond 코팅 필수 (Al2O3 금지)",
+      "PCB/FR4는 마이크로 드릴 + 다이아몬드 코팅",
+      "열 발생이 낮아야 — 고회전·저이송"
+    ],
+    "common_operations": ["Drilling", "Engraving", "Profiling"],
+    "description": "전자·반도체는 비철·복합재 소구경 정밀 가공이 주력. Diamond/DLC 코팅 비중 높음."
+  },
+  {
+    "industry": "Oil & Gas",
+    "aliases": ["오일가스", "석유", "가스", "oil", "gas", "petroleum"],
+    "typical_materials": ["Super Duplex", "Inconel 625", "17-4PH", "저합금강"],
+    "iso_groups": ["M", "S", "P"],
+    "recommended_subtypes": ["Corner Radius", "Roughing"],
+    "recommended_coatings": ["AlTiN", "AlCrN", "TiAlN"],
+    "preferred_series": ["TitaNox-Power", "V7 PLUS A"],
+    "key_considerations": [
+      "Super Duplex/17-4PH 등 내식성 합금 — 열안정 코팅 필수",
+      "대형 부품·장시간 가공 — 공구 수명 우선",
+      "해양 환경 부식 대비 — 표면 품질 중요"
+    ],
+    "common_operations": ["Roughing", "Profiling", "Drilling"],
+    "description": "오일·가스는 내식성 합금 대형 부품 가공. 내열·내마모 코팅 필수."
+  },
+  {
+    "industry": "Marine",
+    "aliases": ["조선", "선박", "marine", "ship", "naval"],
+    "typical_materials": ["선박용 강판", "알루미늄 합금", "Cu-Ni 합금"],
+    "iso_groups": ["P", "N"],
+    "recommended_subtypes": ["Square", "Roughing"],
+    "recommended_coatings": ["TiAlN", "AlCrN"],
+    "preferred_series": ["3S MILL", "V7 PLUS"],
+    "key_considerations": [
+      "대형 판재 가공 — 긴 절삭 길이, 공구 수명 우선",
+      "Cu-Ni 합금 가공은 알루미늄 계열 코팅 선호",
+      "용접부 절단·마감 가공 비중 큼"
+    ],
+    "common_operations": ["Milling", "Drilling", "Roughing"],
+    "description": "조선·해양 구조물은 대형 강판·Al합금 가공. 긴 사이클에 맞는 고수명 공구."
+  }
+]
