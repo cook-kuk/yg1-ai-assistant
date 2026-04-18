@@ -271,6 +271,19 @@ def _build_material_lookup() -> dict[str, str]:
     return _MATERIAL_LOOKUP
 
 
+# Industry slang / Konglish shortcuts. Resolved before the CSV lookup so
+# "스뎅 가공" hits M instantly without the regex dance. Keep the terms pure
+# Korean / konglish — English aliases are already covered by the CSV file.
+_MATERIAL_SLANG: dict[str, str] = {
+    "스뎅": "M", "스댕": "M", "스텡": "M", "스텐": "M", "서스": "M",
+    "에스유에스": "M", "수스": "M", "스텐레스": "M",
+    "알미늄": "N", "두랄루민": "N", "놋쇠": "N",
+    "인코": "S", "하스텔로이": "S",
+    "초경강": "H", "열처리강": "H", "금형강": "H",
+    "주물": "K", "회주철": "K", "덕타일": "K",
+}
+
+
 def _pre_resolve_material(message: str) -> str | None:
     """Fast dict-based material-code lookup. Scans the message for any known
     national-standard code (JIS/DIN/AISI/SS/GB/Material_No) and returns the
@@ -280,6 +293,12 @@ def _pre_resolve_material(message: str) -> str | None:
     job, and national codes stay Python's job."""
     if not message:
         return None
+    # Industry slang first — cheap O(1) per term, covers the "스뎅/서스/알미늄"
+    # shortcuts that the CSV-normalized lookup can't see.
+    msg_lc = message.lower()
+    for term, iso in _MATERIAL_SLANG.items():
+        if term in msg_lc:
+            return iso
     lookup = _build_material_lookup()
     if not lookup:
         return None

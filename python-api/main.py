@@ -1,5 +1,6 @@
 import asyncio
 import json as _json
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
@@ -40,6 +41,7 @@ from product_index import (
 )
 from session import get_or_create as session_get_or_create, add_turn, carry_forward_intent
 from scheduler import scheduler
+from cutting import get_cutting_conditions, get_conditions_for_products
 
 app = FastAPI(title="cook-forge python-api", version="0.1.0")
 
@@ -65,6 +67,21 @@ async def _start_scheduler() -> None:
 def pipeline_status() -> dict:
     """Introspection endpoint — last-run epoch and status tag per job."""
     return scheduler.status()
+
+
+@app.get("/cutting-conditions")
+def cutting_conditions_api(
+    brand: Optional[str] = None,
+    series: Optional[str] = None,
+    iso: Optional[str] = None,
+    workpiece: Optional[str] = None,
+    limit: int = 20,
+) -> list[dict]:
+    """Browse the cutting-condition chart (Vc / Fz / RPM / Feed / Ap / Ae)
+    filtered by any of brand / series / ISO group / workpiece name."""
+    return get_cutting_conditions(
+        brand=brand, series=series, iso=iso, workpiece=workpiece, limit=limit,
+    )
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -314,9 +331,17 @@ def products(req: ProductsRequest) -> ProductsResponse:
 
     ranked = rank_candidates(rows, intent, top_k=len(rows) or 1)
 
-    # 3. Build response product lists.
+    # 3. Build response product lists. Cutting conditions are pulled in a
+    #    single bulk call so each ProductCard ships with its recommended
+    #    Vc/Fz/RPM rows without the UI needing a second round-trip.
+    top10_raw = [c for c, _, _ in ranked[:10]]
+    try:
+        conditions_map = get_conditions_for_products(top10_raw, iso=intent.material_tag)
+    except Exception:
+        conditions_map = {}
     top10: list[ProductCard] = []
     for c, s, b in ranked[:10]:
+        edp = str(c.get("edp_no") or "")
         top10.append(ProductCard(
             edp_no=c["edp_no"],
             brand=c.get("brand"),
@@ -334,6 +359,7 @@ def products(req: ProductsRequest) -> ProductsResponse:
             helix_angle=c.get("milling_helix_angle"),
             coolant_hole=c.get("milling_coolant_hole"),
             shank_type=c.get("search_shank_type"),
+            cutting_conditions=conditions_map.get(edp) or None,
             score=s,
             score_breakdown=b,
         ))

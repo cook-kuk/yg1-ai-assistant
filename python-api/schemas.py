@@ -126,6 +126,7 @@ class ProductCard(BaseModel):
     helix_angle: Optional[str] = None
     coolant_hole: Optional[str] = None
     shank_type: Optional[str] = None
+    cutting_conditions: Optional[List[Dict[str, Any]]] = None
     score: float
     score_breakdown: Dict[str, float]
 

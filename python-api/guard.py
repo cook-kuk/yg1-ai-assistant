@@ -107,6 +107,28 @@ def refresh_cache() -> None:
     _cache["brands"] = None
     _cache["series"] = None
     _cache["loaded_at"] = 0.0
+    _cache["edps"] = None
+
+
+def _get_valid_edps() -> set[str]:
+    """Whitelist of every EDP number currently in the in-memory index.
+    Any SKU-shaped token in an LLM answer that isn't in this set (and isn't
+    SAFE_WORDS / a known brand / series) gets scrubbed.
+
+    Cached alongside brand/series with the same TTL. If product_index is
+    unavailable the set is empty and we fall back to the older
+    brand+series check."""
+    cached = _cache.get("edps")
+    if isinstance(cached, set):
+        return cached
+    try:
+        from product_index import load_index
+        index = load_index()
+        edps = {str(p["edp_no"]).upper() for p in index if p.get("edp_no")}
+    except Exception:
+        edps = set()
+    _cache["edps"] = edps
+    return edps
 
 
 def set_known(brands: set[str], series: set[str]) -> None:
@@ -126,6 +148,9 @@ def _is_safe(
     if up in SAFE_WORDS:
         return True
     if up in brands or up in series or up in extra:
+        return True
+    # EDP whitelist — every catalog product number is authoritative.
+    if up in _get_valid_edps():
         return True
     # Substring match — DB brand/series values often include spaces or
     # subscripts (e.g. "V7 MILL-INOX") that the LLM drops, so we also

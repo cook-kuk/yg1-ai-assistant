@@ -22,6 +22,31 @@ _DEFAULT_DIAMETER_TOLERANCE = 0.10   # ±10%, matches search_products heuristic
 
 _NUMERIC_RE = re.compile(r"^-?\d+(?:\.\d+)?$")
 
+# Coatings in the MV are stored as composite strings ("TiCN+Al2O3+TiN",
+# "AlCrN/TiN"). The user usually asks for one layer ("TiCN"), so split on
+# +, /, -, whitespace and test for token subset inclusion.
+_COATING_SPLIT = re.compile(r"[+/\-\s]+")
+
+
+def _tokenize_coating(s: Any) -> set[str]:
+    if not s:
+        return set()
+    return {t.strip().lower() for t in _COATING_SPLIT.split(str(s)) if t.strip()}
+
+
+def _coating_match(db_coat: Any, filter_coat: Any) -> bool:
+    """True when the user's coating is a token-level subset of the row's
+    coating composite. Handles both exact layer names and partial tokens
+    (e.g. "TiN" matches "TiCN" by substring within the token)."""
+    db_tokens = _tokenize_coating(db_coat)
+    filter_tokens = _tokenize_coating(filter_coat)
+    if not db_tokens or not filter_tokens:
+        return False
+    if filter_tokens.issubset(db_tokens):
+        return True
+    # Last-resort substring — covers "TiN" asked against "TiAlN".
+    return any(ft in dt for ft in filter_tokens for dt in db_tokens)
+
 
 def _to_float(v: Any) -> Optional[float]:
     if v is None:
@@ -132,12 +157,16 @@ def _matches(p: dict, f: dict) -> bool:
         if mat not in tags:
             return False
 
-    # ILIKE-equivalent substring filters
+    # coating uses token-level subset match since DB stores composites.
+    v = f.get("coating")
+    if v and not _coating_match(p.get("coating"), v):
+        return False
+
+    # ILIKE-equivalent substring filters for the rest.
     for (key, col) in [
         ("tool_type", "tool_type"),
         ("subtype", "subtype"),
         ("brand", "brand"),
-        ("coating", "coating"),
         ("shank_type", "search_shank_type"),
         ("machining_category", "tool_type"),
         ("application_shape", "series_application_shape"),
