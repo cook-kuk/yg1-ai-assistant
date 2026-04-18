@@ -1,0 +1,459 @@
+{
+  "coatings": [
+    {
+      "coating": "TiN",
+      "url": "https://www.oerlikon.com/balzers/us/en/portfolio/balzers-surface-solutions/pvd-and-pacvd-based-coating-solutions/balinit/tin-based/balinit-b/",
+      "name": "Oerlikon Balzers BALINIT A/B"
+    },
+    {
+      "coating": "TiN",
+      "url": "https://en.wikipedia.org/wiki/Titanium_nitride",
+      "name": "Wikipedia - Titanium nitride"
+    },
+    {
+      "coating": "TiCN",
+      "url": "https://www.calicocoatings.com/coating-data-sheets/titanium-carbo-nitride-pvd-coating/",
+      "name": "Calico Coatings TiCN"
+    },
+    {
+      "coating": "TiCN",
+      "url": "https://brycoat.com/surface-engineering/brycoat-pvd-coating-solutions/brycoat-titanium-carbonitride-ticn-coatings/",
+      "name": "BryCoat TiCN"
+    },
+    {
+      "coating": "TiCN",
+      "url": "https://www.eifeler.com/northamerica/en/pvd-coatings/ticn/",
+      "name": "voestalpine eifeler TiCN"
+    },
+    {
+      "coating": "TiAlN",
+      "url": "https://www.oerlikon.com/balzers/in/en/portfolio/balzers-surface-solutions/pvd-and-pacvd-based-coating-solutions/balinit/tialn-based/",
+      "name": "Oerlikon Balzers BALINIT FUTURA NANO"
+    },
+    {
+      "coating": "TiAlN",
+      "url": "https://www.ionbond.com/coatings/maximizer-plus/",
+      "name": "IonBond Maximizer Plus"
+    },
+    {
+      "coating": "TiAlN",
+      "url": "https://www.materialsciencejournal.org/vol17no2/an-insight-into-tin-tialn-and-altin-hard-coatings-for-cutting-tools/",
+      "name": "Material Science Research India - TiN/TiAlN/AlTiN"
+    },
+    {
+      "coating": "AlTiN",
+      "url": "https://www.calicocoatings.com/coating-data-sheets/aluminum-titanium-nitride-pvd-altin-coating/",
+      "name": "Calico AlTiN datasheet"
+    },
+    {
+      "coating": "AlTiN",
+      "url": "https://brycoat.com/surface-engineering/brycoat-pvd-coating-solutions/brycoat-aluminum-titanium-nitride-altin-or-tialn-coatings/",
+      "name": "BryCoat AlTiN"
+    },
+    {
+      "coating": "AlTiN",
+      "url": "https://en.wikipedia.org/wiki/Titanium_aluminium_nitride",
+      "name": "Wikipedia TiAlN/AlTiN"
+    },
+    {
+      "coating": "AlCrN",
+      "url": "https://www.oerlikon.com/balzers/global/en/portfolio/balzers-surface-solutions/pvd-and-pacvd-based-coating-solutions/balinit/alcrn-based/balinit-alcrona-evo/",
+      "name": "Oerlikon Balzers BALINIT ALCRONA EVO"
+    },
+    {
+      "coating": "AlCrN",
+      "url": "https://gearsolutions.com/features/alcrn-based-hard-coatings-on-modern-carbide-tools/",
+      "name": "Gear Solutions - AlCrN on carbide"
+    },
+    {
+      "coating": "TiSiN",
+      "url": "https://www.sciencedirect.com/science/article/abs/pii/S0257897217304036",
+      "name": "ScienceDirect TiSiN thermal stability"
+    },
+    {
+      "coating": "TiSiN",
+      "url": "https://www.sciencedirect.com/science/article/abs/pii/S0257897206002660",
+      "name": "ScienceDirect TiSiN AP/FBR-CVD"
+    },
+    {
+      "coating": "nACo",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12073052/",
+      "name": "PMC - nACo PVD Tool Wear 316L"
+    },
+    {
+      "coating": "nACo",
+      "url": "https://www.sciencedirect.com/science/article/abs/pii/S0257897213008669",
+      "name": "ScienceDirect nc-AlTiN/a-Si3N4"
+    },
+    {
+      "coating": "CrN",
+      "url": "https://www.calicocoatings.com/coating-data-sheets/chromium-nitride-pvd-crn-coating/",
+      "name": "Calico CrN datasheet"
+    },
+    {
+      "coating": "CrN",
+      "url": "https://brycoat.com/surface-engineering/brycoat-pvd-coating-solutions/chromium-nitride-crn-pvd-coating/",
+      "name": "BryCoat CrN"
+    },
+    {
+      "coating": "ZrN",
+      "url": "https://www.eifeler.com/northamerica/en/pvd-coatings/zrn/",
+      "name": "voestalpine eifeler ZrN"
+    },
+    {
+      "coating": "ZrN",
+      "url": "https://en.wikipedia.org/wiki/Zirconium_nitride",
+      "name": "Wikipedia Zirconium nitride"
+    },
+    {
+      "coating": "DLC",
+      "url": "https://www.oerlikon.com/balzers/us/en/portfolio/balzers-surface-solutions/pvd-and-pacvd-based-coating-solutions/balinit/dlc-coatings-and-other-carbon-based-coatings/",
+      "name": "Oerlikon Balzers DLC"
+    },
+    {
+      "coating": "DLC",
+      "url": "https://en.wikipedia.org/wiki/Diamond-like_carbon",
+      "name": "Wikipedia DLC"
+    },
+    {
+      "coating": "DLC",
+      "url": "https://www.ist.fraunhofer.de/content/dam/ist/en/documents/produktblatt/Sheet_Diamond-like-Carbon_Coatings_DLC.pdf",
+      "name": "Fraunhofer IST DLC datasheet"
+    },
+    {
+      "coating": "Diamond CVD",
+      "url": "https://americanmoldbuilder.com/articles/2017/basics-of-cvd-diamond-coated-cutting-tools/",
+      "name": "American Mold Builder - CVD Diamond"
+    },
+    {
+      "coating": "Diamond CVD",
+      "url": "https://nationaldiamondtool.com/cvd-diamond-coating/",
+      "name": "National Diamond Tool"
+    },
+    {
+      "coating": "TiB2",
+      "url": "https://www.harveyperformance.com/in-the-loupe/tib2-coating/",
+      "name": "Harvey Performance TiB2"
+    },
+    {
+      "coating": "TiB2",
+      "url": "https://www.kyocera-hardcoating.com/htb-silver/",
+      "name": "Kyocera HTB TiB2 Silver"
+    },
+    {
+      "coating": "AlCrSiN",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7074613/",
+      "name": "PMC AlCrSiN tool life"
+    },
+    {
+      "coating": "AlCrSiN",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9741020/",
+      "name": "PMC AlCrSiN/AlTiSiN mechanical after thermal"
+    }
+  ],
+  "iso": [
+    {
+      "standard": "ISO 513",
+      "url": "https://www.machiningdoctor.com/glossary/material-groups-in-machining/",
+      "name": "Machining Doctor - ISO Material Groups in Machining"
+    },
+    {
+      "standard": "ISO 513",
+      "url": "https://www.cobanengineering.com/Metal-Cutting-Technology/Work_Parts_Material-3.asp",
+      "name": "Coban Engineering - Material Group DIN/ISO 513 and VDI 3323"
+    },
+    {
+      "standard": "ISO 513",
+      "url": "https://cdn.standards.iteh.ai/samples/59932/d271ad516f744c8ca6782f6b4772bf87/ISO-513-2012.pdf",
+      "name": "ISO 513:2012 sample PDF"
+    },
+    {
+      "standard": "ISO 1832",
+      "url": "https://www.carbidedepot.com/formulas-insert-d.htm",
+      "name": "Carbide Depot - Insert Designation Chart"
+    },
+    {
+      "standard": "ISO 1832",
+      "url": "https://cdn.standards.iteh.ai/samples/69202/2c2fc914eec64de0a093ca7175749223/ISO-1832-2017.pdf",
+      "name": "ISO 1832:2017 sample PDF"
+    },
+    {
+      "standard": "ISO 1832",
+      "url": "https://ctemag.com/articles/understanding-identification-system-indexable-inserts/",
+      "name": "CTE Magazine - Understanding Identification System for Indexable Inserts"
+    },
+    {
+      "standard": "ISO 1832",
+      "url": "https://www.machiningdoctor.com/isoturn/",
+      "name": "Machining Doctor - ISO Turning Inserts Nomenclature"
+    },
+    {
+      "standard": "VDI 3323",
+      "url": "https://www.vdi.de/en/home/vdi-standards/details/vdi-3323-applicability-of-hard-cutting-materials-for-metal-cutting-processes",
+      "name": "VDI 3323 - Applicability of Hard Cutting Materials"
+    },
+    {
+      "standard": "VDI 3323",
+      "url": "https://www.machiningdoctor.com/charts/vdi-3323-material-groups/",
+      "name": "Machining Doctor - VDI 3323 Material Groups"
+    }
+  ],
+  "operations": [
+    {
+      "operation": "pocket milling",
+      "name": "Harvey Performance - Most Common Methods of Tool Entry",
+      "url": "https://www.harveyperformance.com/in-the-loupe/types-tool-entry/",
+      "raw_file": "data/domain-knowledge/raw/operation-pocket-milling.md"
+    },
+    {
+      "operation": "side milling / profiling",
+      "name": "Harvey Performance - Diving Into the Depth of Cut",
+      "url": "https://www.harveyperformance.com/in-the-loupe/depth-of-cut/",
+      "raw_file": "data/domain-knowledge/raw/operation-side-milling.md"
+    },
+    {
+      "operation": "slotting / full slot",
+      "name": "Harvey Performance - Successful Slotting",
+      "url": "https://www.harveyperformance.com/in-the-loupe/successful-slotting-with-miniature-cutting-tools/",
+      "raw_file": "data/domain-knowledge/raw/operation-slotting.md"
+    },
+    {
+      "operation": "3D contouring (ball nose)",
+      "name": "Helical Solutions - Contour Finishers 4-Flute Ball Tapered Neck",
+      "url": "https://www.helicaltool.com/products/contour-finishers-4-flute-ball-tapered-neck",
+      "raw_file": "data/domain-knowledge/raw/operation-3d-contouring.md"
+    },
+    {
+      "operation": "face milling",
+      "name": "Sandvik Coromant - Face milling",
+      "url": "https://www.sandvik.coromant.com/en-us/knowledge/milling/face-milling",
+      "raw_file": "data/domain-knowledge/raw/operation-face-milling.md"
+    },
+    {
+      "operation": "ramping / helical entry",
+      "name": "Harvey Performance - Ramping to Success",
+      "url": "https://www.harveyperformance.com/in-the-loupe/ramping-success/",
+      "raw_file": "data/domain-knowledge/raw/operation-ramping.md"
+    },
+    {
+      "operation": "thread milling",
+      "name": "Kennametal - Thread Milling",
+      "url": "https://www.kennametal.com/us/en/products/metalworking-tools/threading/thread-milling.html",
+      "raw_file": "data/domain-knowledge/raw/operation-thread-milling.md"
+    },
+    {
+      "operation": "chamfering / deburring",
+      "name": "Harvey Performance - Multiple Uses of a Chamfer Mill",
+      "url": "https://www.harveyperformance.com/in-the-loupe/multiple-uses-chamfer-mill/",
+      "raw_file": "data/domain-knowledge/raw/operation-chamfer-deburr.md"
+    },
+    {
+      "operation": "plunge milling",
+      "name": "Harvey Performance - Plunge & Pocket Milling in 4140",
+      "url": "https://www.harveyperformance.com/in-the-loupe/plunge-and-pocket-milling-in-4140-steel-with-helicals-combination-feed-hem-mill/",
+      "raw_file": "data/domain-knowledge/raw/operation-plunge-milling.md"
+    },
+    {
+      "operation": "hole making / drilling",
+      "name": "Sandvik Coromant - Drilling formulas",
+      "url": "https://www.sandvik.coromant.com/en-us/knowledge/machining-formulas-definitions/pages/drilling.aspx",
+      "raw_file": "data/domain-knowledge/raw/operation-drilling.md"
+    },
+    {
+      "operation": "reaming",
+      "name": "Sandvik Coromant - Troubleshooting for reaming",
+      "url": "https://www.sandvik.coromant.com/en-us/knowledge/reaming/troubleshooting-reaming",
+      "raw_file": "data/domain-knowledge/raw/operation-reaming.md"
+    },
+    {
+      "operation": "thread tapping",
+      "name": "Sandvik Coromant - Tapping",
+      "url": "https://www.sandvik.coromant.com/en-us/knowledge/threading/tapping",
+      "raw_file": "data/domain-knowledge/raw/operation-tapping.md"
+    }
+  ],
+  "materials": [
+    {
+      "name": "MatWeb",
+      "url": "https://www.matweb.com",
+      "note": "Primary aggregator for UTS, HB, thermal conductivity"
+    },
+    {
+      "name": "MatWeb AISI 1045",
+      "url": "https://asia.matweb.com/search/specificmaterialtext.asp?bassnum=m1045e"
+    },
+    {
+      "name": "MatWeb AISI 304",
+      "url": "https://asm.matweb.com/search/specificmaterial.asp?bassnum=mq304a"
+    },
+    {
+      "name": "MatWeb AISI 316",
+      "url": "https://asm.matweb.com/search/specificmaterial.asp?bassnum=mq316a"
+    },
+    {
+      "name": "MatWeb 440C",
+      "url": "https://www.matweb.com/search/datasheet.aspx?matguid=850c5024f8d844af8ef95afab1a08792"
+    },
+    {
+      "name": "MatWeb JIS S45C Normalized",
+      "url": "https://asia.matweb.com/search/SpecificMaterialText.asp?bassnum=MSJ45Ca"
+    },
+    {
+      "name": "Special Metals Inconel 718",
+      "url": "https://www.specialmetals.com/documents/technical-bulletins/inconel/inconel-alloy-718.pdf"
+    },
+    {
+      "name": "Haynes International Hastelloy",
+      "url": "https://www.haynesintl.com"
+    },
+    {
+      "name": "AZoM Inconel 718",
+      "url": "https://www.azom.com/article.aspx?ArticleID=4459"
+    },
+    {
+      "name": "MeadInfo S45C",
+      "url": "https://www.meadinfo.org/2010/03/s45c-jis-mechanical-properties.html"
+    },
+    {
+      "name": "Machinerys Handbook 30th ed.",
+      "url": "https://industrialpress.com",
+      "note": "Machinability ratings (AISI 1212=100 base)"
+    }
+  ],
+  "troubleshooting": [
+    {
+      "url": "https://www.sandvik.coromant.com/en-us/knowledge/milling/troubleshooting-milling",
+      "name": "Sandvik Coromant - Milling Troubleshooting",
+      "topics": [
+        "chatter",
+        "chip control",
+        "burr",
+        "surface finish",
+        "edge chipping",
+        "scaling"
+      ]
+    },
+    {
+      "url": "https://www.sandvik.coromant.com/en-us/knowledge/general-turning/troubleshooting-turning",
+      "name": "Sandvik Coromant - Turning Troubleshooting",
+      "topics": [
+        "thermal drift",
+        "insert wear"
+      ]
+    },
+    {
+      "url": "https://www.sandvik.coromant.com/en-us/knowledge/threading/thread-milling/troubleshooting-thread-milling",
+      "name": "Sandvik Coromant - Thread Milling Troubleshooting",
+      "topics": [
+        "thread gauge oversize"
+      ]
+    },
+    {
+      "url": "https://www.kennametal.com/us/en/resources/technical-tips/holemaking/troubleshooting-solid-carbide-drilling0.html",
+      "name": "Kennametal - Troubleshooting Solid Carbide Drilling",
+      "topics": [
+        "hole oversize",
+        "drill walking",
+        "short life"
+      ]
+    },
+    {
+      "url": "https://www.kennametal.com/us/en/resources/technical-tips/holemaking.html",
+      "name": "Kennametal - Holemaking Tech Tips",
+      "topics": [
+        "tap breakage",
+        "misalignment"
+      ]
+    },
+    {
+      "url": "https://www.kennametal.com/us/en/resources/blog/metal-cutting/reaming-tool-basics.html",
+      "name": "Kennametal - Reaming Tool Basics (Tech Tip #40)",
+      "topics": [
+        "reamer chatter",
+        "reamer wear"
+      ]
+    },
+    {
+      "url": "https://www.harveyperformance.com/in-the-loupe/troubleshooting-tips/",
+      "name": "Harvey Performance - In The Loupe Troubleshooting",
+      "topics": [
+        "tool breakage",
+        "chip packing",
+        "thin wall",
+        "BUE"
+      ]
+    },
+    {
+      "url": "https://www.harveyperformance.com/in-the-loupe/common-challenges-deep-cavity-milling/",
+      "name": "Harvey Performance - Deep Cavity Milling",
+      "topics": [
+        "deep pocket",
+        "deflection"
+      ]
+    },
+    {
+      "url": "https://www.mmsonline.com/articles/how-to-keep-coolant-clean",
+      "name": "Modern Machine Shop - Coolant Management",
+      "topics": [
+        "coolant breakdown",
+        "smell"
+      ]
+    }
+  ],
+  "knowhow": [
+    { "url": "https://www.sandvik.coromant.com/en-gb/knowledge/materials/pages/iso-m-stainless-steel.aspx", "name": "Sandvik Coromant - ISO M Stainless Steel", "credibility": "high" },
+    { "url": "https://www.kennametal.com/us/en/resources/blog/machining-titanium.html", "name": "Kennametal - Machining Titanium", "credibility": "high" },
+    { "url": "https://www.harveyperformance.com/the-loop/aluminum-machining/", "name": "Harvey Performance - Aluminum Machining", "credibility": "high" },
+    { "url": "https://www.sandvik.coromant.com/en-gb/knowledge/materials/pages/hrsa.aspx", "name": "Sandvik Coromant - HRSA / ISO S (Inconel)", "credibility": "high" },
+    { "url": "https://www.mmsonline.com/articles/hard-milling-by-the-numbers", "name": "Modern Machine Shop - Hard Milling by the Numbers", "credibility": "high" },
+    { "url": "https://www.harveyperformance.com/the-loop/ramping-toolpath-strategy/", "name": "Harvey Performance - Ramping / Helical Entry", "credibility": "high" },
+    { "url": "https://www.harveyperformance.com/the-loop/thin-wall-milling/", "name": "Harvey Performance - Thin Wall Milling", "credibility": "high" },
+    { "url": "https://www.harveyperformance.com/the-loop/long-reach-long-flute/", "name": "Harvey Performance - Long Reach vs Long Flute", "credibility": "high" },
+    { "url": "https://www.kennametal.com/us/en/resources/blog/dynamic-milling.html", "name": "Kennametal - Dynamic / Trochoidal Milling", "credibility": "high" },
+    { "url": "https://www.sandvik.coromant.com/en-gb/knowledge/milling/pages/high-feed-milling.aspx", "name": "Sandvik Coromant - High Feed Milling", "credibility": "high" },
+    { "url": "https://www.harveyperformance.com/the-loop/slotting/", "name": "Harvey Performance - Slotting", "credibility": "high" },
+    { "url": "https://www.harveyperformance.com/the-loop/ball-nose-effective-diameter/", "name": "Harvey Performance - Ball Nose Effective Diameter", "credibility": "high" },
+    { "url": "https://www.sandvik.coromant.com/en-gb/knowledge/milling/pages/face-milling.aspx", "name": "Sandvik Coromant - Face Milling", "credibility": "high" },
+    { "url": "https://www.harveyperformance.com/the-loop/thread-milling-vs-tapping/", "name": "Harvey Performance - Thread Milling vs Tapping", "credibility": "high" },
+    { "url": "https://www.harveyperformance.com/the-loop/chamfer-mill-speeds-and-feeds/", "name": "Harvey Performance - Chamfer Mill", "credibility": "high" },
+    { "url": "https://www.sandvik.coromant.com/en-gb/knowledge/milling/pages/plunge-milling.aspx", "name": "Sandvik Coromant - Plunge Milling", "credibility": "high" },
+    { "url": "https://www.sandvik.coromant.com/en-gb/knowledge/materials/pages/iso-k-cast-iron.aspx", "name": "Sandvik Coromant - ISO K Cast Iron", "credibility": "high" },
+    { "url": "https://www.harveyperformance.com/the-loop/machining-brass-copper/", "name": "Harvey Performance - Brass & Copper", "credibility": "high" },
+    { "url": "https://www.harveyperformance.com/the-loop/machining-magnesium/", "name": "Harvey Performance - Magnesium", "credibility": "high" },
+    { "url": "https://www.harveyperformance.com/the-loop/composite-machining/", "name": "Harvey Performance - Composites / CFRP", "credibility": "high" },
+    { "url": "https://www.harveyperformance.com/the-loop/machining-plastics/", "name": "Harvey Performance - Plastics", "credibility": "high" },
+    { "url": "https://www.harveyperformance.com/the-loop/micro-machining/", "name": "Harvey Performance - Micromachining", "credibility": "high" },
+    { "url": "https://www.harveyperformance.com/the-loop/climb-vs-conventional-milling/", "name": "Harvey Performance - Climb vs Conventional", "credibility": "high" },
+    { "url": "https://www.mmsonline.com/articles/the-case-for-mql", "name": "Modern Machine Shop - The Case for MQL", "credibility": "high" },
+    { "url": "https://www.harveyperformance.com/the-loop/tool-runout/", "name": "Harvey Performance - Tool Runout", "credibility": "high" },
+    { "url": "https://www.harveyperformance.com/the-loop/reduced-shank-vs-long-reach/", "name": "Harvey Performance - Stickout / L over D", "credibility": "high" },
+    { "url": "https://www.mmsonline.com/articles/workholding-rigidity", "name": "Modern Machine Shop - Workholding Rigidity", "credibility": "medium" },
+    { "url": "https://www.harveyperformance.com/the-loop/chip-evacuation/", "name": "Harvey Performance - Chip Evacuation", "credibility": "high" },
+    { "url": "https://www.kennametal.com/us/en/resources/blog/deep-hole-drilling.html", "name": "Kennametal - Deep Hole Drilling", "credibility": "high" },
+    { "url": "https://www.sandvik.coromant.com/en-gb/knowledge/drilling/pages/reaming.aspx", "name": "Sandvik Coromant - Reaming", "credibility": "high" },
+    { "url": "https://www.mmsonline.com/articles/taming-chatter", "name": "Modern Machine Shop - Taming Chatter", "credibility": "high" },
+    { "url": "https://www.harveyperformance.com/the-loop/chip-thinning/", "name": "Harvey Performance - Chip Thinning", "credibility": "high" }
+  ],
+  "competitors": [
+    { "brand": "Sandvik Coromant", "url": "https://www.sandvik.coromant.com/en-us/tools/milling-tools/solid-carbide-end-mills/coromill-plura", "name": "Sandvik Coromant - CoroMill Plura", "raw_file": "data/domain-knowledge/raw/competitor-sandvik.md" },
+    { "brand": "Kennametal", "url": "https://www.kennametal.com/us/en/products/metalworking-tools/milling/solid-end-milling/high-performance-solid-carbide-end-mills/harvi-iii-high-performance-solid-carbide-end-mills.html", "name": "Kennametal HARVI III / HARVI I TE", "raw_file": "data/domain-knowledge/raw/competitor-kennametal.md" },
+    { "brand": "OSG", "url": "https://www.osgtool.com/pxm", "name": "OSG PHOENIX PXM / EXOCARB AERO", "raw_file": "data/domain-knowledge/raw/competitor-osg.md" },
+    { "brand": "Mitsubishi Materials", "url": "https://www.mmc-carbide.com/in/products/rotating_tools/solid_end_mills/vfr", "name": "Mitsubishi Materials Impact Miracle VFR", "raw_file": "data/domain-knowledge/raw/competitor-mitsubishi.md" },
+    { "brand": "Walter", "url": "https://www.walter-tools.com/en-us/tools/standard_products/milling/overview/shoulder_milling/protostar_n_50/pages/default.aspx", "name": "Walter Prototyp Proto-max / Protostar", "raw_file": "data/domain-knowledge/raw/competitor-walter.md" },
+    { "brand": "ISCAR", "url": "https://www.iscar.com/en-hq/products/milling/solid-carbide-endmills/chatterfree-line", "name": "ISCAR Chatterfree / Multi-Master", "raw_file": "data/domain-knowledge/raw/competitor-iscar.md" },
+    { "brand": "Seco", "url": "https://www.secotools.com/article/67271?language=en", "name": "Seco Jabro JS553 / JS554 / JC880", "raw_file": "data/domain-knowledge/raw/competitor-seco.md" },
+    { "brand": "Dormer Pramet", "url": "https://www.dormerpramet.com/cz/en/Solid-carbide-drill-optimum-productivity-and-reliable-performance", "name": "Dormer Pramet Force X / Shark Line", "raw_file": "data/domain-knowledge/raw/competitor-dormer-pramet.md" },
+    { "brand": "Guhring", "url": "https://guhring.com/ProductsServices/SeriesDetails?Series=6737", "name": "Guhring RF 100 Diver (Signum)", "raw_file": "data/domain-knowledge/raw/competitor-guhring.md" },
+    { "brand": "Nachi", "url": "https://www.nachiamerica.com/cutting-tools/products/", "name": "Nachi Aqua Drill EX / Aqua Mill Hard / AG-Mill", "raw_file": "data/domain-knowledge/raw/competitor-nachi.md" },
+    { "brand": "Kyocera", "url": "https://asia.kyocera.com/products/cuttingtools/product/milling/mfh-series/", "name": "Kyocera MFH / Unimerco Q-Series", "raw_file": "data/domain-knowledge/raw/competitor-kyocera.md" },
+    { "brand": "TaeguTec", "url": "https://www.taegutec.com/pages/wp-content/uploads/kboard_attached/11/202405/664c314958e2c5203815.pdf", "name": "TaeguTec HARD-MILL / TOP-MILL / ChaseMill", "raw_file": "data/domain-knowledge/raw/competitor-taegutec.md" },
+    { "brand": "Korloy", "url": "https://www.korloy.com/en/prdinfo/view.do?id_product=134", "name": "Korloy A+ / D Endmill / HRM / AMS", "raw_file": "data/domain-knowledge/raw/competitor-korloy.md" },
+    { "brand": "Harvey Tool", "url": "https://www.harveytool.com/", "name": "Harvey Tool Variable Helix / Mold Cutters", "raw_file": "data/domain-knowledge/raw/competitor-harvey-helical.md" },
+    { "brand": "Helical Solutions", "url": "https://www.helicaltool.com/", "name": "Helical Solutions HEM / Variable Helix", "raw_file": "data/domain-knowledge/raw/competitor-harvey-helical.md" },
+    { "brand": "Emuge", "url": "https://www.emuge-franken-group.com/us/en/threading-technology/", "name": "Emuge VHM-Rekord 1A / THREADS-ALL / BGF-Z4", "raw_file": "data/domain-knowledge/raw/competitor-emuge-ymw.md" },
+    { "brand": "YMW", "url": "https://www.emuge.com/", "name": "YMW Zelx Taps (Emuge-Franken group)", "raw_file": "data/domain-knowledge/raw/competitor-emuge-ymw.md" },
+    { "brand": "MOLDINO", "url": "http://www.moldino.com/en-US/products/endmill/epp-series/", "name": "MOLDINO Epoch TH / EPP / SUS / Micro", "raw_file": "data/domain-knowledge/raw/competitor-moldino.md" },
+    { "brand": "Ingersoll", "url": "https://www.ingersoll-imc.com/product-lines", "name": "Ingersoll Hi-QuadF / Hi-PosFeed", "raw_file": "data/domain-knowledge/raw/competitor-ingersoll-niagara.md" },
+    { "brand": "Niagara Cutter", "url": "https://www.niagaracutter.com/carbide-high-performance-index", "name": "Niagara Stabilizer 2.0 STR430/STR440", "raw_file": "data/domain-knowledge/raw/competitor-ingersoll-niagara.md" }
+  ]
+}

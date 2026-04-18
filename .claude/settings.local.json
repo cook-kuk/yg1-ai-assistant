@@ -122,7 +122,8 @@
       "Bash(git -c user.email=seungho.kuk@cornerstp.com commit -m 'fix\\(cot\\): fire onThinking from v2-bridge path so SSE '\\\\''thinking'\\\\'' actually lands:*)",
       "Bash(SSH_PASS='cornerstp1234!@#$' node scripts/ssh-deploy.mjs \"cd ~/yg1-ai-catalog-dev && git fetch --all && git reset --hard origin/main && echo 'cornerstp1234!@#\\\\$' | sudo -S docker compose up -d --build 2>&1 | tail -5; echo 'cornerstp1234!@#\\\\$' | sudo -S docker rm -f yg1-ai-catalog-app-dev 2>&1; cd ~/yg1-ai-catalog-dev && echo 'cornerstp1234!@#\\\\$' | sudo -S docker compose up -d 2>&1 | tail -5\")",
       "Bash(SSH_PASS='cornerstp1234!@#$' node scripts/ssh-deploy.mjs \"cd ~/yg1-ai-catalog-dev && echo 'cornerstp1234!@#\\\\$' | sudo -S docker compose build app 2>&1 | tail -50\")",
-      "Bash(SSH_PASS='cornerstp1234!@#$' node scripts/ssh-deploy.mjs \"echo 'cornerstp1234!@#\\\\$' | sudo -S docker rm -f yg1-ai-catalog-app-dev 2>&1; cd ~/yg1-ai-catalog-dev && echo 'cornerstp1234!@#\\\\$' | sudo -S docker compose up -d 2>&1 | tail -5\")"
+      "Bash(SSH_PASS='cornerstp1234!@#$' node scripts/ssh-deploy.mjs \"echo 'cornerstp1234!@#\\\\$' | sudo -S docker rm -f yg1-ai-catalog-app-dev 2>&1; cd ~/yg1-ai-catalog-dev && echo 'cornerstp1234!@#\\\\$' | sudo -S docker compose up -d 2>&1 | tail -5\")",
+      "Bash(git mv *)"
     ]
   }
 }

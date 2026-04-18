@@ -1,0 +1,179 @@
+﻿en,ko
+AlCrN,AlCrN
+Alloy,합금
+AlTiN,AlTiN
+Aluminum,알루미늄
+Aluminum Alloys,알루미늄 합금
+Aluminum-cast alloy,알루미늄 주조 합금
+Aluminum-wrought alloy,알루미늄 전신재 합금
+Annealed,어닐링 처리
+Ball,볼
+Ball Nose,볼노즈
+Black Oxide,흑색 산화 처리
+Blind Hole,막힌홀
+Brass,황동
+Bright Finish,브라이트(무처리)
+Bronze,청동
+C-Coating,C-Coating
+Carbide,초경
+Cast Iron,주철
+Cast Steel,주강
+CBN,CBN
+Center cutting,센터 커팅
+Cermet,서멧
+Chamfer,챔퍼
+Chilled cast iron,칠드 주철
+Chip breaking,칩 브레이킹
+Chip evacuation,칩 배출
+Coating,코팅
+Coolant,쿨런트
+Coolant Holes,쿨런트 홀
+Copper,구리
+Copper Alloys,구리 합금
+Corner Radius,코너 래디우스
+Countersink,카운터싱크
+Cutting Condition,절삭 조건
+Cutting Speed,절삭 속도(Vc)
+Depth of cut,절삭 깊이(Ap)
+Diamond Coating,다이아몬드 코팅
+DLC,DLC(다이아몬드 라이크 카본)
+Drill,드릴
+Drilling,드릴링
+Drilling Depth,드릴링 깊이
+Drills,드릴
+Dry Cut,건식 절삭
+End Mill,엔드밀
+End Mills,엔드밀
+Endmill,엔드밀
+Excellent,우수
+Extra Long,엑스트라 롱
+Feed per tooth,날당 이송(Fz)
+Feed Rate,이송 속도(Feed)
+Fiber Reinforced Plastic,섬유강화플라스틱(FRP)
+Finishing,정삭
+Flat,플랫
+Flute,날
+Flute Geometry,날 형상
+Forming,포밍(전조)
+General Purpose,범용
+Good,양호
+Graphite,흑연
+Grey cast iron,회주철
+Hardened cast iron,경화 주철
+Hardened Steel,경화강
+Hardslick Coating,Hardslick 코팅
+Heat Resistant Super Alloys,내열 초합금
+Helical,헬리컬
+Helix Angle,헬릭스각
+High alloyed steel,고합금강
+High Feed,고이송
+High Performance,고성능
+High Precision,고정밀
+High Speed,고속
+High Speed Steel,고속도강
+HSS,고속도강(HSS)
+HSS-E,코발트 고속도강(HSS-E)
+HSS-PM,분말야금 고속도강(HSS-PM)
+HSSCo8,코발트8% 고속도강
+Inconel,인코넬
+Insert,인서트
+Inserts,인서트
+Internal Cooling,내부 냉각
+ISO H,ISO H (고경도강)
+ISO K,ISO K (주철)
+ISO M,ISO M (스테인리스강)
+ISO N,ISO N (비철금속)
+ISO P,ISO P (일반강/합금강)
+ISO S,ISO S (내열합금/티타늄)
+Left hand helix,좌나선
+Long,롱
+Long Neck,롱넥
+Long Reach,롱넥
+Long tool life,긴 공구 수명
+Low alloy steel,저합금강
+Low thrust,저추력
+Machining Center,머시닝센터
+Malleable Cast Iron,가단주철
+Metric,미터
+Metric Coarse,미터 코스
+Metric Fine,미터 파인
+Milling,밀링
+Milling Cutter,밀링 커터
+Morse Taper,모스테이퍼
+Multi-Purpose,다목적
+Negative land,네거티브 랜드
+Nodular cast iron,구상흑연주철
+Non metallic materials,비금속 재료
+Non-alloy steel,비합금강
+Nonferrous metals,비철금속
+Normal point,노멀 포인트
+PCD,PCD
+Pipe Thread,관용 나사
+Plunging,플런징
+Pocketing,포켓 가공
+Point Angle,선단각
+Profiling,윤곽 가공
+Quenched & Tempered,조질 처리
+R-thinning,R-시닝
+Radius,래디우스
+Ramping,램핑 가공
+RCH-Coating,RCH-Coating
+Reamer,리머
+Reamers,리머
+Reaming,리밍
+Recommended cutting conditions,추천 절삭조건
+Regular,레귤러
+Right hand helix,우나선
+Roughing,황삭
+RPM,회전수(RPM)
+Self centering,셀프 센터링
+Short,쇼트
+Side cutting,측면 가공
+Side Milling,측면 가공
+Slotting,슬로팅
+Solid Carbide,솔리드 초경
+Spade Drill,스페이드 드릴
+Spiral,스파이럴
+Spiral Flute,스파이럴 날
+Spiral Point,스파이럴 포인트
+Split point,스플릿 포인트
+Square,스퀘어
+Stable torque,안정적 토크
+Stainless Steel,스테인리스강
+Steam Homo,스팀 호모 처리
+Steam Oxide,스팀 옥사이드 처리
+Steam Tempered,스팀 템퍼 처리
+Steel,강
+Straight Flute,직선 날
+Straight Shank,스트레이트 생크
+Stub,스텁
+Surface Roughness,표면 조도
+Surface Treatment,표면 처리
+Tap,탭
+Tapered,테이퍼
+Tapping,탭핑
+Taps,탭
+Thread Form,나사 규격
+Thread Mill,스레드밀
+Threading,나사 가공
+Through Coolant,쓰루 쿨런트
+Through Hole,관통홀
+TiAlN,TiAlN
+TiCN,TiCN
+TiN,TiN
+Titanium,티타늄
+Titanium Alloys,티타늄 합금
+Tool Life,공구 수명
+Tool steel,공구강
+Uncoated,무코팅
+Unified National Coarse,유니파이 코스(UNC)
+Unified National Fine,유니파이 파인(UNF)
+Water Soluble,수용성
+Wave shape,웨이브 형상
+Wear resistance,내마모성
+Wet Cut,습식 절삭
+Width of cut,절삭 폭(Ae)
+X-Coating,X-Coating
+XC-Coating,XC-Coating
+Y-Coating,Y-Coating
+Z-Coating,Z-Coating

@@ -94,3 +94,15 @@ test-results/cheolhyun-11-cases-*.json
 test-results/eval-20*.json
 test-results/eval-20*.txt
 test-results/hard-20-20*.json
+
+# archived/legacy
+_archive/
+lib/recommendation/shared/material-mapping.generated.ts
+
+# python-api runtime artifacts
+python-api/.venv/
+python-api/.pytest_cache/
+python-api/__pycache__/
+python-api/**/__pycache__/
+python-api/results/
+/tmp/golden_*.log

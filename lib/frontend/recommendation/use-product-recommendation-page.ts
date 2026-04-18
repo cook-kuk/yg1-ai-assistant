@@ -17,7 +17,7 @@ import {
   createInitialRecommendationRequest,
   parseRecommendationResponse,
 } from "@/lib/frontend/recommendation/recommendation-client"
-import { streamRecommendation } from "@/lib/frontend/recommendation/recommendation-stream-client"
+import { streamRecommendationMaybePython } from "@/lib/frontend/recommendation/recommendation-python-bridge"
 import type { ChatMsg, TurnFeedback } from "@/lib/frontend/recommendation/exploration-types"
 import { buildIntakePromptText } from "@/lib/frontend/recommendation/intake-flow"
 import type { AnswerState, ProductIntakeForm } from "@/lib/frontend/recommendation/intake-types"
@@ -513,7 +513,7 @@ export function useProductRecommendationPage({
       ])
       setPhase("explore")
 
-      const data = await streamRecommendation(requestPayload, {
+      const data = await streamRecommendationMaybePython(requestPayload, {
         onThinking: (text, opts) => {
           setChatMessages(prev => {
             const updated = [...prev]
@@ -654,7 +654,7 @@ export function useProductRecommendationPage({
       ])
       setPhase("explore")
 
-      const data = await streamRecommendation(requestPayload, {
+      const data = await streamRecommendationMaybePython(requestPayload, {
         onThinking: (text, opts) => {
           setChatMessages(prev => {
             const updated = [...prev]
@@ -802,7 +802,7 @@ export function useProductRecommendationPage({
       // Progressive cards (TODO-B): SSE flushes a partial DTO before the LLM
       // narrative arrives so cards render immediately. onCards updates the
       // pending AI message in place; the awaited result is still the final DTO.
-      const data = await streamRecommendation(requestPayload, {
+      const data = await streamRecommendationMaybePython(requestPayload, {
         onThinking: (text, opts) => {
           setChatMessages(prev => {
             const updated = [...prev]

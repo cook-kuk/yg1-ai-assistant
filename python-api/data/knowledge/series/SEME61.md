@@ -1,0 +1,281 @@
+# 4G MILL — SEME61
+**제품명**: PLAIN SHANK SEME61 SERIES / CARBIDE, 2 FLUTE CORNER RADIUS with EXTENDED NECK
+
+## 기본 사양
+- 공구 타입: End Mill
+- 서브타입: Corner Radius / Extended Neck / Plain Shank
+- 날 수: 2
+- 공구 재질: CARBIDE
+- 코팅: new coating (not specified)
+- 헬릭스각: 30°
+- 생크: Plain Shank
+- 직경 범위: D0.7~D0.8 (shown on this page)
+- 깊이비: Ap 0.2D / 0.05D, Ae 1.0D
+
+## 대응 ISO 그룹
+P, M, K, N, S, H
+
+## 대상 피삭재
+- Steel up to HRc55
+- Prehardened steel
+- Carbon steel
+- Alloy steel
+- Non-alloy steel
+- Low alloy steel
+- High alloyed steel
+- Tool steel
+- Stainless steel
+- Grey cast iron
+- Nodular cast iron
+- Malleable cast iron
+- Aluminum-wrought alloy
+- Aluminum-cast alloyed
+- Copper and Copper Alloys
+- Non Metallic Materials
+- Heat Resistant Super Alloys
+- Titanium Alloys
+- Hardened steel
+- Chilled Cast Iron
+- Hardened Cast Iron
+- Aluminum-cast alloy
+- Copper and copper alloys
+- Non metallic materials
+- Heat resistant super alloys
+- Titanium alloys
+- Chilled cast iron
+- Hardened cast iron
+- P
+- K
+- H
+- Mold and die steel
+- Steel up to HRC55
+- Machine parts
+- Hardened steel up to HRC55
+- Prehardened Steel
+- Carbon Steel
+- Alloy Steel
+- Mold and Die Steel
+- Machine Parts
+- Mold and die steels up to HRC55
+- Chilled Cast iron
+- Hardened Cast iron
+- 합금강, 탄소강
+- 프리하든강
+- 고경도강
+- Pre-hardened steel up to HRC55
+- プリハードン鋼 HRc55以下
+- 炭素鋼
+- 合金鋼
+- プリハードン鋼 (HRc55以下)
+- 機械部品
+- 一般構造用鋼、炭素鋼
+- 低合金鋼
+- 高合金鋼, 工具鋼
+- ねずみ鋳鉄
+- ノジュラー鋳鉄
+- マリアブル鋳鉄
+- 焼き入れ鋼
+- チルド鋳鉄
+- 焼き入れ鋳鉄
+- Prehardened steels
+- Carbon steels
+- Alloy steels
+- Molds and dies
+- Up to HRC55
+
+## 특징
+- 새 코팅과 새로운 공구 형상으로 절삭성 및 내마모성이 우수함
+- 모재와 코팅 기반의 향상된 성능
+- 기존 표준품보다 더 다양한 유효장 및 전장 제품 제공
+- 다양한 코너 R 제품 제공 (R0.02mm~R2.0mm)
+- regular length, long shank end mills 등 다양한 제품군 제공
+- Due to new coating and new tool geometry, outstanding cutting ability and wear resistance.
+- Excellent for cutting prehardened steels, carbon steels, alloy steels of molds and dies, up to HRc55 and machine parts.
+- Available various products like regular length and long shank end mills etc.
+- Available various corner radius end mills, from min. 0.02mm corner radius to max. 2.0mm corner radius.
+- Available more various effective length and overall length end mills than previous standard products.
+- New coating and new tool geometry provide outstanding cutting ability and wear resistance
+- Excellent for cutting prehardened steels, carbon steels, alloy steels of molds and dies up to HRc55 and machine parts
+- Available in regular length and long shank end mills
+- Available in various corner radius sizes from R0.02mm to R2.0mm
+- Available in more effective length and overall length options than previous standard products
+- 2 flute corner radius tool
+- for slotting
+- 推荐加工参数页
+- 2刃圆鼻刀具槽铣削条件
+- 2 flute corner radius end mill
+- slotting application
+- 슬로팅(Slotting)용 추천 절삭조건 페이지
+- 2刃 圆鼻
+- 用于槽铣削
+- 2刃
+- 圆鼻
+- 槽铣削
+- 2刃圆鼻
+- 2날 코너 라디우스 엔드밀
+- 슬로팅용
+- 슬로팅 가공용 절삭조건 수록
+- Depth of cut per one pass(한 패스당 절입량) 기준의 절삭조건 제공
+- 슬로팅용 추천 절삭조건 제공
+- For slotting
+- Excellent for cutting prehardened steels, carbon steels, alloy steels of molds and dies up to HRC55 and machine parts
+- Available in various corner radii from 0.02 mm to 2.0 mm
+- Available in various effective lengths and overall lengths
+- 2 flute, 30° helix
+- Corner radius tolerance: ±0.010 up to Ø6, ±0.015 over Ø6
+- new coating and new tool geometry provide outstanding cutting ability and wear resistance
+- excellent for cutting prehardened steels, carbon steels, alloy steels of molds and dies up to HRC55 and machine parts
+- available in regular length and long shank end mills
+- available in various corner radii from 0.02mm to 2.0mm
+- available in more various effective lengths and overall lengths than previous standard products
+- 새로운 코팅과 새로운 공구 형상으로 절삭성 및 내마모성이 우수함
+- prehardened steels, carbon steels, alloy steels of molds and dies, up to HRC55 및 machine parts 가공에 적합
+- regular length 및 long shank end mills 등 다양한 제품 구성
+- corner radius는 min. 0.02mm부터 max. 2.0mm까지 제공
+- previous standard products보다 더 다양한 effective length와 overall length 제공
+- Recommended cutting conditions for slotting
+- 슬로팅용 절삭조건 수록
+- Recommended cutting conditions page
+- 2 flute corner radius end mill for slotting
+- Excellent for prehardened steels, carbon steels, alloy steels of molds and dies up to HRC55
+- Available in various corner radii from R0.02mm to R2.0mm
+- 새로운 코팅과 새로운 공구 형상으로 우수한 절삭성 및 내마모성
+- 2 flute corner radius with extended neck
+- Excellent for cutting prehardened steels, carbon steels, alloy steels of molds and dies, up to HRC55 and machine parts.
+- Available various products like regular length and long shank end mills.
+- Slotting application
+- 추천 절삭조건 페이지
+- 2날 롱넥 래디우스 시리즈
+- Ap/Ae 조건이 함께 제시됨
+- 新プレミアムコーティング、先進刃形により突出した切削性能と耐摩耗性
+- レギュラー、ロングシャンク、刃長、首下長など種類が豊富
+- 0.02~2.0のコーナーラジアスを標準化
+- 金型用HRc55以下のプリハードン鋼、炭素鋼、合金鋼のほか機械部品の加工に最適
+- 0.02～2.0のコーナーラジアスを標準化
+- 円筒シャンク仕様
+- R公差は≦Ø6で±0.010、>Ø6で±0.015
+- 刃径公差は≦Ø6で0~-0.012、>Ø6で0~-0.015
+- シャンク径公差はh5
+- 0.02〜2.0のコーナラジアスを標準化
+- コーナーラジアス
+- 溝切削用
+- コーナーラジア
+- 溝切削
+- 프리하든강, 탄소강, 합금강 등 금형·다이 및 기계부품 가공에 적합하며 HRC55까지 대응
+- 일반 길이와 롱 샹크 엔드밀 등 다양한 제품 구성
+- 코너 R 최소 0.02mm부터 최대 2.0mm까지 다양한 코너 라운드 제공
+- 기존 표준품보다 더 다양한 유효길이와 전체길이 제공
+- Available various corner radius end mills, from min. 0.02mm corner radius to max. 2.0 mm corner radius.
+- 슬로팅(SLOTTING)용 추천 절삭조건
+- 슬로팅용 추천 절삭조건 페이지
+
+## 용도
+- prehardened steels
+- carbon steels
+- alloy steels of molds and dies
+- machine parts
+- Cutting prehardened steels, carbon steels, alloy steels of molds and dies up to HRc55
+- Machine parts
+- Molds and dies
+- Prehardened steels
+- Carbon steels
+- Alloy steels
+- Slotting
+- Milling prehardened steels
+- Milling carbon steels
+- Milling alloy steels for molds and dies
+- Milling machine parts
+- cutting prehardened steels
+- cutting carbon steels
+- cutting alloy steels of molds and dies
+- machining machine parts
+- prehardened steels 가공
+- carbon steels 가공
+- alloy steels of molds and dies 가공
+- machine parts 가공
+- Fräsen von vorvergütetem Stahl, kohlenstoff Stahl, legiertem Stahl für Formen
+- Cutting prehardened steels
+- Alloy steels of molds and dies
+- 金型用HRc55以下のプリハードン鋼
+- 炭素鋼
+- 合金鋼
+- 機械部品の加工
+- 金型加工
+- 機械部品加工
+- 金型用HRc55以下のプリハードン鋼、炭素鋼、合金鋼の加工
+- 溝切削
+- 금형 및 다이의 프리하든강, 탄소강, 합금강 가공
+- 기계부품 가공
+- Cutting carbon steels
+- Cutting alloy steels of molds and dies
+- Cutting machine parts
+
+## 선정 가이드
+- Recommended tool holders: END MILL HOLDER (◎), HYDRAULIC CHUCK (○), SHRINK FIT HOLDER, POWER MILLING CHUCK, ER COLLET CHUCK, SK SLIM CHUCK. Tolerance notes: up to Ø6 corner radius ±0.010, mill dia. 0~-0.012, shank dia. h5; over Ø6 corner radius ±0.015, mill dia. 0~-0.015.
+- Recommended tool holders: END MILL HOLDER for flat shank, HYDRAULIC CHUCK / SHRINK FIT HOLDER, POWER MILLING CHUCK, and ER COLLET CHUCK / SK SLIM CHUCK for plain shank. Stock items are marked with ★. Applicability table rates P/M/K/N/S/H materials with ◎ and ○.
+- Recommended tool holders: Flat Shank uses End Mill Holder; Plain Shank uses Hydraulic Chuck, Shrink Fit Holder, Power Milling Chuck, ER Collet Chuck, and SK Slim Chuck. Stock items are marked with ★.
+- Recommended ToolHolder: Flat Shank는 END MILL HOLDER / HYDRAULIC CHUCK / SHRINK FIT HOLDER, Plain Shank는 POWER MILLING CHUCK / ER COLLET CHUCK / SK SLIM CHUCK 사용.
+- 推奨切削条件では、P(炭素鋼/合金鋼)が◎、M(ステンレス鋼)が○、K(ねずみ鋳鉄/ノジュラー鋳鉄)とH(プリハードン鋼/焼入れ鋼)は-。
+- ◎: Excellent, ○: Good. Recommended mainly for ISO P/M/K materials; page also shows broader ISO material matrix for reference.
+- Recommended materials table shows strongest suitability for hardened steel (◎), chilled cast iron (◎), and some steel categories (○/◎).
+
+## 상세 정보 (원문 요약)
+- [page_1013] PLAIN SHANK SEME61 SERIES는 4G MILL의 초경 2날 코너 R 엔드밀로, 연장 넥(extended neck) 형상이다. 신형 코팅과 신형 공구 형상으로 절삭성과 내마모성이 우수하며, 금형용 예경화강, 탄소강, 합금강 및 기계부품 가공에 적합하다. 이 페이지에는 D0.7, D0.8의 다양한 R 및 넥 길이 조합과 공차, 추천 툴홀더 정보가 함께 수록되어 있다.
+- [page_1023] 4G MILL END MILLS의 CARBIDE, 2날 圆鼻 颈部加长 시리즈 페이지이다. 신형 코팅과 신형 공구 형상으로 절삭성과 내마모성이 우수하며, 프리하든강, 탄소강, 합금강 및 금형/부품 가공에 적합하다. 코너 R은 0.02mm부터 2.0mm까지, 유효길이와 전장도 다양한 규격으로 제공된다.
+- [page_1027] CARBIDE 2刃 圆鼻 颈部加长立铣刀。基于新涂层和新刀具几何，具有出色的切削性能和耐磨性，适合加工模具行业的预硬钢、碳钢、合金钢以及机加工零件，最高可达HRc55。该系列提供普通型和长柄型，多种圆弧角规格（R0.02mm~R2.0mm）以及比以往标准品更多的有效长和全长规格。
+- [page_1109] SEME61 SERIES 2 FLUTE CORNER RADIUS - SLOTTING / 2刃 圆鼻 - 槽铣削의 추천 절삭조건 페이지입니다. ISO P, K, H 계열 소재에 대한 절삭속도(Vc), 이송(fz), RPM, FEED, Ap가 표로 제시되어 있으며, 소재별로 비합금강, 저합금강, 고합금강/공구강, 주철류, 경화강 조건이 포함됩니다. 본 페이지는 수치 절삭조건이 중심이며, 제품 헤더 정보만 제품 지식으로 추출했습니다.
+- [page_1110] 4G MILL END MILLS - RECOMMENDED CUTTING CONDITIONS (推荐加工参数)
+SEME61 SERIES 2 FLUTE CORNER RADIUS - SLOTTING (2刃圆鼻 - 槽铣削)。本页主要是SEME61系列的推荐切削条件表，包含Vc、fz、RPM、FEED、Ap等参数，按不同LBS（颈长）和VDI 3323分组给出。
+- [page_1111] SEME61 시리즈 2날 코너 라디우스 엔드밀의 추천 절삭조건 페이지입니다. ISO P, K, H 재질에 대해 VDI 3323 구간별로 Vc, fz, RPM, FEED, Ap 값이 제시되어 있으며, 용도는 슬롯 가공입니다. 상단에는 2刃 圆鼻 - 槽铣削로 표기되어 있습니다.
+- [page_1112] SEME61 SERIES - 2 FLUTE CORNER RADIUS - SLOTTING의 추천 절삭조건 페이지이다. 상단에 Vc, fz, RPM, FEED, Ap, LBS(颈长) 정의가 있으며, 아래에는 직경/길이 조건별 절삭조건 표가 수록되어 있다. 본 페이지는 수치 절삭조건이 중심이므로 제품 소개 정보는 제한적이다.
+- [page_1113] SEME61 SERIES 2 FLUTE CORNER RADIUS - SLOTTING. 本页为推荐加工参数页，内容主要是SEME61系列在槽铣削时的切削条件表。页面仅提供ISO材料组P、K、H对应不同LBS与参数组合的Vc、fz、RPM、FEED、Ap数值，没有更多产品结构信息。
+- [page_1114] SEME61 SERIES 2 FLUTE CORNER RADIUS - SLOTTING / 2刃 圆鼻 - 槽铣削의 추천 절삭조건 페이지입니다. 상단에는 Vc, fz, RPM, FEED, Ap, LBS(颈长) 정의가 있으며, 본문은 직경별 및 LBS별 절삭조건 수치표로 구성되어 있습니다. 제품의 기본 형상은 2날 코너 라디우스 엔드밀이며, 슬롯 가공용 조건을 제시합니다.
+- [page_1115] SEME61 SERIES 2 FLUTE CORNER RADIUS - SLOTTING 的推荐加工参数页，属于 4G MILL 推荐切削条件。页面仅提供不同 ISO 材料组与 LBS（颈长）对应的 Vc、fz、RPM、FEED、Ap 数值表。适用于 P、K、H 材料组的槽铣削加工。
+- [page_1116] SEME61 SERIES 2 FLUTE CORNER RADIUS - SLOTTING 的推荐加工参数页。页面主要提供不同直径与 LBS 条件下的 Vc、fz、RPM、FEED 和 Ap 数值表。属于切削条件页，仅从页眉可提取系列名称、2刃圆鼻和槽铣削用途。
+- [page_0186] SEME61 SERIES 2 FLUTE CORNER RADIUS - SLOTTING의 추천 절삭조건 페이지입니다. ISO P/K/H 소재별로 비절삭강, 저합금강, 고합금강/공구강, 주철, 경화강, 칠드 주철, 경화 주철에 대한 Vc, fz, RPM, FEED, Ap 값이 표로 제시되어 있습니다. 상단에는 Vc, fz, RPM, FEED, Ap, LBS의 단위 설명과 절삭깊이(Depth of cut per one pass) 도식이 있습니다.
+- [page_0187] SEME61 SERIES 2 FLUTE CORNER RADIUS - SLOTTING의 추천 절삭조건 페이지이다. ISO P, K, H 재질에 대해 Vc, fz, RPM, FEED, Ap 값이 LBS(Length Below Shank)와 직경 조건별로 표기되어 있다. 페이지 하단에는 한 패스당 절입량(Depth of cut per one pass) 도해가 포함되어 있다.
+- [page_0188] SEME61 시리즈 2날 코너 라디우스 엔드밀의 추천 절삭조건 페이지이다. ISO P, K, H 재질에 대해 VDI 3323과 LBS(Length Below Shank)별로 Vc, fz, RPM, FEED, Ap 값이 표로 제시되어 있다. 상단에는 4G MILL END MILLS / RECOMMENDED CUTTING CONDITIONS가 표시되어 있으며, 용도는 슬로팅이다.
+- [page_0189] SEME61 시리즈 2날 코너 라디우스 엔드밀의 추천 절삭조건 페이지이다. ISO P, K, H 재질에 대해 Vc, fz, RPM, FEED, Ap 값이 표로 제시되어 있으며, 슬롯팅 가공용 조건을 안내한다. Ap는 1패스당 절삭깊이로 표시되어 있다.
+- [page_1222] SEME61 시리즈는 4G MILL의 PLAIN SHANK 초경 2날 코너R 엔드밀로, 새로운 코팅과 새로운 공구 형상으로 절삭성과 내마모성을 향상시킨 제품이다. 예비경화강, 탄소강, 합금강, 금형·다이강 및 기계부품 가공에 적합하며, HRC55까지 대응한다. 코너 R은 0.02mm부터 2.0mm까지, 유효길이와 전장도 다양한 규격으로 제공된다.
+- [page_1223] PLAIN SHANK SEME61 SERIES는 4G MILL의 초경 2날 코너R 엔드밀(extended neck) 시리즈이다. 신코팅과 신공구 형상으로 절삭성과 내마모성이 우수하며, HRC55까지의 예경화강, 탄소강, 합금강, 금형강 및 기계부품 가공에 적합하다. 코너R은 0.02mm부터 2.0mm까지 다양하고, 유효길이와 전장도 기존 표준품보다 더 다양한 구성이 제공된다.
+- [page_1235] PLAIN SHANK SEME61 SERIES는 4G MILL의 CARBIDE 2날 코너R 엔드밀 시리즈로, 새로운 코팅과 공구 형상으로 절삭성과 내마모성을 높였다. 전경화강, 탄소강, 합금강, 금형강 및 기계부품 가공에 적합하며 HRC55까지 대응한다. 코너 R은 0.02mm~2.0mm까지, 다양한 유효길이와 전장으로 제공된다. 추천 홀더는 Flat Shank와 Plain Shank에 따라 구분되어 있다.
+- [page_1321] SEME61 SERIES 2 FLUTE CORNER RADIUS - SLOTTING의 추천 절삭조건 페이지이다. 4G MILL 브랜드의 SEME61 시리즈에 대해 ISO P/K/H 재질별 절삭조건(Vc, fz, RPM, FEED, Ap)을 제시한다. 대상 소재는 비합금강, 저합금강, 고합금강/공구강, 회주철, 구상흑연주철, 가단주철, 경화강, 칠드 주철, 경화 주철이다.
+- [page_1322] SEME61 SERIES 2 FLUTE CORNER RADIUS - SLOTTING의 추천 절삭조건 페이지이다. 상단 헤더에 4G MILL END MILLS와 SEME61 시리즈 정보가 표시되며, 2날 코너 라디우스 엔드밀의 슬롯팅용 조건을 안내한다. 본문은 Vc, fz, RPM, FEED, Ap 등의 수치 표로 구성되어 있으며, 절삭조건 데이터만 제공된다.
+- [page_1323] SEME61 시리즈 2날 코너 라디우스 엔드밀의 추천 절삭조건 페이지입니다. ISO P, K, H 재질에 대해 직경별 Vc, fz, RPM, FEED, Ap 값이 표로 제시되어 있으며, 용도는 슬롯팅입니다. 상단에는 LBS(Length Below Shank)와 직경별 조건 구분이 표시되어 있습니다.
+- [page_1324] SEME61 시리즈 2날 코너 라디우스 엔드밀의 추천 절삭조건 페이지이다. 상단에 4G MILL END MILLS와 SEME61 SERIES 2 FLUTE CORNER RADIUS - SLOTTING이 표시되어 있으며, 본문은 Vc, fz, RPM, FEED, Ap 등의 수치 절삭조건 표로 구성되어 있다. 하단에는 Ap(Depth of cut per one pass) 도식이 있다.
+- [page_1325] SEME61 SERIES는 2날 코너 라디우스 엔드밀의 추천 절삭조건 페이지이다. 슬로팅용이며 ISO P, K, H 재질에 대한 절삭조건이 제시되어 있다. 본 페이지는 절삭조건 표가 중심이고, 상단 헤더에서 시리즈명과 공구 형상 정보를 확인할 수 있다.
+- [page_1326] SEME61 SERIES 2 FLUTE CORNER RADIUS - SLOTTING의 추천 절삭조건 페이지이다. 상단 헤더에 4G MILL END MILLS 브랜드와 시리즈명이 표시되며, 2날 코너 라디우스 엔드밀의 슬롯팅용 조건을 안내한다. 본문은 Vc, fz, RPM, FEED, Ap 등의 수치 표로 구성되어 있으나, 제품 지식으로는 헤더 정보만 포함된다.
+- [page_1327] SEME61 SERIES | 2 FLUTE CORNER RADIUS - SLOTTING의 추천 절삭조건 페이지이다. ISO P, K, H 재질에 대한 Vc, fz, RPM, FEED, Ap 값이 LBS(Length Below Shank)별로 제시되어 있다. 상단에는 단위 설명과 LBS 정의가 있으며, 하단에는 절삭깊이(Ap) 도해가 있다.
+- [page_1328] SEME61 시리즈 2날 코너 라디우스 엔드밀의 추천 절삭조건 페이지이다. 슬롯팅 가공용이며, 공구 직경 4.0~20.0에 대한 Vc, fz, RPM, FEED, Ap 값이 제시되어 있다. 상단에는 LBS(Length Below Shank) 값도 함께 표시된다.
+- [page_0536] PLAIN SHANK SEME61 SERIES. Angle: 30°, Tolerance: ±0.010 / ±0.015, Coating: PLAIN. Die Seite zeigt die Maßtabelle für 2-schneidige Vollhartmetall-Eckradiusfräser mit abgesetztem Schaft und verschiedenen Eckradien sowie unterschiedlichen Längen. Geeignet für vorvergüteten Stahl, Kohlenstoffstahl und legierten Stahl bis HRC55 sowie Maschinenbauteile.
+- [page_0537] PLAIN SHANK SEME61 SERIES는 4G MILL의 CARBIDE 2날 코너 RADIUS 엔드밀로, extended neck 형상과 다양한 길이/반경 옵션을 제공한다. 새로운 코팅과 공구 형상으로 절삭성과 내마모성이 우수하며, prehardened steel, carbon steel, alloy steel, mold & die 소재를 HRC55까지 가공하는 데 적합하다. 코너 R은 0.02mm부터 2.0mm까지, D4.0/D5.0/D6.0 규격과 여러 L1/L2/L3 조합이 제공된다.
+- [page_0538] SEME61 SERIES는 CARBIDE 2날 코너R 엔드밀(extended neck) 시리즈로, 신코팅과 신형 공구 형상으로 절삭성 및 내마모성을 향상시킨 제품이다. 예열강, 탄소강, 합금강, 금형강 및 기계부품 가공에 적합하며, HRC55까지 대응한다. 일반형과 롱샹크형이 있으며, 코너 R은 0.02mm부터 2.0mm까지 다양한 사양이 제공된다.
+- [page_0575] SEME61 SERIES는 4G MILL END MILLS의 2날 코너 라디우스 엔드밀로, 슬롯팅 가공용입니다. 페이지에는 추천 절삭조건 표가 수록되어 있으며 ISO P/K/H 계열 소재별로 비절삭강, 저합금강, 고합금강/공구강, 주철류, 경화강 및 칠드/경화 주철에 대한 Vc, fz, RPM, FEED, Ap 값이 제시됩니다. 표 하단에는 절삭 깊이는 one pass 기준임이 표시되어 있습니다.
+- [page_0576] SEME61 시리즈는 2날 코너 라디우스 엔드밀로, 슬롯팅용 추천 절삭조건 페이지이다. 상단 헤더에 4G MILL END MILLS와 SEME61 SERIES 2 FLUTE CORNER RADIUS - SLOTTING이 표시되어 있으며, 본문은 ISO P/K/H 재질별 절삭조건 표로 구성되어 있다. 표에는 Vc, fz, RPM, FEED, Ap 값이 나열되어 있고, LBS는 Length Below Shank로 설명된다.
+- [page_0577] SEME61 SERIES - 2 FLUTE CORNER RADIUS - SLOTTING에 대한 추천 절삭조건 페이지이다. ISO P, K, H 재질별로 Vc, fz, RPM, FEED, Ap 값이 제시되어 있으며, LBS(Length Below Shank)별 조건이 구분되어 있다. 본 페이지는 제품 소개가 아니라 절삭조건 표 중심의 페이지이다.
+- [page_0578] SEME61 시리즈 2날 코너 라디우스 엔드밀의 슬롯팅 추천 절삭조건 페이지이다. VDI 3323 기준으로 공구 직경과 LBS에 따른 Vc, fz, RPM, FEED, Ap 값이 표로 제시되어 있다. 상단에는 절삭조건 단위 설명과 Ap(Depth of cut per one pass) 도해가 포함되어 있다.
+- [page_0280] 추천 절삭조건 4G MILLS의 2날 롱넥 래디우스 SEME61 시리즈 절삭조건 페이지이다. ISO P/H 재질별로 Vc, Fz, RPM, Feed가 인선(mm) 0.2~20.0 구간에 대해 제시되어 있으며, 합금강/탄소강, 프리하든강, 고경도강에 대한 조건이 포함된다. Ap는 P계열에서 0.2D, H계열에서 0.05D, Ae는 1.0D로 표기되어 있다.
+- [page_0092] 超硬, 2刃, ロングネック、コーナーラジアスの4G MILL END MILLSです。新プレミアムコーティングと先進刃形により切削性能と耐摩耗性を向上し、レギュラー、ロングシャンク、刃長、首下長など豊富なバリエーションを持ちます。金型用HRc55以下のプリハードン鋼、炭素鋼、合金鋼、機械部品加工に最適で、0.02~2.0のコーナーラジアスを標準化しています。
+- [page_0094] 超硬 2刃 ロングネック コーナーラジアスの円筒シャンク SEME61 シリーズです。新プレミアムコーティングと先進刃形により、切削性能と耐摩耗性を向上しています。金型用HRc55以下のプリハードン鋼、炭素鋼、合金鋼、機械部品加工に最適で、0.02～2.0のコーナーラジアスを標準化しています。
+- [page_0095] 超硬 2刃 ロングネック コーナーラジアスの4G MILL END MILLSです。新プレミアムコーティングと先進刃形により、切削性能と耐摩耗性を向上しています。金型用HRc55以下のプリハードン鋼、炭素鋼、合金鋼や機械部品加工に最適で、0.02~2.0のコーナーラジアスを標準化しています。SEME61シリーズはØ0.2-Ø6 / Ø7-Ø20の範囲で展開されています。
+- [page_0096] 超硬2刃のロングネック・コーナーラジアスエンドミル「SEME61シリーズ」の寸法表ページです。新プレミアムコーティングと先進刃形により切削性能と耐摩耗性を高め、金型用HRc55以下のプリハードン鋼、炭素鋼、合金鋼、機械部品加工に最適としています。円筒シャンク仕様で、レギュラー、ロングシャンク、刃長、首下長などのバリエーションがあり、コーナーRは0.02~2.0を標準化しています。
+- [page_0097] 超硬2刃ロングネック・コーナーラジアスの4G MILL END MILLS、円筒シャンクSEME61シリーズ。新プレミアムコーティングと先進刃形により切削性能と耐摩耗性を高め、金型用HRc55以下のプリハードン鋼、炭素鋼、合金鋼、機械部品加工に最適。レギュラー、ロングシャンク、刃長、首下長などのバリエーションがあり、コーナーRは0.02~2.0を標準化している。
+- [page_0098] 超硬 2刃 ロングネック コーナーラジアスの4G MILL END MILLSシリーズです。新プレミアムコーティングと先進刃形により、切削性能と耐摩耗性を向上しています。金型用HRc55以下のプリハードン鋼、炭素鋼、合金鋼、機械部品加工に適し、0.02～2.0のコーナーラジアスを標準化しています。
+- [page_0099] 超硬, 2刃, ロングネック、コーナーラジアスのSEME61シリーズです。円筒シャンク仕様で、新プレミアムコーティングと先進刃形により切削性能と耐摩耗性を向上しています。金型用HRc55以下のプリハードン鋼、炭素鋼、合金鋼、機械部品加工に最適で、0.02～2.0のコーナーラジアスを標準化しています。
+- [page_0100] 4G MILL END MILLSの超硬2刃ロングネック・コーナラジアスエンドミルの寸法表です。新プレミアムコーティングと先進刃形により切削性能と耐摩耗性を高め、金型用HRc55以下のプリハードン鋼、炭素鋼、合金鋼、機械部品加工に最適と記載されています。コーナRは0.02〜2.0を標準化しており、レギュラーやロングシャンクなど多様な仕様があります。
+- [page_0140] SEME61 シリーズの推奨切削条件ページで、4G MILL END MILLS の2刃コーナーラジアスエンドミルを対象にした溝切削条件が掲載されている。被削材はP/K/H系を中心に、一般構造用鋼・炭素鋼、低合金鋼、高合金鋼・工具鋼、鋳鉄類、焼き入れ鋼などが示されている。表には刃径と首下長（LBS）ごとの Vc、fz、RPM、FEED、Ap が並ぶが、本ページでは条件表のみで製品寸法や材質・コーティング情報はない。
+- [page_0141] SEME61 シリーズの2刃コーナーラジアエンドミル向け推奨切削条件ページです。刃径Ø0.7〜1.5、LBS 2〜20の条件が掲載されており、ISO P/K/H材に対するVc、fz、RPM、FEED、Apが示されています。用途は溝切削です。
+- [page_0142] SEME61 シリーズの推奨切削条件ページです。2刃のコーナーラジアエンドミルで、溝切削向けの条件が掲載されています。ISO別にP、K、H材のVc、fz、RPM、FEED、Apが示されていますが、数値表自体は製品知識としては抽出しません。
+- [page_0143] SEME61 シリーズの推奨切削条件ページです。2刃のコーナーラジアスエンドミルで、溝切削向けの条件がISO別に掲載されています。本文は切削条件表が中心ですが、対象シリーズ名、工具形状、用途、対応ISO（P/K/H）が読み取れます。
+- [page_1162] PLAIN SHANK SEME61 SERIES는 CARBIDE 2날 롱넥 코너 R 엔드밀로, Y Coating과 30° 헬릭스를 적용한 제품이다. 새 코팅과 새로운 공구 형상으로 절삭성 및 내마모성이 우수하며, 프리하든강·탄소강·합금강의 금형/다이 및 기계부품 가공에 적합하고 HRC55까지 대응한다. 코너 R은 0.02mm부터 2.0mm까지, 유효길이와 전체길이도 다양한 사양으로 제공된다.
+- [page_1164] PLAIN SHANK SEME61 SERIES는 CARBIDE, 2날 롱넥 코너 R 엔드밀이다. 신코팅과 신형상으로 절삭성 및 내마모성이 우수하며, 프리하든강, 탄소강, 합금강, 금형강 및 기계부품 가공에 적합하고 HRC55까지 대응한다. 표에는 R0.1~R0.5, D1 2.5mm의 다양한 EDP와 길이 조합이 수록되어 있으며, ISO P/M/K/N/S/H 재질별 추천도도 함께 제시된다.
+- [page_1287] SEME61 SERIES 2 FLUTE CORNER RADIUS - SLOTTING의 추천 절삭조건 페이지이다. ISO P/K/H 소재별로 SFM(Vc), IPT(fz), RPM, IPM(Feed), Ap가 Ø0.2~0.5 범위와 LBS 0.5~4 조건에 대해 제시되어 있다. 본 페이지는 수치 절삭조건 중심이며, 제품 헤더 정보만 포함한다.
+- [page_1288] SEME61 시리즈 2날 코너 라디우스 엔드밀의 슬롯팅 추천 절삭조건 페이지이다. ISO P, K, H 재질에 대한 SFM(Vc), IPT(fz), RPM, IPM(Feed), Ap 값이 지름 Ø0.5~Ø0.8 범위로 제시되어 있다. 상단에는 4G MILL END MILLS RECOMMENDED CUTTING CONDITIONS라는 제목이 있으며, 본 페이지는 수치 절삭조건 중심의 페이지이다.
+- [page_1289] SEME61 시리즈 2날 코너 라디우스 엔드밀의 추천 절삭조건 페이지이다. 슬로팅용으로 제시되며, ISO P/K/H 재질에 대해 비절삭강, 저합금강, 고합금강/공구강, 주철류, 경화강 등의 절삭조건이 표로 정리되어 있다. 지름은 Ø0.8~Ø1.2 범위가 보이며, 본 페이지는 절삭조건 수치가 중심이고 제품 특징 설명은 헤더 수준만 포함한다.
+- [page_1290] SEME61 SERIES 2 FLUTE CORNER RADIUS - SLOTTING의 추천 절삭조건 페이지이다. ISO P, K, H 재질에 대한 절삭조건 표가 수록되어 있으며, 1.2, 1.5, 2.0 직경 구간과 LBS별 SFM, IPT, RPM, IPM, Ap 값이 제시된다. 하단에는 1.0D와 Ap를 나타내는 도식이 있다.
+- [page_1291] 4G MILL END MILLS - RECOMMENDED CUTTING CONDITIONS 페이지로, SEME61 SERIES 2 FLUTE CORNER RADIUS - SLOTTING의 절삭조건을 제시한다. 본문은 ISO별 재질(Non-alloy steel, Low alloy steel, High alloyed steel, Tool steel, cast iron, Hardened steel 등)에 대한 SFM, IPT, RPM, IPM, Ap 수치를 표로 제공한다. 하단에는 1.0D와 Ap 도식이 있으며, 다음 페이지로 이어진다.
+- [page_1292] 4G MILL END MILLS RECOMMENDED CUTTING CONDITIONS 페이지로, SEME61 SERIES 2 FLUTE CORNER RADIUS - SLOTTING의 추천 절삭조건을 보여준다. 본문은 ISO 재질군별 SFM, IPT, RPM, IPM, Ap 수치 표로 구성되어 있으며, 제품의 형상은 2날 코너 라디우스 엔드밀이다. 상단 헤더 외의 제품 상세 사양은 없고, 절삭조건 표만 제공된다.
+- [page_1293] 4G MILL SEME61 SERIES 2날 코너 라디우스 엔드밀의 슬로팅 추천 절삭조건 페이지이다. ISO P/K/H 재질에 대해 공구 직경 4.0~20.0mm별 SFM, IPT, RPM, IPM, Ap 값이 제시되어 있다. 하단 도해는 절삭 깊이 Ap와 1.0D 폭 조건을 나타낸다.
+
+---
+출처: ya22_split, ya25_oh_yg_catalog_asia_v2, ye24_split, ye25_oh_yg_catalog_europe_v2, yg1_milling_all, yj25_oh_yg_catalog_japan, yu25_split | 페이지: page_1013, page_1023, page_1027, page_1109, page_1110, page_1111, page_1112, page_1113, page_1114, page_1115, page_1116, page_0186, page_0187, page_0188, page_0189, page_1222, page_1223, page_1235, page_1321, page_1322, page_1323, page_1324, page_1325, page_1326, page_1327, page_1328, page_0536, page_0537, page_0538, page_0575, page_0576, page_0577, page_0578, page_0280, page_0092, page_0094, page_0095, page_0096, page_0097, page_0098, page_0099, page_0100, page_0140, page_0141, page_0142, page_0143, page_1162, page_1164, page_1287, page_1288, page_1289, page_1290, page_1291, page_1292, page_1293

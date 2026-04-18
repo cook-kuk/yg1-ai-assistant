@@ -35,12 +35,6 @@ export const ENABLE_TASK_SYSTEM = envFlag("ENABLE_TASK_SYSTEM", true)
 /** Apply extra in-memory heuristics after SQL fetch. Conversation narrowing filters stay enabled. */
 export const ENABLE_POST_SQL_CANDIDATE_FILTERS = envFlag("ENABLE_POST_SQL_CANDIDATE_FILTERS", true)
 
-/** Use new state reducer instead of carryForwardState. Defaults to false (dry-run comparison only). Set USE_STATE_REDUCER=true to activate. */
-export const USE_STATE_REDUCER = envFlag("USE_STATE_REDUCER", false)
-
-/** Use new chip system instead of hardcoded chips. Defaults to false (shadow comparison only). Set USE_CHIP_SYSTEM=true to activate. */
-export const USE_CHIP_SYSTEM = envFlag("USE_CHIP_SYSTEM", false)
-
 /** Use single Sonnet call for routing instead of multiple parallel Haiku calls. */
 export function isSingleCallRouterEnabled(): boolean {
   return process.env.USE_SINGLE_CALL_ROUTER !== "false"
@@ -57,15 +51,6 @@ export const USE_SINGLE_CALL_ROUTER = true
  * Set LLM_FREE_INTERPRETATION=true to enable.
  */
 export const LLM_FREE_INTERPRETATION = envFlag("LLM_FREE_INTERPRETATION", true)
-
-/**
- * Unified LLM Router — 단일 GPT-5.4 호출로 intent/filters/response/chips를 전부 결정.
- * ON이면: regex 라우터/unified-judgment/deterministic-scr 추출 경로를 전부 스킵하고
- *        unifiedLLMRouter → handleUnifiedPath 경로를 탄다.
- * deterministic-scr 은 OFF 상태에서만 의미가 있으며, ON에서는 "LLM 출력 검증기"로 역할 전환.
- * Default off — 안전하게 rollout 후 켠다.
- */
-export const USE_UNIFIED_LLM = envFlag("USE_UNIFIED_LLM", false)
 
 /** Use planner decision layer for single-constraint override. Defaults to true. Set ENABLE_PLANNER_DECISION=false to disable. */
 export const ENABLE_PLANNER_DECISION = envFlag("ENABLE_PLANNER_DECISION", true)

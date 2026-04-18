@@ -43,9 +43,7 @@ import { normalizeFilterValue, extractDistinctFieldValues } from "@/lib/recommen
 import { classifyQueryTarget } from "@/lib/recommendation/domain/context/query-target-classifier"
 import { TraceCollector, isDebugEnabled } from "@/lib/debug/agent-trace"
 import { normalizePlannerResult, validatePlannerResult, buildExecutorSummary } from "@/lib/recommendation/core/turn-boundaries"
-import { dryRunReduce, reduce, compareReducerVsActual, type ReducerAction } from "@/lib/recommendation/core/state-reducer"
-import { USE_STATE_REDUCER, USE_CHIP_SYSTEM, isSingleCallRouterEnabled, LLM_FREE_INTERPRETATION, ENABLE_PLANNER_DECISION, ENABLE_STATEFUL_CLARIFICATION_ARBITER, USE_UNIFIED_LLM } from "@/lib/feature-flags"
-import { handleUnifiedPath } from "@/lib/recommendation/core/unified-decision-handler"
+import { isSingleCallRouterEnabled, LLM_FREE_INTERPRETATION, ENABLE_PLANNER_DECISION, ENABLE_STATEFUL_CLARIFICATION_ARBITER } from "@/lib/feature-flags"
 import { routeSingleCall } from "@/lib/recommendation/core/single-call-router"
 import {
   naturalLanguageToFilters,
@@ -79,7 +77,6 @@ import {
   parseEditIntent,
   shouldExecuteEditIntentDeterministically,
 } from "@/lib/recommendation/core/edit-intent"
-import { deriveChips, toChipState, toChipStateWithCandidates, compareChips, safeApplyChips } from "@/lib/recommendation/core/chip-system"
 import { handleServeGeneralChatAction } from "@/lib/recommendation/infrastructure/engines/serve-engine-general-chat"
 import { classifyPreSearchRoute } from "@/lib/recommendation/infrastructure/engines/pre-search-route"
 import { detectJourneyPhase, isPostResultPhase } from "@/lib/recommendation/domain/context/journey-phase-detector"
@@ -3024,19 +3021,6 @@ export async function handleServeExploration(
     }
   }
 
-  // ── Unified LLM path (feature-flagged) ────────────────────────────
-  // USE_UNIFIED_LLM=true 이면 기존 파이프라인 전체를 스킵하고 단일 GPT-5.4 호출로
-  // intent/filters/response/chips 를 전부 결정한다. false (default) 이면 아래 기존
-  // handleServeExplorationInner 경로를 그대로 탄다 — regression 없음.
-  if (USE_UNIFIED_LLM) {
-    try {
-      return await handleUnifiedPath(deps, form, messages, prevState, displayedProducts, language, pagination as RecommendationPaginationDto | null)
-    } catch (err) {
-      try { console.warn(`[unified-handler] failed, falling back to legacy: ${err instanceof Error ? err.message : err}`) } catch { /* no-op */ }
-      // 실패 시 기존 경로로 fall through (아래 코드가 실행됨)
-    }
-  }
-
   const trace = new TraceCollector()
   const response = await handleServeExplorationInner(deps, form, messages, prevState, displayedProducts, language, pagination, trace)
   try {
@@ -3075,109 +3059,6 @@ export async function handleServeExploration(
         const json = await response.json()
         const meta = (json as any).meta ?? {}
         meta.debugTrace = debugTrace
-
-        // ── Shadow reducer comparison (post-execution — uses ACTUAL response data) ──
-        const actualSessionState = (json as any).sessionState ?? (json as any).session?.engineState
-        if (actualSessionState && prevState && debugTrace.plannerAction) {
-          try {
-            // Use ACTUAL candidateCount and lastAskedField from response
-            const actualCandidateCount = actualSessionState.candidateCount ?? 0
-            const actualLastAskedField = actualSessionState.lastAskedField ?? null
-            const actualMode = actualSessionState.currentMode ?? null
-            const actualFilters = actualSessionState.appliedFilters ?? []
-
-            const reducerAction: ReducerAction = debugTrace.plannerAction === "continue_narrowing"
-              ? { type: "narrow", filter: actualFilters[actualFilters.length - 1] ?? { field: "unknown", value: "unknown", op: "eq", rawValue: "unknown", appliedAt: 0 }, candidateCountAfter: actualCandidateCount, resolvedInput: actualSessionState.resolvedInput ?? prevState.resolvedInput ?? {} as any }
-              : debugTrace.plannerAction === "skip_field"
-              ? { type: "skip_field", field: prevState.lastAskedField ?? "unknown" }
-              : debugTrace.plannerAction === "show_recommendation"
-              ? { type: "recommend", candidateCountAfter: actualCandidateCount, displayedCandidates: actualSessionState.displayedCandidates ?? [] }
-              : debugTrace.plannerAction === "answer_general" || debugTrace.plannerAction === "redirect_off_topic"
-              ? { type: "general_chat" }
-              : debugTrace.plannerAction === "reset_session"
-              ? { type: "reset" }
-              : debugTrace.plannerAction === "go_back_one_step" || debugTrace.plannerAction === "go_back_to_filter"
-              ? { type: "go_back", candidateCountAfter: actualCandidateCount, remainingFilters: actualFilters }
-              : debugTrace.plannerAction === "filter_by_stock"
-              ? { type: "stock_filter", candidateCountAfter: actualCandidateCount }
-              : { type: "passthrough", overrides: {
-                  turnCount: actualSessionState.turnCount ?? (prevState.turnCount ?? 0) + 1,
-                  lastAction: debugTrace.plannerAction,
-                  candidateCount: actualCandidateCount,
-                  currentMode: actualMode,
-                  lastAskedField: actualLastAskedField,
-                } }
-
-            const reducerResult = reduce(prevState as any, reducerAction)
-            const comparison = compareReducerVsActual(reducerResult.nextState, actualSessionState)
-
-            // Reducer dry-run trace (now post-execution with real data)
-            const dryRun = dryRunReduce(prevState as any, reducerAction)
-            debugTrace.events?.push({
-              step: "reducer-dry-run",
-              category: "context",
-              inputSummary: { actionType: reducerAction.type, actualCandidateCount, actualMode },
-              outputSummary: { mutations: dryRun.mutations, nextStateSummary: dryRun.nextStateSummary },
-              reasonSummary: `Post-exec reducer: ${dryRun.mutations.map(m => `${m.field}: ${m.before}→${m.after}`).join(", ")}`,
-            })
-
-            meta.reducerComparison = {
-              match: comparison.match,
-              differences: comparison.differences,
-              reducerUsed: USE_STATE_REDUCER,
-            }
-
-            if (!comparison.match) {
-              console.log(`[reducer-shadow] MISMATCH: ${comparison.differences.map(d => `${d.field}: reducer=${d.reducer} actual=${d.actual}`).join(", ")}`)
-            }
-          } catch (e) {
-            console.warn("[reducer-shadow] comparison error:", e)
-          }
-        }
-
-        // ── Shadow chip comparison (post-execution — uses ACTUAL state + candidate data) ──
-        const actualChips: string[] = (json as any).chips ?? []
-        if (prevState && actualChips.length > 0) {
-          try {
-            // Use actual session state for chip derivation (includes real filters, mode, candidateCount)
-            const chipState = toChipState(actualSessionState ?? prevState)
-            const newChips = deriveChips(chipState, language)
-            const chipComparison = compareChips(actualChips, newChips)
-
-            // Chip dry-run trace
-            debugTrace.events?.push({
-              step: "chip-system-dry-run",
-              category: "ui",
-              inputSummary: { mode: chipState.currentMode, candidates: chipState.candidateCount, filters: chipState.appliedFilters.length },
-              outputSummary: {
-                chipCount: newChips.length,
-                chips: newChips.map(c => ({ key: c.key, label: c.label, type: c.type })),
-                dynamicChipCount: 0,
-              },
-              reasonSummary: `Chips: ${newChips.map(c => c.label).join(", ")}`,
-            })
-
-            meta.chipComparison = {
-              match: chipComparison.match,
-              oldCount: chipComparison.oldCount,
-              newCount: chipComparison.newCount,
-              onlyInOld: chipComparison.onlyInOld.slice(0, 5),
-              onlyInNew: chipComparison.onlyInNew.slice(0, 5),
-              chipSystemUsed: USE_CHIP_SYSTEM,
-            }
-
-            if (!chipComparison.match) {
-              console.log(`[chip-shadow] MISMATCH: old=${chipComparison.oldCount} new=${chipComparison.newCount} onlyOld=[${chipComparison.onlyInOld.join(",")}] onlyNew=[${chipComparison.onlyInNew.join(",")}]`)
-            }
-
-            if (USE_CHIP_SYSTEM) {
-              const applied = safeApplyChips(actualChips, newChips, true)
-              ;(json as any).chips = applied
-            }
-          } catch (e) {
-            console.warn("[chip-shadow] comparison error:", e)
-          }
-        }
 
         ;(json as any).meta = meta
         return new Response(JSON.stringify(json), {

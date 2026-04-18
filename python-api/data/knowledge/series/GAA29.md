@@ -1,0 +1,41 @@
+# TANK-POWER — GAA29
+**제품명**: HSS-PM END MILLS - RECOMMENDED CUTTING CONDITIONS / GA936, GAA29 SERIES 2 FLUTE - SLOTTING
+
+## 기본 사양
+- 공구 타입: End Mill
+- 서브타입: 2 Flute, Slotting
+- 날 수: 2
+- 공구 재질: HSS-PM
+- 직경 범위: D2.0~D25.0
+- 깊이비: 1.0D / 0.5D
+
+## 대응 ISO 그룹
+P, K
+
+## 대상 피삭재
+- Non-alloy steel
+- Low alloy steel
+- High alloyed steel
+- Tool steel
+- Grey cast iron
+- Nodular cast iron
+- Malleable cast iron
+
+## 특징
+- Recommended cutting conditions page for TANK-POWER HSS-PM end mills
+- 2 flute slotting application
+- Feed should be reduced by around 50% for long & extra long types
+- 2 flute slotting series
+- Recommended cutting conditions provided for slotting
+- Long & extra long types should reduce feed by around 50%
+
+## 용도
+- Slotting
+
+## 상세 정보 (원문 요약)
+- [page_1431] TANK-POWER HSS-PM END MILLS의 추천 절삭조건 페이지이며, GA936, GAA29 시리즈 2날 슬롯팅 조건을 제시한다. 비합금강, 저합금강, 고합금강/공구강, 회주철/구상흑연주철/가단주철에 대한 Vc, fz, RPM, FEED 값이 D2.0~D25.0까지 정리되어 있다. 장날 및 초장날 타입은 FEED를 약 50% 줄여야 한다.
+- [page_1699] GA936, GAA29 SERIES 2 FLUTE - SLOTTING의 추천 절삭조건 페이지입니다. 비절삭강, 저합금강, 고합금강/공구강, 회주철, 구상흑연주철, 가단주철에 대한 Vc, fz, RPM, FEED 조건이 D2.0~D25.0 범위로 제시되어 있습니다. 장형 및 초장형 타입은 FEED를 약 50% 줄일 것을 주의사항으로 안내합니다.
+- [page_0764] GAA29 시리즈는 2날 슬롯팅용 엔드밀이며, 이 페이지는 추천 절삭조건을 제공합니다. 비합금강, 저합금강, 고합금강/공구강, 회주철, 구상흑연주철, 가단주철에 대한 Vc, fz, RPM, FEED가 직경 2.0~25.0까지 정리되어 있습니다. 장형 및 초장형 타입은 FEED를 약 50% 줄여야 합니다.
+
+---
+출처: ya22_split, ye24_split, ye25_oh_yg_catalog_europe_v2 | 페이지: page_1431, page_1699, page_0764

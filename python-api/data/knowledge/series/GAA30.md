@@ -1,0 +1,57 @@
+# TANK-POWER — GAA30
+**제품명**: TANK-POWER HSS-PM END MILLS - RECOMMENDED CUTTING CONDITIONS / GA942, GAA30 SERIES - 3 FLUTE - SLOTTING
+
+## 기본 사양
+- 공구 타입: End Mill
+- 서브타입: 3 Flute, Slotting
+- 날 수: 3
+- 공구 재질: HSS-PM
+- 직경 범위: 2.0~25.0
+- 깊이비: 0.5D
+
+## 대응 ISO 그룹
+P, K
+
+## 대상 피삭재
+- Non-alloy steel
+- Low alloy steel
+- High alloyed steel
+- tool steel
+- Grey cast iron
+- Nodular cast iron
+- Malleable cast iron
+- P: Non-alloy steel
+- P: Low alloy steel
+- P: High alloyed steel and tool steel
+- K: Grey cast iron
+- K: Nodular cast iron
+- K: Malleable cast iron
+- Tool steel
+
+## 특징
+- 3날
+- 슬로팅(槽铣削)용
+- HSS-PM 엔드밀
+- Recommended cutting conditions page
+- 3-flute side cutting application
+- Ap = 1.5D, Ae = 0.1D
+- 3 flute slotting series
+- 3 flute series for side cutting
+- Recommended cutting conditions provided for side milling operation
+- Ap and Ae definitions shown in diagram
+
+## 용도
+- 슬로팅 가공
+- Side cutting
+- Slotting
+- Side milling
+
+## 상세 정보 (원문 요약)
+- [page_1433] TANK-POWER HSS-PM END MILLS의 추천 절삭조건 페이지로, GA942, GAA30 시리즈 3날 슬로팅 조건을 제시한다. ISO P와 K 재질군에 대해 비합금강, 저합금강, 고합금강/공구강, 회주철/구상흑연주철/가단주철의 절삭조건이 정리되어 있다. Ae는 1.0D, Ap는 0.5D 기준이며, 공구 직경 2.0~25.0mm에 대한 Vc, fz, RPM, FEED 값이 표로 제공된다.
+- [page_1434] TANK-POWER HSS-PM END MILLS RECOMMENDED CUTTING CONDITIONS 페이지로, GA942, GAA30 시리즈 3날 측면 절삭용 조건을 제시한다. ISO P와 K 재질에 대해 Ae 0.1D, Ap 1.5D 기준의 Vc, fz, RPM, FEED가 공구 직경 D2.0~D25.0까지 정리되어 있다. 대상 재질은 비합금강, 저합금강, 고합금강/공구강, 회주철, 구상흑연주철, 가단주철이다.
+- [page_1701] GA942, GAA30 SERIES - 3 FLUTE - SLOTTING의 추천 절삭조건 페이지입니다. 본문은 ISO P, K 재질에 대한 Vc, fz, RPM, FEED 절삭조건 표로 구성되어 있으며, 비합금강, 저합금강, 고합금강/공구강, 회주철, 구상흑연주철, 가단주철에 대한 조건이 제시됩니다. 상단 헤더 기준으로 3날 슬롯팅 엔드밀 시리즈이며, 절삭조건 표의 직경 범위는 D2.0~D25.0입니다.
+- [page_1702] GA942, GAA30 SERIES 3 FLUTE - SIDE CUTTING의 추천 절삭조건 페이지입니다. 3날 엔드밀의 측면가공(side cutting) 조건이 제시되어 있으며, 직경 D2.0~D25.0에 대한 Vc, fz, RPM, FEED 값이 표로 정리되어 있습니다. 적용 재질은 비합금강, 저합금강, 고합금강/공구강, 회주철, 구상흑연주철, 가단주철이며, 절삭 깊이 Ap 1.5D, Ae 0.1D 조건이 표시되어 있습니다.
+- [page_0765] 추천 절삭조건 페이지로, GA942, GAA30 SERIES 3 FLUTE - SLOTTING 및 SIDE CUTTING의 절삭조건이 수록되어 있다. 상단 헤더에서 3날 슬롯팅 시리즈임을 확인할 수 있으며, 적용 소재는 P계열의 비합금강/저합금강/고합금강/공구강과 K계열의 회주철/구상흑연주철/가단주철이다. 본 페이지의 핵심 정보는 절삭조건 표이며, 제품 형상과 적용 소재만 추출했다.
+
+---
+출처: ya22_split, ye24_split, ye25_oh_yg_catalog_europe_v2 | 페이지: page_1433, page_1434, page_1701, page_1702, page_0765

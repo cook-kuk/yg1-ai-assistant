@@ -1,0 +1,254 @@
+{
+  "iso_513": {
+    "source_name": "ISO 513:2012 / Machining Doctor ISO Material Groups",
+    "source_url": "https://www.machiningdoctor.com/glossary/material-groups-in-machining/",
+    "description_en": "ISO 513 classifies workpiece materials for metal cutting with defined cutting edges into six main groups (P/M/K/N/S/H), each with a letter, a conventional color and numbered application subgroups.",
+    "description_ko": "ISO 513은 절삭 가공 대상 피삭재를 P/M/K/N/S/H 6개 주 그룹으로 분류하고, 각 그룹은 고유 문자·색상과 세부 적용 번호(01~50)로 세분화됩니다.",
+    "main_groups": {
+      "P": {
+        "color": "blue",
+        "description_en": "Steel — the largest material group, covering non-alloy, low/medium alloy and high alloy steels, cast steel and free-cutting steel. Long-chipping, moderate cutting forces.",
+        "description_ko": "강 — 비합금강, 저/중합금강, 고합금강, 주강, 쾌삭강. 긴 칩, 중간 절삭력.",
+        "typical_materials": ["non-alloy steel", "low alloy steel", "high alloy steel", "cast steel", "free-cutting steel", "tool steel (annealed)"],
+        "application_focus": "general turning and milling of steel; long-chip control; good wear resistance required"
+      },
+      "M": {
+        "color": "yellow",
+        "description_en": "Stainless steel — austenitic, austenitic-ferritic (duplex), ferritic and martensitic stainless steels plus cast stainless. Work-hardens heavily, sticky chips, high cutting forces.",
+        "description_ko": "스테인리스강 — 오스테나이트계, 듀플렉스, 페라이트/마르텐사이트, 스테인리스 주강. 가공 경화 심함.",
+        "typical_materials": ["austenitic stainless (304, 316)", "duplex stainless (2205)", "ferritic stainless (430)", "martensitic stainless (420)", "cast stainless"],
+        "application_focus": "control of built-up edge and work-hardening; sharp edges, positive geometries, tough grades"
+      },
+      "K": {
+        "color": "red",
+        "description_en": "Cast iron — grey cast iron (GCI), nodular/ductile iron (SG), malleable iron, compacted graphite iron (CGI). Short-chipping and highly abrasive.",
+        "description_ko": "주철 — 회주철, 구상흑연주철, 가단주철, CGI. 짧은 칩, 강한 마모성.",
+        "typical_materials": ["grey cast iron", "nodular cast iron", "malleable cast iron", "compacted graphite iron"],
+        "application_focus": "abrasive wear resistance dominant; negative geometry and hard grades"
+      },
+      "N": {
+        "color": "green",
+        "description_en": "Non-ferrous — aluminum and aluminum alloys, copper, brass, bronze, magnesium, zinc, plus non-metallic materials (plastics, composites). Low cutting forces, very high cutting speeds possible.",
+        "description_ko": "비철금속 — 알루미늄 합금, 구리/황동/청동, 마그네슘, 아연, 플라스틱/복합재. 낮은 절삭력, 초고속 가공 가능.",
+        "typical_materials": ["wrought aluminum", "cast aluminum", "copper", "brass", "bronze", "magnesium", "plastics", "composites"],
+        "application_focus": "polished rake faces, very sharp edges, fine-grain or PCD grades; chip evacuation"
+      },
+      "S": {
+        "color": "brown",
+        "description_en": "Superalloys and titanium — nickel-based (Inconel, Hastelloy, Waspaloy), cobalt-based and iron-based heat-resistant alloys, plus titanium alloys. High temperature at the edge, severe work-hardening.",
+        "description_ko": "초내열합금·티타늄 — 니켈기(Inconel 등), 코발트기, 철기 내열합금, 티타늄 합금. 절삭부 고온·가공경화 심함.",
+        "typical_materials": ["Inconel 718", "Inconel 625", "Hastelloy", "Waspaloy", "Ti-6Al-4V", "cobalt-based alloys"],
+        "application_focus": "heat-resistant substrates, tough edges, high coolant pressure; low cutting speeds"
+      },
+      "H": {
+        "color": "grey",
+        "description_en": "Hardened materials — hardened steel (typically 48-65 HRC), chilled cast iron, hard-chrome, stellite. Hard turning / hard milling domain.",
+        "description_ko": "고경도재 — 경화강(48~65 HRC), 칠드 주철, 하드크롬, 스텔라이트. 하드터닝/하드밀링 영역.",
+        "typical_materials": ["hardened tool steel", "hardened bearing steel", "chilled cast iron", "hard-chrome plating", "stellite"],
+        "application_focus": "CBN or ultra-hard carbide; negative chamfered edges; rigid setup"
+      }
+    },
+    "subgroups": [
+      { "code": "P01", "hardness_focus": "very high", "toughness_focus": "low",     "application_notes": "finishing of steel at high cutting speeds, fine surface finish, stable conditions" },
+      { "code": "P10", "hardness_focus": "high",      "toughness_focus": "low",     "application_notes": "finishing to light medium cutting of steel, high speeds, light feeds" },
+      { "code": "P20", "hardness_focus": "medium",    "toughness_focus": "medium",  "application_notes": "general-purpose turning and milling of steel, medium speeds and feeds" },
+      { "code": "P30", "hardness_focus": "low",       "toughness_focus": "high",    "application_notes": "medium to rough cutting of steel, interrupted cuts, higher feeds" },
+      { "code": "P40", "hardness_focus": "very low",  "toughness_focus": "very high","application_notes": "heavy roughing of steel, unstable conditions, heavy interrupted cuts" },
+      { "code": "M10", "hardness_focus": "high",      "toughness_focus": "low",     "application_notes": "finishing of stainless steel, high speed, fine finish" },
+      { "code": "M20", "hardness_focus": "medium",    "toughness_focus": "medium",  "application_notes": "general-purpose turning and milling of stainless steel" },
+      { "code": "M30", "hardness_focus": "low",       "toughness_focus": "high",    "application_notes": "rough machining of stainless, interrupted cuts, heavy feeds" },
+      { "code": "K10", "hardness_focus": "high",      "toughness_focus": "low",     "application_notes": "finishing of grey and nodular cast iron, high abrasion resistance" },
+      { "code": "K20", "hardness_focus": "medium",    "toughness_focus": "medium",  "application_notes": "general-purpose cast iron machining" },
+      { "code": "K30", "hardness_focus": "low",       "toughness_focus": "high",    "application_notes": "roughing and interrupted cuts in cast iron" },
+      { "code": "N10", "hardness_focus": "high",      "toughness_focus": "low",     "application_notes": "finishing of aluminum and non-ferrous metals, high surface finish" },
+      { "code": "N20", "hardness_focus": "medium",    "toughness_focus": "medium",  "application_notes": "general-purpose non-ferrous machining, aluminum alloys" },
+      { "code": "S10", "hardness_focus": "high",      "toughness_focus": "medium",  "application_notes": "finishing of superalloys and titanium, low speed, stable edge" },
+      { "code": "S20", "hardness_focus": "medium",    "toughness_focus": "medium",  "application_notes": "general-purpose HRSA and titanium machining" },
+      { "code": "S30", "hardness_focus": "low",       "toughness_focus": "high",    "application_notes": "roughing of superalloys, interrupted cuts, tough edge required" },
+      { "code": "H10", "hardness_focus": "very high", "toughness_focus": "low",     "application_notes": "finish hard turning of hardened steel (>55 HRC), CBN territory" },
+      { "code": "H20", "hardness_focus": "high",      "toughness_focus": "medium",  "application_notes": "general hard machining, light interrupted cuts on hardened workpieces" }
+    ]
+  },
+
+  "iso_1832": {
+    "source_name": "ISO 1832:2017 / Carbide Depot insert designation chart",
+    "source_url": "https://www.carbidedepot.com/formulas-insert-d.htm",
+    "description_en": "ISO 1832 defines a 10-position alphanumeric designation for indexable inserts used in turning and milling. Positions 1-7 are mandatory; positions 8-10 are optional (mandatory for PCBN/PCD).",
+    "description_ko": "ISO 1832은 선삭·밀링용 인덱서블 인서트의 10자리 영숫자 지정 코드를 정의합니다. 1~7자리는 필수, 8~10자리는 선택(초경 CBN/PCD는 필수).",
+    "positions": [
+      {
+        "position_number": 1,
+        "name": "shape",
+        "meaning": "Basic geometric shape of the insert (included angle).",
+        "example_codes": {
+          "C": "80° rhombic",
+          "D": "55° rhombic",
+          "E": "75° rhombic",
+          "M": "86° rhombic",
+          "V": "35° rhombic",
+          "W": "80° trigon",
+          "T": "triangular (60°)",
+          "S": "square (90°)",
+          "R": "round",
+          "H": "hexagonal",
+          "O": "octagonal",
+          "P": "pentagonal",
+          "L": "rectangular",
+          "A": "85° parallelogram",
+          "B": "82° parallelogram",
+          "K": "55° parallelogram"
+        }
+      },
+      {
+        "position_number": 2,
+        "name": "clearance_angle",
+        "meaning": "Normal clearance (relief) angle on the flank of the insert. N = 0° means a negative (double-sided) insert.",
+        "example_codes": {
+          "A": "3°",
+          "B": "5°",
+          "C": "7°",
+          "P": "11°",
+          "D": "15°",
+          "E": "20°",
+          "F": "25°",
+          "G": "30°",
+          "N": "0° (negative)",
+          "O": "other (special)"
+        }
+      },
+      {
+        "position_number": 3,
+        "name": "tolerance",
+        "meaning": "Tolerance class on inscribed circle (d), thickness (s) and corner-point dimension (m).",
+        "example_codes": {
+          "A": "tight tolerance on d, m, s",
+          "C": "precision/close tolerance",
+          "E": "close on d and m, medium on s",
+          "F": "close on d and m",
+          "G": "ground top and bottom, close on d and s",
+          "H": "tight on m and s",
+          "J": "close on d, medium on m and s",
+          "K": "medium on d and m",
+          "L": "medium tolerance",
+          "M": "medium (general purpose)",
+          "N": "medium on d and s",
+          "U": "utility / ordinary (looser) tolerance"
+        }
+      },
+      {
+        "position_number": 4,
+        "name": "fixing_type",
+        "meaning": "Type of fixing (hole, countersink) and presence of chipbreakers.",
+        "example_codes": {
+          "A": "with hole, no chipbreaker",
+          "B": "with hole and one-side countersink (40-60°)",
+          "C": "with hole and two-side countersink (40-60°)",
+          "F": "clamp-on, no hole, no chipbreaker",
+          "G": "with hole, chipbreakers on both faces",
+          "H": "with hole, one countersink, chipbreaker on one face",
+          "J": "with hole, two countersinks, chipbreaker on both faces",
+          "M": "with hole, chipbreaker on one face",
+          "N": "no hole, no chipbreaker",
+          "Q": "with hole and two-side countersink (70-90°)",
+          "R": "no hole, chipbreaker on one face",
+          "T": "with hole, one countersink, chipbreaker on one face",
+          "U": "no hole, chipbreakers on both faces",
+          "W": "with hole, one-side countersink (70-90°)",
+          "X": "special fixing (see manufacturer)"
+        }
+      },
+      {
+        "position_number": 5,
+        "name": "cutting_edge_length",
+        "meaning": "Nominal cutting-edge length in millimetres (rounded, 1 or 2 digits). For shapes with an inscribed circle (triangle, square, round, rhombic, etc.) it is derived from the IC.",
+        "example_codes": {
+          "09": "9 mm cutting edge length",
+          "12": "12 mm cutting edge length",
+          "16": "16 mm cutting edge length",
+          "19": "19 mm cutting edge length",
+          "25": "25 mm cutting edge length"
+        }
+      },
+      {
+        "position_number": 6,
+        "name": "thickness",
+        "meaning": "Insert thickness in millimetres, rounded to two digits (may omit decimals).",
+        "example_codes": {
+          "T1": "1.98 mm",
+          "02": "2.38 mm",
+          "03": "3.18 mm",
+          "T3": "3.97 mm",
+          "04": "4.76 mm",
+          "05": "5.56 mm",
+          "06": "6.35 mm",
+          "07": "7.94 mm"
+        }
+      },
+      {
+        "position_number": 7,
+        "name": "corner_radius",
+        "meaning": "Corner (nose) radius in 1/10 mm, two digits. 00 = sharp corner.",
+        "example_codes": {
+          "00": "sharp corner",
+          "02": "0.2 mm",
+          "04": "0.4 mm",
+          "08": "0.8 mm",
+          "12": "1.2 mm",
+          "16": "1.6 mm",
+          "24": "2.4 mm",
+          "32": "3.2 mm"
+        }
+      },
+      {
+        "position_number": 8,
+        "name": "cutting_edge_condition",
+        "meaning": "Condition/preparation of the cutting edge.",
+        "example_codes": {
+          "F": "sharp edge",
+          "E": "rounded (honed) edge",
+          "T": "chamfered (T-land)",
+          "S": "chamfered and honed",
+          "K": "double chamfered"
+        }
+      },
+      {
+        "position_number": 9,
+        "name": "hand",
+        "meaning": "Cutting direction / hand of the insert.",
+        "example_codes": {
+          "R": "right-hand",
+          "L": "left-hand",
+          "N": "neutral (no hand)"
+        }
+      },
+      {
+        "position_number": 10,
+        "name": "chipbreaker",
+        "meaning": "Manufacturer's option field used to encode chipbreaker geometry or grade-specific designation (not rigidly standardized).",
+        "example_codes": {
+          "-MM": "medium machining chipbreaker (typical stainless)",
+          "-PM": "medium steel chipbreaker",
+          "-PR": "roughing steel chipbreaker",
+          "-QM": "general-purpose geometry",
+          "-SF": "super finishing geometry",
+          "-MR": "medium roughing geometry"
+        }
+      }
+    ]
+  },
+
+  "vdi_3323": {
+    "source_name": "VDI 3323 — Applicability of hard cutting materials for metal cutting processes",
+    "source_url": "https://www.vdi.de/en/home/vdi-standards/details/vdi-3323-applicability-of-hard-cutting-materials-for-metal-cutting-processes",
+    "description": "VDI 3323 is a German VDI guideline that complements ISO 513 by defining a finer machinability classification of workpiece materials and a standard way to describe the application suitability of carbide, CBN and PCD grades. Tool makers map their grade recommendations to VDI 3323 classes.",
+    "machinability_classes": [
+      { "class_range": "1-7",   "iso_513_group": "P", "materials": "non-alloy and low-alloy steels" },
+      { "class_range": "8-14",  "iso_513_group": "P", "materials": "high-alloy and tool steels" },
+      { "class_range": "15-20", "iso_513_group": "M", "materials": "stainless steels (ferritic, martensitic, austenitic, duplex)" },
+      { "class_range": "21-25", "iso_513_group": "K", "materials": "grey, nodular and malleable cast iron, CGI" },
+      { "class_range": "26-28", "iso_513_group": "N", "materials": "aluminum alloys, copper, brass and other non-ferrous" },
+      { "class_range": "29-34", "iso_513_group": "S", "materials": "nickel-, cobalt- and iron-based superalloys and titanium alloys" },
+      { "class_range": "35-38", "iso_513_group": "H", "materials": "hardened steels and chilled cast iron (hard machining)" }
+    ]
+  }
+}

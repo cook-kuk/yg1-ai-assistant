@@ -1,0 +1,57 @@
+# COMBO TAP — T8-N
+**제품명**: COMBO TAP HSS-E R40 T8-N
+
+## 기본 사양
+- 공구 타입: Tap
+- 서브타입: Short Chamfer
+- 날 수: 3
+- 공구 재질: HSS-E
+- 코팅: TiN
+- 냉각: Internal
+- 직경 범위: M6 x 1.0 ~ M24 x 2.5
+- 깊이비: 2.5xD
+
+## 대응 ISO 그룹
+P, M, K, N, S, H
+
+## 대상 피삭재
+- Non-alloy steel
+- Low alloy steel
+- High alloyed steel
+- Tool steel
+- Stainless steel
+- Grey cast iron
+- Nodular cast iron
+- Malleable cast iron
+- Aluminum-wrought alloy
+- Aluminum-cast alloyed
+- Copper and Copper Alloys (Bronze / Brass)
+- Non Metallic Materials
+- Heat Resistant Super Alloys
+- Titanium Alloys
+- Hardened steel
+- Chilled Cast Iron
+- Hardened Cast iron
+
+## 특징
+- R40
+- TiN
+- Spiral Flute Tap for Multi-Purpose
+- with Internal Coolant
+- Thread Depth / Hole Type: 2.5xD
+- Coating(TiCN, TiAlN or Hardslick) or Surface Treatment(Steam Oxide) is available on request
+- Coating codes available for Combo Tap: Bright Finish No. + C(TiCN), F(TiAlN), H(Hardslick), S(Steam Oxide)
+
+## 용도
+- Multi-Purpose tapping
+
+## 선정 가이드
+- Application Guide shows excellent suitability ratings across multiple material hardness ranges; the page is a comparison/selection matrix for COMBO TAP series.
+- ◎ : Excellent, ○ : Good. Recommended cutting conditions table indicates broad applicability across ISO P/M/K/N/S/H material groups.
+
+## 상세 정보 (원문 요약)
+- [page_0534] COMBO TAP 시리즈 선택 가이드 페이지로, HSS-E 재질의 R40 탭 라인업을 비교하고 있다. T8-N은 Short Chamfer 타입이며 TiN 코팅으로 표시되어 있다. Application Guide에서는 여러 경도 구간에 대해 ◎ 등급으로 적용 범위를 제시한다.
+- [page_0634] COMBO TAP의 T8 SERIES / T8-N SERIES는 내부급유가 적용된 다목적 스파이럴 플루트 탭이며, 나사 깊이/홀 타입은 2.5xD이다. Bright, TiN, TiCN, TiAlN, Hardslick, Steam Oxide 등의 코팅/표면처리가 가능하고, 코팅 코드는 Bright Finish No. + C/F/H/S로 표기된다. 규격은 M6 x 1.0부터 M24 x 2.5까지이며, 추천 절삭조건 표에서는 P/M/K/N/S/H 전반의 다양한 소재에 대해 적용 가능성이 제시된다.
+
+---
+출처: yu25_split | 페이지: page_0534, page_0634
