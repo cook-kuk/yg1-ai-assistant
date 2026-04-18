@@ -110,6 +110,20 @@ def session_count() -> int:
     return len(_SESSIONS)
 
 
+# Category-style "brands" the LLM sometimes hallucinates from generic nouns
+# like "tool" or "insert" in the user's message. Blocking them from carry-
+# forward means a stale "Tooling System" on turn 1 can't poison turn 2's
+# search after the prompt fix makes the LLM stop emitting them.
+INVALID_BRANDS: set[str] = {
+    "Tooling System",
+    "Milling Insert",
+    "ADKT Cutter",
+    "MORSE TAPER SHANK DRILLS",
+    "Morse Taper Shank Drills",
+    "Turning",
+}
+
+
 def carry_forward_intent(session: Session, intent: Any) -> Any:
     """Fill None fields on `intent` from `session.current_filters`. Mutates
     `intent` in place and returns it for chaining.
@@ -121,5 +135,9 @@ def carry_forward_intent(session: Session, intent: Any) -> Any:
         if getattr(intent, field_name, None) is None:
             carried = session.current_filters.get(field_name)
             if carried is not None:
+                # Don't resurrect category-style brand misparses that an
+                # earlier turn's LLM emitted before the prompt fix landed.
+                if field_name == "brand" and str(carried) in INVALID_BRANDS:
+                    continue
                 setattr(intent, field_name, carried)
     return intent

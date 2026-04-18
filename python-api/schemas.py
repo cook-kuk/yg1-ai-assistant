@@ -7,6 +7,7 @@ class RecommendRequest(BaseModel):
 
 
 class SCRIntent(BaseModel):
+    intent: Optional[str] = None         # "recommendation" | "general_question" | "domain_knowledge"
     diameter: Optional[float] = None
     flute_count: Optional[int] = None
     material_tag: Optional[str] = None
@@ -164,3 +165,21 @@ class ProductsResponse(BaseModel):
     session_id: str
     broadened: bool = False  # True when follow-up narrow hit 0 and we used the global set
     sources: List[SourceAttribution] = Field(default_factory=list)
+
+
+class ProductsPageRequest(BaseModel):
+    """Candidate-panel pagination — replays the last intent attached to the
+    session and returns a detailed page slice. No LLM round-trip."""
+    session_id: str
+    page: int = 0
+    pageSize: int = 20
+
+
+class ProductsPageResponse(BaseModel):
+    products: List[ProductCard]
+    totalCount: int
+    page: int
+    pageSize: int
+    totalPages: int
+    session_id: str
+    appliedFilters: Dict[str, Any] = Field(default_factory=dict)

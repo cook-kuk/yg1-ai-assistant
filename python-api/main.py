@@ -1,9 +1,11 @@
 import asyncio
 import json as _json
+import os
 import re
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from schemas import (
@@ -18,6 +20,8 @@ from schemas import (
     ProductsResponse,
     ProductCard,
     ProductSummary,
+    ProductsPageRequest,
+    ProductsPageResponse,
     FilterOption,
     FilterOptionsRequest,
     FilterOptionsResponse,
@@ -46,6 +50,19 @@ from scheduler import scheduler
 from cutting import get_cutting_conditions, get_conditions_for_products
 
 app = FastAPI(title="cook-forge python-api", version="0.1.0")
+
+# Browser-direct calls (no Next.js proxy in front) — allow the Next.js origin
+# to hit /products, /products/stream, /filter-options. CORS_ALLOW_ORIGINS is a
+# comma-separated list; "*" opens it up for dev.
+_cors_raw = os.environ.get("CORS_ALLOW_ORIGINS", "*").strip()
+_cors_origins = ["*"] if _cors_raw == "*" else [o.strip() for o in _cors_raw.split(",") if o.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")
@@ -245,6 +262,54 @@ _NEG_BRAND_RE = re.compile(
 )
 
 
+# Anaphoric phrases that explicitly point at the prior result set. Only when
+# the message contains one of these — OR the new intent adds a field that
+# wasn't already carried — do we restrict the next search to the last turn's
+# top-products. Without this guard, vague follow-ups ("전체 보기", "의료 기기
+# 만들거에요") would permanently cap the candidate pool at the first turn's
+# top 50. See regression that surfaced as "후보 53개" in 2026-04-19 QA.
+_NARROW_PHRASES = (
+    "이 중에서", "이 중", "그 중에서", "그 중", "그중",
+    "여기서", "여기 중", "여기에서",
+    "저 중에서", "저 중",
+    "이거 중", "이중에",
+    "in this", "from these",
+)
+
+
+def _should_narrow_by_previous(message: Optional[str], intent, session) -> bool:
+    """Decide whether to intersect the new search with session.previous_products.
+
+    Narrow on either:
+      1. Explicit anaphor — the user said "이 중에서 …" pointing back at the
+         last shown set.
+      2. Drill-down intent — the new turn added a filter field that wasn't
+         already carried in session.current_filters (e.g., adding flute_count
+         after a material-only turn).
+
+    Otherwise (empty intent, vague greeting, topic switch) skip the narrow
+    and let the new search stand on its own. current_filters still carry
+    forward via carry_forward_intent, so "Inconel" context survives, but the
+    50-tool cap from `previous_products` doesn't get inherited silently.
+    """
+    if message:
+        lower = message.lower()
+        for phrase in _NARROW_PHRASES:
+            if phrase in lower:
+                return True
+    carried = session.current_filters or {}
+    try:
+        intent_dict = intent.model_dump()
+    except AttributeError:
+        return False
+    for field, value in intent_dict.items():
+        if value is None:
+            continue
+        if carried.get(field) is None:
+            return True
+    return False
+
+
 def _detect_excluded_brands(message: str) -> list[str]:
     """Return DB-canonical brand names the user is trying to exclude. Uses a
     small neighborhood window (30 chars after a brand mention) to confirm the
@@ -364,6 +429,84 @@ def products(req: ProductsRequest) -> ProductsResponse:
         )
     ]
 
+    # 1.5. Intent-based routing. general_question / domain_knowledge queries
+    # have nothing to search against — the LLM parser classified them as
+    # off-catalog, so we skip the DB hit and go straight to the chat layer
+    # (with RAG knowledge injected for domain_knowledge). This keeps
+    # "0.1+0.2==0.3?" from dragging the whole filter pipeline along and stops
+    # "떨림이 심해 ㅠ" from surfacing arbitrary products just because the user
+    # opened with it.
+    intent_value = (getattr(intent, "intent", None) or "recommendation")
+    if intent_value in ("general_question", "domain_knowledge"):
+        knowledge: list[dict] = []
+        if intent_value == "domain_knowledge" and req.message:
+            try:
+                knowledge = search_knowledge(req.message, top_k=3)
+            except Exception:
+                knowledge = []
+        answer_text = ""
+        chips: list[str] = []
+        if req.message:
+            try:
+                chat_result = generate_response(
+                    message=req.message,
+                    intent=intent,
+                    products=[],
+                    knowledge=knowledge,
+                    total_count=0,
+                    relaxed_fields=None,
+                    available_filters=None,
+                )
+                answer_text = chat_result.get("answer") or ""
+                chips = chat_result.get("chips") or []
+            except Exception:
+                answer_text = (
+                    "도메인 지식을 찾지 못했습니다."
+                    if intent_value == "domain_knowledge"
+                    else "죄송합니다, 해당 질문에 답변하기 어렵습니다."
+                )
+        sources.append(SourceAttribution(
+            type="domain_knowledge" if intent_value == "domain_knowledge" else "llm_reasoning",
+            detail=(
+                f"도메인 지식 {len(knowledge)}건 + CoT 응답"
+                if intent_value == "domain_knowledge"
+                else "카탈로그 외 질문 — CoT 응답"
+            ),
+            confidence="medium",
+        ))
+        intent_dict_skip = {
+            "intent": intent.intent,
+            "diameter": intent.diameter,
+            "flute_count": intent.flute_count,
+            "material_tag": intent.material_tag,
+            "subtype": intent.subtype,
+            "brand": intent.brand,
+            "coating": intent.coating,
+            "tool_type": intent.tool_type,
+            "tool_material": intent.tool_material,
+            "shank_type": intent.shank_type,
+        }
+        add_turn(
+            session,
+            role="user",
+            message=req.message or "(manual filters)",
+            intent=intent_dict_skip,
+            products=[],
+        )
+        return ProductsResponse(
+            text=answer_text,
+            chips=chips,
+            products=[],
+            allProducts=[],
+            appliedFilters={},
+            totalCount=0,
+            route=intent_value,
+            availableFilters=None,
+            session_id=session.session_id,
+            broadened=False,
+            sources=sources,
+        )
+
     # 2. Fetch (whole candidate set). Uses the in-memory index so /products
     #    skips the DB on every request. Closure lets the 0-hit relax loop
     #    rebuild the filter dict from the mutated intent cheaply.
@@ -394,7 +537,7 @@ def products(req: ProductsRequest) -> ProductsResponse:
         return base
 
     def _run_search() -> list[dict]:
-        return search_products_fast(_build_filters(), limit=5000)
+        return search_products_fast(_build_filters(), limit=125_000)
 
     rows = _run_search()
     sources.append(SourceAttribution(
@@ -403,12 +546,17 @@ def products(req: ProductsRequest) -> ProductsResponse:
         confidence="high",
     ))
 
-    # 2.2 Follow-up narrow: if we already showed products last turn, try
-    # restricting the new filter to that subset first. Empty narrow falls
-    # through to the global result with broadened=True so the UI can flag
-    # "전체 카탈로그에서 검색했습니다".
+    # 2.2 Follow-up narrow: restrict the new search to the last turn's top
+    # products — but ONLY when the user signaled a drill-down (anaphoric
+    # phrase or an added-field intent). Vague/broad follow-ups skip this
+    # and operate on the full catalog; see _should_narrow_by_previous for
+    # the guard rules. Empty narrow still falls through with broadened=True.
     broadened = False
-    if session.previous_products and rows:
+    if (
+        session.previous_products
+        and rows
+        and _should_narrow_by_previous(req.message, intent, session)
+    ):
         prev_set = set(session.previous_products)
         narrowed = [r for r in rows if r.get("edp_no") in prev_set]
         if narrowed:
@@ -583,6 +731,7 @@ def products(req: ProductsRequest) -> ProductsResponse:
     # Persist the turn so the next follow-up can narrow/carry state.
     edp_list = [c.get("edp_no") for c, _, _ in ranked[:50] if c.get("edp_no")]
     intent_dict = {
+        "intent": intent.intent,
         "diameter": intent.diameter,
         "flute_count": intent.flute_count,
         "material_tag": intent.material_tag,
@@ -614,6 +763,96 @@ def products(req: ProductsRequest) -> ProductsResponse:
         broadened=broadened,
         sources=sources,
     )
+
+
+@app.post("/products/page", response_model=ProductsPageResponse)
+def products_page(req: ProductsPageRequest) -> ProductsPageResponse:
+    """Candidate-panel pagination. Replays the session's last intent through
+    search + rank, slices [page*pageSize..+pageSize], and returns detailed
+    ProductCards for that window. No LLM, no chat — pure re-rank + slice so
+    "다음 페이지" stays sub-second.
+
+    Session must already exist (minted by a prior /products or /products/stream
+    call); otherwise 404 — pagination with no context has no intent to replay.
+    """
+    from session import _SESSIONS  # local import to avoid top-level coupling
+
+    with threading_lock():
+        session = _SESSIONS.get(req.session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail=f"session '{req.session_id}' not found or expired")
+
+    page = max(0, int(req.page))
+    page_size = max(1, min(int(req.pageSize), 100))
+
+    filters = dict(session.current_filters)
+    rows = search_products_fast(filters, limit=125_000)
+
+    # No narrow-by-previous-products here — current_filters already encodes
+    # whatever the last turn narrowed down to (carry_forward_intent merges
+    # each turn's intent). Narrowing again by previous_products would cap
+    # pagination at the top-50 from the last turn, so users clicking "다음
+    # 20개" could only ever see 50 items even when the universe is 78k.
+
+    ranked = rank_candidates(rows, SCRIntent(**{
+        k: v for k, v in filters.items() if k in SCRIntent.model_fields
+    }), top_k=len(rows) or 1)
+
+    total = len(ranked)
+    total_pages = max((total + page_size - 1) // page_size, 1)
+    start = page * page_size
+    end = start + page_size
+    slice_ = ranked[start:end]
+
+    slice_raw = [c for c, _, _ in slice_]
+    try:
+        conditions_map = get_conditions_for_products(
+            slice_raw, iso=filters.get("material_tag"),
+        )
+    except Exception:
+        conditions_map = {}
+
+    products: list[ProductCard] = []
+    for c, s, b in slice_:
+        edp = str(c.get("edp_no") or "")
+        products.append(ProductCard(
+            edp_no=c["edp_no"],
+            brand=c.get("brand"),
+            series=c.get("series"),
+            tool_type=c.get("tool_type"),
+            subtype=c.get("subtype"),
+            diameter=c.get("diameter"),
+            flutes=c.get("flutes"),
+            coating=c.get("coating"),
+            material_tags=c.get("material_tags"),
+            description=c.get("series_description"),
+            feature=c.get("series_feature"),
+            oal=c.get("milling_overall_length"),
+            loc=c.get("milling_length_of_cut"),
+            helix_angle=c.get("milling_helix_angle"),
+            coolant_hole=c.get("milling_coolant_hole"),
+            shank_type=c.get("search_shank_type"),
+            cutting_conditions=conditions_map.get(edp) or None,
+            score=s,
+            score_breakdown=b,
+        ))
+
+    return ProductsPageResponse(
+        products=products,
+        totalCount=total,
+        page=page,
+        pageSize=page_size,
+        totalPages=total_pages,
+        session_id=session.session_id,
+        appliedFilters={k: v for k, v in filters.items() if v is not None},
+    )
+
+
+def threading_lock():
+    """Re-export session._LOCK as a context manager. Kept local so the lock
+    plumbing doesn't leak into main's public surface."""
+    from session import _LOCK
+    return _LOCK
 
 
 @app.post("/products/stream")
@@ -677,6 +916,47 @@ async def products_stream(req: ProductsRequest):
 
         yield f"event: filters\ndata: {_json.dumps({'filters': intent.model_dump(), 'route': route, 'session_id': session.session_id}, ensure_ascii=False)}\n\n"
 
+        # Intent-based routing — general_question / domain_knowledge skip the
+        # search + rank path entirely. The client should key UI off
+        # filters.filters.intent from the event above. See /products sync
+        # endpoint for rationale.
+        intent_value = (getattr(intent, "intent", None) or "recommendation")
+        if intent_value in ("general_question", "domain_knowledge"):
+            knowledge = []
+            if intent_value == "domain_knowledge" and req.message:
+                try:
+                    knowledge = await asyncio.to_thread(search_knowledge, req.message, 3)
+                except Exception:
+                    knowledge = []
+            if req.message:
+                try:
+                    chat_result = await asyncio.to_thread(
+                        generate_response,
+                        req.message, intent, [], knowledge, 0, None, None,
+                    )
+                except Exception:
+                    chat_result = {
+                        "answer": (
+                            "도메인 지식을 찾지 못했습니다."
+                            if intent_value == "domain_knowledge"
+                            else "죄송합니다, 해당 질문에 답변하기 어렵습니다."
+                        ),
+                        "chips": [],
+                        "reasoning": "",
+                        "refined_filters": None,
+                    }
+            else:
+                chat_result = {"answer": "", "chips": [], "reasoning": "", "refined_filters": None}
+            yield f"event: answer\ndata: {_json.dumps(chat_result, ensure_ascii=False)}\n\n"
+            add_turn(
+                session, role="user",
+                message=req.message or "(manual filters)",
+                intent=intent.model_dump(),
+                products=[],
+            )
+            yield "event: done\ndata: {}\n\n"
+            return
+
         # 2. search + rank
         def _search_and_rank():
             filters = {
@@ -702,10 +982,16 @@ async def products_stream(req: ProductsRequest):
                     v = getattr(req.filters, fld)
                     if v is not None:
                         filters[fld] = v
-            rows = search_products_fast(filters, limit=5000)
-            # Follow-up narrow + relax — mirror the sync endpoint's logic.
+            rows = search_products_fast(filters, limit=125_000)
+            # Follow-up narrow + relax — only when the user signaled a
+            # drill-down (anaphor or added-field intent). See the sync
+            # /products endpoint for the same guard.
             broadened_local = False
-            if session.previous_products and rows:
+            if (
+                session.previous_products
+                and rows
+                and _should_narrow_by_previous(req.message, intent, session)
+            ):
                 prev_set = set(session.previous_products)
                 narrowed = [r for r in rows if r.get("edp_no") in prev_set]
                 if narrowed:
