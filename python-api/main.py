@@ -1,5 +1,6 @@
 import asyncio
 import json as _json
+import re
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
@@ -22,7 +23,7 @@ from schemas import (
     FilterOptionsResponse,
     SourceAttribution,
 )
-from scr import parse_intent
+from scr import parse_intent, _get_brands
 from search import (
     search_products,
     product_count,
@@ -234,6 +235,59 @@ def _filters_to_dict(filters: ManualFilters | None, intent: SCRIntent) -> dict:
     return base
 
 
+# Negation cues that signal "I don't want this brand" — broader than scr.py's
+# prompt rule 5 (말고/제외/빼고/아닌/not/except/no) because users paraphrase a
+# lot. When a brand canonical appears within ~30 chars of one of these cues
+# we treat it as an exclusion even if the LLM extracted it as intent.brand.
+_NEG_BRAND_RE = re.compile(
+    r"(필요\s*없|빼\s*줘|빼고|제외|원치\s*않|원하지\s*않|"
+    r"안\s*써|안\s*해|이미\s*(샀|구매|있)|말고|별로|싫)",
+)
+
+
+def _detect_excluded_brands(message: str) -> list[str]:
+    """Return DB-canonical brand names the user is trying to exclude. Uses a
+    small neighborhood window (30 chars after a brand mention) to confirm the
+    negation cue applies to THAT brand rather than being elsewhere in the
+    sentence. Noop when the message has no cue or the DB brand list is empty."""
+    if not message or not _NEG_BRAND_RE.search(message):
+        return []
+    brands = _get_brands()
+    if not brands:
+        return []
+    msg_lc = message.lower()
+    excluded: list[str] = []
+    # Longer canonicals first so "ALU-POWER HPC" claims the match before
+    # "ALU-POWER" inside the same mention.
+    for b in sorted(brands, key=len, reverse=True):
+        if len(b) < 3:
+            continue
+        b_lc = b.lower()
+        pos = msg_lc.find(b_lc)
+        if pos < 0:
+            continue
+        # Context window: 5 chars before the brand through 30 chars after it.
+        window = msg_lc[max(0, pos - 5): pos + len(b_lc) + 30]
+        if _NEG_BRAND_RE.search(window):
+            excluded.append(b)
+    return excluded
+
+
+def _apply_brand_exclusions(session, intent, excluded_brands: list[str]) -> None:
+    """Hard-override: drop excluded brands from both intent and session state.
+    Without this, `carry_forward_intent` would happily repopulate intent.brand
+    from the carried-forward filter after the LLM correctly set it to null."""
+    if not excluded_brands:
+        return
+    excluded_lc = {b.lower() for b in excluded_brands}
+    current_intent_brand = getattr(intent, "brand", None)
+    if current_intent_brand and current_intent_brand.lower() in excluded_lc:
+        intent.brand = None
+    carried = session.current_filters.get("brand")
+    if carried and carried.lower() in excluded_lc:
+        del session.current_filters["brand"]
+
+
 def _empty_products_response(session_id: str | None = None) -> ProductsResponse:
     """Graceful 200 for callers that hit /products with neither message nor
     filters — e.g. a fresh page mount before the user has said anything.
@@ -290,6 +344,12 @@ def products(req: ProductsRequest) -> ProductsResponse:
     else:
         intent = parse_intent(req.message or "")
         route = "llm"
+
+    # Process exclusions BEFORE carry_forward, so that when the user says
+    # "JET-POWER 필요 없어요" we (a) drop it from session state and (b) don't
+    # let carry_forward re-populate intent.brand from the stale carried value.
+    if req.message:
+        _apply_brand_exclusions(session, intent, _detect_excluded_brands(req.message))
 
     # Fill unset intent fields from the session's carried context so
     # abbreviated follow-ups still know the material/diameter from turn 1.
@@ -607,6 +667,12 @@ async def products_stream(req: ProductsRequest):
         else:
             intent = await asyncio.to_thread(parse_intent, req.message or "")
             route = "llm"
+
+        # Mirror /products: handle brand exclusions before carry_forward so
+        # the carried filter doesn't override a fresh "X 필요 없어요".
+        if req.message:
+            _apply_brand_exclusions(session, intent, _detect_excluded_brands(req.message))
+
         carry_forward_intent(session, intent)
 
         yield f"event: filters\ndata: {_json.dumps({'filters': intent.model_dump(), 'route': route, 'session_id': session.session_id}, ensure_ascii=False)}\n\n"

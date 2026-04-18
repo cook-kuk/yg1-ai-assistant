@@ -48,6 +48,18 @@ function deriveMessage(payload: RecommendationRequestDto): string | undefined {
   return undefined
 }
 
+// Module-level so multi-turn state threads across bridge calls. Python's
+// /products uses session_id to carry forward the effective filter context
+// ("이 중에서 4날" on turn 2 still knows material+diameter from turn 1). If
+// we don't round-trip this id, every turn becomes a fresh session and
+// filter memory is lost. First caller wins — concurrent calls would race,
+// but the hook calls sequentially so that's fine.
+let _pythonSessionId: string | null = null
+
+export function resetPythonSession(): void {
+  _pythonSessionId = null
+}
+
 export async function streamRecommendationMaybePython(
   payload: RecommendationRequestDto,
   options: StreamRecommendationOptions = {},
@@ -57,7 +69,10 @@ export async function streamRecommendationMaybePython(
   }
 
   const message = deriveMessage(payload)
-  const resp = await fetchProducts(message)
+  const resp = await fetchProducts(message, undefined, _pythonSessionId)
+  if (resp.session_id) {
+    _pythonSessionId = resp.session_id
+  }
   const pageSize = payload.pagination?.pageSize
   return adaptProductsToRecommendationDto(resp, pageSize ? { pageSize } : {})
 }

@@ -88,6 +88,7 @@ export interface ProductsResponse {
   totalCount: number
   route: string
   availableFilters?: Record<string, FilterOption[]> | null
+  session_id?: string | null
 }
 
 export interface FilterOptionsResponse {
@@ -99,11 +100,12 @@ export interface FilterOptionsResponse {
 export async function fetchProducts(
   message?: string,
   filters?: ManualFilters,
+  sessionId?: string | null,
 ): Promise<ProductsResponse> {
   const res = await fetch("/api/products", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, filters }),
+    body: JSON.stringify({ message, filters, session_id: sessionId ?? undefined }),
   })
   if (!res.ok) {
     const detail = await res.text().catch(() => "")
