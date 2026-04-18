@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { AlertCircle, Search } from "lucide-react"
 
@@ -60,6 +61,22 @@ export default function ProductRecommendPage() {
         ? "Review"
         : "Search"
 
+  // In prod, NEXT_PUBLIC_BUILD_TIMESTAMP is baked in at build time and means
+  // "when the deployed bundle was built". In dev, `next dev` sets it on
+  // process start and HMR never re-evaluates next.config.mjs — so it freezes
+  // at the moment the dev server booted, which is useless for "did my change
+  // land?". Replace with a client-mount timestamp in dev.
+  const [devStamp, setDevStamp] = useState<string | null>(null)
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "production") {
+      setDevStamp(new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }))
+    }
+  }, [])
+  const buildStamp =
+    process.env.NODE_ENV === "production"
+      ? (process.env.NEXT_PUBLIC_BUILD_TIMESTAMP ?? "")
+      : (devStamp ?? "…")
+
   return (
     <div className="flex flex-1 min-h-0 flex-col bg-[linear-gradient(180deg,#ffffff_0%,#f7f7f8_100%)]">
       <FeedbackWidget
@@ -71,7 +88,7 @@ export default function ProductRecommendPage() {
 
       <div className="hidden sm:block shrink-0 border-b bg-gray-50/80 px-4 py-1 text-center">
         <span className="font-mono text-[10px] text-gray-400">
-          Build updated: {process.env.NEXT_PUBLIC_BUILD_TIMESTAMP ?? new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}
+          Build updated: {buildStamp}
         </span>
       </div>
 

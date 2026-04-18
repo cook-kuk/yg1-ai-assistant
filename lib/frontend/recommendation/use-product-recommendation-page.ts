@@ -17,7 +17,14 @@ import {
   createInitialRecommendationRequest,
   parseRecommendationResponse,
 } from "@/lib/frontend/recommendation/recommendation-client"
-import { streamRecommendationMaybePython } from "@/lib/frontend/recommendation/recommendation-python-bridge"
+import {
+  getPythonSessionId,
+  streamRecommendationViaPython,
+} from "@/lib/frontend/recommendation/recommendation-python-bridge"
+import {
+  adaptProductsPage,
+  fetchProductsPage,
+} from "@/lib/frontend/recommendation/products-api-client"
 import type { ChatMsg, TurnFeedback } from "@/lib/frontend/recommendation/exploration-types"
 import { buildIntakePromptText } from "@/lib/frontend/recommendation/intake-flow"
 import type { AnswerState, ProductIntakeForm } from "@/lib/frontend/recommendation/intake-types"
@@ -52,9 +59,10 @@ function resolveReasoningVisibility(
 }
 
 export type Phase = "intake" | "summary" | "loading" | "explore"
-// 설일석 피드백(2026-04-07): "추천 제품 종류가 너무 많아 고객이 혼란".
-// 50→20으로 축소. 더 보고 싶을 때 페이지네이션으로 추가 로드 가능.
-const DEFAULT_PAGE_SIZE = 20
+// 사용자 피드백(2026-04-19): 채팅창에 한 번에 10개씩 카드로 보여주고,
+// 나머지 제품은 yg1-ai-cutting-tool-master 스타일의 간단한 페이지네이션
+// (first/prev/next/last, 페이지당 10개)으로 넘기도록 맞춤.
+const DEFAULT_PAGE_SIZE = 10
 const RESTORE_RECOMMENDATION_ALTERNATIVES_LIMIT = 10
 
 function trimRecommendationForPersistence(
@@ -513,7 +521,7 @@ export function useProductRecommendationPage({
       ])
       setPhase("explore")
 
-      const data = await streamRecommendationMaybePython(requestPayload, {
+      const data = await streamRecommendationViaPython(requestPayload, {
         onThinking: (text, opts) => {
           setChatMessages(prev => {
             const updated = [...prev]
@@ -654,7 +662,7 @@ export function useProductRecommendationPage({
       ])
       setPhase("explore")
 
-      const data = await streamRecommendationMaybePython(requestPayload, {
+      const data = await streamRecommendationViaPython(requestPayload, {
         onThinking: (text, opts) => {
           setChatMessages(prev => {
             const updated = [...prev]
@@ -802,7 +810,7 @@ export function useProductRecommendationPage({
       // Progressive cards (TODO-B): SSE flushes a partial DTO before the LLM
       // narrative arrives so cards render immediately. onCards updates the
       // pending AI message in place; the awaited result is still the final DTO.
-      const data = await streamRecommendationMaybePython(requestPayload, {
+      const data = await streamRecommendationViaPython(requestPayload, {
         onThinking: (text, opts) => {
           setChatMessages(prev => {
             const updated = [...prev]
@@ -861,6 +869,10 @@ export function useProductRecommendationPage({
               primaryExplanation: partial.primaryExplanation ?? null,
               primaryFactChecked: partial.primaryFactChecked ?? null,
               altExplanations: partial.altExplanations ?? [],
+              // Inline cards render in the chat flow as soon as the stream
+              // flushes them — no waiting for the LLM narrative or a CTA click.
+              candidateCards: partial.candidates ?? last.candidateCards ?? null,
+              candidatePagination: partial.pagination ?? last.candidatePagination ?? null,
               // keep isLoading=true so the typewriter still shows once text arrives
             }
             return updated
@@ -902,6 +914,12 @@ export function useProductRecommendationPage({
         const updated = [...prev]
         const mergedThinkingProcess = pickLongerThinking(prev[updated.length - 1]?.thinkingProcess, data.thinkingProcess) || null
         const mergedThinkingDeep = pickLongerThinking((prev[updated.length - 1] as any)?.thinkingDeep, (data as any).thinkingDeep) || null
+        const prevMsg = prev[updated.length - 1]
+        // Candidates from the final DTO may be null (e.g. a greeting turn with
+        // no search). Fall back to whatever the partial stream already put on
+        // the message so we don't clobber cards the user is already seeing.
+        const finalCards = data.candidates ?? prevMsg?.candidateCards ?? null
+        const finalPagination = data.pagination ?? prevMsg?.candidatePagination ?? null
         const nextMessage: ChatMsg = {
           role: "ai",
           text: data.text ?? "",
@@ -914,6 +932,8 @@ export function useProductRecommendationPage({
           primaryExplanation: data.primaryExplanation ?? null,
           primaryFactChecked: data.primaryFactChecked ?? null,
           altExplanations: data.altExplanations ?? [],
+          candidateCards: finalCards,
+          candidatePagination: finalPagination,
           isLoading: false,
           requestPayload,
           responsePayload: data,
@@ -1010,6 +1030,14 @@ export function useProductRecommendationPage({
   const loadCandidatePage = useCallback(async (page: number) => {
     if (isCandidatePageLoading) return
 
+    const sessionId = getPythonSessionId()
+    if (!sessionId) {
+      // No Python session yet — the user hasn't kicked off a recommendation,
+      // so there's nothing to paginate through. Silent no-op rather than a
+      // confusing error toast on an idle panel.
+      return
+    }
+
     const currentPagination = candidatePagination ?? {
       page: 0,
       pageSize: DEFAULT_PAGE_SIZE,
@@ -1021,43 +1049,34 @@ export function useProductRecommendationPage({
     setError(null)
 
     try {
-      const formWithCountry: ProductIntakeForm = {
-        ...form,
-        country: country && country !== "ALL"
-          ? { status: "known" as const, value: country }
-          : { status: "known" as const, value: "ALL" },
-      }
-
-      const requestPayload = createCandidatePaginationRequest({
-        form: formWithCountry,
-        session: sessionEnvelope,
-        language,
-        pagination: { page, pageSize: currentPagination.pageSize },
+      const resp = await fetchProductsPage(sessionId, page, currentPagination.pageSize)
+      const adapted = adaptProductsPage(resp)
+      const nextCards = adapted.candidates.length > 0 ? adapted.candidates : null
+      setCandidateSnapshot(nextCards)
+      setCandidatePagination(adapted.pagination)
+      setSessionState(prev => prev ? { ...prev, candidateCount: adapted.pagination.totalItems } : prev)
+      // Keep the inline chat cards in sync with the paged fetch: update the
+      // latest AI message (which the pagination UI is attached to) so the
+      // user sees the new page right where they clicked.
+      setChatMessages(prev => {
+        if (prev.length === 0) return prev
+        const lastIndex = prev.length - 1
+        const last = prev[lastIndex]
+        if (!last || last.role !== "ai") return prev
+        const updated = [...prev]
+        updated[lastIndex] = {
+          ...last,
+          candidateCards: nextCards,
+          candidatePagination: adapted.pagination,
+        }
+        return updated
       })
-
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 55000) // 55s timeout (server maxDuration=60s)
-      const res = await fetch("/api/recommend", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestPayload),
-        signal: controller.signal,
-      }).finally(() => clearTimeout(timeout))
-      if (!res.ok) throw new Error(`서버 오류 (${res.status})`)
-      const data = parseRecommendationResponse(await res.json())
-      if (data.error) throw new Error(data.detail ?? data.error)
-
-      setSessionState(data.session.publicState ?? null)
-      setEngineSessionState((data.session.engineState as ExplorationSessionState | null) ?? null)
-      setCapabilities(resolveRecommendationCapabilities(data))
-      setCandidateSnapshot(data.candidates ?? null)
-      if (data.pagination) setCandidatePagination(data.pagination)
     } catch (err) {
       setError(err instanceof Error ? err.message : "알 수 없는 오류")
     } finally {
       setIsCandidatePageLoading(false)
     }
-  }, [candidatePagination, country, form, isCandidatePageLoading, language, sessionEnvelope, sessionState?.candidateCount, setError])
+  }, [candidatePagination, isCandidatePageLoading, sessionState?.candidateCount, setError])
 
   const handleFeedback = (messageIndex: number, feedback: TurnFeedback) => {
     if (!feedback) return

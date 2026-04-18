@@ -1,23 +1,50 @@
 /**
- * Flag-guarded bridge between the legacy streaming recommender and the new
- * Python /products endpoint. Keeps the hook's signature stable — when
- * NEXT_PUBLIC_USE_PYTHON_API is "true", the hook's streamRecommendation calls
- * route through fetchProducts and the ProductsResponse is adapted into a
- * minimal RecommendationResponseDto skeleton. When the flag is absent or
- * "false", the call falls through to the original SSE client unchanged.
+ * Bridge to the Python `/products` pipeline via the Next.js proxy layer.
  *
- * The Python path does not emit streaming events; onThinking / onCards
- * callbacks simply do not fire on that branch. The legacy path is untouched.
+ * Primary path — `POST /api/products/stream` → FastAPI `/products/stream`
+ * (SSE). Python emits:
+ *   - `filters`  → intent dict + route + session_id
+ *   - `products` → top-10 cards + count + broadened flag
+ *   - `answer`   → answer + chips + reasoning (CoT)
+ *   - `done`     → terminator
+ * Each is translated to the hook's streaming callbacks:
+ *   filters → onThinking(stage summary)
+ *   products → onThinking(candidate count) + onCards(partial DTO)
+ *   answer.reasoning → onThinking(…, kind:"deep") — populates thinkingDeep
+ *
+ * Fallback — if the stream init fails (non-2xx, missing body, transport
+ * error) we retry via the non-stream `fetchProducts` path (same adapter, no
+ * CoT). Last-resort safety net so a Python hiccup doesn't blank the UI.
+ *
+ * There is no longer a legacy-JS branch or feature flag — Python is the only
+ * recommendation backend for the product page.
  */
 
-import { streamRecommendation, type StreamRecommendationOptions } from "@/lib/frontend/recommendation/recommendation-stream-client"
 import {
-  USE_PYTHON_API,
   adaptProductsToRecommendationDto,
   fetchProducts,
+  type ProductCard,
+  type ProductsResponse,
 } from "@/lib/frontend/recommendation/products-api-client"
 import { buildIntakePromptText } from "@/lib/frontend/recommendation/intake-flow"
 import type { RecommendationRequestDto, RecommendationResponseDto } from "@/lib/contracts/recommendation"
+
+export interface StreamRecommendationCallbacks {
+  onCards?: (dto: RecommendationResponseDto) => void
+  /**
+   * Real-time reasoning flushes from the server.
+   *
+   * - `delta=true`  → `text` is a chunk to *append* to the in-flight reasoning.
+   * - `delta=false` → `text` is the *complete* reasoning so far; *replace*
+   *                   the current value.
+   */
+  onThinking?: (text: string, opts?: { delta?: boolean; kind?: "stage" | "deep" | "agent" }) => void
+}
+
+export interface StreamRecommendationOptions extends StreamRecommendationCallbacks {
+  signal?: AbortSignal
+  timeoutMs?: number
+}
 
 function extractLastUserText(payload: RecommendationRequestDto): string | undefined {
   const msgs = payload.messages
@@ -30,49 +57,288 @@ function extractLastUserText(payload: RecommendationRequestDto): string | undefi
 }
 
 function deriveMessage(payload: RecommendationRequestDto): string | undefined {
-  // Prefer an explicit chat turn — that's what the user actually typed.
   const fromMessages = extractLastUserText(payload)
   if (fromMessages) return fromMessages
-  // Intake-form entry point sends `{intakeForm, messages: []}`. Synthesize
-  // a prompt string from the form so the Python /products guard (which
-  // rejects requests with neither message nor filters) doesn't 400 us.
   const form = payload.intakeForm
   if (form) {
     try {
       const text = buildIntakePromptText(form, payload.language ?? "ko")
       if (text && text.trim()) return text
     } catch {
-      // fall through — caller will handle the empty case
+      // fall through
     }
   }
   return undefined
 }
 
-// Module-level so multi-turn state threads across bridge calls. Python's
-// /products uses session_id to carry forward the effective filter context
-// ("이 중에서 4날" on turn 2 still knows material+diameter from turn 1). If
-// we don't round-trip this id, every turn becomes a fresh session and
-// filter memory is lost. First caller wins — concurrent calls would race,
-// but the hook calls sequentially so that's fine.
+// Module-level so Python's carry-forward context ("이 중에서 4날" on turn 2
+// still knows material+diameter from turn 1) survives across bridge calls.
+// The hook calls sequentially so a shared slot is fine.
 let _pythonSessionId: string | null = null
 
 export function resetPythonSession(): void {
   _pythonSessionId = null
 }
 
-export async function streamRecommendationMaybePython(
+export function getPythonSessionId(): string | null {
+  return _pythonSessionId
+}
+
+// ── SSE helpers ──────────────────────────────────────────────────────
+
+interface StreamFiltersEvent {
+  filters: Record<string, unknown> | null
+  route?: string
+  session_id?: string | null
+}
+
+interface StreamProductsEvent {
+  count: number
+  top10: Array<{
+    edp_no: string
+    brand?: string | null
+    series?: string | null
+    subtype?: string | null
+    diameter?: string | null
+    flutes?: string | null
+    coating?: string | null
+    score: number
+    score_breakdown?: Record<string, number>
+  }>
+  broadened?: boolean
+}
+
+interface StreamAnswerEvent {
+  answer?: string
+  chips?: string[]
+  reasoning?: string
+  refined_filters?: Record<string, unknown> | null
+}
+
+function formatFilterStage(intent: Record<string, unknown> | null): string | null {
+  if (!intent) return null
+  const bits: string[] = []
+  const push = (label: string, v: unknown) => {
+    if (v === null || v === undefined || v === "") return
+    bits.push(`${label}=${v}`)
+  }
+  push("소재", intent.material_tag)
+  push("직경", intent.diameter)
+  push("날수", intent.flute_count)
+  push("형상", intent.subtype)
+  push("브랜드", intent.brand)
+  push("코팅", intent.coating)
+  if (!bits.length) return "요청 해석 중 — 조건 미검출"
+  return `조건 추출: ${bits.join(", ")}`
+}
+
+function streamTopToProductCards(top10: StreamProductsEvent["top10"]): ProductCard[] {
+  return top10.map(row => ({
+    edp_no: row.edp_no,
+    brand: row.brand ?? null,
+    series: row.series ?? null,
+    subtype: row.subtype ?? null,
+    diameter: row.diameter ?? null,
+    flutes: row.flutes ?? null,
+    coating: row.coating ?? null,
+    score: typeof row.score === "number" ? row.score : 0,
+    score_breakdown: row.score_breakdown ?? {},
+  }))
+}
+
+function intentToAppliedFilters(
+  intent: Record<string, unknown> | null,
+): Record<string, unknown> {
+  if (!intent) return {}
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(intent)) {
+    if (v !== null && v !== undefined && v !== "") out[k] = v
+  }
+  return out
+}
+
+function parseSseFrame(frame: string): { event: string; data: unknown } | null {
+  let event = "message"
+  const dataLines: string[] = []
+  for (const line of frame.split("\n")) {
+    if (!line) continue
+    if (line.startsWith("event:")) event = line.slice(6).trim()
+    else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim())
+  }
+  if (dataLines.length === 0) return null
+  try {
+    return { event, data: JSON.parse(dataLines.join("\n")) }
+  } catch {
+    return null
+  }
+}
+
+async function streamProductsViaPython(
+  payload: RecommendationRequestDto,
+  options: StreamRecommendationOptions,
+): Promise<RecommendationResponseDto> {
+  const { onCards, onThinking, signal, timeoutMs = 120_000 } = options
+  const message = deriveMessage(payload)
+  const pageSize = payload.pagination?.pageSize
+
+  // Immediate heartbeat — flips the AI placeholder's reasoningVisibility from
+  // "hidden" to "simple" so the ReasoningPanel (and its elapsed/ETA timer)
+  // renders from t=0 instead of blanking until the first Python SSE frame.
+  if (onThinking) {
+    try { onThinking("🤔 요청을 분석 중…", { delta: false, kind: "stage" }) } catch { /* non-blocking */ }
+  }
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  if (signal) {
+    if (signal.aborted) controller.abort()
+    else signal.addEventListener("abort", () => controller.abort(), { once: true })
+  }
+
+  try {
+    const res = await fetch("/api/products/stream", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "text/event-stream",
+      },
+      body: JSON.stringify({
+        message,
+        filters: null,
+        session_id: _pythonSessionId ?? undefined,
+      }),
+      signal: controller.signal,
+    })
+
+    if (!res.ok || !res.body) {
+      throw new Error(`stream init failed (${res.status})`)
+    }
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ""
+
+    let intent: Record<string, unknown> | null = null
+    let streamedTop: ProductCard[] = []
+    let streamedCount = 0
+    let streamedBroadened = false
+    let answer = ""
+    let chips: string[] = []
+    let reasoning = ""
+
+    const flushPartialCards = () => {
+      if (!onCards) return
+      const partial: ProductsResponse = {
+        text: "",
+        purpose: "recommendation",
+        chips: [],
+        isComplete: false,
+        products: streamedTop,
+        allProducts: [],
+        appliedFilters: intentToAppliedFilters(intent),
+        totalCount: streamedCount,
+        route: "stream-partial",
+      }
+      try {
+        onCards(adaptProductsToRecommendationDto(partial, pageSize ? { pageSize } : {}))
+      } catch {
+        // partials must never block the stream
+      }
+    }
+
+    const dispatch = (frame: string) => {
+      const parsed = parseSseFrame(frame)
+      if (!parsed) return
+      const { event, data } = parsed
+
+      if (event === "filters") {
+        const payload = data as StreamFiltersEvent
+        intent = payload.filters ?? null
+        if (payload.session_id) _pythonSessionId = payload.session_id
+        if (onThinking) {
+          const stage = formatFilterStage(intent)
+          if (stage) onThinking(stage, { delta: false, kind: "stage" })
+        }
+      } else if (event === "products") {
+        const payload = data as StreamProductsEvent
+        streamedTop = streamTopToProductCards(payload.top10 ?? [])
+        streamedCount = typeof payload.count === "number" ? payload.count : streamedTop.length
+        streamedBroadened = payload.broadened === true
+        if (onThinking) {
+          const txt = streamedBroadened
+            ? `전체 카탈로그로 확장 · 후보 ${streamedCount}건 · 상위 ${streamedTop.length}개 확보`
+            : `후보 ${streamedCount}건 확보 · 상위 ${streamedTop.length}개 확정`
+          onThinking(txt, { delta: false, kind: "stage" })
+        }
+        flushPartialCards()
+      } else if (event === "answer") {
+        const payload = data as StreamAnswerEvent
+        answer = payload.answer ?? ""
+        chips = Array.isArray(payload.chips) ? payload.chips : []
+        reasoning = typeof payload.reasoning === "string" ? payload.reasoning : ""
+        if (onThinking && reasoning) {
+          onThinking(reasoning, { delta: false, kind: "deep" })
+        }
+      }
+      // `done` is a terminator — nothing to emit.
+    }
+
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      let idx: number
+      while ((idx = buffer.indexOf("\n\n")) >= 0) {
+        const frame = buffer.slice(0, idx)
+        buffer = buffer.slice(idx + 2)
+        dispatch(frame)
+      }
+    }
+    if (buffer.trim()) dispatch(buffer)
+
+    const finalPayload: ProductsResponse = {
+      text: answer,
+      purpose: "recommendation",
+      chips,
+      isComplete: true,
+      products: streamedTop,
+      allProducts: [],
+      appliedFilters: intentToAppliedFilters(intent),
+      totalCount: streamedCount,
+      route: "stream",
+    }
+    const dto = adaptProductsToRecommendationDto(finalPayload, pageSize ? { pageSize } : {})
+    if (reasoning) {
+      dto.thinkingDeep = reasoning
+      dto.reasoningVisibility = "full"
+    }
+    return dto
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function nonStreamFallback(
+  payload: RecommendationRequestDto,
+  pageSize: number | undefined,
+): Promise<RecommendationResponseDto> {
+  const message = deriveMessage(payload)
+  const resp = await fetchProducts(message, undefined, _pythonSessionId)
+  if (resp.session_id) _pythonSessionId = resp.session_id
+  return adaptProductsToRecommendationDto(resp, pageSize ? { pageSize } : {})
+}
+
+export async function streamRecommendationViaPython(
   payload: RecommendationRequestDto,
   options: StreamRecommendationOptions = {},
 ): Promise<RecommendationResponseDto> {
-  if (!USE_PYTHON_API) {
-    return streamRecommendation(payload, options)
+  try {
+    return await streamProductsViaPython(payload, options)
+  } catch (err) {
+    // Stream init / transport failure → last-resort non-stream path so a
+    // Python hiccup doesn't blank the UI.
+    console.warn("[python-bridge] SSE failed, falling back to /products:", err)
+    const pageSize = payload.pagination?.pageSize
+    return nonStreamFallback(payload, pageSize)
   }
-
-  const message = deriveMessage(payload)
-  const resp = await fetchProducts(message, undefined, _pythonSessionId)
-  if (resp.session_id) {
-    _pythonSessionId = resp.session_id
-  }
-  const pageSize = payload.pagination?.pageSize
-  return adaptProductsToRecommendationDto(resp, pageSize ? { pageSize } : {})
 }

@@ -6,6 +6,7 @@ import type {
 } from "@/lib/frontend/recommendation/recommendation-types"
 import type {
   RecommendationCandidateDto,
+  RecommendationPaginationDto,
   RecommendationReasoningVisibility,
   StructuredChipDto,
 } from "@/lib/contracts/recommendation"
@@ -45,8 +46,14 @@ export interface ChatMsg {
   reasoningVisibility?: RecommendationReasoningVisibility | null
   /**
    * Inline product-card list rendered directly in the chat (not in the side
-   * panel). Populated when the user clicks the "📋 지금 바로 제품 보기" CTA so
-   * the candidate snapshot is poured into the conversation flow.
+   * panel). Populated on every search result and on "제품 보기" CTA so the
+   * candidate snapshot lives inside the conversation flow.
    */
   candidateCards?: RecommendationCandidateDto[] | null
+  /**
+   * Pagination that goes with {@link candidateCards}. Only the latest AI
+   * message's pagination is interactive; older messages keep their frozen
+   * page view.
+   */
+  candidatePagination?: RecommendationPaginationDto | null
 }

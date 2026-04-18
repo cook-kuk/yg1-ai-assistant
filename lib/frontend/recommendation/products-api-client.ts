@@ -1,7 +1,11 @@
 /**
- * Client for the Python /products + /filter-options endpoints (proxied via
- * Next.js /api/products and /api/filter-options). Types mirror
- * python-api/schemas.py — keep in sync when the Python side changes.
+ * Client for the Python /products + /filter-options pipeline. Calls go to
+ * same-origin Next.js proxies (/api/products, /api/products/stream,
+ * /api/products/page, /api/filter-options), each of which forwards to the
+ * FastAPI service. Keeping the proxy layer avoids CORS / reachability issues
+ * when the browser can't hit the Python port directly (VM NSG, nginx, etc.).
+ * Types mirror python-api/schemas.py — keep in sync when the Python side
+ * changes.
  */
 
 import type {
@@ -11,9 +15,6 @@ import type {
   RecommendationResponseDto,
 } from "@/lib/contracts/recommendation"
 import { DEFAULT_RECOMMENDATION_CAPABILITIES } from "@/lib/frontend/recommendation/recommendation-view-model"
-
-// NEXT_PUBLIC_* are inlined at build time, so this is a client-bundle constant.
-export const USE_PYTHON_API = process.env.NEXT_PUBLIC_USE_PYTHON_API === "true"
 
 export interface ManualFilters {
   purpose?: string | null
@@ -97,6 +98,16 @@ export interface FilterOptionsResponse {
   total_with_current_filters: number
 }
 
+export interface ProductsPageResponse {
+  products: ProductCard[]
+  totalCount: number
+  page: number
+  pageSize: number
+  totalPages: number
+  session_id: string
+  appliedFilters?: Record<string, unknown>
+}
+
 export async function fetchProducts(
   message?: string,
   filters?: ManualFilters,
@@ -128,6 +139,23 @@ export async function fetchFilterOptions(
     throw new Error(`fetchFilterOptions failed (${res.status}): ${detail || res.statusText}`)
   }
   return (await res.json()) as FilterOptionsResponse
+}
+
+export async function fetchProductsPage(
+  sessionId: string,
+  page: number,
+  pageSize: number,
+): Promise<ProductsPageResponse> {
+  const res = await fetch("/api/products/page", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: sessionId, page, pageSize }),
+  })
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "")
+    throw new Error(`fetchProductsPage failed (${res.status}): ${detail || res.statusText}`)
+  }
+  return (await res.json()) as ProductsPageResponse
 }
 
 // ── Adapter: Python ProductsResponse → RecommendationResponseDto ─────
@@ -326,5 +354,33 @@ export function adaptProductsToRecommendationDto(
     reasoningVisibility: "hidden",
     thinkingProcess: null,
     thinkingDeep: null,
+  }
+}
+
+// ── Page adapter ─────────────────────────────────────────────────────
+// Candidate-panel pagination: every row gets full ProductCard detail, so
+// the panel can render series icons / descriptions / material ratings for
+// page 2+ without a second round-trip.
+export function adaptProductsPage(payload: ProductsPageResponse): {
+  candidates: RecommendationCandidateDto[]
+  pagination: {
+    page: number
+    pageSize: number
+    totalItems: number
+    totalPages: number
+  }
+  appliedFilters: RecommendationAppliedFilterDto[]
+} {
+  const base = payload.page * payload.pageSize
+  const candidates = (payload.products ?? []).map((c, i) => adaptProductCard(c, base + i + 1))
+  return {
+    candidates,
+    pagination: {
+      page: payload.page,
+      pageSize: payload.pageSize,
+      totalItems: payload.totalCount,
+      totalPages: payload.totalPages,
+    },
+    appliedFilters: adaptAppliedFilters(payload.appliedFilters),
   }
 }

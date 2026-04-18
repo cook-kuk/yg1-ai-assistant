@@ -7,7 +7,7 @@ export const maxDuration = 60
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const resp = await fetch(`${PYTHON_API}/filter-options`, {
+    const resp = await fetch(`${PYTHON_API}/products/page`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),

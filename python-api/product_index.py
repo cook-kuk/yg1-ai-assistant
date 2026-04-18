@@ -80,7 +80,13 @@ def _row_matches_ilike(row_value: Any, needle: str) -> bool:
 def _load_from_db() -> list[dict]:
     """Pull the whole MV (mill-family rows only, same base filter as
     search_products). Skips rows without a numeric diameter so downstream
-    scoring never has to guess."""
+    scoring never has to guess.
+
+    The MV has ~1.6 rows per EDP (coating/finish variants) — we collapse
+    them here so the index is unique-by-EDP. Without this, downstream
+    totalCount reads as row count, not product count, and the candidate
+    panel shows the same EDP card multiple times.
+    """
     sql = f"""
         SELECT {SELECT_COLS}
         FROM {MV_TABLE}
@@ -88,7 +94,38 @@ def _load_from_db() -> list[dict]:
           AND milling_outside_dia IS NOT NULL
     """
     rows = fetch_all(sql, ("%mill%",))
-    return rows
+    return _dedupe_by_edp(rows)
+
+
+def _dedupe_by_edp(rows: list[dict]) -> list[dict]:
+    """Keep one row per edp_no. Prefer rows with a meaningful coating over
+    empty/UNCOATED when both exist — the coated variant is usually the one
+    the customer actually receives."""
+    best: dict[str, dict] = {}
+    for r in rows:
+        edp = r.get("edp_no")
+        if not edp:
+            continue
+        prev = best.get(edp)
+        if prev is None:
+            best[edp] = r
+            continue
+        if _coating_rank(r.get("coating")) > _coating_rank(prev.get("coating")):
+            best[edp] = r
+    return list(best.values())
+
+
+def _coating_rank(coating: Any) -> int:
+    """Higher is more informative. Non-empty non-UNCOATED beats UNCOATED
+    beats empty."""
+    if coating is None:
+        return 0
+    s = str(coating).strip()
+    if not s:
+        return 0
+    if s.upper() in ("UNCOATED", "BRIGHT FINISH"):
+        return 1
+    return 2
 
 
 def load_index() -> list[dict]:
@@ -215,7 +252,7 @@ def _matches(p: dict, f: dict) -> bool:
     return True
 
 
-def search_products_fast(filters: dict, limit: int = 5000) -> list[dict]:
+def search_products_fast(filters: dict, limit: int = 125_000) -> list[dict]:
     """Filter the cached index in Python. Mirrors search.search_products
     behavior so /products output stays identical to the DB path."""
     index = load_index()

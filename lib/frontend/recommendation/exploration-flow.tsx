@@ -654,6 +654,8 @@ function NarrowingChat({
   onReset,
   onShowCandidates,
   onShowProductCards,
+  onPageChange,
+  isPageLoading,
   onFeedback,
   onChipFeedback,
   onRecommendationFeedback,
@@ -669,6 +671,8 @@ function NarrowingChat({
   onShowCandidates?: () => void
   /** "제품 보기" CTA — pours the current candidate snapshot into the chat. */
   onShowProductCards?: () => void
+  onPageChange?: (page: number) => void
+  isPageLoading?: boolean
   onFeedback?: (messageIndex: number, feedback: TurnFeedback) => void
   onChipFeedback?: (messageIndex: number, feedback: TurnFeedback) => void
   onRecommendationFeedback?: (messageIndex: number, feedback: TurnFeedback) => void
@@ -679,6 +683,15 @@ function NarrowingChat({
   const lastAiMsg = [...messages].reverse().find(message => message.role === "ai" && !message.isLoading)
   const lastAiHasChips = (lastAiMsg?.chips?.length ?? 0) > 0
   const lastAiHasRecommendation = !!lastAiMsg?.recommendation
+  // The latest AI message that has inline candidate cards — only this one
+  // gets working pagination controls; older messages keep a frozen page view.
+  const lastCardMessageIndex = (() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const m = messages[i]
+      if (m.role === "ai" && m.candidateCards && m.candidateCards.length > 0) return i
+    }
+    return -1
+  })()
   const needsFeedback = lastAiMsg && !isSending && (
     lastAiMsg.feedback === undefined ||
     (lastAiHasChips && lastAiMsg.chipFeedback === undefined) ||
@@ -885,6 +898,48 @@ function NarrowingChat({
                   {message.candidateCards.map(candidate => (
                     <CandidateCard key={candidate.productCode} c={candidate} />
                   ))}
+                  {(() => {
+                    const pg = message.candidatePagination
+                    if (!pg || pg.totalPages <= 1) return null
+                    const isLatestWithCards = index === lastCardMessageIndex
+                    const disabled = !isLatestWithCards || !!isPageLoading || isSending
+                    const startIdx = pg.page * pg.pageSize + 1
+                    const endIdx = Math.min(pg.totalItems, pg.page * pg.pageSize + (message.candidateCards?.length ?? pg.pageSize))
+                    const rangeLabel = language === "ko"
+                      ? `${startIdx.toLocaleString()}–${endIdx.toLocaleString()} / ${pg.totalItems.toLocaleString()}개`
+                      : `${startIdx.toLocaleString()}–${endIdx.toLocaleString()} of ${pg.totalItems.toLocaleString()}`
+                    const go = (next: number) => {
+                      if (disabled) return
+                      const clamped = Math.min(Math.max(0, next), pg.totalPages - 1)
+                      if (clamped === pg.page) return
+                      onPageChange?.(clamped)
+                    }
+                    const btnCls = "px-2.5 py-1 rounded-md border border-gray-200 text-[11px] text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    return (
+                      <div className="mt-2 flex flex-col items-stretch gap-1.5 rounded-lg border border-gray-100 bg-gray-50/60 px-2.5 py-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="text-[10px] text-gray-500">{rangeLabel}</div>
+                        <div className="flex items-center gap-1.5">
+                          <button type="button" onClick={() => go(0)} disabled={disabled || pg.page === 0} className={btnCls}>
+                            « {language === "ko" ? "처음" : "First"}
+                          </button>
+                          <button type="button" onClick={() => go(pg.page - 1)} disabled={disabled || pg.page === 0} className={btnCls}>
+                            ‹ {language === "ko" ? "이전" : "Prev"}
+                          </button>
+                          <span className="text-[11px] text-gray-600 px-1.5">
+                            {isPageLoading && isLatestWithCards
+                              ? (language === "ko" ? "불러오는 중…" : "Loading…")
+                              : <><strong>{pg.page + 1}</strong> / {pg.totalPages.toLocaleString()}</>}
+                          </span>
+                          <button type="button" onClick={() => go(pg.page + 1)} disabled={disabled || pg.page >= pg.totalPages - 1} className={btnCls}>
+                            {language === "ko" ? "다음" : "Next"} ›
+                          </button>
+                          <button type="button" onClick={() => go(pg.totalPages - 1)} disabled={disabled || pg.page >= pg.totalPages - 1} className={btnCls}>
+                            {language === "ko" ? "마지막" : "Last"} »
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </div>
               )}
 
@@ -1416,6 +1471,8 @@ export function ExplorationScreen({
             onReset={onReset}
             onShowCandidates={handleShowCandidates}
             onShowProductCards={onShowProductCards}
+            onPageChange={onPageChange}
+            isPageLoading={isCandidatePageLoading}
             onFeedback={onFeedback}
             onChipFeedback={onChipFeedback}
             onRecommendationFeedback={onRecommendationFeedback}
