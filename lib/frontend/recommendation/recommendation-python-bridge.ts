@@ -16,6 +16,7 @@ import {
   adaptProductsToRecommendationDto,
   fetchProducts,
 } from "@/lib/frontend/recommendation/products-api-client"
+import { buildIntakePromptText } from "@/lib/frontend/recommendation/intake-flow"
 import type { RecommendationRequestDto, RecommendationResponseDto } from "@/lib/contracts/recommendation"
 
 function extractLastUserText(payload: RecommendationRequestDto): string | undefined {
@@ -28,6 +29,25 @@ function extractLastUserText(payload: RecommendationRequestDto): string | undefi
   return undefined
 }
 
+function deriveMessage(payload: RecommendationRequestDto): string | undefined {
+  // Prefer an explicit chat turn — that's what the user actually typed.
+  const fromMessages = extractLastUserText(payload)
+  if (fromMessages) return fromMessages
+  // Intake-form entry point sends `{intakeForm, messages: []}`. Synthesize
+  // a prompt string from the form so the Python /products guard (which
+  // rejects requests with neither message nor filters) doesn't 400 us.
+  const form = payload.intakeForm
+  if (form) {
+    try {
+      const text = buildIntakePromptText(form, payload.language ?? "ko")
+      if (text && text.trim()) return text
+    } catch {
+      // fall through — caller will handle the empty case
+    }
+  }
+  return undefined
+}
+
 export async function streamRecommendationMaybePython(
   payload: RecommendationRequestDto,
   options: StreamRecommendationOptions = {},
@@ -36,7 +56,7 @@ export async function streamRecommendationMaybePython(
     return streamRecommendation(payload, options)
   }
 
-  const message = extractLastUserText(payload)
+  const message = deriveMessage(payload)
   const resp = await fetchProducts(message)
   const pageSize = payload.pagination?.pageSize
   return adaptProductsToRecommendationDto(resp, pageSize ? { pageSize } : {})

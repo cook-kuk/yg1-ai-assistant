@@ -45,6 +45,7 @@ SYSTEM_PROMPT = """너는 YG-1 절삭공구 영업 어시스턴트다. 절삭공
 3. context 없이 산업/소재 매핑을 추측하지 마라.
 4. DB에 없는 직경/조건은 "가장 가까운 XX로 살펴보시겠어요?" 형태로 유도해라.
 5. 존재하지 않는 제품 코드는 절대 언급하지 마라.
+6. [meta].intent 에서 brand/subtype/coating 이 null 인데 [질문] 에 브랜드/형상/코팅처럼 보이는 단어(한글 음역 포함, 예: "크룩스 에스", "엑스파워", "모따기", "알크롬")가 있으면, "브랜드를 정확히 확인하지 못했습니다" 식으로 한 문장 먼저 덧붙이고, [facets] 의 해당 필드 상위 3~4개 값을 chips 로 제안해 유저가 한 번의 클릭으로 확정하도록 유도해라. 예: 유저 "크룩스 에스 구리" → intent.brand=null, material=N → "구리(N) 소재로 자주 쓰이는 브랜드 중에 찾으시는 게 있을까요?" → chips: 상위 브랜드 3~4개 + "전체 보기". [facets] 가 비어 있으면 top_products 의 distinct brand 에서 뽑아라. 임의의 브랜드명을 지어내지 마라.
 
 응답은 JSON: {"answer": "...", "reasoning": "...", "chips": [...], "refined_filters": null | {...}}"""
 
@@ -135,6 +136,30 @@ def _build_context_blocks(knowledge: list[dict] | None) -> str:
     return "\n\n".join(blocks)
 
 
+def _summarize_facets(available_filters: dict | None, top_n: int = 4) -> str:
+    """Compact `[facets]` block — per field, top-N values by count. Used by
+    the brand-clarification principle so the LLM proposes real DB values
+    instead of inventing names. Returns empty string when nothing to show."""
+    if not available_filters:
+        return ""
+    lines: list[str] = []
+    for field in ("brand", "subtype", "coating"):
+        opts = available_filters.get(field) or []
+        if not opts:
+            continue
+        # opts items may be dicts or pydantic FilterOption — normalize either.
+        pairs: list[tuple[str, int]] = []
+        for o in opts:
+            if hasattr(o, "value") and hasattr(o, "count"):
+                pairs.append((str(o.value), int(o.count)))
+            elif isinstance(o, dict) and "value" in o:
+                pairs.append((str(o["value"]), int(o.get("count", 0))))
+        pairs.sort(key=lambda x: x[1], reverse=True)
+        preview = ", ".join(f"{v}({c})" for v, c in pairs[:top_n])
+        lines.append(f"{field}: {preview}")
+    return "\n".join(lines)
+
+
 def generate_response(
     message: str,
     intent: Any,
@@ -142,17 +167,21 @@ def generate_response(
     knowledge: list[dict],
     total_count: int,
     relaxed_fields: list[str] | None = None,
+    available_filters: dict | None = None,
 ) -> dict:
     """Compose the chat reply. The system prompt is intentionally short
-    (5 principles) — heavy lifting is delegated to the `[context]` block
+    (6 principles) — heavy lifting is delegated to the `[context]` block
     the user message carries.
 
     The top-product summary + intent/count/relaxed metadata ride along so
     the model still has concrete candidates to quote, but the domain
-    taxonomy (industry→material, material→coating) stays in the JSON KB."""
+    taxonomy (industry→material, material→coating) stays in the JSON KB.
+    `available_filters` feeds the [facets] block so principle 6 (brand
+    clarification) can propose real DB values as chips."""
     intent_summary = _summarize_intent(intent)
     product_summary = _summarize_products(products or [])
     context_str = _build_context_blocks(knowledge)
+    facets_str = _summarize_facets(available_filters)
 
     meta_lines = [
         f"total_count: {total_count}",
@@ -165,11 +194,11 @@ def generate_response(
         meta_lines.append(f"top_products: {json.dumps(product_summary, ensure_ascii=False)}")
     meta_block = "\n".join(meta_lines)
 
-    user_turn = (
-        f"[context]\n{context_str}\n\n"
-        f"[meta]\n{meta_block}\n\n"
-        f"[질문]\n{message}"
-    )
+    parts = [f"[context]\n{context_str}", f"[meta]\n{meta_block}"]
+    if facets_str:
+        parts.append(f"[facets]\n{facets_str}")
+    parts.append(f"[질문]\n{message}")
+    user_turn = "\n\n".join(parts)
 
     client = _get_client()
     resp = client.chat.completions.create(
@@ -184,9 +213,28 @@ def generate_response(
     text = resp.choices[0].message.content or ""
     data = _extract_json(text)
 
+    # Principle 6 asks the LLM to suggest real DB values as chips. When it
+    # returns structured objects ({"label","type","value"}) the frontend —
+    # which expects plain strings — would render the Python repr verbatim.
+    # Pull out the display label (label → value → str(x)) so the wire type
+    # is always list[str].
+    raw_chips = data.get("chips") or []
+    chips: list[str] = []
+    for c in raw_chips:
+        if not c:
+            continue
+        if isinstance(c, dict):
+            label = c.get("label") or c.get("value")
+            if label:
+                chips.append(str(label))
+        elif isinstance(c, str):
+            chips.append(c)
+        else:
+            chips.append(str(c))
+
     return {
         "answer": str(data.get("answer") or ""),
         "reasoning": str(data.get("reasoning") or ""),
-        "chips": [str(c) for c in (data.get("chips") or []) if c],
+        "chips": chips,
         "refined_filters": data.get("refined_filters") or None,
     }

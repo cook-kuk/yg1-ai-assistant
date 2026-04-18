@@ -234,10 +234,30 @@ def _filters_to_dict(filters: ManualFilters | None, intent: SCRIntent) -> dict:
     return base
 
 
+def _empty_products_response(session_id: str | None = None) -> ProductsResponse:
+    """Graceful 200 for callers that hit /products with neither message nor
+    filters — e.g. a fresh page mount before the user has said anything.
+    Beats the old 400 which surfaced as a scary "Python API error" banner."""
+    session = session_get_or_create(session_id)
+    return ProductsResponse(
+        text="검색 조건이 없습니다. 메시지를 입력하거나 필터를 선택해 주세요.",
+        chips=[],
+        products=[],
+        allProducts=[],
+        appliedFilters={},
+        totalCount=0,
+        route="empty",
+        availableFilters=None,
+        session_id=session.session_id,
+        broadened=False,
+        sources=[],
+    )
+
+
 @app.post("/products", response_model=ProductsResponse)
 def products(req: ProductsRequest) -> ProductsResponse:
     if not req.message and not req.filters:
-        raise HTTPException(status_code=400, detail="message 또는 filters 중 하나는 필요합니다")
+        return _empty_products_response(req.session_id)
 
     # 0. Session handling — carry the prior filter context forward so
     #    "이 중에서 4날" on turn 2 still remembers material+diameter.
@@ -475,6 +495,7 @@ def products(req: ProductsRequest) -> ProductsResponse:
                 knowledge=knowledge,
                 total_count=len(ranked),
                 relaxed_fields=relaxed_fields or None,
+                available_filters=available or None,
             )
             raw_answer = chat_result.get("answer") or _build_answer(intent, ranked)
             chips = chat_result.get("chips") or []
@@ -546,7 +567,16 @@ async def products_stream(req: ProductsRequest):
     /products (sync) is unchanged; reuse the same logic under to_thread so
     the event loop doesn't block on LLM calls."""
     if not req.message and not req.filters:
-        raise HTTPException(status_code=400, detail="message 또는 filters 중 하나는 필요합니다")
+        # Mirror /products behavior: graceful empty state over 400. The SSE
+        # variant has no single JSON return, so we emit one synthetic frame
+        # and close. Clients that track events still see a clean stream.
+        empty = _empty_products_response(req.session_id)
+
+        async def _empty_stream():
+            yield f"event: answer\ndata: {_json.dumps({'answer': empty.text, 'chips': [], 'reasoning': '', 'refined_filters': None}, ensure_ascii=False)}\n\n"
+            yield "event: done\ndata: {}\n\n"
+
+        return StreamingResponse(_empty_stream(), media_type="text/event-stream")
 
     async def generate():
         session = session_get_or_create(req.session_id)
