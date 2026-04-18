@@ -61,7 +61,7 @@
       "candidateType": "regex-pattern",
       "targetField": "brand",
       "targetValueExamples": [
-        "CRX-S"
+        "CRX S"
       ],
       "supportCount": 3,
       "confidence": 1,
@@ -95,9 +95,11 @@
     {
       "id": "alias_brand_12cf2n",
       "candidateType": "alias",
-      "canonical": "CRX-S",
+      "canonical": "CRX S",
       "aliases": [
-        "crx"
+        "crx",
+        "crx-s",
+        "crxs"
       ],
       "targetField": "brand",
       "supportCount": 4,

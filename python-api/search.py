@@ -51,7 +51,12 @@ SELECT_COLS = """
     milling_coating       AS coating,
     search_shank_type,
     option_overall_length,
-    option_oal
+    option_oal,
+    milling_shank_dia,
+    holemaking_tool_material,
+    threading_tool_material,
+    series_application_shape,
+    country_codes
 """
 
 MV_TABLE = "catalog_app.product_recommendation_mv"

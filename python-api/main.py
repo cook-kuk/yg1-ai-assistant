@@ -1,4 +1,8 @@
+import asyncio
+import json as _json
+
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 
 from schemas import (
     RecommendRequest,
@@ -27,8 +31,40 @@ from scoring import rank_candidates
 from guard import scrub
 from rag import search_knowledge
 from chat import generate_response
+from product_index import (
+    load_index,
+    search_products_fast,
+    index_size,
+    get_filter_options_fast,
+    count_products_fast,
+)
+from session import get_or_create as session_get_or_create, add_turn, carry_forward_intent
+from scheduler import scheduler
 
 app = FastAPI(title="cook-forge python-api", version="0.1.0")
+
+
+@app.on_event("startup")
+async def _warm_index() -> None:
+    """Pull product_recommendation_mv into memory so /products skips DB
+    on every request. Failure is non-fatal — downstream falls back to DB."""
+    try:
+        load_index()
+    except Exception:
+        pass
+
+
+@app.on_event("startup")
+async def _start_scheduler() -> None:
+    """Kick off the background pipeline thread (product-index refresh,
+    session sweep, few-shot backup). Idempotent — safe across reloads."""
+    scheduler.start()
+
+
+@app.get("/pipeline/status")
+def pipeline_status() -> dict:
+    """Introspection endpoint — last-run epoch and status tag per job."""
+    return scheduler.status()
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -173,6 +209,10 @@ def products(req: ProductsRequest) -> ProductsResponse:
     if not req.message and not req.filters:
         raise HTTPException(status_code=400, detail="message 또는 filters 중 하나는 필요합니다")
 
+    # 0. Session handling — carry the prior filter context forward so
+    #    "이 중에서 4날" on turn 2 still remembers material+diameter.
+    session = session_get_or_create(req.session_id)
+
     # 1. Resolve intent — manual filters win, optional LLM fills the gaps.
     if req.filters:
         intent = SCRIntent(
@@ -201,37 +241,57 @@ def products(req: ProductsRequest) -> ProductsResponse:
         intent = parse_intent(req.message or "")
         route = "llm"
 
-    # 2. Fetch (whole candidate set). Wrapped so the 0-hit relax loop can
-    #    re-run with a progressively looser intent without duplicating kwargs.
+    # Fill unset intent fields from the session's carried context so
+    # abbreviated follow-ups still know the material/diameter from turn 1.
+    carry_forward_intent(session, intent)
+
+    # 2. Fetch (whole candidate set). Uses the in-memory index so /products
+    #    skips the DB on every request. Closure lets the 0-hit relax loop
+    #    rebuild the filter dict from the mutated intent cheaply.
+    def _build_filters() -> dict:
+        base: dict = {
+            "diameter": intent.diameter,
+            "flute_count": intent.flute_count,
+            "material_tag": intent.material_tag,
+            "tool_type": intent.tool_type,
+            "subtype": intent.subtype,
+            "brand": intent.brand,
+            "coating": intent.coating,
+            "tool_material": intent.tool_material,
+            "shank_type": intent.shank_type,
+        }
+        if req.filters:
+            for fld in (
+                "machining_category", "application_shape", "country", "coolant_hole",
+                "diameter_min", "diameter_max",
+                "overall_length_min", "overall_length_max",
+                "length_of_cut_min", "length_of_cut_max",
+                "shank_diameter_min", "shank_diameter_max",
+                "flute_count_min", "flute_count_max",
+            ):
+                v = getattr(req.filters, fld)
+                if v is not None:
+                    base[fld] = v
+        return base
+
     def _run_search() -> list[dict]:
-        return search_products(
-            diameter=intent.diameter,
-            flute_count=intent.flute_count,
-            material_tag=intent.material_tag,
-            tool_type=intent.tool_type,
-            subtype=intent.subtype,
-            brand=intent.brand,
-            coating=intent.coating,
-            tool_material=intent.tool_material,
-            shank_type=intent.shank_type,
-            machining_category=req.filters.machining_category if req.filters else None,
-            application_shape=req.filters.application_shape if req.filters else None,
-            country=req.filters.country if req.filters else None,
-            coolant_hole=req.filters.coolant_hole if req.filters else None,
-            diameter_min=req.filters.diameter_min if req.filters else None,
-            diameter_max=req.filters.diameter_max if req.filters else None,
-            overall_length_min=req.filters.overall_length_min if req.filters else None,
-            overall_length_max=req.filters.overall_length_max if req.filters else None,
-            length_of_cut_min=req.filters.length_of_cut_min if req.filters else None,
-            length_of_cut_max=req.filters.length_of_cut_max if req.filters else None,
-            shank_diameter_min=req.filters.shank_diameter_min if req.filters else None,
-            shank_diameter_max=req.filters.shank_diameter_max if req.filters else None,
-            flute_count_min=req.filters.flute_count_min if req.filters else None,
-            flute_count_max=req.filters.flute_count_max if req.filters else None,
-            limit=5000,
-        )
+        return search_products_fast(_build_filters(), limit=5000)
 
     rows = _run_search()
+
+    # 2.2 Follow-up narrow: if we already showed products last turn, try
+    # restricting the new filter to that subset first. Empty narrow falls
+    # through to the global result with broadened=True so the UI can flag
+    # "전체 카탈로그에서 검색했습니다".
+    broadened = False
+    if session.previous_products and rows:
+        prev_set = set(session.previous_products)
+        narrowed = [r for r in rows if r.get("edp_no") in prev_set]
+        if narrowed:
+            rows = narrowed
+            route = f"{route}+narrowed"
+        else:
+            broadened = True
 
     # 2.5 Zero-hit relax: progressively null out less-essential fields until
     # something comes back. Runs for both NL queries and manual filter forms
@@ -291,12 +351,12 @@ def products(req: ProductsRequest) -> ProductsResponse:
         for c, s, _ in ranked
     ]
 
-    # 4. Live-toggle facets.
+    # 4. Live-toggle facets — in-memory GROUP BY, no DB per-field round-trip.
     filter_dict = _filters_to_dict(req.filters, intent)
     available: dict[str, list[FilterOption]] = {}
     for f in _TOGGLE_FIELDS:
         try:
-            opts = get_filter_options(f, filter_dict)
+            opts = get_filter_options_fast(f, filter_dict)
         except Exception:
             opts = []
         if opts:
@@ -335,6 +395,27 @@ def products(req: ProductsRequest) -> ProductsResponse:
                 extra_safe.add(str(val))
     cleaned_answer, _removed = scrub(raw_answer, extra_safe=extra_safe)
 
+    # Persist the turn so the next follow-up can narrow/carry state.
+    edp_list = [c.get("edp_no") for c, _, _ in ranked[:50] if c.get("edp_no")]
+    intent_dict = {
+        "diameter": intent.diameter,
+        "flute_count": intent.flute_count,
+        "material_tag": intent.material_tag,
+        "subtype": intent.subtype,
+        "brand": intent.brand,
+        "coating": intent.coating,
+        "tool_type": intent.tool_type,
+        "tool_material": intent.tool_material,
+        "shank_type": intent.shank_type,
+    }
+    add_turn(
+        session,
+        role="user",
+        message=req.message or "(manual filters)",
+        intent=intent_dict,
+        products=edp_list,
+    )
+
     return ProductsResponse(
         text=cleaned_answer,
         chips=chips,
@@ -344,7 +425,149 @@ def products(req: ProductsRequest) -> ProductsResponse:
         totalCount=len(ranked),
         route=route,
         availableFilters=available or None,
+        session_id=session.session_id,
+        broadened=broadened,
     )
+
+
+@app.post("/products/stream")
+async def products_stream(req: ProductsRequest):
+    """SSE variant of /products — streams three progress events so the
+    client can paint UI before the LLM answer finishes:
+      `filters`  (≤ 2s)  — applied intent dict
+      `products` (+1 ms) — top-10 cards + total count
+      `answer`   (+2–4 s) — CoT text + chips
+      `done`     terminator
+    /products (sync) is unchanged; reuse the same logic under to_thread so
+    the event loop doesn't block on LLM calls."""
+    if not req.message and not req.filters:
+        raise HTTPException(status_code=400, detail="message 또는 filters 중 하나는 필요합니다")
+
+    async def generate():
+        session = session_get_or_create(req.session_id)
+
+        # 1. intent
+        if req.filters:
+            intent = SCRIntent(
+                diameter=req.filters.diameter,
+                material_tag=req.filters.material_tag,
+                subtype=req.filters.subtype,
+                flute_count=req.filters.flute_count,
+                coating=req.filters.coating,
+                brand=req.filters.brand,
+                tool_type=req.filters.machining_category,
+                tool_material=req.filters.tool_material,
+                shank_type=req.filters.shank_type,
+            )
+            route = "manual"
+            if req.message:
+                try:
+                    llm_intent = await asyncio.to_thread(parse_intent, req.message)
+                    for field in intent.__class__.model_fields:
+                        if getattr(intent, field) is None and getattr(llm_intent, field) is not None:
+                            setattr(intent, field, getattr(llm_intent, field))
+                    route = "manual+llm"
+                except Exception:
+                    pass
+        else:
+            intent = await asyncio.to_thread(parse_intent, req.message or "")
+            route = "llm"
+        carry_forward_intent(session, intent)
+
+        yield f"event: filters\ndata: {_json.dumps({'filters': intent.model_dump(), 'route': route, 'session_id': session.session_id}, ensure_ascii=False)}\n\n"
+
+        # 2. search + rank
+        def _search_and_rank():
+            filters = {
+                "diameter": intent.diameter,
+                "flute_count": intent.flute_count,
+                "material_tag": intent.material_tag,
+                "tool_type": intent.tool_type,
+                "subtype": intent.subtype,
+                "brand": intent.brand,
+                "coating": intent.coating,
+                "tool_material": intent.tool_material,
+                "shank_type": intent.shank_type,
+            }
+            if req.filters:
+                for fld in (
+                    "machining_category", "application_shape", "country", "coolant_hole",
+                    "diameter_min", "diameter_max",
+                    "overall_length_min", "overall_length_max",
+                    "length_of_cut_min", "length_of_cut_max",
+                    "shank_diameter_min", "shank_diameter_max",
+                    "flute_count_min", "flute_count_max",
+                ):
+                    v = getattr(req.filters, fld)
+                    if v is not None:
+                        filters[fld] = v
+            rows = search_products_fast(filters, limit=5000)
+            # Follow-up narrow + relax — mirror the sync endpoint's logic.
+            broadened_local = False
+            if session.previous_products and rows:
+                prev_set = set(session.previous_products)
+                narrowed = [r for r in rows if r.get("edp_no") in prev_set]
+                if narrowed:
+                    rows = narrowed
+                else:
+                    broadened_local = True
+            return rows, broadened_local
+
+        rows, broadened = await asyncio.to_thread(_search_and_rank)
+        ranked = await asyncio.to_thread(rank_candidates, rows, intent, len(rows) or 1)
+
+        top10_payload = []
+        for c, s, b in ranked[:10]:
+            top10_payload.append({
+                "edp_no": c.get("edp_no"),
+                "brand": c.get("brand"),
+                "series": c.get("series"),
+                "subtype": c.get("subtype"),
+                "diameter": c.get("diameter"),
+                "flutes": c.get("flutes"),
+                "coating": c.get("coating"),
+                "score": s,
+                "score_breakdown": b,
+            })
+        yield (
+            f"event: products\ndata: "
+            f"{_json.dumps({'count': len(ranked), 'top10': top10_payload, 'broadened': broadened}, ensure_ascii=False)}\n\n"
+        )
+
+        # 3. CoT answer
+        if req.message:
+            try:
+                knowledge = await asyncio.to_thread(search_knowledge, req.message, 3)
+            except Exception:
+                knowledge = []
+            try:
+                chat_result = await asyncio.to_thread(
+                    generate_response,
+                    req.message, intent,
+                    [c for c, _, _ in ranked[:10]],
+                    knowledge,
+                    len(ranked),
+                    None,
+                )
+            except Exception:
+                chat_result = {"answer": _build_answer(intent, ranked), "chips": [], "reasoning": "", "refined_filters": None}
+        else:
+            chat_result = {"answer": _build_answer(intent, ranked), "chips": [], "reasoning": "", "refined_filters": None}
+
+        yield f"event: answer\ndata: {_json.dumps(chat_result, ensure_ascii=False)}\n\n"
+
+        # Persist the turn so subsequent stream calls keep state.
+        edp_list = [c.get("edp_no") for c, _, _ in ranked[:50] if c.get("edp_no")]
+        add_turn(
+            session, role="user",
+            message=req.message or "(manual filters)",
+            intent=intent.model_dump(),
+            products=edp_list,
+        )
+
+        yield "event: done\ndata: {}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 @app.post("/filter-options", response_model=FilterOptionsResponse)
@@ -379,8 +602,13 @@ def filter_options(req: FilterOptionsRequest) -> FilterOptionsResponse:
         "flute_count_min": req.current_filters.flute_count_min,
         "flute_count_max": req.current_filters.flute_count_max,
     }
-    opts = get_filter_options(req.field, current)
-    total = product_count_filtered(current)
+    try:
+        opts = get_filter_options_fast(req.field, current)
+        total = count_products_fast(current)
+    except Exception:
+        # Fallback to DB path if the index isn't ready yet.
+        opts = get_filter_options(req.field, current)
+        total = product_count_filtered(current)
     return FilterOptionsResponse(
         field=req.field,
         options=[FilterOption(value=o["value"], count=o["count"]) for o in opts],

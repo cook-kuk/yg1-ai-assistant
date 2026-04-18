@@ -1,14 +1,19 @@
 """Domain-knowledge retrieval — lightweight JSON RAG for the chat path.
 
-Loads four curated knowledge files from data/domain-knowledge/ once per
-process and offers a single `search_knowledge(query)` that returns the
-best-matching entries across all four types. The match is string-based
-(substring on the symptom / alias / material / coating fields) — fast,
-deterministic, no embedding model needed.
+Two-stage lookup:
+  Phase 1 (default)  — string substring match on symptom/alias/material
+                      /operation/coating/series-brand fields. Fast,
+                      deterministic, no embedding model needed.
+  Phase 2 (fallback) — OpenAI text-embedding-3-small cosine similarity
+                      over the full knowledge corpus. Only runs when Phase
+                      1 returns no hits, so the embedding API is touched
+                      on cold starts and edge queries only.
 """
 from __future__ import annotations
 
 import json
+import math
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -214,10 +219,8 @@ _SCORERS = {
 }
 
 
-def search_knowledge(query: str, top_k: int = 3) -> list[dict]:
-    """Cross-source knowledge lookup. Returns up to `top_k` matches sorted
-    by match strength (longer exact-substring hit wins). Each result is
-    `{"type": <source>, "data": <full entry>}`."""
+def _keyword_search(query: str, top_k: int = 3) -> list[dict]:
+    """Phase-1 substring match across the registered knowledge types."""
     if not query:
         return []
     knowledge = _load_knowledge()
@@ -234,3 +237,145 @@ def search_knowledge(query: str, top_k: int = 3) -> list[dict]:
                 ranked.append((s, tag, item))
     ranked.sort(key=lambda x: x[0], reverse=True)
     return [{"type": tag, "data": item} for _, tag, item in ranked[:top_k]]
+
+
+# ── Phase 2: embedding-based semantic fallback ──────────────────────────
+
+EMBED_MODEL = os.environ.get("RAG_EMBED_MODEL", "text-embedding-3-small")
+# Below this cosine similarity an embedding "hit" is more likely noise than
+# a real match — cap it so we don't surface irrelevant docs.
+_MIN_SEMANTIC_SIM = 0.30
+
+_EMBEDDINGS: list[tuple[str, list[float], dict]] | None = None
+
+
+def _entry_to_text(entry: dict, source: str) -> str:
+    """Flatten a knowledge entry into a single search-friendly string.
+    Fields picked are the ones the Phase-1 scorers already use, so both
+    stages are looking at the same semantic surface."""
+    parts: list[str] = []
+    for key in ("symptom", "material", "operation", "coating_name",
+                "feature_value", "series", "brand", "question"):
+        v = entry.get(key)
+        if v:
+            parts.append(str(v))
+    for key in ("aliases", "causes", "machining_tips", "common_problems",
+                "recommended_materials", "avoid_materials"):
+        v = entry.get(key)
+        if isinstance(v, list):
+            for item in v:
+                if isinstance(item, str):
+                    parts.append(item)
+                elif isinstance(item, dict):
+                    parts.append(str(item.get("action") or item.get("detail") or ""))
+    sol = entry.get("solutions")
+    if isinstance(sol, list):
+        for s in sol:
+            if isinstance(s, dict):
+                parts.append(str(s.get("action") or ""))
+                parts.append(str(s.get("detail") or ""))
+    ans = entry.get("answer")
+    if isinstance(ans, str) and len(ans) < 400:
+        parts.append(ans)
+    return " ".join(p for p in parts if p).strip()
+
+
+def _cosine_sim(a: list[float], b: list[float]) -> float:
+    """Plain Python cosine — 1536-dim × ~100 items is ≪1ms, no numpy needed."""
+    dot = 0.0
+    na = 0.0
+    nb = 0.0
+    for x, y in zip(a, b):
+        dot += x * y
+        na += x * x
+        nb += y * y
+    if na == 0.0 or nb == 0.0:
+        return 0.0
+    return dot / (math.sqrt(na) * math.sqrt(nb))
+
+
+def _build_embeddings() -> list[tuple[str, list[float], dict]]:
+    """Build the semantic index on first use. One batched embeddings call
+    covers all entries — ~100–150 total across our four knowledge files,
+    so this fits comfortably in a single request."""
+    global _EMBEDDINGS
+    if _EMBEDDINGS is not None:
+        return _EMBEDDINGS
+
+    knowledge = _load_knowledge()
+    rows: list[tuple[str, dict, str]] = []  # (text, entry, source)
+    for source, entries in knowledge.items():
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            text = _entry_to_text(entry, source)
+            if len(text) < 10:
+                continue
+            rows.append((text, entry, source))
+
+    if not rows:
+        _EMBEDDINGS = []
+        return _EMBEDDINGS
+
+    try:
+        from openai import OpenAI  # local import keeps startup light
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        resp = client.embeddings.create(
+            input=[r[0] for r in rows],
+            model=EMBED_MODEL,
+        )
+        vectors = [d.embedding for d in resp.data]
+    except Exception:
+        # Embedding provider unavailable — mark cache empty so we retry
+        # next time and Phase 1 stays the effective surface meanwhile.
+        _EMBEDDINGS = []
+        return _EMBEDDINGS
+
+    _EMBEDDINGS = [
+        (rows[i][0], vectors[i], {"source": rows[i][2], "data": rows[i][1]})
+        for i in range(len(rows))
+    ]
+    return _EMBEDDINGS
+
+
+def search_knowledge_semantic(query: str, top_k: int = 3) -> list[dict]:
+    """Embedding-space cosine similarity. Returns [{type,data,similarity}]
+    sorted desc, filtered by `_MIN_SEMANTIC_SIM`."""
+    if not query:
+        return []
+    corpus = _build_embeddings()
+    if not corpus:
+        return []
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        q_resp = client.embeddings.create(input=[query], model=EMBED_MODEL)
+        q_vec = q_resp.data[0].embedding
+    except Exception:
+        return []
+
+    scored: list[tuple[float, dict]] = []
+    for _text, vec, meta in corpus:
+        sim = _cosine_sim(q_vec, vec)
+        if sim >= _MIN_SEMANTIC_SIM:
+            scored.append((sim, meta))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [
+        {"type": m["source"], "data": m["data"], "similarity": round(s, 3)}
+        for s, m in scored[:top_k]
+    ]
+
+
+def search_knowledge(query: str, top_k: int = 3) -> list[dict]:
+    """Phase 1 keyword → Phase 2 embedding fallback. Each entry is
+    `{"type": <source>, "data": <full entry>}` with an optional
+    `similarity` field when the result came from Phase 2."""
+    hits = _keyword_search(query, top_k)
+    if hits:
+        return hits
+    try:
+        return search_knowledge_semantic(query, top_k)
+    except Exception:
+        return []

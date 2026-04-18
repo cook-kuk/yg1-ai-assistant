@@ -21,6 +21,9 @@ SCORING_CONFIG: dict[str, float] = {
     "affinity_excellent": 15,
     "affinity_good": 10,
     "affinity_fair": 5,
+    "flagship_boost": 10,
+    "micro_demote": -5,
+    "material_pref": 5,
 }
 
 # Sum of every possible contribution — used to normalize final score into
@@ -42,26 +45,56 @@ WEIGHTS = {
 # brands YG-1 routinely steers customers toward; micro lines are the general
 # commodity series that rarely win at the top of a recommendation.
 FLAGSHIP_BRANDS = {
-    "3S MILL", "V7 PLUS", "X-POWER", "ALU-POWER", "ALU-POWER HPC",
-    "TitaNox-Power", "I-POWER", "DREAM DRILLS", "DREAM DRILLS-INOX",
+    "V7 PLUS", "X-POWER", "TitaNox-Power", "ALU-POWER", "ALU-POWER HPC", "3S MILL",
 }
-MICRO_BRANDS = {"GENERAL HSS", "GENERAL CARBIDE", "K-2 CARBIDE"}
-
-FLAGSHIP_BONUS = 15.0
-MICRO_PENALTY = -30.0
+MICRO_BRANDS: set[str] = set()
 
 _FLAGSHIP_UPPER = {b.upper() for b in FLAGSHIP_BRANDS}
 _MICRO_UPPER = {b.upper() for b in MICRO_BRANDS}
 
 
 def _brand_boost(brand: Optional[str]) -> float:
+    """Flat +flagship_boost / +micro_demote addend used at rank time.
+    Pulls the magnitude from SCORING_CONFIG so ops can retune without
+    touching code."""
     if not brand:
         return 0.0
     key = str(brand).strip().upper()
     if key in _FLAGSHIP_UPPER:
-        return FLAGSHIP_BONUS
+        return float(SCORING_CONFIG["flagship_boost"])
     if key in _MICRO_UPPER:
-        return MICRO_PENALTY
+        return float(SCORING_CONFIG["micro_demote"])
+    return 0.0
+
+
+# ── material → preferred series (ISO LV1 → canonical brand name list) ───
+# Hand-curated priority hints. When a candidate's brand appears in the list
+# for the current ISO group we add SCORING_CONFIG["material_pref"] to the
+# raw score. Missing keys = no preference expressed.
+MATERIAL_SERIES_PREF: dict[str, list[str]] = {
+    "N": ["ALU-POWER", "ALU-POWER HPC", "ALU-CUT", "CRX S"],
+    "M": ["TitaNox-Power", "X-POWER", "V7 PLUS A"],
+    "S": ["TitaNox-Power"],
+    "H": ["X-POWER", "3S MILL"],
+    "P": ["V7 PLUS", "X-POWER", "3S MILL"],
+    "K": ["V7 PLUS", "3S MILL"],
+}
+
+
+def _material_pref_boost(brand: Optional[str], material_tag: Optional[str]) -> float:
+    """+5 if the candidate's brand is a preferred series for the material
+    group. Substring-insensitive prefix match so 'ALU-CUT for Korean Market'
+    still hits the 'ALU-CUT' preference entry."""
+    if not brand or not material_tag:
+        return 0.0
+    preferred = MATERIAL_SERIES_PREF.get(str(material_tag).strip().upper(), [])
+    if not preferred:
+        return 0.0
+    b_up = str(brand).strip().upper()
+    for p in preferred:
+        p_up = p.upper()
+        if b_up == p_up or b_up.startswith(p_up + " ") or b_up.startswith(p_up):
+            return float(SCORING_CONFIG["material_pref"])
     return 0.0
 
 
@@ -212,13 +245,56 @@ def rank_candidates(candidates: list[dict], intent, top_k: int = 5) -> list[tupl
     mat_tag = getattr(intent, "material_tag", None)
     for c in candidates:
         base, breakdown = score_candidate(c, intent)
-        boost = _brand_boost(c.get("brand"))
+        flagship = _brand_boost(c.get("brand"))
         affinity = get_affinity_boost(c.get("brand"), mat_tag)
-        # breakdown keeps raw per-dimension contributions (debug-friendly),
-        # including the flat affinity bonus.
-        breakdown = {**breakdown, "affinity": round(affinity, 2)}
-        raw = base + boost + affinity
+        material_pref = _material_pref_boost(c.get("brand"), mat_tag)
+        breakdown = {
+            **breakdown,
+            "affinity": round(affinity, 2),
+            "flagship": round(flagship, 2),
+            "material_pref": round(material_pref, 2),
+        }
+        raw = base + flagship + affinity + material_pref
         normalized = min(100.0, round(raw / MAX_POSSIBLE_SCORE * 100, 1))
         scored.append((c, normalized, breakdown))
     scored.sort(key=lambda x: x[1], reverse=True)
+    # Diversity shuffle: keeps #1 put, nudges later ranks away from repeats.
+    scored = diversity_rerank(scored, top_k=min(10, len(scored)))
     return scored[:top_k]
+
+
+def diversity_rerank(
+    ranked: list[tuple[dict, float, dict[str, float]]],
+    top_k: int = 10,
+) -> list[tuple[dict, float, dict[str, float]]]:
+    """Greedy brand-diversity rerank over the first `top_k` positions.
+    The #1 slot is locked in — below it, already-seen brands take a 0.8×
+    multiplicative penalty when choosing the next pick so we don't paint
+    the first page with a single brand. Below the top_k window the
+    original order is preserved.
+    Scores in the returned tuples are untouched — only positions change."""
+    if len(ranked) <= 1 or top_k <= 1:
+        return ranked
+    selected = [ranked[0]]
+    remaining = list(ranked[1:])
+    seen_brands: set[str] = set()
+    first_brand = ranked[0][0].get("brand") or ""
+    if first_brand:
+        seen_brands.add(str(first_brand))
+    while remaining and len(selected) < top_k:
+        best_idx = 0
+        best_adjusted = -1.0
+        for i, (c, s, _b) in enumerate(remaining):
+            brand = str(c.get("brand") or "")
+            penalty = 0.8 if brand and brand in seen_brands else 1.0
+            adjusted = s * penalty
+            if adjusted > best_adjusted:
+                best_adjusted = adjusted
+                best_idx = i
+        pick = remaining.pop(best_idx)
+        selected.append(pick)
+        pb = pick[0].get("brand")
+        if pb:
+            seen_brands.add(str(pb))
+    selected.extend(remaining)
+    return selected

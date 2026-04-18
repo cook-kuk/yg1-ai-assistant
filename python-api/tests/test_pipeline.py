@@ -36,10 +36,10 @@ def test_recommend_returns_top5_with_scores(api_client, db_conn, anthropic_clien
     score_values = [s["score"] for s in body["scores"]]
     assert score_values == sorted(score_values, reverse=True)
 
-    # breakdown keys match weight schema + affinity (added when rank_candidates
-    # applies the brand×material affinity boost).
+    # breakdown keys: base weight schema + affinity + flagship + material_pref
     assert set(body["scores"][0]["breakdown"].keys()) == {
-        "diameter", "flutes", "material", "shape", "coating", "affinity",
+        "diameter", "flutes", "material", "shape", "coating",
+        "affinity", "flagship", "material_pref",
     }
 
 

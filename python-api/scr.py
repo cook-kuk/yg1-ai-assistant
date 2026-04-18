@@ -86,34 +86,134 @@ def _pre_resolve_brand(message: str) -> str | None:
         matches = [b for b in brands if b.lower().startswith(prefix)]
         if len(matches) == 1:
             return matches[0]
+    # Fuzzy fallback — handles single-word brand references and typos
+    # (e.g. "TITANOX" → "TitaNox-Power" via unique prefix inside the fuzzy
+    # resolver, "ALU-PWER" → "ALU-POWER" via Levenshtein). Only scans ASCII
+    # brand-like tokens (≥4 chars); the resolver itself rejects noise.
+    fuzzy_candidates = re.findall(r"[A-Za-z][A-Za-z0-9-]{3,}", message)
+    for cand in fuzzy_candidates:
+        resolved = _resolve_brand(cand)
+        if resolved:
+            return resolved
     return None
 
 
-def _resolve_brand_alias(brand: str | None) -> str | None:
-    """Map a free-form brand token the LLM emitted to the canonical DB value.
-    1) exact case-insensitive hit wins,
-    2) otherwise a unique prefix match is accepted (e.g. "ALU-CUT" →
-       "ALU-CUT for Korean Market"),
-    3) else return the original string unchanged.
-    If multiple brands share the same prefix we bail out rather than guess."""
-    if not brand:
-        return brand
-    brands = _get_brands()
-    if not brands:
-        return brand
-    target = brand.strip()
+# Canonical vocabularies for fuzzy resolve. Brand comes from the DB (see
+# _get_brands); shank/coating are fixed per prompt schema.
+_SHANK_CANONICAL: list[str] = [
+    "Weldon",
+    "Cylindrical",
+    "Morse Taper",
+    "Straight",
+    "Flat",
+    "Flat (YG-1 Standard)",
+    "Flat (DIN 1835B)",
+]
+
+_COATING_CANONICAL: list[str] = [
+    "TiAlN", "AlTiN", "AlCrN", "TiCN", "TiN", "DLC", "Diamond",
+    "T-Coating", "Y-Coating", "X-Coating", "Z-Coating",
+    "XC-Coating", "RCH-Coating", "Hardslick",
+    "Bright Finish", "Uncoated",
+]
+
+
+def _levenshtein(a: str, b: str) -> int:
+    """Plain iterative DP — O(len(a)*len(b)) with O(len(b)) memory. Adequate
+    for 79-brand / 16-coating lookups; no dependency."""
+    if len(a) < len(b):
+        return _levenshtein(b, a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a):
+        curr = [i + 1]
+        for j, cb in enumerate(b):
+            curr.append(min(prev[j + 1] + 1, curr[j] + 1, prev[j] + (ca != cb)))
+        prev = curr
+    return prev[-1]
+
+
+def _fuzzy_resolve(
+    raw: str | None,
+    canonical: list[str],
+    *,
+    lev_max: int = 2,
+    lev_min_target_len: int = 4,
+) -> str | None:
+    """Generic normalizer for small canonical vocabularies. Stages:
+      1) exact
+      2) case-insensitive
+      3) unique case-insensitive prefix
+      4) case-insensitive substring — prefer the longest (most specific) canonical
+      5) Levenshtein ≤ lev_max (only when target is ≥ lev_min_target_len)
+    Returns None on full miss so the caller can decide to fall back elsewhere.
+    """
+    if not raw or not canonical:
+        return None
+    target = raw.strip()
     if not target:
-        return brand
+        return None
     target_lc = target.lower()
-    # exact match
-    for b in brands:
-        if b.lower() == target_lc:
-            return b
-    # unique prefix match
-    prefix_hits = [b for b in brands if b.lower().startswith(target_lc)]
-    if len(prefix_hits) == 1:
-        return prefix_hits[0]
-    return brand
+
+    # Tiebreak for multi-hit stages: prefer shortest (most general) canonical;
+    # on equal length, prefer the form with more lowercase characters (i.e.
+    # "TitaNox-Power" wins over its all-caps DB duplicate "TITANOX-POWER").
+    def _pick(hits: list[str]) -> str:
+        return min(hits, key=lambda c: (len(c), -sum(1 for ch in c if ch.islower())))
+
+    # 1 exact
+    for c in canonical:
+        if c == target:
+            return c
+    # 2 case-insensitive exact
+    for c in canonical:
+        if c.lower() == target_lc:
+            return c
+    # 3 prefix — accept any hit, disambiguate via _pick. Keeping this over
+    # "unique-only" lets "ALU-CUT" resolve even when the DB has
+    # "ALU-CUT HPC" alongside; the shorter base form wins.
+    prefix_hits = [c for c in canonical if c.lower().startswith(target_lc)]
+    if prefix_hits:
+        return _pick(prefix_hits)
+    # 4 substring — target appears mid-canonical. Require the target to be
+    # substantive relative to the canonical (≥5 chars AND ≥half its length)
+    # so generic terms like "Flat" don't alias to "DREAM DRILLS-FLAT BOTTOM".
+    if len(target_lc) >= 5:
+        substr_hits = [
+            c for c in canonical
+            if target_lc in c.lower() and len(target_lc) * 2 >= len(c)
+        ]
+        if substr_hits:
+            return _pick(substr_hits)
+    # 5 Levenshtein — only when target is discriminative. "CBN"(3) fuzzed
+    # against "TiN"/"DLC"/"PCD" would all come out within distance 2.
+    if len(target_lc) >= lev_min_target_len:
+        best = None
+        best_dist = lev_max + 1
+        for c in canonical:
+            d = _levenshtein(target_lc, c.lower())
+            if d < best_dist:
+                best_dist = d
+                best = c
+        if best is not None:
+            return best
+    return None
+
+
+def _resolve_brand(raw: str | None) -> str | None:
+    """Map a free-form brand token the LLM emitted to the canonical DB value
+    via exact → ci → prefix → substring → Levenshtein. Returns None on miss
+    so the caller can fall through to message-scan (_pre_resolve_brand)."""
+    return _fuzzy_resolve(raw, _get_brands())
+
+
+def _resolve_shank(raw: str | None) -> str | None:
+    """Normalize shank_type to canonical; falls through to None on miss."""
+    return _fuzzy_resolve(raw, _SHANK_CANONICAL)
+
+
+def _resolve_coating(raw: str | None) -> str | None:
+    """Normalize coating to canonical; falls through to None on miss."""
+    return _fuzzy_resolve(raw, _COATING_CANONICAL)
 
 
 _MATERIAL_LOOKUP: dict[str, str] | None = None
@@ -208,14 +308,20 @@ def reset_prompt_cache() -> None:
 
 
 def _system_prompt() -> str:
-    """Render SYSTEM_PROMPT_TEMPLATE with live brand list interpolated in.
-    Material-code resolution is handled by _pre_resolve_material() outside
-    the prompt, keeping the template small (~10KB)."""
+    """Render SYSTEM_PROMPT_TEMPLATE with live brand list interpolated in,
+    then append any persisted few-shot examples. Brand substitution is
+    cached (stable per process); few-shots re-read on each call since they
+    can change at runtime when add_few_shot() is invoked."""
     global _PROMPT_CACHE
     if _PROMPT_CACHE is None:
         brands = ", ".join(_get_brands())
         _PROMPT_CACHE = SYSTEM_PROMPT_TEMPLATE.replace("«BRANDS»", brands)
-    return _PROMPT_CACHE
+    try:
+        from few_shot import render_prompt_suffix
+        suffix = render_prompt_suffix()
+    except Exception:
+        suffix = ""
+    return _PROMPT_CACHE + suffix
 
 
 SYSTEM_PROMPT_TEMPLATE = """너는 공작기계 절삭공구 추천 시스템의 의도 파서다.
@@ -442,8 +548,8 @@ def parse_intent(message: str) -> SCRIntent:
         material_tag=data.get("material_tag") or pre_material,
         tool_type=data.get("tool_type"),
         subtype=data.get("subtype"),
-        brand=_resolve_brand_alias(data.get("brand")) or pre_brand,
-        coating=data.get("coating"),
+        brand=_resolve_brand(data.get("brand")) or pre_brand,
+        coating=_resolve_coating(data.get("coating")),
         tool_material=data.get("tool_material"),
-        shank_type=data.get("shank_type"),
+        shank_type=_resolve_shank(data.get("shank_type")),
     )

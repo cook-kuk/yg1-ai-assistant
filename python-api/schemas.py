@@ -88,6 +88,7 @@ class ManualFilters(BaseModel):
 class ProductsRequest(BaseModel):
     message: Optional[str] = None
     filters: Optional[ManualFilters] = None
+    session_id: Optional[str] = None
 
 
 class FilterOption(BaseModel):
@@ -151,3 +152,5 @@ class ProductsResponse(BaseModel):
     totalCount: int
     route: str
     availableFilters: Optional[Dict[str, List[FilterOption]]] = None
+    session_id: str
+    broadened: bool = False  # True when follow-up narrow hit 0 and we used the global set

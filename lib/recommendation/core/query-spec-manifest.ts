@@ -101,11 +101,11 @@ export const QUERY_FIELD_MANIFEST: FieldManifestEntry[] = [
   {
     field: "brand",
     label: "브랜드/시리즈 브랜드",
-    description: "제품 브랜드명. TANK-POWER, X5070, CRX-S, ALU-CUT 등.",
+    description: "제품 브랜드명. TANK-POWER, X5070, CRX S, ALU-CUT 등.",
     allowedOps: ["eq", "neq", "contains"],
     aliases: ["브랜드", "brand", "상표"],
     valueType: "string",
-    examples: ["TANK-POWER", "X5070", "CRX-S", "ALU-CUT", "V7"],
+    examples: ["TANK-POWER", "X5070", "CRX S", "ALU-CUT", "V7"],
   },
   {
     field: "seriesName",
