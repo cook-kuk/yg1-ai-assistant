@@ -1,0 +1,82 @@
+[
+  {
+    "industry_ko": "항공",
+    "aliases": ["항공", "항공우주", "항공기", "aerospace", "aviation"],
+    "explanation_ko": "항공 분야는 Ti6Al4V·Inconel 718·CFRP 비중이 높아 내열/내마모 코팅과 진동 억제 날 설계가 핵심입니다. 스크랩률 민감도가 크고 고강성 요구가 많습니다.",
+    "followup_template_ko": "가공 대상이 티타늄 구조재인가요, 초내열합금 부품인가요, 아니면 CFRP 복합재인가요? 주요 소재를 알려주시면 맞는 공구를 추려드릴게요.",
+    "material_chips_ko": ["티타늄(Ti6Al4V)", "인코넬 718", "알루미늄 7075", "CFRP"],
+    "yg1_recommendation_hint": "TitaNox-Power(Ti/인코넬), ALU-POWER HPC(항공용 알루미늄), I-DREAM(CFRP) 계열 우선 고려."
+  },
+  {
+    "industry_ko": "자동차",
+    "aliases": ["자동차", "차량", "자동차부품", "automotive", "auto", "car"],
+    "explanation_ko": "대량생산 체제라 공구 수명과 분당 피드가 최우선입니다. S45C·SCM440·FCD·Al 6061 등 혼합 소재 가공 비중이 큽니다.",
+    "followup_template_ko": "엔진 블록/크랭크샤프트 같은 주조재인가요, 기어박스 합금강인가요? 혹은 알루미늄 휠/바디 부품인가요?",
+    "material_chips_ko": ["탄소강(S45C)", "합금강(SCM440)", "주철(FCD)", "알루미늄 6061"],
+    "yg1_recommendation_hint": "범용 고수명 시리즈 V7 PLUS / X-POWER / 3S MILL 우선."
+  },
+  {
+    "industry_ko": "의료",
+    "aliases": ["의료", "메디컬", "임플란트", "medical", "surgical", "임플란트가공"],
+    "explanation_ko": "표면조도·정밀도 요구가 극단적으로 높고 Ti6Al4V·SUS316L·CoCr 합금 위주입니다. 세정/살균 공정 탓에 공구 날 품질이 부적합률에 직결됩니다.",
+    "followup_template_ko": "정형외과 임플란트인가요, 치과용 기구인가요, 수술도구인가요? 표면조도 요구 수준도 알려주시면 좋습니다.",
+    "material_chips_ko": ["티타늄(Ti6Al4V)", "SUS316L", "CoCr 합금", "PEEK"],
+    "yg1_recommendation_hint": "정밀 볼·라디우스 엔드밀 + AlCrN/DLC. TitaNox-Power, CRX S 계열."
+  },
+  {
+    "industry_ko": "금형",
+    "aliases": ["금형", "몰드", "다이캐스팅", "프레스금형", "mold", "die"],
+    "explanation_ko": "HRC45 이상 경화강(SKD11/61·NAK80·STAVAX) 중심. 등고선 가공이 많아 볼/라디우스 엔드밀 비중이 높고 내마모 코팅이 필수입니다.",
+    "followup_template_ko": "프레스 금형인가요 다이캐스팅 금형인가요? 소재 경도(HRC)와 마감 요구 수준을 알려주세요.",
+    "material_chips_ko": ["SKD11", "SKD61", "NAK80", "STAVAX"],
+    "yg1_recommendation_hint": "X-POWER / 3S MILL / CRX S + AlCrN·AlTiN 코팅."
+  },
+  {
+    "industry_ko": "에너지",
+    "aliases": ["에너지", "발전", "풍력", "터빈", "energy", "wind", "turbine"],
+    "explanation_ko": "대형 부품 + 난삭재(Inconel·스테인리스)가 많고 한 사이클이 길어 공구 수명이 총 가공시간을 좌우합니다.",
+    "followup_template_ko": "풍력 블레이드 구조재인가요, 발전 터빈 부품인가요? 대형 평면 황삭인가요 마감 윤곽인가요?",
+    "material_chips_ko": ["인코넬", "스테인리스", "저합금강"],
+    "yg1_recommendation_hint": "TitaNox-Power(난삭재), V7 PLUS(일반강)."
+  },
+  {
+    "industry_ko": "일반기계",
+    "aliases": ["일반기계", "범용기계", "machinery", "general"],
+    "explanation_ko": "다품종 소량 또는 범용 구조물. S45C·SCM415·FCD·SS400 위주로 무난한 TiAlN/AlCrN 범용 공구가 기본입니다.",
+    "followup_template_ko": "주로 평면 황삭인가요, 포켓이나 슬롯 형상 가공인가요?",
+    "material_chips_ko": ["S45C", "SCM415", "FCD", "SS400"],
+    "yg1_recommendation_hint": "V7 PLUS / 3S MILL + TiAlN."
+  },
+  {
+    "industry_ko": "전자",
+    "aliases": ["전자", "반도체", "PCB", "electronics", "semiconductor", "pcb"],
+    "explanation_ko": "소구경(<3mm) 초정밀 가공이 많고 알루미늄·구리·그라파이트·FR4 위주입니다. 열 발생을 극도로 낮춰야 하고 Diamond/DLC 코팅이 필수인 소재가 많습니다.",
+    "followup_template_ko": "PCB 홀 드릴인가요, 그라파이트 전극 가공인가요, 알루미늄 히트싱크인가요?",
+    "material_chips_ko": ["알루미늄 합금", "구리", "그라파이트", "FR4"],
+    "yg1_recommendation_hint": "ALU-POWER(알루미늄) / D-POWER GRAPHITE(그라파이트)."
+  },
+  {
+    "industry_ko": "오일가스",
+    "aliases": ["오일가스", "석유", "가스", "oil", "gas", "petroleum"],
+    "explanation_ko": "Super Duplex·Inconel 625·17-4PH 같은 내식성 합금 대형 부품 가공. 장시간 가공에 내열·내마모 코팅이 필수입니다.",
+    "followup_template_ko": "해양 플랜트 밸브/피팅인가요, 시추 부품인가요? 소재는 Super Duplex 계열인가요 Inconel 계열인가요?",
+    "material_chips_ko": ["Super Duplex", "Inconel 625", "17-4PH"],
+    "yg1_recommendation_hint": "TitaNox-Power / V7 PLUS A + AlTiN·AlCrN."
+  },
+  {
+    "industry_ko": "조선",
+    "aliases": ["조선", "선박", "해양", "marine", "ship", "naval"],
+    "explanation_ko": "대형 강판·알루미늄 합금·Cu-Ni 합금이 주력. 긴 절삭 길이와 용접부 가공 비중이 커서 고수명 공구가 핵심입니다.",
+    "followup_template_ko": "선체 구조 강판인가요, 알루미늄 갑판 구조물인가요, Cu-Ni 배관 피팅인가요?",
+    "material_chips_ko": ["선박용 강판", "알루미늄 합금", "Cu-Ni 합금"],
+    "yg1_recommendation_hint": "3S MILL / V7 PLUS(강판), ALU-POWER(알루미늄)."
+  },
+  {
+    "industry_ko": "방산",
+    "aliases": ["방산", "방위산업", "국방", "defense", "defence", "military"],
+    "explanation_ko": "고경도강·티타늄·알루미늄 포탄피 등 소재 범위가 넓고 정밀도·추적성 요구가 높습니다. 단가보다 품질·일관성이 우선입니다.",
+    "followup_template_ko": "무기체계 부품인가요, 장갑재 가공인가요, 탄체 관련인가요?",
+    "material_chips_ko": ["고경도강", "티타늄", "알루미늄 합금"],
+    "yg1_recommendation_hint": "X-POWER(경화강) / TitaNox-Power(Ti) 조합."
+  }
+]

@@ -1,0 +1,128 @@
+[
+  {
+    "material_ko": "SUS304 (오스테나이트 스테인리스)",
+    "iso_group": "M",
+    "aliases": ["SUS304", "sus 304", "stainless 304", "304", "스테인리스 304", "수스304"],
+    "explanation_ko": "가공경화가 심하고 열전도율이 낮아 절삭열이 공구로 몰립니다. 날끝 안정성과 열분산이 핵심.",
+    "cutting_speed_range": "Vc 80~140 m/min",
+    "recommended_coating": ["AlCrN", "AlTiN"],
+    "yg1_recommendation_hint": "TitaNox-Power 또는 V7 PLUS 4~6날, Y-Coating/AlCrN 조합 우선."
+  },
+  {
+    "material_ko": "SUS316 (내식성 스테인리스)",
+    "iso_group": "M",
+    "aliases": ["SUS316", "sus 316", "316", "스테인리스 316"],
+    "explanation_ko": "Mo 함유로 SUS304보다 인성이 높아 칩이 질깁니다. 동일 조건에서 Vc를 15% 낮추는 게 안전합니다.",
+    "cutting_speed_range": "Vc 70~120 m/min",
+    "recommended_coating": ["AlCrN", "AlTiN"],
+    "yg1_recommendation_hint": "TitaNox-Power + AlCrN, 칩 배출 위해 3~4날."
+  },
+  {
+    "material_ko": "SUS316L (의료용 저탄소 스테인리스)",
+    "iso_group": "M",
+    "aliases": ["SUS316L", "sus316l", "316L", "316l"],
+    "explanation_ko": "의료기기·임플란트용. 저탄소라 응력 분포가 균일하지만 가공경화 경향은 유지되므로 날끝 곡률과 쿨런트가 중요합니다.",
+    "cutting_speed_range": "Vc 70~110 m/min",
+    "recommended_coating": ["AlCrN", "DLC"],
+    "yg1_recommendation_hint": "TitaNox-Power / CRX S + 볼·라디우스 엔드밀."
+  },
+  {
+    "material_ko": "S45C (탄소강)",
+    "iso_group": "P",
+    "aliases": ["S45C", "s45c", "sm45c", "탄소강", "중탄소강"],
+    "explanation_ko": "범용 구조용강. 절삭성이 좋고 TiAlN 계열 범용 공구로 무난하게 가공됩니다.",
+    "cutting_speed_range": "Vc 120~200 m/min",
+    "recommended_coating": ["TiAlN", "AlCrN"],
+    "yg1_recommendation_hint": "V7 PLUS / 3S MILL + TiAlN."
+  },
+  {
+    "material_ko": "SCM440 (합금강)",
+    "iso_group": "P",
+    "aliases": ["SCM440", "scm440", "합금강", "alloy steel", "크롬몰리"],
+    "explanation_ko": "조질 후 인성이 높아 날끝 부하가 큽니다. 절삭력 분산을 위해 다날 + 내열 코팅이 유리합니다.",
+    "cutting_speed_range": "Vc 100~160 m/min",
+    "recommended_coating": ["AlCrN", "TiAlN"],
+    "yg1_recommendation_hint": "X-POWER / V7 PLUS + AlCrN 4~6날."
+  },
+  {
+    "material_ko": "SKD11 (냉간금형강)",
+    "iso_group": "H",
+    "aliases": ["SKD11", "skd11", "skd-11", "냉간금형강", "공구강"],
+    "explanation_ko": "열처리 후 HRC58~62로 매우 단단합니다. 저 Vc·얕은 절입(ap) + 단단한 코팅(AlCrN) 필수.",
+    "cutting_speed_range": "Vc 30~60 m/min",
+    "recommended_coating": ["AlCrN", "AlTiN"],
+    "yg1_recommendation_hint": "X-POWER / 3S MILL + AlCrN 볼/라디우스."
+  },
+  {
+    "material_ko": "SKD61 (열간금형강)",
+    "iso_group": "H",
+    "aliases": ["SKD61", "skd61", "열간금형강", "h13", "H13"],
+    "explanation_ko": "열처리 HRC48~52. 열피로에 강하지만 절삭열을 잘 머금으므로 쿨런트·고이송 전략이 좋습니다.",
+    "cutting_speed_range": "Vc 50~90 m/min",
+    "recommended_coating": ["AlCrN", "AlTiN"],
+    "yg1_recommendation_hint": "X-POWER + AlCrN, 하이피드 옵션 고려."
+  },
+  {
+    "material_ko": "NAK80 (프리하든 금형강)",
+    "iso_group": "H",
+    "aliases": ["NAK80", "nak80", "프리하든", "prehardened"],
+    "explanation_ko": "HRC40 전후 프리하든 상태로 납품되어 추가 열처리 없이 정밀 금형 가공에 사용.",
+    "cutting_speed_range": "Vc 80~130 m/min",
+    "recommended_coating": ["AlCrN", "TiAlN"],
+    "yg1_recommendation_hint": "X-POWER / CRX S + 볼/라디우스."
+  },
+  {
+    "material_ko": "Ti6Al4V (티타늄 합금)",
+    "iso_group": "S",
+    "aliases": ["Ti6Al4V", "ti6al4v", "티타늄", "titanium", "TC4"],
+    "explanation_ko": "열전도율이 낮아 절삭열이 공구로 집중되고 화학적 반응성이 큽니다. 저 Vc·고 Fz 전략과 연속 쿨런트가 핵심.",
+    "cutting_speed_range": "Vc 40~80 m/min",
+    "recommended_coating": ["AlTiN", "AlCrN"],
+    "yg1_recommendation_hint": "TitaNox-Power 5날 + AlTiN, 쿨런트 필수."
+  },
+  {
+    "material_ko": "Inconel 718 (내열합금)",
+    "iso_group": "S",
+    "aliases": ["Inconel 718", "inconel 718", "IN718", "in718", "인코넬 718", "인코넬"],
+    "explanation_ko": "가공경화가 극심하고 공구 마모가 빠릅니다. 얕은 ap·깊은 Fz + AlTiN 계열 강력 코팅 조합이 표준.",
+    "cutting_speed_range": "Vc 20~50 m/min",
+    "recommended_coating": ["AlTiN", "AlCrN"],
+    "yg1_recommendation_hint": "TitaNox-Power / V7 PLUS A + AlTiN."
+  },
+  {
+    "material_ko": "Al 6061 (범용 알루미늄 합금)",
+    "iso_group": "N",
+    "aliases": ["Al 6061", "a6061", "6061", "알루미늄 6061", "알미늄 6061"],
+    "explanation_ko": "절삭성이 매우 좋지만 구성인선(BUE)이 생기기 쉬움. 날 각도가 예리하고 Uncoated 또는 DLC가 유리.",
+    "cutting_speed_range": "Vc 300~800 m/min",
+    "recommended_coating": ["DLC", "Uncoated"],
+    "yg1_recommendation_hint": "ALU-POWER 2~3날 + DLC 또는 Bright Finish."
+  },
+  {
+    "material_ko": "Al 7075 (항공용 고강도 알루미늄)",
+    "iso_group": "N",
+    "aliases": ["Al 7075", "a7075", "7075", "항공 알루미늄", "al7075"],
+    "explanation_ko": "Zn 함유로 Al 6061보다 강도·경도 높음. 높은 Vc가 가능하고 DLC/Diamond 코팅 유리.",
+    "cutting_speed_range": "Vc 400~900 m/min",
+    "recommended_coating": ["DLC", "Diamond"],
+    "yg1_recommendation_hint": "ALU-POWER HPC 3날 + DLC."
+  },
+  {
+    "material_ko": "FCD (구상흑연주철)",
+    "iso_group": "K",
+    "aliases": ["FCD", "fcd", "ductile", "덕타일 주철", "주철", "cast iron"],
+    "explanation_ko": "흑연 구상화로 인성이 좋고 절삭성이 뛰어남. 칩이 짧게 부서져 배출 용이. AlCrN/TiAlN 범용 조합.",
+    "cutting_speed_range": "Vc 150~300 m/min",
+    "recommended_coating": ["TiAlN", "AlCrN"],
+    "yg1_recommendation_hint": "V7 PLUS / 3S MILL + TiAlN."
+  },
+  {
+    "material_ko": "CFRP (탄소섬유 복합재)",
+    "iso_group": "O",
+    "aliases": ["CFRP", "cfrp", "탄소섬유", "복합재", "carbon fiber"],
+    "explanation_ko": "섬유 방향에 따라 마모·박리 발생. Diamond 또는 DLC 코팅이 필수이고 강성 공구가 필요합니다.",
+    "cutting_speed_range": "Vc 80~200 m/min",
+    "recommended_coating": ["Diamond", "DLC"],
+    "yg1_recommendation_hint": "Diamond 코팅 전용 공구 계열 검토."
+  }
+]

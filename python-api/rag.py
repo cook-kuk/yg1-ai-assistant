@@ -24,6 +24,64 @@ from typing import Any
 _TERM_SPLIT = re.compile(r"[/,·・|]+|\s{2,}")
 
 _BASE_DIR = Path(__file__).resolve().parent / "data"
+_KB_DIR = Path(__file__).resolve().parent / "knowledge"
+
+
+# ── knowledge/*.json — operator-written industry/material guides ────────
+# Loaded at import (these files are small + static). Used as Phase-1 RAG
+# so the chat LLM gets concrete "explanation / followup / material_chips"
+# fields to quote instead of having to keep that taxonomy in-prompt.
+
+def _load_kb_json(name: str) -> list:
+    p = _KB_DIR / name
+    if not p.exists():
+        return []
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
+
+_INDUSTRY_KB: list = _load_kb_json("industry-application-guide.json")
+_MATERIAL_KB: list = _load_kb_json("material-machining-guide.json")
+
+
+def _norm_query(s: str) -> str:
+    """Whitespace-insensitive lower. Used for alias-contains matching."""
+    return re.sub(r"\s+", "", (s or "").lower())
+
+
+def _alias_score(q_norm: str, aliases: list | None) -> int:
+    """Sum of normalized-alias lengths that occur as substrings of the
+    normalized query. Longer aliases win (specific terms outscore generic)."""
+    if not aliases:
+        return 0
+    total = 0
+    for a in aliases:
+        an = _norm_query(a or "")
+        if an and an in q_norm:
+            total += len(an)
+    return total
+
+
+def search_industry(query: str, top_k: int = 1) -> list[dict]:
+    qn = _norm_query(query)
+    if not qn:
+        return []
+    scored = [(_alias_score(qn, e.get("aliases")), e) for e in _INDUSTRY_KB]
+    scored = [x for x in scored if x[0] > 0]
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [{"type": "industry_guide", "score": s, "data": e} for s, e in scored[:top_k]]
+
+
+def search_material(query: str, top_k: int = 2) -> list[dict]:
+    qn = _norm_query(query)
+    if not qn:
+        return []
+    scored = [(_alias_score(qn, e.get("aliases")), e) for e in _MATERIAL_KB]
+    scored = [x for x in scored if x[0] > 0]
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [{"type": "material_guide", "score": s, "data": e} for s, e in scored[:top_k]]
 
 # (subdir, filename, logical type label) — kept in load order so the type tag
 # in the result list is stable across runs.
@@ -423,14 +481,24 @@ def search_knowledge_web(query: str, top_k: int = 3) -> list[dict]:
 
 def search_knowledge(query: str, top_k: int = 3) -> list[dict]:
     """Three-stage cascade:
-      Phase 1 keyword scorer (fast, deterministic, free)
-      Phase 2 OpenAI embeddings (semantic, covers paraphrases)
-      Phase 3 Tavily web search (long-tail / current events / unknown domains)
-    Each result is `{"type": <source>, "data": <entry>}`; Phase 2 adds
-    `similarity`, Phase 3 uses `type='web_search'`."""
-    hits = _keyword_search(query, top_k)
-    if hits:
-        return hits
+      Phase 1  industry + material guide lookup (operator-curated KB,
+               `knowledge/*.json` with explanation/followup/material_chips).
+               Also falls back to the older keyword scorers over the
+               domain-knowledge JSONs if neither industry nor material hits.
+      Phase 2  OpenAI embeddings (semantic, covers paraphrases)
+      Phase 3  Tavily web search (long-tail / current events)
+    """
+    phase1: list[dict] = []
+    phase1.extend(search_industry(query, top_k=1))
+    phase1.extend(search_material(query, top_k=2))
+    if phase1:
+        return phase1[:top_k]
+    # Fallback to the legacy domain-knowledge keyword scorers (troubleshooting,
+    # coating-properties, operation-guide, …) — still Phase-1 in spirit since
+    # it's deterministic + free.
+    legacy = _keyword_search(query, top_k)
+    if legacy:
+        return legacy
     try:
         sem = search_knowledge_semantic(query, top_k)
         if sem:

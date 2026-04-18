@@ -1,0 +1,266 @@
+[
+  {
+    "id": "ti_6al_4v",
+    "material_ko": "티타늄 Ti-6Al-4V",
+    "material_en": "Titanium Ti-6Al-4V (Grade 5)",
+    "aliases": ["티타늄", "타이타늄", "Ti", "Ti64", "Ti-6Al-4V", "Grade 5", "titanium", "티6알4브이"],
+    "iso_group": "S",
+    "key_properties": {
+      "thermal_conductivity_W_mK": "6-7 (강의 1/7 수준)",
+      "hardness_HB": "320-350",
+      "machinability_vs_steel": "약 30% (AISI 1045 기준)"
+    },
+    "cutting_speed_range": "Vc = 40-60 m/min (roughing), 60-80 m/min (finishing, carbide)",
+    "feed_range": "fz = 0.04-0.08 mm/tooth (6-10mm EM)",
+    "recommended_coating": ["AlCrN", "TiAlN"],
+    "key_challenges": "저열전도율로 열이 공구 끝에 집중. 코발트 바인더와 화학 친화성 → 융착(build-up edge). 탄성이 있어 공구에서 튕겨 나와 비비게 됨.",
+    "do_list": ["고압 쿨런트 (60-80 bar)", "날카로운 엣지", "충분한 리기디티", "axial DOC ≤ 1.5×D"],
+    "dont_list": ["저속 드웰 금지", "edge prep(호닝) 과도 금지", "건식 가공 금지"],
+    "applications": ["항공 엔진 파트", "랜딩기어", "의료 임플란트", "고성능 자동차"],
+    "explanation_ko": "Ti-6Al-4V는 항공·의료 임플란트의 대표 소재로 ISO S 군에 속합니다. 열전도율이 강의 1/7 수준이라 열이 공구 끝에 집중되고, 카바이드의 코발트 바인더와 화학적으로 반응해 융착이 일어납니다. 탄성이 있어 공구에서 튕겨 나와 비비는(rubbing) 경향이 있으므로 절삭속도를 높이기보다 날카로운 엣지와 고압 쿨런트(60-80 bar)로 열을 제거해야 합니다. AlCrN/TiAlN 코팅 카바이드가 표준입니다."
+  },
+  {
+    "id": "inconel_718",
+    "material_ko": "인코넬 718",
+    "material_en": "Inconel 718 (UNS N07718)",
+    "aliases": ["인코넬", "인콘넬", "Inconel", "Inconel 718", "IN718", "N07718", "니켈합금", "니켈계 초내열합금"],
+    "iso_group": "S",
+    "key_properties": {
+      "hardness_HRC": "36-44 (age-hardened)",
+      "machinability_AISI_index": "약 12%",
+      "heat_resistance": "700°C까지 강도 유지"
+    },
+    "cutting_speed_range": "Vc = 20-40 m/min (carbide), 200-400 m/min (ceramic)",
+    "feed_range": "fz = 0.05-0.1 mm/tooth",
+    "recommended_coating": ["TiAlN (800°C 산화 내성)", "AlTiN", "세라믹 인서트 (고속)"],
+    "key_challenges": "급속 가공경화 — 공구보다 빠르게 표면이 경화됨. 극심한 열 집중. 공구 수명이 분 단위로 측정.",
+    "do_list": ["날카로운 엣지 (edge radius ≤15µm)", "positive rake", "고압 쿨런트", "변동 헬릭스/unequal spacing 공구"],
+    "dont_list": ["edge prep 과도 금지 (cutting force 증가)", "공구 드웰 금지", "건식 절대 금지"],
+    "applications": ["제트엔진", "터빈 디스크", "오일&가스 스풀", "우주 로켓"],
+    "explanation_ko": "Inconel 718은 항공·발전 분야 난삭성 정점 소재입니다. AISI 난삭성 지수가 약 12%로 스테인리스(100%)의 1/8 수준이며, 700°C까지 강도를 유지합니다. 가공경화가 극도로 빨라 한 번 공구가 헛돌면 표면층이 공구보다 단단해져 다음 패스에서 파손됩니다. 날카로운 엣지(≤15µm, 호닝 금지), positive rake, 고압 쿨런트가 필수이고, 최신 기법은 세라믹 인서트로 800°C 이상 가열하여 재료를 연화시키며 Vc 200m/min 이상 고속 가공하는 방식입니다."
+  },
+  {
+    "id": "cocrmo",
+    "material_ko": "코발트크롬 CoCrMo",
+    "material_en": "Cobalt-Chromium CoCrMo (ASTM F75, F1537)",
+    "aliases": ["코발트크롬", "코발트", "CoCr", "CoCrMo", "cobalt chrome", "스텔라이트", "Stellite"],
+    "iso_group": "S",
+    "key_properties": {
+      "hardness_HRC_annealed": "35",
+      "hardness_HRC_workhardened_surface": "50+",
+      "abrasiveness": "매우 높음"
+    },
+    "cutting_speed_range": "Vc = 20-40 m/min (carbide)",
+    "feed_range": "fz = 0.03-0.07 mm/tooth",
+    "recommended_coating": ["TiAlN (PVD)", "AlCrN"],
+    "key_challenges": "연마성 극도로 높음. 가공경화율이 스테인리스 초과 — HRC 35 → 50+ 단일 패스로 경화. 공구 드웰 = 즉시 경화 = 다음 패스에서 파손.",
+    "do_list": ["날카로운 엣지 (≤5µm)", "positive rake geometry", "한 방향 클라임 밀링", "고압 관통 쿨런트"],
+    "dont_list": ["같은 면 2회 통과 금지", "공구 정지/드웰 금지", "무딘 공구 사용 절대 금지"],
+    "applications": ["인공 힙/무릎 관절", "척추 로드", "치과 임플란트 프레임"],
+    "explanation_ko": "CoCrMo(ASTM F75/F1537)는 의료 임플란트와 내마모 부품에 쓰이는 코발트계 합금입니다. 연마성이 매우 높고 가공경화율이 스테인리스를 초과해, 어닐드 HRC 35 소재가 표면층은 HRC 50+까지 급속 경화됩니다. 공구가 한 번 헛돌거나 드웰하면 경화된 표면에 막혀 다음 패스에서 파손됩니다. ≤5µm 날카로운 엣지, positive rake, 한 방향 클라임 밀링이 필수이며, 고압 관통 쿨런트로 즉시 열을 제거해야 합니다."
+  },
+  {
+    "id": "skd11",
+    "material_ko": "SKD11 (D2 / Cr12MoV)",
+    "material_en": "SKD11 (AISI D2, 1.2379)",
+    "aliases": ["SKD11", "D2", "Cr12MoV", "1.2379", "에스케이디11", "냉간금형강", "다이스틸"],
+    "iso_group": "H",
+    "key_properties": {
+      "hardness_annealed_HB": "≤255",
+      "hardness_hardened_HRC": "58-64",
+      "chemistry": "C 1.5%, Cr 12%, Mo 1%, V 1%"
+    },
+    "cutting_speed_range": {
+      "annealed": "Vc = 100-150 m/min",
+      "hardened HRC58-64": "Vc = 50-80 m/min (ball nose carbide)"
+    },
+    "feed_range": "fz = 0.02-0.05 mm/tooth (하드밀링)",
+    "recommended_coating": ["AlTiN", "TiSiN", "TiAlN 다층"],
+    "key_challenges": "HRC 60+ 상태에서 직접 밀링 시 공구 파손 위험. 크롬 탄화물로 연마성 높음. 경면 요구로 정삭 공구 런아웃 민감.",
+    "do_list": ["짧은 공구 돌출", "고정도 홀더 (shrink fit)", "light DOC + small fz", "안정적 rigidity"],
+    "dont_list": ["긴 공구 돌출 금지", "과도한 DOC 금지"],
+    "applications": ["냉간 프레스 다이", "블랭킹 펀치", "전단 금형", "나사 롤링 다이"],
+    "explanation_ko": "SKD11(AISI D2)은 대표적인 냉간 금형강으로 경화 후 HRC 58-64의 고경도를 가집니다. 12% 크롬·1.5% 카본 구성으로 크롬 탄화물이 풍부해 내마모성이 우수하지만 동시에 공구에 강한 연마성을 주어 하드밀링 시 AlTiN/TiSiN 코팅 초경 볼노즈가 표준입니다. Vc 50-80 m/min, fz 0.02-0.05 mm/tooth의 보수적 파라미터와 짧은 공구 돌출·shrink fit 홀더로 강성을 확보해야 합니다."
+  },
+  {
+    "id": "skd61",
+    "material_ko": "SKD61 (H13 / 1.2344)",
+    "material_en": "SKD61 (AISI H13, 1.2344)",
+    "aliases": ["SKD61", "H13", "1.2344", "에스케이디61", "열간금형강", "다이캐스팅금형"],
+    "iso_group": "H",
+    "key_properties": {
+      "hardness_hardened_HRC": "48-52",
+      "hot_hardness_600C_HRC": "38-42",
+      "thermal_fatigue_resistance": "우수"
+    },
+    "cutting_speed_range": "Vc = 80-120 m/min (ball nose carbide, hardened)",
+    "feed_range": "fz = 0.03-0.08 mm/tooth",
+    "recommended_coating": ["AlTiN", "TiAlN 다층"],
+    "key_challenges": "열간 강도 유지로 절삭 시 열 관리 중요. 다이캐스팅 금형의 히트 체크 예방을 위해 표면 조도 관리.",
+    "do_list": ["high-pressure coolant 또는 air blast", "안정적 strategy"],
+    "dont_list": ["공구 드웰 금지"],
+    "applications": ["알루미늄 다이캐스팅 금형", "단조 금형", "압출 다이", "사출 금형"],
+    "explanation_ko": "SKD61(AISI H13)은 대표적인 열간 금형강으로 알루미늄 다이캐스팅 금형과 단조 금형의 표준 소재입니다. 경화 시 HRC 48-52이며 600°C에서도 HRC 38-42를 유지하는 고온 내성과 열 피로 저항성이 특징입니다. SKD11보다 machinability가 양호해 하드밀링 시 Vc 80-120 m/min이 가능하며, AlTiN 코팅 볼노즈가 표준입니다."
+  },
+  {
+    "id": "nak80",
+    "material_ko": "NAK80",
+    "material_en": "NAK80 (Pre-hardened plastic mold steel)",
+    "aliases": ["NAK80", "NAK", "Daido NAK80", "낙80", "예경화강", "플라스틱금형강"],
+    "iso_group": "P",
+    "key_properties": {
+      "hardness_pre_hardened_HRC": "40",
+      "mirror_polishability": "매우 우수",
+      "machinability": "우수 (예경화 상태)"
+    },
+    "cutting_speed_range": "Vc = 150-250 m/min (carbide)",
+    "feed_range": "fz = 0.05-0.15 mm/tooth",
+    "recommended_coating": ["TiAlN", "AlTiN"],
+    "key_challenges": "예경화 상태로 납품되므로 추가 열처리 불필요 — 가공 후 바로 경면 정삭 필요.",
+    "applications": ["플라스틱 사출 금형 (외관 부품)", "고광택 요구 금형"],
+    "explanation_ko": "NAK80은 일본 Daido Steel의 대표 예경화 플라스틱 금형강으로 HRC 40 수준으로 납품되어 열처리 없이 바로 가공·경면 정삭이 가능합니다. 경면 폴리싱성이 매우 우수해 외관 부품 사출 금형에 표준 소재로 쓰입니다. Vc 150-250 m/min 범위에서 TiAlN 코팅 카바이드로 하드밀링하며, 열처리 후 재가공 스트레스가 없어 금형 제작 리드타임을 단축합니다."
+  },
+  {
+    "id": "stavax",
+    "material_ko": "STAVAX ESR (S136)",
+    "material_en": "STAVAX ESR (Uddeholm, ~420 SS equivalent)",
+    "aliases": ["STAVAX", "STAVAX ESR", "S136", "스타박스", "경면사출금형강"],
+    "iso_group": "M",
+    "key_properties": {
+      "hardness_hardened_HRC": "50-54",
+      "corrosion_resistance": "우수 (Cr 13%)",
+      "mirror_polishability": "최고급"
+    },
+    "cutting_speed_range": "Vc = 80-150 m/min (ball nose, hardened)",
+    "feed_range": "fz = 0.02-0.05 mm/tooth",
+    "recommended_coating": ["AlTiN", "TiSiN"],
+    "applications": ["경면 사출 금형 (렌즈, 광학)", "의료 사출 금형", "식품 용기 금형"],
+    "explanation_ko": "STAVAX ESR(~420 스테인리스 계열)은 스웨덴 Uddeholm의 프리미엄 경면 사출 금형강으로 13% 크롬 함유로 내식성과 최고급 경면 폴리싱성을 가집니다. 경화 시 HRC 50-54이며 렌즈·광학 부품·의료 용기 같은 초고광택 사출 금형의 표준입니다. AlTiN/TiSiN 코팅 초경 볼노즈로 Vc 80-150 m/min, 매우 작은 fz로 정삭해야 Ra 0.05µm 수준의 표면이 나옵니다."
+  },
+  {
+    "id": "al_6061",
+    "material_ko": "알루미늄 Al 6061",
+    "material_en": "Aluminum Al 6061-T6",
+    "aliases": ["알루미늄", "알루미늄 6061", "Al6061", "6061", "6061-T6", "aluminum 6061", "알미늄"],
+    "iso_group": "N",
+    "key_properties": {
+      "hardness_T6_HB": "95",
+      "machinability": "매우 우수",
+      "thermal_conductivity_W_mK": "167"
+    },
+    "cutting_speed_range": "Vc = 500-2000 m/min (PCD), 300-800 m/min (polished carbide)",
+    "feed_range": "fz = 0.05-0.3 mm/tooth",
+    "recommended_coating": ["DLC", "무코팅 polished carbide", "PCD (양산)"],
+    "key_challenges": "칩 융착 (BUE) — 코팅·엣지 상태가 표면 품질 결정. 열전도 우수해 열 문제는 적음.",
+    "do_list": ["2-3날 엔드밀", "positive geometry", "polished flute", "미스트/건식 가능"],
+    "dont_list": ["무딘 공구 금지 (BUE 발생)"],
+    "applications": ["반도체 장비 챔버", "항공 구조재", "자동차 경량부품", "EV 모터 하우징"],
+    "explanation_ko": "Al 6061-T6는 가장 널리 쓰이는 구조용 알루미늄 합금으로 반도체 장비 챔버·항공 구조재·자동차 경량 부품·EV 모터 하우징의 표준 소재입니다. machinability가 매우 우수해 Vc 500m/min 이상 고속 가공이 가능하고, PCD 공구로 양산 시 수천 미터 공구 수명이 나옵니다. 핵심 이슈는 칩 융착(BUE)으로 코팅(DLC)·엣지 폴리싱·positive geometry가 표면 품질을 결정합니다."
+  },
+  {
+    "id": "al_7075",
+    "material_ko": "알루미늄 Al 7075",
+    "material_en": "Aluminum Al 7075-T6",
+    "aliases": ["알루미늄 7075", "Al7075", "7075", "7075-T6", "aluminum 7075", "항공용 알루미늄"],
+    "iso_group": "N",
+    "key_properties": {
+      "hardness_T6_HB": "150",
+      "tensile_strength_MPa": "572",
+      "application": "항공 구조재"
+    },
+    "cutting_speed_range": "Vc = 400-1500 m/min",
+    "feed_range": "fz = 0.05-0.25 mm/tooth",
+    "recommended_coating": ["DLC", "polished carbide", "PCD"],
+    "applications": ["항공기 날개 스파", "군수 케이싱", "고강도 경량 구조재"],
+    "explanation_ko": "Al 7075-T6는 아연이 주 첨가원소인 고강도 알루미늄으로 강에 가까운 인장강도(572 MPa)를 가져 항공 구조재의 표준입니다. 6061보다 경도가 높아(HB 150) Vc는 다소 낮지만 여전히 400-1500 m/min의 고속 가공이 가능합니다. 항공 부품 특성상 표면 품질·잔류응력·버 관리가 중요합니다."
+  },
+  {
+    "id": "s45c",
+    "material_ko": "탄소강 S45C (1045)",
+    "material_en": "Carbon Steel S45C (AISI 1045)",
+    "aliases": ["탄소강", "S45C", "에스45씨", "1045", "중탄소강", "45번강", "carbon steel"],
+    "iso_group": "P",
+    "key_properties": {
+      "hardness_normalized_HB": "170-200",
+      "chemistry": "C 0.45%",
+      "machinability": "양호"
+    },
+    "cutting_speed_range": "Vc = 150-250 m/min (carbide)",
+    "feed_range": "fz = 0.08-0.2 mm/tooth",
+    "recommended_coating": ["TiAlN", "TiN"],
+    "applications": ["샤프트", "기어", "일반 기계부품", "지그"],
+    "explanation_ko": "S45C는 탄소 0.45% 중탄소강으로 일반 기계부품의 가장 흔한 소재입니다. 정규화 상태에서 HB 170-200의 표준적 경도를 가지며 P1.2 범주의 대표 소재로 TiAlN 코팅 카바이드로 Vc 150-250 m/min 범용 가공이 가능합니다. 다양한 공구의 벤치마크 소재로도 쓰입니다."
+  },
+  {
+    "id": "scm440",
+    "material_ko": "합금강 SCM440 (4140)",
+    "material_en": "Alloy Steel SCM440 (AISI 4140 / 42CrMo4)",
+    "aliases": ["SCM440", "SCM435", "4140", "42CrMo4", "크롬몰리브덴강", "합금강"],
+    "iso_group": "P",
+    "key_properties": {
+      "hardness_QT_HRC": "28-35 (quenched & tempered)",
+      "chemistry": "Cr 1%, Mo 0.2%",
+      "strength": "고강도"
+    },
+    "cutting_speed_range": "Vc = 130-220 m/min (carbide)",
+    "feed_range": "fz = 0.08-0.18 mm/tooth",
+    "recommended_coating": ["TiAlN", "AlCrN"],
+    "applications": ["자동차 샤프트", "기어", "크랭크샤프트", "고강도 볼트"],
+    "explanation_ko": "SCM440(AISI 4140)은 크롬-몰리브덴 합금강으로 담금질·뜨임 후 HRC 28-35 고강도를 제공해 자동차 크랭크샤프트·기어·샤프트 등 구조 부품의 표준입니다. S45C보다 강도·담금질성이 높아 Vc를 다소 낮추고(130-220 m/min) TiAlN/AlCrN 코팅을 써야 합니다."
+  },
+  {
+    "id": "sus304",
+    "material_ko": "스테인리스 SUS 304 (A2)",
+    "material_en": "Stainless SUS 304 (AISI 304)",
+    "aliases": ["SUS304", "304", "A2", "스테인레스", "스테인리스", "오스테나이트", "stainless"],
+    "iso_group": "M",
+    "key_properties": {
+      "structure": "오스테나이트",
+      "hardness_annealed_HB": "150-180",
+      "work_hardening": "매우 높음"
+    },
+    "cutting_speed_range": "Vc = 100-180 m/min (carbide)",
+    "feed_range": "fz = 0.08-0.15 mm/tooth",
+    "recommended_coating": ["TiAlN", "AlCrN"],
+    "key_challenges": "가공경화 + 칩 융착 + notch wear. 낮은 열전도율. Built-up edge 발생.",
+    "do_list": ["충분한 fz (문지르지 말 것)", "sharp edge", "쿨런트 충분"],
+    "dont_list": ["낮은 fz 절대 금지 (가공경화 촉진)"],
+    "applications": ["식품·제약 설비", "의료기기 본체", "건축 외장재", "주방기기"],
+    "explanation_ko": "SUS 304는 가장 널리 쓰이는 오스테나이트 스테인리스로 식품·제약·의료 설비의 표준입니다. 가공경화가 심하고 칩 융착·notch wear가 특징입니다. 중요한 원칙은 '충분한 fz로 반드시 소재를 절삭할 것' — fz를 낮추면 공구가 비비게 되어 표면 경화만 진행되고 수명이 급감합니다. TiAlN/AlCrN 코팅 + 날카로운 엣지 + 충분한 쿨런트가 표준입니다."
+  },
+  {
+    "id": "sus316",
+    "material_ko": "스테인리스 SUS 316",
+    "material_en": "Stainless SUS 316",
+    "aliases": ["SUS316", "316", "316L", "해수용 스테인리스", "내식 스테인리스"],
+    "iso_group": "M",
+    "key_properties": {
+      "structure": "오스테나이트 (Mo 2-3%)",
+      "corrosion_resistance": "우수 (해수, 화학)",
+      "machinability": "304보다 약간 난해"
+    },
+    "cutting_speed_range": "Vc = 90-160 m/min (carbide)",
+    "feed_range": "fz = 0.06-0.14 mm/tooth",
+    "recommended_coating": ["TiAlN", "AlCrN"],
+    "applications": ["해양 구조재", "화학 플랜트", "의료 임플란트 (F138)", "조선"],
+    "explanation_ko": "SUS 316은 몰리브덴 2-3% 첨가로 해수·화학 내식성이 우수한 오스테나이트 스테인리스입니다. 316L은 탄소 저감 버전으로 용접성이 개선되었고 의료 임플란트(ASTM F138)에도 쓰입니다. 304보다 machinability가 약간 낮아 Vc를 다소 낮춰야 하고(90-160 m/min) 나머지 전략은 304와 동일합니다."
+  },
+  {
+    "id": "gci_cast_iron",
+    "material_ko": "회주철 GCI (FC250)",
+    "material_en": "Gray Cast Iron (FC250, GG25)",
+    "aliases": ["주철", "회주철", "GCI", "FC250", "GG25", "gray cast iron", "cast iron"],
+    "iso_group": "K",
+    "key_properties": {
+      "hardness_HB": "180-220",
+      "structure": "회주철 (그래파이트)",
+      "machinability": "매우 우수 (칩 파쇄)"
+    },
+    "cutting_speed_range": "Vc = 150-300 m/min (carbide), 800-1500 m/min (PCBN)",
+    "feed_range": "fz = 0.1-0.3 mm/tooth",
+    "recommended_coating": ["TiAlN", "AlCrN", "CVD 다층", "PCBN (고속)"],
+    "key_challenges": "연마성 (흑연 + 펄라이트). 흑연 분진. 드라이 가공이 일반적이지만 쿨런트 사용 시 고압.",
+    "applications": ["엔진 블록", "실린더 라이너", "브레이크 디스크", "공작기계 베이스"],
+    "explanation_ko": "회주철(FC250)은 내부 흑연 구조로 칩이 짧게 부서져 machinability가 매우 우수합니다. 하지만 흑연·펄라이트 조직으로 연마성이 높아 공구 플랭크 마모가 빠르고, 분진 발생으로 드라이 가공이 일반적입니다. 자동차 엔진 블록·실린더 라이너·브레이크 디스크의 표준 소재이며, 대량 생산 시 PCBN으로 Vc 800-1500 m/min의 고속 가공이 가능합니다."
+  }
+]

@@ -529,6 +529,22 @@ Bright Finish · Uncoated
 - 출력은 JSON 하나만. 설명 텍스트 · 마크다운 · 코드펜스 금지."""
 
 
+# Korean-word → digit for flute counts. The LLM sometimes misses these so
+# we normalize the message BEFORE sending it to the model. Regex-only
+# because "두날" ↔ "2날" is a deterministic token rewrite — no ambiguity.
+_KR_FLUTE_RE = re.compile(r"(한|두|세|네|다섯|여섯|일곱|여덟)\s*날")
+_KR_NUM: dict[str, str] = {
+    "한": "1", "두": "2", "세": "3", "네": "4",
+    "다섯": "5", "여섯": "6", "일곱": "7", "여덟": "8",
+}
+
+
+def _normalize_korean(msg: str) -> str:
+    def _repl(m: re.Match) -> str:
+        return _KR_NUM.get(m.group(1), m.group(1)) + "날"
+    return _KR_FLUTE_RE.sub(_repl, msg)
+
+
 def _extract_json(text: str) -> dict:
     m = re.search(r"\{.*\}", text, re.DOTALL)
     if not m:
@@ -539,7 +555,23 @@ def _extract_json(text: str) -> dict:
         return {}
 
 
+def _embed_resolve(field: str, raw: str | None, threshold: float = 0.75) -> str | None:
+    """Thin wrapper around alias_resolver.resolve with import-time safety:
+    if the module or embedding API is unavailable we fail quiet and return
+    None so the fuzzy result (or the raw LLM value) wins."""
+    if not raw:
+        return None
+    try:
+        from alias_resolver import resolve
+        return resolve(field, raw, threshold=threshold)
+    except Exception:
+        return None
+
+
 def parse_intent(message: str) -> SCRIntent:
+    # Preprocess Korean-word flute counts into digits so the LLM always
+    # sees "2날" regardless of how the user spelled it ("두날"/"두 날"/"2날").
+    message = _normalize_korean(message)
     # Pre-resolve national-standard material codes deterministically;
     # the LLM fills in Korean aliases on its side. If the LLM returns
     # material_tag=null, we fall back to this pre-resolution.
@@ -561,14 +593,38 @@ def parse_intent(message: str) -> SCRIntent:
     )
     text = resp.choices[0].message.content or ""
     data = _extract_json(text)
+
+    # Fuzzy (fast path) — handles exact/ci/prefix/substring/Levenshtein.
+    raw_brand = data.get("brand")
+    raw_subtype = data.get("subtype")
+    raw_coating = data.get("coating")
+    resolved_brand = _resolve_brand(raw_brand)
+    resolved_coating = _resolve_coating(raw_coating)
+
+    # Embedding (slow path) — only runs when fuzzy couldn't map the LLM's
+    # raw emission to a canonical value. Covers cases the string-match
+    # chain can't (e.g. Korean transliteration "크룩스 에스" → "CRX-S").
+    if raw_brand and not resolved_brand:
+        resolved_brand = _embed_resolve("brand", raw_brand)
+    if raw_coating and not resolved_coating:
+        resolved_coating = _embed_resolve("coating", raw_coating)
+    # Subtype has no fuzzy layer — let embedding normalize the LLM output
+    # directly so DB-canonical values like "Square End Mill" vs "Square"
+    # stay consistent with the search path.
+    resolved_subtype = raw_subtype
+    if raw_subtype:
+        hit = _embed_resolve("subtype", raw_subtype)
+        if hit:
+            resolved_subtype = hit
+
     return SCRIntent(
         diameter=data.get("diameter"),
         flute_count=data.get("flute_count"),
         material_tag=data.get("material_tag") or pre_material,
         tool_type=data.get("tool_type"),
-        subtype=data.get("subtype"),
-        brand=_resolve_brand(data.get("brand")) or pre_brand,
-        coating=_resolve_coating(data.get("coating")),
+        subtype=resolved_subtype,
+        brand=resolved_brand or pre_brand,
+        coating=resolved_coating,
         tool_material=data.get("tool_material"),
         shank_type=_resolve_shank(data.get("shank_type")),
     )

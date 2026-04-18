@@ -1,0 +1,299 @@
+[
+  {
+    "id": "aerospace",
+    "industry_ko": "항공/우주/방산",
+    "industry_en": "Aerospace & Defense",
+    "aliases": ["항공", "항공용", "항공기", "비행기", "우주", "우주선", "aerospace", "aircraft", "aviation", "방산", "국방", "defense", "엔진부품", "터빈", "랜딩기어", "파일런"],
+    "typical_components": ["엔진 블레이드", "터빈 디스크", "랜딩 기어", "엔진 마운트", "파일런", "엔진 케이싱", "블리스크", "임펠러", "구조재", "패스너"],
+    "typical_materials": ["Ti-6Al-4V (Grade 5)", "Ti Grade 23 (ELI)", "Inconel 718", "Inconel 625", "Waspaloy", "René alloys", "Hastelloy", "15-5 PH 스테인리스", "Al 7075", "Al 2024", "CFRP (탄소섬유복합재)"],
+    "iso_groups": ["S", "M", "N"],
+    "primary_iso": "S",
+    "typical_operations": ["포켓 밀링", "프로파일링", "헬리컬 밀링", "트로코이달 밀링", "딥 홀 드릴링", "슬로팅"],
+    "typical_diameter_range_mm": [3, 20],
+    "recommended_coatings": ["AlCrN", "TiAlN", "AlTiN"],
+    "key_challenges": [
+      "티타늄 저열전도율로 절삭날에 열 집중 — 공구와 가공물 융착 위험",
+      "인코넬 718 가공경화 급속 진행 (AISI 난삭성 지수 12%)",
+      "공구 수명이 분 단위 측정 (티타늄 80m/min에서 120분, 120m/min에서 60분 수준)",
+      "칩 재절삭 방지를 위한 고압 쿨런트 필수 (60-80 bar)",
+      "변동 헬릭스·불균등 피치 채터 억제 공구 선호"
+    ],
+    "cutting_speed_hint": {
+      "Ti-6Al-4V": "Vc=40-60 m/min (carbide), fz=0.04-0.08 mm/tooth",
+      "Inconel 718": "Vc=20-40 m/min (carbide, sharp edge ≤5µm)",
+      "Al 7075": "Vc=500-1500 m/min (고속 가능)"
+    },
+    "explanation_ko": "항공 부품은 초내열합금(ISO S군)과 티타늄 합금 가공이 핵심입니다. 티타늄(Ti-6Al-4V)은 저열전도율(6-7 W/m·K, 강의 1/7 수준) 때문에 열이 공구 끝에 집중되고 카바이드 바인더의 코발트와 화학 친화성이 있어 융착이 일어납니다. 인코넬 718은 가공경화가 급속 진행되고 고온에서 강도를 유지해 AISI 난삭성 지수가 12%에 불과합니다. 저속 절삭, 날카로운 엣지(≤5µm), 고압 쿨런트(60-80 bar), 변동 헬릭스 공구가 필수이고, AlCrN/TiAlN 코팅이 표준입니다. Al 7075/2024 같은 항공용 알루미늄은 반대로 고속 가공이 가능합니다.",
+    "followup_template_ko": "항공 부품이시면 어떤 소재를 가공하시나요? 티타늄(Ti-6Al-4V)이신가요, 인코넬 같은 초내열합금이신가요, 아니면 Al 7075 같은 항공용 알루미늄이신가요?",
+    "material_chips_ko": ["티타늄 (Ti-6Al-4V)", "인코넬 718", "인코넬 625", "알루미늄 (Al 7075)", "15-5 PH 스테인리스"],
+    "yg1_recommendation_hint": "초내열합금은 AlCrN 코팅 + 변동 헬릭스 카바이드 엔드밀 추천. 티타늄은 내마모 특화 그레이드에 고압 쿨런트 공구. 항공 알루미늄은 고속 가공용 2-3날 카바이드.",
+    "vibe_ko": "정밀·난삭·고부가가치. 공구 수명보다 품질·안전이 최우선."
+  },
+  {
+    "id": "automotive",
+    "industry_ko": "자동차/모빌리티",
+    "industry_en": "Automotive",
+    "aliases": ["자동차", "자동차용", "차량", "차", "엔진", "엔진블록", "실린더블록", "실린더헤드", "미션", "트랜스미션", "크랭크샤프트", "캠샤프트", "브레이크", "서스펜션", "하우징", "기어", "automotive", "vehicle", "car", "EV", "전기차", "모빌리티"],
+    "typical_components": ["엔진 블록", "실린더 헤드", "크랭크샤프트", "캠샤프트", "브레이크 캘리퍼", "변속기 하우징", "커넥팅 로드", "기어", "모터 하우징 (EV)"],
+    "typical_materials": ["GCI (회주철)", "CGI (버미큘러 주철)", "덕타일 주철", "Al 319", "Al A356/A357", "Al 6061", "SCM435/440 (합금강)", "S45C (탄소강)", "SKD11 (스탬핑 다이)"],
+    "iso_groups": ["P", "K", "N"],
+    "primary_iso": "K",
+    "typical_operations": ["페이스 밀링", "보링", "드릴링", "탭핑", "실린더 보어 호닝", "트랜스퍼 라인 가공"],
+    "typical_diameter_range_mm": [4, 32],
+    "recommended_coatings": ["TiN (알루미늄용)", "TiAlN (주철/강용)", "PCD (알루미늄 대량생산)", "CBN (주철 고속 가공)"],
+    "key_challenges": [
+      "Bi-metal 가공 (알루미늄 블록 + 주철 라이너 동시 절삭) — 공구 선정 복잡",
+      "트랜스퍼 라인 대량 생산 → 공구 수명/사이클 타임 최적화 절대적",
+      "알루미늄 블록은 PCD가 정답, CBN은 버칩 위험",
+      "주철은 칩 파쇄성 좋으나 연마성 높음 — 내마모 코팅 필수"
+    ],
+    "cutting_speed_hint": {
+      "GCI 회주철": "Vc=150-300 m/min (카바이드), PCBN은 Vc=800-1500",
+      "Al 319/356": "Vc=500-2500 m/min (PCD 권장)",
+      "SCM435": "Vc=150-250 m/min"
+    },
+    "explanation_ko": "자동차 부품은 소재 스펙트럼이 가장 넓습니다. 승용차 엔진 블록은 경량화를 위해 Al 319/A356 같은 알루미늄 합금(ISO N)이 주류이며, 상용차/대형 엔진은 여전히 GCI·CGI 주철(ISO K)을 씁니다. 크랭크샤프트·커넥팅 로드는 SCM·S45C 같은 탄소강/합금강(ISO P). 현대 엔진은 알루미늄 블록에 주철 라이너를 함께 캐스팅한 bi-metal 구조가 많아 데크 페이스 가공이 까다롭습니다. 대량생산 특성상 공구 수명·사이클 타임이 곧 원가이며, 알루미늄은 PCD, 주철은 PCBN이 생산성의 정답입니다. EV 전환으로 모터 하우징(알루미늄) 비중이 급증하고 있습니다.",
+    "followup_template_ko": "자동차 부품은 소재에 따라 공구 선택이 완전히 달라집니다. 어떤 부품·소재를 가공하시나요? 엔진 블록(주철 K 또는 알루미늄 N), 크랭크샤프트(탄소강 P), 변속기 하우징(알루미늄 N) 중 어떤 거신가요?",
+    "material_chips_ko": ["회주철 (GCI)", "알루미늄 (Al 319/A356)", "탄소강 (S45C)", "합금강 (SCM435)", "스테인리스"],
+    "yg1_recommendation_hint": "알루미늄 대량 가공: PCD 또는 고속 카바이드. 주철: PCBN 또는 TiAlN 카바이드. 합금강: 범용 TiAlN. Bi-metal: 전용 조합 공구 (예: M610 컨셉).",
+    "vibe_ko": "대량·원가·사이클타임. 공구 1개당 가공 개수가 KPI."
+  },
+  {
+    "id": "mold_die",
+    "industry_ko": "금형/다이",
+    "industry_en": "Mold & Die",
+    "aliases": ["금형", "몰드", "다이", "사출금형", "프레스금형", "다이캐스팅", "스탬핑", "포지금형", "mold", "mould", "die", "tooling", "injection mold", "stamping die", "forging die"],
+    "typical_components": ["사출금형 코어/캐비티", "다이캐스팅 금형", "프레스 스탬핑 다이", "단조 금형", "블랭킹 펀치", "전극 (EDM용 구리·흑연)"],
+    "typical_materials": ["SKD11 (D2)", "SKD61 (H13)", "NAK80", "NAK55", "P20", "STAVAX ESR", "S136", "DC53", "HPM38", "HPM50", "구리", "흑연"],
+    "iso_groups": ["H", "P", "M"],
+    "primary_iso": "H",
+    "typical_operations": ["3D 프로파일 밀링", "포켓 밀링", "볼노즈 정삭", "딥 립 가공", "고속 경면 가공", "EDM 전극 가공"],
+    "typical_diameter_range_mm": [0.5, 16],
+    "recommended_coatings": ["AlTiN (경질강용)", "TiSiN", "다이아몬드 코팅 (흑연)", "PCD (흑연)", "무코팅 (구리)"],
+    "key_challenges": [
+      "SKD11 (HRC 58-64) 같은 고경도강 직접 가공 — 공구 파손 위험 높음",
+      "깊은 립·좁은 코너 가공 시 공구 휨/채터 발생",
+      "경면 요구 (Ra 0.1µm 이하) — 정삭 공구 선정 극도로 중요",
+      "금형 1점에 가공 시간 수십 시간 → 한 번 실수 = 금형 폐기",
+      "고경도강은 Vc 낮추고 fz도 극소량 (0.02mm/tooth 수준)"
+    ],
+    "cutting_speed_hint": {
+      "SKD11 HRC60": "Vc=50-80 m/min (ball nose carbide)",
+      "SKD61 HRC48": "Vc=80-120 m/min",
+      "NAK80 HRC40": "Vc=150-250 m/min",
+      "STAVAX HRC52": "Vc=80-150 m/min (경면 정삭)"
+    },
+    "explanation_ko": "금형 가공은 경화강(ISO H)이 중심이며, SKD11(냉간다이, HRC58-64), SKD61(열간다이/알루미늄 다이캐스팅, HRC48-52), NAK80(플라스틱 사출, HRC40 예경화), STAVAX ESR(경면 사출, HRC50-52) 등이 대표 소재입니다. 요즘은 열처리 후 바로 경면까지 직접 가공하는 '하드밀링'이 표준이라 HRC 45-65 구간에서 볼노즈 엔드밀로 정삭까지 마칩니다. 가공 시간이 1점당 수십 시간이라 공구 한 번의 파손이 금형 전체 폐기로 이어질 수 있어 안정성이 무엇보다 중요하고, Ra 0.1µm 이하 경면을 위해 정삭 공구의 런아웃·코팅·형상이 결정적입니다.",
+    "followup_template_ko": "금형 가공이시면 어떤 다이/몰드스틸을 가공하시나요? SKD11(냉간, HRC58-64), SKD61(열간/다이캐스팅, HRC48), NAK80(플라스틱 사출 예경화 HRC40), STAVAX(경면 사출) 중 어떤 거신가요? 그리고 황삭이신가요 정삭이신가요?",
+    "material_chips_ko": ["SKD11 (HRC 58-64)", "SKD61 (HRC 48-52)", "NAK80 (HRC 40)", "STAVAX ESR (HRC 52)", "흑연 (EDM 전극)"],
+    "yg1_recommendation_hint": "HRC 50 이상 하드밀링은 AlTiN/TiSiN 코팅 볼노즈. 흑연은 다이아몬드 코팅 또는 PCD. 경면 정삭은 초미립 카바이드 고정도 볼노즈.",
+    "vibe_ko": "정밀·고가·한 번의 실수 치명적. 안정성과 경면 품질이 핵심."
+  },
+  {
+    "id": "medical",
+    "industry_ko": "의료기기/임플란트",
+    "industry_en": "Medical Device & Implant",
+    "aliases": ["의료", "의료기기", "의료용", "임플란트", "치과", "인공관절", "수술기구", "의료용공구", "medical", "implant", "orthopedic", "dental", "surgical", "임플란트가공", "틱", "트라우마플레이트", "본스크류"],
+    "typical_components": ["힙 스템", "티비알 트레이", "아세타불라 쉘", "척추 로드/케이지", "트라우마 플레이트", "본 스크류", "치과 임플란트", "수술기구"],
+    "typical_materials": ["Ti-6Al-4V ELI (Grade 23)", "CP Titanium (Grade 2/4)", "CoCrMo (ASTM F75, F1537)", "316L 스테인리스", "17-4 PH", "PEEK", "니티놀 (NiTi)"],
+    "iso_groups": ["S", "M"],
+    "primary_iso": "S",
+    "typical_operations": ["Swiss 선삭", "5축 가공", "마이크로 드릴링", "스레딩 (본 스크류 나사산)", "경면 정삭 (베어링 표면)", "딥 홀 드릴링"],
+    "typical_diameter_range_mm": [0.5, 12],
+    "recommended_coatings": ["TiAlN (PVD)", "AlCrN", "무코팅 (생체 적합성)"],
+    "key_challenges": [
+      "Ti-6Al-4V ELI: 저열전도율 + 카바이드 바인더 융착 + 가공경화",
+      "CoCrMo: 극도 연마성 + 가공경화율이 스테인리스 초과 (HRC 35 → 표면층 50)",
+      "공구 헛돌림 절대 금지 — 2회 이상 같은 면 통과 시 경화 급진",
+      "±0.0005\" (≈12µm) 이하 공차 요구 (테이퍼·보어·메이팅면)",
+      "FDA 감사 대비 소재 추적성 + 치수 검사 기록 필수",
+      "부품 1개 스크랩 = 수십만 원 + 장비 가동 손실"
+    ],
+    "cutting_speed_hint": {
+      "Ti-6Al-4V ELI": "Vc=40-60 m/min (roughing), fz=0.04-0.08 mm/tooth for 6-10mm EM",
+      "CoCrMo": "Vc=20-40 m/min (sharp edge ≤5µm, positive rake 필수)",
+      "316L": "Vc=80-120 m/min"
+    },
+    "explanation_ko": "의료용 임플란트는 Ti-6Al-4V ELI(Grade 23)와 CoCrMo(ASTM F75/F1537)가 양대 축입니다. 티타늄은 저열전도율로 열이 공구 끝에 집중되고, CoCrMo는 연마성과 가공경화율이 극도로 높아 HRC 35 환봉을 가공하면 표면층이 HRC 50까지 치솟습니다. 공구가 한 번 헛돌면 경화가 급진해 다음 패스에서 바로 파손됩니다. 힙 스템 테이퍼, 척추 로드 표면 같은 critical feature는 ±0.0005\"(약 12µm) 공차가 요구되고, 고압 관통 쿨런트(60-80 bar)가 필수입니다. Swiss 자동선반 + 5축 머시닝이 주력 장비이며, 소재 추적성·검사 기록이 FDA 감사 대비 핵심입니다.",
+    "followup_template_ko": "의료용 가공이시면 어떤 소재신가요? 티타늄(Ti-6Al-4V ELI)이 대부분이신데, 고부하 힙/스파인 용도로 CoCrMo(코발트크롬)이신가요, 아니면 316L 스테인리스신가요? 그리고 부품이 힙 스템·트라우마 플레이트·본 스크류 중 어떤 거신가요?",
+    "material_chips_ko": ["티타늄 (Ti-6Al-4V ELI)", "코발트크롬 (CoCrMo)", "316L 스테인리스", "17-4 PH", "PEEK"],
+    "yg1_recommendation_hint": "티타늄: AlCrN/TiAlN 코팅 카바이드 + 고압 쿨런트. CoCrMo: 날카로운 엣지(≤5µm) + positive rake + 저속. Swiss 자동선반용 마이크로 공구 추천 가능.",
+    "vibe_ko": "초정밀·생체적합성·규제. 공차 12µm·FDA 추적성이 숨쉬기."
+  },
+  {
+    "id": "semiconductor",
+    "industry_ko": "반도체/디스플레이 장비",
+    "industry_en": "Semiconductor & Display Equipment",
+    "aliases": ["반도체", "반도체장비", "디스플레이", "웨이퍼", "클린룸", "챔버", "척", "히터블록", "쿼츠", "semiconductor", "display", "wafer", "chamber", "ESC", "heater block"],
+    "typical_components": ["프로세스 챔버", "ESC (정전척)", "히터 블록", "가스 매니폴드", "샤워헤드", "로봇 엔드이펙터", "웨이퍼 캐리어"],
+    "typical_materials": ["Al 6061-T6", "Al 5083", "Al 7075", "A6061 경면 가공재", "316L 전해연마재", "SUS 304", "세라믹 (AlN, Al2O3)", "쿼츠", "몰리브덴"],
+    "iso_groups": ["N", "M"],
+    "primary_iso": "N",
+    "typical_operations": ["딥 포켓 밀링", "정밀 보링", "마이크로 드릴링 (가스 홀)", "5축 정삭", "경면 가공 (Ra 0.2µm 이하)", "경질 양극산화 후 재가공"],
+    "typical_diameter_range_mm": [1, 16],
+    "recommended_coatings": ["DLC (알루미늄용)", "무코팅 polished 카바이드", "다이아몬드 코팅 (세라믹)", "PCD (고광택 알루미늄)"],
+    "key_challenges": [
+      "알루미늄 칩 융착 → 표면 품질 저하 (거친 얼룩)",
+      "Ra 0.2µm 이하 경면 + 파티클 관리 (클린룸 요구)",
+      "깊이 대 직경 비 10:1 이상 딥 가스 홀 드릴링",
+      "세라믹 (AlN, Al2O3) 직접 가공은 PCD·다이아몬드 필수",
+      "부품당 단가 높고 로트 소량 — 프로토타입 대응 유연성"
+    ],
+    "cutting_speed_hint": {
+      "Al 6061": "Vc=500-2000 m/min (PCD), 고송 가능",
+      "Al 5083/7075": "Vc=400-1500 m/min",
+      "316L 전해연마": "Vc=100-180 m/min (버 최소화)"
+    },
+    "explanation_ko": "반도체 장비 부품은 알루미늄(Al 6061/7075, ISO N)이 절대 다수이고, 고청정·고강도 요구 영역에만 316L 스테인리스(ISO M)와 세라믹(AlN, Al2O3)을 씁니다. 클린룸 호환을 위해 파티클 발생 최소화, Ra 0.2µm 이하 경면, 양극산화 후 재가공 같은 요구가 상시적입니다. 공구 선정의 핵심은 칩 융착 방지 — DLC 코팅 혹은 polished 카바이드가 표준이고, 고광택·대량 가공은 PCD가 독보적입니다. 프로세스 챔버 같은 대형 부품은 딥 포켓 밀링이 많고, 가스 홀은 깊이 대 직경 비 10:1 이상 마이크로 드릴이 필요합니다.",
+    "followup_template_ko": "반도체 장비 부품은 대부분 알루미늄이신데 어떤 그레이드 가공하시나요? 일반 구조재 Al 6061이신가요, 고강도 Al 7075신가요? 그리고 챔버 딥 포켓·가스 홀 드릴링·경면 정삭 중 어떤 가공 위주신가요?",
+    "material_chips_ko": ["알루미늄 (Al 6061)", "알루미늄 (Al 7075)", "알루미늄 (Al 5083)", "스테인리스 316L", "세라믹 (AlN)"],
+    "yg1_recommendation_hint": "알루미늄 챔버: DLC 코팅 2-3날 카바이드 또는 PCD. 딥 가스 홀: 초경 마이크로 드릴 + 오일 홀. 316L: 고광택 정삭 카바이드.",
+    "vibe_ko": "초고청정·경면·유연 대응. 파티클 한 톨도 허용 안 됨."
+  },
+  {
+    "id": "energy_power",
+    "industry_ko": "에너지/발전/중공업",
+    "industry_en": "Energy, Power Generation & Heavy Industry",
+    "aliases": ["에너지", "발전", "발전소", "터빈", "가스터빈", "스팀터빈", "풍력", "원자력", "오일", "가스", "oil and gas", "energy", "power", "turbine", "wind", "nuclear", "발전터빈", "펌프임펠러"],
+    "typical_components": ["터빈 블레이드", "터빈 디스크", "엔진 샤프트", "케이싱", "풍력 허브", "펌프 임펠러", "밸브 바디", "압력용기", "풍력 기어박스"],
+    "typical_materials": ["Inconel 718", "Inconel 625", "Waspaloy", "Hastelloy", "17-4 PH", "SUS 410/420", "마르텐사이트 스테인리스", "마레이징강", "저합금강 (대형)"],
+    "iso_groups": ["S", "M", "P"],
+    "primary_iso": "S",
+    "typical_operations": ["대형 황삭", "터빈 블레이드 프로파일링", "딥 홀 건드릴링", "내면 선삭 (Silent Tools)", "플런지 밀링"],
+    "typical_diameter_range_mm": [8, 50],
+    "recommended_coatings": ["AlCrN", "TiAlN", "세라믹 인서트 (Inconel 고속 가공)", "CBN (경질강)"],
+    "key_challenges": [
+      "부품 대형 → 가공 시간 수십~수백 시간, 공구 수명이 공정 원가 직결",
+      "Inconel 블리스크/블레이드는 난삭성 정점 (티타늄보다 더 어려움)",
+      "Silent Tools 같은 방진 툴링 필수 (대형 내경 선삭)",
+      "마레이징강(엔진 샤프트) 황삭에는 CBN 그레이드 필요",
+      "원자력·오일&가스는 추적성·재료 인증 레벨이 극도로 높음"
+    ],
+    "cutting_speed_hint": {
+      "Inconel 718": "Vc=20-40 m/min (carbide), Vc=200-400 m/min (ceramic)",
+      "17-4 PH": "Vc=80-150 m/min",
+      "Waspaloy": "Vc=15-30 m/min"
+    },
+    "explanation_ko": "발전·오일&가스 부품은 초내열합금(Inconel 718/625, Waspaloy — ISO S)과 석출경화 스테인리스(17-4 PH, SUS 410 — ISO M)가 주력입니다. 항공과 같은 S 계열이지만 부품이 훨씬 크고(터빈 디스크 1m급, 풍력 허브 수 톤) 가공 시간이 수십~수백 시간 단위라 공구 수명이 곧 원가입니다. 블리스크/블레이드 프로파일링처럼 난이도 정점의 가공이 많고, 대형 내경 선삭에는 Sandvik Silent Tools 같은 방진 보링바가 사실상 표준입니다. 세라믹 인서트로 Inconel을 Vc 200m/min 이상 고속 가공하는 기법도 보편화되고 있습니다.",
+    "followup_template_ko": "발전/터빈 부품이시면 어떤 소재신가요? Inconel 718/625 같은 초내열합금(S)이 많으신가요, 17-4 PH 석출경화 스테인리스(M)신가요, 아니면 저합금강 대형 구조재(P)신가요? 그리고 외경 선삭·내경 보링·블레이드 밀링 중 어떤 가공 위주신가요?",
+    "material_chips_ko": ["인코넬 718", "인코넬 625", "Waspaloy", "17-4 PH", "SUS 410/420"],
+    "yg1_recommendation_hint": "Inconel 고속 가공: 세라믹 인서트. Inconel 범용: AlCrN 카바이드. 대형 내경: Silent Tools 계열. 마레이징강: CBN 그레이드.",
+    "vibe_ko": "대형·난삭·장시간. 공구 수명이 프로젝트 손익을 가른다."
+  },
+  {
+    "id": "shipbuilding_marine",
+    "industry_ko": "조선/해양/중장비",
+    "industry_en": "Shipbuilding, Marine & Heavy Equipment",
+    "aliases": ["조선", "선박", "해양", "해양플랜트", "중장비", "건설장비", "마린", "shipbuilding", "marine", "ship", "offshore", "굴삭기", "크레인"],
+    "typical_components": ["프로펠러 샤프트", "선박 엔진 크랭크", "허브", "플랜지", "대형 플레이트", "중장비 붐 구조재", "버켓"],
+    "typical_materials": ["저합금강", "주강 (cast steel)", "SUS 316/329", "듀플렉스 스테인리스", "HY-80 (선박)", "내후성 강재"],
+    "iso_groups": ["P", "M", "K"],
+    "primary_iso": "P",
+    "typical_operations": ["대형 황삭", "장대 선삭", "플랜지 페이스 밀링", "딥 홀 건드릴링", "다축 보링"],
+    "typical_diameter_range_mm": [20, 80],
+    "recommended_coatings": ["TiAlN", "AlCrN (듀플렉스)", "CVD 다층 (대형 선삭 인서트)"],
+    "key_challenges": [
+      "부품 초대형 — 가공 시간 수백 시간, 재가공 비용 극대",
+      "듀플렉스 스테인리스는 오스테나이트+페라이트 이중 조직 → 칩 제어 까다로움",
+      "선박 엔진 크랭크는 편심·장축 — 공구 캔틸레버 문제",
+      "대형 황삭은 생산성 (칩 배출량) 우선 — 높은 fz 필요"
+    ],
+    "cutting_speed_hint": {
+      "저합금강": "Vc=150-250 m/min",
+      "듀플렉스 스테인리스": "Vc=80-130 m/min",
+      "SUS 316": "Vc=100-180 m/min"
+    },
+    "explanation_ko": "조선·해양·중장비 부품은 대형 저합금강/주강(ISO P)과 해수 내식성 듀플렉스 스테인리스(ISO M)가 중심입니다. 부품 하나가 미터 단위, 무게 수 톤~수십 톤 급이라 공구 선정보다 MRR(재료 제거율)과 칩 배출이 핵심입니다. 선박 엔진 크랭크샤프트는 편심·장축 가공이라 공구 캔틸레버와 채터 문제가 상존하고, 플랜지 페이스 밀링은 대경 면삭커터(200-400mm)가 표준입니다. 듀플렉스 스테인리스는 오스테나이트+페라이트 이중 조직으로 칩 분단이 까다로워 전용 지오메트리 인서트가 유리합니다.",
+    "followup_template_ko": "조선/중장비 부품이시면 소재가 주로 대형 탄소강/저합금강이신가요, 듀플렉스 같은 해수 내식 스테인리스신가요? 그리고 페이스 밀링·장축 선삭·딥 홀 드릴링 중 어떤 가공 위주신가요?",
+    "material_chips_ko": ["저합금강", "탄소강 (S45C)", "듀플렉스 스테인리스", "SUS 316", "주강"],
+    "yg1_recommendation_hint": "대형 황삭: 고fz·고MRR 인서트 (TiAlN CVD). 듀플렉스: 전용 지오메트리. 장축 선삭: 방진·강성 중심 보링바.",
+    "vibe_ko": "초대형·장시간·재료 제거율 승부."
+  },
+  {
+    "id": "electronics_precision",
+    "industry_ko": "전자/정밀부품/커넥터",
+    "industry_en": "Electronics & Precision Components",
+    "aliases": ["전자", "전자제품", "커넥터", "하우징", "PCB", "핀", "미세가공", "소형부품", "electronics", "connector", "micro machining", "precision"],
+    "typical_components": ["커넥터 하우징", "핀/터미널", "모바일 프레임", "시계 부품", "센서 하우징", "마이크로 기어"],
+    "typical_materials": ["황동 (C3604 등)", "인청동", "구리 (C1100)", "Al 6063", "SUS 303 (쾌삭)", "PEEK", "델린"],
+    "iso_groups": ["N", "M"],
+    "primary_iso": "N",
+    "typical_operations": ["Swiss 자동선반 가공", "마이크로 밀링", "마이크로 드릴링 (<1mm)", "스레딩", "고광택 정삭"],
+    "typical_diameter_range_mm": [0.1, 8],
+    "recommended_coatings": ["무코팅 초미립 카바이드 (구리/황동)", "DLC (알루미늄)", "PCD (장수명 양산)"],
+    "key_challenges": [
+      "직경 1mm 이하 마이크로 공구는 런아웃·정적밸런스가 성능 결정",
+      "황동·구리는 칩 상승 감김 문제 → 칩브레이커 없으면 감겨 올라옴",
+      "Swiss 선반 다축 동시 가공 — 공구 길이·간섭 관리 중요",
+      "로트 수십만~수백만 개 — 공구 수명·교체 주기 관리 크리티컬"
+    ],
+    "cutting_speed_hint": {
+      "황동 C3604": "Vc=200-400 m/min",
+      "구리 C1100": "Vc=150-300 m/min",
+      "SUS 303": "Vc=100-180 m/min",
+      "Al 6063": "Vc=400-1500 m/min"
+    },
+    "explanation_ko": "전자/정밀 부품은 황동(C3604), 구리(C1100), 쾌삭 스테인리스(SUS 303), 알루미늄(Al 6063) 같은 쾌삭성 소재가 주력이고 부품 크기가 작아 Swiss 자동선반 + 마이크로 공구가 중심입니다. 직경 1mm 이하 마이크로 공구는 런아웃 수 마이크론이 공구 수명을 결정하고, 황동·구리는 칩 감김이 반복되면 라인 정지로 이어지므로 칩브레이커/칩 컨트롤이 핵심입니다. 로트 규모가 수십만~수백만이라 공구 1개당 가공 개수와 교체 주기가 그대로 원가표입니다.",
+    "followup_template_ko": "전자/정밀 부품이시면 소재가 황동(C3604)·구리·쾌삭 스테인리스(SUS 303)·알루미늄 중 어떤 거신가요? 그리고 Swiss 자동선반 가공이신가요, 마이크로 밀링이신가요?",
+    "material_chips_ko": ["황동 (C3604)", "구리 (C1100)", "SUS 303 쾌삭", "Al 6063", "PEEK"],
+    "yg1_recommendation_hint": "황동/구리: 초미립 무코팅 카바이드. 알루미늄 양산: PCD. 마이크로 밀링: 고정도 초경 (런아웃 ≤3µm).",
+    "vibe_ko": "마이크로·양산·칩 컨트롤. 런아웃 마이크론 단위가 승부."
+  },
+  {
+    "id": "general_machinery",
+    "industry_ko": "일반기계/산업기계",
+    "industry_en": "General & Industrial Machinery",
+    "aliases": ["일반기계", "산업기계", "기계부품", "범용", "장비부품", "industrial", "machinery", "general machining"],
+    "typical_components": ["베어링 하우징", "샤프트", "기어", "브라켓", "플레이트", "지그·픽스처", "볼스크류 너트"],
+    "typical_materials": ["S45C (탄소강)", "SCM440 (합금강)", "SUS 304/316", "FC250 회주철", "Al 6061", "SKD11 (지그용)"],
+    "iso_groups": ["P", "M", "K", "N"],
+    "primary_iso": "P",
+    "typical_operations": ["범용 밀링", "범용 선삭", "드릴링", "탭핑", "보링", "연삭 전 황삭"],
+    "typical_diameter_range_mm": [3, 25],
+    "recommended_coatings": ["TiAlN (범용)", "TiN (저렴 옵션)", "AlCrN (고난도)"],
+    "key_challenges": [
+      "품목 다품종·소량 다품종 → 공구 범용성이 중요",
+      "재고 공구로 다양한 소재를 커버해야 함 → P/M/K/N 겸용 그레이드 선호",
+      "정확한 공구 선정보다 빠른 납기가 우선되는 경우 많음"
+    ],
+    "cutting_speed_hint": {
+      "S45C": "Vc=150-250 m/min",
+      "SCM440": "Vc=130-220 m/min",
+      "SUS 304": "Vc=100-180 m/min",
+      "FC250": "Vc=150-280 m/min"
+    },
+    "explanation_ko": "일반기계는 소재 스펙트럼이 넓고(P/M/K/N 전반) 다품종 소량이 특징입니다. 탄소강(S45C), 합금강(SCM440), 스테인리스(SUS 304/316), 알루미늄(Al 6061)이 빈도 상위이며, 공구 선정은 '전용 최적'보다 '범용 커버리지'가 우선되는 경우가 많습니다. TiAlN 코팅 범용 엔드밀·드릴이 표준이고, 다양한 소재를 하나의 공구로 커버하기 위해 P/M/K 겸용 그레이드가 선호됩니다. 재고 회전과 납기가 곧 경쟁력입니다.",
+    "followup_template_ko": "일반기계 가공이시면 어떤 소재 위주신가요? 탄소강(S45C)·합금강(SCM440)·스테인리스(SUS 304)·알루미늄(Al 6061) 중 어떤 거신가요? 범용 엔드밀·드릴·탭 중 어떤 공구 카테고리가 필요하신가요?",
+    "material_chips_ko": ["탄소강 (S45C)", "합금강 (SCM440)", "SUS 304", "SUS 316", "Al 6061"],
+    "yg1_recommendation_hint": "범용 TiAlN 코팅 엔드밀/드릴. P/M/K 겸용 그레이드로 재고 최소화. 가성비 HSS는 저속 가공·학교용.",
+    "vibe_ko": "다품종·재고·납기. 범용성과 가성비가 경쟁력."
+  },
+  {
+    "id": "construction_heavy",
+    "industry_ko": "건설/중장비/농기계",
+    "industry_en": "Construction & Heavy Equipment",
+    "aliases": ["건설", "건설장비", "중장비", "농기계", "굴삭기", "트랙터", "불도저", "construction", "heavy equipment", "earth mover", "excavator"],
+    "typical_components": ["붐/암 구조재", "버켓 어셈블리", "유압 실린더", "피벗 핀", "기어박스 하우징", "트랙 링크"],
+    "typical_materials": ["AR400/AR500 (내마모강)", "HARDOX 400/500", "S355 구조강", "주강", "SCM440", "덕타일 주철"],
+    "iso_groups": ["P", "K"],
+    "primary_iso": "P",
+    "typical_operations": ["대형 황삭", "플레이트 가공", "홀 가공 (유압 포트)", "페이스 밀링", "딥 그루빙"],
+    "typical_diameter_range_mm": [10, 50],
+    "recommended_coatings": ["TiAlN CVD (두꺼운 다층)", "AlCrN"],
+    "key_challenges": [
+      "AR/HARDOX 내마모강은 HRC 40+ 경도 — 일반 공구 수명 급감",
+      "구조재·대형 부품 → MRR 중시 황삭",
+      "야외 조립 환경 — 치수 공차보다 용접 후 최종 가공 여유"
+    ],
+    "cutting_speed_hint": {
+      "S355 구조강": "Vc=150-250 m/min",
+      "AR400": "Vc=60-100 m/min (carbide)",
+      "HARDOX 500": "Vc=50-90 m/min"
+    },
+    "explanation_ko": "건설·중장비는 구조강(S355)과 내마모강(AR400/500, HARDOX)이 중심입니다. 내마모강은 HRC 40+의 경도라 일반 공구 수명이 급감해 AlCrN/TiAlN 두꺼운 다층 코팅 카바이드가 표준입니다. 부품 크기가 커서 MRR(재료 제거율)이 공정 원가를 좌우하고, 대경 인서트 페이스 밀·고fz 황삭 엔드밀이 주력입니다. 농기계·건설장비는 야외 조립·용접 이후 최종 가공이 많아 일반 정밀 기계보다 공차가 여유 있는 편입니다.",
+    "followup_template_ko": "건설/중장비 부품이시면 일반 구조강(S355)이신가요, 아니면 HARDOX/AR 같은 내마모강이신가요? 그리고 대형 플레이트 면삭·홀 가공·보링 중 어떤 가공 위주신가요?",
+    "material_chips_ko": ["S355 구조강", "AR400 내마모강", "HARDOX 500", "주강", "SCM440"],
+    "yg1_recommendation_hint": "일반 구조강: 범용 TiAlN. 내마모강(AR/HARDOX): AlCrN 두꺼운 다층. 대형 페이스 밀: 대경 인서트 커터.",
+    "vibe_ko": "대형·내마모·MRR 승부."
+  }
+]

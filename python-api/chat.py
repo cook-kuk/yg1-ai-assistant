@@ -37,36 +37,16 @@ def _get_client() -> OpenAI:
     return _client
 
 
-SYSTEM_PROMPT = """너는 YG-1 절삭공구 추천 AI다. 엔드밀·드릴·탭 등 공구 선정 전문가.
+SYSTEM_PROMPT = """너는 YG-1 절삭공구 영업 어시스턴트다. 절삭공구 전문가답게 친절하게 응대한다.
 
-역할:
-- 사용자 의도(추출된 intent) + 후보 제품 + 도메인 지식을 종합해 자연스러운 한국어 답변 생성
-- 도메인 지식이 제공되면 답변에 녹여 근거로 활용 (예: 떨림 원인, 소재별 코팅 추천)
-- 추천 이유는 제품 속성(직경·날수·코팅·소재 적합도) 근거로 간결히
+원칙:
+1. "제품 없습니다"로 끝내지 마라. 0건은 유도 질문의 시작이다.
+2. context에 [산업 지식]/[소재 지식]이 있으면 explanation과 followup을 활용해 자연스럽게 답하고 material_chips를 칩으로 제안해라.
+3. context 없이 산업/소재 매핑을 추측하지 마라.
+4. DB에 없는 직경/조건은 "가장 가까운 XX로 살펴보시겠어요?" 형태로 유도해라.
+5. 존재하지 않는 제품 코드는 절대 언급하지 마라.
 
-JSON 출력 스키마:
-{
-  "answer":   string,            // UI에 보일 본문 (한국어, 3~5줄, 마크다운 금지)
-  "reasoning": string,           // 이 선택의 논리 (짧게 1~2줄, 내부 로깅용)
-  "chips":    string[],          // 후속 클릭 제안 (3~5개, 예: "2날로 보기", "TiAlN만", "국내 재고만")
-  "refined_filters": object|null // 비어있거나, {field: value} 형태로 이완·교체할 필터
-}
-
-규칙:
-- 제품 수가 0이면 relaxed_fields 로 완화 제안
-- 도메인 지식이 주어지면 핵심 bullet 1개만 인용하고 답변에 자연스럽게 녹일 것
-- chips 는 명령형이 아닌 선택지 ("Square 형상만", "6mm 이상")
-
-출처 표기 원칙 (answer 본문 안에서 근거 유형을 자연스럽게 밝힐 것):
-- **DB/카탈로그 기반**: "카탈로그 기준 234건 중…", "YG-1 제품 DB에 따르면…"
-- **도메인 지식** (troubleshooting/operation-guide/industry 등): "YG-1 가공 가이드에 따르면…"
-- **절삭조건 DB** (cutting_conditions 있을 때): "권장 절삭조건은 Vc=120m/min (YG-1 카탈로그 기준)"
-- **웹 검색** (knowledge type=web_search): "업계 일반적으로는…"으로 유도, 단정 금지
-- **LLM 추론**: "경험적으로…" / "일반적으로…" 로 표시
-
-확실한 정보(DB/카탈로그)와 추론을 문장 수준에서 구분해라. 근거 없이 단정하지 말 것.
-
-- **출력은 JSON 하나만, 마크다운/코드펜스 금지**"""
+응답은 JSON: {"answer": "...", "reasoning": "...", "chips": [...], "refined_filters": null | {...}}"""
 
 
 def _extract_json(text: str) -> dict:
@@ -118,6 +98,43 @@ def _summarize_products(products: list[dict], limit: int = 5) -> list[dict]:
     return out
 
 
+def _build_context_blocks(knowledge: list[dict] | None) -> str:
+    """Render knowledge hits as readable [산업 지식] / [소재 지식] / [웹검색]
+    blocks. The prompt explicitly instructs the model to consume these
+    sections, so keep the field labels literal and stable."""
+    if not knowledge:
+        return "(no domain knowledge)"
+    blocks: list[str] = []
+    for item in knowledge:
+        k_type = item.get("type") or ""
+        d = item.get("data") or {}
+        if k_type == "industry_guide":
+            blocks.append(
+                f"[산업 지식] {d.get('industry_ko','')}\n"
+                f"explanation: {d.get('explanation_ko','')}\n"
+                f"followup: {d.get('followup_template_ko','')}\n"
+                f"material_chips: {d.get('material_chips_ko',[])}\n"
+                f"yg1_hint: {d.get('yg1_recommendation_hint','')}"
+            )
+        elif k_type == "material_guide":
+            coatings = d.get("recommended_coating") or []
+            blocks.append(
+                f"[소재 지식] {d.get('material_ko','')} (ISO {d.get('iso_group','')})\n"
+                f"explanation: {d.get('explanation_ko','')}\n"
+                f"Vc: {d.get('cutting_speed_range','')}\n"
+                f"coating: {', '.join(coatings)}\n"
+                f"yg1_hint: {d.get('yg1_recommendation_hint','')}"
+            )
+        elif k_type == "web_search":
+            blocks.append(
+                f"[웹검색] {d.get('title','')}\n{d.get('content','')[:300]}"
+            )
+        else:
+            # Legacy domain-knowledge items (troubleshooting etc.) — compact.
+            blocks.append(f"[{k_type}] {json.dumps(d, ensure_ascii=False)[:300]}")
+    return "\n\n".join(blocks)
+
+
 def generate_response(
     message: str,
     intent: Any,
@@ -126,17 +143,33 @@ def generate_response(
     total_count: int,
     relaxed_fields: list[str] | None = None,
 ) -> dict:
-    """Compose the chat reply. Returns dict with keys answer/reasoning/
-    chips/refined_filters. Keys default to safe values if the LLM fails."""
-    payload = {
-        "user_message": message,
-        "intent": _summarize_intent(intent),
-        "total_count": total_count,
-        "relaxed_fields": relaxed_fields or [],
-        "top_products": _summarize_products(products or []),
-        "domain_knowledge": knowledge or [],
-    }
-    user_turn = json.dumps(payload, ensure_ascii=False)
+    """Compose the chat reply. The system prompt is intentionally short
+    (5 principles) — heavy lifting is delegated to the `[context]` block
+    the user message carries.
+
+    The top-product summary + intent/count/relaxed metadata ride along so
+    the model still has concrete candidates to quote, but the domain
+    taxonomy (industry→material, material→coating) stays in the JSON KB."""
+    intent_summary = _summarize_intent(intent)
+    product_summary = _summarize_products(products or [])
+    context_str = _build_context_blocks(knowledge)
+
+    meta_lines = [
+        f"total_count: {total_count}",
+    ]
+    if relaxed_fields:
+        meta_lines.append(f"relaxed_fields: {relaxed_fields}")
+    if intent_summary:
+        meta_lines.append(f"intent: {json.dumps(intent_summary, ensure_ascii=False)}")
+    if product_summary:
+        meta_lines.append(f"top_products: {json.dumps(product_summary, ensure_ascii=False)}")
+    meta_block = "\n".join(meta_lines)
+
+    user_turn = (
+        f"[context]\n{context_str}\n\n"
+        f"[meta]\n{meta_block}\n\n"
+        f"[질문]\n{message}"
+    )
 
     client = _get_client()
     resp = client.chat.completions.create(

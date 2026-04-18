@@ -58,6 +58,18 @@ async def _warm_index() -> None:
 
 
 @app.on_event("startup")
+async def _init_alias_resolver() -> None:
+    """Embed each field's canonical set once at boot so parse_intent() only
+    pays for the query embedding per request. Failure is non-fatal — the
+    fuzzy resolver still works without embeddings."""
+    try:
+        from alias_resolver import init_resolver
+        init_resolver()
+    except Exception:
+        pass
+
+
+@app.on_event("startup")
 async def _start_scheduler() -> None:
     """Kick off the background pipeline thread (product-index refresh,
     session sweep, few-shot backup). Idempotent — safe across reloads."""
