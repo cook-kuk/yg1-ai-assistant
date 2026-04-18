@@ -651,6 +651,14 @@ def _is_brand_excluded(message: str, brand: str) -> bool:
         b_lc.replace(" ", "-"),
         b_lc.replace(" ", "").replace("-", ""),
     }
+    # Covers resolver-expanded forms — the LLM (or _pre_resolve_brand) can
+    # emit a long alias like "ALU-CUT for Korean Market" for a message that
+    # only says "ALU-CUT 말고 …". Adding the leading token lets negation
+    # still trigger. Safe because proximity (15-char window around the cue)
+    # prevents spurious matches on unrelated short tokens.
+    first_token = b_lc.split(" ", 1)[0]
+    if first_token and first_token != b_lc:
+        variants.add(first_token)
     for variant in variants:
         pos = msg_lc.find(variant)
         if pos < 0:
@@ -709,6 +717,17 @@ def parse_intent(message: str) -> SCRIntent:
     raw_brand = data.get("brand")
     raw_subtype = data.get("subtype")
     raw_coating = data.get("coating")
+
+    # Negation gate BEFORE alias expansion: if the raw LLM value is clearly
+    # excluded in the message ("ALU-CUT 말고 …"), null it now so the aliaser
+    # can't expand a ghost brand ("ALU-CUT" → "ALU-CUT for Korean Market")
+    # and defeat the post-resolution negation check — which searches for the
+    # expanded string that no longer appears verbatim in the message.
+    if raw_brand and _is_brand_excluded(message, raw_brand):
+        raw_brand = None
+    if raw_coating and _is_brand_excluded(message, raw_coating):
+        raw_coating = None
+
     resolved_brand = _resolve_brand(raw_brand)
     resolved_coating = _resolve_coating(raw_coating)
 
