@@ -200,6 +200,19 @@ function parseCoolantHole(raw: string | boolean | null | undefined): boolean | n
   return null
 }
 
+// Map a series name to the bundled series-icon file under public/images/series.
+// The file names are raw series codes ("SGED28.jpg", "CRX S.jpg", "E-RDKT08 -
+// Cylindrical.jpg") so we just encode the name and trust the fallback onError
+// in the card component to swap in the placeholder when the .jpg is missing.
+// Returns null for empty/whitespace series so the card goes straight to the
+// placeholder without a doomed network request.
+function deriveSeriesIconUrl(series: string | null | undefined): string | null {
+  if (!series) return null
+  const trimmed = String(series).trim()
+  if (!trimmed) return null
+  return `/images/series/${encodeURIComponent(trimmed)}.jpg`
+}
+
 // Python's scoring.py rank_candidates emits a flat { dimension: points } dict.
 // The UI expects the legacy ScoreBreakdown shape — per-axis {score,max,detail}
 // plus total/maxTotal/matchPct — so translate once here. Dimensions missing
@@ -345,7 +358,7 @@ function adaptProductCard(
     displayLabel: null,
     brand: card.brand ?? null,
     seriesName: card.series ?? null,
-    seriesIconUrl: null,
+    seriesIconUrl: deriveSeriesIconUrl(card.series ?? null),
     diameterMm: parseNumeric(card.diameter ?? null),
     fluteCount: parseIntTok(card.flutes ?? null),
     coating: card.coating ?? null,
@@ -392,7 +405,7 @@ function adaptProductSummary(row: ProductSummary, rank: number): RecommendationC
     displayLabel: null,
     brand: row.brand ?? null,
     seriesName: row.series ?? null,
-    seriesIconUrl: null,
+    seriesIconUrl: deriveSeriesIconUrl(row.series ?? null),
     diameterMm: parseNumeric(row.diameter ?? null),
     fluteCount: parseIntTok(row.flutes ?? null),
     coating: row.coating ?? null,

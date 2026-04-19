@@ -872,56 +872,11 @@ async def products(req: ProductsRequest) -> ProductsResponse:
     # 2. Fetch (whole candidate set). Uses the in-memory index so /products
     #    skips the DB on every request. Closure lets the 0-hit relax loop
     #    rebuild the filter dict from the mutated intent cheaply.
+    # `_filters_to_dict` is the SSOT — same helper the filter-options
+    # endpoint and /products/stream use, so every search path carries
+    # the same intent+ManualFilters coverage without field-level drift.
     def _build_filters() -> dict:
-        base: dict = {
-            "diameter": intent.diameter,
-            "flute_count": intent.flute_count,
-            "material_tag": intent.material_tag,
-            "tool_type": intent.tool_type,
-            "subtype": intent.subtype,
-            "brand": intent.brand,
-            "coating": intent.coating,
-            "tool_material": intent.tool_material,
-            "shank_type": intent.shank_type,
-            # P0/P2 intent keys the LLM can now emit.
-            "helix_angle": getattr(intent, "helix_angle", None),
-            "point_angle": getattr(intent, "point_angle", None),
-            "thread_pitch": getattr(intent, "thread_pitch", None),
-            "thread_tpi": getattr(intent, "thread_tpi", None),
-            "diameter_tolerance": getattr(intent, "diameter_tolerance", None),
-            "ball_radius": getattr(intent, "ball_radius", None),
-            "unit_system": getattr(intent, "unit_system", None),
-            "in_stock_only": getattr(intent, "in_stock_only", None),
-            # Numeric stock thresholds ("재고 200개 이상만") — independent of
-            # the binary in_stock_only toggle; regex-parsed in scr.py.
-            "stock_min": getattr(intent, "stock_min", None),
-            "stock_max": getattr(intent, "stock_max", None),
-        }
-        if req.filters:
-            for fld in (
-                "machining_category", "application_shape", "country", "coolant_hole",
-                "diameter_min", "diameter_max",
-                "overall_length_min", "overall_length_max",
-                "length_of_cut_min", "length_of_cut_max",
-                "shank_diameter_min", "shank_diameter_max",
-                "flute_count_min", "flute_count_max",
-                # P0/P1 UI ranges.
-                "helix_angle_min", "helix_angle_max",
-                "point_angle_min", "point_angle_max",
-                "thread_pitch_min", "thread_pitch_max",
-                "tpi_min", "tpi_max",
-                "diameter_tolerance",
-                "ball_radius_min", "ball_radius_max",
-                "neck_diameter_min", "neck_diameter_max",
-                "effective_length_min", "effective_length_max",
-                "holemaking_coolant_hole", "threading_coolant_hole",
-                "unit_system", "brand_norm",
-                "in_stock_only", "stock_min", "stock_max", "warehouse",
-            ):
-                v = getattr(req.filters, fld, None)
-                if v is not None:
-                    base[fld] = v
-        return base
+        return _filters_to_dict(req.filters, intent)
 
     def _run_search() -> list[dict]:
         filt = _build_filters()

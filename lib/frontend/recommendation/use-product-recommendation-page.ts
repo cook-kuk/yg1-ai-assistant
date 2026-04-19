@@ -557,12 +557,15 @@ export function useProductRecommendationPage({
             const isDeep = opts?.kind === "deep"
             const isAgent = opts?.kind === "agent"
             if (isDeep) {
+              // For the "deep" lane:
+              //   delta: true  → streaming token delta, append.
+              //   delta: false → replace the whole snapshot (e.g. Python's
+              //                  Strong-CoT partial_answer frames carry the
+              //                  *cumulative* draft; the old branch appended
+              //                  every snapshot and bloated the reasoning
+              //                  trace 20× — 2026-04-19 regression).
               const prevDeep = (last as any).thinkingDeep ?? ""
-              const nextDeep = opts?.delta
-                ? prevDeep + text
-                : prevDeep
-                  ? prevDeep.trimEnd() + "\n\n" + text
-                  : text
+              const nextDeep = opts?.delta ? prevDeep + text : text
               updated[lastIndex] = { ...last, thinkingDeep: nextDeep, reasoningVisibility: "full" } as any
             } else if (isAgent) {
               const prevAgent = (last as any).thinkingAgent ?? ""
@@ -696,12 +699,9 @@ export function useProductRecommendationPage({
             //   kind="stage" or undefined → high-level heartbeat, lives in thinkingProcess
             const isDeep = opts?.kind === "deep"
             if (isDeep) {
+              // Same replace-on-!delta rule as above (2026-04-19 regression).
               const prevDeep = (last as any).thinkingDeep ?? ""
-              const nextDeep = opts?.delta
-                ? prevDeep + text
-                : prevDeep
-                  ? prevDeep.trimEnd() + "\n\n" + text
-                  : text
+              const nextDeep = opts?.delta ? prevDeep + text : text
               updated[lastIndex] = { ...last, thinkingDeep: nextDeep } as any
             } else {
               const prevThinking = last.thinkingProcess ?? ""
@@ -846,12 +846,15 @@ export function useProductRecommendationPage({
             const isDeep = opts?.kind === "deep"
             const isAgent = opts?.kind === "agent"
             if (isDeep) {
+              // For the "deep" lane:
+              //   delta: true  → streaming token delta, append.
+              //   delta: false → replace the whole snapshot (e.g. Python's
+              //                  Strong-CoT partial_answer frames carry the
+              //                  *cumulative* draft; the old branch appended
+              //                  every snapshot and bloated the reasoning
+              //                  trace 20× — 2026-04-19 regression).
               const prevDeep = (last as any).thinkingDeep ?? ""
-              const nextDeep = opts?.delta
-                ? prevDeep + text
-                : prevDeep
-                  ? prevDeep.trimEnd() + "\n\n" + text
-                  : text
+              const nextDeep = opts?.delta ? prevDeep + text : text
               updated[lastIndex] = { ...last, thinkingDeep: nextDeep, reasoningVisibility: "full" } as any
             } else if (isAgent) {
               const prevAgent = (last as any).thinkingAgent ?? ""
