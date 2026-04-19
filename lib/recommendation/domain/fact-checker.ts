@@ -103,7 +103,7 @@ export async function runFactCheck(
   return {
     ...step5Result.fields,
     matchPct: scored.scoreBreakdown?.matchPct ?? 0,
-    matchStatus: scored.matchStatus,
+    matchStatus: scored.matchStatus as "exact" | "approximate" | "none",
     score: scored.score,
     explanation,
     factCheckReport,

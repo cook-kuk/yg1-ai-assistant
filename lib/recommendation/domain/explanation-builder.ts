@@ -49,7 +49,7 @@ export function buildExplanation(
     productCode: p.normalizedCode,
     displayCode: p.displayCode,
     matchPct: breakdown?.matchPct ?? 0,
-    matchStatus: scored.matchStatus,
+    matchStatus: scored.matchStatus as "exact" | "approximate" | "none",
     matchedFacts,
     unmatchedFacts,
     supportingEvidence,

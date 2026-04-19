@@ -9,8 +9,13 @@ import { z } from "zod"
 // ── Source Priority ──────────────────────────────────────────
 export type SourcePriority = 1 | 2 | 3 | 4 | 5
 export type SourceType = "smart-catalog" | "catalog-csv" | "inventory" | "lead-time" | "competitor" | "llm"
-export type MatchStatus = "exact" | "approximate" | "none"
-export type StockStatus = "instock" | "limited" | "outofstock" | "unknown"
+// Open string types — known values listed for IDE help, but `string` is the
+// underlying type so a future Python emit ("partial", "conditional",
+// "discontinued", "backorder", localized labels, …) doesn't trigger zod
+// rejection or silent null. UI components branch on the known values via
+// _coerceRating-style helpers and fall back to neutral labels otherwise.
+export type MatchStatus = "exact" | "approximate" | "none" | (string & {})
+export type StockStatus = "instock" | "limited" | "outofstock" | "unknown" | (string & {})
 
 // ── Material Taxonomy ────────────────────────────────────────
 export const MaterialTaxonomySchema = z.object({
@@ -91,7 +96,11 @@ export const CanonicalProductSchema = z.object({
   // Material fitness (from series_profile_mv).
   // "FAIR" is the Python-side 10..39-affinity band; retained alongside
   // the legacy "NULL" literal so older emitters stay type-safe.
-  materialRating: z.enum(["EXCELLENT", "GOOD", "FAIR", "NULL"]).nullable().optional(),  // DB series-level discrete rating
+  // Open string contract — known values EXCELLENT/GOOD/FAIR/NULL plus any
+  // future Python emission. UI's _coerceRating maps known values to badges
+  // and falls back to a neutral chip for the rest, so a new tier doesn't
+  // silently drop to null at validation time.
+  materialRating: z.string().nullable().optional(),  // DB series-level discrete rating
   materialRatingScore: z.number().nullable(),  // DB series-level material fitness score; higher = better match
   workpieceMatched: z.boolean().optional(),     // true when series supports the requested workpiece name
 

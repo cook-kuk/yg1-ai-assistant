@@ -63,24 +63,42 @@ const RESOLUTION_CONFIG: Record<string, { ko: string; en: string; cls: string }>
   resolved_none: { ko: "매칭 없음", en: "No Match", cls: "bg-red-100 text-red-700" },
 }
 
+// Series rating label resolution. Mirrors recommendation-display.tsx's
+// QUALITY_TIERS Korean copy. Adding a new tier? Insert it into both maps
+// keyed by the canonical UPPERCASE form Python emits.
+const _SERIES_RATING_LABELS: Record<string, { ko: string; en: string }> = {
+  EXCELLENT: { ko: "탁월",  en: "Excellent" },
+  GOOD:      { ko: "우수",  en: "Good" },
+  FAIR:      { ko: "보통",  en: "Fair" },
+  NULL:      { ko: "미정",  en: "Unrated" },
+}
+
+const _SERIES_RATING_BADGE_CLASS: Record<string, string> = {
+  EXCELLENT: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  GOOD:      "bg-sky-100 text-sky-700 border-sky-200",
+  FAIR:      "bg-amber-100 text-amber-700 border-amber-200",
+  NULL:      "bg-gray-100 text-gray-600 border-gray-200",
+}
+
 function getSeriesRatingLabel(
-  rating: "EXCELLENT" | "GOOD" | "FAIR" | "NULL" | null | undefined,
-  language: "ko" | "en"
+  rating: string | null | undefined,
+  language: "ko" | "en",
 ): string | null {
-  if (rating === "EXCELLENT") return "EXCELLENT"
-  if (rating === "GOOD") return "GOOD"
-  if (rating === "FAIR") return "FAIR"
-  // NULL / nullish → legacy "GOOD" label kept for backwards compat.
-  return "GOOD"
+  if (!rating) return _SERIES_RATING_LABELS.GOOD[language]
+  const key = String(rating).trim().toUpperCase()
+  const cfg = _SERIES_RATING_LABELS[key]
+  if (cfg) return cfg[language]
+  // Unknown but non-empty → render the raw uppercase value so a new tier
+  // from Python doesn't disappear from the UI.
+  return key
 }
 
 function getSeriesRatingBadgeClass(
-  rating: "EXCELLENT" | "GOOD" | "FAIR" | "NULL" | null | undefined,
+  rating: string | null | undefined,
 ): string {
-  if (rating === "EXCELLENT") return "bg-emerald-100 text-emerald-700 border-emerald-200"
-  if (rating === "GOOD") return "bg-amber-100 text-amber-700 border-amber-200"
-  if (rating === "FAIR") return "bg-orange-100 text-orange-700 border-orange-200"
-  return "bg-amber-100 text-amber-700 border-amber-200"
+  if (!rating) return _SERIES_RATING_BADGE_CLASS.GOOD
+  const key = String(rating).trim().toUpperCase()
+  return _SERIES_RATING_BADGE_CLASS[key] ?? "bg-slate-100 text-slate-600 border-slate-200"
 }
 
 function getCurrentMaterialLabel(form: ProductIntakeForm, language: "ko" | "en"): string | null {
@@ -1176,6 +1194,8 @@ function NarrowingChat({
 function CandidatePanel({
   candidates,
   pagination,
+  referenceCandidates,
+  referenceQuery,
   isPageLoading,
   messages,
   form,
@@ -1185,6 +1205,8 @@ function CandidatePanel({
 }: {
   candidates: RecommendationCandidateDto[] | null
   pagination: RecommendationPaginationDto | null
+  referenceCandidates?: RecommendationCandidateDto[] | null
+  referenceQuery?: string | null
   isPageLoading: boolean
   messages: ChatMsg[]
   form: ProductIntakeForm
@@ -1396,6 +1418,36 @@ function CandidatePanel({
           )}
         </div>
       )}
+
+      {/* "조회한 상품" peek — independent EDP/series lookup surfaced as a
+          separate layer below the main ranked list. Filter session is
+          untouched, so this is purely additive context. Reuses CandidateCard
+          so the peek gets the exact same "click to expand full spec table"
+          toggle the main list uses — consistent UX across both layers. */}
+      {Array.isArray(referenceCandidates) && referenceCandidates.length > 0 && (
+        <div className="border-t pt-3">
+          <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+            <Activity size={11} className="text-amber-600" />
+            {language === "ko" ? "조회한 상품" : "Looked-up Product"}
+            {referenceQuery && (
+              <span className="ml-1 font-mono text-[10px] font-normal text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
+                {referenceQuery}
+              </span>
+            )}
+            <span className="ml-1 text-[10px] font-normal text-gray-400">
+              {language === "ko" ? "· 필터 무관" : "· bypassing filters"}
+            </span>
+          </div>
+          {/* Amber tint on the outer frame signals "이건 필터 밖 제품" at a
+              glance; inner cards stay the white CandidateCard so the toggle
+              UX matches the main list exactly. */}
+          <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-2 space-y-2">
+            {referenceCandidates.map((card, idx) => (
+              <CandidateCard key={`${card.productCode}-${idx}`} c={card} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1408,6 +1460,8 @@ export function ExplorationScreen({
   engineSessionState,
   candidateSnapshot,
   candidatePagination,
+  referenceSnapshot,
+  referenceQuery,
   isCandidatePageLoading,
   capabilities,
   onSend,
@@ -1427,6 +1481,8 @@ export function ExplorationScreen({
   engineSessionState: ExplorationSessionState | null
   candidateSnapshot: RecommendationCandidateDto[] | null
   candidatePagination: RecommendationPaginationDto | null
+  referenceSnapshot?: RecommendationCandidateDto[] | null
+  referenceQuery?: string | null
   isCandidatePageLoading: boolean
   capabilities: RecommendationCapabilityDto
   onSend: (
@@ -1581,6 +1637,8 @@ export function ExplorationScreen({
           <CandidatePanel
             candidates={candidateSnapshot}
             pagination={candidatePagination}
+            referenceCandidates={referenceSnapshot ?? null}
+            referenceQuery={referenceQuery ?? null}
             isPageLoading={isCandidatePageLoading}
             messages={messages}
             form={form}

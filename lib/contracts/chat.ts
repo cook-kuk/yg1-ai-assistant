@@ -46,7 +46,10 @@ export interface ChatProductDto {
   lengthOfCutMm: number | null
   overallLengthMm: number | null
   helixAngleDeg: number | null
-  stockStatus: "instock" | "limited" | "outofstock" | "unknown"
+  // Open string contract — known stock states + future Python emits
+  // (e.g. "discontinued", "backorder"). Component fallback handles
+  // unknown values without zod rejection.
+  stockStatus: "instock" | "limited" | "outofstock" | "unknown" | (string & {})
   totalStock: number | null
 }
 

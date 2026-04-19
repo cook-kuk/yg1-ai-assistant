@@ -161,7 +161,7 @@ function buildLightweightFactChecked(
     totalStock: vf(scored.totalStock, "inventory_check"),
     minLeadTimeDays: vf(scored.minLeadTimeDays, "inventory_check"),
     matchPct: scored.scoreBreakdown?.matchPct ?? 0,
-    matchStatus: scored.matchStatus,
+    matchStatus: scored.matchStatus as "exact" | "approximate" | "none",
     score: scored.score,
     explanation,
     factCheckReport: report,

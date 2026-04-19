@@ -1168,7 +1168,7 @@ export async function handleDirectInventoryQuestion(
         ["시리즈", product?.seriesName ?? "-"],
         ["직경", product?.diameterMm != null ? `φ${product.diameterMm}mm` : "-"],
         ["전체 지역 합산 재고", totalStock != null ? `${totalStock}개` : "-"],
-        ["재고 상태", formatStockStatusLabel(stockStatus)],
+        ["재고 상태", formatStockStatusLabel(stockStatus as "instock" | "limited" | "outofstock" | "unknown")],
         ["기준일", latestSnapshotDate ?? "-"],
       ]
     )

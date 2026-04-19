@@ -10,7 +10,9 @@ export interface RecommendationCandidateSeriesGroup {
   topScore: number
   seriesIconUrl: string | null
   description: string | null
-  materialRating: "EXCELLENT" | "GOOD" | "FAIR" | "NULL" | null
+  // Open string contract — see lib/types/canonical.ts MaterialRatingValue
+  // notes. Components fall back to neutral badge for unknown tiers.
+  materialRating: string | null
   materialRatingScore: number | null
   members: RecommendationCandidateDto[]
 }
@@ -33,11 +35,13 @@ const MATCH_STATUS_RANK: Record<string, number> = { exact: 0, approximate: 1, no
 const STOCK_STATUS_RANK: Record<string, number> = { instock: 0, limited: 1, unknown: 2, outofstock: 3 }
 
 function materialRatingTier(
-  value: "EXCELLENT" | "GOOD" | "FAIR" | "NULL" | null | undefined,
+  value: string | null | undefined,
 ): number {
-  if (value === "EXCELLENT") return 0
-  if (value === "GOOD") return 1
-  if (value === "FAIR") return 2
+  if (!value) return 3
+  const v = String(value).trim().toUpperCase()
+  if (v === "EXCELLENT") return 0
+  if (v === "GOOD") return 1
+  if (v === "FAIR") return 2
   return 3
 }
 

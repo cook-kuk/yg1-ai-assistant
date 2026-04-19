@@ -372,13 +372,27 @@ function deriveMatchStatus(card: ProductCard): "exact" | "approximate" | "none" 
   return "none"
 }
 
-function _coerceRating(v: unknown): "EXCELLENT" | "GOOD" | "FAIR" | "NULL" | null {
+// Known rating tiers — kept as a Set so adding a new value is one line.
+// Anything outside the set is passed through verbatim (uppercased) so a
+// future Python emit ("OUTSTANDING", a localized "탁월", …) renders as a
+// neutral badge instead of disappearing into null.
+const _KNOWN_RATING_TIERS = new Set([
+  "EXCELLENT", "GOOD", "FAIR", "NULL",
+])
+
+function _coerceRating(
+  v: unknown,
+): "EXCELLENT" | "GOOD" | "FAIR" | "NULL" | (string & {}) | null {
   if (typeof v !== "string") return null
   const s = v.trim().toUpperCase()
-  if (s === "EXCELLENT") return "EXCELLENT"
-  if (s === "GOOD") return "GOOD"
-  if (s === "FAIR") return "FAIR"
-  return null
+  if (!s) return null
+  if (_KNOWN_RATING_TIERS.has(s)) {
+    return s as "EXCELLENT" | "GOOD" | "FAIR" | "NULL"
+  }
+  // Unknown but non-empty — return raw so the UI can render *something*.
+  // Component-level fallback (recommendation-display.tsx, exploration-flow.tsx)
+  // decides badge color/copy for unfamiliar tiers.
+  return s
 }
 
 function adaptProductCard(
@@ -429,6 +443,14 @@ function adaptProductCard(
     taperAngleDeg: null,
     pointAngleDeg: null,
     threadPitchMm: null,
+    // Full detail set — CandidateCard's expanded view renders these as rows
+    // in its SpecTable. Populated via parseNumericMm so inch rows convert.
+    neckDiameterMm: parseNumericMm(card.neck_diameter ?? null, card.edp_unit),
+    neckLengthMm: null,
+    effectiveLengthMm: parseNumericMm(card.effective_length ?? null, card.edp_unit),
+    cornerRadiusMm: parseNumericMm(card.ball_radius ?? null, card.edp_unit),
+    diameterTolerance: null,
+    edpUnit: card.edp_unit ?? null,
     description: card.description ?? null,
     featureText: card.feature ?? null,
     materialTags: Array.isArray(card.material_tags)
@@ -596,6 +618,16 @@ export function adaptProductsToRecommendationDto(
     ? payload.totalCount
     : candidates.length
 
+  // "조회한 상품" peek — bypasses the main filter state. Rendered as a
+  // separate section below `candidates` so the live filter session stays
+  // visually intact.
+  const referenceCandidates = Array.isArray(payload.reference_products) && payload.reference_products.length > 0
+    ? payload.reference_products.map((c, i) => adaptProductCard(c, i + 1, maxDict))
+    : null
+  const referenceQuery = typeof payload.reference_query === "string" && payload.reference_query.length > 0
+    ? payload.reference_query
+    : null
+
   return {
     text: payload.text ?? "",
     purpose: "recommendation",
@@ -607,6 +639,8 @@ export function adaptProductsToRecommendationDto(
       engineState: null,
     },
     candidates: candidates.length > 0 ? candidates : null,
+    referenceCandidates,
+    referenceQuery,
     pagination: {
       page: 0,
       pageSize,

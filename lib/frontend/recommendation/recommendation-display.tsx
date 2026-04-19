@@ -47,18 +47,28 @@ const STATUS_CONFIG = {
   none: { ko: "매칭 없음", en: "No Match", cls: "bg-red-100 text-red-800 border-red-300", Icon: AlertCircle, iconCls: "text-red-600" },
 }
 
-const STOCK_CONFIG = {
-  instock: { ko: "재고 있음", en: "In Stock", cls: "bg-green-100 text-green-700", dot: "bg-green-500" },
-  limited: { ko: "제한 재고", en: "Limited Stock", cls: "bg-amber-100 text-amber-700", dot: "bg-amber-500" },
-  outofstock: { ko: "재고 없음", en: "Out of Stock", cls: "bg-red-100 text-red-700", dot: "bg-red-500" },
-  unknown: { ko: "재고 미확인", en: "Stock Unknown", cls: "bg-gray-100 text-gray-600", dot: "bg-gray-400" },
+// STOCK_CONFIG keys mirror Python's _derive_stock_status output. Add new
+// states (e.g. "backorder", "discontinued") here — anything not listed
+// falls through to `unknown` via the `??` guard at the call site.
+const STOCK_CONFIG: Record<string, { ko: string; en: string; cls: string; dot: string }> = {
+  instock:    { ko: "재고 있음",   en: "In Stock",      cls: "bg-green-100 text-green-700", dot: "bg-green-500" },
+  limited:    { ko: "제한 재고",   en: "Limited Stock", cls: "bg-amber-100 text-amber-700", dot: "bg-amber-500" },
+  outofstock: { ko: "재고 없음",   en: "Out of Stock",  cls: "bg-red-100 text-red-700",     dot: "bg-red-500" },
+  unknown:    { ko: "재고 미확인", en: "Stock Unknown", cls: "bg-gray-100 text-gray-600",   dot: "bg-gray-400" },
+  // Future-proofing — keep one entry per state Python may emit. UI
+  // resolves "discontinued" / "backorder" gracefully today.
+  discontinued: { ko: "단종",      en: "Discontinued",  cls: "bg-gray-200 text-gray-700",   dot: "bg-gray-500" },
+  backorder:    { ko: "예약 가능", en: "Back-order",    cls: "bg-purple-100 text-purple-700", dot: "bg-purple-500" },
 }
 
+// QUALITY_TIERS now uses Korean labels for ko mode. The order matters —
+// tiers are scanned top-down with `pct >= t.min`. Adding a new tier? Insert
+// it sorted by min, descending.
 const QUALITY_TIERS = [
-  { min: 80, ko: "Excellent", en: "Excellent", cls: "bg-emerald-100 text-emerald-800 border-emerald-300" },
-  { min: 60, ko: "Good", en: "Good", cls: "bg-sky-100 text-sky-800 border-sky-300" },
-  { min: 40, ko: "Fair", en: "Fair", cls: "bg-amber-100 text-amber-800 border-amber-300" },
-  { min: 0, ko: "Poor", en: "Poor", cls: "bg-rose-100 text-rose-800 border-rose-300" },
+  { min: 80, ko: "탁월", en: "Excellent", cls: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+  { min: 60, ko: "우수", en: "Good",      cls: "bg-sky-100 text-sky-800 border-sky-300" },
+  { min: 40, ko: "보통", en: "Fair",      cls: "bg-amber-100 text-amber-800 border-amber-300" },
+  { min: 0,  ko: "미흡", en: "Poor",      cls: "bg-rose-100 text-rose-800 border-rose-300" },
 ] as const
 
 function QualityBadge({ breakdown }: { breakdown: ScoreBreakdown }) {
@@ -77,9 +87,13 @@ function QualityBadge({ breakdown }: { breakdown: ScoreBreakdown }) {
   )
 }
 
-function MatchBadge({ status }: { status: "exact" | "approximate" | "none" }) {
+function MatchBadge({ status }: { status: string }) {
   const { language } = useApp()
-  const cfg = STATUS_CONFIG[status]
+  // STATUS_CONFIG keys are narrow union, but Python may emit broader
+  // labels ("partial", "conditional", localized). Fall back to the
+  // "approximate" cell so the badge still renders with sensible
+  // amber styling instead of crashing on cfg.Icon.
+  const cfg = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.approximate
   const Icon = cfg.Icon
 
   return (
@@ -683,6 +697,51 @@ export function CandidateCard({ c }: { c: RecommendationCandidateDto }) {
       ) : null}
       {open && (
         <>
+          {/* Full spec table — mirrors ProductCard's detail view so every
+              available field shows, with "-" for missing values. */}
+          <div className="bg-gray-50 rounded-lg p-3">
+            {(() => {
+              const mm = (v: number | null | undefined) =>
+                v != null && Number.isFinite(v) ? `${v}mm` : "-"
+              const deg = (v: number | null | undefined) =>
+                v != null && Number.isFinite(v) ? `${v}°` : "-"
+              const str = (v: string | null | undefined) => (v && v.trim() ? v : "-")
+              const cc = (v: boolean | null | undefined) =>
+                v == null ? "-" : v ? (language === "ko" ? "있음" : "Yes") : (language === "ko" ? "없음" : "No")
+              const ball = c.ballRadiusMm ?? c.cornerRadiusMm ?? null
+              const isBallTool = (c.toolSubtype ?? "").toLowerCase().includes("ball") || c.toolSubtype === "볼"
+              const rLabel = isBallTool
+                ? (language === "ko" ? "볼 R" : "Ball R")
+                : (language === "ko" ? "코너 R" : "Corner R")
+              return (
+                <>
+                  <SpecRow label={language === "ko" ? "공구 타입" : "Subtype"} value={str(c.toolSubtype)} />
+                  <SpecRow label={language === "ko" ? "공구 재질" : "Tool Material"} value={str(c.toolMaterial)} />
+                  <SpecRow label={language === "ko" ? "공구 직경" : "Tool Dia."} value={mm(c.diameterMm)} />
+                  <SpecRow label={language === "ko" ? "생크 타입" : "Shank Type"} value={str(c.shankType)} />
+                  <SpecRow label={language === "ko" ? "생크 직경" : "Shank Dia."} value={mm(c.shankDiameterMm)} />
+                  <SpecRow label={language === "ko" ? "넥 직경" : "Neck Dia."} value={mm(c.neckDiameterMm)} />
+                  <SpecRow label={language === "ko" ? "넥 길이" : "Neck Length"} value={mm(c.neckLengthMm)} />
+                  <SpecRow label={language === "ko" ? "날장 길이" : "LOC"} value={mm(c.lengthOfCutMm)} />
+                  <SpecRow label={language === "ko" ? "유효장" : "Effective Length"} value={mm(c.effectiveLengthMm)} />
+                  <SpecRow label={language === "ko" ? "전체 길이" : "OAL"} value={mm(c.overallLengthMm)} />
+                  <SpecRow label={language === "ko" ? "헬릭스각" : "Helix Angle"} value={deg(c.helixAngleDeg)} />
+                  <SpecRow label={rLabel} value={ball != null ? `R${ball}` : "-"} />
+                  <SpecRow label={language === "ko" ? "테이퍼각" : "Taper Angle"} value={deg(c.taperAngleDeg)} />
+                  <SpecRow label={language === "ko" ? "선단각" : "Point Angle"} value={deg(c.pointAngleDeg)} />
+                  <SpecRow label={language === "ko" ? "나사 피치" : "Thread Pitch"} value={mm(c.threadPitchMm)} />
+                  <SpecRow label={language === "ko" ? "직경 공차" : "Dia. Tol."} value={str(c.diameterTolerance)} />
+                  <SpecRow label={language === "ko" ? "단위" : "Unit"} value={str(c.edpUnit)} />
+                  <SpecRow label={language === "ko" ? "쿨런트홀" : "Coolant Hole"} value={cc(c.coolantHole)} />
+                </>
+              )
+            })()}
+          </div>
+          {c.featureText && (
+            <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-[11px] text-amber-900 leading-relaxed whitespace-pre-wrap">
+              {c.featureText.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "")}
+            </div>
+          )}
           <div className="flex items-center gap-2">
             {c.hasEvidence && c.bestCondition && <EvidenceBadge conditions={c.bestCondition} />}
           </div>

@@ -48,11 +48,15 @@ import {
 // EXCELLENT > GOOD > FAIR > NULL. 티어 간에는 score를 무시하고 상위 티어가
 // 무조건 위에 오도록.
 function materialRatingTier(
-  value: "EXCELLENT" | "GOOD" | "FAIR" | "NULL" | null | undefined,
+  value: string | null | undefined,
 ): number {
-  if (value === "EXCELLENT") return 0
-  if (value === "GOOD") return 1
-  if (value === "FAIR") return 2
+  if (!value) return 3
+  const v = String(value).trim().toUpperCase()
+  if (v === "EXCELLENT") return 0
+  if (v === "GOOD") return 1
+  if (v === "FAIR") return 2
+  // Unknown / NULL / future tier → bucket below FAIR so unranked entries
+  // still sort below known tiers without zod / type errors.
   return 3
 }
 

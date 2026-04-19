@@ -106,13 +106,19 @@ export interface StructuredChipDto {
   products?: string[]
 }
 
+// Known affinity tiers — kept as a union TYPE for IDE help, but the DTO
+// fields below are typed as `MaterialRatingValue | string | null` so a new
+// tier emitted by Python (or downstream service) doesn't silently null out.
+export type MaterialRatingValue = "EXCELLENT" | "GOOD" | "FAIR" | "NULL"
+
 export interface RecommendationSeriesGroupSummaryDto {
   seriesKey: string
   seriesName: string
   candidateCount: number
-  // "NULL" is retained for legacy emit sites; FAIR is the new mid tier
-  // (10..39 affinity) surfaced by Python's get_affinity_rating.
-  materialRating?: "EXCELLENT" | "GOOD" | "FAIR" | "NULL" | null
+  // Open string so future tiers ("OUTSTANDING", localized labels, etc.)
+  // pass through. UI components branch on the MaterialRatingValue union
+  // and fall back to a generic badge for anything else.
+  materialRating?: MaterialRatingValue | string | null
   materialRatingScore?: number | null
 }
 
@@ -200,16 +206,30 @@ export interface RecommendationCandidateDto {
   taperAngleDeg?: number | null
   pointAngleDeg?: number | null
   threadPitchMm?: number | null
+  // Added so the chat-inline CandidateCard expand-state can render the same
+  // full spec table ProductCard uses. Previously these only lived on the
+  // canonical product path (CanonicalProduct), so cards loaded via the
+  // Python pipeline had no way to display them.
+  neckDiameterMm?: number | null
+  neckLengthMm?: number | null
+  effectiveLengthMm?: number | null
+  cornerRadiusMm?: number | null
+  diameterTolerance?: string | null
+  edpUnit?: string | null
   description: string | null
   featureText: string | null
   materialTags: string[]
-  // FAIR is the "10..39 affinity" band emitted by Python's
-  // get_affinity_rating; kept alongside the legacy "NULL" literal so older
-  // emitters stay type-safe.
-  materialRating?: "EXCELLENT" | "GOOD" | "FAIR" | "NULL" | null
+  // Same open-string contract as RecommendationSeriesGroupSummaryDto —
+  // see MaterialRatingValue. Unknown tiers from Python pass through; the
+  // UI's _coerceRating maps known values to badges and falls back to a
+  // neutral chip for the rest (no silent null drop).
+  materialRating?: MaterialRatingValue | string | null
   score: number
   scoreBreakdown: ScoreBreakdown | null
-  matchStatus: "exact" | "approximate" | "none"
+  // Open-string match label so a future "partial" / "conditional" /
+  // localized value passes through. Adapter still derives one of
+  // exact/approximate/none for legacy renderers.
+  matchStatus: "exact" | "approximate" | "none" | string
   stockStatus: string
   totalStock: number | null
   inventorySnapshotDate: string | null
@@ -413,7 +433,11 @@ export const recommendationSeriesGroupSummarySchema = z.object({
   seriesKey: z.string(),
   seriesName: z.string(),
   candidateCount: z.number(),
-  materialRating: z.enum(["EXCELLENT", "GOOD", "FAIR", "NULL"]).nullable().optional(),
+  // Open-string contract: known tiers (EXCELLENT/GOOD/FAIR/NULL) plus any
+  // future Python emission (localized labels, "OUTSTANDING", etc.). UI
+  // adapter (_coerceRating) maps known values to badges and falls back
+  // to a neutral chip for the rest.
+  materialRating: z.string().nullable().optional(),
   materialRatingScore: z.number().nullable().optional(),
 }).passthrough()
 
@@ -500,13 +524,25 @@ export const recommendationCandidateSchema = z.object({
   taperAngleDeg: z.number().nullable().optional(),
   pointAngleDeg: z.number().nullable().optional(),
   threadPitchMm: z.number().nullable().optional(),
+  neckDiameterMm: z.number().nullable().optional(),
+  neckLengthMm: z.number().nullable().optional(),
+  effectiveLengthMm: z.number().nullable().optional(),
+  cornerRadiusMm: z.number().nullable().optional(),
+  diameterTolerance: z.string().nullable().optional(),
+  edpUnit: z.string().nullable().optional(),
   description: z.string().nullable(),
   featureText: z.string().nullable(),
   materialTags: z.array(z.string()),
-  materialRating: z.enum(["EXCELLENT", "GOOD", "FAIR", "NULL"]).nullable().optional(),
+  // Open-string contract: known tiers (EXCELLENT/GOOD/FAIR/NULL) plus any
+  // future Python emission (localized labels, "OUTSTANDING", etc.). UI
+  // adapter (_coerceRating) maps known values to badges and falls back
+  // to a neutral chip for the rest.
+  materialRating: z.string().nullable().optional(),
   score: z.number(),
   scoreBreakdown: z.unknown().nullable(),
-  matchStatus: z.enum(["exact", "approximate", "none"]),
+  // Open string — known values exact/approximate/none, plus future
+  // labels (partial / conditional / localized) without zod rejection.
+  matchStatus: z.string(),
   stockStatus: z.string(),
   totalStock: z.number().nullable(),
   inventorySnapshotDate: z.string().nullable(),

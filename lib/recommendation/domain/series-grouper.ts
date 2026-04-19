@@ -12,11 +12,13 @@ function normalizeSeriesKey(value: string): string {
   return value.trim().toUpperCase().replace(/[\s\-·ㆍ./(),]+/g, "")
 }
 
-function materialRatingOrder(value: SeriesMaterialRatingValue | null | undefined): number {
-  if (value === "EXCELLENT") return 0
-  if (value === "GOOD") return 1
-  if (value === "FAIR") return 2
-  if (value === "NULL") return 3
+function materialRatingOrder(value: string | null | undefined): number {
+  if (!value) return 4
+  const v = String(value).trim().toUpperCase()
+  if (v === "EXCELLENT") return 0
+  if (v === "GOOD") return 1
+  if (v === "FAIR") return 2
+  if (v === "NULL") return 3
   return 4
 }
 

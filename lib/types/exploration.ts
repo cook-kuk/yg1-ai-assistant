@@ -279,10 +279,10 @@ export interface CandidateSnapshot {
   description: string | null       // series_description
   featureText: string | null        // series_feature
   materialTags: string[]
-  materialRating?: "EXCELLENT" | "GOOD" | "FAIR" | "NULL" | null
+  materialRating?: "EXCELLENT" | "GOOD" | "FAIR" | "NULL" | (string & {}) | null
   score: number
   scoreBreakdown: import("./canonical").ScoreBreakdown | null
-  matchStatus: "exact" | "approximate" | "none"
+  matchStatus: import("./canonical").MatchStatus
   stockStatus: string
   totalStock: number | null
   inventorySnapshotDate: string | null
