@@ -206,11 +206,17 @@ function toScoreBreakdown(
   cardScore: number,
 ): RecommendationCandidateDto["scoreBreakdown"] {
   if (!flat || typeof flat !== "object") return null
-  const d = _num(flat.diameter)
-  const f = _num(flat.flutes)
-  const m = _num(flat.material)
-  const s = _num(flat.shape)
-  const c = _num(flat.coating)
+  // Python's scoring.py redistributes missing-intent weight across the
+  // remaining active dimensions, so an individual axis can exceed its
+  // static weight ("diameter=67/40"). Cap each score to its weight so
+  // the UI bar chart stays inside its max — the matchPct below still
+  // reflects the true total via cardScore.
+  const cap = (v: number, mx: number) => Math.min(Math.round(v), mx)
+  const d = cap(_num(flat.diameter), PY_WEIGHTS.diameter)
+  const f = cap(_num(flat.flutes), PY_WEIGHTS.flutes)
+  const m = cap(_num(flat.material), PY_WEIGHTS.material)
+  const s = cap(_num(flat.shape), PY_WEIGHTS.shape)
+  const c = cap(_num(flat.coating), PY_WEIGHTS.coating)
   const affinity = _num(flat.affinity)
   const flagship = _num(flat.flagship)
   const materialPref = _num(flat.material_pref)
@@ -351,8 +357,8 @@ function adaptProductSummary(row: ProductSummary, rank: number): RecommendationC
     materialRating: null,
     score: typeof row.score === "number" && Number.isFinite(row.score) ? row.score : 0,
     scoreBreakdown: null,
-    matchStatus: "none",
-    stockStatus: "unknown",
+    matchStatus: "approximate",
+    stockStatus: row.stock_status ?? "unknown",
     totalStock: null,
     inventorySnapshotDate: null,
     inventoryLocations: [],
@@ -381,9 +387,43 @@ function adaptAppliedFilters(raw: Record<string, unknown> | null | undefined): R
   return out
 }
 
+function buildSeriesGroups(
+  candidates: RecommendationCandidateDto[],
+  topN = 8,
+): RecommendationPublicSessionDto["displayedSeriesGroups"] {
+  // Bucket candidates by seriesName, tracking the count and best score per
+  // series so the UI can render the "SGED31 · 최고 131점" summary badges.
+  // Sorted by topScore desc so the highest-ranking series leads.
+  const groups = new Map<string, { count: number; topScore: number; brand: string | null }>()
+  for (const c of candidates) {
+    const key = c.seriesName
+    if (!key) continue
+    const prev = groups.get(key)
+    if (prev) {
+      prev.count += 1
+      if (c.score > prev.topScore) prev.topScore = c.score
+    } else {
+      groups.set(key, { count: 1, topScore: c.score, brand: c.brand })
+    }
+  }
+  const sorted = [...groups.entries()]
+    .sort((a, b) => b[1].topScore - a[1].topScore)
+    .slice(0, topN)
+  return sorted.map(([seriesName, g]) => ({
+    seriesKey: seriesName,
+    seriesName,
+    candidateCount: g.count,
+    // Python path doesn't emit series_material_rating per candidate yet, so
+    // leave rating slots null — the UI badge degrades to showing just count.
+    materialRating: null,
+    materialRatingScore: null,
+  }))
+}
+
 function buildMinimalSession(
   appliedFilters: RecommendationAppliedFilterDto[],
   totalCount: number,
+  candidates: RecommendationCandidateDto[] = [],
 ): RecommendationPublicSessionDto {
   return {
     sessionId: null,
@@ -396,6 +436,7 @@ function buildMinimalSession(
     lastAction: null,
     displayedChips: [],
     displayedOptions: [],
+    displayedSeriesGroups: buildSeriesGroups(candidates),
     capabilities: DEFAULT_RECOMMENDATION_CAPABILITIES,
   }
 }
@@ -430,7 +471,7 @@ export function adaptProductsToRecommendationDto(
     isComplete: payload.isComplete !== false,
     recommendation: null,
     session: {
-      publicState: buildMinimalSession(appliedFilters, totalItems),
+      publicState: buildMinimalSession(appliedFilters, totalItems, candidates),
       engineState: null,
     },
     candidates: candidates.length > 0 ? candidates : null,

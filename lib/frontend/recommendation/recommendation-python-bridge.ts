@@ -98,10 +98,23 @@ interface StreamProductsEvent {
     edp_no: string
     brand?: string | null
     series?: string | null
+    tool_type?: string | null
     subtype?: string | null
     diameter?: string | null
     flutes?: string | null
     coating?: string | null
+    material_tags?: string[] | null
+    description?: string | null
+    feature?: string | null
+    oal?: string | null
+    loc?: string | null
+    helix_angle?: string | null
+    coolant_hole?: string | null
+    shank_type?: string | null
+    total_stock?: number | null
+    warehouse_count?: number | null
+    stock_status?: string | null
+    matched_fields?: string[] | null
     score: number
     score_breakdown?: Record<string, number>
   }>
@@ -134,14 +147,30 @@ function formatFilterStage(intent: Record<string, unknown> | null): string | nul
 }
 
 function streamTopToProductCards(top10: StreamProductsEvent["top10"]): ProductCard[] {
+  // Stream payload mirrors sync /products' ProductCard shape so the partial
+  // UI renders with the same badges (inventory, matched_fields, LOC/OAL)
+  // as the terminal answer. Fields the stream omits fall back to null.
   return top10.map(row => ({
     edp_no: row.edp_no,
     brand: row.brand ?? null,
     series: row.series ?? null,
+    tool_type: row.tool_type ?? null,
     subtype: row.subtype ?? null,
     diameter: row.diameter ?? null,
     flutes: row.flutes ?? null,
     coating: row.coating ?? null,
+    material_tags: row.material_tags ?? null,
+    description: row.description ?? null,
+    feature: row.feature ?? null,
+    oal: row.oal ?? null,
+    loc: row.loc ?? null,
+    helix_angle: row.helix_angle ?? null,
+    coolant_hole: row.coolant_hole ?? null,
+    shank_type: row.shank_type ?? null,
+    total_stock: row.total_stock ?? null,
+    warehouse_count: row.warehouse_count ?? null,
+    stock_status: row.stock_status ?? null,
+    matched_fields: row.matched_fields ?? null,
     score: typeof row.score === "number" ? row.score : 0,
     score_breakdown: row.score_breakdown ?? {},
   }))
