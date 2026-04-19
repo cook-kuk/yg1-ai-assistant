@@ -46,6 +46,21 @@ def envBool(name: str, default: bool = False) -> bool:
     return raw.strip().lower() in ("true", "1", "yes", "on")
 
 
+def envFloat(name: str, default: float) -> float:
+    """Float-typed alias for envNum — keeps caller intent explicit."""
+    return float(envNum(name, default))
+
+
+def envList(name: str, default: list[str]) -> list[str]:
+    """Comma-separated env var → list[str]. Empty items stripped.
+    Env var unset or empty → returns default unchanged (not a copy, so
+    callers must not mutate)."""
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return [tok.strip() for tok in raw.split(",") if tok.strip()]
+
+
 # ── OpenAI model IDs ─────────────────────────────────────────────────
 # CLAUDE.md: provider.ts 의 tier naming (haiku/sonnet/opus) 은 건드리지
 # 말 것. env var 이름도 그 관례를 따른다.
@@ -105,8 +120,11 @@ DUAL_COT_PARTIAL_CHARS = envInt("DUAL_COT_PARTIAL_CHARS", 50)
 MEMORY_MAX_TURNS = envInt("MEMORY_MAX_TURNS", 3)
 
 # ── Golden test harness retry ────────────────────────────────────────
+# 5 retries (was 3) — observed runs where uvicorn briefly hung during a
+# Strong-CoT pass made 3 attempts × 1+2+4s backoff blow past the server's
+# recovery window. 5 attempts ≈ 31s of patience covers a typical stall.
 GOLDEN_RETRY_STATUS: set[int] = {429, 500, 502, 503, 504}
-GOLDEN_MAX_RETRIES = envInt("GOLDEN_MAX_RETRIES", 3)
+GOLDEN_MAX_RETRIES = envInt("GOLDEN_MAX_RETRIES", 5)
 GOLDEN_BASE_BACKOFF_SEC = envNum("GOLDEN_BASE_BACKOFF_SEC", 1.0)
 GOLDEN_INTER_CASE_SLEEP_SEC = envNum("GOLDEN_INTER_CASE_SLEEP_SEC", 0.3)
 
@@ -190,6 +208,33 @@ COT_FILLED_LONG_THRESHOLD = envInt("ARIA_COT_FILLED_LONG", 3)
 COT_LONG_MSG_CHARS = envInt("ARIA_COT_LONG_MSG_CHARS", 50)
 COT_KNOWLEDGE_MIN = envInt("ARIA_COT_KNOWLEDGE_MIN", 2)
 
+# ── SCR diameter sanity range ───────────────────────────────────────
+# Phase 0 post-validation: LLM occasionally leaks an EDP token's tail
+# digits ("UGMG34919" → 34919) into intent.diameter. Real milling tool
+# diameters live in [0.1, 100] mm — anything outside that is bogus and
+# gets reset to None with a warning log.
+SCR_DIAMETER_MIN = envFloat("ARIA_SCR_DIAMETER_MIN", 0.1)
+SCR_DIAMETER_MAX = envFloat("ARIA_SCR_DIAMETER_MAX", 100.0)
+
+# ── EDP / series prefix routing (main._detect_product_code) ─────────
+# Minimum length for a digit-less token ("UGM") to qualify as an edp /
+# series prefix. ≥3 covers every real YG-1 family without matching
+# random 2-letter noise ("IS", "IN", "OK", …) the LLM emits as filler.
+PREFIX_MIN_LEN = envInt("ARIA_PREFIX_MIN_LEN", 3)
+
+# Phrases that promote a raw prefix token to the MAIN filter (not just
+# the reference-peek panel). Without one of these, a bare "UGM" stays
+# peek-only so random family-letter mentions don't hijack the ranker.
+PREFIX_INTENT_HINTS = envList(
+    "ARIA_PREFIX_HINTS",
+    [
+        "로 시작", "으로 시작", "시작하는", "시작해", "시작되는",
+        "prefix", "시리즈", "계열", "접두", "그룹",
+        "같은 걸로", "같은거로", "같은 것", "비슷한",
+        "다 보여", "모두 보여", "전부 보여", "전부",
+    ],
+)
+
 
 def reload_env() -> None:
     """Re-read env. Intended for tests that monkeypatch envs mid-process."""
@@ -204,7 +249,7 @@ def reload_env() -> None:
         DUAL_COT_STRONG_THRESHOLD=envInt("DUAL_COT_STRONG_THRESHOLD", 3),
         DUAL_COT_PARTIAL_CHARS=envInt("DUAL_COT_PARTIAL_CHARS", 50),
         MEMORY_MAX_TURNS=envInt("MEMORY_MAX_TURNS", 3),
-        GOLDEN_MAX_RETRIES=envInt("GOLDEN_MAX_RETRIES", 3),
+        GOLDEN_MAX_RETRIES=envInt("GOLDEN_MAX_RETRIES", 5),
         GOLDEN_BASE_BACKOFF_SEC=envNum("GOLDEN_BASE_BACKOFF_SEC", 1.0),
         GOLDEN_INTER_CASE_SLEEP_SEC=envNum("GOLDEN_INTER_CASE_SLEEP_SEC", 0.3),
         NEGATION_PROXIMITY_CHARS=envInt("NEGATION_PROXIMITY_CHARS", 15),

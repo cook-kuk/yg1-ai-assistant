@@ -66,6 +66,11 @@ export interface ProductCard {
   ball_radius?: string | null    // milling_ball_radius (e.g. "R.125" inch)
   neck_diameter?: string | null
   effective_length?: string | null
+  tool_material?: string | null       // Carbide / HSS / CBN / PCD (milling → holemaking → threading fallback)
+  diameter_tolerance?: string | null  // h6 / h7 / h8
+  taper_angle?: string | null         // milling_taper_angle (deg)
+  point_angle?: string | null         // holemaking_point_angle (deg)
+  thread_pitch?: string | null        // threading_pitch (mm)
   // Inventory summary forwarded from product_inventory_summary_mv.
   total_stock?: number | null
   warehouse_count?: number | null
@@ -432,7 +437,7 @@ function adaptProductCard(
     fluteCount: parseIntTok(card.flutes ?? null),
     coating: card.coating ?? null,
     toolSubtype: card.subtype ?? null,
-    toolMaterial: null,
+    toolMaterial: card.tool_material ?? null,
     shankDiameterMm: parseNumericMm(card.shank_dia ?? null, card.edp_unit),
     shankType: card.shank_type ?? null,
     lengthOfCutMm: parseNumericMm(card.loc ?? null, card.edp_unit),
@@ -440,16 +445,17 @@ function adaptProductCard(
     helixAngleDeg: parseNumeric(card.helix_angle ?? null),
     coolantHole: parseCoolantHole(card.coolant_hole ?? null),
     ballRadiusMm: parseNumericMm(card.ball_radius ?? null, card.edp_unit),
-    taperAngleDeg: null,
-    pointAngleDeg: null,
-    threadPitchMm: null,
+    // Angles aren't unit-dependent — no inch conversion needed.
+    taperAngleDeg: parseNumeric(card.taper_angle ?? null),
+    pointAngleDeg: parseNumeric(card.point_angle ?? null),
+    threadPitchMm: parseNumeric(card.thread_pitch ?? null),
     // Full detail set — CandidateCard's expanded view renders these as rows
     // in its SpecTable. Populated via parseNumericMm so inch rows convert.
     neckDiameterMm: parseNumericMm(card.neck_diameter ?? null, card.edp_unit),
     neckLengthMm: null,
     effectiveLengthMm: parseNumericMm(card.effective_length ?? null, card.edp_unit),
     cornerRadiusMm: parseNumericMm(card.ball_radius ?? null, card.edp_unit),
-    diameterTolerance: null,
+    diameterTolerance: card.diameter_tolerance ?? null,
     edpUnit: card.edp_unit ?? null,
     description: card.description ?? null,
     featureText: card.feature ?? null,

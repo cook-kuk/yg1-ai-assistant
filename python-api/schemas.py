@@ -231,6 +231,13 @@ class ProductCard(BaseModel):
     ball_radius: Optional[str] = None        # milling_ball_radius (text, e.g. "R.125")
     neck_diameter: Optional[str] = None      # milling_neck_diameter
     effective_length: Optional[str] = None   # milling_effective_length
+    # Additional detail rows the CandidateCard spec table shows — all raw
+    # DB text so the frontend's parseNumericMm can apply unit conversion.
+    tool_material: Optional[str] = None      # milling/holemaking/threading_tool_material (first non-empty)
+    diameter_tolerance: Optional[str] = None # milling_diameter_tolerance (e.g. "h7")
+    taper_angle: Optional[str] = None        # milling_taper_angle (deg)
+    point_angle: Optional[str] = None        # holemaking_point_angle (deg)
+    thread_pitch: Optional[str] = None       # threading_pitch (mm)
     cutting_conditions: Optional[List[Dict[str, Any]]] = None
     # Inventory summary — populated from product_inventory_summary_mv via the
     # correlated subquery in SELECT_COLS. NULL means "no snapshot row" (not

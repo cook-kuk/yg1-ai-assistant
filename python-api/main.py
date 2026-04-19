@@ -51,6 +51,10 @@ from product_index import (
     get_filter_options_fast,
     count_products_fast,
     needs_db_path,
+    get_valid_edps_full,
+    get_valid_series_full,
+    get_valid_prefix_set,
+    find_similar_prefixes,
 )
 from clarify import suggest_clarifying_chips
 from session import get_or_create as session_get_or_create, add_turn, carry_forward_intent
@@ -750,40 +754,116 @@ def _apply_brand_kr_alias(message: Optional[str], intent) -> None:
             return
 
 
+# Digit-less family prefix (e.g. "UGM", "GMF", "EHE"). Mirrors
+# scr._FAMILY_PREFIX_RE but lives here so main.py's routing doesn't
+# depend on scr internals. Keeps main.py the SSOT for request-routing
+# regexes.
+_FAMILY_PREFIX_RE = re.compile(r"(?<![A-Za-z0-9])([A-Z]{3,8})(?![A-Za-z0-9])")
+
+
+def _has_prefix_intent_hint(message: str) -> bool:
+    """True when the message contains any phrase that justifies promoting
+    a prefix match into the MAIN filter (vs. the reference-peek panel).
+    Phrases live in config.PREFIX_INTENT_HINTS so ops can retune without
+    touching code."""
+    if not message:
+        return False
+    from config import PREFIX_INTENT_HINTS
+    return any(h in message for h in PREFIX_INTENT_HINTS)
+
+
 def _detect_product_code(message: Optional[str]) -> Optional[tuple[str, str]]:
-    """Extract a product-code token and route it to the right filter:
-      - ("edp_no", code)  when the token matches a full EDP in the index
-        (or a substring of an EDP — narrow to that specific product line)
-      - ("series", code)  when the token matches a series code exactly
-        (broad — returns every EDP in that series)
-    Returns None when no token is present OR no index row matches.
+    """Extract a product-code token and classify its routing kind.
+
+    Returns (kind, code) where kind is one of:
+      - "edp_exact"     exact hit in full-catalog EDP set → narrow to 1 product line
+      - "edp_prefix"    startswith hit → broad prefix (requires HINT to main-filter)
+      - "series_exact"  exact series_name match in full catalog
+      - "series_prefix" startswith hit on a series_name
+      - "no_match"      EDP-shape token was present but nothing verified; caller
+                        should surface "no such prefix" + suggestions
+
+    Verification uses product_index.get_valid_edps_full / get_valid_series_full
+    which is a full-catalog set (NOT the milling-only main index). This lets
+    UGMG34919 / UGM-series indexable drills route correctly even though they
+    aren't in the milling-only ranking index.
+
+    Returns None when no EDP-shape and no digit-less family-prefix token is
+    in the message — same behavior as before Phase 0.
     """
     if not message:
         return None
     msg_upper = message.upper()
-    try:
-        index = load_index()
-    except Exception:
-        return None
-    if not index:
-        return None
+
+    edps = get_valid_edps_full()
+    series_set = get_valid_series_full()
+    prefix_set = get_valid_prefix_set()
+
+    # ── Stage 1: EDP-shape tokens (digit-bearing) ──
+    attempted_token: str | None = None
     for m in _PRODUCT_CODE_RE.finditer(msg_upper):
         code = m.group(1).replace("_", "-")
-        matched_series = False
-        matched_edp_substring = False
-        for p in index:
-            edp_str = str(p.get("edp_no") or "").upper()
-            series_str = str(p.get("series") or "").upper()
-            if series_str and code == series_str:
-                matched_series = True
-                break  # series match is canonical — no need to scan further
-            if code in edp_str:
-                matched_edp_substring = True
-        if matched_series:
-            return ("series", code)
-        if matched_edp_substring:
-            return ("edp_no", code)
+        attempted_token = attempted_token or code
+        # Exact EDP first — most specific routing.
+        if code in edps:
+            return ("edp_exact", code)
+        # Exact series match (rare but possible — some series names share
+        # the digit-bearing shape).
+        if code in series_set:
+            return ("series_exact", code)
+        # Prefix: require minimum length so "AA" + 1 digit doesn't promote.
+        from config import PREFIX_MIN_LEN
+        if len(code) >= PREFIX_MIN_LEN:
+            for e in edps:
+                if e.startswith(code):
+                    return ("edp_prefix", code)
+            for s in series_set:
+                if s.startswith(code):
+                    return ("series_prefix", code)
+
+    # ── Stage 2: digit-less family prefix (e.g. "UGM") ──
+    # Requires a HINT phrase so random 3-letter English/Korean tokens
+    # don't hijack the ranker.
+    if _has_prefix_intent_hint(message):
+        for m in _FAMILY_PREFIX_RE.finditer(msg_upper):
+            tok = m.group(1)
+            if tok in _FAMILY_PREFIX_EXCLUDE:
+                continue
+            if tok in series_set:
+                return ("series_exact", tok)
+            if tok in edps:
+                return ("edp_exact", tok)
+            # Prefix fallback — valid only if SOME known series/edp starts
+            # with this token. prefix_set pre-computes the legitimate
+            # prefixes so we don't scan the full edp set on every request.
+            if tok in prefix_set:
+                # Decide edp_prefix vs series_prefix by whichever hits first.
+                for s in series_set:
+                    if s.startswith(tok):
+                        return ("series_prefix", tok)
+                for e in edps:
+                    if e.startswith(tok):
+                        return ("edp_prefix", tok)
+            attempted_token = attempted_token or tok
+
+    # EDP-shape token was present but nothing verified → no_match signal
+    # so the chat layer can surface suggestions instead of silent top-N.
+    if attempted_token:
+        return ("no_match", attempted_token)
     return None
+
+
+# Digit-less tokens that pass _FAMILY_PREFIX_RE but are never YG-1 family
+# prefixes. Keeps the prefix path from misfiring on generic English/Korean
+# all-caps strings. SUS* and SKD* shapes are in _REFERENCE_LOOKUP_EXCLUDE
+# over in scr.py; this one is the main.py-side complement for digit-less
+# tokens only.
+_FAMILY_PREFIX_EXCLUDE: frozenset[str] = frozenset({
+    "ISO", "USA", "DIN", "JIS", "KOR", "USA", "CHN", "EU", "ASIA",
+    "HSS", "CBN", "PCD", "DLC", "HRC", "HRB", "MQL", "HPC",
+    "AND", "THE", "YOU", "CAN", "ARE", "BUT", "ALL", "ANY",
+    "ONE", "TWO", "TEN",
+})
 
 
 def _detect_excluded_brands(message: str) -> list[str]:
@@ -926,20 +1006,26 @@ async def products(req: ProductsRequest) -> ProductsResponse:
     #       the user-requested "두 층" UX — prior ranked list on top,
     #       independent peek below.
     _code = _detect_product_code(req.message) if req.message else None
-    detected_edp = _code[1] if _code and _code[0] == "edp_no" else None
-    detected_series = _code[1] if _code and _code[0] == "series" else None
+    # Phase 0: 5-kind routing — edp_exact/edp_prefix/series_exact/series_prefix/no_match.
+    # edp_* kinds → detected_edp (single filter dict key; search.py's OR-clause
+    # handles both columns). series_* kinds → detected_series. no_match surfaces
+    # "no such prefix" + suggestions in chat instead of silent top-N fallback.
+    _code_kind = _code[0] if _code else None
+    detected_edp = _code[1] if _code and _code[0] in ("edp_exact", "edp_prefix") else None
+    detected_series = _code[1] if _code and _code[0] in ("series_exact", "series_prefix") else None
+    detected_no_match = _code[1] if _code and _code[0] == "no_match" else None
     # Korean-transliteration brand fallback — runs BEFORE carry_forward
     # so a carried intent.brand from a prior turn doesn't block the alias
     # injection. No-op if SCR already extracted a brand.
     _apply_brand_kr_alias(req.message, intent)
     has_prior_filters = bool(getattr(session, "current_filters", None))
-    if _code and not has_prior_filters:
+    if _code and _code[0] != "no_match" and not has_prior_filters:
         session.current_filters.clear()  # preserved for safety; no-op in fresh sessions
     else:
         # Fill unset intent fields from the session's carried context so
         # abbreviated follow-ups still know the material/diameter from turn 1.
         carry_forward_intent(session, intent)
-        if _code:
+        if _code and _code[0] != "no_match":
             # Peek mode — don't let edp_no / series hijack the main filter
             # dict; the reference_lookup path handles surfacing the card.
             detected_edp = None
@@ -1195,6 +1281,15 @@ async def products(req: ProductsRequest) -> ProductsResponse:
             ball_radius=c.get("milling_ball_radius"),
             neck_diameter=c.get("milling_neck_diameter"),
             effective_length=c.get("milling_effective_length"),
+            tool_material=(
+                c.get("milling_tool_material")
+                or c.get("holemaking_tool_material")
+                or c.get("threading_tool_material")
+            ),
+            diameter_tolerance=c.get("milling_diameter_tolerance"),
+            taper_angle=c.get("milling_taper_angle"),
+            point_angle=c.get("holemaking_point_angle"),
+            thread_pitch=c.get("threading_pitch"),
             cutting_conditions=conditions_map.get(edp) or None,
             total_stock=stock_qty,
             warehouse_count=_coerce_int(c.get("warehouse_count")),
@@ -1321,6 +1416,7 @@ async def products(req: ProductsRequest) -> ProductsResponse:
                 cutting_range,
                 session,
                 req.filters.model_dump() if req.filters else None,
+                detected_no_match,
             )
             raw_answer = chat_result.get("answer") or _build_answer(intent, ranked, cutting_range)
             chips = chat_result.get("chips") or []
@@ -1512,6 +1608,15 @@ def products_page(req: ProductsPageRequest) -> ProductsPageResponse:
             ball_radius=c.get("milling_ball_radius"),
             neck_diameter=c.get("milling_neck_diameter"),
             effective_length=c.get("milling_effective_length"),
+            tool_material=(
+                c.get("milling_tool_material")
+                or c.get("holemaking_tool_material")
+                or c.get("threading_tool_material")
+            ),
+            diameter_tolerance=c.get("milling_diameter_tolerance"),
+            taper_angle=c.get("milling_taper_angle"),
+            point_angle=c.get("holemaking_point_angle"),
+            thread_pitch=c.get("threading_pitch"),
             cutting_conditions=conditions_map.get(edp) or None,
             total_stock=stock_qty,
             warehouse_count=_coerce_int(c.get("warehouse_count")),
@@ -1623,16 +1728,19 @@ async def products_stream(req: ProductsRequest):
         # (prior filters carried) keeps the carried filters and routes the
         # EDP through reference_lookup instead of hijacking the main list.
         _code = _detect_product_code(req.message) if req.message else None
-        detected_edp = _code[1] if _code and _code[0] == "edp_no" else None
-        detected_series = _code[1] if _code and _code[0] == "series" else None
+        # Phase 0: same 5-kind handling as sync path above.
+        _code_kind = _code[0] if _code else None
+        detected_edp = _code[1] if _code and _code[0] in ("edp_exact", "edp_prefix") else None
+        detected_series = _code[1] if _code and _code[0] in ("series_exact", "series_prefix") else None
+        detected_no_match = _code[1] if _code and _code[0] == "no_match" else None
         # Korean-transliteration brand fallback — same rationale as sync.
         _apply_brand_kr_alias(req.message, intent)
         has_prior_filters_stream = bool(getattr(session, "current_filters", None))
-        if _code and not has_prior_filters_stream:
+        if _code and _code[0] != "no_match" and not has_prior_filters_stream:
             session.current_filters.clear()
         else:
             carry_forward_intent(session, intent)
-            if _code:
+            if _code and _code[0] != "no_match":
                 detected_edp = None
                 detected_series = None
 
@@ -1850,7 +1958,21 @@ async def products_stream(req: ProductsRequest):
                 ]
                 return payload
 
-            if cot_level_stream == "strong":
+            # Phase 0: no_match short-circuit for the stream path. When the
+            # user typed a prefix (UGMG9999, ZZZX…) that doesn't resolve in
+            # the full catalog, skip CoT entirely and emit a deterministic
+            # "did you mean …" answer. generate_response has the same gate
+            # in the sync path; here we inline it to keep the SSE event
+            # shape identical (one "answer" event, no "partial_answer"s).
+            if detected_no_match:
+                det_chat = await asyncio.to_thread(
+                    generate_response,
+                    req.message, intent, [], knowledge, 0, None, None, None, None, None,
+                    session, req_filters_dump, detected_no_match,
+                )
+                chat_result = _merge_series_chips(det_chat)
+                yield f"event: answer\ndata: {_json.dumps(chat_result, ensure_ascii=False)}\n\n"
+            elif cot_level_stream == "strong":
                 try:
                     async for ev_type, payload in stream_strong_cot(
                         req.message, intent,

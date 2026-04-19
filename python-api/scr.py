@@ -1149,6 +1149,77 @@ def _embed_resolve(field: str, raw: str | None, threshold: float = 0.75) -> str 
         return None
 
 
+_EDP_CODE_MASK_RE = re.compile(
+    r"(?<![A-Z0-9])([A-Z][A-Z0-9]{1,5}\d{2,7}(?:[\-_]?\d{1,4})?)(?![A-Z0-9])"
+)
+
+
+def _mask_product_codes(message: str) -> tuple[str, list[str]]:
+    """Replace EDP-shape tokens with `__EDP_N__` placeholders before the
+    LLM sees the message. Prevents the tail-digit of a token like
+    "UGMG34919" leaking into intent.diameter (the prompt still says "bare
+    digits = diameter" and the LLM sometimes parses 34919/919/4919 out).
+    Returns (masked_message, original_tokens_in_order).
+
+    Caller (parse_intent) prepends a short instruction so the LLM knows
+    to ignore placeholders. Deterministic _detect_product_code in
+    main.py already consumed the real token for routing, so downstream
+    doesn't need the original here."""
+    if not message:
+        return message, []
+    tokens: list[str] = []
+
+    def _repl(m: re.Match[str]) -> str:
+        tokens.append(m.group(1))
+        return f"__EDP_{len(tokens) - 1}__"
+
+    masked = _EDP_CODE_MASK_RE.sub(_repl, message.upper())
+    if not tokens:
+        return message, []
+    # Preserve the original casing of non-matched regions by reapplying
+    # the substitution on the original-case string. Upper-cased masking
+    # was a convenience for the regex; the LLM shouldn't see an all-caps
+    # user message unless that's what was typed.
+    def _repl_orig(m: re.Match[str]) -> str:
+        nonlocal tokens_idx
+        out = f"__EDP_{tokens_idx}__"
+        tokens_idx += 1
+        return out
+    tokens_idx = 0
+    masked_preserved = re.sub(
+        r"(?<![A-Za-z0-9])([A-Za-z][A-Za-z0-9]{1,5}\d{2,7}(?:[\-_]?\d{1,4})?)(?![A-Za-z0-9])",
+        _repl_orig,
+        message,
+    )
+    return masked_preserved, tokens
+
+
+def _validate_diameter(intent: SCRIntent) -> None:
+    """In-place diameter sanity check. LLM occasionally leaks an EDP
+    token's tail digits ("UGMG34919" → diameter=34919) despite masking.
+    Reset to None + log when outside [SCR_DIAMETER_MIN, SCR_DIAMETER_MAX];
+    range lives in config so ops can retune."""
+    try:
+        from config import SCR_DIAMETER_MIN, SCR_DIAMETER_MAX
+    except Exception:
+        return
+    d = getattr(intent, "diameter", None)
+    if d is None:
+        return
+    try:
+        fd = float(d)
+    except (TypeError, ValueError):
+        intent.diameter = None
+        return
+    if not (SCR_DIAMETER_MIN <= fd <= SCR_DIAMETER_MAX):
+        import logging
+        logging.getLogger(__name__).warning(
+            "scr.parse_intent: diameter=%s outside sane range [%s, %s] — resetting to None",
+            fd, SCR_DIAMETER_MIN, SCR_DIAMETER_MAX,
+        )
+        intent.diameter = None
+
+
 def parse_intent(message: str, session: Any = None) -> SCRIntent:
     """Extract structured SCRIntent from the user message.
 
@@ -1164,6 +1235,11 @@ def parse_intent(message: str, session: Any = None) -> SCRIntent:
     # Preprocess Korean-word flute counts into digits so the LLM always
     # sees "2날" regardless of how the user spelled it ("두날"/"두 날"/"2날").
     message = _normalize_korean(message)
+    # Phase 0: mask EDP-shape tokens so the LLM can't turn a token's tail
+    # digits into intent.diameter. Routing already happened in main.py via
+    # _detect_product_code; the LLM just needs the message to pick up
+    # non-EDP slots (material, flute_count, coating, …).
+    message_for_llm, _masked_edp_tokens = _mask_product_codes(message)
     # Pre-resolve national-standard material codes deterministically;
     # the LLM fills in Korean aliases on its side. If the LLM returns
     # material_tag=null, we fall back to this pre-resolution.
@@ -1177,7 +1253,15 @@ def parse_intent(message: str, session: Any = None) -> SCRIntent:
     # Build the user content — optionally prefix a compact reference block
     # drawn from the last two user turns. Only pasted as context for
     # demonstrative resolution; the LLM is still extracting from `message`.
-    user_content = message
+    # `message_for_llm` has EDP-shape tokens replaced with `__EDP_N__`
+    # placeholders (Phase 0 anti-contamination).
+    user_content = message_for_llm
+    if _masked_edp_tokens:
+        user_content = (
+            "__EDP_N__ 토큰은 제품 코드 자리표시자다. 숫자로 해석하지 말고 "
+            "무시하라 (후처리에서 복원된다).\n"
+            + user_content
+        )
     if session is not None:
         try:
             from session import get_raw_history
@@ -1189,7 +1273,7 @@ def parse_intent(message: str, session: Any = None) -> SCRIntent:
             if joined:
                 user_content = (
                     f"직전 사용자 발화(참고만, 재검색 금지): {joined}\n"
-                    f"현재 발화: {message}"
+                    f"현재 발화: {message_for_llm}"
                 )
         except Exception:
             pass  # intentional: history lookup is best-effort — degrade to current-message-only
@@ -1309,7 +1393,7 @@ def parse_intent(message: str, session: Any = None) -> SCRIntent:
         # Numeric threshold ⇒ in_stock_only must be null (mutually exclusive).
         in_stock_only_raw = None
 
-    return SCRIntent(
+    _parsed = SCRIntent(
         intent=data.get("intent") or "recommendation",
         diameter=data.get("diameter"),
         flute_count=data.get("flute_count"),
@@ -1347,3 +1431,8 @@ def parse_intent(message: str, session: Any = None) -> SCRIntent:
             message, (data.get("series_name") or None) or None
         ),
     )
+    # Phase 0: post-validate diameter against sane milling range. LLM
+    # occasionally leaks an EDP tail-digit when masking was incomplete or
+    # when the user interleaves bare numbers with EDP-shape tokens.
+    _validate_diameter(_parsed)
+    return _parsed

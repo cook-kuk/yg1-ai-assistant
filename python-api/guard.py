@@ -131,6 +131,18 @@ def _get_valid_edps() -> set[str]:
     return edps
 
 
+def _get_valid_edps_full() -> frozenset[str]:
+    """Full-catalog EDP whitelist (not limited to the milling subset).
+    Used so guard.scrub doesn't strip an authoritative edp like UGMG34919
+    that lives outside the milling index. Lazy-delegated to product_index
+    which owns the cache + TTL."""
+    try:
+        from product_index import get_valid_edps_full
+        return get_valid_edps_full()
+    except Exception:
+        return frozenset()
+
+
 def set_known(brands: set[str], series: set[str]) -> None:
     """Test hook: inject known sets directly and bypass DB load."""
     _cache["brands"] = {b.upper() for b in brands}
@@ -150,6 +162,11 @@ def _is_safe(
     if up in brands or up in series or up in extra:
         return True
     # EDP whitelist — every catalog product number is authoritative.
+    # Full-catalog set first (drops milling-only bias); fall back to the
+    # milling-limited set so pre-Phase-0 callers keep their behavior when
+    # the full set is unavailable.
+    if up in _get_valid_edps_full():
+        return True
     if up in _get_valid_edps():
         return True
     # Substring match — DB brand/series values often include spaces or

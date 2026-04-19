@@ -230,6 +230,20 @@ def _summarize_products(products: list[dict], limit: int = 5) -> list[dict]:
             "diameter": p.get("diameter"),
             "flutes": p.get("flutes"),
             "coating": p.get("coating"),
+            # Full spec surface so the LLM can answer "가장 작은 날장" / "가장
+            # 긴 전장" style min/max queries without the user having to re-ask.
+            # Kept short (raw DB text, no unit conversion) — frontend handles
+            # rendering; LLM just needs ordinals.
+            "loc": p.get("milling_length_of_cut"),
+            "oal": p.get("milling_overall_length"),
+            "shank_dia": p.get("milling_shank_dia"),
+            "helix_angle": p.get("milling_helix_angle"),
+            "tool_material": (
+                p.get("milling_tool_material")
+                or p.get("holemaking_tool_material")
+                or p.get("threading_tool_material")
+            ),
+            "edp_unit": p.get("edp_unit"),
             # Inventory fields — principle 8 tells the LLM to quote these
             # verbatim on the top-ranked card when available. Omitted keys
             # leave it silent, which is what we want for stale rows.
@@ -412,7 +426,9 @@ def _build_ui_context(
         lines.extend(llm_active)
 
     # D + E + F + G — result roll-up over the top-10 ranked cards.
-    result_lines: list[str] = [f"  총 {total_count}건 매칭"]
+    # Format with thousands separator so the LLM doesn't paraphrase 33728
+    # as "3728" (leading-digit drop observed on large totals).
+    result_lines: list[str] = [f"  총 {total_count:,}건 매칭"]
     if relaxed_fields:
         result_lines.append(f"  ⚠ 조건 완화됨: {', '.join(relaxed_fields)}")
     if products:
@@ -1181,6 +1197,7 @@ def generate_response(
     cutting_range: dict | None = None,
     session: Any = None,
     req_filters: dict | None = None,
+    no_match_token: str | None = None,
 ) -> dict:
     """Public entry point — dispatches to light/strong CoT based on
     _assess_cot_level. Always tags the result dict with cot_level so
@@ -1189,7 +1206,42 @@ def generate_response(
     `session` + `req_filters` are forwarded into both CoT paths so every
     chat turn sees the same [대화 히스토리] + [UI 컨텍스트] state. Both
     default to None, which keeps /recommend (stateless) callers working
-    without a session store."""
+    without a session store.
+
+    `no_match_token` short-circuits the LLM call entirely when the user
+    typed a prefix (UGMG9999, ZZZX…) that verified as non-existent in the
+    full catalog. We emit a deterministic "no such prefix, did you mean X?"
+    reply so we never fall through to silent top-N. See Phase 0.
+    """
+    if no_match_token:
+        try:
+            from product_index import find_similar_prefixes
+            suggestions = find_similar_prefixes(no_match_token, top_n=3)
+        except Exception:
+            suggestions = []
+        token_disp = str(no_match_token).strip()
+        if suggestions:
+            sugg_txt = " / ".join(suggestions)
+            answer = (
+                f"'{token_disp}'(으)로 시작하는 제품을 카탈로그에서 찾지 못했어요. "
+                f"유사한 실존 접두사로 찾아볼까요? **{sugg_txt}**"
+            )
+            chips = [f"{s}로 다시 검색" for s in suggestions[:3]]
+        else:
+            answer = (
+                f"'{token_disp}'(으)로 시작하는 제품이 YG-1 카탈로그에 없습니다. "
+                "코드를 다시 확인하시거나 가공 소재·공구 종류로 질문해 주세요."
+            )
+            chips = []
+        return {
+            "answer": answer,
+            "reasoning": f"no_match routing for prefix '{token_disp}' — {len(suggestions)} suggestions",
+            "chips": chips,
+            "refined_filters": None,
+            "cot_level": "deterministic",
+            "verified": True,
+        }
+
     level = _assess_cot_level(
         message, intent, products or [], knowledge or [], total_count, relaxed_fields,
         session=session,

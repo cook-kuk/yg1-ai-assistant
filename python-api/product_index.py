@@ -29,6 +29,18 @@ _DEFAULT_DIAMETER_TOLERANCE = _DIAMETER_TOLERANCE_CFG  # ±10%, matches search_p
 
 _NUMERIC_RE = re.compile(r"^-?\d+(?:\.\d+)?$")
 
+# ── Phase 0: full-catalog verify set ────────────────────────────────
+# The main _INDEX is milling-only (scoring/ranking depends on the
+# milling_outside_dia constraint). But routing verification for EDP /
+# series prefix detection needs visibility into the entire catalog —
+# UGM-series indexable tools live outside the milling subset and would
+# otherwise look "non-existent" to _detect_product_code. Kept as a
+# separate cache so ranking behavior is untouched.
+_VALID_EDPS_FULL: frozenset[str] | None = None
+_VALID_SERIES_FULL: frozenset[str] | None = None
+_VALID_PREFIX_SET: frozenset[str] | None = None
+_VERIFY_LOADED_AT: float = 0.0
+
 # Coatings in the MV are stored as composite strings ("TiCN+Al2O3+TiN",
 # "AlCrN/TiN"). The user usually asks for one layer ("TiCN"), so split on
 # +, /, -, whitespace and test for token subset inclusion.
@@ -159,6 +171,166 @@ def load_index() -> list[dict]:
             _INDEX = []
         _schedule_refresh()
     return _INDEX
+
+
+# ── Phase 0: full-catalog verify loaders ────────────────────────────
+# Drops the milling_outside_dia constraint so indexable / non-milling
+# families (UGM drills, BT holders, …) are visible to routing verification.
+# Kept lightweight — only pulls (edp_no, edp_series_name) columns.
+
+def _load_verify_sets() -> tuple[frozenset[str], frozenset[str]]:
+    """Return (edps, series) as uppercase frozensets. Empty on DB failure
+    so callers fall back to the milling-only index without crashing."""
+    try:
+        from db import fetch_all
+        rows = fetch_all(
+            """
+            SELECT DISTINCT
+              UPPER(BTRIM(edp_no))          AS edp_no,
+              UPPER(BTRIM(edp_series_name)) AS series
+            FROM catalog_app.product_recommendation_mv
+            WHERE edp_no IS NOT NULL
+            """
+        )
+    except Exception:
+        return frozenset(), frozenset()
+    edps: set[str] = set()
+    series: set[str] = set()
+    for r in rows:
+        e = r.get("edp_no")
+        s = r.get("series")
+        if e:
+            edps.add(str(e))
+        if s:
+            series.add(str(s))
+    return frozenset(edps), frozenset(series)
+
+
+def _derive_prefix_set(
+    edps: frozenset[str],
+    series: frozenset[str],
+    min_len: int = 3,
+    max_len: int = 8,
+) -> frozenset[str]:
+    """All alphabetic prefixes of edp/series tokens in [min_len, max_len].
+    Used to reject random EDP-shape tokens ("ZZZX") without scanning the
+    full edp set on every lookup."""
+    out: set[str] = set()
+    for source in (edps, series):
+        for tok in source:
+            if not tok:
+                continue
+            # Walk leading alpha run.
+            alpha_head = ""
+            for ch in tok:
+                if ch.isalpha():
+                    alpha_head += ch
+                else:
+                    break
+            if len(alpha_head) < min_len:
+                continue
+            for L in range(min_len, min(max_len, len(alpha_head)) + 1):
+                out.add(alpha_head[:L])
+    return frozenset(out)
+
+
+def _ensure_verify_loaded() -> None:
+    """TTL-gated hydration of verify sets. Lazy — first call pays DB cost."""
+    global _VALID_EDPS_FULL, _VALID_SERIES_FULL, _VALID_PREFIX_SET, _VERIFY_LOADED_AT
+    import time as _time
+    now = _time.time()
+    if (
+        _VALID_EDPS_FULL is not None
+        and _VALID_SERIES_FULL is not None
+        and now - _VERIFY_LOADED_AT <= _REFRESH_INTERVAL_SEC
+    ):
+        return
+    edps, series = _load_verify_sets()
+    with _LOCK:
+        _VALID_EDPS_FULL = edps
+        _VALID_SERIES_FULL = series
+        _VALID_PREFIX_SET = _derive_prefix_set(edps, series)
+        _VERIFY_LOADED_AT = now
+
+
+def get_valid_edps_full() -> frozenset[str]:
+    """Full-catalog EDP set (ignores milling-only constraint). Used by
+    main._detect_product_code and guard._is_safe for verification."""
+    _ensure_verify_loaded()
+    return _VALID_EDPS_FULL or frozenset()
+
+
+def get_valid_series_full() -> frozenset[str]:
+    """Full-catalog series_name set."""
+    _ensure_verify_loaded()
+    return _VALID_SERIES_FULL or frozenset()
+
+
+def get_valid_prefix_set() -> frozenset[str]:
+    """3..8-char alphabetic prefixes derivable from any known edp/series.
+    Cheap membership test for `startswith` legitimacy before scanning."""
+    _ensure_verify_loaded()
+    return _VALID_PREFIX_SET or frozenset()
+
+
+def find_similar_prefixes(query: str, top_n: int = 3) -> list[str]:
+    """Suggest the `top_n` most similar *existing* prefixes for an unknown
+    query token. Ranked by shared-leading-character count desc, then
+    alphabetically. Returns at most `top_n` entries; empty when no known
+    prefix shares ≥1 leading char."""
+    if not query:
+        return []
+    q = query.strip().upper()
+    if not q:
+        return []
+    candidates = get_valid_prefix_set()
+    if not candidates:
+        return []
+
+    def _common_head(a: str, b: str) -> int:
+        n = min(len(a), len(b))
+        i = 0
+        while i < n and a[i] == b[i]:
+            i += 1
+        return i
+
+    scored = [(_common_head(q, p), p) for p in candidates]
+    scored = [s for s in scored if s[0] >= 1]
+    scored.sort(key=lambda x: (-x[0], x[1]))
+    seen: set[str] = set()
+    out: list[str] = []
+    for _, p in scored:
+        if p in seen:
+            continue
+        seen.add(p)
+        out.append(p)
+        if len(out) >= top_n:
+            break
+    return out
+
+
+def refresh_verify_sets() -> None:
+    """Test hook + ops tool — force verify-set reload on next access."""
+    global _VALID_EDPS_FULL, _VALID_SERIES_FULL, _VALID_PREFIX_SET, _VERIFY_LOADED_AT
+    _VALID_EDPS_FULL = None
+    _VALID_SERIES_FULL = None
+    _VALID_PREFIX_SET = None
+    _VERIFY_LOADED_AT = 0.0
+
+
+def set_verify_sets(
+    edps: set[str] | frozenset[str],
+    series: set[str] | frozenset[str],
+) -> None:
+    """Test hook — inject verify sets directly, skip DB. Prefixes are
+    derived from the injected values so tests covering prefix routing
+    work without DB availability."""
+    global _VALID_EDPS_FULL, _VALID_SERIES_FULL, _VALID_PREFIX_SET, _VERIFY_LOADED_AT
+    import time as _time
+    _VALID_EDPS_FULL = frozenset(str(e).upper() for e in edps if e)
+    _VALID_SERIES_FULL = frozenset(str(s).upper() for s in series if s)
+    _VALID_PREFIX_SET = _derive_prefix_set(_VALID_EDPS_FULL, _VALID_SERIES_FULL)
+    _VERIFY_LOADED_AT = _time.time()
 
 
 def refresh() -> int:

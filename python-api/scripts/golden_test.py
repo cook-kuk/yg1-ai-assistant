@@ -342,6 +342,21 @@ def _compare_tool_material(exp_val: str, actual_filters: dict) -> bool:
     return exp_norm is not None and exp_norm == act_norm
 
 
+def _compare_product_code(exp_val: str, actual_filters: dict) -> bool:
+    """Match testset's `productCode=SEME75100E` against the SCR's
+    `reference_lookup` field. Both are alphanumeric EDP / catalog codes
+    so we compare on uppercase + stripped of separators (`-_./` etc).
+    A multi-value expectation ("A, B") passes if any member matches."""
+    act_raw = actual_filters.get("reference_lookup")
+    if not act_raw:
+        return False
+    act_norm = re.sub(r"[\s\-_./]+", "", str(act_raw)).upper()
+    options = [re.sub(r"[\s\-_./]+", "", opt).upper()
+               for opt in re.split(r"[,/]", exp_val) if opt.strip()]
+    return any(opt and (opt == act_norm or opt in act_norm or act_norm in opt)
+               for opt in options)
+
+
 def _compare_shank_type(exp_val: str, actual_filters: dict) -> bool:
     exp_s = (_norm_str(exp_val) or "").lower()
     act_s = (_norm_str(actual_filters.get("shank_type")) or "").lower()
@@ -448,9 +463,13 @@ SUPPORTED_COMPARATORS = {
     "overallLength": _compare_oal,
     "shankDiameter": _compare_shank_dia,
     "seriesName": _compare_series_name,
+    # SCR's reference_lookup field captures bare EDP / catalog codes
+    # (e.g. "SEME75100E 사진 보여줘") — promoted from UNSUPPORTED so
+    # the OTH-036…050 batch ("<EDP> 사진 보여줘") actually grades.
+    "productCode": _compare_product_code,
 }
 UNSUPPORTED_FIELDS = {
-    "countryCode", "cuttingType", "productCode",
+    "countryCode", "cuttingType",
     "totalStock", "country",
 }
 
