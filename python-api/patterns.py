@@ -151,6 +151,33 @@ FOLLOWUP_HINTS: tuple[str, ...] = (
 )
 
 # ══════════════════════════════════════════════════════════════════════
+# Korean transliteration → canonical brand name
+# ══════════════════════════════════════════════════════════════════════
+# The SCR prompt already lists these as brand hints, but the LLM misses
+# them occasionally. Deterministic pre-pass in main.py injects the
+# canonical brand when any of these strings appear in the raw message
+# AND SCR didn't set intent.brand. Keep the keys short — dict scan is
+# O(N) per request, and we want no false positives ("X-POWER 엑스파워"
+# in a random sentence would collide with a longer but unrelated token).
+BRAND_KR_ALIAS: dict[str, str] = {
+    "엑스파워": "X-POWER",
+    "엑스 파워": "X-POWER",
+    "알루파워": "ALU-POWER",
+    "알루 파워": "ALU-POWER",
+    "크룩스": "CRX S",
+    "크룩스 에스": "CRX S",
+    "크럭스": "CRX S",
+    "타이타녹스": "TitaNox-Power",
+    "타이타녹스 파워": "TitaNox-Power",
+    "쓰리에스밀": "3S MILL",
+    "쓰리에스 밀": "3S MILL",
+    "브이세븐": "V7 PLUS",
+    "브이 세븐": "V7 PLUS",
+    "비7 플러스": "V7 PLUS",
+}
+
+
+# ══════════════════════════════════════════════════════════════════════
 # Index dedupe — uncoated-tier coating labels
 # ══════════════════════════════════════════════════════════════════════
 # When product_recommendation_mv has multiple rows for the same EDP, we

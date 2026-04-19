@@ -218,6 +218,115 @@ function buildCandidatePaginationForRestore(
   }
 }
 
+
+// ── Stream callback factory ───────────────────────────────────────────
+// `streamRecommendationViaPython` accepts `{ onThinking, onCards }`; the
+// three submit handlers (NL / manual / intake) all want roughly the same
+// behaviour: route deep / agent / stage frames into the right ChatMsg lane
+// and mirror cards into both the side panel and the in-flight bubble.
+//
+// The handlers used to inline the same ~80 lines three times. Even with
+// just two flags (whether to flip reasoningVisibility, whether to mirror
+// cards inline) the dedup is worth it — every change to the streaming
+// contract had to land three times in lock-step or one path would drift.
+//
+// Flag semantics:
+//   * updateReasoningVisibility — sites 1 + 3 (NL turn / chip-driven
+//     turn) want the chevron to auto-open; site 2 (intake first turn)
+//     keeps it hidden because there's nothing to reason about yet.
+//   * inlineCards — site 3 (chip flow) renders the candidate cards
+//     inside the chat bubble too; sites 1 + 2 only update the side panel.
+function makeStreamCallbacks(deps: {
+  setChatMessages: React.Dispatch<React.SetStateAction<ChatMsg[]>>
+  setCandidateSnapshot: React.Dispatch<React.SetStateAction<RecommendationCandidateDto[] | null>>
+  setCandidatePagination: React.Dispatch<React.SetStateAction<RecommendationPaginationDto | null>>
+  setReferenceSnapshot: React.Dispatch<React.SetStateAction<RecommendationCandidateDto[] | null>>
+  setReferenceQuery: React.Dispatch<React.SetStateAction<string | null>>
+  updateReasoningVisibility?: boolean
+  inlineCards?: boolean
+}) {
+  const {
+    setChatMessages,
+    setCandidateSnapshot,
+    setCandidatePagination,
+    setReferenceSnapshot,
+    setReferenceQuery,
+    updateReasoningVisibility = true,
+    inlineCards = false,
+  } = deps
+
+  const onThinking = (text: string, opts?: { delta?: boolean; kind?: "stage" | "deep" | "agent" }) => {
+    setChatMessages(prev => {
+      const updated = [...prev]
+      const lastIndex = updated.length - 1
+      const last = updated[lastIndex]
+      if (!last || last.role !== "ai") return prev
+      const isDeep = opts?.kind === "deep"
+      const isAgent = opts?.kind === "agent"
+      if (isDeep) {
+        // delta:true → token append. delta:false → replace whole snapshot
+        // (Python's Strong-CoT partial_answer ships the *cumulative* draft;
+        // the old code appended every snapshot and bloated the trace 20×).
+        const prevDeep = last.thinkingDeep ?? ""
+        const nextDeep = opts?.delta ? prevDeep + text : text
+        updated[lastIndex] = updateReasoningVisibility
+          ? { ...last, thinkingDeep: nextDeep, reasoningVisibility: "full" }
+          : { ...last, thinkingDeep: nextDeep }
+      } else if (isAgent) {
+        const prevAgent = (last as { thinkingAgent?: string | null }).thinkingAgent ?? ""
+        const nextAgent = opts?.delta
+          ? prevAgent + text
+          : prevAgent
+            ? prevAgent.trimEnd() + "\n" + text
+            : text
+        updated[lastIndex] = updateReasoningVisibility
+          ? { ...last, thinkingAgent: nextAgent, reasoningVisibility: last.reasoningVisibility ?? "simple" }
+          : { ...last, thinkingAgent: nextAgent } as ChatMsg
+      } else {
+        const prevThinking = last.thinkingProcess ?? ""
+        const nextText = opts?.delta
+          ? prevThinking + text
+          : prevThinking
+            ? prevThinking.trimEnd() + "\n\n" + text
+            : text
+        updated[lastIndex] = updateReasoningVisibility
+          ? { ...last, thinkingProcess: nextText, reasoningVisibility: "simple" }
+          : { ...last, thinkingProcess: nextText }
+      }
+      return updated
+    })
+  }
+
+  const onCards = (partial: import("@/lib/contracts/recommendation").RecommendationResponseDto) => {
+    if (partial.candidates) setCandidateSnapshot(partial.candidates)
+    if (partial.pagination) setCandidatePagination(partial.pagination)
+    if (partial.referenceCandidates !== undefined) setReferenceSnapshot(partial.referenceCandidates ?? null)
+    if (partial.referenceQuery !== undefined) setReferenceQuery(partial.referenceQuery ?? null)
+    setChatMessages(prev => {
+      const updated = [...prev]
+      const lastIndex = updated.length - 1
+      const last = updated[lastIndex]
+      if (!last || last.role !== "ai") return prev
+      const next: ChatMsg = {
+        ...last,
+        recommendation: partial.recommendation ?? null,
+        evidenceSummaries: partial.evidenceSummaries ?? null,
+        primaryExplanation: partial.primaryExplanation ?? null,
+        primaryFactChecked: partial.primaryFactChecked ?? null,
+        altExplanations: partial.altExplanations ?? [],
+      }
+      if (inlineCards) {
+        next.candidateCards = dedupeCandidatesByProductCode(partial.candidates ?? last.candidateCards ?? null)
+        next.candidatePagination = partial.pagination ?? last.candidatePagination ?? null
+      }
+      updated[lastIndex] = next
+      return updated
+    })
+  }
+
+  return { onThinking, onCards }
+}
+
 function buildCandidateHighlights(candidates: RecommendationCandidateDto[] | null) {
   return (candidates ?? []).map(candidate => ({
     rank: candidate.rank,
@@ -555,75 +664,17 @@ export function useProductRecommendationPage({
       ])
       setPhase("explore")
 
-      const data = await streamRecommendationViaPython(requestPayload, {
-        onThinking: (text, opts) => {
-          setChatMessages(prev => {
-            const updated = [...prev]
-            const lastIndex = updated.length - 1
-            const last = updated[lastIndex]
-            if (!last || last.role !== "ai") return prev
-            // Three channels:
-            //   kind="deep"  → full LLM CoT → thinkingDeep (남색 토글 본문)
-            //   kind="agent" → 구조화된 판단 트레이스 → thinkingAgent (초록 토글 본문)
-            //   kind="stage" or undefined → heartbeat trail → thinkingProcess
-            const isDeep = opts?.kind === "deep"
-            const isAgent = opts?.kind === "agent"
-            if (isDeep) {
-              // For the "deep" lane:
-              //   delta: true  → streaming token delta, append.
-              //   delta: false → replace the whole snapshot (e.g. Python's
-              //                  Strong-CoT partial_answer frames carry the
-              //                  *cumulative* draft; the old branch appended
-              //                  every snapshot and bloated the reasoning
-              //                  trace 20× — 2026-04-19 regression).
-              const prevDeep = last.thinkingDeep ?? ""
-              const nextDeep = opts?.delta ? prevDeep + text : text
-              updated[lastIndex] = { ...last, thinkingDeep: nextDeep, reasoningVisibility: "full" } as any
-            } else if (isAgent) {
-              const prevAgent = (last as { thinkingAgent?: string | null }).thinkingAgent ?? ""
-              const nextAgent = opts?.delta
-                ? prevAgent + text
-                : prevAgent
-                  ? prevAgent.trimEnd() + "\n" + text
-                  : text
-              updated[lastIndex] = { ...last, thinkingAgent: nextAgent, reasoningVisibility: last.reasoningVisibility ?? "simple" } as any
-            } else {
-              const prevThinking = last.thinkingProcess ?? ""
-              const nextText = opts?.delta
-                ? prevThinking + text
-                : prevThinking
-                  ? prevThinking.trimEnd() + "\n\n" + text
-                  : text
-              updated[lastIndex] = { ...last, thinkingProcess: nextText, reasoningVisibility: "simple" }
-            }
-            return updated
-          })
-        },
-        onCards: partial => {
-          // Populate the right-side "추천 후보" panel as soon as the cards
-          // arrive — without this it only updates after the LLM narrative
-          // (and the awaited final DTO) finishes.
-          if (partial.candidates) setCandidateSnapshot(partial.candidates)
-          if (partial.pagination) setCandidatePagination(partial.pagination)
-          if (partial.referenceCandidates !== undefined) setReferenceSnapshot(partial.referenceCandidates ?? null)
-          if (partial.referenceQuery !== undefined) setReferenceQuery(partial.referenceQuery ?? null)
-          setChatMessages(prev => {
-            const updated = [...prev]
-            const lastIndex = updated.length - 1
-            const last = updated[lastIndex]
-            if (!last || last.role !== "ai") return prev
-            updated[lastIndex] = {
-              ...last,
-              recommendation: partial.recommendation ?? null,
-              evidenceSummaries: partial.evidenceSummaries ?? null,
-              primaryExplanation: partial.primaryExplanation ?? null,
-              primaryFactChecked: partial.primaryFactChecked ?? null,
-              altExplanations: partial.altExplanations ?? [],
-            }
-            return updated
-          })
-        },
-      })
+      const data = await streamRecommendationViaPython(
+        requestPayload,
+        makeStreamCallbacks({
+          setChatMessages,
+          setCandidateSnapshot,
+          setCandidatePagination,
+          setReferenceSnapshot,
+          setReferenceQuery,
+          updateReasoningVisibility: true,
+        }),
+      )
       if (data.error) throw new Error(data.detail ?? data.error)
 
       setSessionState(data.session.publicState ?? null)
@@ -706,59 +757,19 @@ export function useProductRecommendationPage({
       ])
       setPhase("explore")
 
-      const data = await streamRecommendationViaPython(requestPayload, {
-        onThinking: (text, opts) => {
-          setChatMessages(prev => {
-            const updated = [...prev]
-            const lastIndex = updated.length - 1
-            const last = updated[lastIndex]
-            if (!last || last.role !== "ai") return prev
-            // Two channels:
-            //   kind="deep" → full LLM CoT, lives in thinkingDeep (toggle body)
-            //   kind="stage" or undefined → high-level heartbeat, lives in thinkingProcess
-            const isDeep = opts?.kind === "deep"
-            if (isDeep) {
-              // Same replace-on-!delta rule as above (2026-04-19 regression).
-              const prevDeep = last.thinkingDeep ?? ""
-              const nextDeep = opts?.delta ? prevDeep + text : text
-              updated[lastIndex] = { ...last, thinkingDeep: nextDeep } as any
-            } else {
-              const prevThinking = last.thinkingProcess ?? ""
-              const nextText = opts?.delta
-                ? prevThinking + text
-                : prevThinking
-                  ? prevThinking.trimEnd() + "\n\n" + text
-                  : text
-              updated[lastIndex] = { ...last, thinkingProcess: nextText }
-            }
-            return updated
-          })
-        },
-        onCards: partial => {
-          // Populate the right-side "추천 후보" panel as soon as the cards
-          // arrive — without this it only updates after the LLM narrative
-          // (and the awaited final DTO) finishes.
-          if (partial.candidates) setCandidateSnapshot(partial.candidates)
-          if (partial.pagination) setCandidatePagination(partial.pagination)
-          if (partial.referenceCandidates !== undefined) setReferenceSnapshot(partial.referenceCandidates ?? null)
-          if (partial.referenceQuery !== undefined) setReferenceQuery(partial.referenceQuery ?? null)
-          setChatMessages(prev => {
-            const updated = [...prev]
-            const lastIndex = updated.length - 1
-            const last = updated[lastIndex]
-            if (!last || last.role !== "ai") return prev
-            updated[lastIndex] = {
-              ...last,
-              recommendation: partial.recommendation ?? null,
-              evidenceSummaries: partial.evidenceSummaries ?? null,
-              primaryExplanation: partial.primaryExplanation ?? null,
-              primaryFactChecked: partial.primaryFactChecked ?? null,
-              altExplanations: partial.altExplanations ?? [],
-            }
-            return updated
-          })
-        },
-      })
+      const data = await streamRecommendationViaPython(
+        requestPayload,
+        makeStreamCallbacks({
+          setChatMessages,
+          setCandidateSnapshot,
+          setCandidatePagination,
+          setReferenceSnapshot,
+          setReferenceQuery,
+          // Intake-first turn: no reasoning toggle yet (the user hasn't
+          // asked a question to reason about — just the initial form).
+          updateReasoningVisibility: false,
+        }),
+      )
       if (data.error) throw new Error(data.detail ?? data.error)
 
       setSessionState(data.session.publicState ?? null)
@@ -858,80 +869,21 @@ export function useProductRecommendationPage({
       // Progressive cards (TODO-B): SSE flushes a partial DTO before the LLM
       // narrative arrives so cards render immediately. onCards updates the
       // pending AI message in place; the awaited result is still the final DTO.
-      const data = await streamRecommendationViaPython(requestPayload, {
-        onThinking: (text, opts) => {
-          setChatMessages(prev => {
-            const updated = [...prev]
-            const lastIndex = updated.length - 1
-            const last = updated[lastIndex]
-            if (!last || last.role !== "ai") return prev
-            // Three channels:
-            //   kind="deep"  → full LLM CoT → thinkingDeep (남색 토글 본문)
-            //   kind="agent" → 구조화된 판단 트레이스 → thinkingAgent (초록 토글 본문)
-            //   kind="stage" or undefined → heartbeat trail → thinkingProcess
-            const isDeep = opts?.kind === "deep"
-            const isAgent = opts?.kind === "agent"
-            if (isDeep) {
-              // For the "deep" lane:
-              //   delta: true  → streaming token delta, append.
-              //   delta: false → replace the whole snapshot (e.g. Python's
-              //                  Strong-CoT partial_answer frames carry the
-              //                  *cumulative* draft; the old branch appended
-              //                  every snapshot and bloated the reasoning
-              //                  trace 20× — 2026-04-19 regression).
-              const prevDeep = last.thinkingDeep ?? ""
-              const nextDeep = opts?.delta ? prevDeep + text : text
-              updated[lastIndex] = { ...last, thinkingDeep: nextDeep, reasoningVisibility: "full" } as any
-            } else if (isAgent) {
-              const prevAgent = (last as { thinkingAgent?: string | null }).thinkingAgent ?? ""
-              const nextAgent = opts?.delta
-                ? prevAgent + text
-                : prevAgent
-                  ? prevAgent.trimEnd() + "\n" + text
-                  : text
-              updated[lastIndex] = { ...last, thinkingAgent: nextAgent, reasoningVisibility: last.reasoningVisibility ?? "simple" } as any
-            } else {
-              const prevThinking = last.thinkingProcess ?? ""
-              const nextText = opts?.delta
-                ? prevThinking + text
-                : prevThinking
-                  ? prevThinking.trimEnd() + "\n\n" + text
-                  : text
-              updated[lastIndex] = { ...last, thinkingProcess: nextText, reasoningVisibility: "simple" }
-            }
-            return updated
-          })
-        },
-        onCards: partial => {
-          // Populate the right-side "추천 후보" panel as soon as the cards
-          // arrive — without this it only updates after the LLM narrative
-          // (and the awaited final DTO) finishes.
-          if (partial.candidates) setCandidateSnapshot(partial.candidates)
-          if (partial.pagination) setCandidatePagination(partial.pagination)
-          if (partial.referenceCandidates !== undefined) setReferenceSnapshot(partial.referenceCandidates ?? null)
-          if (partial.referenceQuery !== undefined) setReferenceQuery(partial.referenceQuery ?? null)
-          setChatMessages(prev => {
-            const updated = [...prev]
-            const lastIndex = updated.length - 1
-            const last = updated[lastIndex]
-            if (!last || last.role !== "ai") return prev
-            updated[lastIndex] = {
-              ...last,
-              recommendation: partial.recommendation ?? null,
-              evidenceSummaries: partial.evidenceSummaries ?? null,
-              primaryExplanation: partial.primaryExplanation ?? null,
-              primaryFactChecked: partial.primaryFactChecked ?? null,
-              altExplanations: partial.altExplanations ?? [],
-              // Inline cards render in the chat flow as soon as the stream
-              // flushes them — no waiting for the LLM narrative or a CTA click.
-              candidateCards: dedupeCandidatesByProductCode(partial.candidates ?? last.candidateCards ?? null),
-              candidatePagination: partial.pagination ?? last.candidatePagination ?? null,
-              // keep isLoading=true so the typewriter still shows once text arrives
-            }
-            return updated
-          })
-        },
-      })
+      const data = await streamRecommendationViaPython(
+        requestPayload,
+        makeStreamCallbacks({
+          setChatMessages,
+          setCandidateSnapshot,
+          setCandidatePagination,
+          setReferenceSnapshot,
+          setReferenceQuery,
+          updateReasoningVisibility: true,
+          // Chip-driven turn: mirror cards into the chat bubble too
+          // (not just the side panel) so the user sees product cards
+          // inline without clicking the "제품 보기" CTA.
+          inlineCards: true,
+        }),
+      )
       if (data.error) throw new Error(data.detail ?? data.error)
       console.log("[chip-groups:client:response]", {
         purpose: data.purpose,

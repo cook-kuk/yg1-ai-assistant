@@ -723,6 +723,21 @@ def _auto_inject_excellent_brand(intent, message: Optional[str]) -> None:
 _PRODUCT_CODE_RE = re.compile(r"(?<![A-Z0-9])([A-Z][A-Z0-9]{1,5}\d{2,7}(?:[\-_]?\d{1,4})?)(?![A-Z0-9])")
 
 
+def _apply_brand_kr_alias(message: Optional[str], intent) -> None:
+    """When SCR didn't populate intent.brand but the raw message contains a
+    Korean-transliteration brand token ("엑스파워" → X-POWER), inject the
+    canonical brand directly. Deterministic — runs after SCR so it doesn't
+    override when the LLM actually extracted a brand. No-op if SCR already
+    set a brand OR no alias appears in the message."""
+    if not message or getattr(intent, "brand", None):
+        return
+    from patterns import BRAND_KR_ALIAS
+    for kr, canonical in BRAND_KR_ALIAS.items():
+        if kr in message:
+            intent.brand = canonical
+            return
+
+
 def _detect_product_code(message: Optional[str]) -> Optional[tuple[str, str]]:
     """Extract a product-code token and route it to the right filter:
       - ("edp_no", code)  when the token matches a full EDP in the index
@@ -898,18 +913,25 @@ async def products(req: ProductsRequest) -> ProductsResponse:
     #       via intent.reference_lookup / reference_products. This matches
     #       the user-requested "두 층" UX — prior ranked list on top,
     #       independent peek below.
-    detected_edp = _detect_product_code(req.message) if req.message else None
+    _code = _detect_product_code(req.message) if req.message else None
+    detected_edp = _code[1] if _code and _code[0] == "edp_no" else None
+    detected_series = _code[1] if _code and _code[0] == "series" else None
+    # Korean-transliteration brand fallback — runs BEFORE carry_forward
+    # so a carried intent.brand from a prior turn doesn't block the alias
+    # injection. No-op if SCR already extracted a brand.
+    _apply_brand_kr_alias(req.message, intent)
     has_prior_filters = bool(getattr(session, "current_filters", None))
-    if detected_edp and not has_prior_filters:
+    if _code and not has_prior_filters:
         session.current_filters.clear()  # preserved for safety; no-op in fresh sessions
     else:
         # Fill unset intent fields from the session's carried context so
         # abbreviated follow-ups still know the material/diameter from turn 1.
         carry_forward_intent(session, intent)
-        if detected_edp:
-            # Peek mode — don't let edp_no hijack the main filter dict; the
-            # reference_lookup path handles surfacing the card.
+        if _code:
+            # Peek mode — don't let edp_no / series hijack the main filter
+            # dict; the reference_lookup path handles surfacing the card.
             detected_edp = None
+            detected_series = None
 
     # Anaphoric follow-up override — "이 중에서 …" after a result-bearing turn
     # is always a recommendation narrow, even when the parser misroutes the
@@ -1025,7 +1047,7 @@ async def products(req: ProductsRequest) -> ProductsResponse:
     # endpoint and /products/stream use, so every search path carries
     # the same intent+ManualFilters coverage without field-level drift.
     def _build_filters() -> dict:
-        return _filters_to_dict(req.filters, intent, edp_no=detected_edp)
+        return _filters_to_dict(req.filters, intent, edp_no=detected_edp, series=detected_series)
 
     def _run_search() -> list[dict]:
         filt = _build_filters()
@@ -1179,7 +1201,7 @@ async def products(req: ProductsRequest) -> ProductsResponse:
     ]
 
     # 4. Live-toggle facets — in-memory GROUP BY, no DB per-field round-trip.
-    filter_dict = _filters_to_dict(req.filters, intent, edp_no=detected_edp)
+    filter_dict = _filters_to_dict(req.filters, intent, edp_no=detected_edp, series=detected_series)
     available: dict[str, list[FilterOption]] = {}
     for f in _TOGGLE_FIELDS:
         try:
@@ -1572,14 +1594,19 @@ async def products_stream(req: ProductsRequest):
         # when the user types an explicit product code. Mid-session peek
         # (prior filters carried) keeps the carried filters and routes the
         # EDP through reference_lookup instead of hijacking the main list.
-        detected_edp = _detect_product_code(req.message) if req.message else None
+        _code = _detect_product_code(req.message) if req.message else None
+        detected_edp = _code[1] if _code and _code[0] == "edp_no" else None
+        detected_series = _code[1] if _code and _code[0] == "series" else None
+        # Korean-transliteration brand fallback — same rationale as sync.
+        _apply_brand_kr_alias(req.message, intent)
         has_prior_filters_stream = bool(getattr(session, "current_filters", None))
-        if detected_edp and not has_prior_filters_stream:
+        if _code and not has_prior_filters_stream:
             session.current_filters.clear()
         else:
             carry_forward_intent(session, intent)
-            if detected_edp:
+            if _code:
                 detected_edp = None
+                detected_series = None
 
         # Anaphoric follow-up override — see sync /products for rationale.
         _force_recommendation_on_followup(intent, req.message, session)
@@ -1650,7 +1677,7 @@ async def products_stream(req: ProductsRequest):
             # stays uniform across every search surface. Previously the
             # stream branch maintained its own inline dict that drifted
             # behind _filters_to_dict.
-            filters = _filters_to_dict(req.filters, intent, edp_no=detected_edp)
+            filters = _filters_to_dict(req.filters, intent, edp_no=detected_edp, series=detected_series)
             if needs_db_path(filters):
                 rows = search_products(
                     **{k: v for k, v in filters.items()
@@ -1752,7 +1779,7 @@ async def products_stream(req: ProductsRequest):
             "refined_filters": None,
         }
         if req.message:
-            stream_filter_dict = _filters_to_dict(req.filters, intent, edp_no=detected_edp)
+            stream_filter_dict = _filters_to_dict(req.filters, intent, edp_no=detected_edp, series=detected_series)
             try:
                 clarify_payload_stream = await asyncio.to_thread(
                     suggest_clarifying_chips, stream_filter_dict,
@@ -1840,7 +1867,7 @@ async def products_stream(req: ProductsRequest):
         # dict (SCRIntent + merged ManualFilter fields) so pagination /
         # carry-forward doesn't silently drop UI-only scopes.
         edp_list = [c.get("edp_no") for c, _, _ in ranked[:PREVIOUS_PRODUCTS_CAP] if c.get("edp_no")]
-        stream_effective_filters = _filters_to_dict(req.filters, intent, edp_no=detected_edp)
+        stream_effective_filters = _filters_to_dict(req.filters, intent, edp_no=detected_edp, series=detected_series)
         intent_dump = {
             "intent": intent.intent,
             **intent.model_dump(exclude_none=True),
