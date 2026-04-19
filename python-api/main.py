@@ -966,6 +966,13 @@ async def products(req: ProductsRequest) -> ProductsResponse:
     # "떨림이 심해 ㅠ" from surfacing arbitrary products just because the user
     # opened with it.
     intent_value = (getattr(intent, "intent", None) or "recommendation")
+    # When the user typed an explicit product code / series ("UGMG34919",
+    # "E5H22 시리즈"), force a recommendation route even if SCR classified
+    # it as domain_knowledge. A product code is a product lookup — we
+    # should return products, not drop into a knowledge-only CoT.
+    if (detected_edp or detected_series) and intent_value in ("general_question", "domain_knowledge"):
+        intent_value = "recommendation"
+        intent.intent = "recommendation"
     if intent_value in ("general_question", "domain_knowledge"):
         # Knowledge was already fetched in parallel with parse_intent above.
         # General-question prompts deliberately drop it so off-topic CoT
@@ -1623,6 +1630,12 @@ async def products_stream(req: ProductsRequest):
         # filters.filters.intent from the event above. See /products sync
         # endpoint for rationale.
         intent_value = (getattr(intent, "intent", None) or "recommendation")
+        # Explicit product code / series forces a recommendation route even
+        # if SCR misclassified the query as domain_knowledge. Mirrors the
+        # sync /products fix — user typed a code, they want products.
+        if (detected_edp or detected_series) and intent_value in ("general_question", "domain_knowledge"):
+            intent_value = "recommendation"
+            intent.intent = "recommendation"
         if intent_value in ("general_question", "domain_knowledge"):
             # Knowledge was already fetched in parallel with parse_intent above.
             # Drop it for general_question so off-topic CoT stays clean.

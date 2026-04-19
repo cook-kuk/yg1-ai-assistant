@@ -231,15 +231,17 @@ def _matches(p: dict, f: dict) -> bool:
     if v and not _coating_match(p.get("coating"), v):
         return False
 
-    # Brand match — hyphen/space/underscore insensitive. "ALUPOWER" must
-    # match "ALU-POWER" so users who type the brand without punctuation
-    # still get the same results. Applied only to brand since shank/tool
-    # canonical strings are fixed vocabularies where punctuation is real.
+    # Brand match — hyphen/space/underscore insensitive, PREFIX anchored.
+    # "ALU-POWER" query matches "ALU-POWER" and "ALU-POWER HPC" (both
+    # start with ALUPOWER), but "X-POWER" doesn't leak into
+    # "TitaNox-Power" just because "XPOWER" is a substring of
+    # "TITANOXPOWER". Substring would over-match; prefix gives the
+    # expected "start of brand" semantics customers reach for.
     brand_filter = f.get("brand")
     if brand_filter:
         needle = _strip_brand_punct(str(brand_filter))
         actual = _strip_brand_punct(str(p.get("brand") or ""))
-        if needle and needle not in actual:
+        if needle and not actual.startswith(needle):
             return False
 
     # Series substring — wire for queries like "E5H22 시리즈" or "GMF52
