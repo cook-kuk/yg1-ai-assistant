@@ -369,7 +369,8 @@ SYSTEM_PROMPT_TEMPLATE = """너는 공작기계 절삭공구 추천 시스템의
   "intent": string,              // "recommendation" | "general_question" | "domain_knowledge" (필수)
   "diameter": number|null,       // mm 단위 공구 직경
   "flute_count": integer|null,   // 날수
-  "material_tag": string|null,   // ISO: P/M/K/N/S/H/O
+  "material_tag": string|null,   // ISO 그룹: P/M/K/N/S/H/O
+  "workpiece_name": string|null, // 구체 피삭재명 (구리/알루미늄/티타늄/인코넬/SUS304 ...). material_tag와 함께 나와야 함.
   "tool_type": string|null,      // "Solid" | "Indexable_Tools"
   "subtype": string|null,        // "Ball" / "Square" / "Corner Radius" / "Taper" / "Chamfer" / "High-Feed" / "Roughing"
   "brand": string|null,          // 사용자 언급 브랜드
@@ -395,8 +396,37 @@ intent 판별 (반드시 포함):
   "Ball이랑 Square 차이가 뭐야" → intent="domain_knowledge", 나머지 전부 null
   "항공용 tool 추천"           → intent="domain_knowledge", 나머지 전부 null (항공용은 DB 필터가 아님)
   "TiAlN 코팅 특징 설명해줘"   → intent="domain_knowledge", 나머지 전부 null
-  "수스 10mm 4날"              → intent="recommendation", material_tag="M", diameter=10, flute_count=4
-  "CRX-S 알루미늄용 추천"      → intent="recommendation", brand="CRX-S", material_tag="N"
+  "수스 10mm 4날"              → intent="recommendation", material_tag="M", workpiece_name="스테인리스강", diameter=10, flute_count=4
+  "CRX-S 알루미늄용 추천"      → intent="recommendation", brand="CRX-S", material_tag="N", workpiece_name="알루미늄"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+구체 피삭재 (workpiece_name) vs ISO 그룹 (material_tag) — 반드시 **둘 다** 채울 것:
+
+material_tag 는 ISO 7계 그룹(P/M/K/N/S/H/O) 한 글자. 같은 N군이어도 구리냐 알루미늄이냐에
+따라 추천 브랜드가 완전히 달라지므로, 사용자가 **구체 재료명**을 말하면 workpiece_name
+에도 함께 넣는다. canonical 값(아래 목록) 우선, 없으면 사용자 표기 그대로.
+
+비철(N):  구리 / 알루미늄 / 황동 / 청동 / 마그네슘 / 두랄루민
+내열(S):  티타늄 / 인코넬 / 하스텔로이 / 모넬 / 스텔라이트 / 니모닉 / 와스팔로이 / 내열합금
+스테(M):  스테인리스 / 스테인리스강 / SUS304 / SUS316 / SUS316L / SUS420 / SUS630 / 17-4PH / duplex / inox
+강(P):   탄소강 / 합금강 / 구조용강 / 공구강 / S45C / S50C / SM45C / SCM415 / SCM440
+주철(K): 주철 / 회주철 / 구상흑연주철 / 가단주철 / FC200 / FCD400 / 덕타일
+경화(H): 경화강 / 열처리강 / 고경도강 / 금형강 / SKD11 / SKD61 / HPM / STAVAX / H13 / D2
+기타(O): CFRP / GFRP / 복합재 / 아크릴 / 플라스틱 / 그라파이트 / 흑연 / 세라믹
+
+예시:
+  "구리 10mm 추천"            → workpiece_name="구리", material_tag="N"
+  "SUS304 4날"                → workpiece_name="SUS304", material_tag="M"
+  "인코넬 황삭"               → workpiece_name="인코넬", material_tag="S"
+  "S45C 6mm"                  → workpiece_name="S45C", material_tag="P"
+  "수스 10mm"                 → workpiece_name="스테인리스강", material_tag="M"  (축약은 canonical 로 정규화)
+  "알루미늄 SUS304 혼합"      → workpiece_name="알루미늄", material_tag="N"    (**먼저** 언급된 것 우선)
+  "금속 가공"                 → workpiece_name=null, material_tag=null         (추상 표현은 null)
+
+규칙:
+  - material_tag 만 채우고 workpiece_name 을 null 로 두지 말 것. 구체 이름이 있으면 둘 다 채움.
+  - 반대로, 구체 이름이 없고 ISO 만 유추 가능한 경우는 material_tag 만 채우고 workpiece_name=null 허용.
+    (예: "피삭재 N군 공구" → material_tag="N", workpiece_name=null)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ISO 재질 그룹 매핑 (material_tag):
@@ -583,13 +613,13 @@ Bright Finish · Uncoated
 예시 입출력:
 
 입력: "sus304 5날 스퀘어"
-출력: {"diameter":null,"flute_count":5,"material_tag":"M","tool_type":"Solid","subtype":"Square","brand":null,"coating":null,"tool_material":null,"shank_type":null}
+출력: {"intent":"recommendation","diameter":null,"flute_count":5,"material_tag":"M","workpiece_name":"SUS304","tool_type":"Solid","subtype":"Square","brand":null,"coating":null,"tool_material":null,"shank_type":null}
 
 입력: "2날 볼 6mm"
-출력: {"diameter":6,"flute_count":2,"material_tag":null,"tool_type":"Solid","subtype":"Ball","brand":null,"coating":null,"tool_material":null,"shank_type":null}
+출력: {"intent":"recommendation","diameter":6,"flute_count":2,"material_tag":null,"workpiece_name":null,"tool_type":"Solid","subtype":"Ball","brand":null,"coating":null,"tool_material":null,"shank_type":null}
 
-입력: "4G MILL 10mm DLC"
-출력: {"diameter":10,"flute_count":null,"material_tag":null,"tool_type":"Solid","subtype":null,"brand":"4G MILL","coating":"DLC","tool_material":null,"shank_type":null}
+입력: "4G MILL 10mm DLC 구리"
+출력: {"intent":"recommendation","diameter":10,"flute_count":null,"material_tag":"N","workpiece_name":"구리","tool_type":"Solid","subtype":null,"brand":"4G MILL","coating":"DLC","tool_material":null,"shank_type":null}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 - 출력은 JSON 하나만. 설명 텍스트 · 마크다운 · 코드펜스 금지."""
@@ -761,6 +791,7 @@ def parse_intent(message: str) -> SCRIntent:
         diameter=data.get("diameter"),
         flute_count=data.get("flute_count"),
         material_tag=data.get("material_tag") or pre_material,
+        workpiece_name=data.get("workpiece_name"),
         tool_type=data.get("tool_type"),
         subtype=resolved_subtype,
         brand=final_brand,

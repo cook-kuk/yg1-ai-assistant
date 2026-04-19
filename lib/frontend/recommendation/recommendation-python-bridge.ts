@@ -123,6 +123,7 @@ function formatFilterStage(intent: Record<string, unknown> | null): string | nul
     bits.push(`${label}=${v}`)
   }
   push("소재", intent.material_tag)
+  push("세부 피삭재", intent.workpiece_name)
   push("직경", intent.diameter)
   push("날수", intent.flute_count)
   push("형상", intent.subtype)

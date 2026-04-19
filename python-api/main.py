@@ -35,6 +35,7 @@ from search import (
     get_filter_options,
 )
 from scoring import rank_candidates
+from affinity import list_excellent_brands
 from guard import scrub
 from rag import search_knowledge
 from chat import generate_response
@@ -223,6 +224,7 @@ def _filters_to_dict(filters: ManualFilters | None, intent: SCRIntent) -> dict:
         "diameter": intent.diameter,
         "flute_count": intent.flute_count,
         "material_tag": intent.material_tag,
+        "workpiece_name": intent.workpiece_name,
         "tool_type": intent.tool_type,
         "subtype": intent.subtype,
         "brand": intent.brand,
@@ -231,6 +233,8 @@ def _filters_to_dict(filters: ManualFilters | None, intent: SCRIntent) -> dict:
         "shank_type": intent.shank_type,
     }
     if filters:
+        if filters.workpiece_name is not None:
+            base["workpiece_name"] = filters.workpiece_name
         if filters.machining_category is not None:
             base["machining_category"] = filters.machining_category
         if filters.application_shape is not None:
@@ -308,6 +312,54 @@ def _should_narrow_by_previous(message: Optional[str], intent, session) -> bool:
         if carried.get(field) is None:
             return True
     return False
+
+
+def _auto_inject_excellent_brand(intent, message: Optional[str]) -> None:
+    """Fast-path brand auto-injection (TS phase 4+5 port).
+
+    Condition:
+      * intent.intent == 'recommendation' (parser classified as product search)
+      * intent.brand is empty (user didn't name a brand)
+      * intent has workpiece_name or a non-ferrous/heat-resistant ISO tag
+      * at least one EXCELLENT (score ≥ 80) brand exists for that key
+      * no excluded brand on the user's message overlaps our pick
+
+    Effect: mutate intent.brand to the top EXCELLENT candidate so the
+    downstream search treats it as a hard filter. The /products relax loop
+    will back this off if combined with other filters it returns 0 rows —
+    so aggressive injection is safe, never a dead-end.
+
+    Non-ferrous gating (N / S) mirrors TS Phase 5: for 'P/M/K/H' the
+    EXCELLENT-brand list is broad enough that hard-filtering hurts recall.
+    Workpiece-name presence overrides this gate — if the user named a
+    specific material we trust them to want the specialist brand."""
+    if getattr(intent, "intent", None) != "recommendation":
+        return
+    if intent.brand:
+        return
+    wp_name = getattr(intent, "workpiece_name", None)
+    if not wp_name:
+        return
+    # Strict gate — only inject when the workpiece name canonicalizes to a
+    # DB key (ALUMINUM / COPPER / TITANIUM) so non-ferrous/heat-resistant
+    # specialist brands surface. SUS304 / 탄소강 / 주철 / 고경도강 all
+    # return None from canonicalize_workpiece_key and fall through to the
+    # generic ranker — avoids over-filtering ferrous queries where the
+    # EXCELLENT-brand list isn't precise enough to hard-filter on.
+    from affinity import canonicalize_workpiece_key
+    if not canonicalize_workpiece_key(wp_name):
+        return
+    picks = list_excellent_brands(workpiece_name=wp_name, material_tag=None)
+    if not picks:
+        return
+    excluded = set()
+    if message:
+        excluded = {b.lower() for b in _detect_excluded_brands(message)}
+    for brand in picks:
+        if brand.lower() in excluded:
+            continue
+        intent.brand = brand
+        return
 
 
 def _detect_excluded_brands(message: str) -> list[str]:
@@ -420,6 +472,17 @@ def products(req: ProductsRequest) -> ProductsResponse:
     # abbreviated follow-ups still know the material/diameter from turn 1.
     carry_forward_intent(session, intent)
 
+    # Brand affinity auto-inject (TS Phase 4+5 port). When the user specified
+    # a material (구리/알루미늄/티타늄 or ISO) but NO brand, surface the
+    # EXCELLENT-tier brand for that material as a hard filter — else a
+    # commodity brand can outrank the specialist one on diameter/flute match
+    # alone. Non-ferrous-only so we don't over-constrain steel queries where
+    # the EXCELLENT-brand list is broader. Skipped when the user negated a
+    # brand elsewhere in the message (that's a user choice, not ours to
+    # override). Relax loop below will back it off if the injected brand
+    # returns 0 hits against the user's other filters.
+    _auto_inject_excellent_brand(intent, req.message)
+
     # Source-attribution log. Each stage appends a record the UI can show.
     sources: list[SourceAttribution] = [
         SourceAttribution(
@@ -479,6 +542,7 @@ def products(req: ProductsRequest) -> ProductsResponse:
             "diameter": intent.diameter,
             "flute_count": intent.flute_count,
             "material_tag": intent.material_tag,
+            "workpiece_name": intent.workpiece_name,
             "subtype": intent.subtype,
             "brand": intent.brand,
             "coating": intent.coating,
@@ -735,6 +799,7 @@ def products(req: ProductsRequest) -> ProductsResponse:
         "diameter": intent.diameter,
         "flute_count": intent.flute_count,
         "material_tag": intent.material_tag,
+        "workpiece_name": intent.workpiece_name,
         "subtype": intent.subtype,
         "brand": intent.brand,
         "coating": intent.coating,
@@ -885,6 +950,7 @@ async def products_stream(req: ProductsRequest):
             intent = SCRIntent(
                 diameter=req.filters.diameter,
                 material_tag=req.filters.material_tag,
+                workpiece_name=req.filters.workpiece_name,
                 subtype=req.filters.subtype,
                 flute_count=req.filters.flute_count,
                 coating=req.filters.coating,
@@ -913,6 +979,11 @@ async def products_stream(req: ProductsRequest):
             _apply_brand_exclusions(session, intent, _detect_excluded_brands(req.message))
 
         carry_forward_intent(session, intent)
+
+        # Same auto-inject as sync /products — stream path must emit the same
+        # EXCELLENT brand for 구리/알루미늄/티타늄 queries so the UI sees
+        # CRX-S / ALU-CUT / TitaNox-Power in the filters event, not null.
+        _auto_inject_excellent_brand(intent, req.message)
 
         yield f"event: filters\ndata: {_json.dumps({'filters': intent.model_dump(), 'route': route, 'session_id': session.session_id}, ensure_ascii=False)}\n\n"
 

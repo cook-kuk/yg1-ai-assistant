@@ -10,7 +10,8 @@ class SCRIntent(BaseModel):
     intent: Optional[str] = None         # "recommendation" | "general_question" | "domain_knowledge"
     diameter: Optional[float] = None
     flute_count: Optional[int] = None
-    material_tag: Optional[str] = None
+    material_tag: Optional[str] = None   # ISO group (P/M/K/N/S/H/O)
+    workpiece_name: Optional[str] = None # Specific material (구리/알루미늄/인코넬/SUS304 ...) — UI 세부 피삭재
     tool_type: Optional[str] = None
     subtype: Optional[str] = None
     brand: Optional[str] = None
@@ -60,6 +61,7 @@ class ManualFilters(BaseModel):
     (purpose, machining_category, application_shape, country, coolant_hole)."""
     purpose: Optional[str] = None
     material_tag: Optional[str] = None
+    workpiece_name: Optional[str] = None
     machining_category: Optional[str] = None
     application_shape: Optional[str] = None
     diameter: Optional[float] = None

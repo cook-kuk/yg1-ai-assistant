@@ -132,23 +132,45 @@ def _load_affinity() -> dict[tuple[str, str], tuple[str, float]]:
     return _AFFINITY_CACHE
 
 
-def get_affinity_boost(brand: Optional[str], material_tag: Optional[str]) -> float:
-    """Flat additive boost based on the affinity `rating` label. Returns
-    SCORING_CONFIG["affinity_excellent"] / "_good" / "_fair" or 0."""
-    if not brand or not material_tag:
-        return 0.0
-    cache = _load_affinity()
-    key = (str(brand).strip().upper(), str(material_tag).strip().upper())
-    entry = cache.get(key)
-    if not entry:
-        return 0.0
-    rating = (entry[0] or "").upper()
-    if "EXCELLENT" in rating:
+def _score_to_tier_bonus(score: float) -> float:
+    """Map a unified 0..100 affinity score to the tier bonus. Thresholds mirror
+    the TS side (brand-material-affinity-repo + series-material-status): ≥80
+    is EXCELLENT, 40..79 GOOD, 10..39 FAIR, below is no boost."""
+    if score >= 80.0:
         return float(SCORING_CONFIG["affinity_excellent"])
-    if "GOOD" in rating:
+    if score >= 40.0:
         return float(SCORING_CONFIG["affinity_good"])
-    if "FAIR" in rating:
+    if score >= 10.0:
         return float(SCORING_CONFIG["affinity_fair"])
+    return 0.0
+
+
+def get_affinity_boost(
+    brand: Optional[str],
+    workpiece_name: Optional[str] = None,
+    material_tag: Optional[str] = None,
+) -> float:
+    """Additive boost based on brand × (workpiece_name | ISO) affinity.
+
+    Uses affinity.get_affinity (the unified 0..100 cache from affinity.py):
+    workpiece_name first — same brand can be EXCELLENT for 구리 but only
+    GOOD for 알루미늄 within ISO group N. ISO fallback covers the case
+    where the LLM only emitted the ISO group.
+
+    Returns SCORING_CONFIG["affinity_excellent"] / "_good" / "_fair" / 0."""
+    if not brand:
+        return 0.0
+    # Workpiece — higher resolution, preferred. Covers Korean/English/slang
+    # via affinity.get_affinity's substring fallback.
+    if workpiece_name:
+        score = get_affinity(brand, workpiece_name)
+        if score > 0:
+            return _score_to_tier_bonus(score)
+    # ISO group fallback — coarser but catches generic queries ("피삭재 N군").
+    if material_tag:
+        score = get_affinity(brand, material_tag)
+        if score > 0:
+            return _score_to_tier_bonus(score)
     return 0.0
 
 
@@ -185,15 +207,26 @@ def _flutes_score(intent: Optional[int], actual_raw) -> Optional[float]:
     return max(0.0, 1.0 - abs(actual - intent) / max(intent, 1))
 
 
-def _material_score(intent: Optional[str], material_tags, brand: Optional[str]) -> Optional[float]:
+def _material_score(
+    intent: Optional[str],
+    material_tags,
+    brand: Optional[str],
+    workpiece_name: Optional[str] = None,
+) -> Optional[float]:
     if not intent:
         return None
     tags = material_tags or []
     base = 1.0 if intent in tags else 0.0
     if not brand:
         return base
-    boost = get_affinity(brand, intent) / 100.0
-    boost = min(max(boost, 0.0), 1.0)
+    # Workpiece-keyed affinity first (0..100 scale, e.g. ALU-CUT × ALUMINUM=100).
+    # ISO fallback for coarse queries. Score normalized to 0..1 for sub-score use.
+    raw = 0.0
+    if workpiece_name:
+        raw = get_affinity(brand, workpiece_name)
+    if raw <= 0:
+        raw = get_affinity(brand, intent)
+    boost = min(max(raw / 100.0, 0.0), 1.0)
     return 0.5 * base + 0.5 * boost
 
 
@@ -214,10 +247,14 @@ def _coating_score(intent: Optional[str], actual: Optional[str]) -> Optional[flo
 
 
 def score_candidate(candidate: dict, intent) -> tuple[float, dict[str, float]]:
+    wp_name = getattr(intent, "workpiece_name", None)
     subs: dict[str, Optional[float]] = {
         "diameter": _diameter_score(intent.diameter, _safe_float(candidate.get("diameter"))),
         "flutes": _flutes_score(intent.flute_count, candidate.get("flutes")),
-        "material": _material_score(intent.material_tag, candidate.get("material_tags"), candidate.get("brand")),
+        "material": _material_score(
+            intent.material_tag, candidate.get("material_tags"), candidate.get("brand"),
+            workpiece_name=wp_name,
+        ),
         "shape": _shape_score(intent.subtype, candidate.get("subtype")),
         "coating": _coating_score(intent.coating, candidate.get("coating")),
     }
@@ -243,10 +280,13 @@ def score_candidate(candidate: dict, intent) -> tuple[float, dict[str, float]]:
 def rank_candidates(candidates: list[dict], intent, top_k: int = 5) -> list[tuple[dict, float, dict[str, float]]]:
     scored: list[tuple[dict, float, dict[str, float]]] = []
     mat_tag = getattr(intent, "material_tag", None)
+    wp_name = getattr(intent, "workpiece_name", None)
     for c in candidates:
         base, breakdown = score_candidate(c, intent)
         flagship = _brand_boost(c.get("brand"))
-        affinity = get_affinity_boost(c.get("brand"), mat_tag)
+        # Pass both — affinity prefers workpiece_name (higher res) with ISO
+        # fallback. Preserves prior behavior when workpiece_name is absent.
+        affinity = get_affinity_boost(c.get("brand"), wp_name, mat_tag)
         material_pref = _material_pref_boost(c.get("brand"), mat_tag)
         breakdown = {
             **breakdown,
