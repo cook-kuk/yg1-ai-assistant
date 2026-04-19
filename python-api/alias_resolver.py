@@ -22,7 +22,9 @@ _CACHE: dict[str, list[tuple[str, list[float]]]] = {}
 # more expensive embedding path.
 _DB_MATERIAL_MAP: dict[str, str] = {}
 
-_EMBED_MODEL = "text-embedding-3-small"
+# Embed model id — SSOT in config. Kept as a module const so the two
+# callsites below (resolve + init) don't both import it each call.
+from config import OPENAI_EMBED_MODEL as _EMBED_MODEL  # noqa: E402
 
 
 def _cosine(a: list[float], b: list[float]) -> float:

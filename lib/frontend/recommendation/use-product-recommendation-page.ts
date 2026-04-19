@@ -22,6 +22,7 @@ import {
   streamRecommendationViaPython,
 } from "@/lib/frontend/recommendation/recommendation-python-bridge"
 import {
+  DEFAULT_PAGE_SIZE,
   adaptProductsPage,
   fetchProductsPage,
 } from "@/lib/frontend/recommendation/products-api-client"
@@ -59,10 +60,8 @@ function resolveReasoningVisibility(
 }
 
 export type Phase = "intake" | "summary" | "loading" | "explore"
-// 사용자 피드백(2026-04-19): 채팅창에 한 번에 10개씩 카드로 보여주고,
-// 나머지 제품은 yg1-ai-cutting-tool-master 스타일의 간단한 페이지네이션
-// (first/prev/next/last, 페이지당 10개)으로 넘기도록 맞춤.
-const DEFAULT_PAGE_SIZE = 10
+// DEFAULT_PAGE_SIZE imported from products-api-client (SSOT). Value set
+// per 2026-04-19 UX: 10 cards per page in the chat feed.
 const RESTORE_RECOMMENDATION_ALTERNATIVES_LIMIT = 10
 
 function trimRecommendationForPersistence(

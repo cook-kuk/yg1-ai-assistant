@@ -1,6 +1,8 @@
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 
+from config import DEFAULT_PAGE_SIZE as _CFG_DEFAULT_PAGE_SIZE
+
 
 class RecommendRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
@@ -290,7 +292,7 @@ class ProductsPageRequest(BaseModel):
     session and returns a detailed page slice. No LLM round-trip."""
     session_id: str
     page: int = 0
-    pageSize: int = 20
+    pageSize: int = _CFG_DEFAULT_PAGE_SIZE
 
 
 class ProductsPageResponse(BaseModel):

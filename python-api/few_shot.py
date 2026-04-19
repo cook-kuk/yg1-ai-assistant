@@ -26,9 +26,17 @@ from typing import Any, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from session import Session
 
+from config import (
+    FEW_SHOT_MAX_SHOTS as _CFG_MAX_SHOTS,
+    FEW_SHOT_PROMPT_SHOTS as _CFG_PROMPT_SHOTS,
+    OPENAI_EMBED_MODEL as _CFG_EMBED_MODEL,
+)
+
 _PATH = Path(__file__).resolve().parent / "data" / "few_shots.json"
-MAX_SHOTS = 20      # hard cap on file
-PROMPT_SHOTS = 5    # how many to actually surface in the system prompt
+# SSOT lives in config; re-export with the original names so external
+# callers don't have to update.
+MAX_SHOTS = _CFG_MAX_SHOTS          # file cap
+PROMPT_SHOTS = _CFG_PROMPT_SHOTS    # how many to surface in the prompt
 _LOCK = threading.Lock()
 
 # Optional logger — `FEW_SHOT_DEBUG=1` env flag prints the chosen exemplars
@@ -108,7 +116,7 @@ def clear() -> None:
 # cache keyed on the message string dodges the repeat embed cost for
 # shots that haven't changed between calls. No DB, all in-process.
 
-_EMBED_MODEL = "text-embedding-3-small"
+_EMBED_MODEL = _CFG_EMBED_MODEL
 _SHOT_EMBED_CACHE: dict[str, list[float]] = {}
 
 

@@ -8,6 +8,7 @@ skipped (weight is redistributed proportionally so partial intents still rank).
 from typing import Optional
 from affinity import get_affinity, hrc_covers
 from brand_specialty import specialty_boost, SPECIALTY_WEIGHTS
+from canonical_values import FLAGSHIP_BRANDS, MICRO_BRANDS, MATERIAL_SERIES_PREF
 from db import fetch_all
 
 # Central scoring config — sub-field weights + affinity tier bonuses. Kept as
@@ -68,14 +69,9 @@ WEIGHTS = {
     "operation": SCORING_CONFIG["operation"],
 }
 
-# Tier bonuses applied on the final ranked score. Flagship lines are the
-# brands YG-1 routinely steers customers toward; micro lines are the general
-# commodity series that rarely win at the top of a recommendation.
-FLAGSHIP_BRANDS = {
-    "V7 PLUS", "X-POWER", "TitaNox-Power", "ALU-POWER", "ALU-POWER HPC", "3S MILL",
-}
-MICRO_BRANDS: set[str] = set()
-
+# Tier bonuses applied on the final ranked score. FLAGSHIP_BRANDS /
+# MICRO_BRANDS live in canonical_values.py so ops can retune without
+# touching this file.
 _FLAGSHIP_UPPER = {b.upper() for b in FLAGSHIP_BRANDS}
 _MICRO_UPPER = {b.upper() for b in MICRO_BRANDS}
 
@@ -95,17 +91,7 @@ def _brand_boost(brand: Optional[str]) -> float:
 
 
 # ── material → preferred series (ISO LV1 → canonical brand name list) ───
-# Hand-curated priority hints. When a candidate's brand appears in the list
-# for the current ISO group we add SCORING_CONFIG["material_pref"] to the
-# raw score. Missing keys = no preference expressed.
-MATERIAL_SERIES_PREF: dict[str, list[str]] = {
-    "N": ["ALU-POWER", "ALU-POWER HPC", "ALU-CUT", "CRX S"],
-    "M": ["TitaNox-Power", "X-POWER", "V7 PLUS A"],
-    "S": ["TitaNox-Power"],
-    "H": ["X-POWER", "3S MILL"],
-    "P": ["V7 PLUS", "X-POWER", "3S MILL"],
-    "K": ["V7 PLUS", "3S MILL"],
-}
+# Moved to canonical_values.MATERIAL_SERIES_PREF; imported at module top.
 
 
 def _material_pref_boost(brand: Optional[str], material_tag: Optional[str]) -> float:

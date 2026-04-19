@@ -30,28 +30,14 @@ from __future__ import annotations
 import re
 from typing import Any, Optional
 
+from patterns import FRESH_REQUEST_VERBS, FOLLOWUP_HINTS
+
 # ── Vocabulary ────────────────────────────────────────────────────────
-
-# Verbs that read as "start a new product recommendation". When any of these
-# co-occurs with a fresh anchor in the current turn, we treat it as a fresh
-# request and drop prior filter context.
-_FRESH_REQUEST_VERBS: tuple[str, ...] = (
-    # Korean
-    "추천", "보여줘", "보여주세요", "찾아줘", "찾아주세요",
-    "알려줘", "알려주세요", "보고 싶어", "보고싶어",
-    "골라줘", "뽑아줘", "제안",
-    # English
-    "recommend", "show me", "suggest", "find me", "looking for",
-)
-
-# Phrases that explicitly mean "stay within the prior turn's result set".
-# If any of these appears in the raw message, it's a genuine follow-up and
-# we do NOT apply the fresh-request reset even if the user named a new slot.
-_FOLLOWUP_HINTS: tuple[str, ...] = (
-    "이 중에서", "이중에서", "그 중에서", "그중에서", "위에서", "위 제품",
-    "방금", "이것들 중", "거기서", "위에 나온", "이 리스트", "그 리스트",
-    "from these", "among these", "from the list", "of these",
-)
+# FRESH_REQUEST_VERBS / FOLLOWUP_HINTS moved to patterns.py — same values,
+# aliased under the module-local names so the classifier below reads the
+# way it did before.
+_FRESH_REQUEST_VERBS = FRESH_REQUEST_VERBS
+_FOLLOWUP_HINTS = FOLLOWUP_HINTS
 
 # "Query-anchor" SCRIntent fields. Any one of these is a strong signal
 # that the current turn is a standalone recommendation request. Three or

@@ -21,10 +21,24 @@ from dotenv import load_dotenv
 
 from schemas import SCRIntent
 from db import fetch_all
+from config import OPENAI_LIGHT_MODEL, NEGATION_PROXIMITY_CHARS, SCR_TIMEOUT
+from canonical_values import SHANK_CANONICAL, COATING_CANONICAL
+from patterns import (
+    NEG_CUE_KR_AFTER,
+    NEG_CUE_EN_BEFORE,
+    DOUBLE_NEG_PATTERNS,
+    KR_FLUTE_RE,
+    KR_FLUTE_NUM,
+    MATERIAL_SLANG,
+    BRAND_FUZZY_DENYLIST,
+)
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-OPENAI_MODEL = os.environ.get("OPENAI_HAIKU_MODEL", "gpt-5.4-mini")
+# Back-compat alias — existing call sites still reference OPENAI_MODEL; the
+# canonical name now lives in config. Keeping this local name avoids
+# touching every downstream `from scr import OPENAI_MODEL`.
+OPENAI_MODEL = OPENAI_LIGHT_MODEL
 
 _client: OpenAI | None = None
 
@@ -58,20 +72,10 @@ def _get_brands() -> list[str]:
     return _BRAND_CACHE
 
 
-# Generic English nouns that the fuzzy fallback would otherwise prefix-match
-# to category-style brands ("tool" → "Tooling System", "mill" → "Milling
-# Insert"). These are never brand references — they're the user describing
-# what kind of cutter they want. Matched lowercased against the fuzzy-
-# candidate regex below, so only ASCII terms need listing.
-_BRAND_FUZZY_DENYLIST: set[str] = {
-    "tool", "tools", "tooling",
-    "mill", "mills", "milling",
-    "insert", "inserts",
-    "cutter", "cutters",
-    "turning",
-    "drill", "drills",
-    "endmill", "endmills",
-}
+# Module-local alias to the SSOT set in patterns.py. See its docstring
+# for the rationale (generic nouns that the fuzzy fallback would wrongly
+# prefix-match to category-style brands).
+_BRAND_FUZZY_DENYLIST = BRAND_FUZZY_DENYLIST
 
 
 def _pre_resolve_brand(message: str) -> str | None:
@@ -118,23 +122,11 @@ def _pre_resolve_brand(message: str) -> str | None:
 
 
 # Canonical vocabularies for fuzzy resolve. Brand comes from the DB (see
-# _get_brands); shank/coating are fixed per prompt schema.
-_SHANK_CANONICAL: list[str] = [
-    "Weldon",
-    "Cylindrical",
-    "Morse Taper",
-    "Straight",
-    "Flat",
-    "Flat (YG-1 Standard)",
-    "Flat (DIN 1835B)",
-]
-
-_COATING_CANONICAL: list[str] = [
-    "TiAlN", "AlTiN", "AlCrN", "TiCN", "TiN", "DLC", "Diamond",
-    "T-Coating", "Y-Coating", "X-Coating", "Z-Coating",
-    "XC-Coating", "RCH-Coating", "Hardslick",
-    "Bright Finish", "Uncoated",
-]
+# _get_brands); shank/coating are fixed and now sourced from canonical_values.
+# Local aliases keep existing call sites working while the SSOT lives in
+# canonical_values. `_fuzzy_resolve` accepts either list or tuple.
+_SHANK_CANONICAL = list(SHANK_CANONICAL)
+_COATING_CANONICAL = list(COATING_CANONICAL)
 
 
 def _levenshtein(a: str, b: str) -> int:
@@ -290,17 +282,10 @@ def _build_material_lookup() -> dict[str, str]:
     return _MATERIAL_LOOKUP
 
 
-# Industry slang / Konglish shortcuts. Resolved before the CSV lookup so
-# "스뎅 가공" hits M instantly without the regex dance. Keep the terms pure
-# Korean / konglish — English aliases are already covered by the CSV file.
-_MATERIAL_SLANG: dict[str, str] = {
-    "스뎅": "M", "스댕": "M", "스텡": "M", "스텐": "M", "서스": "M",
-    "에스유에스": "M", "수스": "M", "스텐레스": "M",
-    "알미늄": "N", "두랄루민": "N", "놋쇠": "N",
-    "인코": "S", "하스텔로이": "S",
-    "초경강": "H", "열처리강": "H", "금형강": "H",
-    "주물": "K", "회주철": "K", "덕타일": "K",
-}
+# Industry slang / Konglish shortcuts — see patterns.MATERIAL_SLANG for
+# the canonical mapping. Local alias retained so _pre_resolve_material's
+# call sites stay unchanged.
+_MATERIAL_SLANG = MATERIAL_SLANG
 
 
 def _pre_resolve_material(message: str) -> str | None:
@@ -772,11 +757,9 @@ TPI (thread_tpi):
 # Korean-word → digit for flute counts. The LLM sometimes misses these so
 # we normalize the message BEFORE sending it to the model. Regex-only
 # because "두날" ↔ "2날" is a deterministic token rewrite — no ambiguity.
-_KR_FLUTE_RE = re.compile(r"(한|두|세|네|다섯|여섯|일곱|여덟)\s*날")
-_KR_NUM: dict[str, str] = {
-    "한": "1", "두": "2", "세": "3", "네": "4",
-    "다섯": "5", "여섯": "6", "일곱": "7", "여덟": "8",
-}
+# Aliases to the SSOT regex/map in patterns.py.
+_KR_FLUTE_RE = KR_FLUTE_RE
+_KR_NUM = KR_FLUTE_NUM
 
 
 def _normalize_korean(msg: str) -> str:
@@ -800,19 +783,12 @@ def _extract_json(text: str) -> dict:
 # BEFORE the excluded term ("no DLC"), so the token that follows the cue is
 # the excluded one. Splitting the two direction classes prevents "말고" from
 # wrongly excluding the term that comes *after* it (the user's actual pick).
-_NEG_CUE_KR_AFTER = re.compile(
-    r"(말고|제외|빼고|아닌|아니고|없이|제외하고|필요\s*없|원치\s*않|원하지\s*않|안\s*써|싫어)",
-)
-_NEG_CUE_EN_BEFORE = re.compile(
-    r"(\bno\b|\bnot\b|\bexcept\b|\bwithout\b)",
-    re.IGNORECASE,
-)
-
-
-_DOUBLE_NEG_PATTERNS = (
-    "아니면 제외", "아니면 빼", "아닌 건 제외", "아닌 거 빼",
-    "아니면 빼고", "아니면 빼줘",
-)
+# Negation regexes + double-negation list now live in patterns.py.
+# Local aliases retained so the two _is_brand_excluded callsites below
+# keep the short identifier name.
+_NEG_CUE_KR_AFTER = NEG_CUE_KR_AFTER
+_NEG_CUE_EN_BEFORE = NEG_CUE_EN_BEFORE
+_DOUBLE_NEG_PATTERNS = DOUBLE_NEG_PATTERNS
 
 
 def _is_brand_excluded(message: str, brand: str) -> bool:
@@ -853,11 +829,11 @@ def _is_brand_excluded(message: str, brand: str) -> bool:
         if pos < 0:
             continue
         # KR — cue AFTER the brand
-        tail = msg_lc[pos + len(variant): pos + len(variant) + 15]
+        tail = msg_lc[pos + len(variant): pos + len(variant) + NEGATION_PROXIMITY_CHARS]
         if _NEG_CUE_KR_AFTER.search(tail):
             return True
         # EN — cue BEFORE the brand
-        head = msg_lc[max(0, pos - 15): pos]
+        head = msg_lc[max(0, pos - NEGATION_PROXIMITY_CHARS): pos]
         if _NEG_CUE_EN_BEFORE.search(head):
             return True
     return False
@@ -921,7 +897,7 @@ def parse_intent(message: str, session: Any = None) -> SCRIntent:
         except Exception:
             pass
 
-    resp = client.with_options(timeout=30.0).chat.completions.create(
+    resp = client.with_options(timeout=SCR_TIMEOUT).chat.completions.create(
         model=OPENAI_MODEL,
         messages=[
             {"role": "system", "content": _system_prompt(message, session)},

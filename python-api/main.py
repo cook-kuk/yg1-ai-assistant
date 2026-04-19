@@ -51,6 +51,16 @@ from product_index import (
 )
 from clarify import suggest_clarifying_chips
 from session import get_or_create as session_get_or_create, add_turn, carry_forward_intent
+from patterns import NEG_BRAND_RE, NARROW_PHRASES
+from config import (
+    TOP_K,
+    PREVIOUS_PRODUCTS_CAP,
+    XAI_NARRATIVE_TOP,
+    SEARCH_LIMIT,
+    SERIES_QUERY_LIMIT,
+    DEFAULT_PAGE_SIZE as _CFG_DEFAULT_PAGE_SIZE,
+    MAX_PAGE_SIZE as _CFG_MAX_PAGE_SIZE,
+)
 from scheduler import scheduler
 from cutting import (
     get_cutting_conditions,
@@ -171,7 +181,7 @@ def _series_profile_chips(ranked: list, max_chips: int = 3) -> list[str]:
     (top-10 이 완전 고유 series 로만 구성됐거나 MV 캐시 미스)."""
     if not ranked:
         return []
-    names = [c.get("series") for c, _, _ in ranked[:10] if c.get("series")]
+    names = [c.get("series") for c, _, _ in ranked[:TOP_K] if c.get("series")]
     if not names:
         return []
     out: list[str] = []
@@ -336,7 +346,7 @@ def recommend(req: RecommendRequest) -> RecommendResponse:
         coating=intent.coating,
         tool_material=intent.tool_material,
         shank_type=intent.shank_type,
-        limit=200,
+        limit=SERIES_QUERY_LIMIT,
     )
 
     ranked = rank_candidates(rows, intent, top_k=5)
@@ -477,29 +487,11 @@ def _filters_to_dict(filters: ManualFilters | None, intent: SCRIntent) -> dict:
     return base
 
 
-# Negation cues that signal "I don't want this brand" — broader than scr.py's
-# prompt rule 5 (말고/제외/빼고/아닌/not/except/no) because users paraphrase a
-# lot. When a brand canonical appears within ~30 chars of one of these cues
-# we treat it as an exclusion even if the LLM extracted it as intent.brand.
-_NEG_BRAND_RE = re.compile(
-    r"(필요\s*없|빼\s*줘|빼고|제외|원치\s*않|원하지\s*않|"
-    r"안\s*써|안\s*해|이미\s*(샀|구매|있)|말고|별로|싫)",
-)
-
-
-# Anaphoric phrases that explicitly point at the prior result set. Only when
-# the message contains one of these — OR the new intent adds a field that
-# wasn't already carried — do we restrict the next search to the last turn's
-# top-products. Without this guard, vague follow-ups ("전체 보기", "의료 기기
-# 만들거에요") would permanently cap the candidate pool at the first turn's
-# top 50. See regression that surfaced as "후보 53개" in 2026-04-19 QA.
-_NARROW_PHRASES = (
-    "이 중에서", "이 중", "그 중에서", "그 중", "그중",
-    "여기서", "여기 중", "여기에서",
-    "저 중에서", "저 중",
-    "이거 중", "이중에",
-    "in this", "from these",
-)
+# Aliases — see patterns.py for the SSOT regex and phrase list. Keeping
+# the leading-underscore names means the handler code below doesn't need
+# to change.
+_NEG_BRAND_RE = NEG_BRAND_RE
+_NARROW_PHRASES = NARROW_PHRASES
 
 
 def _force_recommendation_on_followup(intent, message: Optional[str], session) -> None:
@@ -924,9 +916,9 @@ async def products(req: ProductsRequest) -> ProductsResponse:
             return search_products(
                 **{k: v for k, v in filt.items()
                    if k in search_products.__code__.co_varnames},
-                limit=125_000,
+                limit=SEARCH_LIMIT,
             )
-        return search_products_fast(filt, limit=125_000)
+        return search_products_fast(filt, limit=SEARCH_LIMIT)
 
     rows = _run_search()
     sources.append(SourceAttribution(
@@ -991,7 +983,7 @@ async def products(req: ProductsRequest) -> ProductsResponse:
     # 3. Build response product lists. Cutting conditions are pulled in a
     #    single bulk call so each ProductCard ships with its recommended
     #    Vc/Fz/RPM rows without the UI needing a second round-trip.
-    top10_raw = [c for c, _, _ in ranked[:10]]
+    top10_raw = [c for c, _, _ in ranked[:TOP_K]]
     try:
         conditions_map = get_conditions_for_products(top10_raw, iso=intent.material_tag)
     except Exception:
@@ -1007,7 +999,7 @@ async def products(req: ProductsRequest) -> ProductsResponse:
     # `chat_result` is generated further down (after the CoT round-trip),
     # so rationale gets patched post-hoc below. matched_fields can be set
     # inline since the scorer has everything it needs.
-    for c, s, b in ranked[:10]:
+    for c, s, b in ranked[:TOP_K]:
         edp = str(c.get("edp_no") or "")
         stock_qty = _coerce_int(c.get("total_stock"))
         top10.append(ProductCard(
@@ -1143,7 +1135,7 @@ async def products(req: ProductsRequest) -> ProductsResponse:
                 generate_response,
                 req.message,
                 intent,
-                [c for c, _, _ in ranked[:10]],
+                [c for c, _, _ in ranked[:TOP_K]],
                 knowledge,
                 len(ranked),
                 relaxed_fields or None,
@@ -1174,7 +1166,7 @@ async def products(req: ProductsRequest) -> ProductsResponse:
         raw_answer = _build_answer(intent, ranked, cutting_range)
 
     extra_safe: set[str] = set()
-    for c, _, _ in ranked[:10]:
+    for c, _, _ in ranked[:TOP_K]:
         for key in ("edp_no", "brand", "series"):
             val = c.get(key)
             if val:
@@ -1182,7 +1174,7 @@ async def products(req: ProductsRequest) -> ProductsResponse:
     cleaned_answer, _removed = scrub(raw_answer, extra_safe=extra_safe)
 
     # Persist the turn so the next follow-up can narrow/carry state.
-    edp_list = [c.get("edp_no") for c, _, _ in ranked[:50] if c.get("edp_no")]
+    edp_list = [c.get("edp_no") for c, _, _ in ranked[:PREVIOUS_PRODUCTS_CAP] if c.get("edp_no")]
     intent_dict = {
         "intent": intent.intent,
         "diameter": intent.diameter,
@@ -1214,7 +1206,7 @@ async def products(req: ProductsRequest) -> ProductsResponse:
             products=edp_list,
             total_count=len(ranked),
             answer_preview=cleaned_answer,
-            top_products=[c for c, _, _ in ranked[:3]],
+            top_products=[c for c, _, _ in ranked[:XAI_NARRATIVE_TOP]],
         )
 
     # Prepend series-profile chips so the UI surfaces "이 시리즈는 N-Mmm,
@@ -1263,10 +1255,10 @@ def products_page(req: ProductsPageRequest) -> ProductsPageResponse:
         raise HTTPException(status_code=404, detail=f"session '{req.session_id}' not found or expired")
 
     page = max(0, int(req.page))
-    page_size = max(1, min(int(req.pageSize), 100))
+    page_size = max(1, min(int(req.pageSize), _CFG_MAX_PAGE_SIZE))
 
     filters = dict(session.current_filters)
-    rows = search_products_fast(filters, limit=125_000)
+    rows = search_products_fast(filters, limit=SEARCH_LIMIT)
 
     # No narrow-by-previous-products here — current_filters already encodes
     # whatever the last turn narrowed down to (carry_forward_intent merges
@@ -1529,10 +1521,10 @@ async def products_stream(req: ProductsRequest):
                 rows = search_products(
                     **{k: v for k, v in filters.items()
                        if k in search_products.__code__.co_varnames},
-                    limit=125_000,
+                    limit=SEARCH_LIMIT,
                 )
             else:
-                rows = search_products_fast(filters, limit=125_000)
+                rows = search_products_fast(filters, limit=SEARCH_LIMIT)
             # Follow-up narrow + relax — only when the user signaled a
             # drill-down (anaphor or added-field intent). See the sync
             # /products endpoint for the same guard.
@@ -1567,7 +1559,7 @@ async def products_stream(req: ProductsRequest):
             cutting_range_stream = None
 
         top10_payload = []
-        for c, s, b in ranked[:10]:
+        for c, s, b in ranked[:TOP_K]:
             stock_qty_stream = _coerce_int(c.get("total_stock"))
             top10_payload.append({
                 "edp_no": c.get("edp_no"),
@@ -1625,7 +1617,7 @@ async def products_stream(req: ProductsRequest):
             from chat import _assess_cot_level, stream_strong_cot
             cot_level_stream = _assess_cot_level(
                 req.message, intent,
-                [c for c, _, _ in ranked[:10]],
+                [c for c, _, _ in ranked[:TOP_K]],
                 knowledge, len(ranked), None,
             )
             req_filters_dump = req.filters.model_dump() if req.filters else None
@@ -1645,7 +1637,7 @@ async def products_stream(req: ProductsRequest):
                 try:
                     async for ev_type, payload in stream_strong_cot(
                         req.message, intent,
-                        [c for c, _, _ in ranked[:10]],
+                        [c for c, _, _ in ranked[:TOP_K]],
                         knowledge, len(ranked), None, None,
                         clarify_payload_stream,
                         stock_summary_stream, cutting_range_stream,
@@ -1668,7 +1660,7 @@ async def products_stream(req: ProductsRequest):
                     chat_result = await asyncio.to_thread(
                         generate_response,
                         req.message, intent,
-                        [c for c, _, _ in ranked[:10]],
+                        [c for c, _, _ in ranked[:TOP_K]],
                         knowledge,
                         len(ranked),
                         None,
@@ -1690,7 +1682,7 @@ async def products_stream(req: ProductsRequest):
             yield f"event: answer\ndata: {_json.dumps(chat_result, ensure_ascii=False)}\n\n"
 
         # Persist the turn so subsequent stream calls keep state.
-        edp_list = [c.get("edp_no") for c, _, _ in ranked[:50] if c.get("edp_no")]
+        edp_list = [c.get("edp_no") for c, _, _ in ranked[:PREVIOUS_PRODUCTS_CAP] if c.get("edp_no")]
         intent_dump = intent.model_dump()
         add_turn(
             session, role="user",
@@ -1707,7 +1699,7 @@ async def products_stream(req: ProductsRequest):
                 products=edp_list,
                 total_count=len(ranked),
                 answer_preview=ans_stream,
-                top_products=[c for c, _, _ in ranked[:3]],
+                top_products=[c for c, _, _ in ranked[:XAI_NARRATIVE_TOP]],
             )
 
         yield "event: done\ndata: {}\n\n"

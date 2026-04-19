@@ -47,6 +47,32 @@ OPENAI_EMBED_MODEL = envStr("OPENAI_EMBED_MODEL", "text-embedding-3-small")
 SESSION_TTL_SEC = int(envNum("SESSION_TTL_SEC", 60 * 60))          # 1 hour idle
 SESSION_CLEANUP_INTERVAL_SEC = int(envNum("SESSION_CLEANUP_INTERVAL_SEC", 5 * 60))
 
+# ── Search / ranking / pagination ────────────────────────────────────
+# How many detailed ProductCards /products returns per response.
+TOP_K = envInt("ARIA_TOP_K", 10)
+# EDPs persisted on session.previous_products for anaphoric narrow.
+PREVIOUS_PRODUCTS_CAP = envInt("ARIA_PREV_PRODUCTS_CAP", 50)
+# Top-N fed to xAI narrative generation.
+XAI_NARRATIVE_TOP = envInt("ARIA_XAI_TOP", 3)
+# Hard cap for search_products_fast — well past the deduped index size
+# so full-catalog passes aren't truncated.
+SEARCH_LIMIT = envInt("ARIA_SEARCH_LIMIT", 125_000)
+# Series-profile lookup cap (narrower than product search).
+SERIES_QUERY_LIMIT = envInt("ARIA_SERIES_LIMIT", 200)
+# Candidate-panel page-size server-side fallbacks.
+DEFAULT_PAGE_SIZE = envInt("ARIA_PAGE_SIZE", 20)
+MAX_PAGE_SIZE = envInt("ARIA_MAX_PAGE_SIZE", 100)
+
+# ── ProductIndex ─────────────────────────────────────────────────────
+PRODUCT_INDEX_REFRESH_SEC = envInt("ARIA_INDEX_REFRESH", 2 * 60 * 60)  # 2h
+DIAMETER_TOLERANCE = envNum("ARIA_DIA_TOLERANCE", 0.10)  # ±10 %
+
+# ── LLM timeouts (seconds) ──────────────────────────────────────────
+SCR_TIMEOUT = envNum("ARIA_SCR_TIMEOUT", 30.0)
+LIGHT_COT_TIMEOUT = envNum("ARIA_LIGHT_COT_TIMEOUT", 30.0)
+STRONG_COT_DRAFT_TIMEOUT = envNum("ARIA_STRONG_DRAFT_TIMEOUT", 45.0)
+STRONG_COT_VERIFY_TIMEOUT = envNum("ARIA_STRONG_VERIFY_TIMEOUT", 20.0)
+
 # ── Few-shot pool ────────────────────────────────────────────────────
 FEW_SHOT_MAX_SHOTS = envInt("FEW_SHOT_MAX_SHOTS", 20)       # file cap
 FEW_SHOT_PROMPT_SHOTS = envInt("FEW_SHOT_PROMPT_SHOTS", 5)  # surfaced in prompt

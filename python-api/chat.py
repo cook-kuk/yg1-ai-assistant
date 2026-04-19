@@ -24,9 +24,28 @@ from typing import Any
 from openai import OpenAI, AsyncOpenAI
 from dotenv import load_dotenv
 
+from config import (
+    OPENAI_LIGHT_MODEL,
+    OPENAI_STRONG_MODEL as _CFG_STRONG_MODEL,
+    DUAL_COT_STRONG_THRESHOLD as _CFG_STRONG_THRESHOLD,
+    DUAL_COT_PARTIAL_CHARS as _CFG_PARTIAL_CHARS,
+    LIGHT_COT_TIMEOUT,
+    STRONG_COT_DRAFT_TIMEOUT,
+    STRONG_COT_VERIFY_TIMEOUT,
+)
+from patterns import (
+    COMPARE_SIGNALS,
+    WHY_SIGNALS,
+    TROUBLE_SIGNALS,
+    DISSAT_SIGNALS,
+)
+
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-OPENAI_MODEL = os.environ.get("OPENAI_HAIKU_MODEL", "gpt-5.4-mini")
+# Back-compat alias — OPENAI_MODEL is the light-tier model id used by the
+# SCR, light CoT, and verifier call sites. Canonical name now lives in
+# config (OPENAI_LIGHT_MODEL).
+OPENAI_MODEL = OPENAI_LIGHT_MODEL
 
 _client: OpenAI | None = None
 _aclient: AsyncOpenAI | None = None
@@ -583,7 +602,7 @@ def _generate_light_cot(
         # in 5–10 s, but an occasional stall was blowing past the client's
         # 60 s budget and returning as -1 in the stress test. 30 s is a soft
         # ceiling that still lets the normal case through comfortably.
-        timeout=30,
+        timeout=LIGHT_COT_TIMEOUT,
     )
     text = resp.choices[0].message.content or ""
     data = _extract_json(text)
@@ -633,17 +652,17 @@ def _generate_light_cot(
 # Env-override for the strong model so ops can swap in another Opus-tier
 # variant without code change. Kept separate from OPENAI_HAIKU_MODEL (the
 # light-path ID, read at module load into OPENAI_MODEL).
-OPENAI_STRONG_MODEL = os.environ.get("OPENAI_SONNET_MODEL", "gpt-5.4")
+# Module-local aliases to the SSOT values (config.py + patterns.py).
+# Retained with the underscore-prefixed names so the rest of the file's
+# assessment logic stays untouched.
+OPENAI_STRONG_MODEL = _CFG_STRONG_MODEL
 
-_COMPARE_SIGNALS = ("비교", "차이", "뭐가 나아", "어떤 게", "vs", "장단점", "둘 중", "어느 게")
-_WHY_SIGNALS = ("왜", "이유", "근거", "어째서", "왜냐", "because")
-_TROUBLE_SIGNALS = (
-    "떨림", "파손", "수명", "마모", "채터", "진동",
-    "깨짐", "부러", "문제", "안 돼", "안돼", "이상", "불량",
-)
-_DISSAT_SIGNALS = ("아니", "그거 말고", "다시", "다른 거", "다른거", "안 맞", "안맞", "틀렸", "말고")
+_COMPARE_SIGNALS = COMPARE_SIGNALS
+_WHY_SIGNALS = WHY_SIGNALS
+_TROUBLE_SIGNALS = TROUBLE_SIGNALS
+_DISSAT_SIGNALS = DISSAT_SIGNALS
 
-_STRONG_THRESHOLD = int(os.environ.get("DUAL_COT_STRONG_THRESHOLD", "3"))
+_STRONG_THRESHOLD = _CFG_STRONG_THRESHOLD
 
 
 def _assess_cot_level(
@@ -839,7 +858,7 @@ def _generate_strong_cot(
             # Hard cap — the UI's 60s client budget leaves no room for a
             # silent stall here. On timeout the except below drops to light,
             # which still returns a usable answer instead of -1/HTTP error.
-            timeout=45,
+            timeout=STRONG_COT_DRAFT_TIMEOUT,
         )
         draft_text = draft_resp.choices[0].message.content or ""
     except Exception:
@@ -895,7 +914,7 @@ def _generate_strong_cot(
             # Verifier is the smaller model with less reasoning budget — 20s
             # is plenty. Draft already passed, so a verify stall is the only
             # remaining slow path.
-            timeout=20,
+            timeout=STRONG_COT_VERIFY_TIMEOUT,
         )
         verified = _extract_json(verify_resp.choices[0].message.content or "")
         # Only trust the verifier if it returned an answer; otherwise keep
@@ -1078,10 +1097,8 @@ def _normalize_chips_list(raw) -> list[str]:
     return out
 
 
-# Emit a partial_answer frame roughly every this many characters. Tuned
-# so the user sees progress within the first 1–2 seconds of the draft
-# stream without flooding the SSE channel.
-_PARTIAL_CHUNK_CHARS = int(os.environ.get("DUAL_COT_PARTIAL_CHARS", "50"))
+# Chunk-emit cadence for the partial_answer SSE frame — SSOT in config.
+_PARTIAL_CHUNK_CHARS = _CFG_PARTIAL_CHARS
 
 
 async def stream_strong_cot(
@@ -1145,7 +1162,7 @@ async def stream_strong_cot(
             # Stream init stall guard — if the model never starts emitting
             # within 45s, drop to light fallback (below) so the SSE client
             # sees a real `answer` frame rather than a hung connection.
-            timeout=45,
+            timeout=STRONG_COT_DRAFT_TIMEOUT,
         )
         async for chunk in stream:
             choices = getattr(chunk, "choices", None) or []
@@ -1219,7 +1236,7 @@ async def stream_strong_cot(
             ],
             response_format={"type": "json_object"},
             reasoning_effort="low",
-            timeout=20,
+            timeout=STRONG_COT_VERIFY_TIMEOUT,
         )
         return _extract_json(resp.choices[0].message.content or "")
 

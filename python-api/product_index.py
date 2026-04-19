@@ -12,13 +12,19 @@ import re
 import threading
 from typing import Any, Optional
 
+from config import (
+    DIAMETER_TOLERANCE as _DIAMETER_TOLERANCE_CFG,
+    PRODUCT_INDEX_REFRESH_SEC as _REFRESH_INTERVAL_SEC_CFG,
+    SEARCH_LIMIT as _SEARCH_LIMIT_CFG,
+)
 from db import fetch_all
+from patterns import UNCOATED_LABELS
 from search import SELECT_COLS, MV_TABLE
 
 _INDEX: list[dict] | None = None
 _LOCK = threading.Lock()
-_REFRESH_INTERVAL_SEC = 2 * 60 * 60  # 2 hours
-_DEFAULT_DIAMETER_TOLERANCE = 0.10   # ±10%, matches search_products heuristic
+_REFRESH_INTERVAL_SEC = _REFRESH_INTERVAL_SEC_CFG
+_DEFAULT_DIAMETER_TOLERANCE = _DIAMETER_TOLERANCE_CFG  # ±10%, matches search_products heuristic
 
 _NUMERIC_RE = re.compile(r"^-?\d+(?:\.\d+)?$")
 
@@ -117,13 +123,14 @@ def _dedupe_by_edp(rows: list[dict]) -> list[dict]:
 
 def _coating_rank(coating: Any) -> int:
     """Higher is more informative. Non-empty non-UNCOATED beats UNCOATED
-    beats empty."""
+    beats empty. UNCOATED_LABELS comes from patterns.py so the coating
+    label vocabulary stays in one place."""
     if coating is None:
         return 0
     s = str(coating).strip()
     if not s:
         return 0
-    if s.upper() in ("UNCOATED", "BRIGHT FINISH"):
+    if s.upper() in UNCOATED_LABELS:
         return 1
     return 2
 
@@ -327,7 +334,7 @@ def needs_db_path(filters: dict) -> bool:
     return drill or thread
 
 
-def search_products_fast(filters: dict, limit: int = 125_000) -> list[dict]:
+def search_products_fast(filters: dict, limit: int = _SEARCH_LIMIT_CFG) -> list[dict]:
     """Filter the cached index in Python. Mirrors search.search_products
     behavior so /products output stays identical to the DB path."""
     index = load_index()

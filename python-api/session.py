@@ -26,8 +26,14 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
-SESSION_TTL_SEC = 60 * 60  # 1 hour idle
-_CLEANUP_INTERVAL_SEC = 5 * 60  # sweep every 5 min
+from config import SESSION_TTL_SEC as _SESSION_TTL_SEC_CFG, SESSION_CLEANUP_INTERVAL_SEC as _CLEANUP_INTERVAL_SEC_CFG
+from canonical_values import INVALID_BRANDS as _INVALID_BRANDS_CFG
+
+# Module-level aliases sourced from config/canonical_values (SSOT). Kept
+# here with the same names so the sweeper Timer and carry_forward_intent
+# keep reading the same identifiers.
+SESSION_TTL_SEC = _SESSION_TTL_SEC_CFG
+_CLEANUP_INTERVAL_SEC = _CLEANUP_INTERVAL_SEC_CFG
 
 _SESSIONS: dict[str, "Session"] = {}
 _LOCK = threading.Lock()
@@ -198,18 +204,11 @@ def session_count() -> int:
     return len(_SESSIONS)
 
 
-# Category-style "brands" the LLM sometimes hallucinates from generic nouns
-# like "tool" or "insert" in the user's message. Blocking them from carry-
-# forward means a stale "Tooling System" on turn 1 can't poison turn 2's
-# search after the prompt fix makes the LLM stop emitting them.
-INVALID_BRANDS: set[str] = {
-    "Tooling System",
-    "Milling Insert",
-    "ADKT Cutter",
-    "MORSE TAPER SHANK DRILLS",
-    "Morse Taper Shank Drills",
-    "Turning",
-}
+# Category-style "brands" blacklist — single source in canonical_values.
+# The carry-forward filter reads this to avoid resurrecting a stale
+# "Tooling System" misparse on follow-up turns. Kept as a module name so
+# external importers (`from session import INVALID_BRANDS`) still work.
+INVALID_BRANDS = _INVALID_BRANDS_CFG
 
 
 def carry_forward_intent(session: Session, intent: Any) -> Any:
